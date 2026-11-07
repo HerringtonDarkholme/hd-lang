@@ -120,27 +120,26 @@
     i32.add
     global.set $locals
   )
-  (func $advance (param $bodies i32) (param $dt f64) (local $n i32) (local $t0 i32) (local $t1 i32) (local $i'1 i32) (local $t2 i32) (local $i'2 i32) (local $t3 f64)
+  (func $advance (param $bodies i32) (param $dt f64) (local $n i32) (local $t3 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $i i32) (local $t4 f64) (local $t5 i32)
     ;; 12 |     n := bodies.len()
     block
+    ;; 13 |     for i in 0..n:
+      local.get $n
+    ;; 12 |     n := bodies.len()
       local.get $bodies
       i32.load $heap
       i32.load $heap offset=4
       local.tee $n
     ;; 13 |     for i in 0..n:
-      i32.const 0
-      local.set $t0
-      local.set $t1
-      local.get $t0
-      local.get $t1
+      local.tee $t0
       i32.lt_u
       if
         local.get $bodies
         i32.load $heap
-        local.tee $i'1
+        local.tee $t1
         call $rt:list_unique
         local.tee $t2
-        local.get $i'1
+        local.get $t1
         i32.ne
         if
           local.get $bodies
@@ -150,66 +149,65 @@
       end
       local.get $bodies
       i32.load $heap
-      local.tee $i'1
+      local.tee $t1
       i32.load $heap offset=4
       local.set $t2
       block
         loop
+          local.get $t3
           local.get $t0
-          local.get $t1
           i32.lt_u
           i32.eqz
           br_if 1
-          local.get $t0
-          local.set $i'2
-          local.get $t0
+          local.get $t3
+          local.set $i
+          local.get $t3
           i32.const 1
           i32.add
-          local.set $t0
+          local.set $t3
     ;; 14 |         bodies[i].v = bodies[i].v + dt
-          local.get $i'1
-          local.get $i'2
+          local.get $t1
+          local.get $i
           i32.const 16
           i32.mul
           i32.add
           f64.load $heap offset=24
           local.get $dt
           f64.add
-          local.set $t3
-          local.get $i'2
+          local.set $t4
+          local.get $i
           local.get $t2
           i32.ge_u
           if
             call $rt:panic
             unreachable
           end
-          local.get $i'1
-          local.get $i'2
+          local.get $t1
+          local.get $i
           i32.const 16
           i32.mul
           i32.add
-          local.get $t3
+          local.get $t4
           f64.store $heap offset=24
     ;; 13 |     for i in 0..n:
           br 0
         end
       end
     ;; 15 |     for i in 0..n:
-      i32.const 0
-      local.tee $t0
+      local.get $t5
       local.get $n
       i32.lt_u
       if
         local.get $bodies
         i32.load $heap
-        local.tee $t1
+        local.tee $t3
         call $rt:list_unique
-        local.tee $i'1
-        local.get $t1
+        local.tee $t0
+        local.get $t3
         i32.ne
         if
           local.get $bodies
-          local.get $i'1
+          local.get $t0
           i32.store $heap
         end
       end
@@ -217,50 +215,50 @@
       i32.load $heap
       local.tee $bodies
       i32.load $heap offset=4
-      local.set $t1
+      local.set $t3
       block
         loop
-          local.get $t0
+          local.get $t5
           local.get $n
           i32.lt_u
           i32.eqz
           br_if 1
-          local.get $t0
-          local.set $i'1
-          local.get $t0
+          local.get $t5
+          local.set $t0
+          local.get $t5
           i32.const 1
           i32.add
-          local.set $t0
+          local.set $t5
     ;; 16 |         bodies[i].x = bodies[i].x + dt * bodies[i].v
           local.get $bodies
-          local.get $i'1
+          local.get $t0
           i32.const 16
           i32.mul
           i32.add
           f64.load $heap offset=16
           local.get $dt
           local.get $bodies
-          local.get $i'1
+          local.get $t0
           i32.const 16
           i32.mul
           i32.add
           f64.load $heap offset=24
           f64.mul
           f64.add
-          local.set $t3
-          local.get $i'1
-          local.get $t1
+          local.set $t4
+          local.get $t0
+          local.get $t3
           i32.ge_u
           if
             call $rt:panic
             unreachable
           end
           local.get $bodies
-          local.get $i'1
+          local.get $t0
           i32.const 16
           i32.mul
           i32.add
-          local.get $t3
+          local.get $t4
           f64.store $heap offset=16
     ;; 15 |     for i in 0..n:
           br 0

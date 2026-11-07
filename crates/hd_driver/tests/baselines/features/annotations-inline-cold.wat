@@ -113,14 +113,10 @@
   (func $checksum'1 (param $xs i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $x.1 i32)
     ;; 15 |     let mut n = 0
     block
-      i32.const 0
-      local.set $n
     ;; 16 |     for x in xs:
       local.get $xs
       i32.load $heap offset=4
       local.set $t0
-      i32.const 0
-      local.set $t1
       block
         loop
           local.get $t1
@@ -377,16 +373,12 @@
   (func $checksum'2 (param $xs i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $x.1 i32)
     ;; 15 |     let mut n = 0
     block
-      i32.const 0
-      local.set $n
     ;; 16 |     for x in xs:
       local.get $xs
       i32.load $heap
       local.tee $xs
       i32.load $heap offset=4
       local.set $t0
-      i32.const 0
-      local.set $t1
       block
         loop
           local.get $t1

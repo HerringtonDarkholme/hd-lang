@@ -29,7 +29,7 @@
     local.get $photo.width
     local.get $photo.tags
   )
-  (func $uniq (param $xs.buffer.address i32) (param $xs.buffer.capacity i32) (param $xs.len i32) (param $s.0 i32) (param $s.1 i32) (result i32 i32 i32) (local $ys i32) (local $t3 i32) (local $t4 i32) (local $t2 i32) (local $t1 i32) (local $t0 i32) (local $t5 i32)
+  (func $uniq (param $xs.buffer.address i32) (param $xs.buffer.capacity i32) (param $xs.len i32) (param $s.0 i32) (param $s.1 i32) (result i32 i32 i32) (local $ys i32) (local $t4 i32) (local $t2 i32) (local $t1 i32) (local $t0 i32) (local $t3 i32)
     ;; 31 |     let mut ys = xs
     global.get $locals
     global.get $locals_base
@@ -68,10 +68,6 @@
       local.set $t2
       local.set $ys
       i32.const 0
-      local.set $t3
-      i32.const 0
-      local.set $t4
-      i32.const 0
       local.set $xs.buffer.address
       i32.const 0
       local.set $xs.buffer.capacity
@@ -83,31 +79,31 @@
       local.get $t0
       i32.const 8
       i32.add
-      local.tee $t5
+      local.tee $t3
       local.get $ys
       i32.store $heap
-      local.get $t5
+      local.get $t3
       local.get $t2
       i32.store $heap offset=4
-      local.get $t5
+      local.get $t3
       local.get $t1
       i32.store $heap offset=8
-      local.get $t5
+      local.get $t3
       i32.const 1
       i32.store $heap offset=12
-      local.get $t5
+      local.get $t3
       i32.const 1
       i32.store $heap offset=16
-      local.get $t5
+      local.get $t3
       i32.const 1
       i32.store $heap offset=20
-      local.get $t5
+      local.get $t3
       i32.const 1
       i32.store $heap offset=24
-      local.get $t5
+      local.get $t3
       i32.const 1
       i32.store $heap offset=28
-      local.get $t5
+      local.get $t3
       local.tee $ys
     ;; 32 |     ys.push(s)
       local.set $t2
@@ -125,11 +121,11 @@
             block
               local.get $t2
               i32.load $heap offset=4
-              local.set $t5
+              local.set $t3
               br 0
             end
           end
-          local.get $t5
+          local.get $t3
           local.get $t1
           i32.le_u
           if
@@ -147,14 +143,14 @@
               i32.const 8
               i32.mul
               i32.add
-              local.set $t5
+              local.set $t3
               br 0
             end
           end
-          local.get $t5
+          local.get $t3
           local.get $s.0
           i32.store $heap
-          local.get $t5
+          local.get $t3
           local.get $s.1
           i32.store $heap offset=4
           local.get $t1
@@ -191,7 +187,7 @@
     local.get $xs.buffer.address
     local.get $xs.buffer.capacity
     local.get $xs.len
-    local.get $t3
+    local.get $t4
     local.get $t4
     call $rt:drop_value
     local.get $s.0

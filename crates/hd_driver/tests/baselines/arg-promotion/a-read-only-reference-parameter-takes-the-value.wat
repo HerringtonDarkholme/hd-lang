@@ -54,12 +54,7 @@
     i32.wrap_i64
   )
   (func $"total[i32]" (param $x i32) (param $n i32) (result i32) (local $s i32) (local $t0 i32)
-    ;; 25 |     let mut s = +0
-    i32.const 0
-    local.set $s
     ;; 26 |     for _ in 0..n:
-    i32.const 0
-    local.set $t0
     block
       loop
         local.get $t0

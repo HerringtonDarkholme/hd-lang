@@ -2,8 +2,6 @@
 (module
   (func $or_zero (param $found.0 i32) (param $found.1 i64) (result i64) (local $t0 i64)
     ;; 6 |     found.unwrap_or(0)
-    i64.const 0
-    local.set $t0
     block
       block
         block

@@ -7,8 +7,6 @@
   (func $write (param $xs i32) (param $n i32) (local $t0 i32) (local $i i32) (local $t1 i32)
     ;; 9 |     for i in 0..n:
     block
-      i32.const 0
-      local.set $t0
       block
         loop
           local.get $t0

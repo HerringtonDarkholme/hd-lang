@@ -276,7 +276,7 @@
     i32.add
     global.set $locals
   )
-  (func $declared (param $c i32) (result i32) (local $u i32) (local $t2 i32) (local $t1 i32) (local $t0 i32) (local $t3 i32)
+  (func $declared (param $c i32) (result i32) (local $t4 i32) (local $u i32) (local $t2 i32) (local $t1 i32) (local $t0 i32) (local $t3 i32)
     ;; 39 |     u := fresh()
     global.get $locals
     global.get $locals_base
@@ -352,7 +352,7 @@
           block
             local.get $u
             i32.load $heap offset=8
-            local.set $c
+            local.set $t4
             br 0
           end
         end
@@ -382,8 +382,6 @@
       end
       i32.const 0
       local.set $u
-      i32.const 0
-      local.set $c
     end
     local.get $u
     if
@@ -405,7 +403,7 @@
       i32.const 0
       i32.store $heap offset=28
     end
-    local.get $c
+    local.get $t4
     local.get $t0
     i32.const 40
     i32.add

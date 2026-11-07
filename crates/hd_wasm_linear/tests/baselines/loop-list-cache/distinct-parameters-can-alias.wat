@@ -4,68 +4,66 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 4 funcref))
-  (func $read_after_resize (param $read i32) (param $write i32) (result i32) (local $total i32) (local $t0 i32) (local $t1 i32) (local $i i32) (local $t2 i32) (local $t3 i32)
+  (func $read_after_resize (param $read i32) (param $write i32) (result i32) (local $total i32) (local $t2 i32) (local $t0 i32) (local $i i32) (local $t1 i32) (local $t3 i32)
     block
-      ;; ...
     ;; 7 |     for i in 0..3:
-      i32.const 0
-      local.tee $t0
+      local.get $total
       i32.const 3
-      local.tee $t1
+      local.tee $t0
       i32.lt_u
       if
         local.get $write
         i32.load $heap
         local.tee $i
         call $rt:list_unique
-        local.tee $t2
+        local.tee $t1
         local.get $i
         i32.ne
         if
           local.get $write
-          local.get $t2
+          local.get $t1
           i32.store $heap
         end
       end
       block
         loop
+          local.get $t2
           local.get $t0
-          local.get $t1
           i32.lt_u
           i32.eqz
           br_if 1
-          local.get $t0
+          local.get $t2
           local.set $i
-          local.get $t0
+          local.get $t2
           i32.const 1
           i32.add
-          local.set $t0
+          local.set $t2
           local.get $write
           i32.load $heap
     ;; 8 |         write.push(i)
-          local.tee $t2
+          local.tee $t1
           i32.load $heap offset=4
           local.tee $t3
-          local.get $t2
+          local.get $t1
           i32.load $heap
           i32.eq
           if
-            local.get $t2
+            local.get $t1
             i32.const 1
             call_indirect $table0 (param i32) (result i32)
-            local.set $t2
+            local.set $t1
             local.get $write
-            local.get $t2
+            local.get $t1
             i32.store $heap
           end
-          local.get $t2
+          local.get $t1
           local.get $t3
           i32.const 4
           i32.mul
           i32.add
           local.get $i
           i32.store $heap offset=16
-          local.get $t2
+          local.get $t1
           local.get $t3
           i32.const 1
           i32.add
@@ -77,7 +75,7 @@
           local.get $read
           i32.load $heap
           local.set $i
-          local.tee $t2
+          local.tee $t1
           local.get $i
           i32.load $heap offset=4
           i32.ge_u
@@ -87,7 +85,7 @@
           end
           local.get $total
           local.get $i
-          local.get $t2
+          local.get $t1
           i32.const 4
           i32.mul
           i32.add

@@ -12,7 +12,7 @@
     ;; 25 |         .Named(n) => n.len()
               local.get $s
               i32.load8_u $heap
-              local.tee $b.1
+              local.tee $a.1
               i32.eqz
               if
                 local.get $s
@@ -24,7 +24,7 @@
                 br 1
               else
     ;; 26 |         .Pair(a, b) => a.len() + b.len()
-                local.get $b.1
+                local.get $a.1
                 i32.const 1
                 i32.eq
                 if
@@ -43,7 +43,7 @@
                   br 3
                 else
     ;; 27 |         .Empty => 0
-                  local.get $b.1
+                  local.get $a.1
                   i32.const 2
                   i32.eq
                   br_if 4
@@ -58,6 +58,8 @@
     ;; 25 |         .Named(n) => n.len()
             block
               block
+                local.get $s
+                local.set $b.1
                 br 0
               end
             end
@@ -81,17 +83,17 @@
           local.get $b.1
           i32.add
     ;; 24 |     match s:
-          local.set $s
+          local.set $b.1
           br 1
         end
-        i32.const 0
-        local.set $s
         br 0
       end
+      local.get $b.1
+      local.set $s
     end
     local.get $s
   )
-  (func $read_match (param $s.0 i32) (param $s.1 i32) (param $s.2 i32) (param $s.3 i32) (param $s.4 i32) (result i32)
+  (func $read_match (param $s.0 i32) (param $s.1 i32) (param $s.2 i32) (param $s.3 i32) (param $s.4 i32) (result i32) (local $t0 i32)
     ;; 12 |     match s:
     block
       block
@@ -120,7 +122,7 @@
             block
               block
                 local.get $s.2
-                local.set $s.0
+                local.set $t0
                 br 0
               end
             end
@@ -146,17 +148,17 @@
           local.get $s.1
           i32.add
     ;; 12 |     match s:
-          local.set $s.0
+          local.set $t0
           br 1
         end
-        i32.const 0
-        local.set $s.0
         br 0
       end
+      local.get $t0
+      local.set $s.0
     end
     local.get $s.0
   )
-  (func $take_match (param $s.0 i32) (param $s.1 i32) (param $s.2 i32) (param $s.3 i32) (param $s.4 i32) (result i32 i32)
+  (func $take_match (param $s.0 i32) (param $s.1 i32) (param $s.2 i32) (param $s.3 i32) (param $s.4 i32) (result i32 i32) (local $n.1 i32)
     ;; 18 |     match s:
     block
       block
@@ -169,7 +171,7 @@
               if
                 local.get $s.1
                 local.get $s.2
-                local.set $s.1
+                local.set $n.1
                 local.set $s.0
                 br 1
               else
@@ -180,7 +182,7 @@
                 if
                   local.get $s.1
                   local.get $s.2
-                  local.set $s.1
+                  local.set $n.1
                   local.set $s.0
                   br 3
                 else
@@ -210,11 +212,11 @@
           br 1
         end
         i32.const 16 ;; &"heap-exhausted"
-        i32.const 0
-        local.set $s.1
         local.set $s.0
         br 0
       end
+      local.get $n.1
+      local.set $s.1
     end
     local.get $s.0
     local.get $s.1

@@ -49,7 +49,7 @@
     local.get $t1
     local.get $t0
   )
-  (func $unwrap (param $o.0 i32) (param $o.1 i32) (param $o.2 i32) (result i32)
+  (func $unwrap (param $o.0 i32) (param $o.1 i32) (param $o.2 i32) (result i32) (local $t0 i32)
     ;; 7 |     match o:
     block
       block
@@ -72,17 +72,17 @@
           block
             block
               local.get $o.2
-              local.set $o.0
+              local.set $t0
               br 0
             end
           end
     ;; 7 |     match o:
           br 1
         end
-        i32.const 0
-        local.set $o.0
         br 0
       end
+      local.get $t0
+      local.set $o.0
     end
     local.get $o.0
   )

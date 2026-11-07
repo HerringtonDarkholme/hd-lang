@@ -14,8 +14,6 @@
       local.get $m
       i32.load $heap offset=4
       local.set $t0
-      i32.const 0
-      local.set $t1
       block
         loop
           local.get $m

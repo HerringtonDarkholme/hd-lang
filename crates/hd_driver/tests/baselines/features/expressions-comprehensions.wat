@@ -14,8 +14,6 @@
       local.get $users
       i32.load $heap offset=4
       local.set $t1
-      i32.const 0
-      local.set $t2
       block
         loop
           local.get $t2
@@ -102,8 +100,6 @@
       local.get $users
       i32.load $heap offset=4
       local.set $t1
-      i32.const 0
-      local.set $t2
       block
         loop
           local.get $t2
@@ -177,8 +173,6 @@
       local.get $users
       i32.load $heap offset=4
       local.set $t1
-      i32.const 0
-      local.set $t2
       block
         loop
           local.get $t2
@@ -265,8 +259,6 @@
       local.get $xs
       i32.load $heap offset=4
       local.set $t1
-      i32.const 0
-      local.set $t2
       block
         loop
           local.get $t2

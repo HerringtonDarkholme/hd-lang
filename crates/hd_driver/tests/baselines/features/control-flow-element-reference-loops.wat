@@ -8,14 +8,10 @@
   (func $total_len (param $xs i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $p i32)
     ;; 9 |     let n: usize = 0
     block
-      i32.const 0
-      local.set $n
     ;; 10 |     for p in &xs:
       local.get $xs
       i32.load $heap offset=4
       local.set $t0
-      i32.const 0
-      local.set $t1
       block
         loop
           local.get $t1
@@ -143,16 +139,12 @@
   (func $through_ref (param $r i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $p i32)
     ;; 15 |     let n: usize = 0
     block
-      i32.const 0
-      local.set $n
     ;; 16 |     for p in &r:
       local.get $r
       i32.load $heap
       local.tee $r
       i32.load $heap offset=4
       local.set $t0
-      i32.const 0
-      local.set $t1
       block
         loop
           local.get $t1

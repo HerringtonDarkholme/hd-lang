@@ -90,14 +90,10 @@
   (func $total (param $parts i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $p.1 i32)
     ;; 9 |     let n: usize = 0
     block
-      i32.const 0
-      local.set $n
     ;; 10 |     for p in parts:
       local.get $parts
       i32.load $heap offset=4
       local.set $t0
-      i32.const 0
-      local.set $t1
       block
         loop
           local.get $t1

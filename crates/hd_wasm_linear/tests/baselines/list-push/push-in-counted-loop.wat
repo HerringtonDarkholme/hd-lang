@@ -6,8 +6,6 @@
     block
       ;; ...
     ;; 6 |     for _ in 0..n:
-      i32.const 0
-      local.set $t0
       block
         loop
           local.get $t0

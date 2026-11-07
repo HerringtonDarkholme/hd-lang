@@ -4,7 +4,7 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $total (param $items.at i64) (param $items.end i64) (result i64) (local $cursor i32) (local $t0 i32) (local $t1 i32)
+  (func $total (param $items.at i64) (param $items.end i64) (result i64) (local $cursor i32) (local $t0 i32) (local $sum i64) (local $t1 i32)
     ;; 20 |     let mut cursor = items
     global.get $locals
     global.get $locals_base
@@ -48,16 +48,13 @@
       local.get $cursor
       local.get $items.end
       i64.store $heap offset=8
-    ;; 21 |     let sum: i64 = 0
-      i64.const 0
-      local.set $items.at
     ;; 22 |     while true:
       block
         loop
     ;; 23 |         match cursor.next():
           local.get $cursor
           call $"impl Iterator [ i64 ] for Upto.next"
-          local.set $items.end
+          local.set $items.at
           local.set $t1
           block
             block
@@ -80,10 +77,10 @@
                 unreachable
               end
     ;; 24 |             .Some(item) => sum = sum + item
+              local.get $sum
               local.get $items.at
-              local.get $items.end
               i64.add
-              local.set $items.at
+              local.set $sum
     ;; 23 |         match cursor.next():
               br 1
             end
@@ -96,7 +93,10 @@
           br 0
         end
       end
+    ;; 26 |     sum
+      local.get $sum
     ;; 20 |     let mut cursor = items
+      local.set $items.at
     end
     local.get $items.at
     local.get $t0

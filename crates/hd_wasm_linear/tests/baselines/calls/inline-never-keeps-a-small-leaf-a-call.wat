@@ -2,7 +2,6 @@
 (module
   (import "fixture" "a" (func $a (param i32 i32) (result f64)))
   (func $row (param $n i32) (param $i i32) (result f64) (local $s f64) (local $j i32)
-    ;; ...
     block
       loop
         ;; ...

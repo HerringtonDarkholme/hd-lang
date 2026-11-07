@@ -14,18 +14,14 @@
   (import "fixture" "rt:new/class-2" (func $rt:new/class-2 (param i32 i32) (result i32)))
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $"error From 2.0 for LoadError.from" (param $value.0 i32) (param $value.1 i32) (param $value.2 i32) (result i32 i32 i32 i32 i32 i32 i64) (local $t2 i32) (local $t1 i32) (local $t0 i32) (local $t3 i64)
+  (func $"error From 2.0 for LoadError.from" (param $value.0 i32) (param $value.1 i32) (param $value.2 i32) (result i32 i32 i32 i32 i32 i32 i64) (local $t0 i32) (local $t1 i32) (local $t2 i64)
     ;; 25 | @error
     block
       i32.const 2
       local.get $value.0
       local.get $value.1
       local.get $value.2
-      i32.const 0
-      i32.const 0
       local.set $t0
-      local.set $t1
-      local.set $t2
       local.set $value.2
       local.set $value.1
       local.set $value.0
@@ -33,10 +29,10 @@
     local.get $value.0
     local.get $value.1
     local.get $value.2
-    local.get $t2
-    local.get $t1
     local.get $t0
-    local.get $t3
+    local.get $t1
+    local.get $t1
+    local.get $t2
   )
   (func $"error Display for LoadError.to_string" (param $self i32) (result i32 i32) (local $t2 i32) (local $t1 i32) (local $t0 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t7 i64)
     ;; 25 | @error
@@ -273,7 +269,7 @@
     local.get $self
     local.get $t2
   )
-  (func $parse (param $text.0 i32) (param $text.1 i32) (result i32 i64) (local $t0 i64)
+  (func $parse (param $text.0 i32) (param $text.1 i32) (result i32 i64) (local $t0 i32) (local $t1 i64)
     ;; 45 |     if text.len() > 3:
     block
       block
@@ -293,15 +289,9 @@
         return
     ;; 45 |     if text.len() > 3:
       end
-    ;; 47 |     .Ok(+0)
-      i32.const 0
-      i64.const 0
-    ;; 45 |     if text.len() > 3:
-      local.set $t0
-      local.set $text.0
     end
-    local.get $text.0
     local.get $t0
+    local.get $t1
   )
   (func $message (param $e i32) (result i32) (local $t0 i32)
     ;; 54 |     e.to_string().len()
@@ -415,7 +405,7 @@
     local.get $t3
     local.get $t2
   )
-  (func $load (param $text.0 i32) (param $text.1 i32) (result i32 i32 i32 i32 i32 i32 i32 i64) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $t5 i32) (local $t0 i64)
+  (func $load (param $text.0 i32) (param $text.1 i32) (result i32 i32 i32 i32 i32 i32 i32 i64) (local $t1 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t5 i32) (local $t0 i64)
     ;; 50 |     value := parse(text)?
     block
       block
@@ -434,15 +424,13 @@
             i32.const 1
             i64.const 1
             local.set $t0
-            local.set $text.0
+            local.set $t1
             br 1
           end
-          i32.const 0
-          i64.const 0
-          local.set $t0
-          local.set $text.0
           br 0
         end
+        local.get $t1
+        local.set $text.0
       end
       local.get $text.0
       i32.eqz
@@ -456,10 +444,10 @@
             i32.const 0
             i32.const 0
             i32.const 0
-            local.set $t1
             local.set $t2
             local.set $t3
             local.set $t4
+            local.set $t1
             local.set $text.1
             local.set $text.0
             br 0
@@ -468,10 +456,10 @@
         i32.const 1
         local.get $text.0
         local.get $text.1
+        local.get $t1
         local.get $t4
         local.get $t3
         local.get $t2
-        local.get $t1
         local.get $t0
         return
       end
@@ -485,19 +473,19 @@
       i32.const 0
     ;; 50 |     value := parse(text)?
       local.set $t5
-      local.set $t1
       local.set $t2
       local.set $t3
       local.set $t4
+      local.set $t1
       local.set $text.1
       local.set $text.0
     end
     local.get $text.0
     local.get $text.1
+    local.get $t1
     local.get $t4
     local.get $t3
     local.get $t2
-    local.get $t1
     local.get $t5
     local.get $t0
   )

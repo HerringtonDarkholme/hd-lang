@@ -412,8 +412,7 @@
   (func $"impl Parser.refill" (param $self i32) (param $n i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 22 |         for i in 0..n:
     block
-      i32.const 0
-      local.tee $t0
+      local.get $t0
       local.get $n
       i32.lt_u
       if

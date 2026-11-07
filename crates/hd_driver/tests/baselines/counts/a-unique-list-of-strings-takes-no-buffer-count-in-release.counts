@@ -31,4 +31,3 @@ fn finish(words: UniqList[string]) -> usize:
     words.len()
 > std/rt_tests.stage_case/finish
 >   release counted reference (last use)
->   release counted reference (last use)

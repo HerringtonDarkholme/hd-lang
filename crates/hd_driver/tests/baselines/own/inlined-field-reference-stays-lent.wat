@@ -15,28 +15,26 @@
       i32.store $heap
     end
   )
-  (func $recursive_owned (param $point i32) (param $depth i32) (result i32)
+  (func $recursive_owned (param $point i32) (param $depth i32) (result i32) (local $t0 i32)
     ;; 34 |     field := &point.value
     block
     ;; 35 |     below := if depth == 0: 0 else: recursive_owned(point, depth - 1)
       local.get $depth
       i32.eqz
       if
-        i32.const 0
-        local.set $depth
       else
         local.get $point
         local.get $depth
         i32.const 1
         i32.sub
         call $recursive_owned
-        local.set $depth
+        local.set $t0
       end
     ;; 36 |     field.len() + below
       local.get $point
       call $"impl string.len"
     ;; 35 |     below := if depth == 0: 0 else: recursive_owned(point, depth - 1)
-      local.get $depth
+      local.get $t0
     ;; 36 |     field.len() + below
       i32.add
     ;; 34 |     field := &point.value
@@ -102,28 +100,26 @@
       end
     end
   )
-  (func $recursive_borrowed (param $point i32) (param $depth i32) (result i32)
+  (func $recursive_borrowed (param $point i32) (param $depth i32) (result i32) (local $t0 i32)
     ;; 40 |     field := &point.value
     block
     ;; 41 |     below := if depth == 0: 0 else: recursive_borrowed(point, depth - 1)
       local.get $depth
       i32.eqz
       if
-        i32.const 0
-        local.set $depth
       else
         local.get $point
         local.get $depth
         i32.const 1
         i32.sub
         call $recursive_borrowed
-        local.set $depth
+        local.set $t0
       end
     ;; 42 |     field.len() + below
       local.get $point
       call $"impl string.len"
     ;; 41 |     below := if depth == 0: 0 else: recursive_borrowed(point, depth - 1)
-      local.get $depth
+      local.get $t0
     ;; 42 |     field.len() + below
       i32.add
     ;; 40 |     field := &point.value

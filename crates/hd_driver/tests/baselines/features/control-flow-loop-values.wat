@@ -11,8 +11,6 @@
       local.get $xs
       i32.load $heap offset=4
       local.set $t0
-      i32.const 0
-      local.set $t1
       block
         loop
           local.get $t1
@@ -81,8 +79,6 @@
   (func $first_index (param $xs i32) (result i32) (local $i i32) (local $t0 i32)
     ;; 15 |     let i: usize = 0
     block
-      i32.const 0
-      local.set $i
     ;; 16 |     while i < xs.len():
       block
         loop

@@ -3,7 +3,7 @@
   (import "fixture" "impl [ T ] List [ T ].pop[i32]" (func $"impl [ T ] List [ T ].pop[i32]" (param i32) (result i32 i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "heap" (memory $heap 1))
-  (func $total (param $xs i32) (result i32) (local $sum i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
+  (func $total (param $xs i32) (result i32) (local $sum i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32)
     ;; 5 |     n := xs.len()
     block
       local.get $xs
@@ -14,25 +14,20 @@
       call $"impl [ T ] List [ T ].pop[i32]"
       drop
       drop
-    ;; 7 |     let sum = +0
-      i32.const 0
-      local.set $sum
     ;; 8 |     for i in 0..n:
-      i32.const 0
       local.set $t0
-      local.set $t1
       block
         loop
-          local.get $t0
           local.get $t1
+          local.get $t0
           i32.lt_u
           i32.eqz
           br_if 1
-          local.get $t0
-          local.get $t0
+          local.get $t1
+          local.get $t1
           i32.const 1
           i32.add
-          local.set $t0
+          local.set $t1
     ;; 9 |         sum += xs[i]
           local.get $xs
           i32.load $heap

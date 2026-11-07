@@ -540,7 +540,14 @@ fn zero_releases(f: &mut Func) -> bool {
             _ => None,
         }
     };
-    if !f.body.iter().any(|i| release_width(i).is_some()) {
+    // A store of zero is redundant in a local known zero, with or without a
+    // release in the body.
+    let stores_zero = |w: &[Ins]| {
+        matches!(w[1], Ins::Op(I::LocalSet(_) | I::LocalTee(_)))
+            && !matches!(w[0], Ins::Op(I::LocalGet(_)))
+            && pushes_zero(&w[0], &[])
+    };
+    if !f.body.iter().any(|i| release_width(i).is_some()) && !f.body.windows(2).any(stores_zero) {
         return false;
     }
     let Some(edges) = zero_edges(&f.body, &f.labels) else {

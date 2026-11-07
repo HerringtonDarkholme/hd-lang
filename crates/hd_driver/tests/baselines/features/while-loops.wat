@@ -8,11 +8,6 @@
   (func $count_while (param $xs i32) (result i32) (local $i i32) (local $n i32) (local $t0 i32)
     ;; 7 |     let i: usize = 0
     block
-      i32.const 0
-      local.set $i
-    ;; 8 |     let n: usize = 0
-      i32.const 0
-      local.set $n
     ;; 9 |     while i < xs.len():
       block
         loop

@@ -37,7 +37,7 @@
     local.get $self
     local.get $value
   )
-  (func $total (param $counter.at i64) (param $counter.end i64) (result i64) (local $cursor i32) (local $t0 i32) (local $t1 i32)
+  (func $total (param $counter.at i64) (param $counter.end i64) (result i64) (local $cursor i32) (local $t0 i32) (local $sum i64) (local $t1 i32)
     ;; 20 |     let mut cursor = counter
     global.get $locals
     global.get $locals_base
@@ -81,16 +81,13 @@
       local.get $cursor
       local.get $counter.end
       i64.store $heap offset=8
-    ;; 21 |     let sum: i64 = 0
-      i64.const 0
-      local.set $counter.at
     ;; 22 |     while true:
       block
         loop
     ;; 23 |         match cursor.next():
           local.get $cursor
           call $"impl Counter.next"
-          local.set $counter.end
+          local.set $counter.at
           local.set $t1
           block
             block
@@ -113,10 +110,10 @@
                 unreachable
               end
     ;; 24 |             .Some(value) => sum = sum + value
+              local.get $sum
               local.get $counter.at
-              local.get $counter.end
               i64.add
-              local.set $counter.at
+              local.set $sum
     ;; 23 |         match cursor.next():
               br 1
             end
@@ -129,7 +126,10 @@
           br 0
         end
       end
+    ;; 26 |     sum
+      local.get $sum
     ;; 20 |     let mut cursor = counter
+      local.set $counter.at
     end
     local.get $counter.at
     local.get $t0

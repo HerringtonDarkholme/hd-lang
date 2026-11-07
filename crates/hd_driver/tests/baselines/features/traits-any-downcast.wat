@@ -33,7 +33,7 @@
     end
     local.get $value.0
   )
-  (func $user_name (param $value.0 i32) (param $value.1 i32) (result i32 i32)
+  (func $user_name (param $value.0 i32) (param $value.1 i32) (result i32 i32) (local $user i32)
     ;; 13 |     match value.downcast_ref::[User]():
     block
       local.get $value.0
@@ -43,20 +43,20 @@
       call $rt:type_info
       i32.eq
       if
+        local.get $value.0
+        local.set $user
       else
-        i32.const 0
-        local.set $value.0
       end
       block
         block
           block
     ;; 14 |         .Some(user) => user.name
-            local.get $value.0
+            local.get $user
             if
               br 1
             else
     ;; 15 |         .None => "not a user"
-              local.get $value.0
+              local.get $user
               i32.eqz
               br_if 2
               unreachable
@@ -66,9 +66,9 @@
             unreachable
           end
     ;; 14 |         .Some(user) => user.name
-          local.get $value.0
+          local.get $user
           i32.load $heap
-          local.get $value.0
+          local.get $user
           i32.load $heap offset=4
           local.set $value.1
           local.tee $value.0

@@ -242,12 +242,8 @@
         local.set $t2
       else
         i32.const 0
-        i64.const 0
-        local.set $t2
       end
       local.set $t0
-      i64.const 0
-      local.set $t3
       block
         block
           block
@@ -342,7 +338,7 @@
     ;; 17 |     seen := counts.get(word).unwrap_or(0)
     end
   )
-  (func $tally_match (param $counts i32) (param $word.0 i32) (param $word.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $seen i64)
+  (func $tally_match (param $counts i32) (param $word.0 i32) (param $word.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $seen i64)
     ;; 9 |     counts[word] = match counts.get(word):
     block
       local.get $counts
@@ -374,25 +370,21 @@
         i32.add
         i64.load $heap offset=8
         local.set $seen
-        local.set $t0
+        local.set $t3
       else
-        i32.const 0
-        i64.const 0
-        local.set $seen
-        local.set $t0
       end
       block
         block
           block
     ;; 10 |         .Some(seen) => seen + 1
-            local.get $t0
+            local.get $t3
             i32.const 1
             i32.eq
             if
               br 1
             else
     ;; 11 |         .None => 1
-              local.get $t0
+              local.get $t3
               i32.eqz
               br_if 2
               unreachable
@@ -525,12 +517,8 @@
         local.set $t3
       else
         i32.const 0
-        i64.const 0
-        local.set $t3
       end
       local.set $t0
-      i64.const 0
-      local.set $t4
       block
         block
           block
