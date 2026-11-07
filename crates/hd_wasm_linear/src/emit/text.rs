@@ -285,7 +285,7 @@ impl Em<'_, '_, '_> {
         self.f.set(lo);
         self.comp(end, 0)?;
         self.f.set(hi);
-        self.str_slice_offsets(i, text, lo, hi, false, false)
+        self.str_slice_offsets(i, text, lo, hi, false, true)
     }
 
     /// A `string.slice` whose only consumer is string equality: the public

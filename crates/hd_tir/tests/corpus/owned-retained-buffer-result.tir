@@ -1,0 +1,10 @@
+# expect: owned
+body 1 Fn
+sub 2 0 0 - 0
+labels
+caps
+modes
+extra 3 0 7 16 0 2 0 1
+%0 = Call 0 4 : 13 @-
+%1 = Retain 0 0 : 18 @-
+%2 = Block 5 0 : 13 @-

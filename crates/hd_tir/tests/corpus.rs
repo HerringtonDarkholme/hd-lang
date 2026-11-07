@@ -32,10 +32,14 @@ impl VerifyCx for CorpusFacts {
 
 /// The passes' facts the owned cases assume: no type holds a counted
 /// leaf, so the one-consumer clause has nothing to balance there; the
-/// unit tests of `hd_tir::own` and `verify_owned` exercise it.
+/// unit tests of `hd_tir::own` and `verify_owned` exercise it. Item 7
+/// constructs a borrowed-buffer string result with an explicit count.
 struct NoCounts;
 
 impl hd_tir::own::OwnCx for NoCounts {
+    fn retains_result(&self, callee: &Callee) -> bool {
+        matches!(callee, Callee::Item { def, .. } if *def == DefId::from_raw(7))
+    }
     fn counted(&self, _: Ty) -> bool {
         false
     }
