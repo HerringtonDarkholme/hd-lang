@@ -32,7 +32,7 @@ const DEPTH: usize = 8;
 /// count) or a value (`key` = local count + value), the read's own steps
 /// there (`own` codes of the path from `start`), then the steps below them
 /// (`len` codes in all), and whether the steps there go behind a reference
-/// or into a buffer, or the place is a top-level binding's.
+/// or into a buffer.
 #[derive(Clone, Copy)]
 struct Link {
     key: u32,
@@ -40,7 +40,6 @@ struct Link {
     own: u32,
     len: u32,
     behind: bool,
-    global: bool,
 }
 
 /// What a read's source is ([`Tables::source`]).
@@ -67,27 +66,24 @@ enum Dropped {
 }
 
 /// One write at one place: its steps below that place, the last step that
-/// goes behind a reference or into a buffer (`cut`), whether it changes
-/// nothing a value holds (`keep`), and whether the place is the write's own.
+/// goes behind a reference or into a buffer (`cut`), and whether the place is
+/// the write's own.
 #[derive(Clone, Copy)]
 struct Write {
     key: u32,
     start: u32,
     len: u32,
     cut: u32,
-    keep: bool,
     direct: bool,
     dropped: Dropped,
 }
 
 /// What an instruction may change besides its own place: whether a reference
-/// can reach what it writes, and whether that is behind a reference
-/// (`reach`, 0 for neither, 1, 2), whether it writes what calls reach, whether
-/// it is a call that may write, and the value its place is rooted at.
+/// can reach what it writes, whether it is a call that may write, and the value
+/// its place is rooted at.
 #[derive(Clone, Copy)]
 struct Effect {
-    reach: u8,
-    heap: bool,
+    reach: bool,
     may: bool,
     through: u32,
 }
@@ -152,12 +148,12 @@ pub(crate) struct Tables {
     v: Vec<Value>,
     l: Vec<Local>,
     bits: Vec<Bit>,
-    // Masks over the bits: what a write has changed, and what kind of source
-    // each has.
+    // Masks over the bits: what a write has changed, whose source calls that
+    // write reach, whose source a write through a reference can reach, and
+    // whose source a suspension point can change.
     changed: Vec<u64>,
     heap: Vec<u64>,
-    behind: Vec<u64>,
-    reachable: Vec<u64>,
+    exposed: Vec<u64>,
     unframed: Vec<u64>,
     mask: Vec<u64>,
     crossed: Vec<(u32, Dropped)>,
@@ -241,8 +237,7 @@ impl Tables {
             unowned: false,
         };
         let effect = Effect {
-            reach: 0,
-            heap: false,
+            reach: false,
             may: false,
             through: NONE,
         };
@@ -269,24 +264,13 @@ impl Tables {
     /// Follows the place at `word` into `self.links`, down to what it finally
     /// reads: through the reads its root values made, and through `levels`
     /// bindings to the reads they hold.
-    fn source(&mut self, b: &Body, word: u32, levels: u32, handle: bool) -> Source {
+    fn source(&mut self, b: &Body, word: u32, mut levels: u32, mut handle: bool) -> Source {
         self.links.clear();
         self.chain.clear();
         self.stop = NONE;
-        self.source_below(b, word, levels, handle, 0)
-    }
-
-    fn source_below(
-        &mut self,
-        b: &Body,
-        word: u32,
-        mut levels: u32,
-        mut handle: bool,
-        below: u32,
-    ) -> Source {
         let locals = u32_of(b.local_ty.len());
         let mut out = Source::default();
-        let (mut word, mut below_start, mut below) = (word, 0, below);
+        let (mut word, mut below_start, mut below) = (word, 0, 0);
         let (mut derefs, mut elem, mut first_deref) = (0, false, false);
         let (mut seen_deref, mut above, mut pinned) = (false, false, false);
         for _ in 0..DEPTH {
@@ -313,7 +297,6 @@ impl Tables {
                 own,
                 len: own + below,
                 behind: d > 0 || e,
-                global: false,
             };
             (below_start, below) = (start, own + below);
             match p.root {
@@ -368,10 +351,7 @@ impl Tables {
                     return out;
                 }
                 Root::Global(..) => {
-                    self.links.push(Link {
-                        global: true,
-                        ..link
-                    });
+                    self.links.push(link);
                     out.known = true;
                     out.heap = true;
                     return out;
@@ -383,7 +363,7 @@ impl Tables {
     }
 
     /// Records a write at every link just followed.
-    fn write_links(&mut self, keep: bool, dropped: Dropped) {
+    fn write_links(&mut self, dropped: Dropped) {
         for k in 0..self.links.len() {
             let link = self.links[k];
             if link.key == NONE {
@@ -401,7 +381,6 @@ impl Tables {
                 start,
                 len: link.len,
                 cut,
-                keep,
                 direct: k == 0,
                 dropped,
             });
@@ -479,7 +458,7 @@ impl Tables {
                 let below = &self.paths[at..at + link.len as usize];
                 let path = &self.wpaths[w.start as usize..(w.start + w.len) as usize];
                 let hit = (w.direct && overlap(own, path))
-                    || (!w.keep && overlap(below, path) && (w.cut == NONE || link.len > w.cut));
+                    || (overlap(below, path) && (w.cut == NONE || link.len > w.cut));
                 if hit && w.dropped == Dropped::Nothing {
                     put(&mut self.changed, bit);
                 } else if hit {
@@ -490,14 +469,8 @@ impl Tables {
         let e = self.effects[i];
         let except = self.v.get(e.through as usize).map_or(NONE, |f| f.bit);
         let row = s.row(live);
-        if e.reach > 0 {
-            mark(&mut self.changed, row, &self.behind, except);
-        }
-        if e.reach > 1 {
-            mark(&mut self.changed, row, &self.reachable, except);
-        }
-        if e.heap {
-            mark(&mut self.changed, row, &self.heap, except);
+        if e.reach {
+            mark(&mut self.changed, row, &self.exposed, except);
         }
         if e.may {
             // Exclusive mode: the call reaches the place only through the
@@ -647,8 +620,7 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
             let f = t.v[c as usize];
             let bound =
                 f.stored != NONE && t.store_of(v) != NONE && t.binding(b, f.stored).is_some();
-            t.v[v].keeps |=
-                f.keeps || (f.stored != NONE && !bound) || f.alias != NONE || t.v[v].uses > 1;
+            t.v[v].keeps |= f.keeps || (f.stored != NONE && !bound);
         }
     }
     // A value no instance may copy needs a count wherever a use keeps it or a
@@ -854,13 +826,7 @@ fn candidates(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
     }
     t.ops = ops;
     let words = t.bits.len().div_ceil(64).max(1);
-    for mask in [
-        &mut t.changed,
-        &mut t.heap,
-        &mut t.behind,
-        &mut t.reachable,
-        &mut t.unframed,
-    ] {
+    for mask in [&mut t.changed, &mut t.heap, &mut t.exposed, &mut t.unframed] {
         fill(mask, words, 0);
     }
     t.back.arena.words = words;
@@ -902,14 +868,8 @@ fn sources(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
         if !source.frame {
             put(&mut t.unframed, bit);
         }
-        if t.links.iter().any(|l| l.behind) {
-            put(&mut t.behind, bit);
-        }
-        if t.links
-            .iter()
-            .any(|l| l.global || (l.key < locals && t.l[l.key as usize].reached))
-        {
-            put(&mut t.reachable, bit);
+        if source.heap || t.links.iter().any(|l| l.behind) {
+            put(&mut t.exposed, bit);
         }
         if let Some((l, k)) = source.excl {
             t.excl_reads.push((bit, l, k));
@@ -938,7 +898,6 @@ fn sources(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
 /// What each instruction writes.
 fn index_writes(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
     let n = b.len();
-    let locals = u32_of(b.local_ty.len());
     fill(&mut t.write_start, n + 1, 0);
     for i in 0..n {
         t.write_start[i] = u32_of(t.writes.len());
@@ -952,94 +911,37 @@ fn index_writes(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                 Root::Const(_) => (0, false),
                 _ => p.kinds(b),
             };
-            let behind = derefs > 0 || elem;
-            let reachable = behind
+            t.effects[i].reach = derefs > 0
+                || elem
                 || match p.root {
                     Root::Local(l) => t.l[l as usize].escapes,
                     Root::Value(_) => false,
                     _ => true,
                 };
-            let global = matches!(p.root, Root::Global(..));
-            t.effects[i].reach = u8::from(reachable) + u8::from(reachable && (behind || global));
             t.effects[i].through = p.value().unwrap_or(NONE);
-            let source = t.source(b, a, 0, false);
+            t.source(b, a, 0, false);
             if mutable_ref || tag == Tag::Store {
-                t.write_links(false, Dropped::Nothing);
-                let reached = matches!(t.links.last(),
-                    Some(l) if l.key < locals && t.l[l.key as usize].escapes);
-                t.effects[i].heap = !source.known || source.heap || reached;
+                t.write_links(Dropped::Nothing);
             } else {
                 t.links.truncate(1);
-                let dropped = match p.root {
+                t.write_links(match p.root {
                     Root::Value(v) if tag == Tag::Drop && p.whole() => Dropped::Value(v),
                     Root::Local(l) if tag == Tag::Drop && p.whole() => Dropped::Local(l),
                     _ => Dropped::Nothing,
-                };
-                t.write_links(tag == Tag::IsUnique, dropped);
+                });
             }
         }
-        match tag {
-            Tag::Intrinsic => match IntrinsicOp::from_u32(a) {
-                Some(IntrinsicOp::MapSet | IntrinsicOp::MapRemove) => {
-                    if let Some(&c) = b.record(w).first()
-                        && Ref(c).as_inst().is_some()
-                        && (c as usize) < n
-                    {
-                        // The links of the collection a map's change writes in.
-                        t.links.clear();
-                        t.chain.clear();
-                        t.chain.push(ELEM);
-                        t.links.push(Link {
-                            key: locals + c,
-                            start: 0,
-                            own: 1,
-                            len: 1,
-                            behind: true,
-                            global: false,
-                        });
-                        t.effects[i].heap = b.tags[c as usize] != Tag::Read || {
-                            let word = b.data[c as usize][0];
-                            let source = t.source_below(b, word, 0, false, 1);
-                            !source.known || source.heap
-                        };
-                        t.effects[i].through = c;
-                        t.write_links(false, Dropped::Nothing);
-                    }
-                }
-                Some(IntrinsicOp::Item) => t.effects[i].may = true,
-                _ => {}
-            },
-            Tag::Call => {
-                let may = Callee::from_words(b.record(a)).is_none_or(|c| cx.may_write(&c));
-                t.effects[i].may = may;
-                let args = b.record(w);
-                for &v in args.get(..args.len().saturating_sub(3)).unwrap_or_default() {
-                    let Some(mut r) = Ref(v).as_inst().map(|r| r.0 as usize) else {
-                        continue;
-                    };
-                    for _ in 0..DEPTH {
-                        if !b.same_value_coercion(r) {
-                            break;
-                        }
-                        r = b.data[r][0] as usize;
-                    }
-                    if b.tags[r] == Tag::Ref
-                        && b.data[r][1] & ref_word::MUT != 0
-                        && ((may && cx.summarizes()) || b.local_in_place(b.data[r][0]).is_some())
-                    {
-                        t.source(b, b.data[r][0], 0, false);
-                        t.write_links(false, Dropped::Nothing);
-                    }
-                }
-            }
+        t.effects[i].may = match tag {
+            Tag::Call => Callee::from_words(b.record(a)).is_none_or(|c| cx.may_write(&c)),
+            Tag::Intrinsic => IntrinsicOp::from_u32(a) == Some(IntrinsicOp::Item),
             Tag::CallValue
             | Tag::CallDyn
             | Tag::CallHost
             | Tag::DefaultCall
             | Tag::Hook
-            | Tag::Await => t.effects[i].may = true,
-            _ => {}
-        }
+            | Tag::Await => true,
+            _ => false,
+        };
     }
     t.write_start[n] = u32_of(t.writes.len());
 }
