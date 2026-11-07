@@ -9,6 +9,7 @@ use crate::op::Op as I;
 use hd_base::StageResult;
 use hd_mono::layout::{StdKind, inline_map_key, strip_newtype};
 use hd_mono::{CallTarget, Target, TargetKind, subst};
+use hd_tir::ir::count::{At, Info, Part};
 use hd_tir::ir::{Callee, IntrinsicOp, NONE, Place, PlaceRoot, Proj, Tag};
 use hd_types::{Ty, TyData};
 use wasm_encoder::BlockType;
@@ -572,7 +573,14 @@ impl Em<'_, '_, '_> {
                 let probe = self.map_find(m, h, &kl, &e, &ops);
                 (kl, h, probe)
             };
-            self.map_put(m, (kt, vt), (&e, &ops), (&kl, h, probe), &Src::Ref(args[2]))?;
+            if let Some(info) = hd_tir::ir::count::following(self.b, &self.topo, i, Tag::Retain)
+                && info == Info::new(At::Operation, Part::Operand(1), 0)
+            {
+                self.because(hd_tir::own::Reason::from_word(info.reason), |s| {
+                    s.retain_locals(&kl, kt)
+                })?;
+            }
+            self.map_put_taking_key(m, vt, (&e, &ops), (&kl, h, probe), &Src::Ref(args[2]))?;
             return self.put_back(args[0], m);
         }
         let (kl, h) = self.map_key(args[1], &e, &ops)?;

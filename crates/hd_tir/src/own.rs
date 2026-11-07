@@ -61,6 +61,7 @@ pub(crate) mod hoist;
 mod insert;
 mod known;
 mod late;
+pub(crate) mod map_key;
 pub(crate) mod moves;
 pub(crate) mod overwrites;
 pub(crate) mod parts;

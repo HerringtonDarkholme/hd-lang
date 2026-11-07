@@ -51,14 +51,15 @@ fn put(m: &mut Map[string, string], k: string, v: string) -> void:
 >     uses $1: entry -> %1 lend last
 >   local $2 v: string [param read] value
 >     uses $2: entry -> %2 consume last
->   %0 = Release %6 Exit local $1 #2 : ()
+>   %0 = Release %7 Exit local $1 #2 : ()
     m[k] = v
 >   %1 = Read borrow [$1] : string
 >   %2 = Read move [$2] : string
 >   %3 = IsUnique [*$0] : ()
 >   %4 = Read borrow [*$0] : Map[string, string]
 >   %5 = Intrinsic MapSet [%4 %1 %2] : ()
->   %6 = Block - : ()
+>   %6 = Retain %5 Operation operand 1 #0 : ()
+>   %7 = Block - : ()
 >   exit sub 0 drops [$2]
 >   summary kept [$2] borrows [$1] writes
 

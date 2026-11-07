@@ -14,7 +14,7 @@ fn map_add(m: &mut Map[string, i64], k: string) -> void:
 >     uses $0: entry -> %1 lend, %8 lend last
 >   local $1 k: string [param read] value
 >     uses $1: entry -> %2 lend last
->   %0 = Release %10 Exit local $1 #2 : ()
+>   %0 = Release %11 Exit local $1 #2 : ()
     m[k] += 1
 >   %1 = Read borrow [*$0] : Map[string, i64]
 >   %2 = Read borrow [$1] : string
@@ -25,7 +25,8 @@ fn map_add(m: &mut Map[string, i64], k: string) -> void:
 >   %7 = IsUnique [*$0] : ()
 >   %8 = Read borrow [*$0] : Map[string, i64]
 >   %9 = Intrinsic MapSet [%8 %2 %6] : ()
->   %10 = Block - : ()
+>   %10 = Retain %9 Operation operand 1 #0 : ()
+>   %11 = Block - : ()
 >   summary kept [] borrows [$1] writes
 
 fn list_append(xs: &mut List[string], i: usize) -> void:

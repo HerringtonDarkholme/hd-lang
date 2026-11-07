@@ -1,6 +1,6 @@
 //! One count statement shape, independent of the boundary that runs it.
 
-use super::{Body, Tag};
+use super::{Body, NONE, Tag, Topology};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u32)]
@@ -93,4 +93,19 @@ pub fn find(b: &Body, tag: Tag, target: u32, at: At, part: Part) -> Option<Info>
             .flatten()
             .filter(|c| c.at == at && c.part == part)
     })
+}
+
+/// Reads a count immediately after its target without scanning the body.
+#[must_use]
+pub fn following(b: &Body, topo: &Topology, target: u32, tag: Tag) -> Option<Info> {
+    let block = *topo.blk.get(target as usize)?;
+    if block == NONE {
+        return None;
+    }
+    let next = *b
+        .record(b.data[block as usize][0])
+        .get(topo.pos[target as usize] as usize + 1)? as usize;
+    (b.tags[next] == tag && b.data[next][0] == target)
+        .then(|| Info::read(b, next))
+        .flatten()
 }
