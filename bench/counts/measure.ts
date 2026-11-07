@@ -32,7 +32,11 @@ try {
     }
     return value;
   });
-  console.log(JSON.stringify(countEntry(program, values)));
+  const noOps = instance.exports["hd.no_ops"];
+  if (typeof noOps !== "function") {
+    throw new Error(`${program}: missing hd.no_ops`);
+  }
+  console.log(JSON.stringify({ ...countEntry(program, values), noOps: String(noOps()) }));
 } finally {
   host.close();
 }

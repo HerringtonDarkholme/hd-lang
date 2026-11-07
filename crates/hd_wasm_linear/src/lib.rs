@@ -429,7 +429,7 @@ pub const CHECKED_FNS: &[&str] = &[
 
 /// Checked-only metrics follow the ordinary checked entry points. Keep
 /// these at the end so optional reporter hooks retain their existing slots.
-pub const CHECKED_METRICS_FNS: [&str; 2] = ["observe_unique", "unique_checks"];
+pub const CHECKED_METRICS_FNS: [&str; 3] = ["observe_unique", "unique_checks", "no_op_counts"];
 
 /// The cycle collector (`crates/hd_wasm_linear/DESIGN.md` §23.28), which both
 /// runtimes link: `collect`, `due`, `opaque` and `visit`.
@@ -597,6 +597,7 @@ pub struct Checked {
     pub released: Hash128,
     pub observe_unique: Hash128,
     pub unique_checks: Hash128,
+    pub no_op_counts: Hash128,
     #[cfg(feature = "checked-report")]
     pub collected: Hash128,
     #[cfg(feature = "checked-report")]
@@ -652,8 +653,9 @@ impl Runtime {
                         audit: c[1],
                         retained: c[2],
                         released: c[3],
-                        observe_unique: c[c.len() - 2],
-                        unique_checks: c[c.len() - 1],
+                        observe_unique: c[c.len() - 3],
+                        unique_checks: c[c.len() - 2],
+                        no_op_counts: c[c.len() - 1],
                         #[cfg(feature = "checked-report")]
                         collected: c[4],
                         #[cfg(feature = "checked-report")]

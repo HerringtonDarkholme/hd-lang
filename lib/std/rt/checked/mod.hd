@@ -70,6 +70,13 @@ pub fn observe_unique(count: usize) -> usize:
 pub fn unique_checks() -> u64:
     uniqueness_tests
 
+# Count calls on an address with no count: null, static data, a frame slot.
+# They change nothing, and the program still pays for the call.
+let no_op_calls: u64 = 0
+
+pub fn no_op_counts() -> u64:
+    no_op_calls
+
 ## Allocates a block of at least `size` bytes, as `std.rt.alloc.alloc` does, and fills it with FRESH bytes.
 pub fn allocate(size: usize) -> usize:
     held = held + 1
@@ -110,11 +117,14 @@ pub fn retain(address: usize) -> void:
         notify(block, count, 0)
         store_u32(block, u32(count + 1))
         retains = retains + 1
+    else:
+        no_op_calls = no_op_calls + 1
 
 ## Takes one from the count of the block that holds `address`, as `std.rt.alloc.release` does, after checking the block holds a live count.
 pub fn release(address: usize) -> usize:
     block := block_of(address)
     if block == 0:
+        no_op_calls = no_op_calls + 1
         return 0
     count := counted(block, "release")
     notify(block, count, 1)
@@ -144,6 +154,7 @@ pub fn release_known(address: usize) -> usize:
 pub fn release_acyclic(address: usize) -> usize:
     block := block_of(address)
     if block == 0:
+        no_op_calls = no_op_calls + 1
         return 0
     count := counted(block, "release")
     notify(block, count, 1)

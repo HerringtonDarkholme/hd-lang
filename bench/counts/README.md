@@ -36,6 +36,10 @@ counters count actual operations on heap objects; null/static no-ops and the
 collector's private trial-deletion bookkeeping do not add counts. Unchecked
 builds keep their original loads and comparisons.
 
+Those no-ops still cost a call. The table's `No-op calls` column counts the
+retains and releases that found no count: a null, static data or a frame slot.
+It is outside `total` and outside the gate.
+
 The stage case [operation-counter-loop.hd](../../crates/hd_driver/tests/cases/counts/operation-counter-loop.hd)
 and its focused driver test execute both loop variants. The extra owner adds
 1,000 retains and 1,000 releases and fails the same comparator used by CI.
