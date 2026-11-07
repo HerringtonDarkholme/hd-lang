@@ -29,7 +29,6 @@ fn local!() -> i64:
 >   release counted reference (last use)
 >   release counted reference (last use)
 > app/main/local
->   release counted reference (cancelled)
 >   release counted reference (last use)
 >   release counted reference (last use)
 > app/main/local

@@ -20,7 +20,6 @@ fn direct!() -> i64:
 >   release counted reference (last use)
 >   release counted reference (last use)
 > app/main/direct
->   release counted reference (cancelled)
 >   release counted reference (last use)
     bump!(&mut tally)
 >   release counted reference (last use)

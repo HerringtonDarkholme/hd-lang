@@ -1362,12 +1362,17 @@ pub(super) fn finish(
             em.f.op(I::End);
         }
         em.reload_drop_flags(&area);
-        // The locals of the exit set, which a cold frame's parameters are in.
+        // What a cold frame holds of the exit set: its parameters and a
+        // closure's captures. The body's other locals are set only once it
+        // runs, and a started frame is never freed (pinned above).
         let mut places: Vec<(usize, Vec<u32>)> = Vec::new();
         let mut owned: Vec<usize> =
             em.b.exit_drops
                 .iter()
-                .filter(|&&(sub, _)| sub.raw() == u32::from(em.sub_id))
+                .filter(|&&(sub, l)| {
+                    sub.raw() == u32::from(em.sub_id)
+                        && (plocals.contains(&l.idx()) || em.b.cap_local.contains(&l))
+                })
                 .map(|&(_, l)| l.idx())
                 .collect();
         owned.sort_stable();
