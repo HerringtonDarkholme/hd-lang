@@ -126,7 +126,10 @@
         end
       end
       local.get $path.0
-      call $rt:release_ref
+      if
+        local.get $path.0
+        call $rt:release_ref
+      end
       local.get $path.1
       i32.eqz
       if
@@ -206,7 +209,10 @@
         local.set $path.1
       end
       local.get $path.0
-      call $rt:release_ref
+      if
+        local.get $path.0
+        call $rt:release_ref
+      end
       local.get $path.1
       local.get $t0
       local.get $t1

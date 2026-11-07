@@ -87,7 +87,11 @@
       if
         local.get $user
         i32.load $heap
-        call $rt:release_ref
+        local.tee $user
+        if
+          local.get $user
+          call $rt:release_ref
+        end
       end
     ;; 22 |     sum
       local.get $sum

@@ -69,7 +69,16 @@
         end
       end
       local.get $node
-      call $rt:release_ref'1
+      if
+        local.get $node
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $node
+          call $rt:release_ref'1
+        end
+      end
     end
   )
   (func $run (param $root i32) (result i64) (local $t3 i64) (local $t0 i32) (local $t1 i32) (local $t2 i32)
@@ -115,14 +124,22 @@
       i64.store $heap
       local.get $t1
     ;; 40 |     walk(root, &mut total)
-      call $retain
+      local.tee $t2
+      if
+        local.get $t2
+        call $retain
+      end
       local.get $root
       local.get $t1
       i32.const 296 ;; &vtable[func43]
       call $walk
     ;; 39 |     let mut total = Total { sum: 0 }
       local.get $t1
-      call $rt:release_ref'2
+      local.tee $t2
+      if
+        local.get $t2
+        call $rt:release_ref'2
+      end
     ;; 41 |     let mut keeper = Keeper { saved: [] }
       local.get $t0
       i64.const 0
@@ -153,7 +170,17 @@
       i32.load $heap offset=4
     ;; 39 |     let mut total = Total { sum: 0 }
       local.get $t1
-      call $rt:release_ref'1
+      local.tee $t2
+      if
+        local.get $t2
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t2
+          call $rt:release_ref'1
+        end
+      end
     ;; 43 |     total.sum + i64(keeper.saved.len())
       i64.extend_i32_u
       i64.add
@@ -222,14 +249,33 @@
       end
     ;; 17 |     sink.emit(node.value)
       local.get $node
-      call $rt:release_ref'1
+      if
+        local.get $node
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $node
+          call $rt:release_ref'1
+        end
+      end
     end
   )
   (func $keep (param $n i32) (param $k i32) (local $t0 i32) (local $t1 i32)
     ;; 32 |     k.saved.push(n)
     block
       local.get $n
-      call $rt:retain_known
+      local.tee $t0
+      if
+        local.get $t0
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t0
+          call $rt:retain_known
+        end
+      end
       local.get $k
       i32.load $heap
       local.tee $t0

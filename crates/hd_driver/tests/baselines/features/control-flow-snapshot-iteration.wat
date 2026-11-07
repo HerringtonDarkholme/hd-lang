@@ -48,7 +48,11 @@
             end
     ;; 11 |         out.push(v)
             local.get $v.0
-            call $retain
+            local.tee $t3
+            if
+              local.get $t3
+              call $retain
+            end
     ;; 10 |     for v in out:
             local.get $values
             call $rt:list_unique
@@ -91,7 +95,17 @@
       end
     ;; 9 |     let mut out = values
       local.get $t0
-      call $rt:release_ref
+      local.tee $t3
+      if
+        local.get $t3
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t3
+          call $rt:release_ref
+        end
+      end
     end
     local.get $values
   )
@@ -195,7 +209,17 @@
       if
         local.get $t1
         i32.load $heap
-        call $rt:release_ref
+        local.tee $t2
+        if
+          local.get $t2
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          if
+            local.get $t2
+            call $rt:release_ref
+          end
+        end
       end
     ;; 18 |     match cursor.next():
       block
@@ -243,7 +267,17 @@
       local.get $first.1
       call $rt:release
       local.get $values
-      call $rt:release_ref
+      local.tee $t2
+      if
+        local.get $t2
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t2
+          call $rt:release_ref
+        end
+      end
       local.get $t1
       local.set $values
     end

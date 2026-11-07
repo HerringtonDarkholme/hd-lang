@@ -9,11 +9,21 @@
   (import "fixture" "forbid" (global $forbid (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 5 funcref))
-  (func $guard (param $log i32) (param $label.0 i32) (param $label.1 i32) (result i32 i32 i32)
+  (func $guard (param $log i32) (param $label.0 i32) (param $label.1 i32) (result i32 i32 i32) (local $t0 i32)
     ;; 21 |     Guard { log: log, label: label }
     block
       local.get $log
-      call $rt:retain_known
+      local.tee $t0
+      if
+        local.get $t0
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t0
+          call $rt:retain_known
+        end
+      end
     end
     local.get $log
     local.get $label.0
@@ -28,7 +38,11 @@
       i32.load $heap offset=8
       local.set $t0
       local.tee $t1
-      call $retain
+      local.tee $t2
+      if
+        local.get $t2
+        call $retain
+      end
       local.get $self
       i32.load $heap
       i32.load $heap

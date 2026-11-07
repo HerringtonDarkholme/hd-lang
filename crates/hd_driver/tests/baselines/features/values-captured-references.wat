@@ -5,6 +5,7 @@
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "rt:new/class-2" (func $rt:new/class-2 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
+  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 12 funcref))
   (func $bump#1 (param $env i32) (param $ctx i32)
@@ -35,7 +36,18 @@
       local.tee $env
       i32.load $heap offset=4
       local.get $env
-      call $rt:release_ref
+      if
+        local.get $env
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $env
+          call $rt:release_ref
+        end
+      end
       local.set $env
     end
     local.get $env
@@ -61,7 +73,18 @@
         end
       end
       local.get $t0
-      call $rt:release_ref
+      if
+        local.get $t0
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t0
+          call $rt:release_ref
+        end
+      end
     end
     local.get $xs
   )
@@ -109,13 +132,36 @@
       call_indirect $table0 (param i32 i32)
       local.get $s.1
     ;; 15 |     origin := box(Point { name: s, x: 0 })
-      call $rt:release_ref
+      if
+        local.get $s.1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $s.1
+          call $rt:release_ref
+        end
+      end
     ;; 19 |     origin.x
       local.get $origin
       i32.load $heap offset=8
     ;; 15 |     origin := box(Point { name: s, x: 0 })
       local.get $origin
-      call $rt:release_ref
+      local.tee $s.1
+      if
+        local.get $s.1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $s.1
+          call $rt:release_ref
+        end
+      end
       local.set $s.0
     end
     local.get $s.0

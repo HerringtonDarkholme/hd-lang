@@ -67,7 +67,16 @@
       end
     ;; 17 |     let mut n = 0
       local.get $line.0
-      call $rt:release_ref
+      if
+        local.get $line.0
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $line.0
+          call $rt:release_ref
+        end
+      end
     ;; 20 |     n
       local.get $n
     ;; 17 |     let mut n = 0
@@ -171,13 +180,32 @@
       end
     ;; 10 |     sb := StringBuilder::new()
       local.get $parts
-      call $rt:release_ref
+      if
+        local.get $parts
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $parts
+          call $rt:release_ref
+        end
+      end
     ;; 14 |     sb.build()
       local.get $sb
       call $"impl StringBuilder.build"
       local.get $sb
     ;; 10 |     sb := StringBuilder::new()
-      call $rt:release_ref
+      local.tee $parts
+      if
+        local.get $parts
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $parts
+          call $rt:release_ref
+        end
+      end
       local.set $sb
       local.set $parts
     end

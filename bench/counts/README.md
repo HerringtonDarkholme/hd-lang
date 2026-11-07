@@ -43,9 +43,11 @@ counters count actual operations on heap objects; null/static no-ops and the
 collector's private trial-deletion bookkeeping do not add counts. Unchecked
 builds keep their original loads and comparisons.
 
-Those no-ops still cost a call. The table's `No-op calls` column counts the
-retains and releases that found no count: a null, static data or a frame slot.
-It is outside `total` and outside the gate.
+Those no-ops still cost something. `No-op calls` counts the retains and
+releases that reached the runtime and found no count: static data or a frame
+slot behind an address only the page table can place. `Skipped by a test` counts
+those a test at the call site turned away (`count_tests.rs`), which cost the
+test, not the call. Both are outside `total` and outside the gate.
 
 The stage case [operation-counter-loop.hd](../../crates/hd_driver/tests/cases/counts/operation-counter-loop.hd)
 and its focused driver test execute both loop variants. The extra owner adds

@@ -3,7 +3,7 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $"impl Named for User.name" (param $self i32) (result i32 i32) (local $t0 i32)
+  (func $"impl Named for User.name" (param $self i32) (result i32 i32) (local $t0 i32) (local $t1 i32)
     ;; 14 |         self.name
     block
       local.get $self
@@ -12,19 +12,31 @@
       i32.load $heap offset=4
       local.set $t0
       local.tee $self
-      call $retain
+      local.tee $t1
+      if
+        local.get $t1
+        call $retain
+      end
     end
     local.get $self
     local.get $t0
   )
-  (func $same_dyn (param $user i32) (result i32)
+  (func $same_dyn (param $user i32) (result i32) (local $t0 i32)
     ;; 17 |     let first: &mut dyn Named = user
     block
       local.get $user
-      call $retain
+      local.tee $t0
+      if
+        local.get $t0
+        call $retain
+      end
     ;; 18 |     let second: &mut dyn Named = user
       local.get $user
-      call $retain
+      local.tee $t0
+      if
+        local.get $t0
+        call $retain
+      end
     ;; 17 |     let first: &mut dyn Named = user
       local.get $user
     ;; 19 |     first is second
@@ -34,9 +46,17 @@
       i64.eq
     ;; 17 |     let first: &mut dyn Named = user
       local.get $user
-      call $rt:release_ref
+      local.tee $t0
+      if
+        local.get $t0
+        call $rt:release_ref
+      end
       local.get $user
-      call $rt:release_ref
+      local.tee $t0
+      if
+        local.get $t0
+        call $rt:release_ref
+      end
       local.set $user
     end
     local.get $user

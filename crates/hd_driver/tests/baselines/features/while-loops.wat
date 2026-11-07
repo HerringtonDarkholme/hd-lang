@@ -62,11 +62,15 @@
     end
     local.get $xs
   )
-  (func $build_while (param $s.0 i32) (param $s.1 i32) (param $k i32) (result i32 i32) (local $out.0 i32) (local $out.1 i32) (local $i i32)
+  (func $build_while (param $s.0 i32) (param $s.1 i32) (param $k i32) (result i32 i32) (local $out.0 i32) (local $out.1 i32) (local $i i32) (local $t0 i32)
     ;; 15 |     let out = s
     block
       local.get $s.0
-      call $retain
+      local.tee $t0
+      if
+        local.get $t0
+        call $retain
+      end
       local.get $s.0
       local.get $s.1
       local.set $out.1
@@ -98,7 +102,11 @@
       end
     ;; 15 |     let out = s
       local.get $s.0
-      call $rt:release_ref
+      local.tee $t0
+      if
+        local.get $t0
+        call $rt:release_ref
+      end
     ;; 20 |     out
       local.get $out.0
       local.get $out.1

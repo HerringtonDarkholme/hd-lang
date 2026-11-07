@@ -11,6 +11,7 @@
   (import "fixture" "impl Duration.milliseconds" (func $"impl Duration.milliseconds" (param i64) (result i64)))
   (import "fixture" "sleep" (func $sleep (param i32 i64 i32 i32) (result i32)))
   (import "fixture" "rt:frame'2" (func $rt:frame'2 (result i32)))
+  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 14 funcref))
   (func $stored'1 (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32) (local $t14 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $pending i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32) (local $t10 i32) (local $t11 i32) (local $t12 i32) (local $t13 i32) (local $t0 i32)
@@ -139,7 +140,11 @@
             i32.eqz
             if
               local.get $t6
-              call $retain
+              local.tee $t14
+              if
+                local.get $t14
+                call $retain
+              end
             end
             local.get $t6
             i32.load $heap offset=12
@@ -157,7 +162,11 @@
                 i32.or
                 i32.store $heap offset=12
                 local.get $provider0
-                call $retain
+                local.tee $t14
+                if
+                  local.get $t14
+                  call $retain
+                end
               end
               local.get $frame
               local.get $t6
@@ -181,7 +190,11 @@
               i32.or
               i32.store $heap offset=12
               local.get $provider0
-              call $retain
+              local.tee $t14
+              if
+                local.get $t14
+                call $retain
+              end
             end
             local.get $frame
             local.get $provider0
@@ -260,7 +273,11 @@
               i32.const 0
               i32.store $heap offset=16
               local.get $t6
-              call $rt:release_ref'1
+              local.tee $t14
+              if
+                local.get $t14
+                call $rt:release_ref'1
+              end
             end
           end
           local.get $t8
@@ -304,7 +321,11 @@
             i32.or
             i32.store $heap offset=12
             local.get $provider0
-            call $retain
+            local.tee $t14
+            if
+              local.get $t14
+              call $retain
+            end
           end
           local.get $frame
           local.get $provider0
@@ -381,10 +402,26 @@
           i32.const 0
           i32.store $heap offset=16
           local.get $t11
-          call $rt:release_ref'1
+          local.tee $t14
+          if
+            local.get $t14
+            call $rt:release_ref'1
+          end
         end
         local.get $t4
-        call $rt:release_ref'2
+        local.tee $t14
+        if
+          local.get $t14
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          global.get $tracing
+          i32.or
+          if
+            local.get $t14
+            call $rt:release_ref'2
+          end
+        end
         i32.const 0
         local.set $t2
         i32.const 1
@@ -393,7 +430,19 @@
       end
     ;; 11 |     let pending: mut Suspend[i32] = read()
       local.get $t4
-      call $rt:release_ref'2
+      local.tee $t14
+      if
+        local.get $t14
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t14
+          call $rt:release_ref'2
+        end
+      end
       local.get $t5
       local.set $t2
     end
@@ -515,7 +564,7 @@
     local.get $t0
     call $rt:cancel_leave
   )
-  (func $stored.drop (param $t0 i32)
+  (func $stored.drop (param $t0 i32) (local $t1 i32)
     ;; 11 |     let pending: mut Suspend[i32] = read()
     local.get $t0
     i32.load $heap offset=12
@@ -525,17 +574,37 @@
     if
       local.get $t0
       i32.load $heap offset=48
-      call $rt:release_ref'2
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t1
+          call $rt:release_ref'2
+        end
+      end
     end
     local.get $t0
     i32.load $heap offset=24
-    call $rt:release_ref'1
+    local.tee $t1
+    if
+      local.get $t1
+      call $rt:release_ref'1
+    end
     local.get $t0
     i32.load $heap offset=16
     if
       local.get $t0
       i32.load $heap offset=16
-      call $rt:release_ref'1
+      local.tee $t1
+      if
+        local.get $t1
+        call $rt:release_ref'1
+      end
     end
   )
   (func $stored'2 (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32)
@@ -548,7 +617,10 @@
     local.get $t2
     i32.store $heap offset=28
     local.get $t1
-    call $retain
+    if
+      local.get $t1
+      call $retain
+    end
     local.get $t0
   )
   (func $read'2 (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32) (local $t12 i32) (local $t1 i32) (local $t2 i64) (local $t3 i64) (local $t4 i64) (local $t5 i64) (local $t6 i64) (local $t7 i32) (local $t8 i32) (local $t9 i32) (local $t10 i32) (local $t11 i32) (local $t0 i32)
@@ -678,7 +750,10 @@
               i32.or
               i32.store $heap offset=12
               local.get $provider0
-              call $retain
+              if
+                local.get $provider0
+                call $retain
+              end
             end
             local.get $frame
             local.get $t8
@@ -702,7 +777,10 @@
             i32.or
             i32.store $heap offset=12
             local.get $provider0
-            call $retain
+            if
+              local.get $provider0
+              call $retain
+            end
           end
           local.get $frame
           local.get $provider0
@@ -770,7 +848,11 @@
           i32.const 0
           i32.store $heap offset=16
           local.get $t7
-          call $rt:release_ref'1
+          local.tee $provider0
+          if
+            local.get $provider0
+            call $rt:release_ref'1
+          end
         end
         br 1
       end
@@ -811,7 +893,10 @@
           i32.or
           i32.store $heap offset=12
           local.get $provider0
-          call $retain
+          if
+            local.get $provider0
+            call $retain
+          end
         end
         local.get $frame
         local.get $provider0
@@ -879,7 +964,11 @@
         i32.const 0
         i32.store $heap offset=16
         local.get $t9
-        call $rt:release_ref'1
+        local.tee $provider0
+        if
+          local.get $provider0
+          call $rt:release_ref'1
+        end
       end
       local.get $frame
       local.get $frame
@@ -1026,17 +1115,25 @@
     local.get $t0
     call $rt:cancel_leave
   )
-  (func $read.drop (param $t0 i32)
+  (func $read.drop (param $t0 i32) (local $t1 i32)
     ;; 7 |     sleep!(ms(1))
     local.get $t0
     i32.load $heap offset=24
-    call $rt:release_ref'1
+    local.tee $t1
+    if
+      local.get $t1
+      call $rt:release_ref'1
+    end
     local.get $t0
     i32.load $heap offset=16
     if
       local.get $t0
       i32.load $heap offset=16
-      call $rt:release_ref'1
+      local.tee $t1
+      if
+        local.get $t1
+        call $rt:release_ref'1
+      end
     end
   )
   (func $read'1 (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32)
@@ -1049,7 +1146,10 @@
     local.get $t2
     i32.store $heap offset=28
     local.get $t1
-    call $retain
+    if
+      local.get $t1
+      call $retain
+    end
     local.get $t0
   )
 )

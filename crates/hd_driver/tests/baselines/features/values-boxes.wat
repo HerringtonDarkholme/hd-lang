@@ -5,6 +5,7 @@
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
+  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $copy_box (param $s.0 i32) (param $s.1 i32) (param $t.0 i32) (param $t.1 i32) (result i32) (local $copy i32)
     ;; 14 |     let mut p = Point { name: s }
@@ -41,7 +42,18 @@
       end
     ;; 14 |     let mut p = Point { name: s }
       local.get $copy
-      call $rt:release_ref'1
+      if
+        local.get $copy
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $copy
+          call $rt:release_ref'1
+        end
+      end
     ;; 17 |     copy.name.len() + p.name.len()
       block
         block
@@ -52,7 +64,11 @@
       end
     ;; 14 |     let mut p = Point { name: s }
       local.get $s.0
-      call $rt:release_ref'2
+      local.tee $copy
+      if
+        local.get $copy
+        call $rt:release_ref'2
+      end
     ;; 17 |     copy.name.len() + p.name.len()
       local.get $s.1
       local.get $t.0
@@ -85,7 +101,7 @@
     end
     local.get $s.0
   )
-  (func $shared (param $s.0 i32) (param $s.1 i32) (param $t.0 i32) (param $t.1 i32) (result i32) (local $b i32)
+  (func $shared (param $s.0 i32) (param $s.1 i32) (param $t.0 i32) (param $t.1 i32) (result i32) (local $b i32) (local $t0 i32)
     ;; 24 |     b := box(Point { name: s })
     block
       i32.const 8
@@ -100,7 +116,17 @@
       local.get $b
     ;; 25 |     h := Holder { point: b }
       local.tee $s.0
-      call $rt:retain_known
+      local.tee $t0
+      if
+        local.get $t0
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t0
+          call $rt:retain_known
+        end
+      end
       local.get $s.0
     ;; 26 |     b.name = t
       local.get $b
@@ -116,7 +142,19 @@
       call $rt:release
     ;; 24 |     b := box(Point { name: s })
       local.get $b
-      call $rt:release_ref'1
+      local.tee $t0
+      if
+        local.get $t0
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t0
+          call $rt:release_ref'1
+        end
+      end
     ;; 27 |     h.point.name.len()
       i32.load $heap
       local.get $s.0
@@ -130,7 +168,19 @@
       end
     ;; 24 |     b := box(Point { name: s })
       local.get $s.0
-      call $rt:release_ref'1
+      local.tee $t0
+      if
+        local.get $t0
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t0
+          call $rt:release_ref'1
+        end
+      end
       local.get $s.1
       local.set $s.0
     end

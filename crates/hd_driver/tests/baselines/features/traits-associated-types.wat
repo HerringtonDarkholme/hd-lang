@@ -25,7 +25,10 @@
         end
       end
       local.get $c.value.0
-      call $rt:release_ref
+      if
+        local.get $c.value.0
+        call $rt:release_ref
+      end
       local.get $c.value.1
       local.set $c.value.0
     end
@@ -46,7 +49,10 @@
         end
       end
       local.get $source.0
-      call $rt:release_ref
+      if
+        local.get $source.0
+        call $rt:release_ref
+      end
       local.get $source.1
       local.set $source.0
     end
@@ -97,18 +103,30 @@
     i32.store $heap offset=4
     block
       local.get $c
-      call $retain
+      local.tee $t2
+      if
+        local.get $t2
+        call $retain
+      end
       local.get $c
       i32.const 160 ;; &vtable[func21]
       call $read
       local.set $t1
       local.get $c
-      call $rt:release_ref
+      local.tee $t2
+      if
+        local.get $t2
+        call $rt:release_ref
+      end
       local.get $c
       if
         local.get $c
         i32.load $heap
-        call $rt:release_ref
+        local.tee $t2
+        if
+          local.get $t2
+          call $rt:release_ref
+        end
       end
     end
     local.get $t1
@@ -117,7 +135,7 @@
     i32.add
     global.set $locals
   )
-  (func $"impl Supplier for Constant.get" (param $self i32) (result i32 i32) (local $t0 i32)
+  (func $"impl Supplier for Constant.get" (param $self i32) (result i32 i32) (local $t0 i32) (local $t1 i32)
     ;; 18 |         self.value
     block
       local.get $self
@@ -126,7 +144,11 @@
       i32.load $heap offset=4
       local.set $t0
       local.tee $self
-      call $retain
+      local.tee $t1
+      if
+        local.get $t1
+        call $retain
+      end
     end
     local.get $self
     local.get $t0

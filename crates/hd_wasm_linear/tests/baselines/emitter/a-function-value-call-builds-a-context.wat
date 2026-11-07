@@ -4,6 +4,7 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
+  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 8 funcref))
   (func $notify (param $send.0 i32) (param $send.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32)
@@ -25,14 +26,33 @@
       local.get $provider0.vtable
       i32.store $heap offset=28
       local.get $provider0
-      call $retain
+      if
+        local.get $provider0
+        call $retain
+      end
       local.get $t0
       local.get $send.0
       call_indirect $table0 (param i32 i32 i32 i32)
       local.get $t0
-      call $rt:release_ref'1
+      local.tee $provider0
+      if
+        local.get $provider0
+        call $rt:release_ref'1
+      end
     end
     local.get $send.1
-    call $rt:release_ref'2
+    local.tee $provider0
+    if
+      local.get $provider0
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      global.get $tracing
+      i32.or
+      if
+        local.get $provider0
+        call $rt:release_ref'2
+      end
+    end
   )
 )

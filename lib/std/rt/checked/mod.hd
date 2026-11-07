@@ -77,6 +77,16 @@ let no_op_calls: u64 = 0
 pub fn no_op_counts() -> u64:
     no_op_calls
 
+# Count calls a test at the call site skipped (`count_tests.rs`): no count to
+# change, and no call to pay for, only the test.
+let skipped: u64 = 0
+
+pub fn skipped_test() -> void:
+    skipped = skipped + 1
+
+pub fn skipped_tests() -> u64:
+    skipped
+
 ## Allocates a block of at least `size` bytes, as `std.rt.alloc.alloc` does, and fills it with FRESH bytes.
 pub fn allocate(size: usize) -> usize:
     held = held + 1

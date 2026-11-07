@@ -88,7 +88,10 @@
       end
     ;; 26 |     let mut origin = Point { name: s, n: 0 }
       local.get $s.0
-      call $rt:release_ref
+      if
+        local.get $s.0
+        call $rt:release_ref
+      end
       local.get $s.1
       local.set $s.0
     end
@@ -144,11 +147,21 @@
     end
     local.get $h
   )
-  (func $weaken (param $h i32) (result i32)
+  (func $weaken (param $h i32) (result i32) (local $t0 i32)
     ;; 33 |     h
     block
       local.get $h
-      call $rt:retain_known
+      local.tee $t0
+      if
+        local.get $t0
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t0
+          call $rt:retain_known
+        end
+      end
     end
     local.get $h
   )

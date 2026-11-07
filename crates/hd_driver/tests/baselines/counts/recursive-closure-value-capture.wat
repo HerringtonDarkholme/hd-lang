@@ -36,7 +36,7 @@
     end
     local.get $env
   )
-  (func $sum_to (param $limit i32) (param $seed i32) (result i32) (local $t0 i32)
+  (func $sum_to (param $limit i32) (param $seed i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 6 |     sum := fn(n: i32) -> i32:
     block
       i32.const 0
@@ -49,10 +49,30 @@
     ;; 9 |     sum(limit)
       local.set $seed
       local.get $t0
-      call $rt:retain_known
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t1
+          call $rt:retain_known
+        end
+      end
     ;; 6 |     sum := fn(n: i32) -> i32:
       local.get $t0
-      call $rt:release_ref
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t1
+          call $rt:release_ref
+        end
+      end
     ;; 9 |     sum(limit)
       local.get $t0
       local.get $limit
@@ -61,7 +81,17 @@
       call_indirect $table0 (param i32 i32 i32) (result i32)
     ;; 6 |     sum := fn(n: i32) -> i32:
       local.get $t0
-      call $rt:release_ref
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t1
+          call $rt:release_ref
+        end
+      end
       local.set $limit
     end
     local.get $limit

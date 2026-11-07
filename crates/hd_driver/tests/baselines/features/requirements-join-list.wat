@@ -16,6 +16,7 @@
   (import "fixture" "all_list[string]" (func $"all_list[string]" (param i32 i32) (result i32 i32)))
   (import "fixture" "rt:frame'2" (func $rt:frame'2 (result i32)))
   (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
+  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 24 funcref))
   (func $fetch'1 (param $frame i32) (param $key.0 i32) (param $key.1 i32) (result i32 i32 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t0 i32)
@@ -188,24 +189,35 @@
         i32.and
         i32.store $heap offset=12
         local.get $t3
-        call $rt:release_ref'1
+        if
+          local.get $t3
+          call $rt:release_ref'1
+        end
       end
     end
     local.get $t1
     local.get $t0
     call $rt:cancel_leave
   )
-  (func $fetch.drop (param $t0 i32)
+  (func $fetch.drop (param $t0 i32) (local $t1 i32)
     ;; 11 |     key + "?"
     local.get $t0
     i32.load $heap offset=24
-    call $rt:release_ref'1
+    local.tee $t1
+    if
+      local.get $t1
+      call $rt:release_ref'1
+    end
     local.get $t0
     i32.load $heap offset=16
     if
       local.get $t0
       i32.load $heap offset=16
-      call $rt:release_ref'1
+      local.tee $t1
+      if
+        local.get $t1
+        call $rt:release_ref'1
+      end
     end
   )
   (func $fetch'2 (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32)
@@ -213,7 +225,10 @@
     call $rt:frame'1
     local.tee $t0
     local.get $t1
-    call $retain
+    if
+      local.get $t1
+      call $retain
+    end
     local.get $t1
     i32.store $heap offset=24
     local.get $t0
@@ -595,7 +610,18 @@
           end
         end
         local.get $t6
-        call $rt:release_ref'2
+        if
+          local.get $t6
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          global.get $tracing
+          i32.or
+          if
+            local.get $t6
+            call $rt:release_ref'2
+          end
+        end
         i32.const 0
         local.set $t6
         local.get $t4
@@ -925,7 +951,11 @@
             i32.const 0
             i32.store $heap offset=16
             local.get $t42
-            call $rt:release_ref'1
+            local.tee $t6
+            if
+              local.get $t6
+              call $rt:release_ref'1
+            end
           end
           local.get $t43
           local.set $t41
@@ -1214,10 +1244,26 @@
           i32.const 0
           i32.store $heap offset=16
           local.get $t45
-          call $rt:release_ref'1
+          local.tee $t6
+          if
+            local.get $t6
+            call $rt:release_ref'1
+          end
         end
         local.get $t40
-        call $rt:release_ref'2
+        local.tee $t6
+        if
+          local.get $t6
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          global.get $tracing
+          i32.or
+          if
+            local.get $t6
+            call $rt:release_ref'2
+          end
+        end
         i32.const 0
         local.set $t2
         i32.const 1
@@ -1226,7 +1272,19 @@
       end
     ;; 14 |     let tasks: List[mut Suspend[string]] = [for k in keys => fetch(k)]
       local.get $t40
-      call $rt:release_ref'2
+      local.tee $t6
+      if
+        local.get $t6
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t6
+          call $rt:release_ref'2
+        end
+      end
     ;; 15 |     results := join!(tasks...)
       local.get $t41
       local.tee $results
@@ -1283,14 +1341,38 @@
       end
     ;; 14 |     let tasks: List[mut Suspend[string]] = [for k in keys => fetch(k)]
       local.get $results
-      call $rt:release_ref'2
+      local.tee $t6
+      if
+        local.get $t6
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t6
+          call $rt:release_ref'2
+        end
+      end
     ;; 19 |     n
       local.get $n
     ;; 14 |     let tasks: List[mut Suspend[string]] = [for k in keys => fetch(k)]
       local.set $t2
     end
     local.get $keys
-    call $rt:release_ref'2
+    local.tee $t6
+    if
+      local.get $t6
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      global.get $tracing
+      i32.or
+      if
+        local.get $t6
+        call $rt:release_ref'2
+      end
+    end
     local.get $t2
     local.get $frame
     if
@@ -1407,7 +1489,7 @@
     local.get $t0
     call $rt:cancel_leave
   )
-  (func $all.drop (param $t0 i32)
+  (func $all.drop (param $t0 i32) (local $t1 i32)
     ;; 14 |     let tasks: List[mut Suspend[string]] = [for k in keys => fetch(k)]
     local.get $t0
     i32.load $heap offset=12
@@ -1417,17 +1499,45 @@
     if
       local.get $t0
       i32.load $heap offset=196
-      call $rt:release_ref'2
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t1
+          call $rt:release_ref'2
+        end
+      end
       local.get $t0
       i32.load $heap offset=24
-      call $rt:release_ref'2
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t1
+          call $rt:release_ref'2
+        end
+      end
     end
     local.get $t0
     i32.load $heap offset=16
     if
       local.get $t0
       i32.load $heap offset=16
-      call $rt:release_ref'1
+      local.tee $t1
+      if
+        local.get $t1
+        call $rt:release_ref'1
+      end
     end
   )
   (func $all'2 (param $t1 i32) (result i32) (local $t0 i32)

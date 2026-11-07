@@ -24,9 +24,10 @@
   (import "fixture" "impl Duration.milliseconds" (func $"impl Duration.milliseconds" (param i64) (result i64)))
   (import "fixture" "sleep" (func $sleep (param i32 i64 i32 i32) (result i32)))
   (import "fixture" "rt:frame'2" (func $rt:frame'2 (result i32)))
+  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 15 funcref))
-  (func $main'1 (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (param $provider1 i32) (param $provider1.vtable i32) (result i32) (local $t185 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32) (local $t10 i32) (local $t11 i32) (local $t12 i32) (local $t13 i32) (local $t14 i32) (local $t15 i32) (local $t16 i32) (local $t17 i32) (local $t18 i32) (local $t19 i32) (local $t20 i32) (local $t21 i32) (local $t22 i32) (local $t23 i32) (local $t24 i32) (local $t25 i32) (local $t26 i32) (local $t27 i32) (local $t28 i32) (local $t29 i32) (local $t30 i32) (local $t31 i32) (local $t32 i32) (local $t33 i32) (local $t34 i32) (local $t35 i32) (local $t36 i32) (local $t37 i32) (local $t38 i32) (local $t39 i32) (local $t40 i32) (local $t41 i32) (local $t42 i32) (local $t43 i32) (local $t44 i32) (local $t45 i32) (local $t46 i32) (local $t47 i32) (local $t48 i32) (local $t49 i32) (local $t50 i32) (local $t51 i32) (local $t52 i32) (local $t53 i32) (local $t54 i32) (local $t55 i32) (local $t56 i32) (local $t57 i32) (local $t58 i32) (local $t59 i32) (local $t60 i32) (local $t61 i32) (local $t62 i32) (local $t63 i32) (local $u i32) (local $t64 i32) (local $t65 i32) (local $t66 i32) (local $t67 i32) (local $t68 i32) (local $t69 i32) (local $t70 i32) (local $t71 i32) (local $t72 i32) (local $t73 i32) (local $t74 i32) (local $t75 i32) (local $t76 i32) (local $t77 i32) (local $t78 i32) (local $t79 i32) (local $t80 i32) (local $t81 i32) (local $t82 i32) (local $t83 i32) (local $t84 i32) (local $t85 i32) (local $t86 i32) (local $t87 i32) (local $t88 i32) (local $t89 i32) (local $t90 i32) (local $t91 i32) (local $t92 i32) (local $t93 i32) (local $t94 i32) (local $t95 i32) (local $t96 i32) (local $t97 i32) (local $t98 i32) (local $t99 i32) (local $t100 i32) (local $t101 i32) (local $t102 i32) (local $t103 i32) (local $t104 i32) (local $t105 i32) (local $t106 i32) (local $t107 i32) (local $t108 i32) (local $t109 i32) (local $t110 i32) (local $t111 i32) (local $t112 i32) (local $t113 i32) (local $t114 i32) (local $t115 i32) (local $t116 i32) (local $t117 i32) (local $t118 i32) (local $t119 i32) (local $t120 i32) (local $t121 i32) (local $t122 i32) (local $t123 i32) (local $t124 i32) (local $t125 i32) (local $t126 i32) (local $t127 i32) (local $t128 i32) (local $t129 i32) (local $t130 i32) (local $t131 i32) (local $t132 i32) (local $t133 i32) (local $t134 i32) (local $t135 i32) (local $t136 i32) (local $t137 i32) (local $t138 i32) (local $t139 i32) (local $t140 i32) (local $t141 i32) (local $t142 i32) (local $t143 i32) (local $a i32) (local $t144 i32) (local $t145 i32) (local $t146 i32) (local $t147 i32) (local $t148 i32) (local $t149 i32) (local $t150 i32) (local $t151 i32) (local $t152 i64) (local $t153 i64) (local $t154 i32) (local $t155 i64) (local $t156 i32) (local $t157 i32) (local $t158 i32) (local $t159 i32) (local $t160 i32) (local $t161 i32) (local $t162 i32) (local $t163 i32) (local $t164 i32) (local $t165 i32) (local $t166 i32) (local $t167 i32) (local $t168 i32) (local $t169 i32) (local $t170 i32) (local $t171 i32) (local $t172 i32) (local $t173 i32) (local $t174 i64) (local $t175 i32) (local $t176 i64) (local $t177 i32) (local $t178 i32) (local $t179 i32) (local $t180 i32) (local $t181 i32) (local $t182 i32) (local $t183 i32) (local $t184 i32) (local $t0 i32)
+  (func $main'1 (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (param $provider1 i32) (param $provider1.vtable i32) (result i32) (local $t185 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32) (local $t10 i32) (local $t11 i32) (local $t12 i32) (local $t13 i32) (local $t14 i32) (local $t15 i32) (local $t16 i32) (local $t17 i32) (local $t18 i32) (local $t19 i32) (local $t20 i32) (local $t21 i32) (local $t22 i32) (local $t23 i32) (local $t24 i32) (local $t25 i32) (local $t26 i32) (local $t27 i32) (local $t28 i32) (local $t29 i32) (local $t30 i32) (local $t31 i32) (local $t32 i32) (local $t33 i32) (local $t34 i32) (local $t35 i32) (local $t36 i32) (local $t37 i32) (local $t38 i32) (local $t39 i32) (local $t40 i32) (local $t41 i32) (local $t42 i32) (local $t43 i32) (local $t44 i32) (local $t45 i32) (local $t46 i32) (local $t47 i32) (local $t48 i32) (local $t49 i32) (local $t50 i32) (local $t51 i32) (local $t52 i32) (local $t53 i32) (local $t54 i32) (local $t55 i32) (local $t56 i32) (local $t57 i32) (local $t58 i32) (local $t59 i32) (local $t60 i32) (local $t61 i32) (local $t62 i32) (local $t63 i32) (local $u i32) (local $t64 i32) (local $t65 i32) (local $t66 i32) (local $t67 i32) (local $t68 i32) (local $t69 i32) (local $t70 i32) (local $t71 i32) (local $t72 i32) (local $t73 i32) (local $t74 i32) (local $t75 i32) (local $t76 i32) (local $t77 i32) (local $t78 i32) (local $t79 i32) (local $t80 i32) (local $t81 i32) (local $t82 i32) (local $t83 i32) (local $t84 i32) (local $t85 i32) (local $t86 i32) (local $t87 i32) (local $t88 i32) (local $t89 i32) (local $t90 i32) (local $t91 i32) (local $t92 i32) (local $t93 i32) (local $t94 i32) (local $t95 i32) (local $t96 i32) (local $t97 i32) (local $t98 i32) (local $t99 i32) (local $t100 i32) (local $t101 i32) (local $t102 i32) (local $t103 i32) (local $t104 i32) (local $t105 i32) (local $t106 i32) (local $t107 i32) (local $t108 i32) (local $t109 i32) (local $t110 i32) (local $t111 i32) (local $t112 i32) (local $t113 i32) (local $t114 i32) (local $t115 i32) (local $t116 i32) (local $t117 i32) (local $t118 i32) (local $t119 i32) (local $t120 i32) (local $t121 i32) (local $t122 i32) (local $t123 i32) (local $t124 i32) (local $t125 i32) (local $t126 i32) (local $t127 i32) (local $t128 i32) (local $t129 i32) (local $t130 i32) (local $t131 i32) (local $t132 i32) (local $t133 i32) (local $t134 i32) (local $t135 i32) (local $t136 i32) (local $t137 i32) (local $t138 i32) (local $t139 i32) (local $t140 i32) (local $t141 i32) (local $t142 i32) (local $t143 i32) (local $a i32) (local $t144 i32) (local $t145 i32) (local $t146 i32) (local $t147 i32) (local $t148 i32) (local $t149 i32) (local $t150 i32) (local $t151 i32) (local $t152 i64) (local $t153 i64) (local $t154 i32) (local $t155 i64) (local $t156 i32) (local $t157 i32) (local $t158 i32) (local $t159 i32) (local $t160 i32) (local $t161 i32) (local $t162 i32) (local $t163 i32) (local $t164 i32) (local $t165 i32) (local $t166 i32) (local $t167 i32) (local $t168 i32) (local $t169 i32) (local $t170 i32) (local $t171 i32) (local $t172 i32) (local $t173 i32) (local $t174 i64) (local $t175 i32) (local $t176 i64) (local $t177 i32) (local $t178 i32) (local $t179 i32) (local $t180 i32) (local $t181 i32) (local $t182 i32) (local $t183 i32) (local $t184 i32) (local $t0 i32) (local $t186 i32)
     ;; 12 |     let mut u = UniqList::[i32].new()
     local.get $frame
     if
@@ -1042,7 +1043,19 @@
         local.get $t128
         i32.store $heap offset=28
         local.get $u
-        call $rt:release_ref'1
+        local.tee $t186
+        if
+          local.get $t186
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          global.get $tracing
+          i32.or
+          if
+            local.get $t186
+            call $rt:release_ref'1
+          end
+        end
         i32.const 0
         local.set $u
         local.get $t120
@@ -1111,9 +1124,17 @@
                 i32.or
                 i32.store $heap offset=12
                 local.get $provider0
-                call $retain
+                local.tee $t186
+                if
+                  local.get $t186
+                  call $retain
+                end
                 local.get $provider1
-                call $retain
+                local.tee $t186
+                if
+                  local.get $t186
+                  call $retain
+                end
               end
               local.get $frame
               local.get $t140
@@ -1137,9 +1158,17 @@
               i32.or
               i32.store $heap offset=12
               local.get $provider0
-              call $retain
+              local.tee $t186
+              if
+                local.get $t186
+                call $retain
+              end
               local.get $provider1
-              call $retain
+              local.tee $t186
+              if
+                local.get $t186
+                call $retain
+              end
             end
             local.get $frame
             local.get $provider0
@@ -1737,7 +1766,11 @@
             i32.const 0
             i32.store $heap offset=16
             local.get $t138
-            call $rt:release_ref'2
+            local.tee $t186
+            if
+              local.get $t186
+              call $rt:release_ref'2
+            end
           end
           local.get $t139
           local.set $t137
@@ -1780,9 +1813,17 @@
             i32.or
             i32.store $heap offset=12
             local.get $provider0
-            call $retain
+            local.tee $t186
+            if
+              local.get $t186
+              call $retain
+            end
             local.get $provider1
-            call $retain
+            local.tee $t186
+            if
+              local.get $t186
+              call $retain
+            end
           end
           local.get $frame
           local.get $provider0
@@ -2380,7 +2421,11 @@
           i32.const 0
           i32.store $heap offset=16
           local.get $t141
-          call $rt:release_ref'2
+          local.tee $t186
+          if
+            local.get $t186
+            call $rt:release_ref'2
+          end
         end
         i32.const 1
         local.set $t1
@@ -2408,18 +2453,52 @@
       end
       local.get $a
       local.tee $t147
-      call $rt:retain_known
+      local.tee $t186
+      if
+        local.get $t186
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t186
+          call $rt:retain_known
+        end
+      end
       local.get $t147
       i32.load $heap
     ;; 12 |     let mut u = UniqList::[i32].new()
       local.get $t147
-      call $rt:release_ref'1
+      local.tee $t186
+      if
+        local.get $t186
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t186
+          call $rt:release_ref'1
+        end
+      end
     ;; 15 |     println("$a")
       i64.extend_i32_u
       local.set $t152
     ;; 12 |     let mut u = UniqList::[i32].new()
       local.get $a
-      call $rt:release_ref'1
+      local.tee $t186
+      if
+        local.get $t186
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t186
+          call $rt:release_ref'1
+        end
+      end
     ;; 15 |     println("$a")
       local.get $t152
       local.set $t153
@@ -2603,20 +2682,32 @@
     local.get $t0
     call $rt:cancel_leave
   )
-  (func $main.drop (param $t0 i32)
+  (func $main.drop (param $t0 i32) (local $t1 i32)
     ;; 12 |     let mut u = UniqList::[i32].new()
     local.get $t0
     i32.load $heap offset=24
-    call $rt:release_ref'2
+    local.tee $t1
+    if
+      local.get $t1
+      call $rt:release_ref'2
+    end
     local.get $t0
     i32.load $heap offset=32
-    call $rt:release_ref'2
+    local.tee $t1
+    if
+      local.get $t1
+      call $rt:release_ref'2
+    end
     local.get $t0
     i32.load $heap offset=16
     if
       local.get $t0
       i32.load $heap offset=16
-      call $rt:release_ref'2
+      local.tee $t1
+      if
+        local.get $t1
+        call $rt:release_ref'2
+      end
     end
   )
   (func $main'2 (param $t1 i32) (param $t2 i32) (param $t3 i32) (param $t4 i32) (result i32) (local $t0 i32)
@@ -2635,9 +2726,16 @@
     local.get $t4
     i32.store $heap offset=36
     local.get $t1
-    call $retain
+    if
+      local.get $t1
+      call $retain
+    end
     local.get $t3
-    call $retain
+    local.tee $t1
+    if
+      local.get $t1
+      call $retain
+    end
     local.get $t0
   )
   (func $sized'1 (param $frame i32) (param $t3 i32) (param $t4 i32) (param $t5 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32) (local $t20 i32) (local $t1 i32) (local $t2 i32) (local $u i32) (local $t6 i32) (local $t7 i32) (local $t8 i64) (local $t9 i64) (local $t10 i64) (local $t11 i64) (local $t12 i64) (local $t13 i32) (local $t14 i32) (local $t15 i32) (local $t16 i32) (local $t17 i32) (local $t18 i32) (local $t19 i32) (local $t0 i32)
@@ -2832,7 +2930,10 @@
                 i32.or
                 i32.store $heap offset=12
                 local.get $provider0
-                call $retain
+                if
+                  local.get $provider0
+                  call $retain
+                end
               end
               local.get $frame
               local.get $t14
@@ -2856,7 +2957,10 @@
               i32.or
               i32.store $heap offset=12
               local.get $provider0
-              call $retain
+              if
+                local.get $provider0
+                call $retain
+              end
             end
             local.get $frame
             local.get $provider0
@@ -2951,7 +3055,11 @@
             i32.const 0
             i32.store $heap offset=16
             local.get $t13
-            call $rt:release_ref'2
+            local.tee $provider0
+            if
+              local.get $provider0
+              call $rt:release_ref'2
+            end
           end
           br 1
         end
@@ -2992,7 +3100,10 @@
             i32.or
             i32.store $heap offset=12
             local.get $provider0
-            call $retain
+            if
+              local.get $provider0
+              call $retain
+            end
           end
           local.get $frame
           local.get $provider0
@@ -3087,7 +3198,11 @@
           i32.const 0
           i32.store $heap offset=16
           local.get $t15
-          call $rt:release_ref'2
+          local.tee $provider0
+          if
+            local.get $provider0
+            call $rt:release_ref'2
+          end
         end
         i32.const 0
         local.set $t2
@@ -3098,20 +3213,66 @@
     ;; 9 |     u.len()
       local.get $u
       local.tee $t18
-      call $rt:retain_known
+      local.tee $provider0
+      if
+        local.get $provider0
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $provider0
+          call $rt:retain_known
+        end
+      end
       local.get $t18
       call $"impl [ T < ? Copy ] UniqList [ T ].len[i32]"
     ;; 8 |     sleep!(ms(1))
       local.get $t18
-      call $rt:release_ref'1
+      local.tee $provider0
+      if
+        local.get $provider0
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $provider0
+          call $rt:release_ref'1
+        end
+      end
       local.get $u
-      call $rt:release_ref'1
+      local.tee $provider0
+      if
+        local.get $provider0
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $provider0
+          call $rt:release_ref'1
+        end
+      end
       i32.const 0
       local.set $u
       local.set $t2
     end
     local.get $u
-    call $rt:release_ref'1
+    local.tee $provider0
+    if
+      local.get $provider0
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      global.get $tracing
+      i32.or
+      if
+        local.get $provider0
+        call $rt:release_ref'1
+      end
+    end
     local.get $t2
     local.get $frame
     if
@@ -3236,7 +3397,7 @@
     local.get $t0
     call $rt:cancel_leave
   )
-  (func $sized.drop (param $t0 i32)
+  (func $sized.drop (param $t0 i32) (local $t1 i32)
     ;; 8 |     sleep!(ms(1))
     local.get $t0
     i32.load $heap offset=12
@@ -3246,17 +3407,37 @@
     if
       local.get $t0
       i32.load $heap offset=40
-      call $rt:release_ref'1
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t1
+          call $rt:release_ref'1
+        end
+      end
     end
     local.get $t0
     i32.load $heap offset=24
-    call $rt:release_ref'2
+    local.tee $t1
+    if
+      local.get $t1
+      call $rt:release_ref'2
+    end
     local.get $t0
     i32.load $heap offset=16
     if
       local.get $t0
       i32.load $heap offset=16
-      call $rt:release_ref'2
+      local.tee $t1
+      if
+        local.get $t1
+        call $rt:release_ref'2
+      end
     end
   )
   (func $sized'2 (param $t3 i32) (param $t4 i32) (param $t5 i32) (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32)
@@ -3299,7 +3480,10 @@
     local.get $t2
     i32.store $heap offset=40
     local.get $t1
-    call $retain
+    if
+      local.get $t1
+      call $retain
+    end
     local.get $t0
   )
 )

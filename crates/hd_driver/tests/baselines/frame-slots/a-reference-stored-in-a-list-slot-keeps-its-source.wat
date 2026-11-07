@@ -15,6 +15,7 @@
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
+  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $replaced (param $p i32) (result i32) (local $t0 i32) (local $k i32) (local $q i32) (local $ps i32) (local $d i32) (local $t1 i64) (local $t2 i64) (local $t3 i32) (local $t4 i32) (local $junk.1 i32) (local $t6 i32) (local $t5 i32)
     ;; 14 |     p := make(k)
@@ -296,18 +297,37 @@
       end
     ;; 14 |     p := make(k)
       local.get $ps
-      call $rt:release_ref'1
+      if
+        local.get $ps
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $ps
+          call $rt:release_ref'1
+        end
+      end
       local.get $q
       if
         local.get $q
         i32.load $heap
-        call $rt:release_ref'2
+        local.tee $ps
+        if
+          local.get $ps
+          call $rt:release_ref'2
+        end
       end
       local.get $p
       if
         local.get $p
         i32.load $heap
-        call $rt:release_ref'2
+        local.tee $ps
+        if
+          local.get $ps
+          call $rt:release_ref'2
+        end
       end
     ;; 20 |     d.len() + ps[0].name.len() + junk.len()
       local.get $k
@@ -334,7 +354,11 @@
       end
     ;; 14 |     p := make(k)
       local.get $t4
-      call $rt:release_ref'2
+      local.tee $ps
+      if
+        local.get $ps
+        call $rt:release_ref'2
+      end
     ;; 20 |     d.len() + ps[0].name.len() + junk.len()
       local.get $p
       i64.extend_i32_u

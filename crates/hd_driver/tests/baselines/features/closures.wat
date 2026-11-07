@@ -9,6 +9,7 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
+  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 12 funcref))
   (func $capture_call#1 (param $env i32) (param $ctx i32) (result i32)
@@ -81,7 +82,11 @@
       local.get $env
       local.get $t0
       i32.store $heap offset=4
-      call $rt:release_ref'1
+      local.tee $env
+      if
+        local.get $env
+        call $rt:release_ref'1
+      end
     end
   )
   (func $escape (param $s.0 i32) (param $s.1 i32) (result i32 i32) (local $t0 i32)
@@ -104,7 +109,7 @@
     local.get $s.0
     local.get $s.1
   )
-  (func $shared (param $s.0 i32) (param $s.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32)
+  (func $shared (param $s.0 i32) (param $s.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 18 |     let mut t = s
     global.get $locals
     global.get $locals_base
@@ -167,7 +172,19 @@
       call $shared#1
     ;; 18 |     let mut t = s
       local.get $s.1
-      call $rt:release_ref'2
+      local.tee $t2
+      if
+        local.get $t2
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t2
+          call $rt:release_ref'2
+        end
+      end
     ;; 21 |     t
       local.get $s.0
       i32.load $heap
@@ -175,13 +192,21 @@
       i32.load $heap offset=4
       local.set $t1
       local.tee $s.1
-      call $retain
+      local.tee $t2
+      if
+        local.get $t2
+        call $retain
+      end
     ;; 18 |     let mut t = s
       local.get $s.0
       if
         local.get $s.0
         i32.load $heap
-        call $rt:release_ref'1
+        local.tee $t2
+        if
+          local.get $t2
+          call $rt:release_ref'1
+        end
       end
       local.get $s.1
       local.get $t1
@@ -220,7 +245,18 @@
       local.set $s.1
     ;; 8 |     f := fn() -> usize: s.len()
       local.get $t0
-      call $rt:release_ref'2
+      if
+        local.get $t0
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t0
+          call $rt:release_ref'2
+        end
+      end
     ;; 9 |     f() + f()
       local.get $s.0
       local.get $s.1

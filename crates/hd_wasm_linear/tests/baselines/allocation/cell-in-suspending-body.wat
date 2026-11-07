@@ -23,7 +23,17 @@
       end
       local.get $tally
       local.tee $t2
-      call $rt:retain_known
+      local.tee $provider0
+      if
+        local.get $provider0
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $provider0
+          call $rt:retain_known
+        end
+      end
       local.get $t2
       call $bump
       ;; ...

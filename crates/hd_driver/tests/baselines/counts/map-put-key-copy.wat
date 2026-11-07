@@ -27,7 +27,10 @@
       call $rt:map_find
       local.set $t2
       local.get $key.0
-      call $retain
+      if
+        local.get $key.0
+        call $retain
+      end
       local.get $items
       local.get $t0
       local.get $t1

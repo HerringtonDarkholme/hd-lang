@@ -52,7 +52,16 @@
       local.get $s.1
       i32.store $heap offset=20
       local.get $xs
-      call $rt:release_ref
+      if
+        local.get $xs
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $xs
+          call $rt:release_ref
+        end
+      end
       local.get $t1
       local.set $xs
     end
@@ -116,9 +125,28 @@
       i32.load $heap offset=4
       call $rt:copy_elems
       local.get $ys
-      call $rt:release_ref
+      if
+        local.get $ys
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $ys
+          call $rt:release_ref
+        end
+      end
       local.get $xs
-      call $rt:release_ref
+      local.tee $ys
+      if
+        local.get $ys
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $ys
+          call $rt:release_ref
+        end
+      end
       local.get $t1
       local.set $xs
     end
@@ -129,7 +157,11 @@
     block
       local.get $k.0
       local.get $v.0
-      call $retain
+      local.tee $k.0
+      if
+        local.get $k.0
+        call $retain
+      end
       i32.const 4
       call $rt:map_table
       local.set $k.0

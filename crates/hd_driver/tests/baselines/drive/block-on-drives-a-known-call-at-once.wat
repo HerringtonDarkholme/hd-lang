@@ -15,6 +15,7 @@
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "hd:rt/block" (func $hd:rt/block (result i32)))
   (import "fixture" "rt:wake_mark" (func $rt:wake_mark (param i32)))
+  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "rewake" (global $rewake (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 12 funcref))
@@ -188,24 +189,35 @@
         i32.and
         i32.store $heap offset=12
         local.get $t3
-        call $rt:release_ref'1
+        if
+          local.get $t3
+          call $rt:release_ref'1
+        end
       end
     end
     local.get $t1
     local.get $t0
     call $rt:cancel_leave
   )
-  (func $fetch.drop (param $t0 i32)
+  (func $fetch.drop (param $t0 i32) (local $t1 i32)
     ;; 9 |     key + "?"
     local.get $t0
     i32.load $heap offset=24
-    call $rt:release_ref'1
+    local.tee $t1
+    if
+      local.get $t1
+      call $rt:release_ref'1
+    end
     local.get $t0
     i32.load $heap offset=16
     if
       local.get $t0
       i32.load $heap offset=16
-      call $rt:release_ref'1
+      local.tee $t1
+      if
+        local.get $t1
+        call $rt:release_ref'1
+      end
     end
   )
   (func $fetch'2 (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32)
@@ -213,7 +225,10 @@
     call $rt:frame
     local.tee $t0
     local.get $t1
-    call $retain
+    if
+      local.get $t1
+      call $retain
+    end
     local.get $t1
     i32.store $heap offset=24
     local.get $t0
@@ -239,7 +254,18 @@
       local.set $key.1
       local.set $key.0
       local.get $t0
-      call $rt:release_ref'2
+      if
+        local.get $t0
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t0
+          call $rt:release_ref'2
+        end
+      end
       block
         block
           block
@@ -358,7 +384,18 @@
       local.set $key.1
     ;; 23 |     let pending: mut Suspend[string] = fetch(key)
       local.get $key.0
-      call $rt:release_ref'2
+      if
+        local.get $key.0
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $key.0
+          call $rt:release_ref'2
+        end
+      end
     ;; 25 |     match block_on(pending):
       block
         block
@@ -417,7 +454,18 @@
       local.set $key.0
     ;; 17 |     let pending: mut Suspend[string] = fetch(key)
       local.get $t0
-      call $rt:release_ref'2
+      if
+        local.get $t0
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t0
+          call $rt:release_ref'2
+        end
+      end
     ;; 18 |     match block_on(pending):
       block
         block

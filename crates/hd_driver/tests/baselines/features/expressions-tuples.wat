@@ -67,7 +67,16 @@
     block
       local.get $t.0.0
       local.get $t.1
-      call $rt:release_ref
+      if
+        local.get $t.1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t.1
+          call $rt:release_ref
+        end
+      end
       local.set $t.0.0
     end
     local.get $t.0.0

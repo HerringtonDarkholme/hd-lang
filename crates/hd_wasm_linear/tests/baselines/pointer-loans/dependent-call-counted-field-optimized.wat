@@ -25,7 +25,17 @@
       local.get $h
       i32.load $heap
       local.tee $h
-      call $rt:retain_known
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t1
+          call $rt:retain_known
+        end
+      end
       block
         block
           local.get $h
@@ -64,7 +74,17 @@
       end
     ;; 15 |     alias.p = next
       local.get $next
-      call $rt:retain_known
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t1
+          call $rt:retain_known
+        end
+      end
       local.get $alias
       i32.const 4
       i32.sub
@@ -80,7 +100,17 @@
       local.get $alias
       local.get $next
       i32.store $heap
-      call $rt:release_ref
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t1
+          call $rt:release_ref
+        end
+      end
     ;; 16 |     *d
       local.get $d
       i32.load $heap
@@ -135,7 +165,17 @@
         local.set $t0
       end
       local.get $h
-      call $rt:release_ref
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t1
+          call $rt:release_ref
+        end
+      end
       local.get $alias
       local.get $next
       local.set $alias
@@ -174,7 +214,17 @@
       local.get $h
       i32.load $heap
       local.tee $h
-      call $rt:retain_known
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t1
+          call $rt:retain_known
+        end
+      end
       block
         block
           local.get $h
@@ -213,7 +263,17 @@
       end
     ;; 26 |     alias.p = next
       local.get $next
-      call $rt:retain_known
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t1
+          call $rt:retain_known
+        end
+      end
       local.get $alias
       i32.const 4
       i32.sub
@@ -229,7 +289,17 @@
       local.get $alias
       local.get $next
       i32.store $heap
-      call $rt:release_ref
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t1
+          call $rt:release_ref
+        end
+      end
     ;; 27 |     *d
       local.get $d
       i32.load $heap
@@ -284,7 +354,17 @@
         local.set $t0
       end
       local.get $h
-      call $rt:release_ref
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t1
+          call $rt:release_ref
+        end
+      end
       local.get $alias
       local.get $next
       local.set $alias

@@ -95,7 +95,11 @@
           if
             local.get $tally
             i32.load $heap offset=8
-            call $rt:release_ref
+            local.tee $tally
+            if
+              local.get $tally
+              call $rt:release_ref
+            end
           end
           br 0
         end

@@ -10,6 +10,8 @@ export interface Entry extends Counts {
   // Count calls on an address with no count: paid for, changing nothing. Not
   // in `total` and not recorded, so the table shows them without gating them.
   noOps?: string;
+  // Count calls a call-site test skipped: the test is all they cost.
+  skipped?: string;
 }
 export interface Baseline {
   version: 1;
@@ -125,7 +127,7 @@ export function recordCounts(actual: Entry[], previous?: Baseline, reason?: stri
     if (increased) {
       note = reason;
     }
-    const { noOps: _, ...counts } = row;
+    const { noOps: _noOps, skipped: _skipped, ...counts } = row;
     return { ...counts, ...(note ? { reason: note } : {}) };
   });
   return { version: 1, pipeline: "optimized-release-checked", engine: "node-default", programs };
@@ -134,14 +136,14 @@ export function recordCounts(actual: Entry[], previous?: Baseline, reason?: stri
 export function countTable(actual: readonly Entry[], recorded?: Baseline): string {
   const limits = new Map(recorded?.programs.map((row) => [row.program, row]));
   const lines = [
-    "| Program | Retains | Releases | Uniqueness | Total | Change | No-op calls |",
-    "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+    "| Program | Retains | Releases | Uniqueness | Total | Change | No-op calls | Skipped by a test |",
+    "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
   ];
   for (const row of actual) {
     const limit = limits.get(row.program);
     const delta = limit ? BigInt(row.total) - BigInt(limit.total) : 0n;
     lines.push(
-      `| ${row.program} | ${row.retained} | ${row.released} | ${row.uniques} | ${row.total} | ${delta > 0n ? "+" : ""}${delta} | ${row.noOps ?? ""} |`,
+      `| ${row.program} | ${row.retained} | ${row.released} | ${row.uniques} | ${row.total} | ${delta > 0n ? "+" : ""}${delta} | ${row.noOps ?? ""} | ${row.skipped ?? ""} |`,
     );
   }
   return lines.join("\n") + "\n";

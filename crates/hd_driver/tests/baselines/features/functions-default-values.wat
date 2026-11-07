@@ -41,7 +41,7 @@
     local.get $name.0
     local.get $name.1
   )
-  (func $with_default (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
+  (func $with_default (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 13 |     collect(s)
     block
       local.get $s.0
@@ -49,13 +49,27 @@
       call $collect.into
       local.set $t0
       local.get $s.0
-      call $retain
+      local.tee $t1
+      if
+        local.get $t1
+        call $retain
+      end
       local.get $s.0
       local.get $s.1
       local.get $t0
       call $collect
       local.get $t0
-      call $rt:release_ref
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t1
+          call $rt:release_ref
+        end
+      end
       local.set $s.0
     end
     local.get $s.0

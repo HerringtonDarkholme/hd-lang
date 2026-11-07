@@ -41,14 +41,28 @@
           local.get $s.1
           call $"impl string.len"
           local.get $s.0
-          call $rt:release_ref'1
+          local.tee $s.1
+          if
+            local.get $s.1
+            call $rt:release_ref'1
+          end
           i32.add
           local.set $s.0
           br 0
         end
       end
       local.get $t0
-      call $rt:release_ref'2
+      local.tee $s.1
+      if
+        local.get $s.1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $s.1
+          call $rt:release_ref'2
+        end
+      end
     end
     local.get $s.0
   )
@@ -74,7 +88,10 @@
         end
       end
       local.get $label.1
-      call $rt:release_ref'1
+      if
+        local.get $label.1
+        call $rt:release_ref'1
+      end
       local.get $label.0
       local.get $body.0
       i32.add
@@ -175,7 +192,16 @@
         end
       end
       local.get $t0
-      call $rt:release_ref'2
+      if
+        local.get $t0
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t0
+          call $rt:release_ref'2
+        end
+      end
     end
     local.get $s.0
   )

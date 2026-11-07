@@ -1,0 +1,26 @@
+# @dump: wat counts
+# @build: v8 release
+# Every count call stands behind a test of what it would answer. `dropped`
+# holds a list, a known payload start: its copy and release test null and the
+# header's count. `other` holds a string, an address only the page table can
+# place: its calls test null alone. `ring` is cycle-capable, so its release also
+# tests the collector, since a gray object's count can reach 0. No count
+# operation changes.
+pub fn known(xs: List[string]) -> (List[string], List[string]):
+    (xs, xs)
+
+pub fn other(s: string) -> (string, string):
+    (s, s)
+
+pub fn dropped(xs: List[string], s: string) -> usize:
+    ys := known(xs)
+    t := other(s)
+    ys._0.len() + t._0.len()
+
+pub struct Ring:
+    next: *mut Ring?
+
+pub fn ring(r: *mut Ring) -> *mut Ring:
+    let mut held = r
+    held = box(Ring { next: .Some(r) })
+    held

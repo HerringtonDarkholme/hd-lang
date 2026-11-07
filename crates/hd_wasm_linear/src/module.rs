@@ -1445,6 +1445,10 @@ impl Module {
         // choosing physical layouts and cycle-collection support.
         self.cancellable = false;
         let original_runtime = self.runtime;
+        // The count tests call it, after reachability is first known.
+        if let Some(c) = self.runtime.and_then(|r| r.checked) {
+            self.retain_instances(&[c.skipped_test]);
+        }
         for f in self.funcs.iter_mut().flatten() {
             f.origins_before_opt = f
                 .origins
@@ -1696,6 +1700,25 @@ impl Module {
                 }
                 self.reach();
             }
+        }
+        if let Some(r) = self.runtime {
+            let counts = crate::count_tests::Counts {
+                retain: r.retain,
+                acyclic: self.acyclic,
+                known_inlined: self.inline_counts && r.checked.is_none(),
+                skipped: r.checked.map(|c| c.skipped_test),
+            };
+            for (k, slot) in self.funcs.iter_mut().enumerate() {
+                let id = SymId(u32::try_from(k).expect("symbols"));
+                if let Some(f) = slot.as_mut()
+                    && !matches!(&*self.symbols.get(id), Sym::Helper(_))
+                    && crate::count_tests::lower(f, counts)
+                {
+                    crate::opt::locals(f, &arity);
+                    f.rebuild_callees();
+                }
+            }
+            self.reach();
         }
         for f in self.funcs.iter_mut().flatten() {
             crate::opt::coalesce(f);

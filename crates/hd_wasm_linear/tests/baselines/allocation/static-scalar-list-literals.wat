@@ -37,7 +37,16 @@
       f64.load $heap offset=32
     ;; 10 |     values := [1.5, 2.5, 3.5]
       local.get $values
-      call $rt:release_ref
+      if
+        local.get $values
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $values
+          call $rt:release_ref
+        end
+      end
       local.set $t1
     end
     local.get $t1

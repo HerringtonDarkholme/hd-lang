@@ -36,7 +36,17 @@
           i32.load $heap
           call $rt:coll_copy
           local.get $last
-          call $rt:release_ref
+          local.tee $last
+          if
+            local.get $last
+            i32.const 8
+            i32.sub
+            i32.load $heap
+            if
+              local.get $last
+              call $rt:release_ref
+            end
+          end
           local.set $last
     ;; 29 |             self.index[i] = self.held
           local.get $self
@@ -76,7 +86,16 @@
       i32.load $heap offset=4
       local.get $last
     ;; 26 |         let mut last: List[usize] = []
-      call $rt:release_ref
+      if
+        local.get $last
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $last
+          call $rt:release_ref
+        end
+      end
       local.set $self
     end
     local.get $self

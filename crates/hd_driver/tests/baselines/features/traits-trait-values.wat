@@ -85,7 +85,10 @@
         end
       end
       local.get $self.0
-      call $rt:release_ref
+      if
+        local.get $self.0
+        call $rt:release_ref
+      end
       local.get $self.1
       i32.const 2
       i32.mul
@@ -161,7 +164,11 @@
       local.tee $u.name.0
     ;; 35 |     through_mut(&mut v, n)
       local.tee $u.name.1
-      call $retain
+      local.tee $t1
+      if
+        local.get $t1
+        call $retain
+      end
       local.get $u.name.1
       i32.const 160 ;; &vtable[func63, func64]
       local.get $n.0
@@ -170,12 +177,20 @@
       local.set $n.0
       local.get $u.name.1
     ;; 34 |     let mut v = u
-      call $rt:release_ref
+      local.tee $t1
+      if
+        local.get $t1
+        call $rt:release_ref
+      end
       local.get $u.name.0
       if
         local.get $u.name.0
         i32.load $heap
-        call $rt:release_ref
+        local.tee $t1
+        if
+          local.get $t1
+          call $rt:release_ref
+        end
       end
       local.get $n.0
       local.set $u.name.0

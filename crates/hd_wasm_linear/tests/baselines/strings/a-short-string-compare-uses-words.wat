@@ -13,9 +13,16 @@
       local.set $left.1
     end
     local.get $left.0
-    call $rt:release_ref
+    if
+      local.get $left.0
+      call $rt:release_ref
+    end
     local.get $right.0
-    call $rt:release_ref
+    local.tee $left.0
+    if
+      local.get $left.0
+      call $rt:release_ref
+    end
     local.get $left.1
   )
 )

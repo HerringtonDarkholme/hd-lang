@@ -202,7 +202,17 @@
       end
     ;; 23 |     let mut t = s
       local.get $s
-      call $rt:release_ref
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t1
+          call $rt:release_ref
+        end
+      end
     ;; 25 |     s.by_self() + s.by_ref() + t.consume().len()
       local.get $b.0
       local.get $b.1
@@ -224,7 +234,17 @@
       local.set $b.1
     ;; 23 |     let mut t = s
       local.get $b.0
-      call $rt:release_ref
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t1
+          call $rt:release_ref
+        end
+      end
     ;; 25 |     s.by_self() + s.by_ref() + t.consume().len()
       local.get $s
       local.get $b.1

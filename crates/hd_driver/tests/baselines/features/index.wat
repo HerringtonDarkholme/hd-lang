@@ -12,6 +12,7 @@
   (import "fixture" "rt:release'1" (func $rt:release'1 (param i32 i32 i32)))
   (import "fixture" "rt:release'2" (func $rt:release'2 (param i32 i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
+  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 12 funcref))
   (func $list_write (param $xs i32) (param $i i32) (param $s.0 i32) (param $s.1 i32)
@@ -40,7 +41,11 @@
       i32.add
       local.tee $xs
       i32.load $heap offset=16
-      call $rt:release_ref'1
+      local.tee $i
+      if
+        local.get $i
+        call $rt:release_ref'1
+      end
       local.get $xs
       local.get $s.0
       i32.store $heap offset=16
@@ -69,7 +74,10 @@
       call $rt:map_find
       local.set $t2
       local.get $k.0
-      call $retain
+      if
+        local.get $k.0
+        call $retain
+      end
       local.get $m
       local.get $t0
       local.get $t1
@@ -176,7 +184,11 @@
         local.get $m
         i32.load $heap offset=12
         local.set $m
-        call $retain
+        local.tee $k.1
+        if
+          local.get $k.1
+          call $retain
+        end
         i32.const 1
         local.get $k.0
         local.get $m
@@ -297,7 +309,7 @@
       end
     end
   )
-  (func $list_take (param $xs i32) (param $i i32) (result i32 i32) (local $t0 i32)
+  (func $list_take (param $xs i32) (param $i i32) (result i32 i32) (local $t0 i32) (local $t1 i32)
     ;; 14 |     xs[i]
     block
       local.get $i
@@ -319,9 +331,25 @@
       i32.load $heap offset=20
       local.set $t0
       local.tee $i
-      call $retain
+      local.tee $t1
+      if
+        local.get $t1
+        call $retain
+      end
       local.get $xs
-      call $rt:release_ref'2
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t1
+          call $rt:release_ref'2
+        end
+      end
       local.get $i
       local.get $t0
       local.set $i

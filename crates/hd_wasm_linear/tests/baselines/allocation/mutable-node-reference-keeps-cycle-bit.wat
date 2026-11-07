@@ -3,11 +3,21 @@
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $keep_mutable (param $node i32) (result i32)
+  (func $keep_mutable (param $node i32) (result i32) (local $t0 i32)
     ;; 9 |     node
     block
       local.get $node
-      call $rt:retain_known
+      local.tee $t0
+      if
+        local.get $t0
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t0
+          call $rt:retain_known
+        end
+      end
     end
     local.get $node
   )

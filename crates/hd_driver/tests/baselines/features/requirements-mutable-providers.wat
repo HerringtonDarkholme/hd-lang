@@ -6,11 +6,15 @@
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 7 funcref))
-  (func $tick (param $s.0 i32) (param $s.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32)
+  (func $tick (param $s.0 i32) (param $s.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t0 i32)
     ;; 23 |     rec := $.use(Recorder)
     block
       local.get $provider0
-      call $retain
+      local.tee $t0
+      if
+        local.get $t0
+        call $retain
+      end
       local.get $provider0
     ;; 24 |     rec.note(s)
       local.get $s.0
@@ -25,7 +29,11 @@
       call_indirect $table0 (param i32) (result i32)
     ;; 23 |     rec := $.use(Recorder)
       local.get $provider0
-      call $rt:release_ref'1
+      local.tee $t0
+      if
+        local.get $t0
+        call $rt:release_ref'1
+      end
       local.set $s.0
     end
     local.get $s.0
@@ -52,7 +60,11 @@
       local.get $tally
     ;; 29 |     $.with(Recorder=tally):
       local.tee $t0
-      call $retain
+      local.tee $t1
+      if
+        local.get $t1
+        call $retain
+      end
       i32.const 296 ;; &vtable[func47, func46]
       local.set $t1
       block
@@ -74,14 +86,28 @@
       end
     ;; 28 |     tally := box(Log { lines: [] })
       local.get $t0
-      call $rt:release_ref'1
+      local.tee $t1
+      if
+        local.get $t1
+        call $rt:release_ref'1
+      end
     ;; 32 |     tally.lines.len()
       local.get $tally
       i32.load $heap
       i32.load $heap offset=4
     ;; 28 |     tally := box(Log { lines: [] })
       local.get $tally
-      call $rt:release_ref'2
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t1
+          call $rt:release_ref'2
+        end
+      end
       local.set $a.0
     end
     local.get $a.0

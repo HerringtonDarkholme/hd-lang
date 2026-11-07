@@ -96,7 +96,11 @@
       local.get $t3
     ;; 6 | greeting := "hello ${1}"
       i32.store $heap offset=4
-      call $rt:release_ref'1
+      local.tee $t1
+      if
+        local.get $t1
+        call $rt:release_ref'1
+      end
     ;; 8 | names := ["a${1}", "b"]
       i32.const 1
       local.set $t0
@@ -183,12 +187,22 @@
       i32.const 1
       i32.store $heap offset=20
       global.get $names
-      call $rt:release_ref'2
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t1
+          call $rt:release_ref'2
+        end
+      end
       local.get $t0
       global.set $names
     end
   )
-  (func $copy_top (result i32 i32) (local $t1 i32) (local $t0 i32)
+  (func $copy_top (result i32 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32)
     ;; 14 |     greeting
     block
       i32.const 24 ;; &greeting
@@ -197,7 +211,11 @@
       i32.load $heap offset=4
       local.set $t0
       local.tee $t1
-      call $retain
+      local.tee $t2
+      if
+        local.get $t2
+        call $retain
+      end
     end
     local.get $t1
     local.get $t0

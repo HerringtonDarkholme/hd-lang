@@ -40,7 +40,16 @@
       end
     ;; 16 |     fn first_len(ys: List[string]) -> usize:
       local.get $ys
-      call $rt:release_ref'1
+      if
+        local.get $ys
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $ys
+          call $rt:release_ref'1
+        end
+      end
       local.get $t0
       local.set $env
     end
@@ -59,7 +68,7 @@
     end
     local.get $xs
   )
-  (func $local_capture (param $prefix.0 i32) (param $prefix.1 i32) (param $xs i32) (result i32) (local $width.1 i32) (local $total i32) (local $t0 i32) (local $x.1 i32)
+  (func $local_capture (param $prefix.0 i32) (param $prefix.1 i32) (param $xs i32) (result i32) (local $width.1 i32) (local $total i32) (local $t0 i32) (local $x.1 i32) (local $t1 i32)
     ;; 8 |     fn width(s: string) -> usize:
     block
       i32.const 1
@@ -106,7 +115,11 @@
             end
     ;; 12 |         total += width(x)
             local.get $prefix.1
-            call $retain
+            local.tee $t1
+            if
+              local.get $t1
+              call $retain
+            end
             local.get $total
             local.get $width.1
             local.get $prefix.1
@@ -123,7 +136,17 @@
       end
     ;; 8 |     fn width(s: string) -> usize:
       local.get $width.1
-      call $rt:release_ref'1
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t1
+          call $rt:release_ref'1
+        end
+      end
     ;; 13 |     total
       local.get $total
     ;; 8 |     fn width(s: string) -> usize:
@@ -150,7 +173,10 @@
       end
     ;; 8 |     fn width(s: string) -> usize:
       local.get $s.0
-      call $rt:release_ref'2
+      if
+        local.get $s.0
+        call $rt:release_ref'2
+      end
     ;; 9 |         prefix.len() + s.len()
       local.get $env
       local.get $s.1

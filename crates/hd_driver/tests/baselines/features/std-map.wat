@@ -33,7 +33,10 @@
       call $rt:map_find'1
       local.set $t2
       local.get $k.0
-      call $retain
+      if
+        local.get $k.0
+        call $retain
+      end
       local.get $m
       local.get $t0
       local.get $t1
@@ -97,7 +100,10 @@
         local.set $m
       else
         local.get $k.0
-        call $retain
+        if
+          local.get $k.0
+          call $retain
+        end
         local.get $t0
         call $rt:coll_copy
         local.set $t0
@@ -206,7 +212,11 @@
         local.get $m
         i32.load $heap offset=12
         local.set $m
-        call $retain
+        local.tee $k.1
+        if
+          local.get $k.1
+          call $retain
+        end
         i32.const 1
         local.get $k.0
         local.get $m
@@ -289,7 +299,11 @@
             local.get $m
             i32.load $heap offset=12
             local.set $m
-            call $retain
+            local.tee $k.1
+            if
+              local.get $k.1
+              call $retain
+            end
             i32.const 1
             local.get $k.0
             local.get $m

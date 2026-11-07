@@ -159,7 +159,7 @@
     end
     local.get $r
   )
-  (func $use_rets (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32) (local $r i32) (local $t3 i32)
+  (func $use_rets (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32) (local $r i32) (local $t4 i32) (local $t3 i32)
     ;; 22 |     ret_param(r.name).len() + ret_field(r).len() + ret_ref_field(&r).len()
     global.get $locals
     global.get $locals_base
@@ -209,7 +209,11 @@
       i32.load $heap offset=4
       local.set $t1
       local.tee $t2
-      call $retain
+      local.tee $t3
+      if
+        local.get $t3
+        call $retain
+      end
       block
         block
           local.get $t2
@@ -225,19 +229,27 @@
         end
       end
       local.get $t1
-      call $rt:release_ref
+      local.tee $t3
+      if
+        local.get $t3
+        call $rt:release_ref
+      end
       local.get $r
       i32.load $heap
       local.get $r
       i32.load $heap offset=4
       local.set $t1
+      local.tee $t4
       local.tee $t3
-      call $retain
+      if
+        local.get $t3
+        call $retain
+      end
       block
         block
-          local.get $t3
+          local.get $t4
           local.get $t1
-          local.set $t3
+          local.set $t4
           local.set $t1
           br 0
         end
@@ -248,9 +260,13 @@
         end
       end
       local.get $t1
-      call $rt:release_ref
+      local.tee $t3
+      if
+        local.get $t3
+        call $rt:release_ref
+      end
       local.get $t2
-      local.get $t3
+      local.get $t4
       i32.add
       local.set $t1
       block
@@ -267,7 +283,11 @@
       if
         local.get $r
         i32.load $heap
-        call $rt:release_ref
+        local.tee $t3
+        if
+          local.get $t3
+          call $rt:release_ref
+        end
       end
       local.get $t1
       local.get $t2

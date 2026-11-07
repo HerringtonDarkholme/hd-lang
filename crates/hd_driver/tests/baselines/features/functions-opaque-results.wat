@@ -135,7 +135,17 @@
       if
         local.get $xs
         i32.load $heap
-        call $rt:release_ref
+        local.tee $xs
+        if
+          local.get $xs
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          if
+            local.get $xs
+            call $rt:release_ref
+          end
+        end
       end
     ;; 13 |     n
       local.get $n

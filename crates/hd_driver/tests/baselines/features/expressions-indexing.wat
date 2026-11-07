@@ -53,7 +53,7 @@
     end
     local.get $m
   )
-  (func $map_index_take (param $m i32) (param $k.0 i32) (param $k.1 i32) (result i32 i32)
+  (func $map_index_take (param $m i32) (param $k.0 i32) (param $k.1 i32) (result i32 i32) (local $t0 i32)
     ;; 10 |     m[k]
     block
       local.get $m
@@ -90,9 +90,23 @@
       i32.load $heap offset=4
       local.set $k.1
       local.tee $k.0
-      call $retain
+      local.tee $t0
+      if
+        local.get $t0
+        call $retain
+      end
       local.get $m
-      call $rt:release_ref
+      local.tee $t0
+      if
+        local.get $t0
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t0
+          call $rt:release_ref
+        end
+      end
       local.get $k.0
       local.get $k.1
       local.set $k.0

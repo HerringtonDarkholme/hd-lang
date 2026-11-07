@@ -34,7 +34,17 @@
       i32.add
       local.tee $items
       i32.load $heap offset=20
-      call $rt:release_ref
+      local.tee $index
+      if
+        local.get $index
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $index
+          call $rt:release_ref
+        end
+      end
       local.get $items
       local.get $t1
       i32.store $heap offset=16

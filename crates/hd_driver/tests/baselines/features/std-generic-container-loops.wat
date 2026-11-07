@@ -13,6 +13,7 @@
   (import "fixture" "std/cmp/impl Ord for string.cmp'2" (func $"std/cmp/impl Ord for string.cmp'2" (param i32 i32 i32) (result i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
+  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 22 funcref))
   (func $"impl [ T < Ord ] Queue [ T ].settle[i64]" (param $self i32) (param $start i32) (param $value i64) (local $size i32) (local $left i32) (local $larger i32) (local $t0 i32) (local $t1 i32) (local $t2 i64) (local $t3 i64)
@@ -746,13 +747,29 @@
       i32.load $heap offset=20
       local.set $b.0
       local.tee $a.1
-      call $retain
+      local.tee $t1
+      if
+        local.get $t1
+        call $retain
+      end
     ;; 45 |     let mut q = Queue::[string].new()
       local.get $q
       if
         local.get $q
         i32.load $heap
-        call $rt:release_ref'1
+        local.tee $t1
+        if
+          local.get $t1
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          global.get $tracing
+          i32.or
+          if
+            local.get $t1
+            call $rt:release_ref'1
+          end
+        end
       end
     ;; 50 |     q.items[0].len() + saved.items[0].len()
       block
@@ -762,7 +779,11 @@
       end
     ;; 45 |     let mut q = Queue::[string].new()
       local.get $a.1
-      call $rt:release_ref'2
+      local.tee $t1
+      if
+        local.get $t1
+        call $rt:release_ref'2
+      end
     ;; 50 |     q.items[0].len() + saved.items[0].len()
       i32.const 0
       local.get $a.0
@@ -778,10 +799,26 @@
       i32.load $heap offset=20
       local.set $b.1
       local.tee $a.1
-      call $retain
+      local.tee $t1
+      if
+        local.get $t1
+        call $retain
+      end
     ;; 45 |     let mut q = Queue::[string].new()
       local.get $a.0
-      call $rt:release_ref'1
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t1
+          call $rt:release_ref'1
+        end
+      end
     ;; 50 |     q.items[0].len() + saved.items[0].len()
       block
         block
@@ -792,7 +829,11 @@
       end
     ;; 45 |     let mut q = Queue::[string].new()
       local.get $a.1
-      call $rt:release_ref'2
+      local.tee $t1
+      if
+        local.get $t1
+        call $rt:release_ref'2
+      end
     ;; 50 |     q.items[0].len() + saved.items[0].len()
       local.get $b.0
       local.get $a.0
@@ -1040,7 +1081,11 @@
           i32.load $heap offset=20
           local.set $t0
           local.tee $left
-          call $retain
+          local.tee $t1
+          if
+            local.get $t1
+            call $retain
+          end
           local.get $self
           i32.load $heap
           local.set $t1
@@ -1059,7 +1104,11 @@
           i32.add
           local.tee $start
           i32.load $heap offset=16
-          call $rt:release_ref'2
+          local.tee $t1
+          if
+            local.get $t1
+            call $rt:release_ref'2
+          end
           local.get $start
           local.get $left
           i32.store $heap offset=16
@@ -1098,7 +1147,11 @@
       i32.add
       local.tee $self
       i32.load $heap offset=16
-      call $rt:release_ref'2
+      local.tee $t1
+      if
+        local.get $t1
+        call $rt:release_ref'2
+      end
       local.get $self
       local.get $value.0
       i32.store $heap offset=16
@@ -1199,7 +1252,19 @@
       if
         local.get $q
         i32.load $heap
-        call $rt:release_ref'1
+        local.tee $q
+        if
+          local.get $q
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          global.get $tracing
+          i32.or
+          if
+            local.get $q
+            call $rt:release_ref'1
+          end
+        end
       end
     ;; 42 |     q.items[0] + saved.items[0]
       i32.const 0
@@ -1215,7 +1280,19 @@
       local.set $b
     ;; 36 |     let mut q = Queue::[i64].new()
       local.get $saved
-      call $rt:release_ref'1
+      local.tee $q
+      if
+        local.get $q
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $q
+          call $rt:release_ref'1
+        end
+      end
     ;; 42 |     q.items[0] + saved.items[0]
       local.get $a
       local.get $b
@@ -1620,7 +1697,19 @@
       if
         local.get $q
         i32.load $heap
-        call $rt:release_ref'1
+        local.tee $q
+        if
+          local.get $q
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          global.get $tracing
+          i32.or
+          if
+            local.get $q
+            call $rt:release_ref'1
+          end
+        end
       end
     ;; 58 |     q.items[0]._0 + saved.items[0]._0
       i32.const 0
@@ -1636,7 +1725,19 @@
       local.set $b
     ;; 53 |     let mut q = Queue::[(i64, usize)].new()
       local.get $saved
-      call $rt:release_ref'1
+      local.tee $q
+      if
+        local.get $q
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $q
+          call $rt:release_ref'1
+        end
+      end
     ;; 58 |     q.items[0]._0 + saved.items[0]._0
       local.get $a
       local.get $b

@@ -12,6 +12,7 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
+  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $through_reference (param $text i32) (param $suffix.0 i32) (param $suffix.1 i32)
     ;; 7 |     *text += suffix
@@ -81,9 +82,16 @@
       local.get $t2
       call $rt:memory_copy/0/0
       local.get $t3
-      call $rt:release_ref'1
+      if
+        local.get $t3
+        call $rt:release_ref'1
+      end
       local.get $t0
-      call $rt:release_ref'1
+      local.tee $t3
+      if
+        local.get $t3
+        call $rt:release_ref'1
+      end
       local.get $text
       i32.load $heap
       local.get $text
@@ -141,7 +149,10 @@
       local.set $ctx
       local.set $suffix.1
       local.get $suffix.0
-      call $rt:release_ref'1
+      if
+        local.get $suffix.0
+        call $rt:release_ref'1
+      end
       local.get $env
       i32.load $heap
       local.get $env
@@ -150,10 +161,14 @@
       local.get $env
       local.get $ctx
       i32.store $heap offset=4
-      call $rt:release_ref'1
+      local.tee $suffix.0
+      if
+        local.get $suffix.0
+        call $rt:release_ref'1
+      end
     end
   )
-  (func $through_cell (param $text.0 i32) (param $text.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32)
+  (func $through_cell (param $text.0 i32) (param $text.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 10 |     let mut current = text
     global.get $locals
     global.get $locals_base
@@ -218,7 +233,19 @@
       call $through_cell#1
     ;; 10 |     let mut current = text
       local.get $text.1
-      call $rt:release_ref'2
+      local.tee $t2
+      if
+        local.get $t2
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t2
+          call $rt:release_ref'2
+        end
+      end
     ;; 13 |     current
       local.get $text.0
       i32.load $heap
@@ -226,13 +253,21 @@
       i32.load $heap offset=4
       local.set $t1
       local.tee $text.1
-      call $retain
+      local.tee $t2
+      if
+        local.get $t2
+        call $retain
+      end
     ;; 10 |     let mut current = text
       local.get $text.0
       if
         local.get $text.0
         i32.load $heap
-        call $rt:release_ref'1
+        local.tee $t2
+        if
+          local.get $t2
+          call $rt:release_ref'1
+        end
       end
       local.get $text.1
       local.get $t1

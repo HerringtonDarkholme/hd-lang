@@ -128,7 +128,17 @@
       if
         local.get $xs
         i32.load $heap
-        call $rt:release_ref
+        local.tee $rounds
+        if
+          local.get $rounds
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          if
+            local.get $rounds
+            call $rt:release_ref
+          end
+        end
       end
     end
     local.get $first
@@ -196,13 +206,32 @@
       call $sum'1
     ;; 28 |     let mut xs = [first, 2, 3]
       local.get $xs
-      call $rt:release_ref
+      if
+        local.get $xs
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $xs
+          call $rt:release_ref
+        end
+      end
     ;; 31 |     sum(&xs) + sum(&ys)
       local.get $ys
       call $sum'1
     ;; 28 |     let mut xs = [first, 2, 3]
       local.get $ys
-      call $rt:release_ref
+      local.tee $xs
+      if
+        local.get $xs
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $xs
+          call $rt:release_ref
+        end
+      end
     ;; 31 |     sum(&xs) + sum(&ys)
       i64.add
     ;; 28 |     let mut xs = [first, 2, 3]

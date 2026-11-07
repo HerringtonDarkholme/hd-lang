@@ -18,14 +18,32 @@
       call $pass_on
     ;; 15 |     tally := box(Tally { n: 0 })
       local.get $r
-      call $rt:release_ref
+      if
+        local.get $r
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $r
+          call $rt:release_ref
+        end
+      end
     ;; 16 |     r := pass_on(tally)
       local.tee $r
     ;; 17 |     r.n
       i64.load $heap
     ;; 15 |     tally := box(Tally { n: 0 })
       local.get $r
-      call $rt:release_ref
+      if
+        local.get $r
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $r
+          call $rt:release_ref
+        end
+      end
       local.set $t0
     end
     local.get $t0

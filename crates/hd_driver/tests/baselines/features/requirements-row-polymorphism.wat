@@ -21,7 +21,7 @@
     end
     local.get $s.0
   )
-  (func $"with_tag[^241]'2" (param $s.0 i32) (param $s.1 i32) (param $callback.0 i32) (param $callback.1 i32) (param $ctx i32) (result i32)
+  (func $"with_tag[^241]'2" (param $s.0 i32) (param $s.1 i32) (param $callback.0 i32) (param $callback.1 i32) (param $ctx i32) (result i32) (local $t0 i32)
     ;; 22 |     $.with(Tag=Named { label: s }):
     block
       block
@@ -41,9 +41,17 @@
         end
       end
       local.get $s.0
-      call $retain
+      local.tee $t0
+      if
+        local.get $t0
+        call $retain
+      end
       local.get $s.0
-      call $rt:release_ref
+      local.tee $t0
+      if
+        local.get $t0
+        call $rt:release_ref
+      end
       i32.const 204 ;; &vtable[func69]
       local.set $s.1
       block
@@ -62,16 +70,28 @@
         local.get $s.1
         i32.store $heap offset=28
         local.get $s.0
-        call $retain
+        local.tee $t0
+        if
+          local.get $t0
+          call $retain
+        end
         local.get $callback.0
         call $read_tag#adapter
         local.get $callback.0
-        call $rt:release_ref
+        local.tee $t0
+        if
+          local.get $t0
+          call $rt:release_ref
+        end
     ;; 22 |     $.with(Tag=Named { label: s }):
         local.set $s.1
       end
       local.get $s.0
-      call $rt:release_ref
+      local.tee $t0
+      if
+        local.get $t0
+        call $rt:release_ref
+      end
       local.get $s.1
       local.set $s.0
     end
@@ -101,7 +121,10 @@
         end
       end
       local.get $env
-      call $rt:release_ref
+      if
+        local.get $env
+        call $rt:release_ref
+      end
       local.get $ctx
       local.set $env
     end
@@ -135,13 +158,16 @@
         end
       end
       local.get $provider0
-      call $rt:release_ref
+      if
+        local.get $provider0
+        call $rt:release_ref
+      end
       local.get $provider0.vtable
       local.set $provider0
     end
     local.get $provider0
   )
-  (func $"with_tag[^241]'1" (param $s.0 i32) (param $s.1 i32) (param $callback.0 i32) (param $callback.1 i32) (param $ctx i32) (result i32)
+  (func $"with_tag[^241]'1" (param $s.0 i32) (param $s.1 i32) (param $callback.0 i32) (param $callback.1 i32) (param $ctx i32) (result i32) (local $t0 i32)
     ;; 22 |     $.with(Tag=Named { label: s }):
     block
       block
@@ -161,9 +187,17 @@
         end
       end
       local.get $s.0
-      call $retain
+      local.tee $t0
+      if
+        local.get $t0
+        call $retain
+      end
       local.get $s.0
-      call $rt:release_ref
+      local.tee $t0
+      if
+        local.get $t0
+        call $rt:release_ref
+      end
       i32.const 204 ;; &vtable[func69]
       local.set $s.1
       block
@@ -182,16 +216,28 @@
         local.get $s.1
         i32.store $heap offset=28
         local.get $s.0
-        call $retain
+        local.tee $t0
+        if
+          local.get $t0
+          call $retain
+        end
         local.get $callback.0
         call $closure#1
         local.get $callback.0
-        call $rt:release_ref
+        local.tee $t0
+        if
+          local.get $t0
+          call $rt:release_ref
+        end
     ;; 22 |     $.with(Tag=Named { label: s }):
         local.set $s.1
       end
       local.get $s.0
-      call $rt:release_ref
+      local.tee $t0
+      if
+        local.get $t0
+        call $rt:release_ref
+      end
       local.get $s.1
       local.set $s.0
     end

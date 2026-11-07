@@ -51,7 +51,11 @@
               if
     ;; 10 |             break x
                 local.get $x.0
-                call $retain
+                local.tee $xs
+                if
+                  local.get $xs
+                  call $retain
+                end
                 local.get $x.0
                 local.get $x.1
                 local.set $t0
@@ -181,7 +185,10 @@
       end
     ;; 24 |     let out = s
       local.get $s.0
-      call $rt:release_ref
+      if
+        local.get $s.0
+        call $rt:release_ref
+      end
       unreachable
     end
     local.get $s.0

@@ -273,7 +273,7 @@
     end
     local.get $n
   )
-  (func $calls (param $s.0 i32) (param $s.1 i32) (param $n i32) (result i32) (local $t i32) (local $t0 i32)
+  (func $calls (param $s.0 i32) (param $s.1 i32) (param $n i32) (result i32) (local $t i32) (local $t0 i32) (local $t1 i32)
     ;; 22 |     let mut t = s
     global.get $locals
     global.get $locals_base
@@ -306,7 +306,11 @@
     global.set $locals
     block
       local.get $s.0
-      call $retain
+      local.tee $t1
+      if
+        local.get $t1
+        call $retain
+      end
       local.get $t0
       i64.const 0
       i64.store $heap
@@ -331,7 +335,11 @@
       call $by_ref'2
     ;; 22 |     let mut t = s
       local.get $s.0
-      call $rt:release_ref
+      local.tee $t1
+      if
+        local.get $t1
+        call $rt:release_ref
+      end
     ;; 24 |     by_value(s) + by_ref(&s) + by_value(t) + by_ptr(n)
       i32.add
       local.get $t
@@ -350,7 +358,11 @@
       call $by_value
     ;; 22 |     let mut t = s
       local.get $s.1
-      call $rt:release_ref
+      local.tee $t1
+      if
+        local.get $t1
+        call $rt:release_ref
+      end
     ;; 24 |     by_value(s) + by_ref(&s) + by_value(t) + by_ptr(n)
       i32.add
       local.get $n

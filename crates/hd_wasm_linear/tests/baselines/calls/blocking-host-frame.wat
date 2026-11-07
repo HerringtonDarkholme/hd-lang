@@ -9,6 +9,7 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "rewake" (global $rewake (mut i32)))
+  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 10 funcref))
   (func $synchronous (param $path.0 i32) (param $path.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t2 i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32)
@@ -124,7 +125,18 @@
       end
     ;; 9 |     let call: mut Suspend[Result[string, FsError]] = $.use(FsRead).read_text(path)
       local.get $t3
-      call $rt:release_ref'1
+      if
+        local.get $t3
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t3
+          call $rt:release_ref'1
+        end
+      end
     ;; 10 |     match block_on(call):
       block
         block
@@ -159,7 +171,11 @@
       local.set $path.1
     end
     local.get $path.0
-    call $rt:release_ref'2
+    local.tee $t3
+    if
+      local.get $t3
+      call $rt:release_ref'2
+    end
     local.get $path.1
     local.get $t0
     i32.const 56

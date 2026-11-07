@@ -14,6 +14,7 @@
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
+  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $name_of (param $p i32) (result i32)
     ;; 8 |     &p.name
@@ -151,12 +152,35 @@
       call $borrow_then_change#1
     ;; 11 |     let mut ps = [box(P { name: "a" })]
       local.get $change.1
-      call $rt:release_ref
+      if
+        local.get $change.1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $change.1
+          call $rt:release_ref
+        end
+      end
       local.get $ps
       if
         local.get $ps
         i32.load $heap
-        call $rt:release_ref
+        local.tee $change.1
+        if
+          local.get $change.1
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          global.get $tracing
+          i32.or
+          if
+            local.get $change.1
+            call $rt:release_ref
+          end
+        end
       end
     ;; 16 |     *d
       local.get $t2
@@ -239,7 +263,7 @@
     i32.add
     global.set $locals
   )
-  (func $borrow_then_change#1 (param $env i32) (param $ctx i32)
+  (func $borrow_then_change#1 (param $env i32) (param $ctx i32) (local $t0 i32)
     ;; 12 |     change := fn() -> void:
     local.get $env
     i32.load $heap
@@ -295,7 +319,19 @@
       end
       local.get $env
       i32.load $heap offset=16
-      call $rt:release_ref
+      local.tee $t0
+      if
+        local.get $t0
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t0
+          call $rt:release_ref
+        end
+      end
       local.get $env
       local.get $ctx
       i32.store $heap offset=16

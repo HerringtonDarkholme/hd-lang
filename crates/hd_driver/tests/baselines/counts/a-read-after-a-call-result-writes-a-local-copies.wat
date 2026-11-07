@@ -162,7 +162,16 @@
       local.set $name.0
     ;; 20 |     let mut b = Bag { label: name, items: [Item { qty: +1 }] }
       local.get $t1
-      call $rt:release_ref
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t1
+          call $rt:release_ref
+        end
+      end
     ;; 23 |     kept.len() + b.items.len()
       local.get $name.1
       i64.extend_i32_u

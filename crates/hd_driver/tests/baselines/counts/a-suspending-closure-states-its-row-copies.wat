@@ -158,7 +158,10 @@
                 i32.or
                 i32.store $heap offset=12
                 local.get $ctx
-                call $retain
+                if
+                  local.get $ctx
+                  call $retain
+                end
               end
               local.get $frame
               local.get $t8
@@ -182,7 +185,10 @@
               i32.or
               i32.store $heap offset=12
               local.get $ctx
-              call $retain
+              if
+                local.get $ctx
+                call $retain
+              end
             end
             local.get $frame
             local.get $env
@@ -258,7 +264,11 @@
             i32.const 0
             i32.store $heap offset=16
             local.get $t7
-            call $rt:release_ref
+            local.tee $ctx
+            if
+              local.get $ctx
+              call $rt:release_ref
+            end
           end
           br 1
         end
@@ -299,7 +309,10 @@
             i32.or
             i32.store $heap offset=12
             local.get $ctx
-            call $retain
+            if
+              local.get $ctx
+              call $retain
+            end
           end
           local.get $frame
           local.get $env
@@ -375,7 +388,11 @@
           i32.const 0
           i32.store $heap offset=16
           local.get $t9
-          call $rt:release_ref
+          local.tee $ctx
+          if
+            local.get $ctx
+            call $rt:release_ref
+          end
         end
         i32.const 1
         local.set $t1
@@ -490,17 +507,25 @@
     local.get $t0
     call $rt:cancel_leave
   )
-  (func $make#1.drop (param $t0 i32)
+  (func $make#1.drop (param $t0 i32) (local $t1 i32)
     ;; 7 |     fn!() -> void $ Clock: sleep!(ms(1))
     local.get $t0
     i32.load $heap offset=28
-    call $rt:release_ref
+    local.tee $t1
+    if
+      local.get $t1
+      call $rt:release_ref
+    end
     local.get $t0
     i32.load $heap offset=16
     if
       local.get $t0
       i32.load $heap offset=16
-      call $rt:release_ref
+      local.tee $t1
+      if
+        local.get $t1
+        call $rt:release_ref
+      end
     end
   )
   (func $make#1'2 (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32)
@@ -513,7 +538,10 @@
     local.get $t2
     i32.store $heap offset=28
     local.get $t2
-    call $retain
+    if
+      local.get $t2
+      call $retain
+    end
     local.get $t0
   )
 )

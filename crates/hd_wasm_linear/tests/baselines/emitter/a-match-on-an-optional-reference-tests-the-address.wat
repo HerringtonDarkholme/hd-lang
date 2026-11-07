@@ -3,8 +3,9 @@
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
+  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $depth (param $node i32) (result i32)
+  (func $depth (param $node i32) (result i32) (local $t0 i32)
     ;; 9 |     match node.next:
     block
       local.get $node
@@ -33,12 +34,34 @@
         end
     ;; 11 |         .Some(next) => 1 + depth(next)
         local.get $node
-        call $rt:retain_known
+        local.tee $t0
+        if
+          local.get $t0
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          if
+            local.get $t0
+            call $rt:retain_known
+          end
+        end
         local.get $node
         call $depth
     ;; 9 |     match node.next:
         local.get $node
-        call $rt:release_ref
+        local.tee $t0
+        if
+          local.get $t0
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          global.get $tracing
+          i32.or
+          if
+            local.get $t0
+            call $rt:release_ref
+          end
+        end
     ;; 11 |         .Some(next) => 1 + depth(next)
         local.tee $node
         i32.const 2147483646

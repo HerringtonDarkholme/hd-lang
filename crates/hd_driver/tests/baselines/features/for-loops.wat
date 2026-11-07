@@ -106,7 +106,11 @@
             end
     ;; 26 |         out.push(x)
             local.get $x.0
-            call $retain
+            local.tee $t2
+            if
+              local.get $t2
+              call $retain
+            end
     ;; 25 |     for x in xs:
             local.get $out
     ;; 26 |         out.push(x)

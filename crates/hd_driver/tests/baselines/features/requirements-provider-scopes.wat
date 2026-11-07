@@ -4,6 +4,7 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
+  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 10 funcref))
   (func $lexical (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
@@ -26,15 +27,27 @@
         end
       end
       local.get $s.0
-      call $retain
+      local.tee $t0
+      if
+        local.get $t0
+        call $retain
+      end
       local.get $s.0
-      call $rt:release_ref'1
+      local.tee $t0
+      if
+        local.get $t0
+        call $rt:release_ref'1
+      end
       i32.const 160 ;; &vtable[func63]
       local.set $s.1
       block
     ;; 37 |         tag := $.use(Tag)
         local.get $s.0
-        call $retain
+        local.tee $t0
+        if
+          local.get $t0
+          call $retain
+        end
     ;; 38 |         apply(fn() -> usize: tag.name().len())
         i32.const 2
         i32.const 8
@@ -62,16 +75,32 @@
         end
     ;; 36 |     $.with(Tag=Named { label: s }):
         local.get $t0
-        call $rt:release_ref'2
+        local.tee $t0
+        if
+          local.get $t0
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          global.get $tracing
+          i32.or
+          if
+            local.get $t0
+            call $rt:release_ref'2
+          end
+        end
       end
       local.get $s.0
-      call $rt:release_ref'1
+      local.tee $t0
+      if
+        local.get $t0
+        call $rt:release_ref'1
+      end
       local.get $s.1
       local.set $s.0
     end
     local.get $s.0
   )
-  (func $lexical#1 (param $env i32) (param $ctx i32) (result i32)
+  (func $lexical#1 (param $env i32) (param $ctx i32) (result i32) (local $t0 i32)
     ;; 38 |         apply(fn() -> usize: tag.name().len())
     local.get $env
     i32.load $heap
@@ -81,13 +110,21 @@
     local.set $env
     block
       local.get $ctx
-      call $retain
+      local.tee $t0
+      if
+        local.get $t0
+        call $retain
+      end
       local.get $ctx
       local.get $env
       i32.load $heap
       call_indirect $table0 (param i32) (result i32 i32)
       local.get $ctx
-      call $rt:release_ref'1
+      local.tee $t0
+      if
+        local.get $t0
+        call $rt:release_ref'1
+      end
       local.set $ctx
       local.set $env
       block
@@ -96,7 +133,11 @@
         end
       end
       local.get $env
-      call $rt:release_ref'1
+      local.tee $t0
+      if
+        local.get $t0
+        call $rt:release_ref'1
+      end
       local.get $ctx
       local.set $env
     end
@@ -128,7 +169,10 @@
         end
       end
       local.get $provider0
-      call $rt:release_ref'1
+      if
+        local.get $provider0
+        call $rt:release_ref'1
+      end
       local.get $provider0.vtable
       local.set $provider0
     end
@@ -154,9 +198,17 @@
         end
       end
       local.get $s.0
-      call $retain
+      local.tee $t0
+      if
+        local.get $t0
+        call $retain
+      end
       local.get $s.0
-      call $rt:release_ref'1
+      local.tee $t0
+      if
+        local.get $t0
+        call $rt:release_ref'1
+      end
       i32.const 160 ;; &vtable[func63]
       local.set $s.1
       block
@@ -168,7 +220,11 @@
         local.set $s.1
       end
       local.get $s.0
-      call $rt:release_ref'1
+      local.tee $t0
+      if
+        local.get $t0
+        call $rt:release_ref'1
+      end
       local.get $s.1
       local.set $s.0
     end
@@ -201,9 +257,17 @@
         end
       end
       local.get $a.0
-      call $retain
+      local.tee $t0
+      if
+        local.get $t0
+        call $retain
+      end
       local.get $a.0
-      call $rt:release_ref'1
+      local.tee $t0
+      if
+        local.get $t0
+        call $rt:release_ref'1
+      end
       i32.const 160 ;; &vtable[func63]
       local.set $a.1
       block
@@ -231,10 +295,18 @@
         end
         local.get $b.0
         local.tee $b.1
-        call $retain
+        local.tee $t0
+        if
+          local.get $t0
+          call $retain
+        end
         local.get $b.0
     ;; 27 |     $.with(Tag=Named { label: a }):
-        call $rt:release_ref'1
+        local.tee $t0
+        if
+          local.get $t0
+          call $rt:release_ref'1
+        end
     ;; 29 |         $.with(Tag=Named { label: b }):
         i32.const 160 ;; &vtable[func63]
         local.set $b.0
@@ -250,10 +322,18 @@
         end
     ;; 27 |     $.with(Tag=Named { label: a }):
         local.get $b.1
-        call $rt:release_ref'1
+        local.tee $t0
+        if
+          local.get $t0
+          call $rt:release_ref'1
+        end
       end
       local.get $a.0
-      call $rt:release_ref'1
+      local.tee $t0
+      if
+        local.get $t0
+        call $rt:release_ref'1
+      end
       local.get $a.1
       local.set $a.0
     end

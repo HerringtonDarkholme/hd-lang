@@ -108,7 +108,16 @@
       end
     ;; 28 |     let mut s = Stack { items: [] }
       local.get $s
-      call $rt:release_ref
+      if
+        local.get $s
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $s
+          call $rt:release_ref
+        end
+      end
       local.get $t1
       local.set $s
     end
@@ -178,14 +187,32 @@
       local.set $p
     ;; 33 |     let mut p = Pair { items: [] }
       local.get $t1
-      call $rt:release_ref
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t1
+          call $rt:release_ref
+        end
+      end
     ;; 36 |     p.items.len() + q.items.len()
       local.tee $t1
       i32.load $heap offset=4
       local.set $t2
     ;; 33 |     let mut p = Pair { items: [] }
       local.get $t1
-      call $rt:release_ref
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t1
+          call $rt:release_ref
+        end
+      end
     ;; 36 |     p.items.len() + q.items.len()
       local.get $p
       local.get $t2

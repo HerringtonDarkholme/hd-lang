@@ -28,7 +28,11 @@
         end
     ;; 18 |         User { name } => name
         local.get $u.name.0
-        call $retain
+        local.tee $u.tags
+        if
+          local.get $u.tags
+          call $retain
+        end
     ;; 16 |     match u:
         br 0
       end

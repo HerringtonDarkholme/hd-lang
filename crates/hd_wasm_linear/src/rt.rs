@@ -931,6 +931,7 @@ pub fn entry(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
         m.export("hd.released", Sym::Inst(c.released));
         m.export("hd.uniques", Sym::Inst(c.unique_checks));
         m.export("hd.no_ops", Sym::Inst(c.no_op_counts));
+        m.export("hd.skipped", Sym::Inst(c.skipped_tests));
         #[cfg(feature = "checked-report")]
         {
             m.export("hd.cycles.pointer", Sym::Inst(c.pointer));

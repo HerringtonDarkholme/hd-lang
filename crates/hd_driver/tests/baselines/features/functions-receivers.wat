@@ -9,11 +9,21 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $"impl Vec2.keep" (param $self i32) (result i32)
+  (func $"impl Vec2.keep" (param $self i32) (result i32) (local $t0 i32)
     ;; 25 |         self
     block
       local.get $self
-      call $rt:retain_known
+      local.tee $t0
+      if
+        local.get $t0
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t0
+          call $rt:retain_known
+        end
+      end
     end
     local.get $self
   )
@@ -36,7 +46,10 @@
         end
       end
       local.get $s.0
-      call $rt:release_ref'1
+      if
+        local.get $s.0
+        call $rt:release_ref'1
+      end
       local.get $s.1
       local.set $s.0
     end
@@ -108,7 +121,11 @@
       if
         local.get $s.0
         i32.load $heap
-        call $rt:release_ref'1
+        local.tee $s.0
+        if
+          local.get $s.0
+          call $rt:release_ref'1
+        end
       end
     end
     local.get $t2
@@ -122,7 +139,11 @@
     block
       local.get $n.0
       local.get $self.name.0
-      call $rt:release_ref'1
+      local.tee $self.name.0
+      if
+        local.get $self.name.0
+        call $rt:release_ref'1
+      end
       local.set $self.name.0
     end
     local.get $self.name.0
@@ -137,7 +158,7 @@
     local.get $s.1
     local.get $t0
   )
-  (func $counted (param $b i32) (result i32) (local $t0 i32) (local $t1 i32)
+  (func $counted (param $b i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 49 |     b.keep().name.len()
     block
       local.get $b
@@ -149,9 +170,23 @@
       i32.load $heap offset=4
       local.set $t1
       local.tee $t0
-      call $retain
+      local.tee $t2
+      if
+        local.get $t2
+        call $retain
+      end
       local.get $b
-      call $rt:release_ref'2
+      local.tee $t2
+      if
+        local.get $t2
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t2
+          call $rt:release_ref'2
+        end
+      end
       block
         block
           local.get $t1
@@ -160,20 +195,32 @@
         end
       end
       local.get $t0
-      call $rt:release_ref'1
+      local.tee $t2
+      if
+        local.get $t2
+        call $rt:release_ref'1
+      end
     end
     local.get $b
   )
-  (func $mut_self (param $v.name.0 i32) (param $v.name.1 i32) (param $v.x i64) (param $n.0 i32) (param $n.1 i32) (result i32)
+  (func $mut_self (param $v.name.0 i32) (param $v.name.1 i32) (param $v.x i64) (param $n.0 i32) (param $n.1 i32) (result i32) (local $t0 i32)
     ;; 45 |     w := v.renamed(n)
     block
       local.get $v.name.0
-      call $retain
+      local.tee $t0
+      if
+        local.get $t0
+        call $retain
+      end
       block
         block
           local.get $n.0
           local.get $v.name.0
-          call $rt:release_ref'1
+          local.tee $t0
+          if
+            local.get $t0
+            call $rt:release_ref'1
+          end
           local.set $n.0
           br 0
         end
@@ -186,7 +233,11 @@
       end
     ;; 45 |     w := v.renamed(n)
       local.get $n.0
-      call $rt:release_ref'1
+      local.tee $t0
+      if
+        local.get $t0
+        call $rt:release_ref'1
+      end
     ;; 46 |     w.name.len() + v.name.len()
       block
         block
@@ -195,7 +246,11 @@
       end
     ;; 45 |     w := v.renamed(n)
       local.get $v.name.0
-      call $rt:release_ref'1
+      local.tee $t0
+      if
+        local.get $t0
+        call $rt:release_ref'1
+      end
     ;; 46 |     w.name.len() + v.name.len()
       local.get $n.1
       local.get $v.name.1

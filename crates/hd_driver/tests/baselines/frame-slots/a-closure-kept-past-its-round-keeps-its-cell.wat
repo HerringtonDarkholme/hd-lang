@@ -3,6 +3,7 @@
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
+  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
@@ -66,7 +67,19 @@
           call $rt:retain_fields
     ;; 9 |     for i in +0..n:
           local.get $total
-          call $rt:release_ref
+          local.tee $total
+          if
+            local.get $total
+            i32.const 8
+            i32.sub
+            i32.load $heap
+            global.get $tracing
+            i32.or
+            if
+              local.get $total
+              call $rt:release_ref
+            end
+          end
     ;; 11 |         step := fn() -> i32:
           local.set $total
     ;; 14 |         if i == 0:
@@ -79,14 +92,38 @@
             i32.const 0
             local.set $step.1
             local.get $f.1
-            call $rt:release_ref
+            local.tee $total
+            if
+              local.get $total
+              i32.const 8
+              i32.sub
+              i32.load $heap
+              global.get $tracing
+              i32.or
+              if
+                local.get $total
+                call $rt:release_ref
+              end
+            end
             local.set $f.1
             local.set $f.0
     ;; 14 |         if i == 0:
           end
     ;; 9 |     for i in +0..n:
           local.get $step.1
-          call $rt:release_ref
+          local.tee $total
+          if
+            local.get $total
+            i32.const 8
+            i32.sub
+            i32.load $heap
+            global.get $tracing
+            i32.or
+            if
+              local.get $total
+              call $rt:release_ref
+            end
+          end
           br 0
         end
       end
@@ -97,7 +134,19 @@
       call_indirect $table0 (param i32 i32) (result i32)
       local.get $f.1
     ;; 8 |     let mut f = fn() -> i32: +0
-      call $rt:release_ref
+      local.tee $total
+      if
+        local.get $total
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $total
+          call $rt:release_ref
+        end
+      end
       local.set $n
     end
     local.get $n
@@ -199,7 +248,19 @@
           local.set $t2
     ;; 20 |     for i in +0..n:
           local.get $i
-          call $rt:release_ref
+          local.tee $i
+          if
+            local.get $i
+            i32.const 8
+            i32.sub
+            i32.load $heap
+            global.get $tracing
+            i32.or
+            if
+              local.get $i
+              call $rt:release_ref
+            end
+          end
     ;; 25 |         out += step()
           local.get $out
           local.get $t2

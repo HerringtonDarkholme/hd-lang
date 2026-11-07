@@ -86,12 +86,25 @@
       local.get $t.tags
     ;; 17 |     t.tags.push(s)
       local.get $t.name.0
-      call $rt:release_ref'1
+      if
+        local.get $t.name.0
+        call $rt:release_ref'1
+      end
     ;; 18 |     t.tags.len()
       i32.load $heap offset=4
       local.get $t.tags
     ;; 17 |     t.tags.push(s)
-      call $rt:release_ref'2
+      local.tee $t.name.0
+      if
+        local.get $t.name.0
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t.name.0
+          call $rt:release_ref'2
+        end
+      end
       local.set $t.name.0
     end
     local.get $t.name.0
@@ -148,7 +161,11 @@
       local.get $t.tags
       call $rt:coll_copy
       local.set $t0
-      call $retain
+      local.tee $t1
+      if
+        local.get $t1
+        call $retain
+      end
       block
         block
           local.get $t0
@@ -197,23 +214,51 @@
         local.set $t.name.1
       end
       local.get $t.name.1
-      call $rt:release_ref'1
+      local.tee $t1
+      if
+        local.get $t1
+        call $rt:release_ref'1
+      end
     ;; 25 |     u.tags.len() + t.tags.len()
       local.get $s.0
       i32.load $heap offset=4
     ;; 24 |     u := bumped(t, s)
       local.get $s.0
-      call $rt:release_ref'2
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t1
+          call $rt:release_ref'2
+        end
+      end
     ;; 25 |     u.tags.len() + t.tags.len()
       local.get $t.tags
     ;; 24 |     u := bumped(t, s)
       local.get $t.name.0
-      call $rt:release_ref'1
+      local.tee $t1
+      if
+        local.get $t1
+        call $rt:release_ref'1
+      end
     ;; 25 |     u.tags.len() + t.tags.len()
       i32.load $heap offset=4
       local.get $t.tags
     ;; 24 |     u := bumped(t, s)
-      call $rt:release_ref'2
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t1
+          call $rt:release_ref'2
+        end
+      end
     ;; 25 |     u.tags.len() + t.tags.len()
       i32.add
     ;; 24 |     u := bumped(t, s)

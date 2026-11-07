@@ -191,7 +191,17 @@
       if
         local.get $h
         i32.load $heap
-        call $rt:release_ref
+        local.tee $t2
+        if
+          local.get $t2
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          if
+            local.get $t2
+            call $rt:release_ref
+          end
+        end
       end
     ;; 37 |     println("${h.buckets[1]} ${s.items[0]} ${START[0]}")
       local.get $t3
@@ -241,7 +251,17 @@
       if
         local.get $t1
         i32.load $heap
-        call $rt:release_ref
+        local.tee $t2
+        if
+          local.get $t2
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          if
+            local.get $t2
+            call $rt:release_ref
+          end
+        end
       end
     ;; 37 |     println("${h.buckets[1]} ${s.items[0]} ${START[0]}")
       local.get $t4

@@ -7,7 +7,7 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 3 funcref))
-  (func $"impl Step for Erased.step'1" (param $self i32) (result i32 i64) (local $t1 i64) (local $t0 i32)
+  (func $"impl Step for Erased.step'1" (param $self i32) (result i32 i64) (local $t2 i64) (local $t0 i32) (local $t1 i32)
     ;; 32 |         self.source.step()
     block
       local.get $self
@@ -16,18 +16,26 @@
       i32.load $heap offset=4
       local.set $t0
       local.tee $self
-      call $retain
+      local.tee $t1
+      if
+        local.get $t1
+        call $retain
+      end
       local.get $self
       local.get $t0
       i32.load $heap
       call_indirect $table0 (param i32) (result i32 i64)
       local.get $self
-      call $rt:release_ref
-      local.set $t1
+      local.tee $t1
+      if
+        local.get $t1
+        call $rt:release_ref
+      end
+      local.set $t2
       local.set $self
     end
     local.get $self
-    local.get $t1
+    local.get $t2
   )
   (func $"impl Step for Counter.step" (param $self i32) (result i32 i64) (local $value i64) (local $t0 i64)
     ;; 20 |         if self.at >= self.end:
@@ -193,7 +201,11 @@
       if
         local.get $items.source.0
         i32.load $heap
-        call $rt:release_ref
+        local.tee $items.source.0
+        if
+          local.get $items.source.0
+          call $rt:release_ref
+        end
       end
     end
     local.get $sum

@@ -21,7 +21,10 @@
         end
       end
       local.get $x.0
-      call $rt:release_ref
+      if
+        local.get $x.0
+        call $rt:release_ref
+      end
       local.get $x.1
       local.set $x.0
     end
@@ -72,18 +75,30 @@
     i32.store $heap offset=4
     block
       local.get $d
-      call $retain
+      local.tee $t2
+      if
+        local.get $t2
+        call $retain
+      end
       local.get $d
       i32.const 160 ;; &vtable[func20]
       call $call_dyn
       local.set $t1
       local.get $d
-      call $rt:release_ref
+      local.tee $t2
+      if
+        local.get $t2
+        call $rt:release_ref
+      end
       local.get $d
       if
         local.get $d
         i32.load $heap
-        call $rt:release_ref
+        local.tee $t2
+        if
+          local.get $t2
+          call $rt:release_ref
+        end
       end
     end
     local.get $t1
@@ -92,7 +107,7 @@
     i32.add
     global.set $locals
   )
-  (func $"impl Named for Dog.name" (param $self i32) (result i32 i32) (local $t0 i32)
+  (func $"impl Named for Dog.name" (param $self i32) (result i32 i32) (local $t0 i32) (local $t1 i32)
     ;; 14 |         self.n
     block
       local.get $self
@@ -101,7 +116,11 @@
       i32.load $heap offset=4
       local.set $t0
       local.tee $self
-      call $retain
+      local.tee $t1
+      if
+        local.get $t1
+        call $retain
+      end
     end
     local.get $self
     local.get $t0

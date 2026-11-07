@@ -54,7 +54,16 @@
       local.get $t3
       call $rt:retain_fields
       local.get $p
-      call $rt:release_ref'1
+      if
+        local.get $p
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $p
+          call $rt:release_ref'1
+        end
+      end
       local.get $t3
       local.set $t1
       local.set $t0
@@ -73,7 +82,11 @@
     local.get $env
     i32.load $heap offset=8
     local.set $p.name.1
-    call $retain
+    local.tee $t0
+    if
+      local.get $t0
+      call $retain
+    end
     block
       i32.const 12
       i32.const 2
@@ -92,7 +105,16 @@
       local.get $t0
       call $peek
       local.get $t0
-      call $rt:release_ref'1
+      if
+        local.get $t0
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t0
+          call $rt:release_ref'1
+        end
+      end
       i64.extend_i32_s
       local.tee $t1
       local.set $t2
@@ -140,7 +162,11 @@
       local.set $p.name.1
       local.tee $env
       local.get $p.name.0
-      call $rt:release_ref'2
+      local.tee $t0
+      if
+        local.get $t0
+        call $rt:release_ref'2
+      end
       drop
       block
         block
@@ -252,7 +278,11 @@
         end
       end
       local.get $env
-      call $rt:release_ref'2
+      local.tee $t0
+      if
+        local.get $t0
+        call $rt:release_ref'2
+      end
       local.get $p.name.0
       local.get $t3
       local.set $ctx

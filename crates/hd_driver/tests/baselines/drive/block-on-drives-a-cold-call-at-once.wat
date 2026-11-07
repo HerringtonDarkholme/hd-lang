@@ -111,7 +111,16 @@
       end
     ;; 11 |     let call: mut Suspend[i32] = s.put(text)
       local.get $s.1
-      call $rt:release_ref'1
+      if
+        local.get $s.1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $s.1
+          call $rt:release_ref'1
+        end
+      end
     ;; 12 |     match block_on(call):
       block
         block
@@ -152,7 +161,11 @@
       local.set $s.0
     end
     local.get $text.0
-    call $rt:release_ref'2
+    local.tee $s.1
+    if
+      local.get $s.1
+      call $rt:release_ref'2
+    end
     local.get $s.0
     local.get $t0
     i32.const 56

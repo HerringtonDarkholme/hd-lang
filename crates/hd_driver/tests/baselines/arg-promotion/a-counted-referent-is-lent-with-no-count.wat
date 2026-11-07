@@ -197,7 +197,10 @@
       call $label'2
     ;; 26 |     let w = Wrap { name: name }
       local.get $name.0
-      call $rt:release_ref
+      if
+        local.get $name.0
+        call $rt:release_ref
+      end
       local.set $name.0
     end
     local.get $name.0

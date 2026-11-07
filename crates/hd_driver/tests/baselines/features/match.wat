@@ -201,13 +201,21 @@
             end
     ;; 19 |         .Named(n) => n
             local.get $s.0
-            call $retain
+            local.tee $s.1
+            if
+              local.get $s.1
+              call $retain
+            end
     ;; 18 |     match s:
             br 2
           end
     ;; 20 |         .Pair(a, _) => a
           local.get $s.0
-          call $retain
+          local.tee $s.1
+          if
+            local.get $s.1
+            call $retain
+          end
     ;; 18 |     match s:
           br 1
         end

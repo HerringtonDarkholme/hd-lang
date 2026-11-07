@@ -61,7 +61,17 @@
       if
         local.get $xs
         i32.load $heap
-        call $rt:release_ref'1
+        local.tee $xs
+        if
+          local.get $xs
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          if
+            local.get $xs
+            call $rt:release_ref'1
+          end
+        end
       end
     end
     local.get $t1
@@ -120,12 +130,32 @@
       if
         local.get $xs
         i32.load $heap
-        call $rt:release_ref'1
+        local.tee $xs
+        if
+          local.get $xs
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          if
+            local.get $xs
+            call $rt:release_ref'1
+          end
+        end
       end
       local.get $t1
       i32.load $heap offset=4
       local.get $t1
-      call $rt:release_ref'1
+      local.tee $xs
+      if
+        local.get $xs
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $xs
+          call $rt:release_ref'1
+        end
+      end
       local.set $t1
     end
     local.get $t1
@@ -164,7 +194,10 @@
         end
       end
       local.get $s.0
-      call $rt:release_ref'2
+      if
+        local.get $s.0
+        call $rt:release_ref'2
+      end
       local.get $s.1
       local.set $s.0
     end
@@ -224,7 +257,17 @@
       if
         local.get $xs
         i32.load $heap
-        call $rt:release_ref'1
+        local.tee $xs
+        if
+          local.get $xs
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          if
+            local.get $xs
+            call $rt:release_ref'1
+          end
+        end
       end
     end
     local.get $t1

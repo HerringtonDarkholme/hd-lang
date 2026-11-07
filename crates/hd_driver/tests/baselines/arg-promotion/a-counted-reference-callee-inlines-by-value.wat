@@ -123,7 +123,10 @@
         end
       end
       local.get $n
-      call $rt:release_ref
+      if
+        local.get $n
+        call $rt:release_ref
+      end
       local.get $t1
       local.set $n
     end
@@ -289,7 +292,10 @@
         end
       end
       local.get $t4
-      call $rt:release_ref
+      if
+        local.get $t4
+        call $rt:release_ref
+      end
     end
     local.get $t1
     local.get $t0
@@ -558,7 +564,10 @@
       end
     ;; 25 |     let t = make(n)
       local.get $n
-      call $rt:release_ref
+      if
+        local.get $n
+        call $rt:release_ref
+      end
     ;; 27 |     a + t.size()
       local.get $t2
       local.get $t.s.1

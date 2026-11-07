@@ -86,7 +86,11 @@
       if
         local.get $u
         i32.load $heap
-        call $rt:release_ref'1
+        local.tee $t2
+        if
+          local.get $t2
+          call $rt:release_ref'1
+        end
       end
     end
     local.get $t1
@@ -168,7 +172,17 @@
       if
         local.get $us
         i32.load $heap
-        call $rt:release_ref'2
+        local.tee $us
+        if
+          local.get $us
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          if
+            local.get $us
+            call $rt:release_ref'2
+          end
+        end
       end
     end
     local.get $t1

@@ -14,14 +14,32 @@
       local.set $t0
       local.set $self
       local.get $t0
-      call $rt:retain_known
+      if
+        local.get $t0
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t0
+          call $rt:retain_known
+        end
+      end
       local.get $t0
       local.get $x
       i32.const 0
       local.get $self
       call_indirect $table0 (param i32 i32 i32) (result i32)
       local.get $t0
-      call $rt:release_ref
+      if
+        local.get $t0
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t0
+          call $rt:release_ref
+        end
+      end
       local.set $self
     end
     local.get $self
@@ -46,7 +64,16 @@
       local.get $x
       call $"impl Mapper.apply'2"
       local.get $m.transform.1
-      call $rt:release_ref
+      if
+        local.get $m.transform.1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $m.transform.1
+          call $rt:release_ref
+        end
+      end
       local.set $m.transform.0
     end
     local.get $m.transform.0

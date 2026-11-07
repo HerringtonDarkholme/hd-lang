@@ -9,6 +9,7 @@
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
+  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
@@ -73,7 +74,11 @@
     local.get $env
     i32.load $heap offset=8
     local.set $env
-    call $retain
+    local.tee $t0
+    if
+      local.get $t0
+      call $retain
+    end
     block
       local.get $ctx
       i32.load $heap
@@ -138,7 +143,18 @@
       local.set $t1
     ;; 11 |     f := fn() -> usize: s.len()
       local.get $t0
-      call $rt:release_ref'1
+      if
+        local.get $t0
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t0
+          call $rt:release_ref'1
+        end
+      end
     ;; 12 |     f() + s.len()
       block
         block
@@ -147,7 +163,11 @@
       end
     ;; 11 |     f := fn() -> usize: s.len()
       local.get $s.0
-      call $rt:release_ref'2
+      local.tee $t0
+      if
+        local.get $t0
+        call $rt:release_ref'2
+      end
     ;; 12 |     f() + s.len()
       local.get $t1
       local.get $s.1
@@ -239,7 +259,18 @@
       call $copy_shares#1
     ;; 22 |     let n: usize = 0
       local.get $t1
-      call $rt:release_ref'1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t1
+          call $rt:release_ref'1
+        end
+      end
     ;; 27 |     n
       local.get $n
       i32.load $heap
@@ -263,7 +294,11 @@
     local.get $env
     i32.load $heap offset=8
     local.set $env
-    call $retain
+    local.tee $t0
+    if
+      local.get $t0
+      call $retain
+    end
     block
       local.get $ctx
       local.get $ctx
@@ -373,7 +408,18 @@
       call $shared_list#1
     ;; 15 |     let mut xs: List[string] = []
       local.get $t1
-      call $rt:release_ref'1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t1
+          call $rt:release_ref'1
+        end
+      end
     ;; 19 |     xs.len()
       local.get $xs
       i32.load $heap
@@ -384,14 +430,38 @@
       if
         local.get $xs
         i32.load $heap
-        call $rt:release_ref'1
+        local.tee $t1
+        if
+          local.get $t1
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          global.get $tracing
+          i32.or
+          if
+            local.get $t1
+            call $rt:release_ref'1
+          end
+        end
       end
     ;; 19 |     xs.len()
       local.get $s.0
       i32.load $heap offset=4
     ;; 15 |     let mut xs: List[string] = []
       local.get $s.0
-      call $rt:release_ref'1
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t1
+          call $rt:release_ref'1
+        end
+      end
       local.set $s.0
     end
     local.get $s.0

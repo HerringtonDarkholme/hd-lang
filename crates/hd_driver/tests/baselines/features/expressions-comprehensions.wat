@@ -50,7 +50,11 @@
             local.get $u.active
             if
               local.get $u.name.0
-              call $retain
+              local.tee $u.active
+              if
+                local.get $u.active
+                call $retain
+              end
               local.get $t0
               local.tee $u.active
               i32.load $heap offset=4
@@ -145,7 +149,10 @@
               call $rt:map_find
               local.set $t3
               local.get $u.name.0
-              call $retain
+              if
+                local.get $u.name.0
+                call $retain
+              end
               local.get $t0
               local.get $u.active
               local.get $t3
@@ -337,9 +344,17 @@
                   i32.eq
                   if
                     local.get $x.0
-                    call $retain
+                    local.tee $t5
+                    if
+                      local.get $t5
+                      call $retain
+                    end
                     local.get $y.0
-                    call $retain
+                    local.tee $t5
+                    if
+                      local.get $t5
+                      call $retain
+                    end
                     local.get $t0
                     local.tee $t5
                     i32.load $heap offset=4

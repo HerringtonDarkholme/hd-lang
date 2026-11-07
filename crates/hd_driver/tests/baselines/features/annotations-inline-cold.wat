@@ -97,7 +97,17 @@
       if
         local.get $xs
         i32.load $heap
-        call $rt:release_ref
+        local.tee $xs
+        if
+          local.get $xs
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          if
+            local.get $xs
+            call $rt:release_ref
+          end
+        end
       end
       local.get $t1
       local.get $t2
@@ -321,7 +331,7 @@
     i32.add
     global.set $locals
   )
-  (func $check (param $xs i32) (param $at i32) (result i32 i32) (local $t0 i32)
+  (func $check (param $xs i32) (param $at i32) (result i32 i32) (local $t0 i32) (local $t1 i32)
     ;; 30 |     if at >= xs.len():
     block
       local.get $at
@@ -358,15 +368,39 @@
       i32.load $heap offset=20
       local.set $t0
       local.tee $at
-      call $retain
+      local.tee $t1
+      if
+        local.get $t1
+        call $retain
+      end
     ;; 30 |     if at >= xs.len():
       local.get $xs
-      call $rt:release_ref
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t1
+          call $rt:release_ref
+        end
+      end
       i32.const 0
       local.set $xs
     end
     local.get $xs
-    call $rt:release_ref
+    local.tee $t1
+    if
+      local.get $t1
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $t1
+        call $rt:release_ref
+      end
+    end
     local.get $at
     local.get $t0
   )

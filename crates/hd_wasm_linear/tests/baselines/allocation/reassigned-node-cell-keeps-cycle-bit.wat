@@ -3,6 +3,7 @@
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
+  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $make_cycle (result i32) (local $t0 i32) (local $t1 i32)
     ;; 9 |     let node = box(Node { next: .None })
@@ -24,7 +25,17 @@
       i32.store $heap
       local.get $t1
     ;; 11 |     node = box(Node { next: .Some(parent) })
-      call $rt:retain_known
+      local.tee $t0
+      if
+        local.get $t0
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t0
+          call $rt:retain_known
+        end
+      end
       i32.const 4
       i32.const -2147483646
       call $rt:new/class-1
@@ -35,7 +46,18 @@
       i32.store $heap
       local.get $t0
     ;; 9 |     let node = box(Node { next: .None })
-      call $rt:release_ref
+      if
+        local.get $t0
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t0
+          call $rt:release_ref
+        end
+      end
     ;; 10 |     parent := box(Node { next: .Some(node) })
       local.get $t1
     ;; 9 |     let node = box(Node { next: .None })

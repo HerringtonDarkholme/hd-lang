@@ -21,7 +21,16 @@
       local.set $early
     end
     local.get $parts
-    call $rt:release_ref
+    if
+      local.get $parts
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $parts
+        call $rt:release_ref
+      end
+    end
     local.get $early
   )
 )

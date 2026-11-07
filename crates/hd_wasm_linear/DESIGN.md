@@ -2494,6 +2494,15 @@ references, and open values.
   qualify. A string literal or a capture-free closure then takes no
   count. On json this removes 17 calls and 334 bytes, among them
   `Record.structure handle`'s retain of its static record.
+- **A test before each count call** (`count_tests.rs`, every target and
+  pipeline). A retain or release in a compiled body first tests what its
+  call would answer: a known payload start, null and the header's count, and
+  on a release `Tracing` too, since a gray object's count can reach 0 in a
+  mark; any other address, null. The runtime's own helpers keep plain calls:
+  their fields mostly hold real counts, and the test there made binary_trees
+  10% slower. It runs after `static_counts`, `count_pairs` and
+  `effect_free_calls`, which see the plain calls, and before `coalesce`. A
+  checked build reports what it skips (`hd.skipped`).
 - **Inline fast paths** (issue #644, `opt::inline_counts`), for the
   wasmtime target only: its pipelines carry the link pass
   `inline_counts` (`crates/hd_opt/DESIGN.md` §3.1), which sets

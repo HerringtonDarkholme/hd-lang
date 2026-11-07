@@ -34,7 +34,7 @@
     local.get $t1
     local.get $t2
   )
-  (func $"error Display for LoadError.to_string" (param $self i32) (result i32 i32) (local $t2 i32) (local $t1 i32) (local $t0 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t7 i64)
+  (func $"error Display for LoadError.to_string" (param $self i32) (result i32 i32) (local $t2 i32) (local $t1 i32) (local $t0 i32) (local $t4 i32) (local $t3 i32) (local $t5 i32) (local $t6 i32) (local $t7 i64)
     ;; 25 | @error
     block
       local.get $self
@@ -54,7 +54,11 @@
       if (result i32)
     ;; 29 |         path: string,
         local.get $t2
-        call $retain
+        local.tee $t3
+        if
+          local.get $t3
+          call $retain
+        end
     ;; 27 |     @error("cannot read $path")
         block
           block
@@ -72,25 +76,25 @@
           block
             local.get $self
             i32.const 16 ;; &"cannot read "
-            local.set $t3
+            local.set $t4
             if
               local.get $self
               call $rt:str
-              local.set $t3
+              local.set $t4
             end
-            local.get $t3
+            local.get $t4
             local.get $self
-            local.set $t3
+            local.set $t4
             local.set $self
             br 0
           end
         end
         i32.const 16 ;; &"cannot read "
-        local.set $t4
+        local.set $t3
         block
           block
             local.get $self
-            local.get $t4
+            local.get $t3
             local.set $t5
             local.tee $t6
             local.get $t5
@@ -117,9 +121,13 @@
           end
         end
         local.get $t2
-        call $rt:release_ref
+        local.tee $t3
+        if
+          local.get $t3
+          call $rt:release_ref
+        end
         local.get $self
-        local.get $t3
+        local.get $t4
         local.set $t2
       else
     ;; 33 |     @error("bad config")
@@ -139,7 +147,11 @@
               i32.eqz
               if (result i32)
                 local.get $t1
-                call $retain
+                local.tee $t3
+                if
+                  local.get $t3
+                  call $retain
+                end
                 i32.const 11
                 local.get $t1
                 local.get $t0
@@ -160,7 +172,11 @@
                 local.get $t0
                 call $"impl StringBuilder.value_text"
                 local.get $t1
-                call $rt:release_ref
+                local.tee $t3
+                if
+                  local.get $t3
+                  call $rt:release_ref
+                end
                 local.get $self
               else
                 i32.const 49 ;; &"Busy"
@@ -306,7 +322,10 @@
         end
       end
       local.get $e
-      call $rt:release_ref
+      if
+        local.get $e
+        call $rt:release_ref
+      end
       local.get $t0
       local.set $e
     end
@@ -512,7 +531,7 @@
     local.get $t0
     local.get $value
   )
-  (func $"error Display for FsError.to_string" (param $self i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t7 i64) (local $t8 i32)
+  (func $"error Display for FsError.to_string" (param $self i32) (result i32 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t7 i64) (local $t8 i32)
     ;; 19 | @error
     block
       local.get $self
@@ -528,34 +547,38 @@
       if (result i32)
     ;; 22 |     NotFound(path: string)
         local.get $self
-        call $retain
+        local.tee $t1
+        if
+          local.get $t1
+          call $retain
+        end
     ;; 21 |     @error("not found: $path")
         block
           block
             local.get $t0
-            local.set $t1
+            local.set $t2
             br 0
           end
         end
         i32.const 11
-        local.tee $t2
-        local.get $t1
+        local.tee $t1
+        local.get $t2
         i32.add
-        local.set $t1
+        local.set $t2
         block
           block
-            local.get $t1
+            local.get $t2
             i32.const 16
             local.set $t3
             if
-              local.get $t1
+              local.get $t2
               call $rt:str
               local.set $t3
             end
             local.get $t3
-            local.get $t1
+            local.get $t2
             local.set $t3
-            local.set $t1
+            local.set $t2
             br 0
           end
         end
@@ -563,7 +586,7 @@
         local.set $t4
         block
           block
-            local.get $t1
+            local.get $t2
             local.get $t4
             local.set $t5
             local.tee $t6
@@ -587,8 +610,8 @@
         end
         block
           block
-            local.get $t1
             local.get $t2
+            local.get $t1
             i32.add
             local.get $self
             local.get $t0
@@ -597,8 +620,12 @@
           end
         end
         local.get $self
-        call $rt:release_ref
-        local.get $t1
+        local.tee $t1
+        if
+          local.get $t1
+          call $rt:release_ref
+        end
+        local.get $t2
         local.get $t3
         local.set $t0
       else

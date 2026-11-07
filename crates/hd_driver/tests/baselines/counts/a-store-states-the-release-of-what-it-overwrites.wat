@@ -44,7 +44,11 @@
         i32.add
         call $make
         local.get $s.0
-        call $rt:release_ref
+        local.tee $s.0
+        if
+          local.get $s.0
+          call $rt:release_ref
+        end
         local.set $s.1
         local.set $s.0
     ;; 24 |     if k > 0:
@@ -55,7 +59,10 @@
       call $eat
       local.get $s.0
     ;; 23 |     let mut s = make(k)
-      call $rt:release_ref
+      if
+        local.get $s.0
+        call $rt:release_ref
+      end
       local.set $k
     end
     local.get $k
@@ -90,7 +97,11 @@
       i32.add
       local.tee $xs
       i32.load $heap offset=16
-      call $rt:release_ref
+      local.tee $i
+      if
+        local.get $i
+        call $rt:release_ref
+      end
       local.get $xs
       local.get $k
       i32.store $heap offset=16

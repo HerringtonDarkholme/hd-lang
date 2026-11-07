@@ -7,6 +7,7 @@
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
+  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $fn_mut#1 (param $env i32) (param $x.0 i32) (param $x.1 i32) (param $ctx i32)
     ;; 25 |     each(xs, fn(x: string) -> void: n += x.len())
@@ -23,7 +24,10 @@
         end
       end
       local.get $x.0
-      call $rt:release_ref'1
+      if
+        local.get $x.0
+        call $rt:release_ref'1
+      end
       local.get $env
       local.get $ctx
       local.get $x.1
@@ -69,7 +73,7 @@
     end
     local.get $s.0
   )
-  (func $"each[fn(string) -> ()]" (param $xs i32) (param $f.0 i32) (param $f.1 i32) (local $t0 i32) (local $x.0 i32) (local $x.1 i32)
+  (func $"each[fn(string) -> ()]" (param $xs i32) (param $f.0 i32) (param $f.1 i32) (local $t0 i32) (local $x.0 i32) (local $x.1 i32) (local $t1 i32)
     ;; 20 |     for x in xs:
     block
       local.get $xs
@@ -104,7 +108,11 @@
             end
     ;; 21 |         f(x)
             local.get $x.0
-            call $retain
+            local.tee $t1
+            if
+              local.get $t1
+              call $retain
+            end
             local.get $f.1
             local.get $x.0
             local.get $x.1
@@ -129,7 +137,10 @@
         end
       end
       local.get $x.0
-      call $rt:release_ref'1
+      if
+        local.get $x.0
+        call $rt:release_ref'1
+      end
       local.get $env
       i32.const 1
       i32.add
@@ -206,7 +217,18 @@
       call $"each[fn(string) -> ()]"
       local.get $xs
     ;; 24 |     let n: usize = 0
-      call $rt:release_ref'2
+      if
+        local.get $xs
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $xs
+          call $rt:release_ref'2
+        end
+      end
     ;; 26 |     n
       local.get $n
       i32.load $heap

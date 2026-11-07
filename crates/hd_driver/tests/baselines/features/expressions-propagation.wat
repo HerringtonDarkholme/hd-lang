@@ -74,7 +74,10 @@
         end
       end
       local.get $path.0
-      call $rt:release_ref
+      if
+        local.get $path.0
+        call $rt:release_ref
+      end
       local.get $path.1
       i32.eqz
       if
@@ -95,7 +98,11 @@
       end
     ;; 23 |     text := read(path)?
       local.get $text.0
-      call $rt:release_ref
+      local.tee $path.0
+      if
+        local.get $path.0
+        call $rt:release_ref
+      end
     ;; 24 |     .Ok(text.len())
       i32.const 0
     ;; 23 |     text := read(path)?
@@ -158,7 +165,10 @@
         end
       end
       local.get $path.0
-      call $rt:release_ref
+      if
+        local.get $path.0
+        call $rt:release_ref
+      end
       local.get $path.1
       i32.eqz
       if
@@ -193,7 +203,11 @@
       end
     ;; 27 |     text := read(path)?
       local.get $t0
-      call $rt:release_ref
+      local.tee $path.0
+      if
+        local.get $path.0
+        call $rt:release_ref
+      end
     ;; 28 |     .Ok(text.len())
       i32.const 0
     ;; 27 |     text := read(path)?
@@ -250,7 +264,10 @@
         local.set $path.1
       end
       local.get $path.0
-      call $rt:release_ref
+      if
+        local.get $path.0
+        call $rt:release_ref
+      end
       local.get $path.1
       local.get $t0
       local.get $t1

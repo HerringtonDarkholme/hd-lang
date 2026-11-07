@@ -14,6 +14,7 @@
   (import "fixture" "rt:frame'2" (func $rt:frame'2 (result i32)))
   (import "fixture" "aband" (global $aband (mut i32)))
   (import "fixture" "rewake" (global $rewake (mut i32)))
+  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 19 funcref))
   (func $fetch'1 (param $frame i32) (param $key.0 i32) (param $key.1 i32) (result i32 i32 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t0 i32)
@@ -186,24 +187,35 @@
         i32.and
         i32.store $heap offset=12
         local.get $t3
-        call $rt:release_ref'1
+        if
+          local.get $t3
+          call $rt:release_ref'1
+        end
       end
     end
     local.get $t1
     local.get $t0
     call $rt:cancel_leave
   )
-  (func $fetch.drop (param $t0 i32)
+  (func $fetch.drop (param $t0 i32) (local $t1 i32)
     ;; 10 |     key + "?"
     local.get $t0
     i32.load $heap offset=24
-    call $rt:release_ref'1
+    local.tee $t1
+    if
+      local.get $t1
+      call $rt:release_ref'1
+    end
     local.get $t0
     i32.load $heap offset=16
     if
       local.get $t0
       i32.load $heap offset=16
-      call $rt:release_ref'1
+      local.tee $t1
+      if
+        local.get $t1
+        call $rt:release_ref'1
+      end
     end
   )
   (func $fetch'2 (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32)
@@ -211,7 +223,10 @@
     call $rt:frame'1
     local.tee $t0
     local.get $t1
-    call $retain
+    if
+      local.get $t1
+      call $retain
+    end
     local.get $t1
     i32.store $heap offset=24
     local.get $t0
@@ -257,10 +272,21 @@
       end
     ;; 20 |     let mut job = fetch(key)
       local.get $key.0
-      call $rt:release_ref'2
+      if
+        local.get $key.0
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $key.0
+          call $rt:release_ref'2
+        end
+      end
     end
   )
-  (func $stop'1 (param $frame i32) (param $key.0 i32) (param $key.1 i32) (result i32 i32) (local $t16 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $job i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32) (local $t10 i32) (local $t11 i32) (local $t12 i32) (local $t13 i32) (local $end i32) (local $t14 i32) (local $t15 i32) (local $t0 i32)
+  (func $stop'1 (param $frame i32) (param $key.0 i32) (param $key.1 i32) (result i32 i32) (local $t16 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $job i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32) (local $t10 i32) (local $t11 i32) (local $t12 i32) (local $t13 i32) (local $end i32) (local $t14 i32) (local $t15 i32) (local $t0 i32) (local $t17 i32)
     ;; 13 |     let mut job = fetch(key)
     local.get $frame
     if
@@ -340,7 +366,11 @@
       local.set $t16
     else
       local.get $key.0
-      call $retain
+      local.tee $t17
+      if
+        local.get $t17
+        call $retain
+      end
     end
     block
       local.get $t16
@@ -357,7 +387,11 @@
         local.get $t4
         call $fetch'2
         local.get $t3
-        call $rt:release_ref'1
+        local.tee $t17
+        if
+          local.get $t17
+          call $rt:release_ref'1
+        end
         i32.const 0
         local.set $t3
         i32.const 0
@@ -522,7 +556,11 @@
             i32.const 0
             i32.store $heap offset=16
             local.get $t8
-            call $rt:release_ref'1
+            local.tee $t17
+            if
+              local.get $t17
+              call $rt:release_ref'1
+            end
           end
           local.get $t9
           local.set $t7
@@ -649,10 +687,26 @@
           i32.const 0
           i32.store $heap offset=16
           local.get $t11
-          call $rt:release_ref'1
+          local.tee $t17
+          if
+            local.get $t17
+            call $rt:release_ref'1
+          end
         end
         local.get $t6
-        call $rt:release_ref'2
+        local.tee $t17
+        if
+          local.get $t17
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          global.get $tracing
+          i32.or
+          if
+            local.get $t17
+            call $rt:release_ref'2
+          end
+        end
         i32.const 0
         local.set $t2
         i32.const 1
@@ -661,7 +715,19 @@
       end
     ;; 13 |     let mut job = fetch(key)
       local.get $t6
-      call $rt:release_ref'2
+      local.tee $t17
+      if
+        local.get $t17
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t17
+          call $rt:release_ref'2
+        end
+      end
     ;; 14 |     end := job.cancel!()
       local.get $t7
     ;; 15 |     match end:
@@ -695,7 +761,11 @@
       local.set $t2
     end
     local.get $key.0
-    call $rt:release_ref'1
+    local.tee $t17
+    if
+      local.get $t17
+      call $rt:release_ref'1
+    end
     local.get $t2
     local.get $frame
     if
@@ -814,7 +884,7 @@
     local.get $t0
     call $rt:cancel_leave
   )
-  (func $stop.drop (param $t0 i32)
+  (func $stop.drop (param $t0 i32) (local $t1 i32)
     ;; 13 |     let mut job = fetch(key)
     local.get $t0
     i32.load $heap offset=12
@@ -824,17 +894,37 @@
     if
       local.get $t0
       i32.load $heap offset=56
-      call $rt:release_ref'2
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t1
+          call $rt:release_ref'2
+        end
+      end
       local.get $t0
       i32.load $heap offset=24
-      call $rt:release_ref'1
+      local.tee $t1
+      if
+        local.get $t1
+        call $rt:release_ref'1
+      end
     end
     local.get $t0
     i32.load $heap offset=16
     if
       local.get $t0
       i32.load $heap offset=16
-      call $rt:release_ref'1
+      local.tee $t1
+      if
+        local.get $t1
+        call $rt:release_ref'1
+      end
     end
   )
   (func $stop'2 (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32)
@@ -842,7 +932,10 @@
     call $rt:frame'2
     local.tee $t0
     local.get $t1
-    call $retain
+    if
+      local.get $t1
+      call $retain
+    end
     local.get $t1
     i32.store $heap offset=24
     local.get $t0

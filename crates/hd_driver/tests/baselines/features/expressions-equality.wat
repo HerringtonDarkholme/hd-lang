@@ -113,9 +113,28 @@
       local.get $b
       call $"impl [ K < Eq & Hash , V < Eq ] Eq for Map [ K , V ].eq[string, string]"
       local.get $a
-      call $rt:release_ref
+      if
+        local.get $a
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $a
+          call $rt:release_ref
+        end
+      end
       local.get $b
-      call $rt:release_ref
+      local.tee $a
+      if
+        local.get $a
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $a
+          call $rt:release_ref
+        end
+      end
       local.set $a
     end
     local.get $a
@@ -178,13 +197,33 @@
       if
         local.get $a
         i32.load $heap
-        call $rt:release_ref
+        local.tee $a
+        if
+          local.get $a
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          if
+            local.get $a
+            call $rt:release_ref
+          end
+        end
       end
       local.get $b
       if
         local.get $b
         i32.load $heap
-        call $rt:release_ref
+        local.tee $a
+        if
+          local.get $a
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          if
+            local.get $a
+            call $rt:release_ref
+          end
+        end
       end
       local.get $t1
       i32.eqz

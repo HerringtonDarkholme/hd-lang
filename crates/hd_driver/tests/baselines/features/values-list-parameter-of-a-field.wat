@@ -147,7 +147,17 @@
       if
         local.get $trail
         i32.load $heap
-        call $rt:release_ref
+        local.tee $i
+        if
+          local.get $i
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          if
+            local.get $i
+            call $rt:release_ref
+          end
+        end
       end
     ;; 33 |     println("${trail.depth} ${saved[0]} ${local[0]}")
       block
@@ -170,7 +180,17 @@
       i64.load $heap offset=16
     ;; 27 |     let mut trail = Trail { steps: [], depth: 0 }
       local.get $t1
-      call $rt:release_ref
+      local.tee $i
+      if
+        local.get $i
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $i
+          call $rt:release_ref
+        end
+      end
     ;; 33 |     println("${trail.depth} ${saved[0]} ${local[0]}")
       local.tee $t4
       local.set $t5
@@ -219,7 +239,17 @@
       if
         local.get $t2
         i32.load $heap
-        call $rt:release_ref
+        local.tee $i
+        if
+          local.get $i
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          if
+            local.get $i
+            call $rt:release_ref
+          end
+        end
       end
     ;; 33 |     println("${trail.depth} ${saved[0]} ${local[0]}")
       local.get $t5

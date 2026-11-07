@@ -80,7 +80,17 @@
       if
         local.get $n
         i32.load $heap
-        call $rt:release_ref'1
+        local.tee $i
+        if
+          local.get $i
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          if
+            local.get $i
+            call $rt:release_ref'1
+          end
+        end
       end
     end
     local.get $t1
@@ -145,7 +155,11 @@
       i32.add
       local.tee $self
       i32.load $heap offset=16
-      call $rt:release_ref'2
+      local.tee $key
+      if
+        local.get $key
+        call $rt:release_ref'2
+      end
       local.get $self
       local.get $value.0
       i32.store $heap offset=16
@@ -154,7 +168,7 @@
       i32.store $heap offset=20
     end
   )
-  (func $generic_first (param $xs i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+  (func $generic_first (param $xs i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 30 |     first(xs).len()
     global.get $locals
     global.get $locals_base
@@ -237,7 +251,17 @@
       if
         local.get $xs
         i32.load $heap
-        call $rt:release_ref'1
+        local.tee $t3
+        if
+          local.get $t3
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          if
+            local.get $t3
+            call $rt:release_ref'1
+          end
+        end
       end
       block
         block
@@ -247,7 +271,11 @@
         end
       end
       local.get $t1
-      call $rt:release_ref'2
+      local.tee $t3
+      if
+        local.get $t3
+        call $rt:release_ref'2
+      end
     end
     local.get $xs
     local.get $t0

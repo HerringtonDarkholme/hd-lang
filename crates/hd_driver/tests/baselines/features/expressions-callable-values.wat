@@ -37,13 +37,16 @@
         end
       end
       local.get $c.value.0
-      call $rt:release_ref
+      if
+        local.get $c.value.0
+        call $rt:release_ref
+      end
       local.get $c.value.1
       local.set $c.value.0
     end
     local.get $c.value.0
   )
-  (func $append_cell (param $c i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
+  (func $append_cell (param $c i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t4 i32) (local $t2 i32)
     ;; 31 |     c() += "!"
     block
       local.get $c
@@ -56,31 +59,39 @@
       block
         block
           local.get $t0
-          call $retain
+          local.tee $t2
+          if
+            local.get $t2
+            call $retain
+          end
           br 0
         end
       end
       local.get $t1
       i32.const 1
       i32.add
-      local.tee $t2
-      call $rt:str
       local.tee $t3
+      call $rt:str
       local.tee $t4
+      local.tee $t2
       local.get $t0
       local.get $t1
       call $rt:memory_copy/0/0
-      local.get $t4
+      local.get $t2
       local.get $t1
       i32.add
       i32.const 65 ;; &"!"
       i32.load8_u $heap
       i32.store8 $heap
       local.get $t0
-      call $rt:release_ref
+      local.tee $t2
+      if
+        local.get $t2
+        call $rt:release_ref
+      end
       local.get $c
+      local.get $t4
       local.get $t3
-      local.get $t2
       call $"impl Update [ string ] for Cell.update"
     end
   )

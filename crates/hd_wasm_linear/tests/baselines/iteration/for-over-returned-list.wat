@@ -62,7 +62,16 @@
       end
     ;; 6 |     let count: usize = 0
       local.get $text.0
-      call $rt:release_ref
+      if
+        local.get $text.0
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $text.0
+          call $rt:release_ref
+        end
+      end
     ;; 9 |     count
       local.get $count
     ;; 6 |     let count: usize = 0

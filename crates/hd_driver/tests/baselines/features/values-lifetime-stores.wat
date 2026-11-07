@@ -11,7 +11,7 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 5 funcref))
-  (func $index (param $by i32) (param $u i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
+  (func $index (param $by i32) (param $u i32) (local $t1 i32) (local $t0 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t2 i32)
     ;; 14 |     by[u.name] = u
     block
       local.get $u
@@ -20,33 +20,45 @@
       i32.load $heap offset=4
       local.set $t0
       local.tee $t1
-      call $retain
+      local.tee $t2
+      if
+        local.get $t2
+        call $retain
+      end
       local.get $by
       i32.load $heap
-      local.tee $t2
-      local.get $t1
-      local.get $t0
-      call $rt:map_hash
       local.tee $t3
       local.get $t1
       local.get $t0
-      call $rt:map_find
-      local.set $t4
+      call $rt:map_hash
+      local.tee $t4
       local.get $t1
-      call $retain
-      local.get $t2
+      local.get $t0
+      call $rt:map_find
+      local.set $t5
+      local.get $t1
+      local.tee $t2
+      if
+        local.get $t2
+        call $retain
+      end
       local.get $t3
       local.get $t4
+      local.get $t5
       local.get $t1
       local.get $t0
       local.get $u
       call $rt:map_put
-      local.set $t2
+      local.set $t3
       local.get $by
-      local.get $t2
+      local.get $t3
       i32.store $heap
       local.get $t1
-      call $rt:release_ref'1
+      local.tee $t2
+      if
+        local.get $t2
+        call $rt:release_ref'1
+      end
     end
   )
   (func $remember (param $seen i32) (param $u i32) (local $t0 i32) (local $t1 i32)
@@ -224,13 +236,27 @@
       if
         local.get $seen
         i32.load $heap
-        call $rt:release_ref'2
+        local.tee $seen
+        if
+          local.get $seen
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          if
+            local.get $seen
+            call $rt:release_ref'2
+          end
+        end
       end
       local.get $b
       if
         local.get $b
         i32.load $heap
-        call $rt:release_ref'1
+        local.tee $seen
+        if
+          local.get $seen
+          call $rt:release_ref'1
+        end
       end
     ;; 22 |     seen[0].name.len() + seen[1].name.len() + by.len()
       local.get $t1
@@ -247,12 +273,25 @@
       local.set $by
     ;; 17 |     let mut seen: List[&User] = []
       local.get $seen
-      call $rt:release_ref'2
+      if
+        local.get $seen
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $seen
+          call $rt:release_ref'2
+        end
+      end
       local.get $a
       if
         local.get $a
         i32.load $heap
-        call $rt:release_ref'1
+        local.tee $seen
+        if
+          local.get $seen
+          call $rt:release_ref'1
+        end
       end
     ;; 22 |     seen[0].name.len() + seen[1].name.len() + by.len()
       local.get $b

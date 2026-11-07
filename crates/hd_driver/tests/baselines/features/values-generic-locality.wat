@@ -8,6 +8,7 @@
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:new/class-1'2" (func $rt:new/class-1'2 (param i32 i32) (result i32)))
   (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
+  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 10 funcref))
   (func $"id[^240]" (param $value i32) (result i32)
@@ -40,12 +41,22 @@
     local.get $env
     i32.load $heap
     local.tee $env
-    call $rt:retain_known
+    local.tee $ctx
+    if
+      local.get $ctx
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $ctx
+        call $rt:retain_known
+      end
+    end
     block
     end
     local.get $env
   )
-  (func $bounded (param $u.name.0 i32) (param $u.name.1 i32) (result i32) (local $t0 i32)
+  (func $bounded (param $u.name.0 i32) (param $u.name.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 33 |     kept := keep(u)
     block
       block
@@ -76,9 +87,33 @@
       local.tee $u.name.1
     ;; 33 |     kept := keep(u)
       local.get $t0
-      call $rt:release_ref'1
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t1
+          call $rt:release_ref'1
+        end
+      end
       local.get $u.name.0
-      call $rt:release_ref'1
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t1
+          call $rt:release_ref'1
+        end
+      end
     ;; 34 |     later(kept)().name.len()
       local.tee $u.name.0
       i32.load $heap
@@ -86,10 +121,26 @@
       i32.load $heap offset=4
       local.set $t0
       local.tee $u.name.0
-      call $retain
+      local.tee $t1
+      if
+        local.get $t1
+        call $retain
+      end
     ;; 33 |     kept := keep(u)
       local.get $u.name.1
-      call $rt:release_ref'1
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t1
+          call $rt:release_ref'1
+        end
+      end
     ;; 34 |     later(kept)().name.len()
       block
         block
@@ -100,7 +151,11 @@
       end
     ;; 33 |     kept := keep(u)
       local.get $u.name.0
-      call $rt:release_ref'2
+      local.tee $t1
+      if
+        local.get $t1
+        call $rt:release_ref'2
+      end
       local.get $u.name.1
       local.set $u.name.0
     end
@@ -109,7 +164,16 @@
   (func $"later[&User]" (param $value i32) (result i32 i32) (local $t0 i32)
     ;; 30 |     fn() -> T: value
     local.get $value
-    call $rt:retain_known
+    if
+      local.get $value
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $value
+        call $rt:retain_known
+      end
+    end
     block
       i32.const 2
       i32.const 4

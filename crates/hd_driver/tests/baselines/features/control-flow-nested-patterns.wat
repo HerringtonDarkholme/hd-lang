@@ -43,13 +43,21 @@
           end
     ;; 22 |         .Dot(User { name }) => name
           local.get $s.0
-          call $retain
+          local.tee $s.2
+          if
+            local.get $s.2
+            call $retain
+          end
     ;; 21 |     match s:
           br 1
         end
     ;; 23 |         .Line(start = _, end = User { name }) => name
         local.get $s.0
-        call $retain
+        local.tee $s.2
+        if
+          local.get $s.2
+          call $retain
+        end
     ;; 21 |     match s:
         br 0
       end

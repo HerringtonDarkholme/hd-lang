@@ -68,7 +68,10 @@
       call $rt:map_find'1
       local.set $t0
       local.get $word.0
-      call $retain
+      if
+        local.get $word.0
+        call $retain
+      end
       local.get $counts
       local.get $other.0
       local.get $other.1
@@ -100,7 +103,10 @@
       call $rt:map_find'1
       local.set $t2
       local.get $key.0
-      call $retain
+      if
+        local.get $key.0
+        call $retain
+      end
       local.get $counts
       local.get $t0
       local.get $t1
@@ -115,7 +121,7 @@
     end
     local.get $t3
   )
-  (func $append_existing (param $words i32) (param $key.0 i32) (param $key.1 i32) (param $suffix.0 i32) (param $suffix.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
+  (func $append_existing (param $words i32) (param $key.0 i32) (param $key.1 i32) (param $suffix.0 i32) (param $suffix.1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32) (local $t1 i32)
     ;; 22 |     words[key] += suffix
     block
       local.get $words
@@ -154,31 +160,39 @@
       i32.load $heap offset=4
       local.set $t0
       local.tee $key.1
-      call $retain
+      local.tee $t1
+      if
+        local.get $t1
+        call $retain
+      end
       local.get $t0
       local.get $suffix.1
       i32.add
-      local.tee $t1
+      local.tee $t2
       i32.eqz
       if (result i32)
         i32.const 16
       else
-        local.get $t1
+        local.get $t2
         call $rt:str
       end
-      local.tee $t2
       local.tee $t3
+      local.tee $t1
       local.get $key.1
       local.get $t0
       call $rt:memory_copy/0/0
-      local.get $t3
+      local.get $t1
       local.get $t0
       i32.add
       local.get $suffix.0
       local.get $suffix.1
       call $rt:memory_copy/0/0
       local.get $key.1
-      call $rt:release_ref
+      local.tee $t1
+      if
+        local.get $t1
+        call $rt:release_ref
+      end
       local.get $words
       i32.load $heap
       call $rt:map_unique'2
@@ -200,16 +214,20 @@
       i32.add
       local.tee $words
       i32.load $heap offset=8
-      call $rt:release_ref
+      local.tee $t1
+      if
+        local.get $t1
+        call $rt:release_ref
+      end
       local.get $words
-      local.get $t2
+      local.get $t3
       i32.store $heap offset=8
       local.get $words
-      local.get $t1
+      local.get $t2
       i32.store $heap offset=12
     end
   )
-  (func $changed_between (param $counts i32) (param $word.0 i32) (param $word.1 i32) (param $other.0 i32) (param $other.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i64) (local $t3 i64) (local $t4 i32)
+  (func $changed_between (param $counts i32) (param $word.0 i32) (param $word.1 i32) (param $other.0 i32) (param $other.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i64) (local $t3 i64) (local $t4 i32) (local $t5 i32)
     ;; 17 |     seen := counts.get(word).unwrap_or(0)
     block
       local.get $counts
@@ -291,7 +309,11 @@
       call $rt:map_find'1
       local.set $t4
       local.get $other.0
-      call $retain
+      local.tee $t5
+      if
+        local.get $t5
+        call $retain
+      end
       local.get $counts
     ;; 17 |     seen := counts.get(word).unwrap_or(0)
       local.get $t0
@@ -323,7 +345,11 @@
       call $rt:map_find'1
       local.set $t0
       local.get $word.0
-      call $retain
+      local.tee $t5
+      if
+        local.get $t5
+        call $retain
+      end
       local.get $other.0
       local.get $other.1
       local.get $t0
@@ -413,7 +439,11 @@
       local.get $t0
       i32.store $heap
       local.get $word.0
-      call $retain
+      local.tee $t3
+      if
+        local.get $t3
+        call $retain
+      end
       local.get $counts
       local.get $t0
       local.get $t1
@@ -483,7 +513,7 @@
       i64.store $heap offset=8
     end
   )
-  (func $tally (param $counts i32) (param $word.0 i32) (param $word.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i64) (local $t4 i64)
+  (func $tally (param $counts i32) (param $word.0 i32) (param $word.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i64) (local $t4 i64) (local $t5 i32)
     ;; 6 |     counts[word] = counts.get(word).unwrap_or(0) + 1
     block
       local.get $counts
@@ -560,7 +590,11 @@
       local.get $t0
       i32.store $heap
       local.get $word.0
-      call $retain
+      local.tee $t5
+      if
+        local.get $t5
+        call $retain
+      end
       local.get $counts
       local.get $t0
       local.get $t1

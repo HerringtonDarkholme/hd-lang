@@ -120,7 +120,11 @@
       i32.add
       local.tee $xs
       i32.load $heap offset=16
-      call $rt:release_ref
+      local.tee $i
+      if
+        local.get $i
+        call $rt:release_ref
+      end
       local.get $xs
       local.get $t3
       i32.store $heap offset=16

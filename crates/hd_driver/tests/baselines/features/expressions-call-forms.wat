@@ -54,9 +54,16 @@
         end
       end
       local.get $a.0
-      call $rt:release_ref'1
+      if
+        local.get $a.0
+        call $rt:release_ref'1
+      end
       local.get $b.0
-      call $rt:release_ref'1
+      local.tee $a.0
+      if
+        local.get $a.0
+        call $rt:release_ref'1
+      end
       local.get $a.1
       local.set $a.0
     end
@@ -118,7 +125,16 @@
         end
       end
       local.get $t0
-      call $rt:release_ref'2
+      if
+        local.get $t0
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t0
+          call $rt:release_ref'2
+        end
+      end
     end
     local.get $a.0
   )
@@ -141,9 +157,16 @@
         end
       end
       local.get $pair.1.0
-      call $rt:release_ref'1
+      if
+        local.get $pair.1.0
+        call $rt:release_ref'1
+      end
       local.get $pair.0.0
-      call $rt:release_ref'1
+      local.tee $pair.1.0
+      if
+        local.get $pair.1.0
+        call $rt:release_ref'1
+      end
       local.get $pair.0.1
       local.set $pair.0.0
     end
@@ -168,9 +191,16 @@
         end
       end
       local.get $a.0
-      call $rt:release_ref'1
+      if
+        local.get $a.0
+        call $rt:release_ref'1
+      end
       local.get $b.0
-      call $rt:release_ref'1
+      local.tee $a.0
+      if
+        local.get $a.0
+        call $rt:release_ref'1
+      end
       local.get $a.1
       local.set $a.0
     end

@@ -19,7 +19,11 @@
       i32.load $heap offset=4
       local.set $t0
       local.tee $t1
-      call $retain
+      local.tee $t2
+      if
+        local.get $t2
+        call $retain
+      end
       local.get $self
       i32.load $heap offset=8
       i32.load $heap
@@ -63,7 +67,7 @@
       i32.store $heap offset=4
     end
   )
-  (func $two (param $log i32) (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $first i32) (local $t0 i32)
+  (func $two (param $log i32) (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $first i32) (local $t0 i32) (local $t1 i32)
     ;; 19 |     using first = Res { name: a, log: log }
     global.get $locals
     global.get $locals_base
@@ -97,7 +101,17 @@
     block
       block
         local.get $log
-        call $rt:retain_known
+        local.tee $t1
+        if
+          local.get $t1
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          if
+            local.get $t1
+            call $rt:retain_known
+          end
+        end
         local.get $t0
         i64.const 0
         i64.store $heap
@@ -118,7 +132,17 @@
         local.set $a.0
     ;; 20 |     using second = Res { name: b, log: log }
         local.get $log
-        call $rt:retain_known
+        local.tee $t1
+        if
+          local.get $t1
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          if
+            local.get $t1
+            call $rt:retain_known
+          end
+        end
         local.get $t0
         i64.const 0
         i64.store $heap offset=24
@@ -374,9 +398,23 @@
     ;; 25 |         using r = Res { name: x, log: log }
             block
               local.get $x.0
-              call $retain
+              local.tee $t3
+              if
+                local.get $t3
+                call $retain
+              end
               local.get $log
-              call $rt:retain_known
+              local.tee $t3
+              if
+                local.get $t3
+                i32.const 8
+                i32.sub
+                i32.load $heap
+                if
+                  local.get $t3
+                  call $rt:retain_known
+                end
+              end
               local.get $t0
               i64.const 0
               i64.store $heap

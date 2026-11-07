@@ -48,7 +48,16 @@
       local.get $t0
       call $total
       local.get $t0
-      call $rt:release_ref
+      if
+        local.get $t0
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t0
+          call $rt:release_ref
+        end
+      end
       local.set $a.0
     end
     local.get $a.0
@@ -82,7 +91,16 @@
       call $total
       local.get $t0
     ;; 24 |     f := total
-      call $rt:release_ref
+      if
+        local.get $t0
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t0
+          call $rt:release_ref
+        end
+      end
       local.set $a.0
     end
     local.get $a.0

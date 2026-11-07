@@ -62,7 +62,11 @@
       i32.load $heap offset=20
       local.set $t1
       local.tee $t0
-      call $retain
+      local.tee $self
+      if
+        local.get $self
+        call $retain
+      end
       i32.const 1
     ;; 14 |         if self.at >= self.items.len():
       local.set $self
@@ -179,7 +183,17 @@
       if
         local.get $t1
         i32.load $heap
-        call $rt:release_ref
+        local.tee $t1
+        if
+          local.get $t1
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          if
+            local.get $t1
+            call $rt:release_ref
+          end
+        end
       end
     ;; 29 |     for x in xs.iter():
       block
@@ -254,7 +268,17 @@
       if
         local.get $xs
         i32.load $heap
-        call $rt:release_ref
+        local.tee $t1
+        if
+          local.get $t1
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          if
+            local.get $t1
+            call $rt:release_ref
+          end
+        end
       end
     ;; 31 |     n
       local.get $n
@@ -367,7 +391,17 @@
       if
         local.get $words.items
         i32.load $heap
-        call $rt:release_ref
+        local.tee $words.items
+        if
+          local.get $words.items
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          if
+            local.get $words.items
+            call $rt:release_ref
+          end
+        end
       end
     ;; 23 |     n
       local.get $n

@@ -33,10 +33,17 @@ try {
     return value;
   });
   const noOps = instance.exports["hd.no_ops"];
-  if (typeof noOps !== "function") {
-    throw new Error(`${program}: missing hd.no_ops`);
+  const skipped = instance.exports["hd.skipped"];
+  if (typeof noOps !== "function" || typeof skipped !== "function") {
+    throw new Error(`${program}: missing hd.no_ops or hd.skipped`);
   }
-  console.log(JSON.stringify({ ...countEntry(program, values), noOps: String(noOps()) }));
+  console.log(
+    JSON.stringify({
+      ...countEntry(program, values),
+      noOps: String(noOps()),
+      skipped: String(skipped()),
+    }),
+  );
 } finally {
   host.close();
 }

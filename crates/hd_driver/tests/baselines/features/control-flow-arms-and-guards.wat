@@ -79,19 +79,31 @@
               end
     ;; 13 |         .Named(n) if n.len() > 3 => n
               local.get $t.0
-              call $retain
+              local.tee $t.2
+              if
+                local.get $t.2
+                call $retain
+              end
     ;; 12 |     match t:
               br 3
             end
     ;; 14 |         .Pair(right = r, left = l) if l.len() > r.len() => l
             local.get $t.0
-            call $retain
+            local.tee $t.2
+            if
+              local.get $t.2
+              call $retain
+            end
     ;; 12 |     match t:
             br 2
           end
     ;; 15 |         .Pair(left = _, right = r) => r
           local.get $t.0
-          call $retain
+          local.tee $t.2
+          if
+            local.get $t.2
+            call $retain
+          end
     ;; 12 |     match t:
           br 1
         end

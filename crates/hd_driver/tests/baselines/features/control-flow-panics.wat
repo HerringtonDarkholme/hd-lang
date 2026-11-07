@@ -21,7 +21,11 @@
       i32.load $heap offset=4
       local.set $t0
       local.tee $t1
-      call $retain
+      local.tee $t2
+      if
+        local.get $t2
+        call $retain
+      end
       local.get $self
       i32.load $heap offset=8
       i32.load $heap
@@ -157,7 +161,11 @@
         unreachable
     ;; 19 |     if n < 0:
         local.get $s.0
-        call $rt:release_ref
+        local.tee $s.1
+        if
+          local.get $s.1
+          call $rt:release_ref
+        end
       end
     ;; 21 |     t.len()
       block
@@ -169,7 +177,11 @@
       end
     ;; 18 |     t := s + "!"
       local.get $t.0
-      call $rt:release_ref
+      local.tee $s.1
+      if
+        local.get $s.1
+        call $rt:release_ref
+      end
     end
     local.get $s.0
   )
@@ -223,7 +235,17 @@
         i32.load8_u $heap
         i32.store8 $heap
         local.get $log
-        call $rt:retain_known
+        local.tee $s.0
+        if
+          local.get $s.0
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          if
+            local.get $s.0
+            call $rt:retain_known
+          end
+        end
         local.get $t0
         i64.const 0
         i64.store $heap

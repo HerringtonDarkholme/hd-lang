@@ -39,7 +39,10 @@
       i32.store8 $heap
     ;; 12 |     s := o?
       local.get $o.1
-      call $rt:release_ref
+      if
+        local.get $o.1
+        call $rt:release_ref
+      end
     ;; 13 |     .Some(s + "!")
       i32.const 1
     ;; 12 |     s := o?
@@ -116,7 +119,11 @@
                 unreachable
               end
               local.get $t1
-              call $retain
+              local.tee $o.0
+              if
+                local.get $o.0
+                call $retain
+              end
               br 1
             end
             br 0

@@ -10,6 +10,7 @@
   (import "fixture" "rt:loan_share" (func $rt:loan_share (param i32)))
   (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
   (import "fixture" "rt:loan_unshare" (func $rt:loan_unshare (param i32)))
+  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $lend_lead (param $t i32) (param $other i32) (local $t0 i32) (local $t1 i32)
     ;; 30 |     held := &mut t.lead
@@ -62,7 +63,19 @@
       local.get $other
       local.get $t1
       i32.store $heap
-      call $rt:release_ref
+      local.tee $other
+      if
+        local.get $other
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $other
+          call $rt:release_ref
+        end
+      end
     ;; 32 |     *held = box(User { name: "c", age: +0 })
       i32.const 12
       i32.const 1
@@ -82,7 +95,19 @@
     ;; 32 |     *held = box(User { name: "c", age: +0 })
       local.get $other
       i32.store $heap
-      call $rt:release_ref
+      local.tee $other
+      if
+        local.get $other
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $other
+          call $rt:release_ref
+        end
+      end
     ;; 30 |     held := &mut t.lead
       local.get $t0
       if

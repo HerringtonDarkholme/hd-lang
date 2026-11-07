@@ -20,7 +20,10 @@
         end
       end
       local.get $provider0
-      call $rt:release_ref
+      if
+        local.get $provider0
+        call $rt:release_ref
+      end
       local.get $provider0.vtable
       local.set $provider0
     end
@@ -51,11 +54,14 @@
       end
     ;; 21 |     f := box(Fixed { n: s })
       local.get $t0
-      call $rt:release_ref
+      if
+        local.get $t0
+        call $rt:release_ref
+      end
     end
     local.get $s.0
   )
-  (func $"impl Namer for Fixed.name" (param $self i32) (result i32 i32) (local $t0 i32)
+  (func $"impl Namer for Fixed.name" (param $self i32) (result i32 i32) (local $t0 i32) (local $t1 i32)
     ;; 15 |         self.n
     block
       local.get $self
@@ -64,7 +70,11 @@
       i32.load $heap offset=4
       local.set $t0
       local.tee $self
-      call $retain
+      local.tee $t1
+      if
+        local.get $t1
+        call $retain
+      end
     end
     local.get $self
     local.get $t0

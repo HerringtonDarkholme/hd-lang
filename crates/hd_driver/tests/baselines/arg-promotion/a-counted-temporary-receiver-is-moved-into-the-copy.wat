@@ -96,7 +96,10 @@
       call $"impl Wrap.size'1"
     ;; 27 |     let w = make(n)
       local.get $n
-      call $rt:release_ref'1
+      if
+        local.get $n
+        call $rt:release_ref'1
+      end
       local.set $n
     end
     local.get $n
@@ -122,7 +125,16 @@
       local.get $t0
       call $"impl Nums.count'1"
       local.get $t0
-      call $rt:release_ref'2
+      if
+        local.get $t0
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t0
+          call $rt:release_ref'2
+        end
+      end
       local.set $t0
     end
     local.get $t0
@@ -264,7 +276,10 @@
       local.get $w.name.1
       call $"impl Wrap.size'1"
       local.get $w.name.0
-      call $rt:release_ref'1
+      if
+        local.get $w.name.0
+        call $rt:release_ref'1
+      end
       local.set $w.name.0
     end
     local.get $w.name.0
@@ -490,7 +505,10 @@
       local.get $t1
       call $"impl Wrap.size'1"
       local.get $n
-      call $rt:release_ref'1
+      if
+        local.get $n
+        call $rt:release_ref'1
+      end
       local.set $n
     end
     local.get $n

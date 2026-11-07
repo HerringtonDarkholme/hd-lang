@@ -42,7 +42,10 @@
         end
       end
       local.get $t1
-      call $rt:release_ref
+      if
+        local.get $t1
+        call $rt:release_ref
+      end
     end
     local.get $a.0
   )

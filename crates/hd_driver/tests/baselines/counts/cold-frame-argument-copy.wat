@@ -37,7 +37,10 @@
       local.set $t1
     else
       local.get $text.0
-      call $retain
+      if
+        local.get $text.0
+        call $retain
+      end
     end
     block
       block
@@ -46,7 +49,10 @@
         end
       end
       local.get $text.0
-      call $rt:release_ref
+      if
+        local.get $text.0
+        call $rt:release_ref
+      end
       local.get $text.1
       local.set $text.0
     end
@@ -168,7 +174,7 @@
     local.get $t0
     call $rt:cancel_leave
   )
-  (func $length.drop (param $t0 i32)
+  (func $length.drop (param $t0 i32) (local $t1 i32)
     ;; 5 |     text.len()
     local.get $t0
     i32.load $heap offset=12
@@ -178,14 +184,22 @@
     if
       local.get $t0
       i32.load $heap offset=24
-      call $rt:release_ref
+      local.tee $t1
+      if
+        local.get $t1
+        call $rt:release_ref
+      end
     end
     local.get $t0
     i32.load $heap offset=16
     if
       local.get $t0
       i32.load $heap offset=16
-      call $rt:release_ref
+      local.tee $t1
+      if
+        local.get $t1
+        call $rt:release_ref
+      end
     end
   )
   (func $length'2 (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32)
@@ -193,7 +207,10 @@
     call $rt:frame
     local.tee $t0
     local.get $t1
-    call $retain
+    if
+      local.get $t1
+      call $retain
+    end
     local.get $t1
     i32.store $heap offset=24
     local.get $t0

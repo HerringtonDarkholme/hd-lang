@@ -138,7 +138,10 @@
               i32.or
               i32.store $heap offset=12
               local.get $provider0
-              call $retain
+              if
+                local.get $provider0
+                call $retain
+              end
             end
             local.get $frame
             local.get $t8
@@ -162,7 +165,10 @@
             i32.or
             i32.store $heap offset=12
             local.get $provider0
-            call $retain
+            if
+              local.get $provider0
+              call $retain
+            end
           end
           local.get $frame
           local.get $provider0
@@ -229,7 +235,11 @@
           i32.const 0
           i32.store $heap offset=16
           local.get $t7
-          call $rt:release_ref
+          local.tee $provider0
+          if
+            local.get $provider0
+            call $rt:release_ref
+          end
         end
         br 1
       end
@@ -270,7 +280,10 @@
           i32.or
           i32.store $heap offset=12
           local.get $provider0
-          call $retain
+          if
+            local.get $provider0
+            call $retain
+          end
         end
         local.get $frame
         local.get $provider0
@@ -337,7 +350,11 @@
         i32.const 0
         i32.store $heap offset=16
         local.get $t9
-        call $rt:release_ref
+        local.tee $provider0
+        if
+          local.get $provider0
+          call $rt:release_ref
+        end
       end
       local.get $frame
       local.get $frame
@@ -473,17 +490,25 @@
     local.get $t0
     call $rt:cancel_leave
   )
-  (func $pause.drop (param $t0 i32)
+  (func $pause.drop (param $t0 i32) (local $t1 i32)
     ;; 7 |     sleep!(ms(1))
     local.get $t0
     i32.load $heap offset=24
-    call $rt:release_ref
+    local.tee $t1
+    if
+      local.get $t1
+      call $rt:release_ref
+    end
     local.get $t0
     i32.load $heap offset=16
     if
       local.get $t0
       i32.load $heap offset=16
-      call $rt:release_ref
+      local.tee $t1
+      if
+        local.get $t1
+        call $rt:release_ref
+      end
     end
   )
   (func $pause'2 (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32)
@@ -496,7 +521,10 @@
     local.get $t2
     i32.store $heap offset=28
     local.get $t1
-    call $retain
+    if
+      local.get $t1
+      call $retain
+    end
     local.get $t0
   )
 )

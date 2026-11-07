@@ -2,6 +2,7 @@
 (module
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "retain" (func $retain (param i32)))
+  (import "fixture" "skipped_test" (func $skipped_test))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "table0" (table $table0 3 funcref))
   (func $through_function (param $text.0 i32) (param $text.1 i32) (result i32 i32)
@@ -52,10 +53,22 @@
       i32.sub
       local.set $start
       local.tee $text.1
-      call $retain
+      local.tee $end
+      if
+        local.get $end
+        call $retain
+      else
+        call $skipped_test
+      end
     end
     local.get $text.0
-    call $rt:release_ref
+    local.tee $end
+    if
+      local.get $end
+      call $rt:release_ref
+    else
+      call $skipped_test
+    end
     local.get $text.1
     local.get $start
   )
@@ -75,6 +88,11 @@
       end
     end
     local.get $text.0
-    call $rt:release_ref
+    if
+      local.get $text.0
+      call $rt:release_ref
+    else
+      call $skipped_test
+    end
   )
 )

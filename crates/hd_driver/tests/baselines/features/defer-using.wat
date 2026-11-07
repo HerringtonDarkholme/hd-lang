@@ -9,6 +9,7 @@
   (import "fixture" "impl [ $ R , 'a , F < FnMut ( ) -> void $ R & 'a ] Disposable [ $ R ] for DeferGuard [ F , $ R , 'a ].dispose[$(), fn() -> ()]" (func $"impl [ $ R , 'a , F < FnMut ( ) -> void $ R & 'a ] Disposable [ $ R ] for DeferGuard [ F , $ R , 'a ].dispose[$(), fn() -> ()]" (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "forbid" (global $forbid (mut i32)))
+  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
@@ -22,7 +23,11 @@
       i32.load $heap offset=4
       local.set $t0
       local.tee $t1
-      call $retain
+      local.tee $t2
+      if
+        local.get $t2
+        call $retain
+      end
       local.get $self
       i32.load $heap offset=8
       i32.load $heap
@@ -71,7 +76,17 @@
     block
       block
         local.get $log
-        call $rt:retain_known
+        local.tee $r
+        if
+          local.get $r
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          if
+            local.get $r
+            call $rt:retain_known
+          end
+        end
         i32.const 12
         i32.const -2147483645
         call $rt:new/class-2
@@ -115,7 +130,18 @@
         global.set $forbid
       end
       local.get $r
-      call $rt:release_ref'1
+      if
+        local.get $r
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $r
+          call $rt:release_ref'1
+        end
+      end
       local.get $s.0
       local.set $log
     end
@@ -232,10 +258,26 @@
       if
         local.get $t1
         i32.load $heap offset=4
-        call $rt:release_ref'1
+        local.tee $log
+        if
+          local.get $log
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          global.get $tracing
+          i32.or
+          if
+            local.get $log
+            call $rt:release_ref'1
+          end
+        end
       end
       local.get $s.0
-      call $rt:release_ref'2
+      local.tee $log
+      if
+        local.get $log
+        call $rt:release_ref'2
+      end
       local.get $s.1
       local.set $log
     end
@@ -256,7 +298,11 @@
     local.get $env
     i32.load $heap offset=8
     local.set $env
-    call $retain
+    local.tee $t0
+    if
+      local.get $t0
+      call $retain
+    end
     block
       local.get $ctx
       i32.load $heap

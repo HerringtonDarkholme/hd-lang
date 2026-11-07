@@ -110,7 +110,17 @@
       if
         local.get $bodies
         i32.load $heap
-        call $rt:release_ref
+        local.tee $bodies
+        if
+          local.get $bodies
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          if
+            local.get $bodies
+            call $rt:release_ref
+          end
+        end
       end
     end
     local.get $t3

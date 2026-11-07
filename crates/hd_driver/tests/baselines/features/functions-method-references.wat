@@ -7,6 +7,7 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "rt:new/class-1'2" (func $rt:new/class-1'2 (param i32 i32) (result i32)))
+  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $bound (param $u.name.0 i32) (param $u.name.1 i32) (result i32) (local $t0 i32)
     ;; 23 |     f := u::name_len
@@ -33,7 +34,18 @@
       local.set $u.name.1
     ;; 23 |     f := u::name_len
       local.get $t0
-      call $rt:release_ref'1
+      if
+        local.get $t0
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t0
+          call $rt:release_ref'1
+        end
+      end
     ;; 24 |     f() + f()
       local.get $u.name.0
       local.get $u.name.1
@@ -87,11 +99,14 @@
         end
       end
       local.get $u.name.0
-      call $rt:release_ref'2
+      if
+        local.get $u.name.0
+        call $rt:release_ref'2
+      end
     end
     local.get $env
   )
-  (func $adapter (param $us i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $u.name.0 i32) (local $u.name.1 i32)
+  (func $adapter (param $us i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $u.name.0 i32) (local $u.name.1 i32) (local $t2 i32)
     ;; 31 |     g := fn(u: User) -> usize: u.name_len()
     block
     ;; 33 |     for u in us:
@@ -127,7 +142,11 @@
             end
     ;; 34 |         n += g(u)
             local.get $u.name.0
-            call $retain
+            local.tee $t2
+            if
+              local.get $t2
+              call $retain
+            end
             local.get $n
             i32.const 0
             local.get $u.name.0
@@ -166,7 +185,17 @@
     ;; 27 |     f := u::rename
     block
       local.get $u
-      call $rt:retain_known
+      local.tee $t0
+      if
+        local.get $t0
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t0
+          call $rt:retain_known
+        end
+      end
       i32.const 3
       i32.const 4
       i32.const -2147483643
@@ -183,10 +212,21 @@
       call $bound_mut#1
     ;; 27 |     f := u::rename
       local.get $t0
-      call $rt:release_ref'1
+      if
+        local.get $t0
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t0
+          call $rt:release_ref'1
+        end
+      end
     end
   )
-  (func $bound#1 (param $env i32) (param $ctx i32) (result i32)
+  (func $bound#1 (param $env i32) (param $ctx i32) (result i32) (local $t0 i32)
     ;; 23 |     f := u::name_len
     local.get $env
     i32.load $heap
@@ -194,7 +234,11 @@
     local.get $env
     i32.load $heap offset=4
     local.set $env
-    call $retain
+    local.tee $t0
+    if
+      local.get $t0
+      call $retain
+    end
     block
       block
         block
@@ -207,7 +251,11 @@
         end
       end
       local.get $ctx
-      call $rt:release_ref'2
+      local.tee $t0
+      if
+        local.get $t0
+        call $rt:release_ref'2
+      end
     end
     local.get $env
   )

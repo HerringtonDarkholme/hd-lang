@@ -36,9 +36,16 @@
         br 0
       end
       local.get $a.0
-      call $rt:release_ref
+      if
+        local.get $a.0
+        call $rt:release_ref
+      end
       local.get $b.0
-      call $rt:release_ref
+      local.tee $a.0
+      if
+        local.get $a.0
+        call $rt:release_ref
+      end
       local.get $a.1
       local.get $b.1
       local.set $a.1
@@ -65,9 +72,16 @@
         local.set $c
       end
       local.get $a.0
-      call $rt:release_ref
+      if
+        local.get $a.0
+        call $rt:release_ref
+      end
       local.get $b.0
-      call $rt:release_ref
+      local.tee $a.0
+      if
+        local.get $a.0
+        call $rt:release_ref
+      end
       local.get $a.1
       local.set $a.0
     end
@@ -92,9 +106,17 @@
         local.set $c
       end
       local.get $a.0
-      call $rt:release_ref
+      local.tee $b.1
+      if
+        local.get $b.1
+        call $rt:release_ref
+      end
       local.get $b.0
-      call $rt:release_ref
+      local.tee $b.1
+      if
+        local.get $b.1
+        call $rt:release_ref
+      end
     ;; 11 |     s.len()
       block
         block
@@ -105,7 +127,11 @@
       end
     ;; 10 |     s := if c: a else: b
       local.get $c
-      call $rt:release_ref
+      local.tee $b.1
+      if
+        local.get $b.1
+        call $rt:release_ref
+      end
       local.get $a.0
       local.set $c
     end

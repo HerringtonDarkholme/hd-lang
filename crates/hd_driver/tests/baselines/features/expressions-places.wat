@@ -5,8 +5,9 @@
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
+  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $call_receiver (param $xs i32) (param $s.0 i32) (param $s.1 i32) (local $t0 i32)
+  (func $call_receiver (param $xs i32) (param $s.0 i32) (param $s.1 i32) (local $t0 i32) (local $t1 i32)
     ;; 19 |     pick(xs, 0).name = s
     block
       block
@@ -22,12 +23,34 @@
           local.get $xs
           i32.load $heap offset=16
           local.tee $t0
-          call $rt:retain_known
+          local.tee $t1
+          if
+            local.get $t1
+            i32.const 8
+            i32.sub
+            i32.load $heap
+            if
+              local.get $t1
+              call $rt:retain_known
+            end
+          end
           br 0
         end
       end
       local.get $xs
-      call $rt:release_ref'1
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t1
+          call $rt:release_ref'1
+        end
+      end
       local.get $t0
       i32.load $heap
       local.get $t0
@@ -40,10 +63,22 @@
       i32.store $heap offset=4
       call $rt:release
       local.get $t0
-      call $rt:release_ref'1
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t1
+          call $rt:release_ref'1
+        end
+      end
     end
   )
-  (func $pick (param $xs i32) (param $i i32) (result i32)
+  (func $pick (param $xs i32) (param $i i32) (result i32) (local $t0 i32)
     ;; 16 |     xs[i]
     block
       local.get $i
@@ -61,9 +96,31 @@
       i32.add
       i32.load $heap offset=16
       local.tee $i
-      call $rt:retain_known
+      local.tee $t0
+      if
+        local.get $t0
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t0
+          call $rt:retain_known
+        end
+      end
       local.get $xs
-      call $rt:release_ref'1
+      local.tee $t0
+      if
+        local.get $t0
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t0
+          call $rt:release_ref'1
+        end
+      end
       local.get $i
       local.set $xs
     end
@@ -90,7 +147,11 @@
     block
       local.get $a.0
     ;; 12 |     p._0 = s
-      call $rt:release_ref'2
+      local.tee $a.0
+      if
+        local.get $a.0
+        call $rt:release_ref'2
+      end
     ;; 11 |     let mut p = (a, b)
     end
     local.get $s.0

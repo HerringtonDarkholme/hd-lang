@@ -3,13 +3,18 @@
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
+  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $write_field (param $r.name.0 i32) (param $r.name.1 i32) (param $r.tags i32) (param $n.0 i32) (param $n.1 i32) (result i32 i32 i32)
     ;; 17 |     let mut s = r
     block
       local.get $r.name.0
     ;; 18 |     s.name = n
-      call $rt:release_ref'1
+      local.tee $r.name.0
+      if
+        local.get $r.name.0
+        call $rt:release_ref'1
+      end
     ;; 17 |     let mut s = r
     end
     local.get $n.0
@@ -37,7 +42,18 @@
     block
       local.get $r.name.0
       local.get $r.tags
-      call $rt:release_ref'2
+      if
+        local.get $r.tags
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $r.tags
+          call $rt:release_ref'2
+        end
+      end
       local.set $r.name.0
     end
     local.get $r.name.0

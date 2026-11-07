@@ -4,6 +4,7 @@
   (import "fixture" "rt:forbid_check" (func $rt:forbid_check))
   (import "fixture" "append" (func $append (param i32 i32 i32) (result i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
+  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $drive (param $log i32) (result i32) (local $t0 i32) (local $t1 i32) (local $value i32)
     ;; 13 |     match block_on(append(log, log)):
@@ -47,7 +48,18 @@
       local.set $t1
       local.set $t0
       local.get $log
-      call $rt:release_ref
+      if
+        local.get $log
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $log
+          call $rt:release_ref
+        end
+      end
       block
         block
           block

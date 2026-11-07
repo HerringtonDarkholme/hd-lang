@@ -108,7 +108,11 @@
       end
     ;; 17 |     name
       local.get $u.name.0
-      call $retain
+      local.tee $u.tags
+      if
+        local.get $u.tags
+        call $retain
+      end
     ;; 16 |     let User { name } = u
     end
     local.get $u.name.0

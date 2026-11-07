@@ -3,34 +3,55 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
+  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $widened (param $dog.0 i32) (param $dog.1 i32) (result i32 i32) (local $t0 i32)
+  (func $widened (param $dog.0 i32) (param $dog.1 i32) (result i32 i32) (local $t1 i32) (local $t0 i32)
     ;; 11 |     nested := box(dog)
     block
       local.get $dog.0
-      call $retain
+      local.tee $t0
+      if
+        local.get $t0
+        call $retain
+      end
       i32.const 8
       i32.const -2147483646
       call $rt:new/class-1
-      local.tee $t0
+      local.tee $t1
       local.get $dog.0
       i32.store $heap
-      local.get $t0
+      local.get $t1
       local.get $dog.1
       i32.store $heap offset=4
-      local.get $t0
+      local.get $t1
     ;; 12 |     nested
       i32.load $heap
       local.tee $dog.0
-      local.get $t0
+      local.get $t1
       i32.load $heap offset=4
       local.set $dog.1
-      call $retain
+      local.tee $t0
+      if
+        local.get $t0
+        call $retain
+      end
       local.get $dog.0
       local.get $dog.1
       i32.load $heap offset=4
-      local.get $t0
-      call $rt:release_ref
+      local.get $t1
+      local.tee $t0
+      if
+        local.get $t0
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t0
+          call $rt:release_ref
+        end
+      end
     ;; 11 |     nested := box(dog)
       local.set $dog.1
       local.set $dog.0

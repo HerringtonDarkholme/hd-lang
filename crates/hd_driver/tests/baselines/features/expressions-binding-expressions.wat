@@ -83,7 +83,10 @@
       else
       end
       local.get $t.0
-      call $rt:release_ref
+      if
+        local.get $t.0
+        call $rt:release_ref
+      end
       local.get $t1
       local.set $s.0
     end

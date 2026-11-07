@@ -119,7 +119,10 @@
       i32.load8_u $heap
       i32.store8 $heap
       local.get $s.0
-      call $rt:release_ref
+      if
+        local.get $s.0
+        call $rt:release_ref
+      end
       local.get $ctx
       local.get $env
       local.set $s.0
@@ -139,7 +142,10 @@
         end
       end
       local.get $s.0
-      call $rt:release_ref
+      if
+        local.get $s.0
+        call $rt:release_ref
+      end
     end
     local.get $env
   )

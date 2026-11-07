@@ -9,11 +9,15 @@
   (import "fixture" "rt:frame" (func $rt:frame (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 9 funcref))
-  (func $holder (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32)
+  (func $holder (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32) (local $t0 i32)
     ;; 18 |     Holder { store: $.use(Store) }
     block
       local.get $provider0
-      call $retain
+      local.tee $t0
+      if
+        local.get $t0
+        call $retain
+      end
     end
     local.get $provider0
     local.get $provider0.vtable
@@ -60,7 +64,10 @@
         end
       end
       local.get $provider0
-      call $rt:release_ref
+      if
+        local.get $provider0
+        call $rt:release_ref
+      end
       local.get $provider0.vtable
       local.set $provider0
     end
@@ -182,17 +189,25 @@
     local.get $t0
     call $rt:cancel_leave
   )
-  (func $fetch.drop (param $t0 i32)
+  (func $fetch.drop (param $t0 i32) (local $t1 i32)
     ;; 21 |     $.use(Store).get().len()
     local.get $t0
     i32.load $heap offset=24
-    call $rt:release_ref
+    local.tee $t1
+    if
+      local.get $t1
+      call $rt:release_ref
+    end
     local.get $t0
     i32.load $heap offset=16
     if
       local.get $t0
       i32.load $heap offset=16
-      call $rt:release_ref
+      local.tee $t1
+      if
+        local.get $t1
+        call $rt:release_ref
+      end
     end
   )
   (func $fetch'2 (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32)
@@ -205,14 +220,21 @@
     local.get $t2
     i32.store $heap offset=28
     local.get $t1
-    call $retain
+    if
+      local.get $t1
+      call $retain
+    end
     local.get $t0
   )
-  (func $keep (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32)
+  (func $keep (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32) (local $t0 i32)
     ;; 15 |     $.use(Store)
     block
       local.get $provider0
-      call $retain
+      local.tee $t0
+      if
+        local.get $t0
+        call $retain
+      end
     end
     local.get $provider0
     local.get $provider0.vtable

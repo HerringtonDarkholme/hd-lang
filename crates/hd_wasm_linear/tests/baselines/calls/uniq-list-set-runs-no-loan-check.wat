@@ -234,7 +234,17 @@
       i32.const 0
       i32.store $heap offset=28
       local.get $t0
-      call $rt:release_ref
+      local.tee $n
+      if
+        local.get $n
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $n
+          call $rt:release_ref
+        end
+      end
     ;; 7 |     let mut xs = UniqList::[f64].with_capacity(n)
       local.set $t1
       local.set $t0

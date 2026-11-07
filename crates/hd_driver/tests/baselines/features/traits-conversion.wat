@@ -22,7 +22,10 @@
         end
       end
       local.get $s.0
-      call $rt:release_ref
+      if
+        local.get $s.0
+        call $rt:release_ref
+      end
       local.get $s.1
       local.set $s.0
     end

@@ -83,13 +83,21 @@
       if
         local.get $a
         i32.load $heap
-        call $rt:release_ref
+        local.tee $t3
+        if
+          local.get $t3
+          call $rt:release_ref
+        end
       end
       local.get $b
       if
         local.get $b
         i32.load $heap
-        call $rt:release_ref
+        local.tee $t3
+        if
+          local.get $t3
+          call $rt:release_ref
+        end
       end
       local.get $t1
       i32.const 1
@@ -183,13 +191,21 @@
       if
         local.get $a
         i32.load $heap
-        call $rt:release_ref
+        local.tee $t2
+        if
+          local.get $t2
+          call $rt:release_ref
+        end
       end
       local.get $b
       if
         local.get $b
         i32.load $heap
-        call $rt:release_ref
+        local.tee $t2
+        if
+          local.get $t2
+          call $rt:release_ref
+        end
       end
       local.get $t1
       local.set $b
@@ -234,7 +250,11 @@
         local.get $m
         i32.load $heap offset=16
         local.set $m
-        call $retain
+        local.tee $k.name.1
+        if
+          local.get $k.name.1
+          call $retain
+        end
         i32.const 1
         local.get $k.name.0
         local.get $m
@@ -316,7 +336,10 @@
       else
       end
       local.get $s.0
-      call $rt:release_ref
+      if
+        local.get $s.0
+        call $rt:release_ref
+      end
       block
         block
           block
