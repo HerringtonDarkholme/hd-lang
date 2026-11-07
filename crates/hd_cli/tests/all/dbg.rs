@@ -27,7 +27,7 @@ struct Ran {
 
 fn hd(dir: &Path, args: &[&str]) -> Ran {
     let output = Command::new(env!("CARGO_BIN_EXE_hd"))
-        .env("HD_CACHE", dir.join("cache"))
+        .env("HD_CACHE", crate::shared_objects(dir.join("cache")))
         .env_remove("HD_JOBS")
         .current_dir(dir)
         .args(args)

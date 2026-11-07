@@ -27,6 +27,35 @@ fn normalize_std_lines(text: &str) -> String {
     normalized
 }
 
+/// Gives a test's cache the object store all these tests share, and returns it.
+/// Only compiled, content-addressed objects are shared, as in `cli_conformance`,
+/// so std is prepared once instead of once per test. A test that reads the store
+/// calls `own_objects` first. A cache that cannot hold the link keeps its own store.
+fn shared_objects<P: AsRef<std::path::Path>>(cache: P) -> P {
+    #[cfg(unix)]
+    {
+        static OBJECTS: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
+        let objects = OBJECTS.get_or_init(|| {
+            let dir = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("hd-shared-objects");
+            let _ = std::fs::remove_dir_all(&dir);
+            std::fs::create_dir_all(&dir).expect("shared object store");
+            dir
+        });
+        let obj = cache.as_ref().join("obj");
+        if std::fs::symlink_metadata(&obj).is_err() {
+            let _ = std::fs::create_dir_all(cache.as_ref());
+            let _ = std::os::unix::fs::symlink(objects, obj);
+        }
+    }
+    cache
+}
+
+/// Gives a test's cache an object store of its own, for a test that counts what
+/// a build checks or publishes.
+fn own_objects(cache: &std::path::Path) {
+    std::fs::create_dir_all(cache.join("obj")).expect("test cache");
+}
+
 mod affected;
 mod cache_gc;
 mod check_cmd;

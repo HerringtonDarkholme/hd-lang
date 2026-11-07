@@ -54,7 +54,10 @@ fn package(name: &str) -> Scratch {
 
 fn hd(root: &Path, args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_hd"))
-        .env("HD_CACHE", root.with_extension("cache"))
+        .env(
+            "HD_CACHE",
+            crate::shared_objects(root.with_extension("cache")),
+        )
         .env_remove("HD_JOBS")
         .env_remove("HD_ENGINE")
         .current_dir(root)

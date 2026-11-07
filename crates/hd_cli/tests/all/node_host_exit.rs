@@ -17,7 +17,7 @@ fn hd(dir: &Path) -> Command {
     let mut command = Command::new(env!("CARGO_BIN_EXE_hd"));
     command
         .current_dir(dir)
-        .env("HD_CACHE", dir.join("cache"))
+        .env("HD_CACHE", crate::shared_objects(dir.join("cache")))
         .env_remove("HD_ENGINE");
     command
 }

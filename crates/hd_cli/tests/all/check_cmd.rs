@@ -36,7 +36,7 @@ fn check(dir: &Scratch, args: &[&str]) -> Ran {
 fn check_at(cwd: &Path, dir: &Scratch, args: &[&str]) -> Ran {
     let cache = dir.cache();
     let output = Command::new(env!("CARGO_BIN_EXE_hd"))
-        .env("HD_CACHE", cache)
+        .env("HD_CACHE", crate::shared_objects(cache))
         .current_dir(cwd)
         .arg("check")
         .args(args)
@@ -225,6 +225,7 @@ fn json_file_outside_a_package_is_the_path_as_written() {
 #[test]
 fn second_run_is_warm() {
     let dir = package("hd-check-warm", CLEAN);
+    crate::own_objects(&dir.cache());
     let args = ["--format", "json"];
     let cold = check(&dir, &args);
     assert_eq!(cold.code, Some(0), "{}", cold.err);
@@ -773,7 +774,7 @@ fn test_code_makes_no_folder_cycle() {
 /// `hd WORDS` in `dir`, with the build cache of `dir`.
 fn hd(dir: &Scratch, words: &[&str]) -> Ran {
     let output = Command::new(env!("CARGO_BIN_EXE_hd"))
-        .env("HD_CACHE", dir.cache())
+        .env("HD_CACHE", crate::shared_objects(dir.cache()))
         .current_dir(dir)
         .args(words)
         .output()
@@ -798,6 +799,7 @@ fn in_each_order(
 ) {
     for (i, order) in orders.iter().enumerate() {
         let dir = scratch(&format!("{name}-{i}"));
+        crate::own_objects(&dir.cache());
         for (file, text) in files {
             let path = dir.join(file);
             std::fs::create_dir_all(path.parent().expect("parent")).expect("dir");
@@ -978,7 +980,7 @@ fn a_no_root_file_in_a_package_uses_only_std() {
 fn a_format_flag_before_the_command_selects_json() {
     let dir = package("hd-check-format-first", BROKEN);
     let output = Command::new(env!("CARGO_BIN_EXE_hd"))
-        .env("HD_CACHE", dir.cache())
+        .env("HD_CACHE", crate::shared_objects(dir.cache()))
         .current_dir(&*dir)
         .args(["--format", "json", "check", "main.hd"])
         .output()
@@ -1028,6 +1030,7 @@ fn check_file_checks_only_the_modules_it_reaches() {
         "hd-check-file-reach",
         "use pkg.util.{double}\n\npub fn main() -> void $ Console:\n    println(double(+2))\n",
     );
+    crate::own_objects(&dir.cache());
     std::fs::write(
         dir.join("util.hd"),
         "pub fn double(n: i32) -> i32:\n    n * 2\n",
@@ -1065,6 +1068,7 @@ fn a_warm_check_prints_before_it_publishes() {
     use std::fmt::Write as _;
     use std::io::Read as _;
     let dir = scratch("hd-check-print-then-publish");
+    crate::own_objects(&dir.cache());
     std::fs::create_dir_all(dir.join("src")).expect("src");
     std::fs::write(
         dir.join("hd.toml"),
@@ -1083,7 +1087,7 @@ fn a_warm_check_prints_before_it_publishes() {
     let edited = CLEAN.replace("\"ok\"", "\"edited\"");
     std::fs::write(dir.join("src/main.hd"), edited).expect("write");
     let mut child = Command::new(env!("CARGO_BIN_EXE_hd"))
-        .env("HD_CACHE", dir.cache())
+        .env("HD_CACHE", crate::shared_objects(dir.cache()))
         .current_dir(&*dir)
         .args(["check", "--format", "json"])
         .stdout(std::process::Stdio::piped())
@@ -1124,7 +1128,7 @@ fn build_accepts_jobs() {
     let dir = package("hd-build-jobs", CLEAN);
     let cache = dir.cache();
     let built = Command::new(env!("CARGO_BIN_EXE_hd"))
-        .env("HD_CACHE", cache)
+        .env("HD_CACHE", crate::shared_objects(cache))
         .current_dir(&dir)
         .args(["build", "--jobs", "2"])
         .output()
@@ -1141,7 +1145,7 @@ fn bad_jobs_is_the_same_usage_error_everywhere() {
         let message = format!("`--jobs {value}`: N is a whole number of at least 1");
         for command in ["check", "build", "test", "fmt"] {
             let out = Command::new(env!("CARGO_BIN_EXE_hd"))
-                .env("HD_CACHE", dir.cache())
+                .env("HD_CACHE", crate::shared_objects(dir.cache()))
                 .current_dir(&dir)
                 .args([command, "--jobs", value])
                 .output()

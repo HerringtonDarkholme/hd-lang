@@ -40,6 +40,10 @@ fn offline_git(command: &mut Command) {
 }
 
 fn hd(cache_dir: &Path) -> Command {
+    hd_own_objects(crate::shared_objects(cache_dir))
+}
+
+fn hd_own_objects(cache_dir: &Path) -> Command {
     let mut c = Command::new(env!("CARGO_BIN_EXE_hd"));
     c.env("HD_CACHE", cache_dir);
     offline_git(&mut c);
@@ -1300,7 +1304,7 @@ fn clean_cache_empties_only_an_hd_cache() {
         }
     }
     let clean = |cache: &Path| {
-        hd(cache)
+        hd_own_objects(cache)
             .current_dir(&dir)
             .args(["clean", "--cache"])
             .output()

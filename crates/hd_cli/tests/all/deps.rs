@@ -107,7 +107,7 @@ impl World {
             .current_dir(cwd)
             .env("PATH", path)
             .env("HOME", self.root.join("home"))
-            .env("HD_CACHE", self.cache())
+            .env("HD_CACHE", crate::shared_objects(self.cache()))
             .env("GIT_CONFIG_GLOBAL", self.root.join("gitconfig"))
             .env("GIT_CONFIG_NOSYSTEM", "1");
         c

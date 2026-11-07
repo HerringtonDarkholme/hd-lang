@@ -17,7 +17,7 @@ fn write(root: &Path, files: &[(&str, &str)]) {
 
 fn hd(root: &Path, cache: &Path, args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_hd"))
-        .env("HD_CACHE", cache)
+        .env("HD_CACHE", crate::shared_objects(cache))
         .env_remove("HD_JOBS")
         .current_dir(root)
         .args(args)

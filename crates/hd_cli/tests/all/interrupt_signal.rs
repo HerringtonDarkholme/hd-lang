@@ -49,7 +49,7 @@ impl Run {
         std::fs::write(dir.join("wait.hd"), PROGRAM).expect("write the program");
         let mut child = Command::new(env!("CARGO_BIN_EXE_hd"))
             .current_dir(&dir)
-            .env("HD_CACHE", dir.cache())
+            .env("HD_CACHE", crate::shared_objects(dir.cache()))
             .env_remove("HD_ENGINE")
             .args([
                 "--engine",

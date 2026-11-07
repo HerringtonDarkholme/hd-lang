@@ -19,7 +19,7 @@ fn cache(name: &str) -> Scratch {
 
 fn hd_test(cache_dir: &Path, args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_hd"))
-        .env("HD_CACHE", cache_dir)
+        .env("HD_CACHE", crate::shared_objects(cache_dir))
         .env_remove("HD_JOBS")
         .current_dir(package())
         .arg("test")

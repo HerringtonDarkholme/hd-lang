@@ -27,7 +27,7 @@ fn package(name: &str, lib: &str) -> Scratch {
 
 fn hd(cwd: &Path, dir: &Scratch, args: &[&str]) -> Ran {
     let output = Command::new(env!("CARGO_BIN_EXE_hd"))
-        .env("HD_CACHE", dir.cache())
+        .env("HD_CACHE", crate::shared_objects(dir.cache()))
         .current_dir(cwd)
         .args(args)
         .output()

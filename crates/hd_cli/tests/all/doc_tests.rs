@@ -18,7 +18,7 @@ fn package() -> PathBuf {
 fn hd(cache: &str, args: &[&str]) -> Output {
     let cache = Scratch::unmade(env!("CARGO_TARGET_TMPDIR"), cache);
     Command::new(env!("CARGO_BIN_EXE_hd"))
-        .env("HD_CACHE", &*cache)
+        .env("HD_CACHE", crate::shared_objects(&*cache))
         .env_remove("HD_JOBS")
         .current_dir(package())
         .args(args)

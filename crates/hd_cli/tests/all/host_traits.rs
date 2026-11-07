@@ -18,10 +18,13 @@ fn work(name: &str) -> Scratch {
 
 fn hd(dir: &Path, args: &[&str]) -> Command {
     let mut c = Command::new(env!("CARGO_BIN_EXE_hd"));
-    c.env("HD_CACHE", dir.with_extension("cache"))
-        .env_remove("HD_JOBS")
-        .current_dir(dir)
-        .args(args);
+    c.env(
+        "HD_CACHE",
+        crate::shared_objects(dir.with_extension("cache")),
+    )
+    .env_remove("HD_JOBS")
+    .current_dir(dir)
+    .args(args);
     c
 }
 
@@ -996,7 +999,10 @@ fn node_process_job_owns_descendants_and_preserves_output() {
             "host/process.test.ts",
         ])
         .env("HD_PROCESS_LAUNCHER", env!("CARGO_BIN_EXE_hd"))
-        .env("HD_CACHE", dir.with_extension("cache"))
+        .env(
+            "HD_CACHE",
+            crate::shared_objects(dir.with_extension("cache")),
+        )
         .current_dir(root)
         .output()
         .expect("run Node Process tests");

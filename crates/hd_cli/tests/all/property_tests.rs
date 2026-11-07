@@ -23,7 +23,10 @@ fn package(name: &str, lib: &str) -> Scratch {
 
 fn hd_test(root: &Path, args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_hd"))
-        .env("HD_CACHE", root.with_extension("cache"))
+        .env(
+            "HD_CACHE",
+            crate::shared_objects(root.with_extension("cache")),
+        )
         .env_remove("HD_JOBS")
         .current_dir(root)
         .arg("test")

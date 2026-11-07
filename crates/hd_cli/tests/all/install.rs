@@ -73,7 +73,7 @@ impl Case {
         let mut c = Command::new(program);
         c.current_dir(&self.caller)
             .env("PATH", &self.path)
-            .env("HD_CACHE", self.dir.join("cache"))
+            .env("HD_CACHE", crate::shared_objects(self.dir.join("cache")))
             .env("HD_ENGINE", "node")
             .env("HD_JOBS", "2")
             .env("HD_INSTALL_ROOT", self.dir.join("other-root"));

@@ -39,10 +39,13 @@ fn package(name: &str, manifest: &str) -> Scratch {
 
 fn hd(root: &Path, temp: Option<&Path>, args: &[&str]) -> Output {
     let mut c = Command::new(env!("CARGO_BIN_EXE_hd"));
-    c.env("HD_CACHE", root.with_extension("cache"))
-        .env_remove("HD_JOBS")
-        .current_dir(root)
-        .args(args);
+    c.env(
+        "HD_CACHE",
+        crate::shared_objects(root.with_extension("cache")),
+    )
+    .env_remove("HD_JOBS")
+    .current_dir(root)
+    .args(args);
     if let Some(t) = temp {
         c.env("TMPDIR", t);
     }

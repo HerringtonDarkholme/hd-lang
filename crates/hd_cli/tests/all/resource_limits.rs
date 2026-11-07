@@ -14,7 +14,7 @@ fn hd(dir: &Path) -> Command {
     let mut command = Command::new(env!("CARGO_BIN_EXE_hd"));
     command
         .current_dir(dir)
-        .env("HD_CACHE", dir.join("cache"))
+        .env("HD_CACHE", crate::shared_objects(dir.join("cache")))
         .env_remove("HD_ENGINE");
     command
 }
@@ -124,12 +124,9 @@ fn source_file_and_package_run_route_program_limits() {
     assert_eq!(output.status.code(), Some(3), "{output:?}");
     assert!(String::from_utf8_lossy(&output.stderr).contains("panic: time-limit:"));
     let mut command = hd(&samples.join("fib"));
-    command.env("HD_CACHE", dir.join("package-cache")).args([
-        "run",
-        "--engine",
-        "wasmtime",
-        "--time-limit=0ms",
-    ]);
+    command
+        .env("HD_CACHE", crate::shared_objects(dir.join("package-cache")))
+        .args(["run", "--engine", "wasmtime", "--time-limit=0ms"]);
     let output = bounded(command);
     assert_eq!(output.status.code(), Some(3), "{output:?}");
     assert!(String::from_utf8_lossy(&output.stderr).contains("panic: time-limit:"));
