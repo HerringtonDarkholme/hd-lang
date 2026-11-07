@@ -95,3 +95,4 @@ fn counted(n: usize) -> List[usize]:
 >   %32 = Block %31 : List[usize]
 >   %6 finds [$2] full
 >   %27 finds [$2] full
+>   storage sub 0: $2 slot

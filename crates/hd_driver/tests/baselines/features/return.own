@@ -119,6 +119,7 @@ fn ret_new(n: i64) -> string:
 >   %65 = Read move [%30] : string
 >   %66 = Block %65 : string
 >   exit sub 0 drops [$0]
+>   storage sub 0: $0 slot
 >   summary kept [] writes
 
 fn ret_ref_field(r: &Rec) -> &string:
@@ -184,4 +185,5 @@ fn use_rets(r: Rec) -> usize:
 >   %37 = Prim Add [%26 %33] : usize
 >   %38 = Block %37 : usize
 >   exit sub 0 drops [$0]
+>   storage sub 0: $0 slot
 >   summary kept [$0]

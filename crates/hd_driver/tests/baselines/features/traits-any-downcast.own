@@ -82,4 +82,5 @@ fn erase(u: User) -> *dyn Inspectable:
 >   %10 = Block %9 : Counted[Inspectable]
 >   %2 finds [$1] full
 >   exit sub 0 drops [$0]
+>   storage sub 0: $1 cell
 >   summary kept [$0]

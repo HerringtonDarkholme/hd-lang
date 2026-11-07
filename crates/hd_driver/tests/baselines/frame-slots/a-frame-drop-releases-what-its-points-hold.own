@@ -101,6 +101,7 @@ fn text(n: i32) -> string:
 >   %65 = Read move [%30] : string
 >   %66 = Block %65 : string
 >   exit sub 0 drops [$0]
+>   storage sub 0: $0 slot
 >   summary kept [] writes
 
 @inline(.Never)
@@ -197,4 +198,5 @@ fn gone!() -> usize $ Clock:
 >   %18 = Release %17 Operation child #2 : ()
     n
 >   %19 = Read copy [$1] : usize
+>   storage sub 0: $0 cell
 >   summary none

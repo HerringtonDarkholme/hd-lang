@@ -107,4 +107,5 @@ fn slot() -> i32:
     n
 >   %6 = Read move [$0] : i32
 >   %6 finds [$0] full
+>   storage sub 0: $0 slot
 >   summary kept [] writes

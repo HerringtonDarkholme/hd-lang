@@ -84,6 +84,9 @@ fn kept(n: i32) -> i32:
 >   %49 = Drop [%47] : ()
 >   exit sub 0 drops [$6]
 >   exit sub 2 drops [$6]
+>   storage sub 0: $6 cell
+>   storage sub 1: $6 cell
+>   storage sub 2: $6 cell
 >   summary kept [] writes
 
 fn fresh(n: i32) -> i32:
@@ -160,4 +163,6 @@ fn fresh(n: i32) -> i32:
 >   %44 = Read copy [$1] : i32
 >   exit sub 0 drops [$6]
 >   exit sub 1 drops [$6]
+>   storage sub 0: $6 slot
+>   storage sub 1: $6 cell
 >   summary kept [] writes

@@ -52,3 +52,4 @@ fn through_owned_box() -> usize:
 >   %14 = Call std/rt.memory/impl [ T < ? Copy ] Buffer [ T ].capacity[i32] (%13) : usize
 >   %15 = Drop [%13] : ()
 >   %16 = Drop [$1] : ()
+>   storage sub 0: $0 cell

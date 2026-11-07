@@ -188,4 +188,5 @@ pub fn run(root: *Node) -> i64:
 >   %26 = Prim Add [%20 %25] : i64
 >   %20 finds [$1] full
 >   %22 finds [$3] full
+>   storage sub 0: $1 slot, $3 slot
 >   summary kept [] writes

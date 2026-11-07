@@ -325,4 +325,5 @@ pub fn main() -> void $ Console:
 >   %115 = Call std/console/println[string] (%114) : ()
 >   %36 finds [$0] full
 >   %45 finds [$0] full
+>   storage sub 0: $0 slot
 >   summary kept [] writes

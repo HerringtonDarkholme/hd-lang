@@ -83,6 +83,7 @@ fn pushes(n: usize) -> List[i32]:
     items
 >   %18 = Read move [$1] : List[i32]
 >   %18 finds [$1] full
+>   storage sub 0: $1 slot
 
 fn copied(n: usize) -> List[i32]:
     let mut items: List[i32] = [+1]

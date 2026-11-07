@@ -73,6 +73,8 @@ fn trailing(s: string) -> usize:
 >   %5 = Retain %4 Operation captures #0 : ()
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
+>   storage sub 0: $1 slot, $3 slot
+>   storage sub 1: $1 cell, $3 cell
 >   summary kept [$0] writes
 
 fn twice(body: fn() -> usize) -> usize:

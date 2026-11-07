@@ -299,6 +299,9 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Res
     super::frame::run(b, topo, cx, &mut scratch.frame, |i, l, _| {
         t.acc.push((topo.sub[i as usize], l, i));
     });
+    // Where each local lives, from the frame marks just set.
+    let framed = super::frame::runs_framed(b, topo, cx);
+    super::storage::run(b, topo, cx, framed);
     for i in 0..n {
         t.tracked[i] = tracked(b, cx, i);
     }

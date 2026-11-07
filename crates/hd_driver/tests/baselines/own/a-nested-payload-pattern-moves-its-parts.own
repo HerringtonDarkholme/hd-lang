@@ -79,3 +79,4 @@ fn drain(parcels: UniqMap[string, Parcel]) -> usize:
     n
 >   %52 = Read copy [$1] : usize
 >   exit sub 0 drops [$0]
+>   storage sub 0: $2 slot

@@ -135,6 +135,7 @@ fn interp(a: string, n: i64) -> string:
 >   %94 = Read move [%40] : string
 >   %95 = Block %94 : string
 >   exit sub 0 drops [$1]
+>   storage sub 0: $1 slot
 >   summary kept [] borrows [$0] writes
 
 fn concat(a: string, b: string) -> string:

@@ -138,6 +138,7 @@ impl[T < Ord] Queue[T]:
 >   %77 = Store [*$0 .items [%74]] %75 : ()
 >   %78 = Release %77 Operation #3 : ()
 >   exit sub 0 drops [$2]
+>   storage sub 0: $2 slot
 >   summary kept [$0 $2] writes relies [$0]
 
 pub fn numbers(a: i64, b: i64, c: i64) -> i64:
@@ -194,6 +195,7 @@ pub fn numbers(a: i64, b: i64, c: i64) -> i64:
 >   %27 = Drop [$4] : ()
 >   %28 = Prim Add [%24 %26] : i64
 >   %24 finds [$3] full
+>   storage sub 0: $3 slot
 >   summary kept [] writes
 
 pub fn names(a: string, b: string) -> usize:
@@ -260,6 +262,7 @@ pub fn names(a: string, b: string) -> usize:
 >   %37 = Prim Add [%26 %35] : usize
 >   %19 finds [$2] full
 >   exit sub 0 drops [$0 $1]
+>   storage sub 0: $2 slot
 >   summary kept [$0 $1] writes
 
 pub fn pairs(a: i64, b: i64) -> i64:
@@ -311,4 +314,5 @@ pub fn pairs(a: i64, b: i64) -> i64:
 >   %26 = Drop [$3] : ()
 >   %27 = Prim Add [%23 %25] : i64
 >   %23 finds [$2] full
+>   storage sub 0: $2 slot
 >   summary kept [] writes

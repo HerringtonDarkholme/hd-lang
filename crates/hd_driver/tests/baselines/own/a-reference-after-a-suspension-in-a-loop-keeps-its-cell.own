@@ -61,3 +61,4 @@ fn run!(n: i32) -> void:
 >   %21 = Drop [$1] : ()
 >   %18 finds [$1] full
 >   exit sub 0 drops [$1]
+>   storage sub 0: $1 cell

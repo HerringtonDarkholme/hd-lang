@@ -18,3 +18,4 @@ app/main/sizes
   %9 finds [$1] full
   %14 finds [$1] full
   exit sub 0 drops [$0]
+  storage sub 0: $1 slot

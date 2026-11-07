@@ -12,3 +12,4 @@ app/main/lent
   %8 = Store [$2] %6 : ()
   %2 finds [$1] full
   %3 finds [$1] full
+  storage sub 0: $1 slot

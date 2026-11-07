@@ -113,6 +113,7 @@ fn local(s: string) -> usize:
 >   %23 = Drop [$3] : ()
 >   %11 finds [$1] full
 >   exit sub 0 drops [$0]
+>   storage sub 0: $1 slot
 >   summary kept [$0] writes
 
 fn weaken(h: *mut Point) -> *Point:

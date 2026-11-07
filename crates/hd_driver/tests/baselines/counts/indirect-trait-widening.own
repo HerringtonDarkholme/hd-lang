@@ -34,4 +34,5 @@ fn widened(dog: *dyn Dog) -> *dyn Animal:
 >   %10 = Drop [%7] : ()
 >   %11 = Block %8 : Animal
 >   %12 = RefDyn %11 : Counted[Animal]
+>   storage sub 0: $1 cell
 >   summary kept [$0]

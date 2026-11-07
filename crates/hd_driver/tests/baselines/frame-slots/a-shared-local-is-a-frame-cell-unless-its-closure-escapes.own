@@ -89,6 +89,8 @@ fn lent(xs: List[string]) -> usize:
 >   %19 finds [$1] full
 >   exit sub 0 drops [$1]
 >   exit sub 1 drops [$1 $2]
+>   storage sub 0: $1 slot
+>   storage sub 1: $1 cell
 >   summary kept [] borrows [$0] writes
 
 fn returned() -> fn() -> void:
@@ -110,6 +112,8 @@ fn returned() -> fn() -> void:
 >   %7 finds [$0] full
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
+>   storage sub 0: $0 cell
+>   storage sub 1: $0 cell
 >   summary kept []
 
 fn listed() -> usize:
@@ -145,6 +149,8 @@ fn listed() -> usize:
 >   %16 finds [$0] full
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
+>   storage sub 0: $0 slot
+>   storage sub 1: $0 cell
 >   summary kept [] writes
 
 fn pushed(fs: &mut List[fn() -> void]) -> void:
@@ -171,6 +177,8 @@ fn pushed(fs: &mut List[fn() -> void]) -> void:
 >   %7 finds [$1] full
 >   exit sub 0 drops [$1]
 >   exit sub 1 drops [$1]
+>   storage sub 0: $1 cell
+>   storage sub 1: $1 cell
 >   summary kept [] writes
 
 fn captured() -> usize:
@@ -217,4 +225,7 @@ fn captured() -> usize:
 >   exit sub 0 drops [$0 $1]
 >   exit sub 1 drops [$0]
 >   exit sub 2 drops [$1]
+>   storage sub 0: $0 cell
+>   storage sub 1: $0 cell
+>   storage sub 2: $0 cell
 >   summary kept [] writes

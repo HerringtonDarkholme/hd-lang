@@ -52,6 +52,7 @@ fn run!() -> void:
 >   %7 = Drop [$0] : ()
 >   %3 finds [$0] full
 >   exit sub 0 drops [$0]
+>   storage sub 0: $0 cell
 >   unwind %4 drops [%3]
 
 fn fresh() -> void:
@@ -67,3 +68,4 @@ fn fresh() -> void:
 >   %4 = LoanEnd [%2] : ()
 >   %5 = Drop [$0] : ()
 >   %2 finds [$0] full
+>   storage sub 0: $0 slot

@@ -86,6 +86,7 @@ fn unexpected(at: usize) -> string:
 >   %53 = Read move [%18] : string
 >   %54 = Block %53 : string
 >   exit sub 0 drops [$0]
+>   storage sub 0: $0 slot
 >   summary kept [] writes
 
 @inline(.Never)
@@ -205,6 +206,7 @@ fn use_first(xs: List[string]) -> usize:
 >   %23 = Prim Add [%17 %20] : usize
 >   %24 = Block %23 : usize
 >   exit sub 0 drops [$0]
+>   storage sub 0: $0 slot
 >   summary kept [$0]
 
 fn check(xs: List[string], at: usize) -> string:

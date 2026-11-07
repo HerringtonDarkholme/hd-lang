@@ -61,6 +61,7 @@ fn copy_box(s: string, t: string) -> usize:
 >   %25 = Drop [$5] : ()
 >   %26 = Prim Add [%16 %24] : usize
 >   exit sub 0 drops [$0 $1]
+>   storage sub 0: $3 cell
 >   summary kept [$0 $1]
 
 fn move_box(s: string) -> *mut Point:
@@ -77,6 +78,7 @@ fn move_box(s: string) -> *mut Point:
 >   %3 = Ref take mut [$2] : Counted[mut Point]
 >   %3 finds [$2] full
 >   exit sub 0 drops [$0]
+>   storage sub 0: $2 cell
 >   summary kept [$0]
 
 fn shared(s: string, t: string) -> usize:
@@ -119,4 +121,5 @@ fn shared(s: string, t: string) -> usize:
 >   %18 = Scope %17 [] : usize
 >   %19 = Drop [$4] : ()
 >   exit sub 0 drops [$0 $1]
+>   storage sub 0: $2 cell
 >   summary kept [$0 $1] writes

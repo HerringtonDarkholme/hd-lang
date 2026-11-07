@@ -229,6 +229,42 @@ fn moved_captures(b: &Body, ci: usize) -> Vec<bool> {
 
 impl Em<'_, '_, '_> {
     /// Whether TIR local `l` lives in a cell.
+    /// Step 17a: the passes' storage rows (`Body::storage`) agree with
+    /// this emitter's choice for sub-body `sub`, once the read applies
+    /// what arrives after the passes: a local only promoted references
+    /// reach (`roots` leaves them out) and no closure shares has no
+    /// storage, and a slot is a cell where `slots_here` is false.
+    pub(super) fn assert_storage(&self, sub: u16, roots: &[usize], slots_here: bool) {
+        use hd_tir::ir::Storage;
+        let b = self.b;
+        let shared = shared_locals(b);
+        for l in 0..b.local_ty.len() {
+            let row = b
+                .storage
+                .iter()
+                .find(|(s, x, _)| s.idx() == usize::from(sub) && x.idx() == l)
+                .map(|r| r.2);
+            let want = match row {
+                Some(_) if !shared.contains(&l) && !roots.contains(&l) => None,
+                Some(Storage::Slot) if !slots_here => Some(Storage::Cell),
+                row => row,
+            };
+            let got = if self.slots.contains_key(&l) {
+                Some(Storage::Slot)
+            } else if self.is_cell(l) {
+                Some(Storage::Cell)
+            } else {
+                None
+            };
+            assert_eq!(
+                want,
+                got,
+                "storage of {} sub {sub} ${l}: the passes' row {row:?}",
+                (self.input.path)(b.item)
+            );
+        }
+    }
+
     pub(super) fn is_cell(&self, l: usize) -> bool {
         self.cells.contains_key(&l)
     }

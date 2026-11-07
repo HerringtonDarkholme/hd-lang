@@ -34,6 +34,7 @@ fn first[T < Supplier](source: T) -> T::Item:
 >   %3 = Drop [$0] : ()
 >   %4 = Block %1 : T::Item
 >   exit sub 0 drops [$0]
+>   storage sub 0: $0 slot
 >   summary kept [$0] writes
 
 fn first_len(c: Constant) -> usize:
@@ -99,4 +100,5 @@ fn read_const(c: Constant) -> usize:
 >   %10 = Drop [$0] : ()
 >   %11 = Block %8 : usize
 >   exit sub 0 drops [$0]
+>   storage sub 0: $0 slot
 >   summary kept [$0] writes

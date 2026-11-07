@@ -21,6 +21,7 @@ ROOT := box(Node { left: .None, value: 0 })
 >   %4 = Store [@app/main/ROOT] %3 : ()
 >   %5 = Release %4 Operation #3 : ()
 >   %3 finds [$0] full
+>   storage sub 0: $0 cell
 
 fn prune(parent: *mut Node) -> i64:
     parent.left = .None

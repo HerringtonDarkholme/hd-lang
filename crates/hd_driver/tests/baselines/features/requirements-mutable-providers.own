@@ -106,4 +106,5 @@ fn demo(a: string, b: string) -> usize:
 >   %24 = Read borrow [*$3 .lines] : List[string]
 >   %25 = Intrinsic ListLen [%24] : usize
 >   %26 = Drop [$3] : ()
+>   storage sub 0: $2 cell
 >   summary kept [] borrows [$0 $1] writes

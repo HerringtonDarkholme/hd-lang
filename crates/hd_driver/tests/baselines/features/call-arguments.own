@@ -192,4 +192,5 @@ fn calls(s: string, n: *Node) -> usize:
 >   %18 = Prim Add [%15 %17] : usize
 >   %12 finds [$2] full
 >   exit sub 0 drops [$0]
+>   storage sub 0: $0 slot, $2 slot
 >   summary kept [$0] writes

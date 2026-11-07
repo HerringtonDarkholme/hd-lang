@@ -83,6 +83,7 @@ fn two(log: *mut List[string], a: string, b: string) -> usize:
 >   %18 finds [$3] full
 >   %25 finds [$4] full
 >   exit sub 0 drops [$1 $2 $3 $4]
+>   storage sub 0: $3 slot, $4 slot
 >   summary kept [$0 $1 $2] writes
 
 fn per_round(log: *mut List[string], xs: List[string]) -> void:
@@ -138,6 +139,7 @@ fn per_round(log: *mut List[string], xs: List[string]) -> void:
 >   %23 = Scope %22 [%20] : ()
 >   %24 = Drop [$7] : ()
 >   exit sub 0 drops [$7]
+>   storage sub 0: $7 slot
 >   summary kept [$0] borrows [$1] writes
         pass
 

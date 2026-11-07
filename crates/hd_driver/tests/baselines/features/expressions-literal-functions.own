@@ -108,6 +108,7 @@ fn lbl(n: i64) -> Label:
 >   %66 = NewStruct [%65] : Label
 >   %67 = Block %66 : Label
 >   exit sub 0 drops [$0]
+>   storage sub 0: $0 slot
 >   summary kept [] writes
 
 @str_prefix
@@ -161,6 +162,7 @@ fn suffixed() -> Label:
 >   %16 = Drop [$0] : ()
 >   %17 = Block %15 : Label
 >   %1 finds [$0] full
+>   storage sub 0: $0 slot
 >   summary kept [] writes
 
 fn prefixed(id: i64) -> Query:

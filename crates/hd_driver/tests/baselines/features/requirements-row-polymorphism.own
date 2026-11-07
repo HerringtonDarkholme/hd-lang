@@ -80,6 +80,7 @@ fn with_tag[$ R](s: string, callback: fn() -> usize $ R + Tag) -> usize $ R:
 >   %19 = Release %17 Operation row #2 : ()
 >   %20 = Block %17 : usize
 >   exit sub 0 drops [$0]
+>   storage sub 0: $3 cell
 >   summary kept [$0] borrows [$1] writes
 
 fn run(s: string) -> usize:

@@ -93,6 +93,7 @@ fn discard(s: string) -> usize:
 >   %46 = Scope %45 [] : usize
 >   %47 = Drop [$0] : ()
 >   exit sub 0 drops [$0]
+>   storage sub 0: $2 slot, $3 slot
 >   summary kept [$0]
 
 fn unused(s: string) -> usize:

@@ -42,5 +42,6 @@ fn direct!() -> i64:
 >   %8 = Drop [$0] : ()
 >   %7 finds [$0] full
 >   exit sub 0 drops [$0]
+>   storage sub 0: $0 cell
 >   summary none
 >   unwind %4 drops [%3]

@@ -25,6 +25,8 @@ fn make() -> (fn() -> usize):
 >   %5 finds [$0] full
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
+>   storage sub 0: $0 cell
+>   storage sub 1: $0 cell
 >   summary kept []
 
 fn plain() -> (fn() -> usize):

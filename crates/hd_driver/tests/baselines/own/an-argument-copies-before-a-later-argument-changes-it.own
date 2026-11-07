@@ -9,3 +9,4 @@ app/main/first
   %5 = Call app/main/before[] (%0, %2) : usize
   %6 = Block %5 : usize
   exit sub 0 drops [$0]
+  storage sub 0: $0 slot

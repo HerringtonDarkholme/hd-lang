@@ -12,3 +12,5 @@ std/rt_tests.stage_case/later
   %24 finds [$0] full
   exit sub 0 drops [$0]
   exit sub 1 drops [$0]
+  storage sub 0: $0 cell
+  storage sub 1: $0 cell

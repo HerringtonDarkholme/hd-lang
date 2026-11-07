@@ -26,6 +26,7 @@ fn same(a: Key, b: Key) -> bool:
 >   %6 = Drop [$1] : ()
 >   %7 = Block %2 : bool
 >   exit sub 0 drops [$0 $1]
+>   storage sub 0: $0 slot, $1 slot
 >   summary kept [$0 $1]
 
 fn before(a: Key, b: Key) -> bool:
@@ -49,6 +50,7 @@ fn before(a: Key, b: Key) -> bool:
 >   %13 = SwitchTag %2 [#1 %11 %12] : bool
 >   %14 = Block %13 : bool
 >   exit sub 0 drops [$0 $1]
+>   storage sub 0: $0 slot, $1 slot
 >   summary kept [$0 $1] writes
 
 fn lookup(m: Map[Key, string], k: Key) -> usize:

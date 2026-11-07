@@ -22,4 +22,5 @@ app/main/reset
   %17 finds [$2] full
   %21 finds [$2] full
   exit sub 0 drops [$0]
+  storage sub 0: $2 cell
   summary none

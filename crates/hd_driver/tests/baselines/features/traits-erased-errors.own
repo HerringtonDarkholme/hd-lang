@@ -110,4 +110,5 @@ fn load(path: string) -> Result[string, *dyn Error]:
     .Ok(text)
 >   %34 = NewVariant #0 [%33] : Result[string, Counted[Error]]
 >   exit sub 0 drops [$0]
+>   storage sub 0: $1 cell, $4 slot
 >   summary kept [$0]

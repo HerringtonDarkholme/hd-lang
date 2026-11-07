@@ -93,6 +93,7 @@ fn later!(key: string) -> usize:
 >   %16 = Drop [$2] : ()
 >   %13 finds [$2] full
 >   exit sub 0 drops [$0]
+>   storage sub 0: $2 cell
 >   summary none
 >   unwind %8 drops [%7]
 
@@ -187,5 +188,6 @@ fn bound!(s: string) -> usize:
 >   %29 = Retain %27 Operation child #0 : ()
 >   %30 = Drop [%26] : ()
 >   exit sub 0 drops [$0]
+>   storage sub 0: $3 cell
 >   summary none
 >   unwind %27 drops [%26]

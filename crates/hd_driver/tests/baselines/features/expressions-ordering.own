@@ -50,6 +50,7 @@ fn list_le(a: List[string], b: List[string]) -> bool:
 >   %13 = SwitchTag %2 [#1 %11 %12] : bool
 >   %14 = Block %13 : bool
 >   exit sub 0 drops [$0 $1]
+>   storage sub 0: $0 slot, $1 slot
 >   summary kept [$0 $1] writes
 
 fn tuple_gt(a: (string, i64), b: (string, i64)) -> bool:
@@ -73,6 +74,7 @@ fn tuple_gt(a: (string, i64), b: (string, i64)) -> bool:
 >   %13 = SwitchTag %2 [#1 %11 %12] : bool
 >   %14 = Block %13 : bool
 >   exit sub 0 drops [$0 $1]
+>   storage sub 0: $0 slot, $1 slot
 >   summary kept [$0 $1] writes
 
 fn opt_ge(a: string?, b: string?) -> bool:
@@ -96,4 +98,5 @@ fn opt_ge(a: string?, b: string?) -> bool:
 >   %13 = SwitchTag %2 [#1 %11 %12] : bool
 >   %14 = Block %13 : bool
 >   exit sub 0 drops [$0 $1]
+>   storage sub 0: $0 slot, $1 slot
 >   summary kept [$0 $1]

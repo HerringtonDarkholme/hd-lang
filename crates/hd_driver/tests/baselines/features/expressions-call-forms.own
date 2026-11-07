@@ -70,6 +70,7 @@ fn named(a: string, b: string) -> usize:
 >   %4 finds [$2] full
 >   %8 finds [$3] full
 >   exit sub 0 drops [$0 $1]
+>   storage sub 0: $2 slot, $3 slot
 >   summary kept [$0 $1]
 
 fn positional(a: string, b: string) -> usize:
@@ -102,6 +103,7 @@ fn positional(a: string, b: string) -> usize:
 >   %4 finds [$2] full
 >   %8 finds [$3] full
 >   exit sub 0 drops [$0 $1]
+>   storage sub 0: $2 slot, $3 slot
 >   summary kept [$0 $1]
 
 fn spread_tuple(pair: (string, string)) -> usize:
@@ -132,6 +134,7 @@ fn spread_tuple(pair: (string, string)) -> usize:
 >   %4 finds [$1] full
 >   %8 finds [$2] full
 >   exit sub 0 drops [$0]
+>   storage sub 0: $1 slot, $2 slot
 >   summary kept [$0]
 
 fn spread_list(xs: List[string]) -> usize:

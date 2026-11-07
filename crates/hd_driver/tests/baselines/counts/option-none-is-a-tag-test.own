@@ -24,6 +24,7 @@ fn absent(value: string?) -> bool:
 >   %14 = Drop [$0] : ()
 >   %15 = Block %12 : bool
 >   exit sub 0 drops [$0]
+>   storage sub 0: $0 slot
 >   summary kept [$0]
 
 fn present(value: string?) -> bool:
@@ -47,6 +48,7 @@ fn present(value: string?) -> bool:
 >   %14 = Drop [$0] : ()
 >   %15 = Block %12 : bool
 >   exit sub 0 drops [$0]
+>   storage sub 0: $0 slot
 >   summary kept [$0]
 
 fn none_first(value: string?) -> bool:

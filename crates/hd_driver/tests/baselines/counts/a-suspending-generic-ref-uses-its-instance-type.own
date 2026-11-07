@@ -10,5 +10,6 @@ app/main/generic
   %11 = Drop [$0] : ()
   %12 = Block %8 : T
   exit sub 0 drops [$0]
+  storage sub 0: $0 cell
   summary none
   unwind %8 drops [%7]

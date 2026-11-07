@@ -29,3 +29,4 @@ fn fresh() -> void:
 >   %4 = LoanEnd [%2] : ()
 >   %5 = Drop [$0] : ()
 >   %2 finds [$0] full
+>   storage sub 0: $0 slot

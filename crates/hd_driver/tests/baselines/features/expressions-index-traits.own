@@ -71,6 +71,7 @@ fn read_len(n: Names, i: usize) -> usize:
 >   %15 = Drop [$0] : ()
 >   %16 = Block %12 : usize
 >   exit sub 0 drops [$0]
+>   storage sub 0: $0 slot
 >   summary kept [$0] writes
 
 fn write(n: &mut Names, i: usize, s: string) -> void:
@@ -102,6 +103,7 @@ fn first[T, C < Index[usize, Out = T]](items: C) -> T:
 >   %5 = Drop [$0] : ()
 >   %6 = Block %3 : T
 >   exit sub 0 drops [$0]
+>   storage sub 0: $0 slot
 >   summary kept [$0] writes
 
 fn generic_first(xs: List[string]) -> usize:
@@ -145,4 +147,5 @@ fn generic_first(xs: List[string]) -> usize:
 >   %26 = Block %24 : usize
 >   %2 finds [$3] full
 >   exit sub 0 drops [$0]
+>   storage sub 0: $3 slot
 >   summary kept [$0] writes

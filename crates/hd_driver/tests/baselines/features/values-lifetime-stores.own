@@ -104,4 +104,5 @@ fn total(a: User, b: User) -> usize:
 >   %26 finds [$2] full
 >   %36 finds [$3] full
 >   exit sub 0 drops [$0 $1]
+>   storage sub 0: $0 slot, $1 slot, $2 slot, $3 slot
 >   summary kept [$0 $1] writes

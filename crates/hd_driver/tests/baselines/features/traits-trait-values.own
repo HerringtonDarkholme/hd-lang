@@ -80,6 +80,7 @@ fn boxed(u: User) -> *dyn Greet:
 >   %10 = Block %9 : Counted[Greet]
 >   %2 finds [$1] full
 >   exit sub 0 drops [$0]
+>   storage sub 0: $1 cell
 >   summary kept [$0]
 
 fn through_mut(g: &mut dyn Greet, n: string) -> usize:
@@ -129,4 +130,5 @@ fn local_mut(u: User, n: string) -> usize:
 >   %14 = Drop [$2] : ()
 >   %3 finds [$2] full
 >   exit sub 0 drops [$0]
+>   storage sub 0: $2 slot
 >   summary kept [$0] borrows [$1] writes

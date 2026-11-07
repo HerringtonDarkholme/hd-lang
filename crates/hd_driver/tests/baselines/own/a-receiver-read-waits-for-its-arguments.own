@@ -97,6 +97,7 @@ fn by_reference(m: Members, i: usize) -> usize:
 >   %5 = Drop [$0] : ()
 >   %6 = Block %3 : usize
 >   exit sub 0 drops [$0]
+>   storage sub 0: $0 slot
 
 fn changed_by_argument(items: List[Info]) -> usize:
     let mut m = Members { infos: items }
@@ -118,3 +119,4 @@ fn changed_by_argument(items: List[Info]) -> usize:
 >   %3 finds [$1] full
 >   %4 finds [$1] full
 >   exit sub 0 drops [$0]
+>   storage sub 0: $1 slot

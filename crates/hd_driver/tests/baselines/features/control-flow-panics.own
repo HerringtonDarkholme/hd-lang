@@ -169,4 +169,5 @@ fn guarded(log: *mut List[string], s: string, n: i32) -> usize:
 >   %22 = Scope %21 [] : usize
 >   %16 finds [$3] full
 >   exit sub 0 drops [$3]
+>   storage sub 0: $3 slot
 >   summary kept [$0] borrows [$1] writes

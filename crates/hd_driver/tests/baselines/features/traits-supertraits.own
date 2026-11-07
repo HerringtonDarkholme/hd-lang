@@ -114,6 +114,7 @@ fn loud[T < Dog](d: T) -> usize:
 >   %21 = Prim Add [%8 %19] : usize
 >   %22 = Block %21 : usize
 >   exit sub 0 drops [$0]
+>   storage sub 0: $0 slot
 >   summary kept [$0] writes
 
 fn use_pup(p: Pup) -> usize:
@@ -165,4 +166,5 @@ fn use_pup(p: Pup) -> usize:
 >   %20 finds [$2] full
 >   %24 finds [$4] full
 >   exit sub 0 drops [$0]
+>   storage sub 0: $0 slot, $2 slot, $3 slot, $4 slot
 >   summary kept [$0] writes

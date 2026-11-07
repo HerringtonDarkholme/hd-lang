@@ -24,6 +24,7 @@ fn make(n: string) -> *Node:
 >   %6 = Block %5 : Counted[Node]
 >   %4 finds [$1] full
 >   exit sub 0 drops [$0]
+>   storage sub 0: $1 cell
 >   summary kept [$0]
 
 fn read_ptr(p: *Node) -> usize:

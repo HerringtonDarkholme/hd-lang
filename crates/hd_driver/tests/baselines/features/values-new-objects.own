@@ -50,6 +50,7 @@ fn temp_ref(s: string) -> usize:
 >   %15 = LoanEnd [$2] : ()
 >   %16 = Drop [$1] : ()
 >   exit sub 0 drops [$0]
+>   storage sub 0: $1 slot
 >   summary kept [$0]
 
 fn new_mut(s: string, t: string) -> usize:
@@ -86,6 +87,7 @@ fn new_mut(s: string, t: string) -> usize:
 >   %15 = LoanEnd [$3] : ()
 >   %16 = Drop [$2] : ()
 >   exit sub 0 drops [$0 $1]
+>   storage sub 0: $2 slot
 >   summary kept [$0 $1] writes
 
 fn field_ref(s: string, t: string) -> usize:
@@ -124,4 +126,5 @@ fn field_ref(s: string, t: string) -> usize:
 >   %16 = Drop [$4] : ()
 >   %9 finds [$2] full
 >   exit sub 0 drops [$0 $1]
+>   storage sub 0: $2 slot
 >   summary kept [$0 $1] writes

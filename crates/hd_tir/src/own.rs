@@ -85,6 +85,7 @@ pub use retains::took_source;
 mod self_store;
 pub mod short;
 pub(crate) mod splice;
+mod storage;
 pub mod values;
 
 #[cfg(not(target_arch = "wasm32"))]

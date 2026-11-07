@@ -31,3 +31,4 @@ app/main/first
   %5 finds [$1] full
   %6 finds [$2] full
   %14 finds [$1] full
+  storage sub 0: $1 slot, $2 slot

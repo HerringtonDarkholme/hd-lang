@@ -11,3 +11,4 @@ std/rt_tests.stage_case/change
   %14 = Store [$2] %12 : ()
   %9 finds [$1] full
   exit sub 0 drops [$0]
+  storage sub 0: $1 slot

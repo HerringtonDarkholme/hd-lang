@@ -167,4 +167,5 @@ fn use_generic(s: string, xs: List[string]) -> usize:
 >   %81 = Prim Add [%68 %79] : usize
 >   %82 = Block %81 : usize
 >   exit sub 0 drops [$0 $1]
+>   storage sub 0: $1 slot
 >   summary kept [$0 $1]

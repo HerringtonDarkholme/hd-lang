@@ -382,7 +382,7 @@ pub(crate) fn run(
 /// Whether the root of `b` runs over a frame object: it has a suspension
 /// point, or its item suspends and it isn't an entry root, which would
 /// end on its first poll.
-fn runs_framed(b: &Body, topo: &Topology, cx: &dyn OwnCx) -> bool {
+pub(crate) fn runs_framed(b: &Body, topo: &Topology, cx: &dyn OwnCx) -> bool {
     let point = (0..b.len()).any(|i| is_suspension(b.tags[i]) && topo.sub[i] == 0);
     point || b.kind != BodyKind::Default && cx.suspending(b.item) && !cx.entry_root(b.item)
 }

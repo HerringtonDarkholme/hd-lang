@@ -137,4 +137,5 @@ fn use_methods(s: Shelf, b: string) -> usize:
 >   %46 = Prim Add [%37 %44] : usize
 >   %38 finds [$2] full
 >   exit sub 0 drops [$0 $1]
+>   storage sub 0: $2 slot
 >   summary kept [$0 $1] writes

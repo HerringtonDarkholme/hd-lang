@@ -478,6 +478,18 @@ pub fn render(names: &Names<'_>, b: &Body, fields: &FieldNames<'_>) -> String {
             let _ = writeln!(o, "  exit sub {s} drops [{}]", locals.join(" "));
         }
     }
+    // Where each local lives, per sub-body (`Body::storage`).
+    for s in 0..b.sub_root.len() {
+        let locals: Vec<String> = b
+            .storage
+            .iter()
+            .filter(|(sub, _, _)| sub.idx() == s)
+            .map(|(_, l, k)| format!("${} {}", l.raw(), k.name()))
+            .collect();
+        if !locals.is_empty() {
+            let _ = writeln!(o, "  storage sub {s}: {}", locals.join(", "));
+        }
+    }
     // The ownership passes' unwind set, per suspension point
     // (`Body::unwind_drops`).
     let mut rows = b.unwind_drops.iter().peekable();

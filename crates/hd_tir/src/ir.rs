@@ -485,6 +485,36 @@ impl CaptureMode {
     }
 }
 
+/// Where a local lives when not in Wasm locals (`Body::storage`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Storage {
+    /// A slot of the function's frame on the local stack (§23.38).
+    Slot,
+    /// A counted cell object.
+    Cell,
+}
+
+impl Storage {
+    /// Its name in the text form.
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Slot => "slot",
+            Self::Cell => "cell",
+        }
+    }
+
+    /// The storage named `s`.
+    #[must_use]
+    pub fn from_name(s: &str) -> Option<Self> {
+        match s {
+            "slot" => Some(Self::Slot),
+            "cell" => Some(Self::Cell),
+            _ => None,
+        }
+    }
+}
+
 /// The place encoding (`docs/compiler/tir-v2.md`, "Encoding, wire format
 /// and caching"). A place operand is one data word ([`Op::Place`]): with
 /// [`BARE_LOCAL`](place::BARE_LOCAL) set, a bare local `$n` in bits 0 to
@@ -902,6 +932,11 @@ pub struct Body {
     /// drops it. Sorted, each row once. A pass output: empty in the
     /// checker's TIR (invariant 22), never written to the wire.
     pub exit_drops: Vec<(SubId, LocalId)>,
+    /// Where each local lives (`own/storage.rs`): per row, a sub-body, a
+    /// local and its storage there. A local with no row lives in Wasm
+    /// locals. Sorted, each pair once. A pass output: empty in the
+    /// checker's TIR (invariant 22), never written to the wire.
+    pub storage: Vec<(SubId, LocalId, Storage)>,
     /// The ownership passes' unwind set (`docs/compiler/tir-v2.md`,
     /// "Known-null"): per row, a suspension point and an owned value that
     /// may still hold a count there, which the point's cancellation, a way
@@ -979,6 +1014,7 @@ impl Body {
             fallback: vec![],
             held_args: vec![],
             exit_drops: vec![],
+            storage: vec![],
             unwind_drops: vec![],
             full_cells: vec![],
             stable_lists: vec![],
@@ -2234,6 +2270,7 @@ fn no_ownership(b: &Body, errs: &mut Vec<VerifyError>) {
         });
     }
     if !b.exit_drops.is_empty()
+        || !b.storage.is_empty()
         || !b.unwind_drops.is_empty()
         || !b.full_cells.is_empty()
         || !b.stable_lists.is_empty()
@@ -2244,8 +2281,9 @@ fn no_ownership(b: &Body, errs: &mut Vec<VerifyError>) {
             invariant: 22,
             inst: NONE,
             what: format!(
-                "{} exit drop, {} unwind drop, {} full cell, {} stable list, {} region and {} anchor rows before the ownership passes",
+                "{} exit drop, {} storage, {} unwind drop, {} full cell, {} stable list, {} region and {} anchor rows before the ownership passes",
                 b.exit_drops.len(),
+                b.storage.len(),
                 b.unwind_drops.len(),
                 b.full_cells.len(),
                 b.stable_lists.len(),
@@ -2681,6 +2719,15 @@ pub fn print(b: &Body) -> String {
     for (sub, local) in &b.exit_drops {
         let _ = writeln!(o, "exitdrop {} {}", sub.raw(), local.raw());
     }
+    for (sub, local, storage) in &b.storage {
+        let _ = writeln!(
+            o,
+            "storage {} {} {}",
+            sub.raw(),
+            local.raw(),
+            storage.name()
+        );
+    }
     for (inst, value) in &b.unwind_drops {
         let _ = writeln!(o, "unwinddrop {inst} {value}");
     }
@@ -2844,6 +2891,19 @@ pub fn parse(text: &str) -> Result<Body, ParseError> {
                 }
                 b.exit_drops
                     .push((SubId::from_raw(v[0]), LocalId::from_raw(v[1])));
+            }
+            "storage" => {
+                let [_, s, l, k] = f[..] else {
+                    return Err(e("storage needs 3 fields".into()));
+                };
+                let (Ok(s), Ok(l)) = (s.parse(), l.parse()) else {
+                    return Err(e("storage needs a sub-body and a local".into()));
+                };
+                let Some(k) = Storage::from_name(k) else {
+                    return Err(e(format!("unknown storage {k}")));
+                };
+                b.storage
+                    .push((SubId::from_raw(s), LocalId::from_raw(l), k));
             }
             "unwinddrop" => {
                 let v = nums(1)?;
@@ -3687,6 +3747,16 @@ mod tests {
         });
         body.exit_drops
             .push((SubId::from_raw(0), LocalId::from_raw(1)));
+        body.storage.push((
+            SubId::from_raw(0),
+            LocalId::from_raw(0),
+            super::Storage::Slot,
+        ));
+        body.storage.push((
+            SubId::from_raw(0),
+            LocalId::from_raw(1),
+            super::Storage::Cell,
+        ));
         body.unwind_drops.push((2, 0));
         body.regions.push((0, 3));
         assert_eq!(parse(&print(&body)).expect("parses"), body);

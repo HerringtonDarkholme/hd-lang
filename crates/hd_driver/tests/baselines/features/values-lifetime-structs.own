@@ -78,6 +78,7 @@ fn length(text: string) -> usize:
 >   %12 = Prim Add [%9 %10] : usize
 >   %13 = Drop [$0] : ()
 >   exit sub 0 drops [$0]
+>   storage sub 0: $0 slot
 >   summary kept [$0]
 
 fn token(text: string, other: string) -> usize:
@@ -97,4 +98,5 @@ fn token(text: string, other: string) -> usize:
 >   %9 = Drop [$1] : ()
 >   %10 = Block %6 : usize
 >   exit sub 0 drops [$0 $1]
+>   storage sub 0: $0 slot, $1 slot
 >   summary kept [$0 $1]

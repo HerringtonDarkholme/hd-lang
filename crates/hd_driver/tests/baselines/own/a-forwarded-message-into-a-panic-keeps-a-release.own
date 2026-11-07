@@ -289,6 +289,7 @@ fn check_equal[T < Eq & Debug](actual: T, expected: T, reason: string) -> void:
 >   %206 = Call std/rt.bytes/panic_with[] ("assertion-failed", %204) : ()
 >   %207 = Drop [%204] : ()
 >   exit sub 0 drops [$0 $1]
+>   storage sub 0: $0 slot, $1 slot
 
 pub fn run_it() -> void:
     check_equal([+1], [+1], "x")

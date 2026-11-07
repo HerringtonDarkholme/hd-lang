@@ -81,6 +81,7 @@ fn generic[T < Describe](x: T) -> usize:
 >   %10 = Drop [$1] : ()
 >   %11 = Block %9 : usize
 >   exit sub 0 drops [$0]
+>   storage sub 0: $0 slot
 >   summary kept [$0] writes
 
 fn use_generic(l: Logger) -> usize:
@@ -108,6 +109,7 @@ fn use_generic(l: Logger) -> usize:
 >   %2 finds [$1] full
 >   %6 finds [$2] full
 >   exit sub 0 drops [$0]
+>   storage sub 0: $1 slot, $2 slot
 >   summary kept [$0]
 
 fn qualified(l: Logger) -> usize:
@@ -143,4 +145,5 @@ fn qualified(l: Logger) -> usize:
 >   %22 = Drop [$1] : ()
 >   %23 = Block %21 : usize
 >   exit sub 0 drops [$0]
+>   storage sub 0: $0 slot
 >   summary kept [$0]

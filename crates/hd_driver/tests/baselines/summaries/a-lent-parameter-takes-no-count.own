@@ -129,6 +129,7 @@ fn collect(f: Field) -> usize:
 >   %12 = Drop [%10] : ()
 >   %10 finds [$1] full
 >   exit sub 0 drops [$0]
+>   storage sub 0: $1 slot
 >   summary kept [$0] writes
 
 fn apply(g: fn(Field) -> i64, f: Field) -> i64:
@@ -314,4 +315,5 @@ pub fn main() -> void $ Console:
 >   %103 = Block - : i64
 >   %104 = Scope %103 [] : i64
 >   %105 = Call std/console/println[i64] (%104) : ()
+>   storage sub 0: $5 slot
 >   summary kept [] writes

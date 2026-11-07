@@ -200,6 +200,8 @@ fn body_func<'a>(
             }
         }
     }
+    let slots_here = sub == 0 && !suspending && own.cold.is_none() && input.runtime.is_some();
+    em.assert_storage(sub, &roots, slots_here);
     // A plain function takes its parameters by the conventions of
     // `layout::Pass` (§23.25); a suspending one's cold constructor counts
     // each argument into its frame, so the callee takes a count of each.

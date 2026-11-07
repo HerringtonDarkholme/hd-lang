@@ -136,4 +136,8 @@ fn run(xs: List[string], g: fn(fn() -> void) -> void) -> usize:
 >   exit sub 1 drops [$2 $3]
 >   exit sub 2 drops [$2]
 >   exit sub 3 drops [$2]
+>   storage sub 0: $2 cell
+>   storage sub 1: $2 cell
+>   storage sub 2: $2 cell
+>   storage sub 3: $2 cell
 >   summary kept [] borrows [$0 $1] writes

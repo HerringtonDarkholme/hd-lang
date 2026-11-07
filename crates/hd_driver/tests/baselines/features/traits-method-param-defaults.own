@@ -53,6 +53,7 @@ fn joined(j: Joiner) -> usize:
 >   %5 = Drop [$0] : ()
 >   %6 = Block %2 : usize
 >   exit sub 0 drops [$0]
+>   storage sub 0: $0 slot
 >   summary kept [$0] writes
 
 fn generic_method(j: Joiner, s: string) -> usize:

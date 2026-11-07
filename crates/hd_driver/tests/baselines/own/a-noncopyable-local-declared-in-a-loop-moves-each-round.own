@@ -4,3 +4,4 @@ app/main/rounds
   %127 = Read move [$6] : UniqList[string]
   %128 = NewStruct [%127] : Parcel
   %127 finds [$6] full
+  storage sub 0: $5 slot, $6 slot

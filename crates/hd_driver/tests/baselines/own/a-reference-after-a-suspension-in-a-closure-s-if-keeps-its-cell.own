@@ -64,3 +64,5 @@ fn start() -> fn!(bool) -> void:
 >   %20 = Drop [$2] : ()
 >   %17 finds [$2] full
 >   exit sub 1 drops [$2]
+>   storage sub 0: $0 slot, $2 cell
+>   storage sub 1: $0 cell, $2 cell

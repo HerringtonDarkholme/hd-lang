@@ -246,6 +246,7 @@ fn tag(label: string, level: i64) -> string:
 >   %94 = Read move [%40] : string
 >   %95 = Block %94 : string
 >   exit sub 0 drops [$1]
+>   storage sub 0: $1 slot
 >   summary kept [] borrows [$0] writes
 
 fn bare(raw: string) -> string:
@@ -319,6 +320,7 @@ fn chain(raw: string) -> string:
 >   %37 = Drop [$1] : ()
 >   %38 = Block %35 : string
 >   %19 finds [$2] full
+>   storage sub 0: $2 slot
 >   summary kept [] borrows [$0] writes
 
 fn direct(raw: string) -> string:
@@ -369,6 +371,7 @@ fn direct(raw: string) -> string:
 >   %37 = Drop [$1] : ()
 >   %38 = Block %35 : string
 >   %19 finds [$2] full
+>   storage sub 0: $2 slot
 >   summary kept [] borrows [$0] writes
 
 fn method_slot(raw: string) -> usize:

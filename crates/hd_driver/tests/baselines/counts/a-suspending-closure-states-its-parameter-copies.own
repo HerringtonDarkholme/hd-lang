@@ -34,4 +34,6 @@ fn make() -> (fn!(string) -> usize $ Clock):
 >   %16 = Drop [%14] : ()
 >   %17 = Drop [$0] : ()
 >   exit sub 1 drops [$0]
+>   storage sub 0: $0 cell
+>   storage sub 1: $0 cell
 >   summary kept [] writes

@@ -58,4 +58,5 @@ fn make_dyn(d: Dog) -> usize:
 >   %10 = Drop [$0] : ()
 >   %11 = Block %8 : usize
 >   exit sub 0 drops [$0]
+>   storage sub 0: $0 slot
 >   summary kept [$0] writes

@@ -392,6 +392,7 @@ enum LoadError:
 >   %29 = Break L0 %28 : never
 >   %30 = Block - : Counted[Error]?
 >   %31 = Scope %30 [] : Counted[Error]?
+>   storage sub 0: $2 cell, $4 cell
 >   summary kept []
         error: FsError,
     )

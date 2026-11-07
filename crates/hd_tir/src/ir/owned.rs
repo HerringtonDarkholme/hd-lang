@@ -646,6 +646,18 @@ fn decided(b: &Body, errs: &mut Vec<VerifyError>) {
             err(errs, at, format!("unwind drop row {k} is out of order"));
         }
     }
+    for (k, &(s, l, _)) in b.storage.iter().enumerate() {
+        if s.idx() >= b.sub_root.len() || l.idx() >= b.local_ty.len() {
+            err(
+                errs,
+                NONE,
+                format!("storage row {k} names sub {s:?} or {l:?}, which the body lacks"),
+            );
+        }
+        if k > 0 && (b.storage[k - 1].0.raw(), b.storage[k - 1].1.raw()) >= (s.raw(), l.raw()) {
+            err(errs, NONE, format!("storage row {k} is out of order"));
+        }
+    }
     for (k, &(at, l)) in b.full_cells.iter().enumerate() {
         if at as usize >= b.len() || l as usize >= b.local_ty.len() {
             err(

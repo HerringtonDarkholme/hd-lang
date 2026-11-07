@@ -89,11 +89,13 @@ impl[T] HasFacts for T by Structure:
 >   %70 = Drop [$1] : ()
 >   %69 finds [$1] full
 >   exit sub 0 drops [$0]
+>   storage sub 0: $0 slot, $1 slot
 >   summary kept [$0] writes
 >   %8 = Read copy [$1 .found] : bool
 >   %9 = Drop [$1] : ()
 >   %8 finds [$1] full
 >   exit sub 0 drops [$0]
+>   storage sub 0: $0 slot, $1 slot
 >   summary kept [$0] writes
 
 struct Record:
@@ -120,6 +122,7 @@ impl HasFacts for Record by Structure:
 >   %9 = Block %7 : Inspectable
 >   %10 = RefDyn %9 : Counted[Inspectable]
 >   %4 finds [$0] full
+>   storage sub 0: $0 cell
 
 fn inspect_field() -> bool:
     Record { name: "name" }.has_facts()

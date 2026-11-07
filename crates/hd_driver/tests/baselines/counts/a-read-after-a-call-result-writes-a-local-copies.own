@@ -76,3 +76,4 @@ fn change_then_read(name: string) -> usize:
 >   %29 = Prim Add [%24 %27] : usize
 >   %25 finds [$1] full
 >   exit sub 0 drops [$0]
+>   storage sub 0: $1 slot

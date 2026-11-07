@@ -48,6 +48,7 @@ fn make(label: string) -> $.Context[$ Tag]:
 >   %18 = Block %15 : $.Context[$ Tag]
 >   %5 finds [$2] full
 >   exit sub 0 drops [$0]
+>   storage sub 0: $2 cell
 >   summary kept [$0] writes
 
 fn spread(ctx: $.Context[$ Tag]) -> $.Context[$ Tag]:
@@ -95,6 +96,7 @@ fn shadow(ctx: $.Context[$ Tag], label: string) -> $.Context[$ Tag]:
 >   %20 = Block %17 : $.Context[$ Tag]
 >   %7 finds [$3] full
 >   exit sub 0 drops [$1]
+>   storage sub 0: $3 cell
 >   summary kept [$1] borrows [$0] writes
 
 fn empty() -> $.Context[$ ()]:

@@ -87,3 +87,4 @@ fn add_at(mut m: Map[string, List[i64]], mut k: string) -> Map[string, List[i64]
     m
 >   %15 = Read move [$0] : Map[string, List[i64]]
 >   exit sub 0 drops [$0 $1]
+>   storage sub 0: $1 slot

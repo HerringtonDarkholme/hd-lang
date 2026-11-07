@@ -44,6 +44,7 @@ fn read(u: User) -> usize:
 >   %9 = Drop [$0] : ()
 >   %10 = Block %6 : usize
 >   exit sub 0 drops [$0]
+>   storage sub 0: $0 slot
 >   summary kept [$0]
 
 fn read_list(us: List[User]) -> usize:
@@ -65,6 +66,7 @@ fn read_list(us: List[User]) -> usize:
 >   %10 = Drop [$0] : ()
 >   %11 = Block %7 : usize
 >   exit sub 0 drops [$0]
+>   storage sub 0: $0 slot
 >   summary kept [$0] writes
 
 fn through_ptr(u: *User) -> usize:

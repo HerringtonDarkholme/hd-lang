@@ -98,6 +98,7 @@ fn result_try(path: string) -> Result[usize, ReadError]:
 >   %32 = Drop [$1] : ()
 >   %33 = NewVariant #0 [%31] : Result[usize, ReadError]
 >   exit sub 0 drops [$0]
+>   storage sub 0: $3 slot
 >   summary kept [$0]
 
 fn converted(path: string) -> Result[usize, AppError]:
@@ -156,4 +157,5 @@ fn converted(path: string) -> Result[usize, AppError]:
 >   %38 = Drop [$1] : ()
 >   %39 = NewVariant #0 [%37] : Result[usize, AppError]
 >   exit sub 0 drops [$0]
+>   storage sub 0: $4 slot
 >   summary kept [$0]

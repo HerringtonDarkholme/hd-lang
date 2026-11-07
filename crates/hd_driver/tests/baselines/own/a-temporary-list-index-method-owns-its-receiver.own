@@ -42,3 +42,4 @@ fn read(items: List[Item]) -> string?:
 >   %9 = Block %6 : string?
 >   %5 finds [$1] full
 >   exit sub 0 drops [$0]
+>   storage sub 0: $1 slot

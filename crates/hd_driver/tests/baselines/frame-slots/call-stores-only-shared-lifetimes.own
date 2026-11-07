@@ -46,6 +46,7 @@ fn non_storing(xs: List[string]) -> usize:
 >   %11 = Prim Add [%4 %9] : usize
 >   %8 finds [$1] full
 >   exit sub 0 drops [$0]
+>   storage sub 0: $0 slot, $1 slot
 >   summary kept [$0] writes
 
 @inline(.Never)
@@ -87,4 +88,5 @@ fn storing(xs: List[string]) -> usize:
 >   %12 = Drop [$0] : ()
 >   %8 finds [$1] full
 >   exit sub 0 drops [$0]
+>   storage sub 0: $1 slot
 >   summary kept [$0] writes

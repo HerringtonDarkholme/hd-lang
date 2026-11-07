@@ -75,6 +75,7 @@ fn by_value(s: string) -> usize:
 >   %15 = Call app/main/read_tag[] () : usize
 >   %16 = Block %15 : usize
 >   exit sub 0 drops [$0]
+>   storage sub 0: $2 cell
 >   summary kept [$0] writes
 
 fn nested(a: string, b: string) -> usize:
@@ -140,6 +141,7 @@ fn nested(a: string, b: string) -> usize:
 >   %34 = Prim Add [%32 %33] : usize
 >   %35 = Block %34 : usize
 >   exit sub 0 drops [$0 $1]
+>   storage sub 0: $4 cell, $6 cell
 >   summary kept [$0 $1] writes
 
 fn apply(f: fn() -> usize) -> usize:
@@ -216,4 +218,6 @@ fn lexical(s: string) -> usize:
 >   %39 = Drop [$3] : ()
 >   exit sub 0 drops [$0 $1]
 >   exit sub 1 drops [$1]
+>   storage sub 0: $6 cell
+>   storage sub 1: $6 cell
 >   summary kept [$0] writes

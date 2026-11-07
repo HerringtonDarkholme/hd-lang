@@ -274,6 +274,7 @@ pub fn write_body(
     // The exit and unwind sets are the ownership passes' output, which
     // runs after decoding; lifetime regions are tier 2's.
     if !b.exit_drops.is_empty()
+        || !b.storage.is_empty()
         || !b.unwind_drops.is_empty()
         || !b.full_cells.is_empty()
         || !b.stable_lists.is_empty()
@@ -282,7 +283,7 @@ pub fn write_body(
     {
         return Err(NotImplemented::bug(
             Stage::ModuleFinish,
-            "wire form of exit drops, unwind drops, stable lists, lifetime regions or anchors",
+            "wire form of exit drops, storage, unwind drops, stable lists, lifetime regions or anchors",
         ));
     }
     let mut w = Writer::default();

@@ -26,6 +26,7 @@ fn push_front(head: *Chain?, name: string) -> *Chain:
 >   %6 = Block %5 : Counted[Chain]
 >   %4 finds [$2] full
 >   exit sub 0 drops [$0 $1]
+>   storage sub 0: $2 cell
 >   summary kept [$0 $1]
 
 fn total(head: *Chain?) -> usize:

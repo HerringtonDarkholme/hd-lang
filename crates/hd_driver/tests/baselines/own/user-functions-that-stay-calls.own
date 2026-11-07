@@ -49,4 +49,5 @@ app/main/calls
   %37 = Prim Add [%35 %36] : i64
   %38 = Block %37 : i64
   exit sub 0 drops [$0]
+  storage sub 0: $0 slot
   summary kept [$0] writes

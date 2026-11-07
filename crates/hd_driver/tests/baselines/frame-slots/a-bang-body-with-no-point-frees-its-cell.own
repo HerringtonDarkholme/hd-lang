@@ -11,4 +11,5 @@ app/main/helper
   %7 = Block %5 : string
   %2 finds [$0] full
   %5 finds [$0] full
+  storage sub 0: $0 cell
   summary none

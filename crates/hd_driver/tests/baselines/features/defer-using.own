@@ -69,6 +69,8 @@ fn with_defer(log: *mut List[string], s: string) -> usize:
 >   %24 = Scope %23 [] : usize
 >   exit sub 0 drops [$0 $1 $2]
 >   exit sub 1 drops [$0 $1]
+>   storage sub 0: $2 slot
+>   storage sub 1: $2 cell
 >   summary kept [$0 $1] writes
 
 fn with_using(log: *mut List[string], s: string) -> usize:
@@ -106,4 +108,5 @@ fn with_using(log: *mut List[string], s: string) -> usize:
 >   %15 = Block - : usize
 >   %16 = Scope %15 [] : usize
 >   exit sub 0 drops [$1 $3]
+>   storage sub 0: $2 cell
 >   summary kept [$0 $1] writes

@@ -140,3 +140,4 @@ app/main/replaced
   %7 finds [$1] full
   %14 finds [$2] full
   exit sub 0 drops [$0]
+  storage sub 0: $0 slot, $1 slot, $2 slot

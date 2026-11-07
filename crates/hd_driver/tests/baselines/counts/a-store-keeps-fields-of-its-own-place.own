@@ -206,4 +206,5 @@ pub fn main() -> void $ Console:
 >   %40 = Call std/console/println[usize] (%39) : ()
 >   %30 finds [$0] full
 >   %34 finds [$2] full
+>   storage sub 0: $0 slot, $2 slot
 >   summary kept [] writes

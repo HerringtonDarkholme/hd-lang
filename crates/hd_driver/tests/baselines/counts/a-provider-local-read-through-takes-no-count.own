@@ -139,4 +139,5 @@ pub fn go() -> usize:
 >   %34 = Prim Add [%32 %33] : usize
 >   %35 = Drop [$3] : ()
 >   %36 = Drop [$1] : ()
+>   storage sub 0: $0 cell, $2 cell
 >   summary kept [] writes

@@ -173,4 +173,5 @@ pub fn run(n: i64) -> i64:
     counters.total
 >   %19 = Read copy [*$2 .total] : i64
 >   %20 = Drop [$2] : ()
+>   storage sub 0: $1 cell
 >   summary kept [] writes

@@ -41,6 +41,7 @@ fn one!(s: string) -> usize:
 >   %12 = Block %9 : usize
 >   %8 finds [$1] full
 >   exit sub 0 drops [$0]
+>   storage sub 0: $1 cell
 >   summary none
 >   unwind %4 drops [%3]
 
@@ -88,6 +89,7 @@ fn both!(a: string, b: string) -> usize:
 >   %22 finds [$2] full
 >   %26 finds [$3] full
 >   exit sub 0 drops [$0 $1]
+>   storage sub 0: $2 cell, $3 cell
 >   summary none
 >   unwind %8 drops [%4 %5 %6 %7]
 
@@ -122,5 +124,6 @@ fn either!(a: string, b: string) -> usize:
 >   %20 = Block %17 : usize
 >   %16 finds [$2] full
 >   exit sub 0 drops [$0 $1]
+>   storage sub 0: $2 cell
 >   summary none
 >   unwind %12 drops [%11]

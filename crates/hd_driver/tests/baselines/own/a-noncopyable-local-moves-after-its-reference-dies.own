@@ -4,3 +4,4 @@ app/main/in_arm
   %22 = Read move [$0] : UniqList[string]
   %23 = Call app/main/eat[] (%22) : usize
   exit sub 0 drops [$0]
+  storage sub 0: $0 slot

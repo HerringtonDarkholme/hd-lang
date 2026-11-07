@@ -111,6 +111,7 @@ fn total(items: Erased) -> i64:
     sum
 >   %33 = Read copy [$2] : i64
 >   exit sub 0 drops [$0]
+>   storage sub 0: $1 slot
 >   summary kept [$0] writes
 
 pub fn count(n: i64) -> i64:
@@ -135,4 +136,5 @@ pub fn count(n: i64) -> i64:
 >   %11 = Call app/main/total[] (%10) : i64
 >   %12 = Block %11 : i64
 >   %3 finds [$1] full
+>   storage sub 0: $1 cell
 >   summary kept [] writes

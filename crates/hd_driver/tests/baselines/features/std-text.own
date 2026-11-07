@@ -71,6 +71,7 @@ fn build(parts: &List[string]) -> string:
 >   %41 = Read move [$1] : Counted[mut StringBuilder]
 >   %42 = Call std/text/impl StringBuilder.build[] (%41) : string
 >   %43 = Drop [%41] : ()
+>   storage sub 0: $7 cell
 >   summary kept [$0] writes relies [$0]
 >   loop %39 keeps [$2]
 

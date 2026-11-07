@@ -4,3 +4,4 @@ app/main/in_branch
   %7 = Read move [$0] : UniqList[string]
   %8 = Call app/main/eat[] (%7) : usize
   exit sub 0 drops [$0]
+  storage sub 0: $0 slot

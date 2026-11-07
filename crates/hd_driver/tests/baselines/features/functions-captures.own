@@ -79,6 +79,8 @@ fn shared_list(s: string) -> usize:
 >   %16 finds [$1] full
 >   exit sub 0 drops [$0 $1]
 >   exit sub 1 drops [$0 $1]
+>   storage sub 0: $1 slot
+>   storage sub 1: $1 cell
 >   summary kept [$0] writes
 
 fn copy_shares(s: string) -> usize:
@@ -123,6 +125,8 @@ fn copy_shares(s: string) -> usize:
 >   %21 finds [$1] full
 >   exit sub 0 drops [$0 $1]
 >   exit sub 1 drops [$0 $1]
+>   storage sub 0: $1 slot
+>   storage sub 1: $1 cell
 >   summary kept [$0] writes
 
 fn through_ptr(items: *mut List[string], s: string) -> fn() -> void:

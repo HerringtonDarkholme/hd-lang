@@ -67,4 +67,5 @@ fn work(log: *mut List[string], label: string) -> void:
 >   %10 = Read borrow [*$0] : List[string]
 >   %11 = Intrinsic ListPush [%10 "work"] : ()
 >   exit sub 0 drops [$1 $2]
+>   storage sub 0: $2 slot
 >   summary kept [$1] writes

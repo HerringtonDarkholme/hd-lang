@@ -75,6 +75,7 @@ fn run_twice!(body: fn!() -> string) -> usize:
 >   %10 finds [$1] full
 >   %22 finds [$2] full
 >   exit sub 0 drops [$0]
+>   storage sub 0: $1 cell, $2 cell
 >   summary none
 >   unwind %5 drops [%4]
 >   unwind %16 drops [%14 %15]
@@ -155,6 +156,8 @@ fn stored!(key: string) -> usize:
 >   %26 finds [$3] full
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$1]
+>   storage sub 0: $3 cell
+>   storage sub 1: $3 cell
 >   summary none
 >   unwind %10 drops [%9]
 >   unwind %19 drops [%16 %17 %18]

@@ -15,4 +15,5 @@ app/main/last_read
   %9 = Drop [$0] : ()
   %10 = Block %7 : i64
   %2 finds [$0] full
+  storage sub 0: $0 slot
   summary kept [] writes

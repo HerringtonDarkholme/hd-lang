@@ -79,6 +79,7 @@ fn keep[T < 'static](value: T) -> *mut T:
 >   %3 = Block %2 : Counted[mut T]
 >   %2 finds [$1] full
 >   exit sub 0 drops [$0]
+>   storage sub 0: $1 cell
 >   summary kept [$0]
 
 fn later[T < 'static](value: T) -> fn() -> T:
@@ -130,4 +131,5 @@ fn bounded(u: User) -> usize:
 >   %19 = Scope %18 [] : usize
 >   %20 = Drop [$2] : ()
 >   exit sub 0 drops [$0]
+>   storage sub 0: $5 cell
 >   summary kept [$0] writes

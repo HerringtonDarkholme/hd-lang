@@ -76,4 +76,5 @@ fn count_long(xs: List[string]) -> usize:
     n
 >   %41 = Read copy [$1] : usize
 >   exit sub 0 drops [$0]
+>   storage sub 0: $2 slot
 >   summary kept [$0] writes

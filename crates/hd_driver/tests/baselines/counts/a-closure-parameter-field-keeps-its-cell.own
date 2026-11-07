@@ -16,3 +16,5 @@ app/main/absent
   %9 = Block %8 : Result[bool, string]
   exit sub 0 drops [$0]
   exit sub 1 drops [$1]
+  storage sub 0: $1 cell
+  storage sub 1: $1 cell

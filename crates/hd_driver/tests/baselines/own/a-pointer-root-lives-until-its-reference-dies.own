@@ -62,3 +62,4 @@ fn probe(items: UniqList[string]) -> string:
 >   %32 = Drop [%27] : ()
 >   %33 = Drop [$2] : ()
 >   exit sub 0 drops [$0]
+>   storage sub 0: $1 cell

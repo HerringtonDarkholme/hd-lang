@@ -75,4 +75,5 @@ fn install(s: string) -> usize:
 >   %15 = Call app/main/ask[] () : usize
 >   %16 = Block %15 : usize
 >   exit sub 0 drops [$0]
+>   storage sub 0: $1 cell
 >   summary kept [$0] writes

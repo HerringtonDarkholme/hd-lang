@@ -37,6 +37,7 @@ fn helper!() -> string:
 >   %5 = Read copy [$0 .text] : string
 >   %6 = Drop [$0] : ()
 >   %5 finds [$0] full
+>   storage sub 0: $0 cell
 
 pub fn main!() -> void $ Console:
     let mut sink = Sink { text: "" }
@@ -61,3 +62,4 @@ pub fn main!() -> void $ Console:
     _ := helper()
 >   %11 = Call app/main/helper[] () : mut Suspend[string]
 >   %12 = Drop [%11] : ()
+>   storage sub 0: $0 cell
