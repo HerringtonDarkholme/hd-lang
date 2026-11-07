@@ -68,6 +68,8 @@ interface HostInstance {
 export interface Sink {
   out(text: string): void;
   err(text: string): void;
+  // A supervising thread may own this diagnostic, so the worker never writes it.
+  programTimeLimit?(text: string): void;
   fact?(label: string | null): void;
   write?(fd: number, text: string): Dynamic;
 }
@@ -1155,10 +1157,14 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
   };
   // Writes the host's own panic report `report`, `panic: CATEGORY:
   // MESSAGE` and a newline, and records it.
-  const hostPanic = (report: string): void => {
+  const hostPanic = (report: string, programLimit = false): void => {
     const text = reportIn(st.facts.at(-1), report);
     flush();
-    sink.err(text);
+    if (programLimit && sink.programTimeLimit) {
+      sink.programTimeLimit(text);
+    } else {
+      sink.err(text);
+    }
     st.reported = true;
     st.panic = text.slice("panic: ".length);
   };
@@ -1413,7 +1419,8 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
       if (!limited && !overran()) {
         return;
       }
-      hostPanic(st.timeoutMs === null ? PROGRAM_TIME_LIMIT : timeLimitReport(st.timeoutMs));
+      const programLimit = st.timeoutMs === null;
+      hostPanic(programLimit ? PROGRAM_TIME_LIMIT : timeLimitReport(st.timeoutMs!), programLimit);
       status = 3;
       trapped = true;
       frames = [];
