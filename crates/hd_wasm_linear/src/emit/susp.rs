@@ -672,12 +672,10 @@ impl Em<'_, '_, '_> {
         retain: bool,
     ) -> StageResult<()> {
         let tag = if retain { Tag::Retain } else { Tag::Release };
-        let Some(info) = hd_tir::ir::count::following(self.b, &self.topo, i, tag)
-            .filter(|c| c.at == CountAt::Operation && c.part == part)
-        else {
+        let Some(reason) = self.operation_count(i, tag, part) else {
             return unsupported("a suspension point without its stated reference count");
         };
-        self.because(Reason::from_word(info.reason), |em| {
+        self.because(reason, |em| {
             if retain {
                 em.ref_retain(c);
             } else {

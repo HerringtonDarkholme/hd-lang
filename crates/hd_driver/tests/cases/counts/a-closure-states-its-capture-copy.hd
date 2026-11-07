@@ -1,0 +1,11 @@
+# @dump: own counts wat
+# @build: v8 release
+# expected: a closure states its captured cell's copy; a noncapturing function has no packet to count.
+fn make() -> (fn() -> usize):
+    let count: usize = 0
+    fn() -> usize:
+        count += 1
+        count
+
+fn plain() -> (fn() -> usize):
+    fn() -> usize: 0

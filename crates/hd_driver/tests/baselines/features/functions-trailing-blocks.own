@@ -41,35 +41,36 @@ fn trailing(s: string) -> usize:
 >     uses $0: entry -> %0 lend, %4 consume last
 >   local $1 label: string [read captured] place
 >   local $2 body: fn() -> string [read] value
->     uses $2: %6 -> %10 lend last
+>     uses $2: %7 -> %11 lend last
 >   local $3 $ref: string [read assigned captured captured-assigned] place
->   %5 = Store [$1] "t" : ()
->   %6 = Store [$2] %4 : ()
->   %7 = Ref local frame [$1] : Counted[string]
->   %8 = Call std/text/impl string.len[] (%7) : usize
->   %9 = Drop [%7] : ()
->   %10 = Read borrow [$2] : fn() -> string
->   %11 = CallValue %10 [] : string
->   %12 = Store [$3] %11 : ()
->   %13 = Ref local frame [$3] : Counted[string]
->   %14 = Call std/text/impl string.len[] (%13) : usize
->   %15 = Drop [%13] : ()
->   %16 = Drop [$3] : ()
->   %17 = Prim Add [%8 %14] : usize
->   %18 = Break L0 %17 : never
->   %19 = Block - : usize
->   %20 = Scope %19 [] : usize
->   %21 = Drop [$2] : ()
->   %22 = Drop [$1] : ()
->   %23 = Block %20 : usize
->   %7 finds [$1] full
->   %13 finds [$3] full
+>   %6 = Store [$1] "t" : ()
+>   %7 = Store [$2] %4 : ()
+>   %8 = Ref local frame [$1] : Counted[string]
+>   %9 = Call std/text/impl string.len[] (%8) : usize
+>   %10 = Drop [%8] : ()
+>   %11 = Read borrow [$2] : fn() -> string
+>   %12 = CallValue %11 [] : string
+>   %13 = Store [$3] %12 : ()
+>   %14 = Ref local frame [$3] : Counted[string]
+>   %15 = Call std/text/impl string.len[] (%14) : usize
+>   %16 = Drop [%14] : ()
+>   %17 = Drop [$3] : ()
+>   %18 = Prim Add [%9 %15] : usize
+>   %19 = Break L0 %18 : never
+>   %20 = Block - : usize
+>   %21 = Scope %20 [] : usize
+>   %22 = Drop [$2] : ()
+>   %23 = Drop [$1] : ()
+>   %24 = Block %21 : usize
+>   %8 finds [$1] full
+>   %14 finds [$3] full
         s + "!"
 >   %0 = Read move [$0] : string
 >   %1 = Intrinsic StrConcat [%0 "!"] : string
 >   %2 = Drop [%0] : ()
 >   %3 = Block %1 : string
 >   %4 = Closure #1 [%0 %1] : fn() -> string
+>   %5 = Retain %4 Operation captures #0 : ()
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   summary kept [$0] writes
@@ -94,18 +95,18 @@ fn no_args(s: string) -> usize:
 >   local $0 s: string [param read captured] value
 >     uses $0: entry -> %0 lend, %7 consume last
 >   local $1 body: fn() -> usize [read] value
->     uses $1: %8 -> %9 lend, %11 lend last
->   %8 = Store [$1] %7 : ()
->   %9 = Read borrow [$1] : fn() -> usize
->   %10 = CallValue %9 [] : usize
->   %11 = Read borrow [$1] : fn() -> usize
->   %12 = CallValue %11 [] : usize
->   %13 = Prim Add [%10 %12] : usize
->   %14 = Break L0 %13 : never
->   %15 = Block - : usize
->   %16 = Scope %15 [] : usize
->   %17 = Drop [$1] : ()
->   %18 = Block %16 : usize
+>     uses $1: %9 -> %10 lend, %12 lend last
+>   %9 = Store [$1] %7 : ()
+>   %10 = Read borrow [$1] : fn() -> usize
+>   %11 = CallValue %10 [] : usize
+>   %12 = Read borrow [$1] : fn() -> usize
+>   %13 = CallValue %12 [] : usize
+>   %14 = Prim Add [%11 %13] : usize
+>   %15 = Break L0 %14 : never
+>   %16 = Block - : usize
+>   %17 = Scope %16 [] : usize
+>   %18 = Drop [$1] : ()
+>   %19 = Block %17 : usize
         s.len()
 >   %0 = Read borrow [$0] : string
 >   %1 = Call std/rt.bytes/bytes_len[] (%0) : usize
@@ -115,6 +116,7 @@ fn no_args(s: string) -> usize:
 >   %5 = Drop [$0] : ()
 >   %6 = Block %4 : usize
 >   %7 = Closure #1 [%0 %1] : fn() -> usize
+>   %8 = Retain %7 Operation captures #0 : ()
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   summary kept [$0] writes
