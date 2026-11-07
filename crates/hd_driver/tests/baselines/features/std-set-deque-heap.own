@@ -9,23 +9,25 @@
 use std.collections.{Deque, Heap, Set}
 
 fn seen(s: &mut Set[string], a: string, b: string) -> bool:
-    _ := s.insert(a)
 > app/main/seen
 >   local $0 s: Ref[mut Set[string]] [param read] value
->     uses $0: entry -> %0 lend, %3 consume last
+>     uses $0: entry -> %2 lend, %5 consume last
 >   local $1 a: string [param read] value
->     uses $1: entry -> %1 lend last
+>     uses $1: entry -> %3 lend last
 >   local $2 b: string [param read] value
->     uses $2: entry -> %5 lend last
->   %0 = Read borrow [$0] : Ref[mut Set[string]]
->   %1 = Read borrow [$1] : string
->   %2 = Call std/collections/impl [ T < Eq & Hash ] Set [ T ].insert[string] (%0, %1) : bool
->   %7 = Block %6 : bool
+>     uses $2: entry -> %7 lend last
+>   %0 = ExitDrop [$1] #2 : ()
+>   %1 = ExitDrop [$2] #2 : ()
+    _ := s.insert(a)
+>   %2 = Read borrow [$0] : Ref[mut Set[string]]
+>   %3 = Read borrow [$1] : string
+>   %4 = Call std/collections/impl [ T < Eq & Hash ] Set [ T ].insert[string] (%2, %3) : bool
+>   %9 = Block %8 : bool
     s.contains(b)
->   %3 = Read borrow [$0] : Ref[mut Set[string]]
->   %4 = Coerce %3 [Weaken -] : Ref[Set[string]]
->   %5 = Read borrow [$2] : string
->   %6 = Call std/collections/impl [ T < Eq & Hash ] Set [ T ].contains[string] (%4, %5) : bool
+>   %5 = Read borrow [$0] : Ref[mut Set[string]]
+>   %6 = Coerce %5 [Weaken -] : Ref[Set[string]]
+>   %7 = Read borrow [$2] : string
+>   %8 = Call std/collections/impl [ T < Eq & Hash ] Set [ T ].contains[string] (%6, %7) : bool
 >   summary kept [] borrows [$1 $2] writes
 
 fn queue(q: &mut Deque[string], a: string) -> usize:

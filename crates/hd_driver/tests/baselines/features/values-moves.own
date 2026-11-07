@@ -16,9 +16,12 @@ struct Album:
     cover: Photo
 
 fn keep[T](x: T) -> void:
-    pass
 > app/main/keep
->   %0 = Block - : ()
+>   local $0 x: T [param] value
+>     uses $0: none
+>   %0 = ExitDrop [$0] #2 : ()
+    pass
+>   %1 = Block - : ()
 >   summary kept [] borrows [$0]
 
 fn hold[T < ?Copy](x: T) -> T:

@@ -6,55 +6,56 @@
 # three forms or the comprehension; `keep_each` retains each element it
 # pushes; `over_mut` releases each old element it replaces.
 fn over_value(xs: List[string]) -> usize:
-    let n: usize = 0
 > app/main/over_value
 >   local $0 xs: List[string] [param read] value
->     uses $0: entry -> %1 lend, %9 lend
+>     uses $0: entry -> %2 lend, %10 lend
 >   local $1 n: usize [read assigned mutated] place
 >   local $4 $pos: usize [assigned] place
 >   local $5 $end: usize [assigned] value
->     uses $5: %3 -> %6 lend
+>     uses $5: %4 -> %7 lend
 >   local $6 x: string [read assigned] value
->     uses $6: %23 -> %14 lend last
->   %0 = Store [$1] 0:usize : ()
->   %34 = Block %33 : usize
+>     uses $6: %24 -> %15 lend last
+>   %0 = ExitDrop [$0] #2 : ()
+    let n: usize = 0
+>   %1 = Store [$1] 0:usize : ()
+>   %35 = Block %34 : usize
     for x in xs:
->   %1 = Read borrow [$0] : List[string]
->   %2 = Intrinsic ListLen [%1] : usize
->   %3 = Store [$5] %2 : ()
->   %4 = Store [$4] 0:usize : ()
->   %5 = Read copy [$4] : usize
->   %6 = Read copy [$5] : usize
->   %7 = Prim Lt [%5 %6] : bool
->   %8 = Read copy [$4] : usize
->   %9 = Read borrow [$0 [%8]] : string
->   %10 = Read copy [$4] : usize
->   %11 = Prim Add [%10 1:usize] : usize
->   %12 = Store [$4] %11 : ()
->   %21 = Block - : ()
->   %22 = Read borrow [%9] : string
->   %23 = Store [$6] %22 : ()
->   %25 = Block - : never
->   %26 = Match %9 [%25 %21] : ()
->   %27 = Block - : ()
->   %28 = Break L0 - : never
->   %29 = Block - : ()
->   %30 = If %7 [%27 %29] : ()
->   %31 = Block - : ()
->   %32 = Loop %31 - : ()
+>   %2 = Read borrow [$0] : List[string]
+>   %3 = Intrinsic ListLen [%2] : usize
+>   %4 = Store [$5] %3 : ()
+>   %5 = Store [$4] 0:usize : ()
+>   %6 = Read copy [$4] : usize
+>   %7 = Read copy [$5] : usize
+>   %8 = Prim Lt [%6 %7] : bool
+>   %9 = Read copy [$4] : usize
+>   %10 = Read borrow [$0 [%9]] : string
+>   %11 = Read copy [$4] : usize
+>   %12 = Prim Add [%11 1:usize] : usize
+>   %13 = Store [$4] %12 : ()
+>   %22 = Block - : ()
+>   %23 = Read borrow [%10] : string
+>   %24 = Store [$6] %23 : ()
+>   %26 = Block - : never
+>   %27 = Match %10 [%26 %22] : ()
+>   %28 = Block - : ()
+>   %29 = Break L0 - : never
+>   %30 = Block - : ()
+>   %31 = If %8 [%28 %30] : ()
+>   %32 = Block - : ()
+>   %33 = Loop %32 - : ()
         n += x.len()
->   %13 = Read copy [$1] : usize
->   %14 = Read borrow [$6] : string
->   %15 = Call std/rt.bytes/bytes_len[] (%14) : usize
->   %16 = Break L1 %15 : never
->   %17 = Block - : usize
->   %18 = Scope %17 [] : usize
->   %19 = Prim Add [%13 %18] : usize
->   %20 = Store [$1] %19 : ()
+>   %14 = Read copy [$1] : usize
+>   %15 = Read borrow [$6] : string
+>   %16 = Call std/rt.bytes/bytes_len[] (%15) : usize
+>   %17 = Break L1 %16 : never
+>   %18 = Block - : usize
+>   %19 = Scope %18 [] : usize
+>   %20 = Prim Add [%14 %19] : usize
+>   %21 = Store [$1] %20 : ()
     n
->   %33 = Read copy [$1] : usize
+>   %34 = Read copy [$1] : usize
 >   summary kept [] borrows [$0]
->   loop %32 keeps [$0]
+>   loop %33 keeps [$0]
 
 fn over_ref(xs: &List[string]) -> usize:
     let n: usize = 0
@@ -156,107 +157,109 @@ fn over_mut(xs: &mut List[string]) -> void:
 >   summary kept [$0] writes
 
 fn keep_each(xs: List[string]) -> List[string]:
-    let mut out: List[string] = []
 > app/main/keep_each
 >   local $0 xs: List[string] [param read] value
->     uses $0: entry -> %2 lend, %10 lend
+>     uses $0: entry -> %3 lend, %11 lend
 >   local $1 out: List[string] [read assigned] value
->     uses $1: %1 -> %16 lend, %30 consume last
+>     uses $1: %2 -> %17 lend, %31 consume last
 >   local $4 $pos: usize [assigned] place
 >   local $5 $end: usize [assigned] value
->     uses $5: %4 -> %7 lend
+>     uses $5: %5 -> %8 lend
 >   local $6 x: string [read assigned] value
->     uses $6: %20 -> %14 consume last
->   %0 = NewList - [] : List[string]
->   %1 = Store [$1] %0 : ()
->   %31 = Block %30 : List[string]
+>     uses $6: %21 -> %15 consume last
+>   %0 = ExitDrop [$0] #2 : ()
+    let mut out: List[string] = []
+>   %1 = NewList - [] : List[string]
+>   %2 = Store [$1] %1 : ()
+>   %32 = Block %31 : List[string]
     for x in xs:
->   %2 = Read borrow [$0] : List[string]
->   %3 = Intrinsic ListLen [%2] : usize
->   %4 = Store [$5] %3 : ()
->   %5 = Store [$4] 0:usize : ()
->   %6 = Read copy [$4] : usize
->   %7 = Read copy [$5] : usize
->   %8 = Prim Lt [%6 %7] : bool
->   %9 = Read copy [$4] : usize
->   %10 = Read borrow [$0 [%9]] : string
->   %11 = Read copy [$4] : usize
->   %12 = Prim Add [%11 1:usize] : usize
->   %13 = Store [$4] %12 : ()
->   %18 = Block - : ()
->   %19 = Read borrow [%10] : string
->   %20 = Store [$6] %19 : ()
->   %22 = Block - : never
->   %23 = Match %10 [%22 %18] : ()
->   %24 = Block - : ()
->   %25 = Break L0 - : never
->   %26 = Block - : ()
->   %27 = If %8 [%24 %26] : ()
->   %28 = Block - : ()
->   %29 = Loop %28 - : ()
+>   %3 = Read borrow [$0] : List[string]
+>   %4 = Intrinsic ListLen [%3] : usize
+>   %5 = Store [$5] %4 : ()
+>   %6 = Store [$4] 0:usize : ()
+>   %7 = Read copy [$4] : usize
+>   %8 = Read copy [$5] : usize
+>   %9 = Prim Lt [%7 %8] : bool
+>   %10 = Read copy [$4] : usize
+>   %11 = Read borrow [$0 [%10]] : string
+>   %12 = Read copy [$4] : usize
+>   %13 = Prim Add [%12 1:usize] : usize
+>   %14 = Store [$4] %13 : ()
+>   %19 = Block - : ()
+>   %20 = Read borrow [%11] : string
+>   %21 = Store [$6] %20 : ()
+>   %23 = Block - : never
+>   %24 = Match %11 [%23 %19] : ()
+>   %25 = Block - : ()
+>   %26 = Break L0 - : never
+>   %27 = Block - : ()
+>   %28 = If %9 [%25 %27] : ()
+>   %29 = Block - : ()
+>   %30 = Loop %29 - : ()
         out.push(x)
->   %14 = Read copy [$6] : string
->   %15 = IsUnique fresh [$1] : ()
->   %16 = Read borrow [$1] : List[string]
->   %17 = Intrinsic ListPush [%16 %14] : ()
+>   %15 = Read copy [$6] : string
+>   %16 = IsUnique fresh [$1] : ()
+>   %17 = Read borrow [$1] : List[string]
+>   %18 = Intrinsic ListPush [%17 %15] : ()
     out
->   %30 = Read move [$1] : List[string]
+>   %31 = Read move [$1] : List[string]
 >   summary kept [] borrows [$0]
 
 fn comprehension(xs: List[string]) -> List[usize]:
-    [for x in xs => x.len()]
 > app/main/comprehension
 >   local $0 xs: List[string] [param read] value
->     uses $0: entry -> %2 lend, %16 lend
+>     uses $0: entry -> %3 lend, %17 lend
 >   local $1 $acc: mut List[usize] [assigned] value
->     uses $1: %1 -> %7 lend, %26 lend, %40 consume last
+>     uses $1: %2 -> %8 lend, %27 lend, %41 consume last
 >   local $3 $len: usize [assigned] value
->     uses $3: %4 -> %5 lend, %9 consume last
+>     uses $3: %5 -> %6 lend, %10 consume last
 >   local $4 $pos: usize [assigned] place
 >   local $5 $end: usize [assigned] value
->     uses $5: %10 -> %13 lend
+>     uses $5: %11 -> %14 lend
 >   local $6 x: string [read assigned] value
->     uses $6: %30 -> %20 lend last
->   %0 = NewList - [] : mut List[usize]
->   %1 = Store [$1] %0 : ()
->   %2 = Read borrow [$0] : List[string]
->   %3 = Intrinsic ListLen [%2] : usize
->   %4 = Store [$3] %3 : ()
->   %5 = Read copy [$3] : usize
->   %6 = IsUnique fresh [$1] : ()
->   %7 = Read borrow [$1] : mut List[usize]
->   %8 = Intrinsic ListReserve [%7 %5] : ()
->   %9 = Read copy [$3] : usize
->   %10 = Store [$5] %9 : ()
->   %11 = Store [$4] 0:usize : ()
->   %12 = Read copy [$4] : usize
->   %13 = Read copy [$5] : usize
->   %14 = Prim Lt [%12 %13] : bool
->   %15 = Read copy [$4] : usize
->   %16 = Read borrow [$0 [%15]] : string
->   %17 = Read copy [$4] : usize
->   %18 = Prim Add [%17 1:usize] : usize
->   %19 = Store [$4] %18 : ()
->   %20 = Read borrow [$6] : string
->   %21 = Call std/rt.bytes/bytes_len[] (%20) : usize
->   %22 = Break L1 %21 : never
->   %23 = Block - : usize
->   %24 = Scope %23 [] : usize
->   %25 = IsUnique fresh [$1] : ()
->   %26 = Read borrow [$1] : mut List[usize]
->   %27 = Intrinsic ListPush [%26 %24] : ()
->   %28 = Block - : ()
->   %29 = Read borrow [%16] : string
->   %30 = Store [$6] %29 : ()
->   %32 = Block - : never
->   %33 = Match %16 [%32 %28] : ()
->   %34 = Block - : ()
->   %35 = Break L0 - : never
->   %36 = Block - : ()
->   %37 = If %14 [%34 %36] : ()
->   %38 = Block - : ()
->   %39 = Loop %38 - : ()
->   %40 = Read move [$1] : mut List[usize]
->   %41 = Coerce %40 [Weaken -] : List[usize]
->   %42 = Block %41 : List[usize]
+>     uses $6: %31 -> %21 lend last
+>   %0 = ExitDrop [$0] #2 : ()
+    [for x in xs => x.len()]
+>   %1 = NewList - [] : mut List[usize]
+>   %2 = Store [$1] %1 : ()
+>   %3 = Read borrow [$0] : List[string]
+>   %4 = Intrinsic ListLen [%3] : usize
+>   %5 = Store [$3] %4 : ()
+>   %6 = Read copy [$3] : usize
+>   %7 = IsUnique fresh [$1] : ()
+>   %8 = Read borrow [$1] : mut List[usize]
+>   %9 = Intrinsic ListReserve [%8 %6] : ()
+>   %10 = Read copy [$3] : usize
+>   %11 = Store [$5] %10 : ()
+>   %12 = Store [$4] 0:usize : ()
+>   %13 = Read copy [$4] : usize
+>   %14 = Read copy [$5] : usize
+>   %15 = Prim Lt [%13 %14] : bool
+>   %16 = Read copy [$4] : usize
+>   %17 = Read borrow [$0 [%16]] : string
+>   %18 = Read copy [$4] : usize
+>   %19 = Prim Add [%18 1:usize] : usize
+>   %20 = Store [$4] %19 : ()
+>   %21 = Read borrow [$6] : string
+>   %22 = Call std/rt.bytes/bytes_len[] (%21) : usize
+>   %23 = Break L1 %22 : never
+>   %24 = Block - : usize
+>   %25 = Scope %24 [] : usize
+>   %26 = IsUnique fresh [$1] : ()
+>   %27 = Read borrow [$1] : mut List[usize]
+>   %28 = Intrinsic ListPush [%27 %25] : ()
+>   %29 = Block - : ()
+>   %30 = Read borrow [%17] : string
+>   %31 = Store [$6] %30 : ()
+>   %33 = Block - : never
+>   %34 = Match %17 [%33 %29] : ()
+>   %35 = Block - : ()
+>   %36 = Break L0 - : never
+>   %37 = Block - : ()
+>   %38 = If %15 [%35 %37] : ()
+>   %39 = Block - : ()
+>   %40 = Loop %39 - : ()
+>   %41 = Read move [$1] : mut List[usize]
+>   %42 = Coerce %41 [Weaken -] : List[usize]
+>   %43 = Block %42 : List[usize]
 >   summary kept [] borrows [$0]

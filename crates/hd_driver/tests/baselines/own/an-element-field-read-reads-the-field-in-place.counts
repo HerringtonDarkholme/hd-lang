@@ -20,7 +20,7 @@ impl[T] Members[T]:
     fn position_at(self, i: usize) -> usize:
         self.infos[i].position
 > app/main/impl [ T ] Members [ T ].position_at
->   release app.main.Members[i32] [infos, points] (conservative: unowned parameter)
+>   release app.main.Members[i32] [infos, points] (last use)
 
     fn name_at(self, i: usize) -> string:
         self.infos[i].name
@@ -31,12 +31,12 @@ impl[T] Members[T]:
     fn y_at(self, i: usize) -> i64:
         self.points[i].y
 > app/main/impl [ T ] Members [ T ].y_at
->   release app.main.Members[i32] [infos, points] (conservative: unowned parameter)
+>   release app.main.Members[i32] [infos, points] (last use)
 
 fn position_at(infos: List[Info], i: usize) -> usize:
     infos[i].position
 > app/main/position_at
->   release List[app.main.Info] (conservative: unowned parameter)
+>   release List[app.main.Info] (last use)
 
 fn name_at(infos: List[Info], i: usize) -> string:
     infos[i].name
@@ -47,7 +47,7 @@ fn name_at(infos: List[Info], i: usize) -> string:
 fn y_at(points: List[Point], i: usize) -> i64:
     points[i].y
 > app/main/y_at
->   release List[app.main.Point] (conservative: unowned parameter)
+>   release List[app.main.Point] (last use)
 
 struct Wrap[T]:
     n: usize
@@ -56,7 +56,7 @@ struct Wrap[T]:
 fn n_at[T](xs: List[Wrap[T]], i: usize) -> usize:
     xs[i].n
 > app/main/n_at
->   release List[app.main.Wrap[string]] (conservative: unowned parameter)
+>   release List[app.main.Wrap[string]] (last use)
 
 fn use_generic(m: Members[i32], xs: List[Wrap[string]], i: usize) -> i64:
     name := m.name_at(i)

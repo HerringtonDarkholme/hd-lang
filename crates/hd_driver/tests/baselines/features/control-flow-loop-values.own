@@ -6,102 +6,104 @@
 # lent); the `else` string is a static literal; elements only tested take
 # no count; `forever` returns its built string with no extra count.
 fn first_long(xs: List[string]) -> string:
-    for x in xs:
 > app/main/first_long
 >   local $0 xs: List[string] [param read] value
->     uses $0: entry -> %0 lend, %8 lend
+>     uses $0: entry -> %1 lend, %9 lend
 >   local $3 $pos: usize [assigned] place
 >   local $4 $end: usize [assigned] value
->     uses $4: %2 -> %5 lend
+>     uses $4: %3 -> %6 lend
 >   local $5 x: string [read assigned] value
->     uses $5: %24 -> %12 lend, %18 consume last
->   %0 = Read borrow [$0] : List[string]
->   %1 = Intrinsic ListLen [%0] : usize
->   %2 = Store [$4] %1 : ()
->   %3 = Store [$3] 0:usize : ()
->   %4 = Read copy [$3] : usize
->   %5 = Read copy [$4] : usize
->   %6 = Prim Lt [%4 %5] : bool
->   %7 = Read copy [$3] : usize
->   %8 = Read borrow [$0 [%7]] : string
->   %9 = Read copy [$3] : usize
->   %10 = Prim Add [%9 1:usize] : usize
->   %11 = Store [$3] %10 : ()
->   %22 = Block - : ()
->   %23 = Read borrow [%8] : string
->   %24 = Store [$5] %23 : ()
->   %26 = Block - : never
->   %27 = Match %8 [%26 %22] : ()
->   %28 = Block - : ()
->   %29 = Break L0 "none" : never
->   %30 = Block - : ()
->   %31 = If %6 [%28 %30] : ()
->   %32 = Block - : ()
->   %33 = Loop %32 - : string
->   %34 = Block %33 : string
+>     uses $5: %25 -> %13 lend, %19 consume last
+>   %0 = ExitDrop [$0] #2 : ()
+    for x in xs:
+>   %1 = Read borrow [$0] : List[string]
+>   %2 = Intrinsic ListLen [%1] : usize
+>   %3 = Store [$4] %2 : ()
+>   %4 = Store [$3] 0:usize : ()
+>   %5 = Read copy [$3] : usize
+>   %6 = Read copy [$4] : usize
+>   %7 = Prim Lt [%5 %6] : bool
+>   %8 = Read copy [$3] : usize
+>   %9 = Read borrow [$0 [%8]] : string
+>   %10 = Read copy [$3] : usize
+>   %11 = Prim Add [%10 1:usize] : usize
+>   %12 = Store [$3] %11 : ()
+>   %23 = Block - : ()
+>   %24 = Read borrow [%9] : string
+>   %25 = Store [$5] %24 : ()
+>   %27 = Block - : never
+>   %28 = Match %9 [%27 %23] : ()
+>   %29 = Block - : ()
+>   %30 = Break L0 "none" : never
+>   %31 = Block - : ()
+>   %32 = If %7 [%29 %31] : ()
+>   %33 = Block - : ()
+>   %34 = Loop %33 - : string
+>   %35 = Block %34 : string
         if x.len() > 3:
->   %12 = Read borrow [$5] : string
->   %13 = Call std/rt.bytes/bytes_len[] (%12) : usize
->   %14 = Break L1 %13 : never
->   %15 = Block - : usize
->   %16 = Scope %15 [] : usize
->   %17 = Prim Gt [%16 3:usize] : bool
->   %21 = If %17 [%20 -] : ()
+>   %13 = Read borrow [$5] : string
+>   %14 = Call std/rt.bytes/bytes_len[] (%13) : usize
+>   %15 = Break L1 %14 : never
+>   %16 = Block - : usize
+>   %17 = Scope %16 [] : usize
+>   %18 = Prim Gt [%17 3:usize] : bool
+>   %22 = If %18 [%21 -] : ()
             break x
->   %18 = Read copy [$5] : string
->   %19 = Break L0 %18 : never
->   %20 = Block - : never
+>   %19 = Read copy [$5] : string
+>   %20 = Break L0 %19 : never
+>   %21 = Block - : never
 >   summary kept [] borrows [$0]
->   loop %33 keeps [$0]
+>   loop %34 keeps [$0]
     else:
         "none"
 
 fn first_index(xs: List[string]) -> usize:
-    let i: usize = 0
 > app/main/first_index
 >   local $0 xs: List[string] [param read] value
->     uses $0: entry -> %2 lend, %6 lend, %22 lend
+>     uses $0: entry -> %3 lend, %7 lend, %23 lend
 >   local $1 i: usize [read assigned mutated] place
 >   local $2 self: string [read] value
->     uses $2: %7 -> %8 lend last
->   %0 = Store [$1] 0:usize : ()
->   %29 = Block %28 : usize
+>     uses $2: %8 -> %9 lend last
+>   %0 = ExitDrop [$0] #2 : ()
+    let i: usize = 0
+>   %1 = Store [$1] 0:usize : ()
+>   %30 = Block %29 : usize
     while i < xs.len():
->   %1 = Read copy [$1] : usize
->   %2 = Read borrow [$0] : List[string]
->   %3 = Intrinsic ListLen [%2] : usize
->   %4 = Prim Lt [%1 %3] : bool
->   %24 = Break L0 %23 : never
->   %25 = Block - : ()
->   %26 = If %4 [%21 %25] : ()
->   %27 = Block - : ()
->   %28 = Loop %27 - : usize
+>   %2 = Read copy [$1] : usize
+>   %3 = Read borrow [$0] : List[string]
+>   %4 = Intrinsic ListLen [%3] : usize
+>   %5 = Prim Lt [%2 %4] : bool
+>   %25 = Break L0 %24 : never
+>   %26 = Block - : ()
+>   %27 = If %5 [%22 %26] : ()
+>   %28 = Block - : ()
+>   %29 = Loop %28 - : usize
         if xs[i].len() > 3:
->   %5 = Read copy [$1] : usize
->   %6 = Read borrow [$0 [%5]] : string
->   %7 = Store [$2] %6 : ()
->   %8 = Read borrow [$2] : string
->   %9 = Call std/rt.bytes/bytes_len[] (%8) : usize
->   %10 = Break L1 %9 : never
->   %11 = Block - : usize
->   %12 = Scope %11 [] : usize
->   %13 = Prim Gt [%12 3:usize] : bool
->   %17 = If %13 [%16 -] : ()
->   %21 = Block - : ()
+>   %6 = Read copy [$1] : usize
+>   %7 = Read borrow [$0 [%6]] : string
+>   %8 = Store [$2] %7 : ()
+>   %9 = Read borrow [$2] : string
+>   %10 = Call std/rt.bytes/bytes_len[] (%9) : usize
+>   %11 = Break L1 %10 : never
+>   %12 = Block - : usize
+>   %13 = Scope %12 [] : usize
+>   %14 = Prim Gt [%13 3:usize] : bool
+>   %18 = If %14 [%17 -] : ()
+>   %22 = Block - : ()
             break i
->   %14 = Read copy [$1] : usize
->   %15 = Break L0 %14 : never
->   %16 = Block - : never
+>   %15 = Read copy [$1] : usize
+>   %16 = Break L0 %15 : never
+>   %17 = Block - : never
         i += 1
->   %18 = Read copy [$1] : usize
->   %19 = Prim Add [%18 1:usize] : usize
->   %20 = Store [$1] %19 : ()
+>   %19 = Read copy [$1] : usize
+>   %20 = Prim Add [%19 1:usize] : usize
+>   %21 = Store [$1] %20 : ()
     else:
         xs.len()
->   %22 = Read borrow [$0] : List[string]
->   %23 = Intrinsic ListLen [%22] : usize
+>   %23 = Read borrow [$0] : List[string]
+>   %24 = Intrinsic ListLen [%23] : usize
 >   summary kept [] borrows [$0]
->   loop %28 keeps [$0]
+>   loop %29 keeps [$0]
 
 fn forever(s: string) -> string:
     let out = s

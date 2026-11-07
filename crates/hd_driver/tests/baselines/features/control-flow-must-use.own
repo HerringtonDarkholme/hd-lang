@@ -9,25 +9,26 @@ enum SaveError:
     Failed(message: string)
 
 fn save(s: string) -> Result[string, SaveError]:
-    if s.len() > 0: .Ok(s + "!") else: .Err(SaveError.Failed("empty"))
 > app/main/save
 >   local $0 s: string [param read] value
->     uses $0: entry -> %0 lend, %6 lend last
->   %0 = Read borrow [$0] : string
->   %1 = Call std/rt.bytes/bytes_len[] (%0) : usize
->   %2 = Break L0 %1 : never
->   %3 = Block - : usize
->   %4 = Scope %3 [] : usize
->   %5 = Prim Gt [%4 0:usize] : bool
->   %6 = Read borrow [$0] : string
->   %7 = Intrinsic StrConcat [%6 "!"] : string
->   %8 = NewVariant #0 [%7] : Result[string, SaveError]
->   %9 = Block %8 : Result[string, SaveError]
->   %10 = NewVariant #0 ["empty"] : SaveError
->   %11 = NewVariant #1 [%10] : Result[string, SaveError]
->   %12 = Block %11 : Result[string, SaveError]
->   %13 = If %5 [%9 %12] : Result[string, SaveError]
->   %14 = Block %13 : Result[string, SaveError]
+>     uses $0: entry -> %1 lend, %7 lend last
+>   %0 = ExitDrop [$0] #2 : ()
+    if s.len() > 0: .Ok(s + "!") else: .Err(SaveError.Failed("empty"))
+>   %1 = Read borrow [$0] : string
+>   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
+>   %3 = Break L0 %2 : never
+>   %4 = Block - : usize
+>   %5 = Scope %4 [] : usize
+>   %6 = Prim Gt [%5 0:usize] : bool
+>   %7 = Read borrow [$0] : string
+>   %8 = Intrinsic StrConcat [%7 "!"] : string
+>   %9 = NewVariant #0 [%8] : Result[string, SaveError]
+>   %10 = Block %9 : Result[string, SaveError]
+>   %11 = NewVariant #0 ["empty"] : SaveError
+>   %12 = NewVariant #1 [%11] : Result[string, SaveError]
+>   %13 = Block %12 : Result[string, SaveError]
+>   %14 = If %6 [%10 %13] : Result[string, SaveError]
+>   %15 = Block %14 : Result[string, SaveError]
 >   summary kept [] borrows [$0]
 
 fn discard(s: string) -> usize:
@@ -95,15 +96,16 @@ fn discard(s: string) -> usize:
 >   summary kept [$0]
 
 fn unused(s: string) -> usize:
-    _kept := s
 > app/main/unused
 >   local $0 s: string [param read] value
->     uses $0: entry -> %0 lend last
->   %5 = Block %4 : usize
+>     uses $0: entry -> %1 lend last
+>   %0 = ExitDrop [$0] #2 : ()
+    _kept := s
+>   %6 = Block %5 : usize
     s.len()
->   %0 = Read borrow [$0] : string
->   %1 = Call std/rt.bytes/bytes_len[] (%0) : usize
->   %2 = Break L0 %1 : never
->   %3 = Block - : usize
->   %4 = Scope %3 [] : usize
+>   %1 = Read borrow [$0] : string
+>   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
+>   %3 = Break L0 %2 : never
+>   %4 = Block - : usize
+>   %5 = Scope %4 [] : usize
 >   summary kept [] borrows [$0]

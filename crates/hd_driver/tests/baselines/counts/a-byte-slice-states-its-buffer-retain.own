@@ -6,31 +6,33 @@
 use std.rt.bytes.bytes_slice
 
 fn slice(text: string, start: usize, end: usize) -> string:
-    bytes_slice(text, start, end)
 > std/rt_tests.stage_case/slice
 >   local $0 text: string [param read] value
->     uses $0: entry -> %0 lend last
+>     uses $0: entry -> %1 lend last
 >   local $1 start: usize [param read] value
->     uses $1: entry -> %1 lend last
+>     uses $1: entry -> %2 lend last
 >   local $2 end: usize [param read] value
->     uses $2: entry -> %2 lend last
->   %0 = Read borrow [$0] : string
->   %1 = Read copy [$1] : usize
->   %2 = Read copy [$2] : usize
->   %3 = Call std/rt.bytes/bytes_slice[] (%0, %1, %2) : string
->   %4 = Retain %3 #0 : ()
->   %5 = Block %3 : string
+>     uses $2: entry -> %3 lend last
+>   %0 = ExitDrop [$0] #2 : ()
+    bytes_slice(text, start, end)
+>   %1 = Read borrow [$0] : string
+>   %2 = Read copy [$1] : usize
+>   %3 = Read copy [$2] : usize
+>   %4 = Call std/rt.bytes/bytes_slice[] (%1, %2, %3) : string
+>   %5 = Retain %4 #0 : ()
+>   %6 = Block %4 : string
 
 fn discard_empty(text: string) -> void:
-    _ := bytes_slice(text, 0, 0)
 > std/rt_tests.stage_case/discard_empty
 >   local $0 text: string [param read] value
->     uses $0: entry -> %0 lend last
->   %0 = Read borrow [$0] : string
->   %1 = Call std/rt.bytes/bytes_slice[] (%0, 0:usize, 0:usize) : string
->   %2 = Retain %1 #0 : ()
->   %3 = Drop [%1] : ()
->   %4 = Block - : ()
+>     uses $0: entry -> %1 lend last
+>   %0 = ExitDrop [$0] #2 : ()
+    _ := bytes_slice(text, 0, 0)
+>   %1 = Read borrow [$0] : string
+>   %2 = Call std/rt.bytes/bytes_slice[] (%1, 0:usize, 0:usize) : string
+>   %3 = Retain %2 #0 : ()
+>   %4 = Drop [%2] : ()
+>   %5 = Block - : ()
 
 fn through_function(text: string) -> string:
     slice_fn := bytes_slice

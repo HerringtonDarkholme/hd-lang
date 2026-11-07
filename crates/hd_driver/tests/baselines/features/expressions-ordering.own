@@ -4,27 +4,29 @@
 # Feature: Ordering `<`, `<=`, `>`, `>=` on counted values (spec/lang/05-expressions.md, #1364).
 # expected: no count: `partial_cmp` takes both operands by address.
 fn str_lt(a: string, b: string) -> bool:
-    a < b
 > app/main/str_lt
 >   local $0 a: string [param read] value
->     uses $0: entry -> %0 lend last
+>     uses $0: entry -> %2 lend last
 >   local $1 b: string [param read] value
->     uses $1: entry -> %1 lend last
->   %0 = Read borrow [$0] : string
->   %1 = Read borrow [$1] : string
->   %2 = Call std/cmp/string_order[] (%0, %1) : Ordering
->   %3 = NewVariant #1 [%2] : Ordering?
->   %4 = Break L0 %3 : never
->   %5 = Block - : Ordering?
->   %6 = Scope %5 [] : Ordering?
->   %7 = Read copy [%6 as #1 .0] : Ordering
->   %8 = Block 1:bool : bool
->   %9 = Block 0:bool : bool
->   %10 = SwitchTag %7 [#0 %8 %9] : bool
->   %11 = Block %10 : bool
->   %12 = Block 0:bool : bool
->   %13 = SwitchTag %6 [#1 %11 %12] : bool
->   %14 = Block %13 : bool
+>     uses $1: entry -> %3 lend last
+>   %0 = ExitDrop [$0] #2 : ()
+>   %1 = ExitDrop [$1] #2 : ()
+    a < b
+>   %2 = Read borrow [$0] : string
+>   %3 = Read borrow [$1] : string
+>   %4 = Call std/cmp/string_order[] (%2, %3) : Ordering
+>   %5 = NewVariant #1 [%4] : Ordering?
+>   %6 = Break L0 %5 : never
+>   %7 = Block - : Ordering?
+>   %8 = Scope %7 [] : Ordering?
+>   %9 = Read copy [%8 as #1 .0] : Ordering
+>   %10 = Block 1:bool : bool
+>   %11 = Block 0:bool : bool
+>   %12 = SwitchTag %9 [#0 %10 %11] : bool
+>   %13 = Block %12 : bool
+>   %14 = Block 0:bool : bool
+>   %15 = SwitchTag %8 [#1 %13 %14] : bool
+>   %16 = Block %15 : bool
 >   summary kept [] borrows [$0 $1]
 
 fn list_le(a: List[string], b: List[string]) -> bool:

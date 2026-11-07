@@ -12,32 +12,34 @@ struct Bag:
 
 impl Bag:
     fn size(self) -> usize:
-        self.items.len()
 > app/main/impl Bag.size
 >   local $0 self: Bag [param read] value
->     uses $0: entry -> %0 lend last
->   %0 = Read borrow [$0 .items] : List[string]
->   %1 = Intrinsic ListLen [%0] : usize
->   %2 = Block %1 : usize
+>     uses $0: entry -> %1 lend last
+>   %0 = ExitDrop [$0] #2 : ()
+        self.items.len()
+>   %1 = Read borrow [$0 .items] : List[string]
+>   %2 = Intrinsic ListLen [%1] : usize
+>   %3 = Block %2 : usize
 >   summary kept [] borrows [$0]
 
 fn twice(b: Bag) -> usize:
-    b.size() + b.size()
 > app/main/twice
 >   local $0 b: Bag [param read] value
->     uses $0: entry -> %0 lend, %5 lend last
->   %0 = Read borrow [$0 .items] : List[string]
->   %1 = Intrinsic ListLen [%0] : usize
->   %2 = Break L1 %1 : never
->   %3 = Block - : usize
->   %4 = Scope %3 [] : usize
->   %5 = Read borrow [$0 .items] : List[string]
->   %6 = Intrinsic ListLen [%5] : usize
->   %7 = Break L0 %6 : never
->   %8 = Block - : usize
->   %9 = Scope %8 [] : usize
->   %10 = Prim Add [%4 %9] : usize
->   %11 = Block %10 : usize
+>     uses $0: entry -> %1 lend, %6 lend last
+>   %0 = ExitDrop [$0] #2 : ()
+    b.size() + b.size()
+>   %1 = Read borrow [$0 .items] : List[string]
+>   %2 = Intrinsic ListLen [%1] : usize
+>   %3 = Break L1 %2 : never
+>   %4 = Block - : usize
+>   %5 = Scope %4 [] : usize
+>   %6 = Read borrow [$0 .items] : List[string]
+>   %7 = Intrinsic ListLen [%6] : usize
+>   %8 = Break L0 %7 : never
+>   %9 = Block - : usize
+>   %10 = Scope %9 [] : usize
+>   %11 = Prim Add [%5 %10] : usize
+>   %12 = Block %11 : usize
 >   summary kept [] borrows [$0]
 
 fn wrap(items: List[string]) -> Bag:

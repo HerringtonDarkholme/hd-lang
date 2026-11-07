@@ -1,0 +1,6 @@
+# @dump: own counts wat
+# expected: the ABI-owned parameter is released once at the common exit, including early return.
+fn length(parts: List[string], early: bool) -> usize:
+    if early:
+        return parts.len()
+    parts.len()

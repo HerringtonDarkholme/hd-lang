@@ -6,32 +6,34 @@
 # that only reads its value borrows it; `bind_kept` moves `xs` into the
 # list, with no count.
 fn bind(s: string) -> usize:
-    t := s
 > app/main/bind
 >   local $0 s: string [param read] value
->     uses $0: entry -> %0 lend last
->   %5 = Block %4 : usize
+>     uses $0: entry -> %1 lend last
+>   %0 = ExitDrop [$0] #2 : ()
+    t := s
+>   %6 = Block %5 : usize
     let u = t
     u.len()
->   %0 = Read borrow [$0] : string
->   %1 = Call std/rt.bytes/bytes_len[] (%0) : usize
->   %2 = Break L0 %1 : never
->   %3 = Block - : usize
->   %4 = Scope %3 [] : usize
+>   %1 = Read borrow [$0] : string
+>   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
+>   %3 = Break L0 %2 : never
+>   %4 = Block - : usize
+>   %5 = Scope %4 [] : usize
 >   summary kept [] borrows [$0]
 
 fn bind_twice(xs: List[string]) -> usize:
-    ys := xs
 > app/main/bind_twice
 >   local $0 xs: List[string] [param read] value
->     uses $0: entry -> %0 lend, %2 lend last
->   %5 = Block %4 : usize
+>     uses $0: entry -> %1 lend, %3 lend last
+>   %0 = ExitDrop [$0] #2 : ()
+    ys := xs
+>   %6 = Block %5 : usize
     ys.len() + xs.len()
->   %0 = Read borrow [$0] : List[string]
->   %1 = Intrinsic ListLen [%0] : usize
->   %2 = Read borrow [$0] : List[string]
->   %3 = Intrinsic ListLen [%2] : usize
->   %4 = Prim Add [%1 %3] : usize
+>   %1 = Read borrow [$0] : List[string]
+>   %2 = Intrinsic ListLen [%1] : usize
+>   %3 = Read borrow [$0] : List[string]
+>   %4 = Intrinsic ListLen [%3] : usize
+>   %5 = Prim Add [%2 %4] : usize
 >   summary kept [] borrows [$0]
 
 fn bind_kept(xs: List[string], all: &mut List[List[string]]) -> void:

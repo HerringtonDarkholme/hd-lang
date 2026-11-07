@@ -15,7 +15,7 @@ struct Member:
 fn count(facts: Facts) -> usize:
     facts.items.len()
 > app/main/count
->   release app.main.Facts (conservative: unowned parameter)
+>   release app.main.Facts (last use)
 
 fn read_again(m: Member) -> usize:
     x := m

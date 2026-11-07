@@ -15,17 +15,18 @@ struct Members:
 
 impl Members:
     fn at(self, position: usize) -> usize:
-        self.infos.len() + position
 > app/main/impl Members.at
 >   local $0 self: Members [param read] value
->     uses $0: entry -> %0 lend last
+>     uses $0: entry -> %1 lend last
 >   local $1 position: usize [param read] value
->     uses $1: entry -> %2 lend last
->   %0 = Read borrow [$0 .infos] : List[Info]
->   %1 = Intrinsic ListLen [%0] : usize
->   %2 = Read copy [$1] : usize
->   %3 = Prim Add [%1 %2] : usize
->   %4 = Block %3 : usize
+>     uses $1: entry -> %3 lend last
+>   %0 = ExitDrop [$0] #2 : ()
+        self.infos.len() + position
+>   %1 = Read borrow [$0 .infos] : List[Info]
+>   %2 = Intrinsic ListLen [%1] : usize
+>   %3 = Read copy [$1] : usize
+>   %4 = Prim Add [%2 %3] : usize
+>   %5 = Block %4 : usize
 
     fn peek(&self, position: usize) -> usize:
         self.infos.len() + position

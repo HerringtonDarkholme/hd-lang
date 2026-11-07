@@ -18,11 +18,12 @@ fn save!(m: Member) -> void:
 >   summary none
 
 fn unnamed(m: Member) -> bool:
-    m.name == ""
 > app/main/unnamed
 >   local $0 m: Member [param read] value
->     uses $0: entry -> %0 lend last
->   %0 = Read borrow [$0 .name] : string
->   %1 = Intrinsic StrEq [%0 ""] : bool
->   %2 = Block %1 : bool
+>     uses $0: entry -> %1 lend last
+>   %0 = ExitDrop [$0] #2 : ()
+    m.name == ""
+>   %1 = Read borrow [$0 .name] : string
+>   %2 = Intrinsic StrEq [%1 ""] : bool
+>   %3 = Block %2 : bool
 >   summary kept [] borrows [$0]

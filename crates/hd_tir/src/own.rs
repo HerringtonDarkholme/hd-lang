@@ -48,6 +48,7 @@ use crate::ir::{
 
 pub use hoist::{EntryTest, entry_test, loop_statements, loop_test};
 
+pub(crate) mod abi;
 pub(crate) mod derive;
 pub mod flow;
 pub(crate) mod frame;
@@ -119,6 +120,11 @@ pub enum CallMemory {
 /// "What the passes read"): layout and signature facts, never another
 /// body's.
 pub trait OwnCx {
+    /// The declared parameter count, when a source signature is available.
+    fn parameter_count(&self, item: hd_base::DefId) -> Option<usize> {
+        let _ = item;
+        None
+    }
     /// Whether this intrinsic constructs an owned result from borrowed
     /// buffer bits, whose count is stated separately after the call.
     fn retains_result(&self, callee: &Callee) -> bool {
@@ -442,6 +448,7 @@ pub(crate) fn owned_value(b: &Body, i: usize) -> bool {
             | Tag::Drop
             | Tag::LoanEnd
             | Tag::Retain
+            | Tag::ExitDrop
             | Tag::IsUnique
             | Tag::FlagSet
             | Tag::FlagClear
@@ -802,6 +809,9 @@ pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(),
     scratch.topo.build(b);
     scratch.splice.clear();
     retains::run(b, cx, &scratch.topo, &mut scratch.splice)?;
+    scratch.topo.build(b);
+    scratch.splice.clear();
+    abi::run(b, cx, &scratch.topo, &mut scratch.splice)?;
     Ok(())
 }
 
