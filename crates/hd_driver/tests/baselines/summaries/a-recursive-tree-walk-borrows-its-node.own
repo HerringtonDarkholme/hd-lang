@@ -16,33 +16,35 @@ fn walk(n: *Node?) -> i64:
 >   local $0 n: Counted[Node]? [param read] value
 >     uses $0: entry -> %1 lend last
 >   local $1 node: Counted[Node] [read assigned] value
->     uses $1: %15 -> %3 lend, %5 lend, %8 lend last
->   %0 = Release %25 Exit local $0 #2 : ()
+>     uses $1: %17 -> %3 lend, %5 lend, %9 lend last
+>   %0 = Release %27 Exit local $0 #2 : ()
     match n:
 >   %1 = Read borrow [$0] : Counted[Node]?
->   %23 = Block - : never
->   %24 = Match %1 [%23 %2 %11] : i64
->   %25 = Block %24 : i64
+>   %25 = Block - : never
+>   %26 = Match %1 [%25 %2 %13] : i64
+>   %27 = Block %26 : i64
         .None => 0
 >   %2 = Block 0:i64 : i64
->   %13 = Block - : never
->   %21 = Block - : never
->   %22 = SwitchTag %1 [#0 %13 %21] : never
+>   %15 = Block - : never
+>   %23 = Block - : never
+>   %24 = SwitchTag %1 [#0 %15 %23] : never
         .Some(node) => i64(node.val) + walk(node.left) + walk(node.right)
 >   %3 = Read copy [*$1 .val] : i32
 >   %4 = Prim Conv [%3] : i64
 >   %5 = Read borrow [*$1 .left] : Counted[Node]?
 >   %6 = Call app/main/walk[] (%5) : i64
->   %7 = Prim Add [%4 %6] : i64
->   %8 = Read borrow [*$1 .right] : Counted[Node]?
->   %9 = Call app/main/walk[] (%8) : i64
->   %10 = Prim Add [%7 %9] : i64
->   %11 = Block %10 : i64
->   %14 = Read borrow [%1 as #1 .0] : Counted[Node]
->   %15 = Store [$1] %14 : ()
->   %17 = Block - : never
+>   %7 = Retain %6 Operation operand 0 #0 : ()
+>   %8 = Prim Add [%4 %6] : i64
+>   %9 = Read borrow [*$1 .right] : Counted[Node]?
+>   %10 = Call app/main/walk[] (%9) : i64
+>   %11 = Retain %10 Operation operand 0 #0 : ()
+>   %12 = Prim Add [%8 %10] : i64
+>   %13 = Block %12 : i64
+>   %16 = Read borrow [%1 as #1 .0] : Counted[Node]
+>   %17 = Store [$1] %16 : ()
 >   %19 = Block - : never
->   %20 = SwitchTag %1 [#1 %17 %19] : never
+>   %21 = Block - : never
+>   %22 = SwitchTag %1 [#1 %19 %21] : never
 >   summary kept [] borrows [$0] recursive
 
 fn leftmost(n: *Node?, last: *Node) -> *Node:
@@ -52,27 +54,28 @@ fn leftmost(n: *Node?, last: *Node) -> *Node:
 >   local $1 last: Counted[Node] [param read] value
 >     uses $1: entry -> %2 consume last
 >   local $2 node: Counted[Node] [read assigned] value
->     uses $2: %11 -> %4 lend, %5 lend last
->   %0 = Release %21 Exit local $0 #2 : ()
+>     uses $2: %12 -> %4 lend, %5 lend last
+>   %0 = Release %22 Exit local $0 #2 : ()
     match n:
 >   %1 = Read borrow [$0] : Counted[Node]?
->   %19 = Block - : never
->   %20 = Match %1 [%19 %3 %7] : Counted[Node]
->   %21 = Block %20 : Counted[Node]
+>   %20 = Block - : never
+>   %21 = Match %1 [%20 %3 %8] : Counted[Node]
+>   %22 = Block %21 : Counted[Node]
         .None => last
 >   %2 = Read copy [$1] : Counted[Node]
 >   %3 = Block %2 : Counted[Node]
->   %9 = Block - : never
->   %17 = Block - : never
->   %18 = SwitchTag %1 [#0 %9 %17] : never
+>   %10 = Block - : never
+>   %18 = Block - : never
+>   %19 = SwitchTag %1 [#0 %10 %18] : never
         .Some(node) => leftmost(node.left, node)
 >   %4 = Read borrow [*$2 .left] : Counted[Node]?
 >   %5 = Read borrow [$2] : Counted[Node]
 >   %6 = Call app/main/leftmost[] (%4, %5) : Counted[Node]
->   %7 = Block %6 : Counted[Node]
->   %10 = Read borrow [%1 as #1 .0] : Counted[Node]
->   %11 = Store [$2] %10 : ()
->   %13 = Block - : never
->   %15 = Block - : never
->   %16 = SwitchTag %1 [#1 %13 %15] : never
+>   %7 = Retain %6 Operation operand 0 #0 : ()
+>   %8 = Block %6 : Counted[Node]
+>   %11 = Read borrow [%1 as #1 .0] : Counted[Node]
+>   %12 = Store [$2] %11 : ()
+>   %14 = Block - : never
+>   %16 = Block - : never
+>   %17 = SwitchTag %1 [#1 %14 %16] : never
 >   summary kept [$1] borrows [$0] recursive

@@ -15,7 +15,7 @@ fn collect(item: string, into: &mut List[string] = &mut []) -> usize:
 fn with_default(s: string) -> usize:
     collect(s)
 > app/main/with_default
->   retain string (conservative: Call)
+>   retain string (stored)
 >   release counted reference (last use)
 
 fn with_given(s: string, out: &mut List[string]) -> usize:

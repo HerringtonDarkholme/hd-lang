@@ -4,5 +4,6 @@ app/main/through
     uses $0: entry -> %0 lend last
   %0 = Read borrow [*$0] : string
   %1 = Call app/main/count[] (%0) : usize
-  %2 = Block %1 : usize
+  %2 = Retain %1 Operation operand 0 #0 : ()
+  %3 = Block %1 : usize
   summary kept []

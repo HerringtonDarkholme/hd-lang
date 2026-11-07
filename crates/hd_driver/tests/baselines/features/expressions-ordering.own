@@ -9,24 +9,26 @@ fn str_lt(a: string, b: string) -> bool:
 >     uses $0: entry -> %2 lend last
 >   local $1 b: string [param read] value
 >     uses $1: entry -> %3 lend last
->   %0 = Release %16 Exit local $0 #2 : ()
->   %1 = Release %16 Exit local $1 #2 : ()
+>   %0 = Release %18 Exit local $0 #2 : ()
+>   %1 = Release %18 Exit local $1 #2 : ()
     a < b
 >   %2 = Read borrow [$0] : string
 >   %3 = Read borrow [$1] : string
 >   %4 = Call std/cmp/string_order[] (%2, %3) : Ordering
->   %5 = NewVariant #1 [%4] : Ordering?
->   %6 = Break L0 %5 : never
->   %7 = Block - : Ordering?
->   %8 = Scope %7 [] : Ordering?
->   %9 = Read copy [%8 as #1 .0] : Ordering
->   %10 = Block 1:bool : bool
->   %11 = Block 0:bool : bool
->   %12 = SwitchTag %9 [#0 %10 %11] : bool
->   %13 = Block %12 : bool
->   %14 = Block 0:bool : bool
->   %15 = SwitchTag %8 [#1 %13 %14] : bool
->   %16 = Block %15 : bool
+>   %5 = Retain %4 Operation operand 0 #0 : ()
+>   %6 = Retain %4 Operation operand 1 #0 : ()
+>   %7 = NewVariant #1 [%4] : Ordering?
+>   %8 = Break L0 %7 : never
+>   %9 = Block - : Ordering?
+>   %10 = Scope %9 [] : Ordering?
+>   %11 = Read copy [%10 as #1 .0] : Ordering
+>   %12 = Block 1:bool : bool
+>   %13 = Block 0:bool : bool
+>   %14 = SwitchTag %11 [#0 %12 %13] : bool
+>   %15 = Block %14 : bool
+>   %16 = Block 0:bool : bool
+>   %17 = SwitchTag %10 [#1 %15 %16] : bool
+>   %18 = Block %17 : bool
 >   summary kept [] borrows [$0 $1]
 
 fn list_le(a: List[string], b: List[string]) -> bool:

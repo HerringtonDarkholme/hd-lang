@@ -68,17 +68,17 @@ fn run(xs: List[string], g: fn(fn() -> void) -> void) -> usize:
 >   local $0 xs: List[string] [param read] value
 >     uses $0: entry -> %3 lend last
 >   local $1 g: fn(fn() -> ()) -> () [param read] value
->     uses $1: entry -> %33 lend last
+>     uses $1: entry -> %34 lend last
 >   local $2 n: usize [read assigned captured captured-assigned] place
 >   local $3 x: string [param read] value
 >     uses $3: entry -> %5 lend last
 >   local $4 later: fn() -> () [:= read assigned] value
->     uses $4: %29 -> %30 lend last
->   %0 = Release %45 Exit local $0 #2 : ()
->   %1 = Release %45 Exit local $1 #2 : ()
+>     uses $4: %30 -> %31 lend last
+>   %0 = Release %46 Exit local $0 #2 : ()
+>   %1 = Release %46 Exit local $1 #2 : ()
     let n: usize = 0
 >   %2 = Store [$2] 0:usize : ()
->   %45 = Block %43 : usize
+>   %46 = Block %44 : usize
     each(xs, fn(x: string) -> void: n += x.len())
 >   %3 = Read borrow [$0] : List[string]
 >   %4 = Read copy [$2] : usize
@@ -96,42 +96,43 @@ fn run(xs: List[string], g: fn(fn() -> void) -> void) -> usize:
 >   %16 = Closure #1 [%0 %1] : fn(string) -> ()
 >   %17 = Retain %16 Operation captures #0 : ()
 >   %18 = Call app/main/each[] (%3, %16) : ()
->   %19 = Drop [%16] : ()
+>   %19 = Retain %18 Operation operand 0 #0 : ()
+>   %20 = Drop [%16] : ()
 >   %16 finds [$2] full
     later := keep(fn() -> void: n += 1)
->   %20 = Read copy [$2] : usize
->   %21 = Prim Add [%20 1:usize] : usize
->   %22 = Store [$2] %21 : ()
->   %23 = Release %22 Operation #3 : ()
->   %24 = Drop [$2] : ()
->   %25 = Block - : ()
->   %26 = Closure #2 [%1 %1] : fn() -> ()
->   %27 = Retain %26 Operation captures #0 : ()
->   %28 = Call app/main/keep[] (%26) : fn() -> ()
->   %28 keeps %26
->   %29 = Store [$4] %28 : ()
->   %26 finds [$2] full
+>   %21 = Read copy [$2] : usize
+>   %22 = Prim Add [%21 1:usize] : usize
+>   %23 = Store [$2] %22 : ()
+>   %24 = Release %23 Operation #3 : ()
+>   %25 = Drop [$2] : ()
+>   %26 = Block - : ()
+>   %27 = Closure #2 [%1 %1] : fn() -> ()
+>   %28 = Retain %27 Operation captures #0 : ()
+>   %29 = Call app/main/keep[] (%27) : fn() -> ()
+>   %29 keeps %27
+>   %30 = Store [$4] %29 : ()
+>   %27 finds [$2] full
     later()
->   %30 = Read move [$4] : fn() -> ()
->   %31 = CallValue %30 [] : ()
->   %32 = Drop [%30] : ()
+>   %31 = Read move [$4] : fn() -> ()
+>   %32 = CallValue %31 [] : ()
+>   %33 = Drop [%31] : ()
     g(fn() -> void: n += 2)
->   %33 = Read borrow [$1] : fn(fn() -> ()) -> ()
->   %34 = Read copy [$2] : usize
->   %35 = Prim Add [%34 2:usize] : usize
->   %36 = Store [$2] %35 : ()
->   %37 = Release %36 Operation #3 : ()
->   %38 = Drop [$2] : ()
->   %39 = Block - : ()
->   %40 = Closure #3 [%2 %1] : fn() -> ()
->   %41 = Retain %40 Operation captures #0 : ()
->   %42 = CallValue %33 [%40] : ()
->   %42 keeps %40
->   %40 finds [$2] full
+>   %34 = Read borrow [$1] : fn(fn() -> ()) -> ()
+>   %35 = Read copy [$2] : usize
+>   %36 = Prim Add [%35 2:usize] : usize
+>   %37 = Store [$2] %36 : ()
+>   %38 = Release %37 Operation #3 : ()
+>   %39 = Drop [$2] : ()
+>   %40 = Block - : ()
+>   %41 = Closure #3 [%2 %1] : fn() -> ()
+>   %42 = Retain %41 Operation captures #0 : ()
+>   %43 = CallValue %34 [%41] : ()
+>   %43 keeps %41
+>   %41 finds [$2] full
     n
->   %43 = Read copy [$2] : usize
->   %44 = Drop [$2] : ()
->   %43 finds [$2] full
+>   %44 = Read copy [$2] : usize
+>   %45 = Drop [$2] : ()
+>   %44 finds [$2] full
 >   exit sub 0 drops [$2]
 >   exit sub 1 drops [$2 $3]
 >   exit sub 2 drops [$2]

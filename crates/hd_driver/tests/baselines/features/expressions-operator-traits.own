@@ -133,9 +133,10 @@ fn sum_strings(xs: List[string]) -> string:
 > app/main/sum_strings
 >   local $0 xs: List[string] [param read] value
 >     uses $0: entry -> %1 lend last
->   %0 = Release %3 Exit local $0 #2 : ()
+>   %0 = Release %4 Exit local $0 #2 : ()
     sum(xs, "")
 >   %1 = Read borrow [$0] : List[string]
 >   %2 = Call app/main/sum[string] (%1, "") : string
->   %3 = Block %2 : string
+>   %3 = Retain %2 Operation operand 0 #0 : ()
+>   %4 = Block %2 : string
 >   summary kept [] borrows [$0] writes

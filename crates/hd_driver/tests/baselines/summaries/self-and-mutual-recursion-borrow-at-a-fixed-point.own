@@ -15,12 +15,12 @@ fn walk(c: Config, n: i64) -> i64:
 >     uses $0: entry -> %3 consume last, %7 lend last
 >   local $1 n: i64 [param read] value
 >     uses $1: entry -> %1 lend, %8 lend last
->   %0 = Release %12 Exit local $0 #2 : ()
+>   %0 = Release %13 Exit local $0 #2 : ()
     if n == 0:
 >   %1 = Read copy [$1] : i64
 >   %2 = Prim Eq [%1 0:i64] : bool
 >   %6 = If %2 [%5 -] : ()
->   %12 = Block %11 : i64
+>   %13 = Block %12 : i64
         return c.depth
 >   %3 = Read copy [$0 .depth] : i64
 >   %4 = Return %3 : never
@@ -30,7 +30,8 @@ fn walk(c: Config, n: i64) -> i64:
 >   %8 = Read copy [$1] : i64
 >   %9 = Prim Sub [%8 1:i64] : i64
 >   %10 = Call app/main/walk[] (%7, %9) : i64
->   %11 = Prim Add [%10 1:i64] : i64
+>   %11 = Retain %10 Operation operand 0 #0 : ()
+>   %12 = Prim Add [%10 1:i64] : i64
 >   summary kept [] borrows [$0] recursive
 
 fn ping(c: Config, n: i64) -> i64:
@@ -39,12 +40,12 @@ fn ping(c: Config, n: i64) -> i64:
 >     uses $0: entry -> %3 consume last, %10 lend last
 >   local $1 n: i64 [param read] value
 >     uses $1: entry -> %1 lend, %11 lend last
->   %0 = Release %14 Exit local $0 #2 : ()
+>   %0 = Release %15 Exit local $0 #2 : ()
     if n == 0:
 >   %1 = Read copy [$1] : i64
 >   %2 = Prim Eq [%1 0:i64] : bool
 >   %9 = If %2 [%8 -] : ()
->   %14 = Block %13 : i64
+>   %15 = Block %13 : i64
         return depth(c)
 >   %3 = Read copy [$0 .depth] : i64
 >   %4 = Break L0 %3 : never
@@ -57,6 +58,7 @@ fn ping(c: Config, n: i64) -> i64:
 >   %11 = Read copy [$1] : i64
 >   %12 = Prim Sub [%11 1:i64] : i64
 >   %13 = Call app/main/pong[] (%10, %12) : i64
+>   %14 = Retain %13 Operation operand 0 #0 : ()
 >   summary kept [] borrows [$0] recursive
 
 fn pong(c: Config, n: i64) -> i64:
@@ -65,12 +67,13 @@ fn pong(c: Config, n: i64) -> i64:
 >     uses $0: entry -> %1 lend last
 >   local $1 n: i64 [param read] value
 >     uses $1: entry -> %2 lend last
->   %0 = Release %4 Exit local $0 #2 : ()
+>   %0 = Release %5 Exit local $0 #2 : ()
     ping(c, n)
 >   %1 = Read borrow [$0] : Config
 >   %2 = Read copy [$1] : i64
 >   %3 = Call app/main/ping[] (%1, %2) : i64
->   %4 = Block %3 : i64
+>   %4 = Retain %3 Operation operand 0 #0 : ()
+>   %5 = Block %3 : i64
 >   summary kept [] borrows [$0] recursive
 
 fn depth(c: Config) -> i64:

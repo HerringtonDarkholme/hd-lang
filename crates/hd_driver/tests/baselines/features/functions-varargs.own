@@ -82,11 +82,12 @@ fn spread(xs: List[string]) -> usize:
 > app/main/spread
 >   local $0 xs: List[string] [param read] value
 >     uses $0: entry -> %1 lend last
->   %0 = Release %3 Exit local $0 #2 : ()
+>   %0 = Release %4 Exit local $0 #2 : ()
     total(xs...)
 >   %1 = Read borrow [$0] : List[string]
 >   %2 = Call app/main/total[] (%1) : usize
->   %3 = Block %2 : usize
+>   %3 = Retain %2 Operation operand 0 #0 : ()
+>   %4 = Block %2 : usize
 >   summary kept [] borrows [$0]
 
 fn none() -> usize:

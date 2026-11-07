@@ -37,13 +37,14 @@ fn with_default(s: string) -> usize:
 > app/main/with_default
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %1 lend last
->   %0 = Release %5 Exit local $0 #2 : ()
+>   %0 = Release %6 Exit local $0 #2 : ()
     collect(s)
 >   %1 = Read borrow [$0] : string
 >   %2 = DefaultCall [app/main/collect.into []] [%1] : Ref[mut List[string]]
 >   %3 = Call app/main/collect[] (%1, %2) : usize
->   %4 = Drop [%2] : ()
->   %5 = Block %3 : usize
+>   %4 = Retain %3 Operation operand 0 #0 : ()
+>   %5 = Drop [%2] : ()
+>   %6 = Block %3 : usize
 >   summary kept [] borrows [$0] writes
 
 fn with_given(s: string, out: &mut List[string]) -> usize:

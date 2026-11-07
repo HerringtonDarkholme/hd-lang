@@ -2411,6 +2411,7 @@ impl Em<'_, '_, '_> {
     /// take a count, wherever they come from.
     pub(super) fn push_args(
         &mut self,
+        i: u32,
         args: &[u32],
         params: Option<&[Ty]>,
         lends: u64,
@@ -2430,7 +2431,17 @@ impl Em<'_, '_, '_> {
         if params.len() == args.len() {
             for (k, (r, t)) in args.iter().zip(params).enumerate() {
                 if matches!(self.pass_at(lends, k, *t), Pass::Owned(_)) {
-                    let s = self.consumed(*r)?;
+                    let s = if let Some(reason) = self.operation_count(
+                        i,
+                        Tag::Retain,
+                        CountPart::Operand(u32::try_from(k).expect("arguments")),
+                    ) {
+                        // A stated borrowed read has no count to move;
+                        // this owned ABI parameter takes its copy.
+                        self.because(reason, |em| em.retain_ref(*r))?
+                    } else {
+                        self.consumed(*r)?
+                    };
                     self.push_src(&s)?;
                 } else {
                     self.push(*r)?;
@@ -2523,7 +2534,7 @@ impl Em<'_, '_, '_> {
                     let params = self.param_tys(ct.key, ct.item, ct.args);
                     let lends = self.env().lends(ct.item, ct.args)
                         | promote::promoted_params(self.input, self.m, ct.key);
-                    self.push_args(&args, params.as_deref(), lends, self.f.reason)?;
+                    self.push_args(i, &args, params.as_deref(), lends, self.f.reason)?;
                     let c = self.push_call_providers(i, ct.item, ct.args)?;
                     self.f.call(Sym::Inst(ct.key));
                     // A suspending callee called cold returns its frame.
@@ -2648,7 +2659,7 @@ impl Em<'_, '_, '_> {
         self.f.at = at;
         self.f.origin_at = origin;
         self.f.i32(0);
-        self.push_args(args, None, 0, self.f.reason)?;
+        self.push_args(i, args, None, 0, self.f.reason)?;
         let context = self.push_call_providers(i, target.item, target.args)?;
         self.f.call(Sym::Part(target.key, Part::Body));
         self.f.set(frame);
@@ -2831,7 +2842,7 @@ impl Em<'_, '_, '_> {
                 let args = self.rec(bw);
                 let params = self.param_tys(call.key, call.item, call.args);
                 let lends = self.env().lends(call.item, call.args);
-                self.push_args(&args, params.as_deref(), lends, self.f.reason)?;
+                self.push_args(i, &args, params.as_deref(), lends, self.f.reason)?;
                 let c = self.push_call_providers(i, call.item, call.args)?;
                 if bracket {
                     self.forbid_by(1);

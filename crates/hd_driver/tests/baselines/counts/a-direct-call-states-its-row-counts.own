@@ -44,13 +44,14 @@ fn ordinary(callback: fn() -> i32 $ Tag) -> i32 $ Tag:
 > app/main/ordinary
 >   local $0 callback: fn() -> i32 [param read] value
 >     uses $0: entry -> %1 lend last
->   %0 = Release %5 Exit local $0 #2 : ()
+>   %0 = Release %6 Exit local $0 #2 : ()
     forward(callback)
 >   %1 = Read borrow [$0] : fn() -> i32
 >   %2 = Call app/main/forward[$ Tag] (%1) : i32
 >   %3 = Retain %2 Operation row #0 : ()
 >   %4 = Release %2 Operation row #2 : ()
->   %5 = Block %2 : i32
+>   %5 = Retain %2 Operation operand 0 #0 : ()
+>   %6 = Block %2 : i32
 >   summary kept [] borrows [$0] writes
 
 fn cold(callback: fn() -> i32 $ Tag) -> mut Suspend[i32] $ Tag:
@@ -94,9 +95,10 @@ fn empty(callback: fn() -> i32) -> i32:
 > app/main/empty
 >   local $0 callback: fn() -> i32 [param read] value
 >     uses $0: entry -> %1 lend last
->   %0 = Release %3 Exit local $0 #2 : ()
+>   %0 = Release %4 Exit local $0 #2 : ()
     forward(callback)
 >   %1 = Read borrow [$0] : fn() -> i32
 >   %2 = Call app/main/forward[$()] (%1) : i32
->   %3 = Block %2 : i32
+>   %3 = Retain %2 Operation operand 0 #0 : ()
+>   %4 = Block %2 : i32
 >   summary kept [] borrows [$0] writes

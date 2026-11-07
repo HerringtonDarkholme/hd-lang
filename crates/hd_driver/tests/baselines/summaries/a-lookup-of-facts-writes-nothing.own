@@ -17,28 +17,29 @@ fn has_style(facts: Facts) -> bool:
 >   local $0 facts: Facts [param read] value
 >     uses $0: entry -> %1 lend last
 >   local $2 self: RenameAll? [read] value
->     uses $2: %3 -> %4 lend last
->   %0 = Release %22 Exit local $0 #2 : ()
+>     uses $2: %4 -> %5 lend last
+>   %0 = Release %23 Exit local $0 #2 : ()
     facts.find::[RenameAll]().is_some()
 >   %1 = Read borrow [$0] : Facts
 >   %2 = Call std/structure/impl Facts.find[RenameAll] (%1) : RenameAll?
->   %3 = Store [$2] %2 : ()
->   %4 = Read copy [$2] : RenameAll?
->   %5 = Block 1:bool : bool
->   %6 = Block 0:bool : bool
->   %7 = Read copy [%4] : RenameAll?
->   %9 = Block - : never
->   %11 = Block - : never
->   %13 = Block - : never
->   %14 = SwitchTag %7 [#0 %11 %13] : never
->   %15 = Block - : never
->   %16 = SwitchTag %7 [#1 %9 %15] : never
->   %17 = Block - : never
->   %18 = Match %4 [%17 %5 %6] : bool
->   %19 = Break L0 %18 : never
->   %20 = Block - : bool
->   %21 = Scope %20 [] : bool
->   %22 = Block %21 : bool
+>   %3 = Retain %2 Operation operand 0 #0 : ()
+>   %4 = Store [$2] %2 : ()
+>   %5 = Read copy [$2] : RenameAll?
+>   %6 = Block 1:bool : bool
+>   %7 = Block 0:bool : bool
+>   %8 = Read copy [%5] : RenameAll?
+>   %10 = Block - : never
+>   %12 = Block - : never
+>   %14 = Block - : never
+>   %15 = SwitchTag %8 [#0 %12 %14] : never
+>   %16 = Block - : never
+>   %17 = SwitchTag %8 [#1 %10 %16] : never
+>   %18 = Block - : never
+>   %19 = Match %5 [%18 %6 %7] : bool
+>   %20 = Break L0 %19 : never
+>   %21 = Block - : bool
+>   %22 = Scope %21 [] : bool
+>   %23 = Block %22 : bool
 >   summary kept [] borrows [$0]
 
 fn name_of(m: &Member, frames: &List[Frame]) -> string:
@@ -51,5 +52,6 @@ fn name_of(m: &Member, frames: &List[Frame]) -> string:
 >   %0 = Read borrow [$0] : Ref[Member]
 >   %1 = Read borrow [*$1 [0:usize] .facts] : Facts
 >   %2 = Call std/serde/member_name[] (%0, %1) : string
->   %3 = Block %2 : string
+>   %3 = Retain %2 Operation operand 1 #0 : ()
+>   %4 = Block %2 : string
 >   summary kept []

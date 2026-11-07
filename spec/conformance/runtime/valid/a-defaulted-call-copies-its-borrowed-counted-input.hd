@@ -1,0 +1,36 @@
+use std.annotation.cold
+use std.testing.assert_equal
+
+@cold
+fn payload(value: i32) -> string:
+    "held$value"
+
+@cold
+fn store[T](value: T, into: &mut List[T] = &mut []) -> usize:
+    into.push(value)
+    into.len()
+
+@cold
+fn defaulted[T](value: T) -> usize:
+    store(value)
+
+@cold
+fn store_pair(first: string, second: string, into: &mut List[string] = &mut []) -> usize:
+    into.push(first)
+    into.push(second)
+    into.len()
+
+@cold
+fn pair(first: string, second: string) -> usize:
+    store_pair(first, second)
+
+pub fn main() -> void:
+    text := payload(7)
+    values := [text]
+    assert_equal(defaulted(text), 1)
+    assert_equal(defaulted(values), 1)
+    assert_equal(defaulted(+7), 1)
+    assert_equal(pair(text, text), 2)
+    assert_equal(text, "held7")
+    assert_equal(values.len(), 1)
+    assert_equal(values[0], "held7")

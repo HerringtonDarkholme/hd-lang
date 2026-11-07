@@ -608,6 +608,31 @@ impl OwnCx for Env<'_> {
         p
     }
 
+    fn call_argument_may_own(&self, callee: &Callee, k: usize, n: usize) -> bool {
+        let chosen = self.chosen(callee);
+        let target = match chosen {
+            Callee::Item { def, targs } => Some((def, targs)),
+            Callee::TraitMethod { .. } => self.impl_target(&chosen),
+        };
+        let Some((def, args)) = target else {
+            return false;
+        };
+        if self.intrinsic(def).is_some()
+            || ProgramEnv::suspends(self, def)
+            || !ProgramEnv::has_body(self, def)
+        {
+            return false;
+        }
+        let Some(sig) = self
+            .sig(def)
+            .filter(|s| !s.suspends && s.params.len() == n && k < n)
+        else {
+            return false;
+        };
+        let ty = hd_mono::subst(&self.run.pool, self, def, args, self.low(sig.params[k].1));
+        ty != Ty::POISON && self.value_parameter(ty) == Pass::Owned
+    }
+
     fn pass_value(&self, fn_ty: Ty, k: usize, n: usize) -> Pass {
         let pool = &self.run.pool;
         let TyData::Fn {

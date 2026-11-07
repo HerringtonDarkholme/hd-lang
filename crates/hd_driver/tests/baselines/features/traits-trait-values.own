@@ -110,11 +110,11 @@ fn local_mut(u: User, n: string) -> usize:
 >   local $2 v: User [read assigned captured captured-assigned] place
 >   local $3 $ref: Ref[mut User] [read assigned captured] value
 >     uses $3: %4 -> %5 lend last
->   %0 = Release %15 Exit local $1 #2 : ()
+>   %0 = Release %16 Exit local $1 #2 : ()
     let mut v = u
 >   %1 = Read move [$0] : User
 >   %2 = Store [$2] %1 : ()
->   %15 = Block %12 : usize
+>   %16 = Block %12 : usize
     through_mut(&mut v, n)
 >   %3 = Ref mut local frame [$2] : Ref[mut User]
 >   %4 = Store [$3] %3 : ()
@@ -126,8 +126,9 @@ fn local_mut(u: User, n: string) -> usize:
 >   %10 = RefDyn %9 : Ref[mut Greet]
 >   %11 = Read borrow [$1] : string
 >   %12 = Call app/main/through_mut[] (%10, %11) : usize
->   %13 = Drop [%10] : ()
->   %14 = Drop [$2] : ()
+>   %13 = Retain %12 Operation operand 1 #0 : ()
+>   %14 = Drop [%10] : ()
+>   %15 = Drop [$2] : ()
 >   %3 finds [$2] full
 >   exit sub 0 drops [$0]
 >   storage sub 0: $2 slot

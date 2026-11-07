@@ -51,6 +51,7 @@ pub use hoist::{EntryTest, entry_test, loop_statements, loop_test};
 pub(crate) mod abi;
 pub(crate) mod arguments;
 pub(crate) mod cache;
+pub(crate) mod call_args;
 pub(crate) mod call_row;
 pub(crate) mod captures;
 pub(crate) mod child;
@@ -250,6 +251,14 @@ pub trait OwnCx {
     /// an instance borrows is released after it (`layout::Pass` in the
     /// backend).
     fn pass(&self, callee: &Callee, k: usize, n: usize) -> Pass;
+    /// Whether an aligned ordinary source call's parameter may receive an
+    /// owned count. This reads its selected signature, independently of
+    /// `pass`'s logical summary. The concrete ABI's lends mask may still
+    /// lend it; cold, intrinsic and unresolved dynamic calls are separate.
+    fn call_argument_may_own(&self, callee: &Callee, k: usize, n: usize) -> bool {
+        let _ = (callee, k, n);
+        false
+    }
     /// [`OwnCx::pass`] for a `CallValue` of a value of function type
     /// `fn_ty`.
     fn pass_value(&self, fn_ty: Ty, k: usize, n: usize) -> Pass;

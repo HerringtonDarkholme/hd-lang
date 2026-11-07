@@ -1,0 +1,37 @@
+# @dump: own counts wat
+# @build: v8 release
+# expected: an ordinary owned ABI states each borrowed counted argument's copy; open parameters lower conditionally, while scalar and borrowed ABIs add no count.
+use std.annotation.cold
+
+@cold
+fn store[T](value: T, into: &mut List[T] = &mut []) -> usize:
+    into.push(value)
+    into.len()
+
+@cold
+fn store_pair(first: string, second: string, into: &mut List[string] = &mut []) -> usize:
+    into.push(first)
+    into.push(second)
+    into.len()
+
+fn text(value: string) -> usize:
+    store(value)
+
+fn collection(values: List[string]) -> usize:
+    store(values)
+
+fn generic[T](value: T) -> usize:
+    store(value)
+
+fn pair(first: string, second: string) -> usize:
+    store_pair(first, second)
+
+fn scalar(value: i32) -> usize:
+    store(value)
+
+@cold
+fn length(value: string) -> usize:
+    value.len()
+
+fn lent(value: string) -> usize:
+    length(value) + value.len()
