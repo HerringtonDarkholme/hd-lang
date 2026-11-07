@@ -9,9 +9,9 @@ fn make() -> (fn!() -> void $ Clock):
 > app/main/make
 >   retain counted reference (stored)
 >   retain counted reference (stored)
->   release counted reference (conservative: Await)
+>   release counted reference (last use)
 >   retain counted reference (stored)
->   release counted reference (conservative: Await)
+>   release counted reference (last use)
 > app/main/make
 >   release counted reference (conservative: frame drop)
 >   release counted reference (conservative: frame drop)

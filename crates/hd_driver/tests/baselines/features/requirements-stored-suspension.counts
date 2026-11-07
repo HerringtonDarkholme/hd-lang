@@ -56,9 +56,9 @@ fn later!(key: string) -> usize:
 > app/main/later
 >   retain string (stored)
     pending!().len()
->   retain counted reference (conservative: AwaitValue)
->   release counted reference (conservative: AwaitValue)
->   release counted reference (conservative: AwaitValue)
+>   retain counted reference (stored)
+>   release counted reference (last use)
+>   release counted reference (last use)
 >   release Suspend[string] (cancelled)
 >   retain &string (conservative: Ref)
 
@@ -97,7 +97,7 @@ fn bound!(s: string) -> usize:
 >   retain string (stored)
         tagged()
     pending!()
->   retain counted reference (conservative: AwaitValue)
->   release counted reference (conservative: AwaitValue)
->   release counted reference (conservative: AwaitValue)
+>   retain counted reference (stored)
+>   release counted reference (last use)
+>   release counted reference (last use)
 >   release Suspend[usize] (cancelled)

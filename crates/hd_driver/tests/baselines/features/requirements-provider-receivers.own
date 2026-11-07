@@ -90,11 +90,11 @@ fn count_later!(n: i64, wait: mut Suspend[void]) -> void $ Meter:
 >     uses $4: none
 >   local $5 i: i64 [read assigned] value
 >     uses $5: %16 -> %25 lend last
->   %0 = Retain %37 Cold local $1 #0 : ()
->   %1 = Retain %37 Entry local $1 #0 : ()
+>   %0 = Retain %39 Cold local $1 #0 : ()
+>   %1 = Retain %39 Entry local $1 #0 : ()
     for i in 0..n:
->   %2 = Retain %37 Cold row #0 : ()
->   %3 = Retain %37 Materialize row #0 : ()
+>   %2 = Retain %39 Cold row #0 : ()
+>   %3 = Retain %39 Materialize row #0 : ()
 >   %4 = Read copy [$0] : i64
 >   %5 = NewStruct [0:i64 %4 0:bool] : Range[i64]
 >   %6 = Read copy [%5 .start] : i64
@@ -111,14 +111,14 @@ fn count_later!(n: i64, wait: mut Suspend[void]) -> void $ Meter:
 >   %17 = Read copy [$2] : i64
 >   %18 = Prim Add [%17 1:i64] : i64
 >   %19 = Store [$2] %18 : ()
->   %30 = Block - : ()
->   %31 = Break L0 - : never
 >   %32 = Block - : ()
->   %33 = If %14 [%30 %32] : ()
+>   %33 = Break L0 - : never
 >   %34 = Block - : ()
->   %35 = Loop %34 - : ()
->   %36 = Drop [$1] : ()
->   %37 = Block - : ()
+>   %35 = If %14 [%32 %34] : ()
+>   %36 = Block - : ()
+>   %37 = Loop %36 - : ()
+>   %38 = Drop [$1] : ()
+>   %39 = Block - : ()
         $.use(Meter).record(i)
 >   %20 = ProviderGet #22 : Meter
 >   %21 = Retain %20 Value #0 : ()
@@ -130,7 +130,9 @@ fn count_later!(n: i64, wait: mut Suspend[void]) -> void $ Meter:
         wait!()
 >   %27 = Read copy [$1] : mut Suspend[()]
 >   %28 = AwaitValue %27 : ()
->   %29 = Drop [%27] : ()
+>   %29 = Release %28 Operation child #2 : ()
+>   %30 = Retain %28 Operation child #0 : ()
+>   %31 = Drop [%27] : ()
 >   exit sub 0 drops [$1]
 >   summary none
 >   unwind %28 drops [%27]

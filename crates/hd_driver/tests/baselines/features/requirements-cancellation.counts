@@ -31,8 +31,8 @@ fn stop!(key: string) -> bool:
 > app/main/stop
 >   retain string (stored)
     end := job.cancel!()
->   release counted reference (conservative: Await)
->   release counted reference (conservative: Await)
+>   release counted reference (last use)
+>   release counted reference (last use)
 >   release Suspend[string] (cancelled)
     match end:
         .Finished => true

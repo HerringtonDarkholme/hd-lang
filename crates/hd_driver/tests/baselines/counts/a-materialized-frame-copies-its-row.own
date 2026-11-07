@@ -9,8 +9,8 @@ fn pause!() -> void $ Clock:
 > app/main/pause
 >   local $0 count: i64 [read] value
 >     uses $0: %2 -> %3 lend last
->   %0 = Retain %9 Cold row #0 : ()
->   %1 = Retain %9 Materialize row #0 : ()
+>   %0 = Retain %10 Cold row #0 : ()
+>   %1 = Retain %10 Materialize row #0 : ()
 >   %2 = Store [$0] 1:i64 : ()
 >   %3 = Read copy [$0] : i64
 >   %4 = Call std/time/impl Duration.milliseconds[] (%3) : Duration
@@ -18,5 +18,6 @@ fn pause!() -> void $ Clock:
 >   %6 = Block - : Duration
 >   %7 = Scope %6 [] : Duration
 >   %8 = Await std/time/sleep[] (%7) : ()
->   %9 = Block - : ()
+>   %9 = Release %8 Operation child #2 : ()
+>   %10 = Block - : ()
 >   summary none

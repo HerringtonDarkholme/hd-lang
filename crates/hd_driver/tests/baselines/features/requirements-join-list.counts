@@ -33,8 +33,8 @@ fn all!(keys: List[string]) -> usize:
 > app/main/all
 >   copy List[string] (stored)
     results := join!(tasks...)
->   release counted reference (conservative: Await)
->   release counted reference (conservative: Await)
+>   release counted reference (last use)
+>   release counted reference (last use)
 >   release List[mut Suspend[string]] (cancelled)
     let mut n = 0
     for r in &results:

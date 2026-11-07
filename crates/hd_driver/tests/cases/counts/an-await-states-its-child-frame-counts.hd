@@ -1,0 +1,12 @@
+# @dump: own counts wat
+# @build: v8 release
+# expected: a stored wait declares its child's stored count and lifetime-end release, separately from its result.
+use std.time.{Clock, ms, sleep}
+
+fn read!() -> i32 $ Clock:
+    sleep!(ms(1))
+    7
+
+fn stored!() -> i32 $ Clock:
+    let pending: mut Suspend[i32] = read()
+    pending!()

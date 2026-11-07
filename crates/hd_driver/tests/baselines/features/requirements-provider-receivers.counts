@@ -40,12 +40,12 @@ fn count_later!(n: i64, wait: mut Suspend[void]) -> void $ Meter:
         $.use(Meter).record(i)
         wait!()
 >   retain Suspend[()] (conservative: copy read)
->   retain counted reference (conservative: AwaitValue)
 >   retain counted reference (stored)
 >   retain counted reference (stored)
->   release counted reference (conservative: AwaitValue)
 >   retain counted reference (stored)
->   release counted reference (conservative: AwaitValue)
+>   release counted reference (last use)
+>   retain counted reference (stored)
+>   release counted reference (last use)
 >   release Suspend[()] (cancelled)
 
 pub fn run(n: i64) -> i64:

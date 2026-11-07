@@ -132,8 +132,8 @@ fn pause!() -> string $ Clock:
 > app/main/pause
 >   local $0 count: i64 [read] value
 >     uses $0: %2 -> %3 lend last
->   %0 = Retain %9 Cold row #0 : ()
->   %1 = Retain %9 Materialize row #0 : ()
+>   %0 = Retain %10 Cold row #0 : ()
+>   %1 = Retain %10 Materialize row #0 : ()
 >   %2 = Store [$0] 1:i64 : ()
 >   %3 = Read copy [$0] : i64
 >   %4 = Call std/time/impl Duration.milliseconds[] (%3) : Duration
@@ -141,21 +141,23 @@ fn pause!() -> string $ Clock:
 >   %6 = Block - : Duration
 >   %7 = Scope %6 [] : Duration
 >   %8 = Await std/time/sleep[] (%7) : ()
->   %9 = Block "x" : string
+>   %9 = Release %8 Operation child #2 : ()
+>   %10 = Block "x" : string
 >   summary none
     "x"
 
 fn holds!() -> usize $ Clock:
     total(text(1), pause!())
 > app/main/holds
->   %0 = Retain %7 Cold row #0 : ()
->   %1 = Retain %7 Materialize row #0 : ()
+>   %0 = Retain %8 Cold row #0 : ()
+>   %1 = Retain %8 Materialize row #0 : ()
 >   %2 = Call app/main/text[] (1:i32) : string
 >   %3 = Await app/main/pause[] () : string
->   %4 = Call app/main/total[] (%2, %3) : usize
->   %5 = Drop [%3] : ()
->   %6 = Drop [%2] : ()
->   %7 = Block %4 : usize
+>   %4 = Release %3 Operation child #2 : ()
+>   %5 = Call app/main/total[] (%2, %3) : usize
+>   %6 = Drop [%3] : ()
+>   %7 = Drop [%2] : ()
+>   %8 = Block %5 : usize
 >   summary none
 >   unwind %3 drops [%2]
 
@@ -164,11 +166,11 @@ fn gone!() -> usize $ Clock:
 > app/main/gone
 >   local $0 $ref: string [read assigned captured captured-assigned] place
 >   local $1 n: usize [:= read assigned] value
->     uses $1: %8 -> %16 consume last
+>     uses $1: %8 -> %17 consume last
 >   local $2 count: i64 [read] value
 >     uses $2: %9 -> %10 lend last
->   %0 = Retain %17 Cold row #0 : ()
->   %1 = Retain %17 Materialize row #0 : ()
+>   %0 = Retain %18 Cold row #0 : ()
+>   %1 = Retain %18 Materialize row #0 : ()
 >   %2 = Call app/main/text[] (1:i32) : string
 >   %3 = Store [$0] %2 : ()
 >   %4 = Ref local [$0] : Counted[string]
@@ -176,7 +178,7 @@ fn gone!() -> usize $ Clock:
 >   %6 = Drop [%4] : ()
 >   %7 = Drop [$0] : ()
 >   %8 = Store [$1] %5 : ()
->   %17 = Block %16 : usize
+>   %18 = Block %17 : usize
 >   %4 finds [$0] full
     sleep!(ms(1))
 >   %9 = Store [$2] 1:i64 : ()
@@ -186,6 +188,7 @@ fn gone!() -> usize $ Clock:
 >   %13 = Block - : Duration
 >   %14 = Scope %13 [] : Duration
 >   %15 = Await std/time/sleep[] (%14) : ()
+>   %16 = Release %15 Operation child #2 : ()
     n
->   %16 = Read copy [$1] : usize
+>   %17 = Read copy [$1] : usize
 >   summary none
