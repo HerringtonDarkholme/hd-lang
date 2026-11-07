@@ -1,0 +1,15 @@
+# test: an independently held owner keeps the original box alive across replacement
+# expect-stdout: a1 cccccc3
+struct P:
+    name: string
+
+fn name_of(p: &P) -> &string:
+    &p.name
+
+pub fn main() -> void $ Console:
+    let mut ps = [box(P { name: "a${1}" })]
+    for p in ps:
+        d := name_of(p)
+        ps[0] = box(P { name: "b${2}" })
+        junk := "cccccc${3}"
+        println("${*d} $junk")

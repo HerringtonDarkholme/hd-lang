@@ -1,0 +1,14 @@
+# test: replacing the root after the local reference last use is valid
+struct P:
+    name: string
+
+fn name_of(p: &P) -> &string:
+    &p.name
+
+pub fn main() -> void $ Console:
+    let mut p = box(P { name: "a${1}" })
+    d := name_of(p)
+    println(*d)
+    p = box(P { name: "b${2}" })
+    junk := "cccccc${3}"
+    println("${p.name} $junk")

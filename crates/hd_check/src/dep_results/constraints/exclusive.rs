@@ -92,18 +92,76 @@ enum Access {
     Use,
 }
 
+/// Whether an element path then reads through a counted pointer. That
+/// pointer slot keeps the pointee alive: replacing it must keep the loan
+/// of the root, even though the referent is outside the collection buffer.
+fn counted_after_element(s: &Inputs<'_>, root: u32, path: &[Proj], element: usize) -> bool {
+    let mut ty = s.b.local_ty[root as usize];
+    let mut variant = None;
+    for (at, step) in path.iter().enumerate() {
+        while let TyData::Mut(inner) = s.pool.get(ty) {
+            ty = inner;
+        }
+        ty = match *step {
+            Proj::Elem(_) => {
+                let TyData::Adt { def, args } = s.pool.get(ty) else {
+                    return false;
+                };
+                let known = &s.cx.names.known;
+                let slot = if def == known.list {
+                    0
+                } else if def == known.map {
+                    1
+                } else {
+                    return false;
+                };
+                let Some(&inner) = s.pool.list_items(args).get(slot) else {
+                    return false;
+                };
+                inner
+            }
+            Proj::Deref => {
+                let TyData::Ref { counted, inner, .. } = s.pool.get(ty) else {
+                    return false;
+                };
+                if at > element {
+                    // A copied local reference has its independent source;
+                    // later pointer fields do not borrow the element slot.
+                    return counted;
+                }
+                inner
+            }
+            Proj::Variant(k) => {
+                variant = Some(k);
+                ty
+            }
+            Proj::Field(j) => {
+                let Some((inner, _)) = s.ls.field_slots(s.cx, ty, variant.take(), j) else {
+                    return false;
+                };
+                inner
+            }
+        };
+    }
+    false
+}
+
 /// The place loan `i` covers and its kind: a `Ref`'s place, or what a
 /// `&mut` binding refers to where a call reads it as `&` or as `&mut`
 /// (`ref.excl.call`), or a `&` binding where a call's `&mut` result holds
 /// it. An element reference covers the collection its last element step
 /// indexes, when only fields follow that step; any other path with an
-/// element ends at a place outside the collection's buffer.
+/// element through a counted pointer still borrows the slot that holds it.
 fn loan_path(s: &Inputs<'_>, i: u32) -> Option<(Path, Kind)> {
     let (b, i) = (s.b, i as usize);
     let excl = is_mut(s.pool, b.ty[i]);
     let (l, mut path) = match b.tags[i] {
         Tag::Ref => path_of(b, b.data[i][0]),
-        Tag::Read if excl || mut_result(s, w(i)).is_some() => {
+        Tag::Read
+            if excl
+                || super::local_ref(s.pool, b.ty[i]).is_some_and(|(counted, _)| counted)
+                || mut_result(s, w(i)).is_some() =>
+        {
             path_of(b, b.data[i][0]).map(|(l, mut p)| {
                 p.push(Proj::Deref);
                 (l, p)
@@ -111,7 +169,11 @@ fn loan_path(s: &Inputs<'_>, i: u32) -> Option<(Path, Kind)> {
         }
         Tag::Coerce if b.same_value_coercion(i) && !excl => {
             let v = b.data[i][0] as usize;
-            if b.ty.get(v).is_none() || b.tags[v] != Tag::Read || !is_mut(s.pool, b.ty[v]) {
+            if b.ty.get(v).is_none()
+                || b.tags[v] != Tag::Read
+                || !is_mut(s.pool, b.ty[v])
+                    && !super::local_ref(s.pool, b.ty[v]).is_some_and(|(counted, _)| counted)
+            {
                 return None;
             }
             path_of(b, b.data[v][0]).map(|(l, mut p)| {
@@ -124,6 +186,9 @@ fn loan_path(s: &Inputs<'_>, i: u32) -> Option<(Path, Kind)> {
     let Some(k) = path.iter().rposition(|s| matches!(s, Proj::Elem(_))) else {
         return Some(((l, path), if excl { Kind::Excl } else { Kind::Shared }));
     };
+    if counted_after_element(s, l, &path, k) {
+        return Some(((l, path), if excl { Kind::Excl } else { Kind::Shared }));
+    }
     if b.tags[i] != Tag::Ref || !path[k + 1..].iter().all(|s| matches!(s, Proj::Field(_))) {
         return None;
     }
@@ -683,8 +748,8 @@ impl Gen<'_, '_> {
                 }
             });
             // An element reference falls under `ref.elem.conflict`.
-            let elem = |j: u32, q: &Path| {
-                b.tags[j as usize] == Tag::Ref && q.1.iter().any(|s| matches!(s, Proj::Elem(_)))
+            let elem = |j: u32, _: &Path| {
+                loan_path(self.s, j).is_some_and(|(_, kind)| matches!(kind, Kind::Elem(_)))
             };
             for &v in &args {
                 let writes = writes.get_or_insert_with(|| self.writes(&self.users()));

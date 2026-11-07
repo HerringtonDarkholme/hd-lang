@@ -1,0 +1,18 @@
+# test: a copied local reference keeps its source while its list slot is replaced
+struct P:
+    name: string
+
+fn name_of(p: &P) -> &string:
+    &p.name
+
+struct H:
+    p: *P
+
+pub fn main() -> void $ Console:
+    p := H { p: box(P { name: "a${1}" }) }
+    q := H { p: box(P { name: "b${2}" }) }
+    let mut ps = [&p]
+    d := &ps[0].p.name
+    ps[0] = &q
+    junk := "cccccc${3}"
+    println("${*d} $junk")

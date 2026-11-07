@@ -1,0 +1,15 @@
+# test: an independently held owner keeps the original box alive across replacement
+struct P:
+    name: string
+
+fn name_of(p: &P) -> &string:
+    &p.name
+
+pub fn main() -> void $ Console:
+    p := P { name: "a${1}" }
+    q := P { name: "b${2}" }
+    let mut ps = [&p]
+    d := &ps[0].name
+    ps[0] = &q
+    junk := "cccccc${3}"
+    println("${*d} $junk")

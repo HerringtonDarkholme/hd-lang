@@ -1,0 +1,16 @@
+# test: a dependent local loan protects the pointer slot that keeps its pointee alive
+struct P:
+    name: string
+
+fn name_of(p: &P) -> &string:
+    &p.name
+
+fn name_mut(p: &mut P) -> &mut string:
+    &mut p.name
+
+pub fn main() -> void $ Console:
+    let mut ps = [box(P { name: "a${1}" })]
+    d := name_mut(ps[0])
+    ps[0] = box(P { name: "b${2}" }) # diagnostic: conflicting-access
+    *d = "changed"
+    println(*d)
