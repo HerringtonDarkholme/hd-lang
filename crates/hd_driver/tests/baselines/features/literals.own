@@ -58,12 +58,13 @@ fn update(r: Rec, n: string) -> Rec:
 >     uses $0: entry -> %1 lend last
 >   local $1 n: string [param read] value
 >     uses $1: entry -> %2 consume last
->   %0 = Release %4 Exit local $0 #2 : ()
+>   %0 = Release %5 Exit local $0 #2 : ()
     Rec { ...r, name: n }
 >   %1 = Read borrow [$0] : Rec
 >   %2 = Read move [$1] : string
 >   %3 = CopyStruct %1 [.name = %2] : Rec
->   %4 = Block %3 : Rec
+>   %4 = Retain %3 Operation operand 0 #0 : ()
+>   %5 = Block %3 : Rec
 >   exit sub 0 drops [$1]
 >   summary kept [$1] borrows [$0]
 

@@ -2,7 +2,7 @@
 
 use super::{
     OwnCx, abi, arguments, cache, call_row, captures, child, cold, cold_captures, cold_row,
-    context, map_key, referent, splice, waker,
+    context, copy_struct, map_key, referent, splice, waker,
 };
 use crate::ir::{
     Body, Tag, Topology,
@@ -46,6 +46,7 @@ fn expected(b: &Body, cx: &dyn OwnCx, topo: &Topology) -> Vec<(Tag, u32, Info)> 
     out.extend(context::counts(b));
     out.extend(call_row::counts(b, cx));
     out.extend(arguments::counts(b, cx));
+    out.extend(copy_struct::counts(b, cx));
     out.extend(child::counts(b, cx, topo));
     out.extend(waker::counts(b));
     out.extend(

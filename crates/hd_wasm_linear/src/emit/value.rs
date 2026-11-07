@@ -627,6 +627,11 @@ impl Em<'_, '_, '_> {
             Kind::Value => {
                 let (_, parts) = struct_mem(self.pool(), self.env(), t)?;
                 let tys = self.struct_fields(t);
+                let copy = self.operation_count(
+                    i,
+                    hd_tir::ir::Tag::Retain,
+                    hd_tir::ir::count::Part::Operand(0),
+                );
                 // The copy takes a count of each kept field, and each
                 // replacement moves its count in or takes one (§23.25).
                 let from = self.vals.get(&a).cloned();
@@ -636,7 +641,14 @@ impl Em<'_, '_, '_> {
                         (Some(v), _) => Some(self.consumed(v)?),
                         (None, Some(ls)) => {
                             let kept = &ls[p.first..p.first + p.count];
-                            Some(Src::Locals(self.copy_locals(kept, *ft)?))
+                            let copied = if let Some(copy) = copy {
+                                self.because(copy, |em| em.copy_locals(kept, *ft))?
+                            } else if self.counted(*ft).is_some() {
+                                return unsupported("a struct update without its stated base copy");
+                            } else {
+                                self.copy_locals(kept, *ft)?
+                            };
+                            Some(Src::Locals(copied))
                         }
                         (None, None) => None,
                     });

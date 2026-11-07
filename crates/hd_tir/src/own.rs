@@ -58,6 +58,7 @@ pub(crate) mod cold;
 pub(crate) mod cold_captures;
 pub(crate) mod cold_row;
 pub(crate) mod context;
+pub(crate) mod copy_struct;
 pub(crate) mod counts;
 pub(crate) mod derive;
 pub mod flow;
@@ -295,6 +296,14 @@ pub trait OwnCx {
     /// answers no.
     fn in_place_struct(&self, ty: Ty) -> bool {
         let _ = ty;
+        false
+    }
+    /// An in-place struct declaration's ordered field types, substituted
+    /// at `ty`, including open generic fields. Unlike `parts`, this raw
+    /// declaration fact does not promise that every field can be split.
+    fn struct_fields(&self, ty: Ty, out: &mut Vec<Ty>) -> bool {
+        let _ = ty;
+        out.clear();
         false
     }
     /// Whether `ty` is a trait value (`dyn T`, `mut dyn T`): the words of

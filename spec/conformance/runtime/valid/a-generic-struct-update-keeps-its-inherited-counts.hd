@@ -1,0 +1,20 @@
+# test: a generic struct update keeps its inherited counts
+# expect-stdout: old 1 new 2
+# expect-stdout: 7
+use std.annotation.cold
+
+struct Record[T]:
+    kept: T
+    name: string
+
+@cold
+fn update[T](base: Record[T], name: string) -> Record[T]:
+    Record::[T] { ...base, name }
+
+pub fn main() -> void $ Console:
+    base := Record::[List[string]] { kept: ["a"], name: "old" }
+    let mut copied = update(base, "new")
+    copied.kept.push("b")
+    println("${base.name} ${base.kept.len()} ${copied.name} ${copied.kept.len()}")
+    scalar := update(Record::[i32] { kept: 7, name: "old" }, "scalar")
+    println(scalar.kept)

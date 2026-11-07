@@ -1,0 +1,19 @@
+# @dump: own counts wat
+# @build: v8 release
+# expected: an inherited counted field has a base-copy packet; replaced fields and scalar-only inherited fields have none, including generic instances.
+struct Record[T]:
+    kept: T
+    name: string
+    n: usize
+
+fn update[T](base: Record[T], name: string) -> Record[T]:
+    Record::[T] { ...base, name }
+
+fn counted(base: Record[List[string]], name: string) -> Record[List[string]]:
+    update(base, name)
+
+fn scalar(base: Record[i32], name: string) -> Record[i32]:
+    update(base, name)
+
+fn replaced(base: Record[string], text: string) -> Record[string]:
+    Record::[string] { ...base, kept: text, name: "new", n: 1 }

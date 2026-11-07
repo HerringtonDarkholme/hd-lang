@@ -758,6 +758,29 @@ impl OwnCx for Env<'_> {
             if self.std_kind(def) == hd_mono::layout::StdKind::Other && self.is_struct(def))
     }
 
+    fn struct_fields(&self, mut ty: Ty, out: &mut Vec<Ty>) -> bool {
+        out.clear();
+        if !self.in_place_struct(ty) {
+            return false;
+        }
+        let pool = &self.run.pool;
+        while let TyData::Mut(inner) = pool.get(ty) {
+            ty = inner;
+        }
+        let TyData::Adt { def, args } = pool.get(ty) else {
+            return false;
+        };
+        let Some(fields) = self.data_fields(def) else {
+            return false;
+        };
+        out.extend(
+            fields
+                .into_iter()
+                .map(|f| hd_mono::subst(pool, self, def, args, f)),
+        );
+        true
+    }
+
     fn trait_value(&self, ty: Ty) -> bool {
         let pool = &self.run.pool;
         let mut t = ty;
