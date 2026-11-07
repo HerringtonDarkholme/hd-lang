@@ -472,6 +472,12 @@ impl OwnCx for Env<'_> {
             .flatten()
     }
 
+    fn trait_reference_widens(&self, from: Ty, to: Ty) -> bool {
+        !self.is_open(from)
+            && !self.is_open(to)
+            && hd_mono::trait_reference_widens(&self.run.pool, self, from, to)
+    }
+
     fn plain_reference(&self, ty: Ty) -> bool {
         !self.is_open(ty) && hd_wasm_linear::plain_reference_type(&self.run.pool, self, ty)
     }

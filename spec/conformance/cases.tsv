@@ -5945,6 +5945,7 @@ typing/invalid/a-pointer-loan-through-a-copied-loop-reference-keeps-its-slot.hd	
 typing/invalid/a-dependent-pointer-loan-blocks-a-store-through-its-loop-binding.hd	type	reject:conflicting-access	lang/06-control-flow.md#r-flow.for.ref.binding.local
 runtime/valid/a-counted-copy-in-a-borrowing-loop-keeps-its-own-loan.hd	runtime	accept	lang/13-values-and-references.md#r-ref.dep.call.pointer
 runtime/valid/a-borrowing-loop-can-replace-a-pointer-after-its-dependent-loan-ends.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.ref.binding.local
+runtime/valid/indirect-trait-widening-keeps-its-loaded-payload.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.ref.widen
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

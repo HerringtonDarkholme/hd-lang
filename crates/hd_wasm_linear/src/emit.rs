@@ -1106,6 +1106,9 @@ struct Em<'i, 'a, 'm> {
     /// body returns one (`hd_mono::Target::Default`'s `owned`), and a
     /// `Ref` of a suspending body's parameter, a copy (`ref.expr.allocate`).
     owned_refs: hd_base::HashSet<u32>,
+    /// Adjacent TIR Retains lowered during construction, before the result's
+    /// vtable loads. Their statement must not emit the same count again.
+    retained_before_result: hd_base::HashSet<u32>,
     /// The locals such a value moves into, whose release releases it.
     owned_locals: hd_base::HashSet<usize>,
     /// A suspending body's reference parameters, each with the temporary
@@ -1286,6 +1289,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             view_loans: HashMap::default(),
             env_caps: HashMap::default(),
             owned_refs: hd_base::HashSet::default(),
+            retained_before_result: hd_base::HashSet::default(),
             owned_locals: hd_base::HashSet::default(),
             frame_refs: Vec::new(),
             init_key: None,
@@ -2705,7 +2709,7 @@ impl Em<'_, '_, '_> {
         let (payload, owned) = if value_ty == receiver_ty {
             (None, false)
         } else {
-            let (_, ls, owned) = self.read_dyn_value(recv)?;
+            let (_, ls, owned) = self.read_dyn_value(None, recv)?;
             (Some(ls), owned)
         };
         let mut params = vec![Val::I32];

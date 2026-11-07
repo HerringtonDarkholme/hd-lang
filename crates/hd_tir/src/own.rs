@@ -143,6 +143,12 @@ pub trait OwnCx {
         let _ = ty;
         None
     }
+    /// Whether the trait immediately behind reference `from` is `to`
+    /// or declares it as a supertrait. This is a declaration fact only.
+    fn trait_reference_widens(&self, from: Ty, to: Ty) -> bool {
+        let _ = (from, to);
+        false
+    }
     /// Whether every count `ty` holds is a thin local reference's, which
     /// counts only if it is a representation view (`own/plain.rs`). The
     /// default answers no.

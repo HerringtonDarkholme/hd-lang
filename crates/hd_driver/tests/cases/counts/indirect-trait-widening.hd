@@ -1,0 +1,12 @@
+# @dump: own counts wat
+# @build: v8 release
+# expected: the loaded Dog payload gets one stored retain before widening its vtable; no new count.
+trait Animal:
+    fn name(&self) -> string
+
+trait Dog < Animal:
+    fn bark(&self) -> string
+
+fn widened(dog: *dyn Dog) -> *dyn Animal:
+    nested := box(dog)
+    nested
