@@ -1029,6 +1029,7 @@ runtime/valid/entry-init-closure-provider-scope.hd	runtime	accept	lang/10-module
 runtime/valid/module-initialization-before-main.hd	runtime	accept	lang/10-modules.md#module-initialization
 runtime/valid/cancellation-unwinds-nested-frames.hd	runtime	accept	lang/11-requirements-and-suspension.md#suspendt-protocol
 runtime/valid/cancellation-unwinds-suspending-closure.hd	runtime	accept	lang/11-requirements-and-suspension.md#cancellation
+runtime/valid/a-cancelled-cleanup-scope-releases-a-moved-temporary-once.hd	runtime	accept	std/time.md#r-std-time.clock.sleep
 typing/valid/provider-capturing-closure.hd	type	accept	lang/07-functions.md#r-fn.capture.provider-value
 typing/invalid/row-extension-unsound.hd	type	reject:missing-requirement	lang/11-requirements-and-suspension.md#requirement-rows
 typing/valid/row-extension-entailment.hd	type	accept	lang/11-requirements-and-suspension.md#requirement-rows
