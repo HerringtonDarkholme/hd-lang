@@ -256,13 +256,14 @@ fn body_func<'a>(
         params.clone(),
         fres,
     );
+    em.f.reason = Some(Reason::Conservative("entry"));
+    em.f.names_counts = em.names_counts();
     if em.m.track_origins {
         em.f.origins = Some(Vec::new());
         em.f.set_origin_source_len(b.anchor_len());
         em.f.origin_item = Some((input.path)(b.item));
         em.f.origin_root = Some(b.anchor(b.sub_root[sub as usize]));
         em.f.origin_at = em.f.origin_root;
-        em.f.reason = Some(Reason::Conservative("entry"));
         em.f.local_names = Some(BTreeMap::new());
         em.f.statics = Some(BTreeSet::new());
         em.f.origin_args = input
@@ -1254,8 +1255,40 @@ struct Driven {
     complete: bool,
 }
 
+/// The site of the count glue of an instruction with no TIR statement for it
+/// yet (#1424). The list is closed: a count in any other instruction's glue
+/// fails a checked build ([`Func::names_counts`]).
+fn glue_site(t: Tag) -> Option<Reason> {
+    matches!(
+        t,
+        Tag::Await
+            | Tag::AwaitAll
+            | Tag::Call
+            | Tag::CallValue
+            | Tag::Coerce
+            | Tag::ContextNew
+            | Tag::CopyStruct
+            | Tag::DefaultCall
+            | Tag::Intrinsic
+            | Tag::NewStruct
+            | Tag::Read
+            | Tag::Ref
+            | Tag::RefIdentity
+            | Tag::Store
+    )
+    .then(|| Reason::Conservative(t.name()))
+}
+
 impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
+    /// A build that checks each count op's reason ([`Func::names_counts`]).
+    fn names_counts(&self) -> bool {
+        self.m.track_origins
+            || cfg!(not(target_arch = "wasm32"))
+                && self.input.runtime.is_some_and(|r| r.checked.is_some())
+    }
+
     fn annotate_func(&self, f: &mut Func) {
+        f.names_counts = self.names_counts();
         if self.m.track_origins {
             f.origins = Some(Vec::new());
             f.set_origin_source_len(self.b.anchor_len());
@@ -1267,6 +1300,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
 
     fn inherit_origin_source(&mut self, reason: Reason) {
         self.f.reason = Some(reason);
+        self.f.names_counts = self.names_counts();
         if self.m.track_origins {
             self.f.origins = Some(Vec::new());
             self.f.set_origin_source_len(self.b.anchor_len());
@@ -1800,7 +1834,7 @@ impl Em<'_, '_, '_> {
             self.settle_value(r);
             Ok(())
         } else {
-            self.store(dest)
+            self.because(Reason::Conservative("block tail"), |em| em.store(dest))
         }
     }
 
@@ -1830,18 +1864,16 @@ impl Em<'_, '_, '_> {
             }
         }
         self.emitting.push(i);
-        // With origins: a count statement's reason; the glue of any other
-        // instruction names its tag.
+        // A count statement's reason, or the site of this instruction's glue.
         let was = self.f.reason;
-        if self.f.origins.is_some() {
-            self.f.reason = Some(
-                self.copy_reasons
-                    .get(i as usize)
-                    .copied()
-                    .flatten()
-                    .or_else(|| hd_tir::own::reason(self.b, i as usize))
-                    .unwrap_or(Reason::Conservative(self.b.tags[i as usize].name())),
-            );
+        if self.f.names_counts {
+            self.f.reason = self
+                .copy_reasons
+                .get(i as usize)
+                .copied()
+                .flatten()
+                .or_else(|| hd_tir::own::reason(self.b, i as usize))
+                .or_else(|| glue_site(self.b.tags[i as usize]));
         }
         let mut r = match self.walked.take() {
             Some((x, h)) if x == i => self.read_walked(i, h),

@@ -479,18 +479,20 @@ impl Em<'_, '_, '_> {
     /// a value no count of its own keeps, which the count makes a copy.
     pub(super) fn count_locals(&mut self, ls: &[u32], t: Ty, retain: bool) -> StageResult<()> {
         let start = self.f.body.len();
+        // A `&dyn`'s data count stands by design (#1354); a thin reference
+        // counts only a view it owns.
+        let reason = if self.ref_target(t).is_some_and(|(_, fat)| fat) {
+            Some(Reason::ByDesign)
+        } else if matches!(self.counted(t), Some(Walk::View(_))) {
+            Some(Reason::View)
+        } else {
+            self.f.reason
+        };
+        let was = std::mem::replace(&mut self.f.reason, reason);
         let result = self.count_locals_inner(ls, t, retain);
+        self.f.reason = was;
         if result.is_ok() && self.f.origins.is_some() {
             let subject = crate::views::count_subject(self.pool(), self.env(), t);
-            // A `&dyn`'s data count stands by design (#1354); a thin
-            // reference counts only a view it owns.
-            let reason = if self.ref_target(t).is_some_and(|(_, fat)| fat) {
-                Some(Reason::ByDesign)
-            } else if matches!(self.counted(t), Some(Walk::View(_))) {
-                Some(Reason::View)
-            } else {
-                self.f.reason
-            };
             self.f.note_count(
                 start,
                 u32::try_from(self.b.anchor_len()).expect("TIR instructions"),

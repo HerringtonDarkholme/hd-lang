@@ -869,7 +869,9 @@ impl Em<'_, '_, '_> {
             }
             self.f.op(I::If(BlockType::Empty));
         }
+        let was = self.f.reason;
         for i in uniques {
+            self.f.reason = hd_tir::own::reason(self.b, i as usize);
             let deref = self
                 .b
                 .decode_place(self.b.data[i as usize][0])
@@ -886,6 +888,7 @@ impl Em<'_, '_, '_> {
                 self.unique_at(i)?;
             }
         }
+        self.f.reason = was;
         if test.is_some() {
             self.f.op(I::End);
         }

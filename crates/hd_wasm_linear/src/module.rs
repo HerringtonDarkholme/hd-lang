@@ -541,9 +541,12 @@ pub struct Func {
     count_origin_base: Option<u32>,
     count_origins: Vec<crate::views::CountOrigin>,
     count_sites: u32,
-    /// With origins: why the count code written now stands
-    /// ([`hd_tir::own::Reason`]); `None` is emitter glue no site names.
+    /// With [`Self::names_counts`]: why the count code written now stands
+    /// ([`hd_tir::own::Reason`]).
     pub reason: Option<hd_tir::own::Reason>,
+    /// A checked or tracked build of a compiled body: each count op here has
+    /// a reason, a TIR statement's or a named site's.
+    pub names_counts: bool,
     /// A complete relocation-free body, including locals and the final end.
     pub raw: Option<Vec<u8>>,
     /// The TIR instruction whose code is being written, when it has a
@@ -669,7 +672,7 @@ impl Func {
                     site,
                     action,
                     subject: subject.to_owned(),
-                    reason: reason.unwrap_or(hd_tir::own::Reason::Conservative("glue")),
+                    reason: reason.expect("a count op with no TIR statement or named site"),
                 });
                 token
             });
@@ -763,6 +766,12 @@ impl Func {
             assert_eq!(origins.len(), self.body.len());
             origins.push(self.origin_at);
         }
+        if self.names_counts
+            && let Ins::Call(s) = &ins
+            && crate::views::count_action(&self.symbols.get(*s), None).is_some()
+        {
+            self.assert_named();
+        }
         let action = if self.origins.is_some() {
             match &ins {
                 Ins::Call(s) => crate::views::count_action(&self.symbols.get(*s), None),
@@ -820,6 +829,9 @@ impl Func {
     /// A call of runtime count function `s`, labeled as [`Func::push`]
     /// labels a count helper's.
     pub fn count_call(&mut self, s: Sym, action: crate::views::CountAction) {
+        if self.names_counts {
+            self.assert_named();
+        }
         let start = self.body.len();
         self.call(s);
         if let (Some(base), Some(origin)) = (self.count_origin_base, self.origin_at)
@@ -827,6 +839,14 @@ impl Func {
         {
             self.note_count(start, base, action, "counted reference", self.reason);
         }
+    }
+
+    fn assert_named(&self) {
+        assert!(
+            self.reason.is_some(),
+            "{}: a count op with no TIR statement or named site",
+            self.name
+        );
     }
 
     /// Writes [`Ins::Anchor`] before a call whose anchor is new.
