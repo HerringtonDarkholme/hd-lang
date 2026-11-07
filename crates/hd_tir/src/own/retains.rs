@@ -1,4 +1,4 @@
-//! Counts made explicit after an intrinsic constructs borrowed buffer bits.
+//! Counts made explicit after a result copies borrowed bits.
 //! The result is an owned value; its existing drops still end that owner.
 
 use super::{OwnCx, splice};
@@ -17,7 +17,7 @@ pub(super) fn run(
         }
         let block = topo.blk[i];
         if block == NONE {
-            return Err("a retained intrinsic result outside a block".into());
+            return Err("a retained borrowed result outside a block".into());
         }
         let position = topo.pos[i] + 1;
         let members = b.record(b.data[block as usize][0]);
@@ -26,8 +26,8 @@ pub(super) fn run(
         }) {
             continue;
         }
-        // Stored: the new string result keeps a reference to the buffer
-        // the intrinsic borrowed. Its empty form points at static storage.
+        // Stored: the result keeps a reference to the borrowed source.
+        // A string slice's empty form points at static storage.
         edits.insert(
             block,
             position,
@@ -49,9 +49,15 @@ pub(super) fn run(
 }
 
 pub(crate) fn result(b: &Body, cx: &dyn OwnCx, i: usize) -> bool {
-    b.tags.get(i) == Some(&Tag::Call)
-        && b.ty[i] == Ty::STRING
-        && Callee::from_words(b.record(b.data[i][0])).is_some_and(|c| cx.retains_result(&c))
+    match b.tags.get(i) {
+        Some(Tag::Call) => {
+            b.ty[i] == Ty::STRING
+                && Callee::from_words(b.record(b.data[i][0])).is_some_and(|c| cx.retains_result(&c))
+        }
+        // Lookup copies the caller-held provider into a result of its own.
+        Some(Tag::ProviderGet) => cx.counted(b.ty[i]),
+        _ => false,
+    }
 }
 
 #[cfg(test)]
@@ -140,7 +146,7 @@ mod tests {
         assert!(
             verify_owned(&b, &Facts)
                 .iter()
-                .any(|e| e.what.contains("buffer-result proof"))
+                .any(|e| e.what.contains("borrowed-result proof"))
         );
         b.data[retain][1] = 0;
         let root = b.sub_root[0] as usize;

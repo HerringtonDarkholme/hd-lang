@@ -2001,7 +2001,7 @@ impl Em<'_, '_, '_> {
                 let [d, v] = self.provider(key)?;
                 self.f.get(d);
                 self.f.get(v);
-                self.store(i)?;
+                self.store_owned(i)?;
             }
             Tag::If => {
                 let r = self.rec(bw);

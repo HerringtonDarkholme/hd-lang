@@ -4,7 +4,7 @@
 # Feature: Provider Values (counted `*dyn K`), Captured Access
 # (spec/lang/11-requirements-and-suspension.md, #1364).
 # expected: `keep` retains the provider once for the returned `*dyn
-# Store` (moves into storage, reason 1); `holder` retains it once for
+# Store` (an explicit TIR Retain, reason stored); `holder` retains it once for
 # the field; `fetch` holds it in the frame (#1355 at most).
 trait Store:
     fn get(self) -> string
@@ -15,12 +15,12 @@ struct Holder:
 fn keep() -> *dyn Store $ Store:
     $.use(Store)
 > app/main/keep
->   retain app.main.Store (conservative: ProviderGet)
+>   retain app.main.Store (stored)
 
 fn holder() -> Holder $ Store:
     Holder { store: $.use(Store) }
 > app/main/holder
->   retain app.main.Store (conservative: ProviderGet)
+>   retain app.main.Store (stored)
 
 fn fetch!() -> usize $ Store:
     $.use(Store).get().len()

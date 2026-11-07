@@ -23,7 +23,7 @@ impl Recorder for Log:
 fn tick(s: string) -> usize $ Recorder:
     rec := $.use(Recorder)
 > app/main/tick
->   retain app.main.Recorder (conservative: ProviderGet)
+>   retain app.main.Recorder (stored)
     rec.note(s)
 >   retain app.main.Recorder (second owner)
     rec.total()

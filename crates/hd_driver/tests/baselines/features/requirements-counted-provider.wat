@@ -5,11 +5,12 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 9 funcref))
   (func $holder (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32)
-    ;; 18 |     Holder { store: $.use(Store) }
     block
+    ;; 18 |     Holder { store: $.use(Store) }
       local.get $provider0
       call $retain
     end
+    ;; (no span)
     local.get $provider0
     local.get $provider0.vtable
   )
@@ -99,11 +100,12 @@
     end
   )
   (func $keep (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32)
-    ;; 15 |     $.use(Store)
     block
+    ;; 15 |     $.use(Store)
       local.get $provider0
       call $retain
     end
+    ;; (no span)
     local.get $provider0
     local.get $provider0.vtable
   )
