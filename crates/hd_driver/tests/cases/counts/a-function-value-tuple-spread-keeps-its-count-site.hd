@@ -1,0 +1,10 @@
+# @dump: own counts wat
+# @build: v8 release
+# expected: the tuple's counted fields copy into owned parameters; these argument copies still name CallValue until #1424 states them too.
+use std.function.{Fn, Tuple}
+
+fn call[Args < Tuple, O](f: Fn[Args, O, $ ()], args: Args) -> O:
+    f(args...)
+
+fn through(f: fn(string, List[i32]) -> usize, text: string, values: List[i32]) -> usize:
+    call(f, (text, values))
