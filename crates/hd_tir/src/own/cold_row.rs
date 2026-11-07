@@ -1,6 +1,7 @@
-//! The requirement row captured by a source function's cold frame.
+//! The requirement row captured by a source function's frame.
 //!
-//! The declaration copies the frame-owned portion of that ABI row.
+//! Cold construction and fresh materialization each copy the frame-owned
+//! portion of that ABI row at their separate allocation boundaries.
 //! Its instance layout supplies provider data and any open-row context;
 //! a layout that owns no counts lowers no copy.
 
@@ -70,10 +71,10 @@ mod tests {
     }
 
     #[test]
-    fn a_source_cold_row_is_declared_once_and_other_abis_are_separate() {
+    fn source_rows_are_declared_once_per_allocation_boundary_and_other_abis_are_separate() {
         for (kind, row, suspends, declared, count) in [
-            (BodyKind::Fn, true, true, true, 1),
-            (BodyKind::DeriveInstance, true, true, true, 1),
+            (BodyKind::Fn, true, true, true, 2),
+            (BodyKind::DeriveInstance, true, true, true, 2),
             (BodyKind::Fn, false, true, true, 0),
             (BodyKind::Fn, true, false, true, 0),
             (BodyKind::Fn, true, true, false, 0),
@@ -95,6 +96,30 @@ mod tests {
             let text = crate::ir::print(&b);
             assert_eq!(crate::ir::print(&crate::ir::parse(&text).unwrap()), text);
         }
+    }
+
+    #[test]
+    fn materialization_cannot_use_the_constructors_copy_contract() {
+        use crate::ir::count::{At, Info, Part};
+        let (mut b, facts) = (
+            body(BodyKind::Fn),
+            Facts {
+                row: true,
+                suspends: true,
+                declared: true,
+            },
+        );
+        let topo = Topology::new(&b);
+        run(&mut b, &facts, &topo, &mut splice::Tables::default()).unwrap();
+        let retain = (0..b.len())
+            .find(|&i| Info::read(&b, i) == Some(Info::new(At::Materialize, Part::Row, 0)))
+            .unwrap();
+        b.extra[b.data[retain][1] as usize + 1] = At::Cold as u32;
+        assert!(
+            verify_owned(&b, &facts)
+                .iter()
+                .any(|e| e.what.contains("absent or repeated"))
+        );
     }
 
     #[test]

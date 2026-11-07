@@ -12,6 +12,7 @@ pub enum At {
     Cold,
     CacheRead,
     CacheWrite,
+    Materialize,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -53,6 +54,7 @@ impl Info {
             4 => At::Cold,
             5 => At::CacheRead,
             6 => At::CacheWrite,
+            7 => At::Materialize,
             _ => return None,
         };
         let part = match (part, index) {

@@ -21,7 +21,9 @@ fn expected(b: &Body, cx: &dyn OwnCx) -> Vec<(Tag, Info)> {
         }
     }
     if cold_row::needed(b, cx) {
-        out.push((Tag::Retain, Info::new(At::Cold, Part::Row, 0)));
+        for at in [At::Cold, At::Materialize] {
+            out.push((Tag::Retain, Info::new(at, Part::Row, 0)));
+        }
     }
     if cache::counted(b, cx) {
         for at in [At::CacheRead, At::CacheWrite] {

@@ -109,6 +109,8 @@ pub(super) fn plan(b: &Body, root: u32) -> Plan {
 
 /// The state machine of the body being emitted.
 pub(super) struct Susp {
+    /// This body's physical parameters use its declared source ABI.
+    pub source: bool,
     /// The instance whose parts the frame names.
     pub key: Hash128,
     /// The resume point: 0 on the fresh path.
@@ -313,16 +315,30 @@ impl Em<'_, '_, '_> {
         self.f.helper(Helper::Frame(key));
         self.f.set(FRAME);
         self.flags_or(FRAME, RUNNING);
+        if self.susp.as_ref().is_some_and(|s| s.source) {
+            if let Some(reason) =
+                self.stated_count(Tag::Retain, CountAt::Materialize, CountPart::Row)
+            {
+                self.because(reason, |em| em.retain_row(0));
+            }
+        } else {
+            self.retain_row(0);
+        }
+        self.f.op(I::End);
+        Ok(())
+    }
+
+    /// Copies provider data and the open context in this physical row ABI.
+    /// A cold constructor omits the body's frame parameter (shift 1).
+    fn retain_row(&mut self, shift: u32) {
         for d in self
             .susp
             .as_ref()
             .map(|s| s.provs.clone())
             .unwrap_or_default()
         {
-            self.ref_retain(d);
+            self.ref_retain(d - shift);
         }
-        self.f.op(I::End);
-        Ok(())
     }
 
     fn susp_key(&self) -> StageResult<Hash128> {
@@ -1397,7 +1413,7 @@ pub(super) fn finish(
     // keeps it.
     // A declared source ABI states argument and requirement-row copies.
     // Lifted closures and other generated ABIs remain separate kinds.
-    let source = em.counting && closure.is_none() && em.source_parameters(plocals.len());
+    let source = em.counting && em.susp.as_ref().is_some_and(|s| s.source);
     if em.counting {
         for &l in plocals {
             let ls: Vec<u32> = em.locals[&l].iter().map(|x| x - 1).collect();
@@ -1450,16 +1466,7 @@ pub(super) fn finish(
             Some(Reason::Conservative("cold constructor"))
         };
         if let Some(reason) = copy {
-            em.because(reason, |em| {
-                for d in em
-                    .susp
-                    .as_ref()
-                    .map(|s| s.provs.clone())
-                    .unwrap_or_default()
-                {
-                    em.ref_retain(d - 1);
-                }
-            });
+            em.because(reason, |em| em.retain_row(1));
         }
     }
     // A closure's code reads its captures from its environment, its first

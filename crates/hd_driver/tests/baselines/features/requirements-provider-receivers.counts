@@ -41,10 +41,10 @@ fn count_later!(n: i64, wait: mut Suspend[void]) -> void $ Meter:
         wait!()
 >   retain Suspend[()] (conservative: copy read)
 >   retain counted reference (conservative: AwaitValue)
->   retain counted reference (conservative: AwaitValue)
->   retain counted reference (conservative: AwaitValue)
+>   retain counted reference (stored)
+>   retain counted reference (stored)
 >   release counted reference (conservative: AwaitValue)
->   retain counted reference (conservative: AwaitValue)
+>   retain counted reference (stored)
 >   release counted reference (conservative: AwaitValue)
 >   release Suspend[()] (cancelled)
 

@@ -2,10 +2,10 @@
 app/main/run
   retain string (stored)
   retain app.main.Wait (conservative: copy read)
-  retain counted reference (conservative: Await)
-  retain counted reference (conservative: Await)
+  retain counted reference (stored)
+  retain counted reference (stored)
   release counted reference (conservative: Await)
-  retain counted reference (conservative: Await)
+  retain counted reference (stored)
   release counted reference (conservative: Await)
   release app.main.Wait (cancelled)
   release app.main.Wait (last use)

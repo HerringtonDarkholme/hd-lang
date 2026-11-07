@@ -8,12 +8,13 @@ trait Value:
 fn read!() -> i32 $ Value:
     $.use(Value).value()
 > app/main/read
->   %0 = Retain %7 Cold row #0 : ()
->   %1 = ProviderGet #0 : Value
->   %2 = Retain %1 Value #0 : ()
->   %3 = Coerce %1 [ProviderAsRef -] : Ref[Value]
->   %4 = Read borrow [*%3] : Value
->   %5 = Drop [%3] : ()
->   %6 = Call app/main/Value.value for Value [] via TraitValue (%4) : i32
->   %7 = Block %6 : i32
+>   %0 = Retain %8 Cold row #0 : ()
+>   %1 = Retain %8 Materialize row #0 : ()
+>   %2 = ProviderGet #0 : Value
+>   %3 = Retain %2 Value #0 : ()
+>   %4 = Coerce %2 [ProviderAsRef -] : Ref[Value]
+>   %5 = Read borrow [*%4] : Value
+>   %6 = Drop [%4] : ()
+>   %7 = Call app/main/Value.value for Value [] via TraitValue (%5) : i32
+>   %8 = Block %7 : i32
 >   summary none

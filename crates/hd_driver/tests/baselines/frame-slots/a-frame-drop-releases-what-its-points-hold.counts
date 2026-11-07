@@ -19,10 +19,10 @@ fn total(a: string, b: string) -> usize:
 fn pause!() -> string $ Clock:
     sleep!(ms(1))
 > app/main/pause
->   retain counted reference (conservative: Await)
->   retain counted reference (conservative: Await)
+>   retain counted reference (stored)
+>   retain counted reference (stored)
 >   release counted reference (conservative: Await)
->   retain counted reference (conservative: Await)
+>   retain counted reference (stored)
 >   release counted reference (conservative: Await)
 > app/main/pause
 >   release string (cancelled)
@@ -36,10 +36,10 @@ fn pause!() -> string $ Clock:
 fn holds!() -> usize $ Clock:
     total(text(1), pause!())
 > app/main/holds
->   retain counted reference (conservative: Await)
->   retain counted reference (conservative: Await)
+>   retain counted reference (stored)
+>   retain counted reference (stored)
 >   release counted reference (conservative: Await)
->   retain counted reference (conservative: Await)
+>   retain counted reference (stored)
 >   release counted reference (conservative: Await)
 >   release string (cancelled)
 >   release string (last use)
@@ -63,9 +63,9 @@ fn gone!() -> usize $ Clock:
 > app/main/gone
 >   retain counted reference (stored)
     sleep!(ms(1))
->   retain counted reference (conservative: Await)
->   retain counted reference (conservative: Await)
+>   retain counted reference (stored)
+>   retain counted reference (stored)
 >   release counted reference (conservative: Await)
->   retain counted reference (conservative: Await)
+>   retain counted reference (stored)
 >   release counted reference (conservative: Await)
     n

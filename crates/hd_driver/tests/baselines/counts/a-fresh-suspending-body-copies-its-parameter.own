@@ -8,23 +8,24 @@ fn after!(text: string) -> usize $ Clock:
 > app/main/after
 >   local $0 text: string [param read captured] place
 >   local $1 count: i64 [read] value
->     uses $1: %3 -> %4 lend last
->   %0 = Retain %14 Cold local $0 #0 : ()
->   %1 = Retain %14 Entry local $0 #0 : ()
+>     uses $1: %4 -> %5 lend last
+>   %0 = Retain %15 Cold local $0 #0 : ()
+>   %1 = Retain %15 Entry local $0 #0 : ()
     sleep!(ms(1))
->   %2 = Retain %14 Cold row #0 : ()
->   %3 = Store [$1] 1:i64 : ()
->   %4 = Read copy [$1] : i64
->   %5 = Call std/time/impl Duration.milliseconds[] (%4) : Duration
->   %6 = Break L0 %5 : never
->   %7 = Block - : Duration
->   %8 = Scope %7 [] : Duration
->   %9 = Await std/time/sleep[] (%8) : ()
->   %14 = Block %11 : usize
+>   %2 = Retain %15 Cold row #0 : ()
+>   %3 = Retain %15 Materialize row #0 : ()
+>   %4 = Store [$1] 1:i64 : ()
+>   %5 = Read copy [$1] : i64
+>   %6 = Call std/time/impl Duration.milliseconds[] (%5) : Duration
+>   %7 = Break L0 %6 : never
+>   %8 = Block - : Duration
+>   %9 = Scope %8 [] : Duration
+>   %10 = Await std/time/sleep[] (%9) : ()
+>   %15 = Block %12 : usize
     text.len()
->   %10 = Ref local [$0] : Counted[string]
->   %11 = Call std/text/impl string.len[] (%10) : usize
->   %12 = Drop [%10] : ()
->   %13 = Drop [$0] : ()
+>   %11 = Ref local [$0] : Counted[string]
+>   %12 = Call std/text/impl string.len[] (%11) : usize
+>   %13 = Drop [%11] : ()
+>   %14 = Drop [$0] : ()
 >   exit sub 0 drops [$0]
 >   summary none
