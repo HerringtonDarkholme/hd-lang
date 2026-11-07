@@ -24,7 +24,7 @@ fn construct(key: string) -> usize:
 fn run_twice!(body: fn!() -> string) -> usize:
     body!().len() + body!().len()
 > app/main/run_twice
->   retain fn!() -> string (conservative: entry)
+>   retain fn!() -> string (stored)
 >   retain counted reference (conservative: AwaitValue)
 >   release counted reference (conservative: AwaitValue)
 >   release counted reference (conservative: AwaitValue)
@@ -56,7 +56,7 @@ fn run_twice!(body: fn!() -> string) -> usize:
 fn closure_bang!(key: string) -> usize:
     run_twice!():
 > app/main/closure_bang
->   retain string (conservative: entry)
+>   retain string (stored)
 >   release counted reference (conservative: Await)
 >   release counted reference (conservative: Await)
 >   release fn!() -> string (cancelled)
@@ -93,7 +93,7 @@ fn closure_bang!(key: string) -> usize:
 fn stored!(key: string) -> usize:
     loader := fn!(k: string) -> string: fetch!(k)
 > app/main/stored
->   retain string (conservative: entry)
+>   retain string (stored)
 >   release Suspend[string] (last use)
 >   release string (last use)
 >   release fn!(string) -> string (last use)

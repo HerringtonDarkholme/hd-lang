@@ -1,4 +1,4 @@
-//! Declared parameters copied into their cold suspension frame.
+//! Declared parameters copied into a cold frame and its fresh body.
 //!
 //! A concrete `Drop` argument arrives owned instead; its physical ABI
 //! transfers that count and the declaration lowers no copy.
@@ -104,13 +104,43 @@ mod tests {
             for _ in 0..2 {
                 let topo = Topology::new(&b);
                 run(&mut b, &facts, &topo, &mut splice::Tables::default()).unwrap();
-                assert_eq!(b.tags.iter().filter(|&&t| t == Tag::Retain).count(), count);
+                for at in [crate::ir::count::At::Cold, crate::ir::count::At::Entry] {
+                    assert_eq!(
+                        (0..b.len())
+                            .filter(|&i| b.tags[i] == Tag::Retain
+                                && crate::ir::count::Info::read(&b, i).is_some_and(|c| c.at == at))
+                            .count(),
+                        count
+                    );
+                }
                 let errors = verify_owned(&b, &facts);
                 assert!(errors.is_empty(), "{errors:?}");
             }
             let text = crate::ir::print(&b);
             assert_eq!(crate::ir::print(&crate::ir::parse(&text).unwrap()), text);
         }
+    }
+
+    #[test]
+    fn the_constructor_copy_cannot_substitute_for_the_entry_copy() {
+        use crate::ir::count::{At, Info};
+        let facts = Facts {
+            suspends: true,
+            drop: Tri::No,
+            declared: true,
+        };
+        let mut b = body(Ty::STRING);
+        let topo = Topology::new(&b);
+        run(&mut b, &facts, &topo, &mut splice::Tables::default()).unwrap();
+        let entry = (0..b.len())
+            .find(|&i| Info::read(&b, i).is_some_and(|c| c.at == At::Entry))
+            .unwrap();
+        b.extra[b.data[entry][1] as usize + 1] = At::Cold as u32;
+        assert!(
+            verify_owned(&b, &facts)
+                .iter()
+                .any(|e| e.what.contains("absent or repeated"))
+        );
     }
 
     #[test]

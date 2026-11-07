@@ -5,7 +5,7 @@
 fn length!(text: string) -> usize:
     text.len()
 > app/main/length
->   retain string (conservative: entry)
+>   retain string (stored)
 >   release string (last use)
 > app/main/length
 >   release string (cancelled)

@@ -15,11 +15,11 @@ fn expected(b: &Body, cx: &dyn OwnCx) -> Vec<(Tag, Info)> {
             .into_iter()
             .map(|l| (Tag::Release, Info::new(At::Exit, Part::Local(l), 2))),
     );
-    out.extend(
-        cold::parameters(b, cx)
-            .into_iter()
-            .map(|l| (Tag::Retain, Info::new(At::Cold, Part::Local(l), 0))),
-    );
+    for l in cold::parameters(b, cx) {
+        for at in [At::Cold, At::Entry] {
+            out.push((Tag::Retain, Info::new(at, Part::Local(l), 0)));
+        }
+    }
     if cold_row::needed(b, cx) {
         out.push((Tag::Retain, Info::new(At::Cold, Part::Row, 0)));
     }

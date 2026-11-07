@@ -1,0 +1,20 @@
+# test: a direct suspension owns its parameters while pending and transfers the resumed result
+# expect-stdout: value1 value2 9
+use std.annotation.inline
+use std.time.{Clock, ms, sleep}
+
+@inline(.Never)
+fn word(n: i32) -> string:
+    "value$n"
+
+fn after![T](value: T) -> T $ Clock:
+    sleep!(ms(1))
+    value
+
+pub fn main!() -> void $ Clock + Console:
+    let text = word(1)
+    kept := after!(text)
+    text = word(2)
+    _ := after(word(3))
+    number := after!(+9)
+    println("$kept $text $number")
