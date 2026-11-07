@@ -488,6 +488,8 @@ fn build_for(
         level: level(),
         checked: fixture.checked,
         verify_own: true,
+        // A std fixture's file is a leaf of std, so its builds share the rest.
+        std_leaf: (fixture.package == "std").then_some(fixture.primary.as_str()),
         ..Packages::default()
     };
     build_packages(&host, fixture.package, &packages, goal)
