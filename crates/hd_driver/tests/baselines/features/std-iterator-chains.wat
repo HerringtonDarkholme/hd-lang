@@ -7,8 +7,8 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $loud (param $xs i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
-    block
     ;; 12 |     xs.iter()
+    block
       block
         block
           br 0
@@ -62,12 +62,11 @@
         end
       end
     end
-    ;; (no span)
     local.get $xs
   )
   (func $lens (param $xs i32) (result i32) (local $t0 i32) (local $t1 i32)
-    block
     ;; 9 |     xs.iter().map(fn(s: string) -> usize: s.len()).collect()
+    block
       block
         block
           br 0
@@ -98,12 +97,11 @@
         end
       end
     end
-    ;; (no span)
     local.get $xs
   )
   (func $loud#2 (param $env i32) (param $s.0 i32) (param $s.1 i32) (param $ctx i32) (result i32 i32) (local $t0 i32)
-    block
     ;; 14 |         .map(fn(s: string) -> string: s + "!")
+    block
       local.get $s.1
       i32.const 1
       i32.add
@@ -120,13 +118,10 @@
       i32.const 65 ;; &"!"
       i32.load8_u $heap
       i32.store8 $heap
-    ;; (no span)
       local.get $s.0
       call $rt:release_ref
-    ;; 14 |         .map(fn(s: string) -> string: s + "!")
       local.get $ctx
       local.get $env
-    ;; (no span)
       local.set $s.0
       local.set $env
     end
@@ -134,8 +129,8 @@
     local.get $s.0
   )
   (func $lens#1 (param $env i32) (param $s.0 i32) (param $s.1 i32) (param $ctx i32) (result i32)
-    block
     ;; 9 |     xs.iter().map(fn(s: string) -> usize: s.len()).collect()
+    block
       block
         block
           local.get $s.1
@@ -143,16 +138,14 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $s.0
       call $rt:release_ref
     end
     local.get $env
   )
   (func $loud#1 (param $env i32) (param $s i32) (param $ctx i32) (result i32)
-    ;; 12 |     xs.iter()
-    block
     ;; 13 |         .filter(fn(s: &string) -> bool: s.len() > 2)
+    block
       block
         block
           local.get $s
@@ -164,7 +157,6 @@
       local.get $env
       i32.const 2
       i32.gt_u
-    ;; 12 |     xs.iter()
       local.set $env
     end
     local.get $env

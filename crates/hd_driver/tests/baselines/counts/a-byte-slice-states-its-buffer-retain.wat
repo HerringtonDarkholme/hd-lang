@@ -5,8 +5,8 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "table0" (table $table0 3 funcref))
   (func $through_function (param $text.0 i32) (param $text.1 i32) (result i32 i32) (local $t0 i32)
-    block
     ;; 14 |     slice_fn := bytes_slice
+    block
       i32.const 0
     ;; 15 |     slice_fn(text, 0, 1)
       local.set $t0
@@ -18,7 +18,7 @@
       i32.const 0
       local.get $t0
       call_indirect $table0 (param i32 i32 i32 i32 i32 i32) (result i32 i32)
-    ;; (no span)
+    ;; 14 |     slice_fn := bytes_slice
       local.set $text.1
       local.set $text.0
     end
@@ -26,8 +26,8 @@
     local.get $text.1
   )
   (func $slice (param $text.0 i32) (param $text.1 i32) (param $start i32) (param $end i32) (result i32 i32)
-    block
     ;; 8 |     bytes_slice(text, start, end)
+    block
       local.get $start
       local.get $end
       i32.gt_u
@@ -54,15 +54,14 @@
       local.tee $text.1
       call $retain
     end
-    ;; (no span)
     local.get $text.0
     call $rt:release_ref
     local.get $text.1
     local.get $start
   )
   (func $discard_empty (param $text.0 i32) (param $text.1 i32)
-    block
     ;; 11 |     _ := bytes_slice(text, 0, 0)
+    block
       i32.const 0
       i32.const 0
       i32.gt_u
@@ -75,7 +74,6 @@
         unreachable
       end
     end
-    ;; (no span)
     local.get $text.0
     call $rt:release_ref
   )

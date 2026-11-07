@@ -5,7 +5,7 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $absent (param $t1 i32) (param $t2 i32) (param $t3 i32) (result i32) (local $t0 i32) (local $value i32) (local $t4 i32)
-    ;; (no span)
+    ;; 6 |     value == .None
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -51,7 +51,6 @@
     local.get $t3
     i32.store $heap offset=8
     block
-    ;; 6 |     value == .None
       block
         block
           block
@@ -69,7 +68,6 @@
         end
         br 0
       end
-    ;; (no span)
       local.get $value
       if
         local.get $value
@@ -90,7 +88,7 @@
     global.set $locals
   )
   (func $present (param $t1 i32) (param $t2 i32) (param $t3 i32) (result i32) (local $t0 i32) (local $value i32) (local $t4 i32)
-    ;; (no span)
+    ;; 9 |     value != .None
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -136,7 +134,6 @@
     local.get $t3
     i32.store $heap offset=8
     block
-    ;; 9 |     value != .None
       block
         block
           block
@@ -154,7 +151,6 @@
         local.set $t4
         br 0
       end
-    ;; (no span)
       local.get $value
       if
         local.get $value
@@ -184,8 +180,8 @@
     local.get $value
   )
   (func $none_first (param $value.0 i32) (param $value.1 i32) (param $value.2 i32) (result i32) (local $t0 i32)
-    block
     ;; 12 |     .None == value
+    block
       block
         block
           block
@@ -202,15 +198,14 @@
         end
         br 0
       end
-    ;; (no span)
       local.get $t0
       local.set $value.0
     end
     local.get $value.0
   )
   (func $none_first_ne (param $value.0 i32) (param $value.1 i32) (param $value.2 i32) (result i32) (local $t0 i32)
-    block
     ;; 15 |     .None != value
+    block
       block
         block
           block
@@ -227,15 +222,14 @@
         local.set $t0
         br 0
       end
-    ;; (no span)
       local.get $t0
       local.set $value.0
     end
     local.get $value.0
   )
   (func $"generic[string]" (param $value i32) (result i32) (local $t0 i32)
-    block
     ;; 18 |     value == .None
+    block
       block
         block
           block
@@ -253,7 +247,6 @@
         end
         br 0
       end
-    ;; (no span)
       local.get $t0
       local.set $value
     end

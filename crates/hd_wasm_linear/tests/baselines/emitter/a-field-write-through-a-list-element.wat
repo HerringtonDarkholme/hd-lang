@@ -4,14 +4,13 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "heap" (memory $heap 1))
   (func $place (param $bodies i32) (param $i i32) (param $x f64)
+    ;; 7 |     bodies[i].x = x
     block
-    ;; (no span)
       local.get $bodies
       local.get $bodies
       i32.load $heap
       call $rt:list_unique
       i32.store $heap
-    ;; 7 |     bodies[i].x = x
       local.get $bodies
       i32.load $heap
       local.set $bodies

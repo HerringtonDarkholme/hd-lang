@@ -22,14 +22,14 @@ impl Text:
 fn temp(n: i32) -> usize:
     make(n).size()
 > app/main/temp
->   (no span) release app.main.Text [s.0] (last use)
+>   release app.main.Text [s.0] (last use)
 
 fn twice(n: i32) -> usize:
     let t = make(n)
+> app/main/twice
+>   release app.main.Text [s.0] (last use)
     let a = t.size()
     a + t.size()
-> app/main/twice
->   (no span) release app.main.Text [s.0] (last use)
 
 fn param(t: Text) -> usize:
     t.size()
@@ -43,4 +43,4 @@ impl Name:
 fn named(n: i32) -> usize:
     Name("n${n}").width()
 > app/main/named
->   (no span) release app.main.Name (last use)
+>   release app.main.Name (last use)

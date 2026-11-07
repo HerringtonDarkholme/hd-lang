@@ -26,8 +26,8 @@
     local.get $s
   )
   (func $queue (param $q i32) (param $a.0 i32) (param $a.1 i32) (result i32) (local $t0 i32)
-    block
     ;; 15 |     q.push_back(a)
+    block
       local.get $q
       local.get $a.0
       local.get $a.1
@@ -67,7 +67,7 @@
         end
         br 0
       end
-    ;; (no span)
+    ;; 15 |     q.push_back(a)
       local.get $q
       local.get $a.0
       local.get $a.1
@@ -78,8 +78,8 @@
     local.get $q
   )
   (func $top (param $h i32) (param $a.0 i32) (param $a.1 i32) (result i32) (local $t0 i32)
-    block
     ;; 21 |     h.push(a)
+    block
       local.get $h
       local.get $a.0
       local.get $a.1
@@ -119,7 +119,7 @@
         end
         br 0
       end
-    ;; (no span)
+    ;; 21 |     h.push(a)
       local.get $h
       local.get $a.0
       local.get $a.1

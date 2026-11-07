@@ -8,7 +8,7 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $run (param $steps i64) (result f64) (local $t3 f64) (local $bodies i32) (local $t1 i32) (local $t0 i32) (local $t2 i64)
-    ;; (no span)
+    ;; 21 |     let mut bodies = [Body { x: 1.0, vx: 2.0 }, Body { x: 3.0, vx: 4.0 }]
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -39,7 +39,6 @@
     local.tee $t0
     global.set $locals
     block
-    ;; 21 |     let mut bodies = [Body { x: 1.0, vx: 2.0 }, Body { x: 3.0, vx: 4.0 }]
       i32.const 2
       call $rt:list_buf
       local.tee $bodies
@@ -96,7 +95,7 @@
       local.get $bodies
       call $first
       local.set $t3
-    ;; (no span)
+    ;; 21 |     let mut bodies = [Body { x: 1.0, vx: 2.0 }, Body { x: 3.0, vx: 4.0 }]
       local.get $bodies
       if
         local.get $bodies

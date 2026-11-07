@@ -6,8 +6,8 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $count_while (param $xs i32) (result i32) (local $i i32) (local $n i32) (local $t0 i32)
-    block
     ;; 7 |     let i: usize = 0
+    block
       i32.const 0
       local.set $i
     ;; 8 |     let n: usize = 0
@@ -62,14 +62,14 @@
       end
     ;; 12 |     n
       local.get $n
-    ;; (no span)
+    ;; 7 |     let i: usize = 0
       local.set $xs
     end
     local.get $xs
   )
   (func $build_while (param $s.0 i32) (param $s.1 i32) (param $k i32) (result i32 i32) (local $out.0 i32) (local $out.1 i32) (local $i i32)
-    block
     ;; 15 |     let out = s
+    block
       local.get $s.0
       call $retain
       local.get $s.0
@@ -101,13 +101,13 @@
           br 0
         end
       end
-    ;; (no span)
+    ;; 15 |     let out = s
       local.get $s.0
       call $rt:release_ref
     ;; 20 |     out
       local.get $out.0
       local.get $out.1
-    ;; (no span)
+    ;; 15 |     let out = s
       local.set $s.1
       local.set $s.0
     end

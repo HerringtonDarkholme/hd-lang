@@ -8,18 +8,16 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 4 funcref))
   (func $is_user (param $value.0 i32) (param $value.1 i32) (result i32)
-    block
     ;; 18 |     value.runtime_type() == TypeId::of::[User]()
+    block
       local.get $value.0
       call $retain
       local.get $value.0
       local.get $value.1
       i32.load $heap
       call_indirect $table0 (param i32) (result i32)
-    ;; (no span)
       local.get $value.0
       call $rt:release_ref
-    ;; 18 |     value.runtime_type() == TypeId::of::[User]()
       call $rt:type_id
       local.set $value.0
       local.set $value.1
@@ -33,12 +31,11 @@
         end
       end
     end
-    ;; (no span)
     local.get $value.0
   )
   (func $user_name (param $value.0 i32) (param $value.1 i32) (result i32 i32)
-    block
     ;; 13 |     match value.downcast_ref::[User]():
+    block
       local.get $value.0
       local.get $value.1
       i32.load $heap
@@ -88,13 +85,12 @@
         br 0
       end
     end
-    ;; (no span)
     local.get $value.0
     local.get $value.1
   )
   (func $erase (param $u.name.0 i32) (param $u.name.1 i32) (result i32 i32) (local $t0 i32)
-    block
     ;; 21 |     box(u)
+    block
       i32.const 8
       i32.const 3
       call $rt:new/class-1
@@ -106,7 +102,6 @@
       i32.store $heap offset=4
       local.get $t0
       i32.const 216 ;; &vtable[func39]
-    ;; (no span)
       local.set $u.name.1
       local.set $u.name.0
     end

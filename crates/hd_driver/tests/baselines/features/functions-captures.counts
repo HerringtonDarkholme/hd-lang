@@ -12,36 +12,36 @@ fn copied(s: string) -> usize:
     f := fn() -> usize: s.len()
 > app/main/copied
 >   retain counted reference (conservative: Closure)
+>   release fn() -> usize (last use)
+>   release string (last use)
     f() + s.len()
->   (no span) release fn() -> usize (last use)
->   (no span) release string (last use)
 
 fn shared_list(s: string) -> usize:
     let mut xs: List[string] = []
+> app/main/shared_list
+>   release fn() -> () (last use)
+>   release List[string] (last use)
+>   release List[string] (last use)
     add := fn() -> void: xs.push(s)
 > app/main/shared_list
 >   retain string (conservative: entry)
 >   unique List[string] (conservative: unique)
-> app/main/shared_list
 >   retain counted reference (conservative: Closure)
     add()
     add()
     xs.len()
 >   copy List[string] (conservative: copy read)
->   (no span) release fn() -> () (last use)
->   (no span) release List[string] (last use)
->   (no span) release List[string] (last use)
 
 fn copy_shares(s: string) -> usize:
     let n: usize = 0
-    inc := fn() -> void: n += s.len()
 > app/main/copy_shares
+>   release fn() -> () (last use)
+    inc := fn() -> void: n += s.len()
 >   retain counted reference (conservative: Closure)
     again := inc
     inc()
     again()
     n
->   (no span) release fn() -> () (last use)
 
 fn through_ptr(items: *mut List[string], s: string) -> fn() -> void:
     fn() -> void: items.push(s)

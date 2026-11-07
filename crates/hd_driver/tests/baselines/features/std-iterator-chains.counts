@@ -9,12 +9,12 @@
 fn lens(xs: List[string]) -> List[usize]:
     xs.iter().map(fn(s: string) -> usize: s.len()).collect()
 > app/main/lens
->   (no span) release string (last use)
+>   release string (last use)
 
 fn loud(xs: List[string]) -> List[string]:
     xs.iter()
         .filter(fn(s: &string) -> bool: s.len() > 2)
         .map(fn(s: string) -> string: s + "!")
 > app/main/loud
->   (no span) release string (last use)
+>   release string (last use)
         .collect()

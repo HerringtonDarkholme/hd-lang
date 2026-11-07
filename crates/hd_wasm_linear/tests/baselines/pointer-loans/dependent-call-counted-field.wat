@@ -16,8 +16,8 @@
     local.get $p
   )
   (func $replace (param $h i32) (param $alias i32) (param $next i32) (result i32 i32) (local $d i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
-    block
     ;; 13 |     d := name_of(h.p)
+    block
       local.get $h
       i32.const 4
       i32.sub
@@ -64,7 +64,6 @@
       i32.eq
       if
       end
-    ;; (no span)
       local.get $h
       call $rt:release_ref
     ;; 14 |     alias.p = next
@@ -94,7 +93,7 @@
       i32.load $heap offset=4
       local.tee $alias
       call $rt:retain
-    ;; (no span)
+    ;; 13 |     d := name_of(h.p)
       local.get $t0
       if
         local.get $t0
@@ -117,7 +116,8 @@
         local.get $t1
         i32.const 1
         i32.eq
-        ;; ...
+        if
+        end
         i32.const 0
         local.set $t0
       end
@@ -143,7 +143,8 @@
         local.get $t1
         i32.const 1
         i32.eq
-        ;; ...
+        if
+        end
         i32.const 0
         local.set $t0
       end
@@ -170,14 +171,15 @@
       local.get $t1
       i32.const 1
       i32.eq
-      ;; ...
+      if
+      end
     end
     local.get $h
     local.get $alias
   )
   (func $replace_mut (param $h i32) (param $alias i32) (param $next i32) (result i32 i32) (local $d i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
-    block
     ;; 24 |     d := name_mut(h.p)
+    block
       local.get $h
       i32.const 4
       i32.sub
@@ -224,7 +226,6 @@
       i32.eq
       if
       end
-    ;; (no span)
       local.get $h
       call $rt:release_ref
     ;; 25 |     alias.p = next
@@ -254,7 +255,7 @@
       i32.load $heap offset=4
       local.tee $alias
       call $rt:retain
-    ;; (no span)
+    ;; 24 |     d := name_mut(h.p)
       local.get $t0
       if
         local.get $t0
@@ -277,7 +278,8 @@
         local.get $t1
         i32.const 1
         i32.eq
-        ;; ...
+        if
+        end
         i32.const 0
         local.set $t0
       end
@@ -303,7 +305,8 @@
         local.get $t1
         i32.const 1
         i32.eq
-        ;; ...
+        if
+        end
         i32.const 0
         local.set $t0
       end
@@ -330,7 +333,8 @@
       local.get $t1
       i32.const 1
       i32.eq
-      ;; ...
+      if
+      end
     end
     local.get $h
     local.get $alias

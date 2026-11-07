@@ -23,7 +23,7 @@
     i32.const 0
   )
   (func $tag (param $label.0 i32) (param $label.1 i32) (param $t1 i64) (result i32 i32) (local $t0 i32) (local $level i32) (local $t2 i32) (local $t3 i64) (local $t4 i32) (local $t5 i32) (local $t6 i32)
-    ;; (no span)
+    ;; 15 |     "${label}:${level}"
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -63,7 +63,6 @@
     local.get $t1
     i64.store $heap
     block
-    ;; 15 |     "${label}:${level}"
       block
         block
           local.get $label.1
@@ -160,7 +159,6 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $t5
       local.get $t6
       local.set $label.1
@@ -174,7 +172,7 @@
     global.set $locals
   )
   (func $direct (param $raw.0 i32) (param $raw.1 i32) (result i32 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32) (local $t0 i32) (local $t4 i64) (local $t6 i32) (local $t5 i32)
-    ;; (no span)
+    ;; 24 |     tag(clean(raw), 2)
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -205,7 +203,6 @@
     local.tee $t0
     global.set $locals
     block
-    ;; 24 |     tag(clean(raw), 2)
       block
         block
           i32.const 1
@@ -299,7 +296,6 @@
           call $rt:release_ref
         end
       end
-    ;; (no span)
       local.get $raw.0
       call $rt:release_ref
       local.get $raw.1
@@ -315,8 +311,8 @@
     global.set $locals
   )
   (func $method_slot (param $raw.0 i32) (param $raw.1 i32) (result i32)
-    block
     ;; 27 |     raw |> _.len()
+    block
       block
         block
           local.get $raw.1
@@ -325,11 +321,10 @@
         end
       end
     end
-    ;; (no span)
     local.get $raw.0
   )
   (func $chain (param $raw.0 i32) (param $raw.1 i32) (result i32 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32) (local $t0 i32) (local $t4 i64) (local $t6 i32) (local $t5 i32)
-    ;; (no span)
+    ;; 21 |     raw |> clean |> tag(_, 2)
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -360,7 +355,6 @@
     local.tee $t0
     global.set $locals
     block
-    ;; 21 |     raw |> clean |> tag(_, 2)
       block
         block
           i32.const 1
@@ -454,7 +448,6 @@
           call $rt:release_ref
         end
       end
-    ;; (no span)
       local.get $raw.0
       call $rt:release_ref
       local.get $raw.1
@@ -470,8 +463,8 @@
     global.set $locals
   )
   (func $clean (param $raw.0 i32) (param $raw.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
-    block
     ;; 12 |     "[${raw}]"
+    block
       block
         block
           local.get $raw.1
@@ -539,7 +532,6 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $t2
       local.get $t3
       local.set $raw.1
@@ -549,8 +541,8 @@
     local.get $raw.1
   )
   (func $bare (param $raw.0 i32) (param $raw.1 i32) (result i32 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
-    block
     ;; 18 |     raw |> clean
+    block
       block
         block
           i32.const 1
@@ -591,7 +583,6 @@
         end
       end
     end
-    ;; (no span)
     local.get $raw.0
     local.get $raw.1
   )

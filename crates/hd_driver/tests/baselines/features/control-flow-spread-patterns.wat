@@ -39,8 +39,8 @@
     local.get $t.0.0
   )
   (func $total (param $t.0.0 i32) (param $t.0.1 i32) (param $t.1 i32) (result i32)
-    block
     ;; 8 |     let (a, xs...) = t
+    block
       block
         block
           br 0
@@ -60,7 +60,7 @@
       local.get $t.1
       i32.load $heap offset=4
       i32.add
-    ;; (no span)
+    ;; 8 |     let (a, xs...) = t
       local.set $t.0.0
     end
     local.get $t.0.0

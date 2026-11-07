@@ -9,11 +9,32 @@ use std.task.CleanupEnd
 
 fn fetch!(key: string) -> string:
     key + "?"
+> app/main/fetch
+>   release string (cancelled)
+> app/main/fetch
+>   release string (conservative: frame drop)
+>   release string (conservative: frame drop)
+>   release counted reference (conservative: frame drop)
+> app/main/fetch
+>   retain string (conservative: cold constructor)
 
 fn stop!(key: string) -> bool:
     let mut job = fetch(key)
 > app/main/stop
+>   retain string (conservative: entry)
+>   release string (last use)
 >   release Suspend[string] (overwritten)
+>   release Suspend[string] (last use)
+>   release string (last use)
+> app/main/stop
+>   release string (conservative: frame drop)
+>   release Suspend[string] (conservative: frame drop)
+>   release Suspend[string] (conservative: frame drop)
+>   release string (conservative: frame drop)
+>   release Suspend[string] (conservative: frame drop)
+>   release counted reference (conservative: frame drop)
+> app/main/stop
+>   retain string (conservative: cold constructor)
     end := job.cancel!()
 >   release counted reference (conservative: Await)
 >   release counted reference (conservative: Await)
@@ -21,13 +42,9 @@ fn stop!(key: string) -> bool:
     match end:
         .Finished => true
         .Abandoned => false
->   (no span) retain string (conservative: entry)
->   (no span) release string (last use)
->   (no span) release Suspend[string] (last use)
->   (no span) release string (last use)
 
 fn drop_now(key: string) -> void:
     let mut job = fetch(key)
-    job.abandon()
 > app/main/drop_now
->   (no span) release Suspend[string] (last use)
+>   release Suspend[string] (last use)
+    job.abandon()

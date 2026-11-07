@@ -5,8 +5,8 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 2 funcref))
   (func $"impl Mapper.apply'1" (param $self i32) (param $x i32) (result i32) (local $t0 i32)
-    block
     ;; 18 |         (self.transform)(x)
+    block
       local.get $self
       i32.load $heap
       local.get $self
@@ -20,7 +20,6 @@
       i32.const 0
       local.get $self
       call_indirect $table0 (param i32 i32 i32) (result i32)
-    ;; (no span)
       local.get $t0
       call $rt:release_ref
       local.set $self
@@ -40,13 +39,12 @@
     local.get $self.transform.0
   )
   (func $run (param $m.transform.0 i32) (param $m.transform.1 i32) (param $x i32) (result i32)
-    block
     ;; 21 |     m.apply(x)
+    block
       local.get $m.transform.0
       local.get $m.transform.1
       local.get $x
       call $"impl Mapper.apply'2"
-    ;; (no span)
       local.get $m.transform.1
       call $rt:release_ref
       local.set $m.transform.0

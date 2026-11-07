@@ -29,23 +29,23 @@ impl Parser:
 
     fn snapshot(&mut self, n: usize) -> usize:
         let mut last: List[usize] = []
-        for i in 0..n:
 > app/main/impl Parser.snapshot
+>   release List[usize] (last use)
+        for i in 0..n:
 >   unique List[usize] (conservative: unique)
             last = self.index
 >   copy List[usize] (stored)
 >   release List[usize] (overwritten)
             self.index[i] = self.held
         last.len()
->   (no span) release List[usize] (last use)
 
 pub fn main() -> void $ Console:
     let mut p = Parser { index: [], pending: [], held: 0 }
+> app/main/main
+>   release app.main.Parser [index, pending] (last use)
     for i in 0..4:
         p.pending.push(i)
     p.held = 4
     p.drain_into(0)
     p.refill(2)
     println("${p.index.len()} ${p.snapshot(2)}")
-> app/main/main
->   (no span) release app.main.Parser [index, pending] (last use)

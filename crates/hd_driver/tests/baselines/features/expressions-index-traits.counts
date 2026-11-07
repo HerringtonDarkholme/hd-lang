@@ -23,7 +23,7 @@ impl IndexSet[usize, string] for Names:
 fn read_len(n: Names, i: usize) -> usize:
     n[i].len()
 > app/main/read_len
->   (no span) release app.main.Names (last use)
+>   release app.main.Names (last use)
 
 fn write(n: &mut Names, i: usize, s: string) -> void:
     n[i] = s
@@ -35,5 +35,5 @@ fn generic_first(xs: List[string]) -> usize:
     first(xs).len()
 > app/main/generic_first
 >   retain counted reference (stored)
->   (no span) release List[string] (last use)
->   (no span) release string (last use)
+>   release List[string] (last use)
+>   release string (last use)

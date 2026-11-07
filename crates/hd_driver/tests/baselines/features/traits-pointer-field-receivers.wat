@@ -8,8 +8,8 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 3 funcref))
   (func $"impl Step for Erased.step'1" (param $self i32) (result i32 i64) (local $t1 i64) (local $t0 i32)
-    block
     ;; 32 |         self.source.step()
+    block
       local.get $self
       i32.load $heap
       local.get $self
@@ -21,7 +21,6 @@
       local.get $t0
       i32.load $heap
       call_indirect $table0 (param i32) (result i32 i64)
-    ;; (no span)
       local.get $self
       call $rt:release_ref
       local.set $t1
@@ -80,8 +79,8 @@
     local.get $t0
   )
   (func $count (param $n i64) (result i64) (local $t0 i32)
-    block
     ;; 44 |     total(Erased { source: box(Counter { at: 0, end: n }) })
+    block
       i32.const 16
       i32.const 0
       call $rt:new/class-2
@@ -94,13 +93,12 @@
       local.get $t0
       i32.const 160 ;; &vtable[func38]
       call $total
-    ;; (no span)
       local.set $n
     end
     local.get $n
   )
   (func $total (param $items.source.0 i32) (param $items.source.1 i32) (result i64) (local $sum i64) (local $t0 i32) (local $t1 i32) (local $x i64)
-    ;; (no span)
+    ;; 35 |     let mut cursor = items
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -131,7 +129,6 @@
     local.tee $t0
     global.set $locals
     block
-    ;; 35 |     let mut cursor = items
       local.get $t0
       i64.const 0
       i64.store $heap
@@ -191,7 +188,7 @@
           br 0
         end
       end
-    ;; (no span)
+    ;; 35 |     let mut cursor = items
       local.get $items.source.0
       if
         local.get $items.source.0

@@ -12,13 +12,13 @@ fn list_of(a: string, b: string) -> List[string]:
 fn list_spread(xs: List[string], s: string) -> List[string]:
     [xs..., s]
 > app/main/list_spread
->   (no span) release List[string] (last use)
+>   release List[string] (last use)
 
 fn list_spread_two(xs: List[string], ys: List[string]) -> List[string]:
     [xs..., ys...]
 > app/main/list_spread_two
->   (no span) release List[string] (last use)
->   (no span) release List[string] (last use)
+>   release List[string] (last use)
+>   release List[string] (last use)
 
 fn map_of(k: string, v: string) -> Map[string, string]:
     { k: v, "fixed": v }

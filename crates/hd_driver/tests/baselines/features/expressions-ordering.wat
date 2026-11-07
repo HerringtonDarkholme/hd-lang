@@ -11,7 +11,7 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $opt_ge (param $b i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (param $t4 i32) (param $t5 i32) (result i32) (local $t0 i32) (local $a i32)
-    ;; (no span)
+    ;; 15 |     a >= b
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -72,13 +72,11 @@
     local.get $t5
     i32.store $heap offset=8
     block
-    ;; 15 |     a >= b
       local.get $a
       local.get $b
       call $"impl [ T < ? Copy & PartialOrd ] PartialOrd for T ?.partial_cmp[string]"
       local.set $t2
       local.set $t1
-    ;; (no span)
       local.get $a
       if
         local.get $a
@@ -99,7 +97,6 @@
         i32.load $heap offset=8
         call $rt:release
       end
-    ;; 15 |     a >= b
       local.get $t1
       i32.const 1
       i32.eq
@@ -114,7 +111,6 @@
       else
         i32.const 0
       end
-    ;; (no span)
       local.set $b
     end
     local.get $b
@@ -124,8 +120,8 @@
     global.set $locals
   )
   (func $str_lt (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32)
-    block
     ;; 6 |     a < b
+    block
       block
         block
           i32.const 1
@@ -153,13 +149,12 @@
       else
         i32.const 0
       end
-    ;; (no span)
       local.set $a.0
     end
     local.get $a.0
   )
   (func $tuple_gt (param $b i32) (param $t1 i32) (param $t2 i64) (param $t3 i32) (param $t4 i32) (param $t5 i64) (result i32) (local $t0 i32) (local $a i32)
-    ;; (no span)
+    ;; 12 |     a > b
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -220,13 +215,11 @@
     local.get $t5
     i64.store $heap offset=8
     block
-    ;; 12 |     a > b
       local.get $a
       local.get $b
       call $"impl [ T < ? Copy & Tuple ] PartialOrd for T by Structure.partial_cmp[(string, i64)]"
       local.set $t3
       local.set $t1
-    ;; (no span)
       local.get $a
       if
         local.get $a
@@ -239,7 +232,6 @@
         i32.load $heap
         call $rt:release_ref'1
       end
-    ;; 12 |     a > b
       local.get $t1
       i32.const 1
       i32.eq
@@ -255,7 +247,6 @@
       else
         i32.const 0
       end
-    ;; (no span)
       local.set $b
     end
     local.get $b
@@ -265,7 +256,7 @@
     global.set $locals
   )
   (func $list_le (param $b i32) (param $t1 i32) (result i32) (local $t0 i32) (local $a i32) (local $t2 i32)
-    ;; (no span)
+    ;; 9 |     a <= b
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -314,13 +305,11 @@
     local.get $t1
     i32.store $heap
     block
-    ;; 9 |     a <= b
       local.get $a
       local.get $b
       call $"impl [ T < PartialOrd ] PartialOrd for List [ T ].partial_cmp[string]"
       local.set $t2
       local.set $t1
-    ;; (no span)
       local.get $a
       if
         local.get $a
@@ -333,7 +322,6 @@
         i32.load $heap
         call $rt:release_ref'2
       end
-    ;; 9 |     a <= b
       local.get $t1
       i32.const 1
       i32.eq
@@ -349,7 +337,6 @@
       else
         i32.const 0
       end
-    ;; (no span)
       local.set $b
     end
     local.get $b

@@ -19,23 +19,23 @@ impl Tag for Named:
 fn read_tag() -> usize $ Tag:
     $.use(Tag).name().len()
 > app/main/read_tag
->   (no span) release string (last use)
+>   release string (last use)
 
 fn with_tag[$ R](s: string, callback: fn() -> usize $ R + Tag) -> usize $ R:
     $.with(Tag=Named { label: s }):
 > app/main/with_tag
 >   retain app.main.Tag (stored)
+>   release &app.main.Tag (by design)
+>   release app.main.Tag (last use)
 > app/main/with_tag
 >   retain app.main.Tag (stored)
+>   release &app.main.Tag (by design)
+>   release app.main.Tag (last use)
         callback()
 >   retain counted reference (conservative: CallValue)
 >   release counted reference (conservative: CallValue)
->   (no span) release &app.main.Tag (by design)
->   (no span) release app.main.Tag (last use)
 >   retain counted reference (conservative: CallValue)
 >   release counted reference (conservative: CallValue)
->   (no span) release &app.main.Tag (by design)
->   (no span) release app.main.Tag (last use)
 
 fn run(s: string) -> usize:
     with_tag(s, read_tag)
@@ -43,4 +43,4 @@ fn run(s: string) -> usize:
 fn closure(s: string) -> usize:
     with_tag(s, fn() -> usize $ Tag: $.use(Tag).name().len())
 > app/main/closure
->   (no span) release string (last use)
+>   release string (last use)

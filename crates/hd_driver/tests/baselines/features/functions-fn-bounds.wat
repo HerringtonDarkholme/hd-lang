@@ -9,12 +9,11 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $fn_mut#1 (param $env i32) (param $x.0 i32) (param $x.1 i32) (param $ctx i32)
-    ;; (no span)
+    ;; 25 |     each(xs, fn(x: string) -> void: n += x.len())
     local.get $env
     i32.load $heap
     local.set $env
     block
-    ;; 25 |     each(xs, fn(x: string) -> void: n += x.len())
       local.get $env
       i32.load $heap
       local.set $ctx
@@ -23,10 +22,8 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $x.0
       call $rt:release_ref'1
-    ;; 25 |     each(xs, fn(x: string) -> void: n += x.len())
       local.get $env
       local.get $ctx
       local.get $x.1
@@ -35,8 +32,8 @@
     end
   )
   (func $static_bound (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
-    block
     ;; 17 |     invoke(width, s) + invoke(fn(x: string) -> usize: x.len() + 1, s)
+    block
       block
         block
           block
@@ -68,7 +65,6 @@
       local.get $t0
       local.get $s.0
       i32.add
-    ;; (no span)
       local.set $s.0
     end
     local.get $s.0
@@ -125,8 +121,8 @@
     end
   )
   (func $static_bound#1 (param $env i32) (param $x.0 i32) (param $x.1 i32) (param $ctx i32) (result i32)
-    block
     ;; 17 |     invoke(width, s) + invoke(fn(x: string) -> usize: x.len() + 1, s)
+    block
       block
         block
           local.get $x.1
@@ -134,21 +130,18 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $x.0
       call $rt:release_ref'1
-    ;; 17 |     invoke(width, s) + invoke(fn(x: string) -> usize: x.len() + 1, s)
       local.get $env
       i32.const 1
       i32.add
-    ;; (no span)
       local.set $env
     end
     local.get $env
   )
   (func $width (param $s.0 i32) (param $s.1 i32) (result i32)
-    block
     ;; 11 |     s.len()
+    block
       block
         block
           local.get $s.1
@@ -157,11 +150,10 @@
         end
       end
     end
-    ;; (no span)
     local.get $s.0
   )
   (func $fn_mut (param $xs i32) (result i32) (local $n i32) (local $t0 i32)
-    ;; (no span)
+    ;; 24 |     let n: usize = 0
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -192,7 +184,6 @@
     local.tee $t0
     global.set $locals
     block
-    ;; 24 |     let n: usize = 0
       local.get $t0
       i64.const 0
       i64.store $heap
@@ -216,12 +207,12 @@
       local.get $xs
       call $"each[fn(string) -> ()]"
       local.get $xs
-    ;; (no span)
+    ;; 24 |     let n: usize = 0
       call $rt:release_ref'2
     ;; 26 |     n
       local.get $n
       i32.load $heap
-    ;; (no span)
+    ;; 24 |     let n: usize = 0
       local.set $xs
     end
     local.get $xs

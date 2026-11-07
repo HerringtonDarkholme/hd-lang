@@ -2,8 +2,8 @@
 (module
   (import "fixture" "impl [ T ] List [ T ].get[i32]" (func $"impl [ T ] List [ T ].get[i32]" (param i32 i32) (result i32 i32)))
   (func $read (param $values i32) (result i32) (local $t0 i32)
-    block
     ;; 10 |     first(values)
+    block
       block
         block
           local.get $values
@@ -44,7 +44,6 @@
         end
       end
     end
-    ;; (no span)
     local.get $values
   )
 )

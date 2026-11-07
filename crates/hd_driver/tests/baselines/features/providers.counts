@@ -20,11 +20,11 @@ impl Namer for Fixed:
 fn ask() -> usize $ Namer:
     $.use(Namer).name().len()
 > app/main/ask
->   (no span) release string (last use)
+>   release string (last use)
 
 fn install(s: string) -> usize:
     f := box(Fixed { n: s })
+> app/main/install
+>   release app.main.Namer (last use)
     $.with(Namer=f):
         ask()
-> app/main/install
->   (no span) release app.main.Namer (last use)

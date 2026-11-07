@@ -8,7 +8,7 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $list_full (param $t1 i32) (result i32) (local $t0 i32) (local $xs i32)
-    ;; (no span)
+    ;; 17 |     xs.slice(0, xs.len())
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -48,19 +48,15 @@
     local.get $t1
     i32.store $heap
     block
-    ;; 17 |     xs.slice(0, xs.len())
       local.get $xs
       i32.load $heap
       i32.load $heap offset=4
       local.set $t1
-    ;; (no span)
       local.get $xs
-    ;; 17 |     xs.slice(0, xs.len())
       i32.const 0
       local.get $t1
       call $"impl [ T ] List [ T ].slice[string]"
       local.set $t1
-    ;; (no span)
       local.get $xs
       if
         local.get $xs
@@ -75,7 +71,7 @@
     global.set $locals
   )
   (func $list_slice_len (param $t1 i32) (result i32) (local $t0 i32) (local $xs i32)
-    ;; (no span)
+    ;; 20 |     xs.slice(0, 2).len()
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -115,23 +111,19 @@
     local.get $t1
     i32.store $heap
     block
-    ;; 20 |     xs.slice(0, 2).len()
       local.get $xs
       i32.const 0
       i32.const 2
       call $"impl [ T ] List [ T ].slice[string]"
       local.set $t1
-    ;; (no span)
       local.get $xs
       if
         local.get $xs
         i32.load $heap
         call $rt:release_ref'1
       end
-    ;; 20 |     xs.slice(0, 2).len()
       local.get $t1
       i32.load $heap offset=4
-    ;; (no span)
       local.get $t1
       call $rt:release_ref'1
       local.set $t1
@@ -157,8 +149,8 @@
     local.get $s.1
   )
   (func $str_slice_len (param $s.0 i32) (param $s.1 i32) (param $n i32) (result i32)
-    block
     ;; 11 |     s.slice(0, n).len()
+    block
       local.get $s.0
       local.get $s.1
       i32.const 0
@@ -171,7 +163,6 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $s.0
       call $rt:release_ref'2
       local.get $s.1
@@ -180,7 +171,7 @@
     local.get $s.0
   )
   (func $list_slice (param $t1 i32) (result i32) (local $t0 i32) (local $xs i32)
-    ;; (no span)
+    ;; 14 |     xs.slice(1, xs.len())
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -220,19 +211,15 @@
     local.get $t1
     i32.store $heap
     block
-    ;; 14 |     xs.slice(1, xs.len())
       local.get $xs
       i32.load $heap
       i32.load $heap offset=4
       local.set $t1
-    ;; (no span)
       local.get $xs
-    ;; 14 |     xs.slice(1, xs.len())
       i32.const 1
       local.get $t1
       call $"impl [ T ] List [ T ].slice[string]"
       local.set $t1
-    ;; (no span)
       local.get $xs
       if
         local.get $xs

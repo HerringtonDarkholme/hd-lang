@@ -38,7 +38,7 @@
     local.get $value
   )
   (func $total (param $counter.at i64) (param $counter.end i64) (result i64) (local $cursor i32) (local $t0 i32) (local $t1 i32)
-    ;; (no span)
+    ;; 20 |     let mut cursor = counter
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -69,7 +69,6 @@
     local.tee $t0
     global.set $locals
     block
-    ;; 20 |     let mut cursor = counter
       local.get $t0
       i64.const 0
       i64.store $heap
@@ -130,8 +129,8 @@
           br 0
         end
       end
+    ;; 20 |     let mut cursor = counter
     end
-    ;; (no span)
     local.get $counter.at
     local.get $t0
     i32.const 24

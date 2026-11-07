@@ -166,8 +166,8 @@
     local.get $users
   )
   (func $sizes (param $users i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $u.name.0 i32) (local $u.name.1 i32) (local $t3 i32)
-    block
     ;; 22 |     [for u in users if (n := u.name.len()) > 0 => n]
+    block
       i32.const 80 ;; &empty-buffer
       local.set $t0
       local.get $users
@@ -247,14 +247,13 @@
         end
       end
       local.get $t0
-    ;; (no span)
       local.set $users
     end
     local.get $users
   )
   (func $pairs (param $xs i32) (param $ys i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $x.0 i32) (local $x.1 i32) (local $t3 i32) (local $t4 i32) (local $y.0 i32) (local $y.1 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32)
-    block
     ;; 13 |     [for x in xs for y in ys if x.len() == y.len() => (x, y)]
+    block
       i32.const 80 ;; &empty-buffer
       local.set $t0
       local.get $xs
@@ -389,7 +388,6 @@
         end
       end
       local.get $t0
-    ;; (no span)
       local.set $xs
     end
     local.get $xs

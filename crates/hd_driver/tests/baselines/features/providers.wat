@@ -6,8 +6,8 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 4 funcref))
   (func $ask (param $provider0 i32) (param $provider0.vtable i32) (result i32)
-    block
     ;; 18 |     $.use(Namer).name().len()
+    block
       local.get $provider0
       local.get $provider0.vtable
       i32.load $heap
@@ -19,7 +19,6 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $provider0
       call $rt:release_ref
       local.get $provider0.vtable
@@ -28,8 +27,8 @@
     local.get $provider0
   )
   (func $install (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
-    block
     ;; 21 |     f := box(Fixed { n: s })
+    block
       i32.const 8
       i32.const 3
       call $rt:new/class-1
@@ -52,7 +51,7 @@
     ;; 22 |     $.with(Namer=f):
         local.set $s.1
       end
-    ;; (no span)
+    ;; 21 |     f := box(Fixed { n: s })
       local.get $s.0
       call $rt:release_ref
       local.get $s.1

@@ -17,8 +17,8 @@
     local.get $value
   )
   (func $left_or_right (param $pair i32) (param $left i32) (result i32) (local $t0 i32)
-    block
     ;; 19 |     let o: (&User)? = if left: .Some(&pair.left) else: .None
+    block
       local.get $left
       if
         local.get $pair
@@ -31,7 +31,7 @@
       i32.const 8
       i32.add
       call $"impl [ T < ? Copy ] T ?.unwrap_or[&User]"
-    ;; (no span)
+    ;; 19 |     let o: (&User)? = if left: .Some(&pair.left) else: .None
       local.set $pair
     end
     local.get $pair
@@ -47,8 +47,8 @@
     local.get $env
   )
   (func $bounded (param $u.name.0 i32) (param $u.name.1 i32) (result i32) (local $t0 i32)
-    block
     ;; 33 |     kept := keep(u)
+    block
       block
         block
           i32.const 8
@@ -75,12 +75,10 @@
       local.get $u.name.1
       call_indirect $table0 (param i32 i32) (result i32)
       local.tee $u.name.1
-    ;; (no span)
+    ;; 33 |     kept := keep(u)
       local.get $t0
       call $rt:release_ref'1
-    ;; 33 |     kept := keep(u)
       local.get $u.name.0
-    ;; (no span)
       call $rt:release_ref'1
     ;; 34 |     later(kept)().name.len()
       local.tee $u.name.0
@@ -90,7 +88,7 @@
       local.set $t0
       local.tee $u.name.0
       call $retain
-    ;; (no span)
+    ;; 33 |     kept := keep(u)
       local.get $u.name.1
       call $rt:release_ref'1
     ;; 34 |     later(kept)().name.len()
@@ -101,7 +99,7 @@
           br 0
         end
       end
-    ;; (no span)
+    ;; 33 |     kept := keep(u)
       local.get $u.name.0
       call $rt:release_ref'2
       local.get $u.name.1
@@ -127,13 +125,13 @@
     local.get $t0
   )
   (func $demo (param $u i32) (result i32)
-    block
     ;; 23 |     n := id(&u.name)
+    block
       local.get $u
       call $"id[^240]"
     ;; 24 |     n.len()
       call $"impl string.len"
-    ;; (no span)
+    ;; 23 |     n := id(&u.name)
       local.set $u
     end
     local.get $u

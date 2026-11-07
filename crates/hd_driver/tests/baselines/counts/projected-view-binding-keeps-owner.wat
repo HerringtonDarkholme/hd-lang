@@ -2,8 +2,8 @@
 (module
   (import "fixture" "read#adapter" (func $read#adapter (param i32 i32 i32) (result i32)))
   (func $project (param $pair i32) (param $visit.0 i32) (param $visit.1 i32) (result i32)
-    block
     ;; 24 |     relay(&pair.id, visit)
+    block
       block
         block
           local.get $visit.1
@@ -15,7 +15,6 @@
         end
       end
     end
-    ;; (no span)
     local.get $pair
   )
 )

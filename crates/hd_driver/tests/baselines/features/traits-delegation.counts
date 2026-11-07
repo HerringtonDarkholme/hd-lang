@@ -28,9 +28,9 @@ impl Describe for Service by Logger
 fn delegated(s: Service) -> usize:
     s.describe().len()
 > app/main/delegated
->   (no span) release string (last use)
+>   release string (last use)
 
 fn explicit(s: Service) -> usize:
     s.Logger.describe().len()
 > app/main/explicit
->   (no span) release string (last use)
+>   release string (last use)

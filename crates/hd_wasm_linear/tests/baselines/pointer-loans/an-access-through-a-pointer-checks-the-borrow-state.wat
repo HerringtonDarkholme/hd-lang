@@ -12,8 +12,8 @@
   (import "fixture" "rt:loan_unshare" (func $rt:loan_unshare (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $lend_lead (param $t i32) (param $other i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
-    block
     ;; 30 |     held := &mut t.lead
+    block
       local.get $t
       i32.const 4
       i32.sub
@@ -88,7 +88,7 @@
       local.get $other
       i32.store $heap
       call $rt:release_ref
-    ;; (no span)
+    ;; 30 |     held := &mut t.lead
       local.get $t0
       if
         local.get $t0
@@ -100,7 +100,8 @@
         local.get $t1
         i32.const 1
         i32.eq
-        ;; ...
+        if
+        end
         i32.const 0
         local.set $t0
       end
@@ -115,7 +116,8 @@
         local.get $t1
         i32.const 1
         i32.eq
-        ;; ...
+        if
+        end
         i32.const 0
         local.set $t0
       end
@@ -131,7 +133,8 @@
       local.get $t1
       i32.const 1
       i32.eq
-      ;; ...
+      if
+      end
     end
   )
   (func $plain (param $p i32)
@@ -169,8 +172,8 @@
     end
   )
   (func $mutate (param $u i32)
-    block
     ;; 41 |     set(&mut u.age)
+    block
       local.get $u
       i32.const 4
       i32.sub
@@ -219,8 +222,8 @@
     local.get $t
   )
   (func $lend (param $t i32) (param $other i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
-    block
     ;; 20 |     held := &t.lead.name
+    block
       local.get $t
       i32.const 4
       i32.sub
@@ -317,7 +320,7 @@
       local.get $t
       local.set $other
       local.set $t
-    ;; (no span)
+    ;; 20 |     held := &t.lead.name
       local.get $t0
       if
         local.get $t0
@@ -340,11 +343,13 @@
         local.get $t1
         i32.const 1
         i32.eq
-        ;; ...
+        if
+        end
         local.get $t1
         i32.const 2
         i32.eq
-        ;; ...
+        if
+        end
         i32.const 0
         local.set $t0
       end
@@ -370,11 +375,13 @@
         local.get $t1
         i32.const 1
         i32.eq
-        ;; ...
+        if
+        end
         local.get $t1
         i32.const 2
         i32.eq
-        ;; ...
+        if
+        end
         i32.const 0
         local.set $t0
       end
@@ -401,18 +408,20 @@
       local.get $t1
       i32.const 1
       i32.eq
-      ;; ...
+      if
+      end
       local.get $t1
       i32.const 2
       i32.eq
-      ;; ...
+      if
+      end
     end
     local.get $t
     local.get $other
   )
   (func $lend_mut (param $t i32) (param $other i32) (local $t0 i32) (local $t1 i32)
-    block
     ;; 25 |     held := &mut t.lead.age
+    block
       local.get $t
       i32.const 4
       i32.sub
@@ -482,7 +491,7 @@
       local.get $t
       i32.const 1
       i32.store $heap
-    ;; (no span)
+    ;; 25 |     held := &mut t.lead.age
       local.get $t0
       if
         local.get $t0
@@ -494,11 +503,13 @@
         local.get $t1
         i32.const 1
         i32.eq
-        ;; ...
+        if
+        end
         local.get $t1
         i32.const 2
         i32.eq
-        ;; ...
+        if
+        end
         i32.const 0
         local.set $t0
       end
@@ -513,11 +524,13 @@
         local.get $t1
         i32.const 1
         i32.eq
-        ;; ...
+        if
+        end
         local.get $t1
         i32.const 2
         i32.eq
-        ;; ...
+        if
+        end
         i32.const 0
         local.set $t0
       end
@@ -533,11 +546,13 @@
       local.get $t1
       i32.const 1
       i32.eq
-      ;; ...
+      if
+      end
       local.get $t1
       i32.const 2
       i32.eq
-      ;; ...
+      if
+      end
     end
   )
   (func $set (param $slot i32)

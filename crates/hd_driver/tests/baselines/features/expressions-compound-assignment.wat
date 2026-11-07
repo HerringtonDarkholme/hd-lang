@@ -56,8 +56,8 @@
     end
   )
   (func $list_append (param $xs i32) (param $i i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
-    block
     ;; 14 |     xs[i] += "!"
+    block
       local.get $i
       local.get $xs
       i32.load $heap
@@ -97,13 +97,11 @@
       i32.const 65 ;; &"!"
       i32.load8_u $heap
       i32.store8 $heap
-    ;; (no span)
       local.get $xs
       local.get $xs
       i32.load $heap
       call $rt:list_unique
       i32.store $heap
-    ;; 14 |     xs[i] += "!"
       local.get $xs
       i32.load $heap
       local.set $xs
@@ -132,8 +130,8 @@
     end
   )
   (func $map_add (param $m i32) (param $k.0 i32) (param $k.1 i32) (local $t0 i32) (local $t1 i64)
-    block
     ;; 11 |     m[k] += 1
+    block
       local.get $m
       i32.load $heap
       local.tee $t0
@@ -166,7 +164,6 @@
       i64.const 1
       i64.add
       local.set $t1
-    ;; (no span)
       local.get $m
       i32.load $heap
       call $rt:map_unique
@@ -176,7 +173,6 @@
       i32.store $heap
       local.get $k.1
       local.get $k.1
-    ;; 11 |     m[k] += 1
       i32.load $heap offset=12
       i32.const 12
       i32.mul

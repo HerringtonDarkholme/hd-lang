@@ -5,6 +5,7 @@
   (import "fixture" "rt:new/class-2" (func $rt:new/class-2 (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $total (param $head i32) (result i32) (local $n i32) (local $c i32) (local $t0 i32)
+    ;; 15 |     let n: usize = 0
     block
     ;; 16 |     let cur = head
       local.get $head
@@ -70,12 +71,12 @@
           br 0
         end
       end
-    ;; (no span)
+    ;; 15 |     let n: usize = 0
       local.get $head
       call $rt:release
     ;; 23 |     n
       local.get $n
-    ;; (no span)
+    ;; 15 |     let n: usize = 0
       local.set $head
     end
     local.get $head

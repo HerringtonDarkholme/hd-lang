@@ -2,7 +2,6 @@
 (module
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $shared#1 (param $env i32) (param $ctx i32) (result i32)
     ;; 8 |     read := fn() -> i32: count
@@ -30,12 +29,7 @@
       local.get $t0
       call $rt:retain_fields
       ;; ...
-    ;; (no span)
-      local.get $seed
-      call $rt:release_ref
-      local.set $seed
     end
-    local.get $seed
-    local.get $t0
+    ;; ...
   )
 )

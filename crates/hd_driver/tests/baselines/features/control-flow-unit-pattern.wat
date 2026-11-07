@@ -4,8 +4,8 @@
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $save (param $s.0 i32) (param $s.1 i32) (result i32 i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
-    block
     ;; 7 |     if s.len() > 0:
+    block
       block
         block
           local.get $s.1
@@ -43,7 +43,7 @@
       i32.store8 $heap
       i32.const 1
       local.get $t1
-    ;; (no span)
+    ;; 7 |     if s.len() > 0:
       local.set $s.1
       local.set $s.0
     end
@@ -52,8 +52,8 @@
     local.get $t0
   )
   (func $report (param $s.0 i32) (param $s.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
-    block
     ;; 12 |     match save(s):
+    block
       block
         block
           block
@@ -130,7 +130,6 @@
         br 0
       end
     end
-    ;; (no span)
     local.get $s.0
     local.get $s.1
   )

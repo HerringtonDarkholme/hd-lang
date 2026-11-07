@@ -16,8 +16,8 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 22 funcref))
   (func $"impl [ T < Ord ] Queue [ T ].settle[i64]" (param $self i32) (param $start i32) (param $value i64) (local $size i32) (local $left i32) (local $larger i32) (local $t0 i32) (local $t1 i32) (local $t2 i64) (local $t3 i64)
-    block
     ;; 19 |         size := self.items.len()
+    block
       local.get $self
       i32.load $heap
       i32.load $heap offset=4
@@ -247,7 +247,7 @@
           br 0
         end
       end
-    ;; (no span)
+    ;; 19 |         size := self.items.len()
       local.get $self
       local.get $self
       i32.load $heap
@@ -272,11 +272,12 @@
       i32.add
       local.get $value
       i64.store $heap offset=16
+    ;; 19 |         size := self.items.len()
     end
   )
   (func $"impl [ T < Ord ] Queue [ T ].add[string]" (param $self i32) (param $value.0 i32) (param $value.1 i32) (local $t0 i32) (local $t1 i32)
+    ;; 16 |         self.items.push(value)
     block
-    ;; (no span)
       local.get $self
       i32.load $heap
       call $rt:list_unique'2
@@ -285,7 +286,6 @@
       local.get $t0
       i32.store $heap
       local.get $t0
-    ;; 16 |         self.items.push(value)
       i32.load $heap offset=4
       local.tee $t1
       local.get $t0
@@ -319,7 +319,7 @@
     end
   )
   (func $"impl [ T < Ord ] Queue [ T ].settle[(i64, usize)]'1" (param $self i32) (param $start i32) (param $t1 i64) (param $size i32) (local $t0 i32) (local $value i32) (local $left i32) (local $larger i32) (local $t2 i32) (local $t3 i32)
-    ;; (no span)
+    ;; 19 |         size := self.items.len()
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -362,7 +362,6 @@
     local.get $size
     i32.store $heap offset=8
     block
-    ;; 19 |         size := self.items.len()
       local.get $self
       i32.load $heap
       i32.load $heap offset=4
@@ -584,7 +583,7 @@
       i32.load $heap offset=8
       local.set $size
       local.set $t1
-    ;; (no span)
+    ;; 19 |         size := self.items.len()
       local.get $self
       local.get $self
       i32.load $heap
@@ -613,16 +612,16 @@
       local.get $self
       local.get $size
       i32.store $heap offset=24
+    ;; 19 |         size := self.items.len()
     end
-    ;; (no span)
     local.get $t0
     i32.const 24
     i32.add
     global.set $locals
   )
   (func $"impl [ T < Ord ] Queue [ T ].add[i64]" (param $self i32) (param $value i64) (local $t0 i32) (local $t1 i32)
+    ;; 16 |         self.items.push(value)
     block
-    ;; (no span)
       local.get $self
       i32.load $heap
       call $rt:list_unique'1
@@ -631,7 +630,6 @@
       local.get $t0
       i32.store $heap
       local.get $t0
-    ;; 16 |         self.items.push(value)
       i32.load $heap offset=4
       local.tee $t1
       local.get $t0
@@ -661,7 +659,7 @@
     end
   )
   (func $names (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $q i32) (local $t0 i32) (local $t1 i32)
-    ;; (no span)
+    ;; 45 |     let mut q = Queue::[string].new()
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -692,7 +690,6 @@
     local.tee $t0
     global.set $locals
     block
-    ;; 45 |     let mut q = Queue::[string].new()
       block
         block
           i32.const 80 ;; &empty-buffer
@@ -750,7 +747,7 @@
       local.set $b.0
       local.tee $a.1
       call $retain
-    ;; (no span)
+    ;; 45 |     let mut q = Queue::[string].new()
       local.get $q
       if
         local.get $q
@@ -763,7 +760,7 @@
           br 0
         end
       end
-    ;; (no span)
+    ;; 45 |     let mut q = Queue::[string].new()
       local.get $a.1
       call $rt:release_ref'2
     ;; 50 |     q.items[0].len() + saved.items[0].len()
@@ -782,7 +779,7 @@
       local.set $b.1
       local.tee $a.1
       call $retain
-    ;; (no span)
+    ;; 45 |     let mut q = Queue::[string].new()
       local.get $a.0
       call $rt:release_ref'1
     ;; 50 |     q.items[0].len() + saved.items[0].len()
@@ -793,14 +790,14 @@
           br 0
         end
       end
-    ;; (no span)
+    ;; 45 |     let mut q = Queue::[string].new()
       local.get $a.1
       call $rt:release_ref'2
     ;; 50 |     q.items[0].len() + saved.items[0].len()
       local.get $b.0
       local.get $a.0
       i32.add
-    ;; (no span)
+    ;; 45 |     let mut q = Queue::[string].new()
       local.set $a.0
     end
     local.get $a.0
@@ -810,8 +807,8 @@
     global.set $locals
   )
   (func $"impl [ T < Ord ] Queue [ T ].add[(i64, usize)]" (param $self i32) (param $value.0 i64) (param $value.1 i32) (local $t0 i32) (local $t1 i32)
+    ;; 16 |         self.items.push(value)
     block
-    ;; (no span)
       local.get $self
       i32.load $heap
       call $rt:list_unique'3
@@ -820,7 +817,6 @@
       local.get $t0
       i32.store $heap
       local.get $t0
-    ;; 16 |         self.items.push(value)
       i32.load $heap offset=4
       local.tee $t1
       local.get $t0
@@ -854,8 +850,8 @@
     end
   )
   (func $"impl [ T < Ord ] Queue [ T ].settle[string]" (param $self i32) (param $start i32) (param $value.0 i32) (param $value.1 i32) (local $size i32) (local $left i32) (local $larger i32) (local $t0 i32) (local $t1 i32)
-    block
     ;; 19 |         size := self.items.len()
+    block
       local.get $self
       i32.load $heap
       i32.load $heap offset=4
@@ -1077,7 +1073,7 @@
           br 0
         end
       end
-    ;; (no span)
+    ;; 19 |         size := self.items.len()
       local.get $self
       local.get $self
       i32.load $heap
@@ -1109,10 +1105,11 @@
       local.get $self
       local.get $value.1
       i32.store $heap offset=20
+    ;; 19 |         size := self.items.len()
     end
   )
   (func $numbers (param $a i64) (param $b i64) (param $c i64) (result i64) (local $q i32) (local $t0 i32) (local $saved i32) (local $t1 i32)
-    ;; (no span)
+    ;; 36 |     let mut q = Queue::[i64].new()
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -1143,7 +1140,6 @@
     local.tee $t0
     global.set $locals
     block
-    ;; 36 |     let mut q = Queue::[i64].new()
       block
         block
           i32.const 80 ;; &empty-buffer
@@ -1198,7 +1194,7 @@
       local.get $t1
       i64.load $heap offset=16
       local.set $a
-    ;; (no span)
+    ;; 36 |     let mut q = Queue::[i64].new()
       local.get $q
       if
         local.get $q
@@ -1217,14 +1213,14 @@
       local.get $saved
       i64.load $heap offset=16
       local.set $b
-    ;; (no span)
+    ;; 36 |     let mut q = Queue::[i64].new()
       local.get $saved
       call $rt:release_ref'1
     ;; 42 |     q.items[0] + saved.items[0]
       local.get $a
       local.get $b
       i64.add
-    ;; (no span)
+    ;; 36 |     let mut q = Queue::[i64].new()
       local.set $a
     end
     local.get $a
@@ -1234,7 +1230,7 @@
     global.set $locals
   )
   (func $"impl [ T < Ord ] Queue [ T ].settle[(i64, usize)]'2" (param $self i32) (param $start i32) (param $t1 i64) (param $size i32) (local $t0 i32) (local $value i32) (local $left i32) (local $larger i32) (local $t2 i32) (local $t3 i32)
-    ;; (no span)
+    ;; 19 |         size := self.items.len()
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -1277,7 +1273,6 @@
     local.get $size
     i32.store $heap offset=8
     block
-    ;; 19 |         size := self.items.len()
       local.get $self
       i32.load $heap
       i32.load $heap offset=4
@@ -1499,7 +1494,7 @@
       i32.load $heap offset=8
       local.set $size
       local.set $t1
-    ;; (no span)
+    ;; 19 |         size := self.items.len()
       local.get $self
       local.get $self
       i32.load $heap
@@ -1528,15 +1523,15 @@
       local.get $self
       local.get $size
       i32.store $heap offset=24
+    ;; 19 |         size := self.items.len()
     end
-    ;; (no span)
     local.get $t0
     i32.const 24
     i32.add
     global.set $locals
   )
   (func $pairs (param $a i64) (param $b i64) (result i64) (local $q i32) (local $t0 i32) (local $saved i32) (local $t1 i32)
-    ;; (no span)
+    ;; 53 |     let mut q = Queue::[(i64, usize)].new()
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -1567,7 +1562,6 @@
     local.tee $t0
     global.set $locals
     block
-    ;; 53 |     let mut q = Queue::[(i64, usize)].new()
       block
         block
           i32.const 80 ;; &empty-buffer
@@ -1621,7 +1615,7 @@
       local.get $t1
       i64.load $heap offset=16
       local.set $a
-    ;; (no span)
+    ;; 53 |     let mut q = Queue::[(i64, usize)].new()
       local.get $q
       if
         local.get $q
@@ -1640,14 +1634,14 @@
       local.get $saved
       i64.load $heap offset=16
       local.set $b
-    ;; (no span)
+    ;; 53 |     let mut q = Queue::[(i64, usize)].new()
       local.get $saved
       call $rt:release_ref'1
     ;; 58 |     q.items[0]._0 + saved.items[0]._0
       local.get $a
       local.get $b
       i64.add
-    ;; (no span)
+    ;; 53 |     let mut q = Queue::[(i64, usize)].new()
       local.set $a
     end
     local.get $a

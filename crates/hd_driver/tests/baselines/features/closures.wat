@@ -12,35 +12,31 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 12 funcref))
   (func $capture_call#1 (param $env i32) (param $ctx i32) (result i32)
-    ;; 9 |     f() + f()
+    ;; 8 |     f := fn() -> usize: s.len()
     local.get $env
     i32.load $heap offset=4
     local.set $env
     block
-    ;; 8 |     f := fn() -> usize: s.len()
       block
         block
           br 0
         end
       end
-    ;; 9 |     f() + f()
     end
     local.get $env
   )
   (func $escape#1 (param $env i32) (param $ctx i32) (result i32)
-    ;; (no span)
+    ;; 12 |     fn() -> usize: s.len()
     local.get $env
     i32.load $heap offset=4
     local.set $env
     block
-    ;; 12 |     fn() -> usize: s.len()
       block
         block
           br 0
         end
       end
     end
-    ;; (no span)
     local.get $env
   )
   (func $call_value (param $f.0 i32) (param $f.1 i32) (param $s.0 i32) (param $s.1 i32) (result i32)
@@ -89,8 +85,8 @@
     end
   )
   (func $escape (param $s.0 i32) (param $s.1 i32) (result i32 i32) (local $t0 i32)
-    block
     ;; 12 |     fn() -> usize: s.len()
+    block
       i32.const 1
       i32.const 8
       i32.const 3
@@ -102,7 +98,6 @@
       local.get $s.1
       i32.store $heap offset=4
       local.get $t0
-    ;; (no span)
       local.set $s.1
       local.set $s.0
     end
@@ -110,7 +105,7 @@
     local.get $s.1
   )
   (func $shared (param $s.0 i32) (param $s.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32)
-    ;; (no span)
+    ;; 18 |     let mut t = s
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -141,7 +136,6 @@
     local.tee $t0
     global.set $locals
     block
-    ;; 18 |     let mut t = s
       local.get $t0
       i64.const 0
       i64.store $heap
@@ -171,7 +165,7 @@
       local.get $s.1
       i32.const 0
       call $shared#1
-    ;; (no span)
+    ;; 18 |     let mut t = s
       local.get $s.1
       call $rt:release_ref'2
     ;; 21 |     t
@@ -182,7 +176,7 @@
       local.set $t1
       local.tee $s.1
       call $retain
-    ;; (no span)
+    ;; 18 |     let mut t = s
       local.get $s.0
       if
         local.get $s.0
@@ -202,8 +196,8 @@
     global.set $locals
   )
   (func $capture_call (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
-    block
     ;; 8 |     f := fn() -> usize: s.len()
+    block
       i32.const 5
       i32.const 8
       i32.const 3
@@ -224,14 +218,14 @@
       i32.const 0
       call $capture_call#1
       local.set $s.1
-    ;; (no span)
+    ;; 8 |     f := fn() -> usize: s.len()
       local.get $t0
       call $rt:release_ref'2
     ;; 9 |     f() + f()
       local.get $s.0
       local.get $s.1
       i32.add
-    ;; (no span)
+    ;; 8 |     f := fn() -> usize: s.len()
       local.set $s.0
     end
     local.get $s.0

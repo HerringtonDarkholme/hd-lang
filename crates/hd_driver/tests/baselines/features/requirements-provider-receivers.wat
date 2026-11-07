@@ -8,11 +8,13 @@
   (import "fixture" "rt:frame" (func $rt:frame (result i32)))
   (import "fixture" "rt:cancel_enter" (func $rt:cancel_enter (result i32)))
   (import "fixture" "rt:cancel_leave" (func $rt:cancel_leave (param i32 i32)))
+  (import "fixture" "rt:poll_check" (func $rt:poll_check (param i32) (result i32)))
+  (import "fixture" "rt:cancel_check" (func $rt:cancel_check (param i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 10 funcref))
   (func $run (param $n i64) (result i64) (local $counters i32) (local $t0 i32) (local $t1 i32)
-    block
     ;; 30 |     counters := box(Counters { calls: 0, total: 0 })
+    block
       i32.const 16
       i32.const 0
       call $rt:new/class-2
@@ -36,13 +38,13 @@
         call $count
     ;; 31 |     $.with(Meter=counters):
       end
-    ;; (no span)
+    ;; 30 |     counters := box(Counters { calls: 0, total: 0 })
       local.get $t0
       call $rt:release_ref'1
     ;; 33 |     counters.total
       local.get $counters
       i64.load $heap offset=8
-    ;; (no span)
+    ;; 30 |     counters := box(Counters { calls: 0, total: 0 })
       local.get $counters
       call $rt:release_ref'2
       local.set $n
@@ -50,8 +52,8 @@
     local.get $n
   )
   (func $count (param $n i64) (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i64) (local $i i64)
-    block
     ;; 21 |     for i in 0..n:
+    block
       block
         loop
           local.get $t0
@@ -100,8 +102,8 @@
     ;; 17 |         self.calls += 1
     end
   )
-  (func $count_later (param $frame i32) (param $n i64) (param $wait i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t33 i32) (local $t1 i32) (local $t2 i64) (local $t3 i64) (local $t4 i64) (local $t5 i32) (local $t6 i64) (local $t7 i64) (local $t8 i64) (local $t9 i64) (local $t10 i32) (local $t11 i32) (local $t12 i64) (local $t13 i64) (local $t14 i32) (local $t15 i64) (local $i i64) (local $t16 i64) (local $t17 i64) (local $t18 i32) (local $t19 i32) (local $t20 i32) (local $t21 i32) (local $t22 i32) (local $t23 i32) (local $t24 i64) (local $t25 i32) (local $t26 i32) (local $t27 i32) (local $t28 i32) (local $t29 i32) (local $t30 i32) (local $t31 i32) (local $t32 i32) (local $t0 i32)
-    ;; (no span)
+  (func $count_later'1 (param $frame i32) (param $n i64) (param $wait i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t33 i32) (local $t1 i32) (local $t2 i64) (local $t3 i64) (local $t4 i64) (local $t5 i32) (local $t6 i64) (local $t7 i64) (local $t8 i64) (local $t9 i64) (local $t10 i32) (local $t11 i32) (local $t12 i64) (local $t13 i64) (local $t14 i32) (local $t15 i64) (local $i i64) (local $t16 i64) (local $t17 i64) (local $t18 i32) (local $t19 i32) (local $t20 i32) (local $t21 i32) (local $t22 i32) (local $t23 i32) (local $t24 i64) (local $t25 i32) (local $t26 i32) (local $t27 i32) (local $t28 i32) (local $t29 i32) (local $t30 i32) (local $t31 i32) (local $t32 i32) (local $t0 i32)
+    ;; 25 |     for i in 0..n:
     local.get $frame
     if
       local.get $frame
@@ -240,7 +242,6 @@
       local.get $t33
       i32.eqz
       if
-    ;; 25 |     for i in 0..n:
         local.get $n
         local.set $t2
         i64.const 0
@@ -738,7 +739,6 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $wait
       call $rt:release_ref'2
       i32.const 0
@@ -778,5 +778,137 @@
       i32.or
       i32.store $heap offset=12
     end
+  )
+  (func $count_later.poll (param $t0 i32) (result i32)
+    ;; 25 |     for i in 0..n:
+    local.get $t0
+    call $rt:poll_check
+    if
+      i32.const 0
+      return
+    end
+    local.get $t0
+    local.get $t0
+    i32.load $heap offset=12
+    i32.const 1
+    i32.or
+    i32.store $heap offset=12
+    local.get $t0
+    i64.const 0
+    i32.const 0
+    i32.const 0
+    i32.const 0
+    call $count_later'1
+    local.get $t0
+    local.get $t0
+    i32.load $heap offset=12
+    i32.const -2
+    i32.and
+    i32.store $heap offset=12
+    i32.eqz
+    if
+      local.get $t0
+      local.get $t0
+      i32.load $heap offset=12
+      i32.const 4
+      i32.or
+      i32.store $heap offset=12
+      i32.const 1
+      return
+    end
+    i32.const 0
+    return
+  )
+  (func $count_later.cancel (param $t1 i32) (local $t0 i32)
+    ;; 25 |     for i in 0..n:
+    call $rt:cancel_enter
+    local.set $t0
+    block
+      local.get $t1
+      call $rt:cancel_check
+      i32.eqz
+      br_if 0
+      local.get $t1
+      i32.load $heap offset=8
+      i32.eqz
+      br_if 0
+      local.get $t1
+      local.get $t1
+      i32.load $heap offset=12
+      i32.const 16
+      i32.or
+      i32.store $heap offset=12
+      local.get $t1
+      i64.const 0
+      i32.const 0
+      i32.const 0
+      i32.const 0
+      call $count_later'1
+      i32.eqz
+      if
+        local.get $t1
+        local.get $t1
+        i32.load $heap offset=12
+        i32.const -17
+        i32.and
+        i32.store $heap offset=12
+      end
+    end
+    local.get $t1
+    local.get $t0
+    call $rt:cancel_leave
+  )
+  (func $count_later.drop (param $t0 i32)
+    ;; 25 |     for i in 0..n:
+    local.get $t0
+    i32.load $heap offset=12
+    i32.const 64
+    i32.and
+    i32.eqz
+    if
+      local.get $t0
+      i32.load $heap offset=176
+      call $rt:release_ref'1
+      local.get $t0
+      i32.load $heap offset=184
+      call $rt:release_ref'1
+      local.get $t0
+      i32.load $heap offset=208
+      call $rt:release_ref'2
+      local.get $t0
+      i32.load $heap offset=32
+      call $rt:release_ref'2
+    end
+    local.get $t0
+    i32.load $heap offset=36
+    call $rt:release_ref'1
+    local.get $t0
+    i32.load $heap offset=16
+    if
+      local.get $t0
+      i32.load $heap offset=16
+      call $rt:release_ref'1
+    end
+  )
+  (func $count_later'2 (param $t2 i64) (param $t1 i32) (param $t3 i32) (param $t4 i32) (result i32) (local $t0 i32)
+    ;; 25 |     for i in 0..n:
+    call $rt:frame
+    local.tee $t0
+    local.get $t1
+    call $rt:retain_known
+    local.get $t2
+    i64.store $heap offset=24
+    local.get $t0
+    local.get $t1
+    i32.store $heap offset=32
+    local.get $t0
+    local.get $t3
+    i32.store $heap offset=36
+    local.get $t0
+    local.get $t4
+    i32.store $heap offset=40
+    local.get $t3
+    call $retain
+    local.get $t0
   )
 )

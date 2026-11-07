@@ -24,10 +24,10 @@ impl Members:
 
     fn pop(&mut self) -> usize:
         match self.infos.pop():
+> app/main/impl Members.pop
+>   release app.main.Info? (last use)
             .Some(info) => info.position
             .None => 0
-> app/main/impl Members.pop
->   (no span) release app.main.Info? (last use)
 
 fn by_value(m: Members, i: usize) -> usize:
     m.at(m.infos[i].position)
@@ -35,11 +35,11 @@ fn by_value(m: Members, i: usize) -> usize:
 fn by_reference(m: Members, i: usize) -> usize:
     m.peek(m.infos[i].position)
 > app/main/by_reference
->   (no span) release app.main.Members (last use)
+>   release app.main.Members (last use)
 
 fn changed_by_argument(items: List[Info]) -> usize:
     let mut m = Members { infos: items }
-    m.at(m.pop())
 > app/main/changed_by_argument
+>   release app.main.Members (last use)
+    m.at(m.pop())
 >   copy app.main.Members (stored)
->   (no span) release app.main.Members (last use)

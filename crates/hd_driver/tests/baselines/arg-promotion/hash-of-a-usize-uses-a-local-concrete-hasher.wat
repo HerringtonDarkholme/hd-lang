@@ -5,7 +5,7 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $digest (param $value i32) (result i64) (local $t2 i64) (local $t0 i32) (local $t1 i32)
-    ;; (no span)
+    ;; 9 |     hash_of(value)
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -36,7 +36,6 @@
     local.tee $t0
     global.set $locals
     block
-    ;; 9 |     hash_of(value)
       local.get $t0
       i64.const 0
       i64.store $heap
@@ -81,7 +80,6 @@
         end
       end
     end
-    ;; (no span)
     local.get $t2
     local.get $t0
     i32.const 32

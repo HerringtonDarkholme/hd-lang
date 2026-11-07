@@ -15,7 +15,7 @@ fn total(parts...: List[string]) -> usize:
 fn three(a: string, b: string, c: string) -> usize:
     total(a, b, c)
 > app/main/three
->   (no span) release List[string] (last use)
+>   release List[string] (last use)
 
 fn spread(xs: List[string]) -> usize:
     total(xs...)
@@ -25,6 +25,6 @@ fn none() -> usize:
 
 fn through_value(a: string, b: string) -> usize:
     f := total
-    f(a, b)
 > app/main/through_value
->   (no span) release List[string] (last use)
+>   release List[string] (last use)
+    f(a, b)

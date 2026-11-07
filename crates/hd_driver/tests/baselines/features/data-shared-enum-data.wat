@@ -25,8 +25,8 @@
     local.get $t0
   )
   (func $phrase_len (param $s i32) (result i32)
-    block
     ;; 13 |     s.phrase.len()
+    block
       local.get $s
       i32.const 2
       local.get $s
@@ -43,7 +43,6 @@
         end
       end
     end
-    ;; (no span)
     local.get $s
   )
 )

@@ -17,7 +17,7 @@ impl Shelf:
     fn by_mut(&mut self, b: string) -> void:
         self.books.push(b)
 > app/main/impl Shelf.by_mut
->   (no span) unique List[string] (conservative: unique)
+>   unique List[string] (conservative: unique)
 
     fn consume(self) -> List[string]:
         self.books
@@ -26,7 +26,7 @@ fn use_methods(s: Shelf, b: string) -> usize:
     let mut t = s
 > app/main/use_methods
 >   copy app.main.Shelf (stored)
+>   release app.main.Shelf (last use)
+>   release List[string] (last use)
     t.by_mut(b)
     s.by_self() + s.by_ref() + t.consume().len()
->   (no span) release app.main.Shelf (last use)
->   (no span) release List[string] (last use)

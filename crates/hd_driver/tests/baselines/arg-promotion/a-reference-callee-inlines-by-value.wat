@@ -38,8 +38,8 @@
     end
   )
   (func $keep (param $r i32) (result i64) (local $t0 i64)
-    block
     ;; 22 |     r.twice()
+    block
       block
         block
           local.get $r
@@ -52,7 +52,6 @@
         end
       end
     end
-    ;; (no span)
     local.get $t0
   )
 )

@@ -2,8 +2,8 @@
 (module
   (import "fixture" "heap" (memory $heap 1))
   (func $caller (param $room i32) (param $index i32) (result i32)
-    block
     ;; 21 |     address(room, index)
+    block
       block
         block
           block
@@ -22,7 +22,6 @@
         end
       end
     end
-    ;; (no span)
     local.get $room
   )
 )

@@ -79,8 +79,8 @@
     local.get $t0
   )
   (func $first_index (param $xs i32) (result i32) (local $i i32) (local $t0 i32)
-    block
     ;; 15 |     let i: usize = 0
+    block
       i32.const 0
       local.set $i
     ;; 16 |     while i < xs.len():
@@ -143,13 +143,13 @@
           br 0
         end
       end
+    ;; 15 |     let i: usize = 0
     end
-    ;; (no span)
     local.get $xs
   )
   (func $forever (param $s.0 i32) (param $s.1 i32) (result i32 i32) (local $t0 i32)
-    block
     ;; 24 |     let out = s
+    block
       local.get $s.0
       local.set $s.0
     ;; 25 |     while true:
@@ -185,7 +185,7 @@
           br 0
         end
       end
-    ;; (no span)
+    ;; 24 |     let out = s
       local.get $s.0
       call $rt:release_ref
       unreachable

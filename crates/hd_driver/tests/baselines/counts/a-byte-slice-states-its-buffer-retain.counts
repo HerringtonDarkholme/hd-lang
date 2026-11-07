@@ -9,12 +9,12 @@ fn slice(text: string, start: usize, end: usize) -> string:
     bytes_slice(text, start, end)
 > std/rt_tests.stage_case/slice
 >   retain string (stored)
->   (no span) release string (conservative: unowned parameter)
+>   release string (conservative: unowned parameter)
 
 fn discard_empty(text: string) -> void:
     _ := bytes_slice(text, 0, 0)
 > std/rt_tests.stage_case/discard_empty
->   (no span) release string (conservative: unowned parameter)
+>   release string (conservative: unowned parameter)
 
 fn through_function(text: string) -> string:
     slice_fn := bytes_slice

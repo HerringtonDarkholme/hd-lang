@@ -7,45 +7,76 @@
 # design, #1355) and build one string per `fetch`.
 fn fetch!(key: string) -> string:
     key + "?"
+> app/main/fetch
+>   release string (cancelled)
+> app/main/fetch
+>   release string (conservative: frame drop)
+>   release string (conservative: frame drop)
+>   release counted reference (conservative: frame drop)
+> app/main/fetch
+>   retain string (conservative: cold constructor)
 
 fn construct(key: string) -> usize:
     _ := fetch(key)
-    key.len()
 > app/main/construct
->   (no span) release Suspend[string] (last use)
+>   release Suspend[string] (last use)
+    key.len()
 
 fn run_twice!(body: fn!() -> string) -> usize:
     body!().len() + body!().len()
 > app/main/run_twice
+>   retain fn!() -> string (conservative: entry)
 >   retain counted reference (conservative: AwaitValue)
 >   release counted reference (conservative: AwaitValue)
 >   release counted reference (conservative: AwaitValue)
 >   release Suspend[string] (cancelled)
+>   release Suspend[string] (last use)
 >   release counted reference (overwritten)
 >   retain &string (conservative: Ref)
+>   release &string (last use)
+>   release counted reference (last use)
 >   retain counted reference (conservative: AwaitValue)
 >   release counted reference (conservative: AwaitValue)
 >   release counted reference (conservative: AwaitValue)
 >   release fn!() -> string (cancelled)
 >   release Suspend[string] (cancelled)
+>   release Suspend[string] (last use)
+>   release fn!() -> string (last use)
 >   release counted reference (overwritten)
 >   retain &string (conservative: Ref)
->   (no span) retain fn!() -> string (conservative: entry)
->   (no span) release Suspend[string] (last use)
->   (no span) release &string (last use)
->   (no span) release counted reference (last use)
->   (no span) release Suspend[string] (last use)
->   (no span) release fn!() -> string (last use)
->   (no span) release &string (last use)
->   (no span) release counted reference (last use)
->   (no span) release fn!() -> string (last use)
+>   release &string (last use)
+>   release counted reference (last use)
+>   release fn!() -> string (last use)
+> app/main/run_twice
+>   release Suspend[string] (conservative: frame drop)
+>   release string (conservative: frame drop)
+>   release &string (conservative: frame drop)
+>   release fn!() -> string (conservative: frame drop)
+>   release Suspend[string] (conservative: frame drop)
+>   release string (conservative: frame drop)
+>   release &string (conservative: frame drop)
+>   release fn!() -> string (conservative: frame drop)
+>   release counted reference (conservative: frame drop)
+>   release counted reference (conservative: frame drop)
+>   release counted reference (conservative: frame drop)
+> app/main/run_twice
+>   retain fn!() -> string (conservative: cold constructor)
 
 fn closure_bang!(key: string) -> usize:
     run_twice!():
 > app/main/closure_bang
+>   retain string (conservative: entry)
 >   release counted reference (conservative: Await)
 >   release counted reference (conservative: Await)
 >   release fn!() -> string (cancelled)
+>   release fn!() -> string (last use)
+>   release string (last use)
+> app/main/closure_bang
+>   release fn!() -> string (conservative: frame drop)
+>   release string (conservative: frame drop)
+>   release counted reference (conservative: frame drop)
+> app/main/closure_bang
+>   retain string (conservative: cold constructor)
         fetch!(key)
 > app/main/closure_bang
 >   retain string (conservative: entry)
@@ -68,14 +99,31 @@ fn closure_bang!(key: string) -> usize:
 > app/main/closure_bang
 >   retain counted reference (conservative: cold constructor)
 >   retain string (conservative: cold constructor)
->   (no span) retain string (conservative: entry)
->   (no span) release fn!() -> string (last use)
->   (no span) release string (last use)
 
 fn stored!(key: string) -> usize:
     loader := fn!(k: string) -> string: fetch!(k)
 > app/main/stored
+>   retain string (conservative: entry)
 >   release fn!(string) -> string (overwritten)
+>   release Suspend[string] (last use)
+>   release string (last use)
+>   release fn!(string) -> string (last use)
+>   release &string (last use)
+>   release counted reference (last use)
+>   release string (last use)
+> app/main/stored
+>   release fn!(string) -> string (conservative: frame drop)
+>   release fn!(string) -> string (conservative: frame drop)
+>   release string (conservative: frame drop)
+>   release Suspend[string] (conservative: frame drop)
+>   release string (conservative: frame drop)
+>   release &string (conservative: frame drop)
+>   release string (conservative: frame drop)
+>   release fn!(string) -> string (conservative: frame drop)
+>   release counted reference (conservative: frame drop)
+>   release counted reference (conservative: frame drop)
+> app/main/stored
+>   retain string (conservative: cold constructor)
 > app/main/stored
 >   retain string (conservative: entry)
 >   retain counted reference (conservative: Await)
@@ -106,10 +154,3 @@ fn stored!(key: string) -> usize:
 >   release Suspend[string] (cancelled)
 >   release counted reference (overwritten)
 >   retain &string (conservative: Ref)
->   (no span) retain string (conservative: entry)
->   (no span) release Suspend[string] (last use)
->   (no span) release string (last use)
->   (no span) release fn!(string) -> string (last use)
->   (no span) release &string (last use)
->   (no span) release counted reference (last use)
->   (no span) release string (last use)

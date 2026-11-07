@@ -15,8 +15,8 @@
     local.get $f.0
   )
   (func $generic_value (param $s.0 i32) (param $s.1 i32) (result i32 i32)
-    block
     ;; 29 |     map_one(s, ident)
+    block
       block
         block
           block
@@ -28,7 +28,6 @@
         end
       end
     end
-    ;; (no span)
     local.get $s.0
     local.get $s.1
   )
@@ -50,8 +49,8 @@
     local.get $t1
   )
   (func $named_value (param $s.0 i32) (param $s.1 i32) (result i32)
-    block
     ;; 20 |     apply(width, s)
+    block
       block
         block
           block
@@ -70,12 +69,11 @@
         end
       end
     end
-    ;; (no span)
     local.get $s.0
   )
   (func $variant_value (param $s.0 i32) (param $s.1 i32) (result i32 i32 i32) (local $t0 i32)
-    block
     ;; 32 |     map_one(s, Event.Named)
+    block
       block
         block
           i32.const 0
@@ -90,14 +88,13 @@
         end
       end
     end
-    ;; (no span)
     local.get $s.0
     local.get $s.1
     local.get $t0
   )
   (func $width (param $s.0 i32) (param $s.1 i32) (result i32)
-    block
     ;; 14 |     s.len()
+    block
       block
         block
           local.get $s.1
@@ -106,7 +103,6 @@
         end
       end
     end
-    ;; (no span)
     local.get $s.0
   )
   (func $spelled (result i32 i32) (local $t0 i32)

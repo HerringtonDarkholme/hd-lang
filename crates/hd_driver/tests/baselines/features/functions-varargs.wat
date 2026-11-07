@@ -13,8 +13,8 @@
     local.get $xs
   )
   (func $three (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (param $c.0 i32) (param $c.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
-    block
     ;; 15 |     total(a, b, c)
+    block
       i32.const 3
       call $rt:list_buf
       local.tee $t0
@@ -48,13 +48,13 @@
       local.get $t0
       call $total
       local.get $t0
-    ;; (no span)
       call $rt:release_ref
       local.set $a.0
     end
     local.get $a.0
   )
   (func $through_value (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
+    ;; 24 |     f := total
     block
     ;; 25 |     f(a, b)
       i32.const 2
@@ -81,7 +81,7 @@
       local.get $t0
       call $total
       local.get $t0
-    ;; (no span)
+    ;; 24 |     f := total
       call $rt:release_ref
       local.set $a.0
     end
@@ -151,11 +151,10 @@
     local.get $parts
   )
   (func $none (result i32) (local $t0 i32)
-    block
     ;; 21 |     total()
+    block
       i32.const 80 ;; &empty-buffer
       call $total
-    ;; (no span)
       local.set $t0
     end
     local.get $t0

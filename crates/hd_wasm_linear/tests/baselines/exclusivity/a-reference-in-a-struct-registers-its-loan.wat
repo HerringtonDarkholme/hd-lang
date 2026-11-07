@@ -7,8 +7,8 @@
   (import "fixture" "rt:loan_unshare" (func $rt:loan_unshare (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $in_struct (param $t i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
-    block
     ;; 13 |     held := Held { name: &t.lead.name }
+    block
       local.get $t
       i32.load $heap
       i32.const 4
@@ -74,7 +74,7 @@
       local.get $t
       local.set $alias
       local.set $t
-    ;; (no span)
+    ;; 13 |     held := Held { name: &t.lead.name }
       local.get $t0
       if
         local.get $t0
@@ -97,7 +97,8 @@
         local.get $t1
         i32.const 1
         i32.eq
-        ;; ...
+        if
+        end
         i32.const 0
         local.set $t0
       end
@@ -123,7 +124,8 @@
         local.get $t1
         i32.const 1
         i32.eq
-        ;; ...
+        if
+        end
         i32.const 0
         local.set $t0
       end
@@ -150,14 +152,15 @@
       local.get $t1
       i32.const 1
       i32.eq
-      ;; ...
+      if
+      end
     end
     local.get $t
     local.get $alias
   )
   (func $in_option (param $t i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t5 i32) (local $t3 i32) (local $t4 i32)
-    block
     ;; 23 |     let held: Option[&string] = .Some(&t.lead.name)
+    block
       local.get $t
       i32.load $heap
       i32.const 4
@@ -255,7 +258,7 @@
         local.set $t
         br 0
       end
-    ;; (no span)
+    ;; 23 |     let held: Option[&string] = .Some(&t.lead.name)
       local.get $t3
       if
         local.get $t3
@@ -278,7 +281,8 @@
         local.get $t4
         i32.const 1
         i32.eq
-        ;; ...
+        if
+        end
         i32.const 0
         local.set $t3
       end
@@ -304,7 +308,8 @@
         local.get $t4
         i32.const 1
         i32.eq
-        ;; ...
+        if
+        end
         i32.const 0
         local.set $t3
       end
@@ -333,7 +338,8 @@
       local.get $t1
       i32.const 1
       i32.eq
-      ;; ...
+      if
+      end
     end
     local.get $t3
     if
@@ -357,14 +363,15 @@
       local.get $t4
       i32.const 1
       i32.eq
-      ;; ...
+      if
+      end
     end
     local.get $t
     local.get $alias
   )
   (func $in_tuple (param $t i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
-    block
     ;; 18 |     held := (&t.lead.name, +1)
+    block
       local.get $t
       i32.load $heap
       i32.const 4
@@ -430,7 +437,7 @@
       local.get $t
       local.set $alias
       local.set $t
-    ;; (no span)
+    ;; 18 |     held := (&t.lead.name, +1)
       local.get $t0
       if
         local.get $t0
@@ -453,7 +460,8 @@
         local.get $t1
         i32.const 1
         i32.eq
-        ;; ...
+        if
+        end
         i32.const 0
         local.set $t0
       end
@@ -479,7 +487,8 @@
         local.get $t1
         i32.const 1
         i32.eq
-        ;; ...
+        if
+        end
         i32.const 0
         local.set $t0
       end
@@ -506,7 +515,8 @@
       local.get $t1
       i32.const 1
       i32.eq
-      ;; ...
+      if
+      end
     end
     local.get $t
     local.get $alias

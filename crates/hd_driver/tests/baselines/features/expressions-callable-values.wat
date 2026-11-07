@@ -24,8 +24,8 @@
     end
   )
   (func $read_cell (param $c.value.0 i32) (param $c.value.1 i32) (result i32)
-    block
     ;; 25 |     c().len()
+    block
       block
         block
           br 0
@@ -36,7 +36,6 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $c.value.0
       call $rt:release_ref
       local.get $c.value.1
@@ -45,8 +44,8 @@
     local.get $c.value.0
   )
   (func $append_cell (param $c i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
-    block
     ;; 31 |     c() += "!"
+    block
       local.get $c
       local.tee $t0
       i32.load $heap
@@ -77,10 +76,8 @@
       i32.const 65 ;; &"!"
       i32.load8_u $heap
       i32.store8 $heap
-    ;; (no span)
       local.get $t0
       call $rt:release_ref
-    ;; 31 |     c() += "!"
       local.get $c
       local.get $t3
       local.get $t2

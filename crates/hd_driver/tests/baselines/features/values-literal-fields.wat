@@ -52,7 +52,7 @@
     local.get $t0
   )
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $h i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $i i32) (local $t3 i64) (local $t4 i64) (local $t5 i32) (local $t6 i64) (local $t7 i32) (local $t8 i64) (local $t9 i32) (local $t10 i32) (local $t11 i32)
-    ;; (no span)
+    ;; 32 |     let mut h = histogram()
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -83,7 +83,6 @@
     local.tee $t0
     global.set $locals
     block
-    ;; 32 |     let mut h = histogram()
       block
         block
           i32.const 4
@@ -187,7 +186,7 @@
       local.get $t2
       i64.load $heap offset=24
       local.set $t3
-    ;; (no span)
+    ;; 32 |     let mut h = histogram()
       local.get $h
       if
         local.get $h
@@ -237,7 +236,7 @@
       local.get $t2
       i64.load $heap offset=16
       local.set $t4
-    ;; (no span)
+    ;; 32 |     let mut h = histogram()
       local.get $t1
       if
         local.get $t1
@@ -406,23 +405,23 @@
           br 0
         end
       end
-    ;; (no span)
+    ;; 32 |     let mut h = histogram()
       local.get $t9
       local.get $t10
     ;; 37 |     println("${h.buckets[1]} ${s.items[0]} ${START[0]}")
       local.get $provider0
       local.get $provider0.vtable
       call $"println[string]"
+    ;; 32 |     let mut h = histogram()
     end
-    ;; (no span)
     local.get $t0
     i32.const 32
     i32.add
     global.set $locals
   )
   (func $"impl Histogram.add" (param $self i32) (param $at i32) (local $t0 i32) (local $t1 i64)
-    block
     ;; 25 |         self.buckets[at] = self.buckets[at] + 1
+    block
       local.get $self
       i32.load $heap
       local.set $t0
@@ -464,14 +463,13 @@
     end
   )
   (func $"impl Shelf.put" (param $self i32) (param $v i64)
+    ;; 29 |         self.items[0] = v
     block
-    ;; (no span)
       local.get $self
       local.get $self
       i32.load $heap
       call $rt:list_unique
       i32.store $heap
-    ;; 29 |         self.items[0] = v
       local.get $self
       i32.load $heap
       local.set $self

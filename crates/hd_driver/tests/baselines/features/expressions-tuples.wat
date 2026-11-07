@@ -4,8 +4,8 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $select (param $t.0.0 i32) (param $t.0.1 i32) (param $t.1 i32) (result i32)
-    block
     ;; 9 |     t._0.len() + t._1.len()
+    block
       block
         block
           local.get $t.0.1
@@ -17,7 +17,6 @@
       local.get $t.1
       i32.load $heap offset=4
       i32.add
-    ;; (no span)
       local.set $t.0.0
     end
     local.get $t.0.0
@@ -64,10 +63,9 @@
     local.get $xs
   )
   (func $take_first (param $t.0.0 i32) (param $t.0.1 i32) (param $t.1 i32) (result i32 i32)
-    block
     ;; 15 |     t._0
+    block
       local.get $t.0.0
-    ;; (no span)
       local.get $t.1
       call $rt:release_ref
       local.set $t.0.0
@@ -76,8 +74,8 @@
     local.get $t.0.1
   )
   (func $nested (param $t.0.0.0 i32) (param $t.0.0.1 i32) (param $t.0.1.0 i32) (param $t.0.1.1 i32) (param $t.1.0 i32) (param $t.1.1 i32) (result i32)
-    block
     ;; 12 |     t._0._1.len()
+    block
       block
         block
           local.get $t.0.1.1
@@ -86,7 +84,6 @@
         end
       end
     end
-    ;; (no span)
     local.get $t.0.0.0
   )
 )

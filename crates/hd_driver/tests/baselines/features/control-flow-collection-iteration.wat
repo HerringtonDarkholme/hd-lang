@@ -6,8 +6,8 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 4 funcref))
   (func $keys (param $m i32) (result i32) (local $out i32) (local $t0 i32) (local $t1 i32) (local $k i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32)
-    block
     ;; 19 |     let mut out: List[string] = []
+    block
       i32.const 80 ;; &empty-buffer
       local.set $out
     ;; 20 |     for (k, _) in m:
@@ -97,12 +97,13 @@
       end
     ;; 22 |     out
       local.get $out
-    ;; (no span)
+    ;; 19 |     let mut out: List[string] = []
       local.set $m
     end
     local.get $m
   )
   (func $by_ref (param $m i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $v i32)
+    ;; 13 |     let n: usize = 0
     block
     ;; 14 |     for (_, v) in m:
       local.get $m
@@ -162,13 +163,13 @@
       end
     ;; 16 |     n
       local.get $n
-    ;; (no span)
+    ;; 13 |     let n: usize = 0
       local.set $m
     end
     local.get $m
   )
   (func $by_value (param $m i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $k i32) (local $v i32)
-    ;; 10 |     n
+    ;; 7 |     let n: usize = 0
     block
     ;; 8 |     for (k, v) in m:
       local.get $m
@@ -229,6 +230,7 @@
       end
     ;; 10 |     n
       local.get $n
+    ;; 7 |     let n: usize = 0
       local.set $m
     end
     local.get $m

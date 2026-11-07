@@ -18,8 +18,8 @@
     local.get $self
   )
   (func $temp_receiver (param $s.0 i32) (param $s.1 i32) (result i32)
-    block
     ;; 31 |     make(s).label_len()
+    block
       block
         block
           br 0
@@ -35,7 +35,6 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $s.0
       call $rt:release_ref'1
       local.get $s.1
@@ -44,7 +43,7 @@
     local.get $s.0
   )
   (func $place_receiver (param $s.0 i32) (param $s.1 i32) (result i64) (local $t2 i64) (local $t0 i32) (local $t1 i32)
-    ;; (no span)
+    ;; 40 |     let mut p = make(s)
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -75,7 +74,6 @@
     local.tee $t0
     global.set $locals
     block
-    ;; 40 |     let mut p = make(s)
       block
         block
           br 0
@@ -105,7 +103,7 @@
       local.get $s.0
       i64.load $heap offset=8
       local.set $t2
-    ;; (no span)
+    ;; 40 |     let mut p = make(s)
       local.get $s.0
       if
         local.get $s.0
@@ -140,8 +138,8 @@
     local.get $t0
   )
   (func $counted (param $b i32) (result i32) (local $t0 i32) (local $t1 i32)
-    block
     ;; 49 |     b.keep().name.len()
+    block
       local.get $b
       call $"impl Vec2.keep"
       local.tee $b
@@ -152,10 +150,8 @@
       local.set $t1
       local.tee $t0
       call $retain
-    ;; (no span)
       local.get $b
       call $rt:release_ref'2
-    ;; 49 |     b.keep().name.len()
       block
         block
           local.get $t1
@@ -163,15 +159,14 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $t0
       call $rt:release_ref'1
     end
     local.get $b
   )
   (func $mut_self (param $v.name.0 i32) (param $v.name.1 i32) (param $v.x i64) (param $n.0 i32) (param $n.1 i32) (result i32)
-    block
     ;; 45 |     w := v.renamed(n)
+    block
       local.get $v.name.0
       call $retain
       block
@@ -193,7 +188,7 @@
           br 0
         end
       end
-    ;; (no span)
+    ;; 45 |     w := v.renamed(n)
       local.get $n.0
       call $rt:release_ref'1
     ;; 46 |     w.name.len() + v.name.len()
@@ -204,27 +199,26 @@
           br 0
         end
       end
-    ;; (no span)
+    ;; 45 |     w := v.renamed(n)
       local.get $v.name.0
       call $rt:release_ref'1
     ;; 46 |     w.name.len() + v.name.len()
       local.get $n.1
       local.get $v.name.1
       i32.add
-    ;; (no span)
+    ;; 45 |     w := v.renamed(n)
       local.set $v.name.0
     end
     local.get $v.name.0
   )
   (func $element_receiver (param $xs i32) (param $i i32)
+    ;; 34 |     xs[i].shift(1)
     block
-    ;; (no span)
       local.get $xs
       local.get $xs
       i32.load $heap
       call $rt:list_unique
       i32.store $heap
-    ;; 34 |     xs[i].shift(1)
       local.get $xs
       i32.load $heap
       local.set $xs
@@ -248,8 +242,8 @@
     end
   )
   (func $element_read (param $xs i32) (param $i i32) (result i32)
-    block
     ;; 37 |     xs[i].label_len()
+    block
       local.get $i
       local.get $xs
       i32.load $heap offset=4
@@ -282,12 +276,11 @@
         end
       end
     end
-    ;; (no span)
     local.get $xs
   )
   (func $"impl Vec2.label_len" (param $self i32) (result i32)
-    block
     ;; 15 |         self.name.len()
+    block
       local.get $self
       i32.load $heap
       local.get $self
@@ -300,7 +293,6 @@
         end
       end
     end
-    ;; (no span)
     local.get $self
   )
   (func $"impl Vec2.shift" (param $self i32) (param $d i64)

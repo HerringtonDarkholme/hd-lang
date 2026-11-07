@@ -37,23 +37,23 @@ fn total(words: &UniqList[string]) -> usize:
 
 fn local_field(name: string) -> usize:
     pair := Pair { name: name, tag: "t" }
+> std/rt_tests.stage_case/local_field
+>   release std.rt_tests.stage_case.Pair [name.0, tag.0] (last use)
     r := &pair.name
     show(r) + show(r)
-> std/rt_tests.stage_case/local_field
->   (no span) release std.rt_tests.stage_case.Pair [name.0, tag.0] (last use)
 
 fn cell_field(name: string) -> usize:
     let mut pair = Pair { name: name, tag: "t" }
+> std/rt_tests.stage_case/cell_field
+>   release fn() -> () (last use)
+>   release counted reference (last use)
     retag := fn() -> void: pair.tag = "u"
 > std/rt_tests.stage_case/cell_field
 >   release string (overwritten)
-> std/rt_tests.stage_case/cell_field
 >   retain counted reference (conservative: Closure)
     retag()
     r := &pair.name
     show(r)
->   (no span) release fn() -> () (last use)
->   (no span) release counted reference (last use)
 
 fn behind_pointer(h: *mut Holder, alias: *mut Holder) -> usize:
     name := &h.child.name
@@ -64,7 +64,7 @@ fn behind_pointer(h: *mut Holder, alias: *mut Holder) -> usize:
 
 fn pinned(xs: &mut List[i64]) -> void:
     r := &mut xs[0]
-    bump(r)
-    bump(r)
 > std/rt_tests.stage_case/pinned
->   (no span) unique List[i64] (conservative: unique)
+>   unique List[i64] (conservative: unique)
+    bump(r)
+    bump(r)

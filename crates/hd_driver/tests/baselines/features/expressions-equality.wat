@@ -12,7 +12,7 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $opt_some (param $t1 i32) (param $t2 i32) (param $t3 i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $o i32)
-    ;; (no span)
+    ;; 24 |     o == .Some(s)
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -58,7 +58,6 @@
     local.get $t3
     i32.store $heap offset=8
     block
-    ;; 24 |     o == .Some(s)
       local.get $t0
       i64.const 0
       i64.store $heap offset=24
@@ -78,7 +77,6 @@
       local.get $t1
       call $"impl [ T < ? Copy & Eq ] Eq for T ?.eq[string]"
       local.set $t2
-    ;; (no span)
       local.get $t1
       if
         local.get $t1
@@ -109,12 +107,11 @@
     global.set $locals
   )
   (func $map_eq (param $a i32) (param $b i32) (result i32)
-    block
     ;; 27 |     a == b
+    block
       local.get $a
       local.get $b
       call $"impl [ K < Eq & Hash , V < Eq ] Eq for Map [ K , V ].eq[string, string]"
-    ;; (no span)
       local.get $a
       call $rt:release_ref
       local.get $b
@@ -124,7 +121,7 @@
     local.get $a
   )
   (func $list_ne (param $b i32) (param $t1 i32) (result i32) (local $t0 i32) (local $a i32)
-    ;; (no span)
+    ;; 15 |     a != b
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -173,12 +170,10 @@
     local.get $t1
     i32.store $heap
     block
-    ;; 15 |     a != b
       local.get $a
       local.get $b
       call $"impl [ T < Eq ] Eq for List [ T ].eq[string]"
       local.set $t1
-    ;; (no span)
       local.get $a
       if
         local.get $a
@@ -191,10 +186,8 @@
         i32.load $heap
         call $rt:release_ref
       end
-    ;; 15 |     a != b
       local.get $t1
       i32.eqz
-    ;; (no span)
       local.set $b
     end
     local.get $b
@@ -216,7 +209,7 @@
     local.get $a.0
   )
   (func $rec_eq (param $b i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (param $t4 i32) (param $t5 i32) (result i32) (local $t0 i32) (local $a i32)
-    ;; (no span)
+    ;; 18 |     a == b
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -277,12 +270,10 @@
     local.get $t5
     i32.store $heap offset=8
     block
-    ;; 18 |     a == b
       local.get $a
       local.get $b
       call $"derive Eq for Rec.eq"
       local.set $t1
-    ;; (no span)
       local.get $a
       if
         local.get $a
@@ -313,7 +304,7 @@
     global.set $locals
   )
   (func $opt_none (param $t1 i32) (param $t2 i32) (param $t3 i32) (result i32) (local $t0 i32) (local $o i32) (local $t4 i32)
-    ;; (no span)
+    ;; 21 |     o == .None
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -359,7 +350,6 @@
     local.get $t3
     i32.store $heap offset=8
     block
-    ;; 21 |     o == .None
       block
         block
           block
@@ -377,7 +367,6 @@
         end
         br 0
       end
-    ;; (no span)
       local.get $o
       if
         local.get $o

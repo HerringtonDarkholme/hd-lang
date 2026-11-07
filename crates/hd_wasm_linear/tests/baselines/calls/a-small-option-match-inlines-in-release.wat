@@ -50,7 +50,7 @@
     local.get $slot
   )
   (func $repeated_scalar_read (result i32) (local $slot i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
-    ;; (no span)
+    ;; 58 |     slot := Slot.Occupied(1, +3)
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -81,7 +81,6 @@
     local.tee $t0
     global.set $locals
     block
-    ;; 58 |     slot := Slot.Occupied(1, +3)
       local.get $t0
       i64.const 0
       i64.store $heap
@@ -177,7 +176,7 @@
       local.get $t1
       local.get $slot
       i32.add
-    ;; (no span)
+    ;; 58 |     slot := Slot.Occupied(1, +3)
       local.set $slot
     end
     local.get $slot
@@ -187,8 +186,8 @@
     global.set $locals
   )
   (func $copied_sum (param $xs i32) (result f64) (local $total f64) (local $t0 i32) (local $t1 i32) (local $i i32) (local $t2 f64) (local $t3 f64)
-    block
     ;; 25 |     let total = 0.0
+    block
       f64.const 0x0p+0
       local.set $total
     ;; 26 |     for i in 0..xs.len():
@@ -256,8 +255,8 @@
           br 0
         end
       end
+    ;; 25 |     let total = 0.0
     end
-    ;; (no span)
     local.get $total
   )
   (func $loan_explicit_user (param $value i32) (result i32)
@@ -270,8 +269,8 @@
     local.get $value
   )
   (func $std_sum (param $xs i32) (result f64) (local $total f64) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 f64) (local $t4 i32) (local $t5 f64)
-    block
     ;; 18 |     let total = 0.0
+    block
       f64.const 0x0p+0
       local.set $total
     ;; 19 |     for i in 0..xs.len():
@@ -372,8 +371,8 @@
           br 0
         end
       end
+    ;; 18 |     let total = 0.0
     end
-    ;; (no span)
     local.get $total
   )
   (func $explicit_loan (param $value i32) (result i32)
@@ -451,8 +450,8 @@
     local.get $value.1
   )
   (func $user_sum (param $xs i32) (result f64) (local $total f64) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 f64) (local $t4 i32) (local $t5 f64)
-    block
     ;; 12 |     let total = 0.0
+    block
       f64.const 0x0p+0
       local.set $total
     ;; 13 |     for i in 0..xs.len():
@@ -553,13 +552,13 @@
           br 0
         end
       end
+    ;; 12 |     let total = 0.0
     end
-    ;; (no span)
     local.get $total
   )
   (func $map_value (param $values i32) (param $key i32) (result f64) (local $t0 f64) (local $t1 f64)
-    block
     ;; 31 |     values.get(key).unwrap_or(0.0)
+    block
       local.get $values
       i32.load $heap
       local.tee $values
@@ -624,7 +623,6 @@
         end
       end
     end
-    ;; (no span)
     local.get $t0
   )
   (func $loan_value (param $value i32) (result i32)

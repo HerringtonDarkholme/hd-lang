@@ -10,8 +10,8 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $concat_len (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
-    block
     ;; 13 |     (a + b).len()
+    block
       local.get $a.1
       local.get $b.1
       i32.add
@@ -41,7 +41,6 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $t1
       call $rt:release_ref
     end
@@ -81,7 +80,7 @@
     local.get $a.1
   )
   (func $interp (param $a.0 i32) (param $a.1 i32) (param $t1 i64) (result i32 i32) (local $t0 i32) (local $n i32) (local $t2 i32) (local $t3 i64) (local $t4 i32) (local $t5 i32) (local $t6 i32)
-    ;; (no span)
+    ;; 7 |     "${a}:${n}"
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -121,7 +120,6 @@
     local.get $t1
     i64.store $heap
     block
-    ;; 7 |     "${a}:${n}"
       block
         block
           local.get $a.1
@@ -218,7 +216,6 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $t5
       local.get $t6
       local.set $a.1

@@ -16,9 +16,9 @@ fn build_while(s: string, k: usize) -> string:
     let out = s
 > app/main/build_while
 >   retain string (stored)
+>   release string (last use)
     let i: usize = 0
     while i < k:
         out += s
         i += 1
     out
->   (no span) release string (last use)

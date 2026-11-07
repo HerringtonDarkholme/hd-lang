@@ -8,20 +8,20 @@
 fn measure(label: string, body: fn() -> string) -> usize:
     label.len() + body().len()
 > app/main/measure
->   (no span) release string (last use)
+>   release string (last use)
 
 fn trailing(s: string) -> usize:
     measure("t"):
 > app/main/trailing
 >   release string (last use)
+>   release fn() -> string (last use)
         s + "!"
->   (no span) release fn() -> string (last use)
 
 fn twice(body: fn() -> usize) -> usize:
     body() + body()
 
 fn no_args(s: string) -> usize:
     twice:
-        s.len()
 > app/main/no_args
->   (no span) release fn() -> usize (last use)
+>   release fn() -> usize (last use)
+        s.len()

@@ -2,6 +2,3 @@
 app/main/lent
   copy List[string] (second owner)
   retain string (conservative: copy read)
-  (no span) release List[string] (last use)
-  (no span) release string (last use)
-  (no span) release List[string] (last use)

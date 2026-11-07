@@ -11,25 +11,25 @@ struct User:
 fn remember['a](seen: &mut List[&'a User], u: &'a User) -> void:
     seen.push(u)
 > app/main/remember
->   (no span) unique List[&app.main.User] (conservative: unique)
+>   unique List[&app.main.User] (conservative: unique)
 
 fn index['a](by: &mut Map[string, &'a User], u: &'a User) -> void:
     by[u.name] = u
 > app/main/index
 >   retain string (second owner)
+>   unique Map[string, &app.main.User] (conservative: unique)
 >   retain string (conservative: Intrinsic)
->   (no span) unique Map[string, &app.main.User] (conservative: unique)
->   (no span) release string (last use)
+>   release string (last use)
 
 fn total(a: User, b: User) -> usize:
     let mut seen: List[&User] = []
+> app/main/total
+>   release app.main.User [name.0] (last use)
+>   release List[&app.main.User] (last use)
+>   release Map[string, &app.main.User] (last use)
+>   release app.main.User [name.0] (last use)
     remember(&mut seen, &a)
     remember(&mut seen, &b)
     let mut by: Map[string, &User] = {}
     index(&mut by, &a)
     seen[0].name.len() + seen[1].name.len() + by.len()
-> app/main/total
->   (no span) release app.main.User [name.0] (last use)
->   (no span) release List[&app.main.User] (last use)
->   (no span) release Map[string, &app.main.User] (last use)
->   (no span) release app.main.User [name.0] (last use)

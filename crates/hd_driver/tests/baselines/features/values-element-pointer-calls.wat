@@ -23,8 +23,8 @@
     end
   )
   (func $save (param $node i32) (param $k i32) (local $t0 i32) (local $t1 i32) (local $e i32)
-    block
     ;; 35 |     for e in &node.children:
+    block
       local.get $node
       i32.load $heap offset=8
       call $rt:coll_copy
@@ -68,13 +68,12 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $node
       call $rt:release_ref'1
     end
   )
   (func $run (param $root i32) (result i64) (local $t2 i64) (local $t0 i32) (local $t1 i32) (local $keeper i32)
-    ;; (no span)
+    ;; 39 |     let mut total = Total { sum: 0 }
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -105,7 +104,6 @@
     local.tee $t0
     global.set $locals
     block
-    ;; 39 |     let mut total = Total { sum: 0 }
       local.get $t0
       i64.const 0
       i64.store $heap
@@ -122,7 +120,7 @@
       local.get $t1
       i32.const 296 ;; &vtable[func43]
       call $walk
-    ;; (no span)
+    ;; 39 |     let mut total = Total { sum: 0 }
       local.get $t1
       call $rt:release_ref'2
     ;; 41 |     let mut keeper = Keeper { saved: [] }
@@ -150,13 +148,13 @@
       i32.const 0
       i32.store $heap
       i32.load $heap offset=4
-    ;; (no span)
+    ;; 39 |     let mut total = Total { sum: 0 }
       local.get $root
       call $rt:release_ref'1
     ;; 43 |     total.sum + i64(keeper.saved.len())
       i64.extend_i32_u
       i64.add
-    ;; (no span)
+    ;; 39 |     let mut total = Total { sum: 0 }
       local.set $t2
     end
     local.get $t2
@@ -166,8 +164,8 @@
     global.set $locals
   )
   (func $walk (param $node i32) (param $sink.0 i32) (param $sink.1 i32) (local $t0 i32) (local $t1 i32) (local $child i32)
-    block
     ;; 17 |     sink.emit(node.value)
+    block
       local.get $sink.0
       call $retain
       local.get $sink.0
@@ -176,7 +174,6 @@
       local.get $sink.1
       i32.load $heap
       call_indirect $table0 (param i32 i64)
-    ;; (no span)
       local.get $sink.0
       call $rt:release_ref'2
     ;; 18 |     for child in &node.children:
@@ -224,20 +221,18 @@
           br 0
         end
       end
-    ;; (no span)
+    ;; 17 |     sink.emit(node.value)
       local.get $node
       call $rt:release_ref'1
     end
   )
   (func $keep (param $n i32) (param $k i32) (local $t0 i32) (local $t1 i32)
-    block
     ;; 32 |     k.saved.push(n)
+    block
       local.get $n
       call $rt:retain_known
-    ;; (no span)
       local.get $k
       i32.load $heap
-    ;; 32 |     k.saved.push(n)
       local.tee $t0
       i32.load $heap offset=4
       local.tee $t1

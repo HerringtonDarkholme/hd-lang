@@ -5,8 +5,8 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 5 funcref))
   (func $wrap_all (param $errors i32) (result i32) (local $t0 i32) (local $t1 i32) (local $e.0 i32) (local $t2 i32) (local $e.1 i32) (local $e.2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32)
-    block
     ;; 15 |     [for e in errors => SyncError.Fs(e)]
+    block
       i32.const 24 ;; &empty-buffer
       local.set $t0
       local.get $errors
@@ -106,14 +106,13 @@
         end
       end
       local.get $t0
-    ;; (no span)
       local.set $errors
     end
     local.get $errors
   )
   (func $wrap_with'1 (param $errors i32) (param $wrap.0 i32) (param $wrap.1 i32) (result i32) (local $t0 i32) (local $e.0 i32) (local $t1 i32) (local $e.1 i32) (local $e.2 i32) (local $t3 i32) (local $t2 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32)
-    block
     ;; 18 |     [for e in errors => wrap(e)]
+    block
       i32.const 24 ;; &empty-buffer
       local.set $wrap.0
       local.get $errors
@@ -216,14 +215,13 @@
         end
       end
       local.get $wrap.0
-    ;; (no span)
       local.set $errors
     end
     local.get $errors
   )
   (func $wrap_with'2 (param $errors i32) (param $wrap.0 i32) (param $wrap.1 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $e.0 i32) (local $t2 i32) (local $e.1 i32) (local $e.2 i32) (local $t4 i32) (local $t3 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32)
-    block
     ;; 18 |     [for e in errors => wrap(e)]
+    block
       i32.const 24 ;; &empty-buffer
       local.set $t0
       local.get $errors
@@ -327,7 +325,6 @@
         end
       end
       local.get $t0
-    ;; (no span)
       local.set $errors
     end
     local.get $errors
@@ -353,13 +350,12 @@
     local.get $t0
   )
   (func $as_value (param $errors i32) (result i32)
-    block
     ;; 21 |     wrap_with(errors, SyncError.Fs)
+    block
       local.get $errors
       i32.const 2
       i32.const 0
       call $wrap_with'1
-    ;; (no span)
       local.set $errors
     end
     local.get $errors

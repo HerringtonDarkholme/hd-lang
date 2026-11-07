@@ -30,7 +30,7 @@
     local.get $photo.tags
   )
   (func $uniq (param $xs.buffer.address i32) (param $xs.buffer.capacity i32) (param $xs.len i32) (param $s.0 i32) (param $s.1 i32) (result i32 i32 i32) (local $ys i32) (local $t3 i32) (local $t4 i32) (local $t2 i32) (local $t1 i32) (local $t0 i32) (local $t5 i32)
-    ;; (no span)
+    ;; 31 |     let mut ys = xs
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -61,7 +61,6 @@
     local.tee $t0
     global.set $locals
     block
-    ;; 31 |     let mut ys = xs
       local.get $xs.buffer.address
       local.get $xs.buffer.capacity
       local.get $xs.len
@@ -184,7 +183,7 @@
       local.get $ys
       i32.const 0
       i32.store $heap offset=8
-    ;; (no span)
+    ;; 31 |     let mut ys = xs
       local.set $ys
       local.set $s.1
       local.set $s.0
@@ -204,8 +203,8 @@
     global.set $locals
   )
   (func $export (param $photo.width i32) (param $photo.tags i32) (result i32 i32)
-    block
     ;; 24 |     keep(photo.width)
+    block
       block
         block
           br 0
@@ -217,17 +216,16 @@
           br 0
         end
       end
+    ;; 24 |     keep(photo.width)
     end
-    ;; (no span)
     local.get $photo.width
     local.get $photo.tags
   )
   (func $grow (param $c i32) (param $s.0 i32) (param $s.1 i32) (local $t0 i32) (local $t1 i32)
+    ;; 36 |     c.tags.push(s)
     block
-    ;; (no span)
       local.get $c
       i32.load $heap offset=4
-    ;; 36 |     c.tags.push(s)
       local.tee $t0
       i32.load $heap offset=4
       local.tee $t1

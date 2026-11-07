@@ -50,8 +50,8 @@
     local.get $t0
   )
   (func $unwrap (param $o.0 i32) (param $o.1 i32) (param $o.2 i32) (result i32)
-    block
     ;; 7 |     match o:
+    block
       block
         block
           block
@@ -84,12 +84,11 @@
         br 0
       end
     end
-    ;; (no span)
     local.get $o.0
   )
   (func $or_default (param $o.0 i32) (param $o.1 i32) (param $o.2 i32) (result i32 i32) (local $t1 i32) (local $t0 i32)
-    block
     ;; 16 |     o.unwrap_or("none")
+    block
       i32.const 66 ;; &"none"
       i32.const 4
       local.set $t0
@@ -130,7 +129,6 @@
         end
       end
     end
-    ;; (no span)
     local.get $o.0
     local.get $o.1
   )

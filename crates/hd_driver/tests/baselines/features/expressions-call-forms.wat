@@ -6,8 +6,8 @@
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $join2 (param $first.0 i32) (param $first.1 i32) (param $second.0 i32) (param $second.1 i32) (result i32)
-    block
     ;; 8 |     first.len() * 3 + second.len()
+    block
       block
         block
           local.get $first.1
@@ -29,14 +29,13 @@
       local.get $first.0
       local.get $first.1
       i32.add
-    ;; (no span)
       local.set $first.0
     end
     local.get $first.0
   )
   (func $named (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32)
-    block
     ;; 14 |     join2(second=a, first=b)
+    block
       local.get $a.0
       local.get $b.0
       local.set $a.0
@@ -58,7 +57,6 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $a.1
       call $rt:release_ref'1
       local.get $a.0
@@ -78,8 +76,8 @@
     local.get $values
   )
   (func $spread_list (param $xs i32) (result i32)
-    block
     ;; 23 |     count(xs...)
+    block
       block
         block
           local.get $xs
@@ -89,12 +87,11 @@
         end
       end
     end
-    ;; (no span)
     local.get $xs
   )
   (func $collect (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
-    block
     ;; 26 |     count(a, b)
+    block
       i32.const 2
       call $rt:list_buf
       local.tee $t0
@@ -124,15 +121,14 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $t0
       call $rt:release_ref'2
     end
     local.get $a.0
   )
   (func $spread_tuple (param $pair.0.0 i32) (param $pair.0.1 i32) (param $pair.1.0 i32) (param $pair.1.1 i32) (result i32)
-    block
     ;; 20 |     join2(pair...)
+    block
       local.get $pair.0.0
       local.set $pair.0.0
       block
@@ -150,7 +146,6 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $pair.1.0
       call $rt:release_ref'1
       local.get $pair.0.0
@@ -161,8 +156,8 @@
     local.get $pair.0.0
   )
   (func $positional (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32)
-    block
     ;; 17 |     join2(b, a)
+    block
       local.get $b.0
       local.set $b.0
       block
@@ -180,7 +175,6 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $a.0
       call $rt:release_ref'1
       local.get $b.0

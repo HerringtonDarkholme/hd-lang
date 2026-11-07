@@ -5,8 +5,8 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $widened (param $dog.0 i32) (param $dog.1 i32) (result i32 i32) (local $t0 i32)
-    block
     ;; 11 |     nested := box(dog)
+    block
       local.get $dog.0
       call $retain
       i32.const 8
@@ -32,7 +32,7 @@
       i32.load $heap offset=4
       local.get $dog.0
       call $rt:release_ref
-    ;; (no span)
+    ;; 11 |     nested := box(dog)
       local.set $dog.1
       local.set $dog.0
     end

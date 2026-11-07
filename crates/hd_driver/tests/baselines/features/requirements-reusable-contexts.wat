@@ -27,8 +27,8 @@
     local.get $ctx
   )
   (func $read_tag (param $provider0 i32) (param $provider0.vtable i32) (result i32)
-    block
     ;; 18 |     $.use(Tag).name().len()
+    block
       local.get $provider0
       local.get $provider0.vtable
       i32.load $heap
@@ -40,7 +40,6 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $provider0
       call $rt:release_ref
       local.get $provider0.vtable
@@ -56,8 +55,8 @@
     local.get $self.label.1
   )
   (func $make (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
-    block
     ;; 21 |     $.context(Tag=Named { label: s })
+    block
       local.get $s.0
       local.get $s.1
       local.set $s.1
@@ -82,9 +81,7 @@
       local.tee $s.1
       call $retain
       local.get $s.0
-    ;; (no span)
       call $rt:release_ref
-    ;; 21 |     $.context(Tag=Named { label: s })
       i32.const 1
       i32.const 0
       call $rt:ctx_new
@@ -99,7 +96,6 @@
       i32.store $heap offset=28
       local.get $s.1
       call $retain
-    ;; (no span)
       local.get $s.1
       call $rt:release_ref
     end

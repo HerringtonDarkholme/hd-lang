@@ -19,17 +19,19 @@
     local.get $a.1
   )
   (func $assign_list (param $xs i32) (param $ys i32) (result i32)
-    ;; 19 |     zs.len()
+    ;; 17 |     let zs = xs
     block
     ;; 18 |     zs = ys
       local.get $ys
     ;; 19 |     zs.len()
       i32.load $heap offset=4
+    ;; 17 |     let zs = xs
       local.set $xs
     end
     local.get $xs
   )
   (func $assign (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32)
+    ;; 7 |     let s = a
     block
     ;; 9 |     s.len()
       block
@@ -39,8 +41,8 @@
           br 0
         end
       end
+    ;; 7 |     let s = a
     end
-    ;; (no span)
     local.get $a.0
   )
 )

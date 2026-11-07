@@ -22,17 +22,52 @@ impl Tag for Named:
 
 fn fetch!(key: string) -> string:
     key + "?"
+> app/main/fetch
+>   release string (cancelled)
+> app/main/fetch
+>   release string (conservative: frame drop)
+>   release string (conservative: frame drop)
+>   release counted reference (conservative: frame drop)
+> app/main/fetch
+>   retain string (conservative: cold constructor)
 
 fn tagged!() -> usize $ Tag:
     $.use(Tag).name().len()
 > app/main/tagged
 >   release string (overwritten)
->   (no span) release string (last use)
+>   release string (last use)
+> app/main/tagged
+>   release app.main.Tag (conservative: frame drop)
+>   release &app.main.Tag (by design)
+>   release string (conservative: frame drop)
+>   release string (conservative: frame drop)
+>   release counted reference (conservative: frame drop)
+>   release counted reference (conservative: frame drop)
+> app/main/tagged
+>   retain counted reference (conservative: cold constructor)
 
 fn later!(key: string) -> usize:
     let mut pending = fetch(key)
 > app/main/later
+>   retain string (conservative: entry)
+>   release string (last use)
 >   release Suspend[string] (overwritten)
+>   release Suspend[string] (last use)
+>   release &string (last use)
+>   release counted reference (last use)
+>   release string (last use)
+> app/main/later
+>   release string (conservative: frame drop)
+>   release Suspend[string] (conservative: frame drop)
+>   release Suspend[string] (conservative: frame drop)
+>   release string (conservative: frame drop)
+>   release &string (conservative: frame drop)
+>   release string (conservative: frame drop)
+>   release Suspend[string] (conservative: frame drop)
+>   release counted reference (conservative: frame drop)
+>   release counted reference (conservative: frame drop)
+> app/main/later
+>   retain string (conservative: cold constructor)
     pending!().len()
 >   retain counted reference (conservative: AwaitValue)
 >   release counted reference (conservative: AwaitValue)
@@ -40,46 +75,60 @@ fn later!(key: string) -> usize:
 >   release Suspend[string] (cancelled)
 >   release counted reference (overwritten)
 >   retain &string (conservative: Ref)
->   (no span) retain string (conservative: entry)
->   (no span) release string (last use)
->   (no span) release Suspend[string] (last use)
->   (no span) release &string (last use)
->   (no span) release counted reference (last use)
->   (no span) release string (last use)
 
 fn blocking(key: string) -> usize:
     match block_on(fetch(key)):
-        .Completed(v) => v.len()
 > app/main/blocking
->   (no span) release Suspend[string] (last use)
->   (no span) release std.task.BlockOn[string] (last use)
+>   release Suspend[string] (last use)
+>   release std.task.BlockOn[string] (last use)
+        .Completed(v) => v.len()
         _ => 0
 
 fn discard(key: string) -> usize:
     _ := fetch(key)
 > app/main/discard
->   (no span) release Suspend[string] (last use)
+>   release Suspend[string] (last use)
     0
 
 fn bound!(s: string) -> usize:
     let mut pending: mut Suspend[usize] = $.with(Tag=Named { label: s }):
 > app/main/bound
+>   retain string (conservative: entry)
 >   release app.main.Named [label.0] (overwritten)
 >   release counted reference (overwritten)
 >   retain &mut app.main.Named (conservative: Ref)
 >   retain app.main.Tag (stored)
+>   release &mut app.main.Named (last use)
 >   retain app.main.Tag (stored)
+>   release &app.main.Tag (by design)
+>   release app.main.Tag (last use)
+>   release counted reference (last use)
 >   release Suspend[usize] (overwritten)
+>   release Suspend[usize] (last use)
+>   release string (last use)
+> app/main/bound
+>   release string (conservative: frame drop)
+>   release app.main.Named [label.0] (conservative: frame drop)
+>   release app.main.Named [label.0] (conservative: frame drop)
+>   release &mut app.main.Named (conservative: frame drop)
+>   release &mut app.main.Named (conservative: frame drop)
+>   release &mut app.main.Named (conservative: frame drop)
+>   release app.main.Tag (conservative: frame drop)
+>   release &app.main.Tag (by design)
+>   release app.main.Tag (conservative: frame drop)
+>   release Suspend[usize] (conservative: frame drop)
+>   release Suspend[usize] (conservative: frame drop)
+>   release Suspend[usize] (conservative: frame drop)
+>   release string (conservative: frame drop)
+>   release Suspend[usize] (conservative: frame drop)
+>   release app.main.Named [label.0] (conservative: frame drop)
+>   release counted reference (conservative: frame drop)
+>   release counted reference (conservative: frame drop)
+> app/main/bound
+>   retain string (conservative: cold constructor)
         tagged()
     pending!()
 >   retain counted reference (conservative: AwaitValue)
 >   release counted reference (conservative: AwaitValue)
 >   release counted reference (conservative: AwaitValue)
 >   release Suspend[usize] (cancelled)
->   (no span) retain string (conservative: entry)
->   (no span) release &mut app.main.Named (last use)
->   (no span) release &app.main.Tag (by design)
->   (no span) release app.main.Tag (last use)
->   (no span) release counted reference (last use)
->   (no span) release Suspend[usize] (last use)
->   (no span) release string (last use)

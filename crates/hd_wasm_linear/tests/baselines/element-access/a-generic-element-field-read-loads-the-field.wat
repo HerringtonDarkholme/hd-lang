@@ -24,8 +24,8 @@
     local.get $infos
   )
   (func $use_generic (param $m.infos i32) (param $m.tag i32) (param $i i32) (result i32)
-    block
     ;; 23 |     m.position_at(i)
+    block
       block
         block
           local.get $i
@@ -47,7 +47,6 @@
         end
       end
     end
-    ;; (no span)
     local.get $m.infos
   )
 )

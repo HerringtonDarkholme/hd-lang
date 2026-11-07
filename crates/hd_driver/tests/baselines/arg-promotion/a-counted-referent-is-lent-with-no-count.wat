@@ -5,15 +5,14 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $"shown[string]" (param $value.0 i32) (param $value.1 i32) (result i32 i32)
-    block
     ;; 31 |     value.show()
+    block
       block
         block
           br 0
         end
       end
     end
-    ;; (no span)
     local.get $value.0
     local.get $value.1
   )
@@ -30,8 +29,8 @@
     local.get $t0
   )
   (func $label'1 (param $w i32) (result i32) (local $t0 i32) (local $t1 i32)
-    block
     ;; 23 |     (w.name.len() + 1) * (w.name.len() + 2) * (w.name.len() + 3) / (w.name.len() + 4)
+    block
       local.get $w
       i32.load $heap
       local.get $w
@@ -104,7 +103,6 @@
       end
       local.get $w
       i32.div_u
-    ;; (no span)
       local.set $w
     end
     local.get $w
@@ -128,8 +126,8 @@
     local.get $t0
   )
   (func $label'2 (param $w.name.0 i32) (param $w.name.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
-    block
     ;; 23 |     (w.name.len() + 1) * (w.name.len() + 2) * (w.name.len() + 3) / (w.name.len() + 4)
+    block
       block
         block
           local.get $w.name.1
@@ -186,14 +184,13 @@
       end
       local.get $w.name.0
       i32.div_u
-    ;; (no span)
       local.set $w.name.0
     end
     local.get $w.name.0
   )
   (func $use_label (param $name.0 i32) (param $name.1 i32) (result i32)
-    block
     ;; 26 |     let w = Wrap { name: name }
+    block
       local.get $name.0
       local.get $name.1
       local.set $name.1
@@ -201,7 +198,7 @@
     ;; 27 |     label(&w)
       local.get $name.1
       call $label'2
-    ;; (no span)
+    ;; 26 |     let w = Wrap { name: name }
       local.get $name.0
       call $rt:release_ref
       local.set $name.0

@@ -6,7 +6,7 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $local (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
-    ;; (no span)
+    ;; 26 |     let mut origin = Point { name: s, n: 0 }
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -37,7 +37,6 @@
     local.tee $t0
     global.set $locals
     block
-    ;; 26 |     let mut origin = Point { name: s, n: 0 }
       local.get $t0
       i64.const 0
       i64.store $heap
@@ -87,7 +86,7 @@
           br 0
         end
       end
-    ;; (no span)
+    ;; 26 |     let mut origin = Point { name: s, n: 0 }
       local.get $s.0
       call $rt:release_ref
       local.get $s.1
@@ -100,8 +99,8 @@
     global.set $locals
   )
   (func $view (param $p i32) (result i32)
-    block
     ;; 14 |     p.name.len()
+    block
       local.get $p
       i32.load $heap
       local.get $p
@@ -114,7 +113,6 @@
         end
       end
     end
-    ;; (no span)
     local.get $p
   )
   (func $nudge (param $p i32) (local $t0 i32)

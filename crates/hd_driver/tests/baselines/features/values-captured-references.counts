@@ -16,13 +16,13 @@ fn bump(p: *mut Point) -> fn() -> void:
 
 fn demo(s: string) -> i32:
     origin := box(Point { name: s, x: 0 })
+> app/main/demo
+>   release fn() -> () (last use)
+>   release &mut app.main.Point (last use)
     step := bump(origin)
     step()
     step()
     origin.x
-> app/main/demo
->   (no span) release fn() -> () (last use)
->   (no span) release &mut app.main.Point (last use)
 
 fn apply(f: fn() -> usize) -> usize:
     f()
@@ -33,4 +33,4 @@ fn local(xs: &List[string]) -> usize:
 >   copy counted reference (conservative: copy read)
 >   release List[string] (last use)
 > app/main/local
->   (no span) release fn() -> usize (last use)
+>   release fn() -> usize (last use)

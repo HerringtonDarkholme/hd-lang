@@ -3,8 +3,8 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $pick (param $u.name.0 i32) (param $u.name.1 i32) (param $u.tags i32) (param $u.age i32) (result i32 i32)
-    block
     ;; 16 |     match u:
+    block
       local.get $u.name.0
       local.get $u.name.1
       local.set $u.name.1
@@ -33,13 +33,12 @@
         br 0
       end
     end
-    ;; (no span)
     local.get $u.name.0
     local.get $u.name.1
   )
   (func $sizes (param $u.name.0 i32) (param $u.name.1 i32) (param $u.tags i32) (param $u.age i32) (result i32)
-    block
     ;; 12 |     match u:
+    block
       block
         block
           br 0
@@ -62,7 +61,6 @@
         br 0
       end
     end
-    ;; (no span)
     local.get $u.name.0
   )
 )

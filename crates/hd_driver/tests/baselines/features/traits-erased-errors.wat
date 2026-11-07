@@ -75,8 +75,8 @@
     local.get $path.0
   )
   (func $load (param $path.0 i32) (param $path.1 i32) (result i32 i32 i32) (local $t0 i32) (local $t3 i32) (local $t1 i32) (local $t2 i32)
-    block
     ;; 22 |     text := read_config(path)?
+    block
       local.get $path.0
       local.set $path.0
       block
@@ -127,10 +127,8 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $path.0
       call $rt:release_ref
-    ;; 22 |     text := read_config(path)?
       local.get $path.1
       i32.eqz
       if
@@ -160,7 +158,7 @@
       end
     ;; 23 |     .Ok(text)
       i32.const 0
-    ;; (no span)
+    ;; 22 |     text := read_config(path)?
       local.set $path.0
     end
     local.get $path.0
@@ -168,8 +166,8 @@
     local.get $t0
   )
   (func $read_config (param $path.0 i32) (param $path.1 i32) (result i32 i32 i32 i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32)
-    block
     ;; 19 |     if path.len() > 0: .Ok(path + "!") else: .Err(FsError.NotFound(path))
+    block
       block
         block
           local.get $path.1
@@ -211,7 +209,6 @@
         local.set $t0
         local.set $path.1
       end
-    ;; (no span)
       local.get $path.0
       call $rt:release_ref
       local.get $path.1

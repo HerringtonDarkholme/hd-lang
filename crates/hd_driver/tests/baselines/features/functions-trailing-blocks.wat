@@ -9,6 +9,7 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 5 funcref))
   (func $trailing (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
+    ;; 11 |     measure("t"):
     block
     ;; 12 |         s + "!"
       i32.const 1
@@ -46,15 +47,14 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $t0
       call $rt:release_ref'2
     end
     local.get $s.0
   )
   (func $measure (param $label.0 i32) (param $label.1 i32) (param $body.0 i32) (param $body.1 i32) (result i32)
-    block
     ;; 8 |     label.len() + body().len()
+    block
       block
         block
           local.get $label.1
@@ -73,32 +73,27 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $label.1
       call $rt:release_ref'1
-    ;; 8 |     label.len() + body().len()
       local.get $label.0
       local.get $body.0
       i32.add
-    ;; (no span)
       local.set $label.0
     end
     local.get $label.0
   )
   (func $no_args#1 (param $env i32) (param $ctx i32) (result i32)
-    ;; (no span)
+    ;; 19 |         s.len()
     local.get $env
     i32.load $heap offset=4
     local.set $env
     block
-    ;; 19 |         s.len()
       block
         block
           br 0
         end
       end
     end
-    ;; (no span)
     local.get $env
   )
   (func $twice (param $body.0 i32) (param $body.1 i32) (result i32)
@@ -151,6 +146,7 @@
     local.get $ctx
   )
   (func $no_args (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
+    ;; 18 |     twice:
     block
     ;; 19 |         s.len()
       i32.const 3
@@ -178,7 +174,6 @@
           br 0
         end
       end
-    ;; (no span)
       local.get $t0
       call $rt:release_ref'2
     end

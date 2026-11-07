@@ -5,7 +5,7 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 0 funcref))
   (func $through (param $f.0 i32) (param $f.1 i32) (local $t0 i32) (local $t1 i32)
-    ;; (no span)
+    ;; 12 |     let mut tally = Tally { n: 0 }
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -36,7 +36,6 @@
     local.tee $t0
     global.set $locals
     block
-    ;; 12 |     let mut tally = Tally { n: 0 }
       local.get $t0
       i64.const 0
       i64.store $heap
@@ -54,8 +53,8 @@
       i32.const 0
       local.get $f.0
       call_indirect $table0 (param i32 i32 i32)
+    ;; 12 |     let mut tally = Tally { n: 0 }
     end
-    ;; (no span)
     local.get $t0
     i32.const 16
     i32.add

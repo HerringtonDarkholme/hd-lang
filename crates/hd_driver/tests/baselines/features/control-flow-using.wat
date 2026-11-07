@@ -11,8 +11,8 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 5 funcref))
   (func $"impl Disposable for Res.dispose" (param $self i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32)
-    block
     ;; 16 |         self.log.push(self.name)
+    block
       local.get $self
       i32.load $heap
       local.get $self
@@ -20,7 +20,6 @@
       local.set $t0
       local.tee $t1
       call $retain
-    ;; (no span)
       local.get $self
       i32.load $heap offset=8
       i32.load $heap
@@ -31,7 +30,6 @@
       local.get $t2
       i32.store $heap
       local.get $t2
-    ;; 16 |         self.log.push(self.name)
       i32.load $heap offset=4
       local.tee $t3
       local.get $t2
@@ -66,7 +64,7 @@
     end
   )
   (func $two (param $log i32) (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $first i32) (local $t0 i32)
-    ;; (no span)
+    ;; 19 |     using first = Res { name: a, log: log }
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -97,7 +95,6 @@
     local.tee $t0
     global.set $locals
     block
-    ;; 19 |     using first = Res { name: a, log: log }
       block
         local.get $a.0
         local.get $log
@@ -237,7 +234,6 @@
         i32.add
         global.set $forbid
       end
-    ;; (no span)
       local.get $b.0
       if
         local.get $b.0
@@ -268,8 +264,8 @@
     global.set $locals
   )
   (func $by_ref (param $r i32) (result i32) (local $t0 i32) (local $held i32)
-    block
     ;; 29 |     using held = r
+    block
       block
         local.get $r
         local.tee $held
@@ -302,7 +298,6 @@
         i32.add
         global.set $forbid
       end
-    ;; (no span)
       local.get $t0
       local.set $r
     end

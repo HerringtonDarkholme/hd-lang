@@ -5,8 +5,8 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $make_cycle (result i32) (local $parent i32) (local $t0 i32) (local $t1 i32)
-    block
     ;; 9 |     let node = box(Node { next: .None })
+    block
       i32.const 4
       i32.const -2147483646
       call $rt:new/class-1
@@ -34,7 +34,7 @@
       local.get $t0
       i32.store $heap
       local.get $t1
-    ;; (no span)
+    ;; 9 |     let node = box(Node { next: .None })
       call $rt:release_ref
     end
     local.get $parent

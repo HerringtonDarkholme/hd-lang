@@ -18,15 +18,15 @@ impl Tag for Named:
 fn read_tag() -> usize $ Tag:
     $.use(Tag).name().len()
 > app/main/read_tag
->   (no span) release string (last use)
+>   release string (last use)
 
 fn make(s: string) -> $.Context[$ Tag]:
     $.context(Tag=Named { label: s })
 > app/main/make
 >   retain app.main.Tag (stored)
+>   release &app.main.Tag (by design)
 >   retain counted reference (conservative: ContextNew)
->   (no span) release &app.main.Tag (by design)
->   (no span) release app.main.Tag (last use)
+>   release app.main.Tag (last use)
 
 fn run(ctx: $.Context[$ Tag]) -> usize:
     $.with(ctx...):

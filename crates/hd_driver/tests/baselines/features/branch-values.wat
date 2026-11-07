@@ -2,8 +2,8 @@
 (module
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (func $pick_match (param $k i64) (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32 i32)
-    block
     ;; 14 |     match k:
+    block
       block
         block
           block
@@ -35,7 +35,6 @@
         local.set $a.1
         br 0
       end
-    ;; (no span)
       local.get $a.0
       call $rt:release_ref
       local.get $b.0
@@ -49,8 +48,8 @@
     local.get $a.1
   )
   (func $pick (param $c i32) (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32 i32)
-    block
     ;; 7 |     if c: a else: b
+    block
       local.get $c
       if
         local.get $a.0
@@ -65,7 +64,6 @@
         local.set $a.1
         local.set $c
       end
-    ;; (no span)
       local.get $a.0
       call $rt:release_ref
       local.get $b.0
@@ -77,8 +75,8 @@
     local.get $a.0
   )
   (func $pick_len (param $c i32) (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32)
-    block
     ;; 10 |     s := if c: a else: b
+    block
       local.get $c
       if
         local.get $a.0
@@ -93,7 +91,6 @@
         local.set $a.1
         local.set $c
       end
-    ;; (no span)
       local.get $a.0
       call $rt:release_ref
       local.get $b.0
@@ -106,7 +103,7 @@
           br 0
         end
       end
-    ;; (no span)
+    ;; 10 |     s := if c: a else: b
       local.get $c
       call $rt:release_ref
       local.get $a.0
