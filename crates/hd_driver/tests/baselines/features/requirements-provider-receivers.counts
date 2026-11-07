@@ -36,7 +36,7 @@ fn count_later!(n: i64, wait: mut Suspend[void]) -> void $ Meter:
 >   release counted reference (conservative: frame drop)
 > app/main/count_later
 >   retain Suspend[()] (stored)
->   retain counted reference (conservative: cold constructor)
+>   retain counted reference (stored)
         $.use(Meter).record(i)
         wait!()
 >   retain Suspend[()] (conservative: copy read)

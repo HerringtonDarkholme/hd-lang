@@ -51,6 +51,7 @@ pub use hoist::{EntryTest, entry_test, loop_statements, loop_test};
 pub(crate) mod abi;
 pub(crate) mod cache;
 pub(crate) mod cold;
+pub(crate) mod cold_row;
 pub(crate) mod derive;
 pub mod flow;
 pub(crate) mod frame;
@@ -132,6 +133,11 @@ pub trait OwnCx {
     fn holds_drop(&self, ty: Ty) -> Tri {
         let _ = ty;
         Tri::Maybe
+    }
+    /// Whether the signature has requirement keys or its own row parameters.
+    fn has_requirement_row(&self, item: hd_base::DefId) -> bool {
+        let _ = item;
+        false
     }
     /// Whether this intrinsic constructs an owned result from borrowed
     /// buffer bits, whose count is stated separately after the call.
@@ -460,6 +466,7 @@ pub(crate) fn owned_value(b: &Body, i: usize) -> bool {
             | Tag::CacheCopy
             | Tag::ColdCopy
             | Tag::Release
+            | Tag::ColdRowCopy
             | Tag::IsUnique
             | Tag::FlagSet
             | Tag::FlagClear
@@ -829,6 +836,9 @@ pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(),
     scratch.topo.build(b);
     scratch.splice.clear();
     cold::run(b, cx, &scratch.topo, &mut scratch.splice)?;
+    scratch.topo.build(b);
+    scratch.splice.clear();
+    cold_row::run(b, cx, &scratch.topo, &mut scratch.splice)?;
     overwrites::anchor(b);
     uncopied(b, cx, &mut scratch.uncopied);
     Ok(())

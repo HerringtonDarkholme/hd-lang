@@ -1394,19 +1394,20 @@ pub(super) fn finish(
     em.f.set(fr);
     // Each argument's count, a collection's its copy, before the frame
     // keeps it.
+    // A declared source ABI states argument and requirement-row copies.
+    // Lifted closures and other generated ABIs remain separate kinds.
+    let source = em.counting
+        && closure.is_none()
+        && em.sub_id == 0
+        && matches!(
+            em.b.kind,
+            hd_tir::ir::BodyKind::Fn | hd_tir::ir::BodyKind::DeriveInstance
+        )
+        && em
+            .env()
+            .params(em.item)
+            .is_some_and(|p| p.len() == plocals.len());
     if em.counting {
-        // A declared source ABI has explicit parameter-copy statements.
-        // Lifted closures and other generated ABIs remain separate kinds.
-        let source = closure.is_none()
-            && em.sub_id == 0
-            && matches!(
-                em.b.kind,
-                hd_tir::ir::BodyKind::Fn | hd_tir::ir::BodyKind::DeriveInstance
-            )
-            && em
-                .env()
-                .params(em.item)
-                .is_some_and(|p| p.len() == plocals.len());
         for &l in plocals {
             let ls: Vec<u32> = em.locals[&l].iter().map(|x| x - 1).collect();
             let t = em.sub(em.b.local_ty[l]);
@@ -1448,13 +1449,22 @@ pub(super) fn finish(
     }
     em.save_initial_drop_flags(plocals, fr, &area);
     if em.counting {
-        for d in em
-            .susp
-            .as_ref()
-            .map(|s| s.provs.clone())
-            .unwrap_or_default()
-        {
-            em.ref_retain(d - 1);
+        let copy = if source {
+            em.cold_row_copy()
+        } else {
+            Some(Reason::Conservative("cold constructor"))
+        };
+        if let Some(reason) = copy {
+            em.because(reason, |em| {
+                for d in em
+                    .susp
+                    .as_ref()
+                    .map(|s| s.provs.clone())
+                    .unwrap_or_default()
+                {
+                    em.ref_retain(d - 1);
+                }
+            });
         }
     }
     // A closure's code reads its captures from its environment, its first

@@ -195,6 +195,10 @@ tags! {
     // The release of what a `Store` replaces, lowered in the store's one
     // walk of its place. a is the store; b is its ownership reason.
     Release: Value, Meta;
+    // Copies the frame-owned portion of this function's requirement row
+    // into its cold frame. Layout supplies provider data and context;
+    // an empty/noncounting layout emits no count. a is reserved, b reason.
+    ColdRowCopy: Meta, Meta;
 }
 
 /// The two owned copies of a counted Fact/Handle result cache.
@@ -2241,6 +2245,7 @@ fn no_ownership(b: &Body, errs: &mut Vec<VerifyError>) {
             | Tag::CacheCopy
             | Tag::ColdCopy
             | Tag::Release
+            | Tag::ColdRowCopy
             | Tag::IsUnique
             | Tag::FlagSet
             | Tag::FlagClear => {
@@ -3905,7 +3910,7 @@ mod tests {
         let root = b.close_block(blk, Some(one), Ty::I32, NodeIdx::NONE);
         let body = b.finish(root, &[]).expect("ok");
         assert_eq!(body.len(), 1);
-        assert_eq!(Tag::ALL.len(), 61);
+        assert_eq!(Tag::ALL.len(), 62);
         assert!(
             Tag::ALL
                 .iter()

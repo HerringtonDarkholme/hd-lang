@@ -35,19 +35,20 @@ fn fetch!() -> usize $ Store:
     $.use(Store).get().len()
 > app/main/fetch
 >   local $1 self: string [read] value
->     uses $1: %6 -> %7 lend last
->   %0 = ProviderGet #0 : Store
->   %1 = Retain %0 #0 : ()
->   %2 = Coerce %0 [ProviderAsRef -] : Ref[Store]
->   %3 = Read borrow [*%2] : Store
->   %4 = Drop [%2] : ()
->   %5 = Call app/main/Store.get for Store [] via TraitValue (%3) : string
->   %6 = Store [$1] %5 : ()
->   %7 = Read borrow [$1] : string
->   %8 = Call std/rt.bytes/bytes_len[] (%7) : usize
->   %9 = Break L0 %8 : never
->   %10 = Block - : usize
->   %11 = Scope %10 [] : usize
->   %12 = Drop [$1] : ()
->   %13 = Block %11 : usize
+>     uses $1: %7 -> %8 lend last
+>   %0 = ColdRowCopy #0 #0 : ()
+>   %1 = ProviderGet #0 : Store
+>   %2 = Retain %1 #0 : ()
+>   %3 = Coerce %1 [ProviderAsRef -] : Ref[Store]
+>   %4 = Read borrow [*%3] : Store
+>   %5 = Drop [%3] : ()
+>   %6 = Call app/main/Store.get for Store [] via TraitValue (%4) : string
+>   %7 = Store [$1] %6 : ()
+>   %8 = Read borrow [$1] : string
+>   %9 = Call std/rt.bytes/bytes_len[] (%8) : usize
+>   %10 = Break L0 %9 : never
+>   %11 = Block - : usize
+>   %12 = Scope %11 [] : usize
+>   %13 = Drop [$1] : ()
+>   %14 = Block %12 : usize
 >   summary none
