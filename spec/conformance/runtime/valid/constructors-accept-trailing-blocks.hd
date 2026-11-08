@@ -1,0 +1,26 @@
+# test: stored constructor callbacks accept trailing blocks and owned captures
+# Rules: types.newtype.construct, data.enum.construct.call, fn.trailing.form, fn.trailing.closure.
+# expect-stdout: 7
+# expect-stdout: 11
+# expect-stdout: 13
+
+type Job = fn() -> i32
+type Action(Job)
+
+enum Callback:
+    Run(job: Job)
+
+pub fn main() -> void $ Console:
+    base := +5
+    action := Action:
+        base + 2
+    run := Job(action)
+    println(run())
+    let callback: Callback = .Run:
+        base + 6
+    match callback:
+        .Run(job) => println(job())
+    explicit := Callback.Run:
+        +13
+    match explicit:
+        .Run(job) => println(job())

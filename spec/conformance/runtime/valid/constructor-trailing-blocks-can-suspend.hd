@@ -1,0 +1,23 @@
+# test: a constructor's final suspending callback gives its trailing block a driver
+# Rules: types.newtype.construct, data.enum.construct.call, fn.trailing.suspending, fn.trailing.suspending.body.
+# expect-stdout: 7
+# expect-stdout: 11
+
+type Work = fn!() -> i32
+type Job(Work)
+
+enum Batch:
+    Run(job: Work)
+
+fn one!() -> i32:
+    +7
+
+pub fn main!() -> void $ Console:
+    job := Job:
+        one!()
+    run := Work(job)
+    println(run!())
+    let batch: Batch = .Run:
+        +11
+    match batch:
+        .Run(task) => println(task!())

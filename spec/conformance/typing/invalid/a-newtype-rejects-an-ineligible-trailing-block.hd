@@ -1,0 +1,7 @@
+# test: a non-function newtype payload takes no trailing callback
+# Rule: grammar.call.trailing-block.eligible.
+type Meter(i32)
+
+fn invalid() -> void:
+    _ := Meter(+1): # diagnostic: trailing-block-ineligible
+        +2

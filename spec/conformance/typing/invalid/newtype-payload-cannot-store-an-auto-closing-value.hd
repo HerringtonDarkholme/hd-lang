@@ -1,0 +1,15 @@
+# test: a newtype payload cannot store an AutoClosing value
+# Rule: flow.auto-closing.storage.
+use std.ops.{AutoClosing, Disposable}
+
+struct Guard: pass
+impl Disposable for Guard:
+    fn dispose(&mut self) -> void:
+        pass
+impl AutoClosing for Guard:
+    pass
+
+type Wrapped(Guard)
+
+fn invalid(value: Guard) -> void:
+    _ := Wrapped(value) # diagnostic: unregistered-auto-closing

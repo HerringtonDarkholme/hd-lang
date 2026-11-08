@@ -1,0 +1,7 @@
+# test: a newtype trailing callback is stored rather than lent
+# Rule: ref.local.escape.capture-stored.
+type Action(fn() -> i32)
+
+fn invalid(input: &i32) -> void:
+    _ := Action:
+        *input # diagnostic: local-reference-escapes

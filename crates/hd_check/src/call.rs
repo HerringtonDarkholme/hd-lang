@@ -211,8 +211,27 @@ pub(crate) struct Args<'t> {
     pub trailing: Option<NodeRef<'t>>,
 }
 
+/// Callback arguments may be call-scoped; constructor payloads are stored.
+#[derive(Clone, Copy)]
+pub(crate) enum ArgumentDestination {
+    Call,
+    Newtype,
+    Payload,
+}
+
+impl ArgumentDestination {
+    fn storage(self) -> Option<&'static str> {
+        match self {
+            Self::Call => None,
+            Self::Newtype => Some("in this newtype"),
+            Self::Payload => Some("in this enum payload"),
+        }
+    }
+}
+
 /// The parameters a call's arguments are checked against.
 pub(crate) struct Formals<'a> {
+    pub destination: ArgumentDestination,
     pub params: &'a [(Symbol, Ty)],
     pub defaults: &'a [bool],
     /// Whether the final parameter is a vararg (`fn.vararg.form`).
@@ -294,44 +313,51 @@ fn fn_bound_formals(
         .zip(&sig.params)
         .map(|(_, (_, raw))| {
             let index = (0..sig.generics.len()).find(|&i| bare_param(pool, *raw, owner, i))?;
-            let read_only = ck.fn_bound_read_only(&sig.generics[index].bounds)?;
-            let bound = sig.generics[index].bounds.iter().find_map(|b| {
-                let bound = inst(*b);
-                match pool.get(bound) {
-                    TyData::TraitValue { def, args, .. }
-                        if ck.cx.names.known.fn_trait_name(def).is_some() =>
-                    {
-                        Some(args)
-                    }
-                    _ => None,
-                }
-            })?;
-            let [input, output, row] = pool.list_items(bound) else {
-                return None;
-            };
-            let TyData::Row(row) = pool.get(*row) else {
-                return None;
-            };
-            Some(FnWant {
-                ty: pool.intern_ty(&TyData::Fn {
-                    params: pool.list(&[*input]),
-                    result: *output,
-                    row,
-                    suspends: false,
-                    inputs: Inputs::Tuple,
-                    deps: hd_types::FnDeps::NONE,
-                }),
-                read_only,
-                scoped: crate::local_refs::scoped_fn_generic(
-                    pool,
-                    ck.cx.names.known.static_bound,
-                    owner,
-                    sig,
-                    index,
-                ),
-            })
+            let mut want = fn_bound_want(ck, &sig.generics[index].bounds, inst)?;
+            want.scoped = crate::local_refs::scoped_fn_generic(
+                pool,
+                ck.cx.names.known.static_bound,
+                owner,
+                sig,
+                index,
+            );
+            Some(want)
         })
         .collect()
+}
+
+fn fn_bound_want(ck: &Ck, bounds: &[Ty], inst: &dyn Fn(Ty) -> Ty) -> Option<FnWant> {
+    let pool = ck.pool();
+    let read_only = ck.fn_bound_read_only(bounds)?;
+    let bound = bounds.iter().find_map(|b| {
+        let bound = inst(*b);
+        match pool.get(bound) {
+            TyData::TraitValue { def, args, .. }
+                if ck.cx.names.known.fn_trait_name(def).is_some() =>
+            {
+                Some(args)
+            }
+            _ => None,
+        }
+    })?;
+    let [input, output, row] = pool.list_items(bound) else {
+        return None;
+    };
+    let TyData::Row(row) = pool.get(*row) else {
+        return None;
+    };
+    Some(FnWant {
+        ty: pool.intern_ty(&TyData::Fn {
+            params: pool.list(&[*input]),
+            result: *output,
+            row,
+            suspends: false,
+            inputs: Inputs::Tuple,
+            deps: hd_types::FnDeps::NONE,
+        }),
+        read_only,
+        scoped: false,
+    })
 }
 
 /// Records this argument's type for each inferred generic its formal names
@@ -385,6 +411,7 @@ fn join_arg(
 /// Where a positional spread stands among the parameters not yet given.
 #[derive(Clone, Copy)]
 struct SpreadAt<'a> {
+    destination: ArgumentDestination,
     /// Whether the final of those parameters is a vararg.
     variadic: bool,
     /// How many plain positional arguments precede the spread.
@@ -1019,8 +1046,8 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// The one positional argument of a conversion or a newtype
-    /// constructor; any other count is the general `argument-count`
+    /// The one positional argument of a conversion; any other count is
+    /// the general `argument-count`
     /// error, after each argument is checked.
     fn one_argument<'t>(
         &mut self,
@@ -1432,6 +1459,7 @@ impl Ck<'_, '_> {
                 variadic: false,
                 inferred: &inferred,
                 closure_wants: None,
+                destination: ArgumentDestination::Call,
             };
             self.local_defaults = Some(crate::local::LocalDefaults {
                 defaults: form.defaults.clone(),
@@ -1461,6 +1489,7 @@ impl Ck<'_, '_> {
                 variadic: inputs == Inputs::Rest,
                 inferred: &inferred,
                 closure_wants: None,
+                destination: ArgumentDestination::Call,
             };
             self.check_args(&formals, 0, args, n, "the function value")?
         };
@@ -1619,6 +1648,65 @@ impl Ck<'_, '_> {
             .collect()
     }
 
+    fn constructor_args(
+        &mut self,
+        (target, variant): (Ty, Option<u32>),
+        params: &[(Symbol, Ty)],
+        args: &Args<'_>,
+        n: NodeRef<'_>,
+        name: &str,
+        destination: ArgumentDestination,
+    ) -> StageResult<Vec<Ref>> {
+        let pool = self.pool();
+        let mut closure_wants = vec![None; params.len()];
+        if let TyData::Adt { def, args: targs } = pool.get(self.infer.shallow(pool, target))
+            && let Some(item) = self.cx.lookup.item(def)
+        {
+            // Reuse the already selected variant index; no second variant search.
+            let raw: Vec<_> = match &item.data {
+                ItemData::Newtype(inner) => vec![*inner],
+                ItemData::Enum { variants, .. } => variant
+                    .and_then(|index| variants.get(index as usize))
+                    .map(|v| v.fields.iter().map(|f| f.ty).collect())
+                    .unwrap_or_default(),
+                _ => Vec::new(),
+            };
+            let type_args = pool.list_items(targs);
+            for (want, raw) in closure_wants.iter_mut().zip(raw) {
+                if let TyData::Param(p) = pool.get(raw)
+                    && p.owner == def
+                    && let Some(generic) = item.generics.get(p.index as usize)
+                {
+                    *want = fn_bound_want(self, &generic.bounds, &|t| {
+                        subst_owner(pool, def, type_args, t)
+                    });
+                }
+            }
+        }
+        let formals = Formals {
+            params,
+            defaults: &[],
+            variadic: false,
+            inferred: &[],
+            closure_wants: Some(&closure_wants),
+            destination,
+        };
+        self.check_args(&formals, 0, args, n, name)
+    }
+
+    fn placed_arg(
+        &mut self,
+        e: NodeRef<'_>,
+        want: Option<Ty>,
+        scoped_capture: bool,
+        destination: ArgumentDestination,
+    ) -> StageResult<(Ref, Ty)> {
+        match destination.storage() {
+            Some(place) => self.stored_expr(e, want, place),
+            None => self.arg_value(e, want, scoped_capture),
+        }
+    }
+
     /// Checks arguments against parameters (positional, then named by
     /// parameter name), skipping `skip` leading parameters already given.
     fn check_args(
@@ -1675,7 +1763,7 @@ impl Ck<'_, '_> {
                         self.vararg_wants(rest[nfixed].1, args.positional.len() - nfixed)?;
                 }
                 let w = item_wants[i - nfixed];
-                let (r, t) = self.arg_value(*e, w, false)?;
+                let (r, t) = self.placed_arg(*e, w, false, formals.destination)?;
                 let r = match w {
                     Some(w) => self.coerce(r, t, w, *e, "argument", ExpectPosition::General),
                     None => r,
@@ -1723,7 +1811,7 @@ impl Ck<'_, '_> {
             let scoped_capture = e.kind() == SyntaxKind::ClosureExpr
                 && (bounded.is_none() && formals.inferred.get(skip + i).is_none_or(Vec::is_empty)
                     || fn_want.is_some_and(|f| f.scoped));
-            let (r, t) = self.arg_value(*e, expect, scoped_capture)?;
+            let (r, t) = self.placed_arg(*e, expect, scoped_capture, formals.destination)?;
             let (r, t) = self.bounded_closure(r, t, fn_want.map(|f| f.ty), *e);
             if let Some(p) = rest.get(i)
                 && open.get(i).copied().unwrap_or(false)
@@ -1788,6 +1876,7 @@ impl Ck<'_, '_> {
                 .collect();
             let at = SpreadAt {
                 variadic,
+                destination: formals.destination,
                 given: args.positional.len(),
                 named: &named,
                 items: if tail_pending { &items } else { &[] },
@@ -1803,8 +1892,17 @@ impl Ck<'_, '_> {
                 .iter()
                 .position(|p| self.cx.names.text(p.0) == pname.as_str())
             else {
-                let msg = format!("`{name}` has no parameter `{pname}`");
-                self.err(Code::UnknownNamedArgument, *e, &msg);
+                let (code, msg) = match formals.destination {
+                    ArgumentDestination::Payload => (
+                        Code::UnknownField,
+                        format!("no field `{pname}` of variant `{name}`"),
+                    ),
+                    ArgumentDestination::Call | ArgumentDestination::Newtype => (
+                        Code::UnknownNamedArgument,
+                        format!("`{name}` has no parameter `{pname}`"),
+                    ),
+                };
+                self.err(code, *e, &msg);
                 named_bad = true;
                 continue;
             };
@@ -1842,7 +1940,7 @@ impl Ck<'_, '_> {
             let scoped_capture = e.kind() == SyntaxKind::ClosureExpr
                 && (bounded.is_none() && formals.inferred.get(skip + i).is_none_or(Vec::is_empty)
                     || fn_want.is_some_and(|f| f.scoped));
-            let (r, t) = self.arg_value(*e, Some(expect), scoped_capture)?;
+            let (r, t) = self.placed_arg(*e, Some(expect), scoped_capture, formals.destination)?;
             let (r, t) = self.bounded_closure(r, t, fn_want.map(|f| f.ty), *e);
             if open[i] && self.infer.resolve(pool, t) == Ty::NEVER && !self.diags.has_errors() {
                 self.never_args.push(rest[i].1);
@@ -1907,8 +2005,17 @@ impl Ck<'_, '_> {
                             .and_then(|xs| xs.get(skip + last))
                             .is_some_and(Option::is_some);
                     let scoped = last_want.map_or(!last_is_generic, |f| f.scoped);
-                    let (r, t) =
-                        self.trailing_closure(block, last_want.map_or(w, |f| f.ty), scoped)?;
+                    let before = self.diags.mark();
+                    let (r, t) = self.trailing_closure(
+                        block,
+                        last_want.map_or(w, |f| f.ty),
+                        scoped && formals.destination.storage().is_none(),
+                    )?;
+                    if let Some(place) = formals.destination.storage()
+                        && self.diags.errors_since(before) == 0
+                    {
+                        self.check_stored_value(t, block, place)?;
+                    }
                     let (r, t) = self.bounded_closure(r, t, last_want.map(|f| f.ty), block);
                     let r = self.coerce(r, t, w, block, "argument", ExpectPosition::General);
                     if last_want.is_some_and(|f| f.read_only) {
@@ -2055,6 +2162,7 @@ impl Ck<'_, '_> {
         let pool = self.pool();
         let SpreadAt {
             variadic,
+            destination,
             given,
             named,
             items,
@@ -2095,7 +2203,9 @@ impl Ck<'_, '_> {
             Some(lt) if !items.is_empty() => self.rest_of(lt)?,
             _ => None,
         };
-        let (r, t) = self.arg_value(e, tail_ty.or(lt), false)?;
+        let before = self.diags.mark();
+        let (r, t) = self.placed_arg(e, tail_ty.or(lt), false, destination)?;
+        let check_storage = self.diags.errors_since(before) == 0;
         let poison = |slots: &mut [Option<Ref>], free: &[usize]| {
             for &i in free {
                 if let Some(s) = slots.get_mut(i) {
@@ -2169,6 +2279,9 @@ impl Ck<'_, '_> {
                 for (k, (&et, &i)) in elems.iter().zip(&free).enumerate() {
                     let idx = u32::try_from(k).unwrap_or(0);
                     let g = self.b.field(r, idx, et, e.index());
+                    if check_storage && let Some(place) = destination.storage() {
+                        self.check_stored_value(et, e, place)?;
+                    }
                     let w = self.normalize_deep(tys[i])?;
                     slots[i] = Some(self.coerce(g, et, w, e, "argument", ExpectPosition::General));
                 }
@@ -2372,6 +2485,7 @@ impl Ck<'_, '_> {
                     variadic: sig.variadic,
                     inferred: &inferred,
                     closure_wants: Some(&closure_wants),
+                    destination: ArgumentDestination::Call,
                 };
                 let refs = self.check_args(&formals, 0, args, n, &name)?;
                 // A rejected argument makes the call an error value, so
@@ -2505,20 +2619,27 @@ impl Ck<'_, '_> {
             }
             ItemData::Newtype(inner) => {
                 let inner = *inner;
-                plain_args(args, "a newtype constructor")?;
                 let name = self.cx.names.text(item.name).to_owned();
-                let Some(e) = self.one_argument(args, &name, n)? else {
-                    return Ok((Ref(NONE), Ty::POISON));
-                };
                 let targs = self.ctor_args(def, explicit, n)?;
                 let t = pool.intern_ty(&TyData::Adt {
                     def,
                     args: pool.list(&targs),
                 });
                 let it = subst_owner(pool, def, &targs, inner);
-                let (r, rt) = self.stored_expr(e, Some(it), "in this newtype")?;
-                let r = self.coerce(r, rt, it, e, "argument", ExpectPosition::General);
-                let rec = self.b.refs_record(&[r]);
+                let param = self.cx.names.syms.intern("$0");
+                let refs = self.constructor_args(
+                    (t, None),
+                    &[(param, it)],
+                    args,
+                    n,
+                    &name,
+                    ArgumentDestination::Newtype,
+                )?;
+                if refs.len() != 1 {
+                    return Ok((Ref(NONE), Ty::POISON));
+                }
+                self.check_construct_bounds(def, &targs, n)?;
+                let rec = self.b.refs_record(&refs);
                 Ok((self.b.emit(Tag::NewStruct, NONE, rec, t, n.index()), t))
             }
             ItemData::Struct(_, _)
@@ -2648,7 +2769,10 @@ impl Ck<'_, '_> {
             );
             return Ok((Ref(NONE), Ty::NEVER));
         }
-        plain_args(args, "`join`")?;
+        if let Some(block) = args.trailing {
+            let want = self.trailing_param(None, "join", n);
+            self.trailing_closure(block, want, false)?;
+        }
         // `req.combinator.join-arity`: only the tuple form has fixed arity.
         if let Some(child) = args.positional.get(31) {
             self.err(
@@ -2908,7 +3032,6 @@ impl Ck<'_, '_> {
         want: Option<Ty>,
         call: Option<NodeRef<'_>>,
     ) -> StageResult<(Ref, Ty)> {
-        plain_args(args, "a variant")?;
         let pool = self.pool();
         let at = call.unwrap_or(v);
         let name = self.cx.src.text(self.cx.src.last(v)).to_owned();
@@ -3179,45 +3302,26 @@ impl Ck<'_, '_> {
             return Ok((Ref(NONE), Ty::NEVER));
         };
         let names = self.variant_field_names(t, name);
-        let mut slots: Vec<Option<Ref>> = vec![None; fields.len()];
-        let mut extra = false;
-        let mut named_bad = false;
-        for (i, e) in args.positional.iter().enumerate() {
-            let ft = fields.get(i).copied();
-            let (r, rt) = self.stored_expr(*e, ft, "in this enum payload")?;
-            match (ft, slots.get_mut(i)) {
-                (Some(ft), Some(slot)) => {
-                    *slot = Some(self.coerce(r, rt, ft, *e, "payload", ExpectPosition::General));
-                }
-                _ => extra = true,
-            }
-        }
-        for (fname, e) in &args.named {
-            let Some(i) = names.iter().position(|x| x == fname) else {
-                let msg = format!("no field `{fname}` of variant `{name}`");
-                self.err(Code::UnknownField, *e, &msg);
-                named_bad = true;
-                continue;
-            };
-            let ft = fields[i];
-            if slots[i].is_some() {
-                let msg = format!("`{fname}` is given twice");
-                self.err(Code::DuplicateArgument, *e, &msg);
-                named_bad = true;
-                continue;
-            }
-            let (r, rt) = self.stored_expr(*e, Some(ft), "in this enum payload")?;
-            slots[i] = Some(self.coerce(r, rt, ft, *e, "payload", ExpectPosition::General));
-        }
-        if extra || (!named_bad && slots.iter().any(Option::is_none)) {
-            let msg = format!("`{name}` takes {} values", fields.len());
-            self.err(Code::ArgumentCount, n, &msg);
+        let params: Vec<_> = names
+            .iter()
+            .zip(&fields)
+            .map(|(name, &ty)| (self.cx.names.syms.intern(name), ty))
+            .collect();
+        let refs = self.constructor_args(
+            (t, Some(index)),
+            &params,
+            args,
+            n,
+            name,
+            ArgumentDestination::Payload,
+        )?;
+        if refs.len() != fields.len() {
+            return Ok((Ref(NONE), Ty::POISON));
         }
         let pool = self.pool();
         if let TyData::Adt { def, args } = pool.get(self.infer.shallow(pool, t)) {
             self.check_construct_bounds(def, pool.list_items(args), n)?;
         }
-        let refs: Vec<Ref> = slots.into_iter().map(|r| r.unwrap_or(Ref(NONE))).collect();
         let rec = self.b.refs_record(&refs);
         Ok((self.b.emit(Tag::NewVariant, index, rec, t, n.index()), t))
     }
@@ -3416,6 +3520,7 @@ impl Ck<'_, '_> {
                 variadic: sig.variadic,
                 inferred: &inferred,
                 closure_wants: Some(&closure_wants),
+                destination: ArgumentDestination::Call,
             };
             let refs = self.check_args(&formals, 0, args, n, name)?;
             self.fill_method_defaults(&sig, &vars, &inst, want)?;
@@ -4442,6 +4547,7 @@ impl Ck<'_, '_> {
                     variadic: sig.variadic,
                     inferred: &inferred,
                     closure_wants: Some(&closure_wants),
+                    destination: ArgumentDestination::Call,
                 };
                 refs.extend(self.check_args(&formals, 1, args, n, name)?);
                 self.fill_method_defaults(&sig, &vars, &inst, want)?;
@@ -4507,6 +4613,7 @@ impl Ck<'_, '_> {
                     variadic: false,
                     inferred: &inferred,
                     closure_wants: None,
+                    destination: ArgumentDestination::Call,
                 };
                 refs.extend(self.check_args(&formals, 1, args, n, name)?);
                 if matches!(op, IntrinsicOp::ListPush | IntrinsicOp::MapRemove) {
@@ -4724,6 +4831,7 @@ impl Ck<'_, '_> {
             variadic: sig.variadic,
             inferred: &inferred,
             closure_wants: Some(&closure_wants),
+            destination: ArgumentDestination::Call,
         };
         let method_name = self
             .cx
@@ -5614,16 +5722,6 @@ fn bang_callee(callee: NodeRef<'_>, bang: bool) -> (NodeRef<'_>, bool) {
     } else {
         (callee, bang)
     }
-}
-
-fn plain_args(args: &Args<'_>, what: &str) -> StageResult<()> {
-    if args.trailing.is_some() {
-        return unsupported(format!("a trailing block for {what}"));
-    }
-    if args.spread.is_some() {
-        return unsupported(format!("a spread argument for {what}"));
-    }
-    Ok(())
 }
 
 pub(crate) fn subst_owner(pool: hd_types::Types<'_>, owner: DefId, args: &[Ty], t: Ty) -> Ty {

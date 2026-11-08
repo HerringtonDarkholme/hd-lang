@@ -38,6 +38,7 @@ fn is_postfix(kind: SyntaxKind) -> bool {
     matches!(
         kind,
         SyntaxKind::NameExpr
+            | SyntaxKind::VariantExpr
             | SyntaxKind::FieldExpr
             | SyntaxKind::CallExpr
             | SyntaxKind::PathExpr

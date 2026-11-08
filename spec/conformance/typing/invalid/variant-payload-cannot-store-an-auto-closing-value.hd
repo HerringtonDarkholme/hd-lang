@@ -1,0 +1,16 @@
+# test: a variant payload cannot store an AutoClosing value
+# Rule: flow.auto-closing.storage.
+use std.ops.{AutoClosing, Disposable}
+
+struct Guard: pass
+impl Disposable for Guard:
+    fn dispose(&mut self) -> void:
+        pass
+impl AutoClosing for Guard:
+    pass
+
+enum Choice:
+    Value(guard: Guard)
+
+fn invalid(value: Guard) -> void:
+    let choice: Choice = .Value(guard=value) # diagnostic: unregistered-auto-closing

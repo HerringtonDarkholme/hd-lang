@@ -1,0 +1,10 @@
+# test: tuple join has no final callback parameter
+# Rule: grammar.call.trailing-block.eligible.
+use std.task.join
+
+fn one!() -> i32:
+    +1
+
+fn invalid!() -> void:
+    _ := join!(one()): # diagnostic: trailing-block-ineligible
+        +2

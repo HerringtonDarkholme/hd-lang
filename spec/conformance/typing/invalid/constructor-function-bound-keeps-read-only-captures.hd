@@ -1,0 +1,11 @@
+# test: a stored trailing callback bounded by Fn changes no capture
+# Rule: fn.trailing.fn-bound.
+use std.function.Fn
+
+type Stored[F < Fn() -> i32](F)
+
+fn invalid() -> void:
+    let count = +0
+    _ := Stored:
+        count += 1 # diagnostic: not-writable
+        count

@@ -1,0 +1,8 @@
+# test: a variant's fixed payload does not take a list spread
+# Rule: expr.call.spread.list-needs-vararg.
+enum Choice:
+    Value(value: i32)
+
+fn invalid() -> void:
+    values := [+1]
+    let choice: Choice = .Value(values...) # diagnostic: positional-spread-needs-vararg

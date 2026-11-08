@@ -222,13 +222,25 @@ impl Ck<'_, '_> {
     ) -> StageResult<(hd_tir::ir::Ref, Ty)> {
         let before = self.diags.mark();
         let (value, ty) = self.expr(expression, want)?;
-        if self.diags.errors_since(before) == 0 && self.implements_auto_closing(ty)? {
+        if self.diags.errors_since(before) == 0 {
+            self.check_stored_value(ty, expression, place)?;
+        }
+        Ok((value, ty))
+    }
+
+    pub(crate) fn check_stored_value(
+        &mut self,
+        ty: Ty,
+        expression: NodeRef<'_>,
+        place: &str,
+    ) -> StageResult<()> {
+        if self.implements_auto_closing(ty)? {
             let message = format!(
                 "an AutoClosing value cannot be stored {place}; call its `@auto_closing` constructor as a statement"
             );
             self.err(Code::UnregisteredAutoClosing, expression, &message);
         }
-        Ok((value, ty))
+        Ok(())
     }
 
     /// Which disposal protocol an auto-closing value uses. A synchronous

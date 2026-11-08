@@ -1,0 +1,9 @@
+# test: a constructor spread does not infer the operand's type
+# Rule: expr.call.spread.unknown.
+type Meter(i32)
+
+fn unknown[T]() -> T:
+    panic("unused")
+
+fn invalid() -> void:
+    _ := Meter(unknown()...) # diagnostic: cannot-infer-type

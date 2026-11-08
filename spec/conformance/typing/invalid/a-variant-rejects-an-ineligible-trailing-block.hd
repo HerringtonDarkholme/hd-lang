@@ -1,0 +1,8 @@
+# test: a non-function variant payload takes no trailing callback
+# Rule: grammar.call.trailing-block.eligible.
+enum Choice:
+    Value(value: i32)
+
+fn invalid() -> void:
+    let choice: Choice = .Value(+1): # diagnostic: trailing-block-ineligible
+        +2

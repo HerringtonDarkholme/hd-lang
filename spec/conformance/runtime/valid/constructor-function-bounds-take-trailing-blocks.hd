@@ -1,0 +1,31 @@
+# test: generic constructor callback bounds supply a trailing block signature
+# Rule: fn.trailing.fn-bound.
+# expect-stdout: 17
+# expect-stdout: 19
+# expect-stdout: 1
+# expect-stdout: 2
+use std.function.{Fn, FnMut}
+
+type Job = fn() -> i32
+type Stored[F < Fn() -> i32](F)
+type Counter[F < FnMut() -> i32](F)
+
+enum Callback[F < Fn() -> i32]:
+    Run(job: F)
+
+pub fn main() -> void $ Console:
+    stored := Stored:
+        +17
+    run := Job(stored)
+    println(run())
+    callback := Callback.Run:
+        +19
+    match callback:
+        .Run(job) => println(job())
+    let count = +0
+    counter := Counter:
+        count += 1
+        count
+    run_counter := Job(counter)
+    println(run_counter())
+    println(run_counter())

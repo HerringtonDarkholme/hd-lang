@@ -1,0 +1,39 @@
+# test: constructors place tuple spreads and named payloads in source order
+# Rules: types.newtype.construct, data.enum.construct.call, expr.call.spread.inputs, expr.call.source-order.
+# expect-stdout: 7
+# expect-stdout: 9
+# expect-stdout: 1
+# expect-stdout: spread
+# expect-stdout: 3
+# expect-stdout: 6
+# expect-stdout: pair 4
+
+type Meter(i32)
+type Wrap[T](T)
+
+enum Row:
+    Values(first: i32, second: i32, third: i32)
+    Pair(label: string, count: i32)
+
+fn mark(value: i32) -> i32 $ Console:
+    println(value)
+    value
+
+fn tail() -> (i32,) $ Console:
+    println("spread")
+    (+2,)
+
+pub fn main() -> void $ Console:
+    values := (+7,)
+    meter := Meter(values...)
+    println(i32(meter))
+    let wrapped: Wrap[i32] = Wrap((+9,)...)
+    println(i32(wrapped))
+    let row: Row = .Values(mark(+1), tail()..., third=mark(+3))
+    match row:
+        .Values(a, b, c) => println(a + b + c)
+        .Pair(_, _) => pass
+    pair := Row.Pair(("pair", +4)...)
+    match pair:
+        .Pair(label, count) => println("$label $count")
+        .Values(_, _, _) => pass

@@ -1,0 +1,7 @@
+# test: an explicit variant callback is stored rather than lent
+# Rule: ref.local.escape.capture-stored.
+enum Callback:
+    Run(job: fn() -> i32)
+
+fn invalid(input: &i32) -> void:
+    let callback: Callback = .Run(job=fn() -> i32: *input) # diagnostic: local-reference-escapes
