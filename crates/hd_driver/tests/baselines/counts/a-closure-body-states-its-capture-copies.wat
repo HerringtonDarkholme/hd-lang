@@ -20,7 +20,7 @@
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 24 funcref))
-  (func $"keep#1[&Named]" (param $env i32) (param $ctx i32) (result i32)
+  (func $"keep#1[*Named]" (param $env i32) (param $ctx i32) (result i32)
     ;; 15 |     fn() -> T: value
     local.get $env
     i32.load $heap
@@ -605,7 +605,7 @@
     local.get $value
     local.get $t0
   )
-  (func $"keep[&Named]" (param $value i32) (result i32 i32) (local $t0 i32)
+  (func $"keep[*Named]" (param $value i32) (result i32 i32) (local $t0 i32)
     ;; 15 |     fn() -> T: value
     local.get $value
     if

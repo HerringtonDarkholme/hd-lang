@@ -18,16 +18,16 @@ fn tuple_slot(a: string, b: string, s: string) -> (string, string):
 fn pick(xs: List[*mut Node], i: usize) -> *mut Node:
     xs[i]
 > app/main/pick
->   retain &mut app.main.Node (stored)
->   release List[&mut app.main.Node] (last use)
+>   retain *mut app.main.Node (stored)
+>   release List[*mut app.main.Node] (last use)
 
 fn call_receiver(xs: List[*mut Node], s: string) -> void:
     pick(xs, 0).name = s
 > app/main/call_receiver
->   retain &mut app.main.Node (stored)
->   release List[&mut app.main.Node] (last use)
+>   retain *mut app.main.Node (stored)
+>   release List[*mut app.main.Node] (last use)
 >   release counted reference (overwritten)
->   release &mut app.main.Node (last use)
+>   release *mut app.main.Node (last use)
 
 fn deref_store(r: &mut string, s: string) -> void:
     *r = s

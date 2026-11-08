@@ -1,0 +1,24 @@
+# test: a TypeId names a counted reference `*T` or `*mut T` with `*`, never as a local reference `&T`
+# Spec 09 Stability And Printing: trait.typeid.name.counted-reference; Inspectable Types: trait.inspectable.counted-reference-type.
+use std.inspect.{Inspectable, TypeId}
+
+struct User:
+    name: string
+
+fn user_name() -> string:
+    TypeId::of::[User]().to_string()
+
+tests:
+    use std.testing.assert_equal
+
+    it("a counted reference prints with `*` or `*mut `"):
+        user := TypeId::of::[User]().to_string()
+        assert_equal(TypeId::of::[*User]().to_string(), "*" + user, reason="shared counted reference")
+        assert_equal(TypeId::of::[*mut User]().to_string(), "*mut " + user, reason="mutable counted reference")
+        assert_equal(TypeId::of::[*i32]().to_string(), "*i32", reason="a prelude referent")
+        assert_equal(TypeId::of::[List[*mut User]]().to_string(), "List[*mut " + user + "]", reason="as a type argument")
+
+    it("an erased `*mut T` records its counted reference type"):
+        shared := box(User { name: "a" })
+        let erased: *dyn Inspectable = box(shared)
+        assert_equal(erased.runtime_type().to_string(), "*mut " + user_name(), reason="recorded type")

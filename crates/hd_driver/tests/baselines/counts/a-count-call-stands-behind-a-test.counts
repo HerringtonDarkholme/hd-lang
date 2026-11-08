@@ -36,8 +36,8 @@ pub struct Ring:
 pub fn ring(r: *mut Ring) -> *mut Ring:
     let mut held = r
 > app/main/ring
->   retain &mut app.main.Ring (stored)
+>   retain *mut app.main.Ring (stored)
     held = box(Ring { next: .Some(r) })
->   retain &mut app.main.Ring (stored)
->   release &mut app.main.Ring (overwritten)
+>   retain *mut app.main.Ring (stored)
+>   release *mut app.main.Ring (overwritten)
     held

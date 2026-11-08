@@ -12,9 +12,9 @@ fn change!(n: *mut Note) -> usize:
 > std/rt_tests.stage_case/change
 >   release counted reference (overwritten)
 > std/rt_tests.stage_case/change
->   release &mut std.rt_tests.stage_case.Note (by design)
+>   release *mut std.rt_tests.stage_case.Note (by design)
 > std/rt_tests.stage_case/change
->   retain &mut std.rt_tests.stage_case.Note (stored)
+>   retain *mut std.rt_tests.stage_case.Note (stored)
     n.text.len()
 
 fn other!() -> usize:
@@ -23,11 +23,11 @@ fn other!() -> usize:
 pub fn main!() -> void $ Console:
     n := box::[Note](Note { text: "n" })
 > std/rt_tests.stage_case/main
->   retain &mut std.rt_tests.stage_case.Note (stored)
+>   retain *mut std.rt_tests.stage_case.Note (stored)
 >   release counted reference (last use)
 >   release Suspend[usize] (last use)
 >   release Suspend[usize] (last use)
->   release &mut std.rt_tests.stage_case.Note (last use)
+>   release *mut std.rt_tests.stage_case.Note (last use)
 >   release counted reference (last use)
 > std/rt_tests.stage_case/main
 >   release counted reference (last use)
@@ -39,7 +39,7 @@ pub fn main!() -> void $ Console:
 >   release counted reference (last use)
 >   retain counted reference (stored)
 >   release counted reference (last use)
->   release &mut std.rt_tests.stage_case.Note (cancelled)
+>   release *mut std.rt_tests.stage_case.Note (cancelled)
 >   release Suspend[usize] (cancelled)
 >   release Suspend[usize] (cancelled)
     println("$a")

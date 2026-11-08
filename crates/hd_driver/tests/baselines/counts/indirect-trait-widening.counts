@@ -11,7 +11,7 @@ trait Dog < Animal:
 fn widened(dog: *dyn Dog) -> *dyn Animal:
     nested := box(dog)
 > app/main/widened
->   retain &app.main.Dog (by design)
+>   retain *app.main.Dog (by design)
     nested
 >   retain app.main.Dog (stored)
->   release &&app.main.Dog (last use)
+>   release **app.main.Dog (last use)

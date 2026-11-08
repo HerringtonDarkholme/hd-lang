@@ -22,11 +22,11 @@ impl Disposable for Res:
 fn two(log: *mut List[string], a: string, b: string) -> usize:
     using first = Res { name: a, log: log }
 > app/main/two
->   retain &mut List[string] (stored)
+>   retain *mut List[string] (stored)
 >   release app.main.Res [name.0, log] (last use)
 >   release app.main.Res [name.0, log] (last use)
     using second = Res { name: b, log: log }
->   retain &mut List[string] (stored)
+>   retain *mut List[string] (stored)
     first.name.len() + second.name.len()
 
 fn per_round(log: *mut List[string], xs: List[string]) -> void:
@@ -35,7 +35,7 @@ fn per_round(log: *mut List[string], xs: List[string]) -> void:
 >   release app.main.Res [name.0, log] (last use)
         using r = Res { name: x, log: log }
 >   retain string (stored)
->   retain &mut List[string] (stored)
+>   retain *mut List[string] (stored)
         pass
 
 fn by_ref(r: &mut Res) -> usize:

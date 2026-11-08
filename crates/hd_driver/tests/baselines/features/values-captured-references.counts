@@ -18,7 +18,7 @@ fn demo(s: string) -> i32:
     origin := box(Point { name: s, x: 0 })
 > app/main/demo
 >   release fn() -> () (last use)
->   release &mut app.main.Point (last use)
+>   release *mut app.main.Point (last use)
     step := bump(origin)
     step()
     step()

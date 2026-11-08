@@ -36,7 +36,7 @@
     end
     local.get $pair
   )
-  (func $"later#1[&User]" (param $env i32) (param $ctx i32) (result i32)
+  (func $"later#1[*User]" (param $env i32) (param $ctx i32) (result i32)
     ;; 30 |     fn() -> T: value
     local.get $env
     i32.load $heap
@@ -77,7 +77,7 @@
       end
       local.get $u.name.0
     ;; 34 |     later(kept)().name.len()
-      call $"later[&User]"
+      call $"later[*User]"
       local.set $t0
       local.set $u.name.1
       local.get $t0
@@ -161,7 +161,7 @@
     end
     local.get $u.name.0
   )
-  (func $"later[&User]" (param $value i32) (result i32 i32) (local $t0 i32)
+  (func $"later[*User]" (param $value i32) (result i32 i32) (local $t0 i32)
     ;; 30 |     fn() -> T: value
     local.get $value
     if

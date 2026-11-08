@@ -35,4 +35,4 @@ fn local(s: string) -> usize:
 fn weaken(h: *mut Point) -> *Point:
     h
 > app/main/weaken
->   retain &mut app.main.Point (stored)
+>   retain *mut app.main.Point (stored)

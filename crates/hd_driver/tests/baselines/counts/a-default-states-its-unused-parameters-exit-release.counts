@@ -27,6 +27,6 @@ pub fn main() -> void $ Console:
     log := box::[List[string]]([])
 > app/main/main
 >   release string (last use)
->   release &mut List[string] (last use)
+>   release *mut List[string] (last use)
     println(join(log, "first"))
 >   retain string (conservative: Call)

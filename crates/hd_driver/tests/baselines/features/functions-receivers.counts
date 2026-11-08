@@ -27,7 +27,7 @@ impl Vec2:
     fn keep(*self) -> *Vec2:
         self
 > app/main/impl Vec2.keep
->   retain &app.main.Vec2 (stored)
+>   retain *app.main.Vec2 (stored)
 
 fn make(s: string) -> Vec2:
     Vec2 { name: s, x: 0 }
@@ -65,5 +65,5 @@ fn counted(b: *Vec2) -> usize:
     b.keep().name.len()
 > app/main/counted
 >   retain string (conservative: copy read)
->   release &app.main.Vec2 (last use)
+>   release *app.main.Vec2 (last use)
 >   release string (last use)

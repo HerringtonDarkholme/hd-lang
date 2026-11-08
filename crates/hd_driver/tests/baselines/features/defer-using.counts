@@ -33,6 +33,6 @@ fn with_defer(log: *mut List[string], s: string) -> usize:
 fn with_using(log: *mut List[string], s: string) -> usize:
     using r = box(Res { name: s, log: log })
 > app/main/with_using
->   retain &mut List[string] (stored)
->   release &mut app.main.Res (last use)
+>   retain *mut List[string] (stored)
+>   release *mut app.main.Res (last use)
     r.name.len()

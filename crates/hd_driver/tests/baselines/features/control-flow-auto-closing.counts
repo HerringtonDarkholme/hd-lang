@@ -24,7 +24,7 @@ impl AutoClosing for Guard:
 fn guard(log: *mut List[string], label: string) -> Guard:
     Guard { log: log, label: label }
 > app/main/guard
->   retain &mut List[string] (stored)
+>   retain *mut List[string] (stored)
 
 fn work(log: *mut List[string], label: string) -> void:
     guard(log, label)

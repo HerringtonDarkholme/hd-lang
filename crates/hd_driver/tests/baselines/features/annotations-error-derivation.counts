@@ -32,20 +32,20 @@ enum LoadError:
 > app/main/error Display for LoadError.to_string
 >   release string (last use)
 > app/main/error Error for LoadError.source
->   release &std.error.Error (by design)
+>   release *std.error.Error (by design)
     Read(
         path: string,
 >   retain string (second owner)
         @source
 >   retain app.main.FsError (stored)
->   retain &std.error.Error (by design)
+>   retain *std.error.Error (by design)
         error: FsError,
     )
     @error("bad config")
->   release &std.error.Error (by design)
+>   release *std.error.Error (by design)
     Yaml(
         @from
->   retain &std.error.Error (by design)
+>   retain *std.error.Error (by design)
         error: YamlError,
     )
     @error(transparent)

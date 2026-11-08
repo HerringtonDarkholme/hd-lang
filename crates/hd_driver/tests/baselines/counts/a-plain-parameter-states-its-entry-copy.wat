@@ -25,7 +25,7 @@
     ;; 16 |     value
     local.get $value
   )
-  (func $"keep#1[&Named]" (param $env i32) (param $ctx i32) (result i32)
+  (func $"keep#1[*Named]" (param $env i32) (param $ctx i32) (result i32)
     ;; 20 |     fn() -> T: value
     local.get $env
     i32.load $heap
@@ -815,7 +815,7 @@
     local.get $value
     local.get $t0
   )
-  (func $"keep[&Named]" (param $value i32) (result i32 i32) (local $t0 i32)
+  (func $"keep[*Named]" (param $value i32) (result i32 i32) (local $t0 i32)
     ;; 20 |     fn() -> T: value
     local.get $value
     if

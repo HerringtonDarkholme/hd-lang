@@ -1,5 +1,5 @@
 # test: shared and mutable reference-valued referents have different identities and cannot recover as each other
-# Spec 09 Runtime Type Identity: trait.identity.reference-permission, trait.typeid.name.reference; Recovering A Concrete Type: trait.downcast.exact.reference-values.
+# Spec 09 Runtime Type Identity: trait.identity.reference-permission, trait.typeid.name.counted-reference; Recovering A Concrete Type: trait.downcast.exact.reference-values.
 # expect-stdout: false
 # expect-stdout: false
 use std.inspect.{Inspectable, TypeId}
@@ -59,9 +59,9 @@ tests:
         assert(found is original, reason="sharing code does not replace the reference")
         assert_equal(user.count, 9, reason="the returned reference keeps its actual setter")
     it("reference names retain permission"):
-        assert_equal(TypeId::of::[*i32]().to_string(), "&i32", reason="shared reference spelling")
+        assert_equal(TypeId::of::[*i32]().to_string(), "*i32", reason="shared reference spelling")
         assert_equal(
             TypeId::of::[*mut i32]().to_string(),
-            "&mut i32",
+            "*mut i32",
             reason="mutable reference spelling",
         )

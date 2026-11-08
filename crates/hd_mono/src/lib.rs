@@ -848,16 +848,11 @@ fn name_into(
         }
         TyData::Prim(p) => out.push_str(p.name()),
         TyData::Never => out.push_str("never"),
+        // The carrier's `mut T` spells `&mut T` or `*mut T` through the `Mut` arm.
         TyData::Adt { def, args } if env.ref_cells().holds(def) => {
-            let inner = pool.list_items(args)[0];
-            let inner = if let TyData::Mut(inner) = pool.get(inner) {
-                out.push_str("&mut ");
-                inner
-            } else {
-                out.push('&');
-                inner
-            };
-            name_into(pool, env, printed, inner, out, limit);
+            let counted = def == env.ref_cells().counted;
+            out.push(if counted { '*' } else { '&' });
+            name_into(pool, env, printed, pool.list_items(args)[0], out, limit);
         }
         TyData::Adt { def, args } => {
             out.push_str(&def_name(env, printed, def));
@@ -927,10 +922,13 @@ fn name_into(
             out.push_str("mut ");
             name_into(pool, env, printed, i, out, limit);
         }
-        // Checking lowers each reference type to its carrier, which keeps
-        // the kind, so a run-time name keeps one spelling here.
-        TyData::Ref { inner, mutable, .. } => {
-            out.push_str(if mutable { "&mut " } else { "&" });
+        TyData::Ref {
+            inner,
+            mutable,
+            counted,
+        } => {
+            out.push(if counted { '*' } else { '&' });
+            out.push_str(if mutable { "mut " } else { "" });
             name_into(pool, env, printed, inner, out, limit);
         }
         // Not inspectable (trait.inspectable.not.*), but a diagnostic

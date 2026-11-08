@@ -20,5 +20,5 @@ fn leftmost(n: *Node?, last: *Node) -> *Node:
     match n:
         .None => last
 > app/main/leftmost
->   retain &app.main.Node (stored)
+>   retain *app.main.Node (stored)
         .Some(node) => leftmost(node.left, node)

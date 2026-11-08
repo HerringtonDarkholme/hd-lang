@@ -11,7 +11,7 @@ fn build(parts: &List[string]) -> string:
     sb := StringBuilder::new()
 > app/main/build
 >   release List[string] (last use)
->   release &mut std.text.StringBuilder (last use)
+>   release *mut std.text.StringBuilder (last use)
     for p in parts:
 >   copy counted reference (second owner)
         sb.push(p)

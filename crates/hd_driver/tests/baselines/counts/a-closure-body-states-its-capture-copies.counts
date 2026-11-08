@@ -15,11 +15,11 @@ fn word(i: i32) -> string:
 fn keep[T < 'static](value: T) -> fn() -> T:
     fn() -> T: value
 > app/main/keep
->   retain &app.main.Named (stored)
+>   retain *app.main.Named (stored)
 > app/main/keep
 >   copy List[string] (stored)
 > app/main/keep
->   retain &app.main.Named (stored)
+>   retain *app.main.Named (stored)
 > app/main/keep
 >   retain string (stored)
 
@@ -33,12 +33,12 @@ pub fn main() -> void $ Console:
 >   release fn() -> string (last use)
 >   release fn() -> i32 (last use)
 >   release fn() -> usize (last use)
->   release fn() -> &mut app.main.Named (last use)
->   release &mut app.main.Named (last use)
+>   release fn() -> *mut app.main.Named (last use)
+>   release *mut app.main.Named (last use)
 >   release fn() -> List[string] (last use)
 >   release List[string] (last use)
 >   release List[string] (last use)
->   release &mut app.main.Named (last use)
+>   release *mut app.main.Named (last use)
     println(keep(original)())
 >   retain string (stored)
     println(keep(+7)())

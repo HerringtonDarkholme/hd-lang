@@ -20,9 +20,9 @@ fn same[T](value: T) -> T:
 fn keep[T < 'static](value: T) -> fn() -> T:
     fn() -> T: value
 > app/main/keep
->   retain &app.main.Named (stored)
+>   retain *app.main.Named (stored)
 > app/main/keep
->   retain &app.main.Named (stored)
+>   retain *app.main.Named (stored)
 > app/main/keep
 >   retain string (stored)
 
@@ -45,11 +45,11 @@ pub fn main() -> void $ Console:
 > app/main/main
 >   release fn() -> string (last use)
 >   release fn(string) -> string (last use)
->   release &mut app.main.Named (last use)
->   release fn() -> &mut app.main.Named (last use)
->   release &mut app.main.Named (last use)
+>   release *mut app.main.Named (last use)
+>   release fn() -> *mut app.main.Named (last use)
+>   release *mut app.main.Named (last use)
 >   release fn() -> i32 (last use)
->   release &mut app.main.Named (last use)
+>   release *mut app.main.Named (last use)
 >   release counted reference (last use)
     println(same(original))
 >   retain string (stored)
@@ -63,7 +63,7 @@ pub fn main() -> void $ Console:
     shared := box(Named { text: original })
 >   retain string (stored)
     println(same(shared).text)
->   retain &mut app.main.Named (conservative: Call)
+>   retain *mut app.main.Named (conservative: Call)
 >   retain string (stored)
     println(keep(shared)().text)
 >   retain string (stored)

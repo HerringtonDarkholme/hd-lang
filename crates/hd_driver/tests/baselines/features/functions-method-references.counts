@@ -34,7 +34,7 @@ fn bound(u: User) -> usize:
 fn bound_mut(u: *mut User, n: string) -> void:
     f := u::rename
 > app/main/bound_mut
->   retain &mut app.main.User (stored)
+>   retain *mut app.main.User (stored)
 >   release fn(string) -> () (last use)
     f(n)
 

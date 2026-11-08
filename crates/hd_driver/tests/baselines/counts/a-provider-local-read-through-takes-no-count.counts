@@ -34,11 +34,11 @@ pub fn go() -> usize:
     first := box(Count { n: 0 })
 > app/main/go
 >   release app.main.Sink (last use)
->   release &mut app.main.Count (last use)
->   release &mut app.main.Count (last use)
+>   release *mut app.main.Count (last use)
+>   release *mut app.main.Count (last use)
     second := box(Count { n: 0 })
     $.with(Sink = first):
->   retain &mut app.main.Count (conservative: copy read)
+>   retain *mut app.main.Count (conservative: copy read)
 >   release &mut app.main.Sink (by design)
         line("ab")
         swapped("c", second)

@@ -17,9 +17,9 @@ trait Sink:
 fn walk(node: &Node, sink: &mut dyn Sink) -> void:
     sink.emit(node.value)
 > app/main/walk
->   release List[&app.main.Node] (last use)
+>   release List[*app.main.Node] (last use)
     for child in &node.children:
->   copy List[&app.main.Node] (second owner)
+>   copy List[*app.main.Node] (second owner)
         walk(*child, sink)
 
 struct Total:
@@ -35,21 +35,21 @@ pub struct Keeper:
 fn keep(n: *Node, k: &mut Keeper) -> void:
     k.saved.push(n)
 > app/main/keep
->   retain &app.main.Node (stored)
->   unique List[&app.main.Node] (may be shared)
+>   retain *app.main.Node (stored)
+>   unique List[*app.main.Node] (may be shared)
 
 fn save(node: &Node, k: &mut Keeper) -> void:
     for e in &node.children:
 > app/main/save
->   copy List[&app.main.Node] (second owner)
->   release List[&app.main.Node] (last use)
+>   copy List[*app.main.Node] (second owner)
+>   release List[*app.main.Node] (last use)
         keep(*e, k)
 
 pub fn run(root: *Node) -> i64:
     let mut total = Total { sum: 0 }
 > app/main/run
 >   release &mut app.main.Sink (by design)
->   release List[&app.main.Node] (last use)
+>   release List[*app.main.Node] (last use)
     walk(root, &mut total)
 >   retain app.main.Sink (stored)
     let mut keeper = Keeper { saved: [] }

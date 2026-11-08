@@ -15,7 +15,7 @@ struct Holder:
 fn copy_box(s: string, t: string) -> usize:
     let mut p = Point { name: s }
 > app/main/copy_box
->   release &mut app.main.Point (last use)
+>   release *mut app.main.Point (last use)
 >   release string (last use)
     copy := box(p)
 >   retain app.main.Point [name.0] (stored)
@@ -30,10 +30,10 @@ fn move_box(s: string) -> *mut Point:
 fn shared(s: string, t: string) -> usize:
     b := box(Point { name: s })
 > app/main/shared
->   release &mut app.main.Point (last use)
+>   release *mut app.main.Point (last use)
 >   release app.main.Holder (last use)
     h := Holder { point: b }
->   retain &mut app.main.Point (stored)
+>   retain *mut app.main.Point (stored)
     b.name = t
 >   release counted reference (overwritten)
     h.point.name.len()

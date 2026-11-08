@@ -17,6 +17,6 @@ fn make(node: *Node) -> Weak[Node]?:
 fn name_len(w: Weak[Node]) -> usize:
     match w.upgrade():
 > app/main/name_len
->   release &app.main.Node? (last use)
+>   release *app.main.Node? (last use)
         .Some(n) => n.name.len()
         .None => 0

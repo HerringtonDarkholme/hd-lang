@@ -30,10 +30,10 @@ impl Stack:
     fn drain(&self) -> usize:
         for peer in self.peers:
 > app/main/impl Stack.drain
->   copy List[&mut app.main.Stack] (second owner)
->   retain &mut app.main.Stack (second owner)
->   release &mut app.main.Stack (last use)
->   release List[&mut app.main.Stack] (last use)
+>   copy List[*mut app.main.Stack] (second owner)
+>   retain *mut app.main.Stack (second owner)
+>   release *mut app.main.Stack (last use)
+>   release List[*mut app.main.Stack] (last use)
             peer.items = []
 >   release counted reference (overwritten)
         0
