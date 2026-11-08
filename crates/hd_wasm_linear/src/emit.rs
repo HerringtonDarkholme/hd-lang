@@ -1712,13 +1712,6 @@ impl Em<'_, '_, '_> {
             && let Some(d) = dest
         {
             self.tail_into(tail, d, blk)?;
-        } else if tail != NONE
-            && self.consumer.get(tail as usize) == Some(&blk)
-            && !self.topo.is_root[blk as usize]
-        {
-            // A tail the passes gave to a block whose value no one reads;
-            // a sub-body's root's is its result, which `body_func` takes.
-            self.release_value(tail)?;
         }
         if labelled {
             self.close();
