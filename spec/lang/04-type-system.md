@@ -840,9 +840,11 @@ f32, f64
 
 1. r[types.num.binary.literal-join] In a binary arithmetic or comparison expression, an operand built only of unsuffixed literals takes the other operand's type, on either side, by [`types.literal.local.form.operand`](#r-types.literal.local.form.operand).
 2. r[types.num.binary.literal-left] So an unsuffixed integer literal on the left takes the right operand's integer type. `0xFFFF_FFFF_FFFF_FFFF - count` with a `u64` `count` is valid, and `1 < count` compares two `u64` values.
-3. r[types.num.binary.same-type] Otherwise both operands must have one type, and the result has that type, so `f32 op f32` produces `f32`. Two types of one family are an error, as `small + large` with an `i16` and an `i64`, or an `f32` and an `f64` operand. Error: `type-mismatch`.
-4. r[types.num.binary.no-mix] Signed and unsigned integers do not mix implicitly, and integers do not mix implicitly with floating-point values. A signed and an unsigned operand are an error. Error: `mixed-signedness`.
-5. r[types.num.binary.cast] The user must cast one operand explicitly in those cases.
+3. r[types.num.binary.same-type] Otherwise both operands must have one type. Two types of one family are an error, as `small + large` with an `i16` and an `i64`, or an `f32` and an `f64` operand. Error: `type-mismatch`.
+4. r[types.num.binary.result-arithmetic] The result of a binary arithmetic expression has the operand type, so `f32 + f32` produces `f32`.
+5. r[types.num.binary.result-comparison] The result of a comparison of two numbers is a `bool`, whatever the operand type, so `f32 < f32` produces `bool`. This holds when one operand is an unsuffixed literal.
+6. r[types.num.binary.no-mix] Signed and unsigned integers do not mix implicitly, and integers do not mix implicitly with floating-point values. A signed and an unsigned operand are an error. Error: `mixed-signedness`.
+7. r[types.num.binary.cast] The user must cast one operand explicitly in those cases.
 
 ```text
 fn add(small: i16, large: i64, ratio: f32, scale: f64) -> f64:

@@ -1,0 +1,17 @@
+# test: a comparison of two numbers is a bool, with a literal on either side
+# Spec Type System, Binary Numeric Operators: types.num.binary.result-comparison.
+fn below(a: f32, b: f32) -> bool:
+    a < b
+
+fn literal_left(count: u64) -> bool:
+    1 < count
+
+fn literal_right(count: u64) -> bool:
+    count >= 1
+
+fn same_width(small: i16) -> bool:
+    let flag: bool = small == 3
+    flag
+
+fn sum(small: i16) -> i16:
+    small + 1
