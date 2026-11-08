@@ -1500,16 +1500,20 @@ fn adjusted(base: i32) -> Suspend[i32] $ Counter:
     }
 ```
 
-and to a frame whose `poll` method advances its state:
+and to a plain struct whose inherent `poll` method advances its state. The
+suspension owns this frame and drives it through `&mut self`:
 
 ```text
+struct AdjustedFrame:
+    state: AdjustedState
+
 enum AdjustedState:
     New(base: i32, counter: Counter)
     Waiting(child: Suspend[i32], offset: i32)
     Complete
 
-impl Suspend[i32] for AdjustedFrame:
-    fn poll(mut self, context: PollContext) -> Poll[i32]:
+impl AdjustedFrame:
+    fn poll(&mut self, context: PollContext) -> Poll[i32]:
         while true:
             match self.state:
                 AdjustedState.New(base, counter) =>
