@@ -3,7 +3,7 @@
 # Const parameters in every declaration position, and expression arguments.
 struct Fixed[T, N < const usize]:
 > Root
->   DataDecl struct Fixed :
+>   StructDecl struct Fixed :
 >     GenericParameterList [ , ]
 >       GenericParameter T
 >       ConstParameter N < const

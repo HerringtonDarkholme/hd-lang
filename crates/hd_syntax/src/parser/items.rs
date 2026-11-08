@@ -648,7 +648,7 @@ impl Parser<'_> {
         if self.expect(TokenKind::Colon, "':'") {
             self.member_block(true, Self::data_member);
         }
-        self.complete(marker, SyntaxKind::DataDecl);
+        self.complete(marker, SyntaxKind::StructDecl);
     }
 
     fn data_member(&mut self) {

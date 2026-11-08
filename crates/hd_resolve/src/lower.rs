@@ -509,7 +509,7 @@ fn impl_segment(src: &Src<'_>, n: NodeRef<'_>) -> String {
 fn decl_kind(src: &Src<'_>, n: NodeRef<'_>) -> Option<(HeadKind, TokenKind)> {
     Some(match n.kind() {
         SyntaxKind::FnDecl => (HeadKind::Fn, TokenKind::KwFn),
-        SyntaxKind::DataDecl => (HeadKind::Data, TokenKind::KwData),
+        SyntaxKind::StructDecl => (HeadKind::Struct, TokenKind::KwStruct),
         SyntaxKind::EnumDecl => (HeadKind::Enum, TokenKind::KwEnum),
         SyntaxKind::TraitDecl => (HeadKind::Trait, TokenKind::KwTrait),
         SyntaxKind::TypeDecl => {
@@ -722,7 +722,7 @@ fn local_decls<'t>(n: NodeRef<'t>, out: &mut Vec<(NodeRef<'t>, NodeRef<'t>)>) {
     for c in n.children() {
         let decl = matches!(
             c.kind(),
-            SyntaxKind::DataDecl
+            SyntaxKind::StructDecl
                 | SyntaxKind::EnumDecl
                 | SyntaxKind::TraitDecl
                 | SyntaxKind::TypeDecl
@@ -2480,7 +2480,7 @@ impl Lower<'_, '_, '_> {
         let filled;
         let args = if matches!(
             kind,
-            HeadKind::Alias | HeadKind::Data | HeadKind::Enum | HeadKind::Newtype
+            HeadKind::Alias | HeadKind::Struct | HeadKind::Enum | HeadKind::Newtype
         ) {
             let (f, missing, arity) = self.r.fill_type_args(def, args);
             // `types.generic.too-long`: no more arguments than parameters.
@@ -2517,7 +2517,7 @@ impl Lower<'_, '_, '_> {
                 }
                 t
             }
-            HeadKind::Data | HeadKind::Enum | HeadKind::Newtype => {
+            HeadKind::Struct | HeadKind::Enum | HeadKind::Newtype => {
                 // Each argument has the kind of its parameter
                 // (`grammar.type.row-argument.kind`).
                 if let Some((i, row)) = args
@@ -2681,7 +2681,7 @@ impl Lower<'_, '_, '_> {
             })
             .flatten();
         // Only a trait has associated types (trait.binding.non-trait).
-        if matches!(kind, HeadKind::Data | HeadKind::Enum | HeadKind::Newtype)
+        if matches!(kind, HeadKind::Struct | HeadKind::Enum | HeadKind::Newtype)
             && let Some((name, _)) = bindings.first()
         {
             let msg = format!(
@@ -2860,7 +2860,7 @@ impl Lower<'_, '_, '_> {
     /// `ref.lifetime.alias`).
     fn lifetime_generics(&self, gl: NodeRef<'_>) -> bool {
         matches!(self.owner_path(gl).as_slice(),
-            [outer, owner] if (matches!(owner.kind(), SyntaxKind::DataDecl | SyntaxKind::EnumDecl | SyntaxKind::TraitDecl)
+            [outer, owner] if (matches!(owner.kind(), SyntaxKind::StructDecl | SyntaxKind::EnumDecl | SyntaxKind::TraitDecl)
                 || (owner.kind() == SyntaxKind::TypeDecl
                     && owner.direct_token(&self.src.parse.tokens, TokenKind::Eq).is_some()))
                 && outer.kind() == SyntaxKind::Root)
@@ -2915,7 +2915,7 @@ impl Lower<'_, '_, '_> {
             .unwrap_or_default();
         let typed = matches!(
             kind,
-            HeadKind::Data | HeadKind::Enum | HeadKind::Trait | HeadKind::Alias
+            HeadKind::Struct | HeadKind::Enum | HeadKind::Trait | HeadKind::Alias
         );
         let want = if typed { self.r.lifetime_count(def) } else { 0 };
         let ids: Vec<u16> = written.iter().map(|&t| self.lifetime_of(t, gn)).collect();
@@ -4733,7 +4733,7 @@ impl Lower<'_, '_, '_> {
                 .get(&def)
                 .copied()
                 .or_else(|| self.r.item(def).and_then(|i| i.kind()))
-                .filter(|k| matches!(k, HeadKind::Data | HeadKind::Enum))
+                .filter(|k| matches!(k, HeadKind::Struct | HeadKind::Enum))
                 .map(|_| def),
             _ => None,
         };
@@ -5693,7 +5693,7 @@ impl Lower<'_, '_, '_> {
                 .is_empty();
                 out.push(it);
             }
-            HeadKind::Data => {
+            HeadKind::Struct => {
                 let mut gn = Gen::default();
                 let generics = self.generics(gl, h.def, 0, &mut gn);
                 let lifetimes = generics.iter().any(|g| g.lifetime);
@@ -6055,7 +6055,10 @@ impl Lower<'_, '_, '_> {
 /// Whether `h` is a struct, enum or newtype, whose parameters are
 /// recorded before any signature is lowered.
 fn declares_params(h: &Head<'_>) -> bool {
-    matches!(h.kind, HeadKind::Data | HeadKind::Enum | HeadKind::Newtype)
+    matches!(
+        h.kind,
+        HeadKind::Struct | HeadKind::Enum | HeadKind::Newtype
+    )
 }
 
 /// Lowers every alias of the folder before any other header, each after

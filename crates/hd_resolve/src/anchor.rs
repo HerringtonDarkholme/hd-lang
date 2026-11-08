@@ -207,7 +207,7 @@ pub(crate) fn collect(
         cx.push(h.def, 0, a);
         match h.kind {
             HeadKind::Fn => cx.sig(h.def, n, n, 0),
-            HeadKind::Data => {
+            HeadKind::Struct => {
                 let mut slot = 1;
                 cx.fields(h.def, Src::child(n, SyntaxKind::Block), &mut slot, n);
             }
@@ -262,10 +262,13 @@ pub(crate) fn collect(
                 }
             }
         }
-        if matches!(h.kind, HeadKind::Data | HeadKind::Enum | HeadKind::Newtype) {
+        if matches!(
+            h.kind,
+            HeadKind::Struct | HeadKind::Enum | HeadKind::Newtype
+        ) {
             derived(&mut cx, names, h, items, index, start);
         }
-        if matches!(h.kind, HeadKind::Data | HeadKind::Enum) {
+        if matches!(h.kind, HeadKind::Struct | HeadKind::Enum) {
             error_impls(&mut cx, names, h);
         }
     }

@@ -789,7 +789,7 @@ impl Lower<'_, '_, '_> {
         let Some((target_def, hk)) = target else {
             return;
         };
-        if !matches!(hk, HeadKind::Data | HeadKind::Enum) {
+        if !matches!(hk, HeadKind::Struct | HeadKind::Enum) {
             return;
         }
         let [trait_ty, target_ty] = tys else {
@@ -991,7 +991,7 @@ impl Lower<'_, '_, '_> {
                 SyntaxKind::TypeDecl => {
                     self.check_decorators(n, top(kind::NEWTYPE), items);
                 }
-                SyntaxKind::DataDecl => {
+                SyntaxKind::StructDecl => {
                     let error_type = self.has_error(n, false);
                     let block = Src::child(n, SyntaxKind::Block);
                     let fields: Vec<_> = block
@@ -1010,7 +1010,7 @@ impl Lower<'_, '_, '_> {
                         },
                         items,
                     );
-                    let types = match self.item_of(n, TokenKind::KwData, items) {
+                    let types = match self.item_of(n, TokenKind::KwStruct, items) {
                         Some(Item {
                             data: ItemData::Struct(fs),
                             ..

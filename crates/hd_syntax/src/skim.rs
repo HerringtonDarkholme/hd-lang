@@ -6,7 +6,7 @@ use crate::{CommentKind, TokenBuf, TokenKind, lex};
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum HeaderKind {
     Function,
-    Data,
+    Struct,
     Enum,
     Trait,
     Impl,
@@ -202,7 +202,7 @@ fn can_open_suite(kinds: &[TokenKind]) -> bool {
 fn header_kind(kind: TokenKind) -> HeaderKind {
     match kind {
         TokenKind::KwFn => HeaderKind::Function,
-        TokenKind::KwStruct => HeaderKind::Data,
+        TokenKind::KwStruct => HeaderKind::Struct,
         TokenKind::KwEnum => HeaderKind::Enum,
         TokenKind::KwTrait => HeaderKind::Trait,
         TokenKind::KwImpl => HeaderKind::Impl,

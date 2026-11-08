@@ -403,12 +403,12 @@ impl Folder<'_, '_> {
             TyData::Adt { def, .. } => {
                 def != known.list
                     && def != known.map
-                    && item(def).is_none_or(|i| i.kind() == Some(HeadKind::Data))
+                    && item(def).is_none_or(|i| i.kind() == Some(HeadKind::Struct))
             }
             _ => false,
         };
         for (m, heads) in self.mods.iter().zip(self.heads) {
-            for h in heads.iter().filter(|h| h.kind == HeadKind::Data) {
+            for h in heads.iter().filter(|h| h.kind == HeadKind::Struct) {
                 let Some(Item {
                     data: ItemData::Struct(fields),
                     ..
@@ -451,7 +451,7 @@ impl Folder<'_, '_> {
                 .filter(|f| f.embedded)
                 .map(|f| match pool.get(f.ty) {
                     TyData::Adt { def, .. }
-                        if matches!(item(def).map(|i| i.kind()), Some(Some(HeadKind::Data))) =>
+                        if matches!(item(def).map(|i| i.kind()), Some(Some(HeadKind::Struct))) =>
                     {
                         Some(def)
                     }
@@ -485,7 +485,7 @@ impl Folder<'_, '_> {
             .heads
             .iter()
             .flatten()
-            .filter(|h| h.kind == HeadKind::Data)
+            .filter(|h| h.kind == HeadKind::Struct)
             .map(|h| h.def)
             .collect();
         let rank = |d: DefId| order.iter().position(|o| *o == d).unwrap_or(usize::MAX);
@@ -496,7 +496,7 @@ impl Folder<'_, '_> {
                 .join(" > ")
         };
         for (m, heads) in self.mods.iter().zip(self.heads) {
-            for h in heads.iter().filter(|h| h.kind == HeadKind::Data) {
+            for h in heads.iter().filter(|h| h.kind == HeadKind::Struct) {
                 let embedded = parts(h.def);
                 if embedded.is_empty() {
                     continue;

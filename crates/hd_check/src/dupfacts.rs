@@ -230,7 +230,7 @@ pub fn check_duplicate_facts<'t>(
     h: &Head<'t>,
     diags: &mut DiagBuf,
 ) {
-    let typed = if matches!(h.kind, HeadKind::Data | HeadKind::Enum) {
+    let typed = if matches!(h.kind, HeadKind::Struct | HeadKind::Enum) {
         crate::structure::member_fact_sites(cx, h.def, h.node)
     } else {
         Vec::new()

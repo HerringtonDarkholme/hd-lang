@@ -216,7 +216,7 @@ fn item(s: &Src<'_>, node: NodeRef<'_>, name: String, private: bool) -> Item {
     };
     let is_type = matches!(
         kind,
-        SyntaxKind::DataDecl | SyntaxKind::EnumDecl | SyntaxKind::TypeDecl
+        SyntaxKind::StructDecl | SyntaxKind::EnumDecl | SyntaxKind::TypeDecl
     );
     Item {
         section: Section {

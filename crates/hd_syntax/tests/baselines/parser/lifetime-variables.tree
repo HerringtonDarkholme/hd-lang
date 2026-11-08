@@ -3,7 +3,7 @@
 # Lifetime variables: declared in a generic list, written after `&`.
 struct User:
 > Root
->   DataDecl struct User :
+>   StructDecl struct User :
     name: string
 >     DataField name :
 >       NamedType string
@@ -53,7 +53,7 @@ impl[T, 'a] Pair[T]:
 >           NameExpr self
 
 struct Parser[T, 'src]:
->   DataDecl struct Parser :
+>   StructDecl struct Parser :
 >     GenericParameterList [ , ]
 >       GenericParameter T
 >       LifetimeParameter 'src

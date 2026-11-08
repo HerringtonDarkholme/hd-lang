@@ -693,7 +693,7 @@ impl Item {
     pub fn kind(&self) -> Option<HeadKind> {
         Some(match self.data {
             ItemData::Fn(_) => HeadKind::Fn,
-            ItemData::Struct(_) => HeadKind::Data,
+            ItemData::Struct(_) => HeadKind::Struct,
             ItemData::Enum { .. } => HeadKind::Enum,
             ItemData::Trait(_) => HeadKind::Trait,
             ItemData::Impl { .. } => HeadKind::Impl,
@@ -709,7 +709,7 @@ impl Item {
 #[repr(u8)]
 pub enum HeadKind {
     Fn,
-    Data,
+    Struct,
     Enum,
     Trait,
     Impl,
@@ -720,7 +720,7 @@ pub enum HeadKind {
 impl HeadKind {
     const ALL: [HeadKind; 7] = [
         HeadKind::Fn,
-        HeadKind::Data,
+        HeadKind::Struct,
         HeadKind::Enum,
         HeadKind::Trait,
         HeadKind::Impl,
@@ -732,7 +732,7 @@ impl HeadKind {
     pub fn is_type(self) -> bool {
         matches!(
             self,
-            HeadKind::Data | HeadKind::Enum | HeadKind::Alias | HeadKind::Newtype
+            HeadKind::Struct | HeadKind::Enum | HeadKind::Alias | HeadKind::Newtype
         )
     }
 }

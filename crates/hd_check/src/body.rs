@@ -3939,7 +3939,7 @@ impl Ck<'_, '_> {
                 self.b.emit(Tag::Break, lp.0.raw(), v, Ty::NEVER, s.index());
                 return Ok(Ty::NEVER);
             }
-            SyntaxKind::DataDecl
+            SyntaxKind::StructDecl
             | SyntaxKind::EnumDecl
             | SyntaxKind::TraitDecl
             | SyntaxKind::TypeDecl

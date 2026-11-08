@@ -6520,7 +6520,7 @@ impl Run<'_> {
         let mut inherent = None;
         for h in heads
             .iter()
-            .filter(|h| h.kind == hd_resolve::HeadKind::Data)
+            .filter(|h| h.kind == hd_resolve::HeadKind::Struct)
         {
             let Some(item) = lookup.item(h.def) else {
                 continue;
@@ -6657,7 +6657,7 @@ impl Run<'_> {
         for h in heads.iter().filter(|h| {
             matches!(
                 h.kind,
-                hd_resolve::HeadKind::Data | hd_resolve::HeadKind::Enum
+                hd_resolve::HeadKind::Struct | hd_resolve::HeadKind::Enum
             )
         }) {
             if failed.is_some() && !self.analyze() {
@@ -6784,7 +6784,7 @@ impl Run<'_> {
         // (`crates/hd_tir/DESIGN.md` "Default calls").
         let mut defaults = Vec::new();
         for h in &heads {
-            if h.kind == hd_resolve::HeadKind::Data {
+            if h.kind == hd_resolve::HeadKind::Struct {
                 for f in h.node.descendants() {
                     if f.kind() == hd_syntax::SyntaxKind::DataField
                         && let Some(dv) =

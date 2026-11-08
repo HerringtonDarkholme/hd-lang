@@ -2,7 +2,7 @@
 # @dump: tree
 # Migrated from trees/declarations.hd; parser coverage only.
 @derive(Debug, Eq)
-> DataDecl pub struct Point :
+> StructDecl pub struct Point :
 >   Decorator @
 >     CallExpr
 >       NameExpr derive

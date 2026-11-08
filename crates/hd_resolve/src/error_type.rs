@@ -266,7 +266,7 @@ pub fn shape<'t>(src: &Src<'t>, decl: NodeRef<'t>) -> Option<ErrorShape<'t>> {
                 variants,
             })
         }
-        SyntaxKind::DataDecl => {
+        SyntaxKind::StructDecl => {
             let (_, _, args, line) =
                 lines(src, decl).find(|(n, bare, _, _)| *n == "error" && !*bare)?;
             message(src, args)?;

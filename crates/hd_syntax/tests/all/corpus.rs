@@ -197,7 +197,7 @@ fn tree_skeleton(source: &str) -> Vec<(HeaderKind, u32, u32)> {
     for item in parsed.tree.root().children() {
         let kind = match item.kind() {
             SyntaxKind::FnDecl => HeaderKind::Function,
-            SyntaxKind::DataDecl => HeaderKind::Data,
+            SyntaxKind::StructDecl => HeaderKind::Struct,
             SyntaxKind::EnumDecl => HeaderKind::Enum,
             SyntaxKind::TraitDecl => HeaderKind::Trait,
             SyntaxKind::ImplDecl => HeaderKind::Impl,
@@ -252,7 +252,7 @@ fn skim_and_full_parse_agree_on_skeletons() {
                     && matches!(
                         body.kind,
                         HeaderKind::Function
-                            | HeaderKind::Data
+                            | HeaderKind::Struct
                             | HeaderKind::Enum
                             | HeaderKind::Trait
                             | HeaderKind::Impl

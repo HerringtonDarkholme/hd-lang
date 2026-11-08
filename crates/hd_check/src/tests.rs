@@ -83,7 +83,7 @@ pub fn tests_block_statements<'t>(src: &Src<'t>) -> Vec<NodeRef<'t>> {
                 s.kind(),
                 SyntaxKind::UseDecl
                     | SyntaxKind::FnDecl
-                    | SyntaxKind::DataDecl
+                    | SyntaxKind::StructDecl
                     | SyntaxKind::EnumDecl
                     | SyntaxKind::TraitDecl
                     | SyntaxKind::TypeDecl

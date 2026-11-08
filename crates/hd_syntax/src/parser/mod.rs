@@ -30,7 +30,7 @@ use crate::{
 #[repr(u8)]
 pub enum ItemKind {
     Function,
-    Data,
+    Struct,
     Enum,
     Trait,
     Impl,
@@ -869,7 +869,7 @@ fn build_item_index(tree: &GreenTree, tokens: &TokenBuf, source: &str) -> (ItemI
     for child in tree.root().children() {
         let kind = match child.kind() {
             SyntaxKind::FnDecl => ItemKind::Function,
-            SyntaxKind::DataDecl => ItemKind::Data,
+            SyntaxKind::StructDecl => ItemKind::Struct,
             SyntaxKind::EnumDecl => ItemKind::Enum,
             SyntaxKind::TraitDecl => ItemKind::Trait,
             SyntaxKind::ImplDecl => ItemKind::Impl,

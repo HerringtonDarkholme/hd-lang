@@ -14,7 +14,7 @@ pub enum SyntaxKind {
     UseGroup,
     UseItem,
     FnDecl,
-    DataDecl,
+    StructDecl,
     EnumDecl,
     TraitDecl,
     ImplDecl,
@@ -380,7 +380,7 @@ ast_nodes! {
     UseGroup => UseGroup,
     UseItem => UseItem,
     FnDecl => FnDecl,
-    DataDecl => DataDecl,
+    StructDecl => StructDecl,
     EnumDecl => EnumDecl,
     TraitDecl => TraitDecl,
     ImplDecl => ImplDecl,
@@ -658,7 +658,7 @@ impl<'t> Decl<'t> {
         matches!(
             node.kind(),
             SyntaxKind::FnDecl
-                | SyntaxKind::DataDecl
+                | SyntaxKind::StructDecl
                 | SyntaxKind::EnumDecl
                 | SyntaxKind::TraitDecl
                 | SyntaxKind::TypeDecl

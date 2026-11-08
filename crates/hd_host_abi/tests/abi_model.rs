@@ -29,7 +29,7 @@ const LANGUAGE: &[&str] = &[
 
 /// A std declaration a boundary type reaches.
 enum Decl {
-    Data {
+    Struct {
         generics: Vec<String>,
         fields: Vec<(String, String)>,
     },
@@ -109,7 +109,7 @@ fn std_decls() -> BTreeMap<String, Vec<(String, Decl)>> {
                     .flat_map(NodeRef::children)
             };
             let decl = match n.kind() {
-                SyntaxKind::DataDecl => Decl::Data {
+                SyntaxKind::StructDecl => Decl::Struct {
                     generics: generics(&p, &src, n),
                     fields: block()
                         .filter(|c| c.kind() == SyntaxKind::DataField)
@@ -226,7 +226,7 @@ fn reached(decls: &BTreeMap<String, Vec<(String, Decl)>>) -> BTreeMap<String, Re
                 panic!("`{n}` (in `{t}`) names {} std declarations", found.len());
             };
             match decl {
-                Decl::Data { generics, fields } => {
+                Decl::Struct { generics, fields } => {
                     todo.extend(fields.iter().map(|f| (f.1.clone(), generics.clone())));
                 }
                 Decl::Enum { generics, variants } => {
@@ -294,7 +294,7 @@ fn model() -> String {
         .map(|(n, r)| {
             let json = match r {
                 Reached::Handle => "{ \"kind\": \"handle\" }".to_owned(),
-                Reached::Std(module, Decl::Data { generics, fields }) => format!(
+                Reached::Std(module, Decl::Struct { generics, fields }) => format!(
                     "{{ \"kind\": \"data\", \"module\": {}, \"generics\": [{}], \"fields\": {} }}",
                     js(module),
                     generics_json(generics),
@@ -493,7 +493,7 @@ fn ordered<'a>(types: &'a BTreeMap<String, Reached<'a>>) -> Vec<(&'a str, &'a Re
         let r = &types[n];
         let fields: Vec<&str> = match r {
             Reached::Handle => Vec::new(),
-            Reached::Std(_, Decl::Data { fields, .. }) => {
+            Reached::Std(_, Decl::Struct { fields, .. }) => {
                 fields.iter().map(|f| f.1.as_str()).collect()
             }
             Reached::Std(_, Decl::Enum { variants, .. }) => variants
@@ -555,7 +555,7 @@ fn glue() -> String {
                 used.insert("newtype");
                 format!("newtype({of});")
             }
-            Reached::Std(_, Decl::Data { generics, fields }) => {
+            Reached::Std(_, Decl::Struct { generics, fields }) => {
                 used.insert("data");
                 let mut s = String::from("data({\n");
                 for (f, t) in fields {
@@ -795,7 +795,7 @@ fn rs_decl(n: &str, r: &Reached<'_>, types: &BTreeMap<String, Reached<'_>>) -> S
             let _ = writeln!(s, "    }}");
             let _ = writeln!(s, "}}");
         }
-        Decl::Data { generics, fields } => {
+        Decl::Struct { generics, fields } => {
             let (params, bounds) = rs_generics(generics);
             let _ = writeln!(s, "#[derive(Clone, Debug, PartialEq, Eq)]");
             let _ = writeln!(s, "pub struct {n}{params} {{");
