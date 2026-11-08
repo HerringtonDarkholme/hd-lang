@@ -827,8 +827,6 @@ struct Resolver<'a, 'b> {
     module_keys: HashMap<Arc<str>, PathId>,
     module_paths: HashMap<PathId, Arc<str>>,
     own: HashMap<(PathId, Symbol), (DefId, HeadKind, bool)>,
-    /// The `struct` declarations of the modules being lowered.
-    struct_defs: HashSet<DefId>,
     pub_uses: HashMap<(PathId, Symbol), (PathId, Symbol)>,
     memo: RefCell<HashMap<(PathId, Symbol), Res>>,
     visiting: RefCell<HashSet<(PathId, Symbol)>>,
@@ -1013,14 +1011,6 @@ impl Resolver<'_, '_> {
             let msg = format!("re-export loop through `{}`", self.cx.names.text(name));
             diags.error(Code::ReExportLoop, span, &msg);
         }
-    }
-
-    /// Whether `d` is a `struct` declaration (`data.struct.decl`).
-    fn is_struct(&self, d: DefId) -> bool {
-        self.struct_defs.contains(&d)
-            || self
-                .item(d)
-                .is_some_and(|i| self.cx.names.known.is_struct(&i))
     }
 
     /// An item of another folder or a seed, for kinds and alias bodies.
@@ -3960,6 +3950,7 @@ impl Lower<'_, '_, '_> {
         let mut params = Vec::new();
         let mut defaults = Vec::new();
         let mut variadic = false;
+        let mut mut_self = false;
         let saved = self.slots.replace(Vec::new());
         let saved_held = self.held.replace(Vec::new());
         if let Some(pl) = Src::child(f, SyntaxKind::ParameterList) {
@@ -3975,10 +3966,6 @@ impl Lower<'_, '_, '_> {
                 if let Some(token) = p.direct_token(toks, TokenKind::KwSelfValue) {
                     let st = gn.self_ty.unwrap_or(Ty::POISON);
                     let pool = self.names.pool;
-                    // `data.struct.mut-self`: a struct's `mut self` is its own
-                    // changeable copy, of the struct type itself.
-                    let own_copy =
-                        matches!(pool.get(st), TyData::Adt { def, .. } if self.r.is_struct(def));
                     let mutable = p.direct_token(toks, TokenKind::KwMut).is_some();
                     // `fn.method.ref-self`: `&self` is `&Self` and
                     // `&mut self` is `&mut Self`, for every kind of type.
@@ -3991,9 +3978,10 @@ impl Lower<'_, '_, '_> {
                             mutable,
                             counted,
                         })
-                    } else if mutable && !own_copy {
-                        pool.intern_ty(&TyData::Mut(st))
                     } else {
+                        // `fn.method.mut-self-struct`: `mut self` is the
+                        // method's own changeable copy, of type `Self`.
+                        mut_self = mutable;
                         st
                     };
                     // ref.lifetime.receiver: `&'a self`; the referent's
@@ -4136,6 +4124,7 @@ impl Lower<'_, '_, '_> {
             row,
             suspends,
             variadic,
+            mut_self,
             lifetimes,
             paths,
         }
@@ -7259,7 +7248,6 @@ fn resolver<'a, 'b>(
         module_keys: HashMap::default(),
         module_paths: HashMap::default(),
         own: HashMap::default(),
-        struct_defs: HashSet::default(),
         pub_uses: HashMap::default(),
         memo: RefCell::new(HashMap::default()),
         visiting: RefCell::new(HashSet::default()),
@@ -7298,13 +7286,6 @@ fn resolver<'a, 'b>(
                     h.kind,
                     h.public || m.session.is_some(),
                 ));
-            }
-            if h.kind == HeadKind::Data
-                && h.node
-                    .direct_token(&m.src.parse.tokens, TokenKind::KwStruct)
-                    .is_some()
-            {
-                r.struct_defs.insert(h.def);
             }
             if let Some(gl) = Src::child(h.node, SyntaxKind::GenericParameterList) {
                 let toks = &m.src.parse.tokens;
@@ -8007,6 +7988,7 @@ fn delegations(r: &Resolver<'_, '_>, modules: &mut [ModOut]) {
                     row: pool.subst_row(sig.row, &at),
                     suspends: sig.suspends,
                     variadic: sig.variadic,
+                    mut_self: sig.mut_self,
                     lifetimes: sig.lifetimes.clone(),
                     paths: sig.paths.clone(),
                 };

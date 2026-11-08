@@ -4355,12 +4355,6 @@ impl Ck<'_, '_> {
                 cands,
             }) => {
                 let t = self.strip_mut(self.infer.resolve(pool, rt));
-                if let Some(&(s, st)) = self.declared_sig(method)?.params.first()
-                    && self.cx.names.text(s) == "self"
-                    && !addressed
-                {
-                    self.check_receiver(st, recv, rt, n);
-                }
                 let recv = match self.ref_receiver_kind(method)? {
                     Some(k) if !addressed => self.fit_call_receiver(recv, rt, k, name, n),
                     _ => recv,
@@ -4376,12 +4370,6 @@ impl Ck<'_, '_> {
             }
             Some(Hit::Pending { trait_, method }) => {
                 let t = self.strip_mut(self.infer.resolve(pool, rt));
-                if let Some(&(s, st)) = self.declared_sig(method)?.params.first()
-                    && self.cx.names.text(s) == "self"
-                    && !addressed
-                {
-                    self.check_receiver(st, recv, rt, n);
-                }
                 let recv = match self.ref_receiver_kind(method)? {
                     Some(k) if !addressed => self.fit_call_receiver(recv, rt, k, name, n),
                     _ => recv,
@@ -4429,11 +4417,7 @@ impl Ck<'_, '_> {
                 }
                 let recv = match self.ref_receiver_kind(method)? {
                     Some(k) if !addressed => self.fit_call_receiver(recv, rt, k, name, n),
-                    Some(_) => recv,
-                    None => {
-                        self.check_receiver(params[0].1, recv, rt, n);
-                        recv
-                    }
+                    _ => recv,
                 };
                 // The result context fixes constructor results in callback
                 // arguments, as in `.map_err(Union._0)`.
@@ -4601,29 +4585,17 @@ impl Ck<'_, '_> {
                     self.err(Code::DynMemberUnavailable, n, &dyn_type_param_message(name));
                     return Ok((Ref(NONE), Ty::NEVER));
                 }
-                if let Some(&(s, st)) = sig.params.first()
+                if let Some(&(s, _)) = sig.params.first()
                     && self.cx.names.text(s) == "self"
                 {
-                    let by_ref = matches!(pool.get(st), TyData::Ref { .. });
-                    if let Some((mutable, at)) = via_dyn {
-                        let changes = match pool.get(st) {
-                            TyData::Ref { mutable, .. } => mutable,
-                            TyData::Mut(_) => true,
-                            _ => false,
-                        };
-                        if changes && !mutable {
-                            for e in &args.positional {
-                                self.expr(*e, Some(Ty::POISON))?;
-                            }
-                            self.dyn_ref_mut_receiver(name, at, n);
-                            return Ok((Ref(NONE), Ty::NEVER));
+                    if let Some((false, at)) = via_dyn
+                        && self.changes_receiver(sig)
+                    {
+                        for e in &args.positional {
+                            self.expr(*e, Some(Ty::POISON))?;
                         }
-                    }
-                    // A trait value reference passes its payload as the
-                    // reference receiver.
-                    let passes_payload = by_ref && via_dyn.is_some();
-                    if !(addressed || passes_payload) {
-                        self.check_receiver(st, recv, rt, n);
+                        self.dyn_ref_mut_receiver(name, at, n);
+                        return Ok((Ref(NONE), Ty::NEVER));
                     }
                     if choice.0 == ChoiceKind::TraitValue
                         && self.names_self_beyond_receiver(method, trait_)?

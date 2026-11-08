@@ -6,11 +6,10 @@ app/main/advance
     uses $1: %1 -> %2 lend last
   %0 = Read copy [$0] : i32
   %1 = Store [$1] %0 : ()
-  %2 = Read copy [$1] : mut i32
-  %3 = Prim Add [%2 1:i32] : mut i32
-  %4 = Coerce %3 [Weaken -] : i32
-  %5 = Break L0 %4 : never
-  %6 = Block - : i32
-  %7 = Scope %6 [] : i32
-  %8 = Block %7 : i32
+  %2 = Read copy [$1] : i32
+  %3 = Prim Add [%2 1:i32] : i32
+  %4 = Break L0 %3 : never
+  %5 = Block - : i32
+  %6 = Scope %5 [] : i32
+  %7 = Block %6 : i32
   summary kept []

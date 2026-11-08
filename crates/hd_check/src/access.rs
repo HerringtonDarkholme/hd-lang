@@ -7,7 +7,7 @@
 use hd_diag::Code;
 use hd_resolve::ItemData;
 use hd_syntax::NodeRef;
-use hd_tir::ir::{Coercion, Ref, Step, Tag};
+use hd_tir::ir::{Ref, Step};
 use hd_types::{Ty, TyData, VarKind};
 
 use crate::body::Ck;
@@ -180,59 +180,6 @@ impl Ck<'_, '_> {
         self.err(Code::NotWritable, at, &msg);
     }
 
-    /// A `mut self` call needs mutable access to its receiver
-    /// (types.path.store.not-writable.v2). `self_param` is the method's
-    /// declared receiver type.
-    pub(crate) fn check_receiver(&mut self, self_param: Ty, recv: Ref, rt: Ty, at: NodeRef<'_>) {
-        let pool = self.pool();
-        let TyData::Mut(inner) = pool.get(self_param) else {
-            return;
-        };
-        // A primitive `Self` has no `mut` form (types.prim.no-mut.self-call).
-        if matches!(pool.get(self.strip_mut(inner)), TyData::Prim(_)) {
-            return;
-        }
-        if self.has_mut_access(rt) {
-            return;
-        }
-        let binding = recv.as_inst().and_then(|i| {
-            let body = self.b.body_mut();
-            let local = body.local_read(i.0 as usize)?;
-            if body.local_flags[local.idx()] & hd_tir::ir::local_flags::PARAM != 0 {
-                return None;
-            }
-            let value = (0..body.len()).find_map(|j| {
-                (body.stored_local(j) == Some((local, true))).then_some(Ref(body.data[j][1]))
-            })?;
-            let weakened = value.as_inst()?.0 as usize;
-            if body.tags[weakened] != Tag::Coerce
-                || body.record(body.data[weakened][1]).first() != Some(&(Coercion::Weaken as u32))
-            {
-                return None;
-            }
-            let value = Ref(body.data[weakened][0]);
-            Some((body.local_name[local.idx()], value))
-        });
-        let shown = self.show(rt);
-        let hint = match binding {
-            Some((name, value))
-                if matches!(
-                    pool.get(self.infer.resolve(pool, self.b.ty_of(value))),
-                    TyData::Mut(_)
-                ) =>
-            {
-                let name = self.cx.names.text(name);
-                format!(
-                    "; bind with `let mut {name} = ...` to keep the initializer's mutable access"
-                )
-            }
-            _ => String::new(),
-        };
-        let msg =
-            format!("this method takes `mut self`, but the receiver is a readonly {shown}{hint}");
-        self.err(Code::NotWritable, at, &msg);
-    }
-
     /// A readonly value where `mut` is wanted (types.mut.no-upgrade.v2).
     /// Returns whether it reported.
     pub(crate) fn check_upgrade(&mut self, got: Ty, want: Ty, n: NodeRef<'_>, what: &str) -> bool {
@@ -269,18 +216,21 @@ impl Ck<'_, '_> {
                 .lookup
                 .item(*m)
                 .and_then(|i| i.sig())
-                .and_then(|s| s.params.first())
-                .is_some_and(|(s, st)| {
-                    self.cx.names.text(*s) == "self"
-                        && matches!(
-                            pool.get(*st),
-                            TyData::Mut(_) | TyData::Ref { mutable: true, .. }
-                        )
-                })
+                .is_some_and(|sig| self.changes_receiver(sig))
         }) || t.supers.iter().any(|s| match pool.get(*s) {
             TyData::TraitValue { def, .. } => self.trait_is_mutable(def, depth + 1),
             _ => false,
         })
+    }
+
+    /// Whether a method's receiver is `mut self` or `&mut self`
+    /// (`req.mut.trait-changing`, `trait.dyn.ref.member.mut`).
+    pub(crate) fn changes_receiver(&self, sig: &hd_resolve::FnSig) -> bool {
+        sig.mut_self
+            || sig.params.first().is_some_and(|(s, st)| {
+                self.cx.names.text(*s) == "self"
+                    && matches!(self.pool().get(*st), TyData::Ref { mutable: true, .. })
+            })
     }
 
     /// Whether `got` converts to `want` by permission alone, once the two

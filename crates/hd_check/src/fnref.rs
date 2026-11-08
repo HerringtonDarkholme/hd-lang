@@ -997,12 +997,7 @@ impl Ck<'_, '_> {
             self.err(Code::DynMemberUnavailable, n, &message);
             return Ok(self.poison_value(n));
         }
-        let changes = m.sig.params.first().is_some_and(|(_, t)| {
-            matches!(
-                pool.get(*t),
-                TyData::Ref { mutable: true, .. } | TyData::Mut(_)
-            )
-        });
+        let changes = self.changes_receiver(&m.sig);
         if changes && !writable {
             let name = self
                 .cx
@@ -1152,16 +1147,11 @@ impl Ck<'_, '_> {
         }
         self.note_call(m.def);
         // `fn.ref.bound.address.writable`.
-        let self_param = inst(pool, &m, m.sig.params[0].1);
         let addressed = self.addressed(recv, rt);
         let by_ref = self.ref_receiver_kind(m.def)?;
         let recv = match by_ref {
             Some(kind) if !addressed => self.fit_receiver(recv, rt, kind, name, n),
-            Some(_) => recv,
-            None => {
-                self.check_receiver(self_param, recv, rt, n);
-                recv
-            }
+            _ => recv,
         };
         let ft = self.member_fn_ty(&m, 1)?;
         self.fit_expected(ft, want);

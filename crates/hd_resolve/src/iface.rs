@@ -371,6 +371,9 @@ pub struct FnSig {
     pub suspends: bool,
     /// The last parameter collects the rest of the arguments (`xs...: T`).
     pub variadic: bool,
+    /// The receiver is written `mut self`: the method's own changeable
+    /// copy of a receiver of type `Self` (`fn.method.mut-self-struct`).
+    pub mut_self: bool,
     /// The written lifetimes, for checking them (#1011): one per local
     /// reference slot of the parameters, then of the result, in
     /// [`hd_types::Types::ref_slots`] order over the declared types. 0 is
@@ -415,6 +418,7 @@ impl FnSig {
             row: RowId::EMPTY,
             suspends: false,
             variadic: false,
+            mut_self: false,
             lifetimes: Vec::new(),
             paths: Vec::new(),
         }
@@ -1232,7 +1236,7 @@ fn put_sig(w: &mut Writer, t: &mut TableWriter<'_>, s: &FnSig) -> StageResult<()
     }
     w.u32(t.ty(s.ret)?);
     w.u32(t.row_id(s.row)?);
-    w.u8(u8::from(s.suspends) | (u8::from(s.variadic) << 1));
+    w.u8(u8::from(s.suspends) | (u8::from(s.variadic) << 1) | (u8::from(s.mut_self) << 2));
     w.len_of(&s.lifetimes);
     for l in &s.lifetimes {
         w.u32(u32::from(*l));
@@ -1286,6 +1290,7 @@ fn get_sig(r: &mut Reader<'_>, t: &Tables) -> Option<FnSig> {
         row,
         suspends: flags & 1 != 0,
         variadic: flags & 2 != 0,
+        mut_self: flags & 4 != 0,
         lifetimes,
         paths,
     })

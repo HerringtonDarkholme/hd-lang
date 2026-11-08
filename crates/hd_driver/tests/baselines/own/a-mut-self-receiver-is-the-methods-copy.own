@@ -10,15 +10,15 @@ trait Bump:
 
     fn bump_twice(mut self) -> usize:
 > app/main/Bump.bump_twice
->   local $0 self: mut Self [param read] value
+>   local $0 self: Self [param read] value
 >     uses $0: entry -> %1 consume, %3 consume last
 >   %0 = Retain %5 Entry local $0 #0 : ()
         self.bump()
->   %1 = Read copy [$0] : mut Self
+>   %1 = Read copy [$0] : Self
 >   %2 = Call app/main/Bump.bump for Self [] via Bound (%1) : usize
 >   %5 = Block %4 : usize
         self.bump()
->   %3 = Read move [$0] : mut Self
+>   %3 = Read move [$0] : Self
 >   %4 = Call app/main/Bump.bump for Self [] via Bound (%3) : usize
 >   exit sub 0 drops [$0]
 

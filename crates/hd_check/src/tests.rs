@@ -436,6 +436,7 @@ fn too_complex_case(
         row: RowId::EMPTY,
         suspends: true,
         variadic: false,
+        mut_self: false,
         lifetimes: Vec::new(),
         paths: Vec::new(),
     };
@@ -542,6 +543,7 @@ fn check_case(
         row,
         suspends: true,
         variadic: false,
+        mut_self: false,
         lifetimes: Vec::new(),
         paths: Vec::new(),
     };
@@ -740,6 +742,7 @@ fn check_registration(
         row,
         suspends: true,
         variadic: false,
+        mut_self: false,
         lifetimes: Vec::new(),
         paths: Vec::new(),
     };
