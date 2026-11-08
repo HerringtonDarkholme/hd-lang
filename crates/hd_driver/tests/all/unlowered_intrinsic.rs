@@ -1,51 +1,8 @@
-//! Malformed frame calls fail at build time rather than compiling their
-//! placeholder bodies; valid homogeneous frames preserve owned results.
+//! Valid homogeneous frames preserve owned results. (A malformed std
+//! intrinsic declaration is the checker's to reject: #1524.)
 
-use hd_diag::Code;
-use hd_driver::{Executor, Goal, Host, NoClock, build, std_sources};
+use hd_driver::{Executor, Goal, Host, NoClock, std_sources};
 use hd_sched::SerialOrder;
-
-#[test]
-fn a_frame_intrinsic_without_its_task_list_fails_at_build_time() {
-    let mut sources = std_sources();
-    sources.insert(
-        "bad.hd",
-        r#"@intrinsic("task_all_frame")
-pub fn unlowered() -> void:
-    panic("intrinsic")
-"#,
-    );
-    sources.insert(
-        "main.hd",
-        r"use std.bad.unlowered
-
-pub fn main() -> void:
-    unlowered()
-",
-    );
-    let store = crate::warm_store();
-    let host = Host {
-        render_tir: &[],
-        sources: &sources,
-        store: &store,
-        clock: &NoClock,
-        executor: Executor::Serial(SerialOrder::Priority),
-    };
-    let out = build(
-        &host,
-        "std",
-        &Goal::Program {
-            entry: "main".into(),
-        },
-    );
-    let rendered = out.render();
-    assert!(out.wasm.is_none(), "the program compiled to Wasm");
-    assert!(out.diags.code.contains(&Code::Unsupported), "{rendered}");
-    assert!(
-        rendered.contains("the intrinsic `task_all_frame`"),
-        "{rendered}"
-    );
-}
 
 #[test]
 fn homogeneous_all_frame_keeps_typed_and_counted_results() {
