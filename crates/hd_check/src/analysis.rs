@@ -497,6 +497,12 @@ impl<'v> SourceView<'v> {
         self.source.file
     }
 
+    /// The parsed file's tokens and tree, for advice derived from syntax.
+    #[must_use]
+    pub const fn syntax(self) -> Src<'v> {
+        self.source
+    }
+
     #[must_use]
     pub fn root(self) -> NodeRef<'v> {
         self.source.root()

@@ -747,51 +747,9 @@ impl Lower<'_, '_, '_> {
         self.names.package_node(d)
     }
 
-    /// One member line's drift signature (`annot.line.drift`): the member
-    /// it names, whether it extends (`+=`), and the right side's tokens
-    /// (`pass` for an omit).
-    fn drift_lines(&self, n: NodeRef<'_>) -> Vec<(String, bool, Vec<String>)> {
-        let mut out = Vec::new();
-        let Some(body) = Src::child(n, SyntaxKind::Block) else {
-            return out;
-        };
-        for line in body
-            .children()
-            .filter(|c| c.kind() == SyntaxKind::Derivation)
-        {
-            let mut toks = self.src.tokens(line);
-            let (Some(name), Some(op)) = (toks.next(), toks.next()) else {
-                continue;
-            };
-            if !matches!(
-                self.src.tkind(name),
-                Some(TokenKind::Ident | TokenKind::RawIdent | TokenKind::KwSelfType)
-            ) {
-                continue;
-            }
-            let Some(rhs) = line.children().last() else {
-                continue;
-            };
-            let rhs = if self.is_omit(rhs) {
-                vec!["pass".to_owned()]
-            } else {
-                self.src
-                    .tokens(rhs)
-                    .map(|t| self.src.text(t).to_owned())
-                    .collect()
-            };
-            out.push((
-                self.src.text(name).to_owned(),
-                self.src.tkind(op) == Some(TokenKind::PlusEq),
-                rhs,
-            ));
-        }
-        out
-    }
-
-    /// A `by` derivation block for the drift check: its target, its
-    /// trait's package, the trait and target names as written, its member
-    /// lines, and the block's span.
+    /// A `by` derivation block's resolved trait and target, for tooling
+    /// that compares the block's written member lines (`annot.line.drift`).
+    /// Only the name resolution lives here; the lines are syntax.
     fn collect_drift_block(
         &self,
         n: NodeRef<'_>,
@@ -813,10 +771,9 @@ impl Lower<'_, '_, '_> {
         let [(trait_name, _)] = trait_segs.as_slice() else {
             return;
         };
-        let target_segs = self.segments(*target_ty);
-        let [(target_name, _)] = target_segs.as_slice() else {
+        if self.segments(*target_ty).len() != 1 {
             return;
-        };
+        }
         let Some((trait_def, item)) = self.scope_item(trait_name, items) else {
             return;
         };
@@ -828,9 +785,6 @@ impl Lower<'_, '_, '_> {
             target: target_def,
             package: self.package_of(trait_def),
             trait_: trait_def,
-            trait_name: trait_name.clone(),
-            target_name: target_name.clone(),
-            lines: self.drift_lines(n),
             span: self.src.span(n),
         });
     }

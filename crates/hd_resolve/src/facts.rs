@@ -164,19 +164,15 @@ pub struct BlockDecorator {
     pub valid: bool,
 }
 
-/// A written member line: member name, extension mode, and right-side tokens.
-pub type MemberLines = Vec<(String, bool, Vec<String>)>;
-
-/// Nominal targets and configured lines of a resolved derivation block.
+/// The nominal trait and target a `by` derivation block's single-segment
+/// names resolve to. `span` is the block's `impl` declaration; its written
+/// names and member lines are read from syntax by the consumer.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DerivationBlock {
     pub folder: u32,
     pub target: DefId,
     pub package: PathId,
     pub trait_: DefId,
-    pub trait_name: String,
-    pub target_name: String,
-    pub lines: MemberLines,
     pub span: Span,
 }
 
