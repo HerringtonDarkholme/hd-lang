@@ -1,8 +1,8 @@
 rule	path	issue	code
 cost-rust-read-dir	crates/hd_cli/src/disk.rs	#1503	let entries = std::fs::read_dir(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
 cost-rust-read-dir	crates/hd_cli/src/affected.rs	#1503	let Ok(entries) = std::fs::read_dir(dir) else {
-cost-rust-read-dir	crates/hd_cache/src/disk.rs	untracked	let Ok(list) = std::fs::read_dir(&dir) else {
+cost-rust-read-dir	crates/hd_cache/src/disk.rs	#1508	let Ok(list) = std::fs::read_dir(&dir) else {
 cost-ts-spawn-in-loop	spec/tools/run-conformance.ts	#1504	const child = spawn(command[0]!, [...command.slice(1), ...args], {
 cost-ts-spawn-in-loop	website/src/learn-check.ts	#1504	execFile(program!, argv, { cwd: tree ?? REPO_DIR }, (error, stdout, stderr) => {
-cost-ts-readdir	packages/server-sdk/packaging/output.ts	untracked	for (const name of (await readdir(join(directory, prefix))).sort()) {
-cost-ts-readdir	packages/server-sdk/packaging/output.ts	untracked	for (const name of await readdir(generations)) {
+cost-ts-readdir	packages/server-sdk/packaging/output.ts	#1509	for (const name of (await readdir(join(directory, prefix))).sort()) {
+cost-ts-readdir	packages/server-sdk/packaging/output.ts	#1509	for (const name of await readdir(generations)) {
