@@ -1200,10 +1200,8 @@ struct Driven {
 fn glue_site(t: Tag) -> Option<Reason> {
     matches!(
         t,
-        Tag::Await
-            | Tag::Call
+        Tag::Call
             | Tag::Coerce
-            | Tag::CopyStruct
             | Tag::DefaultCall
             | Tag::Intrinsic
             | Tag::NewStruct
