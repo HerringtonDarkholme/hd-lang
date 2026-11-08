@@ -144,7 +144,18 @@ function main(args: readonly string[]): number {
     const compiler = args[2] ? ["--compiler", args[2]] : [];
     const result = spawnSync(
       process.execPath,
-      ["--experimental-strip-types", runner, ...compiler, "--cases", join(directory, "cases.tsv")],
+      // Two jobs: parallel `hd check` processes queue on hd's disk cache, so
+      // eight ran about seven times slower each and slow examples hit the
+      // runner's 10 s limit under load, for no gain in total time.
+      [
+        "--experimental-strip-types",
+        runner,
+        ...compiler,
+        "--jobs",
+        "2",
+        "--cases",
+        join(directory, "cases.tsv"),
+      ],
       { encoding: "utf8", maxBuffer: 256 * 1024 * 1024 },
     );
     if (result.status !== 0 && result.status !== 1) {
