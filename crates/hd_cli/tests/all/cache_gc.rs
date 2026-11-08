@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{Duration, SystemTime};
 
-use hd_base::{Hash128, StableHasher};
+use hd_base::Hash128;
 use hd_cache::{CacheStore, DiskStore, EntryKind};
 use hd_testkit::Scratch;
 
@@ -72,89 +72,37 @@ impl Entry {
     }
 }
 
-const INDEX_HEADER: usize = 32;
-const INDEX_ROW: usize = 58;
-
-fn checksum_index(bytes: &mut [u8]) {
-    let mut hash = StableHasher::new("cache-storage-index-v1");
-    hash.bytes(&bytes[INDEX_HEADER..]);
-    bytes[16..INDEX_HEADER].copy_from_slice(&hash.finish().0.to_le_bytes());
-}
-
-fn read_index(obj: &Path) -> Option<Vec<u8>> {
-    let path = obj.join("pack-v1/index");
-    let bytes = match std::fs::read(&path) {
-        Ok(bytes) => bytes,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return None,
-        Err(error) => panic!("{}: {error}", path.display()),
-    };
-    assert!(bytes.len() >= INDEX_HEADER);
-    assert_eq!(&bytes[..8], b"HDPACK01");
-    let count = u32::from_le_bytes(bytes[8..12].try_into().unwrap());
-    assert_eq!(
-        bytes.len(),
-        INDEX_HEADER + usize::try_from(count).unwrap() * INDEX_ROW
-    );
-    let mut checked = bytes.clone();
-    checksum_index(&mut checked);
-    assert_eq!(
-        &checked[16..INDEX_HEADER],
-        &bytes[16..INDEX_HEADER],
-        "index checksum"
-    );
-    Some(bytes)
-}
-
 /// Read the logical directory and verify every indexed range exists in a
 /// physical pack. Merely enumerating loose files would silently test none.
 pub(super) fn entries(obj: &Path) -> Vec<Entry> {
-    let Some(index) = read_index(obj) else {
-        return Vec::new();
-    };
-    index[INDEX_HEADER..]
-        .chunks_exact(INDEX_ROW)
-        .map(|row| {
-            let kind = u16::from_le_bytes(row[..2].try_into().unwrap());
-            let kind = EntryKind::ALL
-                .into_iter()
-                .find(|&k| k as u16 == kind)
-                .unwrap();
-            let key = Hash128(u128::from_le_bytes(row[2..18].try_into().unwrap()));
-            let pack = u128::from_le_bytes(row[18..34].try_into().unwrap());
-            let offset = u64::from_le_bytes(row[34..42].try_into().unwrap());
-            let bytes = u64::from_le_bytes(row[42..50].try_into().unwrap());
-            let used = u64::from_le_bytes(row[50..58].try_into().unwrap());
-            let pack = obj.join(format!("pack-v1/{pack:032x}.pack"));
+    DiskStore::new(obj.to_path_buf())
+        .index_entries()
+        .into_iter()
+        .map(|e| {
             assert!(
-                offset.checked_add(bytes).unwrap() <= pack.metadata().expect("indexed pack").len()
+                e.offset.checked_add(e.len).unwrap()
+                    <= e.pack.metadata().expect("indexed pack").len()
             );
             Entry {
-                kind,
-                key,
-                pack,
-                bytes,
-                modified: SystemTime::UNIX_EPOCH + Duration::from_secs(used),
+                kind: e.kind,
+                key: e.key,
+                pack: e.pack,
+                bytes: e.len,
+                modified: SystemTime::UNIX_EPOCH + Duration::from_secs(e.used),
             }
         })
         .collect()
 }
 
-/// Physical compiled bytes, including index and obsolete pack records;
-/// leases, the publication lock and the legacy stats ledger are not entries.
-fn total(obj: &Path) -> u64 {
-    std::fs::read_dir(obj.join("pack-v1"))
+/// The managed files of `dir` that `keep` accepts, by name, in bytes.
+fn sizes(dir: &Path, keep: impl Fn(&str) -> bool) -> u64 {
+    std::fs::read_dir(dir)
         .into_iter()
         .flatten()
         .map(|entry| {
             let entry = entry.expect("pack directory entry");
             let name = entry.file_name();
-            let name = name.to_string_lossy();
-            if entry.file_type().expect("pack type").is_file()
-                && (name == "index"
-                    || name.strip_suffix(".pack").is_some_and(|id| {
-                        id.len() == 32 && id.bytes().all(|b| b.is_ascii_hexdigit())
-                    }))
-            {
+            if entry.file_type().expect("pack type").is_file() && keep(&name.to_string_lossy()) {
                 entry.metadata().expect("pack size").len()
             } else {
                 0
@@ -163,23 +111,31 @@ fn total(obj: &Path) -> u64 {
         .sum()
 }
 
+/// The index's bytes: its head, pages and pack table.
+fn index_bytes(obj: &Path) -> u64 {
+    sizes(&obj.join("pack-v1/index"), |name| !name.contains('.'))
+}
+
+/// Physical compiled bytes, including index and obsolete pack records;
+/// leases, the publication lock and the legacy stats ledger are not entries.
+fn total(obj: &Path) -> u64 {
+    let packs = sizes(&obj.join("pack-v1"), |name| {
+        name.strip_suffix(".pack")
+            .is_some_and(|id| id.len() == 32 && id.bytes().all(|b| b.is_ascii_hexdigit()))
+    });
+    packs + index_bytes(obj)
+}
+
 fn set_age(obj: &Path, entry: &Entry, days: u64) {
     let time = SystemTime::now() - Duration::from_secs(days * 86_400);
     let seconds = time
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap()
         .as_secs();
-    let mut index = read_index(obj).expect("index");
-    let row = index[INDEX_HEADER..]
-        .chunks_exact_mut(INDEX_ROW)
-        .find(|row| {
-            u16::from_le_bytes(row[..2].try_into().unwrap()) == entry.kind as u16
-                && u128::from_le_bytes(row[2..18].try_into().unwrap()) == entry.key.0
-        })
-        .expect("logical entry");
-    row[50..58].copy_from_slice(&seconds.to_le_bytes());
-    checksum_index(&mut index);
-    std::fs::write(obj.join("pack-v1/index"), index).expect("age index entry");
+    assert!(
+        DiskStore::new(obj.to_path_buf()).set_last_use(entry.kind, &entry.key, seconds),
+        "logical entry"
+    );
 }
 
 fn recent(e: &Entry) -> bool {
@@ -326,10 +282,9 @@ fn a_recently_hit_entry_outlives_older_ones() {
     assert!(!unused.is_empty());
     // The hits are entries of the first run that are recent again.
     assert!(used.iter().any(|e| first.contains(&e.identity())));
-    // The cap fits every recently used logical entry and its index rows,
-    // but neither the ten-day-old entries nor a three-day-old filler.
-    let kept_bytes = used.iter().map(|e| e.bytes).sum::<u64>()
-        + u64::try_from(INDEX_HEADER + used.len() * INDEX_ROW).unwrap();
+    // The cap fits every recently used logical entry and the index, but
+    // neither the ten-day-old entries nor a three-day-old filler.
+    let used_bytes = used.iter().map(|e| e.bytes).sum::<u64>();
     let filler = (EntryKind::Check, Hash128(u128::MAX));
     assert!(!all.iter().any(|entry| entry.identity() == filler));
     {
@@ -337,9 +292,14 @@ fn a_recently_hit_entry_outlives_older_ones() {
         store.put(
             filler.0,
             &filler.1,
-            &vec![0; usize::try_from(kept_bytes + 1024).unwrap()],
+            &vec![0; usize::try_from(used_bytes + index_bytes(&obj) + 8192).unwrap()],
         );
     }
+    // Each kept frame also keeps its 34-byte footer row, and each pack
+    // its 32-byte footer trailer.
+    let packs = used.iter().map(|e| &e.pack).collect::<BTreeSet<_>>().len();
+    let footers = u64::try_from(used.len() * 34 + packs * 32).unwrap();
+    let kept_bytes = used_bytes + index_bytes(&obj) + footers;
     let fillers = entries(&obj)
         .into_iter()
         .filter(|e| e.identity() == filler)

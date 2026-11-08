@@ -10,7 +10,7 @@ use hd_base::{BuildProfile, Hash128, StableHasher};
 pub mod disk;
 pub mod store;
 #[cfg(feature = "disk")]
-pub use disk::DiskStore;
+pub use disk::{DiskStore, IndexedEntry};
 pub use store::{
     CacheStore, DeferredStore, EntryKind, MemoryStore, OverlayStore, decode_entry, encode_entry,
 };

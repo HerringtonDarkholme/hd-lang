@@ -310,8 +310,11 @@ part of the key, not as a check after a miss.
 obj/
   pack-v1/
     <32 hex>.pending          unpublished pack, exclusively leased by its writer
-    <32 hex>.pack             immutable concatenated HDCE frames
-    index                     sorted logical-key directory, atomically replaced
+    <32 hex>.pack             immutable HDCE frames, then a footer of their keys
+    index/                    the paged index (#1502)
+      head                    linear hash level, split pointer, rows, generation
+      <16 hex>                one bucket: a page of sorted rows, replaced whole
+      packs                   the pack table: each footed pack and its length
     lock                      stable publication/GC writer lock
   clpack/<2 hex>/<32 hex>      private native code, with the existing owner checks
   stats                       legacy/private shard ledger (§5.7)
@@ -332,38 +335,78 @@ obj/
   replaces that key's index location; keys are not assumed insert-only.
 - **Lease, then publish.** Under the stable writer lock, create a unique
   `.pending` file and take its exclusive file lock. Release the writer lock
-  while writing the frame bytes. Reacquire it, reload the latest index and
-  merge the pending locations and use marks. While still excluding GC,
-  release the file lease, rename to `.pack`, then write a temporary index
-  and rename it over `index`. Thus every indexed pack is complete and
+  while writing the frame bytes and the footer. Reacquire it, read the head
+  and the pages of the pending keys, and merge the pending locations and use
+  marks. While still excluding GC, release the file lease, rename to
+  `.pack`, then replace each changed page, the pack table and the head, each
+  by a renamed temporary file. Thus every indexed pack is complete and
   unlocked before a reader can observe it. No `fsync` is needed for derived
   data: a crash can lose an entry; invalid framing is a miss.
-- **Readers take no publication or lease lock.** A command loads one index
-  snapshot and reads only the addressed frame ranges. A process-local mutex
-  protects that snapshot and cached file cursors; it is not shared with
-  other processes. At most 64 open pack handles are cached. A concurrent
-  replacement or eviction leaves an older reader whole frame bytes or a
-  miss, never a partial publication.
-- **Index encoding and limits.** The 32-byte little-endian header is magic
-  `HDPACK01`, row count (`u32`), reserved zero flags (`u32`) and the 128-bit
+- **The paged index (#1502)** is a linear hash table. Bucket `b` holds the
+  rows whose key's low `i` bits are `b`, or low `i + 1` bits once `b` is
+  below the split pointer `s`; there are `2^i + s` buckets. A row added
+  past 35 rows per bucket on average splits bucket `s` into `s` and
+  `s + 2^i`; eviction merges the last bucket back under half that, and an
+  index with no rows has no files. Each bucket is one page file of 70 row
+  slots (4,092 bytes), whole pages when a bucket overflows.
+- **A split stays readable.** It writes the old bucket with its moved rows
+  still in it and the new bucket, then the head, then the old bucket
+  without them. A reader or a crash at any point finds every row in the
+  bucket the stored head names; a writer drops rows a page holds for
+  another bucket. A merge writes the merged bucket, then the head, then
+  removes the last page.
+- **Readers take no publication or lease lock.** A command reads the head
+  once and each page it needs once, and reads only the addressed frame
+  ranges. A process-local mutex protects those pages and cached file
+  cursors; it is not shared with other processes. At most 64 open pack
+  handles are cached. A concurrent replacement or eviction leaves an older
+  reader whole frame bytes or a miss, never a partial publication.
+- **Cost per run.** A run that reads `k` keys reads the 64-byte head and at
+  most `k` pages; one that writes `j` entries or marks `j` hits rewrites at
+  most `j` pages plus one page per split, the head and the pack table (24
+  bytes per tracked pack, a bounded count); a warm run whose hits are all
+  fresh writes nothing. None of it depends on the number of entries.
+  Measured at 1,000 and 10,000 entries, a warm run reading 8 keys reads
+  32,864 index bytes at both and writes none; with every hit due a recency
+  mark it reads 65,600 and writes 32,736 at both.
+- **Encodings and limits.** Pages and the pack table share a 32-byte
+  little-endian header: magic (`HDPAGE01`, `HDPKTB01`), row count (`u32`),
+  reserved zero flags (`u32`) and the 128-bit
   `StableHasher("cache-storage-index-v1", rows)` checksum. Sorted unique
-  58-byte rows hold kind (`u16`), key (`u128`), pack ID (`u128`), offset,
-  length and last-use Unix seconds (three `u64`s). The index is limited to
-  64 MiB before allocation; every row's kind, ordering, arithmetic and
-  checksum are checked. A frame read is limited to 64 MiB and to the opened
-  pack's bounds. Decoded row storage is bounded by that index limit;
-  compaction streams payload ranges instead of collecting a whole pack in
-  memory. Oversized persistence fails with the normal cache warning while
-  compilation continues.
+  58-byte page rows hold kind (`u16`), key (`u128`), pack ID (`u128`),
+  offset, length and last-use Unix seconds (three `u64`s); table rows hold
+  pack ID and length. The 64-byte head is magic `HDHEAD01`, level (`u32`),
+  zero flags, split pointer and row count (`u64`s), a random 128-bit
+  generation and a checksum of the rest. A pack's footer holds 34-byte rows
+  (kind, key, offset, length), then the row count, their checksum and magic
+  `HDFOOT01`; readers never read it. Every file is limited to 64 MiB before
+  allocation; every row's kind, ordering, arithmetic and checksum are
+  checked. A frame read is limited to 64 MiB and to the opened pack's
+  bounds; compaction streams payload ranges instead of collecting a whole
+  pack in memory. Oversized persistence fails with the normal cache warning
+  while compilation continues.
+- **Older caches.** A cache whose `index` is the single sorted file of an
+  older hd (magic `HDPACK01`, the same rows) is read as it is until the
+  first command that takes the writer lock rewrites it as pages in
+  `index.new/`, renames the file to `index.old`, renames `index.new` to
+  `index` and removes `index.old`: one read of the old file and one write
+  of every page, once (3.7 s for about 250,000 rows, including the one walk that
+  follows, since the running total named the old file). Readers find the
+  old file under either name meanwhile, and a writer finishes a migration
+  that stopped. An older hd finds a directory where its index was: it reads
+  misses, and its publication and GC fail with the cache warning before
+  they write or delete anything.
 - **Crash recovery and GC races.** GC uses the same writer lock and tries a
   pending/orphan pack's file lock before deleting it. It cannot observe a
   newly created but not yet leased file because creation and locking share
   that writer lock. A live lease is retained; process death releases it,
-  so no age heuristic delays orphan recovery. A corrupt index reads as
-  misses and is replaced under the writer lock on the next write/GC; active
-  leases remain protected. Missing or truncated packs/ranges are misses.
-  Recognized stale temporary indexes are reclaimable because their writer
-  also holds the stable lock. Foreign filenames and symbolic links stay.
+  so no age heuristic delays orphan recovery. A corrupt page or head reads
+  as misses and is replaced under the writer lock on the next write/GC (a
+  corrupt head starts an empty index); active leases remain protected.
+  Missing or truncated packs/ranges are misses. Recognized stale temporary
+  files, and pages past the last bucket, are reclaimable by a walk because
+  their writer also held the stable lock. Foreign filenames and symbolic
+  links stay.
 - **Write failures** warn once and disable further puts for that command;
   the build still succeeds. If GC cannot write, it reports the physical
   bytes it could not remove rather than pretending the packed cache is
@@ -702,8 +745,8 @@ The disk store caps `obj/` at 10 GiB by default, evicting
 least-recently-used entries (`cli.cache.obj.cap`, `cli.cache.obj.evict`).
 
 - **Entry recency.** A packed entry's last-use timestamp is refreshed when
-  over an hour old and merged at publication/settlement, at most one index
-  update per entry per hour. Compaction preserves every surviving entry's
+  over an hour old and merged at publication/settlement into its page, at
+  most one page write per marked entry per hour. Compaction preserves every surviving entry's
   age; pack age never substitutes for entry recency. Eviction orders live
   entries by age, ties by kind and key, down to 90% when the live set exceeds
   its available cap. Dead records/orphan bytes alone do not evict a live set
@@ -714,20 +757,30 @@ least-recently-used entries (`cli.cache.obj.cap`, `cli.cache.obj.evict`).
   committed entries, as with the old temporary publish files. Unindexed
   final packs and dead pending files are reclaimed by lease-aware GC.
 - **Running total (#1501).** The publication lock file records the
-  physical total (final packs plus index) with the checksum of the index it
-  describes, written only under that lock. A publication adds its pack and
-  index growth before its pack becomes final; a full walk records its exact
-  result. A record whose checksum differs from the current index header is
-  unknown: an older hd published, or a writer died between recording and
-  its index commit. Unknown counts as over the cap, so a crash or an older
-  writer costs one walk and never hides bytes. Deletions without an index
-  change only lower the true total.
+  physical total (final packs plus the index's files) with the generation
+  of the head it describes, written only under that lock. A commit adds its
+  pack and index growth, counting a split bucket at its larger first
+  write, before any of it becomes final, and records the exact total after;
+  a full walk records its exact result. A record naming another generation
+  is unknown: the index was migrated from an older hd's file, or a writer
+  died between recording and its head commit. Unknown counts as over the
+  cap, so a crash or a migration costs one walk and never hides bytes.
+  Deletions without an index change only lower the true total.
 - **Compaction.** A referenced pack over 25% dead, or needing space under
   the physical cap, is copied by live frame range into a new leased pack.
   Commit the new locations before removing the old file. An older reader
   can retain the old descriptor; Windows may postpone deletion until that
   descriptor closes, and later GC retries it. Index loading and directory
   scans are included in a command's settlement work.
+- **Bounded pack count.** Every command that publishes adds a pack, so its
+  settlement merges small packs without a walk: the pack table (in the
+  index, read only by a publishing run) groups packs under 8 MiB by power
+  of two, and once a class holds four, their live frames, found from each
+  pack's footer and its rows' pages, are copied into one pack and the four
+  removed. A frame is copied once per class it climbs; packs stay at most
+  three per class plus the 8 MiB packs, which the cap bounds. 1,000
+  publishing commands leave at most 14 packs. Packs an older hd wrote
+  have no footer and are never merged; compaction still reclaims them.
 - **Private/legacy accounting.** `obj/stats` still tracks 256 approximate
   shard sizes and a drift cursor. Its scans retire ordinary loose files;
   Clpack entries retain their existing per-shard mtime LRU. Automatic
@@ -737,7 +790,8 @@ least-recently-used entries (`cli.cache.obj.cap`, `cli.cache.obj.evict`).
 - **Automatic eviction.** Drop shares one soft 20 ms budget between legacy
   scanning and packed cleanup. Packed cleanup reads the running total and,
   when it fits the cap, walks no directory: it only merges pending recency
-  marks. Otherwise it walks `pack-v1/` whole, since a partial walk cannot
+  marks and, after a publication, small packs. Otherwise it walks
+  `pack-v1/` and `pack-v1/index/` whole, since a partial walk cannot
   establish the total, then evicts and compacts as above. Eviction leaves
   90% of the cap, so walks are rare; one also runs whenever the record is
   unknown. Until a walk, dead pending files and unrecorded orphans stay

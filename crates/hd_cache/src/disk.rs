@@ -1,6 +1,7 @@
 //! The disk store (feature `disk`): ordinary data in immutable per-run
-//! packs and a shared index under `<root>/pack-v1/`; private native code
-//! remains in `<root>/<kind>/<shard>/<key>`. See DESIGN.md §5.4 and §5.7.
+//! packs and a shared paged index under `<root>/pack-v1/`; private native
+//! code remains in `<root>/<kind>/<shard>/<key>`. See DESIGN.md §5.4 and
+//! §5.7.
 //! Only this module touches the file system (design-overview §2.2 rule 1).
 //!
 //! Pack readers take no publication lock. A pending pack's file lock
@@ -114,6 +115,19 @@ pub struct Collected {
     pub after: u64,
 }
 
+/// One indexed data entry, as [`DiskStore::index_entries`] reads it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct IndexedEntry {
+    pub kind: EntryKind,
+    pub key: Hash128,
+    /// The pack file that holds it.
+    pub pack: PathBuf,
+    pub offset: u64,
+    pub len: u64,
+    /// Last use, in Unix seconds.
+    pub used: u64,
+}
+
 impl DiskStore {
     /// A store over `root` with the default cap.
     #[must_use]
@@ -171,6 +185,34 @@ impl DiskStore {
 
     fn budget(&self) -> u64 {
         self.cap / SHARDS as u64
+    }
+
+    /// Every indexed data entry, read without the publication lock. It
+    /// reads the whole index: for tests and tools, never a command.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn index_entries(&self) -> Vec<IndexedEntry> {
+        self.packed
+            .entries()
+            .into_iter()
+            .filter_map(|(kind, key, pack, offset, len, used)| {
+                Some(IndexedEntry {
+                    kind: EntryKind::ALL.into_iter().find(|k| *k as u16 == kind)?,
+                    key: Hash128(key),
+                    pack,
+                    offset,
+                    len,
+                    used,
+                })
+            })
+            .collect()
+    }
+
+    /// Sets an indexed entry's last use to `unix_secs`, as a hit then
+    /// would have; false when it is not indexed. For tests.
+    #[doc(hidden)]
+    pub fn set_last_use(&self, kind: EntryKind, key: &Hash128, unix_secs: u64) -> bool {
+        self.packed.set_used(kind, key, unix_secs).unwrap_or(false)
     }
 
     /// `hd cache gc` (`cli.cache.gc`): cleans every shard now, with no time
@@ -666,15 +708,19 @@ impl Ledger {
     }
 }
 
-/// Immutable data packs. The index is the only publication point; a pack's
-/// exclusive file lock leases it until publication, or until its writer dies.
+/// Immutable data packs and a paged index (DESIGN.md §5.4). The index is a
+/// linear hash table in `pack-v1/index/`: a fixed head holds the level and
+/// split pointer, and each bucket is one page file, so a lookup reads one
+/// page and a write rewrites only the pages it changes. A pack's exclusive
+/// file lock leases it until publication, or until its writer dies.
 mod packed {
     use hd_base::SliceSort as _;
+    use std::collections::btree_map::Entry as Slot;
     use std::collections::{BTreeMap, BTreeSet};
     use std::fs::{File, OpenOptions, TryLockError};
     use std::io::{self, Read, Seek, SeekFrom, Write};
     use std::path::{Path, PathBuf};
-    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
     use std::sync::{Arc, Mutex, MutexGuard};
     use std::time::{Duration, Instant, SystemTime};
 
@@ -684,21 +730,47 @@ mod packed {
     use super::cost;
     use super::{Collected, EntryKind, USE_MARK_AGE, is_real_dir, parse_key};
 
-    const MAGIC: &[u8; 8] = b"HDPACK01";
+    /// The single-file index of older hd, read until the first writer
+    /// migrates it.
+    const LEGACY_MAGIC: &[u8; 8] = b"HDPACK01";
+    const PAGE_MAGIC: &[u8; 8] = b"HDPAGE01";
+    const HEAD_MAGIC: &[u8; 8] = b"HDHEAD01";
+    const TABLE_MAGIC: &[u8; 8] = b"HDPKTB01";
+    const FOOT_MAGIC: &[u8; 8] = b"HDFOOT01";
     const HEADER: usize = 32;
     const ROW: usize = 58;
+    /// Rows per page: the 32-byte header and 70 rows fill 4,092 bytes.
+    /// At 35 rows per bucket on average, a bucket not yet split this round
+    /// holds up to twice that, still one page.
+    const SLOTS: usize = 70;
+    /// A bucket split follows when the rows exceed this many per bucket,
+    /// a merge when they fall under half of it.
+    const LOAD: u64 = 35;
+    const MAX_LEVEL: u32 = 24;
+    const HEAD_LEN: usize = 64;
+    const TABLE_ROW: usize = 24;
+    const FOOT_ROW: usize = 34;
     const MAX_INDEX: usize = 64 * 1024 * 1024;
     const MAX_ENTRY: u64 = 64 * 1024 * 1024;
     const MAX_HANDLES: usize = 64;
+    /// Tracked packs of one power-of-two size class merge into one pack
+    /// once there are this many.
+    const FANOUT: usize = 4;
+    /// A pack this large is never merged; compaction still reclaims it.
+    /// One merge copies at most `FANOUT` times this.
+    const FULL: u64 = 8 << 20;
     /// The running total in the lock file: magic, managed bytes (final
-    /// packs and the index), and the checksum of the index it describes.
+    /// packs and the index files), and the generation of the index head it
+    /// describes.
     const TOTAL_MAGIC: &[u8; 8] = b"HDBYTES1";
     const RECORD: usize = 32;
     type Key = (u16, u128);
     type Entries = BTreeMap<Key, Location>;
     type Batch = [(EntryKind, Hash128, Arc<[u8]>)];
+    /// Footer rows: key, offset and length of each frame in a pack.
+    type Frames = Vec<(Key, u64, u64)>;
 
-    #[derive(Clone, Debug)]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     struct Location {
         pack: u128,
         offset: u64,
@@ -711,9 +783,21 @@ mod packed {
         len: u64,
     }
 
+    /// What a reader sees: no index, an older hd's single file, or the
+    /// paged index under one head.
+    #[derive(Default)]
+    enum View {
+        #[default]
+        Empty,
+        Legacy(Entries),
+        Paged(Head),
+    }
+
     #[derive(Default)]
     struct Snapshot {
-        entries: Entries,
+        view: View,
+        /// Pages read under the view's head, by bucket.
+        pages: BTreeMap<u64, Entries>,
         files: BTreeMap<u128, Opened>,
         touched: BTreeMap<Key, u64>,
     }
@@ -722,6 +806,8 @@ mod packed {
         root: PathBuf,
         snapshot: Mutex<Option<Snapshot>>,
         used: AtomicU64,
+        /// This process published a pack, so its settlement may merge.
+        published: AtomicBool,
     }
 
     /// A live writer owns the file lock before it drops the index lock.
@@ -776,91 +862,767 @@ mod packed {
         h.finish().0
     }
 
-    fn index_len(count: usize) -> io::Result<usize> {
-        count
-            .checked_mul(ROW)
-            .and_then(|n| n.checked_add(HEADER))
-            .filter(|&n| n <= MAX_INDEX)
-            .ok_or_else(|| invalid("cache index exceeds its size limit"))
+    fn u16_at(b: &[u8], at: usize) -> u16 {
+        u16::from_le_bytes(b[at..at + 2].try_into().expect("2 bytes"))
+    }
+    fn u32_at(b: &[u8], at: usize) -> u32 {
+        u32::from_le_bytes(b[at..at + 4].try_into().expect("4 bytes"))
+    }
+    fn u64_at(b: &[u8], at: usize) -> u64 {
+        u64::from_le_bytes(b[at..at + 8].try_into().expect("8 bytes"))
+    }
+    fn u128_at(b: &[u8], at: usize) -> u128 {
+        u128::from_le_bytes(b[at..at + 16].try_into().expect("16 bytes"))
     }
 
-    fn encode(entries: &Entries) -> io::Result<Vec<u8>> {
-        let mut out = Vec::with_capacity(index_len(entries.len())?);
-        out.extend_from_slice(MAGIC);
-        out.extend_from_slice(
-            &u32::try_from(entries.len())
-                .map_err(io::Error::other)?
-                .to_le_bytes(),
-        );
-        out.extend_from_slice(&0_u32.to_le_bytes());
-        out.extend_from_slice(&0_u128.to_le_bytes());
-        for (&(kind, key), loc) in entries {
-            out.extend_from_slice(&kind.to_le_bytes());
-            out.extend_from_slice(&key.to_le_bytes());
-            out.extend_from_slice(&loc.pack.to_le_bytes());
-            out.extend_from_slice(&loc.offset.to_le_bytes());
-            out.extend_from_slice(&loc.len.to_le_bytes());
-            out.extend_from_slice(&loc.used.to_le_bytes());
-        }
-        let sum = checksum(&out[HEADER..]);
-        out[16..HEADER].copy_from_slice(&sum.to_le_bytes());
-        Ok(out)
+    fn put_row(out: &mut Vec<u8>, &(kind, key): &Key, loc: &Location) {
+        out.extend_from_slice(&kind.to_le_bytes());
+        out.extend_from_slice(&key.to_le_bytes());
+        out.extend_from_slice(&loc.pack.to_le_bytes());
+        out.extend_from_slice(&loc.offset.to_le_bytes());
+        out.extend_from_slice(&loc.len.to_le_bytes());
+        out.extend_from_slice(&loc.used.to_le_bytes());
     }
 
-    /// The index file's bytes: none for an empty index, which has no file.
-    fn index_bytes(entries: &Entries) -> io::Result<Vec<u8>> {
-        if entries.is_empty() {
-            Ok(Vec::new())
-        } else {
-            encode(entries)
-        }
-    }
-
-    /// The checksum field of an index header or a total record; 0 for
-    /// no index.
-    fn sum_of(bytes: &[u8]) -> u128 {
-        bytes
-            .get(16..32)
-            .map_or(0, |s| u128::from_le_bytes(s.try_into().expect("16 bytes")))
-    }
-
-    fn decode(bytes: &[u8]) -> io::Result<Entries> {
-        if bytes.len() < HEADER || &bytes[..8] != MAGIC || bytes[12..16] != [0; 4] {
-            return Err(invalid("invalid cache index header"));
-        }
-        let count = usize::try_from(u32::from_le_bytes(bytes[8..12].try_into().expect("header")))
-            .map_err(io::Error::other)?;
-        if index_len(count)? != bytes.len()
-            || checksum(&bytes[HEADER..])
-                != u128::from_le_bytes(bytes[16..HEADER].try_into().expect("header"))
-        {
-            return Err(invalid("invalid cache index length or checksum"));
-        }
+    /// Sorted unique rows of a known kind and a bounded range.
+    fn rows(bytes: &[u8]) -> io::Result<Entries> {
         let mut entries = Entries::new();
         let mut previous = None;
-        for row in bytes[HEADER..].chunks_exact(ROW) {
-            let kind = u16::from_le_bytes(row[..2].try_into().expect("row"));
-            let key = u128::from_le_bytes(row[2..18].try_into().expect("row"));
+        for row in bytes.chunks_exact(ROW) {
+            let key = (u16_at(row, 0), u128_at(row, 2));
             if !EntryKind::ALL
                 .iter()
-                .any(|&k| k as u16 == kind && k != EntryKind::Clpack)
-                || previous.is_some_and(|p| p >= (kind, key))
+                .any(|&k| k as u16 == key.0 && k != EntryKind::Clpack)
+                || previous.is_some_and(|p| p >= key)
             {
                 return Err(invalid("invalid or unordered cache index key"));
             }
             let loc = Location {
-                pack: u128::from_le_bytes(row[18..34].try_into().expect("row")),
-                offset: u64::from_le_bytes(row[34..42].try_into().expect("row")),
-                len: u64::from_le_bytes(row[42..50].try_into().expect("row")),
-                used: u64::from_le_bytes(row[50..58].try_into().expect("row")),
+                pack: u128_at(row, 18),
+                offset: u64_at(row, 34),
+                len: u64_at(row, 42),
+                used: u64_at(row, 50),
             };
             if loc.len > MAX_ENTRY || loc.offset.checked_add(loc.len).is_none() {
                 return Err(invalid("invalid cache index range"));
             }
-            previous = Some((kind, key));
-            entries.insert((kind, key), loc);
+            previous = Some(key);
+            entries.insert(key, loc);
         }
         Ok(entries)
+    }
+
+    /// A 32-byte header (magic, row count, zero flags, checksum of the
+    /// rows) and the rows, the layout of the legacy index and of a page.
+    fn frame(magic: [u8; 8], entries: &Entries, len: usize) -> Vec<u8> {
+        let mut out = Vec::with_capacity(len);
+        out.extend_from_slice(&magic);
+        out.extend_from_slice(
+            &u32::try_from(entries.len())
+                .expect("bounded rows")
+                .to_le_bytes(),
+        );
+        out.extend_from_slice(&[0; 20]);
+        for (key, loc) in entries {
+            put_row(&mut out, key, loc);
+        }
+        let sum = checksum(&out[HEADER..]);
+        out[16..HEADER].copy_from_slice(&sum.to_le_bytes());
+        out.resize(len, 0);
+        out
+    }
+
+    /// The header's row count and the rows' checksum when `bytes` is a
+    /// whole frame of `magic` whose length `len_of(count)` gives.
+    fn unframe(
+        magic: [u8; 8],
+        bytes: &[u8],
+        len_of: impl Fn(usize) -> Option<usize>,
+    ) -> io::Result<Entries> {
+        if bytes.len() < HEADER || bytes[..8] != magic || bytes[12..16] != [0; 4] {
+            return Err(invalid("invalid cache index header"));
+        }
+        let count = usize::try_from(u32_at(bytes, 8)).map_err(io::Error::other)?;
+        let end = count
+            .checked_mul(ROW)
+            .and_then(|n| n.checked_add(HEADER))
+            .filter(|_| len_of(count) == Some(bytes.len()))
+            .ok_or_else(|| invalid("invalid cache index length"))?;
+        if checksum(&bytes[HEADER..end]) != u128_at(bytes, 16) {
+            return Err(invalid("invalid cache index checksum"));
+        }
+        rows(&bytes[HEADER..end])
+    }
+
+    fn legacy_len(count: usize) -> Option<usize> {
+        count
+            .checked_mul(ROW)
+            .and_then(|n| n.checked_add(HEADER))
+            .filter(|&n| n <= MAX_INDEX)
+    }
+
+    #[cfg(test)]
+    fn legacy_encode(entries: &Entries) -> Vec<u8> {
+        frame(
+            *LEGACY_MAGIC,
+            entries,
+            legacy_len(entries.len()).expect("bounded"),
+        )
+    }
+
+    fn legacy_decode(bytes: &[u8]) -> io::Result<Entries> {
+        unframe(*LEGACY_MAGIC, bytes, legacy_len)
+    }
+
+    /// A page file's length: whole pages of [`SLOTS`] rows, at least one.
+    fn page_len(count: usize) -> usize {
+        HEADER + count.div_ceil(SLOTS).max(1) * SLOTS * ROW
+    }
+
+    fn page_encode(entries: &Entries) -> Vec<u8> {
+        frame(*PAGE_MAGIC, entries, page_len(entries.len()))
+    }
+
+    fn page_decode(bytes: &[u8]) -> io::Result<Entries> {
+        unframe(*PAGE_MAGIC, bytes, |n| {
+            Some(page_len(n)).filter(|&l| l <= MAX_INDEX)
+        })
+    }
+
+    fn page_name(bucket: u64) -> String {
+        format!("{bucket:016x}")
+    }
+
+    /// The index head: level `i` and split pointer `s` of the linear hash
+    /// table (buckets `2^i + s`), the row count, and a generation that
+    /// changes with every head write, which the running total names.
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+    struct Head {
+        level: u32,
+        split: u64,
+        rows: u64,
+        generation: u128,
+    }
+
+    impl Head {
+        fn buckets(self) -> u64 {
+            (1_u64 << self.level) + self.split
+        }
+
+        /// The bucket of `key`: its low `i` bits, or `i + 1` bits once
+        /// that bucket has split.
+        fn bucket(self, key: u128) -> u64 {
+            let hash = u64::try_from(key & u128::from(u64::MAX)).expect("low 64 bits");
+            let low = hash & ((1_u64 << self.level) - 1);
+            if low < self.split {
+                hash & ((2_u64 << self.level) - 1)
+            } else {
+                low
+            }
+        }
+
+        fn next(self) -> Head {
+            let split = self.split + 1;
+            if split == 1_u64 << self.level {
+                Head {
+                    level: self.level + 1,
+                    split: 0,
+                    ..self
+                }
+            } else {
+                Head { split, ..self }
+            }
+        }
+
+        fn previous(self) -> Head {
+            if self.split == 0 {
+                Head {
+                    level: self.level - 1,
+                    split: (1_u64 << (self.level - 1)) - 1,
+                    ..self
+                }
+            } else {
+                Head {
+                    split: self.split - 1,
+                    ..self
+                }
+            }
+        }
+
+        fn encode(self) -> Vec<u8> {
+            let mut out = Vec::with_capacity(HEAD_LEN);
+            out.extend_from_slice(HEAD_MAGIC);
+            out.extend_from_slice(&self.level.to_le_bytes());
+            out.extend_from_slice(&0_u32.to_le_bytes());
+            out.extend_from_slice(&self.split.to_le_bytes());
+            out.extend_from_slice(&self.rows.to_le_bytes());
+            out.extend_from_slice(&self.generation.to_le_bytes());
+            let sum = checksum(&out);
+            out.extend_from_slice(&sum.to_le_bytes());
+            out
+        }
+
+        fn decode(bytes: &[u8]) -> io::Result<Head> {
+            if bytes.len() != HEAD_LEN
+                || &bytes[..8] != HEAD_MAGIC
+                || u32_at(bytes, 12) != 0
+                || checksum(&bytes[..48]) != u128_at(bytes, 48)
+            {
+                return Err(invalid("invalid cache index head"));
+            }
+            let head = Head {
+                level: u32_at(bytes, 8),
+                split: u64_at(bytes, 16),
+                rows: u64_at(bytes, 24),
+                generation: u128_at(bytes, 32),
+            };
+            if head.level > MAX_LEVEL || head.split >= 1_u64 << head.level {
+                return Err(invalid("invalid cache index head"));
+            }
+            Ok(head)
+        }
+    }
+
+    /// The pack table `index/packs`: every pack this index format wrote,
+    /// with its length, so merging needs no directory walk.
+    fn table_encode(packs: &BTreeMap<u128, u64>) -> Vec<u8> {
+        let mut out = Vec::with_capacity(HEADER + packs.len() * TABLE_ROW);
+        out.extend_from_slice(TABLE_MAGIC);
+        out.extend_from_slice(
+            &u32::try_from(packs.len())
+                .expect("bounded packs")
+                .to_le_bytes(),
+        );
+        out.extend_from_slice(&[0; 20]);
+        for (id, len) in packs {
+            out.extend_from_slice(&id.to_le_bytes());
+            out.extend_from_slice(&len.to_le_bytes());
+        }
+        let sum = checksum(&out[HEADER..]);
+        out[16..HEADER].copy_from_slice(&sum.to_le_bytes());
+        out
+    }
+
+    fn table_decode(bytes: &[u8]) -> io::Result<BTreeMap<u128, u64>> {
+        let count = bytes
+            .get(8..12)
+            .map(|_| usize::try_from(u32_at(bytes, 8)).unwrap_or(usize::MAX));
+        if bytes.len() < HEADER
+            || &bytes[..8] != TABLE_MAGIC
+            || bytes[12..16] != [0; 4]
+            || count.and_then(|n| n.checked_mul(TABLE_ROW)) != Some(bytes.len() - HEADER)
+            || checksum(&bytes[HEADER..]) != u128_at(bytes, 16)
+        {
+            return Err(invalid("invalid cache pack table"));
+        }
+        Ok(bytes[HEADER..]
+            .chunks_exact(TABLE_ROW)
+            .map(|row| (u128_at(row, 0), u64_at(row, 16)))
+            .collect())
+    }
+
+    /// A pack's footer: each frame's key, offset and length, then the row
+    /// count, their checksum and a magic. Readers address frames by range
+    /// and never see it; merging reads it instead of the whole index.
+    fn footer(frames: &Frames) -> Vec<u8> {
+        let mut out = Vec::with_capacity(frames.len() * FOOT_ROW + HEADER);
+        for &((kind, key), offset, len) in frames {
+            out.extend_from_slice(&kind.to_le_bytes());
+            out.extend_from_slice(&key.to_le_bytes());
+            out.extend_from_slice(&offset.to_le_bytes());
+            out.extend_from_slice(&len.to_le_bytes());
+        }
+        let sum = checksum(&out);
+        out.extend_from_slice(&(frames.len() as u64).to_le_bytes());
+        out.extend_from_slice(&sum.to_le_bytes());
+        out.extend_from_slice(FOOT_MAGIC);
+        out
+    }
+
+    fn read_footer(file: &mut File, len: u64) -> io::Result<Frames> {
+        let trailer = u64::try_from(HEADER).expect("small");
+        if len < trailer {
+            return Err(invalid("cache pack has no footer"));
+        }
+        let mut tail = [0; HEADER];
+        file.seek(SeekFrom::Start(len - trailer))?;
+        file.read_exact(&mut tail)?;
+        let count = u64_at(&tail, 0);
+        let rows_len = count
+            .checked_mul(u64::try_from(FOOT_ROW).expect("small"))
+            .filter(|&n| n <= len - trailer && n <= MAX_ENTRY)
+            .ok_or_else(|| invalid("invalid cache pack footer"))?;
+        if &tail[24..] != FOOT_MAGIC {
+            return Err(invalid("cache pack has no footer"));
+        }
+        let start = len - trailer - rows_len;
+        let mut bytes = vec![0; usize::try_from(rows_len).map_err(io::Error::other)?];
+        file.seek(SeekFrom::Start(start))?;
+        file.read_exact(&mut bytes)?;
+        if checksum(&bytes) != u128_at(&tail, 8) {
+            return Err(invalid("invalid cache pack footer"));
+        }
+        bytes
+            .chunks_exact(FOOT_ROW)
+            .map(|row| {
+                let (offset, len) = (u64_at(row, 18), u64_at(row, 26));
+                if offset.checked_add(len).is_none_or(|end| end > start) {
+                    return Err(invalid("invalid cache pack footer range"));
+                }
+                Ok(((u16_at(row, 0), u128_at(row, 2)), offset, len))
+            })
+            .collect()
+    }
+
+    /// Reads a regular file of at most `limit` bytes; `None` when missing.
+    fn read_small(path: &Path, limit: usize) -> io::Result<Option<Vec<u8>>> {
+        match std::fs::symlink_metadata(path) {
+            Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(None),
+            Err(e) => return Err(e),
+            Ok(meta)
+                if !meta.file_type().is_file()
+                    || meta.len() > u64::try_from(limit).expect("limit") =>
+            {
+                return Err(invalid("cache index is not a bounded regular file"));
+            }
+            Ok(_) => {}
+        }
+        let mut bytes = Vec::new();
+        match File::open(path) {
+            Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(None),
+            Err(e) => return Err(e),
+            Ok(file) => file
+                .take(u64::try_from(limit + 1).expect("limit"))
+                .read_to_end(&mut bytes)?,
+        };
+        count!(index_read, bytes.len());
+        Ok(Some(bytes))
+    }
+
+    fn read_head(dir: &Path) -> io::Result<Option<Head>> {
+        read_small(&dir.join("head"), HEAD_LEN)?
+            .map(|b| Head::decode(&b))
+            .transpose()
+    }
+
+    /// A page's rows and its file length; `None` when it has no file.
+    fn read_page(dir: &Path, bucket: u64) -> io::Result<Option<(Entries, u64)>> {
+        let Some(bytes) = read_small(&dir.join(page_name(bucket)), MAX_INDEX)? else {
+            return Ok(None);
+        };
+        let len = bytes.len() as u64;
+        Ok(Some((page_decode(&bytes)?, len)))
+    }
+
+    fn read_legacy(path: &Path) -> io::Result<Option<Entries>> {
+        read_small(path, MAX_INDEX)?
+            .map(|b| legacy_decode(&b))
+            .transpose()
+    }
+
+    /// Replaces `dir/name` with `bytes` by a renamed temporary file.
+    fn replace_file(dir: &Path, name: &str, bytes: &[u8]) -> io::Result<()> {
+        let tmp = dir.join(format!("{name}.{:032x}.tmp", unique()));
+        let result = (|| {
+            let mut file = OpenOptions::new().write(true).create_new(true).open(&tmp)?;
+            file.write_all(bytes)?;
+            count!(index_written, bytes.len());
+            drop(file);
+            std::fs::rename(&tmp, dir.join(name))
+        })();
+        if result.is_err() {
+            let _ = std::fs::remove_file(tmp);
+        }
+        result
+    }
+
+    fn remove_missing_ok(path: &Path) -> io::Result<()> {
+        match std::fs::remove_file(path) {
+            Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
+            result => result,
+        }
+    }
+
+    /// One bucket as a writer holds it.
+    struct Page {
+        rows: Entries,
+        /// The rows as read, for the superset a split writes first.
+        disk: Entries,
+        /// The file's length, 0 when it has none.
+        len: u64,
+        dirty: bool,
+    }
+
+    /// A writer's view of the index, under the publication lock. It reads
+    /// the head and only the pages it touches; [`Txn::commit`] writes the
+    /// changed pages, then the head, so readers taking no lock see each
+    /// page whole and every key in the page the head names, or a miss.
+    struct Txn {
+        dir: PathBuf,
+        head: Head,
+        /// The head as on disk, `None` when there is none.
+        stored: Option<Head>,
+        pages: BTreeMap<u64, Page>,
+        /// Pages a merge emptied, removed after the head commit.
+        doomed: BTreeSet<u64>,
+        table: Option<BTreeMap<u128, u64>>,
+        table_len: u64,
+        table_dirty: bool,
+    }
+
+    impl Txn {
+        /// The index in `dir`. A corrupt head is derived data: the index
+        /// starts again empty, and its stale pages are reclaimed by GC.
+        fn open(dir: PathBuf) -> io::Result<Txn> {
+            let stored = match read_head(&dir) {
+                Ok(head) => head,
+                Err(e) if e.kind() == io::ErrorKind::InvalidData => None,
+                Err(e) => return Err(e),
+            };
+            Ok(Txn {
+                dir,
+                head: stored.unwrap_or_default(),
+                stored,
+                pages: BTreeMap::new(),
+                doomed: BTreeSet::new(),
+                table: None,
+                table_len: 0,
+                table_dirty: false,
+            })
+        }
+
+        /// The generation the running total must name; 0 for no head.
+        fn generation(&self) -> u128 {
+            self.stored.map_or(0, |h| h.generation)
+        }
+
+        fn page(&mut self, bucket: u64) -> io::Result<&mut Page> {
+            match self.pages.entry(bucket) {
+                Slot::Occupied(page) => Ok(page.into_mut()),
+                Slot::Vacant(slot) => {
+                    let (mut rows, len, dirty) = match read_page(&self.dir, bucket) {
+                        Ok(Some((rows, len))) => (rows, len, false),
+                        Ok(None) => (Entries::new(), 0, false),
+                        Err(e) if e.kind() == io::ErrorKind::InvalidData => {
+                            let len = std::fs::symlink_metadata(self.dir.join(page_name(bucket)))
+                                .map_or(0, |m| m.len());
+                            (Entries::new(), len, true)
+                        }
+                        Err(e) => return Err(e),
+                    };
+                    // Rows a split moved on before a crash are no longer
+                    // this bucket's.
+                    let head = self.head;
+                    rows.retain(|key, _| head.bucket(key.1) == bucket);
+                    Ok(slot.insert(Page {
+                        disk: rows.clone(),
+                        rows,
+                        len,
+                        dirty,
+                    }))
+                }
+            }
+        }
+
+        fn get(&mut self, key: Key) -> io::Result<Option<Location>> {
+            let bucket = self.head.bucket(key.1);
+            Ok(self.page(bucket)?.rows.get(&key).copied())
+        }
+
+        /// Sets `key`'s location; a new key may split a bucket.
+        fn set(&mut self, key: Key, loc: Location) -> io::Result<()> {
+            let bucket = self.head.bucket(key.1);
+            let page = self.page(bucket)?;
+            page.dirty = true;
+            if page.rows.insert(key, loc).is_none() {
+                self.head.rows += 1;
+                while self.head.rows > LOAD * self.head.buckets() && self.head.level < MAX_LEVEL {
+                    self.split()?;
+                }
+            }
+            Ok(())
+        }
+
+        fn remove(&mut self, key: Key) -> io::Result<()> {
+            let bucket = self.head.bucket(key.1);
+            let page = self.page(bucket)?;
+            if page.rows.remove(&key).is_some() {
+                page.dirty = true;
+                self.head.rows = self.head.rows.saturating_sub(1);
+            }
+            Ok(())
+        }
+
+        /// Splits bucket `s` into `s` and `s + 2^i`.
+        fn split(&mut self) -> io::Result<()> {
+            let from = self.head.split;
+            let to = from + (1_u64 << self.head.level);
+            self.page(from)?;
+            let next = self.head.next();
+            let moved = self.pages.get_mut(&from).map_or_else(Entries::new, |page| {
+                page.dirty = true;
+                let (stay, moved): (Entries, Entries) = std::mem::take(&mut page.rows)
+                    .into_iter()
+                    .partition(|(key, _)| next.bucket(key.1) == from);
+                page.rows = stay;
+                moved
+            });
+            self.doomed.remove(&to);
+            // A page beyond the buckets is a crashed writer's: replace it.
+            let len = match self.pages.remove(&to) {
+                Some(page) => page.len,
+                None => {
+                    std::fs::symlink_metadata(self.dir.join(page_name(to))).map_or(0, |m| m.len())
+                }
+            };
+            self.pages.insert(
+                to,
+                Page {
+                    rows: moved,
+                    disk: Entries::new(),
+                    len,
+                    dirty: true,
+                },
+            );
+            self.head = next;
+            Ok(())
+        }
+
+        /// Merges the last bucket back into its buddy while the rows fit
+        /// half the load, and drops every page once there are none.
+        fn shrink(&mut self) -> io::Result<()> {
+            while self.head.buckets() > 1 && self.head.rows * 2 < LOAD * (self.head.buckets() - 1) {
+                let previous = self.head.previous();
+                let (from, to) = (self.head.buckets() - 1, previous.split);
+                self.page(from)?;
+                self.page(to)?;
+                let page = self.pages.get_mut(&from).expect("loaded");
+                let moved = std::mem::take(&mut page.rows);
+                page.dirty = false;
+                let into = self.pages.get_mut(&to).expect("loaded");
+                into.rows.extend(moved);
+                into.dirty = true;
+                self.doomed.insert(from);
+                self.head = previous;
+            }
+            if self.head.rows == 0 && self.head.buckets() == 1 {
+                self.page(0)?.dirty = false;
+                self.doomed.insert(0);
+            }
+            Ok(())
+        }
+
+        /// Every row, reading every page: the slow path's whole view.
+        fn all(&mut self) -> io::Result<Entries> {
+            let mut entries = Entries::new();
+            for bucket in 0..self.head.buckets() {
+                entries.extend(self.page(bucket)?.rows.iter().map(|(k, l)| (*k, *l)));
+            }
+            // A crash can leave the head's count behind the pages.
+            self.head.rows = entries.len() as u64;
+            Ok(entries)
+        }
+
+        fn table(&mut self) -> io::Result<&mut BTreeMap<u128, u64>> {
+            if self.table.is_none() {
+                let path = self.dir.join("packs");
+                let (table, len) = match read_small(&path, MAX_INDEX) {
+                    Ok(Some(bytes)) => {
+                        (table_decode(&bytes).unwrap_or_default(), bytes.len() as u64)
+                    }
+                    Ok(None) => (BTreeMap::new(), 0),
+                    Err(e) if e.kind() == io::ErrorKind::InvalidData => (BTreeMap::new(), 0),
+                    Err(e) => return Err(e),
+                };
+                self.table = Some(table);
+                self.table_len = len;
+            }
+            Ok(self.table.as_mut().expect("loaded"))
+        }
+
+        fn track(&mut self, id: u128, len: u64) -> io::Result<()> {
+            self.table()?.insert(id, len);
+            self.table_dirty = true;
+            Ok(())
+        }
+
+        fn untrack(&mut self, id: u128) -> io::Result<()> {
+            if self.table()?.remove(&id).is_some() {
+                self.table_dirty = true;
+            }
+            Ok(())
+        }
+
+        /// Removes the pages a merge emptied, subtracting what it removed.
+        fn remove_doomed(&mut self, delta: &mut i128) {
+            for bucket in std::mem::take(&mut self.doomed) {
+                let len = self.pages.remove(&bucket).map_or(0, |p| p.len);
+                if remove_missing_ok(&self.dir.join(page_name(bucket))).is_ok() {
+                    *delta -= i128::from(len);
+                }
+            }
+        }
+
+        /// The bytes of the pages this writer holds, as it would leave them.
+        fn page_bytes(&self) -> u64 {
+            self.pages
+                .values()
+                .map(|p| {
+                    if p.dirty {
+                        page_len(p.rows.len()) as u64
+                    } else {
+                        p.len
+                    }
+                })
+                .sum()
+        }
+
+        fn head_dirty(&self) -> bool {
+            match self.stored {
+                None => self.head.rows > 0,
+                Some(s) => {
+                    Head {
+                        generation: s.generation,
+                        ..self.head
+                    } != s
+                }
+            }
+        }
+
+        fn dirty(&self) -> bool {
+            self.table_dirty
+                || !self.doomed.is_empty()
+                || self.pages.values().any(|p| p.dirty)
+                || self.head_dirty()
+        }
+
+        /// Writes the changes: the running total first (adding `added`
+        /// bytes that `finish` makes final), then each changed page whole,
+        /// a bucket that split still holding the rows it gave away, the
+        /// pack table, the head, and last the split buckets without them
+        /// and the removal of merged pages. A crash at any point leaves
+        /// every key in the bucket the stored head names, or lost from
+        /// this commit only.
+        fn commit(
+            &mut self,
+            lock: Option<&File>,
+            added: u64,
+            finish: impl FnOnce() -> io::Result<()>,
+        ) -> io::Result<()> {
+            let recorded = lock.and_then(|l| Store::recorded(l, self.generation()));
+            let head = self.head;
+            let mut first = Vec::new();
+            let mut last = Vec::new();
+            // `delta` is the exact change, `growth` its increases alone.
+            let mut delta = i128::from(added);
+            let mut growth = delta;
+            let mut change = |by: i128| {
+                delta += by;
+                growth += by.max(0);
+            };
+            for (&bucket, page) in &self.pages {
+                if !page.dirty || self.doomed.contains(&bucket) {
+                    continue;
+                }
+                let moved: Entries = page
+                    .disk
+                    .iter()
+                    .filter(|(key, _)| head.bucket(key.1) != bucket && !page.rows.contains_key(key))
+                    .map(|(k, l)| (*k, *l))
+                    .collect();
+                let bytes = if moved.is_empty() {
+                    page_encode(&page.rows)
+                } else {
+                    let mut superset = page.rows.clone();
+                    superset.extend(moved);
+                    last.push(bucket);
+                    page_encode(&superset)
+                };
+                change(i128::from(bytes.len() as u64) - i128::from(page.len));
+                first.push((bucket, bytes));
+            }
+            let table = if self.table_dirty {
+                let table = self.table.as_ref().expect("loaded");
+                Some(if table.is_empty() {
+                    Vec::new()
+                } else {
+                    table_encode(table)
+                })
+            } else {
+                None
+            };
+            if let Some(bytes) = &table {
+                change(i128::from(bytes.len() as u64) - i128::from(self.table_len));
+            }
+            // An index without rows has no files at all.
+            let erase = self.doomed.contains(&0) && head.rows == 0;
+            let head_bytes = if erase {
+                self.head = Head::default();
+                self.stored.map(|_| {
+                    change(-(HEAD_LEN as i128));
+                    Vec::new()
+                })
+            } else if self.head_dirty() {
+                self.head.generation = unique();
+                change(i128::from(self.stored.map_or(HEAD_LEN as u64, |_| 0)));
+                Some(self.head.encode())
+            } else {
+                None
+            };
+            let total = |delta: i128| {
+                recorded.map(|t| u64::try_from((i128::from(t) + delta).max(0)).unwrap_or(u64::MAX))
+            };
+            // Count the bytes before they are final, and no decrease before
+            // it happens: dying before the head commit leaves a record of a
+            // head that never existed, or one too large.
+            if let (Some(lock), Some(t)) = (lock, total(growth)) {
+                Store::record(lock, t, self.head.generation);
+            }
+            finish()?;
+            for (bucket, bytes) in &first {
+                replace_file(&self.dir, &page_name(*bucket), bytes)?;
+            }
+            if let Some(bytes) = table {
+                if bytes.is_empty() {
+                    remove_missing_ok(&self.dir.join("packs"))?;
+                } else {
+                    replace_file(&self.dir, "packs", &bytes)?;
+                }
+                self.table_len = bytes.len() as u64;
+                self.table_dirty = false;
+            }
+            if erase {
+                // Pages first: a head left behind finds no stale rows.
+                self.remove_doomed(&mut delta);
+            }
+            if let Some(bytes) = head_bytes {
+                if bytes.is_empty() {
+                    remove_missing_ok(&self.dir.join("head"))?;
+                    self.stored = None;
+                } else {
+                    replace_file(&self.dir, "head", &bytes)?;
+                    self.stored = Some(self.head);
+                }
+            }
+            for (bucket, bytes) in &mut first {
+                let page = self.pages.get_mut(bucket).expect("written");
+                if last.contains(bucket) {
+                    let exact = page_encode(&page.rows);
+                    delta += i128::from(exact.len() as u64) - i128::from(bytes.len() as u64);
+                    replace_file(&self.dir, &page_name(*bucket), &exact)?;
+                    page.len = exact.len() as u64;
+                } else {
+                    page.len = bytes.len() as u64;
+                }
+                page.disk.clone_from(&page.rows);
+                page.dirty = false;
+            }
+            self.remove_doomed(&mut delta);
+            if let (Some(lock), Some(t)) = (lock, total(delta)) {
+                Store::record(lock, t, self.generation());
+            }
+            Ok(())
+        }
     }
 
     impl Store {
@@ -869,6 +1631,7 @@ mod packed {
                 root: root.join("pack-v1"),
                 snapshot: Mutex::new(None),
                 used: AtomicU64::new(0),
+                published: AtomicBool::new(false),
             }
         }
 
@@ -880,6 +1643,10 @@ mod packed {
 
         fn path(&self, id: u128) -> PathBuf {
             self.root.join(format!("{id:032x}.pack"))
+        }
+
+        fn index_dir(&self) -> PathBuf {
+            self.root.join("index")
         }
 
         fn ensure_root(&self) -> io::Result<()> {
@@ -906,108 +1673,113 @@ mod packed {
             Ok(file)
         }
 
-        fn load(&self) -> io::Result<Entries> {
-            if !is_real_dir(&self.root) {
-                return Ok(Entries::new());
-            }
-            let path = self.root.join("index");
-            match std::fs::symlink_metadata(&path) {
-                Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(Entries::new()),
-                Err(e) => return Err(e),
-                Ok(meta)
-                    if !meta.file_type().is_file()
-                        || meta.len() > u64::try_from(MAX_INDEX).expect("limit") =>
-                {
-                    return Err(invalid("cache index is not a bounded regular file"));
-                }
-                Ok(_) => {}
-            }
-            let mut bytes = Vec::new();
-            File::open(path)?
-                .take(u64::try_from(MAX_INDEX + 1).expect("limit"))
-                .read_to_end(&mut bytes)?;
-            count!(index_read, bytes.len());
-            decode(&bytes)
-        }
-
-        /// The index's checksum and length from its header alone, `(0, 0)`
-        /// when there is none, `None` when it is no valid index file.
-        fn header(&self) -> Option<(u128, u64)> {
-            let path = self.root.join("index");
-            let meta = match std::fs::symlink_metadata(&path) {
-                Err(e) if e.kind() == io::ErrorKind::NotFound => return Some((0, 0)),
-                Err(_) => return None,
-                Ok(meta) => meta,
+        /// What a reader sees, taking no lock: the paged index's head, or
+        /// an older hd's single file (also mid-migration, as `index.old`).
+        fn view(&self) -> View {
+            let index = self.index_dir();
+            let legacy = |path: &Path| {
+                read_legacy(path)
+                    .ok()
+                    .flatten()
+                    .map_or(View::Empty, View::Legacy)
             };
-            let mut head = [0; HEADER];
-            File::open(&path).ok()?.read_exact(&mut head).ok()?;
-            count!(index_read, HEADER);
-            let count = usize::try_from(u32::from_le_bytes(head[8..12].try_into().ok()?)).ok()?;
-            let len = u64::try_from(index_len(count).ok()?).ok()?;
-            (meta.file_type().is_file() && &head[..8] == MAGIC && meta.len() == len)
-                .then(|| (sum_of(&head), len))
-        }
-
-        /// The managed bytes recorded for the current index, or `None` when
-        /// the record describes another index: one written by an older
-        /// hd, or by a writer that died before its commit. Caller holds
-        /// `lock`, the publication lock file, which stores the record.
-        fn recorded(mut lock: &File, header: Option<(u128, u64)>) -> Option<u64> {
-            let (sum, _) = header?;
-            let mut bytes = [0; RECORD];
-            lock.seek(SeekFrom::Start(0)).ok()?;
-            lock.read_exact(&mut bytes).ok()?;
-            (&bytes[..8] == TOTAL_MAGIC && sum_of(&bytes) == sum)
-                .then(|| u64::from_le_bytes(bytes[8..16].try_into().expect("record")))
-        }
-
-        /// Records `total` managed bytes for the index whose checksum is
-        /// `sum`. A failed write leaves a record that matches no index.
-        fn record(mut lock: &File, total: u64, sum: u128) {
-            let mut bytes = [0; RECORD];
-            bytes[..8].copy_from_slice(TOTAL_MAGIC);
-            bytes[8..16].copy_from_slice(&total.to_le_bytes());
-            bytes[16..].copy_from_slice(&sum.to_le_bytes());
-            let _ = lock
-                .seek(SeekFrom::Start(0))
-                .and_then(|_| lock.write_all(&bytes));
-        }
-
-        /// Called only under the publication lock. A corrupt index is
-        /// derived data: start a new one, leaving active leased packs alone.
-        fn recover(&self) -> io::Result<(Entries, bool)> {
-            match self.load() {
-                Ok(entries) => Ok((entries, false)),
-                Err(e) if e.kind() == io::ErrorKind::InvalidData => Ok((Entries::new(), true)),
-                Err(e) => Err(e),
+            match std::fs::symlink_metadata(&index) {
+                Ok(meta) if meta.file_type().is_dir() => read_head(&index)
+                    .ok()
+                    .flatten()
+                    .map_or(View::Empty, View::Paged),
+                Ok(meta) if meta.file_type().is_file() => legacy(&index),
+                Ok(_) => View::Empty,
+                Err(_) => legacy(&self.root.join("index.old")),
             }
         }
 
-        fn save(&self, entries: &Entries) -> io::Result<()> {
-            self.write_index(&index_bytes(entries)?)
+        /// The publication lock and the index, migrated from an older hd's
+        /// single file first.
+        fn begin(&self) -> io::Result<(File, Txn)> {
+            let lock = self.lock()?;
+            self.migrate()?;
+            Ok((lock, Txn::open(self.index_dir())?))
         }
 
-        /// Replaces the index with `bytes`; empty bytes remove it.
-        fn write_index(&self, bytes: &[u8]) -> io::Result<()> {
-            let path = self.root.join("index");
-            if bytes.is_empty() {
-                return match std::fs::remove_file(path) {
-                    Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
-                    result => result,
-                };
+        /// Caller holds the publication lock. Rewrites an older hd's single
+        /// index file as pages in `index.new/`, then swaps it in: `index`
+        /// becomes `index.old`, `index.new` becomes `index`, and `index.old`
+        /// goes. Readers see the old file under either name meanwhile; a
+        /// crash between the renames is finished by the next writer. An
+        /// older hd finds a directory where its index was and reads misses.
+        fn migrate(&self) -> io::Result<()> {
+            let index = self.index_dir();
+            let old = self.root.join("index.old");
+            let source = match std::fs::symlink_metadata(&index) {
+                Ok(meta) if meta.file_type().is_dir() => {
+                    if std::fs::symlink_metadata(&old).is_ok_and(|m| m.file_type().is_file()) {
+                        remove_missing_ok(&old)?;
+                    }
+                    return Ok(());
+                }
+                Ok(meta) if meta.file_type().is_file() => index.clone(),
+                Ok(_) => return Err(invalid("cache index is not a directory")),
+                Err(e) if e.kind() == io::ErrorKind::NotFound => {
+                    if std::fs::symlink_metadata(&old).is_ok_and(|m| m.file_type().is_file()) {
+                        old.clone()
+                    } else {
+                        std::fs::create_dir(&index)?;
+                        return Ok(());
+                    }
+                }
+                Err(e) => return Err(e),
+            };
+            let entries = match read_legacy(&source) {
+                Ok(entries) => entries.unwrap_or_default(),
+                Err(e) if e.kind() == io::ErrorKind::InvalidData => Entries::new(),
+                Err(e) => return Err(e),
+            };
+            let new = self.root.join("index.new");
+            if is_real_dir(&new) {
+                Self::clear(&new)?;
+            } else {
+                remove_missing_ok(&new)?;
             }
-            let tmp = self.root.join(format!("index.{:032x}.tmp", unique()));
-            let result = (|| {
-                let mut file = OpenOptions::new().write(true).create_new(true).open(&tmp)?;
-                file.write_all(bytes)?;
-                count!(index_written, bytes.len());
-                drop(file);
-                std::fs::rename(&tmp, path)
-            })();
-            if result.is_err() {
-                let _ = std::fs::remove_file(tmp);
+            std::fs::create_dir(&new)?;
+            let mut txn = Txn::open(new.clone())?;
+            for (key, loc) in entries {
+                txn.set(key, loc)?;
             }
-            result
+            // The running total names the legacy file: unknown from here.
+            txn.commit(None, 0, || Ok(()))?;
+            if source == index {
+                std::fs::rename(&index, &old)?;
+            }
+            std::fs::rename(&new, &index)?;
+            remove_missing_ok(&old)
+        }
+
+        /// Removes the managed files of an abandoned migration directory,
+        /// then the directory; a foreign file keeps it.
+        fn clear(dir: &Path) -> io::Result<()> {
+            // cost: only after a migration that crashed, once.
+            for e in std::fs::read_dir(dir)? {
+                let e = e?;
+                let name = e.file_name();
+                if name.to_str().is_some_and(Self::index_file) && e.file_type()?.is_file() {
+                    remove_missing_ok(&e.path())?;
+                }
+            }
+            std::fs::remove_dir(dir)
+        }
+
+        /// A file name the paged index writes.
+        fn index_file(name: &str) -> bool {
+            let base = name
+                .strip_suffix(".tmp")
+                .and_then(|n| n.rsplit_once('.'))
+                .filter(|(_, id)| parse_key(id).is_some())
+                .map_or(name, |(base, _)| base);
+            base == "head"
+                || base == "packs"
+                || (base.len() == 16
+                    && base.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')))
         }
 
         /// Caller holds the publication lock across creation and locking.
@@ -1068,15 +1840,46 @@ mod packed {
             Ok(Opened { file, len })
         }
 
+        /// `key`'s location in the snapshot, reading its page once.
+        fn locate(&self, state: &mut Snapshot, key: Key) -> Option<Location> {
+            match &state.view {
+                View::Empty => None,
+                View::Legacy(entries) => entries.get(&key).copied(),
+                View::Paged(head) => {
+                    let bucket = head.bucket(key.1);
+                    let dir = self.index_dir();
+                    state
+                        .pages
+                        .entry(bucket)
+                        .or_insert_with(|| {
+                            read_page(&dir, bucket)
+                                .ok()
+                                .flatten()
+                                .map(|(rows, _)| rows)
+                                .unwrap_or_default()
+                        })
+                        .get(&key)
+                        .copied()
+                }
+            }
+        }
+
+        fn snapshot<'a>(
+            &self,
+            guard: &'a mut MutexGuard<'_, Option<Snapshot>>,
+        ) -> &'a mut Snapshot {
+            guard.get_or_insert_with(|| Snapshot {
+                view: self.view(),
+                ..Snapshot::default()
+            })
+        }
+
         pub(super) fn get(&self, kind: EntryKind, key: &Hash128) -> Option<Arc<[u8]>> {
             self.used.store(1, Ordering::Relaxed);
             let mut guard = self.state();
-            let state = guard.get_or_insert_with(|| Snapshot {
-                entries: self.load().unwrap_or_default(),
-                ..Snapshot::default()
-            });
+            let state = self.snapshot(&mut guard);
             let k = (kind as u16, key.0);
-            let loc = state.entries.get(&k)?.clone();
+            let loc = self.locate(state, k)?;
             if !state.files.contains_key(&loc.pack) {
                 let file = self.open(loc.pack).ok()?;
                 if state.files.len() >= MAX_HANDLES {
@@ -1101,49 +1904,46 @@ mod packed {
         pub(super) fn touch(&self, kind: EntryKind, key: &Hash128) {
             self.used.store(1, Ordering::Relaxed);
             let mut guard = self.state();
-            let state = guard.get_or_insert_with(|| Snapshot {
-                entries: self.load().unwrap_or_default(),
-                ..Snapshot::default()
-            });
+            let state = self.snapshot(&mut guard);
             let k = (kind as u16, key.0);
             let at = now();
-            if state
-                .entries
-                .get(&k)
+            if self
+                .locate(state, k)
                 .is_some_and(|l| at.saturating_sub(l.used) > USE_MARK_AGE.as_secs())
             {
                 state.touched.insert(k, at);
             }
         }
 
-        fn merge_touches(&self, entries: &mut Entries) -> bool {
-            let mut guard = self.state();
-            let Some(state) = guard.as_mut() else {
-                return false;
-            };
-            let mut changed = false;
-            for (key, used) in std::mem::take(&mut state.touched) {
-                if let Some(loc) = entries.get_mut(&key)
-                    && used > loc.used
-                {
-                    loc.used = used;
-                    changed = true;
-                }
-            }
-            changed
-        }
-
-        fn replace(&self, entries: Entries) {
-            let mut guard = self.state();
-            let touched = guard
+        /// Applies the pending recency marks to the rows they name.
+        fn merge_touches(&self, txn: &mut Txn) -> io::Result<()> {
+            let touched = self
+                .state()
                 .as_mut()
                 .map(|s| std::mem::take(&mut s.touched))
                 .unwrap_or_default();
-            *guard = Some(Snapshot {
-                entries,
-                touched,
-                files: BTreeMap::new(),
-            });
+            for (key, used) in touched {
+                if let Some(loc) = txn.get(key)?
+                    && used > loc.used
+                {
+                    txn.set(key, Location { used, ..loc })?;
+                }
+            }
+            Ok(())
+        }
+
+        /// The snapshot after this process's commit: its head and the pages
+        /// it wrote; other pages are read again when needed.
+        fn adopt(&self, txn: &Txn) {
+            let mut guard = self.state();
+            let state = guard.get_or_insert_with(Snapshot::default);
+            state.view = txn.stored.map_or(View::Empty, View::Paged);
+            if txn.stored.is_none() {
+                state.pages.clear();
+            }
+            for (&bucket, page) in &txn.pages {
+                state.pages.insert(bucket, page.rows.clone());
+            }
         }
 
         pub(super) fn publish(&self, batch: &Batch) -> io::Result<()> {
@@ -1157,19 +1957,20 @@ mod packed {
             }) {
                 return Err(invalid("cache entry exceeds its size limit or is private"));
             }
-            index_len(batch.len())?;
             let mut lease = {
                 let _lock = self.lock()?;
                 self.lease()?
             };
             let mut offset = 0_u64;
             let mut pending = Entries::new();
+            let mut frames = Frames::with_capacity(batch.len());
             let at = now();
             for (kind, key, bytes) in batch {
                 lease.file.write_all(bytes)?;
                 let len = u64::try_from(bytes.len()).map_err(io::Error::other)?;
+                let k = (*kind as u16, key.0);
                 pending.insert(
-                    (*kind as u16, key.0),
+                    k,
                     Location {
                         pack: lease.id,
                         offset,
@@ -1177,29 +1978,26 @@ mod packed {
                         used: at,
                     },
                 );
+                frames.push((k, offset, len));
                 offset = offset
                     .checked_add(len)
                     .ok_or_else(|| invalid("cache pack length overflow"))?;
             }
-            let lock = self.lock()?;
-            let header = self.header();
-            let (mut entries, _) = self.recover()?;
-            self.merge_touches(&mut entries);
-            entries.extend(pending);
-            let bytes = index_bytes(&entries)?;
-            // Count the pack before it is final. Dying before the index
-            // commit leaves a record of an index that never existed.
-            if let (Some(total), Some((_, old))) = (Self::recorded(&lock, header), header) {
-                let new = u64::try_from(bytes.len()).map_err(io::Error::other)?;
-                let total = total.saturating_sub(old).saturating_add(offset);
-                Self::record(&lock, total.saturating_add(new), sum_of(&bytes));
+            let foot = footer(&frames);
+            lease.file.write_all(&foot)?;
+            let pack_len = offset + foot.len() as u64;
+            let (lock, mut txn) = self.begin()?;
+            self.merge_touches(&mut txn)?;
+            for (key, loc) in pending {
+                txn.set(key, loc)?;
             }
+            txn.track(lease.id, pack_len)?;
             // The writer lock still excludes GC; unlock before readers
-            // can see the new index (Windows byte-range locks block reads).
-            self.finish(&mut lease)?;
-            self.write_index(&bytes)?;
+            // can see the new rows (Windows byte-range locks block reads).
+            txn.commit(Some(&lock), pack_len, || self.finish(&mut lease))?;
             lease.committed = true;
-            self.replace(entries);
+            self.published.store(true, Ordering::Relaxed);
+            self.adopt(&txn);
             Ok(())
         }
 
@@ -1207,17 +2005,12 @@ mod packed {
             name.strip_suffix(".pack").and_then(parse_key).map(|k| k.0)
         }
 
-        /// Scans managed files with bounded memory, including orphan bytes.
-        /// It never follows a link or removes a foreign filename.
-        fn scan(&self) -> io::Result<(u64, BTreeMap<u128, u64>)> {
+        /// Scans managed files with bounded memory, including orphan bytes:
+        /// the total and the sizes of the `wanted` packs. It never follows
+        /// a link or counts a foreign filename.
+        fn scan(&self, wanted: &BTreeSet<u128>) -> io::Result<(u64, BTreeMap<u128, u64>)> {
             let mut total = 0_u64;
             let mut sizes = BTreeMap::new();
-            // Only indexed IDs need memory; orphan enumeration is streamed.
-            let wanted: BTreeSet<_> = self
-                .state()
-                .as_ref()
-                .map(|s| s.entries.values().map(|loc| loc.pack).collect())
-                .unwrap_or_default();
             // cost: walks the pack directory only for `hd cache gc`, or when the
             // recorded total is over the cap or unknown (#1501).
             count!(dirs_listed, 1);
@@ -1235,8 +2028,23 @@ mod packed {
                     if wanted.contains(&id) {
                         sizes.insert(id, len);
                     }
-                } else if name == "index" {
+                } else if name == "index" || name == "index.old" {
                     total = total.saturating_add(e.metadata()?.len());
+                }
+            }
+            let index = self.index_dir();
+            if is_real_dir(&index) {
+                // cost: the same slow path; the index holds one page per
+                // forty entries.
+                count!(dirs_listed, 1);
+                for e in std::fs::read_dir(index)? {
+                    count!(entries_listed, 1);
+                    let e = e?;
+                    if e.file_type()?.is_file()
+                        && e.file_name().to_str().is_some_and(Self::index_file)
+                    {
+                        total = total.saturating_add(e.metadata()?.len());
+                    }
                 }
             }
             Ok((total, sizes))
@@ -1245,6 +2053,7 @@ mod packed {
         fn prune_orphans(
             &self,
             live: &BTreeSet<u128>,
+            buckets: u64,
             deadline: Option<Instant>,
         ) -> io::Result<()> {
             let mut attempted = false;
@@ -1289,28 +2098,139 @@ mod packed {
                     attempted = true;
                 }
             }
+            let index = self.index_dir();
+            if !is_real_dir(&index) {
+                return Ok(());
+            }
+            // cost: the same slow path. Temporary files and pages past the
+            // last bucket are crashed writers'.
+            count!(dirs_listed, 1);
+            for e in std::fs::read_dir(index)? {
+                count!(entries_listed, 1);
+                let e = e?;
+                let name = e.file_name();
+                let Some(name) = name.to_str() else { continue };
+                let stale = name.rsplit_once('.').is_some_and(|(_, ext)| ext == "tmp")
+                    || u64::from_str_radix(name, 16)
+                        .is_ok_and(|b| name.len() == 16 && b >= buckets);
+                if stale && Self::index_file(name) && e.file_type()?.is_file() {
+                    let _ = std::fs::remove_file(e.path());
+                }
+            }
             Ok(())
         }
 
-        fn compact(&self, entries: &mut Entries, id: u128) -> io::Result<()> {
-            let mut source = self.open(id)?.file;
+        /// Copies the live frames of `ids` into one new pack, by their
+        /// rows `frames`, and commits their new locations. Returns the
+        /// bytes of the removed old packs.
+        fn rewrite(&self, lock: &File, txn: &mut Txn, ids: &[(u128, Frames)]) -> io::Result<u64> {
             let mut lease = self.lease()?;
             let mut offset = 0_u64;
-            for loc in entries.values_mut().filter(|loc| loc.pack == id) {
-                source.seek(SeekFrom::Start(loc.offset))?;
-                let got = io::copy(&mut (&mut source).take(loc.len), &mut lease.file)?;
-                if got != loc.len {
-                    return Err(invalid("truncated cache pack during compaction"));
+            let mut frames = Frames::new();
+            for (id, rows) in ids {
+                let mut source = self.open(*id)?.file;
+                for &(key, from, len) in rows {
+                    let Some(loc) = txn.get(key)? else { continue };
+                    if (loc.pack, loc.offset, loc.len) != (*id, from, len) {
+                        continue;
+                    }
+                    source.seek(SeekFrom::Start(from))?;
+                    let got = io::copy(&mut (&mut source).take(len), &mut lease.file)?;
+                    if got != len {
+                        return Err(invalid("truncated cache pack during compaction"));
+                    }
+                    txn.set(
+                        key,
+                        Location {
+                            pack: lease.id,
+                            offset,
+                            ..loc
+                        },
+                    )?;
+                    frames.push((key, offset, len));
+                    offset += len;
                 }
-                loc.pack = lease.id;
-                loc.offset = offset;
-                offset += loc.len;
             }
-            self.finish(&mut lease)?;
-            // Saving here makes every newly unlocked pack indexed before
-            // its lease guard is dropped, including if later GC work fails.
-            self.save(entries)?;
+            let foot = footer(&frames);
+            lease.file.write_all(&foot)?;
+            let len = offset + foot.len() as u64;
+            txn.track(lease.id, len)?;
+            for (id, _) in ids {
+                txn.untrack(*id)?;
+            }
+            // Committing here makes every newly unlocked pack indexed
+            // before its lease guard is dropped, also if later work fails.
+            txn.commit(Some(lock), len, || self.finish(&mut lease))?;
             lease.committed = true;
+            let mut removed = 0;
+            for (id, _) in ids {
+                let path = self.path(*id);
+                let size = std::fs::symlink_metadata(&path).map_or(0, |m| m.len());
+                // An open reader on Windows may postpone this; GC retries.
+                if std::fs::remove_file(path).is_ok() {
+                    removed += size;
+                }
+            }
+            if let Some(total) = Self::recorded(lock, txn.generation()) {
+                Self::record(lock, total.saturating_sub(removed), txn.generation());
+            }
+            Ok(removed)
+        }
+
+        /// Compacts pack `id` by the rows of `entries`, which follow.
+        fn compact(
+            &self,
+            lock: &File,
+            txn: &mut Txn,
+            entries: &mut Entries,
+            id: u128,
+        ) -> io::Result<()> {
+            let frames: Frames = entries
+                .iter()
+                .filter(|(_, loc)| loc.pack == id)
+                .map(|(&key, loc)| (key, loc.offset, loc.len))
+                .collect();
+            self.rewrite(lock, txn, &[(id, frames.clone())])?;
+            for (key, _, _) in frames {
+                if let Some(loc) = txn.get(key)? {
+                    entries.insert(key, loc);
+                }
+            }
+            Ok(())
+        }
+
+        /// Merges the smallest size class of tracked packs once it holds
+        /// [`FANOUT`] packs, so their count stays bounded: about
+        /// `FANOUT` per power of two up to [`FULL`]. Each frame is copied
+        /// once per class it climbs. Cost: the merged bytes, their footers
+        /// and the pages of their rows; no directory walk.
+        fn merge_small(&self, lock: &File, txn: &mut Txn) -> io::Result<()> {
+            let mut classes = BTreeMap::<u32, Vec<u128>>::new();
+            for (&id, &len) in txn.table()?.iter() {
+                if len < FULL {
+                    classes.entry(len.max(1).ilog2()).or_default().push(id);
+                }
+            }
+            let Some((_, ids)) = classes.into_iter().find(|(_, ids)| ids.len() >= FANOUT) else {
+                return Ok(());
+            };
+            let mut packs = Vec::with_capacity(FANOUT);
+            for id in ids.into_iter().take(FANOUT) {
+                match self
+                    .open(id)
+                    .and_then(|mut opened| read_footer(&mut opened.file, opened.len))
+                {
+                    Ok(frames) => packs.push((id, frames)),
+                    // A pack another GC removed, or one without a footer,
+                    // is left to the slow path.
+                    Err(_) => txn.untrack(id)?,
+                }
+            }
+            if packs.len() >= 2 {
+                self.rewrite(lock, txn, &packs)?;
+            } else if txn.dirty() {
+                txn.commit(Some(lock), 0, || Ok(()))?;
+            }
             Ok(())
         }
 
@@ -1321,78 +2241,113 @@ mod packed {
                     after: 0,
                 });
             }
-            let lock = self.lock()?;
-            let header = self.header();
-            let recorded = Self::recorded(&lock, header).filter(|&total| total <= cap);
-            if let (Some(_), Some(total), Some((_, old))) = (bound, recorded, header) {
+            let (lock, mut txn) = self.begin()?;
+            let recorded = Self::recorded(&lock, txn.generation()).filter(|&total| total <= cap);
+            if let (Some(_), Some(total)) = (bound, recorded) {
                 // The running total fits: no directory walk, only the
-                // pending recency marks.
-                if self.state().as_ref().is_some_and(|s| !s.touched.is_empty()) {
-                    let (mut entries, dirty) = self.recover()?;
-                    if self.merge_touches(&mut entries) || dirty {
-                        let bytes = index_bytes(&entries)?;
-                        self.write_index(&bytes)?;
-                        let new = u64::try_from(bytes.len()).map_err(io::Error::other)?;
-                        Self::record(
-                            &lock,
-                            total.saturating_sub(old).saturating_add(new),
-                            sum_of(&bytes),
-                        );
-                    }
-                    self.replace(entries);
+                // pending recency marks and, after a publication, merging
+                // small packs.
+                self.merge_touches(&mut txn)?;
+                if txn.dirty() {
+                    txn.commit(Some(&lock), 0, || Ok(()))?;
                 }
+                if self.published.swap(false, Ordering::Relaxed) {
+                    self.merge_small(&lock, &mut txn)?;
+                }
+                self.adopt(&txn);
+                let after = Self::recorded(&lock, txn.generation()).unwrap_or(total);
                 return Ok(Collected {
                     before: total,
-                    after: total,
+                    after,
                 });
             }
             let deadline = bound.map(|b| Instant::now() + b);
-            let (mut entries, mut dirty) = self.recover()?;
-            dirty |= self.merge_touches(&mut entries);
-            // Refresh the scan's bounded set from the latest committed index.
-            self.replace(entries.clone());
-            let (before, sizes) = self.scan()?;
-            entries.retain(|_, loc| {
-                let valid = sizes.get(&loc.pack).is_some_and(|len| {
-                    loc.offset
-                        .checked_add(loc.len)
-                        .is_some_and(|end| end <= *len)
-                });
-                dirty |= !valid;
-                valid
-            });
-            let mut live_bytes = entries.values().map(|loc| loc.len).sum::<u64>();
-            let live_index = if entries.is_empty() {
-                0
-            } else {
-                u64::try_from(index_len(entries.len())?).expect("limit")
+            self.merge_touches(&mut txn)?;
+            let mut entries = txn.all()?;
+            let wanted = entries.values().map(|loc| loc.pack).collect();
+            let (before, sizes) = self.scan(&wanted)?;
+            let invalid: Vec<Key> = entries
+                .iter()
+                .filter(|(_, loc)| {
+                    !sizes.get(&loc.pack).is_some_and(|len| {
+                        loc.offset
+                            .checked_add(loc.len)
+                            .is_some_and(|end| end <= *len)
+                    })
+                })
+                .map(|(&key, _)| key)
+                .collect();
+            for key in invalid {
+                entries.remove(&key);
+                txn.remove(key)?;
+            }
+            // The index's bytes for `n` live rows once merged buckets go.
+            // What the live set keeps: each frame with its footer row, each
+            // pack with its trailer and table row, and the head and pages.
+            // Merging buckets leaves at most one page per half load, never
+            // more pages than now.
+            let mut rows_per_pack = BTreeMap::<u128, usize>::new();
+            for loc in entries.values() {
+                *rows_per_pack.entry(loc.pack).or_default() += 1;
+            }
+            let pages = txn.page_bytes();
+            let overhead = |n: usize, packs: usize| -> u64 {
+                if n == 0 {
+                    0
+                } else {
+                    let buckets = n.div_ceil(usize::try_from(LOAD / 2).expect("small"));
+                    let fixed = HEAD_LEN + HEADER + packs * (TABLE_ROW + HEADER);
+                    (fixed as u64).saturating_add(pages.min((buckets * page_len(0)) as u64))
+                }
             };
+            let mut live_bytes = entries
+                .values()
+                .map(|loc| loc.len + FOOT_ROW as u64)
+                .sum::<u64>();
+            let kept =
+                |bytes: u64, n: usize, packs: usize| bytes.saturating_add(overhead(n, packs));
             // Dead records and orphans must be reclaimed before they cost
             // live entries: only evict when the live set itself exceeds cap.
-            if live_bytes.saturating_add(live_index) > cap {
+            if kept(live_bytes, entries.len(), rows_per_pack.len()) > cap {
                 let mut order = entries
                     .iter()
                     .map(|(&key, loc)| (loc.used, key))
                     .collect::<Vec<_>>();
                 order.sort_stable();
                 for (_, key) in order {
-                    let overhead = if entries.is_empty() {
-                        0
-                    } else {
-                        u64::try_from(index_len(entries.len())?).expect("limit")
-                    };
-                    if live_bytes.saturating_add(overhead) <= cap.saturating_mul(9) / 10 {
+                    if kept(live_bytes, entries.len(), rows_per_pack.len())
+                        <= cap.saturating_mul(9) / 10
+                    {
                         break;
                     }
                     if let Some(loc) = entries.remove(&key) {
-                        live_bytes -= loc.len;
-                        dirty = true;
+                        live_bytes -= loc.len + FOOT_ROW as u64;
+                        if let Some(rows) = rows_per_pack.get_mut(&loc.pack) {
+                            *rows -= 1;
+                            if *rows == 0 {
+                                rows_per_pack.remove(&loc.pack);
+                            }
+                        }
+                        txn.remove(key)?;
                     }
                 }
             }
+            txn.shrink()?;
+            if txn.dirty() {
+                txn.commit(Some(&lock), 0, || Ok(()))?;
+            }
+            // A pack's live bytes include the footer its rows would keep.
             let mut live_per_pack = BTreeMap::<u128, u64>::new();
             for loc in entries.values() {
-                *live_per_pack.entry(loc.pack).or_default() += loc.len;
+                *live_per_pack.entry(loc.pack).or_insert(HEADER as u64) +=
+                    loc.len + FOOT_ROW as u64;
+            }
+            // Packs no row names any more leave the table.
+            let tracked: Vec<u128> = txn.table()?.keys().copied().collect();
+            for id in tracked {
+                if !live_per_pack.contains_key(&id) {
+                    txn.untrack(id)?;
+                }
             }
             let mut compacted = false;
             for (id, live) in live_per_pack {
@@ -1403,23 +2358,52 @@ mod packed {
                     if compacted && deadline.is_some_and(|d| Instant::now() >= d) {
                         break;
                     }
-                    self.compact(&mut entries, id)?;
+                    self.compact(&lock, &mut txn, &mut entries, id)?;
                     compacted = true;
-                    dirty = false; // compact saved the entire current index.
                 }
             }
-            if dirty || entries.is_empty() {
-                self.save(&entries)?;
+            if !compacted || deadline.is_none_or(|d| Instant::now() < d) {
+                self.merge_small(&lock, &mut txn)?;
             }
-            let live = entries.values().map(|loc| loc.pack).collect();
-            self.prune_orphans(&live, deadline)?;
-            self.replace(entries);
-            let (after, _) = self.scan()?;
+            if txn.dirty() {
+                txn.commit(Some(&lock), 0, || Ok(()))?;
+            }
+            let live = txn
+                .all()?
+                .values()
+                .map(|loc| loc.pack)
+                .chain(txn.table()?.keys().copied())
+                .collect();
+            self.prune_orphans(&live, txn.head.buckets(), deadline)?;
+            self.adopt(&txn);
+            let (after, _) = self.scan(&BTreeSet::new())?;
             // Under the lock the walk is exact: record it for later runs.
-            if let Some((sum, _)) = self.header() {
-                Self::record(&lock, after, sum);
-            }
+            Self::record(&lock, after, txn.generation());
             Ok(Collected { before, after })
+        }
+
+        /// The managed bytes recorded for the current index, or `None` when
+        /// the record describes another head: one written before a
+        /// migration, or by a writer that died before its commit. Caller
+        /// holds `lock`, the publication lock file, which stores the record.
+        fn recorded(mut lock: &File, generation: u128) -> Option<u64> {
+            let mut bytes = [0; RECORD];
+            lock.seek(SeekFrom::Start(0)).ok()?;
+            lock.read_exact(&mut bytes).ok()?;
+            (&bytes[..8] == TOTAL_MAGIC && u128_at(&bytes, 16) == generation)
+                .then(|| u64_at(&bytes, 8))
+        }
+
+        /// Records `total` managed bytes for the head of `generation`. A
+        /// failed write leaves a record that matches no head.
+        fn record(mut lock: &File, total: u64, generation: u128) {
+            let mut bytes = [0; RECORD];
+            bytes[..8].copy_from_slice(TOTAL_MAGIC);
+            bytes[8..16].copy_from_slice(&total.to_le_bytes());
+            bytes[16..].copy_from_slice(&generation.to_le_bytes());
+            let _ = lock
+                .seek(SeekFrom::Start(0))
+                .and_then(|_| lock.write_all(&bytes));
         }
 
         /// Best-effort physical accounting also works when the writer
@@ -1428,11 +2412,53 @@ mod packed {
             if !is_real_dir(&self.root) {
                 return 0;
             }
-            self.scan().map_or(0, |(bytes, _)| bytes)
+            self.scan(&BTreeSet::new()).map_or(0, |(bytes, _)| bytes)
         }
 
         pub(super) fn was_used(&self) -> bool {
             self.used.load(Ordering::Relaxed) != 0
+        }
+
+        /// Every indexed entry: kind, key, pack file, offset, length and
+        /// last use, read without the lock. For tests and tools.
+        pub(super) fn entries(&self) -> Vec<(u16, u128, PathBuf, u64, u64, u64)> {
+            let rows = match self.view() {
+                View::Empty => Entries::new(),
+                View::Legacy(entries) => entries,
+                View::Paged(head) => {
+                    let dir = self.index_dir();
+                    let mut entries = Entries::new();
+                    for bucket in 0..head.buckets() {
+                        if let Ok(Some((rows, _))) = read_page(&dir, bucket) {
+                            entries.extend(
+                                rows.into_iter().filter(|(k, _)| head.bucket(k.1) == bucket),
+                            );
+                        }
+                    }
+                    entries
+                }
+            };
+            rows.into_iter()
+                .map(|((kind, key), l)| (kind, key, self.path(l.pack), l.offset, l.len, l.used))
+                .collect()
+        }
+
+        /// Sets an entry's last use, as if hit then; false when absent.
+        pub(super) fn set_used(
+            &self,
+            kind: EntryKind,
+            key: &Hash128,
+            used: u64,
+        ) -> io::Result<bool> {
+            let (lock, mut txn) = self.begin()?;
+            let k = (kind as u16, key.0);
+            let Some(loc) = txn.get(k)? else {
+                return Ok(false);
+            };
+            txn.set(k, Location { used, ..loc })?;
+            txn.commit(Some(&lock), 0, || Ok(()))?;
+            self.adopt(&txn);
+            Ok(true)
         }
     }
     #[cfg(test)]
@@ -1452,16 +2478,32 @@ mod packed {
             (EntryKind::Check, Hash128(key), Arc::from(bytes))
         }
         fn ages(store: &Store, times: &[(u128, u64)]) {
-            let _lock = store.lock().unwrap();
-            let mut entries = store.load().unwrap();
             for &(key, at) in times {
-                entries
-                    .get_mut(&(EntryKind::Check as u16, key))
-                    .unwrap()
-                    .used = at;
+                assert!(store.set_used(EntryKind::Check, &Hash128(key), at).unwrap());
             }
-            store.save(&entries).unwrap();
-            store.replace(entries);
+        }
+        /// Every indexed row of `store`.
+        fn load(store: &Store) -> Entries {
+            let (_lock, mut txn) = store.begin().unwrap();
+            txn.all().unwrap()
+        }
+        /// A pack of `frames` entries of `bytes` bytes, footer included.
+        fn pack_len(frames: usize, bytes: usize) -> u64 {
+            (frames * (bytes + FOOT_ROW) + HEADER) as u64
+        }
+        /// The index of one page and a table of `packs` packs.
+        fn index_len(packs: usize) -> u64 {
+            (HEAD_LEN + page_len(1) + HEADER + packs * TABLE_ROW) as u64
+        }
+        /// Gives the head a generation no running total names, as a
+        /// writer that died between its record and its commit leaves it.
+        fn unrecorded(store: &Store) {
+            let (_lock, txn) = store.begin().unwrap();
+            let head = Head {
+                generation: unique(),
+                ..txn.stored.unwrap()
+            };
+            replace_file(&txn.dir, "head", &head.encode()).unwrap();
         }
 
         #[test]
@@ -1482,7 +2524,7 @@ mod packed {
                     .as_deref(),
                 Some(b"replacement".as_slice())
             );
-            assert_eq!(store.load().unwrap().len(), 2);
+            assert_eq!(load(&store).len(), 2);
         }
 
         #[test]
@@ -1500,7 +2542,7 @@ mod packed {
                 }
             });
             let reader = Store::new(&root);
-            assert_eq!(reader.load().unwrap().len(), 16);
+            assert_eq!(reader.entries().len(), 16);
             for key in 0..16_u8 {
                 assert_eq!(
                     reader
@@ -1509,6 +2551,75 @@ mod packed {
                     Some([key, 3].as_slice())
                 );
             }
+        }
+
+        /// Splits keep every key findable, by readers and writers, and a
+        /// split that stopped after its first page write loses nothing.
+        #[test]
+        fn buckets_split_and_merge_without_losing_a_key() {
+            let root = scratch("split");
+            let store = Store::new(&root);
+            for chunk in 0..20_u128 {
+                let batch: Vec<_> = (chunk * 50..(chunk + 1) * 50)
+                    .map(|k| item(k.wrapping_mul(0x9e37_79b9_7f4a_7c15), &k.to_le_bytes()))
+                    .collect();
+                store.publish(&batch).unwrap();
+            }
+            let reader = Store::new(&root);
+            for k in 0..1000_u128 {
+                let key = Hash128(k.wrapping_mul(0x9e37_79b9_7f4a_7c15));
+                assert_eq!(
+                    reader.get(EntryKind::Check, &key).as_deref(),
+                    Some(k.to_le_bytes().as_slice())
+                );
+            }
+            let (lock, txn) = store.begin().unwrap();
+            assert_eq!(txn.head.rows, 1000);
+            assert_eq!(txn.head.buckets(), 29);
+            drop((lock, txn));
+            // A crash after the superset page writes, before the head: the
+            // old head still finds every row.
+            let (lock, mut txn) = store.begin().unwrap();
+            let before = txn.head;
+            for k in 1000..1100_u128 {
+                txn.set(
+                    (EntryKind::Check as u16, k),
+                    Location {
+                        pack: 1,
+                        offset: 0,
+                        len: 0,
+                        used: 0,
+                    },
+                )
+                .unwrap();
+            }
+            assert!(txn.head.buckets() > before.buckets());
+            for (&bucket, page) in &txn.pages {
+                let mut rows = page.rows.clone();
+                rows.extend(
+                    page.disk
+                        .iter()
+                        .filter(|(k, _)| !page.rows.contains_key(k))
+                        .map(|(k, l)| (*k, *l)),
+                );
+                if bucket < before.buckets() {
+                    replace_file(&txn.dir, &page_name(bucket), &page_encode(&rows)).unwrap();
+                }
+            }
+            drop((lock, txn));
+            let reader = Store::new(&root);
+            for k in 0..1000_u128 {
+                let key = Hash128(k.wrapping_mul(0x9e37_79b9_7f4a_7c15));
+                assert!(reader.get(EntryKind::Check, &key).is_some(), "{k}");
+            }
+            // Eviction merges buckets back and leaves no file at all.
+            assert_eq!(store.maintain(0, None).unwrap().after, 0);
+            assert!(
+                std::fs::read_dir(store.index_dir())
+                    .unwrap()
+                    .next()
+                    .is_none()
+            );
         }
 
         #[test]
@@ -1597,8 +2708,7 @@ mod packed {
             let root = scratch("missing");
             let store = Store::new(&root);
             store.publish(&[item(1, b"one"), item(2, b"two")]).unwrap();
-            let id = store.load().unwrap().values().next().unwrap().pack;
-            let path = store.path(id);
+            let path = store.entries()[0].2.clone();
             OpenOptions::new()
                 .write(true)
                 .open(&path)
@@ -1623,30 +2733,36 @@ mod packed {
             let root = scratch("corrupt");
             let store = Store::new(&root);
             store.publish(&[item(1, b"value")]).unwrap();
-            let good = encode(&store.load().unwrap()).unwrap();
-            for at in [0, 8, 12, 16, HEADER, good.len() - 1] {
+            let dir = store.index_dir();
+            let page = dir.join(page_name(0));
+            let good = std::fs::read(&page).unwrap();
+            for at in [0, 8, 12, 16, HEADER, HEADER + ROW - 1] {
                 let mut bad = good.clone();
                 bad[at] ^= 0xff;
-                assert!(decode(&bad).is_err());
-                std::fs::write(store.root.join("index"), bad).unwrap();
+                assert!(page_decode(&bad).is_err());
+                std::fs::write(&page, bad).unwrap();
                 assert!(
                     Store::new(&root)
                         .get(EntryKind::Check, &Hash128(1))
                         .is_none()
                 );
             }
-            let mut entries = decode(&good).unwrap();
+            std::fs::write(&page, &good).unwrap();
+            let head = std::fs::read(dir.join("head")).unwrap();
+            for at in [0, 8, 12, 16, 24, 32, 48] {
+                let mut bad = head.clone();
+                bad[at] ^= 0xff;
+                assert!(Head::decode(&bad).is_err());
+            }
+            let mut entries = page_decode(&good).unwrap();
             entries.values_mut().next().unwrap().len = MAX_ENTRY + 1;
-            assert!(decode(&encode(&entries).unwrap()).is_err());
+            assert!(page_decode(&page_encode(&entries)).is_err());
             entries.values_mut().next().unwrap().len = 2;
             entries.values_mut().next().unwrap().offset = u64::MAX;
-            assert!(decode(&encode(&entries).unwrap()).is_err());
-            let file = OpenOptions::new()
-                .write(true)
-                .open(store.root.join("index"))
-                .unwrap();
+            assert!(page_decode(&page_encode(&entries)).is_err());
+            let file = OpenOptions::new().write(true).open(&page).unwrap();
             file.set_len(u64::try_from(MAX_INDEX + 1).unwrap()).unwrap();
-            assert!(store.load().is_err());
+            assert!(read_page(&dir, 0).is_err());
             assert!(
                 Store::new(&root)
                     .get(EntryKind::Check, &Hash128(1))
@@ -1659,23 +2775,92 @@ mod packed {
                     .as_deref(),
                 Some(b"recovered".as_slice())
             );
-            assert_eq!(store.load().unwrap().len(), 1);
+            assert_eq!(load(&store).len(), 1);
+            // A corrupt head starts a new index.
+            std::fs::write(dir.join("head"), b"HDHEAD01 not a head").unwrap();
+            assert!(
+                Store::new(&root)
+                    .get(EntryKind::Check, &Hash128(2))
+                    .is_none()
+            );
+            store.publish(&[item(3, b"again")]).unwrap();
+            assert_eq!(
+                Store::new(&root)
+                    .get(EntryKind::Check, &Hash128(3))
+                    .as_deref(),
+                Some(b"again".as_slice())
+            );
+        }
+
+        /// An older hd's single index file is read as it is until the first
+        /// writer rewrites it as pages, also after a crash between the
+        /// migration's renames.
+        #[test]
+        fn an_older_single_file_index_migrates_once_and_keeps_its_entries() {
+            for crashed in [false, true] {
+                let root = scratch("legacy");
+                let store = Store::new(&root);
+                store.ensure_root().unwrap();
+                let id = unique();
+                std::fs::write(store.path(id), b"onetwo").unwrap();
+                let mut entries = Entries::new();
+                for (key, offset) in [(1, 0), (2, 3)] {
+                    entries.insert(
+                        (EntryKind::Check as u16, key),
+                        Location {
+                            pack: id,
+                            offset,
+                            len: 3,
+                            used: 7,
+                        },
+                    );
+                }
+                let legacy = if crashed {
+                    // The pages were half written when the writer died.
+                    std::fs::create_dir(root.join("pack-v1/index.new")).unwrap();
+                    std::fs::write(root.join("pack-v1/index.new/head"), b"partial").unwrap();
+                    root.join("pack-v1/index.old")
+                } else {
+                    store.index_dir()
+                };
+                std::fs::write(&legacy, legacy_encode(&entries)).unwrap();
+                let reader = Store::new(&root);
+                assert_eq!(
+                    reader.get(EntryKind::Check, &Hash128(2)).as_deref(),
+                    Some(b"two".as_slice())
+                );
+                assert!(legacy.is_file(), "a reader migrates nothing");
+                // No table: the old pack has no footer to merge by.
+                assert_eq!(
+                    store.maintain(u64::MAX, None).unwrap().after,
+                    6 + index_len(0) - HEADER as u64
+                );
+                assert!(is_real_dir(&store.index_dir()));
+                assert!(!root.join("pack-v1/index.old").exists());
+                assert!(!root.join("pack-v1/index.new").exists());
+                assert_eq!(load(&store), entries);
+                let reader = Store::new(&root);
+                assert_eq!(
+                    reader.get(EntryKind::Check, &Hash128(1)).as_deref(),
+                    Some(b"one".as_slice())
+                );
+            }
         }
 
         #[test]
         fn entry_recency_and_compaction_preserve_the_survivors_ages() {
             let root = scratch("lru");
             let store = Store::new(&root);
-            let data = [7; 400];
+            let data = [7; 4000];
             store
                 .publish(&[item(1, &data), item(2, &data), item(3, &data)])
                 .unwrap();
             ages(&store, &[(1, 1), (2, 2), (3, 3)]);
             assert!(store.get(EntryKind::Check, &Hash128(1)).is_some());
-            let result = store.maintain(1200, None).unwrap();
-            assert_eq!(result.before, 1406);
-            assert_eq!(result.after, 948);
-            let entries = store.load().unwrap();
+            let result = store.maintain(14_000, None).unwrap();
+            assert_eq!(result.before, pack_len(3, 4000) + index_len(1));
+            assert_eq!(result.after, pack_len(2, 4000) + index_len(1));
+            let entries = load(&store);
             assert!(!entries.contains_key(&(EntryKind::Check as u16, 2)));
             assert_eq!(entries[&(EntryKind::Check as u16, 3)].used, 3);
             assert!(entries[&(EntryKind::Check as u16, 1)].used > 3);
@@ -1694,17 +2879,18 @@ mod packed {
             for _ in 0..4 {
                 store.publish(&[item(1, &[7; 64])]).unwrap();
             }
-            // One live record + index fits in 160 bytes. Three old packs
-            // exceed the cap but must not evict that still useful record.
+            // One live record and its index fit the cap. Three old packs
+            // exceed it but must not evict that still useful record.
+            let cap = pack_len(1, 64) + index_len(1);
             let mut after = u64::MAX;
             for _ in 0..4 {
-                after = store.maintain(160, Some(Duration::ZERO)).unwrap().after;
+                after = store.maintain(cap, Some(Duration::ZERO)).unwrap().after;
                 assert!(store.get(EntryKind::Check, &Hash128(1)).is_some());
-                if after <= 160 {
+                if after <= cap {
                     break;
                 }
             }
-            assert!(after <= 160, "bounded runs make physical progress");
+            assert!(after <= cap, "bounded runs make physical progress");
         }
 
         #[test]
@@ -1712,7 +2898,7 @@ mod packed {
             let root = scratch("total");
             let store = Store::new(&root);
             let bounded = |cap| store.maintain(cap, Some(Duration::from_mins(1))).unwrap();
-            let one = 64 + u64::try_from(index_len(1).unwrap()).unwrap();
+            let one = pack_len(1, 64) + index_len(1);
             store.publish(&[item(1, &[7; 64])]).unwrap();
             // Nothing is recorded yet: the first bounded run walks.
             assert_eq!(bounded(u64::MAX).after, one);
@@ -1722,27 +2908,44 @@ mod packed {
             plant();
             store.publish(&[item(1, &[8; 64])]).unwrap();
             let run = bounded(u64::MAX);
-            assert_eq!(run.after, one + 64, "a publication adds its pack");
+            let added = pack_len(1, 64) + TABLE_ROW as u64;
+            assert_eq!(run.after, one + added, "a publication adds its pack");
             assert!(stray.exists(), "a fitting total walks nothing");
             // Over the cap, the bounded run walks and reclaims dead bytes
             // without evicting the fitting live set.
             let run = bounded(one + 63);
-            assert_eq!((run.before, run.after), (one + 164, one));
+            assert_eq!((run.before, run.after), (one + added + 100, one));
             assert!(!stray.exists());
             assert_eq!(store.get(EntryKind::Check, &Hash128(1)).unwrap()[0], 8);
-            // A hit's recency mark rewrites the index and keeps the record.
+            // A head no record names rescans.
             ages(&store, &[(1, 5)]);
+            unrecorded(&store);
             plant();
             assert_eq!(bounded(u64::MAX).after, one, "an unrecorded index rescans");
             assert!(!stray.exists());
+            // A hit's recency mark rewrites its page and keeps the record.
             store.get(EntryKind::Check, &Hash128(1)).unwrap();
             plant();
             assert_eq!(bounded(u64::MAX).after, one);
-            assert!(store.load().unwrap().values().all(|loc| loc.used > 5));
+            assert!(load(&store).values().all(|loc| loc.used > 5));
             assert!(stray.exists());
             // Explicit collection always walks.
             assert_eq!(store.maintain(u64::MAX, None).unwrap().after, one);
             assert!(!stray.exists());
+        }
+
+        /// The index files' names, bytes and modification times.
+        fn index_files(store: &Store) -> Vec<(std::ffi::OsString, Vec<u8>, SystemTime)> {
+            let mut files: Vec<_> = std::fs::read_dir(store.index_dir())
+                .unwrap()
+                .map(|e| {
+                    let e = e.unwrap();
+                    let modified = e.metadata().unwrap().modified().unwrap();
+                    (e.file_name(), std::fs::read(e.path()).unwrap(), modified)
+                })
+                .collect();
+            files.sort_stable_by(|a, b| a.0.cmp(&b.0));
+            files
         }
 
         #[test]
@@ -1751,29 +2954,23 @@ mod packed {
             let store = Store::new(&root);
             store.publish(&[item(1, b"value")]).unwrap();
             ages(&store, &[(1, now() - 60)]);
-            let path = store.root.join("index");
-            let before = std::fs::read(&path).unwrap();
-            let modified = std::fs::metadata(&path).unwrap().modified().unwrap();
+            let before = index_files(&store);
             assert!(store.get(EntryKind::Check, &Hash128(1)).is_some());
             store.touch(EntryKind::Check, &Hash128(1));
             store.maintain(u64::MAX, None).unwrap();
-            assert_eq!(std::fs::read(&path).unwrap(), before);
-            assert_eq!(
-                std::fs::metadata(path).unwrap().modified().unwrap(),
-                modified
-            );
+            assert_eq!(index_files(&store), before);
         }
 
         #[test]
         fn open_readers_survive_compaction_and_pending_deletes_are_retried() {
             let root = scratch("open-reader");
             let store = Store::new(&root);
-            let data = [5; 400];
+            let data = [5; 4000];
             store
                 .publish(&[item(1, &data), item(2, &data), item(3, &data)])
                 .unwrap();
             ages(&store, &[(1, 1), (2, 2), (3, 3)]);
-            let path = store.path(store.load().unwrap().values().next().unwrap().pack);
+            let path = store.entries()[0].2.clone();
             let mut options = OpenOptions::new();
             options.read(true);
             #[cfg(windows)]
@@ -1783,18 +2980,19 @@ mod packed {
                 options.share_mode(3);
             }
             let mut pinned = options.open(&path).unwrap();
-            let result = store.maintain(1200, None).unwrap();
+            let cap = 14_000;
+            let result = store.maintain(cap, None).unwrap();
             #[cfg(windows)]
             {
                 assert!(path.exists(), "a reader denied deletion");
-                assert!(result.after > 1200);
+                assert!(result.after > cap);
             }
             #[cfg(not(windows))]
-            assert!(result.after <= 1200);
+            assert!(result.after <= cap);
             let mut old = Vec::new();
             pinned.read_to_end(&mut old).unwrap();
             assert_eq!(
-                old,
+                old[..12_000],
                 [data.as_slice(), data.as_slice(), data.as_slice()].concat()
             );
             assert_eq!(
@@ -1804,7 +3002,7 @@ mod packed {
                 Some(data.as_slice())
             );
             drop(pinned);
-            assert!(store.maintain(1200, None).unwrap().after <= 1200);
+            assert!(store.maintain(cap, None).unwrap().after <= cap);
             assert!(!path.exists());
         }
 
@@ -1829,12 +3027,10 @@ mod packed {
         /// The keys a warm run reads, the same at every cache size.
         const READ: u128 = 8;
 
-        /// One warm run over a cache of `n` entries that earlier runs
-        /// published: a fresh store reads [`READ`] existing keys and is
-        /// dropped, as a command ends. With `stale`, every entry was last
-        /// used two hours ago, so each hit is due a recency mark. The
-        /// run's file-system counts.
-        fn warm_run(n: u128, stale: bool) -> cost::Counts {
+        /// A cache of `n` entries that earlier runs published. With
+        /// `stale`, every entry was last used two hours ago, so each hit is
+        /// due a recency mark.
+        fn cache(n: u128, stale: bool) -> PathBuf {
             let root = scratch(&format!("warm-{n}"));
             {
                 let store = DiskStore::new(root.clone());
@@ -1844,18 +3040,25 @@ mod packed {
             if stale {
                 let store = Store::new(&root);
                 {
-                    let _lock = store.lock().unwrap();
-                    let mut entries = store.load().unwrap();
+                    let (_lock, mut txn) = store.begin().unwrap();
                     let at = now() - 2 * 3600;
-                    for loc in entries.values_mut() {
-                        loc.used = at;
+                    for (key, loc) in txn.all().unwrap() {
+                        txn.set(key, Location { used: at, ..loc }).unwrap();
                     }
-                    store.save(&entries).unwrap();
+                    txn.commit(None, 0, || Ok(())).unwrap();
                 }
                 // Record the total for the rewritten index, as the
                 // command that wrote it would have.
                 store.maintain(super::super::DEFAULT_CAP, None).unwrap();
             }
+            root
+        }
+
+        /// One warm run over a cache of `n` entries: a fresh store reads
+        /// [`READ`] existing keys and is dropped, as a command ends. The
+        /// run's file-system counts.
+        fn warm_run(n: u128, stale: bool) -> cost::Counts {
+            let root = cache(n, stale);
             cost::take();
             {
                 let store = DiskStore::new(root);
@@ -1867,10 +3070,7 @@ mod packed {
         }
 
         /// Cost Model: a warm run lists no directory and opens only the
-        /// packs it reads, at any cache size. Today it also reads the
-        /// whole index (32 + 58n bytes, and a 32-byte header twice), and
-        /// with stale hits rewrites it whole: the ignored test below holds
-        /// those to the #1502 target.
+        /// packs it reads, at any cache size.
         #[test]
         fn warm_runs_list_no_directory_and_open_the_same_packs_at_ten_times_the_entries() {
             for stale in [false, true] {
@@ -1893,12 +3093,68 @@ mod packed {
         /// The target of #1502: a warm run reads and writes index bytes in
         /// proportion to the keys it touches, not to the cache's size.
         #[test]
-        #[ignore = "#1502"]
         fn warm_runs_read_and_write_index_bytes_flat_in_the_cache_size() {
             for stale in [false, true] {
                 let (small, large) = (warm_run(1000, stale), warm_run(10_000, stale));
                 assert_eq!(small.index_read, large.index_read, "stale {stale}");
                 assert_eq!(small.index_written, large.index_written, "stale {stale}");
+            }
+        }
+
+        /// A run that publishes one entry reads and writes a few pages, the
+        /// head and the pack table, at any cache size, and walks nothing.
+        #[test]
+        fn a_publishing_run_writes_index_bytes_flat_in_the_cache_size() {
+            let mut runs = Vec::new();
+            for n in [1000, 10_000] {
+                let root = cache(n, false);
+                cost::take();
+                {
+                    let store = DiskStore::new(root);
+                    assert!(store.get(EntryKind::Check, &Hash128(1)).is_some());
+                    store.put_many(&[item(u128::MAX, b"new")]);
+                }
+                runs.push(cost::take());
+            }
+            eprintln!("{runs:?}");
+            let bound = (6 * page_len(1) + 2 * HEAD_LEN + 2 * (HEADER + 2 * TABLE_ROW)) as u64;
+            for run in &runs {
+                assert_eq!((run.dirs_listed, run.entries_listed), (0, 0), "{run:?}");
+                assert!(
+                    run.index_read <= bound && run.index_written <= bound,
+                    "{run:?}"
+                );
+            }
+        }
+
+        /// Publishing runs merge small packs as they go, so the pack count
+        /// stays bounded with no directory walk.
+        #[test]
+        fn a_thousand_publishing_runs_leave_a_bounded_pack_count() {
+            let root = scratch("pack-count");
+            let packs = || {
+                std::fs::read_dir(root.join("pack-v1"))
+                    .unwrap()
+                    .filter_map(Result::ok)
+                    .filter(|e| e.file_name().to_str().and_then(Store::pack_id).is_some())
+                    .count()
+            };
+            let mut most = 0;
+            for key in 0..1000_u128 {
+                {
+                    let store = DiskStore::new(root.clone());
+                    store.put_many(&[item(key, &[7; 100])]);
+                }
+                most = most.max(packs());
+            }
+            eprintln!("packs: at most {most}, at the end {}", packs());
+            assert!(most <= 24, "{most} packs");
+            let reader = Store::new(&root);
+            for key in 0..1000 {
+                assert_eq!(
+                    reader.get(EntryKind::Check, &Hash128(key)).as_deref(),
+                    Some([7; 100].as_slice())
+                );
             }
         }
 
@@ -1918,13 +3174,13 @@ mod packed {
                 1000
             );
             let at = Instant::now();
-            let entries = store.load().unwrap();
-            let load = at.elapsed();
+            let entries = load(&store);
+            let load_time = at.elapsed();
             assert_eq!(entries.len(), 1000);
             let at = Instant::now();
             store.publish(&[item(500, b"new")]).unwrap();
             let merge = at.elapsed();
-            assert_eq!(store.load().unwrap().len(), 1000);
+            assert_eq!(load(&store).len(), 1000);
             let reader = Store::new(&root);
             for key in 0..1000 {
                 assert_eq!(
@@ -1938,9 +3194,9 @@ mod packed {
             }
             assert!(reader.state().as_ref().unwrap().files.len() <= MAX_HANDLES);
             let collected = store.maintain(16 * 1024, None).unwrap();
-            assert!(collected.after <= 16 * 1024);
+            assert!(collected.after <= 16 * 1024, "{collected:?}");
             eprintln!(
-                "1000 packs: load {load:?}, publication including merge {merge:?}, bytes {} -> {}",
+                "1000 packs: load {load_time:?}, publication including merge {merge:?}, bytes {} -> {}",
                 collected.before, collected.after
             );
         }
