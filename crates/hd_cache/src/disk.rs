@@ -27,6 +27,53 @@ use hd_base::Hash128;
 
 use crate::store::{CacheStore, EntryKind, EntryStat, plan_eviction, shard_of};
 
+/// What this thread's stores did to the file system, for the cost tests
+/// (Cost Model: a warm run's work does not grow with the cache). Counted
+/// in test builds only; elsewhere [`count!`] expands to nothing.
+#[cfg(test)]
+mod cost {
+    use std::cell::Cell;
+
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+    pub(super) struct Counts {
+        /// `read_dir` calls.
+        pub dirs_listed: u64,
+        /// Entries those calls yielded.
+        pub entries_listed: u64,
+        /// Bytes read from the packed index, headers included.
+        pub index_read: u64,
+        /// Bytes written to the packed index.
+        pub index_written: u64,
+        /// Pack files opened for reading.
+        pub packs_opened: u64,
+    }
+
+    thread_local! {
+        static COUNTS: Cell<Counts> = Cell::new(Counts::default());
+    }
+
+    pub(super) fn add(f: impl FnOnce(&mut Counts)) {
+        COUNTS.with(|c| {
+            let mut counts = c.get();
+            f(&mut counts);
+            c.set(counts);
+        });
+    }
+
+    /// This thread's counts since the last call, which resets them.
+    pub(super) fn take() -> Counts {
+        COUNTS.with(Cell::take)
+    }
+}
+
+/// Adds `n` to this thread's cost counter `field` in a test build.
+macro_rules! count {
+    ($field:ident, $n:expr) => {
+        #[cfg(test)]
+        cost::add(|c| c.$field += u64::try_from($n).unwrap_or(u64::MAX));
+    };
+}
+
 /// The default size cap of the compiled entries, 10 GiB (`cli.cache.obj.cap`).
 pub const DEFAULT_CAP: u64 = 10 << 30;
 
@@ -256,7 +303,9 @@ impl DiskStore {
             let Ok(list) = std::fs::read_dir(&dir) else {
                 continue;
             };
+            count!(dirs_listed, 1);
             for e in list.flatten() {
+                count!(entries_listed, 1);
                 let Some(key) = e.file_name().to_str().and_then(parse_key) else {
                     continue;
                 };
@@ -631,6 +680,8 @@ mod packed {
 
     use hd_base::{Hash128, StableHasher};
 
+    #[cfg(test)]
+    use super::cost;
     use super::{Collected, EntryKind, USE_MARK_AGE, is_real_dir, parse_key};
 
     const MAGIC: &[u8; 8] = b"HDPACK01";
@@ -875,6 +926,7 @@ mod packed {
             File::open(path)?
                 .take(u64::try_from(MAX_INDEX + 1).expect("limit"))
                 .read_to_end(&mut bytes)?;
+            count!(index_read, bytes.len());
             decode(&bytes)
         }
 
@@ -889,6 +941,7 @@ mod packed {
             };
             let mut head = [0; HEADER];
             File::open(&path).ok()?.read_exact(&mut head).ok()?;
+            count!(index_read, HEADER);
             let count = usize::try_from(u32::from_le_bytes(head[8..12].try_into().ok()?)).ok()?;
             let len = u64::try_from(index_len(count).ok()?).ok()?;
             (meta.file_type().is_file() && &head[..8] == MAGIC && meta.len() == len)
@@ -947,6 +1000,7 @@ mod packed {
             let result = (|| {
                 let mut file = OpenOptions::new().write(true).create_new(true).open(&tmp)?;
                 file.write_all(bytes)?;
+                count!(index_written, bytes.len());
                 drop(file);
                 std::fs::rename(&tmp, path)
             })();
@@ -1009,6 +1063,7 @@ mod packed {
                 return Err(invalid("cache pack is not a regular file"));
             }
             let file = File::open(path)?;
+            count!(packs_opened, 1);
             let len = file.metadata()?.len();
             Ok(Opened { file, len })
         }
@@ -1165,7 +1220,9 @@ mod packed {
                 .unwrap_or_default();
             // cost: walks the pack directory only for `hd cache gc`, or when the
             // recorded total is over the cap or unknown (#1501).
+            count!(dirs_listed, 1);
             for e in std::fs::read_dir(&self.root)? {
+                count!(entries_listed, 1);
                 let e = e?;
                 if !e.file_type()?.is_file() {
                     continue;
@@ -1191,12 +1248,14 @@ mod packed {
             deadline: Option<Instant>,
         ) -> io::Result<()> {
             let mut attempted = false;
+            count!(dirs_listed, 1);
             // cost: the slow path of `scan` only: `hd cache gc`, or a recorded
             // total over the cap or unknown.
             for e in std::fs::read_dir(&self.root)? {
                 if attempted && deadline.is_some_and(|d| Instant::now() >= d) {
                     break;
                 }
+                count!(entries_listed, 1);
                 let e = e?;
                 if !e.file_type()?.is_file() {
                     continue;
@@ -1765,6 +1824,82 @@ mod packed {
                 Some(b"readable".as_slice())
             );
             reader.join().unwrap();
+        }
+
+        /// The keys a warm run reads, the same at every cache size.
+        const READ: u128 = 8;
+
+        /// One warm run over a cache of `n` entries that earlier runs
+        /// published: a fresh store reads [`READ`] existing keys and is
+        /// dropped, as a command ends. With `stale`, every entry was last
+        /// used two hours ago, so each hit is due a recency mark. The
+        /// run's file-system counts.
+        fn warm_run(n: u128, stale: bool) -> cost::Counts {
+            let root = scratch(&format!("warm-{n}"));
+            {
+                let store = DiskStore::new(root.clone());
+                let batch: Vec<_> = (0..n).map(|key| item(key, &[7; 16])).collect();
+                store.put_many(&batch);
+            }
+            if stale {
+                let store = Store::new(&root);
+                {
+                    let _lock = store.lock().unwrap();
+                    let mut entries = store.load().unwrap();
+                    let at = now() - 2 * 3600;
+                    for loc in entries.values_mut() {
+                        loc.used = at;
+                    }
+                    store.save(&entries).unwrap();
+                }
+                // Record the total for the rewritten index, as the
+                // command that wrote it would have.
+                store.maintain(super::super::DEFAULT_CAP, None).unwrap();
+            }
+            cost::take();
+            {
+                let store = DiskStore::new(root);
+                for key in 0..READ {
+                    assert!(store.get(EntryKind::Check, &Hash128(key)).is_some());
+                }
+            }
+            cost::take()
+        }
+
+        /// Cost Model: a warm run lists no directory and opens only the
+        /// packs it reads, at any cache size. Today it also reads the
+        /// whole index (32 + 58n bytes, and a 32-byte header twice), and
+        /// with stale hits rewrites it whole: the ignored test below holds
+        /// those to the #1502 target.
+        #[test]
+        fn warm_runs_list_no_directory_and_open_the_same_packs_at_ten_times_the_entries() {
+            for stale in [false, true] {
+                let (small, large) = (warm_run(1000, stale), warm_run(10_000, stale));
+                eprintln!("stale {stale}: {small:?} {large:?}");
+                for run in [small, large] {
+                    assert_eq!((run.dirs_listed, run.entries_listed), (0, 0), "{run:?}");
+                }
+                assert_eq!(
+                    small.packs_opened, large.packs_opened,
+                    "{small:?} {large:?}"
+                );
+                if !stale {
+                    // Fresh hits mark nothing, so nothing is written.
+                    assert_eq!((small.index_written, large.index_written), (0, 0));
+                }
+            }
+        }
+
+        /// The target of #1502: a warm run reads and writes index bytes in
+        /// proportion to the keys it touches, not to the cache's size.
+        #[test]
+        #[ignore = "#1502"]
+        fn warm_runs_read_and_write_index_bytes_flat_in_the_cache_size() {
+            for stale in [false, true] {
+                let (small, large) = (warm_run(1000, stale), warm_run(10_000, stale));
+                assert_eq!(small.index_read, large.index_read, "stale {stale}");
+                assert_eq!(small.index_written, large.index_written, "stale {stale}");
+            }
         }
 
         #[test]
