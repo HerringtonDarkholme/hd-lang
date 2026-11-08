@@ -12,7 +12,7 @@ use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{NONE, Ref, Tag, TirSink};
 use hd_types::{Prim, Ty, TyData, VarKind};
 
-use crate::body::{Ck, ExpectPosition, unsupported};
+use crate::body::{Ck, ExpectPosition};
 use crate::call::Args;
 use crate::expr::{normalize_line_endings, strip_piece};
 
@@ -296,7 +296,8 @@ impl Ck<'_, '_> {
         Ok((self.b.emit(Tag::NewStruct, NONE, rec, tt, n.index()), tt))
     }
 
-    /// A prefixed string `x"..."`: a call of the prefix function `x`.
+    /// A prefixed string `x"..."`: a call of the prefix function `x`, whose
+    /// name the caller found before the quote.
     pub(crate) fn prefixed_string(
         &mut self,
         n: NodeRef<'_>,
@@ -306,9 +307,6 @@ impl Ck<'_, '_> {
         if self.lit_arg == Some(n.index()) {
             self.lit_arg = None;
             return self.template_arg(n, want);
-        }
-        if prefix.is_empty() {
-            return unsupported("a prefixed string");
         }
         self.literal_fn_call(n, prefix, LITERAL_PREFIX, want)
     }
