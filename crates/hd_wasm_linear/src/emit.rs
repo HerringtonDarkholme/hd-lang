@@ -511,13 +511,9 @@ fn body_func<'a>(
             em.f.op(Instruction::Unreachable);
         } else if em.counting {
             em.f.reason = Some(Reason::Conservative("return"));
+            // The root consumes its tail: the result leaves with its count.
             let moved = em.take_from(tail, root);
-            let s = if moved {
-                value::Src::Ref(tail)
-            } else {
-                em.retain_ref(tail)?
-            };
-            em.push_src(&s)?;
+            em.push(tail)?;
             for l in em.ret.clone().iter().rev() {
                 em.f.set(*l);
             }
