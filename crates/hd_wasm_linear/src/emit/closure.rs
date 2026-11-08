@@ -544,7 +544,7 @@ impl Em<'_, '_, '_> {
             // A slot is the same memory each time, so the last value in
             // it ends before the new one is stored.
             let slot = self.slots.contains_key(&l);
-            let releases = self.counting && self.store_releases(i);
+            let releases = self.store_releases(i);
             if slot && releases {
                 self.release_slot(l, c)?;
             }
