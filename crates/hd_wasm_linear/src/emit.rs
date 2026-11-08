@@ -1001,10 +1001,8 @@ struct Em<'i, 'a, 'm> {
     /// Each direct `string.slice` call consumed by string equality, with
     /// that equality instruction (`count.rs`).
     string_slice_comparisons: HashMap<u32, u32>,
-    /// The short loans, by origin (`emit/loan.rs`).
-    short_loans: HashMap<u32, loan::ShortLoan>,
-    /// Each short loan's end `Drop`, with its origin.
-    short_ends: HashMap<u32, u32>,
+    /// The short-loan origins (`emit/loan.rs`).
+    short_origins: hd_base::HashSet<u32>,
     /// The `IsUnique`s and `Pin`s a shared element reference's short loan
     /// makes unneeded.
     short_skips: hd_base::HashSet<u32>,
@@ -1253,8 +1251,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             map_probes: HashMap::default(),
             map_probe_refs: HashMap::default(),
             string_slice_comparisons: HashMap::default(),
-            short_loans: HashMap::default(),
-            short_ends: HashMap::default(),
+            short_origins: hd_base::HashSet::default(),
             short_skips: hd_base::HashSet::default(),
             short_holders: hd_base::HashSet::default(),
             locals: HashMap::default(),
@@ -1902,12 +1899,10 @@ impl Em<'_, '_, '_> {
             Tag::Release | Tag::MakeUnique => {}
             Tag::LoanEnd => {
                 self.borrow_drop(i);
-                self.end_short_loan(i)?;
                 self.own_loan_end(i);
             }
             Tag::Drop => {
                 self.borrow_drop(i);
-                self.end_short_loan(i)?;
                 if !self.drop_map_probe_ref(i) {
                     self.own_drop(i)?;
                 }

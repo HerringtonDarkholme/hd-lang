@@ -10,7 +10,7 @@ use hd_base::StageResult;
 use hd_mono::layout::{StdKind, inline_map_key, strip_newtype};
 use hd_mono::{CallTarget, Target, TargetKind, subst};
 use hd_tir::ir::count::Part;
-use hd_tir::ir::{Callee, IntrinsicOp, NONE, Place, PlaceRoot, Proj, Tag};
+use hd_tir::ir::{Callee, IntrinsicOp, NONE, PlaceRoot, Tag};
 use hd_types::{Ty, TyData};
 use wasm_encoder::BlockType;
 
@@ -348,25 +348,6 @@ impl Em<'_, '_, '_> {
         self.store_owned(i)
     }
 
-    /// The map place a probe's reference argument names: a `Ref`'s place,
-    /// or `*P` for a read of the reference in place `P`, through any
-    /// weakening `Coerce`.
-    fn probe_map_place(&self, r: u32) -> Option<Place> {
-        let mut r = r as usize;
-        while self.b.tags.get(r) == Some(&Tag::Coerce) {
-            r = self.b.data[r][0] as usize;
-        }
-        match self.b.tags.get(r)? {
-            Tag::Ref => self.b.decode_place(self.b.data[r][0]),
-            Tag::Read => {
-                let mut place = self.b.decode_place(self.b.data[r][0])?;
-                place.proj.push(Proj::Deref);
-                Some(place)
-            }
-            _ => None,
-        }
-    }
-
     /// Whether two TIR values are the same map or key value for this
     /// optimization: the same SSA value, or two reads of the same place.
     /// The latter is how the checker represents repeated reads of a
@@ -472,7 +453,7 @@ impl Em<'_, '_, '_> {
                 .all(|&i| self.preserves_map_probe(i, map))
     }
 
-    /// The preceding `MapGet`, `MapEntry` or reference-returning `map_probe`
+    /// The preceding `MapGet` or `MapEntry`
     /// whose hash and entry a `MapSet` may reuse. Both operations must be statements of
     /// one block, name equivalent reads of the map and key, and have no
     /// possibly-changing statement between them.
@@ -494,27 +475,6 @@ impl Em<'_, '_, '_> {
                 let args = self.b.record(self.b.data[k][1]);
                 if args.len() >= 2
                     && self.same_map_value(args[0], map)
-                    && self.same_map_value(args[1], key)
-                {
-                    return Some(candidate);
-                }
-            }
-            if self.b.tags.get(k) == Some(&Tag::Call)
-                && matches!(
-                    self.calls.get(&candidate),
-                    Some(Target::MapKey { .. } | Target::MapInline(_))
-                )
-            {
-                let args = self.b.record(self.b.data[k][1]);
-                let map_place = self
-                    .b
-                    .tags
-                    .get(map as usize)
-                    .filter(|&&tag| tag == Tag::Read)
-                    .and_then(|_| self.b.decode_place(self.b.data[map as usize][0]));
-                if args.len() == 5
-                    && map_place.is_some()
-                    && self.probe_map_place(args[0]) == map_place
                     && self.same_map_value(args[1], key)
                 {
                     return Some(candidate);
@@ -733,15 +693,11 @@ impl Em<'_, '_, '_> {
         true
     }
 
-    /// `map_probe(map, key[, default])`: hash and find the key once. A
-    /// two-argument call returns an optional mutable value reference. A
-    /// three-argument call reuses a miss probe to insert `default`, and
-    /// returns the found or inserted value reference directly.
+    /// `map_probe(map, key, default)`: hash and find the key once, reuse
+    /// a miss probe to insert `default`, and return the value reference.
     pub(super) fn map_probe(&mut self, i: u32, args: &[u32]) -> StageResult<()> {
-        let (map, key, default) = match args {
-            [map, key] => (*map, *key, None),
-            [map, key, default] => (*map, *key, Some(*default)),
-            _ => return unsupported("a map probe with other than two or three arguments"),
+        let [map, key, default] = *args else {
+            return unsupported("a map probe with other than three arguments");
         };
         let Some((mt, false)) = self.ref_target(self.ty_of(map)) else {
             return unsupported("a map probe through a value that is no reference");
@@ -756,104 +712,48 @@ impl Em<'_, '_, '_> {
         let [m] = crate::rt::ref_load_borrowed(&mut self.f, at, &value, owned)[..] else {
             return unsupported("a map that is not one address");
         };
-        // A short loan (`emit/loan.rs`) takes no count of the table; a
-        // shared one neither makes it unique nor pins it.
-        let short = self.short_loans.contains_key(&i);
         // A local reference takes no count of its table (`ref.count.local`):
         // the map's root lives until its last use.
-        if default.is_some() {
-            self.map_probe_refs.insert(i, (m, false));
-        }
+        self.map_probe_refs.insert(i, (m, false));
         let (kl, hash) = self.map_key(key, &entry, &ops)?;
         let found = self.map_find(m, hash, &kl, &entry, &ops);
-        if default.is_none() {
-            // A later `m[k] = v` may reuse this search (`map_probe_source`):
-            // entry numbers and a miss position survive the unique copy.
-            self.map_probes.insert(i, MapProbe { hash, entry: found });
-        }
-        if default.is_none() && short {
-            return self.map_probe_lent(i, (owned, m), mt, found);
-        }
-        if default.is_some() {
-            self.map_probe_unique(i, m, &entry)?;
-        }
+        self.map_probe_unique(i, m, &entry)?;
 
         self.f.get(found);
         self.f.i32(0);
         self.f.op(I::I32GeS);
         self.f.op(I::If(BlockType::Empty));
         self.ctl.push(Ctl::Plain);
-        if default.is_none() {
-            self.map_probe_unique(i, m, &entry)?;
-        }
         self.map_probe_store(at, owned, m, mt)?;
         let (_, value_at) = self.map_value_from(m, mt, &Src::Locals(vec![found]))?;
-        if default.is_some() {
-            self.f.get(value_at);
-            self.store_owned(i)?;
-        } else {
-            self.new_variant(i, 1, &[Src::Locals(vec![value_at])])?;
-        }
+        self.f.get(value_at);
+        self.store_owned(i)?;
 
         self.f.op(I::Else);
-        if let Some(default) = default {
-            let inserted = self.f.local(Val::I32);
-            if let Some(reason) = self.operation_count(i, Tag::Retain, Part::Operand(1)) {
-                self.because(reason, |s| s.retain_locals(&kl, kt))?;
-            }
-            let copy = self.operation_count(i, Tag::Retain, Part::Operand(2));
-            let was = std::mem::replace(&mut self.f.reason, copy);
-            self.map_put_taking_key(
-                m,
-                vt,
-                (&entry, &ops),
-                (&kl, hash, found),
-                &Src::Ref(default),
-            )?;
-            self.f.reason = was;
-            self.f.get(m);
-            self.f.op(I::I32Load(mem(HEAP, USED, 2)));
-            self.f.i32(1);
-            self.f.op(I::I32Sub);
-            self.f.set(inserted);
-            self.map_probe_store(at, owned, m, mt)?;
-            let (_, value_at) = self.map_value_from(m, mt, &Src::Locals(vec![inserted]))?;
-            self.f.get(value_at);
-            self.store_owned(i)?;
-        } else {
-            self.f.get(owned);
-            self.f.op(I::If(BlockType::Empty));
-            self.release_locals(&[m], mt)?;
-            self.f.op(I::End);
-            self.new_variant(i, 0, &[])?;
+        let inserted = self.f.local(Val::I32);
+        if let Some(reason) = self.operation_count(i, Tag::Retain, Part::Operand(1)) {
+            self.because(reason, |s| s.retain_locals(&kl, kt))?;
         }
+        let copy = self.operation_count(i, Tag::Retain, Part::Operand(2));
+        let was = std::mem::replace(&mut self.f.reason, copy);
+        self.map_put_taking_key(
+            m,
+            vt,
+            (&entry, &ops),
+            (&kl, hash, found),
+            &Src::Ref(default),
+        )?;
+        self.f.reason = was;
+        self.f.get(m);
+        self.f.op(I::I32Load(mem(HEAP, USED, 2)));
+        self.f.i32(1);
+        self.f.op(I::I32Sub);
+        self.f.set(inserted);
+        self.map_probe_store(at, owned, m, mt)?;
+        let (_, value_at) = self.map_value_from(m, mt, &Src::Locals(vec![inserted]))?;
+        self.f.get(value_at);
+        self.store_owned(i)?;
         self.close();
-        Ok(())
-    }
-
-    /// A shared probe's short loan: `.Some` of the value's address in the
-    /// table as it is, with no count. A copy of the table read through a
-    /// view stays until the loan ends ([`Em::end_short_loan`]).
-    fn map_probe_lent(
-        &mut self,
-        i: u32,
-        (owned, m): (u32, u32),
-        mt: Ty,
-        found: u32,
-    ) -> StageResult<()> {
-        self.f.get(found);
-        self.f.i32(0);
-        self.f.op(I::I32GeS);
-        self.f.op(I::If(BlockType::Empty));
-        self.ctl.push(Ctl::Plain);
-        let (_, value_at) = self.map_value_from(m, mt, &Src::Locals(vec![found]))?;
-        self.new_variant(i, 1, &[Src::Locals(vec![value_at])])?;
-        self.f.op(I::Else);
-        self.new_variant(i, 0, &[])?;
-        self.close();
-        if let Some(loan) = self.short_loans.get_mut(&i) {
-            loan.table = Some((owned, m, mt));
-        }
         Ok(())
     }
 

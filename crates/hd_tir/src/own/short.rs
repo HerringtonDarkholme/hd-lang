@@ -144,13 +144,7 @@ impl Pass<'_> {
         match self.b.tags[i] {
             Tag::Call if self.cx.call_kind(x) == CallKind::MapProbe => {
                 let args = self.b.record(self.b.data[i][1]);
-                let map = *args.first()?;
-                let shared = !self.cx.mutable_ref(self.cx.value_type(map));
-                match args.len().saturating_sub(3) {
-                    2 if shared => Some((x, false, Vec::new())),
-                    3 => Some((x, true, Vec::new())),
-                    _ => None,
-                }
+                (args.len().saturating_sub(3) == 3).then_some((x, true, Vec::new()))
             }
             Tag::Call if self.cx.call_kind(x) == CallKind::PointerRef => {
                 Some((x, false, Vec::new()))

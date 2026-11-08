@@ -779,7 +779,7 @@ impl Em<'_, '_, '_> {
             return unsupported("a variant built from other fields than it has");
         }
         // Construction consumes its parts (§23.25).
-        let fields = if moved || self.short_loans.contains_key(&i) {
+        let fields = if moved || self.short_origins.contains(&i) {
             fs.to_vec()
         } else {
             self.count_parts(fs, &tys)?
