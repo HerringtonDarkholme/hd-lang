@@ -31,7 +31,7 @@ impl Ck<'_, '_> {
             .is_some_and(|i| self.cx.names.known.is_struct(i))
     }
 
-    /// Whether `t` is a struct type, `mut` or not (`types.value.struct`).
+    /// Whether `t` is a struct type (`types.value.struct`).
     pub(crate) fn is_struct_ty(&self, t: Ty) -> bool {
         let pool = self.pool();
         match pool.get(self.resolved(t)) {
@@ -40,7 +40,7 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// Whether `t` is a struct or a tuple type, `mut` or not: a value whose
+    /// Whether `t` is a struct or a tuple type: a value whose
     /// fields or elements are parts of its place (`types.value.struct`,
     /// `expr.place.tuple-field`).
     pub(crate) fn is_value_record_ty(&self, t: Ty) -> bool {

@@ -30,7 +30,7 @@ impl Ck<'_, '_> {
         matches!(pool.get(t), TyData::Adt { def, .. } if def == known.list || def == known.map)
     }
 
-    /// Whether `t`, `mut` or not, is a `List` or `Map` type.
+    /// Whether `t` is a `List` or `Map` type.
     pub(crate) fn is_coll_ty(&self, t: Ty) -> bool {
         self.is_coll_value(self.resolved(t))
     }

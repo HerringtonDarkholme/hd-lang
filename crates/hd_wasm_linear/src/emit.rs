@@ -1364,7 +1364,7 @@ impl Em<'_, '_, '_> {
         }
     }
 
-    /// Whether `t` is a tuple type, `mut` or not.
+    /// Whether `t` is a tuple type.
     fn tuple(&self, t: Ty) -> bool {
         matches!(
             self.pool()

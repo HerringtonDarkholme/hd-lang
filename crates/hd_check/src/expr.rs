@@ -3057,7 +3057,7 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// The value type of the map type `map_ty`, `mut` or not.
+    /// The value type of the map type `map_ty`.
     pub(crate) fn map_value_item(&self, map_ty: Ty) -> Option<Ty> {
         let pool = self.pool();
         let map = self.cx.names.known.map;
