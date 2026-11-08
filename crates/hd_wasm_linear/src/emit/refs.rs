@@ -139,13 +139,9 @@ impl Em<'_, '_, '_> {
     /// part of `t`'s values and memory. A newtype's one field is the
     /// value itself.
     fn path_step(&self, t: Ty, f: u32) -> StageResult<(Ty, Part)> {
-        if self.newtype(t) {
-            let TyData::Adt { def, args } = self.pool().get(t) else {
-                return unsupported("a newtype that is no nominal type");
-            };
-            let Some(&base) = self.env().data_fields(def).unwrap_or_default().first() else {
-                return unsupported("a newtype without its field");
-            };
+        if let TyData::Adt { def, args } = self.pool().get(t)
+            && let Some(base) = self.env().newtype_base(def)
+        {
             let ft = hd_mono::subst(self.pool(), self.env(), def, args, base);
             let n = self.vals(ft)?.len();
             return Ok((
@@ -166,11 +162,8 @@ impl Em<'_, '_, '_> {
         } else {
             self.struct_fields(t)
         };
-        let (Some(part), Some(&ft)) = (parts.get(f as usize).copied(), fields.get(f as usize))
-        else {
-            return unsupported("a reference to a field the struct does not have");
-        };
-        Ok((ft, part))
+        // Checking builds `.f` only for a field `t` declares.
+        Ok((fields[f as usize], parts[f as usize]))
     }
 
     /// The type a struct field path reads from type `t`, and where it lies
