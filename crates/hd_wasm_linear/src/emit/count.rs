@@ -463,9 +463,7 @@ impl Em<'_, '_, '_> {
         {
             return Ok(Src::Ref(r));
         }
-        let Some(ls) = self.vals.get(&r).cloned() else {
-            return crate::unsupported("a value its instruction did not compute");
-        };
+        let ls = self.computed(r)?;
         Ok(Src::Locals(self.copy_locals(&ls, self.ty_of(r))?))
     }
 

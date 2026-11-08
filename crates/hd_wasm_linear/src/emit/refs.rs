@@ -83,10 +83,7 @@ impl Em<'_, '_, '_> {
     /// pushed into fresh ones.
     pub(super) fn local_value_of(&mut self, r: u32) -> StageResult<Vec<u32>> {
         if r != NONE && Ref(r).as_inst().is_some() {
-            return match self.vals.get(&r) {
-                Some(ls) => Ok(ls.clone()),
-                None => unsupported("a value its instruction did not compute"),
-            };
+            return self.computed(r);
         }
         let vs = self.vals(self.ty_of(r))?;
         let ls: Vec<u32> = vs.into_iter().map(|v| self.f.local(v)).collect();
@@ -244,10 +241,9 @@ impl Em<'_, '_, '_> {
             PlaceRoot::Local(l) if !self.is_cell(l.idx()) => {
                 Ok(Some((self.at_root_ty(p.root), self.local(l.raw())?)))
             }
-            PlaceRoot::Value(r) if r.as_inst().is_some() => match self.vals.get(&r.0) {
-                Some(ls) => Ok(Some((self.ty_of(r.0), ls.clone()))),
-                None => unsupported("a value its instruction did not compute"),
-            },
+            PlaceRoot::Value(r) if r.as_inst().is_some() => {
+                Ok(Some((self.ty_of(r.0), self.computed(r.0)?)))
+            }
             _ => Ok(None),
         }
     }

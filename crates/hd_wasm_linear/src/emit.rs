@@ -1463,13 +1463,19 @@ impl Em<'_, '_, '_> {
         if Ref(r).as_inst().is_none() {
             return self.konst(r);
         }
-        let Some(ls) = self.vals.get(&r).cloned() else {
-            return unsupported("a value its instruction did not compute");
-        };
-        for l in ls {
+        for l in self.computed(r)? {
             self.f.get(l);
         }
         Ok(())
+    }
+
+    /// The locals of instruction `r`'s values. Emission follows the body's
+    /// order, in which TIR defines each value before its uses.
+    fn computed(&self, r: u32) -> StageResult<Vec<u32>> {
+        match self.vals.get(&r) {
+            Some(ls) => Ok(ls.clone()),
+            None => unsupported("a value its instruction did not compute"),
+        }
     }
 
     /// Pushes value `k` of `r`.
@@ -1483,9 +1489,8 @@ impl Em<'_, '_, '_> {
             }
             return Ok(());
         }
-        let Some(l) = self.vals.get(&r).and_then(|ls| ls.get(k)).copied() else {
-            return unsupported("a value its instruction did not compute");
-        };
+        // Callers name a component of the value's layout.
+        let l = self.computed(r)?[k];
         self.f.get(l);
         Ok(())
     }
@@ -2495,7 +2500,7 @@ impl Em<'_, '_, '_> {
                 TargetKind::Intrinsic(key)
                     if matches!(key.as_str(), "downcast_ref" | "downcast_mut") =>
                 {
-                    self.downcast(i, ct.item, args[0])
+                    self.downcast(i, ct.args, args[0])
                 }
                 TargetKind::Intrinsic(key) if matches!(key.as_str(), "ptr_ref" | "ptr_mut") => {
                     self.ptr_ref(i, &args)
@@ -2556,7 +2561,7 @@ impl Em<'_, '_, '_> {
     /// drive slot. The call's value is the frame, 0 when the call is done;
     /// its results wait in locals for `on`.
     fn call_drive(&mut self, i: u32, a: u32, args: &[u32], on: u32) -> StageResult<()> {
-        let inner = self.susp_inner(self.ty(i))?;
+        let inner = self.susp_inner(self.ty(i));
         let res: Vec<u32> = self.vals(inner)?.iter().map(|v| self.f.local(*v)).collect();
         self.f.helper(Helper::ForbidCheck);
         let buffer = self.blocking_buffer(args)?;
@@ -2584,7 +2589,7 @@ impl Em<'_, '_, '_> {
         args: &[u32],
         on: u32,
     ) -> StageResult<()> {
-        let inner = self.susp_inner(self.ty(i))?;
+        let inner = self.susp_inner(self.ty(i));
         let values: Vec<u32> = self.vals(inner)?.iter().map(|v| self.f.local(*v)).collect();
         let frame = self.f.local(Val::I32);
         // Cold construction's argument loans end before block_on polls.
@@ -2671,13 +2676,7 @@ impl Em<'_, '_, '_> {
             ..
         }) = Callee::from_words(self.b.record(a))
         else {
-            return unsupported("a dynamic call without a trait method");
-        };
-        let Some(slot) = hd_mono::slot_methods(self.env(), trait_)
-            .iter()
-            .position(|m| *m == method)
-        else {
-            return unsupported("a dynamic call of a method without a slot");
+            unreachable!("collection dispatches only a trait method dynamically");
         };
         let takes_ctx = ctx::slot_ctx(self.env(), method);
         if !takes_ctx && !self.env().row_keys(method, targs).is_empty() {
@@ -2693,11 +2692,17 @@ impl Em<'_, '_, '_> {
             Some((_, buffer)) => {
                 crate::drive::index(self.env(), self.m, trait_, method, buffer.is_some()) as usize
             }
-            None => slot,
+            // Collection dispatches only a method with a slot.
+            None => hd_mono::slot_methods(self.env(), trait_)
+                .iter()
+                .position(|m| *m == method)
+                .expect("a dynamically dispatched method has a slot"),
         };
-        let Some((&recv, rest)) = args.split_first() else {
-            return unsupported("a dynamic call without a receiver");
-        };
+        // A dynamically dispatched method takes `self`: an associated
+        // function is unavailable through a trait value
+        // (trait.dyn.member.assoc-function), so no bound at one holds
+        // (trait.dyn.bound.reference).
+        let (recv, rest) = (args[0], &args[1..]);
         let receiver_ty = self.ty_of(recv);
         let value_ty = self.dyn_value_ty(receiver_ty);
         let (payload, owned) = if value_ty == receiver_ty {
@@ -2731,7 +2736,7 @@ impl Em<'_, '_, '_> {
             self.f.get(buffer);
             params.push(Val::I32);
         }
-        let steps = self.dyn_steps(value_ty, trait_, targs)?;
+        let steps = self.dyn_steps(value_ty, trait_, targs);
         if let Some(value) = &payload {
             self.f.get(value[1]);
         } else {
@@ -3001,7 +3006,7 @@ impl Em<'_, '_, '_> {
             }
             // A suspension that never completes, for std's `timeout!`.
             "task_pending_frame" => {
-                let results = self.vals(self.susp_inner(self.ty_of(i))?)?;
+                let results = self.vals(self.susp_inner(self.ty_of(i)))?;
                 self.f.helper(Helper::PendingCold { results });
                 self.store_owned(i)
             }
@@ -3024,7 +3029,7 @@ impl Em<'_, '_, '_> {
             }
             // `race!`'s frame over its list of tasks (§14.5).
             "task_race_frame" => {
-                let inner = self.susp_inner(self.ty_of(i))?;
+                let inner = self.susp_inner(self.ty_of(i));
                 let results = self.vals(inner)?;
                 let walk = self.counted(inner);
                 self.comp(args[0], 0)?;
@@ -3338,15 +3343,14 @@ impl Em<'_, '_, '_> {
         self.write_new(value::Dst::Mem(at, 0, &m.leaves), &s)
     }
 
-    /// The result type `T` of a `Suspend[T]`.
-    pub(super) fn susp_inner(&self, t: Ty) -> StageResult<Ty> {
+    /// The result type `T` of a `Suspend[T]`: each caller's type is the
+    /// cold call's, `block_on`'s operand's, or a task intrinsic's, which
+    /// checking types `Suspend[T]`.
+    pub(super) fn susp_inner(&self, t: Ty) -> Ty {
         let TyData::Adt { args, .. } = self.pool().get(t) else {
-            return unsupported("a suspension of a type that is not `Suspend`");
+            unreachable!("a suspension is a `Suspend[T]`");
         };
-        match self.pool().list_items(args).first() {
-            Some(&inner) => Ok(inner),
-            None => unsupported("a suspension without its result type"),
-        }
+        self.pool().list_items(args)[0]
     }
 
     /// `block_on(s)` (`req.drive.block-on.*`): polls the suspension's frame
@@ -3354,7 +3358,7 @@ impl Em<'_, '_, '_> {
     /// (`hd:rt.block`), then gives `.Completed(value)`, or `.Cancelled` or
     /// `.Abandoned` once a cancelled suspension's cleanup has ended.
     fn block_on(&mut self, i: u32, s: u32) -> StageResult<()> {
-        let result = self.vals(self.susp_inner(self.ty_of(s))?)?;
+        let result = self.vals(self.susp_inner(self.ty_of(s)))?;
         // Through a drive slot (§23.39), the cold call made the
         // forbidden-context check and the first poll, and left its results
         // in locals: `frame` is 0 when it is done.

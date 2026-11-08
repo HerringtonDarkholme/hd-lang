@@ -154,7 +154,7 @@ impl Em<'_, '_, '_> {
         let Some(&tasks) = args.first() else {
             return unsupported("the intrinsic `task_all_frame` without its task list");
         };
-        let inner = self.susp_inner(self.ty_of(i))?;
+        let inner = self.susp_inner(self.ty_of(i));
         let (_, elem) = self.elem(inner)?;
         self.comp(tasks, 0)?;
         self.f.helper(Helper::All { part: 0, elem });
