@@ -6047,6 +6047,9 @@ parse/invalid/variant-pattern-with-a-spread.hd	parse	reject:syntax-error	lang/02
 typing/invalid/projection-from-a-type-without-bounds.hd	type	reject:unknown-associated-type	lang/09-traits.md#r-trait.assoc.no-type
 typing/invalid/projection-from-a-concrete-type.hd	type	reject:unknown-associated-type	lang/09-traits.md#r-trait.assoc.no-type
 typing/invalid/projection-in-a-body-without-bounds.hd	type	reject:unknown-associated-type	lang/09-traits.md#r-trait.assoc.no-type
+typing/invalid/prelude-shadow-multiline-use.hd	type	reject:prelude-name-shadow	lang/10-modules.md#r-module.prelude.no-shadow
+typing/valid/empty-collection-joined-context.hd	type	accept	lang/05-expressions.md#r-expr.collection.expected
+typing/invalid/boundary-badge-result-private-field.hd	type	reject:boundary-private-field	lang/10-modules.md#r-module.boundary.error
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

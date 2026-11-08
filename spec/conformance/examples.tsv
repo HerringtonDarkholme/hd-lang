@@ -761,7 +761,7 @@ lang/10-modules.md	94	complete	-
 lang/10-modules.md	95	complete	-
 lang/10-modules.md	96	complete	-
 lang/10-modules.md	97	complete	-
-lang/10-modules.md	98	known-failure	runtime/valid/boundary-derived-round-trip.hd|typing/invalid/boundary-private-field-no-traits.hd
+lang/10-modules.md	98	error-fragment	runtime/valid/boundary-derived-round-trip.hd|typing/invalid/boundary-private-field-no-traits.hd|typing/invalid/boundary-badge-result-private-field.hd
 lang/10-modules.md	99	complete	-
 lang/10-modules.md	100	fragment	parse/valid/host-declaration-marker.hd
 lang/10-modules.md	101	mixed	typing/invalid/host-declaration-call.hd

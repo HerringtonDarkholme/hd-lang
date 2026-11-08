@@ -1,0 +1,13 @@
+# test: a selected host capability cannot return a private-field type without Deserialize
+# Spec Modules: module.boundary.error.
+# fixture-runtime-profile: serde-vault
+
+pub struct Badge:
+    pub owner: string
+    code: i64
+
+pub trait Vault:
+    fn badge(self) -> Badge # diagnostic: boundary-private-field
+
+pub fn main() -> void $ Vault:
+    _ := $.use(Vault).badge()
