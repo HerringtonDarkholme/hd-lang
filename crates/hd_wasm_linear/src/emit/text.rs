@@ -196,14 +196,12 @@ impl Em<'_, '_, '_> {
             self.f.set(local);
             suffix.push(local);
         }
-        // Retire the stated copy before moving the place's count. A
-        // borrowed read owns nothing; keep its existing slot zeroing.
-        if let Some(reason) = self.operation_count(i, Tag::Release, CountPart::Operand(0)) {
-            self.because(reason, |em| em.release_value(left))?;
-        } else if self.b.is_borrow(left) {
-            self.release_value(left)?;
-        } else {
-            return unsupported("a place append without its stated copied-left cleanup");
+        // Retire the stated copy before moving the place's count. An
+        // unstated left is a borrowed read, which owns nothing: its locals
+        // are only zeroed.
+        match self.operation_count(i, Tag::Release, CountPart::Operand(0)) {
+            Some(reason) => self.because(reason, |em| em.release_value(left))?,
+            None => self.release_value(left)?,
         }
         let value = self.ref_layout(Ty::STRING)?;
         let mut args = crate::rt::ref_take(&mut self.f, reference, &value);
