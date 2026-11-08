@@ -1,12 +1,19 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { exampleBlocks } from "./check-examples.ts";
 
 const stop = new Set(
   "fn let mut pub data enum trait impl type use as for in if else match while return break continue pass true false self Self is string bool void i8 i16 i32 i64 u8 u16 u32 u64 f32 f64 List Map list map Option Some None Result Ok Err Any".split(
     " ",
   ),
 );
+const examined = new Set(["complete", "known-failure", "fragment", "mixed"]);
+
+/** Whether an inventory row names fixtures whose identifiers the example must share. */
+function isExamined(classification: string, fixtureText: string): boolean {
+  return fixtureText !== "-" && examined.has(classification);
+}
 const identifierPattern = /[^\W\d]\w*/gu;
 
 function identifiers(text: string): Set<string> {
@@ -42,10 +49,6 @@ function salientIdentifiers(text: string): Set<string> {
   return result.size > 0 ? result : all;
 }
 
-function textBlocks(text: string): string[] {
-  return [...text.matchAll(/^```text\s*\n(.*?)^```/gms)].map((match) => match[1]!);
-}
-
 async function main(args: readonly string[]): Promise<number> {
   if (args.length !== 2) {
     console.error("usage: check-example-overlap.ts SPEC_DIR EXAMPLES_TSV");
@@ -60,12 +63,14 @@ async function main(args: readonly string[]): Promise<number> {
   for (const row of rows) {
     const [specification = "", blockText = "", classification = "", fixtureText = ""] =
       row.split("\t");
-    if (!new Set(["accept", "mixed"]).has(classification)) {
+    if (!isExamined(classification, fixtureText)) {
       continue;
     }
     let blocks = blockCache.get(specification);
     if (!blocks) {
-      blocks = textBlocks(await readFile(resolve(specificationDirectory, specification), "utf8"));
+      blocks = exampleBlocks(
+        await readFile(resolve(specificationDirectory, specification), "utf8"),
+      ).map((example) => example.body);
       blockCache.set(specification, blocks);
     }
     const blockIds = salientIdentifiers(blocks[Number(blockText) - 1]!);

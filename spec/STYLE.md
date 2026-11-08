@@ -201,9 +201,26 @@ chapters, numbered or stdlib, which means it was retired before.
 
 ## Examples
 
-Every `text` fence in a numbered chapter has one row in
-`conformance/examples.tsv`, keyed by its position among the chapter's `text`
-fences. Adding, moving, or splitting an example means updating those rows.
+Every `hd` and `text` fence in a numbered, stdlib, or CLI chapter has one
+row in `conformance/examples.tsv`, keyed by its position among the chapter's
+`hd` and `text` fences together. Adding, moving, or splitting an example
+means updating those rows. The row's classification says how the example is
+checked:
+
+| Classification | The example | Checked by | Fixtures |
+| --- | --- | --- | --- |
+| `complete` | stands alone: a positive example that declares or imports every name it uses beyond the prelude | `check` on the example as printed must succeed | optional |
+| `known-failure` | is complete, but `check` rejects it as printed; the rejection is an open bug in the example or the compiler | `check` must still fail, so a fixed example becomes `complete` | optional |
+| `fragment` | does not stand alone: it uses names an earlier example or the prose declares, elides a part with `...`, shows a signature without a body, or is one file of a package | nothing beyond the fixtures | optional |
+| `mixed` | is an error example (below), or shows a warning or a panic | nothing beyond the fixtures | required |
+| `type-fragment`, `expression-fragment`, `pattern-fragment`, `type-relation` | is a type, an expression, a pattern, or a relation between types, not a program | nothing | `-` |
+| `lexical-inventory`, `filesystem-layout`, `illustrative-pseudocode` | is a token list, a directory tree, or pseudocode | nothing | `-` |
+
+When a row names fixtures, the overlap check requires most of the example's
+salient names to occur in them. A positive example is `complete` unless its
+text makes it a fragment. One
+that fails `check` for any other reason is a bug in the example or in the
+compiler, never a fragment.
 
 An **error example** is a `text` fence in which each rejected line ends with
 `# error: code`, or with a bare `# error` when the chapter names no code for

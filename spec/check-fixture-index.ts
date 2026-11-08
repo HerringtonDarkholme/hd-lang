@@ -164,7 +164,9 @@ for (const entry of readdirSync(join(conformance, "cli"), { withFileTypes: true 
   }
 }
 
-// examples.tsv
+// examples.tsv (STYLE.md, Examples). A mixed entry names its fixtures; a
+// complete, known-failure, or fragment entry names them or '-'.
+const examined = new Set(["complete", "known-failure", "fragment", "mixed"]);
 const fragments = new Set([
   "lexical-inventory",
   "type-relation",
@@ -180,8 +182,11 @@ for (const [specification = "", block, classification = "", fixtures = ""] of re
   if (!existsSync(join(specDir, specification))) {
     fail(`missing example specification ${specification}`);
   }
-  if (classification === "accept" || classification === "mixed") {
-    for (const path of fixtures.split("|")) {
+  if (examined.has(classification)) {
+    if (fixtures === "-" && classification === "mixed") {
+      fail(`mixed entry must name its fixtures for ${specification} block ${block}`);
+    }
+    for (const path of fixtures === "-" ? [] : fixtures.split("|")) {
       if (!existsSync(join(conformance, path))) {
         fail(`missing example fixture ${path} for ${specification} block ${block}`);
       }

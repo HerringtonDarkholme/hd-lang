@@ -162,13 +162,11 @@ tab-separated fields:
 
 Every fixture has exactly one row.
 
-`examples.tsv` inventories every `text` code fence in the numbered core
-chapters. Runnable examples map to one or more self-contained fixtures.
-Lexical inventories, type fragments, filesystem layouts, and similar
-non-program text are classified explicitly rather than being mistaken for
-compilable files. `spec/check.sh` verifies that every core `text` fence has
-exactly one inventory entry, and that every runnable entry names an indexed
-fixture.
+`examples.tsv` inventories every `hd` and `text` code fence in the
+numbered, stdlib, and CLI chapters, with the classifications that
+[Examples](../STYLE.md#examples) defines. `spec/check.sh` verifies that
+every fence has exactly one inventory entry, that every named fixture is
+indexed, and that every `complete` example passes `check` as printed.
 
 ## Tiers
 

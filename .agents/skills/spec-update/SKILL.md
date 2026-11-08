@@ -89,7 +89,8 @@ the spec, and it adds exactly what the decision says, no more.
 6. **Update conformance.** Add or change fixtures under
    `spec/conformance/` in the format its README defines. Keep
    `cases.tsv` and `examples.tsv` consistent: one `cases.tsv` row per
-   fixture, one `examples.tsv` row per `text` fence. Fixtures stay
+   fixture, one `examples.tsv` row per `hd` or `text` fence, classified as
+   `spec/STYLE.md` "Examples" says. Fixtures stay
    implementation-neutral. The spec owns their format; never shape one to
    the compiler.
    - A fixture's tier is the tier of its `specification` column: a path

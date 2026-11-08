@@ -10,10 +10,11 @@ examples="$spec_dir/conformance/examples.tsv"
 # (conformance/README.md): HD_TEST_COMMAND, else the Rust hd, built when
 # missing (scripts/hd-conformance.sh).
 compiler=${HD_TEST_COMMAND:-"\"$repo_dir/scripts/hd-conformance.sh\""}
-# The default command builds its binaries on first use. This script only parses,
-# so build the parser now, and the timed runs below never include a build.
+# The default command builds its binaries on first use. This script parses and
+# checks examples, so build both now, and the timed runs below never include a
+# build.
 if [ -z "${HD_TEST_COMMAND:-}" ]; then
-    "$repo_dir/scripts/hd-conformance.sh" --build-parser
+    "$repo_dir/scripts/hd-conformance.sh" --build
 fi
 
 fail() {
@@ -128,17 +129,10 @@ awk -F "$tab" '
     seen[$1 SUBSEP $2]++ { exit 1 }
 ' "$examples" || fail "malformed or duplicate conformance/examples.tsv entry"
 
-# Chapters: the numbered language chapters in lang/, the stdlib chapters in
-# std/ (std/README.md), and the CLI chapters in cli/ (cli/README.md). Each
-# chapter's text examples are inventoried.
-for file in "$spec_dir"/lang/[0-9][0-9]-*.md "$spec_dir"/std/*.md "$spec_dir"/cli/*.md; do
-    name=${file#"$spec_dir/"}
-    case $name in std/README.md | cli/README.md) continue ;; esac
-    blocks=$(awk '/^```text/{ count += 1 } END { print count + 0 }' "$file")
-    indexed=$(awk -F "$tab" -v name="$name" 'NR > 1 && $1 == name { count += 1 } END { print count + 0 }' "$examples")
-    [ "$blocks" -eq "$indexed" ] ||
-        fail "$name has $blocks text examples but $indexed inventory entries"
-done
+# Examples (STYLE.md, Examples): every hd and text fence of a numbered, stdlib,
+# or CLI chapter is inventoried, and each complete example checks as printed.
+node --experimental-strip-types "$spec_dir/check-examples.ts" "$spec_dir" "$examples" "$compiler" ||
+    fail "an example is not inventoried, or a complete example does not check as printed"
 
 grep -Fq '```ebnf' "$spec_dir/lang/02-grammar.md" ||
     fail "02-grammar.md does not contain consolidated EBNF"
