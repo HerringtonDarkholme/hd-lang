@@ -5,12 +5,11 @@
   "type": "module",
   "scripts": {
     "build:web-compiler": "node scripts/build-web-compiler.ts",
-    "check": "pnpm run check:types && pnpm run check:host-sources && pnpm run check:spec-sync && pnpm run check:cost && pnpm run check:typescript-sources && pnpm run lint && pnpm run format:check && pnpm test && bash spec/check.sh && pnpm run check:doc-examples",
+    "check": "pnpm run check:types && pnpm run check:host-sources && pnpm run check:spec-sync && pnpm run check:cost && pnpm run check:typescript-sources && pnpm run lint && pnpm run format:check && pnpm test && bash spec/check.sh",
     "check:types": "tsc --noEmit && tsc --noEmit -p website/playground",
     "check:host-sources": "node scripts/check-host-sources.ts",
     "check:spec-sync": "node scripts/check-rule-citations.ts && node scripts/check-removed-forms.ts",
     "check:cost": "node scripts/check-cost.ts",
-    "check:doc-examples": "node scripts/check-doc-examples.ts . docs/examples.tsv",
     "check:typescript-sources": "node scripts/check-typescript-sources.ts",
     "format": "oxfmt --write 'host/**/*.ts' 'packages/server-sdk/**/*.ts' 'spec/**/*.ts' 'bench/**/*.ts' 'scripts/**/*.js' 'scripts/**/*.ts' 'website/*.ts' 'website/src/**/*.ts' 'website/client/**/*.ts' 'website/test/**/*.ts' 'website/assets/**/*.js' 'website/playground/**/*.ts' package.json .oxfmtrc.json .oxlintrc.json",
     "format:check": "oxfmt --check 'host/**/*.ts' 'packages/server-sdk/**/*.ts' 'spec/**/*.ts' 'bench/**/*.ts' 'scripts/**/*.js' 'scripts/**/*.ts' 'website/*.ts' 'website/src/**/*.ts' 'website/client/**/*.ts' 'website/test/**/*.ts' 'website/assets/**/*.js' 'website/playground/**/*.ts' package.json .oxfmtrc.json .oxlintrc.json",

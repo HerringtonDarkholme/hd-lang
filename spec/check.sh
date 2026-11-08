@@ -6,16 +6,6 @@ spec_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 repo_dir=$(CDPATH= cd -- "$spec_dir/.." && pwd)
 manifest="$spec_dir/conformance/cases.tsv"
 examples="$spec_dir/conformance/examples.tsv"
-# The compiler, called only through the command contract
-# (conformance/README.md): HD_TEST_COMMAND, else the Rust hd, built when
-# missing (scripts/hd-conformance.sh).
-compiler=${HD_TEST_COMMAND:-"\"$repo_dir/scripts/hd-conformance.sh\""}
-# The default command builds its binaries on first use. This script parses and
-# checks examples, so build both now, and the timed runs below never include a
-# build.
-if [ -z "${HD_TEST_COMMAND:-}" ]; then
-    "$repo_dir/scripts/hd-conformance.sh" --build
-fi
 
 fail() {
     printf '%s\n' "spec check failed: $*" >&2
@@ -46,28 +36,14 @@ if grep -R -n -E '^# [a-z][a-z-]*:' "$spec_dir/conformance" --include='*.hd' |
 fi
 
 # Package sources (conformance/packages and conformance/trees) are inputs of
-# the package-role and package-tree environments, not cases: no index row, no
-# directives, and the compiler's parse must accept them.
+# the package-role and package-tree environments, not cases: no index row and
+# no directives. The conformance harness checks that they parse
+# (crates/hd_driver/tests/conformance/examples.rs).
 for packages_dir in "$spec_dir/conformance/packages" "$spec_dir/conformance/trees"; do
-if [ -d "$packages_dir" ]; then
-    if grep -R -n -E '^# [a-z][a-z-]*:|# (diagnostic|warning|panic): ' "$packages_dir" --include='*.hd'; then
+    if [ -d "$packages_dir" ] &&
+        grep -R -n -E '^# [a-z][a-z-]*:|# (diagnostic|warning|panic): ' "$packages_dir" --include='*.hd'; then
         fail "package sources under ${packages_dir#"$spec_dir/"} must not carry fixture directives"
     fi
-    packages_manifest=$(mktemp "${TMPDIR:-/tmp}/hd-spec-packages.XXXXXX")
-    {
-        printf 'path\tphase\texpectation\tspecification\n'
-        find "$packages_dir" -type f -name '*.hd' | sort | while IFS= read -r file; do
-            printf '%s\tparse\taccept\t-\n' "${file#"$spec_dir/conformance/"}"
-        done
-    } > "$packages_manifest"
-    if ! node --experimental-strip-types "$spec_dir/tools/run-conformance.ts" --compiler "$compiler" \
-        --cases "$packages_manifest" --root "$spec_dir/conformance" > "$packages_manifest.log"; then
-        grep -v '^pass ' "$packages_manifest.log" >&2 || true
-        rm -f "$packages_manifest" "$packages_manifest.log"
-        fail "a package source under ${packages_dir#"$spec_dir/"} does not parse"
-    fi
-    rm -f "$packages_manifest" "$packages_manifest.log"
-fi
 done
 
 # A package tree header names an existing tree and a path the tree leaves free.
@@ -129,10 +105,9 @@ awk -F "$tab" '
     seen[$1 SUBSEP $2]++ { exit 1 }
 ' "$examples" || fail "malformed or duplicate conformance/examples.tsv entry"
 
-# Examples (STYLE.md, Examples): every hd and text fence of a numbered, stdlib,
-# or CLI chapter is inventoried, and each complete example checks as printed.
-node --experimental-strip-types "$spec_dir/check-examples.ts" "$spec_dir" "$examples" "$compiler" ||
-    fail "an example is not inventoried, or a complete example does not check as printed"
+# Examples (STYLE.md, Examples): that every hd and text fence of a numbered,
+# stdlib, or CLI chapter is inventoried, and each complete example checks as
+# printed, is the conformance harness's `spec_and_doc_examples_check_as_printed`.
 
 grep -Fq '```ebnf' "$spec_dir/lang/02-grammar.md" ||
     fail "02-grammar.md does not contain consolidated EBNF"

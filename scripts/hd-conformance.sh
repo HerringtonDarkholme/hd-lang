@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # The Rust hd under the conformance command contract
 # (spec/conformance/README.md, Command Contract), the default compiler of
-# spec/check.sh, spec/tools/run-conformance.ts and spec/tools/fuzz.
+# spec/tools/fuzz.
 #
 # `hd` has no `parse` command (the CLI specification removed it), so
 # `parse FILE` runs the parser alone, through hd_syntax's parse_check
@@ -27,14 +27,6 @@ contract() {
         -e 's/^[[:space:]]+panic: //'
 }
 
-# `--build` builds both binaries and exits, so callers that time each run
-# (run-conformance.ts) never count a build against a case. `--build-parser`
-# builds only the parser, for spec/check.sh, which runs nothing else.
-if [ "${1-}" = --build ] || [ "${1-}" = --build-parser ]; then
-    cargo build -q --manifest-path "$root/Cargo.toml" -p hd_syntax --example parse_check >&2
-    [ "$1" = --build-parser ] || cargo build -q --manifest-path "$root/Cargo.toml" -p hd_cli >&2
-    exit 0
-fi
 if [ "${1-}" = parse ]; then
     shift
     parser="$target/debug/examples/parse_check"

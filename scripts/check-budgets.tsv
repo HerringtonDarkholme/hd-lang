@@ -5,4 +5,3 @@ check:host-sources	8	same step, 1.5 x 5
 check:spec-sync	8	same step, 1.5 x 5
 check:cost	8	new; 0.4 s locally; 1.5 x 5 like its step
 check:typescript-sources	8	same step, 1.5 x 5
-check:doc-examples	11	Doc examples step: 4-7 s in the last 5 green runs that ran it; 1.5 x 7

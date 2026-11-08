@@ -165,8 +165,9 @@ Every fixture has exactly one row.
 `examples.tsv` inventories every `hd` and `text` code fence in the
 numbered, stdlib, and CLI chapters, with the classifications that
 [Examples](../STYLE.md#examples) defines. `spec/check.sh` verifies that
-every fence has exactly one inventory entry, that every named fixture is
-indexed, and that every `complete` example passes `check` as printed.
+every named fixture is indexed. The repository's conformance harness
+verifies that every fence has exactly one inventory entry, and that every
+example is checked as its classification says.
 
 ## Tiers
 
@@ -601,9 +602,6 @@ IMPL FILE
 - The working directory is not part of the contract. A [CLI case](#cli-cases)
   is the exception: it runs each command in the case's own directory.
 - stdin is closed. stdout and stderr are both read.
-- A runner may run the command lines in its own process through an adapter
-  ([Adapters](../tools/README.md#adapters)). The adapter reports the exit
-  status and output that the spawned command would.
 
 | Action  | Command-line options | Used for |
 | ------- | -------------------- | -------- |
@@ -622,10 +620,10 @@ program's console output.
 A fixture's directives select options for `check` and `test` that no `hd`
 command line has: the runtime profile, the runtime scenario, the pending
 function, the package role with its dependencies, the test layout, and the
-package tree. The runner passes them to the implementation through its
-[adapter](../tools/README.md#adapters), together with the command line,
-and never as command-line options. An implementation takes them as its
-adapter chooses, and its `hd` command does not accept or mention them.
+package tree. The runner passes them to the implementation together with
+the command line, and never as command-line options. An implementation
+takes them as it chooses, and its `hd` command does not accept or mention
+them.
 
 | Option | Given to | From |
 | ------ | -------- | ---- |
@@ -635,9 +633,6 @@ adapter chooses, and its `hd` command does not accept or mention them.
 | package role `ROLE`, and dependencies `NAME` with `DIR` | `check`, `test` | `# fixture-package-role:`, and the directories of [`packages/`](packages) |
 | test layout `LAYOUT` | `check`, `test` | `# fixture-test-layout:` |
 | package tree `DIR` with package path `PATH` | `check`, `test` | `# fixture-package-tree:` |
-
-A runner that spawns the implementation without an adapter has no way to give
-these options, so it cannot run a case that selects one.
 
 Exit statuses and limits:
 

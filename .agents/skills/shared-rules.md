@@ -168,7 +168,10 @@ blocks.forEach((m, i) => {
   `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, and
   `cargo test`. A change to `crates/`, `lib/std/`, `host/` or `website/`
   also runs `pnpm run test:web-compiler` (it has a size gate), and one to
-  `host/` or `website/` runs `pnpm run test:ui`.
+  `host/` or `website/` runs `pnpm run test:ui`. A change to an example
+  in a chapter or a doc also runs `HD_CONFORMANCE_ONLY=<file> cargo test -p
+  hd_driver --test conformance -- --exact
+  examples::spec_and_doc_examples_check_as_printed`.
 - Nobody runs the full `pnpm run check` locally; CI runs the full suite.
   The orchestrator merges directly in the main checkout and runs the checks
   the change needs.

@@ -113,18 +113,13 @@ jobs:
         if: ${{ !cancelled() }}
         run: pnpm run -s test:web-compiler
 
-      # The specification's own check. It parses through scripts/hd-conformance.sh,
-      # in the dev profile. It runs before the budget steps, which rewrite files on main.
+      # The specification's own check. It runs no compiler: the spec and doc examples
+      # are checked by the conformance test binary in the Rust tests job.
+      # It runs before the budget steps, which rewrite files on main.
       # It runs under its time budget (scripts/check-budgets.tsv).
       - name: Spec check
         if: ${{ !cancelled() }}
         run: node scripts/check-budget.ts spec/check.sh -- bash spec/check.sh
-
-      # The hd blocks of README.md, website/guide/, website/tour/, and
-      # docs/compiler/ (docs/examples.tsv), checked as printed.
-      - name: Doc examples
-        if: ${{ !cancelled() }}
-        run: node scripts/check-budget.ts check:doc-examples -- pnpm run -s check:doc-examples
 
       - name: Build count compiler
         if: ${{ !cancelled() }}
@@ -461,7 +456,8 @@ jobs:
 
       # Only the suite that depends on the engine and the pipeline: the
       # binary's other tests (the formatter pass over every fixture, the std
-      # runtime modules, the harness's own) run once, in the Rust tests job.
+      # runtime modules, the spec and doc examples, the harness's own) run
+      # once, in the Rust tests job.
       # Each run fails the job by itself, and the first failing doesn't skip the second.
       - name: Conformance
         if: ${{ !cancelled() && matrix.mode != 'checked optimized' }}

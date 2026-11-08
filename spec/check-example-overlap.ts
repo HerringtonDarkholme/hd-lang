@@ -1,7 +1,11 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { exampleBlocks } from "./check-examples.ts";
+
+/** A chapter's `hd` and `text` fence bodies, in order: an example's block number is its position here plus one. */
+function exampleBlocks(text: string): string[] {
+  return [...text.matchAll(/^```(?:hd|text)\n(.*?)^```/gms)].map((match) => match[1]!);
+}
 
 const stop = new Set(
   "fn let mut pub data enum trait impl type use as for in if else match while return break continue pass true false self Self is string bool void i8 i16 i32 i64 u8 u16 u32 u64 f32 f64 List Map list map Option Some None Result Ok Err Any".split(
@@ -70,7 +74,7 @@ async function main(args: readonly string[]): Promise<number> {
     if (!blocks) {
       blocks = exampleBlocks(
         await readFile(resolve(specificationDirectory, specification), "utf8"),
-      ).map((example) => example.body);
+      );
       blockCache.set(specification, blocks);
     }
     const blockIds = salientIdentifiers(blocks[Number(blockText) - 1]!);

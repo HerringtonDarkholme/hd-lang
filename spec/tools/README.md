@@ -2,8 +2,7 @@
 
 These tools read the specification, the fixtures, and the records as text.
 They import only Node built-ins and `spec/`, never an implementation's
-source, so they serve any implementation. The one exception is an adapter module that
-`run-conformance.ts --adapter` names on its command line.
+source, so they serve any implementation.
 
 | File | Purpose |
 | --- | --- |
@@ -14,42 +13,9 @@ source, so they serve any implementation. The one exception is an adapter module
 | `spec-glossary.ts` | the terms, the Markdown page, and the missing-term report of `glossary` |
 | `spec-prose.ts` | the Markdown block scanner, rule ID markers, and the prefix table |
 | `rule-inventory.ts` | one chapter's inventory, and the restyle diff ([STYLE.md](../STYLE.md#restyling-a-chapter)) |
-| `run-conformance.ts` | the conformance runner for any implementation ([Adapters](#adapters)) |
 | `generate-pointer-loan-matrix.ts` | the checked-in pointer-loan runtime matrix of #1323 (reference kind, path, lifetime, alias action); regenerate without arguments, or verify with `--check` |
 | `fuzz/` | the implementation-neutral fuzzer ([README](fuzz/README.md)) |
 | `spec-tools.test.ts` | the tests of these tools, run by `pnpm test` |
-
-## Adapters
-
-`run-conformance.ts` runs an implementation through the
-[command contract](../conformance/README.md#command-contract). By default
-it spawns the `--compiler` command once per command line. With
-`--adapter MODULE`, it imports MODULE instead and runs every command line
-inside the runner's process. Without `--adapter`, it imports no
-implementation code.
-
-An adapter module exports `createAdapter({ jobs })`. The object it returns
-has two methods:
-
-| Method | Does |
-| --- | --- |
-| `run(args, timeoutMs, cwd?, options?)` | runs `IMPL ARGS...` as if started in `cwd`, the runner's own directory when unset, with the fixture's [runner options](../conformance/README.md#runner-options), and resolves to `{ status, stdout, stderr, timedOut }`, as a spawned command would report them. A [CLI case](../conformance/README.md#cli-cases) sets `cwd` |
-| `close()` | releases the adapter's workers |
-
-`options` is an object whose optional fields are `profile`, `scenario`,
-`pendingFunction`, `packageRole`, `dependencies` (a list of `{ name,
-directory }`), `testLayout`, and `packageTree` (`{ directory, path }`). The
-runner passes the options a fixture selects, and no others. They are not `hd`
-command-line flags: the implementation takes them through its adapter, and its
-`hd` command line, help text, and usage errors never mention them. Without
-`--adapter`, the runner spawns `--compiler` with the command line alone, and a
-case that selects a runner option fails.
-
-`run` must stop a command that passes `timeoutMs` and resolve with
-`timedOut: true`, and must keep serving later commands. `status` is the
-exit status, or null for a command that did not finish. The repository
-has no in-process adapter; it runs the Rust `hd` as a command through
-`scripts/hd-conformance.sh`.
 
 ## Fixture Phase Audit
 

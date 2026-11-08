@@ -255,7 +255,7 @@ impl RuntimeStats {
     }
 }
 
-/// Worker count, like the TS runner (`spec/tools/run-conformance.ts`):
+/// Worker count:
 /// `HD_TEST_JOBS` if set to a positive integer, else
 /// `min(8, available_parallelism())`.
 fn jobs() -> usize {

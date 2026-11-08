@@ -807,6 +807,11 @@ impl Ran {
 #[cfg_attr(not(feature = "wasmtime"), path = "conformance/no_wasmtime.rs")]
 mod wasmtime;
 
+// The spec and doc examples, and the package sources, checked in this
+// process (`spec_and_doc_examples_check_as_printed`).
+#[path = "conformance/examples.rs"]
+mod examples;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum EngineMode {
     Node,
@@ -957,11 +962,12 @@ fn unknown_engine_is_not_a_node_fallback() {
     EngineMode::from_value(Some("typo"));
 }
 
+/// A runtime case's tier: `std` for a stdlib chapter's case, else `lang`,
+/// which also counts a doc example's program (`examples::doc_examples`).
 fn tier(case: &Case) -> &'static str {
     if case.specification.starts_with("std/") {
         "std"
     } else {
-        assert!(case.specification.starts_with("lang/"));
         "lang"
     }
 }
@@ -2413,7 +2419,7 @@ fn print_filtered(cases: &[Case], results: &[Verdict], store: &MemoryStore) {
     }
 }
 
-/// Worker count, like the TS runner (`spec/tools/run-conformance.ts`):
+/// Worker count:
 /// `HD_TEST_JOBS` if set to a positive integer, else
 /// `min(8, available_parallelism())`. The shared `MemoryStore` stays
 /// correct under concurrent use: both of its maps sit behind a `Mutex`
@@ -2440,7 +2446,6 @@ fn workers() -> usize {
 /// file first. A runtime case costs about 30 times a type case on
 /// average, and the widest fixtures take many seconds to compile.
 fn run_all(cases: &[Case], store: &MemoryStore) -> Vec<Verdict> {
-    let count = workers().min(cases.len().max(1));
     let timings = std::env::var_os("HD_TEST_TIMINGS").is_some();
     let size =
         |case: &Case| std::fs::metadata(suite_root().join(&case.path)).map_or(0, |m| m.len());
@@ -2449,9 +2454,38 @@ fn run_all(cases: &[Case], store: &MemoryStore) -> Vec<Verdict> {
         let case = &cases[i];
         (case.phase != Phase::Runtime, std::cmp::Reverse(size(case)))
     });
+    pool(cases.len(), &order, |serial| {
+        let case = &cases[serial];
+        let started = timings.then(Instant::now);
+        let verdict = caught(|| run_case(case, store, serial));
+        if let Some(started) = started {
+            eprintln!(
+                "conformance-case\t{}\t{:.6}",
+                case.path,
+                started.elapsed().as_secs_f64()
+            );
+        }
+        verdict
+    })
+}
+
+/// `run`'s verdict, or a crash with the message of its panic.
+fn caught(run: impl FnOnce() -> Verdict) -> Verdict {
+    catch_unwind(AssertUnwindSafe(run)).unwrap_or_else(|panic| {
+        let message = panic
+            .downcast_ref::<&str>()
+            .map_or("panic", |message| *message);
+        Verdict::Crash(message.to_owned())
+    })
+}
+
+/// `run(i)` for every `i` below `len`, on [`workers`] threads that take
+/// the indices in `order`; the results are by index. A worker gets the
+/// stack a wasmtime engine needs when one runs.
+fn pool<R: Send>(len: usize, order: &[usize], run: impl Fn(usize) -> R + Sync) -> Vec<R> {
+    let count = workers().min(len.max(1));
     let next = AtomicUsize::new(0);
-    let slots: Vec<std::sync::Mutex<Option<Verdict>>> =
-        cases.iter().map(|_| std::sync::Mutex::new(None)).collect();
+    let slots: Vec<Mutex<Option<R>>> = (0..len).map(|_| Mutex::new(None)).collect();
     std::thread::scope(|scope| {
         for _ in 0..count {
             let builder = std::thread::Builder::new();
@@ -2462,25 +2496,9 @@ fn run_all(cases: &[Case], store: &MemoryStore) -> Vec<Verdict> {
             };
             builder
                 .spawn_scoped(scope, || {
-                    while let Some(&serial) = order.get(next.fetch_add(1, Ordering::Relaxed)) {
-                        let case = &cases[serial];
-                        let started = timings.then(Instant::now);
-                        let verdict =
-                            catch_unwind(AssertUnwindSafe(|| run_case(case, store, serial)))
-                                .unwrap_or_else(|panic| {
-                                    let message = panic
-                                        .downcast_ref::<&str>()
-                                        .map_or("panic", |message| *message);
-                                    Verdict::Crash(message.to_owned())
-                                });
-                        if let Some(started) = started {
-                            eprintln!(
-                                "conformance-case\t{}\t{:.6}",
-                                case.path,
-                                started.elapsed().as_secs_f64()
-                            );
-                        }
-                        *slots[serial].lock().expect("results lock") = Some(verdict);
+                    while let Some(&index) = order.get(next.fetch_add(1, Ordering::Relaxed)) {
+                        let result = run(index);
+                        *slots[index].lock().expect("results lock") = Some(result);
                     }
                 })
                 .expect("spawn conformance worker");
@@ -2488,7 +2506,7 @@ fn run_all(cases: &[Case], store: &MemoryStore) -> Vec<Verdict> {
     });
     slots
         .into_iter()
-        .map(|slot| slot.into_inner().expect("results lock").expect("verdict"))
+        .map(|slot| slot.into_inner().expect("results lock").expect("result"))
         .collect()
 }
 
