@@ -1,0 +1,14 @@
+# test: row retries leave an unsolved generic requirement key to the final inference check
+# Spec 04 Generic Defaults: types.generic.default.unsolved.
+
+trait Repo[T]:
+    fn read(self) -> i32
+
+fn read[T]() -> i32 $ Repo[T]:
+    $.use(Repo[T]).read()
+
+fn outer() -> void:
+    fn again(n: i32) -> i32:
+        if n == 0:
+            return read() # diagnostic: cannot-infer-type
+        again(n - 1)

@@ -412,6 +412,10 @@ pub(crate) struct Ck<'a, 'c> {
     pub mut_ref_loops: u32,
     /// The checkpoints taken and not yet rolled back or committed.
     pub open_trials: u32,
+    /// The promoted variables of open recursive-row trials, keyed by
+    /// source argument or requirement use, and the current body's variables.
+    pub row_banks: Vec<HashMap<crate::rows::RowOrigin, Ty>>,
+    pub row_sources: Vec<(Ty, crate::rows::RowOrigin)>,
     /// A pipe's value while its step is checked (`_`).
     pub placeholder: Option<(Ref, Ty)>,
     /// A bare pipe step's piped value, which stands for the argument node
@@ -667,6 +671,8 @@ pub(crate) fn new_ck<'a, 'c>(
         conflicts: Vec::new(),
         mut_ref_loops: 0,
         open_trials: 0,
+        row_banks: Vec::new(),
+        row_sources: Vec::new(),
         placeholder: None,
         pipe_arg: None,
         chain_recv: None,
@@ -1075,6 +1081,7 @@ pub fn check_tuple_template_method(
 pub(crate) struct Infer {
     pub ret: bool,
     pub row: bool,
+    pub budget: Option<u64>,
 }
 
 /// Checks one function body and returns its TIR, its result type and its
@@ -1113,7 +1120,14 @@ fn check_fn_body_as(
     match fn_body_steps(cx, def, node, diags, hooks, infer, inferred) {
         Err(e) if is_out_of_fuel(&e) => {
             let body = too_complex(cx, (def, BodyKind::Fn), node, diags)?;
-            Ok((body, Ty::POISON, crate::results::RowFacts::default()))
+            Ok((
+                body,
+                Ty::POISON,
+                crate::results::RowFacts {
+                    fuel_left: Some(0),
+                    ..crate::results::RowFacts::default()
+                },
+            ))
         }
         r => r,
     }
@@ -1154,6 +1168,9 @@ fn fn_body_steps(
         diags,
     );
     ck.auto_closing_function = item.fn_attrs().is_some_and(|a| a.auto_closing);
+    if let Some(budget) = infer.budget {
+        ck.fuel = Fuel::new(budget);
+    }
     if let Some(o) = opt_in {
         ck.enter_opt_in(o);
     }

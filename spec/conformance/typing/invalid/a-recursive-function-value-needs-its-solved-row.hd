@@ -1,0 +1,15 @@
+# test: calling a function value propagates the solved recursive row
+# Spec 11 Row Entailment: req.row.set.call.
+
+fn a(n: i32) -> void:
+    if n > 0:
+        next := b
+        next(n - 1)
+
+fn b(n: i32) -> void:
+    println(n)
+    if n > 0:
+        a(n - 1)
+
+pub fn free() -> void:
+    a(2) # diagnostic: missing-requirement

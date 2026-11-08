@@ -1,0 +1,12 @@
+# test: recursive local function values retain their inferred requirements
+# Spec 11 Row Subsumption: req.row.subsume.missing.
+
+fn pure(job: fn(i32) -> void) -> void:
+    job(0)
+
+pub fn main() -> void $ Console:
+    fn count(n: i32) -> void:
+        println(n)
+        if n > 0:
+            pure(count) # diagnostic: type-mismatch
+    count(1)

@@ -306,9 +306,9 @@ impl Ck<'_, '_> {
     }
 
     /// A type constructor applied to arguments (aliases expanded).
-    pub(crate) fn ctor(&mut self, def: DefId, args: &[Ty]) -> StageResult<Ty> {
+    pub(crate) fn ctor(&mut self, def: DefId, args: &[Ty], n: NodeRef<'_>) -> StageResult<Ty> {
         let pool = self.pool();
-        let args = self.ctor_args(def, args)?;
+        let args = self.ctor_args(def, args, n)?;
         Ok(match self.cx.lookup.item(def).map(|i| &i.data) {
             Some(ItemData::Alias { body, .. }) => pool.subst(*body, &|p: ParamRef| {
                 (p.owner == def)
@@ -330,7 +330,12 @@ impl Ck<'_, '_> {
 
     /// The arguments of type constructor `def`: those written, then each
     /// omitted one's default or a fresh variable.
-    pub(crate) fn ctor_args(&mut self, def: DefId, args: &[Ty]) -> StageResult<Vec<Ty>> {
+    pub(crate) fn ctor_args(
+        &mut self,
+        def: DefId,
+        args: &[Ty],
+        n: NodeRef<'_>,
+    ) -> StageResult<Vec<Ty>> {
         let pool = self.pool();
         let Some(item) = self.cx.lookup.item(def) else {
             return unsupported(format!("the type {}", self.cx.names.path(def)));
@@ -346,6 +351,7 @@ impl Ck<'_, '_> {
                 self.infer.fresh(pool, VarKind::General)
             });
         }
+        self.row_argument_vars(def, &args, n);
         Ok(args)
     }
 
@@ -664,7 +670,7 @@ impl Ck<'_, '_> {
                 return Ok(Ty::POISON);
             }
         }
-        let t = self.ctor(def, &args)?;
+        let t = self.ctor(def, &args, n)?;
         // Where a trait goes, only a row alias stands besides a trait: any
         // other type, a type alias among them, is no trait
         // (`req.key.traits`, `req.row.alias.type-alias.key`).
@@ -1137,7 +1143,11 @@ impl Ck<'_, '_> {
                     deps,
                 })
             }
-            SyntaxKind::InferType => self.infer.fresh(pool, VarKind::General),
+            SyntaxKind::InferType => {
+                let v = self.infer.fresh(pool, VarKind::General);
+                self.row_argument_vars(DefId::NONE, &[v], n);
+                v
+            }
             // A row in a row slot, as an explicit argument for a row
             // parameter (`req.row.slot.list`).
             SyntaxKind::RequirementRow => {

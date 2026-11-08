@@ -1,0 +1,21 @@
+# test: expected function rows determine a recursive closure's generic requirement keys
+# Spec 11 Omitted Requirement Clauses: req.row.omitted.closure-row, req.row.omitted.expected-parameter.
+# expect-stdout: 7
+
+trait Repo[T]:
+    fn read(self) -> i32
+
+struct Source: pass
+
+impl Repo[i32] for Source:
+    fn read(self) -> i32:
+        +7
+
+fn read[T]() -> i32 $ Repo[T]:
+    $.use(Repo[T]).read()
+
+pub fn main() -> void $ Console:
+    let again: fn(i32) -> i32 $ Repo[i32] = fn(n: i32) -> i32:
+        if n == 0: read() else: again(n - 1)
+    $.with(Repo[i32]=Source {}):
+        println(again(1))

@@ -1,0 +1,19 @@
+# test: creating a function value adds no requirements to its caller
+# Spec 11 Omitted Requirement Clauses: req.row.omitted.closure-row, req.row.omitted.cycle.
+# expect-stdout: quiet
+
+fn a(n: i32) -> void:
+    _ := b
+    if n > 0:
+        a(n - 1)
+
+fn b(n: i32) -> void:
+    println(n)
+    a(n)
+
+pub fn quiet() -> void:
+    a(2)
+
+pub fn main() -> void $ Console:
+    quiet()
+    println("quiet")

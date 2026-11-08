@@ -326,6 +326,7 @@ impl Ck<'_, '_> {
                                 args: pool.list(&[elem]),
                             })
                         });
+                        self.row_argument_vars(hd_base::DefId::NONE, &vs, p);
                         let tt = pool.intern_ty(&TyData::Tuple {
                             elems: pool.list(&vs),
                             rest,

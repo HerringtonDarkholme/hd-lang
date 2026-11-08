@@ -1,0 +1,17 @@
+# test: callback row checks use the recursive group's solved signatures
+# Spec 11 Row Subsumption: req.row.subsume.missing.
+
+fn pure(job: fn(i32) -> void) -> void:
+    job(0)
+
+fn a(n: i32) -> void:
+    if n > 0:
+        pure(b) # diagnostic: type-mismatch
+
+fn b(n: i32) -> void:
+    println(n)
+    if n > 0:
+        a(n - 1)
+
+pub fn main() -> void $ Console:
+    a(2)

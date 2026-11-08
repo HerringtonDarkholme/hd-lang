@@ -40,6 +40,8 @@ pub(crate) enum BodyUndo {
     RowParam(usize),
     /// An edge pushed to the inferred row frame at this index.
     RowEdge(usize),
+    /// A captured-reference diagnostic first recorded by this trial.
+    RefCaptured(LocalId),
 }
 
 /// Everything a trial may change, as lengths and a mark in the undo log
@@ -63,6 +65,14 @@ pub(crate) struct Checkpoint {
     overflow_lits: usize,
     neg_nodes: usize,
     user_locals: usize,
+    mut_locals: usize,
+    mut_params: usize,
+    changed_locals: usize,
+    generic_recheck: usize,
+    local_ref_call_targs: usize,
+    assoc_self: usize,
+    row_banks: usize,
+    row_sources: usize,
     pre_args: usize,
     open_params: usize,
     ref_params: usize,
@@ -169,6 +179,9 @@ impl Ck<'_, '_> {
                 BodyUndo::Read(d) => {
                     self.facts.reads.remove(&d);
                 }
+                BodyUndo::RefCaptured(l) => {
+                    self.ref_captured.remove(&l);
+                }
                 BodyUndo::Call(d) => {
                     self.facts.calls.remove(&d);
                 }
@@ -236,6 +249,14 @@ impl Ck<'_, '_> {
             overflow_lits: self.overflow_lits.len(),
             neg_nodes: self.neg_nodes.len(),
             user_locals: self.user_locals.len(),
+            mut_locals: self.mut_locals.len(),
+            mut_params: self.mut_params.len(),
+            changed_locals: self.changed_locals.len(),
+            generic_recheck: self.generic_recheck.len(),
+            local_ref_call_targs: self.local_ref_call_targs.len(),
+            assoc_self: self.assoc_self.len(),
+            row_banks: self.row_banks.len(),
+            row_sources: self.row_sources.len(),
             pre_args: self.pre_args.len(),
             open_params: self.open_params.len(),
             ref_params: self.ref_params.len(),
@@ -264,6 +285,16 @@ impl Ck<'_, '_> {
     }
 
     pub(crate) fn rollback(&mut self, c: Checkpoint) {
+        let locals = c.tir.locals as usize;
+        for i in (c.tir.locals..).take(self.b.body().local_ty.len() - locals) {
+            let l = LocalId::from_raw(i);
+            self.local_generics.remove(&l);
+            self.local_forms.remove(&l);
+            self.local_inits.remove(&l);
+            self.ref_origins.remove(&l);
+            self.ref_bound.remove(&l);
+            self.ref_captured.remove(&l);
+        }
         self.b.rollback(c.tir);
         self.comparisons.truncate(c.comparisons);
         self.statements.truncate(c.statements);
@@ -274,10 +305,14 @@ impl Ck<'_, '_> {
         self.variant_patterns.truncate(c.variant_patterns);
         // A generic local function declared in the trial is gone with its
         // local, whose number a later local reuses.
-        let locals = c.tir.locals as usize;
-        self.local_generics.retain(|l, _| l.idx() < locals);
-        self.local_forms.retain(|l, _| l.idx() < locals);
-        self.generic_recheck.retain(|l| l.idx() < locals);
+        self.generic_recheck.truncate(c.generic_recheck);
+        self.mut_locals.truncate(c.mut_locals);
+        self.mut_params.truncate(c.mut_params);
+        self.changed_locals.truncate(c.changed_locals);
+        self.local_ref_call_targs.truncate(c.local_ref_call_targs);
+        self.assoc_self.truncate(c.assoc_self);
+        self.row_banks.truncate(c.row_banks);
+        self.row_sources.truncate(c.row_sources);
         // A check that stopped with "not implemented" may leave frames
         // open; the body is abandoned then, so only shrink.
         self.rows.truncate(c.depths[5]);

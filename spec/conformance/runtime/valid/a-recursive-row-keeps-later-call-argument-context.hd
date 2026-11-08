@@ -1,0 +1,26 @@
+# test: a later argument solves a requirement key created inside a recursive body
+# Spec 11 Omitted Requirement Clauses: req.row.omitted.inferred-private, req.row.omitted.cycle.
+# expect-stdout: 7
+
+trait Repo[T]:
+    fn read(self) -> i32
+
+struct Source: pass
+
+impl Repo[i32] for Source:
+    fn read(self) -> i32:
+        +7
+
+fn read[T]() -> i32 $ Repo[T]:
+    $.use(Repo[T]).read()
+
+fn apply[T](job: fn() -> i32 $ Repo[T], marker: T) -> i32 $ Repo[T]:
+    job()
+
+pub fn main() -> void $ Console:
+    task := fn() -> i32:
+        fn again(n: i32) -> i32:
+            if n == 0: read() else: again(n - 1)
+        again(1)
+    $.with(Repo[i32]=Source {}):
+        println(apply(task, +0i32))

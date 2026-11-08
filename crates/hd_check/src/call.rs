@@ -551,7 +551,7 @@ impl Ck<'_, '_> {
             if let ItemData::Struct(fields, _) = &item.data
                 && fields.is_empty()
             {
-                let t = self.ctor(def, &[])?;
+                let t = self.ctor(def, &[], n)?;
                 let rec = self.b.refs_record(&[]);
                 return Ok(Some((
                     self.b.emit(Tag::NewStruct, NONE, rec, t, n.index()),
@@ -750,7 +750,13 @@ impl Ck<'_, '_> {
     /// A call with an argument that is already an error, or has type
     /// `never` because of one, reports nothing more: that error stands
     /// for the whole call.
-    pub(crate) fn open_call_params(&mut self, vars: &[Ty], refs: &[Ref], n: NodeRef<'_>) {
+    pub(crate) fn open_call_params(
+        &mut self,
+        owner: DefId,
+        vars: &[Ty],
+        refs: &[Ref],
+        n: NodeRef<'_>,
+    ) {
         let pool = self.pool();
         let poisoned = refs.iter().any(|r| {
             r.as_inst().is_none_or(|i| {
@@ -761,6 +767,7 @@ impl Ck<'_, '_> {
         if poisoned {
             return;
         }
+        self.row_argument_vars(owner, vars, n);
         for &v in vars {
             self.call_params.push((v, n.index()));
         }
@@ -2378,7 +2385,7 @@ impl Ck<'_, '_> {
                 // Parameters named only in bounds, then defaults (§2.4
                 // steps 7 and 8); a bound naming one still open waits.
                 let open = self.infer_through_bounds(def, &sig, &vars, n)?;
-                self.open_call_params(&vars, &refs, n);
+                self.open_call_params(def, &vars, &refs, n);
                 let waits = |b: Ty| {
                     open.iter()
                         .any(|&k| crate::trial::names_param(pool, b, def, k))
@@ -2419,7 +2426,7 @@ impl Ck<'_, '_> {
                 // The arguments fixed the parameters a projection waited on.
                 let ret = self.norm_ty(ret);
                 let row = self.call_row(def, &sig, &vars, 0);
-                self.callee_row(def, row, vec![(def, vars.clone())], n)?;
+                self.callee_row(def, row, vec![(def, vars.clone())], n);
                 // A registration call's test case runs its std body with
                 // the call's arguments, and returns the result of the
                 // registration's body (`crates/hd_tir/DESIGN.md` §4.13.9).
@@ -2503,7 +2510,7 @@ impl Ck<'_, '_> {
                 let Some(e) = self.one_argument(args, &name, n)? else {
                     return Ok((Ref(NONE), Ty::POISON));
                 };
-                let targs = self.ctor_args(def, explicit)?;
+                let targs = self.ctor_args(def, explicit, n)?;
                 let t = pool.intern_ty(&TyData::Adt {
                     def,
                     args: pool.list(&targs),
@@ -2518,7 +2525,7 @@ impl Ck<'_, '_> {
             | ItemData::Builtin
             | ItemData::Enum { .. }
             | ItemData::Alias { .. } => {
-                let to = self.ctor(def, explicit)?;
+                let to = self.ctor(def, explicit, n)?;
                 match pool.get(to) {
                     // An alias calls the type it expands to.
                     TyData::Adt { def: base, args: a } if base != def => {
@@ -2914,11 +2921,13 @@ impl Ck<'_, '_> {
                 match name.as_str() {
                     "Some" | "None" => {
                         let t = self.infer.fresh(pool, VarKind::General);
+                        self.row_argument_vars(DefId::NONE, &[t], v);
                         pool.intern_ty(&TyData::Option(t))
                     }
                     _ => {
                         let a = self.infer.fresh(pool, VarKind::General);
                         let b = self.infer.fresh(pool, VarKind::General);
+                        self.row_argument_vars(self.cx.names.known.result, &[a, b], v);
                         pool.intern_ty(&TyData::Adt {
                             def: self.cx.names.known.result,
                             args: pool.list(&[a, b]),
@@ -3058,7 +3067,7 @@ impl Ck<'_, '_> {
                 Ok(Some((Ref(NONE), Ty::POISON)))
             }
             Some(Named::Item(def)) if self.is_enum_head(def) => {
-                let t = self.ctor(def, &[])?;
+                let t = self.ctor(def, &[], n)?;
                 if self.kind_of_item(def) == Some(HeadKind::Alias)
                     && self.variant_fields(t, name).is_none()
                 {
@@ -3298,11 +3307,11 @@ impl Ck<'_, '_> {
                 Some(Named::Item(def)) => match self.kind_of_item(def) {
                     Some(HeadKind::Enum | HeadKind::Alias)
                         if {
-                            let et = self.ctor(def, &explicit)?;
+                            let et = self.ctor(def, &explicit, n)?;
                             self.variant_fields(et, &name).is_some()
                         } =>
                     {
-                        let t = self.ctor(def, &explicit)?;
+                        let t = self.ctor(def, &explicit, n)?;
                         let t = match want {
                             Some(w) if self.can_unify(w, t) => {
                                 self.expect(t, w, n, "variant", ExpectPosition::General);
@@ -3317,7 +3326,7 @@ impl Ck<'_, '_> {
                         return self.trait_static(def, explicit, &name, args, n, bang);
                     }
                     Some(k) if k.is_type() => {
-                        let t = self.ctor(def, &explicit)?;
+                        let t = self.ctor(def, &explicit, n)?;
                         self.method_targs = method_targs;
                         return self.static_on_type(t, &name, args, (n, bang), false, want);
                     }
@@ -3402,9 +3411,10 @@ impl Ck<'_, '_> {
             };
             let refs = self.check_args(&formals, 0, args, n, name)?;
             self.fill_method_defaults(&sig, &vars, &inst, want)?;
-            self.open_call_params(&vars, &refs, n);
+            self.row_argument_vars(impl_def, &impl_args, n);
+            self.open_call_params(method, &vars, &refs, n);
             self.bounds_of(&sig, &vars, &inst, n)?;
-            self.inherent_row(method, &sig, (impl_def, &impl_args), &vars, n)?;
+            self.inherent_row(method, &sig, (impl_def, &impl_args), &vars, n);
             let mut targs = impl_args.clone();
             targs.extend(&vars);
             let c = Callee::Item {
@@ -4427,7 +4437,8 @@ impl Ck<'_, '_> {
                 };
                 refs.extend(self.check_args(&formals, 1, args, n, name)?);
                 self.fill_method_defaults(&sig, &vars, &inst, want)?;
-                self.open_call_params(&vars, &refs, n);
+                self.row_argument_vars(impl_def, &impl_args, n);
+                self.open_call_params(method, &vars, &refs, n);
                 // `h.fact::[D]()` on a structure handle reads a typed fact
                 // (annot.handle.fact.typed): `D` is matched against the
                 // member's type, not bounded by `Inspectable`.
@@ -4443,7 +4454,7 @@ impl Ck<'_, '_> {
                 } else {
                     self.bounds_of(&sig, &vars, &inst, n)?;
                 }
-                self.inherent_row(method, &sig, (impl_def, &impl_args), &vars, n)?;
+                self.inherent_row(method, &sig, (impl_def, &impl_args), &vars, n);
                 let mut targs = impl_args.clone();
                 targs.extend(&vars);
                 let c = Callee::Item {
@@ -4666,6 +4677,8 @@ impl Ck<'_, '_> {
         let explicit = std::mem::take(&mut self.method_targs);
         let mut vars = self.fresh_generics(&sig, &explicit, n);
         self.unsolvable_consts(&sig, method, explicit.len(), &mut vars, n);
+        self.row_argument_vars(trait_, &targs, n);
+        self.row_argument_self(trait_, self_ty, n);
         let tv = targs.clone();
         let tl = pool.list(&tv);
         let inst = |x: Ty| {
@@ -4745,7 +4758,7 @@ impl Ck<'_, '_> {
             }
         }
         self.fill_method_defaults(&sig, &vars, &inst, want)?;
-        self.open_call_params(&vars, &refs, n);
+        self.open_call_params(method, &vars, &refs, n);
         self.bounds_of(&sig, &vars, &inst, n)?;
         // At an opt-in, or in a tuple template's plan, a `walk`,
         // `describe` or `build` call's walker, describer or source type

@@ -1,0 +1,24 @@
+# test: discarded recursive row diagnostics do not suppress a later inference error
+# Spec 05 Element Types: expr.collection.empty.error.
+
+struct Wrap[T]:
+    job: T
+
+fn a():
+    item := Wrap { job: b }
+    let exact: Wrap[fn(i32) -> void $ Console] = item
+    +1
+
+fn b(n: i32) -> void:
+    if n > 0:
+        next := c
+        next(n - 1)
+
+fn c(n: i32) -> void:
+    println(n)
+    if n > 0:
+        b(n - 1)
+
+fn d() -> void:
+    _ := a()
+    values := {} # diagnostic: cannot-infer-type

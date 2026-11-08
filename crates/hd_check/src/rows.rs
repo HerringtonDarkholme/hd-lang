@@ -12,6 +12,35 @@ use crate::body::{Ck, RowFrame};
 use crate::results::{RowEdge, RowFacts};
 use crate::trial::BodyUndo;
 
+/// A source type argument's identity across checks of the same local
+/// body. Keeping its variable in the closure header also permits context
+/// after the declaration to solve it.
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub(crate) enum RowOrigin {
+    Argument {
+        at: hd_base::NodeIdx,
+        owner: hd_base::DefId,
+        index: Option<usize>,
+    },
+    Requirement {
+        at: hd_base::NodeIdx,
+        key: usize,
+        path: Vec<usize>,
+    },
+    Inherited(Ty),
+}
+
+pub(crate) struct RowSeed {
+    encoded: RowId,
+    vars: Vec<RowSeedVar>,
+    scopes: hd_base::HashMap<hd_base::DefId, usize>,
+}
+
+enum RowSeedVar {
+    Persistent(Ty),
+    Body(RowOrigin, hd_types::VarKind),
+}
+
 /// Whether the listed key `have` supplies the needed key `want`: the same
 /// key, or a key whose trait has `want`'s trait as a supertrait.
 pub(crate) fn key_supplies(
@@ -51,6 +80,54 @@ enum Need {
 }
 
 impl Ck<'_, '_> {
+    /// Reuse just the body variables that escaped into a recursive row.
+    /// Ordinary checking, with no row trial open, adds no bookkeeping.
+    pub(crate) fn row_argument_vars(&mut self, owner: hd_base::DefId, vars: &[Ty], n: NodeRef<'_>) {
+        if self.row_banks.is_empty() {
+            return;
+        }
+        for (index, &v) in vars.iter().enumerate() {
+            self.row_argument_var(owner, Some(index), v, n);
+        }
+    }
+
+    pub(crate) fn row_argument_self(&mut self, owner: hd_base::DefId, v: Ty, n: NodeRef<'_>) {
+        self.row_argument_var(owner, None, v, n);
+    }
+
+    fn row_argument_var(
+        &mut self,
+        owner: hd_base::DefId,
+        index: Option<usize>,
+        v: Ty,
+        n: NodeRef<'_>,
+    ) {
+        if self.row_banks.is_empty() {
+            return;
+        }
+        let origin = RowOrigin::Argument {
+            at: n.index(),
+            owner,
+            index,
+        };
+        self.row_source(v, origin);
+    }
+
+    fn row_source(&mut self, v: Ty, origin: RowOrigin) {
+        let pool = self.pool();
+        if let Some(&persistent) = self
+            .row_banks
+            .iter()
+            .rev()
+            .find_map(|bank| bank.get(&origin))
+        {
+            let snap = self.infer.snapshot();
+            if self.infer.unify(pool, persistent, v).is_err() {
+                self.infer.rollback(snap);
+            }
+        }
+        self.row_sources.push((v, origin));
+    }
     /// Whether the listed key `have` supplies the needed key `want`.
     fn key_supplies(&self, have: Ty, want: Ty) -> bool {
         key_supplies(self.cx.lookup, self.pool(), have, want)
@@ -84,10 +161,7 @@ impl Ck<'_, '_> {
     /// trial-unified and rolled back, deduplicated by the solutions they
     /// give the inference variables. Pure: callers commit afterwards.
     fn ambiguous_row_fit(&mut self, got_keys: &[Ty], want_keys: &[Ty]) -> bool {
-        let mut vars = Vec::new();
-        for k in got_keys.iter().chain(want_keys) {
-            self.collect_infer(*k, &mut vars, 0);
-        }
+        let vars = self.collect_infer(got_keys.iter().chain(want_keys).copied());
         if vars.is_empty() {
             return false;
         }
@@ -97,54 +171,179 @@ impl Ck<'_, '_> {
         solutions.len() >= 2
     }
 
-    /// The inference variables a key mentions, in first-seen order.
-    fn collect_infer(&self, t: Ty, vars: &mut Vec<Ty>, depth: u32) {
-        if depth > 32 || vars.contains(&t) {
-            return;
-        }
+    /// The inference variables mentioned by these types, in first-seen
+    /// order. Visit each type once; a captured aggregate may share large
+    /// type subtrees, and its variables need not be near the root.
+    fn collect_infer(&self, roots: impl IntoIterator<Item = Ty>) -> Vec<Ty> {
         let pool = self.pool();
-        match pool.get(t) {
-            TyData::Infer(_) => vars.push(t),
-            TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => {
-                for a in pool.list_items(args).iter().copied() {
-                    self.collect_infer(a, vars, depth + 1);
-                }
+        let mut work: Vec<_> = roots.into_iter().collect();
+        work.reverse();
+        let mut seen = hd_base::HashSet::default();
+        let mut vars = Vec::new();
+        while let Some(t) = work.pop() {
+            if !pool.has_infer(t) || !seen.insert(t) {
+                continue;
             }
-            TyData::Option(i) | TyData::Ref { inner: i, .. } => {
-                self.collect_infer(i, vars, depth + 1);
+            if matches!(pool.get(t), TyData::Infer(_)) {
+                vars.push(t);
+            }
+            let children = self.row_type_children(t);
+            work.extend(children.into_iter().rev());
+        }
+        vars
+    }
+
+    fn row_type_children(&self, t: Ty) -> Vec<Ty> {
+        let pool = self.pool();
+        let mut children = Vec::new();
+        match pool.get(t) {
+            TyData::Adt { args, .. } | TyData::Union(args) => {
+                children.extend_from_slice(pool.list_items(args));
             }
             TyData::Tuple { elems, rest } => {
-                for e in pool.list_items(elems).iter().copied().chain(rest) {
-                    self.collect_infer(e, vars, depth + 1);
-                }
+                children.extend_from_slice(pool.list_items(elems));
+                children.extend(rest);
             }
+            TyData::TraitValue { args, bindings, .. } => {
+                children.extend_from_slice(pool.list_items(args));
+                children.extend(bindings.into_iter().map(|(_, t)| t));
+            }
+            TyData::Opaque { args, bound, .. } => {
+                children.extend_from_slice(pool.list_items(args));
+                children.push(bound);
+            }
+            TyData::Option(i) | TyData::Ref { inner: i, .. } => children.push(i),
             TyData::Fn {
                 params,
                 result,
                 row,
                 ..
             } => {
-                for p in pool.list_items(params).iter().copied() {
-                    self.collect_infer(p, vars, depth + 1);
-                }
-                self.collect_infer(result, vars, depth + 1);
-                for k in pool.row_data(row).keys {
-                    self.collect_infer(k, vars, depth + 1);
-                }
+                children.extend_from_slice(pool.list_items(params));
+                children.push(result);
+                children.extend(pool.row_data(row).keys);
             }
-            TyData::Row(row) | TyData::Context(row) => {
-                for k in pool.row_data(row).keys {
-                    self.collect_infer(k, vars, depth + 1);
-                }
-            }
+            TyData::Row(row) | TyData::Context(row) => children.extend(pool.row_data(row).keys),
             TyData::Assoc { self_ty, args, .. } => {
-                self.collect_infer(self_ty, vars, depth + 1);
-                for a in pool.list_items(args).iter().copied() {
-                    self.collect_infer(a, vars, depth + 1);
-                }
+                children.push(self_ty);
+                children.extend_from_slice(pool.list_items(args));
             }
             _ => {}
         }
+        children
+    }
+
+    /// A row carried across a recursive closure body's rollback must
+    /// retain variables from its header, captures and requirement uses.
+    /// Union-find may have chosen a newer variable as their representative.
+    /// Encode those representatives as parameters, resolve the
+    /// row, then restore the original, persistent variables with subst.
+    pub(crate) fn recursive_row_seed(
+        &mut self,
+        row: RowId,
+        roots: &[Ty],
+        sources: usize,
+    ) -> RowSeed {
+        let pool = self.pool();
+        let row = self.infer.resolve_row(pool, row);
+        let vars = self.collect_infer(pool.row_data(row).keys);
+        if vars.is_empty() {
+            return RowSeed {
+                encoded: row,
+                vars: Vec::new(),
+                scopes: hd_base::HashMap::default(),
+            };
+        }
+        let persistent = self.collect_infer(roots.iter().copied());
+        let mut anchors = hd_base::HashMap::default();
+        for v in persistent {
+            if let Some(class) = self.infer.class_of(pool, v) {
+                anchors.entry(class).or_insert(v);
+            }
+        }
+        let mut origins = hd_base::HashMap::default();
+        for (v, origin) in &self.row_sources[sources..] {
+            if let Some(class) = self.infer.class_of(pool, *v) {
+                origins.entry(class).or_insert_with(|| origin.clone());
+            }
+        }
+        let originals: Vec<RowSeedVar> = vars
+            .iter()
+            .map(|&v| {
+                let class = self.infer.class_of(pool, v);
+                if let Some(&anchor) = class.and_then(|class| anchors.get(&class)) {
+                    RowSeedVar::Persistent(anchor)
+                } else if let Some(kind) = self.infer.kind_of(pool, v) {
+                    let origin = class
+                        .and_then(|class| origins.get(&class))
+                        .cloned()
+                        .unwrap_or(RowOrigin::Inherited(v));
+                    RowSeedVar::Body(origin, kind)
+                } else {
+                    RowSeedVar::Persistent(self.infer.resolve(pool, v))
+                }
+            })
+            .collect();
+        let mut owner = hd_base::DefId::NONE;
+        let mut scopes = hd_base::HashMap::default();
+        let snap = self.infer.snapshot();
+        for ((i, &v), index) in vars.iter().enumerate().zip((0..=u16::MAX).cycle()) {
+            // A parameter index is u16; additional parameter owners keep
+            // that representation from limiting the number of row keys.
+            if i > 0 && index == 0 {
+                owner = self.cx.names.member(
+                    self.gen_owner,
+                    hd_intern::PathKind::Hidden,
+                    &format!("$row-proxy-{}", scopes.len()),
+                );
+                scopes.insert(owner, i);
+            }
+            let p = hd_types::ParamRef { owner, index };
+            self.infer
+                .rebind(pool, v, pool.intern_ty(&TyData::Param(p)));
+        }
+        let encoded = self.infer.resolve_row(pool, row);
+        self.infer.rollback(snap);
+        RowSeed {
+            encoded,
+            vars: originals,
+            scopes,
+        }
+    }
+
+    /// Allocate promoted variables after rollback, before the next body
+    /// checkpoint. Their source arguments meet the same variables on the
+    /// next pass, even when no surrounding context has solved them yet.
+    pub(crate) fn restore_row_seed(&mut self, seed: RowSeed, bank: usize) -> RowId {
+        let pool = self.pool();
+        let originals: Vec<_> = seed
+            .vars
+            .into_iter()
+            .map(|v| match v {
+                RowSeedVar::Persistent(t) => t,
+                RowSeedVar::Body(origin, kind) => {
+                    if let Some(&v) = self
+                        .row_banks
+                        .iter()
+                        .rev()
+                        .find_map(|bank| bank.get(&origin))
+                    {
+                        return v;
+                    }
+                    let v = self.infer.fresh(pool, kind);
+                    self.row_banks[bank].insert(origin, v);
+                    v
+                }
+            })
+            .collect();
+        pool.subst_row(seed.encoded, &|p| {
+            let base = if p.owner == hd_base::DefId::NONE {
+                0
+            } else {
+                *seed.scopes.get(&p.owner)?
+            };
+            originals.get(base + usize::from(p.index)).copied()
+        })
     }
 
     /// Counts distinct solutions for matching `got[index..]` against the
@@ -354,7 +553,7 @@ impl Ck<'_, '_> {
 
     /// Finds `need` in the available-keys stack (`req.row.entail`); a
     /// closure that infers its row takes the key into it instead.
-    fn available(&mut self, need: Need) -> bool {
+    fn available(&mut self, need: Need, n: NodeRef<'_>) -> bool {
         for i in (0..self.rows.len()).rev() {
             let supplied = match &self.rows[i] {
                 RowFrame::With(r) => {
@@ -386,6 +585,37 @@ impl Ck<'_, '_> {
                     written: Some(r), ..
                 } => self.row_supplies(*r, need),
                 RowFrame::Closure { written: None, .. } | RowFrame::Inferred { .. } => {
+                    if let Need::Key(k) = need
+                        && (!self.row_banks.is_empty() || crate::results::rechecking_rows(self.cx))
+                        && crate::results::depth(self.pool(), k, 0) > crate::results::MAX_KEY_DEPTH
+                    {
+                        // A generic local call's instantiation is the
+                        // callee expression, as in inst_cycles' TIR edge.
+                        // Use that same site so it retains this one report.
+                        let at = if n.kind() == SyntaxKind::CallExpr {
+                            n.children()
+                                .next()
+                                .map(crate::elem_refs::strip_parens)
+                                .filter(|callee| {
+                                    callee.kind() == SyntaxKind::TypeArgsExpr
+                                        && callee.children().next().is_some_and(|base| {
+                                            base.kind() == SyntaxKind::NameExpr
+                                                && self.find_local(self.sym_of(base)).is_some_and(
+                                                    |(l, _)| self.local_generics.contains_key(&l),
+                                                )
+                                        })
+                                })
+                                .unwrap_or(n)
+                        } else {
+                            n
+                        };
+                        self.err(
+                            Code::InstantiationTooDeep,
+                            at,
+                            "this recursive call grows an inferred requirement key past the instantiation depth limit; write the function's `$` clause",
+                        );
+                        return true;
+                    }
                     if let RowFrame::Closure { used, .. } | RowFrame::Inferred { used, .. } =
                         &mut self.rows[i]
                     {
@@ -429,8 +659,38 @@ impl Ck<'_, '_> {
 
     /// A key the body uses must be available (`req.row.set.call`):
     /// `missing-requirement` otherwise.
-    pub(crate) fn require_key(&mut self, key: Ty, n: NodeRef<'_>) {
-        if !self.available(Need::Key(key)) {
+    pub(crate) fn require_key(&mut self, key: Ty, n: NodeRef<'_>, source: NodeRef<'_>) {
+        self.require_key_at(key, n, source, 0);
+    }
+
+    fn require_key_at(&mut self, key: Ty, n: NodeRef<'_>, source: NodeRef<'_>, slot: usize) {
+        if !self.row_banks.is_empty() {
+            let pool = self.pool();
+            let mut work = vec![(self.infer.resolve(pool, key), Vec::new())];
+            let mut seen = hd_base::HashSet::default();
+            while let Some((t, path)) = work.pop() {
+                if !pool.has_infer(t) || !seen.insert(t) {
+                    continue;
+                }
+                if matches!(pool.get(t), TyData::Infer(_)) {
+                    self.row_source(
+                        t,
+                        RowOrigin::Requirement {
+                            at: source.index(),
+                            key: slot,
+                            path,
+                        },
+                    );
+                } else {
+                    for (index, child) in self.row_type_children(t).into_iter().enumerate().rev() {
+                        let mut path = path.clone();
+                        path.push(index);
+                        work.push((child, path));
+                    }
+                }
+            }
+        }
+        if !self.available(Need::Key(key), n) {
             let shown = hd_resolve::show_ty_in(&self.cx.names, self.pool(), key);
             // `module.testing.unit-row.test-runner`,
             // `module.testing.integration-row.unbound.error`.
@@ -512,8 +772,8 @@ impl Ck<'_, '_> {
             .map(|k| (hd_resolve::show_ty_in(&self.cx.names, self.pool(), k), k))
             .collect();
         keys.sort_stable_by(|a, b| a.0.cmp(&b.0));
-        for (_, k) in keys {
-            self.require_key(k, n);
+        for (slot, (_, k)) in keys.into_iter().enumerate() {
+            self.require_key_at(k, n, n, slot);
         }
         let gens = self.row_gens.clone();
         let name_of = |p: &RowParamRef| {
@@ -528,7 +788,7 @@ impl Ck<'_, '_> {
             if !self.row_gens.iter().any(|(_, g)| *g == p) {
                 continue;
             }
-            if !self.available(Need::Param(p)) {
+            if !self.available(Need::Param(p), n) {
                 let name = self
                     .row_gens
                     .iter()
@@ -611,13 +871,9 @@ impl Ck<'_, '_> {
                 n,
                 "these requirement keys fit two ways; write the type arguments explicitly",
             );
-            for k in g.keys.iter().chain(&w.keys) {
-                let mut vars = Vec::new();
-                self.collect_infer(*k, &mut vars, 0);
-                for v in vars {
-                    self.infer
-                        .rebind(pool, self.infer.shallow(pool, v), Ty::POISON);
-                }
+            for v in self.collect_infer(g.keys.iter().chain(&w.keys).copied()) {
+                self.infer
+                    .rebind(pool, self.infer.shallow(pool, v), Ty::POISON);
             }
             return;
         }
@@ -734,7 +990,7 @@ impl Ck<'_, '_> {
         (owner, owner_args): (hd_base::DefId, &[Ty]),
         vars: &[Ty],
         n: NodeRef<'_>,
-    ) -> hd_base::StageResult<()> {
+    ) {
         let pool = self.pool();
         let row = self.call_row(method, sig, vars, 0);
         let row = pool.subst_row(row, &|p| {
@@ -744,7 +1000,7 @@ impl Ck<'_, '_> {
         });
         let row = self.infer.resolve_row(pool, row);
         let args = vec![(method, vars.to_vec()), (owner, owner_args.to_vec())];
-        self.callee_row(method, row, args, n)
+        self.callee_row(method, row, args, n);
     }
 
     /// The row a call of `callee` needs, `row` as its signature shows it
@@ -761,17 +1017,17 @@ impl Ck<'_, '_> {
         row: RowId,
         args: Vec<(hd_base::DefId, Vec<Ty>)>,
         n: NodeRef<'_>,
-    ) -> hd_base::StageResult<()> {
+    ) {
         if !crate::results::row_open(self.cx, callee) {
             self.check_row(row, n);
-            return Ok(());
+            return;
         }
         let pool = self.pool();
         let mut minus = Vec::new();
         for i in (0..self.rows.len()).rev() {
             match &mut self.rows[i] {
                 RowFrame::With(r) => minus.extend(pool.row_data(*r).keys),
-                RowFrame::Any => return Ok(()),
+                RowFrame::Any => return,
                 RowFrame::Inferred { edges, .. } => {
                     edges.push(RowEdge {
                         callee,
@@ -780,7 +1036,7 @@ impl Ck<'_, '_> {
                         at: n.index(),
                     });
                     self.log_undo(BodyUndo::RowEdge(i));
-                    return Ok(());
+                    return;
                 }
                 RowFrame::Declared(r) => {
                     let row = *r;
@@ -791,17 +1047,13 @@ impl Ck<'_, '_> {
                         at: n.index(),
                     };
                     self.row_waits.push((edge, row));
-                    return Ok(());
+                    return;
                 }
                 RowFrame::Closure { .. } | RowFrame::Profile { .. } => break,
             }
         }
-        let Some(solved) = crate::results::row_now(self.cx, callee) else {
-            return self.gap(
-                n,
-                "a closure calling a private function of its recursive group, whose row is still inferred",
-            );
-        };
+        // This path has an omitted clause; its written row is empty.
+        let solved = crate::results::row_now(self.cx, callee, RowId::EMPTY);
         let row = pool.subst_row(solved, &|p| {
             args.iter()
                 .find(|(o, _)| *o == p.owner)
@@ -809,7 +1061,6 @@ impl Ck<'_, '_> {
         });
         let row = self.infer.resolve_row(pool, row);
         self.check_row(row, n);
-        Ok(())
     }
 
     /// The body's row facts at its end, with their types resolved: the
@@ -836,6 +1087,7 @@ impl Ck<'_, '_> {
         RowFacts {
             used: hd_types::RowData { keys, params },
             edges,
+            fuel_left: Some(self.fuel.left()),
         }
     }
 

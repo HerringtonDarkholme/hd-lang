@@ -22,7 +22,7 @@ use hd_tir::ir::{
 use hd_types::solver::TraitRef;
 use hd_types::{Inputs, ParamRef, Prim, RowId, Ty, TyData, VarKind, with_assoc_args};
 
-use crate::body::{Ck, supertrait_args, unsupported};
+use crate::body::{Ck, supertrait_args};
 use crate::call::{Hit, subst_owner};
 use crate::ty::Named;
 
@@ -165,14 +165,14 @@ impl Ck<'_, '_> {
                     }
                     Some(HeadKind::Enum | HeadKind::Alias)
                         if {
-                            let et = self.ctor(def, &explicit)?;
+                            let et = self.ctor(def, &explicit, n)?;
                             self.variant_fields(et, &name).is_some()
                         } =>
                     {
                         return self.gap(n, "a variant constructor used as a value");
                     }
                     Some(k) if k.is_type() => {
-                        let t = self.ctor(def, &explicit)?;
+                        let t = self.ctor(def, &explicit, n)?;
                         return self.type_ref(t, &name, method_targs, want, n);
                     }
                     _ => {}
@@ -564,20 +564,9 @@ impl Ck<'_, '_> {
 
     fn member_fn_ty(&mut self, m: &Member, skip: usize) -> StageResult<Ty> {
         let pool = self.pool();
-        // The function type carries the row: a private callable's omitted
-        // row is solved first, which a member of this body's recursive
-        // group is not yet.
-        let mut row = m.sig.row;
-        if crate::results::row_open(self.cx, m.def) {
-            match crate::results::row_now(self.cx, m.def) {
-                Some(r) => row = r,
-                None => {
-                    return unsupported(
-                        "a function value of a private function of its recursive group, whose row is still inferred",
-                    );
-                }
-            }
-        }
+        // A function value carries the current row. M1 records this
+        // signature read and rechecks the body if that row grows.
+        let row = crate::results::row_now(self.cx, m.def, m.sig.row);
         let mut params = Vec::with_capacity(m.sig.params.len());
         for p in m.sig.params.iter().skip(skip) {
             params.push(self.normalize_deep(inst(pool, m, p.1))?);
@@ -676,16 +665,22 @@ impl Ck<'_, '_> {
     /// Records the reference's type variables, decided at the end of the
     /// statement (`fn.type.generic.default`, `fn.type.generic.unsolved`).
     fn open_ref_params(&mut self, m: &Member, n: NodeRef<'_>) {
+        self.row_argument_vars(m.def, &m.vars, n);
         let pool = self.pool();
         let empty_row = pool.intern_ty(&TyData::Row(RowId::EMPTY));
         match &m.owner {
             Owner::Item => {}
-            Owner::Impl { args, .. } => {
+            Owner::Impl { def, args } => {
+                self.row_argument_vars(*def, args, n);
                 for a in args {
                     self.ref_params.push((*a, None, n.index()));
                 }
             }
-            Owner::Trait { self_ty, args, .. } => {
+            Owner::Trait {
+                def, self_ty, args, ..
+            } => {
+                self.row_argument_vars(*def, args, n);
+                self.row_argument_self(*def, *self_ty, n);
                 self.ref_params.push((*self_ty, None, n.index()));
                 for a in args {
                     self.ref_params.push((*a, None, n.index()));

@@ -389,6 +389,7 @@ impl Ck<'_, '_> {
             }
         }
         let (r, mut t) = self.literal_tok(first, strip)?;
+        self.row_argument_vars(DefId::NONE, &[t], n);
         if let Some(fixed) = primitive {
             self.expect(t, fixed, n, "literal", ExpectPosition::General);
             t = fixed;
@@ -2331,7 +2332,7 @@ impl Ck<'_, '_> {
         let crt = self.b.ty_of(c);
         let (v, _) = self.trait_call_args(tr, "partial_cmp", a, at, &[(c, crt, rn)], n)?;
         // `std.cmp.PartialOrd.partial_cmp` returns `Ordering?`.
-        let ord_ty = self.ctor(self.cx.names.known.ordering, &[])?;
+        let ord_ty = self.ctor(self.cx.names.known.ordering, &[], n)?;
         // None is unordered, so every relational operator returns false.
         // In Some, <= excludes Greater and >= excludes Less. Ordinary
         // variant tests preserve the representation selected by the backend.
@@ -3106,6 +3107,7 @@ impl Ck<'_, '_> {
         let inferred = elem.is_none();
         let mut pending = None;
         let result = self.join_site(elem, |this, elem| {
+            this.row_argument_vars(list, &[elem], n);
             let mut refs = Vec::new();
             let mut spreads = Vec::new();
             for (k, e) in kids.iter().enumerate() {
@@ -3333,6 +3335,7 @@ impl Ck<'_, '_> {
         // `types.lct.sites`: the keys join, and so do the values.
         self.join_site(kw, |this, k| {
             this.join_site(vw, |this, v| {
+                this.row_argument_vars(map, &[k, v], n);
                 let mut refs = Vec::new();
                 for e in kids {
                     let [ke, ve] = e.parts();
@@ -3421,6 +3424,7 @@ impl Ck<'_, '_> {
                 self.infer.fresh(pool, VarKind::General)
             });
         }
+        self.row_argument_vars(def, &targs, n);
         // An expected type of the same declaration solves the inferred
         // arguments first, so a field sees its substituted type.
         if let Some(w) = want
@@ -4689,6 +4693,7 @@ impl Ck<'_, '_> {
             };
             (list, a)
         };
+        self.row_argument_vars(def, &args, n);
         let t = pool.intern_ty(&TyData::Adt {
             def,
             args: pool.list(&args),
@@ -4867,12 +4872,13 @@ impl Ck<'_, '_> {
         // Expected inputs of an arity not known here give no parameter
         // its type (`fn.type.ctor.inputs`).
         let poisoned = want.is_some_and(|w| self.infer.resolve(pool, w) == Ty::POISON);
-        let (wparams, wret, wdeps) = match wanted {
+        let (wparams, wret, wdeps, wrow) = match wanted {
             Some(TyData::Fn {
                 params,
                 result,
                 inputs,
                 deps,
+                row,
                 ..
             }) => {
                 let ps = if inputs == hd_types::Inputs::Tuple {
@@ -4880,18 +4886,18 @@ impl Ck<'_, '_> {
                 } else {
                     pool.list_items(params).to_vec()
                 };
-                (ps, Some(result), deps)
+                (ps, Some(result), deps, Some(row))
             }
-            _ => (vec![], None, hd_types::FnDeps::NONE),
+            _ => (vec![], None, hd_types::FnDeps::NONE, None),
         };
         // `types.lct.sites`: a closure whose result type is inferred joins
         // its final value and `return` operands, and widens in place when
         // an optional one follows plain ones (`join_site`).
         if parts.ret.is_some() {
-            return self.closure_body(n, parts, (&wparams, poisoned, wdeps), None);
+            return self.closure_body(n, parts, (&wparams, poisoned, wdeps, wrow), None);
         }
         self.join_site(wret, |this, ret| {
-            this.closure_body(n, parts, (&wparams, poisoned, wdeps), Some(ret))
+            this.closure_body(n, parts, (&wparams, poisoned, wdeps, wrow), Some(ret))
         })
     }
 
@@ -4901,7 +4907,7 @@ impl Ck<'_, '_> {
         &mut self,
         n: NodeRef<'_>,
         parts: &ClosureParts<'_>,
-        (wparams, poisoned, wdeps): (&[Ty], bool, hd_types::FnDeps),
+        (wparams, poisoned, wdeps, wrow): (&[Ty], bool, hd_types::FnDeps, Option<hd_types::RowId>),
         ret: Option<Ty>,
     ) -> StageResult<(Ref, Ty, Option<hd_base::LocalId>)> {
         let pool = self.pool();
@@ -5011,7 +5017,7 @@ impl Ck<'_, '_> {
             None => None,
         };
         // The name's type before the body: the written row, or none yet.
-        let own_row = written.unwrap_or(hd_types::RowId::EMPTY);
+        let mut own_row = written.unwrap_or(hd_types::RowId::EMPTY);
         let deps = self.closure_deps(&ptys, public_ret, wdeps, n);
         let own = parts.name.map(|name| {
             let t = pool.intern_ty(&TyData::Fn {
@@ -5036,90 +5042,145 @@ impl Ck<'_, '_> {
             self.scopes[at].insert(name, l);
             l
         });
-        let mark = self.b.open_sub(&params);
-        // A generic local function's name: what its uses instantiate, over
-        // its type so far (the written result and row), for a recursive
-        // call in its body.
-        if let (Some(l), Some(g)) = (own, &parts.generic) {
-            let mut g = g.clone();
-            g.sub = mark.sub().raw();
-            g.fn_ty = self.b.local_ty(l);
-            g.open = true;
-            self.local_generics.insert(l, g);
+        let infer_recursive_row = own.is_some() && written.is_none();
+        let source_base = self.row_sources.len();
+        let bank = self.row_banks.len();
+        if infer_recursive_row {
+            self.row_banks.push(HashMap::default());
         }
-        self.subs.push(OpenSub {
-            mark,
-            depth: self.scopes.len() - 1,
-            writes: None,
-        });
-        self.rets.push(ret);
-        self.rows.push(crate::body::RowFrame::Closure {
-            written,
-            used: hd_types::RowData::default(),
-        });
-        self.suspends.push(suspends);
-        let saved_loops = std::mem::take(&mut self.loops);
-        let blk = self.b.open_block();
-        let e = parts.body;
-        let (tail, _) = if e.kind() == SyntaxKind::Block {
-            self.block_value(e, Some(ret))?
-        } else {
-            let (r, t) = self.expr(e, Some(ret))?;
-            (
-                Some(self.coerce(r, t, ret, e, "result", ExpectPosition::General)),
-                ret,
-            )
-        };
-        if opaque.is_some() {
-            self.check_opaque_occurrences(occurrences, n)?;
-            self.strict_rets.truncate(strict_before);
-        }
-        let root = self.b.close_block(blk, tail, ret, n.index());
-        self.loops = saved_loops;
-        let row = match self.rows.pop() {
-            Some(crate::body::RowFrame::Closure {
-                written: Some(r), ..
-            }) => r,
-            Some(crate::body::RowFrame::Closure { used, .. }) => pool.row(&used),
-            _ => hd_types::RowId::EMPTY,
-        };
-        self.rets.pop();
-        self.suspends.pop();
-        if let Some(l) = self.subs.pop().and_then(|s| s.writes) {
-            self.closure_writes.insert(n.index(), l);
-        }
-        self.scopes.pop();
-        // An inferred result is known only now.
-        let deps = if deps == hd_types::FnDeps::NONE {
-            self.closure_deps(&ptys, public_ret, wdeps, n)
-        } else {
-            deps
-        };
-        let ft = pool.intern_ty(&TyData::Fn {
-            params: pool.list(&ptys),
-            result: public_ret,
-            row,
-            suspends,
-            inputs: hd_types::Inputs::Fixed,
-            deps,
-        });
-        // A local function that calls itself captures its own name: the
-        // name is declared, a fresh shared cell, before the closure exists,
-        // and set once it does (`fn.local.capture-rules`).
-        if let Some(l) = own
-            && self.b.body_mut().local_flags[l.idx()] & local_flags::CAPTURED != 0
-        {
-            if row != own_row {
-                return unsupported(
-                    "a recursive local function whose requirements are inferred; write its `$` clause",
-                );
+        loop {
+            // The header and its variables remain alive across row passes.
+            // Only the current closure body is rolled back when its row grows.
+            if let Some(l) = own {
+                let t = pool.intern_ty(&TyData::Fn {
+                    params: pool.list(&ptys),
+                    result: public_ret,
+                    row: own_row,
+                    suspends,
+                    inputs: hd_types::Inputs::Fixed,
+                    deps,
+                });
+                self.b.body_mut().local_ty[l.idx()] = t;
             }
-            self.set_local(l, Ref(NONE), n.index());
-            self.add_flags(l, local_flags::CAPTURED_ASSIGNED);
+            let cp = (own.is_some() && written.is_none()).then(|| self.checkpoint());
+            let sources = self.row_sources.len();
+            let mark = self.b.open_sub(&params);
+            // A generic local function's name: what its uses instantiate, over
+            // its type so far (the written result and row), for a recursive
+            // call in its body.
+            if let (Some(l), Some(g)) = (own, &parts.generic) {
+                let mut g = g.clone();
+                g.sub = mark.sub().raw();
+                g.fn_ty = self.b.local_ty(l);
+                g.open = true;
+                self.local_generics.insert(l, g);
+            }
+            self.subs.push(OpenSub {
+                mark,
+                depth: self.scopes.len() - 1,
+                writes: None,
+            });
+            self.rets.push(ret);
+            self.rows.push(crate::body::RowFrame::Closure {
+                written,
+                used: hd_types::RowData::default(),
+            });
+            self.suspends.push(suspends);
+            let saved_loops = std::mem::take(&mut self.loops);
+            let blk = self.b.open_block();
+            let e = parts.body;
+            let (tail, _) = if e.kind() == SyntaxKind::Block {
+                self.block_value(e, Some(ret))?
+            } else {
+                let (r, t) = self.expr(e, Some(ret))?;
+                (
+                    Some(self.coerce(r, t, ret, e, "result", ExpectPosition::General)),
+                    ret,
+                )
+            };
+            if opaque.is_some() {
+                self.check_opaque_occurrences(occurrences.clone(), n)?;
+            }
+            let root = self.b.close_block(blk, tail, ret, n.index());
+            self.loops = saved_loops;
+            let row = match self.rows.pop() {
+                Some(crate::body::RowFrame::Closure {
+                    written: Some(r), ..
+                }) => r,
+                Some(crate::body::RowFrame::Closure { used, .. }) => pool.row(&used),
+                _ => hd_types::RowId::EMPTY,
+            };
+            self.rets.pop();
+            self.suspends.pop();
+            if let Some(l) = self.subs.pop().and_then(|s| s.writes) {
+                self.closure_writes.insert(n.index(), l);
+            }
+            // An inferred result is known only now.
+            let deps = if deps == hd_types::FnDeps::NONE {
+                self.closure_deps(&ptys, public_ret, wdeps, n)
+            } else {
+                deps
+            };
+            let ft = pool.intern_ty(&TyData::Fn {
+                params: pool.list(&ptys),
+                result: public_ret,
+                row,
+                suspends,
+                inputs: hd_types::Inputs::Fixed,
+                deps,
+            });
+            // A local function that calls itself captures its own name: the
+            // name is declared, a fresh shared cell, before the closure exists,
+            // and set once it does (`fn.local.capture-rules`).
+            if let Some(l) = own
+                && self.b.body_mut().local_flags[l.idx()] & local_flags::CAPTURED != 0
+            {
+                self.set_local(l, Ref(NONE), n.index());
+                self.add_flags(l, local_flags::CAPTURED_ASSIGNED);
+            }
+            let scoped = self.local_capture_argument == Some(n.index());
+            self.local_ref_captures(mark, n, scoped);
+            let r = self.b.close_sub(mark, root, ft, n.index());
+            let recursive = own.is_some_and(|l| {
+                self.b.body().local_flags[l.idx()] & local_flags::CAPTURED != 0
+                    || self.local_generics.get(&l).is_some_and(|g| g.recursive)
+            });
+            if let Some(cp) = cp {
+                if recursive && !self.rows_equal(row, own_row) {
+                    // The expected row may determine a generic key before
+                    // the next body pass. The ordinary coercion checks it
+                    // again once the closure's type is final.
+                    if let Some(wrow) = wrow {
+                        let mark = self.diags.mark();
+                        self.fit_row(row, wrow, n, "closure");
+                        self.diags.truncate(mark);
+                    }
+                    if !self.rows_equal(row, own_row) {
+                        let mut roots = ptys.clone();
+                        roots.push(public_ret);
+                        roots.push(ret);
+                        roots.extend(wrow.map(|row| pool.intern_ty(&TyData::Row(row))));
+                        roots.extend(self.closure_caps(r).into_iter().map(|l| self.b.local_ty(l)));
+                        let seed = self.recursive_row_seed(row, &roots, sources);
+                        self.rollback(cp);
+                        own_row = self.restore_row_seed(seed, bank);
+                        continue;
+                    }
+                }
+                self.commit(cp);
+            }
+            if opaque.is_some() {
+                self.strict_rets.truncate(strict_before);
+            }
+            if infer_recursive_row {
+                self.row_banks.pop();
+                if self.row_banks.is_empty() {
+                    self.row_sources.truncate(source_base);
+                }
+            }
+            self.scopes.pop();
+            return Ok((r, ft, own));
         }
-        let scoped = self.local_capture_argument == Some(n.index());
-        self.local_ref_captures(mark, n, scoped);
-        Ok((self.b.close_sub(mark, root, ft, n.index()), ft, own))
     }
 
     /// A closure's dependency map (`fn.closure.lifetime`): the expected
@@ -5610,7 +5671,7 @@ impl Ck<'_, '_> {
         let Some((key, key_trait)) = self.key_node(kn)? else {
             return Ok((Ref(NONE), Ty::POISON));
         };
-        self.require_key(key, n);
+        self.require_key(key, n, kn);
         let at = self.b.refs_record(&[Ref(key.0)]);
         let (pt, by_ref) = self.provider_ty(key, key_trait, counted);
         if by_ref {

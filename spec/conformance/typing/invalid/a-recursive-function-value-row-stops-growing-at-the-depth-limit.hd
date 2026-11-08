@@ -1,0 +1,11 @@
+# test: polymorphic recursion through a function value has the same row depth limit
+# Spec 04 Generic Instantiation: types.generic.instantiation-depth.error.
+
+trait Repo[T]:
+    fn count(self) -> i32
+
+fn grow[T](n: i32) -> i32:
+    if n == 0:
+        return $.use(Repo[T]).count()
+    next := grow::[List[T]]
+    next(n - 1) # diagnostic: instantiation-too-deep

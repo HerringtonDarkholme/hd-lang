@@ -1,0 +1,10 @@
+# test: retrying an inferred row retains the final body's capture diagnostic
+# Spec 13 Static Bounds: ref.generic.static.capture.
+
+fn outer[T](value: T) -> void $ Console:
+    fn local(n: i32) -> void: # diagnostic: local-reference-escapes
+        println(n)
+        _ := value
+        if n > 0:
+            local(n - 1)
+    local(0)

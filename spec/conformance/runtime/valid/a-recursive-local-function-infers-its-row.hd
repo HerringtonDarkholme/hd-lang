@@ -1,0 +1,22 @@
+# test: recursive local functions infer the requirements used by their bodies
+# Spec 11 Omitted Requirement Clauses: req.row.omitted.inferred-private, req.row.omitted.cycle.
+# Spec 07 Local Functions: fn.local.capture-rules.
+# expect-stdout: local 3
+# expect-stdout: local 2
+# expect-stdout: local 1
+# expect-stdout: generic 2
+# expect-stdout: generic 1
+
+pub fn main() -> void $ Console:
+    label := "local"
+    fn count(n: i32) -> void:
+        if n > 0:
+            println("$label $n")
+            count(n - 1)
+    count(3)
+
+    fn generic[T < Display](tag: T, n: i32) -> void:
+        if n > 0:
+            println("$tag $n")
+            generic(tag, n - 1)
+    generic("generic", 2)

@@ -1,0 +1,26 @@
+# test: a recursive inferred row preserves captured inference variables across passes
+# Spec 11 Omitted Requirement Clauses: req.row.omitted.inferred-private.
+# expect-stdout: captured
+# expect-stdout: captured
+
+trait Repo[T]:
+    fn name(self) -> string
+
+struct Source: pass
+
+impl Repo[i32] for Source:
+    fn name(self) -> string:
+        "captured"
+
+fn inspect[T](values: List[T]) -> string $ Repo[T]:
+    $.use(Repo[T]).name()
+
+pub fn main() -> void $ Console:
+    let mut values = []
+    fn count(n: i32) -> void:
+        println(inspect(values))
+        if n > 0:
+            count(n - 1)
+    values.push(+1)
+    $.with(Repo[i32]=Source {}):
+        count(1)

@@ -68,6 +68,24 @@ fn a_long_body_is_too_complex_on_its_item() {
 }
 
 #[test]
+fn inferred_row_rechecks_spend_one_item_budget() {
+    let source = format!(
+        "fn recur(n: i32) -> void:\n    _ := {}\n    if n > 0:\n        next := recur\n        next(n - 1)\n    println(n)\n\npub fn main() -> void $ Console:\n    recur(0)\n",
+        long_sum(200)
+    );
+    // One body pass fits. The inferred row needs another pass to give
+    // the recursive function value its Console requirement; that pass
+    // must spend the same budget, rather than start it over.
+    let written = source.replace(
+        "fn recur(n: i32) -> void:",
+        "fn recur(n: i32) -> void $ Console:",
+    );
+    assert_eq!(diags(&written, Some(512)), vec![]);
+    assert_eq!(diags(&source, Some(512)), vec![(Code::ItemTooComplex, 1)]);
+    assert_eq!(diags(&source, None), vec![]);
+}
+
+#[test]
 fn earlier_diagnostics_stay() {
     let main = format!(
         "fn big() -> i32:\n    let x: i32 = true\n    {}\n\npub fn main() -> void:\n    pass\n",

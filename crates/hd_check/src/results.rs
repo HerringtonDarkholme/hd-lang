@@ -20,6 +20,7 @@
 
 use hd_base::HashMap;
 use hd_base::SliceSort as _;
+use std::collections::VecDeque;
 
 use hd_base::{DefId, NodeIdx, StageResult};
 use hd_diag::{Code, DiagBuf};
@@ -33,7 +34,7 @@ use crate::body::{BodyCx, Ck, Infer, check_fn_body};
 /// The instantiation depth limit (spec 04
 /// `types.generic.instantiation-depth`; `crates/hd_tir/DESIGN.md` §4.15): a row
 /// key nested deeper comes from polymorphic recursion and stops the solve.
-const MAX_KEY_DEPTH: u32 = 32;
+pub(crate) const MAX_KEY_DEPTH: u32 = 32;
 
 enum State {
     /// Not checked yet: its declaration.
@@ -55,6 +56,8 @@ struct Omits {
     row: bool,
     /// The callable's declaration.
     at: NodeIdx,
+    /// Source order, indexed once when the declaration is registered.
+    position: usize,
 }
 
 /// A call of a private callable whose row is still open, from the body of
@@ -75,6 +78,7 @@ pub(crate) struct RowEdge {
 pub(crate) struct RowFacts {
     pub used: RowData,
     pub edges: Vec<RowEdge>,
+    pub fuel_left: Option<u64>,
 }
 
 /// An omitted row after its body is checked.
@@ -94,6 +98,16 @@ pub struct Results {
     state: HashMap<DefId, State>,
     omits: HashMap<DefId, Omits>,
     rows: HashMap<DefId, RowState>,
+    /// Signature dependencies recorded by checking, including reads that
+    /// materialize a function value. A solved row can still be a current
+    /// approximation when its body read another unfinished signature.
+    readers: HashMap<DefId, hd_base::HashSet<DefId>>,
+    dirty: VecDeque<DefId>,
+    queued: hd_base::HashSet<DefId>,
+    rechecking: bool,
+    returns: HashMap<DefId, Ty>,
+    /// Rechecking a body spends the remainder of its existing work budget.
+    remaining: HashMap<DefId, u64>,
     /// Written rows' calls of open rows: the caller, the edge, its row.
     waits: Vec<(DefId, RowEdge, RowId)>,
     /// The callables in source order.
@@ -103,18 +117,21 @@ pub struct Results {
     /// The `recursive-function-needs-result-type` reports, and those of
     /// the module's top-level statements' calls of open rows.
     module_diags: DiagBuf,
-    reported: Vec<DefId>,
+    reported: hd_base::HashSet<DefId>,
     /// The callables a template named without a declared result type,
     /// each reported once (`module.package.template-private.result`).
     template_named: Vec<DefId>,
     /// The templates with a method that calls `walk`, `describe` or
     /// `build` of `Structure` (`annot.template.body`).
     structure_reads: hd_base::HashSet<DefId>,
-    /// Whether a body with an inferred result or a cycle reported an error.
+    /// A result-type cycle or a poisoned module initialization read.
     errors: bool,
-    /// How many rows are `RowState::Waiting`, so a check that leaves none
-    /// waiting solves nothing without a sweep.
-    waiting: usize,
+    /// Inferred-result diagnostics belong to the current body, not a
+    /// discarded row approximation. Rechecking can remove these errors.
+    body_errors: hd_base::HashSet<DefId>,
+    /// The unresolved rows. Solving visits this set, without sweeping
+    /// unrelated callables that have already finished.
+    waiting: hd_base::HashSet<DefId>,
     /// In a forked context: how many of `template_named` it was forked
     /// with ([`crate::fork`]).
     named_base: usize,
@@ -134,11 +151,17 @@ enum RowSeen {
     Open,
 }
 
+/// An unfinished row's approximation is empty. Solving it to empty adds
+/// no signature information and must not make its readers start over.
+fn row_changed(before: Option<RowId>, after: Option<RowId>) -> bool {
+    before.unwrap_or(RowId::EMPTY) != after.unwrap_or(RowId::EMPTY)
+}
+
 impl Results {
     /// A copy for a forked context, taken after M1: every callable is
     /// done, so no body is copied, and nothing waits.
     pub(crate) fn fork(&self) -> Results {
-        debug_assert!(self.waits.is_empty() && self.active.is_empty());
+        debug_assert!(self.waits.is_empty() && self.active.is_empty() && self.dirty.is_empty());
         let state = self
             .state
             .iter()
@@ -158,15 +181,22 @@ impl Results {
             state,
             omits: self.omits.clone(),
             rows: self.rows.clone(),
+            readers: HashMap::default(),
+            dirty: VecDeque::new(),
+            queued: hd_base::HashSet::default(),
+            rechecking: false,
+            returns: HashMap::default(),
+            remaining: HashMap::default(),
             waits: Vec::new(),
             order: self.order.clone(),
             active: Vec::new(),
             module_diags: DiagBuf::default(),
-            reported: self.reported.clone(),
+            reported: hd_base::HashSet::default(),
             template_named: self.template_named.clone(),
             structure_reads: hd_base::HashSet::default(),
-            errors: self.errors,
-            waiting: self.waiting,
+            errors: self.has_errors(),
+            body_errors: hd_base::HashSet::default(),
+            waiting: self.waiting.clone(),
             named_base: self.template_named.len(),
         }
     }
@@ -194,7 +224,11 @@ impl Results {
     /// a body whose types hold poison from it adds no `cannot-infer-type`.
     #[must_use]
     pub fn has_errors(&self) -> bool {
-        self.errors
+        let own = self
+            .active
+            .last()
+            .is_some_and(|def| self.body_errors.contains(def));
+        self.errors || self.body_errors.len() > usize::from(own)
     }
 
     /// A body read a binding no statement had declared yet. The
@@ -237,15 +271,14 @@ impl Results {
         let Some(first) = self.active[at..]
             .iter()
             .copied()
-            .min_by_key(|d| self.order.iter().position(|o| o == d))
+            .min_by_key(|d| self.omits[d].position)
         else {
             return;
         };
         self.errors = true;
-        if self.reported.contains(&first) {
+        if !self.reported.insert(first) {
             return;
         }
-        self.reported.push(first);
         let Some(State::Active(n)) = self.state.get(&first) else {
             return;
         };
@@ -312,23 +345,32 @@ impl Results {
         self.check_waits(cx);
     }
 
+    /// Only bodies that read this signature may need checking again.
+    fn changed(&mut self, def: DefId) -> usize {
+        if let Some(readers) = self.readers.get(&def) {
+            let mut readers: Vec<_> = readers.iter().copied().collect();
+            readers.sort_stable_by_key(|def| self.omits[def].position);
+            let visited = readers.len();
+            for reader in readers {
+                if self.queued.insert(reader) {
+                    self.dirty.push_back(reader);
+                }
+            }
+            return visited;
+        }
+        0
+    }
+
     /// Solves every waiting row whose edges reach only checked callables:
     /// the least rows that satisfy each member of the group
     /// (`req.row.omitted.cycle`), by a monotone pass over the edges in
     /// source order until nothing grows.
     fn solve_ready(&mut self, cx: &BodyCx<'_>) {
-        if self.waiting == 0 {
+        if self.waiting.is_empty() {
             return;
         }
-        let waiting: Vec<DefId> = self
-            .order
-            .iter()
-            .copied()
-            .filter(|d| matches!(self.rows.get(d), Some(RowState::Waiting { .. })))
-            .collect();
-        if waiting.is_empty() {
-            return;
-        }
+        let mut waiting: Vec<DefId> = self.waiting.iter().copied().collect();
+        waiting.sort_stable_by_key(|def| self.omits[def].position);
         // A waiting row is blocked when an edge reaches a callable not
         // checked yet, directly or through another blocked row.
         let mut blocked: Vec<DefId> = Vec::new();
@@ -408,7 +450,10 @@ impl Results {
         for d in group {
             let row = cx.names.pool.row(&cur.remove(&d).unwrap_or_default());
             self.rows.insert(d, RowState::Solved(row));
-            self.waiting -= 1;
+            self.waiting.remove(&d);
+            if row != RowId::EMPTY {
+                self.changed(d);
+            }
         }
         for (f, at, k) in deep {
             let node = cx.src.parse.tree.node(at);
@@ -500,7 +545,7 @@ fn edge_row(cx: &BodyCx<'_>, pool: Types<'_>, callee: &RowData, e: &RowEdge) -> 
 }
 
 /// The nesting depth of a row key's type, counted to just past `limit`.
-fn depth(pool: Types<'_>, t: Ty, at: u32) -> u32 {
+pub(crate) fn depth(pool: Types<'_>, t: Ty, at: u32) -> u32 {
     if at > MAX_KEY_DEPTH {
         return at;
     }
@@ -548,6 +593,7 @@ pub fn omitted_results(cx: &BodyCx<'_>, bodies: &[(DefId, NodeRef<'_>)]) {
             ret: Src::type_child(node).is_none(),
             row: Src::child(node, SyntaxKind::RequirementRow).is_none() && !named.contains(&def),
             at: node.index(),
+            position: r.order.len(),
         };
         if !omits.ret && !omits.row {
             continue;
@@ -643,7 +689,7 @@ pub fn infer_results(cx: &BodyCx<'_>) {
     }
 }
 
-/// The pending callables with an omitted result whose bodies reach no
+/// The pending callables whose bodies reach no
 /// cycle, callees before callers. A body refers to each such callable
 /// whose name is one of its identifier tokens. That over-approximates its
 /// calls, so a callable left out may still reach no cycle; it keeps its
@@ -656,7 +702,7 @@ fn acyclic_callees_first(cx: &BodyCx<'_>) -> Vec<DefId> {
             .filter_map(|d| {
                 let o = r.omits.get(d)?;
                 let pending = matches!(r.state.get(d), Some(State::Pending(_)));
-                (o.ret && pending).then_some((*d, o.at))
+                pending.then_some((*d, o.at))
             })
             .collect()
     };
@@ -770,6 +816,9 @@ fn seen(cx: &BodyCx<'_>, def: DefId, force: bool) -> Option<Seen> {
     let (node, omits) = {
         let mut r = cx.results.borrow_mut();
         let omits = *r.omits.get(&def)?;
+        if let Some(&reader) = r.active.last() {
+            r.readers.entry(def).or_default().insert(reader);
+        }
         let row = match r.rows.get(&def) {
             _ if !omits.row => RowSeen::Written,
             Some(RowState::Solved(row)) => RowSeen::Solved(*row),
@@ -800,13 +849,14 @@ fn seen(cx: &BodyCx<'_>, def: DefId, force: bool) -> Option<Seen> {
             }
         }
     };
-    // Its own diagnostics: a trial that reads this callable rolls its own
-    // back, and the body is checked only here.
+    // Its own diagnostics: a caller's trial cannot roll them back, and a
+    // later row pass replaces them together with this provisional body.
     let mut diags = DiagBuf::default();
     let node = cx.src.parse.tree.node(node);
     let infer = Infer {
         ret: omits.ret,
         row: omits.row,
+        budget: cx.results.borrow().remaining.get(&def).copied(),
     };
     // A body that stops with "not implemented" has the empty row.
     let (checked, ret, facts) = match check_fn_body(cx, def, node, &mut diags, (None, None), infer)
@@ -816,7 +866,17 @@ fn seen(cx: &BodyCx<'_>, def: DefId, force: bool) -> Option<Seen> {
     };
     let mut r = cx.results.borrow_mut();
     r.active.pop();
-    r.errors |= omits.ret && diags.has_errors();
+    if let Some(left) = facts.fuel_left {
+        r.remaining.insert(def, left);
+    }
+    let previous_error = r.body_errors.contains(&def);
+    let has_errors = omits.ret && diags.has_errors();
+    if has_errors {
+        r.body_errors.insert(def);
+    } else {
+        r.body_errors.remove(&def);
+    }
+    let old_ret = r.returns.insert(def, ret);
     r.state.insert(
         def,
         State::Done {
@@ -825,6 +885,10 @@ fn seen(cx: &BodyCx<'_>, def: DefId, force: bool) -> Option<Seen> {
         },
     );
     if omits.row {
+        let old_row = match r.rows.get(&def) {
+            Some(RowState::Solved(row)) => Some(*row),
+            _ => None,
+        };
         let state = if facts.edges.is_empty() {
             RowState::Solved(cx.names.pool.row(&facts.used))
         } else {
@@ -833,12 +897,61 @@ fn seen(cx: &BodyCx<'_>, def: DefId, force: bool) -> Option<Seen> {
                 edges: facts.edges,
             }
         };
-        r.waiting += usize::from(matches!(state, RowState::Waiting { .. }));
+        if matches!(state, RowState::Waiting { .. }) {
+            r.waiting.insert(def);
+        } else {
+            r.waiting.remove(&def);
+        }
         r.rows.insert(def, state);
+        let new_row = match r.rows.get(&def) {
+            Some(RowState::Solved(row)) => Some(*row),
+            _ => None,
+        };
+        if row_changed(old_row, new_row) {
+            r.changed(def);
+        }
+    }
+    if omits.ret && old_ret.is_some_and(|old| old != ret) {
+        r.changed(def);
+    }
+    if previous_error != has_errors {
+        r.changed(def);
     }
     r.settle(cx);
     drop(r);
+    recheck_readers(cx);
     seen(cx, def, false)
+}
+
+/// Drain the affected signature readers after the active check unwinds.
+/// Keeping the last solved row while rechecking gives recursive function
+/// values the same approximation as direct calls. Discard the old body;
+/// only a body checked against stable signatures is published by M1.
+fn recheck_readers(cx: &BodyCx<'_>) {
+    {
+        let mut r = cx.results.borrow_mut();
+        if r.rechecking || !r.active.is_empty() || r.dirty.is_empty() {
+            return;
+        }
+        r.rechecking = true;
+    }
+    loop {
+        let def = {
+            let mut r = cx.results.borrow_mut();
+            let Some(def) = r.dirty.pop_front() else {
+                r.rechecking = false;
+                return;
+            };
+            r.queued.remove(&def);
+            if r.remaining.get(&def) == Some(&0) {
+                continue;
+            }
+            let at = r.omits[&def].at;
+            r.state.insert(def, State::Pending(at));
+            def
+        };
+        seen(cx, def, true);
+    }
 }
 
 /// Whether `def` is a registered callable whose row is still open: a call
@@ -847,20 +960,30 @@ pub(crate) fn row_open(cx: &BodyCx<'_>, def: DefId) -> bool {
     cx.results.borrow().row_open(def)
 }
 
-/// `def`'s solved row for a use that needs it now, such as a closure's
-/// call or a function value: its body is checked first if it is not
-/// done. `None` while its recursive group is being checked.
-pub(crate) fn row_now(cx: &BodyCx<'_>, def: DefId) -> Option<RowId> {
+pub(crate) fn rechecking_rows(cx: &BodyCx<'_>) -> bool {
+    cx.results.borrow().rechecking
+}
+
+/// The current row for a closure call or function value: check its body
+/// first when needed. An unfinished recursive group starts at empty;
+/// signature readers are rechecked when its rows grow. A callable outside
+/// inference keeps its written row.
+pub(crate) fn row_now(cx: &BodyCx<'_>, def: DefId, written: RowId) -> RowId {
     loop {
-        match seen(cx, def, true)?.row {
-            RowSeen::Solved(row) => return Some(row),
-            RowSeen::Written => return None,
+        let Some(view) = seen(cx, def, true) else {
+            return written;
+        };
+        match view.row {
+            RowSeen::Solved(row) => return row,
+            RowSeen::Written => return written,
             RowSeen::Open => {}
         }
         // Its row waits on bodies not checked yet: check them too.
         let pending = cx.results.borrow().pending_reach(def);
         if pending.is_empty() {
-            return None;
+            // The active recursive group has no complete row yet. Its
+            // signature readers will be rechecked when these rows grow.
+            return RowId::EMPTY;
         }
         for p in pending {
             seen(cx, p, true);
@@ -964,4 +1087,49 @@ pub(crate) fn note_structure_read(cx: &BodyCx<'_>, imp: DefId) {
 #[must_use]
 pub fn reads_structure(cx: &BodyCx<'_>, imp: DefId) -> bool {
     cx.results.borrow().structure_reads.contains(&imp)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_empty_row_solution_keeps_the_initial_approximation() {
+        assert!(!row_changed(None, Some(RowId::EMPTY)));
+        assert!(!row_changed(Some(RowId::EMPTY), None));
+        assert!(row_changed(None, Some(RowId(1))));
+        assert!(row_changed(Some(RowId(1)), Some(RowId::EMPTY)));
+    }
+
+    #[test]
+    fn a_signature_change_visits_only_its_readers() {
+        for unrelated in [100, 1000] {
+            let mut r = Results::default();
+            for i in 0..unrelated {
+                let def = DefId::from_raw(i);
+                r.omits.insert(
+                    def,
+                    Omits {
+                        ret: false,
+                        row: true,
+                        at: NodeIdx::from_raw(i),
+                        position: usize::try_from(i).expect("position"),
+                    },
+                );
+                r.rows.insert(def, RowState::Solved(RowId::EMPTY));
+                r.readers.entry(def).or_default().insert(def);
+            }
+            let def = DefId::from_raw(2);
+            r.readers
+                .get_mut(&def)
+                .expect("readers")
+                .insert(DefId::from_raw(3));
+            assert_eq!(r.changed(def), 2, "unrelated state: {unrelated}");
+            assert_eq!(r.dirty.iter().map(|d| d.raw()).collect::<Vec<_>>(), [2, 3]);
+            // Several signature updates before checking still schedule
+            // each affected body once.
+            assert_eq!(r.changed(def), 2);
+            assert_eq!(r.dirty.len(), 2);
+        }
+    }
 }

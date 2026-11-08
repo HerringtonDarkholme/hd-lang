@@ -404,7 +404,6 @@ impl Ck<'_, '_> {
         n: NodeRef<'_>,
         parts: &mut ClosureParts<'_>,
     ) -> StageResult<LocalId> {
-        let pool = self.pool();
         let cp = self.checkpoint();
         let (mut r, mut ft, mut own) = self.closure_with(n, parts, None)?;
         // A closure in the body used the function before its captures
@@ -429,15 +428,6 @@ impl Ck<'_, '_> {
             .local_generics
             .get_mut(&l)
             .expect("a generic local function's entry");
-        let row_of = |t: Ty| match pool.get(t) {
-            TyData::Fn { row, .. } => Some(row),
-            _ => None,
-        };
-        if g.recursive && row_of(g.fn_ty) != row_of(ft) {
-            return unsupported(
-                "a recursive local function whose requirements are inferred; write its `$` clause",
-            );
-        }
         g.fn_ty = ft;
         g.open = false;
         g.caps = Some(caps);
@@ -539,7 +529,7 @@ impl Ck<'_, '_> {
     }
 
     /// The outer locals the closure `r` captures.
-    fn closure_caps(&mut self, r: Ref) -> Vec<LocalId> {
+    pub(crate) fn closure_caps(&mut self, r: Ref) -> Vec<LocalId> {
         let body = self.b.body_mut();
         let Some(i) = r.as_inst() else {
             return Vec::new();
@@ -590,6 +580,7 @@ impl Ck<'_, '_> {
                     .unwrap_or_else(|| self.infer.fresh(pool, VarKind::General))
             })
             .collect();
+        self.row_argument_vars(self.gen_owner, &vars, n);
         let (owner, first) = (self.gen_owner, g.first);
         let inst = |t: Ty| {
             pool.subst(t, &|p: ParamRef| {

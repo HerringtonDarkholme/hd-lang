@@ -1,0 +1,11 @@
+# test: polymorphic local recursion cannot grow requirement keys without bound
+# Spec 04 Generic Instantiation: types.generic.instantiation-depth.error.
+
+trait Repo[T]:
+    fn count(self) -> i32
+
+fn outer() -> void:
+    fn grow[T](n: i32) -> i32:
+        if n == 0:
+            return $.use(Repo[T]).count()
+        grow::[List[T]](n - 1) # diagnostic: instantiation-too-deep

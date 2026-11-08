@@ -898,11 +898,13 @@ impl Ck<'_, '_> {
                     continue;
                 }
                 self.ref_captured.insert(l);
+                self.log_undo(crate::trial::BodyUndo::RefCaptured(l));
                 self.err(Code::LocalReferenceEscapes, n, &message(Escape::Capture));
             } else if pool.has_param(t) && !self.meets_static(t) {
                 // `ref.generic.static.capture`: a capture of a type
                 // parameter's value needs the parameter's `'static`.
                 self.ref_captured.insert(l);
+                self.log_undo(crate::trial::BodyUndo::RefCaptured(l));
                 let msg = format!(
                     "{}, and `{}` may hold one; its type parameter needs the bound `'static`",
                     message(Escape::Capture),
