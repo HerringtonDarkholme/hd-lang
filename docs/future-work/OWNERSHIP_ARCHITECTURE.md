@@ -405,8 +405,9 @@ for a baseline; the verifier makes them checked.
 
 ## Migration Plan
 
-**The plan of record is #1399's checklist, not the table below.** Each
-step there names its evidence: patterns over the blessed baselines of the
+**The migration closed on 2026-11-08 (#1399).** Its close-out comment
+maps each remaining step to its own issue. The plan of record was #1399's
+checklist, not the table below. Each step there named its evidence: patterns over the blessed baselines of the
 feature snapshot cases (`crates/hd_driver/tests/cases/features/`, the
 feature map). Its feature cases are derived from that evidence.
 `scripts/plancheck.py` checks the plan against the map. Every count
