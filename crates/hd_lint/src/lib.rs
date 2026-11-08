@@ -742,13 +742,10 @@ fn redundant_mut(event: &Event<'_>, view: &CheckedView<'_>, out: &mut DiagBuf) {
     if fact.mutable_address_taken() {
         return;
     }
-    let message = if fact.is_primitive() {
-        "`let mut` on a primitive is needed only when `&mut` of it is taken; a plain `let` is already reassignable"
-    } else if fact.annotation_is_writable() {
-        "the annotation already grants `mut`, and no `&mut` of this binding is taken; remove the `mut` before the name"
-    } else {
+    if !fact.is_primitive() {
         return;
-    };
+    }
+    let message = "`let mut` on a primitive is needed only when `&mut` of it is taken; a plain `let` is already reassignable";
     out.push(
         Code::RedundantLetMut,
         Severity::Warning,

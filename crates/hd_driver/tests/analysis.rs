@@ -149,7 +149,6 @@ impl AnalysisSink for TypedRecorder {
                     binding.is_read(),
                     mutability.is_some_and(|fact| {
                         fact.is_primitive()
-                            && !fact.annotation_is_writable()
                             && !fact.mutable_address_taken()
                             && fact.token().is_some()
                     })

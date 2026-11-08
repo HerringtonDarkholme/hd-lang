@@ -1341,7 +1341,6 @@ impl Ck<'_, '_> {
             });
         crate::comparison::Mutability {
             primitive: kind == Some(LetMutKind::Primitive),
-            annotation_writable: kind == Some(LetMutKind::Annotated),
             address_taken: self.ref_taken.contains(&local),
             token,
         }

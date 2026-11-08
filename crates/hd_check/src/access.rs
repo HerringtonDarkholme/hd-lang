@@ -128,21 +128,6 @@ impl Ck<'_, '_> {
         Some((Ref(list), Ref(index)))
     }
 
-    /// Whether `let mut` may bind a value of type `t`: mutable access, or
-    /// an optional of a `mut Suspend[T]` payload or of a type that is not
-    /// composite.
-    pub(crate) fn let_mut_ok(&self, t: Ty) -> bool {
-        let pool = self.pool();
-        let r = self.infer.resolve(pool, t);
-        match pool.get(r) {
-            TyData::Option(i) => {
-                let i = self.infer.resolve(pool, i);
-                matches!(pool.get(i), TyData::Mut(_)) || !self.is_composite(i)
-            }
-            _ => self.has_mut_access(r),
-        }
-    }
-
     /// The readonly form of `t`: its outer `mut` removed, which only a
     /// `mut Suspend[T]` has (types.mut.weaken.v2).
     pub(crate) fn readonly_view(&self, t: Ty) -> Ty {
@@ -422,16 +407,6 @@ impl Ck<'_, '_> {
         false
     }
 
-    /// Whether `t` is a composite type, or an optional of one.
-    fn composite_or_optional(&self, t: Ty) -> bool {
-        let pool = self.pool();
-        let r = self.infer.resolve(pool, t);
-        match pool.get(r) {
-            TyData::Option(i) => self.is_composite(i),
-            _ => self.is_composite(r),
-        }
-    }
-
     /// A plain `let mut name` binding of type `t`, local or top-level. A local of a primitive type is valid,
     /// since `&mut` of it needs `let mut`, and so is a local whose
     /// `mut Suspend[T]` annotation already grants `mut`. This returns the
@@ -442,7 +417,6 @@ impl Ck<'_, '_> {
     pub(crate) fn let_mut_binding(
         &mut self,
         t: Ty,
-        annotated: bool,
         local: bool,
         at: NodeRef<'_>,
     ) -> Option<crate::body::LetMutKind> {
@@ -454,9 +428,6 @@ impl Ck<'_, '_> {
         match pool.get(self.strip_mut(t)) {
             _ if lit && local => return Some(crate::body::LetMutKind::Primitive),
             TyData::Prim(_) if local => return Some(crate::body::LetMutKind::Primitive),
-            _ if local && annotated && self.composite_or_optional(t) && self.let_mut_ok(t) => {
-                return Some(crate::body::LetMutKind::Annotated);
-            }
             _ if lit => self.err(
                 Code::MutOnPrimitive,
                 at,

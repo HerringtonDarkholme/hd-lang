@@ -925,7 +925,7 @@ impl Ck<'_, '_> {
             .direct_tokens()
             .any(|t| self.cx.src.tkind(t) == Some(TokenKind::KwMut));
         let t = if mutable {
-            self.let_mut_binding(t, annot.is_some(), false, pat);
+            self.let_mut_binding(t, false, pat);
             if annot.is_none() && self.is_coll_ty(t) {
                 self.readonly_view(t)
             } else {

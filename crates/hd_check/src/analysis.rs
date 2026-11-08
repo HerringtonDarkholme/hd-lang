@@ -219,11 +219,6 @@ impl MutabilityView<'_> {
     }
 
     #[must_use]
-    pub const fn annotation_is_writable(self) -> bool {
-        self.fact.annotation_writable
-    }
-
-    #[must_use]
     pub const fn mutable_address_taken(self) -> bool {
         self.fact.address_taken
     }

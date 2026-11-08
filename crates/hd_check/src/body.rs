@@ -193,8 +193,6 @@ pub(crate) enum RowFrame {
 pub(crate) enum LetMutKind {
     /// Its type is primitive (types.bind.let-mut-primitive-local).
     Primitive,
-    /// Its `mut Suspend[T]` annotation already grants `mut`.
-    Annotated,
 }
 
 pub(crate) struct OpenSub {

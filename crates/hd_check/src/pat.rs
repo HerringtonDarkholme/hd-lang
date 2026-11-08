@@ -961,7 +961,7 @@ impl Ck<'_, '_> {
                 .any(|t| self.cx.src.tkind(t) == Some(TokenKind::KwMut));
         let mut deferred = None;
         if let_mut {
-            deferred = self.let_mut_binding(t, annot.is_some(), true, pat);
+            deferred = self.let_mut_binding(t, true, pat);
             // A collection in a `let mut` is a value that changes in place
             // (`types.coll.writable`): its type is the value type.
             if annot.is_none() && self.is_coll_ty(t) {

@@ -46,14 +46,13 @@ fn lint(source: &str, mut policy: Policy) -> (Output, DiagBuf) {
 const PAIR: &str = "enum Pair:\n    Values(left: i32, right: i32)\n";
 
 #[test]
-fn primitive_and_annotation_messages_and_fix_spans_are_preserved() {
+fn primitive_messages_and_fix_spans_are_preserved() {
     let source = include_str!("../../../spec/conformance/cli/lint-binding-patterns/src/main.hd");
     let (out, findings) = lint(source, Policy::default());
     assert!(out.diags.is_empty(), "{}", out.render());
     assert_eq!(
         findings.code,
         [
-            Code::RedundantLetMut,
             Code::RedundantLetMut,
             Code::VariantBindingNameMismatch,
             Code::VariantBindingNameMismatch
@@ -63,21 +62,15 @@ fn primitive_and_annotation_messages_and_fix_spans_are_preserved() {
         findings.get_text(findings.message[0]),
         "`let mut` on a primitive is needed only when `&mut` of it is taken; a plain `let` is already reassignable"
     );
+    // Compare the full CLI JSON, including fix ranges, to the frozen old producer separately.
+    let span = findings.primary[0];
+    assert!(source[span.lo as usize..span.hi as usize].starts_with("mut "));
     assert_eq!(
         findings.get_text(findings.message[1]),
-        "the annotation already grants `mut`, and no `&mut` of this binding is taken; remove the `mut` before the name"
-    );
-    // Compare the full CLI JSON, including fix ranges, to the frozen old producer separately.
-    for i in 0..2 {
-        let span = findings.primary[i];
-        assert!(source[span.lo as usize..span.hi as usize].starts_with("mut "));
-    }
-    assert_eq!(
-        findings.get_text(findings.message[2]),
         "`right` is also a field of `Values`; the field in this position is `left`"
     );
     assert_eq!(
-        findings.get_text(findings.message[3]),
+        findings.get_text(findings.message[2]),
         "`left` is also a field of `Values`; the field in this position is `right`"
     );
 }
@@ -128,7 +121,8 @@ fn policy_levels_are_independent_and_module_errors_cannot_be_suppressed() {
             policy.set(name, level).unwrap();
             policy.set(other, Level::Allow).unwrap();
             let (_, findings) = lint(source, policy);
-            assert_eq!(findings.len(), if expected.is_some() { 2 } else { 0 });
+            let found = if name == REDUNDANT_MUT { 1 } else { 2 };
+            assert_eq!(findings.len(), if expected.is_some() { found } else { 0 });
             assert!(findings.severity.iter().all(|s| Some(*s) == expected));
         }
     }

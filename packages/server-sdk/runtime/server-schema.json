@@ -10,7 +10,7 @@
     "referenceContractSha256": "a634aa1c401c85ec4cb1d17f021545c5a30ba0d942bfcd2c4909353d8b0d5e31",
     "probeSha256": "d1ea2beec46879d30212c7a429a76b6478a071d37c1d2a5e95d241bcbf0c60de",
     "sourceHashes": {
-      "packages/server-sdk/src/server.hd": "0994272ae05a870220076afc844edbb48c085ea07095f00438d1e2fb83bcfee6"
+      "packages/server-sdk/src/server.hd": "778fe29990920db3df21f2f06e08c9eb1fa2028e5a9630b5132d45859b7e99b0"
     }
   },
   "coverage": {
@@ -1377,5 +1377,5 @@
       }
     ]
   },
-  "fingerprint": "8e95bf6f383b3430ebee28158054f2859071a18c38b5178fc95855def9dc8656"
+  "fingerprint": "4afd61dd917eee73cd771490b796263d5fb85472207cbf8d611ba8e2b50331ed"
 }

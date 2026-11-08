@@ -40,7 +40,6 @@ pub struct Binding {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Mutability {
     pub primitive: bool,
-    pub annotation_writable: bool,
     pub address_taken: bool,
     /// The written keyword and following whitespace, if present.
     pub token: Option<Span>,
