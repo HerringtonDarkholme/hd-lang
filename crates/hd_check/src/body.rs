@@ -4046,11 +4046,17 @@ impl Ck<'_, '_> {
                         );
                         self.err(Code::NonReassignableBinding, lhs, &msg);
                     }
-                    if compound.is_some() {
-                        return unsupported("compound assignment to a top-level binding");
-                    }
-                    let (r, t) = self.stored_expr(rhs, Some(ty), "in this binding")?;
-                    let v = self.coerce(r, t, ty, rhs, "assignment", ExpectPosition::General);
+                    let v = match compound {
+                        None => {
+                            let (r, t) = self.stored_expr(rhs, Some(ty), "in this binding")?;
+                            self.coerce(r, t, ty, rhs, "assignment", ExpectPosition::General)
+                        }
+                        // `x op= e` reads `x` as a name expression does.
+                        Some(k) => {
+                            let (cur, _) = self.expr(lhs, Some(ty))?;
+                            self.compound(k, cur, ty, rhs, s)?
+                        }
+                    };
                     self.store_global(def, ty, v, s.index());
                     return Ok(());
                 }

@@ -494,7 +494,16 @@ impl Ck<'_, '_> {
                 );
                 return Ok(Ty::POISON);
             }
-            return unsupported(format!("the type name `{}`", segs.join(".")));
+            // `names.type.qualified`: through a module in scope, a missing
+            // declaration is `unknown-import`; a first name that is no
+            // module is `unknown-name`, as in a signature.
+            if let (Some(Named::Module(m)), [_, name]) = (self.scope_name(&segs[0]), &segs[..]) {
+                self.missing_export(m, name, n);
+            } else {
+                let msg = format!("`{}` is not defined", segs[0]);
+                self.err(Code::UnknownName, n, &msg);
+            }
+            return Ok(Ty::POISON);
         };
         if self
             .cx
@@ -566,6 +575,16 @@ impl Ck<'_, '_> {
                 self.err(Code::GenericKindMismatch, n, &msg);
                 return Ok(Ty::POISON);
             }
+        }
+        if matches!(self.kind_of_item(def), Some(HeadKind::Fn | HeadKind::Impl)) {
+            // A function's name reaches no type (`unknown-type`).
+            let (code, what) = match role {
+                NameRole::Type | NameRole::Referent => (Code::UnknownType, "type"),
+                NameRole::Trait => (Code::UnknownTrait, "trait"),
+            };
+            let name = self.cx.names.display_name(def);
+            self.err(code, n, &format!("no {what} named `{name}`: not a {what}"));
+            return Ok(Ty::POISON);
         }
         if self.kind_of_item(def) == Some(HeadKind::Trait) {
             if role != NameRole::Trait {

@@ -1,0 +1,15 @@
+# test: a function and a later statement update a top-level `let` binding in place
+# expect-stdout: 5 ab
+# Spec 03 Names and Scopes: names.exec.access; Spec 05: expr.assign.compound.form.
+let total = +0
+let name = "a"
+
+fn bump() -> void:
+    total += 2
+    total *= 3
+    name += "b"
+
+pub fn main() -> void $ Console:
+    bump()
+    total -= 1
+    println("$total $name")

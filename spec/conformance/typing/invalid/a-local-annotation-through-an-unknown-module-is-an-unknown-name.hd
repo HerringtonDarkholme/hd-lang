@@ -1,0 +1,5 @@
+# test: a qualified type in a body whose first name is not in scope
+# Spec 03 Names and Scopes: names.module.other-module.value, as in a signature.
+
+fn run() -> void:
+    let x: nowhere.Thing = +1 # diagnostic: unknown-name

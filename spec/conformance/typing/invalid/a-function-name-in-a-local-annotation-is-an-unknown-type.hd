@@ -1,0 +1,7 @@
+# test: a function's name in a body's type annotation reaches no type
+# Spec 03 Names and Scopes: names.module.other-module.type; a function is no type.
+
+fn helper() -> i32: +1
+
+fn run() -> void:
+    let x: helper = +1 # diagnostic: unknown-type

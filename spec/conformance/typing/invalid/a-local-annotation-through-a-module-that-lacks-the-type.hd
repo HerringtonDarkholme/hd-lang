@@ -1,0 +1,6 @@
+# test: a qualified type in a body names a declaration its module does not declare
+# Spec 03 Names and Scopes: names.type.qualified.
+use std.text
+
+fn run() -> void:
+    let x: text.Nope = +1 # diagnostic: unknown-import
