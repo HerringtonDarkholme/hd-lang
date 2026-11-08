@@ -465,7 +465,7 @@ lang/07-functions.md	26	mixed	typing/valid/fn-read-only-closures.hd|typing/inval
 lang/07-functions.md	27	complete	runtime/valid/function-value-vararg-call.hd
 lang/07-functions.md	28	mixed	typing/invalid/vararg-function-value-arity.hd|typing/invalid/vararg-function-value-list.hd
 lang/07-functions.md	29	mixed	parse/invalid/mut-function-type.hd
-lang/07-functions.md	30	known-failure	typing/invalid/function-result-representation-change.hd
+lang/07-functions.md	30	mixed	typing/invalid/function-result-representation-change.hd
 lang/07-functions.md	31	complete	-
 lang/07-functions.md	32	mixed	typing/invalid/lifetime-function-value-mismatch.hd|typing/invalid/lifetime-function-type-ambiguous.hd|typing/invalid/lifetime-function-type-no-source.hd
 lang/07-functions.md	33	complete	runtime/valid/generic-function-value-argument-inference.hd

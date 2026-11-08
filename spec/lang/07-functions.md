@@ -590,7 +590,7 @@ fn counter() -> mut fn() -> i32:  # error: syntax-error
 5. r[fn.type.variance-repr.excluded] Trait-value construction and optional injection therefore never convert a parameter or result of a function type. Error: `variance-representation-change`.
 
 ```text
-fn count() -> i32: 1
+fn count() -> *i32: box(1)
 
 fn erase() -> fn() -> *dyn Display:
     count  # error: variance-representation-change
