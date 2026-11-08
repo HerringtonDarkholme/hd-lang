@@ -7590,7 +7590,15 @@ pub fn build_folder_with_facts(
                 match &mut it.data {
                     ItemData::Struct(_, a) | ItemData::Enum { attrs: a, .. } => a.not_copy = true,
                     ItemData::Trait(t) => t.relaxed_copy = true,
-                    _ => {}
+                    // ruled out: `ref.copy.opt-out.invalid` rejects `impl !Copy`
+                    // of any other kind before this point.
+                    ItemData::Fn(..)
+                    | ItemData::Impl { .. }
+                    | ItemData::Method { .. }
+                    | ItemData::AssocType { .. }
+                    | ItemData::Alias { .. }
+                    | ItemData::Newtype(_)
+                    | ItemData::Builtin => {}
                 }
             }
         }
