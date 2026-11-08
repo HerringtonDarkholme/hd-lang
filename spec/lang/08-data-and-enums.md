@@ -669,6 +669,7 @@ enum HttpStatus(code: i32, phrase: string, retryable: bool = false):
 14. r[data.shared.generic-copy] A generic enum's shared data has one copy per variant of the declaration, not one per instantiation: `Tagged[i32].A` and `Tagged[string].A` read the same copy.
 15. r[data.shared.type-parameter] A shared parameter whose type names a type parameter of the enum is an error, because one copy has no single type. Error: `shared-data-type-parameter`.
 16. r[data.shared.lifetime] A shared parameter whose type names a lifetime parameter of the enum is an error, as one naming a type parameter is. Shared data initializes at module start, so it never holds a reference to a local. Error: `shared-data-type-parameter`.
+17. r[data.shared.type-parameter-scope] The enum's type parameters are not in scope in a variant's constructor expression or in a shared parameter's default. A use of one is an error. Error: `unknown-name`.
 
 > **Why.** Shared data describes a variant, like a Java or Kotlin enum
 > constant's constructor arguments. Data that differs from value to value
