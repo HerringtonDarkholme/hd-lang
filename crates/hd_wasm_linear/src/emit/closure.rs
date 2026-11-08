@@ -119,31 +119,30 @@ pub(super) fn stored_locals(
 }
 
 /// The defining `Closure` of sub-body `sub`, not an instantiation of a
-/// generic local function.
-pub(super) fn closure_of(b: &Body, sub: u16) -> StageResult<usize> {
-    let defining = |i: usize| {
-        b.tags[i] == Tag::Closure && b.data[i][0] == u32::from(sub) && !b.is_instantiation(i)
-    };
-    match (0..b.len()).find(|&i| defining(i)) {
-        Some(ci) => Ok(ci),
-        None => unsupported("a closure body without its closure"),
-    }
-}
-
-/// Whether closure body `sub` of an instance with type arguments `args`
-/// suspends: its closure's function type says so.
-pub(super) fn closure_suspends(
+/// generic local function, at type arguments `args`: the instruction,
+/// whether its function suspends, and its result type. A sub-body past
+/// the root is a closure's (`crates/hd_tir/DESIGN.md`, "sub-body").
+pub(super) fn closure_of(
     input: &crate::Input<'_>,
     b: &Body,
     args: hd_types::TyList,
     sub: u16,
-) -> StageResult<bool> {
+) -> (usize, bool, Ty) {
+    let defining = |i: usize| {
+        b.tags[i] == Tag::Closure && b.data[i][0] == u32::from(sub) && !b.is_instantiation(i)
+    };
+    let ci = (0..b.len())
+        .find(|&i| defining(i))
+        .expect("a sub-body's closure");
     let (pool, env) = (input.pool, input.env);
-    let t = hd_mono::subst(pool, env, b.item, args, b.ty[closure_of(b, sub)?]);
-    Ok(matches!(
-        pool.get(strip(pool, env, t)),
-        TyData::Fn { suspends: true, .. }
-    ))
+    let t = hd_mono::subst(pool, env, b.item, args, b.ty[ci]);
+    let TyData::Fn {
+        suspends, result, ..
+    } = pool.get(strip(pool, env, t))
+    else {
+        unreachable!("a closure's type is a function")
+    };
+    (ci, suspends, result)
 }
 
 /// The immutable name introduced by this closure itself. Its declaration
@@ -771,7 +770,7 @@ impl Em<'_, '_, '_> {
             params, suspends, ..
         } = self.pool().get(strip(self.pool(), self.env(), ft))
         else {
-            return unsupported("a call of a value that is not a function");
+            unreachable!("checking calls only a function value");
         };
         let mut ps = vec![Val::I32];
         let mut tys = Vec::new();

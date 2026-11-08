@@ -85,7 +85,7 @@ impl Em<'_, '_, '_> {
     /// context names.
     pub(super) fn fn_row(&self, t: Ty) -> StageResult<(Vec<Ty>, bool)> {
         let TyData::Fn { row, .. } = self.pool().get(strip(self.pool(), self.env(), t)) else {
-            return unsupported("a call of a value that is not a function");
+            unreachable!("a closure's or a called value's type is a function");
         };
         let data = self.pool().row_data(row);
         if !data.params.is_empty() {
@@ -107,16 +107,17 @@ impl Em<'_, '_, '_> {
 
     /// The keys of a context type's row, whole and in key order: the
     /// order of a `$.Context` value's entries.
-    fn context_keys(&self, t: Ty) -> StageResult<Vec<Ty>> {
+    fn context_keys(&self, t: Ty) -> Vec<Ty> {
+        // A `ContextNew`'s type, or a spread key, is a context.
         let TyData::Context(row) = self.pool().get(strip(self.pool(), self.env(), t)) else {
-            return unsupported("a context entry of a type that is not a context");
+            unreachable!("a context type");
         };
         let env = self.env();
-        Ok(hd_mono::key_order(
+        hd_mono::key_order(
             self.pool(),
             &|d| env.path_hash(d),
             self.pool().row_data(row).keys,
-        ))
+        )
     }
 
     /// Adds the keys of the `$.with` scopes open in a body with an open
@@ -302,7 +303,7 @@ impl Em<'_, '_, '_> {
         if self.input.runtime.is_none() {
             return unsupported("a context without std's allocator");
         }
-        let keys = self.context_keys(self.ty(i))?;
+        let keys = self.context_keys(self.ty(i));
         let pairs = self.rec(rec);
         let mut from = Vec::new();
         for k in &keys {
@@ -314,7 +315,7 @@ impl Em<'_, '_, '_> {
                     break;
                 }
                 if matches!(self.pool().get(kt), TyData::Context(_))
-                    && let Some(at) = self.context_keys(kt)?.iter().position(|x| x == k)
+                    && let Some(at) = self.context_keys(kt).iter().position(|x| x == k)
                 {
                     src = Some((c[1], Some(at)));
                     break;
@@ -371,7 +372,7 @@ impl Em<'_, '_, '_> {
     /// by key, as providers in scope (`req.context.spread`), borrowed from
     /// the value. Returns how many it added.
     pub(super) fn push_context(&mut self, v: u32, ct: Ty) -> StageResult<usize> {
-        let keys = self.context_keys(ct)?;
+        let keys = self.context_keys(ct);
         for (at, k) in keys.iter().enumerate() {
             let ls = [self.f.local(Val::I32), self.f.local(Val::I32)];
             self.context_entry(v, at, ls)?;

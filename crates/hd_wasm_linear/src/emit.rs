@@ -114,12 +114,14 @@ fn body_func<'a>(
     // a root that only the entry calls and that never suspends runs as a
     // plain function: it ends on its first poll.
     let plan = susp::plan(b, b.sub_root[sub as usize]);
-    let suspending = if sub == 0 {
-        own.cold.is_none()
-            && input.env.suspends(item)
-            && !(input.entry.root(item) && plan.0.is_empty())
-    } else {
-        closure::closure_suspends(input, b, args, sub)?
+    let closure = (sub != 0).then(|| closure::closure_of(input, b, args, sub));
+    let suspending = match closure {
+        None => {
+            own.cold.is_none()
+                && input.env.suspends(item)
+                && !(input.entry.root(item) && plan.0.is_empty())
+        }
+        Some((_, suspends, _)) => suspends,
     };
     // Promoted arguments (§23.40): a call that takes a local's value
     // where its declaration takes a reference. A plain function picks
@@ -140,15 +142,6 @@ fn body_func<'a>(
     em.type_promoted(promoted)?;
     em.plan_slots(&slots)?;
     em.origin_root = b.anchor(b.sub_root[sub as usize]);
-    // Every body is the ownership passes' output, whose counts emission
-    // follows (`docs/compiler/tir-v2.md`, "Stage 2").
-    if b.tags
-        .iter()
-        .zip(&b.data)
-        .any(|(t, d)| *t == Tag::Read && d[1] == hd_tir::ir::ReadMode::Use as u32)
-    {
-        return unsupported("a body the ownership passes did not run on");
-    }
     em.sub_id = sub;
     if sub == 0 {
         em.lends = own.lends;
@@ -164,28 +157,21 @@ fn body_func<'a>(
     }
     // A closure's code takes its environment first, then its own
     // parameters and one context (`closure.rs`, `ctx.rs`).
-    let (plocals, ret, keys, closure) = if sub == 0 {
-        (
-            param_locals(b),
-            own.cold
-                .unwrap_or_else(|| em.sub(input.env.ret(item).unwrap_or(Ty::VOID))),
-            hd_mono::declared_row_keys(input.pool, input.env, item, args),
-            None,
-        )
-    } else {
-        let ci = closure::closure_of(b, sub)?;
-        let ft = em.sub(b.ty[ci]);
-        let TyData::Fn { result, .. } =
-            em.pool().get(crate::layout::strip(em.pool(), em.env(), ft))
-        else {
-            return unsupported("a closure without a function type");
-        };
+    let (plocals, ret, keys, closure) = if let Some((ci, _, result)) = closure {
         params.push(Val::I32);
         (
             sub_param_locals(b, sub),
             em.sub(result),
             Vec::new(),
             Some(ci),
+        )
+    } else {
+        (
+            param_locals(b),
+            own.cold
+                .unwrap_or_else(|| em.sub(input.env.ret(item).unwrap_or(Ty::VOID))),
+            hd_mono::declared_row_keys(input.pool, input.env, item, args),
+            None,
         )
     };
     // A plain function takes its parameters by the conventions of
@@ -756,8 +742,9 @@ fn sub_param_locals(b: &Body, sub: u16) -> Vec<usize> {
 /// (`crates/hd_mono/DESIGN.md` §13.11).
 fn adapter(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResult<Func> {
     let item = input.collected.table.item[id.idx()];
-    match input.collected.calls[id.idx()].get(&0).cloned() {
-        Some(Target::Call(ct)) if ct.kind == TargetKind::Instance => forward(
+    // Collection resolves every adapter's one target (`scan_adapter`).
+    match input.collected.calls[id.idx()][&0].clone() {
+        Target::Call(ct) if ct.kind == TargetKind::Instance => forward(
             input,
             m,
             item,
@@ -766,14 +753,11 @@ fn adapter(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResult<Func> {
             Sym::Inst(ct.key),
             input.env.lends(ct.item, ct.args),
         ),
-        Some(
-            target @ (Target::Call(_) | Target::Dyn | Target::MapKey { .. } | Target::MapInline(_)),
-        ) => {
+        target => {
             let (sym, ret) = call_func(input, m, id, target)?;
             let args = input.collected.table.args[id.idx()];
             forward(input, m, item, (item, args), ret, sym, 0)
         }
-        _ => unsupported("a function reference that collection did not resolve"),
     }
 }
 
@@ -801,12 +785,13 @@ fn call_func(
             args: pool.list(&[ret]),
         })
     });
-    let Some(b) = (input.body)(id) else {
-        return unsupported("a function reference without its call body");
-    };
-    let Some(call) = b.tags.iter().position(|&t| t == Tag::Call) else {
-        return unsupported("a function reference's call body without its call");
-    };
+    // Collection built this body, one `Call` of `target`.
+    let b = (input.body)(id).expect("collection built the adapter's call body");
+    let call = b
+        .tags
+        .iter()
+        .position(|&t| t == Tag::Call)
+        .expect("one call");
     let calls = HashMap::from_iter([(u32::try_from(call).expect("insts"), target)]);
     let mut k = hd_base::StableHasher::new("linear-adapter-call");
     k.hash(key);
@@ -1914,12 +1899,6 @@ impl Em<'_, '_, '_> {
             }
             Tag::IsUnique if self.short_skips.contains(&i) => {}
             Tag::IsUnique => self.own_unique(i)?,
-            Tag::FlagSet | Tag::FlagClear => {
-                return unsupported(format!(
-                    "an ownership statement `{}` the backend does not lower here",
-                    self.b.tags[i as usize].name()
-                ));
-            }
             // Places (`emit/refs.rs`).
             Tag::Ref => self.place_ref(i)?,
             Tag::Read => self.place_read(i)?,
@@ -2029,9 +2008,8 @@ impl Em<'_, '_, '_> {
                 }
             }
             Tag::Break | Tag::Continue => {
-                let Some(&target) = self.b.label_inst.get(a as usize) else {
-                    return unsupported("a break with an unknown label");
-                };
+                // A `Label` operand is one of the body's labels.
+                let target = self.b.label_inst[a as usize];
                 if self.b.tags[i as usize] == Tag::Break {
                     if bw != NONE {
                         self.tail_into(bw, target, i)?;
@@ -2080,22 +2058,17 @@ impl Em<'_, '_, '_> {
                 self.close();
             }
             Tag::ToArm => {
-                let Some(&m) = self.deciding.last() else {
-                    return unsupported("an arm jump outside a match decision");
-                };
+                // A `ToArm` sits in its match's decision block.
+                let m = *self.deciding.last().expect("a match decision");
                 let d = self.depth(Ctl::Arm(m, a))?;
                 self.f.op(Instruction::Br(d));
             }
             Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar => {
+                // Every switch the checker and `hd_structure` emit is
+                // `[case then else]`; a `SwitchInt` tests a `usize`, one
+                // `i32`, and `SwitchChar` has no emitter.
                 let r = self.rec(bw);
-                let [case, then, other] = r[..] else {
-                    return unsupported("a switch that is not one case and a default");
-                };
-                if self.b.tags[i as usize] != Tag::SwitchTag
-                    && self.vals(self.ty_of(a))? != [Val::I32]
-                {
-                    return unsupported("a switch on a 64-bit integer");
-                }
+                let (case, then, other) = (r[0], r[1], r[2]);
                 if self.b.tags[i as usize] == Tag::SwitchTag && self.nullable(self.ty_of(a)) {
                     // Variant 1 is a non-null address.
                     self.comp(a, 0)?;
@@ -2124,14 +2097,8 @@ impl Em<'_, '_, '_> {
                 self.close();
             }
             Tag::NewVariant => {
-                let tys = (self.variant_tys(self.ty(i)).ok())
-                    .and_then(|vs| vs.get(a as usize).cloned())
-                    .unwrap_or_default();
                 let payload: Vec<value::Src> =
                     self.rec(bw).into_iter().map(value::Src::Ref).collect();
-                if payload.len() != tys.len() {
-                    return unsupported("a variant built from other fields than it has");
-                }
                 self.new_variant(i, a, &payload)?;
             }
             Tag::Intrinsic => {
@@ -2204,7 +2171,7 @@ impl Em<'_, '_, '_> {
             Tag::Closure => self.closure(i)?,
             Tag::ItemRef => {
                 let Some(Target::Closure(key)) = self.calls.get(&i).cloned() else {
-                    return unsupported("a function reference without its adapter");
+                    unreachable!("collection records each reference's adapter");
                 };
                 self.f.table_slot(Sym::Inst(key));
                 self.f.i32(0);
@@ -2255,14 +2222,12 @@ impl Em<'_, '_, '_> {
     /// newtype's field, a tuple's element, or a field of a payload.
     fn projection_read(&mut self, i: u32, base: u32, p: shape::Projected) -> StageResult<()> {
         use hd_tir::ir::Step;
-        let Some((_, step)) = self.b.read_step(i as usize) else {
-            return unsupported("a projection read without its step");
-        };
-        match (p, step) {
-            (shape::Projected::Field, Step::Field(k)) => self.field(i, base, k),
-            (shape::Projected::Element, Step::Field(k)) => self.tuple_get(i, base, k),
-            (shape::Projected::Payload, Step::Variant(v, k)) => self.payload(i, base, v, k),
-            _ => unsupported("a projection read of the wrong kind of value"),
+        // `Em::projected` read `p` off this step.
+        match (p, self.b.read_step(i as usize).map(|(_, s)| s)) {
+            (shape::Projected::Field, Some(Step::Field(k))) => self.field(i, base, k),
+            (shape::Projected::Element, Some(Step::Field(k))) => self.tuple_get(i, base, k),
+            (shape::Projected::Payload, Some(Step::Variant(v, k))) => self.payload(i, base, v, k),
+            _ => unreachable!("a projection read's step"),
         }
     }
 
@@ -2304,9 +2269,7 @@ impl Em<'_, '_, '_> {
                 pushed += self.push_context(c[1], key)?;
                 continue;
             }
-            if !matches!(self.pool().get(key), TyData::TraitValue { .. }) {
-                return unsupported("a `$.with` key that is not a trait");
-            }
+            // Else a trait (`hd_check`'s `key_node`, `unknown-trait`).
             let ls = [self.f.local(Val::I32), self.f.local(Val::I32)];
             for (k, l) in ls.iter().enumerate() {
                 self.comp(c[1], k)?;
@@ -3861,9 +3824,8 @@ impl Em<'_, '_, '_> {
     /// width. Pushes the value, then the count.
     fn shift(&mut self, ops: &[u32], bits: u8, wide: bool) -> StageResult<()> {
         self.comp(ops[0], 0)?;
-        let [cv] = self.vals(self.ty_of(ops[1]))?[..] else {
-            return unsupported("a shift count without one value");
-        };
+        // An unsigned integer, one value.
+        let cv = self.vals(self.ty_of(ops[1]))?[0];
         let n = self.f.local(cv);
         self.comp(ops[1], 0)?;
         self.f.set(n);
@@ -3909,9 +3871,8 @@ impl Em<'_, '_, '_> {
         (signed, float): (bool, bool),
         ty: Ty,
     ) -> StageResult<()> {
-        let [to] = self.vals(ty)?[..] else {
-            return unsupported("a numeric cast to a type without one value");
-        };
+        // A number, one value.
+        let to = self.vals(ty)?[0];
         let (tbits, tsigned, tfloat) = self.num(ty);
         self.comp(op, 0)?;
         match (from, to) {
