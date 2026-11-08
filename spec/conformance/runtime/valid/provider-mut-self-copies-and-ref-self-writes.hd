@@ -1,0 +1,42 @@
+# test: a mut self method called on a provider through $.use changes its own copy, while a &mut self method changes the provider's object
+# Spec 11 References To Other Providers: req.ref.share.mut-self-copy, req.ref.share.write-ref-receiver.
+trait Count:
+    fn copy_bump(mut self) -> i32
+    fn bump(&mut self) -> i32
+    fn total(&self) -> i32
+
+struct Tally:
+    n: i32
+
+impl Count for Tally:
+    fn copy_bump(mut self) -> i32:
+        self.n += 1
+        self.n
+
+    fn bump(&mut self) -> i32:
+        self.n += 1
+        self.n
+
+    fn total(&self) -> i32:
+        self.n
+
+fn copy_bump_provided() -> i32 $ Count:
+    $.use(Count).copy_bump()
+
+fn bump_provided() -> i32 $ Count:
+    $.use(Count).bump()
+
+tests:
+    use std.testing.assert_equal
+
+    it("the provider's object keeps its value after a mut self call"):
+        shelf := box(Tally { n: 0 })
+        $.with(Count=shelf):
+            assert_equal(copy_bump_provided(), 1, reason="the copy was changed")
+            assert_equal(shelf.total(), 0, reason="the object is unchanged")
+
+    it("the provider's object changes after a &mut self call"):
+        shelf := box(Tally { n: 0 })
+        $.with(Count=shelf):
+            assert_equal(bump_provided(), 1, reason="the call's result")
+            assert_equal(shelf.total(), 1, reason="the object was changed")

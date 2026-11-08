@@ -2054,13 +2054,14 @@ fn demo() -> i32:
 9. r[trait.dyn.ref.member] Through `&dyn Tr`, the methods declared `self` and `&self` are available. Through `&mut dyn Tr`, the methods declared `mut self` and `&mut self` are available too.
 10. r[trait.dyn.ref.member.mut] Calling a `mut self` or `&mut self` method through `&dyn Tr` is an error. Its fix-it writes `&mut dyn` in the declared type of the receiver binding. Error: `not-writable`.
 11. r[trait.dyn.ref.member.other.reference-values] Other members follow [Dynamic Safety](#dynamic-safety).
-12. r[trait.dyn.ref.write-through] A method that changes its receiver, called through a trait value reference, changes the object the reference refers to. Through a reference converted from `&mut s`, that object is `s` itself.
-13. r[trait.dyn.ref.identity] `is` on two trait value references compares the places they refer to, by [`ref.identity.same-place`](13-values-and-references.md#r-ref.identity.same-place). Two conversions of one `&s` refer to one place, and two conversions of `&e` on a value refer to two new objects.
-14. r[trait.dyn.ref.no-store] `*r = v` and `*r op= v` with a trait value reference `r` are errors, since `r` does not know the type of what it refers to. Error: `type-mismatch`.
-15. r[trait.dyn.ref.counted] `*dyn Tr` and `*mut dyn Tr` are counted trait value references. Each rule of this section holds for them with `*` in place of `&` on both sides of a conversion, so `*mut S` converts to `*mut dyn Tr`.
-16. r[trait.dyn.ref.counted.lend] A counted trait value reference lends itself as a local one, as [`ref.convert.lend`](13-values-and-references.md#r-ref.convert.lend) states: `*dyn Tr` converts to `&dyn Tr`.
-17. r[trait.dyn.ref.counted.member] Through `*dyn Tr`, the methods declared `*self` are available too, and through `*mut dyn Tr` also those declared `*mut self`.
-18. r[trait.dyn.ref.counted.new] Where `*dyn Tr` or `*mut dyn Tr` is expected, a new object is written `box(e)`, as in `box(S { ... })`. A value that is no reference is an error there, as for `&dyn Tr`. Error: `type-mismatch`.
+12. r[trait.dyn.ref.write-ref-receiver] A method declared `&mut self` or `*mut self`, called through a trait value reference, changes the object the reference refers to. Through a reference converted from `&mut s`, that object is `s` itself.
+13. r[trait.dyn.ref.mut-self-copy] A method declared `mut self` changes its own copy of the object, as [`fn.method.mut-self-struct`](07-functions.md#r-fn.method.mut-self-struct) states, so the object the reference refers to is unchanged.
+14. r[trait.dyn.ref.identity] `is` on two trait value references compares the places they refer to, by [`ref.identity.same-place`](13-values-and-references.md#r-ref.identity.same-place). Two conversions of one `&s` refer to one place, and two conversions of `&e` on a value refer to two new objects.
+15. r[trait.dyn.ref.no-store] `*r = v` and `*r op= v` with a trait value reference `r` are errors, since `r` does not know the type of what it refers to. Error: `type-mismatch`.
+16. r[trait.dyn.ref.counted] `*dyn Tr` and `*mut dyn Tr` are counted trait value references. Each rule of this section holds for them with `*` in place of `&` on both sides of a conversion, so `*mut S` converts to `*mut dyn Tr`.
+17. r[trait.dyn.ref.counted.lend] A counted trait value reference lends itself as a local one, as [`ref.convert.lend`](13-values-and-references.md#r-ref.convert.lend) states: `*dyn Tr` converts to `&dyn Tr`.
+18. r[trait.dyn.ref.counted.member] Through `*dyn Tr`, the methods declared `*self` are available too, and through `*mut dyn Tr` also those declared `*mut self`.
+19. r[trait.dyn.ref.counted.new] Where `*dyn Tr` or `*mut dyn Tr` is expected, a new object is written `box(e)`, as in `box(S { ... })`. A value that is no reference is an error there, as for `&dyn Tr`. Error: `type-mismatch`.
 
 ```text
 trait Counter:

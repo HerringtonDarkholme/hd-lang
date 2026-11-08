@@ -1,5 +1,5 @@
 # test: a `&mut dyn Counter` made from `&mut c` changes `c` through `&mut self` methods, and a later trait value reference sees a write to `c`
-# Spec 09 Trait Value References: trait.dyn.ref.share, trait.dyn.ref.write-through, trait.dyn.ref.member.
+# Spec 09 Trait Value References: trait.dyn.ref.share, trait.dyn.ref.write-ref-receiver, trait.dyn.ref.member.
 # expect-stdout: 2 2
 # expect-stdout: 10 10
 # expect-stdout: 13

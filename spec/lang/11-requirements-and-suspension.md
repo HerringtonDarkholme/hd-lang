@@ -1131,7 +1131,8 @@ fn shared(tally: *Tally) -> void:
 
 1. r[req.ref.share.counted-values] A provider for a trait without reference receivers accepts `*S` or `*mut S`, sharing its object, or a value of `S`, copied into a new object.
 2. r[req.ref.share.impl] A reference to a type that does not implement `K` explicitly is an error. Error: `type-mismatch`.
-3. r[req.ref.share.write-through] A method that changes its receiver, called on that provider through `$.use(K)`, changes that place.
+3. r[req.ref.share.write-ref-receiver] A method declared `&mut self` or `*mut self`, called on that provider through `$.use(K)`, changes that place.
+4. r[req.ref.share.mut-self-copy] A method declared `mut self`, called on that provider through `$.use(K)`, changes its own copy, so that place is unchanged.
 
 ```hd
 trait Inventory:

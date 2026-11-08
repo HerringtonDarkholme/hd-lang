@@ -1,0 +1,57 @@
+# test: a mut self method changes its own copy whether it is called on the value, through &mut dyn or through *mut dyn, while a &mut self method changes the object
+# Spec 09 Trait Value References: trait.dyn.ref.mut-self-copy, trait.dyn.ref.write-ref-receiver. Spec 07 Method Receivers: fn.method.mut-self-struct.
+trait Count:
+    fn copy_bump(mut self) -> i32
+    fn bump(&mut self) -> i32
+    fn total(&self) -> i32
+
+struct Tally:
+    n: i32
+
+impl Count for Tally:
+    fn copy_bump(mut self) -> i32:
+        self.n += 1
+        self.n
+
+    fn bump(&mut self) -> i32:
+        self.n += 1
+        self.n
+
+    fn total(&self) -> i32:
+        self.n
+
+fn copy_via_ref(c: &mut dyn Count) -> i32:
+    c.copy_bump()
+
+fn bump_via_ref(c: &mut dyn Count) -> i32:
+    c.bump()
+
+fn copy_via_counted(c: *mut dyn Count) -> i32:
+    c.copy_bump()
+
+fn bump_via_counted(c: *mut dyn Count) -> i32:
+    c.bump()
+
+tests:
+    use std.testing.assert_equal
+
+    it("a mut self call on the value leaves it unchanged"):
+        let mut t = Tally { n: 0 }
+        assert_equal(t.copy_bump(), 1, reason="the copy was changed")
+        assert_equal(t.total(), 0, reason="the value is unchanged")
+        assert_equal(t.bump(), 1, reason="the &mut self call")
+        assert_equal(t.total(), 1, reason="the value was changed")
+
+    it("a mut self call through &mut dyn leaves the object unchanged"):
+        let mut t = Tally { n: 0 }
+        assert_equal(copy_via_ref(&mut t), 1, reason="the copy was changed")
+        assert_equal(t.total(), 0, reason="the object is unchanged")
+        assert_equal(bump_via_ref(&mut t), 1, reason="the &mut self call")
+        assert_equal(t.total(), 1, reason="the object was changed")
+
+    it("a mut self call through *mut dyn leaves the object unchanged"):
+        shared := box(Tally { n: 0 })
+        assert_equal(copy_via_counted(shared), 1, reason="the copy was changed")
+        assert_equal(shared.total(), 0, reason="the object is unchanged")
+        assert_equal(bump_via_counted(shared), 1, reason="the &mut self call")
+        assert_equal(shared.total(), 1, reason="the object was changed")
