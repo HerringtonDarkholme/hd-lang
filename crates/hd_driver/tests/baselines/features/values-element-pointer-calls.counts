@@ -19,7 +19,7 @@ fn walk(node: &Node, sink: &mut dyn Sink) -> void:
 > app/main/walk
 >   release List[&app.main.Node] (last use)
     for child in &node.children:
->   copy List[&app.main.Node] (conservative: copy read)
+>   copy List[&app.main.Node] (second owner)
         walk(*child, sink)
 
 struct Total:
@@ -41,7 +41,7 @@ fn keep(n: *Node, k: &mut Keeper) -> void:
 fn save(node: &Node, k: &mut Keeper) -> void:
     for e in &node.children:
 > app/main/save
->   copy List[&app.main.Node] (conservative: copy read)
+>   copy List[&app.main.Node] (second owner)
 >   release List[&app.main.Node] (last use)
         keep(*e, k)
 

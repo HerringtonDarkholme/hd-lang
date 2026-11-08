@@ -3,7 +3,9 @@
 //! scans. The browser keeps the original walk: its counts-view path
 //! otherwise links this index even though it never runs the verifier.
 
-use super::{Reason, future, held_source, label, loan_holds, moved_consumers, read_start};
+use super::{
+    Reason, future, held_source, label, loan_holds, moved_consumers, read_start, value_uses,
+};
 use crate::ir::{Body, NONE, Proj, ReadMode, Root, Tag, Topology, ref_word, u32_of};
 use crate::own::{OwnCx, Role, consumes, operands};
 
@@ -31,31 +33,7 @@ pub fn copy_reasons(b: &Body, topo: &Topology, cx: &dyn OwnCx, out: &mut Vec<Opt
     if !(0..n).any(copy) {
         return;
     }
-    // Per value: whether a use consumes it, its last use by index, and
-    // how many uses it has besides drops.
-    let (mut consumed, mut last, mut count) = (vec![false; n], vec![NONE; n], vec![0u32; n]);
-    let mut ops = Vec::new();
-    for i in 0..n {
-        operands(b, i, &mut ops);
-        for op in &ops {
-            let v = op.value as usize;
-            if op.role == Role::Dropped || v >= n {
-                continue;
-            }
-            last[v] = if last[v] == NONE {
-                u32_of(i)
-            } else {
-                last[v].max(u32_of(i))
-            };
-            count[v] += 1;
-            let owner = if op.role == Role::Tail && !topo.is_root[i] {
-                topo.owner[i]
-            } else {
-                NONE
-            };
-            consumed[v] |= consumes(b, cx, i, op, owner);
-        }
-    }
+    let (mut consumed, mut last, count) = value_uses(b, topo, cx);
     // A store into all of a value local whose every use lends binds the
     // value, as a borrow's binding does: it consumes nothing, and the
     // value lives as long as the local is named.

@@ -6,15 +6,9 @@
 //! a count, it is `Conservative`, naming the site that placed it.
 
 #[cfg(any(test, target_arch = "wasm32"))]
-use super::OwnCx;
-#[cfg(any(test, target_arch = "wasm32"))]
 use super::values::{Level, after, statement_chain};
-#[cfg(target_arch = "wasm32")]
-use super::{Role, consumes, operands};
-use crate::ir::{Body, Proj, ReadMode, Root, Tag, unique_word};
-
-#[cfg(any(test, target_arch = "wasm32"))]
-use crate::ir::{NONE, Topology, u32_of};
+use super::{OwnCx, Role, consumes, operands};
+use crate::ir::{Body, NONE, Proj, ReadMode, Root, Tag, Topology, u32_of, unique_word};
 
 #[cfg(not(target_arch = "wasm32"))]
 mod future;
@@ -139,31 +133,7 @@ pub fn copy_reasons(b: &Body, topo: &Topology, cx: &dyn OwnCx, out: &mut Vec<Opt
     if !(0..n).any(copy) {
         return;
     }
-    // Per value: whether a use consumes it, its last use by index, and
-    // how many uses it has besides drops.
-    let (mut consumed, mut last, mut count) = (vec![false; n], vec![NONE; n], vec![0u32; n]);
-    let mut ops = Vec::new();
-    for i in 0..n {
-        operands(b, i, &mut ops);
-        for op in &ops {
-            let v = op.value as usize;
-            if op.role == Role::Dropped || v >= n {
-                continue;
-            }
-            last[v] = if last[v] == NONE {
-                u32_of(i)
-            } else {
-                last[v].max(u32_of(i))
-            };
-            count[v] += 1;
-            let owner = if op.role == Role::Tail && !topo.is_root[i] {
-                topo.owner[i]
-            } else {
-                NONE
-            };
-            consumed[v] |= consumes(b, cx, i, op, owner);
-        }
-    }
+    let (mut consumed, mut last, count) = value_uses(b, topo, cx);
     // A store into all of a value local whose every use lends binds the
     // value, as a borrow's binding does: it consumes nothing, and the
     // value lives as long as the local is named.
@@ -214,6 +184,39 @@ pub fn copy_reasons(b: &Body, topo: &Topology, cx: &dyn OwnCx, out: &mut Vec<Opt
             || changed_while(b, topo, cx, r, last[r], held_source(b, &held, b.data[r][0])),
         ));
     }
+}
+
+/// Per value of `b`: whether a use consumes it, its last use by index (a
+/// `Ref` of it lives to its `LoanEnd`), and how many uses it has besides drops.
+fn value_uses(b: &Body, topo: &Topology, cx: &dyn OwnCx) -> (Vec<bool>, Vec<u32>, Vec<u32>) {
+    let n = b.len();
+    let (mut consumed, mut last, mut count) = (vec![false; n], vec![0; n], vec![0u32; n]);
+    let mut ops = Vec::new();
+    for i in 0..n {
+        operands(b, i, &mut ops);
+        for op in ops
+            .iter()
+            .filter(|op| op.role != Role::Dropped && (op.value as usize) < n)
+        {
+            let v = op.value as usize;
+            last[v] = last[v].max(u32_of(i));
+            count[v] += 1;
+            let tail = op.role == Role::Tail && !topo.is_root[i];
+            consumed[v] |= consumes(b, cx, i, op, if tail { topo.owner[i] } else { NONE });
+        }
+        if b.tags[i] == Tag::LoanEnd
+            && let Root::Value(r) = b.view(b.data[i][0]).root
+            && let Root::Value(v) = b.view(b.data[r as usize][0]).root
+        {
+            last[v as usize] = last[v as usize].max(u32_of(i));
+        }
+    }
+    for (l, &c) in last.iter_mut().zip(&count) {
+        if c == 0 {
+            *l = NONE;
+        }
+    }
+    (consumed, last, count)
 }
 
 /// The reason of copy read `r` ([`copy_reasons`]) from whether a use
