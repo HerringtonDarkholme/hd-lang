@@ -6015,6 +6015,8 @@ runtime/valid/a-direct-suspension-keeps-its-parameter-count.hd	runtime	accept	st
 runtime/valid/a-materialized-frame-keeps-its-requirement-row.hd	runtime	accept	std/time.md#r-std-time.clock.sleep
 runtime/valid/a-suspending-closure-keeps-its-argument-copy.hd	runtime	accept	lang/11-requirements-and-suspension.md#suspending-functions
 runtime/valid/a-value-from-map-get-survives-a-write-in-its-arm.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
+typing/invalid/explicit-type-arguments-of-an-unknown-name.hd	type	reject:unknown-name	lang/03-names-and-scopes.md#r-names.module.other-module.value
+typing/invalid/a-trailing-block-for-a-vararg-is-ineligible.hd	type	reject:trailing-block-ineligible	lang/02-grammar.md#r-grammar.call.trailing-block.eligible
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
@@ -6446,4 +6448,3 @@ typing/invalid/pointer-loan-same-root-dependent-call.hd	type	reject:conflicting-
 typing/invalid/pointer-loan-same-root-dependent-method.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.dep.call.pointer
 typing/invalid/pointer-loan-same-root-observer-notify.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.place
 typing/invalid/pointer-loan-same-root-dependent-outlives-root.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.dep.call.pointer
-typing/invalid/explicit-type-arguments-of-an-unknown-name.hd	type	reject:unknown-name	lang/03-names-and-scopes.md#r-names.module.other-module.value

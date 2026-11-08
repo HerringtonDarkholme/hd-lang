@@ -1622,9 +1622,6 @@ impl Ck<'_, '_> {
         let local = self.local_defaults.take();
         let rest = formals.params.get(skip..).unwrap_or(&[]);
         let variadic = formals.variadic && !rest.is_empty();
-        if variadic && args.trailing.is_some() {
-            return unsupported("a trailing block for a vararg function");
-        }
         // A vararg is the final parameter; the fixed ones come before it.
         let nfixed = rest.len() - usize::from(variadic);
         let mut slots: Vec<Option<Ref>> = vec![None; rest.len()];

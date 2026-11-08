@@ -1,0 +1,9 @@
+# test: a vararg is a list or a tuple, never a zero-argument function, so it takes no trailing block
+# Spec 02 Grammar: grammar.call.trailing-block.eligible.
+
+fn total(values...: List[i32]) -> i32:
+    0
+
+fn run() -> i32:
+    total(1, 2): # diagnostic: trailing-block-ineligible
+        3
