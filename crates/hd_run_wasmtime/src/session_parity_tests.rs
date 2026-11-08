@@ -10,13 +10,13 @@
 //! session's own journal. A new wasmtime session is then rebuilt from
 //! that one. Each rebuild makes no host call, prints nothing, records a
 //! journal equal to the one it replayed but for the module hashes (a
-//! rebuild runs every input from the last program), and goes on live: a
+//! rebuild runs every input from one linked base), and goes on live: a
 //! later input reads the rebuilt bindings.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use super::{Repl, repl, text, with_session};
+use super::{Repl, build_linked_input, repl, text, with_session};
 use hd_run::Outcome;
 
 /// Bindings, a function, a value, a clock read, a sleep, a line longer
@@ -87,8 +87,11 @@ fn script() -> PathBuf {
 fn a_session_runs_and_replays_the_same_on_node() {
     let dir = Scratch::new();
     let mut numbers = Vec::new();
-    let mut after_wasm = Vec::new();
+    let mut base_wasm = Vec::new();
     let mut texts = std::collections::BTreeMap::new();
+    // The rebuild's base: every input above in one linked module, and
+    // what it holds for the input after it.
+    let mut base_added = None;
     with_session(|session, io| {
         let mut repl = repl(session);
         for input in INPUTS {
@@ -120,7 +123,22 @@ fn a_session_runs_and_replays_the_same_on_node() {
             (outcome, text(&io.out), text(&io.err)),
         );
         dir.write("after", number.to_string().as_bytes());
-        after_wasm = wasm;
+        let last = *numbers.last().expect("inputs");
+        let failed: Vec<u32> = repl.failed().into_iter().filter(|n| *n <= last).collect();
+        let start = hd_driver::Session::linked();
+        let mut base = build_linked_input(&repl.files, &repl.store, &start, &failed, last);
+        assert!(base.diags.is_empty(), "{}", base.render());
+        base_wasm = base.wasm.take().expect("the base");
+        dir.write("base.wasm", &base_wasm);
+        let mut metadata = start;
+        metadata.add(base.session_added.take().expect("linked metadata"));
+        let next = build_linked_input(&repl.files, &repl.store, &metadata, &failed, number);
+        assert!(next.diags.is_empty(), "{}", next.render());
+        dir.write(
+            "after-rebuilt.wasm",
+            next.wasm.as_ref().expect("the next input"),
+        );
+        base_added = Some(metadata);
     });
     let inputs: Vec<String> = numbers.iter().map(u32::to_string).collect();
     dir.write("inputs", inputs.join("\n").as_bytes());
@@ -145,7 +163,7 @@ fn a_session_runs_and_replays_the_same_on_node() {
         let sources: Vec<(u32, &str)> = texts.iter().map(|(n, t)| (*n, t.as_str())).collect();
         let rebuilt = repl
             .session
-            .run_from(&journal, &after_wasm, &sources, None)
+            .run_from(&journal, &base_wasm, &sources)
             .expect("the session rebuilds");
         assert_eq!(rebuilt.kept, numbers, "{:?}", rebuilt.reason);
         assert_eq!(repl.session.host_calls(), 0, "a host call repeated");
@@ -156,6 +174,7 @@ fn a_session_runs_and_replays_the_same_on_node() {
             but_modules(&journal),
             "the rebuilt journal differs from the Node journal it replayed"
         );
+        repl.metadata = base_added.take().expect("the base's metadata");
         repl.next = *numbers.last().expect("inputs");
         for (n, t) in &texts {
             repl.files.insert(&hd_project::repl_file(*n), t);

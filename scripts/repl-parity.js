@@ -4,17 +4,20 @@
 // ran on wasmtime: `inputs` (the input numbers, in order), and for each
 // input `N.hd`, `N.wasm`, `N.status`, `N.out` and `N.err` (its text, the
 // session program it ran in, its status and output); `wasmtime.journal`,
-// the session's journal after them; and `after`, the number of one more
-// input that ran after the journal was taken.
+// the session's journal after them; `after`, the number of one more
+// input that ran after the journal was taken; `base.wasm`, every input
+// before it in one linked base; and `after-rebuilt.wasm`, that input built
+// over the base.
 //
 // 1. Runs the inputs on Node with the JS host's session (host/core.ts),
 //    each from its session program after replaying the ones before, and
 //    checks each one's status and output against wasmtime's, then writes
 //    its journal as `node.journal` for the Rust test to replay.
-// 2. Rebuilds a new Node session from the wasmtime journal: every input is
-//    kept, no host call is made, nothing is printed, and the new journal
-//    equals the wasmtime one but for module hashes. Then the `after` input
-//    runs live over the rebuilt bindings, with wasmtime's output.
+// 2. Rebuilds a new Node session in the base from the wasmtime journal:
+//    every input is kept, no host call is made, nothing is printed, and the
+//    new journal equals the wasmtime one but for module hashes. Then the
+//    `after` input runs live over the rebuilt bindings, with wasmtime's
+//    output.
 
 import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -79,7 +82,8 @@ live.close();
 
 const journal = new Uint8Array(readFileSync(join(dir, "wasmtime.journal")));
 const again = createNodeSession(sink, {});
-const rebuilt = await again.run(after.wasm, sources, null, journal);
+const base = new Uint8Array(readFileSync(join(dir, "base.wasm")));
+const rebuilt = await again.run(base, sources, null, journal);
 assert.deepEqual(rebuilt, {
   kept: inputs.map((i) => i.number),
   skipped: [],
@@ -90,6 +94,7 @@ assert.deepEqual(rebuilt, {
 assert.equal(again.hostCalls(), 0, "a host call repeated");
 assert.equal(out + err, "", "the rebuild printed");
 assert.deepEqual(butModules(again.journal()), butModules(journal));
-await runs(again, after);
+const rebuiltAfter = new Uint8Array(readFileSync(join(dir, "after-rebuilt.wasm")));
+await runs(again, { ...after, wasm: rebuiltAfter });
 again.close();
 console.log(`repl parity: ${inputs.length} inputs, journal ${journal.length} bytes`);

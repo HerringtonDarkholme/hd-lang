@@ -83,34 +83,8 @@ struct Repl<'s> {
     kept: BTreeMap<u32, (String, bool)>,
     /// The build cache every build of the session shares.
     store: hd_cache::MemoryStore,
-}
-
-/// Builds the session program of every input in `files` up to `number`,
-/// the `failed` ones hidden from later inputs.
-fn build_session(
-    files: &hd_project::MemorySources,
-    store: &hd_cache::MemoryStore,
-    failed: &[u32],
-    number: u32,
-) -> hd_driver::Output {
-    let host = hd_driver::Host {
-        render_tir: &[],
-        sources: files,
-        store,
-        clock: &hd_driver::NoClock,
-        executor: hd_driver::Executor::Serial(hd_sched::SerialOrder::Priority),
-    };
-    let start = hd_driver::Session::start();
-    let packages = hd_driver::Packages {
-        build_profile: hd_driver::BuildProfile::Checked,
-        session: Some(&start),
-        inputs_from: Some(1),
-        failed_inputs: failed,
-
-        ..hd_driver::Packages::default()
-    };
-    let goal = hd_driver::Goal::ReplInput { input: number };
-    hd_driver::build_packages(&host, "app", &packages, &goal)
+    /// What the session's linked modules hold, for the next build.
+    metadata: hd_driver::Session,
 }
 
 impl Repl<'_> {
@@ -175,12 +149,14 @@ impl Repl<'_> {
         let n = self.next;
         let file = hd_project::repl_file(n);
         self.files.insert(&file, text);
-        let out = build_session(&self.files, &self.store, &self.failed(), n);
+        let mut out =
+            build_linked_input(&self.files, &self.store, &self.metadata, &self.failed(), n);
         assert!(out.diags.is_empty(), "{file}: {}", out.render());
         Built {
             number: n,
             source: text.to_owned(),
             wasm: out.wasm.expect("a module"),
+            added: out.session_added.take(),
         }
     }
 
@@ -205,6 +181,7 @@ impl Repl<'_> {
             self.files
                 .retain(|p| p != hd_project::repl_file(built.number));
         } else {
+            self.metadata.add(built.added.expect("linked metadata"));
             self.kept
                 .insert(built.number, (built.source, end == End::Exit(0)));
         }
@@ -220,11 +197,13 @@ impl Repl<'_> {
         }
     }
 
-    /// Rebuilds the session from its journal over the kept inputs, as
-    /// `:reload` does, and forgets the inputs it skipped or dropped.
+    /// Rebuilds the session from its journal over the kept inputs into a
+    /// new linked base, as `:reload` does, and forgets the inputs it
+    /// skipped or dropped. After a drop it rebuilds the kept ones again.
     fn rebuild(&mut self) -> Ran {
         let last = *self.kept.keys().last().expect("an input");
-        let out = build_session(&self.files, &self.store, &self.failed(), last);
+        let start = hd_driver::Session::linked();
+        let mut out = build_linked_input(&self.files, &self.store, &start, &self.failed(), last);
         assert!(out.diags.is_empty(), "{}", out.render());
         let wasm = out.wasm.expect("a module");
         let sources: Vec<(u32, &str)> = self
@@ -237,6 +216,13 @@ impl Repl<'_> {
             .run(&wasm, &sources, None)
             .expect("the session rebuilds");
         self.forget(&ran);
+        if ran.dropped.is_empty() {
+            self.metadata = start;
+            self.metadata
+                .add(out.session_added.take().expect("linked metadata"));
+        } else if !self.kept.is_empty() {
+            self.rebuild();
+        }
         ran
     }
 }
@@ -246,6 +232,7 @@ struct Built {
     number: u32,
     source: String,
     wasm: Vec<u8>,
+    added: Option<hd_driver::Session>,
 }
 
 fn repl(session: &mut WasmtimeSession) -> Repl<'_> {
@@ -255,6 +242,7 @@ fn repl(session: &mut WasmtimeSession) -> Repl<'_> {
         next: 0,
         kept: BTreeMap::new(),
         store: hd_cache::MemoryStore::default(),
+        metadata: hd_driver::Session::linked(),
     }
 }
 
@@ -1042,6 +1030,7 @@ fn a_rebuild_skips_stopped_inputs_and_drops_from_the_first_divergence() {
             .expect("runs");
         // Input 4's own run skipped input 3 already.
         assert_eq!((ran.kept, ran.skipped), (vec![1, 2], vec![4]));
+        repl.metadata.add(built.added.expect("linked metadata"));
         repl.kept.insert(built.number, (built.source, true));
         for input in ["kept = kept + 1\nprintln(kept)\n", "2 + 2\n"] {
             assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
@@ -1871,7 +1860,7 @@ fn linked_checkpoints_restore_aliases_and_replay_only_the_active_tail() {
                 .iter()
                 .map(|(n, text)| (*n, text.as_str()))
                 .collect();
-            let whole = build_session(&files, &store, &[], 12);
+            let whole = build_linked_input(&files, &store, &hd_driver::Session::linked(), &[], 12);
             assert!(!whole.diags.has_errors(), "{}", whole.render());
             let calls = session.host_calls();
             let rebuilt = session

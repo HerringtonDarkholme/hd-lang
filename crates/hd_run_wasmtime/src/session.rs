@@ -366,7 +366,7 @@ impl WasmtimeSession {
                     .iter()
                     .all(|(number, _)| module.get_export(&format!("hd.init.{number}")).is_some())
                 {
-                    return self.rebuild_linked(wasm, info, sources);
+                    return self.rebuild_linked(wasm, info, sources, None);
                 }
             }
             return self.run_linked(wasm, info, sources, live);
@@ -395,11 +395,13 @@ impl WasmtimeSession {
 
     /// Replays historical evidence into a fresh linked base, then adopts
     /// that initialized instance. Later inputs import it without replay.
+    /// The evidence is the session's own journal, or `journal`.
     fn rebuild_linked(
         &mut self,
         wasm: &[u8],
         info: SessionInfo,
         sources: &[(u32, &str)],
+        journal: Option<&[u8]>,
     ) -> Result<Ran, String> {
         let cap = self.linked.as_ref().map_or_else(
             || {
@@ -413,7 +415,8 @@ impl WasmtimeSession {
             |linked| linked.cap,
         );
         let record = recorded(
-            self.journal()
+            journal
+                .or_else(|| self.journal())
                 .ok_or("the session has no historical journal")?,
         )?;
         let module = self.load(wasm)?;
@@ -824,25 +827,18 @@ impl WasmtimeSession {
         Ok(())
     }
 
-    /// Runs as `run` does over another session's `journal`: one the JS
-    /// host recorded, which must replay here as the session's own does.
+    /// Rebuilds the session in linked base `wasm` from another session's
+    /// `journal`: one the JS host recorded, which must replay here as the
+    /// session's own does.
     #[cfg(test)]
     pub(crate) fn run_from(
         &mut self,
         journal: &[u8],
         wasm: &[u8],
         sources: &[(u32, &str)],
-        live: Option<u32>,
     ) -> Result<Ran, String> {
-        let cap = self
-            .run
-            .store
-            .data()
-            .journal
-            .as_ref()
-            .map_or(SESSION_CAP, Recorder::cap);
-        self.run_record(&recorded(journal)?, cap, wasm, sources, live)
-            .map(|(ran, _)| ran)
+        let info = SessionInfo::read(wasm)?.ok_or("not a module of a linked session")?;
+        self.rebuild_linked(wasm, info, sources, Some(journal))
     }
 
     fn run_record(
