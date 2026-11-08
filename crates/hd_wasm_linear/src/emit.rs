@@ -68,9 +68,9 @@ pub fn instance(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResult<Fu
         Sub::Body(sub) => sub,
         Sub::Adapter => return adapter(input, m, id),
     };
-    let Some(b) = (input.body)(id) else {
-        return unsupported("an instance without TIR");
-    };
+    // Collection scanned every instance and refused one whose body it
+    // could not find; the driver looks bodies up in the same order.
+    let b = (input.body)(id).expect("collection scanned this instance's TIR");
     let own = Own {
         item,
         args,
@@ -2458,10 +2458,8 @@ impl Em<'_, '_, '_> {
         let mut args = self.rec(bw);
         args.truncate(args.len().saturating_sub(3));
         if self.string_slice_comparisons.contains_key(&i) {
-            let [text, start, end] = args.as_slice() else {
-                return unsupported("a string slice call without three arguments");
-            };
-            return self.compared_str_slice(i, *text, *start, *end);
+            // `string.slice(self, start, end)`.
+            return self.compared_str_slice(i, args[0], args[1], args[2]);
         }
         match self.calls.get(&i).cloned() {
             Some(Target::MapKey { .. } | Target::MapInline(_)) => self.map_probe(i, &args),
@@ -2827,9 +2825,9 @@ impl Em<'_, '_, '_> {
         }
         match key {
             "weak_new" | "weak_new_mut" => {
-                let Some(&target) = self.pool().list_items(targs).first() else {
-                    return unsupported("a weak constructor without its target type");
-                };
+                // `weak_new[T]` and `weak_new_mut[T]`
+                // (`ref.weak.intrinsics.construction`).
+                let target = self.pool().list_items(targs)[0];
                 let type_key = canon(
                     self.pool(),
                     &|d| self.env().path_hash(d),
@@ -2898,10 +2896,9 @@ impl Em<'_, '_, '_> {
             // Explicit wrapping arithmetic uses the native operation even
             // in checked builds, with the usual sub-word canonical form.
             "int_wrapping_add" | "int_wrapping_sub" | "int_wrapping_mul" => {
-                let (bits, signed, float) = self.num(self.ty_of(args[0]));
-                if float {
-                    return unsupported("wrapping arithmetic of a float");
-                }
+                // `N < Integer`, which only the integer types implement
+                // (`trait.sealed.integer`), here and in each kernel below.
+                let (bits, signed, _) = self.num(self.ty_of(args[0]));
                 let op = match key {
                     "int_wrapping_add" => PrimOp::Add,
                     "int_wrapping_sub" => PrimOp::Sub,
@@ -2913,10 +2910,7 @@ impl Em<'_, '_, '_> {
             // Bounds need no operand or bit loop: the result's type fixes
             // their width and signedness, including 32-bit `usize`.
             "int_min" | "int_max" => {
-                let (bits, signed, float) = self.num(self.ty_of(i));
-                if float {
-                    return unsupported("integer bounds of a float");
-                }
+                let (bits, signed, _) = self.num(self.ty_of(i));
                 let minimum = key == "int_min";
                 if bits == 64 {
                     let value = match (minimum, signed) {
@@ -2943,10 +2937,7 @@ impl Em<'_, '_, '_> {
             // Count only the declared width, not a narrow signed value's
             // sign extension; every public count result is `u32`.
             "int_count_ones" | "int_leading_zeros" | "int_trailing_zeros" => {
-                let (bits, signed, float) = self.num(self.ty_of(args[0]));
-                if float {
-                    return unsupported("integer bit count of a float");
-                }
+                let (bits, signed, _) = self.num(self.ty_of(args[0]));
                 self.push(args[0])?;
                 let ones = key == "int_count_ones";
                 let trailing = key == "int_trailing_zeros";
@@ -2986,10 +2977,7 @@ impl Em<'_, '_, '_> {
             // The allocation-free integer writer, shared by both std forms.
             "format_int" => {
                 let t = self.ty_of(args[0]);
-                let (bits, signed, float) = self.num(t);
-                if float {
-                    return unsupported("`format_int` of a float");
-                }
+                let (bits, signed, _) = self.num(t);
                 self.push(args[0])?;
                 if bits < 64 {
                     self.f.op(if signed {
@@ -3290,9 +3278,9 @@ impl Em<'_, '_, '_> {
     /// list's element of `T`, so `size_of` is that size and `offset` one
     /// multiply and add.
     fn ptr(&mut self, i: u32, key: &str, targs: TyList, args: &[u32]) -> StageResult<()> {
-        let Some(&t) = self.pool().list_items(targs).last() else {
-            return unsupported("a typed memory intrinsic without its type argument");
-        };
+        // Each is a method of `impl[T] Ptr[T]` or `size_of[T]`.
+        let targs = self.pool().list_items(targs);
+        let t = targs[targs.len() - 1];
         let m = crate::layout::mem(self.pool(), self.env(), self.sub(t))?;
         if key == "ptr_offset" {
             self.push(args[0])?;
@@ -3311,10 +3299,8 @@ impl Em<'_, '_, '_> {
     /// block that holds the place, which a buffer's room keeps from its
     /// last count (`std.rt.memory`).
     fn ptr_ref(&mut self, i: u32, args: &[u32]) -> StageResult<()> {
-        let [p] = args else {
-            return unsupported("a pointer reference intrinsic without its pointer");
-        };
-        self.comp(*p, 0)?;
+        // `as_ref(self)` and `as_mut(self)`.
+        self.comp(args[0], 0)?;
         self.store(i)
     }
 
