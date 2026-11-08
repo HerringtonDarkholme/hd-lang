@@ -1707,6 +1707,16 @@ impl Ck<'_, '_> {
         }
     }
 
+    /// Keep an opaque return occurrence's variable as the expectation,
+    /// even once an earlier return solved it (`fn.opaque.occurrence-no-join`).
+    fn argument_ty(&mut self, ty: Ty) -> StageResult<Ty> {
+        if self.strict_opaque_return(ty) {
+            Ok(ty)
+        } else {
+            self.normalize_deep(ty)
+        }
+    }
+
     /// Checks arguments against parameters (positional, then named by
     /// parameter name), skipping `skip` leading parameters already given.
     fn check_args(
@@ -1772,7 +1782,7 @@ impl Ck<'_, '_> {
                 continue;
             }
             let w = match rest.get(i) {
-                Some(p) => Some(self.normalize_deep(p.1)?),
+                Some(p) => Some(self.argument_ty(p.1)?),
                 None => None,
             };
             // An earlier argument solved this bare parameter: the two join
@@ -1912,7 +1922,7 @@ impl Ck<'_, '_> {
                 named_bad = true;
                 continue;
             }
-            let w = self.normalize_deep(rest[i].1)?;
+            let w = self.argument_ty(rest[i].1)?;
             let rejoin =
                 open[i] && !matches!(pool.get(self.infer.shallow(pool, w)), TyData::Infer(_));
             let mut bounded = None;
@@ -1983,7 +1993,7 @@ impl Ck<'_, '_> {
                 last_want.is_some() || self.trailing_takes(rest.last().map(|p| p.1)).is_some();
             if takes {
                 let w = match rest.last() {
-                    Some(p) => Some(self.normalize_deep(p.1)?),
+                    Some(p) => Some(self.argument_ty(p.1)?),
                     None => None,
                 };
                 let w = match (last_want, w) {
@@ -2282,7 +2292,7 @@ impl Ck<'_, '_> {
                     if check_storage && let Some(place) = destination.storage() {
                         self.check_stored_value(et, e, place)?;
                     }
-                    let w = self.normalize_deep(tys[i])?;
+                    let w = self.argument_ty(tys[i])?;
                     slots[i] = Some(self.coerce(g, et, w, e, "argument", ExpectPosition::General));
                 }
                 if let Some(rest) = rest {
