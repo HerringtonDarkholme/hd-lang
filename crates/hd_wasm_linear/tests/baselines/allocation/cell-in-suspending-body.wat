@@ -3,7 +3,7 @@
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "bump" (func $bump (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $waits (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i64 i32) (local $tally i32) (local $t1 i64) (local $t0 i32)
+  (func $waits (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i64 i32) (local $tally i32) (local $t0 i64)
     ;; ...
     block
       ;; ...
@@ -14,11 +14,9 @@
         i32.const 8
         i32.const 0
         call $rt:new/class-1
-        local.tee $t0
-        local.get $t1
-        i64.store $heap
+        local.tee $tally
         local.get $t0
-        local.set $tally
+        i64.store $heap
       end
       local.get $tally
       call $bump

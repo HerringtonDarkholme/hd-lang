@@ -1031,6 +1031,7 @@ runtime/valid/cancellation-unwinds-nested-frames.hd	runtime	accept	lang/11-requi
 runtime/valid/cancellation-unwinds-suspending-closure.hd	runtime	accept	lang/11-requirements-and-suspension.md#cancellation
 runtime/valid/a-cancelled-cleanup-scope-releases-a-moved-temporary-once.hd	runtime	accept	std/time.md#r-std-time.clock.sleep
 runtime/valid/a-point-cancelled-after-an-earlier-point-releases-none-of-its-temporaries.hd	runtime	accept	std/time.md#r-std-time.clock.sleep
+runtime/valid/a-suspending-body-with-a-local-frame-keeps-its-values-across-a-resume.hd	runtime	accept	std/time.md#r-std-time.clock.sleep
 typing/valid/provider-capturing-closure.hd	type	accept	lang/07-functions.md#r-fn.capture.provider-value
 typing/invalid/row-extension-unsound.hd	type	reject:missing-requirement	lang/11-requirements-and-suspension.md#requirement-rows
 typing/valid/row-extension-entailment.hd	type	accept	lang/11-requirements-and-suspension.md#requirement-rows

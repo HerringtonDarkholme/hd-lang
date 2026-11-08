@@ -1,0 +1,32 @@
+# test: a suspending body that drives a provider call at once has a local frame, and its values live across each resume
+# expect-stdout: 21 22 43 a-b
+use std.task.block_on
+use std.time.{Clock, sleep}
+
+trait Step:
+    fn next!(&mut self, value: i32) -> i32
+
+struct AddOne:
+    pass
+
+impl Step for AddOne:
+    fn next!(&mut self, value: i32) -> i32:
+        value + 1
+
+fn work!(start: i32) -> string $ Step + Clock:
+    let mut s = $.use(Step)
+    tag := "a-" + "b"
+    a := match block_on(s.next(start)):
+        .Completed(value) => value
+        _ => 0
+    sleep!(1ms)
+    b := match block_on(s.next(a)):
+        .Completed(value) => value
+        _ => 0
+    sleep!(1ms)
+    "${a} ${b} ${a + b} ${tag}"
+
+pub fn main!() -> Result[void, ConsoleError] $ Console + Clock:
+    let mut console = $.use(Console)
+    $.with(Step=box(AddOne {})):
+        console.write_sync("${work!(20)}\n")

@@ -26,7 +26,7 @@
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 15 funcref))
-  (func $main'1 (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (param $provider1 i32) (param $provider1.vtable i32) (result i32) (local $t103 i32) (local $t1 i32) (local $t104 i32) (local $t105 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32) (local $t10 i32) (local $t11 i32) (local $t12 i32) (local $t13 i32) (local $t14 i32) (local $t15 i32) (local $t16 i32) (local $t17 i32) (local $t18 i32) (local $t19 i32) (local $t20 i32) (local $t21 i32) (local $t22 i32) (local $t23 i32) (local $t24 i32) (local $t25 i32) (local $t26 i32) (local $t27 i32) (local $t28 i32) (local $t29 i32) (local $t30 i32) (local $t31 i32) (local $t32 i32) (local $t33 i32) (local $t34 i32) (local $t35 i32) (local $t36 i32) (local $t37 i32) (local $t38 i32) (local $t39 i32) (local $t40 i32) (local $t41 i32) (local $t42 i32) (local $t43 i32) (local $t44 i32) (local $t45 i32) (local $t46 i32) (local $t47 i32) (local $t48 i32) (local $t49 i32) (local $t50 i32) (local $t53 i32) (local $t51 i32) (local $t52 i32) (local $t54 i32) (local $t55 i32) (local $t56 i32) (local $t57 i32) (local $t58 i32) (local $t59 i32) (local $t60 i32) (local $t61 i32) (local $t62 i32) (local $t63 i32) (local $t64 i32) (local $t65 i32) (local $t66 i32) (local $t67 i32) (local $t68 i32) (local $t69 i32) (local $t70 i32) (local $t71 i32) (local $t72 i32) (local $t73 i32) (local $t74 i32) (local $t75 i32) (local $t76 i32) (local $t77 i32) (local $t78 i32) (local $t79 i32) (local $t80 i32) (local $t81 i32) (local $t82 i32) (local $t83 i32) (local $t84 i32) (local $t85 i32) (local $t86 i32) (local $t87 i32) (local $t88 i32) (local $t89 i32) (local $t90 i32) (local $t91 i32) (local $t92 i32) (local $t93 i32) (local $t94 i32) (local $t95 i32) (local $t96 i32) (local $t97 i32) (local $t98 i32) (local $t99 i32) (local $t100 i32) (local $t106 i64) (local $t101 i32) (local $t102 i32) (local $t107 i32) (local $t0 i32)
+  (func $main'1 (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (param $provider1 i32) (param $provider1.vtable i32) (result i32) (local $t54 i32) (local $t1 i32) (local $t55 i32) (local $t56 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32) (local $t10 i32) (local $t11 i32) (local $t12 i32) (local $t13 i32) (local $t14 i32) (local $t15 i32) (local $t16 i32) (local $t17 i32) (local $t18 i32) (local $t19 i32) (local $t20 i32) (local $t21 i32) (local $t22 i32) (local $t23 i32) (local $t24 i32) (local $t25 i32) (local $t26 i32) (local $t27 i32) (local $t28 i32) (local $t29 i32) (local $t30 i32) (local $t31 i32) (local $t32 i32) (local $t33 i32) (local $t34 i32) (local $t35 i32) (local $t36 i32) (local $t37 i32) (local $t38 i32) (local $t45 i32) (local $t39 i32) (local $t40 i32) (local $t41 i32) (local $t42 i32) (local $t43 i32) (local $t44 i32) (local $t46 i32) (local $t47 i32) (local $t48 i32) (local $t49 i32) (local $t50 i32) (local $t51 i32) (local $t52 i32) (local $t57 i32) (local $t58 i32) (local $t53 i32) (local $t59 i64) (local $t0 i32)
     ;; 12 |     let mut u = UniqList::[i32].new()
     local.get $frame
     if
@@ -162,213 +162,66 @@
       i32.load $heap offset=288
       local.set $t35
       local.get $frame
-      i32.load $heap offset=296
+      i32.load $heap offset=320
       local.set $t36
       local.get $frame
-      i32.load $heap offset=300
+      i32.load $heap offset=324
       local.set $t37
       local.get $frame
-      i32.load $heap offset=304
+      i32.load $heap offset=328
       local.set $t38
       local.get $frame
-      i32.load $heap offset=308
+      i32.load $heap offset=476
       local.set $t39
       local.get $frame
-      i32.load $heap offset=312
+      i32.load $heap offset=480
       local.set $t40
       local.get $frame
-      i32.load $heap offset=316
+      i32.load $heap offset=484
       local.set $t41
       local.get $frame
-      i32.load $heap offset=320
+      i32.load $heap offset=524
       local.set $t42
       local.get $frame
-      i32.load $heap offset=324
+      i32.load $heap offset=528
       local.set $t43
       local.get $frame
-      i32.load $heap offset=328
+      i32.load $heap offset=532
       local.set $t44
       local.get $frame
-      i32.load $heap offset=332
+      i32.load $heap offset=556
       local.set $t45
       local.get $frame
-      i32.load $heap offset=336
+      i32.load $heap offset=560
       local.set $t46
       local.get $frame
-      i32.load $heap offset=340
+      i32.load $heap offset=564
       local.set $t47
       local.get $frame
-      i32.load $heap offset=344
+      i32.load $heap offset=568
       local.set $t48
       local.get $frame
-      i32.load $heap offset=348
+      i32.load $heap offset=572
       local.set $t49
       local.get $frame
-      i32.load $heap offset=352
+      i32.load $heap offset=576
       local.set $t50
       local.get $frame
-      i32.load $heap offset=408
+      i32.load $heap offset=580
       local.set $t51
       local.get $frame
-      i32.load $heap offset=432
+      i32.load $heap offset=584
       local.set $t52
       local.get $frame
-      i32.load $heap offset=440
+      i32.load $heap offset=624
       local.set $t53
       local.get $frame
-      i32.load $heap offset=448
-      local.set $t54
-      local.get $frame
-      i32.load $heap offset=452
-      local.set $t55
-      local.get $frame
-      i32.load $heap offset=456
-      local.set $t56
-      local.get $frame
-      i32.load $heap offset=460
-      local.set $t57
-      local.get $frame
-      i32.load $heap offset=464
-      local.set $t58
-      local.get $frame
-      i32.load $heap offset=468
-      local.set $t59
-      local.get $frame
-      i32.load $heap offset=472
-      local.set $t60
-      local.get $frame
-      i32.load $heap offset=476
-      local.set $t61
-      local.get $frame
-      i32.load $heap offset=480
-      local.set $t62
-      local.get $frame
-      i32.load $heap offset=484
-      local.set $t63
-      local.get $frame
-      i32.load $heap offset=488
-      local.set $t64
-      local.get $frame
-      i32.load $heap offset=492
-      local.set $t65
-      local.get $frame
-      i32.load $heap offset=496
-      local.set $t66
-      local.get $frame
-      i32.load $heap offset=500
-      local.set $t67
-      local.get $frame
-      i32.load $heap offset=504
-      local.set $t68
-      local.get $frame
-      i32.load $heap offset=508
-      local.set $t69
-      local.get $frame
-      i32.load $heap offset=512
-      local.set $t70
-      local.get $frame
-      i32.load $heap offset=516
-      local.set $t71
-      local.get $frame
-      i32.load $heap offset=520
-      local.set $t72
-      local.get $frame
-      i32.load $heap offset=524
-      local.set $t73
-      local.get $frame
-      i32.load $heap offset=528
-      local.set $t74
-      local.get $frame
-      i32.load $heap offset=532
-      local.set $t75
-      local.get $frame
-      i32.load $heap offset=536
-      local.set $t76
-      local.get $frame
-      i32.load $heap offset=540
-      local.set $t77
-      local.get $frame
-      i32.load $heap offset=544
-      local.set $t78
-      local.get $frame
-      i32.load $heap offset=548
-      local.set $t79
-      local.get $frame
-      i32.load $heap offset=552
-      local.set $t80
-      local.get $frame
-      i32.load $heap offset=556
-      local.set $t81
-      local.get $frame
-      i32.load $heap offset=560
-      local.set $t82
-      local.get $frame
-      i32.load $heap offset=564
-      local.set $t83
-      local.get $frame
-      i32.load $heap offset=568
-      local.set $t84
-      local.get $frame
-      i32.load $heap offset=572
-      local.set $t85
-      local.get $frame
-      i32.load $heap offset=576
-      local.set $t86
-      local.get $frame
-      i32.load $heap offset=580
-      local.set $t87
-      local.get $frame
-      i32.load $heap offset=584
-      local.set $t88
-      local.get $frame
-      i32.load $heap offset=592
-      local.set $t89
-      local.get $frame
-      i32.load $heap offset=596
-      local.set $t90
-      local.get $frame
-      i32.load $heap offset=600
-      local.set $t91
-      local.get $frame
-      i32.load $heap offset=604
-      local.set $t92
-      local.get $frame
-      i32.load $heap offset=608
-      local.set $t93
-      local.get $frame
-      i32.load $heap offset=612
-      local.set $t94
-      local.get $frame
-      i32.load $heap offset=620
-      local.set $t95
-      local.get $frame
-      i32.load $heap offset=624
-      local.set $t96
-      local.get $frame
-      i32.load $heap offset=628
-      local.set $t97
-      local.get $frame
-      i32.load $heap offset=636
-      local.set $t98
-      local.get $frame
-      i32.load $heap offset=640
-      local.set $t99
-      local.get $frame
-      i32.load $heap offset=644
-      local.set $t100
-      local.get $frame
-      i32.load $heap offset=696
-      local.set $t101
-      local.get $frame
-      i32.load $heap offset=720
-      local.set $t102
-      local.get $frame
       i32.load $heap offset=8
-      local.set $t103
+      local.set $t54
     else
     end
     block
-      local.get $t103
+      local.get $t54
       i32.eqz
       if
         block
@@ -377,10 +230,10 @@
               block
                 block
                   block
-                    local.get $t104
+                    local.get $t55
                     i32.const 4
                     call $room
-                    local.set $t104
+                    local.set $t55
                     i32.const 0
                     local.set $t2
                     i32.const 0
@@ -396,14 +249,14 @@
                   i32.const 0
                   local.set $t7
                 end
-                local.get $t104
+                local.get $t55
                 i32.const 0
                 local.set $t8
                 i32.const 0
                 local.set $t9
                 i32.const 0
                 local.set $t10
-                local.set $t104
+                local.set $t55
                 i32.const 0
                 local.set $t11
                 i32.const 0
@@ -453,42 +306,32 @@
         i32.const 32
         i32.const 2
         call $rt:new/class-3
-        local.tee $t36
-        local.get $t104
+        local.tee $t31
+        local.get $t55
         i32.store $heap
-        local.get $t36
-        local.get $t105
+        local.get $t31
+        local.get $t56
         i32.store $heap offset=4
-        local.get $t36
-        local.get $t105
+        local.get $t31
+        local.get $t56
         i32.store $heap offset=8
+        local.get $t31
         i32.const 1
-        local.set $t37
-        local.get $t36
-        local.get $t37
         i32.store $heap offset=12
+        local.get $t31
         i32.const 1
-        local.set $t38
-        local.get $t36
-        local.get $t38
         i32.store $heap offset=16
+        local.get $t31
         i32.const 1
-        local.set $t39
-        local.get $t36
-        local.get $t39
         i32.store $heap offset=20
+        local.get $t31
         i32.const 1
-        local.set $t40
-        local.get $t36
-        local.get $t40
         i32.store $heap offset=24
+        local.get $t31
         i32.const 1
-        local.set $t41
-        local.get $t36
-        local.get $t41
         i32.store $heap offset=28
-        local.get $t36
-        local.tee $t104
+        local.get $t31
+        local.tee $t55
         i32.const 0
         local.set $t31
         i32.const 0
@@ -505,228 +348,184 @@
           i32.const 32
           i32.const 2
           call $rt:new/class-3
-          local.tee $t45
-          local.get $t42
+          local.tee $t55
+          local.get $t36
           i32.store $heap
-          local.get $t45
-          local.get $t43
+          local.get $t55
+          local.get $t37
           i32.store $heap offset=4
-          local.get $t45
-          local.get $t44
+          local.get $t55
+          local.get $t38
           i32.store $heap offset=8
+          local.get $t55
           i32.const 0
-          local.set $t46
-          local.get $t45
-          local.get $t46
           i32.store $heap offset=12
+          local.get $t55
           i32.const 0
-          local.set $t47
-          local.get $t45
-          local.get $t47
           i32.store $heap offset=16
+          local.get $t55
           i32.const 0
-          local.set $t48
-          local.get $t45
-          local.get $t48
           i32.store $heap offset=20
+          local.get $t55
           i32.const 0
-          local.set $t49
-          local.get $t45
-          local.get $t49
           i32.store $heap offset=24
+          local.get $t55
           i32.const 0
-          local.set $t50
-          local.get $t45
-          local.get $t50
           i32.store $heap offset=28
-          local.get $t45
-          local.set $t104
         end
         i32.const 1
-        local.set $t105
+        local.set $t56
         block
           block
-            local.get $t104
+            local.get $t55
             call $"impl [ T < ? Copy ] UniqList [ T ].len[i32]"
-            local.set $t53
-            local.get $t104
+            local.set $t45
+            local.get $t55
             call $"impl [ T < ? Copy ] Buffer [ T ].capacity[i32]"
-            local.get $t53
+            local.get $t45
             i32.le_u
             if
-              local.get $t53
-              local.tee $t51
+              local.get $t45
               i32.const -2
               i32.gt_u
               if
                 call $rt:panic
                 unreachable
               end
-              local.get $t104
-              local.get $t51
+              local.get $t55
+              local.get $t45
               i32.const 1
               i32.add
               call $"impl [ T < ? Copy ] UniqList [ T ].reserve_for[i32]"
             end
-            local.get $t104
-            local.get $t53
+            local.get $t55
+            local.get $t45
             call $"impl [ T < ? Copy ] Buffer [ T ].at[i32]"
-            local.tee $t52
-            local.get $t105
+            local.get $t56
             i32.store $heap
-            local.get $t53
+            local.get $t45
             i32.const -2
             i32.gt_u
             if
               call $rt:panic
               unreachable
             end
-            local.get $t53
+            local.get $t45
             i32.const 1
             i32.add
-            local.get $t104
-            local.set $t54
-            local.set $t55
+            local.get $t55
+            local.set $t56
+            local.set $t45
             i32.const 0
-            local.tee $t56
             if (result i32)
-              local.get $t54
+              local.get $t56
               i32.const 8
               i32.add
             else
-              local.get $t54
+              local.get $t56
               i32.const 8
               i32.add
             end
-            local.tee $t57
-            i32.load $heap
-            local.set $t60
-            local.get $t57
-            local.get $t55
+            local.get $t45
             i32.store $heap
             br 0
           end
         end
     ;; 14 |     a := sized!(u)
-        local.get $t104
+        local.get $t55
         i32.eqz
         if
           i32.const 32
           i32.const 2
           call $rt:new/class-3
-          local.tee $t64
-          local.get $t61
+          local.tee $t55
+          local.get $t39
           i32.store $heap
-          local.get $t64
-          local.get $t62
+          local.get $t55
+          local.get $t40
           i32.store $heap offset=4
-          local.get $t64
-          local.get $t63
+          local.get $t55
+          local.get $t41
           i32.store $heap offset=8
+          local.get $t55
           i32.const 0
-          local.set $t65
-          local.get $t64
-          local.get $t65
           i32.store $heap offset=12
+          local.get $t55
           i32.const 0
-          local.set $t66
-          local.get $t64
-          local.get $t66
           i32.store $heap offset=16
+          local.get $t55
           i32.const 0
-          local.set $t67
-          local.get $t64
-          local.get $t67
           i32.store $heap offset=20
+          local.get $t55
           i32.const 0
-          local.set $t68
-          local.get $t64
-          local.get $t68
           i32.store $heap offset=24
+          local.get $t55
           i32.const 0
-          local.set $t69
-          local.get $t64
-          local.get $t69
           i32.store $heap offset=28
-          local.get $t64
-          local.set $t104
         end
-        local.get $t104
+        local.get $t55
         i32.load $heap
-        local.tee $t70
-        local.get $t104
+        local.get $t55
         i32.load $heap offset=4
-        local.tee $t71
-        local.get $t104
+        local.get $t55
         i32.load $heap offset=8
-        local.set $t72
-        local.get $t104
-        local.get $t73
+        local.get $t55
+        local.get $t42
         i32.store $heap
-        local.get $t104
-        local.get $t74
+        local.get $t55
+        local.get $t43
         i32.store $heap offset=4
-        local.get $t104
-        local.get $t75
+        local.get $t55
+        local.get $t44
         i32.store $heap offset=8
+        local.get $t55
         i32.const 0
-        local.set $t76
-        local.get $t104
-        local.get $t76
         i32.store $heap offset=12
+        local.get $t55
         i32.const 0
-        local.set $t77
-        local.get $t104
-        local.get $t77
         i32.store $heap offset=16
+        local.get $t55
         i32.const 0
-        local.set $t78
-        local.get $t104
-        local.get $t78
         i32.store $heap offset=20
+        local.get $t55
         i32.const 0
-        local.set $t79
-        local.get $t104
-        local.get $t79
         i32.store $heap offset=24
+        local.get $t55
         i32.const 0
-        local.set $t80
-        local.get $t104
-        local.get $t80
         i32.store $heap offset=28
-        local.get $t104
+        local.get $t55
+        local.tee $t56
         if
-          local.get $t104
+          local.get $t56
           i32.const 8
           i32.sub
           i32.load $heap
           global.get $tracing
           i32.or
           if
-            local.get $t104
+            local.get $t56
             call $rt:release_ref'1
           end
         end
-        local.get $t72
-        local.set $t83
-        local.set $t82
-        local.set $t81
+        local.set $t47
+        local.set $t46
+        local.set $t45
         i32.const 1
-        local.set $t84
+        local.set $t48
         i32.const 1
-        local.set $t85
+        local.set $t49
         i32.const 1
-        local.set $t86
+        local.set $t50
         i32.const 1
-        local.set $t87
+        local.set $t51
         i32.const 1
-        local.set $t88
+        local.set $t52
     ;; 12 |     let mut u = UniqList::[i32].new()
       end
     ;; 14 |     a := sized!(u)
       block
         block
-          local.get $t103
+          local.get $t54
           i32.const 1
           i32.eq
           if
@@ -736,28 +535,26 @@
             i32.and
             br_if 1
           end
-          i32.const 0
-          local.set $t89
-          local.get $t103
+          local.get $t54
           i32.const 1
           i32.eq
           if
             local.get $frame
             i32.load $heap offset=16
-            local.set $t89
+            local.set $t57
           end
-          local.get $t89
-          local.get $t81
-          local.get $t82
-          local.get $t83
+          local.get $t57
+          local.get $t45
+          local.get $t46
+          local.get $t47
           local.get $provider1
           local.get $provider1.vtable
           call $sized'1
-          local.set $t91
-          local.set $t90
-          local.get $t91
+          local.set $t55
+          local.set $t54
+          local.get $t55
           if
-            local.get $t91
+            local.get $t55
             i32.load $heap offset=12
             i32.const 8
             i32.and
@@ -773,20 +570,20 @@
                 i32.or
                 i32.store $heap offset=12
                 local.get $provider0
-                local.tee $t104
+                local.tee $t56
                 if
-                  local.get $t104
+                  local.get $t56
                   call $retain
                 end
                 local.get $provider1
-                local.tee $t104
+                local.tee $t56
                 if
-                  local.get $t104
+                  local.get $t56
                   call $retain
                 end
               end
               local.get $frame
-              local.get $t91
+              local.get $t55
               i32.store $heap offset=16
               local.get $frame
               local.get $frame
@@ -807,15 +604,15 @@
               i32.or
               i32.store $heap offset=12
               local.get $provider0
-              local.tee $t104
+              local.tee $t56
               if
-                local.get $t104
+                local.get $t56
                 call $retain
               end
               local.get $provider1
-              local.tee $t104
+              local.tee $t56
               if
-                local.get $t104
+                local.get $t56
                 call $retain
               end
             end
@@ -938,207 +735,60 @@
             i32.store $heap offset=288
             local.get $frame
             local.get $t36
-            i32.store $heap offset=296
-            local.get $frame
-            local.get $t37
-            i32.store $heap offset=300
-            local.get $frame
-            local.get $t38
-            i32.store $heap offset=304
-            local.get $frame
-            local.get $t39
-            i32.store $heap offset=308
-            local.get $frame
-            local.get $t40
-            i32.store $heap offset=312
-            local.get $frame
-            local.get $t41
-            i32.store $heap offset=316
-            local.get $frame
-            local.get $t42
             i32.store $heap offset=320
             local.get $frame
-            local.get $t43
+            local.get $t37
             i32.store $heap offset=324
             local.get $frame
-            local.get $t44
+            local.get $t38
             i32.store $heap offset=328
             local.get $frame
-            local.get $t45
-            i32.store $heap offset=332
-            local.get $frame
-            local.get $t46
-            i32.store $heap offset=336
-            local.get $frame
-            local.get $t47
-            i32.store $heap offset=340
-            local.get $frame
-            local.get $t48
-            i32.store $heap offset=344
-            local.get $frame
-            local.get $t49
-            i32.store $heap offset=348
-            local.get $frame
-            local.get $t50
-            i32.store $heap offset=352
-            local.get $frame
-            local.get $t51
-            i32.store $heap offset=408
-            local.get $frame
-            local.get $t52
-            i32.store $heap offset=432
-            local.get $frame
-            local.get $t53
-            i32.store $heap offset=440
-            local.get $frame
-            local.get $t54
-            i32.store $heap offset=448
-            local.get $frame
-            local.get $t55
-            i32.store $heap offset=452
-            local.get $frame
-            local.get $t56
-            i32.store $heap offset=456
-            local.get $frame
-            local.get $t57
-            i32.store $heap offset=460
-            local.get $frame
-            local.get $t58
-            i32.store $heap offset=464
-            local.get $frame
-            local.get $t59
-            i32.store $heap offset=468
-            local.get $frame
-            local.get $t60
-            i32.store $heap offset=472
-            local.get $frame
-            local.get $t61
+            local.get $t39
             i32.store $heap offset=476
             local.get $frame
-            local.get $t62
+            local.get $t40
             i32.store $heap offset=480
             local.get $frame
-            local.get $t63
+            local.get $t41
             i32.store $heap offset=484
             local.get $frame
-            local.get $t64
-            i32.store $heap offset=488
-            local.get $frame
-            local.get $t65
-            i32.store $heap offset=492
-            local.get $frame
-            local.get $t66
-            i32.store $heap offset=496
-            local.get $frame
-            local.get $t67
-            i32.store $heap offset=500
-            local.get $frame
-            local.get $t68
-            i32.store $heap offset=504
-            local.get $frame
-            local.get $t69
-            i32.store $heap offset=508
-            local.get $frame
-            local.get $t70
-            i32.store $heap offset=512
-            local.get $frame
-            local.get $t71
-            i32.store $heap offset=516
-            local.get $frame
-            local.get $t72
-            i32.store $heap offset=520
-            local.get $frame
-            local.get $t73
+            local.get $t42
             i32.store $heap offset=524
             local.get $frame
-            local.get $t74
+            local.get $t43
             i32.store $heap offset=528
             local.get $frame
-            local.get $t75
+            local.get $t44
             i32.store $heap offset=532
             local.get $frame
-            local.get $t76
-            i32.store $heap offset=536
-            local.get $frame
-            local.get $t77
-            i32.store $heap offset=540
-            local.get $frame
-            local.get $t78
-            i32.store $heap offset=544
-            local.get $frame
-            local.get $t79
-            i32.store $heap offset=548
-            local.get $frame
-            local.get $t80
-            i32.store $heap offset=552
-            local.get $frame
-            local.get $t81
+            local.get $t45
             i32.store $heap offset=556
             local.get $frame
-            local.get $t82
+            local.get $t46
             i32.store $heap offset=560
             local.get $frame
-            local.get $t83
+            local.get $t47
             i32.store $heap offset=564
             local.get $frame
-            local.get $t84
+            local.get $t48
             i32.store $heap offset=568
             local.get $frame
-            local.get $t85
+            local.get $t49
             i32.store $heap offset=572
             local.get $frame
-            local.get $t86
+            local.get $t50
             i32.store $heap offset=576
             local.get $frame
-            local.get $t87
+            local.get $t51
             i32.store $heap offset=580
             local.get $frame
-            local.get $t88
+            local.get $t52
             i32.store $heap offset=584
             local.get $frame
-            local.get $t89
-            i32.store $heap offset=592
-            local.get $frame
-            local.get $t90
-            i32.store $heap offset=596
-            local.get $frame
-            local.get $t91
-            i32.store $heap offset=600
-            local.get $frame
-            local.get $t92
-            i32.store $heap offset=604
-            local.get $frame
-            local.get $t93
-            i32.store $heap offset=608
-            local.get $frame
-            local.get $t94
-            i32.store $heap offset=612
-            local.get $frame
-            local.get $t95
-            i32.store $heap offset=620
-            local.get $frame
-            local.get $t96
+            local.get $t53
             i32.store $heap offset=624
             local.get $frame
-            local.get $t97
-            i32.store $heap offset=628
-            local.get $frame
-            local.get $t98
-            i32.store $heap offset=636
-            local.get $frame
-            local.get $t99
-            i32.store $heap offset=640
-            local.get $frame
-            local.get $t100
-            i32.store $heap offset=644
-            local.get $frame
-            local.get $t101
-            i32.store $heap offset=696
-            local.get $frame
-            local.get $t102
-            i32.store $heap offset=720
-            local.get $frame
-            local.get $t91
+            local.get $t55
             i32.store $heap offset=16
             local.get $frame
             i32.const 1
@@ -1157,47 +807,45 @@
             end
             return
           end
-          local.get $t89
+          local.get $t57
           if
             local.get $frame
             i32.const 0
             i32.store $heap offset=16
-            local.get $t89
-            local.tee $t104
+            local.get $t57
+            local.tee $t56
             if
-              local.get $t104
+              local.get $t56
               call $rt:release_ref'2
             end
           end
-          local.get $t90
+          local.get $t54
           local.set $provider1
           br 1
         end
-        i32.const 0
-        local.set $t93
         call $rt:cancel_enter
-        local.set $t94
+        local.set $t55
         local.get $frame
         i32.load $heap offset=16
-        local.tee $t92
+        local.tee $t54
         if
-          local.get $t92
-          local.get $t92
+          local.get $t54
+          local.get $t54
           i32.load $heap offset=4
           call_indirect $table0 (param i32)
-          local.get $t92
+          local.get $t54
           i32.load $heap offset=12
           i32.const 16
           i32.and
           if
             i32.const 1
-            local.set $t93
+            local.set $t58
           end
         end
         local.get $frame
-        local.get $t94
+        local.get $t55
         call $rt:cancel_leave
-        local.get $t93
+        local.get $t58
         if
           local.get $frame
           i32.eqz
@@ -1210,15 +858,15 @@
             i32.or
             i32.store $heap offset=12
             local.get $provider0
-            local.tee $t104
+            local.tee $t56
             if
-              local.get $t104
+              local.get $t56
               call $retain
             end
             local.get $provider1
-            local.tee $t104
+            local.tee $t56
             if
-              local.get $t104
+              local.get $t56
               call $retain
             end
           end
@@ -1341,207 +989,60 @@
           i32.store $heap offset=288
           local.get $frame
           local.get $t36
-          i32.store $heap offset=296
-          local.get $frame
-          local.get $t37
-          i32.store $heap offset=300
-          local.get $frame
-          local.get $t38
-          i32.store $heap offset=304
-          local.get $frame
-          local.get $t39
-          i32.store $heap offset=308
-          local.get $frame
-          local.get $t40
-          i32.store $heap offset=312
-          local.get $frame
-          local.get $t41
-          i32.store $heap offset=316
-          local.get $frame
-          local.get $t42
           i32.store $heap offset=320
           local.get $frame
-          local.get $t43
+          local.get $t37
           i32.store $heap offset=324
           local.get $frame
-          local.get $t44
+          local.get $t38
           i32.store $heap offset=328
           local.get $frame
-          local.get $t45
-          i32.store $heap offset=332
-          local.get $frame
-          local.get $t46
-          i32.store $heap offset=336
-          local.get $frame
-          local.get $t47
-          i32.store $heap offset=340
-          local.get $frame
-          local.get $t48
-          i32.store $heap offset=344
-          local.get $frame
-          local.get $t49
-          i32.store $heap offset=348
-          local.get $frame
-          local.get $t50
-          i32.store $heap offset=352
-          local.get $frame
-          local.get $t51
-          i32.store $heap offset=408
-          local.get $frame
-          local.get $t52
-          i32.store $heap offset=432
-          local.get $frame
-          local.get $t53
-          i32.store $heap offset=440
-          local.get $frame
-          local.get $t54
-          i32.store $heap offset=448
-          local.get $frame
-          local.get $t55
-          i32.store $heap offset=452
-          local.get $frame
-          local.get $t56
-          i32.store $heap offset=456
-          local.get $frame
-          local.get $t57
-          i32.store $heap offset=460
-          local.get $frame
-          local.get $t58
-          i32.store $heap offset=464
-          local.get $frame
-          local.get $t59
-          i32.store $heap offset=468
-          local.get $frame
-          local.get $t60
-          i32.store $heap offset=472
-          local.get $frame
-          local.get $t61
+          local.get $t39
           i32.store $heap offset=476
           local.get $frame
-          local.get $t62
+          local.get $t40
           i32.store $heap offset=480
           local.get $frame
-          local.get $t63
+          local.get $t41
           i32.store $heap offset=484
           local.get $frame
-          local.get $t64
-          i32.store $heap offset=488
-          local.get $frame
-          local.get $t65
-          i32.store $heap offset=492
-          local.get $frame
-          local.get $t66
-          i32.store $heap offset=496
-          local.get $frame
-          local.get $t67
-          i32.store $heap offset=500
-          local.get $frame
-          local.get $t68
-          i32.store $heap offset=504
-          local.get $frame
-          local.get $t69
-          i32.store $heap offset=508
-          local.get $frame
-          local.get $t70
-          i32.store $heap offset=512
-          local.get $frame
-          local.get $t71
-          i32.store $heap offset=516
-          local.get $frame
-          local.get $t72
-          i32.store $heap offset=520
-          local.get $frame
-          local.get $t73
+          local.get $t42
           i32.store $heap offset=524
           local.get $frame
-          local.get $t74
+          local.get $t43
           i32.store $heap offset=528
           local.get $frame
-          local.get $t75
+          local.get $t44
           i32.store $heap offset=532
           local.get $frame
-          local.get $t76
-          i32.store $heap offset=536
-          local.get $frame
-          local.get $t77
-          i32.store $heap offset=540
-          local.get $frame
-          local.get $t78
-          i32.store $heap offset=544
-          local.get $frame
-          local.get $t79
-          i32.store $heap offset=548
-          local.get $frame
-          local.get $t80
-          i32.store $heap offset=552
-          local.get $frame
-          local.get $t81
+          local.get $t45
           i32.store $heap offset=556
           local.get $frame
-          local.get $t82
+          local.get $t46
           i32.store $heap offset=560
           local.get $frame
-          local.get $t83
+          local.get $t47
           i32.store $heap offset=564
           local.get $frame
-          local.get $t84
+          local.get $t48
           i32.store $heap offset=568
           local.get $frame
-          local.get $t85
+          local.get $t49
           i32.store $heap offset=572
           local.get $frame
-          local.get $t86
+          local.get $t50
           i32.store $heap offset=576
           local.get $frame
-          local.get $t87
+          local.get $t51
           i32.store $heap offset=580
           local.get $frame
-          local.get $t88
+          local.get $t52
           i32.store $heap offset=584
           local.get $frame
-          local.get $t89
-          i32.store $heap offset=592
-          local.get $frame
-          local.get $t90
-          i32.store $heap offset=596
-          local.get $frame
-          local.get $t91
-          i32.store $heap offset=600
-          local.get $frame
-          local.get $t92
-          i32.store $heap offset=604
-          local.get $frame
-          local.get $t93
-          i32.store $heap offset=608
-          local.get $frame
-          local.get $t94
-          i32.store $heap offset=612
-          local.get $frame
-          local.get $t95
-          i32.store $heap offset=620
-          local.get $frame
-          local.get $t96
+          local.get $t53
           i32.store $heap offset=624
           local.get $frame
-          local.get $t97
-          i32.store $heap offset=628
-          local.get $frame
-          local.get $t98
-          i32.store $heap offset=636
-          local.get $frame
-          local.get $t99
-          i32.store $heap offset=640
-          local.get $frame
-          local.get $t100
-          i32.store $heap offset=644
-          local.get $frame
-          local.get $t101
-          i32.store $heap offset=696
-          local.get $frame
-          local.get $t102
-          i32.store $heap offset=720
-          local.get $frame
-          local.get $t92
+          local.get $t54
           i32.store $heap offset=16
           local.get $frame
           i32.const 1
@@ -1560,15 +1061,15 @@
           end
           return
         end
-        local.get $t92
+        local.get $t54
         if
           local.get $frame
           i32.const 0
           i32.store $heap offset=16
-          local.get $t92
-          local.tee $t104
+          local.get $t54
+          local.tee $t56
           if
-            local.get $t104
+            local.get $t56
             call $rt:release_ref'2
           end
         end
@@ -1579,10 +1080,10 @@
       i32.const 4
       i32.const 0
       call $rt:new/class-1
-      local.tee $t95
+      local.tee $provider1.vtable
       local.get $provider1
       i32.store $heap
-      local.get $t95
+      local.get $provider1.vtable
       local.tee $provider1
     ;; 15 |     println("$a")
       i32.eqz
@@ -1590,35 +1091,33 @@
         i32.const 4
         i32.const 0
         call $rt:new/class-1
-        local.tee $t97
-        local.get $t96
+        local.tee $provider1
+        local.get $t53
         i32.store $heap
-        local.get $t97
-        local.set $provider1
       end
       local.get $provider1
       i32.load $heap
       i64.extend_i32_u
-      local.set $t106
+      local.set $t59
     ;; 12 |     let mut u = UniqList::[i32].new()
       local.get $provider1
-      local.tee $t104
+      local.tee $t56
       if
-        local.get $t104
+        local.get $t56
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $t104
+          local.get $t56
           call $rt:release_ref'1
         end
       end
     ;; 15 |     println("$a")
       block
         block
-          local.get $t106
+          local.get $t59
           call $unsigned_width
           local.set $provider1
           br 0
@@ -1629,24 +1128,24 @@
           local.get $provider1
           local.tee $provider1.vtable
           i32.const 16
-          local.set $t102
+          local.set $t54
           if
             local.get $provider1.vtable
             call $rt:str
-            local.set $t102
+            local.set $t54
           end
-          local.get $t102
+          local.get $t54
           local.get $provider1.vtable
-          local.set $t103
+          local.set $t54
           local.set $provider1.vtable
           br 0
         end
       end
       block
         block
-          local.get $t106
+          local.get $t59
           local.get $provider1.vtable
-          local.get $t107
+          local.get $t58
           i32.const 1
           i32.mul
           i32.add
@@ -1657,7 +1156,7 @@
       end
     ;; 12 |     let mut u = UniqList::[i32].new()
       local.get $provider1.vtable
-      local.get $t103
+      local.get $t54
     ;; 15 |     println("$a")
       local.get $provider0
       local.get $provider0.vtable
@@ -1832,7 +1331,7 @@
     end
     local.get $t0
   )
-  (func $sized'1 (param $frame i32) (param $t3 i32) (param $t4 i32) (param $t5 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32) (local $t14 i32) (local $t1 i32) (local $t2 i32) (local $u i32) (local $t6 i32) (local $t7 i32) (local $t8 i64) (local $t9 i32) (local $t10 i32) (local $t11 i32) (local $t12 i32) (local $t13 i32) (local $t0 i32)
+  (func $sized'1 (param $frame i32) (param $t4 i32) (param $t5 i32) (param $t6 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32) (local $t3 i32) (local $t1 i32) (local $t9 i32) (local $u i32) (local $t2 i64) (local $t7 i32) (local $t8 i32) (local $t0 i32)
     ;; 8 |     sleep!(ms(1))
     local.get $frame
     if
@@ -1860,104 +1359,61 @@
       i32.load $heap offset=32
       local.set $t1
       local.get $frame
-      i32.load $heap offset=36
-      local.set $t2
-      local.get $frame
       i32.load $heap offset=40
       local.set $u
       local.get $frame
-      i32.load $heap offset=44
-      local.set $t3
-      local.get $frame
-      i32.load $heap offset=48
-      local.set $t4
-      local.get $frame
-      i32.load $heap offset=52
-      local.set $t5
-      local.get $frame
-      i32.load $heap offset=56
-      local.set $t6
-      local.get $frame
-      i32.load $heap offset=60
-      local.set $t7
-      local.get $frame
       i64.load $heap offset=72
-      local.set $t8
-      local.get $frame
-      i32.load $heap offset=104
-      local.set $t9
-      local.get $frame
-      i32.load $heap offset=108
-      local.set $t10
-      local.get $frame
-      i32.load $heap offset=112
-      local.set $t11
-      local.get $frame
-      i32.load $heap offset=116
-      local.set $t12
-      local.get $frame
-      i32.load $heap offset=120
-      local.set $t13
+      local.set $t2
       local.get $frame
       i32.load $heap offset=8
-      local.set $t14
+      local.set $t3
     else
       i32.const 32
       i32.const 2
       call $rt:new/class-3
       local.tee $u
-      local.get $t3
+      local.get $t4
       i32.store $heap
       local.get $u
-      local.get $t4
+      local.get $t5
       i32.store $heap offset=4
       local.get $u
-      local.get $t5
-      i32.store $heap offset=8
-      i32.const 1
-      local.set $t3
-      local.get $u
-      local.get $t3
-      i32.store $heap offset=12
-      i32.const 1
-      local.set $t4
-      local.get $u
-      local.get $t4
-      i32.store $heap offset=16
-      i32.const 1
-      local.set $t5
-      local.get $u
-      local.get $t5
-      i32.store $heap offset=20
-      i32.const 1
-      local.set $t6
-      local.get $u
       local.get $t6
-      i32.store $heap offset=24
-      i32.const 1
-      local.set $t7
+      i32.store $heap offset=8
       local.get $u
-      local.get $t7
+      i32.const 1
+      i32.store $heap offset=12
+      local.get $u
+      i32.const 1
+      i32.store $heap offset=16
+      local.get $u
+      i32.const 1
+      i32.store $heap offset=20
+      local.get $u
+      i32.const 1
+      i32.store $heap offset=24
+      local.get $u
+      i32.const 1
       i32.store $heap offset=28
     end
     block
-      local.get $t14
+      local.get $t3
       i32.eqz
       if
         i64.const 1
-        local.set $t8
+        local.set $t2
         block
           block
-            local.get $t8
+            local.get $t2
             call $"impl Duration.milliseconds"
-            local.set $t8
+            local.set $t2
             br 0
           end
         end
       end
       block
         block
-          local.get $t14
+          local.get $t3
           i32.const 1
           i32.eq
           if
@@ -1967,24 +1423,22 @@
             i32.and
             br_if 1
           end
-          i32.const 0
-          local.set $t9
-          local.get $t14
+          local.get $t3
           i32.const 1
           i32.eq
           if
             local.get $frame
             i32.load $heap offset=16
-            local.set $t9
+            local.set $t7
           end
-          local.get $t9
-          local.get $t8
+          local.get $t7
+          local.get $t2
           local.get $provider0
           local.get $provider0.vtable
           call $sleep
-          local.tee $t10
+          local.tee $t4
           if
-            local.get $t10
+            local.get $t4
             i32.load $heap offset=12
             i32.const 8
             i32.and
@@ -2006,7 +1460,7 @@
                 end
               end
               local.get $frame
-              local.get $t10
+              local.get $t4
               i32.store $heap offset=16
               local.get $frame
               local.get $frame
@@ -2042,46 +1496,13 @@
             local.get $t1
             i32.store $heap offset=32
             local.get $frame
-            local.get $t2
-            i32.store $heap offset=36
-            local.get $frame
             local.get $u
             i32.store $heap offset=40
             local.get $frame
-            local.get $t3
-            i32.store $heap offset=44
-            local.get $frame
-            local.get $t4
-            i32.store $heap offset=48
-            local.get $frame
-            local.get $t5
-            i32.store $heap offset=52
-            local.get $frame
-            local.get $t6
-            i32.store $heap offset=56
-            local.get $frame
-            local.get $t7
-            i32.store $heap offset=60
-            local.get $frame
-            local.get $t8
+            local.get $t2
             i64.store $heap offset=72
             local.get $frame
-            local.get $t9
-            i32.store $heap offset=104
-            local.get $frame
-            local.get $t10
-            i32.store $heap offset=108
-            local.get $frame
-            local.get $t11
-            i32.store $heap offset=112
-            local.get $frame
-            local.get $t12
-            i32.store $heap offset=116
-            local.get $frame
-            local.get $t13
-            i32.store $heap offset=120
-            local.get $frame
-            local.get $t10
+            local.get $t4
             i32.store $heap offset=16
             local.get $frame
             i32.const 1
@@ -2101,12 +1522,12 @@
             end
             return
           end
-          local.get $t9
+          local.get $t7
           if
             local.get $frame
             i32.const 0
             i32.store $heap offset=16
-            local.get $t9
+            local.get $t7
             local.tee $provider0
             if
               local.get $provider0
@@ -2115,31 +1536,29 @@
           end
           br 1
         end
-        i32.const 0
-        local.set $t12
         call $rt:cancel_enter
-        local.set $t13
+        local.set $t5
         local.get $frame
         i32.load $heap offset=16
-        local.tee $t11
+        local.tee $t4
         if
-          local.get $t11
-          local.get $t11
+          local.get $t4
+          local.get $t4
           i32.load $heap offset=4
           call_indirect $table0 (param i32)
-          local.get $t11
+          local.get $t4
           i32.load $heap offset=12
           i32.const 16
           i32.and
           if
             i32.const 1
-            local.set $t12
+            local.set $t8
           end
         end
         local.get $frame
-        local.get $t13
+        local.get $t5
         call $rt:cancel_leave
-        local.get $t12
+        local.get $t8
         if
           local.get $frame
           i32.eqz
@@ -2167,46 +1586,13 @@
           local.get $t1
           i32.store $heap offset=32
           local.get $frame
-          local.get $t2
-          i32.store $heap offset=36
-          local.get $frame
           local.get $u
           i32.store $heap offset=40
           local.get $frame
-          local.get $t3
-          i32.store $heap offset=44
-          local.get $frame
-          local.get $t4
-          i32.store $heap offset=48
-          local.get $frame
-          local.get $t5
-          i32.store $heap offset=52
-          local.get $frame
-          local.get $t6
-          i32.store $heap offset=56
-          local.get $frame
-          local.get $t7
-          i32.store $heap offset=60
-          local.get $frame
-          local.get $t8
+          local.get $t2
           i64.store $heap offset=72
           local.get $frame
-          local.get $t9
-          i32.store $heap offset=104
-          local.get $frame
-          local.get $t10
-          i32.store $heap offset=108
-          local.get $frame
-          local.get $t11
-          i32.store $heap offset=112
-          local.get $frame
-          local.get $t12
-          i32.store $heap offset=116
-          local.get $frame
-          local.get $t13
-          i32.store $heap offset=120
-          local.get $frame
-          local.get $t11
+          local.get $t4
           i32.store $heap offset=16
           local.get $frame
           i32.const 1
@@ -2226,20 +1612,18 @@
           end
           return
         end
-        local.get $t11
+        local.get $t4
         if
           local.get $frame
           i32.const 0
           i32.store $heap offset=16
-          local.get $t11
+          local.get $t4
           local.tee $provider0
           if
             local.get $provider0
             call $rt:release_ref'2
           end
         end
-        i32.const 0
-        local.set $t2
         i32.const 1
         local.set $t1
         br 1
@@ -2264,7 +1648,7 @@
       end
       i32.const 0
       local.set $u
-      local.set $t2
+      local.set $t9
     end
     local.get $u
     local.tee $provider0
@@ -2280,7 +1664,7 @@
         call $rt:release_ref'1
       end
     end
-    local.get $t2
+    local.get $t9
     local.get $frame
     if
       local.get $frame

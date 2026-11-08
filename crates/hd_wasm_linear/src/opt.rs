@@ -979,6 +979,22 @@ impl Live {
     }
 }
 
+/// The locals of suspending body `f` live just after its instruction at
+/// `at`, where a `Save`, which returns at once, reads none: what a run
+/// from there may read before it writes. `None` when the body's
+/// branches are not analysed.
+pub(crate) fn live_after(f: &Func, at: usize) -> Option<Vec<u32>> {
+    let mut me = Live::blocks(f)?;
+    me.settle(f);
+    let mut out = None;
+    me.walk_back(&f.body, |p, live| {
+        if p == at {
+            out = Some(live.members.clone());
+        }
+    });
+    out
+}
+
 /// The distinct undirected local conflicts and each local's neighbors.
 /// A flat bit matrix makes repeated conflicts from wide value copies a
 /// constant-time membership check without storing the pair again.

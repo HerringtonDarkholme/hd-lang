@@ -1,9 +1,9 @@
 //! Suspending bodies (`crates/hd_wasm_linear/DESIGN.md` §23.21, job 13): the
 //! state machine of §14.2 over a frame in linear memory. A frame is a
 //! counted object: the task prefix ([`F_POLL`] to [`F_CHILD`]), then a
-//! save area that holds every Wasm local of the body. A suspension point
-//! saves them all and returns Pending with the frame; a resume reloads
-//! them and branches to its point through the structural state numbering
+//! save area with a slot for every Wasm local of the body. A suspension
+//! point saves what a resume there reads and returns Pending with the
+//! frame; a resume reloads the slots and branches to its point through the structural state numbering
 //! of [`plan`]: a block list that holds states is entered by one
 //! `br_table` on `pc`, and a branch that holds the resumed state is taken
 //! whatever its condition was.
@@ -1182,11 +1182,9 @@ pub(super) fn expand(
     f.origin_at = outer;
 }
 
-/// What the frame holds at each state of the body `em` emits, from the
-/// TIR's live rows (`Body::live`): of save area `area`, each Wasm local
-/// of a local or value live there, and every Wasm local that holds none,
-/// which is the emitter's own. A point with no row holds all of it.
-fn held_at(em: &Em<'_, '_, '_>, area: &[(u32, u32, Val)]) -> HashMap<u32, Vec<(u32, u32, Val)>> {
+/// Each Wasm local of the body `em` emits with the TIR locals and values
+/// it holds.
+fn owners(em: &Em<'_, '_, '_>) -> HashMap<u32, Vec<u32>> {
     let mut owners: HashMap<u32, Vec<u32>> = HashMap::default();
     for (&l, ws) in &em.locals {
         let word = hd_tir::ir::place::BARE_LOCAL | u32::try_from(l).expect("local");
@@ -1199,6 +1197,20 @@ fn held_at(em: &Em<'_, '_, '_>, area: &[(u32, u32, Val)]) -> HashMap<u32, Vec<(u
             owners.entry(*w).or_default().push(i);
         }
     }
+    owners
+}
+
+/// What the frame holds at each state of the body `em` emits, from the
+/// TIR's live rows (`Body::live`): of save area `area`, each Wasm local
+/// of a local or value live there, and every Wasm local that holds none,
+/// which is the emitter's own, but those in `free`. A point with no row
+/// holds all of it.
+fn held_at(
+    em: &Em<'_, '_, '_>,
+    area: &[(u32, u32, Val)],
+    owners: &HashMap<u32, Vec<u32>>,
+    free: &hd_base::HashSet<u32>,
+) -> HashMap<u32, Vec<(u32, u32, Val)>> {
     let mut out = HashMap::default();
     let Some(s) = em.susp.as_ref() else {
         return out;
@@ -1210,10 +1222,9 @@ fn held_at(em: &Em<'_, '_, '_>, area: &[(u32, u32, Val)]) -> HashMap<u32, Vec<(u
         let live = &em.b.live[r].1;
         let kept = area
             .iter()
-            .filter(|(w, _, _)| {
-                owners
-                    .get(w)
-                    .is_none_or(|os| os.iter().any(|o| live.binary_search(o).is_ok()))
+            .filter(|(w, _, _)| match owners.get(w) {
+                None => !free.contains(w),
+                Some(os) => os.iter().any(|o| live.binary_search(o).is_ok()),
             })
             .copied()
             .collect();
@@ -1319,19 +1330,25 @@ pub(super) fn finish(
     };
     skipped.extend(em.param_vals.values().flatten().copied());
     let (area, size) = save_area(&vals_all, &skipped);
-    let saved = held_at(&em, &area);
-    expand(&mut em.f, &area, &saved);
+    let owners = owners(&em);
+    // The emitter's own locals that need no save: the resume reloads the
+    // frame and runs from there, and no run from there reads one before
+    // writing it.
+    let resumed = em.f.body.iter().position(|i| matches!(i, Ins::LoadAll));
+    let mut free: hd_base::HashSet<u32> =
+        match resumed.and_then(|at| crate::opt::live_after(&em.f, at)) {
+            Some(live) => area
+                .iter()
+                .map(|x| x.0)
+                .filter(|w| !owners.contains_key(w) && !live.contains(w))
+                .collect(),
+            None => hd_base::HashSet::default(),
+        };
     em.m.frames.insert(key, size);
     let at_of = |l: u32| area.iter().find(|x| x.0 == l).map(|x| (x.1, x.2));
     let results = em.results.clone();
     let name = em.f.name.clone();
-    crate::task::guard_frame(&mut em.f);
-    if let Some((base, size)) = local_frame {
-        // This is a physical poll/body invocation, not the persistent task
-        // frame. Its base is deliberately absent from suspension save areas.
-        crate::wide::locals_frame(&mut em.f, base, size);
-    }
-    let body = std::mem::take(&mut em.f);
+    let mut body = std::mem::take(&mut em.f);
     let body_drop_states = em.drop_states.clone();
 
     // The release glue: the places the body owns while it waits, unless
@@ -1641,6 +1658,26 @@ pub(super) fn finish(
     }
     em.f.get(fr);
     let cold = std::mem::take(&mut em.f);
+    // The release glue may trace a started frame: what it loads, such as
+    // a drop flag, stays saved.
+    for ins in &drop.body {
+        if let Ins::Op(I::I32Load(m) | I::I64Load(m) | I::F32Load(m) | I::F64Load(m)) = ins {
+            for &(l, at, _) in &area {
+                if u64::from(at) == m.offset {
+                    free.remove(&l);
+                }
+            }
+        }
+    }
+    let saved = held_at(&em, &area, &owners, &free);
+    // The saves and the reload first, over the body's own local numbers.
+    expand(&mut body, &area, &saved);
+    crate::task::guard_frame(&mut body);
+    if let Some((base, size)) = local_frame {
+        // This is a physical poll/body invocation, not the persistent task
+        // frame. Its base is deliberately absent from suspension save areas.
+        crate::wide::locals_frame(&mut body, base, size);
+    }
 
     // The poll: the runtime checks, then the body over the frame.
     let mut pres = vec![Val::I32];
