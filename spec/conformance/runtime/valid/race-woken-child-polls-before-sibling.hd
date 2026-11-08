@@ -1,0 +1,24 @@
+# expect-stdout: first a, second a, first b
+# expect-stdout: 1
+# test: after a wake, race! polls its unfinished children in argument order again, so a child woken during a sibling's poll runs before that sibling
+# Spec lang/11 Cooperative Scheduling: req.schedule.race-order.
+use std.task.race
+use std.time.{Clock, ms, s, sleep}
+
+fn first!(log: &mut List[string]) -> usize $ Clock:
+    log.push("first a")
+    sleep!(ms(0))
+    log.push("first b")
+    1
+
+fn second!(log: &mut List[string]) -> usize $ Clock:
+    log.push("second a")
+    sleep!(s(5))
+    log.push("second b")
+    2
+
+pub fn main!() -> void $ Clock + Console:
+    log := box::[List[string]]([])
+    winner := race!(first(log), second(log))
+    println(log.join(", "))
+    println("$winner")

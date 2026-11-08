@@ -1467,6 +1467,7 @@ fn demo() -> void:
 2. r[req.schedule.yield-points] Bang calls are the only language-level yield points; code between them does not interleave with a sibling suspension in that instance.
 3. r[req.schedule.all-unfinished] `std.task.join!` polls its children in argument order on its initial poll. After every wake it polls again, in argument order, only the children that have not completed.
 4. r[req.schedule.all-completed] `join!` never polls a completed child again; it keeps that child's result.
+5. r[req.schedule.race-order] `std.task.race!` polls its unfinished children in argument order on every poll, including after a wake, by the same rule as `join!`.
 
 ```hd
 fn first!() -> i32: +1

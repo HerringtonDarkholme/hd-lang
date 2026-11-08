@@ -6028,6 +6028,9 @@ typing/invalid/handle-record-members-literal-is-private.hd	type	reject:private-m
 typing/invalid/shared-initializer-enum-type-parameter-is-unknown.hd	type	reject:unknown-name	lang/08-data-and-enums.md#r-data.shared.type-parameter-scope
 typing/invalid/shared-default-enum-type-parameter-is-unknown.hd	type	reject:unknown-name	lang/08-data-and-enums.md#r-data.shared.type-parameter-scope
 runtime/valid/display-write-destination-builder.hd	runtime	accept	lang/05-expressions.md#r-expr.interp.builder.push.destination
+runtime/valid/race-ready-children-poll-in-argument-order.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.schedule.race-order
+runtime/valid/race-woken-child-polls-before-sibling.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.schedule.race-order
+runtime/valid/race-completed-child-beats-cancelled-sibling.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.schedule.race-order
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

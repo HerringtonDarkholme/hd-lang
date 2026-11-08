@@ -1,0 +1,19 @@
+# expect-stdout: first wins
+# expect-stdout: first
+# test: race! polls its children in argument order, so the first of two immediately ready children wins
+# Spec lang/11 Cooperative Scheduling: req.schedule.race-order.
+use std.task.race
+
+fn first!(log: &mut List[string]) -> string:
+    log.push("first")
+    "first"
+
+fn second!(log: &mut List[string]) -> string:
+    log.push("second")
+    "second"
+
+pub fn main!() -> void $ Console:
+    log := box::[List[string]]([])
+    winner := race!(first(log), second(log))
+    println("$winner wins")
+    println(log.get(0).unwrap_or("none"))

@@ -1,0 +1,17 @@
+# expect-stdout: first
+# test: a race! child that completes on a poll wins over a later sibling that is already cancelled, since the children are polled in argument order
+# Spec lang/11 Cooperative Scheduling: req.schedule.race-order; Standard Combinators: req.combinator.race-child-cancelled.
+use std.task.race
+use std.time.{Clock, s, sleep}
+
+fn slow!() -> string $ Clock:
+    sleep!(s(60))
+    "slow"
+
+fn ready!() -> string:
+    "first"
+
+pub fn main!() -> void $ Console + Clock:
+    let victim: Suspend[string] = slow()
+    _ := victim.cancel!()
+    println(race!(ready(), victim))

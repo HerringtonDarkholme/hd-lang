@@ -203,7 +203,7 @@ pub fn timeout(limit: Duration, cleanup: Duration? = .None) -> TimeLimit
 7. r[std-task.policy.time-limit.race] A `TimeLimit` execution races the work against the covering `Clock.sleep!(limit)`, with the work polled first.
 8. r[std-task.policy.time-limit.completed] When work completes first, a `TimeLimit` execution returns its Result unchanged.
 9. r[std-task.policy.time-limit.expired] When the deadline wins, a `TimeLimit` execution returns `.Err(E::from(TimedOut { limit: limit, cleanup: end }))`, with `end` set to the work's cleanup outcome.
-10. r[std-task.timeout.tie] A `work` that completes on its first poll wins even when `limit` is 0, since `race!` polls its children in order.
+10. r[std-task.timeout.tie] A `work` that completes on its first poll wins even when `limit` is 0, since `race!` polls its children in argument order, by [`req.schedule.race-order`](../lang/11-requirements-and-suspension.md#r-req.schedule.race-order).
 11. r[std-task.policy.time-limit.cancel-loser] A `TimeLimit` execution cancels the losing child and waits for its cleanup before returning.
 12. r[std-task.policy.time-limit.cancel] Cancelling a `TimeLimit` execution cancels its work and deadline children.
 
