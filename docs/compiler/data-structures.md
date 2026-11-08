@@ -155,8 +155,9 @@ solver placeholder), `Row` (a row in a row-argument slot) and `Context`.
   `DefId` and the full trait reference, so `<S as Add[i32]>::Out` and
   `<S as Add[i64]>::Out` are different types.
 - **Bindings are keyed by item**, not by name.
-- **`Mut`, not `Readonly`.** In the spec `T` is the readonly view and
-  `mut T` the marked form ([Views](../../spec/lang/04-type-system.md#views)).
+- **No readonly view.** No type starts with `mut`
+  (`grammar.type.no-mut`); `TyData::Mut` is left only as the inner mark
+  of `&mut` after `lower_refs`, and goes with #1443.
 - **One inference form.** A literal is an `Infer` variable whose kind
   (general, integer literal, signed integer literal, float literal)
   lives in the inference table (§3.19), because unification merges

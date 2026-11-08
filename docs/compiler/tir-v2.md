@@ -2283,7 +2283,7 @@ is worth deciding only if they are hot.
     - **In-place arguments** (the owner's decision of 2026-10-22 on #728):
       `own::Pass::InPlace`, which `OwnCx::pass` answers from the declared
       parameter type (`Env::in_place`): the `mut` view of a list or a map,
-      as a `mut self` receiver of one has; for a trait method's `mut Self`,
+      as a `mut self` receiver of one has; for a trait method's `mut self`,
       when the call's receiver type is a list or a map. The argument is not
       consumed, as for `Lent` (the backend still counts it for a callee
       instance that owns it, `push_args`), and rule 5 puts an `IsUnique` of
@@ -2488,7 +2488,7 @@ is worth deciding only if they are hot.
         list that a push then changes in place kept seeing the push on the
         old path (a defect of the old path,
         `own/a-match-binding-of-a-changing-map-value-copies.hd`, and the
-        new path's `tests/all/header_copies_run.rs`; a conformance case
+        new path's header-copies run test, since deleted; a conformance case
         lands with the switch, since the old path fails it);
       - *an argument of an aliased local through a desugared call* (an
         `Index` call `m[k]` on a local a `&mut` reaches): the checker's
@@ -2540,7 +2540,7 @@ is worth deciding only if they are hot.
     | Left | Why | Removed by |
     | --- | --- | --- |
     | The emitter's `slot_src` copies: a value stored into an element, a field, a payload or a construction's member (§23.17) | Both paths share the emitter's store glue; moving it changes the old path's modules | Commit 14, with the old path |
-    | The match-binding conformance case (a match binding of a map's list sees a later `m["a"].push(3)`) | The old path fails it; until the switch, only the new path's `own/` fixture and `tests/all/header_copies_run.rs` hold it | Commit 13c, with the switch |
+    | The match-binding conformance case (a match binding of a map's list sees a later `m["a"].push(3)`) | The old path fails it; until the switch, only the new path's `own/` fixture and its header-copies run test (since deleted) hold it | Commit 13c, with the switch |
     | Whole-body aliasing: a local a `&mut` reference or a capturing closure reaches anywhere is aliased at every argument read | The checker's `copy_locals` is whole-body too; a flow-sensitive fact saves copies only before or after the reference lives | Kept: parity does not need it (13b) |
     **13b as built: parity.** Measured first on main (13a), new path
     against old: of the 49 counts baselines one stood above
@@ -2969,7 +2969,7 @@ has the opaque result type, while the copy, substituted by the call's
 type arguments, has the hidden one; so once a copy goes in, the caller
 opens its own opaque results too (`hd_mono::reveal`), as an instance
 would. A `mut self` parameter of a type with no changeable copy of its
-own (a primitive, an enum, a collection) is `mut T` in the callee, where
+own (a primitive, an enum, a collection) is a writable `T` in the callee, where
 the call passes a `T`; the copy's local takes the argument's type. A
 copy whose parameters or result still differ from the call's, or whose
 types do not open, stays a call.
@@ -3235,7 +3235,7 @@ new address must reach the place the list was read from.
   `header_copy` for lists alone and keeps it for maps. A collection's copy
   is then a retain: every holder counts the buffer, a change's `IsUnique`
   copies a buffer two holders count, and a pinned collection's copy is
-  made at once (`ref.elem.copy`) by the one copy glue, which reads the
+  made at once (the element-copy rule, since retired) by the one copy glue, which reads the
   owner word from the buffer. `copies.rs` then goes but for about 10
   lines elsewhere: a parameter changed in place is owned, not lent
   (`derive::solve` counts its `IsUnique` as the store that rule 5's
@@ -3730,7 +3730,7 @@ whose noise was about ±2.5% at `List`'s commit 1.
   which growth or a unique copy may replace inside the callee, always
   reaches the caller's place.
 - **3c. The `conflicting-access` check.** The marker, the read test and
-  its fold, the spec rule next to `ref.elem.access.pin`, `types.coll.nested`
+  its fold, the spec rule next to the pin rule (since retired), `types.coll.nested`
   reconciled, and conformance cases: a user trait's `mut self` method on
   a list whose callback reads the list through a top-level binding. The
   marker is 0, which no list or map value is, since an empty one is the
@@ -3763,7 +3763,7 @@ whose noise was about ±2.5% at `List`'s commit 1.
 - **3g. No header copies.** `header_copy` goes for both kinds, and with
   it `copies.rs` and its verifier. Every count a copy of a collection
   takes runs the copy glue, so a pinned collection's copy is a clone
-  (`ref.elem.copy`), and a parameter changed in place is owned.
+  (the element-copy rule, since retired), and a parameter changed in place is owned.
 - **3h. The list slow paths in std hd.** Growth, the unique copy and
   truncation in `std.rt` over `Buffer[T]`, replacing `rt.rs`'s kernels
   once measured at least as fast; until then the kernels stay. Emitted
@@ -3826,12 +3826,12 @@ which 3f fixes.
 
 3b copies out a `mut self` receiver of a list or a map, the only
 in-place parameter: a `mut xs: List[T]` parameter is the callee's own
-copy (`fn.param.mut.copy`), and a `mut List[T]` type cannot be written.
+copy (`fn.param.mut.copy`), and no type starts with `mut`.
 One predicate decides for the callee and every caller
 (`emit::copies_out`): the function does not suspend, `OwnCx::received`
 answers `InPlace` for its receiver, and the receiver's type at this
 instance is the `mut` view of a list or a map. `received` answers
-`InPlace` for a receiver declared `mut List`, `mut Map` or `mut Self`,
+`InPlace` for a `mut self` receiver of a list, a map or `Self`,
 since a default method's instance may make `Self` a list; insertion then
 leaves that receiver unowned, with no `Drop` and no exit row, so no move
 or drop empties it before the exit (a returned `self` is read as a copy,
@@ -3913,8 +3913,8 @@ the helpers are built, and the panic text's static data would stay.
 `hd_check`'s `PANIC_CATEGORIES` gains `conflicting-access`, as
 `flow.panic.known-categories` now lists it.
 
-The spec rules are `ref.elem.self-call`, `.store`, `.conflict`, `.paths`
-and `.release`, in a new subsection of chapter 13 after Call-Scoped
+The spec rules were the five self-call rules (store, conflict, paths
+and release), in a new subsection of chapter 13 after Call-Scoped
 Access; `types.coll.nested` now says that only a `mut self` method's
 call stores a changed copy back, when it returns. The cases are
 `runtime/panic/a-read-of-a-binding-during-its-mut-self-call-panics` and
@@ -4049,8 +4049,8 @@ moves in at the caller's last use and that is copied (a retain)
 otherwise, and the callee's first change finds it changing and copies it
 on entry (insertion's rule 7.5), as
 `own/a-mut-self-receiver-is-the-methods-copy` shows. The driver's
-`in_place`, which made a receiver declared `mut List`, `mut Map` or (by
-the call's receiver type) `mut Self` an in-place argument, was the only
+`in_place`, which made a `mut self` receiver of a list, a map or (by
+the call's receiver type) `Self` an in-place argument, was the only
 source of `Pass::InPlace`, so the variant goes, with
 `OwnCx::in_place_view` (the entry-copy exemption), the call arm of
 `own::changed` and of `copies.rs`'s changing locals, rule 7.4's
@@ -4085,7 +4085,7 @@ The commit adds 73 Rust code lines and deletes 403 (`emit.rs` +3/−116,
 `own.rs` +2/−21, `own/insert.rs` +5/−11, `emit/list.rs` +9/−2, the rest
 +6/−17); 32 of the 73 restore 3d's parent's lines that 3b and 3c had
 edited. The spec drops "Mut Self Calls On Collections" and its five
-rules `ref.elem.self-call.*`, puts `types.coll.nested` and
+self-call rules, puts `types.coll.nested` and
 `flow.panic.known-categories` back as before 3c (`types.coll.nested`
 now says a `mut self` method on such a path changes only its own copy),
 and widens `fn.method.mut-self-struct` and the receiver table's
@@ -4205,9 +4205,8 @@ the cursor shared the header, so a later push or a removal invalidated it;
 with buffer values `ListIter` holds the list itself and `MapEntries`' step
 closure the table, each a count that copy-on-write keeps, and the
 `iterator-invalidated` checks of both go. Views are snapshots too
-(`std-collections.view.snapshot`), so no view check remains. Chapter 06 retires `flow.for.length`,
-`flow.for.invalidate`, `.map-rebuild`, `.panic`, `flow.for.replace` and
-`.observed`, adds `flow.for.cursor.snapshot` and rewrites
+(`std-collections.view.snapshot`), so no view check remains. Chapter 06 retires the loop length,
+invalidation, map-rebuild, panic, replacement and observed rules, adds `flow.for.cursor.snapshot` and rewrites
 `flow.for.collection-cursor.copy`; eight `runtime/panic` cases become two
 snapshot cases, and four valid ones flip their replacement assertions.
 
@@ -4369,7 +4368,7 @@ the bytes with `copy` and carries the owner word. The unique copy copies
 a buffer only when it is shared and has no owner word: it reads each
 value out of the old buffer and writes it into the copy, then back into
 the old one, so the copy's values take counts of their own and a
-collection among them runs the copy glue (`ref.elem.copy`). Truncation
+collection among them runs the copy glue (the element-copy rule, since retired). Truncation
 panics `collection-pinned` for a pinned list whose length would change,
 calls `list_unique`, and reads out each value past the new length, which
 drops it. The code reads the buffer's words through its address and not

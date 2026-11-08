@@ -194,7 +194,7 @@ with hd types in view.
    A folded operation that would panic emits the panic, not a compile
    error. Float folding is IEEE-exact.
 4. **Scalar replacement keeps identity.** A value whose identity is
-   observed (`ref.eq`, `is`, a host crossing) escapes.
+   observed (`is`, `ref.identity.same-place`, a host crossing) escapes.
 5. **Sites travel with code.** An inlined instruction keeps its stable
    span.
 

@@ -52,14 +52,9 @@ B none, with the same diagnostics.
 
 ### 8.2 Incremental Soundness
 
-`crates/hd_driver/tests/all/incremental.rs` runs scripted edits: a body
-edit rechecks one module and a signature edit its importers; a comment
-edit reuses the check and moves its positions; a doc edit keeps every
-interface hash; a comment above an item leaves interface keys unchanged;
-header findings survive a cached interface; a tuple template edit
-reaches the header findings it decides; a body edit in a template's
-module rechecks only the modules that derive its template, and none when
-no template reads the body.
+The driver's scripted-edit test went with the Wasm GC backend in
+dc358a56e and has no replacement yet; `hd_cli`'s `same_size_edit.rs`
+covers one edit through the CLI.
 
 Planned, not built: the edit-script fuzzer applies random edits to a
 generated or fixture package.
@@ -250,5 +245,5 @@ Planned, not built:
 - A verify mode that recomputes `check`, `code` and `link` entries on
   hits and compares them.
 
-`wasmparser` validates linked modules in the driver's tests
-(`crates/hd_driver/tests/all/closure_code_targets.rs`).
+`wasmparser` reads linked modules in the driver's tests
+(`crates/hd_driver/tests/all/cycle_linking.rs`).

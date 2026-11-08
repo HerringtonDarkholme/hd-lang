@@ -23,11 +23,10 @@ test profile's checks. `hd_run_wasmtime::wasmtime_config` and
 
 | Setting | Dev pipeline | Optimized pipeline |
 | --- | --- | --- |
-| `wasm_gc`, function references, reference types, multi-value, bulk memory, extended-const | on | on |
-| tail calls, exceptions, threads, stack switching | off | off |
+| multi-value, bulk memory, extended-const | on | on |
+| `wasm_gc`, tail calls | off | off |
 | compiler | Cranelift `OptLevel::None`, backtracking allocator | Cranelift `OptLevel::Speed`, backtracking allocator |
-| collector | the copying collector | same |
-| initial GC heap | `hd run`: 64 MiB; `hd test` and a test's named child programs: 0, grown on demand | same |
+| memory | linear memory, reference counts and the cycle collector of crates/hd_wasm_linear/DESIGN.md §23 | same |
 | `epoch_interruption` | on | on |
 | `consume_fuel` | off (fuel is for simulation, Later) | off |
 | `max_wasm_stack` | 4 MiB, on a thread with 8 MiB more native stack | same |
@@ -112,7 +111,7 @@ the module bytes). The per-function cache is built
   host kinds are unit, integration and doc (with its runtime profile).
 - **The pooling allocator** (`TestEngine::new`) reserves one slot per
   worker plus one spare per in-flight property shrink, each with one
-  exchange memory, one GC heap and one table. An instantiation takes a
+  set of linear memories (up to three) and one table. An instantiation takes a
   slot instead of mapping memory.
 - **A `Store` per run or per test case**, with its own `ResourceLimiter`
   and epoch deadline. Dropping the store returns the slot.
@@ -141,12 +140,6 @@ Not built yet; see #182.
   ([docs/compiler/tiering.md §7.2](tiering.md#72-spike-0c-additions)),
   which has not run. Until then dev uses `None` with the backtracking
   allocator.
-- The initial GC heap of `hd run` is 64 MiB. wasmtime's copying collector
-  decides growth against the whole heap, so a long-lived set near the
-  semi-space size is re-copied on every collection; one report measured
-  337 collections and an 8.8x slowdown, fixed by a larger initial heap.
-- Planned, not built: a null collector for short test instances, adopted
-  only if it measurably cuts `unit-test-perf`.
 
 ### 18.7 As Built: The wasmtime Host
 
