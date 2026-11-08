@@ -1,0 +1,11 @@
+# test: a dereference is the left side of an assignment and a compound assignment, in statement, inline and suite forms
+# Spec 13 Reference Expressions: ref.expr.deref.target.
+fn bump(r: &mut i32, flag: bool) -> void:
+    *r = 1
+    *r += 1
+    if flag: *r = 2
+    if flag: *r *= 3
+    if flag:
+        *r = 4
+    while flag:
+        *r -= 1

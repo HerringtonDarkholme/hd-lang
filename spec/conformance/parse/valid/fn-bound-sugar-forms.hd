@@ -1,0 +1,15 @@
+# test: Fn and FnMut bound sugar parses with several inputs, a requirement row and no inputs
+# Spec 07 Function Traits: fn.trait.bound-sugar.
+use std.function.{Fn, FnMut}
+
+fn call_mut[F < FnMut(i32) -> i32](f: F) -> void:
+    pass
+
+fn call_row[F < Fn(i32, string) -> bool $ Console](f: F) -> void:
+    pass
+
+fn call_none[F < Fn() -> void](f: F) -> void:
+    pass
+
+fn opaque(f: impl Fn(i32) -> i32) -> void:
+    pass

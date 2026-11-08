@@ -6001,6 +6001,8 @@ runtime/valid/reference-prefix-around-power.hd	runtime	accept	lang/13-values-and
 parse/valid/bang-call-token-forms.hd	parse	accept	lang/01-lexical-structure.md#r-lex.op.bang-call-token
 runtime/valid/string-index-reads-continuation-byte.hd	runtime	accept	lang/05-expressions.md#r-expr.index.string.raw-byte
 runtime/panic/string-slice-at-continuation-byte.hd	runtime	panic:index-out-of-bounds	lang/04-type-system.md#r-types.string.split-scalar-range
+parse/valid/deref-assignment-target.hd	parse	accept	lang/13-values-and-references.md#r-ref.expr.deref.target
+parse/valid/fn-bound-sugar-forms.hd	parse	accept	lang/07-functions.md#r-fn.trait.bound-sugar
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

@@ -145,7 +145,7 @@ suite_statement = suite_expression
                 | "using", [ "!" ], identifier, [ ":", type ], "=",
                   suite_right_side
                 | let_else_statement
-                | postfix_expression, ( "=" | compound_assign_op ),
+                | assignment_target, ( "=" | compound_assign_op ),
                   suite_right_side
                 | "return", suite_right_side
                 | "break", suite_right_side
@@ -174,8 +174,9 @@ using_statement = "using", [ "!" ], identifier, [ ":", type ], "=",
 
 discard_statement = "_", ":=", closed_expression ;
 
-assignment_statement = postfix_expression, ( "=" | compound_assign_op ),
+assignment_statement = assignment_target, ( "=" | compound_assign_op ),
                        closed_expression ;
+assignment_target = postfix_expression | dereference_expression ;
 
 compound_assign_op = "+=" | "-=" | "*=" | "/=" | "%="
                    | "&=" | "|=" | "^=" | "<<=" | ">>="
@@ -189,7 +190,7 @@ expression_statement = closed_expression ;
 inline_statement = "let", pattern, [ ":", type ], "=", inline_expression
                  | "using", [ "!" ], identifier, [ ":", type ], "=", inline_expression
                  | "_", ":=", inline_expression
-                 | postfix_expression, ( "=" | compound_assign_op ),
+                 | assignment_target, ( "=" | compound_assign_op ),
                    inline_expression
                  | "return", [ inline_expression ]
                  | "break", [ inline_expression ]
@@ -722,7 +723,9 @@ variance = "+" | "-" ;
 trait_bounds = trait_bound, { "&", trait_bound } ;
 trait_bound = bound_trait_type | relaxed_bound | lifetime ;
 relaxed_bound = "?", bound_trait_type ;
-bound_trait_type = qualified_name, [ bound_type_arguments ] ;
+bound_trait_type = qualified_name, [ bound_type_arguments | fn_bound_arguments ] ;
+fn_bound_arguments = "(", [ type_list ], ")", "->", type,
+                     [ requirement_clause ] ;
 bound_type_arguments = "[", bound_type_argument_list, [ "," ], "]" ;
 bound_type_argument_list = generic_argument, { ",", generic_argument },
                            { ",", associated_type_binding }
@@ -1404,12 +1407,14 @@ interpreted_multiline_string_expression = '"""',
                                           '"""' ;
 string_segment = string_text
                | escape_sequence
+               | dollar_text
                | "$", identifier
                | "$", "self"
                | "${", expression, "}"
                ;
 multiline_string_segment = multiline_string_text
                          | escape_sequence
+                         | dollar_text
                          | "$", identifier
                          | "$", "self"
                          | "${", expression, "}"
