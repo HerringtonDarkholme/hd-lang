@@ -3371,9 +3371,6 @@ fn list_truncate(m: &Module, elem: &Elem) -> Func {
 fn drop_elems(m: &Module, elem: &Elem) -> Func {
     let mut f = m.func("rt:drop_elems", vec![Val::I32], vec![]);
     let (at, n) = (f.local(Val::I32), f.local(Val::I32));
-    if !elem.needs_drop() {
-        return f;
-    }
     f.get(0);
     f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
     f.set(n);

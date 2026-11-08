@@ -260,9 +260,7 @@ pub fn table(m: &Module, entry: &Entry) -> Func {
 pub fn drop_entries(m: &Module, entry: &Entry) -> Func {
     let mut f = m.func("rt:drop_entries", vec![Val::I32], vec![]);
     let (cap, e) = (f.local(Val::I32), f.local(Val::I32));
-    let Some(walk) = entry.walk() else {
-        return f;
-    };
+    let walk = entry.walk().unwrap();
     load_u32(&mut f, 0, CAP);
     f.set(cap);
     let n = entry.leaves.len();
