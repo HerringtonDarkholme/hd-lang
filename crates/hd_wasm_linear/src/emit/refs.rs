@@ -21,7 +21,7 @@ use hd_types::{Ty, TyData};
 
 use super::Em;
 use super::value::{Dst, Src};
-use crate::layout::{Kind, Leaf, Part, mem as mem_of, payload_mem, struct_mem};
+use crate::layout::{Kind, Leaf, Part, mem as mem_of, struct_mem};
 use crate::module::{EMPTY, HEAP, Sym, Val, mem};
 use crate::rt::{self, Helper, LIST_ELEMS, LIST_LEN, RefLayout};
 use crate::unsupported;
@@ -1673,13 +1673,6 @@ impl Em<'_, '_, '_> {
                 Proj::Elem(_) => ty = self.elem(ty)?.0,
                 Proj::Deref => match self.kind(ty) {
                     Kind::Ref { target, .. } => ty = target,
-                    Kind::Data(tys) => {
-                        let Some(&Proj::Field(f)) = steps.get(k + 1) else {
-                            return unsupported("a data value's dereference without its field");
-                        };
-                        ty = tys.get(f as usize).copied().unwrap_or(Ty::VOID);
-                        k += 1;
-                    }
                     _ => return unsupported("a dereference of a value that is no reference"),
                 },
                 Proj::Variant(v) => {
@@ -1719,20 +1712,6 @@ impl Em<'_, '_, '_> {
                 }
                 Proj::Elem(_) => return unsupported("an element among a walk's plain steps"),
                 Proj::Deref => match self.kind(ty) {
-                    Kind::Data(tys) => {
-                        let Some(&Proj::Field(f)) = steps.get(k + 1) else {
-                            return unsupported("a data value's dereference without its field");
-                        };
-                        let (_, parts) = payload_mem(self.pool(), self.env(), &tys)?;
-                        let (Some(part), Some(&ft)) = (parts.get(f as usize), tys.get(f as usize))
-                        else {
-                            return unsupported("a data field the data type does not have");
-                        };
-                        let obj = self.at_i32(&at)?;
-                        at = At::Mem(obj, part.offset);
-                        ty = ft;
-                        k += 2;
-                    }
                     Kind::Ref {
                         target, fat: false, ..
                     } => {

@@ -132,9 +132,6 @@ pub enum Kind {
     /// Its values are in locals: a scalar, a string, an enum, a struct or
     /// tuple, a trait value.
     Value,
-    /// A data value: the address of an object whose payload holds
-    /// `fields` (`§23.4`).
-    Data(Vec<Ty>),
     /// A self-recursive enum: the address of a cell holding the enum's
     /// value as a non-recursive enum lays it out.
     Boxed,
@@ -172,14 +169,7 @@ pub fn kind(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Kind {
             Kind::Value
         };
     }
-    match env.data_fields(def) {
-        Some(fs) if !env.is_struct(def) => Kind::Data(
-            fs.into_iter()
-                .map(|f| subst(pool, env, def, args, f))
-                .collect(),
-        ),
-        _ => Kind::Value,
-    }
+    Kind::Value
 }
 
 /// Whether reference type `t` (`std.core.Ref[T]`) is `&mut`: its target
@@ -508,7 +498,7 @@ fn mem_one(
             StdKind::Suspend => Mem::address(),
             StdKind::List | StdKind::Map => Mem::address(),
             StdKind::Other => match kind(pool, env, t) {
-                Kind::Data(_) | Kind::Boxed | Kind::Ref { fat: false, .. } => Mem::address(),
+                Kind::Boxed | Kind::Ref { fat: false, .. } => Mem::address(),
                 Kind::Ref { fat: true, .. } => record(&[Mem::address(), Mem::address()]).0,
                 Kind::Value => match env.enum_variants(def, args) {
                     Some(variants) => {
@@ -715,7 +705,7 @@ fn walk_one(
         TyData::Union(members) => switch_walk_by(pool, env, &union_variants(pool, members), part),
         TyData::Adt { def, args } if env.std_kind(def) == StdKind::Other => {
             match kind(pool, env, t) {
-                Kind::Data(_) | Kind::Boxed => Some(Walk::Known(0)),
+                Kind::Boxed => Some(Walk::Known(0)),
                 Kind::Ref {
                     fat: false,
                     whole: false,
@@ -749,7 +739,7 @@ pub fn block_start(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
         TyData::Fn { .. } | TyData::Context(_) => true,
         TyData::Adt { def, .. } if env.std_kind(def) != StdKind::Other => true,
         _ => match kind(pool, env, t) {
-            Kind::Data(_) | Kind::Boxed => true,
+            Kind::Boxed => true,
             Kind::Ref { fat, whole, .. } => whole && !fat,
             Kind::Value => false,
         },

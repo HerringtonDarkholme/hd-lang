@@ -13,11 +13,8 @@ use hd_types::{Ty, TyData};
 use std::rc::Rc;
 
 use super::Em;
-use crate::layout::{
-    Kind, Leaf, Mem, Part, Walk, enum_mem, fields_walk, kind, payload_mem, struct_mem, variants,
-    walk,
-};
-use crate::module::{HEADER, HEAP, Sym, Val, mem};
+use crate::layout::{Kind, Leaf, Mem, Part, Walk, enum_mem, kind, struct_mem, variants, walk};
+use crate::module::{HEAP, Sym, Val, mem};
 use crate::rt::{DropCall, Helper};
 use crate::unsupported;
 
@@ -291,12 +288,6 @@ impl Em<'_, '_, '_> {
                     };
                     (fields, parts)
                 }
-                Kind::Data(fields) if root => {
-                    let Ok((_, parts)) = payload_mem(em.pool(), em.env(), &fields) else {
-                        return;
-                    };
-                    (fields, parts)
-                }
                 _ => return,
             };
             for (index, (&field, part)) in fields.iter().zip(parts).enumerate() {
@@ -420,24 +411,8 @@ impl Em<'_, '_, '_> {
         }
     }
 
-    /// The counted references of a data payload of `fields`, when the
-    /// program counts.
-    fn payload_walk(&self, fields: &[Ty]) -> Option<Walk> {
-        self.input.runtime?;
-        fields_walk(self.pool(), self.env(), fields)
-    }
-
-    /// The address of the one static object of every data type without
-    /// fields: a header and no payload.
-    fn empty_object(&mut self) -> u32 {
-        let at = self.m.static_bytes(&[0; HEADER as usize], 8) + HEADER;
-        self.m.label_static(at, "empty-object");
-        self.f.mark_static(at);
-        at
-    }
-
-    /// `NewStruct`: a struct pushes its fields' values; a data value stores
-    /// them in a new object; a newtype is its one value.
+    /// `NewStruct`: a struct pushes its fields' values; a newtype is its
+    /// one value.
     pub(super) fn new_data(&mut self, i: u32, bw: u32) -> StageResult<()> {
         let fields = self.rec(bw);
         let t = self.ty(i);
@@ -459,25 +434,6 @@ impl Em<'_, '_, '_> {
                         self.src(s, k)?;
                     }
                 }
-            }
-            Kind::Data(tys) => {
-                if tys.is_empty() {
-                    let at = self.empty_object();
-                    self.f.static_addr(at);
-                } else {
-                    let (m, parts) = payload_mem(self.pool(), self.env(), &tys)?;
-                    let walk = self.payload_walk(&tys);
-                    let srcs = self.count_refs(&fields, &tys)?;
-                    let cyclic = self.cyclic_object(t);
-                    let recursive = self.recursive_object(t);
-                    let at = self.object(&m, walk.as_ref(), cyclic, recursive, Some(t));
-                    for (s, p) in srcs.iter().zip(&parts) {
-                        self.store_part(at, &m, *p, s)?;
-                    }
-                    self.f.get(at);
-                }
-                // A new object arrives with its count.
-                return self.store_owned(i);
             }
             Kind::Boxed => return unsupported("a data literal of an enum"),
             Kind::Ref { .. } => return unsupported("a reference's closure form"),
@@ -664,52 +620,13 @@ impl Em<'_, '_, '_> {
                     }
                 }
             }
-            Kind::Data(tys) => {
-                if tys.is_empty() {
-                    let at = self.empty_object();
-                    self.f.static_addr(at);
-                } else {
-                    let (m, parts) = payload_mem(self.pool(), self.env(), &tys)?;
-                    let walk = self.payload_walk(&tys);
-                    let srcs: Vec<Option<Src>> =
-                        (0..tys.len()).map(|f| replaced(f).map(Src::Ref)).collect();
-                    let cyclic = self.cyclic_object(t);
-                    let recursive = self.recursive_object(t);
-                    let at = self.object(&m, walk.as_ref(), cyclic, recursive, Some(t));
-                    for (f, p) in parts.iter().enumerate() {
-                        match &srcs[f] {
-                            Some(s) => self.store_part(at, &m, *p, s)?,
-                            None => {
-                                for l in m.leaves[p.first..p.first + p.count].iter().copied() {
-                                    self.store_leaf(
-                                        &|em: &mut Self| {
-                                            em.f.get(at);
-                                            Ok(())
-                                        },
-                                        0,
-                                        l,
-                                        &mut |em: &mut Self| {
-                                            em.load(&|em: &mut Self| em.comp(a, 0), 0, l)
-                                        },
-                                    )?;
-                                }
-                            }
-                        }
-                    }
-                    let colls = self.part_colls(&tys, &parts);
-                    self.retain_fields(at, &m, walk.as_ref(), &colls, colls.len());
-                    self.f.get(at);
-                }
-                return self.store_owned(i);
-            }
             Kind::Boxed => return unsupported("a copy-update of an enum"),
             Kind::Ref { .. } => return unsupported("a reference's closure form"),
         }
         self.store_owned(i)
     }
 
-    /// A field read: field `idx` of `a`, picked from a struct's values or loaded
-    /// from a data value's object.
+    /// A field read: field `idx` of `a`, picked from a struct's values.
     pub(super) fn field(&mut self, i: u32, a: u32, idx: u32) -> StageResult<()> {
         let t = self.ty_of(a);
         if self.newtype(t) {
@@ -724,15 +641,6 @@ impl Em<'_, '_, '_> {
                 };
                 for k in p.first..p.first + p.count {
                     self.comp(a, k)?;
-                }
-            }
-            Kind::Data(tys) => {
-                let (m, parts) = payload_mem(self.pool(), self.env(), &tys)?;
-                let Some(p) = parts.get(idx as usize).copied() else {
-                    return unsupported("a field index outside the data type");
-                };
-                for l in m.leaves[p.first..p.first + p.count].iter().copied() {
-                    self.load(&|em: &mut Self| em.comp(a, 0), 0, l)?;
                 }
             }
             Kind::Boxed => return unsupported("a field of an enum"),
@@ -784,7 +692,7 @@ impl Em<'_, '_, '_> {
         // data are each one counted address first; a trait value that
         // boxed a value compares its boxes (`ref.identity.same-place`).
         let t = self.ty_of(a);
-        if !matches!(self.kind(t), Kind::Data(_) | Kind::Boxed)
+        if !matches!(self.kind(t), Kind::Boxed)
             && walk(self.pool(), self.env(), t).and_then(|w| w.single()) != Some(0)
         {
             return unsupported("identity of a value that is not a data value");

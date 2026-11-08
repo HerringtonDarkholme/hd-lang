@@ -274,13 +274,6 @@ fn walk_crossings(
                     }
                     Some(target)
                 }
-                Kind::Data(tys) => {
-                    k += 1;
-                    let Some(Proj::Field(f)) = steps.get(k) else {
-                        break;
-                    };
-                    tys.get(*f as usize).copied()
-                }
                 _ => None,
             },
         };

@@ -1365,9 +1365,9 @@ impl Em<'_, '_, '_> {
 
     /// The type of value `r`, substituted; `NONE` is the unit value.
     /// What projection read `i` reads ([`shape::Projected`]): by the type
-    /// of the value it projects from, a struct's, newtype's or data
-    /// object's field, a tuple's element, or a payload field. A read
-    /// through a reference, `[*%r .k]`, is none.
+    /// of the value it projects from, a struct's or newtype's field, a
+    /// tuple's element, or a payload field. A read through a reference,
+    /// `[*%r .k]`, is none.
     fn projected(&self, i: usize) -> shape::Projected {
         use hd_tir::ir::Step;
         let Some((base, step)) = self.b.read_step(i) else {
@@ -1377,9 +1377,6 @@ impl Em<'_, '_, '_> {
         match step {
             Step::Field(_) if self.tuple(bt) => shape::Projected::Element,
             Step::Field(_) => shape::Projected::Field,
-            Step::DerefField(_) if matches!(self.kind(bt), crate::layout::Kind::Data(_)) => {
-                shape::Projected::Field
-            }
             Step::DerefField(_) => shape::Projected::None,
             Step::Variant(..) => shape::Projected::Payload,
         }
@@ -2270,22 +2267,15 @@ impl Em<'_, '_, '_> {
         self.own_local_read(i, l)
     }
 
-    /// Projection read `i` of `base` ([`shape::Projected`]): a struct's,
-    /// newtype's or data object's field, a tuple's element, or a field of
-    /// a payload.
+    /// Projection read `i` of `base` ([`shape::Projected`]): a struct's or
+    /// newtype's field, a tuple's element, or a field of a payload.
     fn projection_read(&mut self, i: u32, base: u32, p: shape::Projected) -> StageResult<()> {
         use hd_tir::ir::Step;
         let Some((_, step)) = self.b.read_step(i as usize) else {
             return unsupported("a projection read without its step");
         };
-        let data = matches!(self.kind(self.ty_of(base)), crate::layout::Kind::Data(_));
         match (p, step) {
-            (shape::Projected::Field, Step::Field(_)) if data => {
-                unsupported("a data object's field read without its dereference")
-            }
-            (shape::Projected::Field, Step::Field(k) | Step::DerefField(k)) => {
-                self.field(i, base, k)
-            }
+            (shape::Projected::Field, Step::Field(k)) => self.field(i, base, k),
             (shape::Projected::Element, Step::Field(k)) => self.tuple_get(i, base, k),
             (shape::Projected::Payload, Step::Variant(v, k)) => self.payload(i, base, v, k),
             _ => unsupported("a projection read of the wrong kind of value"),

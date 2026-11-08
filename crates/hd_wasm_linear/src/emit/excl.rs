@@ -117,13 +117,6 @@ fn loan_place(pool: &InternPool, env: &dyn ProgramEnv, root: Ty, p: &Place) -> O
                     target
                 }
                 Kind::Ref { target, .. } => target,
-                Kind::Data(tys) => {
-                    k += 1;
-                    let Some(Proj::Field(f)) = p.proj.get(k) else {
-                        return None;
-                    };
-                    *tys.get(*f as usize)?
-                }
                 _ => return None,
             },
             Proj::Elem(_) | Proj::Variant(_) => return None,

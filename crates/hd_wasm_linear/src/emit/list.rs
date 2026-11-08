@@ -21,7 +21,7 @@ use wasm_encoder::BlockType;
 use super::Em;
 use super::shape::Through;
 use super::value::{Dst, Src};
-use crate::layout::{Kind, coll_kind, coll_leaves, mem as mem_of, strip};
+use crate::layout::{coll_kind, coll_leaves, mem as mem_of, strip};
 use crate::module::{HEADER, HEAP, Val, mem};
 use crate::rt::{Elem, Helper, LIST_ELEMS, LIST_LEN, empty_buffer};
 use crate::unsupported;
@@ -171,11 +171,9 @@ impl Em<'_, '_, '_> {
                     Tag::Read if let Some(l) = self.b.local_read(i) => locals[l.idx()],
                     // A reference to the list local's own place, or to
                     // what the reference it holds refers to.
-                    // A data object's field is no such place.
                     Tag::Ref => self.b.decode_place(a).is_some_and(|p| {
-                        let data = matches!(self.kind(self.at_root_ty(p.root)), Kind::Data(_));
                         let rest = match p.proj.as_slice() {
-                            [Proj::Deref, rest @ ..] if !data || rest.is_empty() => rest,
+                            [Proj::Deref, rest @ ..] => rest,
                             rest => rest,
                         };
                         matches!(p.root, PlaceRoot::Local(l) if locals[l.idx()])

@@ -101,7 +101,6 @@ pub fn recursive_object(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool 
                     StdKind::Other if env.raw_buffer(def) => pool.list_items(args).to_vec(),
                     StdKind::Other => match kind(pool, env, t) {
                         Kind::Ref { target, .. } => vec![target],
-                        Kind::Data(fields) => fields,
                         Kind::Boxed => variants(pool, env, t)
                             .unwrap_or_default()
                             .into_iter()
@@ -141,7 +140,6 @@ fn contents(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<Ty> {
             pool.list_items(args).to_vec()
         }
         TyData::Adt { .. } => match kind(pool, env, t) {
-            Kind::Data(fields) => fields,
             Kind::Boxed => variants(pool, env, t)
                 .unwrap_or_default()
                 .into_iter()
@@ -192,7 +190,6 @@ fn reaches(pool: &InternPool, env: &dyn ProgramEnv, start: &[Ty]) -> bool {
                     StdKind::Other => match kind(pool, env, t) {
                         Kind::Ref { target, .. } if writable(pool, env, target) => return true,
                         Kind::Ref { target, .. } => vec![target],
-                        Kind::Data(fields) => fields,
                         Kind::Boxed => variants(pool, env, t)
                             .unwrap_or_default()
                             .into_iter()
