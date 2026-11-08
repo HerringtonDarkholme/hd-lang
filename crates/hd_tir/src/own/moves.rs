@@ -1,7 +1,7 @@
 //! Move (`docs/compiler/tir-v2.md`, "Move"): a `copy` read whose place no
 //! path reads again becomes a `move`, which takes the place's own count
 //! and leaves it empty, and the `Drop` that then has nothing to release
-//! goes.
+//! goes (known-null deletes it, except rule 4's).
 //!
 //! 1. **Locals.** A `copy` read of a local `[$l]`, or of a field of one
 //!    (`[$l .a .b]`), after which no path reads `$l` again before a store
@@ -20,7 +20,7 @@
 //!    and its reads move all the same: a copy of it is never chosen.
 //! 2. **Temporaries.** A `copy` of a whole temporary `[%v]` at its last
 //!    use moves when the temporary's `Drop` follows it in its block: the
-//!    copy is the temporary's count, and the drop goes.
+//!    copy is the temporary's count, and known-null deletes the drop.
 //! 3. **Partial moves.** A `copy` of a field or payload field of a
 //!    temporary or a local (`[%v as .Ok .0]`, `[$l .a]`) at the last use
 //!    of the base moves, when the part holds a counted leaf (a scalar part
@@ -823,8 +823,8 @@ impl Backward for Tables {
     }
 }
 
-/// Turns each read the walk proved last into a `move`, and deletes or
-/// splits the `Drop` of its place that follows it in its block.
+/// Turns each read the walk proved last into a `move`, and each `Ref` at
+/// a local's last access into one that takes its count ([`take`]).
 fn apply(
     b: &mut Body,
     topo: &Topology,
@@ -868,9 +868,6 @@ fn apply(
                 continue;
             }
             b.data[i][1] = ReadMode::Move as u32;
-            if let Some(d) = drop {
-                edits.remove(d);
-            }
             continue;
         }
         // A copyable part with no counted leaf copies for free: moving it
