@@ -312,3 +312,5 @@ lint-unselected-main	cli.exe.unselected-main.lint
 lint-unselected-main-prerequisites	cli.lint.prerequisites
 lint-lifetime-order	cli.lint.lifetime-order,cli.lint.default,cli.lint.levels
 release-reference-behind-pointer	cli.profile.release
+folder-cycle-fix-flat-file	cli.package.whole,cli.check.default,cli.json.lines.build,cli.json.diagnostic.fixes,cli.json.fix.object,cli.exit.hd-failure
+folder-cycle-no-fix-all-directories	cli.package.whole,cli.check.default,cli.json.lines.build,cli.json.diagnostic.fixes,cli.exit.hd-failure

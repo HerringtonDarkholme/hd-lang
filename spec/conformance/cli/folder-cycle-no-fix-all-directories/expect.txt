@@ -1,0 +1,4 @@
+# Both folders on the loop already have a `mod.hd`, so there is no file to move and no fix-it.
+run: hd check --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"folder-cycle","severity":"error","message":null,"file":"src/cart/mod.hd","line":1,"column":1,"fixes":[]},{"kind":"summary","errors":1,"warnings":0,"status":101}]

@@ -1,0 +1,4 @@
+# `src/cart.hd` is a flat file on the loop, so the diagnostic offers to move it to `src/cart/mod.hd`.
+run: hd check --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"folder-cycle","severity":"error","message":null,"file":"src/cart.hd","line":1,"column":1,"fixes":[{"message":null,"edits":[]}]},{"kind":"summary","errors":1,"warnings":0,"status":101}]
