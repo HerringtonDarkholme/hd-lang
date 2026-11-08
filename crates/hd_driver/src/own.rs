@@ -31,13 +31,13 @@ use super::{Env, LazyBody, ProgramTables, Run, lock};
 mod program;
 
 thread_local! {
-    /// What [`copy_report`] names the program being built by: a test
-    /// harness sets it before each build ([`copy_report_label`]).
+    /// What a checked count report names the program being built by: a
+    /// test harness sets it before each build ([`copy_report_label`]).
     static COPY_LABEL: RefCell<String> = const { RefCell::new(String::new()) };
 }
 
-/// Names the builds this thread runs next in the copy verifier's report
-/// (`HD_COPY_REPORT`, [`copy_report`]): a conformance case's path.
+/// Names the builds this thread runs next in a checked count report: a
+/// conformance case's path.
 pub fn copy_report_label(label: &str) {
     COPY_LABEL.with(|l| label.clone_into(&mut l.borrow_mut()));
 }
@@ -47,80 +47,6 @@ pub fn copy_report_label(label: &str) {
 #[cfg(feature = "checked-report")]
 pub(super) fn count_report_label() -> String {
     COPY_LABEL.with(|l| l.borrow().clone())
-}
-
-/// The file `HD_COPY_REPORT` names, read once per process.
-fn copy_report_file() -> Option<&'static str> {
-    static FILE: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
-    FILE.get_or_init(|| {
-        std::env::var("HD_COPY_REPORT")
-            .ok()
-            .filter(|f| !f.is_empty())
-    })
-    .as_deref()
-}
-
-/// Appends the copy verifier's findings in one body to `file`, one
-/// tab-separated row per finding: the build's label, the body's path,
-/// `fixed` or `open` (a `?Copy` parameter), the finding's line of the
-/// rendered body `text`, the lines that use its value, and the locals
-/// they name. A report tool for #1295; no build reads it.
-fn copy_report(file: &str, path: &str, text: &str, sites: &[Uncopied]) {
-    let label = COPY_LABEL.with(|l| l.borrow().clone());
-    let lines: Vec<&str> = text.lines().map(str::trim).collect();
-    let words = |l: &str| -> Vec<String> {
-        l.split(|c: char| !(c.is_ascii_alphanumeric() || c == '%' || c == '$' || c == '_'))
-            .filter(|w| !w.is_empty())
-            .map(str::to_owned)
-            .collect()
-    };
-    let mut out = String::new();
-    for s in sites {
-        let me = format!("%{}", s.inst);
-        let own = lines
-            .iter()
-            .find(|l| l.split(' ').next() == Some(me.as_str()))
-            .copied()
-            .unwrap_or_default();
-        let users: Vec<&str> = lines
-            .iter()
-            .filter(|l| l.split(' ').next() != Some(me.as_str()) && words(l).contains(&me))
-            .copied()
-            .collect();
-        let named: Vec<String> = std::iter::once(own)
-            .chain(users.iter().copied())
-            .flat_map(words)
-            .filter(|w| w.starts_with('$'))
-            .collect();
-        let locals: Vec<&str> = lines
-            .iter()
-            .filter(|l| {
-                l.strip_prefix("local ")
-                    .and_then(|r| r.split(' ').next())
-                    .is_some_and(|id| named.iter().any(|n| n == id))
-            })
-            .copied()
-            .collect();
-        let kind = if s.copies == Tri::Maybe {
-            "open"
-        } else {
-            "fixed"
-        };
-        let _ = writeln!(
-            out,
-            "{label}\t{path}\t{kind}\t{own}\t{}\t{}",
-            users.join(" | "),
-            locals.join(" | ")
-        );
-    }
-    let open = std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(file);
-    if let Ok(mut f) = open {
-        use std::io::Write as _;
-        let _ = f.write_all(out.as_bytes());
-    }
 }
 
 /// The run's release summaries (`docs/future-work/RELEASE_INTERPROC.md`,
@@ -1316,11 +1242,8 @@ impl Env<'_> {
         Ok((body, summary, relies))
     }
 
-    /// The copy verifier's findings in `body` (#1295): with
-    /// `HD_COPY_REPORT` set, each is appended to that file
-    /// ([`copy_report`]); then the build fails on the first with an
-    /// internal error when [`hd_tir::own::UNCOPIED_FAILS`] is set, and
-    /// otherwise collects them ([`super::Output::copy_sites`]).
+    /// The copy verifier's findings in `body` (#1295): the build fails on
+    /// the first with an internal error.
     fn uncopied(&self, body: &Body, sites: &[Uncopied]) -> StageResult<()> {
         let names = self.run.names();
         let path = names.path(body.item);
@@ -1344,22 +1267,14 @@ impl Env<'_> {
                 hd_resolve::show_ty(&names, s.ty)
             )
         };
-        if let Some(file) = copy_report_file() {
-            let text = self.run.render_owned(self.p, body);
-            copy_report(file, &path, &text, sites);
-        }
-        if hd_tir::own::UNCOPIED_FAILS {
-            return Err(NotImplemented::bug(
-                Stage::Collect,
-                format!(
-                    "internal: copy of a non-copyable value in {} ({} findings)",
-                    line(&sites[0]),
-                    sites.len()
-                ),
-            ));
-        }
-        lock(&self.run.copy_sites).extend(sites.iter().map(line));
-        Ok(())
+        Err(NotImplemented::bug(
+            Stage::Collect,
+            format!(
+                "internal: copy of a non-copyable value in {} ({} findings)",
+                line(&sites[0]),
+                sites.len()
+            ),
+        ))
     }
 
     /// Roots `body`'s places again, across the calls that write nothing the

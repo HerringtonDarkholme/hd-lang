@@ -796,12 +796,6 @@ impl OwnScratch {
     }
 }
 
-/// Whether a copy of a non-copyable value fails the build (#1295,
-/// `docs/future-work/RAW_BUFFER.md`): an internal error in every build.
-/// False only to survey the passes, when the driver collects each finding
-/// without failing.
-pub const UNCOPIED_FAILS: bool = true;
-
 /// A copy of a value whose type is not `Copy`, after the passes: a `Read`
 /// with mode `copy`, or a capture with mode `Copy`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -875,8 +869,8 @@ pub fn uncopied(b: &Body, cx: &dyn OwnCx, out: &mut Vec<Uncopied>) {
 /// last four record their deletions and insertions in
 /// one set of edits, applied once at the end. Then the copy verifier
 /// ([`uncopied`]) leaves its findings in `scratch`, for the driver to
-/// report or refuse ([`UNCOPIED_FAILS`]). A body the passes cannot
-/// handle is refused, with what stopped them.
+/// refuse. A body the passes cannot handle is refused, with what stopped
+/// them.
 pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(), String> {
     values::aliases(
         b,

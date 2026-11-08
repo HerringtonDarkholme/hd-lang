@@ -679,10 +679,6 @@ pub struct Output {
     /// The bodies a `Host::render_tir` named that collection read, after
     /// the ownership passes, by item path.
     pub own_text: std::collections::BTreeMap<String, OwnText>,
-    /// The copy verifier's findings while it reports (#1295,
-    /// `hd_tir::own::UNCOPIED_FAILS`): one line per copy of a non-copyable
-    /// value, `path %inst: type`, in the order the passes ran.
-    pub copy_sites: Vec<String>,
     /// Deterministic development fixture notes, separate from language diagnostics.
     pub fixture_notes: Vec<String>,
     /// Actual backend layouts of a development fixture's concrete struct declarations.
@@ -1712,8 +1708,6 @@ struct Run<'a> {
     /// Whether a value of a type may be copied, per run (`own.rs`,
     /// `OwnCx::copies`).
     copy_types: Mutex<HashMap<Ty, hd_tir::own::Tri>>,
-    /// The copy verifier's findings ([`Output::copy_sites`]).
-    copy_sites: Mutex<Vec<String>>,
     /// How each parameter of a callee passes its argument, by the
     /// callee's item, the parameter and the argument count (`own.rs`).
     own_params: Mutex<HashMap<(DefId, u32, u32), hd_tir::own::Pass>>,
@@ -2584,7 +2578,6 @@ fn build_packages_inner(
         verify_own: packages.verify_own,
         own_types: Mutex::new(HashMap::default()),
         copy_types: Mutex::new(HashMap::default()),
-        copy_sites: Mutex::new(Vec::new()),
         own_params: Mutex::new(HashMap::default()),
         summaries: hd_opt::passes::pipeline(packages.target, packages.level)
             .tir
@@ -2926,7 +2919,6 @@ fn build_packages_inner(
         scopes,
         tir_text: std::mem::take(&mut *lock(&run.tir_text)),
         own_text: std::mem::take(&mut *lock(&run.own_text)),
-        copy_sites: std::mem::take(&mut *lock(&run.copy_sites)),
         fixture_notes: run.fixture_notes.get().cloned().unwrap_or_default(),
         fixture_layouts: run.fixture_layouts.get().cloned().unwrap_or_default(),
         pool_items: run.pool.len(),
