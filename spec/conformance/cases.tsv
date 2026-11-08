@@ -5997,6 +5997,7 @@ runtime/valid/a-value-from-map-get-survives-a-write-in-its-arm.hd	runtime	accept
 typing/invalid/explicit-type-arguments-of-an-unknown-name.hd	type	reject:unknown-name	lang/03-names-and-scopes.md#r-names.module.other-module.value
 typing/invalid/a-trailing-block-for-a-vararg-is-ineligible.hd	type	reject:trailing-block-ineligible	lang/02-grammar.md#r-grammar.call.trailing-block.eligible
 typing/valid/numeric-comparison-is-bool.hd	type	accept	lang/04-type-system.md#r-types.num.binary.result-comparison
+runtime/valid/reference-prefix-around-power.hd	runtime	accept	lang/13-values-and-references.md#r-ref.prec.power-ref
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

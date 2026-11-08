@@ -107,7 +107,7 @@ fn demo(r: &mut Point, items: List[Point], i: i32) -> void:
 
 The prefix `&` and `&mut` bind like the prefix `!` and the unary `-`. The prefix `*` binds like a postfix suffix, tighter than `**`.
 
-1. r[ref.prec.unary-ref] `&` and `&mut` are `unary_expression` operators. They bind more tightly than every binary operator and less tightly than every postfix suffix.
+1. r[ref.prec.binary-tighter] `&` and `&mut` are `unary_expression` operators. They bind more tightly than every binary operator except `**`, and less tightly than every postfix suffix.
 2. r[ref.prec.deref] `*` binds more tightly than every binary operator, `**` included, and less tightly than every postfix suffix.
 3. r[ref.prec.postfix] The operand includes the postfix suffixes after it. `&a.b[i]` is `&(a.b[i])`, and `*r.x` is `*(r.x)`.
 4. r[ref.prec.group] To dereference before a suffix, group the operand: `(*r).x`.

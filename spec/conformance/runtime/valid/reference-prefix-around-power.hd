@@ -1,0 +1,17 @@
+# test: & and &mut take a ** expression as operand, while * binds tighter than **
+# Spec 13 Precedence: ref.prec.binary-tighter, ref.prec.power-ref, ref.prec.power-deref.
+tests:
+    use std.testing.assert_equal
+
+    it("takes the power inside the reference"):
+        let mut x: i32 = 3
+        shared := &x ** 2
+        assert_equal(*shared, 9, reason="&x ** 2 is &(x ** 2)")
+        unique := &mut x ** 2
+        assert_equal(*unique, 9, reason="&mut x ** 2 is &mut (x ** 2)")
+
+    it("applies the power after a dereference"):
+        let mut y: u32 = 3
+        r := &mut y
+        assert_equal(*r ** 2, 9, reason="*r ** 2 is (*r) ** 2")
+        assert_equal(2 ** *r, 8, reason="2 ** *r is 2 ** (*r)")
