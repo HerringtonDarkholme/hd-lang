@@ -307,7 +307,7 @@ lang/05-expressions.md	25	complete	typing/valid/collections.hd
 lang/05-expressions.md	26	complete	typing/valid/collections.hd
 lang/05-expressions.md	27	mixed	typing/invalid/list-spread-non-list.hd
 lang/05-expressions.md	28	complete	-
-lang/05-expressions.md	29	known-failure	typing/invalid/empty-list-without-context.hd|typing/invalid/empty-map-without-context.hd
+lang/05-expressions.md	29	mixed	typing/invalid/empty-list-without-context.hd|typing/invalid/empty-map-without-context.hd
 lang/05-expressions.md	30	fragment	typing/valid/data-types.hd
 lang/05-expressions.md	31	fragment	typing/valid/data-types.hd
 lang/05-expressions.md	32	complete	-

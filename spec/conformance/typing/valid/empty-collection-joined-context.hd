@@ -1,0 +1,19 @@
+# test: empty collection arms use a collection type established at the join
+# Spec 05 Element Types: expr.collection.empty, expr.collection.expected.
+
+fn lists(flag: bool):
+    if flag: [1] else: []
+
+fn maps(flag: bool):
+    if flag: {"a": 1} else: {}
+
+fn identity[T](value: T) -> T: value
+
+fn boxed() -> *List[i32]:
+    box([])
+
+fn optional(flag: bool) -> List[i32]:
+    if flag: identity([]) else: [1]
+
+fn generic_map() -> Map[string, i32]:
+    identity({})
