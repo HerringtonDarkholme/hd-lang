@@ -24,7 +24,8 @@ fn is_open_key(pool: &InternPool, k: Ty) -> bool {
 }
 
 /// Whether a row argument lists an open row (see [`row_is_open`]).
-fn arg_is_open(pool: &InternPool, t: Ty) -> bool {
+#[must_use]
+pub fn arg_is_open(pool: &InternPool, t: Ty) -> bool {
     match pool.get(t) {
         TyData::Row(r) => row_is_open(pool, r),
         _ => is_open_key(pool, t),

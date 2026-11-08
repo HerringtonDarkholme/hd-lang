@@ -359,6 +359,9 @@ pub enum Target {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VTable {
     pub trait_: DefId,
+    /// The trait value's arguments, `Self` left out; its row arguments
+    /// decide which slots take a context (`hd_wasm_linear` `slot_ctx`).
+    pub args: TyList,
     pub slots: Vec<CallTarget>,
     /// Per slot, how its adapter hands the payload to the target.
     pub recv: Vec<SlotRecv>,
@@ -535,8 +538,8 @@ impl Collected {
 
 pub use layout::InstanceTable;
 pub use rows::{
-    declared_row_keys, has_row_params, open_row, row_args_open, row_is_open, row_param_keys,
-    rowless, slot_methods,
+    arg_is_open, declared_row_keys, has_row_params, open_row, row_args_open, row_is_open,
+    row_param_keys, rowless, slot_methods,
 };
 
 /// A `DefId` ordered by its stable path hash, never by run ID.
@@ -2925,6 +2928,7 @@ impl Cx<'_> {
         }
         Ok(VTable {
             trait_,
+            args: trait_args,
             slots,
             recv,
             parents,

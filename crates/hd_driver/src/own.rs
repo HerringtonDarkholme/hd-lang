@@ -387,11 +387,29 @@ impl OwnCx for Env<'_> {
                     })
                 });
         }
-        // A dynamic slot packages its declared keys too. An unresolved
-        // bound keeps the same conditional contract until its instance
-        // selects a concrete signature.
-        matches!(chosen, Callee::TraitMethod { method, .. }
-            if self.intrinsic(method).is_none() && self.has_requirement_row(method))
+        // A dynamic slot packages its row's keys at the trait value's
+        // arguments too. An unresolved bound or argument keeps the same
+        // conditional contract until its instance selects a concrete
+        // signature.
+        let Callee::TraitMethod { method, targs, .. } = chosen else {
+            return false;
+        };
+        if self.intrinsic(method).is_some() {
+            return false;
+        }
+        let Some(sig) = self.sig(method) else {
+            return self.has_requirement_row(method);
+        };
+        // The method's row at the trait's arguments, `Self` left out.
+        let pool = &self.run.pool;
+        let mut all = vec![hd_mono::class_ref(pool)];
+        all.extend(pool.list_items(targs).iter().copied());
+        let row = pool.intern_ty(&TyData::Row(sig.row));
+        let row = match pool.get(hd_mono::subst(pool, self, method, pool.list(&all), row)) {
+            TyData::Row(r) => pool.row_data(r),
+            _ => pool.row_data(sig.row),
+        };
+        !row.keys.is_empty() || !row.params.is_empty() || hd_mono::has_row_params(self, method)
     }
 
     fn has_requirement_row(&self, item: DefId) -> bool {

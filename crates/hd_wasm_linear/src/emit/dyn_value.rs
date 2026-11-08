@@ -205,7 +205,7 @@ impl Em<'_, '_, '_> {
             }
             // A method with a row takes its caller's context last
             // (`ctx.rs`), in which the slot looks up its target's keys.
-            let ctx = if super::ctx::slot_ctx(env, *m) {
+            let ctx = if super::ctx::slot_ctx(self.pool(), env, *m, table.args)? {
                 params.push(Val::I32);
                 let keys = hd_mono::declared_row_keys(self.pool(), env, t.item, t.args);
                 Some(crate::rt::SlotCtx {
@@ -270,7 +270,8 @@ impl Em<'_, '_, '_> {
                 }
             }));
         }
-        crate::drive::vtable(self.input, self.m, table.trait_, slots, parents)
+        let (trait_, args) = (table.trait_, table.args);
+        crate::drive::vtable(self.input, self.m, trait_, args, slots, parents)
     }
 
     /// `RefAsProvider` (`crates/hd_wasm_linear/DESIGN.md` §15.2, "Providers of

@@ -34,12 +34,37 @@ pub(crate) fn key_id(input: &crate::Input<'_>, k: Ty) -> i64 {
     i64::from_le_bytes(bytes[..8].try_into().unwrap_or_default())
 }
 
-/// Whether trait method `m`'s vtable slot takes a context: whether its row
-/// lists a key, or it has row parameters. A dynamic call cannot know the
+/// Whether trait method `m`'s vtable slot in a trait value of arguments
+/// `args` (`Self` left out) takes a context: whether its row at `args`
+/// lists a key, or it has row parameters. So `dyn Runnable[$ Console]`'s
+/// slot takes one and `dyn Disposable[$ ()]`'s, as a host handle's, none
+/// (`trait.dyn.generic-trait`). A dynamic call cannot know the
 /// implementation's row, which may list fewer keys, so the slot looks
-/// them up by id.
-pub(crate) fn slot_ctx(env: &dyn hd_mono::ProgramEnv, m: hd_base::DefId) -> bool {
-    hd_mono::has_row_params(env, m) || !env.row_keys(m, hd_types::TyList::EMPTY).is_empty()
+/// them up by id. A row-polymorphic body is compiled once, whatever keys
+/// its row argument lists, so a trait value whose row argument is its
+/// open row has no one shape.
+pub(crate) fn slot_ctx(
+    pool: &hd_types::InternPool,
+    env: &dyn hd_mono::ProgramEnv,
+    m: hd_base::DefId,
+    args: hd_types::TyList,
+) -> StageResult<bool> {
+    if pool
+        .list_items(args)
+        .iter()
+        .any(|t| hd_mono::arg_is_open(pool, *t))
+    {
+        return unsupported("a trait value whose row argument is a row parameter");
+    }
+    Ok(hd_mono::has_row_params(env, m) || !env.row_keys(m, with_self(pool, args)).is_empty())
+}
+
+/// A trait method's arguments `args` with `Self` first, as the class
+/// `REF`: a trait value's is unknown, and no key names it.
+fn with_self(pool: &hd_types::InternPool, args: hd_types::TyList) -> hd_types::TyList {
+    let mut all = vec![hd_mono::class_ref(pool)];
+    all.extend(pool.list_items(args).iter().copied());
+    pool.list(&all)
 }
 
 /// Reads the provider of key id `id` from the context in local `c` into
@@ -264,35 +289,18 @@ impl Em<'_, '_, '_> {
     }
 
     /// Pushes the context a dynamic call of trait method `method` at
-    /// `targs` passes its slot ([`slot_ctx`]): every key of the method's
-    /// row, in front of the open context when the row lists the open row.
+    /// `targs`, its trait value's arguments as this instance has them,
+    /// passes its slot ([`slot_ctx`]): every key of the method's row.
     pub(super) fn push_dyn_ctx(
         &mut self,
         i: u32,
         method: hd_base::DefId,
         targs: hd_types::TyList,
     ) -> StageResult<Option<u32>> {
-        // A trait method call's arguments leave `Self` out: a trait
-        // value's is unknown, and no key names it.
-        // Its arguments as this instance has them.
-        let mut all = vec![hd_mono::class_ref(self.pool())];
-        all.extend(self.pool().list_items(targs).iter().map(|t| self.sub(*t)));
-        let all = self.pool().list(&all);
-        let mut keys = Vec::new();
-        let mut open = false;
-        for k in self.env().row_keys(method, all) {
-            let k = self.sub(k);
-            if matches!(self.pool().get(k), TyData::Canon(_)) {
-                open = true;
-            } else {
-                keys.push(k);
-            }
-        }
-        if open {
-            self.scope_keys(&mut keys);
-        }
+        // `slot_ctx` refuses an open row argument, so no key is open.
+        let keys = self.env().row_keys(method, with_self(self.pool(), targs));
         let copy = self.operation_count(i, Tag::Retain, Part::Row);
-        self.push_ctx_of(&keys, open, copy)
+        self.push_ctx_of(&keys, false, copy)
     }
 
     /// `$.context(...)` (`req.context.order`): a new context with one

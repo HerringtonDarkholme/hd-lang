@@ -1165,7 +1165,7 @@ fn host_vtable(input: &Input<'_>, m: &mut Module, key: Ty) -> StageResult<usize>
             input, m, host.key, &row, method, false, None,
         )?));
     }
-    crate::drive::vtable(input, m, def, slots, Vec::new())
+    crate::drive::vtable(input, m, def, TyList::EMPTY, slots, Vec::new())
 }
 
 /// The vtable of a host trait that a runtime profile declares itself
@@ -1318,7 +1318,7 @@ fn profile_tree(
         }
     }
     seen.pop();
-    crate::drive::vtable(input, m, def, slots, parents)
+    crate::drive::vtable(input, m, def, TyList::EMPTY, slots, parents)
 }
 
 /// Adds `by` to the forbidden-context counter.

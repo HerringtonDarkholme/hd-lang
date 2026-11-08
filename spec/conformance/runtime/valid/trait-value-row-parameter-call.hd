@@ -1,0 +1,32 @@
+# expect-stdout: ran
+# expect-stdout: 7
+# expect-stdout: 3
+# expect-stdout: 3
+# test: a call through a trait value whose trait has a row parameter runs the implementation with the keys of the value's row argument, and with none at the empty row
+# Spec lang/09 Dynamic Safety: trait.dyn.generic-trait; lang/11 Row Parameters: req.row.param.data-owner.
+trait Runnable[$ R]:
+    fn run(&self) -> i32 $ R
+
+struct Announcer: pass
+
+impl Runnable[$ Console] for Announcer:
+    fn run(&self) -> i32 $ Console:
+        println("ran")
+        7
+
+struct Quiet: pass
+
+impl[$ R] Runnable[$ R] for Quiet:
+    fn run(&self) -> i32 $ R:
+        3
+
+fn call(r: &dyn Runnable[$ Console]) -> i32 $ Console:
+    r.run()
+
+fn plain(r: &dyn Runnable[$ ()]) -> i32:
+    r.run()
+
+pub fn main() -> void $ Console:
+    println(call(&Announcer {}))
+    println(call(&Quiet {}))
+    println(plain(&Quiet {}))

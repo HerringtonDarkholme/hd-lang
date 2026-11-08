@@ -984,10 +984,17 @@ fn handle_vtable(
             ));
         }
         let slots = handle_slots(input, m, def, trait_, &tname, host, at, true)?;
-        parents.push(crate::drive::vtable(input, m, def, slots, Vec::new())?);
+        parents.push(crate::drive::vtable(
+            input,
+            m,
+            def,
+            TyList::EMPTY,
+            slots,
+            Vec::new(),
+        )?);
     }
     let slots = handle_slots(input, m, trait_, trait_, &tname, host, at, true)?;
-    crate::drive::vtable(input, m, trait_, slots, parents)
+    crate::drive::vtable(input, m, trait_, TyList::EMPTY, slots, parents)
 }
 
 fn package_handle_tree(
@@ -1047,7 +1054,7 @@ fn package_handle_tree(
         )?);
     }
     seen.pop();
-    crate::drive::vtable(input, m, owner, slots, parents)
+    crate::drive::vtable(input, m, owner, TyList::EMPTY, slots, parents)
 }
 
 pub fn add_package_method(

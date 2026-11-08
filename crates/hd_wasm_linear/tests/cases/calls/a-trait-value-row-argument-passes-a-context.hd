@@ -1,0 +1,16 @@
+# @dump: wat
+# A call through `dyn Runnable[$ Console]` passes its slot a context of
+# the row argument's keys, built from the caller's provider.
+trait Runnable[$ R]:
+    fn run(&self) -> i32 $ R
+
+struct Announcer: pass
+
+impl Runnable[$ Console] for Announcer:
+    fn run(&self) -> i32 $ Console:
+        println("ran")
+        7
+
+fn call(r: &dyn Runnable[$ Console]) -> i32 $ Console:
+    r.run()
+    #^^^^^^
