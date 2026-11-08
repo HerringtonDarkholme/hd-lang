@@ -1375,18 +1375,13 @@ fn live_once(f: &mut Func, arity: &Arity) -> bool {
                 .or_else(|| origins.first(at..at + 1));
             origins.repeat(origin, 1);
         } else if dead_write(at) {
-            // A dead set drops its value, or takes back the pure push
-            // just before it when that push is still in place.
+            // A dead set drops its value; rule 16 takes back a pure push
+            // just before it.
             if matches!(ins, Ins::Op(I::LocalTee(_))) {
                 continue;
             }
-            if at > 0 && pure_push(&body[at - 1]) && !gone[at - 1] && moved[at - 1] == NONE {
-                out.pop();
-                origins.pop();
-            } else {
-                out.push(Ins::Op(I::Drop));
-                origins.copy(at..at + 1);
-            }
+            out.push(Ins::Op(I::Drop));
+            origins.copy(at..at + 1);
         } else {
             out.push(*ins);
             origins.copy(at..at + 1);
@@ -3909,7 +3904,7 @@ mod origin_tests {
             });
             assert_eq!(zeros(&f), kept, "{:?}", f.body);
         }
-        // A dead set of a call's result keeps the call and drops its value.
+        // A dead set of a constant drops it, and rule 16 takes the push back.
         let f = run(
             tracked(
                 &symbols,
@@ -3924,6 +3919,7 @@ mod origin_tests {
             ),
             |f| {
                 assert!(live_rules(f, &Arity::new()));
+                assert!(drops(f));
             },
         );
         assert_eq!(f.body.len(), 2);
