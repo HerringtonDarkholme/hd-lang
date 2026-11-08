@@ -229,7 +229,7 @@ impl Ck<'_, '_> {
         };
         let t = self.infer.resolve(self.pool(), self.b.local_ty(l));
         let known = self.cx.names.known;
-        let changes = match self.pool().get(self.strip_mut(t)) {
+        let changes = match self.pool().get(self.resolved(t)) {
             TyData::Adt { def, .. } if def == known.list => name == "push",
             TyData::Adt { def, .. } if def == known.map => name == "remove",
             _ => false,
@@ -379,7 +379,7 @@ impl Ck<'_, '_> {
         };
         if self.has_self(&m)
             && let Some(want) = want
-            && let TyData::Fn { params, .. } = pool.get(self.strip_mut(want))
+            && let TyData::Fn { params, .. } = pool.get(self.resolved(want))
             && let Some(&receiver) = pool.list_items(params).first()
             && let Some((tv, _)) = self.dyn_ref_of(receiver)
             && let TyData::TraitValue {
@@ -425,7 +425,7 @@ impl Ck<'_, '_> {
     ) -> StageResult<Option<Found>> {
         let pool = self.pool();
         let t = self.norm_ty(t);
-        if matches!(self.strip_mut(t), Ty::NEVER | Ty::POISON) {
+        if matches!(self.resolved(t), Ty::NEVER | Ty::POISON) {
             return Ok(None);
         }
         let trait_member = |ck: &mut Self, trait_: DefId, method: DefId, mut args: Vec<Ty>| {
@@ -433,7 +433,7 @@ impl Ck<'_, '_> {
             while args.len() < n_trait {
                 args.push(ck.infer.fresh(pool, VarKind::General));
             }
-            (ck.strip_mut(t), args, method)
+            (ck.resolved(t), args, method)
         };
         let m = match self.resolve_method(t, name)? {
             Some(Hit::Inherent {
@@ -495,7 +495,7 @@ impl Ck<'_, '_> {
                 }
             }
             Some(Hit::Builtin { op, params, ret }) => {
-                let self_ty = self.strip_mut(t);
+                let self_ty = self.resolved(t);
                 return Ok(Some(Found::Builtin {
                     op,
                     params,
@@ -613,7 +613,7 @@ impl Ck<'_, '_> {
             return;
         };
         let pool = self.pool();
-        let w = self.strip_mut(w);
+        let w = self.resolved(w);
         let (
             TyData::Fn {
                 params: wp,
@@ -864,7 +864,7 @@ impl Ck<'_, '_> {
         let unbound_ref = mutates && bound.is_none();
         let first_ty = if unbound_ref {
             pool.intern_ty(&TyData::Ref {
-                inner: self.strip_mut(self_ty),
+                inner: self.resolved(self_ty),
                 mutable: true,
                 counted: false,
             })
@@ -1124,7 +1124,7 @@ impl Ck<'_, '_> {
         if !self.has_self(&m) {
             let msg = format!(
                 "`{name}` is an associated function; a bound reference names a method, so write `{}::{name}`",
-                self.show(self.strip_mut(rt))
+                self.show(self.resolved(rt))
             );
             self.err(Code::UnknownMethod, n, &msg);
             return Ok((Ref(NONE), Ty::POISON));

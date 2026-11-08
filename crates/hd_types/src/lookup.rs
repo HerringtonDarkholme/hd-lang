@@ -50,17 +50,10 @@ impl OwnerMap {
     /// nothing (§3.2 `owner_modules`).
     #[must_use]
     pub fn owner_of_ty(&self, paths: &PathTable, pool: Types<'_>, t: Ty) -> Option<FolderId> {
-        match pool.get(strip_mut(pool, t)) {
+        match pool.get(t) {
             TyData::Adt { def, .. } | TyData::TraitValue { def, .. } => self.owner(paths, def),
             _ => None,
         }
-    }
-}
-
-fn strip_mut(pool: Types<'_>, t: Ty) -> Ty {
-    match pool.get(t) {
-        TyData::Mut(i) => i,
-        _ => t,
     }
 }
 
@@ -69,7 +62,7 @@ fn strip_mut(pool: Types<'_>, t: Ty) -> Ty {
 #[must_use]
 pub fn open_arg(pool: Types<'_>, t: Ty) -> bool {
     matches!(
-        pool.get(strip_mut(pool, t)),
+        pool.get(t),
         TyData::Infer(_) | TyData::Canon(_) | TyData::Poison
     )
 }

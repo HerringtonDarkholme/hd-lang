@@ -182,8 +182,8 @@ impl Ck<'_, '_> {
     /// A number literal's type meeting a trait value type is its default.
     fn default_literal(&mut self, got: Ty, want: Ty) -> Ty {
         let pool = self.pool();
-        let g = self.strip_mut(self.infer.resolve(pool, got));
-        if matches!(pool.get(self.strip_mut(want)), TyData::TraitValue { .. })
+        let g = self.resolved(self.infer.resolve(pool, got));
+        if matches!(pool.get(self.resolved(want)), TyData::TraitValue { .. })
             && matches!(pool.get(g), TyData::Infer(_))
             && matches!(
                 self.infer.kind_of(pool, g),
@@ -216,7 +216,7 @@ impl Ck<'_, '_> {
         let pool = self.pool();
         let template = self.cx.names.known.template;
         let want = want.map(|w| self.infer.resolve(pool, w));
-        let Some(elem) = want.and_then(|w| match pool.get(self.strip_mut(w)) {
+        let Some(elem) = want.and_then(|w| match pool.get(self.resolved(w)) {
             TyData::Adt { def, args } if def == template => pool.list_items(args).first().copied(),
             _ => None,
         }) else {

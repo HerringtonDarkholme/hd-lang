@@ -51,7 +51,7 @@ impl Em<'_, '_, '_> {
         code: Helper,
     ) -> StageResult<()> {
         let int = self.pool().intern_ty(&TyData::Prim(Prim::I32));
-        let mut tys = vec![self.strip_mut(self.ty_of(coll))];
+        let mut tys = vec![self.ty_of(coll)];
         tys.extend(ints.iter().map(|_| int));
         let (m, parts) = payload_mem(self.pool(), self.env(), &tys)?;
         // The step code reads the fields at these offsets.
@@ -95,7 +95,7 @@ impl Em<'_, '_, '_> {
     /// entries, each as its entry number and a `(K, V)` tuple.
     pub(super) fn map_iter(&mut self, i: u32, map: u32) -> StageResult<()> {
         let (_, _, entry) = self.entry(self.ty_of(map))?;
-        let TyData::Fn { result, .. } = self.pool().get(self.strip_mut(self.ty(i))) else {
+        let TyData::Fn { result, .. } = self.pool().get(self.ty(i)) else {
             return unsupported("a map step that is not a function");
         };
         let TyData::Option(item) = self.pool().get(result) else {

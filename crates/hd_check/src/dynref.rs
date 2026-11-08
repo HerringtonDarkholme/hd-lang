@@ -25,7 +25,7 @@ impl Ck<'_, '_> {
     pub(crate) fn dyn_ref_of(&self, t: Ty) -> Option<(Ty, bool)> {
         let pool = self.pool();
         let (inner, m) = self.ref_of(t)?;
-        let inner = self.strip_mut(self.infer.resolve(pool, inner));
+        let inner = self.resolved(self.infer.resolve(pool, inner));
         matches!(pool.get(inner), TyData::TraitValue { .. }).then_some((inner, m))
     }
 
@@ -50,7 +50,7 @@ impl Ck<'_, '_> {
         let target = self.ref_ty(tv, mutable, counted);
         let g = self.infer.resolve(pool, got);
         if let Some((inner, _)) = self.ref_of(g) {
-            let inner = self.strip_mut(self.infer.resolve(pool, inner));
+            let inner = self.resolved(self.infer.resolve(pool, inner));
             let inner = if let TyData::Infer(_) = pool.get(inner) {
                 if let Some(default) = self
                     .infer
@@ -109,7 +109,7 @@ impl Ck<'_, '_> {
         }
         // Any other value is no reference, and none is made for it
         // (`trait.dyn.ref.written`): the program writes `&` or `&mut`.
-        let gs = self.strip_mut(g);
+        let gs = self.resolved(g);
         let gs = match pool.get(gs) {
             TyData::Poison | TyData::Never => return None,
             TyData::Infer(_) => {
@@ -193,7 +193,7 @@ impl Ck<'_, '_> {
 
     /// The fix-it of `trait.dyn.ref.written.reference-fix.reference-values`
     /// for a local trait value reference: `&` or `&mut` before a place or
-    /// a struct literal whose type `s`, without a `mut` view, implements
+    /// a struct literal whose type `s` implements
     /// the trait of `tv`.
     fn dyn_ref_value_fix(&mut self, s: Ty, tv: Ty, mutable: bool, n: NodeRef<'_>) {
         let value = match n.kind() {
@@ -232,8 +232,7 @@ impl Ck<'_, '_> {
         );
     }
 
-    /// Whether a reference to a value of type `s`, without a `mut` view,
-    /// converts to a reference to the trait value `tv`: `s` implements its
+    /// Whether a reference to a value of type `s` converts to a reference to the trait value `tv`: `s` implements its
     /// trait (`trait.dyn.ref.convert.impl`), or is a trait value of it or
     /// of a subtrait (`trait.dyn.ref.widen`).
     pub(crate) fn dyn_fits(&mut self, s: Ty, tv: Ty) -> bool {
@@ -273,7 +272,7 @@ impl Ck<'_, '_> {
         let pool = self.pool();
         let mutable = self.trait_is_mutable(def, 0);
         if self.ref_of(t).is_none() && !self.has_ref_receiver_member(def) {
-            let inner = self.strip_mut(self.infer.resolve(pool, t));
+            let inner = self.resolved(self.infer.resolve(pool, t));
             self.require_dyn_impl(inner, key, n);
             let r = self.coerce(r, t, inner, n, "provider", ExpectPosition::General);
             let (source, source_ty) = self.shared_provider_object(r, inner, n);
@@ -395,7 +394,7 @@ impl Ck<'_, '_> {
     fn dyn_ref_value(&mut self, s: Ref, src_ty: Ty, tv: Ty, kind: Coercion, syn: NodeIdx) -> Ref {
         if kind == Coercion::Supertrait {
             let (dv, dt) = self.emit_deref(s, src_ty, syn);
-            let dv = self.retype(dv, self.strip_mut(dt), syn);
+            let dv = self.retype(dv, self.resolved(dt), syn);
             self.b.coerce(Coercion::Supertrait, NONE, dv, tv, syn)
         } else {
             self.b.coerce(Coercion::RefToTraitValue, NONE, s, tv, syn)

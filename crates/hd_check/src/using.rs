@@ -63,8 +63,8 @@ impl Ck<'_, '_> {
         };
         let referred = self.ref_of(t);
         let self_ty = match referred {
-            Some((inner, _)) => self.strip_mut(self.infer.resolve(pool, inner)),
-            None => self.strip_mut(t),
+            Some((inner, _)) => self.resolved(self.infer.resolve(pool, inner)),
+            None => self.resolved(t),
         };
         if pool.has_poison(self_ty) {
             return Ok(());
@@ -134,13 +134,13 @@ impl Ck<'_, '_> {
         let recv = if let Some((inner, _)) = referred {
             let v = self.b.get(l, t, s.index());
             let vt = self.deref_ty(inner);
-            if matches!(pool.get(self.strip_mut(vt)), TyData::TraitValue { .. }) {
+            if matches!(pool.get(self.resolved(vt)), TyData::TraitValue { .. }) {
                 // A trait value passes its payload to the selected trait's
                 // reference receiver (`trait.dyn.ref.member`).
                 self.emit_deref(v, t, s.index()).0
             } else {
                 let counted = self.ref_counted(t).unwrap_or(true);
-                let rty = self.ref_ty(self.strip_mut(vt), true, counted);
+                let rty = self.ref_ty(self.resolved(vt), true, counted);
                 self.retype(v, rty, at.index())
             }
         } else {
@@ -150,7 +150,7 @@ impl Ck<'_, '_> {
                 path: vec![],
                 ty: t,
             };
-            let inner = self.strip_mut(t);
+            let inner = self.resolved(t);
             let rty = pool.intern_ty(&TyData::Ref {
                 inner,
                 mutable: true,
@@ -197,7 +197,7 @@ impl Ck<'_, '_> {
 
     /// Whether `t` implements the compiler-known `AutoClosing` marker.
     pub(crate) fn implements_auto_closing(&mut self, t: Ty) -> StageResult<bool> {
-        let self_ty = self.strip_mut(t);
+        let self_ty = self.resolved(t);
         if self.pool().has_poison(self_ty) {
             return Ok(false);
         }
@@ -235,7 +235,7 @@ impl Ck<'_, '_> {
     /// implementation is selected when present; otherwise the suspending
     /// protocol is tried. The marker implementation is checked separately.
     fn auto_closing_protocol(&mut self, t: Ty) -> StageResult<Option<bool>> {
-        let self_ty = self.strip_mut(t);
+        let self_ty = self.resolved(t);
         if self.pool().has_poison(self_ty) {
             return Ok(None);
         }
@@ -291,7 +291,7 @@ impl Ck<'_, '_> {
     /// explicit cleanup binding. Analysis records only this neutral answer;
     /// `hd_lint` owns the `unbound-disposable` policy.
     pub(crate) fn implements_disposal_protocol(&mut self, t: Ty) -> StageResult<bool> {
-        let self_ty = self.strip_mut(t);
+        let self_ty = self.resolved(t);
         if self.pool().has_poison(self_ty) {
             return Ok(false);
         }

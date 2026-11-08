@@ -115,7 +115,7 @@ impl Ck<'_, '_> {
             return Ok(());
         };
         let pool = self.pool();
-        let target = match pool.get(self.strip_mut(*self_ty)) {
+        let target = match pool.get(self.resolved(*self_ty)) {
             TyData::Adt { def, .. } => self.cx.names.is_local(def),
             _ => false,
         };

@@ -625,7 +625,7 @@ holds.
 | Kind | From → to | Evidence word | Run-time meaning for D2 |
 | --- | --- | --- | --- |
 | `Never` | `never` → any | none | unreachable |
-| `Weaken` | internal `Mut(T)` → `T` | none | none: a static view change |
+| `Weaken` | `&mut T` → `&T`, `*mut T` → `*T` | none | none: a static permission change |
 | `Variance` | `C[A]` → `C[B]` by declared variance, readonly outer type | none | none ([Representation-Preserving Variance](../../spec/lang/04-type-system.md#representation-preserving-variance)) |
 | `WrapSome` | `T` → `T?`, one layer | none | build `.Some` |
 | `RowSubsume` | `fn ... $ R1` → `fn ... $ R2` | none | none: every function value takes a context and looks its keys up by id, so a context holding `R2`'s keys serves `R1` (crates/hd_mono/DESIGN.md §12.4) |

@@ -122,7 +122,7 @@ fn instance_leaves(pool: &hd_types::InternPool, args: TyList) -> u64 {
             }
             TyData::Adt { args, .. } => sum(pool.list_items(args), memo),
             TyData::Union(ms) => sum(pool.list_items(ms), memo),
-            TyData::Option(i) | TyData::Mut(i) => sum(&[i], memo),
+            TyData::Option(i) => sum(&[i], memo),
             _ => 1,
         };
         memo.insert(t, n);
@@ -342,25 +342,16 @@ impl OwnCx for Env<'_> {
         }
     }
 
-    fn function_suspends(&self, mut ty: Ty) -> bool {
-        while let TyData::Mut(inner) = self.run.pool.get(ty) {
-            ty = inner;
-        }
+    fn function_suspends(&self, ty: Ty) -> bool {
         matches!(self.run.pool.get(ty), TyData::Fn { suspends: true, .. })
     }
 
-    fn function_spreads_arguments(&self, mut ty: Ty, args: usize) -> bool {
-        while let TyData::Mut(inner) = self.run.pool.get(ty) {
-            ty = inner;
-        }
+    fn function_spreads_arguments(&self, ty: Ty, args: usize) -> bool {
         matches!(self.run.pool.get(ty), TyData::Fn { params, inputs, suspends: false, .. }
             if inputs == hd_types::Inputs::Tuple || self.run.pool.list_items(params).len() != args)
     }
 
-    fn function_has_requirement_row(&self, mut ty: Ty) -> bool {
-        while let TyData::Mut(inner) = self.run.pool.get(ty) {
-            ty = inner;
-        }
+    fn function_has_requirement_row(&self, ty: Ty) -> bool {
         let TyData::Fn { row, .. } = self.run.pool.get(ty) else {
             return false;
         };
@@ -684,32 +675,23 @@ impl OwnCx for Env<'_> {
             return false;
         };
         let pool = &self.run.pool;
-        let mut t = sig.params[k].1;
-        while let TyData::Mut(inner) = pool.get(t) {
-            t = inner;
-        }
+        let t = sig.params[k].1;
         matches!(pool.get(t), TyData::Ref { counted: false, .. })
     }
 
     fn in_place_struct(&self, ty: Ty) -> bool {
         let pool = &self.run.pool;
-        let mut t = ty;
-        while let TyData::Mut(inner) = pool.get(t) {
-            t = inner;
-        }
+        let t = ty;
         matches!(pool.get(t), TyData::Adt { def, .. }
             if self.std_kind(def) == hd_mono::layout::StdKind::Other && self.is_struct(def))
     }
 
-    fn struct_fields(&self, mut ty: Ty, out: &mut Vec<Ty>) -> bool {
+    fn struct_fields(&self, ty: Ty, out: &mut Vec<Ty>) -> bool {
         out.clear();
         if !self.in_place_struct(ty) {
             return false;
         }
         let pool = &self.run.pool;
-        while let TyData::Mut(inner) = pool.get(ty) {
-            ty = inner;
-        }
         let TyData::Adt { def, args } = pool.get(ty) else {
             return false;
         };
@@ -726,10 +708,7 @@ impl OwnCx for Env<'_> {
 
     fn trait_value(&self, ty: Ty) -> bool {
         let pool = &self.run.pool;
-        let mut t = ty;
-        while let TyData::Mut(inner) = pool.get(t) {
-            t = inner;
-        }
+        let t = ty;
         matches!(pool.get(t), TyData::TraitValue { .. })
     }
 
@@ -817,7 +796,7 @@ impl Env<'_> {
             _ => Tri::Yes,
         };
         match pool.get(t) {
-            TyData::Mut(i) | TyData::Option(i) => self.copy_parts(i, open),
+            TyData::Option(i) => self.copy_parts(i, open),
             TyData::Tuple { elems, rest } => {
                 let mut c = rest.map_or(Tri::Yes, |r| self.copy_parts(r, open));
                 for &e in pool.list_items(elems) {
@@ -942,7 +921,7 @@ fn refs_kinds(
                 && rest.is_none_or(|r| refs_kinds(pool, cells, ptr, r, depth + 1, counted))
         }
         TyData::Union(members) => all(members, counted),
-        TyData::Option(i) | TyData::Mut(i) => refs_kinds(pool, cells, ptr, i, depth + 1, counted),
+        TyData::Option(i) => refs_kinds(pool, cells, ptr, i, depth + 1, counted),
         TyData::Param(..) => false,
         _ => true,
     }
@@ -971,7 +950,7 @@ fn holds_ref(
             any(elems) || rest.is_some_and(|r| holds_ref(pool, cells, ptr, r, depth + 1))
         }
         TyData::Union(members) => any(members),
-        TyData::Option(i) | TyData::Mut(i) => holds_ref(pool, cells, ptr, i, depth + 1),
+        TyData::Option(i) => holds_ref(pool, cells, ptr, i, depth + 1),
         _ => false,
     }
 }
@@ -1108,10 +1087,6 @@ impl Env<'_> {
     /// one that makes it hold nothing counted counts nothing.
     fn value_parameter(&self, t: Ty) -> Pass {
         let pool = &self.run.pool;
-        let mut t = t;
-        while let TyData::Mut(inner) = pool.get(t) {
-            t = inner;
-        }
         match pool.get(t) {
             TyData::Ref { .. } => Pass::Lent,
             TyData::Adt { def, .. } if self.run.known.ref_cells().holds(def) => Pass::Lent,
@@ -1636,14 +1611,7 @@ impl FactEnv for Env<'_> {
     }
 
     fn is_facts(&self, ty: Ty) -> bool {
-        let mut ty = ty;
-        loop {
-            match self.run.pool.get(ty) {
-                TyData::Mut(inner) => ty = inner,
-                TyData::Adt { def, .. } => return def == self.run.known.facts,
-                _ => return false,
-            }
-        }
+        matches!(self.run.pool.get(ty), TyData::Adt { def, .. } if def == self.run.known.facts)
     }
 
     fn known_facts(

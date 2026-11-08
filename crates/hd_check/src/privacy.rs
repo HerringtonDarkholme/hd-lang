@@ -15,7 +15,7 @@ impl<'a> Ck<'a, '_> {
     /// The struct declaration of `t` and its fields.
     pub(crate) fn data_decl(&self, t: Ty) -> Option<(DefId, &'a [Field])> {
         let pool = self.pool();
-        let TyData::Adt { def, .. } = pool.get(self.strip_mut(t)) else {
+        let TyData::Adt { def, .. } = pool.get(self.resolved(t)) else {
             return None;
         };
         match &self.cx.lookup.item(def)?.data {

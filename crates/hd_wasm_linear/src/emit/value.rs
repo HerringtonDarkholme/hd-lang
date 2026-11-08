@@ -48,7 +48,7 @@ impl Em<'_, '_, '_> {
 
     /// Whether `t` is a nominal newtype, which erases to its base.
     pub(super) fn newtype(&self, t: Ty) -> bool {
-        matches!(self.pool().get(self.strip_mut(t)), TyData::Adt { def, .. }
+        matches!(self.pool().get(t), TyData::Adt { def, .. }
             if self.env().newtype_base(def).is_some())
     }
 

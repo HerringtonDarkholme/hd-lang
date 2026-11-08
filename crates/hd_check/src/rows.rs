@@ -110,7 +110,7 @@ impl Ck<'_, '_> {
                     self.collect_infer(a, vars, depth + 1);
                 }
             }
-            TyData::Option(i) | TyData::Mut(i) | TyData::Ref { inner: i, .. } => {
+            TyData::Option(i) | TyData::Ref { inner: i, .. } => {
                 self.collect_infer(i, vars, depth + 1);
             }
             TyData::Tuple { elems, rest } => {
@@ -223,10 +223,7 @@ impl Ck<'_, '_> {
         if depth > 32 || g == w {
             return;
         }
-        let strip = |t: Ty| match pool.get(t) {
-            TyData::Mut(i) => i,
-            _ => t,
-        };
+        let strip = |t: Ty| t;
         let (g, w) = (strip(g), strip(w));
         let d = depth + 1;
         let pairs = |a: hd_types::TyList, b: hd_types::TyList| -> Vec<(Ty, Ty)> {

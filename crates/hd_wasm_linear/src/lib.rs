@@ -173,10 +173,7 @@ pub fn in_place_parts(
     out: &mut Vec<Ty>,
 ) -> bool {
     out.clear();
-    let mut t = ty;
-    while let TyData::Mut(inner) = pool.get(t) {
-        t = inner;
-    }
+    let t = ty;
     if let TyData::Adt { def, args } = pool.get(t)
         && env.newtype_base(def).is_some()
     {
@@ -223,7 +220,7 @@ pub fn in_place_parts(
     }
 }
 
-/// `ty` with newtypes erased and `mut` dropped, as the layouts read it
+/// `ty` with newtypes erased, as the layouts read it
 /// (`layout::strip`).
 #[must_use]
 pub fn strip_type(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> Ty {

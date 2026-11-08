@@ -143,9 +143,6 @@ fn counted_after_element(s: &Inputs<'_>, root: u32, path: &[Proj], element: usiz
     let mut ty = s.b.local_ty[root as usize];
     let mut variant = None;
     for (at, step) in path.iter().enumerate() {
-        while let TyData::Mut(inner) = s.pool.get(ty) {
-            ty = inner;
-        }
         ty = match *step {
             Proj::Elem(_) => {
                 let TyData::Adt { def, args } = s.pool.get(ty) else {
@@ -351,7 +348,6 @@ fn local_mut(pool: Types<'_>, t: Ty) -> bool {
         TyData::Ref {
             mutable, counted, ..
         } => mutable && !counted,
-        TyData::Mut(i) => local_mut(pool, i),
         _ => false,
     }
 }
@@ -1266,10 +1262,6 @@ impl Order<'_, '_, '_> {
         let pool = self.cx.s.pool;
         let TyData::Ref { inner, .. } = pool.get(b.ty[i as usize]) else {
             return None;
-        };
-        let inner = match pool.get(inner) {
-            TyData::Mut(inner) => inner,
-            _ => inner,
         };
         if !matches!(pool.get(inner), TyData::Adt { def, .. } if def == self.cx.s.cx.names.known.map)
         {

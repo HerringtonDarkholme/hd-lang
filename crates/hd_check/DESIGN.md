@@ -162,7 +162,6 @@ pub enum TyData {              // the decoded view; owned
     TraitValue { def: DefId, args: TyList, bindings: Vec<(DefId, Ty)> },
     Param(ParamRef),           // declared, rigid; never inferred
     Assoc { assoc: DefId, trait_: DefId, self_ty: Ty, args: TyList }, // a projection
-    Mut(Ty),                   // internal writable mark; goes with #1443
     Infer(InferVar),           // body-local only
     Canon(u8),                 // a solver placeholder
     Row(RowId),                // a row in a row parameter's argument slot
@@ -881,7 +880,7 @@ Collection never re-derives one.
 | `Coercion` | From → to | Run-time meaning |
 | --- | --- | --- |
 | `Never` | `never` → any | unreachable |
-| `Weaken` | internal `Mut(T)` → `T` | none: a static view change |
+| `Weaken` | `&mut T` → `&T`, `*mut T` → `*T` | none: a static permission change |
 | `Variance` | `C[A]` → `C[B]` by declared variance | none, by [Representation-Preserving Variance](../../spec/lang/04-type-system.md#representation-preserving-variance) |
 | `WrapSome` | `T` → `T?` | build `.Some` |
 | `RowSubsume` | `fn ... $ R1` → `fn ... $ R2` | none: a context holding `R2`'s keys serves `R1` ([crates/hd_mono/DESIGN.md §12.4](../hd_mono/DESIGN.md#124-rows-and-providers)) |
@@ -1182,16 +1181,14 @@ constructor.
 
 ### 8.1 Access Types And Bindings
 
-No type has a `mut` form in the spec. A struct, an enum, a
-list and a map are values with no view
+No type has a `mut` form. A struct, an enum, a list and a map are
+values with no view
 ([Value Types](../../spec/lang/04-type-system.md#value-types),
-[Collection Values](../../spec/lang/04-type-system.md#collection-values)).
-Every expression's type still carries an internal access mark,
-computed one path step at a time (`access.rs`), but `has_mut_access`
-counts every struct, enum and collection type as mutable. Whether a write
-is allowed is decided by its place instead (section 8.2).
+[Collection Values](../../spec/lang/04-type-system.md#collection-values)),
+and a read through `&mut T` has type `T`. Whether a write is allowed is
+decided by its place (section 8.2).
 
-| Step | Access of the result |
+| Step | Type of the result |
 | --- | --- |
 | binding, parameter, `self` | its declared or inferred type |
 | call | the declared result type |
@@ -1199,15 +1196,14 @@ is allowed is decided by its place instead (section 8.2).
 | index, iteration, lookup on a built-in collection | the declared element type, whatever the collection's access |
 | unwrapping, tuple element, generic payload | the declared contents |
 
-A list literal gets an internal `Mut` type for its new list. A struct
-literal and a copy-update have the plain struct type. The binding forms then apply
+The binding forms then apply
 ([Binding Forms](../../spec/lang/04-type-system.md#binding-forms)):
 
 | Form | Type of the name |
 | --- | --- |
-| `x := e` | `e`'s type without an outer `mut`; never reassigned or changed in place |
+| `x := e` | `e`'s type; never reassigned or changed in place |
 | `let x = e` | the same; reassignable, but not a writable place |
-| `let mut x = e` | `e`'s type, a collection's without its outer `mut`; a writable place. On a primitive: `redundant-let-mut` in a body unless `&mut x` is taken, `mut-on-primitive` at top level |
+| `let mut x = e` | `e`'s type; a writable place. On a primitive: `redundant-let-mut` in a body unless `&mut x` is taken, `mut-on-primitive` at top level |
 
 ### 8.2 Mutation Checks
 

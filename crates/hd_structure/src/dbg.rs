@@ -8,7 +8,7 @@ use hd_tir::Body;
 use hd_tir::ir::{BodyKind, Callee, Providers, Ref, Tag, TirBuilder, TirSink};
 use hd_types::{ParamRef, Ty, TyData};
 
-use super::{Cx, Gen, Handles, Mem, SYN, Shape, Target, Var, strip_mut};
+use super::{Cx, Gen, Handles, Mem, SYN, Shape, Target, Var};
 
 const FORMAT: &str = "std.format";
 
@@ -31,12 +31,9 @@ pub fn target(cx: &Cx<'_, '_>, ty: Ty) -> Option<Target> {
     let item = cx.items.item(def)?;
     let shown = names.text(item.name).to_owned();
     let sub = |t: Ty| {
-        strip_mut(
-            names,
-            pool.subst(t, &|p: ParamRef| {
-                (p.owner == def).then(|| args.get(usize::from(p.index)).copied())?
-            }),
-        )
+        pool.subst(t, &|p: ParamRef| {
+            (p.owner == def).then(|| args.get(usize::from(p.index)).copied())?
+        })
     };
     let member = |i: usize, f: &hd_resolve::Field| {
         let declared = names.text(f.name).to_owned();
@@ -131,7 +128,6 @@ pub fn printer_body(cx: &Cx<'_, '_>, item: DefId, ty: Ty, debug: bool) -> StageR
     let names = cx.names;
     let pool = names.pool;
     // Mutability belongs to the place, not the value being printed.
-    let ty = strip_mut(names, ty);
     let mut g = Gen::new(cx, ty, item, Handles::Supplied);
     g.b = TirBuilder::new(item, BodyKind::Fn);
     let writer = pool.intern_ty(&TyData::Ref {
@@ -206,7 +202,7 @@ pub fn values_body(cx: &Cx<'_, '_>, item: DefId, args: Ty) -> StageResult<Body> 
     let blk = g.b.open_block();
     let bare = names.item(FORMAT, "dbg_bare_one");
     for (k, e) in elems.iter().enumerate() {
-        let e = strip_mut(names, *e);
+        let e = *e;
         let tuple = g.b.get(values, args, SYN);
         let v = g.b.field(tuple, u32::try_from(k).unwrap_or(0), e, SYN);
         let prefix = g.b.const_str("");

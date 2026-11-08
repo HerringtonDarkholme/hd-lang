@@ -6378,10 +6378,6 @@ impl Run<'_> {
         // A rendered body's fields by name (`hd_check::render`).
         let field_names = |t: Ty, k: u32| -> Option<(String, Ty)> {
             let pool = names.pool;
-            let t = match pool.get(t) {
-                TyData::Mut(inner) => inner,
-                _ => t,
-            };
             let TyData::Adt { def, args } = pool.get(t) else {
                 return None;
             };
@@ -9136,10 +9132,6 @@ impl Run<'_> {
         // references lowered.
         let fields = |t: Ty, k: u32| -> Option<(String, Ty)> {
             let pool = names.pool;
-            let t = match pool.get(t) {
-                TyData::Mut(inner) => inner,
-                _ => t,
-            };
             let TyData::Adt { def, args } = pool.get(t) else {
                 return None;
             };
@@ -10126,11 +10118,7 @@ impl Run<'_> {
                 pool.list_items(args).first().copied()
             }
             _ => None,
-        }
-        .map(|inner| match pool.get(inner) {
-            TyData::Mut(inner) => inner,
-            _ => inner,
-        });
+        };
         if reference.is_some_and(
             |inner| matches!(pool.get(inner), TyData::TraitValue { def, .. } if def == error),
         ) {

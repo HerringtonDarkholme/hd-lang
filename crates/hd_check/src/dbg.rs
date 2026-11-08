@@ -173,7 +173,7 @@ impl Ck<'_, '_> {
     /// has no value to show.
     pub(crate) fn repl_value(&mut self, r: Ref, t: Ty, n: NodeRef<'_>) {
         let t = self.zonk(t);
-        let t = self.strip_mut(t);
+        let t = self.resolved(t);
         if t == Ty::VOID || t == Ty::NEVER {
             return;
         }
@@ -196,7 +196,7 @@ impl Ck<'_, '_> {
         let mut types = Vec::new();
         for e in &args.positional {
             let (r, t) = self.arg_value(*e, None, false)?;
-            let t = self.strip_mut(t);
+            let t = self.resolved(t);
             let head = format!("{location}: {}", self.dbg_source(*e));
             let head = self.b.const_str(&head);
             let line = if let Some(text) = self.function_text(r, t) {
@@ -241,7 +241,7 @@ impl Ck<'_, '_> {
         let prefix = format!("{}: ", self.dbg_location(n));
         let mut last = None;
         for (k, e) in elems.iter().enumerate() {
-            let e = self.strip_mut(*e);
+            let e = self.resolved(*e);
             let v = self
                 .b
                 .field(tuple, u32::try_from(k).unwrap_or(0), e, n.index());

@@ -108,10 +108,7 @@ fn type_of(b: &Body, w: u32) -> Option<Ty> {
 /// a compiler-supplied data object's payload is the object's own type.
 fn deref_ty(names: &Names<'_>, t: Ty) -> Ty {
     use hd_types::TyData;
-    let strip = |t: Ty| match names.pool.get(t) {
-        TyData::Mut(inner) => inner,
-        _ => t,
-    };
+    let strip = |t: Ty| t;
     match names.pool.get(strip(t)) {
         TyData::Ref { inner, .. } => inner,
         TyData::Adt { def, args } if names.known.ref_cells().holds(def) => names

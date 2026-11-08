@@ -767,7 +767,7 @@ impl<'c> Ck<'_, 'c> {
             index: 0,
         }));
         let w = self.zonk(w);
-        let w = self.strip_mut(w);
+        let w = self.resolved(w);
         let Some(name) = self.cx.lookup.item(method).map(|i| i.name) else {
             return Ok(None);
         };

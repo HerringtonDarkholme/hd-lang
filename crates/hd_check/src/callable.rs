@@ -17,7 +17,7 @@ impl Ck<'_, '_> {
     /// (`expr.call.apply.read`).
     pub(crate) fn is_applicable(&mut self, t: Ty) -> StageResult<bool> {
         let pool = self.pool();
-        let t = self.strip_mut(self.infer.resolve(pool, t));
+        let t = self.resolved(self.infer.resolve(pool, t));
         if matches!(pool.get(t), TyData::Poison | TyData::Never) {
             return Ok(false);
         }
@@ -92,7 +92,7 @@ impl Ck<'_, '_> {
             Some((inner, _)) => self.deref_ty(inner),
             None => t,
         };
-        let rt = self.strip_mut(self.infer.resolve(pool, t));
+        let rt = self.resolved(self.infer.resolve(pool, t));
         if matches!(pool.get(rt), TyData::Poison | TyData::Never) {
             return Ok(());
         }

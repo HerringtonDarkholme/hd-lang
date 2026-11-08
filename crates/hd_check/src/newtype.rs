@@ -122,7 +122,7 @@ impl Conversion {
                     mutable: bm,
                     counted: false,
                 },
-            ) => am == bm && self.is_unwrap(ck.strip_mut(a), ck.strip_mut(b)),
+            ) => am == bm && self.is_unwrap(ck.resolved(a), ck.resolved(b)),
             _ => false,
         }
     }
@@ -130,7 +130,7 @@ impl Conversion {
     /// Whether a value of `from` converts to `to`.
     pub(crate) fn can(&self, ck: &Ck<'_, '_>, from: Ty, to: Ty) -> bool {
         let pool = ck.pool();
-        let (from, to) = (ck.strip_mut(from), ck.strip_mut(to));
+        let (from, to) = (ck.resolved(from), ck.resolved(to));
         if from == to || self.is_wrap(from, to) || self.is_unwrap(from, to) {
             return true;
         }
@@ -169,7 +169,7 @@ impl Conversion {
     ) -> StageResult<Ref> {
         let pool = ck.pool();
         let at = node.index();
-        let (f, t) = (ck.strip_mut(from), ck.strip_mut(to));
+        let (f, t) = (ck.resolved(from), ck.resolved(to));
         if f == t {
             return Ok(ck.coerce(
                 r,
@@ -185,12 +185,11 @@ impl Conversion {
         }
         if self.is_wrap(f, t) {
             // The newtype's value, as its constructor builds it.
-            let fresh = pool.intern_ty(&TyData::Mut(t));
             let rec = ck.b.refs_record(&[r]);
-            let made = ck.b.emit(Tag::NewStruct, NONE, rec, fresh, at);
+            let made = ck.b.emit(Tag::NewStruct, NONE, rec, t, at);
             return Ok(ck.coerce(
                 made,
-                fresh,
+                t,
                 to,
                 node,
                 "a wrapped value",

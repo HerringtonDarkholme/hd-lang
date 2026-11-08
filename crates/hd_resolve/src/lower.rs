@@ -1650,7 +1650,6 @@ fn slot_paths(pool: Types<'_>, t: Ty, f: &mut impl FnMut(&TyData)) {
             inner: i,
             ..
         }
-        | TyData::Mut(i)
         | TyData::Option(i) => slot_paths(pool, i, f),
         TyData::Tuple { elems, rest } => {
             for &e in pool.list_items(elems).iter().chain(rest.as_ref()) {
@@ -4045,13 +4044,9 @@ impl Lower<'_, '_, '_> {
                     self.ty(type_node, gn)
                 };
                 // `fn.vararg.type.kinds`: a vararg's type is a `List`, a
-                // tuple type, or a type parameter bounded by `Tuple`,
-                // under `mut` as elsewhere.
+                // tuple type, or a type parameter bounded by `Tuple`.
                 if p.direct_token(toks, TokenKind::Ellipsis).is_some() {
-                    let inner = match self.names.pool.get(ty) {
-                        TyData::Mut(i) => i,
-                        _ => ty,
-                    };
+                    let inner = ty;
                     let list = self.names.known.list;
                     let is_list = matches!(self.names.pool.get(inner), TyData::Adt { def, .. } if def == list);
                     if !is_list && inner != Ty::POISON && !self.inputs_tuple(inner, gn) {
@@ -6226,7 +6221,7 @@ fn ty_any(pool: &InternPool, t: Ty, pred: &mut dyn FnMut(TyData) -> bool) -> boo
             kids.extend(rest);
         }
         TyData::Union(members) => kids.extend(pool.list_items(members)),
-        TyData::Option(i) | TyData::Mut(i) | TyData::Ref { inner: i, .. } => kids.push(i),
+        TyData::Option(i) | TyData::Ref { inner: i, .. } => kids.push(i),
         TyData::Fn {
             params,
             result,
@@ -6397,10 +6392,6 @@ pub fn impl_placement(
     let session: Vec<PathId> = session.iter().map(|m| names.module(m)).collect();
     let package = names.package_node(DefId::from_raw(module.raw()));
     let ctor_module = |t: Ty| -> Option<PathId> {
-        let t = match pool.get(t) {
-            TyData::Mut(i) => i,
-            _ => t,
-        };
         match pool.get(t) {
             TyData::Adt { def, .. } | TyData::TraitValue { def, .. } => {
                 Some(names.module_node(def))

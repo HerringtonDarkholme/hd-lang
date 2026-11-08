@@ -44,7 +44,7 @@ impl Ck<'_, '_> {
     /// or `*mut self` (`fn.method.counted-self`).
     fn counted_receiver_named(&mut self, t: Ty, name: &str) -> StageResult<bool> {
         let t = self.norm_ty(t);
-        if matches!(self.strip_mut(t), Ty::NEVER | Ty::POISON) {
+        if matches!(self.resolved(t), Ty::NEVER | Ty::POISON) {
             return Ok(false);
         }
         let method = match self.resolve_method(t, name)? {
@@ -130,7 +130,7 @@ impl Ck<'_, '_> {
     /// ([`Self::ref_receiver_kind`]).
     fn ref_receiver_kind_named(&mut self, t: Ty, name: &str) -> StageResult<Option<(bool, bool)>> {
         let t = self.norm_ty(t);
-        if matches!(self.strip_mut(t), Ty::NEVER | Ty::POISON) {
+        if matches!(self.resolved(t), Ty::NEVER | Ty::POISON) {
             return Ok(None);
         }
         match self.resolve_method(t, name)? {
@@ -302,7 +302,7 @@ impl Ck<'_, '_> {
                 p
             }
             Operand::Value(v, t) => {
-                if matches!(self.strip_mut(t), Ty::POISON | Ty::NEVER) || v.0 == NONE {
+                if matches!(self.resolved(t), Ty::POISON | Ty::NEVER) || v.0 == NONE {
                     return Ok(self.poisoned(base));
                 }
                 if mutable {
@@ -325,7 +325,7 @@ impl Ck<'_, '_> {
         if receiver && let Root::Elem(coll, ..) = place.root {
             self.begin_access(coll);
         }
-        let inner = self.strip_mut(place.ty);
+        let inner = self.resolved(place.ty);
         // The address a call takes is counted, and lends itself to a
         // `&self` receiver.
         let rt = self.ref_ty(inner, mutable, true);
@@ -366,14 +366,14 @@ impl Ck<'_, '_> {
         name: &str,
         base: NodeRef<'_>,
     ) -> Option<(Ref, Ty)> {
-        if r.0 == NONE || matches!(self.strip_mut(t), Ty::POISON | Ty::NEVER) {
+        if r.0 == NONE || matches!(self.resolved(t), Ty::POISON | Ty::NEVER) {
             return None;
         }
         match self.ref_of(t) {
             Some((inner, true)) => {
                 let vt = self.deref_ty(inner);
                 let counted = self.ref_counted(t).unwrap_or(true);
-                let rt = self.ref_ty(self.strip_mut(inner), true, counted);
+                let rt = self.ref_ty(self.resolved(inner), true, counted);
                 Some((self.retype(r, rt, base.index()), vt))
             }
             Some((_, false)) => {
@@ -415,7 +415,7 @@ impl Ck<'_, '_> {
         if !counted && self.counted_receiver_named(vt, name)? {
             self.local_ref_escapes(base, crate::local_refs::Escape::CountedSelf);
         }
-        let rt = self.ref_ty(self.strip_mut(vt), mutable, counted);
+        let rt = self.ref_ty(self.resolved(vt), mutable, counted);
         Ok(Some((self.retype(r, rt, base.index()), vt)))
     }
 
@@ -434,7 +434,7 @@ impl Ck<'_, '_> {
         name: &str,
         n: NodeRef<'_>,
     ) -> Ref {
-        if recv.0 == NONE || matches!(self.strip_mut(rt), Ty::POISON | Ty::NEVER) {
+        if recv.0 == NONE || matches!(self.resolved(rt), Ty::POISON | Ty::NEVER) {
             return recv;
         }
         if self.ref_of(self.b.ty_of(recv)).is_some() {
@@ -457,7 +457,7 @@ impl Ck<'_, '_> {
             self.not_a_place_receiver(name, n);
             return recv;
         }
-        let inner = self.strip_mut(rt);
+        let inner = self.resolved(rt);
         let rty = self.ref_ty(inner, false, true);
         let place = self.new_object_place(recv, rt, n);
         self.make_ref(&place, false, rty, n)
@@ -474,7 +474,7 @@ impl Ck<'_, '_> {
         n: NodeRef<'_>,
     ) -> Ref {
         if recv.0 != NONE
-            && !matches!(self.strip_mut(rt), Ty::POISON | Ty::NEVER)
+            && !matches!(self.resolved(rt), Ty::POISON | Ty::NEVER)
             && mutable
             && !counted
             && self.ref_of(self.b.ty_of(recv)).is_none()

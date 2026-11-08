@@ -178,16 +178,9 @@ pub fn ref_mutable(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
     matches!(pool.get(strip(pool, env, t)), TyData::Adt { def, .. } if env.ref_cells().is_mutable(def))
 }
 
-/// `t` with newtypes erased and `mut` dropped: what its layout reads.
+/// `t` with newtypes erased: what its layout reads.
 pub fn strip(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Ty {
-    let mut t = t;
-    loop {
-        let s = strip_newtype(pool, env, t);
-        match pool.get(s) {
-            TyData::Mut(inner) => t = inner,
-            _ => return s,
-        }
-    }
+    strip_newtype(pool, env, t)
 }
 
 /// The kind of `t`, once stripped, when it is a list or a map.
@@ -220,8 +213,7 @@ fn union_variants(pool: &InternPool, members: TyList) -> Vec<Vec<Ty>> {
 
 /// The values of a `t` value that are collections a copy of it copies
 /// (`hd_mono::holds_coll`): a list's own, and each such value of a struct
-/// field, at any depth of structs. A legacy `mut` view shares its list
-/// and holds none.
+/// field, at any depth of structs.
 pub fn coll_leaves(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<u32> {
     if !hd_mono::holds_coll(pool, env, t) {
         return Vec::new();
@@ -1090,7 +1082,6 @@ pub fn num(pool: &InternPool, t: Ty) -> (u8, bool, bool) {
             Prim::F32 => (32, true, true),
             Prim::F64 => (64, true, true),
         },
-        TyData::Mut(inner) => num(pool, inner),
         _ => (32, false, false),
     }
 }

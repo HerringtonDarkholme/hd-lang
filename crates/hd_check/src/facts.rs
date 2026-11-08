@@ -473,7 +473,7 @@ fn renamed(source: &str, style: Option<&str>) -> String {
 fn internal_payload_allowed(cx: &BodyCx<'_>, mut ty: Ty) -> bool {
     loop {
         match cx.names.pool.get(ty) {
-            TyData::Mut(inner) | TyData::Ref { inner, .. } => ty = inner,
+            TyData::Ref { inner, .. } => ty = inner,
             TyData::Adt { def, args } if def == cx.names.known.map => {
                 return cx.names.pool.list_items(args).first().copied() == Some(Ty::STRING);
             }
@@ -1083,7 +1083,7 @@ impl Ck<'_, '_> {
         let (r, t) = self.expr(e, Some(items_ty))?;
         let t = self.infer.resolve(pool, t);
         if self.list_item(t).is_none() {
-            if !matches!(self.strip_mut(t), Ty::NEVER | Ty::POISON) {
+            if !matches!(self.resolved(t), Ty::NEVER | Ty::POISON) {
                 let msg = format!("expected a list of facts, found {}", self.show(t));
                 self.err(not_list, e, &msg);
             }
@@ -1197,13 +1197,9 @@ impl Ck<'_, '_> {
             .map(|_| self.infer.fresh(pool, VarKind::General))
             .collect();
         let want = subst_owner(pool, fact, &vars, pattern);
-        // A `mut Suspend[T]` target passes as an argument does: whole, or
-        // weakened to its readonly form (`annot.typed-fact.infer.call`,
-        // `types.mut.weaken.v2`).
+        // The target passes as an argument does (`annot.typed-fact.infer.call`).
         let target = self.norm_ty(target);
-        let fits = self.unify_now(target, want)
-            || matches!(pool.get(target), TyData::Mut(inner) if self.unify_now(inner, want));
-        if !fits {
+        if !self.unify_now(target, want) {
             let msg = format!(
                 "the type {} does not fit the pattern of the typed fact type `{name}`",
                 self.show(target)
@@ -1215,7 +1211,7 @@ impl Ck<'_, '_> {
         // must fit the pattern's (`annot.typed-fact.infer.row`).
         let before = self.diags.len();
         if let (TyData::Fn { row: got, .. }, TyData::Fn { row: wanted, .. }) = (
-            pool.get(self.infer.resolve(pool, self.strip_mut(target))),
+            pool.get(self.infer.resolve(pool, self.resolved(target))),
             pool.get(self.infer.resolve(pool, want)),
         ) {
             self.fit_row(got, wanted, at, "a typed fact's target");
@@ -1332,7 +1328,7 @@ impl Ck<'_, '_> {
         n: NodeRef<'_>,
     ) -> StageResult<()> {
         let pool = self.pool();
-        let handle = self.infer.resolve(pool, self.strip_mut(handle));
+        let handle = self.infer.resolve(pool, self.resolved(handle));
         let TyData::Adt { args, .. } = pool.get(handle) else {
             return Ok(());
         };

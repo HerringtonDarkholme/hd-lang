@@ -1171,18 +1171,13 @@ impl Ck<'_, '_> {
                         "a lifetime inside a function body is not checked yet",
                     );
                 }
-                // `ref.type.forms`: an outer `mut` on the operand is no part
-                // of a reference type.
+                // `ref.type.forms`: `&mut T` is the reference's permission.
                 let mutable = n
                     .direct_token(&self.cx.src.parse.tokens, hd_syntax::TokenKind::KwMut)
                     .is_some();
                 let inner = match n.children().find(|c| c.kind().is_type()) {
                     Some(child) => self.ty_node_as(child, NameRole::Referent)?,
                     None => Ty::VOID,
-                };
-                let inner = match pool.get(inner) {
-                    TyData::Mut(i) => i,
-                    _ => inner,
                 };
                 // `ref.type.counted-forms`: `*T` is counted, `&T` local.
                 let counted = n

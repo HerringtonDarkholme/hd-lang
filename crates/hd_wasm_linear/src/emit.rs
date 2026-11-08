@@ -2700,7 +2700,7 @@ impl Em<'_, '_, '_> {
         let Some((&recv, rest)) = args.split_first() else {
             return unsupported("a dynamic call without a receiver");
         };
-        let receiver_ty = self.strip_mut(self.ty_of(recv));
+        let receiver_ty = self.ty_of(recv);
         let value_ty = self.dyn_value_ty(receiver_ty);
         let (payload, owned) = if value_ty == receiver_ty {
             (None, false)
@@ -3344,7 +3344,7 @@ impl Em<'_, '_, '_> {
 
     /// The result type `T` of a `Suspend[T]`.
     pub(super) fn susp_inner(&self, t: Ty) -> StageResult<Ty> {
-        let TyData::Adt { args, .. } = self.pool().get(self.strip_mut(t)) else {
+        let TyData::Adt { args, .. } = self.pool().get(t) else {
             return unsupported("a suspension of a type that is not `Suspend`");
         };
         match self.pool().list_items(args).first() {
@@ -3568,7 +3568,7 @@ impl Em<'_, '_, '_> {
     /// [`Em::builtin`] on operand values: the operator's lowering, an
     /// `Ordering`, or the value's text.
     fn builtin_values(&mut self, i: u32, name: &str, self_ty: Ty, args: &[u32]) -> StageResult<()> {
-        let t = hd_mono::layout::strip_newtype(self.pool(), self.env(), self.strip_mut(self_ty));
+        let t = hd_mono::layout::strip_newtype(self.pool(), self.env(), self_ty);
         let prim = matches!(self.pool().get(t), TyData::Prim(_));
         let op = match name {
             "add" => Some(PrimOp::Add),
@@ -3591,7 +3591,7 @@ impl Em<'_, '_, '_> {
             return self.store(i);
         }
         if name == "runtime_type" {
-            return self.runtime_type(i, self.strip_mut(self_ty), args[0]);
+            return self.runtime_type(i, self_ty, args[0]);
         }
         let (_, signed, float) = self.num(t);
         match name {
@@ -3732,13 +3732,6 @@ impl Em<'_, '_, '_> {
             self.f.get(tag);
         }
         self.store(i)
-    }
-
-    fn strip_mut(&self, t: Ty) -> Ty {
-        match self.pool().get(t) {
-            TyData::Mut(inner) => inner,
-            _ => t,
-        }
     }
 
     fn panic(&mut self, msg: &str) {

@@ -217,10 +217,7 @@ impl Ck<'_, '_> {
             return r;
         }
         let tr = self.infer.resolve(pool, t);
-        let inner = match pool.get(tr) {
-            TyData::Mut(i) => i,
-            _ => tr,
-        };
+        let inner = tr;
         match p.kind() {
             SyntaxKind::WildcardPattern => {}
             SyntaxKind::BindingPattern => {
@@ -526,8 +523,6 @@ impl Ck<'_, '_> {
                         continue;
                     };
                     self.check_field_visible(t, &fname, f);
-                    // A subject that is not writable binds a field declared
-                    // `mut Suspend[T]` as `Suspend[T]`.
                     if let Some(sub) = f.children().next() {
                         self.declare_pattern(sub, ft, binds)?;
                     } else {
@@ -613,7 +608,7 @@ impl Ck<'_, '_> {
             Some(mutable) => {
                 let pool = self.pool();
                 pool.intern_ty(&TyData::Ref {
-                    inner: self.strip_mut(t),
+                    inner: self.resolved(t),
                     mutable,
                     counted: false,
                 })
@@ -680,10 +675,6 @@ impl Ck<'_, '_> {
         // the variant's field names (data.enum.payload.order).
         let pool = self.pool();
         let tt = self.infer.resolve(pool, t);
-        let tt = match pool.get(tt) {
-            TyData::Mut(i) => i,
-            _ => tt,
-        };
         let TyData::Adt { def, .. } = pool.get(tt) else {
             return unsupported("named fields in an optional pattern");
         };
@@ -2032,14 +2023,14 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// `t` with its views and references taken off: the type whose values
+    /// `t` with its references taken off: the type whose values
     /// the exhaustiveness and reachability checks split, which a test
     /// reads through any reference (`ref.match.read`).
     fn strip(&self, t: Ty) -> Ty {
         let pool = self.pool();
         let t = self.infer.resolve(pool, t);
         match pool.get(t) {
-            TyData::Mut(i) | TyData::Ref { inner: i, .. } => self.strip(i),
+            TyData::Ref { inner: i, .. } => self.strip(i),
             _ => t,
         }
     }

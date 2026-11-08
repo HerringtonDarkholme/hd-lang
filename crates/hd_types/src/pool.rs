@@ -390,9 +390,6 @@ pub enum TyData {
         self_ty: Ty,
         args: TyList,
     },
-    /// `mut T`: only in `mut Suspend[T]`, and as `&mut`'s mark after
-    /// [`Types::lower_refs`] (#1443 deletes both).
-    Mut(Ty),
     /// A reference type (spec/lang/13-values-and-references.md): a
     /// counted `*T` or `*mut T`, or a local `&T` or `&mut T`
     /// (`ref.type.kind-distinct`). The kinds lower to two carriers of one
@@ -430,7 +427,6 @@ enum PoolTag {
     Opaque,
     Param,
     Assoc,
-    Mut,
     Ref,
     RefMut,
     CRef,
@@ -1161,7 +1157,6 @@ impl<'a> Types<'a> {
     #[must_use]
     pub fn fn_ty_deps(self, t: Ty) -> Option<(&'a [u32], &'a [u32])> {
         match self.get(t) {
-            TyData::Mut(i) => self.fn_ty_deps(i),
             TyData::Fn {
                 params,
                 result,
@@ -1287,7 +1282,6 @@ impl<'a> Types<'a> {
                 0,
                 meta::HAS_ASSOC | self.meta_of(*self_ty) | self.list_meta(*args),
             ),
-            TyData::Mut(inner) => (T::Mut, inner.0, self.meta_of(*inner)),
             TyData::Ref {
                 inner,
                 mutable,
@@ -1481,7 +1475,6 @@ impl<'a> Types<'a> {
                 self_ty: Ty(x[2]),
                 args: TyList(x[3]),
             },
-            PoolTag::Mut => TyData::Mut(Ty(d)),
             PoolTag::Ref => TyData::Ref {
                 inner: Ty(d),
                 mutable: false,
@@ -1549,9 +1542,7 @@ impl<'a> Types<'a> {
                 list(elems) || rest.is_some_and(|r| self.names_trait_self(r, trait_))
             }
             TyData::Union(members) => list(members),
-            TyData::Option(i) | TyData::Mut(i) | TyData::Ref { inner: i, .. } => {
-                self.names_trait_self(i, trait_)
-            }
+            TyData::Option(i) | TyData::Ref { inner: i, .. } => self.names_trait_self(i, trait_),
             TyData::Fn {
                 params,
                 result,
@@ -1632,7 +1623,7 @@ impl<'a> Types<'a> {
                 ..
             } => 1 + self.ref_slots_at(inner, d),
             TyData::Opaque { borrows: true, .. } => 1,
-            TyData::Mut(i) | TyData::Option(i) => self.ref_slots_at(i, d),
+            TyData::Option(i) => self.ref_slots_at(i, d),
             TyData::Tuple { elems, rest } => {
                 list(elems) + rest.map_or(0, |r| self.ref_slots_at(r, d))
             }
@@ -1695,7 +1686,6 @@ impl<'a> Types<'a> {
             },
             TyData::Union(members) => TyData::Union(l(members)),
             TyData::Option(i) => TyData::Option(self.lower_refs(cell, i)),
-            TyData::Mut(i) => TyData::Mut(self.lower_refs(cell, i)),
             TyData::Fn {
                 params,
                 result,
@@ -1826,7 +1816,6 @@ impl<'a> Types<'a> {
             },
             TyData::Union(members) => TyData::Union(l(members, memo)),
             TyData::Option(i) => TyData::Option(self.raise_refs_in(cell, i, memo)),
-            TyData::Mut(i) => TyData::Mut(self.raise_refs_in(cell, i, memo)),
             TyData::Assoc {
                 assoc,
                 trait_,
@@ -1940,7 +1929,6 @@ impl<'a> Types<'a> {
             },
             TyData::Union(members) => TyData::Union(l(members)),
             TyData::Option(i) => TyData::Option(self.subst(i, f)),
-            TyData::Mut(i) => TyData::Mut(self.subst(i, f)),
             TyData::Ref {
                 inner,
                 mutable,
@@ -2092,7 +2080,6 @@ impl<'a> Types<'a> {
             TyData::Assoc { assoc, self_ty, .. } => {
                 format!("<{}>::#{}", self.display(self_ty), assoc.raw())
             }
-            TyData::Mut(i) => format!("mut {}", self.display(i)),
             TyData::Ref {
                 inner,
                 mutable,
@@ -2162,7 +2149,6 @@ pub fn with_assoc_args(pool: Types<'_>, t: Ty, trait_: DefId, args: TyList) -> T
         },
         TyData::Union(members) => TyData::Union(list(members)),
         TyData::Option(i) => TyData::Option(with_assoc_args(pool, i, trait_, args)),
-        TyData::Mut(i) => TyData::Mut(with_assoc_args(pool, i, trait_, args)),
         TyData::Ref {
             inner,
             mutable,
@@ -2297,7 +2283,6 @@ mod tests {
         });
         for inner in [adt, value] {
             for form in [
-                TyData::Mut(inner),
                 TyData::Ref {
                     inner,
                     mutable: false,
@@ -2483,7 +2468,6 @@ mod tests {
                 self_ty: Ty::I32,
                 args: list,
             },
-            TyData::Mut(Ty::STRING),
             TyData::Ref {
                 inner: Ty::STRING,
                 mutable: false,

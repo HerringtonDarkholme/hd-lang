@@ -200,9 +200,7 @@ impl Em<'_, '_, '_> {
 
     /// The values of a `t` value that a count of it takes through the copy
     /// glue (`rt:coll_copy`, `types.coll.value`): a list's or a map's own,
-    /// through a `mut self` receiver's view too, and each list or map in a
-    /// struct's fields at any depth. A struct's `mut` view, a provider's,
-    /// shares its fields.
+    /// and each list or map in a struct's fields at any depth.
     pub(super) fn copied(&self, t: Ty) -> Vec<u32> {
         if coll_kind(self.pool(), self.env(), t).is_some() {
             vec![0]

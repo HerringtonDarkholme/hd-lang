@@ -75,7 +75,6 @@ impl Ck<'_, '_> {
                 rest: rest.map(|ty| self.map_opaque_return(ty, mode)),
             },
             TyData::Option(inner) => TyData::Option(self.map_opaque_return(inner, mode)),
-            TyData::Mut(inner) => TyData::Mut(self.map_opaque_return(inner, mode)),
             TyData::Ref {
                 inner,
                 mutable,
@@ -163,9 +162,7 @@ impl Ck<'_, '_> {
             TyData::Tuple { elems, rest } => {
                 list(elems) || rest.is_some_and(|t| self.strict_opaque_return(t))
             }
-            TyData::Option(t) | TyData::Mut(t) | TyData::Ref { inner: t, .. } => {
-                self.strict_opaque_return(t)
-            }
+            TyData::Option(t) | TyData::Ref { inner: t, .. } => self.strict_opaque_return(t),
             TyData::Fn {
                 params,
                 result,

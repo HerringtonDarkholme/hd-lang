@@ -1,8 +1,8 @@
-//! Access permission (`crates/hd_check/DESIGN.md` (type checking) §8; spec 04 "Composite Values And
-//! Access Permission", "Mutable Paths"). Every expression's type carries
-//! its access, `mut T` or `T`; unification ignores the marker, so the
-//! permission rules are checked here, at bindings, coercions, field
-//! reads and mutations.
+//! Access permission (`crates/hd_check/DESIGN.md` (type checking) §8;
+//! spec 04 "Mutable Paths"): which values are records of places, which
+//! traits change their receiver, and the permission part of a
+//! conversion. Place writability (`types.value.writable-places`) decides
+//! every write.
 
 use hd_diag::Code;
 use hd_resolve::ItemData;
@@ -23,40 +23,6 @@ pub(crate) enum Projection {
 }
 
 impl Ck<'_, '_> {
-    /// Whether a type is a composite reference type that has a readonly
-    /// and a `mut` view: data, non-optional enums, collections and trait
-    /// values.
-    pub(crate) fn is_composite(&self, t: Ty) -> bool {
-        let pool = self.pool();
-        let t = self.infer.resolve(pool, t);
-        match pool.get(t) {
-            TyData::Mut(i) => self.is_composite(i),
-            // A struct is a value with no views (`types.value.no-view`).
-            // An enum is a value too: it changes by replacing the whole
-            // value (`ref.place.writable.enum`).
-            TyData::Adt { def, .. } => {
-                !self.is_struct_def(def) && !self.is_enum_def(def) && !self.is_coll_def(def)
-            }
-            TyData::TraitValue { .. } => true,
-            _ => false,
-        }
-    }
-
-    /// Whether `def` is an `enum` declaration.
-    pub(crate) fn is_enum_def(&self, def: hd_base::DefId) -> bool {
-        self.cx
-            .lookup
-            .item(def)
-            .is_some_and(|i| matches!(i.data, hd_resolve::ItemData::Enum { .. }))
-    }
-
-    /// Whether `def` is `List` or `Map`, a copy-on-write value
-    /// (`types.coll.value`).
-    pub(crate) fn is_coll_def(&self, def: hd_base::DefId) -> bool {
-        let known = self.cx.names.known;
-        def == known.list || def == known.map
-    }
-
     /// Whether `def` is a `struct` declaration (`data.struct.decl`).
     pub(crate) fn is_struct_def(&self, def: hd_base::DefId) -> bool {
         self.cx
@@ -68,7 +34,7 @@ impl Ck<'_, '_> {
     /// Whether `t` is a struct type, `mut` or not (`types.value.struct`).
     pub(crate) fn is_struct_ty(&self, t: Ty) -> bool {
         let pool = self.pool();
-        match pool.get(self.strip_mut(t)) {
+        match pool.get(self.resolved(t)) {
             TyData::Adt { def, .. } => self.is_struct_def(def),
             _ => false,
         }
@@ -79,7 +45,7 @@ impl Ck<'_, '_> {
     /// `expr.place.tuple-field`).
     pub(crate) fn is_value_record_ty(&self, t: Ty) -> bool {
         let pool = self.pool();
-        let t = self.strip_mut(self.infer.resolve(pool, t));
+        let t = self.resolved(self.infer.resolve(pool, t));
         self.is_struct_ty(t) || matches!(pool.get(t), TyData::Tuple { .. })
     }
 
@@ -177,7 +143,7 @@ impl Ck<'_, '_> {
             }
             (TyData::Option(a), TyData::Option(b)) => self.perm_fits(a, b, false, d),
             // `ref.type.distinct`: a reference type is invariant in its
-            // operand, whose own outer `mut` is no part of it.
+            // operand.
             (
                 TyData::Ref {
                     inner: a,
@@ -191,7 +157,7 @@ impl Ck<'_, '_> {
                 },
             ) => {
                 (am == bm || (weaken && am && !bm))
-                    && self.perm_fits(self.strip_mut(a), self.strip_mut(b), false, d)
+                    && self.perm_fits(self.resolved(a), self.resolved(b), false, d)
             }
             (TyData::Tuple { elems: a, .. }, TyData::Tuple { elems: b, .. }) => pool
                 .list_items(a)
@@ -238,9 +204,9 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// A plain `let mut name` binding of type `t`, local or top-level. A local of a primitive type is valid,
-    /// since `&mut` of it needs `let mut`, and so is a local whose
-    /// `mut Suspend[T]` annotation already grants `mut`. This returns the
+    /// A plain `let mut name` binding of type `t`, local or top-level. A
+    /// local of a primitive type is valid, since `&mut` of it needs
+    /// `let mut`. This returns the
     /// checked category for optional binding facts; lint judges whether
     /// mutable addressing makes the keyword useful. A
     /// top-level primitive one stays an error
@@ -256,7 +222,7 @@ impl Ck<'_, '_> {
             self.infer.kind_of(pool, t),
             Some(VarKind::IntLit | VarKind::SignedIntLit | VarKind::FloatLit)
         );
-        match pool.get(self.strip_mut(t)) {
+        match pool.get(self.resolved(t)) {
             _ if lit && local => return Some(crate::body::LetMutKind::Primitive),
             TyData::Prim(_) if local => return Some(crate::body::LetMutKind::Primitive),
             _ if lit => self.err(

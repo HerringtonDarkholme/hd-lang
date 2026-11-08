@@ -42,7 +42,6 @@ mod tag {
     pub const TUPLE: u8 = 4;
     pub const OPTION: u8 = 5;
     pub const PARAM: u8 = 6;
-    pub const MUT: u8 = 7;
     pub const FN: u8 = 8;
     pub const LIST: u8 = 9;
     pub const CANON: u8 = 10;
@@ -242,10 +241,6 @@ impl<'a> TableWriter<'a> {
             TyData::Param(p) => {
                 let owner = self.def(p.owner);
                 self.row(tag::PARAM, &[owner, u32::from(p.index)])
-            }
-            TyData::Mut(i) => {
-                let inner = self.ty(i)?;
-                self.row(tag::MUT, &[inner])
             }
             TyData::Ref {
                 inner,
@@ -454,7 +449,6 @@ impl Tables {
                     }))
                     .0
                 }
-                tag::MUT => pool.intern_ty(&TyData::Mut(Ty(row(0)?))).0,
                 tag::CONST => {
                     let prim = *Prim::ALL.get(*words.first()? as usize)?;
                     let bits = u64::from(*words.get(1)?) | u64::from(*words.get(2)?) << 32;

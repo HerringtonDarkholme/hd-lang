@@ -256,10 +256,6 @@ pub fn is_class_ref(pool: &InternPool, t: Ty) -> bool {
 
 /// Whether `t` is a trait value, readonly or `mut`.
 pub fn is_trait_value(pool: &InternPool, t: Ty) -> bool {
-    let t = match pool.get(t) {
-        TyData::Mut(x) => x,
-        _ => t,
-    };
     matches!(pool.get(t), TyData::TraitValue { .. })
 }
 
@@ -761,10 +757,6 @@ fn holds_coll_at(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, depth: u32) -> 
 /// `T?` for `Option[T]`. Types are concrete here, aliases expanded.
 #[must_use]
 pub fn type_name(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> String {
-    let t = match pool.get(t) {
-        TyData::Mut(x) => x,
-        _ => t,
-    };
     let mut out = String::new();
     name_into(pool, env, false, t, &mut out, usize::MAX);
     out
@@ -776,10 +768,6 @@ pub fn type_name(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> String {
 /// can print alike.
 #[must_use]
 pub fn printed_type_name(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> String {
-    let t = match pool.get(t) {
-        TyData::Mut(x) => x,
-        _ => t,
-    };
     let mut out = String::new();
     name_into(pool, env, true, t, &mut out, usize::MAX);
     out
@@ -917,10 +905,6 @@ fn name_into(
             name_into(pool, env, printed, i, out, limit);
             out.push('?');
         }
-        TyData::Mut(i) => {
-            out.push_str("mut ");
-            name_into(pool, env, printed, i, out, limit);
-        }
         TyData::Ref {
             inner,
             mutable,
@@ -992,10 +976,7 @@ fn key_args(pool: &InternPool, args: TyList) -> Vec<KeyArg> {
 /// Matches an impl head's `pattern` (over the parameters of `owner`)
 /// against a concrete type, filling `out`.
 pub fn unify(pool: &InternPool, owner: DefId, pattern: Ty, t: Ty, out: &mut Vec<Option<Ty>>) {
-    let strip = |x: Ty| match pool.get(x) {
-        TyData::Mut(i) => i,
-        _ => x,
-    };
+    let strip = |x: Ty| x;
     let (pattern, t) = (strip(pattern), strip(t));
     match (pool.get(pattern), pool.get(t)) {
         (TyData::Param(p), _) if p.owner == owner => {
@@ -1130,7 +1111,7 @@ fn items_in(pool: &InternPool, t: Ty, out: &mut Vec<DefId>, seen: &mut HashSet<T
                 items_in(pool, r, out, seen);
             }
         }
-        TyData::Option(i) | TyData::Mut(i) => items_in(pool, i, out, seen),
+        TyData::Option(i) => items_in(pool, i, out, seen),
         TyData::Fn { params, result, .. } => {
             list(params, out, seen);
             items_in(pool, result, out, seen);
@@ -1788,7 +1769,7 @@ impl Cx<'_> {
                 parts.extend(rest);
             }
             TyData::Union(members) => parts.extend(pool.list_items(members)),
-            TyData::Option(i) | TyData::Mut(i) | TyData::Ref { inner: i, .. } => parts.push(i),
+            TyData::Option(i) | TyData::Ref { inner: i, .. } => parts.push(i),
             TyData::Fn {
                 params,
                 result,
@@ -2194,7 +2175,6 @@ impl Cx<'_> {
                 args: list(args),
             },
             TyData::Option(inner) => TyData::Option(self.shared_permission_type(inner)),
-            TyData::Mut(inner) => TyData::Mut(self.shared_permission_type(inner)),
             TyData::Tuple { elems, rest } => TyData::Tuple {
                 elems: list(elems),
                 rest: rest.map(|t| self.shared_permission_type(t)),
@@ -2527,10 +2507,6 @@ impl Cx<'_> {
         let mut todo = vec![ty];
         let mut seen = HashSet::default();
         while let Some(ty) = todo.pop() {
-            let mut ty = ty;
-            while let TyData::Mut(inner) = self.pool.get(ty) {
-                ty = inner;
-            }
             if !seen.insert(ty) {
                 continue;
             }
@@ -2801,25 +2777,13 @@ impl Cx<'_> {
         }
     }
 
-    /// `t` with an outer nominal newtype erased to its base, keeping an
-    /// outer `mut`: `None` when `t` is no newtype. Derived-newtype
-    /// adapters forward to the base implementation, so with erased
-    /// newtypes calls use the base method directly (no adapter
-    /// instance).
+    /// `t` with an outer nominal newtype erased to its base: `None` when
+    /// `t` is no newtype. Derived-newtype adapters forward to the base
+    /// implementation, so with erased newtypes calls use the base method
+    /// directly (no adapter instance).
     fn erase_self_ty(&self, t: Ty) -> Option<Ty> {
-        let pool = self.pool;
-        let (inner, is_mut) = match pool.get(t) {
-            TyData::Mut(i) => (i, true),
-            _ => (t, false),
-        };
-        let base = crate::layout::strip_newtype(pool, self.env, inner);
-        (base != inner).then(|| {
-            if is_mut {
-                pool.intern_ty(&TyData::Mut(base))
-            } else {
-                base
-            }
-        })
+        let base = crate::layout::strip_newtype(self.pool, self.env, t);
+        (base != t).then_some(base)
     }
 
     /// The target of a trait method at a concrete self type: the impl's
@@ -3231,7 +3195,6 @@ impl Cx<'_> {
         let mut map = map;
         loop {
             map = match pool.get(map) {
-                TyData::Mut(x) => x,
                 TyData::Adt { def, args } if self.env.ref_cells().holds(def) => {
                     pool.list_items(args)[0]
                 }
@@ -3671,7 +3634,6 @@ impl Cx<'_> {
                     if through {
                         loop {
                             match pool.get(value_ty) {
-                                TyData::Mut(inner) => value_ty = inner,
                                 TyData::Adt { def, args } if env.ref_cells().holds(def) => {
                                     value_ty = pool.list_items(args)[0];
                                 }
@@ -3687,14 +3649,7 @@ impl Cx<'_> {
                     {
                         continue;
                     }
-                    let from = match pool.get(from) {
-                        TyData::Mut(x) => x,
-                        _ => from,
-                    };
-                    let to = match pool.get(ty) {
-                        TyData::Mut(x) => x,
-                        _ => ty,
-                    };
+                    let to = ty;
                     let TyData::TraitValue {
                         def: trait_,
                         args: trait_args,
@@ -3961,7 +3916,7 @@ fn pinned(
                 *x = true;
             }
         }
-        TyData::Mut(x) | TyData::Option(x) => pinned(pool, env, def, x, inside, out),
+        TyData::Option(x) => pinned(pool, env, def, x, inside, out),
         TyData::Adt { def: d, args } => {
             // `List`, `Map`, a buffer's room and enum payloads store
             // references erased.

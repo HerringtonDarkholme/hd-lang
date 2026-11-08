@@ -38,9 +38,7 @@ fn mentions_param(pool: Types<'_>, subst: &[(ParamRef, Ty)], t: Ty, p: ParamRef)
             any(elems) || rest.is_some_and(|r| mentions_param(pool, subst, r, p))
         }
         TyData::Union(members) => any(members),
-        TyData::Option(x) | TyData::Mut(x) | TyData::Ref { inner: x, .. } => {
-            mentions_param(pool, subst, x, p)
-        }
+        TyData::Option(x) | TyData::Ref { inner: x, .. } => mentions_param(pool, subst, x, p),
         _ => false,
     }
 }
@@ -104,9 +102,7 @@ fn can_coincide(pool: Types<'_>, subst: &mut Vec<(ParamRef, Ty)>, a: Ty, b: Ty) 
             },
         ) => all_coincide(pool, subst, x, y),
         (TyData::Union(x), TyData::Union(y)) => all_coincide(pool, subst, x, y),
-        (TyData::Option(x), TyData::Option(y)) | (TyData::Mut(x), TyData::Mut(y)) => {
-            can_coincide(pool, subst, x, y)
-        }
+        (TyData::Option(x), TyData::Option(y)) => can_coincide(pool, subst, x, y),
         _ => false,
     }
 }

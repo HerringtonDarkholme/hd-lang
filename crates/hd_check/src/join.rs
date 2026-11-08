@@ -204,13 +204,12 @@ impl Ck<'_, '_> {
         let values = self.joins.values(var).to_vec();
         for v in values {
             let g = self.infer.resolve(pool, v.ty);
-            let kind = if self.option_layers(self.strip_mut(g)) < self.option_layers(site) {
+            let kind = if self.option_layers(self.resolved(g)) < self.option_layers(site) {
                 Coercion::WrapSome
             } else if g == site || pool.has_poison(g) || pool.has_poison(site) {
                 Coercion::Identity
             } else {
                 match (pool.get(g), pool.get(site)) {
-                    (TyData::Mut(i), _) if i == site => Coercion::Weaken,
                     (TyData::Fn { .. }, TyData::Fn { .. }) => Coercion::RowSubsume,
                     _ => Coercion::Variance,
                 }
@@ -303,7 +302,7 @@ impl Ck<'_, '_> {
             return false;
         }
         let open = |t: Ty| matches!(pool.get(t), TyData::Infer(_));
-        let gs = self.strip_mut(g);
+        let gs = self.resolved(g);
         // `types.lct.optional`: a plain value joins an optional site by
         // injection, one layer only (`types.lct.optional.one-layer`).
         if let TyData::Option(inner) = pool.get(cur)
@@ -405,9 +404,9 @@ impl Ck<'_, '_> {
         let least = shaped && {
             let mut all = self.joined_types(var);
             all.push(g);
-            let mut acc = Some(self.strip_mut(all[0]));
+            let mut acc = Some(self.resolved(all[0]));
             for t in &all[1..] {
-                acc = acc.and_then(|a| self.lct_meet(a, self.strip_mut(*t), Dir::Least, true, 0));
+                acc = acc.and_then(|a| self.lct_meet(a, self.resolved(*t), Dir::Least, true, 0));
             }
             acc.is_some()
         };
@@ -435,17 +434,6 @@ impl Ck<'_, '_> {
         self.joins.fail(var);
     }
 
-    /// `t` with a `mut` that grants nothing removed: permissions matter on
-    /// composite types only.
-    fn perm_canon(&self, t: Ty) -> Ty {
-        let pool = self.pool();
-        let t = self.infer.resolve(pool, t);
-        match pool.get(t) {
-            TyData::Mut(i) if !self.is_composite(i) => i,
-            _ => t,
-        }
-    }
-
     /// The least type (or, `Greatest`, the greatest type) that two types
     /// meet at by the least common type's conversions, if there is one.
     /// The two types already unify, so they differ only in permissions and
@@ -455,7 +443,7 @@ impl Ck<'_, '_> {
     /// `req.row.union.literal.direct`).
     fn lct_meet(&self, a: Ty, b: Ty, dir: Dir, top: bool, depth: u32) -> Option<Ty> {
         let pool = self.pool();
-        let (a, b) = (self.perm_canon(a), self.perm_canon(b));
+        let (a, b) = (self.resolved(a), self.resolved(b));
         if a == b {
             return Some(a);
         }
@@ -479,7 +467,7 @@ impl Ck<'_, '_> {
                     mutable: ym,
                     counted: yc,
                 },
-            ) if self.perm_canon(x) == self.perm_canon(y) => Some(pool.intern_ty(&TyData::Ref {
+            ) if self.resolved(x) == self.resolved(y) => Some(pool.intern_ty(&TyData::Ref {
                 inner: x,
                 mutable: match dir {
                     Dir::Least => xm && ym,
@@ -490,19 +478,6 @@ impl Ck<'_, '_> {
                     Dir::Greatest => xc || yc,
                 },
             })),
-            // `types.variance.mut-invariant`: two mutable views meet only
-            // when they are one type.
-            (TyData::Mut(_), TyData::Mut(_)) => None,
-            // Weakening the mutable view alone; the other value reaches its
-            // readonly view by variance or not at all.
-            (TyData::Mut(x), _) => match dir {
-                Dir::Least => self.lct_converts(b, x, false, d).then_some(x),
-                Dir::Greatest => self.lct_converts(a, b, false, d).then_some(a),
-            },
-            (_, TyData::Mut(y)) => match dir {
-                Dir::Least => self.lct_converts(a, y, false, d).then_some(y),
-                Dir::Greatest => self.lct_converts(b, a, false, d).then_some(b),
-            },
             (TyData::Adt { def, args: xs }, TyData::Adt { def: d2, args: ys }) if def == d2 => {
                 let vs = self.declared_variances(def);
                 let (xs, ys) = (pool.list_items(xs), pool.list_items(ys));
@@ -511,7 +486,7 @@ impl Ck<'_, '_> {
                     let t = match vs.get(j).copied().unwrap_or(0) {
                         1 => self.lct_meet(*x, *y, dir, false, d)?,
                         -1 => self.lct_meet(*x, *y, dir.flip(), false, d)?,
-                        _ => (self.perm_canon(*x) == self.perm_canon(*y)).then_some(*x)?,
+                        _ => (self.resolved(*x) == self.resolved(*y)).then_some(*x)?,
                     };
                     out.push(t);
                 }
@@ -612,7 +587,7 @@ impl Ck<'_, '_> {
     /// widen to the site's union row.
     fn lct_converts(&self, s: Ty, t: Ty, top: bool, depth: u32) -> bool {
         let pool = self.pool();
-        let (s, t) = (self.perm_canon(s), self.perm_canon(t));
+        let (s, t) = (self.resolved(s), self.resolved(t));
         if s == t {
             return true;
         }
@@ -632,9 +607,7 @@ impl Ck<'_, '_> {
                     mutable: ym,
                     counted: yc,
                 },
-            ) => self.perm_canon(x) == self.perm_canon(y) && (xm || !ym) && (xc || !yc),
-            (TyData::Mut(x), _) => self.perm_canon(x) == t,
-            (_, TyData::Mut(_)) => false,
+            ) => self.resolved(x) == self.resolved(y) && (xm || !ym) && (xc || !yc),
             (TyData::Adt { def, args: xs }, TyData::Adt { def: d2, args: ys }) if def == d2 => {
                 let vs = self.declared_variances(def);
                 pool.list_items(xs)
@@ -644,7 +617,7 @@ impl Ck<'_, '_> {
                     .all(|(j, (x, y))| match vs.get(j).copied().unwrap_or(0) {
                         1 => self.lct_converts(*x, *y, false, d),
                         -1 => self.lct_converts(*y, *x, false, d),
-                        _ => self.perm_canon(*x) == self.perm_canon(*y),
+                        _ => self.resolved(*x) == self.resolved(*y),
                     })
             }
             (
@@ -711,7 +684,7 @@ impl Ck<'_, '_> {
         let t = self.infer.resolve(pool, t);
         match pool.get(t) {
             TyData::Option(inner) => {
-                self.option_layers(self.strip_mut(v)) < self.option_layers(t)
+                self.option_layers(self.resolved(v)) < self.option_layers(t)
                     && self.lct_converts(v, inner, true, 0)
             }
             _ => false,
@@ -746,8 +719,8 @@ impl Ck<'_, '_> {
     /// `type-mismatch` (`types.generic.infer.join.other-conflict`).
     pub(crate) fn infer_join_conflict(&mut self, solved: Ty, got: Ty, n: NodeRef<'_>) -> bool {
         let pool = self.pool();
-        let s = self.strip_mut(solved);
-        let g = self.strip_mut(got);
+        let s = self.resolved(solved);
+        let g = self.resolved(got);
         let trait_value = |t: Ty| self.dyn_ref_of(t).is_some();
         if g == Ty::NEVER
             || pool.has_poison(g)
@@ -794,10 +767,7 @@ impl Ck<'_, '_> {
         {
             return true;
         }
-        let strip = |t: Ty| match pool.get(t) {
-            TyData::Mut(i) => i,
-            _ => t,
-        };
+        let strip = |t: Ty| t;
         let (a, b) = (strip(a), strip(b));
         // Function types carry invariant rows and their own subtyping: the
         // join never meets them.

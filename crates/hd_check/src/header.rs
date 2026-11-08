@@ -199,10 +199,7 @@ pub fn entry_point(cx: &HeaderCx<'_>, it: &Item, host: &[DefId]) -> StageResult<
         return Ok(out);
     }
     for key in pool.row_data(sig.row).keys {
-        let bare = match pool.get(key) {
-            TyData::Mut(inner) => inner,
-            _ => key,
-        };
+        let bare = key;
         let def = match pool.get(bare) {
             TyData::TraitValue { def, .. } => def,
             _ => DefId::NONE,
@@ -649,7 +646,7 @@ impl<'a> ItemCheck<'_, 'a> {
                 .then_some(trait_)
                 .or_else(|| self.private_in(self_ty))
                 .or_else(|| any(pool.list_items(args))),
-            TyData::Option(i) | TyData::Mut(i) | TyData::Ref { inner: i, .. } => self.private_in(i),
+            TyData::Option(i) | TyData::Ref { inner: i, .. } => self.private_in(i),
             TyData::Tuple { elems, rest } => {
                 any(pool.list_items(elems)).or_else(|| rest.and_then(|r| self.private_in(r)))
             }
@@ -954,10 +951,7 @@ impl<'a> ItemCheck<'_, 'a> {
         let pool = self.pool();
         let t = tref.self_ty;
         let def = tref.trait_;
-        let inner = match pool.get(t) {
-            TyData::Mut(i) => i,
-            _ => t,
-        };
+        let inner = t;
         if inner == Ty::NEVER {
             return Ok(Answer::Holds {
                 evidence: hd_types::solver::Evidence::Poison,
@@ -1149,7 +1143,7 @@ impl<'a> ItemCheck<'_, 'a> {
                 }
                 self.check_bound(t)?;
             }
-            TyData::Option(i) | TyData::Mut(i) | TyData::Ref { inner: i, .. } => {
+            TyData::Option(i) | TyData::Ref { inner: i, .. } => {
                 self.check_ty(i, slot)?;
             }
             TyData::Tuple { elems, rest } => {
@@ -1417,7 +1411,7 @@ impl ItemCheck<'_, '_> {
         }
         seen.push(t);
         let parts: Vec<Ty> = match pool.get(t) {
-            TyData::Option(i) | TyData::Mut(i) => vec![i],
+            TyData::Option(i) => vec![i],
             TyData::Tuple { elems, rest } => {
                 pool.list_items(elems).iter().copied().chain(rest).collect()
             }

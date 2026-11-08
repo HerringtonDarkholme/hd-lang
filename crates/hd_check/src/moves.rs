@@ -50,7 +50,6 @@ fn is_mut_ref(pool: Types<'_>, t: Ty) -> bool {
         TyData::Ref {
             mutable, counted, ..
         } => mutable && !counted,
-        TyData::Mut(i) => is_mut_ref(pool, i),
         _ => false,
     }
 }
@@ -81,7 +80,7 @@ fn blocker(
         TyData::Ref {
             mutable, counted, ..
         } => (mutable && !counted).then_some(t),
-        TyData::Mut(i) | TyData::Option(i) => blocker(cx, i, seen, normalize),
+        TyData::Option(i) => blocker(cx, i, seen, normalize),
         TyData::Tuple { elems, rest } => any(pool.list_items(elems), seen)
             .or_else(|| rest.and_then(|r| blocker(cx, r, seen, normalize))),
         TyData::Union(ms) => any(pool.list_items(ms), seen),
@@ -143,14 +142,6 @@ fn param_copies((pool, lookup): (Types<'_>, &Lookup<'_>), p: ParamRef) -> bool {
                 .is_some_and(|(d, _)| lookup.item(d).is_some_and(hd_resolve::Item::requires_copy))
         })
     })
-}
-
-/// `t` without `mut`.
-fn strip(pool: Types<'_>, t: Ty) -> Ty {
-    match pool.get(t) {
-        TyData::Mut(i) => strip(pool, i),
-        _ => t,
-    }
 }
 
 /// The local and whether the place is the whole local, for a place word
@@ -346,7 +337,7 @@ impl Ck<'_, '_> {
         };
         let shown = hd_resolve::show_ty(&self.cx.names, part);
         match pool.get(part) {
-            TyData::Adt { .. } if part == strip(pool, t) => {
+            TyData::Adt { .. } if part == t => {
                 format!("its type `{shown}` is declared `impl !Copy`, so it is not copied")
             }
             TyData::Adt { .. } => {
@@ -646,7 +637,7 @@ impl Ck<'_, '_> {
     /// The declared type of field `j` of `t`, of variant `variant` for an
     /// enum: a struct's or an enum's, not a tuple's or an optional's.
     fn field_decl(&self, t: Ty, variant: Option<u32>, j: u32) -> Option<Ty> {
-        let TyData::Adt { def, .. } = self.pool().get(strip(self.pool(), t)) else {
+        let TyData::Adt { def, .. } = self.pool().get(t) else {
             return None;
         };
         let fields = match (&self.cx.lookup.item(def)?.data, variant) {
@@ -672,7 +663,7 @@ impl Ck<'_, '_> {
         let mut variant = None;
         for (k, proj) in p.proj.iter().enumerate() {
             let last = k + 1 == p.proj.len();
-            t = match (*proj, pool.get(strip(pool, t))) {
+            t = match (*proj, pool.get(t)) {
                 (Proj::Deref, TyData::Ref { inner, .. }) => inner,
                 (Proj::Variant(x), _) => {
                     variant = Some(x);

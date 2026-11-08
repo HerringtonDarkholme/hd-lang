@@ -235,7 +235,7 @@ impl DepSig {
     /// through a function value.
     fn of_fn(ls: &Layouts<'_>, t: Ty) -> Option<DepSig> {
         let pool = ls.pool;
-        let TyData::Fn { params, result, .. } = pool.get(referent_fn(pool, t)) else {
+        let TyData::Fn { params, result, .. } = pool.get(t) else {
             return None;
         };
         let deps = pool.fn_ty_deps(t);
@@ -576,7 +576,7 @@ fn line_up_in(ls: &Layouts<'_>, d: Ty, t: Ty, call: bool) -> Option<Vec<Key>> {
             let (a, b) = (pool.list_items(a), pool.list_items(b));
             a.len() == b.len() && a.iter().zip(b).all(|(&x, &y)| walk(ls, x, y, st, d1))
         };
-        let param = |t: Ty| match pool.get(referent_fn(pool, t)) {
+        let param = |t: Ty| match pool.get(t) {
             TyData::Param(p) => Some(p),
             _ => None,
         };
@@ -610,9 +610,6 @@ fn line_up_in(ls: &Layouts<'_>, d: Ty, t: Ty, call: bool) -> Option<Vec<Key>> {
                 st.1.extend(std::iter::repeat_n(Key::AllOf(p), ls.of(t).slots.len()));
                 true
             }
-            (TyData::Mut(a), TyData::Mut(b)) => walk(ls, a, b, st, d1),
-            (TyData::Mut(a), _) => walk(ls, a, t, st, d1),
-            (_, TyData::Mut(b)) => walk(ls, d, b, st, d1),
             (
                 TyData::Ref {
                     counted: false,
@@ -654,19 +651,11 @@ fn line_up_in(ls: &Layouts<'_>, d: Ty, t: Ty, call: bool) -> Option<Vec<Key>> {
     walk(ls, d, t, &mut st, 0).then_some(st.1)
 }
 
-/// `t` without its `mut`.
-fn referent_fn(pool: Types<'_>, t: Ty) -> Ty {
-    match pool.get(t) {
-        TyData::Mut(i) => referent_fn(pool, i),
-        _ => t,
-    }
-}
-
-/// Whether `t` is a direct function value, under `mut`. Such a value has
+/// Whether `t` is a direct function value. Such a value has
 /// one checker-only slot for the origins of local references captured by a
 /// scoped closure parameter.
 fn capture_slot(pool: Types<'_>, t: Ty) -> bool {
-    matches!(pool.get(referent_fn(pool, t)), TyData::Fn { .. })
+    matches!(pool.get(t), TyData::Fn { .. })
 }
 
 /// One origin slot of a type ([`Layout`]).
@@ -756,7 +745,7 @@ impl Layout {
                 out[k].end = out.len();
             }
             TyData::Opaque { borrows: true, .. } | TyData::Fn { .. } => out.push(slot),
-            TyData::Mut(i) | TyData::Option(i) => walk(i, top, out),
+            TyData::Option(i) => walk(i, top, out),
             TyData::Tuple { elems, rest } => {
                 for &e in pool.list_items(elems) {
                     walk(e, top, out);
@@ -881,7 +870,6 @@ impl<'a> Layouts<'a> {
         let len = |t: Ty| self.of(t).slots.len();
         let run = |start: usize, t: Ty| Some((start..start + len(t)).collect());
         match (pool.get(t), variant) {
-            (TyData::Mut(i), _) => self.field_map(cx, i, variant, j),
             (TyData::Tuple { elems, .. }, None) => {
                 let es = pool.list_items(elems);
                 let e = *es.get(j as usize)?;
@@ -966,7 +954,6 @@ impl<'a> Layouts<'a> {
 fn referent(pool: Types<'_>, t: Ty) -> Ty {
     match pool.get(t) {
         TyData::Ref { inner, .. } => inner,
-        TyData::Mut(i) => referent(pool, i),
         _ => Ty::VOID,
     }
 }
@@ -976,17 +963,12 @@ fn referent(pool: Types<'_>, t: Ty) -> Ty {
 fn local_ref(pool: Types<'_>, t: Ty) -> Option<(bool, bool)> {
     match pool.get(t) {
         TyData::Ref { counted, inner, .. } => Some((counted, is_dyn(pool, inner))),
-        TyData::Mut(i) => local_ref(pool, i),
         _ => None,
     }
 }
 
 fn is_dyn(pool: Types<'_>, t: Ty) -> bool {
-    match pool.get(t) {
-        TyData::TraitValue { .. } => true,
-        TyData::Mut(i) => is_dyn(pool, i),
-        _ => false,
-    }
+    matches!(pool.get(t), TyData::TraitValue { .. })
 }
 
 // The messages of `local-reference-escapes` for a store into a place the
@@ -1145,7 +1127,7 @@ fn call_arg_ty(pool: Types<'_>, b: &Body, a: u32, decl: Ty) -> Option<Ty> {
         counted: false,
         mutable,
         ..
-    } = pool.get(referent_fn(pool, decl))
+    } = pool.get(decl)
         && is_dyn(pool, t)
     {
         return Some(pool.intern_ty(&TyData::Ref {
@@ -1160,7 +1142,7 @@ fn call_arg_ty(pool: Types<'_>, b: &Body, a: u32, decl: Ty) -> Option<Ty> {
             mutable,
             counted: true,
         } = pool.get(t)
-        && let TyData::Ref { counted: false, .. } = pool.get(referent_fn(pool, decl))
+        && let TyData::Ref { counted: false, .. } = pool.get(decl)
     {
         return Some(pool.intern_ty(&TyData::Ref {
             inner,
@@ -1390,9 +1372,8 @@ impl Ck<'_, '_> {
             let (t, keys) = at
                 .and_then(|t| Some((t, line_up_call(ls, *decl, t)?)))
                 .unwrap_or_else(|| (*decl, (0..ids.len()).map(Key::Decl).collect()));
-            let outlives = (def.zip(sig.as_ref())).and_then(|(d, sig)| {
-                outlives_field(pool, d, &sig.generics, referent_fn(pool, *decl))
-            });
+            let outlives = (def.zip(sig.as_ref()))
+                .and_then(|(d, sig)| outlives_field(pool, d, &sig.generics, *decl));
             let written = ls.of(*decl);
             let slots = (keys.into_iter().zip(&ls.of(t).slots))
                 .map(|(k, s)| {
@@ -1443,7 +1424,7 @@ impl Ck<'_, '_> {
         // A suspension, the result of a bang call made without `!`, holds
         // what its arguments hold in a slot of its own, and its result's
         // slots depend as the call's with `!` would (`ref.dep.suspension`).
-        let output = match pool.get(referent_fn(pool, b.ty[i])) {
+        let output = match pool.get(b.ty[i]) {
             TyData::Adt { def, args } if def == ls.suspend => {
                 pool.list_items(args).first().copied()
             }
@@ -1558,7 +1539,7 @@ impl Ck<'_, '_> {
     /// the trait declares them (`ref.lifetime.trait`).
     fn trait_value_self_slots(&self, ls: &Layouts<'_>, tr: DefId, mut t: Ty) -> Vec<Option<u32>> {
         let pool = ls.pool;
-        while let TyData::Ref { inner, .. } | TyData::Mut(inner) = pool.get(t) {
+        while let TyData::Ref { inner, .. } = pool.get(t) {
             t = inner;
         }
         let (TyData::TraitValue { def, args, .. }, Some(item)) =
@@ -1684,7 +1665,7 @@ impl Ck<'_, '_> {
                         });
                     }
                     let dep = DepSig::of_fn(ls, body.ty[i]);
-                    match pool.get(referent_fn(pool, body.ty[i])) {
+                    match pool.get(body.ty[i]) {
                         // A local function's hidden result is checked
                         // against its opaque types' lifetimes
                         // (`types.opaque.borrows.body`).
@@ -1914,7 +1895,7 @@ impl Ck<'_, '_> {
                 inner,
                 counted: true,
                 ..
-            } = pool.get(self.strip_mut(t))
+            } = pool.get(self.resolved(t))
             {
                 steps.push(Proj::Deref);
                 t = inner;
@@ -1961,7 +1942,7 @@ impl Ck<'_, '_> {
             );
             return Err((Code::PrivateTypeLeak, msg));
         }
-        let args = match pool.get(self.strip_mut(t)) {
+        let args = match pool.get(self.resolved(t)) {
             TyData::Adt { args, .. } => pool.list_items(args).to_vec(),
             _ => Vec::new(),
         };

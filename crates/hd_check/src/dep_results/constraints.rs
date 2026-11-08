@@ -12,7 +12,7 @@ use super::{
     ANY, BOX_MSG, CallSig, DepSig, ELEM_MSG, FIELD_MSG, FN_PARAM_MSG, HELD_MSG, HOST_MSG, Inputs,
     Layout, Layouts, NO_SOURCE, Origin, PATH, PROVIDER_MSG, STATIC_MSG, STORE_FN_MSG, Set, Var,
     Verdicts, call_arg_ty, capture_slot, closure_allows, intrinsic_ops, local_ref, referent,
-    referent_fn, returned, scoped_uses, site, source_arg, w,
+    returned, scoped_uses, site, source_arg, w,
 };
 use crate::local_refs::{capturing_field, holds_local_ref};
 use crate::regions::{Category, Constraints, Edge, Loan, Region, RegionTable, Solution};
@@ -59,20 +59,15 @@ pub(super) struct Returns<'x> {
     pub(super) skip: &'x HashSet<u32>,
 }
 
-/// Whether `t`, under any `mut`, is a reference type.
+/// Whether `t` is a reference type.
 pub(super) fn is_ref(pool: hd_types::Types<'_>, t: Ty) -> bool {
-    match pool.get(t) {
-        TyData::Ref { .. } => true,
-        TyData::Mut(i) => is_ref(pool, i),
-        _ => false,
-    }
+    matches!(pool.get(t), TyData::Ref { .. })
 }
 
 /// Whether reference type `t`, under any `mut`, is `&mut`.
 pub(super) fn is_mut(pool: hd_types::Types<'_>, t: Ty) -> bool {
     match pool.get(t) {
         TyData::Ref { mutable, .. } => mutable,
-        TyData::Mut(i) => is_mut(pool, i),
         _ => false,
     }
 }
@@ -731,7 +726,7 @@ impl Gen<'_, '_> {
         let (_, Some((_, mut t))) = self.place(i, word, p.proj.len() - 1, (false, false)) else {
             return false;
         };
-        while let TyData::Mut(x) | TyData::Ref { inner: x, .. } = pool.get(t) {
+        while let TyData::Ref { inner: x, .. } = pool.get(t) {
             t = x;
         }
         let TyData::Adt { def, .. } = pool.get(t) else {
@@ -867,8 +862,7 @@ impl Gen<'_, '_> {
                 // `&mut`, has that part's own slots, by the field slot maps
                 // (`ref.dep.origin.position.union`, `ref.lifetime.store.field`).
                 let own = place.as_ref().filter(|p| {
-                    matches!(at, Some(Ok(Origin::Local(_)) | Err(_)))
-                        && referent_fn(pool, p.1) == referent_fn(pool, inner.1)
+                    matches!(at, Some(Ok(Origin::Local(_)) | Err(_))) && p.1 == inner.1
                 });
                 if let Some(p) = own {
                     return self.relate(p, &inner, inv, false);
@@ -891,7 +885,7 @@ impl Gen<'_, '_> {
                     _ => None,
                 };
                 if let Some(held) = held {
-                    let part = referent_fn(pool, held.1) != referent_fn(pool, inner.1);
+                    let part = held.1 != inner.1;
                     self.relate(&held, &inner, inv, part);
                 }
             }

@@ -90,7 +90,6 @@ impl Ck<'_, '_> {
         let pool = self.pool();
         match pool.get(self.infer.resolve(pool, t)) {
             TyData::Ref { inner, mutable, .. } => Some((inner, mutable)),
-            TyData::Mut(i) => self.ref_of(i),
             _ => None,
         }
     }
@@ -102,7 +101,6 @@ impl Ck<'_, '_> {
         let pool = self.pool();
         match pool.get(self.infer.resolve(pool, t)) {
             TyData::Ref { counted, .. } => Some(counted),
-            TyData::Mut(i) => self.ref_counted(i),
             _ => None,
         }
     }
@@ -503,7 +501,7 @@ impl Ck<'_, '_> {
         {
             self.begin_access(coll);
         }
-        let inner = self.strip_mut(self.infer.resolve(pool, place.ty));
+        let inner = self.resolved(self.infer.resolve(pool, place.ty));
         // `ref.expr.kind.always-local`: whatever type is expected.
         let rt = self.ref_ty(inner, mutable, false);
         let r = self.make_ref(&place, mutable, rt, n);
@@ -515,7 +513,7 @@ impl Ck<'_, '_> {
     /// field is replaced.
     pub(crate) fn store_ref_field(&mut self, r: Ref, path: &[(u32, Ty)], v: Ref, n: NodeRef<'_>) {
         let ty = path.last().expect("a field path").1;
-        let inner = self.strip_mut(self.infer.resolve(self.pool(), ty));
+        let inner = self.resolved(self.infer.resolve(self.pool(), ty));
         let v = self.retype(v, inner, n.index());
         let fields: Vec<u32> = path.iter().map(|(k, _)| *k).collect();
         self.store_through(r, &fields, v, n.index());
@@ -549,7 +547,7 @@ impl Ck<'_, '_> {
             path: vec![],
             ty: t,
         };
-        let inner = self.strip_mut(t);
+        let inner = self.resolved(t);
         let rt = self.ref_ty(inner, mutable, counted);
         (self.make_ref(&place, mutable, rt, n), rt)
     }
@@ -792,7 +790,7 @@ impl Ck<'_, '_> {
                     return self.field_step(Operand::Place(p), name, (base, e), use_);
                 }
                 let pool = self.pool();
-                let inner = self.strip_mut(self.infer.resolve(pool, t));
+                let inner = self.resolved(self.infer.resolve(pool, t));
                 // A write to a field of a value reads it as an expression does.
                 if use_ == PlaceUse::Write || matches!(pool.get(inner), TyData::Tuple { .. }) {
                     let (v, vt) = self.field_of_value((r, t), name, (base, e))?;
@@ -802,7 +800,7 @@ impl Ck<'_, '_> {
                 let Some((idx, ft)) = self.field_of(t, name) else {
                     // A shared enum field is no place, so a reference to it
                     // holds a copy (`expr.place.enum-shared-field`).
-                    let inner = self.strip_mut(self.infer.resolve(pool, t));
+                    let inner = self.resolved(self.infer.resolve(pool, t));
                     if let Some((v, vt)) = self.shared_field(r, inner, name, e) {
                         return Ok(Some(Operand::Value(v, vt)));
                     }
@@ -1145,7 +1143,7 @@ impl Ck<'_, '_> {
         let syn = n.index();
         match (self.ref_of(at), self.ref_of(ct)) {
             (Some((ai, _)), Some((ci, _))) => {
-                let (ai, ci) = (self.strip_mut(ai), self.strip_mut(ci));
+                let (ai, ci) = (self.resolved(ai), self.resolved(ci));
                 let snap = self.infer.snapshot();
                 if self.infer.unify(pool, ai, ci).is_err() {
                     self.infer.rollback(snap);
@@ -1367,13 +1365,7 @@ impl Ck<'_, '_> {
 fn whole_object_refs(pool: hd_types::Types<'_>, b: &mut hd_tir::ir::Body) {
     use hd_tir::ir::{PlaceRoot, Proj};
     use hd_types::TyData;
-    let counted = |t: Ty| {
-        let t = match pool.get(t) {
-            TyData::Mut(inner) => inner,
-            _ => t,
-        };
-        matches!(pool.get(t), TyData::Ref { counted: true, .. })
-    };
+    let counted = |t: Ty| matches!(pool.get(t), TyData::Ref { counted: true, .. });
     for i in 0..b.tags.len() {
         let TyData::Ref {
             inner,

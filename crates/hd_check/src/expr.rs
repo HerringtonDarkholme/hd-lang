@@ -588,7 +588,7 @@ impl Ck<'_, '_> {
     fn is_builder(&self, t: Ty) -> bool {
         let pool = self.pool();
         let sb = self.cx.names.item("std.text", "StringBuilder");
-        matches!(pool.get(self.strip_mut(t)), TyData::Ref { inner, mutable: true, .. }
+        matches!(pool.get(self.resolved(t)), TyData::Ref { inner, mutable: true, .. }
             if matches!(pool.get(inner), TyData::Adt { def, .. } if def == sb))
     }
 
@@ -714,7 +714,7 @@ impl Ck<'_, '_> {
     /// value is no reference and no string, and its type is known.
     fn displayed_by_ref(&self, t: Ty) -> bool {
         let pool = self.pool();
-        let v = self.strip_mut(self.infer.resolve(pool, t));
+        let v = self.resolved(self.infer.resolve(pool, t));
         self.ref_of(v).is_none() && v != Ty::STRING && !matches!(pool.get(v), TyData::Infer(_))
     }
 
@@ -733,7 +733,7 @@ impl Ck<'_, '_> {
             path: vec![],
             ty,
         };
-        let rt = self.ref_ty(self.strip_mut(ty), false, true);
+        let rt = self.ref_ty(self.resolved(ty), false, true);
         let r = self.make_ref(&place, false, rt, n);
         if let Some(i) = r.as_inst() {
             self.b.body_mut().data[i.0 as usize][1] |= hd_tir::ir::ref_word::LOCAL;
@@ -884,7 +884,7 @@ impl Ck<'_, '_> {
         n: NodeRef<'_>,
     ) -> StageResult<()> {
         self.prepare_pending_text(out);
-        let ty = self.strip_mut(self.infer.resolve(self.pool(), t));
+        let ty = self.resolved(self.infer.resolve(self.pool(), t));
         // Integer literal classes admit only integer primitives. Keep their
         // type open: a later map store may still select i32 rather than usize.
         if matches!(
@@ -1140,7 +1140,7 @@ impl Ck<'_, '_> {
         {
             self.infer.mark_signed(pool, t);
         }
-        let st = self.strip_mut(t);
+        let st = self.resolved(t);
         let numeric = self.numeric(t);
         let prim = match pool.get(st) {
             TyData::Prim(p) => Some(p),
@@ -1225,7 +1225,6 @@ impl Ck<'_, '_> {
                 .infer
                 .kind_of(pool, t)
                 .is_some_and(|k| k != VarKind::General),
-            TyData::Mut(i) => self.numeric(i),
             TyData::Param(_) => (0..self.env.clause_self.len()).any(|i| {
                 let known = self.cx.names.known;
                 self.env.clause_self[i] == t
@@ -1342,10 +1341,10 @@ impl Ck<'_, '_> {
         let Some(t) = self.peek_place_ty(e) else {
             return false;
         };
-        let v = self.strip_mut(self.infer.resolve(pool, t));
+        let v = self.resolved(self.infer.resolve(pool, t));
         self.ref_of(v).is_none()
             && self.op_by_trait(op, v)
-            && left.is_none_or(|l| self.strip_mut(self.infer.resolve(pool, l)) == v)
+            && left.is_none_or(|l| self.resolved(self.infer.resolve(pool, l)) == v)
     }
 
     /// The operand `(r, t, held)` of the operator `op`, with a local
@@ -1368,7 +1367,7 @@ impl Ck<'_, '_> {
         };
         if self.op_by_trait(op, inner) {
             let pool = self.pool();
-            let vt = self.strip_mut(self.infer.resolve(pool, inner));
+            let vt = self.resolved(self.infer.resolve(pool, inner));
             let shared = self.ref_ty(vt, false, false);
             let r = if mutable {
                 self.retype(r, shared, n.index())
@@ -1414,7 +1413,7 @@ impl Ck<'_, '_> {
     /// and `!=`), and its type is known.
     fn op_by_trait(&self, op: TokenKind, t: Ty) -> bool {
         let pool = self.pool();
-        let t = self.strip_mut(self.infer.resolve(pool, t));
+        let t = self.resolved(self.infer.resolve(pool, t));
         let eq = matches!(op, TokenKind::EqEq | TokenKind::NotEq);
         Self::by_ref_op(op)
             && !(self.numeric(t)
@@ -1428,7 +1427,7 @@ impl Ck<'_, '_> {
     /// `held` when `r` already is the address of its place, else `r` held
     /// in a new local that the call refers to.
     pub(crate) fn eq_operand_ref(&mut self, (r, t, held): (Ref, Ty, bool), n: NodeRef<'_>) -> Ref {
-        if held || matches!(self.strip_mut(t), Ty::NEVER | Ty::POISON) {
+        if held || matches!(self.resolved(t), Ty::NEVER | Ty::POISON) {
             return r;
         }
         // The unit value `()` is `NONE`; its local holds no value either.
@@ -1536,7 +1535,7 @@ impl Ck<'_, '_> {
             return;
         }
         let operand = |node, ty| {
-            let primitive = match self.pool().get(self.strip_mut(ty)) {
+            let primitive = match self.pool().get(self.resolved(ty)) {
                 TyData::Prim(p) => Some(p),
                 _ => None,
             };
@@ -1658,10 +1657,6 @@ impl Ck<'_, '_> {
         let bitwise = matches!(prim, PrimOp::BitAnd | PrimOp::BitOr | PrimOp::BitXor);
         let bool_ops = matches!(prim, PrimOp::Eq | PrimOp::Ne);
         let ats = self.infer.shallow(pool, at);
-        let ats = match pool.get(ats) {
-            TyData::Mut(i) => self.infer.shallow(pool, i),
-            _ => ats,
-        };
         let general = |me: &Self, x: Ty| {
             let x = me.infer.shallow(pool, x);
             matches!(pool.get(x), TyData::Infer(_))
@@ -1727,7 +1722,7 @@ impl Ck<'_, '_> {
     /// number literal whose width is still open.
     fn primitive_left(&self, t: Ty) -> bool {
         let pool = self.pool();
-        let t = self.strip_mut(t);
+        let t = self.resolved(t);
         match pool.get(t) {
             TyData::Prim(p) => p.is_integer() || p.is_float() || p == Prim::Char,
             TyData::Infer(_) => self
@@ -1743,7 +1738,7 @@ impl Ck<'_, '_> {
     /// primitive, an open variable, or a type parameter.
     fn nominal(&self, t: Ty) -> bool {
         let pool = self.pool();
-        let t = self.strip_mut(t);
+        let t = self.resolved(t);
         matches!(
             pool.get(t),
             TyData::Adt { .. }
@@ -1776,13 +1771,13 @@ impl Ck<'_, '_> {
             .first()
             .is_some_and(|k| k.kind() == SyntaxKind::LiteralExpr)
             && matches!(
-                self.infer.kind_of(pool, self.strip_mut(ct)),
+                self.infer.kind_of(pool, self.resolved(ct)),
                 Some(VarKind::IntLit | VarKind::SignedIntLit | VarKind::FloatLit)
             );
         if !literal {
             return Ok(None);
         }
-        let t = self.strip_mut(at);
+        let t = self.resolved(at);
         // A parameter or trait value has bounds, not implementations; its
         // clauses answer the call as they do without a literal.
         if matches!(
@@ -1820,7 +1815,7 @@ impl Ck<'_, '_> {
     /// `tr` is `Index` or `IndexSet`, whose first argument is the key.
     pub(crate) fn tuple_key_choice(&mut self, tr: DefId, at: Ty, kt: Ty) -> StageResult<()> {
         let pool = self.pool();
-        let key = self.infer.resolve(pool, self.strip_mut(kt));
+        let key = self.infer.resolve(pool, self.resolved(kt));
         if !matches!(pool.get(key), TyData::Tuple { .. }) {
             return Ok(());
         }
@@ -1829,7 +1824,7 @@ impl Ck<'_, '_> {
         if lits.is_empty() {
             return Ok(());
         }
-        let t = self.strip_mut(at);
+        let t = self.resolved(at);
         // A parameter or trait value has bounds, not implementations.
         if matches!(
             pool.get(self.infer.resolve(pool, t)),
@@ -1983,8 +1978,8 @@ impl Ck<'_, '_> {
             );
             let pool = self.pool();
             if tr == k.add
-                && matches!(pool.get(self.strip_mut(self.infer.resolve(pool, at))), TyData::Adt { def, .. } if def == k.list)
-                && matches!(pool.get(self.strip_mut(self.infer.resolve(pool, ct))), TyData::Adt { def, .. } if def == k.list)
+                && matches!(pool.get(self.resolved(self.infer.resolve(pool, at))), TyData::Adt { def, .. } if def == k.list)
+                && matches!(pool.get(self.resolved(self.infer.resolve(pool, ct))), TyData::Adt { def, .. } if def == k.list)
                 && let Some(left) = n.children().next()
             {
                 let left = self.cx.src.span(left);
@@ -2007,7 +2002,7 @@ impl Ck<'_, '_> {
         // implementation's function type
         // (`expr.op.left-dispatch.exact-function.message`).
         let pool = self.pool();
-        let operand = self.infer.resolve(pool, self.strip_mut(at));
+        let operand = self.infer.resolve(pool, self.resolved(at));
         if matches!(pool.get(operand), TyData::Fn { .. })
             && let Some(winner) = self.op_impl_winner(tr, at, Some(ct))?
             && self.infer.resolve(pool, winner) != operand
@@ -2033,14 +2028,14 @@ impl Ck<'_, '_> {
         } else {
             (c, ct)
         };
-        let operand = self.infer.resolve(pool, self.strip_mut(at));
+        let operand = self.infer.resolve(pool, self.resolved(at));
         // Option's standard Eq implementation only tests the tag when
         // either operand is None. Keep the ordinary trait/bound check
         // above, including the payload's Eq obligation. Newtypes and
         // user enum Eq implementations still follow their selected body.
         if tr == k.eq
             && matches!(pool.get(operand), TyData::Option(_))
-            && operand == self.infer.resolve(pool, self.strip_mut(ct))
+            && operand == self.infer.resolve(pool, self.resolved(ct))
         {
             let none = |r: Ref, held: bool| {
                 !held
@@ -2084,7 +2079,7 @@ impl Ck<'_, '_> {
     /// or a parameter bounded by `Integer`. A still-open variable passes.
     fn integer_like(&self, t: Ty) -> bool {
         let pool = self.pool();
-        let t = self.infer.shallow(pool, self.strip_mut(t));
+        let t = self.infer.shallow(pool, self.resolved(t));
         match pool.get(t) {
             TyData::Prim(p) => p.is_integer(),
             TyData::Infer(_) => !matches!(self.infer.kind_of(pool, t), Some(VarKind::FloatLit)),
@@ -2101,7 +2096,7 @@ impl Ck<'_, '_> {
     /// integer-like, floating-point, or a parameter bounded by `Float`.
     fn range_bound_like(&self, t: Ty) -> bool {
         let pool = self.pool();
-        let t = self.infer.shallow(pool, self.strip_mut(t));
+        let t = self.infer.shallow(pool, self.resolved(t));
         self.integer_like(t)
             || self.float_like(t)
             || matches!(pool.get(t), TyData::Param(_))
@@ -2114,7 +2109,7 @@ impl Ck<'_, '_> {
     /// Whether a type is floating-point, or a floating literal's variable.
     fn float_like(&self, t: Ty) -> bool {
         let pool = self.pool();
-        let t = self.strip_mut(t);
+        let t = self.resolved(t);
         match pool.get(t) {
             TyData::Prim(p) => p.is_float(),
             TyData::Infer(_) => self.infer.kind_of(pool, t) == Some(VarKind::FloatLit),
@@ -2129,7 +2124,7 @@ impl Ck<'_, '_> {
     /// exponent rejects it here (`expr.power.negated-literal`).
     fn unsigned_count(&mut self, ct: Ty, rn: NodeRef<'_>, what: &str, negated_ok: bool) -> bool {
         let pool = self.pool();
-        let c = self.strip_mut(ct);
+        let c = self.resolved(ct);
         let ok = match pool.get(c) {
             TyData::Infer(_) => match self.infer.kind_of(pool, c) {
                 Some(VarKind::IntLit) => self.infer.unify(pool, c, Ty::prim(Prim::U32)).is_ok(),
@@ -2152,7 +2147,7 @@ impl Ck<'_, '_> {
     /// What a `**` base is (`expr.power.*`).
     fn power_base(&self, t: Ty) -> PowerBase {
         let pool = self.pool();
-        let t = self.strip_mut(t);
+        let t = self.resolved(t);
         match pool.get(t) {
             TyData::Prim(p) if p.is_integer() => PowerBase::Int,
             TyData::Prim(p) if p.is_float() => PowerBase::Float,
@@ -2235,7 +2230,7 @@ impl Ck<'_, '_> {
         ct: Option<Ty>,
     ) -> StageResult<Option<Box<hd_types::solver::FailInfo>>> {
         let pool = self.pool();
-        let t = self.strip_mut(at);
+        let t = self.resolved(at);
         if matches!(
             pool.get(t),
             TyData::Infer(_) | TyData::Poison | TyData::Never
@@ -2255,13 +2250,13 @@ impl Ck<'_, '_> {
     /// same implementation wins.
     fn op_tref(&mut self, tr: DefId, at: Ty, ct: Option<Ty>) -> TraitRef {
         let pool = self.pool();
-        let t = self.strip_mut(at);
+        let t = self.resolved(at);
         let n_trait = self.cx.lookup.item(tr).map_or(0, |i| i.generics.len());
         let mut args: Vec<Ty> = (0..n_trait)
             .map(|_| self.infer.fresh(pool, VarKind::General))
             .collect();
         if let (Some(first), Some(c)) = (args.first_mut(), ct) {
-            let c = self.strip_mut(c);
+            let c = self.resolved(c);
             if !matches!(pool.get(c), TyData::Infer(_)) {
                 *first = c;
             }
@@ -2437,7 +2432,7 @@ impl Ck<'_, '_> {
     pub(crate) fn has_identity(&mut self, t: Ty) -> StageResult<bool> {
         let pool = self.pool();
         let t = self.infer.resolve(pool, t);
-        if self.strip_mut(t) == Ty::NEVER {
+        if self.resolved(t) == Ty::NEVER {
             return Ok(true);
         }
         // An open literal class is a number, which has no identity.
@@ -2465,7 +2460,7 @@ impl Ck<'_, '_> {
     /// that the other converts to. A match fixes the types' open variables.
     fn identity_compatible(&mut self, l: Ty, r: Ty) -> StageResult<bool> {
         let pool = self.pool();
-        let (l, r) = (self.strip_mut(l), self.strip_mut(r));
+        let (l, r) = (self.resolved(l), self.resolved(r));
         if l == Ty::NEVER || r == Ty::NEVER {
             return Ok(true);
         }
@@ -2503,10 +2498,6 @@ impl Ck<'_, '_> {
     pub(crate) fn field_of(&self, t: Ty, name: &str) -> Option<(u32, Ty)> {
         let pool = self.pool();
         let t = self.infer.resolve(pool, t);
-        let t = match pool.get(t) {
-            TyData::Mut(i) => i,
-            _ => t,
-        };
         let TyData::Adt { def, args } = pool.get(t) else {
             return None;
         };
@@ -2528,7 +2519,7 @@ impl Ck<'_, '_> {
     /// and type (`types.tuple.rest.value`).
     pub(crate) fn tuple_elem_of(&self, t: Ty, name: &str) -> Option<(u32, Ty)> {
         let pool = self.pool();
-        let t = self.strip_mut(self.infer.resolve(pool, t));
+        let t = self.resolved(self.infer.resolve(pool, t));
         let TyData::Tuple { elems, rest } = pool.get(t) else {
             return None;
         };
@@ -2546,10 +2537,6 @@ impl Ck<'_, '_> {
     pub(crate) fn is_read_only_member(&self, t: Ty, name: &str) -> bool {
         let pool = self.pool();
         let t = self.infer.resolve(pool, t);
-        let t = match pool.get(t) {
-            TyData::Mut(i) => i,
-            _ => t,
-        };
         self.shared_param(t, name).is_some()
     }
 
@@ -2593,10 +2580,7 @@ impl Ck<'_, '_> {
             (r, bt) = self.emit_deref(r, bt, base.index());
             bt = self.infer.resolve(pool, bt);
         }
-        let inner = match pool.get(bt) {
-            TyData::Mut(i) => i,
-            _ => bt,
-        };
+        let inner = bt;
         // A base whose type an earlier error left unknown adds nothing.
         if matches!(inner, Ty::NEVER | Ty::POISON) {
             return Ok((Ref(NONE), Ty::NEVER));
@@ -2664,10 +2648,6 @@ impl Ck<'_, '_> {
     pub(crate) fn index_kind(&mut self, t: Ty) -> Option<(Indexed, Ty, Ty)> {
         let pool = self.pool();
         let t = self.infer.resolve(pool, t);
-        let t = match pool.get(t) {
-            TyData::Mut(i) => i,
-            _ => t,
-        };
         if t == Ty::STRING {
             return Some((Indexed::Str, Ty::prim(Prim::Usize), Ty::prim(Prim::U8)));
         }
@@ -2893,14 +2873,14 @@ impl Ck<'_, '_> {
     /// held in a new local that the call refers to. The type is that of
     /// the value referred to.
     pub(crate) fn index_receiver(&mut self, r: Ref, t: Ty, n: NodeRef<'_>) -> (Ref, Ty) {
-        if r.0 == NONE || matches!(self.strip_mut(t), Ty::NEVER | Ty::POISON) {
+        if r.0 == NONE || matches!(self.resolved(t), Ty::NEVER | Ty::POISON) {
             return (r, t);
         }
         let rt = self.b.ty_of(r);
         if let Some((inner, _)) = self.ref_of(rt) {
             let vt = self.deref_ty(inner);
             let counted = self.ref_counted(rt).unwrap_or(true);
-            let shared = self.ref_ty(self.strip_mut(vt), false, counted);
+            let shared = self.ref_ty(self.resolved(vt), false, counted);
             return (self.retype(r, shared, n.index()), vt);
         }
         let (r, _) = self.object_ref(r, t, (false, false), n);
@@ -2934,7 +2914,7 @@ impl Ck<'_, '_> {
     pub(crate) fn is_range_ty(&self, t: Ty) -> bool {
         let pool = self.pool();
         let known = self.cx.names.known;
-        match pool.get(self.strip_mut(t)) {
+        match pool.get(self.resolved(t)) {
             TyData::Adt { def, .. } => [
                 known.range,
                 known.range_from,
@@ -2953,7 +2933,7 @@ impl Ck<'_, '_> {
     pub(crate) fn index_key(&mut self, (kr, ktt): (Ref, Ty), key: NodeRef<'_>, kt: Ty) -> Ref {
         let pool = self.pool();
         let usize_t = Ty::prim(Prim::Usize);
-        let got = self.strip_mut(ktt);
+        let got = self.resolved(ktt);
         let p = match pool.get(got) {
             TyData::Prim(p) if kt == usize_t && p.is_unsigned() && p != Prim::Usize => p,
             _ => return self.coerce(kr, ktt, kt, key, "index", ExpectPosition::General),
@@ -3028,7 +3008,7 @@ impl Ck<'_, '_> {
             (None, Some((_, t, operand))) => {
                 // `expr.tuple.rest.spread.list`: the spread operand is a
                 // list, which gives the rest element.
-                let t = self.strip_mut(*t);
+                let t = self.resolved(*t);
                 let list = self.cx.names.known.list;
                 if !matches!(pool.get(t), TyData::Adt { def, .. } if def == list) {
                     if !matches!(t, Ty::NEVER | Ty::POISON) {
@@ -3136,10 +3116,8 @@ impl Ck<'_, '_> {
         let elem = match self
             .literal_want(want)
             .map(|w| self.infer.shallow(pool, w))
-            .map(|w| match pool.get(w) {
-                TyData::Mut(i) => pool.get(i),
-                d => d,
-            }) {
+            .map(|w| pool.get(w))
+        {
             Some(TyData::Adt { def, args }) if def == list => {
                 pool.list_items(args).first().copied()
             }
@@ -3160,7 +3138,7 @@ impl Ck<'_, '_> {
                     let (r, t) = this.expr(operand, Some(list_ty))?;
                     // `expr.list.spread.type`: the operand is a list.
                     let Some(item) = this.list_item(this.infer.resolve(pool, t)) else {
-                        if !matches!(this.strip_mut(t), Ty::NEVER | Ty::POISON) {
+                        if !matches!(this.resolved(t), Ty::NEVER | Ty::POISON) {
                             let msg = format!("in spread: expected a list, found {}", this.show(t));
                             this.err(Code::TypeMismatch, operand, &msg);
                         }
@@ -3221,12 +3199,6 @@ impl Ck<'_, '_> {
                 let (r, t) = this.stored_expr(*e, Some(elem), "in this list")?;
                 refs.push(this.coerce(r, t, elem, *e, "list element", ExpectPosition::General));
             }
-            // An element type solved from the elements alone drops an outer
-            // `mut`. This keeps
-            // `typing/invalid/orphan-impl-nested-trait-argument.hd` at one error.
-            if inferred && let TyData::Mut(x) = pool.get(this.infer.shallow(pool, elem)) {
-                this.infer.rebind(pool, elem, x);
-            }
             // An expected element type was checked where it is written.
             if inferred {
                 this.check_collection_item(elem, n)?;
@@ -3263,7 +3235,7 @@ impl Ck<'_, '_> {
             };
             // Optional injection is the join's representation-changing
             // conversion. Static variance conversions keep the list as is.
-            if self.option_layers(self.strip_mut(item)) < self.option_layers(target) {
+            if self.option_layers(self.resolved(item)) < self.option_layers(target) {
                 let [operand] = kids[index].parts();
                 refs[index] = self.convert_spread((r, t), (item, target), operand);
             }
@@ -3370,10 +3342,8 @@ impl Ck<'_, '_> {
         let (kw, vw) = match self
             .literal_want(want)
             .map(|w| self.infer.shallow(pool, w))
-            .map(|w| match pool.get(w) {
-                TyData::Mut(i) => pool.get(i),
-                d => d,
-            }) {
+            .map(|w| pool.get(w))
+        {
             Some(TyData::Adt { def, args }) if def == map => {
                 let a = pool.list_items(args);
                 (Some(a[0]), Some(a[1]))
@@ -3472,8 +3442,7 @@ impl Ck<'_, '_> {
             });
         }
         // An expected type of the same declaration solves the inferred
-        // arguments first, so a field sees its substituted type (`mut U`
-        // included).
+        // arguments first, so a field sees its substituted type.
         if let Some(w) = want
             && let TyData::Adt { def: wd, args: wa } = pool.get(self.expected_shape(w))
             && wd == def
@@ -3969,17 +3938,14 @@ impl Ck<'_, '_> {
             (sr, st)
         };
         let st_r = self.infer.resolve(pool, st);
-        let st_i = match pool.get(st_r) {
-            TyData::Mut(i) => i,
-            _ => st_r,
-        };
+        let st_i = st_r;
         // A source whose type a waiting call or projection fixes, such as
         // `(1..4).iter()`'s cursor, is learned now, as a receiver's is.
         let st_i = if matches!(pool.get(st_i), TyData::Infer(_))
             && self.infer.kind_of(pool, st_i) == Some(VarKind::General)
             && self.learn_waiting(st_i)?
         {
-            self.strip_mut(self.infer.resolve(pool, st_i))
+            self.resolved(self.infer.resolve(pool, st_i))
         } else {
             st_i
         };
@@ -4114,7 +4080,7 @@ impl Ck<'_, '_> {
                 let iterable = self.cx.names.known.iterable;
                 let (r, t) = self.trait_call(iterable, "iter", sr, st, &[], src)?;
                 let t = self.normalize_deep(t)?;
-                let t = self.strip_mut(self.infer.resolve(pool, t));
+                let t = self.resolved(self.infer.resolve(pool, t));
                 // A source already reported, or one with no `Iterable`
                 // impl, whose bound reported it.
                 if pool.has_poison(t) || pool.has_poison(self.infer.resolve(pool, st)) {
@@ -4135,7 +4101,7 @@ impl Ck<'_, '_> {
         let lp = self.b.open_loop();
         let lb = self.b.open_block();
         let cur = self.b.get(itl, it_ref, e.index());
-        if matches!(pool.get(self.strip_mut(it_ty)), TyData::TraitValue { .. }) {
+        if matches!(pool.get(self.resolved(it_ty)), TyData::TraitValue { .. }) {
             self.dyn_recv = Some((true, e.index()));
         }
         let (next, nt) = self.method_on(
@@ -4211,7 +4177,7 @@ impl Ck<'_, '_> {
             }
             TyData::Adt { args, .. } => pool.list_items(args).to_vec(),
             TyData::Tuple { elems, .. } => pool.list_items(elems).to_vec(),
-            TyData::Option(i) | TyData::Mut(i) | TyData::Ref { inner: i, .. } => vec![i],
+            TyData::Option(i) | TyData::Ref { inner: i, .. } => vec![i],
             _ => vec![],
         };
         let mut any = false;
@@ -4225,7 +4191,7 @@ impl Ck<'_, '_> {
     /// iterable instead; a successful answer fixes its item type.
     fn iterator_item(&mut self, ty: Ty) -> StageResult<Option<Ty>> {
         let pool = self.pool();
-        let ty = self.strip_mut(self.infer.resolve(pool, ty));
+        let ty = self.resolved(self.infer.resolve(pool, ty));
         if matches!(
             pool.get(ty),
             TyData::Infer(_) | TyData::Poison | TyData::Never
@@ -4724,7 +4690,7 @@ impl Ck<'_, '_> {
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
         let is_map = self.cx.src.tkind(self.cx.src.first(n)) == Some(TokenKind::LBrace);
-        let want = want.map(|w| self.strip_mut(w));
+        let want = want.map(|w| self.resolved(w));
         let (def, args) = if is_map {
             let map = self.cx.names.known.map;
             let a = match want.map(|w| pool.get(w)) {
@@ -4870,7 +4836,7 @@ impl Ck<'_, '_> {
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
         let w = self.infer.resolve(pool, want);
-        let suspends = match pool.get(self.strip_mut(w)) {
+        let suspends = match pool.get(self.resolved(w)) {
             TyData::Fn { suspends, .. } => suspends,
             _ => false,
         };
@@ -4919,10 +4885,7 @@ impl Ck<'_, '_> {
         let pool = self.pool();
         let wanted = want
             .map(|w| self.infer.resolve(pool, w))
-            .map(|w| match pool.get(w) {
-                TyData::Mut(i) => pool.get(i),
-                d => d,
-            });
+            .map(|w| pool.get(w));
         // Expected inputs of an arity not known here give no parameter
         // its type (`fn.type.ctor.inputs`).
         let poisoned = want.is_some_and(|w| self.infer.resolve(pool, w) == Ty::POISON);
@@ -5030,7 +4993,6 @@ impl Ck<'_, '_> {
                 // changeable copy.
                 if p.direct_token(&self.cx.src.parse.tokens, TokenKind::KwMut)
                     .is_some()
-                    && !matches!(pool.get(t), TyData::Mut(_))
                 {
                     self.mut_params.push(l);
                     self.mut_locals.push(l);
@@ -5249,7 +5211,7 @@ impl Ck<'_, '_> {
         // `expr.try.expected`: the operand's hint is `Result[T, E]` or `T?`,
         // by the nearest function's result kind.
         let success = match want {
-            Some(w) => self.strip_mut(w),
+            Some(w) => self.resolved(w),
             None => self.infer.fresh(pool, VarKind::General),
         };
         let hint = match pool.get(ret) {
@@ -5375,7 +5337,7 @@ impl Ck<'_, '_> {
         // range type (`expr.range.expected`).
         let known = self.cx.names.known;
         let bound_want = want.and_then(|w| {
-            let w = self.strip_mut(w);
+            let w = self.resolved(w);
             match pool.get(w) {
                 TyData::Adt { def, args }
                     if [known.range, known.range_from, known.range_to].contains(&def) =>
@@ -5520,7 +5482,7 @@ impl Ck<'_, '_> {
     ) -> StageResult<bool> {
         let pool = self.pool();
         let (r, t) = self.expr(vn, None)?;
-        let ct = self.strip_mut(self.infer.resolve(pool, t));
+        let ct = self.resolved(self.infer.resolve(pool, t));
         match pool.get(ct) {
             TyData::Context(row) => {
                 pairs.push(Ref(ct.0));

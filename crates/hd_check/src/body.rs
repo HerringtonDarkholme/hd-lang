@@ -1429,7 +1429,7 @@ impl Ck<'_, '_> {
     /// unsigned once inference finished is a `type-mismatch`.
     fn check_negated_unsigned(&mut self) {
         for (t, at) in std::mem::take(&mut self.neg_nodes) {
-            let t = self.strip_mut(t);
+            let t = self.resolved(t);
             let pool = self.pool();
             if let TyData::Prim(p) = pool.get(t)
                 && p.is_unsigned()
@@ -1815,26 +1815,8 @@ impl Ck<'_, '_> {
     /// Unifies `got` with `want`, inserting the coercions of
     /// `crates/hd_check/DESIGN.md` (type checking) §4.2 (`never`, `.Some` wrapping, trait values).
     /// `position` flows to `expect`, selecting its error codes.
-    /// Stores `v` in local `l`. A `mut T` value stored in a readonly
-    /// local of type `T` passes through `Weaken`, so the stored value has
-    /// the local's type (`crates/hd_tir/DESIGN.md` §4.13.11, invariant 4).
+    /// Stores `v` in local `l`.
     pub(crate) fn set_local(&mut self, l: LocalId, v: Ref, syn: hd_base::NodeIdx) {
-        let pool = self.pool();
-        let lt = self.b.local_ty(l);
-        let weakens = v.0 != NONE
-            && matches!(
-                pool.get(self.infer.resolve(pool, self.b.ty_of(v))),
-                TyData::Mut(_)
-            )
-            && !matches!(
-                pool.get(self.infer.resolve(pool, lt)),
-                TyData::Mut(_) | TyData::Infer(_) | TyData::Poison
-            );
-        let v = if weakens {
-            self.b.coerce(Coercion::Weaken, NONE, v, lt, syn)
-        } else {
-            v
-        };
         self.b.set(l, v, syn);
     }
 
@@ -1966,10 +1948,7 @@ impl Ck<'_, '_> {
         // A variable a generic call solves is not a declared type either:
         // permissions inside it weaken (types.generic.infer.join).
         let joined = matches!(pool.get(want), TyData::Infer(_));
-        let strip = |t: Ty| match pool.get(t) {
-            TyData::Mut(i) => i,
-            _ => t,
-        };
+        let strip = |t: Ty| t;
         let (gs, ws) = (strip(g), strip(w));
         // An open literal class is never an optional or a trait value, so
         // it wraps or converts as a known type does.
@@ -2101,7 +2080,7 @@ impl Ck<'_, '_> {
             self.fit_row(gr, wr, n, what);
         }
         // An accepted conversion whose types still differ is explicit
-        // (Rule TC-6): `mut T` to `T`, a wider row, or declared variance.
+        // (Rule TC-6): a wider row or declared variance.
         if self.diags.len() == before && !joined {
             let (gr, wr) = (
                 self.infer.resolve(pool, got),
@@ -2113,7 +2092,6 @@ impl Ck<'_, '_> {
                     .any(|t| pool.has_infer(*t) || pool.has_poison(*t))
             {
                 let kind = match (pool.get(gr), pool.get(wr)) {
-                    (TyData::Mut(i), _) if i == wr => Coercion::Weaken,
                     (TyData::Fn { .. }, TyData::Fn { .. }) => Coercion::RowSubsume,
                     _ => Coercion::Variance,
                 };
@@ -2124,7 +2102,7 @@ impl Ck<'_, '_> {
     }
 
     /// The lowered constructor type of the suspending function type `got`,
-    /// `fn(A) -> mut Suspend[T] $ R` for `fn!(A) -> T $ R`, when `want` is
+    /// `fn(A) -> Suspend[T] $ R` for `fn!(A) -> T $ R`, when `want` is
     /// an ordinary function type (`fn.type.suspend.weaken`,
     /// `fn.type.suspend.ctor`).
     fn suspend_ctor(&self, got: Ty, want: Ty) -> Option<Ty> {
@@ -2173,7 +2151,7 @@ impl Ck<'_, '_> {
             suspends,
             inputs,
             ..
-        } = pool.get(self.strip_mut(self.infer.shallow(pool, t)))
+        } = pool.get(self.resolved(self.infer.shallow(pool, t)))
         else {
             return None;
         };
@@ -2333,7 +2311,7 @@ impl Ck<'_, '_> {
     pub(crate) fn mixes_signedness(&self, a: Ty, b: Ty) -> bool {
         let pool = self.pool();
         let prim = |t: Ty| {
-            let t = self.strip_mut(self.infer.resolve(pool, t));
+            let t = self.resolved(self.infer.resolve(pool, t));
             match pool.get(t) {
                 TyData::Prim(p) if p.is_integer() => Some(p),
                 _ => None,
@@ -2359,7 +2337,7 @@ impl Ck<'_, '_> {
     fn family_widths(&self, got: Ty, want: Ty) -> Option<(u32, u32)> {
         let pool = self.pool();
         let prim = |t: Ty| {
-            let t = self.strip_mut(self.infer.resolve(pool, t));
+            let t = self.resolved(self.infer.resolve(pool, t));
             match pool.get(t) {
                 TyData::Prim(p) if p.is_integer() || p.is_float() => Some(p),
                 _ => None,
@@ -2390,9 +2368,9 @@ impl Ck<'_, '_> {
             return false;
         }
         let got = self.norm_ty(got);
-        let got = self.strip_mut(self.infer.resolve(pool, got));
+        let got = self.resolved(self.infer.resolve(pool, got));
         let want = self.norm_ty(want);
-        let want = self.strip_mut(self.infer.resolve(pool, want));
+        let want = self.resolved(self.infer.resolve(pool, want));
         // `from` meets `to` in a position: equal (`Some(false)`), or
         // convertible only by a representation change (`Some(true)`).
         // Child-to-supertrait widening rebuilds the trait value, as a
@@ -2465,9 +2443,9 @@ impl Ck<'_, '_> {
     fn elem_converts(&mut self, from: Ty, to: Ty) -> bool {
         let pool = self.pool();
         let from = self.infer.resolve(pool, from);
-        let from = self.strip_mut(from);
+        let from = self.resolved(from);
         let to = self.infer.resolve(pool, to);
-        let to = self.strip_mut(to);
+        let to = self.resolved(to);
         if let Some((tv, mutable)) = self.dyn_ref_of(to) {
             return self.ref_of(from).is_some_and(|(inner, writable)| {
                 (!mutable || writable) && self.dyn_fits(inner, tv)
@@ -2494,8 +2472,8 @@ impl Ck<'_, '_> {
     /// change instead of a plain mismatch.
     fn widens(&mut self, from: Ty, to: Ty) -> bool {
         let pool = self.pool();
-        let from = self.strip_mut(self.infer.resolve(pool, from));
-        let to = self.strip_mut(self.infer.resolve(pool, to));
+        let from = self.resolved(self.infer.resolve(pool, from));
+        let to = self.resolved(self.infer.resolve(pool, to));
         let (
             TyData::TraitValue {
                 def: from_def,
@@ -2632,7 +2610,6 @@ impl Ck<'_, '_> {
                 elems: list(elems),
                 rest: rest.map(|t| self.integer_variant(t, replacement, changed)),
             },
-            TyData::Mut(t) => TyData::Mut(self.integer_variant(t, replacement, changed)),
             TyData::Option(t) => TyData::Option(self.integer_variant(t, replacement, changed)),
             TyData::Ref {
                 inner,
@@ -2714,7 +2691,7 @@ impl Ck<'_, '_> {
     fn bound_message(&mut self, tref: TraitRef, origin: TraitRef, at: NodeRef<'_>) -> String {
         let pool = self.pool();
         if tref.trait_ == self.cx.names.known.static_bound {
-            let ty = self.strip_mut(self.infer.resolve(pool, tref.self_ty));
+            let ty = self.resolved(self.infer.resolve(pool, tref.self_ty));
             return if crate::local_refs::holds_local_ref(pool, ty) {
                 format!(
                     "a local reference never escapes to a type parameter bounded by `'static`, and `{}` holds one",
@@ -2732,7 +2709,7 @@ impl Ck<'_, '_> {
             args: tref.args,
             bindings: vec![],
         });
-        let ty = self.strip_mut(self.infer.resolve(pool, tref.self_ty));
+        let ty = self.resolved(self.infer.resolve(pool, tref.self_ty));
         let mut msg = format!(
             "{} does not implement {}",
             self.show(ty),
@@ -2787,7 +2764,7 @@ impl Ck<'_, '_> {
             return;
         }
         let pool = self.pool();
-        let ty = self.strip_mut(self.infer.resolve(pool, ty));
+        let ty = self.resolved(self.infer.resolve(pool, ty));
         if !matches!(pool.get(ty), TyData::Adt { def, .. }
             if def == self.cx.names.known.list || def == self.cx.names.known.map)
             || pool.has_infer(ty)
@@ -2854,7 +2831,7 @@ impl Ck<'_, '_> {
 
     fn has_poisoned_impl(&mut self, target: Ty) -> bool {
         let pool = self.pool();
-        let target = self.strip_mut(target);
+        let target = self.resolved(target);
         for item in self.cx.lookup.poisoned_impls() {
             let ItemData::Impl { self_ty, .. } = item.data else {
                 continue;
@@ -2909,7 +2886,7 @@ impl Ck<'_, '_> {
         // body found no type, which adds no diagnostic. Without such an
         // error, `never` is a real type that implements no sealed trait
         // (`types.sealed.never`, `trait.inspectable.not.never`).
-        if self.strip_mut(tref.self_ty) == Ty::NEVER && self.diags.has_errors() {
+        if self.resolved(tref.self_ty) == Ty::NEVER && self.diags.has_errors() {
             return Ok(Some(hd_types::solver::Evidence::Poison));
         }
         // `Instantiations` and ordinary `Implements` goals both see the
@@ -3047,7 +3024,7 @@ impl Ck<'_, '_> {
     /// for a goal the impl tables decide.
     pub(crate) fn supplied_holds(&mut self, tref: TraitRef) -> StageResult<Option<Evidence>> {
         let pool = self.pool();
-        let self_ty = self.strip_mut(tref.self_ty);
+        let self_ty = self.resolved(tref.self_ty);
         if !self.cx.names.known.sealed().supplies(tref.trait_)
             && !matches!(pool.get(self_ty), TyData::TraitValue { .. })
         {
@@ -4261,7 +4238,7 @@ impl Ck<'_, '_> {
                 let (br, bt) = self.expr(base, None)?;
                 let (br, bt) = self.deref_index_base(br, bt, base.index());
                 // `expr.index.trait.store-required`: a string is not a place.
-                if self.strip_mut(bt) == Ty::STRING {
+                if self.resolved(bt) == Ty::STRING {
                     self.err(
                         Code::InvalidAssignmentTarget,
                         lhs,
@@ -4355,7 +4332,7 @@ impl Ck<'_, '_> {
     /// no `IndexSet` call (`expr.index.trait.builtin-direct`).
     fn builtin_index_base(&mut self, t: Ty) -> bool {
         let pool = self.pool();
-        let t = self.strip_mut(self.infer.resolve(pool, t));
+        let t = self.resolved(self.infer.resolve(pool, t));
         t == Ty::STRING
             || matches!(
                 pool.get(t),
@@ -4472,10 +4449,6 @@ impl Ck<'_, '_> {
             TyData::Option(i) => {
                 let i = self.zonk(i);
                 pool.intern_ty(&TyData::Option(i))
-            }
-            TyData::Mut(i) => {
-                let i = self.zonk(i);
-                pool.intern_ty(&TyData::Mut(i))
             }
             TyData::Ref {
                 inner,
@@ -5114,7 +5087,6 @@ impl VerifyFacts<'_, '_> {
 impl hd_tir::ir::VerifyCx for VerifyFacts<'_, '_> {
     fn variant_count(&self, ty: Ty) -> Option<u32> {
         match self.cx.names.pool.get(ty) {
-            TyData::Mut(t) => self.variant_count(t),
             TyData::Option(_) => Some(2),
             TyData::Adt { def, .. } => match &self.cx.lookup.item(def)?.data {
                 ItemData::Enum { variants, .. } => u32::try_from(variants.len()).ok(),

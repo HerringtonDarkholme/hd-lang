@@ -200,10 +200,7 @@ fn category(pool: Types<'_>, decls: &dyn Declarations, t: Ty) -> Category {
 /// local reference arguments, its lifetimes among them, which fail
 /// (`trait.inspectable.not.local-reference`).
 fn argument(pool: Types<'_>, t: Ty, out: &mut Vec<Ty>) {
-    let inner = match pool.get(t) {
-        TyData::Mut(i) => i,
-        _ => t,
-    };
+    let inner = t;
     if let TyData::TraitValue { args, bindings, .. } = pool.get(inner) {
         let local = |a: &Ty| matches!(pool.get(*a), TyData::Ref { counted: false, .. });
         out.extend(pool.list_items(args).iter().copied().filter(local));
@@ -214,8 +211,7 @@ fn argument(pool: Types<'_>, t: Ty, out: &mut Vec<Ty>) {
 }
 
 /// The row of `self_ty: trait_` (§3.9), or `None` when no row answers
-/// `trait_`. `self_ty` has no outer `mut`, is
-/// not poison, and an environment clause did not answer it: a parameter
+/// `trait_`. `self_ty` is not poison, and an environment clause did not answer it: a parameter
 /// or a projection gets nothing more here (`types.sealed.type-parameter`).
 pub(crate) fn row(
     pool: Types<'_>,
@@ -383,7 +379,7 @@ fn copy_parts(
         TyData::Ref {
             mutable, counted, ..
         } => !mutable || counted,
-        TyData::Mut(i) | TyData::Option(i) => copy_parts(pool, decls, i, subs, seen),
+        TyData::Option(i) => copy_parts(pool, decls, i, subs, seen),
         TyData::Tuple { elems, rest } => {
             pool.list_items(elems)
                 .iter()
@@ -441,10 +437,7 @@ struct Walk {
 
 fn static_row(pool: Types<'_>, self_ty: Ty) -> Row {
     let mut subs = Vec::new();
-    let strip = |t: Ty| match pool.get(t) {
-        TyData::Mut(i) => i,
-        _ => t,
-    };
+    let strip = |t: Ty| t;
     match pool.get(self_ty) {
         TyData::Ref { counted: false, .. } => return Row::Fails(FailReason::NoImpl),
         // `box` made the object from a value that met `'static`.

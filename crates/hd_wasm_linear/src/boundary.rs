@@ -198,7 +198,6 @@ fn of_at(
     if depth > MAX_DEPTH {
         return unsupported(what());
     }
-    let unmut = unmut(pool, t);
     let s = layout::strip(pool, env, t);
     // A data type with a field that is not `pub` crosses a profile's
     // boundary as its JSON text, through the codecs collection gathered.
@@ -206,7 +205,7 @@ fn of_at(
         && !env.ref_cells().holds(def)
         && env.has_private_field(def)
     {
-        return json(input, unmut, s, at);
+        return json(input, t, s, at);
     }
     let int = |bits, signed| LTy::Int { bits, signed };
     Ok(match pool.get(s) {
@@ -244,11 +243,7 @@ fn of_at(
             // behind the reference the `host_provider` instance makes.
             let inner = pool.list_items(args).first().copied().unwrap_or(Ty::VOID);
             let inner = layout::strip(pool, env, inner);
-            let wrap = input
-                .collected
-                .boundary
-                .get(&unmut)
-                .and_then(|c| c.handle_ref);
+            let wrap = input.collected.boundary.get(&t).and_then(|c| c.handle_ref);
             match (of_at(input, m, inner, depth + 1, at)?, wrap) {
                 (LTy::Handle(mut h), Some(wrap)) => {
                     h.wrap = Some(wrap);
@@ -475,15 +470,6 @@ impl Row<'_> {
     }
 }
 
-/// `t` without its `mut`.
-fn unmut(pool: &InternPool, t: Ty) -> Ty {
-    let mut t = t;
-    while let TyData::Mut(inner) = pool.get(t) {
-        t = inner;
-    }
-    t
-}
-
 /// The method `m`'s parameter types after the receiver and its result
 /// type, at the trait value (`Self` the class `REF`).
 pub fn signature(
@@ -574,9 +560,7 @@ pub fn host_slot(
             // A lone string crosses as its bytes alone (§17.4).
             // A newtype of a string, as `Path`, is not one: it crosses with
             // its length.
-            (Codec::Buffer(_), _) if row.params.len() == 1 && unmut(pool, *pt) == Ty::STRING => {
-                HostArg::Str
-            }
+            (Codec::Buffer(_), _) if row.params.len() == 1 && *pt == Ty::STRING => HostArg::Str,
             (Codec::Buffer(_), _) => {
                 let b = of(input, mm, *pt, at.map(|a| AtProfile { out: true, ..a }))?;
                 if b.holds_handle() {

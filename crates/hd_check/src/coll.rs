@@ -32,7 +32,7 @@ impl Ck<'_, '_> {
 
     /// Whether `t`, `mut` or not, is a `List` or `Map` type.
     pub(crate) fn is_coll_ty(&self, t: Ty) -> bool {
-        self.is_coll_value(self.strip_mut(t))
+        self.is_coll_value(self.resolved(t))
     }
 
     /// Whether `r` is a value the expression made itself, which no place
@@ -180,7 +180,7 @@ impl Ck<'_, '_> {
     /// writable. `what` names the change.
     pub(crate) fn coll_change(&mut self, recv: Ref, rt: Ty, what: &str, at: NodeRef<'_>) -> bool {
         let code = hd_diag::Code::NotWritable;
-        if recv.0 == NONE || matches!(self.strip_mut(rt), Ty::NEVER | Ty::POISON) {
+        if recv.0 == NONE || matches!(self.resolved(rt), Ty::NEVER | Ty::POISON) {
             return true;
         }
         if self.place_writable_quiet(recv) || self.is_fresh(recv) {

@@ -808,9 +808,7 @@ impl<'a, 'c> SelfRefs<'a, 'c> {
         }
         seen.push(t);
         match pool.get(t) {
-            TyData::Mut(x) | TyData::Option(x) | TyData::Ref { inner: x, .. } => {
-                self.refers(x, seen)
-            }
+            TyData::Option(x) | TyData::Ref { inner: x, .. } => self.refers(x, seen),
             TyData::Tuple { elems, rest } => {
                 pool.list_items(elems).iter().any(|e| self.refers(*e, seen))
                     || rest.is_some_and(|r| self.refers(r, seen))
@@ -837,7 +835,7 @@ impl<'a, 'c> SelfRefs<'a, 'c> {
         match pool.get(t) {
             // `annot.self-ref.needs.reference`: a reference always refers to
             // a value, so it needs what its referent needs.
-            TyData::Mut(x) | TyData::Ref { inner: x, .. } => self.needs(x, seen),
+            TyData::Ref { inner: x, .. } => self.needs(x, seen),
             TyData::Tuple { elems, rest } => {
                 pool.list_items(elems).iter().any(|e| self.needs(*e, seen))
                     || rest.is_some_and(|r| self.needs(r, seen))

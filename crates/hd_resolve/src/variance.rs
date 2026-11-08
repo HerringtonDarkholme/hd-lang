@@ -66,7 +66,7 @@ pub fn walk(
         // Beneath `mut` is invariant (types.polarity.mut); `Option` is
         // unmarked (types.option.invariant).
         // A reference's operand is invariant too (ref.type.distinct).
-        TyData::Mut(i) | TyData::Option(i) | TyData::Ref { inner: i, .. } => go(i, 0, seen),
+        TyData::Option(i) | TyData::Ref { inner: i, .. } => go(i, 0, seen),
         TyData::Adt { def, args } => {
             let vs = var_of(def);
             for (j, a) in pool.list_items(args).iter().copied().enumerate() {

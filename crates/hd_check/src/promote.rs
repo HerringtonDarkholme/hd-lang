@@ -19,7 +19,7 @@ impl Ck<'_, '_> {
     /// The embedded fields of a struct: name and substituted type.
     fn embedded_parts(&self, t: Ty) -> Vec<(String, Ty)> {
         let pool = self.pool();
-        let t = self.strip_mut(t);
+        let t = self.resolved(t);
         let TyData::Adt { def, .. } = pool.get(t) else {
             return Vec::new();
         };
@@ -72,7 +72,7 @@ impl Ck<'_, '_> {
         let sym = self.cx.names.syms.intern(name);
         self.promoted_path(t, |ck, part| {
             let pool = ck.pool();
-            let TyData::Adt { def, .. } = pool.get(ck.strip_mut(part)) else {
+            let TyData::Adt { def, .. } = pool.get(ck.resolved(part)) else {
                 return false;
             };
             matches!(

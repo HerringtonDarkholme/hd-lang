@@ -21,16 +21,12 @@ use crate::unsupported;
 
 impl Em<'_, '_, '_> {
     fn is_dyn(&self, t: Ty) -> bool {
-        matches!(
-            self.pool().get(self.strip_mut(t)),
-            TyData::TraitValue { .. }
-        )
+        matches!(self.pool().get(t), TyData::TraitValue { .. })
     }
 
     pub(super) fn dyn_value_ty(&self, mut ty: Ty) -> Ty {
         loop {
             match self.pool().get(ty) {
-                TyData::Mut(inner) => ty = inner,
                 TyData::Adt { def, args } if self.env().ref_cells().holds(def) => {
                     ty = self.pool().list_items(args)[0];
                 }
@@ -49,7 +45,7 @@ impl Em<'_, '_, '_> {
         result: Option<u32>,
         value: u32,
     ) -> StageResult<(Ty, Vec<u32>, bool)> {
-        let mut ty = self.strip_mut(self.ty_of(value));
+        let mut ty = self.ty_of(value);
         let Some(mut ls) = self.vals.get(&value).cloned() else {
             return unsupported("a value its instruction did not compute");
         };
@@ -91,17 +87,12 @@ impl Em<'_, '_, '_> {
     /// `Supertrait`): a trait value widens; any other value takes the
     /// vtable collection recorded at its type.
     pub(super) fn trait_value(&mut self, i: u32, a: u32) -> StageResult<()> {
-        let from = self.strip_mut(self.ty_of(a));
+        let from = self.ty_of(a);
         let sealed = self.env().decls().sealed();
-        let sealed_identity = matches!(self.pool().get(self.strip_mut(self.ty(i))), TyData::TraitValue { def, .. } if def == sealed.inspectable || def == sealed.any);
+        let sealed_identity = matches!(self.pool().get(self.ty(i)), TyData::TraitValue { def, .. } if def == sealed.inspectable || def == sealed.any);
         if self.is_dyn(from)
             || ((!sealed_identity
-                || hd_mono::trait_reference_widens(
-                    self.pool(),
-                    self.env(),
-                    from,
-                    self.strip_mut(self.ty(i)),
-                ))
+                || hd_mono::trait_reference_widens(self.pool(), self.env(), from, self.ty(i)))
                 && self.is_dyn(self.dyn_value_ty(from)))
         {
             return self.widen(i, a);
@@ -400,7 +391,7 @@ impl Em<'_, '_, '_> {
 
     /// Recover the original reference payload after an exact type test.
     pub(super) fn downcast(&mut self, i: u32, item: hd_base::DefId, recv: u32) -> StageResult<()> {
-        let TyData::Option(target) = self.pool().get(self.strip_mut(self.ty(i))) else {
+        let TyData::Option(target) = self.pool().get(self.ty(i)) else {
             return unsupported("a downcast whose result is not optional");
         };
         let TyData::Adt { def, args } = self.pool().get(target) else {
@@ -410,14 +401,14 @@ impl Em<'_, '_, '_> {
             return unsupported("a recovered target that is not a reference");
         }
         let concrete = self.pool().list_items(args)[0];
-        let recv_t = self.strip_mut(self.ty_of(recv));
+        let recv_t = self.ty_of(recv);
         let value_t = match self.pool().get(recv_t) {
             TyData::TraitValue { .. } => recv_t,
             TyData::Adt { def, args } if self.env().ref_cells().holds(def) => {
                 let Some(&inner) = self.pool().list_items(args).first() else {
                     return unsupported("a reference without its target type");
                 };
-                self.strip_mut(inner)
+                inner
             }
             _ => return unsupported("a downcast receiver that is not a reference"),
         };
@@ -494,14 +485,14 @@ impl Em<'_, '_, '_> {
     /// data unchanged, and the supertrait's vtable read through the parent
     /// addresses of the value's.
     fn widen(&mut self, i: u32, a: u32) -> StageResult<()> {
-        let source = self.strip_mut(self.ty_of(a));
+        let source = self.ty_of(a);
         let read = if self.is_dyn(source) {
             None
         } else {
             Some(self.read_dyn_value(Some(i), a)?)
         };
         let from = read.as_ref().map_or(source, |v| v.0);
-        let to = self.strip_mut(self.ty(i));
+        let to = self.ty(i);
         let TyData::TraitValue { def, args, .. } = self.pool().get(to) else {
             return unsupported("a supertrait coercion to a type that is not a trait value");
         };
@@ -556,7 +547,7 @@ impl Em<'_, '_, '_> {
         let want = pool.list(&targs[..n]);
         let mut path = Vec::new();
         let mut found = None;
-        self.super_path(self.strip_mut(recv), (trait_, want), &mut path, &mut found);
+        self.super_path(recv, (trait_, want), &mut path, &mut found);
         match found {
             Some(steps) => Ok(steps),
             None => {

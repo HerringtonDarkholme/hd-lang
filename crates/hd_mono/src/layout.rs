@@ -215,7 +215,7 @@ pub fn value_enums(pool: &InternPool, env: &dyn LayoutEnv, t: Ty) -> Vec<Ty> {
                 stack.extend(pool.list_items(elems).iter().map(|e| (*e, false)));
                 stack.extend(rest.map(|r| (r, false)));
             }
-            TyData::Option(i) | TyData::Mut(i) => {
+            TyData::Option(i) => {
                 stack.push((i, false));
             }
             _ => {}
@@ -381,7 +381,6 @@ fn layout_in(
             values: vec![ValType::EqRef, ValType::Ref { nullable: false }],
             packed_bits: None,
         },
-        TyData::Mut(inner) => layout_in(pool, env, inner, memo)?,
         // The checker lowers every reference type to `std.core.Ref[T]`
         // (`hd_types::Types::lower_refs`).
         TyData::Ref { .. } => {
@@ -489,7 +488,7 @@ pub fn is_recursive_enum(pool: &InternPool, env: &dyn LayoutEnv, def: DefId) -> 
                     todo.extend_from_slice(pool.list_items(elems));
                     todo.extend(rest);
                 }
-                TyData::Option(i) | TyData::Mut(i) => todo.push(i),
+                TyData::Option(i) => todo.push(i),
                 _ => {}
             }
         }
@@ -538,7 +537,7 @@ impl ValueGraph {
                     todo.extend(pool.list_items(elems).iter().map(|e| (f, *e)));
                     todo.extend(rest.map(|r| (f, r)));
                 }
-                TyData::Option(i) | TyData::Mut(i) => {
+                TyData::Option(i) => {
                     todo.push((f, i));
                 }
                 TyData::Assoc { .. } => {
@@ -701,10 +700,6 @@ pub fn canon(
                 h.hash(a);
                 h.hash(t);
             }
-        }
-        TyData::Mut(i) => {
-            h.u8(7);
-            h.hash(canon(pool, path_hash, memo, i));
         }
         // Not in an instance key: the checker lowers reference types to
         // their carriers, which keep the kind.

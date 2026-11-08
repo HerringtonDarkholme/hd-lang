@@ -13,7 +13,7 @@ use hd_resolve::ItemData;
 use hd_tir::ir::{Body, NONE, Place, PlaceRoot, Proj, Role, Tag, Topology, Word, slots};
 use hd_types::{Ty, TyData};
 
-use super::{Uses, local_of, strip, w};
+use super::{Uses, local_of, w};
 use crate::body::Ck;
 
 /// Each value's users, with the role of each use.
@@ -238,7 +238,7 @@ impl Ck<'_, '_> {
         for proj in &p.proj {
             match *proj {
                 // A box's payload, `*mut T`, is left to a later rule.
-                Proj::Deref => match pool.get(strip(pool, t)) {
+                Proj::Deref => match pool.get(t) {
                     TyData::Ref { counted: true, .. } => return None,
                     TyData::Ref { mutable, .. } => return Some(mutable),
                     _ => {}
@@ -257,7 +257,7 @@ impl Ck<'_, '_> {
     /// `t`'s type arguments: a struct's, an enum's or a tuple's.
     fn field_ty(&self, t: Ty, variant: Option<u32>, j: u32) -> Option<Ty> {
         let pool = self.pool();
-        match pool.get(strip(pool, t)) {
+        match pool.get(t) {
             TyData::Tuple { elems, .. } => pool.list_items(elems).get(j as usize).copied(),
             TyData::Adt { def, args } => {
                 let fields = match (&self.cx.lookup.item(def)?.data, variant) {

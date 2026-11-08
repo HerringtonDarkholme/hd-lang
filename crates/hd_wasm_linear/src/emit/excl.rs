@@ -59,10 +59,6 @@ pub(super) struct Held {
 
 /// The type at the end of the struct field `f` of type `t`.
 fn field_ty(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, f: u32) -> Option<Ty> {
-    let t = match pool.get(t) {
-        TyData::Mut(inner) => inner,
-        _ => t,
-    };
     match pool.get(t) {
         TyData::Adt { def, args } => {
             let fs = env.data_fields(def)?;

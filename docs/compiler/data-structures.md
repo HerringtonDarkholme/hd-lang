@@ -155,9 +155,10 @@ solver placeholder), `Row` (a row in a row-argument slot) and `Context`.
   `DefId` and the full trait reference, so `<S as Add[i32]>::Out` and
   `<S as Add[i64]>::Out` are different types.
 - **Bindings are keyed by item**, not by name.
-- **No readonly view.** No type starts with `mut`
-  (`grammar.type.no-mut`); `TyData::Mut` is left only as the inner mark
-  of `&mut` after `lower_refs`, and goes with #1443.
+- **No `mut` type.** No type starts with `mut`
+  (`grammar.type.no-mut`); a reference's permission is part of the
+  reference type, and `mut self` is a mark on the signature
+  (`FnSig::mut_self`).
 - **One inference form.** A literal is an `Infer` variable whose kind
   (general, integer literal, signed integer literal, float literal)
   lives in the inference table (§3.19), because unification merges

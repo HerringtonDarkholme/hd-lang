@@ -864,9 +864,6 @@ impl dyn InlineEnv + '_ {
             if self.is_open(t) {
                 t = hd_mono::subst(pool, self, def, targs, t);
             }
-            while let TyData::Mut(inner) = pool.get(t) {
-                t = inner;
-            }
             let reference = matches!(pool.get(t), TyData::Ref { .. })
                 || matches!(pool.get(t), TyData::Adt { def, .. } if self.ref_cells().holds(def));
             if t == Ty::POISON || (self.is_open(t) && !(open_referents && reference)) {
@@ -883,11 +880,9 @@ impl dyn InlineEnv + '_ {
     /// `caller`, takes the call's arguments and gives its result at the
     /// types they have once the caller's opaque results are opened
     /// (`inline_into`): each parameter's `Store` and the root's `Break`
-    /// are then well typed. A `mut self` parameter of a type with no
-    /// changeable copy of its own (a primitive, an enum, a collection) has
-    /// type `mut T` while the call passes a `T`, a marker with `T`'s
-    /// layout; its local takes the argument's type, as the call binds it.
-    /// Any other difference keeps the call.
+    /// are then well typed. A parameter the call lends by kind takes the
+    /// argument's type, as the call binds it. Any other difference keeps
+    /// the call.
     fn fits_call(&self, caller: &Body, c: usize, copy: &mut Body) -> bool {
         let pool = self.pool();
         let open = |t: Ty| hd_mono::reveal(pool, self, t);
@@ -917,9 +912,7 @@ impl dyn InlineEnv + '_ {
                 return false;
             };
             let want = copy.local_ty[l];
-            if matches!(pool.get(want), TyData::Mut(inner) if inner == arg)
-                || lends_by_kind(pool, self.ref_cells(), arg, want)
-            {
+            if lends_by_kind(pool, self.ref_cells(), arg, want) {
                 copy.local_ty[l] = arg;
                 keep_parameter_carrier(pool, self.ref_cells(), copy, l);
                 rebound = true;
@@ -1142,7 +1135,7 @@ fn holds_local(pool: &InternPool, cells: RefCells, t: Ty, depth: u32) -> bool {
         TyData::Tuple { elems, rest } => {
             any(elems) || rest.is_some_and(|r| holds_local(pool, cells, r, depth + 1))
         }
-        TyData::Option(i) | TyData::Mut(i) => holds_local(pool, cells, i, depth + 1),
+        TyData::Option(i) => holds_local(pool, cells, i, depth + 1),
         _ => false,
     }
 }

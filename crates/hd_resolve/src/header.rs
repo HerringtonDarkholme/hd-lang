@@ -312,7 +312,6 @@ impl<'a> Universe<'a> {
             TyData::Adt { def, .. } => Some(HeadKey::Def(def)),
             TyData::TraitValue { def, .. } => Some(HeadKey::Trait(def)),
             TyData::Option(_) => Some(HeadKey::Ctor(0, 0)),
-            TyData::Mut(_) => Some(HeadKey::Ctor(1, 0)),
             TyData::Ref {
                 mutable, counted, ..
             } => Some(HeadKey::Ctor(
@@ -394,9 +393,7 @@ impl<'a> Universe<'a> {
             (TyData::Adt { def: x, args: xa }, TyData::Adt { def: y, args: ya }) => {
                 x == y && self.unify_list(xa, ya, oa, ob, sub)
             }
-            (TyData::Option(x), TyData::Option(y)) | (TyData::Mut(x), TyData::Mut(y)) => {
-                self.unify(x, y, oa, ob, sub)
-            }
+            (TyData::Option(x), TyData::Option(y)) => self.unify(x, y, oa, ob, sub),
             // A row-valued data argument may be one bare parameter in an
             // implementation head (`req.row.param.data-substitute`). Bind it
             // to the other head's whole row so a generic and a concrete row

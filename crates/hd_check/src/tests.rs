@@ -561,7 +561,7 @@ fn call_body(ck: &mut Ck<'_, '_>, e: NodeRef<'_>) -> StageResult<(Ref, Ty)> {
     let pool = ck.pool();
     let (f, ft) = ck.expr(e, None)?;
     let ft = ck.normalize_deep(ft)?;
-    let suspends = match pool.get(ck.strip_mut(ft)) {
+    let suspends = match pool.get(ck.resolved(ft)) {
         TyData::Fn { suspends, .. } => suspends,
         _ => false,
     };

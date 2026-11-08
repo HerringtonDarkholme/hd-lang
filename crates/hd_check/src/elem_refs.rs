@@ -378,7 +378,7 @@ impl Ck<'_, '_> {
             return Ok(None);
         }
         let kr = self.index_key((kr, ktt), key, kt);
-        let ct = self.strip_mut(self.infer.resolve(self.pool(), bt));
+        let ct = self.resolved(self.infer.resolve(self.pool(), bt));
         // Insertion pins the collection before the reference.
         Ok(Some(crate::refs::Operand::Place(Place {
             root: Root::Elem(br, kr, ct),
@@ -453,7 +453,7 @@ impl Ck<'_, '_> {
                 return Ok((p, Ty::VOID));
             }
             self.mut_place_taken(p, src.index(), false);
-            let rt = self.ref_ty(self.strip_mut(p.ty), true, false);
+            let rt = self.ref_ty(self.resolved(p.ty), true, false);
             (self.make_ref(p, true, rt, src), rt, place)
         } else {
             let (r, t) = self.expr(operand, None)?;
@@ -532,7 +532,7 @@ impl Ck<'_, '_> {
         self.commit(cp);
         let at = e.index();
         let us = Ty::prim(Prim::Usize);
-        let lt = self.strip_mut(self.infer.resolve(self.pool(), lt));
+        let lt = self.resolved(self.infer.resolve(self.pool(), lt));
         let result = loop_else.map(|(_, t)| t);
         // Each step's reference pins the list (insertion's rule 6), from
         // the step's start to its end, where the reference's binding is
@@ -573,7 +573,7 @@ impl Ck<'_, '_> {
             ty: vt,
         };
         let ok = !mutable || self.place_writable(&place, src);
-        let inner = self.strip_mut(self.infer.resolve(self.pool(), vt));
+        let inner = self.resolved(self.infer.resolve(self.pool(), vt));
         // An element reference loop's binding is local, as `&e` is
         // (`ref.expr.kind.always-local`).
         let rt = self.ref_ty(inner, mutable, false);

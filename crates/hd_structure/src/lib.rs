@@ -586,15 +586,6 @@ pub fn subst_sig(names: &Names<'_>, sig: &FnSig, f: &dyn Fn(ParamRef) -> Option<
     s
 }
 
-/// `t` without an outer `mut`.
-#[must_use]
-pub fn strip_mut(names: &Names<'_>, t: Ty) -> Ty {
-    match names.pool.get(t) {
-        TyData::Mut(x) => x,
-        _ => t,
-    }
-}
-
 /// Where a traversal's handles come from.
 #[derive(Clone, Copy)]
 enum Handles {
@@ -718,11 +709,7 @@ impl<'a, 'n> Gen<'a, 'n> {
         // A member's position is its place in the variant's members.
         let (var, mem) = (v.index as usize, m.position as usize);
         let ty = self.handle_ty(f);
-        let declared = if f == strip_mut(self.names, m.ty) {
-            ""
-        } else {
-            " declared"
-        };
+        let declared = if f == m.ty { "" } else { " declared" };
         let def = hidden_method(
             self.names,
             owner,
@@ -979,7 +966,6 @@ impl<'a, 'n> Gen<'a, 'n> {
     /// An empty list of type `t` (a `List[...]`).
     fn empty_list(&mut self, t: Ty) -> Ref {
         let rec = self.b.refs_record(&[]);
-        let t = strip_mut(self.names, t);
         self.b.emit(Tag::NewList, NONE, rec, t, SYN)
     }
 
@@ -1019,7 +1005,7 @@ impl<'a, 'n> Gen<'a, 'n> {
                 .parent(hd_base::PathId::from_raw(def.raw()))
                 .raw(),
         );
-        if let TyData::Adt { def: data, args } = pool.get(strip_mut(names, self.target))
+        if let TyData::Adt { def: data, args } = pool.get(self.target)
             && data == owner
         {
             return args;
@@ -1036,7 +1022,7 @@ impl<'a, 'n> Gen<'a, 'n> {
     fn shared_pairs(&mut self, v: &Var) -> StageResult<Ref> {
         let pool = self.names.pool;
         let lt = self.field_ty(self.std("VariantInfo"), "shared", &[])?;
-        let TyData::Adt { args, .. } = pool.get(strip_mut(self.names, lt)) else {
+        let TyData::Adt { args, .. } = pool.get(lt) else {
             return self
                 .cx
                 .unsupported("a `VariantInfo.shared` that is not a list");
@@ -1062,7 +1048,7 @@ impl<'a, 'n> Gen<'a, 'n> {
             pairs.push(self.b.emit(Tag::NewTuple, NONE, rec, pair_t, SYN));
         }
         let rec = self.b.refs_record(&pairs);
-        let t = strip_mut(self.names, lt);
+        let t = lt;
         Ok(self.b.emit(Tag::NewList, NONE, rec, t, SYN))
     }
 
@@ -1448,7 +1434,7 @@ impl<'a, 'n> Gen<'a, 'n> {
         // method takes `&mut self`, so the call passes the reference on.
         let wt = match pool.get(w.1) {
             TyData::Ref { inner, .. } => inner,
-            _ => strip_mut(names, w.1),
+            _ => w.1,
         };
         let s = self.target;
         let ret = pool.subst(sig.ret, &|p: ParamRef| {
@@ -1484,7 +1470,7 @@ impl<'a, 'n> Gen<'a, 'n> {
     /// The error type of a `Result` value `r`.
     fn result_args(&self, r: Ref) -> StageResult<(Ty, Ty)> {
         let pool = self.names.pool;
-        let TyData::Adt { args, .. } = pool.get(strip_mut(self.names, self.b.ty_of(r))) else {
+        let TyData::Adt { args, .. } = pool.get(self.b.ty_of(r)) else {
             return self
                 .cx
                 .unsupported("a protocol method whose result is not a `Result`");
@@ -1572,7 +1558,7 @@ impl<'a, 'n> Gen<'a, 'n> {
         let r = self.protocol_call(trait_, method, w, &[], &[h])?;
         self.try_void(r, ret)?;
         for m in v.members.iter().filter(|m| !m.omitted) {
-            let f = strip_mut(self.names, m.ty);
+            let f = m.ty;
             let h = self.field_handle(v, m, f);
             let mut args = vec![h];
             let (method, targ) = match value {

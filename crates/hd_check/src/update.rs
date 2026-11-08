@@ -17,7 +17,7 @@ impl Ck<'_, '_> {
     /// type being constructed. Reports `type-mismatch` otherwise.
     pub(crate) fn copy_source_fits(&mut self, src: Ty, target: Ty, at: NodeRef<'_>) -> bool {
         let pool = self.pool();
-        let bare = self.strip_mut(src);
+        let bare = self.resolved(src);
         let snap = self.infer.snapshot();
         if self.infer.unify(pool, bare, target).is_ok() {
             return true;
@@ -44,7 +44,7 @@ impl Ck<'_, '_> {
     ) {
         let pool = self.pool();
         let (sr, st) = src;
-        let TyData::Adt { def, .. } = pool.get(self.strip_mut(self.infer.resolve(pool, st))) else {
+        let TyData::Adt { def, .. } = pool.get(self.resolved(self.infer.resolve(pool, st))) else {
             return;
         };
         let Some(ItemData::Struct(fields)) = self.cx.lookup.item(def).map(|i| &i.data) else {

@@ -206,7 +206,6 @@ impl HeadKey {
             TyData::Union(_) => HeadKey::UnionAny,
             TyData::Fn { suspends: true, .. } => HeadKey::SuspendFn,
             TyData::Fn { .. } => HeadKey::Fn,
-            TyData::Mut(i) => HeadKey::of(pool, i),
             TyData::Param(_) | TyData::Opaque { .. } => HeadKey::Param,
             _ => HeadKey::Any,
         }
@@ -1124,7 +1123,6 @@ fn fold_vars(
         },
         TyData::Union(members) => TyData::Union(fold_list(pool, members, canon, f)?),
         TyData::Option(i) => TyData::Option(fold_vars(pool, i, canon, f)?),
-        TyData::Mut(i) => TyData::Mut(fold_vars(pool, i, canon, f)?),
         TyData::Ref {
             inner,
             mutable,
@@ -1395,8 +1393,6 @@ fn match_ty(pool: Types<'_>, owner: DefId, pat: Ty, t: Ty, binds: &mut Vec<Optio
     match (pool.get(pat), pool.get(t)) {
         (_, TyData::Poison) => M::Yes,
         (_, TyData::Infer(_)) => M::Maybe,
-        (TyData::Mut(p), _) => match_ty(pool, owner, p, t, binds),
-        (_, TyData::Mut(x)) => match_ty(pool, owner, pat, x, binds),
         (TyData::Adt { def: d1, args: a1 }, TyData::Adt { def: d2, args: a2 }) if d1 == d2 => {
             match_list(pool, owner, a1, a2, binds)
         }
@@ -1688,7 +1684,7 @@ impl Reads {
 #[derive(Clone, Copy)]
 enum Ask {
     Implements(TraitRef, bool),
-    /// The self type with its outer `mut` stripped, and the trait.
+    /// The self type and the trait.
     Instantiations(Ty, DefId, bool),
 }
 
@@ -2043,10 +2039,7 @@ impl<'s, 'a> Search<'s, 'a> {
             };
             return Ok(self.leaf(key, root, holds));
         }
-        let self_ty = match pool.get(tref.self_ty) {
-            TyData::Mut(i) => i,
-            _ => tref.self_ty,
-        };
+        let self_ty = tref.self_ty;
         // The environment: a clause on the same parameter and trait, or
         // on the same rigid projection of a parameter, whose trait bounds
         // its associated type.
@@ -2519,7 +2512,7 @@ fn collect_vars(pool: Types<'_>, t: Ty, out: &mut Vec<InferVar>) {
                 collect_vars(pool, a, out);
             }
         }
-        TyData::Option(i) | TyData::Mut(i) | TyData::Ref { inner: i, .. } => {
+        TyData::Option(i) | TyData::Ref { inner: i, .. } => {
             collect_vars(pool, i, out);
         }
         TyData::Fn { params, result, .. } => {
@@ -2902,7 +2895,7 @@ impl Search<'_, '_> {
     /// `Methods` goal itself is not memoized: its key would need the
     /// module's availability, and its `Instantiations` goals are.
     fn methods(&mut self, receiver: Ty, traits: &[DefId]) -> StageResult<Answer> {
-        let s = strip_outer_mut(self.cx.pool, receiver);
+        let s = receiver;
         let mut all = Vec::new();
         for tr in traits {
             match self
@@ -2927,21 +2920,13 @@ fn clause_param(pool: Types<'_>, t: Ty) -> Option<ParamRef> {
             owner,
             index: u16::MAX,
         }),
-        TyData::Assoc { self_ty, .. } => clause_param(pool, strip_outer_mut(pool, self_ty)),
+        TyData::Assoc { self_ty, .. } => clause_param(pool, self_ty),
         _ => None,
-    }
-}
-
-fn strip_outer_mut(pool: Types<'_>, t: Ty) -> Ty {
-    match pool.get(t) {
-        TyData::Mut(i) => i,
-        _ => t,
     }
 }
 
 impl Solver for TableSolver {
     fn solve(&self, cx: &mut SolveCx<'_>, goal: &Goal, fuel: &mut Fuel) -> StageResult<Answer> {
-        let pool = cx.pool;
         let mut s = Search::new(cx, fuel);
         match goal {
             // Bindings do not reach the answer yet, so a goal that has
@@ -2958,7 +2943,7 @@ impl Solver for TableSolver {
                 trait_,
                 mut_,
             } => {
-                let ask = Ask::Instantiations(strip_outer_mut(pool, *self_ty), *trait_, *mut_);
+                let ask = Ask::Instantiations(*self_ty, *trait_, *mut_);
                 Ok(s.goal(ask, 1, true, true)?.answer)
             }
             Goal::Methods {
@@ -3077,7 +3062,6 @@ fn norm_concrete(pool: Types<'_>, impls: Impls<'_>, t: Ty, depth: u32, reads: &m
         },
         TyData::Union(members) => TyData::Union(norm_list(pool, impls, members, depth, reads)),
         TyData::Option(i) => TyData::Option(norm_concrete(pool, impls, i, depth, reads)),
-        TyData::Mut(i) => TyData::Mut(norm_concrete(pool, impls, i, depth, reads)),
         TyData::Ref {
             inner,
             mutable,
@@ -3131,10 +3115,7 @@ fn project_concrete(
     args: TyList,
     reads: &mut Reads,
 ) -> Option<Ty> {
-    let base = match pool.get(self_ty) {
-        TyData::Mut(i) => i,
-        _ => self_ty,
-    };
+    let base = self_ty;
     if pool.has_param(base) || pool.has_infer(base) || pool.has_assoc(base) {
         return None;
     }
@@ -5012,14 +4993,13 @@ mod tests {
             args: TyList::EMPTY,
             bindings: vec![],
         });
-        let mut_point = p.intern_ty(&TyData::Mut(point));
         for t in [Ty::I32, Ty::STRING, Ty::VOID, pair, color, mile] {
             assert_eq!(ask(2, t), Some(AnyVal), "{}", p.display(t));
             assert_eq!(ask(3, t), None, "{}", p.display(t));
         }
         // The seeded suspension is structurally declared but retains identity.
         let suspension = adt(p, id(24), &[]);
-        for t in [point, owner, dyn_show, mut_point, suspension] {
+        for t in [point, owner, dyn_show, suspension] {
             assert_eq!(ask(3, t), Some(AnyRef), "{}", p.display(t));
             assert_eq!(ask(2, t), None, "{}", p.display(t));
         }
@@ -5189,7 +5169,6 @@ mod tests {
             Ty::STRING,
             list(Ty::I32),
             list(dyn_show),
-            list(p.intern_ty(&TyData::Mut(dyn_show))),
             p.intern_ty(&TyData::Option(dyn_show)),
             tuple(&[Ty::I32, list(dyn_show)]),
             reference(Ty::STRING, true),

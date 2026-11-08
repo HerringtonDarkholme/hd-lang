@@ -519,7 +519,7 @@ impl Ck<'_, '_> {
         ) && let Some(steps) = Impls::Owned(self.cx.impls).tuple_plan(impl_def)
         {
             let first = u16::try_from(table.plan[row].len()).unwrap_or(u16::MAX);
-            let target = self.strip_mut(self_ty);
+            let target = self.resolved(self_ty);
             goals.extend(match table.origin[row] {
                 ImplOrigin::TupleTemplate => tuple_goals(pool, impl_def, &steps, target, first),
                 ImplOrigin::UnionTemplate => union_goals(pool, impl_def, &steps, target, first),
@@ -594,7 +594,7 @@ impl Ck<'_, '_> {
     pub(crate) fn open_inputs(&self, want: Ty) -> bool {
         let pool = self.pool();
         let open = |t: Ty| matches!(pool.get(self.infer.shallow(pool, t)), TyData::Infer(_));
-        match pool.get(self.strip_mut(self.infer.shallow(pool, want))) {
+        match pool.get(self.resolved(self.infer.shallow(pool, want))) {
             TyData::Infer(_) => true,
             TyData::Fn { params, .. } => pool.list_items(params).iter().any(|&p| open(p)),
             _ => false,
@@ -615,7 +615,7 @@ impl Ck<'_, '_> {
             return None;
         }
         let pool = self.pool();
-        let before = pool.get(self.strip_mut(self.infer.shallow(pool, want)));
+        let before = pool.get(self.resolved(self.infer.shallow(pool, want)));
         let c = self.checkpoint();
         let mut checked = Ok(());
         for &(e, p) in later {
@@ -681,7 +681,7 @@ impl Ck<'_, '_> {
         }
         let direct_fn = want.is_some_and(|t| {
             let pool = self.pool();
-            matches!(pool.get(self.strip_mut(t)), TyData::Fn { .. })
+            matches!(pool.get(self.resolved(t)), TyData::Fn { .. })
         });
         let saved = self.local_capture_argument;
         if scoped_capture && direct_fn && e.kind() == SyntaxKind::ClosureExpr {
@@ -833,7 +833,7 @@ impl Ck<'_, '_> {
     ) -> StageResult<()> {
         let pool = self.pool();
         for (j, g) in sig.generics.iter().enumerate() {
-            let s = self.strip_mut(self.infer.resolve(pool, vars[j]));
+            let s = self.resolved(self.infer.resolve(pool, vars[j]));
             if matches!(pool.get(s), TyData::Infer(_)) || !pool.has_infer(s) {
                 continue;
             }
@@ -887,7 +887,7 @@ impl Ck<'_, '_> {
                 let TyData::TraitValue { def: tr, args, .. } = pool.get(b) else {
                     continue;
                 };
-                let s = self.strip_mut(self.infer.shallow(pool, vars[j]));
+                let s = self.resolved(self.infer.shallow(pool, vars[j]));
                 if matches!(pool.get(s), TyData::Infer(_)) {
                     return Ok(BoundPick::Wait);
                 }

@@ -270,7 +270,6 @@ impl InferTable {
             },
             TyData::Union(members) => TyData::Union(rl(members)),
             TyData::Option(i) => TyData::Option(r(i)),
-            TyData::Mut(i) => TyData::Mut(r(i)),
             TyData::Ref {
                 inner,
                 mutable,
@@ -360,9 +359,7 @@ impl InferTable {
                 .iter()
                 .copied()
                 .any(|x| self.occurs(pool, v, x)),
-            TyData::Option(i) | TyData::Mut(i) | TyData::Ref { inner: i, .. } => {
-                self.occurs(pool, v, i)
-            }
+            TyData::Option(i) | TyData::Ref { inner: i, .. } => self.occurs(pool, v, i),
             TyData::Fn { params, result, .. } => {
                 self.occurs(pool, v, result)
                     || pool
@@ -404,18 +401,6 @@ impl InferTable {
         }
         match (pool.get(a), pool.get(b)) {
             (TyData::Poison, _) | (_, TyData::Poison) => Ok(()),
-            // A variable binds to the whole type, its `mut` included, so
-            // `T = mut Suspend[X]` is inferred.
-            (TyData::Infer(x), TyData::Mut(_))
-                if self.kind[self.root(x.raw()) as usize] == VarKind::General =>
-            {
-                self.bind(pool, self.root(x.raw()), b)
-            }
-            (TyData::Mut(_), TyData::Infer(y))
-                if self.kind[self.root(y.raw()) as usize] == VarKind::General =>
-            {
-                self.bind(pool, self.root(y.raw()), a)
-            }
             // `&T` and `&mut T` are distinct types; the conversion from
             // `&mut T` to `&T` is a coercion (ref.convert.weaken). So are
             // `*T` and `&T` (`ref.type.kind-distinct`), whose conversion
@@ -432,11 +417,6 @@ impl InferTable {
                     counted: cy,
                 },
             ) if mx == my && cx == cy => self.unify(pool, x, y),
-            // A view marker does not change the value's type: `mut T`
-            // checks against `T` (mutability is checked separately).
-            (TyData::Mut(x), TyData::Mut(y)) => self.unify(pool, x, y),
-            (TyData::Mut(x), _) => self.unify(pool, x, b),
-            (_, TyData::Mut(y)) => self.unify(pool, a, y),
             (TyData::Infer(x), TyData::Infer(y)) => {
                 let (x, y) = (self.root(x.raw()), self.root(y.raw()));
                 let (kx, ky) = (self.kind[x as usize], self.kind[y as usize]);

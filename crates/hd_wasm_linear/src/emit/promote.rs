@@ -80,11 +80,7 @@ fn declared_referent(
     let t = crate::layout::strip(pool, env, t);
     match pool.get(t) {
         hd_types::TyData::Adt { def, args } if env.ref_cells().holds(def) => {
-            let inner = pool.list_items(args).first().copied()?;
-            Some(match pool.get(inner) {
-                hd_types::TyData::Mut(i) => i,
-                _ => inner,
-            })
+            pool.list_items(args).first().copied()
         }
         _ => None,
     }

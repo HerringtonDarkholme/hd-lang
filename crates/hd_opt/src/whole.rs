@@ -11,7 +11,7 @@ use hd_types::{InternPool, Ty, TyData, TyList};
 
 /// What the scan reads of the backend's type layout.
 pub trait ObjectLayout {
-    /// `t` with newtypes erased and `mut` dropped: what its layout reads.
+    /// `t` with newtypes erased: what its layout reads.
     fn strip(&self, t: Ty) -> Ty;
     /// The stripped target of a mutable counted reference type, or none.
     fn mutable_counted_ref_target(&self, t: Ty) -> Option<Ty>;
@@ -105,12 +105,9 @@ impl Scan<'_> {
             };
             let flags = b.local_flags[local.idx()];
             let ty = self.sub(b.local_ty[local.idx()]);
-            let parameter = flags & hd_tir::ir::local_flags::PARAM != 0;
-            let reassignable = if parameter {
-                matches!(self.pool.get(ty), TyData::Mut(_))
-            } else {
-                flags & hd_tir::ir::local_flags::MUTATED != 0 || writes[local.idx()] > 1
-            };
+            // A parameter's cell holds the caller's value.
+            let reassignable = flags & hd_tir::ir::local_flags::PARAM == 0
+                && (flags & hd_tir::ir::local_flags::MUTATED != 0 || writes[local.idx()] > 1);
             if reassignable {
                 out.insert(self.layout.strip(ty));
             }
@@ -144,7 +141,7 @@ impl Scan<'_> {
             TyData::Union(members) => {
                 children.extend(self.pool.list_items(members).iter().copied());
             }
-            TyData::Option(inner) | TyData::Mut(inner) | TyData::Ref { inner, .. } => {
+            TyData::Option(inner) | TyData::Ref { inner, .. } => {
                 children.push(inner);
             }
             TyData::Fn { params, result, .. } => {

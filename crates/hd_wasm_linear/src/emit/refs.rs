@@ -140,7 +140,7 @@ impl Em<'_, '_, '_> {
     /// value itself.
     fn path_step(&self, t: Ty, f: u32) -> StageResult<(Ty, Part)> {
         if self.newtype(t) {
-            let TyData::Adt { def, args } = self.pool().get(self.strip_mut(t)) else {
+            let TyData::Adt { def, args } = self.pool().get(t) else {
                 return unsupported("a newtype that is no nominal type");
             };
             let Some(&base) = self.env().data_fields(def).unwrap_or_default().first() else {
@@ -1799,7 +1799,7 @@ impl Em<'_, '_, '_> {
         };
         declared.map_or_else(
             || unsupported("a dereference of a value that is not a reference"),
-            |t| Ok(self.strip_mut(t)),
+            Ok,
         )
     }
 }

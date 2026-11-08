@@ -115,13 +115,6 @@ fn pool_param(cx: &BodyCx<'_>, p: ParamRef) -> Ty {
     cx.names.pool.intern_ty(&TyData::Param(p))
 }
 
-fn strip_mut(pool: Types<'_>, t: Ty) -> Ty {
-    match pool.get(t) {
-        TyData::Mut(i) => i,
-        _ => t,
-    }
-}
-
 /// A bare type or row parameter represented as one generic slot.
 fn bare_param(pool: Types<'_>, t: Ty) -> Option<ParamRef> {
     match pool.get(t) {
@@ -198,7 +191,7 @@ fn body_edges(cx: &BodyCx<'_>, pool: Types<'_>, b: &Body, out: &mut Vec<Edge>) {
             }
         };
         for (to, arg) in slots {
-            let whole = strip_mut(pool, arg);
+            let whole = arg;
             let mut params = Vec::new();
             params_in(pool, arg, &mut params);
             params.sort_stable_by_key(|p| (p.owner.raw(), p.index));
@@ -323,7 +316,7 @@ fn impl_slots(
 /// Binds the parameters of `owner` in `pattern` to the parts of `t`
 /// they stand for.
 fn head_match(pool: Types<'_>, owner: DefId, pattern: Ty, t: Ty, out: &mut Vec<Option<Ty>>) {
-    let (pattern, t) = (strip_mut(pool, pattern), strip_mut(pool, t));
+    let (pattern, t) = (pattern, t);
     match (pool.get(pattern), pool.get(t)) {
         (TyData::Param(p), _) if p.owner == owner => {
             if let Some(slot) = out.get_mut(usize::from(p.index)) {
@@ -396,7 +389,7 @@ pub(crate) fn params_in(pool: Types<'_>, t: Ty, out: &mut Vec<ParamRef>) {
                 params_in(pool, member, out);
             }
         }
-        TyData::Option(i) | TyData::Mut(i) | TyData::Ref { inner: i, .. } => {
+        TyData::Option(i) | TyData::Ref { inner: i, .. } => {
             params_in(pool, i, out);
         }
         TyData::Fn {
