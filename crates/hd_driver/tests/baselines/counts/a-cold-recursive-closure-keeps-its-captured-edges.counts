@@ -34,7 +34,7 @@ fn make(value: string) -> fn!(usize) -> string:
 >   release Suspend[string] (cancelled)
 >   release Suspend[string] (last use)
     read
->   retain fn!(usize) -> string (conservative: copy read)
+>   retain fn!(usize) -> string (stored)
 
 fn generic[T < 'static](value: T) -> fn!() -> T:
     fn!() -> T: value

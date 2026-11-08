@@ -23,7 +23,7 @@ fn through_cell(text: string) -> string:
 >   retain counted reference (stored)
     append("!")
     current
->   retain string (conservative: copy read)
+>   retain string (stored)
 
 fn replace(text: &mut string) -> string:
     *text = "replacement"

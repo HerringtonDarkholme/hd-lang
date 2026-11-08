@@ -11,4 +11,4 @@ fn sum_to(limit: i32, seed: i32) -> i32:
         if n == 0: seed
         else: n + sum(n - 1)
     sum(limit)
->   retain fn(i32) -> i32 (conservative: copy read)
+>   retain fn(i32) -> i32 (second owner)

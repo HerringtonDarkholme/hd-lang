@@ -30,4 +30,4 @@ fn shared(s: string) -> string:
 >   retain counted reference (stored)
     add()
     t
->   retain string (conservative: copy read)
+>   retain string (stored)

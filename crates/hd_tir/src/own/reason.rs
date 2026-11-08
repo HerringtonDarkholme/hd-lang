@@ -202,40 +202,49 @@ pub fn copy_reasons(b: &Body, topo: &Topology, cx: &dyn OwnCx, out: &mut Vec<Opt
             }
         }
     }
-    let mut owned = vec![false; b.local_ty.len()];
-    for &(_, l) in &b.exit_drops {
-        owned[l.idx()] = true;
-    }
     moved_consumers(b, &mut consumed);
     let held = loan_holds(b);
     let (mut cu, mut cw) = (Vec::new(), Vec::new());
-    for r in 0..n {
-        if !copy(r) {
-            continue;
-        }
-        let src = source(b, b.data[r][0]);
-        out[r] = Some(if consumed[r] {
-            let gives = match src.root {
-                Some(Root::Local(l)) => owned[l as usize] && !src.behind,
-                Some(Root::Value(v)) => !src.behind && !b.is_borrow(v),
-                _ => false,
-            };
-            if !gives || used_again(b, topo, r, src.root, &mut cu, &mut cw) {
-                Reason::Stored
-            } else {
-                Reason::Conservative("copy read")
-            }
-        } else if changed_while(b, topo, cx, r, last[r], held_source(b, &held, b.data[r][0])) {
-            Reason::SecondOwner
-        } else {
-            Reason::Conservative("copy read")
-        });
+    for r in (0..n).filter(|&r| copy(r)) {
+        out[r] = Some(label(
+            b,
+            r,
+            consumed[r],
+            |root| used_again(b, topo, r, root, &mut cu, &mut cw),
+            || changed_while(b, topo, cx, r, last[r], held_source(b, &held, b.data[r][0])),
+        ));
+    }
+}
+
+/// The reason of copy read `r` ([`copy_reasons`]) from whether a use
+/// consumes it, whether its source is used again,
+/// and whether a write may change its source while it lives.
+fn label(
+    b: &Body,
+    r: usize,
+    consumed: bool,
+    again: impl FnOnce(Option<Root>) -> bool,
+    changed: impl FnOnce() -> bool,
+) -> Reason {
+    let src = source(b, b.data[r][0]);
+    let gives = match src.root {
+        Some(Root::Local(l)) => !src.behind && b.exit_drops.iter().any(|&(_, x)| x.raw() == l),
+        Some(Root::Value(v)) => !src.behind && !b.is_borrow(v),
+        _ => false,
+    };
+    if consumed && (!gives || again(src.root)) {
+        Reason::Stored
+    } else if !consumed && changed() {
+        Reason::SecondOwner
+    } else {
+        Reason::Conservative("copy read")
     }
 }
 
 /// What a read's place rests on ([`copy_reasons`]): its root, through the
 /// reads of a chain (`%h = Read [$xs]`, then `[%h [%i]]`), and whether a
-/// step on the way is a dereference or an element (`behind`).
+/// step on the way is a dereference or an element, or the root a global, a
+/// pointer or a local a closure shares, a cell (`behind`).
 #[derive(Clone, Copy)]
 struct Source {
     root: Option<Root>,
@@ -250,9 +259,14 @@ fn source(b: &Body, mut w: u32) -> Source {
         match p.root {
             Root::Value(v) if b.tags[v as usize] == Tag::Read => w = b.data[v as usize][0],
             root => {
+                let cell = |l: u32| {
+                    (b.cap_local.iter().zip(&b.cap_mode)).any(|(c, m)| c.raw() == l && m.shares())
+                };
                 return Source {
                     root: Some(root),
-                    behind: behind || matches!(root, Root::Global(..) | Root::Ptr(_)),
+                    behind: behind
+                        || matches!(root, Root::Global(..) | Root::Ptr(_))
+                        || matches!(root, Root::Local(l) if cell(l)),
                 };
             }
         }

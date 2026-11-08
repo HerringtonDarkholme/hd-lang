@@ -15,7 +15,7 @@ fn captured(text: string, suffix: string) -> string:
 >   release string (overwritten)
     append()
     current
->   retain string (conservative: copy read)
+>   retain string (stored)
 
 fn dynamic(text: string, suffix: string) -> string:
     let current = text
@@ -31,7 +31,7 @@ fn dynamic(text: string, suffix: string) -> string:
 >   retain counted reference (stored)
     append(suffix)
     current
->   retain string (conservative: copy read)
+>   retain string (stored)
 
 fn borrowed(text: &mut string, suffix: string) -> void:
     *text += suffix

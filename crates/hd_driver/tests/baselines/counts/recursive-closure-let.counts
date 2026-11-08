@@ -13,6 +13,6 @@ fn sum_to(limit: i32) -> i32:
 > app/main/sum_to
 >   release fn(i32) -> i32 (last use)
         else: n + sum(n - 1)
->   retain fn(i32) -> i32 (conservative: copy read)
+>   retain fn(i32) -> i32 (second owner)
     sum(limit)
->   retain fn(i32) -> i32 (conservative: copy read)
+>   retain fn(i32) -> i32 (second owner)

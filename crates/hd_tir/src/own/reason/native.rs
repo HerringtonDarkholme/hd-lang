@@ -3,7 +3,7 @@
 //! scans. The browser keeps the original walk: its counts-view path
 //! otherwise links this index even though it never runs the verifier.
 
-use super::{Reason, future, held_source, loan_holds, moved_consumers, read_start, source};
+use super::{Reason, future, held_source, label, loan_holds, moved_consumers, read_start};
 use crate::ir::{Body, NONE, Proj, ReadMode, Root, Tag, Topology, ref_word, u32_of};
 use crate::own::{OwnCx, Role, consumes, operands};
 
@@ -111,34 +111,11 @@ pub fn copy_reasons(b: &Body, topo: &Topology, cx: &dyn OwnCx, out: &mut Vec<Opt
             }
         }
     }
-    let mut owned = vec![false; b.local_ty.len()];
-    for &(_, l) in &b.exit_drops {
-        owned[l.idx()] = true;
-    }
     moved_consumers(b, &mut consumed);
     let used = future::uses(b, topo);
     let changed = changes(b, topo, cx, &last);
-    for r in 0..n {
-        if !copy(r) {
-            continue;
-        }
-        let src = source(b, b.data[r][0]);
-        out[r] = Some(if consumed[r] {
-            let gives = match src.root {
-                Some(Root::Local(l)) => owned[l as usize] && !src.behind,
-                Some(Root::Value(v)) => !src.behind && !b.is_borrow(v),
-                _ => false,
-            };
-            if !gives || used[r] {
-                Reason::Stored
-            } else {
-                Reason::Conservative("copy read")
-            }
-        } else if changed[r] {
-            Reason::SecondOwner
-        } else {
-            Reason::Conservative("copy read")
-        });
+    for r in (0..n).filter(|&r| copy(r)) {
+        out[r] = Some(label(b, r, consumed[r], |_| used[r], || changed[r]));
     }
 }
 
