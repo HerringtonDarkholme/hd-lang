@@ -1,0 +1,12 @@
+# @dump: own counts
+# expected: each get_or_insert call states one MakeUnique for its own operation; copying get and indexed reads state none.
+fn probes(items: &mut Map[string, i32], key: string) -> i32:
+    first := *items.get_or_insert(key, +0)
+    second := *items.get_or_insert("other", +1)
+    first + second
+
+fn lookup(items: Map[string, i32], key: string) -> i32?:
+    items.get(key)
+
+fn indexed(items: Map[string, i32], key: string) -> i32:
+    items[key]
