@@ -3199,6 +3199,9 @@ impl Ck<'_, '_> {
     pub(crate) fn variant_field_names(&self, t: Ty, name: &str) -> Vec<String> {
         let pool = self.pool();
         let t = self.infer.resolve(pool, t);
+        if matches!(pool.get(t), TyData::Option(_)) && name == "None" {
+            return vec![];
+        }
         let TyData::Adt { def, .. } = pool.get(t) else {
             return vec!["0".into()];
         };

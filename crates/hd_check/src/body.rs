@@ -2952,19 +2952,21 @@ impl Ck<'_, '_> {
                 Ok(None)
             }
             Answer::Overflow => {
-                // `trait.bound.depth.limit`: the proof needs a bound
-                // deeper than 64, whether or not a deeper proof would
-                // succeed.
-                let msg = format!(
-                    "the proof that {} implements {} needs more than 64 nested bounds",
-                    self.show(tref.self_ty),
-                    self.cx.names.display_name(tref.trait_)
-                );
-                self.err(Code::TraitResolutionDepth, at, &msg);
+                self.bound_depth_error(tref, at);
                 Ok(None)
             }
             other => unreachable!("solve asks Implements; solve_goal handles fuel: {other:?}"),
         }
+    }
+
+    /// `trait.bound.depth.limit`, for immediate and pending proofs alike.
+    fn bound_depth_error(&mut self, tref: TraitRef, at: NodeRef<'_>) {
+        let msg = format!(
+            "the proof that {} implements {} needs more than 64 nested bounds",
+            self.show(tref.self_ty),
+            self.cx.names.display_name(tref.trait_)
+        );
+        self.err(Code::TraitResolutionDepth, at, &msg);
     }
 
     pub(crate) fn solve(&mut self, tref: TraitRef) -> StageResult<Answer> {
@@ -3598,7 +3600,13 @@ impl Ck<'_, '_> {
                 Ok(true)
             }
             Answer::Stalled { .. } => Ok(false),
-            other => unsupported(format!("solver answer {other:?}")),
+            Answer::Overflow => {
+                if report {
+                    self.bound_depth_error(tref, node);
+                }
+                Ok(true)
+            }
+            other => unreachable!("solve asks Implements; solve_goal handles fuel: {other:?}"),
         }
     }
 

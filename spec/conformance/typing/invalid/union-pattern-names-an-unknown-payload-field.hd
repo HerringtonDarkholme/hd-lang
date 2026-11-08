@@ -1,0 +1,7 @@
+# test: a union case has one positional payload and no named value field
+# Rules: types.union.case, flow.match.payload.unknown.
+
+fn choose(value: i32 | string) -> i32:
+    match value:
+        ._0(value = found) => +0 # diagnostic: unknown-field
+        ._1(text) => +1

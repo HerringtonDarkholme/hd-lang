@@ -18,7 +18,7 @@ use hd_tir::ir::{
 };
 use hd_types::{Prim, Ty, TyData, VarKind};
 
-use crate::body::{Ck, ExpectPosition, unsupported};
+use crate::body::{Ck, ExpectPosition};
 use crate::call::subst_owner;
 
 /// One row of a decision: its pattern (none: matches anything), whether
@@ -445,7 +445,7 @@ impl Ck<'_, '_> {
                     self.err(Code::UnknownVariant, p, &msg);
                     return Ok(());
                 };
-                let (subs, unknown) = self.variant_subpatterns(p, t, &name)?;
+                let (subs, unknown) = self.variant_subpatterns(p, t, &name);
                 for (fname, sub, repeated) in unknown {
                     if repeated {
                         let msg = format!("`{fname}` appears twice in this pattern");
@@ -665,41 +665,24 @@ impl Ck<'_, '_> {
     /// The sub-patterns of a variant pattern, by field position (`None`
     /// for an omitted named field), with the named fields the variant
     /// does not declare (see [`VariantSubs`]).
-    fn variant_subpatterns<'t>(
-        &self,
-        p: NodeRef<'t>,
-        t: Ty,
-        name: &str,
-    ) -> StageResult<VariantSubs<'t>> {
+    fn variant_subpatterns<'t>(&self, p: NodeRef<'t>, t: Ty, name: &str) -> VariantSubs<'t> {
         let Some(al) = Src::child(p, SyntaxKind::PatternArgumentList) else {
-            return Ok((vec![], vec![]));
+            return (vec![], vec![]);
         };
         let kids: Vec<NodeRef<'t>> = al.children().collect();
         if kids.iter().all(|k| k.kind() != SyntaxKind::NamedPattern) {
-            return Ok((kids.into_iter().map(Some).collect(), vec![]));
+            return (kids.into_iter().map(Some).collect(), vec![]);
         }
         // Positional sub-patterns fill fields by position, named ones by
         // the variant's field names (data.enum.payload.order).
-        let pool = self.pool();
-        let tt = self.infer.resolve(pool, t);
-        let TyData::Adt { def, .. } = pool.get(tt) else {
-            return unsupported("named fields in an optional pattern");
-        };
-        let Some(ItemData::Enum { variants, .. }) = self.cx.lookup.item(def).map(|i| &i.data)
-        else {
-            return unsupported("named fields of a non-enum");
-        };
-        let sym = self.cx.names.syms.intern(name);
-        let Some(v) = variants.iter().find(|v| v.name == sym) else {
-            return Ok((vec![], vec![]));
-        };
+        let fields = self.variant_field_names(t, name);
         let positional = kids
             .iter()
             .take_while(|k| k.kind() != SyntaxKind::NamedPattern)
             .count();
         // Extra positional sub-patterns stay in the list, so the caller
         // reports the arity.
-        let mut out = vec![None; v.fields.len().max(positional)];
+        let mut out = vec![None; fields.len().max(positional)];
         let mut unknown: Vec<(String, NodeRef<'t>, bool)> = Vec::new();
         let mut filled = vec![false; out.len()];
         for (i, k) in kids.into_iter().enumerate() {
@@ -707,10 +690,7 @@ impl Ck<'_, '_> {
                 (Some(i), Some(k))
             } else if k.kind() == SyntaxKind::NamedPattern {
                 let fname = self.cx.src.text(self.cx.src.first(k));
-                let slot = v
-                    .fields
-                    .iter()
-                    .position(|f| f.name == self.cx.names.syms.intern(fname));
+                let slot = fields.iter().position(|f| f == fname);
                 // A named field the variant does not declare is reported
                 // by the caller; its sub-pattern binds to the poison type
                 // so its uses stay silent.
@@ -735,7 +715,7 @@ impl Ck<'_, '_> {
             }
             out[slot] = sub;
         }
-        Ok((out, unknown))
+        (out, unknown)
     }
 
     /// A literal pattern's value.
@@ -1590,7 +1570,7 @@ impl Ck<'_, '_> {
                     Cell::Some(p) => vec![p],
                     Cell::Pat(p) => {
                         let name = self.variant_pattern_name(p);
-                        self.variant_subpatterns(p, t, &name)?.0
+                        self.variant_subpatterns(p, t, &name).0
                     }
                 };
                 spec.push((r.clone(), subs));
@@ -1936,10 +1916,7 @@ impl Ck<'_, '_> {
                     .variant_fields(t, &name)
                     .map(|f| f.1)
                     .unwrap_or_default();
-                let subs = self
-                    .variant_subpatterns(p, t, &name)
-                    .map(|s| s.0)
-                    .unwrap_or_default();
+                let subs = self.variant_subpatterns(p, t, &name).0;
                 let args = (0..fields.len())
                     .map(|k| self.to_p(subs.get(k).copied().flatten(), fields[k]))
                     .collect();

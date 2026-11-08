@@ -1,0 +1,7 @@
+# test: an absent optional has no named payload field
+# Rule: flow.match.payload.unknown.
+
+fn absent(value: i32?) -> i32:
+    match value:
+        .Some(found) => found
+        .None(value = found) => +0 # diagnostic: unknown-field

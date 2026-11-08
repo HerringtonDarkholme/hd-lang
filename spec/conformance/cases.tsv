@@ -6062,6 +6062,11 @@ typing/invalid/a-cast-rejects-a-written-spread-argument.hd	type	reject:argument-
 typing/invalid/an-empty-list-spread-loop-pattern-does-not-infer-an-element.hd	type	reject:cannot-infer-type	lang/05-expressions.md#r-expr.collection.empty.error
 typing/valid/an-empty-list-rest-pattern-keeps-later-type-context.hd	type	accept	lang/05-expressions.md#r-expr.collection.expected
 typing/invalid/a-tuple-rest-with-an-untyped-empty-list-needs-context.hd	type	reject:cannot-infer-type	lang/05-expressions.md#r-expr.collection.empty.error
+typing/invalid/optional-some-pattern-names-an-unknown-payload-field.hd	type	reject:unknown-field	lang/06-control-flow.md#r-flow.match.payload.unknown
+typing/invalid/union-pattern-names-an-unknown-payload-field.hd	type	reject:unknown-field	lang/06-control-flow.md#r-flow.match.payload.unknown
+typing/invalid/trait-resolution-depth-pending.hd	type	reject:trait-resolution-depth	lang/09-traits.md#r-trait.bound.depth.limit
+typing/valid/pending-trait-proof-resolves-after-a-later-assignment.hd	type	accept	lang/09-traits.md#r-trait.bound.depth.limit
+typing/invalid/optional-none-pattern-names-an-unknown-payload-field.hd	type	reject:unknown-field	lang/06-control-flow.md#r-flow.match.payload.unknown
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

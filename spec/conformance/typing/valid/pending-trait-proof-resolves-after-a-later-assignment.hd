@@ -1,0 +1,23 @@
+# test: a pending trait proof obeys the same depth limit after its type is known
+# Rule: trait.bound.depth.limit.
+
+trait Marker
+
+struct Wrap[T < ?Copy]:
+    value: T
+
+impl Marker for i32
+impl[T < ?Copy & Marker] Marker for Wrap[T]
+
+type Quad[T < ?Copy] = Wrap[Wrap[Wrap[Wrap[T]]]]
+type Sixteen[T < ?Copy] = Quad[Quad[Quad[Quad[T]]]]
+
+fn unknown[T < ?Copy]() -> T:
+    panic("unused")
+fn need[T < ?Copy & Marker](value: T) -> void:
+    pass
+
+fn check(value: Wrap[Sixteen[Sixteen[Sixteen[i32]]]]) -> void:
+    let item = unknown()
+    need(item)
+    item = value
