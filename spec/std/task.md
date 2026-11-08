@@ -245,7 +245,7 @@ use std.time.{Clock, s}
 
 struct Upload:
     log: *mut List[string]
-    ack: mut Suspend[void]
+    ack: Suspend[void]
 
 impl AsyncDisposable for Upload:
     fn dispose!(&mut self) -> void:
@@ -254,7 +254,7 @@ impl AsyncDisposable for Upload:
         ack!()                          # waits for the peer
         self.log.push("upload acknowledged")
 
-fn send!(log: *mut List[string], reply: mut Suspend[string], ack: mut Suspend[void]) -> Result[string, TimedOut] $ Clock:
+fn send!(log: *mut List[string], reply: Suspend[string], ack: Suspend[void]) -> Result[string, TimedOut] $ Clock:
     apply!(timeout(5s, cleanup=1s)):
         using! upload = &mut Upload { log: log, ack: ack }
         let result: Result[string, TimedOut] = .Ok(reply!())
@@ -308,7 +308,7 @@ See also: [Cleanup End](#cleanup-end),
 calls are in flight:
 
 ```text
-pub fn map_join![T < 'static, U < 'static, F < Fn(T) -> mut Suspend[U] $ R, $R](items: List[T], limit: usize, work: F) -> List[U] $ R
+pub fn map_join![T < 'static, U < 'static, F < Fn(T) -> Suspend[U] $ R, $R](items: List[T], limit: usize, work: F) -> List[U] $ R
 ```
 
 1. r[std-task.map-all.generic] `std.task` declares `map_join!` with the signature above, storing `F` in its worker suspension frames and calling it statically; a suspending function value satisfies the bound through [`fn.type.suspend.weaken`](../lang/07-functions.md#r-fn.type.suspend.weaken). It is an ordinary `fn!` function, not an intrinsic, and code imports it with `use std.task.map_join`.
@@ -422,7 +422,7 @@ pub enum CleanupEnd:
 ```text
 use std.task.CleanupEnd
 
-fn stop!(job: mut Suspend[string]) -> string:
+fn stop!(job: Suspend[string]) -> string:
     end := job.cancel!()
     if end == CleanupEnd.Finished: "closed" else: "cut short"
 ```

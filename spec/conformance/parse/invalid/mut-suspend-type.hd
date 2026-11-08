@@ -1,0 +1,4 @@
+# test: a suspension type is written without mut
+# Spec 02 Grammar: grammar.type.no-mut.
+fn hold(job: mut Suspend[i32]) -> void:  # diagnostic: syntax-error
+    pass

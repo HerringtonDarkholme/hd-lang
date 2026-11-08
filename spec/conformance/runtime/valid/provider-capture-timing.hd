@@ -45,7 +45,7 @@ tests:
         assert_equal(seen, "caller", reason="inferred row Tag is satisfied at the call")
 
     it("suspension constructed in one scope and driven in another"):
-        let pending: mut Suspend[string] = $.with(Tag=FixedTag { value: "built" }):
+        let pending: Suspend[string] = $.with(Tag=FixedTag { value: "built" }):
             later()
         seen := $.with(Tag=FixedTag { value: "driver" }):
             pending!()

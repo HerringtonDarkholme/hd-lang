@@ -19,24 +19,24 @@ fn first!(r: &string) -> &string:
 fn greet!(name: string, u: *User) -> usize:
     name.len() + u.name.len()
 
-fn caller_owned(s: &string) -> mut Suspend[usize]:
+fn caller_owned(s: &string) -> Suspend[usize]:
     hold(s)
 
-fn both(a: &string, b: &string) -> mut Suspend[usize]:
+fn both(a: &string, b: &string) -> Suspend[usize]:
     pair(a, b)
 
-fn output(s: &string) -> mut Suspend[&string]:
+fn output(s: &string) -> Suspend[&string]:
     first(s)
 
-fn owned() -> mut Suspend[usize]:
+fn owned() -> Suspend[usize]:
     name := "ada"
     greet(name, box(User { name: "ada" }))
 
-fn counted_receiver() -> mut Suspend[usize]:
+fn counted_receiver() -> Suspend[usize]:
     let u: *User = box(User { name: "ada" })
     u.size()
 
 fn awaited!() -> usize:
     local := "x"
-    let pending: mut Suspend[usize] = hold(&local)
+    let pending: Suspend[usize] = hold(&local)
     pending!() + hold!(&local)

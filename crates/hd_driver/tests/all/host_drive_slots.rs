@@ -113,7 +113,7 @@ pub fn main() -> void $ Clock:
     let stored = r"
 use std.task.block_on
 use std.time.{Clock, ms}
-fn cold() -> mut Suspend[void] $ Clock:
+fn cold() -> Suspend[void] $ Clock:
     let clock: *mut dyn Clock = $.use(Clock)
     clock.sleep(ms(1))
 pub fn main() -> void $ Clock:
@@ -154,12 +154,12 @@ use std.task.block_on
 use std.time.{Clock, ms}
 fn first!() -> i32: 1
 fn second!() -> i32: 2
-fn invoke(make: fn() -> mut Suspend[i32], count: i32) -> mut Suspend[i32]:
+fn invoke(make: fn() -> Suspend[i32], count: i32) -> Suspend[i32]:
     if count == 0: make()
     else: invoke(make, count - 1)
 pub fn main() -> void $ Sys + Clock:
     let system: &dyn Sys = $.use(Sys)
-    let make: fn() -> mut Suspend[i32] = if system.os().expect("os").len() == 0:
+    let make: fn() -> Suspend[i32] = if system.os().expect("os").len() == 0:
         first
     else:
         second
@@ -170,13 +170,13 @@ pub fn main() -> void $ Sys + Clock:
     let cold_callable = r"
 use std.task.block_on
 use std.time.{Clock, Duration, ms}
-fn invoke(pause: fn(Duration) -> mut Suspend[void], d: Duration, count: i32) -> mut Suspend[void]:
+fn invoke(pause: fn(Duration) -> Suspend[void], d: Duration, count: i32) -> Suspend[void]:
     if count == 0: pause(d) else: invoke(pause, d, count - 1)
 pub fn main!() -> void $ Clock:
     let clock: *mut dyn Clock = $.use(Clock)
     _ := block_on(clock.sleep(ms(1)))
-    let pause: fn(Duration) -> mut Suspend[void] = clock::sleep
-    let saved: mut Suspend[void] = invoke(pause, ms(1), +1)
+    let pause: fn(Duration) -> Suspend[void] = clock::sleep
+    let saved: Suspend[void] = invoke(pause, ms(1), +1)
     _ := block_on(saved)
     let bang: fn!(Duration) -> void = clock::sleep
     bang!(ms(1))

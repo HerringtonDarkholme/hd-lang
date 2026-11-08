@@ -18,20 +18,20 @@ struct Copies:
 
 fn replica!(
     copies: *mut Copies,
-    first_wait: mut Suspend[void],
-    second_wait: mut Suspend[void],
+    first_wait: Suspend[void],
+    second_wait: Suspend[void],
     all_pending: bool,
 ) -> Result[string, string]:
     copies.started += 1
     number := copies.started
     defer(fn() -> void: copies.closed += 1)
     if number == 1 || all_pending:
-        let wait: mut Suspend[void] = if number == 1: first_wait else: second_wait
+        let wait: Suspend[void] = if number == 1: first_wait else: second_wait
         wait!()
     copies.finished += 1
     .Ok("replica $number")
 
-fn cancel!(job: mut Suspend[Result[string, string]]) -> Result[string, string]:
+fn cancel!(job: Suspend[Result[string, string]]) -> Result[string, string]:
     assert_equal(job.cancel!(), .Finished, reason="both hedge children finish cancellation")
     .Ok("canceled")
 
@@ -39,10 +39,10 @@ pub fn configuration() -> Hedge:
     hedged(10ms)
 
 pub fn main!() -> void $ Clock:
-    let first_wait: mut Suspend[void] = sleep(60s)
-    let second_wait: mut Suspend[void] = sleep(60s)
-    let cancel_first: mut Suspend[void] = sleep(60s)
-    let cancel_second: mut Suspend[void] = sleep(60s)
+    let first_wait: Suspend[void] = sleep(60s)
+    let second_wait: Suspend[void] = sleep(60s)
+    let cancel_first: Suspend[void] = sleep(60s)
+    let cancel_second: Suspend[void] = sleep(60s)
     clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
     copies := box(Copies { started: 0, finished: 0, closed: 0 })
     $.with(Clock=clock):
@@ -94,7 +94,7 @@ pub fn main!() -> void $ Clock:
     pending_copies := box(Copies { started: 0, finished: 0, closed: 0 })
     cancel_clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
     $.with(Clock=cancel_clock):
-        let job: mut Suspend[Result[string, string]] = apply(
+        let job: Suspend[Result[string, string]] = apply(
             hedged(10ms),
             work=fn!() -> Result[string, string]:
                 replica!(pending_copies, cancel_first, cancel_second, true)

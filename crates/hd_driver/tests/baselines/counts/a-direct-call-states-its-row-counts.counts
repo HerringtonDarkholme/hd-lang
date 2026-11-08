@@ -23,7 +23,7 @@ fn ordinary(callback: fn() -> i32 $ Tag) -> i32 $ Tag:
 >   retain counted reference (stored)
 >   release counted reference (last use)
 
-fn cold(callback: fn() -> i32 $ Tag) -> mut Suspend[i32] $ Tag:
+fn cold(callback: fn() -> i32 $ Tag) -> Suspend[i32] $ Tag:
     later(callback)
 > app/main/cold
 >   retain counted reference (stored)

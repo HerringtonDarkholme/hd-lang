@@ -3,7 +3,7 @@
 fn forms(
     a: geo.Point,
     b: dyn Supplier[Item = i32]?,
-    c: mut List[string],
+    c: &mut List[string],
     d: (i32, (string,), ()),
     e: (fn() -> i32)?,
     f: fn!(i32, List[i32]...) -> i32 $ Log + Store[Item = User],

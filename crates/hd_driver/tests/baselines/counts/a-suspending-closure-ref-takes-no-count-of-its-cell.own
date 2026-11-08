@@ -69,7 +69,7 @@ fn local!() -> i64:
 >   %11 finds [$1] full
     run!()
 >   %16 = Read move [$0] : fn!() -> i64
->   %17 = CallValue %16 [] : mut Suspend[i64]
+>   %17 = CallValue %16 [] : Suspend[i64]
 >   %18 = AwaitValue %17 : i64
 >   %19 = Release %18 Operation child #2 : ()
 >   %20 = Retain %18 Operation child #0 : ()
@@ -113,7 +113,7 @@ fn shared!() -> i64:
 >   %15 finds [$0] full
     run!()
 >   %18 = Read move [$1] : fn!() -> ()
->   %19 = CallValue %18 [] : mut Suspend[()]
+>   %19 = CallValue %18 [] : Suspend[()]
 >   %20 = AwaitValue %19 : ()
 >   %21 = Release %20 Operation child #2 : ()
 >   %22 = Retain %20 Operation child #0 : ()
@@ -160,7 +160,7 @@ fn copied!() -> i64:
 >   %13 finds [$0] full
     run!()
 >   %16 = Read move [$1] : fn!() -> i64
->   %17 = CallValue %16 [] : mut Suspend[i64]
+>   %17 = CallValue %16 [] : Suspend[i64]
 >   %18 = AwaitValue %17 : i64
 >   %19 = Release %18 Operation child #2 : ()
 >   %20 = Retain %18 Operation child #0 : ()

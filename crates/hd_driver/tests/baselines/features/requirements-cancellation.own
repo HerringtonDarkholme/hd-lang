@@ -25,7 +25,7 @@ fn stop!(key: string) -> bool:
 > app/main/stop
 >   local $0 key: string [param read] value
 >     uses $0: entry -> %3 lend last
->   local $1 job: mut Suspend[string] [read assigned] value
+>   local $1 job: Suspend[string] [read assigned] value
 >     uses $1: %6 -> %7 lend last
 >   local $2 end: CleanupEnd [:= read assigned] value
 >     uses $2: %11 -> %12 lend last
@@ -34,12 +34,12 @@ fn stop!(key: string) -> bool:
     let mut job = fetch(key)
 >   %2 = Release %26 FrameDrop child #2 : ()
 >   %3 = Read move [$0] : string
->   %4 = Call app/main/fetch[] (%3) : mut Suspend[string]
+>   %4 = Call app/main/fetch[] (%3) : Suspend[string]
 >   %5 = Drop [%3] : ()
 >   %6 = Store [$1] %4 : ()
 >   %26 = Block %25 : bool
     end := job.cancel!()
->   %7 = Read move [$1] : mut Suspend[string]
+>   %7 = Read move [$1] : Suspend[string]
 >   %8 = Await std/task/impl [ T ] Suspend [ T ].cancel[string] (%7) : CleanupEnd
 >   %9 = Release %8 Operation child #2 : ()
 >   %10 = Drop [%7] : ()
@@ -67,16 +67,16 @@ fn drop_now(key: string) -> void:
 > app/main/drop_now
 >   local $0 key: string [param read] value
 >     uses $0: entry -> %1 lend last
->   local $1 job: mut Suspend[string] [read assigned] value
+>   local $1 job: Suspend[string] [read assigned] value
 >     uses $1: %3 -> %4 lend last
 >   %0 = Release %10 Exit local $0 #2 : ()
     let mut job = fetch(key)
 >   %1 = Read borrow [$0] : string
->   %2 = Call app/main/fetch[] (%1) : mut Suspend[string]
+>   %2 = Call app/main/fetch[] (%1) : Suspend[string]
 >   %3 = Store [$1] %2 : ()
 >   %10 = Block - : ()
     job.abandon()
->   %4 = Read borrow [$1] : mut Suspend[string]
+>   %4 = Read borrow [$1] : Suspend[string]
 >   %5 = Call std/task/abandon_task[string] (%4) : ()
 >   %6 = Break L0 - : never
 >   %7 = Block - : ()

@@ -49,14 +49,14 @@ fn later!(key: string) -> usize:
     let mut pending = fetch(key)
 > app/main/later
 >   local $0 key: string [param read]
->   local $1 pending: mut Suspend[string] [read assigned]
+>   local $1 pending: Suspend[string] [read assigned]
 >   local $2 $ref: string [read assigned captured captured-assigned]
 >   %0 = Read [$0] : string
->   %1 = Call app/main/fetch[] (%0) : mut Suspend[string]
+>   %1 = Call app/main/fetch[] (%0) : Suspend[string]
 >   %2 = Store [$1] %1 : ()
 >   %8 = Block %7 : usize
     pending!().len()
->   %3 = Read [$1] : mut Suspend[string]
+>   %3 = Read [$1] : Suspend[string]
 >   %4 = AwaitValue %3 : string
 >   %5 = Store [$2] %4 : ()
 >   %6 = Ref local [$2] : Ref[string]
@@ -68,7 +68,7 @@ fn blocking(key: string) -> usize:
 >   local $0 key: string [param read]
 >   local $1 v: string [read assigned captured]
 >   %0 = Read [$0] : string
->   %1 = Call app/main/fetch[] (%0) : mut Suspend[string]
+>   %1 = Call app/main/fetch[] (%0) : Suspend[string]
 >   %2 = Call std/task/block_on[string] (%1) : BlockOn[string]
 >   %14 = Block - : never
 >   %15 = Match %2 [%14 %5 %6] : usize
@@ -90,15 +90,15 @@ fn discard(key: string) -> usize:
 > app/main/discard
 >   local $0 key: string [param read]
 >   %0 = Read [$0] : string
->   %1 = Call app/main/fetch[] (%0) : mut Suspend[string]
+>   %1 = Call app/main/fetch[] (%0) : Suspend[string]
 >   %2 = Block 0:usize : usize
     0
 
 fn bound!(s: string) -> usize:
-    let mut pending: mut Suspend[usize] = $.with(Tag=Named { label: s }):
+    let mut pending: Suspend[usize] = $.with(Tag=Named { label: s }):
 > app/main/bound
 >   local $0 s: string [param read]
->   local $1 pending: mut Suspend[usize] [read assigned]
+>   local $1 pending: Suspend[usize] [read assigned]
 >   %0 = Read [$0] : string
 >   %1 = NewStruct [%0] : Named
 >   %2 = Call std/rt.entry/host_provider[Named] (%1) : Counted[mut Named]
@@ -106,12 +106,12 @@ fn bound!(s: string) -> usize:
 >   %4 = Block %3 : Tag
 >   %5 = RefDyn %4 : Counted[Tag]
 >   %6 = Coerce %5 [RefAsProvider -] : Tag
->   %9 = With [Tag %6] %8 : mut Suspend[usize]
+>   %9 = With [Tag %6] %8 : Suspend[usize]
 >   %10 = Store [$1] %9 : ()
 >   %13 = Block %12 : usize
         tagged()
->   %7 = Call app/main/tagged[] () : mut Suspend[usize]
->   %8 = Block %7 : mut Suspend[usize]
+>   %7 = Call app/main/tagged[] () : Suspend[usize]
+>   %8 = Block %7 : Suspend[usize]
     pending!()
->   %11 = Read [$1] : mut Suspend[usize]
+>   %11 = Read [$1] : Suspend[usize]
 >   %12 = AwaitValue %11 : usize

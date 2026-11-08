@@ -43,8 +43,8 @@ pub fn apply![T, U, $ R, $ S, P < Layer[fn!() -> T $ R, Wrapped = fn!() -> U $ S
 # compiler's.
 ## Drives the tasks together and returns the first one's value; the losers are cancelled. A compiler intrinsic.
 ## See [req.combinator.race-signature](../../spec/lang/11-requirements-and-suspension.md#r-req.combinator.race-signature).
-pub fn race![T](tasks...: List[mut Suspend[T]]) -> T:
-    let frame: mut Suspend[T] = race_frame(tasks)
+pub fn race![T](tasks...: List[Suspend[T]]) -> T:
+    let frame: Suspend[T] = race_frame(tasks)
     frame!()
 
 # How a `block_on` drive ended (spec/std/task.md#block-on).
@@ -62,7 +62,7 @@ pub enum BlockOn[T]:
 ## Drives `s` from code that does not suspend, and returns how the drive ended. A compiler intrinsic.
 ## See [req.drive.block-on.signature](../../spec/lang/11-requirements-and-suspension.md#r-req.drive.block-on.signature).
 @intrinsic("block_on")
-pub fn block_on[T](s: mut Suspend[T]) -> BlockOn[T]:
+pub fn block_on[T](s: Suspend[T]) -> BlockOn[T]:
     panic("intrinsic")
 
 # How a job's cleanup ended (spec/std/task.md#cleanup-end). A kept
@@ -81,13 +81,13 @@ pub enum CleanupEnd:
 impl[T] Suspend[T]:
     ## Stops the job, waits until its cleanup has ended, and returns how it ended.
     ## See [req.cancel.bang](../../spec/lang/11-requirements-and-suspension.md#r-req.cancel.bang).
-    pub fn cancel!(mut self) -> CleanupEnd:
-        let cleanup: mut Suspend[bool] = cleanup_frame(self)
+    pub fn cancel!(self) -> CleanupEnd:
+        let cleanup: Suspend[bool] = cleanup_frame(self)
         if cleanup!(): .Abandoned else: .Finished
 
     ## Stops the job and unwinds it at once: its `defer` blocks run, and each `dispose!` is cut short at its suspension point.
     ## See [req.abandon.unwind](../../spec/lang/11-requirements-and-suspension.md#r-req.abandon.unwind).
-    pub fn abandon(mut self) -> void:
+    pub fn abandon(self) -> void:
         abandon_task(self)
 
 # The cleanup frame of `cancel!`. Each poll starts the task's cleanup or
@@ -98,7 +98,7 @@ impl[T] Suspend[T]:
 # cleanup too, so a cancelled waiter folds it into its own
 # (r-req.cancel.nested.using-split).
 @intrinsic("task_cleanup_frame")
-fn cleanup_frame[T](task: mut Suspend[T]) -> mut Suspend[bool]:
+fn cleanup_frame[T](task: Suspend[T]) -> Suspend[bool]:
     panic("intrinsic")
 
 # `abandon()`: runs the task's own cancel synchronously, in a mode in
@@ -106,7 +106,7 @@ fn cleanup_frame[T](task: mut Suspend[T]) -> mut Suspend[bool]:
 # point instead of waited for (r-req.abandon.unwind). The compiler
 # supplies the body.
 @intrinsic("task_abandon")
-fn abandon_task[T](task: mut Suspend[T]) -> void:
+fn abandon_task[T](task: Suspend[T]) -> void:
     panic("intrinsic")
 
 # The polling frame of `race!`. Each poll polls the unfinished tasks in
@@ -114,20 +114,20 @@ fn abandon_task[T](task: mut Suspend[T]) -> void:
 # every other task, in order, before it completes. Cancelling the frame
 # cancels every task (r-req.combinator.cancel-children).
 @intrinsic("task_race_frame")
-fn race_frame[T](tasks: List[mut Suspend[T]]) -> mut Suspend[T]:
+fn race_frame[T](tasks: List[Suspend[T]]) -> Suspend[T]:
     panic("intrinsic")
 
 # The homogeneous list frame. It keeps each result at its child's index
 # and visits the waker tree's ready set, without a nested all! per child.
 # The fixed-arity all! expression has a separate tuple lowering.
 @intrinsic("task_all_frame")
-fn all_frame[T](tasks: List[mut Suspend[T]]) -> mut Suspend[List[T]]:
+fn all_frame[T](tasks: List[Suspend[T]]) -> Suspend[List[T]]:
     panic("intrinsic")
 
 # The private flat engine of map_join!. The worker suspensions stay cold
 # until the frame polls them, in list order.
-fn all_list![T](tasks: List[mut Suspend[T]]) -> List[T]:
-    let frame: mut Suspend[List[T]] = all_frame(tasks)
+fn all_list![T](tasks: List[Suspend[T]]) -> List[T]:
+    let frame: Suspend[List[T]] = all_frame(tasks)
     frame!()
 
 # Whether `result` is an `.Err` that `when` accepts.
@@ -352,7 +352,7 @@ fn timeout_value![T, $ R](
     cleanup: Duration? = .None,
     work: fn!() -> T $ R,
 ) -> Result[T, TimedOut] $ R + Clock:
-    let job: mut Suspend[T] = work()
+    let job: Suspend[T] = work()
     let end = match cleanup:
         .None => race!(timeout_work(job), timeout_expire(limit))
         .Some(bound) => race!(timeout_bound(job, bound), timeout_work(job), timeout_expire(limit))
@@ -376,7 +376,7 @@ enum TimeoutEnd[T]:
     Done(T)
     Expired
 
-fn timeout_work![T](job: mut Suspend[T]) -> TimeoutEnd[T]:
+fn timeout_work![T](job: Suspend[T]) -> TimeoutEnd[T]:
     .Done(job!())
 
 fn timeout_expire![T](limit: Duration) -> TimeoutEnd[T] $ Clock:
@@ -385,15 +385,15 @@ fn timeout_expire![T](limit: Duration) -> TimeoutEnd[T] $ Clock:
 
 # The bound's child: it waits until the race cancels it, and its dispose
 # bounds the work's cleanup.
-fn timeout_bound![T](job: mut Suspend[T], cleanup: Duration) -> TimeoutEnd[T] $ Clock:
+fn timeout_bound![T](job: Suspend[T], cleanup: Duration) -> TimeoutEnd[T] $ Clock:
     using! bound = CleanupBound { job: job, cleanup: cleanup, clock: $.use(Clock) }
-    let forever: mut Suspend[TimeoutEnd[T]] = pending_frame()
+    let forever: Suspend[TimeoutEnd[T]] = pending_frame()
     forever!()
 
 # The cleanup bound of `timeout!`: the work, the bound, and the clock that
 # measures it.
 struct CleanupBound[T, 'a]:
-    job: mut Suspend[T, 'a]
+    job: Suspend[T, 'a]
     cleanup: Duration
     clock: *mut dyn Clock
 
@@ -412,7 +412,7 @@ impl[T, 'a] AsyncDisposable for CleanupBound[T, 'a]:
 # it already has, so a bound of 0 abandons whatever still waits
 # (r-std-task.timeout.cleanup-zero).
 fn cleanup_deadline![T](
-    job: mut Suspend[T],
+    job: Suspend[T],
     clock: &mut dyn Clock,
     cleanup: Duration,
     started: Instant,
@@ -428,7 +428,7 @@ fn cleanup_deadline![T](
 # supplies it, since every suspension hd code can build completes once a
 # host operation or a child does, and a `ManualClock` sleep never waits.
 @intrinsic("task_pending_frame")
-fn pending_frame[T]() -> mut Suspend[T]:
+fn pending_frame[T]() -> Suspend[T]:
     panic("intrinsic")
 
 # Runs `work` on every item with at most `limit` calls in flight and
@@ -439,7 +439,7 @@ fn pending_frame[T]() -> mut Suspend[T]:
 # shared counter needs no lock.
 ## Runs `work` on every item, at most `limit` at a time, and returns the values in item order.
 ## See [std-task.map-all.generic](../../spec/std/task.md#r-std-task.map-all.generic).
-pub fn map_join![T < 'static, U < 'static, F < Fn(T) -> mut Suspend[U] $ R, $ R](
+pub fn map_join![T < 'static, U < 'static, F < Fn(T) -> Suspend[U] $ R, $ R](
     items: List[T],
     limit: usize,
     work: F,
@@ -449,7 +449,7 @@ pub fn map_join![T < 'static, U < 'static, F < Fn(T) -> mut Suspend[U] $ R, $ R]
     for _ in items:
         slots.push(.None)
     cursor := box(Cursor { next: 0 })
-    let mut workers: List[mut Suspend[void]] = []
+    let mut workers: List[Suspend[void]] = []
     width := if limit < 1: 1 else: limit
     let count: usize = 0
     while count < width && count < items.len():
@@ -467,7 +467,7 @@ pub fn map_join![T < 'static, U < 'static, F < Fn(T) -> mut Suspend[U] $ R, $ R]
 struct Cursor:
     next: usize
 
-fn map_join_worker![T, U, F < Fn(T) -> mut Suspend[U] $ R, $ R](
+fn map_join_worker![T, U, F < Fn(T) -> Suspend[U] $ R, $ R](
     items: List[T],
     work: F,
     slots: &mut List[U?],
@@ -476,7 +476,7 @@ fn map_join_worker![T, U, F < Fn(T) -> mut Suspend[U] $ R, $ R](
     while cursor.next < items.len():
         index := cursor.next
         cursor.next = index + 1
-        let pending: mut Suspend[U] = work(items[index])
+        let pending: Suspend[U] = work(items[index])
         slots[index] = .Some(pending!())
 
 # A channel's shared state: the queued items, at most `capacity` of them,
@@ -522,7 +522,7 @@ impl[T < 'static] Sender[T]:
     ## See [std-task.channel.send](../../spec/std/task.md#r-std-task.channel.send).
     pub fn send!(&self, value: T) -> void:
         while !self.state.closed && self.state.items.len() >= self.state.capacity:
-            let room: mut Suspend[void] = wait_frame(self.state.writers)
+            let room: Suspend[void] = wait_frame(self.state.writers)
             room!()
         if self.state.closed:
             panic("send on a closed channel")
@@ -549,7 +549,7 @@ impl[T < 'static] Receiver[T]:
                 .None =>
                     if self.state.closed:
                         return .None
-            let next: mut Suspend[void] = wait_frame(self.state.readers)
+            let next: Suspend[void] = wait_frame(self.state.readers)
             next!()
         .None
 
@@ -565,7 +565,7 @@ fn wait_cell() -> *mut WaitCell:
 
 # A frame that completes once `cell` is signalled after the call.
 @intrinsic("task_wait_frame")
-fn wait_frame(cell: *mut WaitCell) -> mut Suspend[void]:
+fn wait_frame(cell: *mut WaitCell) -> Suspend[void]:
     panic("intrinsic")
 
 # Wakes every frame waiting on `cell`.

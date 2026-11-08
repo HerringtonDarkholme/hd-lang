@@ -1,5 +1,5 @@
 # test: function references weaken covariant results and contravariant inputs
-# Spec 04 Readonly Outer Views: types.variance.function; Representation-Preserving Variance: types.variance.repr.weakening.
+# Spec 04 Readonly Outer Views: types.variance.function; Representation-Preserving Variance: types.variance.repr.weakening.v2.
 struct User:
     name: string
 

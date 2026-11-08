@@ -14,7 +14,7 @@ fn wait!() -> void $ Clock:
     sleep!(60s)
 
 struct DelayedHttp:
-    wait: mut Suspend[void]
+    wait: Suspend[void]
     attempts: *mut List[usize]
 
 impl Http for DelayedHttp:
@@ -26,9 +26,9 @@ impl Http for DelayedHttp:
         .Ok(Response { status: .Created, url: .Some(request.url) })
 
 pub fn main!() -> void $ Console + Clock:
-    let slow: mut Suspend[void] = wait()
-    let nested: mut Suspend[void] = wait()
-    let retried: mut Suspend[void] = wait()
+    let slow: Suspend[void] = wait()
+    let nested: Suspend[void] = wait()
+    let retried: Suspend[void] = wait()
     clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
     http := ScriptedHttp::new()
     http.reply("https://example.test/", .Ok(Response::status(.NoContent)))

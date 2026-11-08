@@ -10,7 +10,7 @@ use std.time.{Clock, ms, s, sleep}
 
 struct Conn:
     log: *mut List[string]
-    closing: mut Suspend[void]
+    closing: Suspend[void]
 
 impl AsyncDisposable for Conn:
     fn dispose!(&mut self) -> void:
@@ -27,7 +27,7 @@ fn work!(log: &mut List[string]) -> string $ Clock:
     sleep!(s(60))
     "late"
 
-fn stop!(job: mut Suspend[string], log: &mut List[string]) -> string:
+fn stop!(job: Suspend[string], log: &mut List[string]) -> string:
     match job.cancel!():
         .Finished => log.push("stop finished")
         .Abandoned => log.push("stop abandoned")
@@ -36,24 +36,24 @@ fn stop!(job: mut Suspend[string], log: &mut List[string]) -> string:
 # `job` turns out cancelled when `join!` polls it again, so `join!` is
 # cancelled, and so is `both`, the suspension that block_on drives. Its
 # cleanup waits in the dispose of `conn`, and block_on drives it to its end.
-fn both!(job: mut Suspend[string], log: *mut List[string]) -> string $ Clock:
+fn both!(job: Suspend[string], log: *mut List[string]) -> string $ Clock:
     defer(fn() -> void: log.push("both defer"))
     using! conn = &mut Conn { log: log, closing: sleep(ms(2)) }
     let (worked, stopped) = join!(job, stop(job, log))
     "${worked} ${stopped}"
 
-fn ended[T](pending: mut Suspend[T]) -> string:
+fn ended[T](pending: Suspend[T]) -> string:
     match block_on(pending):
         .Completed(_) => "completed"
         .Cancelled => "cancelled"
         .Abandoned => "abandoned"
 
 fn inside(log: *mut List[string]) -> string $ Clock:
-    let job: mut Suspend[string] = work(log)
+    let job: Suspend[string] = work(log)
     ended(both(job, log))
 
 pub fn main!() -> void $ Console + Clock:
-    let pending: mut Suspend[i32] = ready()
+    let pending: Suspend[i32] = ready()
     _ := pending.cancel!()
     println("before: ${ended(pending)}")
     log := box::[List[string]]([])

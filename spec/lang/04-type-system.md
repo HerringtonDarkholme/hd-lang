@@ -87,17 +87,7 @@ r[types.prim.set] The primitive types are:
 2. r[types.prim.decimal] `decimal` may be a standard-library type but is not primitive.
 3. r[types.prim.no-byte] hd-lang has no primitive `byte` or `bytes` type and no byte literal syntax.
 4. r[types.prim.by-value] Primitive values are passed and returned by value.
-5. r[types.prim.no-mut] Primitive types do not accept the `mut` modifier.
-6. r[types.prim.no-mut.error] A primitive type written with `mut`, as in `let n: mut i32 = 0`, is an error. Error: `mut-on-primitive`.
-
-```text
-fn invalid(scale: mut f64) -> void:  # error: mut-on-primitive
-    let n: mut i32 = 0  # error: mut-on-primitive
-```
-
-> **Why.** Primitive types do not expose mutable reference state.
-
-7. r[types.prim.no-mut.self] A `mut self` receiver in an impl whose `Self` is primitive is valid: it is not a primitive type written with `mut`.
+5. r[types.prim.no-mut.self] A `mut self` receiver in an impl whose `Self` is primitive is valid: it is not a primitive type written with `mut`.
 
 ```text
 trait Counter:
@@ -111,8 +101,8 @@ impl Counter for i32:
 > `mut self` method must therefore stay implementable for a primitive
 > `Self`.
 
-8. r[types.prim.no-mut.self-type] In such a method the `mut` is dropped, because a primitive has no `mut` form: `self` has the plain type `Self`, as in `i32`.
-9. r[types.prim.no-mut.self-call] A call of such a method therefore needs no writable place as its receiver.
+6. r[types.prim.no-mut.self-type] In such a method the `mut` is dropped, because a primitive has no `mut` form: `self` has the plain type `Self`, as in `i32`.
+7. r[types.prim.no-mut.self-call] A call of such a method therefore needs no writable place as its receiver.
 
 ```text
 trait Step:
@@ -553,7 +543,7 @@ fn swap(pair: (i32, string)) -> (string, i32):
     (pair._1, pair._0)   # (i32, string) is the same type wherever it is written
 ```
 
-See also: [`types.value.no-mut.written`](#r-types.value.no-mut.written),
+See also: [`grammar.type.no-mut`](02-grammar.md#r-grammar.type.no-mut),
 which rejects a tuple type written with `mut`.
 
 #### Rest Elements
@@ -963,7 +953,7 @@ fn demo() -> string:
 r[types.assign] An expression of type `S` is assignable to a location of type `T` when at least one of these rules applies:
 
 1. r[types.assign.identical] `S` and `T` are identical after expanding transparent aliases.
-2. r[types.assign.weaken] `S` is `mut Suspend[U]` and `T` is its readonly form `Suspend[U]`, or `S` is a writable reference and `T` the read-only one of its kind, as `*mut U` and `*U`, by [`ref.convert.weaken`](13-values-and-references.md#r-ref.convert.weaken).
+2. r[types.assign.weaken.v2] `S` is a writable reference and `T` the read-only one of its kind, as `*mut U` and `*U`, by [`ref.convert.weaken`](13-values-and-references.md#r-ref.convert.weaken).
 3. r[types.assign.variance] A declared generic variance conversion permits the readonly outer type to change its type arguments.
 6. r[types.assign.optional] A value of `T` is injected into `T?`. The injection adds one layer only, so a `T` is not injected into `T??`.
 7. r[types.assign.row-subsumption] `S` and `T` are function types, and `T`'s row entails every key of `S`'s row. Then `S` with `T`'s row is assignable to `T`, as [Row Subsumption](11-requirements-and-suspension.md#row-subsumption) states.
@@ -1007,18 +997,12 @@ fn demo() -> i32:
 
 ### Access Permission
 
-A `*mut T` or `&mut T` reference and a `mut Suspend[T]` permit writes. A
-`*T`, a `&T`, and a readonly `Suspend[T]` do not, and never gain that
-permission.
+A `*mut T` or `&mut T` reference permits writes. A `*T` or a `&T` does
+not, and never gains that permission.
 
-1. r[types.mut.weaken] A `mut Suspend[T]` may be used as a `Suspend[T]`, a `*mut T` as a `*T`, and a `&mut T` as a `&T`.
-2. r[types.mut.no-upgrade] A `Suspend[T]` must never be upgraded to `mut Suspend[T]`, nor a `*T` or `&T` to `*mut T` or `&mut T`. An upgrade is an error. Error: `mutable-upgrade`.
+1. r[types.mut.weaken.v2] A `*mut T` may be used as a `*T`, and a `&mut T` as a `&T`.
+2. r[types.mut.no-upgrade.v2] A `*T` or `&T` must never be upgraded to `*mut T` or `&mut T`. An upgrade is an error. Error: `mutable-upgrade`.
 3. r[types.mut.no-upgrade.inference] The error includes an upgrade that generic inference would produce. Given `keep[T](value: T) -> T`, binding `keep(user)` with `user: *User` to a `*mut User` declaration is rejected rather than inferring `T` as `*mut User`.
-4. r[types.mut.argument] A readonly `Suspend[T]` argument cannot satisfy a `mut Suspend[T]` parameter. Error: `readonly-argument-to-mutable-parameter`.
-5. r[types.mut.argument.infer] Before reporting this error for a generic mutable parameter, inference solves its type variables from the argument's readonly shape.
-
-> **Why.** Solving the generic variables keeps the diagnostic concrete without
-> granting mutable access to the readonly argument.
 
 ```text
 struct User:
@@ -1054,34 +1038,20 @@ fn moved(p: Point) -> Point:
 2. r[types.value.copy] Binding, assigning, passing, and returning a struct value copies it. A later change to the copy leaves the source unchanged, and the reverse.
 3. r[types.value.stored] A struct value stored in a struct field, a list element, a map value, a tuple element, or an enum payload is a copy, and reading it out yields a copy.
 4. r[types.value.no-view] A struct type has no readonly or `mut` view, so a struct literal or copy-update has the plain struct type.
-5. r[types.value.no-mut.written] A type written with `mut`, as in `mut Point`, `mut List[i32]`, `mut (i32, i32)`, or `mut T` for a type parameter `T`, is an error unless it is a `Suspend[T]`. Error: `mut-on-struct`.
-6. r[types.value.field-type] A field read through a struct value has the field's declared type, whatever holds the struct.
-7. r[types.value.anyval] A struct type implements `AnyVal`, so `is` with a struct operand is an error. Error: `identity-requires-references`.
+5. r[types.value.field-type] A field read through a struct value has the field's declared type, whatever holds the struct.
+6. r[types.value.anyval] A struct type implements `AnyVal`, so `is` with a struct operand is an error. Error: `identity-requires-references`.
 
 ```text
 struct Point:
     x: i32
     y: i32
 
-fn nudge(p: mut Point) -> void:  # error: mut-on-struct
-    pass
-
-fn reset[T](value: mut T) -> void:  # error: mut-on-struct
-    pass
-
-fn invalid() -> i32:
-    let p: mut (i32, i32) = (1, 2)  # error: mut-on-struct
-    p._0
-
 fn same(a: Point, b: Point) -> bool:
     a is b  # error: identity-requires-references
 ```
 
-> **Note.** A primitive type written with `mut` is the error of
-> [`types.prim.no-mut.error`](#r-types.prim.no-mut.error) instead.
-
-> **Why.** A struct value has no identity, so a `mut` view of one would
-> name no shared object, and `is` would have nothing to compare.
+> **Why.** A struct value has no identity, so `is` would have nothing to
+> compare.
 
 ### Writable Places
 
@@ -1129,7 +1099,7 @@ fn shifted(mut p: Point) -> Point:
 
 Every other write to a place that is not writable has one code:
 
-6. r[types.path.store.not-writable] A write to a place that is not writable is an error. A write is an assignment or compound assignment, an element store, or a call of a `&mut self` method on the place. A field write takes the code that the table above gives. A call of a `mut self` method on a readonly `Suspend[T]` is the same error. Error: `not-writable`.
+6. r[types.path.store.not-writable.v2] A write to a place that is not writable is an error. A write is an assignment or compound assignment, an element store, or a call of a `&mut self` method on the place. A field write takes the code that the table above gives. Error: `not-writable`.
 
 ```text
 struct Child:
@@ -1466,7 +1436,7 @@ fn canonical(value: Fixed[WIDTH]) -> Fixed[4]:
 When a call solves one type parameter from several arguments, the
 arguments' types may differ only in an outer `mut`:
 
-1. r[types.generic.infer.join] When generic call inference solves one type parameter from several arguments, the only conversion between their types is permission weakening. A `mut Suspend[X]` and a `Suspend[X]` meet at `Suspend[X]`.
+1. r[types.generic.infer.join] When generic call inference solves one type parameter from several arguments, the only conversion between their types is permission weakening.
 2. r[types.generic.infer.join.no-trait-value] A trait-value conversion never applies, as [`types.lct.no-trait-value`](#r-types.lct.no-trait-value) states for the least common type. So `cmp(user, label)` with a `User` and a `Display` argument is an error. Error: `no-common-type`.
 3. r[types.generic.infer.join.no-supertrait-widening] A supertrait widening never applies either, so two arguments of two child traits of one supertrait are an error. Error: `no-common-type`.
 4. r[types.generic.infer.join.other-conflict] Any other conflict between the arguments' types is an error. Examples are `choose(1, true)`, `max(small, large)` with an `i32` and an `i64`, a `*mut User` and a `*User`, and a `T` and a `T?`. Error: `type-mismatch`. The caller writes a cast, as in `max(i64(small), large)`.
@@ -1948,8 +1918,8 @@ See also: [Polarity](#polarity), [`types.option.invariant`](#r-types.option.inva
 
 ### Readonly Outer Views
 
-1. r[types.variance.readonly-only] Variance conversion applies only to a readonly outer type: one not written `*mut`, `&mut`, or `mut`, such as `G[T]`, `*G[T]`, or `&G[T]`.
-2. r[types.variance.mut-invariant] Every writable reference, `*mut G[T]` or `&mut G[T]`, and every `mut Suspend[T]`, is invariant in all generic arguments.
+1. r[types.variance.readonly-only] Variance conversion applies only to a readonly outer type: one not written `*mut` or `&mut`, such as `G[T]`, `*G[T]`, or `&G[T]`.
+2. r[types.variance.mut-invariant] Every writable reference, `*mut G[T]` or `&mut G[T]`, and every `Suspend[T]`, is invariant in all generic arguments.
 3. r[types.variance.list] The built-in `List` declares a covariant element parameter.
 4. r[types.variance.map] `Map[K, V]` is invariant in `K` and covariant in `V`.
 5. r[types.variance.function] The function type constructors `Fn` and `SuspendFn` are contravariant in each input element, covariant in the output, and invariant in the requirement row.
@@ -1976,7 +1946,7 @@ fn demo(boxed: *Box[*mut User]) -> *Box[*User]:
 
 1. r[types.variance.repr.covariant] A variance conversion `G[S] -> G[T]` requires a representation-preserving `S -> T` conversion for each covariant argument.
 2. r[types.variance.repr.contravariant] A variance conversion `G[S] -> G[T]` requires a representation-preserving `T -> S` conversion for each contravariant argument.
-3. r[types.variance.repr.weakening] Permission weakening, `*mut U -> *U`, `&mut U -> &U`, or `mut Suspend[U] -> Suspend[U]`, is representation-preserving.
+3. r[types.variance.repr.weakening.v2] Permission weakening, `*mut U -> *U` or `&mut U -> &U`, is representation-preserving.
 4. r[types.variance.repr.excluded] These conversions are not representation-preserving:
    - construction of a trait value reference such as `&i32 -> &dyn Display` or `&User -> &dyn Display`;
    - child-dynamic-trait to supertrait widening;

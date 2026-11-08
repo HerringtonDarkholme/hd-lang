@@ -2,7 +2,7 @@
 use std.ops.AsyncDisposable
 
 struct Slot:
-    task: (mut Suspend[i32])?
+    task: (Suspend[i32])?
 
 struct Guard:
     slot: *mut Slot
@@ -22,6 +22,6 @@ fn outer!(slot: *mut Slot) -> i32:
 
 pub fn main!() -> void:
     slot := box(Slot { task: .None })
-    let pending: mut Suspend[i32] = outer(slot)
+    let pending: Suspend[i32] = outer(slot)
     slot.task = pending
     _ := pending!() # panic: suspension-reentrant-poll

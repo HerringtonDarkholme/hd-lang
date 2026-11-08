@@ -125,7 +125,6 @@ pub enum SyntaxKind {
     NamedType,
     DynType,
     ImplType,
-    MutType,
     RefType,
     OptionalType,
     UnionType,
@@ -484,7 +483,6 @@ ast_nodes! {
     NamedType => NamedType,
     DynType => DynType,
     ImplType => ImplType,
-    MutType => MutType,
     RefType => RefType,
     OptionalType => OptionalType,
     UnionType => UnionType,
@@ -619,7 +617,6 @@ impl SyntaxKind {
             Self::NamedType
                 | Self::DynType
                 | Self::ImplType
-                | Self::MutType
                 | Self::RefType
                 | Self::OptionalType
                 | Self::UnionType

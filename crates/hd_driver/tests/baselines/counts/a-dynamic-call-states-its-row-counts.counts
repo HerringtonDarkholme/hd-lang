@@ -15,7 +15,7 @@ fn ordinary(work: &dyn Work) -> i32 $ Tag:
 >   retain counted reference (stored)
 >   release counted reference (last use)
 
-fn cold(work: &dyn Work) -> mut Suspend[i32] $ Tag:
+fn cold(work: &dyn Work) -> Suspend[i32] $ Tag:
     work.later()
 > app/main/cold
 >   retain counted reference (stored)

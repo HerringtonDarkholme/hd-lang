@@ -69,7 +69,7 @@ tests:
             let forward: &dyn Factory[User, Post] = &Forward {}
             let reverse: &dyn Factory[Post, User] = &Reverse {}
             first := forward.keep_later!(activity)
-            let pending: mut Suspend[fn() -> i32 $ Repo[User] + Repo[Post]] = reverse.keep_later(
+            let pending: Suspend[fn() -> i32 $ Repo[User] + Repo[Post]] = reverse.keep_later(
                 activity,
             )
             second := pending!()

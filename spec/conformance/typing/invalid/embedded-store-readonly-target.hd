@@ -1,5 +1,5 @@
 # test: storing into an embedded field through a `&` reference is not-writable, as for any store
-# Spec 04 Writable Places: types.path.store.not-writable.
+# Spec 04 Writable Places: types.path.store.not-writable.v2.
 struct Stamp:
     at: i32
 

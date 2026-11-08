@@ -1388,8 +1388,8 @@ impl Ck<'_, '_> {
             );
             let read = flags & local_flags::READ != 0;
             let lt = self.b.local_ty(l);
-            // flow.unused.must-use: a readonly binding does not lift the obligation.
-            if !read && self.must_use_in(lt, true) == Some(true) {
+            // flow.unused.must-use: binding a suspension does not lift the obligation.
+            if !read && self.must_use_in(lt) == Some(true) {
                 let text = self.cx.names.text(name);
                 let span = self.cx.src.span(self.cx.src.parse.tree.node(at));
                 let msg = format!(
@@ -2159,7 +2159,7 @@ impl Ck<'_, '_> {
         });
         Some(pool.intern_ty(&TyData::Fn {
             params,
-            result: pool.intern_ty(&TyData::Mut(suspend)),
+            result: suspend,
             row,
             suspends: false,
             inputs,
@@ -2202,11 +2202,10 @@ impl Ck<'_, '_> {
             Inputs::Tuple => ps.first().copied().unwrap_or(Ty::POISON),
         };
         let output = if suspends {
-            let suspend = pool.intern_ty(&TyData::Adt {
+            pool.intern_ty(&TyData::Adt {
                 def: self.cx.names.known.suspend,
                 args: pool.list(&[result]),
-            });
-            pool.intern_ty(&TyData::Mut(suspend))
+            })
         } else {
             result
         };
@@ -3281,30 +3280,18 @@ impl Ck<'_, '_> {
         })
     }
 
-    /// `flow.must-use.discard`: `Result[T, E]`, `T?` and `mut Suspend[T]`.
+    /// `flow.must-use.discard`: `Result[T, E]`, `T?` and `Suspend[T]`.
     pub(crate) fn must_use(&self, t: Ty) -> bool {
-        self.must_use_in(t, false).is_some()
+        self.must_use_in(t).is_some()
     }
 
     /// [`Self::must_use`] with the kind: `Some(true)` for a suspension.
-    /// With `any_view` a suspension counts without `mut`, for a binding
-    /// (`flow.unused.must-use`: the readonly view of `:=` and `let` does
-    /// not lift the obligation).
-    fn must_use_in(&self, t: Ty, any_view: bool) -> Option<bool> {
+    fn must_use_in(&self, t: Ty) -> Option<bool> {
         let pool = self.pool();
-        let t = self.infer.resolve(pool, t);
-        let (inner, is_mut) = match pool.get(t) {
-            TyData::Mut(i) => (self.infer.resolve(pool, i), true),
-            _ => (t, false),
-        };
-        match pool.get(inner) {
+        match pool.get(self.infer.resolve(pool, t)) {
             TyData::Option(_) => Some(false),
             TyData::Adt { def, .. } if def == self.cx.names.known.result => Some(false),
-            TyData::Adt { def, .. }
-                if (is_mut || any_view) && def == self.cx.names.known.suspend =>
-            {
-                Some(true)
-            }
+            TyData::Adt { def, .. } if def == self.cx.names.known.suspend => Some(true),
             _ => None,
         }
     }

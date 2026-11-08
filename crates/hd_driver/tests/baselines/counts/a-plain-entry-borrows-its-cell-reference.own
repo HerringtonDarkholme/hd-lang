@@ -61,6 +61,6 @@ pub fn main!() -> void $ Console:
 >   %10 = Call std/console/println[string] (%8) : ()
 >   %8 finds [$0] full
     _ := helper()
->   %11 = Call app/main/helper[] () : mut Suspend[string]
+>   %11 = Call app/main/helper[] () : Suspend[string]
 >   %12 = Drop [%11] : ()
 >   storage sub 0: $0 cell

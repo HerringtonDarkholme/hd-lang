@@ -15,7 +15,7 @@ fn wait_forever!() -> void $ Clock:
         sleep!(60s)
 
 struct PendingNet:
-    wait: mut Suspend[void]
+    wait: Suspend[void]
     log: *mut List[string]
 
 impl Net for PendingNet:
@@ -36,7 +36,7 @@ impl Net for PendingNet:
         .Err(.Refused("${host}:${port}"))
 
 pub fn main!() -> void $ Console + Clock:
-    let waiting: mut Suspend[void] = wait_forever()
+    let waiting: Suspend[void] = wait_forever()
     clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
     net := ScriptedNet::new()
     stream := ScriptedStream::new([])

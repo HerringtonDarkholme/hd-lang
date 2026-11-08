@@ -23,7 +23,7 @@ fn activity() -> i32 $ Repo[User] + Repo[Post]:
     $.use(Repo[User]).count() * 10 + $.use(Repo[Post]).count()
 
 fn choose!(reverse: bool) -> (fn() -> i32 $ Repo[User] + Repo[Post]):
-    let pending: mut Suspend[fn() -> i32 $ Repo[User] + Repo[Post]] = if reverse:
+    let pending: Suspend[fn() -> i32 $ Repo[User] + Repo[Post]] = if reverse:
         keep::[Post, User](activity)
     else:
         keep::[User, Post](activity)

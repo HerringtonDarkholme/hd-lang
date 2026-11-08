@@ -10,7 +10,7 @@ fn work!(log: &mut Log) -> i32:
 
 pub fn main!() -> void $ Console:
     let mut log = &mut Log { text: "" }
-    let job: mut Suspend[i32] = work(log)
+    let job: Suspend[i32] = work(log)
     _ := job.cancel()
     value := job!()
     println("${value} ${log.text}")

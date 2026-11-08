@@ -766,7 +766,7 @@ impl Em<'_, '_, '_> {
     pub(super) fn call_value(&mut self, i: u32, callee: u32, args: &[u32]) -> StageResult<()> {
         let ft = self.ty_of(callee);
         // A suspending value's code is its cold constructor, which
-        // returns the frame that the call's `mut Suspend[T]` holds.
+        // returns the frame that the call's `Suspend[T]` holds.
         let TyData::Fn {
             params, suspends, ..
         } = self.pool().get(strip(self.pool(), self.env(), ft))

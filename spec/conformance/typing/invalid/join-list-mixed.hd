@@ -2,5 +2,5 @@
 # Spec lang/11 Standard Combinators: req.combinator.join-list.only.
 use std.task.join
 
-fn mixed!(first: mut Suspend[i32], rest: List[mut Suspend[i32]]) -> void:
+fn mixed!(first: Suspend[i32], rest: List[Suspend[i32]]) -> void:
     _ := join!(first, rest...) # diagnostic: type-mismatch

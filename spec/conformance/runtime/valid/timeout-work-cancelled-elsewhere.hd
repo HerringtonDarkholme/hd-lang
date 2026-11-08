@@ -10,8 +10,8 @@ use std.time.{Clock, ms, s, sleep}
 
 struct Runner['a]:
     log: *mut List[string]
-    timed: mut Suspend[Result[string, TimedOut], 'a]
-    stop: mut Suspend[void, 'a]
+    timed: Suspend[Result[string, TimedOut], 'a]
+    stop: Suspend[void, 'a]
 
 impl['a] AsyncDisposable for Runner['a]:
     fn dispose!(&mut self) -> void:
@@ -26,28 +26,28 @@ fn target!(log: &mut List[string]) -> string $ Clock:
     sleep!(s(60))
     "late"
 
-fn stop_later!(target: mut Suspend[string], log: &mut List[string]) -> void $ Clock:
+fn stop_later!(target: Suspend[string], log: &mut List[string]) -> void $ Clock:
     sleep!(ms(1))
     _ := target.cancel!()
     log.push("target cancelled")
 
 fn run!(
     log: *mut List[string],
-    timed: mut Suspend[Result[string, TimedOut]],
-    stop: mut Suspend[void],
+    timed: Suspend[Result[string, TimedOut]],
+    stop: Suspend[void],
 ) -> void:
     using! runner = &mut Runner { log: log, timed: timed, stop: stop }
     log.push("run body")
 
 pub fn main!() -> void $ Console + Clock:
     log := box::[List[string]]([])
-    let job: mut Suspend[string] = target(log)
-    let timed: mut Suspend[Result[string, TimedOut]] = apply(
+    let job: Suspend[string] = target(log)
+    let timed: Suspend[Result[string, TimedOut]] = apply(
         timeout(s(60)),
         work=fn!() -> Result[string, TimedOut]: .Ok(job!())
         ,
     )
-    let runner: mut Suspend[void] = run(log, timed, stop_later(job, log))
+    let runner: Suspend[void] = run(log, timed, stop_later(job, log))
     runner!()
     println(log.join(", "))
     match runner.cancel!():

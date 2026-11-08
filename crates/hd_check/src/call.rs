@@ -1306,14 +1306,6 @@ impl Ck<'_, '_> {
             && args.positional.is_empty()
             && args.trailing.is_none()
         {
-            // Driving a suspension advances it (`mut self`).
-            if !self.has_mut_access(full) {
-                self.err(
-                    Code::NotWritable,
-                    n,
-                    "driving a suspension needs `mut` access to it",
-                );
-            }
             let t = pool.list_items(sa).first().copied().unwrap_or(Ty::POISON);
             self.check_bang(true, n);
             return Ok((self.b.emit(Tag::AwaitValue, f.0, NONE, t, n.index()), t));
@@ -1468,10 +1460,10 @@ impl Ck<'_, '_> {
         if !bang && self.bare_step {
             return Ok(self.suspending_pipe_step(n));
         }
-        let st = pool.intern_ty(&TyData::Mut(pool.intern_ty(&TyData::Adt {
+        let st = pool.intern_ty(&TyData::Adt {
             def: suspend,
             args: pool.list(&[result]),
-        })));
+        });
         let cold = self.b.emit(Tag::CallValue, f.0, rec, st, n.index());
         if bang {
             self.check_bang(true, n);
@@ -2721,7 +2713,7 @@ impl Ck<'_, '_> {
     }
 
     /// `join!(tasks...)`, the list form (`req.combinator.join-list`): one
-    /// spread of a `List[mut Suspend[T]]` and no other argument, which
+    /// spread of a `List[Suspend[T]]` and no other argument, which
     /// awaits std's `all_list!` engine and has type `List[T]`.
     fn await_join_list(
         &mut self,
@@ -2784,7 +2776,7 @@ impl Ck<'_, '_> {
     }
 
     /// Emits a `Call`, or an `Await` for a bang call of a suspending
-    /// callee; a plain call of one is a cold `mut Suspend[T]`.
+    /// callee; a plain call of one is a cold `Suspend[T]`.
     pub(crate) fn emit_call(
         &mut self,
         c: &Callee,
@@ -2827,7 +2819,6 @@ impl Ck<'_, '_> {
                 def: suspend,
                 args: pool.list(&[ret]),
             });
-            let st = pool.intern_ty(&TyData::Mut(st));
             return (self.b.call(c, refs, Providers::None, st, n.index()), st);
         }
         let r = self.b.call(c, refs, Providers::None, ret, n.index());

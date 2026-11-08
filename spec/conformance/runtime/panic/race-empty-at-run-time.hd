@@ -2,12 +2,12 @@
 # Spec 11 Standard Combinators: req.combinator.race-empty-run (owner decision RACE-EMPTY-forms, batch 51, 2026-10-02).
 use std.task.{block_on, race}
 
-fn first!(tasks: List[mut Suspend[i32]]) -> i32:
+fn first!(tasks: List[Suspend[i32]]) -> i32:
     race!(tasks...) # panic: explicit-panic
 
 fn run() -> i32:
-    let tasks: List[mut Suspend[i32]] = []
-    let pending: mut Suspend[i32] = first(tasks)
+    let tasks: List[Suspend[i32]] = []
+    let pending: Suspend[i32] = first(tasks)
     match block_on(pending):
         .Completed(value) => value
         _ => 0

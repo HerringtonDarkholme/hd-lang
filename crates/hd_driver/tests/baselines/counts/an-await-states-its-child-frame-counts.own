@@ -27,19 +27,19 @@ fn read!() -> i32 $ Clock:
     7
 
 fn stored!() -> i32 $ Clock:
-    let pending: mut Suspend[i32] = read()
+    let pending: Suspend[i32] = read()
 > app/main/stored
->   local $0 pending: mut Suspend[i32] [read assigned] value
+>   local $0 pending: Suspend[i32] [read assigned] value
 >     uses $0: %5 -> %6 lend last
 >   %0 = Retain %11 Cold row #0 : ()
 >   %1 = Retain %11 Materialize row #0 : ()
 >   %2 = Release %11 FrameDrop row #2 : ()
 >   %3 = Release %11 FrameDrop child #2 : ()
->   %4 = Call app/main/read[] () : mut Suspend[i32]
+>   %4 = Call app/main/read[] () : Suspend[i32]
 >   %5 = Store [$0] %4 : ()
 >   %11 = Block %7 : i32
     pending!()
->   %6 = Read move [$0] : mut Suspend[i32]
+>   %6 = Read move [$0] : Suspend[i32]
 >   %7 = AwaitValue %6 : i32
 >   %8 = Release %7 Operation child #2 : ()
 >   %9 = Retain %7 Operation child #0 : ()

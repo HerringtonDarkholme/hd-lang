@@ -16,10 +16,10 @@ fn tagged!() -> string $ Tag:
     current()
 
 pub fn rejected_construction() -> void:
-    let pending: mut Suspend[string] = tagged() # diagnostic: missing-requirement
+    let pending: Suspend[string] = tagged() # diagnostic: missing-requirement
     _ := pending.cancel()
 
 pub fn lexical_construction() -> void:
-    let pending: mut Suspend[string] = $.with(Tag=FixedTag { value: "x" }):
+    let pending: Suspend[string] = $.with(Tag=FixedTag { value: "x" }):
         tagged()
     _ := pending.cancel()

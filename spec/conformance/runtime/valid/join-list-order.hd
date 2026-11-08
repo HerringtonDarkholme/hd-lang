@@ -19,7 +19,7 @@ pub fn main!() -> void $ Console:
     let (done, _) = channel::[bool](capacity=1)
     let log: *mut List[string] = box([])
     to_c.send!(true)
-    let tasks: List[mut Suspend[string]] = [
+    let tasks: List[Suspend[string]] = [
         later("a", a_turn, done, log),
         later("b", b_turn, to_a, log),
         later("c", c_turn, to_b, log),

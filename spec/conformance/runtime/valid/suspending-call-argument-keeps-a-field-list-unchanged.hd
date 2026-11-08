@@ -8,7 +8,7 @@ fn size!(items: List[i32]) -> usize:
     items.len()
 
 fn run!(bag: &mut Bag) -> usize:
-    let job: mut Suspend[usize] = size(bag.items)
+    let job: Suspend[usize] = size(bag.items)
     bag.items.push(9)
     job!()
 

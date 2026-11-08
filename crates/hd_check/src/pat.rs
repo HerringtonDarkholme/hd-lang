@@ -969,7 +969,7 @@ impl Ck<'_, '_> {
             }
         } else if pat.kind() == SyntaxKind::BindingPattern && annot.is_none() && !using {
             // `x := e` and `let x = e` drop an outer `mut` from the type
-            // (types.mut.weaken).
+            // (types.mut.weaken.v2).
             t = self.readonly_view(t);
         }
         // A plain name: a new local.

@@ -9,7 +9,7 @@ use std.time.{Clock, Duration, ms, s, sleep}
 
 struct Close:
     log: *mut List[string]
-    ack: mut Suspend[void]
+    ack: Suspend[void]
 
 impl AsyncDisposable for Close:
     fn dispose!(&mut self) -> void:

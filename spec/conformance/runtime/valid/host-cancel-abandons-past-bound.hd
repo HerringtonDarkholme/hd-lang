@@ -17,7 +17,7 @@ fn gate_wait!() -> void $ Gate:
     $.use(Gate).wait!()
 
 struct Conn:
-    closing: mut Suspend[void]
+    closing: Suspend[void]
 
 impl AsyncDisposable for Conn:
     fn dispose!(&mut self) -> void:

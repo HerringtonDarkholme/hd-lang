@@ -167,7 +167,7 @@ fn consume_named(value: Named) -> usize:
     value.token.id
 
 fn named_suspension!() -> usize:
-    let job: mut Suspend[Named] = relayed(Named { token: Token { id: 7 }, name: "token-${drops}" })
+    let job: Suspend[Named] = relayed(Named { token: Token { id: 7 }, name: "token-${drops}" })
     value := job!()
     if value.name.len() == 0:
         panic("lost the name")
@@ -256,7 +256,7 @@ tests:
 
     it("a suspension transfers the parameter's Drop ownership"):
         before := drops
-        let job: mut Suspend[Token] = relayed(Token { id: 0 })
+        let job: Suspend[Token] = relayed(Token { id: 0 })
         value := job!()
         assert_equal(value.id, 0)
         _ := identity(value)
@@ -284,7 +284,7 @@ tests:
         before := drops
         forwarder := Forwarder {}
         let relay: &dyn Relay = &forwarder
-        let job: mut Suspend[Token] = relay.relay(Token { id: 0 })
+        let job: Suspend[Token] = relay.relay(Token { id: 0 })
         value := job!()
         assert_equal(value.id, 0)
         _ := identity(value)

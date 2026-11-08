@@ -31,7 +31,7 @@ fn direct(key: string) -> usize:
 >   %0 = Release %22 Exit local $0 #2 : ()
     match block_on(fetch(key)):
 >   %1 = Read borrow [$0] : string
->   %2 = Call app/main/fetch[] (%1) : mut Suspend[string]
+>   %2 = Call app/main/fetch[] (%1) : Suspend[string]
 >   %3 = Call std/task/block_on[string] (%2) : BlockOn[string]
 >   %4 = Drop [%2] : ()
 >   %19 = Block - : never
@@ -61,9 +61,9 @@ fn stored(key: string) -> usize:
 >   local $2 value: string [read assigned] value
 >     uses $2: %13 -> %5 lend last
 >   %0 = Release %22 Exit local $0 #2 : ()
-    let pending: mut Suspend[string] = fetch(key)
+    let pending: Suspend[string] = fetch(key)
 >   %1 = Read borrow [$0] : string
->   %2 = Call app/main/fetch[] (%1) : mut Suspend[string]
+>   %2 = Call app/main/fetch[] (%1) : Suspend[string]
 >   %22 = Block %20 : usize
     match block_on(pending):
 >   %3 = Call std/task/block_on[string] (%2) : BlockOn[string]
@@ -93,14 +93,14 @@ fn deferred(key: string, log: &mut List[string]) -> usize:
 >     uses $0: entry -> %1 lend last
 >   local $1 log: Ref[mut List[string]] [param read] value
 >     uses $1: entry -> %5 lend last
->   local $2 pending: mut Suspend[string] [read assigned] value
+>   local $2 pending: Suspend[string] [read assigned] value
 >     uses $2: %3 -> %7 lend last
 >   local $3 value: string [read assigned] value
 >     uses $3: %18 -> %10 lend last
 >   %0 = Release %27 Exit local $0 #2 : ()
-    let pending: mut Suspend[string] = fetch(key)
+    let pending: Suspend[string] = fetch(key)
 >   %1 = Read borrow [$0] : string
->   %2 = Call app/main/fetch[] (%1) : mut Suspend[string]
+>   %2 = Call app/main/fetch[] (%1) : Suspend[string]
 >   %3 = Store [$2] %2 : ()
 >   %27 = Block %25 : usize
     log.push("constructed")
@@ -108,7 +108,7 @@ fn deferred(key: string, log: &mut List[string]) -> usize:
 >   %5 = Read borrow [*$1] : List[string]
 >   %6 = Intrinsic ListPush [%5 "constructed"] : ()
     match block_on(pending):
->   %7 = Read move [$2] : mut Suspend[string]
+>   %7 = Read move [$2] : Suspend[string]
 >   %8 = Call std/task/block_on[string] (%7) : BlockOn[string]
 >   %9 = Drop [%7] : ()
 >   %24 = Block - : never

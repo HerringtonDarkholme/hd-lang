@@ -60,9 +60,9 @@ fn both!(a: string, b: string) -> usize:
 >   %3 = Retain %32 Entry local $1 #0 : ()
     let (x, y) = join!(label(a), label(b))
 >   %4 = Read move [$0] : string
->   %5 = Call app/main/label[] (%4) : mut Suspend[string]
+>   %5 = Call app/main/label[] (%4) : Suspend[string]
 >   %6 = Read move [$1] : string
->   %7 = Call app/main/label[] (%6) : mut Suspend[string]
+>   %7 = Call app/main/label[] (%6) : Suspend[string]
 >   %8 = AwaitAll [%5 %7] : (string, string)
 >   %9 = Release %8 Operation results #2 : ()
 >   %10 = Release %8 Operation waker #2 : ()
@@ -110,12 +110,12 @@ fn either!(a: string, b: string) -> usize:
     race!(label(a), label(b)).len()
 >   %4 = Release %20 FrameDrop child #2 : ()
 >   %5 = Read move [$0] : string
->   %6 = Call app/main/label[] (%5) : mut Suspend[string]
+>   %6 = Call app/main/label[] (%5) : Suspend[string]
 >   %7 = Drop [%5] : ()
 >   %8 = Read move [$1] : string
->   %9 = Call app/main/label[] (%8) : mut Suspend[string]
+>   %9 = Call app/main/label[] (%8) : Suspend[string]
 >   %10 = Drop [%8] : ()
->   %11 = NewList - [%6 %9] : List[mut Suspend[string]]
+>   %11 = NewList - [%6 %9] : List[Suspend[string]]
 >   %12 = Await std/task/race[string] (%11) : string
 >   %13 = Release %12 Operation child #2 : ()
 >   %14 = Drop [%11] : ()

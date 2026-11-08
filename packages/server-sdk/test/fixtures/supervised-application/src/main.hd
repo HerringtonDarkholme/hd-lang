@@ -14,14 +14,14 @@ impl AsyncDisposable for InfiniteCleanup:
             pass
 
 struct WaitingCleanup:
-    wait: mut Suspend[void]
+    wait: Suspend[void]
 impl AsyncDisposable for WaitingCleanup:
     fn dispose!(&mut self) -> void:
         let mut wait = self.wait
         wait!()
 
 struct HttpCleanup:
-    wait: mut Suspend[Result[Response, HttpError]]
+    wait: Suspend[Result[Response, HttpError]]
 impl AsyncDisposable for HttpCleanup:
     fn dispose!(&mut self) -> void:
         let mut wait = self.wait

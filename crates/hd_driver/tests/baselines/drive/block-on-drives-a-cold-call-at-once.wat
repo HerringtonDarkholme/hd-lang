@@ -11,7 +11,7 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 2 funcref))
   (func $drive_put (param $s.0 i32) (param $s.1 i32) (param $text.0 i32) (param $text.1 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $n i32)
-    ;; 11 |     let call: mut Suspend[i32] = s.put(text)
+    ;; 11 |     let call: Suspend[i32] = s.put(text)
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -109,7 +109,7 @@
           call_indirect $table0 (param i32)
         end
       end
-    ;; 11 |     let call: mut Suspend[i32] = s.put(text)
+    ;; 11 |     let call: Suspend[i32] = s.put(text)
       local.get $s.1
       if
         local.get $s.1
@@ -156,7 +156,7 @@
         end
         br 0
       end
-    ;; 11 |     let call: mut Suspend[i32] = s.put(text)
+    ;; 11 |     let call: Suspend[i32] = s.put(text)
       local.get $n
       local.set $s.0
     end

@@ -1,7 +1,8 @@
 form	names	ticket	note
 user-declared data objects (grammar.data.struct-only)	Kind::Data is_data_object_ty Root::DataField ItemData::Data	-	data X: is a syntax error; every declaration with fields is a struct. Backend layout deleted in ddd5fdccb, checker/IR paths in 064bf1dc7, ItemData renamed to Struct in c44903ef8.
 the data declaration's syntax and resolver kinds, named after the removed form	DataDecl HeadKind::Data ItemKind::Data	#1444	the parser's DataDecl node serves struct declarations; rename to the struct form.
-the mut type modifier outside mut Suspend[T] (grammar.type.mut.suspend-only) and its readonly views	TyData::Mut has_mut_access	#1443	TyData::Mut also marks &mut after lower_refs.
+the mut type modifier (grammar.type.no-mut) and its readonly views	TyData::Mut has_mut_access	#1443	TyData::Mut also marks &mut after lower_refs.
+the mut type modifier's syntax node and its checker errors (grammar.type.no-mut)	MutType MutOnStruct MutableImplTarget ReadonlyArgumentToMutableParameter keeps_mut	-	deleted with the mut type modifier; a type that starts with mut is a syntax-error.
 views on & (owner: views are a Go-style leftover)	RefPayload ref_is_view Walk::View	#1448	waits on #1422 rule 1, a physical payload layout.
 the REPL whole-history build and replay mode	Session::start	-	no real caller; deleted in 12fdabc2c.
 JSON as a compiler special case at the host boundary (module.boundary.serialize.exact: a host is one more format)	LJson	#1445	a host serializer in std replaces it.

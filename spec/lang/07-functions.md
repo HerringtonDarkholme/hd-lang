@@ -160,7 +160,7 @@ fn rename(user: &mut User, name: string) -> void:
 7. r[fn.param.mut] `mut` before a parameter name, as in `mut a: S`, marks the callee's own copy of the argument, which may change.
 8. r[fn.param.mut.copy] The argument moves into a `mut` parameter at the caller's last use of it, and is copied otherwise. The caller's value is unchanged unless the callee returns the copy and the caller keeps it.
 9. r[fn.param.mut.reassign] A `mut` parameter may be reassigned as a whole, and a struct field of one is a [writable place](04-type-system.md#writable-places).
-10. r[fn.param.mut.view] `mut a: T` marks the binding, not the type, so `mut a: S` with a struct `S` is valid and `a: mut S` is an error. Error: `mut-on-struct`.
+10. r[fn.param.mut.binding] `mut a: T` marks the binding, not the type, so `mut a: S` with a struct `S` is valid and `a: mut S` is the syntax error of [`grammar.type.no-mut`](02-grammar.md#r-grammar.type.no-mut).
 11. r[fn.param.mut.closure] A closure parameter may be `mut` in the same way.
 
 ```text
@@ -454,7 +454,7 @@ may hold and call.
 3. r[fn.trait.bound-sugar] In a bound, `Fn(A, B) -> O $R` denotes `Fn[(A, B), O, $R]`, and an omitted row is `$()`.
 4. r[fn.trait.bound-tuple] The tuple form `Fn[(A, B), O, $R]` remains valid in a bound.
 5. r[fn.trait.call] A value of type parameter `F < Fn(A, B) -> O $R` may be called as `f(a, b)` and requires `$R`.
-6. r[fn.trait.suspend-weaken] A suspending function value `fn!(A, B) -> O $R` satisfies `F < Fn(A, B) -> mut Suspend[O] $R` through the same weakening as an expected concrete plain function type.
+6. r[fn.trait.suspend-weaken] A suspending function value `fn!(A, B) -> O $R` satisfies `F < Fn(A, B) -> Suspend[O] $R` through the same weakening as an expected concrete plain function type.
 7. r[fn.trait.bound.infer-instantiation] Call inference solves an `Fn` bound's input tuple, output and requirement-row arguments from a concrete function value's one `Fn` instantiation, including a suspending function's weakened instantiation.
 8. r[fn.trait.bound.closure-inputs] An unannotated closure passed to a bare parameter `F` takes its parameter types from `F`'s `Fn` bound when those input types are known; the closure's concrete type still solves `F`.
 9. r[fn.trait.bound-closure] A closure or a concrete function value passed to a bare parameter `F` has the signature of `F`'s `Fn` or `FnMut` bound, its row included. Another signature is an argument error, and the bound itself reports nothing more. Error: `type-mismatch`.
@@ -727,17 +727,17 @@ See also: [Type Inference Boundaries](04-type-system.md#type-inference-boundarie
 
 ### Suspending Function Values
 
-1. r[fn.type.suspend.call] A value of type `fn!(A) -> T $ R` constructs `mut Suspend[T]` when called normally.
+1. r[fn.type.suspend.call] A value of type `fn!(A) -> T $ R` constructs `Suspend[T]` when called normally.
 2. r[fn.type.suspend.bang] It may be bang-called inside a suspending body.
-3. r[fn.type.suspend.weaken] It may be weakened to the lowered constructor type `fn(A) -> mut Suspend[T] $ R`.
+3. r[fn.type.suspend.weaken] It may be weakened to the lowered constructor type `fn(A) -> Suspend[T] $ R`.
 4. r[fn.type.suspend.no-reverse] The reverse conversion is not implicit.
-5. r[fn.type.suspend.ctor] In constructor form, the weakening converts `SuspendFn[I, O, $ R]` to `Fn[I, mut Suspend[O], $ R]`.
+5. r[fn.type.suspend.ctor] In constructor form, the weakening converts `SuspendFn[I, O, $ R]` to `Fn[I, Suspend[O], $ R]`.
 
 ```hd
 fn fetch!(key: string) -> string: "value of $key"
 
 fn store() -> void:
-    _ := fetch("k1")   # a mut Suspend[string]; nothing has run
+    _ := fetch("k1")   # a Suspend[string]; nothing has run
 ```
 
 ### Method References

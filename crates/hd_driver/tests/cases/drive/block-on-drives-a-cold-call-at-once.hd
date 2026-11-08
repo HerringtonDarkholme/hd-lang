@@ -8,7 +8,7 @@ trait Sink:
     fn put!(&mut self, text: string) -> i32
 
 fn drive_put(s: &mut dyn Sink, text: string) -> i32:
-    let call: mut Suspend[i32] = s.put(text)
+    let call: Suspend[i32] = s.put(text)
     match block_on(call):
         .Completed(n) => n
         .Cancelled => 0

@@ -11,7 +11,7 @@ trait Work:
 fn ordinary(work: &dyn Work) -> i32 $ Tag:
     work.run()
 
-fn cold(work: &dyn Work) -> mut Suspend[i32] $ Tag:
+fn cold(work: &dyn Work) -> Suspend[i32] $ Tag:
     work.later()
 
 fn awaited!(work: &dyn Work) -> i32 $ Tag:

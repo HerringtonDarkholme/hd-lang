@@ -8,7 +8,7 @@ struct Post:
     title: string
 
 struct Owner:
-    friend: mut Timestamps
+    friend: Timestamps
     Timestamps
 
 post := Post {

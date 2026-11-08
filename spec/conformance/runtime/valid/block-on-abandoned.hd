@@ -9,7 +9,7 @@ use std.time.{Clock, s, sleep}
 
 struct Channel['a]:
     log: *mut List[string]
-    ack: mut Suspend[void, 'a]
+    ack: Suspend[void, 'a]
 
 impl['a] AsyncDisposable for Channel['a]:
     fn dispose!(&mut self) -> void:
@@ -24,7 +24,7 @@ fn work!(log: &mut List[string]) -> string $ Clock:
     sleep!(s(60))
     "late"
 
-fn stop!(job: mut Suspend[string], log: &mut List[string]) -> string:
+fn stop!(job: Suspend[string], log: &mut List[string]) -> string:
     match job.cancel!():
         .Finished => log.push("stop finished")
         .Abandoned => log.push("stop abandoned")
@@ -33,8 +33,8 @@ fn stop!(job: mut Suspend[string], log: &mut List[string]) -> string:
 # `job` turns out cancelled when `join!` polls it again, so `join!` and
 # `both` are cancelled, and the dispose of `channel` cannot finish.
 fn both!(
-    job: mut Suspend[string],
-    ack: mut Suspend[void],
+    job: Suspend[string],
+    ack: Suspend[void],
     log: *mut List[string],
 ) -> string $ Clock:
     defer(fn() -> void: log.push("both defer"))
@@ -43,9 +43,9 @@ fn both!(
     "${worked} ${stopped}"
 
 fn drive(log: *mut List[string]) -> string $ Clock:
-    let ack: mut Suspend[void] = sleep(s(60))
+    let ack: Suspend[void] = sleep(s(60))
     ack.abandon()
-    let job: mut Suspend[string] = work(log)
+    let job: Suspend[string] = work(log)
     match block_on(both(job, ack, log)):
         .Completed(value) => value
         .Cancelled => "cancelled"

@@ -10,7 +10,7 @@ use std.time.{Clock, ManualClock, Timestamp, s, sleep}
 
 struct Close['a]:
     log: *mut List[string]
-    ack: mut Suspend[void, 'a]
+    ack: Suspend[void, 'a]
 
 impl['a] AsyncDisposable for Close['a]:
     fn dispose!(&mut self) -> void:
@@ -26,8 +26,8 @@ fn silent!() -> void $ Clock:
 
 fn close!(
     log: *mut List[string],
-    reply: mut Suspend[void],
-    ack: mut Suspend[void],
+    reply: Suspend[void],
+    ack: Suspend[void],
 ) -> Result[void, TimedOut] $ Clock:
     apply!(timeout(5s, cleanup=0s)):
         using! close = &mut Close { log: log, ack: ack }
@@ -36,8 +36,8 @@ fn close!(
 
 pub fn main!() -> void $ Console + Clock:
     log := box::[List[string]]([])
-    let reply: mut Suspend[void] = silent()
-    let ack: mut Suspend[void] = silent()
+    let reply: Suspend[void] = silent()
+    let ack: Suspend[void] = silent()
     clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
     $.with(Clock=clock):
         match close!(log, reply, ack):

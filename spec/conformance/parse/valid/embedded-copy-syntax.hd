@@ -7,7 +7,7 @@ struct Post:
     Timestamps
     id: string
 
-fn build(stamps: Timestamps) -> mut Post:
+fn build(stamps: Timestamps) -> Post:
     let mut post = Post { Timestamps: stamps, id: "p" }
     post.Timestamps = Timestamps { created_at: 2, updated_at: 2 }
     if post.id == "p":

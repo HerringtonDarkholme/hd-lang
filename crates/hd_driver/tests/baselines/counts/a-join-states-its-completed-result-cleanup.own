@@ -37,9 +37,9 @@ fn generic![T < 'static](a: T, b: T) -> (T, T):
 >   %9 = Release %21 Exit referent $1 #8 : ()
     join!(ready(a), ready(b))
 >   %10 = Read move [$0] : T
->   %11 = Call app/main/ready[T] (%10) : mut Suspend[T]
+>   %11 = Call app/main/ready[T] (%10) : Suspend[T]
 >   %12 = Read move [$1] : T
->   %13 = Call app/main/ready[T] (%12) : mut Suspend[T]
+>   %13 = Call app/main/ready[T] (%12) : Suspend[T]
 >   %14 = AwaitAll [%11 %13] : (T, T)
 >   %15 = Release %14 Operation results #2 : ()
 >   %16 = Release %14 Operation waker #2 : ()
@@ -85,9 +85,9 @@ fn scalar!(a: i32, b: i32) -> (i32, i32):
 >   local $1 b: i32 [param read] value
 >     uses $1: entry -> %2 lend last
 >   %0 = Read copy [$0] : i32
->   %1 = Call app/main/ready[i32] (%0) : mut Suspend[i32]
+>   %1 = Call app/main/ready[i32] (%0) : Suspend[i32]
 >   %2 = Read copy [$1] : i32
->   %3 = Call app/main/ready[i32] (%2) : mut Suspend[i32]
+>   %3 = Call app/main/ready[i32] (%2) : Suspend[i32]
 >   %4 = AwaitAll [%1 %3] : (i32, i32)
 >   %5 = Release %4 Operation waker #2 : ()
 >   %6 = Drop [%3] : ()
@@ -111,9 +111,9 @@ fn sequential!(a: string, b: string) -> (string, string):
 >   %3 = Retain %27 Entry local $1 #0 : ()
     pair := join!(ready(a), ready(b))
 >   %4 = Read move [$0] : string
->   %5 = Call app/main/ready[string] (%4) : mut Suspend[string]
+>   %5 = Call app/main/ready[string] (%4) : Suspend[string]
 >   %6 = Read move [$1] : string
->   %7 = Call app/main/ready[string] (%6) : mut Suspend[string]
+>   %7 = Call app/main/ready[string] (%6) : Suspend[string]
 >   %8 = AwaitAll [%5 %7] : (string, string)
 >   %9 = Release %8 Operation results #2 : ()
 >   %10 = Release %8 Operation waker #2 : ()
@@ -125,10 +125,10 @@ fn sequential!(a: string, b: string) -> (string, string):
 >   %27 = Block %21 : (string, string)
     join!(ready(pair._0), ready(pair._1))
 >   %16 = Read borrow [$2 .0] : string
->   %17 = Call app/main/ready[string] (%16) : mut Suspend[string]
+>   %17 = Call app/main/ready[string] (%16) : Suspend[string]
 >   %18 = Read move [$2 .1] : string
 >   %19 = Drop [$2] : ()
->   %20 = Call app/main/ready[string] (%18) : mut Suspend[string]
+>   %20 = Call app/main/ready[string] (%18) : Suspend[string]
 >   %21 = AwaitAll [%17 %20] : (string, string)
 >   %22 = Release %21 Operation results #2 : ()
 >   %23 = Release %21 Operation waker #2 : ()

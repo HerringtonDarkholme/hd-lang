@@ -16,7 +16,7 @@ fn read_counter!() -> i32 $ Counter:
     $.use(Counter).value()
 
 pub fn main!() -> void:
-    let pending: mut Suspend[i32] = $.with(Counter=FixedCounter { current: 1 }):
+    let pending: Suspend[i32] = $.with(Counter=FixedCounter { current: 1 }):
         read_counter()
     $.with(Counter=FixedCounter { current: 2 }):
         actual := pending!()

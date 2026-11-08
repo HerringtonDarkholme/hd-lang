@@ -133,15 +133,15 @@ impl Parser<'_> {
             self.ty_reference(rows);
             self.complete(marker, SyntaxKind::Error)
         } else if self.at(TokenKind::KwMut) {
+            // grammar.type.no-mut: no type starts with `mut`. The type after
+            // it stands, so nothing more is reported about it.
+            self.error(
+                Code::SyntaxError,
+                "a type cannot start with `mut`: write `let mut name: T` or `mut name: T` for a binding that changes, or `&mut T` for a writable reference",
+            );
             self.bump();
-            if self.at(TokenKind::KwFn)
-                || self.at(TokenKind::LParen) && self.nth(1) == Some(TokenKind::KwFn)
-            {
-                // grammar.type.mut.no-function
-                self.error(Code::SyntaxError, "'mut' cannot directly precede 'fn'");
-            }
-            self.ty_reference(rows);
-            self.complete(marker, SyntaxKind::MutType)
+            self.abandon(marker);
+            return self.ty_inner(rows);
         } else {
             self.abandon(marker);
             self.ty_reference(rows)
@@ -178,7 +178,7 @@ impl Parser<'_> {
                     // grammar.type.dyn.mut
                     self.error(
                         Code::SyntaxError,
-                        "'mut' goes before 'dyn': write 'mut dyn Trait'",
+                        "'mut' goes before 'dyn': write '&mut dyn Trait'",
                     );
                     self.bump();
                 }

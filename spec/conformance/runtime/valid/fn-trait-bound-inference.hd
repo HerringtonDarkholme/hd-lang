@@ -6,8 +6,8 @@ use std.ops.Disposable
 fn map_one[I, O, F < Fn(I) -> O](value: I, f: F) -> O:
     f(value)
 
-fn drive![I, O, F < Fn(I) -> mut Suspend[O] $ R, $ R](value: I, f: F) -> O $ R:
-    let pending: mut Suspend[O] = f(value)
+fn drive![I, O, F < Fn(I) -> Suspend[O] $ R, $ R](value: I, f: F) -> O $ R:
+    let pending: Suspend[O] = f(value)
     pending!()
 
 fn work!(value: i32) -> i32:

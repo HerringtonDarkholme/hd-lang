@@ -16,7 +16,7 @@ fn work!() -> void:
     pass
 
 fn annotated() -> void:
-    let mut pending: mut Suspend[void] = work()
+    let mut pending: Suspend[void] = work()
     _ := pending
 
 fn swapped(value: Pair) -> i32:

@@ -24,14 +24,14 @@ fn hold!(t: Team) -> string $ Clock:
 fn ready!() -> string:
     "won"
 
-fn stop!(job: mut Suspend[string]) -> string:
+fn stop!(job: Suspend[string]) -> string:
     job.abandon()
     "stopped"
 
 pub fn main!() -> void $ Console + Clock:
     t := Team { lead: box(User { name: "a", age: +1 }) }
     alias := t.lead
-    let mut job: mut Suspend[string] = hold(t)
+    let mut job: Suspend[string] = hold(t)
     let (w, s) = join!(race(job, ready()), stop(job))
     println("${w} ${s}")
     alias.age += 1

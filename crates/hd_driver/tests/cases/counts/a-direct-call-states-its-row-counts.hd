@@ -13,7 +13,7 @@ fn later![$ R](callback: fn() -> i32 $ R) -> i32 $ R:
 fn ordinary(callback: fn() -> i32 $ Tag) -> i32 $ Tag:
     forward(callback)
 
-fn cold(callback: fn() -> i32 $ Tag) -> mut Suspend[i32] $ Tag:
+fn cold(callback: fn() -> i32 $ Tag) -> Suspend[i32] $ Tag:
     later(callback)
 
 fn awaited!(callback: fn() -> i32 $ Tag) -> i32 $ Tag:

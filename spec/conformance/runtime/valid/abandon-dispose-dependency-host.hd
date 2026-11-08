@@ -13,7 +13,7 @@ use std.time.{Clock, s, sleep}
 
 struct Channel['a]:
     log: *mut List[string]
-    ack: mut Suspend[void, 'a]
+    ack: Suspend[void, 'a]
 
 impl['a] AsyncDisposable for Channel['a]:
     fn dispose!(&mut self) -> void:
@@ -25,7 +25,7 @@ impl['a] AsyncDisposable for Channel['a]:
 
 struct Gate['a]:
     log: *mut List[string]
-    ack: mut Suspend[void, 'a]
+    ack: Suspend[void, 'a]
 
 impl['a] AsyncDisposable for Gate['a]:
     fn dispose!(&mut self) -> void:
@@ -36,12 +36,12 @@ impl['a] AsyncDisposable for Gate['a]:
 fn nothing!() -> void:
     pass
 
-fn talk!(log: *mut List[string], ack: mut Suspend[void]) -> string $ Clock:
+fn talk!(log: *mut List[string], ack: Suspend[void]) -> string $ Clock:
     using! channel = &mut Channel { log: log, ack: ack }
     sleep!(s(60))
     "late"
 
-fn guard!(log: *mut List[string], ack: mut Suspend[void]) -> string $ Clock:
+fn guard!(log: *mut List[string], ack: Suspend[void]) -> string $ Clock:
     using! gate = &mut Gate { log: log, ack: ack }
     sleep!(s(60))
     "late"
@@ -49,22 +49,22 @@ fn guard!(log: *mut List[string], ack: mut Suspend[void]) -> string $ Clock:
 fn ready!() -> string:
     "won"
 
-fn ended!(job: mut Suspend[string]) -> string:
+fn ended!(job: Suspend[string]) -> string:
     match job.cancel!():
         .Finished => "finished"
         .Abandoned => "abandoned"
 
 pub fn main!() -> void $ Console + Clock:
     let mut clock = $.use(Clock)
-    let ack: mut Suspend[void] = clock.sleep(s(60))
+    let ack: Suspend[void] = clock.sleep(s(60))
     _ := ack.cancel!()
     log := box::[List[string]]([])
-    let job: mut Suspend[string] = talk(log, ack)
+    let job: Suspend[string] = talk(log, ack)
     println(race!(job, ready()))
     println(log.join(", "))
     println(ended!(job))
     other := box::[List[string]]([])
-    let gated: mut Suspend[string] = guard(other, ack)
+    let gated: Suspend[string] = guard(other, ack)
     println(race!(gated, ready()))
     println(other.join(", "))
     println(ended!(gated))

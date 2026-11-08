@@ -4,12 +4,12 @@ use std.task.block_on
 fn ready!() -> i32:
     42
 
-fn drive(pending: mut Suspend[i32]) -> i32:
+fn drive(pending: Suspend[i32]) -> i32:
     match block_on(pending): # panic: suspension-invalid-state
         .Completed(value) => value
         _ => 0
 
 pub fn main() -> void:
-    let pending: mut Suspend[i32] = ready()
+    let pending: Suspend[i32] = ready()
     _ := drive(pending)
     _ := drive(pending)

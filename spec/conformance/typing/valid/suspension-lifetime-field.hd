@@ -1,16 +1,16 @@
-# test: a lifetime struct's field `mut Suspend[R, 'a]` holds a suspension that borrows `'a` data, stored and awaited within that data's life
+# test: a lifetime struct's field `Suspend[R, 'a]` holds a suspension that borrows `'a` data, stored and awaited within that data's life
 # Spec 13 Dependent Results: ref.dep.suspension.lifetime, ref.dep.suspension.lifetime.field.
 fn hold!(r: &string) -> usize:
     r.len()
 
 struct Holder['a]:
-    s: mut Suspend[usize, 'a]
+    s: Suspend[usize, 'a]
 
 fn lend(r: &string) -> Holder:
     h := Holder { s: hold(r) }
     h
 
-fn named['a](r: &'a string, q: &string) -> mut Suspend[usize, 'a]:
+fn named['a](r: &'a string, q: &string) -> Suspend[usize, 'a]:
     hold(r)
 
 fn keep!() -> usize:

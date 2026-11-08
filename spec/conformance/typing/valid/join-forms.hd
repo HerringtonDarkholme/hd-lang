@@ -11,7 +11,7 @@ fn pair!() -> (i32, string):
     both
 
 fn many!(count: i32) -> List[i32]:
-    let mut tasks: List[mut Suspend[i32]] = []
+    let mut tasks: List[Suspend[i32]] = []
     let i: i32 = 0
     while i < count:
         tasks.push(number())

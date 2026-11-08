@@ -24,7 +24,7 @@ fn end(cleanup: CleanupEnd) -> string:
         .Finished => "finished;"
         .Abandoned => "abandoned;"
 
-fn stopper!(target: mut Suspend[i32], log: &mut Log) -> i32:
+fn stopper!(target: Suspend[i32], log: &mut Log) -> i32:
     ended := end(target.cancel!())
     log.text = log.text + ended
     log.text = log.text + "stopped;"
@@ -33,7 +33,7 @@ fn stopper!(target: mut Suspend[i32], log: &mut Log) -> i32:
 pub fn main!() -> void $ Gate:
     log := box(Log { text: "" })
     alias := log
-    let target: mut Suspend[i32] = slow(log)
+    let target: Suspend[i32] = slow(log)
     winner := race!(target, stopper(target, alias))
     assert_equal(winner, 1, reason="the stopper wins")
     assert_equal(log.text, "start;cleanup;finished;stopped;", reason="exact cleanup trace")

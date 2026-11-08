@@ -8,5 +8,5 @@ fn read!() -> i32 $ Clock:
     7
 
 fn stored!() -> i32 $ Clock:
-    let pending: mut Suspend[i32] = read()
+    let pending: Suspend[i32] = read()
     pending!()

@@ -919,7 +919,7 @@ impl Ck<'_, '_> {
             None => (r, t),
         };
         // A binding without an annotation drops an outer `mut` from its
-        // type (types.mut.weaken); `let mut` is judged by `let_mut_binding`
+        // type (types.mut.weaken.v2); `let mut` is judged by `let_mut_binding`
         // (types.value.let-mut).
         let mutable = pat
             .direct_tokens()

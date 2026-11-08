@@ -48,7 +48,7 @@ struct CleanupState:
 struct Lease:
     server: *mut dyn HttpServer
     id: RequestId
-    job: mut Suspend[Result[Response, TimedOut]]
+    job: Suspend[Result[Response, TimedOut]]
     state: *mut CleanupState
 
 impl AsyncDisposable for Lease:
@@ -60,7 +60,7 @@ fn cancellation!(server: &mut dyn HttpServer, id: RequestId) -> JobEnd:
     _ := server.cancelled!(id)
     .Cancelled
 
-fn response!(job: mut Suspend[Result[Response, TimedOut]], state: &mut CleanupState) -> JobEnd:
+fn response!(job: Suspend[Result[Response, TimedOut]], state: &mut CleanupState) -> JobEnd:
     match job!():
         .Ok(value) => .Response(value)
         .Err(error) =>
@@ -82,7 +82,7 @@ fn request![S, $ R](
     client := server.client(incoming.id)
     clock := server.clock(incoming.id)
     console := server.console(incoming.id)
-    let job: mut Suspend[Result[Response, TimedOut]] = $.with(
+    let job: Suspend[Result[Response, TimedOut]] = $.with(
         Http=client,
         Clock=clock,
         Console=console,

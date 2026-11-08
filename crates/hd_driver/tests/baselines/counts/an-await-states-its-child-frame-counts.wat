@@ -15,7 +15,7 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 14 funcref))
   (func $stored'1 (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32) (local $t3 i32) (local $t1 i32) (local $t6 i32) (local $t2 i32) (local $t4 i32) (local $t5 i32) (local $t7 i32) (local $t0 i32)
-    ;; 11 |     let pending: mut Suspend[i32] = read()
+    ;; 11 |     let pending: Suspend[i32] = read()
     local.get $frame
     if
       local.get $frame
@@ -58,7 +58,7 @@
         call $read'1
     ;; 12 |     pending!()
         local.set $t2
-    ;; 11 |     let pending: mut Suspend[i32] = read()
+    ;; 11 |     let pending: Suspend[i32] = read()
       end
     ;; 12 |     pending!()
       block
@@ -309,7 +309,7 @@
         local.set $t1
         br 1
       end
-    ;; 11 |     let pending: mut Suspend[i32] = read()
+    ;; 11 |     let pending: Suspend[i32] = read()
       local.get $t2
       local.tee $t4
       if
@@ -360,7 +360,7 @@
     end
   )
   (func $stored.poll (param $t0 i32) (result i32 i32) (local $t2 i32) (local $t1 i32)
-    ;; 11 |     let pending: mut Suspend[i32] = read()
+    ;; 11 |     let pending: Suspend[i32] = read()
     local.get $t0
     call $rt:poll_check
     if
@@ -404,7 +404,7 @@
     return
   )
   (func $stored.cancel (param $t1 i32) (local $t0 i32) (local $t2 i32)
-    ;; 11 |     let pending: mut Suspend[i32] = read()
+    ;; 11 |     let pending: Suspend[i32] = read()
     call $rt:cancel_enter
     local.set $t0
     block
@@ -444,7 +444,7 @@
     call $rt:cancel_leave
   )
   (func $stored.drop (param $t0 i32) (local $t1 i32)
-    ;; 11 |     let pending: mut Suspend[i32] = read()
+    ;; 11 |     let pending: Suspend[i32] = read()
     local.get $t0
     i32.load $heap offset=24
     local.tee $t1
@@ -465,7 +465,7 @@
     end
   )
   (func $stored'2 (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32)
-    ;; 11 |     let pending: mut Suspend[i32] = read()
+    ;; 11 |     let pending: Suspend[i32] = read()
     call $rt:frame'1
     local.tee $t0
     local.get $t1

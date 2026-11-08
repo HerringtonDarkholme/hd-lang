@@ -62,7 +62,7 @@ fn biased_sum_to(limit: i32, seed: i32) -> i32:
 
 struct FrameRing:
     value: i32
-    task: mut Suspend[i32]?
+    task: Suspend[i32]?
 
 fn frame_value!(ring: &mut FrameRing) -> i32:
     ring.value

@@ -1,4 +1,4 @@
-# test: every argument of all! must be a mut Suspend
+# test: every argument of all! must be a Suspend
 use std.task.join
 
 fn ready!() -> i32:

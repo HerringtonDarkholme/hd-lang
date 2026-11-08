@@ -8,5 +8,5 @@ fn two!() -> i32:
     2
 
 pub fn main!() -> void $ Console:
-    let none: List[mut Suspend[i32]] = []
+    let none: List[Suspend[i32]] = []
     println(race!(none...)) # panic: explicit-panic

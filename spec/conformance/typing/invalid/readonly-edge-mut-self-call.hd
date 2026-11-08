@@ -1,5 +1,5 @@
 # test: a &mut self call through a `&` field is not-writable
-# Spec 04 Writable Places: types.path.store.not-writable.
+# Spec 04 Writable Places: types.path.store.not-writable.v2.
 
 struct Child:
     name: string

@@ -11,7 +11,7 @@ use std.time.{Clock, ms, s, sleep}
 
 struct Runner['a]:
     log: *mut List[string]
-    job: mut Suspend[string, 'a]
+    job: Suspend[string, 'a]
 
 impl['a] AsyncDisposable for Runner['a]:
     fn dispose!(&mut self) -> void:
@@ -20,11 +20,11 @@ impl['a] AsyncDisposable for Runner['a]:
         value := job!()
         self.log.push("runner got ${value}")
 
-fn run!(log: *mut List[string], job: mut Suspend[string]) -> void:
+fn run!(log: *mut List[string], job: Suspend[string]) -> void:
     using! runner = &mut Runner { log: log, job: job }
     log.push("run body")
 
-fn ended!(job: mut Suspend[void]) -> string:
+fn ended!(job: Suspend[void]) -> string:
     match job.cancel!():
         .Finished => "finished"
         .Abandoned => "abandoned"
@@ -33,36 +33,36 @@ fn slow!(name: string, log: &mut List[string]) -> void $ Clock:
     defer(fn() -> void: log.push("${name} defer"))
     sleep!(s(60))
 
-fn stop_later!(job: mut Suspend[void], log: &mut List[string]) -> void $ Clock:
+fn stop_later!(job: Suspend[void], log: &mut List[string]) -> void $ Clock:
     sleep!(ms(1))
     match job.cancel!():
         .Finished => log.push("stopper finished")
         .Abandoned => log.push("stopper abandoned")
 
-fn waiter!(job: mut Suspend[void], log: &mut List[string]) -> void:
+fn waiter!(job: Suspend[void], log: &mut List[string]) -> void:
     defer(fn() -> void: log.push("waiter defer"))
     job!()
     log.push("waiter never")
 
-fn supervise!(job: mut Suspend[void], log: &mut List[string]) -> string $ Clock:
+fn supervise!(job: Suspend[void], log: &mut List[string]) -> string $ Clock:
     defer(fn() -> void: log.push("supervise defer"))
     _ := join!([job, stop_later(job, log)]...)
     "supervise never"
 
-fn supervise_waiter!(job: mut Suspend[void], log: &mut List[string]) -> string $ Clock:
+fn supervise_waiter!(job: Suspend[void], log: &mut List[string]) -> string $ Clock:
     defer(fn() -> void: log.push("supervise defer"))
     _ := join!(waiter(job, log), stop_later(job, log))
     "supervise never"
 
 pub fn main!() -> void $ Console + Clock:
     log := box::[List[string]]([])
-    let runner: mut Suspend[void] = run(log, supervise(race(slow("a", log), slow("b", log)), log))
+    let runner: Suspend[void] = run(log, supervise(race(slow("a", log), slow("b", log)), log))
     runner!()
     println(log.join(", "))
     println(ended!(runner))
     other := box::[List[string]]([])
-    let pair: mut Suspend[void] = race(slow("c", other), slow("d", other))
-    let second: mut Suspend[void] = run(other, supervise_waiter(pair, other))
+    let pair: Suspend[void] = race(slow("c", other), slow("d", other))
+    let second: Suspend[void] = run(other, supervise_waiter(pair, other))
     second!()
     println(other.join(", "))
     println(ended!(second))

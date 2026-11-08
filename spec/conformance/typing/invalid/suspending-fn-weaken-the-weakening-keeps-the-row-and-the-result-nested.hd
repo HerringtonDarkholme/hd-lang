@@ -9,14 +9,14 @@ fn plus!(by: i32) -> i32:
 fn tick!(by: i32) -> i32 $ Clock:
     by + 1
 
-fn ticker(by: i32) -> mut Suspend[i32] $ Clock:
+fn ticker(by: i32) -> Suspend[i32] $ Clock:
     tick(by + 10)
 
-fn drive!(constructor: fn(i32) -> mut Suspend[i32] $ Clock) -> i32 $ Clock:
-    let pending: mut Suspend[i32] = constructor(41)
+fn drive!(constructor: fn(i32) -> Suspend[i32] $ Clock) -> i32 $ Clock:
+    let pending: Suspend[i32] = constructor(41)
     pending!()
 
-fn nested(ops: List[fn!(i32) -> i32 $ Clock]) -> List[fn(i32) -> mut Suspend[i32] $ Clock]:
+fn nested(ops: List[fn!(i32) -> i32 $ Clock]) -> List[fn(i32) -> Suspend[i32] $ Clock]:
     ops # diagnostic: type-mismatch
 
 pub fn main() -> void:

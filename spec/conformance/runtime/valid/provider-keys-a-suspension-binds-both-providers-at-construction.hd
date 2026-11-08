@@ -31,7 +31,7 @@ fn later!() -> i32 $ Repo[User] + Repo[Post] + Clock:
 
 pub fn main!() -> void $ Console + Clock:
     $.with(Repo[User]=UserRepo {}, Repo[Post]=PostRepo {}):
-        let pending: mut Suspend[i32] = later()
+        let pending: Suspend[i32] = later()
         println(pending!())
         tally := fn!() -> i32 $ Repo[User] + Repo[Post] + Clock:
             first := $.use(Repo[Post]).count()

@@ -66,9 +66,9 @@ pub fn main!() -> void $ Console:
 >   %5 finds [$0] full
     let (a, _) = join!(change(n), other())
 >   %8 = Read move [$1] : Counted[mut Note]
->   %9 = Call std/rt_tests.stage_case/change[] (%8) : mut Suspend[usize]
+>   %9 = Call std/rt_tests.stage_case/change[] (%8) : Suspend[usize]
 >   %10 = Drop [$0] : ()
->   %11 = Call std/rt_tests.stage_case/other[] () : mut Suspend[usize]
+>   %11 = Call std/rt_tests.stage_case/other[] () : Suspend[usize]
 >   %12 = AwaitAll [%9 %11] : (usize, usize)
 >   %13 = Release %12 Operation waker #2 : ()
 >   %14 = Drop [%11] : ()

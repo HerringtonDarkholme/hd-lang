@@ -6,7 +6,7 @@ use std.time.{Clock, sleep, ms}
 struct State: pass
 
 struct Closing:
-    work: mut Suspend[void]
+    work: Suspend[void]
 
 impl AsyncDisposable for Closing:
     fn dispose!(&mut self) -> void:

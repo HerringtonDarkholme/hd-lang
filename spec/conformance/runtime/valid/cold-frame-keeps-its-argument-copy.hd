@@ -7,7 +7,7 @@ fn deferred![T](value: T) -> T:
 
 pub fn main() -> void $ Console:
     let mut text = "keep${1}"
-    let pending: mut Suspend[string] = deferred(text)
+    let pending: Suspend[string] = deferred(text)
     text = "new${2}"
     kept := match block_on(pending):
         .Completed(value) => value

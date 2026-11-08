@@ -16,13 +16,13 @@ fn direct(key: string) -> usize:
         _ => 0
 
 fn stored(key: string) -> usize:
-    let pending: mut Suspend[string] = fetch(key)
+    let pending: Suspend[string] = fetch(key)
     match block_on(pending):
         .Completed(value) => value.len()
         _ => 0
 
 fn deferred(key: string, log: &mut List[string]) -> usize:
-    let pending: mut Suspend[string] = fetch(key)
+    let pending: Suspend[string] = fetch(key)
     log.push("constructed")
     match block_on(pending):
         .Completed(value) => value.len()

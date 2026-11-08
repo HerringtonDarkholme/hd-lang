@@ -25,7 +25,7 @@ fn kept!(s: string) -> string $ Clock:
 
 pub fn main!() -> void $ Console + Clock:
     let mut s = "a${1}"
-    let job: mut Suspend[string] = show(s, "t")
+    let job: Suspend[string] = show(s, "t")
     s = "b${2}"
     t := "t${3}"
     out := job!()

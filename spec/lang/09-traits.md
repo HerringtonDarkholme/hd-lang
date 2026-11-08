@@ -897,8 +897,7 @@ constructor.
 14. r[trait.target.trait-value] A trait value type is never an implementation target either: `Display` used as a type names a dynamic trait value, not a type constructor.
 15. r[trait.target.trait-value.error] `impl Marker for Display` and `impl Marker for Any` are errors. Error: `trait-value-impl-target`.
 16. r[trait.target.trait-value.argument.reference-values] A trait value type may still be a constructor's argument, as in `impl Marker for List[*dyn Display]`.
-17. r[trait.target.no-mut] A target must not be written with an outer `mut`: `impl Marker for mut Counter` is an error. Error: `mutable-impl-target`.
-18. r[trait.target.template] A derivation template, written `impl[T] Trait for T by Structure`, is not an implementation, so these target rules do not apply to it. Each derivation it produces is an ordinary implementation for a declared target, as [Templates](14-annotations.md#templates) defines.
+17. r[trait.target.template] A derivation template, written `impl[T] Trait for T by Structure`, is not an implementation, so these target rules do not apply to it. Each derivation it produces is an ordinary implementation for a declared target, as [Templates](14-annotations.md#templates) defines.
 
 ```text
 trait Describe:
@@ -914,7 +913,6 @@ impl[T] Describe for T:  # error: bare-parameter-impl-target
         "value"
 
 impl Marker for &dyn Display      # error: trait-value-impl-target
-impl Marker for mut Counter  # error: mutable-impl-target
 ```
 
 A function type is a target like any other:

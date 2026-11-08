@@ -66,11 +66,11 @@ fn count(n: i64) -> void $ Meter:
 >   %19 = Read [$4] : i64
 >   %20 = Call app/main/Meter.record for Meter [] via TraitValue (%18, %19) : ()
 
-fn count_later!(n: i64, wait: mut Suspend[void]) -> void $ Meter:
+fn count_later!(n: i64, wait: Suspend[void]) -> void $ Meter:
     for i in 0..n:
 > app/main/count_later
 >   local $0 n: i64 [param read]
->   local $1 wait: mut Suspend[()] [param read]
+>   local $1 wait: Suspend[()] [param read]
 >   local $2 $cur: i64 [assigned]
 >   local $3 $end: i64 [assigned]
 >   local $4 $incl: bool [assigned]
@@ -105,7 +105,7 @@ fn count_later!(n: i64, wait: mut Suspend[void]) -> void $ Meter:
 >   %19 = Read [$5] : i64
 >   %20 = Call app/main/Meter.record for Meter [] via TraitValue (%18, %19) : ()
         wait!()
->   %21 = Read [$1] : mut Suspend[()]
+>   %21 = Read [$1] : Suspend[()]
 >   %22 = AwaitValue %21 : ()
 
 pub fn run(n: i64) -> i64:

@@ -6,13 +6,13 @@ use std.task.block_on
 
 # subject
 pub fn synchronous(path: Path) -> bool $ FsRead:
-    let call: mut Suspend[Result[string, FsError]] = $.use(FsRead).read_text(path)
+    let call: Suspend[Result[string, FsError]] = $.use(FsRead).read_text(path)
     match block_on(call):
         .Completed(.Ok(_)) => true
         _ => false
 
 pub fn stored(path: Path) -> bool $ Console + FsRead:
-    let call: mut Suspend[Result[string, FsError]] = $.use(FsRead).read_text(path)
+    let call: Suspend[Result[string, FsError]] = $.use(FsRead).read_text(path)
     println("stored")
     match block_on(call):
         .Completed(.Ok(_)) => true

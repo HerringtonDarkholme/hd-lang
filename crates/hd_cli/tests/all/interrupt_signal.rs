@@ -21,7 +21,7 @@ const PROGRAM: &str = "use std.ops.AsyncDisposable
 use std.time.{Clock, ms, sleep}
 
 struct Conn:
-    closing: mut Suspend[void]
+    closing: Suspend[void]
 
 impl AsyncDisposable for Conn:
     fn dispose!(&mut self) -> void:

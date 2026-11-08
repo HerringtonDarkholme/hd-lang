@@ -10,7 +10,7 @@ use std.time.{Clock, s, sleep}
 ## from a `defer`, which abandon() still runs.
 struct Conn:
     listener: *mut dyn TcpListener
-    closing: mut Suspend[void]
+    closing: Suspend[void]
     fallback: bool
 
 impl AsyncDisposable for Conn:
@@ -33,7 +33,7 @@ fn session!(listener: *mut dyn TcpListener, fallback: bool) -> string $ Clock:
 fn ready!() -> string:
     "won"
 
-fn stop!(job: mut Suspend[string]) -> string:
+fn stop!(job: Suspend[string]) -> string:
     job.abandon()
     "stopped"
 
@@ -42,7 +42,7 @@ fn stop!(job: mut Suspend[string]) -> string:
 ## is open before the race, as `listen!` may wait on the host.
 fn abandoned!(fallback: bool) -> string $ Clock + Net:
     let mut listener = open_listener!().expect("a listener")
-    let job: mut Suspend[string] = session(listener, fallback)
+    let job: Suspend[string] = session(listener, fallback)
     let (winner, stopped) = join!(race(job, ready()), stop(job))
     "${winner} ${stopped}"
 

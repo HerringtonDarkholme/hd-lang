@@ -22,7 +22,7 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 17 funcref))
   (func $bound'1 (param $frame i32) (param $s.0 i32) (param $s.1 i32) (result i32 i32) (local $t5 i32) (local $t1 i32) (local $t10 i32) (local $t8 i32) (local $t7 i32) (local $t4 i32) (local $t2 i32) (local $t3 i32) (local $t6 i32) (local $t9 i32) (local $t11 i32) (local $t0 i32)
-    ;; 42 |     let mut pending: mut Suspend[usize] = $.with(Tag=Named { label: s }):
+    ;; 42 |     let mut pending: Suspend[usize] = $.with(Tag=Named { label: s }):
     local.get $frame
     if
       local.get $frame
@@ -152,7 +152,7 @@
           local.get $t4
           local.get $t6
           call $tagged'1
-    ;; 42 |     let mut pending: mut Suspend[usize] = $.with(Tag=Named { label: s }):
+    ;; 42 |     let mut pending: Suspend[usize] = $.with(Tag=Named { label: s }):
           local.set $t4
         end
         local.get $t8
@@ -419,7 +419,7 @@
         local.set $t1
         br 1
       end
-    ;; 42 |     let mut pending: mut Suspend[usize] = $.with(Tag=Named { label: s }):
+    ;; 42 |     let mut pending: Suspend[usize] = $.with(Tag=Named { label: s }):
       local.get $t4
       local.tee $t6
       if
@@ -476,7 +476,7 @@
     end
   )
   (func $bound.poll (param $t0 i32) (result i32 i32) (local $t2 i32) (local $t1 i32)
-    ;; 42 |     let mut pending: mut Suspend[usize] = $.with(Tag=Named { label: s }):
+    ;; 42 |     let mut pending: Suspend[usize] = $.with(Tag=Named { label: s }):
     local.get $t0
     call $rt:poll_check
     if
@@ -520,7 +520,7 @@
     return
   )
   (func $bound.cancel (param $t1 i32) (local $t0 i32) (local $t2 i32)
-    ;; 42 |     let mut pending: mut Suspend[usize] = $.with(Tag=Named { label: s }):
+    ;; 42 |     let mut pending: Suspend[usize] = $.with(Tag=Named { label: s }):
     call $rt:cancel_enter
     local.set $t0
     block
@@ -560,7 +560,7 @@
     call $rt:cancel_leave
   )
   (func $bound.drop (param $t0 i32) (local $t1 i32)
-    ;; 42 |     let mut pending: mut Suspend[usize] = $.with(Tag=Named { label: s }):
+    ;; 42 |     let mut pending: Suspend[usize] = $.with(Tag=Named { label: s }):
     local.get $t0
     i32.load $heap offset=12
     i32.const 64
@@ -588,7 +588,7 @@
     end
   )
   (func $bound'2 (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32)
-    ;; 42 |     let mut pending: mut Suspend[usize] = $.with(Tag=Named { label: s }):
+    ;; 42 |     let mut pending: Suspend[usize] = $.with(Tag=Named { label: s }):
     call $rt:frame'1
     local.tee $t0
     local.get $t1

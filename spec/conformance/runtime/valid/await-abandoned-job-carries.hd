@@ -9,8 +9,8 @@ use std.task.{join, block_on}
 use std.time.{Clock, s, sleep}
 
 struct Conn['a]:
-    closing: mut Suspend[void, 'a]
-    ack: mut Suspend[void, 'a]
+    closing: Suspend[void, 'a]
+    ack: Suspend[void, 'a]
 
 impl['a] AsyncDisposable for Conn['a]:
     fn dispose!(&mut self) -> void:
@@ -19,12 +19,12 @@ impl['a] AsyncDisposable for Conn['a]:
         let mut ack = self.ack
         ack!() # abandoned in the dependency case
 
-fn session!(ack: mut Suspend[void]) -> string $ Clock:
+fn session!(ack: Suspend[void]) -> string $ Clock:
     using! conn = Conn { closing: sleep(s(1)), ack: ack }
     sleep!(s(60))
     "late"
 
-fn stop!(job: mut Suspend[string], hard: bool) -> string:
+fn stop!(job: Suspend[string], hard: bool) -> string:
     if hard:
         job.abandon()
     else:
@@ -33,29 +33,29 @@ fn stop!(job: mut Suspend[string], hard: bool) -> string:
 
 # `join!` polls `job` again once `stop` cancelled it, so `pair` is
 # cancelled at that await and its cleanup folds the job's.
-fn pair!(job: mut Suspend[string], hard: bool) -> string:
+fn pair!(job: Suspend[string], hard: bool) -> string:
     let (a, b) = join!(job, stop(job, hard))
     "${a} ${b}"
 
-fn watch!(job: mut Suspend[string]) -> string:
+fn watch!(job: Suspend[string]) -> string:
     job!()
 
 # `watch` is cancelled at its bang call of `job`, and `chained` at its
 # `join!` of `watch`.
-fn chained!(job: mut Suspend[string]) -> string:
+fn chained!(job: Suspend[string]) -> string:
     let (a, b) = join!(watch(job), stop(job, true))
     "${a} ${b}"
 
-fn report!(task: mut Suspend[string]) -> string:
+fn report!(task: Suspend[string]) -> string:
     match task.cancel!():
         .Finished => "finished"
         .Abandoned => "abandoned"
 
-fn run(name: string, hard: bool, ack: mut Suspend[void]) -> string $ Clock:
-    let job: mut Suspend[string] = session(ack)
+fn run(name: string, hard: bool, ack: Suspend[void]) -> string $ Clock:
+    let job: Suspend[string] = session(ack)
     drive(name, pair(job, hard))
 
-fn drive(name: string, task: mut Suspend[string]) -> string:
+fn drive(name: string, task: Suspend[string]) -> string:
     let drive = match block_on(task):
         .Completed(value) => value
         .Cancelled => "cancelled"
@@ -69,8 +69,8 @@ fn drive(name: string, task: mut Suspend[string]) -> string:
 pub fn main() -> void $ Console + Clock:
     println(run("abandon", true, sleep(s(0))))
     println(run("graceful", false, sleep(s(0))))
-    let dep: mut Suspend[void] = sleep(s(60))
+    let dep: Suspend[void] = sleep(s(60))
     dep.abandon()
     println(run("dependency", false, dep))
-    let job: mut Suspend[string] = session(sleep(s(0)))
+    let job: Suspend[string] = session(sleep(s(0)))
     println(drive("chain", chained(job)))

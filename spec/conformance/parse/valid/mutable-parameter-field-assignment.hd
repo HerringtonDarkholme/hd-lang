@@ -2,6 +2,6 @@
 
 struct User:
     name: string
-fn rename(user: mut User) -> mut User:
+fn rename(mut user: User) -> User:
     user.name = "Grace"
     user

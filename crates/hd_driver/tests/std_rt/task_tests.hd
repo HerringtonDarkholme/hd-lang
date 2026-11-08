@@ -35,7 +35,7 @@ tests:
     use std.testing.{assert, it}
 
     it("a cold suspension runs when it is awaited"):
-        let job: mut Suspend[string] = twice(+1)
+        let job: Suspend[string] = twice(+1)
         assert(job!() == "s1s2", "the body ran once, on the await")
         let (a, b) = join!(twice(+3), step(+5))
         assert(a == "s3s4" && b == "s5", "all! keeps each child's result")
@@ -43,7 +43,7 @@ tests:
 
     it("a cancelled cold suspension never runs its body"):
         let mut log: List[string] = []
-        let job: mut Suspend[string] = guarded(&mut log, +1)
+        let job: Suspend[string] = guarded(&mut log, +1)
         finished := match job.cancel!():
             .Finished => true
             .Abandoned => false
@@ -57,10 +57,10 @@ tests:
         while round < 2030:
             if round == 30:
                 start = pages()
-            let job: mut Suspend[string] = twice(round)
+            let job: Suspend[string] = twice(round)
             let (a, b) = join!(step(round), guarded(&mut log, round))
             won := race!(twice(round), step(round))
-            let cold: mut Suspend[string] = guarded(&mut log, round)
+            let cold: Suspend[string] = guarded(&mut log, round)
             _ := cold.cancel!()
             driven := match block_on(twice(round)):
                 .Completed(text) => text

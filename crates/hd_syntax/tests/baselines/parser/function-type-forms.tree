@@ -15,9 +15,9 @@ fn forms(
 >             TypeArgumentList [ ]
 >               AssociatedTypeBinding Item =
 >                 NamedType i32
-    c: mut List[string],
+    c: &mut List[string],
 >     Parameter c :
->       MutType mut
+>       RefType & mut
 >         NamedType List
 >           TypeArgumentList [ ]
 >             NamedType string

@@ -649,9 +649,8 @@ impl Ck<'_, '_> {
 
     /// A written type meets the declared bounds of its constructor's
     /// parameters (`types.generic.bound`, `types.map-key.declared-bound`):
-    /// one error at the argument that misses a bound. A written `mut` key
-    /// is `mut-on-struct` instead (`types.value.no-mut.written`), and an
-    /// argument the written type did not fix waits for inference.
+    /// one error at the argument that misses a bound. An argument the
+    /// written type did not fix waits for inference.
     fn check_written_bounds(
         &mut self,
         t: Ty,
@@ -998,37 +997,6 @@ impl Ck<'_, '_> {
                     .map(|c| self.ty_node(c))
                     .collect();
                 pool.intern_ty(&TyData::Union(pool.list(&members?)))
-            }
-            SyntaxKind::MutType => {
-                let t = first(self, n)?;
-                if matches!(pool.get(t), TyData::Prim(_)) {
-                    self.err(
-                        hd_diag::Code::MutOnPrimitive,
-                        n,
-                        "a primitive type has no `mut` form",
-                    );
-                    return Ok(t);
-                }
-                // `types.value.no-mut.written`: a value has no `mut` form; only
-                // `mut Suspend[T]` keeps one.
-                let keeps = match pool.get(t) {
-                    TyData::Adt { def, .. } => def == self.cx.names.known.suspend,
-                    TyData::Param(_) | TyData::Infer(_) => true,
-                    _ => matches!(t, Ty::POISON | Ty::NEVER),
-                };
-                if !keeps {
-                    let msg = if self.is_struct_ty(t) {
-                        format!(
-                            "{} is a struct, a value with no `mut` form; a `let mut` binding changes its fields",
-                            self.show(t)
-                        )
-                    } else {
-                        format!("{} has no `mut` form", self.show(t))
-                    };
-                    self.err(hd_diag::Code::MutOnStruct, n, &msg);
-                    return Ok(t);
-                }
-                pool.intern_ty(&TyData::Mut(t))
             }
             SyntaxKind::ParenType => match n.children().find(|c| c.kind().is_type()) {
                 Some(child) => self.ty_node_as(child, role)?,

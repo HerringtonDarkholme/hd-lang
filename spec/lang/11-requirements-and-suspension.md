@@ -1170,7 +1170,7 @@ fn fetch_user!(id: UserId) -> Result[User, DbError]:
 It introduces two call forms:
 
 ```text
-let pending: mut Suspend[Result[User, DbError]] = fetch_user(id)
+let pending: Suspend[Result[User, DbError]] = fetch_user(id)
 result := fetch_user!(id)   # Result[User, DbError]
 ```
 
@@ -1189,16 +1189,15 @@ constructor function returning a suspension:
 
 ```text
 fn!(A, B) -> T $ R
-fn(A, B) -> mut Suspend[T] $ R
+fn(A, B) -> Suspend[T] $ R
 ```
 
 1. r[req.suspend.type.equivalent] A suspending function type is definitionally equivalent to an ordinary constructor function returning a suspension.
 2. r[req.suspend.type.spellings] The first spelling preserves the source-level bang-call operation; the second is its lowered callable type.
 3. r[req.suspend.type.conversion] Assignment or argument checking may convert the first to the second, but not back.
-4. r[req.suspend.type.plain-call] Calling either form without `!` constructs the cold mutable `Suspend[T]`.
+4. r[req.suspend.type.plain-call] Calling either form without `!` constructs the cold `Suspend[T]`.
 5. r[req.suspend.type.bang] Only the first form supports `callee!(...)` directly.
 6. r[req.suspend.type.not-suspending] A bang call whose callee is neither a suspending function or function value nor a `Suspend[T]` value is an error. Error: `not-suspending`.
-7. r[req.suspend.type.readonly-binding] A `:=` binding weakens that result to readonly `Suspend[T]`, which cannot call `poll` or `cancel`.
 
 ```text
 fn plain() -> i32: 42
@@ -1206,7 +1205,7 @@ fn run!() -> i32: plain!()  # error: not-suspending
 ```
 
 > **Note.** Store the result with
-> `let pending: mut Suspend[T] = callee(...)` when it must be driven later.
+> `let pending: Suspend[T] = callee(...)` when it must be driven later.
 
 ### Suspending Closures
 
@@ -1244,10 +1243,10 @@ fn main() -> i32: work!()  # error: bang-call-outside-suspension
 
 ### Driving A Stored Suspension
 
-1. r[req.drive.bang] For any expression `s` of type `mut Suspend[T]`, `s!()` drives that stored suspension to completion and has type `T`.
+1. r[req.drive.bang] For any expression `s` of type `Suspend[T]`, `s!()` drives that stored suspension to completion and has type `T`.
 2. r[req.drive.once] The expression `s` is evaluated once.
 3. r[req.drive.not-method] This is the same postfix bang suffix used for a direct `fn!` call; it is not a method lookup.
-4. r[req.drive.block-on.signature] Non-suspending code imports `use std.task.block_on` and calls the standard function `block_on[T](s: mut Suspend[T]) -> BlockOn[T]`, which owns the driver loop until the drive ends or panics. [`BlockOn`](../std/task.md#block-on) is an enum of `std.task`.
+4. r[req.drive.block-on.signature] Non-suspending code imports `use std.task.block_on` and calls the standard function `block_on[T](s: Suspend[T]) -> BlockOn[T]`, which owns the driver loop until the drive ends or panics. [`BlockOn`](../std/task.md#block-on) is an enum of `std.task`.
 5. r[req.drive.block-on.completed] When the suspension completes, `block_on` returns `.Completed` with its value. That holds also when a dispose was cut short after an ordinary exit, by [`req.abandon.dependency.completed`](#r-req.abandon.dependency.completed).
 6. r[req.drive.block-on.cancelled] When the suspension turns out cancelled, `block_on` goes on driving its cleanup until the cleanup has ended. It then returns `.Cancelled` when the cleanup ran to its end, and `.Abandoned` when a part of it was cut short.
 7. r[req.drive.block-on.cancelled.when] That holds for a suspension cancelled before the call, and for one that code inside the drive cancels, as an await of a suspension cancelled elsewhere does by [`req.cancel.await`](#r-req.cancel.await).
@@ -1312,7 +1311,7 @@ use std.ops.{AsyncDisposable, Disposable}
 use std.time.{Clock, ms, s, sleep}
 
 struct Conn:
-    closing: mut Suspend[void]
+    closing: Suspend[void]
 
 impl AsyncDisposable for Conn:
     fn dispose!(&mut self) -> void:
@@ -1367,12 +1366,12 @@ enum Poll[T]:
     Ready(T)
 
 impl[T] Suspend[T]:
-    fn poll(mut self, context: PollContext) -> Poll[T]
-    fn cancel!(mut self) -> CleanupEnd
-    fn abandon(mut self) -> void
+    fn poll(self, context: PollContext) -> Poll[T]
+    fn cancel!(self) -> CleanupEnd
+    fn abandon(self) -> void
 ```
 
-1. r[req.protocol.builtin] `Suspend[T]` is a built-in type that no package implements; code writes it without `dyn`, as `mut Suspend[i32]`. Its values come only from compiler-generated frames and from `std.task`. Ordinary packages may consume them, but an `impl` of `Suspend[T]` outside the standard library is an error, because `Suspend` names a built-in type and no trait. Error: `unknown-trait`.
+1. r[req.protocol.builtin] `Suspend[T]` is a built-in type that no package implements; code writes it without `dyn`, as `Suspend[i32]`. Its values come only from compiler-generated frames and from `std.task`. Ordinary packages may consume them, but an `impl` of `Suspend[T]` outside the standard library is an error, because `Suspend` names a built-in type and no trait. Error: `unknown-trait`.
 2. r[req.protocol.no-other] There is no separate `Pollable` or public `Continuation[T]` abstraction.
 
 > **Why.** A built-in type makes the one-shot runtime checks part of the
@@ -1491,7 +1490,7 @@ Conceptually, not as normative source code, a suspending function lowers to a
 constructor:
 
 ```text
-fn adjusted(base: i32) -> mut Suspend[i32] $ Counter:
+fn adjusted(base: i32) -> Suspend[i32] $ Counter:
     counter := $.use(Counter)
     AdjustedFrame {
         state: AdjustedState.New(base=base, counter=counter),
@@ -1503,7 +1502,7 @@ and to a frame whose `poll` method advances its state:
 ```text
 enum AdjustedState:
     New(base: i32, counter: Counter)
-    Waiting(child: mut Suspend[i32], offset: i32)
+    Waiting(child: Suspend[i32], offset: i32)
     Complete
 
 impl Suspend[i32] for AdjustedFrame:
@@ -1511,7 +1510,7 @@ impl Suspend[i32] for AdjustedFrame:
         while true:
             match self.state:
                 AdjustedState.New(base, counter) =>
-                    let child: mut Suspend[i32] = counter.next()
+                    let child: Suspend[i32] = counter.next()
                     self.state = AdjustedState.Waiting(child, offset=base)
                 AdjustedState.Waiting(child, offset) =>
                     match child.poll(context):
@@ -1528,7 +1527,7 @@ Requirements of a suspending function are resolved when its cold suspension is
 constructed:
 
 ```text
-let pending: mut Suspend[Result[User?, DbError]] = $.with(Database=mock_db):
+let pending: Suspend[Result[User?, DbError]] = $.with(Database=mock_db):
     load_user(id)
 
 # Driving pending later still uses mock_db.
@@ -1546,7 +1545,7 @@ fn tagged!() -> string $ Tag:
     $.use(Tag).name()
 
 pub fn rejected_construction() -> void:
-    let pending: mut Suspend[string] = tagged()  # error: missing-requirement
+    let pending: Suspend[string] = tagged()  # error: missing-requirement
     _ := pending.cancel()
 ```
 
@@ -1566,7 +1565,7 @@ use std.time.{Clock, ms, s, sleep}
 
 struct Conn:
     log: *mut List[string]
-    closing: mut Suspend[void]
+    closing: Suspend[void]
 
 impl AsyncDisposable for Conn:
     fn dispose!(&mut self) -> void:
@@ -1583,7 +1582,7 @@ fn session!(log: *mut List[string]) -> string $ Clock:
 fn ready!() -> string:
     "won"
 
-fn stopper!(job: mut Suspend[string], log: &mut List[string]) -> string:
+fn stopper!(job: Suspend[string], log: &mut List[string]) -> string:
     end := job.cancel!()   # returns once the dispose! of conn has finished
     match end:
         .Finished => log.push("stopper finished")
@@ -1592,7 +1591,7 @@ fn stopper!(job: mut Suspend[string], log: &mut List[string]) -> string:
 
 pub fn main!() -> void $ Console + Clock:
     let log: *mut List[string] = box([])
-    let job: mut Suspend[string] = session(log)
+    let job: Suspend[string] = session(log)
     let (winner, stopped) = join!(race(job, ready()), stopper(job, log))
     println("${winner} ${stopped}")   # won stopped
     println(log.join(", "))           # closing, closed, stopper finished
@@ -1626,7 +1625,7 @@ pub fn main!() -> void $ Console + Clock:
 ```text
 fn ready!() -> i32: 42
 
-fn stop!(job: mut Suspend[i32]) -> void:
+fn stop!(job: Suspend[i32]) -> void:
     job.cancel()  # error: discarded-must-use-value
 ```
 
@@ -1653,7 +1652,7 @@ use std.time.{Clock, ms, s, sleep}
 
 struct Release:
     log: *mut List[string]
-    closing: mut Suspend[void]
+    closing: Suspend[void]
 
 struct Mark:
     log: *mut List[string]
@@ -1678,13 +1677,13 @@ fn ordered!(res: &mut Release, log: &mut List[string]) -> string $ Clock:
     sleep!(s(60))
     "late"
 
-fn stop!(job: mut Suspend[string]) -> string:
+fn stop!(job: Suspend[string]) -> string:
     job.abandon()   # returns once the unwinding has ended
     "stopped"
 
 pub fn main!() -> void $ Console + Clock:
     let log: *mut List[string] = box([])
-    let job: mut Suspend[string] = ordered(&mut Release { log: log, closing: sleep(ms(5)) }, log)
+    let job: Suspend[string] = ordered(&mut Release { log: log, closing: sleep(ms(5)) }, log)
     println(race!(job, stop(job)))   # stopped
     println(log.join(", "))          # tail, dispose start, dispose cleanup, outer
 ```
@@ -1723,7 +1722,7 @@ pub fn main!() -> void $ Console + Clock:
 4. r[req.combinator.bang-called] Each is imported and bang-called like an ordinary `fn!` function, but the compiler supplies its frame and polling behavior.
 5. r[req.combinator.not-syntax] They are not first-class control-flow syntax.
 6. r[req.combinator.user] Because `Suspend[T]` is a built-in type, user code cannot define an equivalent polling combinator; it composes the standard intrinsics instead.
-7. r[req.combinator.race-signature] `race!` has the plain vararg signature `fn race![T](tasks...: List[mut Suspend[T]]) -> T`, with no typing rule of its own.
+7. r[req.combinator.race-signature] `race!` has the plain vararg signature `fn race![T](tasks...: List[Suspend[T]]) -> T`, with no typing rule of its own.
 8. r[req.combinator.race-join] Its children's result types therefore meet only by permission weakening, as [`types.generic.infer.join`](04-type-system.md#r-types.generic.infer.join) states, so children of unrelated types are an inference error.
 9. r[req.combinator.race-empty] A `race!` call written with no task argument, as `race!::[i32]()`, is an error. Error: `argument-count`.
 10. r[req.combinator.race-empty-literal] A `race!` call that passes an empty list literal by name, as `race!::[i32](tasks=[])`, is the same error. Error: `argument-count`.
@@ -1853,11 +1852,11 @@ fn page!(id: i64) -> string:
     "${user.name}: ${orders.len()}"
 ```
 
-1. r[req.combinator.all-typing] `join!` has no written signature. A call `join!(e_1, ..., e_n)` in which each `e_i` has type `mut Suspend[X_i]` has type `(X_1, ..., X_n)`.
+1. r[req.combinator.all-typing] `join!` has no written signature. A call `join!(e_1, ..., e_n)` in which each `e_i` has type `Suspend[X_i]` has type `(X_1, ..., X_n)`.
 2. r[req.combinator.all-argument] An argument of any other type is an error. Error: `type-mismatch`.
 3. r[req.combinator.all-direct] `join` must be the callee of a direct call. A named argument, an explicit type argument list such as `join!::[i32, string]`, or a use as a function value is an error. Error: `type-mismatch`.
 4. r[req.combinator.all-bang-child] A child written as a bang call, as in `join!(load_user!(id))`, is an ordinary bang call. The caller awaits it before `join!` starts, so its value is not a `Suspend`.
-5. r[req.combinator.join-list] `join!(tasks...)`, with one spread of a `List[mut Suspend[T]]` as its only argument, has type `List[T]`. The result holds each task's value at the task's index in `tasks`, whatever order they complete in.
+5. r[req.combinator.join-list] `join!(tasks...)`, with one spread of a `List[Suspend[T]]` as its only argument, has type `List[T]`. The result holds each task's value at the task's index in `tasks`, whatever order they complete in.
 6. r[req.combinator.join-list.rules] The list form polls, completes, cancels, abandons, and disposes its children as the tuple form does, by the rules above and [`req.combinator.all-cancelled`](#r-req.combinator.all-cancelled).
 7. r[req.combinator.join-list.only] A spread with any other argument, positional or named, is an error. Error: `type-mismatch`.
 
@@ -1869,7 +1868,7 @@ fn ready!() -> i32: 1
 fn eager!() -> (i32, i32):
     join!(ready!(), ready())  # error: type-mismatch
 
-fn both!(tasks: List[mut Suspend[i32]]) -> List[i32]:
+fn both!(tasks: List[Suspend[i32]]) -> List[i32]:
     join!(tasks...)  # the list form: one result per task, in order
 
 fn explicit!() -> (i32, i32):
@@ -1877,7 +1876,7 @@ fn explicit!() -> (i32, i32):
 ```
 
 > **Note.** A plain call of a suspending function, such as
-> `load_user(id)`, builds the cold `mut Suspend[User]` that `join!` polls
+> `load_user(id)`, builds the cold `Suspend[User]` that `join!` polls
 > ([`req.suspend.type.plain-call`](#r-req.suspend.type.plain-call)).
 > Scheduling, cancellation, and failure follow the rules above and
 > [Cooperative Scheduling](#cooperative-scheduling).

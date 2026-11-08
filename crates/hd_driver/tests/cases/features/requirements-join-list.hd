@@ -11,7 +11,7 @@ fn fetch!(key: string) -> string:
     key + "?"
 
 fn all!(keys: List[string]) -> usize:
-    let tasks: List[mut Suspend[string]] = [for k in keys => fetch(k)]
+    let tasks: List[Suspend[string]] = [for k in keys => fetch(k)]
     results := join!(tasks...)
     let mut n = 0
     for r in &results:

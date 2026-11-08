@@ -13,7 +13,7 @@ use std.time.{Clock, s, sleep}
 
 struct Channel['a]:
     log: *mut List[string]
-    ack: mut Suspend[void, 'a]
+    ack: Suspend[void, 'a]
 
 impl['a] AsyncDisposable for Channel['a]:
     fn dispose!(&mut self) -> void:
@@ -30,34 +30,34 @@ impl AsyncDisposable for Plain:
     fn dispose!(&mut self) -> void:
         self.log.push("plain closed")
 
-fn talk!(log: *mut List[string], ack: mut Suspend[void]) -> string $ Clock:
+fn talk!(log: *mut List[string], ack: Suspend[void]) -> string $ Clock:
     using! plain = &mut Plain { log: log }
     using! channel = &mut Channel { log: log, ack: ack }
     sleep!(s(60))
     "late"
 
-fn quick!(log: *mut List[string], ack: mut Suspend[void]) -> string:
+fn quick!(log: *mut List[string], ack: Suspend[void]) -> string:
     using! channel = &mut Channel { log: log, ack: ack }
     "value"
 
 fn ready!() -> string:
     "won"
 
-fn ended!(job: mut Suspend[string]) -> string:
+fn ended!(job: Suspend[string]) -> string:
     match job.cancel!():
         .Finished => "finished"
         .Abandoned => "abandoned"
 
 pub fn main!() -> void $ Console + Clock:
-    let ack: mut Suspend[void] = sleep(s(60))
+    let ack: Suspend[void] = sleep(s(60))
     _ := ack.cancel!()
     log := box::[List[string]]([])
-    let job: mut Suspend[string] = talk(log, ack)
+    let job: Suspend[string] = talk(log, ack)
     println(race!(job, ready()))
     println(log.join(", "))
     println("cancelled ${ended!(job)}")
     other := box::[List[string]]([])
-    let done: mut Suspend[string] = quick(other, ack)
+    let done: Suspend[string] = quick(other, ack)
     println(done!())
     println(other.join(", "))
     println("completed ${ended!(done)}")

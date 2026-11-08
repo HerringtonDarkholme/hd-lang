@@ -11,7 +11,7 @@ fn bang_cleanup!() -> i32:
 fn cold_cleanup!() -> i32:
     defer(
         fn() -> void:
-            let pending: mut Suspend[i32] = ready()
+            let pending: Suspend[i32] = ready()
             _ := pending.cancel()
         ,
     )

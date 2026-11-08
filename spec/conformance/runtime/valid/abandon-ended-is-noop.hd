@@ -11,24 +11,24 @@ fn record!(log: &mut List[string]) -> string:
     log.push("body")
     "done"
 
-fn ended!(job: mut Suspend[string]) -> string:
+fn ended!(job: Suspend[string]) -> string:
     match job.cancel!():
         .Finished => "finished"
         .Abandoned => "abandoned"
 
 pub fn main!() -> void $ Console:
     let mut log: List[string] = []
-    let done: mut Suspend[string] = record(&mut log)
+    let done: Suspend[string] = record(&mut log)
     _ := done!()
     done.abandon()
     done.abandon()
     println("completed ${ended!(done)}")
-    let stopped: mut Suspend[string] = record(&mut log)
+    let stopped: Suspend[string] = record(&mut log)
     _ := stopped.cancel!()
     stopped.abandon()
     stopped.abandon()
     println("cancelled ${ended!(stopped)}")
     let mut quiet: List[string] = []
-    let cold: mut Suspend[string] = record(&mut quiet)
+    let cold: Suspend[string] = record(&mut quiet)
     cold.abandon()
     println("cold ${ended!(cold)} ${debug(quiet)}")

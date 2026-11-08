@@ -4,7 +4,7 @@
 # expected: ready, cancellation and frame teardown read the join's waker-release contract.
 use std.task.join
 
-fn both!(a: mut Suspend[i32], b: mut Suspend[i32]) -> (i32, i32):
+fn both!(a: Suspend[i32], b: Suspend[i32]) -> (i32, i32):
     join!(a, b)
 > app/main/both
 >   retain Suspend[i32] (stored)

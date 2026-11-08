@@ -16,7 +16,7 @@ pub fn main!() -> void $ Console:
     println(race!(one(), two()))
     println(race!::[i32](one()))
     println(race!(tasks=[one(), two()]))
-    let list: List[mut Suspend[i32]] = [two(), one()]
+    let list: List[Suspend[i32]] = [two(), one()]
     println(race!(list...))
     let (a, b) = join!(one(), two())
     println("${a} ${b}")

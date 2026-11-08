@@ -1,5 +1,5 @@
 # test: a store needs a mut cell
-# Spec 04 Writable Places: types.path.store.not-writable.
+# Spec 04 Writable Places: types.path.store.not-writable.v2.
 use std.ops.{Apply, Update}
 
 struct Cell:

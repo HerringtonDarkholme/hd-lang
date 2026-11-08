@@ -81,7 +81,7 @@ pub fn main!() -> void:
     mock_database := MockDatabase {}
     context := $.context(Database=mock_database)
     $.with(context...):
-        let pending: mut Suspend[Result[User?, DbError]] = loader("user-1")
+        let pending: Suspend[Result[User?, DbError]] = loader("user-1")
         _ := pending!()
         _ := loader!("user-1")
 

@@ -14,7 +14,7 @@ use std.time.{ManualClock, Timestamp, sleep}
 
 struct Upload['a]:
     log: *mut List[string]
-    ack: mut Suspend[void, 'a]
+    ack: Suspend[void, 'a]
 
 impl['a] AsyncDisposable for Upload['a]:
     fn dispose!(&mut self) -> void:
@@ -25,8 +25,8 @@ impl['a] AsyncDisposable for Upload['a]:
 
 fn send!(
     log: *mut List[string],
-    reply: mut Suspend[string],
-    ack: mut Suspend[void],
+    reply: Suspend[string],
+    ack: Suspend[void],
 ) -> Result[string, TimedOut] $ Clock:
     apply!(timeout(5s, cleanup=1s)):
         using! upload = &mut Upload { log: log, ack: ack }
@@ -42,9 +42,9 @@ fn silent!() -> string $ Clock:
 fn acknowledged!() -> void:
     pass
 
-fn attempt!(ack: mut Suspend[void]) -> void $ Console + Clock:
+fn attempt!(ack: Suspend[void]) -> void $ Console + Clock:
     log := box::[List[string]]([])
-    let reply: mut Suspend[string] = silent()
+    let reply: Suspend[string] = silent()
     clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
     $.with(Clock=clock):
         result := send!(log, reply, ack)

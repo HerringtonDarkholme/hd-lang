@@ -8,5 +8,5 @@ fn two!() -> i32:
     2
 
 pub fn main!() -> void $ Console:
-    let tasks: List[mut Suspend[i32]] = [one()]
+    let tasks: List[Suspend[i32]] = [one()]
     println(join!(x=one(), y=two())) # diagnostic: type-mismatch

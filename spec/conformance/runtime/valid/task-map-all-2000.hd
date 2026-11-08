@@ -28,7 +28,7 @@ pub fn main!() -> void $ Console + Clock:
     for item in 0..2000:
         assert_equal(values[item], item + 1, reason="results keep input order")
     gauge := box(Gauge { started: 0, cleaned: 0 })
-    let pending: mut Suspend[List[usize]] = batch(gauge, items)
+    let pending: Suspend[List[usize]] = batch(gauge, items)
     clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
     $.with(Clock=clock):
         result := apply!(timeout(1ms)):

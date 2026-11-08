@@ -1778,7 +1778,7 @@ counted frames in memory 0 (`emit/susp.rs`, `task.rs`).
   its poll slot.
 - **Suspending function values.** A suspending closure's code and a
   function reference's adapter are cold constructors. They return the
-  frame that the call's `mut Suspend[T]` holds. The constructor copies
+  frame that the call's `Suspend[T]` holds. The constructor copies
   the captures from the environment into the frame, with a count of
   each. The body runs only over that frame. A call whose callee's row
   parameter carries a key is still refused (the context value of

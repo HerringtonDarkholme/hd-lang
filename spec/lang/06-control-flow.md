@@ -40,7 +40,7 @@ fn demo(flag: bool) -> i32:
 
 ### Must-Use Values
 
-1. r[flow.must-use.discard] An expression whose value is discarded and whose type is `Result[T, E]`, `T?`, or `mut Suspend[T]` is a compile-time error. Error: `discarded-must-use-value`.
+1. r[flow.must-use.discard] An expression whose value is discarded and whose type is `Result[T, E]`, `T?`, or `Suspend[T]` is a compile-time error. Error: `discarded-must-use-value`.
 2. r[flow.must-use.statement] This includes a non-final expression statement.
 3. r[flow.must-use.discarded-suite] It also includes the final expression of any suite whose value is discarded:
    - a loop body;
@@ -1070,7 +1070,7 @@ impl Disposable for Lock:
         self.held.push("released lock")
 
 struct Socket:
-    closing: mut Suspend[void]
+    closing: Suspend[void]
 
 impl AsyncDisposable for Socket:
     fn dispose!(&mut self) -> void:

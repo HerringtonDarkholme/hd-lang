@@ -13,7 +13,7 @@ fn text!() -> string:
     "t"
 
 fn wait() -> i32:
-    let s: mut Suspend[i32] = ready()
+    let s: Suspend[i32] = ready()
     done(block_on(s))
 fn f(v: i32 = wait()) -> i32:
     v

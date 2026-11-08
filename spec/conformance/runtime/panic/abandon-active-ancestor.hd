@@ -1,7 +1,7 @@
 # test: abandoning a suspension from inside its own active poll panics as reentrant
 # Spec lang/11 Abandoning: req.abandon.active.
 struct Slot:
-    task: (mut Suspend[i32])?
+    task: (Suspend[i32])?
 
 fn halt(slot: &mut Slot) -> void:
     match slot.task:
@@ -18,6 +18,6 @@ fn outer!(slot: &mut Slot) -> i32:
 pub fn main!() -> void:
     # A counted slot: the suspension keeps it, and borrows no local.
     slot := box(Slot { task: .None })
-    let pending: mut Suspend[i32] = outer(slot)
+    let pending: Suspend[i32] = outer(slot)
     slot.task = pending
     _ := pending!() # panic: suspension-reentrant-poll

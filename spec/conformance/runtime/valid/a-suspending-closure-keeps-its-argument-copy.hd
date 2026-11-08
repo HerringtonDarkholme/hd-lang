@@ -8,7 +8,7 @@ pub fn main!() -> void $ Console + Clock:
         sleep!(ms(i64(value.len())))
         value
     let mut text = "keep" + "keep"
-    let pending: mut Suspend[string] = later(text)
+    let pending: Suspend[string] = later(text)
     text = "new" + "new"
     println("${pending!()} $text")
     _ := later("drop" + "drop")

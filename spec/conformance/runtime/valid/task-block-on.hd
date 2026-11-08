@@ -22,9 +22,9 @@ fn describe(end: BlockOn[string]) -> string:
 
 pub fn main() -> void $ Console:
     println(name_of(7))
-    let cancelled: mut Suspend[string] = fetch(8)
+    let cancelled: Suspend[string] = fetch(8)
     _ := block_on(cancelled.cancel())
     println(describe(block_on(cancelled)))
-    let abandoned: mut Suspend[string] = fetch(9)
+    let abandoned: Suspend[string] = fetch(9)
     abandoned.abandon()
     println(describe(block_on(abandoned)))

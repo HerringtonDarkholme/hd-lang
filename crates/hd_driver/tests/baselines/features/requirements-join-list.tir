@@ -17,22 +17,22 @@ fn fetch!(key: string) -> string:
 >   %2 = Block %1 : string
 
 fn all!(keys: List[string]) -> usize:
-    let tasks: List[mut Suspend[string]] = [for k in keys => fetch(k)]
+    let tasks: List[Suspend[string]] = [for k in keys => fetch(k)]
 > app/main/all
 >   local $0 keys: List[string] [param read]
->   local $1 $acc: mut List[mut Suspend[string]] [assigned]
+>   local $1 $acc: mut List[Suspend[string]] [assigned]
 >   local $2 $coll: List[string] [assigned]
 >   local $3 $len: usize [assigned]
 >   local $4 $pos: usize [assigned]
 >   local $5 $end: usize [assigned]
 >   local $6 k: string [read assigned]
->   local $7 tasks: List[mut Suspend[string]] [read assigned]
+>   local $7 tasks: List[Suspend[string]] [read assigned]
 >   local $8 results: List[string] [:= read assigned]
 >   local $9 n: usize [read assigned mutated]
 >   local $10 $len: usize [assigned]
 >   local $11 $pos: usize [assigned]
 >   local $12 r: Ref[string] [read assigned]
->   %0 = NewList - [] : mut List[mut Suspend[string]]
+>   %0 = NewList - [] : mut List[Suspend[string]]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read [$0] : List[string]
 >   %3 = Store [$2] %2 : ()
@@ -40,7 +40,7 @@ fn all!(keys: List[string]) -> usize:
 >   %5 = Intrinsic ListLen [%4] : usize
 >   %6 = Store [$3] %5 : ()
 >   %7 = Read [$3] : usize
->   %8 = Read [$1] : mut List[mut Suspend[string]]
+>   %8 = Read [$1] : mut List[Suspend[string]]
 >   %9 = Intrinsic ListReserve [%8 %7] : ()
 >   %10 = Read [$3] : usize
 >   %11 = Store [$5] %10 : ()
@@ -53,9 +53,9 @@ fn all!(keys: List[string]) -> usize:
 >   %18 = Read [$4] : usize
 >   %19 = Prim Add [%18 1:usize] : usize
 >   %20 = Store [$4] %19 : ()
->   %21 = Read [$1] : mut List[mut Suspend[string]]
+>   %21 = Read [$1] : mut List[Suspend[string]]
 >   %22 = Read [$6] : string
->   %23 = Call app/main/fetch[] (%22) : mut Suspend[string]
+>   %23 = Call app/main/fetch[] (%22) : Suspend[string]
 >   %24 = Intrinsic ListPush [%21 %23] : ()
 >   %25 = Block - : ()
 >   %26 = Store [$6] %17 : ()
@@ -67,12 +67,12 @@ fn all!(keys: List[string]) -> usize:
 >   %33 = If %15 [%30 %32] : ()
 >   %34 = Block - : ()
 >   %35 = Loop %34 - : ()
->   %36 = Read [$1] : mut List[mut Suspend[string]]
->   %37 = Coerce %36 [Weaken -] : List[mut Suspend[string]]
+>   %36 = Read [$1] : mut List[Suspend[string]]
+>   %37 = Coerce %36 [Weaken -] : List[Suspend[string]]
 >   %38 = Store [$7] %37 : ()
 >   %72 = Block %71 : usize
     results := join!(tasks...)
->   %39 = Read [$7] : List[mut Suspend[string]]
+>   %39 = Read [$7] : List[Suspend[string]]
 >   %40 = Await std/task/all_list[string] (%39) : List[string]
 >   %41 = Store [$8] %40 : ()
     let mut n = 0

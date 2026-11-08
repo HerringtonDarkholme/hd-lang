@@ -4,7 +4,7 @@ fn hold!(r: &string) -> usize:
     r.len()
 
 struct Holder['a]:
-    s: mut Suspend[usize, 'a]
+    s: Suspend[usize, 'a]
 
 fn escape(q: &string) -> Holder:
     x := "abc"

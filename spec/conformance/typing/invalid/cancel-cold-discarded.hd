@@ -3,8 +3,8 @@
 fn ready!() -> i32:
     42
 
-fn stop!(job: mut Suspend[i32]) -> void:
+fn stop!(job: Suspend[i32]) -> void:
     job.cancel() # diagnostic: discarded-must-use-value
 
-fn stop_now!(job: mut Suspend[i32]) -> void:
+fn stop_now!(job: Suspend[i32]) -> void:
     _ := job.cancel!()

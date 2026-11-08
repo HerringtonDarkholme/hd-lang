@@ -6,13 +6,13 @@ fn ready!(value: i32) -> i32:
     value
 
 fn helper() -> i32:
-    let pending: mut Suspend[i32] = ready(1)
+    let pending: Suspend[i32] = ready(1)
     match block_on(pending):
         .Completed(value) => value
         _ => 0
 
 pub fn main!() -> Result[void, ConsoleError] $ Console:
-    let outer: mut Suspend[i32] = ready(2)
+    let outer: Suspend[i32] = ready(2)
     inner := helper()
     outer_value := outer!()
     let mut console = $.use(Console)

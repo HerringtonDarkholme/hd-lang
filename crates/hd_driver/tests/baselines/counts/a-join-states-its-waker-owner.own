@@ -4,19 +4,19 @@
 # expected: ready, cancellation and frame teardown read the join's waker-release contract.
 use std.task.join
 
-fn both!(a: mut Suspend[i32], b: mut Suspend[i32]) -> (i32, i32):
+fn both!(a: Suspend[i32], b: Suspend[i32]) -> (i32, i32):
 > app/main/both
->   local $0 a: mut Suspend[i32] [param read] value
+>   local $0 a: Suspend[i32] [param read] value
 >     uses $0: entry -> %4 lend last
->   local $1 b: mut Suspend[i32] [param read] value
+>   local $1 b: Suspend[i32] [param read] value
 >     uses $1: entry -> %5 lend last
 >   %0 = Retain %10 Cold local $0 #0 : ()
 >   %1 = Retain %10 Entry local $0 #0 : ()
 >   %2 = Retain %10 Cold local $1 #0 : ()
 >   %3 = Retain %10 Entry local $1 #0 : ()
     join!(a, b)
->   %4 = Read move [$0] : mut Suspend[i32]
->   %5 = Read move [$1] : mut Suspend[i32]
+>   %4 = Read move [$0] : Suspend[i32]
+>   %5 = Read move [$1] : Suspend[i32]
 >   %6 = AwaitAll [%4 %5] : (i32, i32)
 >   %7 = Release %6 Operation waker #2 : ()
 >   %8 = Drop [%5] : ()

@@ -53,11 +53,11 @@ fn homogeneous_all_frame_keeps_typed_and_counted_results() {
     sources.insert(
         "flat.hd",
         r#"@intrinsic("task_all_frame")
-pub fn frame[T](tasks: List[mut Suspend[T]]) -> mut Suspend[List[T]]:
+pub fn frame[T](tasks: List[Suspend[T]]) -> Suspend[List[T]]:
     panic("intrinsic")
 
 @intrinsic("task_pending_frame")
-pub fn pending[T]() -> mut Suspend[T]:
+pub fn pending[T]() -> Suspend[T]:
     panic("intrinsic")
 "#,
     );
@@ -79,17 +79,17 @@ fn check(ok: bool) -> void:
     if !ok:
         panic("typed all-frame result differs")
 
-fn discard![T](task: mut Suspend[List[T]]) -> usize:
+fn discard![T](task: Suspend[List[T]]) -> usize:
     values := task!()
     values.len()
 
 pub fn main!() -> void $ Console:
-    let strings: List[mut Suspend[List[string]]] = [ready(["one", "two"]), ready(["three"])]
-    let strings_frame: mut Suspend[List[List[string]]] = frame(strings)
+    let strings: List[Suspend[List[string]]] = [ready(["one", "two"]), ready(["three"])]
+    let strings_frame: Suspend[List[List[string]]] = frame(strings)
     values := strings_frame!()
     check(values.len() == 2 && values[0][0] == "one" && values[0][1] == "two" && values[1][0] == "three")
-    let variants: List[mut Suspend[Item]] = [ready(Item.Text("text")), ready(Item.Count(-7i64))]
-    let variants_frame: mut Suspend[List[Item]] = frame(variants)
+    let variants: List[Suspend[Item]] = [ready(Item.Text("text")), ready(Item.Count(-7i64))]
+    let variants_frame: Suspend[List[Item]] = frame(variants)
     variants_out := variants_frame!()
     match variants_out[0]:
         .Text(text) => check(text == "text")
@@ -99,18 +99,18 @@ pub fn main!() -> void $ Console:
         .Text(_) => panic("expected count")
     left := box(Cell { value: "left" })
     right := box(Cell { value: "right" })
-    let references: List[mut Suspend[*mut Cell]] = [ready(left), ready(right)]
-    let reference_frame: mut Suspend[List[*mut Cell]] = frame(references)
+    let references: List[Suspend[*mut Cell]] = [ready(left), ready(right)]
+    let reference_frame: Suspend[List[*mut Cell]] = frame(references)
     shared := reference_frame!()
     check(shared[0] is left)
     check(shared[1] is right)
     shared[0].value = "changed"
     check(left.value == "changed")
-    let partial_values: List[mut Suspend[List[string]]] = [ready(["owned", "result"]), pending()]
-    let partial_frame: mut Suspend[List[List[string]]] = frame(partial_values)
+    let partial_values: List[Suspend[List[string]]] = [ready(["owned", "result"]), pending()]
+    let partial_frame: Suspend[List[List[string]]] = frame(partial_values)
     _ := race!(discard(partial_frame), ready(0usize))
-    let partial_refs: List[mut Suspend[*mut Cell]] = [ready(left), pending()]
-    let partial_reference_frame: mut Suspend[List[*mut Cell]] = frame(partial_refs)
+    let partial_refs: List[Suspend[*mut Cell]] = [ready(left), pending()]
+    let partial_reference_frame: Suspend[List[*mut Cell]] = frame(partial_refs)
     _ := race!(discard(partial_reference_frame), ready(0usize))
     check(left.value == "changed")
     println("typed flat results")

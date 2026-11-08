@@ -18,7 +18,7 @@ pub trait Numeric < Add[Out = Self]
 
 # typed let nested comma.
 fn typed_let_nested_comma() -> void:
-    let entries: mut Map[string, string] = {}
+    let mut entries: Map[string, string] = {}
 
 # value parameter default.
 pub fn value_parameter_default(width: usize = +0) -> usize:

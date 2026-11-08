@@ -26,7 +26,7 @@ fn direct(key: string) -> usize:
         _ => 0
 
 fn stored(key: string) -> usize:
-    let pending: mut Suspend[string] = fetch(key)
+    let pending: Suspend[string] = fetch(key)
 > app/main/stored
 >   release Suspend[string] (last use)
 >   release std.task.BlockOn[string] (last use)
@@ -35,7 +35,7 @@ fn stored(key: string) -> usize:
         _ => 0
 
 fn deferred(key: string, log: &mut List[string]) -> usize:
-    let pending: mut Suspend[string] = fetch(key)
+    let pending: Suspend[string] = fetch(key)
 > app/main/deferred
 >   unique List[string] (may be shared)
 >   release Suspend[string] (last use)

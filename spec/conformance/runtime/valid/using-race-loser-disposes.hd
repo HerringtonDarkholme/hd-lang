@@ -11,7 +11,7 @@ use std.time.{Clock, ms, s, sleep}
 struct Conn:
     name: string
     log: *mut List[string]
-    closing: mut Suspend[void]
+    closing: Suspend[void]
 
 impl AsyncDisposable for Conn:
     fn dispose!(&mut self) -> void:

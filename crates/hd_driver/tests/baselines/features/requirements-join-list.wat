@@ -226,7 +226,7 @@
     local.get $t0
   )
   (func $all'1 (param $frame i32) (param $keys i32) (result i32 i32) (local $results i32) (local $t1 i32) (local $n i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $k.0 i32) (local $t5 i32) (local $k.1 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t0 i32)
-    ;; 14 |     let tasks: List[mut Suspend[string]] = [for k in keys => fetch(k)]
+    ;; 14 |     let tasks: List[Suspend[string]] = [for k in keys => fetch(k)]
     local.get $frame
     if
       local.get $frame
@@ -568,7 +568,7 @@
         local.set $t1
         br 1
       end
-    ;; 14 |     let tasks: List[mut Suspend[string]] = [for k in keys => fetch(k)]
+    ;; 14 |     let tasks: List[Suspend[string]] = [for k in keys => fetch(k)]
       local.get $t2
       local.tee $t3
       if
@@ -627,7 +627,7 @@
           br 0
         end
       end
-    ;; 14 |     let tasks: List[mut Suspend[string]] = [for k in keys => fetch(k)]
+    ;; 14 |     let tasks: List[Suspend[string]] = [for k in keys => fetch(k)]
       local.get $results
       local.tee $t3
       if
@@ -692,7 +692,7 @@
     end
   )
   (func $all.poll (param $t0 i32) (result i32 i32) (local $t2 i32) (local $t1 i32)
-    ;; 14 |     let tasks: List[mut Suspend[string]] = [for k in keys => fetch(k)]
+    ;; 14 |     let tasks: List[Suspend[string]] = [for k in keys => fetch(k)]
     local.get $t0
     call $rt:poll_check
     if
@@ -735,7 +735,7 @@
     return
   )
   (func $all.cancel (param $t1 i32) (local $t0 i32) (local $t2 i32)
-    ;; 14 |     let tasks: List[mut Suspend[string]] = [for k in keys => fetch(k)]
+    ;; 14 |     let tasks: List[Suspend[string]] = [for k in keys => fetch(k)]
     call $rt:cancel_enter
     local.set $t0
     block
@@ -774,7 +774,7 @@
     call $rt:cancel_leave
   )
   (func $all.drop (param $t0 i32) (local $t1 i32)
-    ;; 14 |     let tasks: List[mut Suspend[string]] = [for k in keys => fetch(k)]
+    ;; 14 |     let tasks: List[Suspend[string]] = [for k in keys => fetch(k)]
     local.get $t0
     i32.load $heap offset=12
     i32.const 64
@@ -810,7 +810,7 @@
     end
   )
   (func $all'2 (param $t1 i32) (result i32) (local $t0 i32)
-    ;; 14 |     let tasks: List[mut Suspend[string]] = [for k in keys => fetch(k)]
+    ;; 14 |     let tasks: List[Suspend[string]] = [for k in keys => fetch(k)]
     call $rt:frame'2
     local.tee $t0
     local.get $t1

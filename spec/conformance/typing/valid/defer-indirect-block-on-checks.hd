@@ -6,7 +6,7 @@ fn ready!() -> i32:
     1
 
 fn drive() -> i32:
-    let pending: mut Suspend[i32] = ready()
+    let pending: Suspend[i32] = ready()
     match block_on(pending):
         .Completed(value) => value
         _ => 0

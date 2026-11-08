@@ -32,7 +32,7 @@ struct Activity:
 fn pending!(
     state: *mut Breaker,
     activity: *mut Activity,
-    wait: mut Suspend[void],
+    wait: Suspend[void],
 ) -> Result[string, Failure]:
     assert_equal(state.calls, 1, reason="calls increments before work starts")
     activity.starts += 1
@@ -40,7 +40,7 @@ fn pending!(
     wait!()
     .Err(.Offline)
 
-fn cancel!(job: mut Suspend[Result[string, Failure]]) -> Result[string, Failure]:
+fn cancel!(job: Suspend[Result[string, Failure]]) -> Result[string, Failure]:
     assert_equal(job.cancel!(), .Finished, reason="guard child cleanup completes")
     .Ok("canceled")
 
@@ -127,8 +127,8 @@ pub fn main!() -> void $ Clock:
 
     cancel_state := box(Breaker { failures: 1, limit: 3, calls: 0 })
     activity := box(Activity { starts: 0, closed: 0 })
-    let wait: mut Suspend[void] = sleep(60s)
-    let job: mut Suspend[Result[string, Failure]] = apply(
+    let wait: Suspend[void] = sleep(60s)
+    let job: Suspend[Result[string, Failure]] = apply(
         guarded(cancel_state),
         work=fn!() -> Result[string, Failure]: pending!(cancel_state, activity, wait)
         ,

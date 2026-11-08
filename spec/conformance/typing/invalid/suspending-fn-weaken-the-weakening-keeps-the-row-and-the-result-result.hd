@@ -9,14 +9,14 @@ fn plus!(by: i32) -> i32:
 fn tick!(by: i32) -> i32 $ Clock:
     by + 1
 
-fn ticker(by: i32) -> mut Suspend[i32] $ Clock:
+fn ticker(by: i32) -> Suspend[i32] $ Clock:
     tick(by + 10)
 
-fn drive!(constructor: fn(i32) -> mut Suspend[i32] $ Clock) -> i32 $ Clock:
-    let pending: mut Suspend[i32] = constructor(41)
+fn drive!(constructor: fn(i32) -> Suspend[i32] $ Clock) -> i32 $ Clock:
+    let pending: Suspend[i32] = constructor(41)
     pending!()
 
-fn other() -> Fn[(i32,), mut Suspend[i64], $ Clock]:
+fn other() -> Fn[(i32,), Suspend[i64], $ Clock]:
     tick # diagnostic: type-mismatch
 
 pub fn main() -> void:

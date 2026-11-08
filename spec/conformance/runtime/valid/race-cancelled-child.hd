@@ -9,7 +9,7 @@ use std.time.{Clock, ms, s, sleep}
 
 struct Runner['a]:
     log: *mut List[string]
-    job: mut Suspend[string, 'a]
+    job: Suspend[string, 'a]
 
 impl['a] AsyncDisposable for Runner['a]:
     fn dispose!(&mut self) -> void:
@@ -18,11 +18,11 @@ impl['a] AsyncDisposable for Runner['a]:
         value := job!()
         self.log.push("runner got ${value}")
 
-fn run!(log: *mut List[string], job: mut Suspend[string]) -> void:
+fn run!(log: *mut List[string], job: Suspend[string]) -> void:
     using! runner = &mut Runner { log: log, job: job }
     log.push("run body")
 
-fn ended!(job: mut Suspend[void]) -> string:
+fn ended!(job: Suspend[void]) -> string:
     match job.cancel!():
         .Finished => "finished"
         .Abandoned => "abandoned"
@@ -32,7 +32,7 @@ fn slow!(log: &mut List[string]) -> string $ Clock:
     sleep!(s(60))
     "victim never"
 
-fn winner_later!(victim: mut Suspend[string], log: &mut List[string]) -> string $ Clock:
+fn winner_later!(victim: Suspend[string], log: &mut List[string]) -> string $ Clock:
     defer(fn() -> void: log.push("other defer"))
     sleep!(ms(1))
     _ := victim.cancel!()
@@ -42,8 +42,8 @@ fn winner_later!(victim: mut Suspend[string], log: &mut List[string]) -> string 
 
 pub fn main!() -> void $ Console + Clock:
     log := box::[List[string]]([])
-    let victim: mut Suspend[string] = slow(log)
-    let runner: mut Suspend[void] = run(log, race(victim, winner_later(victim, log)))
+    let victim: Suspend[string] = slow(log)
+    let runner: Suspend[void] = run(log, race(victim, winner_later(victim, log)))
     runner!()
     println(log.join(", "))
     println(ended!(runner))

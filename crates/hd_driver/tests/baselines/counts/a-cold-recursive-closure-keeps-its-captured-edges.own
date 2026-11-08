@@ -34,7 +34,7 @@ fn make(value: string) -> fn!(usize) -> string:
 >   %11 = Read borrow [$2] : fn!(usize) -> string
 >   %12 = Read copy [$1] : usize
 >   %13 = Prim Sub [%12 1:usize] : usize
->   %14 = CallValue %11 [%13] : mut Suspend[string]
+>   %14 = CallValue %11 [%13] : Suspend[string]
 >   %15 = AwaitValue %14 : string
 >   %16 = Release %15 Operation child #2 : ()
 >   %17 = Retain %15 Operation child #0 : ()
@@ -91,7 +91,7 @@ pub fn main!() -> void $ Console:
 >   %34 = Block - : ()
     println(read!(3))
 >   %6 = Read move [$0] : fn!(usize) -> string
->   %7 = CallValue %6 [3:usize] : mut Suspend[string]
+>   %7 = CallValue %6 [3:usize] : Suspend[string]
 >   %8 = AwaitValue %7 : string
 >   %9 = Release %8 Operation child #2 : ()
 >   %10 = Retain %8 Operation child #0 : ()
@@ -106,7 +106,7 @@ pub fn main!() -> void $ Console:
 >   %17 = Store [$2] %16 : ()
     println(text!())
 >   %18 = Read move [$1] : fn!() -> string
->   %19 = CallValue %18 [] : mut Suspend[string]
+>   %19 = CallValue %18 [] : Suspend[string]
 >   %20 = AwaitValue %19 : string
 >   %21 = Release %20 Operation child #2 : ()
 >   %22 = Retain %20 Operation child #0 : ()
@@ -115,7 +115,7 @@ pub fn main!() -> void $ Console:
 >   %25 = Call std/console/println[string] (%20) : ()
     println(number!())
 >   %26 = Read move [$2] : fn!() -> i32
->   %27 = CallValue %26 [] : mut Suspend[i32]
+>   %27 = CallValue %26 [] : Suspend[i32]
 >   %28 = AwaitValue %27 : i32
 >   %29 = Release %28 Operation child #2 : ()
 >   %30 = Retain %28 Operation child #0 : ()

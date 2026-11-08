@@ -286,7 +286,7 @@
     local.get $key.0
   )
   (func $deferred (param $key.0 i32) (param $key.1 i32) (param $log i32) (result i32) (local $value.1 i32) (local $t0 i32) (local $t1 i32)
-    ;; 25 |     let pending: mut Suspend[string] = fetch(key)
+    ;; 25 |     let pending: Suspend[string] = fetch(key)
     block
       local.get $key.0
       local.get $key.1
@@ -367,7 +367,7 @@
       local.set $value.1
       local.set $log
       local.set $key.1
-    ;; 25 |     let pending: mut Suspend[string] = fetch(key)
+    ;; 25 |     let pending: Suspend[string] = fetch(key)
       local.get $key.0
       if
         local.get $key.0
@@ -407,7 +407,7 @@
         end
         br 0
       end
-    ;; 25 |     let pending: mut Suspend[string] = fetch(key)
+    ;; 25 |     let pending: Suspend[string] = fetch(key)
       local.get $key.1
       local.get $log
       local.get $value.1
@@ -418,12 +418,12 @@
     local.get $key.0
   )
   (func $stored (param $key.0 i32) (param $key.1 i32) (result i32) (local $t0 i32) (local $value.1 i32) (local $t1 i32)
-    ;; 19 |     let pending: mut Suspend[string] = fetch(key)
+    ;; 19 |     let pending: Suspend[string] = fetch(key)
     block
     ;; 20 |     match block_on(pending):
       call $rt:forbid_check
       i32.const 0
-    ;; 19 |     let pending: mut Suspend[string] = fetch(key)
+    ;; 19 |     let pending: Suspend[string] = fetch(key)
       i32.const 0
       local.get $key.0
       local.get $key.1
@@ -433,7 +433,7 @@
       local.set $value.1
       local.set $t0
       local.set $key.1
-    ;; 19 |     let pending: mut Suspend[string] = fetch(key)
+    ;; 19 |     let pending: Suspend[string] = fetch(key)
       local.get $key.0
       if
         local.get $key.0
@@ -473,7 +473,7 @@
         end
         br 0
       end
-    ;; 19 |     let pending: mut Suspend[string] = fetch(key)
+    ;; 19 |     let pending: Suspend[string] = fetch(key)
       local.get $key.1
       local.get $t0
       local.get $value.1

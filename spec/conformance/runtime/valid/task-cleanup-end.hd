@@ -8,15 +8,15 @@ use std.task.CleanupEnd
 fn fetch!() -> string:
     "value"
 
-fn stop!(job: mut Suspend[string]) -> string:
+fn stop!(job: Suspend[string]) -> string:
     end := job.cancel!()
     if end == CleanupEnd.Finished: "closed" else: "cut short"
 
 pub fn main!() -> void $ Console:
-    let job: mut Suspend[string] = fetch()
+    let job: Suspend[string] = fetch()
     println(stop!(job))
     println("${debug(CleanupEnd.Finished)} ${debug(CleanupEnd.Abandoned)}")
-    let done: mut Suspend[string] = fetch()
+    let done: Suspend[string] = fetch()
     _ := done!()
     end := done.cancel!()
     println("${end == CleanupEnd.Finished} ${end == CleanupEnd.Abandoned}")

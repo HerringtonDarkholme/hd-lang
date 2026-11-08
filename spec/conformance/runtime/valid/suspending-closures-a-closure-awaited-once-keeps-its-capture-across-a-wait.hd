@@ -13,5 +13,5 @@ pub fn main!() -> void $ Console + Clock:
         nap!(2)
         base + offset
     println(once!(2))
-    let pending: mut Suspend[i32] = once(1)
+    let pending: Suspend[i32] = once(1)
     println(pending!())

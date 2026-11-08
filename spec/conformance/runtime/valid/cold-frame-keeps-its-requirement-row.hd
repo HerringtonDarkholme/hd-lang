@@ -19,9 +19,9 @@ fn forward![$ R](callback: fn!() -> string $ R) -> string $ R:
     callback!()
 
 pub fn main() -> void $ Console:
-    let pending: mut Suspend[string] = $.with(Tag=Named { label: "keep${1}" }):
+    let pending: Suspend[string] = $.with(Tag=Named { label: "keep${1}" }):
         forward(read)
-    let discarded: mut Suspend[string] = $.with(Tag=Named { label: "drop${2}" }):
+    let discarded: Suspend[string] = $.with(Tag=Named { label: "drop${2}" }):
         forward(read)
     match block_on(pending):
         .Completed(value) => println(value)

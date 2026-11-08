@@ -630,7 +630,7 @@ impl Ck<'_, '_> {
     /// the least common type admits: the same type, weakening the outer
     /// `mut` alone, or declared readonly variance, whose arguments convert
     /// the same way (`types.lct.conversions`, `types.lct.no-combine`,
-    /// `types.variance.repr.weakening`). `top` lets a function value's row
+    /// `types.variance.repr.weakening.v2`). `top` lets a function value's row
     /// widen to the site's union row.
     fn lct_converts(&self, s: Ty, t: Ty, top: bool, depth: u32) -> bool {
         let pool = self.pool();

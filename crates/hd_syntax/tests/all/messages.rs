@@ -541,14 +541,14 @@ const ROWS: &[(&str, &str, &str)] = &[
         "a suffixed literal cannot be a pattern",
     ),
     (
-        "let x: mut fn() -> i32 = y\n",
+        "let x: mut Suspend[i32] = y\n",
         "syntax-error",
-        "'mut' cannot directly precede 'fn'",
+        "a type cannot start with `mut`: write `let mut name: T` or `mut name: T` for a binding that changes, or `&mut T` for a writable reference",
     ),
     (
         "let x: dyn mut Counter = y\n",
         "syntax-error",
-        "'mut' goes before 'dyn': write 'mut dyn Trait'",
+        "'mut' goes before 'dyn': write '&mut dyn Trait'",
     ),
     (
         "let x: (T...) = y\n",

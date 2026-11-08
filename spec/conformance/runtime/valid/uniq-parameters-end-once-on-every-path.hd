@@ -58,7 +58,7 @@ tests:
         assert_equal(restored_part(Pair { a: parcels(1), b: parcels(3) }), 6, reason="all parts")
 
     it("a frame that never ran ends its arguments"):
-        let mut pending: mut Suspend[usize] = work(parcels(5), true)
+        let mut pending: Suspend[usize] = work(parcels(5), true)
         _ := pending.cancel!()
 
     it("a frame that ran moved them"):

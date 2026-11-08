@@ -1,10 +1,10 @@
 fn ready!() -> i32:
     1
 
-fn accept_all[T](tasks...: List[mut Suspend[T]]) -> void:
+fn accept_all[T](tasks...: List[Suspend[T]]) -> void:
     pass
 
 fn keep_mutable() -> void:
-    let pending: mut Suspend[i32] = ready()
+    let pending: Suspend[i32] = ready()
     _ := pending.cancel()
     accept_all(ready())

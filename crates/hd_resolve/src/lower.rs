@@ -1681,10 +1681,6 @@ struct Gen {
     /// which `self` and `Self` take (`ref.lifetime.struct.impl`).
     self_slots: Vec<u16>,
     self_trait: Option<DefId>,
-    /// Type parameters written with a bound list. Nothing reads it now:
-    /// `mut T` is an error for every type parameter
-    /// (types.value.no-mut.written).
-    bounded: Vec<Ty>,
     /// Type parameters of the list being lowered whose bounds are not
     /// lowered yet: whether one is bounded by `Tuple` is not known.
     pending: Vec<Ty>,
@@ -1700,7 +1696,6 @@ impl Gen {
             self.rows.len(),
             self.consts.len(),
             self.decls.len(),
-            self.bounded.len(),
             self.pending.len(),
             self.lifetimes.len(),
         );
@@ -1710,9 +1705,8 @@ impl Gen {
         self.rows.truncate(lengths.1);
         self.consts.truncate(lengths.2);
         self.decls.truncate(lengths.3);
-        self.bounded.truncate(lengths.4);
-        self.pending.truncate(lengths.5);
-        self.lifetimes.truncate(lengths.6);
+        self.pending.truncate(lengths.4);
+        self.lifetimes.truncate(lengths.5);
         (self.self_ty, self.self_trait) = context;
         value
     }
@@ -3172,31 +3166,6 @@ impl Lower<'_, '_, '_> {
                     .collect();
                 pool.intern_ty(&TyData::Union(pool.list(&members)))
             }
-            SyntaxKind::MutType => {
-                let t = first_ty(self, n);
-                // A primitive has no `mut` form (types.prim.no-mut.error),
-                // nor has a type parameter (types.value.no-mut.written); the
-                // checker rejects the others but `Suspend[T]`.
-                match pool.get(t) {
-                    TyData::Prim(_) => {
-                        self.diags.error(
-                            Code::MutOnPrimitive,
-                            self.src.span(n),
-                            "a primitive type has no `mut` form",
-                        );
-                        t
-                    }
-                    TyData::Param(_) => {
-                        self.diags.error(
-                            Code::MutOnStruct,
-                            self.src.span(n),
-                            "a type parameter has no `mut` form",
-                        );
-                        t
-                    }
-                    _ => pool.intern_ty(&TyData::Mut(t)),
-                }
-            }
             SyntaxKind::ParenType => {
                 self.ty_at(n.children().find(|c| c.kind().is_type()), gn, referent)
             }
@@ -3388,9 +3357,7 @@ impl Lower<'_, '_, '_> {
             SyntaxKind::ContextType => self.context_ty(n, gn),
             SyntaxKind::RefType => {
                 // `ref.type.forms`: the reference's own `mut` says whether it
-                // writes. A `mut` operand is the checker's `mut-on-struct`,
-                // except the legacy `mut Suspend[T]`, whose `mut` a
-                // reference drops.
+                // writes.
                 let mutable = n
                     .direct_token(&self.src.parse.tokens, TokenKind::KwMut)
                     .is_some();
@@ -3403,13 +3370,6 @@ impl Lower<'_, '_, '_> {
                     slots.push(lifetime);
                 }
                 let inner = self.ty_at(n.children().find(|c| c.kind().is_type()), gn, true);
-                let suspend = self.names.known.suspend;
-                let inner = match pool.get(inner) {
-                    TyData::Mut(i) if matches!(pool.get(i), TyData::Adt { def, .. } if def == suspend) => {
-                        i
-                    }
-                    _ => inner,
-                };
                 pool.intern_ty(&TyData::Ref {
                     inner,
                     mutable,
@@ -3635,13 +3595,6 @@ impl Lower<'_, '_, '_> {
                         .collect();
                     self.bound_clashes(me, &resolved, self.src.span(bl));
                 }
-            }
-            if !row
-                && Src::child(node, SyntaxKind::BoundList).is_some()
-                && let Some((_, t, _)) = gn.tys[start..].iter().find(|(s, _, _)| *s == g.name)
-            {
-                let t = *t;
-                gn.bounded.push(t);
             }
             g.bound = bounds
                 .iter()
@@ -3956,7 +3909,6 @@ impl Lower<'_, '_, '_> {
         // (`ref.copy.generic.default`).
         bounds.push(self.copy_bound());
         generic.bounds = bounds;
-        gn.bounded.push(ty);
         (ty, generic)
     }
 
@@ -4836,19 +4788,6 @@ impl Lower<'_, '_, '_> {
             [tr, t, ..] => (Some(*tr), *t),
             [] => return,
         };
-        // An implementation target has no outer `mut` (trait.target.no-mut).
-        // The rejected implementation is left out, so nothing else is
-        // reported about it.
-        if target.kind() == SyntaxKind::MutType {
-            if self.r.frozen.is_none() {
-                self.diags.error(
-                    Code::MutableImplTarget,
-                    self.src.span(target),
-                    "an implementation target cannot be a `mut` view",
-                );
-            }
-            return;
-        }
         // `ref.lifetime.impl-target`: the target's lifetimes are those of
         // its methods' `self` and `Self`.
         let saved = self.slots.replace(Vec::new());

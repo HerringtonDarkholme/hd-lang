@@ -1,5 +1,5 @@
 # test: reference variance keeps function calls and referenced values intact
-# Spec 04 Readonly Outer Views: types.variance.function; Representation-Preserving Variance: types.variance.repr.weakening.
+# Spec 04 Readonly Outer Views: types.variance.function; Representation-Preserving Variance: types.variance.repr.weakening.v2.
 # expect: test
 struct User:
     name: string

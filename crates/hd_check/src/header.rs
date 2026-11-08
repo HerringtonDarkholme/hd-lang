@@ -1149,20 +1149,6 @@ impl<'a> ItemCheck<'_, 'a> {
                 }
                 self.check_bound(t)?;
             }
-            TyData::Mut(i) if !self.keeps_mut(i) => {
-                // `types.value.no-mut.written`: a value has no `mut` form; only
-                // `mut Suspend[T]` keeps one.
-                let message = if self.is_struct(i) {
-                    format!(
-                        "{} is a struct, a value with no `mut` form; a `let mut` binding changes its fields",
-                        self.show(i)
-                    )
-                } else {
-                    format!("{} has no `mut` form", self.show(i))
-                };
-                self.report(slot, Code::MutOnStruct, message);
-                self.check_ty(i, slot)?;
-            }
             TyData::Option(i) | TyData::Mut(i) | TyData::Ref { inner: i, .. } => {
                 self.check_ty(i, slot)?;
             }
@@ -1187,23 +1173,6 @@ impl<'a> ItemCheck<'_, 'a> {
             _ => {}
         }
         Ok(())
-    }
-
-    /// Whether a `mut t` in a signature is accepted: `t` is a `Suspend[T]`,
-    /// or a type parameter, as a `mut self` receiver's `Self` is (a written
-    /// `mut T` on a parameter is the resolver's error).
-    fn keeps_mut(&self, t: Ty) -> bool {
-        match self.pool().get(t) {
-            TyData::Adt { def, .. } => def == self.cx.names.known.suspend,
-            TyData::Param(_) | TyData::Infer(_) => true,
-            _ => matches!(t, Ty::POISON | Ty::NEVER),
-        }
-    }
-
-    /// Whether `t` is a struct type (`data.struct.decl`).
-    fn is_struct(&self, t: Ty) -> bool {
-        matches!(self.pool().get(t), TyData::Adt { def, .. }
-            if self.cx.lookup.item(def).is_some_and(|i| self.cx.names.known.is_struct(i)))
     }
 
     /// The value rule of a declaration: a struct or enum that holds itself

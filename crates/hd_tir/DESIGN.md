@@ -609,7 +609,7 @@ is readonly; `Read [@g]` has the binding's type.
 | --- | --- | --- |
 | `Prim` | a: `PrimOp`, b: `[operands]` (one or two) | arithmetic, bitwise and shifts: the operand type; comparisons: `bool`; conversions: the target. Only on primitive types |
 | `And`, `Or` | a: left, b: right `Block` | `bool`; the right block runs only when needed |
-| `Call` | a: `[callee]`, b: `[arguments, providers]` | the callee's result, substituted; `mut Suspend[T]` when the callee suspends and the call is plain (a cold call) |
+| `Call` | a: `[callee]`, b: `[arguments, providers]` | the callee's result, substituted; `Suspend[T]` when the callee suspends and the call is plain (a cold call) |
 | `CallValue` | a: function value, b: `[arguments, context]` | the function type's result |
 | `CallDyn` | a: trait value, b: `[method, type arguments, evidence, arguments, providers]` | the method's result, substituted. The type arguments are the method's own. `evidence` holds one `Evidence` value per method-level bound, in the method's bound order, chosen by the checker at the call. Codegen does not read it: a generic method gets a type witness built from the type arguments (crates/hd_mono/DESIGN.md §13.5.1), so dropping the operand is a frontend cleanup |
 | `Is` | a: left, b: right | `bool`. Only on two operands whose types implement `AnyRef` (`&T`, `&mut T`, an `AnyRef` type parameter), or on trait values and `Any`. `is` on a struct, list, map, enum, optional, `Result`, tuple, primitive, string or function value is `identity-requires-references` before TIR ([`expr.is.value-operand`](../../spec/lang/05-expressions.md#r-expr.is.value-operand)); codegen lowers it by layout (crates/hd_wasm_linear/DESIGN.md §15.2) |
@@ -714,9 +714,9 @@ providers from the callee's signature row; the `Pending` form is unused.
 | Tag | Operands | Type rule |
 | --- | --- | --- |
 | `Await` | a: `[callee]`, b: `[arguments, providers]` | the callee's result `T`. A bang call: a suspension point |
-| `AwaitValue` | a: a `mut Suspend[T]` value | `T`. `s!()` on a stored suspension: a suspension point |
-| `AwaitAll` | b: `[children]`, each `mut Suspend[X_i]` | `(X_1, ..., X_n)`. `join!`: one suspension point |
-| `AwaitRace` | a: a `List[mut Suspend[T]]` | `T`. `race!`: one suspension point |
+| `AwaitValue` | a: a `Suspend[T]` value | `T`. `s!()` on a stored suspension: a suspension point |
+| `AwaitAll` | b: `[children]`, each `Suspend[X_i]` | `(X_1, ..., X_n)`. `join!`: one suspension point |
+| `AwaitRace` | a: a `List[Suspend[T]]` | `T`. `race!`: one suspension point |
 | `Hook` | a: `HookKind`, b: the instruction it observes | `void`; normal emission drops it |
 
 Every suspension point has a side record (`SuspRow`): the `Scope`s

@@ -11,7 +11,7 @@ fn read!(t: &Tally) -> string $ Clock:
     sleep!(ms(1))
     "${t.n} ${t.name}"
 
-fn start() -> mut Suspend[string] $ Clock:
+fn start() -> Suspend[string] $ Clock:
     t := Tally { n: 5, name: "hel" + "lo" }
     run := fn!() -> string $ Clock: read!(&t)
     run()

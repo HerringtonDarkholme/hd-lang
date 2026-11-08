@@ -17,7 +17,7 @@ fn echo!(text: string) -> string $ Tick:
     text
 
 fn completed(text: string) -> bool $ Tick:
-    let pending: mut Suspend[string] = echo(text)
+    let pending: Suspend[string] = echo(text)
     match block_on(pending):
         .Completed(value) => value == text
         _ => false

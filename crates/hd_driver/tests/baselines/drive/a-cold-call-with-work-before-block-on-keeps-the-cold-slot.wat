@@ -10,7 +10,7 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 5 funcref))
   (func $drive_put (param $s.0 i32) (param $s.1 i32) (param $text.0 i32) (param $text.1 i32) (param $log i32) (result i32) (local $t0 i32) (local $n i32)
-    ;; 10 |     let call: mut Suspend[i32] = s.put(text)
+    ;; 10 |     let call: Suspend[i32] = s.put(text)
     block
       local.get $s.0
       local.get $text.0
@@ -91,7 +91,7 @@
       local.get $s.1
       local.set $text.1
       local.set $s.1
-    ;; 10 |     let call: mut Suspend[i32] = s.put(text)
+    ;; 10 |     let call: Suspend[i32] = s.put(text)
       local.get $s.0
       local.tee $log
       if
@@ -139,7 +139,7 @@
         end
         br 0
       end
-    ;; 10 |     let call: mut Suspend[i32] = s.put(text)
+    ;; 10 |     let call: Suspend[i32] = s.put(text)
       local.get $n
       local.set $s.0
     end

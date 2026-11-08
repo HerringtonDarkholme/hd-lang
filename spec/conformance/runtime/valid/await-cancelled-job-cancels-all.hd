@@ -23,7 +23,7 @@ impl AsyncDisposable for Report:
 
 struct Runner['a]:
     log: *mut List[string]
-    job: mut Suspend[string, 'a]
+    job: Suspend[string, 'a]
 
 impl['a] AsyncDisposable for Runner['a]:
     fn dispose!(&mut self) -> void:
@@ -37,34 +37,34 @@ fn work!(log: *mut List[string]) -> void $ Clock:
     sleep!(s(60))
     log.push("work never")
 
-fn stop_later!(job: mut Suspend[void], log: &mut List[string]) -> void $ Clock:
+fn stop_later!(job: Suspend[void], log: &mut List[string]) -> void $ Clock:
     sleep!(ms(1))
     match job.cancel!():
         .Finished => log.push("stopper finished")
         .Abandoned => log.push("stopper abandoned")
 
-fn supervise!(job: mut Suspend[void], log: *mut List[string]) -> string $ Clock:
+fn supervise!(job: Suspend[void], log: *mut List[string]) -> string $ Clock:
     using! report = &mut Report { log: log }
     _ := join!(job, stop_later(job, log))
     "supervise never"
 
-fn outer!(job: mut Suspend[void], log: *mut List[string]) -> string $ Clock:
+fn outer!(job: Suspend[void], log: *mut List[string]) -> string $ Clock:
     defer(fn() -> void: log.push("outer defer"))
     supervise!(job, log)
 
-fn run!(log: *mut List[string], job: mut Suspend[string]) -> void:
+fn run!(log: *mut List[string], job: Suspend[string]) -> void:
     using! runner = &mut Runner { log: log, job: job }
     log.push("run body")
 
-fn ended!(job: mut Suspend[void]) -> string:
+fn ended!(job: Suspend[void]) -> string:
     match job.cancel!():
         .Finished => "finished"
         .Abandoned => "abandoned"
 
 pub fn main!() -> void $ Console + Clock:
     log := box::[List[string]]([])
-    let job: mut Suspend[void] = work(log)
-    let runner: mut Suspend[void] = run(log, outer(job, log))
+    let job: Suspend[void] = work(log)
+    let runner: Suspend[void] = run(log, outer(job, log))
     runner!()
     println(log.join(", "))
     println(ended!(runner))

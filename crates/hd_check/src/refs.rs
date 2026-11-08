@@ -492,7 +492,7 @@ impl Ck<'_, '_> {
                 // A new object holds a copy of the value (`ref.expr.allocate`);
                 // `&mut` on a composite value without mutable access, such as
                 // a readonly `Suspend[T]`, would upgrade it
-                // (`types.mut.no-upgrade`).
+                // (`types.mut.no-upgrade.v2`).
                 // A list or map value is no view: the new object holds a
                 // copy of it (`ref.place.writable.collection`).
                 let coll = self.is_coll_value(t);
@@ -951,7 +951,7 @@ impl Ck<'_, '_> {
         }
         // A composite value without mutable access in the place, such as a
         // readonly `Suspend[T]`, grants no writes, so `&mut` to it would
-        // upgrade it (`types.mut.no-upgrade`). A collection value is
+        // upgrade it (`types.mut.no-upgrade.v2`). A collection value is
         // no view: a writable place holding one is writable
         // (`types.coll.writable`).
         let coll_value = self.is_coll_value(p.ty);

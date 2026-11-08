@@ -870,7 +870,7 @@ type_member = reference_access_type, { "?" }
             | function_type
             ;
 
-reference_access_type = [ "mut" ], reference_type
+reference_access_type = reference_type
                       | ref_type
                       ;
 
@@ -998,19 +998,17 @@ fn invalid(value: Box[$()]) -> void: pass  # error: generic-kind-mismatch
 
 ### Modifiers, Optionality, And Grouping
 
-1. r[grammar.type.mut] `mut` is a type modifier.
-2. r[grammar.type.mut.suspend-only] Semantic rules accept the modifier only in `mut Suspend[T]` and reject it on every other type.
-3. r[grammar.type.mut.no-function] `mut` never directly precedes `fn`: `mut fn() -> i32` as a type, or `mut fn() -> i32:` as a closure header, is an error. Error: `syntax-error`.
-4. r[grammar.type.optional] Optionality applies to the complete reference access type and may be nested.
-5. r[grammar.type.optional.function] In `fn() -> T?`, `?` belongs to the innermost result type; an optional function type must be grouped, as in `(fn() -> T)?`.
-6. r[grammar.type.group] Parentheses group types; unlike a one-element tuple type, grouping has no trailing comma.
-7. r[grammar.type.dyn.reference-values] A `dyn_type` writes `dyn` and a trait name with its arguments and bindings, as in the referent of `&dyn Supplier[Item = i32]`. A bare descriptor is rejected as a value type.
-8. r[grammar.type.dyn.mut] A `mut` modifier precedes `dyn`, so `dyn mut Counter` is an error. Error: `syntax-error`.
-9. r[grammar.type.dyn.optional.reference-values] `?` applies to the whole trait value reference: `*dyn Display?` is an optional reference.
-10. r[grammar.type.row-owner] Inside a type, a requirement clause following nested function types likewise belongs to the innermost ungrouped function type. That holds in a parameter type, a field type, and a type argument.
-11. r[grammar.type.row-owner.grouped] Parentheses select an outer owner.
-12. r[grammar.type.ref] `&T` and `&mut T` write local reference types. [Reference Types](13-values-and-references.md#reference-types) states their syntax rules.
-13. r[grammar.type.counted-ref] `*T` and `*mut T` write counted reference types, with the same syntax rules. A `*` in a type is never multiplication or a dereference.
+1. r[grammar.type.no-mut] No type starts with `mut`: `mut Suspend[i32]`, `mut Point`, and `mut fn() -> i32` as a type, or `mut fn() -> i32:` as a closure header, are errors. A binding that changes writes `mut` before its name, and a writable reference writes `&mut T` or `*mut T`. Error: `syntax-error`.
+2. r[grammar.type.optional] Optionality applies to the complete reference access type and may be nested.
+3. r[grammar.type.optional.function] In `fn() -> T?`, `?` belongs to the innermost result type; an optional function type must be grouped, as in `(fn() -> T)?`.
+4. r[grammar.type.group] Parentheses group types; unlike a one-element tuple type, grouping has no trailing comma.
+5. r[grammar.type.dyn.reference-values] A `dyn_type` writes `dyn` and a trait name with its arguments and bindings, as in the referent of `&dyn Supplier[Item = i32]`. A bare descriptor is rejected as a value type.
+6. r[grammar.type.dyn.mut] A reference's `mut` precedes `dyn`, as in `&mut dyn Counter`, so `dyn mut Counter` is an error. Error: `syntax-error`.
+7. r[grammar.type.dyn.optional.reference-values] `?` applies to the whole trait value reference: `*dyn Display?` is an optional reference.
+8. r[grammar.type.row-owner] Inside a type, a requirement clause following nested function types likewise belongs to the innermost ungrouped function type. That holds in a parameter type, a field type, and a type argument.
+9. r[grammar.type.row-owner.grouped] Parentheses select an outer owner.
+10. r[grammar.type.ref] `&T` and `&mut T` write local reference types. [Reference Types](13-values-and-references.md#reference-types) states their syntax rules.
+11. r[grammar.type.counted-ref] `*T` and `*mut T` write counted reference types, with the same syntax rules. A `*` in a type is never multiplication or a dereference.
 
 ```hd
 fn readers() -> (fn() -> i32)?:

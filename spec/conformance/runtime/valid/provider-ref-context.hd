@@ -25,7 +25,7 @@ pub fn main!() -> void $ Console:
     $.with(ctx...):
         a := note!("a")
         b := note!("b")
-        let later: mut Suspend[string] = note("c")
+        let later: Suspend[string] = note("c")
         println("$a $b ${$.use(Log).size()}")
         _ := later!()
     println("${lines.items.len()}")

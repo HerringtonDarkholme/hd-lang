@@ -11,7 +11,7 @@ use std.time.{Clock, s, sleep}
 
 struct Conn:
     log: *mut List[string]
-    closing: mut Suspend[void]
+    closing: Suspend[void]
 
 impl AsyncDisposable for Conn:
     fn dispose!(&mut self) -> void:
@@ -25,27 +25,27 @@ fn child!(log: *mut List[string]) -> string $ Clock:
     sleep!(s(60))
     "child"
 
-fn parent!(kid: mut Suspend[string], log: &mut List[string]) -> string:
+fn parent!(kid: Suspend[string], log: &mut List[string]) -> string:
     defer(fn() -> void: log.push("parent defer"))
     kid!()
 
 fn ready!() -> string:
     "won"
 
-fn ended!(job: mut Suspend[string]) -> string:
+fn ended!(job: Suspend[string]) -> string:
     match job.cancel!():
         .Finished => "finished"
         .Abandoned => "abandoned"
 
-fn stop!(kid: mut Suspend[string], log: &mut List[string]) -> string:
+fn stop!(kid: Suspend[string], log: &mut List[string]) -> string:
     log.push("abandon child")
     kid.abandon()
     "stopped"
 
 pub fn main!() -> void $ Console + Clock:
     log := box::[List[string]]([])
-    let kid: mut Suspend[string] = child(log)
-    let top: mut Suspend[string] = parent(kid, log)
+    let kid: Suspend[string] = child(log)
+    let top: Suspend[string] = parent(kid, log)
     let (winner, stopped) = join!(race(top, ready()), stop(kid, log))
     println("${winner} ${stopped}")
     println(log.join(", "))

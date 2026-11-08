@@ -8,7 +8,7 @@ pub trait Tick:
 
 struct Ring:
     name: string
-    task: mut Suspend[string]?
+    task: Suspend[string]?
 
 fn read!(ring: &mut Ring) -> string:
     ring.name
@@ -49,6 +49,6 @@ pub fn main!() -> void $ Console + Tick:
         assert_equal(closure_ring(n), "closure $n", reason="the frame keeps the capture")
         n += 1
     ring := box(Ring { name: "live", task: .None })
-    let job: mut Suspend[string] = nested(ring)
+    let job: Suspend[string] = nested(ring)
     ring.task = .Some(job)
     assert_equal(job!(), "new live", reason="the resumed frame owns its current locals")

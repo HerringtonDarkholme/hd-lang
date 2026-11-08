@@ -4,7 +4,7 @@ fn hold!(r: &string) -> usize:
     r.len()
 
 struct Holder:
-    s: mut Suspend[usize]
+    s: Suspend[usize]
 
 fn field() -> Holder:
     local := "x"

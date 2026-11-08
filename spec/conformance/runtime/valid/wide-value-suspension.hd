@@ -77,7 +77,7 @@ fn paused!(value: Wide) -> i64 $ Clock:
 
 fn drive!(value: Wide) -> i64 $ Clock:
     loader := fn!(extra: i64) -> i64 $ Clock: paused!(value) + extra
-    let pending: mut Suspend[i64] = loader(1)
+    let pending: Suspend[i64] = loader(1)
     pending!()
 
 pub fn main!() -> void $ Console + Clock:

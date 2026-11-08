@@ -10,7 +10,7 @@ use std.time.{Clock, s, sleep}
 struct Conn:
     name: string
     log: *mut List[string]
-    closing: mut Suspend[void]
+    closing: Suspend[void]
 
 impl AsyncDisposable for Conn:
     fn dispose!(&mut self) -> void:
@@ -29,7 +29,7 @@ fn pair!(log: *mut List[string]) -> i32 $ Clock:
     let (a, b) = join!(worker("a", log), worker("b", log))
     a + b
 
-fn waiter!(job: mut Suspend[i32], log: &mut List[string]) -> i32:
+fn waiter!(job: Suspend[i32], log: &mut List[string]) -> i32:
     end := job.cancel!()
     match end:
         .Finished => log.push("waiter finished")
@@ -39,18 +39,18 @@ fn waiter!(job: mut Suspend[i32], log: &mut List[string]) -> i32:
 fn ready!() -> i32:
     +0
 
-fn stop!(job: mut Suspend[i32], log: &mut List[string]) -> i32:
+fn stop!(job: Suspend[i32], log: &mut List[string]) -> i32:
     log.push("abandon")
     job.abandon()
     +3
 
 pub fn main!() -> void $ Console + Clock:
     log := box::[List[string]]([])
-    let job: mut Suspend[i32] = pair(log)
+    let job: Suspend[i32] = pair(log)
     _ := race!(job, stop(job, log))
     println(log.join(", "))
     other := box::[List[string]]([])
-    let shared: mut Suspend[i32] = worker("c", other)
-    let holder: mut Suspend[i32] = waiter(shared, other)
+    let shared: Suspend[i32] = worker("c", other)
+    let holder: Suspend[i32] = waiter(shared, other)
     _ := join!(race(shared, ready()), waiter(shared, other), race(holder, stop(holder, other)))
     println(other.join(", "))

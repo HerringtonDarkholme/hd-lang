@@ -26,7 +26,7 @@ fn construct(key: string) -> usize:
 >   %0 = Release %9 Exit local $0 #2 : ()
     _ := fetch(key)
 >   %1 = Read borrow [$0] : string
->   %2 = Call app/main/fetch[] (%1) : mut Suspend[string]
+>   %2 = Call app/main/fetch[] (%1) : Suspend[string]
 >   %3 = Drop [%2] : ()
 >   %9 = Block %8 : usize
     key.len()
@@ -48,7 +48,7 @@ fn run_twice!(body: fn!() -> string) -> usize:
     body!().len() + body!().len()
 >   %2 = Release %27 FrameDrop child #2 : ()
 >   %3 = Read borrow [$0] : fn!() -> string
->   %4 = CallValue %3 [] : mut Suspend[string]
+>   %4 = CallValue %3 [] : Suspend[string]
 >   %5 = AwaitValue %4 : string
 >   %6 = Release %5 Operation child #2 : ()
 >   %7 = Retain %5 Operation child #0 : ()
@@ -59,7 +59,7 @@ fn run_twice!(body: fn!() -> string) -> usize:
 >   %12 = LoanEnd [%10] : ()
 >   %13 = Drop [$1] : ()
 >   %14 = Read move [$0] : fn!() -> string
->   %15 = CallValue %14 [] : mut Suspend[string]
+>   %15 = CallValue %14 [] : Suspend[string]
 >   %16 = AwaitValue %15 : string
 >   %17 = Release %16 Operation child #2 : ()
 >   %18 = Retain %16 Operation child #0 : ()
@@ -146,7 +146,7 @@ fn stored!(key: string) -> usize:
     loader!(key).len()
 >   %16 = Read move [$2] : fn!(string) -> string
 >   %17 = Read move [$0] : string
->   %18 = CallValue %16 [%17] : mut Suspend[string]
+>   %18 = CallValue %16 [%17] : Suspend[string]
 >   %19 = AwaitValue %18 : string
 >   %20 = Release %19 Operation child #2 : ()
 >   %21 = Retain %19 Operation child #0 : ()

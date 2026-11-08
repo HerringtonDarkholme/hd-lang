@@ -13,7 +13,7 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 10 funcref))
   (func $synchronous (param $path.0 i32) (param $path.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t2 i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32)
-    ;; 9 |     let call: mut Suspend[Result[string, FsError]] = $.use(FsRead).read_text(path)
+    ;; 9 |     let call: Suspend[Result[string, FsError]] = $.use(FsRead).read_text(path)
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -123,7 +123,7 @@
           call_indirect $table0 (param i32)
         end
       end
-    ;; 9 |     let call: mut Suspend[Result[string, FsError]] = $.use(FsRead).read_text(path)
+    ;; 9 |     let call: Suspend[Result[string, FsError]] = $.use(FsRead).read_text(path)
       local.get $t3
       if
         local.get $t3
@@ -160,7 +160,7 @@
         end
         br 0
       end
-    ;; 9 |     let call: mut Suspend[Result[string, FsError]] = $.use(FsRead).read_text(path)
+    ;; 9 |     let call: Suspend[Result[string, FsError]] = $.use(FsRead).read_text(path)
       local.get $path.1
       local.get $provider0
       local.get $provider0.vtable

@@ -28,6 +28,6 @@ tests:
         forwarder := Forwarder {}
         let relay: &dyn Relay = &forwarder
         for round in 0..4:
-            let job: mut Suspend[Bag] = relay.relay(fill(round))
+            let job: Suspend[Bag] = relay.relay(fill(round))
             back := job!()
             assert_equal(back.words.len(), 1, reason="the moved argument comes back whole")

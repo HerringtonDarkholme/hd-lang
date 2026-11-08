@@ -21,7 +21,7 @@ fn count(n: i64) -> void $ Meter:
     for i in 0..n:
         $.use(Meter).record(i)
 
-fn count_later!(n: i64, wait: mut Suspend[void]) -> void $ Meter:
+fn count_later!(n: i64, wait: Suspend[void]) -> void $ Meter:
     for i in 0..n:
         $.use(Meter).record(i)
         wait!()

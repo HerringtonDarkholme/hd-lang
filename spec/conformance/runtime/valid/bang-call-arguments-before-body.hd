@@ -17,7 +17,7 @@ tests:
     it("cold construction evaluates arguments but not the body"):
         log := box(Log { text: "" })
         view := log
-        let pending: mut Suspend[i32] = work(log, note(log, "a", 1), note(log, "b", 2))
+        let pending: Suspend[i32] = work(log, note(log, "a", 1), note(log, "b", 2))
         assert_equal(view.text, "ab", reason="arguments are captured at construction")
         result := pending!()
         assert_equal(view.text, "abbody", reason="body runs only when driven")

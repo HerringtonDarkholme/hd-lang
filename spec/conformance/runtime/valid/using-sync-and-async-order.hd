@@ -15,7 +15,7 @@ impl Disposable for SyncGuard:
 
 struct AsyncGuard:
     log: *mut List[string]
-    closing: mut Suspend[void]
+    closing: Suspend[void]
 
 impl AsyncDisposable for AsyncGuard:
     fn dispose!(&mut self) -> void:

@@ -456,20 +456,20 @@ fn demo(u: &mut User) -> void:
 16. r[ref.dep.store] A value that holds a local reference, stored through a reference, must land in a place of the function. A store into a place the caller owns, as through `out: &mut (&T)`, is an error, unless the place's type names the value's lifetime ([`ref.lifetime.store`](#r-ref.lifetime.store)). Error: `local-reference-escapes`.
 17. r[ref.dep.caller] While a dependent result is in use, the caller may read its source. It may write the source only as [Writes While Borrowed](#writes-while-borrowed) allows. A read through the result sees the source's current value.
 18. r[ref.dep.temporary] A dependent result of a call on a temporary, as in `make().name()`, keeps the temporary alive while the result is in use.
-19. r[ref.dep.suspension] A suspension, the `mut Suspend[R]` of a bang call made without `!`, holds every reference that its call's arguments hold, the receiver's included. It holds them in one position of its own, after the positions of `R`.
+19. r[ref.dep.suspension] A suspension, the `Suspend[R]` of a bang call made without `!`, holds every reference that its call's arguments hold, the receiver's included. It holds them in one position of its own, after the positions of `R`.
 20. r[ref.dep.suspension.local] A suspension that holds a local reference is a local reference value of the caller, so every rule of [Local References](#local-references) and [`ref.dep.return`](#r-ref.dep.return) applies to it. Error: `local-reference-escapes`.
 21. r[ref.dep.suspension.output] Each position of `R` depends on what the call's result would depend on with `!`, by [`ref.dep.call`](#r-ref.dep.call).
 22. r[ref.dep.suspension.counted] A suspension retains a counted reference that its call lends, by itself or as the trait value behind it, by [`ref.box.lifetime`](#r-ref.box.lifetime). So it holds no origin for that argument.
-23. r[ref.dep.suspension.result] A `mut Suspend[R]` in a declared result type has that position too. It depends on the one lifetime of the parameters' positions, or on every parameter under two or more. With no parameter position, it depends on nothing.
-24. r[ref.dep.suspension.lifetime] `Suspend` takes one optional lifetime argument after its result type, as in `mut Suspend[R, 'a]`. It names the suspension's own position, as a lifetime struct's argument names one of the struct's positions ([`ref.lifetime.struct.position`](#r-ref.lifetime.struct.position)). More than one is an error. Error: `argument-count`.
-25. r[ref.dep.suspension.lifetime.field] A field typed `mut Suspend[R, 'a]` in a lifetime struct may hold a suspension that holds `'a` data. A field that writes no lifetime for its suspension holds one that holds no local reference.
+23. r[ref.dep.suspension.result] A `Suspend[R]` in a declared result type has that position too. It depends on the one lifetime of the parameters' positions, or on every parameter under two or more. With no parameter position, it depends on nothing.
+24. r[ref.dep.suspension.lifetime] `Suspend` takes one optional lifetime argument after its result type, as in `Suspend[R, 'a]`. It names the suspension's own position, as a lifetime struct's argument names one of the struct's positions ([`ref.lifetime.struct.position`](#r-ref.lifetime.struct.position)). More than one is an error. Error: `argument-count`.
+25. r[ref.dep.suspension.lifetime.field] A field typed `Suspend[R, 'a]` in a lifetime struct may hold a suspension that holds `'a` data. A field that writes no lifetime for its suspension holds one that holds no local reference.
 26. r[ref.dep.suspension.store] A suspension that holds a local reference never reaches a box, a provider, a host call, a top-level binding, or a struct field that is neither of a type parameter nor written with a lifetime. A list, a map, a tuple, or an optional keeps it in its own positions. Error: `local-reference-escapes`.
 
 ```hd
 fn count!(s: &string) -> usize:
     s.len()
 
-fn later(s: &string) -> mut Suspend[usize]:  # holds what s refers to
+fn later(s: &string) -> Suspend[usize]:  # holds what s refers to
     count(s)
 
 fn now!() -> usize:
@@ -477,7 +477,7 @@ fn now!() -> usize:
     count!(&local)
 
 struct Pending['a]:
-    task: mut Suspend[usize, 'a]
+    task: Suspend[usize, 'a]
 
 fn soon(s: &string) -> Pending:  # holds what s refers to
     Pending { task: count(s) }
@@ -506,7 +506,7 @@ fn bad_store(out: &mut (&User), u: &User) -> void:
 fn hold!(r: &string) -> usize:
     r.len()
 
-fn bad_suspension() -> mut Suspend[usize]:
+fn bad_suspension() -> Suspend[usize]:
     local := "x"
     hold(&local)  # error: local-reference-escapes
 ```

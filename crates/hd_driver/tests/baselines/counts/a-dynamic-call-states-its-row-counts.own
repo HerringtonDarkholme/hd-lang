@@ -21,16 +21,16 @@ fn ordinary(work: &dyn Work) -> i32 $ Tag:
 >   %4 = Block %1 : i32
 >   summary kept [] writes
 
-fn cold(work: &dyn Work) -> mut Suspend[i32] $ Tag:
+fn cold(work: &dyn Work) -> Suspend[i32] $ Tag:
     work.later()
 > app/main/cold
 >   local $0 work: Ref[Work] [param read] value
 >     uses $0: entry -> %0 lend last
 >   %0 = Read borrow [*$0] : Work
->   %1 = Call app/main/Work.later for Work [] via TraitValue (%0) : mut Suspend[i32]
+>   %1 = Call app/main/Work.later for Work [] via TraitValue (%0) : Suspend[i32]
 >   %2 = Retain %1 Operation row #0 : ()
 >   %3 = Release %1 Operation row #2 : ()
->   %4 = Block %1 : mut Suspend[i32]
+>   %4 = Block %1 : Suspend[i32]
 >   summary kept [] writes
 
 fn awaited!(work: &dyn Work) -> i32 $ Tag:

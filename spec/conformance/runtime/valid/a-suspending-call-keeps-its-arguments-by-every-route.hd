@@ -37,7 +37,7 @@ fn through_closure!() -> void $ Console + Clock:
         sleep!(ms(1))
         s
     let mut s = "f${1}"
-    let job: mut Suspend[string] = f(s)
+    let job: Suspend[string] = f(s)
     s = "f${2}"
     out := job!()
     println("$out $s")
@@ -45,7 +45,7 @@ fn through_closure!() -> void $ Console + Clock:
 fn through_function_reference!() -> void $ Console + Clock:
     f := kept
     let mut s = "fn${1}"
-    let job: mut Suspend[string] = f(s)
+    let job: Suspend[string] = f(s)
     s = "fn${2}"
     out := job!()
     println("$out $s")
@@ -54,7 +54,7 @@ fn through_trait_value!() -> void $ Console + Clock:
     t := Tag { tag: "t" }
     let d: &dyn Show = &t
     let mut s = "d${1}"
-    let job: mut Suspend[string] = d.show(s)
+    let job: Suspend[string] = d.show(s)
     s = "d${2}"
     out := job!()
     println("$out $s")
@@ -62,18 +62,18 @@ fn through_trait_value!() -> void $ Console + Clock:
 fn through_method!() -> void $ Console + Clock:
     t := Tag { tag: "t" }
     let mut s = "m${1}"
-    let job: mut Suspend[string] = t.show(s)
+    let job: Suspend[string] = t.show(s)
     s = "m${2}"
     out := job!()
     println("$out $s")
 
-fn generic_show[T < Show](t: &T, s: string) -> mut Suspend[string] $ Clock:
+fn generic_show[T < Show](t: &T, s: string) -> Suspend[string] $ Clock:
     t.show(s)
 
 fn through_bound!() -> void $ Console + Clock:
     t := Tag { tag: "t" }
     let mut s = "b${1}"
-    let job: mut Suspend[string] = generic_show(&t, s)
+    let job: Suspend[string] = generic_show(&t, s)
     s = "b${2}"
     out := job!()
     println("$out $s")
@@ -82,7 +82,7 @@ fn through_generic_trait_value!() -> void $ Console + Clock:
     t := Tag { tag: "t" }
     let d: &dyn Show = &t
     let mut s = "g${1}"
-    let job: mut Suspend[string] = generic_show(&d, s)
+    let job: Suspend[string] = generic_show(&d, s)
     s = "g${2}"
     out := job!()
     println("$out $s")
@@ -127,7 +127,7 @@ fn in_a_join!() -> void $ Console + Clock:
 
 fn elem!() -> void $ Console + Clock:
     let mut xs = ["e${1}"]
-    let job: mut Suspend[string] = kept(xs[0])
+    let job: Suspend[string] = kept(xs[0])
     xs[0] = "e${2}"
     out := job!()
     println("$out ${xs[0]}")

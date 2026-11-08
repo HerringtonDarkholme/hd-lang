@@ -3,6 +3,6 @@
 fn hold!(r: &string) -> usize:
     r.len()
 
-fn bad_suspension() -> mut Suspend[usize]:
+fn bad_suspension() -> Suspend[usize]:
     local := "x"
     hold(&local) # diagnostic: local-reference-escapes

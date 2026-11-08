@@ -144,7 +144,7 @@ impl Ck<'_, '_> {
     }
 
     /// The readonly form of `t`: its outer `mut` removed, which only a
-    /// `mut Suspend[T]` has (types.mut.weaken).
+    /// `mut Suspend[T]` has (types.mut.weaken.v2).
     pub(crate) fn readonly_view(&self, t: Ty) -> Ty {
         let pool = self.pool();
         let r = self.infer.resolve(pool, t);
@@ -177,7 +177,7 @@ impl Ck<'_, '_> {
     }
 
     /// A store `e.f = v` or `e[i] = v` needs mutable access to `e`
-    /// (types.path.store.not-writable).
+    /// (types.path.store.not-writable.v2).
     pub(crate) fn check_store_target(&mut self, (br, bt): (Ref, Ty), at: NodeRef<'_>) {
         // An element store changes a collection value through a writable
         // place (`types.coll.writable`).
@@ -196,7 +196,7 @@ impl Ck<'_, '_> {
     }
 
     /// A `mut self` call needs mutable access to its receiver
-    /// (types.path.store.not-writable). `self_param` is the method's
+    /// (types.path.store.not-writable.v2). `self_param` is the method's
     /// declared receiver type.
     pub(crate) fn check_receiver(&mut self, self_param: Ty, recv: Ref, rt: Ty, at: NodeRef<'_>) {
         let pool = self.pool();
@@ -248,8 +248,8 @@ impl Ck<'_, '_> {
         self.err(Code::NotWritable, at, &msg);
     }
 
-    /// A readonly value where `mut` is wanted (types.mut.no-upgrade,
-    /// types.mut.argument). Returns whether it reported.
+    /// A readonly value where `mut` is wanted (types.mut.no-upgrade.v2).
+    /// Returns whether it reported.
     pub(crate) fn check_upgrade(&mut self, got: Ty, want: Ty, n: NodeRef<'_>, what: &str) -> bool {
         let pool = self.pool();
         let w = self.infer.shallow(pool, want);
@@ -259,29 +259,12 @@ impl Ck<'_, '_> {
         if !self.is_composite(wi) || !self.is_composite(got) || self.has_mut_access(got) {
             return false;
         }
-        // A declared `mut` parameter, not one generic inference made `mut`.
-        // Building a `mut` trait value from a readonly value is an upgrade
-        // by the conversion (types.mut.no-upgrade).
-        let erases = matches!(
-            pool.get(self.infer.resolve(pool, wi)),
-            TyData::TraitValue { .. }
-        ) && !matches!(pool.get(self.strip_mut(got)), TyData::TraitValue { .. });
-        let declared = matches!(pool.get(want), TyData::Mut(_)) && !erases;
-        if what == "argument" && declared {
-            let msg = format!(
-                "the parameter takes {}, the argument is a readonly {}",
-                self.show(want),
-                self.show(got)
-            );
-            self.err(Code::ReadonlyArgumentToMutableParameter, n, &msg);
-        } else {
-            let msg = format!(
-                "in {what}: a readonly {} cannot become {}",
-                self.show(got),
-                self.show(want)
-            );
-            self.err(Code::MutableUpgrade, n, &msg);
-        }
+        let msg = format!(
+            "in {what}: a readonly {} cannot become {}",
+            self.show(got),
+            self.show(want)
+        );
+        self.err(Code::MutableUpgrade, n, &msg);
         true
     }
 

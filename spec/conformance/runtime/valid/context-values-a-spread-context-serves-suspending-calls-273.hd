@@ -30,6 +30,6 @@ fn load!() -> string $ Tag:
 pub fn main!() -> void $ Console:
     ctx := $.context(Tag=Named { label: "async" })
     $.with(ctx...):
-        let pending: mut Suspend[string] = load()
+        let pending: Suspend[string] = load()
         println(pending!())
         println(load!() + current())

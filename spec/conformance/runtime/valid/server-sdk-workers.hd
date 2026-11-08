@@ -124,7 +124,7 @@ impl HttpServer for Leases:
         self.finished.push((id.sequence, abandoned))
 
 struct Closing:
-    wait: mut Suspend[void]
+    wait: Suspend[void]
     events: *mut List[string]
 
 impl AsyncDisposable for Closing:

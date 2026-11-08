@@ -13,7 +13,7 @@ fn text!() -> string:
     "t"
 
 fn f() -> void:
-    let s: mut Suspend[i32] = ready()
+    let s: Suspend[i32] = ready()
     _ := block_on(s)
 
 pub fn main() -> void:

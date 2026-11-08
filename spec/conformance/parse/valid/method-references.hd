@@ -14,7 +14,7 @@ impl Counter:
     fn zero() -> Counter:
         Counter { value: 0 }
 
-fn forms(counter: mut Counter, values: List[i32]) -> void:
+fn forms(mut counter: Counter, values: List[i32]) -> void:
     read := Counter::read
     zero := Counter::zero
     bump := counter::bump

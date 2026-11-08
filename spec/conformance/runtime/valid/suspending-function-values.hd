@@ -4,14 +4,14 @@ fn add_one!(value: i32) -> i32:
     value + 1
 
 fn drive_stored!(operation: fn!(i32) -> i32) -> i32:
-    let pending: mut Suspend[i32] = operation(41)
+    let pending: Suspend[i32] = operation(41)
     pending!()
 
 fn drive_direct!(operation: fn!(i32) -> i32) -> i32:
     operation!(41)
 
-fn drive_lowered!(constructor: fn(i32) -> mut Suspend[i32]) -> i32:
-    let pending: mut Suspend[i32] = constructor(41)
+fn drive_lowered!(constructor: fn(i32) -> Suspend[i32]) -> i32:
+    let pending: Suspend[i32] = constructor(41)
     pending!()
 
 tests:

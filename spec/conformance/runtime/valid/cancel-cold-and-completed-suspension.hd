@@ -15,7 +15,7 @@ tests:
 
     it("cancelling a cold suspension runs neither body nor cleanup"):
         let mut log = &mut Log { text: "" }
-        let pending: mut Suspend[i32] = work(log)
+        let pending: Suspend[i32] = work(log)
         first := pending.cancel!()
         second := pending.cancel!()
         assert_equal(log.text, "", reason="no registered suites exist before the first poll")
@@ -26,7 +26,7 @@ tests:
 
     it("cancelling a completed suspension has no further effect"):
         let mut log = &mut Log { text: "" }
-        let pending: mut Suspend[i32] = work(log)
+        let pending: Suspend[i32] = work(log)
         result := pending!()
         first := pending.cancel!()
         second := pending.cancel!()
