@@ -85,16 +85,15 @@ jobs:
           chmod +x "$bin"
           dirname "$bin" >> "$GITHUB_PATH"
 
+      # Each check runs under its time budget (scripts/check-budgets.tsv).
       - name: Lint and format JS/TS
         if: ${{ !cancelled() }}
         run: |
           pnpm exec oxlint .
           pnpm run -s format:check
-          pnpm run -s check:types
-          pnpm run -s check:host-sources
-          pnpm run -s check:spec-sync
-          pnpm run -s check:cost
-          pnpm run -s check:typescript-sources
+          for check in types host-sources spec-sync cost typescript-sources; do
+            node scripts/check-budget.ts "check:$check" -- pnpm run -s "check:$check"
+          done
 
       - name: Check formatting
         if: ${{ !cancelled() }}
@@ -116,15 +115,16 @@ jobs:
 
       # The specification's own check. It parses through scripts/hd-conformance.sh,
       # in the dev profile. It runs before the budget steps, which rewrite files on main.
+      # It runs under its time budget (scripts/check-budgets.tsv).
       - name: Spec check
         if: ${{ !cancelled() }}
-        run: bash spec/check.sh
+        run: node scripts/check-budget.ts spec/check.sh -- bash spec/check.sh
 
       # The hd blocks of README.md, website/guide/, website/tour/, and
       # docs/compiler/ (docs/examples.tsv), checked as printed.
       - name: Doc examples
         if: ${{ !cancelled() }}
-        run: pnpm run -s check:doc-examples
+        run: node scripts/check-budget.ts check:doc-examples -- pnpm run -s check:doc-examples
 
       - name: Build count compiler
         if: ${{ !cancelled() }}
