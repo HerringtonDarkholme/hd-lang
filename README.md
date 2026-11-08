@@ -47,9 +47,9 @@ tests:
     use std.testing.assert_equal
 
     it("welcome sends one mail at the fixed time"):
-        let mut outbox = Outbox { sent: [] }
+        outbox := box(Outbox { sent: [] })
         clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
-        $.with(Mailer=&mut outbox, Clock=clock):
+        $.with(Mailer=outbox, Clock=clock):
             welcome!("ada@example.com")
         assert_equal(outbox.sent, ["ada@example.com: Welcome, joined at 1970-01-01T00:00:00Z"], reason="one mail")
 ```

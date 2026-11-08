@@ -1,0 +1,103 @@
+document	block	classification	note
+README.md	1	complete	-
+README.md	2	complete	-
+website/guide/COMMANDS.md	1	complete	-
+website/guide/LEARN_IN_10_MINUTES.md	1	complete	-
+website/guide/LEARN_IN_10_MINUTES.md	2	complete	-
+website/guide/LEARN_IN_10_MINUTES.md	3	complete	-
+website/guide/LEARN_IN_10_MINUTES.md	4	complete	-
+website/guide/LEARN_IN_10_MINUTES.md	5	complete	-
+website/guide/LEARN_IN_10_MINUTES.md	6	complete	-
+website/guide/LEARN_IN_10_MINUTES.md	7	complete	-
+website/guide/LEARN_IN_10_MINUTES.md	8	complete	-
+website/guide/LEARN_IN_10_MINUTES.md	9	complete	-
+website/guide/LEARN_IN_10_MINUTES.md	10	complete	-
+website/guide/WORKING_WITH_DATA.md	1	complete	-
+website/guide/WORKING_WITH_DATA.md	2	complete	-
+website/guide/WORKING_WITH_DATA.md	3	complete	-
+website/guide/WORKING_WITH_DATA.md	4	complete	-
+website/guide/WORKING_WITH_DATA.md	5	complete	-
+website/guide/WORKING_WITH_DATA.md	6	complete	-
+website/guide/WORKING_WITH_DATA.md	7	complete	-
+website/guide/WORKING_WITH_DATA.md	8	complete	-
+website/guide/WORKING_WITH_DATA.md	9	complete	-
+website/guide/WORKING_WITH_DATA.md	10	complete	-
+website/guide/WORKING_WITH_DATA.md	11	complete	-
+website/guide/WORKING_WITH_DATA.md	12	complete	-
+website/guide/WORKING_WITH_DATA.md	13	complete	-
+website/guide/WORKING_WITH_DATA.md	14	complete	-
+website/guide/WORKING_WITH_DATA.md	15	complete	-
+website/tour/01-hello.md	1	fragment	a tour fragment shown in the prose
+website/tour/01-hello.md	2	fragment	a tour fragment shown in the prose
+website/tour/01-hello.md	3	complete	the page's program: runs and prints its output block
+website/tour/02-values-and-bindings.md	1	fragment	a tour fragment shown in the prose
+website/tour/02-values-and-bindings.md	2	fragment	a tour fragment shown in the prose
+website/tour/02-values-and-bindings.md	3	fragment	a tour fragment shown in the prose
+website/tour/02-values-and-bindings.md	4	fragment	a tour fragment shown in the prose
+website/tour/02-values-and-bindings.md	5	complete	the page's program: runs and prints its output block
+website/tour/03-functions.md	1	fragment	a tour fragment shown in the prose
+website/tour/03-functions.md	2	fragment	a tour fragment shown in the prose
+website/tour/03-functions.md	3	fragment	a tour fragment shown in the prose
+website/tour/03-functions.md	4	complete	the page's program: runs and prints its output block
+website/tour/04-lists-maps-and-loops.md	1	fragment	a tour fragment shown in the prose
+website/tour/04-lists-maps-and-loops.md	2	fragment	a tour fragment shown in the prose
+website/tour/04-lists-maps-and-loops.md	3	fragment	a tour fragment shown in the prose
+website/tour/04-lists-maps-and-loops.md	4	fragment	a tour fragment shown in the prose
+website/tour/04-lists-maps-and-loops.md	5	fragment	a tour fragment shown in the prose
+website/tour/04-lists-maps-and-loops.md	6	complete	the page's program: runs and prints its output block
+website/tour/05-closures-and-iterators.md	1	fragment	a tour fragment shown in the prose
+website/tour/05-closures-and-iterators.md	2	fragment	a tour fragment shown in the prose
+website/tour/05-closures-and-iterators.md	3	fragment	a tour fragment shown in the prose
+website/tour/05-closures-and-iterators.md	4	complete	the page's program: runs and prints its output block
+website/tour/06-structs.md	1	fragment	a tour fragment shown in the prose
+website/tour/06-structs.md	2	fragment	a tour fragment shown in the prose
+website/tour/06-structs.md	3	fragment	a tour fragment shown in the prose
+website/tour/06-structs.md	4	fragment	a tour fragment shown in the prose
+website/tour/06-structs.md	5	complete	the page's program: runs and prints its output block
+website/tour/07-references.md	1	fragment	a tour fragment shown in the prose
+website/tour/07-references.md	2	fragment	a tour fragment shown in the prose
+website/tour/07-references.md	3	fragment	a tour fragment shown in the prose
+website/tour/07-references.md	4	fragment	a tour fragment shown in the prose
+website/tour/07-references.md	5	complete	the page's program: runs and prints its output block
+website/tour/08-enums-and-match.md	1	fragment	a tour fragment shown in the prose
+website/tour/08-enums-and-match.md	2	fragment	a tour fragment shown in the prose
+website/tour/08-enums-and-match.md	3	complete	the page's program: runs and prints its output block
+website/tour/09-traits-and-generics.md	1	fragment	a tour fragment shown in the prose
+website/tour/09-traits-and-generics.md	2	fragment	a tour fragment shown in the prose
+website/tour/09-traits-and-generics.md	3	fragment	a tour fragment shown in the prose
+website/tour/09-traits-and-generics.md	4	complete	the page's program: runs and prints its output block
+website/tour/10-absence-and-failure.md	1	fragment	a tour fragment shown in the prose
+website/tour/10-absence-and-failure.md	2	fragment	a tour fragment shown in the prose
+website/tour/10-absence-and-failure.md	3	fragment	a tour fragment shown in the prose
+website/tour/10-absence-and-failure.md	4	fragment	a tour fragment shown in the prose
+website/tour/10-absence-and-failure.md	5	complete	the page's program: runs and prints its output block
+website/tour/11-typed-errors.md	1	fragment	a tour fragment shown in the prose
+website/tour/11-typed-errors.md	2	fragment	a tour fragment shown in the prose
+website/tour/11-typed-errors.md	3	fragment	a tour fragment shown in the prose
+website/tour/11-typed-errors.md	4	fragment	a tour fragment shown in the prose
+website/tour/11-typed-errors.md	5	complete	the page's program: runs and prints its output block
+website/tour/12-derivation.md	1	fragment	a tour fragment shown in the prose
+website/tour/12-derivation.md	2	fragment	a tour fragment shown in the prose
+website/tour/12-derivation.md	3	complete	the page's program: runs and prints its output block
+website/tour/13-tests.md	1	fragment	a tour fragment shown in the prose
+website/tour/13-tests.md	2	fragment	a tour fragment shown in the prose
+website/tour/13-tests.md	3	complete	the page's program: runs and prints its output block
+website/tour/14-modules.md	1	fragment	a tour fragment shown in the prose
+website/tour/14-modules.md	2	fragment	a tour fragment shown in the prose
+website/tour/14-modules.md	3	fragment	a tour fragment shown in the prose
+website/tour/14-modules.md	4	fragment	main.hd of a two-file package
+website/tour/14-modules.md	5	fragment	one file of the page's package
+website/tour/15-requirements.md	1	fragment	a tour fragment shown in the prose
+website/tour/15-requirements.md	2	fragment	a tour fragment shown in the prose
+website/tour/15-requirements.md	3	fragment	a tour fragment shown in the prose
+website/tour/15-requirements.md	4	complete	the page's program: runs and prints its output block
+website/tour/16-suspension.md	1	fragment	a tour fragment shown in the prose
+website/tour/16-suspension.md	2	fragment	a tour fragment shown in the prose
+website/tour/16-suspension.md	3	complete	the page's program: runs and prints its output block
+website/tour/17-concurrency.md	1	fragment	a tour fragment shown in the prose
+website/tour/17-concurrency.md	2	fragment	a tour fragment shown in the prose
+website/tour/17-concurrency.md	3	fragment	a tour fragment shown in the prose
+website/tour/17-concurrency.md	4	complete	the page's program: runs and prints its output block
+website/tour/18-where-next.md	1	fragment	a tour fragment shown in the prose
+website/tour/18-where-next.md	2	complete	the page's program: runs and prints its output block
+docs/compiler/testing-the-compiler.md	1	complete	-

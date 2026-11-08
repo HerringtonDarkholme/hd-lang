@@ -106,6 +106,12 @@ jobs:
         if: ${{ !cancelled() }}
         run: bash spec/check.sh
 
+      # The hd blocks of README.md, website/guide/, website/tour/, and
+      # docs/compiler/ (docs/examples.tsv), checked as printed.
+      - name: Doc examples
+        if: ${{ !cancelled() }}
+        run: pnpm run -s check:doc-examples
+
       - name: Build count compiler
         if: ${{ !cancelled() }}
         run: cargo build -p hd_driver --example count_ops
