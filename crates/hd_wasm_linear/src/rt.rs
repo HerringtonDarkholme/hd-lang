@@ -1013,9 +1013,7 @@ fn collecting(m: &Module, poll: Sym) -> Sym {
 /// [`Helper::CheckedPoll`].
 fn checked_poll(poll: &Helper, reinit: &[Hash128], m: &Module) -> Func {
     let mut f = m.func("rt:checked_poll", vec![Val::I32], vec![Val::I32]);
-    let Some((r, c)) = m.runtime.and_then(|r| Some((r, r.checked?))) else {
-        return f;
-    };
+    let (r, c) = m.runtime.and_then(|r| Some((r, r.checked?))).unwrap();
     let status = f.local(Val::I32);
     f.get(0);
     f.helper(poll.clone());
