@@ -43,6 +43,7 @@ The language tier keeps what the compiler knows by name
 | r[std-format.debug.source.char] Char | a `char` | a char literal that escapes `\` and `'` the same way and writes a control character as in a string, as in `'x'` and `'\n'` |
 
 ```text
+@derive(Debug)
 enum Shape:
     Dot
     Circle(radius: f64)

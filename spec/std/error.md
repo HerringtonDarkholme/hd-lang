@@ -42,7 +42,7 @@ enum SaveError:
 
 fn messages(failure: SaveError) -> List[string]:
     let error: *dyn Error = box(failure)
-    error.chain().map(fn(error: &dyn Error) -> string: error.to_string())
+    error.chain().map(fn(error: &*dyn Error) -> string: error.to_string())
 ```
 
 For `SaveError.Write("notes.txt", DiskError { free: 0 })`, `messages`
@@ -131,7 +131,7 @@ enum SyncError:
     Save(@source error: DiskError)
 
 fn summary() -> string:
-    report := report_of(SyncError.Save(DiskError { free: 0 }))
+    report := report_of(&SyncError.Save(DiskError { free: 0 }))
     report.to_string()  # "sync failed\nsource: disk full"
 ```
 

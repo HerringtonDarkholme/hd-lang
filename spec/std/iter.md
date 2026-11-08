@@ -272,7 +272,7 @@ fn parse_all(lines: List[string]) -> Result[List[usize], string]:
     lines.iter().map(parse_port).collect()
 
 fn count(values: List[i32]) -> usize:
-    copied := values.iter().collect()
+    let copied: List[i32] = values.iter().collect()
     copied.len()
 ```
 

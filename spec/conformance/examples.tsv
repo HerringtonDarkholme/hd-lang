@@ -779,7 +779,7 @@ lang/11-requirements-and-suspension.md	9	complete	typing/valid/row-subsumption-l
 lang/11-requirements-and-suspension.md	10	mixed	typing/invalid/row-subsumption-missing-key.hd
 lang/11-requirements-and-suspension.md	11	complete	typing/valid/row-union-list.hd|typing/valid/row-union-if.hd
 lang/11-requirements-and-suspension.md	12	mixed	typing/invalid/row-union-list-no-convert.hd|typing/invalid/row-union-if-nested-lists.hd
-lang/11-requirements-and-suspension.md	13	known-failure	typing/valid/row-parameter-marked.hd|runtime/valid/row-parameter-data-owners.hd
+lang/11-requirements-and-suspension.md	13	complete	typing/valid/row-parameter-marked.hd|runtime/valid/row-parameter-data-owners.hd
 lang/11-requirements-and-suspension.md	14	mixed	typing/invalid/row-parameter-unmarked.hd|typing/invalid/row-parameter-as-type.hd
 lang/11-requirements-and-suspension.md	15	mixed	typing/invalid/row-parameter-on-data.hd|typing/invalid/row-parameter-on-newtype.hd|typing/invalid/row-parameter-data-written-missing.hd|typing/invalid/row-parameter-in-context.hd
 lang/11-requirements-and-suspension.md	16	complete	typing/valid/row-slots.hd
@@ -825,7 +825,7 @@ lang/11-requirements-and-suspension.md	55	complete	-
 lang/11-requirements-and-suspension.md	56	complete	-
 lang/11-requirements-and-suspension.md	57	complete	-
 lang/11-requirements-and-suspension.md	58	type-fragment	-
-lang/11-requirements-and-suspension.md	59	known-failure	-
+lang/11-requirements-and-suspension.md	59	complete	-
 lang/11-requirements-and-suspension.md	60	type-fragment	-
 lang/11-requirements-and-suspension.md	61	complete	-
 lang/11-requirements-and-suspension.md	62	complete	-
@@ -998,7 +998,7 @@ std/cmp.md	6	complete	runtime/valid/cmp-reverse.hd
 std/cmp.md	7	complete	runtime/valid/cmp-ordering-eq.hd
 std/cmp.md	8	complete	runtime/valid/reference-eq-generic.hd
 std/cmp.md	9	complete	runtime/valid/id-keys-by-identity.hd
-std/cmp.md	10	known-failure	runtime/valid/deep-equal-rings.hd
+std/cmp.md	10	complete	runtime/valid/deep-equal-rings.hd
 std/collections.md	1	complete	runtime/valid/uniq-list-moves-noncopyable-elements.hd
 std/collections.md	2	complete	runtime/valid/uniq-map-basic-api.hd
 std/collections.md	3	complete	runtime/valid/std-list-extend-own-copy.hd
@@ -1044,14 +1044,14 @@ std/encoding.md	4	complete	runtime/valid/encoding-base64-vectors.hd
 std/encoding.md	5	complete	runtime/valid/encoding-base64-vectors.hd
 std/encoding.md	6	complete	runtime/valid/encoding-decode-errors.hd
 std/encoding.md	7	type-fragment	-
-std/error.md	1	known-failure	runtime/valid/error-chain.hd
+std/error.md	1	complete	runtime/valid/error-chain.hd
 std/error.md	2	complete	runtime/valid/error-root-cause.hd|runtime/valid/error-find-erased.hd
 std/error.md	3	mixed	typing/invalid/error-find-non-error.hd
-std/error.md	4	known-failure	runtime/valid/error-report.hd
+std/error.md	4	complete	runtime/valid/error-report.hd
 std/error.md	5	complete	runtime/valid/error-message.hd
 std/error.md	6	complete	runtime/valid/error-context.hd
 std/error.md	7	complete	runtime/valid/std-errors-erased.hd|runtime/valid/std-errors-erased-codecs.hd
-std/format.md	1	known-failure	runtime/valid/debug-source-text.hd
+std/format.md	1	complete	runtime/valid/debug-source-text.hd
 std/format.md	2	complete	typing/valid/debug-writer-builders.hd
 std/format.md	3	complete	typing/valid/std-types-debug.hd
 std/format.md	4	complete	runtime/valid/display-write-std.hd
@@ -1109,7 +1109,7 @@ std/iter.md	5	complete	runtime/valid/iterator-skip-take-while.hd|runtime/valid/i
 std/iter.md	6	mixed	typing/invalid/iterator-chain-iterator-arg.hd
 std/iter.md	7	complete	runtime/valid/iterator-trait-adapter-structs.hd
 std/iter.md	8	complete	runtime/valid/iterator-numeric-targets.hd
-std/iter.md	9	known-failure	typing/valid/collect-targets.hd
+std/iter.md	9	complete	typing/valid/collect-targets.hd
 std/iter.md	10	type-fragment	-
 std/iter.md	11	mixed	typing/invalid/collect-target-not-fromiterator.hd
 std/iter.md	12	complete	runtime/valid/list-and-optional-map.hd

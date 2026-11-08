@@ -210,7 +210,7 @@ struct Node:
     value: i32
     next: *mut Node?
 
-fn same_ring(a: &mut Node, b: &mut Node) -> bool:
+fn same_ring(a: &Node, b: &Node) -> bool:
     deep_equal(a, b)
 ```
 

@@ -353,7 +353,7 @@ struct OnExit[$R]:
     run: fn() -> void $ R
 
 fn run_on_exit(exit: OnExit[$ Console]) -> void $ Console:
-    exit.run()
+    (exit.run)()
 ```
 
 1. r[req.row.param.marked] A generic parameter written with `$` before its name, as `$R` in `fn map[T, U, $R]`, is a row parameter.
@@ -1390,8 +1390,9 @@ impl[T] Suspend[T]:
 ```hd
 fn fetch!(key: string) -> string: "value of $key"
 
-fn demo() -> void:
+fn demo() -> Suspend[string]:
     pending := fetch("k")   # cold: the plain call only constructs, nothing runs
+    pending
 ```
 
 ### Poll Context
