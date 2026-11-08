@@ -2487,16 +2487,7 @@ const FREED: u32 = 256;
 /// this into each allocation.
 fn alloc_class(m: &Module, class: u32, bytes: u32) -> Func {
     let mut f = m.func(format!("rt:alloc_class/{class}"), vec![], vec![Val::I32]);
-    let Some(r) = m.runtime else {
-        f.u32(bytes);
-        f.helper(Helper::Alloc);
-        return f;
-    };
-    if r.checked.is_some() {
-        f.u32(bytes);
-        f.call(Sym::Inst(r.alloc));
-        return f;
-    }
+    let r = m.runtime.unwrap();
     let (table, page, slot, next, bump) = (
         f.local(Val::I32),
         f.local(Val::I32),
