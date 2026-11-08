@@ -1259,7 +1259,7 @@ fn scope_of(
             kinds.entry(*d).or_insert(*k);
         }
     }
-    prelude(r, m, heads, &mut scope, &mut kinds, diags);
+    prelude(r, m, heads, uses, &mut scope, &mut kinds, diags);
     (scope, kinds)
 }
 
@@ -1549,6 +1549,7 @@ fn prelude(
     r: &Resolver<'_, '_>,
     m: &ModIn<'_>,
     heads: &[Head<'_>],
+    uses: &[UseDecl],
     scope: &mut ModuleScope,
     kinds: &mut Kinds,
     diags: &mut DiagBuf,
@@ -1574,10 +1575,29 @@ fn prelude(
                 }
                 Some(b) if b.kind == BindingKind::Item && b.value == d.raw() => {}
                 Some(_) => {
-                    let span = heads
-                        .iter()
-                        .find(|h| h.name == sym && h.local.is_none() && h.test.is_none())
-                        .map_or(m.src.span(m.src.root()), |h| m.src.span(h.node));
+                    // `module.prelude.no-shadow`: locate an imported name at
+                    // its use, using the binding's existing use-row index.
+                    let span = scope
+                        .index
+                        .get(&sym)
+                        .and_then(|&row| uses.get(scope.use_row[row as usize] as usize))
+                        .map(|u| {
+                            u.group
+                                .as_ref()
+                                .and_then(|group| {
+                                    group
+                                        .iter()
+                                        .find(|g| g.alias.as_deref().unwrap_or(&g.name) == *name)
+                                })
+                                .map_or(u.span, |g| g.span)
+                        })
+                        .or_else(|| {
+                            heads
+                                .iter()
+                                .find(|h| h.name == sym && h.local.is_none() && h.test.is_none())
+                                .map(|h| m.src.span(h.node))
+                        })
+                        .unwrap_or_else(|| m.src.span(m.src.root()));
                     let msg = format!("`{name}` shadows a prelude name");
                     diags.error(Code::PreludeNameShadow, span, &msg);
                 }

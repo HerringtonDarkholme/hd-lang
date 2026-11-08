@@ -1,0 +1,6 @@
+# test: a grouped prelude shadow is located at its own member line
+
+use std.hash.Hash
+use std.cmp.{
+    Ordering as Display, # diagnostic: prelude-name-shadow
+}
