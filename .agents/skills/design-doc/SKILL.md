@@ -157,3 +157,6 @@ not:
   the index line, with no experiment or prototype folders?
 - Does every illustrative problem work in the proposal?
 - Is anything from today's behaviour dropped without being listed?
+- Does the doc state the cost of one run as a function of the change and of
+  the total accumulated state, per shared-rules.md "Cost Model"? Any per-run
+  work proportional to total state is a defect, not a trade-off.

@@ -49,6 +49,26 @@ before relying on one, because they change.
   or doesn't fit hd, and the trade-off. An undiscussed difference is a
   review finding.
 
+## Cost Model
+
+Anything that runs on every command (a cache, the driver's warm path, a
+checker, a gate, a script in `pnpm run check`) exists to be fast; a slow one
+is wrong, whatever else it guarantees. Owner, 2026-11-08: "having a fast
+rebuild is what a cache for, you give me a slow cache and claim it is
+correct??"
+
+- Every design and every change on such a path states its cost per run as a
+  function of the input or change, and of the total accumulated state (cache
+  entries, index rows, packs, source files, examples, history).
+- Work proportional to total state on every run is a defect, found by
+  reading the loops and call sites, not by measuring afterwards: a
+  `read_dir` of the whole store, a whole-file read or rewrite to change a
+  few records, one process per item, a check repeated by the next stage.
+- A warm run with nothing changed does work proportional to nothing. A run
+  that changes k things does work proportional to k.
+- Where state can grow, a test grows it tenfold and asserts the run cost
+  stays flat.
+
 ## Spec Tiers
 
 The specification has three tiers; AGENTS.md "Spec Scope For The Standard
