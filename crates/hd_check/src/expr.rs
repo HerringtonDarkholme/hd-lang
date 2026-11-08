@@ -490,16 +490,11 @@ impl Ck<'_, '_> {
                 n.index(),
             );
         }
-        let result = self.interpolation_internal("value_new", &[size], Ty::STRING, n)?;
+        let result = self.interpolation_internal("value_new", &[size], Ty::STRING, n);
         for ((piece, _), offset) in out.pieces.into_iter().zip(offsets) {
             match piece {
                 InterpolationPiece::Text(text) => {
-                    self.interpolation_internal(
-                        "value_text",
-                        &[result, offset, text],
-                        Ty::VOID,
-                        n,
-                    )?;
+                    self.interpolation_internal("value_text", &[result, offset, text], Ty::VOID, n);
                 }
                 InterpolationPiece::Signed(value, width) => {
                     self.interpolation_internal(
@@ -507,7 +502,7 @@ impl Ck<'_, '_> {
                         &[result, offset, value, width],
                         Ty::VOID,
                         n,
-                    )?;
+                    );
                 }
                 InterpolationPiece::Unsigned(value, width) => {
                     self.interpolation_internal(
@@ -515,7 +510,7 @@ impl Ck<'_, '_> {
                         &[result, offset, value, width],
                         Ty::VOID,
                         n,
-                    )?;
+                    );
                 }
                 InterpolationPiece::Integer(value, ty, width) => {
                     self.interpolation_typed(
@@ -524,7 +519,7 @@ impl Ck<'_, '_> {
                         &[ty],
                         Ty::VOID,
                         n,
-                    )?;
+                    );
                 }
                 InterpolationPiece::Char(value) => {
                     self.interpolation_internal(
@@ -532,7 +527,7 @@ impl Ck<'_, '_> {
                         &[result, offset, value],
                         Ty::VOID,
                         n,
-                    )?;
+                    );
                 }
             }
         }
@@ -772,24 +767,22 @@ impl Ck<'_, '_> {
     }
 
     /// Makes an empty local builder through its byte field's constructor.
-    fn new_interpolation_builder(&mut self, n: NodeRef<'_>) -> StageResult<InterpolationBuilder> {
+    fn new_interpolation_builder(&mut self, n: NodeRef<'_>) -> InterpolationBuilder {
         let pool = self.pool();
         let def = self.cx.names.item("std.text", "StringBuilder");
-        let Some(item) = self.cx.lookup.item(def) else {
-            return unsupported("string interpolation without StringBuilder");
-        };
+        let item = self.cx.lookup.item(def).expect("stdpack StringBuilder");
         let ItemData::Struct(fields) = &item.data else {
-            return unsupported("a non-struct StringBuilder");
+            unreachable!("stdpack StringBuilder is a struct");
         };
         let [field] = fields.as_slice() else {
-            return unsupported("a StringBuilder without one byte buffer");
+            unreachable!("stdpack StringBuilder has one byte buffer");
         };
         // The approved builder field owns its bytes. Initialize it
         // through its ordinary constructor rather than assuming the
         // representation of a built-in list.
-        let Some((init, _, vars)) = self.find_inherent_any(field.ty, "new") else {
-            return unsupported("a StringBuilder field without an empty constructor");
-        };
+        let (init, _, vars) = self
+            .find_inherent_any(field.ty, "new")
+            .expect("stdpack byte buffer constructor");
         self.note_call(init);
         let constructor = hd_tir::ir::Callee::Item {
             def: init,
@@ -812,8 +805,7 @@ impl Ck<'_, '_> {
         let local = self.b.local(ty, name, local_flags::ASSIGNED, n.index());
         self.set_local(local, value, n.index());
         self.mut_locals.push(local);
-        let b = InterpolationBuilder::Local(local);
-        Ok(b)
+        InterpolationBuilder::Local(local)
     }
 
     fn prepare_pending_text(&mut self, out: &mut Interpolation) {
@@ -826,25 +818,14 @@ impl Ck<'_, '_> {
     }
 
     /// A call to an ordinary private runtime helper, with no new intrinsic.
-    fn interpolation_helper(
-        &mut self,
-        name: &str,
-        args: &[Ref],
-        n: NodeRef<'_>,
-    ) -> StageResult<Ref> {
+    fn interpolation_helper(&mut self, name: &str, args: &[Ref], n: NodeRef<'_>) -> Ref {
         self.interpolation_internal(name, args, Ty::prim(Prim::Usize), n)
     }
 
     /// Private methods are named in the inherent index but do not export
     /// signatures. These desugaring helpers have fixed, compiler-owned call
     /// shapes; their bodies are still checked as ordinary std code.
-    fn interpolation_internal(
-        &mut self,
-        name: &str,
-        args: &[Ref],
-        ret: Ty,
-        n: NodeRef<'_>,
-    ) -> StageResult<Ref> {
+    fn interpolation_internal(&mut self, name: &str, args: &[Ref], ret: Ty, n: NodeRef<'_>) -> Ref {
         self.interpolation_typed(name, args, &[], ret, n)
     }
 
@@ -855,23 +836,22 @@ impl Ck<'_, '_> {
         targs: &[Ty],
         ret: Ty,
         n: NodeRef<'_>,
-    ) -> StageResult<Ref> {
+    ) -> Ref {
         let pool = self.pool();
         let sb = pool.intern_ty(&TyData::Adt {
             def: self.cx.names.item("std.text", "StringBuilder"),
             args: pool.list(&[]),
         });
-        let Some((def, _, _)) = self.find_inherent_any(sb, name) else {
-            return unsupported(format!("string interpolation without `{name}`"));
-        };
+        let (def, _, _) = self
+            .find_inherent_any(sb, name)
+            .expect("stdpack interpolation method");
         self.note_call(def);
         let callee = hd_tir::ir::Callee::Item {
             def,
             targs: pool.list(targs),
         };
-        Ok(self
-            .b
-            .call(&callee, args, hd_tir::ir::Providers::None, ret, n.index()))
+        self.b
+            .call(&callee, args, hd_tir::ir::Providers::None, ret, n.index())
     }
 
     /// Snapshot primitives at their segment position. User writes also run at
@@ -910,7 +890,7 @@ impl Ck<'_, '_> {
                 &[ty],
                 Ty::prim(Prim::Usize),
                 n,
-            )?;
+            );
             out.pieces
                 .push((InterpolationPiece::Integer(value, ty, width), width));
             return Ok(());
@@ -923,7 +903,7 @@ impl Ck<'_, '_> {
                     r
                 };
                 if p == Prim::Char {
-                    let width = self.interpolation_helper("char_width", &[value], n)?;
+                    let width = self.interpolation_helper("char_width", &[value], n);
                     (InterpolationPiece::Char(value), width)
                 } else {
                     let signed = !p.is_unsigned();
@@ -937,7 +917,7 @@ impl Ck<'_, '_> {
                         },
                         &[value],
                         n,
-                    )?;
+                    );
                     (
                         if signed {
                             InterpolationPiece::Signed(value, width)
@@ -959,7 +939,7 @@ impl Ck<'_, '_> {
                         self.trait_call_args(display, "to_string", receiver, t, &[], n)?
                             .0
                     } else {
-                        let builder = self.new_interpolation_builder(n)?;
+                        let builder = self.new_interpolation_builder(n);
                         let dest = self.interpolation_ref(builder, n);
                         let bt = self.b.ty_of(dest);
                         self.trait_call_args(display, "write", receiver, t, &[(dest, bt, n)], n)?;
@@ -967,7 +947,7 @@ impl Ck<'_, '_> {
                         self.builder_call("build", &[dest], n)?.0
                     }
                 };
-                let width = self.interpolation_helper("text_width", &[text], n)?;
+                let width = self.interpolation_helper("text_width", &[text], n);
                 (InterpolationPiece::Text(text), width)
             }
         };
@@ -1059,9 +1039,9 @@ impl Ck<'_, '_> {
             def,
             args: pool.list(&[]),
         });
-        let Some((method, _, _)) = self.find_inherent_any(sb, name) else {
-            return unsupported("string interpolation without `std.text.StringBuilder`");
-        };
+        let (method, _, _) = self
+            .find_inherent_any(sb, name)
+            .expect("stdpack StringBuilder method");
         let sig = self.sig_of(method)?;
         self.note_call(method);
         let mut refs = Vec::with_capacity(args.len());

@@ -311,20 +311,27 @@ impl Ck<'_, '_> {
                 let (elems, rest) = match pool.get(inner) {
                     TyData::Tuple { elems, rest } => (pool.list_items(elems).to_vec(), rest),
                     TyData::Poison => return self.declare_poisoned(&subs, binds),
-                    TyData::Infer(_) if spread.is_some() => {
-                        return unsupported("a spread pattern on a value whose type is not known");
-                    }
                     TyData::Infer(_) => {
-                        let vs: Vec<Ty> = subs
+                        // The pattern fixes only the tuple shape. Its element
+                        // variables still need context; without it, the final
+                        // check reports the empty source literal once.
+                        let vs: Vec<Ty> = fixed
                             .iter()
                             .map(|_| self.infer.fresh(pool, VarKind::General))
                             .collect();
+                        let rest = spread.map(|_| {
+                            let elem = self.infer.fresh(pool, VarKind::General);
+                            pool.intern_ty(&TyData::Adt {
+                                def: self.cx.names.known.list,
+                                args: pool.list(&[elem]),
+                            })
+                        });
                         let tt = pool.intern_ty(&TyData::Tuple {
                             elems: pool.list(&vs),
-                            rest: None,
+                            rest,
                         });
                         self.expect(tt, t, p, "pattern", ExpectPosition::General);
-                        (vs, None)
+                        (vs, rest)
                     }
                     _ => {
                         let msg = format!("in pattern: {} is not a tuple", self.show(t));

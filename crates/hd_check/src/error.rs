@@ -33,7 +33,7 @@ use hd_tir::ir::{BodyKind, NONE, Ref, Tag, TirSink, local_flags};
 use hd_types::solver::TraitRef;
 use hd_types::{ParamRef, RowId, Ty, TyData, TyList};
 
-use crate::body::{BodyCx, Ck, ExpectPosition, new_ck, unsupported};
+use crate::body::{BodyCx, Ck, ExpectPosition, new_ck};
 
 /// The error type a body is generated for.
 struct Target<'s, 't> {
@@ -56,9 +56,7 @@ pub fn error_bodies(
     diags: &mut DiagBuf,
 ) -> StageResult<Vec<Body>> {
     let names = &cx.names;
-    let Some(item) = cx.lookup.item(ty) else {
-        return unsupported("an error type outside the module");
-    };
+    let item = cx.lookup.item(ty).expect("resolved @error target");
     let fields = hd_resolve::error_type::fields(&item.data)
         .into_iter()
         .map(<[Field]>::to_vec)
@@ -352,7 +350,7 @@ impl Target<'_, '_> {
         };
         let pool = ck.cx.names.pool;
         let TyData::Option(erased) = pool.get(ret) else {
-            return unsupported("an `Error.cause` that does not return `dyn Error?`");
+            unreachable!("stdpack Error.source returns an optional reference");
         };
         if let (Message::Transparent, [f]) = (v.message, fs) {
             let node = v.members[0].node;

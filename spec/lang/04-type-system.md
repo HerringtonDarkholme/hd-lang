@@ -865,16 +865,20 @@ narrow := i16(wide)
 ```
 
 1. r[types.cast.syntax] Explicit numeric conversion uses constructor-style casts.
-2. r[types.cast.wrap] An integer-to-integer cast wraps at run time, as Go conversions and Rust `as` do. The result keeps the low bits of the source value's two's-complement form, read in the target type. It never panics.
-3. r[types.cast.wrap.example] So `u8(x)` with `x = 300` gives 44, and `i8(x)` with `x = 200` gives -56.
-4. r[types.cast.literal-range] A cast's argument may be an integer literal, alone or under unary `-` or `+`. Then the literal is checked with the target type as its expected type, by [Integer Literals](#integer-literals). An out-of-range literal is an error, as Go reports a constant overflow. Error: `integer-literal-range`.
-5. r[types.cast.fallible] Libraries may provide separate fallible conversion functions returning `Result`.
+2. r[types.cast.argument] A cast requires exactly one positional argument, without a spread. Error: `argument-count`.
+3. r[types.cast.wrap] An integer-to-integer cast wraps at run time, as Go conversions and Rust `as` do. The result keeps the low bits of the source value's two's-complement form, read in the target type. It never panics.
+4. r[types.cast.wrap.example] So `u8(x)` with `x = 300` gives 44, and `i8(x)` with `x = 200` gives -56.
+5. r[types.cast.literal-range] A cast's argument may be an integer literal, alone or under unary `-` or `+`. Then the literal is checked with the target type as its expected type, by [Integer Literals](#integer-literals). An out-of-range literal is an error, as Go reports a constant overflow. Error: `integer-literal-range`.
+6. r[types.cast.fallible] Libraries may provide separate fallible conversion functions returning `Result`.
 
 ```text
 fn narrow(wide: i64) -> u8:
     u8(wide)          # wraps: 300 gives 44
 fn fixed() -> u8:
     u8(300)           # error: integer-literal-range
+fn spread() -> i64:
+    values := (+1,)
+    i64(values...)   # error: argument-count
 ```
 
 The core numeric cast rules are:

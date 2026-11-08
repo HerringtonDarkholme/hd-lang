@@ -15,7 +15,7 @@ use hd_syntax::NodeRef;
 use hd_tir::ir::{IntrinsicOp, NONE, PrimOp, Ref, Tag, TirSink, local_flags};
 use hd_types::{ParamRef, Prim, Ty, TyData};
 
-use crate::body::{BodyCx, Ck, ExpectPosition, unsupported};
+use crate::body::{BodyCx, Ck, ExpectPosition};
 use crate::delegate::{Forwarded, Forwarder};
 
 /// One problem with a derived newtype's forwarding: the derived
@@ -232,7 +232,7 @@ impl Conversion {
                 let (a, b) = (pool.list_items(a)[0], pool.list_items(b)[0]);
                 self.list(ck, r, (f, t), (a, b), node)
             }
-            _ => unsupported("a derived newtype value that does not convert"),
+            _ => unreachable!("Forwarder::body checked Conversion::can"),
         }
     }
 

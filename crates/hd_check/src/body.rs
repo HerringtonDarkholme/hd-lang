@@ -1131,12 +1131,10 @@ fn fn_body_steps(
     infer: Infer,
     inferred: Option<(Option<Ty>, Option<RowId>)>,
 ) -> StageResult<(Body, Ty, crate::results::RowFacts)> {
-    let Some(item) = cx.lookup.item(def) else {
-        return unsupported(format!("body of {} has no header", cx.names.path(def)));
-    };
-    let Some(mut sig) = item.sig().cloned() else {
-        return unsupported("a body of a non-function item");
-    };
+    // The driver selects resolved `body_nodes` with a source block;
+    // `check_opt_in` selects checked template methods the same way.
+    let item = cx.lookup.item(def).expect("body_nodes header");
+    let mut sig = item.sig().expect("body_nodes function signature").clone();
     if let Some((ret, row)) = inferred {
         if let Some(ret) = ret {
             sig.ret = ret;
@@ -1185,9 +1183,7 @@ fn fn_body_steps(
         ck.scopes[0].insert(name, l);
     }
     ck.mark_mut_params(node);
-    let Some(body) = Src::child(node, SyntaxKind::Block) else {
-        return unsupported("a function without a body");
-    };
+    let body = Src::child(node, SyntaxKind::Block).expect("selected source body");
     ck.fn_body = Some(body.index());
     ck.result_omitted = Src::type_child(node).is_none();
     ck.written_row = Src::child(node, SyntaxKind::RequirementRow).map(NodeRef::index);

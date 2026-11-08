@@ -571,9 +571,7 @@ pub fn structure_bodies(
 ) -> StageResult<Generated> {
     let names = &cx.names;
     let pool = names.pool;
-    let Some(item) = cx.lookup.item(opt.data) else {
-        return unsupported("a derivation target outside the module's view");
-    };
+    let item = cx.lookup.item(opt.data).expect("OptIn::build target");
     let owner = opt.structure_owner();
     // The declaration's `Structure` is over the type's own parameters.
     let ty = if owner == opt.data {
@@ -590,7 +588,7 @@ pub fn structure_bodies(
     let target = Target {
         ty,
         name: names.text(item.name).to_owned(),
-        vars: variants(cx, opt, ty, facts)?,
+        vars: variants(cx, opt, ty, facts),
         facts: facts.of_type,
     };
     let gcx = hd_structure::Cx {
@@ -649,14 +647,12 @@ pub fn owner_args(cx: &BodyCx<'_>, opt: &OptIn) -> TyList {
 /// fills (`OptIn::fills_declared`, `annot.impl-fact.fills-defaults`) and
 /// a member a skip fact omits (`annot.impl-fact.skips`), and their facts
 /// bodies.
-fn variants(cx: &BodyCx<'_>, opt: &OptIn, ty: Ty, facts: &FactBodies) -> StageResult<Vec<Var>> {
+fn variants(cx: &BodyCx<'_>, opt: &OptIn, ty: Ty, facts: &FactBodies) -> Vec<Var> {
     let names = &cx.names;
     let pool = names.pool;
-    let Some(item) = cx.lookup.item(opt.data) else {
-        return unsupported("a derivation target outside the module's view");
-    };
+    let item = cx.lookup.item(opt.data).expect("OptIn::build target");
     let TyData::Adt { args, .. } = pool.get(ty) else {
-        return unsupported("a derivation target that is not a data type or enum");
+        unreachable!("OptIn::build requires an ADT");
     };
     let args = pool.list_items(args).to_vec();
     let data = opt.data;
@@ -751,9 +747,9 @@ fn variants(cx: &BodyCx<'_>, opt: &OptIn, ty: Ty, facts: &FactBodies) -> StageRe
                 });
             }
         }
-        _ => return unsupported("a derivation target that is not a data type or enum"),
+        _ => unreachable!("OptIn::build accepts only structs and enums"),
     }
-    Ok(out)
+    out
 }
 
 /// Self references (`annot.self-ref.*`): whether a member's type refers

@@ -6058,6 +6058,9 @@ typing/invalid/a-local-annotation-through-an-unknown-module-is-an-unknown-name.h
 typing/invalid/a-local-annotation-through-a-module-that-lacks-the-type.hd	type	reject:unknown-import	lang/03-names-and-scopes.md#r-names.type.qualified
 typing/invalid/a-function-name-in-a-local-annotation-is-an-unknown-type.hd	type	reject:unknown-type	lang/03-names-and-scopes.md#r-names.module.other-module.type
 runtime/valid/a-spread-fills-shared-enum-parameters.hd	runtime	accept	lang/08-data-and-enums.md#r-data.shared.arguments
+typing/invalid/a-cast-rejects-a-written-spread-argument.hd	type	reject:argument-count	lang/04-type-system.md#r-types.cast.argument
+typing/invalid/an-empty-list-spread-loop-pattern-does-not-infer-an-element.hd	type	reject:cannot-infer-type	lang/05-expressions.md#r-expr.collection.empty.error
+typing/valid/an-empty-list-rest-pattern-keeps-later-type-context.hd	type	accept	lang/05-expressions.md#r-expr.collection.expected
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

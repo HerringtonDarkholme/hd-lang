@@ -1,0 +1,8 @@
+# test: a rest pattern supplies no element type to an empty collection
+# Rule: expr.collection.empty.error.
+
+fn main() -> void:
+    let xs = [] # diagnostic: cannot-infer-type
+    for (a, b...) in xs:
+        _ := a
+        _ := b

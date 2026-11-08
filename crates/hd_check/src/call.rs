@@ -1033,8 +1033,20 @@ impl Ck<'_, '_> {
 
     /// `i64(x)`: a numeric conversion.
     fn conversion(&mut self, to: Ty, args: &Args<'_>, n: NodeRef<'_>) -> StageResult<(Ref, Ty)> {
-        if args.spread.is_some() {
-            return unsupported("a spread argument for a conversion");
+        if let Some(spread) = args.spread {
+            // `types.cast.argument`: a cast takes one written argument,
+            // never an argument list expanded from a tuple.
+            for e in args
+                .positional
+                .iter()
+                .chain([&spread])
+                .chain(&args.after_spread)
+            {
+                self.expr(*e, None)?;
+            }
+            let msg = format!("`{}` takes 1 argument without a spread", self.show(to));
+            self.err(Code::ArgumentCount, n, &msg);
+            return Ok((Ref(NONE), Ty::POISON));
         }
         // A numeric target is never a zero-argument function
         // (`grammar.call.trailing-block.eligible`).
@@ -2283,7 +2295,7 @@ impl Ck<'_, '_> {
                     .intrinsic
                     .is_some_and(|k| self.cx.names.text(k) == "facts_of")
                 {
-                    return self.facts_of_call(args, n);
+                    return Ok(self.facts_of_call(args, n));
                 }
                 // A direct `dbg` call prints with its call site.
                 if def == self.cx.names.known.dbg && crate::dbg::is_direct(args, explicit) {

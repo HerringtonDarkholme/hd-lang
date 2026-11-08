@@ -212,7 +212,7 @@ lang/04-type-system.md	41	mixed	typing/invalid/no-widening-assignment.hd|typing/
 lang/04-type-system.md	42	type-fragment	-
 lang/04-type-system.md	43	mixed	typing/invalid/no-widening-operator.hd|typing/invalid/no-widening-float.hd|typing/valid/numeric-literal-adopts-width.hd|typing/valid/numeric-literal-left-operand.hd
 lang/04-type-system.md	44	complete	typing/valid/newtypes-and-widening.hd
-lang/04-type-system.md	45	mixed	runtime/valid/narrowing-cast-wraps.hd|typing/invalid/cast-literal-out-of-range.hd
+lang/04-type-system.md	45	mixed	runtime/valid/narrowing-cast-wraps.hd|typing/invalid/cast-literal-out-of-range.hd|typing/invalid/a-cast-rejects-a-written-spread-argument.hd
 lang/04-type-system.md	46	mixed	runtime/panic/integer-add-overflow.hd|runtime/panic/signed-min-division-overflow.hd
 lang/04-type-system.md	47	complete	-
 lang/04-type-system.md	48	complete	runtime/valid/mut-trait-value-from-mut.hd

@@ -33,19 +33,17 @@ use crate::structure::{FactLines, Slot};
 use crate::ty::Named;
 
 /// `Facts` and the type of its `items`.
-fn facts_types(cx: &BodyCx<'_>) -> StageResult<(Ty, Ty)> {
+fn facts_types(cx: &BodyCx<'_>) -> (Ty, Ty) {
     let facts = cx.names.item("std.structure", "Facts");
-    let Some(ItemData::Struct(fields)) = cx.lookup.item(facts).map(|i| &i.data) else {
-        return unsupported("`std.structure.Facts` outside the module's view");
+    let ItemData::Struct(fields) = &cx.lookup.item(facts).expect("stdpack Facts").data else {
+        unreachable!("stdpack Facts is a struct");
     };
-    let Some(items) = fields.first().map(|f| f.ty) else {
-        return unsupported("`std.structure.Facts` without items");
-    };
+    let items = fields.first().expect("stdpack Facts.items").ty;
     let ty = cx.names.pool.intern_ty(&TyData::Adt {
         def: facts,
         args: TyList::EMPTY,
     });
-    Ok((ty, items))
+    (ty, items)
 }
 
 /// A decorator's resolved declaration, including a qualified path.
@@ -294,7 +292,7 @@ fn fact_list_steps(
 ) -> StageResult<Body> {
     let names = &cx.names;
     let pool = names.pool;
-    let (facts_ty, items_ty) = facts_types(cx)?;
+    let (facts_ty, items_ty) = facts_types(cx);
     let trait_value = pool.intern_ty(&TyData::TraitValue {
         def: names.item("std.inspect", "Inspectable"),
         args: TyList::EMPTY,
@@ -1468,30 +1466,26 @@ impl Ck<'_, '_> {
 
     /// `facts_of(f)`: the call of `f`'s facts body, for a module-level
     /// function `f` named by the one argument (`annot.facts-of.target`).
-    pub(crate) fn facts_of_call(
-        &mut self,
-        args: &Args<'_>,
-        n: NodeRef<'_>,
-    ) -> StageResult<(Ref, Ty)> {
+    pub(crate) fn facts_of_call(&mut self, args: &Args<'_>, n: NodeRef<'_>) -> (Ref, Ty) {
         let pool = self.pool();
-        let (facts_ty, items_ty) = facts_types(self.cx)?;
+        let (facts_ty, items_ty) = facts_types(self.cx);
         let plain = args.spread.is_none()
             && args.after_spread.is_empty()
             && args.named.is_empty()
             && args.trailing.is_none();
         let (true, [arg]) = (plain, args.positional.as_slice()) else {
             self.err(Code::ArgumentCount, n, "`facts_of` takes one argument");
-            return Ok((Ref(NONE), Ty::NEVER));
+            return (Ref(NONE), Ty::NEVER);
         };
         let segs = self.segments_expr(*arg);
         let Some(first) = segs.first() else {
-            return Ok(self.bad_facts_target(*arg, "this argument is not a name"));
+            return self.bad_facts_target(*arg, "this argument is not a name");
         };
         if self.find_local(self.cx.names.syms.intern(first)).is_some() {
-            return Ok(self.bad_facts_target(*arg, "a local binding is not a declaration"));
+            return self.bad_facts_target(*arg, "a local binding is not a declaration");
         }
         if self.is_poison_name(first) {
-            return Ok(self.poison_value(n));
+            return self.poison_value(n);
         }
         let Some(def) = self.resolve_path(&segs) else {
             let sym = self.cx.names.syms.intern(first);
@@ -1502,15 +1496,15 @@ impl Ck<'_, '_> {
             if self.scope_name(first).is_none() && !global {
                 let msg = format!("`{first}` is not defined");
                 self.err(Code::UnknownName, *arg, &msg);
-                return Ok((Ref(NONE), Ty::NEVER));
+                return (Ref(NONE), Ty::NEVER);
             }
-            return Ok(self.bad_facts_target(*arg, "this name is not a function"));
+            return self.bad_facts_target(*arg, "this name is not a function");
         };
         if !matches!(
             self.cx.lookup.item(def).map(|i| &i.data),
             Some(ItemData::Fn(_))
         ) {
-            return Ok(self.bad_facts_target(*arg, "this name is not a function"));
+            return self.bad_facts_target(*arg, "this name is not a function");
         }
         // A function with no value-bearing decorator holds no facts.
         if !self.cx.lookup.item(def).is_some_and(|i| i.has_facts) {
@@ -1518,7 +1512,7 @@ impl Ck<'_, '_> {
             let list = self.b.emit(Tag::NewList, NONE, rec, items_ty, n.index());
             let rec = self.b.refs_record(&[list]);
             let value = self.b.emit(Tag::NewStruct, NONE, rec, facts_ty, n.index());
-            return Ok((value, facts_ty));
+            return (value, facts_ty);
         }
         let body = self.cx.names.member(def, PathKind::Hidden, "facts");
         let targs = pool.list(&[]);
@@ -1527,7 +1521,7 @@ impl Ck<'_, '_> {
         let call = self
             .b
             .emit(Tag::DefaultCall, a, earlier, facts_ty, n.index());
-        Ok((call, facts_ty))
+        (call, facts_ty)
     }
 
     /// `facts_of` used as a value, or on a target that is not a

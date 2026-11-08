@@ -1,0 +1,6 @@
+# test: numeric casts take one written argument without expansion
+# Rule: types.cast.argument.
+
+fn main() -> void:
+    values := (+1,)
+    _ := i64(values...) # diagnostic: argument-count

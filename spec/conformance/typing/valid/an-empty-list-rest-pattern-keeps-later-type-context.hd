@@ -1,0 +1,22 @@
+# test: a rest pattern constrains tuple shape while element types remain inferable
+# Rules: expr.collection.expected, flow.match.spread.rest, flow.match.spread.bind.
+
+fn element(value: i32) -> void:
+    pass
+fn remainder(values: List[string]) -> void:
+    pass
+fn rows(values: List[(i32, List[string]...)]) -> void:
+    pass
+
+fn body_context() -> void:
+    let xs = []
+    for (a, b...) in xs:
+        element(a)
+        remainder(b)
+
+fn later_context() -> void:
+    let xs = []
+    for (a, b...) in xs:
+        _ := a
+        _ := b
+    rows(xs)

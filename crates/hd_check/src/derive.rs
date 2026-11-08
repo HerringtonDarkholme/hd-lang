@@ -539,12 +539,9 @@ pub fn instance(
 ) -> StageResult<(Item, hd_tir::Body)> {
     let names = &cx.names;
     let pool = names.pool;
-    let Some(mi) = cx.lookup.item(method) else {
-        return crate::body::unsupported("a template method outside the module's view");
-    };
-    let Some(sig) = mi.sig() else {
-        return crate::body::unsupported("a template method without a signature");
-    };
+    // `check_opt_in` supplies only checked template method bodies.
+    let mi = cx.lookup.item(method).expect("checked template method");
+    let sig = mi.sig().expect("template function signature");
     let def = names.member(opt.impl_, hd_intern::PathKind::Member, names.text(mi.name));
     let f = |p: ParamRef| {
         if p.owner == opt.template && p.index == 0 {
@@ -579,9 +576,7 @@ pub fn instance(
         if trait_ != structure {
             continue;
         }
-        let Some(name) = cx.lookup.item(m).map(|it| names.text(it.name)) else {
-            return crate::body::unsupported("a `Structure` method outside the module's view");
-        };
+        let name = names.text(cx.lookup.item(m).expect("checked Structure call").name);
         // The owner's parameters, then the method's own.
         let mut all = pool.list_items(owner_args).to_vec();
         all.extend_from_slice(pool.list_items(targs));
@@ -597,9 +592,6 @@ pub fn instance(
         // is the shorter one; the words it frees are zeroed.
         let start = at as usize + 1;
         let old = body.record(at).len();
-        if words.len() > old {
-            return crate::body::unsupported("an item callee longer than its trait call");
-        }
         body.extra[at as usize] = u32::try_from(words.len()).unwrap_or(u32::MAX);
         body.extra[start..start + words.len()].copy_from_slice(&words);
         body.extra[start + words.len()..start + old].fill(0);
