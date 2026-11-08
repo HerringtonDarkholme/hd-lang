@@ -199,7 +199,7 @@ fn size(name: string) -> usize:
 4. r[types.string.concat-bytes] Concatenation joins the bytes of its operands, so its result is valid UTF-8.
 5. r[types.string.from-bytes] A conversion from arbitrary bytes to `string` must check that they are valid UTF-8, and must fail when they are not.
 6. r[types.string.boundary] A **scalar boundary** of a string is a byte offset from `0` to its length. It does not fall inside the encoding of a scalar value.
-7. r[types.string.split-scalar] An operation given a byte offset that is not a scalar boundary is a checked runtime panic.
+7. r[types.string.split-scalar-range] An operation that produces a string range from a byte offset that is not a scalar boundary is a checked runtime panic. Reading one byte, as `text[index]` does, produces no range.
 8. r[types.string.no-normalization] Source text and runtime operations do not perform Unicode normalization.
 9. r[types.string.compare-bytes] Equality and ordering compare bytes in sequence.
 10. r[types.string.encodings] Canonically equivalent but differently encoded scalar sequences are distinct.

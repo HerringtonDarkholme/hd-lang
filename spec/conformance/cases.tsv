@@ -939,7 +939,7 @@ runtime/valid/string-literal-utf8.hd	runtime	accept	lang/04-type-system.md#r-typ
 runtime/valid/string-concat-bytes.hd	runtime	accept	lang/04-type-system.md#r-types.string.concat-bytes
 runtime/valid/built-strings-slice-and-compare-by-bytes.hd	runtime	accept	lang/04-type-system.md#r-types.string.compare-bytes
 runtime/valid/string-scalar-boundaries.hd	runtime	accept	lang/04-type-system.md#r-types.string.boundary
-runtime/panic/string-offset-inside-scalar.hd	runtime	panic:index-out-of-bounds	lang/04-type-system.md#r-types.string.split-scalar
+runtime/panic/string-offset-inside-scalar.hd	runtime	panic:index-out-of-bounds	lang/04-type-system.md#r-types.string.split-scalar-range
 runtime/valid/string-no-normalization.hd	runtime	accept	lang/04-type-system.md#r-types.string.no-normalization
 runtime/valid/string-encodings-distinct.hd	runtime	accept	lang/04-type-system.md#r-types.string.encodings
 runtime/valid/string-host-bytes.hd	runtime	accept	lang/04-type-system.md#r-types.string.host-bytes
@@ -5999,6 +5999,8 @@ typing/invalid/a-trailing-block-for-a-vararg-is-ineligible.hd	type	reject:traili
 typing/valid/numeric-comparison-is-bool.hd	type	accept	lang/04-type-system.md#r-types.num.binary.result-comparison
 runtime/valid/reference-prefix-around-power.hd	runtime	accept	lang/13-values-and-references.md#r-ref.prec.power-ref
 parse/valid/bang-call-token-forms.hd	parse	accept	lang/01-lexical-structure.md#r-lex.op.bang-call-token
+runtime/valid/string-index-reads-continuation-byte.hd	runtime	accept	lang/05-expressions.md#r-expr.index.string.raw-byte
+runtime/panic/string-slice-at-continuation-byte.hd	runtime	panic:index-out-of-bounds	lang/04-type-system.md#r-types.string.split-scalar-range
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

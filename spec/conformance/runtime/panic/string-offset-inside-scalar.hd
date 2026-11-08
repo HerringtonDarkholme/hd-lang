@@ -1,5 +1,5 @@
 # test: a byte offset inside a scalar's encoding is a checked runtime panic
-# Spec 04 Type System: types.string.split-scalar.
+# Spec 04 Type System: types.string.split-scalar-range.
 
 tests:
     it("slices inside é"):

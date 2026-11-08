@@ -818,10 +818,11 @@ fn invalid(text: string, i: i32) -> void:
 
 1. r[expr.index.string.byte] For `string`, `text[index]` reads the byte at that byte offset, as a `u8`, in constant time.
 2. r[expr.index.string.offset] The index counts bytes, not scalar values, so `"é"[0]` is `0xC3`, the first byte of its encoding.
-3. r[expr.index.string.unsigned] The index must have an unsigned integer type, such as `usize`. A signed index is an error. Error: `type-mismatch`.
-4. r[expr.index.string.range] The index must be non-negative and less than the string's length in bytes.
-5. r[expr.index.string.panic] A failed check causes the standard checked runtime panic, as a failed list index does.
-6. r[expr.index.string.no-assign] A string is immutable, so `text[index]` is not a place. Assigning to it is an error. Error: `invalid-assignment-target`.
+3. r[expr.index.string.raw-byte] The read does not check for a scalar boundary: `text[index]` yields the raw byte, so `"é"[1]` is `0xA9`, a continuation byte.
+4. r[expr.index.string.unsigned] The index must have an unsigned integer type, such as `usize`. A signed index is an error. Error: `type-mismatch`.
+5. r[expr.index.string.range] The index must be non-negative and less than the string's length in bytes.
+6. r[expr.index.string.panic] A failed check causes the standard checked runtime panic, as a failed list index does.
+7. r[expr.index.string.no-assign] A string is immutable, so `text[index]` is not a place. Assigning to it is an error. Error: `invalid-assignment-target`.
 
 See also: [Strings](04-type-system.md#strings).
 

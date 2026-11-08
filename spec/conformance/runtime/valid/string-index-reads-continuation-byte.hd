@@ -1,0 +1,10 @@
+# test: text[index] reads a continuation byte without a scalar-boundary check
+# Spec 05 String Indexing: expr.index.string.raw-byte.
+fn continuation(text: string) -> u8:
+    text[1]
+
+tests:
+    use std.testing.assert_equal
+
+    it("reads the second byte of é"):
+        assert_equal(continuation("é"), u8(0xA9), reason="offset 1 is inside the scalar")
