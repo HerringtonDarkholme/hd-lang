@@ -1,0 +1,34 @@
+# @dump: layout wat
+# expected: the unresolved declaration projection makes Wrap[Carrier] boxed.
+# Holder stores one counted address; wrap allocates an 8-byte tagged payload,
+# and unwrap loads its tag and i32 payload. Runtime output is 42.
+use std.annotation.inline
+
+trait Value:
+    type Item
+
+struct Carrier: pass
+
+impl Value for Carrier:
+    type Item = i32
+
+enum Wrap[T < Value]:
+    Empty
+    Present(value: T::Item)
+
+struct Holder:
+    value: Wrap[Carrier]
+
+@inline(.Never)
+fn unwrap(value: Wrap[Carrier]) -> i32:
+    match value:
+        .Empty => +0
+        .Present(n) => n
+
+@inline(.Never)
+fn wrap(n: i32) -> Wrap[Carrier]:
+    .Present(n)
+
+pub fn main() -> void $ Console:
+    held := Holder { value: wrap(+42) }
+    println(unwrap(held.value))
