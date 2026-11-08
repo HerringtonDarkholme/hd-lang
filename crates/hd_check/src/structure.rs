@@ -1,14 +1,14 @@
 //! A derivation's `Structure` at check time (annotations, "The Structure
 //! Trait", "Facts", "Members And Variants", "Self References";
 //! `crates/hd_mono/DESIGN.md` §12.3 "Derives"): the target's member list, built from the
-//! data type or enum and the derivation's omitted members, for the one
+//! struct or enum and the derivation's omitted members, for the one
 //! generator in `hd_structure`, which writes the bodies as hidden methods
 //! of the `Structure`'s owner (`OptIn::structure_owner`); and the bodies
 //! that build each `Facts` the derivation sees. Collection calls the same
 //! generator for a tuple's `Structure` (`crates/hd_mono/DESIGN.md` §13.6).
 //!
 //! The declaration's `Structure` is shared: its methods, handles and facts
-//! bodies are hidden methods of the data type or enum, generated once per
+//! bodies are hidden methods of the struct or enum, generated once per
 //! module, and every derivation without member lines calls them. A
 //! derivation whose block has member lines gets its own, under the
 //! derivation; a slot its lines do not edit reuses the declaration's facts
@@ -90,7 +90,7 @@ impl<'t> FactLines<'t> {
     }
 
     /// The member types written over the type's own parameters, moved to
-    /// a derivation's scope: the data type or enum `data` at `args`.
+    /// a derivation's scope: the struct or enum `data` at `args`.
     pub fn retarget(&mut self, cx: &BodyCx<'_>, data: DefId, args: &[Ty]) {
         let pool = cx.names.pool.types();
         for t in self.member_tys.iter_mut().flatten() {
@@ -134,7 +134,7 @@ impl<'t> FactLines<'t> {
     }
 }
 
-/// The member nodes of a data type, or the variant nodes of an enum, in
+/// The member nodes of a struct, or the variant nodes of an enum, in
 /// declaration order, which their item's fields and variants follow.
 pub(crate) fn member_nodes(decl: NodeRef<'_>) -> Vec<NodeRef<'_>> {
     hd_resolve::Src::child(decl, SyntaxKind::Block)
@@ -152,8 +152,8 @@ pub(crate) fn member_nodes(decl: NodeRef<'_>) -> Vec<NodeRef<'_>> {
         .collect()
 }
 
-/// Per variant of the data type or enum `item`, declared at `decl`: the
-/// variant's node (`None` for a data type's one variant, which has no
+/// Per variant of the struct or enum `item`, declared at `decl`: the
+/// variant's node (`None` for a struct's one variant, which has no
 /// facts, `annot.variant.data-facts`), and each member's node with its
 /// declared type, in position order.
 type MemberSites<'t> = Vec<(Option<NodeRef<'t>>, Vec<(NodeRef<'t>, Ty)>)>;
@@ -161,7 +161,7 @@ type MemberSites<'t> = Vec<(Option<NodeRef<'t>>, Vec<(NodeRef<'t>, Ty)>)>;
 fn member_sites<'t>(item: &Item, decl: NodeRef<'t>) -> MemberSites<'t> {
     let nodes = member_nodes(decl);
     match &item.data {
-        ItemData::Data(fields) => {
+        ItemData::Struct(fields) => {
             let members = nodes
                 .into_iter()
                 .zip(fields)
@@ -189,7 +189,7 @@ fn member_sites<'t>(item: &Item, decl: NodeRef<'t>) -> MemberSites<'t> {
 
 /// The fact expressions of the declaration `node` of `owner` that attach
 /// to a member, with the member's declared type in `owner`'s scope: its
-/// decorators, for a data type or enum, and the elements of its member
+/// decorators, for a struct or enum, and the elements of its member
 /// lines, for a derivation block (`annot.typed-fact.targets`,
 /// `annot.typed-fact.check`). Each is marked when it is one decorator's
 /// value rather than a list element.
@@ -225,7 +225,7 @@ pub fn member_fact_sites<'t>(
                 continue;
             };
             let ty = match &target.data {
-                ItemData::Data(fields) if v == 0 => fields.get(m).map(|f| f.ty),
+                ItemData::Struct(fields) if v == 0 => fields.get(m).map(|f| f.ty),
                 _ => None,
             };
             let Some(ty) = ty else { continue };
@@ -246,7 +246,7 @@ pub fn member_fact_sites<'t>(
     out
 }
 
-/// The declaration facts of the data type or enum `item`, declared at
+/// The declaration facts of the struct or enum `item`, declared at
 /// `decl` (`annot.fact.type-level-decorator`, `annot.fact.member-metadata`,
 /// `annot.fact.payload`), edited by its derivation block with no trait,
 /// `traitless` (`annot.no-trait.after-decorators`, `annot.no-trait.self`).
@@ -287,7 +287,7 @@ pub fn declaration_facts<'t>(
 /// implementation `owner`, write by themselves: its target's slots with no
 /// declaration facts, then its lines, in `owner`'s scope. A line whose
 /// right side never has a list type is left out, as its form is already an
-/// error. `None` when `owner` is not a derivation block of a data type or
+/// error. `None` when `owner` is not a derivation block of a struct or
 /// enum.
 #[must_use]
 pub fn block_facts<'t>(cx: &BodyCx<'t>, owner: DefId, node: NodeRef<'t>) -> Option<FactLines<'t>> {
@@ -327,7 +327,7 @@ fn block_view<'t>(
     };
     let target = cx.lookup.item(data)?;
     let tys: Vec<Vec<Ty>> = match &target.data {
-        ItemData::Data(fields) => vec![fields.iter().map(|f| f.ty).collect()],
+        ItemData::Struct(fields) => vec![fields.iter().map(|f| f.ty).collect()],
         ItemData::Enum { variants, .. } => variants
             .iter()
             .map(|v| v.fields.iter().map(|f| f.ty).collect())
@@ -367,7 +367,7 @@ fn block_view<'t>(
 }
 
 /// The facts left when the member `lines` of a block in another module of
-/// a REPL session edit the facts that `base` builds for the data type or
+/// a REPL session edit the facts that `base` builds for the struct or
 /// enum `item`, as within one module (`annot.no-trait.after-decorators`,
 /// `annot.no-trait.then-blocks`, `annot.line.extend`). A slot holds a call
 /// of its base body, at `args`, where it holds the declaration's own
@@ -382,7 +382,7 @@ pub fn layered_facts<'t>(
     lines: &[MemberLine<'t>],
 ) -> (FactLines<'t>, Vec<Slot>) {
     let tys: Vec<Vec<Ty>> = match &item.data {
-        ItemData::Data(fields) => vec![fields.iter().map(|f| f.ty).collect()],
+        ItemData::Struct(fields) => vec![fields.iter().map(|f| f.ty).collect()],
         ItemData::Enum { variants, .. } => variants
             .iter()
             .map(|v| v.fields.iter().map(|f| f.ty).collect())
@@ -415,14 +415,14 @@ pub fn layered_facts<'t>(
     (out, edited)
 }
 
-/// The labels of the variants and members of the data type or enum `item`
+/// The labels of the variants and members of the struct or enum `item`
 /// named `ty`, in declaration order.
 fn place_labels(cx: &BodyCx<'_>, item: &Item, ty: &str) -> (Vec<String>, Vec<Vec<String>>) {
     let names = &cx.names;
     let label =
         |parent: &str, field: &hd_resolve::Field| format!("{parent}.{}", names.text(field.name));
     match &item.data {
-        ItemData::Data(fields) => (
+        ItemData::Struct(fields) => (
             vec![ty.to_owned()],
             vec![fields.iter().map(|f| label(ty, f)).collect()],
         ),
@@ -443,14 +443,14 @@ fn place_labels(cx: &BodyCx<'_>, item: &Item, ty: &str) -> (Vec<String>, Vec<Vec
 }
 
 /// The slot a member line named `name` edits in `item`: `Self`, a field
-/// of a data type, or a variant of an enum.
+/// of a struct, or a variant of an enum.
 fn line_slot(cx: &BodyCx<'_>, item: &Item, name: &str) -> Option<Slot> {
     let names = &cx.names;
     if name == "Self" {
         return Some(Slot::Type);
     }
     match &item.data {
-        ItemData::Data(fields) => fields
+        ItemData::Struct(fields) => fields
             .iter()
             .position(|f| {
                 let n = names.text(f.name);
@@ -698,7 +698,7 @@ fn variants(cx: &BodyCx<'_>, opt: &OptIn, ty: Ty, facts: &FactBodies) -> StageRe
     };
     let mut out = Vec::new();
     match &item.data {
-        ItemData::Data(fields) => {
+        ItemData::Struct(fields) => {
             let members: Vec<Mem> = fields
                 .iter()
                 .enumerate()
@@ -777,7 +777,7 @@ impl<'a, 'c> SelfRefs<'a, 'c> {
         }
     }
 
-    /// The fields of a data type or each variant of an enum, with `args`
+    /// The fields of a struct or each variant of an enum, with `args`
     /// substituted.
     fn fields(&self, def: DefId, args: TyList) -> Option<(bool, Vec<Vec<Ty>>)> {
         let pool = self.cx.names.pool;
@@ -788,7 +788,7 @@ impl<'a, 'c> SelfRefs<'a, 'c> {
             })
         };
         match &self.cx.lookup.item(def)?.data {
-            ItemData::Data(fs) => Some((true, vec![fs.iter().map(|f| ty(f.ty)).collect()])),
+            ItemData::Struct(fs) => Some((true, vec![fs.iter().map(|f| ty(f.ty)).collect()])),
             ItemData::Enum { variants, .. } => Some((
                 false,
                 variants

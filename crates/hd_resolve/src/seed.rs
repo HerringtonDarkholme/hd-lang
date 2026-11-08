@@ -97,7 +97,7 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
             let copy = bound(names.known.copy);
             let mut list_gens = gens(names, &["T"]);
             list_gens[0].bounds = vec![copy];
-            item("List", list_gens, ItemData::Data(vec![]));
+            item("List", list_gens, ItemData::Struct(vec![]));
             // `Map[K < Eq & Hash, V]` (types.map-key.declared-bound).
             let mut map_gens = gens(names, &["K", "V"]);
             map_gens[0].bound = Some(names.known.eq);
@@ -106,7 +106,7 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
                 .map(bound)
                 .collect();
             map_gens[1].bounds = vec![copy];
-            item("Map", map_gens, ItemData::Data(vec![]));
+            item("Map", map_gens, ItemData::Struct(vec![]));
             let opt = names.item(module, "Option");
             let t = param(names, opt, 0);
             item(
@@ -215,7 +215,7 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
                     cell,
                     sym(names, name),
                     false,
-                    ItemData::Data(vec![
+                    ItemData::Struct(vec![
                         field(names, "get", fn_ty(&[], t)),
                         field(names, "set", fn_ty(&[t], Ty::VOID)),
                         field(names, "base", any_tv),
@@ -228,7 +228,7 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
             }
         }
         "std.task" => {
-            item("Suspend", gens(names, &["T"]), ItemData::Data(vec![]));
+            item("Suspend", gens(names, &["T"]), ItemData::Struct(vec![]));
             let poll_def = names.item(module, "Poll");
             item(
                 "Poll",
@@ -251,13 +251,13 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
             );
             // Only the host runtime and `std.task` construct one
             // (req.poll-context.construction): the private field makes a
-            // data literal elsewhere the ordinary private-member error alone
+            // struct literal elsewhere the ordinary private-member error alone
             // (the default keeps `missing-required-field` out).
             let mut private = field(names, "waker", Ty::VOID);
             private.public = false;
             private.has_default = true;
-            item("PollContext", vec![], ItemData::Data(vec![private]));
-            item("Waker", vec![], ItemData::Data(vec![]));
+            item("PollContext", vec![], ItemData::Struct(vec![private]));
+            item("Waker", vec![], ItemData::Struct(vec![]));
             // `join!` has no written signature (`crates/hd_wasm_linear/DESIGN.md` §14.5): its
             // checker rule is the compiler's.
             let mut join = FnSig::simple(vec![], vec![], Ty::VOID);
@@ -327,7 +327,7 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
                 },
             );
             call.intrinsic = Some(sym(names, "fn_call"));
-            item("SuspendFn", g, ItemData::Data(vec![]));
+            item("SuspendFn", g, ItemData::Struct(vec![]));
             out.push(call);
         }
         "std.structure" => {

@@ -499,7 +499,7 @@ impl ImplKind {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ItemData {
     Fn(FnSig),
-    Data(Vec<Field>),
+    Struct(Vec<Field>),
     Enum {
         shared: Vec<Field>,
         variants: Vec<Variant>,
@@ -649,7 +649,7 @@ impl Item {
             return CopyDecl::NotCopy;
         }
         match &self.data {
-            ItemData::Data(fs) => CopyDecl::Members(fs.iter().map(|f| f.ty).collect()),
+            ItemData::Struct(fs) => CopyDecl::Members(fs.iter().map(|f| f.ty).collect()),
             ItemData::Enum { shared, variants } => CopyDecl::Members(
                 (shared.iter())
                     .chain(variants.iter().flat_map(|v| &v.fields))
@@ -666,7 +666,7 @@ impl Item {
         match &self.data {
             ItemData::Enum { .. } => TypeDecl::Enum,
             ItemData::Newtype(base) => TypeDecl::Newtype(*base),
-            ItemData::Data(_) => TypeDecl::Struct,
+            ItemData::Struct(_) => TypeDecl::Struct,
             _ => TypeDecl::Data,
         }
     }
@@ -689,7 +689,7 @@ impl Item {
     pub fn kind(&self) -> Option<HeadKind> {
         Some(match self.data {
             ItemData::Fn(_) => HeadKind::Fn,
-            ItemData::Data(_) => HeadKind::Data,
+            ItemData::Struct(_) => HeadKind::Data,
             ItemData::Enum { .. } => HeadKind::Enum,
             ItemData::Trait(_) => HeadKind::Trait,
             ItemData::Impl { .. } => HeadKind::Impl,
@@ -1395,7 +1395,7 @@ fn put_item(w: &mut Writer, t: &mut TableWriter<'_>, it: &Item) -> StageResult<(
             w.u8(0);
             put_sig(w, t, s)?;
         }
-        ItemData::Data(fields) => {
+        ItemData::Struct(fields) => {
             w.u8(1);
             put_fields(w, t, fields)?;
         }
@@ -1509,7 +1509,7 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
     let not_copy = r.u8() != 0;
     let data = match r.u8() {
         0 => ItemData::Fn(get_sig(r, t)?),
-        1 => ItemData::Data(get_fields(r, t)?),
+        1 => ItemData::Struct(get_fields(r, t)?),
         2 => ItemData::Trait(TraitData {
             methods: get_pairs(r, t)?,
             assoc: get_pairs(r, t)?,
@@ -2089,7 +2089,7 @@ pub fn mentioned_defs<'a>(
         gens(&it.generics, &mut tys);
         match &it.data {
             ItemData::Fn(s) | ItemData::Method { sig: s, .. } => sig(s, &mut tys),
-            ItemData::Data(fs) => tys.extend(fs.iter().map(|f| f.ty)),
+            ItemData::Struct(fs) => tys.extend(fs.iter().map(|f| f.ty)),
             ItemData::Enum { shared, variants } => {
                 tys.extend(shared.iter().map(|f| f.ty));
                 for v in variants {
@@ -2636,7 +2636,7 @@ mod tests {
             def,
             hd_base::Symbol::from_raw(name),
             true,
-            ItemData::Data(Vec::new()),
+            ItemData::Struct(Vec::new()),
         )
     }
 
@@ -2775,7 +2775,7 @@ mod tests {
                     names.item("app", &name),
                     syms.intern(&name),
                     true,
-                    ItemData::Data(Vec::new()),
+                    ItemData::Struct(Vec::new()),
                 )
             })
             .collect();
@@ -2817,7 +2817,7 @@ mod tests {
             names.item("app", "Record"),
             syms.intern("Record"),
             true,
-            ItemData::Data(vec![]),
+            ItemData::Struct(vec![]),
         );
         let plain = encode_items(&names, &[item.clone()], &[]).expect("semantic blob");
         item.docs = vec![

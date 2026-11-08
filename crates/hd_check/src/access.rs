@@ -162,7 +162,7 @@ impl Ck<'_, '_> {
         let TyData::Adt { def, .. } = pool.get(self.strip_mut(base)) else {
             return ft;
         };
-        let Some(ItemData::Data(fields)) = self.cx.lookup.item(def).map(|i| &i.data) else {
+        let Some(ItemData::Struct(fields)) = self.cx.lookup.item(def).map(|i| &i.data) else {
             return ft;
         };
         let sym = self.cx.names.syms.intern(name);

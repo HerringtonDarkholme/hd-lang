@@ -400,7 +400,7 @@ impl<'a> ItemCheck<'_, 'a> {
                 tys.extend(self.pool().row_data(s.row).keys.iter().copied());
                 tys
             }
-            ItemData::Data(fs) => fs.iter().map(|f| f.ty).collect(),
+            ItemData::Struct(fs) => fs.iter().map(|f| f.ty).collect(),
             ItemData::Enum { shared, variants } => shared
                 .iter()
                 .chain(variants.iter().flat_map(|v| &v.fields))
@@ -414,7 +414,7 @@ impl<'a> ItemCheck<'_, 'a> {
         // function or enum, but of data only the `pub` fields and the
         // embedded fields (`module.vis.signature.coverage`).
         let open: Vec<bool> = match &it.data {
-            ItemData::Data(fs) => fs.iter().map(|f| f.public || f.embedded).collect(),
+            ItemData::Struct(fs) => fs.iter().map(|f| f.public || f.embedded).collect(),
             _ => vec![true; tys.len()],
         };
         // Slot 0 is the header; written types of functions, data and
@@ -423,7 +423,7 @@ impl<'a> ItemCheck<'_, 'a> {
             it.data,
             ItemData::Fn(_)
                 | ItemData::Method { .. }
-                | ItemData::Data(_)
+                | ItemData::Struct(_)
                 | ItemData::Enum { .. }
                 | ItemData::Newtype(_)
                 | ItemData::Alias { .. }
@@ -1213,7 +1213,7 @@ impl<'a> ItemCheck<'_, 'a> {
     /// (`data.struct.no-recursion.fix`, `data.enum.no-recursion.fix`).
     fn value_item(&mut self, it: &Item) {
         let (fields, kind, part): (Vec<&hd_resolve::Field>, &str, &str) = match &it.data {
-            ItemData::Data(fs) => (fs.iter().collect(), "struct", "field"),
+            ItemData::Struct(fs) => (fs.iter().collect(), "struct", "field"),
             ItemData::Enum { shared, variants } => (
                 shared
                     .iter()
@@ -1268,7 +1268,7 @@ impl<'a> ItemCheck<'_, 'a> {
         let mut seen = Vec::new();
         let mut stack = vec![def];
         while let Some(d) = stack.pop() {
-            let Some(ItemData::Data(fs)) = lookup.item(d).map(|i| &i.data) else {
+            let Some(ItemData::Struct(fs)) = lookup.item(d).map(|i| &i.data) else {
                 continue;
             };
             for f in fs.iter().filter(|f| f.embedded) {
@@ -1308,7 +1308,7 @@ impl<'a> ItemCheck<'_, 'a> {
         let mine = key(def);
         held.into_iter().filter(|&y| y != def).any(|y| {
             let own: Vec<Ty> = match lookup.item(y).map(|i| &i.data) {
-                Some(ItemData::Data(fs)) => fs.iter().map(|f| f.ty).collect(),
+                Some(ItemData::Struct(fs)) => fs.iter().map(|f| f.ty).collect(),
                 Some(ItemData::Enum { shared, variants }) => shared
                     .iter()
                     .chain(variants.iter().flat_map(|v| &v.fields))
@@ -1329,7 +1329,7 @@ impl<'a> ItemCheck<'_, 'a> {
         let TyData::Adt { def, args } = pool.get(self_ty) else {
             return Ok(());
         };
-        let Some(ItemData::Data(fields)) = self.cx.lookup.item(def).map(|i| &i.data) else {
+        let Some(ItemData::Struct(fields)) = self.cx.lookup.item(def).map(|i| &i.data) else {
             return Ok(());
         };
         let args = pool.list_items(args);
@@ -1364,7 +1364,7 @@ fn sig_tys(sig: &FnSig) -> Vec<Ty> {
 /// A host capability trait of the run's runtime profile
 /// (`module.profile.definition`): each method's arguments cross out of hd
 /// and its result crosses in (`module.boundary.direction`). A value of a
-/// data type with a field that is not `pub` crosses out only through
+/// struct with a field that is not `pub` crosses out only through
 /// `std.serde.Serialize` and in only through `std.serde.Deserialize`
 /// (`module.boundary.out`, `module.boundary.in`). A signature with a type
 /// that would cross without it is an error there, once per signature
@@ -1411,7 +1411,7 @@ impl ItemCheck<'_, '_> {
     /// The first type in `t` that has a field that is not `pub` and does
     /// not implement `tr`. Such a type that implements `tr` crosses as its
     /// implementation writes or builds it (`module.boundary.serialize.exact`,
-    /// `module.boundary.deserialize.exact`). A data type whose fields are
+    /// `module.boundary.deserialize.exact`). A struct whose fields are
     /// all `pub` crosses through its fields, an enum through its payloads
     /// (`module.boundary.public`), and the other types that may cross
     /// through their contents (`module.boundary.allowed`).
@@ -1436,7 +1436,7 @@ impl ItemCheck<'_, '_> {
                 let known = self.cx.names.known;
                 match self.cx.lookup.item(def).map(|i| &i.data) {
                     _ if def == known.list || def == known.map => argv.to_vec(),
-                    Some(ItemData::Data(fields)) => {
+                    Some(ItemData::Struct(fields)) => {
                         if fields.iter().any(|f| !f.public && !f.embedded) {
                             let bound = pool.intern_ty(&TyData::TraitValue {
                                 def: tr,

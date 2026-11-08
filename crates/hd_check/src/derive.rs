@@ -48,10 +48,10 @@ pub struct OptInMember {
     pub positional: bool,
     /// Whether it declares a default (`data.default`).
     pub has_default: bool,
-    /// Its written type position in the data type or enum (`anchor`
+    /// Its written type position in the struct or enum (`anchor`
     /// slots), where a diagnostic about it points.
     pub slot: u32,
-    /// Its variant (0 in a data type) and its position among that
+    /// Its variant (0 in a struct) and its position among that
     /// variant's members.
     pub place: (usize, usize),
     /// The concrete types of the facts this derivation sees on it that
@@ -71,7 +71,7 @@ pub struct OptIn {
     pub impl_: DefId,
     pub template: DefId,
     pub trait_: DefId,
-    /// The data type or enum the opt-in derives for.
+    /// The struct or enum the opt-in derives for.
     pub data: DefId,
     /// The target, over the opt-in's parameters.
     pub target: Ty,
@@ -112,7 +112,7 @@ impl OptIn {
     /// (`annot.structure.per-derivation`): the derivation itself when its
     /// member lines edit it, its source fills declared defaults
     /// (`annot.impl-fact.fills-defaults.scope`) or its template omits a
-    /// member (`annot.impl-fact.skips.scope`), else the data type or
+    /// member (`annot.impl-fact.skips.scope`), else the struct or
     /// enum, whose declaration `Structure` every such derivation shares.
     /// Known once the instance is checked.
     #[must_use]
@@ -180,7 +180,7 @@ impl OptIn {
     /// The opt-in of `it`, a derived implementation or a derivation block,
     /// through `template`. `omitted` names the members its member lines
     /// omit (`name = pass`), which contribute no obligation
-    /// (`annot.bound.omitted`). `None` when the target is not a data type
+    /// (`annot.bound.omitted`). `None` when the target is not a struct
     /// or an enum.
     #[must_use]
     pub fn new(
@@ -218,9 +218,9 @@ impl OptIn {
         let slot_of = |i: usize| u32::try_from(i + 1).unwrap_or(0);
         let mut members = Vec::new();
         match &lookup.item(def)?.data {
-            // A data type's members are its fields, embedded ones included
+            // A struct's members are its fields, embedded ones included
             // (`data.derive.members`).
-            ItemData::Data(fields) => {
+            ItemData::Struct(fields) => {
                 for (i, f) in fields.iter().enumerate() {
                     let l = label(f);
                     if omitted.contains(&l) {
@@ -335,7 +335,7 @@ pub fn check_omitted_defaults(
     let TyData::Adt { def, .. } = pool.get(*self_ty) else {
         return;
     };
-    let Some(ItemData::Data(fields)) = lookup.item(def).map(|i| &i.data) else {
+    let Some(ItemData::Struct(fields)) = lookup.item(def).map(|i| &i.data) else {
         return;
     };
     for (name, line) in omit_lines(src, block) {
@@ -920,7 +920,7 @@ impl<'c> Ck<'_, 'c> {
         }
         let data = matches!(
             self.cx.lookup.item(opt.data).map(|item| &item.data),
-            Some(ItemData::Data(_))
+            Some(ItemData::Struct(_))
         );
         for wb in found {
             if wb.fills_defaults {

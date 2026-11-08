@@ -8,10 +8,10 @@
 //! checker state, so both of its callers use it:
 //!
 //! - **A derivation, at check time** ([`derivation`]): the checker builds
-//!   the target from the data type or enum, the derivation's omitted
+//!   the target from the struct or enum, the derivation's omitted
 //!   members and its facts bodies (`hd_check::structure`). The bodies are
 //!   hidden methods of the `Structure`'s owner (`walk` at the hidden path
-//!   `structure walk`, [`hidden_method`]): the data type or enum itself
+//!   `structure walk`, [`hidden_method`]): the struct or enum itself
 //!   for the declaration's `Structure`, which every derivation without
 //!   member lines shares, or the derivation whose member lines give it its
 //!   own (`annot.structure.per-derivation`). A derive instance's
@@ -64,7 +64,7 @@ use hd_tir::ir::{
 };
 use hd_types::{InternPool, ParamRef, Prim, Ty, TyData, TyList};
 
-/// Where the generator reads declarations: `std.structure`'s data types
+/// Where the generator reads declarations: `std.structure`'s structs
 /// and protocol traits, `Structure` itself, `std.ops.panic_with`.
 pub trait Items {
     fn item(&self, def: DefId) -> Option<&Item>;
@@ -93,7 +93,7 @@ impl Cx<'_, '_> {
 /// How a variant's member is read and the variant built.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Shape {
-    /// A data type's one variant: fields.
+    /// A struct's one variant: fields.
     Data,
     /// An enum's variant: payloads under a tag.
     Enum,
@@ -142,20 +142,20 @@ pub struct Shared {
     pub ty: Ty,
 }
 
-/// One variant; a data type or a tuple is one variant
+/// One variant; a struct or a tuple is one variant
 /// (`annot.variant.data`, `annot.tuple.variant`).
 #[derive(Clone, Debug)]
 pub struct Var {
     pub name: String,
     pub index: u32,
     /// The variant's item, whose hidden members are its payload defaults;
-    /// the data type for a data type, `DefId::NONE` for a tuple.
+    /// the declaration itself for a struct, `DefId::NONE` for a tuple.
     pub def: DefId,
     pub shape: Shape,
     pub members: Vec<Mem>,
     pub self_ref: u32,
     /// The body that builds the variant's `Facts`, or `None` when the
-    /// derivation sees no fact on it (always for a data type's variant,
+    /// derivation sees no fact on it (always for a struct's variant,
     /// `annot.variant.data-facts`).
     pub facts: Option<DefId>,
     /// Its shared constructor data, in declaration order.
@@ -323,7 +323,7 @@ fn method_body(
 
 /// The hidden method of a derivation's `Structure` owner that holds the
 /// generated body of `Structure`'s method `name` (`crates/hd_mono/DESIGN.md` §12.3). The
-/// prefix keeps it apart from a field's default body, which a data type
+/// prefix keeps it apart from a field's default body, which a struct
 /// holds under the field's name.
 #[must_use]
 pub fn hidden_method(names: &Names<'_>, owner: DefId, name: &str) -> DefId {
@@ -412,7 +412,7 @@ pub fn generated_body(names: &Names<'_>, def: DefId) -> Option<GeneratedBody> {
 
 /// The `Structure` bodies of a derivation over `target` (`crates/hd_mono/DESIGN.md`
 /// §12.3): hidden methods of `owner`, one per `Structure` method and one
-/// per handle the traversals pass. `owner` is the data type or enum
+/// per handle the traversals pass. `owner` is the struct or enum
 /// itself for the declaration's `Structure`, which every derivation
 /// without member lines shares, or the derivation for one whose member
 /// lines edit its own `Structure` (`annot.structure.per-derivation`);
@@ -865,7 +865,7 @@ impl<'a, 'n> Gen<'a, 'n> {
     }
 
     /// The value at `path` in the `std.structure` record that `r` refers
-    /// to, read in one place: each step is a data type and its field.
+    /// to, read in one place: each step is a struct and its field.
     fn record_path(&mut self, r: Ref, path: &[(DefId, &str)], t: Ty) -> StageResult<Ref> {
         let mut proj = vec![Proj::Deref];
         for &(def, name) in path {
@@ -919,17 +919,17 @@ impl<'a, 'n> Gen<'a, 'n> {
         })
     }
 
-    /// The fields of a `std.structure` data type.
+    /// The fields of a `std.structure` struct.
     fn std_fields(&self, def: DefId) -> StageResult<&'a [hd_resolve::Field]> {
         match self.cx.items.item(def).map(|i| &i.data) {
-            Some(ItemData::Data(fs)) => Ok(fs),
+            Some(ItemData::Struct(fs)) => Ok(fs),
             _ => self
                 .cx
                 .unsupported("a `std.structure` data type outside the module's view"),
         }
     }
 
-    /// A field's declared type in a `std.structure` data type, its
+    /// A field's declared type in a `std.structure` struct, its
     /// parameters replaced by `args`.
     fn field_ty(&self, def: DefId, field: &str, args: &[Ty]) -> StageResult<Ty> {
         let fs = self.std_fields(def)?;
@@ -1011,7 +1011,7 @@ impl<'a, 'n> Gen<'a, 'n> {
 
     /// The instance arguments of the facts body `def` here: a typed fact
     /// is a value at the member's type (`annot.typed-fact.check`), so a
-    /// generic target's facts body is generic too. A body of the data type
+    /// generic target's facts body is generic too. A body of the struct
     /// or enum itself takes the target's arguments; one of a derivation
     /// that owns this `Structure` takes the derivation's own parameters.
     fn facts_args(&self, def: DefId) -> TyList {

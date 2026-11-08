@@ -259,7 +259,7 @@ fn local_slots(pool: Types<'_>, b: &Body, i: usize) -> (DefId, Vec<(ParamRef, Ty
 }
 
 /// The item that owns `def`'s leading type parameters, and how many it
-/// has: a method's implementation, data type or enum, or its trait,
+/// has: a method's implementation, struct or enum, or its trait,
 /// whose `Self` is parameter 0.
 fn parent(cx: &BodyCx<'_>, def: DefId) -> Option<(DefId, usize)> {
     let ItemData::Method { owner, .. } = &cx.lookup.item(def)?.data else {
@@ -267,7 +267,7 @@ fn parent(cx: &BodyCx<'_>, def: DefId) -> Option<(DefId, usize)> {
     };
     let o = cx.lookup.item(*owner)?;
     match &o.data {
-        ItemData::Impl { .. } | ItemData::Data(_) | ItemData::Enum { .. } => {
+        ItemData::Impl { .. } | ItemData::Struct(_) | ItemData::Enum { .. } => {
             Some((*owner, o.generics.len()))
         }
         ItemData::Trait(_) => Some((*owner, 1 + o.generics.len())),

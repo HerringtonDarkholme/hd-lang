@@ -892,7 +892,7 @@ impl<'a> Layouts<'a> {
             (TyData::Adt { def, args }, _) => {
                 let item = cx.lookup.item(def)?;
                 let fields = match (&item.data, variant) {
-                    (ItemData::Data(fs), None) => fs,
+                    (ItemData::Struct(fs), None) => fs,
                     (ItemData::Enum { shared, variants }, Some(k)) if shared.is_empty() => {
                         &variants.get(k as usize)?.fields
                     }

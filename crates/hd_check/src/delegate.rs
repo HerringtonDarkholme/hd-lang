@@ -53,7 +53,7 @@ pub fn forwarder_bodies(
     else {
         return Ok(Vec::new());
     };
-    let Some(ItemData::Data(fields)) = cx.lookup.item(c).map(|i| &i.data) else {
+    let Some(ItemData::Struct(fields)) = cx.lookup.item(c).map(|i| &i.data) else {
         return Ok(Vec::new());
     };
     let Some(field) = fields.iter().find(|f| f.embedded && f.name == *by) else {

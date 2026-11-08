@@ -57,7 +57,7 @@ pub fn target(cx: &Cx<'_, '_>, ty: Ty) -> Option<Target> {
         }
     };
     let vars = match &item.data {
-        ItemData::Data(fields) => vec![Var {
+        ItemData::Struct(fields) => vec![Var {
             name: shown.clone(),
             index: 0,
             def,

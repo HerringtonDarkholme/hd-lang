@@ -410,7 +410,7 @@ impl Folder<'_, '_> {
         for (m, heads) in self.mods.iter().zip(self.heads) {
             for h in heads.iter().filter(|h| h.kind == HeadKind::Data) {
                 let Some(Item {
-                    data: ItemData::Data(fields),
+                    data: ItemData::Struct(fields),
                     ..
                 }) = self.own.get(&h.def).copied()
                 else {
@@ -433,17 +433,17 @@ impl Folder<'_, '_> {
         }
     }
 
-    /// A data type embeds no chain deeper than three levels, and never
+    /// A struct embeds no chain deeper than three levels, and never
     /// itself: a cycle is reported on its first declared type, in place of
     /// the depth error.
     fn embedding<'i>(&self, item: &dyn Fn(DefId) -> Option<Cow<'i, Item>>, diags: &mut DiagBuf) {
         let pool = self.names.pool;
-        // The data types embedded by `d`, by embedded field, in order.
+        // The structs embedded by `d`, by embedded field, in order.
         let parts = |d: DefId| -> Vec<Option<DefId>> {
             let Some(it) = item(d) else {
                 return Vec::new();
             };
-            let ItemData::Data(fields) = &it.data else {
+            let ItemData::Struct(fields) = &it.data else {
                 return Vec::new();
             };
             fields
@@ -480,7 +480,7 @@ impl Folder<'_, '_> {
             None
         };
         self.embedded_data_only(item, diags);
-        // The declaration order of every data type of the folder.
+        // The declaration order of every struct of the folder.
         let order: Vec<DefId> = self
             .heads
             .iter()

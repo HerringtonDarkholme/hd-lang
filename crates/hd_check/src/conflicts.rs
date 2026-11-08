@@ -1,5 +1,5 @@
 //! Promotion conflicts (spec 03 "Hiding And Conflicts", "Conflicts Are
-//! Declaration Errors"): the members of a data type are its own fields and
+//! Declaration Errors"): the members of a struct are its own fields and
 //! inherent methods at depth 0 and the `pub` ones of every embedded part at
 //! the part's depth. A part's embedded fields count as its members, so a
 //! type embedded through two paths at one depth conflicts.
@@ -19,12 +19,12 @@ use hd_types::TyData;
 /// The deepest chain of embedded parts (`data.embed.depth`).
 const MAX_DEPTH: usize = 3;
 
-/// The inherent methods of each data type: name and method item.
+/// The inherent methods of each nominal type: name and method item.
 pub type Inherent = HashMap<DefId, Vec<(Symbol, DefId)>>;
 
 /// One conflict: where to report it, and the message.
 pub struct Conflict {
-    /// The data type, or the private method that is reported.
+    /// The struct, or the private method that is reported.
     pub item: DefId,
     /// The field of `item` (its index in the declaration); `None` reports
     /// `item` itself, a method.
@@ -54,7 +54,7 @@ enum Own {
     Method(DefId),
 }
 
-/// The inherent methods of every data type visible from `lookup`.
+/// The inherent methods of every nominal type visible from `lookup`.
 #[must_use]
 pub fn inherent_methods(names: &Names<'_>, lookup: &Lookup<'_>) -> Inherent {
     let pool = names.pool;
@@ -80,7 +80,7 @@ pub fn inherent_methods(names: &Names<'_>, lookup: &Lookup<'_>) -> Inherent {
     out
 }
 
-/// The conflicts of one data declaration's members.
+/// The conflicts of one struct declaration's members.
 #[must_use]
 pub fn promotion_conflicts(
     names: &Names<'_>,
@@ -89,7 +89,7 @@ pub fn promotion_conflicts(
     it: &Item,
 ) -> Vec<Conflict> {
     let mut out = Vec::new();
-    let ItemData::Data(root_fields) = &it.data else {
+    let ItemData::Struct(root_fields) = &it.data else {
         return out;
     };
     let pool = names.pool;
@@ -103,7 +103,7 @@ pub fn promotion_conflicts(
             let fields = if *def == it.def {
                 root_fields
             } else if let Some(Item {
-                data: ItemData::Data(fields),
+                data: ItemData::Struct(fields),
                 ..
             }) = lookup.item(*def)
             {

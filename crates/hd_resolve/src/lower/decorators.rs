@@ -123,7 +123,7 @@ impl Lower<'_, '_, '_> {
         Some((d, item))
     }
 
-    /// The target kinds that a data type's or enum's `@annotate(...)` line
+    /// The target kinds that a struct's or enum's `@annotate(...)` line
     /// lists (`annot.target.limit`); a typed fact type attaches only to a
     /// field or a function (`annot.typed-fact.targets`).
     pub(super) fn annotate_mask(&self, n: NodeRef<'_>) -> Option<u16> {
@@ -244,7 +244,7 @@ impl Lower<'_, '_, '_> {
                 TyData::Adt { def, .. } => Some(def),
                 _ => None,
             },
-            ItemData::Data(_) | ItemData::Enum { .. } => Some(def),
+            ItemData::Struct(_) | ItemData::Enum { .. } => Some(def),
             _ => None,
         };
         let Some(fact) = fact else { return true };
@@ -479,7 +479,7 @@ impl Lower<'_, '_, '_> {
         });
     }
 
-    /// Reports a second cause member of one variant or data type
+    /// Reports a second cause member of one variant or struct
     /// (`annot.error.cause.one`).
     fn check_cause(&mut self, member: NodeRef<'_>, found: bool, causes: &mut usize) {
         if !found {
@@ -886,7 +886,7 @@ impl Lower<'_, '_, '_> {
         };
         let name = self.src.text(first);
         match &item.data {
-            ItemData::Data(fields) => fields.iter().any(|f| {
+            ItemData::Struct(fields) => fields.iter().any(|f| {
                 let n = self.names.text(f.name);
                 n == name || name.strip_prefix('_') == Some(n)
             }),
@@ -1012,7 +1012,7 @@ impl Lower<'_, '_, '_> {
                     );
                     let types = match self.item_of(n, TokenKind::KwData, items) {
                         Some(Item {
-                            data: ItemData::Data(fs),
+                            data: ItemData::Struct(fs),
                             ..
                         }) if fs.len() == fields.len() => fs.as_slice(),
                         _ => &[],
@@ -1210,7 +1210,7 @@ impl Lower<'_, '_, '_> {
     }
 
     /// Whether a declaration carries the `@error` line that makes it an
-    /// error type: bare on an enum, with an argument on a data type.
+    /// error type: bare on an enum, with an argument on a struct.
     fn has_error(&self, n: NodeRef<'_>, bare: bool) -> bool {
         n.children()
             .filter(|c| c.kind() == SyntaxKind::Decorator)

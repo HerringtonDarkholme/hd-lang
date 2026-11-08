@@ -538,7 +538,7 @@ impl Ck<'_, '_> {
     }
 
     /// The declaration `def`, written as `name`, used as a value: a
-    /// function, or a data type without fields. A type, alias or trait is
+    /// function, or a struct without fields. A type, alias or trait is
     /// an error (`names.type-as-value`); `None` for any other declaration.
     pub(crate) fn declaration_value(
         &mut self,
@@ -552,7 +552,7 @@ impl Ck<'_, '_> {
                 let sig = sig.clone();
                 return self.item_value(def, &sig, &[], want, n).map(Some);
             }
-            if let ItemData::Data(fields) = &item.data
+            if let ItemData::Struct(fields) = &item.data
                 && fields.is_empty()
             {
                 let t = self.ctor(def, &[])?;
@@ -931,7 +931,7 @@ impl Ck<'_, '_> {
                             self.cx.lookup.item(def).map(|i| &i.data),
                             Some(
                                 ItemData::Fn(_)
-                                    | ItemData::Data(_)
+                                    | ItemData::Struct(_)
                                     | ItemData::Enum { .. }
                                     | ItemData::Newtype(_)
                                     | ItemData::Alias { .. }
@@ -997,7 +997,7 @@ impl Ck<'_, '_> {
         Some((self.b.field(r, 0, result, n.index()), result))
     }
 
-    /// A call of the data type, enum or alias `name`, which expands to
+    /// A call of the struct, enum or alias `name`, which expands to
     /// `to`. Only the unwrapping of a newtype is a call of a type name
     /// (`types.newtype.construct`); any other is a type used as a value
     /// (`names.type-as-value`).
@@ -2581,7 +2581,7 @@ impl Ck<'_, '_> {
                 let rec = self.b.refs_record(&[r]);
                 Ok((self.b.emit(Tag::NewStruct, NONE, rec, t, n.index()), t))
             }
-            ItemData::Data(_) | ItemData::Enum { .. } | ItemData::Alias { .. } => {
+            ItemData::Struct(_) | ItemData::Enum { .. } | ItemData::Alias { .. } => {
                 let to = self.ctor(def, explicit)?;
                 match pool.get(to) {
                     // An alias calls the type it expands to.

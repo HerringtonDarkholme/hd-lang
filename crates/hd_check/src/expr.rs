@@ -772,7 +772,7 @@ impl Ck<'_, '_> {
         let Some(item) = self.cx.lookup.item(def) else {
             return unsupported("string interpolation without StringBuilder");
         };
-        let ItemData::Data(fields) = &item.data else {
+        let ItemData::Struct(fields) = &item.data else {
             return unsupported("a non-struct StringBuilder");
         };
         let [field] = fields.as_slice() else {
@@ -2506,7 +2506,7 @@ impl Ck<'_, '_> {
         self.b.refs_record(&[])
     }
 
-    /// A data field by name: its index and type under the value's
+    /// A struct field by name: its index and type under the value's
     /// arguments.
     pub(crate) fn field_of(&self, t: Ty, name: &str) -> Option<(u32, Ty)> {
         let pool = self.pool();
@@ -2518,7 +2518,7 @@ impl Ck<'_, '_> {
         let TyData::Adt { def, args } = pool.get(t) else {
             return None;
         };
-        let ItemData::Data(fields) = &self.cx.lookup.item(def)?.data else {
+        let ItemData::Struct(fields) = &self.cx.lookup.item(def)?.data else {
             return None;
         };
         let sym = self.cx.names.syms.intern(name);
@@ -3350,7 +3350,7 @@ impl Ck<'_, '_> {
         let Some(item) = self.cx.lookup.item(def) else {
             return unsupported("a data literal of an unknown item");
         };
-        let ItemData::Data(fields) = item.data.clone() else {
+        let ItemData::Struct(fields) = item.data.clone() else {
             let msg = format!("no type named `{}`: not a data type", segs.join("."));
             self.err(Code::UnknownType, *name_node, &msg);
             return Ok((Ref(NONE), Ty::NEVER));

@@ -147,7 +147,7 @@ fn std_interfaces_hold_no_poison_type() {
                             tys.extend(g.bounds.iter().copied().chain(g.default));
                         }
                     }
-                    ItemData::Data(fs) => tys.extend(fs.iter().map(|f| f.ty)),
+                    ItemData::Struct(fs) => tys.extend(fs.iter().map(|f| f.ty)),
                     ItemData::Enum { shared, variants } => tys.extend(
                         shared
                             .iter()

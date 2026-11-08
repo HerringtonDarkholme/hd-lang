@@ -14,7 +14,7 @@ use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use crate::iface::{Field, ItemData, Names};
 use crate::view::Src;
 
-/// What a variant's (or an error data type's) `@error` line says.
+/// What a variant's (or an error struct's) `@error` line says.
 #[derive(Clone, Copy)]
 pub enum Message<'t> {
     /// No `@error` line: the variant displays as its name
@@ -42,7 +42,7 @@ pub struct Member<'t> {
     pub marker: Marker,
 }
 
-/// One variant; an error data type is one variant.
+/// One variant; an error struct is one variant.
 #[derive(Clone)]
 pub struct ErrVariant<'t> {
     pub node: NodeRef<'t>,
@@ -190,7 +190,7 @@ fn message<'t>(src: &Src<'t>, args: Option<NodeRef<'t>>) -> Option<Message<'t>> 
     }
 }
 
-/// The members of a variant's parameter list or a data type's block.
+/// The members of a variant's parameter list or a struct's block.
 fn members<'t>(src: &Src<'t>, holder: Option<NodeRef<'t>>) -> Vec<Member<'t>> {
     let nodes: Vec<NodeRef<'t>> = holder
         .into_iter()
@@ -302,12 +302,12 @@ pub fn label(names: &Names<'_>, f: &Field) -> String {
 }
 
 /// The member fields of each variant of the error type's item, aligned
-/// with the shape's variants: an enum's payloads, a data type's fields.
+/// with the shape's variants: an enum's payloads, a struct's fields.
 #[must_use]
 pub fn fields(data: &ItemData) -> Vec<&[Field]> {
     match data {
         ItemData::Enum { variants, .. } => variants.iter().map(|v| v.fields.as_slice()).collect(),
-        ItemData::Data(fs) => vec![fs.as_slice()],
+        ItemData::Struct(fs) => vec![fs.as_slice()],
         _ => Vec::new(),
     }
 }

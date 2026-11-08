@@ -158,7 +158,7 @@ impl<'a> Links<'a> {
                 self.modules.insert(module.clone());
                 let key = format!("{module}.{name}");
                 let members: Vec<Symbol> = match &it.data {
-                    ItemData::Data(fields) => {
+                    ItemData::Struct(fields) => {
                         fields.iter().filter(|f| f.public).map(|f| f.name).collect()
                     }
                     ItemData::Enum { shared, variants } => shared

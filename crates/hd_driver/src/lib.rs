@@ -1183,7 +1183,7 @@ mod program_items_tests {
             DefId::from_raw(raw),
             Symbol::from_raw(raw),
             public,
-            ItemData::Data(Vec::new()),
+            ItemData::Struct(Vec::new()),
         )
     }
 
@@ -3386,7 +3386,7 @@ fn spans_of(
 struct OptInFinding {
     /// The opt-in's index among its module's own items.
     item: usize,
-    /// The data type or enum the member belongs to, and the member's
+    /// The struct or enum the member belongs to, and the member's
     /// written type position in it.
     data: DefId,
     slot: u32,
@@ -6314,7 +6314,7 @@ impl Run<'_> {
             let TyData::Adt { def, args } = pool.get(t) else {
                 return None;
             };
-            let hd_resolve::ItemData::Data(fs) = &lookup.item(def)?.data else {
+            let hd_resolve::ItemData::Struct(fs) = &lookup.item(def)?.data else {
                 return None;
             };
             let f = fs.get(k as usize)?;
@@ -6555,7 +6555,7 @@ impl Run<'_> {
                 continue;
             };
             let embeds =
-                matches!(&item.data, ItemData::Data(fields) if fields.iter().any(|f| f.embedded));
+                matches!(&item.data, ItemData::Struct(fields) if fields.iter().any(|f| f.embedded));
             if !embeds {
                 continue;
             }
@@ -6809,7 +6809,7 @@ impl Run<'_> {
                 }
             }
         }
-        // Default bodies: data field defaults and parameter defaults
+        // Default bodies: struct field defaults and parameter defaults
         // (`crates/hd_tir/DESIGN.md` "Default calls").
         let mut defaults = Vec::new();
         for h in &heads {
@@ -7318,7 +7318,7 @@ impl Run<'_> {
         // Per template module, in module order: the opt-ins it checks.
         let mut groups: std::collections::BTreeMap<usize, Vec<OptInEntry>> =
             std::collections::BTreeMap::new();
-        // Per data type or enum, its declaration facts bodies, built once.
+        // Per struct or enum, its declaration facts bodies, built once.
         let mut decl: HashMap<DefId, Option<FactBodies>> = HashMap::default();
         let mut decl_types: HashMap<DefId, Option<hd_check::SlotTypes>> = HashMap::default();
         let mut derived = Derived::default();
@@ -8104,7 +8104,7 @@ impl Run<'_> {
             }
         };
         // The link reads the declarations as well as the bodies: a trait's
-        // methods are a handle's imports and a data type's fields its
+        // methods are a handle's imports and a struct's fields its
         // boundary codec, and a test run's registrations pick its cases.
         // An edit to them can leave every body's TIR as it was (#316).
         let mut ih = hd_base::StableHasher::new("items");
@@ -9072,7 +9072,7 @@ impl Run<'_> {
             let TyData::Adt { def, args } = pool.get(t) else {
                 return None;
             };
-            let ItemData::Data(fs) = &p.items.get(def)?.data else {
+            let ItemData::Struct(fs) = &p.items.get(def)?.data else {
                 return None;
             };
             let f = fs.get(k as usize)?;
@@ -9720,7 +9720,7 @@ impl Run<'_> {
                 let Some(item) = p.items.get(head.def) else {
                     continue;
                 };
-                if !matches!(item.data, ItemData::Data(_)) || !item.generics.is_empty() {
+                if !matches!(item.data, ItemData::Struct(_)) || !item.generics.is_empty() {
                     continue;
                 }
                 let ty = self.pool.intern_ty(&TyData::Adt {
@@ -12403,9 +12403,9 @@ impl ProgramEnv for Env<'_> {
         };
         let o = self.p.items.get(*owner)?;
         match &o.data {
-            // A data type or enum owns its declaration `Structure`'s
+            // A struct or enum owns its declaration `Structure`'s
             // hidden methods (`crates/hd_mono/DESIGN.md` §12.3).
-            ItemData::Impl { .. } | ItemData::Data(_) | ItemData::Enum { .. } => {
+            ItemData::Impl { .. } | ItemData::Struct(_) | ItemData::Enum { .. } => {
                 Some((*owner, o.generics.len()))
             }
             ItemData::Trait(_) => Some((*owner, 1 + o.generics.len())),
@@ -12547,7 +12547,7 @@ impl ProgramEnv for Env<'_> {
     }
     fn data_fields(&self, def: DefId) -> Option<Vec<Ty>> {
         match &self.p.items.get(def)?.data {
-            ItemData::Data(fs) => Some(fs.iter().map(|f| self.low(f.ty)).collect()),
+            ItemData::Struct(fs) => Some(fs.iter().map(|f| self.low(f.ty)).collect()),
             // A newtype is a data value of its one inner value.
             ItemData::Newtype(inner) => Some(vec![self.low(*inner)]),
             _ => None,
@@ -12575,7 +12575,7 @@ impl ProgramEnv for Env<'_> {
     }
     fn data_field_names(&self, def: DefId) -> Option<Vec<String>> {
         match &self.p.items.get(def)?.data {
-            ItemData::Data(fs) => {
+            ItemData::Struct(fs) => {
                 let names = self.run.names();
                 Some(fs.iter().map(|f| names.text(f.name).to_owned()).collect())
             }
@@ -12589,10 +12589,9 @@ impl ProgramEnv for Env<'_> {
             .is_some_and(|i| self.run.names().known.is_struct(i))
     }
     fn has_private_field(&self, def: DefId) -> bool {
-        self.p
-            .items
-            .get(def)
-            .is_some_and(|i| matches!(&i.data, ItemData::Data(fs) if fs.iter().any(|f| !f.public)))
+        self.p.items.get(def).is_some_and(
+            |i| matches!(&i.data, ItemData::Struct(fs) if fs.iter().any(|f| !f.public)),
+        )
     }
     fn path_hash(&self, def: DefId) -> Hash128 {
         self.run.names().path_hash(def)
@@ -12832,7 +12831,7 @@ fn add_derived_methods(names: &Names<'_>, items: &mut Vec<Item>, derived: &[Item
 
 /// The facts bodies of the `Structure` that `opt` sees (annotations,
 /// "Facts"), checked in the target's module `cx`: the declaration facts
-/// of its data type or enum, built once per type into `decl` by
+/// of its struct or enum, built once per type into `decl` by
 /// [`declaration_bodies`]; and when the derivation's member `lines` edit
 /// them, the edited slots' own bodies. New bodies join `derived`. `None`
 /// when a fact is not generated yet.
@@ -12861,7 +12860,7 @@ fn derivation_facts<'t>(
         hd_check::structure::declaration_facts(cx, item, node, traitless(cx, heads, data));
     let edited = hd_check::structure::edit_facts(cx, item, &mut view, lines);
     // The derivation's bodies are in its own scope, where the target is
-    // the data type or enum at the derivation's arguments.
+    // the struct or enum at the derivation's arguments.
     if let TyData::Adt { args, .. } = pool.get(opt.target) {
         view.retarget(cx, data, pool.list_items(args));
     }
@@ -12928,7 +12927,7 @@ fn traitless_for(pool: &InternPool, it: &Item, data: DefId) -> bool {
             && matches!(pool.get(*self_ty), TyData::Adt { def, .. } if def == data))
 }
 
-/// The declaration facts bodies of the data type or enum `data`, which
+/// The declaration facts bodies of the struct or enum `data`, which
 /// module `cx` declares (`annot.fact.shared`): its decorators, edited by
 /// its block with no trait when `cx` holds that block. New bodies join
 /// `derived`. `None` when a fact is not generated yet.

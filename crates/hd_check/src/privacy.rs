@@ -12,14 +12,14 @@ use hd_types::{Ty, TyData};
 use crate::body::Ck;
 
 impl<'a> Ck<'a, '_> {
-    /// The data declaration of `t` and its fields.
+    /// The struct declaration of `t` and its fields.
     pub(crate) fn data_decl(&self, t: Ty) -> Option<(DefId, &'a [Field])> {
         let pool = self.pool();
         let TyData::Adt { def, .. } = pool.get(self.strip_mut(t)) else {
             return None;
         };
         match &self.cx.lookup.item(def)?.data {
-            ItemData::Data(fields) => Some((def, fields)),
+            ItemData::Struct(fields) => Some((def, fields)),
             _ => None,
         }
     }
@@ -68,12 +68,12 @@ impl<'a> Ck<'a, '_> {
         self.err(Code::PrivateMember, n, &msg);
     }
 
-    /// A data literal of the data type `def`, a copy-update included: in
+    /// A struct literal of the struct `def`, a copy-update included: in
     /// another module, every field of the type must be public
     /// (`data.vis.literal`, `data.vis.private-fields`). Reports the first
     /// private field.
     pub(crate) fn check_literal_visible(&mut self, def: DefId, n: NodeRef<'_>) {
-        let Some(ItemData::Data(fields)) = self.cx.lookup.item(def).map(|i| &i.data) else {
+        let Some(ItemData::Struct(fields)) = self.cx.lookup.item(def).map(|i| &i.data) else {
             return;
         };
         let Some(f) = fields

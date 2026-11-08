@@ -859,7 +859,7 @@ struct Resolver<'a, 'b> {
     /// types, enums and newtypes that declare a default, so a written type
     /// fills its omitted trailing arguments from them (`fill_type_args`).
     /// They are recorded by [`lower_aliases`], each after the aliases and
-    /// data types its declaration names.
+    /// structs its declaration names.
     own_types: RefCell<HashMap<DefId, Vec<Generic>>>,
     /// The structs and enums an `impl !Copy` names (`ref.copy.opt-out`),
     /// marked on their items once each module is lowered.
@@ -3036,7 +3036,7 @@ impl Lower<'_, '_, '_> {
     /// Lines the slots recorded since `before` up with the reference slots
     /// of `t`, lowered from `n`. Where they differ (a type alias, a
     /// counted reference), a written lifetime cannot be placed and is not
-    /// checked yet; a function type records its own slots. A data type's
+    /// checked yet; a function type records its own slots. A struct's
     /// defaulted arguments (`trailing`) add elided slots after the written
     /// ones.
     fn place_slots(&mut self, n: NodeRef<'_>, before: usize, t: Ty, trailing: bool) {
@@ -4281,7 +4281,7 @@ impl Lower<'_, '_, '_> {
         })
     }
 
-    /// The shape rules of a data type's fields: names are unique
+    /// The shape rules of a struct's fields: names are unique
     /// (`data.field.unique`, `data.embed.unique`), and a type embeds at
     /// most three fields (`data.embed.width`).
     fn data_fields(&mut self, holder: Option<NodeRef<'_>>, fields: &[Field]) {
@@ -5411,7 +5411,7 @@ impl Lower<'_, '_, '_> {
         }
     }
 
-    /// `@error` on a data type or an enum: the heads of the generated
+    /// `@error` on a struct or an enum: the heads of the generated
     /// `impl Display`, `impl Error` and one `impl From[P]` per `@from`
     /// member (spec 14 `annot.error.generates`), each an ordinary
     /// implementation with one method, whose body the checker writes
@@ -5744,7 +5744,7 @@ impl Lower<'_, '_, '_> {
                 let member_types: Vec<_> = fields.iter().map(|field| field.ty).collect();
                 self.derived(h, &generics, &member_types, out);
                 self.error_impls(h, &generics, &[fields.as_slice()], out);
-                let mut it = Item::new(h.def, h.name, h.public, ItemData::Data(fields));
+                let mut it = Item::new(h.def, h.name, h.public, ItemData::Struct(fields));
                 it.generics = generics;
                 it.targets = self.annotate_mask(n);
                 it.fact_pattern = self.annotate_pattern(n, &gn);
@@ -6043,7 +6043,7 @@ impl Lower<'_, '_, '_> {
         out
     }
 
-    /// The declared parameters of a data type, enum or newtype, recorded
+    /// The declared parameters of a struct, enum or newtype, recorded
     /// for the written types that count or fill them
     /// (`types.generic.too-long`, `types.generic.default.written`). The item's own
     /// lowering reports their diagnostics, so these are dropped.
@@ -6091,7 +6091,7 @@ impl Lower<'_, '_, '_> {
     }
 }
 
-/// Whether `h` is a data type, enum or newtype, whose parameters are
+/// Whether `h` is a struct, enum or newtype, whose parameters are
 /// recorded before any signature is lowered.
 fn declares_params(h: &Head<'_>) -> bool {
     matches!(h.kind, HeadKind::Data | HeadKind::Enum | HeadKind::Newtype)
@@ -6100,7 +6100,7 @@ fn declares_params(h: &Head<'_>) -> bool {
 /// Lowers every alias of the folder before any other header, each after
 /// the aliases its declaration names, whatever the declaration order
 /// (`crates/hd_resolve/DESIGN.md`, "Row aliases and context types in
-/// interfaces"). Every data type, enum and newtype takes part in that
+/// interfaces"). Every struct, enum and newtype takes part in that
 /// order, for its generic parameters alone: a written type counts its
 /// arguments against them (`types.generic.too-long`) and fills the omitted
 /// ones from their defaults (`types.generic.default.written`), so an alias
@@ -6536,7 +6536,7 @@ impl ItemIndex {
         self.by_def.get(&d).and_then(|&i| items.get(i))
     }
 
-    /// The impls whose target is the data type or enum `d`, in item order.
+    /// The impls whose target is the struct or enum `d`, in item order.
     pub(crate) fn impls_for<'a>(
         &self,
         items: &'a [Item],
@@ -6553,7 +6553,7 @@ impl ItemIndex {
 /// Why a derivation block is rejected, if it is: it is declared outside the
 /// module of its target (`annot.block.module`, `annot.no-trait.module`),
 /// targets a newtype (`annot.block.newtype.error`) or, with no trait, any
-/// target but a data type or enum with an unbounded header
+/// target but a struct or enum with an unbounded header
 /// (`annot.no-trait.target`, `annot.no-trait.generic.error`). `items` are
 /// the items of the block's module; a target in another module of `session`
 /// is not among them and goes unchecked here. Rejected blocks stay out of
@@ -6600,7 +6600,7 @@ fn misplaced_block_in<'a>(
         ItemData::Newtype(_) => {
             return Some("a derivation block cannot target a newtype; derive it with `@derive`");
         }
-        ItemData::Data(_) | ItemData::Enum { .. } => {}
+        ItemData::Struct(_) | ItemData::Enum { .. } => {}
         _ if traitless => {
             return Some("a derivation block with no trait targets a data type or enum");
         }
@@ -7904,7 +7904,7 @@ fn drop_extra_methods(r: &Resolver<'_, '_>, modules: &mut [ModOut]) {
 /// of a field (`trait.derive.newtype.base`; `hd_check::newtype` writes the
 /// bodies, which wrap and unwrap the `Self` positions).
 ///
-/// An implementation whose part is not an embedded field of a data type
+/// An implementation whose part is not an embedded field of a struct
 /// takes nothing: the checker reports it (`invalid-delegation`).
 fn delegations(r: &Resolver<'_, '_>, modules: &mut [ModOut]) {
     let names = &r.cx.names;
@@ -7953,7 +7953,7 @@ fn delegations(r: &Resolver<'_, '_>, modules: &mut [ModOut]) {
             // from an embedded field. A derived newtype takes every method
             // from its base type (trait.derive.newtype.base).
             let (part, receivers_only) = match (kind, by, item(c).map(|i| i.data)) {
-                (ImplKind::Delegated, Some(by), Some(ItemData::Data(fields))) => {
+                (ImplKind::Delegated, Some(by), Some(ItemData::Struct(fields))) => {
                     let Some(field) = fields.iter().find(|f| f.embedded && f.name == *by) else {
                         continue;
                     };

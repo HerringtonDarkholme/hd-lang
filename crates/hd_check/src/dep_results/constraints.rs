@@ -684,7 +684,7 @@ impl Gen<'_, '_> {
                 if let (Tag::NewStruct, TyData::Adt { def, .. }) =
                     (b.tags[iu], s.pool.get(b.ty[iu]))
                     && let Some(item) = s.cx.lookup.item(def)
-                    && let ItemData::Data(fields) = &item.data
+                    && let ItemData::Struct(fields) = &item.data
                 {
                     let static_bound = s.cx.names.known.static_bound;
                     let rec = b.record(b.data[iu][1]);
@@ -740,7 +740,7 @@ impl Gen<'_, '_> {
         let Some(item) = self.s.cx.lookup.item(def) else {
             return false;
         };
-        let ItemData::Data(fields) = &item.data else {
+        let ItemData::Struct(fields) = &item.data else {
             return false;
         };
         let static_bound = self.s.cx.names.known.static_bound;

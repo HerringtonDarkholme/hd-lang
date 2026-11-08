@@ -1225,7 +1225,7 @@ pub fn default_body_def(names: &Names<'_>, owner: DefId, name: &str) -> DefId {
 }
 
 /// Checks one default expression as a body of kind `Default`
-/// (`crates/hd_check/DESIGN.md` (type checking) §1.7): a data field's (no parameters) or a function
+/// (`crates/hd_check/DESIGN.md` (type checking) §1.7): a struct field's (no parameters) or a function
 /// parameter's (the earlier parameters are its parameters). A default
 /// that runs out of fuel is poisoned (`too_complex`).
 pub fn check_default(
@@ -1256,7 +1256,7 @@ fn default_steps(
     };
     let sym = cx.names.syms.intern(name);
     let (ty, params) = match (&item.data, item.sig()) {
-        (ItemData::Data(fields), _) => match fields.iter().find(|f| f.name == sym) {
+        (ItemData::Struct(fields), _) => match fields.iter().find(|f| f.name == sym) {
             Some(f) => (f.ty, vec![]),
             None => return unsupported("a default of an unknown field"),
         },

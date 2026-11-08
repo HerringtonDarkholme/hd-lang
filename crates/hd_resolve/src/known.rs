@@ -21,10 +21,10 @@ pub struct KnownItems {
     /// `List.is_empty`, whose result is known for a generated empty facts list.
     pub list_is_empty: DefId,
     pub map: DefId,
-    /// The data type a reference type lowers to for the backend
+    /// The carrier a reference type lowers to for the backend
     /// (`hd_resolve::seed`, `crates/hd_wasm_linear/DESIGN.md` §15.2 "References").
     pub ref_cell: DefId,
-    /// The data type a counted reference type lowers to (§23.30).
+    /// The carrier a counted reference type lowers to (§23.30).
     pub counted_cell: DefId,
     // std.function
     pub function_module: PathId,
@@ -196,7 +196,7 @@ impl KnownItems {
     /// suspensions and lowered reference carriers with their own rules.
     #[must_use]
     pub fn is_struct(&self, item: &crate::Item) -> bool {
-        matches!(item.data, crate::ItemData::Data(_))
+        matches!(item.data, crate::ItemData::Struct(_))
             && ![
                 self.list,
                 self.map,

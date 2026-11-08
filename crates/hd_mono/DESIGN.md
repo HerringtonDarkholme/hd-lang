@@ -108,7 +108,7 @@ pub enum ExtTask {   // hd_sched
   Built: each module's content hash is its bodies' TIR hashes, its init
   summary, its encoded items, and its test registrations without their
   positions. Linking reads all four. A trait's methods are a profile
-  handle's imports, a data type's fields its boundary codec, and a
+  handle's imports, a struct's fields its boundary codec, and a
   registration's `ignore` drops a case, and an edit to any of them can
   leave every TIR hash as it was (#316). The runtime profile's trait
   list is not in it: only checks read the list, under their own keys.
@@ -296,7 +296,7 @@ cancel function (§14.6).
   its keys are references to records built the same way (#895).
   Building it reads its facts, so a member fact runs when its handle is
   first built ([`annot.fact.eval.lazy`](../../spec/lang/14-annotations.md#r-annot.fact.eval.lazy)).
-  The owner is the data type or enum
+  The owner is the struct or enum
   for the declaration's `Structure`, generated once per module and shared
   by every derivation without member lines; a derivation block with
   member lines owns its own (`annot.structure.per-derivation`). A derive
@@ -730,7 +730,7 @@ identity in the selection table.
 parameter, computed at check time and stored with its TIR, so the item's
 TIR hash covers it. The summary says whether instances need the
 parameter's exact representation. An own type parameter stays exact
-when a data type, tuple, function type, trait value or projection in
+when a struct, tuple, function type, trait value or projection in
 the item's signature or body holds it: those change their Wasm type
 with it, and erasing one cast a `Box[Point]` to `Box[REF]`. Only a
 value of the parameter itself, `mut`, an optional, and the erased
@@ -969,7 +969,7 @@ relocation. Equal bytes arise from:
 
 - type arguments with the same Wasm layout: `List[u32].push` and
   `List[i32].push`, `Option[char]` and `Option[u32]` helpers;
-- data types with the same field layout. RC layouts share the same
+- structs with the same field layout. RC layouts share the same
   Wasm value shape, so `data A: x: i32` and `data B: x: i32` can share
   emitted instances when their ownership operations also agree;
 - type parameters that the body does not use in any operation;
@@ -1137,7 +1137,7 @@ profile, instance key and item TIR hash with one dependency hash
 representation hash. That hash holds the `layout_hash` of every type the
 instance's instructions have, each callee's path, instance key and
 signature layouts, and the instance's own signature `layout_hash`es and
-row keys. So a field added to one data type re-emits only the instances
+row keys. So a field added to one struct re-emits only the instances
 that lay it out. The per-item interface hashes and selected-impl hashes
 above are not read separately. Inline summaries and literal numbers are not
 needed while nothing inlines and literals are keyed by content.
@@ -1444,7 +1444,7 @@ this variant's message or wrap that payload — and `Display`/`Error`/
 
 - `Display::to_string`: a match over the variants. Each arm builds
   its interpolated message (`annot.error.message.*`); a transparent
-  variant or data type forwards to its member
+  variant or struct forwards to its member
   (`annot.error.transparent.display`). Needs no imports
   (`annot.error.no-use`), as `error-without-import.hd` requires.
 - `Error::cause`: a match returning the `@from`/`@source` member, or

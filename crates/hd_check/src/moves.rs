@@ -650,7 +650,7 @@ impl Ck<'_, '_> {
             return None;
         };
         let fields = match (&self.cx.lookup.item(def)?.data, variant) {
-            (ItemData::Data(fs), None) => fs,
+            (ItemData::Struct(fs), None) => fs,
             (ItemData::Enum { shared, variants }, Some(k)) if shared.is_empty() => {
                 &variants.get(k as usize)?.fields
             }

@@ -35,7 +35,7 @@ use crate::ty::Named;
 /// `Facts` and the type of its `items`.
 fn facts_types(cx: &BodyCx<'_>) -> StageResult<(Ty, Ty)> {
     let facts = cx.names.item("std.structure", "Facts");
-    let Some(ItemData::Data(fields)) = cx.lookup.item(facts).map(|i| &i.data) else {
+    let Some(ItemData::Struct(fields)) = cx.lookup.item(facts).map(|i| &i.data) else {
         return unsupported("`std.structure.Facts` outside the module's view");
     };
     let Some(items) = fields.first().map(|f| f.ty) else {
@@ -483,7 +483,7 @@ fn internal_payload_allowed(cx: &BodyCx<'_>, mut ty: Ty) -> bool {
             TyData::Adt { def, .. } => {
                 return matches!(
                     cx.lookup.item(def),
-                    Some(item) if matches!(&item.data, ItemData::Data(_))
+                    Some(item) if matches!(&item.data, ItemData::Struct(_))
                 );
             }
             _ => return false,
@@ -1018,7 +1018,7 @@ pub fn check_decl_facts(cx: &BodyCx<'_>, owner: DefId, node: NodeRef<'_>, diags:
     let data = cx.lookup.item(owner).map(|i| &i.data);
     let is_fn = matches!(data, Some(ItemData::Fn(_)));
     let lines = match (cx.lookup.item(owner), data) {
-        (Some(item), Some(ItemData::Data(_) | ItemData::Enum { .. })) => {
+        (Some(item), Some(ItemData::Struct(_) | ItemData::Enum { .. })) => {
             crate::structure::declaration_facts(cx, item, node, None)
         }
         (_, Some(ItemData::Impl { by: Some(_), .. })) => {

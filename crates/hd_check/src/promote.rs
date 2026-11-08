@@ -16,14 +16,14 @@ use crate::body::Ck;
 const MAX_DEPTH: usize = 3;
 
 impl Ck<'_, '_> {
-    /// The embedded fields of a data type: name and substituted type.
+    /// The embedded fields of a struct: name and substituted type.
     fn embedded_parts(&self, t: Ty) -> Vec<(String, Ty)> {
         let pool = self.pool();
         let t = self.strip_mut(t);
         let TyData::Adt { def, .. } = pool.get(t) else {
             return Vec::new();
         };
-        let Some(ItemData::Data(fields)) = self.cx.lookup.item(def).map(|i| &i.data) else {
+        let Some(ItemData::Struct(fields)) = self.cx.lookup.item(def).map(|i| &i.data) else {
             return Vec::new();
         };
         fields
@@ -77,7 +77,7 @@ impl Ck<'_, '_> {
             };
             matches!(
                 ck.cx.lookup.item(def).map(|i| &i.data),
-                Some(ItemData::Data(fields))
+                Some(ItemData::Struct(fields))
                     if fields.iter().any(|f| f.name == sym && (f.public || f.embedded))
             )
         })
