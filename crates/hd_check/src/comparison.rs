@@ -35,31 +35,23 @@ pub struct Binding {
     pub mutability: Option<Mutability>,
 }
 
-/// Checked source properties of a written `let mut` binding.
+/// Checked properties of a written `let mut` binding.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Mutability {
     pub primitive: bool,
     pub address_taken: bool,
-    /// The written keyword and following whitespace, if present.
-    pub token: Option<Span>,
+    /// The binding's pattern, where `mut` is written.
+    pub pattern: NodeIdx,
 }
 
-/// A checked binding directly occupying one enum payload position.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PayloadBinding {
-    pub span: Span,
-    pub position: usize,
-    pub name: String,
-    pub bare: bool,
-}
-
-/// The resolved payload layout and source bindings of an enum pattern.
+/// The resolved payload layout of an enum pattern: the variant's field
+/// names and, per field position, the sub-pattern written for it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VariantPattern {
-    pub span: Span,
+    pub node: NodeIdx,
     pub variant: String,
     pub fields: Vec<String>,
-    pub bindings: Vec<PayloadBinding>,
+    pub subs: Vec<Option<NodeIdx>>,
 }
 
 /// A statement's source reachability, before dead code can be lowered away.
@@ -70,13 +62,15 @@ pub struct Statement {
     pub reachable: bool,
 }
 
-/// One checked change to a `mut` parameter or `mut self` copy.
+/// The first checked change to a `mut` parameter or `mut self` copy in one
+/// direct statement of its function body. Whether a later use observes it
+/// is read from syntax by the consumer.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ParameterWrite {
-    pub span: Span,
+    pub body: NodeIdx,
+    pub statement: NodeIdx,
+    pub write: NodeIdx,
     pub name: String,
-    pub receiver: bool,
-    pub observed_after: bool,
 }
 
 /// An implicit expression statement; explicit `_ := ...` is not a discard

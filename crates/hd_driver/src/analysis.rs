@@ -377,7 +377,7 @@ pub(crate) fn walk<'v>(
                     .iter()
                     .enumerate()
                     .map(|(i, fact)| Pending {
-                        at: fact.span.lo,
+                        at: src.span(src.parse.tree.node(fact.statement)).lo,
                         finish: false,
                         family: 5,
                         event: Event::ParameterWrite(SourceParameterWrite::from_index(i)),
@@ -386,7 +386,7 @@ pub(crate) fn walk<'v>(
         }
         if interests.contains(Events::PATTERN) {
             pending.extend(facts.patterns.iter().enumerate().map(|(i, fact)| Pending {
-                at: fact.span.lo,
+                at: src.span(src.parse.tree.node(fact.node)).lo,
                 finish: false,
                 family: 2,
                 event: Event::Pattern(SourcePattern::from_index(i)),

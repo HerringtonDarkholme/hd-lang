@@ -150,7 +150,10 @@ impl AnalysisSink for TypedRecorder {
                     mutability.is_some_and(|fact| {
                         fact.is_primitive()
                             && !fact.mutable_address_taken()
-                            && fact.token().is_some()
+                            && view
+                                .source()
+                                .text_at(view.source().span(fact.pattern()))
+                                .is_some_and(|text| text.starts_with("mut "))
                     })
                 )
             }
@@ -160,19 +163,23 @@ impl AnalysisSink for TypedRecorder {
             }
             Event::ParameterWrite(source) => {
                 let write = view.parameter_write(*source).unwrap();
+                let source = view.source();
                 format!(
                     "parameter-write:{}:{}:{}",
                     write.name(),
-                    write.is_receiver(),
-                    write.observed_after()
+                    source.text_at(source.span(write.statement())).unwrap(),
+                    source.text_at(source.span(write.write())).unwrap()
                 )
             }
             Event::Pattern(source) => {
                 let pattern = view.pattern(*source).unwrap();
+                let source = view.source();
                 let bindings: Vec<_> = pattern
-                    .bindings()
-                    .iter()
-                    .map(|binding| binding.name.as_str())
+                    .subpatterns()
+                    .map(|sub| {
+                        sub.and_then(|sub| source.text_at(source.span(sub)))
+                            .unwrap()
+                    })
                     .collect();
                 format!(
                     "pattern:{}:{:?}:{bindings:?}",

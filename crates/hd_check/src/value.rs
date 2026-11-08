@@ -16,7 +16,7 @@
 //! entry (`MapEntry`).
 
 use hd_base::SliceSort as _;
-use hd_base::{DefId, LocalId, Span, StageResult};
+use hd_base::{DefId, LocalId, StageResult};
 use hd_diag::Code;
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{Place as TirPlace, PlaceRoot, Proj, Ref, Tag, TirSink, local_flags};
@@ -242,18 +242,17 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// Groups checked mutations by their direct body statement and records
-    /// whether the changed parameter copy is conservatively observed later.
+    /// Groups checked mutations by their direct body statement, keeping the
+    /// first write of each parameter per statement.
     pub(crate) fn finish_parameter_writes(&mut self, body: NodeRef<'_>) {
         let mut writes = std::mem::take(&mut self.param_writes);
         writes.sort_stable_by_key(|(local, at)| (local.raw(), at.raw()));
         writes.dedup();
         let statements: Vec<_> = body.children().collect();
         for (local, at) in writes {
-            let write = self.cx.src.parse.tree.node(at);
-            let write_span = self.cx.src.span(write);
-            let Some(index) = statements.iter().position(|statement| {
-                let span = self.cx.src.span(*statement);
+            let write_span = self.cx.src.span(self.cx.src.parse.tree.node(at));
+            let Some(statement) = statements.iter().find(|statement| {
+                let span = self.cx.src.span(**statement);
                 span.lo <= write_span.lo && write_span.hi <= span.hi
             }) else {
                 continue;
@@ -263,85 +262,20 @@ impl Ck<'_, '_> {
                 .names
                 .text(self.b.body_mut().local_name[local.idx()])
                 .to_owned();
-            let span = self.cx.src.span(statements[index]);
             if self
                 .parameter_writes
                 .iter()
-                .any(|write| write.span == span && write.name == name)
+                .any(|write| write.statement == statement.index() && write.name == name)
             {
                 continue;
             }
-            let captured = statements
-                .iter()
-                .any(|statement| self.captures_parameter(*statement, &name));
-            let observed_after = captured
-                || self.loop_observes_parameter(statements[index], write_span, &name)
-                || statements[index + 1..]
-                    .iter()
-                    .any(|statement| self.names_parameter(*statement, &name));
             self.parameter_writes
                 .push(crate::comparison::ParameterWrite {
-                    span,
-                    receiver: name == "self",
+                    body: body.index(),
+                    statement: statement.index(),
+                    write: at,
                     name,
-                    observed_after,
                 });
-        }
-    }
-
-    /// Whether the top-level statement containing a write also has a loop
-    /// that contains the write and another use of the parameter. A loop's
-    /// condition or body can observe a value written by an earlier iteration,
-    /// even though both uses belong to the same top-level statement.
-    fn loop_observes_parameter(&self, node: NodeRef<'_>, write_span: Span, name: &str) -> bool {
-        let span = self.cx.src.span(node);
-        if write_span.lo < span.lo || write_span.hi > span.hi {
-            return false;
-        }
-        if matches!(node.kind(), SyntaxKind::WhileExpr | SyntaxKind::ForExpr)
-            && self.names_parameter_outside(node, write_span, name)
-        {
-            return true;
-        }
-        node.children()
-            .any(|child| self.loop_observes_parameter(child, write_span, name))
-    }
-
-    /// Whether `node` names `name` anywhere outside the syntax recorded as
-    /// the mutation itself.
-    fn names_parameter_outside(&self, node: NodeRef<'_>, write_span: Span, name: &str) -> bool {
-        let source = self.cx.src;
-        node.direct_tokens().any(|token| {
-            let span = source.token_span(token);
-            !(write_span.lo <= span.lo && span.hi <= write_span.hi)
-                && matches!(
-                    source.tkind(token),
-                    Some(TokenKind::Ident | TokenKind::RawIdent | TokenKind::KwSelfValue)
-                )
-                && source.text(token) == name
-        }) || node
-            .children()
-            .any(|child| self.names_parameter_outside(child, write_span, name))
-    }
-
-    fn names_parameter(&self, node: NodeRef<'_>, name: &str) -> bool {
-        let source = self.cx.src;
-        node.direct_tokens().any(|token| {
-            matches!(
-                source.tkind(token),
-                Some(TokenKind::Ident | TokenKind::RawIdent | TokenKind::KwSelfValue)
-            ) && source.text(token) == name
-        }) || node
-            .children()
-            .any(|child| self.names_parameter(child, name))
-    }
-
-    fn captures_parameter(&self, node: NodeRef<'_>, name: &str) -> bool {
-        match node.kind() {
-            SyntaxKind::ClosureExpr => self.names_parameter(node, name),
-            _ => node
-                .children()
-                .any(|child| self.captures_parameter(child, name)),
         }
     }
 }

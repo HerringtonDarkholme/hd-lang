@@ -1265,30 +1265,17 @@ impl Ck<'_, '_> {
         Ok(())
     }
 
-    /// Source facts for a written binding, before reference lowering erases its form.
+    /// Checked facts for a written `let mut` binding.
     pub(crate) fn binding_mutability(
         &self,
         local: LocalId,
         pattern: NodeIdx,
         kind: Option<LetMutKind>,
     ) -> crate::comparison::Mutability {
-        let node = self.cx.src.parse.tree.node(pattern);
-        let token = node
-            .direct_token(&self.cx.src.parse.tokens, TokenKind::KwMut)
-            .map(|tok| {
-                let lo = self.cx.src.token_span(tok).lo;
-                let next = hd_base::TokenIdx::from_raw(tok.raw() + 1);
-                let hi = self.cx.src.token_span(next).lo.max(lo);
-                hd_base::Span {
-                    file: self.cx.src.file,
-                    lo,
-                    hi,
-                }
-            });
         crate::comparison::Mutability {
             primitive: kind == Some(LetMutKind::Primitive),
             address_taken: self.ref_taken.contains(&local),
-            token,
+            pattern,
         }
     }
 

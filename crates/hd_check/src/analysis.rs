@@ -157,6 +157,7 @@ impl<'v> ExpressionView<'v> {
 #[derive(Clone, Copy)]
 pub struct BindingView<'v> {
     binding: &'v Binding,
+    source: Src<'v>,
 }
 
 impl<'v> BindingView<'v> {
@@ -190,10 +191,10 @@ impl<'v> BindingView<'v> {
 
     #[must_use]
     pub fn mutability(self) -> Option<MutabilityView<'v>> {
-        self.binding
-            .mutability
-            .as_ref()
-            .map(|fact| MutabilityView { fact })
+        self.binding.mutability.as_ref().map(|fact| MutabilityView {
+            fact,
+            source: self.source,
+        })
     }
 
     #[must_use]
@@ -211,9 +212,10 @@ impl<'v> BindingView<'v> {
 #[derive(Clone, Copy)]
 pub struct MutabilityView<'v> {
     fact: &'v Mutability,
+    source: Src<'v>,
 }
 
-impl MutabilityView<'_> {
+impl<'v> MutabilityView<'v> {
     #[must_use]
     pub const fn is_primitive(self) -> bool {
         self.fact.primitive
@@ -224,9 +226,10 @@ impl MutabilityView<'_> {
         self.fact.address_taken
     }
 
+    /// The binding's pattern, where `mut` is written.
     #[must_use]
-    pub const fn token(self) -> Option<Span> {
-        self.fact.token
+    pub fn pattern(self) -> NodeRef<'v> {
+        self.source.parse.tree.node(self.fact.pattern)
     }
 }
 
@@ -236,31 +239,36 @@ pub struct StatementView<'v> {
     statement: &'v Statement,
 }
 
-/// A mutation of a `mut` parameter, with its conservative later-use result.
+/// The first mutation of a `mut` parameter in one direct body statement.
 #[derive(Clone, Copy)]
 pub struct ParameterWriteView<'v> {
     write: &'v ParameterWrite,
+    source: Src<'v>,
 }
 
 impl<'v> ParameterWriteView<'v> {
-    #[must_use]
-    pub const fn span(self) -> Span {
-        self.write.span
-    }
-
+    /// The parameter's name; `self` for a `mut self` receiver.
     #[must_use]
     pub fn name(self) -> &'v str {
         &self.write.name
     }
 
+    /// The function body block.
     #[must_use]
-    pub const fn is_receiver(self) -> bool {
-        self.write.receiver
+    pub fn body(self) -> NodeRef<'v> {
+        self.source.parse.tree.node(self.write.body)
     }
 
+    /// The body's direct statement that contains the write.
     #[must_use]
-    pub const fn observed_after(self) -> bool {
-        self.write.observed_after
+    pub fn statement(self) -> NodeRef<'v> {
+        self.source.parse.tree.node(self.write.statement)
+    }
+
+    /// The syntax recorded as the mutation itself.
+    #[must_use]
+    pub fn write(self) -> NodeRef<'v> {
+        self.source.parse.tree.node(self.write.write)
     }
 }
 
@@ -284,16 +292,18 @@ impl<'v> StatementView<'v> {
     }
 }
 
-/// Resolved variant layout and source payload bindings.
+/// Resolved variant layout and the sub-pattern written for each field.
 #[derive(Clone, Copy)]
 pub struct PatternView<'v> {
     pattern: &'v VariantPattern,
+    source: Src<'v>,
 }
 
 impl<'v> PatternView<'v> {
     #[must_use]
-    pub const fn span(self) -> Span {
-        self.pattern.span
+    pub fn span(self) -> Span {
+        self.source
+            .span(self.source.parse.tree.node(self.pattern.node))
     }
 
     #[must_use]
@@ -306,9 +316,13 @@ impl<'v> PatternView<'v> {
         &self.pattern.fields
     }
 
-    #[must_use]
-    pub fn bindings(self) -> &'v [crate::comparison::PayloadBinding] {
-        &self.pattern.bindings
+    /// Each field position's written sub-pattern, in field order.
+    pub fn subpatterns(self) -> impl Iterator<Item = Option<NodeRef<'v>>> + 'v {
+        let source = self.source;
+        self.pattern
+            .subs
+            .iter()
+            .map(move |sub| sub.map(|sub| source.parse.tree.node(sub)))
     }
 }
 
@@ -400,7 +414,10 @@ impl<'v> CheckedView<'v> {
         self.facts?
             .bindings
             .get(source.0)
-            .map(|binding| BindingView { binding })
+            .map(|binding| BindingView {
+                binding,
+                source: self.source.source,
+            })
     }
 
     pub fn bindings(self) -> impl Iterator<Item = SourceBinding> + 'v {
@@ -421,7 +438,10 @@ impl<'v> CheckedView<'v> {
         self.facts?
             .parameter_writes
             .get(source.0)
-            .map(|write| ParameterWriteView { write })
+            .map(|write| ParameterWriteView {
+                write,
+                source: self.source.source,
+            })
     }
 
     #[must_use]
@@ -429,7 +449,10 @@ impl<'v> CheckedView<'v> {
         self.facts?
             .patterns
             .get(source.0)
-            .map(|pattern| PatternView { pattern })
+            .map(|pattern| PatternView {
+                pattern,
+                source: self.source.source,
+            })
     }
 
     #[must_use]

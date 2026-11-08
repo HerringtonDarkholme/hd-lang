@@ -466,37 +466,14 @@ impl Ck<'_, '_> {
                     );
                     return Ok(());
                 }
-                // Preserve resolved field positions and source binding forms for tooling.
+                // Preserve resolved field positions for tooling.
                 if self.cx.source_facts.is_some() {
-                    let fields = self.variant_field_names(t, &name);
-                    let bindings = subs
-                        .iter()
-                        .enumerate()
-                        .filter_map(|(position, sub)| {
-                            let sub = (*sub)?;
-                            if sub.kind() != SyntaxKind::BindingPattern {
-                                return None;
-                            }
-                            let token = sub.direct_tokens().find(|token| {
-                                matches!(
-                                    self.cx.src.tkind(*token),
-                                    Some(TokenKind::Ident | TokenKind::RawIdent)
-                                )
-                            })?;
-                            Some(crate::comparison::PayloadBinding {
-                                span: self.cx.src.span(sub),
-                                position,
-                                name: self.cx.src.text(token).to_owned(),
-                                bare: sub.children().next().is_none(),
-                            })
-                        })
-                        .collect();
                     self.variant_patterns
                         .push(crate::comparison::VariantPattern {
-                            span: self.cx.src.span(p),
+                            node: p.index(),
                             variant: name.clone(),
-                            fields,
-                            bindings,
+                            fields: self.variant_field_names(t, &name),
+                            subs: subs.iter().map(|sub| sub.map(NodeRef::index)).collect(),
                         });
                 }
                 for (s, ft) in subs.iter().zip(fields) {

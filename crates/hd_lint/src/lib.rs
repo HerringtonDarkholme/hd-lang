@@ -267,10 +267,30 @@ fn lost_write(event: &Event<'_>, view: &CheckedView<'_>, out: &mut DiagBuf) {
     let Some(write) = view.parameter_write(*source) else {
         return;
     };
-    if write.observed_after() {
+    let src = view.source().syntax();
+    let name = write.name();
+    let statements: Vec<_> = write.body().children().collect();
+    let statement = write.statement();
+    let Some(index) = statements
+        .iter()
+        .position(|other| other.index() == statement.index())
+    else {
+        return;
+    };
+    let write_span = src.span(write.write());
+    // Conservative: a closure anywhere in the body, a loop around the
+    // write, or any later statement that names the parameter observes it.
+    let observed_after = statements
+        .iter()
+        .any(|statement| captures_name(src, *statement, name))
+        || loop_observes_name(src, statement, write_span, name)
+        || statements[index + 1..]
+            .iter()
+            .any(|statement| names_name(src, *statement, name));
+    if observed_after {
         return;
     }
-    let message = if write.is_receiver() {
+    let message = if name == "self" {
         "this write to `self` is lost: the copy is never read afterwards or returned; take `&mut self` to change the caller's value".to_owned()
     } else {
         format!(
@@ -281,10 +301,70 @@ fn lost_write(event: &Event<'_>, view: &CheckedView<'_>, out: &mut DiagBuf) {
     out.push(
         Code::LostWrite,
         Severity::Warning,
-        write.span(),
+        src.span(statement),
         &message,
         None,
     );
+}
+
+/// Whether the top-level statement containing a write also has a loop
+/// that contains the write and another use of the parameter. A loop's
+/// condition or body can observe a value written by an earlier iteration,
+/// even though both uses belong to the same top-level statement.
+fn loop_observes_name(
+    src: Src<'_>,
+    node: NodeRef<'_>,
+    write_span: hd_base::Span,
+    name: &str,
+) -> bool {
+    let span = src.span(node);
+    if write_span.lo < span.lo || write_span.hi > span.hi {
+        return false;
+    }
+    if matches!(node.kind(), SyntaxKind::WhileExpr | SyntaxKind::ForExpr)
+        && names_name_outside(src, node, write_span, name)
+    {
+        return true;
+    }
+    node.children()
+        .any(|child| loop_observes_name(src, child, write_span, name))
+}
+
+/// Whether `node` names `name` anywhere outside the syntax recorded as the
+/// mutation itself.
+fn names_name_outside(
+    src: Src<'_>,
+    node: NodeRef<'_>,
+    write_span: hd_base::Span,
+    name: &str,
+) -> bool {
+    node.direct_tokens().any(|token| {
+        let span = src.token_span(token);
+        !(write_span.lo <= span.lo && span.hi <= write_span.hi) && names_token(src, token, name)
+    }) || node
+        .children()
+        .any(|child| names_name_outside(src, child, write_span, name))
+}
+
+fn names_name(src: Src<'_>, node: NodeRef<'_>, name: &str) -> bool {
+    node.direct_tokens()
+        .any(|token| names_token(src, token, name))
+        || node.children().any(|child| names_name(src, child, name))
+}
+
+fn names_token(src: Src<'_>, token: hd_base::TokenIdx, name: &str) -> bool {
+    matches!(
+        src.tkind(token),
+        Some(TokenKind::Ident | TokenKind::RawIdent | TokenKind::KwSelfValue)
+    ) && src.text(token) == name
+}
+
+fn captures_name(src: Src<'_>, node: NodeRef<'_>, name: &str) -> bool {
+    if node.kind() == SyntaxKind::ClosureExpr {
+        names_name(src, node, name)
+    } else {
+        node.children().any(|child| captures_name(src, child, name))
+    }
 }
 
 /// The single registered consumer used by `hd lint`.
@@ -777,7 +857,19 @@ fn redundant_mut(event: &Event<'_>, view: &CheckedView<'_>, out: &mut DiagBuf) {
         message,
         None,
     );
-    if let Some(span) = fact.token() {
+    let src = view.source().syntax();
+    if let Some(token) = fact
+        .pattern()
+        .direct_token(&src.parse.tokens, TokenKind::KwMut)
+    {
+        // The keyword and the whitespace after it.
+        let lo = src.token_span(token).lo;
+        let next = hd_base::TokenIdx::from_raw(token.raw() + 1);
+        let span = hd_base::Span {
+            file: src.file,
+            lo,
+            hi: src.token_span(next).lo.max(lo),
+        };
         out.add_fix("remove `mut`", FixSafety::Exact, &[(span, "")]);
     }
 }
@@ -789,27 +881,41 @@ fn variant_binding(event: &Event<'_>, view: &CheckedView<'_>, out: &mut DiagBuf)
     let Some(pattern) = view.pattern(*source) else {
         return;
     };
-    for binding in pattern.bindings() {
-        let Some(field) = pattern.fields().get(binding.position) else {
+    let src = view.source().syntax();
+    for (position, sub) in pattern.subpatterns().enumerate() {
+        // A bare name binding directly in a payload position.
+        let Some(sub) = sub.filter(|sub| {
+            sub.kind() == SyntaxKind::BindingPattern && sub.children().next().is_none()
+        }) else {
             continue;
         };
-        if !binding.bare
-            || binding.name == *field
+        let Some(token) = sub.direct_tokens().find(|token| {
+            matches!(
+                src.tkind(*token),
+                Some(TokenKind::Ident | TokenKind::RawIdent)
+            )
+        }) else {
+            continue;
+        };
+        let name = src.text(token);
+        let Some(field) = pattern.fields().get(position) else {
+            continue;
+        };
+        if name == *field
             || !pattern
                 .fields()
                 .iter()
                 .enumerate()
-                .any(|(i, name)| i != binding.position && *name == binding.name)
+                .any(|(i, other)| i != position && *other == name)
         {
             continue;
         }
         out.push(
             Code::VariantBindingNameMismatch,
             Severity::Warning,
-            binding.span,
+            src.span(sub),
             &format!(
-                "`{}` is also a field of `{}`; the field in this position is `{field}`",
-                binding.name,
+                "`{name}` is also a field of `{}`; the field in this position is `{field}`",
                 pattern.variant()
             ),
             None,
