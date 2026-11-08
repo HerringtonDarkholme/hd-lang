@@ -1466,10 +1466,8 @@ impl Em<'_, '_, '_> {
     /// Pushes value `k` of `r`.
     fn comp(&mut self, r: u32, k: usize) -> StageResult<()> {
         if Ref(r).as_inst().is_none() {
-            let Some(ops) = self.konst_ops(r)?.into_iter().nth(k) else {
-                return unsupported("a component a constant does not have");
-            };
-            for op in ops {
+            // Callers name a component of the value's layout.
+            for op in self.konst_ops(r)?.swap_remove(k) {
                 self.f.push(op);
             }
             return Ok(());
@@ -2137,13 +2135,8 @@ impl Em<'_, '_, '_> {
                     ) => self.map_op(i, op, &args)?,
                     Some(IntrinsicOp::MapSlots) => self.map_slots(i, args[0])?,
                     Some(IntrinsicOp::MapSlotNext) => self.map_slot_next(i, &args)?,
-                    Some(op @ (IntrinsicOp::MapSlotEntry | IntrinsicOp::MapSlotEntryMut)) => {
-                        self.map_slot_entry(
-                            i,
-                            args[0],
-                            args[1],
-                            op == IntrinsicOp::MapSlotEntryMut,
-                        )?;
+                    Some(IntrinsicOp::MapSlotEntry | IntrinsicOp::MapSlotEntryMut) => {
+                        self.map_slot_entry(i, args[0], args[1])?;
                     }
                     _ => return unsupported("an intrinsic operation without its kernel"),
                 }
@@ -3633,9 +3626,8 @@ impl Em<'_, '_, '_> {
     }
 
     fn prim(&mut self, i: u32, op: u32, rec: u32) -> StageResult<()> {
-        let Some(op) = PrimOp::from_u32(op) else {
-            return unsupported("an unknown operator");
-        };
+        // The checker writes a `PrimOp` word.
+        let op = PrimOp::from_u32(op).expect("an operator");
         let ops = self.rec(rec);
         self.prim_value(op, &ops, self.ty(i))?;
         self.store(i)

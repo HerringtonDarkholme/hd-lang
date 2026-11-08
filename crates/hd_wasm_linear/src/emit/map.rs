@@ -7,11 +7,11 @@
 
 use crate::op::Op as I;
 use hd_base::StageResult;
-use hd_mono::layout::{StdKind, inline_map_key, strip_newtype};
-use hd_mono::{CallTarget, Target, TargetKind, subst};
+use hd_mono::layout::StdKind;
+use hd_mono::{CallTarget, Target};
 use hd_tir::ir::count::Part;
 use hd_tir::ir::{Callee, IntrinsicOp, NONE, PlaceRoot, Tag};
-use hd_types::{Ty, TyData};
+use hd_types::Ty;
 use wasm_encoder::BlockType;
 
 use super::value::{Dst, Src};
@@ -35,9 +35,7 @@ impl Em<'_, '_, '_> {
     fn map_value_from(&mut self, m: u32, t: Ty, e: &Src) -> StageResult<(Ty, u32)> {
         let (kt, vt, entry) = self.entry(t)?;
         let (_, parts) = payload_mem(self.pool(), self.env(), &[kt, vt])?;
-        let Some(value) = parts.get(1) else {
-            return unsupported("a map entry without its value");
-        };
+        let value = &parts[1];
         let (ix, at) = (self.f.local(Val::I32), self.f.local(Val::I32));
         self.src(e, 0)?;
         self.f.set(ix);
@@ -59,12 +57,12 @@ impl Em<'_, '_, '_> {
         if self.input.runtime.is_none() {
             return unsupported("maps without std's allocator");
         }
-        let TyData::Adt { args, .. } = self.pool().get(strip(self.pool(), self.env(), t)) else {
-            return unsupported("a map operation on a value that is not a map");
-        };
-        let [kt, vt] = self.pool().list_items(args)[..] else {
-            return unsupported("a map without its key and value types");
-        };
+        // A map operation's operand is a `Map[K, V]`.
+        let (_, args) = (self.pool().adt(strip(self.pool(), self.env(), t))).expect("a map");
+        let (kt, vt) = (
+            self.pool().list_items(args)[0],
+            self.pool().list_items(args)[1],
+        );
         let (m, parts) = payload_mem(self.pool(), self.env(), &[kt, vt])?;
         let keys = parts[0].count;
         let shift = u32::try_from(keys).expect("values");
@@ -83,81 +81,44 @@ impl Em<'_, '_, '_> {
         Ok((kt, vt, entry))
     }
 
-    /// How instruction `i`'s map hashes and compares keys of type `kt`:
-    /// an integer, `bool`, `char` or `string` through the keyed bucket
-    /// hash collection chose and an inline comparison, any other key
-    /// through the `key_bucket_hash` and `Eq.eq` instances it chose.
-    fn key_ops(&self, i: u32, kt: Ty, key: &[Val]) -> StageResult<KeyOps> {
+    /// How instruction `i`'s map hashes and compares keys whose values
+    /// are `key`: an integer, `bool`, `char` or `string` through the keyed
+    /// bucket hash collection chose and an inline comparison, any other
+    /// key through the `key_bucket_hash` and `Eq.eq` instances it chose.
+    /// Collection selects them for every map operation (`hd_mono`
+    /// `map_key`): std's `int_bucket_hash(u64)` or
+    /// `string_bucket_hash(string)` by the key's primitive type, else
+    /// `key_bucket_hash[K](K) -> u32` and `key_equal[K](K, K) -> bool`, so
+    /// each takes the key's values.
+    fn key_ops(&self, i: u32, key: &[Val]) -> KeyOps {
         match self.calls.get(&i) {
-            Some(Target::MapInline(hash)) => {
-                if !inline_map_key(self.pool(), self.env(), kt)
-                    || self.vals(hash.ret)? != [Val::I32]
-                {
-                    return unsupported(
-                        "an inline map key's bucket hash that returns other values",
-                    );
-                }
-                let string = strip_newtype(self.pool(), self.env(), kt) == Ty::STRING;
-                Ok(match (key, self.key_params(hash, 0)?.as_slice()) {
-                    ([Val::I32], [Val::I64]) if !string => KeyOps::I32(hash.key),
-                    ([Val::I64], [Val::I64]) => KeyOps::I64(hash.key),
-                    ([Val::I32, Val::I32], [Val::I32, Val::I32]) if string => {
-                        KeyOps::Str(hash.key, self.key_own(hash, 0)?)
-                    }
-                    _ => return unsupported("an inline map key of another layout"),
-                })
-            }
-            Some(Target::MapKey { hash, eq }) => {
-                let params = self.key_params(hash, 0)?;
-                if params != key
-                    || self.key_params(eq, 0)? != params
-                    || self.key_params(eq, 1)? != params
-                    || self.vals(hash.ret)? != [Val::I32]
-                    || self.vals(eq.ret)? != [Val::I32]
-                {
-                    return unsupported("a map key whose bucket hash or `eq` takes other values");
-                }
-                Ok(KeyOps::Call {
-                    hash: hash.key,
-                    eq: eq.key,
-                    own: [
-                        self.key_own(hash, 0)?,
-                        self.key_own(eq, 0)?,
-                        self.key_own(eq, 1)?,
-                    ],
-                })
-            }
-            _ => unsupported("a map key whose operations collection did not select"),
+            Some(Target::MapInline(hash)) => match key {
+                [Val::I32] => KeyOps::I32(hash.key),
+                [Val::I64] => KeyOps::I64(hash.key),
+                _ => KeyOps::Str(hash.key, self.key_own(hash, 0)),
+            },
+            Some(Target::MapKey { hash, eq }) => KeyOps::Call {
+                hash: hash.key,
+                eq: eq.key,
+                own: [
+                    self.key_own(hash, 0),
+                    self.key_own(eq, 0),
+                    self.key_own(eq, 1),
+                ],
+            },
+            _ => unreachable!("collection selects a map operation's key operations"),
         }
     }
 
     /// The walk of parameter `k` of a key operation's instance when the
     /// instance owns it (`layout::Pass`): the map glue that lends it the
     /// key then counts a copy for it.
-    fn key_own(&self, t: &CallTarget, k: usize) -> StageResult<Option<crate::layout::Walk>> {
-        let ps = super::callee_params(self.input, self.m, t.key, t.item, t.args);
-        let Some(&p) = ps.get(k) else {
-            return unsupported("a map key operation without its parameter");
-        };
-        Ok(match self.pass_at(self.env().lends(t.item, t.args), k, p) {
+    fn key_own(&self, t: &CallTarget, k: usize) -> Option<crate::layout::Walk> {
+        let p = super::callee_params(self.input, self.m, t.key, t.item, t.args)[k];
+        match self.pass_at(self.env().lends(t.item, t.args), k, p) {
             crate::layout::Pass::Owned(w) => Some(w),
             _ => None,
-        })
-    }
-
-    /// The values parameter `k` of a key operation's instance takes.
-    fn key_params(&self, t: &CallTarget, k: usize) -> StageResult<Vec<Val>> {
-        if t.kind != TargetKind::Instance
-            || self.env().suspends(t.item)
-            || !self.env().row_keys(t.item, t.args).is_empty()
-        {
-            return unsupported("a map key whose `Eq` or `Hash` is not a plain function");
         }
-        let ps = self.env().params(t.item).unwrap_or_default();
-        let Some(&p) = ps.get(k) else {
-            return unsupported("a map key operation without its parameter");
-        };
-        self.vals(subst(self.pool(), self.env(), t.item, t.args, p))
     }
 
     /// Key `r` in fresh locals.
@@ -246,16 +207,14 @@ impl Em<'_, '_, '_> {
     /// releases the count it was given.
     pub(super) fn new_map(&mut self, i: u32, items: u32) -> StageResult<()> {
         let items = self.rec(items);
-        let (kt, vt, e) = self.entry(self.ty(i))?;
+        let (_, vt, e) = self.entry(self.ty(i))?;
         if items.is_empty() {
             let at = empty_buffer(self.m);
             self.f.static_addr(at);
             return self.store_owned(i);
         }
-        let ops = self.key_ops(i, kt, &e.key_vals())?;
-        let Ok(cap) = u32::try_from((items.len() / 2).next_power_of_two().max(4)) else {
-            return unsupported("a map literal too long for one table");
-        };
+        let ops = self.key_ops(i, &e.key_vals());
+        let cap = u32::try_from((items.len() / 2).next_power_of_two().max(4)).expect("entries");
         let m = self.f.local(Val::I32);
         self.f.u32(cap);
         self.f.helper(Helper::MapTable { entry: e.clone() });
@@ -307,31 +266,10 @@ impl Em<'_, '_, '_> {
     /// place is made unique by the ownership pass before this operation.
     /// The source reference holds its pointer loan for the whole loop;
     /// entry bindings only lend slots within that protected table.
-    pub(super) fn map_slot_entry(
-        &mut self,
-        i: u32,
-        map: u32,
-        slot: u32,
-        mutable: bool,
-    ) -> StageResult<()> {
+    pub(super) fn map_slot_entry(&mut self, i: u32, map: u32, slot: u32) -> StageResult<()> {
+        // The checker types the entry `(&K, &V)`, or `(&K, &mut V)` for
+        // a mutable one (`map_ref_loop`).
         let (key, value, entry) = self.entry(self.ty_of(map))?;
-        let TyData::Tuple { elems, rest: None } = self.pool().get(self.ty(i)) else {
-            return unsupported("a borrowed map entry that is not a pair");
-        };
-        let fields = self.pool().list_items(elems);
-        if fields.len() != 2
-            || fields
-                .iter()
-                .zip([key, value])
-                .enumerate()
-                .any(|(index, (&field, target))| {
-                    self.ref_target(field) != Some((target, false))
-                        || crate::layout::ref_mutable(self.pool(), self.env(), field)
-                            != (mutable && index == 1)
-                })
-        {
-            return unsupported("a map entry with inconsistent reference permissions");
-        }
         let (_, parts) = payload_mem(self.pool(), self.env(), &[key, value])?;
         let m = self.buffer(map)?;
         let index = self.f.local(Val::I32);
@@ -494,7 +432,7 @@ impl Em<'_, '_, '_> {
     /// map's place.
     pub(super) fn map_op(&mut self, i: u32, op: IntrinsicOp, args: &[u32]) -> StageResult<()> {
         let (kt, vt, e) = self.entry(self.ty_of(args[0]))?;
-        let ops = self.key_ops(i, kt, &e.key_vals())?;
+        let ops = self.key_ops(i, &e.key_vals());
         let m = self.buffer(args[0])?;
         if op == IntrinsicOp::MapSet {
             let source = self.map_probe_source(i, args[0], args[1]);
@@ -696,22 +634,18 @@ impl Em<'_, '_, '_> {
     /// `map_probe(map, key, default)`: hash and find the key once, reuse
     /// a miss probe to insert `default`, and return the value reference.
     pub(super) fn map_probe(&mut self, i: u32, args: &[u32]) -> StageResult<()> {
-        let [map, key, default] = *args else {
-            return unsupported("a map probe with other than three arguments");
-        };
-        let Some((mt, false)) = self.ref_target(self.ty_of(map)) else {
-            return unsupported("a map probe through a value that is no reference");
-        };
+        // `Map.get_or_insert(&mut self, key, default)`.
+        let (map, key, default) = (args[0], args[1], args[2]);
+        let (mt, _) = self.ref_target(self.ty_of(map)).expect("`&mut self`");
         let (kt, vt, entry) = self.entry(mt)?;
-        let ops = self.key_ops(i, kt, &entry.key_vals())?;
+        let ops = self.key_ops(i, &entry.key_vals());
         let at = self.f.local(Val::I32);
         self.comp(map, 0)?;
         self.f.set(at);
         let owned = self.f.local(Val::I32);
         let value = self.ref_layout(mt)?;
-        let [m] = crate::rt::ref_load_borrowed(&mut self.f, at, &value, owned)[..] else {
-            return unsupported("a map that is not one address");
-        };
+        // A map is one header word.
+        let m = crate::rt::ref_load_borrowed(&mut self.f, at, &value, owned)[0];
         // A local reference takes no count of its table (`ref.count.local`):
         // the map's root lives until its last use.
         self.map_probe_refs.insert(i, (m, false));

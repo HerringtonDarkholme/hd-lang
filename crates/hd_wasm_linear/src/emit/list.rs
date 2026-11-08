@@ -1164,9 +1164,7 @@ impl Em<'_, '_, '_> {
             let mut next = sources.into_iter();
             for (k, r) in items.iter().enumerate() {
                 if is_spread(k) {
-                    let Some(sb) = next.next() else {
-                        return unsupported("a list spread without its list");
-                    };
+                    let sb = next.next().expect("one buffer per spread");
                     let bytes = self.f.local(Val::I32);
                     self.f.get(sb);
                     self.f.op(I::I32Load(mem(HEAP, LIST_LEN, 2)));
@@ -1303,15 +1301,16 @@ impl Em<'_, '_, '_> {
     /// [`Helper::ListReserve`] itself, the routine `list_extend` reserves
     /// with, behind the same `count != 0` test.
     pub(super) fn list_ref_change(&mut self, key: &str, args: &[u32]) -> StageResult<()> {
-        let Some((lt, false)) = self.ref_target(self.ty_of(args[0])) else {
-            return unsupported("a list change through a value that is no reference");
-        };
+        // Each takes `items: &mut List[T]` first.
+        let (lt, _) = self
+            .ref_target(self.ty_of(args[0]))
+            .expect("`&mut List[T]`");
         let (_, elem) = self.elem(lt)?;
         let helper = match key {
             "list_truncate" => Helper::ListTruncate { elem },
             "list_extend" => Helper::ListExtend { elem },
-            "list_reserve" => Helper::ListReserve { elem },
-            _ => return unsupported("an unknown list change intrinsic"),
+            // `list_reserve`, the one key left.
+            _ => Helper::ListReserve { elem },
         };
         let reserve = key == "list_reserve";
         if reserve {
@@ -1328,9 +1327,8 @@ impl Em<'_, '_, '_> {
         self.f.helper(Helper::RefIsView);
         self.f.op(I::If(BlockType::Empty));
         let value = self.ref_layout(lt)?;
-        let [list] = crate::rt::ref_load(&mut self.f, at, &value)[..] else {
-            return unsupported("a list that is not one address");
-        };
+        // A list is one header word.
+        let list = crate::rt::ref_load(&mut self.f, at, &value)[0];
         self.f.get(list);
         self.push(args[1])?;
         self.f.helper(helper.clone());

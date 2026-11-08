@@ -1104,8 +1104,8 @@ impl Em<'_, '_, '_> {
         }
         self.f.get(h);
         let start = self.f.body.len();
-        // A map's type has its key and value types; a list's, one.
-        if let Ok((_, _, e)) = self.entry(t) {
+        if self.is_map(t) {
+            let (_, _, e) = self.entry(t)?;
             self.f.helper(Helper::MapUnique { entry: e });
         } else {
             let (_, e) = self.elem(t)?;
