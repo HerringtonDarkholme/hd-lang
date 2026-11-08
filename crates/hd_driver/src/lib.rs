@@ -12734,7 +12734,7 @@ impl Declarations for Env<'_> {
         self.p
             .items
             .get(def)
-            .map_or(TypeDecl::Data, Item::type_decl)
+            .map_or(TypeDecl::Builtin, Item::type_decl)
     }
     fn supertraits(&self, trait_: DefId) -> &[Ty] {
         self.p.items.get(trait_).map_or(&[], Item::supertraits)

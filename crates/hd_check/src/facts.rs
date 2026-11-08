@@ -35,6 +35,8 @@ use crate::ty::Named;
 /// `Facts` and the type of its `items`.
 fn facts_types(cx: &BodyCx<'_>) -> (Ty, Ty) {
     let facts = cx.names.item("std.structure", "Facts");
+    // ruled out: every build loads std, and lib/std/structure.hd declares
+    // `Facts` as a struct whose first field is `items`.
     let ItemData::Struct(fields, _) = &cx.lookup.item(facts).expect("stdpack Facts").data else {
         unreachable!("stdpack Facts is a struct");
     };

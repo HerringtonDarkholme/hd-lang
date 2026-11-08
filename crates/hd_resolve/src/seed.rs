@@ -111,11 +111,7 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
             let copy = bound(names.known.copy);
             let mut list_gens = gens(names, &["T"]);
             list_gens[0].bounds = vec![copy];
-            item(
-                "List",
-                list_gens,
-                ItemData::Struct(vec![], TypeAttrs::default()),
-            );
+            item("List", list_gens, ItemData::Builtin);
             // `Map[K < Eq & Hash, V]` (types.map-key.declared-bound).
             let mut map_gens = gens(names, &["K", "V"]);
             map_gens[0].bound = Some(names.known.eq);
@@ -124,11 +120,7 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
                 .map(bound)
                 .collect();
             map_gens[1].bounds = vec![copy];
-            item(
-                "Map",
-                map_gens,
-                ItemData::Struct(vec![], TypeAttrs::default()),
-            );
+            item("Map", map_gens, ItemData::Builtin);
             let opt = names.item(module, "Option");
             let t = param(names, opt, 0);
             item(
@@ -226,22 +218,13 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
             // visible to programs.
             for name in ["Ref", "RefMut", "Counted", "CountedMut"] {
                 let cell = names.item(module, name);
-                let mut it = Item::new(
-                    cell,
-                    sym(names, name),
-                    false,
-                    ItemData::Struct(vec![], TypeAttrs::default()),
-                );
+                let mut it = Item::new(cell, sym(names, name), false, ItemData::Builtin);
                 it.generics = gens(names, &["T"]);
                 out.push(it);
             }
         }
         "std.task" => {
-            item(
-                "Suspend",
-                gens(names, &["T"]),
-                ItemData::Struct(vec![], TypeAttrs::default()),
-            );
+            item("Suspend", gens(names, &["T"]), ItemData::Builtin);
             let poll_def = names.item(module, "Poll");
             item(
                 "Poll",

@@ -3193,7 +3193,7 @@ mod tests {
             self.kinds
                 .iter()
                 .find(|(d, _)| *d == def)
-                .map_or(super::TypeDecl::Data, |(_, k)| *k)
+                .map_or(super::TypeDecl::Builtin, |(_, k)| *k)
         }
         fn supertraits(&self, trait_: DefId) -> &[Ty] {
             self.supers

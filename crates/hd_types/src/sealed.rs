@@ -90,8 +90,9 @@ impl SealedTraits {
 /// What a nominal type's declaration is, as the rows read it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TypeDecl {
-    /// A data type, or a std type with no declaration (`List`, `Map`).
-    Data,
+    /// A std type the compiler declares (`List`, `Map`, `Suspend`, the
+    /// reference carriers), or no type declaration.
+    Builtin,
     /// A `struct`: a value type (`types.value.struct`).
     Struct,
     Enum,
@@ -180,7 +181,7 @@ fn category(pool: Types<'_>, decls: &dyn Declarations, t: Ty) -> Category {
         }
         TyData::Adt { def, args } => match decls.type_decl(def) {
             TypeDecl::Enum | TypeDecl::Struct => Category::Val,
-            TypeDecl::Data => Category::Ref,
+            TypeDecl::Builtin => Category::Ref,
             TypeDecl::Newtype(base) => {
                 let argv = pool.list_items(args);
                 Category::Base(pool.subst(base, &|p: ParamRef| {

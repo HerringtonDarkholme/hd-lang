@@ -602,6 +602,11 @@ pub enum ItemData {
         lifetimes: Vec<u16>,
     },
     Newtype(Ty),
+    /// A std type the compiler declares, with rules of its own and no
+    /// written declaration: `List` and `Map` (`types.coll.*`), `Suspend`
+    /// (`types.suspend`), and the reference carriers
+    /// ([`crate::KnownItems::ref_cells`]). Not a struct.
+    Builtin,
 }
 
 /// Attached documentation, keyed by the relative declaration path.
@@ -695,13 +700,6 @@ impl Item {
             _ => None,
         }
     }
-    #[must_use]
-    pub fn type_attrs_mut(&mut self) -> Option<&mut TypeAttrs> {
-        match &mut self.data {
-            ItemData::Struct(_, a) | ItemData::Enum { attrs: a, .. } => Some(a),
-            _ => None,
-        }
-    }
     /// Whether this is a trait whose `Self` is `Copy`, so that a bound
     /// on it implies `Copy` (`ref.copy.trait.default`): every trait but
     /// one declared `< ?Copy`.
@@ -738,7 +736,7 @@ impl Item {
             ItemData::Enum { .. } => TypeDecl::Enum,
             ItemData::Newtype(base) => TypeDecl::Newtype(*base),
             ItemData::Struct(_, _) => TypeDecl::Struct,
-            _ => TypeDecl::Data,
+            _ => TypeDecl::Builtin,
         }
     }
     /// A trait's direct supertraits; none for any other item.
@@ -760,7 +758,8 @@ impl Item {
     pub fn kind(&self) -> Option<HeadKind> {
         Some(match self.data {
             ItemData::Fn(_, _) => HeadKind::Fn,
-            ItemData::Struct(_, _) => HeadKind::Struct,
+            // A builtin type names a type constructor as a struct does.
+            ItemData::Struct(_, _) | ItemData::Builtin => HeadKind::Struct,
             ItemData::Enum { .. } => HeadKind::Enum,
             ItemData::Trait(_) => HeadKind::Trait,
             ItemData::Impl { .. } => HeadKind::Impl,
@@ -1067,7 +1066,7 @@ impl Declarations for LookupDecls<'_> {
     fn type_decl(&self, def: DefId) -> TypeDecl {
         self.lookup
             .item(def)
-            .map_or(TypeDecl::Data, Item::type_decl)
+            .map_or(TypeDecl::Builtin, Item::type_decl)
     }
     fn supertraits(&self, trait_: DefId) -> &[Ty] {
         self.lookup.item(trait_).map_or(&[], Item::supertraits)
@@ -1562,6 +1561,7 @@ fn put_item(w: &mut Writer, t: &mut TableWriter<'_>, it: &Item) -> StageResult<(
             w.u8(8);
             w.u32(t.ty(*x)?);
         }
+        ItemData::Builtin => w.u8(9),
     }
     Ok(())
 }
@@ -1680,6 +1680,7 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
             ItemData::Alias { body, lifetimes }
         }
         8 => ItemData::Newtype(t.ty(r.u32())?),
+        9 => ItemData::Builtin,
         _ => return None,
     };
     Some(Item {
@@ -2254,6 +2255,7 @@ pub fn mentioned_defs<'a>(
                 tys.extend(*default);
             }
             ItemData::Alias { body, .. } | ItemData::Newtype(body) => tys.push(*body),
+            ItemData::Builtin => {}
         }
     }
     for e in exports {

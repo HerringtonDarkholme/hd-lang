@@ -195,21 +195,10 @@ pub struct KnownItems {
 }
 
 impl KnownItems {
-    /// A record declaration, excluding compiler-known collections,
-    /// suspensions and lowered reference carriers with their own rules.
+    /// A struct declaration.
     #[must_use]
     pub fn is_struct(&self, item: &crate::Item) -> bool {
         matches!(item.data, crate::ItemData::Struct(_, _))
-            && ![
-                self.list,
-                self.map,
-                self.suspend,
-                self.ref_cell,
-                self.ref_mut_cell,
-                self.counted_cell,
-                self.counted_mut_cell,
-            ]
-            .contains(&item.def)
     }
 
     /// The four reference carriers (`hd_types::Types::lower_refs`).

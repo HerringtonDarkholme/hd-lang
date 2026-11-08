@@ -407,7 +407,7 @@ impl<'a> ItemCheck<'_, 'a> {
                 .collect(),
             ItemData::Impl { self_ty, .. } => vec![*self_ty],
             ItemData::Alias { body, .. } | ItemData::Newtype(body) => vec![*body],
-            ItemData::Trait(_) | ItemData::AssocType { .. } => vec![],
+            ItemData::Trait(_) | ItemData::AssocType { .. } | ItemData::Builtin => vec![],
         };
         // The positions that other modules can see: every position of a
         // function or enum, but of data only the `pub` fields and the
