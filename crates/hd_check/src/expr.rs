@@ -3134,34 +3134,18 @@ impl Ck<'_, '_> {
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
         let list = self.cx.names.known.list;
-        let elem = match (if kids.is_empty() {
-            want
-        } else {
-            self.literal_want(want)
-        })
-        .map(|w| self.infer.shallow(pool, w))
-        .map(|w| match pool.get(w) {
-            TyData::Mut(i) => pool.get(i),
-            d => d,
-        }) {
+        let elem = match self
+            .literal_want(want)
+            .map(|w| self.infer.shallow(pool, w))
+            .map(|w| match pool.get(w) {
+                TyData::Mut(i) => pool.get(i),
+                d => d,
+            }) {
             Some(TyData::Adt { def, args }) if def == list => {
                 pool.list_items(args).first().copied()
             }
             _ => None,
         };
-        // `expr.collection.empty.error`: report each untyped empty literal
-        // here, rather than relying on the body's first unsolved type.
-        if kids.is_empty()
-            && elem.is_none()
-            && !want.is_some_and(|t| pool.has_poison(self.infer.shallow(pool, t)))
-        {
-            self.err(
-                Code::CannotInferType,
-                n,
-                "an empty list needs an expected collection type",
-            );
-            return Ok(self.poison_value(n));
-        }
         let inferred = elem.is_none();
         let mut pending = None;
         let result = self.join_site(elem, |this, elem| {
@@ -3384,35 +3368,19 @@ impl Ck<'_, '_> {
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
         let map = self.cx.names.known.map;
-        let (kw, vw) = match (if kids.is_empty() {
-            want
-        } else {
-            self.literal_want(want)
-        })
-        .map(|w| self.infer.shallow(pool, w))
-        .map(|w| match pool.get(w) {
-            TyData::Mut(i) => pool.get(i),
-            d => d,
-        }) {
+        let (kw, vw) = match self
+            .literal_want(want)
+            .map(|w| self.infer.shallow(pool, w))
+            .map(|w| match pool.get(w) {
+                TyData::Mut(i) => pool.get(i),
+                d => d,
+            }) {
             Some(TyData::Adt { def, args }) if def == map => {
                 let a = pool.list_items(args);
                 (Some(a[0]), Some(a[1]))
             }
             _ => (None, None),
         };
-        // `expr.collection.empty.error`: one diagnostic for this literal,
-        // even when an earlier literal in the body also lacks a type.
-        if kids.is_empty()
-            && kw.is_none()
-            && !want.is_some_and(|t| pool.has_poison(self.infer.shallow(pool, t)))
-        {
-            self.err(
-                Code::CannotInferType,
-                n,
-                "an empty map needs an expected collection type",
-            );
-            return Ok(self.poison_value(n));
-        }
         // `types.lct.sites`: the keys join, and so do the values.
         self.join_site(kw, |this, k| {
             this.join_site(vw, |this, v| {

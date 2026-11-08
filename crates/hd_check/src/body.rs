@@ -4978,6 +4978,7 @@ impl Ck<'_, '_> {
             && !self.cx.results.borrow().has_errors()
             && !self.read_poison_name
         {
+            let mut reported = false;
             for i in 0..n {
                 let t = self.b.body_mut().ty[i];
                 let at = self.b.body_mut().syn[i];
@@ -4994,8 +4995,21 @@ impl Ck<'_, '_> {
                     {
                         continue;
                     }
-                    self.err(Code::CannotInferType, node, "annotate this value's type");
-                    break;
+                    // `expr.collection.empty.error`: wait until inference
+                    // finishes (a generic call or default may supply a type),
+                    // then report every independent empty literal. Other
+                    // unsolved instructions still produce only the first error.
+                    let tag = self.b.body().tags[i];
+                    let empty_collection =
+                        matches!(
+                            (tag, node.kind()),
+                            (Tag::NewList, SyntaxKind::ListExpr)
+                                | (Tag::NewMap, SyntaxKind::MapExpr)
+                        ) && self.b.body().record(self.b.body().data[i][1]).is_empty();
+                    if !reported || empty_collection {
+                        self.err(Code::CannotInferType, node, "annotate this value's type");
+                        reported = true;
+                    }
                 }
             }
         }
