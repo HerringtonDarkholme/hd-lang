@@ -1,0 +1,16 @@
+# @dump: own
+# expected: `Read move [$0]` right before the call, after the closure and
+# the `b.items` read.
+# Late operand reads: `b`'s read for the first argument moves to just
+# before its consumer, past a closure that captures `b` by copy (it only
+# reads `b`) and past the later `b.items` read, so it is `b`'s last access
+# and moves.
+struct Box:
+    items: List[i32]
+    n: usize
+
+fn pick(b: Box, f: fn() -> usize, k: usize) -> usize:
+    b.n + f() + k
+
+fn use(b: Box) -> usize:
+    pick(b, fn() -> usize: b.n, b.items.len())
