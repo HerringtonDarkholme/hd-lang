@@ -1684,6 +1684,9 @@ struct Gen {
     /// Type parameters of the list being lowered whose bounds are not
     /// lowered yet: whether one is bounded by `Tuple` is not known.
     pending: Vec<Ty>,
+    /// Type parameters with a bound that names no trait, already
+    /// reported: a projection from one adds no second error.
+    poisoned: Vec<Ty>,
 }
 
 impl Gen {
@@ -1698,6 +1701,7 @@ impl Gen {
             self.decls.len(),
             self.pending.len(),
             self.lifetimes.len(),
+            self.poisoned.len(),
         );
         let context = (self.self_ty, self.self_trait);
         let value = lower(self);
@@ -1707,6 +1711,7 @@ impl Gen {
         self.decls.truncate(lengths.3);
         self.pending.truncate(lengths.4);
         self.lifetimes.truncate(lengths.5);
+        self.poisoned.truncate(lengths.6);
         (self.self_ty, self.self_trait) = context;
         value
     }
@@ -3324,21 +3329,28 @@ impl Lower<'_, '_, '_> {
                     self.diags
                         .error(Code::AmbiguousAssociatedType, self.src.span(n), &msg);
                 }
+                if decls.is_empty() && cands.is_empty() && gn.poisoned.contains(&base) {
+                    return Ty::POISON;
+                }
                 if decls.is_empty() {
                     // No bound declares the name: an associated-type
                     // error at the projection, not a fabricated member
                     // with knock-on errors below
-                    // (`trait.assoc.projection`).
-                    if cands.is_empty() {
-                        self.gap("a projection on a type without a bound naming it");
+                    // (`trait.assoc.no-type`). A type with no bound,
+                    // a concrete one included, selects none either.
+                    let msg = if cands.is_empty() {
+                        format!(
+                            "`{}` projects from a type with no bound that declares it",
+                            self.names.text(name)
+                        )
                     } else {
-                        let msg = format!(
+                        format!(
                             "`{}` names no associated type that any bound declares",
                             self.names.text(name)
-                        );
-                        self.diags
-                            .error(Code::UnknownAssociatedType, self.src.span(n), &msg);
-                    }
+                        )
+                    };
+                    self.diags
+                        .error(Code::UnknownAssociatedType, self.src.span(n), &msg);
                     return Ty::POISON;
                 }
                 let (trait_, args, assoc) = decls[0];
@@ -3606,6 +3618,9 @@ impl Lower<'_, '_, '_> {
                     .iter()
                     .filter_map(|b| self.names.pool.trait_value(*b))
                     .collect();
+                if bounds.contains(&Ty::POISON) {
+                    gn.poisoned.push(slot.1);
+                }
             }
             if let Some((_, t, _)) = gn.tys[start..].iter().find(|(s, _, _)| *s == g.name) {
                 let t = *t;
@@ -3905,6 +3920,9 @@ impl Lower<'_, '_, '_> {
             .iter()
             .filter_map(|bound| self.names.pool.trait_value(*bound))
             .collect();
+        if bounds.contains(&Ty::POISON) {
+            gn.poisoned.push(ty);
+        }
         // A function's parameter, so `Copy` by default
         // (`ref.copy.generic.default`).
         bounds.push(self.copy_bound());

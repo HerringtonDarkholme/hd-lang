@@ -1132,18 +1132,25 @@ impl Ck<'_, '_> {
                 let name = self.cx.src.text(t).to_owned();
                 let Some((trait_, args)) = self.assoc_owner(base, &name) else {
                     // No bound declares the name: an associated-type
-                    // error at the projection (`trait.assoc.projection`).
-                    // A projection on a type with no bounds at all is
-                    // still a gap.
-                    let bounded =
-                        (0..self.env.clause_self.len()).any(|i| self.env.clause_self[i] == base);
-                    if bounded {
-                        let msg =
-                            format!("`{name}` names no associated type that any bound declares");
-                        self.err(Code::UnknownAssociatedType, n, &msg);
+                    // error at the projection (`trait.assoc.no-type`). A
+                    // type with no bound, a concrete one included,
+                    // selects none either.
+                    // A bound that names no trait was reported, and
+                    // left a clause on no trait.
+                    let env = &self.env;
+                    let clauses =
+                        || (0..env.clause_self.len()).filter(|&i| env.clause_self[i] == base);
+                    if base == Ty::POISON || clauses().any(|i| env.clause_trait[i] == DefId::NONE) {
                         return Ok(Ty::POISON);
                     }
-                    return unsupported("a projection on a type without a bound naming it");
+                    let bounded = clauses().next().is_some();
+                    let msg = if bounded {
+                        format!("`{name}` names no associated type that any bound declares")
+                    } else {
+                        format!("`{name}` projects from a type with no bound that declares it")
+                    };
+                    self.err(Code::UnknownAssociatedType, n, &msg);
+                    return Ok(Ty::POISON);
                 };
                 let assoc = self.cx.names.member(trait_, PathKind::Member, &name);
                 self.normalize(pool.intern_ty(&TyData::Assoc {

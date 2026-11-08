@@ -1,0 +1,4 @@
+# test: a projection written in a body follows the same rule: no bound declares the name, an error at the projection
+# Spec 09 Associated Types: trait.assoc.projection, trait.assoc.no-type.
+fn local[T](value: T) -> void:
+    let item: T::Item = panic("unreachable") # diagnostic: unknown-associated-type

@@ -1,0 +1,4 @@
+# test: a projection from a type parameter with no bound selects no associated type declaration, an error at the projection
+# Spec 09 Associated Types: trait.assoc.projection, trait.assoc.no-type.
+fn first[T](value: T) -> T::Item: # diagnostic: unknown-associated-type
+    panic("unreachable")
