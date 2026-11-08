@@ -62,7 +62,7 @@ fn count(n: i64) -> void $ Meter:
         $.use(Meter).record(i)
 >   %16 = ProviderGet #22 : Meter
 >   %17 = Coerce %16 [ProviderAsRef -] : RefMut[Meter]
->   %18 = Read [*%17] : mut Meter
+>   %18 = Read [*%17] : Meter
 >   %19 = Read [$4] : i64
 >   %20 = Call app/main/Meter.record for Meter [] via TraitValue (%18, %19) : ()
 
@@ -101,7 +101,7 @@ fn count_later!(n: i64, wait: Suspend[void]) -> void $ Meter:
         $.use(Meter).record(i)
 >   %16 = ProviderGet #22 : Meter
 >   %17 = Coerce %16 [ProviderAsRef -] : RefMut[Meter]
->   %18 = Read [*%17] : mut Meter
+>   %18 = Read [*%17] : Meter
 >   %19 = Read [$5] : i64
 >   %20 = Call app/main/Meter.record for Meter [] via TraitValue (%18, %19) : ()
         wait!()

@@ -49,7 +49,7 @@ impl Step for Erased:
     fn step(&mut self) -> i64?:
         self.source.step()
 > app/main/impl Step for Erased.step
->   %0 = Read [*$0 .source *] : mut Step
+>   %0 = Read [*$0 .source *] : Step
 >   %1 = Call app/main/Step.step for Step [] via TraitValue (%0) : i64?
 >   %2 = Block %1 : i64?
 

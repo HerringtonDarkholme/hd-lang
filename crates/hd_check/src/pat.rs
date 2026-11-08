@@ -212,7 +212,7 @@ impl Ck<'_, '_> {
             if self.ref_counted(t) == Some(false) {
                 self.pattern_below_ref = Some(saved.map_or(mutable, |m| m && mutable));
             }
-            let r = self.declare_pattern(p, self.deref_ty(referent, mutable), binds);
+            let r = self.declare_pattern(p, self.deref_ty(referent), binds);
             self.pattern_below_ref = saved;
             return r;
         }
@@ -528,7 +528,6 @@ impl Ck<'_, '_> {
                     self.check_field_visible(t, &fname, f);
                     // A subject that is not writable binds a field declared
                     // `mut Suspend[T]` as `Suspend[T]`.
-                    let ft = self.field_access(t, &fname, ft);
                     if let Some(sub) = f.children().next() {
                         self.declare_pattern(sub, ft, binds)?;
                     } else {
@@ -609,21 +608,6 @@ impl Ck<'_, '_> {
             );
             self.err(Code::DuplicateBinding, p, &msg);
         }
-        let t = match self.let_view {
-            Some(annotated)
-                if p.direct_tokens()
-                    .any(|t| self.cx.src.tkind(t) == Some(TokenKind::KwMut)) =>
-            {
-                let _ = annotated;
-                if self.is_coll_ty(t) {
-                    self.readonly_view(t)
-                } else {
-                    t
-                }
-            }
-            Some(false) => self.readonly_view(t),
-            _ => t,
-        };
         let borrow = self.pattern_below_ref.filter(|_| !self.copies(t));
         let t = match borrow {
             Some(mutable) => {
@@ -942,7 +926,6 @@ impl Ck<'_, '_> {
         };
         // `let mut` on a primitive or a tuple (types.bind.let-mut-primitive-local,
         // types.bind.let-mut-tuple-valid).
-        let mut t = t;
         let let_mut = pat.kind() == SyntaxKind::BindingPattern
             && pat
                 .direct_tokens()
@@ -950,15 +933,6 @@ impl Ck<'_, '_> {
         let mut deferred = None;
         if let_mut {
             deferred = self.let_mut_binding(t, true, pat);
-            // A collection in a `let mut` is a value that changes in place
-            // (`types.coll.writable`): its type is the value type.
-            if annot.is_none() && self.is_coll_ty(t) {
-                t = self.readonly_view(t);
-            }
-        } else if pat.kind() == SyntaxKind::BindingPattern && annot.is_none() && !using {
-            // `x := e` and `let x = e` drop an outer `mut` from the type
-            // (types.mut.weaken.v2).
-            t = self.readonly_view(t);
         }
         // A plain name: a new local. A bare `Self` has none and is
         // reported as a pattern (`flow.match.self-pattern`).
@@ -1388,9 +1362,9 @@ impl Ck<'_, '_> {
     /// whole value first. Individual columns decide whether to read or borrow.
     fn pattern_fields(&self, v: Ref, mut t: Ty) -> (TirPlace, Ty) {
         let mut proj = Vec::new();
-        while let Some((inner, mutable)) = self.ref_of(t) {
+        while let Some((inner, _)) = self.ref_of(t) {
             proj.push(Proj::Deref);
-            t = self.deref_ty(inner, mutable);
+            t = self.deref_ty(inner);
         }
         (
             TirPlace {

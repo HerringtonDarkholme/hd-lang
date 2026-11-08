@@ -20,7 +20,7 @@ fn all!(keys: List[string]) -> usize:
     let tasks: List[Suspend[string]] = [for k in keys => fetch(k)]
 > app/main/all
 >   local $0 keys: List[string] [param read]
->   local $1 $acc: mut List[Suspend[string]] [assigned]
+>   local $1 $acc: List[Suspend[string]] [assigned]
 >   local $2 $coll: List[string] [assigned]
 >   local $3 $len: usize [assigned]
 >   local $4 $pos: usize [assigned]
@@ -32,7 +32,7 @@ fn all!(keys: List[string]) -> usize:
 >   local $10 $len: usize [assigned]
 >   local $11 $pos: usize [assigned]
 >   local $12 r: Ref[string] [read assigned]
->   %0 = NewList - [] : mut List[Suspend[string]]
+>   %0 = NewList - [] : List[Suspend[string]]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read [$0] : List[string]
 >   %3 = Store [$2] %2 : ()
@@ -40,7 +40,7 @@ fn all!(keys: List[string]) -> usize:
 >   %5 = Intrinsic ListLen [%4] : usize
 >   %6 = Store [$3] %5 : ()
 >   %7 = Read [$3] : usize
->   %8 = Read [$1] : mut List[Suspend[string]]
+>   %8 = Read [$1] : List[Suspend[string]]
 >   %9 = Intrinsic ListReserve [%8 %7] : ()
 >   %10 = Read [$3] : usize
 >   %11 = Store [$5] %10 : ()
@@ -53,7 +53,7 @@ fn all!(keys: List[string]) -> usize:
 >   %18 = Read [$4] : usize
 >   %19 = Prim Add [%18 1:usize] : usize
 >   %20 = Store [$4] %19 : ()
->   %21 = Read [$1] : mut List[Suspend[string]]
+>   %21 = Read [$1] : List[Suspend[string]]
 >   %22 = Read [$6] : string
 >   %23 = Call app/main/fetch[] (%22) : Suspend[string]
 >   %24 = Intrinsic ListPush [%21 %23] : ()
@@ -67,44 +67,43 @@ fn all!(keys: List[string]) -> usize:
 >   %33 = If %15 [%30 %32] : ()
 >   %34 = Block - : ()
 >   %35 = Loop %34 - : ()
->   %36 = Read [$1] : mut List[Suspend[string]]
->   %37 = Coerce %36 [Weaken -] : List[Suspend[string]]
->   %38 = Store [$7] %37 : ()
->   %72 = Block %71 : usize
+>   %36 = Read [$1] : List[Suspend[string]]
+>   %37 = Store [$7] %36 : ()
+>   %71 = Block %70 : usize
     results := join!(tasks...)
->   %39 = Read [$7] : List[Suspend[string]]
->   %40 = Await std/task/all_list[string] (%39) : List[string]
->   %41 = Store [$8] %40 : ()
+>   %38 = Read [$7] : List[Suspend[string]]
+>   %39 = Await std/task/all_list[string] (%38) : List[string]
+>   %40 = Store [$8] %39 : ()
     let mut n = 0
->   %42 = Store [$9] 0:usize : ()
+>   %41 = Store [$9] 0:usize : ()
     for r in &results:
->   %43 = Read [$8] : List[string]
->   %44 = Intrinsic ListLen [%43] : usize
->   %45 = Store [$10] %44 : ()
->   %46 = Store [$11] 0:usize : ()
->   %47 = Read [$11] : usize
->   %48 = Read [$10] : usize
->   %49 = Prim Lt [%47 %48] : bool
+>   %42 = Read [$8] : List[string]
+>   %43 = Intrinsic ListLen [%42] : usize
+>   %44 = Store [$10] %43 : ()
+>   %45 = Store [$11] 0:usize : ()
+>   %46 = Read [$11] : usize
+>   %47 = Read [$10] : usize
+>   %48 = Prim Lt [%46 %47] : bool
+>   %49 = Read [$11] : usize
 >   %50 = Read [$11] : usize
->   %51 = Read [$11] : usize
->   %52 = Prim Add [%51 1:usize] : usize
->   %53 = Store [$11] %52 : ()
->   %54 = Ref local [%43 [%50]] : Ref[string]
->   %60 = Block - : ()
->   %61 = Store [$12] %54 : ()
->   %63 = Block - : never
->   %64 = Match %54 [%63 %60] : ()
->   %65 = Block - : ()
->   %66 = Break L1 - : never
->   %67 = Block - : ()
->   %68 = If %49 [%65 %67] : ()
->   %69 = Block - : ()
->   %70 = Loop %69 - : ()
+>   %51 = Prim Add [%50 1:usize] : usize
+>   %52 = Store [$11] %51 : ()
+>   %53 = Ref local [%42 [%49]] : Ref[string]
+>   %59 = Block - : ()
+>   %60 = Store [$12] %53 : ()
+>   %62 = Block - : never
+>   %63 = Match %53 [%62 %59] : ()
+>   %64 = Block - : ()
+>   %65 = Break L1 - : never
+>   %66 = Block - : ()
+>   %67 = If %48 [%64 %66] : ()
+>   %68 = Block - : ()
+>   %69 = Loop %68 - : ()
         n += r.len()
->   %55 = Read [$9] : usize
->   %56 = Read [$12] : Ref[string]
->   %57 = Call std/text/impl string.len[] (%56) : usize
->   %58 = Prim Add [%55 %57] : usize
->   %59 = Store [$9] %58 : ()
+>   %54 = Read [$9] : usize
+>   %55 = Read [$12] : Ref[string]
+>   %56 = Call std/text/impl string.len[] (%55) : usize
+>   %57 = Prim Add [%54 %56] : usize
+>   %58 = Store [$9] %57 : ()
     n
->   %71 = Read [$9] : usize
+>   %70 = Read [$9] : usize

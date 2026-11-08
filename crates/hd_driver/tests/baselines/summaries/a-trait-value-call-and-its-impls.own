@@ -62,7 +62,7 @@ fn emit(s: &mut dyn Sink, m: Member) -> void:
 >     uses $1: entry -> %2 lend last
 >   %0 = Release %4 Exit local $1 #2 : ()
     s.put(m)
->   %1 = Read borrow [*$0] : mut Sink
+>   %1 = Read borrow [*$0] : Sink
 >   %2 = Read borrow [$1] : Member
 >   %3 = Call app/main/Sink.put for Sink [] via TraitValue (%1, %2) : ()
 >   %4 = Block - : ()

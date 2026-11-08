@@ -106,7 +106,6 @@ impl Ck<'_, '_> {
             let Some((idx, ft)) = self.field_of(t, name) else {
                 break;
             };
-            let ft = self.field_access(t, name, ft);
             r = self.field_read(r, idx, ft, n.index());
             t = ft;
         }

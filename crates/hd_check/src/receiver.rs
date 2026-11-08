@@ -85,8 +85,8 @@ impl Ck<'_, '_> {
             SyntaxKind::FieldExpr => {
                 // `ref.read.auto`: through every reference level.
                 let mut base = self.peek_place_ty(*kids.first()?)?;
-                while let Some((inner, m)) = self.ref_of(base) {
-                    base = self.deref_ty(inner, m);
+                while let Some((inner, _)) = self.ref_of(base) {
+                    base = self.deref_ty(inner);
                 }
                 let name = self.cx.src.text(self.cx.src.last(e));
                 self.field_of(base, name)
@@ -94,8 +94,8 @@ impl Ck<'_, '_> {
                     .map(|(_, t)| t)
             }
             SyntaxKind::DerefExpr => {
-                let (inner, m) = self.ref_of(self.peek_place_ty(*kids.first()?)?)?;
-                Some(self.deref_ty(inner, m))
+                let (inner, _) = self.ref_of(self.peek_place_ty(*kids.first()?)?)?;
+                Some(self.deref_ty(inner))
             }
             // A list element or a map value, of a collection or of a
             // reference to one; a slice is no place.
@@ -108,7 +108,7 @@ impl Ck<'_, '_> {
                 }
                 let base = self.peek_place_ty(*base)?;
                 let base = match self.ref_of(base) {
-                    Some((inner, m)) => self.deref_ty(inner, m),
+                    Some((inner, _)) => self.deref_ty(inner),
                     None => base,
                 };
                 let base = self.infer.resolve(self.pool(), base);
@@ -208,7 +208,7 @@ impl Ck<'_, '_> {
         };
         let via_ref = self.ref_of(bt);
         let vt = match via_ref {
-            Some((inner, m)) => self.deref_ty(inner, m),
+            Some((inner, _)) => self.deref_ty(inner),
             None => bt,
         };
         // A method promoted from an embedded struct takes the address of
@@ -371,7 +371,7 @@ impl Ck<'_, '_> {
         }
         match self.ref_of(t) {
             Some((inner, true)) => {
-                let vt = self.deref_ty(inner, true);
+                let vt = self.deref_ty(inner);
                 let counted = self.ref_counted(t).unwrap_or(true);
                 let rt = self.ref_ty(self.strip_mut(inner), true, counted);
                 Some((self.retype(r, rt, base.index()), vt))
@@ -401,7 +401,7 @@ impl Ck<'_, '_> {
         let Some((inner, rm)) = self.ref_of(t) else {
             return Ok(None);
         };
-        let vt = self.deref_ty(inner, rm);
+        let vt = self.deref_ty(inner);
         let Some(mutable) = self.ref_receiver_named(vt, name)? else {
             return Ok(None);
         };
@@ -551,7 +551,7 @@ impl Ck<'_, '_> {
     /// (`fn.method.auto-address.place-writable`); reports why not otherwise, with
     /// a fix-it that makes the binding writable.
     fn receiver_writable(&mut self, p: &Place, at: NodeRef<'_>, name: &str) -> bool {
-        let ok = match p.root {
+        match p.root {
             Root::Local(l, _) => self.receiver_local_writable(l, at, name),
             Root::Global(s, _, _) => {
                 let g = self.global_binding(s);
@@ -581,20 +581,7 @@ impl Ck<'_, '_> {
             Root::Elem(list, _, lt) | Root::Slot(list, _, lt, _) => {
                 self.coll_change(list, lt, "this call", at)
             }
-        };
-        if !ok {
-            return false;
         }
-        // A list or a map value is no view (`ref.place.writable.collection`).
-        if self.is_composite(p.ty) && !self.is_coll_value(p.ty) && !self.has_mut_access(p.ty) {
-            let msg = format!(
-                "`{name}` takes `&mut self`, but the receiver holds a readonly {}",
-                self.show(p.ty)
-            );
-            self.err(Code::NotWritable, at, &msg);
-            return false;
-        }
-        true
     }
 
     /// Whether the local `l` is writable for a `&mut self` receiver: a

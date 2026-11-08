@@ -421,12 +421,12 @@ impl Ck<'_, '_> {
                 Operand::Place(p) => Some(p),
                 Operand::Value(mut r, mut t) => {
                     let mut found = None;
-                    while let Some((inner, access)) = self.ref_of(t) {
+                    while let Some((inner, _)) = self.ref_of(t) {
                         if matches!(self.index_kind(inner), Some((Indexed::Map, ..))) {
                             found = Some(Place {
                                 root: Root::Deref(r, t),
                                 path: vec![],
-                                ty: self.deref_ty(inner, access),
+                                ty: self.deref_ty(inner),
                             });
                             break;
                         }

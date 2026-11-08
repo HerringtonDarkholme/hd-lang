@@ -116,15 +116,10 @@ impl Ck<'_, '_> {
         })
     }
 
-    /// A read keeps its declared type; `&mut` also grants legacy view access.
-    pub(crate) fn deref_ty(&self, inner: Ty, mutable: bool) -> Ty {
-        let pool = self.pool();
-        let inner = self.infer.resolve(pool, inner);
-        if mutable && self.is_composite(inner) && !matches!(pool.get(inner), TyData::Mut(_)) {
-            pool.intern_ty(&TyData::Mut(inner))
-        } else {
-            inner
-        }
+    /// A read through a reference has the referent's type, whatever the
+    /// reference's permission (`types.value.writable-places`).
+    pub(crate) fn deref_ty(&self, inner: Ty) -> Ty {
+        self.infer.resolve(self.pool(), inner)
     }
 
     /// `ref.convert.readonly-covariant`, `ref.convert.readonly-option`:
@@ -308,10 +303,10 @@ impl Ck<'_, '_> {
     /// dereference): `Read [*%r]`. A field step on it extends the place
     /// ([`Ck::field_read`]).
     pub(crate) fn emit_deref(&mut self, r: Ref, rt: Ty, at: NodeIdx) -> (Ref, Ty) {
-        let Some((inner, mutable)) = self.ref_of(rt) else {
+        let Some((inner, _)) = self.ref_of(rt) else {
             return (r, rt);
         };
-        let t = self.deref_ty(inner, mutable);
+        let t = self.deref_ty(inner);
         if r.0 == NONE {
             return (self.b.emit(Tag::Poison, NONE, NONE, t, at), t);
         }
@@ -487,21 +482,7 @@ impl Ck<'_, '_> {
                 if matches!(self.infer.resolve(pool, t), Ty::POISON | Ty::NEVER) || v.0 == NONE {
                     return Ok(self.ref_poison(n));
                 }
-                // A new object holds a copy of the value (`ref.expr.allocate`);
-                // `&mut` on a composite value without mutable access, such as
-                // a readonly `Suspend[T]`, would upgrade it
-                // (`types.mut.no-upgrade.v2`).
-                // A list or map value is no view: the new object holds a
-                // copy of it (`ref.place.writable.collection`).
-                let coll = self.is_coll_value(t);
-                if mutable && !coll && self.is_composite(t) && !self.has_mut_access(t) {
-                    let msg = format!(
-                        "`&mut` needs mutable access, but the value is a readonly {}",
-                        self.show(t)
-                    );
-                    self.err(Code::MutableUpgrade, e, &msg);
-                    return Ok(self.ref_poison(n));
-                }
+                // A new object holds a copy of the value (`ref.expr.allocate`).
                 let (l, d) = self.hold(v, t, e);
                 // The closures share the new local (a cell); the `set`
                 // closure assigns it.
@@ -664,14 +645,14 @@ impl Ck<'_, '_> {
                 let [inner] = e.parts();
                 self.elem_may_stand(inner, crate::elem_refs::ElemUse::Through);
                 let (r, t) = self.expr(inner, None)?;
-                let Some((it, m)) = self.ref_of(t) else {
+                let Some((it, _)) = self.ref_of(t) else {
                     self.not_a_reference(t, inner);
                     return Ok(None);
                 };
                 Ok(Some(Operand::Place(Place {
                     root: Root::Deref(r, t),
                     path: vec![],
-                    ty: self.deref_ty(it, m),
+                    ty: self.deref_ty(it),
                 })))
             }
             // A list element names a slot of the list's buffer, which a
@@ -743,7 +724,6 @@ impl Ck<'_, '_> {
                 p.ty = saved.1;
                 return p;
             }
-            let ft = self.field_access(p.ty, step, ft);
             p.path.push((idx, ft));
             p.ty = ft;
         }
@@ -803,11 +783,11 @@ impl Ck<'_, '_> {
                 if matches!(self.infer.resolve(self.pool(), t), Ty::POISON | Ty::NEVER) {
                     return Ok(None);
                 }
-                if let Some((inner, m)) = self.ref_of(t) {
+                if let Some((inner, _)) = self.ref_of(t) {
                     let p = Place {
                         root: Root::Deref(r, t),
                         path: vec![],
-                        ty: self.deref_ty(inner, m),
+                        ty: self.deref_ty(inner),
                     };
                     return self.field_step(Operand::Place(p), name, (base, e), use_);
                 }
@@ -937,20 +917,6 @@ impl Ck<'_, '_> {
             }
         };
         if !ok {
-            return false;
-        }
-        // A composite value without mutable access in the place, such as a
-        // readonly `Suspend[T]`, grants no writes, so `&mut` to it would
-        // upgrade it (`types.mut.no-upgrade.v2`). A collection value is
-        // no view: a writable place holding one is writable
-        // (`types.coll.writable`).
-        let coll_value = self.is_coll_value(p.ty);
-        if self.is_composite(p.ty) && !self.has_mut_access(p.ty) && !coll_value {
-            let msg = format!(
-                "`&mut` needs mutable access, but this place holds a readonly {}",
-                self.show(p.ty)
-            );
-            self.err(Code::MutableUpgrade, at, &msg);
             return false;
         }
         true
@@ -1287,9 +1253,9 @@ impl Ck<'_, '_> {
             self.err(Code::TypeMismatch, lhs, &msg);
             return Ok(());
         }
-        // A value with views is stored with mutable access, which a read
-        // through the reference grants (`ref.read.type`).
-        let want = self.deref_ty(inner, true);
+        // A store through the reference takes the referent's type
+        // (`ref.read.type`).
+        let want = self.deref_ty(inner);
         let v = match compound {
             None => {
                 let (vr, vt) = self.stored_expr(rhs, Some(want), "through this reference")?;

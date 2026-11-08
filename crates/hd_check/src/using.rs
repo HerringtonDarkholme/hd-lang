@@ -133,7 +133,7 @@ impl Ck<'_, '_> {
         let m = self.b.open_block();
         let recv = if let Some((inner, _)) = referred {
             let v = self.b.get(l, t, s.index());
-            let vt = self.deref_ty(inner, true);
+            let vt = self.deref_ty(inner);
             if matches!(pool.get(self.strip_mut(vt)), TyData::TraitValue { .. }) {
                 // A trait value passes its payload to the selected trait's
                 // reference receiver (`trait.dyn.ref.member`).

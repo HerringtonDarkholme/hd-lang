@@ -60,7 +60,6 @@ impl Ck<'_, '_> {
             let Some((idx, ft)) = self.field_of(st, &name) else {
                 continue;
             };
-            let ft = self.field_access(st, &name, ft);
             vals[i] = self.b.field(sr, idx, ft, at.index());
         }
     }

@@ -122,15 +122,7 @@ impl Ck<'_, '_> {
             }
             _ => gs,
         };
-        // A mutable reference to a readonly view gets no fix-it.
         let mark = if mutable { "&mut" } else { "&" };
-        let hint = match pool.get(gs) {
-            _ if mutable && self.is_composite(g) && !self.has_mut_access(g) => Some(format!(
-                "this readonly {} grants no writes, so pass `&mut` to a writable place",
-                self.show(g)
-            )),
-            _ => None,
-        };
         // A counted reference refers to an object, so the value is boxed
         // where it is declared (`req.ref.install-value.fix`).
         let advice = if counted {
@@ -142,13 +134,13 @@ impl Ck<'_, '_> {
             "in {what}: expected {}, found {}; a value never becomes a trait value reference by itself, {}",
             self.show(target),
             self.show(g),
-            hint.as_deref().map_or(advice, |h| format!("and {h}"))
+            advice
         );
         self.err(Code::TypeMismatch, n, &msg);
-        match hint {
-            Some(_) => {}
-            None if counted => self.dyn_box_fix(gs, tv, n),
-            None => self.dyn_ref_value_fix(gs, tv, mutable, n),
+        if counted {
+            self.dyn_box_fix(gs, tv, n);
+        } else {
+            self.dyn_ref_value_fix(gs, tv, mutable, n);
         }
         Some(r)
     }

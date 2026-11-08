@@ -1966,9 +1966,6 @@ impl Ck<'_, '_> {
         // A variable a generic call solves is not a declared type either:
         // permissions inside it weaken (types.generic.infer.join).
         let joined = matches!(pool.get(want), TyData::Infer(_));
-        if !joined && self.check_upgrade(got, want, n, what) {
-            return r;
-        }
         let strip = |t: Ty| match pool.get(t) {
             TyData::Mut(i) => i,
             _ => t,
@@ -1991,9 +1988,7 @@ impl Ck<'_, '_> {
                 let r = self.coerce(r, got, inner, n, what, position);
                 return self.b.coerce(Coercion::WrapSome, NONE, r, want, n.index());
             }
-            if !self.check_upgrade(got, inner, n, what) {
-                self.expect(got, inner, n, what, position);
-            }
+            self.expect(got, inner, n, what, position);
             return self.b.coerce(Coercion::WrapSome, NONE, r, want, n.index());
         }
         // Internal reference getters and identity metadata still use trait
@@ -4148,8 +4143,8 @@ impl Ck<'_, '_> {
                 // `ref.read.auto`: outer reference levels read through to
                 // the last one, which decides the write, as `(*x).f = v`.
                 let (mut br, mut bt) = (br, bt);
-                while let Some((inner, mutable)) = self.ref_of(bt)
-                    && self.ref_of(self.deref_ty(inner, mutable)).is_some()
+                while let Some((inner, _)) = self.ref_of(bt)
+                    && self.ref_of(self.deref_ty(inner)).is_some()
                 {
                     (br, bt) = self.emit_deref(br, bt, base.index());
                 }
@@ -4164,11 +4159,11 @@ impl Ck<'_, '_> {
                         self.err(Code::NotWritable, lhs, &msg);
                         return Ok(());
                     }
-                    Some((inner, true)) if self.is_value_record_ty(self.deref_ty(inner, true)) => {
+                    Some((inner, true)) if self.is_value_record_ty(self.deref_ty(inner)) => {
                         let place = crate::refs::Place {
                             root: crate::refs::Root::Deref(br, bt),
                             path: vec![],
-                            ty: self.deref_ty(inner, true),
+                            ty: self.deref_ty(inner),
                         };
                         let p = self.promote_place(place, &fname);
                         return self.struct_field_assign(p, (base, lhs, rhs, s), &fname, compound);
@@ -4740,8 +4735,8 @@ impl Ck<'_, '_> {
         let TyData::Adt { def: target, args } = pool.get(self_ty) else {
             return;
         };
-        // The built-in collections' markers describe their readonly views
-        // only, as in lowering.
+        // The built-in collections' variance is the language's, as in
+        // lowering.
         let known = self.cx.names.known;
         if target == known.list || target == known.map {
             return;

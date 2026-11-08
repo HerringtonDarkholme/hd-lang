@@ -15,7 +15,7 @@ fn pairs(xs: List[string], ys: List[string]) -> List[(string, string)]:
 > app/main/pairs
 >   local $0 xs: List[string] [param read]
 >   local $1 ys: List[string] [param read]
->   local $2 $acc: mut List[(string, string)] [assigned]
+>   local $2 $acc: List[(string, string)] [assigned]
 >   local $3 $coll: List[string] [assigned]
 >   local $4 $len: usize [assigned]
 >   local $5 $pos: usize [assigned]
@@ -26,7 +26,7 @@ fn pairs(xs: List[string], ys: List[string]) -> List[(string, string)]:
 >   local $10 $pos: usize [assigned]
 >   local $11 $end: usize [assigned]
 >   local $12 y: string [read assigned captured]
->   %0 = NewList - [] : mut List[(string, string)]
+>   %0 = NewList - [] : List[(string, string)]
 >   %1 = Store [$2] %0 : ()
 >   %2 = Read [$0] : List[string]
 >   %3 = Store [$3] %2 : ()
@@ -65,7 +65,7 @@ fn pairs(xs: List[string], ys: List[string]) -> List[(string, string)]:
 >   %36 = Ref local [$12] : Ref[string]
 >   %37 = Call std/text/impl string.len[] (%36) : usize
 >   %38 = Prim Eq [%35 %37] : bool
->   %39 = Read [$2] : mut List[(string, string)]
+>   %39 = Read [$2] : List[(string, string)]
 >   %40 = Read [$7] : string
 >   %41 = Read [$12] : string
 >   %42 = NewTuple - [%40 %41] : (string, string)
@@ -92,21 +92,20 @@ fn pairs(xs: List[string], ys: List[string]) -> List[(string, string)]:
 >   %65 = If %12 [%62 %64] : ()
 >   %66 = Block - : ()
 >   %67 = Loop %66 - : ()
->   %68 = Read [$2] : mut List[(string, string)]
->   %69 = Coerce %68 [Weaken -] : List[(string, string)]
->   %70 = Block %69 : List[(string, string)]
+>   %68 = Read [$2] : List[(string, string)]
+>   %69 = Block %68 : List[(string, string)]
 
 fn names(users: List[User]) -> List[string]:
     [for u in users if u.active => u.name]
 > app/main/names
 >   local $0 users: List[User] [param read]
->   local $1 $acc: mut List[string] [assigned]
+>   local $1 $acc: List[string] [assigned]
 >   local $2 $coll: List[User] [assigned]
 >   local $3 $len: usize [assigned]
 >   local $4 $pos: usize [assigned]
 >   local $5 $end: usize [assigned]
 >   local $6 u: User [read assigned]
->   %0 = NewList - [] : mut List[string]
+>   %0 = NewList - [] : List[string]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read [$0] : List[User]
 >   %3 = Store [$2] %2 : ()
@@ -125,7 +124,7 @@ fn names(users: List[User]) -> List[string]:
 >   %16 = Prim Add [%15 1:usize] : usize
 >   %17 = Store [$4] %16 : ()
 >   %18 = Read [$6 .active] : bool
->   %19 = Read [$1] : mut List[string]
+>   %19 = Read [$1] : List[string]
 >   %20 = Read [$6 .name] : string
 >   %21 = Intrinsic ListPush [%19 %20] : ()
 >   %22 = Block - : ()
@@ -140,21 +139,20 @@ fn names(users: List[User]) -> List[string]:
 >   %32 = If %12 [%29 %31] : ()
 >   %33 = Block - : ()
 >   %34 = Loop %33 - : ()
->   %35 = Read [$1] : mut List[string]
->   %36 = Coerce %35 [Weaken -] : List[string]
->   %37 = Block %36 : List[string]
+>   %35 = Read [$1] : List[string]
+>   %36 = Block %35 : List[string]
 
 fn by_name(users: List[User]) -> Map[string, i64]:
     {for u in users if u.active => u.name: u.id}
 > app/main/by_name
 >   local $0 users: List[User] [param read]
->   local $1 $acc: mut Map[string, i64] [assigned]
+>   local $1 $acc: Map[string, i64] [assigned]
 >   local $2 $coll: List[User] [assigned]
 >   local $3 $len: usize [assigned]
 >   local $4 $pos: usize [assigned]
 >   local $5 $end: usize [assigned]
 >   local $6 u: User [read assigned]
->   %0 = NewMap [] : mut Map[string, i64]
+>   %0 = NewMap [] : Map[string, i64]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read [$0] : List[User]
 >   %3 = Store [$2] %2 : ()
@@ -173,7 +171,7 @@ fn by_name(users: List[User]) -> Map[string, i64]:
 >   %16 = Prim Add [%15 1:usize] : usize
 >   %17 = Store [$4] %16 : ()
 >   %18 = Read [$6 .active] : bool
->   %19 = Read [$1] : mut Map[string, i64]
+>   %19 = Read [$1] : Map[string, i64]
 >   %20 = Read [$6 .name] : string
 >   %21 = Read [$6 .id] : i64
 >   %22 = Intrinsic MapSet [%19 %20 %21] : ()
@@ -189,22 +187,21 @@ fn by_name(users: List[User]) -> Map[string, i64]:
 >   %33 = If %12 [%30 %32] : ()
 >   %34 = Block - : ()
 >   %35 = Loop %34 - : ()
->   %36 = Read [$1] : mut Map[string, i64]
->   %37 = Coerce %36 [Weaken -] : Map[string, i64]
->   %38 = Block %37 : Map[string, i64]
+>   %36 = Read [$1] : Map[string, i64]
+>   %37 = Block %36 : Map[string, i64]
 
 fn sizes(users: List[User]) -> List[usize]:
     [for u in users if (n := u.name.len()) > 0 => n]
 > app/main/sizes
 >   local $0 users: List[User] [param read]
->   local $1 $acc: mut List[usize] [assigned]
+>   local $1 $acc: List[usize] [assigned]
 >   local $2 $coll: List[User] [assigned]
 >   local $3 $len: usize [assigned]
 >   local $4 $pos: usize [assigned]
 >   local $5 $end: usize [assigned]
 >   local $6 u: User [read assigned captured]
 >   local $7 n: usize [:= read assigned]
->   %0 = NewList - [] : mut List[usize]
+>   %0 = NewList - [] : List[usize]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read [$0] : List[User]
 >   %3 = Store [$2] %2 : ()
@@ -227,7 +224,7 @@ fn sizes(users: List[User]) -> List[usize]:
 >   %20 = Store [$7] %19 : ()
 >   %21 = Read [$7] : usize
 >   %22 = Prim Gt [%21 0:usize] : bool
->   %23 = Read [$1] : mut List[usize]
+>   %23 = Read [$1] : List[usize]
 >   %24 = Read [$7] : usize
 >   %25 = Intrinsic ListPush [%23 %24] : ()
 >   %26 = Block - : ()
@@ -242,6 +239,5 @@ fn sizes(users: List[User]) -> List[usize]:
 >   %36 = If %12 [%33 %35] : ()
 >   %37 = Block - : ()
 >   %38 = Loop %37 - : ()
->   %39 = Read [$1] : mut List[usize]
->   %40 = Coerce %39 [Weaken -] : List[usize]
->   %41 = Block %40 : List[usize]
+>   %39 = Read [$1] : List[usize]
+>   %40 = Block %39 : List[usize]

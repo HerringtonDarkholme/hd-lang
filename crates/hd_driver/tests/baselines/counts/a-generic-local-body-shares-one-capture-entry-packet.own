@@ -23,7 +23,7 @@ fn generic(captured: string) -> (fn(i32) -> (string, i32), fn(string) -> (string
 >   %4 = Read move [$1] : T
 >   %5 = NewTuple - [%3 %4] : (string, T)
     (pair::[i32], pair::[string])
->   %9 = Closure #1 [%0 %1 %0 %4232] : fn(i32) -> (string, i32)
+>   %9 = Closure #1 [%0 %1 %0 %4231] : fn(i32) -> (string, i32)
 >   %10 = Retain %9 Operation captures #0 : ()
 >   %11 = Closure #1 [%0 %1 %0 %41] : fn(string) -> (string, string)
 >   %12 = Retain %11 Operation captures #0 : ()

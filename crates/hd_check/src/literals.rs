@@ -282,7 +282,6 @@ impl Ck<'_, '_> {
                 def: list,
                 args: pool.list(&[el]),
             });
-            let lt = pool.intern_ty(&TyData::Mut(lt));
             let rec = me.b.refs_record(items);
             me.b.emit(Tag::NewList, NONE, rec, lt, n.index())
         };

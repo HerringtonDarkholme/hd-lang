@@ -4489,8 +4489,8 @@ impl Lower<'_, '_, '_> {
         let TyData::Adt { def: target, args } = pool.get(self_ty) else {
             return;
         };
-        // The built-in collections' markers describe their readonly views
-        // only (types.variance.list, types.variance.map).
+        // The built-in collections' variance is the language's, not their
+        // implementations' (types.variance.list, types.variance.map).
         if target == self.names.known.list || target == self.names.known.map {
             return;
         }

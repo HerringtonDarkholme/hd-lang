@@ -43,11 +43,11 @@ fn line(text: string) -> void $ Sink:
 >   %3 = Store [$1] %2 : ()
 >   %10 = Block - : ()
     sink.put(text)
->   %4 = Read borrow [*$1] : mut Sink
+>   %4 = Read borrow [*$1] : Sink
 >   %5 = Read borrow [$0] : string
 >   %6 = Call app/main/Sink.put for Sink [] via TraitValue (%4, %5) : ()
     sink.put("!")
->   %7 = Read borrow [*$1] : mut Sink
+>   %7 = Read borrow [*$1] : Sink
 >   %8 = Call app/main/Sink.put for Sink [] via TraitValue (%7, "!") : ()
 >   %9 = LoanEnd [$1] : ()
 >   summary kept [] borrows [$0] writes
@@ -68,7 +68,7 @@ fn swapped(text: string, other: &mut dyn Sink) -> void $ Sink:
 >   %4 = Store [$2] %3 : ()
 >   %14 = Block - : ()
     sink.put(text)
->   %5 = Read borrow [*$2] : mut Sink
+>   %5 = Read borrow [*$2] : Sink
 >   %6 = Read borrow [$0] : string
 >   %7 = Call app/main/Sink.put for Sink [] via TraitValue (%5, %6) : ()
     sink = other
@@ -76,7 +76,7 @@ fn swapped(text: string, other: &mut dyn Sink) -> void $ Sink:
 >   %9 = Store [$2] %8 : ()
 >   %10 = Release %9 Operation #3 : ()
     sink.put("!")
->   %11 = Read borrow [*$2] : mut Sink
+>   %11 = Read borrow [*$2] : Sink
 >   %12 = Call app/main/Sink.put for Sink [] via TraitValue (%11, "!") : ()
 >   %13 = Drop [$2] : ()
 >   summary kept [$1] borrows [$0] writes

@@ -960,8 +960,7 @@ impl Ck<'_, '_> {
     }
 
     /// The base type's constructor unwraps a newtype value `r` of type `t`
-    /// (`types.newtype.construct`). A composite base keeps the newtype
-    /// value's outer `mut`, which only a `mut Suspend[T]` base can have.
+    /// (`types.newtype.construct`).
     fn unwrap_newtype(
         &mut self,
         r: Ref,
@@ -975,12 +974,7 @@ impl Ck<'_, '_> {
             return None;
         }
         self.expect(inner, to, arg, "conversion", ExpectPosition::General);
-        let result = if self.is_composite(to) && self.has_mut_access(t) {
-            self.pool().intern_ty(&TyData::Mut(to))
-        } else {
-            to
-        };
-        Some((self.b.field(r, 0, result, n.index()), result))
+        Some((self.b.field(r, 0, to, n.index()), to))
     }
 
     /// A call of the struct, enum or alias `name`, which expands to
@@ -1652,7 +1646,7 @@ impl Ck<'_, '_> {
             self.err(Code::ArgumentCount, n, &msg);
         }
         // Bare variable parameters still open: several arguments solving
-        // one join at the readonly view (types.generic.infer.join).
+        // one join (types.generic.infer.join).
         let pool = self.pool();
         let open: Vec<bool> = rest
             .iter()
@@ -1681,7 +1675,7 @@ impl Ck<'_, '_> {
                 items.push((r, w.unwrap_or(t)));
                 continue;
             }
-            let mut w = match rest.get(i) {
+            let w = match rest.get(i) {
                 Some(p) => Some(self.normalize_deep(p.1)?),
                 None => None,
             };
@@ -1729,12 +1723,6 @@ impl Ck<'_, '_> {
                 && !self.diags.has_errors()
             {
                 self.never_args.push(p.1);
-            }
-            if let Some(p) = rest.get(i)
-                && open.get(i).copied().unwrap_or(false)
-                && self.join_down(p.1, t)
-            {
-                w = Some(self.normalize_deep(p.1)?);
             }
             let what = if rest
                 .get(i)
@@ -1818,7 +1806,7 @@ impl Ck<'_, '_> {
                 named_bad = true;
                 continue;
             }
-            let mut w = self.normalize_deep(rest[i].1)?;
+            let w = self.normalize_deep(rest[i].1)?;
             let rejoin =
                 open[i] && !matches!(pool.get(self.infer.shallow(pool, w)), TyData::Infer(_));
             let mut bounded = None;
@@ -1850,9 +1838,6 @@ impl Ck<'_, '_> {
             let (r, t) = self.bounded_closure(r, t, fn_want.map(|f| f.ty), *e);
             if open[i] && self.infer.resolve(pool, t) == Ty::NEVER && !self.diags.has_errors() {
                 self.never_args.push(rest[i].1);
-            }
-            if open[i] && self.join_down(rest[i].1, t) {
-                w = self.normalize_deep(rest[i].1)?;
             }
             if rejoin && self.infer_join_conflict(w, t, *e) {
                 slots[i] = Some(r);
@@ -2523,13 +2508,6 @@ impl Ck<'_, '_> {
                 let it = subst_owner(pool, def, &targs, inner);
                 let (r, rt) = self.stored_expr(e, Some(it), "in this newtype")?;
                 let r = self.coerce(r, rt, it, e, "argument", ExpectPosition::General);
-                // A newtype over a composite keeps its base value's outer
-                // `mut`, which only a `mut Suspend[T]` base can have.
-                let t = if self.is_composite(rt) && self.has_mut_access(rt) {
-                    pool.intern_ty(&TyData::Mut(t))
-                } else {
-                    t
-                };
                 let rec = self.b.refs_record(&[r]);
                 Ok((self.b.emit(Tag::NewStruct, NONE, rec, t, n.index()), t))
             }
@@ -3359,8 +3337,8 @@ impl Ck<'_, '_> {
         // `ref.read.auto`: through outer reference levels, as Rust's
         // auto-deref, down to the last reference or to one whose referent
         // has the method itself.
-        while let Some((inner, mutable)) = self.ref_of(rt) {
-            let vt = self.deref_ty(inner, mutable);
+        while let Some((inner, _)) = self.ref_of(rt) {
+            let vt = self.deref_ty(inner);
             if self.ref_of(vt).is_none() || self.resolve_method(vt, &name)?.is_some() {
                 break;
             }

@@ -918,24 +918,13 @@ impl Ck<'_, '_> {
             ),
             None => (r, t),
         };
-        // A binding without an annotation drops an outer `mut` from its
-        // type (types.mut.weaken.v2); `let mut` is judged by `let_mut_binding`
-        // (types.value.let-mut).
+        // `let mut` is judged by `let_mut_binding` (types.value.let-mut).
         let mutable = pat
             .direct_tokens()
             .any(|t| self.cx.src.tkind(t) == Some(TokenKind::KwMut));
-        let t = if mutable {
+        if mutable {
             self.let_mut_binding(t, false, pat);
-            if annot.is_none() && self.is_coll_ty(t) {
-                self.readonly_view(t)
-            } else {
-                t
-            }
-        } else if annot.is_none() {
-            self.readonly_view(t)
-        } else {
-            t
-        };
+        }
         let module = self.module_init.clone().unwrap_or_default();
         let def = self.cx.names.item(&module, &text);
         self.cx.init.borrow_mut().globals.insert(

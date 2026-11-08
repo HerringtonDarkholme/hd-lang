@@ -8,14 +8,14 @@ fn fill(n: usize) -> List[bool]:
 > app/main/fill
 >   local $0 n: usize [param read] value
 >     uses $0: entry -> %2 consume last
->   local $1 $acc: mut List[bool] [assigned] value
+>   local $1 $acc: List[bool] [assigned] value
 >     uses $1: %1 -> %21 lend, %31 lend, %39 consume last
 >   local $2 $cur: usize [assigned] place
 >   local $3 $end: usize [assigned] value
 >     uses $3: %7 -> %12 lend, %24 lend
 >   local $4 $incl: bool [assigned] value
 >     uses $4: none
->   %0 = NewList - [] : mut List[bool]
+>   %0 = NewList - [] : List[bool]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read copy [$0] : usize
 >   %3 = NewStruct [0:usize %2 0:bool] : Range[usize]
@@ -36,7 +36,7 @@ fn fill(n: usize) -> List[bool]:
 >   %18 = Block 0:usize : usize
 >   %19 = If %14 [%17 %18] : usize
 >   %20 = IsUnique fresh [$1] : ()
->   %21 = Read borrow [$1] : mut List[bool]
+>   %21 = Read borrow [$1] : List[bool]
 >   %22 = Intrinsic ListReserve [%21 %19] : ()
 >   %23 = Read copy [$2] : usize
 >   %24 = Read copy [$3] : usize
@@ -46,7 +46,7 @@ fn fill(n: usize) -> List[bool]:
 >   %28 = Prim Add [%27 1:usize] : usize
 >   %29 = Store [$2] %28 : ()
 >   %30 = IsUnique fresh [$1] : ()
->   %31 = Read borrow [$1] : mut List[bool]
+>   %31 = Read borrow [$1] : List[bool]
 >   %32 = Intrinsic ListPush [%31 1:bool] : ()
 >   %33 = Block - : ()
 >   %34 = Break L0 - : never
@@ -54,15 +54,14 @@ fn fill(n: usize) -> List[bool]:
 >   %36 = If %25 [%33 %35] : ()
 >   %37 = Block - : ()
 >   %38 = Loop %37 - : ()
->   %39 = Read move [$1] : mut List[bool]
->   %40 = Coerce %39 [Weaken -] : List[bool]
->   %41 = Block %40 : List[bool]
+>   %39 = Read move [$1] : List[bool]
+>   %40 = Block %39 : List[bool]
 
 fn doubled(xs: List[i32]) -> List[i32]:
 > app/main/doubled
 >   local $0 xs: List[i32] [param read] value
 >     uses $0: entry -> %3 lend, %17 lend
->   local $1 $acc: mut List[i32] [assigned] value
+>   local $1 $acc: List[i32] [assigned] value
 >     uses $1: %2 -> %8 lend, %24 lend, %37 consume last
 >   local $3 $len: usize [assigned] value
 >     uses $3: %5 -> %6 lend, %10 consume last
@@ -71,16 +70,16 @@ fn doubled(xs: List[i32]) -> List[i32]:
 >     uses $5: %11 -> %14 lend
 >   local $6 x: i32 [read assigned] value
 >     uses $6: %27 -> %21 lend last
->   %0 = Release %39 Exit local $0 #2 : ()
+>   %0 = Release %38 Exit local $0 #2 : ()
     [for x in xs => x * 2]
->   %1 = NewList - [] : mut List[i32]
+>   %1 = NewList - [] : List[i32]
 >   %2 = Store [$1] %1 : ()
 >   %3 = Read borrow [$0] : List[i32]
 >   %4 = Intrinsic ListLen [%3] : usize
 >   %5 = Store [$3] %4 : ()
 >   %6 = Read copy [$3] : usize
 >   %7 = IsUnique fresh [$1] : ()
->   %8 = Read borrow [$1] : mut List[i32]
+>   %8 = Read borrow [$1] : List[i32]
 >   %9 = Intrinsic ListReserve [%8 %6] : ()
 >   %10 = Read copy [$3] : usize
 >   %11 = Store [$5] %10 : ()
@@ -96,7 +95,7 @@ fn doubled(xs: List[i32]) -> List[i32]:
 >   %21 = Read copy [$6] : i32
 >   %22 = Prim Mul [%21 2:i32] : i32
 >   %23 = IsUnique fresh [$1] : ()
->   %24 = Read borrow [$1] : mut List[i32]
+>   %24 = Read borrow [$1] : List[i32]
 >   %25 = Intrinsic ListPush [%24 %22] : ()
 >   %26 = Block - : ()
 >   %27 = Store [$6] %17 : ()
@@ -108,6 +107,5 @@ fn doubled(xs: List[i32]) -> List[i32]:
 >   %34 = If %15 [%31 %33] : ()
 >   %35 = Block - : ()
 >   %36 = Loop %35 - : ()
->   %37 = Read move [$1] : mut List[i32]
->   %38 = Coerce %37 [Weaken -] : List[i32]
->   %39 = Block %38 : List[i32]
+>   %37 = Read move [$1] : List[i32]
+>   %38 = Block %37 : List[i32]

@@ -185,13 +185,13 @@ fn comprehension(xs: List[string]) -> List[usize]:
     [for x in xs => x.len()]
 > app/main/comprehension
 >   local $0 xs: List[string] [param read]
->   local $1 $acc: mut List[usize] [assigned]
+>   local $1 $acc: List[usize] [assigned]
 >   local $2 $coll: List[string] [assigned]
 >   local $3 $len: usize [assigned]
 >   local $4 $pos: usize [assigned]
 >   local $5 $end: usize [assigned]
 >   local $6 x: string [read assigned captured]
->   %0 = NewList - [] : mut List[usize]
+>   %0 = NewList - [] : List[usize]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read [$0] : List[string]
 >   %3 = Store [$2] %2 : ()
@@ -199,7 +199,7 @@ fn comprehension(xs: List[string]) -> List[usize]:
 >   %5 = Intrinsic ListLen [%4] : usize
 >   %6 = Store [$3] %5 : ()
 >   %7 = Read [$3] : usize
->   %8 = Read [$1] : mut List[usize]
+>   %8 = Read [$1] : List[usize]
 >   %9 = Intrinsic ListReserve [%8 %7] : ()
 >   %10 = Read [$3] : usize
 >   %11 = Store [$5] %10 : ()
@@ -212,7 +212,7 @@ fn comprehension(xs: List[string]) -> List[usize]:
 >   %18 = Read [$4] : usize
 >   %19 = Prim Add [%18 1:usize] : usize
 >   %20 = Store [$4] %19 : ()
->   %21 = Read [$1] : mut List[usize]
+>   %21 = Read [$1] : List[usize]
 >   %22 = Ref local [$6] : Ref[string]
 >   %23 = Call std/text/impl string.len[] (%22) : usize
 >   %24 = Intrinsic ListPush [%21 %23] : ()
@@ -226,6 +226,5 @@ fn comprehension(xs: List[string]) -> List[usize]:
 >   %33 = If %15 [%30 %32] : ()
 >   %34 = Block - : ()
 >   %35 = Loop %34 - : ()
->   %36 = Read [$1] : mut List[usize]
->   %37 = Coerce %36 [Weaken -] : List[usize]
->   %38 = Block %37 : List[usize]
+>   %36 = Read [$1] : List[usize]
+>   %37 = Block %36 : List[usize]

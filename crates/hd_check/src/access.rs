@@ -42,27 +42,6 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// Whether an expression of type `t` has mutable access
-    /// (types.path.access): a `mut U` type. A type with no readonly view,
-    /// or one not known yet, counts as mutable so that no error is reported
-    /// on it.
-    pub(crate) fn has_mut_access(&self, t: Ty) -> bool {
-        let pool = self.pool();
-        let t = self.infer.resolve(pool, t);
-        match pool.get(t) {
-            TyData::Mut(_) => true,
-            TyData::Param(_) => false,
-            // A struct and an enum are values with no readonly view: an
-            // enum changes by replacing the whole value, so a writable
-            // place holding one is writable (`ref.place.writable.enum`).
-            TyData::Adt { def, .. } => {
-                self.is_struct_def(def) || self.is_enum_def(def) || self.is_coll_def(def)
-            }
-            TyData::TraitValue { .. } => false,
-            _ => true,
-        }
-    }
-
     /// Whether `def` is an `enum` declaration.
     pub(crate) fn is_enum_def(&self, def: hd_base::DefId) -> bool {
         self.cx
@@ -128,76 +107,12 @@ impl Ck<'_, '_> {
         Some((Ref(list), Ref(index)))
     }
 
-    /// The readonly form of `t`: its outer `mut` removed, which only a
-    /// `mut Suspend[T]` has (types.mut.weaken.v2).
-    pub(crate) fn readonly_view(&self, t: Ty) -> Ty {
-        let pool = self.pool();
-        let r = self.infer.resolve(pool, t);
-        match pool.get(r) {
-            TyData::Mut(i) => i,
-            _ => t,
-        }
-    }
-
-    /// The type of the field read `e.name` whose substituted type is `ft`:
-    /// a field declared `mut Suspend[T]` loses its `mut` through an `e`
-    /// that is not writable.
-    pub(crate) fn field_access(&self, base: Ty, name: &str, ft: Ty) -> Ty {
-        let pool = self.pool();
-        let TyData::Adt { def, .. } = pool.get(self.strip_mut(base)) else {
-            return ft;
-        };
-        let Some(ItemData::Struct(fields)) = self.cx.lookup.item(def).map(|i| &i.data) else {
-            return ft;
-        };
-        let sym = self.cx.names.syms.intern(name);
-        let mut_field = fields
-            .iter()
-            .any(|f| f.name == sym && matches!(pool.get(f.ty), TyData::Mut(_)));
-        if mut_field && !self.has_mut_access(base) {
-            self.readonly_view(ft)
-        } else {
-            ft
-        }
-    }
-
-    /// A store `e.f = v` or `e[i] = v` needs mutable access to `e`
-    /// (types.path.store.not-writable.v2).
+    /// An element store `e[i] = v` changes a collection value through a
+    /// writable place (`types.coll.writable`).
     pub(crate) fn check_store_target(&mut self, (br, bt): (Ref, Ty), at: NodeRef<'_>) {
-        // An element store changes a collection value through a writable
-        // place (`types.coll.writable`).
         if self.is_coll_ty(bt) {
             self.coll_change(br, bt, "this store", at);
-            return;
         }
-        if self.has_mut_access(bt) {
-            return;
-        }
-        let msg = format!(
-            "{} is a readonly view; mutation needs `mut` access",
-            self.show(bt)
-        );
-        self.err(Code::NotWritable, at, &msg);
-    }
-
-    /// A readonly value where `mut` is wanted (types.mut.no-upgrade.v2).
-    /// Returns whether it reported.
-    pub(crate) fn check_upgrade(&mut self, got: Ty, want: Ty, n: NodeRef<'_>, what: &str) -> bool {
-        let pool = self.pool();
-        let w = self.infer.shallow(pool, want);
-        let TyData::Mut(wi) = pool.get(w) else {
-            return false;
-        };
-        if !self.is_composite(wi) || !self.is_composite(got) || self.has_mut_access(got) {
-            return false;
-        }
-        let msg = format!(
-            "in {what}: a readonly {} cannot become {}",
-            self.show(got),
-            self.show(want)
-        );
-        self.err(Code::MutableUpgrade, n, &msg);
-        true
     }
 
     /// Whether a trait, or one of its supertraits, has a `mut self` or
@@ -234,10 +149,10 @@ impl Ck<'_, '_> {
     }
 
     /// Whether `got` converts to `want` by permission alone, once the two
-    /// unify: weakening `mut U` to `U` where a readonly outer view's
-    /// declared variance allows it, exact permissions elsewhere
-    /// (types.variance.readonly-only, types.variance.mut-invariant,
-    /// types.option.invariant). `weaken` is false for an invariant place.
+    /// unify: weakening `&mut U` to `&U` where the declared variance
+    /// allows it, exact permissions elsewhere (types.variance.readonly-only,
+    /// types.variance.mut-invariant, types.option.invariant). `weaken` is
+    /// false for an invariant place.
     pub(crate) fn perm_fits(&self, got: Ty, want: Ty, weaken: bool, depth: u32) -> bool {
         let pool = self.pool();
         let g = self.infer.resolve(pool, got);
@@ -245,19 +160,8 @@ impl Ck<'_, '_> {
         if depth > 32 || g == w {
             return true;
         }
-        let (gm, gi) = match pool.get(g) {
-            TyData::Mut(i) => (true, i),
-            _ => (false, g),
-        };
-        let (wm, wi) = match pool.get(w) {
-            TyData::Mut(i) => (true, i),
-            _ => (false, w),
-        };
-        if gm != wm && self.is_composite(gi) && self.is_composite(wi) && (wm || !weaken) {
-            return false;
-        }
         let d = depth + 1;
-        match (pool.get(gi), pool.get(wi)) {
+        match (pool.get(g), pool.get(w)) {
             (TyData::Adt { def, args: ga }, TyData::Adt { def: d2, args: wa }) if def == d2 => {
                 let vs = self.declared_variances(def);
                 pool.list_items(ga)
@@ -265,18 +169,10 @@ impl Ck<'_, '_> {
                     .copied()
                     .zip(pool.list_items(wa).iter().copied())
                     .enumerate()
-                    .all(|(j, (a, b))| {
-                        // A `mut` outer view is invariant in every argument.
-                        let v = if wm {
-                            0
-                        } else {
-                            vs.get(j).copied().unwrap_or(0)
-                        };
-                        match v {
-                            1 => self.perm_fits(a, b, true, d),
-                            -1 => self.perm_fits(b, a, true, d),
-                            _ => self.perm_fits(a, b, false, d),
-                        }
+                    .all(|(j, (a, b))| match vs.get(j).copied().unwrap_or(0) {
+                        1 => self.perm_fits(a, b, true, d),
+                        -1 => self.perm_fits(b, a, true, d),
+                        _ => self.perm_fits(a, b, false, d),
                     })
             }
             (TyData::Option(a), TyData::Option(b)) => self.perm_fits(a, b, false, d),
@@ -340,21 +236,6 @@ impl Ck<'_, '_> {
             }
             _ => true,
         }
-    }
-
-    /// The permission join: a variable an earlier argument solved as
-    /// `mut X` is lowered to `X` when this argument is a readonly `X`
-    /// (types.generic.infer.join).
-    pub(crate) fn join_down(&mut self, var: Ty, got: Ty) -> bool {
-        let pool = self.pool();
-        let TyData::Mut(x) = pool.get(self.infer.shallow(pool, var)) else {
-            return false;
-        };
-        if self.is_composite(got) && !self.has_mut_access(got) && self.can_unify(got, x) {
-            self.infer.rebind(pool, var, x);
-            return true;
-        }
-        false
     }
 
     /// A plain `let mut name` binding of type `t`, local or top-level. A local of a primitive type is valid,

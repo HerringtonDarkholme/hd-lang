@@ -68,8 +68,7 @@ impl Ck<'_, '_> {
     /// (`types.coll.writable`), judged without reporting: a `let mut`
     /// local or `mut` parameter, a writable top-level binding, a value
     /// read through `&mut`, an element of a writable list or a value of a
-    /// writable map, a struct field of any of these, or a value whose type
-    /// already grants `mut` (a trait value read through `&mut`).
+    /// writable map, or a struct field of any of these.
     pub(crate) fn place_writable_quiet(&mut self, br: Ref) -> bool {
         let mut cur = br;
         for _ in 0..64 {
@@ -77,12 +76,6 @@ impl Ck<'_, '_> {
                 return false;
             };
             let ct = self.b.ty_of(cur);
-            if matches!(
-                self.pool().get(self.infer.resolve(self.pool(), ct)),
-                TyData::Mut(_)
-            ) {
-                return true;
-            }
             let (tag, data) = {
                 let body = self.b.body_mut();
                 (body.tags[i.0 as usize], body.data[i.0 as usize])
@@ -90,9 +83,11 @@ impl Ck<'_, '_> {
             if let Some(Projection::Field(inner)) = self.projection(cur) {
                 let it = self.b.ty_of(inner);
                 // A struct field or a tuple element is part of its
-                // value's place.
+                // value's place; another value's struct field is writable
+                // when that value is read through `&mut`.
                 if !self.is_value_record_ty(it) {
-                    return self.is_struct_ty(ct) && self.has_mut_access(it);
+                    return self.is_struct_ty(ct)
+                        && self.read_through(inner).is_some_and(|(_, m, _)| m);
                 }
                 cur = inner;
                 continue;

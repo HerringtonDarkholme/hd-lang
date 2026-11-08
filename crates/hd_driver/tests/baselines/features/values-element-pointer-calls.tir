@@ -21,7 +21,7 @@ fn walk(node: &Node, sink: &mut dyn Sink) -> void:
 >   local $2 $len: usize [assigned]
 >   local $3 $pos: usize [assigned]
 >   local $4 child: Ref[Counted[Node]] [read assigned]
->   %0 = Read [*$1] : mut Sink
+>   %0 = Read [*$1] : Sink
 >   %1 = Read [*$0 .value] : i64
 >   %2 = Call app/main/Sink.emit for Sink [] via TraitValue (%0, %1) : ()
 >   %29 = Block - : ()

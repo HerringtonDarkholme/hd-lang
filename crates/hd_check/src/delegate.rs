@@ -204,7 +204,6 @@ impl Forwarder<'_> {
                         "a forwarding method whose part is not a field",
                     );
                 };
-                let ft = ck.field_access(st, part_name, ft);
                 refs.push(ck.b.field(sv, idx, ft, at));
             }
             for &(l, t) in &params[1..] {

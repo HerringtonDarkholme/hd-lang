@@ -179,9 +179,7 @@ impl Target<'_, '_> {
                     let index = u32::try_from(variant).unwrap_or(u32::MAX);
                     ck.b.emit(Tag::NewVariant, index, rec, ret, at.index())
                 } else {
-                    let fresh = cx.names.pool.intern_ty(&TyData::Mut(ret));
-                    let r = ck.b.emit(Tag::NewStruct, NONE, rec, fresh, at.index());
-                    ck.coerce(r, fresh, ret, at, "a conversion", ExpectPosition::General)
+                    ck.b.emit(Tag::NewStruct, NONE, rec, ret, at.index())
                 }
             }
         };

@@ -40,11 +40,11 @@ fn tick(s: string) -> usize $ Recorder:
 >   %2 = Store [$1] %1 : ()
 >   %8 = Block %7 : usize
     rec.note(s)
->   %3 = Read [*$1] : mut Recorder
+>   %3 = Read [*$1] : Recorder
 >   %4 = Read [$0] : string
 >   %5 = Call app/main/Recorder.note for Recorder [] via TraitValue (%3, %4) : ()
     rec.total()
->   %6 = Read [*$1] : mut Recorder
+>   %6 = Read [*$1] : Recorder
 >   %7 = Call app/main/Recorder.total for Recorder [] via TraitValue (%6) : usize
 
 fn demo(a: string, b: string) -> usize:

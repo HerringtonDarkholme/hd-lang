@@ -174,8 +174,8 @@ fn prefixed(id: i64) -> Query:
 >   local $1 t: Template[i64] [read] value
 >     uses $1: %4 -> %5 consume, %6 consume last
 >   %0 = Read copy [$0] : i64
->   %1 = NewList - ["select * from users where id = " ""] : mut List[string]
->   %2 = NewList - [%0] : mut List[i64]
+>   %1 = NewList - ["select * from users where id = " ""] : List[string]
+>   %2 = NewList - [%0] : List[i64]
 >   %3 = NewStruct [%1 %2] : Template[i64]
 >   %4 = Store [$1] %3 : ()
 >   %5 = Read move [$1 .raw_parts] : List[string]
@@ -196,8 +196,8 @@ fn tagged(s: string) -> usize:
 >   %0 = Retain %15 Entry local $0 #0 : ()
     tag"<$s>"
 >   %1 = Read move [$0] : string
->   %2 = NewList - ["<" ">"] : mut List[string]
->   %3 = NewList - [%1] : mut List[string]
+>   %2 = NewList - ["<" ">"] : List[string]
+>   %3 = NewList - [%1] : List[string]
 >   %4 = NewStruct [%2 %3] : Template[string]
 >   %5 = Store [$1] %4 : ()
 >   %6 = Read borrow [$1 .raw_parts] : List[string]

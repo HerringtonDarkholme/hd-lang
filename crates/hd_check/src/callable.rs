@@ -89,7 +89,7 @@ impl Ck<'_, '_> {
         };
         let t = peeked.or(evaluated.map(|(_, t)| t)).unwrap_or(Ty::POISON);
         let t = match self.ref_of(t) {
-            Some((inner, m)) => self.deref_ty(inner, m),
+            Some((inner, _)) => self.deref_ty(inner),
             None => t,
         };
         let rt = self.strip_mut(self.infer.resolve(pool, t));

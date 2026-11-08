@@ -93,7 +93,7 @@ fn through_mut(g: &mut dyn Greet, n: string) -> usize:
 >     uses $1: entry -> %2 lend last
 >   %0 = Release %7 Exit local $1 #2 : ()
     g.rename(n)
->   %1 = Read borrow [*$0] : mut Greet
+>   %1 = Read borrow [*$0] : Greet
 >   %2 = Read borrow [$1] : string
 >   %3 = Call app/main/Greet.rename for Greet [] via TraitValue (%1, %2) : ()
 >   %7 = Block %6 : usize

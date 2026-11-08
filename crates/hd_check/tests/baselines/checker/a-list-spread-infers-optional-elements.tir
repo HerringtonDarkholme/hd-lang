@@ -10,10 +10,10 @@ fn before(xs: List[i32]):
 >   local $2 $coll: List[i32] [assigned]
 >   local $3 $len: usize [assigned]
 >   local $4 $pos: usize [assigned]
->   local $5 $acc: mut List[i32?] [assigned]
+>   local $5 $acc: List[i32?] [assigned]
 >   %0 = NewVariant #0 [] : i32?
 >   %1 = Store [$1] %0 : ()
->   %35 = Block %34 : List[i32?]
+>   %34 = Block %33 : List[i32?]
     [none, xs...]
 >   %2 = Read [$1] : i32?
 >   %3 = Coerce %2 [Identity -] : i32?
@@ -22,10 +22,10 @@ fn before(xs: List[i32]):
 >   %6 = Read [$2] : List[i32]
 >   %7 = Intrinsic ListLen [%6] : usize
 >   %8 = Store [$3] %7 : ()
->   %9 = NewList - [] : mut List[i32?]
+>   %9 = NewList - [] : List[i32?]
 >   %10 = Store [$5] %9 : ()
 >   %11 = Read [$3] : usize
->   %12 = Read [$5] : mut List[i32?]
+>   %12 = Read [$5] : List[i32?]
 >   %13 = Intrinsic ListReserve [%12 %11] : ()
 >   %14 = Store [$4] 0:usize : ()
 >   %15 = Read [$4] : usize
@@ -36,7 +36,7 @@ fn before(xs: List[i32]):
 >   %20 = Prim Add [%18 1:usize] : usize
 >   %21 = Store [$4] %20 : ()
 >   %22 = Coerce %19 [WrapSome -] : i32?
->   %23 = Read [$5] : mut List[i32?]
+>   %23 = Read [$5] : List[i32?]
 >   %24 = Intrinsic ListPush [%23 %22] : ()
 >   %25 = Block - : ()
 >   %26 = Break L0 - : never
@@ -44,10 +44,9 @@ fn before(xs: List[i32]):
 >   %28 = If %17 [%25 %27] : ()
 >   %29 = Block - : ()
 >   %30 = Loop %29 - : ()
->   %31 = Read [$5] : mut List[i32?]
->   %32 = Coerce %31 [Weaken -] : List[i32?]
->   %33 = NewList [#1] [%3 %32] : List[i32?]
->   %34 = Coerce %33 [Identity -] : List[i32?]
+>   %31 = Read [$5] : List[i32?]
+>   %32 = NewList [#1] [%3 %31] : List[i32?]
+>   %33 = Coerce %32 [Identity -] : List[i32?]
 
 fn after(xs: List[i32]):
     let none: i32? = .None
@@ -57,10 +56,10 @@ fn after(xs: List[i32]):
 >   local $2 $coll: List[i32] [assigned]
 >   local $3 $len: usize [assigned]
 >   local $4 $pos: usize [assigned]
->   local $5 $acc: mut List[i32?] [assigned]
+>   local $5 $acc: List[i32?] [assigned]
 >   %0 = NewVariant #0 [] : i32?
 >   %1 = Store [$1] %0 : ()
->   %35 = Block %34 : List[i32?]
+>   %34 = Block %33 : List[i32?]
     [xs..., none]
 >   %2 = Read [$0] : List[i32]
 >   %3 = Read [$1] : i32?
@@ -69,10 +68,10 @@ fn after(xs: List[i32]):
 >   %6 = Read [$2] : List[i32]
 >   %7 = Intrinsic ListLen [%6] : usize
 >   %8 = Store [$3] %7 : ()
->   %9 = NewList - [] : mut List[i32?]
+>   %9 = NewList - [] : List[i32?]
 >   %10 = Store [$5] %9 : ()
 >   %11 = Read [$3] : usize
->   %12 = Read [$5] : mut List[i32?]
+>   %12 = Read [$5] : List[i32?]
 >   %13 = Intrinsic ListReserve [%12 %11] : ()
 >   %14 = Store [$4] 0:usize : ()
 >   %15 = Read [$4] : usize
@@ -83,7 +82,7 @@ fn after(xs: List[i32]):
 >   %20 = Prim Add [%18 1:usize] : usize
 >   %21 = Store [$4] %20 : ()
 >   %22 = Coerce %19 [WrapSome -] : i32?
->   %23 = Read [$5] : mut List[i32?]
+>   %23 = Read [$5] : List[i32?]
 >   %24 = Intrinsic ListPush [%23 %22] : ()
 >   %25 = Block - : ()
 >   %26 = Break L0 - : never
@@ -91,7 +90,6 @@ fn after(xs: List[i32]):
 >   %28 = If %17 [%25 %27] : ()
 >   %29 = Block - : ()
 >   %30 = Loop %29 - : ()
->   %31 = Read [$5] : mut List[i32?]
->   %32 = Coerce %31 [Weaken -] : List[i32?]
->   %33 = NewList [#0] [%32 %4] : List[i32?]
->   %34 = Coerce %33 [Identity -] : List[i32?]
+>   %31 = Read [$5] : List[i32?]
+>   %32 = NewList [#0] [%31 %4] : List[i32?]
+>   %33 = Coerce %32 [Identity -] : List[i32?]

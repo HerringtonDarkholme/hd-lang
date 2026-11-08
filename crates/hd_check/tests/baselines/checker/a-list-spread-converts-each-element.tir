@@ -25,17 +25,17 @@ fn shapes(xs: List[*Sq]) -> List[*dyn Shape]:
 >   local $1 $coll: List[Counted[Sq]] [assigned]
 >   local $2 $len: usize [assigned]
 >   local $3 $pos: usize [assigned]
->   local $4 $acc: mut List[Counted[Shape]] [assigned]
+>   local $4 $acc: List[Counted[Shape]] [assigned]
 >   local $5 $ref: Counted[Sq] [read assigned captured]
 >   %0 = Read [$0] : List[Counted[Sq]]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read [$1] : List[Counted[Sq]]
 >   %3 = Intrinsic ListLen [%2] : usize
 >   %4 = Store [$2] %3 : ()
->   %5 = NewList - [] : mut List[Counted[Shape]]
+>   %5 = NewList - [] : List[Counted[Shape]]
 >   %6 = Store [$4] %5 : ()
 >   %7 = Read [$2] : usize
->   %8 = Read [$4] : mut List[Counted[Shape]]
+>   %8 = Read [$4] : List[Counted[Shape]]
 >   %9 = Intrinsic ListReserve [%8 %7] : ()
 >   %10 = Store [$3] 0:usize : ()
 >   %11 = Read [$3] : usize
@@ -50,7 +50,7 @@ fn shapes(xs: List[*Sq]) -> List[*dyn Shape]:
 >   %20 = Coerce %19 [RefToTraitValue -] : Shape
 >   %21 = Block %20 : Shape
 >   %22 = RefDyn %21 : Counted[Shape]
->   %23 = Read [$4] : mut List[Counted[Shape]]
+>   %23 = Read [$4] : List[Counted[Shape]]
 >   %24 = Intrinsic ListPush [%23 %22] : ()
 >   %25 = Block - : ()
 >   %26 = Break L0 - : never
@@ -58,9 +58,8 @@ fn shapes(xs: List[*Sq]) -> List[*dyn Shape]:
 >   %28 = If %13 [%25 %27] : ()
 >   %29 = Block - : ()
 >   %30 = Loop %29 - : ()
->   %31 = Read [$4] : mut List[Counted[Shape]]
->   %32 = Coerce %31 [Weaken -] : List[Counted[Shape]]
->   %33 = Block %32 : List[Counted[Shape]]
+>   %31 = Read [$4] : List[Counted[Shape]]
+>   %32 = Block %31 : List[Counted[Shape]]
 
 fn padded(xs: List[i32]) -> List[i32?]:
     [0, xs...]
@@ -69,17 +68,17 @@ fn padded(xs: List[i32]) -> List[i32?]:
 >   local $1 $coll: List[i32] [assigned]
 >   local $2 $len: usize [assigned]
 >   local $3 $pos: usize [assigned]
->   local $4 $acc: mut List[i32?] [assigned]
+>   local $4 $acc: List[i32?] [assigned]
 >   %0 = Coerce 0:i32 [WrapSome -] : i32?
 >   %1 = Read [$0] : List[i32]
 >   %2 = Store [$1] %1 : ()
 >   %3 = Read [$1] : List[i32]
 >   %4 = Intrinsic ListLen [%3] : usize
 >   %5 = Store [$2] %4 : ()
->   %6 = NewList - [] : mut List[i32?]
+>   %6 = NewList - [] : List[i32?]
 >   %7 = Store [$4] %6 : ()
 >   %8 = Read [$2] : usize
->   %9 = Read [$4] : mut List[i32?]
+>   %9 = Read [$4] : List[i32?]
 >   %10 = Intrinsic ListReserve [%9 %8] : ()
 >   %11 = Store [$3] 0:usize : ()
 >   %12 = Read [$3] : usize
@@ -90,7 +89,7 @@ fn padded(xs: List[i32]) -> List[i32?]:
 >   %17 = Prim Add [%15 1:usize] : usize
 >   %18 = Store [$3] %17 : ()
 >   %19 = Coerce %16 [WrapSome -] : i32?
->   %20 = Read [$4] : mut List[i32?]
+>   %20 = Read [$4] : List[i32?]
 >   %21 = Intrinsic ListPush [%20 %19] : ()
 >   %22 = Block - : ()
 >   %23 = Break L0 - : never
@@ -98,7 +97,6 @@ fn padded(xs: List[i32]) -> List[i32?]:
 >   %25 = If %14 [%22 %24] : ()
 >   %26 = Block - : ()
 >   %27 = Loop %26 - : ()
->   %28 = Read [$4] : mut List[i32?]
->   %29 = Coerce %28 [Weaken -] : List[i32?]
->   %30 = NewList [#1] [%0 %29] : List[i32?]
->   %31 = Block %30 : List[i32?]
+>   %28 = Read [$4] : List[i32?]
+>   %29 = NewList [#1] [%0 %28] : List[i32?]
+>   %30 = Block %29 : List[i32?]

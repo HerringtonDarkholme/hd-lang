@@ -2624,7 +2624,6 @@ impl Ck<'_, '_> {
         let (r, bt) = self.promote_base(r, bt, &name, n);
         if let Some((idx, ft)) = self.field_of(bt, &name) {
             self.check_field_visible(bt, &name, n);
-            let ft = self.field_access(bt, &name, ft);
             return Ok((self.field_read(r, idx, ft, n.index()), ft));
         }
         if let Some(v) = self.shared_field(r, inner, &name, n) {
@@ -2864,13 +2863,13 @@ impl Ck<'_, '_> {
             _ => (kr, kt),
         };
         let (r, rt) = self.index_reference((br, bt), (kr, kt), (key, n), mutable)?;
-        let Some((inner, access)) = self.ref_of(rt) else {
+        let Some((inner, _)) = self.ref_of(rt) else {
             return Ok(None);
         };
         Ok(Some(crate::refs::Operand::Place(crate::refs::Place {
             root: crate::refs::Root::Deref(r, rt),
             path: vec![],
-            ty: self.deref_ty(inner, access),
+            ty: self.deref_ty(inner),
         })))
     }
 
@@ -2898,8 +2897,8 @@ impl Ck<'_, '_> {
             return (r, t);
         }
         let rt = self.b.ty_of(r);
-        if let Some((inner, m)) = self.ref_of(rt) {
-            let vt = self.deref_ty(inner, m);
+        if let Some((inner, _)) = self.ref_of(rt) {
+            let vt = self.deref_ty(inner);
             let counted = self.ref_counted(rt).unwrap_or(true);
             let shared = self.ref_ty(self.strip_mut(vt), false, counted);
             return (self.retype(r, shared, n.index()), vt);
@@ -3298,7 +3297,7 @@ impl Ck<'_, '_> {
             def: list,
             args: pool.list(&[elem]),
         });
-        let acc_t = pool.intern_ty(&TyData::Mut(list_t));
+        let acc_t = list_t;
         let sym = |me: &Self, s: &str| me.cx.names.syms.intern(s);
         let src_l = self.b.local(t, sym(self, "$coll"), ASSIGNED, at);
         self.set_local(src_l, r, at);
@@ -4748,7 +4747,7 @@ impl Ck<'_, '_> {
             def,
             args: pool.list(&args),
         });
-        let mt = pool.intern_ty(&TyData::Mut(t));
+        let mt = t;
         let acc_sym = self.cx.names.syms.intern("$acc");
         let acc = self
             .b

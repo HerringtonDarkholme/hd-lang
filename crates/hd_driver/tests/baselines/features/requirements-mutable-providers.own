@@ -53,11 +53,11 @@ fn tick(s: string) -> usize $ Recorder:
 >   %3 = Store [$1] %2 : ()
 >   %10 = Block %8 : usize
     rec.note(s)
->   %4 = Read borrow [*$1] : mut Recorder
+>   %4 = Read borrow [*$1] : Recorder
 >   %5 = Read borrow [$0] : string
 >   %6 = Call app/main/Recorder.note for Recorder [] via TraitValue (%4, %5) : ()
     rec.total()
->   %7 = Read borrow [*$1] : mut Recorder
+>   %7 = Read borrow [*$1] : Recorder
 >   %8 = Call app/main/Recorder.total for Recorder [] via TraitValue (%7) : usize
 >   %9 = LoanEnd [$1] : ()
 >   summary kept [] borrows [$0] writes

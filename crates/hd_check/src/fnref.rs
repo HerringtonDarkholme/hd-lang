@@ -861,11 +861,6 @@ impl Ck<'_, '_> {
         // takes in place and an unbound one as `&mut List[T]` or
         // `&mut Map[K, V]` (`fn.ref.unbound.ref-self`).
         let mutates = matches!(op, IntrinsicOp::ListPush | IntrinsicOp::MapRemove);
-        let recv_ty = if mutates {
-            pool.intern_ty(&TyData::Mut(self_ty))
-        } else {
-            self_ty
-        };
         let unbound_ref = mutates && bound.is_none();
         let first_ty = if unbound_ref {
             pool.intern_ty(&TyData::Ref {
@@ -874,7 +869,7 @@ impl Ck<'_, '_> {
                 counted: false,
             })
         } else {
-            recv_ty
+            self_ty
         };
         let mut ptys = Vec::new();
         let mut captured = None;

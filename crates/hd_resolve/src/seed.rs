@@ -407,11 +407,7 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
                         counted: false,
                     }),
                 ));
-                let ok = if ret_self {
-                    pool.intern_ty(&TyData::Mut(self_ty))
-                } else {
-                    Ty::VOID
-                };
+                let ok = if ret_self { self_ty } else { Ty::VOID };
                 method(name, FnSig::simple(g, params, result(ok, err)));
             }
             item(

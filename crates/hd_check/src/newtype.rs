@@ -247,10 +247,9 @@ impl Conversion {
         (from, to): (Ty, Ty),
         node: NodeRef<'_>,
     ) -> StageResult<Ref> {
-        let pool = ck.pool();
         let at = node.index();
         let usize_ty = Ty::prim(Prim::Usize);
-        let out_ty = pool.intern_ty(&TyData::Mut(list_to));
+        let out_ty = list_to;
         let sym = |ck: &Ck<'_, '_>, s: &str| ck.cx.names.syms.intern(s);
         let (src_s, out_s, i_s, n_s) = (
             sym(ck, "$src"),

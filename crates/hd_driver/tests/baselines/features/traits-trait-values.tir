@@ -64,7 +64,7 @@ fn through_mut(g: &mut dyn Greet, n: string) -> usize:
 > app/main/through_mut
 >   local $0 g: RefMut[Greet] [param read]
 >   local $1 n: string [param read]
->   %0 = Read [*$0] : mut Greet
+>   %0 = Read [*$0] : Greet
 >   %1 = Read [$1] : string
 >   %2 = Call app/main/Greet.rename for Greet [] via TraitValue (%0, %1) : ()
 >   %6 = Block %5 : usize

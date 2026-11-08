@@ -250,7 +250,7 @@
       i32.load $heap offset=28
       local.set $t1
       local.get $frame
-      i32.load $heap offset=196
+      i32.load $heap offset=192
       local.set $t2
       local.get $frame
       i32.load $heap offset=8
@@ -437,7 +437,7 @@
             i32.store $heap offset=28
             local.get $frame
             local.get $t2
-            i32.store $heap offset=196
+            i32.store $heap offset=192
             local.get $frame
             local.get $t3
             i32.store $heap offset=16
@@ -516,7 +516,7 @@
           i32.store $heap offset=28
           local.get $frame
           local.get $t2
-          i32.store $heap offset=196
+          i32.store $heap offset=192
           local.get $frame
           local.get $results
           i32.store $heap offset=16

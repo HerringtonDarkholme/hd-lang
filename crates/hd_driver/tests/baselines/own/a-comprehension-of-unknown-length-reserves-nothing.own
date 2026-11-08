@@ -7,7 +7,7 @@ fn evens(n: usize) -> List[usize]:
 > app/main/evens
 >   local $0 n: usize [param read] value
 >     uses $0: entry -> %2 consume last
->   local $1 $acc: mut List[usize] [assigned] value
+>   local $1 $acc: List[usize] [assigned] value
 >     uses $1: %1 -> %23 lend, %33 consume last
 >   local $2 $cur: usize [assigned] place
 >   local $3 $end: usize [assigned] value
@@ -16,7 +16,7 @@ fn evens(n: usize) -> List[usize]:
 >     uses $4: none
 >   local $5 i: usize [read assigned] value
 >     uses $5: %14 -> %18 lend, %21 consume last
->   %0 = NewList - [] : mut List[usize]
+>   %0 = NewList - [] : List[usize]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read copy [$0] : usize
 >   %3 = NewStruct [0:usize %2 0:bool] : Range[usize]
@@ -39,7 +39,7 @@ fn evens(n: usize) -> List[usize]:
 >   %20 = Prim Eq [%19 0:usize] : bool
 >   %21 = Read copy [$5] : usize
 >   %22 = IsUnique fresh [$1] : ()
->   %23 = Read borrow [$1] : mut List[usize]
+>   %23 = Read borrow [$1] : List[usize]
 >   %24 = Intrinsic ListPush [%23 %21] : ()
 >   %25 = Block - : ()
 >   %26 = If %20 [%25 -] : ()
@@ -49,23 +49,22 @@ fn evens(n: usize) -> List[usize]:
 >   %30 = If %12 [%27 %29] : ()
 >   %31 = Block - : ()
 >   %32 = Loop %31 - : ()
->   %33 = Read move [$1] : mut List[usize]
->   %34 = Coerce %33 [Weaken -] : List[usize]
->   %35 = Block %34 : List[usize]
+>   %33 = Read move [$1] : List[usize]
+>   %34 = Block %33 : List[usize]
 
 fn counted(n: usize) -> List[usize]:
     [for i in (0..n).iter() => i]
 > app/main/counted
 >   local $0 n: usize [param read] value
 >     uses $0: entry -> %2 consume last
->   local $1 $acc: mut List[usize] [assigned] value
+>   local $1 $acc: List[usize] [assigned] value
 >     uses $1: %1 -> %12 lend, %30 consume last
 >   local $2 $ref: RangeIter[usize] [read assigned captured captured-assigned] place
 >   local $3 $iter: RefMut[RangeIter[usize]] [assigned] value
 >     uses $3: %7 -> %8 lend
 >   local $4 i: usize [read assigned] value
 >     uses $4: %18 -> %10 consume last
->   %0 = NewList - [] : mut List[usize]
+>   %0 = NewList - [] : List[usize]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read copy [$0] : usize
 >   %3 = NewStruct [0:usize %2 0:bool] : Range[usize]
@@ -77,7 +76,7 @@ fn counted(n: usize) -> List[usize]:
 >   %9 = Call std/iter/Iterator.next for RangeIter[usize] [usize] via Impl (%8) : usize?
 >   %10 = Read copy [$4] : usize
 >   %11 = IsUnique fresh [$1] : ()
->   %12 = Read borrow [$1] : mut List[usize]
+>   %12 = Read borrow [$1] : List[usize]
 >   %13 = Intrinsic ListPush [%12 %10] : ()
 >   %14 = Block - : ()
 >   %15 = Break L0 - : never
@@ -90,9 +89,8 @@ fn counted(n: usize) -> List[usize]:
 >   %27 = Loop %26 - : ()
 >   %28 = LoanEnd [$3] : ()
 >   %29 = Drop [$2] : ()
->   %30 = Read move [$1] : mut List[usize]
->   %31 = Coerce %30 [Weaken -] : List[usize]
->   %32 = Block %31 : List[usize]
+>   %30 = Read move [$1] : List[usize]
+>   %31 = Block %30 : List[usize]
 >   %6 finds [$2] full
 >   %27 finds [$2] full
 >   storage sub 0: $2 slot
