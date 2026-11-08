@@ -25,12 +25,9 @@
 //!    `x != 0` is a test of `x`, a multiplication, quotient or remainder by
 //!    a power of two is a shift or a mask, and a constant added to a load's
 //!    address is its offset (a store's is rule 9's);
-//! 8. `local.set a; R; local.set b; local.get a; local.get b`, where
-//!    those are `a`'s and `b`'s only writes and reads and `R` is a
-//!    straight-line run that pushes one value over what it found, is
-//!    `R` over `a`'s value: two arguments evaluated in order;
-//! 9. `i32.const c; i32.add; R; store`, with `R` such a run, is `R` and
-//!    the store at `c` more offset;
+//! 9. `i32.const c; i32.add; R; store`, where `R` is a straight-line run
+//!    that pushes one value over what it found, is `R` and the store at
+//!    `c` more offset;
 //! 10. `X; local.set a; P; local.get a`, where those are `a`'s only write
 //!     and read, `X` is a straight-line run that pushes one value and `P`
 //!     pushes a local, a global or a constant that `X` cannot change, is
@@ -1868,8 +1865,8 @@ fn pure_operands(i: &I) -> Option<usize> {
     })
 }
 
-/// Rules 8 and 9: lets values stay on the stack across a straight-line
-/// run that pushes one more.
+/// Rules 9 and 10: lets values stay on the stack across a straight-line
+/// run.
 fn schedule(f: &mut Func, np: u32, arity: &Arity) -> bool {
     let mut changed = false;
     'outer: loop {
@@ -1916,28 +1913,6 @@ fn schedule(f: &mut Func, np: u32, arity: &Arity) -> bool {
                 changed = true;
                 continue 'outer;
             }
-            // Rule 8.
-            let (
-                Some(Ins::Op(I::LocalSet(bl))),
-                Some(Ins::Op(I::LocalGet(al))),
-                Some(Ins::Op(I::LocalGet(bg))),
-            ) = (b.get(q), b.get(q + 1), b.get(q + 2))
-            else {
-                continue;
-            };
-            if bl != bg || al == bl || !once(*al) || !once(*bl) {
-                continue;
-            }
-            let Some(p) = (0..q)
-                .rev()
-                .find(|&p| matches!(b[p], Ins::Op(I::LocalSet(x)) if x == *al))
-            else {
-                continue;
-            };
-            if net(b, p + 1, q, arity, &f.symbols) == Some(1) {
-                edit = Some((vec![p, q, q + 1, q + 2], None));
-                break;
-            }
         }
         let Some((gone, replace)) = edit else {
             return changed;
@@ -1958,21 +1933,10 @@ fn schedule(f: &mut Func, np: u32, arity: &Arity) -> bool {
     }
 }
 
-/// The depth over its start that straight-line run `b[from..to]` ends at,
-/// when no instruction of it reaches below that start.
-fn net(b: &[Ins], from: usize, to: usize, arity: &Arity, symbols: &Symbols) -> Option<usize> {
-    let mut depth = 0usize;
-    for i in &b[from..to] {
-        let (pops, pushes) = effect(i, arity, symbols)?;
-        depth = depth.checked_sub(pops)? + pushes;
-    }
-    Some(depth)
-}
-
 /// The latest `s` before `q` whose run `b[s..q]` ends one deeper than it
-/// starts without reaching below its start: what `net(b, s, q) == Some(1)`
-/// finds, in one backward walk. Each step prepends an instruction to the
-/// run, keeping the depth the run needs at its start and its net change.
+/// starts without reaching below its start, in one backward walk. Each
+/// step prepends an instruction to the run, keeping the depth the run
+/// needs at its start and its net change.
 fn run_start(b: &[Ins], q: usize, arity: &Arity, symbols: &Symbols) -> Option<usize> {
     let (mut need, mut net) = (0usize, 0isize);
     for s in (0..q).rev() {
