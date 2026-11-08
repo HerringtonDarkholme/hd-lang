@@ -99,6 +99,10 @@ const linesOf = (file: string): string[] => {
 };
 
 for (const match of matches) {
+  // ban-unsupported has no escape: scripts/check-unsupported.ts counts it.
+  if (match.ruleId === "ban-unsupported") {
+    continue;
+  }
   const start = match.range.start.line;
   const lines = linesOf(match.file);
   const stated = lines

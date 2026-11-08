@@ -2,8 +2,9 @@
 //
 // A compiler that refuses a program the spec accepts is a gap, and a refusal
 // of a case an earlier stage rules out is dead code. Neither may be added.
-// This check counts the sites that remain in each crate's non-test source
-// (calls of `unsupported(` and constructions of `Code::Unsupported`) and
+// This check counts the matches of the ast-grep rule `ban-unsupported`
+// (.ast-grep/rules/ban-unsupported.yml: calls of `unsupported(` and
+// constructions of `Code::Unsupported` outside test code) per crate, and
 // fails when a crate has more than its ceiling in scripts/unsupported-ceiling.tsv.
 // When a crate has fewer, it prints the new count so the ceiling is lowered in
 // the same change: the ceilings only go down, until `Code::Unsupported` itself
@@ -11,46 +12,33 @@
 //
 // Usage: node scripts/check-unsupported.ts [--update]
 //
-// Cost per run: one `git ls-files` and one read of each Rust source file under
-// crates/*/src (cost: bounded by the source tree, the same files a build reads).
+// Cost per run: one ast-grep scan, the same one check:cost runs.
 
-import { execFileSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const root = join(import.meta.dirname, "..");
 const ceilingPath = join(root, "scripts", "unsupported-ceiling.tsv");
-const site = /\bunsupported\(|Code::Unsupported\b/g;
 
-/** The non-test part of a Rust file: everything before its first `#[cfg(test)]`. */
-function nonTest(text: string): string {
-  const at = text.indexOf("#[cfg(test)]");
-  return at < 0 ? text : text.slice(0, at);
-}
-
+/** Matches of the ast-grep rule `ban-unsupported` (.ast-grep/rules/), by crate. */
 function countSites(): Map<string, number> {
-  // cost: one listing of tracked files, read once per run.
-  const files = execFileSync(
-    "git",
-    ["ls-files", "-z", "--", "crates/*/src/*.rs", "crates/*/src/**/*.rs"],
-    {
-      cwd: root,
-      encoding: "utf8",
-    },
-  )
-    .split("\0")
-    .filter(Boolean);
+  // cost: one ast-grep scan over the repository, filtered to this rule.
+  const scan = spawnSync(
+    "ast-grep",
+    ["scan", "--config", ".ast-grep/sgconfig.yml", "--filter", "ban-unsupported", "--json=compact"],
+    { cwd: root, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
+  );
+  if (scan.error) {
+    throw new Error(`check-unsupported needs ast-grep on PATH: ${scan.error.message}`);
+  }
+  if (scan.status !== 0 && scan.status !== 1) {
+    throw new Error(`ast-grep scan failed (status ${scan.status}):\n${scan.stderr}`);
+  }
   const counts = new Map<string, number>();
-  for (const file of files) {
-    const crate = file.split("/")[1]!;
-    const body = nonTest(readFileSync(join(root, file), "utf8"))
-      .split("\n")
-      .filter((line) => !line.trimStart().startsWith("//"))
-      .join("\n");
-    const found = body.match(site)?.length ?? 0;
-    if (found > 0) {
-      counts.set(crate, (counts.get(crate) ?? 0) + found);
-    }
+  for (const match of JSON.parse(scan.stdout) as { file: string }[]) {
+    const crate = match.file.split("/")[1]!;
+    counts.set(crate, (counts.get(crate) ?? 0) + 1);
   }
   return counts;
 }

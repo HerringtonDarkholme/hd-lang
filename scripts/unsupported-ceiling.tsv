@@ -1,6 +1,6 @@
 crate	ceiling
 hd_check	32
 hd_diag	2
-hd_driver	1
+hd_driver	4
 hd_structure	18
-hd_wasm_linear	134
+hd_wasm_linear	136
