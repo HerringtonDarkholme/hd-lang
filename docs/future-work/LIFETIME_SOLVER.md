@@ -44,7 +44,7 @@ the same variables as the place `t.inner`, and the store checks `'b`.
 
 The spec's deliberate unions (`ref.dep.origin.position.union`, the "one
 lifetime in all positions" of `ref.lifetime.store`,
-`ref.generic.call.unaligned`) became explicit merge constraints in the new
+the unaligned generic-call rule, dropped in S12) became explicit merge constraints in the new
 solver, so the switch changed no verdict. After the switch, each union is
 dropped in its own slice with a spec edit, the reborrow of a part first
 (#1090). The solver stays location-insensitive, as `ref.dep.origin.set`
@@ -174,7 +174,7 @@ solved values. No code or message changes.
 
 **Spec unions as hubs.** Where the spec asks for a union of all
 positions (`ref.dep.origin.position.union`, the whole-referent case of
-`ref.lifetime.store`, `ref.generic.call.unaligned`), the generator routes
+`ref.lifetime.store`, the unaligned generic-call rule, dropped in S12), the generator routes
 every slot of that value through one hub variable. So the switch changes
 no verdict, and removing one merge is one slice and one spec rule.
 

@@ -907,57 +907,6 @@ its narrowest ref argument, and `scoped` narrows a parameter. hd takes
 Rust's elision instead, which ties a result to one source. Source:
 [C# reference variables](https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/statements/declarations#reference-variables).
 
-## Appendix B: Today In hd, Verified
-
-Each fact below was checked at cc63fb077. The two spec errors are first.
-
-- **The spec is wrong that local references are counted.**
-  `ref.type.kind-runtime` said a local reference is counted at run time
-  (replaced by `ref.type.local-uncounted` in #1401).
-  The Local References Why says the escape check "changes nothing at run
-  time". Both are stale. Since #702 (§23.38, `emit/closure.rs`
-  `slot_locals`), a local whose every `Ref` is local and is one call's
-  argument lives in a frame slot. Retains through a slot's address do
-  nothing, since slot pages are static. The borrow pass's `LENT` loans and
-  `&T` parameters take no count either (§23.25, §23.31). The escape check
-  is what makes these sound.
-- **Otherwise a local reference is counted.** `Ref` emits its address with
-  "a count of its own" (`emit/refs.rs` `place_ref`). The count is a retain
-  through the page table at any interior address (§23.5, §23.20).
-- **An address-taken local** lives in a counted cell, one per execution of
-  its declaration (`cell_locals`), unless it qualifies for a frame slot.
-- **Lends that assume no escape:**
-  - frame slots (#702);
-  - `LENT` field references of lent parameters;
-  - `&T` parameter loans;
-  - span loans (rule 3 refuses a local that has a `Ref`, so they are
-    unaffected).
-- **The inliner refuses any callee that takes a reference**
-  (`hd_opt/src/inline.rs`, `takes_reference`). So `&self` getters are
-  never copied.
-- **Kept element references are already handled at run time**: each copy
-  holds a buffer count, which is the pin (§23.20).
-- **Probes** on the dev build (`target/debug/hd check`):
-
-  | Probe | Today |
-  | --- | --- |
-  | `fn pick(p: &Point) -> &Point` | `local-reference-escapes`, with a fix-it writing `*` |
-  | `fn first(..) -> &User?` | `local-reference-escapes` for the type argument, with the same fix-it |
-  | `let mut r = &a`, then `r = &x` for an inner-block `x`, then `r.x` | accepted; it runs on cells |
-  | `fn pass_on(p: &Point): show(p)` with `show[T](v: T)` | accepted (#987); `show(&q)` is rejected |
-  | `debug` of a `*dyn Debug` boxed from a `*Point` | prints `Point { x: 131096, y: 0 }`, a separate backend bug |
-
-  The last bug kept the #987 slip from being shown dangling. File it
-  separately.
-- **#999 reviewed.**
-  - Its slice 0 freezes the source and makes `&mut` results exclusive, with
-    borrow flags through `*T`. Stage 1 needs neither, because a stage-1
-    result never points into a buffer.
-  - Its generic tunnelling (stage 5 here) is right in shape but not
-    needed first.
-  - Its own estimate for slice 0 is 550 to 800 lines. That includes
-    freezing, which this stage 1 drops.
-
 ## Appendix C: Parse Log
 
 Every `text` block was parsed with `scripts/hd-conformance.sh parse` at

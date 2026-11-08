@@ -368,8 +368,8 @@ Deferring that work is not a free bound on pauses, for three reasons.
 Freeing a fixed number of objects per allocation does not bound memory
 (Boehm, POPL 2004): pacing has to be by bytes, and then allocation pays
 in proportion to size. In hd, counts are observable: a late decrement
-keeps a list pinned past the last use of an element reference (`ref.elem.access.pin`),
-so a later `push` panics `collection-pinned`, and a count left high
+kept a list pinned past the last use of an element reference (the
+pin rules that pointer loans replaced), so a later `push` panicked, and a count left high
 makes `rt:list_unique` copy a buffer that was in fact unique. And a
 deferred free saves no work; it only moves it.
 
@@ -513,12 +513,12 @@ that calls into the cycle collector", and `{.acyclic.}` can assert it
 playground programs and the 22 tour chapters declare 54 types. None is
 cycle-capable. The only recursive type is the calculator's `Expr`, an
 immutable enum built bottom-up. Every mutable field holds a list or map
-of strings or integers (`log: mut List[string]`,
-`counts: mut Map[string, i32]`). The closures passed to `map`, `filter`
+of strings or integers (`log: List[string]`,
+`counts: Map[string, i32]`). The closures passed to `map`, `filter`
 and `fold` capture immutable values. So none of these programs would
 link the collector, and none would ever record a candidate. In std's
 147 types, the open mutable slots are few: format's
-`active: mut List[dyn Any]` (the stack of values being printed, which
+`active: List[dyn Any]` (the stack of values being printed, which
 could hold identities instead of references), and generic writers
 whose instance decides. Cycle-capable types appear where programs build
 graphs with back edges: a tree with parent references, an observer list,

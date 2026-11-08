@@ -266,7 +266,7 @@ the string with no copy (6ad81d02e, 20ed738e8). The costs left are per piece and
 per digit: about 8 ns per small piece and 3 ns per byte (#376); integer
 text that prepends a digit string per digit; a getter call per literal
 use; one new string per nesting level of `Display`; and `+` chains in
-loops in std (`cli.usage`, `Timestamp.format`, `to_rfc3339`,
+loops in std (`cli.usage()`, `Timestamp.format`, `to_rfc3339`,
 `zero_padded`, `path.join`, regex `expand`, `DebugWriter.margin`).
 
 | Fix | Gain | Cost | Risk | Waits on |

@@ -159,7 +159,7 @@ proposal matures.
   deep immutability. The structural “reaches no `&mut`” check will be
   designed with stages B/C, not here. It walks every field and every type
   argument at any depth, and never trusts a read-only view: in the old
-  `mut T` model, a read-only `Reader { hole: Box[mut Reader] }` still
+  `mut T` model (since removed), a read-only `Reader { hole: Box[mut Reader] }` still
   reached a writable `Reader`. The parked deep-immutability idea in
   [the open-issues umbrella](https://github.com/HerringtonDarkholme/hd-lang/issues/833) describes the property. It is scriptc's
   `publish`, checked statically, and freed by the collector instead of

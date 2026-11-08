@@ -56,7 +56,7 @@ silently loses a write. With elision it adds nothing to any bench
 program, and where a loan stays it costs 0.5 ns against B's 8 ns count.
 B is about 1,500 lines smaller to build and removes the friction of
 object granularity, at the cost of stale reads and lost writes. The
-owner leans to B; its plan is [E.4](#e4-model-b-implementation-phases).
+owner chose A.
 
 ## Open Questions
 
@@ -206,26 +206,6 @@ cases 5 times.
 | per spanning reference (micro) | 0.5 ns, or 0 elided | 8.0 ns |
 | implementation (estimated) | about −1,800 and +1,700 lines: checker, ownership insertion, release summaries, emitter, runtime, std | about −1,500 and +150 lines: checker, emitter, runtime |
 
-## Delta From Main
-
-Main (156cba91c, after #1320) already has parts of both. A reference
-through a `*T` counts the object through the page table (B's keep-alive,
-stale when replaced). A `List`/`Map` element reference pins its buffer,
-and a `UniqList`/`UniqMap` one counts its room, so a length change panics
-`collection-pinned`; replacing or dropping a unique collection is still
-unsound. A binding reference registers an address range in the loan
-table, which is A's exclusivity, field-precise; the call and path loans
-run in debug and test builds only, so verdicts differ by mode (#1331).
-
-| | A: loans | B: keep-alive |
-| --- | --- | --- |
-| added | loan bits and checks in every build; own loans, the element rules and cells in the checker; per-type write summaries for elision | a pin check on replacing or dropping a pinned unique collection; the roots rule |
-| removed | page-table counts on references through `*T`, the loan table, the `List`/`Map` pin, the room count | the loan table; the `List`/`Map` pin's length panic behind a `*T` (its eager copy stays, so `ref.elem.copy` holds) |
-| behaviour, 362 matrix cases on `*T` paths | 100 `borrow-conflict` panics stay; 56 `collection-pinned` become `borrow-conflict`; 103 that run start to panic; 24 unsound ones panic; 79 still run | 92 `borrow-conflict` panics run instead and 8 become `collection-pinned`; 28 `List`/`Map` pins run on stale buffers; 28 unique pins stay; 24 unsound ones panic `collection-pinned`; 182 still run |
-| all builds agree | yes | yes |
-| per spanning reference (micro, against main's 16.6 ns) | 0.5 ns, or 0 elided | 8.0 ns |
-| bench time and size against main | adds nothing after elision; removes main's counts (not measured) | byte-identical: no bench program emits the loan table |
-
 ## Cost
 
 | Component | A | B |
@@ -267,7 +247,7 @@ branch; a **count** is a page-table retain and release.
 | A9 self-replacing list | the #1320 `UniqList` repro | stricter: panics `borrow-conflict` | none | panics `collection-pinned` |
 
 Adversarial cases are the `pointer-loan-extra-*` fixtures and the
-matrix itself (Appendix D); their verdicts are in the table at the end of
+matrix itself (the `pointer-loan-*` conformance cases); their verdicts are in the table at the end of
 this appendix.
 
 **Conclusion.** By its rules A panics in every case the matrix finds
@@ -564,7 +544,7 @@ errors in both models; three of them are not built yet
 | --- | --- | --- | --- | --- |
 | 1 | PL1 | object granularity panics on a disjoint field | friction, loud | A2, A4, observer, sort comparator, 14 matrix `other`/`elem` rows |
 | 2 | PL2 | a write through the loan's own pointer | false panic without own loans | A5, own-path extras |
-| 3 | PL3 | element references lose the copy rule | silent if unanswered | copy-under-element-loan, `ref.elem.copy` fixtures |
+| 3 | PL3 | element references lose the copy rule | silent if unanswered | copy-under-element-loan, element-copy fixtures |
 | 4 | PL4 | captured variables are hidden aliases | silent if unanswered | captured-variable extras |
 | 5 | PL5 | roots released at their last use | silent today (#1327) | root-pointer extras |
 | 6 | PL6 | elision that a call defeats | silent if wrong | the eight `elide-*-panics` extras |
@@ -747,107 +727,7 @@ upgrade (`ref.weak.upgrade.dead`) refuses instead of trapping.
 - **Today's three mechanisms, patched**: field-precise, but 27 matrix cases read freed memory today, each new path needs its own fix, and the loan table's check scans every live loan.
 - **Field-granular state**, a bit per field group as Swift's per-address access set: fixes object granularity, but a struct with more fields than spare bits grows by a header word.
 
-## Appendix D. Today In hd
-
-The rules under replacement are
-[Conflicts Through Aliases](../../spec/lang/13-values-and-references.md#conflicts-through-aliases)
-(`ref.excl.alias.*`), the pin rules of
-[Call-Scoped Access](../../spec/lang/13-values-and-references.md#call-scoped-access)
-(`ref.elem.access.pin`, `ref.elem.pinned*`) and
-[Element Reference Loops](../../spec/lang/06-control-flow.md#element-reference-loops)
-(`flow.for.ref.pinned`). The runtime is `crates/hd_wasm_linear/DESIGN.md`
-§23.4 (header), §23.20 (references, pins, short loans), and
-`emit/excl.rs` with `rt:loan_begin`, `rt:loan_count` and `rt:loan_check`.
-
-### D.1 The Matrix On Main
-
-`spec/tools/generate-pointer-loan-matrix.ts` writes 424 cases: reference
-kind (`&`, `&mut`) × path × lifetime × alias action (378 runtime cases,
-16 of them on a local path that crosses no `*T`), 32 adversarial runtime
-cases, and 14 same-root typing cases. Each runtime case reads the
-reference after the action and checks that it holds a value some write
-stored. Every fixture states both models' verdicts in a `# Verdicts:`
-line.
-Results at 156cba91c (after #1320), dev build, with the checked build's
-count audit for freed blocks; local-path rows are left out:
-
-| Below the pointer | Cases | A panics | A elides | B: runs / stale / pinned | Today: as A / runs / pinned / unsound |
-| --- | --- | --- | --- | --- | --- |
-| a plain field | 98 | 64 | 34 | 98 / 0 / 0 | 86 / 12 / 0 / 0 |
-| data behind a nested `*T` | 48 | 39 | 9 | 34 / 14 / 0 | 38 / 10 / 0 / 0 |
-| a `List`/`Map` | 108 | 90 | 18 | 48 / 60 / 0 | 27 / 53 / 28 / 0 |
-| a `UniqList`/`UniqMap` | 108 | 90 | 18 | 48 / 0 / 60 | 28 / 28 / 28 / 24 |
-| **all** | **362** | **283** | **79** | **228 / 74 / 60** | **179 / 103 / 56 / 24** |
-
-| Lifetime (`*T` paths) | A: loan needed | A: elided |
-| --- | --- | --- |
-| one expression | 0 | 14 |
-| across a statement | 85 | 11 |
-| call argument | 33 | 9 |
-| returned by a method | 33 | 9 |
-| stored in a lifetime struct | 33 | 9 |
-| across a loop iteration | 33 | 9 |
-| across a bang call | 33 | 9 |
-| captured by a closure | 33 | 9 |
-
-- **Elision column.** The rule keeps the loan in each of the 283 rows
-  where A panics, and elides it in all 79 where A runs: a read under `&`,
-  one-expression references, and a write to the type that holds the root
-  pointer (`drop`). All eight cases built to defeat it keep the loan.
-- **Today**, *runs* means the alias's access runs where A panics, and
-  the reference sees some stored value. *Unsound* means it read freed
-  memory: a value no write stored, or a freed block only the checked
-  build reports. All 24 are `UniqList`/`UniqMap` replaced or shrunk
-  behind a `*T`; three adversarial cases add #1327's two roots and
-  another task's replacement.
-- `KNOWN_FAILURES.tsv` lists the 200 failures, each citing #1323, or
-  #1327 for the two roots; three are same-root typing cases not built
-  yet. Default, checked and optimized runs agree on them.
-
-### D.2 Other Findings On Main
-
-- **#1327.** A `UniqList` element reference through a local `*T` reads
-  freed memory once the local's last use passes, with no alias; a
-  `join!` task's pointer parameter is released before its suspension
-  the same way.
-- **Mode-dependent verdicts (#1331).** At 6e7976b7d a `join!` case where one
-  task wrote a field while another held a loan across `sleep!` panicked
-  in the dev build and ran in the checked one, so the matrix uses
-  sequential bang calls; `extra-elide-other-task-panics` covers another
-  task with a `UniqList`, which fails the same way in every mode.
-- **Optimized pipeline (#1331).** At 6e7976b7d, assigning a new
-  `UniqList` through a `*mut` in a suspending body failed the copy
-  verifier; the focused optimized run does not show it at 156cba91c.
-
 ## Appendix E. Details
-
-### E.1 What Each Rule Becomes
-
-| Rule today | Becomes |
-| --- | --- |
-| `ref.excl.alias.loan` | a pointer loan: any reference crossing a `*T` that outlives its expression, element references included, on each object it crosses |
-| `ref.excl.alias.counted-access` | the access check: a write checks the whole state, a read the exclusive bit; passing a pointer is a static access for the call's other arguments only, no access at run time |
-| `ref.excl.alias.conflict` | kept as the panic `borrow-conflict`, object-granular |
-| `ref.excl.alias.shared-counted-loan` | absorbed: `*T` and `*mut T` crossings loan alike |
-| `ref.excl.alias.call-loan` | kept in every build, from the argument's evaluation to the return; a `&mut self` receiver is two-phase |
-| `ref.excl.alias.path-pointer` | absorbed: the shared loans on every object before the last, in every build |
-| `ref.excl.alias.untracked-path` | a reference that crosses no `*T` and no cell takes no loan |
-| `ref.elem.access.pin`, `ref.elem.pinned`, `.pinned.map`, `.pinned.allowed`, `.pinned.end`, `flow.for.ref.pinned` | removed: a length change through an alias is a write through a `*T` |
-| `collection-pinned` | removed; those panics are `borrow-conflict` |
-| `ref.elem.copy` | replaced: a copy while a `&mut` element reference lives is `conflicting-access` |
-| `ref.elem.access.live-length` | narrowed: while a `&` element reference lives, a write to its collection is `conflicting-access` |
-| `ref.elem.replace` | removed: replacing the collection while a reference lives is `conflicting-access` (`ref.excl.shared`) |
-| `std-collections.uniq-list.pinned` (#1320) | not needed |
-| `ref.count.pointer` (#1320) | replaced by the loan and the root rule |
-
-Under model B instead: every `ref.excl.alias.*` rule is removed (no
-exclusivity behind a pointer), `ref.count.pointer` and
-`std-collections.uniq-list.pinned` stay, the `List`/`Map` pin rules go,
-and `ref.elem.copy` holds by copy-on-write. Both models add the two
-static rules of How It Works.
-
-The fixtures `element-reference-copy-independent.hd` and
-`a-copy-of-a-pinned-collection-is-its-own-list.hd` become reject cases.
 
 ### E.2 The Mechanism In Detail
 
@@ -955,23 +835,6 @@ iterations:
   through `*T`, for example `json`'s 26, which point into static records
   where a count returns at once.
 
-### E.4 Model B Implementation Phases
-
-Each about an hour, with its test. The counts are the matrix rows each
-phase turns green once phase 1 has rewritten the matrix to B's
-verdicts; 244 of its 410 runtime rows already pass under B on main.
-
-| Phase | Change | Where | Test, rows turned green |
-| --- | --- | --- | --- |
-| 1 | The matrix asserts B: the generator writes each case's B verdict (`runs`, with the stored-value check, or `panic:collection-pinned`); `KNOWN_FAILURES.tsv` is recomputed | `spec/tools/generate-pointer-loan-matrix.ts` | `--check`; focused runs in three modes agree |
-| 2 | Same-root static rules: a `*T` argument reads its pointee for the call's other arguments; a method result through a pointer names the pointer local as its origin, and cannot outlive it | `crates/hd_check` (`ref.excl.args`, `ref.dep.call`) | the 3 typing cases not built today |
-| 3 | Remove the `ref.excl.alias.*` loans: `emit/excl.rs`, `rt:loan_begin`, `rt:loan_count`, `rt:loan_check`, and the call and path loans of debug builds, so every build agrees (closes #1331's second item) | `crates/hd_wasm_linear` | 102 rows that panic `borrow-conflict` today and run under B |
-| 4 | Drop the `List`/`Map` pin's length panic behind a `*T`; keep the owner word's eager copy; a variable a closure shares counts as behind a `*mut` (question 6) | `rt:list_pinned`, `emit/list.rs`, `emit/map.rs`, `hd_tir` insertion rule 6 | 29: 28 `List`/`Map` grow and shrink rows that panic `collection-pinned` today, and `extra-captured-variable-grows` |
-| 5 | Unique rooms behind a `*T`: replacing or dropping a pinned `UniqList`/`UniqMap` panics `collection-pinned` before any element moves | `lib/std/collections.hd` (`Drop`, assignment through a place), `std.rt.memory` | 33: the 25 that read freed memory today, and 8 that panic `borrow-conflict` today (after phase 3) |
-| 6 | Roots: a pointer local or a frame's pointer parameter lives until the last use of a reference through it (#1327) | `hd_tir` own passes, the frame layout | 2: `extra-root-pointer-*` |
-| 7 | Spec: `ref.excl.alias.*` become the non-exclusive aliasing rules (an alias's access runs; a reference reads the storage it counted); `ref.elem.pinned*` and `flow.for.ref.pinned` apply to unique rooms only; `ref.elem.copy` stays; `collection-pinned` names unique rooms; `std-collections.uniq-list.pinned` and `.uniq-map.pinned` add replace and drop | `spec/lang/13-values-and-references.md`, `06-control-flow.md`, `spec/std/collections.md`, README Diagnostics | `bash spec/check.sh`; the `spec-update` skill |
-| 8 | Docs and the size and time table | `crates/hd_wasm_linear/DESIGN.md` §23.20, this note removed | bench: byte-identical to main expected |
-
 ### E.5 Model A Implementation Phases, If Chosen
 
 Each about an hour, with its test; the matrix rows leave
@@ -1022,9 +885,8 @@ Each about an hour, with its test; the matrix rows leave
    crosses that read's dereferences, and a binding a `match` makes from a
    call's result holds the result's loans, as a direct holder does.
 8. `UniqList`/`UniqMap` through loans; drop #1320's room count. That
-   retires `std-collections.uniq-list.pinned`, `.uniq-list.basic-pinned`,
-   `.uniq-map.pinned` and `.uniq-map.basic-pinned` with
-   `module.rt.buffer.pinned` and the `collection-pinned` panic category;
+   retires the unique-collection and buffer pin rules with the
+   `collection-pinned` panic category;
    since phase 7 the `uniq-map` pinned fixtures already panic
    `borrow-conflict`, as a match-bound value reference holds the map's
    object. A reference an inlined getter returns holds the getter's
@@ -1133,7 +995,7 @@ closure that started with none panicked where a plain one runs
 - **Diagnostics:** `conflicting-access` for the new static rules; the
   panic `borrow-conflict` names the object's type.
 - **Spec:** `ref.excl.alias.*` rewritten, the pin rules removed, the
-  element rules narrowed (E.1); the matrix is the conformance suite.
+  element rules narrowed; the matrix is the conformance suite.
 - **Runtime:** header bits (E.2); host ABI unchanged; checked builds
   audit that every loan ends.
 - **Rollback:** the state bits are inert at zero, so each phase can be

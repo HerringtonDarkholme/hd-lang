@@ -87,7 +87,7 @@ std's prelude. No name appears twice, so order matters only for uses.
   interned names and types and the frozen interfaces persist.
 
 ```text
-hd> let prices: mut Map[string, u32] = Map.new()
+hd> let mut prices: Map[string, u32] = Map.new()
 hd> fn price(item: string) -> u32:          # reads input 1's binding
 ...     prices.get(item).unwrap_or(+0)
 hd> prices.insert("tea", +3)

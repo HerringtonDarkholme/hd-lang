@@ -215,10 +215,9 @@ collector for acyclic data, so the list must drop them.
   3. `std.rt.Drop` and its glue call; a stage case and a checked case. Applied by #1297 ([Runtime Drop Hook](../../spec/lang/10-modules.md#runtime-drop-hook)).
   4. Raw `Buffer`, `UniqList` with `len`; uniq fixtures in checked
      builds. Applied by #1298 ([Typed Memory](../../spec/lang/10-modules.md#typed-memory)):
-     a room keeps an 8-byte head. Its count word is the buffer's count
-     plus one per reference that leaves a short loan (#1320), so an
-     element reference reached through a `*T` pins the room
-     (`std-collections.uniq-list.pinned`).
+     a room keeps an 8-byte head. Its count word was then the buffer's
+     count plus one per reference that left a short loan (#1320); see
+     phase 6 for what replaced it.
   5. `UniqMap` and the iterators on `Drop`; the collector's deferred
      free; the cycle tests. `UniqMap`'s `Drop` and the deferred free
      applied by #1298; the iterators are #1299.
