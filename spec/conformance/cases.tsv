@@ -6447,3 +6447,8 @@ typing/invalid/a-cast-with-no-argument-is-an-argument-count-error.hd	type	reject
 typing/invalid/a-trailing-block-for-a-cast-is-ineligible.hd	type	reject:trailing-block-ineligible	lang/02-grammar.md#r-grammar.call.trailing-block.eligible
 typing/invalid/a-newtype-constructor-with-two-arguments-is-an-argument-count-error.hd	type	reject:argument-count	lang/04-type-system.md#r-types.newtype.construct
 typing/invalid/a-generic-type-with-type-arguments-is-not-a-value.hd	type	reject:type-used-as-value	lang/03-names-and-scopes.md#r-names.type-as-value
+typing/invalid/a-hex-literal-past-every-integer-type-is-out-of-range.hd	type	reject:integer-literal-range	lang/04-type-system.md#r-types.literal.int-range
+parse/invalid/context-use-without-a-key.hd	parse	reject:syntax-error	lang/02-grammar.md#requirements-and-provider-contexts
+typing/invalid/a-primitive-type-as-a-use-key-is-an-unknown-trait.hd	type	reject:unknown-trait	lang/11-requirements-and-suspension.md#r-req.key.in-scope
+typing/invalid/a-primitive-type-as-a-provider-key-is-an-unknown-trait.hd	type	reject:unknown-trait	lang/11-requirements-and-suspension.md#r-req.key.in-scope
+typing/invalid/a-context-type-used-as-a-value.hd	type	reject:type-used-as-value	lang/03-names-and-scopes.md#r-names.type-as-value

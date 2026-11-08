@@ -936,13 +936,21 @@ impl Ck<'_, '_> {
         hd_resolve::assoc::with_super_bindings(self.pool(), &view, t)
     }
 
-    /// The type a requirement key names: a trait.
-    pub(crate) fn key_node(&mut self, n: NodeRef<'_>) -> StageResult<Ty> {
+    /// The trait value type a requirement key names, with its trait;
+    /// `None` once an error is reported. A key that names no trait, such
+    /// as `i32`, is `unknown-trait`.
+    pub(crate) fn key_node(&mut self, n: NodeRef<'_>) -> StageResult<Option<(Ty, DefId)>> {
         let t = self.ty_node_as(n, NameRole::Trait)?;
-        if self.inspectable_key(t, n) {
-            return Ok(Ty::POISON);
+        if t == Ty::POISON || self.inspectable_key(t, n) {
+            return Ok(None);
         }
-        Ok(self.with_key_bindings(t))
+        let t = self.with_key_bindings(t);
+        if let TyData::TraitValue { def, .. } = self.pool().get(t) {
+            return Ok(Some((t, def)));
+        }
+        let msg = format!("no trait named `{}`: not a trait", self.show(t));
+        self.err(hd_diag::Code::UnknownTrait, n, &msg);
+        Ok(None)
     }
 
     pub(crate) fn ty_node_as(&mut self, n: NodeRef<'_>, role: NameRole) -> StageResult<Ty> {

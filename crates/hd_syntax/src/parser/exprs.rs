@@ -556,11 +556,12 @@ impl Parser<'_> {
         self.bump();
         match word {
             "use" => {
+                // At least one key (`context_use`).
                 if self.expect(TokenKind::LParen, "'('") {
-                    while !self.at(TokenKind::RParen) && self.current().is_some() {
+                    loop {
                         let before = self.pos();
                         self.ty_bound_trait(true);
-                        if !self.eat(TokenKind::Comma) || self.pos() == before {
+                        if !self.eat(TokenKind::Comma) || self.pos() == before || self.at(TokenKind::RParen) {
                             break;
                         }
                     }

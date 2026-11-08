@@ -1,0 +1,5 @@
+# test: `$.use` names at least one requirement key
+# Spec 02 Grammar: Requirements And Provider Contexts, context_use.
+
+fn f() -> void $ Console:
+    x := $.use() # diagnostic: syntax-error

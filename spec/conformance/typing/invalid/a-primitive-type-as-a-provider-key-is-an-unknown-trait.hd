@@ -1,0 +1,6 @@
+# test: a provider entry's key is a trait, so a primitive type names none
+# Spec 11 Requirements and Suspension: req.key.in-scope.
+
+fn f() -> void:
+    $.with(i32 = 1): # diagnostic: unknown-trait
+        pass

@@ -1,0 +1,5 @@
+# test: a hexadecimal literal wider than 64 bits fits no integer type
+# Spec 04 Type System: types.literal.int-range.
+
+fn mask() -> u64:
+    0x1_0000_0000_0000_0000 # diagnostic: integer-literal-range

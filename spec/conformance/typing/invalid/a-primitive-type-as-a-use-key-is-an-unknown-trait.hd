@@ -1,0 +1,5 @@
+# test: a requirement key is a trait, so a primitive type names none
+# Spec 11 Requirements and Suspension: req.key.in-scope.
+
+fn f() -> void $ Console:
+    x := $.use(i32) # diagnostic: unknown-trait

@@ -434,7 +434,8 @@ impl Ck<'_, '_> {
                     text
                 }
                 .replace('_', "");
-                let int = if let Some((radix, digits)) = crate::literals::radix_digits(&text) {
+                let radix = crate::literals::radix_digits(&text);
+                let int = if let Some((radix, digits)) = radix {
                     u64::from_str_radix(digits, radix).ok()
                 } else {
                     text.parse::<u64>().ok()
@@ -442,7 +443,7 @@ impl Ck<'_, '_> {
                 if let Some(v) = int {
                     let lt = self.infer.fresh(pool, VarKind::IntLit);
                     (self.b.const_value(lt, v), lt)
-                } else if crate::literals::decimal_digits(&text) {
+                } else if radix.is_some() || crate::literals::decimal_digits(&text) {
                     // An integer too large for u64 stays an integer,
                     // clamped to the maximum; the overflow bit travels
                     // with the constant so `check_literal_ranges`
@@ -464,13 +465,10 @@ impl Ck<'_, '_> {
     }
 
     /// A constant, or evaluated pieces measured before one result allocation
-    /// (`expr.interp.builder.sized`, `expr.interp.write.measured`).
+    /// (`expr.interp.builder.sized`, `expr.interp.write.measured`). A
+    /// prefixed string goes to `prefixed_string`, and the parser rejects
+    /// one as a pattern (`grammar.pattern.no-literal-call`).
     pub(crate) fn string_expr(&mut self, n: NodeRef<'_>) -> StageResult<Ref> {
-        let first = self.cx.src.first(n);
-        let ftext = self.cx.src.text(first);
-        if !ftext.starts_with('"') {
-            return unsupported("a prefixed string");
-        }
         let mut out = Interpolation::default();
         self.interpolate(n, &mut out)?;
         // `expr.interp.constant`: no value, so no builder and no call.
@@ -1239,10 +1237,9 @@ impl Ck<'_, '_> {
     }
 
     fn binary(&mut self, n: NodeRef<'_>, l: NodeRef<'_>, r: NodeRef<'_>) -> StageResult<(Ref, Ty)> {
+        // The parser builds a binary node as left operand, operator, right.
         let op_tok = hd_base::TokenIdx::from_raw(self.cx.src.last(l).raw() + 1);
-        let Some(op) = self.cx.src.tkind(op_tok) else {
-            return unsupported("a binary operator");
-        };
+        let op = self.cx.src.parse.tokens.kind(op_tok);
         if matches!(op, TokenKind::AndAnd | TokenKind::OrOr) {
             let (a, at) = self.expr(l, Some(Ty::BOOL))?;
             self.expect(at, Ty::BOOL, l, "operand", ExpectPosition::Operand);
@@ -2339,7 +2336,6 @@ impl Ck<'_, '_> {
         n: NodeRef<'_>,
         rn: NodeRef<'_>,
     ) -> StageResult<Ref> {
-        let pool = self.pool();
         let tr = self.cx.names.known.partial_ord;
         if let Some(info) = self.op_failure(tr, at, Some(ct))? {
             if let Some(msg) = self.unmet_derived_bound(&info) {
@@ -2358,10 +2354,9 @@ impl Ck<'_, '_> {
             self.eq_operand_ref((c, at, false), rn)
         };
         let crt = self.b.ty_of(c);
-        let (v, vt) = self.trait_call_args(tr, "partial_cmp", a, at, &[(c, crt, rn)], n)?;
-        let TyData::Option(ord_ty) = pool.get(vt) else {
-            return unsupported("partial_cmp without an optional Ordering result");
-        };
+        let (v, _) = self.trait_call_args(tr, "partial_cmp", a, at, &[(c, crt, rn)], n)?;
+        // `std.cmp.PartialOrd.partial_cmp` returns `Ordering?`.
+        let ord_ty = self.ctor(self.cx.names.known.ordering, &[])?;
         // None is unordered, so every relational operator returns false.
         // In Some, <= excludes Greater and >= excludes Less. Ordinary
         // variant tests preserve the representation selected by the backend.
@@ -3323,10 +3318,8 @@ impl Ck<'_, '_> {
             self.err(Code::UnknownType, name_node, &msg);
             return Ok((Ref(NONE), Ty::NEVER));
         };
-        let Some(item) = self.cx.lookup.item(def) else {
-            return unsupported("a data literal of an unknown item");
-        };
-        let ItemData::Struct(fields) = item.data.clone() else {
+        let item = self.cx.lookup.item(def);
+        let Some((item, ItemData::Struct(fields))) = item.map(|i| (i, i.data.clone())) else {
             let msg = format!("no type named `{}`: not a data type", segs.join("."));
             self.err(Code::UnknownType, name_node, &msg);
             return Ok((Ref(NONE), Ty::NEVER));
@@ -3895,14 +3888,14 @@ impl Ck<'_, '_> {
         {
             let items = pool.list_items(args);
             let map = def == self.cx.names.known.map;
+            // A list has its one argument and a map its two (`ctor`).
             let item = match items {
-                [t] if !map => *t,
-                [k, v] if map => pool.intern_ty(&TyData::Tuple {
+                [k, v] => pool.intern_ty(&TyData::Tuple {
                     elems: pool
                         .list(&[self.ref_ty(*k, false, false), self.ref_ty(*v, false, false)]),
                     rest: None,
                 }),
-                _ => return unsupported("a collection type's arguments"),
+                _ => items.first().copied().unwrap_or(Ty::POISON),
             };
             let reserve = reserve.filter(|_| !map);
             return self.collection_loop(pat, (sr, st, item, map), (els, reserve), e, body);
@@ -4685,24 +4678,21 @@ impl Ck<'_, '_> {
             }
             return Ok(());
         };
-        match c.kind() {
-            SyntaxKind::ComprehensionFor => {
-                let [pat, src] = c.parts();
-                self.iterate(pat, src, *c, &mut |me: &mut Self| {
-                    me.clauses(rest, last, acc, args, n)
-                })?;
-            }
-            SyntaxKind::ComprehensionIf => {
-                let [cond] = c.parts();
-                let (cr, ct) = self.expr(cond, Some(Ty::BOOL))?;
-                self.expect(ct, Ty::BOOL, cond, "condition", ExpectPosition::General);
-                let tb = self.b.open_block();
-                self.clauses(rest, last, acc, args, n)?;
-                let then = self.b.close_block(tb, None, Ty::VOID, c.index());
-                let rec = self.b.refs_record(&[then, Ref(NONE)]);
-                self.b.emit(Tag::If, cr.0, rec, Ty::VOID, c.index());
-            }
-            _ => return unsupported("this comprehension clause"),
+        if c.kind() == SyntaxKind::ComprehensionFor {
+            let [pat, src] = c.parts();
+            self.iterate(pat, src, *c, &mut |me: &mut Self| {
+                me.clauses(rest, last, acc, args, n)
+            })?;
+        } else {
+            // A `ComprehensionIf`, the parser's one other clause.
+            let [cond] = c.parts();
+            let (cr, ct) = self.expr(cond, Some(Ty::BOOL))?;
+            self.expect(ct, Ty::BOOL, cond, "condition", ExpectPosition::General);
+            let tb = self.b.open_block();
+            self.clauses(rest, last, acc, args, n)?;
+            let then = self.b.close_block(tb, None, Ty::VOID, c.index());
+            let rec = self.b.refs_record(&[then, Ref(NONE)]);
+            self.b.emit(Tag::If, cr.0, rec, Ty::VOID, c.index());
         }
         Ok(())
     }
@@ -5337,7 +5327,6 @@ impl Ck<'_, '_> {
         al: NodeRef<'_>,
         lexical: bool,
     ) -> StageResult<(Vec<Ref>, Option<Vec<Ty>>)> {
-        let pool = self.pool();
         // A `$.with` block also compares with the keys its scopes show
         // (`req.with.collision.compared`).
         let visible = if lexical {
@@ -5369,13 +5358,9 @@ impl Ck<'_, '_> {
                     continue;
                 }
             };
-            let key = self.key_node(*kn)?;
-            if key == Ty::POISON {
+            let Some((key, def)) = self.key_node(*kn)? else {
                 known = false;
                 continue;
-            }
-            let TyData::TraitValue { def, .. } = pool.get(key) else {
-                return unsupported("a provider key that is not a trait");
             };
             // A provider outlives its scope (`req.use.value.outlives-scope`),
             // so a `$.use` provider installed again is counted
@@ -5494,8 +5479,15 @@ impl Ck<'_, '_> {
         if toks.get(2).map(String::as_str) == Some("context") {
             return self.context_new(n);
         }
+        // The parser admits only `use`, `context`, `with` and `Context`,
+        // and `$.Context[..]` is a type (`names.type-as-value`).
         if toks.get(2).map(String::as_str) != Some("use") {
-            return unsupported("this `$.` form in an expression");
+            self.err(
+                Code::TypeUsedAsValue,
+                n,
+                "`$.Context[..]` is a type, not a value",
+            );
+            return Ok((Ref(NONE), Ty::POISON));
         }
         let mut refs = Vec::new();
         let mut tys = Vec::new();
@@ -5523,20 +5515,18 @@ impl Ck<'_, '_> {
             refs.push(r);
             tys.push(t);
         }
-        match tys[..] {
-            [] => unsupported("`$.use` without a key"),
-            [t] => Ok((refs[0], t)),
-            // `$.use(A, B)` is the tuple of the providers in the requested
-            // key order (`req.use.order`).
-            _ => {
-                let t = pool.intern_ty(&TyData::Tuple {
-                    elems: pool.list(&tys),
-                    rest: None,
-                });
-                let rec = self.b.refs_record(&refs);
-                Ok((self.b.emit(Tag::NewTuple, NONE, rec, t, n.index()), t))
-            }
+        // The parser reads at least one key (`context_use`).
+        if let [t] = tys[..] {
+            return Ok((refs[0], t));
         }
+        // `$.use(A, B)` is the tuple of the providers in the requested key
+        // order (`req.use.order`).
+        let t = pool.intern_ty(&TyData::Tuple {
+            elems: pool.list(&tys),
+            rest: None,
+        });
+        let rec = self.b.refs_record(&refs);
+        Ok((self.b.emit(Tag::NewTuple, NONE, rec, t, n.index()), t))
     }
 
     /// The covering provider of the one key `kn` of `$.use` node `n`.
@@ -5546,13 +5536,8 @@ impl Ck<'_, '_> {
         n: NodeRef<'_>,
         counted: bool,
     ) -> StageResult<(Ref, Ty)> {
-        let pool = self.pool();
-        let key = self.key_node(kn)?;
-        if key == Ty::POISON {
+        let Some((key, key_trait)) = self.key_node(kn)? else {
             return Ok((Ref(NONE), Ty::POISON));
-        }
-        let TyData::TraitValue { def: key_trait, .. } = pool.get(key) else {
-            return unsupported("a `$.use` key that is not a trait");
         };
         self.require_key(key, n);
         let at = self.b.refs_record(&[Ref(key.0)]);

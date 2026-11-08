@@ -1,0 +1,5 @@
+# test: `$.Context[...]` is a type, not a value
+# Spec 03 Names and Scopes: names.type-as-value.
+
+fn f() -> void:
+    x := $.Context[$()] # diagnostic: type-used-as-value
