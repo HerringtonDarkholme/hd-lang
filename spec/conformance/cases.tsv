@@ -6107,6 +6107,9 @@ typing/invalid/constructor-function-bound-keeps-read-only-captures.hd	type	rejec
 typing/invalid/opaque-newtype-payload-keeps-its-hidden-type.hd	type	reject:type-mismatch	lang/07-functions.md#r-fn.opaque.occurrence-no-join
 typing/invalid/opaque-named-variant-payload-keeps-its-hidden-type.hd	type	reject:type-mismatch	lang/07-functions.md#r-fn.opaque.occurrence-no-join
 typing/invalid/opaque-spread-variant-payload-keeps-its-hidden-type.hd	type	reject:type-mismatch	lang/07-functions.md#r-fn.opaque.occurrence-no-join
+runtime/valid/an-enum-method-reference-uses-method-lookup.hd	runtime	accept	lang/07-functions.md#r-fn.ref.lookup
+typing/invalid/an-enum-variant-is-not-a-method-reference.hd	type	reject:unknown-method	lang/07-functions.md#r-fn.ref.lookup
+parse/invalid/a-local-generic-bound-takes-no-mut-prefix.hd	parse	reject:syntax-error	lang/02-grammar.md#r-grammar.generic.bound.no-mut
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

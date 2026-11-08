@@ -163,14 +163,6 @@ impl Ck<'_, '_> {
                     Some(HeadKind::Trait) => {
                         return self.trait_ref(def, explicit, &name, method_targs, want, n);
                     }
-                    Some(HeadKind::Enum | HeadKind::Alias)
-                        if {
-                            let et = self.ctor(def, &explicit, n)?;
-                            self.variant_fields(et, &name).is_some()
-                        } =>
-                    {
-                        return self.gap(n, "a variant constructor used as a value");
-                    }
                     Some(k) if k.is_type() => {
                         let t = self.ctor(def, &explicit, n)?;
                         return self.type_ref(t, &name, method_targs, want, n);

@@ -4,7 +4,6 @@
 
 use hd_base::StageResult;
 use hd_diag::Code;
-use hd_resolve::Src;
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{NONE, Ref};
 use hd_types::{Ty, TyData};
@@ -58,9 +57,8 @@ impl Ck<'_, '_> {
         compound: Option<TokenKind>,
         s: NodeRef<'_>,
     ) -> StageResult<()> {
-        let Some(callee) = lhs.children().next() else {
-            return self.gap(lhs, "a call target without a callee");
-        };
+        // `parser::postfix`: a CallExpr has its callee and ArgumentList.
+        let [callee, list] = lhs.parts();
         // A method call, a variant, a path or a type-argument call names
         // a function, never a callable value (`expr.member.stored-fn`).
         if matches!(
@@ -74,7 +72,7 @@ impl Ck<'_, '_> {
             self.not_a_place(lhs);
             return Ok(());
         }
-        let args = self.args_of(Src::child(lhs, SyntaxKind::ArgumentList));
+        let args = self.args_of(Some(list));
         let pool = self.pool();
         let update = self.cx.names.known.update;
         // A place stores through `Update`'s `&mut self` method, which takes

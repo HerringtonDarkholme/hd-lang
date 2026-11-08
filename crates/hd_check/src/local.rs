@@ -310,9 +310,7 @@ impl Ck<'_, '_> {
             let mut bs = Vec::new();
             let mut lifted = false;
             if let Some(bl) = Src::child(g, SyntaxKind::BoundList) {
-                if bl.direct_token(toks, TokenKind::KwMut).is_some() {
-                    return self.gap(bl, "a `mut` bound on a local function's type parameter");
-                }
+                // `parser::ty_bound_trait` rejects `mut` in every bound.
                 // The first token of each bound written after a `?`.
                 let relaxed: Vec<u32> = (bl.direct_tokens())
                     .filter(|&t| toks.kind(t) == TokenKind::Question)

@@ -1,0 +1,7 @@
+# test: a variant selected with :: must resolve a method
+# Rule: fn.ref.lookup.
+enum Number:
+    Value(number: i32)
+
+fn invalid() -> void:
+    _ := Number::Value # diagnostic: unknown-method

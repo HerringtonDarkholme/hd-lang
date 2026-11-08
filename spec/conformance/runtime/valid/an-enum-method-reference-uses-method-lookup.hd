@@ -1,0 +1,23 @@
+# test: a variant name does not block the same name in method-reference lookup
+# Rules: fn.ref.lookup, fn.unsupported.variant-value.
+# expect-stdout: 2
+# expect-stdout: 13
+# expect-stdout: 14
+
+enum Number:
+    Value(number: i32)
+
+type Alias = Number
+
+impl Number:
+    fn Value(number: i32) -> i32:
+        number + 10
+
+pub fn main() -> void $ Console:
+    make := Number.Value
+    match make(+2):
+        .Value(number) => println(number)
+    transform := Number::Value
+    println(transform(+3))
+    through_alias := Alias::Value
+    println(through_alias(+4))

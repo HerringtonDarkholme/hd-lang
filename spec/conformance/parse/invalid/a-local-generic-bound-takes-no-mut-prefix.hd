@@ -1,0 +1,4 @@
+# test: the parser rejects a mut prefix in a local generic bound
+# Rule: grammar.generic.bound.no-mut.
+fn outer() -> void:
+    fn inner[T < mut Copy](value: T) -> T: value # diagnostic: syntax-error
