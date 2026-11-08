@@ -499,9 +499,6 @@ pub enum Helper {
     },
     /// `(a, b) -> bool`: two strings' bytes are equal.
     StrEq,
-    /// `(a, b) -> i32`: -1, 0 or 1 as `a` sorts before, with or after `b`,
-    /// byte by byte and a prefix first (`expr.ord.std.string-bytes`).
-    StrCmp,
     /// `(at, len, from) -> index` for a constant set, else `(at, len, from,
     /// w0, w1, w2, w3) -> index`: std's `bytes_index_set`, the first byte at
     /// or after `from` in the 256-bit set, or `len` (#428).
@@ -516,8 +513,7 @@ pub enum Helper {
     BytesIndexPair,
     /// `(left_at, left_len, right_at, right_len) -> index`: std's
     /// `bytes_mismatch`, the offset of the first differing byte, else the
-    /// shorter length (#428). [`Helper::StrEq`] and [`Helper::StrCmp`] call
-    /// it.
+    /// shorter length (#428). [`Helper::StrEq`] calls it.
     BytesMismatch,
     /// `(list) -> len`: std's `utf8_valid_len`, the length of the longest
     /// well-formed UTF-8 prefix of a `List[u8]` that ends at a scalar
@@ -1862,7 +1858,6 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::StrFromBytes => str_from_bytes(m),
         Helper::StrToBytes { elem } => str_to_bytes(m, elem),
         Helper::StrAppend => str_append(m),
-        Helper::StrCmp => str_cmp(m),
         Helper::BytesIndexSet(set) => {
             let params = if set.is_some() {
                 vec![Val::I32; 3]
@@ -2124,53 +2119,6 @@ fn str_eq(m: &Module) -> Func {
     f.helper(Helper::BytesMismatch);
     f.get(1);
     f.op(Instruction::I32Eq);
-    f
-}
-
-/// [`Helper::StrCmp`]: the first differing byte decides; when the shorter
-/// is a prefix of the longer, the lengths do.
-fn str_cmp(m: &Module) -> Func {
-    let mut f = m.func("rt:str_cmp", vec![Val::I32; 4], vec![Val::I32]);
-    let (k, x, y) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
-    // The sign of `x - y` as -1, 0 or 1, for two values in locals.
-    let sign = |f: &mut Func, x: u32, y: u32| {
-        f.get(x);
-        f.get(y);
-        f.op(Instruction::I32GtU);
-        f.get(x);
-        f.get(y);
-        f.op(Instruction::I32LtU);
-        f.op(Instruction::I32Sub);
-    };
-    for l in 0..4 {
-        f.get(l);
-    }
-    f.helper(Helper::BytesMismatch);
-    f.set(k);
-    // A mismatch before the shorter length: the bytes there decide.
-    f.get(k);
-    f.get(1);
-    f.get(3);
-    f.get(1);
-    f.get(3);
-    f.op(Instruction::I32LtU);
-    f.op(Instruction::Select);
-    f.op(Instruction::I32LtU);
-    f.op(Instruction::If(BlockType::Empty));
-    f.get(0);
-    f.get(k);
-    f.op(Instruction::I32Add);
-    f.op(Instruction::I32Load8U(mem(HEAP, 0, 0)));
-    f.set(x);
-    f.get(2);
-    f.get(k);
-    f.op(Instruction::I32Add);
-    f.op(Instruction::I32Load8U(mem(HEAP, 0, 0)));
-    f.set(y);
-    sign(&mut f, x, y);
-    f.op(Instruction::Return);
-    f.op(Instruction::End);
-    sign(&mut f, 1, 3);
     f
 }
 

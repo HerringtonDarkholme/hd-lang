@@ -3493,14 +3493,13 @@ impl Em<'_, '_, '_> {
 
     /// A body-less method of a primitive's std impl at `self_ty`
     /// (`expr.op.std.intrinsic-method`, `expr.ord.std.intrinsic`).
-    /// `Eq.eq`, `PartialOrd.partial_cmp`, `Ord.cmp` and `Display.to_string`
-    /// take their operands by reference (`expr.eq.trait.ref`,
-    /// `expr.ord.trait.ref`, `expr.interp.display.ref`) and read the values
-    /// they refer to: each such argument stands for its loaded value while
-    /// the operation is lowered.
+    /// `Eq.eq`, `PartialOrd.partial_cmp` and `Ord.cmp` take their operands
+    /// by reference (`expr.eq.trait.ref`, `expr.ord.trait.ref`) and read the
+    /// values they refer to: each such argument stands for its loaded value
+    /// while the operation is lowered.
     fn builtin(&mut self, i: u32, name: &str, self_ty: Ty, args: &[u32]) -> StageResult<()> {
         let mut saved: Vec<(u32, usize, Option<Vec<u32>>, Ty)> = Vec::new();
-        let reads: &[u32] = if matches!(name, "eq" | "cmp" | "partial_cmp" | "to_string") {
+        let reads: &[u32] = if matches!(name, "eq" | "cmp" | "partial_cmp") {
             args
         } else {
             &[]
@@ -3534,8 +3533,8 @@ impl Em<'_, '_, '_> {
         done
     }
 
-    /// [`Em::builtin`] on operand values: the operator's lowering, an
-    /// `Ordering`, or the value's text.
+    /// [`Em::builtin`] on operand values: the operator's lowering or an
+    /// `Ordering`.
     fn builtin_values(&mut self, i: u32, name: &str, self_ty: Ty, args: &[u32]) -> StageResult<()> {
         let t = hd_mono::layout::strip_newtype(self.pool(), self.env(), self_ty);
         let prim = matches!(self.pool().get(t), TyData::Prim(_));
@@ -3552,7 +3551,7 @@ impl Em<'_, '_, '_> {
             "not" => Some(PrimOp::Not),
             "shl" => Some(PrimOp::Shl),
             "shr" => Some(PrimOp::Shr),
-            "eq" if t != Ty::STRING => Some(PrimOp::Eq),
+            "eq" => Some(PrimOp::Eq),
             _ => None,
         };
         if prim && let Some(op) = op {
@@ -3562,75 +3561,9 @@ impl Em<'_, '_, '_> {
         if name == "runtime_type" {
             return self.runtime_type(i, self_ty, args[0]);
         }
-        let (_, signed, float) = self.num(t);
+        let (_, _, float) = self.num(t);
         match name {
-            "cmp" | "partial_cmp" if prim && t != Ty::STRING => {
-                self.ordering(i, args, name == "partial_cmp", float)
-            }
-            "to_string" if t == Ty::BOOL => {
-                let yes = self.m.static_bytes(b"true", 1);
-                let no = self.m.static_bytes(b"false", 1);
-                self.f.mark_static(yes);
-                self.f.mark_static(no);
-                self.f.static_addr(yes);
-                self.f.static_addr(no);
-                self.comp(args[0], 0)?;
-                self.f.op(I::Select);
-                self.f.u32(4);
-                self.f.u32(5);
-                self.comp(args[0], 0)?;
-                self.f.op(I::Select);
-                self.store(i)
-            }
-            "to_string" if t == Ty::STRING => {
-                self.push(args[0])?;
-                self.store(i)
-            }
-            "to_string" if prim && !float => {
-                let (bits, _, _) = self.num(t);
-                let room = self.f.local(Val::I32);
-                self.f.i32(20);
-                self.f.helper(Helper::Str);
-                self.f.set(room);
-                self.push(args[0])?;
-                if bits < 64 {
-                    self.f.op(if signed {
-                        I::I64ExtendI32S
-                    } else {
-                        I::I64ExtendI32U
-                    });
-                }
-                self.f.get(room);
-                self.f.helper(Helper::FmtInt { signed });
-                let length = self.f.local(Val::I32);
-                let offset = self.f.local(Val::I32);
-                self.f.set(length);
-                self.f.set(offset);
-                self.f.get(room);
-                self.f.get(offset);
-                self.f.op(I::I32Add);
-                self.f.get(length);
-                self.store_owned(i)
-            }
-            // A float's text is the host primitive its `Display`
-            // implementation calls.
-            "to_string" if prim && float => {
-                let key = if self.vals(t)? == [Val::F32] {
-                    "format_f32"
-                } else {
-                    "format_f64"
-                };
-                self.host_prim(i, key, args)
-            }
-            "cmp" | "partial_cmp" if t == Ty::STRING => {
-                self.str_ordering(i, args, name == "partial_cmp")
-            }
-            "eq" if t == Ty::STRING => {
-                self.push(args[0])?;
-                self.push(args[1])?;
-                self.f.helper(Helper::StrEq);
-                self.store(i)
-            }
+            "cmp" | "partial_cmp" if prim => self.ordering(i, args, name == "partial_cmp", float),
             "abs" | "trunc" | "floor" | "ceil" | "round_ties_even" | "sqrt" if prim && float => {
                 self.comp(args[0], 0)?;
                 let f32 = self.vals(t)? == [Val::F32];

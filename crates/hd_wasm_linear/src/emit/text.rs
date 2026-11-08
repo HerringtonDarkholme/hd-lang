@@ -440,25 +440,6 @@ impl Em<'_, '_, '_> {
         self.store(i)
     }
 
-    /// `cmp` or `partial_cmp` of two strings: their bytes in order, a
-    /// prefix first (`expr.ord.std.string-bytes`), as an `Ordering`, which
-    /// `partial_cmp` wraps in `.Some`.
-    pub(super) fn str_ordering(&mut self, i: u32, args: &[u32], partial: bool) -> StageResult<()> {
-        let want = if partial { 2 } else { 1 };
-        if self.vals(self.ty(i))?.len() != want {
-            return unsupported("an `Ordering` of this layout");
-        }
-        if partial {
-            self.f.i32(1);
-        }
-        self.push(args[0])?;
-        self.push(args[1])?;
-        self.f.helper(Helper::StrCmp);
-        self.f.i32(1);
-        self.f.op(I::I32Add);
-        self.store(i)
-    }
-
     /// A host primitive (spec/std/README.md, "Standard library
     /// primitives"): the `hd:prim` import `name`. A scalar argument goes in
     /// as itself and a string in the exchange buffer, its length the
