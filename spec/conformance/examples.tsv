@@ -237,7 +237,7 @@ lang/04-type-system.md	66	complete	typing/valid/generic-mutual-bounds.hd
 lang/04-type-system.md	67	mixed	typing/invalid/written-type-too-many-arguments.hd|typing/valid/const-generic-scalar-types-and-identity.hd|typing/invalid/const-generic-identity-mismatch.hd|typing/invalid/const-generic-runtime-dependent-argument.hd|typing/invalid/const-generic-symbolic-arithmetic.hd
 lang/04-type-system.md	68	complete	-
 lang/04-type-system.md	69	mixed	typing/invalid/generic-inference-numeric-widening.hd|typing/invalid/generic-inference-trait-value.hd
-lang/04-type-system.md	70	known-failure	runtime/valid/generic-inference-explicit-conversions.hd|runtime/valid/generic-inference-literal-any-position.hd
+lang/04-type-system.md	70	complete	runtime/valid/generic-inference-explicit-conversions.hd|runtime/valid/generic-inference-literal-any-position.hd
 lang/04-type-system.md	71	complete	runtime/valid/bound-inference-user-trait.hd
 lang/04-type-system.md	72	mixed	typing/invalid/bound-inference-several-impls.hd|typing/invalid/bound-inference-no-impl.hd
 lang/04-type-system.md	73	fragment	runtime/valid/bound-inference-explicit.hd|runtime/valid/bound-inference-chain.hd
@@ -837,7 +837,7 @@ lang/11-requirements-and-suspension.md	67	fragment	typing/valid/requirements-and
 lang/11-requirements-and-suspension.md	68	mixed	typing/invalid/missing-requirement-cold-construction.hd
 lang/11-requirements-and-suspension.md	69	complete	runtime/valid/cancel-waits-for-dispose.hd
 lang/11-requirements-and-suspension.md	70	mixed	typing/invalid/cancel-cold-discarded.hd
-lang/11-requirements-and-suspension.md	71	known-failure	runtime/valid/abandon-unwind-order.hd
+lang/11-requirements-and-suspension.md	71	complete	runtime/valid/abandon-unwind-order.hd
 lang/11-requirements-and-suspension.md	72	complete	-
 lang/11-requirements-and-suspension.md	73	complete	runtime/valid/combinator-cancel-fan-out.hd
 lang/11-requirements-and-suspension.md	74	complete	typing/valid/all-tuple-result.hd
@@ -1010,7 +1010,7 @@ std/collections.md	8	complete	runtime/valid/list-span.hd
 std/collections.md	9	complete	runtime/valid/list-sorted-by-key.hd|runtime/valid/list-group-by.hd|runtime/valid/list-partition-search.hd|runtime/valid/list-flat-map-windows.hd|runtime/valid/list-by-key-dedup.hd
 std/collections.md	10	mixed	runtime/panic/list-windows-size.hd
 std/collections.md	11	complete	runtime/valid/list-counts.hd
-std/collections.md	12	known-failure	runtime/valid/map-keys-values.hd|runtime/valid/map-entries-most-common.hd
+std/collections.md	12	complete	runtime/valid/map-keys-values.hd|runtime/valid/map-entries-most-common.hd
 std/collections.md	13	complete	runtime/valid/collection-structs-copy-and-share.hd
 std/collections.md	14	complete	runtime/valid/set-basics.hd|runtime/valid/set-collect.hd
 std/collections.md	15	complete	runtime/valid/deque-ends.hd
@@ -1070,7 +1070,7 @@ std/hash.md	3	complete	runtime/valid/list-map-key.hd
 std/hash.md	4	mixed	typing/invalid/list-float-map-key.hd
 std/hash.md	5	complete	runtime/valid/hash-bytes-result.hd
 std/hash.md	6	complete	runtime/valid/hash-of-reference-values.hd
-std/hash.md	7	known-failure	runtime/valid/default-hasher.hd
+std/hash.md	7	complete	runtime/valid/default-hasher.hd
 std/hash.md	8	complete	runtime/valid/reference-eq-generic.hd
 std/host.md	1	type-fragment	-
 std/host.md	2	type-fragment	-
@@ -1084,7 +1084,7 @@ std/host.md	9	complete	runtime/valid/map-sys.hd
 std/host.md	10	complete	-
 std/http.md	1	type-fragment	-
 std/http.md	2	fragment	runtime/valid/http-multipart.hd
-std/http.md	3	known-failure	-
+std/http.md	3	complete	-
 std/http.md	4	fragment	runtime/valid/http-multipart.hd
 std/http.md	5	fragment	runtime/valid/http-multipart.hd
 std/http.md	6	complete	-
@@ -1160,8 +1160,8 @@ std/num.md	9	complete	runtime/valid/num-float-bits.hd
 std/num.md	10	complete	runtime/valid/num-float-total-cmp.hd
 std/num.md	11	complete	runtime/valid/num-parse-integers.hd
 std/num.md	12	type-fragment	-
-std/num.md	13	known-failure	runtime/valid/num-parse-trait.hd
-std/num.md	14	known-failure	runtime/valid/num-radix-text.hd
+std/num.md	13	complete	runtime/valid/num-parse-trait.hd
+std/num.md	14	complete	runtime/valid/num-radix-text.hd
 std/num.md	15	complete	runtime/valid/num-parse-f64-errors.hd
 std/num.md	16	complete	runtime/valid/num-to-fixed.hd
 std/num.md	17	complete	runtime/valid/num-rotate.hd

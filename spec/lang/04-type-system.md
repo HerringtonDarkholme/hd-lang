@@ -1466,6 +1466,18 @@ fn same(user: User, label: *dyn Display) -> bool:
 struct User:
     name: string
 
+impl Display for User:
+    fn to_string(&self) -> string:
+        self.name
+
+fn max[T < Ord](left: T, right: T) -> T:
+    match left.cmp(&right):
+        .Less => right
+        _ => left
+
+fn cmp[T < Display](left: T, right: T) -> bool:
+    "$left" == "$right"
+
 fn pick[T](left: T, right: T) -> T:
     left
 

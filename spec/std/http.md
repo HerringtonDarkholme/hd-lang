@@ -416,6 +416,8 @@ form := Multipart::new()
 14. r[std-http.multipart.set.content-type] The replacement Content-Type is `multipart/form-data; boundary=BOUNDARY` with the chosen boundary.
 
 ```hd
+use std.http.{Multipart, MultipartError, Request, Url}
+
 fn attach(url: Url, form: Multipart) -> Result[Request, MultipartError]:
     request := Request::post(url).set_multipart(form)?
     .Ok(request)

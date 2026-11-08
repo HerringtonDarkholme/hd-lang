@@ -1648,7 +1648,7 @@ fn stop!(job: Suspend[i32]) -> void:
 `dispose!` that waits:
 
 ```text
-use std.ops.AsyncDisposable
+use std.ops.{AsyncDisposable, Disposable}
 use std.task.race
 use std.time.{Clock, ms, s, sleep}
 
@@ -1672,7 +1672,7 @@ impl AsyncDisposable for Release:
         wait!()                        # abandon() stops the dispose here
         self.log.push("dispose end")
 
-fn ordered!(res: &mut Release, log: &mut List[string]) -> string $ Clock:
+fn ordered!(res: &mut Release, log: *mut List[string]) -> string $ Clock:
     using outer = Mark { log: log, label: "outer" }
     using! r = res
     using tail = Mark { log: log, label: "tail" }

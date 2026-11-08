@@ -119,7 +119,7 @@ fn digest() -> u64:
 `DefaultHasher` is the standard `Hasher`, with one fixed algorithm:
 
 ```text
-use std.hash.{DefaultHasher, hash_of}
+use std.hash.{DefaultHasher, Hasher, hash_of}
 
 fn digest() -> u64:
     let mut hasher = DefaultHasher::new()

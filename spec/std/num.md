@@ -344,6 +344,8 @@ Every number type implements [`Parse`](text.md#parsing-text), so
 `"42".parse::[u8]()` reads a `u8`:
 
 ```text
+use std.num.ParseNumberError
+
 fn byte(text: string) -> Result[u8, ParseNumberError]:
     text.parse::[u8]()
 ```
@@ -365,6 +367,8 @@ fn byte(text: string) -> Result[u8, ParseNumberError]:
 it back, for hex ids, colors, and file modes:
 
 ```text
+use std.num.ParseNumberError
+
 fn id_text(id: u32) -> string:
     id.to_radix(16).pad_start(8, '0')
 

@@ -579,6 +579,8 @@ fn tally(words: List[string]) -> Map[string, usize]:
 > `keys`, `values` and `entries` return lists of copied values.
 
 ```text
+use std.collections.counts
+
 fn shelf_count(stock: &Map[string, List[string]], item: string) -> usize:
     match stock.get(item):  # List[string]?: one count of the list buffer
         .Some(shelves) => shelves.len()
