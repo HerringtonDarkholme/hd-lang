@@ -4930,11 +4930,13 @@ mod tests {
                 copy: DefId::NONE,
                 list: DefId::NONE,
                 map: DefId::NONE,
+                suspend: id(24),
             },
             kinds: vec![
                 (id(21), super::TypeDecl::Enum),
                 (id(22), super::TypeDecl::Newtype(Ty::I32)),
                 (id(23), super::TypeDecl::Newtype(point)),
+                (id(24), super::TypeDecl::Struct),
             ],
             supers: vec![(id(31), vec![fancy_super])],
         }
@@ -5015,7 +5017,9 @@ mod tests {
             assert_eq!(ask(2, t), Some(AnyVal), "{}", p.display(t));
             assert_eq!(ask(3, t), None, "{}", p.display(t));
         }
-        for t in [point, owner, dyn_show, mut_point] {
+        // The seeded suspension is structurally declared but retains identity.
+        let suspension = adt(p, id(24), &[]);
+        for t in [point, owner, dyn_show, mut_point, suspension] {
             assert_eq!(ask(3, t), Some(AnyRef), "{}", p.display(t));
             assert_eq!(ask(2, t), None, "{}", p.display(t));
         }

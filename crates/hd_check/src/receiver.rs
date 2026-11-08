@@ -581,18 +581,6 @@ impl Ck<'_, '_> {
             Root::Elem(list, _, lt) | Root::Slot(list, _, lt, _) => {
                 self.coll_change(list, lt, "this call", at)
             }
-            Root::DataField(_, _, _, dt) => {
-                if self.has_mut_access(dt) {
-                    true
-                } else {
-                    let msg = format!(
-                        "`{name}` takes `&mut self`, but the receiver is a field of a readonly {}",
-                        self.show(dt)
-                    );
-                    self.err(Code::NotWritable, at, &msg);
-                    false
-                }
-            }
         };
         if !ok {
             return false;

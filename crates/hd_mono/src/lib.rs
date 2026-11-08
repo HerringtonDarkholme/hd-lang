@@ -40,38 +40,28 @@ use crate::plan::{BodyPlan, Planner, Source};
 pub trait ProgramEnv: LayoutEnv {
     /// The RC layout's A1 reference-storage class. `None` uses the
     /// generic reference classification; concrete layouts retain their keys.
-    fn shared_reference_layout(&self, _ty: Ty) -> Option<bool> {
-        None
-    }
+    fn shared_reference_layout(&self, _ty: Ty) -> Option<bool>;
     fn body(&self, def: DefId) -> Option<&Body>;
     /// Whether `def` has a body ([`ProgramEnv::body`]), asked without
     /// running the passes over it.
-    fn has_body(&self, def: DefId) -> bool {
-        self.body(def).is_some()
-    }
+    fn has_body(&self, def: DefId) -> bool;
     /// The body whose types and calls collection's analyses read (exact
     /// parameters, permission sharing): a generic item's body folded (and,
     /// in release, inlined) but not owned, since each of its instances is
     /// owned on its own (`ProgramEnv::instance_body`); else
     /// [`ProgramEnv::body`]. The passes add counts and read modes only.
-    fn shape_body(&self, def: DefId) -> Option<&Body> {
-        self.body(def)
-    }
+    fn shape_body(&self, def: DefId) -> Option<&Body>;
     /// `def`'s body at `args`, with its types substituted, its impls
     /// rechosen, its facts folded, then, in release, inlined; and owned.
     /// Collection and emission both use it in place of the ordinary body,
     /// and in release its summary decides how the instance takes its
     /// parameters ([`ProgramEnv::lends`]). `None` keeps the ordinary body.
-    fn instance_body(&self, _def: DefId, _args: TyList) -> StageResult<Option<Arc<Body>>> {
-        Ok(None)
-    }
+    fn instance_body(&self, _def: DefId, _args: TyList) -> StageResult<Option<Arc<Body>>>;
     /// Release (#1118): the exclusive copy of `def`'s instance at `args`,
     /// which borrows through the parameters in its mask across calls that
     /// may write, and which a call may run where
     /// `hd_tir::own::exclusive_call` holds.
-    fn exclusive_body(&self, _def: DefId, _args: TyList) -> Option<(u64, Arc<Body>)> {
-        None
-    }
+    fn exclusive_body(&self, _def: DefId, _args: TyList) -> Option<(u64, Arc<Body>)>;
     /// Release (#1151): `def`'s promoted copy at `args`, which takes the
     /// `&T` parameters in its mask by value (`hd_tir::own::promote`), and
     /// which a call may run where `hd_tir::own::promote::promoted_call`
@@ -86,9 +76,7 @@ pub trait ProgramEnv: LayoutEnv {
         _args: TyList,
         _exclusive: bool,
         _want: (u64, u64),
-    ) -> Option<(u64, Arc<Body>)> {
-        None
-    }
+    ) -> Option<(u64, Arc<Body>)>;
     /// Codegen-only result facts. The driver decodes the raw checked body,
     /// without recursively entering its ownership once-cell.
     fn opaque_result(
@@ -96,13 +84,9 @@ pub trait ProgramEnv: LayoutEnv {
         _pool: &InternPool,
         _owner: DefId,
         _site: u32,
-    ) -> Option<opaque::HiddenResult> {
-        None
-    }
+    ) -> Option<opaque::HiddenResult>;
     /// The declaring trait when an opaque result belongs to a trait method.
-    fn opaque_trait(&self, _method: DefId) -> Option<DefId> {
-        None
-    }
+    fn opaque_trait(&self, _method: DefId) -> Option<DefId>;
     /// Per type parameter of the item itself: has a bound (A1, `crates/hd_mono/DESIGN.md`
     /// §13.2: exact).
     fn bounded(&self, def: DefId) -> Option<Vec<bool>>;
@@ -119,9 +103,7 @@ pub trait ProgramEnv: LayoutEnv {
     fn local_ref_receiver(&self, def: DefId) -> Option<bool>;
     /// Whether the function is marked `@cold`: each direct call of it goes
     /// through the function table (`annot.inline.cold`).
-    fn cold(&self, _def: DefId) -> bool {
-        false
-    }
+    fn cold(&self, _def: DefId) -> bool;
     /// The requirement keys of an instance's row, each the whole trait
     /// value type with its substituted arguments and bindings (`crates/hd_mono/DESIGN.md`
     /// §13.18), in key order (`key_order`, §12.4): the declared keys, and
@@ -147,9 +129,7 @@ pub trait ProgramEnv: LayoutEnv {
     fn suspend_def(&self) -> DefId;
     /// The compiler-known `std.rt.Drop` trait and its one method. `None`
     /// lets a partial environment omit std's runtime declaration.
-    fn drop_items(&self) -> Option<(DefId, DefId)> {
-        None
-    }
+    fn drop_items(&self) -> Option<(DefId, DefId)>;
     /// Whether `impl_` is a `@derive` implementation on a nominal
     /// newtype: its methods forward to the base type's implementation,
     /// so with erased newtypes calls use the base method directly and
@@ -173,34 +153,23 @@ pub trait ProgramEnv: LayoutEnv {
     fn json_items(&self) -> Option<JsonItems>;
     /// Public HD capability -> internal wire trait and ordinary generic
     /// library adapter. Rich message state never crosses a host boundary.
-    fn host_bridge(&self, _key: Ty) -> Option<HostBridge> {
-        None
-    }
+    fn host_bridge(&self, _key: Ty) -> Option<HostBridge>;
     /// A package-declared host trait selects the value-preserving JS bridge.
-    fn is_package_host_trait(&self, _def: DefId) -> bool {
-        false
-    }
+    fn is_package_host_trait(&self, _def: DefId) -> bool;
 
     /// Data fields, for the struct types a program needs.
     fn data_fields(&self, def: DefId) -> Option<Vec<Ty>>;
     /// The names of `def`'s data fields, in [`ProgramEnv::data_fields`]'
     /// order, for development tools that name a value's parts
     /// (`hd_wasm_linear::layout::value_paths`); `None` when unknown.
-    fn data_field_names(&self, _def: DefId) -> Option<Vec<String>> {
-        None
-    }
+    fn data_field_names(&self, _def: DefId) -> Option<Vec<String>>;
     /// Variant and payload field names in `LayoutEnv::enum_variants` order,
     /// for generated host interfaces. `None` when names are unavailable.
-    fn enum_variant_names(&self, _def: DefId) -> Option<Vec<(String, Vec<String>)>> {
-        None
-    }
+    fn enum_variant_names(&self, _def: DefId) -> Option<Vec<(String, Vec<String>)>>;
     /// Whether `def` is a `struct` declaration: a value whose copies copy
     /// the collections it holds (`crates/hd_wasm_linear/DESIGN.md` §15.2,
     /// "Collection values").
-    fn is_struct(&self, def: DefId) -> bool {
-        let _ = def;
-        false
-    }
+    fn is_struct(&self, def: DefId) -> bool;
     /// Whether a data type has a field that is not `pub`: its value crosses
     /// a boundary only through its `Serialize` and `Deserialize`
     /// (`module.boundary.out`, `module.boundary.in`). A newtype's inner
@@ -252,16 +221,12 @@ pub trait ProgramEnv: LayoutEnv {
     /// glue that calls the instance counts none for it. Only the optimized
     /// pipeline's release summaries set one
     /// (`docs/future-work/RELEASE_INTERPROC.md`).
-    fn lends(&self, _item: DefId, _args: TyList) -> u64 {
-        0
-    }
+    fn lends(&self, _item: DefId, _args: TyList) -> u64;
     /// `std.format.Debug`, whose printer is preferred by `dbg_printer`.
     fn debug_trait(&self) -> DefId;
     /// The private `DbgStructural` template's method, the `Structure` trait,
     /// and the `DbgStructural` trait; no public conformance is added.
-    fn dbg_structure(&self) -> Option<(DefId, DefId, DefId)> {
-        None
-    }
+    fn dbg_structure(&self) -> Option<(DefId, DefId, DefId)>;
 
     /// The items a map key's hashing and equality call (`crates/hd_mono/DESIGN.md`
     /// §13.12): `std.hash.key_equal`, which compares two keys by value

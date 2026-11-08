@@ -80,7 +80,10 @@ impl Ck<'_, '_> {
 
     /// Whether `def` is a `struct` declaration (`data.struct.decl`).
     pub(crate) fn is_struct_def(&self, def: hd_base::DefId) -> bool {
-        self.cx.lookup.item(def).is_some_and(|i| i.is_struct)
+        self.cx
+            .lookup
+            .item(def)
+            .is_some_and(|i| self.cx.names.known.is_struct(i))
     }
 
     /// Whether `t` is a struct type, `mut` or not (`types.value.struct`).
@@ -101,34 +104,8 @@ impl Ck<'_, '_> {
         self.is_struct_ty(t) || matches!(pool.get(t), TyData::Tuple { .. })
     }
 
-    /// Whether `t` is a data type, `mut` or not: a value of it is the
-    /// address of an object whose payload holds its fields, so a field
-    /// read dereferences it (`Read [*%o .k]`).
-    pub(crate) fn is_data_object_ty(&self, t: Ty) -> bool {
-        let pool = self.pool();
-        match pool.get(self.strip_mut(t)) {
-            TyData::Adt { def, .. } => {
-                self.cx.lookup.item(def).is_some_and(|i| {
-                    !i.is_struct && matches!(i.data, hd_resolve::ItemData::Data(_))
-                })
-            }
-            _ => false,
-        }
-    }
-
-    /// Field `k`, of type `ft`, of the value `base`: `Read [%base .k]` of
-    /// a struct, newtype or tuple value, `Read [*%base .k]` of a data
-    /// value, whose fields live in its object.
-    pub(crate) fn field_value(&mut self, base: Ref, k: u32, ft: Ty, at: hd_base::NodeIdx) -> Ref {
-        if self.is_data_object_ty(self.b.ty_of(base)) {
-            self.b.data_field(base, k, ft, at)
-        } else {
-            self.b.field(base, k, ft, at)
-        }
-    }
-
     /// What the projection read `r` reads, and from which value: a field
-    /// of a struct, newtype or data value (`[%v .k]`, `[*%o .k]`), an
+    /// of a struct or newtype value (`[%v .k]`), an
     /// element of a tuple (`[%v .k]`), or a payload field
     /// (`[%v as .V .k]`). `None` for any other value, a read through a
     /// reference among them.
@@ -136,10 +113,8 @@ impl Ck<'_, '_> {
         let i = r.as_inst()?.0 as usize;
         let (base, step) = self.b.body_mut().read_step(i)?;
         let base = Ref(base);
-        let bt = self.b.ty_of(base);
         Some(match step {
             Step::Field(_) => Projection::Field(base),
-            Step::DerefField(_) if self.is_data_object_ty(bt) => Projection::Field(base),
             Step::DerefField(_) => return None,
             Step::Variant(..) => Projection::Payload(base),
         })

@@ -195,7 +195,7 @@ impl Forwarder<'_> {
                     );
                 };
                 let ft = ck.field_access(st, part_name, ft);
-                refs.push(ck.field_value(sv, idx, ft, at));
+                refs.push(ck.b.field(sv, idx, ft, at));
             }
             for &(l, t) in &params[1..] {
                 refs.push(ck.b.get(l, t, at));

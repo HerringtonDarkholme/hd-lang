@@ -109,15 +109,6 @@ impl Ck<'_, '_> {
                 self.err(Code::NotWritable, at, &msg);
                 false
             }
-            // A field of a data value: the store needs mutable access to
-            // that value (`types.path.store.not-writable`).
-            Root::DataField(o, _, _, dt) => {
-                if self.has_mut_access(dt) {
-                    return true;
-                }
-                self.check_store_target((o, dt), at);
-                false
-            }
             // A list element is a place of a writable list
             // (`types.coll.element-place`).
             Root::Slot(list, _, lt, e) => {
@@ -204,13 +195,6 @@ impl Ck<'_, '_> {
                 (PlaceRoot::Local(l), fields.collect())
             }
             Root::Global(_, def, ty) => (PlaceRoot::Global(def, ty), fields.collect()),
-            Root::DataField(o, k, ..) => (
-                PlaceRoot::Value(o),
-                [Proj::Deref, Proj::Field(k)]
-                    .into_iter()
-                    .chain(fields)
-                    .collect(),
-            ),
             // Reported by `place_writable_for_field`.
             Root::Elem(..) => return,
         };
@@ -433,7 +417,7 @@ fn walk_values(
             return;
         };
         match &item.data {
-            hd_resolve::ItemData::Data(fs) if item.is_struct => {
+            hd_resolve::ItemData::Data(fs) => {
                 tys.extend(fs.iter().map(|f| sub(f.ty)));
             }
             hd_resolve::ItemData::Enum { shared, variants } => {

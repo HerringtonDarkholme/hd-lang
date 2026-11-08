@@ -1203,7 +1203,7 @@ impl<'a> ItemCheck<'_, 'a> {
     /// Whether `t` is a struct type (`data.struct.decl`).
     fn is_struct(&self, t: Ty) -> bool {
         matches!(self.pool().get(t), TyData::Adt { def, .. }
-            if self.cx.lookup.item(def).is_some_and(|i| i.is_struct))
+            if self.cx.lookup.item(def).is_some_and(|i| self.cx.names.known.is_struct(i)))
     }
 
     /// The value rule of a declaration: a struct or enum that holds itself
@@ -1213,7 +1213,7 @@ impl<'a> ItemCheck<'_, 'a> {
     /// (`data.struct.no-recursion.fix`, `data.enum.no-recursion.fix`).
     fn value_item(&mut self, it: &Item) {
         let (fields, kind, part): (Vec<&hd_resolve::Field>, &str, &str) = match &it.data {
-            ItemData::Data(fs) if it.is_struct => (fs.iter().collect(), "struct", "field"),
+            ItemData::Data(fs) => (fs.iter().collect(), "struct", "field"),
             ItemData::Enum { shared, variants } => (
                 shared
                     .iter()
@@ -1307,9 +1307,9 @@ impl<'a> ItemCheck<'_, 'a> {
         }
         let mine = key(def);
         held.into_iter().filter(|&y| y != def).any(|y| {
-            let own: Vec<Ty> = match lookup.item(y).map(|i| (&i.data, i.is_struct)) {
-                Some((ItemData::Data(fs), true)) => fs.iter().map(|f| f.ty).collect(),
-                Some((ItemData::Enum { shared, variants }, _)) => shared
+            let own: Vec<Ty> = match lookup.item(y).map(|i| &i.data) {
+                Some(ItemData::Data(fs)) => fs.iter().map(|f| f.ty).collect(),
+                Some(ItemData::Enum { shared, variants }) => shared
                     .iter()
                     .chain(variants.iter().flat_map(|v| &v.fields))
                     .map(|f| f.ty)

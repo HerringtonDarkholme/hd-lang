@@ -40,6 +40,8 @@ pub struct SealedTraits {
     /// so `AnyVal` types.
     pub list: DefId,
     pub map: DefId,
+    /// A suspension has identity regardless of its compiler-seeded declaration.
+    pub suspend: DefId,
 }
 
 impl Default for SealedTraits {
@@ -58,6 +60,7 @@ impl Default for SealedTraits {
             copy: DefId::NONE,
             list: DefId::NONE,
             map: DefId::NONE,
+            suspend: DefId::NONE,
         }
     }
 }
@@ -171,6 +174,9 @@ fn category(pool: Types<'_>, decls: &dyn Declarations, t: Ty) -> Category {
             if def != DefId::NONE && (def == decls.sealed().list || def == decls.sealed().map) =>
         {
             Category::Val
+        }
+        TyData::Adt { def, .. } if def != DefId::NONE && def == decls.sealed().suspend => {
+            Category::Ref
         }
         TyData::Adt { def, args } => match decls.type_decl(def) {
             TypeDecl::Enum | TypeDecl::Struct => Category::Val,

@@ -1601,18 +1601,6 @@ impl TirBuilder {
         self.push(Tag::Read, word, ReadMode::Use as u32, ty, syn)
     }
 
-    /// `Read [*%base .k]`: field `k` of the data object `base` names,
-    /// mode `use`.
-    pub fn data_field(&mut self, base: Ref, k: u32, ty: Ty, syn: NodeIdx) -> Ref {
-        let word = self.record(&[
-            place::ROOT_VALUE,
-            base.0,
-            place::PROJ_DEREF,
-            place::PROJ_FIELD | k,
-        ]);
-        self.push(Tag::Read, word, ReadMode::Use as u32, ty, syn)
-    }
-
     /// `Read [%base as .variant .k]`: field `k` of the payload of enum
     /// value `base`, known to hold `variant`, mode `use`.
     pub fn payload(&mut self, base: Ref, variant: u32, k: u32, ty: Ty, syn: NodeIdx) -> Ref {
@@ -3541,7 +3529,7 @@ mod tests {
         );
     }
 
-    /// A struct field, a data object's field and a payload field are reads
+    /// A struct field, a referent's field and a payload field are reads
     /// of one projection step from a value, which `read_step` names.
     #[test]
     fn projection_reads_name_their_step() {
@@ -3551,7 +3539,11 @@ mod tests {
         let blk = b.open_block();
         let v = b.const_value(Ty::I32, 7);
         let f = b.field(v, 2, Ty::I32, n);
-        let d = b.data_field(f, 1, Ty::I32, n);
+        let place = b.place(&super::Place {
+            root: super::PlaceRoot::Value(f),
+            proj: vec![super::Proj::Deref, super::Proj::Field(1)],
+        });
+        let d = b.emit(Tag::Read, place, 0, Ty::I32, n);
         let p = b.payload(d, 1, 0, Ty::I32, n);
         let whole = b.place(&"[*%2]".parse().expect("place"));
         let r = b.emit(Tag::Read, whole, 0, Ty::I32, n);

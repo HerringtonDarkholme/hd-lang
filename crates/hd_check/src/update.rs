@@ -61,7 +61,7 @@ impl Ck<'_, '_> {
                 continue;
             };
             let ft = self.field_access(st, &name, ft);
-            vals[i] = self.field_value(sr, idx, ft, at.index());
+            vals[i] = self.b.field(sr, idx, ft, at.index());
         }
     }
 

@@ -1017,7 +1017,10 @@ impl Resolver<'_, '_> {
 
     /// Whether `d` is a `struct` declaration (`data.struct.decl`).
     fn is_struct(&self, d: DefId) -> bool {
-        self.struct_defs.contains(&d) || self.item(d).is_some_and(|i| i.is_struct)
+        self.struct_defs.contains(&d)
+            || self
+                .item(d)
+                .is_some_and(|i| self.cx.names.known.is_struct(&i))
     }
 
     /// An item of another folder or a seed, for kinds and alias bodies.
@@ -5742,9 +5745,6 @@ impl Lower<'_, '_, '_> {
                 self.derived(h, &generics, &member_types, out);
                 self.error_impls(h, &generics, &[fields.as_slice()], out);
                 let mut it = Item::new(h.def, h.name, h.public, ItemData::Data(fields));
-                it.is_struct = n
-                    .direct_token(&self.src.parse.tokens, TokenKind::KwStruct)
-                    .is_some();
                 it.generics = generics;
                 it.targets = self.annotate_mask(n);
                 it.fact_pattern = self.annotate_pattern(n, &gn);

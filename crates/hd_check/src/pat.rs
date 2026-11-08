@@ -1407,9 +1407,6 @@ impl Ck<'_, '_> {
             proj.push(Proj::Deref);
             t = self.deref_ty(inner, mutable);
         }
-        if self.is_data_object_ty(t) {
-            proj.push(Proj::Deref);
-        }
         (
             TirPlace {
                 root: PlaceRoot::Value(v),

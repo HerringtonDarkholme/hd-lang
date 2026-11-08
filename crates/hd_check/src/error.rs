@@ -246,7 +246,7 @@ impl Target<'_, '_> {
             let index = u32::try_from(vi).unwrap_or(u32::MAX);
             ck.b.payload(v, index, field, t, at)
         } else {
-            ck.field_value(v, field, t, at)
+            ck.b.field(v, field, t, at)
         }
     }
 

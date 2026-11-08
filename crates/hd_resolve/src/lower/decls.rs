@@ -399,15 +399,11 @@ impl Folder<'_, '_> {
     ) {
         let pool = self.names.pool;
         let known = self.names.known;
-        // A data type embeds a data type, and a struct a struct
-        // (`data.struct.embed`).
-        let is_part = |ty, of_struct: bool| match pool.get(ty) {
+        let is_part = |ty| match pool.get(ty) {
             TyData::Adt { def, .. } => {
                 def != known.list
                     && def != known.map
-                    && item(def).is_none_or(|i| {
-                        i.kind() == Some(HeadKind::Data) && i.is_struct == of_struct
-                    })
+                    && item(def).is_none_or(|i| i.kind() == Some(HeadKind::Data))
             }
             _ => false,
         };
@@ -415,7 +411,6 @@ impl Folder<'_, '_> {
             for h in heads.iter().filter(|h| h.kind == HeadKind::Data) {
                 let Some(Item {
                     data: ItemData::Data(fields),
-                    is_struct,
                     ..
                 }) = self.own.get(&h.def).copied()
                 else {
@@ -426,10 +421,9 @@ impl Folder<'_, '_> {
                     .flat_map(NodeRef::children)
                     .filter(|c| c.kind() == SyntaxKind::EmbeddedField);
                 for (f, node) in fields.iter().filter(|f| f.embedded).zip(nodes) {
-                    if !pool.has_poison(f.ty) && !is_part(f.ty, *is_struct) {
-                        let kind = if *is_struct { "struct" } else { "data type" };
+                    if !pool.has_poison(f.ty) && !is_part(f.ty) {
                         let msg = format!(
-                            "`{}` is not a {kind}, so it cannot be embedded",
+                            "`{}` is not a struct, so it cannot be embedded",
                             self.names.text(f.name)
                         );
                         diags.error(Code::EmbeddedNonData, m.src.span(node), &msg);

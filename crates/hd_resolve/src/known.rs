@@ -192,6 +192,21 @@ pub struct KnownItems {
 }
 
 impl KnownItems {
+    /// A record declaration, excluding compiler-known collections,
+    /// suspensions and lowered reference carriers with their own rules.
+    #[must_use]
+    pub fn is_struct(&self, item: &crate::Item) -> bool {
+        matches!(item.data, crate::ItemData::Data(_))
+            && ![
+                self.list,
+                self.map,
+                self.suspend,
+                self.ref_cell,
+                self.counted_cell,
+            ]
+            .contains(&item.def)
+    }
+
     /// The two reference carriers (`hd_types::Types::lower_refs`).
     #[must_use]
     pub fn ref_cells(&self) -> hd_types::RefCells {
@@ -218,6 +233,7 @@ impl KnownItems {
             copy: self.copy,
             list: self.list,
             map: self.map,
+            suspend: self.suspend,
         }
     }
 

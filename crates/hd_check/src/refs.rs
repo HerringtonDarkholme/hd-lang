@@ -45,9 +45,6 @@ pub(crate) enum Root {
     /// The place the reference value `r` refers to, `[*%r]`, with `r`'s
     /// type.
     Deref(Ref, Ty),
-    /// A field of the data value `o`, `[*%o .k]`: the field's index, the
-    /// field's type, and the data value's type.
-    DataField(Ref, u32, Ty, Ty),
     /// A slot of a list's buffer (`ref.elem.place`) or the value of a
     /// map's key (`ref.elem.map`): the collection as the source read it,
     /// the index or key value, and the collection's value type. The place
@@ -329,7 +326,7 @@ impl Ck<'_, '_> {
     /// is a `Read` through a reference that nothing uses yet (the last
     /// instruction), the field extends its place, so `p.x` through `&Point`
     /// is one `Read [*%r .x]` that loads only `x`; else a read of the
-    /// field ([`Ck::field_value`]).
+    /// field ([`hd_tir::ir::TirBuilder::field`]).
     pub(crate) fn field_read(&mut self, base: Ref, idx: u32, ft: Ty, at: NodeIdx) -> Ref {
         let last = base
             .as_inst()
@@ -362,7 +359,7 @@ impl Ck<'_, '_> {
             body.ty[i] = ft;
             return base;
         }
-        self.field_value(base, idx, ft, at)
+        self.b.field(base, idx, ft, at)
     }
 
     /// The value `r` of type `t` as an index base (`ref.read.index.declared`):
@@ -823,19 +820,8 @@ impl Ck<'_, '_> {
                 }
                 let pool = self.pool();
                 let inner = self.strip_mut(self.infer.resolve(pool, t));
-                // A write reads any other field as an expression does; only
-                // a data value's field is a place it names.
-                if use_ == PlaceUse::Write
-                    && !(matches!(pool.get(inner), TyData::Adt { .. })
-                        && !self.is_struct_ty(t)
-                        && self.field_of(t, name).is_some())
-                {
-                    let (v, vt) = self.field_of_value((r, t), name, (base, e))?;
-                    return Ok(Some(Operand::Value(v, vt)));
-                }
-                if let TyData::Tuple { .. } = pool.get(inner) {
-                    // An element of a tuple that is no place: a value, as a
-                    // struct's is.
+                // A write to a field of a value reads it as an expression does.
+                if use_ == PlaceUse::Write || matches!(pool.get(inner), TyData::Tuple { .. }) {
                     let (v, vt) = self.field_of_value((r, t), name, (base, e))?;
                     return Ok(Some(Operand::Value(v, vt)));
                 }
@@ -851,17 +837,9 @@ impl Ck<'_, '_> {
                     return Ok(None);
                 };
                 self.check_field_visible(t, name, e);
-                if self.is_struct_ty(t) {
-                    // A field of a struct that is no place: a value.
-                    let v = self.b.field(r, idx, ft, e.index());
-                    return Ok(Some(Operand::Value(v, ft)));
-                }
-                let ft = self.field_access(t, name, ft);
-                Ok(Some(Operand::Place(Place {
-                    root: Root::DataField(r, idx, ft, t),
-                    path: vec![],
-                    ty: ft,
-                })))
+                // A field of a struct that is no place: a value.
+                let v = self.b.field(r, idx, ft, e.index());
+                Ok(Some(Operand::Value(v, ft)))
             }
         }
     }
@@ -967,18 +945,6 @@ impl Ck<'_, '_> {
             Root::Elem(list, _, lt) | Root::Slot(list, _, lt, _) => {
                 self.coll_change(list, lt, "a `&mut` element reference", at)
             }
-            Root::DataField(_, _, _, dt) => {
-                if self.has_mut_access(dt) {
-                    true
-                } else {
-                    let msg = format!(
-                        "`&mut` refers to a field of a readonly {}, which grants no writes",
-                        self.show(dt)
-                    );
-                    self.err(Code::NotWritable, at, &msg);
-                    false
-                }
-            }
         };
         if !ok {
             return false;
@@ -988,8 +954,7 @@ impl Ck<'_, '_> {
         // upgrade it (`types.mut.no-upgrade`). A collection value is
         // no view: a writable place holding one is writable
         // (`types.coll.writable`).
-        let coll_value = self.is_coll_value(p.ty)
-            && (!matches!(p.root, Root::DataField(..)) || !p.path.is_empty());
+        let coll_value = self.is_coll_value(p.ty);
         if self.is_composite(p.ty) && !self.has_mut_access(p.ty) && !coll_value {
             let msg = format!(
                 "`&mut` needs mutable access, but this place holds a readonly {}",
@@ -1109,7 +1074,6 @@ impl Ck<'_, '_> {
                 .global_get(s, n)
                 .unwrap_or_else(|| (self.b.read_global(def, ty, n.index()), ty)),
             Root::Deref(r, rt) => self.emit_deref(r, rt, n.index()),
-            Root::DataField(o, idx, ft, _) => (self.b.data_field(o, idx, ft, n.index()), ft),
             Root::Slot(list, key, lt, _) | Root::Elem(list, key, lt) => {
                 let et = self.elem_ty(lt);
                 let index = self.elem_index(list, key, lt, n.index());
@@ -1157,10 +1121,6 @@ impl Ck<'_, '_> {
                 proj.push(Proj::Deref);
                 PlaceRoot::Value(r)
             }
-            Root::DataField(o, idx, _, _) => {
-                proj.extend([Proj::Deref, Proj::Field(idx)]);
-                PlaceRoot::Value(o)
-            }
             Root::Slot(list, key, lt, _) | Root::Elem(list, key, lt) => {
                 let index = self.elem_index(list, key, lt, n.index());
                 proj.push(Proj::Elem(index));
@@ -1204,7 +1164,7 @@ impl Ck<'_, '_> {
                 let _ = self.global_read(s, n);
             }
             // A value root was read when it was evaluated.
-            Root::Deref(..) | Root::DataField(..) | Root::Slot(..) | Root::Elem(..) => {}
+            Root::Deref(..) | Root::Slot(..) | Root::Elem(..) => {}
         }
     }
 

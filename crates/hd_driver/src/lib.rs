@@ -12583,7 +12583,10 @@ impl ProgramEnv for Env<'_> {
         }
     }
     fn is_struct(&self, def: DefId) -> bool {
-        self.p.items.get(def).is_some_and(|i| i.is_struct)
+        self.p
+            .items
+            .get(def)
+            .is_some_and(|i| self.run.names().known.is_struct(i))
     }
     fn has_private_field(&self, def: DefId) -> bool {
         self.p

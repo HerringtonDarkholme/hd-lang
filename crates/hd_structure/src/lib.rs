@@ -1178,9 +1178,6 @@ impl<'a, 'n> Gen<'a, 'n> {
         }
         let mut proj = vec![Proj::Deref];
         match v.shape {
-            Shape::Data if self.data_object(v.def) => {
-                proj.extend([Proj::Deref, Proj::Field(m.field)]);
-            }
             Shape::Data | Shape::Tuple => proj.push(Proj::Field(m.field)),
             Shape::Enum => proj.extend([Proj::Variant(v.index), Proj::Field(m.field)]),
         }
@@ -1189,16 +1186,6 @@ impl<'a, 'n> Gen<'a, 'n> {
             proj,
         });
         self.b.emit(Tag::Ref, place, 0, self.shared(t), SYN)
-    }
-
-    /// Whether `def` is a data type that is no struct: a value of it is
-    /// the address of an object whose payload holds its fields, so a field
-    /// read dereferences it (`Read [*%o .k]`).
-    fn data_object(&self, def: DefId) -> bool {
-        self.cx
-            .items
-            .item(def)
-            .is_some_and(|i| !i.is_struct && matches!(i.data, ItemData::Data(_)))
     }
 
     /// `SwitchTag s [#index then else]` of type `t`.

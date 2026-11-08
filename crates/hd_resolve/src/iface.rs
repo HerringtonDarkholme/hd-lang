@@ -586,9 +586,6 @@ pub struct Item {
     /// describer or source, it omits each member whose known facts hold a
     /// value of one of them.
     pub skips: Vec<Ty>,
-    /// A `struct` declaration: `ItemData::Data` fields, a value type
-    /// without identity (`data.struct.value`).
-    pub is_struct: bool,
     /// A struct or enum declared `impl !Copy` (`ref.copy.opt-out`): its
     /// values move. On a trait, `trait T < ?Copy`
     /// (`ref.copy.trait.relaxed`): its `Self` may be non-copyable.
@@ -631,7 +628,6 @@ impl Item {
             fact_pattern: None,
             fills_defaults: false,
             skips: Vec::new(),
-            is_struct: false,
             not_copy: false,
             docs: Vec::new(),
             data,
@@ -670,7 +666,7 @@ impl Item {
         match &self.data {
             ItemData::Enum { .. } => TypeDecl::Enum,
             ItemData::Newtype(base) => TypeDecl::Newtype(*base),
-            ItemData::Data(_) if self.is_struct => TypeDecl::Struct,
+            ItemData::Data(_) => TypeDecl::Struct,
             _ => TypeDecl::Data,
         }
     }
@@ -1393,7 +1389,6 @@ fn put_item(w: &mut Writer, t: &mut TableWriter<'_>, it: &Item) -> StageResult<(
     w.u32(opt_ty(t, it.fact_pattern)?);
     w.u8(u8::from(it.fills_defaults));
     put_tys(w, t, &it.skips)?;
-    w.u8(u8::from(it.is_struct));
     w.u8(u8::from(it.not_copy));
     match &it.data {
         ItemData::Fn(s) => {
@@ -1511,7 +1506,6 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
     let fact_pattern = get_opt_ty(r, t).ok()?;
     let fills_defaults = r.u8() != 0;
     let skips = get_tys(r, t)?;
-    let is_struct = r.u8() != 0;
     let not_copy = r.u8() != 0;
     let data = match r.u8() {
         0 => ItemData::Fn(get_sig(r, t)?),
@@ -1617,7 +1611,6 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
         fact_pattern,
         fills_defaults,
         skips,
-        is_struct,
         not_copy,
         docs: Vec::new(),
         data,

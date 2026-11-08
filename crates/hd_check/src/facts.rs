@@ -338,7 +338,7 @@ fn fact_list_steps(
                 let earlier = ck.b.refs_record(&[]);
                 let call =
                     ck.b.emit(Tag::DefaultCall, a, earlier, facts_ty, at.index());
-                let items = ck.field_value(call, 0, items_ty, at.index());
+                let items = ck.b.field(call, 0, items_ty, at.index());
                 spreads.push(u32::try_from(refs.len()).unwrap_or(0));
                 refs.push(items);
                 continue;
@@ -483,7 +483,7 @@ fn internal_payload_allowed(cx: &BodyCx<'_>, mut ty: Ty) -> bool {
             TyData::Adt { def, .. } => {
                 return matches!(
                     cx.lookup.item(def),
-                    Some(item) if item.is_struct && matches!(&item.data, ItemData::Data(_))
+                    Some(item) if matches!(&item.data, ItemData::Data(_))
                 );
             }
             _ => return false,
