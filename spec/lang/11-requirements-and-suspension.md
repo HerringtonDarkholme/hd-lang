@@ -1794,7 +1794,7 @@ fn connections!(server: *mut Server) -> void $ Clock:
     using! open = &mut Connections { server: server, clock: $.use(Clock) }
     sleep!(s(60))
 
-fn acceptor!(server: &mut Server) -> void $ Clock:
+fn acceptor!(server: *mut Server) -> void $ Clock:
     using stop = StopAccepting { server: server }
     sleep!(s(60))
 

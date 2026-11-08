@@ -649,7 +649,7 @@ lang/09-traits.md	95	complete	-
 lang/09-traits.md	96	complete	-
 lang/09-traits.md	97	complete	-
 lang/09-traits.md	98	mixed	typing/invalid/closure-not-inspectable.hd
-lang/09-traits.md	99	known-failure	runtime/valid/inspectable-erasure-example.hd
+lang/09-traits.md	99	complete	runtime/valid/inspectable-erasure-example.hd
 lang/09-traits.md	100	mixed	typing/invalid/generic-erasure-without-bound.hd
 lang/09-traits.md	101	complete	-
 lang/09-traits.md	102	complete	-
@@ -839,7 +839,7 @@ lang/11-requirements-and-suspension.md	69	complete	runtime/valid/cancel-waits-fo
 lang/11-requirements-and-suspension.md	70	mixed	typing/invalid/cancel-cold-discarded.hd
 lang/11-requirements-and-suspension.md	71	known-failure	runtime/valid/abandon-unwind-order.hd
 lang/11-requirements-and-suspension.md	72	complete	-
-lang/11-requirements-and-suspension.md	73	known-failure	runtime/valid/combinator-cancel-fan-out.hd
+lang/11-requirements-and-suspension.md	73	complete	runtime/valid/combinator-cancel-fan-out.hd
 lang/11-requirements-and-suspension.md	74	complete	typing/valid/all-tuple-result.hd
 lang/11-requirements-and-suspension.md	75	mixed	typing/invalid/all-bang-child.hd|typing/valid/join-forms.hd|typing/invalid/all-explicit-type-arguments.hd
 lang/11-requirements-and-suspension.md	76	fragment	typing/valid/requirements-and-suspension.hd
@@ -1228,7 +1228,7 @@ std/task.md	5	complete	runtime/valid/retry-with-backoff.hd
 std/task.md	6	complete	runtime/valid/task-all-list-order.hd
 std/task.md	7	type-fragment	-
 std/task.md	8	complete	runtime/valid/task-timeout.hd
-std/task.md	9	known-failure	runtime/valid/task-timeout-cleanup.hd
+std/task.md	9	complete	runtime/valid/task-timeout-cleanup.hd
 std/task.md	10	type-fragment	-
 std/task.md	11	complete	runtime/valid/task-map-all.hd
 std/task.md	12	complete	runtime/valid/channel-producer-consumer.hd

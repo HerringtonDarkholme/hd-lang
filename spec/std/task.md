@@ -243,11 +243,11 @@ use std.ops.{AsyncDisposable, defer}
 use std.task.{TimedOut, apply, timeout}
 use std.time.{Clock, s}
 
-struct Upload:
+struct Upload['a]:
     log: *mut List[string]
-    ack: Suspend[void]
+    ack: Suspend[void, 'a]
 
-impl AsyncDisposable for Upload:
+impl['a] AsyncDisposable for Upload['a]:
     fn dispose!(&mut self) -> void:
         defer(fn() -> void: self.log.push("upload closed"))
         let mut ack = self.ack
