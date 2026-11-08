@@ -6050,8 +6050,8 @@ typing/invalid/projection-in-a-body-without-bounds.hd	type	reject:unknown-associ
 typing/invalid/boundary-badge-result-private-field.hd	type	reject:boundary-private-field	lang/10-modules.md#r-module.boundary.error
 typing/invalid/prelude-shadow-multiline-use.hd	type	reject:prelude-name-shadow	lang/10-modules.md#r-module.prelude.no-shadow
 typing/valid/empty-collection-joined-context.hd	type	accept	lang/05-expressions.md#r-expr.collection.expected
-typing/invalid/boundary-badge-result-private-field.hd	type	reject:boundary-private-field	lang/10-modules.md#r-module.boundary.error
 runtime/valid/list-spread-inferred-optional.hd	runtime	accept	lang/05-expressions.md#r-expr.list.spread.convert
+typing/invalid/unknown-return-type-no-cascade.hd	type	reject:unknown-type	README.md#diagnostics
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

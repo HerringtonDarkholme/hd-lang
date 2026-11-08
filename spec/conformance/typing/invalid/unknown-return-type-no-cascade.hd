@@ -1,0 +1,5 @@
+# test: an unknown type inside a return type produces no body inference cascade
+# Spec README.md: Diagnostics (one failure, one diagnostic).
+
+fn f[F]() -> Result[F, Bogus]: # diagnostic: unknown-type
+    panic("x")

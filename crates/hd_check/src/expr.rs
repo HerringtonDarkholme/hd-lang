@@ -185,11 +185,11 @@ pub(crate) fn literal_text(src: &hd_resolve::Src<'_>, n: NodeRef<'_>) -> Option<
 impl Ck<'_, '_> {
     pub(crate) fn expr(&mut self, n: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
         let span = self.cx.src.span(n);
-        // An expectation poisoned by an error already reported absorbs the
+        // An expectation containing an already-poisoned type absorbs the
         // expression: its unsolved types are not a second error. A block
         // is left out, so its unrelated statements still report.
         if let Some(w) = want
-            && self.infer.resolve(self.pool(), w) == Ty::POISON
+            && self.pool().has_poison(self.infer.resolve(self.pool(), w))
             && !matches!(n.kind(), SyntaxKind::Block)
         {
             self.absorbed.push(span);
