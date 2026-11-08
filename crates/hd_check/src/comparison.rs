@@ -1,16 +1,15 @@
 //! Optional checked source facts for tools. No diagnostic or policy lives here.
 
-use hd_base::{DefId, LocalId, Span};
+use hd_base::{DefId, LocalId, NodeIdx, Span};
 use hd_syntax::TokenKind;
 use hd_types::Prim;
 
-/// An operand as it was checked, before lowering can erase its source form.
+/// An operand's source node and checked primitive type; its written form is
+/// read from syntax by the consumer.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Operand {
-    pub span: Span,
+    pub node: NodeIdx,
     pub primitive: Option<Prim>,
-    /// An unsuffixed integer zero, including its accepted radix spellings.
-    pub unsuffixed_zero: bool,
 }
 
 /// One source ordering comparison; consumers decide whether it needs advice.
@@ -80,10 +79,11 @@ pub struct ParameterWrite {
     pub observed_after: bool,
 }
 
-/// An implicit expression statement; explicit `_ := ...` is not a discard here.
+/// An implicit expression statement; explicit `_ := ...` is not a discard
+/// here. Its call shape is read from syntax by the consumer.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DiscardedExpression {
-    pub span: Span,
+    pub node: NodeIdx,
     /// The concrete item selected by checking, when the call has one.
     pub selected: Option<DefId>,
     /// Declaration identity, including qualified calls and type arguments.
@@ -91,18 +91,9 @@ pub struct DiscardedExpression {
     /// The discarded value implements a disposal protocol. Policy and
     /// diagnostics stay in `hd_lint`.
     pub unbound_disposable: bool,
-    pub call: Option<DiscardedCall>,
-}
-
-/// Source shape and binding lookup for a direct call in statement position.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct DiscardedCall {
-    pub name: Option<Span>,
-    pub positional: usize,
-    pub named: usize,
-    pub spread: bool,
-    pub after_spread: usize,
-    /// Whether each bare name resolves to its std.format declaration here.
+    /// For a `std.format.debug` call by a bare name: whether the bare names
+    /// `debug` and `dbg` resolve to their std.format declarations here.
+    /// Otherwise both are false.
     pub standard_debug: bool,
     pub standard_dbg: bool,
 }

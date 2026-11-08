@@ -134,21 +134,22 @@ impl DeclRef<'_> {
     }
 }
 
-/// Source shape and checked type of one comparison operand.
+/// The source node and checked type of one comparison operand.
 #[derive(Clone, Copy)]
 pub struct ExpressionView<'v> {
     operand: &'v Operand,
+    source: Src<'v>,
 }
 
-impl ExpressionView<'_> {
+impl<'v> ExpressionView<'v> {
     #[must_use]
-    pub const fn span(self) -> Span {
-        self.operand.span
+    pub fn node(self) -> NodeRef<'v> {
+        self.source.parse.tree.node(self.operand.node)
     }
 
     #[must_use]
-    pub const fn is_unsuffixed_zero(self) -> bool {
-        self.operand.unsuffixed_zero
+    pub fn span(self) -> Span {
+        self.source.span(self.node())
     }
 }
 
@@ -311,16 +312,22 @@ impl<'v> PatternView<'v> {
     }
 }
 
-/// Source shape of an expression statement's direct call.
+/// A discarded expression's source node and the checked facts about it.
 #[derive(Clone, Copy)]
 pub struct CallView<'v> {
     discarded: &'v DiscardedExpression,
+    source: Src<'v>,
 }
 
-impl CallView<'_> {
+impl<'v> CallView<'v> {
     #[must_use]
-    pub const fn span(self) -> Span {
-        self.discarded.span
+    pub fn node(self) -> NodeRef<'v> {
+        self.source.parse.tree.node(self.discarded.node)
+    }
+
+    #[must_use]
+    pub fn span(self) -> Span {
+        self.source.span(self.node())
     }
 
     #[must_use]
@@ -328,60 +335,18 @@ impl CallView<'_> {
         self.discarded.unbound_disposable
     }
 
-    #[must_use]
-    pub const fn name(self) -> Option<Span> {
-        match &self.discarded.call {
-            Some(call) => call.name,
-            None => None,
-        }
-    }
-
-    #[must_use]
-    pub const fn positional(self) -> usize {
-        match &self.discarded.call {
-            Some(call) => call.positional,
-            None => 0,
-        }
-    }
-
-    #[must_use]
-    pub const fn named(self) -> usize {
-        match &self.discarded.call {
-            Some(call) => call.named,
-            None => 0,
-        }
-    }
-
-    #[must_use]
-    pub const fn has_spread(self) -> bool {
-        match &self.discarded.call {
-            Some(call) => call.spread,
-            None => false,
-        }
-    }
-
-    #[must_use]
-    pub const fn after_spread(self) -> usize {
-        match &self.discarded.call {
-            Some(call) => call.after_spread,
-            None => 0,
-        }
-    }
-
+    /// For a `std.format.debug` call by a bare name, whether the bare name
+    /// `debug` resolves to `std.format.debug` here.
     #[must_use]
     pub const fn standard_debug(self) -> bool {
-        match &self.discarded.call {
-            Some(call) => call.standard_debug,
-            None => false,
-        }
+        self.discarded.standard_debug
     }
 
+    /// For a `std.format.debug` call by a bare name, whether the bare name
+    /// `dbg` resolves to `std.format.dbg` here.
     #[must_use]
     pub const fn standard_dbg(self) -> bool {
-        match &self.discarded.call {
-            Some(call) => call.standard_dbg,
-            None => false,
-        }
+        self.discarded.standard_dbg
     }
 }
 
@@ -418,6 +383,7 @@ impl<'v> CheckedView<'v> {
             } else {
                 &comparison.left
             },
+            source: self.source.source,
         })
     }
 
@@ -471,7 +437,10 @@ impl<'v> CheckedView<'v> {
         self.facts?
             .discarded
             .get(source.0)
-            .map(|discarded| CallView { discarded })
+            .map(|discarded| CallView {
+                discarded,
+                source: self.source.source,
+            })
     }
 
     #[must_use]

@@ -413,7 +413,7 @@ pub(crate) fn walk<'v>(
         }
         if interests.contains(Events::DISCARD) {
             pending.extend(facts.discarded.iter().enumerate().map(|(i, fact)| Pending {
-                at: fact.span.lo,
+                at: src.span(src.parse.tree.node(fact.node)).lo,
                 finish: false,
                 family: 4,
                 event: Event::Discard(SourceCall::from_index(i)),

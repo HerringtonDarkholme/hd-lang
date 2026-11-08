@@ -11,7 +11,8 @@ use hd_driver::Output;
 use hd_driver::analysis::{AnalysisSink, Event, Events};
 use hd_driver::diagnostics::Diag;
 use hd_project::LintTable;
-use hd_syntax::{CommentKind, SyntaxKind, TokenKind};
+use hd_resolve::{Src, literal};
+use hd_syntax::{CommentKind, NodeRef, SyntaxKind, TokenKind};
 use hd_types::Prim;
 
 pub const DERIVATION_DRIFT: &str = Code::DerivationLineDrift.as_str();
@@ -648,11 +649,13 @@ fn unsigned_comparison(event: &Event<'_>, view: &CheckedView<'_>, out: &mut Diag
     let Some(right) = view.expression(event.right) else {
         return;
     };
+    let src = view.source().syntax();
+    let zero = |operand: hd_check::analysis::ExpressionView<'_>| zero_literal(src, operand.node());
     let (operand, always, operator) = match event.operator {
-        TokenKind::GtEq if right.is_unsuffixed_zero() => (event.left, true, ">="),
-        TokenKind::LtEq if left.is_unsuffixed_zero() => (event.right, true, "<="),
-        TokenKind::Lt if right.is_unsuffixed_zero() => (event.left, false, "<"),
-        TokenKind::Gt if left.is_unsuffixed_zero() => (event.right, false, ">"),
+        TokenKind::GtEq if zero(right) => (event.left, true, ">="),
+        TokenKind::LtEq if zero(left) => (event.right, true, "<="),
+        TokenKind::Lt if zero(right) => (event.left, false, "<"),
+        TokenKind::Gt if zero(left) => (event.right, false, ">"),
         _ => return,
     };
     let Some(primitive) = view
@@ -688,6 +691,27 @@ fn unsigned_comparison(event: &Event<'_>, view: &CheckedView<'_>, out: &mut Diag
         &message,
         None,
     );
+}
+
+/// Whether a node is an unsuffixed integer literal with the value zero, in
+/// any radix (`expr.ord.unsigned-zero.literal`).
+fn zero_literal(src: Src<'_>, n: NodeRef<'_>) -> bool {
+    if n.kind() != SyntaxKind::LiteralExpr {
+        return false;
+    }
+    let first = src.first(n);
+    if src.tkind(first) != Some(TokenKind::Number) {
+        return false;
+    }
+    let (digits, suffix) = literal::split_suffix(src.text(first));
+    if !suffix.is_empty() {
+        return false;
+    }
+    let digits = digits.replace('_', "");
+    if let Some((radix, rest)) = literal::radix_digits(&digits) {
+        return u64::from_str_radix(rest, radix).ok() == Some(0);
+    }
+    literal::decimal_digits(&digits) && digits.parse::<u64>().ok() == Some(0)
 }
 
 fn unused_binding(event: &Event<'_>, view: &CheckedView<'_>, out: &mut DiagBuf) {
@@ -831,14 +855,14 @@ fn unused_debug(event: &Event<'_>, view: &CheckedView<'_>, out: &mut DiagBuf) {
         "a `debug(...)` statement discards its text; use `dbg(...)` to print it",
         None,
     );
-    let Some(span) = call.name() else {
+    let Some(shape) = CallShape::of(call.node()) else {
         return;
     };
+    let span = view.source().syntax().span(shape.name);
     if view.source().text_at(span) == Some("debug")
-        && call.positional() == 1
-        && call.named() == 0
-        && !call.has_spread()
-        && call.after_spread() == 0
+        && shape.positional == 1
+        && shape.named == 0
+        && !shape.spread
         && call.standard_debug()
         && call.standard_dbg()
     {
@@ -847,5 +871,52 @@ fn unused_debug(event: &Event<'_>, view: &CheckedView<'_>, out: &mut DiagBuf) {
             FixSafety::Exact,
             &[(span, "dbg")],
         );
+    }
+}
+
+/// The written shape of a direct call by a bare name.
+struct CallShape<'v> {
+    name: NodeRef<'v>,
+    positional: usize,
+    named: usize,
+    /// A spread argument, with or without arguments after it.
+    spread: bool,
+}
+
+impl<'v> CallShape<'v> {
+    fn of(call: NodeRef<'v>) -> Option<Self> {
+        if call.kind() != SyntaxKind::CallExpr {
+            return None;
+        }
+        let name = call
+            .children()
+            .next()
+            .filter(|callee| callee.kind() == SyntaxKind::NameExpr)?;
+        let mut shape = Self {
+            name,
+            positional: 0,
+            named: 0,
+            spread: false,
+        };
+        for argument in Src::child(call, SyntaxKind::ArgumentList)
+            .iter()
+            .flat_map(|list| list.children())
+        {
+            // Arguments after a spread do not change the shape the fix needs.
+            if argument.kind() == SyntaxKind::NamedArgument {
+                shape.named += 1;
+            } else if argument.kind() == SyntaxKind::Argument && !shape.spread {
+                if argument
+                    .children()
+                    .next()
+                    .is_some_and(|e| e.kind() == SyntaxKind::SpreadExpr)
+                {
+                    shape.spread = true;
+                } else {
+                    shape.positional += 1;
+                }
+            }
+        }
+        Some(shape)
     }
 }

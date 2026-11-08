@@ -3724,67 +3724,8 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// The source form and lexical name lookup of a discarded expression.
-    /// The consumer decides whether this is advice and whether an edit is safe.
-    fn discarded_expression(
-        &self,
-        expression: NodeRef<'_>,
-        selected: Option<DefId>,
-        unbound_disposable: bool,
-    ) -> crate::comparison::DiscardedExpression {
-        use crate::comparison::{DiscardedCall, DiscardedExpression};
-        let call = (expression.kind() == SyntaxKind::CallExpr).then(|| {
-            let name = expression
-                .children()
-                .next()
-                .filter(|callee| callee.kind() == SyntaxKind::NameExpr)
-                .map(|callee| self.cx.src.span(callee));
-            let mut positional = 0;
-            let mut named = 0;
-            let mut spread = false;
-            let mut after_spread = 0;
-            for argument in Src::child(expression, SyntaxKind::ArgumentList)
-                .iter()
-                .flat_map(|list| list.children())
-            {
-                match argument.kind() {
-                    SyntaxKind::NamedArgument => named += 1,
-                    SyntaxKind::Argument => {
-                        if spread {
-                            after_spread += 1;
-                        } else if argument
-                            .children()
-                            .next()
-                            .is_some_and(|e| e.kind() == SyntaxKind::SpreadExpr)
-                        {
-                            spread = true;
-                        } else {
-                            positional += 1;
-                        }
-                    }
-                    _ => {}
-                }
-            }
-            let at = self.cx.src.span(expression).lo;
-            DiscardedCall {
-                name,
-                positional,
-                named,
-                spread,
-                after_spread,
-                standard_debug: self.standard_format_name("debug", at),
-                standard_dbg: self.standard_format_name("dbg", at),
-            }
-        });
-        DiscardedExpression {
-            span: self.cx.src.span(expression),
-            selected,
-            prelude_debug: selected == Some(self.cx.names.item("std.format", "debug")),
-            unbound_disposable,
-            call,
-        }
-    }
-
+    /// Whether the bare name `name` resolves to its std.format declaration
+    /// at `at`: no local, global or earlier REPL binding shadows it.
     fn standard_format_name(&self, name: &str, at: u32) -> bool {
         let sym = self.cx.names.syms.intern(name);
         let init = self.cx.init.borrow();
@@ -3864,8 +3805,20 @@ impl Ck<'_, '_> {
                 if self.cx.source_facts.is_some() {
                     let unbound_disposable =
                         !auto_closing && self.implements_disposal_protocol(t)?;
-                    let fact = self.discarded_expression(*e, selected, unbound_disposable);
-                    self.discarded.push(fact);
+                    let bare_debug = prelude_debug
+                        && e.kind() == SyntaxKind::CallExpr
+                        && e.children()
+                            .next()
+                            .is_some_and(|callee| callee.kind() == SyntaxKind::NameExpr);
+                    let at = self.cx.src.span(*e).lo;
+                    self.discarded.push(crate::comparison::DiscardedExpression {
+                        node: e.index(),
+                        selected,
+                        prelude_debug,
+                        unbound_disposable,
+                        standard_debug: bare_debug && self.standard_format_name("debug", at),
+                        standard_dbg: bare_debug && self.standard_format_name("dbg", at),
+                    });
                 }
                 return Ok(if t == Ty::NEVER { Ty::NEVER } else { Ty::VOID });
             }

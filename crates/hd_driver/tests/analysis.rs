@@ -137,7 +137,7 @@ impl AnalysisSink for TypedRecorder {
                     "comparison:{:?}:{primitive:?}:{}:{}",
                     event.operator,
                     view.source().text_at(left.span()).unwrap(),
-                    right.is_unsuffixed_zero()
+                    view.source().text_at(right.span()).unwrap()
                 )
             }
             Event::Binding(source) => {
@@ -184,12 +184,11 @@ impl AnalysisSink for TypedRecorder {
                 let call = view.call(*source).unwrap();
                 let selected = view.selected_declaration(*source);
                 format!(
-                    "discard:{}:{}:{}:{}:{}",
-                    call.positional(),
-                    call.named(),
-                    call.has_spread(),
-                    call.after_spread(),
-                    selected.is_some_and(hd_check::analysis::DeclRef::is_prelude_debug)
+                    "discard:{}:{}:{}:{}",
+                    view.source().text_at(call.span()).unwrap(),
+                    selected.is_some_and(hd_check::analysis::DeclRef::is_prelude_debug),
+                    call.standard_debug(),
+                    call.standard_dbg()
                 )
             }
             Event::Ident(_)
@@ -269,7 +268,7 @@ fn checked_views_expose_completed_types_bindings_flow_patterns_and_callees() {
     assert!(
         events
             .iter()
-            .any(|event| event == "comparison:Lt:Some(Usize):remaining:true"),
+            .any(|event| event == "comparison:Lt:Some(Usize):remaining:0"),
         "{events:#?}"
     );
     assert!(
@@ -287,7 +286,7 @@ fn checked_views_expose_completed_types_bindings_flow_patterns_and_callees() {
     assert!(
         events
             .iter()
-            .any(|event| event == "discard:1:0:false:0:true"),
+            .any(|event| event == "discard:debug(+1):true:true:true"),
         "{events:#?}"
     );
     assert!(events.iter().any(|event| event == "statement:true"));

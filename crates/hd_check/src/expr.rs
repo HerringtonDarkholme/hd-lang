@@ -1480,28 +1480,6 @@ impl Ck<'_, '_> {
             .add_fix("compare the values with `*`", FixSafety::Suggestion, &edits);
     }
 
-    /// Whether a node is an unsuffixed integer literal with the value
-    /// zero, in any radix (`expr.ord.unsigned-zero.literal`).
-    fn zero_literal(&self, n: NodeRef<'_>) -> bool {
-        if n.kind() != SyntaxKind::LiteralExpr {
-            return false;
-        }
-        let first = self.cx.src.first(n);
-        if self.cx.src.tkind(first) != Some(TokenKind::Number) {
-            return false;
-        }
-        let text = self.cx.src.text(first);
-        let (digits, suffix) = crate::literals::split_suffix(text);
-        if !suffix.is_empty() {
-            return false;
-        }
-        let digits = digits.replace('_', "");
-        if let Some((radix, rest)) = crate::literals::radix_digits(&digits) {
-            return u64::from_str_radix(rest, radix).ok() == Some(0);
-        }
-        crate::literals::decimal_digits(&digits) && digits.parse::<u64>().ok() == Some(0)
-    }
-
     /// Records source and checked operand types only when a tool requested facts.
     fn record_comparison(
         &mut self,
@@ -1515,15 +1493,14 @@ impl Ck<'_, '_> {
         if self.cx.source_facts.is_none() {
             return;
         }
-        let operand = |node, ty| {
+        let operand = |node: NodeRef<'_>, ty| {
             let primitive = match self.pool().get(self.resolved(ty)) {
                 TyData::Prim(p) => Some(p),
                 _ => None,
             };
             crate::comparison::Operand {
-                span: self.cx.src.span(node),
+                node: node.index(),
                 primitive,
-                unsuffixed_zero: self.zero_literal(node),
             }
         };
         let fact = crate::comparison::Comparison {
