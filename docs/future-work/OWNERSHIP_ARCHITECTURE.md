@@ -163,7 +163,7 @@ fn capture_call(s: string) -> usize:
 ```
 
 Today: `bind` (above) releases `s` and its caller retains it (#1365);
-`over_value` retains and releases each element (#1366); `capture_call`
+`over_value` no longer counts each element (#1366, done); `capture_call`
 retains `s` into the environment and releases it at the exit (#1367);
 `all!` in `requirements-join-list` copies `keys` on entry (#1392).
 **Cause:** names are places; insertion copies, then patterns weaken.
