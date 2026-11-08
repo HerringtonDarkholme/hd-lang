@@ -1,0 +1,37 @@
+# Sloppy code (owner, 2026-11-08: "unsupported is just one kind of sloppy code").
+# scripts/check-sloppy.ts counts this rule's matches per crate against
+# scripts/sloppy-ceiling.tsv, which only goes down.
+id: sloppy-std-path
+language: Rust
+severity: error
+message: "the compiler names a std item by path; go through a known-items entry or a general rule"
+files:
+  - crates/*/src/**/*.rs
+ignores:
+  - crates/*/src/**/tests.rs
+  - crates/*/src/**/*_tests.rs
+  - crates/*/src/**/test_*.rs
+  - crates/*/src/**/tests/**
+  - crates/hd_testkit/**
+rule:
+  kind: string_literal
+  regex: '^"std\.[a-z_]+'
+  not:
+    inside:
+      stopBy: end
+      matches: cfg-test-item
+utils:
+  cfg-test-item:
+    any:
+      - kind: mod_item
+      - kind: function_item
+      - kind: impl_item
+    follows:
+      stopBy:
+        not:
+          any:
+            - kind: attribute_item
+            - kind: line_comment
+            - kind: block_comment
+      kind: attribute_item
+      regex: '^#\[(test|cfg\(test\))\]$'

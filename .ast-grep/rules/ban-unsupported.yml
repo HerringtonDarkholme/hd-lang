@@ -2,8 +2,8 @@
 # of a program the spec accepts is a gap; a refusal of a case an earlier stage
 # rules out is dead code. No new site may be added: implement the case, or
 # reject the program by a real spec rule with its own diagnostic code and ticket
-# the gap. scripts/check-unsupported.ts counts this rule's matches per crate
-# against scripts/unsupported-ceiling.tsv, which only goes down (#1489, #1490).
+# the gap. scripts/check-sloppy.ts counts this rule's matches per crate
+# against scripts/sloppy-ceiling.tsv, which only goes down (#1489, #1490).
 id: ban-unsupported
 language: Rust
 severity: error

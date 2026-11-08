@@ -99,8 +99,8 @@ const linesOf = (file: string): string[] => {
 };
 
 for (const match of matches) {
-  // ban-unsupported has no escape: scripts/check-unsupported.ts counts it.
-  if (match.ruleId === "ban-unsupported") {
+  // ban-unsupported and sloppy-* have no escape: scripts/check-sloppy.ts counts them.
+  if (match.ruleId === "ban-unsupported" || match.ruleId.startsWith("sloppy-")) {
     continue;
   }
   const start = match.range.start.line;
