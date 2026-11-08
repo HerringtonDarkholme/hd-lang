@@ -2306,8 +2306,8 @@ trait Inspectable < ?Copy:
     fn runtime_type(&self) -> TypeId
 
 impl dyn Inspectable:
-    pub fn downcast_ref[T < Inspectable](&self) -> (&T)?
-    pub fn downcast_mut[T < Inspectable](&mut self) -> (&mut T)?
+    pub fn downcast_ref[T < ?Copy & Inspectable](&self) -> (&T)?
+    pub fn downcast_mut[T < ?Copy & Inspectable](&mut self) -> (&mut T)?
 
 impl TypeId:
     pub fn of[T < Inspectable]() -> TypeId
@@ -2525,6 +2525,8 @@ See also: [Assignability And Coercion](04-type-system.md#assignability-and-coerc
 5. r[trait.downcast.no-conversion] No variance, numeric conversion, optional unwrapping, newtype unwrapping, or supertrait search takes place.
 6. r[trait.downcast.optional-local-reference] An erased reference to `User?` is recovered with target `User?`, giving `Option[&User?]`, and never with target `User`.
 7. r[trait.downcast.copy-through-reference] Dereferencing the recovered reference with `*found` copies its value under the ordinary value-copy rules.
+8. r[trait.downcast.non-copy-target] The target `T` is declared `?Copy`, so a type declared `impl !Copy` is recovered as a reference like any other.
+9. r[trait.downcast.non-copy-copy-out] Copying such a recovered value out with `*found` reads it from behind a reference, which [`ref.move.out-of-place`](13-values-and-references.md#r-ref.move.out-of-place) rejects. Error: `move-out-of-place`.
 
 ```hd
 use std.inspect.Inspectable

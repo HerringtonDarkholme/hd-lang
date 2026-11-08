@@ -1,0 +1,38 @@
+# test: a type declared `impl !Copy` is a downcast target; fields read through the recovered reference
+# Spec 09 Traits: trait.downcast.non-copy-target, trait.downcast.shared-local-reference, trait.downcast.mutable-local-reference.
+use std.inspect.Inspectable
+
+struct Photo:
+    width: u32
+    pixels: List[u8]
+
+impl !Copy for Photo
+
+fn width_of(value: &dyn Inspectable) -> u32:
+    match value.downcast_ref::[Photo]():
+        .Some(photo) => photo.width
+        .None => 0
+
+fn pixel_count(value: &dyn Inspectable) -> usize:
+    match value.downcast_ref::[Photo]():
+        .Some(photo) => photo.pixels.len()
+        .None => 0
+
+fn widen(value: &mut dyn Inspectable) -> bool:
+    match value.downcast_mut::[Photo]():
+        .Some(photo) =>
+            photo.width += 1
+            true
+        .None => false
+
+tests:
+    use std.testing.assert_equal
+    it("recovers a non-Copy type and reads its fields"):
+        let mut photo = Photo { width: 3, pixels: [7, 8] }
+        assert_equal(width_of(&photo), 3, reason="the width field")
+        assert_equal(pixel_count(&photo), 2, reason="the pixels field")
+        assert_equal(widen(&mut photo), true, reason="Photo matches")
+        assert_equal(photo.width, 4, reason="the original place changed")
+    it("another concrete type does not match"):
+        number := 1
+        assert_equal(width_of(&number), 0, reason="i32 is not Photo")

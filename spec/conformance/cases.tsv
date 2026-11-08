@@ -2021,6 +2021,8 @@ runtime/valid/inspectable-function-fields-and-trait-arguments.hd	runtime	accept	
 typing/invalid/downcast-mut-readonly-value.hd	type	reject:not-writable	lang/09-traits.md#recovering-a-concrete-type
 typing/invalid/downcast-on-a-local-trait-reference.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.dep.scope
 runtime/valid/downcast-of-a-counted-field-shares-the-object.hd	runtime	accept	lang/09-traits.md#r-trait.downcast.local-receiver
+runtime/valid/downcast-non-copy-target.hd	runtime	accept	lang/09-traits.md#r-trait.downcast.non-copy-target
+typing/invalid/downcast-non-copy-copy-out.hd	type	reject:move-out-of-place	lang/09-traits.md#r-trait.downcast.non-copy-copy-out
 typing/invalid/erase-readonly-to-mut-inspectable.hd	type	reject:mutable-upgrade	lang/09-traits.md#erasure-to-inspectable
 typing/invalid/generic-erasure-without-bound.hd	type	reject:type-mismatch	lang/09-traits.md#r-trait.erase.bound-required.reference-values
 typing/invalid/closure-not-inspectable.hd	type	reject:type-mismatch	lang/09-traits.md#inspectable-types

@@ -18,12 +18,12 @@ pub trait Inspectable < ?Copy:
 impl dyn Inspectable:
     ## Recovers the original shared reference when its concrete type is `T`.
     @intrinsic("downcast_ref")
-    pub fn downcast_ref[T < Inspectable](&self) -> (&T)?:
+    pub fn downcast_ref[T < ?Copy & Inspectable](&self) -> (&T)?:
         panic("intrinsic")
 
     ## Recovers the original mutable reference when its concrete type is `T`.
     @intrinsic("downcast_mut")
-    pub fn downcast_mut[T < Inspectable](&mut self) -> (&mut T)?:
+    pub fn downcast_mut[T < ?Copy & Inspectable](&mut self) -> (&mut T)?:
         panic("intrinsic")
 
 # One canonical descriptor per identity in the compiled program. The
