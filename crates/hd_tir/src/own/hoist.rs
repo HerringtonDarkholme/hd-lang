@@ -1182,22 +1182,13 @@ fn hoist_loop(
         }
     }
     elem_locals(b, t, lo, l);
-    // Rules 2 and 3 over the loop's instructions and the edits pending in
-    // its blocks.
+    // Rules 2 and 3 over the loop's instructions.
     for x in lo..l {
         let i = x as usize;
         if t.pending.dead[i] {
             continue;
         }
-        let [a, w] = b.data[i];
-        check(b, cx, t, (x, l), b.tags[i], [a, w]);
-        if b.tags[i] == Tag::Block {
-            for k in 0..t.pending.of(x).len() {
-                let e = t.pending.of(x)[k];
-                let (_, _, tag, data, _) = edits.get(e);
-                check(b, cx, t, (NONE, l), tag, data);
-            }
-        }
+        check(b, cx, t, x, l);
     }
     let at = (topo.blk[l as usize], topo.pos[l as usize]);
     for k in 0..t.cands.len() {
@@ -1369,23 +1360,17 @@ fn elem_locals(b: &Body, t: &mut Tables, lo: u32, l: u32) {
     t.raw = raw;
 }
 
-/// Checks one instruction of loop `lp` (`x`, or `NONE` for a pending edit)
-/// against every candidate (rules 2 and 3).
-fn check(
-    b: &Body,
-    cx: &dyn OwnCx,
-    t: &mut Tables,
-    (x, lp): (u32, u32),
-    tag: Tag,
-    [a, w]: [u32; 2],
-) {
+/// Checks instruction `x` of loop `lp` against every candidate (rules 2
+/// and 3).
+fn check(b: &Body, cx: &dyn OwnCx, t: &mut Tables, x: u32, lp: u32) {
+    let (tag, [a, w]) = (b.tags[x as usize], b.data[x as usize]);
     if is_suspension(tag) {
         for c in &mut t.cands {
             c.ok = false;
         }
         return;
     }
-    if x != NONE && writes(b, cx, x as usize) {
+    if writes(b, cx, x as usize) {
         for c in &mut t.cands {
             if c.external {
                 if t.excl[c.local as usize] != NONE && t.csteps[c.start as usize] == DEREF {
@@ -1424,8 +1409,7 @@ fn check(
                     // list may reach, such a copy of any collection through
                     // memory.
                     Tag::Read => {
-                        x == NONE
-                            || !t.kept(b, x)
+                        !t.kept(b, x)
                             || (!covers
                                 && (mine
                                     || !c.external
@@ -1441,9 +1425,9 @@ fn check(
                     }
                     // A removed or covered `IsUnique` an outer loop hoisted
                     // stands for nothing here.
-                    _ if x != NONE && t.gone[x as usize] => true,
+                    _ if t.gone[x as usize] => true,
                     _ => {
-                        if exact && x != NONE {
+                        if exact {
                             t.hits.push((u32_of(k), x));
                             t.cands[k].unique = true;
                         }

@@ -408,20 +408,6 @@ pub trait Forward {
     fn back(&mut self, _: &Body, _x: u32, _lp: u32, _s: &mut BitArena, _st: usize) {}
     /// `Return` `x` leaves the sub-body.
     fn exit(&mut self, _: &Body, _x: u32, _s: &mut BitArena, _st: usize) {}
-    /// Member `p` of block `blk` runs next, or the block ends (`p` is its
-    /// length); `y` is the analysis's own place in the block, from 0.
-    /// Whether to call it again in this block.
-    fn before(
-        &mut self,
-        _: &Body,
-        _blk: u32,
-        _p: usize,
-        _y: &mut usize,
-        _s: &mut BitArena,
-        _st: usize,
-    ) -> bool {
-        false
-    }
     /// Whether member `x` of a block is gone and the walk skips it.
     fn skip(&self, _x: u32) -> bool {
         false
@@ -463,15 +449,9 @@ impl<A: Forward> Ahead<'_, A> {
         // A block in the list runs where the instruction that owns it runs
         // it.
         let members = b.record(b.data[blk as usize][0]);
-        let (mut y, mut more) = (0, true);
-        let mut falls = members.iter().enumerate().all(|(p, &x)| {
-            more = more && self.a.before(b, blk, p, &mut y, &mut self.s.arena, st);
-            b.tags[x as usize] == Tag::Block || self.a.skip(x) || self.inst(x, st)
-        });
-        if falls && more {
-            self.a
-                .before(b, blk, members.len(), &mut y, &mut self.s.arena, st);
-        }
+        let mut falls = members
+            .iter()
+            .all(|&x| b.tags[x as usize] == Tag::Block || self.a.skip(x) || self.inst(x, st));
         self.close(blk, saved, first, st, &mut falls);
         falls
     }

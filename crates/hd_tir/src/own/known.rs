@@ -54,10 +54,10 @@
 //! it, and each store leaves the backend's cell made.
 //!
 //! The walk reads the body as the earlier passes' pending edits leave it
-//! ([`splice::Pending`]): a deleted statement is gone and a new `Drop`
-//! stands in its place. One bit per tracked local and value and per part
-//! place taken, over the shared forward walk ([`forward`]); per-item flags
-//! in dense tables. Its deletions join the pipeline's last rebuild.
+//! ([`splice::Pending`]): a deleted statement is gone. One bit per tracked
+//! local and value and per part place taken, over the shared forward walk
+//! ([`forward`]); per-item flags in dense tables. Its deletions join the
+//! pipeline's last rebuild.
 
 use super::flow::{BitArena, Flow, Forward, Suites, forward};
 use super::parts::{Slots, takes};
@@ -82,7 +82,7 @@ pub(crate) struct Tables {
     nl: u32,
     nv: u32,
     /// The parts a `move` read or a `Drop` takes of a tracked place, keyed
-    /// by root bit, with items the instructions, then the edits. A slot's
+    /// by root bit, with items the instructions. A slot's
     /// bit follows the values' bits; a root whose taken parts cover every
     /// counted leaf is empty.
     slots: Slots,
@@ -100,8 +100,8 @@ pub(crate) struct Tables {
     flow: Flow,
     /// The sub-body's exit state, while it is walked.
     exit: usize,
-    /// Per item (instructions, then edits): a `Drop` the walk reached, and
-    /// one it reached where its place may hold a count.
+    /// Per instruction: a `Drop` the walk reached, and one it reached where
+    /// its place may hold a count.
     seen: Vec<bool>,
     needed: Vec<bool>,
     /// Per instruction: its suspension state's offset in `susp`, or `NONE`;
@@ -127,8 +127,8 @@ pub(crate) struct Tables {
     cells: Vec<(u32, u32, bool)>,
 }
 
-/// Runs known-null over `b` with the earlier passes' edits in `edits`,
-/// adding its deletions there, and fills `b.unwind_drops` and
+/// Runs known-null over `b` with the earlier passes' deletions in `edits`,
+/// adding its own there, and fills `b.unwind_drops` and
 /// `b.full_cells` and trims `b.exit_drops`.
 pub(crate) fn run(
     b: &mut Body,
@@ -143,12 +143,11 @@ pub(crate) fn run(
     t.cells.clear();
     t.suites = 0;
     t.pending.build(n, edits);
-    if !number(b, cx, t, edits) {
+    if !number(b, cx, t) {
         return;
     }
-    let k = edits.len();
-    fill(&mut t.seen, n + k, false);
-    fill(&mut t.needed, n + k, false);
+    fill(&mut t.seen, n, false);
+    fill(&mut t.needed, n, false);
     fill(&mut t.susp_at, n, NONE);
     fill(&mut t.keep, b.exit_drops.len(), true);
     t.susp.clear();
@@ -159,7 +158,6 @@ pub(crate) fn run(
         t: &mut *t,
         topo,
         cx,
-        edits,
     };
     for s in 0..b.sub_root.len() {
         let root = b.sub_root[s];
@@ -199,11 +197,6 @@ pub(crate) fn run(
             edits.remove(u32_of(x));
         }
     }
-    for e in 0..k {
-        if t.seen[n + e] && !t.needed[n + e] {
-            edits.cancel(u32_of(e));
-        }
-    }
     // Rule 3: the exit rows of locals empty at every way out.
     let mut k = 0;
     let keep = &t.keep;
@@ -241,7 +234,7 @@ pub(crate) fn run(
 /// Numbers the tracked places: the locals in the exit set that no cleanup
 /// suite touches, then the owned values and the `borrow` reads with a
 /// `Drop`. Whether there is any.
-fn number(b: &Body, cx: &dyn OwnCx, t: &mut Tables, edits: &splice::Tables) -> bool {
+fn number(b: &Body, cx: &dyn OwnCx, t: &mut Tables) -> bool {
     let n = b.len();
     let locals = b.local_ty.len();
     fill(&mut t.lbit, locals, NONE);
@@ -260,12 +253,6 @@ fn number(b: &Body, cx: &dyn OwnCx, t: &mut Tables, edits: &splice::Tables) -> b
             Tag::Defer => pin_suites(b, t, &[a]),
             Tag::Drop if !t.pending.dead[i] => mark_dropped(b, t, a),
             _ => {}
-        }
-    }
-    for e in 0..edits.len() {
-        let (_, _, tag, [word, _], _) = edits.get(u32_of(e));
-        if tag == Tag::Drop && !edits.is_cancelled(u32_of(e)) {
-            mark_dropped(b, t, word);
         }
     }
     for (l, flags) in b.local_flags.iter().enumerate() {
@@ -334,7 +321,7 @@ fn number(b: &Body, cx: &dyn OwnCx, t: &mut Tables, edits: &splice::Tables) -> b
     if k == 0 && nc == 0 {
         return false;
     }
-    let slots = number_parts(b, t, edits);
+    let slots = number_parts(b, t);
     t.cfirst = k + slots;
     for c in &mut t.cbit {
         if *c != NONE {
@@ -347,21 +334,14 @@ fn number(b: &Body, cx: &dyn OwnCx, t: &mut Tables, edits: &splice::Tables) -> b
 
 /// Numbers the part slots: each distinct part place of a tracked root
 /// that a `move` read or a `Drop` takes. Returns how many.
-fn number_parts(b: &Body, t: &mut Tables, edits: &splice::Tables) -> u32 {
-    let (n, k) = (b.len(), edits.len());
+fn number_parts(b: &Body, t: &mut Tables) -> u32 {
     let mut slots = std::mem::take(&mut t.slots);
-    let insts = takes(b, |i| !t.pending.dead[i]);
-    let added = (0..k).filter_map(|e| {
-        let (_, _, tag, [word, _], _) = edits.get(u32_of(e));
-        (tag == Tag::Drop && !edits.is_cancelled(u32_of(e))).then_some((n + e, word))
-    });
-    let takes = insts
-        .chain(added)
-        .filter_map(|(item, word)| match t.root_bit(b, word) {
+    let takes =
+        takes(b, |i| !t.pending.dead[i]).filter_map(|(item, word)| match t.root_bit(b, word) {
             Some((bit, false)) if b.view(word).in_place(b) => Some((bit, u32_of(item), word)),
             _ => None,
         });
-    let count = slots.build(b, n + k, (t.nl + t.nv) as usize, takes);
+    let count = slots.build(b, b.len(), (t.nl + t.nv) as usize, takes);
     t.slots = slots;
     count
 }
@@ -614,7 +594,6 @@ struct Walk<'a> {
     t: &'a mut Tables,
     topo: &'a Topology,
     cx: &'a dyn OwnCx,
-    edits: &'a splice::Tables,
 }
 
 impl Forward for Walk<'_> {
@@ -685,32 +664,6 @@ impl Forward for Walk<'_> {
 
     fn exit(&mut self, _: &Body, _: u32, s: &mut BitArena, st: usize) {
         s.union(self.t.exit, st);
-    }
-
-    /// The pending `Drop`s that stand before member `p`; whether any
-    /// stand after it.
-    #[inline]
-    fn before(
-        &mut self,
-        b: &Body,
-        blk: u32,
-        p: usize,
-        y: &mut usize,
-        s: &mut BitArena,
-        st: usize,
-    ) -> bool {
-        while let Some(&e) = self.t.pending.of(blk).get(*y) {
-            let (_, pos, tag, [word, _], _) = self.edits.get(e);
-            if pos as usize > p {
-                return true;
-            }
-            if tag == Tag::Drop {
-                self.t
-                    .drop_item(b, self.cx, b.len() + e as usize, word, s, st);
-            }
-            *y += 1;
-        }
-        false
     }
 
     fn skip(&self, x: u32) -> bool {

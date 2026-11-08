@@ -41,9 +41,6 @@ pub(crate) struct Tables {
     /// Statements to delete, which nothing uses (a `Drop` the move pass
     /// makes unneeded).
     removed: Vec<u32>,
-    /// Per edit: withdrawn by a later pass before the splice (a `Drop`
-    /// that pair cancellation deletes), so it is never spliced in.
-    cancelled: Vec<bool>,
     dead: Vec<bool>,
     blocks: Vec<u32>,
     anchor: Vec<(u32, u32)>,
@@ -63,7 +60,6 @@ impl Tables {
         self.edits.clear();
         self.rewrites.clear();
         self.removed.clear();
-        self.cancelled.clear();
     }
 
     /// Records a new instruction before position `pos` of block `blk`, and
@@ -85,29 +81,7 @@ impl Tables {
             ty,
             syn,
         });
-        self.cancelled.push(false);
         u32::try_from(self.edits.len() - 1).expect("edits")
-    }
-
-    /// How many instructions are recorded.
-    pub(crate) fn len(&self) -> usize {
-        self.edits.len()
-    }
-
-    /// Edit `e`'s block, position, tag, data words and source node.
-    pub(crate) fn get(&self, e: u32) -> (u32, u32, Tag, [u32; 2], NodeIdx) {
-        let ed = &self.edits[e as usize];
-        (ed.blk, ed.pos, ed.tag, ed.data, ed.syn)
-    }
-
-    /// Withdraws edit `e`, which no operand names.
-    pub(crate) fn cancel(&mut self, e: u32) {
-        self.cancelled[e as usize] = true;
-    }
-
-    /// Whether edit `e` was withdrawn.
-    pub(crate) fn is_cancelled(&self, e: u32) -> bool {
-        self.cancelled[e as usize]
     }
 
     /// Points operand `at` of instruction `inst` at edit `edit`'s value.
@@ -121,17 +95,13 @@ impl Tables {
     }
 }
 
-/// The blocks as the pending edits leave them, for a pass that walks the
-/// body before the splice: each deleted statement marked, and each block's
-/// edits that still stand, by position, in recording order.
+/// The body as the pending edits leave it, for a pass that walks it
+/// before the splice: each deleted statement marked. The passes that read
+/// it run before any pass inserts a statement.
 #[derive(Default)]
 pub(crate) struct Pending {
     /// Per instruction: a statement an earlier pass deleted.
     pub(crate) dead: Vec<bool>,
-    /// Each block's edits (by block instruction), in `row`.
-    row_start: Vec<u32>,
-    row: Vec<u32>,
-    fill: Vec<u32>,
 }
 
 impl Pending {
@@ -142,40 +112,6 @@ impl Pending {
         for &x in &edits.removed {
             self.dead[x as usize] = true;
         }
-        self.row_start.clear();
-        self.row_start.resize(n + 1, 0);
-        let live = |e: usize| !edits.cancelled[e];
-        for (e, ed) in edits.edits.iter().enumerate() {
-            if live(e) {
-                self.row_start[ed.blk as usize + 1] += 1;
-            }
-        }
-        for i in 0..n {
-            self.row_start[i + 1] += self.row_start[i];
-        }
-        self.row.clear();
-        self.row.resize(self.row_start[n] as usize, 0);
-        self.fill.clear();
-        self.fill.extend_from_slice(&self.row_start[..n]);
-        for (e, ed) in edits.edits.iter().enumerate() {
-            if live(e) {
-                let at = &mut self.fill[ed.blk as usize];
-                self.row[*at as usize] = u32_of(e);
-                *at += 1;
-            }
-        }
-        for i in 0..n {
-            let (a, z) = (self.row_start[i] as usize, self.row_start[i + 1] as usize);
-            if z - a > 1 {
-                self.row[a..z].sort_stable_by_key(|&e| (edits.edits[e as usize].pos, e));
-            }
-        }
-    }
-
-    /// The standing edits of block `blk`, by position.
-    pub(crate) fn of(&self, blk: u32) -> &[u32] {
-        let b = blk as usize;
-        &self.row[self.row_start[b] as usize..self.row_start[b + 1] as usize]
     }
 }
 
@@ -196,9 +132,6 @@ pub(crate) fn apply(b: &mut Body, topo: &Topology, t: &mut Tables) -> Result<(),
     // statement it precedes, or after a block's last statement.
     t.anchor.clear();
     for (e, ed) in t.edits.iter().enumerate() {
-        if t.cancelled[e] {
-            continue;
-        }
         let members = b.record(b.data[ed.blk as usize][0]);
         let at = match members.get(ed.pos as usize) {
             Some(&m) => topo.first[m as usize],
@@ -223,9 +156,7 @@ pub(crate) fn apply(b: &mut Body, topo: &Topology, t: &mut Tables) -> Result<(),
     // The blocks that gain or lose members get new records.
     t.per_block.clear();
     for (e, ed) in t.edits.iter().enumerate() {
-        if !t.cancelled[e] {
-            t.per_block.push((ed.blk, ed.pos, u32_of(e)));
-        }
+        t.per_block.push((ed.blk, ed.pos, u32_of(e)));
     }
     t.per_block.sort_stable();
     t.blocks.clear();
