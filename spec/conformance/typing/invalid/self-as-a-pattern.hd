@@ -1,0 +1,10 @@
+# test: Self names a type, so a bare Self is no binding pattern
+# Spec 06 Catch-All And Variant Patterns: flow.match.self-pattern.
+enum Light:
+    Red
+    Green
+
+impl Light:
+    fn code(self) -> i32:
+        match self:
+            Self => 1 # diagnostic: type-used-as-value

@@ -1,0 +1,19 @@
+# @dump: tir
+# A spread whose elements convert at run time inserts a converted copy
+# (expr.list.spread.convert): one counted loop into a list reserved to the
+# source's length. A literal of that spread alone is the copy itself.
+trait Shape:
+    fn area(&self) -> i32
+
+struct Sq:
+    side: i32
+
+impl Shape for Sq:
+    fn area(&self) -> i32:
+        self.side * self.side
+
+fn shapes(xs: List[*Sq]) -> List[*dyn Shape]:
+    [xs...]
+
+fn padded(xs: List[i32]) -> List[i32?]:
+    [0, xs...]

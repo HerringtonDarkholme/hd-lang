@@ -257,7 +257,16 @@ impl Parser<'_> {
                         "positional patterns must precede named patterns",
                     );
                 }
-                self.pattern(let_pattern);
+                let at = self.pos();
+                let element = self.pattern(let_pattern);
+                if element.kind() == SyntaxKind::SpreadPattern {
+                    // grammar.pattern.variant-no-spread
+                    self.error_at(
+                        Code::SyntaxError,
+                        at,
+                        "a variant pattern takes no spread pattern: spread patterns belong to tuple patterns",
+                    );
+                }
             }
             if !self.eat(TokenKind::Comma) {
                 if !self.at(TokenKind::RParen) {

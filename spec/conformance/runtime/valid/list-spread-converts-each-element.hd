@@ -1,0 +1,33 @@
+# test: each element a list spread inserts converts to the literal's element type, as a written element would
+# Spec 05 List Literals: expr.list.spread.convert, expr.list.spread.expected.
+# expect-stdout: 13
+# expect-stdout: 4
+# expect-stdout: 6
+trait Shape:
+    fn area(&self) -> i32
+
+struct Sq:
+    side: i32
+
+impl Shape for Sq:
+    fn area(&self) -> i32:
+        self.side * self.side
+
+fn shapes(xs: List[*Sq]) -> List[*dyn Shape]:
+    [xs...]
+
+pub fn main() -> void $ Console:
+    let squares: List[*Sq] = [box(Sq { side: 2 }), box(Sq { side: 3 })]
+    let mut total: i32 = 0
+    for s in shapes(squares):
+        total += s.area()
+    println(total)
+    let xs: List[i32] = [1, 2]
+    let padded: List[i32?] = [0, xs..., 3]
+    println(padded.len())
+    let mut sum: i32 = 0
+    for p in padded:
+        match p:
+            .Some(v) => sum += v
+            .None => pass
+    println(sum)

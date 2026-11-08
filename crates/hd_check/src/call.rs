@@ -1352,6 +1352,16 @@ impl Ck<'_, '_> {
             }
             ft = bound;
         }
+        // A literal callee takes its class's default type
+        // (`types.literal.local.default`), which is not callable.
+        if let Some(d) = self
+            .infer
+            .kind_of(pool, ft)
+            .and_then(VarKind::literal_default)
+        {
+            let _ = self.infer.unify(pool, ft, d);
+            ft = d;
+        }
         let TyData::Fn {
             params,
             result,
@@ -1361,8 +1371,19 @@ impl Ck<'_, '_> {
             deps: _,
         } = pool.get(ft)
         else {
+            // The call does not infer its callee (`expr.call.callee-unknown`).
             if matches!(pool.get(ft), TyData::Infer(_)) {
-                return unsupported("a call of a value whose type is not yet known");
+                self.err(
+                    Code::CannotInferType,
+                    n,
+                    "the type of this callee is not known here: annotate the value it comes from",
+                );
+                // Reported once, here: what left it open says nothing more.
+                self.infer.rebind(pool, ft, Ty::POISON);
+                for e in &args.positional {
+                    self.expr(*e, Some(Ty::POISON))?;
+                }
+                return Ok((Ref(NONE), Ty::POISON));
             }
             if !bang && self.is_applicable(ft)? {
                 return self.apply_call((f, full), args, n);
@@ -2174,8 +2195,16 @@ impl Ck<'_, '_> {
                 );
                 poison(slots, &free);
             }
-            TyData::Infer(_) => {
-                return unsupported("a spread of a value whose type is not yet known");
+            // The operand has no expected type, so the spread does not
+            // infer it (`expr.call.spread.unknown`).
+            TyData::Infer(_) if self.infer.kind_of(pool, t) == Some(VarKind::General) => {
+                self.err(
+                    Code::CannotInferType,
+                    e,
+                    "the type of this spread operand is not known here: annotate the value",
+                );
+                self.infer.rebind(pool, t, Ty::POISON);
+                poison(slots, &free);
             }
             _ => {
                 let msg = format!("in spread: expected a tuple, found {}", self.show(t));

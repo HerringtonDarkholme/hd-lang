@@ -3173,6 +3173,7 @@ impl Ck<'_, '_> {
                         this.join_spread(item, elem, operand, "list spread");
                     } else {
                         let cp = this.b.checkpoint();
+                        let before = this.diags.len();
                         let c = this.coerce(
                             r,
                             item,
@@ -3191,10 +3192,26 @@ impl Ck<'_, '_> {
                                 });
                             let static_kinds =
                                 [Coercion::Weaken, Coercion::Variance, Coercion::RowSubsume];
-                            if !kind.is_some_and(|k| static_kinds.iter().any(|s| *s as u32 == k)) {
-                                return unsupported("a list spread that converts its elements");
-                            }
                             this.b.rollback(cp);
+                            // A conversion with run-time meaning converts
+                            // each element as a written one would
+                            // (`expr.list.spread.convert`): the spread
+                            // inserts a converted copy. One that failed
+                            // was reported.
+                            if this.diags.len() == before
+                                && !kind
+                                    .is_some_and(|k| static_kinds.iter().any(|s| *s as u32 == k))
+                            {
+                                let copy = this.convert_spread((r, t), (item, elem), operand);
+                                // `[xs...]` alone is the copy itself.
+                                if kids.len() == 1 {
+                                    let t = this.b.ty_of(copy);
+                                    return Ok((copy, t));
+                                }
+                                spreads.push(u32::try_from(k).unwrap_or(0));
+                                refs.push(copy);
+                                continue;
+                            }
                         }
                     }
                     spreads.push(u32::try_from(k).unwrap_or(0));
@@ -3226,6 +3243,87 @@ impl Ck<'_, '_> {
             };
             Ok((this.b.emit(Tag::NewList, marks, rec, t, n.index()), t))
         })
+    }
+
+    /// The elements of the list `r` (`List[item]`, or a reference to
+    /// one) converted to `elem`, as a new list for a spread to insert
+    /// (`expr.list.spread.convert`): one counted loop, the element type's
+    /// coercion per element, into a list reserved to the source's length.
+    fn convert_spread(
+        &mut self,
+        (r, t): (Ref, Ty),
+        (item, elem): (Ty, Ty),
+        operand: NodeRef<'_>,
+    ) -> Ref {
+        use hd_tir::ir::local_flags::ASSIGNED;
+        let pool = self.pool();
+        let at = operand.index();
+        let us = Ty::prim(Prim::Usize);
+        let list = self.cx.names.known.list;
+        let list_t = pool.intern_ty(&TyData::Adt {
+            def: list,
+            args: pool.list(&[elem]),
+        });
+        let acc_t = pool.intern_ty(&TyData::Mut(list_t));
+        let sym = |me: &Self, s: &str| me.cx.names.syms.intern(s);
+        let src_l = self.b.local(t, sym(self, "$coll"), ASSIGNED, at);
+        self.set_local(src_l, r, at);
+        let source = |me: &mut Self| {
+            let v = me.b.get(src_l, t, at);
+            if me.ref_of(t).is_some() {
+                me.emit_deref(v, t, at).0
+            } else {
+                v
+            }
+        };
+        let intr = |me: &mut Self, op: IntrinsicOp, args: &[Ref], ty: Ty| {
+            let rec = me.b.refs_record(args);
+            me.b.emit(Tag::Intrinsic, op as u32, rec, ty, at)
+        };
+        let len_l = self.b.local(us, sym(self, "$len"), ASSIGNED, at);
+        let pos_l = self.b.local(us, sym(self, "$pos"), ASSIGNED, at);
+        let out_l = self.b.local(acc_t, sym(self, "$acc"), ASSIGNED, at);
+        let c = source(self);
+        let n = intr(self, IntrinsicOp::ListLen, &[c], us);
+        self.set_local(len_l, n, at);
+        let empty = self.b.refs_record(&[]);
+        let fresh = self.b.emit(Tag::NewList, NONE, empty, acc_t, at);
+        self.set_local(out_l, fresh, at);
+        let count = self.b.get(len_l, us, at);
+        self.reserve_room((out_l, acc_t), count, at);
+        let zero = self.b.const_value(us, 0);
+        self.set_local(pos_l, zero, at);
+        let lp = self.b.open_loop();
+        let lb = self.b.open_block();
+        let (p, d) = (self.b.get(pos_l, us, at), self.b.get(len_l, us, at));
+        let go = self.b.prim(PrimOp::Lt as u32, &[p, d], Ty::BOOL, at);
+        // The round: read, advance, convert and push.
+        let tb = self.b.open_block();
+        let (c, p) = (source(self), self.b.get(pos_l, us, at));
+        let x = self.b.element(c, p, item, at);
+        let one = self.b.const_value(us, 1);
+        let next = self.b.prim(PrimOp::Add as u32, &[p, one], us, at);
+        self.set_local(pos_l, next, at);
+        let x = self.coerce(
+            x,
+            item,
+            elem,
+            operand,
+            "list spread",
+            ExpectPosition::General,
+        );
+        let acc = self.b.get(out_l, acc_t, at);
+        intr(self, IntrinsicOp::ListPush, &[acc, x], Ty::VOID);
+        let then = self.b.close_block(tb, None, Ty::VOID, at);
+        let eb = self.b.open_block();
+        self.b.emit(Tag::Break, lp.0.raw(), NONE, Ty::NEVER, at);
+        let els = self.b.close_block(eb, None, Ty::VOID, at);
+        let rec = self.b.refs_record(&[then, els]);
+        self.b.emit(Tag::If, go.0, rec, Ty::VOID, at);
+        let lbody = self.b.close_block(lb, None, Ty::VOID, at);
+        self.b.close_loop(lp, lbody, Ty::VOID, at);
+        let v = self.b.get(out_l, acc_t, at);
+        self.retype(v, list_t, at)
     }
 
     fn map_expr(

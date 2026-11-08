@@ -665,6 +665,7 @@ fn choose(flag: Flag) -> i32:
 11. r[flow.match.optional.no-pattern] There is no optional-specific pattern: `value?` is not a pattern.
 12. r[flow.match.contextual] A `.Variant` pattern whose expected subject or nested payload type is not an enum is an error, as for `.Some(value)` against an `i32` subject. Error: `missing-contextual-enum-type`.
 13. r[flow.match.union] A union subject uses its positional `._k(payload)` cases as ordinary enum variants for payload checking, reachability, and exhaustiveness.
+14. r[flow.match.self-pattern] `Self` names a type, so a bare `Self` is no binding: `Self` alone as a pattern, in a `match` arm or a `let`, is an error. `Self.Variant` and `Self { ... }` are patterns as usual. Error: `type-used-as-value`.
 
 ```text
 fn value_or_zero(value: i32?) -> i32:

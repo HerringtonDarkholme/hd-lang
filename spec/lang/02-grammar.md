@@ -1911,6 +1911,7 @@ range_pattern_bound = [ "-" ], integer_literal ;
 11. r[grammar.pattern.unit] `()` is the **unit pattern**. A tuple pattern needs a comma, so `()` is never a tuple pattern.
 12. r[grammar.pattern.range] A **range pattern** takes one of five forms: `a..=b`, `a..b`, `a..`, `..=b`, or `..b`.
 13. r[grammar.pattern.range.bound] Each bound of a range pattern is an integer literal, which a `-` may precede. A bound of any other kind, such as `'a'`, `1.5`, or a name, is an error. Error: `syntax-error`.
+14. r[grammar.pattern.variant-no-spread] A spread pattern belongs to tuple patterns only. One in a variant pattern's argument list, as in `.V(a, rest...)`, is an error. Error: `syntax-error`.
 
 ```text
 enum Pair:

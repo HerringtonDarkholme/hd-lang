@@ -6039,6 +6039,11 @@ runtime/valid/display-write-destination-builder.hd	runtime	accept	lang/05-expres
 runtime/valid/race-ready-children-poll-in-argument-order.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.schedule.race-order
 runtime/valid/race-woken-child-polls-before-sibling.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.schedule.race-order
 runtime/valid/race-completed-child-beats-cancelled-sibling.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.schedule.race-order
+typing/invalid/call-of-a-value-of-unknown-type.hd	type	reject:cannot-infer-type	lang/05-expressions.md#r-expr.call.callee-unknown
+typing/invalid/spread-of-a-value-of-unknown-type.hd	type	reject:cannot-infer-type	lang/05-expressions.md#r-expr.call.spread.unknown
+runtime/valid/list-spread-converts-each-element.hd	runtime	accept	lang/05-expressions.md#r-expr.list.spread.convert
+typing/invalid/self-as-a-pattern.hd	type	reject:type-used-as-value	lang/06-control-flow.md#r-flow.match.self-pattern
+parse/invalid/variant-pattern-with-a-spread.hd	parse	reject:syntax-error	lang/02-grammar.md#r-grammar.pattern.variant-no-spread
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

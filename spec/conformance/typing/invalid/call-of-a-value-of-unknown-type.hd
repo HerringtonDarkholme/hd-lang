@@ -1,0 +1,8 @@
+# test: a call does not infer its callee's type, so calling a value whose type nothing fixed is an error
+# Spec 05 Calls: expr.call.callee-unknown.
+fn make[T]() -> T:
+    panic("never")
+
+fn run() -> void:
+    f := make()
+    f(+1) # diagnostic: cannot-infer-type

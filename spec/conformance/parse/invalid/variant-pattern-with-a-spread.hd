@@ -1,0 +1,8 @@
+# test: a spread pattern belongs to tuple patterns only, so a variant pattern's arguments take none
+# Spec 02 Patterns: grammar.pattern.variant-no-spread.
+enum Shape:
+    Box(w: i32, h: i32, d: i32)
+
+fn width(s: Shape) -> i32:
+    match s:
+        .Box(w, rest...) => w # diagnostic: syntax-error

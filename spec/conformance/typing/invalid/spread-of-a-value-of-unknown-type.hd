@@ -1,0 +1,10 @@
+# test: a spread that fills the remaining inputs gives its operand no expected type, so an operand of unknown type is an error
+# Spec 05 Positional Spreads: expr.call.spread.unknown.
+fn make[T]() -> T:
+    panic("never")
+
+fn add(a: i32, b: i32) -> i32:
+    a + b
+
+fn run() -> i32:
+    add(make()...) # diagnostic: cannot-infer-type

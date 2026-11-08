@@ -230,8 +230,15 @@ impl Ck<'_, '_> {
                         Some(TokenKind::Ident | TokenKind::RawIdent)
                     )
                 });
+                // The parser's one binding pattern without a name is a
+                // bare `Self`: a type, not a binding (`flow.match.self-pattern`).
                 let Some(nt) = name_tok else {
-                    return unsupported("a binding pattern without a name");
+                    self.err(
+                        Code::TypeUsedAsValue,
+                        p,
+                        "`Self` names a type, not a binding: write `_`, a name, or a variant such as `Self.Variant`",
+                    );
+                    return Ok(());
                 };
                 let name = self.cx.src.symbol(nt, self.cx.names.syms);
                 // `flow.match.bare-variant`: a bare name of a variant of
@@ -682,9 +689,6 @@ impl Ck<'_, '_> {
             return Ok((vec![], vec![]));
         };
         let kids: Vec<NodeRef<'t>> = al.children().collect();
-        if kids.iter().any(|k| k.kind() == SyntaxKind::SpreadPattern) {
-            return unsupported("a variant pattern with a rest");
-        }
         if kids.iter().all(|k| k.kind() != SyntaxKind::NamedPattern) {
             return Ok((kids.into_iter().map(Some).collect(), vec![]));
         }
@@ -956,11 +960,12 @@ impl Ck<'_, '_> {
             // (types.mut.weaken.v2).
             t = self.readonly_view(t);
         }
-        // A plain name: a new local.
-        if pat.kind() == SyntaxKind::BindingPattern && els.is_none() {
-            let Some(name) = name else {
-                return unsupported("a binding pattern without a name");
-            };
+        // A plain name: a new local. A bare `Self` has none and is
+        // reported as a pattern (`flow.match.self-pattern`).
+        if pat.kind() == SyntaxKind::BindingPattern
+            && els.is_none()
+            && let Some(name) = name
+        {
             // `types.bind.never`: a binding without an annotation whose
             // initializer has type `never` could never be read. A failed
             // initializer may recover as `never`; it needs no follow-on.

@@ -343,7 +343,7 @@ fn unsupported_error_names_its_file() {
     let file = dir.join("pattern.hd");
     std::fs::write(
         &file,
-        "enum E:\n    A(i32, i32)\n\nfn f(e: E) -> i32:\n    match e:\n        .A(a, _...) => a\n\npub fn main() -> void:\n    pass\n",
+        "fn mk[T]() -> T:\n    panic(\"x\")\n\npub fn main() -> void:\n    f := mk()\n    let _ = f.go()\n",
     )
     .expect("write");
     let output = hd(&cache("hd-cache-unsupported"))
@@ -353,7 +353,10 @@ fn unsupported_error_names_its_file() {
     assert!(!output.status.success());
     let err = String::from_utf8_lossy(&output.stderr);
     assert!(err.contains("pattern.hd:"), "{err}");
-    assert!(err.contains("a variant pattern with a rest"), "{err}");
+    assert!(
+        err.contains("a method on a value whose type is not yet known"),
+        "{err}"
+    );
     assert!(!err.contains(":0..0"), "{err}");
 }
 
