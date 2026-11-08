@@ -48,6 +48,11 @@ yarn-error.log*
 # Rust
 target/
 
+# Core coverage outputs (scripts/coverage.ts); only baseline.json is tracked.
+/bench/coverage/report.json
+/bench/coverage/summary.md
+/bench/coverage/uncovered/
+
 # The playground's compiler wasm (scripts/build-web-compiler.ts)
 website/playground/assets/hd_web.wasm
 

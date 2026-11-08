@@ -470,3 +470,60 @@ jobs:
           HD_CONFORMANCE_CHECKED: "1"
           HD_CONFORMANCE_PIPELINE: ${{ matrix.pipeline }}
         run: cargo test --release --workspace --all-features --test conformance -- --exact specification_conformance_passes_except_known_failures
+
+  # Line coverage of the compiler core (#1442), merged from each core crate's
+  # tests, hd_driver's lib and stage tests, and the conformance suite in the
+  # default, checked and checked optimized modes plus std's checked runtime
+  # modules. It fails when a crate falls more than 0.05 points under
+  # bench/coverage/baseline.json (scripts/coverage.ts). Three instrumented
+  # conformance runs are too slow for every push, so it runs on Linux only, on
+  # the twice-daily schedule above (on main) and by hand.
+  coverage:
+    name: Core coverage
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      # The full history, so a drop lists the uncovered lines changed since the
+      # baseline's commit.
+      - name: Check out
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: package.json
+          package-manager-cache: false
+
+      # Its own key and folder: instrumented builds share no artifacts with
+      # the plain ones, and cargo-llvm-cov builds in target/llvm-cov-target.
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2.9.2
+        with:
+          key: coverage
+          workspaces: ". -> target/llvm-cov-target"
+
+      - name: Install coverage tools
+        run: rustup component add llvm-tools-preview
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov@0.6.14
+
+      - name: Measure and check
+        run: node scripts/coverage.ts --check
+
+      - name: Store the report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: core-coverage
+          path: |
+            bench/coverage/report.json
+            bench/coverage/summary.md
+            bench/coverage/uncovered/
+            target/coverage/lcov.info
+          if-no-files-found: ignore
