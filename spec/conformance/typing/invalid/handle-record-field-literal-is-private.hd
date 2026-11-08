@@ -1,0 +1,12 @@
+# test: a user module cannot build a FieldRecord, even by copying an existing handle record
+# Spec 14 Structure: annot.structure.opaque.
+use std.structure.{FieldRecord, Member}
+
+struct Victim:
+    value: i32
+
+fn forge(info: Member, base: FieldRecord[Victim, string]) -> FieldRecord[Victim, string]:
+    FieldRecord::[Victim, string] { ...base, info: info } # diagnostic: private-member
+
+pub fn main() -> void:
+    pass

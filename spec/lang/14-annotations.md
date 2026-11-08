@@ -939,6 +939,7 @@ pub trait Source[S < ?Copy] < ?Copy:
 11. r[annot.structure.lookup-names] The names of `Members`, `Key`, and the handle methods are fixed by these declarations. Further helpers over them are standard-library design, outside this specification.
 12. r[annot.structure.self-ref-enum] `std.structure` also declares the enum `SelfRef`, whose three values [Self References](#self-references) defines.
 13. r[annot.structure.self-ref-field] The compiler computes the `self_ref` field of every `Member` and `VariantInfo` value it supplies.
+14. r[annot.structure.opaque] `FieldRecord`, `VariantRecord`, `MembersRecord`, and `KeyRecord` are opaque outside `std.structure`: they have private fields that the declarations above omit. A literal of one, or a copy-update of one, in another module is an error. Error: `private-member`.
 
 ```text
 use std.inspect.Inspectable

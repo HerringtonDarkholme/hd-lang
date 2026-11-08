@@ -1,0 +1,10 @@
+# test: an enum's type parameter is not in scope in a shared parameter's default expression
+# Spec 08 Shared Parameter Defaults: data.shared.type-parameter-scope.
+trait Label:
+    fn label() -> string
+
+enum Tagged[T < Label](name: string = T::label()): # diagnostic: unknown-name
+    A -> Tagged()
+
+pub fn main() -> void:
+    pass

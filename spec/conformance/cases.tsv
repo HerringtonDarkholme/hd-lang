@@ -6021,6 +6021,10 @@ parse/invalid/context-use-without-a-key.hd	parse	reject:syntax-error	lang/02-gra
 typing/invalid/a-primitive-type-as-a-use-key-is-an-unknown-trait.hd	type	reject:unknown-trait	lang/11-requirements-and-suspension.md#r-req.key.in-scope
 typing/invalid/a-primitive-type-as-a-provider-key-is-an-unknown-trait.hd	type	reject:unknown-trait	lang/11-requirements-and-suspension.md#r-req.key.in-scope
 typing/invalid/a-context-type-used-as-a-value.hd	type	reject:type-used-as-value	lang/03-names-and-scopes.md#r-names.type-as-value
+typing/invalid/handle-record-field-literal-is-private.hd	type	reject:private-member	lang/14-annotations.md#r-annot.structure.opaque
+typing/invalid/handle-record-variant-literal-is-private.hd	type	reject:private-member	lang/14-annotations.md#r-annot.structure.opaque
+typing/invalid/handle-record-key-literal-is-private.hd	type	reject:private-member	lang/14-annotations.md#r-annot.structure.opaque
+typing/invalid/handle-record-members-literal-is-private.hd	type	reject:private-member	lang/14-annotations.md#r-annot.structure.opaque
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

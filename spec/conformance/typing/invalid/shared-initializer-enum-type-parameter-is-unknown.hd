@@ -1,0 +1,10 @@
+# test: an enum's type parameter is not in scope in a variant's shared constructor expression
+# Spec 08 Shared Enum Constructor Data: data.shared.type-parameter-scope.
+trait Label:
+    fn label() -> string
+
+enum Tagged[T < Label](name: string):
+    A -> Tagged(T::label()) # diagnostic: unknown-name
+
+pub fn main() -> void:
+    pass

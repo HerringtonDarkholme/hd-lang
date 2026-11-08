@@ -1,0 +1,12 @@
+# test: a user module cannot build a VariantRecord, even by copying an existing variant record
+# Spec 14 Structure: annot.structure.opaque.
+use std.structure.{VariantInfo, VariantRecord}
+
+struct Victim:
+    value: i32
+
+fn forge(info: VariantInfo, base: VariantRecord[Victim]) -> VariantRecord[Victim]:
+    VariantRecord::[Victim] { ...base, info: info } # diagnostic: private-member
+
+pub fn main() -> void:
+    pass

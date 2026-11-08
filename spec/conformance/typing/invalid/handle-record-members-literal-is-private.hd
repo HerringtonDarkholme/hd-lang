@@ -1,0 +1,12 @@
+# test: a user module cannot build a MembersRecord, even by copying an existing directory record
+# Spec 14 Structure: annot.structure.opaque.
+use std.structure.{Member, MembersRecord}
+
+struct Victim:
+    value: i32
+
+fn forge(infos: List[Member], base: MembersRecord[Victim]) -> MembersRecord[Victim]:
+    MembersRecord::[Victim] { ...base, infos: infos } # diagnostic: private-member
+
+pub fn main() -> void:
+    pass
