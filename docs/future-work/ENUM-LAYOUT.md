@@ -1,7 +1,7 @@
 # Enum Layout
 
-Proposal, 2026-11-08; domain: compiler internals (`hd_wasm_linear`); not
-accepted. Issue #1422. Owner direction on record: "how rust is doing this,
+Proposal, 2026-11-08; domain: compiler internals (`hd_wasm_linear`); owner
+decided its five questions on 2026-11-08 (below). Issue #1422. Owner direction on record: "how rust is doing this,
 do no worse" and "i32?? should be 8, not 12. this is general".
 
 ## The Proposal
@@ -32,30 +32,27 @@ Today `A` is 12 bytes and 3 Wasm values. With the proposal it is 8 bytes and
 2 values, and the whole match is one `br_table` on word 0. This is what rustc
 emits for the same type.
 
-## Open Questions
+## Decisions (owner, 2026-11-08)
 
-1. Reorder struct and payload fields the way `univariant` does (largest
-   alignment first, largest niche at an edge)? **Recommendation:** yes. Without
-   it `Mixed { a: i32, b: f64, c: bool }` stays 24 bytes against Rust's 16.
-2. Should an address's niche be only 0, as in Rust, or 0 to 15, everything
-   below `STATIC_BASE`? **Recommendation:** 0 to 15. Then `(*T)???` and
-   `List[T]??` are 4 bytes; Rust needs 8.
-3. Choose niche values with Rust's `Niche::reserve` exactly, including its
-   `bool` exception? **Recommendation:** yes, so every row can be checked
-   against `rustc_dump_layout`.
-4. Locals: one value per word, with a bit container when variants disagree on
-   a word's type (proposed), or Rust's rule (at most two scalars, else
-   memory)? **Recommendation:** one value per word. hd has no stack slot
-   for a value, and the extra conversions are cheap register moves.
-5. Order: rule 1 (payload as a struct), then delete views (#1448), then
-   niches? **Recommendation:** yes. Rule 1 alone removes every `RefPayload`.
+1. **Field reordering: yes.** Struct and payload fields are ordered the way
+   `univariant` does (largest alignment first, the largest niche at an edge).
+2. **Address niche: only 0**, Rust's rule, on every target. hd's unused
+   addresses below `STATIC_BASE` are not a niche.
+3. **Niche values: always extend the valid range upward from its end.** No
+   prefer-zero, no -1, no `bool` exception. Sizes match rustc; some niche
+   values differ (`char?`'s `None` is `0x110000`; rustc 1.97 uses -1).
+4. **Locals: one Wasm value per 4- or 8-byte word**, with a bit container
+   where variants disagree on a word's type. No shadow stack.
+5. **Order: payload as a struct (with reordering), then delete the views
+   (#1448), then niches.** The one-test and `br_table` match lowering rides
+   with each part.
 
 ## The Gap
 
 Sizes in bytes / alignment, wasm32. Rust is `size_of`/`align_of` from
 rustc 1.97.1 `--target wasm32-unknown-unknown -O`, read back in Node. hd
 today is `# @dump: layout` on main at c506d5a21. "Proposed" applies the
-algorithm below; where Q1 or Q2 changes it, both numbers are given. Values
+algorithm below, with the decisions above. Values
 are Wasm values per local: Rust's ABI (S scalar, SP scalar pair, M one
 address) and hd's leaves today and cells proposed. hd `string` is compared with
 `Rc<str>`, `List[T]` with `Rc<Vec<T>>`, and `*T` with `&T`.
@@ -66,9 +63,9 @@ address) and hd's leaves today and cells proposed. hd `string` is compared with
 | `i64?` / `i64??` | 16/8, 16/8 | 16, 16 | 16, 16 | SP / 2,3 / 2 |
 | `bool?` / `bool??` / `bool???` | 1/1 each | **8, 12, 16** | 1 | S / 2,3,4 / 1 |
 | `char?` / `char??` / `char???` | 4/4 each | **8, 12, 16** | 4 | S / 2,3,4 / 1 |
-| `string?` / `??` / `???` | 8, 12, 12 | **12, 16, 20** | 8, 12, 12 (Q2: 8, 8, 8) | SP,M / 3,4,5 / 2,3,3 |
-| `List[i32]?` / `??` / `???` | 4, 8, 8 | 8, 12, 16 | 4, 8, 8 (Q2: 4, 4, 4) | S,SP / 2,3,4 / 1,2,2 |
-| `(*i32)?` / `??` / `???` | 4, 8, 8 | 4, 8, 12 | 4, 8, 8 (Q2: 4, 4, 4) | S,SP / 1,2,3 / 1,2,2 |
+| `string?` / `??` / `???` | 8, 12, 12 | **12, 16, 20** | 8, 12, 12 | SP,M / 3,4,5 / 2,3,3 |
+| `List[i32]?` / `??` / `???` | 4, 8, 8 | 8, 12, 16 | 4, 8, 8 | S,SP / 2,3,4 / 1,2,2 |
+| `(*i32)?` / `??` / `???` | 4, 8, 8 | 4, 8, 12 | 4, 8, 8 | S,SP / 1,2,3 / 1,2,2 |
 | `A` (above) | 8/4 | **12** | 8 | M / 3 / 2 |
 | `Shape` (4 variants, 3 with data) | 24/8 | **32** | 24 | M / 6 / 4 |
 | `Shape?` | 24/8 | **40** | 24 | M / 7 / 4 |
@@ -76,10 +73,10 @@ address) and hd's leaves today and cells proposed. hd `string` is compared with
 | `Tail: V(i32, bool); W` (niche not first) | 8/4 | 12 | 8 | M / 3 / 2 |
 | `Tail?` | 8/4 | 16 | 8 | M / 4 / 2 |
 | `Late?`, `Late { a: i32, b: char }` | 8/4 | 12 | 8 | M / 3 / 2 |
-| `Mixed { a: i32, b: f64, c: bool }` | 16/8 | 24 | 24 (Q1: 16) | M / 3 / 3 |
-| `Mixed?` | 16/8 | 24 | 24 (Q1: 16) | M / 4 / 3 |
-| `HasMixed: M(Mixed); N(i32); O` | 16/8 | 24 | 24 (Q1: 16) | M / 4 / 3 |
-| `Result[string, LoadErr]` | 12/4 | **16** | 16 (Q1: 12) | M / 4 / 4 (Q1: 3) |
+| `Mixed { a: i32, b: f64, c: bool }` | 16/8 | 24 | 16 | M / 3 / 3 |
+| `Mixed?` | 16/8 | 24 | 16 | M / 4 / 3 |
+| `HasMixed: M(Mixed); N(i32); O` | 16/8 | 24 | 16 | M / 4 / 3 |
+| `Result[string, LoadErr]` | 12/4 | **16** | 12 | M / 4 / 3 |
 | `Result[i32, LoadErr]` | 12/4 | 16 | 12 | M / 4 / 3 |
 | `Big` (300 fieldless) / `Big?` | 2/2, 2/2 | 2, **8** | 2, 2 | S / 1,2 / 1 |
 | `Color` (3 fieldless) / `Color?` | 1/1, 1/1 | 1, **8** | 1, 1 | S / 1,2 / 1 |
@@ -92,7 +89,7 @@ address) and hd's leaves today and cells proposed. hd `string` is compared with
 | `Holder { flag: bool, v: i32?, w: i64 }` | 24/8 | 24 | 24 | M / 4 / 4 |
 | `Outer { x: A?, y: u8 }` / `Outer?` | 12/4, 12/4 | **20, 24** | 12, 12 | M / 4,5 / 3 |
 | std `Json` / `Json?` | 16/8, 16/8 | **32, 32** | 16, 16 | M / 5 / 2 |
-| std `Cookie` / `Cookie?` | 72/8, 72/8 | 80, 80 | 80 (Q1: 72) | M |
+| std `Cookie` / `Cookie?` | 72/8, 72/8 | 80, 80 | 72 | M |
 
 A `List` element's stride is the size, so a `List[A]` holds 8 bytes per
 element instead of 12. An enum as a struct field (`Holder`, `Outer`) and an
@@ -203,12 +200,18 @@ scalar(t):                                # size = align = bytes
   char                  -> 4, niche valid 0..=0x10FFFF
   i8..u64, f32, f64     -> no niche
   never                 -> size 0, uninhabited
-  address (*T, *mut T, boxed cell, List/Map buffer)  -> 4, valid 16..=2^32-1  (Q2; Rust: 1..)
+  address (*T, *mut T, boxed cell, List/Map buffer)  -> 4, valid 1..=2^32-1   (decision 2: null only)
   string                -> struct(address, u32 len)
   trait value, fn value -> struct(address, address); niche on the vtable address
 
-struct_layout(fields) = univariant(fields, AlwaysSized)  # Q1; without Q1, declaration order
-layout(enum) = layout_of_enum(variants)                  # exactly (a), steps 1 to 3
+struct_layout(fields) = univariant(fields, AlwaysSized)  # decision 1
+layout(enum) = layout_of_enum(variants)                  # (a), steps 1 to 3, except reserve:
+
+reserve(niche, count):                                   # decision 3: one rule
+  v = niche.valid (wrapping), bits = 8 * niche.bytes
+  if count > 2^bits - (v.end - v.start + 1) (wrapping): none
+  start = v.end + 1 (wrapping); v.end = v.end + count (wrapping)
+  return start, v
 cells(L) = words(all leaves of every variant at their absolute offsets)
 
 words(leaves):
@@ -265,7 +268,7 @@ i32?:  variants None [], Some [i32]
           niche {@0, 4 bytes, valid 0..=1}, cells [i32 @0, i32 @4]
 i32??: variants None [], Some [i32?]
        L = Some (8 bytes), needs = {None}, count 1
-       reserve(1) on 0..=1: the bool exception -> extend end: start = 2, valid 0..=2
+       reserve(1) on 0..=1: extend end: start = 2, valid 0..=2
        None is zero-sized: fits
        => size 8, Niche{@0, 4 bytes, untagged Some, first = last = None, start 2}
           cells [i32 @0, i32 @4]   (today: 12 bytes, 3 values)
@@ -338,7 +341,7 @@ local.get 0  i32.load 0  br_table {0, 1, 2, 3, 0}
 ;; Rust: Err's msg address at 0 is the niche; 0 means Ok, whose Rc is at 4
 local.get 0  i32.load 0  local.tee 1  br_if 0  local.get 0  i32.load 4 ...
 ;; hd today: 4 params into rt:release, which tests the tag against 0 and 1
-;; Proposed (Q1): 3 params; cell0 == 0 ? release(cell1) : release(cell0)
+;; Proposed: 3 params; cell0 == 0 ? release(cell1) : release(cell0)
 ```
 
 ## How It Lands
@@ -347,7 +350,7 @@ local.get 0  i32.load 0  local.tee 1  br_if 0  local.get 0  i32.load 4 ...
 | --- | --- |
 | `layout.rs` `Mem { size, align, leaves }` | adds `niche`, `enc`, per-variant field offsets, `cells` |
 | `enum_mem_by`: tag, then slots grouped by value kind (`SLOT_ORDER`) | `layout_of_enum` from (a); slots and `Positions` are deleted |
-| `record`: fields in declaration order | `univariant` (Q1) |
+| `record`: fields in declaration order | `univariant` (decision 1) |
 | `nullable` and `Walk::Nullable` | deleted: `(*T)?` is the niche case with `start` 0 |
 | `emit/value.rs` `tag()` = value 0; `variant()` puts `v` in value 0, zeros elsewhere | `read_discr` / `write_discr`; words the variant does not use stay undefined |
 | `emit.rs` `SwitchTag`: `tag == case` per test | grouped tests, one `br_table` per cell |
@@ -376,9 +379,7 @@ fold, and `Reason::View`. The issue estimates 650 to 800 lines. Done check:
   variant. No code may read such a value before it is written.
 
 **Wasm locals.** A local or parameter takes one value per cell. In every
-row of the gap table, cells are no more than today's leaves. Without Q1 a
-payload in declaration order can need one cell more than today's kind slots
-(`V1(i32, f64); V2(f64, i32)`: 4 against 3).
+row of the gap table, cells are no more than today's leaves.
 
 **Cost.** Layout is computed once per type in the link-wide cache, in
 O(fields log fields) per variant. `univariant` runs at most twice per variant,
@@ -396,8 +397,7 @@ costs k layouts.
 | Wasm size | -39 to -42% where views were made today (issue measure); smaller matches |
 | Web compiler gzip | net negative: more lines are deleted than added |
 
-**Where hd stays worse than Rust.** Without Q1, structs keep declaration order
-(`Mixed`, `Cookie`: 24 vs 16, 80 vs 72). LLVM also folds some matches into
+**Where hd stays worse than Rust.** LLVM folds some matches into
 arithmetic (`char???` becomes an `abs`), and hd's emitter does not. A large
 enum in hd is a value in several locals where Rust passes one address. That is
 more parameters, but no memory traffic.
@@ -407,7 +407,7 @@ more parameters, but no memory traffic.
 | Case | What happens |
 | --- | --- |
 | std `Json` | `Number` holds `NumberRepr`, whose tag (u64-widened, 0..=2) is the niche. `Text`, `Array` and `Object` fit after it at 8. Size is 32 today, 16 proposed, the same as Rust. |
-| std `Cookie?` | The niche is in `path: string?` or `secure: bool`, so `Cookie?` costs 0 bytes, as in Rust. Without Q1, `Cookie` stays 80 against 72. |
+| std `Cookie?` | The niche is in `path: string?` or `secure: bool`, so `Cookie?` costs 0 bytes, as in Rust. |
 | `&mut` into `A.Maybe`'s `i32?` | A write stores 0 or 1 at word 0. Both are valid, so the outer discriminant still reads `Maybe`. This is sound only because every write through `&mut T` writes a valid `T`. A raw `Buffer` write into a typed slot must not break that. |
 | `WithNever2: B(i64, never)` | `B` is uninhabited but not 1-ZST, so it is not absent. It keeps its space, as in Rust (16). `write_discr(B)` is `unreachable`. |
 | `bool` nested 255 deep | The 254 free values of the byte run out at depth 255, and level 256 gets a tag. Rust does the same. |
@@ -422,6 +422,7 @@ more parameters, but no memory traffic.
 
 ```rust
 // wasm32: Option<Option<i32>> = 8, niche_start 2; Option<char> None = 0xFFFF_FFFF
+// (hd, decision 3: char? None = 0x110000; same size)
 #[rustc_dump_layout(debug)] type T2 = Option<Option<i32>>;
 enum A { Maybe(Option<i32>), Must(i32) } // 8: Niche { untagged_variant: 0, niche_variants: 1..=1, niche_start: 2 }
 fn twice(v: Option<Option<i32>>) -> i32 { match v { Some(Some(x)) => x, Some(None) => 1, None => 0 } }
@@ -471,8 +472,7 @@ enum CharOrSectionMarker {   // i32: Paragraph is 0x0020_0000,
 }
 ```
 
-hd takes the nesting. Q2 applies the same idea to hd's own invalid addresses
-(below `STATIC_BASE`). Source: [TypeLayout.rst](https://github.com/swiftlang/swift/blob/main/docs/ABI/TypeLayout.rst).
+hd takes the nesting. Addresses keep Rust's null-only niche (decision 2). Source: [TypeLayout.rst](https://github.com/swiftlang/swift/blob/main/docs/ABI/TypeLayout.rst).
 
 **Zig** guarantees `?*T` is pointer-sized (null). Other optionals get a tag.
 
@@ -524,7 +524,7 @@ no spec change is needed.
 Implementation order, about 30 minutes each, each with its test:
 
 1. `Niche` on `Mem` for scalars and addresses. Layout dump prints it. Test: layout baseline.
-2. Payload as a struct at one offset, the tagged path with tag widening. Test: layout rows `Pair`, `Shape`, `Tail`.
+2. Payload as a struct at one offset, with `univariant` field reordering, the tagged path with tag widening. Test: layout rows `Pair`, `Shape`, `Tail`, `Mixed`, `Cookie`.
 3. Cells and leaf read/write ops in `payload()`/`variant()`. Test: wat of `area`, conformance enum cases.
 4. `RefPayload` always physical; delete views (#1448). Test: `rg` done check, debug-source-text size.
 5. Niche-filling path and `reserve`. Test: `i32??`, `A`, `bool???`, `char???` rows.
@@ -535,5 +535,4 @@ Implementation order, about 30 minutes each, each with its test:
 10. Absent uninhabited variants. Test: `WithNever` row.
 11. One `br_table` per cell in match lowering. Test: wat of `twice`, `area`.
 12. Arm-local loads for a match through `&`. Test: wat of `area`, `width`.
-13. Struct reordering (if Q1). Test: `Mixed`, `Cookie` rows.
-14. Address niche 0 to 15 (if Q2). Test: `(*T)???`, `List??` rows.
+
