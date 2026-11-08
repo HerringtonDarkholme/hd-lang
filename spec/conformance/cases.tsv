@@ -3209,6 +3209,7 @@ runtime/valid/range-eq.hd	runtime	accept	std/ops.md#r-std-ops.range.eq.range
 runtime/valid/list-access-building.hd	runtime	accept	std/collections.md#list-access-and-building
 runtime/valid/collection-in-place-element-accessors.hd	runtime	accept	std/collections.md#r-std-collections.map.get-or-insert
 runtime/valid/map-get-or-insert-counts.hd	runtime	accept	std/collections.md#r-std-collections.map.get-or-insert
+runtime/valid/a-map-probe-keeps-its-shared-table-hit-and-miss-order.hd	runtime	accept	std/collections.md#r-std-collections.map.get-or-insert
 runtime/valid/map-get-copies-and-element-place-lends-the-value.hd	runtime	accept	std/collections.md#r-std-collections.map.get
 runtime/valid/map-probe-hashes-once.hd	runtime	accept	std/collections.md#r-std-collections.map.get-or-insert.probe-once
 runtime/panic/list-element-place-push-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.conflict

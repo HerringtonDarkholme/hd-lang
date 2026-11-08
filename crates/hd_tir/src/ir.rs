@@ -182,6 +182,8 @@ tags! {
     // Counts: target instruction identity plus one shared descriptor.
     Retain: Inst, Record;
     Release: Inst, Record;
+    // A deferred operation's uniqueness action, with the same descriptor.
+    MakeUnique: Inst, Record;
 }
 
 pub mod count;
@@ -2258,6 +2260,7 @@ fn no_ownership(b: &Body, errs: &mut Vec<VerifyError>) {
             | Tag::LoanEnd
             | Tag::Retain
             | Tag::Release
+            | Tag::MakeUnique
             | Tag::IsUnique
             | Tag::FlagSet
             | Tag::FlagClear => {
@@ -3980,7 +3983,13 @@ mod tests {
         let root = b.close_block(blk, Some(one), Ty::I32, NodeIdx::NONE);
         let body = b.finish(root, &[]).expect("ok");
         assert_eq!(body.len(), 1);
-        assert_eq!(Tag::ALL.len(), 58);
+        assert_eq!(Tag::ALL.len(), 59);
+        assert_eq!(Tag::Release as usize, 57);
+        assert_eq!(Tag::MakeUnique as usize, 58);
+        assert_eq!(
+            Tag::MakeUnique.operands(),
+            (super::Op::Inst, super::Op::Record)
+        );
         assert!(
             Tag::ALL
                 .iter()

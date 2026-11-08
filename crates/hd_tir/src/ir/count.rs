@@ -34,7 +34,7 @@ pub enum Part {
     Results,
 }
 
-/// The record in a retain/release's second word. Its first word names
+/// The record in a count action's second word. Its first word names
 /// the instruction whose value, operation or function boundary it counts.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Info {
@@ -51,7 +51,10 @@ impl Info {
 
     #[must_use]
     pub fn read(b: &Body, i: usize) -> Option<Self> {
-        if !matches!(b.tags.get(i), Some(Tag::Retain | Tag::Release)) {
+        if !matches!(
+            b.tags.get(i),
+            Some(Tag::Retain | Tag::Release | Tag::MakeUnique)
+        ) {
             return None;
         }
         let [at, part, index, reason] = *b.record(b.data[i][1]) else {

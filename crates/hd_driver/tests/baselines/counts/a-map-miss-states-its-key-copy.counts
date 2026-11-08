@@ -5,10 +5,10 @@
 fn bump(items: &mut Map[string, i32], key: string) -> void:
     *items.get_or_insert(key, +0) += 1
 > app/main/bump
->   unique counted reference (conservative: Call)
+>   unique counted reference (may be shared)
 >   retain string (stored)
 
 fn scalar(items: &mut Map[usize, i32], key: usize) -> void:
     *items.get_or_insert(key, +0) += 1
 > app/main/scalar
->   unique counted reference (conservative: Call)
+>   unique counted reference (may be shared)

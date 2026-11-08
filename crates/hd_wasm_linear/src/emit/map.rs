@@ -667,20 +667,26 @@ impl Em<'_, '_, '_> {
 
     /// Makes the table in `m` unique before returning a mutable value
     /// reference. Entry numbers and a miss probe survive this copy.
-    fn map_probe_unique(&mut self, m: u32, entry: &Entry) {
-        self.f.get(m);
-        self.f.u32(HEADER);
-        self.f.op(I::I32Sub);
-        self.f.op(I::I32Load(mem(HEAP, 0, 2)));
-        self.f.i32(1);
-        self.f.op(I::I32Ne);
-        self.f.op(I::If(BlockType::Empty));
-        self.f.get(m);
-        self.f.helper(Helper::MapUnique {
-            entry: entry.clone(),
+    fn map_probe_unique(&mut self, i: u32, m: u32, entry: &Entry) -> StageResult<()> {
+        let Some(reason) = self.operation_count(i, Tag::MakeUnique, Part::Operand(0)) else {
+            return unsupported("a map probe without its stated uniqueness action");
+        };
+        self.because(reason, |em| {
+            em.f.get(m);
+            em.f.u32(HEADER);
+            em.f.op(I::I32Sub);
+            em.f.op(I::I32Load(mem(HEAP, 0, 2)));
+            em.f.i32(1);
+            em.f.op(I::I32Ne);
+            em.f.op(I::If(BlockType::Empty));
+            em.f.get(m);
+            em.f.helper(Helper::MapUnique {
+                entry: entry.clone(),
+            });
+            em.f.set(m);
+            em.f.op(I::End);
         });
-        self.f.set(m);
-        self.f.op(I::End);
+        Ok(())
     }
 
     /// Stores a probe's changed table through its map reference.
@@ -769,7 +775,7 @@ impl Em<'_, '_, '_> {
             return self.map_probe_lent(i, (owned, m), mt, found);
         }
         if default.is_some() {
-            self.map_probe_unique(m, &entry);
+            self.map_probe_unique(i, m, &entry)?;
         }
 
         self.f.get(found);
@@ -778,7 +784,7 @@ impl Em<'_, '_, '_> {
         self.f.op(I::If(BlockType::Empty));
         self.ctl.push(Ctl::Plain);
         if default.is_none() {
-            self.map_probe_unique(m, &entry);
+            self.map_probe_unique(i, m, &entry)?;
         }
         self.map_probe_store(at, owned, m, mt)?;
         let (_, value_at) = self.map_value_from(m, mt, &Src::Locals(vec![found]))?;

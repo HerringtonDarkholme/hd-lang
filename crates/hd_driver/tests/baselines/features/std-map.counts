@@ -24,7 +24,7 @@ fn put(m: &mut Map[string, string], k: string, v: string) -> void:
 fn group(m: &mut Map[string, List[string]], k: string, v: string) -> void:
     m.get_or_insert(k, []).push(v)
 > app/main/group
->   unique counted reference (conservative: Call)
+>   unique counted reference (may be shared)
 >   retain string (stored)
 >   copy List[string] (conservative: Call)
 >   unique List[string] (may be shared)

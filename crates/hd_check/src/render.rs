@@ -352,7 +352,7 @@ pub fn render(names: &Names<'_>, b: &Body, fields: &FieldNames<'_>) -> String {
             };
             ops.extend(mode);
             ops.push(place(names, b, a, fields));
-        } else if matches!(tag, Tag::Retain | Tag::Release)
+        } else if matches!(tag, Tag::Retain | Tag::Release | Tag::MakeUnique)
             && let Some(info) = hd_tir::ir::count::Info::read(b, i)
         {
             use hd_tir::ir::count::Part;

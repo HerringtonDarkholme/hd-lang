@@ -1,0 +1,33 @@
+use std.annotation.cold
+use std.testing.assert_equal
+
+@cold
+fn bump(items: &mut Map[string, i32], key: string) -> void:
+    *items.get_or_insert(key, +0) += 1
+
+@cold
+fn scalar(items: &mut Map[usize, i32], key: usize) -> void:
+    *items.get_or_insert(key, +0) += 1
+
+@cold
+fn read(value: &i32) -> i32:
+    *value
+
+pub fn main() -> void:
+    let mut items = { "a": +1 }
+    saved := items
+    bump(&mut items, "a")
+    bump(&mut items, "b")
+    assert_equal(items["a"], 2)
+    assert_equal(items["b"], 1)
+    assert_equal(saved["a"], 1)
+    assert_equal(saved.get("b").is_none(), true)
+    assert_equal(read(&items["a"]), 2)
+    let mut numbers: Map[usize, i32] = { 1: +3 }
+    saved_numbers := numbers
+    scalar(&mut numbers, 1)
+    scalar(&mut numbers, 2)
+    assert_equal(numbers[1], 4)
+    assert_equal(numbers[2], 1)
+    assert_equal(saved_numbers[1], 3)
+    assert_equal(saved_numbers.get(2).is_none(), true)

@@ -135,6 +135,7 @@ fn append_tag_id_words(b: &Body, i: usize, out: &mut Vec<IdWord>) -> StageResult
         | Tag::LoanEnd
         | Tag::Retain
         | Tag::Release
+        | Tag::MakeUnique
         | Tag::IsUnique
         | Tag::FlagSet
         | Tag::FlagClear => {

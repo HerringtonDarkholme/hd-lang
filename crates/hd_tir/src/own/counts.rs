@@ -3,7 +3,7 @@
 use super::{
     OwnCx, abi, append_copy, arguments, cache, call_args, call_row, capture_entry, captures,
     cell_move, child, cold, cold_captures, cold_row, context, copy_struct, join_results, map_key,
-    map_value, parameter_copy, referent, splice, waker,
+    map_probe_unique, map_value, parameter_copy, referent, splice, waker,
 };
 use crate::ir::{
     Body, Tag, Topology,
@@ -55,6 +55,7 @@ fn expected(b: &Body, cx: &dyn OwnCx, topo: &Topology) -> Vec<(Tag, u32, Info)> 
     out.extend(copy_struct::counts(b, cx));
     out.extend(join_results::counts(b, cx));
     out.extend(map_value::counts(b, cx));
+    out.extend(map_probe_unique::counts(b, cx));
     out.extend(child::counts(b, cx, topo));
     out.extend(waker::counts(b));
     out.extend(
@@ -128,7 +129,7 @@ pub(crate) fn verify(b: &Body, cx: &dyn OwnCx, topo: &Topology, mut err: impl Fn
     index.sort_stable_by_key(|&(key, _)| key);
     let mut seen = vec![0; expected.len()];
     for i in 0..b.len() {
-        if !matches!(b.tags[i], Tag::Retain | Tag::Release) {
+        if !matches!(b.tags[i], Tag::Retain | Tag::Release | Tag::MakeUnique) {
             continue;
         }
         let Some(info) = Info::read(b, i) else {

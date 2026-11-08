@@ -75,6 +75,7 @@ mod insert;
 mod known;
 mod late;
 pub(crate) mod map_key;
+pub(crate) mod map_probe_unique;
 pub(crate) mod map_value;
 mod moves;
 pub(crate) mod overwrites;
@@ -556,6 +557,7 @@ pub(crate) fn owned_value(b: &Body, i: usize) -> bool {
             | Tag::LoanEnd
             | Tag::Retain
             | Tag::Release
+            | Tag::MakeUnique
             | Tag::IsUnique
             | Tag::FlagSet
             | Tag::FlagClear

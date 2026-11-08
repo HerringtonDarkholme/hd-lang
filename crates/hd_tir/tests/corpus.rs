@@ -34,10 +34,14 @@ impl VerifyCx for CorpusFacts {
 /// one non-suspending owned ABI parameter; item 9 has a cold parameter,
 /// and item 10 a cold requirement row. Other types have no counted
 /// leaf; ownership balance is exercised in the unit tests. Item 7
-/// constructs a borrowed-buffer string result with an explicit count.
+/// constructs a borrowed-buffer string result with an explicit count;
+/// item 11 is the map-probe intrinsic.
 struct OwnershipFacts;
 
 impl hd_tir::own::OwnCx for OwnershipFacts {
+    fn is_map_probe(&self, callee: &Callee) -> bool {
+        matches!(callee, Callee::Item { def, .. } if *def == DefId::from_raw(11))
+    }
     fn retains_result(&self, callee: &Callee) -> bool {
         matches!(callee, Callee::Item { def, .. } if *def == DefId::from_raw(7))
     }

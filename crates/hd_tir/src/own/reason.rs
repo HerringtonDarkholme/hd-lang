@@ -103,7 +103,9 @@ impl std::fmt::Display for Reason {
 pub fn reason(b: &Body, i: usize) -> Option<Reason> {
     let [_, w] = b.data[i];
     Some(match b.tags[i] {
-        Tag::Retain | Tag::Release => Reason::from_word(crate::ir::count::Info::read(b, i)?.reason),
+        Tag::Retain | Tag::Release | Tag::MakeUnique => {
+            Reason::from_word(crate::ir::count::Info::read(b, i)?.reason)
+        }
         Tag::Drop => Reason::from_word(w),
         Tag::IsUnique if w == unique_word::COVERED => Reason::View,
         Tag::IsUnique if w == 0 || w == unique_word::HOISTED => Reason::MayBeShared,

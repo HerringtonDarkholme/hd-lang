@@ -17,7 +17,7 @@
     },
     {
       "reason": "conservative: Call",
-      "sites": 1
+      "sites": 0
     },
     {
       "reason": "conservative: CallValue",

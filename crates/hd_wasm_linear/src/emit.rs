@@ -1916,7 +1916,7 @@ impl Em<'_, '_, '_> {
             }
             // Boundary declarations lower at their named entry or exit.
             // Lowered in its store's walk of the place.
-            Tag::Release => {}
+            Tag::Release | Tag::MakeUnique => {}
             Tag::LoanEnd => {
                 self.borrow_drop(i);
                 self.end_short_loan(i)?;

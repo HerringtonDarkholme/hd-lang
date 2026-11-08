@@ -1,0 +1,31 @@
+# @dump: own counts wat
+# @build: v8 release program
+# expected: a map probe states its deferred table-uniqueness action; hit/miss timing is unchanged, and a local indexed borrow keeps its separate place-based IsUnique and LoanEnd.
+use std.annotation.cold
+
+@cold
+fn bump(items: &mut Map[string, i32], key: string) -> void:
+    *items.get_or_insert(key, +0) += 1
+
+@cold
+fn scalar(items: &mut Map[usize, i32], key: usize) -> void:
+    *items.get_or_insert(key, +0) += 1
+
+@cold
+fn read(value: &i32) -> i32:
+    *value
+
+pub fn main() -> void $ Console:
+    let mut items = { "a": +1 }
+    saved := items
+    bump(&mut items, "a")
+    bump(&mut items, "b")
+    println(items["a"])
+    println(items["b"])
+    println(saved["a"])
+    println(read(&items["a"]))
+    let mut numbers: Map[usize, i32] = { 1: +3 }
+    scalar(&mut numbers, 1)
+    scalar(&mut numbers, 2)
+    println(numbers[1])
+    println(numbers[2])
