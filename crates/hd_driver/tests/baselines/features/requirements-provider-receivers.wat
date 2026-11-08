@@ -2,9 +2,9 @@
 (module
   (import "fixture" "rt:new/class-2" (func $rt:new/class-2 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
-  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
+  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:frame" (func $rt:frame (result i32)))
   (import "fixture" "rt:cancel_enter" (func $rt:cancel_enter (result i32)))
   (import "fixture" "rt:cancel_leave" (func $rt:cancel_leave (param i32 i32)))
@@ -40,26 +40,6 @@
         end
       end
       local.get $t0
-      local.tee $t1
-      if
-        local.get $t1
-        call $retain
-      end
-      local.get $t0
-      local.tee $t1
-      if
-        local.get $t1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $t1
-          call $rt:release_ref'1
-        end
-      end
-      local.get $t0
       local.set $t1
       i32.const 292 ;; &vtable[func69]
       local.set $t2
@@ -76,7 +56,7 @@
       local.tee $t1
       if
         local.get $t1
-        call $rt:release_ref'2
+        call $rt:release_ref'1
       end
     ;; 33 |     counters.total
       local.get $counters
@@ -93,7 +73,7 @@
         i32.or
         if
           local.get $t1
-          call $rt:release_ref'1
+          call $rt:release_ref'2
         end
       end
       local.set $n
@@ -421,7 +401,7 @@
                   local.tee $t7
                   if
                     local.get $t7
-                    call $rt:release_ref'2
+                    call $rt:release_ref'1
                   end
                 end
               end
@@ -523,7 +503,7 @@
               local.tee $t7
               if
                 local.get $t7
-                call $rt:release_ref'2
+                call $rt:release_ref'1
               end
             end
             local.get $t5
@@ -537,7 +517,7 @@
               i32.or
               if
                 local.get $t7
-                call $rt:release_ref'1
+                call $rt:release_ref'2
               end
             end
             i32.const 1
@@ -556,7 +536,7 @@
             i32.or
             if
               local.get $t7
-              call $rt:release_ref'1
+              call $rt:release_ref'2
             end
           end
           i32.const 0
@@ -575,7 +555,7 @@
         i32.or
         if
           local.get $t7
-          call $rt:release_ref'1
+          call $rt:release_ref'2
         end
       end
       i32.const 0
@@ -592,7 +572,7 @@
       i32.or
       if
         local.get $t7
-        call $rt:release_ref'1
+        call $rt:release_ref'2
       end
     end
     local.get $frame
@@ -727,7 +707,7 @@
         i32.or
         if
           local.get $t1
-          call $rt:release_ref'1
+          call $rt:release_ref'2
         end
       end
     end
@@ -736,7 +716,7 @@
     local.tee $t1
     if
       local.get $t1
-      call $rt:release_ref'2
+      call $rt:release_ref'1
     end
     local.get $t0
     i32.load $heap offset=16
@@ -746,7 +726,7 @@
       local.tee $t1
       if
         local.get $t1
-        call $rt:release_ref'2
+        call $rt:release_ref'1
       end
     end
   )

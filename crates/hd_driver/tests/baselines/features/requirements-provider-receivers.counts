@@ -54,7 +54,5 @@ pub fn run(n: i64) -> i64:
 >   release &mut app.main.Counters (last use)
     $.with(Meter=counters):
 >   retain &mut app.main.Counters (conservative: copy read)
->   retain app.main.Meter (stored)
->   release &mut app.main.Counters (last use)
         count(n)
     counters.total

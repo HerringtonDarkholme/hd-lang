@@ -86,19 +86,19 @@ pub fn go() -> usize:
 > app/main/go
 >   local $0 $ref: Count [read assigned captured captured-assigned] place
 >   local $1 first: Counted[mut Count] [:= read assigned] value
->     uses $1: %3 -> %8 consume, %32 lend last
+>     uses $1: %3 -> %8 consume, %31 lend last
 >   local $2 $ref: Count [read assigned captured captured-assigned] place
 >   local $3 second: Counted[mut Count] [:= read assigned] value
->     uses $3: %7 -> %19 consume, %33 lend last
+>     uses $3: %7 -> %18 consume, %32 lend last
 >   local $4 $ref: Counted[mut Count] [read assigned captured] value
 >     uses $4: %9 -> %10 lend last
 >   local $5 $ref: Ref[mut Count] [read assigned captured] value
->     uses $5: %20 -> %21 lend last
+>     uses $5: %19 -> %20 lend last
 >   %0 = NewStruct [0:usize] : Count
 >   %1 = Store [$0] %0 : ()
 >   %2 = Ref take mut [$0] : Counted[mut Count]
 >   %3 = Store [$1] %2 : ()
->   %37 = Block %34 : usize
+>   %36 = Block %33 : usize
 >   %2 finds [$0] full
     second := box(Count { n: 0 })
 >   %4 = NewStruct [0:usize] : Count
@@ -111,33 +111,32 @@ pub fn go() -> usize:
 >   %9 = Store [$4] %8 : ()
 >   %10 = Read move [$4] : Counted[mut Count]
 >   %11 = Coerce %10 [RefToTraitValue -] : Sink
->   %12 = Retain %11 Value #0 : ()
->   %13 = Drop [%10] : ()
->   %14 = Block %11 : Sink
->   %15 = RefDyn %14 : Counted[mut Sink]
->   %16 = Coerce %15 [RefAsProvider -] : Sink
->   %17 = LoanEnd [%15] : ()
->   %30 = With [Sink %16] %29 : ()
->   %31 = Drop [%16] : ()
+>   %12 = LoanEnd [%10] : ()
+>   %13 = Block %11 : Sink
+>   %14 = RefDyn %13 : Counted[mut Sink]
+>   %15 = Coerce %14 [RefAsProvider -] : Sink
+>   %16 = LoanEnd [%14] : ()
+>   %29 = With [Sink %15] %28 : ()
+>   %30 = Drop [%15] : ()
         line("ab")
->   %18 = Call app/main/line[] ("ab") : ()
->   %29 = Block - : ()
+>   %17 = Call app/main/line[] ("ab") : ()
+>   %28 = Block - : ()
         swapped("c", second)
->   %19 = Read copy [$3] : Ref[mut Count]
->   %20 = Store [$5] %19 : ()
->   %21 = Read move [$5] : Ref[mut Count]
->   %22 = Coerce %21 [RefToTraitValue -] : Sink
->   %23 = Retain %22 Value #0 : ()
->   %24 = Drop [%21] : ()
->   %25 = Block %22 : Sink
->   %26 = RefDyn %25 : Ref[mut Sink]
->   %27 = Call app/main/swapped[] ("c", %26) : ()
->   %28 = Drop [%26] : ()
+>   %18 = Read copy [$3] : Ref[mut Count]
+>   %19 = Store [$5] %18 : ()
+>   %20 = Read move [$5] : Ref[mut Count]
+>   %21 = Coerce %20 [RefToTraitValue -] : Sink
+>   %22 = Retain %21 Value #0 : ()
+>   %23 = Drop [%20] : ()
+>   %24 = Block %21 : Sink
+>   %25 = RefDyn %24 : Ref[mut Sink]
+>   %26 = Call app/main/swapped[] ("c", %25) : ()
+>   %27 = Drop [%25] : ()
     first.n + second.n
->   %32 = Read copy [*$1 .n] : usize
->   %33 = Read copy [*$3 .n] : usize
->   %34 = Prim Add [%32 %33] : usize
->   %35 = Drop [$3] : ()
->   %36 = Drop [$1] : ()
+>   %31 = Read copy [*$1 .n] : usize
+>   %32 = Read copy [*$3 .n] : usize
+>   %33 = Prim Add [%31 %32] : usize
+>   %34 = Drop [$3] : ()
+>   %35 = Drop [$1] : ()
 >   storage sub 0: $0 cell, $2 cell
 >   summary kept [] writes

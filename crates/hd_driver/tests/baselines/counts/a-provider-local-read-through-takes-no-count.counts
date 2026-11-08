@@ -39,8 +39,6 @@ pub fn go() -> usize:
     second := box(Count { n: 0 })
     $.with(Sink = first):
 >   retain &mut app.main.Count (conservative: copy read)
->   retain app.main.Sink (stored)
->   release &mut app.main.Count (last use)
 >   release &mut app.main.Sink (by design)
         line("ab")
         swapped("c", second)

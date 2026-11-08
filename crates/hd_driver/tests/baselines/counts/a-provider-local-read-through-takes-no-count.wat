@@ -38,24 +38,6 @@
         end
       end
       local.get $t0
-      local.tee $t1
-      if
-        local.get $t1
-        call $retain
-      end
-      local.get $t0
-      local.tee $t1
-      if
-        local.get $t1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t1
-          call $rt:release_ref'1
-        end
-      end
-      local.get $t0
       local.set $t2
       i32.const 164 ;; &vtable[func41]
       local.set $t3
@@ -85,7 +67,7 @@
         local.tee $t1
         if
           local.get $t1
-          call $rt:release_ref'2
+          call $rt:release_ref'1
         end
       end
     ;; 28 |     first := box(Count { n: 0 })
@@ -93,7 +75,7 @@
       local.tee $t1
       if
         local.get $t1
-        call $rt:release_ref'2
+        call $rt:release_ref'1
       end
     ;; 33 |     first.n + second.n
       local.get $first
@@ -111,7 +93,7 @@
         i32.load $heap
         if
           local.get $t1
-          call $rt:release_ref'1
+          call $rt:release_ref'2
         end
       end
       local.get $first
@@ -123,7 +105,7 @@
         i32.load $heap
         if
           local.get $t1
-          call $rt:release_ref'1
+          call $rt:release_ref'2
         end
       end
       local.set $first
@@ -181,7 +163,7 @@
       local.tee $t0
       if
         local.get $t0
-        call $rt:release_ref'2
+        call $rt:release_ref'1
       end
       local.get $other.0
     ;; 25 |     sink.put("!")
@@ -198,7 +180,7 @@
       local.tee $t0
       if
         local.get $t0
-        call $rt:release_ref'2
+        call $rt:release_ref'1
       end
     end
   )

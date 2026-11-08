@@ -147,12 +147,12 @@ fn read_through_end(b: &Body, store: usize, end: Tag) -> Option<u32> {
     found
 }
 
-/// Whether value `v` certainly holds a count of its own, whatever the backend
-/// keeps uncounted (its loans start at a local's storage or a borrow, never at
-/// these): a `Ref` that takes its local's count, a call's result, a read through
-/// a reference, a coercion that takes a count or keeps such a value, a `&dyn` or
-/// a block whose every value is one, and a read of a local whose one store is one. A call that lends its
-/// result counts too: a trait-value coercion is no use a short loan allows.
+/// Whether value `v` certainly holds a count of its own, whatever the backend keeps
+/// uncounted (its loans start at a local's storage or a borrow, never at these): a `Ref`
+/// that takes its local's count, a call's result, a read through a reference, a coercion
+/// that takes a count or keeps such a value, a `&dyn` or a block whose every value is one,
+/// and a move or a stored counted copy of all of a local whose one store is one. A call
+/// that lends its result counts too: a trait-value coercion is no use a short loan allows.
 fn owns_its_count(b: &Body, cx: &dyn OwnCx, v: u32, depth: u32) -> bool {
     let i = v as usize;
     if depth == 0 || Ref(v).as_inst().is_none() {
@@ -184,17 +184,16 @@ fn owns_its_count(b: &Body, cx: &dyn OwnCx, v: u32, depth: u32) -> bool {
         }
         Tag::Read if b.is_borrow(v) => false,
         Tag::Read => {
-            let p = b.view(b.data[i][0]);
-            if p.steps(b).next() == Some(Proj::Deref) {
+            if b.view(b.data[i][0]).steps(b).next() == Some(Proj::Deref) {
                 return true;
             }
             let Some(l) = b.local_read(i) else {
                 return false;
             };
-            if b.data[i][1] != ReadMode::Move as u32 {
-                return false;
-            }
-            if b.local_flags[l.idx()] & local_flags::PARAM != 0
+            let kept = (0..b.len()).any(|x| b.tags[x] == Tag::Store && b.data[x][1] == v);
+            let copy = b.data[i][1] == ReadMode::Copy as u32 && b.ty[i] == b.local_ty[l.idx()];
+            if b.data[i][1] != ReadMode::Move as u32 && !(copy && kept && cx.counted(b.ty[i]))
+                || b.local_flags[l.idx()] & local_flags::PARAM != 0
                 || b.cap_local.iter().any(|c| c.idx() == l.idx())
             {
                 return false;

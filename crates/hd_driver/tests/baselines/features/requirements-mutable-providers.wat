@@ -2,7 +2,6 @@
 (module
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
-  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
@@ -62,24 +61,6 @@
         end
       end
       local.get $t0
-      local.tee $t1
-      if
-        local.get $t1
-        call $retain
-      end
-      local.get $t0
-      local.tee $t1
-      if
-        local.get $t1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t1
-          call $rt:release_ref'1
-        end
-      end
-      local.get $t0
       local.set $t1
       i32.const 296 ;; &vtable[func52, func51]
       local.set $t2
@@ -105,7 +86,7 @@
       local.tee $t1
       if
         local.get $t1
-        call $rt:release_ref'2
+        call $rt:release_ref'1
       end
     ;; 32 |     tally.lines.len()
       local.get $tally
@@ -121,7 +102,7 @@
         i32.load $heap
         if
           local.get $t1
-          call $rt:release_ref'1
+          call $rt:release_ref'2
         end
       end
       local.set $a.0
