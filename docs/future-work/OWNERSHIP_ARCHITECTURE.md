@@ -589,7 +589,7 @@ not committed.
 
 | Fact | Value |
 | --- | --- |
-| web compiler gzip | 1,966,709 B; cap 2,000,000 B (`scripts/test-web-compiler.js`) |
+| web compiler gzip | 1,966,709 B; cap 2,000,000 B (`scripts/test-web-compiler.ts`) |
 | gzip per Rust code line | 11.2 B (passes stubbed: −65,106 B), 15 B (Wasm count rules: −6,070 B), 12 B (inliner: −9,882 B) |
 | code lines today | passes 8,002; verifier 1,498; driver `own.rs` 1,468; inliner 1,051; emitter 17,536, of which ownership glue 5,102; `opt.rs` 2,682 |
 | json release edit build | 160 ms; passes 16.6; inliner 3.6; emission 28.6; Wasm cleanup 41.3, of which count rules 2.6 |

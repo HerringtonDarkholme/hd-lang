@@ -1,6 +1,6 @@
 // The Node half of the cross-engine REPL session test, which
 // hd_run_wasmtime's `a_session_runs_and_replays_the_same_on_node` runs:
-// `node scripts/repl-parity.js <dir>`. The directory holds a session that
+// `node scripts/repl-parity.ts <dir>`. The directory holds a session that
 // ran on wasmtime: `inputs` (the input numbers, in order), and for each
 // input `N.hd`, `N.wasm`, `N.status`, `N.out` and `N.err` (its text, the
 // session program it ran in, its status and output); `wasmtime.journal`,
@@ -26,9 +26,17 @@ import { join } from "node:path";
 import { recorded } from "../host/journal.ts";
 import { createNodeSession } from "../host/node-session.ts";
 
-const dir = process.argv[2];
-const read = (name) => readFileSync(join(dir, name), "utf8");
-const input = (number) => ({
+const dir = process.argv[2] ?? "";
+const read = (name: string): string => readFileSync(join(dir, name), "utf8");
+type Input = {
+  number: number;
+  source: string;
+  wasm: Uint8Array;
+  status: number;
+  out: string;
+  err: string;
+};
+const input = (number: number): Input => ({
   number,
   source: read(`${number}.hd`),
   wasm: new Uint8Array(readFileSync(join(dir, `${number}.wasm`))),
@@ -42,18 +50,19 @@ const after = input(Number(read("after")));
 let out = "";
 let err = "";
 const sink = {
-  out: (text) => {
+  out: (text: string) => {
     out += text;
   },
-  err: (text) => {
+  err: (text: string) => {
     err += text;
   },
 };
 // The texts of the inputs that ran so far, as `run` takes them.
-const sources = [];
+const sources: [number, string][] = [];
 // Runs `i` in `session` after the inputs in `sources` and checks its
 // status and output.
-async function runs(session, i) {
+type Session = ReturnType<typeof createNodeSession>;
+async function runs(session: Session, i: Input): Promise<void> {
   const ran = await session.run(i.wasm, [...sources, [i.number, i.source]], i.number);
   assert.deepEqual(
     { input: i.number, dropped: ran.dropped, status: ran.live?.status, out, err },
@@ -64,7 +73,7 @@ async function runs(session, i) {
 }
 
 // What a journal records, with each input's module hash left out.
-const butModules = (journal) => {
+const butModules = (journal: Uint8Array) => {
   const record = recorded(journal);
   for (const input of record.inputs) {
     input.module = 0n;
@@ -77,7 +86,9 @@ for (const i of inputs) {
   await runs(live, i);
   sources.push([i.number, i.source]);
 }
-writeFileSync(join(dir, "node.journal"), live.journal());
+const written = live.journal();
+assert.ok(written, "the live session has a journal");
+writeFileSync(join(dir, "node.journal"), written);
 live.close();
 
 const journal = new Uint8Array(readFileSync(join(dir, "wasmtime.journal")));
@@ -93,7 +104,9 @@ assert.deepEqual(rebuilt, {
 });
 assert.equal(again.hostCalls(), 0, "a host call repeated");
 assert.equal(out + err, "", "the rebuild printed");
-assert.deepEqual(butModules(again.journal()), butModules(journal));
+const rejournal = again.journal();
+assert.ok(rejournal, "the rebuilt session has a journal");
+assert.deepEqual(butModules(rejournal), butModules(journal));
 const rebuiltAfter = new Uint8Array(readFileSync(join(dir, "after-rebuilt.wasm")));
 await runs(again, { ...after, wasm: rebuiltAfter });
 again.close();

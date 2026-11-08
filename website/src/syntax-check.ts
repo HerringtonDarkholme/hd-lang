@@ -24,7 +24,7 @@ const cache = new Map<string, boolean>();
 function load(): { exports: CompilerExports; syntax: ReadonlySet<string> } {
   if (compiler === undefined) {
     if (!existsSync(COMPILER_WASM)) {
-      execFileSync(process.execPath, [join(REPO_DIR, "scripts/build-web-compiler.js")], {
+      execFileSync(process.execPath, [join(REPO_DIR, "scripts/build-web-compiler.ts")], {
         stdio: "inherit",
       });
     }

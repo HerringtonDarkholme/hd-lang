@@ -49,7 +49,7 @@ before(async () => {
   // The compiler wasm is a build output (not committed); build it when a
   // fresh checkout has none.
   if (!existsSync(COMPILER_WASM) || !existsSync(join(playground, "assets/hd_wat.wasm"))) {
-    execFileSync(process.execPath, [join(playground, "../../scripts/build-web-compiler.js")], {
+    execFileSync(process.execPath, [join(playground, "../../scripts/build-web-compiler.ts")], {
       stdio: "inherit",
     });
   }

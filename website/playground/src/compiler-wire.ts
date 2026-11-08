@@ -7,7 +7,7 @@
 // hd_wat printer module. The REPL goals build one module
 // of a REPL session per request (encodeReplStart, encodeReplInput,
 // encodeReplOutcome). The playground's Rust runner and the Node smoke test
-// (scripts/test-web-compiler.js) share this module.
+// (scripts/test-web-compiler.ts) share this module.
 
 /**
  * The goal byte of a request. `replStart` starts a REPL session over the

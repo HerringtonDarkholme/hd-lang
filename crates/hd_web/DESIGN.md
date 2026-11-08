@@ -14,7 +14,7 @@ in the browser. The general design is in
 
 `hd_web` is a `cdylib` (`--profile web`: release plus LTO, one codegen
 unit, `opt-level = "s"`, `panic = "abort"`, `strip`), linked with
-`--compress-relocations` by `scripts/build-web-compiler.js`. It depends on
+`--compress-relocations` by `scripts/build-web-compiler.ts`. It depends on
 `hd_driver` with `default-features = false`, so the driver's `threads`
 feature (which enables `hd_sched/threads` and `Executor::Pool`) and
 rayon stay out of the wasm tree; `hd_cli` turns the feature on. The driver's
@@ -41,7 +41,7 @@ calls compile but fail at run time.
 LTO with abort-on-panic deletes everything after a panicking call, so an
 `Instant::now()` that slips into the browser path produces a tiny wasm
 rather than a build error. The size gate in
-`scripts/test-web-compiler.js` has a floor as well as a ceiling to catch
+`scripts/test-web-compiler.ts` has a floor as well as a ceiling to catch
 that shrink.
 
 ## 2. How Std Reaches the Compiler
@@ -198,7 +198,7 @@ browser must support the emitted multi-memory and multi-value features.
 ## 4. Cost Model
 
 - **Size.** The compiler wasm is gated by
-  `scripts/test-web-compiler.js` (a gzip ceiling and a raw floor);
+  `scripts/test-web-compiler.ts` (a gzip ceiling and a raw floor);
   that script records each raise and its cause. The build keeps compile
   speed over download: `opt-level = "z"` would make the gzip download
   167 KB smaller but compiles about 25% slower, so the profile stays at

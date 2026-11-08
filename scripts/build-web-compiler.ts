@@ -16,7 +16,7 @@
 // elimination, 56 KB) need a binaryen the repository does not declare.
 //
 // A Node script rather than a shell one: it measures gzip with node:zlib on
-// every platform, and the smoke test (test-web-compiler.js) imports its
+// every platform, and the smoke test (test-web-compiler.ts) imports its
 // paths.
 
 import { execFileSync } from "node:child_process";
@@ -34,17 +34,17 @@ export const COMPILER_WASM = join(root, "website", "playground", "assets", "hd_w
 export const WAT_WASM = join(root, "website", "playground", "assets", "hd_wat.wasm");
 
 /** Raw and gzip (level 9) byte counts of a file. */
-export function sizes(path) {
+export function sizes(path: string): { raw: number; gzip: number } {
   const bytes = readFileSync(path);
   return { raw: bytes.length, gzip: gzipSync(bytes, { level: 9 }).length };
 }
 
 /** `1234567` as `1234567 B (1.23 MB)`. */
-export function formatBytes(bytes) {
+export function formatBytes(bytes: number): string {
   return `${bytes} B (${(bytes / 1e6).toFixed(2)} MB)`;
 }
 
-function report(label, { raw, gzip }) {
+function report(label: string, { raw, gzip }: { raw: number; gzip: number }): void {
   console.log(`${label}: raw ${formatBytes(raw)}, gzip ${formatBytes(gzip)}`);
 }
 

@@ -207,7 +207,7 @@ Every perf change reports the same table, so results compare across jobs.
 - **Sizes:**
   - hello.wasm in dev and release; unexplained growth blocks the commit;
   - each program's Wasm bytes;
-  - the web compiler's gzip size (`node scripts/build-web-compiler.js`;
+  - the web compiler's gzip size (`node scripts/build-web-compiler.ts`;
     2 MB is a hard cap).
 - **Compile time:** json release compile, cold cache, interleaved. The
   compiler must not get slower.

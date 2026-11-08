@@ -149,7 +149,7 @@ test("tokens concatenate back to the text the compiler wasm prints", async () =>
   // build outputs, built when a checkout has none.
   const wasm = resolve(import.meta.dirname, "../assets/hd_web.wasm");
   if (!existsSync(wasm) || !existsSync(resolve(import.meta.dirname, "../assets/hd_wat.wasm"))) {
-    execFileSync(process.execPath, [resolve(root, "scripts/build-web-compiler.js")], {
+    execFileSync(process.execPath, [resolve(root, "scripts/build-web-compiler.ts")], {
       stdio: "inherit",
     });
   }

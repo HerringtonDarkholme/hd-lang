@@ -40,7 +40,7 @@ opt-level = 1
 lto = "off"
 debug = "line-tables-only"
 
-# The playground's compiler wasm (scripts/build-web-compiler.js, which
+# The playground's compiler wasm (scripts/build-web-compiler.ts, which
 # also compresses the linker's relocations). Only that build selects it
 # (crates/hd_web/DESIGN.md §4). `opt-level = "s"`, not "z": "z" cut the
 # gzip download by 167 KB but made compiles about 25% slower (cold 185 ->

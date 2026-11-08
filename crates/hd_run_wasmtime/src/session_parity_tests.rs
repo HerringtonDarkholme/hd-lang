@@ -5,7 +5,7 @@
 //!
 //! The session runs here first. Each input's session program, its text,
 //! transcript and the journal go to a scratch directory, where
-//! `scripts/repl-parity.js` runs them on Node, checks the transcript,
+//! `scripts/repl-parity.ts` runs them on Node, checks the transcript,
 //! rebuilds a Node session from the wasmtime journal and writes the Node
 //! session's own journal. A new wasmtime session is then rebuilt from
 //! that one. Each rebuild makes no host call, prints nothing, records a
@@ -80,7 +80,7 @@ fn write_input(
 }
 
 fn script() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../scripts/repl-parity.js")
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../scripts/repl-parity.ts")
 }
 
 #[test]

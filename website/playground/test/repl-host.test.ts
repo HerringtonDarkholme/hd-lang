@@ -32,7 +32,7 @@ before(() => {
   // The compiler wasm is a build output; build it when a fresh checkout
   // has none (as runner.test.ts does).
   if (!existsSync(COMPILER_WASM)) {
-    const script = join(import.meta.dirname, "../../../scripts/build-web-compiler.js");
+    const script = join(import.meta.dirname, "../../../scripts/build-web-compiler.ts");
     execFileSync(process.execPath, [script], { stdio: "inherit" });
   }
   wasm = readFileSync(COMPILER_WASM);

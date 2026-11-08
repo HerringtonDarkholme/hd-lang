@@ -547,7 +547,7 @@ describe("pillar 2 helpers", () => {
   it("takes node_modules as the toolchain of a Node hd", () => {
     // Any script of this repository stands in for an hd written for Node.
     const root = join(import.meta.dirname, "..", "..");
-    const toolchain = toolchainOf(["node", join(root, "scripts", "test-web-compiler.js")]);
+    const toolchain = toolchainOf(["node", join(root, "scripts", "test-web-compiler.ts")]);
     assert.equal(toolchain.kind, "node_modules");
   });
 

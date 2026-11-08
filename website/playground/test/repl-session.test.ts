@@ -17,7 +17,7 @@ import { before, test } from "node:test";
 
 import { createWebSession, type Session } from "../../../host/web.ts";
 import { recorded } from "../../../host/journal.ts";
-import { COMPILER_WASM } from "../../../scripts/build-web-compiler.js";
+import { COMPILER_WASM } from "../../../scripts/build-web-compiler.ts";
 import {
   OUTCOME,
   STATUS,
@@ -35,7 +35,7 @@ before(async () => {
   // The compiler wasm is a build output; build it when a fresh checkout
   // has none (as runner.test.ts does).
   if (!existsSync(COMPILER_WASM)) {
-    const script = join(import.meta.dirname, "../../../scripts/build-web-compiler.js");
+    const script = join(import.meta.dirname, "../../../scripts/build-web-compiler.ts");
     execFileSync(process.execPath, [script], { stdio: "inherit" });
   }
   const { instance } = await instantiateCompiler(readFileSync(COMPILER_WASM));

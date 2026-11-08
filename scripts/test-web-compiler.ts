@@ -1,5 +1,5 @@
 // Smoke test of the playground's compiler wasm (crates/hd_web/DESIGN.md §7, W3).
-// Loads website/playground/assets/hd_web.wasm (build-web-compiler.js writes
+// Loads website/playground/assets/hd_web.wasm (build-web-compiler.ts writes
 // it), compiles a conformance fixture through the four exports (the
 // playground's own wire module, compiler-wire.ts), runs the
 // program with host/run.ts as `hd run` on Node does, and checks its
@@ -26,8 +26,9 @@ import {
   encodeReplOutcome,
   encodeReplStart,
   encodeRequest,
+  type CompilerExports,
 } from "../website/playground/src/compiler-wire.ts";
-import { COMPILER_WASM, WAT_WASM, formatBytes, sizes } from "./build-web-compiler.js";
+import { COMPILER_WASM, WAT_WASM, formatBytes, sizes } from "./build-web-compiler.ts";
 import { createWatPrinter } from "../website/playground/src/wat-printer.ts";
 import { createNodeSession } from "../host/node-session.ts";
 
@@ -43,7 +44,7 @@ const WAT_GZIP_LIMIT = 160_000;
 const RAW_FLOOR = 2e6;
 
 /** Compiles `request` and times the call. */
-function compile(exports, request) {
+function compile(exports: CompilerExports, request: Uint8Array) {
   const start = performance.now();
   const compiled = compileRequest(exports, request);
   return { ...compiled, ms: performance.now() - start };
@@ -55,7 +56,7 @@ console.log(`hd_wat.wasm: raw ${formatBytes(watSize.raw)}, gzip ${formatBytes(wa
 console.log(`hd_web.wasm: raw ${formatBytes(raw)}, gzip ${formatBytes(gzip)}`);
 
 const { instance } = await instantiateCompiler(readFileSync(COMPILER_WASM));
-const exports = instance.exports;
+const exports = instance.exports as unknown as CompilerExports;
 const text = readFileSync(FIXTURE, "utf8");
 const request = encodeRequest({ "src/main.hd": text }, "src/main.hd", GOAL.run);
 
@@ -97,15 +98,17 @@ assert.equal(await printWat(cold.wasm), printed, "printing errors do not poison 
 
 // The shared host must be unused by entirely ASCII source and paths.
 let nfcCalls = 0;
-let nfcMemory;
+let nfcMemory: WebAssembly.Memory | undefined;
 const imports = compilerImports(() => {
   nfcCalls += 1;
+  assert.ok(nfcMemory, "normalization runs after instantiation");
   return nfcMemory;
 });
 const nfcInstance = (await WebAssembly.instantiate(readFileSync(COMPILER_WASM), imports)).instance;
-nfcMemory = nfcInstance.exports.memory;
-const checkFiles = (files) =>
-  compile(nfcInstance.exports, encodeRequest(files, "src/lib.hd", GOAL.check));
+const nfcExports = nfcInstance.exports as unknown as CompilerExports;
+nfcMemory = nfcExports.memory;
+const checkFiles = (files: Record<string, string>) =>
+  compile(nfcExports, encodeRequest(files, "src/lib.hd", GOAL.check));
 assert.equal(checkFiles({ "src/lib.hd": "pub fn value() -> i32: +1\n" }).status, STATUS.ok);
 assert.equal(nfcCalls, 0, "ASCII checking never calls normalization");
 assert.equal(checkFiles({ "src/lib.hd": "pub fn café() -> i32: +1\n" }).status, STATUS.ok);
@@ -113,7 +116,7 @@ assert.ok(nfcCalls > 0);
 for (const name of ["cafe\u0301", "`cafe\u0301`"]) {
   const result = checkFiles({ "src/lib.hd": `pub fn ${name}() -> i32: +1\n` });
   assert.equal(result.status, STATUS.errors);
-  assert.ok(result.json.diagnostics.some(({ code }) => code === "invalid-token"));
+  assert.ok((result.json.diagnostics ?? []).some(({ code }) => code === "invalid-token"));
 }
 // In-memory sources keep the host filesystem from merging distinct names.
 for (const names of [
@@ -127,9 +130,9 @@ for (const names of [
     [`src/${names[1]}.hd`]: "pub fn second() -> i32: +2\n",
   });
   assert.equal(result.status, STATUS.errors);
-  assert.ok(result.json.diagnostics.some(({ code }) => code === "duplicate-module-name"));
+  assert.ok((result.json.diagnostics ?? []).some(({ code }) => code === "duplicate-module-name"));
   if (names[1] === "cafe\u0301") {
-    assert.ok(result.json.diagnostics.some(({ code }) => code === "invalid-module-path"));
+    assert.ok((result.json.diagnostics ?? []).some(({ code }) => code === "invalid-module-path"));
   }
 }
 console.log("NFC: ASCII host calls 0; identifiers and case-fold collisions passed");
@@ -139,7 +142,7 @@ const broken = compile(
   encodeRequest({ "src/main.hd": "x: i32 = true\n" }, "src/main.hd", GOAL.check),
 );
 assert.equal(broken.status, STATUS.errors);
-assert.equal(broken.json.diagnostics[0].path, "src/main.hd");
+assert.equal(broken.json.diagnostics?.[0]?.path, "src/main.hd");
 assert.equal(broken.wasm.length, 0);
 const malformed = compile(exports, Uint8Array.of(1));
 assert.equal(malformed.status, STATUS.malformed);
@@ -150,10 +153,10 @@ assert.deepEqual(malformed.json, { error: "request ends early" });
 // reported as joined.
 let replOut = "";
 const session = createNodeSession({
-  out: (text) => {
+  out: (text: string) => {
     replOut += text;
   },
-  err: (text) => {
+  err: (text: string) => {
     replOut += text;
   },
 });
@@ -162,13 +165,14 @@ const start = compile(exports, encodeReplStart({ "src/lib.hd": "fn base() -> i32
 assert.equal(start.status, STATUS.ok, JSON.stringify(start.json));
 assert.deepEqual(start.json, { diagnostics: [], input: 0 });
 assert.equal(start.wasm.length, 0);
-const sources = [];
+const sources: [number, string][] = [];
 let built = 0;
 let firstMs = 0;
-for (const [number, text] of [
+const replInputs: [number, string][] = [
   [1, "n := base() + 2\n"],
   [2, "n * 2\n"],
-]) {
+];
+for (const [number, text] of replInputs) {
   const input = compile(exports, encodeReplInput(text));
   assert.equal(input.status, STATUS.ok, JSON.stringify(input.json));
   assert.equal(input.json.input, number);
@@ -177,7 +181,7 @@ for (const [number, text] of [
   firstMs ||= input.ms;
   sources.push([number, text]);
   const ran = await session.run(input.wasm, sources, number);
-  assert.equal(ran.live.joined, true, replOut);
+  assert.equal(ran.live?.joined, true, replOut);
   const outcome = compile(exports, encodeReplOutcome(number, OUTCOME.joined));
   assert.deepEqual(outcome.json, { diagnostics: [], input: number, outcome: "joined" });
 }
@@ -185,7 +189,7 @@ assert.equal(replOut, "84 : i32\n");
 session.close();
 const redeclared = compile(exports, encodeReplInput("n := 1\n"));
 assert.equal(redeclared.status, STATUS.errors);
-assert.equal(redeclared.json.diagnostics[0].path, "repl#3");
+assert.equal(redeclared.json.diagnostics?.[0]?.path, "repl#3");
 assert.equal(redeclared.wasm.length, 0);
 const early = compile(exports, encodeReplOutcome(9, OUTCOME.joined));
 assert.equal(early.status, STATUS.malformed);
