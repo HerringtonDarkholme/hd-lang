@@ -912,7 +912,7 @@ lang/13-values-and-references.md	61	mixed	typing/invalid/span-mut-use-after-move
 lang/13-values-and-references.md	62	complete	-
 lang/13-values-and-references.md	63	mixed	typing/invalid/copy-negative-impl-other-trait.hd|typing/invalid/copy-opt-out-plain-trait.hd|typing/invalid/copy-relaxed-parameter-moves.hd|typing/invalid/copy-relaxed-bound-other-trait.hd|typing/invalid/copy-generic-argument-holds-mut.hd|typing/invalid/copy-list-literal-of-mut-holder.hd|typing/invalid/copy-opt-out-struct-reuse.hd
 lang/13-values-and-references.md	64	complete	typing/valid/copy-relaxed-trait-implemented-by-opt-out.hd
-lang/13-values-and-references.md	65	known-failure	typing/invalid/reference-slice-not-checked.hd
+lang/13-values-and-references.md	65	mixed	typing/invalid/reference-slice-not-checked.hd
 lang/14-annotations.md	1	complete	typing/valid/decorator-targets.hd
 lang/14-annotations.md	2	mixed	typing/invalid/derive-before-function.hd|typing/invalid/derive-before-trait.hd|typing/invalid/duplicate-function-fact.hd
 lang/14-annotations.md	3	complete	runtime/valid/bare-marker-decorator.hd

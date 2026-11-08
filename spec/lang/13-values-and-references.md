@@ -2133,5 +2133,5 @@ See also: [Sealed Traits](09-traits.md#sealed-traits),
 
 ```text
 fn slice(items: List[i32]) -> void:
-    part := &items[0..1]  # error: references-not-yet-checked
+    part := &items[0..1]  # error: type-mismatch
 ```
