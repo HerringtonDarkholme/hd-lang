@@ -1,0 +1,10 @@
+# test: a generic `fn!` parameter does not match a function returning Suspend
+# Spec 11 Suspending Function Types: req.suspend.type.distinct.
+fn drive_with[A, T](callee: fn!(A) -> T, argument: A) -> void:
+    pass
+
+fn construct(value: i32) -> Suspend[i32]:
+    construct(value)
+
+fn go() -> void:
+    drive_with(construct, 1) # diagnostic: type-mismatch

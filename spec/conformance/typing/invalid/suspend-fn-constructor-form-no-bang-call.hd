@@ -1,0 +1,4 @@
+# test: only the `fn!` form allows a bang call; the constructor form is not suspending
+# Spec 11 Suspending Function Types: req.suspend.type.bang.
+fn call_lowered!(lowered: fn(i32) -> Suspend[i32]) -> void:
+    _ := lowered!(1) # diagnostic: not-suspending

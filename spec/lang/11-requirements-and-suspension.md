@@ -1185,15 +1185,15 @@ result := fetch_user!(id)   # Result[User, DbError]
 ### Suspending Function Types
 
 The surface type of `fetch_user` is `fn!(UserId) -> Result[User, DbError]`.
-A suspending function type is definitionally equivalent to an ordinary
-constructor function returning a suspension:
+A suspending function type and a function type returning a suspension are
+two distinct types:
 
 ```text
 fn!(A, B) -> T $ R
 fn(A, B) -> Suspend[T] $ R
 ```
 
-1. r[req.suspend.type.equivalent] A suspending function type is definitionally equivalent to an ordinary constructor function returning a suspension.
+1. r[req.suspend.type.distinct] A suspending function type and an ordinary function type returning a suspension are distinct types, with the constructors `SuspendFn` and `Fn`. A generic parameter of one does not match the other.
 2. r[req.suspend.type.spellings] The first spelling preserves the source-level bang-call operation; the second is its lowered callable type.
 3. r[req.suspend.type.conversion] Assignment or argument checking may convert the first to the second, but not back.
 4. r[req.suspend.type.plain-call] Calling either form without `!` constructs the cold `Suspend[T]`.
