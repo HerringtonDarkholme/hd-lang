@@ -127,6 +127,7 @@ impl SourceSet for DiskSources {
 /// How long before the listing a file's last change must lie for its
 /// stamp to be trusted: longer than the coarsest file-system timestamp
 /// (2 s, FAT) and the kernel's coarse-clock lag.
+#[cfg(unix)]
 const SETTLE: std::time::Duration = std::time::Duration::from_secs(2);
 
 /// A file's change stamp (`SourceEntry::stamp`, `crates/hd_cache/DESIGN.md`
@@ -1513,7 +1514,8 @@ mod host_declaration_tests {
     }
 }
 
-#[cfg(test)]
+// Stamps exist only on Unix; elsewhere every file is read, as before.
+#[cfg(all(test, unix))]
 mod stamp_tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
