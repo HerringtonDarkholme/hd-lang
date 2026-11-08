@@ -6,8 +6,9 @@
 // catch-all arms, hard-coded "std.*" paths, "for now"/workaround comments),
 // matched outside test code. This check counts the matches per rule and crate
 // and fails when a count exceeds its ceiling in scripts/sloppy-ceiling.tsv.
-// When a count falls, the ceiling must fall in the same change (--update), so
-// the ceilings only go down. `unsupported` is banned outright: its ceilings
+// A count that falls passes and is reported; the merge script then lowers the
+// ceiling (--update) in the same batch, so the ceilings only go down and a
+// change that removes sloppy code is never red for it. `unsupported` is banned outright: its ceilings
 // reach zero when `Code::Unsupported` is deleted (#1489, #1490).
 //
 // Usage: node scripts/check-sloppy.ts [--update]
@@ -94,9 +95,6 @@ if (process.argv.includes("--update")) {
     console.error(failures.join("\n"));
     process.exitCode = 1;
   } else if (lower.length > 0) {
-    console.error(
-      `ceilings above the count; lower them with --update in this change:\n${lower.join("\n")}`,
-    );
-    process.exitCode = 1;
+    console.log(`counts below their ceilings (the merge lowers them):\n${lower.join("\n")}`);
   }
 }
