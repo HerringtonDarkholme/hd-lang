@@ -162,7 +162,7 @@ pub enum TyData {              // the decoded view; owned
     TraitValue { def: DefId, args: TyList, bindings: Vec<(DefId, Ty)> },
     Param(ParamRef),           // declared, rigid; never inferred
     Assoc { assoc: DefId, trait_: DefId, self_ty: Ty, args: TyList }, // a projection
-    Mut(Ty),                   // `mut T`; `T` alone is readonly
+    Mut(Ty),                   // internal writable mark; goes with #1443
     Infer(InferVar),           // body-local only
     Canon(u8),                 // a solver placeholder
     Row(RowId),                // a row in a row parameter's argument slot
@@ -171,11 +171,10 @@ pub enum TyData {              // the decoded view; owned
 }
 ```
 
-- **`Mut`, not `Readonly`.** `T` alone is readonly and `mut T` is the
-  marked form. In the spec only `mut Suspend[T]` has that form
-  ([Access Permission](../../spec/lang/04-type-system.md#access-permission));
-  the checker also gives a list literal a `Mut` type internally
-  (section 8.1).
+- **`Mut` is internal.** No type starts with `mut`
+  (`grammar.type.no-mut`). The checker still gives a list literal a `Mut`
+  type and marks `&mut` with an inner `Mut` (section 8.1); #1443 deletes
+  it.
 - **Projections name their item.** `Assoc` holds the associated type's
   own `DefId` and the trait reference, so `<S as Add[i32]>::Out` and
   `<S as Add[i64]>::Out` are different types.
@@ -603,7 +602,7 @@ residual bounds (trait solver §6.5). The checker then:
    the trial has no error; a residual that still stalls does not rule it
    out. So `let n: i32 = money.pick()` picks `Pick[i32]` when `Money`
    implements `Pick[i32]` and `Pick[string]`
-   ([`trait.resolve.fits.expected`](../../spec/lang/09-traits.md#r-trait.resolve.applies.expected)).
+   ([`trait.resolve.applies.expected`](../../spec/lang/09-traits.md#r-trait.resolve.applies.expected)).
 3. **Chooses:**
    - one fit: check the call again for real against it;
    - several fits that differ only in the width of an open literal
@@ -749,7 +748,7 @@ This is not unification, so it is handled at the call (`call::join_arg`):
 the first argument binds the variable; a later argument that equals it up
 to the outermost `mut` lowers the binding to the readonly form
 (`InferTable::rebind`, trailed); anything else unifies as usual. An
-expected result that fixed the parameter as `mut X` makes a readonly
+expected result that fixed the parameter as writable makes a readonly
 argument `mutable-upgrade`
 ([`types.mut.no-upgrade.inference`](../../spec/lang/04-type-system.md#r-types.mut.no-upgrade.inference)).
 
@@ -847,7 +846,7 @@ in a fixed order, and at most one applies:
 2. `found` is `never`: a `Never` coercion
    ([`types.assign.never`](../../spec/lang/04-type-system.md#r-types.assign.never)).
 3. Identical, or unifiable (variables bind): no node.
-4. `mut T` to `T`: `Weaken`.
+4. An internal `Mut` type to its plain type: `Weaken`.
 5. A declared variance conversion on a readonly outer type: `Variance`.
 6. `T` to `T?`, one layer: `WrapSome`
    ([`types.assign.optional`](../../spec/lang/04-type-system.md#r-types.assign.optional)).
@@ -864,9 +863,8 @@ in a fixed order, and at most one applies:
    ([`trait.dyn.ref.written`](../../spec/lang/09-traits.md#r-trait.dyn.ref.written)).
 10. A suspending function type to its constructor form: `SuspendFnToCtor`
     ([`req.suspend.type.conversion`](../../spec/lang/11-requirements-and-suspension.md#r-req.suspend.type.conversion)).
-11. Otherwise an error: `mutable-upgrade` or
-    `readonly-argument-to-mutable-parameter` for a readonly value where
-    `mut` is wanted; `implicit-narrowing` for a narrower numeric type of
+11. Otherwise an error: `mutable-upgrade` for a readonly value where
+    a writable one is wanted; `implicit-narrowing` for a narrower numeric type of
     the same family; `mixed-signedness` for an operand across
     signedness; `variance-representation-change` when variance would
     change an element's representation; otherwise `type-mismatch`.
@@ -883,7 +881,7 @@ Collection never re-derives one.
 | `Coercion` | From → to | Run-time meaning |
 | --- | --- | --- |
 | `Never` | `never` → any | unreachable |
-| `Weaken` | `mut T` → `T` | none: a static view change |
+| `Weaken` | internal `Mut(T)` → `T` | none: a static view change |
 | `Variance` | `C[A]` → `C[B]` by declared variance | none, by [Representation-Preserving Variance](../../spec/lang/04-type-system.md#representation-preserving-variance) |
 | `WrapSome` | `T` → `T?` | build `.Some` |
 | `RowSubsume` | `fn ... $ R1` → `fn ... $ R2` | none: a context holding `R2`'s keys serves `R1` ([crates/hd_mono/DESIGN.md §12.4](../hd_mono/DESIGN.md#124-rows-and-providers)) |
@@ -1064,11 +1062,11 @@ reported (`ambiguous-row-pattern`).
   body, or a test body (the `suspends` stack). Elsewhere it is
   `bang-call-outside-suspension`.
 - A bang call whose callee does not suspend is `not-suspending`.
-- A plain call of a suspending callee has type `mut Suspend[T]`, a
+- A plain call of a suspending callee has type `Suspend[T]`, a
   must-use type.
 - `join!` and `race!` are intrinsics typed by
   [Typing `join!`](../../spec/lang/11-requirements-and-suspension.md#typing-all).
-  Each argument must be a cold `mut Suspend[T]`.
+  Each argument must be a cold `Suspend[T]`.
 - Each bang call, `s!()`, `join!` and `race!` is emitted as `Await`,
   `AwaitValue`, `AwaitAll` or `AwaitRace`. Frames, polling and
   cancellation paths are codegen's.
@@ -1129,9 +1127,7 @@ Patterns are checked against the scrutinee's type with no coercion:
 | struct `T { f, g: p }` | nominal; fields exist, are distinct and visible |
 | unit `()` | the subject is `void` |
 
-Bindings take access types by the path rules. A field declared
-`mut Suspend[T]` of a subject that is not writable binds as `Suspend[T]`.
-A generic field keeps its substituted type, `mut` included
+Bindings take access types by the path rules. A generic field keeps its substituted type, `mut` included
 ([Payload Bindings](../../spec/lang/06-control-flow.md#payload-bindings)).
 
 ### 7.2 Usefulness
@@ -1186,11 +1182,11 @@ constructor.
 
 ### 8.1 Access Types And Bindings
 
-Only `mut Suspend[T]` has a `mut` form in the spec. A struct, an enum, a
+No type has a `mut` form in the spec. A struct, an enum, a
 list and a map are values with no view
 ([Value Types](../../spec/lang/04-type-system.md#value-types),
 [Collection Values](../../spec/lang/04-type-system.md#collection-values)).
-Every expression's type still carries its access, `mut T` or `T`,
+Every expression's type still carries an internal access mark,
 computed one path step at a time (`access.rs`), but `has_mut_access`
 counts every struct, enum and collection type as mutable. Whether a write
 is allowed is decided by its place instead (section 8.2).
@@ -1199,13 +1195,12 @@ is allowed is decided by its place instead (section 8.2).
 | --- | --- |
 | binding, parameter, `self` | its declared or inferred type |
 | call | the declared result type |
-| field read `e.f` | the field's type; a field declared `mut Suspend[T]` through a readonly `e` gives `Suspend[T]` |
+| field read `e.f` | the field's type |
 | index, iteration, lookup on a built-in collection | the declared element type, whatever the collection's access |
 | unwrapping, tuple element, generic payload | the declared contents |
 
-A list literal gets a `mut` type for its new list. A struct literal and a
-copy-update have the plain struct type. A newtype over a `mut Suspend[T]`
-keeps its `mut`. The binding forms then apply
+A list literal gets an internal `Mut` type for its new list. A struct
+literal and a copy-update have the plain struct type. The binding forms then apply
 ([Binding Forms](../../spec/lang/04-type-system.md#binding-forms)):
 
 | Form | Type of the name |
@@ -1213,8 +1208,6 @@ keeps its `mut`. The binding forms then apply
 | `x := e` | `e`'s type without an outer `mut`; never reassigned or changed in place |
 | `let x = e` | the same; reassignable, but not a writable place |
 | `let mut x = e` | `e`'s type, a collection's without its outer `mut`; a writable place. On a primitive: `redundant-let-mut` in a body unless `&mut x` is taken, `mut-on-primitive` at top level |
-| `let x: mut Suspend[T] = e` | `mut Suspend[T]`; `e` is checked against it |
-| `let mut x: mut Suspend[T] = e` | as above, plus `redundant-let-mut` unless `&mut x` is taken |
 
 ### 8.2 Mutation Checks
 
@@ -1230,8 +1223,7 @@ one. The checker finds the place of the written expression (`value.rs`,
 | field write through a `:=` or `using` binding | `non-reassignable-binding` |
 | field write through a parameter or `self` that is not `mut` | `non-reassignable-parameter-binding` |
 | field write through a plain `let`, a call result, a pattern binding or a `&T` | `not-writable` |
-| `&mut self` method call, element store, changing collection method; a `mut self` method or driving a suspension on a readonly `Suspend[T]` | `not-writable` |
-| argument to a `mut Suspend[T]` parameter | `readonly-argument-to-mutable-parameter` |
+| `&mut self` method call, element store, changing collection method | `not-writable` |
 | reassigning a `:=` binding | `non-reassignable-binding` |
 
 Nested permissions convert only by declared variance, else
@@ -1768,8 +1760,8 @@ TyData::Assoc { assoc: DefId, trait_: DefId, self_ty: Ty, args: TyList }
   `I < NamedSupplier` names `Supplier`'s `Item` item and the `Supplier`
   reference
   ([`trait.binding.name-reach`](../../spec/lang/09-traits.md#r-trait.binding.name-reach)).
-- `self_ty` keeps its outer `Mut`, which only `mut Suspend[T]` has, only
-  for the `mut_` check. Impl matching strips it.
+- `self_ty` may keep an internal outer `Mut` (#1443); impl matching
+  strips it.
 - Types reach the solver with aliases expanded. Newtypes stay nominal.
 - Trait argument defaults are filled before the goal is formed
   (`hd_resolve::fill_trait_args`), so `impl Add for Money` and the goal
@@ -2105,7 +2097,7 @@ not special cases scattered through matching.
 | --- | --- | --- | --- |
 | `Any` | every value type, `never`, optionals | none | `Builtin(Any)` |
 | `AnyVal` | `bool`, `char`, integers, floats, `string`, tuples, enums (optionals included), structs, `List`, `Map`, function types; a newtype over one of them ([`types.sealed.anyval-members`](../../spec/lang/04-type-system.md#r-types.sealed.anyval-members)) | the newtype's base | `Builtin(AnyVal)` |
-| `AnyRef` | `&T` and `&mut T`, trait values, `Any`, suspensions, handles; a newtype over one ([`types.sealed.anyref-members.reference-values`](../../spec/lang/04-type-system.md#r-types.sealed.anyref-members.reference-values)) | the newtype's base | `Builtin(AnyRef)` |
+| `AnyRef` | counted references `*T` and `*mut T` (`*dyn Tr` included), suspensions, handles ([`types.sealed.anyref-members.counted`](../../spec/lang/04-type-system.md#r-types.sealed.anyref-members.counted)) | the newtype's base | `Builtin(AnyRef)` |
 | `Inspectable` | [inspectable types](../../spec/lang/09-traits.md#inspectable-types): primitives, `string`, module-level declarations with inspectable arguments, `List`, `Map`, tuples, `Inspectable` trait values; trait values and `Any` as arguments only | one per type argument, one level deeper | `Builtin(Inspectable)` |
 | `Tuple` | every tuple type | none | `Builtin(Tuple)` |
 | `Num`, `Integer`, `Float` | the fixed primitive lists of [Numeric Traits](../../spec/lang/09-traits.md#numeric-traits): std writes one impl per type (`lib/std/num.hd`), so the impl tables answer them | the impl's | `Impl` |
@@ -2340,7 +2332,7 @@ binding-constrained parameters the same way.
 | --- | --- | --- | --- |
 | orphan rule (package level) | the impl head and package ownership | folder interface | `orphan-impl` |
 | module ownership | the head and the declaring modules | folder interface | `nonlocal-impl` |
-| targets: bare parameter, trait value, outer `mut`, invalid inherent target | the head | folder interface | `bare-parameter-impl-target`, `trait-value-impl-target`, `mutable-impl-target`, `invalid-impl-target` |
+| targets: bare parameter, trait value, invalid inherent target | the head | folder interface | `bare-parameter-impl-target`, `trait-value-impl-target`, `invalid-impl-target` |
 | unconstrained parameters and the bound plan | the head and bounds | folder interface | `unconstrained-impl-parameter` |
 | sealed traits | the trait | folder interface | `sealed-trait-implementation` |
 | a second template; `@derive` beside a written impl or a block for the same trait | the module's heads | folder interface | `overlapping-impl` |

@@ -210,10 +210,6 @@ are frozen (`build_folder`, `src/lower.rs`):
    `Self`: the bounded type in a bound, or the target type in an impl
    head. Thus a bound or head written `Add` lowers as `Add[Self]` for the
    declared `Rhs = Self` default.
-   While lowering a `mut T` type, a primitive is `mut-on-primitive` and a
-   type parameter `mut-on-struct` (`types.prim.no-mut.error`,
-   `types.value.no-mut.written`); the checker rejects every other type
-   but `Suspend[T]`.
 4. Build derived heads. For `@derive(X)`, the impl of `X` with `T < X` for
    each type parameter in a walked member
    ([Derived Bounds](../../spec/lang/14-annotations.md#derived-bounds)). For
@@ -345,7 +341,7 @@ Every header rule runs in exactly one of three stages:
 
 | Stage | Task | Reads | Rules |
 | --- | --- | --- | --- |
-| A | `FolderIface(F)`, step 5 | F's headers, its dependencies' interfaces | duplicate declarations; `private-type-leak`; `orphan-impl`; `nonlocal-impl`; `bare-parameter-impl-target`, `trait-value-impl-target`, `mutable-impl-target`, `invalid-impl-target`; `unconstrained-impl-parameter` (projections included); `sealed-trait-implementation`; `ambiguous-row-pattern`; `misplaced-derivation`; a second template or a derive beside a written impl (`overlapping-impl`); `mixed-derived-law`; `duplicate-inherent-member`; `missing-result-type`; `default-order`; `generic-kind-mismatch`; cycles of aliases and supertraits (`supertrait-cycle`); `ambiguous-associated-type`; declared variance against every use in fields, payloads and methods, private inherent methods included; impl members against the trait: completeness (`missing-trait-method`), signature equality, associated-type bindings complete |
+| A | `FolderIface(F)`, step 5 | F's headers, its dependencies' interfaces | duplicate declarations; `private-type-leak`; `orphan-impl`; `nonlocal-impl`; `bare-parameter-impl-target`, `trait-value-impl-target`, `invalid-impl-target`; `unconstrained-impl-parameter` (projections included); `sealed-trait-implementation`; `ambiguous-row-pattern`; `misplaced-derivation`; a second template or a derive beside a written impl (`overlapping-impl`); `mixed-derived-law`; `duplicate-inherent-member`; `missing-result-type`; `default-order`; `generic-kind-mismatch`; cycles of aliases and supertraits (`supertrait-cycle`); `ambiguous-associated-type`; declared variance against every use in fields, payloads and methods, private inherent methods included; impl members against the trait: completeness (`missing-trait-method`), signature equality, associated-type bindings complete |
 | B | `HeaderCheck(F)`, after F's interface and its dependencies' interfaces | the solver over frozen impl tables | written types against their declared bounds, for every type written in a header (a `Set[K]` needs `K: Hash` from the item's own bounds: [`trait.bound.no-implied`](../../spec/lang/09-traits.md#r-trait.bound.no-implied)); supertraits of each impl and supertrait bindings (`missing-supertrait-implementation`); a derived newtype's base impl; a delegation target's impl |
 | C | body tasks | bodies | derive-instance member obligations; local impls; everything in [crates/hd_check/DESIGN.md (type checking)](../hd_check/DESIGN.md) |
 

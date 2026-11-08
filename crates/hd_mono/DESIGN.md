@@ -145,7 +145,7 @@ TIR lives in `hd_tir`; there is no MIR crate.
 | `hd_web` | the compiler in the playground's worker |
 
 The JS host's codecs and method descriptors (`host/gen/abi.ts`) are
-generated from the ABI model by `hd_host_abi`'s `tests/abi_model.rs`;
+generated from the ABI model by `crates/hd_host_abi/tests/abi_model.rs`;
 its providers and driver (`host/core.ts`) are written by hand.
 
 ## 12. Emitting From TIR
@@ -970,7 +970,7 @@ relocation. Equal bytes arise from:
 - type arguments with the same Wasm layout: `List[u32].push` and
   `List[i32].push`, `Option[char]` and `Option[u32]` helpers;
 - structs with the same field layout. RC layouts share the same
-  Wasm value shape, so `data A: x: i32` and `data B: x: i32` can share
+  Wasm value shape, so `struct A: x: i32` and `struct B: x: i32` can share
   emitted instances when their ownership operations also agree;
 - type parameters that the body does not use in any operation;
 - identical small std helpers at different types.
@@ -1340,9 +1340,7 @@ by hash -1, and a linear-probing index.
 pos, end, len, grown}`, mirroring `ListIter`'s `{code, list, index}`
 and the same closure ABI, with the written entry count, the live count
 and the rebuild count captured at creation. The step function
-`() -> (K, V)?` first panics with `iterator-invalidated` when the live
-count or the rebuild count changed (`flow.for.invalidate`,
-`flow.for.invalidate.map-rebuild`), then scans entries from `pos` to
+`() -> (K, V)?` scans entries from `pos` to
 `end`, skipping tombstones, yields `(keys[i], values[i])` for the
 first live entry and advances past it, and answers `.None` when no
 live entry remains.

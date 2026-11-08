@@ -93,7 +93,7 @@ Tools and front ends:
 ## Invariants
 
 - **TIR is the contract between the halves.** The back half (`hd_mono`,
-  `hd_opt`, `hd_wasm`) depends on `hd_tir` and `hd_types`, never on
+  `hd_opt`, `hd_wasm_linear`) depends on `hd_tir` and `hd_types`, never on
   `hd_syntax`, `hd_resolve` or `hd_check`.
 - **Deterministic output.** Diagnostics are reported in a sorted order,
   and Wasm bytes do not depend on the executor, the thread count

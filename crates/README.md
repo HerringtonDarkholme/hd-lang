@@ -28,16 +28,18 @@ in each crate's `Cargo.toml`.
 | `hd_check` | Body checking, trait solving, exhaustiveness, facts, coherence, initialization | [Body checking](hd_tir/DESIGN.md#413-body-checking), [trait solving](hd_check/DESIGN.md#new-compiler-the-trait-solver) |
 | `hd_mono` | Reachable-instance collection and monomorphization | [Monomorphization and merging](hd_mono/DESIGN.md#13-monomorphization-and-merging) |
 | `hd_opt` | Pass manager and pipelines keyed by (engine target, level) | [Optimization pipelines](hd_opt/DESIGN.md) |
-| `hd_wasm_linear` | The linear-memory backend, the default: reference-counted values in linear memory, one module per program | [Linear-memory layout](hd_wasm_linear/DESIGN.md#23-linear-memory-layout) |
+| `hd_wasm_linear` | The linear-memory backend, the only one: reference-counted values in linear memory, one module per program | [Linear-memory layout](hd_wasm_linear/DESIGN.md#23-linear-memory-layout) |
 | `hd_cache` | Cache keys, entry framing, memory and disk stores | [Cache](hd_cache/DESIGN.md#5-cache) |
 | `hd_deps` | Remote dependencies: version selection, `git` fetching, tree hashes, `hd.sum` | [Dependencies](../spec/cli/command-line.md#dependencies) |
 | `hd_run` | Engine-neutral program loading and run outcomes | [Runtime](hd_run_wasmtime/DESIGN.md#16-runtime), [execution engines](../docs/compiler/engines-and-test-runner.md#18-execution-engines-and-tiers) |
 | `hd_run_wasmtime` | The wasmtime engine and its host providers | [Runtime and host interface](hd_run_wasmtime/DESIGN.md) |
 | `hd_sched` | Serial, stepping, and threaded task executors; leaf crate | [Scheduler](hd_sched/DESIGN.md) |
 | `hd_driver` | The task graph of a run; assembles compiler outputs | [Pipeline and task graph](../docs/compiler/design-overview.md#1-overview) |
+| `hd_lint` | Read-only advice over checked source facts; normal compiler clients do not depend on it | [`hd lint`](../spec/cli/command-line.md) |
 | `hd_doc` | Documentation extraction and rendering | [`hd doc`](hd_cli/DESIGN.md#77-hd-doc) |
 | `hd_stdpack` | Build-time standard-library packer | [Standard-library bootstrap](hd_stdpack/DESIGN.md) |
 | `hd_web` | Playground compile session over an in-memory store | [Playground on Wasm](hd_web/DESIGN.md) |
+| `hd_wat` | The playground's lazily loaded WAT printer; independent of the compiler | [Playground on Wasm](hd_web/DESIGN.md) |
 | `hd_testkit` | Determinism and incremental-test support, and the `KNOWN_FAILURES.tsv` reader | [Testing the compiler](../docs/compiler/testing-the-compiler.md) |
 | `hd_cli` | The `hd` binary: commands, disk sources and cache, Node engine, REPL | [Command flows](hd_cli/DESIGN.md) |
 
