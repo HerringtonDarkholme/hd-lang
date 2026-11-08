@@ -180,7 +180,7 @@ pub(super) fn changes(b: &Body, topo: &Topology, cx: &dyn OwnCx, last: &[u32]) -
                     indirect = u32_of(i);
                 }
             }
-            Tag::CallValue | Tag::CallDyn => indirect = u32_of(i),
+            Tag::CallValue => indirect = u32_of(i),
             _ => {}
         }
         let mut r = first_query;
@@ -218,7 +218,7 @@ pub fn check_copy_reasons(
     for i in (0..n).rev() {
         writes_after[i] = writes_after[i + 1]
             || match b.tags[i] {
-                Tag::Store | Tag::IsUnique | Tag::Call | Tag::CallValue | Tag::CallDyn => true,
+                Tag::Store | Tag::IsUnique | Tag::Call | Tag::CallValue => true,
                 Tag::Ref => b.data[i][1] & ref_word::MUT != 0,
                 _ => false,
             };

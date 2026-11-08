@@ -160,7 +160,7 @@ fn owns_its_count(b: &Body, cx: &dyn OwnCx, v: u32, depth: u32) -> bool {
     }
     match b.tags[i] {
         Tag::Ref => b.data[i][1] & ref_word::TAKES != 0,
-        Tag::Call | Tag::CallValue | Tag::CallDyn => true,
+        Tag::Call | Tag::CallValue => true,
         // A result that takes a count, stated or its source's.
         Tag::Coerce if result(b, cx, i) => true,
         Tag::Coerce => b.same_value_coercion(i) && owns_its_count(b, cx, b.data[i][0], depth - 1),

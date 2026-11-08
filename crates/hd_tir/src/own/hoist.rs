@@ -333,7 +333,7 @@ pub(crate) fn writes(b: &Body, cx: &dyn OwnCx, x: usize) -> bool {
             Callee::from_words(b.record(b.data[x][0])).is_none_or(|c| cx.may_write(&c))
                 || cx.counted(b.ty[x])
         }
-        Tag::CallValue | Tag::CallDyn | Tag::CallHost | Tag::DefaultCall => true,
+        Tag::CallValue | Tag::CallHost | Tag::DefaultCall => true,
         _ => false,
     }
 }

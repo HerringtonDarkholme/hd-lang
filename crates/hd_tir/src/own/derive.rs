@@ -721,7 +721,7 @@ fn receivers(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
     let mut ops = std::mem::take(&mut t.ops);
     for i in 0..b.len() {
         let call = match b.tags[i] {
-            Tag::Call | Tag::CallValue | Tag::CallDyn | Tag::CallHost | Tag::DefaultCall => true,
+            Tag::Call | Tag::CallValue | Tag::CallHost | Tag::DefaultCall => true,
             Tag::Hook | Tag::Await => true,
             Tag::Intrinsic => IntrinsicOp::from_u32(b.data[i][0]) == Some(IntrinsicOp::Item),
             _ => false,
@@ -979,12 +979,7 @@ fn index_writes(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
         t.effects[i].may = match tag {
             Tag::Call => Callee::from_words(b.record(a)).is_none_or(|c| cx.may_write(&c)),
             Tag::Intrinsic => IntrinsicOp::from_u32(a) == Some(IntrinsicOp::Item),
-            Tag::CallValue
-            | Tag::CallDyn
-            | Tag::CallHost
-            | Tag::DefaultCall
-            | Tag::Hook
-            | Tag::Await => true,
+            Tag::CallValue | Tag::CallHost | Tag::DefaultCall | Tag::Hook | Tag::Await => true,
             _ => false,
         };
     }

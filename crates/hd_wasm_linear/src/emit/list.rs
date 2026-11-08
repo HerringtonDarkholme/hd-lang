@@ -689,11 +689,7 @@ impl Em<'_, '_, '_> {
         }
         let external = root.indirect
             || (0..self.b.len()).any(|i| {
-                aliases[i]
-                    && matches!(
-                        self.b.tags[i],
-                        Tag::Ref | Tag::Call | Tag::CallValue | Tag::CallDyn
-                    )
+                aliases[i] && matches!(self.b.tags[i], Tag::Ref | Tag::Call | Tag::CallValue)
             });
         let n = self.b.len();
         for &x in body {
@@ -709,7 +705,7 @@ impl Em<'_, '_, '_> {
             if self.calls.contains_key(&x)
                 || matches!(
                     self.b.tags[i],
-                    Tag::Call | Tag::CallValue | Tag::CallDyn | Tag::CallHost | Tag::DefaultCall
+                    Tag::Call | Tag::CallValue | Tag::CallHost | Tag::DefaultCall
                 )
             {
                 if reaches {

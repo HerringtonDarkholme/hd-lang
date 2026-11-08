@@ -614,7 +614,7 @@ pub(crate) fn lent_values(b: &Body, cx: &dyn OwnCx, i: usize, out: &mut Vec<u32>
         out.push(b.data[i][0]);
         return;
     }
-    if !matches!(b.tags[i], Tag::Call | Tag::CallValue | Tag::CallDyn)
+    if !matches!(b.tags[i], Tag::Call | Tag::CallValue)
         || !cx.holds_ref(b.ty[i])
         || cx.counted_refs_only(b.ty[i])
     {
@@ -636,12 +636,12 @@ pub(crate) fn lent_values(b: &Body, cx: &dyn OwnCx, i: usize, out: &mut Vec<u32>
 
 /// Each argument a call may keep past it, as (call, argument value): a
 /// `Call` argument [`OwnCx::keeps`] says so of, and every argument of a
-/// `CallValue` or `CallDyn`, whose callee is unknown.
+/// `CallValue`, whose callee is unknown.
 pub fn kept_args(b: &Body, cx: &dyn OwnCx, out: &mut Vec<(u32, u32)>) {
     out.clear();
     let mut ops = Vec::new();
     for i in 0..b.len() {
-        if !matches!(b.tags[i], Tag::Call | Tag::CallValue | Tag::CallDyn) {
+        if !matches!(b.tags[i], Tag::Call | Tag::CallValue) {
             continue;
         }
         operands(b, i, &mut ops);
@@ -655,7 +655,7 @@ pub fn kept_args(b: &Body, cx: &dyn OwnCx, out: &mut Vec<(u32, u32)>) {
     }
 }
 
-/// Whether call `i` (a `Call`, `CallValue` or `CallDyn`) may keep its
+/// Whether call `i` (a `Call` or `CallValue`) may keep its
 /// argument `k` past it, as [`kept_args`] lists it.
 pub(crate) fn keeps_arg(b: &Body, cx: &dyn OwnCx, i: usize, k: u32) -> bool {
     let [a, w] = b.data[i];
@@ -1479,7 +1479,6 @@ fn writes_with(
                 }
             }),
             Tag::CallValue
-            | Tag::CallDyn
             | Tag::CallHost
             | Tag::DefaultCall
             | Tag::Hook

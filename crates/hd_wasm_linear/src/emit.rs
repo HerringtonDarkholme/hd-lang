@@ -2231,7 +2231,6 @@ impl Em<'_, '_, '_> {
                 let args = self.rec(bw);
                 self.call_value(i, a, &args)?;
             }
-            Tag::CallDyn => return unsupported("a `CallDyn` instruction"),
             Tag::Await | Tag::AwaitValue | Tag::AwaitAll | Tag::AwaitRace => {
                 self.point(i, a, bw)?;
             }

@@ -402,12 +402,10 @@ fn values(
                 // A suspending call's frame is awaited later: an argument
                 // it lends lives until then, since a frame holds no count
                 // of a local reference (`ref.count.local`).
-                let awaited = matches!(
-                    b.tags[u as usize],
-                    Tag::Call | Tag::CallValue | Tag::CallDyn
-                ) && t.uses[ulo..uhi]
-                    .iter()
-                    .any(|&(w, _)| crate::ir::is_suspension(b.tags[w as usize]));
+                let awaited = matches!(b.tags[u as usize], Tag::Call | Tag::CallValue)
+                    && t.uses[ulo..uhi]
+                        .iter()
+                        .any(|&(w, _)| crate::ir::is_suspension(b.tags[w as usize]));
                 if awaited || through.contains(&u32_of(v)) {
                     lent.extend(ulo..uhi);
                 }

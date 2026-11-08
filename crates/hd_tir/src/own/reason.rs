@@ -441,7 +441,7 @@ fn changed_while(
                     && crate::ir::Callee::from_words(b.record(b.data[i][0]))
                         .is_none_or(|c| cx.may_write(&c))
             }
-            Tag::CallValue | Tag::CallDyn => src.behind,
+            Tag::CallValue => src.behind,
             _ => false,
         }
     })

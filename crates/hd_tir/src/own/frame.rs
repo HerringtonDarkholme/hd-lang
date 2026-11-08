@@ -857,7 +857,7 @@ fn grow(set: &mut u64, m: u64) -> bool {
 fn step(b: &Body, cx: &dyn OwnCx, t: &mut Tables, ops: &mut Vec<super::Operand>, i: usize) -> bool {
     if t.roots
         && (cx.counted_refs_only(b.ty[i])
-            || matches!(b.tags[i], Tag::Call | Tag::CallValue | Tag::CallDyn)
+            || matches!(b.tags[i], Tag::Call | Tag::CallValue)
                 && cx.counted(b.ty[i])
                 && !cx.holds_ref(b.ty[i]))
     {
@@ -1020,7 +1020,7 @@ fn step_val(
     }
     // A result that depends on a counted reference the call lends points
     // where that reference lies (`ref.dep.call`).
-    if matches!(tag, Tag::Call | Tag::CallValue | Tag::CallDyn) {
+    if matches!(tag, Tag::Call | Tag::CallValue) {
         m |= lent_from(b, cx, t, i);
     }
     if tag == Tag::Return || is_suspension(tag) {
@@ -1032,9 +1032,7 @@ fn step_val(
         for op in ops.iter() {
             let kept = match (tag, op.role) {
                 (Tag::Intrinsic | Tag::CallHost, _) => true,
-                (Tag::Call | Tag::CallValue | Tag::CallDyn, Role::Arg(k)) => {
-                    super::keeps_arg(b, cx, i, k)
-                }
+                (Tag::Call | Tag::CallValue, Role::Arg(k)) => super::keeps_arg(b, cx, i, k),
                 _ => false,
             };
             if kept {
@@ -1047,7 +1045,7 @@ fn step_val(
     // `&mut` of a local whose type holds a reference (`ref.generic.store`,
     // `ref.lifetime.store.call`), so that local holds them: a candidate
     // the reference points into, or the local its place lies in.
-    if matches!(tag, Tag::Call | Tag::CallValue | Tag::CallDyn) {
+    if matches!(tag, Tag::Call | Tag::CallValue) {
         for op in ops.iter() {
             let v = op.value as usize;
             if Ref(op.value).as_inst().is_none()
@@ -1084,10 +1082,7 @@ fn step_val(
         }
     }
     if !cx.holds_ref(b.ty[i]) {
-        let call = matches!(
-            tag,
-            Tag::Call | Tag::CallValue | Tag::CallDyn | Tag::CallHost | Tag::Drop
-        );
+        let call = matches!(tag, Tag::Call | Tag::CallValue | Tag::CallHost | Tag::Drop);
         return (!call && grow(&mut t.out, consumed)) | changed;
     }
     slots(b, i, |_, x, word| {
