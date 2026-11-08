@@ -2660,9 +2660,7 @@ fn free_class_body(f: &mut Func, m: &Module, block: u32, desc: u32, class: u32) 
 }
 
 fn free_object(f: &mut Func, m: &Module, block: u32) {
-    let Some(r) = m.runtime else {
-        return;
-    };
+    let r = m.runtime.unwrap();
     clear_weak(f, m, block);
     f.get(block);
     if m.fixed_allocations && r.checked.is_none() {
@@ -2679,9 +2677,7 @@ fn clear_weak(f: &mut Func, m: &Module, block: u32) {
     if !(m.uses_weak || m.open_world) {
         return;
     }
-    let Some(r) = m.runtime else {
-        return;
-    };
+    let r = m.runtime.unwrap();
     f.get(block);
     f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
     f.u32(WEAK);
@@ -2849,9 +2845,7 @@ fn weak_new(m: &Module) -> Func {
 
 fn weak_entry_drop(m: &Module) -> Func {
     let mut f = m.func("rt:weak_entry_drop", vec![Val::I32], vec![]);
-    let Some(r) = m.runtime else {
-        return f;
-    };
+    let r = m.runtime.unwrap();
     let target = f.local(Val::I32);
     f.get(0);
     f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
@@ -3091,9 +3085,7 @@ fn release_drain(m: &Module) -> Func {
 /// has loaded it for glue dispatch, so a fixed allocation can decode its
 /// class once and enter the same free body without a helper reload.
 fn free_loaded_object(f: &mut Func, m: &Module, block: u32, desc: u32) {
-    let Some(r) = m.runtime else {
-        return;
-    };
+    let r = m.runtime.unwrap();
     if m.fixed_allocations && r.checked.is_none() {
         let class = f.local(Val::I32);
         f.get(desc);
