@@ -165,12 +165,11 @@ pub(crate) fn apply(b: &mut Body, topo: &Topology, t: &mut Tables) -> Result<(),
         .extend(t.removed.iter().map(|&x| topo.blk[x as usize]));
     t.blocks.sort_stable();
     t.blocks.dedup();
+    // Every edit's block is in `blocks`, so `x` is always at the first
+    // edit of `blk` or past its last.
     let mut x = 0;
     for z in 0..t.blocks.len() {
         let blk = t.blocks[z];
-        while x < t.per_block.len() && t.per_block[x].0 < blk {
-            x += 1;
-        }
         let mut end = x;
         while end < t.per_block.len() && t.per_block[end].0 == blk {
             end += 1;
