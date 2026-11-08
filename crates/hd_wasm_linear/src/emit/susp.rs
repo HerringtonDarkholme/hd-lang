@@ -1598,12 +1598,10 @@ pub(super) fn finish(
                     em.f.set(y);
                     loaded.push(y);
                 }
-                if em.counting {
-                    if let Some(reason) = copy {
-                        em.because(reason, |em| em.count_local(*l, &loaded, true))?;
-                    } else if em.is_cell(*l) || em.counted(em.sub(em.b.local_ty[*l])).is_some() {
-                        return unsupported("a cold closure without its stated capture copy");
-                    }
+                if em.counting
+                    && let Some(reason) = copy
+                {
+                    em.because(reason, |em| em.count_local(*l, &loaded, true))?;
                 }
                 for (x, y) in ls.iter().zip(&loaded) {
                     if let Some((at, v)) = at_of(*x) {

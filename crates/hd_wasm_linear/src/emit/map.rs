@@ -618,13 +618,10 @@ impl Em<'_, '_, '_> {
         self.f.op(I::If(BlockType::Empty));
         self.ctl.push(Ctl::Plain);
         let (at, vl) = read(self, e.keys, n);
-        let copy = self.operation_count(i, Tag::Retain, Part::Operand(0));
-        if let Some(copy) = copy {
-            self.because(copy, |em| em.new_variant(i, 1, &[Src::Locals(vl.clone())]))?;
-        } else if self.counted(self.ty(i)).is_some() {
-            return unsupported("a map result without its stated hit payload copy");
-        } else {
-            self.new_variant(i, 1, &[Src::Locals(vl.clone())])?;
+        let hit = [Src::Locals(vl.clone())];
+        match self.operation_count(i, Tag::Retain, Part::Operand(0)) {
+            Some(copy) => self.because(copy, |em| em.new_variant(i, 1, &hit))?,
+            None => self.new_variant(i, 1, &hit)?,
         }
         if op == IntrinsicOp::MapRemove {
             // The entry stays in place, marked removed: probes pass it and
@@ -797,8 +794,6 @@ impl Em<'_, '_, '_> {
             let inserted = self.f.local(Val::I32);
             if let Some(reason) = self.operation_count(i, Tag::Retain, Part::Operand(1)) {
                 self.because(reason, |s| s.retain_locals(&kl, kt))?;
-            } else if self.counted(kt).is_some() {
-                return unsupported("an inserting map probe without its stated key copy");
             }
             self.map_put_taking_key(
                 m,

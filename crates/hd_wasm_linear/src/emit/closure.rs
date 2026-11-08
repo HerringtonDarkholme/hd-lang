@@ -673,8 +673,6 @@ impl Em<'_, '_, '_> {
             self.because(reason, |em| {
                 em.retain_fields(at, &m, walk.as_ref(), &skip, colls);
             });
-        } else if walk.is_some() || colls != 0 {
-            return unsupported("a closure environment without its stated capture copy");
         }
         // A moved capture leaves its local empty, as a move read does.
         for (l, t) in caps

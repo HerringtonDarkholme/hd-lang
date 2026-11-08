@@ -641,14 +641,10 @@ impl Em<'_, '_, '_> {
                         (Some(v), _) => Some(self.consumed(v)?),
                         (None, Some(ls)) => {
                             let kept = &ls[p.first..p.first + p.count];
-                            let copied = if let Some(copy) = copy {
-                                self.because(copy, |em| em.copy_locals(kept, *ft))?
-                            } else if self.counted(*ft).is_some() {
-                                return unsupported("a struct update without its stated base copy");
-                            } else {
-                                self.copy_locals(kept, *ft)?
-                            };
-                            Some(Src::Locals(copied))
+                            Some(Src::Locals(match copy {
+                                Some(copy) => self.because(copy, |em| em.copy_locals(kept, *ft))?,
+                                None => kept.to_vec(),
+                            }))
                         }
                         (None, None) => None,
                     });
