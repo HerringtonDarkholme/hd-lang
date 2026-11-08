@@ -149,7 +149,7 @@ A place names where a value lives. It is a **root** and zero or more
 
 | Projection | Written | Meaning |
 | --- | --- | --- |
-| dereference | `*` before the root or after a projection | the place a reference value refers to; also the payload of a compiler-supplied data object, which is a counted address |
+| dereference | `*` before the root or after a projection | the place a reference value refers to |
 | field | `.x` | a struct field or tuple element, by declaration index; embedded fields are explicit steps |
 | element | `[%5]` | a slot of a list's buffer at the index value `%5`, bounds-checked; in stages 1 and 2 the projected value is the list header |
 | variant | `as .Circle` | stage 2: the payload of an enum value known to be that variant, before its fields |
@@ -162,7 +162,6 @@ Examples, with the source they come from:
 | `nested.body.x` on a local | `[$1 .body .x]` |
 | `bodies[i].vx` where `bodies: &mut List[Body]` | `[*$0 [%5] .vx]` |
 | `f().x` where `f` returns `&Point` | `[*%3 .x]` |
-| a field of a data object held in `$4` | `[*$4 .name]` |
 | the payload `r` of `.Circle(r)` matched in `$0` | `[$0 as .Circle .r]` |
 
 Two places **overlap** when one's projection list is a prefix of the
@@ -452,9 +451,7 @@ Through `&mut self`, today (`Point.shift`, `self.x += dx`):
 `StrConcat` for its identity and two hidden locals. After, as laid out above:
 `Read [*$0 .x]`, `LocalGet $1`, `Prim Add`, `Store [*$0 .x] %2`.
 
-A top-level binding: `Store [@app.main.total .count] v`. A field of a
-compiler-supplied data object, today a `FieldSet` on the object value:
-`Store [*$4 .name] v`.
+A top-level binding: `Store [@app.main.total .count] v`.
 
 ### Element reads and writes
 
@@ -1176,13 +1173,13 @@ audit on the commits that touch the emitter).
    `hd_wasm_linear/src/tests.rs` build bodies with the new tags and
    compare the module with the old-tag body's.
    As built: the resolver reads a place as a root, a head (none, a
-   dereference, a data object's field, or an element) and a struct
+   dereference, or an element) and a struct
    field path, and `RefPlace`, `RefRead` and `RefWrite` decode into the
    same form, so every existing baseline runs through it. `Read` lowers
    a place through a dereference, whole or with a field path that loads
    only that part. `Store` lowers a store through a dereference (a field
    path goes through a field view, made and released for the write,
-   only when the reference is a view), into a data object's field, and
+   only when the reference is a view), and
    into a whole local or top-level binding. A struct field of a local or
    top-level binding and a list element stay unsupported until commits
    7 and 8 bring their producers, since today's emitter has no
@@ -1191,8 +1188,7 @@ audit on the commits that touch the emitter).
    shared tests (`local_store`, `place_local`, `ref_local`, `ref_locals`,
    `read_through`), which `count.rs`, `list.rs`, `closure.rs`, `emit.rs`
    and `lib.rs` use for both tag sets; `parameter_loans` also takes the
-   parameters that hold references, since a data object's field is no
-   referent of one. In an erased body a `Read` or `Store` of a whole
+   parameters that hold references. In an erased body a `Read` or `Store` of a whole
    referent (`[*r]`) stays, as `RefRead` and `RefWrite` do. Module
    comparisons in `tests.rs` would need a whole program's tables, so a
    `live.rs` unit test plans one body with each tag set instead, and a
@@ -1296,8 +1292,7 @@ audit on the commits that touch the emitter).
    `index_expr`). A local root is read for its flags and checks
    (`note_read`), as the base's read was. The emitter stores a struct
    field of a local in its Wasm locals or its cell, of a top-level
-   binding in its static slot or Wasm globals, and of a data object's
-   field at its offset, each counting only that field (and copying a
+   binding in its static slot or Wasm globals, each counting only that field (and copying a
    collection a place holds, as `CopyData`'s slot did); a cell an
    erased body converts is refused. `live.rs` gains `local_part_store`
    (a `LocalSet`, or a `Store` into a local or a field of it), which

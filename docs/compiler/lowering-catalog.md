@@ -126,13 +126,11 @@ inline storage in memory. Wide tuples do not acquire a box at four
 values. See [§23.14](../../crates/hd_wasm_linear/DESIGN.md#2314-inline-aggregate-layouts)
 and [wide signatures](../../crates/hd_wasm_linear/DESIGN.md#2329-wide-signatures-and-the-shadow-stack).
 
-### `data` Types, Mutable And Readonly Views
+### Structs
 
-Programs declare value structs; the former user-declared `data` model is
-retired. Struct fields flatten like tuple fields. Only compiler-supplied
-data types retain counted identity. See
-[§23.3](../../crates/hd_wasm_linear/DESIGN.md#233-values) and
-[reference addresses and typed views](../../crates/hd_wasm_linear/DESIGN.md#2320-reference-addresses-and-typed-views).
+Programs declare value structs; struct fields flatten like tuple fields,
+and no declared type has object identity. See
+[§23.3](../../crates/hd_wasm_linear/DESIGN.md#233-values).
 
 ### Embedded Parts
 

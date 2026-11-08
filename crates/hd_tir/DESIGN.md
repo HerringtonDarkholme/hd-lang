@@ -729,7 +729,7 @@ body with suspension rows (`src/wire.rs`), so no body writes them today.
 
 | Tag | Operands | Type rule |
 | --- | --- | --- |
-| `NewStruct` | b: `[field values]` in declaration order | the struct type in `ty`, or a compiler-supplied data object's type |
+| `NewStruct` | b: `[field values]` in declaration order | the struct type in `ty` |
 | `CopyStruct` | a: source, b: `[(field, value)]` replacements | the source's type. Copy-update literals only: every field not replaced is read from the source ([`expr.update.copy-fields`](../../spec/lang/05-expressions.md#r-expr.update.copy-fields)); a field write is a `Store` |
 | `NewVariant` | a: variant declaration index, b: `[payload values]` | the enum type in `ty` |
 | `NewTuple` | a: rest-list operand or `NONE` (tuple spread), b: `[elements]` | the tuple type; with a rest operand, its rest element |
@@ -767,7 +767,7 @@ self` receiver of a collection is the callee's own copy, a value
 argument like any `mut` parameter's. A `Store`
 writes a whole local
 (`[$l]`), a top-level binding (`[@g]`), a struct field of either, a
-data object's field (`[*%o .k]`), a place through a reference
+place through a reference
 (`[*%r .x]`) or a list element (`[%xs [%i] .x]`).
 
 **Places rooted at the local** (docs/compiler/tir-v2.md, stage 2 commit

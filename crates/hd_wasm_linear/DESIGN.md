@@ -599,7 +599,7 @@ count glue, with release glue in `rt.rs`, and decides none itself.
 - **Counts through any address.** `retain` and `release` find the block
   through the page table (§23.5), so a string's view and a slice count
   their buffer, and static data, which is in no block, is never counted:
-  literals, the empty string and fieldless data objects need no check.
+  literals and the empty string need no check.
   An address below the heap's first page (null, or static data, which
   precedes every page the allocator takes) returns before the lookup.
   `release` hands back the block at its last count; `rt:release_ref` then
@@ -1029,7 +1029,7 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
 
 - **References as addresses** (issue #587). The checker names each
   reference's place in the TIR (`Ref` of a place: a local, a top-level
-  binding, a place through another reference, a data object's field or a
+  binding, a place through another reference, or a
   list element, then a struct field path; `docs/compiler/tir-v2.md`)
   and each read, write and identity through one (a `Read` or `Store` of
   a place through it, `RefIdentity`), with no closure form (stage 1 of
@@ -1049,8 +1049,6 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
     value, which the program never releases (`Em::static_cell`), so a
     `Field`, `Variant`, `Members` or `Key` value is one static address;
   - a place through a reference is that address plus the path's offset;
-  - a field of a compiler-supplied data object is its payload address
-    plus the field's offset;
   - a list element is its address in the buffer (below).
   A read loads the target's values from the address and a write stores
   them, moving in a value the store consumes and counting any other,
@@ -1533,7 +1531,7 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
 
 - **References as addresses** (issue #587). The checker names each
   reference's place in the TIR (`Ref` of a place: a local, a top-level
-  binding, a place through another reference, a data object's field or a
+  binding, a place through another reference, or a
   list element, then a struct field path; `docs/compiler/tir-v2.md`)
   and each read, write and identity through one (a `Read` or `Store` of
   a place through it, `RefIdentity`), with no closure form (stage 1 of
@@ -1553,8 +1551,6 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
     value, which the program never releases (`Em::static_cell`), so a
     `Field`, `Variant`, `Members` or `Key` value is one static address;
   - a place through a reference is that address plus the path's offset;
-  - a field of a compiler-supplied data object is its payload address
-    plus the field's offset;
   - a list element is its address in the buffer (below).
   A read loads the target's values from the address and a write stores
   them, moving in a value the store consumes and counting any other,
@@ -1918,7 +1914,7 @@ handles and runtime-profile traits, so programs that use `fs`, `process`,
   the codecs collection gathered (`module.boundary.serialize.exact`). A
   newtype is its field, so `Path` is its string with its length; only a
   lone `string` argument crosses as its bytes alone. A map, a function, a
-  data object, a recursive enum or another trait value is refused at
+  recursive enum or another trait value is refused at
   Link, and nesting past 32 levels is too.
 - **Encoders** are `rt:enc` helpers, `(off, values...) -> off'`, one per
   `LTy`, each growing the buffer (`rt:fit`) before it writes. A string
@@ -2424,7 +2420,7 @@ references, and open values.
   counted leaf whose type proves a payload start (`layout::block_start`)
   as `Walk::Known`, so aggregate glue counts those leaves through the
   known path: the retain and release helpers of struct and enum values,
-  a data object's release glue, list element and map entry glue. A
+  list element and map entry glue. A
   string's bytes, a local reference and an open value stay `Walk::Ref`,
   counted through the page table. On json at 6,000 records this moved 846,000 of
   3,450,000 page-table counts to the known path, with the count total
@@ -2572,8 +2568,8 @@ store, and removes the scaffolding that a folded view test left.
   passes' `IsUnique` made the buffer unique, and stores only the field's
   values at their offsets. A field with counted references releases its
   old value after the new one is counted. Reads already load only the
-  projected field (§23.31). A field of a local, a top-level binding, a
-  data object or a referenced value is stored in place the same way
+  projected field (§23.31). A field of a local, a top-level binding
+  or a referenced value is stored in place the same way
   (`emit/refs.rs`).
 - **Constant branches** (`opt::fold_constant_branches`, after `opt::constants`).
   An `if` whose condition is an `i32` constant becomes a `block` of the
