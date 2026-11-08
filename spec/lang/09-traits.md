@@ -425,6 +425,9 @@ fn same(left: Mile, right: Mile) -> bool:
 trait Pairing:
     fn pair(self) -> (Self, i32)
 
+impl Pairing for string:
+    fn pair(self) -> (string, i32): (self, 0)
+
 @derive(Pairing)  # error: newtype-derivation-self
 type Tag(string)
 

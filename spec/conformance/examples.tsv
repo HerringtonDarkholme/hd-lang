@@ -571,7 +571,7 @@ lang/09-traits.md	17	mixed	typing/invalid/derived-hash-field-not-hash.hd|typing/
 lang/09-traits.md	18	mixed	typing/invalid/derive-beside-written-impl.hd
 lang/09-traits.md	19	mixed	typing/invalid/mixed-derived-law.hd
 lang/09-traits.md	20	complete	runtime/valid/derived-newtype.hd
-lang/09-traits.md	21	known-failure	typing/invalid/newtype-derivation-self.hd|typing/invalid/derive-newtype-base-missing-trait.hd
+lang/09-traits.md	21	mixed	typing/invalid/newtype-derivation-self.hd|typing/invalid/derive-newtype-base-missing-trait.hd
 lang/09-traits.md	22	complete	runtime/valid/from-direct-call.hd
 lang/09-traits.md	23	error-fragment	typing/invalid/from-implementation-with-requirement.hd
 lang/09-traits.md	24	complete	-
