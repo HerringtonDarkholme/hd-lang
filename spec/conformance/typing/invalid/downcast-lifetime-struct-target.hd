@@ -1,0 +1,12 @@
+# test: a struct with a lifetime parameter is not a downcast target
+# Spec 09 Inspectable Types: trait.inspectable.not.local-reference. A lifetime struct holds a local reference.
+# Spec 13 Lifetime Structs: ref.lifetime.struct.holds.
+use std.inspect.Inspectable
+
+struct View['a]:
+    name: &'a string
+
+fn named(value: &dyn Inspectable) -> bool:
+    match value.downcast_ref::[View](): # diagnostic: unsatisfied-trait-bound
+        .Some(_) => true
+        .None => false

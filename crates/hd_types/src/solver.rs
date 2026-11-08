@@ -5135,8 +5135,10 @@ mod tests {
 
     /// The `Inspectable` row (`trait.inspectable.*`): primitives,
     /// declarations and collections with inspectable arguments, tuples of
-    /// inspectable elements; trait values count as arguments only; function
-    /// types and `never` never. A failing argument fails with its own goal.
+    /// inspectable elements, counted references; trait values count as
+    /// arguments only; function types, `never` and anything holding a local
+    /// reference, a lifetime argument included, never. A failing argument
+    /// fails with its own goal.
     #[test]
     fn inspectable_holds_per_argument_and_trait_values_only_as_arguments() {
         use super::Answer;
@@ -5166,6 +5168,21 @@ mod tests {
                 rest: None,
             })
         };
+        let reference = |inner, counted| {
+            p.intern_ty(&TyData::Ref {
+                inner,
+                mutable: false,
+                counted,
+            })
+        };
+        // A struct or enum's lifetime argument is a local reference slot.
+        let lifetime = reference(Ty::VOID, false);
+        let view = adt(p, id(51), &[Ty::I32, lifetime]);
+        let dyn_borrowing = p.intern_ty(&TyData::TraitValue {
+            def: id(30),
+            args: p.list(&[lifetime]),
+            bindings: vec![],
+        });
         let ask = |t| ask_row(p, &decls, &env, &global, on(4, t));
         for t in [
             Ty::I32,
@@ -5175,6 +5192,8 @@ mod tests {
             list(p.intern_ty(&TyData::Mut(dyn_show))),
             p.intern_ty(&TyData::Option(dyn_show)),
             tuple(&[Ty::I32, list(dyn_show)]),
+            reference(Ty::STRING, true),
+            reference(dyn_show, true),
         ] {
             assert_eq!(
                 builtin_of(&ask(t)),
@@ -5189,14 +5208,23 @@ mod tests {
             Ty::NEVER,
             tuple(&[dyn_show]),
             list(Ty::NEVER),
+            reference(Ty::STRING, false),
+            reference(reference(Ty::STRING, false), true),
+            p.intern_ty(&TyData::Option(reference(Ty::I32, false))),
+            tuple(&[Ty::I32, reference(Ty::I32, false)]),
+            view,
+            list(view),
+            reference(dyn_borrowing, true),
         ] {
             assert!(matches!(ask(t), Answer::Fails(_)), "{}", p.display(t));
         }
-        let Answer::Fails(info) = ask(list(list(func))) else {
-            panic!("a function argument is not inspectable");
-        };
-        assert_eq!(info.reason, super::FailReason::NotInspectable { arg: func });
-        assert_eq!(info.leaf.self_ty, func, "the leaf is the failing argument");
+        for (t, leaf) in [(list(list(func)), func), (list(view), lifetime)] {
+            let Answer::Fails(info) = ask(t) else {
+                panic!("{} is not inspectable", p.display(t));
+            };
+            assert_eq!(info.reason, super::FailReason::NotInspectable { arg: leaf });
+            assert_eq!(info.leaf.self_ty, leaf, "the leaf is the failing argument");
+        }
     }
 
     /// §9.3: a trait value satisfies its own trait with equal arguments

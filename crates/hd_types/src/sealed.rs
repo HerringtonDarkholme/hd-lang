@@ -195,14 +195,20 @@ fn category(pool: Types<'_>, decls: &dyn Declarations, t: Ty) -> Category {
 }
 
 /// The subgoal an inspectable type's argument adds (`trait.inspectable.*`):
-/// none for a trait value type or `Any`, which count as arguments only
-/// (`trait.inspectable.reference`), else the argument itself.
+/// the argument itself, except that a trait value type counts as an
+/// argument only (`trait.inspectable.counted-reference-type`) and adds just its
+/// local reference arguments, its lifetimes among them, which fail
+/// (`trait.inspectable.not.local-reference`).
 fn argument(pool: Types<'_>, t: Ty, out: &mut Vec<Ty>) {
     let inner = match pool.get(t) {
         TyData::Mut(i) => i,
         _ => t,
     };
-    if !matches!(pool.get(inner), TyData::TraitValue { .. }) {
+    if let TyData::TraitValue { args, bindings, .. } = pool.get(inner) {
+        let local = |a: &Ty| matches!(pool.get(*a), TyData::Ref { counted: false, .. });
+        out.extend(pool.list_items(args).iter().copied().filter(local));
+        out.extend(bindings.iter().map(|&(_, b)| b).filter(local));
+    } else {
         out.push(t);
     }
 }
@@ -287,7 +293,15 @@ pub(crate) fn row(
         let mut subs = Vec::new();
         let ok = match t {
             TyData::Prim(_) => true,
-            TyData::Ref { inner, .. } => {
+            // A counted reference; a local one, as a struct or enum's
+            // lifetime argument is, holds a local reference and fails, so
+            // an argument holding one at any depth fails as its own goal
+            // (`trait.inspectable.not.local-reference`).
+            TyData::Ref {
+                inner,
+                counted: true,
+                ..
+            } => {
                 argument(pool, inner, &mut subs);
                 true
             }
@@ -322,8 +336,8 @@ pub(crate) fn row(
                 }
                 true
             }
-            // `never`, function types and trait values (whose own row is
-            // §9.3's) are not inspectable as values.
+            // `never`, local references, function types and trait values
+            // (whose own row is §9.3's) are not inspectable as values.
             _ => false,
         };
         return Some(if ok {

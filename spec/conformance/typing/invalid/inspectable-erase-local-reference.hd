@@ -1,0 +1,9 @@
+# test: a reference to a local reference does not erase to Inspectable
+# Spec 09 Inspectable Types: trait.inspectable.not.local-reference.
+# Spec 09 Erasure To Inspectable: trait.erase.expected.reference-values.
+use std.inspect.Inspectable
+
+fn erase(text: string) -> bool:
+    r := &text
+    let erased: &dyn Inspectable = &r # diagnostic: type-mismatch
+    true

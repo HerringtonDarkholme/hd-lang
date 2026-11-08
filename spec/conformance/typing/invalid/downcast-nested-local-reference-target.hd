@@ -1,0 +1,8 @@
+# test: a type argument that holds a local reference at any depth is not inspectable
+# Spec 09 Inspectable Types: trait.inspectable.not.local-reference, trait.inspectable.not.argument.
+use std.inspect.Inspectable
+
+fn listed(value: &dyn Inspectable) -> bool:
+    match value.downcast_ref::[List[Option[&string]]](): # diagnostic: unsatisfied-trait-bound
+        .Some(_) => true
+        .None => false

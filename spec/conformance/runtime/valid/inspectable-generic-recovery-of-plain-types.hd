@@ -1,0 +1,37 @@
+# test: generic recovery of a plain type works through local and counted erasure
+# Spec 09 Inspectable Types: trait.inspectable.declared, trait.inspectable.counted-reference-type.
+# Spec 09 Recovering A Concrete Type: trait.downcast.shared-local-reference, trait.downcast.copy-through-reference.
+use std.inspect.Inspectable
+
+struct User:
+    count: i32
+
+fn recover[T < Inspectable](value: &dyn Inspectable) -> T?:
+    match value.downcast_ref::[T]():
+        .Some(found) => .Some(*found)
+        .None => .None
+
+fn count_of(value: &dyn Inspectable) -> i32:
+    match recover::[User](value):
+        .Some(user) => user.count
+        .None => -1
+
+tests:
+    use std.testing.assert_equal
+
+    it("recovers a plain type erased from a local reference"):
+        user := User { count: 4 }
+        let erased: &dyn Inspectable = &user
+        assert_equal(count_of(erased), 4)
+        assert_equal(recover::[string](erased), .None)
+
+    it("recovers a plain type erased from a counted reference"):
+        let erased: *dyn Inspectable = box(User { count: 6 })
+        assert_equal(count_of(erased), 6)
+
+    it("recovers a counted reference erased behind a local one"):
+        let shared: *User = box(User { count: 8 })
+        let erased: &dyn Inspectable = &shared
+        match recover::[*User](erased):
+            .Some(found) => assert_equal(found.count, 8)
+            .None => assert_equal(0, 1, reason="the counted reference is recovered")

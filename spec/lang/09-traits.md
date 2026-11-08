@@ -2326,7 +2326,7 @@ impl TypeId:
 5. r[trait.inspect.runtime-type] `value.runtime_type()` returns the `TypeId` of the value's recorded type.
 6. r[trait.inspect.static] For a value whose static type is concrete, the recorded type is its static type.
 7. r[trait.inspect.dynamic] For a dynamic value of `Inspectable`, it is the concrete type recorded when the value was erased, never the trait. The same holds for a dynamic value of a trait that has `Inspectable` as a supertrait.
-8. r[trait.inspectable.reference] A reference type is inspectable when its referent is inspectable or is a trait value type.
+8. r[trait.inspectable.counted-reference] A counted reference type is inspectable when its referent is inspectable or is a trait value type. A local reference type is not.
 9. r[trait.inspect.reference-recorded] For a trait value reference, `runtime_type()` returns the runtime identity of the concrete referent whose reference was erased.
 
 ```hd
@@ -2425,7 +2425,7 @@ The compiler supplies `Inspectable` for exactly the **inspectable types**:
 | r[trait.inspectable.declared] Declared | a struct, enum, or newtype declared at module level, public or private, applied to inspectable type arguments |
 | r[trait.inspectable.collections] Collection | `List[T]` and `Map[K, V]` with inspectable type arguments, and tuples of inspectable elements |
 | r[trait.inspectable.union] Union | a union whose members are inspectable |
-| r[trait.inspectable.reference-type] Reference | a reference whose referent is inspectable or is a trait value type |
+| r[trait.inspectable.counted-reference-type] Counted reference | a counted reference, `*T` or `*mut T`, whose referent is inspectable or is a trait value type |
 | r[trait.inspectable.parameter] Type parameter | a type parameter bounded by `Inspectable` or by a trait that has it as a supertrait |
 
 1. r[trait.inspectable.exact] The compiler supplies `Inspectable` for exactly the types in the table above.
@@ -2449,10 +2449,14 @@ These types are not inspectable, as values or as type arguments:
 | r[trait.inspectable.not.function] Function | function types, spelled or as the constructors `Fn` and `SuspendFn` from `std.function`, closures, and function values |
 | r[trait.inspectable.not.suspend] Suspension | `Suspend[T]` and suspension frames |
 | r[trait.inspectable.not.local] Local declaration | struct, enum, newtype, and trait declarations local to a block suite |
+| r[trait.inspectable.not.local-reference] Local reference | a type that [holds a local reference](13-values-and-references.md#r-ref.local.holding): `&T`, `&mut T`, and a struct or enum with a lifetime argument, at any depth, such as `List[&T]`, `Option[&T]` or `View['a]` |
 | r[trait.inspectable.not.never] Never | `never` |
 | r[trait.inspectable.not.argument] Argument | a type applied to a non-inspectable argument, such as `Box[fn() -> i32]` |
 | r[trait.inspectable.not.parameter] Unbounded parameter | a type parameter without an `Inspectable` bound |
 
+> **Why.** A recovered value carries no origin, so a local reference behind
+> `&dyn Inspectable` would outlive its place. Rust's `Any` requires
+> `'static` for the same reason.
 
 ```text
 use std.inspect.Inspectable

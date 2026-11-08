@@ -1,5 +1,5 @@
 # test: a TypeId prints a trait value type by its trait's absolute qualified name
-# Spec 09 Stability And Printing: trait.typeid.name, trait.typeid.name.qualified; Runtime Identity: trait.identity.trait-value; Inspectable Types: trait.inspectable.reference.
+# Spec 09 Stability And Printing: trait.typeid.name, trait.typeid.name.qualified; Runtime Identity: trait.identity.trait-value; Inspectable Types: trait.inspectable.counted-reference.
 use std.error.Error
 use std.inspect.TypeId
 tests:

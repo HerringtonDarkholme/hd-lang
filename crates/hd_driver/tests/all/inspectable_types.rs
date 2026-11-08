@@ -108,11 +108,11 @@ fn every_row_of_the_table_is_inspectable() {
         "*dyn Display",
         "*dyn Any",
         "(*dyn Display, i32)",
-        // trait.inspectable.reference
+        // trait.inspectable.counted-reference
         "*dyn Inspectable",
         "*dyn Named",
         "*dyn Deeper",
-        // trait.inspectable.reference
+        // trait.inspectable.counted-reference
         "List[*dyn Display]",
         "Map[string, *dyn Any]",
         "Boxed[*dyn Display]",

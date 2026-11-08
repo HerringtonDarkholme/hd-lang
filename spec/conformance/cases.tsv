@@ -2032,6 +2032,11 @@ typing/invalid/inspectable-user-implementation.hd	type	reject:sealed-trait-imple
 typing/invalid/inspectable-member-redeclared.hd	type	reject:sealed-trait-implementation	lang/09-traits.md#sealed-traits
 typing/invalid/downcast-target-not-inspectable.hd	type	reject:unsatisfied-trait-bound	lang/09-traits.md#recovering-a-concrete-type
 typing/invalid/downcast-value-type-target.hd	type	reject:unsatisfied-trait-bound	lang/09-traits.md#recovering-a-concrete-type
+typing/invalid/inspectable-local-reference-generic-recovery.hd	type	reject:unsatisfied-trait-bound	lang/09-traits.md#r-trait.inspectable.not.local-reference
+typing/invalid/inspectable-erase-local-reference.hd	type	reject:type-mismatch	lang/09-traits.md#r-trait.inspectable.not.local-reference
+typing/invalid/downcast-lifetime-struct-target.hd	type	reject:unsatisfied-trait-bound	lang/09-traits.md#r-trait.inspectable.not.local-reference
+typing/invalid/downcast-nested-local-reference-target.hd	type	reject:unsatisfied-trait-bound	lang/09-traits.md#r-trait.inspectable.not.local-reference
+runtime/valid/inspectable-generic-recovery-of-plain-types.hd	runtime	accept	lang/09-traits.md#recovering-a-concrete-type
 typing/invalid/error-implementation-local-type.hd	type	reject:missing-supertrait-implementation	lang/09-traits.md#error-trait
 typing/invalid/bare-none-is-unknown-name.hd	type	reject:unknown-name	lang/04-type-system.md#optional-types
 typing/invalid/bare-some-is-unknown-name.hd	type	reject:unknown-name	lang/04-type-system.md#optional-types
