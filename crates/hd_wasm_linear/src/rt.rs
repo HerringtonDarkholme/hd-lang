@@ -2258,9 +2258,7 @@ fn own_lent(
     if m.runtime.is_none() {
         return;
     }
-    let Some(((_, r), rest)) = own.split_first() else {
-        return;
-    };
+    let ((_, r), rest) = own.split_first().unwrap();
     own_arg(f, rvals, r.as_ref(), recv);
     let mut at = 1u32;
     for (n, w) in rest {
