@@ -882,14 +882,9 @@ pub(crate) fn forward(
     if !any {
         return Ok(());
     }
+    // Before insertion: no ownership statement names a place yet.
     let named = |b: &Body, i: usize| match b.tags[i] {
-        Tag::Read
-        | Tag::Store
-        | Tag::Ref
-        | Tag::Drop
-        | Tag::IsUnique
-        | Tag::FlagSet
-        | Tag::FlagClear => Some(b.view(b.data[i][0])),
+        Tag::Read | Tag::Store | Tag::Ref => Some(b.view(b.data[i][0])),
         _ => None,
     };
     t.names.clear();
@@ -997,7 +992,7 @@ pub(crate) fn forward(
     // memory it knows nothing of (`xs := ys; xs[i]`).
     for i in 0..b.len() {
         let p = match b.tags[i] {
-            Tag::Read | Tag::Store | Tag::Ref | Tag::Drop | Tag::IsUnique => b.view(b.data[i][0]),
+            Tag::Read | Tag::Store | Tag::Ref => b.view(b.data[i][0]),
             _ => continue,
         };
         if let Root::Value(r) | Root::Ptr(r) = p.root
