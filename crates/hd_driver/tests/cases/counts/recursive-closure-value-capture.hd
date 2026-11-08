@@ -1,4 +1,4 @@
-# @dump: wat counts
+# @dump: own counts wat
 # @build: v8 release
 # One environment stores a scalar seed. The new-object descriptor is
 # acyclic (no high CYCLIC bit), and no shared binding cell is allocated.
