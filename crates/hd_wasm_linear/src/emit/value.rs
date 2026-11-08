@@ -415,9 +415,8 @@ impl Em<'_, '_, '_> {
         let fields = self.rec(bw);
         let t = self.ty(i);
         if self.newtype(t) {
-            let [r] = fields[..] else {
-                return unsupported("a newtype construction without one value");
-            };
+            // A newtype is constructed from its one base value.
+            let r = fields[0];
             let moved = self.take(r);
             self.push(r)?;
             return self.store_as(i, moved);

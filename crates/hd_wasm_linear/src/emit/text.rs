@@ -7,13 +7,12 @@
 use crate::op::Op as I;
 use hd_base::StageResult;
 use hd_tir::ir::{NONE, PlaceRoot, Proj, ReadMode, Ref, Tag};
-use hd_types::{Ty, TyData};
+use hd_types::Ty;
 use wasm_encoder::BlockType;
 
 use super::{CountPart, Em};
 use crate::module::{EMPTY, HEAP, Val, mem};
 use crate::rt::{Helper, PrimArg};
-use crate::unsupported;
 
 impl Em<'_, '_, '_> {
     /// Whether `t` is `string`, through newtypes and `mut`.
@@ -121,8 +120,8 @@ impl Em<'_, '_, '_> {
         {
             return Ok(None);
         }
-        let p = self.place(self.b.data[read][0])?;
-        if p != self.place(self.b.data[store as usize][0])? {
+        let p = self.place(self.b.data[read][0]);
+        if p != self.place(self.b.data[store as usize][0]) {
             return Ok(None);
         }
         let blk = self.topo.blk[read];
@@ -415,11 +414,8 @@ impl Em<'_, '_, '_> {
 
     /// `char_from_scalar(point)`: `.Some(point)` when `point` is a scalar
     /// value (at most `0x10FFFF`, not a surrogate), else `.None`, whose
-    /// slot holds zero.
+    /// slot holds zero. A `char?` is its tag and its scalar.
     pub(super) fn char_from_scalar(&mut self, i: u32, point: u32) -> StageResult<()> {
-        if self.vals(self.ty(i))? != [Val::I32, Val::I32] {
-            return unsupported("a `char?` of this layout");
-        }
         let (p, ok) = (self.f.local(Val::I32), self.f.local(Val::I32));
         self.comp(point, 0)?;
         self.f.set(p);
@@ -445,6 +441,10 @@ impl Em<'_, '_, '_> {
     /// as itself and a string in the exchange buffer, its length the
     /// parameter; a string result comes back in the exchange buffer and is
     /// copied into a new buffer, and a scalar result is the import's own.
+    /// std declares each one (`format_f64`, `format_f32`,
+    /// `format_f64_fixed`, `string_lower`, `string_upper`, `parse_f64`,
+    /// `snapshot_update`) with scalar arguments and at most one string,
+    /// which the one exchange buffer holds, and a scalar or string result.
     pub(super) fn host_prim(&mut self, i: u32, name: &str, args: &[u32]) -> StageResult<()> {
         let mut kinds = Vec::new();
         for a in args {
@@ -452,36 +452,15 @@ impl Em<'_, '_, '_> {
             kinds.push(if self.is_string(t) {
                 PrimArg::Str
             } else {
-                match self.vals(t)?.as_slice() {
-                    [v] => PrimArg::Scalar(*v),
-                    _ => {
-                        return unsupported(
-                            "a host primitive argument that is neither scalar nor string",
-                        );
-                    }
-                }
+                PrimArg::Scalar(self.vals(t)?[0])
             });
         }
         let t = self.ty(i);
         let result = if self.is_string(t) {
             None
         } else {
-            match self.vals(t)?.as_slice() {
-                [v] => Some(*v),
-                _ => {
-                    return unsupported(
-                        "a host primitive result that is neither scalar nor string",
-                    );
-                }
-            }
+            Some(self.vals(t)?[0])
         };
-        if matches!(self.pool().get(t), TyData::Never) {
-            return unsupported("a host primitive that does not return");
-        }
-        // One exchange buffer holds one string argument.
-        if kinds.iter().filter(|k| **k == PrimArg::Str).count() > 1 {
-            return unsupported("a host primitive of two string arguments");
-        }
         for a in args {
             self.push(*a)?;
         }

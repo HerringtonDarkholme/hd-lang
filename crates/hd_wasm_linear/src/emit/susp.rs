@@ -151,9 +151,8 @@ pub(super) const FRAME: u32 = 0;
 impl Em<'_, '_, '_> {
     /// The homogeneous list frame, unlike the fixed-arity tuple point.
     pub(super) fn all_frame(&mut self, i: u32, args: &[u32]) -> StageResult<()> {
-        let Some(&tasks) = args.first() else {
-            return unsupported("the intrinsic `task_all_frame` without its task list");
-        };
+        // `all_frame[T](tasks: List[Suspend[T]])`.
+        let tasks = args[0];
         let inner = self.susp_inner(self.ty_of(i));
         let (_, elem) = self.elem(inner)?;
         self.comp(tasks, 0)?;
@@ -880,13 +879,11 @@ impl Em<'_, '_, '_> {
             return unsupported("`join!` of more than 31 suspensions");
         }
         let pc = self.pc();
+        // Checking types `join!` the tuple of its children's results.
         let tys = crate::layout::tuple_members(
             self.pool(),
             crate::layout::strip(self.pool(), self.env(), self.ty(i)),
         );
-        if tys.len() != children.len() {
-            return unsupported("a `join!` result that is not a tuple of its children's");
-        }
         let (done, gone, ready, s) = (
             self.f.local(Val::I32),
             self.f.local(Val::I32),

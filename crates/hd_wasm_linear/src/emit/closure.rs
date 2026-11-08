@@ -610,7 +610,7 @@ impl Em<'_, '_, '_> {
             return Ok(());
         }
         let Some(Target::Closure(key)) = self.calls.get(&i).cloned() else {
-            return unsupported("a closure without its code instance");
+            unreachable!("collection selects every emitted closure's code instance");
         };
         let caps = captures(self.b, i as usize);
         // A lent parameter holds no count to move: the environment

@@ -122,9 +122,8 @@ impl Em<'_, '_, '_> {
         // ran, the scope leaves by `Cancel`, whatever exit it was taking.
         if waiting {
             let cancel = {
-                let Some(info) = self.scopes.get_mut(&i) else {
-                    return unsupported("a cleanup scope without its ladder");
-                };
+                // Its ladder lives until the exits below.
+                let info = self.scopes.get_mut(&i).expect("the scope's ladder");
                 if let Some(k) = info.exits.iter().position(|x| *x == Exit::Cancel) {
                     k + 1
                 } else {
@@ -182,18 +181,15 @@ impl Em<'_, '_, '_> {
             Exit::Cont(t) => self.ctl.iter().rposition(|c| *c == Ctl::Cont(t)),
             Exit::Ret | Exit::Cancel => None,
         };
-        let scope = self
-            .ctl
-            .iter()
-            .rposition(|c| matches!(c, Ctl::Scope(_)))
-            .filter(|p| floor.is_none_or(|f| *p > f));
-        if let Some(p) = scope {
-            let Ctl::Scope(s) = self.ctl[p] else {
-                return unsupported("a cleanup scope marker");
-            };
-            let Some(info) = self.scopes.get_mut(&s) else {
-                return unsupported("a cleanup scope without its ladder");
-            };
+        let scope = (self.ctl.iter().enumerate().rev())
+            .find_map(|(p, c)| match c {
+                Ctl::Scope(s) => Some((p, *s)),
+                _ => None,
+            })
+            .filter(|(p, _)| floor.is_none_or(|f| *p > f));
+        if let Some((p, s)) = scope {
+            // A scope's ladder lives while its body is open.
+            let info = self.scopes.get_mut(&s).expect("an open scope's ladder");
             let k = if let Some(k) = info.exits.iter().position(|x| *x == e) {
                 k + 1
             } else {

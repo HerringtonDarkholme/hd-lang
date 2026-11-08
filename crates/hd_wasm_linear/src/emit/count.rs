@@ -1167,13 +1167,14 @@ impl Em<'_, '_, '_> {
 
     /// `Read [$l]` `i` of an owned body, as its mode says: a copy takes a
     /// count of its own; a move takes the local's and empties it; a
-    /// borrow takes none and is no place's to release.
+    /// borrow takes none and is no place's to release. The passes decide
+    /// every read's mode (`verify_owned`, "decided"), so a read that is
+    /// neither a move nor a borrow is a copy.
     pub(super) fn own_local_read(&mut self, i: u32, l: usize) -> StageResult<()> {
         use hd_tir::ir::ReadMode;
         let mode = ReadMode::from_u32(self.b.data[i as usize][1]);
         if self.is_cell(l) {
             return match mode {
-                Some(ReadMode::Copy) => self.cell_get(i, l),
                 Some(ReadMode::Borrow) => {
                     self.loans.insert(i);
                     self.cell_get(i, l)
@@ -1182,7 +1183,7 @@ impl Em<'_, '_, '_> {
                 // the cell. A last reference instead takes the cell's
                 // count (`docs/compiler/tir-v2.md`, "Move" rule 4).
                 Some(ReadMode::Move) => self.cell_take(i, l),
-                _ => crate::unsupported("a read of a local in a cell with no mode"),
+                _ => self.cell_get(i, l),
             };
         }
         let ls = self.local(u32::try_from(l).expect("locals"))?;
@@ -1190,7 +1191,6 @@ impl Em<'_, '_, '_> {
             self.f.get(*x);
         }
         match mode {
-            Some(ReadMode::Copy) => self.store(i),
             Some(ReadMode::Move) => {
                 self.store_owned(i)?;
                 self.mark_drop_root(
@@ -1209,7 +1209,7 @@ impl Em<'_, '_, '_> {
                 self.loans.insert(i);
                 self.store(i)
             }
-            _ => crate::unsupported("a read the ownership passes left undecided"),
+            _ => self.store(i),
         }
     }
 

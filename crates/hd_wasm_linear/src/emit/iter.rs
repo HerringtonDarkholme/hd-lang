@@ -27,9 +27,8 @@ impl Em<'_, '_, '_> {
         let ot = self.pool().intern_ty(&TyData::Option(item));
         let flat = self.flat(ot)?;
         let (om, positions) = (&flat.0, &flat.1);
-        let Some(some) = positions.get(1).and_then(|fs| fs.first()) else {
-            return unsupported("an optional without its payload");
-        };
+        // `.Some`'s one payload field.
+        let some = &positions[1][0];
         let opt = (0..om.leaves.len())
             .map(|p| match some.iter().position(|q| *q == p) {
                 _ if p == 0 => OptVal::Tag,

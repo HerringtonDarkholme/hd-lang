@@ -103,11 +103,9 @@ impl Em<'_, '_, '_> {
         }
     }
 
-    /// The place in operand word `word`.
-    pub(super) fn place(&self, word: u32) -> StageResult<Place> {
-        self.b
-            .decode_place(word)
-            .map_or_else(|| unsupported("a malformed place"), Ok)
+    /// The place in operand word `word`, which the TIR builder encoded.
+    pub(super) fn place(&self, word: u32) -> Place {
+        self.b.decode_place(word).expect("an encoded place")
     }
 
     /// Fresh locals holding TIR local `l`'s value, loaded from its cell
@@ -253,7 +251,7 @@ impl Em<'_, '_, '_> {
     /// root's `Drop`, which the move pass keeps for such a root, releases
     /// the whole.
     pub(super) fn own_move_part(&mut self, i: u32) -> StageResult<bool> {
-        let p = self.place(self.b.data[i as usize][0])?;
+        let p = self.place(self.b.data[i as usize][0]);
         let Some((t, ls)) = self.root_locals(&p)? else {
             return Ok(false);
         };
@@ -374,7 +372,7 @@ impl Em<'_, '_, '_> {
         if self.input.runtime.is_none() {
             return Ok(None);
         }
-        let p = self.place(self.b.data[i as usize][0])?;
+        let p = self.place(self.b.data[i as usize][0]);
         let Some((d, Some((target, false)))) = self.last_through(&p)? else {
             return Ok(None);
         };
@@ -430,7 +428,7 @@ impl Em<'_, '_, '_> {
     /// place holds, which a view lends. Also where the
     /// walk found it in memory, where the place keeps it ([`Em::put_at`]).
     pub(super) fn place_header(&mut self, word: u32) -> StageResult<(u32, Ty, Option<At>)> {
-        let p = self.place(word)?;
+        let p = self.place(word);
         let (at, ty) = self.walk_place(NONE, &p, p.proj.len(), None)?;
         let h = self.at_i32(&at)?;
         Ok((h, ty, (!matches!(at, At::Vals(_))).then_some(at)))
@@ -477,7 +475,7 @@ impl Em<'_, '_, '_> {
     /// neither is in its root: a local's Wasm locals or cell, a value's
     /// locals, a top-level binding's static slot or Wasm globals.
     pub(super) fn put_buffer(&mut self, word: u32, b: u32) -> StageResult<()> {
-        let p = self.place(word)?;
+        let p = self.place(word);
         let (at, ty, from) = match self.last_through(&p)? {
             Some((d, Some((target, false)))) => {
                 let (at, _) = self.walk_place(NONE, &p, d, None)?;
@@ -560,7 +558,7 @@ impl Em<'_, '_, '_> {
         // is released here, as the `Drop` the pass deleted did. A frame
         // local's count is never taken (`ref_word::FRAME`).
         if self.b.data[i as usize][1] & hd_tir::ir::ref_word::TAKES != 0 {
-            let p = self.place(self.b.data[i as usize][0])?;
+            let p = self.place(self.b.data[i as usize][0]);
             let (PlaceRoot::Local(l), true) = (p.root, p.proj.is_empty()) else {
                 return unsupported("a reference that takes the count of no whole local");
             };
@@ -585,7 +583,7 @@ impl Em<'_, '_, '_> {
     /// Promoted `Ref` `i` that takes its whole local's count: the local's
     /// value with that count, and the local left empty.
     fn promoted_take(&mut self, i: u32) -> StageResult<()> {
-        let p = self.place(self.b.data[i as usize][0])?;
+        let p = self.place(self.b.data[i as usize][0]);
         let (PlaceRoot::Local(l), true) = (p.root, p.proj.is_empty()) else {
             return unsupported("a promoted reference that takes the count of no whole local");
         };
@@ -616,7 +614,7 @@ impl Em<'_, '_, '_> {
     /// neither is in its root's storage. [`Em::ref_from`] addresses the
     /// struct field the fields after the head name.
     fn counted_ref(&mut self, i: u32) -> StageResult<()> {
-        let p = self.place(self.b.data[i as usize][0])?;
+        let p = self.place(self.b.data[i as usize][0]);
         let Some((_, fat)) = self.ref_target(self.ty(i)) else {
             return unsupported("a reference whose type is no reference");
         };
@@ -923,7 +921,7 @@ impl Em<'_, '_, '_> {
     /// locals, which is read as a copy: the root's `Drop`, which the move
     /// pass keeps for such a root, releases it.
     pub(super) fn place_read(&mut self, i: u32) -> StageResult<()> {
-        let p = self.place(self.b.data[i as usize][0])?;
+        let p = self.place(self.b.data[i as usize][0]);
         let last = self.last_through(&p)?;
         let start = self.place_start(i, &p, last)?;
         if let Some((d, Some((target, fat)))) = last {
@@ -1078,7 +1076,7 @@ impl Em<'_, '_, '_> {
     /// `IsUnique` came before a store into an element.
     pub(super) fn place_store(&mut self, i: u32) -> StageResult<()> {
         let v = self.b.data[i as usize][1];
-        let p = self.place(self.b.data[i as usize][0])?;
+        let p = self.place(self.b.data[i as usize][0]);
         let rooted = Self::rooted(&p);
         let whole = p.proj.is_empty();
         // A whole local's Wasm locals are made at its store, whatever it
