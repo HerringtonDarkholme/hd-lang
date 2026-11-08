@@ -528,7 +528,7 @@ fn helper_ret(cx: &Cx<'_, '_>, mode: Handles, h: Handle) -> Ty {
         HandleKind::Variant => g.variant_ty(),
         HandleKind::Field(_) => g.handle_ty(param(names, h.def, 1)),
         HandleKind::Members => g.members_ty(),
-        HandleKind::Choices => g.fresh(g.adt(names.known.list, &[g.variant_ty()])),
+        HandleKind::Choices => g.adt(names.known.list, &[g.variant_ty()]),
     }
 }
 
@@ -776,10 +776,10 @@ impl<'a, 'n> Gen<'a, 'n> {
             keys.push(self.static_ref(key, key_t));
         }
         let rec = self.b.refs_record(&infos);
-        let lt = self.fresh(self.adt(self.names.known.list, &[member_t]));
+        let lt = self.adt(self.names.known.list, &[member_t]);
         let infos = self.b.emit(Tag::NewList, NONE, rec, lt, SYN);
         let rec = self.b.refs_record(&keys);
-        let kt = self.fresh(self.adt(self.names.known.list, &[key_t]));
+        let kt = self.adt(self.names.known.list, &[key_t]);
         let keys = self.b.emit(Tag::NewList, NONE, rec, kt, SYN);
         let def = self.std("MembersRecord");
         let record = self.new_data(def, &[s], &[("infos", infos), ("hd_keys", keys)])?;
@@ -789,7 +789,7 @@ impl<'a, 'n> Gen<'a, 'n> {
     /// One variant directory per derived type, rather than per build.
     fn choices(&mut self) -> Ref {
         let owner = self.handles.owner(self.names);
-        let ty = self.fresh(self.adt(self.names.known.list, &[self.variant_ty()]));
+        let ty = self.adt(self.names.known.list, &[self.variant_ty()]);
         let def = hidden_method(self.names, owner, "choices");
         self.handle_call(
             owner,
@@ -808,7 +808,7 @@ impl<'a, 'n> Gen<'a, 'n> {
         for v in vars {
             handles.push(self.variant_handle(v));
         }
-        let ty = self.fresh(self.adt(self.names.known.list, &[self.variant_ty()]));
+        let ty = self.adt(self.names.known.list, &[self.variant_ty()]);
         let rec = self.b.refs_record(&handles);
         self.b.emit(Tag::NewList, NONE, rec, ty, SYN)
     }
@@ -903,10 +903,6 @@ impl<'a, 'n> Gen<'a, 'n> {
         self.b.emit(Tag::Ref, word, 0, t, SYN)
     }
 
-    fn fresh(&self, t: Ty) -> Ty {
-        self.names.pool.intern_ty(&TyData::Mut(t))
-    }
-
     fn fn_ty(&self, params: &[Ty], result: Ty) -> Ty {
         let pool = self.names.pool;
         pool.intern_ty(&TyData::Fn {
@@ -958,7 +954,7 @@ impl<'a, 'n> Gen<'a, 'n> {
             refs.push(*v);
         }
         let rec = self.b.refs_record(&refs);
-        let t = self.fresh(self.adt(def, args));
+        let t = self.adt(def, args);
         Ok(self.b.emit(Tag::NewStruct, NONE, rec, t, SYN))
     }
 
@@ -983,7 +979,7 @@ impl<'a, 'n> Gen<'a, 'n> {
     /// An empty list of type `t` (a `List[...]`).
     fn empty_list(&mut self, t: Ty) -> Ref {
         let rec = self.b.refs_record(&[]);
-        let t = self.fresh(strip_mut(self.names, t));
+        let t = strip_mut(self.names, t);
         self.b.emit(Tag::NewList, NONE, rec, t, SYN)
     }
 
@@ -1066,7 +1062,7 @@ impl<'a, 'n> Gen<'a, 'n> {
             pairs.push(self.b.emit(Tag::NewTuple, NONE, rec, pair_t, SYN));
         }
         let rec = self.b.refs_record(&pairs);
-        let t = self.fresh(strip_mut(self.names, lt));
+        let t = strip_mut(self.names, lt);
         Ok(self.b.emit(Tag::NewList, NONE, rec, t, SYN))
     }
 
@@ -1778,7 +1774,7 @@ impl<'a, 'n> Gen<'a, 'n> {
         let rec = self.b.refs_record(&values);
         Ok(match v.shape {
             Shape::Data => {
-                let t = self.fresh(s);
+                let t = s;
                 self.b.emit(Tag::NewStruct, NONE, rec, t, SYN)
             }
             Shape::Tuple => self.b.emit(Tag::NewTuple, NONE, rec, s, SYN),
