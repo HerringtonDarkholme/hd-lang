@@ -2622,7 +2622,13 @@ fn formatter_preserves_every_parseable_conformance_check_verdict_and_code() {
 /// not let it.
 #[test]
 fn no_typing_invalid_fixture_reaches_an_internal_error() {
-    let cases: Vec<Case> = cases()
+    let cases = cases();
+    let cases = if std::env::var_os("HD_CONFORMANCE_ONLY").is_some() {
+        filtered(cases).expect("named conformance selection")
+    } else {
+        cases
+    };
+    let cases: Vec<Case> = cases
         .into_iter()
         .filter(|case| case.phase == Phase::Type && case.path.starts_with("typing/invalid/"))
         .collect();

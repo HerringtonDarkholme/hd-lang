@@ -4446,6 +4446,7 @@ impl Ck<'_, '_> {
             }
             TyData::Tuple { elems, rest } => {
                 let e = self.zonk_list(elems);
+                let rest = rest.map(|t| self.zonk(t));
                 pool.intern_ty(&TyData::Tuple { elems: e, rest })
             }
             TyData::Option(i) => {

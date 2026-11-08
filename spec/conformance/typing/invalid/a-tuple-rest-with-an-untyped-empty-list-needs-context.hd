@@ -1,0 +1,5 @@
+# test: an unresolved tuple rest reports its empty list without an internal error
+# Rule: expr.collection.empty.error.
+
+fn main() -> void:
+    _ := (+1, []...) # diagnostic: cannot-infer-type

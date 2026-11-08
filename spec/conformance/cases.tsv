@@ -6061,6 +6061,7 @@ runtime/valid/a-spread-fills-shared-enum-parameters.hd	runtime	accept	lang/08-da
 typing/invalid/a-cast-rejects-a-written-spread-argument.hd	type	reject:argument-count	lang/04-type-system.md#r-types.cast.argument
 typing/invalid/an-empty-list-spread-loop-pattern-does-not-infer-an-element.hd	type	reject:cannot-infer-type	lang/05-expressions.md#r-expr.collection.empty.error
 typing/valid/an-empty-list-rest-pattern-keeps-later-type-context.hd	type	accept	lang/05-expressions.md#r-expr.collection.expected
+typing/invalid/a-tuple-rest-with-an-untyped-empty-list-needs-context.hd	type	reject:cannot-infer-type	lang/05-expressions.md#r-expr.collection.empty.error
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
