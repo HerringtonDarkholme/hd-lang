@@ -234,7 +234,7 @@ const PURE_INTRINSICS: &[&str] = &[
     "bytes_len",
     "bytes_at",
     "bytes_index",
-    "bytes_index_json",
+    "bytes_index_set",
     "bytes_index_pair",
     "bytes_mismatch",
     "utf8_valid_len",

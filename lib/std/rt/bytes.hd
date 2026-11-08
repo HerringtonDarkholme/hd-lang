@@ -220,14 +220,15 @@ pub fn bytes_index(text: string, from: usize, byte: u8) -> usize:
         index = index + 1
     size
 
-## The offset of the first byte at or after `from` that JSON must escape, a control byte below 0x20, `"` or `\`, or `bytes_len(text)` when there is none.
-@intrinsic("bytes_index_json")
-pub fn bytes_index_json(text: string, from: usize) -> usize:
+## The offset of the first byte at or after `from` in the 256-bit set `w0`, `w1`, `w2`, `w3`, where byte `b` is bit `b % 64` of word `b / 64`, or `bytes_len(text)` when there is none.
+@intrinsic("bytes_index_set")
+pub fn bytes_index_set(text: string, from: usize, w0: u64, w1: u64, w2: u64, w3: u64) -> usize:
     size := bytes_len(text)
     let index = from
     while index < size:
-        byte := bytes_at(text, index)
-        if byte < 32 || byte == 34 || byte == 92:
+        byte := u64(bytes_at(text, index))
+        word := if byte < 64: w0 else if byte < 128: w1 else if byte < 192: w2 else: w3
+        if (word >> (byte % 64)) & 1 == 1:
             return index
         index = index + 1
     size

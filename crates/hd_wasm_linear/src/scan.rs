@@ -41,30 +41,243 @@ const U64: MemArg = MemArg {
     memory_index: HEAP,
 };
 
-/// The code of `Helper::BytesIndexJson`, `(at, len, from) -> index`: the
-/// offset of the first byte at or after `from` among the `len` bytes at
-/// address `at` that JSON must escape (below 0x20, `"` or `\`), else
-/// `len`.
+/// A 256-bit byte set: byte `b` is bit `b % 64` of word `b / 64`.
+pub type ByteSet = [u64; 4];
+
+/// One compare that picks out part of a byte set, in a SIMD lane and in a
+/// scalar alike. A constant set the scan meets is covered greedily by a few
+/// of these; a set that needs more takes the bit-table classifier.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Atom {
+    /// `b == value`.
+    Eq(u8),
+    /// `(b ^ flip) < bound`: an aligned block, or a span from zero, with
+    /// some bits flipped. `b ^ 2 < 0x21` is the control bytes and `"`.
+    Below { flip: u8, bound: u8 },
+    /// `b - low < len`, wrapping: the span `low..low + len`.
+    Span { low: u8, len: u8 },
+}
+
+impl Atom {
+    /// The instructions the test costs, in a SIMD lane.
+    fn cost(self) -> u32 {
+        match self {
+            Atom::Eq(_) | Atom::Below { flip: 0, .. } => 1,
+            Atom::Below { .. } | Atom::Span { .. } => 2,
+        }
+    }
+
+    fn has(self, b: u8) -> bool {
+        match self {
+            Atom::Eq(value) => b == value,
+            Atom::Below { flip, bound } => b ^ flip < bound,
+            Atom::Span { low, len } => b.wrapping_sub(low) < len,
+        }
+    }
+}
+
+/// At most this many compares cover a set before the bit table is cheaper.
+const MAX_ATOMS: usize = 4;
+
+fn has(set: &ByteSet, b: u8) -> bool {
+    set[usize::from(b >> 6)] >> (b & 63) & 1 == 1
+}
+
+/// Covers `set` with at most [`MAX_ATOMS`] compares, each inside the set,
+/// greedily by the most members newly covered and then the cheapest; `None`
+/// when more are needed. The candidates are every flipped block (one per
+/// flip, as long as its members stay inside the set), every maximal span,
+/// and every member alone.
+fn cover(set: &ByteSet) -> Option<Vec<Atom>> {
+    let bytes = || (0..=u8::MAX).filter(|&b| has(set, b));
+    let mut candidates: Vec<Atom> = bytes().map(Atom::Eq).collect();
+    for flip in 0..=u8::MAX {
+        let bound = (0..=u8::MAX)
+            .find(|&x| !has(set, x ^ flip))
+            .unwrap_or(u8::MAX);
+        if bound >= 2 {
+            candidates.push(Atom::Below { flip, bound });
+        }
+    }
+    let mut low = None;
+    for b in 0..=u16::from(u8::MAX) + 1 {
+        let inside = u8::try_from(b).is_ok_and(|b| has(set, b));
+        match (inside, low) {
+            (true, None) => low = Some(b),
+            (false, Some(l)) => {
+                if b - l >= 2 && l > 0 {
+                    let (low, len) = (u8::try_from(l).ok()?, u8::try_from(b - l).ok()?);
+                    candidates.push(Atom::Span { low, len });
+                }
+                low = None;
+            }
+            _ => {}
+        }
+    }
+    let mut left: Vec<u8> = bytes().collect();
+    let mut atoms = Vec::new();
+    while !left.is_empty() {
+        if atoms.len() == MAX_ATOMS {
+            return None;
+        }
+        let gain = |a: Atom| left.iter().filter(|&&b| a.has(b)).count();
+        let best = *candidates
+            .iter()
+            .max_by_key(|&&a| (gain(a), std::cmp::Reverse(a.cost())))?;
+        left.retain(|&b| !best.has(b));
+        atoms.push(best);
+    }
+    Some(atoms)
+}
+
+/// The code of `Helper::BytesIndexSet`, `(at, len, from) -> index` for a
+/// constant set, else `(at, len, from, w0, w1, w2, w3) -> index` with the
+/// set's four words: the offset of the first byte at or after `from` among
+/// the `len` bytes at address `at` that is in the set, else `len`.
+///
+/// A constant set of a few spans and members tests each lane with those
+/// compares; any other set looks each byte up in the set's 32-byte bit
+/// table, two swizzles for the table byte and one for the bit.
 #[must_use]
-pub fn json_index_code() -> Vec<u8> {
+pub fn set_index_code(set: Option<ByteSet>) -> Vec<u8> {
+    let atoms = set.as_ref().and_then(cover);
     let (at, len, i) = (0, 1, 2);
-    let (mask, byte, v) = (3, 4, 5);
-    let mut f = Function::new([(2, ValType::I32), (1, ValType::V128)]);
+    let words = if set.is_some() { 3 } else { 7 };
+    let (mask, byte, v, low, high) = (words, words + 1, words + 2, words + 3, words + 4);
+    let tables = set.is_none();
+    let mut f = Function::new([
+        (2, ValType::I32),
+        (if tables { 3 } else { 1 }, ValType::V128),
+    ]);
     let mut s = f.instructions();
-    // The 16 lanes of `v` that need an escape, as a bit mask. `b ^ 2` is
-    // below 0x21 exactly for a control byte or `"` (0x22 ^ 2 is 0x20);
-    // `\` is its own compare.
+    let splat = |b: u8| i128::from_le_bytes([b; 16]);
+    let table = |w: u64, x: u64| i128::from(w) | i128::from(x) << 64;
+    // The set's bit table in two halves: bytes 0..16 hold bytes 0..128.
+    if tables {
+        for (local, word) in [(low, 3), (high, 5)] {
+            s.local_get(word)
+                .i64x2_splat()
+                .local_get(word + 1)
+                .i64x2_replace_lane(1)
+                .local_set(local);
+        }
+    }
+    // The 16 lanes of `v` in the set, as a bit mask.
     let lanes = |s: &mut wasm_encoder::InstructionSink<'_>| {
-        s.local_get(v)
-            .v128_const(i128::from_le_bytes([2; 16]))
-            .v128_xor()
-            .v128_const(i128::from_le_bytes([0x21; 16]))
-            .i8x16_lt_u()
-            .local_get(v)
-            .v128_const(i128::from_le_bytes([b'\\'; 16]))
-            .i8x16_eq()
-            .v128_or()
-            .i8x16_bitmask();
+        if let Some(atoms) = &atoms {
+            for (n, atom) in atoms.iter().enumerate() {
+                s.local_get(v);
+                match *atom {
+                    Atom::Eq(value) => {
+                        s.v128_const(splat(value)).i8x16_eq();
+                    }
+                    Atom::Below { flip, bound } => {
+                        if flip != 0 {
+                            s.v128_const(splat(flip)).v128_xor();
+                        }
+                        s.v128_const(splat(bound)).i8x16_lt_u();
+                    }
+                    Atom::Span { low, len } => {
+                        s.v128_const(splat(low))
+                            .i8x16_sub()
+                            .v128_const(splat(len))
+                            .i8x16_lt_u();
+                    }
+                }
+                if n > 0 {
+                    s.v128_or();
+                }
+            }
+            if atoms.is_empty() {
+                s.v128_const(0);
+            }
+        } else {
+            // The table byte `b >> 3`: below 16 from the low half, else from
+            // the high (a swizzle index of 16 or more gives 0).
+            let half = |s: &mut wasm_encoder::InstructionSink<'_>, local, w: usize| {
+                match set {
+                    Some(set) => s.v128_const(table(set[w], set[w + 1])),
+                    None => s.local_get(local),
+                };
+            };
+            half(s, low, 0);
+            s.local_get(v).i32_const(3).i8x16_shr_u().i8x16_swizzle();
+            half(s, high, 2);
+            s.local_get(v)
+                .i32_const(3)
+                .i8x16_shr_u()
+                .v128_const(splat(16))
+                .v128_xor()
+                .i8x16_swizzle()
+                .v128_or();
+            // The bit `1 << (b & 7)`.
+            s.v128_const(i128::from_le_bytes(std::array::from_fn(|k| 1 << (k & 7))))
+                .local_get(v)
+                .v128_const(splat(7))
+                .v128_and()
+                .i8x16_swizzle()
+                .local_tee(v)
+                .v128_and()
+                .local_get(v)
+                .i8x16_eq();
+        }
+        s.i8x16_bitmask();
+    };
+    // Whether `byte` is in the set, as an i32.
+    let scalar = |s: &mut wasm_encoder::InstructionSink<'_>| {
+        if let Some(atoms) = &atoms {
+            for (n, atom) in atoms.iter().enumerate() {
+                s.local_get(byte);
+                match *atom {
+                    Atom::Eq(value) => {
+                        s.i32_const(i32::from(value)).i32_eq();
+                    }
+                    Atom::Below { flip, bound } => {
+                        if flip != 0 {
+                            s.i32_const(i32::from(flip)).i32_xor();
+                        }
+                        s.i32_const(i32::from(bound)).i32_lt_u();
+                    }
+                    Atom::Span { low, len } => {
+                        s.i32_const(i32::from(low))
+                            .i32_sub()
+                            .i32_const(i32::from(len))
+                            .i32_lt_u();
+                    }
+                }
+                if n > 0 {
+                    s.i32_or();
+                }
+            }
+            if atoms.is_empty() {
+                s.i32_const(0);
+            }
+        } else {
+            // Word `b >> 6`, shifted right by `b` (mod 64).
+            let word = |s: &mut wasm_encoder::InstructionSink<'_>, w: u32| {
+                match set {
+                    Some(set) => s.i64_const(set[w as usize].cast_signed()),
+                    None => s.local_get(3 + w),
+                };
+            };
+            // The high pair first: `select` keeps its first operand when
+            // bit 7 is set.
+            for pair in [2, 0] {
+                word(s, pair + 1);
+                word(s, pair);
+                s.local_get(byte).i32_const(64).i32_and().select();
+            }
+            s.local_get(byte)
+                .i32_const(128)
+                .i32_and()
+                .select()
+                .local_get(byte)
+                .i64_extend_i32_u()
+                .i64_shr_u()
+                .i32_wrap_i64()
+                .i32_const(1)
+                .i32_and();
+        }
     };
     // Nothing at or after `len`.
     s.local_get(i)
@@ -131,18 +344,9 @@ pub fn json_index_code() -> Vec<u8> {
         .local_get(i)
         .i32_add()
         .i32_load8_u(U8)
-        .local_tee(byte)
-        .i32_const(0x20)
-        .i32_lt_u()
-        .local_get(byte)
-        .i32_const(i32::from(b'"'))
-        .i32_eq()
-        .i32_or()
-        .local_get(byte)
-        .i32_const(i32::from(b'\\'))
-        .i32_eq()
-        .i32_or()
-        .if_(BlockType::Empty);
+        .local_set(byte);
+    scalar(&mut s);
+    s.if_(BlockType::Empty);
     s.local_get(i).return_().end();
     s.local_get(i).i32_const(1).i32_add().local_set(i).br(0);
     s.end().end();

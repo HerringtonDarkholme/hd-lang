@@ -341,7 +341,7 @@ members per key (`structure.hd:201`).
 | --- | --- | --- | --- | --- |
 | The shared fixes above | the review projected 0.3x encode and 0.2x decode with all of its JSON fixes | listed above | - | - |
 | **A member index per type** from the compiler | O(m²) to O(m) member lookups per decoded value | `hd_structure` | low | #377 |
-| **`bytes_index_json`** through a native loop, later a SIMD body | the escape and string scans; the probe says a native loop gains little on V8 | one helper | low | step 29 (#428) |
+| **`bytes_index_set`** through a native loop, later a SIMD body | the escape and string scans; the probe says a native loop gains little on V8 | one helper | low | step 29 (#428) |
 | **Float text in hd** (Ryu and Eisel-Lemire) | about 30 ns per float against about 250 ns with the host crossing (review estimate) | moves three host primitives into std; needs wide multiplication | medium | question 4 |
 | **A streaming deserializer** that skips the tree | decode without building `Json` | a reader design | medium | #377 and the reader work |
 
@@ -366,7 +366,7 @@ case builds a fresh host and instance.
 Built (2026-10-25). Five std primitives, each a plain hd declaration whose
 hd body is the reference and whose linear-backend body is a SIMD128 helper
 in `crates/hd_wasm_linear/src/scan.rs`, linked only when reached:
-`bytes_index_json` (JSON escape scans, 9-18x on 1 MiB), `bytes_index`
+`bytes_index_set` (JSON escape scans, 9-18x on 1 MiB), `bytes_index`
 (one-byte find, split, count, replace, lines; at least 10x on Node, 24x on
 wasmtime), `bytes_mismatch` (string equality and order, about 9x),
 `utf8_valid_len` (`from_utf8`: ASCII 23x on Node, 38x on wasmtime) and

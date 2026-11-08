@@ -63,7 +63,7 @@ others are private to the one module that calls them.
 | --- | --- | --- |
 | `bytes_len`, `bytes_at`, `bytes_slice` | `rt/bytes.hd`: `(text: string) -> usize`, `(text, index: usize) -> u8`, `(text, start, end: usize) -> string` | compiler |
 | `string_from_bytes` | `(bytes: List[u8]) -> string`, in `rt/bytes.hd`; it owns its argument and takes over an unshared buffer | compiler |
-| `bytes_index_json` | `(text: string, from: usize) -> usize`, in `rt/bytes.hd`; the body there is the reference, and the linear backend links the SIMD128 helper `rt:bytes_index_json` (#428) | compiler |
+| `bytes_index_set` | `(text: string, from: usize, w0: u64, w1: u64, w2: u64, w3: u64) -> usize`, in `rt/bytes.hd`; the body there is the reference, and the linear backend links the SIMD128 helper `rt:bytes_index_set`, one per constant set (#428) | compiler |
 | `bytes_index` | `(text: string, from: usize, byte: u8) -> usize`, in `rt/bytes.hd`; the body there is the reference, and the linear backend links the SIMD128 helper `rt:bytes_index` (#428) | compiler |
 | `bytes_mismatch` | `(left: string, right: string) -> usize`, in `rt/bytes.hd`; the body there is the reference, and the linear backend links the SIMD128 helper `rt:bytes_mismatch` (#428) | compiler |
 | `bytes_index_pair` | `(text: string, from: usize, first: u8, last: u8, gap: usize) -> usize`, in `rt/bytes.hd`; the body there is the reference, and the linear backend links the SIMD128 helper `rt:bytes_index_pair` (#428) | compiler |

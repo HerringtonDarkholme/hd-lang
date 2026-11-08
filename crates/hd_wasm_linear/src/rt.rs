@@ -502,9 +502,10 @@ pub enum Helper {
     /// `(a, b) -> i32`: -1, 0 or 1 as `a` sorts before, with or after `b`,
     /// byte by byte and a prefix first (`expr.ord.std.string-bytes`).
     StrCmp,
-    /// `(at, len, from) -> index`: std's `bytes_index_json`, the first
-    /// byte at or after `from` that JSON must escape, or `len` (#428).
-    BytesIndexJson,
+    /// `(at, len, from) -> index` for a constant set, else `(at, len, from,
+    /// w0, w1, w2, w3) -> index`: std's `bytes_index_set`, the first byte at
+    /// or after `from` in the 256-bit set, or `len` (#428).
+    BytesIndexSet(Option<crate::scan::ByteSet>),
     /// `(at, len, from, byte) -> index`: std's `bytes_index`, the first
     /// byte at or after `from` equal to `byte`, or `len` (#428).
     BytesIndex,
@@ -1862,9 +1863,22 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::StrToBytes { elem } => str_to_bytes(m, elem),
         Helper::StrAppend => str_append(m),
         Helper::StrCmp => str_cmp(m),
-        Helper::BytesIndexJson => {
-            let mut f = m.func("rt:bytes_index_json", vec![Val::I32; 3], vec![Val::I32]);
-            f.raw = Some(crate::scan::json_index_code());
+        Helper::BytesIndexSet(set) => {
+            let params = if set.is_some() {
+                vec![Val::I32; 3]
+            } else {
+                vec![
+                    Val::I32,
+                    Val::I32,
+                    Val::I32,
+                    Val::I64,
+                    Val::I64,
+                    Val::I64,
+                    Val::I64,
+                ]
+            };
+            let mut f = m.func("rt:bytes_index_set", params, vec![Val::I32]);
+            f.raw = Some(crate::scan::set_index_code(*set));
             f
         }
         Helper::BytesIndexPair => {

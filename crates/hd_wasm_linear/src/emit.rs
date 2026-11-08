@@ -3104,11 +3104,21 @@ impl Em<'_, '_, '_> {
             "bytes_at" => self.str_at(i, args[0], args[1]),
             "bytes_slice" => self.str_slice(i, args[0], args[1], args[2]),
             // A SIMD128 scan in place of the hd reference body (#428).
-            "bytes_index_json" => {
+            // A constant set gets a scan of its own (`scan::set_index_code`).
+            "bytes_index_set" => {
                 self.comp(args[0], 0)?;
                 self.comp(args[0], 1)?;
                 self.comp(args[1], 0)?;
-                self.f.helper(Helper::BytesIndexJson);
+                let words = [2, 3, 4, 5].map(|k| self.const_i64(args[k]).map(i64::cast_unsigned));
+                let set = if let [Some(a), Some(b), Some(c), Some(d)] = words {
+                    Some([a, b, c, d])
+                } else {
+                    for arg in &args[2..6] {
+                        self.comp(*arg, 0)?;
+                    }
+                    None
+                };
+                self.f.helper(Helper::BytesIndexSet(set));
                 self.store(i)
             }
             "bytes_index_pair" => {

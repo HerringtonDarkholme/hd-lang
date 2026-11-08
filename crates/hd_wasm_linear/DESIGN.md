@@ -555,8 +555,12 @@ String operations are emitted by `emit/text.rs` and runtime helpers
   and `<` compare bytes in order, a prefix first (`rt:str_cmp`). Integer
   text is written backward into a 20-byte string buffer and is its tail.
   `char_scalar`, `char_from_scalar` and the float bit casts are inline.
-- **Scans.** `bytes_index_json` calls `rt:bytes_index_json` (`scan.rs`,
-  #428), linked only when reached. It reads 16 bytes per step with
+- **Scans.** `bytes_index_set` calls `rt:bytes_index_set` (`scan.rs`,
+  #428), linked only when reached, one per constant set. A constant set
+  that a few compares cover (flipped blocks, spans, single bytes, chosen
+  greedily) tests each lane with them; std.json's escape set is
+  `(b ^ 2) < 0x21 | b == 0x5C`. Any other set looks each byte up in its
+  32-byte bit table with three swizzles. It reads 16 bytes per step with
   `v128.load` and `i8x16.bitmask` while 16 remain, then the string's last
   16 bytes once with the lanes before the start shifted out; a string
   under 16 bytes goes byte by byte. No load leaves the view.

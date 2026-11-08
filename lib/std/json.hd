@@ -25,7 +25,7 @@ use std.rt.bytes.{
     TextSink,
     TextRoom,
     bytes_index,
-    bytes_index_json,
+    bytes_index_set,
 }
 
 fn map_key_text(key: MapKeyValue) -> string:
@@ -432,6 +432,10 @@ fn push_quoted(out: &mut TextRoom, text: string) -> void:
     push_escaped(out, text)
     TextSink::append_text(out, "\"")
 
+# Each `bytes_index_set(text, from, 0x0000_0004_FFFF_FFFF, 0x1000_0000,
+# 0, 0)` below finds the next byte a JSON string escapes: a control byte
+# below 0x20 (bits 0-31), `"` (bit 34) or `\` (bit 92). The words are
+# literal at each call, so the backend sees a constant set.
 # The inside of a quoted string: `"` and `\` escaped, the control
 # characters below U+0020 as `\b`, `\f`, `\n`, `\r`, `\t`, or `\u00XX` with
 # lowercase hex, and every other scalar value as itself
@@ -441,13 +445,13 @@ fn push_quoted(out: &mut TextRoom, text: string) -> void:
 fn push_escaped(out: &mut TextRoom, text: string) -> void:
     size := bytes_len(text)
     let plain: usize = 0
-    let index = bytes_index_json(text, 0)
+    let index = bytes_index_set(text, 0, 0x0000_0004_FFFF_FFFF, 0x1000_0000, 0, 0)
     while index < size:
         if index > plain:
             TextSink::append_text(out, bytes_slice(text, plain, index))
         TextSink::append_text(out, escape_text(bytes_at(text, index)))
         plain = index + 1
-        index = bytes_index_json(text, plain)
+        index = bytes_index_set(text, plain, 0x0000_0004_FFFF_FFFF, 0x1000_0000, 0, 0)
     if plain == 0:
         if size > 0:
             TextSink::append_text(out, text)
@@ -764,7 +768,7 @@ impl Parser:
         if byte == 34:
             let index = at + 1
             while true:
-                index = bytes_index_json(self.text, index)
+                index = bytes_index_set(self.text, index, 0x0000_0004_FFFF_FFFF, 0x1000_0000, 0, 0)
                 if bytes_at(self.text, index) == 34:
                     return index + 1
                 index = index + 2
@@ -802,7 +806,7 @@ impl Parser:
         let index = self.at + 1
         let plain = true
         while true:
-            index = bytes_index_json(self.text, index)
+            index = bytes_index_set(self.text, index, 0x0000_0004_FFFF_FFFF, 0x1000_0000, 0, 0)
             if index >= size:
                 return .Err(JsonError.UnexpectedEnd(index))
             byte := bytes_at(self.text, index)
@@ -1012,7 +1016,7 @@ impl Parser:
         text := self.text
         size := self.size
         start := self.at + 1
-        index := bytes_index_json(text, start)
+        index := bytes_index_set(text, start, 0x0000_0004_FFFF_FFFF, 0x1000_0000, 0, 0)
         if index >= size:
             return .Err(JsonError.UnexpectedEnd(index))
         byte := bytes_at(text, index)
@@ -1033,7 +1037,7 @@ impl Parser:
         let plain = start
         let index = first
         while true:
-            index = bytes_index_json(text, index)
+            index = bytes_index_set(text, index, 0x0000_0004_FFFF_FFFF, 0x1000_0000, 0, 0)
             if index >= size:
                 return .Err(JsonError.UnexpectedEnd(index))
             byte := bytes_at(text, index)

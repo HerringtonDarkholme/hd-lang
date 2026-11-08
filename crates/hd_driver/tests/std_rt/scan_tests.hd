@@ -14,7 +14,7 @@ use std.rt.bytes.{
     bytes_slice,
     bytes_concat,
     string_from_bytes,
-    bytes_index_json,
+    bytes_index_set,
     bytes_index,
     bytes_mismatch,
     bytes_index_pair,
@@ -24,16 +24,33 @@ use std.rt.bytes.{
 fn utf8_valid_len(bytes: List[u8]) -> usize:
     panic("intrinsic")
 
-# The reference body of `bytes_index_json` in lib/std/rt/bytes.hd.
-fn reference_json(text: string, from: usize) -> usize:
+# The reference body of `bytes_index_set` in lib/std/rt/bytes.hd.
+fn reference_set(text: string, from: usize, w0: u64, w1: u64, w2: u64, w3: u64) -> usize:
     size := bytes_len(text)
     let index = from
     while index < size:
-        byte := bytes_at(text, index)
-        if byte < 32 || byte == 34 || byte == 92:
+        byte := u64(bytes_at(text, index))
+        word := if byte < 64: w0 else if byte < 128: w1 else if byte < 192: w2 else: w3
+        if (word >> (byte % 64)) & 1 == 1:
             return index
         index = index + 1
     size
+
+# std.json's escape set as constants: below 0x20, `"` and `\`, which a
+# few compares cover.
+fn json_set(text: string, from: usize) -> usize:
+    bytes_index_set(text, from, 0x0000_0004_FFFF_FFFF, 0x1000_0000, 0, 0)
+
+fn reference_json(text: string, from: usize) -> usize:
+    reference_set(text, from, 0x0000_0004_FFFF_FFFF, 0x1000_0000, 0, 0)
+
+# A constant set no few compares cover (the odd bytes below 0x80, `"`, and
+# every byte from 0xE0), which takes the bit table.
+fn table_set(text: string, from: usize) -> usize:
+    bytes_index_set(text, from, 0xAAAA_AAAE_AAAA_AAAA, 0xAAAA_AAAA_AAAA_AAAA, 0, 0xFFFF_FFFF_0000_0000)
+
+fn reference_table(text: string, from: usize) -> usize:
+    reference_set(text, from, 0xAAAA_AAAE_AAAA_AAAA, 0xAAAA_AAAA_AAAA_AAAA, 0, 0xFFFF_FFFF_0000_0000)
 
 # The reference body of `bytes_index` in lib/std/rt/bytes.hd.
 fn reference_index(text: string, from: usize, byte: u8) -> usize:
@@ -100,6 +117,46 @@ fn scan(c: &mut Choices) -> Scan:
     let byte_at: usize = c.int(0..8)
     let from: usize = c.int(0..=len + 2)
     Scan { start: start, len: len, at: at, byte: edge_byte(byte_at), from: from }
+
+@derive(Debug)
+struct AnySet:
+    start: usize
+    len: usize
+    at: usize
+    byte: u8
+    from: usize
+    w0: u64
+    w1: u64
+    w2: u64
+    w3: u64
+
+# A word of a set: random, empty or full.
+fn set_word(c: &mut Choices) -> u64:
+    match c.int(0..4):
+        0 => 0
+        1 => 0xFFFF_FFFF_FFFF_FFFF
+        _ =>
+            let low: u64 = c.int(0..0x1_0000_0000)
+            let high: u64 = c.int(0..0x1_0000_0000)
+            (high << 32) | low
+
+fn any_set(c: &mut Choices) -> AnySet:
+    let start: usize = c.int(0..32)
+    let len: usize = c.int(0..=80)
+    let at: usize = c.int(0..=len)
+    let byte: u8 = c.int(0..=255)
+    let from: usize = c.int(0..=len + 2)
+    AnySet {
+        start: start,
+        len: len,
+        at: at,
+        byte: byte,
+        from: from,
+        w0: set_word(c),
+        w1: set_word(c),
+        w2: set_word(c),
+        w3: set_word(c),
+    }
 
 # A byte that is not `needle`, varied by position, over the edge values.
 fn other_byte(k: usize, needle: u8) -> u8:
@@ -584,20 +641,20 @@ tests:
         assert_equal(bytes_concat("hé", "世界"), "hé世界", reason="all UTF-8 bytes")
 
     it_prop_with(
-        "bytes_index_json gives what its reference body gives",
+        "bytes_index_set with the JSON set gives what its reference body gives",
         gen=scan,
         cases=2000,
         prop=fn!(s: Scan):
             text := view(s.start, s.len, s.at, s.byte)
             assert_equal(
-                bytes_index_json(text, s.from),
+                json_set(text, s.from),
                 reference_json(text, s.from),
                 reason=debug(s),
             )
         ,
     )
 
-    it("bytes_index_json agrees at every length, view start and 16-byte edge"):
+    it("bytes_index_set with the JSON set agrees at every length, view start and 16-byte edge"):
         let start: usize = 0
         while start < 32:
             let len: usize = 0
@@ -607,7 +664,7 @@ tests:
                     let k: usize = 0
                     while k < 8:
                         text := view(start, len, at, edge_byte(k))
-                        got := bytes_index_json(text, 0)
+                        got := json_set(text, 0)
                         want := reference_json(text, 0)
                         if got != want:
                             assert_equal(
@@ -620,7 +677,7 @@ tests:
                 len = len + 1
             start = start + 1
 
-    it("bytes_index_json starts at every offset, and past the end gives the length"):
+    it("bytes_index_set with the JSON set starts at every offset, and past the end gives the length"):
         let start: usize = 0
         while start < 32:
             let len: usize = 0
@@ -628,13 +685,41 @@ tests:
                 text := view(start, len, len / 2, 92)
                 let from: usize = 0
                 while from <= len + 2:
-                    got := bytes_index_json(text, from)
+                    got := json_set(text, from)
                     want := reference_json(text, from)
                     if got != want:
                         assert_equal(got, want, reason="start $start, length $len, from $from")
                     from = from + 1
                 len = len + 1
             start = start + 1
+
+    it_prop_with(
+        "bytes_index_set with a set of many spans gives what its reference body gives",
+        gen=scan,
+        cases=2000,
+        prop=fn!(s: Scan):
+            text := view(s.start, s.len, s.at, s.byte)
+            assert_equal(
+                table_set(text, s.from),
+                reference_table(text, s.from),
+                reason=debug(s),
+            )
+        ,
+    )
+
+    it_prop_with(
+        "bytes_index_set with a set known only at run time gives what its reference body gives",
+        gen=any_set,
+        cases=2000,
+        prop=fn!(s: AnySet):
+            text := view(s.start, s.len, s.at, s.byte)
+            assert_equal(
+                bytes_index_set(text, s.from, s.w0, s.w1, s.w2, s.w3),
+                reference_set(text, s.from, s.w0, s.w1, s.w2, s.w3),
+                reason=debug(s),
+            )
+        ,
+    )
 
     it_prop_with(
         "bytes_index gives what its reference body gives",
