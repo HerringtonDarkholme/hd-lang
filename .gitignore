@@ -84,4 +84,7 @@ temp/
 
 # Claude Code agent worktrees (the rest of .claude/ may be tracked)
 .claude/worktrees/
+# The owner's local Claude Code hooks and settings.
+.claude/hooks/
+.claude/settings.json
 website/playground/assets/hd_wat.wasm
