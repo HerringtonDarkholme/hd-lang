@@ -86,6 +86,15 @@ pub fn forwarder_bodies(
         let Some(sig) = cx.lookup.item(def).and_then(|i| i.sig()).cloned() else {
             continue;
         };
+        // A counted receiver has no forwarding method: the header check
+        // rejects the delegation (`trait.by.counted-receiver`).
+        if sig
+            .params
+            .first()
+            .is_some_and(|&(_, t)| matches!(pool.get(t), TyData::Ref { counted: true, .. }))
+        {
+            continue;
+        }
         let tm = names.member(*trait_, PathKind::Member, names.text(name));
         let fwd = Forwarder {
             trait_: *trait_,
@@ -172,7 +181,8 @@ impl Forwarder<'_> {
             // The receiver `self.E`, with `self`'s access.
             let sv = ck.b.get(sl, st, at);
             if let Some((inner, mutable)) = ck.ref_of(st) {
-                // A `&self` or `&mut self` receiver of a struct: a
+                // A `&self` or `&mut self` receiver of a struct (never a
+                // counted one, which has no forwarder): a
                 // reference to its embedded part (`trait.by.form`).
                 let Some((idx, ft)) = ck.field_of(inner, part_name) else {
                     return crate::body::unsupported(

@@ -2741,7 +2741,8 @@ impl Service by Logger  # error: invalid-delegation
 ### Generated Methods
 
 1. r[trait.by.generated-receiver] For each method `m` of `Trait` with a receiver, defaults included, that the body does not write, the implementation has a forwarding method. It has `m`'s signature, so its inputs follow `m`'s inputs tuple, a rest element included. Its body is `Trait::m(field, arguments...)`, which passes a vararg on as a spread, and it is checked as if written. Here `field` is `self.E` for a `self` or `mut self` receiver, `&self.E` for a `&self` receiver, and `&mut self.E` for a `&mut self` receiver.
-2. r[trait.by.written] A method written in the body replaces the generated one and follows the rules of [Implementation Declarations](#implementation-declarations), as does any other member of the body.
+2. r[trait.by.counted-receiver] `impl Trait for C by E`, where `Trait` has a method with a `*self` or `*mut self` receiver, is an error, reported on the line of `by`. Error: `invalid-delegation`.
+3. r[trait.by.written] A method written in the body replaces the generated one and follows the rules of [Implementation Declarations](#implementation-declarations), as does any other member of the body.
 
 `impl Describe for Service by Logger` above therefore means:
 
@@ -2759,6 +2760,11 @@ impl Describe for Service:
 > methods, never the delegating implementation's: there is no overriding. A
 > `&mut self` method forwards `&mut self.E`, which is writable through
 > `&mut self`.
+
+> **Why.** A delegating implementation stays shorthand for code its user
+> can write. No expression makes a counted reference to a field
+> ([`ref.box.object`](13-values-and-references.md#r-ref.box.object)), so a
+> forwarding method has nothing to pass for a counted receiver.
 
 See also: [Data Embedding](08-data-and-enums.md#data-embedding),
 [Member Resolution](03-names-and-scopes.md#member-resolution).

@@ -1,0 +1,17 @@
+# test: a trait with a *mut self method cannot be delegated, since no counted reference refers to a field
+# Spec 09 Generated Methods: trait.by.counted-receiver.
+trait Bump:
+    fn bump(*mut self) -> i32
+
+struct Counter:
+    hits: i32
+
+impl Bump for Counter:
+    fn bump(*mut self) -> i32:
+        self.hits += 1
+        self.hits
+
+struct Service:
+    Counter
+
+impl Bump for Service by Counter # diagnostic: invalid-delegation

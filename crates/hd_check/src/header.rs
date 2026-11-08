@@ -555,7 +555,7 @@ impl<'a> ItemCheck<'_, 'a> {
                 args: *trait_args,
                 bindings: vec![],
             });
-            self.delegation(*self_ty, tv, *by)?;
+            self.delegation(*self_ty, (*trait_, tv), *by)?;
         }
         Ok(())
     }
@@ -1292,13 +1292,39 @@ impl<'a> ItemCheck<'_, 'a> {
         })
     }
 
-    /// A delegation target: the embedded field `by` implements the trait.
-    fn delegation(&mut self, self_ty: Ty, tv: Ty, by: Symbol) -> StageResult<()> {
+    /// A delegation target: the embedded field `by` implements the trait,
+    /// and no method of the trait takes a counted receiver, which no
+    /// written expansion forwards (`trait.by.counted-receiver`).
+    fn delegation(&mut self, self_ty: Ty, (tr, tv): (DefId, Ty), by: Symbol) -> StageResult<()> {
         let pool = self.pool();
+        let lookup = self.cx.lookup;
+        let counted = match lookup.item(tr).map(|i| &i.data) {
+            Some(ItemData::Trait(td)) => td.methods.iter().find_map(|&(name, m)| {
+                let &(recv, rt) = lookup.item(m)?.sig()?.params.first()?;
+                match pool.get(rt) {
+                    TyData::Ref {
+                        counted: true,
+                        mutable,
+                        ..
+                    } if self.cx.names.text(recv) == "self" => Some((name, mutable)),
+                    _ => None,
+                }
+            }),
+            _ => None,
+        };
+        if let Some((name, mutable)) = counted {
+            let message = format!(
+                "{} cannot be delegated: its method `{}` takes `{}self`, which a forwarding method cannot pass to the field",
+                self.show(tv),
+                self.cx.names.text(name),
+                if mutable { "*mut " } else { "*" }
+            );
+            self.report(0, Code::InvalidDelegation, message);
+        }
         let TyData::Adt { def, args } = pool.get(self_ty) else {
             return Ok(());
         };
-        let Some(ItemData::Struct(fields)) = self.cx.lookup.item(def).map(|i| &i.data) else {
+        let Some(ItemData::Struct(fields)) = lookup.item(def).map(|i| &i.data) else {
             return Ok(());
         };
         let args = pool.list_items(args);

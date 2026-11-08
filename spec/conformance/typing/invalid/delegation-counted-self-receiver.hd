@@ -1,0 +1,20 @@
+# test: a trait with a *self method cannot be delegated, since no counted reference refers to a field
+# Spec 09 Generated Methods: trait.by.counted-receiver.
+trait Share:
+    fn label(self) -> string
+    fn keep(*self) -> *Self
+
+struct Logger:
+    name: string
+
+impl Share for Logger:
+    fn label(self) -> string:
+        self.name
+
+    fn keep(*self) -> *Logger:
+        self
+
+struct Service:
+    Logger
+
+impl Share for Service by Logger # diagnostic: invalid-delegation
