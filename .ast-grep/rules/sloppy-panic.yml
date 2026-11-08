@@ -1,4 +1,5 @@
-# Sloppy code (owner, 2026-11-08: "unsupported is just one kind of sloppy code").
+# Sloppy code in the compiler core, outside tests (owner, 2026-11-08: "unsupported is
+# just one kind of sloppy code"; "it should only be banned in compiler core and not in test").
 # scripts/check-sloppy.ts counts this rule's matches per crate against
 # scripts/sloppy-ceiling.tsv, which only goes down.
 id: sloppy-panic
@@ -6,7 +7,16 @@ language: Rust
 severity: error
 message: "`panic!` in the compiler; report a diagnostic"
 files:
-  - crates/*/src/**/*.rs
+  - crates/hd_syntax/src/**/*.rs
+  - crates/hd_resolve/src/**/*.rs
+  - crates/hd_types/src/**/*.rs
+  - crates/hd_check/src/**/*.rs
+  - crates/hd_tir/src/**/*.rs
+  - crates/hd_mono/src/**/*.rs
+  - crates/hd_opt/src/**/*.rs
+  - crates/hd_wasm_linear/src/**/*.rs
+  - crates/hd_structure/src/**/*.rs
+  - crates/hd_driver/src/**/*.rs
 ignores:
   - crates/*/src/**/tests.rs
   - crates/*/src/**/*_tests.rs
