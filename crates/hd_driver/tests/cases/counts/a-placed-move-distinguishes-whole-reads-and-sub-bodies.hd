@@ -1,0 +1,33 @@
+# @dump: own counts wat
+# @build: std
+# expected: only a whole-local move ends its placed storage owner. Copies
+# followed by a move release once; a field read keeps its storage until Drop.
+# A closure parameter's move releases its own sub-body's cell, not its creator's.
+use std.annotation.cold
+
+struct Item:
+    text: string
+
+@cold
+fn same[T](a: &T, b: &T) -> bool:
+    a is b
+
+@cold
+fn keep(value: string) -> string:
+    value
+
+@cold
+fn copied(value: string) -> (string, string):
+    _ := same(&value, &value)
+    first := keep(value)
+    (first, value)
+
+@cold
+fn projected(value: Item) -> string:
+    _ := same(&value, &value)
+    value.text
+
+fn nested() -> (fn(string) -> string):
+    fn(value: string) -> string:
+        _ := same(&value, &value)
+        value
