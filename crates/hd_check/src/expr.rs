@@ -3134,13 +3134,16 @@ impl Ck<'_, '_> {
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
         let list = self.cx.names.known.list;
-        let elem = match self
-            .literal_want(want)
-            .map(|w| self.infer.shallow(pool, w))
-            .map(|w| match pool.get(w) {
-                TyData::Mut(i) => pool.get(i),
-                d => d,
-            }) {
+        let elem = match (if kids.is_empty() {
+            want
+        } else {
+            self.literal_want(want)
+        })
+        .map(|w| self.infer.shallow(pool, w))
+        .map(|w| match pool.get(w) {
+            TyData::Mut(i) => pool.get(i),
+            d => d,
+        }) {
             Some(TyData::Adt { def, args }) if def == list => {
                 pool.list_items(args).first().copied()
             }
@@ -3347,13 +3350,16 @@ impl Ck<'_, '_> {
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
         let map = self.cx.names.known.map;
-        let (kw, vw) = match self
-            .literal_want(want)
-            .map(|w| self.infer.shallow(pool, w))
-            .map(|w| match pool.get(w) {
-                TyData::Mut(i) => pool.get(i),
-                d => d,
-            }) {
+        let (kw, vw) = match (if kids.is_empty() {
+            want
+        } else {
+            self.literal_want(want)
+        })
+        .map(|w| self.infer.shallow(pool, w))
+        .map(|w| match pool.get(w) {
+            TyData::Mut(i) => pool.get(i),
+            d => d,
+        }) {
             Some(TyData::Adt { def, args }) if def == map => {
                 let a = pool.list_items(args);
                 (Some(a[0]), Some(a[1]))
