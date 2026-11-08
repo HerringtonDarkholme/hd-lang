@@ -265,6 +265,7 @@ trait Display < ?Copy:
 22. r[expr.interp.value-allocation] A value interpolation allocates its result buffer once and must not grow it while assembling the pieces.
 23. r[expr.interp.value-width] Sizing includes literal bytes, string lengths, and exact formatted numeric widths, rather than maximum numeric widths.
 24. r[expr.interp.value-snapshot] Each piece retains the text or primitive value it had at its segment position, despite later expressions changing its source.
+25. r[expr.interp.builder.push.destination] When the string is pushed onto a builder, a `write` call may receive that destination builder, which may already hold text.
 
 > **Why.** Measuring before assembly avoids a second allocation and copy
 > for short literals containing numbers. Retaining a custom writer's output

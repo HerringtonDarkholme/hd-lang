@@ -1,0 +1,31 @@
+# test: when an interpolation is pushed onto a builder, write may receive that builder, so the fixture asserts only that the written text is appended after the earlier text
+# Spec 05 String Interpolation: expr.interp.builder.push, expr.interp.builder.push.destination; Spec 09 Display Trait: trait.display.write.append-only (owner decision 2026-11-08, #1457).
+use std.text.StringBuilder
+
+# Observes which builder it is given.
+struct Identity:
+    target: *mut StringBuilder
+
+impl Display for Identity:
+    fn to_string(&self) -> string:
+        "unused"
+
+    fn write(&self, out: &mut StringBuilder) -> void:
+        if out is self.target:
+            out.push("<same>")
+        else:
+            out.push("<other>")
+
+fn identity_demo() -> string:
+    b := StringBuilder::new()
+    p := Identity { target: b }
+    b.push("head:")
+    b.push("a-$p-z")
+    b.build()
+
+tests:
+    use std.testing.assert
+
+    it("a write that observes the builder's identity only appends"):
+        text := identity_demo()
+        assert(text == "head:a-<same>-z" || text == "head:a-<other>-z", reason="the written text follows the earlier text and the literals")

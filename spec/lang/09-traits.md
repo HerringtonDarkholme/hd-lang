@@ -615,6 +615,7 @@ shows its declaration.
 4. r[trait.display.write.parts] An override may push its text to `out` in parts, avoiding intermediate strings when the caller streams into one builder.
 5. r[trait.display.builder] `StringBuilder` is `std.text.StringBuilder` ([Joining And Building](../std/text.md#joining-and-building)). It is not a prelude name, so an implementation that overrides `write` imports it, as in `use std.text.StringBuilder`.
 6. r[trait.read.noncopy] `Debug`, `Display`, `Eq`, `PartialOrd`, `Ord`, `Hash`, and `Serialize` do not require `Copy`.
+7. r[trait.display.write.append-only] `write` must only append to `out`. Output that depends on the identity of `out`, or on text it already holds, is allowed and unspecified.
 
 > **Note.** Interpolation calls `write`, and `value.to_string()` calls
 > `to_string`. An override that pushes other text than `to_string`
