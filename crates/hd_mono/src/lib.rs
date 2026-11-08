@@ -148,9 +148,9 @@ pub trait ProgramEnv: LayoutEnv {
     /// The compiler's lowering key of a body-less std function
     /// (`@intrinsic("key")`, or a compiler-supplied item by name).
     fn intrinsic(&self, def: DefId) -> Option<String>;
-    /// `std.json`'s `encode`, `decode`, their two trait declarations, and
-    /// `std.result`'s checked unwrap after a boundary `decode`.
-    fn json_items(&self) -> Option<JsonItems>;
+    /// The std items a host boundary calls: the host codecs of a
+    /// private-field type and the handle reference wrapper.
+    fn host_items(&self) -> HostItems;
     /// Public HD capability -> internal wire trait and ordinary generic
     /// library adapter. Rich message state never crosses a host boundary.
     fn host_bridge(&self, _key: Ty) -> Option<HostBridge>;
@@ -429,50 +429,29 @@ pub struct HostBridge {
     pub adapter: DefId,
 }
 
-/// The `std.json` and `std.serde` items a host boundary codec calls: JSON
-/// `encode` and `decode` at a private-field type, the two traits the
-/// boundary direction needs, and `Result`'s checked unwrap after a
-/// boundary `decode` (`module.boundary.serialize.exact`,
-/// `.deserialize.exact`).
+/// The std items a host boundary calls (`module.boundary.serialize.exact`,
+/// `.deserialize.exact`): `std.host`'s codecs, `T -> string` out of hd and
+/// `string -> T` into it, for a profile's own host and for a package host,
+/// and `std.rt.host_provider`, which puts a host handle that enters hd as a
+/// trait value reference behind a new object (`BoundaryCodecs::handle_ref`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct JsonItems {
-    pub package_encode: DefId,
-    pub package_decode: DefId,
+pub struct HostItems {
     pub encode: DefId,
     pub decode: DefId,
-    pub serialize: DefId,
-    pub deserialize: DefId,
-    pub result_is_ok: DefId,
-    pub result_expect: DefId,
-    /// `std.rt.host_provider`, which puts a host handle that enters hd as
-    /// a trait value reference behind a new object
-    /// (`BoundaryCodecs::handle_ref`).
+    pub package_encode: DefId,
+    pub package_decode: DefId,
     pub host_provider: DefId,
 }
 
-/// A boundary `decode` followed by its checked unwrap: the `decode`
-/// instance at the value type, and `is_ok` plus `expect` at the
-/// `decode` result's type arguments.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct JsonDecode {
-    pub decode: Hash128,
-    pub is_ok: Hash128,
-    pub expect: Hash128,
-}
-
-/// The JSON codecs of one private-field boundary type, by crossing
-/// direction (`module.boundary.direction`): `encode` for a value leaving
-/// hd, `decode` for one entering it.
+/// The host codec instances of one private-field boundary type, by
+/// crossing direction (`module.boundary.direction`): `encode` for a value
+/// leaving hd, `decode` for one entering it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct BoundaryCodecs {
     pub package_encode: Option<Hash128>,
-    pub package_decode: Option<JsonDecode>,
-    pub package_decoded: Option<Ty>,
+    pub package_decode: Option<Hash128>,
     pub encode: Option<Hash128>,
-    pub decode: Option<JsonDecode>,
-    /// The `decode` result type, whose Wasm values the boundary decoder
-    /// checks and unwraps.
-    pub decoded: Option<Ty>,
+    pub decode: Option<Hash128>,
     /// For a trait value reference `&mut dyn H` to a host handle entering
     /// hd, as `Net.connect!` returns (`std-net.handles.ref`): the
     /// `std.rt.host_provider` instance at `dyn H`, which puts the handle's
@@ -480,8 +459,8 @@ pub struct BoundaryCodecs {
     pub handle_ref: Option<Hash128>,
 }
 
-/// The JSON codecs of the private-field types in the entry rows'
-/// provider signatures, by stripped type.
+/// The host codecs of the private-field types in the entry rows'
+/// provider signatures, by type.
 pub type BoundaryMap = HashMap<Ty, BoundaryCodecs>;
 
 /// The output of `Collect` (`crates/hd_mono/DESIGN.md` §11.3).
@@ -506,9 +485,9 @@ pub struct Collected {
     pub supplied: HashMap<(DefId, Ty), Arc<Body>>,
     /// Bodies whose constant defaults were folded before collection.
     pub instance_bodies: HashMap<InstId, Arc<Body>>,
-    /// The JSON codecs of the private-field types in the entry rows'
-    /// provider signatures, by stripped type, which the host boundary
-    /// calls instead of reading private fields directly.
+    /// The host codecs of the private-field types in the entry rows'
+    /// provider signatures, which the host boundary calls instead of
+    /// reading private fields directly.
     pub boundary: BoundaryMap,
     /// The trait methods that scanned code calls through a trait value
     /// ([`Target::Dyn`], a function reference's adapter included).
@@ -2436,13 +2415,13 @@ impl Cx<'_> {
         Ok(picked)
     }
 
-    /// Collects the JSON codecs of the private-field types in the entry
+    /// Collects the host codecs of the private-field types in the entry
     /// rows' provider signatures, before the work queue scans: each host
     /// capability method's arguments cross out of hd and its result
     /// crosses in (`module.boundary.direction`), so an argument's private
-    /// types need `encode` and a result's need `decode` plus its checked
-    /// unwrap. Checking already reports a missing trait at the signature;
-    /// selection here keeps the codec instances reachable for emission.
+    /// types need `encode` and a result's need `decode`. Checking already
+    /// reports a missing trait at the signature; the instances here keep
+    /// the codecs reachable for emission.
     /// A trait value a result brings in is a host handle, whose methods
     /// cross the same boundary.
     fn note_boundary_codecs(&mut self, roots: &[(DefId, TyList)]) -> StageResult<()> {
@@ -2495,9 +2474,9 @@ impl Cx<'_> {
         Ok(())
     }
 
-    /// Records the JSON codec a private-field type in a boundary value
-    /// needs: `encode` when `out` (the value leaves hd), `decode` plus
-    /// its checked unwrap otherwise. A public wrapper still needs the
+    /// Records the host codec a private-field type in a boundary value
+    /// needs: `encode` when `out` (the value leaves hd), `decode`
+    /// otherwise. A public wrapper still needs the
     /// codecs of the private types inside it. The trait values inside it
     /// go to `handles`.
     fn note_boundary_value(
@@ -2520,14 +2499,13 @@ impl Cx<'_> {
                     if let [inner] = self.pool.list_items(args)[..]
                         && !out
                         && is_trait_value(self.pool, inner)
-                        && let Some(json) = self.env.json_items()
                     {
                         // The wrapper builds a handle value. Reference permission
                         // stays in the boundary key, not its payload type.
                         let (provider, value) = self
                             .env
                             .host_bridge(inner)
-                            .map_or((json.host_provider, inner), |bridge| {
+                            .map_or((self.env.host_items().host_provider, inner), |bridge| {
                                 (bridge.adapter, bridge.wire)
                             });
                         let at = self.pool.list(&[value]);
@@ -2565,52 +2543,20 @@ impl Cx<'_> {
     }
 
     fn note_private_boundary(&mut self, ty: Ty, out: bool, package: bool) -> StageResult<()> {
-        let Some(json) = self.env.json_items() else {
-            return err("a host boundary without its JSON codecs");
+        let items = self.env.host_items();
+        let def = match (out, package) {
+            (true, true) => items.package_encode,
+            (true, false) => items.encode,
+            (false, true) => items.package_decode,
+            (false, false) => items.decode,
         };
-        if out {
-            self.select(json.serialize, ty, TyList::EMPTY, None)?;
-            let def = if package {
-                json.package_encode
-            } else {
-                json.encode
-            };
-            let encode = self.target(def, self.pool.list(&[ty]), InstId::NONE)?;
-            let entry = self.out.boundary.entry(ty).or_default();
-            if package {
-                entry.package_encode = Some(encode.key);
-            } else {
-                entry.encode = Some(encode.key);
-            }
-        } else {
-            self.select(json.deserialize, ty, TyList::EMPTY, None)?;
-            let decode = self.target(
-                if package {
-                    json.package_decode
-                } else {
-                    json.decode
-                },
-                self.pool.list(&[ty]),
-                InstId::NONE,
-            )?;
-            let TyData::Adt { args, .. } = self.pool.get(decode.ret) else {
-                return err("a boundary `decode` without its `Result`");
-            };
-            let is_ok = self.target(json.result_is_ok, args, InstId::NONE)?;
-            let expect = self.target(json.result_expect, args, InstId::NONE)?;
-            let entry = self.out.boundary.entry(ty).or_default();
-            let decoder = Some(JsonDecode {
-                decode: decode.key,
-                is_ok: is_ok.key,
-                expect: expect.key,
-            });
-            if package {
-                entry.package_decode = decoder;
-                entry.package_decoded = Some(decode.ret);
-            } else {
-                entry.decode = decoder;
-                entry.decoded = Some(decode.ret);
-            }
+        let key = Some(self.target(def, self.pool.list(&[ty]), InstId::NONE)?.key);
+        let entry = self.out.boundary.entry(ty).or_default();
+        match (out, package) {
+            (true, true) => entry.package_encode = key,
+            (true, false) => entry.encode = key,
+            (false, true) => entry.package_decode = key,
+            (false, false) => entry.decode = key,
         }
         Ok(())
     }

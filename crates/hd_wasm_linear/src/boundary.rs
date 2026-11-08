@@ -67,8 +67,9 @@ pub enum LTy {
     /// A host handle: its number. It only crosses from the host.
     Handle(Box<LHandle>),
     /// A data type with a field that is not `pub`, at a runtime profile's
-    /// boundary: its JSON text (`module.boundary.serialize.exact`).
-    Json(Box<LJson>),
+    /// boundary: the string its std host codec writes or reads
+    /// (`module.boundary.serialize.exact`).
+    Codec(Box<LCodec>),
 }
 
 /// A list's element: its layout in the buffer and its boundary type.
@@ -99,22 +100,16 @@ pub struct LHandle {
     pub release: Option<String>,
 }
 
-/// A private-field data type's JSON codecs: `encode` when the value
-/// leaves hd; `decode`, its `Result`'s `is_ok` and `expect` when it
-/// enters, with that `Result`'s values and counted references.
+/// A private-field data type's host codec: the std instance that makes
+/// its string (`T -> string`) when the value leaves hd, or builds it from
+/// the string (`string -> T`) when it enters.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct LJson {
+pub struct LCodec {
     pub vals: Vec<Val>,
-    /// The value's counted references, which `encode` owns
+    /// The value's counted references, which the codec owns
     /// (`layout::Pass`): the encoder counts a copy for it.
     pub walk: Option<Walk>,
-    pub encode: Option<Hash128>,
-    pub decode: Option<[Hash128; 3]>,
-    pub decoded: Vec<Val>,
-    pub decoded_walk: Option<Walk>,
-    /// The decoded `Result`'s size and leaves in memory: `is_ok` borrows it
-    /// (`&self`), so it reads the result from a block of its own.
-    pub decoded_mem: (u32, Vec<layout::Leaf>),
+    pub codec: Hash128,
 }
 
 impl LTy {
@@ -130,7 +125,7 @@ impl LTy {
             LTy::Bytes | LTy::List(_) => vec![Val::I32],
             LTy::Record(fields) => fields.iter().flat_map(LTy::vals).collect(),
             LTy::Enum(e) => e.vals.clone(),
-            LTy::Json(j) => j.vals.clone(),
+            LTy::Codec(c) => c.vals.clone(),
         }
     }
 
@@ -166,7 +161,7 @@ impl LTy {
     }
 }
 
-/// A runtime profile's boundary: the JSON codecs its private-field types
+/// A runtime profile's boundary: the host codecs its private-field types
 /// cross through, whether the value leaves hd, and the profile handle
 /// traits whose slots enclose it, innermost last.
 #[derive(Clone, Copy)]
@@ -200,12 +195,12 @@ fn of_at(
     }
     let s = layout::strip(pool, env, t);
     // A data type with a field that is not `pub` crosses a profile's
-    // boundary as its JSON text, through the codecs collection gathered.
+    // boundary as the string of its std host codec.
     if let (TyData::Adt { def, .. }, Some(at)) = (pool.get(s), at)
         && !env.ref_cells().holds(def)
         && env.has_private_field(def)
     {
-        return json(input, t, s, at);
+        return codec(input, t, s, at);
     }
     let int = |bits, signed| LTy::Int { bits, signed };
     Ok(match pool.get(s) {
@@ -390,62 +385,28 @@ fn enum_of(
 }
 
 /// A private-field type `t` (stripped `s`) at a profile's boundary.
-fn json(input: &Input<'_>, t: Ty, s: Ty, at: AtProfile<'_>) -> StageResult<LTy> {
+fn codec(input: &Input<'_>, t: Ty, s: Ty, at: AtProfile<'_>) -> StageResult<LTy> {
     let (pool, env) = (input.pool, input.env);
-    let name = || pool.display(s);
-    let Some(codecs) = at.codecs.get(&t).or_else(|| at.codecs.get(&s)) else {
+    let codecs = at.codecs.get(&t).or_else(|| at.codecs.get(&s));
+    let codec = codecs.and_then(|c| match (at.out, at.package) {
+        (true, true) => c.package_encode,
+        (true, false) => c.encode,
+        (false, true) => c.package_decode,
+        (false, false) => c.decode,
+    });
+    let Some(codec) = codec else {
         return unsupported(format!(
-            "`{}` at a profile's boundary without a collected JSON codec",
-            name()
+            "`{}` at a profile's boundary without its host codec",
+            pool.display(s)
         ));
     };
-    let vals = layout::vals(pool, env, s)?;
-    let walk = match layout::pass(pool, env, input.runtime.is_some(), s) {
-        layout::Pass::Owned(w) => Some(w),
-        _ => None,
-    };
-    if at.out {
-        let Some(encode) = (if at.package {
-            codecs.package_encode
-        } else {
-            codecs.encode
-        }) else {
-            return unsupported(format!(
-                "`{}` at a profile's boundary without its Serialize codec",
-                name()
-            ));
-        };
-        return Ok(LTy::Json(Box::new(LJson {
-            vals,
-            walk,
-            encode: Some(encode),
-            decode: None,
-            decoded: Vec::new(),
-            decoded_walk: None,
-            decoded_mem: (0, Vec::new()),
-        })));
-    }
-    let (Some(decode), Some(decoded)) = (if at.package {
-        (codecs.package_decode, codecs.package_decoded)
-    } else {
-        (codecs.decode, codecs.decoded)
-    }) else {
-        return unsupported(format!(
-            "`{}` at a profile's boundary without its Deserialize codec",
-            name()
-        ));
-    };
-    Ok(LTy::Json(Box::new(LJson {
-        vals,
-        walk,
-        encode: None,
-        decode: Some([decode.decode, decode.is_ok, decode.expect]),
-        decoded: layout::vals(pool, env, decoded)?,
-        decoded_walk: input.runtime.and_then(|_| layout::walk(pool, env, decoded)),
-        decoded_mem: {
-            let m = layout::mem(pool, env, decoded)?;
-            (m.size, m.leaves)
+    Ok(LTy::Codec(Box::new(LCodec {
+        vals: layout::vals(pool, env, s)?,
+        walk: match layout::pass(pool, env, input.runtime.is_some(), s) {
+            layout::Pass::Owned(w) => Some(w),
+            _ => None,
         },
+        codec,
     })))
 }
 
@@ -524,7 +485,7 @@ pub fn uncalled_slot_at(
 /// call for a method that never waits, a cold leaf frame for one that
 /// may. With `handle`, the slot is a host handle's inner call: the
 /// handle number is its first argument, an `i32` (`Helper::HandleSlot`).
-/// At a profile's boundary `at`, private-field types cross as JSON.
+/// At a profile's boundary `at`, private-field types cross as their host codec's string.
 pub fn host_slot(
     input: &Input<'_>,
     mm: &mut Module,
@@ -630,7 +591,7 @@ fn result_type(
     Ok(boundary)
 }
 
-/// Whether a direct string field can use the non-owning decoder. JSON codecs,
+/// Whether a direct string field can use the non-owning decoder. Host codecs,
 /// handles and collection construction retain their existing behavior and checks.
 fn has_direct_strings(ty: &LTy) -> bool {
     match ty {
@@ -1492,8 +1453,8 @@ fn release(f: &mut Func, m: &Module, ls: &[u32], vals: Vec<Val>, walk: Option<Wa
 }
 
 /// [`Helper::Enc`]: the encoder of `b`, `(off, values...) -> off'`.
-/// Its value's type was built for this direction (`of`), so a JSON
-/// value has its `Serialize` codec and no handle is in it.
+/// Its value's type was built for this direction (`of`), so a codec
+/// value has its encoder and no handle is in it.
 pub fn enc(b: &LTy, m: &Module) -> Func {
     let mut params = vec![Val::I32];
     params.extend(b.vals());
@@ -1637,24 +1598,20 @@ pub fn enc(b: &LTy, m: &Module) -> Func {
                 f.op(I::End);
             }
         }
-        LTy::Json(j) => {
-            let Some(encode) = j.encode else {
-                f.op(I::Unreachable);
-                return f;
-            };
+        LTy::Codec(c) => {
             let text = [f.local(Val::I32), f.local(Val::I32)];
-            // The encoder borrows the value; `encode` owns its copy.
-            let n = u32::try_from(j.vals.len()).expect("values");
+            // The encoder borrows the value; the codec owns its copy.
+            let n = u32::try_from(c.vals.len()).expect("values");
             let get = |f: &mut Func| {
                 for k in 0..n {
                     f.get(1 + k);
                 }
             };
             if m.runtime.is_some() {
-                own_arg(&mut f, &j.vals, j.walk.as_ref(), &get);
+                own_arg(&mut f, &c.vals, c.walk.as_ref(), &get);
             }
             get(&mut f);
-            f.call(Sym::Inst(encode));
+            f.call(Sym::Inst(c.codec));
             f.set(text[1]);
             f.set(text[0]);
             enc_call(&mut f, 0, &LTy::Str, |f| {
@@ -1679,9 +1636,9 @@ pub fn enc(b: &LTy, m: &Module) -> Func {
 }
 
 /// [`Helper::Dec`]: the decoder of `b`, `(off) -> (values..., off')`.
-/// Its value's type was built for this direction (`of`), so a JSON
-/// value has its `Deserialize` codecs, and a list is built only when the
-/// program links std's allocator.
+/// Its value's type was built for this direction (`of`), so a codec
+/// value has its decoder, and a list is built only when the program links
+/// std's allocator.
 pub fn dec(b: &LTy, m: &mut Module) -> Func {
     let mut results = b.vals();
     results.push(Val::I32);
@@ -1925,90 +1882,15 @@ pub fn dec(b: &LTy, m: &mut Module) -> Func {
                 release(&mut f, m, &[data], vec![Val::I32], Some(Walk::Ref(0)));
             }
         }
-        LTy::Json(j) => {
-            let Some([decode, is_ok, expect]) = j.decode else {
-                f.op(I::Unreachable);
-                return f;
-            };
+        LTy::Codec(c) => {
+            // The decoded string's count goes to the codec, which owns its
+            // argument (`layout::Pass`); a value that does not deserialize
+            // is its `host-contract` panic (`module.boundary.deserialize.exact`).
             let text = dec_into(&mut f, 0, &LTy::Str);
-            // `decode` and `expect` own their arguments (`layout::Pass`):
-            // each takes a count of its own; `is_ok` borrows.
-            let counts = m.runtime.is_some();
-            if counts {
-                own_arg(&mut f, &[Val::I32, Val::I32], Some(&Walk::Ref(0)), &|f| {
-                    f.get(text[0]);
-                    f.get(text[1]);
-                });
-            }
-            for l in &text {
-                f.get(*l);
-            }
-            f.call(Sym::Inst(decode));
-            let res: Vec<u32> = j.decoded.iter().map(|v| f.local(*v)).collect();
-            for l in res.iter().rev() {
-                f.set(*l);
-            }
-            release(
-                &mut f,
-                m,
-                &text,
-                vec![Val::I32, Val::I32],
-                Some(Walk::Ref(0)),
-            );
-            let get_res = |f: &mut Func| {
-                for l in &res {
-                    f.get(*l);
-                }
-            };
-            // `is_ok` borrows the result (`&self`): its values go to a
-            // block of their own, uncounted, whose address it takes; the
-            // block goes after the call, its values untouched.
-            let (size, leaves) = &j.decoded_mem;
-            let block = f.local(Val::I32);
-            f.u32((*size).max(1));
-            crate::rt::push_desc(&mut f, None, false);
-            f.helper(Helper::New);
-            f.set(block);
-            for (leaf, l) in leaves.iter().zip(&res) {
-                f.get(block);
-                f.get(*l);
-                f.op(leaf.store(0));
-            }
-            let ok = f.local(Val::I32);
-            f.get(block);
-            f.call(Sym::Inst(is_ok));
-            f.set(ok);
-            if counts {
-                f.get(block);
-                f.helper(Helper::ReleaseRef);
-            }
-            f.get(ok);
-            f.op(I::I32Eqz);
-            f.op(I::If(BlockType::Empty));
-            // A `deserialize` error is a `host-contract` panic the caller
-            // sees (`module.boundary.deserialize.exact`).
-            f.helper(Helper::Panic(
-                "host-contract: a host boundary value does not deserialize".into(),
-            ));
-            f.op(I::End);
-            // Checked above, so this never fails: the value `decode` built.
-            let checked = b"a host boundary decode already checked";
-            let lit = m.static_bytes(checked, 1);
-            let value: Vec<u32> = j.vals.iter().map(|v| f.local(*v)).collect();
-            if counts {
-                own_arg(&mut f, &j.decoded, j.decoded_walk.as_ref(), &get_res);
-            }
-            get_res(&mut f);
-            f.static_addr(lit);
-            f.u32(u32::try_from(checked.len()).expect("literal"));
-            f.call(Sym::Inst(expect));
-            for l in value.iter().rev() {
-                f.set(*l);
-            }
-            release(&mut f, m, &res, j.decoded.clone(), j.decoded_walk.clone());
-            for l in value {
+            for l in text {
                 f.get(l);
             }
+            f.call(Sym::Inst(c.codec));
         }
     }
     f.get(0);

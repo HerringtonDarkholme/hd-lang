@@ -2048,21 +2048,9 @@ impl Env<'_> {
 
     /// Whether emitted glue calls `item` with owned arguments, so it lends
     /// nothing: a runtime function emitted code calls, an entry's status
-    /// function, or one a host boundary codec calls.
+    /// function, or a host boundary codec.
     fn called_by_glue(&self, item: DefId) -> bool {
         self.run.glue_items().contains(&item)
-            || self.json_items().is_some_and(|j| {
-                [
-                    j.package_encode,
-                    j.package_decode,
-                    j.encode,
-                    j.decode,
-                    j.result_is_ok,
-                    j.result_expect,
-                    j.host_provider,
-                ]
-                .contains(&item)
-            })
     }
 
     /// Release (#1289, #1232): the borrows of each member of recursive component

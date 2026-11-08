@@ -1,5 +1,6 @@
-# std.host: the host capability traits `Args`, `Env`, and `Sys`, their helpers, and
-# the deterministic providers `ScriptedArgs`, `ScriptedEnv`, and `ScriptedSys`
+# std.host: the host capability traits `Args`, `Env`, and `Sys`, their helpers,
+# the deterministic providers `ScriptedArgs`, `ScriptedEnv`, and `ScriptedSys`, and the
+# host wire format of private-field boundary types
 # (spec/std/host.md).
 # The default profile binds host `Args`, `Env`, and `Sys`
 # (src/commands/default-profile.ts).
@@ -282,3 +283,139 @@ impl Sys for ScriptedSys:
                     .Ok(count) => .Ok(count)
                     .Err(_) => .Err(HostError.Unsupported("cpu_count"))
             .None => .Err(HostError.Unsupported("cpu_count"))
+
+# The host wire format (spec/lang/10-modules.md#r-module.boundary.serialize.exact,
+# #r-module.boundary.deserialize.exact). A data type with a field that is not
+# `pub` crosses a runtime profile's host boundary as the text these write and
+# read; the compiler calls them at each such type, like any other call. A
+# profile's own host reads that text as JSON; a package host reads a flat typed
+# token stream of it, which keeps integer and float kinds apart and does not
+# multiply nesting depth. A value that does not deserialize is the
+# `host-contract` panic the caller sees. These stay last so they change no
+# existing item ID.
+use std.json.{Json, JsonError, JsonObject, Number, to_json, from_json, encode, decode}
+use std.serde.Serialize
+
+@intrinsic("panic")
+fn contract_panic(category: string, message: string) -> never:
+    panic("intrinsic")
+
+fn host_encode[T < Serialize](value: T) -> string:
+    encode(value)
+
+fn host_decode[T < Deserialize](text: string) -> T:
+    match decode::[T](text):
+        .Ok(value) => value
+        .Err(_) => contract_panic("host-contract", "a host boundary value does not deserialize")
+
+fn package_encode[T < Serialize](value: T) -> string:
+    let mut pending: List[Json] = [to_json(value)]
+    let mut tokens: List[Json] = []
+    while !pending.is_empty():
+        item := pending.pop().expect("pending value")
+        match item:
+            .Null => tokens.push(.Array([.Text("n")]))
+            .Bool(value) => tokens.push(.Array([.Text("b"), .Bool(value)]))
+            .Text(value) => tokens.push(.Array([.Text("s"), .Text(value)]))
+            .Number(value) =>
+                match value.as_i64():
+                    .Some(integer) => tokens.push(.Array([.Text("i"), .Text("$integer")]))
+                    .None =>
+                        match value.as_u64():
+                            .Some(integer) => tokens.push(.Array([.Text("u"), .Text("$integer")]))
+                            .None =>
+                                bits := value.as_f64().expect("number").to_bits()
+                                let text = bits.to_radix(16)
+                                while text.len() < 16:
+                                    text = "0" + text
+                                tokens.push(.Array([.Text("f"), .Text(text)]))
+            .Array(items) =>
+                tokens.push(.Array([.Text("a"), .Number(Number::from_u64(u64(items.len())))]))
+                let at = items.len()
+                while at > 0:
+                    at = at - 1
+                    pending.push(items[at])
+            .Object(fields) =>
+                tokens.push(.Array([.Text("o"), .Number(Number::from_u64(u64(fields.len())))]))
+                keys := fields.keys()
+                let at = keys.len()
+                while at > 0:
+                    at = at - 1
+                    key := keys[at]
+                    pending.push(fields.get(key).expect("object key"))
+                    pending.push(.Text(key))
+    encode(tokens)
+
+fn package_decode[T < Deserialize](text: string) -> T:
+    match package_read::[T](text):
+        .Ok(value) => value
+        .Err(_) => contract_panic("host-contract", "a host boundary value does not deserialize")
+
+fn package_error() -> JsonError:
+    .WrongType(path="$", expected="a package host value")
+
+fn package_read[T < Deserialize](text: string) -> Result[T, JsonError]:
+    tokens := decode::[List[Json]](text)?
+    let mut values: List[Json] = []
+    let at = tokens.len()
+    while at > 0:
+        at = at - 1
+        token := tokens[at]
+        tag := token.at(0).and_then(fn(v): v.as_text()).ok_or(package_error())?
+        match token:
+            .Array(items) =>
+                expected := if tag == "n": 1 else: 2
+                if items.len() != expected:
+                    return .Err(package_error())
+            _ => return .Err(package_error())
+        match tag:
+            "n" => values.push(.Null)
+            "b" =>
+                value := token.at(1).and_then(fn(v): v.as_bool()).ok_or(package_error())?
+                values.push(.Bool(value))
+            "s" =>
+                value := token.at(1).and_then(fn(v): v.as_text()).ok_or(package_error())?
+                values.push(.Text(value))
+            "i" =>
+                value := token.at(1).and_then(fn(v): v.as_text()).ok_or(package_error())?
+                number := value.parse::[i64]().map_err(fn(_error): package_error())?
+                values.push(.Number(Number::from_i64(number)))
+            "u" =>
+                value := token.at(1).and_then(fn(v): v.as_text()).ok_or(package_error())?
+                number := value.parse::[u64]().map_err(fn(_error): package_error())?
+                values.push(.Number(Number::from_u64(number)))
+            "f" =>
+                value := token.at(1).and_then(fn(v): v.as_text()).ok_or(package_error())?
+                if value.len() != 16:
+                    return .Err(package_error())
+                bits := u64::parse_radix(value, 16).map_err(fn(_error): package_error())?
+                number := Number::from_f64(f64::from_bits(bits)).ok_or(package_error())?
+                values.push(.Number(number))
+            "a" =>
+                count := token.at(1).and_then(fn(v): v.as_u64()).ok_or(package_error())?
+                if count > u64(values.len()):
+                    return .Err(package_error())
+                let mut items: List[Json] = []
+                let left = count
+                while left > 0:
+                    items.push(values.pop().ok_or(package_error())?)
+                    left = left - 1
+                values.push(.Array(items))
+            "o" =>
+                count := token.at(1).and_then(fn(v): v.as_u64()).ok_or(package_error())?
+                if count > u64(values.len() / 2):
+                    return .Err(package_error())
+                let mut fields = JsonObject::new()
+                let left = count
+                while left > 0:
+                    key := values.pop().and_then(fn(v): v.as_text()).ok_or(package_error())?
+                    value := values.pop().ok_or(package_error())?
+                    if fields.contains_key(key):
+                        return .Err(package_error())
+                    fields.set(key, value)
+                    left = left - 1
+                values.push(.Object(fields))
+            _ => return .Err(package_error())
+    if values.len() != 1:
+        return .Err(package_error())
+    from_json::[T](values.pop().ok_or(package_error())?)

@@ -1170,7 +1170,7 @@ fn host_vtable(input: &Input<'_>, m: &mut Module, key: Ty) -> StageResult<usize>
 /// and waits when it suspends; every argument and result crosses in the
 /// exchange buffer, so a result gets each check of its declared type
 /// (`module.profile.host-result.*`), and a private-field type crosses as
-/// its JSON text (`module.boundary.serialize.exact`).
+/// its host codec's string (`module.boundary.serialize.exact`).
 fn profile_vtable(
     input: &Input<'_>,
     m: &mut Module,

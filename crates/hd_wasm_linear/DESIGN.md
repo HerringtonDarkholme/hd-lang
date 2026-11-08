@@ -1914,8 +1914,9 @@ handles and runtime-profile traits, so programs that use `fs`, `process`,
   struct or a tuple as a record of its fields' values, an enum or an
   optional as its tag and shared slots (each payload field's value
   indices from `layout::enum_mem`), a host handle with its vtable, and,
-  at a profile's boundary, a private-field type as its JSON text through
-  the codecs collection gathered (`module.boundary.serialize.exact`). A
+  at a profile's boundary, a private-field type as the string of its
+  `std.host` codec, an ordinary call of the instance collection gathered
+  (`module.boundary.serialize.exact`). A
   newtype is its field, so `Path` is its string with its length; only a
   lone `string` argument crosses as its bytes alone. A map, a function, a
   recursive enum or another trait value is refused at
@@ -2080,8 +2081,9 @@ reads, and the counts of the code it generates.
   Other native arguments and the receiver stay lent, as host stubs
   expect; the slot counts what its target owns of those. Other generated
   code lends what it passes: the map glue's `key_bucket_hash` and `eq`
-  calls (`KeyOps`), the boundary's JSON codecs and `host_provider` count
-  a copy of each argument the target owns (`rt::own_arg`).
+  calls (`KeyOps`), the boundary's encoders and `host_provider` count
+  a copy of each argument the target owns (`rt::own_arg`); a boundary
+  decoder hands its fresh string's count to the codec.
 - **Moves.** The move pass moves a value's count into its one consumer
   and a local's into its last read (docs/compiler/tir-v2.md, "Move",
   rules 1 to 4). The emitter zeroes a moved place once its consumer has

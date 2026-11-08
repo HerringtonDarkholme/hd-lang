@@ -36,7 +36,7 @@ use hd_check::structure::FactBodies;
 use hd_diag::{Code, DiagBuf, Severity};
 use hd_intern::{PathTable, ShardedInterner};
 use hd_mono::layout::{LayoutEnv, StdKind};
-use hd_mono::{Collected, JsonItems, ProgramEnv};
+use hd_mono::{Collected, HostItems, ProgramEnv};
 use hd_project::{FolderGraph, MemorySources, ModuleTable, PackageIn, Role, Scope, SourceSet};
 use hd_resolve::iface::IfaceIndex;
 use hd_resolve::{FolderIface, Item, ItemData, Items, Lookup, ModOut, Names, Src};
@@ -168,122 +168,6 @@ fn host_provider[T < 'static](provider: T) -> *mut T:
 @intrinsic("entry_write")
 fn entry_write(text: string) -> void:
     panic("intrinsic")
-
-# These module-wide imports follow the bootstrap entry declarations so their
-# source locations, and ordinary programs' position metadata, stay stable.
-use std.json.{Json, JsonError, JsonObject, Number, to_json, from_json, encode, decode}
-use std.serde.{Serialize, Deserialize}
-
-# Private package values follow Serialize/Deserialize, retaining integer and
-# floating-point kinds through a flat typed stream. No JS implementation sees
-# the transport text. Flat framing does not multiply JSON nesting depth.
-fn host_value_encode[T < Serialize](value: T) -> string:
-    let mut pending: List[Json] = [to_json(value)]
-    let mut tokens: List[Json] = []
-    while !pending.is_empty():
-        item := pending.pop().expect("pending value")
-        match item:
-            .Null => tokens.push(.Array([.Text("n")]))
-            .Bool(value) => tokens.push(.Array([.Text("b"), .Bool(value)]))
-            .Text(value) => tokens.push(.Array([.Text("s"), .Text(value)]))
-            .Number(value) =>
-                match value.as_i64():
-                    .Some(integer) => tokens.push(.Array([.Text("i"), .Text("$integer")]))
-                    .None =>
-                        match value.as_u64():
-                            .Some(integer) => tokens.push(.Array([.Text("u"), .Text("$integer")]))
-                            .None =>
-                                bits := value.as_f64().expect("number").to_bits()
-                                let text = bits.to_radix(16)
-                                while text.len() < 16:
-                                    text = "0" + text
-                                tokens.push(.Array([.Text("f"), .Text(text)]))
-            .Array(items) =>
-                tokens.push(.Array([.Text("a"), .Number(Number::from_u64(u64(items.len())))]))
-                let at = items.len()
-                while at > 0:
-                    at = at - 1
-                    pending.push(items[at])
-            .Object(fields) =>
-                tokens.push(.Array([.Text("o"), .Number(Number::from_u64(u64(fields.len())))]))
-                keys := fields.keys()
-                let at = keys.len()
-                while at > 0:
-                    at = at - 1
-                    key := keys[at]
-                    pending.push(fields.get(key).expect("object key"))
-                    pending.push(.Text(key))
-    encode(tokens)
-
-fn host_value_error() -> JsonError:
-    .WrongType(path="$", expected="a package host value")
-
-fn host_value_decode[T < Deserialize](text: string) -> Result[T, JsonError]:
-    tokens := decode::[List[Json]](text)?
-    let mut values: List[Json] = []
-    let at = tokens.len()
-    while at > 0:
-        at = at - 1
-        token := tokens[at]
-        tag := token.at(0).and_then(fn(v): v.as_text()).ok_or(host_value_error())?
-        match token:
-            .Array(items) =>
-                expected := if tag == "n": 1 else: 2
-                if items.len() != expected:
-                    return .Err(host_value_error())
-            _ => return .Err(host_value_error())
-        match tag:
-            "n" => values.push(.Null)
-            "b" =>
-                value := token.at(1).and_then(fn(v): v.as_bool()).ok_or(host_value_error())?
-                values.push(.Bool(value))
-            "s" =>
-                value := token.at(1).and_then(fn(v): v.as_text()).ok_or(host_value_error())?
-                values.push(.Text(value))
-            "i" =>
-                value := token.at(1).and_then(fn(v): v.as_text()).ok_or(host_value_error())?
-                number := value.parse::[i64]().map_err(fn(_error): host_value_error())?
-                values.push(.Number(Number::from_i64(number)))
-            "u" =>
-                value := token.at(1).and_then(fn(v): v.as_text()).ok_or(host_value_error())?
-                number := value.parse::[u64]().map_err(fn(_error): host_value_error())?
-                values.push(.Number(Number::from_u64(number)))
-            "f" =>
-                value := token.at(1).and_then(fn(v): v.as_text()).ok_or(host_value_error())?
-                if value.len() != 16:
-                    return .Err(host_value_error())
-                bits := u64::parse_radix(value, 16).map_err(fn(_error): host_value_error())?
-                number := Number::from_f64(f64::from_bits(bits)).ok_or(host_value_error())?
-                values.push(.Number(number))
-            "a" =>
-                count := token.at(1).and_then(fn(v): v.as_u64()).ok_or(host_value_error())?
-                if count > u64(values.len()):
-                    return .Err(host_value_error())
-                let mut items: List[Json] = []
-                let left = count
-                while left > 0:
-                    items.push(values.pop().ok_or(host_value_error())?)
-                    left = left - 1
-                values.push(.Array(items))
-            "o" =>
-                count := token.at(1).and_then(fn(v): v.as_u64()).ok_or(host_value_error())?
-                if count > u64(values.len() / 2):
-                    return .Err(host_value_error())
-                let mut fields = JsonObject::new()
-                let left = count
-                while left > 0:
-                    key := values.pop().and_then(fn(v): v.as_text()).ok_or(host_value_error())?
-                    value := values.pop().ok_or(host_value_error())?
-                    if fields.contains_key(key):
-                        return .Err(host_value_error())
-                    fields.set(key, value)
-                    left = left - 1
-                values.push(.Object(fields))
-            _ => return .Err(host_value_error())
-    if values.len() != 1:
-        return .Err(host_value_error())
-    from_json::[T](values.pop().ok_or(host_value_error())?)
-
 "#;
 
 /// The modules the compiler roots after an entry or a test case, whatever
@@ -3708,13 +3592,33 @@ impl Run<'_> {
 
     /// The runtime functions emitted code calls, from the table the emitter
     /// reads its calls from, and an entry's status functions.
+    /// The std items a host boundary calls (`hd_mono::HostItems`).
+    fn host_items(&self) -> HostItems {
+        let names = self.names();
+        HostItems {
+            encode: names.item("std.host", "host_encode"),
+            decode: names.item("std.host", "host_decode"),
+            package_encode: names.item("std.host", "package_encode"),
+            package_decode: names.item("std.host", "package_decode"),
+            host_provider: names.item(ENTRY_MODULE, "host_provider"),
+        }
+    }
+
     fn glue_items(&self) -> &hd_base::HashSet<DefId> {
         self.glue_items.get_or_init(|| {
             let names = self.names();
+            let host = self.host_items();
             hd_wasm_linear::runtime_items(self.checked())
                 .into_iter()
                 .chain(ENTRY_STATUS_FNS.map(|name| (ENTRY_MODULE, name)))
                 .map(|(module, name)| names.item(module, name))
+                .chain([
+                    host.encode,
+                    host.decode,
+                    host.package_encode,
+                    host.package_decode,
+                    host.host_provider,
+                ])
                 .collect()
         })
     }
@@ -11971,39 +11875,6 @@ impl Env<'_> {
         self.run.pool.lower_refs(self.run.known.ref_cells(), t)
     }
 
-    /// `std.result`'s checked unwrap after a boundary `decode`: `is_ok`
-    /// to test the `decode` result, then `expect` for its value. The
-    /// methods live on `Result`'s inherent impl, whose path the path
-    /// table cannot name up front, so find them by declaration.
-    fn result_unwrap(&self) -> Option<(DefId, DefId)> {
-        // `is_ok` and `expect` may sit in different inherent impls of
-        // `Result`: `expect` needs `E < Display`, so std declares it apart.
-        let mut is_ok = None;
-        let mut expect = None;
-        for item in self.p.items.impls(|_, inherent| inherent) {
-            let ItemData::Impl {
-                self_ty, methods, ..
-            } = &item.data
-            else {
-                continue;
-            };
-            let TyData::Adt { def, .. } = self.run.pool.get(*self_ty) else {
-                continue;
-            };
-            if def != self.run.known.result {
-                continue;
-            }
-            for (name, method) in methods {
-                match self.run.syms.resolve(*name) {
-                    "is_ok" => is_ok = Some(*method),
-                    "expect" => expect = Some(*method),
-                    _ => {}
-                }
-            }
-        }
-        Some((is_ok?, expect?))
-    }
-
     /// Whether a method has a `self` receiver; one without is an
     /// associated function.
     fn takes_self(&self, item: &Item) -> bool {
@@ -12635,20 +12506,8 @@ impl ProgramEnv for Env<'_> {
     fn is_package_host_trait(&self, def: DefId) -> bool {
         self.run.package_host_identity(def).is_some()
     }
-    fn json_items(&self) -> Option<JsonItems> {
-        let k = &self.run.known;
-        let (result_is_ok, result_expect) = self.result_unwrap()?;
-        Some(JsonItems {
-            package_encode: self.run.names().item(ENTRY_MODULE, "host_value_encode"),
-            package_decode: self.run.names().item(ENTRY_MODULE, "host_value_decode"),
-            encode: k.json_encode,
-            decode: k.json_decode,
-            serialize: k.serialize,
-            deserialize: k.deserialize,
-            result_is_ok,
-            result_expect,
-            host_provider: self.run.names().item(ENTRY_MODULE, "host_provider"),
-        })
+    fn host_items(&self) -> HostItems {
+        self.run.host_items()
     }
     fn data_fields(&self, def: DefId) -> Option<Vec<Ty>> {
         match &self.p.items.get(def)?.data {
