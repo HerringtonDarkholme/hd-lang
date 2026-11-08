@@ -4537,7 +4537,9 @@ typing/invalid/match-payload-unknown-field.hd	type	reject:unknown-field	lang/06-
 typing/warnings/match-payload-binding-name-swap.hd	type	accept	lang/06-control-flow.md#r-flow.match.payload.name-mismatch.lint
 runtime/valid/match-literal-pattern.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.literal
 runtime/valid/match-variant-shorthand.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.variant.shorthand
-runtime/valid/match-keeps-subject.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.no-ownership
+runtime/valid/match-keeps-subject.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.no-ownership-copied
+typing/valid/match-moves-not-copied-payload-only.hd	type	accept	lang/06-control-flow.md#r-flow.match.no-ownership-copied
+typing/invalid/match-not-copied-payload-reuse-after-move.hd	type	reject:use-of-moved-value	lang/06-control-flow.md#r-flow.match.no-ownership-copied
 typing/invalid/match-data-unknown-field.hd	type	reject:unknown-field	lang/06-control-flow.md#r-flow.match.data.fields.unknown
 typing/invalid/match-data-duplicate-field.hd	type	reject:duplicate-data-pattern-field	lang/06-control-flow.md#r-flow.match.data.fields.duplicate
 typing/valid/match-empty-data-pattern.hd	type	accept	lang/06-control-flow.md#r-flow.match.data.empty
@@ -5789,6 +5791,7 @@ typing/invalid/copy-relaxed-parameter-moves.hd	type	reject:use-of-moved-value	la
 typing/invalid/copy-opt-out-plain-trait.hd	type	reject:missing-supertrait-implementation	lang/13-values-and-references.md#r-ref.copy.trait.default
 typing/invalid/copy-mut-trait-reference-plain-bound.hd	type	reject:unsatisfied-trait-bound	lang/13-values-and-references.md#r-ref.copy.trait.reference
 typing/invalid/copy-negative-impl-other-trait.hd	type	reject:invalid-negative-impl	lang/13-values-and-references.md#r-ref.copy.opt-out.invalid
+typing/invalid/negative-impl-display-rejected.hd	type	reject:invalid-negative-impl	lang/09-traits.md#r-trait.unsupported.features
 typing/invalid/copy-negative-impl-primitive.hd	type	reject:invalid-negative-impl	lang/13-values-and-references.md#r-ref.copy.opt-out.invalid
 typing/invalid/copy-impl-is-sealed.hd	type	reject:sealed-trait-implementation	lang/13-values-and-references.md#r-ref.copy.no-impl
 typing/invalid/copy-relaxed-bound-other-trait.hd	type	reject:invalid-relaxed-bound	lang/13-values-and-references.md#r-ref.copy.generic.relaxed.only

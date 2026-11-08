@@ -1,5 +1,5 @@
 # test: matching does not transfer ownership, so the subject and its payload stay usable after the match
-# Spec 06 Payload Bindings: flow.match.no-ownership.
+# Spec 06 Payload Bindings: flow.match.no-ownership-copied.
 enum Bag:
     Items(values: List[i32])
 

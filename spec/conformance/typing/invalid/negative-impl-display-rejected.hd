@@ -1,0 +1,6 @@
+# test: only Copy has a negative implementation, so a negative Display implementation is an error
+# Spec 09 Unsupported Trait Extensions: trait.unsupported.features. Spec 13 Copy: ref.copy.opt-out.invalid.
+struct Photo:
+    width: u32
+
+impl !Display for Photo # diagnostic: invalid-negative-impl

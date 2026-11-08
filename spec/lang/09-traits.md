@@ -2837,7 +2837,7 @@ fn invalid(user: User) -> string:
 
 ## Unsupported Trait Extensions
 
-1. r[trait.unsupported.list] The language has no specialization, negative implementations, implicit structural conformance, trait-to-trait assertions, or type tests other than exact-type recovery from `Inspectable` values.
+1. r[trait.unsupported.features] The language has no specialization, negative implementations other than `impl !Copy` ([`ref.copy.opt-out`](13-values-and-references.md#r-ref.copy.opt-out)), implicit structural conformance, trait-to-trait assertions, or type tests other than exact-type recovery from `Inspectable` values.
 2. r[trait.unsupported.abi] Dynamic trait-value representation is an ABI detail and must preserve the dispatch semantics in this chapter.
 
 ```text

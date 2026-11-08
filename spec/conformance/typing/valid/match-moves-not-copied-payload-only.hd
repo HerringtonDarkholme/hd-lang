@@ -1,0 +1,23 @@
+# test: a match arm that binds a payload that is not copied moves it, while an arm that binds only copied parts or `_` moves nothing
+# Spec 06 Payload Bindings: flow.match.no-ownership-copied. Spec 13 Moves: ref.move.pattern, ref.copy.opt-out.
+struct Ticket:
+    id: i32
+
+impl !Copy for Ticket
+
+enum Slot:
+    Full(ticket: Ticket, tag: i32)
+    Empty
+
+fn spend(t: Ticket) -> i32:
+    t.id
+
+fn tag_then_spend(s: Slot) -> i32:
+    let n: i32 = 0
+    match s:
+        .Full(_, tag) => n = tag
+        .Empty => pass
+    match s:
+        .Full(ticket, _) => n += spend(ticket)
+        .Empty => pass
+    n

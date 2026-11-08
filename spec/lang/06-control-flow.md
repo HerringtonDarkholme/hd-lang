@@ -721,7 +721,7 @@ fn bad(choice: Choice) -> i32:
 
 ### Payload Bindings
 
-1. r[flow.match.no-ownership] Matching does not transfer ownership.
+1. r[flow.match.no-ownership-copied] Matching does not transfer ownership, except that an arm binding a value that is not copied moves it, as [`ref.move.pattern`](13-values-and-references.md#r-ref.move.pattern) states.
 2. r[flow.match.bind.primitive] Primitive payloads bind by value.
 3. r[flow.match.bind.generic] A payload declared with a generic parameter binds its substituted type.
 4. r[flow.match.bind.tuple] Tuple pattern elements retain their declared types.
