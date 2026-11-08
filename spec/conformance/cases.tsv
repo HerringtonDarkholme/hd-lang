@@ -6085,6 +6085,9 @@ typing/invalid/provisional-recursive-row-errors-do-not-hide-untyped-collections.
 typing/invalid/a-recursive-row-recheck-keeps-capture-errors.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.static.capture
 typing/invalid/a-recursive-row-keeps-an-unsolved-body-key-diagnostic.hd	type	reject:cannot-infer-type	lang/04-type-system.md#r-types.generic.default.unsolved
 runtime/valid/a-recursive-row-keeps-later-call-argument-context.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.row.omitted.cycle
+typing/invalid/join-rejects-its-thirty-second-child.hd	type	reject:argument-count	lang/11-requirements-and-suspension.md#r-req.combinator.join-arity
+runtime/valid/join-accepts-thirty-one-children.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.combinator.join-arity
+runtime/valid/join-list-can-have-thirty-two-children.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.combinator.join-list
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

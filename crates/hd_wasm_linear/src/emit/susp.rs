@@ -877,9 +877,6 @@ impl Em<'_, '_, '_> {
     /// it and its enclosing nodes alive until completion or cancellation.
     fn await_all(&mut self, i: u32, k: u32, bw: u32) -> StageResult<()> {
         let children = self.rec(bw);
-        if children.len() > 31 {
-            return unsupported("`join!` of more than 31 suspensions");
-        }
         let pc = self.pc();
         // Checking types `join!` the tuple of its children's results.
         let tys = crate::layout::tuple_members(
@@ -899,7 +896,8 @@ impl Em<'_, '_, '_> {
             parts.push((ch, ls, t));
         }
         let node = self.f.local(Val::I32);
-        let all = (1i32 << children.len()) - 1;
+        // ruled out: req.combinator.join-arity bounds children.len() to 0..=31.
+        let all = i32::MAX >> (31 - children.len());
         let point = AllPoint { done, node, parts };
         if let Some(x) = self.susp.as_mut() {
             x.alls.insert(i, point.clone());

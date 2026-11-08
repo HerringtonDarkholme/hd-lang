@@ -1860,12 +1860,13 @@ fn page!(id: i64) -> string:
 ```
 
 1. r[req.combinator.all-typing] `join!` has no written signature. A call `join!(e_1, ..., e_n)` in which each `e_i` has type `Suspend[X_i]` has type `(X_1, ..., X_n)`.
-2. r[req.combinator.all-argument] An argument of any other type is an error. Error: `type-mismatch`.
-3. r[req.combinator.all-direct] `join` must be the callee of a direct call. A named argument, an explicit type argument list such as `join!::[i32, string]`, or a use as a function value is an error. Error: `type-mismatch`.
-4. r[req.combinator.all-bang-child] A child written as a bang call, as in `join!(load_user!(id))`, is an ordinary bang call. The caller awaits it before `join!` starts, so its value is not a `Suspend`.
-5. r[req.combinator.join-list] `join!(tasks...)`, with one spread of a `List[Suspend[T]]` as its only argument, has type `List[T]`. The result holds each task's value at the task's index in `tasks`, whatever order they complete in.
-6. r[req.combinator.join-list.rules] The list form polls, completes, cancels, abandons, and disposes its children as the tuple form does, by the rules above and [`req.combinator.all-cancelled`](#r-req.combinator.all-cancelled).
-7. r[req.combinator.join-list.only] A spread with any other argument, positional or named, is an error. Error: `type-mismatch`.
+2. r[req.combinator.join-arity] A tuple-form `join!` call with more than 31 children is an error, reported on its 32nd child. Error: `argument-count`.
+3. r[req.combinator.all-argument] An argument of any other type is an error. Error: `type-mismatch`.
+4. r[req.combinator.all-direct] `join` must be the callee of a direct call. A named argument, an explicit type argument list such as `join!::[i32, string]`, or a use as a function value is an error. Error: `type-mismatch`.
+5. r[req.combinator.all-bang-child] A child written as a bang call, as in `join!(load_user!(id))`, is an ordinary bang call. The caller awaits it before `join!` starts, so its value is not a `Suspend`.
+6. r[req.combinator.join-list] `join!(tasks...)`, with one spread of a `List[Suspend[T]]` as its only argument, has type `List[T]`. The result holds each task's value at the task's index in `tasks`, whatever order they complete in.
+7. r[req.combinator.join-list.rules] The list form polls, completes, cancels, abandons, and disposes its children as the tuple form does, by the rules above and [`req.combinator.all-cancelled`](#r-req.combinator.all-cancelled).
+8. r[req.combinator.join-list.only] A spread with any other argument, positional or named, is an error. Error: `type-mismatch`.
 
 ```text
 use std.task.join
@@ -1880,6 +1881,42 @@ fn both!(tasks: List[Suspend[i32]]) -> List[i32]:
 
 fn explicit!() -> (i32, i32):
     join!::[i32, i32](ready(), ready())  # error: type-mismatch
+
+fn oversized!() -> void:
+    _ := join!(
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),  # error: argument-count
+    )
 ```
 
 > **Note.** A plain call of a suspending function, such as
@@ -1890,7 +1927,8 @@ fn explicit!() -> (i32, i32):
 
 > **Why.** A written signature for `join!` would need a type-level map over
 > a tuple, from `Suspend[X_i]` to `X_i`. The language has no higher-kinded
-> types, so one written typing rule replaces the signature.
+> types, so one written typing rule replaces the signature. A bounded tuple
+> arity permits completion tracking in one word; larger groups use the list form.
 
 > **Note.** The `retry!` combinator of `std.task` is a plain library loop
 > over a `fn!` attempt, not an intrinsic, so the stdlib tier specifies it

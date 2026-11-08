@@ -1,0 +1,42 @@
+# test: tuple-form join! rejects its 32nd child
+# Spec 11 Standard Combinators: req.combinator.join-arity.
+use std.task.join
+
+fn ready!() -> i32:
+    1
+
+fn oversized!() -> void:
+    _ := join!(
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(),
+        ready(), # diagnostic: argument-count
+    )

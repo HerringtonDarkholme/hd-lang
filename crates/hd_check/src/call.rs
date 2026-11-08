@@ -2649,6 +2649,14 @@ impl Ck<'_, '_> {
             return Ok((Ref(NONE), Ty::NEVER));
         }
         plain_args(args, "`join`")?;
+        // `req.combinator.join-arity`: only the tuple form has fixed arity.
+        if let Some(child) = args.positional.get(31) {
+            self.err(
+                Code::ArgumentCount,
+                *child,
+                "`join!` takes at most 31 direct children; use its list form for a larger group",
+            );
+        }
         let pool = self.pool();
         if !bang {
             self.err(Code::NotSuspending, n, "`join` is called as `join!(...)`");

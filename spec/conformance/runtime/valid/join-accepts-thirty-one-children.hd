@@ -1,0 +1,44 @@
+# test: tuple-form join! accepts 31 children and preserves their result positions
+# Spec 11 Standard Combinators: req.combinator.join-arity, req.combinator.all-typing.
+# expect-stdout: 0 30
+use std.task.join
+
+fn ready!(value: usize) -> usize:
+    value
+
+pub fn main!() -> void $ Console:
+    let empty: () = join!()
+    all := join!(
+        ready(0),
+        ready(1),
+        ready(2),
+        ready(3),
+        ready(4),
+        ready(5),
+        ready(6),
+        ready(7),
+        ready(8),
+        ready(9),
+        ready(10),
+        ready(11),
+        ready(12),
+        ready(13),
+        ready(14),
+        ready(15),
+        ready(16),
+        ready(17),
+        ready(18),
+        ready(19),
+        ready(20),
+        ready(21),
+        ready(22),
+        ready(23),
+        ready(24),
+        ready(25),
+        ready(26),
+        ready(27),
+        ready(28),
+        ready(29),
+        ready(30),
+    )
+    println("${all._0} ${all._30}")

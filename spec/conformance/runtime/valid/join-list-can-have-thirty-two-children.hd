@@ -1,0 +1,14 @@
+# test: the list form of join! does not use the tuple form's child bound
+# Spec 11 Standard Combinators: req.combinator.join-list.
+# expect-stdout: 32 31
+use std.task.join
+
+fn ready!(value: usize) -> usize:
+    value
+
+pub fn main!() -> void $ Console:
+    let mut tasks: List[Suspend[usize]] = []
+    for value in 0..32:
+        tasks.push(ready(value))
+    all := join!(tasks...)
+    println("${all.len()} ${all[31]}")

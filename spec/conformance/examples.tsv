@@ -841,7 +841,7 @@ lang/11-requirements-and-suspension.md	71	complete	runtime/valid/abandon-unwind-
 lang/11-requirements-and-suspension.md	72	complete	-
 lang/11-requirements-and-suspension.md	73	complete	runtime/valid/combinator-cancel-fan-out.hd
 lang/11-requirements-and-suspension.md	74	complete	typing/valid/all-tuple-result.hd
-lang/11-requirements-and-suspension.md	75	mixed	typing/invalid/all-bang-child.hd|typing/valid/join-forms.hd|typing/invalid/all-explicit-type-arguments.hd
+lang/11-requirements-and-suspension.md	75	mixed	typing/invalid/all-bang-child.hd|typing/valid/join-forms.hd|typing/invalid/all-explicit-type-arguments.hd|typing/invalid/join-rejects-its-thirty-second-child.hd
 lang/11-requirements-and-suspension.md	76	fragment	typing/valid/requirements-and-suspension.hd
 lang/11-requirements-and-suspension.md	77	fragment	typing/valid/row-extension-entailment.hd
 lang/11-requirements-and-suspension.md	78	complete	typing/valid/row-extension-absent-key.hd
