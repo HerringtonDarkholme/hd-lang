@@ -1,7 +1,7 @@
 # expect-stdout: won stopped
 # expect-stdout: closing, closed, stopper finished
 # test: cancel!() of a stored task waits until its dispose! that suspends has finished, then returns .Finished
-# Spec lang/11 Cancellation: req.cancel.bang, req.cancel.wait, req.cancel.result.
+# Spec lang/11 Cancellation: req.cancel.bang.v2, req.cancel.wait, req.cancel.result.
 use std.ops.AsyncDisposable
 use std.task.{join, race}
 use std.time.{Clock, ms, s, sleep}

@@ -1597,7 +1597,7 @@ pub fn main!() -> void $ Console + Clock:
     println(log.join(", "))           # closing, closed, stopper finished
 ```
 
-1. r[req.cancel.bang] `Suspend[T]` has the suspending method `cancel!(mut self)`, which returns a [`CleanupEnd`](../std/task.md#cleanup-end) of `std.task`.
+1. r[req.cancel.bang.v2] `Suspend[T]` has the suspending method `cancel!(self)`, which returns a [`CleanupEnd`](../std/task.md#cleanup-end) of `std.task`.
 2. r[req.cancel.steps] It marks the suspension cancelled, synchronously propagates cancellation to an unfinished child, and asks unfinished external operations to abort through their provider/runtime contracts.
 3. r[req.cancel.cold] Like every suspending call, `job.cancel()` without the bang builds a cold suspension of the cancel. `job` keeps its state until that suspension is driven.
 4. r[req.cancel.cold.discard] A cold cancel that is discarded is an error, as any discarded suspension is. Error: `discarded-must-use-value`.
@@ -1688,7 +1688,7 @@ pub fn main!() -> void $ Console + Clock:
     println(log.join(", "))          # tail, dispose start, dispose cleanup, outer
 ```
 
-1. r[req.abandon.method] `Suspend[T]` has the method `abandon(mut self) -> void`. It does not suspend, so any function may call it.
+1. r[req.abandon.method.v2] `Suspend[T]` has the method `abandon(self) -> void`. It does not suspend, so any function may call it.
 2. r[req.abandon.unwind] It marks the suspension cancelled and unwinds it once, synchronously. The unwinding has ended when the call returns, before any other task runs.
 3. r[req.abandon.order.using-split] The unwinding runs registered cleanup suites as one last-in, first-out list, from the innermost frame outward. Disposes keep the order of [`flow.using.order.v2`](06-control-flow.md#r-flow.using.order.v2).
 4. r[req.abandon.registered-cleanup] Every registered synchronous cleanup suite runs once, including those of a `dispose!` that is running. A cleanup suite never registered does not run.

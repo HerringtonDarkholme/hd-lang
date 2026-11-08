@@ -74,13 +74,13 @@ pub enum CleanupEnd:
     Finished
     Abandoned
 
-# The `Suspend[T]` protocol's `cancel!` (r-req.cancel.bang). The job's
+# The `Suspend[T]` protocol's `cancel!` (r-req.cancel.bang.v2). The job's
 # frame holds its one cleanup; each call waits on it through a cleanup
 # frame, whose polling body is the compiler's, so any number of calls
 # share the cleanup and none restarts it (r-req.cancel.shared).
 impl[T] Suspend[T]:
     ## Stops the job, waits until its cleanup has ended, and returns how it ended.
-    ## See [req.cancel.bang](../../spec/lang/11-requirements-and-suspension.md#r-req.cancel.bang).
+    ## See [req.cancel.bang.v2](../../spec/lang/11-requirements-and-suspension.md#r-req.cancel.bang.v2).
     pub fn cancel!(self) -> CleanupEnd:
         let cleanup: Suspend[bool] = cleanup_frame(self)
         if cleanup!(): .Abandoned else: .Finished
