@@ -691,7 +691,7 @@ fn identity[T](value: T) -> T:
 fn apply[A, B](value: A, f: fn(A) -> B) -> B:
     f(value)
 
-count := apply(3, identity)
+count := apply(+3, identity)
 ```
 
 1. r[fn.type.generic.not-polymorphic] Generic functions are not first-class polymorphic values.
@@ -704,7 +704,7 @@ count := apply(3, identity)
 8. r[fn.type.generic.unsolved] A generic parameter of the value that remains unsolved is an error. Error: `cannot-infer-type`.
 9. r[fn.type.generic.monomorphic] The resulting value has an ordinary monomorphic function type.
 
-In `count := apply(3, identity)`, `A` is `i32` from the first argument, and
+In `count := apply(+3, identity)`, `A` is `i32` from the first argument, and
 `identity`'s `T` and the call's `B` are solved as `i32` with it.
 
 ```text

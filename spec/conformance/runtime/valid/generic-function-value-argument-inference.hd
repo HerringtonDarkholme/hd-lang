@@ -11,7 +11,7 @@ tests:
     use std.testing.assert_equal
 
     it("type arguments come from the call"):
-        count := apply(3, identity)
-        assert_equal(count, 3, reason="T and B are solved as i32 from the first argument")
+        count := apply(+3, identity)
+        assert_equal(count, +3, reason="T and B are solved as i32 from the first argument")
         label := apply("hd", identity)
         assert_equal(label, "hd", reason="each call solves its own instantiation")

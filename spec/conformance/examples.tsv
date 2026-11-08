@@ -244,7 +244,7 @@ lang/04-type-system.md	73	mixed	typing/invalid/bound-inference-several-impls.hd|
 lang/04-type-system.md	74	fragment	runtime/valid/bound-inference-explicit.hd|runtime/valid/bound-inference-chain.hd
 lang/04-type-system.md	75	fragment	runtime/valid/bound-inference-default.hd|runtime/valid/generic-forward-bound-explicit-first-slot.hd
 lang/04-type-system.md	76	mixed	runtime/valid/bound-inference-two-bounds.hd|typing/invalid/bound-inference-bounds-disagree.hd|typing/invalid/bound-inference-mixed-several-impls.hd
-lang/04-type-system.md	77	known-failure	typing/valid/type-default-calls.hd
+lang/04-type-system.md	77	complete	typing/valid/type-default-calls.hd
 lang/04-type-system.md	78	mixed	typing/invalid/type-default-later-parameter.hd|typing/invalid/type-default-order.hd|typing/invalid/partial-generic-arguments.hd
 lang/04-type-system.md	79	complete	-
 lang/04-type-system.md	80	mixed	typing/invalid/polymorphic-recursion-tuple.hd
