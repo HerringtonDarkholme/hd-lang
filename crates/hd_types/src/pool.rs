@@ -329,45 +329,62 @@ impl Inputs {
 /// The decoded view of one type (§3.4 `TyView`), owned for simplicity.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum TyData {
-    /// A primitive: an integer, a float, `bool`, `char` or `string`.
+    /// A primitive: an integer, a float, `bool`, `char` or `string`
+    /// (`types.prim.set`).
     Prim(Prim),
-    /// `never`, the type of an expression that does not finish.
+    /// `never`, the type of an expression that does not finish
+    /// (`types.never`).
     Never,
-    /// The type of an expression whose error was already reported; it
-    /// unifies with anything, so one error isn't reported twice.
+    /// Internal, no spec form: the type of an expression whose error was
+    /// already reported. It unifies with anything, so one error isn't
+    /// reported twice.
     Poison,
-    /// A named type applied to its arguments: a struct, enum, newtype or
-    /// std type such as `List[T]`.
+    /// A named type applied to its arguments (`types.forms.with-impl-types`):
+    /// a struct, enum, newtype (`types.newtype.decl`) or std type such as
+    /// `List[T]`. After [`Types::lower_refs`] also a reference carrier.
     Adt { def: DefId, args: TyList },
-    /// A tuple `(A, B)`; `rest` is a variadic tail, `(A, ...R)`.
+    /// A tuple `(A, B)` (`types.tuple.structural`). `rest` is the `List[T]`
+    /// of a rest element, as in `(A, List[T]...)` (`types.tuple.rest.form`,
+    /// `types.tuple.rest.list`); it takes part in identity
+    /// (`types.tuple.rest.same`).
     Tuple { elems: TyList, rest: Option<Ty> },
-    /// An ordered anonymous sum. Members keep their arity, order,
-    /// duplicates, and nested union identities.
+    /// An ordered anonymous sum (`types.union.identity`). Members keep their
+    /// arity, order, duplicates, and nested union identities
+    /// (`types.union.nesting`).
     Union(TyList),
-    /// `T?`.
+    /// `T?`, the sugar for `Option[T]` (`types.option.sugar`).
     Option(Ty),
-    /// A function type `fn(A) -> R $ Row`; `suspends` marks a bang function.
+    /// A function type `fn(A) -> R $ Row` (`types.fn.constructor`);
+    /// `suspends` marks a bang function, `SuspendFn`.
     Fn {
         params: TyList,
         result: Ty,
         row: RowId,
         suspends: bool,
-        /// How `params` spell the inputs tuple.
+        /// How `params` spell the inputs tuple (`fn.type.ctor.inputs`,
+        /// `fn.type.vararg-rest`).
         inputs: Inputs,
+        /// Which inputs each result borrows from
+        /// (`fn.type.lifetime.identity`).
         deps: FnDeps,
     },
-    /// A trait value `dyn Trait[args]`, with its associated types bound.
+    /// A trait value `dyn Trait[args]`, with its associated types bound: the
+    /// referent descriptor of a trait reference
+    /// (`trait.dyn.referent-descriptor`, `trait.identity.trait-value`), and
+    /// also every bound, supertrait and row key (`types.trait.static`).
     TraitValue {
         def: DefId,
         args: TyList,
         bindings: Vec<(DefId, Ty)>,
     },
-    /// A generative return type. Only `bound` is visible to checking;
-    /// the defining body's result supplies its representation in mono.
+    /// A generative return type (`types.opaque.occurrence`). Only `bound` is
+    /// visible to checking; the defining body's result supplies its
+    /// representation in mono (`types.opaque.representation`).
     Opaque {
         owner: DefId,
-        /// Return-annotation occurrence in source order; local functions start
-        /// at their syntax node + 1.
+        /// Return-annotation occurrence in source order
+        /// (`types.opaque.identity-position`); local functions start at
+        /// their syntax node + 1.
         site: u32,
         /// Whether the declaring function has a local reference parameter,
         /// so that the hidden value may borrow from it
@@ -377,35 +394,44 @@ pub enum TyData {
         args: TyList,
         bound: Ty,
     },
-    /// A type or const parameter. A const parameter only occurs alone in a
-    /// const argument slot (`types.generic.const.type-position`).
+    /// A type or const parameter (`types.generic.type-parameter.complete`).
+    /// A const parameter only occurs alone in a const argument slot
+    /// (`types.generic.const.type-position`).
     Param(ParamRef),
-    /// An evaluated const argument in a const parameter's argument slot.
-    /// It is not a type: it has no values and no layout.
+    /// An evaluated const argument in a const parameter's argument slot
+    /// (`types.generic.const.identity`). It is not a type: it has no values
+    /// and no layout.
     Const(ConstValue),
-    /// An unnormalized projection: the associated item and its trait reference.
+    /// An unnormalized projection: the associated item and its trait
+    /// reference (`trait.assoc.projection`, `trait.assoc.self`).
     Assoc {
         assoc: DefId,
         trait_: DefId,
         self_ty: Ty,
         args: TyList,
     },
-    /// A reference type (spec/lang/13-values-and-references.md): a
-    /// counted `*T` or `*mut T`, or a local `&T` or `&mut T`
-    /// (`ref.type.kind-distinct`). The kinds lower to two carriers of one
-    /// representation ([`Types::lower_refs`]).
+    /// A reference type: a local `&T` or `&mut T` (`ref.type.forms`), or a
+    /// counted `*T` or `*mut T` (`ref.type.counted-forms`). One variant holds
+    /// all four, as `ref.type.kinds` groups them; each kind is its own pool
+    /// tag, so the kinds stay distinct types (`ref.type.distinct`,
+    /// `ref.type.kind-distinct`). [`Types::lower_refs`] turns each kind into
+    /// its own carrier ([`RefCells`]). After checking, `counted` also says
+    /// the address is a payload start: the checker's `lower_body_refs` retypes a
+    /// `&x` of a whole object to `*T` or `*mut T`.
     Ref {
         inner: Ty,
         mutable: bool,
         counted: bool,
     },
-    /// An inference variable: a type the checker has not solved yet; the
-    /// solver substitutes its answer.
+    /// Internal, no spec form: an inference variable, a type the checker
+    /// has not solved yet; the solver substitutes its answer.
     Infer(InferVar),
-    /// A canonical placeholder of the solver (`crates/hd_check/DESIGN.md` (trait solver) §2.2).
+    /// Internal, no spec form: a canonical placeholder of the solver
+    /// (`crates/hd_check/DESIGN.md` (trait solver) §2.2).
     Canon(u8),
-    /// A requirement row in a row parameter's argument slot (an explicit
-    /// `f::[$ Db]`, or the row a call solved for `$R`).
+    /// A requirement row in a row parameter's argument slot
+    /// (`req.row.parameter`, `req.row.definition`): an explicit
+    /// `f::[$ Db]`, or the row a call solved for `$R`.
     Row(RowId),
     /// A reusable provider context, `$.Context[$ Row]` (`req.context.row`):
     /// indexed by one concrete, expanded row.
@@ -1584,7 +1610,8 @@ impl<'a> Types<'a> {
     pub fn has_canon(self, t: Ty) -> bool {
         self.meta_of(t) & meta::HAS_CANON != 0
     }
-    /// Whether `t` holds a reference type, `&T` or `&mut T`.
+    /// Whether `t` holds a reference type of either kind, local or counted,
+    /// or an opaque type that borrows.
     #[must_use]
     pub fn has_ref(self, t: Ty) -> bool {
         self.meta_of(t) & meta::HAS_REF != 0
