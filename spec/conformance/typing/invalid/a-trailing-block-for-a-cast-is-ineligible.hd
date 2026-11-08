@@ -1,0 +1,6 @@
+# test: a cast's target is a number, never a zero-argument function, so it takes no trailing block
+# Spec 02 Grammar: grammar.call.trailing-block.eligible.
+
+fn run() -> void:
+    x := i64(1): # diagnostic: trailing-block-ineligible
+        2

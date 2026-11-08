@@ -1,0 +1,5 @@
+# test: a constructor-style cast with nothing to convert
+# Spec 04 Type System: types.cast.syntax; the general argument-count code.
+
+fn zero() -> i64:
+    i64() # diagnostic: argument-count

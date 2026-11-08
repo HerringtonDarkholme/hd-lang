@@ -6442,3 +6442,8 @@ typing/invalid/pointer-loan-same-root-dependent-call.hd	type	reject:conflicting-
 typing/invalid/pointer-loan-same-root-dependent-method.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.dep.call.pointer
 typing/invalid/pointer-loan-same-root-observer-notify.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.place
 typing/invalid/pointer-loan-same-root-dependent-outlives-root.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.dep.call.pointer
+typing/invalid/a-cast-with-two-arguments-is-an-argument-count-error.hd	type	reject:argument-count	lang/04-type-system.md#r-types.cast.syntax
+typing/invalid/a-cast-with-no-argument-is-an-argument-count-error.hd	type	reject:argument-count	lang/04-type-system.md#r-types.cast.syntax
+typing/invalid/a-trailing-block-for-a-cast-is-ineligible.hd	type	reject:trailing-block-ineligible	lang/02-grammar.md#r-grammar.call.trailing-block.eligible
+typing/invalid/a-newtype-constructor-with-two-arguments-is-an-argument-count-error.hd	type	reject:argument-count	lang/04-type-system.md#r-types.newtype.construct
+typing/invalid/a-generic-type-with-type-arguments-is-not-a-value.hd	type	reject:type-used-as-value	lang/03-names-and-scopes.md#r-names.type-as-value

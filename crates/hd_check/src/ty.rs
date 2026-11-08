@@ -308,6 +308,26 @@ impl Ck<'_, '_> {
     /// A type constructor applied to arguments (aliases expanded).
     pub(crate) fn ctor(&mut self, def: DefId, args: &[Ty]) -> StageResult<Ty> {
         let pool = self.pool();
+        let args = self.ctor_args(def, args)?;
+        Ok(match self.cx.lookup.item(def).map(|i| &i.data) {
+            Some(ItemData::Alias { body, .. }) => pool.subst(*body, &|p: ParamRef| {
+                (p.owner == def)
+                    .then(|| args.get(p.index as usize).copied())
+                    .flatten()
+            }),
+            Some(ItemData::Struct(_) | ItemData::Enum { .. } | ItemData::Newtype(_)) => pool
+                .intern_ty(&TyData::Adt {
+                    def,
+                    args: pool.list(&args),
+                }),
+            _ => return unsupported("a non-type name in type position"),
+        })
+    }
+
+    /// The arguments of type constructor `def`: those written, then each
+    /// omitted one's default or a fresh variable.
+    pub(crate) fn ctor_args(&mut self, def: DefId, args: &[Ty]) -> StageResult<Vec<Ty>> {
+        let pool = self.pool();
         let Some(item) = self.cx.lookup.item(def) else {
             return unsupported(format!("the type {}", self.cx.names.path(def)));
         };
@@ -322,20 +342,7 @@ impl Ck<'_, '_> {
                 self.infer.fresh(pool, VarKind::General)
             });
         }
-        Ok(match &item.data {
-            ItemData::Alias { body, .. } => pool.subst(*body, &|p: ParamRef| {
-                (p.owner == def)
-                    .then(|| args.get(p.index as usize).copied())
-                    .flatten()
-            }),
-            ItemData::Struct(_) | ItemData::Enum { .. } | ItemData::Newtype(_) => {
-                pool.intern_ty(&TyData::Adt {
-                    def,
-                    args: pool.list(&args),
-                })
-            }
-            _ => return unsupported("a non-type name in type position"),
-        })
+        Ok(args)
     }
 
     fn named_ty_as(&mut self, n: NodeRef<'_>, role: NameRole) -> StageResult<Ty> {

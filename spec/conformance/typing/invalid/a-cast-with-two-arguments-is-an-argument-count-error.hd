@@ -1,0 +1,5 @@
+# test: a constructor-style cast converts exactly one value
+# Spec 04 Type System: types.cast.syntax; the general argument-count code.
+
+fn widen(x: i32) -> i64:
+    i64(x, x) # diagnostic: argument-count

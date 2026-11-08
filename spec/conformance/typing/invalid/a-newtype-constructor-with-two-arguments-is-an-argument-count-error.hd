@@ -1,0 +1,7 @@
+# test: a newtype constructor wraps exactly one base value
+# Spec 04 Type System: types.newtype.construct; the general argument-count code.
+
+type UserId(i64)
+
+fn make(x: i64) -> UserId:
+    UserId(x, x) # diagnostic: argument-count

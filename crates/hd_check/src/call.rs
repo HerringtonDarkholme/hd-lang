@@ -563,18 +563,21 @@ impl Ck<'_, '_> {
                 )));
             }
         }
-        let kind = self.kind_of_item(def);
-        if kind.is_some_and(|k| k.is_type() || k == HeadKind::Trait) {
-            let what = if kind == Some(HeadKind::Trait) {
-                "a trait"
-            } else {
-                "a type"
-            };
-            let msg = format!("`{name}` is {what}, not a value");
-            self.err(Code::TypeUsedAsValue, n, &msg);
-            return Ok(Some((Ref(NONE), Ty::POISON)));
-        }
-        Ok(None)
+        Ok(self.type_as_value(def, name, n))
+    }
+
+    /// `names.type-as-value`: a type, alias or trait `def`, written as
+    /// `name`, used as a value; `None` for any other declaration.
+    fn type_as_value(&mut self, def: DefId, name: &str, n: NodeRef<'_>) -> Option<(Ref, Ty)> {
+        let kind = self.kind_of_item(def)?;
+        let what = match kind {
+            HeadKind::Trait => "a trait",
+            k if k.is_type() => "a type",
+            _ => return None,
+        };
+        let msg = format!("`{name}` is {what}, not a value");
+        self.err(Code::TypeUsedAsValue, n, &msg);
+        Some((Ref(NONE), Ty::POISON))
     }
 
     /// `f::[T]` as a value, or a member's `Owner::name::[T]`: `n` is
@@ -605,7 +608,10 @@ impl Ck<'_, '_> {
             let sig = sig.clone();
             return self.item_value(def, &sig, &explicit, want, n);
         }
-        unsupported("a type with arguments used as a value")
+        match self.type_as_value(def, &segs.join("."), n) {
+            Some(v) => Ok(v),
+            None => unsupported("this declaration with type arguments used as a value"),
+        }
     }
 
     /// `names.module.other-module.value`: a path that names nothing.
@@ -1019,15 +1025,43 @@ impl Ck<'_, '_> {
         }
     }
 
+    /// The one positional argument of a conversion or a newtype
+    /// constructor; any other count is the general `argument-count`
+    /// error, after each argument is checked.
+    fn one_argument<'t>(
+        &mut self,
+        args: &Args<'t>,
+        name: &str,
+        n: NodeRef<'_>,
+    ) -> StageResult<Option<NodeRef<'t>>> {
+        if let [e] = args.positional.as_slice() {
+            return Ok(Some(*e));
+        }
+        for e in &args.positional {
+            self.expr(*e, None)?;
+        }
+        let msg = format!("`{name}` takes 1 argument");
+        self.err(Code::ArgumentCount, n, &msg);
+        Ok(None)
+    }
+
     /// `i64(x)`: a numeric conversion.
     fn conversion(&mut self, to: Ty, args: &Args<'_>, n: NodeRef<'_>) -> StageResult<(Ref, Ty)> {
-        plain_args(args, "a conversion")?;
-        let [e] = args.positional.as_slice() else {
-            return unsupported("a conversion shape");
+        if args.spread.is_some() {
+            return unsupported("a spread argument for a conversion");
+        }
+        // A numeric target is never a zero-argument function
+        // (`grammar.call.trailing-block.eligible`).
+        if let Some(block) = args.trailing {
+            let w = self.trailing_param(None, &self.show(to), n);
+            self.trailing_closure(block, w, false)?;
+        }
+        let Some(e) = self.one_argument(args, &self.show(to), n)? else {
+            return Ok((Ref(NONE), Ty::POISON));
         };
-        let (r, t) = self.expr(*e, None)?;
+        let (r, t) = self.expr(e, None)?;
         // A newtype converts to the type it wraps (`string(path)`).
-        if let Some(v) = self.unwrap_newtype(r, t, to, *e, n) {
+        if let Some(v) = self.unwrap_newtype(r, t, to, e, n) {
             return Ok(v);
         }
         if let Some(inner) = self.newtype_base(t)
@@ -1056,7 +1090,7 @@ impl Ck<'_, '_> {
             )
             && self.can_unify(t, to)
         {
-            self.expect(t, to, *e, "conversion", ExpectPosition::General);
+            self.expect(t, to, e, "conversion", ExpectPosition::General);
             return Ok((r, to));
         }
         Ok((self.b.prim(PrimOp::Conv as u32, &[r], to, n.index()), to))
@@ -1386,10 +1420,9 @@ impl Ck<'_, '_> {
                 Some(refs) => refs,
                 None => return Ok((Ref(NONE), Ty::NEVER)),
             }
-        } else if inputs == Inputs::Rest {
-            // The inputs end in a rest element: the arguments are
-            // collected as a vararg call collects them
-            // (`fn.type.rest-call`).
+        } else {
+            // Inputs that end in a rest element are collected as a vararg
+            // call collects them (`fn.type.rest-call`).
             let formals: Vec<(Symbol, Ty)> = ps
                 .iter()
                 .enumerate()
@@ -1402,47 +1435,11 @@ impl Ck<'_, '_> {
             let formals = Formals {
                 params: &formals,
                 defaults: &defaults,
-                variadic: true,
+                variadic: inputs == Inputs::Rest,
                 inferred: &inferred,
                 closure_wants: None,
             };
             self.check_args(&formals, 0, args, n, "the function value")?
-        } else if args.spread.is_some() {
-            self.spread_value_args(ps, args, n)?
-        } else {
-            // A trailing block fills the final parameter, so it counts
-            // as an argument only when the callee can take it.
-            let takes =
-                args.trailing.is_some() && self.trailing_takes(ps.last().copied()).is_some();
-            let given = args.positional.len() + usize::from(takes);
-            if ps.len() != given {
-                let msg = format!("the function takes {} arguments", ps.len());
-                self.err(Code::ArgumentCount, n, &msg);
-            }
-            let mut refs = Vec::new();
-            for (i, e) in args.positional.iter().enumerate() {
-                let w = ps.get(i).copied();
-                let (r, t) = self.arg_value(*e, w, true)?;
-                let r = match w {
-                    Some(w) => self.coerce(r, t, w, *e, "argument", ExpectPosition::General),
-                    None => r,
-                };
-                refs.push(r);
-            }
-            if let Some(block) = args.trailing {
-                // A block the callee cannot take is still checked, against
-                // the poison type, but fills nothing.
-                let w = self.trailing_param(
-                    if takes { ps.last().copied() } else { None },
-                    "the function value",
-                    n,
-                );
-                let (r, t) = self.trailing_closure(block, w, takes)?;
-                if takes {
-                    refs.push(self.coerce(r, t, w, block, "argument", ExpectPosition::General));
-                }
-            }
-            refs
         };
         self.check_row(row, n);
         let rec = self.b.refs_record(&refs);
@@ -1918,31 +1915,28 @@ impl Ck<'_, '_> {
         for (i, s) in slots.into_iter().enumerate() {
             match s {
                 Some(r) => out.push(r),
-                None if formals.defaults.get(skip + i).copied().unwrap_or(false) => {
-                    // A local function's default is a closure of the
-                    // earlier values, called after every argument.
-                    if let Some(ld) = &local {
-                        let Some(Some(hidden)) = ld.defaults.get(skip + i) else {
-                            return unsupported("a default argument of this callee");
-                        };
-                        let Some((l, d)) = self.find_local(*hidden) else {
-                            return unsupported("a default argument of this callee");
-                        };
-                        let (c, _) = match &ld.vars {
-                            Some(v) => self.local_generic_inst(l, v, n),
-                            None => self.read_local(l, d, n),
-                        };
-                        let t = self.normalize_deep(rest[i].1)?;
-                        let earlier = self.b.refs_record(&out);
-                        out.push(self.b.emit(Tag::CallValue, c.0, earlier, t, n.index()));
-                        continue;
-                    }
-                    // `DefaultCall` of the parameter's default body, after
-                    // every explicit argument, over the earlier values
-                    // (`crates/hd_tir/DESIGN.md` "Default calls").
-                    let Some((def, targs, prefix)) = &owner else {
-                        return unsupported("a default argument of this callee");
+                // A local function's default is a closure of the earlier
+                // values, declared before the function and so in scope
+                // wherever it is, called after every argument.
+                None if let Some(ld) = &local
+                    && let Some(Some(hidden)) = ld.defaults.get(skip + i)
+                    && let Some((l, d)) = self.find_local(*hidden) =>
+                {
+                    let (c, _) = match &ld.vars {
+                        Some(v) => self.local_generic_inst(l, v, n),
+                        None => self.read_local(l, d, n),
                     };
+                    let t = self.normalize_deep(rest[i].1)?;
+                    let earlier = self.b.refs_record(&out);
+                    out.push(self.b.emit(Tag::CallValue, c.0, earlier, t, n.index()));
+                }
+                // `DefaultCall` of the parameter's default body, after every
+                // explicit argument, over the earlier values
+                // (`crates/hd_tir/DESIGN.md` "Default calls").
+                None if local.is_none()
+                    && formals.defaults.get(skip + i).copied().unwrap_or(false)
+                    && let Some((def, targs, prefix)) = &owner =>
+                {
                     let pname = self.cx.names.text(rest[i].0).to_owned();
                     let body = self.cx.names.member(*def, PathKind::Hidden, &pname);
                     let a = self.b.refs_record(&[Ref(body.raw()), Ref(targs.0)]);
@@ -2190,48 +2184,6 @@ impl Ck<'_, '_> {
             }
         }
         Ok(())
-    }
-
-    /// The arguments of a function-value call with a positional spread.
-    fn spread_value_args(
-        &mut self,
-        ps: &[Ty],
-        args: &Args<'_>,
-        n: NodeRef<'_>,
-    ) -> StageResult<Vec<Ref>> {
-        if args.trailing.is_some() {
-            return unsupported("a trailing block with a spread argument");
-        }
-        let mut slots: Vec<Option<Ref>> = vec![None; ps.len()];
-        if args.positional.len() > ps.len() {
-            let msg = format!("the function takes {} arguments", ps.len());
-            self.err(Code::ArgumentCount, n, &msg);
-        }
-        for (i, e) in args.positional.iter().enumerate() {
-            let w = ps.get(i).copied();
-            let (r, t) = self.expr(*e, w)?;
-            let r = match w {
-                Some(w) => self.coerce(r, t, w, *e, "argument", ExpectPosition::General),
-                None => r,
-            };
-            if let Some(s) = slots.get_mut(i) {
-                *s = Some(r);
-            }
-        }
-        if let Some(s) = args.spread {
-            let at = SpreadAt {
-                variadic: false,
-                given: args.positional.len(),
-                named: &[],
-                items: &[],
-            };
-            self.spread_arg(s, ps, at, &mut slots, args)?;
-        }
-        if slots.iter().any(Option::is_none) {
-            let msg = format!("the function takes {} arguments", ps.len());
-            self.err(Code::ArgumentCount, n, &msg);
-        }
-        Ok(slots.into_iter().flatten().collect())
     }
 
     /// A call of a function item, generic or not.
@@ -2530,16 +2482,18 @@ impl Ck<'_, '_> {
             ItemData::Newtype(inner) => {
                 let inner = *inner;
                 plain_args(args, "a newtype constructor")?;
-                let [e] = args.positional.as_slice() else {
-                    return unsupported("a newtype constructor shape");
+                let name = self.cx.names.text(item.name).to_owned();
+                let Some(e) = self.one_argument(args, &name, n)? else {
+                    return Ok((Ref(NONE), Ty::POISON));
                 };
-                let t = self.ctor(def, explicit)?;
-                let TyData::Adt { args: targs, .. } = pool.get(t) else {
-                    return unsupported("a newtype's type");
-                };
-                let it = subst_owner(pool, def, pool.list_items(targs), inner);
-                let (r, rt) = self.stored_expr(*e, Some(it), "in this newtype")?;
-                let r = self.coerce(r, rt, it, *e, "argument", ExpectPosition::General);
+                let targs = self.ctor_args(def, explicit)?;
+                let t = pool.intern_ty(&TyData::Adt {
+                    def,
+                    args: pool.list(&targs),
+                });
+                let it = subst_owner(pool, def, &targs, inner);
+                let (r, rt) = self.stored_expr(e, Some(it), "in this newtype")?;
+                let r = self.coerce(r, rt, it, e, "argument", ExpectPosition::General);
                 // A newtype over a composite keeps its base value's outer
                 // `mut`, which only a `mut Suspend[T]` base can have.
                 let t = if self.is_composite(rt) && self.has_mut_access(rt) {
@@ -3610,11 +3564,13 @@ impl Ck<'_, '_> {
         bang: bool,
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
-        let Some(ItemData::Trait(td)) = self.cx.lookup.item(tr).map(|i| &i.data) else {
-            return unsupported("a trait path");
-        };
         let sym = self.cx.names.syms.intern(name);
-        let Some(&(_, m)) = td.methods.iter().find(|(s, _)| *s == sym) else {
+        // The caller resolved `tr` as a trait.
+        let found = match self.cx.lookup.item(tr).map(|i| &i.data) {
+            Some(ItemData::Trait(td)) => td.methods.iter().find(|(s, _)| *s == sym),
+            _ => None,
+        };
+        let Some(&(_, m)) = found else {
             let msg = format!(
                 "no method `{name}` on trait {}",
                 self.cx.names.display_name(tr)
@@ -4872,10 +4828,8 @@ impl Ck<'_, '_> {
         if ((trait_ == known.fn_trait && method == known.fn_call)
             || (trait_ == known.fn_mut_trait && method == known.fn_mut_call))
             && choice != PENDING_CHOICE
+            && let Some(&receiver) = refs.first()
         {
-            let Some(&receiver) = refs.first() else {
-                return unsupported("`Fn.call` without a receiver");
-            };
             let receiver_ty = self.b.ty_of(receiver);
             let (function, _) = self.emit_deref(receiver, receiver_ty, n.index());
             let rec = self.b.refs_record(&refs[1..]);

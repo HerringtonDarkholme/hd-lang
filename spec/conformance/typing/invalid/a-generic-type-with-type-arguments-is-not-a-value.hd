@@ -1,0 +1,8 @@
+# test: explicit type arguments do not make a type a value
+# Spec 03 Names and Scopes: names.type-as-value.
+
+struct Box[T]:
+    value: T
+
+fn run() -> void:
+    b := Box::[i32] # diagnostic: type-used-as-value
