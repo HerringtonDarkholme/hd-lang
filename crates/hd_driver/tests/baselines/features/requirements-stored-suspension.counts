@@ -60,8 +60,6 @@ fn later!(key: string) -> usize:
 fn blocking(key: string) -> usize:
     match block_on(fetch(key)):
 > app/main/blocking
->   retain string (conservative: Call)
->   release string (conservative: Call)
 >   release Suspend[string] (last use)
 >   release std.task.BlockOn[string] (last use)
         .Completed(v) => v.len()

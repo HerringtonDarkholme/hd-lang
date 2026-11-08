@@ -1574,43 +1574,29 @@
     end
     i32.const 0
   )
-  (func $blocking (param $key.0 i32) (param $key.1 i32) (result i32) (local $t0 i32) (local $v.1 i32) (local $t2 i32) (local $t1 i32)
+  (func $blocking (param $key.0 i32) (param $key.1 i32) (result i32) (local $t0 i32) (local $v.1 i32) (local $t1 i32)
     ;; 33 |     match block_on(fetch(key)):
     block
       call $rt:forbid_check
       i32.const 0
+      i32.const 0
       local.get $key.0
       local.get $key.1
       call $fetch'1
+      local.set $key.0
+      local.set $v.1
       local.set $t0
       local.set $key.1
-      local.tee $key.0
-      local.tee $t1
-      if
-        local.get $t1
-        call $retain
-      end
-      i32.const 0
-      local.get $key.1
-      local.set $v.1
-      local.set $key.1
       local.get $key.0
-      local.tee $t1
       if
-        local.get $t1
-        call $rt:release_ref'2
-      end
-      local.get $t0
-      local.tee $t1
-      if
-        local.get $t1
+        local.get $key.0
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $t1
+          local.get $key.0
           call $rt:release_ref'1
         end
       end
@@ -1630,7 +1616,7 @@
           block
             block
               local.get $v.1
-              local.set $t2
+              local.set $t1
               br 0
             end
           end
@@ -1640,10 +1626,10 @@
         br 0
       end
       local.get $key.1
-      local.get $key.0
+      local.get $t0
       local.get $v.1
       call $rt:release
-      local.get $t2
+      local.get $t1
       local.set $key.0
     end
     local.get $key.0

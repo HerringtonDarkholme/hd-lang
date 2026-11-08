@@ -20,7 +20,7 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 12 funcref))
   (func $fetch'1 (param $frame i32) (param $key.0 i32) (param $key.1 i32) (result i32 i32 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t0 i32)
-    ;; 9 |     key + "?"
+    ;; 11 |     key + "?"
     local.get $frame
     if
       local.get $frame
@@ -106,7 +106,7 @@
     end
   )
   (func $fetch.poll (param $t0 i32) (result i32 i32 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32)
-    ;; 9 |     key + "?"
+    ;; 11 |     key + "?"
     local.get $t0
     call $rt:poll_check
     if
@@ -154,7 +154,7 @@
     return
   )
   (func $fetch.cancel (param $t1 i32) (local $t0 i32) (local $t3 i32) (local $t2 i32)
-    ;; 9 |     key + "?"
+    ;; 11 |     key + "?"
     call $rt:cancel_enter
     local.set $t0
     block
@@ -200,7 +200,7 @@
     call $rt:cancel_leave
   )
   (func $fetch.drop (param $t0 i32)
-    ;; 9 |     key + "?"
+    ;; 11 |     key + "?"
     local.get $t0
     i32.load $heap offset=24
     local.tee $t0
@@ -210,7 +210,7 @@
     end
   )
   (func $fetch'2 (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32)
-    ;; 9 |     key + "?"
+    ;; 11 |     key + "?"
     call $rt:frame
     local.tee $t0
     local.get $t1
@@ -225,82 +225,68 @@
     i32.store $heap offset=28
     local.get $t0
   )
-  (func $direct (param $key.0 i32) (param $key.1 i32) (result i32) (local $t0 i32) (local $value.1 i32) (local $t2 i32) (local $t1 i32)
-    ;; 12 |     match block_on(fetch(key)):
+  (func $direct (param $key.0 i32) (param $key.1 i32) (result i32) (local $t0 i32) (local $value.1 i32) (local $t1 i32)
+    ;; 14 |     match block_on(fetch(key)):
     block
       call $rt:forbid_check
+      i32.const 0
       i32.const 0
       local.get $key.0
       local.get $key.1
       call $fetch'1
+      local.set $key.0
+      local.set $value.1
       local.set $t0
       local.set $key.1
-      local.tee $key.0
-      local.tee $t1
-      if
-        local.get $t1
-        call $retain
-      end
-      i32.const 0
-      local.get $key.1
-      local.set $value.1
-      local.set $key.1
       local.get $key.0
-      local.tee $t1
       if
-        local.get $t1
-        call $rt:release_ref'1
-      end
-      local.get $t0
-      local.tee $t1
-      if
-        local.get $t1
+        local.get $key.0
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $t1
+          local.get $key.0
           call $rt:release_ref'2
         end
       end
       block
         block
           block
-    ;; 13 |         .Completed(value) => value.len()
+    ;; 15 |         .Completed(value) => value.len()
             local.get $key.1
             i32.eqz
             i32.eqz
             br_if 1
             br 0
-    ;; 12 |     match block_on(fetch(key)):
+    ;; 14 |     match block_on(fetch(key)):
             unreachable
           end
-    ;; 13 |         .Completed(value) => value.len()
+    ;; 15 |         .Completed(value) => value.len()
           block
             block
               local.get $value.1
-              local.set $t2
+              local.set $t1
               br 0
             end
           end
-    ;; 12 |     match block_on(fetch(key)):
+    ;; 14 |     match block_on(fetch(key)):
           br 1
         end
         br 0
       end
       local.get $key.1
-      local.get $key.0
+      local.get $t0
       local.get $value.1
       call $rt:release
-      local.get $t2
+      local.get $t1
       local.set $key.0
     end
     local.get $key.0
   )
   (func $deferred (param $key.0 i32) (param $key.1 i32) (param $log i32) (result i32) (local $value.1 i32) (local $t0 i32) (local $t1 i32)
-    ;; 23 |     let pending: mut Suspend[string] = fetch(key)
+    ;; 25 |     let pending: mut Suspend[string] = fetch(key)
     block
       local.get $key.0
       local.get $key.1
@@ -313,7 +299,7 @@
       local.get $log
       local.get $key.1
       i32.store $heap
-    ;; 24 |     log.push("constructed")
+    ;; 26 |     log.push("constructed")
       local.get $key.1
       i32.load $heap offset=4
       local.tee $value.1
@@ -345,7 +331,7 @@
       i32.const 1
       i32.add
       i32.store $heap offset=4
-    ;; 25 |     match block_on(pending):
+    ;; 27 |     match block_on(pending):
       call $rt:forbid_check
       block
         loop
@@ -375,51 +361,40 @@
       global.get $rewake
       i32.or
       global.set $rewake
-      local.get $key.1
-      local.tee $t0
-      if
-        local.get $t0
-        call $retain
-      end
       i32.const 0
+      local.get $key.1
       local.get $log
       local.set $value.1
       local.set $log
-      local.get $key.1
-      local.tee $t0
-      if
-        local.get $t0
-        call $rt:release_ref'1
-      end
-    ;; 23 |     let pending: mut Suspend[string] = fetch(key)
+      local.set $key.1
+    ;; 25 |     let pending: mut Suspend[string] = fetch(key)
       local.get $key.0
-      local.tee $t0
       if
-        local.get $t0
+        local.get $key.0
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $t0
+          local.get $key.0
           call $rt:release_ref'2
         end
       end
-    ;; 25 |     match block_on(pending):
+    ;; 27 |     match block_on(pending):
       block
         block
           block
-    ;; 26 |         .Completed(value) => value.len()
-            local.get $log
+    ;; 28 |         .Completed(value) => value.len()
+            local.get $key.1
             i32.eqz
             i32.eqz
             br_if 1
             br 0
-    ;; 25 |     match block_on(pending):
+    ;; 27 |     match block_on(pending):
             unreachable
           end
-    ;; 26 |         .Completed(value) => value.len()
+    ;; 28 |         .Completed(value) => value.len()
           block
             block
               local.get $value.1
@@ -427,14 +402,14 @@
               br 0
             end
           end
-    ;; 25 |     match block_on(pending):
+    ;; 27 |     match block_on(pending):
           br 1
         end
         br 0
       end
-    ;; 23 |     let pending: mut Suspend[string] = fetch(key)
-      local.get $log
+    ;; 25 |     let pending: mut Suspend[string] = fetch(key)
       local.get $key.1
+      local.get $log
       local.get $value.1
       call $rt:release
       local.get $t1
@@ -442,82 +417,68 @@
     end
     local.get $key.0
   )
-  (func $stored (param $key.0 i32) (param $key.1 i32) (result i32) (local $t0 i32) (local $value.1 i32) (local $t2 i32) (local $t1 i32)
-    ;; 17 |     let pending: mut Suspend[string] = fetch(key)
+  (func $stored (param $key.0 i32) (param $key.1 i32) (result i32) (local $t0 i32) (local $value.1 i32) (local $t1 i32)
+    ;; 19 |     let pending: mut Suspend[string] = fetch(key)
     block
-    ;; 18 |     match block_on(pending):
+    ;; 20 |     match block_on(pending):
       call $rt:forbid_check
-    ;; 17 |     let pending: mut Suspend[string] = fetch(key)
+      i32.const 0
+    ;; 19 |     let pending: mut Suspend[string] = fetch(key)
       i32.const 0
       local.get $key.0
       local.get $key.1
       call $fetch'1
+      local.set $key.0
+    ;; 20 |     match block_on(pending):
+      local.set $value.1
       local.set $t0
       local.set $key.1
-      local.tee $key.0
-    ;; 18 |     match block_on(pending):
-      local.tee $t1
-      if
-        local.get $t1
-        call $retain
-      end
-      i32.const 0
-      local.get $key.1
-      local.set $value.1
-      local.set $key.1
+    ;; 19 |     let pending: mut Suspend[string] = fetch(key)
       local.get $key.0
-      local.tee $t1
       if
-        local.get $t1
-        call $rt:release_ref'1
-      end
-    ;; 17 |     let pending: mut Suspend[string] = fetch(key)
-      local.get $t0
-      local.tee $t1
-      if
-        local.get $t1
+        local.get $key.0
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $t1
+          local.get $key.0
           call $rt:release_ref'2
         end
       end
-    ;; 18 |     match block_on(pending):
+    ;; 20 |     match block_on(pending):
       block
         block
           block
-    ;; 19 |         .Completed(value) => value.len()
+    ;; 21 |         .Completed(value) => value.len()
             local.get $key.1
             i32.eqz
             i32.eqz
             br_if 1
             br 0
-    ;; 18 |     match block_on(pending):
+    ;; 20 |     match block_on(pending):
             unreachable
           end
-    ;; 19 |         .Completed(value) => value.len()
+    ;; 21 |         .Completed(value) => value.len()
           block
             block
               local.get $value.1
-              local.set $t2
+              local.set $t1
               br 0
             end
           end
-    ;; 18 |     match block_on(pending):
+    ;; 20 |     match block_on(pending):
           br 1
         end
         br 0
       end
-    ;; 17 |     let pending: mut Suspend[string] = fetch(key)
+    ;; 19 |     let pending: mut Suspend[string] = fetch(key)
       local.get $key.1
-      local.get $key.0
+      local.get $t0
       local.get $value.1
       call $rt:release
-      local.get $t2
+      local.get $t1
       local.set $key.0
     end
     local.get $key.0

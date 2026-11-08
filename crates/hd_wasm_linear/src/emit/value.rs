@@ -749,14 +749,18 @@ impl Em<'_, '_, '_> {
         self.store(i)
     }
 
-    /// A new value of variant `variant` of `i`'s enum type with the payload
-    /// `fields`: the tag, then each slot's value from the payload or a zero;
-    /// a boxed enum stores them in a new cell.
+    /// [`Em::variant`] of copies of `fields`.
     pub(super) fn new_variant(&mut self, i: u32, variant: u32, fields: &[Src]) -> StageResult<()> {
+        self.variant(i, variant, fields, false)
+    }
+
+    /// Variant `v` of `i`'s enum with the payload `fs`, moved in if `moved`:
+    /// the tag, then each slot's value from `fs` or a zero, in a cell if boxed.
+    pub(super) fn variant(&mut self, i: u32, v: u32, fs: &[Src], moved: bool) -> StageResult<()> {
         let t = self.ty(i);
         let flat = self.flat(t)?;
         let (m, positions) = (&flat.0, &flat.1);
-        let Some(at) = positions.get(variant as usize) else {
+        let Some(at) = positions.get(v as usize) else {
             return unsupported("a variant the enum does not have");
         };
         // The source of each slot: a field and its value's index.
@@ -769,23 +773,23 @@ impl Em<'_, '_, '_> {
         let tys = self
             .variant_tys(t)
             .ok()
-            .and_then(|vs| vs.get(variant as usize).cloned())
+            .and_then(|vs| vs.get(v as usize).cloned())
             .unwrap_or_default();
-        if tys.len() != fields.len() {
+        if tys.len() != fs.len() {
             return unsupported("a variant built from other fields than it has");
         }
         // Construction consumes its parts (§23.25).
-        let fields = if self.short_loans.contains_key(&i) {
-            fields.to_vec()
+        let fields = if moved || self.short_loans.contains_key(&i) {
+            fs.to_vec()
         } else {
-            self.count_parts(fields, &tys)?
+            self.count_parts(fs, &tys)?
         };
         // A nullable enum's value 0 is the payload's address, or null.
         let push = |em: &mut Self, p: usize| -> StageResult<()> {
             if let Some((f, k)) = from[p] {
                 em.src(&fields[f], k)
             } else if p == 0 {
-                em.f.u32(variant);
+                em.f.u32(v);
                 Ok(())
             } else {
                 em.zero(m.leaves[p].val);

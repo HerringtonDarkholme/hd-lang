@@ -3363,8 +3363,7 @@ impl Em<'_, '_, '_> {
     /// (`hd:rt.block`), then gives `.Completed(value)`, or `.Cancelled` or
     /// `.Abandoned` once a cancelled suspension's cleanup has ended.
     fn block_on(&mut self, i: u32, s: u32) -> StageResult<()> {
-        let inner = self.susp_inner(self.ty_of(s))?;
-        let result = self.vals(inner)?;
+        let result = self.vals(self.susp_inner(self.ty_of(s))?)?;
         // Through a drive slot (§23.39), the cold call made the
         // forbidden-context check and the first poll, and left its results
         // in locals: `frame` is 0 when it is done.
@@ -3373,8 +3372,7 @@ impl Em<'_, '_, '_> {
             && driven.complete
         {
             self.slot(i)?;
-            self.new_variant(i, 0, &[value::Src::Locals(driven.values.clone())])?;
-            return self.release_locals(&driven.values, inner);
+            return self.variant(i, 0, &[value::Src::Locals(driven.values.clone())], true);
         }
         if fused.is_none() {
             self.f.helper(Helper::ForbidCheck);
@@ -3480,8 +3478,7 @@ impl Em<'_, '_, '_> {
         self.f.get(ready);
         self.f.op(Instruction::If(BlockType::Empty));
         self.ctl.push(Ctl::Plain);
-        self.new_variant(i, 0, &[value::Src::Locals(tmp.clone())])?;
-        self.release_locals(&tmp, inner)?;
+        self.variant(i, 0, &[value::Src::Locals(tmp.clone())], true)?;
         self.f.op(Instruction::Else);
         self.f.get(flags);
         self.f.i32(crate::task::ABANDONED);
@@ -3494,8 +3491,7 @@ impl Em<'_, '_, '_> {
         self.close();
         self.close();
         self.f.op(Instruction::Else);
-        self.new_variant(i, 0, &[value::Src::Locals(tmp.clone())])?;
-        self.release_locals(&tmp, inner)?;
+        self.variant(i, 0, &[value::Src::Locals(tmp.clone())], true)?;
         self.close();
         if let Some(buffer) = fused.and_then(|driven| driven.buffer) {
             self.f.get(frame);

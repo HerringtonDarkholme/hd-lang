@@ -1,8 +1,10 @@
-# @dump: wat
+# @dump: own counts wat
 # @build: v8 release
 # A known cold call immediately consumed by block_on calls its body.
 # A body with no suspension point needs no constructor or poll loop.
 # Work between construction and driving keeps the original cold call.
+# expected: `.Completed` takes the driven result as it stands: no retain of
+# the string and no release of the locals that held it.
 use std.task.block_on
 
 fn fetch!(key: string) -> string:
