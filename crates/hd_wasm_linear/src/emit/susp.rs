@@ -438,9 +438,9 @@ impl Em<'_, '_, '_> {
     /// end is the cancellation branch, entered on a resume for
     /// cancellation or when the awaited child turns out cancelled.
     pub(super) fn point(&mut self, i: u32, a: u32, bw: u32) -> StageResult<()> {
-        let Some(k) = self.susp.as_ref().and_then(|s| s.states.get(&i).copied()) else {
-            return unsupported("a suspension point outside a suspending body");
-        };
+        // Checking puts a point only in a suspending body
+        // (`bang-call-outside-suspension`), whose plan numbers it.
+        let k = self.susp.as_ref().expect("a suspending body").states[&i];
         let pc = self.pc();
         self.slot(i)?;
         // A point in a `using!` binding's dispose suite is shielded: it has
@@ -555,10 +555,10 @@ impl Em<'_, '_, '_> {
                 let rec = self.rec(bw);
                 let args = rec[..rec.len().saturating_sub(3)].to_vec();
                 match self.calls.get(&i).cloned() {
+                    // Checking calls with `!` only a suspending function
+                    // (`not-suspending`), which an implementation matches
+                    // (`trait-method-signature`).
                     Some(Target::Call(t)) if t.kind == TargetKind::Instance => {
-                        if !self.env().suspends(t.item) {
-                            return unsupported("a bang call of a function that does not suspend");
-                        }
                         self.await_direct(i, k, t.key, t.item, t.args, &args)
                     }
                     Some(Target::Dyn) => {
@@ -570,8 +570,9 @@ impl Em<'_, '_, '_> {
                     _ => unsupported("a bang call that collection did not resolve"),
                 }
             }
-            Tag::AwaitAll => self.await_all(i, k, bw),
-            _ => unsupported("emission of `AwaitRace` (the checker emits `race!` as std hd)"),
+            // `AwaitAll`: the checker emits `race!` as std hd, never an
+            // `AwaitRace`.
+            _ => self.await_all(i, k, bw),
         }
     }
 

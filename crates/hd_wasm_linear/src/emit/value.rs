@@ -422,19 +422,14 @@ impl Em<'_, '_, '_> {
             self.push(r)?;
             return self.store_as(i, moved);
         }
-        match self.kind(t) {
-            Kind::Value => {
-                let tys = self.struct_fields(t);
-                // Construction consumes its parts (§23.25).
-                let srcs = self.count_refs(&fields, &tys)?;
-                for (s, ft) in srcs.iter().zip(&tys) {
-                    for k in 0..self.vals(*ft)?.len() {
-                        self.src(s, k)?;
-                    }
-                }
+        // A struct literal names a struct, whose values are in locals.
+        let tys = self.struct_fields(t);
+        // Construction consumes its parts (§23.25).
+        let srcs = self.count_refs(&fields, &tys)?;
+        for (s, ft) in srcs.iter().zip(&tys) {
+            for k in 0..self.vals(*ft)?.len() {
+                self.src(s, k)?;
             }
-            Kind::Boxed => return unsupported("a data literal of an enum"),
-            Kind::Ref { .. } => return unsupported("a reference's closure form"),
         }
         // The parts' counts are the new value's.
         self.store_owned(i)
@@ -577,49 +572,44 @@ impl Em<'_, '_, '_> {
             }
             return self.store(i);
         }
-        match self.kind(t) {
-            Kind::Value => {
-                let (_, parts) = struct_mem(self.pool(), self.env(), t)?;
-                let tys = self.struct_fields(t);
-                let copy = self.operation_count(
-                    i,
-                    hd_tir::ir::Tag::Retain,
-                    hd_tir::ir::count::Part::Operand(0),
-                );
-                // The copy takes a count of each kept field, and each
-                // replacement moves its count in or takes one (§23.25).
-                let from = self.vals.get(&a).cloned();
-                let mut srcs = Vec::new();
-                for (f, (ft, p)) in tys.iter().zip(&parts).enumerate() {
-                    srcs.push(match (replaced(f), &from) {
-                        (Some(v), _) => Some(self.consumed(v)?),
-                        (None, Some(ls)) => {
-                            let kept = &ls[p.first..p.first + p.count];
-                            Some(Src::Locals(match copy {
-                                Some(copy) => self.because(copy, |em| em.copy_locals(kept, *ft))?,
-                                None => kept.to_vec(),
-                            }))
-                        }
-                        (None, None) => None,
-                    });
+        // A copy-update copies a struct, whose values are in locals.
+        let (_, parts) = struct_mem(self.pool(), self.env(), t)?;
+        let tys = self.struct_fields(t);
+        let copy = self.operation_count(
+            i,
+            hd_tir::ir::Tag::Retain,
+            hd_tir::ir::count::Part::Operand(0),
+        );
+        // The copy takes a count of each kept field, and each
+        // replacement moves its count in or takes one (§23.25).
+        let from = self.vals.get(&a).cloned();
+        let mut srcs = Vec::new();
+        for (f, (ft, p)) in tys.iter().zip(&parts).enumerate() {
+            srcs.push(match (replaced(f), &from) {
+                (Some(v), _) => Some(self.consumed(v)?),
+                (None, Some(ls)) => {
+                    let kept = &ls[p.first..p.first + p.count];
+                    Some(Src::Locals(match copy {
+                        Some(copy) => self.because(copy, |em| em.copy_locals(kept, *ft))?,
+                        None => kept.to_vec(),
+                    }))
                 }
-                for (f, p) in parts.iter().enumerate() {
-                    match &srcs[f] {
-                        Some(s) => {
-                            for k in 0..p.count {
-                                self.src(s, k)?;
-                            }
-                        }
-                        None => {
-                            for k in p.first..p.first + p.count {
-                                self.comp(a, k)?;
-                            }
-                        }
+                (None, None) => None,
+            });
+        }
+        for (f, p) in parts.iter().enumerate() {
+            match &srcs[f] {
+                Some(s) => {
+                    for k in 0..p.count {
+                        self.src(s, k)?;
+                    }
+                }
+                None => {
+                    for k in p.first..p.first + p.count {
+                        self.comp(a, k)?;
                     }
                 }
             }
-            Kind::Boxed => return unsupported("a copy-update of an enum"),
-            Kind::Ref { .. } => return unsupported("a reference's closure form"),
         }
         self.store_owned(i)
     }
@@ -631,18 +621,12 @@ impl Em<'_, '_, '_> {
             self.push(a)?;
             return self.store(i);
         }
-        match self.kind(t) {
-            Kind::Value => {
-                let (_, parts) = struct_mem(self.pool(), self.env(), t)?;
-                let Some(p) = parts.get(idx as usize).copied() else {
-                    return unsupported("a field index outside the struct");
-                };
-                for k in p.first..p.first + p.count {
-                    self.comp(a, k)?;
-                }
-            }
-            Kind::Boxed => return unsupported("a field of an enum"),
-            Kind::Ref { .. } => return unsupported("a reference's closure form"),
+        // A field read of a value reads a struct's field; one through a
+        // reference is a `DerefField` step.
+        let (_, parts) = struct_mem(self.pool(), self.env(), t)?;
+        let p = parts[idx as usize];
+        for k in p.first..p.first + p.count {
+            self.comp(a, k)?;
         }
         self.store(i)
     }
@@ -663,9 +647,7 @@ impl Em<'_, '_, '_> {
     /// A tuple element read: element `idx`'s values.
     pub(super) fn tuple_get(&mut self, i: u32, a: u32, idx: u32) -> StageResult<()> {
         let (_, parts) = struct_mem(self.pool(), self.env(), self.ty_of(a))?;
-        let Some(p) = parts.get(idx as usize).copied() else {
-            return unsupported("a tuple index outside the tuple");
-        };
+        let p = parts[idx as usize];
         for k in p.first..p.first + p.count {
             self.comp(a, k)?;
         }
@@ -731,13 +713,8 @@ impl Em<'_, '_, '_> {
         let t = self.ty_of(a);
         let flat = self.flat(t)?;
         let (m, positions) = (&flat.0, &flat.1);
-        let Some(at) = positions
-            .get(variant as usize)
-            .and_then(|fs| fs.get(field as usize))
-            .cloned()
-        else {
-            return unsupported("a payload field the enum does not have");
-        };
+        // A checked payload step names a field of its variant.
+        let at = positions[variant as usize][field as usize].clone();
         let boxed = matches!(self.kind(t), Kind::Boxed);
         for &p in &at {
             if boxed {
@@ -760,9 +737,9 @@ impl Em<'_, '_, '_> {
         let t = self.ty(i);
         let flat = self.flat(t)?;
         let (m, positions) = (&flat.0, &flat.1);
-        let Some(at) = positions.get(v as usize) else {
-            return unsupported("a variant the enum does not have");
-        };
+        // The checker builds a variant of its enum with each of its
+        // fields, as the backend's own constructions do.
+        let at = &positions[v as usize];
         // The source of each slot: a field and its value's index.
         let mut from: Vec<Option<(usize, usize)>> = vec![None; m.leaves.len()];
         for (f, ps) in at.iter().enumerate() {
@@ -775,9 +752,6 @@ impl Em<'_, '_, '_> {
             .ok()
             .and_then(|vs| vs.get(v as usize).cloned())
             .unwrap_or_default();
-        if tys.len() != fs.len() {
-            return unsupported("a variant built from other fields than it has");
-        }
         // Construction consumes its parts (§23.25).
         let fields = if moved || self.short_origins.contains(&i) {
             fs.to_vec()

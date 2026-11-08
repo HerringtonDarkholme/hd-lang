@@ -24,12 +24,9 @@ impl Em<'_, '_, '_> {
     /// An interpolation or a concatenation of string parts: one part is
     /// itself; more are copied into one new buffer, or are the empty value
     /// when they have no bytes.
+    /// Checking types both operands of `+` on strings `string`
+    /// (`type-mismatch`).
     pub(super) fn concat(&mut self, i: u32, parts: &[u32]) -> StageResult<()> {
-        for p in parts {
-            if !self.is_string(self.ty_of(*p)) {
-                return unsupported("an interpolation part that is not a string");
-            }
-        }
         match parts {
             [] => {
                 self.f.u32(EMPTY);

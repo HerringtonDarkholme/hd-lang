@@ -217,15 +217,11 @@ impl Em<'_, '_, '_> {
                     };
                     let flat = self.flat(ty)?;
                     let positions = &flat.1;
-                    let tys = self.variant_tys(ty).unwrap_or_default();
-                    let (Some(at), Some(&ft)) = (
-                        positions.get(v as usize).and_then(|fs| fs.get(f as usize)),
-                        tys.get(v as usize).and_then(|fs| fs.get(f as usize)),
-                    ) else {
-                        return unsupported("a payload field the enum does not have");
-                    };
+                    // A checked place's payload step names a field of
+                    // its variant.
+                    let at = &positions[v as usize][f as usize];
                     slots = at.iter().map(|&p| slots[p]).collect();
-                    ty = ft;
+                    ty = self.variant_tys(ty)?[v as usize][f as usize];
                     k += 2;
                 }
                 Proj::Deref | Proj::Elem(_) => return Ok(None),
@@ -409,9 +405,8 @@ impl Em<'_, '_, '_> {
         self.f.get(reference);
         self.f.helper(Helper::RefIsView);
         self.f.op(I::If(wasm_encoder::BlockType::Empty));
-        let [taken] = rt::ref_take(&mut self.f, reference, &value)[..] else {
-            return unsupported("a collection view with more than one header");
-        };
+        // A map is one header word.
+        let taken = rt::ref_take(&mut self.f, reference, &value)[0];
         self.f.get(taken);
         unique(self);
         self.f.set(header);
@@ -718,15 +713,11 @@ impl Em<'_, '_, '_> {
                         return unsupported("a reference to a payload field of a boxed enum");
                     }
                     let layout = self.flat(ty)?;
-                    let tys = self.variant_tys(ty)?;
-                    let (Some(sel), Some(&ft)) = (
-                        layout.1.get(v as usize).and_then(|fs| fs.get(f as usize)),
-                        tys.get(v as usize).and_then(|fs| fs.get(f as usize)),
-                    ) else {
-                        return unsupported("a payload field the enum does not have");
-                    };
+                    // A checked place's payload step names a field of
+                    // its variant.
+                    let sel = &layout.1[v as usize][f as usize];
                     picks = sel.iter().map(|&p| picks[p]).collect();
-                    ty = ft;
+                    ty = self.variant_tys(ty)?[v as usize][f as usize];
                     k += 2;
                 }
                 (Proj::Field(f), _) => {
@@ -939,10 +930,8 @@ impl Em<'_, '_, '_> {
             let (at, ref_ty) = self.walk_place(i, &p, d, start)?;
             let steps = &p.proj[d + 1..];
             let fields = fields(steps);
+            // A trait value has no field or payload to read.
             if fat {
-                if fields.as_ref().is_none_or(|fields| !fields.is_empty()) {
-                    return unsupported("a field read through a trait value reference");
-                }
                 self.push_at(&at, ref_ty)?;
                 self.store(i)?;
                 return Ok(());
@@ -1133,10 +1122,9 @@ impl Em<'_, '_, '_> {
         }
         let last = self.last_through(&p)?;
         let start = self.place_start(i, &p, last)?;
-        if let Some((d, Some((target, fat)))) = last {
-            if fat {
-                return unsupported("a write through a trait value reference");
-            }
+        // Checking refuses a write through a trait value reference
+        // (`type-mismatch`).
+        if let Some((d, Some((target, _)))) = last {
             let (at, _) = self.walk_place(i, &p, d, start)?;
             let r = self.at_i32(&at)?;
             match fields(&p.proj[d + 1..]) {
@@ -1494,13 +1482,9 @@ impl Em<'_, '_, '_> {
     fn at_variant(&mut self, at: At, ty: Ty, v: u32, f: u32) -> StageResult<(At, Ty)> {
         let flat = self.flat(ty)?;
         let (m, positions) = (&flat.0, &flat.1);
-        let tys = self.variant_tys(ty).unwrap_or_default();
-        let (Some(sel), Some(&ft)) = (
-            positions.get(v as usize).and_then(|fs| fs.get(f as usize)),
-            tys.get(v as usize).and_then(|fs| fs.get(f as usize)),
-        ) else {
-            return unsupported("a payload field the enum does not have");
-        };
+        // A checked place's payload step names a field of its variant.
+        let sel = &positions[v as usize][f as usize];
+        let ft = self.variant_tys(ty)?[v as usize][f as usize];
         let at = if matches!(self.kind(ty), Kind::Boxed) {
             let cell = self.at_i32(&at)?;
             At::Leaves(cell, sel.iter().map(|&p| m.leaves[p]).collect())
