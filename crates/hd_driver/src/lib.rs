@@ -2163,8 +2163,8 @@ pub struct Packages<'a> {
     /// those modules' closures (`hd check FILE`, `crates/hd_cli/DESIGN.md`
     /// §7.2). `None` checks the whole package.
     pub check_roots: Option<Vec<String>>,
-    /// Cached source/check entries from earlier REPL inputs. Runtime state
-    /// is rebuilt from the whole input history in one module.
+    /// Cached source/check entries and the linking ABI of earlier REPL
+    /// inputs: the build links as one more module of that session.
     pub session: Option<&'a Session>,
     /// For a `Goal::ReplInput { input }` with a session: build every input
     /// from this number to `input` as one module, for a rebuild that holds
@@ -2207,8 +2207,8 @@ pub struct Session {
     /// inputs before it and reading the store, so it does not redo the
     /// session's earlier inputs (`f1c55020:future-work/compiler/repl-plan.md` §4).
     inputs: BTreeMap<u32, InputEntries>,
-    /// Private linking ABI for initialized REPL modules; absent for a
-    /// whole-history rebuild used by older callers and replay recovery.
+    /// Private linking ABI for initialized REPL modules; absent in what a
+    /// build adds without linking.
     linked: Option<hd_wasm_linear::Session>,
 }
 
@@ -2272,12 +2272,6 @@ struct InputEntries {
 }
 
 impl Session {
-    /// Empty source/check metadata for a whole-history REPL build.
-    #[must_use]
-    pub fn start() -> Session {
-        Session::default()
-    }
-
     /// Starts compilation of initialized base/extension REPL modules.
     #[must_use]
     pub fn linked() -> Session {
@@ -10528,14 +10522,6 @@ impl Run<'_> {
         let body = |id: hd_base::InstId| collected(id);
         let inits = &c.collected.inits;
         let entry = match &c.roots {
-            // Legacy whole-history sessions own their memory. Only the
-            // initialized linking ABI can import earlier modules.
-            _ if self
-                .session
-                .is_some_and(|s| s.linked.is_none() && *s != Session::start()) =>
-            {
-                hd_wasm_linear::Entry::Unsupported("a REPL input over earlier modules")
-            }
             #[cfg(feature = "fixtures")]
             Roots::Fixture(roots) => hd_wasm_linear::Entry::Fixture {
                 roots: roots.clone(),
@@ -10739,7 +10725,10 @@ impl Run<'_> {
             own_cx: &env,
             mutation_targets: &mutation_targets,
         };
-        let linked = self.session.and_then(|s| s.linked.as_ref());
+        // A session's build always links: a REPL input over earlier
+        // modules imports them.
+        let base = hd_wasm_linear::Session::default();
+        let linked = self.session.map(|s| s.linked.as_ref().unwrap_or(&base));
         let built = if let Some(previous) = linked {
             let built = if previous.is_empty() {
                 hd_wasm_linear::build_session_base(&input)

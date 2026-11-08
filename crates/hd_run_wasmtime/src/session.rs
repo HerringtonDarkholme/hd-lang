@@ -11,8 +11,7 @@
 //!
 //! Historical reload compiles a fresh linked base containing the kept
 //! source prefix, replays its recorded effects once without live calls,
-//! and adopts the initialized instance for the next extension. Ordinary
-//! whole-history modules retain the replay path for existing embedders.
+//! and adopts the initialized instance for the next extension.
 //!
 //! - An input that was stopped or cancelled is skipped and reported
 //!   (`cli.repl.rebuild.stopped`): it ended partway, so running it again
@@ -39,8 +38,7 @@
 //! (`cli.repl.cancel`). Either way it then ends as a panicking input does.
 //!
 //! The journal threshold bounds the active tail in linked sessions;
-//! archived host results remain available for historical reload. The old
-//! whole-history API still stops recording if its journal exceeds its cap.
+//! archived host results remain available for historical reload.
 
 use hd_base::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -343,8 +341,8 @@ impl WasmtimeEngine {
 }
 
 impl WasmtimeSession {
-    /// Runs `wasm` against initialized linked storage, or replays history
-    /// into a whole-session module. `sources` supplies each input's text;
+    /// Runs `wasm` against initialized linked storage, or rebuilds a linked
+    /// base from history. `sources` supplies each input's text;
     /// `live` selects a new input to run after restoration or replay. Its
     /// standard output is written before this returns; a panic is reported
     /// on standard error. `Err` means the module or session cannot run,
@@ -355,42 +353,21 @@ impl WasmtimeSession {
         sources: &[(u32, &str)],
         live: Option<u32>,
     ) -> Result<Ran, String> {
-        if let Some(info) = SessionInfo::read(wasm)? {
-            let same_code = self
-                .linked
-                .as_ref()
-                .is_some_and(|linked| linked.modules.last().is_some_and(|part| part.wasm == wasm));
-            if info.epoch == 0 && live.is_none() && !same_code {
-                let module = self.load(wasm)?;
-                if sources
-                    .iter()
-                    .all(|(number, _)| module.get_export(&format!("hd.init.{number}")).is_some())
-                {
-                    return self.rebuild_linked(wasm, info, sources, None);
-                }
+        let info = SessionInfo::read(wasm)?.ok_or("not a module of a linked session")?;
+        let same_code = self
+            .linked
+            .as_ref()
+            .is_some_and(|linked| linked.modules.last().is_some_and(|part| part.wasm == wasm));
+        if info.epoch == 0 && live.is_none() && !same_code {
+            let module = self.load(wasm)?;
+            if sources
+                .iter()
+                .all(|(number, _)| module.get_export(&format!("hd.init.{number}")).is_some())
+            {
+                return self.rebuild_linked(wasm, info, sources, None);
             }
-            return self.run_linked(wasm, info, sources, live);
         }
-        if self.linked.is_some() {
-            let bytes = self.journal().ok_or("the session has no journal")?;
-            let record = recorded(bytes)?;
-            self.linked = None;
-            return self
-                .run_record(&record, usize::MAX, wasm, sources, live)
-                .map(|(ran, _)| ran);
-        }
-        let journal = self.run.store.data().journal.as_ref();
-        let (Some(bytes), Some(cap)) = (
-            journal.and_then(Recorder::journal),
-            journal.map(Recorder::cap),
-        ) else {
-            return Err(
-                "the session's record of host calls is full, so it cannot run another input".into(),
-            );
-        };
-        let record = recorded(bytes)?;
-        self.run_record(&record, cap, wasm, sources, live)
-            .map(|(ran, _)| ran)
+        self.run_linked(wasm, info, sources, live)
     }
 
     /// Replays historical evidence into a fresh linked base, then adopts
@@ -421,7 +398,7 @@ impl WasmtimeSession {
         )?;
         let module = self.load(wasm)?;
         self.linked = None;
-        let (ran, instance) = self.run_record(&record, usize::MAX, wasm, sources, None)?;
+        let (ran, instance) = self.run_record(&record, wasm, sources)?;
         // A divergent suffix must first be removed from the compiler's
         // program. Its declared ABI is not yet the initialized prefix.
         if !ran.dropped.is_empty() || ran.kept.is_empty() {
@@ -841,20 +818,20 @@ impl WasmtimeSession {
         self.rebuild_linked(wasm, info, sources, Some(journal))
     }
 
+    /// Replays `record`'s inputs into a new instance of `wasm`, skipping
+    /// stopped ones; after a divergence, replays the kept ones again.
     fn run_record(
         &mut self,
         record: &Recorded,
-        cap: usize,
         wasm: &[u8],
         sources: &[(u32, &str)],
-        live: Option<u32>,
     ) -> Result<(Ran, wasmtime::Instance), String> {
         let source = |n: u32| sources.iter().find(|(k, _)| *k == n).map(|(_, s)| *s);
         // A stop that came while no input ran is dropped.
         self.flag.store(false, Ordering::Relaxed);
         let module = self.load(wasm)?;
         let mut ran = Ran::default();
-        self.restart(Recorder::new(cap, record.execution))?;
+        self.restart(Recorder::new(usize::MAX, record.execution))?;
         let instance = self.instantiate(&module)?;
         // The kept inputs, for a second start.
         let mut kept: Vec<(&RecordedInput, &str)> = Vec::new();
@@ -887,22 +864,12 @@ impl WasmtimeSession {
         }
         let mut instance = instance;
         if !ran.dropped.is_empty() {
-            self.restart(Recorder::new(cap, record.execution))?;
+            self.restart(Recorder::new(usize::MAX, record.execution))?;
             instance = self.instantiate(&module)?;
             for (input, text) in kept {
                 self.replay(instance, input, text, wasm)
                     .map_err(|e| format!("the rebuild did not repeat itself: {e}"))?;
             }
-            // An input left out of `sources` is one the caller forgot: the
-            // program does not hold it, so the new input still runs. One
-            // that diverged may have declared what the new input uses.
-            if ran.dropped.iter().any(|n| source(*n).is_some()) {
-                return Ok((ran, instance));
-            }
-        }
-        if let Some(n) = live {
-            let text = source(n).ok_or_else(|| format!("input {n} has no text"))?;
-            ran.live = Some(self.input(instance, n, text, wasm)?);
         }
         Ok((ran, instance))
     }
