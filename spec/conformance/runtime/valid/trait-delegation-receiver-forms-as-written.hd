@@ -1,0 +1,69 @@
+# test: a delegating implementation behaves as its written expansion, which passes self.E, &self.E or &mut self.E to match the receiver form
+# Spec 09 Generated Methods: trait.by.generated-receiver.
+trait Count:
+    fn total(self) -> i32
+    fn copy_bump(mut self) -> i32
+    fn peek(&self) -> i32
+    fn bump(&mut self) -> i32
+
+struct Tally:
+    n: i32
+
+impl Count for Tally:
+    fn total(self) -> i32:
+        self.n
+
+    fn copy_bump(mut self) -> i32:
+        self.n += 1
+        self.n
+
+    fn peek(&self) -> i32:
+        self.n
+
+    fn bump(&mut self) -> i32:
+        self.n += 1
+        self.n
+
+struct Delegating:
+    Tally
+
+impl Count for Delegating by Tally
+
+struct Written:
+    Tally
+
+impl Count for Written:
+    fn total(self) -> i32:
+        Count::total(self.Tally)
+
+    fn copy_bump(mut self) -> i32:
+        Count::copy_bump(self.Tally)
+
+    fn peek(&self) -> i32:
+        Count::peek(&self.Tally)
+
+    fn bump(&mut self) -> i32:
+        Count::bump(&mut self.Tally)
+
+tests:
+    use std.testing.assert_equal
+
+    it("a value and a mut self receiver forward a copy"):
+        let mut d = Delegating { Tally: Tally { n: 5 } }
+        let mut w = Written { Tally: Tally { n: 5 } }
+        assert_equal(d.total(), w.total(), reason="the value receiver reads")
+        assert_equal(d.copy_bump(), w.copy_bump(), reason="the mut self receiver bumps a copy")
+        assert_equal(d.total(), 5, reason="the delegating value is unchanged")
+        assert_equal(w.total(), 5, reason="the written value is unchanged")
+
+    it("a local reference receiver forwards a read"):
+        d := Delegating { Tally: Tally { n: 7 } }
+        w := Written { Tally: Tally { n: 7 } }
+        assert_equal(d.peek(), w.peek(), reason="the &self receiver reads in place")
+
+    it("a mutable local reference receiver forwards a write"):
+        let mut d = Delegating { Tally: Tally { n: 1 } }
+        let mut w = Written { Tally: Tally { n: 1 } }
+        assert_equal(d.bump(), w.bump(), reason="the &mut self receiver bumps in place")
+        assert_equal(d.peek(), 2, reason="the delegating value changed")
+        assert_equal(w.peek(), 2, reason="the written value changed")

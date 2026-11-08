@@ -1,5 +1,5 @@
 # test: a delegating implementation writes the associated function, or takes the trait's default, while methods still forward
-# Spec 09 Delegated Associated Items: trait.by.assoc-fn; Generated Methods: trait.by.generated.
+# Spec 09 Delegated Associated Items: trait.by.assoc-fn; Generated Methods: trait.by.generated-receiver.
 trait Named:
     fn name(self) -> string
     fn kind() -> string

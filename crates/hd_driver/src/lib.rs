@@ -6720,7 +6720,7 @@ impl Run<'_> {
             }
         }
         // The forwarding methods of the delegating implementations
-        // (spec 09 `trait.by.generated`).
+        // (spec 09 `trait.by.generated-receiver`).
         for h in heads
             .iter()
             .filter(|h| h.kind == hd_resolve::HeadKind::Impl)

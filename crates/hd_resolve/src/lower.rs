@@ -7835,7 +7835,7 @@ fn drop_extra_methods(r: &Resolver<'_, '_>, modules: &mut [ModOut]) {
 ///   projection;
 /// - each method of `Tr` with a receiver that the body does not write
 ///   gets a forwarding method, with the trait method's signature at
-///   `Self = C[...]` (trait.by.generated), whose body the checker writes
+///   `Self = C[...]` (trait.by.generated-receiver), whose body the checker writes
 ///   as `Tr::m(self.E, arguments...)` (`hd_check::delegate`).
 ///
 /// A `@derive` on a newtype takes every method of its trait, receiver or
