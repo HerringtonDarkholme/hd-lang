@@ -860,14 +860,12 @@ impl Em<'_, '_, '_> {
         self.store_owned(i)
     }
 
-    /// Ends one completed child result using its point's cleanup packet.
+    /// Ends one completed child result where its point's cleanup packet
+    /// says so.
     fn release_join_result(&mut self, i: u32, ls: &[u32], ty: hd_types::Ty) -> StageResult<()> {
-        if let Some(reason) = self.operation_count(i, Tag::Release, CountPart::Results) {
-            self.because(reason, |em| em.release_locals(ls, ty))
-        } else if self.counted(ty).is_some() {
-            unsupported("a join without its stated completed-result cleanup")
-        } else {
-            self.release_locals(ls, ty)
+        match self.operation_count(i, Tag::Release, CountPart::Results) {
+            Some(reason) => self.because(reason, |em| em.release_locals(ls, ty)),
+            None => Ok(()),
         }
     }
 

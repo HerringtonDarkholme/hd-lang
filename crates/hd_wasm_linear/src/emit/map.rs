@@ -659,14 +659,12 @@ impl Em<'_, '_, '_> {
         Ok(())
     }
 
-    /// A hit ends this table-owned part after its last use by the result.
+    /// A hit ends this table-owned part after its last use by the result,
+    /// where its statement says so.
     fn release_map_part(&mut self, i: u32, part: Part, ls: &[u32], ty: Ty) -> StageResult<()> {
-        if let Some(reason) = self.operation_count(i, Tag::Release, part) {
-            self.because(reason, |em| em.release_locals(ls, ty))
-        } else if self.counted(ty).is_some() {
-            unsupported("a map removal without its stated table-part release")
-        } else {
-            self.release_locals(ls, ty)
+        match self.operation_count(i, Tag::Release, part) {
+            Some(reason) => self.because(reason, |em| em.release_locals(ls, ty)),
+            None => Ok(()),
         }
     }
 
