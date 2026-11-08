@@ -8,8 +8,10 @@
 //! writer lock. Every addressed range remains an unchanged HDCE frame.
 //! Last-use marks are per entry, at most once an hour, and compaction
 //! preserves them. The index and physical pack bytes count toward the cap.
-//! Automatic cleanup has a soft time budget, completing its first pack
-//! operation even if scanning used that budget; later runs finish the rest.
+//! Automatic cleanup walks the pack directory only when the running total
+//! in the lock file is over the cap or unknown. It has a soft time budget,
+//! completing its first pack operation even if scanning used that budget;
+//! later runs finish the rest.
 //! GC follows no links and deletes only recognized managed file names.
 //! The legacy shard ledger and use marks still serve private Clpack data;
 //! obsolete ordinary loose files are retired by that same bounded scanner.
@@ -637,6 +639,10 @@ mod packed {
     const MAX_INDEX: usize = 64 * 1024 * 1024;
     const MAX_ENTRY: u64 = 64 * 1024 * 1024;
     const MAX_HANDLES: usize = 64;
+    /// The running total in the lock file: magic, managed bytes (final
+    /// packs and the index), and the checksum of the index it describes.
+    const TOTAL_MAGIC: &[u8; 8] = b"HDBYTES1";
+    const RECORD: usize = 32;
     type Key = (u16, u128);
     type Entries = BTreeMap<Key, Location>;
     type Batch = [(EntryKind, Hash128, Arc<[u8]>)];
@@ -750,6 +756,23 @@ mod packed {
         Ok(out)
     }
 
+    /// The index file's bytes: none for an empty index, which has no file.
+    fn index_bytes(entries: &Entries) -> io::Result<Vec<u8>> {
+        if entries.is_empty() {
+            Ok(Vec::new())
+        } else {
+            encode(entries)
+        }
+    }
+
+    /// The checksum field of an index header or a total record; 0 for
+    /// no index.
+    fn sum_of(bytes: &[u8]) -> u128 {
+        bytes
+            .get(16..32)
+            .map_or(0, |s| u128::from_le_bytes(s.try_into().expect("16 bytes")))
+    }
+
     fn decode(bytes: &[u8]) -> io::Result<Entries> {
         if bytes.len() < HEADER || &bytes[..8] != MAGIC || bytes[12..16] != [0; 4] {
             return Err(invalid("invalid cache index header"));
@@ -855,6 +878,48 @@ mod packed {
             decode(&bytes)
         }
 
+        /// The index's checksum and length from its header alone, `(0, 0)`
+        /// when there is none, `None` when it is no valid index file.
+        fn header(&self) -> Option<(u128, u64)> {
+            let path = self.root.join("index");
+            let meta = match std::fs::symlink_metadata(&path) {
+                Err(e) if e.kind() == io::ErrorKind::NotFound => return Some((0, 0)),
+                Err(_) => return None,
+                Ok(meta) => meta,
+            };
+            let mut head = [0; HEADER];
+            File::open(&path).ok()?.read_exact(&mut head).ok()?;
+            let count = usize::try_from(u32::from_le_bytes(head[8..12].try_into().ok()?)).ok()?;
+            let len = u64::try_from(index_len(count).ok()?).ok()?;
+            (meta.file_type().is_file() && &head[..8] == MAGIC && meta.len() == len)
+                .then(|| (sum_of(&head), len))
+        }
+
+        /// The managed bytes recorded for the current index, or `None` when
+        /// the record describes another index: one written by an older
+        /// hd, or by a writer that died before its commit. Caller holds
+        /// `lock`, the publication lock file, which stores the record.
+        fn recorded(mut lock: &File, header: Option<(u128, u64)>) -> Option<u64> {
+            let (sum, _) = header?;
+            let mut bytes = [0; RECORD];
+            lock.seek(SeekFrom::Start(0)).ok()?;
+            lock.read_exact(&mut bytes).ok()?;
+            (&bytes[..8] == TOTAL_MAGIC && sum_of(&bytes) == sum)
+                .then(|| u64::from_le_bytes(bytes[8..16].try_into().expect("record")))
+        }
+
+        /// Records `total` managed bytes for the index whose checksum is
+        /// `sum`. A failed write leaves a record that matches no index.
+        fn record(mut lock: &File, total: u64, sum: u128) {
+            let mut bytes = [0; RECORD];
+            bytes[..8].copy_from_slice(TOTAL_MAGIC);
+            bytes[8..16].copy_from_slice(&total.to_le_bytes());
+            bytes[16..].copy_from_slice(&sum.to_le_bytes());
+            let _ = lock
+                .seek(SeekFrom::Start(0))
+                .and_then(|_| lock.write_all(&bytes));
+        }
+
         /// Called only under the publication lock. A corrupt index is
         /// derived data: start a new one, leaving active leased packs alone.
         fn recover(&self) -> io::Result<(Entries, bool)> {
@@ -866,18 +931,22 @@ mod packed {
         }
 
         fn save(&self, entries: &Entries) -> io::Result<()> {
+            self.write_index(&index_bytes(entries)?)
+        }
+
+        /// Replaces the index with `bytes`; empty bytes remove it.
+        fn write_index(&self, bytes: &[u8]) -> io::Result<()> {
             let path = self.root.join("index");
-            if entries.is_empty() {
+            if bytes.is_empty() {
                 return match std::fs::remove_file(path) {
                     Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
                     result => result,
                 };
             }
-            let bytes = encode(entries)?;
             let tmp = self.root.join(format!("index.{:032x}.tmp", unique()));
             let result = (|| {
                 let mut file = OpenOptions::new().write(true).create_new(true).open(&tmp)?;
-                file.write_all(&bytes)?;
+                file.write_all(bytes)?;
                 drop(file);
                 std::fs::rename(&tmp, path)
             })();
@@ -1057,14 +1126,23 @@ mod packed {
                     .checked_add(len)
                     .ok_or_else(|| invalid("cache pack length overflow"))?;
             }
-            let _lock = self.lock()?;
+            let lock = self.lock()?;
+            let header = self.header();
             let (mut entries, _) = self.recover()?;
             self.merge_touches(&mut entries);
             entries.extend(pending);
+            let bytes = index_bytes(&entries)?;
+            // Count the pack before it is final. Dying before the index
+            // commit leaves a record of an index that never existed.
+            if let (Some(total), Some((_, old))) = (Self::recorded(&lock, header), header) {
+                let new = u64::try_from(bytes.len()).map_err(io::Error::other)?;
+                let total = total.saturating_sub(old).saturating_add(offset);
+                Self::record(&lock, total.saturating_add(new), sum_of(&bytes));
+            }
             // The writer lock still excludes GC; unlock before readers
             // can see the new index (Windows byte-range locks block reads).
             self.finish(&mut lease)?;
-            self.save(&entries)?;
+            self.write_index(&bytes)?;
             lease.committed = true;
             self.replace(entries);
             Ok(())
@@ -1180,7 +1258,31 @@ mod packed {
                     after: 0,
                 });
             }
-            let _lock = self.lock()?;
+            let lock = self.lock()?;
+            let header = self.header();
+            let recorded = Self::recorded(&lock, header).filter(|&total| total <= cap);
+            if let (Some(_), Some(total), Some((_, old))) = (bound, recorded, header) {
+                // The running total fits: no directory walk, only the
+                // pending recency marks.
+                if self.state().as_ref().is_some_and(|s| !s.touched.is_empty()) {
+                    let (mut entries, dirty) = self.recover()?;
+                    if self.merge_touches(&mut entries) || dirty {
+                        let bytes = index_bytes(&entries)?;
+                        self.write_index(&bytes)?;
+                        let new = u64::try_from(bytes.len()).map_err(io::Error::other)?;
+                        Self::record(
+                            &lock,
+                            total.saturating_sub(old).saturating_add(new),
+                            sum_of(&bytes),
+                        );
+                    }
+                    self.replace(entries);
+                }
+                return Ok(Collected {
+                    before: total,
+                    after: total,
+                });
+            }
             let deadline = bound.map(|b| Instant::now() + b);
             let (mut entries, mut dirty) = self.recover()?;
             dirty |= self.merge_touches(&mut entries);
@@ -1250,6 +1352,10 @@ mod packed {
             self.prune_orphans(&live, deadline)?;
             self.replace(entries);
             let (after, _) = self.scan()?;
+            // Under the lock the walk is exact: record it for later runs.
+            if let Some((sum, _)) = self.header() {
+                Self::record(&lock, after, sum);
+            }
             Ok(Collected { before, after })
         }
 
@@ -1536,6 +1642,44 @@ mod packed {
                 }
             }
             assert!(after <= 160, "bounded runs make physical progress");
+        }
+
+        #[test]
+        fn a_recorded_total_under_the_cap_skips_the_walk_and_a_stale_one_rescans() {
+            let root = scratch("total");
+            let store = Store::new(&root);
+            let bounded = |cap| store.maintain(cap, Some(Duration::from_mins(1))).unwrap();
+            let one = 64 + u64::try_from(index_len(1).unwrap()).unwrap();
+            store.publish(&[item(1, &[7; 64])]).unwrap();
+            // Nothing is recorded yet: the first bounded run walks.
+            assert_eq!(bounded(u64::MAX).after, one);
+            // An unindexed pack no writer recorded: only a walk sees it.
+            let stray = store.path(unique());
+            let plant = || std::fs::write(&stray, [0; 100]).unwrap();
+            plant();
+            store.publish(&[item(1, &[8; 64])]).unwrap();
+            let run = bounded(u64::MAX);
+            assert_eq!(run.after, one + 64, "a publication adds its pack");
+            assert!(stray.exists(), "a fitting total walks nothing");
+            // Over the cap, the bounded run walks and reclaims dead bytes
+            // without evicting the fitting live set.
+            let run = bounded(one + 63);
+            assert_eq!((run.before, run.after), (one + 164, one));
+            assert!(!stray.exists());
+            assert_eq!(store.get(EntryKind::Check, &Hash128(1)).unwrap()[0], 8);
+            // A hit's recency mark rewrites the index and keeps the record.
+            ages(&store, &[(1, 5)]);
+            plant();
+            assert_eq!(bounded(u64::MAX).after, one, "an unrecorded index rescans");
+            assert!(!stray.exists());
+            store.get(EntryKind::Check, &Hash128(1)).unwrap();
+            plant();
+            assert_eq!(bounded(u64::MAX).after, one);
+            assert!(store.load().unwrap().values().all(|loc| loc.used > 5));
+            assert!(stray.exists());
+            // Explicit collection always walks.
+            assert_eq!(store.maintain(u64::MAX, None).unwrap().after, one);
+            assert!(!stray.exists());
         }
 
         #[test]

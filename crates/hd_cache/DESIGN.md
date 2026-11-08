@@ -710,9 +710,18 @@ least-recently-used entries (`cli.cache.obj.cap`, `cli.cache.obj.evict`).
   that already fits.
 - **Physical accounting.** Final pack files, including dead/unindexed
   records, and the index count toward the compiled-data cap. Pending leased
-  writes, the zero-length lock and the small legacy stats ledger are not
+  writes, the 32-byte lock and the small legacy stats ledger are not
   committed entries, as with the old temporary publish files. Unindexed
   final packs and dead pending files are reclaimed by lease-aware GC.
+- **Running total (#1501).** The publication lock file records the
+  physical total (final packs plus index) with the checksum of the index it
+  describes, written only under that lock. A publication adds its pack and
+  index growth before its pack becomes final; a full walk records its exact
+  result. A record whose checksum differs from the current index header is
+  unknown: an older hd published, or a writer died between recording and
+  its index commit. Unknown counts as over the cap, so a crash or an older
+  writer costs one walk and never hides bytes. Deletions without an index
+  change only lower the true total.
 - **Compaction.** A referenced pack over 25% dead, or needing space under
   the physical cap, is copied by live frame range into a new leased pack.
   Commit the new locations before removing the old file. An older reader
@@ -726,7 +735,13 @@ least-recently-used entries (`cli.cache.obj.cap`, `cli.cache.obj.evict`).
   `hd cache gc` scans both namespaces and uses exact remaining legacy bytes
   as the packed budget; the two stores do not each get a fresh 10 GiB.
 - **Automatic eviction.** Drop shares one soft 20 ms budget between legacy
-  scanning and packed cleanup. The first shard/pack operation completes
+  scanning and packed cleanup. Packed cleanup reads the running total and,
+  when it fits the cap, walks no directory: it only merges pending recency
+  marks. Otherwise it walks `pack-v1/` whole, since a partial walk cannot
+  establish the total, then evicts and compacts as above. Eviction leaves
+  90% of the cap, so walks are rare; one also runs whenever the record is
+  unknown. Until a walk, dead pending files and unrecorded orphans stay
+  (`hd cache gc` always walks). The first shard/pack operation completes
   even when scanning exhausted the budget; subsequent commands continue
   reclamation. Scanning and a single large compaction can exceed that soft
   budget. Publication and compaction serialize writers; readers take no
