@@ -11,7 +11,7 @@
             block
     ;; 25 |         .Named(n) => n.len()
               local.get $s
-              i32.load8_u $heap
+              i32.load $heap
               local.tee $a.1
               i32.eqz
               if

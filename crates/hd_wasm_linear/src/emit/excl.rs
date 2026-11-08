@@ -11,8 +11,8 @@ use hd_types::{InternPool, Ty, TyData};
 
 use crate::Input;
 use crate::layout::{
-    Kind, enum_mem, kind, mem as mem_of, payload_mem, ref_mutable, strip, tuple_members,
-    value_parts, variants,
+    Kind, flat, kind, mem as mem_of, payload_mem, ref_mutable, strip, tuple_members, value_parts,
+    variants,
 };
 use crate::module::Module;
 
@@ -265,13 +265,18 @@ fn ref_slots_at(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, depth: usize) ->
         return vec![(0, t)];
     }
     if let TyData::Option(inner) = pool.get(t) {
-        let variants = vec![vec![], vec![inner]];
-        let Ok((_, positions)) = enum_mem(pool, env, &variants) else {
+        let Ok(flat) = flat(pool, env, t) else {
             return Vec::new();
         };
+        // A reference is a whole cell ([`crate::layout::Pick::cell`]).
         return ref_slots_at(pool, env, inner, depth + 1)
             .into_iter()
-            .filter_map(|(slot, ty)| Some((*positions.get(1)?.first()?.get(slot)?, ty)))
+            .filter_map(|(slot, ty)| {
+                Some((
+                    flat.positions.get(1)?.first()?.get(slot)?.cell() as usize,
+                    ty,
+                ))
+            })
             .collect();
     }
     if !matches!(kind(pool, env, t), Kind::Value) || variants(pool, env, t).is_some() {
@@ -323,8 +328,16 @@ fn projection_slots(
                     return None;
                 };
                 let all = variants(pool, env, ty)?;
-                let (_, positions) = enum_mem(pool, env, &all).ok()?;
-                let at = positions.get(case as usize)?.get(field as usize)?;
+                let layout = flat(pool, env, ty).ok()?;
+                // A loan is a reference, a whole cell; a leaf in shared
+                // bits names its cell.
+                let at: Vec<usize> = layout
+                    .positions
+                    .get(case as usize)?
+                    .get(field as usize)?
+                    .iter()
+                    .map(|p| p.cell() as usize)
+                    .collect();
                 ty = *all.get(case as usize)?.get(field as usize)?;
                 slots = at.iter().map(|&slot| slots[slot]).collect();
                 k += 2;
@@ -641,12 +654,12 @@ fn value_binds_at(
             let Some(all) = variants(pool, env, ty) else {
                 return Vec::new();
             };
-            let Ok((_, positions)) = enum_mem(pool, env, &all) else {
+            let Ok(layout) = flat(pool, env, ty) else {
                 return Vec::new();
             };
             let case = b.data[c][0] as usize;
             let values = b.record(b.data[c][1]);
-            let (Some(fields), Some(at)) = (all.get(case), positions.get(case)) else {
+            let (Some(fields), Some(at)) = (all.get(case), layout.positions.get(case)) else {
                 return Vec::new();
             };
             values
@@ -665,7 +678,10 @@ fn value_binds_at(
                         every_ref,
                     )
                     .into_iter()
-                    .filter_map(|(slot, bind, loan)| Some((*slots.get(slot)?, bind, loan)))
+                    // A loan's holder is a reference, a whole cell.
+                    .filter_map(|(slot, bind, loan)| {
+                        Some((slots.get(slot)?.cell() as usize, bind, loan))
+                    })
                 })
                 .collect()
         }

@@ -20,7 +20,7 @@ use hd_types::{Ty, TyData};
 
 use super::Em;
 use super::value::{Dst, Src};
-use crate::layout::{Kind, Leaf, Part, mem as mem_of, struct_mem};
+use crate::layout::{Kind, Leaf, Part, Pick, mem as mem_of, struct_mem};
 use crate::module::{EMPTY, HEAP, Sym, Val, mem};
 use crate::rt::{self, Helper, LIST_ELEMS, LIST_LEN, RefLayout};
 use crate::unsupported;
@@ -29,14 +29,11 @@ use crate::unsupported;
 /// Wasm locals; in a top-level binding's Wasm globals from value `first`
 /// on, of the types `vals` (`(h, first, vals)`, the root of a store); in
 /// memory at the address in a local plus an offset, laid out as the
-/// step's type is; or as single leaves at their offsets from the address
-/// in a local (an enum payload's fields, which the enum's layout
-/// scatters).
+/// step's type is.
 pub(super) enum At {
     Vals(Vec<u32>),
     Globals(hd_base::Hash128, usize, Vec<Val>),
     Mem(u32, u32),
-    Leaves(u32, Vec<Leaf>),
 }
 
 /// The type a reference refers to, and whether the reference is fat (a
@@ -188,12 +185,17 @@ impl Em<'_, '_, '_> {
     }
 
     /// The part at projection `proj` of a value of type `t` laid out in
-    /// its locals: the part's type and which of the value's locals hold
-    /// it, through struct and tuple fields, a newtype's one field and an
-    /// enum's payload fields (`as .v .f`). `None` when a step leaves the
-    /// locals: a boxed enum, an open value, a dereference, an element.
-    pub(super) fn part_slots(&self, t: Ty, proj: &[Proj]) -> StageResult<Option<(Ty, Vec<usize>)>> {
-        let mut slots: Vec<usize> = (0..self.vals(t)?.len()).collect();
+    /// its locals: the part's type and where each of its leaves lies among
+    /// the value's locals, through struct and tuple fields, a newtype's one
+    /// field and an enum's payload fields (`as .v .f`), whose leaves may be
+    /// bits of cells the variants share (`layout::Pick`). `None` when a
+    /// step leaves the locals: a boxed enum, an open value, a dereference,
+    /// an element.
+    pub(super) fn part_picks(&self, t: Ty, proj: &[Proj]) -> StageResult<Option<(Ty, Vec<Pick>)>> {
+        let mut picks: Vec<Pick> = (0u32..)
+            .zip(self.vals(t)?)
+            .map(|(k, _)| Pick::Whole(k))
+            .collect();
         let mut ty = t;
         let mut k = 0;
         while k < proj.len() {
@@ -205,7 +207,7 @@ impl Em<'_, '_, '_> {
             match proj[k] {
                 Proj::Field(f) => {
                     let (ft, part) = self.path_step(ty, f)?;
-                    slots = slots[part.first..part.first + part.count].to_vec();
+                    picks = picks[part.first..part.first + part.count].to_vec();
                     ty = ft;
                     k += 1;
                 }
@@ -213,19 +215,56 @@ impl Em<'_, '_, '_> {
                     let Some(&Proj::Field(f)) = proj.get(k + 1) else {
                         return Ok(None);
                     };
-                    let flat = self.flat(ty)?;
-                    let positions = &flat.1;
                     // A checked place's payload step names a field of
                     // its variant.
-                    let at = &positions[v as usize][f as usize];
-                    slots = at.iter().map(|&p| slots[p]).collect();
+                    let flat = self.flat(ty)?;
+                    picks = flat.positions[v as usize][f as usize]
+                        .iter()
+                        .map(|q| q.within(&picks))
+                        .collect();
                     ty = self.variant_tys(ty)?[v as usize][f as usize];
                     k += 2;
                 }
                 Proj::Deref | Proj::Elem(_) => return Ok(None),
             }
         }
-        Ok(Some((ty, slots)))
+        Ok(Some((ty, picks)))
+    }
+
+    /// Pushes each leaf of the part of type `pt` at `picks` among the
+    /// locals `ls` of a value of type `t` ([`Em::part_picks`]).
+    fn push_part(&mut self, t: Ty, pt: Ty, ls: &[u32], picks: &[Pick]) -> StageResult<()> {
+        let cells = crate::layout::mem(self.pool(), self.env(), t)?.leaves;
+        let leaves = crate::layout::mem(self.pool(), self.env(), pt)?.leaves;
+        for (l, p) in leaves.iter().zip(picks) {
+            let steps = crate::layout::read_steps(&cells, *l, *p);
+            self.run_steps(
+                &steps,
+                &mut |em, c| {
+                    em.f.get(ls[c as usize]);
+                    Ok(())
+                },
+                &mut |_, _, _| Ok(()),
+                &[],
+            )?;
+        }
+        Ok(())
+    }
+
+    /// Zeros what the part at `picks` among the locals `ls` holds of a
+    /// count: the cells its leaves fill. A leaf in shared bits is never a
+    /// counted address (`layout::Pick::cell`).
+    fn zero_part(&mut self, ls: &[u32], picks: &[Pick]) {
+        for p in picks {
+            match *p {
+                Pick::Whole(c) => self.f.zero(ls[c as usize]),
+                Pick::Halves(lo, hi) => {
+                    self.f.zero(ls[lo as usize]);
+                    self.f.zero(ls[hi as usize]);
+                }
+                Pick::Bits { .. } => {}
+            }
+        }
     }
 
     /// The locals of place `p`'s root, when the root's value lives in
@@ -255,18 +294,14 @@ impl Em<'_, '_, '_> {
         let Some((t, ls)) = self.root_locals(&p)? else {
             return Ok(false);
         };
-        let Some((pt, slots)) = self.part_slots(t, &p.proj)? else {
+        let Some((pt, picks)) = self.part_picks(t, &p.proj)? else {
             return Ok(false);
         };
-        for &k in &slots {
-            self.f.get(ls[k]);
-        }
+        self.push_part(t, pt, &ls, &picks)?;
         self.store_owned(i)?;
         self.mark_drop_place(&p, false);
         if self.needs_drop(pt) {
-            for &k in &slots {
-                self.f.zero(ls[k]);
-            }
+            self.zero_part(&ls, &picks);
         }
         Ok(true)
     }
@@ -338,11 +373,11 @@ impl Em<'_, '_, '_> {
         let mut rest = Vec::new();
         for (f, _) in fields.iter().enumerate() {
             let f = u32::try_from(f).expect("fields");
-            let Some((ft, slots)) = self.part_slots(t, &step(f))? else {
+            let Some((ft, picks)) = self.part_picks(t, &step(f))? else {
                 return Ok(false);
             };
             if !taken.contains(&f) && self.needs_drop(ft) {
-                rest.push((ft, slots, f));
+                rest.push((ft, picks, f));
             }
         }
         // More than one part left: the whole value's glue releases them in
@@ -350,16 +385,26 @@ impl Em<'_, '_, '_> {
         if rest.len() > 1 {
             return Ok(false);
         }
-        for (ft, slots, field) in rest {
-            let part: Vec<u32> = slots.iter().map(|&k| ls[k]).collect();
+        for (ft, picks, field) in rest {
+            let whole = picks.iter().map(|p| p.whole()).collect::<Option<Vec<_>>>();
+            let part: Vec<u32> = if let Some(cells) = whole {
+                cells.iter().map(|&c| ls[c as usize]).collect()
+            } else {
+                // Leaves in shared bits: the part read out of them.
+                self.push_part(t, ft, &ls, &picks)?;
+                let vals = self.vals(ft)?;
+                let out: Vec<u32> = vals.iter().map(|v| self.f.local(*v)).collect();
+                for x in out.iter().rev() {
+                    self.f.set(*x);
+                }
+                out
+            };
             let place = Place {
                 root: PlaceRoot::Value(hd_tir::ir::Ref(r)),
                 proj: step(field),
             };
             self.release_drop_place(&part, ft, &place)?;
-            for l in part {
-                self.f.zero(l);
-            }
+            self.zero_part(&ls, &picks);
         }
         Ok(true)
     }
@@ -446,7 +491,6 @@ impl Em<'_, '_, '_> {
                 return Ok(());
             }
             At::Mem(a, off) => (*a, *off),
-            At::Leaves(a, lv) if lv.len() == 1 => (*a, lv[0].offset),
             _ => return unsupported("a collection of several values"),
         };
         self.f.get(a);
@@ -683,8 +727,8 @@ impl Em<'_, '_, '_> {
 
     /// The rest of `Ref` `i` when `steps` go through a variant's payload
     /// (`ref.match.borrow`): the field's address in the enum at `base`, of
-    /// type `ty`, or, where the enum's shared slots hold its leaves at no
-    /// one offset, a view whose getter and setter pick them out.
+    /// type `ty`. A payload is a struct at one offset of its enum
+    /// (`layout::Flat`), so the field is at a fixed offset from it.
     fn payload_ref(
         &mut self,
         i: u32,
@@ -699,10 +743,8 @@ impl Em<'_, '_, '_> {
         let &At::Mem(a, off) = base else {
             return unsupported("a reference to a payload field in no memory");
         };
-        let parent = self.ref_layout(parent_ty)?;
-        let mut picks: Vec<u32> =
-            (0..u32::try_from(parent.leaves.len()).expect("leaves")).collect();
         let mut ty = parent_ty;
+        let mut offset = off;
         let mut k = 0;
         while k < steps.len() {
             match (steps[k], steps.get(k + 1)) {
@@ -710,61 +752,26 @@ impl Em<'_, '_, '_> {
                     if matches!(self.kind(ty), Kind::Boxed) {
                         return unsupported("a reference to a payload field of a boxed enum");
                     }
-                    let layout = self.flat(ty)?;
                     // A checked place's payload step names a field of
                     // its variant.
-                    let sel = &layout.1[v as usize][f as usize];
-                    picks = sel.iter().map(|&p| picks[p]).collect();
+                    offset += self.flat(ty)?.offsets[v as usize][f as usize];
                     ty = self.variant_tys(ty)?[v as usize][f as usize];
                     k += 2;
                 }
                 (Proj::Field(f), _) => {
                     let (ft, part) = self.path_step(ty, f)?;
-                    picks = picks[part.first..part.first + part.count].to_vec();
+                    offset += part.offset;
                     ty = ft;
                     k += 1;
                 }
                 _ => return unsupported("a reference to a payload field through this place"),
             }
         }
-        let field = self.ref_layout(ty)?;
-        let fits = picks.len() == field.leaves.len()
-            && picks
-                .iter()
-                .zip(&field.leaves)
-                .all(|(&p, l)| parent.leaves[p as usize].val == l.val);
-        if !fits {
-            return unsupported("a payload field whose leaves differ from its slots");
+        self.f.get(a);
+        if offset != 0 {
+            self.f.u32(offset);
+            self.f.op(I::I32Add);
         }
-        let offset = picks
-            .first()
-            .map_or(0, |&p| parent.leaves[p as usize].offset);
-        let at = self.offset_local(a, off);
-        // A field laid out at one offset of the enum, in leaves that follow
-        // each other, is an address there: a narrow one reads from its
-        // slot's low bytes, and an unsigned one writes there too.
-        let mutable = crate::layout::ref_mutable(self.pool(), self.env(), self.ty(i));
-        let first = picks.first().copied().unwrap_or(0);
-        let physical = picks
-            .iter()
-            .zip(&field.leaves)
-            .zip(first..)
-            .all(|((&p, l), k)| {
-                let slot = &parent.leaves[p as usize];
-                p == k
-                    && slot.offset == offset + l.offset
-                    && (slot.bytes == l.bytes || (slot.bytes > l.bytes && !(mutable && l.signed)))
-            });
-        if physical {
-            return self.ref_projection(i, at, parent, &field, first, offset, false);
-        }
-        self.f.get(at);
-        self.f.helper(Helper::RefPayload {
-            parent,
-            field,
-            picks,
-            offset,
-        });
         self.store_owned(i)?;
         Ok(())
     }
@@ -903,7 +910,7 @@ impl Em<'_, '_, '_> {
                 }
                 return self.store_owned(i);
             }
-            At::Globals(..) | At::Leaves(..) => {
+            At::Globals(..) => {
                 return unsupported("a reference to a place in no memory");
             }
         }
@@ -1415,7 +1422,6 @@ impl Em<'_, '_, '_> {
                     signed: false,
                 },
             ),
-            At::Leaves(a, lv) if lv.len() == 1 && lv[0].val == Val::I32 => (*a, lv[0]),
             _ => return unsupported("an address step from a value of several parts"),
         };
         let x = self.f.local(Val::I32);
@@ -1437,7 +1443,6 @@ impl Em<'_, '_, '_> {
                 }
                 Some((*a, lv))
             }
-            At::Leaves(a, lv) => Some((*a, lv.clone())),
         })
     }
 
@@ -1470,35 +1475,44 @@ impl Em<'_, '_, '_> {
             At::Vals(ls) => At::Vals(ls[r].to_vec()),
             At::Globals(h, k, vals) => At::Globals(h, k + part.first, vals[r].to_vec()),
             At::Mem(a, off) => At::Mem(a, off + part.offset),
-            At::Leaves(a, lv) => At::Leaves(a, lv[r].to_vec()),
         };
         Ok((at, ft))
     }
 
-    /// Field `f` of variant `v`'s payload of the enum at `at`: its values
-    /// among the enum's, in the boxed enum's cell when it has one.
+    /// Field `f` of variant `v`'s payload of the enum at `at`: in memory,
+    /// the payload's struct at its offset, in the boxed enum's cell when it
+    /// has one; in locals, the cells that are its leaves, or its leaves
+    /// read out of shared cells into new locals. A payload place in locals
+    /// is only read: TIR writes a payload field through a reference
+    /// (`ref.match.borrow`), whose place is in memory.
     fn at_variant(&mut self, at: At, ty: Ty, v: u32, f: u32) -> StageResult<(At, Ty)> {
         let flat = self.flat(ty)?;
-        let (m, positions) = (&flat.0, &flat.1);
         // A checked place's payload step names a field of its variant.
-        let sel = &positions[v as usize][f as usize];
-        let ft = self.variant_tys(ty)?[v as usize][f as usize];
+        let (v, f) = (v as usize, f as usize);
+        let ft = self.variant_tys(ty)?[v][f];
+        let field = flat.offsets[v][f];
         let at = if matches!(self.kind(ty), Kind::Boxed) {
-            let cell = self.at_i32(&at)?;
-            At::Leaves(cell, sel.iter().map(|&p| m.leaves[p]).collect())
+            At::Mem(self.at_i32(&at)?, field)
         } else {
             match at {
-                At::Vals(ls) => At::Vals(sel.iter().map(|&p| ls[p]).collect()),
-                At::Mem(a, off) => At::Leaves(
-                    a,
-                    sel.iter()
-                        .map(|&p| Leaf {
-                            offset: m.leaves[p].offset + off,
-                            ..m.leaves[p]
-                        })
-                        .collect(),
-                ),
-                At::Leaves(a, lv) => At::Leaves(a, sel.iter().map(|&p| lv[p]).collect()),
+                At::Mem(a, off) => At::Mem(a, off + field),
+                At::Vals(ls) => {
+                    if let Some(sel) = flat.selection(v, f) {
+                        At::Vals(sel.iter().map(|&p| ls[p]).collect())
+                    } else {
+                        let mut out = Vec::with_capacity(flat.leaves[v][f].len());
+                        for (k, l) in flat.leaves[v][f].iter().enumerate() {
+                            self.read_leaf(&flat, v, f, k, &mut |em, c| {
+                                em.f.get(ls[c as usize]);
+                                Ok(())
+                            })?;
+                            let x = self.f.local(l.val);
+                            self.f.set(x);
+                            out.push(x);
+                        }
+                        At::Vals(out)
+                    }
+                }
                 At::Globals(..) => return unsupported("a payload field in Wasm globals"),
             }
         };

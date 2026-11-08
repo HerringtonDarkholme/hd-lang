@@ -4,11 +4,12 @@
 //!
 //! One walk gives both: a type's [`Mem`] lists its values as leaves, in
 //! the order its locals hold them, each with its offset and width in
-//! memory. A struct or a tuple is its fields' leaves, each field at its
-//! alignment. An enum is its tag, then slots that its variants share: the
-//! `k`th value of one Wasm type in a variant's payload is in that type's
-//! `k`th slot, so a variant fills only the slots it needs and loads and
-//! stores need no branch on the tag. A self-recursive enum and a
+//! memory. A struct or a tuple is its fields' leaves, in declaration
+//! order, each field at the offset rustc's `univariant` gives it. An enum
+//! is rustc's tagged layout ([`Flat`]): its tag, then each variant's
+//! payload as one struct at one offset; its values are its cells, one per
+//! 4- or 8-byte word, so loads and stores need no branch on the tag. A
+//! self-recursive enum and a
 //! suspension are one address; a string is its address and byte
 //! length; a trait value its data address and its vtable's address; a
 //! list or a map the address of its buffer (§23.7); a function value its
@@ -17,7 +18,7 @@
 //! §23.20); a reference to a trait value is that trait value, whose data
 //! is already one address, as Rust's `&dyn Tr` is a fat pointer.
 
-use hd_base::StageResult;
+use hd_base::{SliceSort as _, StageResult};
 use hd_mono::layout::{StdKind, strip_newtype};
 use hd_mono::{ProgramEnv, subst};
 use hd_types::{InternPool, Prim, Ty, TyData, TyList};
@@ -81,7 +82,7 @@ impl Leaf {
 }
 
 /// A type's layout: its size and alignment in memory, and its values.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Mem {
     pub size: u32,
     pub align: u32,
@@ -95,7 +96,7 @@ impl Mem {
         leaves: Vec::new(),
     };
 
-    fn one(val: Val, bytes: u8, signed: bool) -> Mem {
+    pub(crate) fn one(val: Val, bytes: u8, signed: bool) -> Mem {
         Mem {
             size: u32::from(bytes),
             align: u32::from(bytes),
@@ -109,7 +110,7 @@ impl Mem {
     }
 
     /// An address: data, a self-recursive enum's cell, a frame.
-    fn address() -> Mem {
+    pub(crate) fn address() -> Mem {
         Mem::one(Val::I32, 4, false)
     }
 
@@ -381,6 +382,7 @@ thread_local! {
     static WALKS: Memo<Option<Walk>> = const { std::cell::RefCell::new(None) };
     static COUNT_WALKS: Memo<Option<Walk>> = const { std::cell::RefCell::new(None) };
     static DROPS: Memo<bool> = const { std::cell::RefCell::new(None) };
+    static FLATS: Memo<StageResult<std::rc::Rc<Flat>>> = const { std::cell::RefCell::new(None) };
 }
 
 /// Runs `link` with the layout cache in place: within it, [`mem`] and
@@ -392,6 +394,7 @@ pub fn cached<R>(link: impl FnOnce() -> R) -> R {
         walks: Option<hd_base::HashMap<Ty, Option<Walk>>>,
         count_walks: Option<hd_base::HashMap<Ty, Option<Walk>>>,
         drops: Option<hd_base::HashMap<Ty, bool>>,
+        flats: Option<hd_base::HashMap<Ty, StageResult<std::rc::Rc<Flat>>>>,
     }
     impl Drop for Reset {
         fn drop(&mut self) {
@@ -399,6 +402,7 @@ pub fn cached<R>(link: impl FnOnce() -> R) -> R {
             WALKS.set(self.walks.take());
             COUNT_WALKS.set(self.count_walks.take());
             DROPS.set(self.drops.take());
+            FLATS.set(self.flats.take());
         }
     }
 
@@ -407,11 +411,13 @@ pub fn cached<R>(link: impl FnOnce() -> R) -> R {
         walks: WALKS.take(),
         count_walks: COUNT_WALKS.take(),
         drops: DROPS.take(),
+        flats: FLATS.take(),
     };
     MEMS.set(Some(hd_base::HashMap::default()));
     WALKS.set(Some(hd_base::HashMap::default()));
     COUNT_WALKS.set(Some(hd_base::HashMap::default()));
     DROPS.set(Some(hd_base::HashMap::default()));
+    FLATS.set(Some(hd_base::HashMap::default()));
     link()
 }
 
@@ -474,11 +480,11 @@ fn mem_one(
         TyData::Tuple { .. } => payload_mem_by(&tuple_members(pool, t), part)?.0,
         TyData::Option(inner) => {
             let variants = [vec![], vec![inner]];
-            enum_mem_by(&variants, nullable(pool, env, &variants), part)?.0
+            enum_flat_by(t, &variants, nullable(pool, env, &variants), part)?
         }
         TyData::Union(members) => {
             let variants = union_variants(pool, members);
-            enum_mem_by(&variants, false, part)?.0
+            enum_flat_by(t, &variants, false, part)?
         }
         TyData::Adt { def, args } => match env.std_kind(def) {
             StdKind::Suspend => Mem::address(),
@@ -488,7 +494,7 @@ fn mem_one(
                 Kind::Ref { fat: true, .. } => record(&[Mem::address(), Mem::address()]).0,
                 Kind::Value => match env.enum_variants(def, args) {
                     Some(variants) => {
-                        enum_mem_by(&variants, nullable(pool, env, &variants), part)?.0
+                        enum_flat_by(t, &variants, nullable(pool, env, &variants), part)?
                     }
                     None => payload_mem_by(&value_parts(pool, env, t), part)?.0,
                 },
@@ -506,6 +512,23 @@ fn mem_one(
         TyData::Canon(_) if hd_mono::is_class_ref(pool, t) => Mem::address(),
         _ => return unsupported(format!("values of type `{}`", pool.display(t))),
     })
+}
+
+/// Enum `t`'s layout from its parts' layouts, which `part` reads, kept
+/// for [`flat`] in the link's cache: its cells.
+fn enum_flat_by(
+    t: Ty,
+    variants: &[Vec<Ty>],
+    nullable: bool,
+    part: &dyn Fn(Ty) -> StageResult<Mem>,
+) -> StageResult<Mem> {
+    let got = enum_mem_by(variants, nullable, part).map(std::rc::Rc::new);
+    FLATS.with(|m| {
+        if let Some(m) = m.borrow_mut().as_mut() {
+            m.insert(t, got.clone());
+        }
+    });
+    Ok(got?.mem.clone())
 }
 
 /// How one counted address of a [`Walk`] is counted: the leaf that holds it.
@@ -542,15 +565,96 @@ pub enum Walk {
     Glue,
     /// Each part in turn.
     Seq(Vec<Walk>),
-    /// Value `k` is an enum's tag; arm `v`, when there is one, walks
-    /// variant `v`'s payload.
-    Switch(u32, Vec<Option<Walk>>),
+    /// The [`Discr`] reads an enum's tag; arm `v`, when there is one,
+    /// walks variant `v`'s payload.
+    Switch(Discr, Vec<Option<Walk>>),
     /// A [`nullable`] enum's address, which the inner walk counts unless
     /// it is null.
     Nullable(Box<Walk>),
 }
 
+/// Where a [`Walk::Switch`] reads its enum's tag: `bytes` bytes from byte
+/// `at` of value `cell`, with the cell's other bits masked off when
+/// `masked` (a cell the tag shares with payload leaves).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct Discr {
+    pub cell: u32,
+    pub at: u8,
+    pub bytes: u8,
+    pub masked: bool,
+}
+
+impl Discr {
+    /// The tag of an enum whose value is its cells from `cell` on, its tag
+    /// a whole cell.
+    #[must_use]
+    pub fn whole(cell: u32) -> Discr {
+        Discr {
+            cell,
+            at: 0,
+            bytes: 4,
+            masked: false,
+        }
+    }
+
+    /// The instructions that leave the tag, from its cell on the stack.
+    #[must_use]
+    pub fn read(self) -> Vec<I> {
+        let mut out = Vec::new();
+        if self.at > 0 {
+            out.extend([I::I32Const(i32::from(8 * self.at)), I::I32ShrU]);
+        }
+        if self.masked && self.at + self.bytes < 4 {
+            out.extend([I::I32Const(mask(self.bytes)), I::I32And]);
+        }
+        out
+    }
+
+    /// The tag once its value is a field's, placed in its enum at `p`.
+    #[must_use]
+    fn place(self, p: Pick) -> Discr {
+        match p {
+            Pick::Whole(cell) => Discr { cell, ..self },
+            // A tag is at most 4 bytes, so in the low half of a split
+            // 8-byte leaf it keeps its byte.
+            Pick::Halves(cell, _) => Discr {
+                cell,
+                masked: true,
+                ..self
+            },
+            Pick::Bits { cell, at } => Discr {
+                cell,
+                at: self.at + at,
+                masked: true,
+                ..self
+            },
+        }
+    }
+}
+
 impl Walk {
+    /// The walk of a payload field's value placed among its enum's cells:
+    /// value `k` is at `picks[k]`. A counted address is a whole cell
+    /// ([`Pick::cell`]).
+    #[must_use]
+    pub fn place(&self, picks: &[Pick]) -> Walk {
+        let cell = |k: &u32| picks[*k as usize].cell();
+        match self {
+            Walk::Ref(k) => Walk::Ref(cell(k)),
+            Walk::View(k) => Walk::View(cell(k)),
+            Walk::Known(k) => Walk::Known(cell(k)),
+            Walk::Glue => Walk::Glue,
+            Walk::Seq(ws) => Walk::Seq(ws.iter().map(|w| w.place(picks)).collect()),
+            Walk::Switch(d, arms) => Walk::Switch(
+                d.place(picks[d.cell as usize]),
+                arms.iter()
+                    .map(|a| a.as_ref().map(|w| w.place(picks)))
+                    .collect(),
+            ),
+            Walk::Nullable(w) => Walk::Nullable(Box::new(w.place(picks))),
+        }
+    }
+
     /// Whether the walk counts nothing but thin local references.
     #[must_use]
     pub fn only_views(&self) -> bool {
@@ -572,8 +676,11 @@ impl Walk {
             Walk::Known(k) => Walk::Known(to(*k)),
             Walk::Glue => Walk::Glue,
             Walk::Seq(ws) => Walk::Seq(ws.iter().map(|w| w.remap(to)).collect()),
-            Walk::Switch(k, arms) => Walk::Switch(
-                to(*k),
+            Walk::Switch(d, arms) => Walk::Switch(
+                Discr {
+                    cell: to(d.cell),
+                    ..*d
+                },
                 arms.iter()
                     .map(|a| a.as_ref().map(|w| w.remap(to)))
                     .collect(),
@@ -686,8 +793,7 @@ fn walk_one(
         TyData::Context(_) => Some(Walk::Known(0)),
         TyData::Tuple { .. } => fields_walk_by(pool, env, &tuple_members(pool, t), part),
         TyData::Adt { def, .. } if env.std_kind(def) != StdKind::Other => Some(Walk::Known(0)),
-        TyData::Option(inner) => switch_walk_by(pool, env, &[vec![], vec![inner]], part),
-        TyData::Union(members) => switch_walk_by(pool, env, &union_variants(pool, members), part),
+        TyData::Option(_) | TyData::Union(_) => switch_walk_by(pool, env, t, part),
         TyData::Adt { def, args } if env.std_kind(def) == StdKind::Other => {
             match kind(pool, env, t) {
                 Kind::Boxed => Some(Walk::Known(0)),
@@ -703,7 +809,7 @@ fn walk_one(
                 }),
                 Kind::Value => {
                     let w = match env.enum_variants(def, args) {
-                        Some(variants) => switch_walk_by(pool, env, &variants, part),
+                        Some(_) => switch_walk_by(pool, env, t, part),
                         None => fields_walk_by(pool, env, &value_parts(pool, env, t), part),
                     };
                     w.or_else(|| env.has_drop(def).then_some(Walk::Glue))
@@ -822,36 +928,34 @@ pub fn env_mem(
     Ok((m, parts, Walk::seq(walks)))
 }
 
-/// The walk of an enum of `variants`: by the tag, each variant's fields at
-/// the slots they share.
-pub fn switch_walk(pool: &InternPool, env: &dyn ProgramEnv, variants: &[Vec<Ty>]) -> Option<Walk> {
-    switch_walk_by(pool, env, variants, &|f| count_walk(pool, env, f))
+/// The walk of enum or optional type `t`: by the tag, each variant's
+/// fields at their cells.
+pub fn switch_walk(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<Walk> {
+    switch_walk_by(pool, env, t, &|f| count_walk(pool, env, f))
 }
 
 /// [`switch_walk`], with each field's own walk read by `part`.
 fn switch_walk_by(
     pool: &InternPool,
     env: &dyn ProgramEnv,
-    variants: &[Vec<Ty>],
+    t: Ty,
     part: &dyn Fn(Ty) -> Option<Walk>,
 ) -> Option<Walk> {
-    if nullable(pool, env, variants) {
+    let variants = variants(pool, env, t)?;
+    if nullable(pool, env, &variants) {
         // The address is value 0, null for variant 0.
         return part(variants[1][0]).map(|w| Walk::Nullable(Box::new(w)));
     }
-    let (_, positions) = enum_mem(pool, env, variants).ok()?;
+    let flat = flat(pool, env, t).ok()?;
     let arms: Vec<Option<Walk>> = variants
         .iter()
-        .zip(&positions)
+        .zip(&flat.positions)
         .map(|(fields, at)| {
             Walk::seq(
                 fields
                     .iter()
                     .zip(at)
-                    .filter_map(|(f, ks)| {
-                        part(*f)
-                            .map(|w| w.remap(&|k| u32::try_from(ks[k as usize]).expect("values")))
-                    })
+                    .filter_map(|(f, picks)| part(*f).map(|w| w.place(picks)))
                     .collect(),
             )
         })
@@ -859,11 +963,12 @@ fn switch_walk_by(
     if arms.iter().all(Option::is_none) {
         return None;
     }
-    Some(Walk::Switch(0, arms))
+    Some(Walk::Switch(flat.discr(), arms))
 }
 
-/// The fields of a struct, a tuple or a data payload in order, each at its
-/// alignment: the whole layout and each field's place in it.
+/// The captures of a closure environment in order, each at its alignment:
+/// the whole layout and each capture's place in it. The environment's code
+/// reads them at these offsets.
 fn record(fields: &[Mem]) -> (Mem, Vec<Part>) {
     let mut out = Mem::EMPTY;
     let mut parts = Vec::new();
@@ -882,6 +987,58 @@ fn record(fields: &[Mem]) -> (Mem, Vec<Part>) {
         out.align = out.align.max(f.align);
     }
     out.size = out.size.next_multiple_of(out.align);
+    (out, parts)
+}
+
+/// A field's alignment group, rustc's `alignment_group_key` with no niche
+/// (`rustc_abi` layout.rs:1155): `log2` of the larger of its alignment and
+/// its size, so a field of four bytes at alignment 1 groups with the
+/// 4-aligned ones.
+fn align_group(m: &Mem) -> u32 {
+    m.align.max(m.size).trailing_zeros()
+}
+
+/// Fields placed as rustc's `univariant` places them (layout.rs:1091,
+/// decision 1 of `docs/future-work/ENUM-LAYOUT.md`): a struct's (`prefix`
+/// 0) by alignment group, largest first; a payload behind a tag of
+/// `prefix` bytes by group, smallest first, so that small fields pack
+/// after the tag. The sort is stable. The leaves stay in declaration
+/// order, each field's together, so a field's values in locals are its
+/// [`Part`]; only the offsets move.
+fn univariant(fields: &[Mem], prefix: u32) -> (Mem, Vec<Part>) {
+    let mut order: Vec<usize> = (0..fields.len()).collect();
+    if prefix == 0 {
+        order.sort_stable_by_key(|&k| std::cmp::Reverse(align_group(&fields[k])));
+    } else {
+        order.sort_stable_by_key(|&k| align_group(&fields[k]));
+    }
+    let mut offsets = vec![0u32; fields.len()];
+    let mut size = prefix;
+    let mut align = prefix.max(1);
+    for &k in &order {
+        let f = &fields[k];
+        let offset = size.next_multiple_of(f.align);
+        offsets[k] = offset;
+        size = offset + f.size;
+        align = align.max(f.align);
+    }
+    let mut out = Mem {
+        size: size.next_multiple_of(align),
+        align,
+        leaves: Vec::with_capacity(fields.iter().map(|f| f.leaves.len()).sum()),
+    };
+    let mut parts = Vec::with_capacity(fields.len());
+    for (f, &offset) in fields.iter().zip(&offsets) {
+        parts.push(Part {
+            first: out.leaves.len(),
+            count: f.leaves.len(),
+            offset,
+        });
+        out.leaves.extend(f.leaves.iter().map(|l| Leaf {
+            offset: l.offset + offset,
+            ..*l
+        }));
+    }
     (out, parts)
 }
 
@@ -919,16 +1076,422 @@ fn payload_mem_by(
         .iter()
         .map(|f| part(*f))
         .collect::<StageResult<Vec<_>>>()?;
-    Ok(record(&ms))
+    Ok(univariant(&ms, 0))
 }
 
-/// The order of the slots after an enum's tag: 4-byte values first, so
-/// alignment pads at most once.
-const SLOT_ORDER: [Val; 4] = [Val::I32, Val::F32, Val::I64, Val::F64];
+/// Where one leaf of an enum's payload field lies among the enum's cells
+/// ([`Flat`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum Pick {
+    /// The whole cell, of the leaf's own type and width.
+    Whole(u32),
+    /// Bits of a cell that other variants share: the leaf starts `at`
+    /// bytes into it.
+    Bits { cell: u32, at: u8 },
+    /// A 64-bit leaf over two 32-bit cells, its low half then its high.
+    Halves(u32, u32),
+}
 
-/// Each variant's payload fields, each field's values as indices among
-/// the enum's values.
-pub type Positions = Vec<Vec<Vec<usize>>>;
+impl Pick {
+    /// The cell the leaf starts in. A 4-byte `i32` leaf at a 4-aligned
+    /// offset, such as an address, is always its cell's whole ([`cells`]).
+    #[must_use]
+    pub fn cell(self) -> u32 {
+        match self {
+            Pick::Whole(c) | Pick::Bits { cell: c, .. } | Pick::Halves(c, _) => c,
+        }
+    }
+
+    /// This place, of a leaf of a field's value, once that value is
+    /// itself placed among its parent's values at `outer`, by value index.
+    #[must_use]
+    pub fn within(self, outer: &[Pick]) -> Pick {
+        match self {
+            Pick::Whole(k) => outer[k as usize],
+            Pick::Bits { cell: k, at } => match outer[k as usize] {
+                Pick::Whole(cell) => Pick::Bits { cell, at },
+                Pick::Bits { cell, at: base } => Pick::Bits {
+                    cell,
+                    at: base + at,
+                },
+                // A 64-bit cell split in two: its leaf is 8 bytes at its
+                // start (`cells`), so both halves.
+                Pick::Halves(lo, hi) => Pick::Halves(lo, hi),
+            },
+            Pick::Halves(lo, hi) => {
+                Pick::Halves(outer[lo as usize].cell(), outer[hi as usize].cell())
+            }
+        }
+    }
+
+    /// The cell when the leaf is all of it.
+    #[must_use]
+    pub fn whole(self) -> Option<u32> {
+        match self {
+            Pick::Whole(c) => Some(c),
+            Pick::Bits { .. } | Pick::Halves(..) => None,
+        }
+    }
+}
+
+/// Each variant's payload fields, each field's leaves as places among
+/// the enum's cells.
+pub type Positions = Vec<Vec<Vec<Pick>>>;
+
+/// An enum's layout (`docs/future-work/ENUM-LAYOUT.md` (b), tagged path):
+/// its cells, one Wasm value per 4- or 8-byte word, as a [`Mem`]; its
+/// tag's leaf and place (none for a [`nullable`] enum); and each variant's
+/// payload, a struct at one offset: its fields' offsets, and each field
+/// leaf's offset in the enum and place among the cells.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct Flat {
+    pub mem: Mem,
+    pub tag: Option<(Leaf, Pick)>,
+    pub positions: Positions,
+    pub offsets: Vec<Vec<u32>>,
+    pub leaves: Vec<Vec<Vec<Leaf>>>,
+}
+
+impl Flat {
+    /// The cells of field `f` of variant `v`, when each of its leaves is a
+    /// whole cell: the field is a selection of the enum's values.
+    #[must_use]
+    pub fn selection(&self, v: usize, f: usize) -> Option<Vec<usize>> {
+        self.positions[v][f]
+            .iter()
+            .map(|p| p.whole().map(|c| c as usize))
+            .collect()
+    }
+
+    /// The discriminant's place, for a [`Walk::Switch`]: a nullable
+    /// enum's is its address, whose zero is variant 0.
+    #[must_use]
+    pub fn discr(&self) -> Discr {
+        match self.tag {
+            Some((l, Pick::Whole(cell))) => Discr {
+                cell,
+                at: 0,
+                bytes: l.bytes,
+                masked: false,
+            },
+            Some((l, p)) => Discr {
+                cell: p.cell(),
+                at: match p {
+                    Pick::Bits { at, .. } => at,
+                    Pick::Whole(_) | Pick::Halves(..) => 0,
+                },
+                bytes: l.bytes,
+                masked: true,
+            },
+            None => Discr::whole(0),
+        }
+    }
+}
+
+/// One step of reading or building an enum's cells, which the caller
+/// carries out: push a cell, push a payload leaf's value, an instruction,
+/// or set or get scratch 64-bit local `k`.
+#[derive(Clone, Copy, Debug)]
+pub enum Step {
+    Cell(u32),
+    Leaf(usize, usize),
+    Op(I),
+    SetTmp(usize),
+    GetTmp(usize),
+}
+
+/// Carries out the cell steps `steps` ([`Step`]) in `f`: `cell` pushes
+/// one of the enum's cells and `leaf` field `f`'s leaf `k`; `tmps` are
+/// the scratch locals.
+pub fn run_steps(
+    f: &mut crate::module::Func,
+    steps: &[Step],
+    cell: &dyn Fn(&mut crate::module::Func, u32),
+    leaf: &dyn Fn(&mut crate::module::Func, usize, usize),
+    tmps: &[u32],
+) {
+    for s in steps {
+        match *s {
+            Step::Cell(c) => cell(f, c),
+            Step::Leaf(fi, k) => leaf(f, fi, k),
+            Step::Op(op) => f.op(op),
+            Step::SetTmp(k) => f.set(tmps[k]),
+            Step::GetTmp(k) => f.get(tmps[k]),
+        }
+    }
+}
+
+/// A narrow leaf's mask.
+fn mask(bytes: u8) -> i32 {
+    match bytes {
+        1 => 0xff,
+        2 => 0xffff,
+        _ => -1,
+    }
+}
+
+/// The steps that push leaf `l`, placed at `p` among `cells`. A cell's
+/// bits above its leaves are zero ([`variant_steps`] builds them so, and a
+/// narrow load zero-extends), so a leaf at a cell's top needs no mask.
+#[must_use]
+pub fn read_steps(cells: &[Leaf], l: Leaf, p: Pick) -> Vec<Step> {
+    match p {
+        Pick::Whole(c) => vec![Step::Cell(c)],
+        Pick::Halves(lo, hi) => {
+            let mut out = vec![
+                Step::Cell(lo),
+                Step::Op(I::I64ExtendI32U),
+                Step::Cell(hi),
+                Step::Op(I::I64ExtendI32U),
+                Step::Op(I::I64Const(32)),
+                Step::Op(I::I64Shl),
+                Step::Op(I::I64Or),
+            ];
+            if l.val == Val::F64 {
+                out.push(Step::Op(I::F64ReinterpretI64));
+            }
+            out
+        }
+        Pick::Bits { cell, at } => {
+            let mut out = vec![Step::Cell(cell)];
+            match l.val {
+                Val::F64 => out.push(Step::Op(I::F64ReinterpretI64)),
+                Val::F32 => out.push(Step::Op(I::F32ReinterpretI32)),
+                // A 64-bit cell's bits are its 64-bit leaf.
+                Val::I64 => {}
+                Val::I32 => {
+                    let (shift, bits) = (8 * u32::from(at), 8 * u32::from(l.bytes));
+                    let top = 8 * u32::from(cells[cell as usize].bytes);
+                    if shift > 0 {
+                        out.extend([
+                            Step::Op(I::I32Const(shift.cast_signed())),
+                            Step::Op(I::I32ShrU),
+                        ]);
+                    }
+                    // A narrow value is canonical in locals: sign-extended
+                    // when signed, else zero-extended (`Em::wrap_to`).
+                    match (l.signed, l.bytes) {
+                        (true, 1) => out.push(Step::Op(I::I32Extend8S)),
+                        (true, 2) => out.push(Step::Op(I::I32Extend16S)),
+                        // A leaf at the top of its cell is all that is
+                        // left after the shift.
+                        (true | false, _) if shift + bits >= top => {}
+                        (true | false, _) => {
+                            out.extend([Step::Op(I::I32Const(mask(l.bytes))), Step::Op(I::I32And)]);
+                        }
+                    }
+                }
+            }
+            out
+        }
+    }
+}
+
+/// The steps that turn leaf `l`'s value, on the stack, into its bits in a
+/// shared cell at byte `at`, to be or-ed with the cell's other leaves.
+fn bits_steps(l: Leaf, at: u8, out: &mut Vec<Step>) {
+    match l.val {
+        Val::F64 => out.push(Step::Op(I::I64ReinterpretF64)),
+        Val::F32 => out.push(Step::Op(I::I32ReinterpretF32)),
+        Val::I64 => {}
+        Val::I32 => {
+            // An unsigned narrow value is zero-extended in locals already;
+            // a signed one's sign bits would reach the next leaf.
+            if l.signed && at + l.bytes < 4 {
+                out.extend([Step::Op(I::I32Const(mask(l.bytes))), Step::Op(I::I32And)]);
+            }
+            if at > 0 {
+                out.extend([
+                    Step::Op(I::I32Const(i32::from(8 * at))),
+                    Step::Op(I::I32Shl),
+                ]);
+            }
+        }
+    }
+}
+
+/// How to build variant `v`'s cells: steps run first (a 64-bit leaf over
+/// two cells into a scratch local), the steps that push each cell the
+/// variant uses (`None` for one it leaves zero), and the scratch locals'
+/// count. Every cell's bits outside the variant's leaves are zero.
+#[must_use]
+pub fn variant_steps(flat: &Flat, v: u32) -> (Vec<Step>, Vec<Option<Vec<Step>>>, usize) {
+    let cells = &flat.mem.leaves;
+    let mut pieces: Vec<Vec<Vec<Step>>> = vec![Vec::new(); cells.len()];
+    let mut first = Vec::new();
+    let mut tmps = 0;
+    let at = v as usize;
+    for (f, (picks, leaves)) in flat.positions[at].iter().zip(&flat.leaves[at]).enumerate() {
+        for (k, (p, l)) in picks.iter().zip(leaves).enumerate() {
+            match *p {
+                Pick::Whole(c) => pieces[c as usize].push(vec![Step::Leaf(f, k)]),
+                Pick::Bits { cell, at } => {
+                    let mut s = vec![Step::Leaf(f, k)];
+                    bits_steps(*l, at, &mut s);
+                    pieces[cell as usize].push(s);
+                }
+                Pick::Halves(lo, hi) => {
+                    first.push(Step::Leaf(f, k));
+                    if l.val == Val::F64 {
+                        first.push(Step::Op(I::I64ReinterpretF64));
+                    }
+                    first.push(Step::SetTmp(tmps));
+                    pieces[lo as usize].push(vec![Step::GetTmp(tmps), Step::Op(I::I32WrapI64)]);
+                    pieces[hi as usize].push(vec![
+                        Step::GetTmp(tmps),
+                        Step::Op(I::I64Const(32)),
+                        Step::Op(I::I64ShrU),
+                        Step::Op(I::I32WrapI64),
+                    ]);
+                    tmps += 1;
+                }
+            }
+        }
+    }
+    if let Some((_, p)) = flat.tag {
+        let tag = &mut pieces[p.cell() as usize];
+        if v != 0 || tag.is_empty() {
+            tag.insert(0, vec![Step::Op(I::I32Const(v.cast_signed()))]);
+        }
+    }
+    let pushes = cells
+        .iter()
+        .zip(pieces)
+        .map(|(c, ps)| {
+            if ps.is_empty() {
+                return None;
+            }
+            let mut out = Vec::new();
+            for (n, p) in ps.into_iter().enumerate() {
+                out.extend(p);
+                if n > 0 {
+                    out.push(Step::Op(match c.val {
+                        Val::I64 => I::I64Or,
+                        Val::I32 | Val::F32 | Val::F64 => I::I32Or,
+                    }));
+                }
+            }
+            Some(out)
+        })
+        .collect();
+    (first, pushes, tmps)
+}
+
+/// The steps that push cell `c` of a variant ([`variant_steps`]): its
+/// leaves, or a zero.
+#[must_use]
+pub fn cell_or_zero(cells: &[Leaf], c: usize, steps: Option<&Vec<Step>>) -> Vec<Step> {
+    match steps {
+        Some(s) => s.clone(),
+        None => vec![Step::Op(zero_of(cells[c].val))],
+    }
+}
+
+/// A zero of `v`.
+fn zero_of(v: Val) -> I {
+    match v {
+        Val::I32 => I::I32Const(0),
+        Val::I64 => I::I64Const(0),
+        Val::F32 => I::F32Const(wasm_encoder::Ieee32::new(0)),
+        Val::F64 => I::F64Const(wasm_encoder::Ieee64::new(0)),
+    }
+}
+
+/// The cells of a value of `size` bytes whose variants hold `leaves`
+/// (`docs/future-work/ENUM-LAYOUT.md` `words`, decision 4): one Wasm value
+/// per word. An 8-byte word whose every leaf is 8 bytes at its start is
+/// one 64-bit cell (an `i64` one where an `i64` and an `f64` meet); any
+/// other word is 4 bytes, or the 2 or 1 left at the end. A word that one
+/// leaf alone fills, in every variant that uses it, is that leaf; a word
+/// variants disagree on is an `i32` bit container. Padding has no cell. A
+/// 4-byte `i32` leaf at a 4-aligned offset, so every address, is always a
+/// whole cell, so a count walk reads cells, never bits.
+///
+/// Cost: one sort of the leaves, then each word reads only the leaves that
+/// can reach it (a leaf is at most 8 bytes): O(L log L) for L leaves.
+fn cells(size: u32, leaves: &[Leaf]) -> Vec<Leaf> {
+    let mut all = leaves.to_vec();
+    all.sort_stable();
+    all.dedup();
+    let over = |lo: u32, hi: u32| -> Vec<Leaf> {
+        let from = all.partition_point(|l| l.offset + 8 <= lo);
+        all[from..]
+            .iter()
+            .take_while(|l| l.offset < hi)
+            .filter(|l| l.offset + u32::from(l.bytes) > lo)
+            .copied()
+            .collect()
+    };
+    let mut out = Vec::new();
+    let mut o = 0;
+    while o < size {
+        if o % 8 == 0 && o + 8 <= size {
+            let ls = over(o, o + 8);
+            if !ls.is_empty() && ls.iter().all(|l| l.bytes == 8 && l.offset == o) {
+                let val = if ls.len() == 1 { ls[0].val } else { Val::I64 };
+                out.push(Leaf {
+                    offset: o,
+                    val,
+                    bytes: 8,
+                    signed: false,
+                });
+                o += 8;
+                continue;
+            }
+        }
+        let w: u8 = match size - o {
+            1 => 1,
+            2 | 3 => 2,
+            _ => 4,
+        };
+        let ls = over(o, o + u32::from(w));
+        match ls.as_slice() {
+            [] => {}
+            [one] if one.bytes <= w => out.push(*one),
+            _ => out.push(Leaf {
+                offset: o,
+                val: Val::I32,
+                bytes: w,
+                signed: false,
+            }),
+        }
+        o += u32::from(w);
+    }
+    out
+}
+
+/// Where leaf `l` lies among `cells`, `n` of them, which are in offset
+/// order, do not overlap and cover every byte of every leaf ([`cells`]).
+fn pick(cells: &[Leaf], n: u32, l: Leaf) -> Pick {
+    // The first cell that ends past byte `a` holds it.
+    let at = |a: u32| -> u32 {
+        let (mut lo, mut hi) = (0, n);
+        while lo < hi {
+            let mid = lo + (hi - lo) / 2;
+            let c = cells[mid as usize];
+            if c.offset + u32::from(c.bytes) <= a {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+        lo
+    };
+    let c = at(l.offset);
+    let cell = cells[c as usize];
+    if cell == l {
+        Pick::Whole(c)
+    } else if l.bytes == 8 && cell.bytes != 8 {
+        Pick::Halves(c, at(l.offset + 4))
+    } else {
+        Pick::Bits {
+            cell: c,
+            // ruled out: a cell is at most 8 bytes and holds the leaf's
+            // first byte, so the leaf starts fewer than 8 bytes into it.
+            at: u8::try_from(l.offset - cell.offset).expect("a byte within a cell"),
+        }
+    }
+}
 
 /// Whether an enum of `variants` is a nullable address
 /// (`types.option.repr`): variant 0 has no payload and variant 1 one thin
@@ -940,102 +1503,152 @@ pub fn nullable(pool: &InternPool, env: &dyn ProgramEnv, variants: &[Vec<Ty>]) -
         && matches!(kind(pool, env, some[0]), Kind::Ref { fat: false, .. }))
 }
 
-/// An enum's layout from its variants' payload types: the tag, 1, 2 or 4
-/// bytes by the variant count, then the shared slots, each 4 or 8 bytes
-/// wide; and where each payload field's values lie. A [`nullable`] enum
-/// is its payload's address alone.
+/// An enum's layout from its variants' payload types ([`Flat`]). Not
+/// cached: [`flat`] is, by type.
 pub fn enum_mem(
     pool: &InternPool,
     env: &dyn ProgramEnv,
     variants: &[Vec<Ty>],
-) -> StageResult<(Mem, Positions)> {
+) -> StageResult<Flat> {
     enum_mem_by(variants, nullable(pool, env, variants), &|f| {
         mem(pool, env, f)
     })
 }
 
-/// [`enum_mem`], with each payload field's layout read by `part`.
+/// The layout of enum or optional type `t`, unboxed, once per type in a
+/// link ([`cached`]).
+pub fn flat(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult<std::rc::Rc<Flat>> {
+    let t = strip(pool, env, t);
+    if let Some(got) = FLATS.with(|m| m.borrow().as_ref().and_then(|m| m.get(&t)).cloned()) {
+        return got;
+    }
+    let got = match variants(pool, env, t) {
+        Some(vs) => enum_mem(pool, env, &vs).map(std::rc::Rc::new),
+        None => unsupported("a variant of a type that is not an enum"),
+    };
+    FLATS.with(|m| {
+        if let Some(m) = m.borrow_mut().as_mut() {
+            m.insert(t, got.clone());
+        }
+    });
+    got
+}
+
+/// [`enum_mem`], with each payload field's layout read by `part`: rustc's
+/// tagged layout (`layout_of_enum`, layout.rs:751). The tag is the
+/// smallest unsigned integer that counts the variants, widened to the
+/// smallest first-field alignment of the payloads (layout.rs:891); each
+/// payload is [`univariant`] behind it. A tag wider than 4 bytes keeps
+/// its value in its low 4, and the rest is padding.
 fn enum_mem_by(
     variants: &[Vec<Ty>],
     nullable: bool,
     part: &dyn Fn(Ty) -> StageResult<Mem>,
-) -> StageResult<(Mem, Positions)> {
+) -> StageResult<Flat> {
     if nullable {
-        return Ok((Mem::address(), vec![vec![], vec![vec![0]]]));
+        let mem = Mem::address();
+        let leaf = mem.leaves[0];
+        return Ok(Flat {
+            mem,
+            tag: None,
+            positions: vec![vec![], vec![vec![Pick::Whole(0)]]],
+            offsets: vec![vec![], vec![0]],
+            leaves: vec![vec![], vec![vec![leaf]]],
+        });
     }
-    let mut payloads = Vec::new();
-    let mut slots = [0usize; 4];
-    for fields in variants {
-        let ms = fields
-            .iter()
-            .map(|f| part(*f))
-            .collect::<StageResult<Vec<_>>>()?;
-        for (k, v) in SLOT_ORDER.iter().enumerate() {
-            let n = ms
-                .iter()
-                .flat_map(|m| &m.leaves)
-                .filter(|l| l.val == *v)
-                .count();
-            slots[k] = slots[k].max(n);
-        }
-        payloads.push(ms);
-    }
-    let tag_bytes = match variants.len() {
+    let ms = variants
+        .iter()
+        .map(|fields| fields.iter().map(|f| part(*f)).collect())
+        .collect::<StageResult<Vec<Vec<Mem>>>>()?;
+    Ok(flat_of(&ms))
+}
+
+/// The tagged layout of an enum whose variants' payload fields are laid
+/// out as `variants` ([`enum_mem_by`]).
+pub(crate) fn flat_of(variants: &[Vec<Mem>]) -> Flat {
+    let min: u32 = match variants.len() {
         0..=256 => 1,
         257..=65536 => 2,
         _ => 4,
     };
-    let mut leaves = vec![Leaf {
+    let mut payloads = Vec::with_capacity(variants.len());
+    let mut start_align = 256;
+    for ms in variants {
+        let (m, parts) = univariant(ms, min);
+        if let Some(a) = ms
+            .iter()
+            .zip(&parts)
+            .filter(|(f, _)| f.size > 0 || f.align > 1)
+            .min_by_key(|(_, p)| p.offset)
+            .map(|(f, _)| f.align)
+        {
+            start_align = start_align.min(a);
+        }
+        payloads.push((m, parts));
+    }
+    let ity = if start_align > min && start_align <= 8 {
+        start_align
+    } else {
+        min
+    };
+    let mut size = ity;
+    let mut align = ity;
+    for (m, parts) in &mut payloads {
+        // Only a zero-sized field sits right after the narrow tag.
+        for p in parts.iter_mut() {
+            if p.offset == min {
+                p.offset = p.offset.max(ity);
+            }
+        }
+        size = size.max(m.size);
+        align = align.max(m.align);
+    }
+    let size = size.next_multiple_of(align);
+    let tag = Leaf {
         offset: 0,
         val: Val::I32,
-        bytes: tag_bytes,
-        signed: false,
-    }];
-    let mut size = u32::from(tag_bytes);
-    let mut align = u32::from(tag_bytes);
-    let mut start = [0usize; 4];
-    for (k, v) in SLOT_ORDER.iter().enumerate() {
-        start[k] = leaves.len();
-        let bytes: u8 = if matches!(v, Val::I64 | Val::F64) {
-            8
-        } else {
-            4
-        };
-        for _ in 0..slots[k] {
-            let offset = size.next_multiple_of(u32::from(bytes));
-            leaves.push(Leaf {
-                offset,
-                val: *v,
-                bytes,
-                signed: false,
-            });
-            size = offset + u32::from(bytes);
-            align = align.max(u32::from(bytes));
-        }
-    }
-    let mut positions = Vec::new();
-    for ms in payloads {
-        let mut used = [0usize; 4];
-        let mut fields = Vec::new();
-        for m in ms {
-            let mut at = Vec::new();
-            for l in &m.leaves {
-                let k = SLOT_ORDER.iter().position(|v| *v == l.val).unwrap_or(0);
-                at.push(start[k] + used[k]);
-                used[k] += 1;
-            }
-            fields.push(at);
-        }
-        positions.push(fields);
-    }
-    Ok((
-        Mem {
-            size: size.next_multiple_of(align),
-            align,
-            leaves,
+        bytes: match ity {
+            1 => 1,
+            2 => 2,
+            _ => 4,
         },
+        signed: false,
+    };
+    let mut all = vec![tag];
+    for (m, _) in &payloads {
+        all.extend(&m.leaves);
+    }
+    let cs = cells(size, &all);
+    let n = (0u32..).zip(&cs).last().map_or(0, |(k, _)| k + 1);
+    let mut positions = Vec::with_capacity(payloads.len());
+    let mut offsets = Vec::with_capacity(payloads.len());
+    let mut leaves = Vec::with_capacity(payloads.len());
+    for (m, parts) in &payloads {
+        let fields: Vec<Vec<Leaf>> = parts
+            .iter()
+            .map(|p| m.leaves[p.first..p.first + p.count].to_vec())
+            .collect();
+        positions.push(
+            fields
+                .iter()
+                .map(|ls| ls.iter().map(|l| pick(&cs, n, *l)).collect())
+                .collect(),
+        );
+        offsets.push(parts.iter().map(|p| p.offset).collect());
+        leaves.push(fields);
+    }
+    let tag_pick = pick(&cs, n, tag);
+    Flat {
+        mem: Mem {
+            size,
+            align,
+            leaves: cs,
+        },
+        tag: Some((tag, tag_pick)),
         positions,
-    ))
+        offsets,
+        leaves,
+    }
 }
 
 /// Whether a value of `t` holds, by value, a value whose type implements
@@ -1096,6 +1709,7 @@ mod tests {
         MEMS.with(|m| m.borrow().is_none())
             && WALKS.with(|w| w.borrow().is_none())
             && DROPS.with(|d| d.borrow().is_none())
+            && FLATS.with(|d| d.borrow().is_none())
     }
 
     #[test]
@@ -1206,5 +1820,100 @@ mod tests {
 
         let after = cached_here(|| tuple_mem(&later, later_ty)).expect("later layout");
         assert_eq!(after, clean);
+    }
+    fn i32m() -> Mem {
+        Mem::one(Val::I32, 4, false)
+    }
+
+    fn cell_shape(f: &Flat) -> Vec<(u32, Val, u8)> {
+        f.mem
+            .leaves
+            .iter()
+            .map(|l| (l.offset, l.val, l.bytes))
+            .collect()
+    }
+
+    #[test]
+    fn a_payload_is_one_struct_behind_a_widened_tag() {
+        // `Shape: Circle(f64); Rect(f64, f64); Tri(i32, i32, i32); Empty`:
+        // the tag widens to 4 bytes, each payload starts after it, and the
+        // word the `f64`s share with `Tri`'s `i32`s is two `i32` cells.
+        let f64m = Mem::one(Val::F64, 8, false);
+        let shape = flat_of(&[
+            vec![f64m.clone()],
+            vec![f64m.clone(), f64m],
+            vec![i32m(), i32m(), i32m()],
+            vec![],
+        ]);
+        assert_eq!((shape.mem.size, shape.mem.align), (24, 8));
+        assert_eq!(
+            shape.offsets,
+            [vec![8], vec![8, 16], vec![4, 8, 12], vec![]]
+        );
+        assert_eq!(
+            cell_shape(&shape),
+            [
+                (0, Val::I32, 4),
+                (4, Val::I32, 4),
+                (8, Val::I32, 4),
+                (12, Val::I32, 4),
+                (16, Val::F64, 8)
+            ]
+        );
+        assert_eq!(
+            shape.positions[1],
+            [vec![Pick::Halves(2, 3)], vec![Pick::Whole(4)]]
+        );
+        assert_eq!(shape.positions[2][1], [Pick::Whole(2)]);
+    }
+
+    #[test]
+    fn a_narrow_field_shares_the_tag_word_and_reads_its_bits() {
+        // `Pair: L(bool, i32); M(i32)`: the tag stays a byte, `L`'s bool
+        // packs after it, and both are bits of cell 0.
+        let bool_m = Mem::one(Val::I32, 1, false);
+        let pair = flat_of(&[vec![bool_m.clone(), i32m()], vec![i32m()]]);
+        assert_eq!((pair.mem.size, pair.mem.align), (8, 4));
+        assert_eq!(cell_shape(&pair), [(0, Val::I32, 4), (4, Val::I32, 4)]);
+        assert_eq!(
+            pair.tag.map(|(_, p)| p),
+            Some(Pick::Bits { cell: 0, at: 0 })
+        );
+        assert_eq!(pair.positions[0][0], [Pick::Bits { cell: 0, at: 1 }]);
+        assert_eq!(pair.positions[0][1], [Pick::Whole(1)]);
+        let d = pair.discr();
+        assert!(d.masked && d.bytes == 1 && d.cell == 0);
+        // `bool?` is two bytes in one cell; the `bool` is its top byte.
+        let opt = flat_of(&[vec![], vec![bool_m]]);
+        assert_eq!(cell_shape(&opt), [(0, Val::I32, 2)]);
+        let steps = read_steps(&opt.mem.leaves, opt.leaves[1][0][0], opt.positions[1][0][0]);
+        assert!(matches!(
+            steps.as_slice(),
+            [
+                Step::Cell(0),
+                Step::Op(I::I32Const(8)),
+                Step::Op(I::I32ShrU)
+            ]
+        ));
+    }
+
+    #[test]
+    fn a_struct_orders_its_fields_by_alignment_group() {
+        // `Mixed { a: i32, b: f64, c: bool }` is 16 bytes, `b` first; its
+        // leaves stay in declaration order.
+        let (m, parts) = univariant(
+            &[
+                i32m(),
+                Mem::one(Val::F64, 8, false),
+                Mem::one(Val::I32, 1, false),
+            ],
+            0,
+        );
+        assert_eq!((m.size, m.align), (16, 8));
+        assert_eq!(
+            parts.iter().map(|p| p.offset).collect::<Vec<_>>(),
+            [8, 0, 12]
+        );
+        assert_eq!(m.vals(), [Val::I32, Val::F64, Val::I32]);
     }
 }

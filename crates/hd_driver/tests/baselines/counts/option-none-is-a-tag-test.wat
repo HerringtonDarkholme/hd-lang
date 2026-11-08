@@ -43,7 +43,7 @@
     i32.add
     local.tee $value
     local.get $t1
-    i32.store8 $heap
+    i32.store $heap
     local.get $value
     local.get $t2
     i32.store $heap offset=4
@@ -55,7 +55,7 @@
         block
           block
             local.get $value
-            i32.load8_u $heap
+            i32.load $heap
             i32.eqz
             i32.eqz
             br_if 1
@@ -71,7 +71,7 @@
       local.get $value
       if
         local.get $value
-        i32.load8_u $heap
+        i32.load $heap
         local.get $value
         i32.load $heap offset=4
         local.get $value
@@ -126,7 +126,7 @@
     i32.add
     local.tee $value
     local.get $t1
-    i32.store8 $heap
+    i32.store $heap
     local.get $value
     local.get $t2
     i32.store $heap offset=4
@@ -138,7 +138,7 @@
         block
           block
             local.get $value
-            i32.load8_u $heap
+            i32.load $heap
             i32.eqz
             i32.eqz
             br_if 1
@@ -154,7 +154,7 @@
       local.get $value
       if
         local.get $value
-        i32.load8_u $heap
+        i32.load $heap
         local.get $value
         i32.load $heap offset=4
         local.get $value
@@ -234,7 +234,7 @@
         block
           block
             local.get $value
-            i32.load8_u $heap
+            i32.load $heap
             i32.eqz
             i32.eqz
             br_if 1

@@ -219,8 +219,8 @@ type in every position; aggregate values are inline in memory.
 | hd value | In locals and results | In memory |
 | --- | --- | --- |
 | integers, `bool`, `char`, floats | the scalar | packed: 1 byte for `bool`, `i8`, `u8`; 2 for 16-bit integers; 4 or 8 otherwise, aligned to its size |
-| struct, tuple | its fields' values, flattened, in declaration order (Wasm multi-value) | its fields inline, each at its alignment; the struct aligned to its widest field |
-| enum | an `i32` tag, then the payload slots: variants' fields of one Wasm value type share a slot (§15.1's slot sharing, with no bound) | the tag (1, 2 or 4 bytes by variant count), then the slots in their order, each 4 or 8 bytes at its alignment: the same values as in locals, so a load or a store needs no branch on the tag |
+| struct, tuple | its fields' values, flattened, in declaration order (Wasm multi-value) | its fields inline, ordered as rustc's `univariant` orders them (largest alignment group first), each at its alignment; the struct aligned to its widest field |
+| enum | its cells: one Wasm value per 4- or 8-byte word of its memory layout, a bit container where variants disagree on a word (`layout::Flat`) | rustc's tagged layout: the tag, the smallest integer that counts the variants widened to the payloads' smallest first-field alignment, then each payload as one struct at one offset, small fields first |
 | self-recursive enum (today's language) | the address of a counted cell holding the enum value | the address |
 | `T?` of a reference `T` | the address; 0 is `.None` | 4 bytes |
 | `T?` of another `T` | as an enum with one payload | as an enum |
@@ -523,13 +523,22 @@ lowers their instructions.
   source's values and the replacements. The checker writes a struct's
   field as a copy-update of the place (§15.2), so nothing stores into a
   struct value.
-- **Enums.** The tag, then slots in the order `i32`, `f32`, `i64`, `f64`:
-  the `k`th value of one Wasm type in a variant's payload is that type's
-  `k`th slot, so a variant fills the slots it needs and leaves zeros in
-  the rest. In memory each slot is a whole Wasm value at its alignment, not
-  the variant's fields at their packed offsets as the table first said:
-  that way a load or a store of an enum needs no branch on its tag. A
-  narrow payload field costs its slot's 4 bytes.
+- **Enums** (`docs/future-work/ENUM-LAYOUT.md`, #1422). In memory, the
+  tag, then each variant's payload as one struct at one offset
+  (`layout::Flat`), as rustc lays out a tagged enum: a `&` or `&mut` to a
+  payload field is the enum's address plus the field's offset. In locals,
+  the enum is its cells, one Wasm value per word of that memory: an 8-byte
+  word whose every leaf is 8 bytes at its start is one 64-bit cell, any
+  other word 4 bytes (or the 2 or 1 left at the end). A word one leaf alone
+  fills is that leaf; a word variants disagree on is an `i32` bit
+  container, from which a payload read shifts and masks its leaf (an `i64`
+  or `f64` leaf over two such words joins their halves), and into which a
+  construction ors it (`layout::read_steps`, `layout::variant_steps`). So
+  a load, a store or a copy is one per cell, with no branch on the tag. A
+  cell's bits outside its variant's leaves are zero. Every 4-byte `i32`
+  leaf at a 4-aligned offset, so every counted address, is a whole cell: a
+  count walk reads cells, never bits. The tag is a [`layout::Discr`] in
+  its cell.
 
 ### 23.15 String Emission And Host Primitives
 

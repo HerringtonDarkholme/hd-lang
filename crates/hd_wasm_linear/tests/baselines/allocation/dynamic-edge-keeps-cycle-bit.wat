@@ -10,7 +10,7 @@
       call $rt:new/class-2
       local.tee $t0
       i32.const 0
-      i32.store8 $heap
+      i32.store $heap
       local.get $t0
       i32.const 0
       i32.store $heap offset=4

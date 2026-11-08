@@ -4,6 +4,10 @@
   (func $project (param $pair i32) (param $visit.0 i32) (param $visit.1 i32) (result i32)
     ;; 24 |     relay(&pair.id, visit)
     block
+      local.get $pair
+      i32.const 8
+      i32.add
+      local.set $pair
       block
         block
           local.get $visit.1

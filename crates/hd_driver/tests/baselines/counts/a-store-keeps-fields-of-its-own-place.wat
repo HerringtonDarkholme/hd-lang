@@ -259,19 +259,19 @@
       i32.add
       local.tee $t2
       local.get $o
-      i32.store $heap
-      local.get $t2
-      local.get $t1
-      i32.store $heap offset=4
-      local.get $t2
-      i32.const 0
       i32.store $heap offset=8
       local.get $t2
-      i32.const 66 ;; &"t"
+      local.get $t1
       i32.store $heap offset=12
       local.get $t2
-      i32.const 1
+      i32.const 0
       i32.store $heap offset=16
+      local.get $t2
+      i32.const 66 ;; &"t"
+      i32.store $heap
+      local.get $t2
+      i32.const 1
+      i32.store $heap offset=4
       local.get $t2
       local.tee $o
     ;; 49 |     field(&mut o)
@@ -326,21 +326,21 @@
       end
     ;; 52 |     println(used_after(&mut items, 0) + o.item.r + shared[0].r)
       local.get $o
-      i32.load $heap offset=8
+      i32.load $heap offset=16
       local.set $items
     ;; 44 |     let mut items = [Item { batches: [0], depots: { "a": 1 }, r: 0 }]
       local.get $o
       if
-        local.get $o
-        i32.load $heap
-        local.get $o
-        i32.load $heap offset=4
         local.get $o
         i32.load $heap offset=8
         local.get $o
         i32.load $heap offset=12
         local.get $o
         i32.load $heap offset=16
+        local.get $o
+        i32.load $heap
+        local.get $o
+        i32.load $heap offset=4
         call $rt:release'2
       end
     ;; 52 |     println(used_after(&mut items, 0) + o.item.r + shared[0].r)
@@ -626,13 +626,13 @@
     ;; 26 |     o.item = Item { ...o.item, r: o.item.r + 1 }
     block
       local.get $o
-      i32.load $heap offset=8
+      i32.load $heap offset=16
       i32.const 1
       i32.add
       local.set $t0
       local.get $o
       local.get $t0
-      i32.store $heap offset=8
+      i32.store $heap offset=16
     end
   )
 )

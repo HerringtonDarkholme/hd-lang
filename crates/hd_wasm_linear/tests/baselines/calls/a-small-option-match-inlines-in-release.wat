@@ -16,7 +16,7 @@
           block
     ;; 54 |         .Deleted => +0
             local.get $slot
-            i32.load8_u $heap
+            i32.load $heap
             local.get $slot
             i32.load $heap offset=4
             local.get $slot
@@ -89,7 +89,7 @@
       i32.add
       local.tee $slot
       i32.const 1
-      i32.store8 $heap
+      i32.store $heap
       local.get $slot
       i32.const 1
       i32.store $heap offset=4
@@ -105,7 +105,7 @@
             block
               block
                 local.get $t1
-                i32.load8_u $heap
+                i32.load $heap
                 local.get $t1
                 i32.load $heap offset=4
                 local.get $t1
@@ -142,7 +142,7 @@
             block
               block
                 local.get $slot
-                i32.load8_u $heap
+                i32.load $heap
                 local.get $slot
                 i32.load $heap offset=4
                 local.get $slot
@@ -559,7 +559,7 @@
         i32.const 16
         i32.mul
         i32.add
-        f64.load $heap offset=8
+        f64.load $heap
         local.set $t0
       else
         i32.const 0

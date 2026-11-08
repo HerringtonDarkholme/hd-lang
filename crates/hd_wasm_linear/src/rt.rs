@@ -25,15 +25,6 @@ pub struct TypeIdParts {
     pub shown: String,
 }
 
-/// Where one value of an optional map entry comes from in
-/// [`Helper::MapStep`]: the tag, a value of the entry, or a zero.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum OptVal {
-    Tag,
-    Elem(u32),
-    Zero,
-}
-
 /// The layout of the value at a reference's address, which a vtable
 /// slot reads to pass by value (`SlotRecv::ReadThrough`).
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -442,8 +433,7 @@ pub enum Helper {
     /// std's `map_steps` (`map.rs`).
     MapStep {
         entry: map::Entry,
-        opt: Vec<OptVal>,
-        results: Vec<Val>,
+        item: Box<crate::layout::Flat>,
     },
     /// `(list, n) -> list`: std's `list_truncate`: a pinned list whose
     /// length would change panics; otherwise the buffer is made the list's
@@ -1848,11 +1838,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::TypeIdOf(parts) => type_id(parts, vec![], m),
         Helper::TypeInfo(parts) => type_info(parts, m),
         Helper::RuntimeType(parts) => type_id(parts, vec![Val::I32], m),
-        Helper::MapStep {
-            entry,
-            opt,
-            results,
-        } => map::step(m, entry, opt, results),
+        Helper::MapStep { entry, item } => map::step(m, entry, item),
         Helper::DynTrap { params, results } => {
             let mut f = m.func("rt:dyn_trap", params.clone(), results.clone());
             f.op(Instruction::Unreachable);
@@ -2340,7 +2326,10 @@ pub(crate) fn walk_code(
                 let Some(arm) = arm else {
                     continue;
                 };
-                get(f, *tag);
+                get(f, tag.cell);
+                for op in tag.read() {
+                    f.op(op);
+                }
                 f.u32(u32::try_from(v).expect("variants"));
                 f.op(Instruction::I32Eq);
                 f.op(Instruction::If(BlockType::Empty));

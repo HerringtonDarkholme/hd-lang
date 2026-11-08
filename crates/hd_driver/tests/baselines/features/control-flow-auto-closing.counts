@@ -30,5 +30,5 @@ fn work(log: *mut List[string], label: string) -> void:
     guard(log, label)
 > app/main/work
 >   unique List[string] (may be shared)
->   release app.main.Guard [log, label.0] (last use)
+>   release app.main.Guard [label.0, log] (last use)
     log.push("work")

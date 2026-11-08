@@ -206,7 +206,7 @@
     ;; 19 |         match *self:
     block
       local.get $self
-      i32.load8_u $heap
+      i32.load $heap
       local.get $self
       i32.load $heap offset=4
       local.get $self
@@ -255,7 +255,7 @@
           end
     ;; 21 |                 match *other:
           local.get $other
-          i32.load8_u $heap
+          i32.load $heap
           local.get $other
           i32.load $heap offset=4
           local.get $other
@@ -316,7 +316,7 @@
         end
     ;; 25 |                 match *other:
         local.get $other
-        i32.load8_u $heap
+        i32.load $heap
         local.get $other
         i32.load $heap offset=4
         local.get $other

@@ -32,7 +32,7 @@
           i32.mul
           i32.add
           local.tee $e.0
-          i32.load8_u $heap offset=16
+          i32.load $heap offset=16
           local.get $e.0
           i32.load $heap offset=20
           local.get $e.0
@@ -82,7 +82,7 @@
             i32.add
             local.tee $t6
             local.get $e.0
-            i32.store8 $heap offset=16
+            i32.store $heap offset=16
             local.get $t6
             local.get $e.1
             i32.store $heap offset=20
@@ -138,7 +138,7 @@
           i32.mul
           i32.add
           local.tee $e.0
-          i32.load8_u $heap offset=16
+          i32.load $heap offset=16
           local.get $e.0
           i32.load $heap offset=20
           local.get $e.0
@@ -191,7 +191,7 @@
             i32.add
             local.tee $t6
             local.get $e.0
-            i32.store8 $heap offset=16
+            i32.store $heap offset=16
             local.get $t6
             local.get $e.1
             i32.store $heap offset=20
@@ -247,7 +247,7 @@
           i32.mul
           i32.add
           local.tee $e.0
-          i32.load8_u $heap offset=16
+          i32.load $heap offset=16
           local.get $e.0
           i32.load $heap offset=20
           local.get $e.0
@@ -301,7 +301,7 @@
             i32.add
             local.tee $t7
             local.get $e.0
-            i32.store8 $heap offset=16
+            i32.store $heap offset=16
             local.get $t7
             local.get $e.1
             i32.store $heap offset=20

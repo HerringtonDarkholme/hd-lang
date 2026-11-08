@@ -7,12 +7,11 @@
 
 use crate::op::Op as I;
 use hd_base::Hash128;
-use hd_base::SliceSort as _;
 use wasm_encoder::BlockType;
 
 use crate::layout::{Leaf, Walk};
 use crate::module::{Func, HEADER, HEAP, Module, Sym, Val, mem};
-use crate::rt::{Helper, LIST_OWN, OptVal, own_arg, retain_call, walk_code};
+use crate::rt::{Helper, LIST_OWN, own_arg, retain_call, walk_code};
 
 /// A table's payload: the live entry count, the written entry count
 /// (removed ones included), the owner word at a list buffer's
@@ -779,19 +778,24 @@ pub fn slot_next(m: &Module) -> Func {
 /// entry `at` on, with its entry number. The environment holds the map's
 /// table at 0, a count of it that keeps it as `iter` found it
 /// (`flow.for.cursor.snapshot`), and the written entry count at 4. The
-/// entry leaves with its own counts. In `opt`, the item's leaf 0 is the entry
-/// number and leaf `k` the entry's leaf `k - 1`.
-pub fn step(m: &Module, entry: &Entry, opt: &[OptVal], results: &[Val]) -> Func {
+/// entry leaves with its own counts. `item` is the optional's layout: its
+/// `.Some` payload's leaf 0 is the entry number and leaf `k` the entry's
+/// leaf `k - 1`. No entry leaves every result zero, `.None`.
+pub fn step(m: &Module, entry: &Entry, item: &crate::layout::Flat) -> Func {
     // A closure's code: the environment, the first entry to look at, then
     // the context it ignores.
+    let results = item.mem.vals();
     let mut f = m.func(
         "rt:map_step",
         vec![Val::I32, Val::I32, Val::I32],
-        results.to_vec(),
+        results.clone(),
     );
     let (t, cap) = (f.local(Val::I32), f.local(Val::I32));
     let (i, end, at) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
     let out: Vec<u32> = results.iter().map(|v| f.local(*v)).collect();
+    let elems: Vec<u32> = entry.leaves.iter().map(|l| f.local(l.val)).collect();
+    let (first, cells, n) = crate::layout::variant_steps(item, 1);
+    let tmps: Vec<u32> = (0..n).map(|_| f.local(Val::I64)).collect();
     load_u32(&mut f, 0, 0);
     f.set(t);
     load_u32(&mut f, t, CAP);
@@ -812,35 +816,29 @@ pub fn step(m: &Module, entry: &Entry, opt: &[OptVal], results: &[Val]) -> Func 
     f.op(I::If(BlockType::Empty));
     entry_at(&mut f, t, cap, i, entry.size);
     f.set(at);
-    let mut vals = Vec::new();
-    for (p, o) in opt.iter().enumerate() {
-        match o {
-            OptVal::Tag => {
-                f.i32(1);
-                f.set(out[p]);
-            }
-            OptVal::Elem(0) => {
-                f.get(i);
-                f.set(out[p]);
-            }
-            OptVal::Elem(k) => {
-                f.get(at);
-                f.op(entry.leaves[*k as usize - 1].load(0));
-                f.set(out[p]);
-                vals.push((*k, out[p]));
-            }
-            OptVal::Zero => {}
-        }
+    for (l, x) in entry.leaves.iter().zip(&elems) {
+        f.get(at);
+        f.op(l.load(0));
+        f.set(*x);
     }
     if let Some(w) = entry.walk() {
-        vals.sort_stable();
-        for (_, l) in &vals {
-            f.get(*l);
+        for x in &elems {
+            f.get(*x);
         }
         f.helper(Helper::Retain {
             vals: entry.leaves.iter().map(|l| l.val).collect(),
             walk: w,
         });
+    }
+    // The payload's one field, the `(usize, (K, V))` tuple.
+    let leaf = |f: &mut Func, _: usize, k: usize| f.get(if k == 0 { i } else { elems[k - 1] });
+    crate::layout::run_steps(&mut f, &first, &|_, _| {}, &leaf, &tmps);
+    // A cell `.Some` leaves unused stays zero, as its local starts.
+    for (steps, x) in cells.iter().zip(&out) {
+        if let Some(steps) = steps {
+            crate::layout::run_steps(&mut f, steps, &|_, _| {}, &leaf, &tmps);
+            f.set(*x);
+        }
     }
     f.op(I::Br(2));
     f.op(I::End);

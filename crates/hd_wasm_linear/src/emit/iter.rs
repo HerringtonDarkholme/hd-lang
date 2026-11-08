@@ -13,7 +13,7 @@ use super::Em;
 use crate::layout::{Mem, Part, fields_walk, payload_mem};
 use crate::map::USED;
 use crate::module::{HEAP, Sym, mem};
-use crate::rt::{Helper, OptVal};
+use crate::rt::Helper;
 use crate::unsupported;
 
 /// Pushes one `i32` field of an iterator environment, given the local
@@ -21,24 +21,6 @@ use crate::unsupported;
 type IntField<'f, E> = dyn Fn(&mut E, u32) -> StageResult<()> + 'f;
 
 impl Em<'_, '_, '_> {
-    /// Where each value of an optional `item` comes from, given the
-    /// values of `item` itself; and the optional's values.
-    fn opt_of(&self, item: hd_types::Ty) -> StageResult<(Vec<OptVal>, Vec<crate::module::Val>)> {
-        let ot = self.pool().intern_ty(&TyData::Option(item));
-        let flat = self.flat(ot)?;
-        let (om, positions) = (&flat.0, &flat.1);
-        // `.Some`'s one payload field.
-        let some = &positions[1][0];
-        let opt = (0..om.leaves.len())
-            .map(|p| match some.iter().position(|q| *q == p) {
-                _ if p == 0 => OptVal::Tag,
-                Some(k) => OptVal::Elem(u32::try_from(k).expect("leaves")),
-                None => OptVal::Zero,
-            })
-            .collect();
-        Ok((opt, om.vals()))
-    }
-
     /// A new iterator environment holding collection `coll`'s buffer,
     /// then `ints` `i32` values, each pushed by its closure; and the code
     /// that steps it, pushed as the closure's code.
@@ -105,7 +87,8 @@ impl Em<'_, '_, '_> {
         if self.vals(item)? != want {
             return unsupported("a map entry that lays out unlike its tuple");
         }
-        let (opt, results) = self.opt_of(item)?;
+        let ot = self.pool().intern_ty(&TyData::Option(item));
+        let opt = self.flat(ot)?;
         let count = |at: u64| {
             move |em: &mut Self, h: u32| {
                 em.f.get(h);
@@ -116,8 +99,7 @@ impl Em<'_, '_, '_> {
         let used = count(USED);
         let code = Helper::MapStep {
             entry,
-            opt,
-            results,
+            item: Box::new((*opt).clone()),
         };
         self.iter_env(i, map, &[&used], code)
     }

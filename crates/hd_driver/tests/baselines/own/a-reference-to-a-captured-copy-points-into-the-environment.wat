@@ -21,36 +21,36 @@
     call $rt:new/class-2
     local.tee $p
     local.get $t0
-    i32.store $heap
+    i32.store $heap offset=8
     local.get $p
     local.get $t1
-    i32.store $heap offset=4
+    i32.store $heap
     local.get $p
     local.get $t2
-    i32.store $heap offset=8
+    i32.store $heap offset=4
     block
       i32.const 2
       local.get $p
-      i32.load $heap
+      i32.load $heap offset=8
       local.set $t0
       local.get $p
-      i32.load $heap offset=4
+      i32.load $heap
       local.set $t1
       local.get $p
-      i32.load $heap offset=8
+      i32.load $heap offset=4
       local.set $t2
       i32.const 12
       i32.const 2
       call $rt:new/class-2
       local.tee $t3
       local.get $t0
-      i32.store $heap
+      i32.store $heap offset=8
       local.get $t3
       local.get $t1
-      i32.store $heap offset=4
+      i32.store $heap
       local.get $t3
       local.get $t2
-      i32.store $heap offset=8
+      i32.store $heap offset=4
       local.get $t3
       call $rt:retain_fields
       local.get $p
@@ -74,7 +74,7 @@
   (func $make#1 (param $env i32) (param $ctx i32) (result i32 i32) (local $t1 i64) (local $t2 i64) (local $t3 i32) (local $t4 i32) (local $t0 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32)
     ;; 18 |     fn() -> string: "${peek(&p)} ${first(&p.name)}"
     local.get $env
-    i32.load $heap offset=4
+    i32.load $heap
     local.tee $ctx
     local.tee $t0
     if
@@ -125,8 +125,6 @@
         end
       end
       local.get $env
-      i32.const 4
-      i32.add
       call $first
       local.set $t4
       local.tee $env

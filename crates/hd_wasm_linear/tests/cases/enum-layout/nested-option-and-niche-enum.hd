@@ -1,0 +1,33 @@
+# @dump: wat
+# A nested optional and an enum whose variant fits in a niche of its
+# largest payload (#1422).
+# expected: `i32??` and `A` are 8 bytes and 2 values, and each match is one
+# `br_table` on value 0; today they are tagged, 12 bytes and 3 values, with
+# an `if` chain per match (niches: #1422 part B).
+enum A:
+    Maybe(i32?)
+    Must(i32)
+
+fn twice(v: i32??) -> i32:
+    match v:
+        .Some(.Some(x)) => x
+        .Some(.None) => 1
+        .None => 0
+
+fn wrap(x: i32) -> i32??:
+    .Some(.Some(x))
+
+fn read_a(a: A) -> i32:
+    match a:
+        .Maybe(.Some(x)) => x
+        .Maybe(.None) => 1
+        .Must(y) => y
+
+fn make_a(x: i32) -> A:
+    .Maybe(.Some(x))
+
+fn store(slot: &mut List[i32??], v: i32??) -> void:
+    slot.push(v)
+
+fn load(slot: &List[i32??]) -> i32??:
+    slot[0]

@@ -14,7 +14,7 @@
       i32.add
       local.tee $t1
       i32.const 0
-      i32.store8 $heap
+      i32.store $heap
       local.get $t1
       i32.const 0
       i32.store $heap offset=4
@@ -38,7 +38,7 @@
             block
               block
                 local.get $t2
-                i32.load8_u $heap
+                i32.load $heap
                 local.tee $t2
                 i32.const 1
                 i32.eq

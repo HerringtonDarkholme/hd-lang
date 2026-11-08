@@ -1036,9 +1036,7 @@ struct Em<'i, 'a, 'm> {
     /// its variants' payload types ([`Em::variant_tys`]), once per body:
     /// a body over a large enum, such as a derived `eq`, reads them once
     /// per payload, and each costs as much as the enum has variants.
-    flats: std::cell::RefCell<
-        HashMap<Ty, std::rc::Rc<(crate::layout::Mem, crate::layout::Positions)>>,
-    >,
+    flats: std::cell::RefCell<HashMap<Ty, std::rc::Rc<crate::layout::Flat>>>,
     variant_tys: std::cell::RefCell<HashMap<Ty, std::rc::Rc<Vec<Vec<Ty>>>>>,
     /// What each projection read reads, by its base value's type
     /// ([`Em::projected`]).
@@ -3601,27 +3599,42 @@ impl Em<'_, '_, '_> {
         self.prim_value(PrimOp::Lt, &ops, Ty::BOOL)?;
         self.f.op(I::I32Sub);
         self.f.set(tag);
-        let want = if partial { 2 } else { 1 };
-        if self.vals(self.ty(i))?.len() != want {
-            return unsupported("an `Ordering` of this layout");
-        }
-        if partial {
-            if float {
-                let some = self.f.local(Val::I32);
-                self.prim_value(PrimOp::Eq, &[ops[0], ops[0]], Ty::BOOL)?;
-                self.prim_value(PrimOp::Eq, &[ops[1], ops[1]], Ty::BOOL)?;
-                self.f.op(I::I32And);
-                self.f.set(some);
-                self.f.get(some);
-                self.f.get(tag);
-                self.f.get(some);
-                self.f.op(I::I32Mul);
-            } else {
-                self.f.i32(1);
-                self.f.get(tag);
-            }
-        } else {
+        if !partial {
             self.f.get(tag);
+            return self.store(i);
+        }
+        // `.Some(ordering)`, whose one payload leaf is the ordering's
+        // tag, or, for a NaN operand, `.None`.
+        let layout = self.flat(self.ty(i))?;
+        let (first, some, n) = crate::layout::variant_steps(&layout, 1);
+        let (_, none, _) = crate::layout::variant_steps(&layout, 0);
+        let tmps: Vec<u32> = (0..n).map(|_| self.f.local(Val::I64)).collect();
+        let ordered = if float {
+            let some = self.f.local(Val::I32);
+            self.prim_value(PrimOp::Eq, &[ops[0], ops[0]], Ty::BOOL)?;
+            self.prim_value(PrimOp::Eq, &[ops[1], ops[1]], Ty::BOOL)?;
+            self.f.op(I::I32And);
+            self.f.set(some);
+            Some(some)
+        } else {
+            None
+        };
+        let mut leaf = |em: &mut Self, _: usize, _: usize| {
+            em.f.get(tag);
+            Ok(())
+        };
+        let mut no_cell = |_: &mut Self, _: u32| Ok(());
+        self.run_steps(&first, &mut no_cell, &mut leaf, &tmps)?;
+        let cells = &layout.mem.leaves;
+        for (c, (s, n)) in some.iter().zip(&none).enumerate() {
+            let s = crate::layout::cell_or_zero(cells, c, s.as_ref());
+            self.run_steps(&s, &mut no_cell, &mut leaf, &tmps)?;
+            if let Some(ordered) = ordered {
+                let n = crate::layout::cell_or_zero(cells, c, n.as_ref());
+                self.run_steps(&n, &mut no_cell, &mut leaf, &tmps)?;
+                self.f.get(ordered);
+                self.f.op(I::Select);
+            }
         }
         self.store(i)
     }

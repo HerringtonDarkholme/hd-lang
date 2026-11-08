@@ -10,7 +10,7 @@
     ;; 13 |         match *self:
     block
       local.get $self
-      i32.load8_u $heap
+      i32.load $heap
       local.get $self
       i32.load $heap offset=4
       local.get $self
@@ -143,7 +143,7 @@
         call $rt:new/class-2
         local.tee $path.0
         local.get $t0
-        i32.store8 $heap
+        i32.store $heap
         local.get $path.0
         local.get $t3
         i32.store $heap offset=4

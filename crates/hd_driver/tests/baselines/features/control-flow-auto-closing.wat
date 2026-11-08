@@ -33,9 +33,9 @@
     ;; 14 |         self.log.push(self.label)
     block
       local.get $self
-      i32.load $heap offset=4
+      i32.load $heap
       local.get $self
-      i32.load $heap offset=8
+      i32.load $heap offset=4
       local.set $t0
       local.tee $t1
       local.tee $t2
@@ -44,12 +44,12 @@
         call $retain
       end
       local.get $self
-      i32.load $heap
+      i32.load $heap offset=8
       i32.load $heap
       call $rt:list_unique
       local.set $t2
       local.get $self
-      i32.load $heap
+      i32.load $heap offset=8
       local.get $t2
       i32.store $heap
       local.get $t2
@@ -64,7 +64,7 @@
         call_indirect $table0 (param i32) (result i32)
         local.set $t2
         local.get $self
-        i32.load $heap
+        i32.load $heap offset=8
         local.get $t2
         i32.store $heap
       end
@@ -134,13 +134,13 @@
         i32.add
         local.tee $t2
         local.get $label.0
-        i32.store $heap
+        i32.store $heap offset=8
         local.get $t2
         local.get $label.1
-        i32.store $heap offset=4
+        i32.store $heap
         local.get $t2
         local.get $t1
-        i32.store $heap offset=8
+        i32.store $heap offset=4
         local.get $t2
         local.set $label.1
         i32.const 1
@@ -203,13 +203,13 @@
           i32.add
           local.tee $label.1
           i32.const 0
+          i32.store $heap offset=8
+          local.get $label.1
+          i32.const 0
           i32.store $heap
           local.get $label.1
           i32.const 0
           i32.store $heap offset=4
-          local.get $label.1
-          i32.const 0
-          i32.store $heap offset=8
         end
         local.get $label.1
         call $"impl Disposable for Guard.dispose"
@@ -221,11 +221,11 @@
       local.get $label.1
       if
         local.get $label.1
+        i32.load $heap offset=8
+        local.get $label.1
         i32.load $heap
         local.get $label.1
         i32.load $heap offset=4
-        local.get $label.1
-        i32.load $heap offset=8
         call $rt:release
       end
     end

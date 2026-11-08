@@ -1,0 +1,45 @@
+# @dump: wat
+# An n-variant match, references into a payload, and an enum's drop (#1422).
+# Each payload is a struct at one offset: `code_of` reads `e.code` at its
+# offset in the enum, with no view.
+# expected: `area` loads the tag, then one `br_table`, and each arm loads
+# only its own fields (#1422 steps 11 and 12).
+enum Shape:
+    Circle(f64)
+    Rect(f64, f64)
+    Tri(i32, i32, i32)
+    Empty
+
+struct LoadErr:
+    code: i32
+    msg: string
+
+fn area(s: &Shape) -> f64:
+    match s:
+        .Circle(r) => 3.0 * r * r
+        .Rect(w, h) => w * h
+        .Tri(a, b, c) => f64(a + b + c)
+        .Empty => 0.0
+
+fn width(s: &Shape) -> f64:
+    match s:
+        .Rect(w, _) => w
+        _ => 0.0
+
+fn bump(s: &mut Shape) -> void:
+    match s:
+        .Tri(a, _, _) => a += 1
+        _ => ()
+
+fn code_of(r: &Result[string, LoadErr]) -> i32:
+    match r:
+        .Ok(_) => 0
+        .Err(e) => e.code
+
+fn drop_res(r: Result[string, LoadErr]) -> void:
+    ()
+
+fn is_some(v: &i32?) -> bool:
+    match v:
+        .Some(_) => true
+        .None => false

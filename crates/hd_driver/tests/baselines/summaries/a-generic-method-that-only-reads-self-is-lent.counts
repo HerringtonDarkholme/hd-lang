@@ -20,7 +20,7 @@ impl[S] Handle[S]:
         if (self.n + 1) * (self.n + 2) * (self.n + 3) * (self.n + 4) > 0:
 > app/main/impl [ S ] Handle [ S ].keep
 >   unique List[app.main.Handle[i32]] (may be shared)
->   release app.main.Handle[i32] [names, get.1] (last use)
+>   release app.main.Handle[i32] [get.1, names] (last use)
             all.push(self)
 
 fn total(h: Handle[i32], times: i64) -> i64:
@@ -37,7 +37,7 @@ fn collect(h: Handle[i32]) -> usize:
 > app/main/collect
 >   release List[app.main.Handle[i32]] (last use)
     h.keep(&mut all)
->   copy app.main.Handle[i32] [names, get.1] (stored)
+>   copy app.main.Handle[i32] [get.1, names] (stored)
     h.keep(&mut all)
     all.len()
 
@@ -50,5 +50,5 @@ pub fn main() -> void $ Console:
     println(generic_total(h))
     println(collect(h))
 > app/main/main
->   copy app.main.Handle[i32] [names, get.1] (stored)
+>   copy app.main.Handle[i32] [get.1, names] (stored)
 >   release List[app.main.Handle[i32]] (last use)

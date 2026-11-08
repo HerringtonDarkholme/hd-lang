@@ -44,7 +44,7 @@
     i32.add
     local.tee $left
     local.get $right
-    i32.store8 $heap
+    i32.store $heap
     local.get $left
     local.get $t1
     i32.store $heap offset=4
@@ -59,7 +59,7 @@
     i32.add
     local.tee $right
     local.get $t3
-    i32.store8 $heap
+    i32.store $heap
     local.get $right
     local.get $t4
     i32.store $heap offset=4
@@ -74,7 +74,7 @@
       local.get $left
       if
         local.get $left
-        i32.load8_u $heap
+        i32.load $heap
         local.get $left
         i32.load $heap offset=4
         local.get $left
@@ -84,7 +84,7 @@
       local.get $right
       if
         local.get $right
-        i32.load8_u $heap
+        i32.load $heap
         local.get $right
         i32.load $heap offset=4
         local.get $right

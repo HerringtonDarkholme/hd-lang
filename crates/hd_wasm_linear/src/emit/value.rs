@@ -11,7 +11,10 @@ use hd_types::{Ty, TyData};
 use std::rc::Rc;
 
 use super::Em;
-use crate::layout::{Kind, Leaf, Mem, Part, Walk, enum_mem, kind, struct_mem, variants, walk};
+use crate::layout::{
+    Flat, Kind, Leaf, Mem, Part, Step, Walk, kind, read_steps, struct_mem, variant_steps, variants,
+    walk,
+};
 use crate::module::{HEAP, Sym, Val, mem};
 use crate::rt::{DropCall, Helper};
 use crate::unsupported;
@@ -54,14 +57,53 @@ impl Em<'_, '_, '_> {
 
     /// An enum's (or an optional's) layout as values, whether or not it is
     /// boxed, and where each payload field lies in it.
-    pub(super) fn flat(&self, t: Ty) -> StageResult<Rc<(Mem, crate::layout::Positions)>> {
+    pub(super) fn flat(&self, t: Ty) -> StageResult<Rc<Flat>> {
         if let Some(f) = self.flats.borrow().get(&t) {
             return Ok(f.clone());
         }
-        let vs = self.variant_tys(t)?;
-        let f = Rc::new(enum_mem(self.pool(), self.env(), &vs)?);
+        let f = crate::layout::flat(self.pool(), self.env(), t)?;
         self.flats.borrow_mut().insert(t, f.clone());
         Ok(f)
+    }
+
+    /// Carries out the cell steps `steps` ([`Step`]): `cell` pushes one of
+    /// the enum's cells and `leaf` field `f`'s leaf `k`; `tmps` are the
+    /// scratch locals.
+    pub(super) fn run_steps(
+        &mut self,
+        steps: &[Step],
+        cell: &mut dyn FnMut(&mut Self, u32) -> StageResult<()>,
+        leaf: &mut dyn FnMut(&mut Self, usize, usize) -> StageResult<()>,
+        tmps: &[u32],
+    ) -> StageResult<()> {
+        for s in steps {
+            match *s {
+                Step::Cell(c) => cell(self, c)?,
+                Step::Leaf(f, k) => leaf(self, f, k)?,
+                Step::Op(op) => self.f.op(op),
+                Step::SetTmp(k) => self.f.set(tmps[k]),
+                Step::GetTmp(k) => self.f.get(tmps[k]),
+            }
+        }
+        Ok(())
+    }
+
+    /// Pushes field `f`'s leaf `k` of variant `v` of the enum value whose
+    /// cells `cell` pushes.
+    pub(super) fn read_leaf(
+        &mut self,
+        flat: &Flat,
+        v: usize,
+        f: usize,
+        k: usize,
+        cell: &mut dyn FnMut(&mut Self, u32) -> StageResult<()>,
+    ) -> StageResult<()> {
+        let steps = read_steps(
+            &flat.mem.leaves,
+            flat.leaves[v][f][k],
+            flat.positions[v][f][k],
+        );
+        self.run_steps(&steps, cell, &mut |_, _, _| Ok(()), &[])
     }
 
     /// The payload types of each variant of enum (or optional) `t`.
@@ -81,8 +123,7 @@ impl Em<'_, '_, '_> {
     /// enum lays it out unboxed.
     fn cell_walk(&self, t: Ty) -> Option<Walk> {
         self.input.runtime?;
-        let vs = self.variant_tys(t).ok()?;
-        crate::layout::switch_walk(self.pool(), self.env(), &vs)
+        crate::layout::switch_walk(self.pool(), self.env(), t)
     }
 
     /// Pushes a zero of `v`.
@@ -240,29 +281,24 @@ impl Em<'_, '_, '_> {
             }
             if let Ok(variants) = em.variant_tys(t)
                 && let Ok(flat) = em.flat(t)
-                && variants.len() == flat.1.len()
+                && variants.len() == flat.positions.len()
             {
-                let (layout, positions) = &*flat;
-                let tag = Leaf {
-                    offset: base + layout.leaves[0].offset,
-                    ..layout.leaves[0]
+                // A nullable enum's one payload is a reference, which
+                // holds no inline value.
+                let Some((tag, _)) = flat.tag else {
+                    return;
                 };
-                for (variant, (fields, places)) in variants.iter().zip(positions).enumerate() {
+                let tag = Leaf {
+                    offset: base + tag.offset,
+                    ..tag
+                };
+                for (variant, (fields, offsets)) in variants.iter().zip(&flat.offsets).enumerate() {
                     let mut nested = guards.to_vec();
                     nested.push((tag, u32::try_from(variant).expect("variants")));
-                    for (index, (&field, place)) in fields.iter().zip(places).enumerate() {
+                    for (index, (&field, &offset)) in fields.iter().zip(offsets).enumerate() {
                         if !matches!(em.kind(field), Kind::Value) {
                             continue;
                         }
-                        let Ok(field_mem) = crate::layout::mem(em.pool(), em.env(), field) else {
-                            continue;
-                        };
-                        let offset = match (place.first(), field_mem.leaves.first()) {
-                            (Some(&position), Some(leaf)) => {
-                                layout.leaves[position].offset.saturating_sub(leaf.offset)
-                            }
-                            _ => 0,
-                        };
                         let mut child = path.to_vec();
                         child.extend([
                             hd_tir::ir::Proj::Variant(u32::try_from(variant).expect("variant")),
@@ -686,40 +722,47 @@ impl Em<'_, '_, '_> {
     /// ([`crate::layout::nullable`]): its tag is whether the address is
     /// not null.
     pub(super) fn nullable(&self, t: Ty) -> bool {
-        self.variant_tys(t)
-            .is_ok_and(|vs| crate::layout::nullable(self.pool(), self.env(), &vs))
+        self.flat(t).is_ok_and(|f| f.tag.is_none())
     }
 
     /// Pushes the tag of enum value `a`, loaded from its cell when it is
     /// boxed.
     pub(super) fn tag(&mut self, a: u32) -> StageResult<()> {
         let t = self.ty_of(a);
-        if self.nullable(t) {
+        let flat = self.flat(t)?;
+        let Some((leaf, pick)) = flat.tag else {
+            // A nullable enum's variant 1 is a non-null address.
             self.comp(a, 0)?;
             self.f.i32(0);
             self.f.op(I::I32Ne);
             return Ok(());
-        }
+        };
         if matches!(self.kind(t), Kind::Boxed) {
-            let leaf = self.flat(t)?.0.leaves[0];
             return self.load(&|em: &mut Self| em.comp(a, 0), 0, leaf);
         }
-        self.comp(a, 0)
+        let steps = read_steps(&flat.mem.leaves, leaf, pick);
+        self.run_steps(
+            &steps,
+            &mut |em, c| em.comp(a, c as usize),
+            &mut |_, _, _| Ok(()),
+            &[],
+        )
     }
 
     /// A payload read: field `field` of variant `variant` of enum value `a`.
     pub(super) fn payload(&mut self, i: u32, a: u32, variant: u32, field: u32) -> StageResult<()> {
         let t = self.ty_of(a);
         let flat = self.flat(t)?;
-        let (m, positions) = (&flat.0, &flat.1);
         // A checked payload step names a field of its variant.
-        let at = positions[variant as usize][field as usize].clone();
-        let boxed = matches!(self.kind(t), Kind::Boxed);
-        for &p in &at {
-            if boxed {
-                self.load(&|em: &mut Self| em.comp(a, 0), 0, m.leaves[p])?;
-            } else {
-                self.comp(a, p)?;
+        let (v, f) = (variant as usize, field as usize);
+        if matches!(self.kind(t), Kind::Boxed) {
+            // The cell holds the payload at its offset.
+            for l in &flat.leaves[v][f] {
+                self.load(&|em: &mut Self| em.comp(a, 0), 0, *l)?;
+            }
+        } else {
+            for k in 0..flat.leaves[v][f].len() {
+                self.read_leaf(&flat, v, f, k, &mut |em, c| em.comp(a, c as usize))?;
             }
         }
         self.store(i)
@@ -731,21 +774,10 @@ impl Em<'_, '_, '_> {
     }
 
     /// Variant `v` of `i`'s enum with the payload `fs`, moved in if `moved`:
-    /// the tag, then each slot's value from `fs` or a zero, in a cell if boxed.
+    /// its cells ([`variant_steps`]), in a counted cell if boxed.
     pub(super) fn variant(&mut self, i: u32, v: u32, fs: &[Src], moved: bool) -> StageResult<()> {
         let t = self.ty(i);
         let flat = self.flat(t)?;
-        let (m, positions) = (&flat.0, &flat.1);
-        // The checker builds a variant of its enum with each of its
-        // fields, as the backend's own constructions do.
-        let at = &positions[v as usize];
-        // The source of each slot: a field and its value's index.
-        let mut from: Vec<Option<(usize, usize)>> = vec![None; m.leaves.len()];
-        for (f, ps) in at.iter().enumerate() {
-            for (k, p) in ps.iter().enumerate() {
-                from[*p] = Some((f, k));
-            }
-        }
         let tys = self
             .variant_tys(t)
             .ok()
@@ -757,24 +789,21 @@ impl Em<'_, '_, '_> {
         } else {
             self.count_parts(fs, &tys)?
         };
-        // A nullable enum's value 0 is the payload's address, or null.
-        let push = |em: &mut Self, p: usize| -> StageResult<()> {
-            if let Some((f, k)) = from[p] {
-                em.src(&fields[f], k)
-            } else if p == 0 {
-                em.f.u32(v);
-                Ok(())
-            } else {
-                em.zero(m.leaves[p].val);
-                Ok(())
-            }
-        };
+        // The checker builds a variant of its enum with each of its
+        // fields, as the backend's own constructions do.
+        let (first, cells, n) = variant_steps(&flat, v);
+        let tmps: Vec<u32> = (0..n).map(|_| self.f.local(Val::I64)).collect();
+        let mut leaf = |em: &mut Self, f: usize, k: usize| em.src(&fields[f], k);
+        let mut no_cell = |_: &mut Self, _: u32| Ok(());
+        self.run_steps(&first, &mut no_cell, &mut leaf, &tmps)?;
+        let m = &flat.mem;
         if matches!(self.kind(t), Kind::Boxed) {
             let walk = self.cell_walk(t);
             let cyclic = self.cyclic_object(t);
             let recursive = self.recursive_object(t);
             let cell = self.object(m, walk.as_ref(), cyclic, recursive, Some(t));
-            for (p, l) in m.leaves.iter().enumerate() {
+            for (c, (l, steps)) in m.leaves.iter().zip(&cells).enumerate() {
+                let steps = crate::layout::cell_or_zero(&m.leaves, c, steps.as_ref());
                 self.store_leaf(
                     &|em: &mut Self| {
                         em.f.get(cell);
@@ -782,14 +811,15 @@ impl Em<'_, '_, '_> {
                     },
                     0,
                     *l,
-                    &mut |em: &mut Self| push(em, p),
+                    &mut |em: &mut Self| em.run_steps(&steps, &mut no_cell, &mut leaf, &tmps),
                 )?;
             }
             self.f.get(cell);
             return self.store_owned(i);
         }
-        for p in 0..m.leaves.len() {
-            push(self, p)?;
+        for (c, steps) in cells.iter().enumerate() {
+            let steps = crate::layout::cell_or_zero(&m.leaves, c, steps.as_ref());
+            self.run_steps(&steps, &mut no_cell, &mut leaf, &tmps)?;
         }
         self.store_owned(i)
     }

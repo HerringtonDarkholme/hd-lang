@@ -18,7 +18,7 @@
       i32.const 12
       i32.mul
       i32.add
-      i32.load $heap offset=16
+      i32.load $heap offset=24
       local.set $infos
     end
     local.get $infos
@@ -41,7 +41,7 @@
           i32.const 12
           i32.mul
           i32.add
-          i32.load $heap offset=16
+          i32.load $heap offset=24
           local.set $m.infos
           br 0
         end

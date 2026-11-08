@@ -925,9 +925,6 @@ impl Em<'_, '_, '_> {
     fn data_address(&mut self, at: &super::refs::At) -> StageResult<u32> {
         match at {
             super::refs::At::Vals(ls) if !ls.is_empty() => Ok(ls[0]),
-            super::refs::At::Leaves(a, lv) if !lv.is_empty() => {
-                self.at_i32(&super::refs::At::Leaves(*a, vec![lv[0]]))
-            }
             _ => self.at_i32(at),
         }
     }

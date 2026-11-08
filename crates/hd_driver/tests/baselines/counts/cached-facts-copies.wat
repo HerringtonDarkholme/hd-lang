@@ -82,7 +82,7 @@
   (func $inspect_field (result i32) (local $t0 i32)
     ;; 38 |     Record { name: "name" }.has_facts()
     block
-      i32.const 201 ;; &"name"
+      i32.const 197 ;; &"name"
       i32.const 4
       call $"impl HasFacts for Record by Structure.has_facts"
       local.set $t0

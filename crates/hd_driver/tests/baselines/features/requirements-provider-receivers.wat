@@ -21,10 +21,10 @@
       call $rt:new/class-2
       local.tee $counters
       i32.const 0
-      i32.store $heap
+      i32.store $heap offset=8
       local.get $counters
       i64.const 0
-      i64.store $heap offset=8
+      i64.store $heap
       local.get $counters
     ;; 31 |     $.with(Meter=counters):
       local.tee $t0
@@ -60,7 +60,7 @@
       end
     ;; 33 |     counters.total
       local.get $counters
-      i64.load $heap offset=8
+      i64.load $heap
     ;; 30 |     counters := box(Counters { calls: 0, total: 0 })
       local.get $counters
       local.tee $t1
@@ -112,22 +112,22 @@
     ;; 17 |         self.calls += 1
     block
       local.get $self
-      i32.load $heap
+      i32.load $heap offset=8
       i32.const 1
       i32.add
       local.set $t0
       local.get $self
       local.get $t0
-      i32.store $heap
+      i32.store $heap offset=8
     ;; 18 |         self.total += value
       local.get $self
-      i64.load $heap offset=8
+      i64.load $heap
       local.get $value
       i64.add
       local.set $value
       local.get $self
       local.get $value
-      i64.store $heap offset=8
+      i64.store $heap
     ;; 17 |         self.calls += 1
     end
   )

@@ -9,6 +9,8 @@
           block
     ;; 9 |         ._0(inner) =>
             local.get $value.0
+            i32.const 255
+            i32.and
             i32.eqz
             if
               local.get $value.1
@@ -21,6 +23,8 @@
             else
     ;; 13 |         ._1(_) => 0
               local.get $value.0
+              i32.const 255
+              i32.and
               i32.const 1
               i32.eq
               br_if 2

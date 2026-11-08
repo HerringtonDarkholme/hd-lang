@@ -12,7 +12,7 @@
       call $rt:new/class-1
       local.tee $t0
       i32.const 1
-      i32.store8 $heap
+      i32.store $heap
       local.get $t0
       local.get $n
       i32.store $heap offset=4
@@ -42,12 +42,12 @@
           block
     ;; 25 |         .Empty => +0
             local.get $value
-            i32.load8_u $heap
+            i32.load $heap
             i32.eqz
             br_if 0
     ;; 26 |         .Present(n) => n
             local.get $value
-            i32.load8_u $heap
+            i32.load $heap
             i32.const 1
             i32.eq
             if

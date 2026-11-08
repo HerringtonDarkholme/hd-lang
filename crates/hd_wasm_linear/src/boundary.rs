@@ -79,12 +79,13 @@ pub struct LList {
     pub ty: LTy,
 }
 
-/// An enum's values (the tag, then the shared slots, `layout::enum_mem`)
-/// and, per variant, each payload field's value indices and type.
+/// An enum's layout (`layout::Flat`: its cells, its tag, each payload
+/// field's leaves among the cells) and, per variant, each payload field's
+/// boundary type. The host format is the variant index, then the fields.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct LEnum {
-    pub vals: Vec<Val>,
-    pub variants: Vec<Vec<(Vec<u32>, LTy)>>,
+    pub layout: Box<layout::Flat>,
+    pub variants: Vec<Vec<LTy>>,
 }
 
 /// A host handle's trait value: a box holding the handle number, beside
@@ -124,7 +125,7 @@ impl LTy {
             LTy::Str | LTy::DiscardStr | LTy::Handle(_) => vec![Val::I32, Val::I32],
             LTy::Bytes | LTy::List(_) => vec![Val::I32],
             LTy::Record(fields) => fields.iter().flat_map(LTy::vals).collect(),
-            LTy::Enum(e) => e.vals.clone(),
+            LTy::Enum(e) => e.layout.mem.vals(),
             LTy::Codec(c) => c.vals.clone(),
         }
     }
@@ -137,7 +138,7 @@ impl LTy {
             LTy::Handle(_) => true,
             LTy::List(l) => l.ty.holds_handle(),
             LTy::Record(fields) => fields.iter().any(LTy::holds_handle),
-            LTy::Enum(e) => e.variants.iter().flatten().any(|(_, t)| t.holds_handle()),
+            LTy::Enum(e) => e.variants.iter().flatten().any(LTy::holds_handle),
             _ => false,
         }
     }
@@ -152,10 +153,8 @@ impl LTy {
         };
         e.variants.len() < 128
             && e.variants.iter().all(|v| match v.as_slice() {
-                [] | [(_, LTy::Void)] => true,
-                [(_, LTy::Enum(p))] => {
-                    p.variants.len() < 128 && p.variants.iter().all(Vec::is_empty)
-                }
+                [] | [LTy::Void] => true,
+                [LTy::Enum(p)] => p.variants.len() < 128 && p.variants.iter().all(Vec::is_empty),
                 _ => false,
             })
     }
@@ -364,22 +363,17 @@ fn enum_of(
     depth: u32,
     at: Option<AtProfile<'_>>,
 ) -> StageResult<LTy> {
-    let (mem, positions) = layout::enum_mem(input.pool, input.env, variants)?;
+    let layout = layout::enum_mem(input.pool, input.env, variants)?;
     let mut vs = Vec::new();
-    for (fields, ps) in variants.iter().zip(positions) {
+    for fields in variants {
         let mut v = Vec::new();
-        for (f, p) in fields.iter().zip(ps) {
-            let ty = of_at(input, m, *f, depth + 1, at)?;
-            let p = p
-                .into_iter()
-                .map(|k| u32::try_from(k).expect("values"))
-                .collect();
-            v.push((p, ty));
+        for f in fields {
+            v.push(of_at(input, m, *f, depth + 1, at)?);
         }
         vs.push(v);
     }
     Ok(LTy::Enum(Box::new(LEnum {
-        vals: mem.vals(),
+        layout: Box::new(layout),
         variants: vs,
     })))
 }
@@ -597,11 +591,7 @@ fn has_direct_strings(ty: &LTy) -> bool {
     match ty {
         LTy::Str => true,
         LTy::Record(fields) => fields.iter().any(has_direct_strings),
-        LTy::Enum(e) => e
-            .variants
-            .iter()
-            .flatten()
-            .any(|(_, t)| has_direct_strings(t)),
+        LTy::Enum(e) => e.variants.iter().flatten().any(has_direct_strings),
         _ => false,
     }
 }
@@ -610,11 +600,7 @@ fn discard_strings(ty: &mut LTy) {
     match ty {
         LTy::Str => *ty = LTy::DiscardStr,
         LTy::Record(fields) => fields.iter_mut().for_each(discard_strings),
-        LTy::Enum(e) => e
-            .variants
-            .iter_mut()
-            .flatten()
-            .for_each(|(_, t)| discard_strings(t)),
+        LTy::Enum(e) => e.variants.iter_mut().flatten().for_each(discard_strings),
         _ => {}
     }
 }
@@ -1574,22 +1560,36 @@ pub fn enc(b: &LTy, m: &Module) -> Func {
             }
         }
         LTy::Enum(e) => {
+            let flat = &e.layout;
+            let cell = |f: &mut Func, c: u32| f.get(1 + c);
+            let tag = |f: &mut Func| {
+                if let Some((l, p)) = flat.tag {
+                    let steps = layout::read_steps(&flat.mem.leaves, l, p);
+                    layout::run_steps(f, &steps, &cell, &|_, _, _| {}, &[]);
+                } else {
+                    // A nullable enum's variant 1 is a non-null address.
+                    f.get(1);
+                    f.i32(0);
+                    f.op(I::I32Ne);
+                }
+            };
             put(&mut f, 0, |f| {
-                f.get(1);
+                tag(f);
                 f.op(I::I64ExtendI32U);
             });
             for (v, fields) in e.variants.iter().enumerate() {
-                if fields.iter().all(|(ps, _)| ps.is_empty()) {
+                if fields.iter().all(|fb| fb.vals().is_empty()) {
                     continue;
                 }
-                f.get(1);
+                tag(&mut f);
                 f.i32(i32::try_from(v).expect("variants"));
                 f.op(I::I32Eq);
                 f.op(I::If(BlockType::Empty));
-                for (ps, fb) in fields {
+                for (fi, fb) in fields.iter().enumerate() {
                     enc_call(&mut f, 0, fb, |f| {
-                        for p in ps {
-                            f.get(1 + p);
+                        for (l, p) in flat.leaves[v][fi].iter().zip(&flat.positions[v][fi]) {
+                            let steps = layout::read_steps(&flat.mem.leaves, *l, *p);
+                            layout::run_steps(f, &steps, &cell, &|_, _, _| {}, &[]);
                         }
                     });
                 }
@@ -1813,8 +1813,9 @@ pub fn dec(b: &LTy, m: &mut Module) -> Func {
             }
         }
         LTy::Enum(e) => {
+            let flat = &e.layout;
             let tag = f.local(Val::I32);
-            let res: Vec<u32> = e.vals.iter().map(|v| f.local(*v)).collect();
+            let res: Vec<u32> = flat.mem.leaves.iter().map(|l| f.local(l.val)).collect();
             get_len(&mut f, 0);
             f.set(tag);
             f.get(tag);
@@ -1823,25 +1824,43 @@ pub fn dec(b: &LTy, m: &mut Module) -> Func {
             f.op(I::If(BlockType::Empty));
             malformed(&mut f);
             f.op(I::End);
-            for (v, fields) in e.variants.iter().enumerate() {
-                if fields.iter().all(|(ps, _)| ps.is_empty()) {
+            // A variant with no payload values is its tag, at byte 0 of
+            // its cell, the rest zero; the others build every cell.
+            if let Some((_, p)) = flat.tag {
+                f.get(tag);
+                f.set(res[p.cell() as usize]);
+            }
+            for (v, fields) in (0u32..).zip(&e.variants) {
+                if fields.iter().all(|fb| fb.vals().is_empty()) {
                     continue;
                 }
                 f.get(tag);
-                f.i32(i32::try_from(v).expect("variants"));
+                f.u32(v);
                 f.op(I::I32Eq);
                 f.op(I::If(BlockType::Empty));
-                for (ps, fb) in fields {
-                    let ls = dec_into(&mut f, 0, fb);
-                    for (p, l) in ps.iter().zip(ls) {
-                        f.get(l);
-                        f.set(res[*p as usize]);
+                let ls: Vec<Vec<u32>> = fields.iter().map(|fb| dec_into(&mut f, 0, fb)).collect();
+                let (first, cells, n) = layout::variant_steps(flat, v);
+                let tmps: Vec<u32> = (0..n).map(|_| f.local(Val::I64)).collect();
+                let leaf = |f: &mut Func, fi: usize, k: usize| f.get(ls[fi][k]);
+                layout::run_steps(&mut f, &first, &|_, _| {}, &leaf, &tmps);
+                // A cell the variant leaves unused stays zero, as its
+                // local starts, and the tag's cell holds the tag already
+                // unless the variant has leaves there too.
+                for (c, (steps, r)) in (0u32..).zip(cells.iter().zip(&res)) {
+                    let tag_alone = flat.tag.is_some_and(|(_, p)| p.cell() == c)
+                        && matches!(
+                            steps.as_deref(),
+                            Some([layout::Step::Op(I::I32Const(k))]) if i64::from(*k) == i64::from(v)
+                        );
+                    if let Some(steps) = steps
+                        && !tag_alone
+                    {
+                        layout::run_steps(&mut f, steps, &|_, _| {}, &leaf, &tmps);
+                        f.set(*r);
                     }
                 }
                 f.op(I::End);
             }
-            f.get(tag);
-            f.set(res[0]);
             for r in res {
                 f.get(r);
             }
@@ -2256,13 +2275,27 @@ mod discarded_tests {
     }
 
     fn result_type() -> LTy {
+        let string = || crate::layout::Mem {
+            size: 8,
+            align: 4,
+            leaves: [0, 4]
+                .map(|offset| crate::layout::Leaf {
+                    offset,
+                    val: Val::I32,
+                    bytes: 4,
+                    signed: false,
+                })
+                .to_vec(),
+        };
+        let error_layout = crate::layout::flat_of(&[vec![], vec![string()]]);
+        let outer = crate::layout::flat_of(&[vec![], vec![error_layout.mem.clone()]]);
         let error = LTy::Enum(Box::new(LEnum {
-            vals: vec![Val::I32; 3],
-            variants: vec![vec![], vec![(vec![1, 2], LTy::Str)]],
+            layout: Box::new(error_layout),
+            variants: vec![vec![], vec![LTy::Str]],
         }));
         LTy::Enum(Box::new(LEnum {
-            vals: vec![Val::I32; 4],
-            variants: vec![vec![], vec![(vec![1, 2, 3], error)]],
+            layout: Box::new(outer),
+            variants: vec![vec![], vec![error]],
         }))
     }
 
