@@ -1,5 +1,5 @@
 rule	crate	ceiling
-ban-unsupported	hd_check	32
+ban-unsupported	hd_check	29
 ban-unsupported	hd_diag	2
 ban-unsupported	hd_driver	3
 ban-unsupported	hd_structure	18
