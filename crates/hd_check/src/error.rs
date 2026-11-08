@@ -14,7 +14,7 @@
 //! - `Error::cause` returns the `@from` or `@source` member as a
 //!   `dyn Error`, an optional one only when present, a transparent
 //!   member's own `cause`, or `.None` (`annot.error.cause.*`,
-//!   `annot.error.transparent.cause`).
+//!   `annot.error.transparent.source`).
 //! - `From[P]::from` builds the variant or data value holding the payload
 //!   (`annot.error.from.generate`, `annot.error.from.data`).
 //!
@@ -336,7 +336,7 @@ impl Target<'_, '_> {
     }
 
     /// The cause of variant `vi`, of type `ret` (`dyn Error?`)
-    /// (`annot.error.cause.*`, `annot.error.transparent.cause`).
+    /// (`annot.error.cause.*`, `annot.error.transparent.source`).
     fn cause_arm(
         &self,
         ck: &mut Ck<'_, '_>,

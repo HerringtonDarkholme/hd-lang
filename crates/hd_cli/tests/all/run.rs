@@ -200,7 +200,7 @@ fn rendered_diagnostics_do_not_repeat_their_code() {
     }
 }
 
-/// `cli.diagnostics.text`: each diagnostic prints its severity, then
+/// A text diagnostic prints its severity, then
 /// `file:line:column`, the code once, and the message.
 #[test]
 fn errors_print_severity_location_code_and_message_without_unused_advice() {

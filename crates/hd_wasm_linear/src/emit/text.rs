@@ -444,7 +444,7 @@ impl Em<'_, '_, '_> {
     }
 
     /// `cmp` or `partial_cmp` of two strings: their bytes in order, a
-    /// prefix first (`expr.ord.string`), as an `Ordering`, which
+    /// prefix first (`expr.ord.std.string-bytes`), as an `Ordering`, which
     /// `partial_cmp` wraps in `.Some`.
     pub(super) fn str_ordering(&mut self, i: u32, args: &[u32], partial: bool) -> StageResult<()> {
         let want = if partial { 2 } else { 1 };

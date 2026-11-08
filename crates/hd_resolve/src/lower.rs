@@ -1544,7 +1544,7 @@ fn export_failure(code: Code, name: &str, module: &str) -> String {
 }
 
 /// Binds each prelude name that `scope` leaves free, and reports each
-/// own declaration that shadows one (`names.prelude.shadow`).
+/// own declaration that shadows one (`module.prelude.no-shadow`).
 fn prelude(
     r: &Resolver<'_, '_>,
     m: &ModIn<'_>,

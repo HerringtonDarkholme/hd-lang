@@ -174,5 +174,11 @@ the spec, and it adds exactly what the decision says, no more.
 - Fixtures cover each new rule and diagnostic, and both indexes agree.
 - The compiler implements it, or a `KNOWN_FAILURES.tsv` row with an issue
   records the gap.
+- When the decision removes, narrows or renames a form, the compiler's
+  representation of the old form goes in every stage, not only a new
+  rejection. `scripts/removed-forms.tsv` gets a row with the Rust names
+  that implemented it, and the ticket that deletes any still present.
+  Code that cites a rule ID the spec no longer has is fixed in the same
+  change. `pnpm run check:spec-sync` checks both.
 - All checks in step 11 pass, and the commits are pushed as a
   fast-forward.

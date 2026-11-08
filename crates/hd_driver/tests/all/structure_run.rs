@@ -38,7 +38,7 @@ fn build_by(
         },
     );
     // A block with member lines beside a `@derive` of another trait of
-    // its package warns, and stays legal (`annot.line.drift.derive`,
+    // its package warns, and stays legal (`annot.line.drift.lint.derive`,
     // `annot.line.drift.legal`); nothing else may be reported.
     assert!(
         out.diags

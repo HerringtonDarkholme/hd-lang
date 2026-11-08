@@ -3,7 +3,7 @@
 //! writable place it names: a `let mut` local or top-level binding, a
 //! field of a data value with mutable access, what a `&mut` refers to, a
 //! list element, a map value (`types.coll.map-value.place`), or a struct
-//! field of one of these (`types.value.writable-forms`).
+//! field of one of these (`types.value.writable-places`).
 //!
 //! The written place comes from the syntax ([`Ck::place_of`]), not from
 //! the instructions a read of it emitted: `a.b.x = v` is one
@@ -27,7 +27,7 @@ use crate::refs::{Place, Root};
 
 impl Ck<'_, '_> {
     /// `base.name = rhs` or `base.name op= rhs` where `base` names the
-    /// struct place `place` (`types.value.writable-forms`,
+    /// struct place `place` (`types.value.writable-places`,
     /// `types.value.field-write`).
     pub(crate) fn struct_field_assign(
         &mut self,

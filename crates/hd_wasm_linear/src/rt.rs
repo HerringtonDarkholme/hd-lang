@@ -500,7 +500,7 @@ pub enum Helper {
     /// `(a, b) -> bool`: two strings' bytes are equal.
     StrEq,
     /// `(a, b) -> i32`: -1, 0 or 1 as `a` sorts before, with or after `b`,
-    /// byte by byte and a prefix first (`expr.ord.string`).
+    /// byte by byte and a prefix first (`expr.ord.std.string-bytes`).
     StrCmp,
     /// `(at, len, from) -> index`: std's `bytes_index_json`, the first
     /// byte at or after `from` that JSON must escape, or `len` (#428).

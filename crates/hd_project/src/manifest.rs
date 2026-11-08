@@ -44,7 +44,7 @@ pub struct Manifest {
     /// `hd_lint` owns the registry and validates them for `hd lint`.
     pub lint: Option<LintTable>,
     /// Each table or key that no rule gives a meaning, by its dotted path,
-    /// and its line (`cli.manifest.unknown-key.with-host`).
+    /// and its line (`cli.manifest.unknown-key.error`).
     pub unknown: Vec<(String, u32)>,
 }
 
@@ -359,7 +359,7 @@ impl std::error::Error for ManifestError {}
 
 /// Parses `hd.toml` by the Package Tooling table: each table and key it
 /// lists is read, and every other one is recorded as unknown
-/// (`cli.manifest.unknown-key.with-host`).
+/// (`cli.manifest.unknown-key.error`).
 pub fn parse_manifest(text: &str) -> Result<Manifest, ManifestError> {
     let table: toml::Table = text.parse().map_err(|e: toml::de::Error| {
         let before = e.span().and_then(|r| text.get(..r.start));
@@ -792,7 +792,7 @@ fn identity(r: &Requirement) -> Option<String> {
 /// `[dev-capabilities]` key and value (`cli.cap.table.keys.with-package-host`,
 /// `cli.cap.value.unscoped`), an `[[executable]]` table without a string
 /// `name` and `module` (`cli.manifest.known-key`), and a warning for each
-/// unknown table or key (`cli.manifest.unknown-key.with-host`).
+/// unknown table or key (`cli.manifest.unknown-key.error`).
 #[must_use]
 pub fn problems(m: &Manifest, toolchain: &str) -> Vec<Problem> {
     let mut out = Vec::new();

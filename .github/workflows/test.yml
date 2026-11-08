@@ -79,6 +79,7 @@ jobs:
           pnpm run -s format:check
           pnpm run -s check:types
           pnpm run -s check:host-sources
+          pnpm run -s check:spec-sync
           pnpm run -s check:typescript-sources
 
       - name: Check formatting

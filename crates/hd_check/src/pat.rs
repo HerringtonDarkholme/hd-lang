@@ -582,8 +582,8 @@ impl Ck<'_, '_> {
     }
 
     /// Binds a name of a binding or spread pattern to a local of type `t`
-    /// (`names.bind.pattern`; a `let` pattern's names follow the binding
-    /// forms, types.bind.let-pattern-mut).
+    /// (a `let` pattern's names follow the binding forms,
+    /// `types.bind.let-pattern-mut`).
     fn bind_pattern_name(
         &mut self,
         p: NodeRef<'_>,

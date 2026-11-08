@@ -260,7 +260,7 @@ pub(crate) struct Ck<'a, 'c> {
     /// not inherit this permission for their returns.
     pub auto_closing_function: bool,
     /// The locals bound with `let mut`: a struct value in one changes in
-    /// place (`types.value.writable-forms`).
+    /// place (`types.value.writable-places`).
     pub mut_locals: Vec<LocalId>,
     /// The locals whose collection a change reaches in place (a push, an
     /// element or map store), which a closure capturing them shares
@@ -4161,7 +4161,7 @@ impl Ck<'_, '_> {
                 };
                 let (br, bt) = match op {
                     // A struct field changes in a writable place only
-                    // (`types.value.writable-forms`).
+                    // (`types.value.writable-places`).
                     crate::refs::Operand::Place(p) if self.is_value_record_ty(p.ty) => {
                         let p = self.promote_place(p, &fname);
                         return self.struct_field_assign(
@@ -4211,7 +4211,7 @@ impl Ck<'_, '_> {
                     None => (br, bt),
                 };
                 // A struct value that is no place: its fields cannot change
-                // (`types.value.write.other-value`).
+                // (`types.value.write.other-holder`).
                 if self.is_struct_ty(bt) {
                     let (_, bt) = self.promote_base(br, bt, &fname, *lhs);
                     if self.field_of(bt, &fname).is_none() {

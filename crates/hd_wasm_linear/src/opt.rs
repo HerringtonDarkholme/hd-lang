@@ -81,7 +81,7 @@ use crate::rt::Helper;
 
 /// Reads each top-level binding that one instruction writes, a constant
 /// stored by an init, as that constant, and drops the store. An init runs
-/// before any code that reads its bindings (`module.init.order`), so every
+/// before any code that reads its bindings (`module.init.binding`), so every
 /// read sees the constant.
 pub fn constants(funcs: &mut [Option<Func>], symbols: &Symbols, inits: &[Hash128], arity: &Arity) {
     let mut inits = inits.to_vec();

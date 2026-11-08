@@ -5,7 +5,7 @@
 //! elides.
 //!
 //! Once a body is checked, [`Ck::check_dependent_results`] gives each
-//! slot of its values and locals a region (`ref.dep.slot`), relates them
+//! slot of its values and locals a region (`ref.dep.position`), relates them
 //! by outlives constraints over the body's TIR and solves them once, as
 //! Rust's NLL does (`ref.dep.origin.*`, [`constraints`]). A region's value
 //! is a set of origins, each a loan. An origin is a storage root a local
@@ -101,7 +101,7 @@ enum Elided {
     Ambiguous,
 }
 
-/// A signature's dependency map (`ref.dep.slot`): the lifetime of each
+/// A signature's dependency map (`ref.dep.position`): the lifetime of each
 /// origin slot of its parameters and of its result, in [`Layout`] order
 /// over the declared types.
 pub(crate) struct DepSig {
@@ -690,7 +690,7 @@ struct Slot {
     written: bool,
 }
 
-/// The origin slots of a type in pre-order (`ref.dep.slot`): each
+/// The origin slots of a type in pre-order (`ref.dep.position`): each
 /// reference type outside function types and counted references, as in
 /// [`Types::ref_slots`], each borrowing opaque type, each function type
 /// outside another function type, and each suspension after its

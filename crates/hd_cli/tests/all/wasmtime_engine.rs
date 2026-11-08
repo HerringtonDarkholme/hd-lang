@@ -726,7 +726,7 @@ fn a_warm_run_compiles_no_function() {
     }
 }
 
-/// `module.process.command-env` and `module.process.command-dir`, on a host
+/// `module.process.env` and `module.process.current-dir`, on a host
 /// program: the child sees the program's environment with the command's
 /// pairs added (a later pair for a name wins) and starts in the command's
 /// directory, and a directory that does not exist is an error naming it.
