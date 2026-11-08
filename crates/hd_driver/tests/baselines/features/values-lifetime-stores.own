@@ -11,7 +11,7 @@ struct User:
 fn remember['a](seen: &mut List[&'a User], u: &'a User) -> void:
     seen.push(u)
 > app/main/remember
->   local $0 seen: Ref[mut List[Ref[User]]] [param read] value
+>   local $0 seen: RefMut[List[Ref[User]]] [param read] value
 >     uses $0: entry -> %2 lend last
 >   local $1 u: Ref[User] [param read] value
 >     uses $1: entry -> %0 consume last
@@ -25,7 +25,7 @@ fn remember['a](seen: &mut List[&'a User], u: &'a User) -> void:
 fn index['a](by: &mut Map[string, &'a User], u: &'a User) -> void:
     by[u.name] = u
 > app/main/index
->   local $0 by: Ref[mut Map[string, Ref[User]]] [param read] value
+>   local $0 by: RefMut[Map[string, Ref[User]]] [param read] value
 >     uses $0: entry -> %3 lend last
 >   local $1 u: Ref[User] [param read] value
 >     uses $1: entry -> %0 lend, %1 consume last
@@ -56,14 +56,14 @@ fn total(a: User, b: User) -> usize:
 >   %3 = Store [$2] %2 : ()
 >   %44 = Block %43 : usize
     remember(&mut seen, &a)
->   %4 = Ref mut local frame [$2] : Ref[mut List[Ref[User]]]
+>   %4 = Ref mut local frame [$2] : RefMut[List[Ref[User]]]
 >   %5 = Ref local frame [$0] : Ref[User]
 >   %6 = Call app/main/remember[] (%4, %5) : ()
 >   %7 = LoanEnd [%5] : ()
 >   %8 = LoanEnd [%4] : ()
 >   %4 finds [$2] full
     remember(&mut seen, &b)
->   %9 = Ref mut local frame [$2] : Ref[mut List[Ref[User]]]
+>   %9 = Ref mut local frame [$2] : RefMut[List[Ref[User]]]
 >   %10 = Ref local frame [$1] : Ref[User]
 >   %11 = Call app/main/remember[] (%9, %10) : ()
 >   %12 = LoanEnd [%10] : ()
@@ -74,7 +74,7 @@ fn total(a: User, b: User) -> usize:
 >   %15 = Store [$3] %14 : ()
 >   %39 = Release %38 Operation local $3 #2 : ()
     index(&mut by, &a)
->   %16 = Ref mut local frame [$3] : Ref[mut Map[string, Ref[User]]]
+>   %16 = Ref mut local frame [$3] : RefMut[Map[string, Ref[User]]]
 >   %17 = Ref local frame [$0] : Ref[User]
 >   %18 = Call app/main/index[] (%16, %17) : ()
 >   %19 = LoanEnd [%17] : ()

@@ -6,7 +6,7 @@
 fn add_one(r: &mut i32) -> void:
     *r = *r + 1
 > app/main/add_one
->   local $0 r: Ref[mut i32] [param read] value
+>   local $0 r: RefMut[i32] [param read] value
 >     uses $0: entry -> %0 lend, %2 lend last
 >   %0 = Read copy [*$0] : i32
 >   %1 = Prim Add [%0 1:i32] : i32
@@ -22,7 +22,7 @@ fn bump(mut xs: List[i32], i: usize) -> void:
     add_one(&mut xs[i])
 >   %1 = Read copy [$1] : usize
 >   %2 = IsUnique [$0] : ()
->   %3 = Ref mut local [$0 [%1]] : Ref[mut i32]
+>   %3 = Ref mut local [$0 [%1]] : RefMut[i32]
 >   %4 = Call app/main/add_one[] (%3) : ()
 >   %5 = LoanEnd [%3] : ()
 >   %6 = Drop [$0] : ()

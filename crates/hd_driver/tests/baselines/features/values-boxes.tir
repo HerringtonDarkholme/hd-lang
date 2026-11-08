@@ -19,7 +19,7 @@ fn copy_box(s: string, t: string) -> usize:
 >   local $1 t: string [param read]
 >   local $2 p: Point [read assigned mutated captured]
 >   local $3 $ref: Point [read assigned captured captured-assigned]
->   local $4 copy: Counted[mut Point] [:= read assigned]
+>   local $4 copy: CountedMut[Point] [:= read assigned]
 >   %0 = Read [$0] : string
 >   %1 = NewStruct [%0] : Point
 >   %2 = Store [$2] %1 : ()
@@ -27,7 +27,7 @@ fn copy_box(s: string, t: string) -> usize:
     copy := box(p)
 >   %3 = Read [$2] : Point
 >   %4 = Store [$3] %3 : ()
->   %5 = Ref mut [$3] : Counted[mut Point]
+>   %5 = Ref mut [$3] : CountedMut[Point]
 >   %6 = Store [$4] %5 : ()
     p.name = t
 >   %7 = Read [$1] : string
@@ -48,11 +48,11 @@ fn move_box(s: string) -> *mut Point:
 >   %0 = Read [$0] : string
 >   %1 = NewStruct [%0] : Point
 >   %2 = Store [$1] %1 : ()
->   %6 = Block %5 : Counted[mut Point]
+>   %6 = Block %5 : CountedMut[Point]
     box(p)
 >   %3 = Read [$1] : Point
 >   %4 = Store [$2] %3 : ()
->   %5 = Ref mut [$2] : Counted[mut Point]
+>   %5 = Ref mut [$2] : CountedMut[Point]
 
 fn shared(s: string, t: string) -> usize:
     b := box(Point { name: s })
@@ -60,16 +60,16 @@ fn shared(s: string, t: string) -> usize:
 >   local $0 s: string [param read]
 >   local $1 t: string [param read]
 >   local $2 $ref: Point [read assigned captured captured-assigned]
->   local $3 b: Counted[mut Point] [:= read assigned]
+>   local $3 b: CountedMut[Point] [:= read assigned]
 >   local $4 h: Holder [:= read assigned]
 >   %0 = Read [$0] : string
 >   %1 = NewStruct [%0] : Point
 >   %2 = Store [$2] %1 : ()
->   %3 = Ref mut [$2] : Counted[mut Point]
+>   %3 = Ref mut [$2] : CountedMut[Point]
 >   %4 = Store [$3] %3 : ()
 >   %12 = Block %11 : usize
     h := Holder { point: b }
->   %5 = Read [$3] : Counted[mut Point]
+>   %5 = Read [$3] : CountedMut[Point]
 >   %6 = NewStruct [%5] : Holder
 >   %7 = Store [$4] %6 : ()
     b.name = t

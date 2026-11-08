@@ -9,7 +9,7 @@ struct Note:
 
 fn change!(n: *mut Note) -> usize:
 > std/rt_tests.stage_case/change
->   local $0 n: Counted[mut Note] [param read] value
+>   local $0 n: CountedMut[Note] [param read] value
 >     uses $0: entry -> %2 lend, %4 lend last
 >   local $1 self: string [read] value
 >     uses $1: %5 -> %6 lend last
@@ -39,7 +39,7 @@ pub fn main!() -> void $ Console:
     n := box::[Note](Note { text: "n" })
 > std/rt_tests.stage_case/main
 >   local $0 $ref: Note [read assigned captured captured-assigned] place
->   local $1 n: Counted[mut Note] [:= read assigned] value
+>   local $1 n: CountedMut[Note] [:= read assigned] value
 >     uses $1: %7 -> %8 lend last
 >   local $2 a: usize [read assigned captured] place
 >   local $3 result: string [read] value
@@ -59,13 +59,13 @@ pub fn main!() -> void $ Console:
 >   %2 = Release %58 FrameDrop row #2 : ()
 >   %3 = NewStruct ["n"] : Note
 >   %4 = Store [$0] %3 : ()
->   %5 = Ref mut [$0] : Counted[mut Note]
+>   %5 = Ref mut [$0] : CountedMut[Note]
 >   %6 = Retain %5 Value #0 : ()
 >   %7 = Store [$1] %5 : ()
 >   %58 = Block - : ()
 >   %5 finds [$0] full
     let (a, _) = join!(change(n), other())
->   %8 = Read move [$1] : Counted[mut Note]
+>   %8 = Read move [$1] : CountedMut[Note]
 >   %9 = Call std/rt_tests.stage_case/change[] (%8) : Suspend[usize]
 >   %10 = Drop [$0] : ()
 >   %11 = Call std/rt_tests.stage_case/other[] () : Suspend[usize]

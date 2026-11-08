@@ -20,7 +20,7 @@ impl[T < Ord] Queue[T]:
 
     pub fn add(&mut self, value: T) -> void:
 > app/main/impl [ T < Ord ] Queue [ T ].add
->   local $0 self: Ref[mut Queue[T]] [param read] value
+>   local $0 self: RefMut[Queue[T]] [param read] value
 >     uses $0: entry -> %3 lend last
 >   local $1 value: T [param read] value
 >     uses $1: entry -> %1 consume last
@@ -36,7 +36,7 @@ impl[T < Ord] Queue[T]:
 
     pub fn settle(&mut self, start: usize, value: T) -> void:
 > app/main/impl [ T < Ord ] Queue [ T ].settle
->   local $0 self: Ref[mut Queue[T]] [param read] value
+>   local $0 self: RefMut[Queue[T]] [param read] value
 >     uses $0: entry -> %1 lend, %22 lend, %26 lend, %47 lend, %63 lend, %65 lend, %79 lend last
 >   local $1 start: usize [param read] value
 >     uses $1: entry -> %4 consume last
@@ -164,19 +164,19 @@ pub fn numbers(a: i64, b: i64, c: i64) -> i64:
 >   %5 = Store [$3] %4 : ()
 >   %29 = Block %28 : i64
     q.add(a)
->   %6 = Ref mut local frame [$3] : Ref[mut Queue[i64]]
+>   %6 = Ref mut local frame [$3] : RefMut[Queue[i64]]
 >   %7 = Read copy [$0] : i64
 >   %8 = Call app/main/impl [ T < Ord ] Queue [ T ].add[i64] (%6, %7) : ()
 >   %9 = LoanEnd [%6] : ()
 >   %6 finds [$3] full
     q.add(b)
->   %10 = Ref mut local frame [$3] : Ref[mut Queue[i64]]
+>   %10 = Ref mut local frame [$3] : RefMut[Queue[i64]]
 >   %11 = Read copy [$1] : i64
 >   %12 = Call app/main/impl [ T < Ord ] Queue [ T ].add[i64] (%10, %11) : ()
 >   %13 = LoanEnd [%10] : ()
 >   %10 finds [$3] full
     q.add(c)
->   %14 = Ref mut local frame [$3] : Ref[mut Queue[i64]]
+>   %14 = Ref mut local frame [$3] : RefMut[Queue[i64]]
 >   %15 = Read copy [$2] : i64
 >   %16 = Call app/main/impl [ T < Ord ] Queue [ T ].add[i64] (%14, %15) : ()
 >   %17 = LoanEnd [%14] : ()
@@ -186,7 +186,7 @@ pub fn numbers(a: i64, b: i64, c: i64) -> i64:
 >   %19 = Store [$4] %18 : ()
 >   %18 finds [$3] full
     q.settle(0, c)
->   %20 = Ref mut local frame [$3] : Ref[mut Queue[i64]]
+>   %20 = Ref mut local frame [$3] : RefMut[Queue[i64]]
 >   %21 = Read copy [$2] : i64
 >   %22 = Call app/main/impl [ T < Ord ] Queue [ T ].settle[i64] (%20, 0:usize, %21) : ()
 >   %23 = LoanEnd [%20] : ()
@@ -225,13 +225,13 @@ pub fn names(a: string, b: string) -> usize:
 >   %7 = Store [$2] %6 : ()
 >   %40 = Block %39 : usize
     q.add(a)
->   %8 = Ref mut local frame [$2] : Ref[mut Queue[string]]
+>   %8 = Ref mut local frame [$2] : RefMut[Queue[string]]
 >   %9 = Read move [$0] : string
 >   %10 = Call app/main/impl [ T < Ord ] Queue [ T ].add[string] (%8, %9) : ()
 >   %11 = LoanEnd [%8] : ()
 >   %8 finds [$2] full
     q.add(b)
->   %12 = Ref mut local frame [$2] : Ref[mut Queue[string]]
+>   %12 = Ref mut local frame [$2] : RefMut[Queue[string]]
 >   %13 = Read move [$1] : string
 >   %14 = Call app/main/impl [ T < Ord ] Queue [ T ].add[string] (%12, %13) : ()
 >   %15 = LoanEnd [%12] : ()
@@ -241,7 +241,7 @@ pub fn names(a: string, b: string) -> usize:
 >   %17 = Store [$3] %16 : ()
 >   %16 finds [$2] full
     q.settle(0, "z")
->   %18 = Ref mut local frame [$2] : Ref[mut Queue[string]]
+>   %18 = Ref mut local frame [$2] : RefMut[Queue[string]]
 >   %19 = Call app/main/impl [ T < Ord ] Queue [ T ].settle[string] (%18, 0:usize, "z") : ()
 >   %20 = LoanEnd [%18] : ()
 >   %18 finds [$2] full
@@ -288,14 +288,14 @@ pub fn pairs(a: i64, b: i64) -> i64:
 >   %5 = Store [$2] %4 : ()
 >   %28 = Block %27 : i64
     q.add((a, 0))
->   %6 = Ref mut local frame [$2] : Ref[mut Queue[(i64, usize)]]
+>   %6 = Ref mut local frame [$2] : RefMut[Queue[(i64, usize)]]
 >   %7 = Read copy [$0] : i64
 >   %8 = NewTuple - [%7 0:usize] : (i64, usize)
 >   %9 = Call app/main/impl [ T < Ord ] Queue [ T ].add[(i64, usize)] (%6, %8) : ()
 >   %10 = LoanEnd [%6] : ()
 >   %6 finds [$2] full
     q.add((b, 1))
->   %11 = Ref mut local frame [$2] : Ref[mut Queue[(i64, usize)]]
+>   %11 = Ref mut local frame [$2] : RefMut[Queue[(i64, usize)]]
 >   %12 = Read copy [$1] : i64
 >   %13 = NewTuple - [%12 1:usize] : (i64, usize)
 >   %14 = Call app/main/impl [ T < Ord ] Queue [ T ].add[(i64, usize)] (%11, %13) : ()
@@ -306,7 +306,7 @@ pub fn pairs(a: i64, b: i64) -> i64:
 >   %17 = Store [$3] %16 : ()
 >   %16 finds [$2] full
     q.settle(0, (a, 2))
->   %18 = Ref mut local frame [$2] : Ref[mut Queue[(i64, usize)]]
+>   %18 = Ref mut local frame [$2] : RefMut[Queue[(i64, usize)]]
 >   %19 = Read copy [$0] : i64
 >   %20 = NewTuple - [%19 2:usize] : (i64, usize)
 >   %21 = Call app/main/impl [ T < Ord ] Queue [ T ].settle[(i64, usize)] (%18, 0:usize, %20) : ()

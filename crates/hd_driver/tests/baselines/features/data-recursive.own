@@ -23,7 +23,7 @@ fn push_front(head: *Chain?, name: string) -> *Chain:
 >   %3 = Read move [$0] : Counted[Chain]?
 >   %4 = NewStruct [%2 %3] : Chain
 >   %5 = Store [$2] %4 : ()
->   %6 = Ref take mut [$2] : Counted[mut Chain]
+>   %6 = Ref take mut [$2] : CountedMut[Chain]
 >   %7 = Coerce %6 [Weaken -] : Counted[Chain]
 >   %8 = Block %7 : Counted[Chain]
 >   %6 finds [$2] full

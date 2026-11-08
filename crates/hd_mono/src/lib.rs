@@ -400,10 +400,7 @@ pub fn trait_reference_widens(pool: &InternPool, env: &dyn ProgramEnv, from: Ty,
     if !env.ref_cells().holds(def) {
         return false;
     }
-    let mut inner = pool.list_items(args)[0];
-    if let TyData::Mut(t) = pool.get(inner) {
-        inner = t;
-    }
+    let inner = pool.list_items(args)[0];
     let (TyData::TraitValue { def: from, .. }, TyData::TraitValue { def: to, .. }) =
         (pool.get(inner), pool.get(to))
     else {
@@ -848,10 +845,12 @@ fn name_into(
         }
         TyData::Prim(p) => out.push_str(p.name()),
         TyData::Never => out.push_str("never"),
-        // The carrier's `mut T` spells `&mut T` or `*mut T` through the `Mut` arm.
         TyData::Adt { def, args } if env.ref_cells().holds(def) => {
-            let counted = def == env.ref_cells().counted;
-            out.push(if counted { '*' } else { '&' });
+            let cells = env.ref_cells();
+            out.push(if cells.is_counted(def) { '*' } else { '&' });
+            if cells.is_mutable(def) {
+                out.push_str("mut ");
+            }
             name_into(pool, env, printed, pool.list_items(args)[0], out, limit);
         }
         TyData::Adt { def, args } => {
@@ -2186,18 +2185,10 @@ impl Cx<'_> {
             pool.list(&args)
         };
         let data = match pool.get(ty) {
-            TyData::Adt { def, args } if cell.holds(def) => {
-                let inner = pool.list_items(args)[0];
-                let inner = match pool.get(inner) {
-                    TyData::Mut(inner) => inner,
-                    _ => inner,
-                };
-                let inner = self.shared_permission_type(inner);
-                TyData::Adt {
-                    def,
-                    args: pool.list(&[inner]),
-                }
-            }
+            TyData::Adt { def, args } if cell.holds(def) => TyData::Adt {
+                def: cell.of(false, cell.is_counted(def)),
+                args: pool.list(&[self.shared_permission_type(pool.list_items(args)[0])]),
+            },
             TyData::Adt { def, args } => TyData::Adt {
                 def,
                 args: list(args),
@@ -2554,10 +2545,6 @@ impl Cx<'_> {
                     {
                         // The wrapper builds a handle value. Reference permission
                         // stays in the boundary key, not its payload type.
-                        let inner = match self.pool.get(inner) {
-                            TyData::Mut(inner) => inner,
-                            _ => inner,
-                        };
                         let (provider, value) = self
                             .env
                             .host_bridge(inner)

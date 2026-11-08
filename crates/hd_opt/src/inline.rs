@@ -732,11 +732,9 @@ impl dyn InlineEnv + '_ {
         };
         let shared = |ty| match self.pool().get(ty) {
             TyData::Ref { mutable, .. } => !mutable,
-            TyData::Adt { def, args } if self.ref_cells().holds(def) => self
-                .pool()
-                .list_items(args)
-                .first()
-                .is_some_and(|&inner| !matches!(self.pool().get(inner), TyData::Mut(_))),
+            TyData::Adt { def, .. } => {
+                self.ref_cells().holds(def) && !self.ref_cells().is_mutable(def)
+            }
             _ => false,
         };
         // A mutable-reference parameter establishes its call loan even
@@ -792,7 +790,10 @@ impl dyn InlineEnv + '_ {
     fn local_reference_type(&self, t: Ty) -> bool {
         match self.pool().get(t) {
             TyData::Ref { counted, .. } => !counted,
-            TyData::Adt { def, .. } => def == self.ref_cells().local,
+            TyData::Adt { def, .. } => {
+                let cells = self.ref_cells();
+                cells.holds(def) && !cells.is_counted(def)
+            }
             _ => false,
         }
     }
@@ -1137,7 +1138,7 @@ fn holds_local(pool: &InternPool, cells: RefCells, t: Ty, depth: u32) -> bool {
         TyData::Ref { counted, inner, .. } => {
             !counted || holds_local(pool, cells, inner, depth + 1)
         }
-        TyData::Adt { def, args } => def == cells.local || any(args),
+        TyData::Adt { def, args } => (cells.holds(def) && !cells.is_counted(def)) || any(args),
         TyData::Tuple { elems, rest } => {
             any(elems) || rest.is_some_and(|r| holds_local(pool, cells, r, depth + 1))
         }
@@ -1233,7 +1234,9 @@ mod tests {
         let pool = InternPool::new();
         let cells = RefCells {
             local: DefId::from_raw(70),
+            local_mut: DefId::from_raw(72),
             counted: DefId::from_raw(71),
+            counted_mut: DefId::from_raw(73),
         };
         let local = pool.lower_refs(
             cells,

@@ -6,16 +6,16 @@ use std.annotation.cold
 
 @cold
 > app/main/bump
->   local $0 items: Ref[mut Map[string, i32]] [param read] value
+>   local $0 items: RefMut[Map[string, i32]] [param read] value
 >     uses $0: entry -> %1 lend last
 >   local $1 key: string [param read] value
 >     uses $1: entry -> %2 lend last
 >   %0 = Release %10 Exit local $1 #2 : ()
 fn bump(items: &mut Map[string, i32], key: string) -> void:
     *items.get_or_insert(key, +0) += 1
->   %1 = Read borrow [$0] : Ref[mut Map[string, i32]]
+>   %1 = Read borrow [$0] : RefMut[Map[string, i32]]
 >   %2 = Read borrow [$1] : string
->   %3 = Call std/collections/impl [ K < Eq & Hash , V ] Map [ K , V ].get_or_insert[string, i32] (%1, %2, 0:i32) : Ref[mut i32]
+>   %3 = Call std/collections/impl [ K < Eq & Hash , V ] Map [ K , V ].get_or_insert[string, i32] (%1, %2, 0:i32) : RefMut[i32]
 >   %4 = MakeUnique %3 Operation operand 0 #5 : ()
 >   %5 = Retain %3 Operation operand 1 #0 : ()
 >   %6 = Read copy [*%3] : i32
@@ -29,13 +29,13 @@ fn bump(items: &mut Map[string, i32], key: string) -> void:
 fn scalar(items: &mut Map[usize, i32], key: usize) -> void:
     *items.get_or_insert(key, +0) += 1
 > app/main/scalar
->   local $0 items: Ref[mut Map[usize, i32]] [param read] value
+>   local $0 items: RefMut[Map[usize, i32]] [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 key: usize [param read] value
 >     uses $1: entry -> %1 lend last
->   %0 = Read borrow [$0] : Ref[mut Map[usize, i32]]
+>   %0 = Read borrow [$0] : RefMut[Map[usize, i32]]
 >   %1 = Read copy [$1] : usize
->   %2 = Call std/collections/impl [ K < Eq & Hash , V ] Map [ K , V ].get_or_insert[usize, i32] (%0, %1, 0:i32) : Ref[mut i32]
+>   %2 = Call std/collections/impl [ K < Eq & Hash , V ] Map [ K , V ].get_or_insert[usize, i32] (%0, %1, 0:i32) : RefMut[i32]
 >   %3 = MakeUnique %2 Operation operand 0 #5 : ()
 >   %4 = Read copy [*%2] : i32
 >   %5 = Prim Add [%4 1:i32] : i32
@@ -71,12 +71,12 @@ pub fn main() -> void $ Console:
 >   %5 = Store [$1] %4 : ()
 >   %4 finds [$0] full
     bump(&mut items, "a")
->   %6 = Ref mut local frame [$0] : Ref[mut Map[string, i32]]
+>   %6 = Ref mut local frame [$0] : RefMut[Map[string, i32]]
 >   %7 = Call app/main/bump[] (%6, "a") : ()
 >   %8 = LoanEnd [%6] : ()
 >   %6 finds [$0] full
     bump(&mut items, "b")
->   %9 = Ref mut local frame [$0] : Ref[mut Map[string, i32]]
+>   %9 = Ref mut local frame [$0] : RefMut[Map[string, i32]]
 >   %10 = Call app/main/bump[] (%9, "b") : ()
 >   %11 = LoanEnd [%9] : ()
 >   %9 finds [$0] full
@@ -116,12 +116,12 @@ pub fn main() -> void $ Console:
 >   %33 = NewMap [1:usize 3:i32] : Map[usize, i32]
 >   %34 = Store [$2] %33 : ()
     scalar(&mut numbers, 1)
->   %35 = Ref mut local frame [$2] : Ref[mut Map[usize, i32]]
+>   %35 = Ref mut local frame [$2] : RefMut[Map[usize, i32]]
 >   %36 = Call app/main/scalar[] (%35, 1:usize) : ()
 >   %37 = LoanEnd [%35] : ()
 >   %35 finds [$2] full
     scalar(&mut numbers, 2)
->   %38 = Ref mut local frame [$2] : Ref[mut Map[usize, i32]]
+>   %38 = Ref mut local frame [$2] : RefMut[Map[usize, i32]]
 >   %39 = Call app/main/scalar[] (%38, 2:usize) : ()
 >   %40 = LoanEnd [%38] : ()
 >   %38 finds [$2] full

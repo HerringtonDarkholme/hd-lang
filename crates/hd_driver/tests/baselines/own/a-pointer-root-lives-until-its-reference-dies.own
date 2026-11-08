@@ -14,7 +14,7 @@ fn probe(items: UniqList[string]) -> string:
 >   local $0 items: UniqList[string] [param read] value
 >     uses $0: entry -> %0 consume last
 >   local $1 $ref: Outer [read assigned captured captured-assigned] place
->   local $2 p: Counted[mut Outer] [:= read assigned] value
+>   local $2 p: CountedMut[Outer] [:= read assigned] value
 >     uses $2: %4 -> %5 lend last
 >   local $3 r: Ref[string] [:= read assigned] value
 >     uses $3: %26 -> %28 lend last
@@ -25,7 +25,7 @@ fn probe(items: UniqList[string]) -> string:
 >   %0 = Read move [$0] : UniqList[string]
 >   %1 = NewStruct [%0] : Outer
 >   %2 = Store [$1] %1 : ()
->   %3 = Ref take mut [$1] : Counted[mut Outer]
+>   %3 = Ref take mut [$1] : CountedMut[Outer]
 >   %4 = Store [$2] %3 : ()
 >   %35 = Block %30 : string
 >   %3 finds [$1] full

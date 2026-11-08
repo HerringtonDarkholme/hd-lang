@@ -19,7 +19,7 @@ fn walk(node: &Node, sink: &mut dyn Sink) -> void:
 > app/main/walk
 >   local $0 node: Ref[Node] [param read] value
 >     uses $0: entry -> %1 lend, %3 lend last
->   local $1 sink: Ref[mut Sink] [param read] value
+>   local $1 sink: RefMut[Sink] [param read] value
 >     uses $1: entry -> %0 lend, %16 lend
 >   local $2 $len: usize [assigned] value
 >     uses $2: %5 -> %8 lend
@@ -59,7 +59,7 @@ fn walk(node: &Node, sink: &mut dyn Sink) -> void:
 >   %32 = Drop [%3] : ()
         walk(*child, sink)
 >   %15 = Read borrow [*$4] : Counted[Node]
->   %16 = Read borrow [$1] : Ref[mut Sink]
+>   %16 = Read borrow [$1] : RefMut[Sink]
 >   %17 = Call app/main/walk[] (%15, %16) : ()
 >   summary kept [] writes relies [$0] recursive
 
@@ -70,7 +70,7 @@ impl Sink for Total:
     fn emit(&mut self, value: i64) -> void:
         self.sum += value
 > app/main/impl Sink for Total.emit
->   local $0 self: Ref[mut Total] [param read] value
+>   local $0 self: RefMut[Total] [param read] value
 >     uses $0: entry -> %0 lend, %3 lend last
 >   local $1 value: i64 [param read] value
 >     uses $1: entry -> %1 lend last
@@ -89,7 +89,7 @@ fn keep(n: *Node, k: &mut Keeper) -> void:
 > app/main/keep
 >   local $0 n: Counted[Node] [param read] value
 >     uses $0: entry -> %0 consume last
->   local $1 k: Ref[mut Keeper] [param read] value
+>   local $1 k: RefMut[Keeper] [param read] value
 >     uses $1: entry -> %2 lend last
 >   %0 = Read copy [$0] : Counted[Node]
 >   %1 = IsUnique [*$1 .saved] : ()
@@ -103,7 +103,7 @@ fn save(node: &Node, k: &mut Keeper) -> void:
 > app/main/save
 >   local $0 node: Ref[Node] [param read] value
 >     uses $0: entry -> %0 lend last
->   local $1 k: Ref[mut Keeper] [param read] value
+>   local $1 k: RefMut[Keeper] [param read] value
 >     uses $1: entry -> %13 lend
 >   local $2 $len: usize [assigned] value
 >     uses $2: %2 -> %5 lend
@@ -139,7 +139,7 @@ fn save(node: &Node, k: &mut Keeper) -> void:
 >   %30 = Block - : ()
         keep(*e, k)
 >   %12 = Read borrow [*$4] : Counted[Node]
->   %13 = Read borrow [$1] : Ref[mut Keeper]
+>   %13 = Read borrow [$1] : RefMut[Keeper]
 >   %14 = Call app/main/keep[] (%12, %13) : ()
 >   summary kept [] writes relies [$0]
 
@@ -149,7 +149,7 @@ pub fn run(root: *Node) -> i64:
 >   local $0 root: Counted[Node] [param read] value
 >     uses $0: entry -> %2 lend, %16 lend last
 >   local $1 total: Total [read assigned captured captured-assigned] place
->   local $2 $ref: Ref[mut Total] [read assigned captured] value
+>   local $2 $ref: RefMut[Total] [read assigned captured] value
 >     uses $2: %4 -> %5 lend last
 >   local $3 keeper: Keeper [read assigned captured captured-assigned] place
 >   %0 = NewStruct [0:i64] : Total
@@ -157,14 +157,14 @@ pub fn run(root: *Node) -> i64:
 >   %27 = Block %26 : i64
     walk(root, &mut total)
 >   %2 = Read borrow [$0] : Counted[Node]
->   %3 = Ref mut local frame [$1] : Ref[mut Total]
+>   %3 = Ref mut local frame [$1] : RefMut[Total]
 >   %4 = Store [$2] %3 : ()
->   %5 = Read move [$2] : Ref[mut Total]
+>   %5 = Read move [$2] : RefMut[Total]
 >   %6 = Coerce %5 [RefToTraitValue -] : Sink
 >   %7 = Retain %6 Value #0 : ()
 >   %8 = LoanEnd [%5] : ()
 >   %9 = Block %6 : Sink
->   %10 = RefDyn %9 : Ref[mut Sink]
+>   %10 = RefDyn %9 : RefMut[Sink]
 >   %11 = Call app/main/walk[] (%2, %10) : ()
 >   %12 = Drop [%10] : ()
 >   %3 finds [$1] full
@@ -174,7 +174,7 @@ pub fn run(root: *Node) -> i64:
 >   %15 = Store [$3] %14 : ()
     save(root, &mut keeper)
 >   %16 = Read borrow [$0] : Counted[Node]
->   %17 = Ref mut local frame [$3] : Ref[mut Keeper]
+>   %17 = Ref mut local frame [$3] : RefMut[Keeper]
 >   %18 = Call app/main/save[] (%16, %17) : ()
 >   %19 = LoanEnd [%17] : ()
 >   %17 finds [$3] full

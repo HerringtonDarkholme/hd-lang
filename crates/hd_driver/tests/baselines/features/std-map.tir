@@ -47,13 +47,13 @@ fn put(m: &mut Map[string, string], k: string, v: string) -> void:
 fn group(m: &mut Map[string, List[string]], k: string, v: string) -> void:
     m.get_or_insert(k, []).push(v)
 > app/main/group
->   local $0 m: Ref[mut Map[string, List[string]]] [param read]
+>   local $0 m: RefMut[Map[string, List[string]]] [param read]
 >   local $1 k: string [param read]
 >   local $2 v: string [param read]
->   %0 = Read [$0] : Ref[mut Map[string, List[string]]]
+>   %0 = Read [$0] : RefMut[Map[string, List[string]]]
 >   %1 = Read [$1] : string
 >   %2 = NewList - [] : List[string]
->   %3 = Call std/collections/impl [ K < Eq & Hash , V ] Map [ K , V ].get_or_insert[string, List[string]] (%0, %1, %2) : Ref[mut List[string]]
+>   %3 = Call std/collections/impl [ K < Eq & Hash , V ] Map [ K , V ].get_or_insert[string, List[string]] (%0, %1, %2) : RefMut[List[string]]
 >   %4 = Read [*%3] : List[string]
 >   %5 = Read [$2] : string
 >   %6 = Intrinsic ListPush [%4 %5] : ()

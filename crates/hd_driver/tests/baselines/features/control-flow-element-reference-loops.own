@@ -112,7 +112,7 @@ fn shouted(prices: List[string]) -> List[string]:
 >   local $2 $len: usize [assigned] value
 >     uses $2: %5 -> %9 lend
 >   local $3 $pos: usize [assigned] place
->   local $4 p: Ref[mut string] [read assigned] value
+>   local $4 p: RefMut[string] [read assigned] value
 >     uses $4: %23 -> %17 lend, %19 lend last
 >   %0 = Retain %36 Entry local $0 #0 : ()
     let mut out = prices
@@ -133,9 +133,9 @@ fn shouted(prices: List[string]) -> List[string]:
 >   %13 = Prim Add [%12 1:usize] : usize
 >   %14 = Store [$3] %13 : ()
 >   %15 = Read borrow [$1] : List[string]
->   %16 = Ref mut local [%15 [%11]] : Ref[mut string]
+>   %16 = Ref mut local [%15 [%11]] : RefMut[string]
 >   %21 = Block - : ()
->   %22 = Read borrow [%16] : Ref[mut string]
+>   %22 = Read borrow [%16] : RefMut[string]
 >   %23 = Store [$4] %22 : ()
 >   %24 = Release %23 Operation #3 : ()
 >   %26 = Block - : never

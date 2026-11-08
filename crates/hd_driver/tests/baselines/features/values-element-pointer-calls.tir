@@ -17,7 +17,7 @@ trait Sink:
 fn walk(node: &Node, sink: &mut dyn Sink) -> void:
     sink.emit(node.value)
 > app/main/walk
->   local $1 sink: Ref[mut Sink] [param read]
+>   local $1 sink: RefMut[Sink] [param read]
 >   local $2 $len: usize [assigned]
 >   local $3 $pos: usize [assigned]
 >   local $4 child: Ref[Counted[Node]] [read assigned]
@@ -50,7 +50,7 @@ fn walk(node: &Node, sink: &mut dyn Sink) -> void:
 >   %28 = Loop %27 - : ()
         walk(*child, sink)
 >   %15 = Read [*$4] : Counted[Node]
->   %16 = Read [$1] : Ref[mut Sink]
+>   %16 = Read [$1] : RefMut[Sink]
 >   %17 = Call app/main/walk[] (%15, %16) : ()
 
 struct Total:
@@ -82,7 +82,7 @@ fn keep(n: *Node, k: &mut Keeper) -> void:
 fn save(node: &Node, k: &mut Keeper) -> void:
     for e in &node.children:
 > app/main/save
->   local $1 k: Ref[mut Keeper] [param read]
+>   local $1 k: RefMut[Keeper] [param read]
 >   local $2 $len: usize [assigned]
 >   local $3 $pos: usize [assigned]
 >   local $4 e: Ref[Counted[Node]] [read assigned]
@@ -111,7 +111,7 @@ fn save(node: &Node, k: &mut Keeper) -> void:
 >   %26 = Block - : ()
         keep(*e, k)
 >   %12 = Read [*$4] : Counted[Node]
->   %13 = Read [$1] : Ref[mut Keeper]
+>   %13 = Read [$1] : RefMut[Keeper]
 >   %14 = Call app/main/keep[] (%12, %13) : ()
 
 pub fn run(root: *Node) -> i64:
@@ -119,19 +119,19 @@ pub fn run(root: *Node) -> i64:
 > app/main/run
 >   local $0 root: Counted[Node] [param read]
 >   local $1 total: Total [read assigned captured captured-assigned]
->   local $2 $ref: Ref[mut Total] [read assigned captured]
+>   local $2 $ref: RefMut[Total] [read assigned captured]
 >   local $3 keeper: Keeper [read assigned captured captured-assigned]
 >   %0 = NewStruct [0:i64] : Total
 >   %1 = Store [$1] %0 : ()
 >   %21 = Block %20 : i64
     walk(root, &mut total)
 >   %2 = Read [$0] : Counted[Node]
->   %3 = Ref mut local [$1] : Ref[mut Total]
+>   %3 = Ref mut local [$1] : RefMut[Total]
 >   %4 = Store [$2] %3 : ()
->   %5 = Read [$2] : Ref[mut Total]
+>   %5 = Read [$2] : RefMut[Total]
 >   %6 = Coerce %5 [RefToTraitValue -] : Sink
 >   %7 = Block %6 : Sink
->   %8 = RefDyn %7 : Ref[mut Sink]
+>   %8 = RefDyn %7 : RefMut[Sink]
 >   %9 = Call app/main/walk[] (%2, %8) : ()
     let mut keeper = Keeper { saved: [] }
 >   %10 = NewList - [] : List[Counted[Node]]
@@ -139,7 +139,7 @@ pub fn run(root: *Node) -> i64:
 >   %12 = Store [$3] %11 : ()
     save(root, &mut keeper)
 >   %13 = Read [$0] : Counted[Node]
->   %14 = Ref mut local [$3] : Ref[mut Keeper]
+>   %14 = Ref mut local [$3] : RefMut[Keeper]
 >   %15 = Call app/main/save[] (%13, %14) : ()
     total.sum + i64(keeper.saved.len())
 >   %16 = Read [$1 .sum] : i64

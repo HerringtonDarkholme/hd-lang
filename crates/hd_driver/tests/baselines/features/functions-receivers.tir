@@ -72,7 +72,7 @@ fn element_receiver(xs: &mut List[Vec2], i: usize) -> void:
 > app/main/element_receiver
 >   local $1 i: usize [param read]
 >   %0 = Read [$1] : usize
->   %1 = Ref mut local [*$0 [%0]] : Ref[mut Vec2]
+>   %1 = Ref mut local [*$0 [%0]] : RefMut[Vec2]
 >   %2 = Call app/main/impl Vec2.shift[] (%1, 1:i64) : ()
 >   %3 = Block - : ()
 
@@ -96,7 +96,7 @@ fn place_receiver(s: string) -> i64:
 >   %2 = Store [$1] %1 : ()
 >   %6 = Block %5 : i64
     p.shift(2)
->   %3 = Ref mut local [$1] : Ref[mut Vec2]
+>   %3 = Ref mut local [$1] : RefMut[Vec2]
 >   %4 = Call app/main/impl Vec2.shift[] (%3, 2:i64) : ()
     p.x
 >   %5 = Read [$1 .x] : i64

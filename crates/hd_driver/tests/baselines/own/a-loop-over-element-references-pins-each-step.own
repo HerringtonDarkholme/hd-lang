@@ -6,7 +6,7 @@ app/main/bump_all
   local $2 $len: usize [assigned] value
     uses $2: %5 -> %8 lend
   local $3 $pos: usize [assigned] place
-  local $4 x: Ref[mut i64] [read assigned] value
+  local $4 x: RefMut[i64] [read assigned] value
     uses $4: %23 -> %18 lend, %20 lend last
   %1 = Read copy [$1] : usize
   %2 = IsUnique [$0] : ()
@@ -24,12 +24,12 @@ app/main/bump_all
   %14 = IsUnique [$0] : ()
   %15 = IsUnique [$0 [%1]] : ()
   %16 = Read borrow [$0 [%1]] : List[i64]
-  %17 = Ref mut local [%16 [%10]] : Ref[mut i64]
+  %17 = Ref mut local [%16 [%10]] : RefMut[i64]
   %18 = Read copy [*$4] : i64
   %19 = Prim Add [%18 1:i64] : i64
   %20 = Store [*$4] %19 : ()
   %21 = Block - : ()
-  %22 = Read borrow [%17] : Ref[mut i64]
+  %22 = Read borrow [%17] : RefMut[i64]
   %23 = Store [$4] %22 : ()
   %24 = Release %23 Operation #3 : ()
   %26 = Block - : never

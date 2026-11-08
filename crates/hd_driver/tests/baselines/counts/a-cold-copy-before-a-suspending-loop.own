@@ -8,7 +8,7 @@ app/main/run
   %4 = Release %24 FrameDrop row #2 : ()
   %5 = Release %24 FrameDrop child #2 : ()
   %6 = ProviderGet #0 : Wait
-  %7 = Coerce %6 [ProviderAsRef -] : Ref[mut Wait]
+  %7 = Coerce %6 [ProviderAsRef -] : RefMut[Wait]
   %8 = Read copy [*%7] : mut Wait
   %9 = LoanEnd [%7] : ()
   %10 = Await app/main/Wait.wait for Wait [] via TraitValue (%8) : ()

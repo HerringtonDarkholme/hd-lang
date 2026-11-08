@@ -9,11 +9,11 @@ use std.annotation.inline
 fn push_len['a](out: &mut List[&'a string], xs: &List[string]) -> usize:
     out.reserve(xs.len())
 > app/main/push_len
->   local $0 out: Ref[mut List[Ref[string]]] [param read] value
+>   local $0 out: RefMut[List[Ref[string]]] [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 xs: Ref[List[string]] [param read] value
 >     uses $1: entry -> %1 lend, %4 lend last
->   %0 = Read borrow [$0] : Ref[mut List[Ref[string]]]
+>   %0 = Read borrow [$0] : RefMut[List[Ref[string]]]
 >   %1 = Read borrow [*$1] : List[string]
 >   %2 = Intrinsic ListLen [%1] : usize
 >   %3 = Call std/collections/impl [ T ] List [ T ].reserve[Ref[string]] (%0, %2) : ()
@@ -34,7 +34,7 @@ fn non_storing(xs: List[string]) -> usize:
 >   %10 = Release %9 Operation local $1 #2 : ()
 >   %14 = Block %13 : usize
     size := push_len(&mut out, &xs)
->   %3 = Ref mut local frame [$1] : Ref[mut List[Ref[string]]]
+>   %3 = Ref mut local frame [$1] : RefMut[List[Ref[string]]]
 >   %4 = Ref local frame [$0] : Ref[List[string]]
 >   %5 = Call app/main/push_len[] (%3, %4) : usize
 >   %6 = LoanEnd [%4] : ()
@@ -55,7 +55,7 @@ fn non_storing(xs: List[string]) -> usize:
 fn remember['a](out: &mut List[&'a string], value: &'a string) -> void:
     out.push(value)
 > app/main/remember
->   local $0 out: Ref[mut List[Ref[string]]] [param read] value
+>   local $0 out: RefMut[List[Ref[string]]] [param read] value
 >     uses $0: entry -> %2 lend last
 >   local $1 value: Ref[string] [param read] value
 >     uses $1: entry -> %0 consume last
@@ -76,7 +76,7 @@ fn storing(xs: List[string]) -> usize:
 >   %2 = Store [$1] %1 : ()
 >   %14 = Block %11 : usize
     remember(&mut out, &xs[0])
->   %3 = Ref mut local frame [$1] : Ref[mut List[Ref[string]]]
+>   %3 = Ref mut local frame [$1] : RefMut[List[Ref[string]]]
 >   %4 = IsUnique [$0] : ()
 >   %5 = Ref local [$0 [0:usize]] : Ref[string]
 >   %6 = Call app/main/remember[] (%3, %5) : ()

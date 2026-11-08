@@ -29,19 +29,19 @@ fn tuple_slot(a: string, b: string, s: string) -> (string, string):
 fn pick(xs: List[*mut Node], i: usize) -> *mut Node:
     xs[i]
 > app/main/pick
->   local $0 xs: List[Counted[mut Node]] [param read]
+>   local $0 xs: List[CountedMut[Node]] [param read]
 >   local $1 i: usize [param read]
 >   %0 = Read [$1] : usize
->   %1 = Read [$0 [%0]] : Counted[mut Node]
->   %2 = Block %1 : Counted[mut Node]
+>   %1 = Read [$0 [%0]] : CountedMut[Node]
+>   %2 = Block %1 : CountedMut[Node]
 
 fn call_receiver(xs: List[*mut Node], s: string) -> void:
     pick(xs, 0).name = s
 > app/main/call_receiver
->   local $0 xs: List[Counted[mut Node]] [param read]
+>   local $0 xs: List[CountedMut[Node]] [param read]
 >   local $1 s: string [param read]
->   %0 = Read [$0] : List[Counted[mut Node]]
->   %1 = Call app/main/pick[] (%0, 0:usize) : Counted[mut Node]
+>   %0 = Read [$0] : List[CountedMut[Node]]
+>   %1 = Call app/main/pick[] (%0, 0:usize) : CountedMut[Node]
 >   %2 = Read [$1] : string
 >   %3 = Store [*%1 .name] %2 : ()
 >   %4 = Block - : ()

@@ -17,14 +17,14 @@ impl Bag:
     fn item_mut(&mut self, i: usize) -> &mut Item:
         &mut self.items[i]
 > std/rt_tests.stage_case/impl Bag.item_mut
->   local $0 self: Ref[mut Bag] [param read] value
+>   local $0 self: RefMut[Bag] [param read] value
 >     uses $0: entry -> %2 lend last
 >   local $1 i: usize [param read] value
 >     uses $1: entry -> %0 lend last
 >   %0 = Read copy [$1] : usize
 >   %1 = IsUnique [*$0 .items] : ()
->   %2 = Ref mut local [*$0 .items [%0]] : Ref[mut Item]
->   %3 = Block %2 : Ref[mut Item]
+>   %2 = Ref mut local [*$0 .items [%0]] : RefMut[Item]
+>   %3 = Block %2 : RefMut[Item]
 
 fn change_then_read(name: string) -> usize:
 > std/rt_tests.stage_case/change_then_read
@@ -33,7 +33,7 @@ fn change_then_read(name: string) -> usize:
 >   local $1 b: Bag [read assigned captured captured-assigned] place
 >   local $2 kept: string [:= read assigned] value
 >     uses $2: %20 -> %21 lend last
->   local $4 self: Ref[mut Bag] [read] value
+>   local $4 self: RefMut[Bag] [read] value
 >     uses $4: %7 -> %11 lend last
 >   local $5 i: usize [read] value
 >     uses $5: %8 -> %9 lend last
@@ -46,15 +46,15 @@ fn change_then_read(name: string) -> usize:
 >   %5 = Store [$1] %4 : ()
 >   %31 = Block %30 : usize
     b.item_mut(0).qty = +7
->   %6 = Ref mut local frame [$1] : Ref[mut Bag]
+>   %6 = Ref mut local frame [$1] : RefMut[Bag]
 >   %7 = Store [$4] %6 : ()
 >   %8 = Store [$5] 0:usize : ()
 >   %9 = Read copy [$5] : usize
 >   %10 = IsUnique [*$4 .items] : ()
->   %11 = Ref mut local [*$4 .items [%9]] : Ref[mut Item]
+>   %11 = Ref mut local [*$4 .items [%9]] : RefMut[Item]
 >   %12 = Break L1 %11 : never
->   %13 = Block - : Ref[mut Item]
->   %14 = Scope %13 [] : Ref[mut Item]
+>   %13 = Block - : RefMut[Item]
+>   %14 = Scope %13 [] : RefMut[Item]
 >   %15 = Coerce 7:i32 [Weaken -] : i32
 >   %16 = Store [*%14 .qty] %15 : ()
 >   %17 = LoanEnd [%14] : ()

@@ -51,16 +51,16 @@ fn must(s: string, n: i32) -> usize:
 fn guarded(log: *mut List[string], s: string, n: i32) -> usize:
     using r = Res { name: s + "?", log: log }
 > app/main/guarded
->   local $0 log: Counted[mut List[string]] [param read]
+>   local $0 log: CountedMut[List[string]] [param read]
 >   local $1 s: string [param read]
 >   local $2 n: i32 [param read]
 >   local $3 r: Res [:= read assigned captured captured-assigned]
 >   %0 = Read [$1] : string
 >   %1 = Intrinsic StrConcat [%0 "?"] : string
->   %2 = Read [$0] : Counted[mut List[string]]
+>   %2 = Read [$0] : CountedMut[List[string]]
 >   %3 = NewStruct [%1 %2] : Res
 >   %4 = Store [$3] %3 : ()
->   %5 = Ref mut local [$3] : Ref[mut Res]
+>   %5 = Ref mut local [$3] : RefMut[Res]
 >   %6 = Call std/ops/Disposable.dispose for Res [$()] via Impl (%5) : ()
 >   %7 = Block - : ()
 >   %8 = Defer #7 : ()

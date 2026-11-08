@@ -170,17 +170,17 @@ pub fn main() -> void $ Console:
     p.held = 4
 >   %28 = Store [$0 .held] 4:usize : ()
     p.drain_into(0)
->   %29 = Ref mut local [$0] : Ref[mut Parser]
+>   %29 = Ref mut local [$0] : RefMut[Parser]
 >   %30 = Call app/main/impl Parser.drain_into[] (%29, 0:usize) : ()
     p.refill(2)
->   %31 = Ref mut local [$0] : Ref[mut Parser]
+>   %31 = Ref mut local [$0] : RefMut[Parser]
 >   %32 = Call app/main/impl Parser.refill[] (%31, 2:usize) : ()
     println("${p.index.len()} ${p.snapshot(2)}")
 >   %33 = Read [$0 .index] : List[usize]
 >   %34 = Intrinsic ListLen [%33] : usize
 >   %35 = Prim Conv [%34] : u64
 >   %36 = Call std/text/impl StringBuilder.unsigned_width[] (%35) : usize
->   %37 = Ref mut local [$0] : Ref[mut Parser]
+>   %37 = Ref mut local [$0] : RefMut[Parser]
 >   %38 = Call app/main/impl Parser.snapshot[] (%37, 2:usize) : usize
 >   %39 = Prim Conv [%38] : u64
 >   %40 = Call std/text/impl StringBuilder.unsigned_width[] (%39) : usize

@@ -20,9 +20,9 @@ fn name_of(p: &P) -> &string:
 fn replace(h: *mut H, alias: *mut H, next: *P) -> string:
     d := name_of(h.p)
 > app/main/replace
->   local $0 h: Counted[mut H] [param read] value
+>   local $0 h: CountedMut[H] [param read] value
 >     uses $0: entry -> %0 lend last
->   local $1 alias: Counted[mut H] [param read] value
+>   local $1 alias: CountedMut[H] [param read] value
 >     uses $1: entry -> %8 lend last
 >   local $2 next: Counted[P] [param read] value
 >     uses $2: entry -> %7 consume last
@@ -54,35 +54,35 @@ struct M:
 fn name_mut(p: &mut P) -> &mut string:
     &mut p.name
 > app/main/name_mut
->   local $0 p: Ref[mut P] [param read] value
+>   local $0 p: RefMut[P] [param read] value
 >     uses $0: entry -> %0 lend last
->   %0 = Ref mut local [*$0 .name] : Ref[mut string]
->   %1 = Block %0 : Ref[mut string]
+>   %0 = Ref mut local [*$0 .name] : RefMut[string]
+>   %1 = Block %0 : RefMut[string]
 >   summary kept [] writes
 
 fn replace_mut(h: *mut M, alias: *mut M, next: *mut P) -> string:
     d := name_mut(h.p)
 > app/main/replace_mut
->   local $0 h: Counted[mut M] [param read] value
+>   local $0 h: CountedMut[M] [param read] value
 >     uses $0: entry -> %0 lend last
->   local $1 alias: Counted[mut M] [param read] value
+>   local $1 alias: CountedMut[M] [param read] value
 >     uses $1: entry -> %8 lend last
->   local $2 next: Counted[mut P] [param read] value
+>   local $2 next: CountedMut[P] [param read] value
 >     uses $2: entry -> %7 consume last
->   local $3 d: Ref[mut string] [:= read assigned] value
+>   local $3 d: RefMut[string] [:= read assigned] value
 >     uses $3: %6 -> %10 lend last
->   local $4 p: Counted[mut P] [read] value
+>   local $4 p: CountedMut[P] [read] value
 >     uses $4: %1 -> %2 lend last
->   %0 = Read copy [*$0 .p] : Counted[mut P]
+>   %0 = Read copy [*$0 .p] : CountedMut[P]
 >   %1 = Store [$4] %0 : ()
->   %2 = Ref mut local [*$4 .name] : Ref[mut string]
+>   %2 = Ref mut local [*$4 .name] : RefMut[string]
 >   %3 = Break L0 %2 : never
->   %4 = Block - : Ref[mut string]
->   %5 = Scope %4 [] : Ref[mut string]
+>   %4 = Block - : RefMut[string]
+>   %5 = Scope %4 [] : RefMut[string]
 >   %6 = Store [$3] %5 : ()
 >   %13 = Block %10 : string
     alias.p = next
->   %7 = Read copy [$2] : Counted[mut P]
+>   %7 = Read copy [$2] : CountedMut[P]
 >   %8 = Store [*$1 .p] %7 : ()
 >   %9 = Release %8 Operation #3 : ()
     *d

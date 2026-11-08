@@ -33,7 +33,7 @@ fn with_defer(log: *mut List[string], s: string) -> usize:
 >   %4 = Closure #1 [%0 %2] : fn() -> ()
 >   %5 = Call std/ops/defer[fn() -> (), $()] (%4) : DeferGuard[fn() -> (), $(), Ref[()]]
 >   %6 = Store [$2] %5 : ()
->   %7 = Ref mut local [$2] : Ref[mut DeferGuard[fn() -> (), $(), Ref[()]]]
+>   %7 = Ref mut local [$2] : RefMut[DeferGuard[fn() -> (), $(), Ref[()]]]
 >   %8 = Call std/ops/Disposable.dispose for DeferGuard[fn() -> (), $(), Ref[()]] [$()] via Impl (%7) : ()
 >   %9 = Block - : ()
 >   %10 = Defer #9 : ()
@@ -47,17 +47,17 @@ fn with_defer(log: *mut List[string], s: string) -> usize:
 fn with_using(log: *mut List[string], s: string) -> usize:
     using r = box(Res { name: s, log: log })
 > app/main/with_using
->   local $0 log: Counted[mut List[string]] [param read]
+>   local $0 log: CountedMut[List[string]] [param read]
 >   local $1 s: string [param read]
 >   local $2 $ref: Res [read assigned captured captured-assigned]
->   local $3 r: Counted[mut Res] [:= read assigned]
+>   local $3 r: CountedMut[Res] [:= read assigned]
 >   %0 = Read [$1] : string
->   %1 = Read [$0] : Counted[mut List[string]]
+>   %1 = Read [$0] : CountedMut[List[string]]
 >   %2 = NewStruct [%0 %1] : Res
 >   %3 = Store [$2] %2 : ()
->   %4 = Ref mut [$2] : Counted[mut Res]
+>   %4 = Ref mut [$2] : CountedMut[Res]
 >   %5 = Store [$3] %4 : ()
->   %6 = Read [$3] : Counted[mut Res]
+>   %6 = Read [$3] : CountedMut[Res]
 >   %7 = Call std/ops/Disposable.dispose for Res [$()] via Impl (%6) : ()
 >   %8 = Block - : ()
 >   %9 = Defer #8 : ()

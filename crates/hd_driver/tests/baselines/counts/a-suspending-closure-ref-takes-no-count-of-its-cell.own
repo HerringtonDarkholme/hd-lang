@@ -7,7 +7,7 @@ struct Tally:
 
 fn bump!(t: &mut Tally) -> void:
 > app/main/bump
->   local $0 t: Ref[mut Tally] [param read] value
+>   local $0 t: RefMut[Tally] [param read] value
 >     uses $0: entry -> %5 lend, %7 lend last
 >   %0 = Retain %9 Cold local $0 #0 : ()
 >   %1 = Retain %9 Entry local $0 #0 : ()
@@ -58,7 +58,7 @@ fn local!() -> i64:
 >   %5 = NewStruct [0:i64] : Tally
 >   %6 = Store [$1] %5 : ()
         bump!(&mut tally)
->   %7 = Ref mut local [$1] : Ref[mut Tally]
+>   %7 = Ref mut local [$1] : RefMut[Tally]
 >   %8 = Await app/main/bump[] (%7) : ()
 >   %9 = Release %8 Operation child #2 : ()
 >   %10 = LoanEnd [%7] : ()
@@ -101,7 +101,7 @@ fn shared!() -> i64:
 >   %6 = Retain %14 Cold captures #0 : ()
 >   %7 = Retain %14 Entry captures #0 : ()
 >   %8 = Release %14 FrameDrop child #2 : ()
->   %9 = Ref mut local [$0] : Ref[mut Tally]
+>   %9 = Ref mut local [$0] : RefMut[Tally]
 >   %10 = Await app/main/bump[] (%9) : ()
 >   %11 = Release %10 Operation child #2 : ()
 >   %12 = Drop [%9] : ()

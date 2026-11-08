@@ -34,10 +34,10 @@ fn make(label: string) -> $.Context[$ Tag]:
 >   %3 = Store [$1] %2 : ()
 >   %4 = Read move [$1] : Named
 >   %5 = Store [$2] %4 : ()
->   %6 = Ref take mut [$2] : Counted[mut Named]
+>   %6 = Ref take mut [$2] : CountedMut[Named]
 >   %7 = Break L0 %6 : never
->   %8 = Block - : Counted[mut Named]
->   %9 = Scope %8 [] : Counted[mut Named]
+>   %8 = Block - : CountedMut[Named]
+>   %9 = Scope %8 [] : CountedMut[Named]
 >   %10 = Coerce %9 [RefToTraitValue -] : Tag
 >   %11 = Block %10 : Tag
 >   %12 = RefDyn %11 : Counted[Tag]
@@ -83,10 +83,10 @@ fn shadow(ctx: $.Context[$ Tag], label: string) -> $.Context[$ Tag]:
 >   %5 = Store [$2] %4 : ()
 >   %6 = Read move [$2] : Named
 >   %7 = Store [$3] %6 : ()
->   %8 = Ref take mut [$3] : Counted[mut Named]
+>   %8 = Ref take mut [$3] : CountedMut[Named]
 >   %9 = Break L0 %8 : never
->   %10 = Block - : Counted[mut Named]
->   %11 = Scope %10 [] : Counted[mut Named]
+>   %10 = Block - : CountedMut[Named]
+>   %11 = Scope %10 [] : CountedMut[Named]
 >   %12 = Coerce %11 [RefToTraitValue -] : Tag
 >   %13 = Block %12 : Tag
 >   %14 = RefDyn %13 : Counted[Tag]

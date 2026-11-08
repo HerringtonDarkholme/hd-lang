@@ -46,7 +46,7 @@ fn install(s: string) -> usize:
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %1 consume last
 >   local $1 $ref: Fixed [read assigned captured captured-assigned] place
->   local $2 f: Counted[mut Fixed] [:= read assigned] value
+>   local $2 f: CountedMut[Fixed] [:= read assigned] value
 >     uses $2: %5 -> %6 consume last
 >   local $3 $ref: Counted[Fixed] [read assigned captured] value
 >     uses $3: %8 -> %9 lend last
@@ -55,12 +55,12 @@ fn install(s: string) -> usize:
 >   %1 = Read move [$0] : string
 >   %2 = NewStruct [%1] : Fixed
 >   %3 = Store [$1] %2 : ()
->   %4 = Ref take mut [$1] : Counted[mut Fixed]
+>   %4 = Ref take mut [$1] : CountedMut[Fixed]
 >   %5 = Store [$2] %4 : ()
 >   %20 = Block %18 : usize
 >   %4 finds [$1] full
     $.with(Namer=f):
->   %6 = Read move [$2] : Counted[mut Fixed]
+>   %6 = Read move [$2] : CountedMut[Fixed]
 >   %7 = Coerce %6 [Weaken -] : Counted[Fixed]
 >   %8 = Store [$3] %7 : ()
 >   %9 = Read move [$3] : Counted[Fixed]

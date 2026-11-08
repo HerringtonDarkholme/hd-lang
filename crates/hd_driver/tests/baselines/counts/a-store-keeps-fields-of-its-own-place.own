@@ -19,7 +19,7 @@ struct Outer:
 fn element(items: &mut List[Item], i: usize) -> void:
     previous := items[i]
 > app/main/element
->   local $0 items: Ref[mut List[Item]] [param read] value
+>   local $0 items: RefMut[List[Item]] [param read] value
 >     uses $0: entry -> %1 lend, %8 lend last
 >   local $1 i: usize [param read] value
 >     uses $1: entry -> %0 lend, %3 lend last
@@ -41,7 +41,7 @@ fn element(items: &mut List[Item], i: usize) -> void:
 fn through_reference(p: &mut Item) -> void:
     *p = Item { ...*p, r: p.r + 1 }
 > app/main/through_reference
->   local $0 p: Ref[mut Item] [param read] value
+>   local $0 p: RefMut[Item] [param read] value
 >     uses $0: entry -> %0 lend, %1 lend, %3 lend last
 >   %0 = Read borrow [*$0] : Item
 >   %1 = Read copy [*$0 .r] : usize
@@ -53,7 +53,7 @@ fn through_reference(p: &mut Item) -> void:
 fn field(o: &mut Outer) -> void:
     o.item = Item { ...o.item, r: o.item.r + 1 }
 > app/main/field
->   local $0 o: Ref[mut Outer] [param read] value
+>   local $0 o: RefMut[Outer] [param read] value
 >     uses $0: entry -> %0 lend, %1 lend, %3 lend last
 >   %0 = Read borrow [*$0 .item] : Item
 >   %1 = Read copy [*$0 .item .r] : usize
@@ -65,7 +65,7 @@ fn field(o: &mut Outer) -> void:
 fn replaced(p: &mut Item) -> void:
     *p = Item { ...*p, batches: [1] }
 > app/main/replaced
->   local $0 p: Ref[mut Item] [param read] value
+>   local $0 p: RefMut[Item] [param read] value
 >     uses $0: entry -> %0 lend, %2 lend last
 >   %0 = Read borrow [*$0] : Item
 >   %1 = NewList - [1:i64] : List[i64]
@@ -77,7 +77,7 @@ fn replaced(p: &mut Item) -> void:
 fn used_after(items: &mut List[Item], i: usize) -> usize:
     previous := items[i]
 > app/main/used_after
->   local $0 items: Ref[mut List[Item]] [param read] value
+>   local $0 items: RefMut[List[Item]] [param read] value
 >     uses $0: entry -> %1 lend, %8 lend last
 >   local $1 i: usize [param read] value
 >     uses $1: entry -> %0 lend, %3 lend last
@@ -103,7 +103,7 @@ fn used_after(items: &mut List[Item], i: usize) -> usize:
 fn grow(items: &mut List[Item], i: usize) -> usize:
     items[i].batches = [9]
 > app/main/grow
->   local $0 items: Ref[mut List[Item]] [param read] value
+>   local $0 items: RefMut[List[Item]] [param read] value
 >     uses $0: entry -> %3 lend last
 >   local $1 i: usize [param read] value
 >     uses $1: entry -> %0 lend last
@@ -119,7 +119,7 @@ fn grow(items: &mut List[Item], i: usize) -> usize:
 fn call_between(items: &mut List[Item], i: usize) -> void:
     items[i] = Item { ...items[i], r: grow(items, i) }
 > app/main/call_between
->   local $0 items: Ref[mut List[Item]] [param read] value
+>   local $0 items: RefMut[List[Item]] [param read] value
 >     uses $0: entry -> %2 lend, %5 lend, %11 lend last
 >   local $1 i: usize [param read] value
 >     uses $1: entry -> %0 lend, %1 lend, %6 lend last
@@ -128,7 +128,7 @@ fn call_between(items: &mut List[Item], i: usize) -> void:
 >   %2 = Read copy [*$0 [%1]] : Item
 >   %3 = Read copy [%2 .batches] : List[i64]
 >   %4 = Read copy [%2 .depots] : Map[string, i64]
->   %5 = Read borrow [$0] : Ref[mut List[Item]]
+>   %5 = Read borrow [$0] : RefMut[List[Item]]
 >   %6 = Read copy [$1] : usize
 >   %7 = Call app/main/grow[] (%5, %6) : usize
 >   %8 = CopyStruct %2 [.batches = %3, .depots = %4, .r = %7] : Item
@@ -158,13 +158,13 @@ pub fn main() -> void $ Console:
 >   %7 = Store [$1] %6 : ()
 >   %6 finds [$0] full
     element(&mut items, 0)
->   %8 = Ref mut local frame [$0] : Ref[mut List[Item]]
+>   %8 = Ref mut local frame [$0] : RefMut[List[Item]]
 >   %9 = Call app/main/element[] (%8, 0:usize) : ()
 >   %10 = LoanEnd [%8] : ()
 >   %8 finds [$0] full
     through_reference(&mut items[0])
 >   %11 = IsUnique [$0] : ()
->   %12 = Ref mut local [$0 [0:usize]] : Ref[mut Item]
+>   %12 = Ref mut local [$0 [0:usize]] : RefMut[Item]
 >   %13 = Call app/main/through_reference[] (%12) : ()
 >   %14 = LoanEnd [%12] : ()
 >   %11 finds [$0] full
@@ -176,24 +176,24 @@ pub fn main() -> void $ Console:
 >   %18 = NewStruct [%17 "t"] : Outer
 >   %19 = Store [$2] %18 : ()
     field(&mut o)
->   %20 = Ref mut local frame [$2] : Ref[mut Outer]
+>   %20 = Ref mut local frame [$2] : RefMut[Outer]
 >   %21 = Call app/main/field[] (%20) : ()
 >   %22 = LoanEnd [%20] : ()
 >   %20 finds [$2] full
     replaced(&mut items[0])
 >   %23 = IsUnique [$0] : ()
->   %24 = Ref mut local [$0 [0:usize]] : Ref[mut Item]
+>   %24 = Ref mut local [$0 [0:usize]] : RefMut[Item]
 >   %25 = Call app/main/replaced[] (%24) : ()
 >   %26 = LoanEnd [%24] : ()
 >   %23 finds [$0] full
 >   %24 finds [$0] full
     call_between(&mut items, 0)
->   %27 = Ref mut local frame [$0] : Ref[mut List[Item]]
+>   %27 = Ref mut local frame [$0] : RefMut[List[Item]]
 >   %28 = Call app/main/call_between[] (%27, 0:usize) : ()
 >   %29 = LoanEnd [%27] : ()
 >   %27 finds [$0] full
     println(used_after(&mut items, 0) + o.item.r + shared[0].r)
->   %30 = Ref mut local frame [$0] : Ref[mut List[Item]]
+>   %30 = Ref mut local frame [$0] : RefMut[List[Item]]
 >   %31 = Call app/main/used_after[] (%30, 0:usize) : usize
 >   %32 = LoanEnd [%30] : ()
 >   %33 = Drop [$0] : ()

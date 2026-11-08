@@ -45,10 +45,10 @@ fn read_len(n: Names, i: usize) -> usize:
 fn write(n: &mut Names, i: usize, s: string) -> void:
     n[i] = s
 > app/main/write
->   local $0 n: Ref[mut Names] [param read]
+>   local $0 n: RefMut[Names] [param read]
 >   local $1 i: usize [param read]
 >   local $2 s: string [param read]
->   %0 = Read [$0] : Ref[mut Names]
+>   %0 = Read [$0] : RefMut[Names]
 >   %1 = Read [$1] : usize
 >   %2 = Read [$2] : string
 >   %3 = Call std/ops/IndexSet.index_set for Names [usize, string] via Impl (%0, %1, %2) : ()

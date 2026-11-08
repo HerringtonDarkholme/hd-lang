@@ -38,40 +38,40 @@ fn tuple_slot(a: string, b: string, s: string) -> (string, string):
 
 fn pick(xs: List[*mut Node], i: usize) -> *mut Node:
 > app/main/pick
->   local $0 xs: List[Counted[mut Node]] [param read] value
+>   local $0 xs: List[CountedMut[Node]] [param read] value
 >     uses $0: entry -> %2 lend last
 >   local $1 i: usize [param read] value
 >     uses $1: entry -> %1 lend last
 >   %0 = Retain %4 Entry local $0 #0 : ()
     xs[i]
 >   %1 = Read copy [$1] : usize
->   %2 = Read copy [$0 [%1]] : Counted[mut Node]
+>   %2 = Read copy [$0 [%1]] : CountedMut[Node]
 >   %3 = Drop [$0] : ()
->   %4 = Block %2 : Counted[mut Node]
+>   %4 = Block %2 : CountedMut[Node]
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
 fn call_receiver(xs: List[*mut Node], s: string) -> void:
 > app/main/call_receiver
->   local $0 xs: List[Counted[mut Node]] [param read] value
+>   local $0 xs: List[CountedMut[Node]] [param read] value
 >     uses $0: entry -> %2 consume last
 >   local $1 s: string [param read] value
 >     uses $1: entry -> %11 consume last
->   local $2 xs: List[Counted[mut Node]] [read] value
+>   local $2 xs: List[CountedMut[Node]] [read] value
 >     uses $2: %3 -> %6 lend last
 >   local $3 i: usize [read] value
 >     uses $3: %4 -> %5 lend last
 >   %0 = Retain %15 Entry local $0 #0 : ()
 >   %1 = Retain %15 Entry local $1 #0 : ()
     pick(xs, 0).name = s
->   %2 = Read move [$0] : List[Counted[mut Node]]
+>   %2 = Read move [$0] : List[CountedMut[Node]]
 >   %3 = Store [$2] %2 : ()
 >   %4 = Store [$3] 0:usize : ()
 >   %5 = Read copy [$3] : usize
->   %6 = Read copy [$2 [%5]] : Counted[mut Node]
+>   %6 = Read copy [$2 [%5]] : CountedMut[Node]
 >   %7 = Break L0 %6 : never
->   %8 = Block - : Counted[mut Node]
->   %9 = Scope %8 [] : Counted[mut Node]
+>   %8 = Block - : CountedMut[Node]
+>   %9 = Scope %8 [] : CountedMut[Node]
 >   %10 = Drop [$2] : ()
 >   %11 = Read move [$1] : string
 >   %12 = Store [*%9 .name] %11 : ()
@@ -83,7 +83,7 @@ fn call_receiver(xs: List[*mut Node], s: string) -> void:
 
 fn deref_store(r: &mut string, s: string) -> void:
 > app/main/deref_store
->   local $0 r: Ref[mut string] [param read] value
+>   local $0 r: RefMut[string] [param read] value
 >     uses $0: entry -> %2 lend last
 >   local $1 s: string [param read] value
 >     uses $1: entry -> %1 consume last

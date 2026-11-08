@@ -50,7 +50,7 @@ fn boxed(u: User) -> *dyn Greet:
 >   local $2 $ref: Counted[User] [read assigned captured]
 >   %0 = Read [$0] : User
 >   %1 = Store [$1] %0 : ()
->   %2 = Ref mut [$1] : Counted[mut User]
+>   %2 = Ref mut [$1] : CountedMut[User]
 >   %3 = Coerce %2 [Weaken -] : Counted[User]
 >   %4 = Store [$2] %3 : ()
 >   %5 = Read [$2] : Counted[User]
@@ -62,14 +62,14 @@ fn boxed(u: User) -> *dyn Greet:
 fn through_mut(g: &mut dyn Greet, n: string) -> usize:
     g.rename(n)
 > app/main/through_mut
->   local $0 g: Ref[mut Greet] [param read]
+>   local $0 g: RefMut[Greet] [param read]
 >   local $1 n: string [param read]
 >   %0 = Read [*$0] : mut Greet
 >   %1 = Read [$1] : string
 >   %2 = Call app/main/Greet.rename for Greet [] via TraitValue (%0, %1) : ()
 >   %6 = Block %5 : usize
     g.twice()
->   %3 = Read [$0] : Ref[mut Greet]
+>   %3 = Read [$0] : RefMut[Greet]
 >   %4 = Coerce %3 [Weaken -] : Ref[Greet]
 >   %5 = Call app/main/impl dyn Greet.twice[] (%4) : usize
 
@@ -79,16 +79,16 @@ fn local_mut(u: User, n: string) -> usize:
 >   local $0 u: User [param read]
 >   local $1 n: string [param read]
 >   local $2 v: User [read assigned captured captured-assigned]
->   local $3 $ref: Ref[mut User] [read assigned captured]
+>   local $3 $ref: RefMut[User] [read assigned captured]
 >   %0 = Read [$0] : User
 >   %1 = Store [$2] %0 : ()
 >   %10 = Block %9 : usize
     through_mut(&mut v, n)
->   %2 = Ref mut local [$2] : Ref[mut User]
+>   %2 = Ref mut local [$2] : RefMut[User]
 >   %3 = Store [$3] %2 : ()
->   %4 = Read [$3] : Ref[mut User]
+>   %4 = Read [$3] : RefMut[User]
 >   %5 = Coerce %4 [RefToTraitValue -] : Greet
 >   %6 = Block %5 : Greet
->   %7 = RefDyn %6 : Ref[mut Greet]
+>   %7 = RefDyn %6 : RefMut[Greet]
 >   %8 = Read [$1] : string
 >   %9 = Call app/main/through_mut[] (%7, %8) : usize

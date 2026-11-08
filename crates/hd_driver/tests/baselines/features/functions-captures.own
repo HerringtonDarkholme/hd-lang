@@ -137,7 +137,7 @@ fn copy_shares(s: string) -> usize:
 
 fn through_ptr(items: *mut List[string], s: string) -> fn() -> void:
 > app/main/through_ptr
->   local $0 items: Counted[mut List[string]] [param read captured] value
+>   local $0 items: CountedMut[List[string]] [param read captured] value
 >     uses $0: entry -> %5 lend, %9 consume last
 >   local $1 s: string [param read captured] value
 >     uses $1: entry -> %3 consume, %9 consume last

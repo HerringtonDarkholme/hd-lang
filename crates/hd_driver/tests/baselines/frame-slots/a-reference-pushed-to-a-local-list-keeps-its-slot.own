@@ -11,7 +11,7 @@ app/main/first
   %2 = Read copy [$0] : i32
   %3 = Call app/main/make[] (%2) : User
   %4 = Store [$2] %3 : ()
-  %5 = Ref mut local frame [$1] : Ref[mut List[Ref[User]]]
+  %5 = Ref mut local frame [$1] : RefMut[List[Ref[User]]]
   %6 = Ref local frame [$2] : Ref[User]
   %7 = Call app/main/remember[User] (%5, %6) : ()
   %8 = LoanEnd [%6] : ()

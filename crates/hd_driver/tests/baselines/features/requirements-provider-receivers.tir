@@ -61,7 +61,7 @@ fn count(n: i64) -> void $ Meter:
 >   %27 = Block - : ()
         $.use(Meter).record(i)
 >   %16 = ProviderGet #22 : Meter
->   %17 = Coerce %16 [ProviderAsRef -] : Ref[mut Meter]
+>   %17 = Coerce %16 [ProviderAsRef -] : RefMut[Meter]
 >   %18 = Read [*%17] : mut Meter
 >   %19 = Read [$4] : i64
 >   %20 = Call app/main/Meter.record for Meter [] via TraitValue (%18, %19) : ()
@@ -100,7 +100,7 @@ fn count_later!(n: i64, wait: Suspend[void]) -> void $ Meter:
 >   %29 = Block - : ()
         $.use(Meter).record(i)
 >   %16 = ProviderGet #22 : Meter
->   %17 = Coerce %16 [ProviderAsRef -] : Ref[mut Meter]
+>   %17 = Coerce %16 [ProviderAsRef -] : RefMut[Meter]
 >   %18 = Read [*%17] : mut Meter
 >   %19 = Read [$5] : i64
 >   %20 = Call app/main/Meter.record for Meter [] via TraitValue (%18, %19) : ()
@@ -113,20 +113,20 @@ pub fn run(n: i64) -> i64:
 > app/main/run
 >   local $0 n: i64 [param read]
 >   local $1 $ref: Counters [read assigned captured captured-assigned]
->   local $2 counters: Counted[mut Counters] [:= read assigned]
->   local $3 $ref: Counted[mut Counters] [read assigned captured]
+>   local $2 counters: CountedMut[Counters] [:= read assigned]
+>   local $3 $ref: CountedMut[Counters] [read assigned captured]
 >   %0 = NewStruct [0:usize 0:i64] : Counters
 >   %1 = Store [$1] %0 : ()
->   %2 = Ref mut [$1] : Counted[mut Counters]
+>   %2 = Ref mut [$1] : CountedMut[Counters]
 >   %3 = Store [$2] %2 : ()
 >   %16 = Block %15 : i64
     $.with(Meter=counters):
->   %4 = Read [$2] : Counted[mut Counters]
+>   %4 = Read [$2] : CountedMut[Counters]
 >   %5 = Store [$3] %4 : ()
->   %6 = Read [$3] : Counted[mut Counters]
+>   %6 = Read [$3] : CountedMut[Counters]
 >   %7 = Coerce %6 [RefToTraitValue -] : Meter
 >   %8 = Block %7 : Meter
->   %9 = RefDyn %8 : Counted[mut Meter]
+>   %9 = RefDyn %8 : CountedMut[Meter]
 >   %10 = Coerce %9 [RefAsProvider -] : Meter
 >   %14 = With [Meter %10] %13 : ()
         count(n)

@@ -117,12 +117,12 @@ fn over_ref(xs: &List[string]) -> usize:
 fn over_mut(xs: &mut List[string]) -> void:
     for x in &mut *xs:
 > app/main/over_mut
->   local $0 xs: Ref[mut List[string]] [param read] value
+>   local $0 xs: RefMut[List[string]] [param read] value
 >     uses $0: entry -> %0 lend, %13 lend
 >   local $1 $len: usize [assigned] value
 >     uses $1: %2 -> %6 lend
 >   local $2 $pos: usize [assigned] place
->   local $3 x: Ref[mut string] [read assigned] value
+>   local $3 x: RefMut[string] [read assigned] value
 >     uses $3: %21 -> %15 lend, %17 lend last
 >   %0 = Read borrow [*$0] : List[string]
 >   %1 = Intrinsic ListLen [%0] : usize
@@ -138,9 +138,9 @@ fn over_mut(xs: &mut List[string]) -> void:
 >   %11 = Store [$2] %10 : ()
 >   %12 = IsUnique covered [*$0] : ()
 >   %13 = Read borrow [*$0] : List[string]
->   %14 = Ref mut local [%13 [%8]] : Ref[mut string]
+>   %14 = Ref mut local [%13 [%8]] : RefMut[string]
 >   %19 = Block - : ()
->   %20 = Read borrow [%14] : Ref[mut string]
+>   %20 = Read borrow [%14] : RefMut[string]
 >   %21 = Store [$3] %20 : ()
 >   %22 = Release %21 Operation #3 : ()
 >   %24 = Block - : never

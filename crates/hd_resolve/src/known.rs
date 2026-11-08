@@ -24,8 +24,12 @@ pub struct KnownItems {
     /// The carrier a reference type lowers to for the backend
     /// (`hd_resolve::seed`, `crates/hd_wasm_linear/DESIGN.md` §15.2 "References").
     pub ref_cell: DefId,
+    /// The carrier `&mut T` lowers to.
+    pub ref_mut_cell: DefId,
     /// The carrier a counted reference type lowers to (§23.30).
     pub counted_cell: DefId,
+    /// The carrier `*mut T` lowers to.
+    pub counted_mut_cell: DefId,
     // std.function
     pub function_module: PathId,
     /// The `Fn[I, O, $R]` trait. In a type position the same declaration
@@ -202,17 +206,21 @@ impl KnownItems {
                 self.map,
                 self.suspend,
                 self.ref_cell,
+                self.ref_mut_cell,
                 self.counted_cell,
+                self.counted_mut_cell,
             ]
             .contains(&item.def)
     }
 
-    /// The two reference carriers (`hd_types::Types::lower_refs`).
+    /// The four reference carriers (`hd_types::Types::lower_refs`).
     #[must_use]
     pub fn ref_cells(&self) -> hd_types::RefCells {
         hd_types::RefCells {
             local: self.ref_cell,
+            local_mut: self.ref_mut_cell,
             counted: self.counted_cell,
+            counted_mut: self.counted_mut_cell,
         }
     }
     /// The sealed traits the solver's compiler-supplied rows answer
@@ -292,7 +300,9 @@ impl KnownItems {
             drop_trait,
             drop_method: trait_method(drop_trait, "drop"),
             ref_cell: item("std.core", "Ref"),
+            ref_mut_cell: item("std.core", "RefMut"),
             counted_cell: item("std.core", "Counted"),
+            counted_mut_cell: item("std.core", "CountedMut"),
             function_module: module("std.function"),
             fn_trait,
             fn_call: trait_method(fn_trait, "call"),

@@ -29,7 +29,7 @@ impl['a] Cursor['a]:
     fn next(&mut self) -> usize?:
         while self.at < self.items.used:
 > std/rt_tests.stage_case/impl [ 'a ] Cursor [ 'a ].next
->   local $0 self: Ref[mut Cursor[Ref[()]]] [param read] value
+>   local $0 self: RefMut[Cursor[Ref[()]]] [param read] value
 >     uses $0: entry -> %0 lend, %1 lend, %3 lend, %5 lend, %7 lend, %8 lend
 >   local $1 index: usize [:= read assigned] value
 >     uses $1: %4 -> %9 consume last

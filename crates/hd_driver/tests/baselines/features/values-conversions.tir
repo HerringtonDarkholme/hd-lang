@@ -26,27 +26,27 @@ fn view(p: &Point) -> usize:
 fn bump(p: &mut Point) -> void:
     q := p
 > app/main/bump
->   local $0 p: Ref[mut Point] [param read]
->   local $1 q: Ref[mut Point] [:= read assigned]
->   %0 = Read [$0] : Ref[mut Point]
+>   local $0 p: RefMut[Point] [param read]
+>   local $1 q: RefMut[Point] [:= read assigned]
+>   %0 = Read [$0] : RefMut[Point]
 >   %1 = Store [$1] %0 : ()
 >   %4 = Block - : ()
     nudge(q)
->   %2 = Read [$1] : Ref[mut Point]
+>   %2 = Read [$1] : RefMut[Point]
 >   %3 = Call app/main/nudge[] (%2) : ()
 
 fn lend(h: *mut Point) -> usize:
     nudge(h)
 > app/main/lend
->   local $0 h: Counted[mut Point] [param read]
->   %0 = Read [$0] : Counted[mut Point]
+>   local $0 h: CountedMut[Point] [param read]
+>   %0 = Read [$0] : CountedMut[Point]
 >   %1 = Call app/main/nudge[] (%0) : ()
 >   %7 = Block %6 : usize
     bump(h)
->   %2 = Read [$0] : Counted[mut Point]
+>   %2 = Read [$0] : CountedMut[Point]
 >   %3 = Call app/main/bump[] (%2) : ()
     view(h)
->   %4 = Read [$0] : Counted[mut Point]
+>   %4 = Read [$0] : CountedMut[Point]
 >   %5 = Coerce %4 [Weaken -] : Ref[Point]
 >   %6 = Call app/main/view[] (%5) : usize
 
@@ -55,19 +55,19 @@ fn local(s: string) -> usize:
 > app/main/local
 >   local $0 s: string [param read]
 >   local $1 origin: Point [read assigned captured captured-assigned]
->   local $2 r: Ref[mut Point] [read assigned]
+>   local $2 r: RefMut[Point] [read assigned]
 >   %0 = Read [$0] : string
 >   %1 = NewStruct [%0 0:i32] : Point
 >   %2 = Store [$1] %1 : ()
 >   %11 = Block %10 : usize
     nudge(&mut origin)
->   %3 = Ref mut local [$1] : Ref[mut Point]
+>   %3 = Ref mut local [$1] : RefMut[Point]
 >   %4 = Call app/main/nudge[] (%3) : ()
     let r: &mut Point = &mut origin
->   %5 = Ref mut local [$1] : Ref[mut Point]
+>   %5 = Ref mut local [$1] : RefMut[Point]
 >   %6 = Store [$2] %5 : ()
     bump(r)
->   %7 = Read [$2] : Ref[mut Point]
+>   %7 = Read [$2] : RefMut[Point]
 >   %8 = Call app/main/bump[] (%7) : ()
     view(&origin)
 >   %9 = Ref local [$1] : Ref[Point]
@@ -76,7 +76,7 @@ fn local(s: string) -> usize:
 fn weaken(h: *mut Point) -> *Point:
     h
 > app/main/weaken
->   local $0 h: Counted[mut Point] [param read]
->   %0 = Read [$0] : Counted[mut Point]
+>   local $0 h: CountedMut[Point] [param read]
+>   %0 = Read [$0] : CountedMut[Point]
 >   %1 = Coerce %0 [Weaken -] : Counted[Point]
 >   %2 = Block %1 : Counted[Point]

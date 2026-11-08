@@ -12,7 +12,7 @@ app/main/impl [ T < Make & 'static ] Make for * T.make
   %7 = Block - : never
   %8 = SwitchTag %1 [#0 %3 %7] : T
   %9 = Store [$1] %8 : ()
-  %10 = Ref mut [$1] : Counted[mut T]
+  %10 = Ref mut [$1] : CountedMut[T]
   %11 = Coerce %10 [Weaken -] : Counted[T]
   %12 = NewVariant #0 [%11] : Result[Counted[T], string]
   %13 = Block %12 : Result[Counted[T], string]

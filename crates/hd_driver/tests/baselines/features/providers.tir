@@ -36,16 +36,16 @@ fn install(s: string) -> usize:
 > app/main/install
 >   local $0 s: string [param read]
 >   local $1 $ref: Fixed [read assigned captured captured-assigned]
->   local $2 f: Counted[mut Fixed] [:= read assigned]
+>   local $2 f: CountedMut[Fixed] [:= read assigned]
 >   local $3 $ref: Counted[Fixed] [read assigned captured]
 >   %0 = Read [$0] : string
 >   %1 = NewStruct [%0] : Fixed
 >   %2 = Store [$1] %1 : ()
->   %3 = Ref mut [$1] : Counted[mut Fixed]
+>   %3 = Ref mut [$1] : CountedMut[Fixed]
 >   %4 = Store [$2] %3 : ()
 >   %16 = Block %15 : usize
     $.with(Namer=f):
->   %5 = Read [$2] : Counted[mut Fixed]
+>   %5 = Read [$2] : CountedMut[Fixed]
 >   %6 = Coerce %5 [Weaken -] : Counted[Fixed]
 >   %7 = Store [$3] %6 : ()
 >   %8 = Read [$3] : Counted[Fixed]

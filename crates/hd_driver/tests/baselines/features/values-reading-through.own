@@ -43,7 +43,7 @@ fn read_copy(r: &User) -> usize:
 
 fn reset(r: &mut User, s: string) -> void:
 > app/main/reset
->   local $0 r: Ref[mut User] [param read] value
+>   local $0 r: RefMut[User] [param read] value
 >     uses $0: entry -> %3 lend, %5 lend, %7 lend last
 >   local $1 s: string [param read] value
 >     uses $1: entry -> %1 consume last

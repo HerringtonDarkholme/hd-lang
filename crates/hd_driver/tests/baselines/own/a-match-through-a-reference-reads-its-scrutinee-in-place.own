@@ -6,19 +6,19 @@ use std.collections.UniqList
 
 fn append(value: &mut Option[UniqList[string]], item: string) -> usize:
 > app/main/append
->   local $0 value: Ref[mut UniqList[string]?] [param read] value
+>   local $0 value: RefMut[UniqList[string]?] [param read] value
 >     uses $0: entry -> %1 lend, %37 lend last
 >   local $1 item: string [param read] value
 >     uses $1: entry -> %23 consume last
->   local $2 items: Ref[mut UniqList[string]] [read assigned] value
+>   local $2 items: RefMut[UniqList[string]] [read assigned] value
 >     uses $2: %39 -> %2 consume, %32 consume last
->   local $3 self: Ref[mut UniqList[string]] [read] value
+>   local $3 self: RefMut[UniqList[string]] [read] value
 >     uses $3: %3 -> %4 consume, %8 lend, %13 lend, %19 lend, %28 lend last
 >   local $5 size: usize [:= read assigned] value
 >     uses $5: %7 -> %11 lend, %14 lend, %20 lend, %26 lend last
 >   %0 = Retain %53 Entry local $1 #0 : ()
     match value:
->   %1 = Read borrow [$0] : Ref[mut UniqList[string]?]
+>   %1 = Read borrow [$0] : RefMut[UniqList[string]?]
 >   %49 = Block - : never
 >   %50 = Match %1 [%49 %35 %36] : usize
 >   %51 = Drop [$2] : ()
@@ -26,15 +26,15 @@ fn append(value: &mut Option[UniqList[string]], item: string) -> usize:
 >   %53 = Block %50 : usize
         .Some(items) =>
 >   %37 = Read borrow [*$0] : UniqList[string]?
->   %38 = Ref mut local [*%1 as #1 .0] : Ref[mut UniqList[string]]
+>   %38 = Ref mut local [*%1 as #1 .0] : RefMut[UniqList[string]]
 >   %39 = Store [$2] %38 : ()
 >   %41 = Block - : never
 >   %47 = Block - : never
 >   %48 = SwitchTag %37 [#1 %41 %47] : never
             items.push(item)
->   %2 = Read borrow [$2] : Ref[mut UniqList[string]]
+>   %2 = Read borrow [$2] : RefMut[UniqList[string]]
 >   %3 = Store [$3] %2 : ()
->   %4 = Read borrow [$3] : Ref[mut UniqList[string]]
+>   %4 = Read borrow [$3] : RefMut[UniqList[string]]
 >   %5 = Coerce %4 [Weaken -] : Ref[UniqList[string]]
 >   %6 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].len[string] (%5) : usize
 >   %7 = Store [$5] %6 : ()
@@ -43,7 +43,7 @@ fn append(value: &mut Option[UniqList[string]], item: string) -> usize:
 >   %10 = Drop [%8] : ()
 >   %11 = Read copy [$5] : usize
 >   %12 = Prim Le [%9 %11] : bool
->   %13 = Read borrow [$3] : Ref[mut UniqList[string]]
+>   %13 = Read borrow [$3] : RefMut[UniqList[string]]
 >   %14 = Read copy [$5] : usize
 >   %15 = Prim Add [%14 1:usize] : usize
 >   %16 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].reserve_for[string] (%13, %15) : ()
@@ -64,7 +64,7 @@ fn append(value: &mut Option[UniqList[string]], item: string) -> usize:
 >   %31 = Scope %30 [] : ()
 >   %35 = Block %34 : usize
             items.len()
->   %32 = Read borrow [$2] : Ref[mut UniqList[string]]
+>   %32 = Read borrow [$2] : RefMut[UniqList[string]]
 >   %33 = Coerce %32 [Weaken -] : Ref[UniqList[string]]
 >   %34 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].len[string] (%33) : usize
         .None => 0

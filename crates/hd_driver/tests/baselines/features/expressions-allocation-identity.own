@@ -23,39 +23,39 @@ impl Named for User:
 fn same_dyn(user: &mut User) -> bool:
     let first: &mut dyn Named = user
 > app/main/same_dyn
->   local $0 user: Ref[mut User] [param read] value
+>   local $0 user: RefMut[User] [param read] value
 >     uses $0: entry -> %0 consume, %9 consume last
->   local $1 $ref: Ref[mut User] [read assigned captured] value
+>   local $1 $ref: RefMut[User] [read assigned captured] value
 >     uses $1: %1 -> %2 lend last
->   local $2 first: Ref[mut Named] [read assigned] value
+>   local $2 first: RefMut[Named] [read assigned] value
 >     uses $2: %8 -> %18 lend last
->   local $3 $ref: Ref[mut User] [read assigned captured] value
+>   local $3 $ref: RefMut[User] [read assigned captured] value
 >     uses $3: %10 -> %11 lend last
->   local $4 second: Ref[mut Named] [read assigned] value
+>   local $4 second: RefMut[Named] [read assigned] value
 >     uses $4: %17 -> %19 lend last
->   %0 = Read borrow [$0] : Ref[mut User]
+>   %0 = Read borrow [$0] : RefMut[User]
 >   %1 = Store [$1] %0 : ()
->   %2 = Read copy [$1] : Ref[mut User]
+>   %2 = Read copy [$1] : RefMut[User]
 >   %3 = Coerce %2 [RefToTraitValue -] : Named
 >   %4 = Retain %3 Value #0 : ()
 >   %5 = Drop [%2] : ()
 >   %6 = Block %3 : Named
->   %7 = RefDyn %6 : Ref[mut Named]
+>   %7 = RefDyn %6 : RefMut[Named]
 >   %8 = Store [$2] %7 : ()
 >   %23 = Block %20 : bool
     let second: &mut dyn Named = user
->   %9 = Read borrow [$0] : Ref[mut User]
+>   %9 = Read borrow [$0] : RefMut[User]
 >   %10 = Store [$3] %9 : ()
->   %11 = Read copy [$3] : Ref[mut User]
+>   %11 = Read copy [$3] : RefMut[User]
 >   %12 = Coerce %11 [RefToTraitValue -] : Named
 >   %13 = Retain %12 Value #0 : ()
 >   %14 = Drop [%11] : ()
 >   %15 = Block %12 : Named
->   %16 = RefDyn %15 : Ref[mut Named]
+>   %16 = RefDyn %15 : RefMut[Named]
 >   %17 = Store [$4] %16 : ()
     first is second
->   %18 = Read move [$2] : Ref[mut Named]
->   %19 = Read move [$4] : Ref[mut Named]
+>   %18 = Read move [$2] : RefMut[Named]
+>   %19 = Read move [$4] : RefMut[Named]
 >   %20 = Is %18 %19 : bool
 >   %21 = Drop [%19] : ()
 >   %22 = Drop [%18] : ()

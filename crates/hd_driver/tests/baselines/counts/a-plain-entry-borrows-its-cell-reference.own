@@ -10,7 +10,7 @@ struct Sink:
 impl Update[string] for Sink:
     fn update(&mut self, value: string) -> void:
 > app/main/impl Update [ string ] for Sink.update
->   local $0 self: Ref[mut Sink] [param read] value
+>   local $0 self: RefMut[Sink] [param read] value
 >     uses $0: entry -> %2 lend last
 >   local $1 value: string [param read] value
 >     uses $1: entry -> %1 consume last
@@ -30,7 +30,7 @@ fn helper!() -> string:
 >   %1 = Store [$0] %0 : ()
 >   %7 = Block %5 : string
     sink() = "helper"
->   %2 = Ref mut local [$0] : Ref[mut Sink]
+>   %2 = Ref mut local [$0] : RefMut[Sink]
 >   %3 = Call std/ops/Update.update for Sink [string] via Impl (%2, "helper") : ()
 >   %4 = LoanEnd [%2] : ()
 >   %2 finds [$0] full
@@ -51,7 +51,7 @@ pub fn main!() -> void $ Console:
 >   %4 = Store [$0] %3 : ()
 >   %13 = Block - : ()
     sink() = "kept"
->   %5 = Ref mut local [$0] : Ref[mut Sink]
+>   %5 = Ref mut local [$0] : RefMut[Sink]
 >   %6 = Call std/ops/Update.update for Sink [string] via Impl (%5, "kept") : ()
 >   %7 = LoanEnd [%5] : ()
 >   %5 finds [$0] full

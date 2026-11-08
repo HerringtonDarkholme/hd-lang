@@ -4,7 +4,7 @@ app/main/lent
   local $2 s: string [:= read assigned] value
     uses $2: %8 -> %9 lend last
   %2 = Read copy [$1] : List[string]
-  %3 = Ref mut local frame [$1] : Ref[mut List[string]]
+  %3 = Ref mut local frame [$1] : RefMut[List[string]]
   %4 = Call app/main/pick[] (%3) : usize
   %5 = LoanEnd [%3] : ()
   %6 = Read copy [%2 [%4]] : string

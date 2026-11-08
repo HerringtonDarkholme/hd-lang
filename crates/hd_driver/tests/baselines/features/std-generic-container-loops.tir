@@ -127,22 +127,22 @@ pub fn numbers(a: i64, b: i64, c: i64) -> i64:
 >   %1 = Store [$3] %0 : ()
 >   %19 = Block %18 : i64
     q.add(a)
->   %2 = Ref mut local [$3] : Ref[mut Queue[i64]]
+>   %2 = Ref mut local [$3] : RefMut[Queue[i64]]
 >   %3 = Read [$0] : i64
 >   %4 = Call app/main/impl [ T < Ord ] Queue [ T ].add[i64] (%2, %3) : ()
     q.add(b)
->   %5 = Ref mut local [$3] : Ref[mut Queue[i64]]
+>   %5 = Ref mut local [$3] : RefMut[Queue[i64]]
 >   %6 = Read [$1] : i64
 >   %7 = Call app/main/impl [ T < Ord ] Queue [ T ].add[i64] (%5, %6) : ()
     q.add(c)
->   %8 = Ref mut local [$3] : Ref[mut Queue[i64]]
+>   %8 = Ref mut local [$3] : RefMut[Queue[i64]]
 >   %9 = Read [$2] : i64
 >   %10 = Call app/main/impl [ T < Ord ] Queue [ T ].add[i64] (%8, %9) : ()
     saved := q
 >   %11 = Read [$3] : Queue[i64]
 >   %12 = Store [$4] %11 : ()
     q.settle(0, c)
->   %13 = Ref mut local [$3] : Ref[mut Queue[i64]]
+>   %13 = Ref mut local [$3] : RefMut[Queue[i64]]
 >   %14 = Read [$2] : i64
 >   %15 = Call app/main/impl [ T < Ord ] Queue [ T ].settle[i64] (%13, 0:usize, %14) : ()
     q.items[0] + saved.items[0]
@@ -161,18 +161,18 @@ pub fn names(a: string, b: string) -> usize:
 >   %1 = Store [$2] %0 : ()
 >   %17 = Block %16 : usize
     q.add(a)
->   %2 = Ref mut local [$2] : Ref[mut Queue[string]]
+>   %2 = Ref mut local [$2] : RefMut[Queue[string]]
 >   %3 = Read [$0] : string
 >   %4 = Call app/main/impl [ T < Ord ] Queue [ T ].add[string] (%2, %3) : ()
     q.add(b)
->   %5 = Ref mut local [$2] : Ref[mut Queue[string]]
+>   %5 = Ref mut local [$2] : RefMut[Queue[string]]
 >   %6 = Read [$1] : string
 >   %7 = Call app/main/impl [ T < Ord ] Queue [ T ].add[string] (%5, %6) : ()
     saved := q
 >   %8 = Read [$2] : Queue[string]
 >   %9 = Store [$3] %8 : ()
     q.settle(0, "z")
->   %10 = Ref mut local [$2] : Ref[mut Queue[string]]
+>   %10 = Ref mut local [$2] : RefMut[Queue[string]]
 >   %11 = Call app/main/impl [ T < Ord ] Queue [ T ].settle[string] (%10, 0:usize, "z") : ()
     q.items[0].len() + saved.items[0].len()
 >   %12 = Ref local [$2 .items [0:usize]] : Ref[string]
@@ -192,12 +192,12 @@ pub fn pairs(a: i64, b: i64) -> i64:
 >   %1 = Store [$2] %0 : ()
 >   %19 = Block %18 : i64
     q.add((a, 0))
->   %2 = Ref mut local [$2] : Ref[mut Queue[(i64, usize)]]
+>   %2 = Ref mut local [$2] : RefMut[Queue[(i64, usize)]]
 >   %3 = Read [$0] : i64
 >   %4 = NewTuple - [%3 0:usize] : (i64, usize)
 >   %5 = Call app/main/impl [ T < Ord ] Queue [ T ].add[(i64, usize)] (%2, %4) : ()
     q.add((b, 1))
->   %6 = Ref mut local [$2] : Ref[mut Queue[(i64, usize)]]
+>   %6 = Ref mut local [$2] : RefMut[Queue[(i64, usize)]]
 >   %7 = Read [$1] : i64
 >   %8 = NewTuple - [%7 1:usize] : (i64, usize)
 >   %9 = Call app/main/impl [ T < Ord ] Queue [ T ].add[(i64, usize)] (%6, %8) : ()
@@ -205,7 +205,7 @@ pub fn pairs(a: i64, b: i64) -> i64:
 >   %10 = Read [$2] : Queue[(i64, usize)]
 >   %11 = Store [$3] %10 : ()
     q.settle(0, (a, 2))
->   %12 = Ref mut local [$2] : Ref[mut Queue[(i64, usize)]]
+>   %12 = Ref mut local [$2] : RefMut[Queue[(i64, usize)]]
 >   %13 = Read [$0] : i64
 >   %14 = NewTuple - [%13 2:usize] : (i64, usize)
 >   %15 = Call app/main/impl [ T < Ord ] Queue [ T ].settle[(i64, usize)] (%12, 0:usize, %14) : ()

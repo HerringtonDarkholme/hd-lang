@@ -162,11 +162,11 @@ fn bound!(s: string) -> usize:
 >   %5 = Store [$2] %4 : ()
 >   %6 = Read move [$2] : Named
 >   %7 = Store [$3] %6 : ()
->   %8 = Ref mut [$3] : Counted[mut Named]
+>   %8 = Ref mut [$3] : CountedMut[Named]
 >   %9 = Retain %8 Value #0 : ()
 >   %10 = Break L0 %8 : never
->   %11 = Block - : Counted[mut Named]
->   %12 = Scope %11 [] : Counted[mut Named]
+>   %11 = Block - : CountedMut[Named]
+>   %12 = Scope %11 [] : CountedMut[Named]
 >   %13 = Coerce %12 [RefToTraitValue -] : Tag
 >   %14 = Retain %13 Value #0 : ()
 >   %15 = Block %13 : Tag

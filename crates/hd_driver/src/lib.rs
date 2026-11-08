@@ -11959,13 +11959,10 @@ impl hd_opt::whole::ObjectLayout for Env<'_> {
         let TyData::Adt { def, args } = self.run.pool.get(t) else {
             return None;
         };
-        if !self.run.known.ref_cells().holds(def) {
+        if !self.run.known.ref_cells().is_mutable(def) {
             return None;
         }
         let &target = self.run.pool.list_items(args).first()?;
-        let TyData::Mut(target) = self.run.pool.get(target) else {
-            return None;
-        };
         Some(hd_wasm_linear::object_layout::strip(
             &self.run.pool,
             self,

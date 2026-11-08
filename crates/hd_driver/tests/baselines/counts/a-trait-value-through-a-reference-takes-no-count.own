@@ -4,7 +4,7 @@ app/main/walk
     uses $0: entry -> %2 lend, %5 lend last
   local $1 score: Ref[Score] [param read] value
     uses $1: entry -> %1 lend, %7 lend last
-  local $2 sink: Ref[mut Sink] [param read] value
+  local $2 sink: RefMut[Sink] [param read] value
     uses $2: entry -> %0 lend, %8 lend last
   %0 = Read borrow [*$2] : mut Sink
   %1 = Read borrow [*$1] : Score

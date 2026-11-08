@@ -44,11 +44,11 @@ impl Members:
     fn pop(&mut self) -> usize:
         match self.infos.pop():
 > app/main/impl Members.pop
->   local $0 self: Ref[mut Members] [param read] value
+>   local $0 self: RefMut[Members] [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 info: Info [read assigned] value
 >     uses $1: %7 -> %3 consume last
->   %0 = Ref mut local [*$0 .infos] : Ref[mut List[Info]]
+>   %0 = Ref mut local [*$0 .infos] : RefMut[List[Info]]
 >   %1 = Call std/collections/impl [ T ] List [ T ].pop[Info] (%0) : Info?
 >   %2 = Drop [%0] : ()
 >   %17 = Block - : never
@@ -114,7 +114,7 @@ fn changed_by_argument(items: List[Info]) -> usize:
 >   %10 = Block %9 : usize
     m.at(m.pop())
 >   %4 = Read copy [$1] : Members
->   %5 = Ref mut local frame [$1] : Ref[mut Members]
+>   %5 = Ref mut local frame [$1] : RefMut[Members]
 >   %6 = Call app/main/impl Members.pop[] (%5) : usize
 >   %7 = LoanEnd [%5] : ()
 >   %8 = Drop [$1] : ()

@@ -24,16 +24,16 @@ fn demo(s: string) -> i32:
 > app/main/demo
 >   local $0 s: string [param read]
 >   local $1 $ref: Point [read assigned captured captured-assigned]
->   local $2 origin: Counted[mut Point] [:= read assigned]
+>   local $2 origin: CountedMut[Point] [:= read assigned]
 >   local $3 step: fn() -> () [:= read assigned]
 >   %0 = Read [$0] : string
 >   %1 = NewStruct [%0 0:i32] : Point
 >   %2 = Store [$1] %1 : ()
->   %3 = Ref mut [$1] : Counted[mut Point]
+>   %3 = Ref mut [$1] : CountedMut[Point]
 >   %4 = Store [$2] %3 : ()
 >   %13 = Block %12 : i32
     step := bump(origin)
->   %5 = Read [$2] : Counted[mut Point]
+>   %5 = Read [$2] : CountedMut[Point]
 >   %6 = Call app/main/bump[] (%5) : fn() -> ()
 >   %7 = Store [$3] %6 : ()
     step()

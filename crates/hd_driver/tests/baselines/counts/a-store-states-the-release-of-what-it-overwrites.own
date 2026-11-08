@@ -153,7 +153,7 @@ fn local_over(k: i32) -> usize:
 fn element_over(xs: &mut List[string], i: usize, k: i32) -> void:
     xs[i] = make(k)
 > app/main/element_over
->   local $0 xs: Ref[mut List[string]] [param read] value
+>   local $0 xs: RefMut[List[string]] [param read] value
 >     uses $0: entry -> %4 lend last
 >   local $1 i: usize [param read] value
 >     uses $1: entry -> %0 lend last
@@ -171,7 +171,7 @@ fn element_over(xs: &mut List[string], i: usize, k: i32) -> void:
 fn field_over(r: &mut P, k: i32) -> void:
     r.name = make(k)
 > app/main/field_over
->   local $0 r: Ref[mut P] [param read] value
+>   local $0 r: RefMut[P] [param read] value
 >     uses $0: entry -> %2 lend last
 >   local $1 k: i32 [param read] value
 >     uses $1: entry -> %0 lend last

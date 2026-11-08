@@ -17,7 +17,7 @@ struct World:
 fn step(w: &mut World, i: usize, j: usize, dt: f64) -> i32:
     w.bodies[i].x = w.bodies[i].x + dt * w.bodies[i].vx
 > app/main/step
->   local $0 w: Ref[mut World] [param read] value
+>   local $0 w: RefMut[World] [param read] value
 >     uses $0: entry -> %2 lend, %5 lend, %9 lend, %12 lend, %15 lend last
 >   local $1 i: usize [param read] value
 >     uses $1: entry -> %0 lend, %1 lend, %4 lend, %10 lend, %14 lend last

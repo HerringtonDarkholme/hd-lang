@@ -66,7 +66,7 @@ fn write_field(r: Rec, n: string) -> Rec:
 
 fn write_through(r: &mut Rec, n: string) -> void:
 > app/main/write_through
->   local $0 r: Ref[mut Rec] [param read] value
+>   local $0 r: RefMut[Rec] [param read] value
 >     uses $0: entry -> %2 lend last
 >   local $1 n: string [param read] value
 >     uses $1: entry -> %1 consume last

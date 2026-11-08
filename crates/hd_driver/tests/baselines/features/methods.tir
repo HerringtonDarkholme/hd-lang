@@ -69,7 +69,7 @@ fn use_methods(s: Shelf, b: string) -> usize:
 >   %1 = Store [$2] %0 : ()
 >   %14 = Block %13 : usize
     t.by_mut(b)
->   %2 = Ref mut local [$2] : Ref[mut Shelf]
+>   %2 = Ref mut local [$2] : RefMut[Shelf]
 >   %3 = Read [$1] : string
 >   %4 = Call app/main/impl Shelf.by_mut[] (%2, %3) : ()
     s.by_self() + s.by_ref() + t.consume().len()

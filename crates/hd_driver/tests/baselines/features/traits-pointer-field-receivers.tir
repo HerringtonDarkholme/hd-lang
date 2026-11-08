@@ -72,7 +72,7 @@ fn total(items: Erased) -> i64:
 >   %29 = Block - : ()
 >   %30 = Loop %29 - : ()
         match cursor.step():
->   %3 = Ref mut local [$1] : Ref[mut Erased]
+>   %3 = Ref mut local [$1] : RefMut[Erased]
 >   %4 = Call app/main/Step.step for Erased [] via Impl (%3) : i64?
 >   %23 = Block - : never
 >   %24 = Match %4 [%23 %9 %11] : ()
@@ -102,16 +102,16 @@ pub fn count(n: i64) -> i64:
 > app/main/count
 >   local $0 n: i64 [param read]
 >   local $1 $ref: Counter [read assigned captured captured-assigned]
->   local $2 $ref: Counted[mut Counter] [read assigned captured]
+>   local $2 $ref: CountedMut[Counter] [read assigned captured]
 >   %0 = Read [$0] : i64
 >   %1 = NewStruct [0:i64 %0] : Counter
 >   %2 = Store [$1] %1 : ()
->   %3 = Ref mut [$1] : Counted[mut Counter]
+>   %3 = Ref mut [$1] : CountedMut[Counter]
 >   %4 = Store [$2] %3 : ()
->   %5 = Read [$2] : Counted[mut Counter]
+>   %5 = Read [$2] : CountedMut[Counter]
 >   %6 = Coerce %5 [RefToTraitValue -] : Step
 >   %7 = Block %6 : Step
->   %8 = RefDyn %7 : Counted[mut Step]
+>   %8 = RefDyn %7 : CountedMut[Step]
 >   %9 = NewStruct [%8] : Erased
 >   %10 = Call app/main/total[] (%9) : i64
 >   %11 = Block %10 : i64

@@ -108,26 +108,51 @@ impl Prim {
 }
 
 /// The data types reference types lower to ([`Types::lower_refs`]):
-/// `local` for `&T` and `&mut T`, `counted` for `*T` and `*mut T`.
+/// `local` for `&T`, `local_mut` for `&mut T`, `counted` for `*T` and
+/// `counted_mut` for `*mut T`. The carrier is the reference's whole
+/// identity, permission included, so `T` stays the referent.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct RefCells {
     pub local: DefId,
+    pub local_mut: DefId,
     pub counted: DefId,
+    pub counted_mut: DefId,
 }
 
 impl RefCells {
-    /// Whether `def` is either carrier.
+    /// Whether `def` is any carrier.
     #[must_use]
     pub fn holds(self, def: DefId) -> bool {
-        def == self.local || def == self.counted
+        def == self.local || def == self.local_mut || self.is_counted(def)
     }
-    /// Both kinds lowered to the local carrier, to compare two types
+    /// The carrier of a reference of this permission and kind.
+    #[must_use]
+    pub fn of(self, mutable: bool, counted: bool) -> DefId {
+        match (mutable, counted) {
+            (false, false) => self.local,
+            (true, false) => self.local_mut,
+            (false, true) => self.counted,
+            (true, true) => self.counted_mut,
+        }
+    }
+    /// Whether `def` carries a counted reference, `*T` or `*mut T`.
+    #[must_use]
+    pub fn is_counted(self, def: DefId) -> bool {
+        def == self.counted || def == self.counted_mut
+    }
+    /// Whether `def` carries a mutable reference, `&mut T` or `*mut T`.
+    #[must_use]
+    pub fn is_mutable(self, def: DefId) -> bool {
+        def == self.local_mut || def == self.counted_mut
+    }
+    /// Both kinds lowered to the local carriers, to compare two types
     /// that may differ only by reference kinds.
     #[must_use]
     pub fn local_only(self) -> Self {
         Self {
-            local: self.local,
             counted: self.local,
+            counted_mut: self.local_mut,
+            ..self
         }
     }
 }
@@ -1617,9 +1642,8 @@ impl<'a> Types<'a> {
         }
     }
 
-    /// `t` with each reference type replaced by the data type `cell[T]` or
-    /// `cell[Mut[T]]` (mutable permission metadata): `cell.local` for `&T`
-    /// and `&mut T`, `cell.counted` for `*T` and `*mut T`, all with the
+    /// `t` with each reference type replaced by the data type `cell[T]`
+    /// of its carrier ([`RefCells::of`]), all with the
     /// same physical RC reference layout (`crates/hd_wasm_linear/DESIGN.md`
     /// §23.20). The checker applies it to a finished body and the driver
     /// to the declarations the backend reads, so the backend never sees a
@@ -1647,18 +1671,10 @@ impl<'a> Types<'a> {
                 inner,
                 mutable,
                 counted,
-            } => {
-                let inner = self.lower_refs(cell, inner);
-                let identity = if mutable {
-                    self.intern_ty(&TyData::Mut(inner))
-                } else {
-                    inner
-                };
-                TyData::Adt {
-                    def: if counted { cell.counted } else { cell.local },
-                    args: self.list(&[identity]),
-                }
-            }
+            } => TyData::Adt {
+                def: cell.of(mutable, counted),
+                args: self.list(&[self.lower_refs(cell, inner)]),
+            },
             TyData::Adt { def, args } => TyData::Adt { def, args: l(args) },
             TyData::Opaque {
                 owner,
@@ -1755,9 +1771,8 @@ impl<'a> Types<'a> {
     }
 
     /// The inverse of [`Self::lower_refs`] on a concrete type, for trait
-    /// selection after lowering: `cell.local[T]` becomes `&T` and
-    /// `cell.counted[T]` `*T`, and a permission marker in `cell[Mut[T]]`
-    /// restores `&mut T`. Compound types, including
+    /// selection after lowering: each carrier becomes its reference type
+    /// again, `cell.local_mut[T]` `&mut T` among them. Compound types, including
     /// projections and function signatures, retain this distinction.
     #[must_use]
     pub fn raise_refs(self, cell: RefCells, t: Ty) -> Ty {
@@ -1781,17 +1796,11 @@ impl<'a> Types<'a> {
         };
         let d = match self.get(t) {
             TyData::Adt { def, args } if cell.holds(def) => match self.list_items(args) {
-                [inner] => {
-                    let (inner, mutable) = match self.get(*inner) {
-                        TyData::Mut(inner) => (inner, true),
-                        _ => (*inner, false),
-                    };
-                    TyData::Ref {
-                        inner: self.raise_refs_in(cell, inner, memo),
-                        mutable,
-                        counted: def == cell.counted,
-                    }
-                }
+                [inner] => TyData::Ref {
+                    inner: self.raise_refs_in(cell, *inner, memo),
+                    mutable: cell.is_mutable(def),
+                    counted: cell.is_counted(def),
+                },
                 _ => TyData::Adt { def, args },
             },
             TyData::Adt { def, args } => TyData::Adt {
@@ -2655,7 +2664,9 @@ mod tests {
         let pool = InternPool::new();
         let cell = super::RefCells {
             local: hd_base::DefId::from_raw(776),
+            local_mut: hd_base::DefId::from_raw(780),
             counted: hd_base::DefId::from_raw(777),
+            counted_mut: hd_base::DefId::from_raw(781),
         };
         let shared = pool.intern_ty(&TyData::Ref {
             inner: Ty::I32,

@@ -8,7 +8,7 @@ use std.annotation.cold
 > app/main/store
 >   local $0 value: T [param read] value
 >     uses $0: entry -> %1 consume last
->   local $1 into: Ref[mut List[T]] [param read] value
+>   local $1 into: RefMut[List[T]] [param read] value
 >     uses $1: entry -> %3 lend, %5 lend last
 >   %0 = Retain %7 Entry local $0 #0 : ()
 fn store[T](value: T, into: &mut List[T] = &mut []) -> usize:
@@ -19,8 +19,8 @@ fn store[T](value: T, into: &mut List[T] = &mut []) -> usize:
 >   %0 = Release %4 Exit local $0 #2 : ()
 >   %1 = NewList - [] : List[T]
 >   %2 = Store [$2] %1 : ()
->   %3 = Ref take mut local [$2] : Ref[mut List[T]]
->   %4 = Block %3 : Ref[mut List[T]]
+>   %3 = Ref take mut local [$2] : RefMut[List[T]]
+>   %4 = Block %3 : RefMut[List[T]]
 >   %3 finds [$2] full
 >   storage sub 0: $2 cell
 >   summary kept [] borrows [$0]
@@ -42,7 +42,7 @@ fn store[T](value: T, into: &mut List[T] = &mut []) -> usize:
 >     uses $0: entry -> %2 consume last
 >   local $1 second: string [param read] value
 >     uses $1: entry -> %6 consume last
->   local $2 into: Ref[mut List[string]] [param read] value
+>   local $2 into: RefMut[List[string]] [param read] value
 >     uses $2: entry -> %4 lend, %8 lend, %10 lend last
 >   %0 = Retain %12 Entry local $0 #0 : ()
 >   %1 = Retain %12 Entry local $1 #0 : ()
@@ -57,8 +57,8 @@ fn store_pair(first: string, second: string, into: &mut List[string] = &mut []) 
 >   %1 = Release %5 Exit local $1 #2 : ()
 >   %2 = NewList - [] : List[string]
 >   %3 = Store [$3] %2 : ()
->   %4 = Ref take mut local [$3] : Ref[mut List[string]]
->   %5 = Block %4 : Ref[mut List[string]]
+>   %4 = Ref take mut local [$3] : RefMut[List[string]]
+>   %5 = Block %4 : RefMut[List[string]]
 >   %4 finds [$3] full
 >   storage sub 0: $3 cell
 >   summary kept [] borrows [$0 $1]
@@ -86,7 +86,7 @@ fn text(value: string) -> usize:
 >   %0 = Release %6 Exit local $0 #2 : ()
     store(value)
 >   %1 = Read borrow [$0] : string
->   %2 = DefaultCall [app/main/store.into [string]] [%1] : Ref[mut List[string]]
+>   %2 = DefaultCall [app/main/store.into [string]] [%1] : RefMut[List[string]]
 >   %3 = Call app/main/store[string] (%1, %2) : usize
 >   %4 = Retain %3 Operation operand 0 #0 : ()
 >   %5 = Drop [%2] : ()
@@ -100,7 +100,7 @@ fn collection(values: List[string]) -> usize:
 >   %0 = Release %6 Exit local $0 #2 : ()
     store(values)
 >   %1 = Read borrow [$0] : List[string]
->   %2 = DefaultCall [app/main/store.into [List[string]]] [%1] : Ref[mut List[List[string]]]
+>   %2 = DefaultCall [app/main/store.into [List[string]]] [%1] : RefMut[List[List[string]]]
 >   %3 = Call app/main/store[List[string]] (%1, %2) : usize
 >   %4 = Retain %3 Operation operand 0 #0 : ()
 >   %5 = Drop [%2] : ()
@@ -114,7 +114,7 @@ fn generic[T](value: T) -> usize:
 >   %0 = Release %6 Exit local $0 #2 : ()
     store(value)
 >   %1 = Read borrow [$0] : T
->   %2 = DefaultCall [app/main/store.into [T]] [%1] : Ref[mut List[T]]
+>   %2 = DefaultCall [app/main/store.into [T]] [%1] : RefMut[List[T]]
 >   %3 = Call app/main/store[T] (%1, %2) : usize
 >   %4 = Retain %3 Operation operand 0 #0 : ()
 >   %5 = Drop [%2] : ()
@@ -132,7 +132,7 @@ fn pair(first: string, second: string) -> usize:
     store_pair(first, second)
 >   %2 = Read borrow [$0] : string
 >   %3 = Read borrow [$1] : string
->   %4 = DefaultCall [app/main/store_pair.into []] [%2 %3] : Ref[mut List[string]]
+>   %4 = DefaultCall [app/main/store_pair.into []] [%2 %3] : RefMut[List[string]]
 >   %5 = Call app/main/store_pair[] (%2, %3, %4) : usize
 >   %6 = Retain %5 Operation operand 0 #0 : ()
 >   %7 = Retain %5 Operation operand 1 #0 : ()
@@ -146,7 +146,7 @@ fn scalar(value: i32) -> usize:
 >   local $0 value: i32 [param read] value
 >     uses $0: entry -> %0 lend last
 >   %0 = Read copy [$0] : i32
->   %1 = DefaultCall [app/main/store.into [i32]] [%0] : Ref[mut List[i32]]
+>   %1 = DefaultCall [app/main/store.into [i32]] [%0] : RefMut[List[i32]]
 >   %2 = Call app/main/store[i32] (%0, %1) : usize
 >   %3 = Drop [%1] : ()
 >   %4 = Block %2 : usize

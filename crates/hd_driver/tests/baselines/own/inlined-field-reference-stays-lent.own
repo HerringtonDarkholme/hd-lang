@@ -11,7 +11,7 @@ struct Point:
 fn write(target: &mut i32) -> void:
     *target += 1
 > app/main/write
->   local $0 target: Ref[mut i32] [param read] value
+>   local $0 target: RefMut[i32] [param read] value
 >     uses $0: entry -> %0 lend, %2 lend last
 >   %0 = Read copy [*$0] : i32
 >   %1 = Prim Add [%0 1:i32] : i32
@@ -23,11 +23,11 @@ fn write(target: &mut i32) -> void:
 fn forward(point: &mut Point) -> void:
     write(&mut point.x)
 > app/main/forward
->   local $0 point: Ref[mut Point] [param read] value
+>   local $0 point: RefMut[Point] [param read] value
 >     uses $0: entry -> %0 lend last
->   local $1 target: Ref[mut i32] [read] value
+>   local $1 target: RefMut[i32] [read] value
 >     uses $1: %1 -> %2 lend, %4 lend last
->   %0 = Ref mut local [*$0 .x] : Ref[mut i32]
+>   %0 = Ref mut local [*$0 .x] : RefMut[i32]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read copy [*$1] : i32
 >   %3 = Prim Add [%2 1:i32] : i32
@@ -43,15 +43,15 @@ fn forward(point: &mut Point) -> void:
 fn exercise(point: &mut Point) -> void:
     forward(point)
 > app/main/exercise
->   local $0 point: Ref[mut Point] [param read] value
+>   local $0 point: RefMut[Point] [param read] value
 >     uses $0: entry -> %0 consume last
->   local $1 point: Ref[mut Point] [read] value
+>   local $1 point: RefMut[Point] [read] value
 >     uses $1: %1 -> %2 lend last
->   local $2 target: Ref[mut i32] [read] value
+>   local $2 target: RefMut[i32] [read] value
 >     uses $2: %3 -> %4 lend, %6 lend last
->   %0 = Read borrow [$0] : Ref[mut Point]
+>   %0 = Read borrow [$0] : RefMut[Point]
 >   %1 = Store [$1] %0 : ()
->   %2 = Ref mut local [*$1 .x] : Ref[mut i32]
+>   %2 = Ref mut local [*$1 .x] : RefMut[i32]
 >   %3 = Store [$2] %2 : ()
 >   %4 = Read copy [*$2] : i32
 >   %5 = Prim Add [%4 1:i32] : i32

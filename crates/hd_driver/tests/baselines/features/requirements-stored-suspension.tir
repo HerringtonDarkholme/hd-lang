@@ -101,7 +101,7 @@ fn bound!(s: string) -> usize:
 >   local $1 pending: Suspend[usize] [read assigned]
 >   %0 = Read [$0] : string
 >   %1 = NewStruct [%0] : Named
->   %2 = Call std/rt.entry/host_provider[Named] (%1) : Counted[mut Named]
+>   %2 = Call std/rt.entry/host_provider[Named] (%1) : CountedMut[Named]
 >   %3 = Coerce %2 [RefToTraitValue -] : Tag
 >   %4 = Block %3 : Tag
 >   %5 = RefDyn %4 : Counted[Tag]

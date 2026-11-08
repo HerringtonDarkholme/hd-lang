@@ -156,7 +156,7 @@ pub fn kind(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Kind {
             .map_or(Ty::VOID, |a| strip(pool, env, *a));
         // A reference to a trait value is the value itself.
         let fat = matches!(pool.get(target), TyData::TraitValue { .. });
-        let whole = def == env.ref_cells().counted;
+        let whole = env.ref_cells().is_counted(def);
         return Kind::Ref { target, fat, whole };
     }
     if env.std_kind(def) != StdKind::Other {
@@ -172,16 +172,10 @@ pub fn kind(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Kind {
     Kind::Value
 }
 
-/// Whether reference type `t` (`std.core.Ref[T]`) is `&mut`: its target
-/// is `Mut[T]` (`hd_types::Types::lower_refs`).
+/// Whether reference type `t` is `&mut` or `*mut`: its carrier is
+/// `std.core.RefMut` or `std.core.CountedMut` (`hd_types::Types::lower_refs`).
 pub fn ref_mutable(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
-    match pool.get(strip(pool, env, t)) {
-        TyData::Adt { def, args } if env.ref_cells().holds(def) => pool
-            .list_items(args)
-            .first()
-            .is_some_and(|a| matches!(pool.get(*a), TyData::Mut(_))),
-        _ => false,
-    }
+    matches!(pool.get(strip(pool, env, t)), TyData::Adt { def, .. } if env.ref_cells().is_mutable(def))
 }
 
 /// `t` with newtypes erased and `mut` dropped: what its layout reads.

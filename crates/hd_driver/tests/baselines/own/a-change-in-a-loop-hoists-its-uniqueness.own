@@ -46,7 +46,7 @@ fn fill(n: usize) -> List[i32]:
 fn shift(items: &mut List[i32]) -> void:
     let i: usize = 1
 > app/main/shift
->   local $0 items: Ref[mut List[i32]] [param read] value
+>   local $0 items: RefMut[List[i32]] [param read] value
 >     uses $0: entry -> %3 lend, %13 lend, %15 lend, %26 lend
 >   local $1 i: usize [read assigned mutated] place
 >   local $2 j: usize [read assigned mutated] place

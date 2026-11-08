@@ -190,15 +190,15 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
             let mut it = Item::new(bx, sym(names, "box"), true, ItemData::Fn(sig));
             it.intrinsic = Some(sym(names, "box"));
             out.push(it);
-            // The data types `&T` and `&mut T` (`Ref`) and `*T` and `*mut T`
-            // (`Counted`) lower to when the checker finishes a body
+            // The data types `&T` (`Ref`), `&mut T` (`RefMut`), `*T`
+            // (`Counted`) and `*mut T` (`CountedMut`) lower to when the checker finishes a body
             // (`hd_types::Types::lower_refs`), which the backend recognizes
             // as the reference carriers: a reference is its place's address
             // (`crates/hd_wasm_linear/DESIGN.md` §23.20), so no field is
             // read, and a `Counted` one is a whole object's (§23.30). The
             // fields are the former closure form's (`docs/compiler/tir-v2.md`,
             // stage 1). Not visible to programs.
-            for name in ["Ref", "Counted"] {
+            for name in ["Ref", "RefMut", "Counted", "CountedMut"] {
                 let cell = names.item(module, name);
                 let t = param(names, cell, 0);
                 let fn_ty = |params: &[Ty], result: Ty| {

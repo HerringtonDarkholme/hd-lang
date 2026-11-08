@@ -17,7 +17,7 @@ fn count_long(xs: List[string]) -> usize:
 >   local $0 xs: List[string] [param read captured]
 >   local $1 n: usize [read assigned mutated]
 >   local $2 $ref: impl Iterator[string] [read assigned captured captured-assigned]
->   local $3 $iter: Ref[mut impl Iterator[string]] [assigned]
+>   local $3 $iter: RefMut[impl Iterator[string]] [assigned]
 >   local $4 x: string [read assigned captured]
 >   %0 = Store [$1] 0:usize : ()
 >   %28 = Block %27 : usize
@@ -25,9 +25,9 @@ fn count_long(xs: List[string]) -> usize:
 >   %1 = Ref local [$0] : Ref[List[string]]
 >   %2 = Call app/main/names[] (%1) : impl Iterator[string]
 >   %3 = Store [$2] %2 : ()
->   %4 = Ref mut local [$2] : Ref[mut impl Iterator[string]]
+>   %4 = Ref mut local [$2] : RefMut[impl Iterator[string]]
 >   %5 = Store [$3] %4 : ()
->   %6 = Read [$3] : Ref[mut impl Iterator[string]]
+>   %6 = Read [$3] : RefMut[impl Iterator[string]]
 >   %7 = Call std/iter/Iterator.next for impl Iterator[string] [string] via Bound (%6) : string?
 >   %13 = Block - : ()
 >   %14 = Break L0 - : never

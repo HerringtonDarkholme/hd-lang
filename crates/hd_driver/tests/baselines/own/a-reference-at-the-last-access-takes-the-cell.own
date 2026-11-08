@@ -9,7 +9,7 @@ struct Counter:
 fn bump(c: &mut Counter) -> void:
     c.hits = c.hits + 1
 > app/main/bump
->   local $0 c: Ref[mut Counter] [param read] value
+>   local $0 c: RefMut[Counter] [param read] value
 >     uses $0: entry -> %0 lend, %2 lend last
 >   %0 = Read copy [*$0 .hits] : i32
 >   %1 = Prim Add [%0 1:i32] : i32
@@ -24,7 +24,7 @@ fn fresh() -> void:
 >   %1 = Store [$0] %0 : ()
 >   %6 = Block - : ()
     bump(&mut c)
->   %2 = Ref mut local frame [$0] : Ref[mut Counter]
+>   %2 = Ref mut local frame [$0] : RefMut[Counter]
 >   %3 = Call app/main/bump[] (%2) : ()
 >   %4 = LoanEnd [%2] : ()
 >   %5 = Drop [$0] : ()

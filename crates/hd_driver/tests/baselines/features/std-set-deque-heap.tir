@@ -11,15 +11,15 @@ use std.collections.{Deque, Heap, Set}
 fn seen(s: &mut Set[string], a: string, b: string) -> bool:
     _ := s.insert(a)
 > app/main/seen
->   local $0 s: Ref[mut Set[string]] [param read]
+>   local $0 s: RefMut[Set[string]] [param read]
 >   local $1 a: string [param read]
 >   local $2 b: string [param read]
->   %0 = Read [$0] : Ref[mut Set[string]]
+>   %0 = Read [$0] : RefMut[Set[string]]
 >   %1 = Read [$1] : string
 >   %2 = Call std/collections/impl [ T < Eq & Hash ] Set [ T ].insert[string] (%0, %1) : bool
 >   %7 = Block %6 : bool
     s.contains(b)
->   %3 = Read [$0] : Ref[mut Set[string]]
+>   %3 = Read [$0] : RefMut[Set[string]]
 >   %4 = Coerce %3 [Weaken -] : Ref[Set[string]]
 >   %5 = Read [$2] : string
 >   %6 = Call std/collections/impl [ T < Eq & Hash ] Set [ T ].contains[string] (%4, %5) : bool
@@ -27,15 +27,15 @@ fn seen(s: &mut Set[string], a: string, b: string) -> bool:
 fn queue(q: &mut Deque[string], a: string) -> usize:
     q.push_back(a)
 > app/main/queue
->   local $0 q: Ref[mut Deque[string]] [param read]
+>   local $0 q: RefMut[Deque[string]] [param read]
 >   local $1 a: string [param read]
 >   local $2 x: string [read assigned captured]
->   %0 = Read [$0] : Ref[mut Deque[string]]
+>   %0 = Read [$0] : RefMut[Deque[string]]
 >   %1 = Read [$1] : string
 >   %2 = Call std/collections/impl [ T ] Deque [ T ].push_back[string] (%0, %1) : ()
 >   %22 = Block %21 : usize
     match q.pop_front():
->   %3 = Read [$0] : Ref[mut Deque[string]]
+>   %3 = Read [$0] : RefMut[Deque[string]]
 >   %4 = Call std/collections/impl [ T ] Deque [ T ].pop_front[string] (%3) : string?
 >   %20 = Block - : never
 >   %21 = Match %4 [%20 %7 %8] : usize
@@ -57,15 +57,15 @@ fn queue(q: &mut Deque[string], a: string) -> usize:
 fn top(h: &mut Heap[string], a: string) -> usize:
     h.push(a)
 > app/main/top
->   local $0 h: Ref[mut Heap[string]] [param read]
+>   local $0 h: RefMut[Heap[string]] [param read]
 >   local $1 a: string [param read]
 >   local $2 x: string [read assigned captured]
->   %0 = Read [$0] : Ref[mut Heap[string]]
+>   %0 = Read [$0] : RefMut[Heap[string]]
 >   %1 = Read [$1] : string
 >   %2 = Call std/collections/impl [ T < Ord ] Heap [ T ].push[string] (%0, %1) : ()
 >   %22 = Block %21 : usize
     match h.pop():
->   %3 = Read [$0] : Ref[mut Heap[string]]
+>   %3 = Read [$0] : RefMut[Heap[string]]
 >   %4 = Call std/collections/impl [ T < Ord ] Heap [ T ].pop[string] (%3) : string?
 >   %20 = Block - : never
 >   %21 = Match %4 [%20 %7 %8] : usize

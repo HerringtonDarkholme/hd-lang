@@ -930,7 +930,9 @@ fn refs_kinds(
             true
         }
         TyData::Ref { .. } | TyData::TraitValue { .. } => false,
-        TyData::Adt { def, .. } if def == cells.counted && def != cells.local => {
+        TyData::Adt { def, .. }
+            if cells.is_counted(def) && def != cells.local && def != cells.local_mut =>
+        {
             *counted = true;
             true
         }

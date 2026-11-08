@@ -41,7 +41,7 @@ fn weight(f: Field) -> i64:
 
 fn remember(all: &mut List[Field], f: Field) -> void:
 > app/main/remember
->   local $0 all: Ref[mut List[Field]] [param read] value
+>   local $0 all: RefMut[List[Field]] [param read] value
 >     uses $0: entry -> %3 lend last
 >   local $1 f: Field [param read] value
 >     uses $1: entry -> %1 consume last
@@ -116,13 +116,13 @@ fn collect(f: Field) -> usize:
 >   %12 = Release %11 Operation local $1 #2 : ()
 >   %15 = Block %13 : usize
     remember(&mut all, f)
->   %3 = Ref mut local frame [$1] : Ref[mut List[Field]]
+>   %3 = Ref mut local frame [$1] : RefMut[List[Field]]
 >   %4 = Read copy [$0] : Field
 >   %5 = Call app/main/remember[] (%3, %4) : ()
 >   %6 = LoanEnd [%3] : ()
 >   %3 finds [$1] full
     remember(&mut all, f)
->   %7 = Ref mut local frame [$1] : Ref[mut List[Field]]
+>   %7 = Ref mut local frame [$1] : RefMut[List[Field]]
 >   %8 = Read move [$0] : Field
 >   %9 = Call app/main/remember[] (%7, %8) : ()
 >   %10 = LoanEnd [%7] : ()
@@ -277,11 +277,11 @@ pub fn main() -> void $ Console:
     println(collect(f))
 >   %65 = NewList - [] : List[Field]
 >   %66 = Store [$5] %65 : ()
->   %67 = Ref mut local frame [$5] : Ref[mut List[Field]]
+>   %67 = Ref mut local frame [$5] : RefMut[List[Field]]
 >   %68 = Read copy [$0] : Field
 >   %69 = Call app/main/remember[] (%67, %68) : ()
 >   %70 = LoanEnd [%67] : ()
->   %71 = Ref mut local frame [$5] : Ref[mut List[Field]]
+>   %71 = Ref mut local frame [$5] : RefMut[List[Field]]
 >   %72 = Read copy [$0] : Field
 >   %73 = Call app/main/remember[] (%71, %72) : ()
 >   %74 = LoanEnd [%71] : ()

@@ -42,7 +42,7 @@ fn fill(n: usize) -> List[usize]:
 fn bump(counts: &mut List[i32]) -> void:
     counts[1] += twice(5)
 > app/main/bump
->   local $0 counts: Ref[mut List[i32]] [param read] value
+>   local $0 counts: RefMut[List[i32]] [param read] value
 >     uses $0: entry -> %0 lend, %5 lend last
 >   %0 = Read borrow [*$0] : List[i32]
 >   %1 = Read copy [%0 [1:usize]] : i32
@@ -54,7 +54,7 @@ fn bump(counts: &mut List[i32]) -> void:
 
 fn put[T](xs: &mut List[T], k: usize, v: T) -> void:
 > app/main/put
->   local $0 xs: Ref[mut List[T]] [param read] value
+>   local $0 xs: RefMut[List[T]] [param read] value
 >     uses $0: entry -> %4 lend, %8 lend last
 >   local $1 k: usize [param read] value
 >     uses $1: entry -> %1 lend last

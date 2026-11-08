@@ -21,7 +21,7 @@ fn copy_box(s: string, t: string) -> usize:
 >   local $2 p: Point [read assigned mutated] value ×2
 >     uses $2: %4 -> %5 consume last; %10 -> %20 consume last
 >   local $3 $ref: Point [read assigned captured captured-assigned] place
->   local $4 copy: Counted[mut Point] [:= read assigned] value
+>   local $4 copy: CountedMut[Point] [:= read assigned] value
 >     uses $4: %8 -> %12 lend last
 >   local $5 self: string [read] value
 >     uses $5: %21 -> %22 lend last
@@ -37,7 +37,7 @@ fn copy_box(s: string, t: string) -> usize:
     copy := box(p)
 >   %5 = Read copy [$2] : Point
 >   %6 = Store [$3] %5 : ()
->   %7 = Ref take mut [$3] : Counted[mut Point]
+>   %7 = Ref take mut [$3] : CountedMut[Point]
 >   %8 = Store [$4] %7 : ()
 >   %7 finds [$3] full
     p.name = t
@@ -75,10 +75,10 @@ fn move_box(s: string) -> *mut Point:
     p := Point { name: s }
 >   %1 = Read move [$0] : string
 >   %2 = NewStruct [%1] : Point
->   %5 = Block %4 : Counted[mut Point]
+>   %5 = Block %4 : CountedMut[Point]
     box(p)
 >   %3 = Store [$2] %2 : ()
->   %4 = Ref take mut [$2] : Counted[mut Point]
+>   %4 = Ref take mut [$2] : CountedMut[Point]
 >   %4 finds [$2] full
 >   exit sub 0 drops [$0]
 >   storage sub 0: $2 cell
@@ -91,7 +91,7 @@ fn shared(s: string, t: string) -> usize:
 >   local $1 t: string [param read] value
 >     uses $1: entry -> %10 consume last
 >   local $2 $ref: Point [read assigned captured captured-assigned] place
->   local $3 b: Counted[mut Point] [:= read assigned] value
+>   local $3 b: CountedMut[Point] [:= read assigned] value
 >     uses $3: %6 -> %7 consume, %11 lend last
 >   local $4 h: Holder [:= read assigned] value
 >     uses $4: %9 -> %14 lend last
@@ -103,12 +103,12 @@ fn shared(s: string, t: string) -> usize:
 >   %2 = Read move [$0] : string
 >   %3 = NewStruct [%2] : Point
 >   %4 = Store [$2] %3 : ()
->   %5 = Ref take mut [$2] : Counted[mut Point]
+>   %5 = Ref take mut [$2] : CountedMut[Point]
 >   %6 = Store [$3] %5 : ()
 >   %22 = Block %20 : usize
 >   %5 finds [$2] full
     h := Holder { point: b }
->   %7 = Read copy [$3] : Counted[mut Point]
+>   %7 = Read copy [$3] : CountedMut[Point]
 >   %8 = NewStruct [%7] : Holder
 >   %9 = Store [$4] %8 : ()
     b.name = t

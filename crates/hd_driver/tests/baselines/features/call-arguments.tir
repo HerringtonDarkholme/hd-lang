@@ -95,7 +95,7 @@ fn calls(s: string, n: *Node) -> usize:
 >   %1 = Store [$2] %0 : ()
 >   %15 = Block %14 : usize
     by_mut(&mut t)
->   %2 = Ref mut local [$2] : Ref[mut string]
+>   %2 = Ref mut local [$2] : RefMut[string]
 >   %3 = Call app/main/by_mut[] (%2) : ()
     by_value(s) + by_ref(&s) + by_value(t) + by_ptr(n)
 >   %4 = Read [$0] : string

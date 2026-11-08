@@ -26,9 +26,9 @@ impl AutoClosing for Guard:
 fn guard(log: *mut List[string], label: string) -> Guard:
     Guard { log: log, label: label }
 > app/main/guard
->   local $0 log: Counted[mut List[string]] [param read]
+>   local $0 log: CountedMut[List[string]] [param read]
 >   local $1 label: string [param read]
->   %0 = Read [$0] : Counted[mut List[string]]
+>   %0 = Read [$0] : CountedMut[List[string]]
 >   %1 = Read [$1] : string
 >   %2 = NewStruct [%0 %1] : Guard
 >   %3 = Block %2 : Guard
@@ -36,14 +36,14 @@ fn guard(log: *mut List[string], label: string) -> Guard:
 fn work(log: *mut List[string], label: string) -> void:
     guard(log, label)
 > app/main/work
->   local $0 log: Counted[mut List[string]] [param read]
+>   local $0 log: CountedMut[List[string]] [param read]
 >   local $1 label: string [param read]
 >   local $2 $ref: Guard [:= read assigned captured captured-assigned]
->   %0 = Read [$0] : Counted[mut List[string]]
+>   %0 = Read [$0] : CountedMut[List[string]]
 >   %1 = Read [$1] : string
 >   %2 = Call app/main/guard[] (%0, %1) : Guard
 >   %3 = Store [$2] %2 : ()
->   %4 = Ref mut local [$2] : Ref[mut Guard]
+>   %4 = Ref mut local [$2] : RefMut[Guard]
 >   %5 = Call std/ops/Disposable.dispose for Guard [$()] via Impl (%4) : ()
 >   %6 = Block - : ()
 >   %7 = Defer #6 : ()

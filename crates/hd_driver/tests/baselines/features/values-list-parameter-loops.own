@@ -12,7 +12,7 @@ pub struct Body:
 fn advance(bodies: &mut List[Body], dt: f64) -> void:
     n := bodies.len()
 > app/main/advance
->   local $0 bodies: Ref[mut List[Body]] [param read] value
+>   local $0 bodies: RefMut[List[Body]] [param read] value
 >     uses $0: entry -> %0 lend, %22 lend, %26 lend, %52 lend, %55 lend, %59 lend
 >   local $1 dt: f64 [param read] value
 >     uses $1: entry -> %23 lend, %53 lend
@@ -148,7 +148,7 @@ pub fn run(steps: i64) -> f64:
 >   %28 = Loop %27 - : ()
 >   %28 finds [$1] full
         advance(&mut bodies, 0.01)
->   %20 = Ref mut local frame [$1] : Ref[mut List[Body]]
+>   %20 = Ref mut local frame [$1] : RefMut[List[Body]]
 >   %21 = Call app/main/advance[] (%20, 0.01:f64) : ()
 >   %22 = LoanEnd [%20] : ()
 >   %20 finds [$1] full

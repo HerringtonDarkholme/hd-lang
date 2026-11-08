@@ -14,18 +14,18 @@ fn widened(dog: *dyn Dog) -> *dyn Animal:
 >   local $0 dog: Counted[Dog] [param read] value
 >     uses $0: entry -> %0 consume last
 >   local $1 $ref: Counted[Dog] [read assigned captured captured-assigned] place
->   local $2 nested: Counted[mut Counted[Dog]] [:= read assigned] value
+>   local $2 nested: CountedMut[Counted[Dog]] [:= read assigned] value
 >     uses $2: %3 -> %4 consume last
 >   local $3 $ref: Counted[Counted[Dog]] [read assigned captured] value
 >     uses $3: %6 -> %7 lend last
 >   %0 = Read copy [$0] : Counted[Dog]
 >   %1 = Store [$1] %0 : ()
->   %2 = Ref take mut [$1] : Counted[mut Counted[Dog]]
+>   %2 = Ref take mut [$1] : CountedMut[Counted[Dog]]
 >   %3 = Store [$2] %2 : ()
 >   %13 = Block %12 : Counted[Animal]
 >   %2 finds [$1] full
     nested
->   %4 = Read move [$2] : Counted[mut Counted[Dog]]
+>   %4 = Read move [$2] : CountedMut[Counted[Dog]]
 >   %5 = Coerce %4 [Weaken -] : Counted[Counted[Dog]]
 >   %6 = Store [$3] %5 : ()
 >   %7 = Read move [$3] : Counted[Counted[Dog]]

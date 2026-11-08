@@ -4,7 +4,7 @@
 # expected: put copies its string key after the probe; bump replaces only the value and copies no key.
 fn put(items: &mut Map[string, i32], key: string, value: i32) -> void:
 > app/main/put
->   local $0 items: Ref[mut Map[string, i32]] [param read] value
+>   local $0 items: RefMut[Map[string, i32]] [param read] value
 >     uses $0: entry -> %4 lend last
 >   local $1 key: string [param read] value
 >     uses $1: entry -> %1 lend last
@@ -23,7 +23,7 @@ fn put(items: &mut Map[string, i32], key: string, value: i32) -> void:
 
 fn bump(items: &mut Map[string, i32], key: string) -> void:
 > app/main/bump
->   local $0 items: Ref[mut Map[string, i32]] [param read] value
+>   local $0 items: RefMut[Map[string, i32]] [param read] value
 >     uses $0: entry -> %1 lend, %8 lend last
 >   local $1 key: string [param read] value
 >     uses $1: entry -> %2 lend last

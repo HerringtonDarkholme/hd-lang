@@ -61,10 +61,10 @@ fn with_tag[$ R](s: string, callback: fn() -> usize $ R + Tag) -> usize $ R:
 >   %4 = Store [$2] %3 : ()
 >   %5 = Read move [$2] : Named
 >   %6 = Store [$3] %5 : ()
->   %7 = Ref take mut [$3] : Counted[mut Named]
+>   %7 = Ref take mut [$3] : CountedMut[Named]
 >   %8 = Break L0 %7 : never
->   %9 = Block - : Counted[mut Named]
->   %10 = Scope %9 [] : Counted[mut Named]
+>   %9 = Block - : CountedMut[Named]
+>   %10 = Scope %9 [] : CountedMut[Named]
 >   %11 = Coerce %10 [RefToTraitValue -] : Tag
 >   %12 = Block %11 : Tag
 >   %13 = RefDyn %12 : Counted[Tag]

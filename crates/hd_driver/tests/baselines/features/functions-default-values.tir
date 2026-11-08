@@ -23,7 +23,7 @@ fn with_default(s: string) -> usize:
 > app/main/with_default
 >   local $0 s: string [param read]
 >   %0 = Read [$0] : string
->   %1 = DefaultCall [app/main/collect.into []] [%0] : Ref[mut List[string]]
+>   %1 = DefaultCall [app/main/collect.into []] [%0] : RefMut[List[string]]
 >   %2 = Call app/main/collect[] (%0, %1) : usize
 >   %3 = Block %2 : usize
 
@@ -31,9 +31,9 @@ fn with_given(s: string, out: &mut List[string]) -> usize:
     collect(s, out)
 > app/main/with_given
 >   local $0 s: string [param read]
->   local $1 out: Ref[mut List[string]] [param read]
+>   local $1 out: RefMut[List[string]] [param read]
 >   %0 = Read [$0] : string
->   %1 = Read [$1] : Ref[mut List[string]]
+>   %1 = Read [$1] : RefMut[List[string]]
 >   %2 = Call app/main/collect[] (%0, %1) : usize
 >   %3 = Block %2 : usize
 

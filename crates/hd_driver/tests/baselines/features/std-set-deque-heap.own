@@ -10,7 +10,7 @@ use std.collections.{Deque, Heap, Set}
 
 fn seen(s: &mut Set[string], a: string, b: string) -> bool:
 > app/main/seen
->   local $0 s: Ref[mut Set[string]] [param read] value
+>   local $0 s: RefMut[Set[string]] [param read] value
 >     uses $0: entry -> %2 lend, %6 consume last
 >   local $1 a: string [param read] value
 >     uses $1: entry -> %3 lend last
@@ -19,13 +19,13 @@ fn seen(s: &mut Set[string], a: string, b: string) -> bool:
 >   %0 = Release %11 Exit local $1 #2 : ()
 >   %1 = Release %11 Exit local $2 #2 : ()
     _ := s.insert(a)
->   %2 = Read borrow [$0] : Ref[mut Set[string]]
+>   %2 = Read borrow [$0] : RefMut[Set[string]]
 >   %3 = Read borrow [$1] : string
 >   %4 = Call std/collections/impl [ T < Eq & Hash ] Set [ T ].insert[string] (%2, %3) : bool
 >   %5 = Retain %4 Operation operand 1 #0 : ()
 >   %11 = Block %9 : bool
     s.contains(b)
->   %6 = Read borrow [$0] : Ref[mut Set[string]]
+>   %6 = Read borrow [$0] : RefMut[Set[string]]
 >   %7 = Coerce %6 [Weaken -] : Ref[Set[string]]
 >   %8 = Read borrow [$2] : string
 >   %9 = Call std/collections/impl [ T < Eq & Hash ] Set [ T ].contains[string] (%7, %8) : bool
@@ -34,7 +34,7 @@ fn seen(s: &mut Set[string], a: string, b: string) -> bool:
 
 fn queue(q: &mut Deque[string], a: string) -> usize:
 > app/main/queue
->   local $0 q: Ref[mut Deque[string]] [param read] value
+>   local $0 q: RefMut[Deque[string]] [param read] value
 >     uses $0: entry -> %1 lend, %4 lend last
 >   local $1 a: string [param read] value
 >     uses $1: entry -> %2 consume last
@@ -42,12 +42,12 @@ fn queue(q: &mut Deque[string], a: string) -> usize:
 >     uses $2: %14 -> %6 lend last
 >   %0 = Retain %27 Entry local $1 #0 : ()
     q.push_back(a)
->   %1 = Read borrow [$0] : Ref[mut Deque[string]]
+>   %1 = Read borrow [$0] : RefMut[Deque[string]]
 >   %2 = Read move [$1] : string
 >   %3 = Call std/collections/impl [ T ] Deque [ T ].push_back[string] (%1, %2) : ()
 >   %27 = Block %25 : usize
     match q.pop_front():
->   %4 = Read borrow [$0] : Ref[mut Deque[string]]
+>   %4 = Read borrow [$0] : RefMut[Deque[string]]
 >   %5 = Call std/collections/impl [ T ] Deque [ T ].pop_front[string] (%4) : string?
 >   %24 = Block - : never
 >   %25 = Match %5 [%24 %11 %12] : usize
@@ -74,7 +74,7 @@ fn queue(q: &mut Deque[string], a: string) -> usize:
 
 fn top(h: &mut Heap[string], a: string) -> usize:
 > app/main/top
->   local $0 h: Ref[mut Heap[string]] [param read] value
+>   local $0 h: RefMut[Heap[string]] [param read] value
 >     uses $0: entry -> %1 lend, %4 lend last
 >   local $1 a: string [param read] value
 >     uses $1: entry -> %2 consume last
@@ -82,12 +82,12 @@ fn top(h: &mut Heap[string], a: string) -> usize:
 >     uses $2: %14 -> %6 lend last
 >   %0 = Retain %27 Entry local $1 #0 : ()
     h.push(a)
->   %1 = Read borrow [$0] : Ref[mut Heap[string]]
+>   %1 = Read borrow [$0] : RefMut[Heap[string]]
 >   %2 = Read move [$1] : string
 >   %3 = Call std/collections/impl [ T < Ord ] Heap [ T ].push[string] (%1, %2) : ()
 >   %27 = Block %25 : usize
     match h.pop():
->   %4 = Read borrow [$0] : Ref[mut Heap[string]]
+>   %4 = Read borrow [$0] : RefMut[Heap[string]]
 >   %5 = Call std/collections/impl [ T < Ord ] Heap [ T ].pop[string] (%4) : string?
 >   %24 = Block - : never
 >   %25 = Match %5 [%24 %11 %12] : usize

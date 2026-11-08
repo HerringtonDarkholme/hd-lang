@@ -39,13 +39,13 @@ impl Bag:
     fn add(&mut self) -> usize:
         self.n = self.size() + self.items_ref()
 > app/main/impl Bag.add
->   local $0 self: Ref[mut Bag] [param read] value
+>   local $0 self: RefMut[Bag] [param read] value
 >     uses $0: entry -> %0 consume, %10 consume, %20 lend, %21 lend last
 >   local $1 self: Ref[Bag] [read] value
 >     uses $1: %12 -> %13 lend last
 >   local $2 self: Ref[Bag] [read] value
 >     uses $2: %2 -> %3 lend, %5 lend last
->   %0 = Read borrow [$0] : Ref[mut Bag]
+>   %0 = Read borrow [$0] : RefMut[Bag]
 >   %1 = Coerce %0 [Weaken -] : Ref[Bag]
 >   %2 = Store [$2] %1 : ()
 >   %3 = Read borrow [*$2 .items] : List[i32]
@@ -55,7 +55,7 @@ impl Bag:
 >   %7 = Break L1 %6 : never
 >   %8 = Block - : usize
 >   %9 = Scope %8 [] : usize
->   %10 = Read borrow [$0] : Ref[mut Bag]
+>   %10 = Read borrow [$0] : RefMut[Bag]
 >   %11 = Coerce %10 [Weaken -] : Ref[Bag]
 >   %12 = Store [$1] %11 : ()
 >   %13 = Ref local [*$1 .items] : Ref[List[i32]]

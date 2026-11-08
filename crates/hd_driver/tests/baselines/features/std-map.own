@@ -46,7 +46,7 @@ fn lookup(m: &Map[string, string], k: string) -> usize:
 
 fn put(m: &mut Map[string, string], k: string, v: string) -> void:
 > app/main/put
->   local $0 m: Ref[mut Map[string, string]] [param read] value
+>   local $0 m: RefMut[Map[string, string]] [param read] value
 >     uses $0: entry -> %5 lend last
 >   local $1 k: string [param read] value
 >     uses $1: entry -> %2 lend last
@@ -67,7 +67,7 @@ fn put(m: &mut Map[string, string], k: string, v: string) -> void:
 
 fn group(m: &mut Map[string, List[string]], k: string, v: string) -> void:
 > app/main/group
->   local $0 m: Ref[mut Map[string, List[string]]] [param read] value
+>   local $0 m: RefMut[Map[string, List[string]]] [param read] value
 >     uses $0: entry -> %2 lend last
 >   local $1 k: string [param read] value
 >     uses $1: entry -> %3 lend last
@@ -76,10 +76,10 @@ fn group(m: &mut Map[string, List[string]], k: string, v: string) -> void:
 >   %0 = Release %15 Exit local $1 #2 : ()
 >   %1 = Retain %15 Entry local $2 #0 : ()
     m.get_or_insert(k, []).push(v)
->   %2 = Read borrow [$0] : Ref[mut Map[string, List[string]]]
+>   %2 = Read borrow [$0] : RefMut[Map[string, List[string]]]
 >   %3 = Read borrow [$1] : string
 >   %4 = NewList - [] : List[string]
->   %5 = Call std/collections/impl [ K < Eq & Hash , V ] Map [ K , V ].get_or_insert[string, List[string]] (%2, %3, %4) : Ref[mut List[string]]
+>   %5 = Call std/collections/impl [ K < Eq & Hash , V ] Map [ K , V ].get_or_insert[string, List[string]] (%2, %3, %4) : RefMut[List[string]]
 >   %6 = MakeUnique %5 Operation operand 0 #5 : ()
 >   %7 = Retain %5 Operation operand 1 #0 : ()
 >   %8 = Retain %5 Operation operand 2 #0 : ()

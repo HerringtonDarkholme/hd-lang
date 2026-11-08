@@ -9,7 +9,7 @@ fn eq_refs(a: &string, b: &mut string) -> bool:
 > app/main/eq_refs
 >   local $0 a: Ref[string] [param read] value
 >     uses $0: entry -> %0 lend last
->   local $1 b: Ref[mut string] [param read] value
+>   local $1 b: RefMut[string] [param read] value
 >     uses $1: entry -> %1 lend last
 >   %0 = Read borrow [*$0] : string
 >   %1 = Read borrow [*$1] : string

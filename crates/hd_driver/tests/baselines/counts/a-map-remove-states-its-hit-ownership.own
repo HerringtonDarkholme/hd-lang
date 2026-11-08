@@ -4,7 +4,7 @@
 # expected: a remove hit copies its result and ends the table's key/value counts; scalar parts need none, and constant keys still clean up the stored key.
 fn remove_value[V](values: &mut Map[string, V], key: string) -> V?:
 > app/main/remove_value
->   local $0 values: Ref[mut Map[string, V]] [param read] value
+>   local $0 values: RefMut[Map[string, V]] [param read] value
 >     uses $0: entry -> %3 lend last
 >   local $1 key: string [param read] value
 >     uses $1: entry -> %1 lend last
@@ -22,13 +22,13 @@ fn remove_value[V](values: &mut Map[string, V], key: string) -> V?:
 
 fn text(values: &mut Map[string, string], key: string) -> string?:
 > app/main/text
->   local $0 values: Ref[mut Map[string, string]] [param read] value
+>   local $0 values: RefMut[Map[string, string]] [param read] value
 >     uses $0: entry -> %1 lend last
 >   local $1 key: string [param read] value
 >     uses $1: entry -> %2 lend last
 >   %0 = Release %5 Exit local $1 #2 : ()
     remove_value(values, key)
->   %1 = Read borrow [$0] : Ref[mut Map[string, string]]
+>   %1 = Read borrow [$0] : RefMut[Map[string, string]]
 >   %2 = Read borrow [$1] : string
 >   %3 = Call app/main/remove_value[string] (%1, %2) : string?
 >   %4 = Retain %3 Operation operand 1 #0 : ()
@@ -37,13 +37,13 @@ fn text(values: &mut Map[string, string], key: string) -> string?:
 
 fn lists(values: &mut Map[string, List[string]], key: string) -> List[string]?:
 > app/main/lists
->   local $0 values: Ref[mut Map[string, List[string]]] [param read] value
+>   local $0 values: RefMut[Map[string, List[string]]] [param read] value
 >     uses $0: entry -> %1 lend last
 >   local $1 key: string [param read] value
 >     uses $1: entry -> %2 lend last
 >   %0 = Release %5 Exit local $1 #2 : ()
     remove_value(values, key)
->   %1 = Read borrow [$0] : Ref[mut Map[string, List[string]]]
+>   %1 = Read borrow [$0] : RefMut[Map[string, List[string]]]
 >   %2 = Read borrow [$1] : string
 >   %3 = Call app/main/remove_value[List[string]] (%1, %2) : List[string]?
 >   %4 = Retain %3 Operation operand 1 #0 : ()
@@ -53,7 +53,7 @@ fn lists(values: &mut Map[string, List[string]], key: string) -> List[string]?:
 fn scalar(values: &mut Map[usize, i32], key: usize) -> i32?:
     values.remove(key)
 > app/main/scalar
->   local $0 values: Ref[mut Map[usize, i32]] [param read] value
+>   local $0 values: RefMut[Map[usize, i32]] [param read] value
 >     uses $0: entry -> %2 lend last
 >   local $1 key: usize [param read] value
 >     uses $1: entry -> %0 lend last
@@ -67,7 +67,7 @@ fn scalar(values: &mut Map[usize, i32], key: usize) -> i32?:
 fn constant_key(values: &mut Map[string, List[string]]) -> List[string]?:
     values.remove("fixed")
 > app/main/constant_key
->   local $0 values: Ref[mut Map[string, List[string]]] [param read] value
+>   local $0 values: RefMut[Map[string, List[string]]] [param read] value
 >     uses $0: entry -> %1 lend last
 >   %0 = IsUnique [*$0] : ()
 >   %1 = Read borrow [*$0] : Map[string, List[string]]
@@ -80,7 +80,7 @@ fn constant_key(values: &mut Map[string, List[string]]) -> List[string]?:
 
 fn unused(values: &mut Map[string, string], key: string) -> void:
 > app/main/unused
->   local $0 values: Ref[mut Map[string, string]] [param read] value
+>   local $0 values: RefMut[Map[string, string]] [param read] value
 >     uses $0: entry -> %3 lend last
 >   local $1 key: string [param read] value
 >     uses $1: entry -> %1 lend last

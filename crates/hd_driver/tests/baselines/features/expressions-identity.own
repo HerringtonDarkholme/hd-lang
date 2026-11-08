@@ -35,11 +35,11 @@ fn same_box(a: *User, b: *User) -> bool:
 fn mixed(a: *mut User, b: *User) -> bool:
     a is b
 > app/main/mixed
->   local $0 a: Counted[mut User] [param read] value
+>   local $0 a: CountedMut[User] [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 b: Counted[User] [param read] value
 >     uses $1: entry -> %1 lend last
->   %0 = Read borrow [$0] : Counted[mut User]
+>   %0 = Read borrow [$0] : CountedMut[User]
 >   %1 = Read borrow [$1] : Counted[User]
 >   %2 = Is %0 %1 : bool
 >   %3 = Block %2 : bool

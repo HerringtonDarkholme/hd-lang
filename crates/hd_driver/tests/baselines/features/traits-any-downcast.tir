@@ -57,7 +57,7 @@ fn erase(u: User) -> *dyn Inspectable:
 >   local $2 $ref: Counted[User] [read assigned captured]
 >   %0 = Read [$0] : User
 >   %1 = Store [$1] %0 : ()
->   %2 = Ref mut [$1] : Counted[mut User]
+>   %2 = Ref mut [$1] : CountedMut[User]
 >   %3 = Coerce %2 [Weaken -] : Counted[User]
 >   %4 = Store [$2] %3 : ()
 >   %5 = Read [$2] : Counted[User]

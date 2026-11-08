@@ -15,7 +15,7 @@ impl Bag:
     fn touch(&mut self, len: usize) -> usize:
         capacity := self.buffer.capacity()
 > std/rt_tests.stage_case/impl Bag.touch
->   local $0 self: Ref[mut Bag] [param read] value
+>   local $0 self: RefMut[Bag] [param read] value
 >     uses $0: entry -> %0 lend, %4 lend, %8 lend last
 >   local $1 len: usize [param read] value
 >     uses $1: entry -> %5 lend last
@@ -29,7 +29,7 @@ impl Bag:
 >   %3 = Store [$2] %1 : ()
 >   %16 = Block %15 : usize
         self.buffer.grow(len)
->   %4 = Ref mut local [*$0 .buffer] : Ref[mut Buffer[i32]]
+>   %4 = Ref mut local [*$0 .buffer] : RefMut[Buffer[i32]]
 >   %5 = Read copy [$1] : usize
 >   %6 = Call std/rt.memory/impl [ T < ? Copy ] Buffer [ T ].grow[i32] (%4, %5) : ()
 >   %7 = Drop [%4] : ()

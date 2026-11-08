@@ -20,7 +20,7 @@ impl Step for Counter:
     fn step(&mut self) -> i64?:
         if self.at >= self.end:
 > app/main/impl Step for Counter.step
->   local $0 self: Ref[mut Counter] [param read] value
+>   local $0 self: RefMut[Counter] [param read] value
 >     uses $0: entry -> %0 lend, %1 lend, %7 lend, %11 lend last
 >   local $1 value: i64 [:= read assigned] value
 >     uses $1: %8 -> %9 lend, %12 consume last
@@ -53,7 +53,7 @@ impl Step for Erased:
     fn step(&mut self) -> i64?:
         self.source.step()
 > app/main/impl Step for Erased.step
->   local $0 self: Ref[mut Erased] [param read] value
+>   local $0 self: RefMut[Erased] [param read] value
 >     uses $0: entry -> %0 lend last
 >   %0 = Read copy [*$0 .source *] : mut Step
 >   %1 = Call app/main/Step.step for Step [] via TraitValue (%0) : i64?
@@ -85,7 +85,7 @@ fn total(items: Erased) -> i64:
 >   %33 = Drop [$1] : ()
 >   %32 finds [$1] full
         match cursor.step():
->   %4 = Ref mut local frame [$1] : Ref[mut Erased]
+>   %4 = Ref mut local frame [$1] : RefMut[Erased]
 >   %5 = Call app/main/Step.step for Erased [] via Impl (%4) : i64?
 >   %6 = LoanEnd [%4] : ()
 >   %25 = Block - : never
@@ -121,18 +121,18 @@ pub fn count(n: i64) -> i64:
 >   local $0 n: i64 [param read] value
 >     uses $0: entry -> %0 consume last
 >   local $1 $ref: Counter [read assigned captured captured-assigned] place
->   local $2 $ref: Counted[mut Counter] [read assigned captured] value
+>   local $2 $ref: CountedMut[Counter] [read assigned captured] value
 >     uses $2: %4 -> %5 lend last
 >   %0 = Read copy [$0] : i64
 >   %1 = NewStruct [0:i64 %0] : Counter
 >   %2 = Store [$1] %1 : ()
->   %3 = Ref take mut [$1] : Counted[mut Counter]
+>   %3 = Ref take mut [$1] : CountedMut[Counter]
 >   %4 = Store [$2] %3 : ()
->   %5 = Read move [$2] : Counted[mut Counter]
+>   %5 = Read move [$2] : CountedMut[Counter]
 >   %6 = Coerce %5 [RefToTraitValue -] : Step
 >   %7 = LoanEnd [%5] : ()
 >   %8 = Block %6 : Step
->   %9 = RefDyn %8 : Counted[mut Step]
+>   %9 = RefDyn %8 : CountedMut[Step]
 >   %10 = NewStruct [%9] : Erased
 >   %11 = Call app/main/total[] (%10) : i64
 >   %12 = Block %11 : i64

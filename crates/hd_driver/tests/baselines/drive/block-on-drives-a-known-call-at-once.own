@@ -91,7 +91,7 @@ fn deferred(key: string, log: &mut List[string]) -> usize:
 > app/main/deferred
 >   local $0 key: string [param read] value
 >     uses $0: entry -> %1 lend last
->   local $1 log: Ref[mut List[string]] [param read] value
+>   local $1 log: RefMut[List[string]] [param read] value
 >     uses $1: entry -> %5 lend last
 >   local $2 pending: Suspend[string] [read assigned] value
 >     uses $2: %3 -> %7 lend last
