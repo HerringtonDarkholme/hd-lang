@@ -48,9 +48,9 @@ DESCRIBE = {
     "ir-store-then-read": "a Store to a local straight before a Read of it",
     "ir-unused-read": "a counted Read that nothing uses",
     "ir-conservative": "a count the compiler could not name a reason for",
-    "ir-exit-unlowered": "a stated parameter exit release with no release in the function's counts, usually the emitter's ABI check",
+    "ir-exit-unlowered": "a stated parameter exit release with no release in the function's counts: describes TIR text, emits nothing, so it predicts no time or size",
 }
-INFO_ONLY = {"set-then-get", "br-to-end", "empty-block", "empty-else", "ir-store-then-read"}
+INFO_ONLY = {"set-then-get", "br-to-end", "empty-block", "empty-else", "ir-store-then-read", "ir-exit-unlowered"}
 
 COUNT_HELPERS = re.compile(r"^(retain|rt:retain|rt:release|rt:coll_copy|rt:drop)")
 RETAINS = re.compile(r"^(retain|rt:retain|rt:coll_copy)")
