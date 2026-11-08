@@ -159,9 +159,7 @@ impl Ck<'_, '_> {
     pub(crate) fn local_fn(&mut self, n: NodeRef<'_>) -> StageResult<()> {
         let src = self.cx.src;
         let toks = &src.parse.tokens;
-        let Some(t) = n.name(toks).or_else(|| src.name_after(n, TokenKind::KwFn)) else {
-            return unsupported("a local function without a name");
-        };
+        let t = n.name_part(toks);
         let name = src.symbol(t, self.cx.names.syms);
         let generics = Src::child(n, SyntaxKind::GenericParameterList);
         if let Some(gl) = generics {
@@ -198,9 +196,9 @@ impl Ck<'_, '_> {
             let msg = format!("`{}` is already bound in this scope", src.text(t));
             self.err(Code::DuplicateBinding, n, &msg);
         }
-        let Some(body) = Src::child(n, SyntaxKind::Block) else {
-            return unsupported("a local function without a body");
-        };
+        // A local function is a free one, which the parser builds with
+        // its suite.
+        let body = n.part(SyntaxKind::Block);
         let mut parts = ClosureParts {
             params,
             ret: n
@@ -248,9 +246,7 @@ impl Ck<'_, '_> {
         }
         parts.form = Some(form);
         let (r, ft, own) = self.closure_with(n, &parts, None)?;
-        let Some(l) = own else {
-            return unsupported("a local function without its name");
-        };
+        let l = own.expect("a named closure binds its name");
         self.b.body_mut().local_ty[l.idx()] = ft;
         self.set_local(l, r, n.index());
         Ok(())
@@ -426,13 +422,13 @@ impl Ck<'_, '_> {
         } else {
             self.commit(cp);
         }
-        let Some(l) = own else {
-            return unsupported("a local function without its name");
-        };
+        let l = own.expect("a named closure binds its name");
         let caps = self.closure_caps(r);
-        let Some(g) = self.local_generics.get_mut(&l) else {
-            return unsupported("a generic local function without its entry");
-        };
+        // `closure_with` enters a named generic closure in `local_generics`.
+        let g = self
+            .local_generics
+            .get_mut(&l)
+            .expect("a generic local function's entry");
         let row_of = |t: Ty| match pool.get(t) {
             TyData::Fn { row, .. } => Some(row),
             _ => None,
@@ -519,13 +515,11 @@ impl Ck<'_, '_> {
         let checked = if parts.generic.is_some() {
             self.generic_closure(p, &mut parts)
         } else {
-            self.closure_with(p, &parts, None).and_then(|(r, ft, own)| {
-                let Some(l) = own else {
-                    return unsupported("a default without its name");
-                };
+            self.closure_with(p, &parts, None).map(|(r, ft, own)| {
+                let l = own.expect("a named closure binds its name");
                 self.b.body_mut().local_ty[l.idx()] = ft;
                 self.set_local(l, r, p.index());
-                Ok(l)
+                l
             })
         };
         self.forbidden = saved;

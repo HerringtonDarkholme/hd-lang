@@ -32,7 +32,7 @@ use hd_tir::ir::{
 };
 use hd_types::{Ty, TyData};
 
-use crate::body::{Ck, ExpectPosition, LetMutKind, unsupported};
+use crate::body::{Ck, ExpectPosition, LetMutKind};
 use crate::expr::Indexed;
 
 /// Where a place starts (`docs/compiler/tir-v2.md`, "Places").
@@ -1141,52 +1141,48 @@ impl Ck<'_, '_> {
     ) -> StageResult<Ref> {
         let pool = self.pool();
         let syn = n.index();
-        match (self.ref_of(at), self.ref_of(ct)) {
-            (Some((ai, _)), Some((ci, _))) => {
-                let (ai, ci) = (self.resolved(ai), self.resolved(ci));
-                let snap = self.infer.snapshot();
-                if self.infer.unify(pool, ai, ci).is_err() {
-                    self.infer.rollback(snap);
-                    let msg = format!(
-                        "`is` compares {} with {}, which refer to different types",
-                        self.show(at),
-                        self.show(ct)
-                    );
-                    self.err(Code::IncompatibleIdentityOperands, rn, &msg);
-                }
+        // The caller compares here only when an operand is a reference.
+        let (Some((ai, _)), Some((ci, _))) = (self.ref_of(at), self.ref_of(ct)) else {
+            let (other, other_ty, ref_ty) = if self.ref_of(at).is_some() {
+                (rn, ct, at)
+            } else {
+                (n, at, ct)
+            };
+            // An operand of type `never` diverged before the
+            // comparison, which is then unreachable.
+            if self.infer.resolve(pool, other_ty) == Ty::NEVER {
+                return Ok(if self.ref_of(at).is_some() { c } else { a });
             }
-            (Some(_), None) | (None, Some(_)) => {
-                let (other, other_ty, ref_ty) = if self.ref_of(at).is_some() {
-                    (rn, ct, at)
-                } else {
-                    (n, at, ct)
-                };
-                // An operand of type `never` diverged before the
-                // comparison, which is then unreachable.
-                if self.infer.resolve(pool, other_ty) == Ty::NEVER {
-                    return Ok(if self.ref_of(at).is_some() { c } else { a });
-                }
-                if self.infer.resolve(pool, other_ty) == Ty::POISON {
-                    return Ok(self.b.emit(Tag::Poison, NONE, NONE, Ty::BOOL, syn));
-                }
-                // `expr.is.value-operand`: a value has no identity at all.
-                if !self.has_identity(other_ty)? {
-                    let msg = format!(
-                        "{} has no identity to compare with `is`",
-                        self.show(other_ty)
-                    );
-                    self.err(Code::IdentityRequiresReferences, other, &msg);
-                    return Ok(self.b.emit(Tag::Poison, NONE, NONE, Ty::BOOL, syn));
-                }
-                let msg = format!(
-                    "`is` compares the reference {} with {}, which is not a reference; `is` on a reference needs a reference on both sides",
-                    self.show(ref_ty),
-                    self.show(other_ty)
-                );
-                self.err(Code::IncompatibleIdentityOperands, other, &msg);
+            if self.infer.resolve(pool, other_ty) == Ty::POISON {
                 return Ok(self.b.emit(Tag::Poison, NONE, NONE, Ty::BOOL, syn));
             }
-            (None, None) => return unsupported("`is` without a reference operand"),
+            // `expr.is.value-operand`: a value has no identity at all.
+            if !self.has_identity(other_ty)? {
+                let msg = format!(
+                    "{} has no identity to compare with `is`",
+                    self.show(other_ty)
+                );
+                self.err(Code::IdentityRequiresReferences, other, &msg);
+                return Ok(self.b.emit(Tag::Poison, NONE, NONE, Ty::BOOL, syn));
+            }
+            let msg = format!(
+                "`is` compares the reference {} with {}, which is not a reference; `is` on a reference needs a reference on both sides",
+                self.show(ref_ty),
+                self.show(other_ty)
+            );
+            self.err(Code::IncompatibleIdentityOperands, other, &msg);
+            return Ok(self.b.emit(Tag::Poison, NONE, NONE, Ty::BOOL, syn));
+        };
+        let (ai, ci) = (self.resolved(ai), self.resolved(ci));
+        let snap = self.infer.snapshot();
+        if self.infer.unify(pool, ai, ci).is_err() {
+            self.infer.rollback(snap);
+            let msg = format!(
+                "`is` compares {} with {}, which refer to different types",
+                self.show(at),
+                self.show(ct)
+            );
+            self.err(Code::IncompatibleIdentityOperands, rn, &msg);
         }
         // The backend compares the identity fields of the two `Ref`s
         // (`crates/hd_wasm_linear/DESIGN.md` §15.2, "References"), so a generic

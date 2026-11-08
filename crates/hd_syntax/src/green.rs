@@ -589,6 +589,22 @@ impl<'t> NodeRef<'t> {
         })
     }
 
+    /// The name token of a node the grammar builds with one, such as a
+    /// declaration, a projection or a name pattern ([`Self::parts`]).
+    #[must_use]
+    pub fn name_part(self, tokens: &TokenBuf) -> TokenIdx {
+        self.name(tokens)
+            .expect("the parser builds the node's name")
+    }
+
+    /// The child of `kind` of a node the grammar builds with one, such as
+    /// a function's or a closure's suite ([`Self::parts`]).
+    #[must_use]
+    pub fn part(self, kind: SyntaxKind) -> NodeRef<'t> {
+        self.child(kind)
+            .expect("the parser builds the node's required children")
+    }
+
     /// The first child of `kind`.
     #[must_use]
     pub fn child(self, kind: SyntaxKind) -> Option<NodeRef<'t>> {

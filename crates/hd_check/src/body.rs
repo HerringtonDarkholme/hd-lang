@@ -3940,8 +3940,8 @@ impl Ck<'_, '_> {
             | SyntaxKind::TraitDecl
             | SyntaxKind::TypeDecl
             | SyntaxKind::ImplDecl => self.local_decl(s)?,
-            SyntaxKind::FnDecl => self.local_fn(s)?,
-            other => return unsupported(format!("statement {other:?}")),
+            // The parser builds no other statement: a `FnDecl`.
+            _ => self.local_fn(s)?,
         }
         Ok(Ty::VOID)
     }

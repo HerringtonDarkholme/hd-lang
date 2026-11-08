@@ -124,9 +124,8 @@ impl Target<'_, '_> {
             diags,
         );
         let at = self.shape.line;
-        let Some(&(pname, pty)) = sig.params.first() else {
-            return unsupported("a generated error method without a parameter");
-        };
+        // Each generated method is a std trait method with a receiver.
+        let (pname, pty) = sig.params[0];
         let blk = ck.b.open_block();
         let p = ck.b.local(pty, pname, local_flags::PARAM, at.index());
         // `Display.to_string` and `Error.source` take `&self`; the arms

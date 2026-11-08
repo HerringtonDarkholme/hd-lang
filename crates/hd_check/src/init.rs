@@ -868,17 +868,9 @@ impl Ck<'_, '_> {
         ty_node: Option<NodeRef<'_>>,
         rhs: NodeRef<'_>,
     ) -> StageResult<(DefId, Ty)> {
-        if pat.kind() != SyntaxKind::BindingPattern {
-            return unsupported("a top-level binding with a pattern");
-        }
-        let Some(nt) = pat.direct_tokens().find(|t| {
-            matches!(
-                self.cx.src.tkind(*t),
-                Some(TokenKind::Ident | TokenKind::RawIdent)
-            )
-        }) else {
-            return unsupported("a top-level binding without a name");
-        };
+        // A name pattern: the caller's, or a chain's inner one, which the
+        // parser builds as a name (`:=` binds one name).
+        let nt = pat.name_part(&self.cx.src.parse.tokens);
         let text = self.cx.src.text(nt).to_owned();
         let name = self.cx.names.syms.intern(&text);
         self.check_prelude_shadow(name, pat);
@@ -948,9 +940,7 @@ impl Ck<'_, '_> {
     /// over the earlier values (`data.shared.default.eval-order`).
     fn shared_init(&mut self, s: NodeRef<'_>) -> StageResult<()> {
         let tokens = &self.cx.src.parse.tokens;
-        let Some(t) = s.name(tokens) else {
-            return unsupported("an enum without a name");
-        };
+        let t = s.name_part(tokens);
         let ename = self.cx.src.text(t).to_owned();
         let module = self.module_init.clone().unwrap_or_default();
         let def = self.cx.names.item(&module, &ename);

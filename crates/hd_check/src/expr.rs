@@ -4796,17 +4796,15 @@ impl Ck<'_, '_> {
 
     /// `fn(params) -> R: body`: a sub-body with its captures.
     fn closure(&mut self, n: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
-        let parts = self.closure_parts(n)?;
+        let parts = self.closure_parts(n);
         self.closure_of(n, &parts, want)
     }
 
     /// The source parts of the `fn(params) -> R: body` expression `n`.
-    pub(crate) fn closure_parts<'t>(&self, n: NodeRef<'t>) -> StageResult<ClosureParts<'t>> {
+    pub(crate) fn closure_parts<'t>(&self, n: NodeRef<'t>) -> ClosureParts<'t> {
         // `fn(..): e` on one line is a suite too: the parser builds a block.
-        let Some(body) = Src::child(n, SyntaxKind::Block) else {
-            return unsupported("a closure without a body");
-        };
-        Ok(ClosureParts {
+        let body = n.part(SyntaxKind::Block);
+        ClosureParts {
             params: Src::child(n, SyntaxKind::ParameterList),
             ret: n
                 .children()
@@ -4821,7 +4819,7 @@ impl Ck<'_, '_> {
             generic: None,
             upto: None,
             form: None,
-        })
+        }
     }
 
     /// A trailing block (`fn.trailing.closure`): a zero-argument closure

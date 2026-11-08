@@ -497,7 +497,8 @@ impl Ck<'_, '_> {
                     }
                 }
             }
-            SyntaxKind::DataPattern => {
+            // A data pattern: the parser builds no other pattern.
+            _ => {
                 let mut seen: Vec<String> = Vec::new();
                 for f in p
                     .children()
@@ -531,7 +532,6 @@ impl Ck<'_, '_> {
                     }
                 }
             }
-            other => return unsupported(format!("the pattern {other:?}")),
         }
         Ok(())
     }
@@ -746,11 +746,9 @@ impl Ck<'_, '_> {
                     } else {
                         tok
                     };
+                    // An interpolated string is the pattern's child.
                     match self.cx.src.tkind(tok) {
                         Some(TokenKind::String) => (self.string_expr(p)?, Ty::STRING),
-                        Some(TokenKind::StrHead) => {
-                            return unsupported("an interpolated string pattern");
-                        }
                         _ => self.literal_at(tok)?,
                     }
                 };
@@ -877,7 +875,7 @@ impl Ck<'_, '_> {
             {
                 self.check_local_name(name, pat);
                 self.check_prelude_shadow(name, pat);
-                let mut parts = self.closure_parts(rhs)?;
+                let mut parts = self.closure_parts(rhs);
                 parts.name = Some(name);
                 parts.reassignable = at.kind() != SyntaxKind::BindingExpr;
                 let (r, t, own) = self.closure_with(rhs, &parts, annot)?;
@@ -1794,13 +1792,12 @@ impl Ck<'_, '_> {
                 };
                 tests.push(self.b.prim(op as u32, &[v, h], Ty::BOOL, p.index()));
             }
-            return match tests.as_slice() {
-                [only] => Ok(*only),
-                [a, c] => Ok(self
-                    .b
-                    .prim(PrimOp::And as u32, &[*a, *c], Ty::BOOL, p.index())),
-                _ => unsupported("a range pattern without a bound"),
-            };
+            // The parser builds a range pattern with a bound.
+            let test = tests.into_iter().reduce(|a, c| {
+                self.b
+                    .prim(PrimOp::And as u32, &[a, c], Ty::BOOL, p.index())
+            });
+            return Ok(test.expect("a range pattern's bound"));
         }
         let (lit, _) = self.pattern_literal(p, Some(t))?;
         let pool = self.pool();

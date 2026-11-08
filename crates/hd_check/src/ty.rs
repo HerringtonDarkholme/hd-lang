@@ -1126,9 +1126,7 @@ impl Ck<'_, '_> {
             }
             SyntaxKind::ProjectionType => {
                 let base = first(self, n)?;
-                let Some(t) = n.name(&self.cx.src.parse.tokens) else {
-                    return unsupported("a projection without a name");
-                };
+                let t = n.name_part(&self.cx.src.parse.tokens);
                 let name = self.cx.src.text(t).to_owned();
                 let Some((trait_, args)) = self.assoc_owner(base, &name) else {
                     // No bound declares the name: an associated-type

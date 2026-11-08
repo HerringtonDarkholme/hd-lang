@@ -22,6 +22,10 @@ use hd_types::{ParamRef, Ty, TyData, TyList, with_assoc_args};
 use crate::body::{BodyCx, Ck, ExpectPosition, new_ck};
 use crate::newtype::Conversion;
 
+/// A forwarder's part is an embedded field: [`forwarder_bodies`] makes no
+/// forwarder for any other part.
+const EMBEDDED: &str = "a delegation's part is an embedded field";
+
 /// The bodies of the forwarding methods of the implementation `imp`,
 /// declared at `node`. A part that is not an embedded field of a data
 /// type, or does not implement the trait, has no forwarders; the header
@@ -175,35 +179,25 @@ impl Forwarder<'_> {
             .collect();
         let mut refs = Vec::new();
         if let Some(part_name) = self.part_name {
-            let Some(&(sl, st)) = params.first() else {
-                return crate::body::unsupported("a forwarding method without a receiver");
-            };
+            // Only a method with a receiver is forwarded
+            // (`trait.by.generated-receiver`).
+            let (sl, st) = params[0];
             // The receiver `self.E`, with `self`'s access.
             let sv = ck.b.get(sl, st, at);
             if let Some((inner, mutable)) = ck.ref_of(st) {
                 // A `&self` or `&mut self` receiver of a struct (never a
                 // counted one, which has no forwarder): a
                 // reference to its embedded part (`trait.by.form`).
-                let Some((idx, ft)) = ck.field_of(inner, part_name) else {
-                    return crate::body::unsupported(
-                        "a forwarding method whose part is not a field",
-                    );
-                };
-                let crate::refs::Operand::Place(place) =
-                    ck.part_place(crate::refs::Operand::Value(sv, st), vec![(idx, ft)], node)
-                else {
-                    return crate::body::unsupported(
-                        "a forwarding method whose part is not a place",
-                    );
+                let (idx, ft) = ck.field_of(inner, part_name).expect(EMBEDDED);
+                let place = crate::refs::Place {
+                    root: crate::refs::Root::Deref(sv, st),
+                    path: vec![(idx, ft)],
+                    ty: ft,
                 };
                 let rt = ck.ref_ty(ft, mutable, true);
                 refs.push(ck.make_ref(&place, mutable, rt, node));
             } else {
-                let Some((idx, ft)) = ck.field_of(st, part_name) else {
-                    return crate::body::unsupported(
-                        "a forwarding method whose part is not a field",
-                    );
-                };
+                let (idx, ft) = ck.field_of(st, part_name).expect(EMBEDDED);
                 refs.push(ck.b.field(sv, idx, ft, at));
             }
             for &(l, t) in &params[1..] {
