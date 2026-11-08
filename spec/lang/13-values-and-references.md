@@ -980,21 +980,20 @@ fn keep(text: string) -> void:
 2. r[ref.lifetime.struct.field] A field of a lifetime struct may write `&'a T` or `&'a mut T` with one of the struct's lifetimes. Such a field is no escape to a field.
 3. r[ref.lifetime.struct.argument] A type names a lifetime struct with one lifetime argument per lifetime parameter, as in `Parser[string, 'a]`. The lifetime arguments take the lifetime parameters in order.
 4. r[ref.lifetime.struct.argument.count] A struct type with lifetime arguments, but not one per lifetime parameter of the struct, is an error. Error: `argument-count`.
-5. r[ref.lifetime.struct.argument.other] A lifetime argument of a trait or a type alias is not checked yet, so it is an error. Error: `references-not-yet-checked`.
-6. r[ref.lifetime.struct.holds] A lifetime struct holds a local reference ([`ref.local.holding`](#r-ref.local.holding)), so every rule of [Local References](#local-references) applies to its values.
-7. r[ref.lifetime.struct.position] Each lifetime parameter is one reference position of the struct's type, after the positions of its type arguments. A written lifetime argument names that position's lifetime ([`ref.lifetime.position`](#r-ref.lifetime.position)).
-8. r[ref.lifetime.struct.construct] A struct literal adds the origins of a field typed `&'a T` to the value's `'a` position only.
-9. r[ref.lifetime.struct.read] Reading a field typed `&'a T` gives a reference whose origins are the origins of the value's `'a` position.
-10. r[ref.lifetime.struct.read.one-lifetime] A field of another type whose reference positions all name one lifetime, as `Option[&'a T]` or `Parser[T, 'a]`, is constructed and read the same way.
-11. r[ref.lifetime.struct.read.mixed] A field whose reference positions name two or more lifetimes, as `inner: Two['b, 'a]`, is constructed and read position by position: each position has the origins of the lifetime it names. A field nested inside such a field follows the same rule.
-12. r[ref.lifetime.struct.field-elided] A field whose type names a lifetime struct without lifetime arguments holds a local reference, so it is an error. Error: `local-reference-escapes`.
-13. r[ref.lifetime.struct.elide] A signature may name a lifetime struct without lifetime arguments. Each elided argument is a reference position that writes no lifetime ([`ref.lifetime.position`](#r-ref.lifetime.position)).
-14. r[ref.lifetime.struct.elide.parameter] In a parameter's type, each elided argument has a lifetime of its own, so `p: &Parser[string]` has two reference positions.
-15. r[ref.lifetime.struct.elide.result] In the result type, each elided argument takes its lifetime as [`ref.lifetime.elide`](#r-ref.lifetime.elide) states, as in `fn make(s: &string) -> Parser[string]`.
-16. r[ref.lifetime.struct.elide.ambiguous] So a result that writes no lifetime, with no reference receiver and two lifetimes among the parameters' positions, is an error, as in `fn src(p: &Parser[string]) -> &string`. Error: `ambiguous-reference-source`.
-17. r[ref.lifetime.struct.impl] An inherent implementation's target may write the implementation's lifetimes, as in `impl[T, 'a] Parser[T, 'a]`. Its methods' `self` and `Self` have those lifetimes.
-18. r[ref.lifetime.struct.impl.elided] An implementation's target that names a lifetime struct without lifetime arguments is not checked yet, so it is an error. Error: `references-not-yet-checked`.
-19. r[ref.lifetime.struct.body] A function body names a lifetime struct without lifetime arguments, as in `let p: Parser[string] = q`.
+5. r[ref.lifetime.struct.holds] A lifetime struct holds a local reference ([`ref.local.holding`](#r-ref.local.holding)), so every rule of [Local References](#local-references) applies to its values.
+6. r[ref.lifetime.struct.position] Each lifetime parameter is one reference position of the struct's type, after the positions of its type arguments. A written lifetime argument names that position's lifetime ([`ref.lifetime.position`](#r-ref.lifetime.position)).
+7. r[ref.lifetime.struct.construct] A struct literal adds the origins of a field typed `&'a T` to the value's `'a` position only.
+8. r[ref.lifetime.struct.read] Reading a field typed `&'a T` gives a reference whose origins are the origins of the value's `'a` position.
+9. r[ref.lifetime.struct.read.one-lifetime] A field of another type whose reference positions all name one lifetime, as `Option[&'a T]` or `Parser[T, 'a]`, is constructed and read the same way.
+10. r[ref.lifetime.struct.read.mixed] A field whose reference positions name two or more lifetimes, as `inner: Two['b, 'a]`, is constructed and read position by position: each position has the origins of the lifetime it names. A field nested inside such a field follows the same rule.
+11. r[ref.lifetime.struct.field-elided] A field whose type names a lifetime struct without lifetime arguments holds a local reference, so it is an error. Error: `local-reference-escapes`.
+12. r[ref.lifetime.struct.elide] A signature may name a lifetime struct without lifetime arguments. Each elided argument is a reference position that writes no lifetime ([`ref.lifetime.position`](#r-ref.lifetime.position)).
+13. r[ref.lifetime.struct.elide.parameter] In a parameter's type, each elided argument has a lifetime of its own, so `p: &Parser[string]` has two reference positions.
+14. r[ref.lifetime.struct.elide.result] In the result type, each elided argument takes its lifetime as [`ref.lifetime.elide`](#r-ref.lifetime.elide) states, as in `fn make(s: &string) -> Parser[string]`.
+15. r[ref.lifetime.struct.elide.ambiguous] So a result that writes no lifetime, with no reference receiver and two lifetimes among the parameters' positions, is an error, as in `fn src(p: &Parser[string]) -> &string`. Error: `ambiguous-reference-source`.
+16. r[ref.lifetime.struct.impl] An inherent implementation's target may write the implementation's lifetimes, as in `impl[T, 'a] Parser[T, 'a]`. Its methods' `self` and `Self` have those lifetimes.
+17. r[ref.lifetime.struct.impl.elided] An implementation's target that names a lifetime struct without lifetime arguments is not checked yet, so it is an error. Error: `references-not-yet-checked`.
+18. r[ref.lifetime.struct.body] A function body names a lifetime struct without lifetime arguments, as in `let p: Parser[string] = q`.
 
 ```hd
 struct Parser[T, 'src]:
