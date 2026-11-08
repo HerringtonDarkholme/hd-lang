@@ -4493,7 +4493,7 @@ impl Ck<'_, '_> {
         // A map's live entry, or a list's element place `[%c [%p]]`.
         let item = if map {
             let TyData::Tuple { elems, .. } = self.pool().get(item_ty) else {
-                return unsupported("a map loop item that is not a pair");
+                unreachable!("for_loop and map_ref_loop construct a pair item type");
             };
             let fields = self.pool().list_items(elems);
             let mutable = fields

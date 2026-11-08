@@ -462,7 +462,7 @@ impl Ck<'_, '_> {
         };
         let mt = self.ref_of(source_ty).map_or(source_ty, |(inner, _)| inner);
         let Some((Indexed::Map, key, value)) = self.index_kind(mt) else {
-            return crate::body::unsupported("a map loop source that is not a map");
+            unreachable!("for_loop selected an Indexed::Map source");
         };
         let item = self.pool().intern_ty(&hd_types::TyData::Tuple {
             elems: self.pool().list(&[

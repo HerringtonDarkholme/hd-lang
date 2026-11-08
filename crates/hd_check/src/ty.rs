@@ -1073,28 +1073,25 @@ impl Ck<'_, '_> {
                     );
                     return Ok(Ty::POISON);
                 }
-                match Src::child(n, SyntaxKind::NamedType) {
-                    Some(c) => {
-                        let t = self.named_ty_as(c, NameRole::Trait)?;
-                        if let TyData::TraitValue { def, .. } = pool.get(t)
-                            && let Some(name) = self.cx.names.known.fn_trait_name(def)
-                        {
-                            let msg = format!(
-                                "`{name}` is a static-dispatch function trait and has no `dyn` form; use a `fn(...) -> ...` type for dynamic calls"
-                            );
-                            self.err(Code::TraitNotDynamicallySafe, n, &msg);
-                            return Ok(Ty::POISON);
-                        }
-                        let view = hd_resolve::assoc::LookupView {
-                            lookup: self.cx.lookup,
-                            names: &self.cx.names,
-                        };
-                        let t = hd_resolve::assoc::with_super_bindings(pool, &view, t);
-                        self.require_complete(t, n);
-                        t
-                    }
-                    None => return unsupported("this `dyn` form"),
+                let c = Src::child(n, SyntaxKind::NamedType)
+                    .expect("parser::ty_bound_trait emits NamedType");
+                let t = self.named_ty_as(c, NameRole::Trait)?;
+                if let TyData::TraitValue { def, .. } = pool.get(t)
+                    && let Some(name) = self.cx.names.known.fn_trait_name(def)
+                {
+                    let msg = format!(
+                        "`{name}` is a static-dispatch function trait and has no `dyn` form; use a `fn(...) -> ...` type for dynamic calls"
+                    );
+                    self.err(Code::TraitNotDynamicallySafe, n, &msg);
+                    return Ok(Ty::POISON);
                 }
+                let view = hd_resolve::assoc::LookupView {
+                    lookup: self.cx.lookup,
+                    names: &self.cx.names,
+                };
+                let t = hd_resolve::assoc::with_super_bindings(pool, &view, t);
+                self.require_complete(t, n);
+                t
             }
             SyntaxKind::FunctionType => {
                 let arrow = n

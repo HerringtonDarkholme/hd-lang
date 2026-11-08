@@ -553,12 +553,9 @@ impl Ck<'_, '_> {
     /// generic scope, with its `!` and requirement row: the type a typed
     /// fact on it checks against (`annot.typed-fact.declared-type`).
     pub(crate) fn own_fn_ty(&mut self, def: DefId) -> StageResult<Ty> {
-        let Some(sig) = self.cx.lookup.item(def).and_then(|i| i.sig()).cloned() else {
-            return unsupported("a typed fact on a target that is not a function");
-        };
         let m = Member {
             def,
-            sig: self.with_result(def, sig),
+            sig: self.sig_of(def)?,
             vars: Vec::new(),
             owner: Owner::Item,
         };
@@ -965,11 +962,11 @@ impl Ck<'_, '_> {
         n: NodeRef<'_>,
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
-        let Some((tv, writable)) = self.dyn_ref_of(receiver) else {
-            return unsupported("a dynamic member reference without a reference receiver");
-        };
+        let (tv, writable) = self
+            .dyn_ref_of(receiver)
+            .expect("selected dynamic receiver");
         let Owner::Trait { def: trait_, .. } = m.owner else {
-            return unsupported("a dynamic member reference outside a trait");
+            unreachable!("dynamic member callers select Owner::Trait");
         };
         if pool.has_opaque(m.sig.ret) {
             let name = self
@@ -1029,7 +1026,7 @@ impl Ck<'_, '_> {
             ..
         } = pool.get(method_ty)
         else {
-            return unsupported("a dynamic member reference without a function type");
+            unreachable!("member_fn_ty constructs TyData::Fn");
         };
         let mut ptys = Vec::new();
         if bound.is_none() {
@@ -1159,7 +1156,7 @@ impl Ck<'_, '_> {
             ..
         } = pool.get(ft)
         else {
-            return unsupported("a bound reference's type");
+            unreachable!("member_fn_ty constructs TyData::Fn");
         };
         let callee = match &m.owner {
             Owner::Item => Callee::Item {

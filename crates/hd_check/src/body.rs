@@ -2963,7 +2963,7 @@ impl Ck<'_, '_> {
                 self.err(Code::TraitResolutionDepth, at, &msg);
                 Ok(None)
             }
-            other => unsupported(format!("solver answer {other:?}")),
+            other => unreachable!("solve asks Implements; solve_goal handles fuel: {other:?}"),
         }
     }
 

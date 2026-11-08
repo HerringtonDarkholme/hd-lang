@@ -15,7 +15,7 @@ use hd_types::solver::{
 use hd_types::unify::TrialMark;
 use hd_types::{ParamRef, Ty, TyData, VarKind};
 
-use crate::body::{Ck, ExpectPosition, RowFrame, unsupported};
+use crate::body::{Ck, ExpectPosition, RowFrame};
 use crate::call::{Args, TraitTarget, subst_owner};
 
 /// One change to body state that is written in place, logged while a
@@ -494,9 +494,10 @@ impl Ck<'_, '_> {
         want: Option<Ty>,
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
-        let Some(table) = self.cx.impl_table(c.row.module) else {
-            return unsupported("a candidate outside the impl tables");
-        };
+        let table = self
+            .cx
+            .impl_table(c.row.module)
+            .expect("solver candidate table");
         let row = c.row.row as usize;
         let impl_def = table.def[row];
         let n_params = pool.list_items(c.impl_args).len();

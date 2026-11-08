@@ -1213,7 +1213,9 @@ impl Ck<'_, '_> {
                 SyntaxKind::LiteralPattern | SyntaxKind::RangePattern => {
                     self.test(rows, occs, m, j, p, lits)
                 }
-                other => unsupported(format!("the pattern {other:?} in a decision")),
+                other => {
+                    unreachable!("settle and tuple/data expansion leave only tests: {other:?}")
+                }
             },
             Cell::Some(_) | Cell::Wild => self.switch(rows, occs, &m, j, lits),
         }

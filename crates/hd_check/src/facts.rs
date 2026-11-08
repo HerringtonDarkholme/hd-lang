@@ -27,7 +27,7 @@ use hd_tir::ir::{BodyKind, Coercion, NONE, Ref, Tag, TirSink};
 use hd_types::solver::TraitRef;
 use hd_types::{ParamRef, RowId, Ty, TyData, TyList, VarKind};
 
-use crate::body::{BodyCx, Ck, ExpectPosition, is_out_of_fuel, new_ck, too_complex, unsupported};
+use crate::body::{BodyCx, Ck, ExpectPosition, is_out_of_fuel, new_ck, too_complex};
 use crate::call::{Args, subst_owner};
 use crate::structure::{FactLines, Slot};
 use crate::ty::Named;
@@ -343,9 +343,8 @@ fn fact_list_steps(
             }
         };
         for e in values {
-            if e.kind() == SyntaxKind::ComprehensionFor {
-                return unsupported("a member line list with a comprehension");
-            }
+            // `parser::list` makes a comprehension `ComprehensionExpr`,
+            // handled as a whole expression above, never a ListExpr child.
             ck.move_to(cx.src.span(e).lo);
             if e.kind() == SyntaxKind::SpreadExpr {
                 let [operand] = e.parts();
