@@ -72,7 +72,7 @@ jobs:
       - name: Install browser target
         run: rustup target add wasm32-unknown-unknown
 
-      # check:cost runs one `ast-grep scan` (sgconfig.yml, rules/cost/).
+      # check:cost runs one `ast-grep scan` (.ast-grep/sgconfig.yml, .ast-grep/rules/).
       - name: Install ast-grep
         shell: bash
         run: |

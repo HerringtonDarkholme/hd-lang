@@ -1,0 +1,4 @@
+# ast-grep project config, passed with --config (.ast-grep/). `pnpm run check:cost` (scripts/check-cost.ts) runs
+# one `ast-grep scan` over the repository with these rules.
+ruleDirs:
+  - rules

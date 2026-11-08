@@ -1,7 +1,7 @@
 // Fails when a per-run path lists a directory or spawns a process per item
 // without stating its cost (.agents/skills/shared-rules.md "Cost Model").
 //
-// The rules are ast-grep rules in rules/cost/ (sgconfig.yml):
+// The rules are ast-grep rules in .ast-grep/rules/ (.ast-grep/sgconfig.yml):
 // - cost-rust-read-dir: `read_dir(...)` in non-test code under crates/*/src.
 // - cost-rust-spawn-in-loop: `Command::new(...)` in a loop body or an
 //   iterator closure, in the same code.
@@ -41,11 +41,15 @@ type Match = {
 
 type Row = { rule: string; path: string; issue: string; code: string; line: number };
 
-const scan = spawnSync("ast-grep", ["scan", "--json=compact"], {
-  cwd: root,
-  encoding: "utf8",
-  maxBuffer: 64 * 1024 * 1024,
-});
+const scan = spawnSync(
+  "ast-grep",
+  ["scan", "--config", ".ast-grep/sgconfig.yml", "--json=compact"],
+  {
+    cwd: root,
+    encoding: "utf8",
+    maxBuffer: 64 * 1024 * 1024,
+  },
+);
 if (scan.error) {
   process.stderr.write(`check:cost needs ast-grep on PATH: ${scan.error.message}\n`);
   process.exit(2);
