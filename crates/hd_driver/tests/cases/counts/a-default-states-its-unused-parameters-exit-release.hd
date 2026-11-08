@@ -1,0 +1,19 @@
+# @dump: own counts wat
+# A default's parameters are its own locals. One it leaves unused, but a dev
+# caller passes owned, has a stated exit release (`last use`), as a function's
+# has; a constant default with one still folds to its constant at the call.
+fn note(log: *mut List[string], text: string) -> string:
+    log.push(text)
+    text
+
+fn join(
+    log: *mut List[string],
+    first: string,
+    second: string = note(log, "second"),
+    limit: usize = 64,
+) -> string:
+    "$first $second $limit"
+
+pub fn main() -> void $ Console:
+    log := box::[List[string]]([])
+    println(join(log, "first"))

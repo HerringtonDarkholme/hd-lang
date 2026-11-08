@@ -387,8 +387,8 @@ fn body_func<'a>(
             if plocals.contains(l) {
                 let t = em.sub(b.local_ty[*l]);
                 // A lent parameter the passes leave unowned is outside the
-                // exit set: the body takes no count of it, and releases at
-                // its exit the count an instance that owns it receives.
+                // exit set: the body takes no count of it, and an instance
+                // that owns it releases it by the stated exit `Release`.
                 let unowned = by_type
                     && !b
                         .exit_drops
@@ -397,19 +397,6 @@ fn body_func<'a>(
                 if by_type {
                     let k = plocals.iter().position(|p| p == l).expect("parameter");
                     match em.pass_at(em.lends, k, t) {
-                        Pass::Owned(_) if unowned => {
-                            if em
-                                .stated_count(
-                                    Tag::Release,
-                                    CountAt::Exit,
-                                    CountPart::Local(u32::try_from(*l).expect("local")),
-                                )
-                                .is_none()
-                            {
-                                em.unowned_params.push(*l);
-                            }
-                            continue;
-                        }
                         Pass::Borrowed if unowned || lent_here.contains(l) => {
                             em.borrowed.insert(*l);
                             continue;
@@ -1094,9 +1081,6 @@ struct Em<'i, 'a, 'm> {
     /// A top-level binding's initializer: its key, for a cell that the
     /// binding's reference keeps for the whole program (a static cell).
     init_key: Option<Hash128>,
-    /// In an owned body: the lent parameters the passes left unowned that
-    /// this instance takes owned (`count.rs`): its exit releases them.
-    unowned_params: Vec<usize>,
     /// The stable lists' loop caches ([`Em::own_list_caches`]), dropped at
     /// the loop's exit.
     list_caches: Vec<(list::ListRoot, list::ListCache)>,
@@ -1298,7 +1282,6 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             owned_locals: hd_base::HashSet::default(),
             frame_refs: Vec::new(),
             init_key: None,
-            unowned_params: Vec::new(),
             list_caches: Vec::new(),
             cached_buffers: Vec::new(),
             proven_list_indices: Vec::new(),

@@ -17,7 +17,10 @@ impl Joiner:
 >     uses $1: entry -> %3 lend last
 >   %0 = Release %9 Exit local $1 #2 : ()
 > app/main/impl Joiner.join.sep
->   %0 = Block ", " : string
+>   local $0 self: Ref[Joiner] [param] value
+>     uses $0: none
+>   %0 = Release %1 Exit local $0 #2 : ()
+>   %1 = Block ", " : string
 >   summary kept [] borrows [$0]
         self.parts.len() * sep.len()
 >   %1 = Read borrow [*$0 .parts] : List[string]

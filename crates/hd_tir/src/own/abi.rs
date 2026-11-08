@@ -9,7 +9,8 @@ use super::{OwnCx, Pass, params};
 use crate::ir::{Body, BodyKind};
 
 /// The root parameters whose declarations may supply a count the body
-/// itself does not own. Closure and suspension ABIs are separate kinds.
+/// itself does not own. Closure and suspension ABIs are separate kinds; a
+/// default has no item signature, so its parameter locals are its own.
 pub(crate) fn parameters(b: &Body, cx: &dyn OwnCx) -> Vec<u32> {
     if !matches!(
         b.kind,
@@ -19,7 +20,7 @@ pub(crate) fn parameters(b: &Body, cx: &dyn OwnCx) -> Vec<u32> {
         return Vec::new();
     }
     let params = params(b);
-    if cx.parameter_count(b.item) != Some(params.len()) {
+    if b.kind != BodyKind::Default && cx.parameter_count(b.item) != Some(params.len()) {
         return Vec::new();
     }
     params

@@ -3916,11 +3916,15 @@ fn direct_calls(
 /// body that does not can never reach `block_on`, so its `DefaultCall`
 /// needs no forbidden-context bracket (`crates/hd_mono/DESIGN.md` §12.3).
 /// The bits of a default body that is one scalar constant: a root block
-/// with no instruction whose value is a constant other than a string
+/// with no instruction but its parameters' exit releases, moot when no
+/// call passes them, whose value is a constant other than a string
 /// (`crates/hd_mono/DESIGN.md` §13.13).
 fn scalar_constant(body: &Body) -> Option<u64> {
     let root = *body.sub_root.first()? as usize;
-    if body.tags.get(root) != Some(&Tag::Block) || !body.record(body.data[root][0]).is_empty() {
+    let rec = body.record(body.data[root][0]);
+    if body.tags.get(root) != Some(&Tag::Block)
+        || rec.iter().any(|&s| body.tags[s as usize] != Tag::Release)
+    {
         return None;
     }
     let tail = hd_tir::ir::Ref(body.data[root][1]);

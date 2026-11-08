@@ -636,8 +636,8 @@ count glue, with release glue in `rt.rs`, and decides none itself.
   count (`push_args`); a parameter its caller lends takes one on entry
   when the body owns it (its sub-body's exit set lists it), while one the
   borrow pass left unowned takes none, and an instance that receives it
-  owned (a type parameter's) releases it at the exit
-  (`Em::unowned_params`); and a cancelled suspension point, an edge the
+  owned (a type parameter's) releases it by its stated exit `Release`
+  (`hd_tir::own::abi`); and a cancelled suspension point, an edge the
   TIR does not have, releases the values the known-null pass lists for it
   (`Body::unwind_drops`; from a cleanup scope's ladder, those of every
   point inside the scope) and then leaves through the exit, whose exit

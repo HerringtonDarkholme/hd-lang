@@ -82,12 +82,13 @@ pub fn key(plain: Hash128, known: &[(u32, Hash128)], defaults: &[(u32, Value)]) 
     h.finish()
 }
 
-/// A default must consist entirely of constants and transparent coercions.
+/// A default must consist entirely of constants and transparent coercions,
+/// besides its parameters' exit releases, moot once no call passes them.
 /// Returning a constant after a call or a write is deliberately not enough.
 #[must_use]
 pub fn constant(body: &Body) -> Option<Value> {
     if body.tags.iter().enumerate().any(|(i, tag)| match tag {
-        Tag::Block => false,
+        Tag::Block | Tag::Release => false,
         Tag::NewVariant => !body.record(body.data[i][1]).is_empty(),
         Tag::Coerce => !transparent(body, i),
         _ => true,

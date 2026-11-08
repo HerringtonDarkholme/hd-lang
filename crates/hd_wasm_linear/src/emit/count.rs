@@ -688,13 +688,6 @@ impl Em<'_, '_, '_> {
                 .then_some((local as usize, Reason::from_word(c.reason)))
             })
             .collect();
-        // Closure and other non-source ABIs keep their separate legacy
-        // path until their cleanup contracts are stated too.
-        exits.extend(
-            self.unowned_params
-                .iter()
-                .map(|&l| (l, Reason::Conservative("unowned parameter"))),
-        );
         exits.sort_stable_by_key(|x| x.0);
         for (l, reason) in exits {
             self.f.reason = Some(reason);
