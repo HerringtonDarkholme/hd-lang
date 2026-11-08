@@ -577,20 +577,17 @@ impl Ck<'_, '_> {
         Ok(None)
     }
 
-    /// `f::[T]` as a value, or a member's `Owner::name::[T]`.
+    /// `f::[T]` as a value, or a member's `Owner::name::[T]`: `n` is
+    /// `inner` with the type arguments `tl`.
     pub(crate) fn explicit_item_value(
         &mut self,
         n: NodeRef<'_>,
+        inner: NodeRef<'_>,
+        tl: NodeRef<'_>,
         want: Option<Ty>,
     ) -> StageResult<(Ref, Ty)> {
-        let Some(inner) = n.children().next() else {
-            return unsupported("a type-argument value shape");
-        };
-        let mut explicit = Vec::new();
-        if let Some(tl) = Src::child(n, SyntaxKind::TypeArgumentList) {
-            let gens = self.explicit_generics(inner);
-            explicit = self.explicit_targs(tl, &gens)?;
-        }
+        let gens = self.explicit_generics(inner);
+        let explicit = self.explicit_targs(tl, &gens)?;
         if inner.kind() == SyntaxKind::PathExpr {
             return self.path_value(inner, want, &explicit);
         }
@@ -767,16 +764,11 @@ impl Ck<'_, '_> {
     pub(crate) fn call(
         &mut self,
         n: NodeRef<'_>,
-        kids: &[NodeRef<'_>],
+        callee: NodeRef<'_>,
+        al: NodeRef<'_>,
         want: Option<Ty>,
     ) -> StageResult<(Ref, Ty)> {
-        let (Some(callee), al) = (
-            kids.first().copied(),
-            Src::child(n, SyntaxKind::ArgumentList),
-        ) else {
-            return unsupported("a call shape");
-        };
-        let args = self.args_of(al);
+        let args = self.args_of(Some(al));
         self.call_args(n, callee, &args, want)
     }
 
@@ -788,17 +780,13 @@ impl Ck<'_, '_> {
     pub(crate) fn trailing_call(
         &mut self,
         n: NodeRef<'_>,
+        head: NodeRef<'_>,
+        block: NodeRef<'_>,
         want: Option<Ty>,
     ) -> StageResult<(Ref, Ty)> {
-        let (Some(head), Some(block)) = (n.children().next(), Src::child(n, SyntaxKind::Block))
-        else {
-            return unsupported("a trailing-block call shape");
-        };
         let (call, callee, al) = if head.kind() == SyntaxKind::CallExpr {
-            let Some(callee) = head.children().next() else {
-                return unsupported("a call shape");
-            };
-            (head, callee, Src::child(head, SyntaxKind::ArgumentList))
+            let [callee, al] = head.parts();
+            (head, callee, Some(al))
         } else {
             (n, head, None)
         };
@@ -830,14 +818,7 @@ impl Ck<'_, '_> {
         args: &Args<'_>,
         want: Option<Ty>,
     ) -> StageResult<(Ref, Ty)> {
-        let (callee, bang) = if callee.kind() == SyntaxKind::SuspendExpr {
-            match callee.children().next() {
-                Some(c) => (c, true),
-                None => return unsupported("a bang call shape"),
-            }
-        } else {
-            (callee, false)
-        };
+        let (callee, bang) = bang_callee(callee, false);
         match callee.kind() {
             SyntaxKind::VariantExpr => self.variant_value(callee, args, want, Some(n)),
             SyntaxKind::NameExpr => {
@@ -890,23 +871,12 @@ impl Ck<'_, '_> {
                 Ok((Ref(NONE), Ty::NEVER))
             }
             SyntaxKind::TypeArgsExpr => {
-                let Some(inner) = callee.children().next() else {
-                    return unsupported("a type-argument call shape");
-                };
+                let [inner, tl] = callee.parts();
                 // `f!::[T](..)`: the bang sits before the type arguments,
                 // inside the type-argument node (`grammar.expr.bang-suffix`).
-                let (inner, bang) = match inner.kind() {
-                    SyntaxKind::SuspendExpr => match inner.children().next() {
-                        Some(c) => (c, true),
-                        None => return unsupported("a bang call shape"),
-                    },
-                    _ => (inner, bang),
-                };
-                let mut explicit = Vec::new();
-                if let Some(tl) = Src::child(callee, SyntaxKind::TypeArgumentList) {
-                    let gens = self.explicit_generics(inner);
-                    explicit = self.explicit_targs(tl, &gens)?;
-                }
+                let (inner, bang) = bang_callee(inner, bang);
+                let gens = self.explicit_generics(inner);
+                let explicit = self.explicit_targs(tl, &gens)?;
                 // `f::[T](..)` of a generic local function.
                 if let Some(l) = self.local_generic_named(inner) {
                     let vars = self.local_generic_vars(l, &explicit, callee);
@@ -3314,9 +3284,7 @@ impl Ck<'_, '_> {
         want: Option<Ty>,
         method_targs: Vec<Ty>,
     ) -> StageResult<(Ref, Ty)> {
-        let Some(base) = callee.children().next() else {
-            return unsupported("a member call without a base");
-        };
+        let [base] = callee.parts();
         self.elem_may_stand(base, crate::elem_refs::ElemUse::Receiver);
         let name = self.cx.src.text(self.cx.src.last(callee)).to_owned();
         if base.kind() == SyntaxKind::NameExpr
@@ -3339,15 +3307,9 @@ impl Ck<'_, '_> {
             || base.kind() == SyntaxKind::FieldExpr
         {
             let (bnode, explicit) = if base.kind() == SyntaxKind::TypeArgsExpr {
-                let Some(inner) = base.children().next() else {
-                    return unsupported("a type-argument base");
-                };
-                let mut ex = Vec::new();
-                if let Some(tl) = Src::child(base, SyntaxKind::TypeArgumentList) {
-                    let gens = self.explicit_generics(inner);
-                    ex = self.explicit_targs(tl, &gens)?;
-                }
-                (inner, ex)
+                let [inner, tl] = base.parts();
+                let gens = self.explicit_generics(inner);
+                (inner, self.explicit_targs(tl, &gens)?)
             } else {
                 (base, vec![])
             };
@@ -5725,6 +5687,17 @@ fn race_has_no_tasks(args: &Args<'_>) -> bool {
             name == "tasks" && e.kind() == SyntaxKind::ListExpr && e.children().next().is_none()
         }
         _ => false,
+    }
+}
+
+/// `f!(..)`'s callee `f` and the bang; any other callee as it is, with
+/// the bang it already carries.
+fn bang_callee(callee: NodeRef<'_>, bang: bool) -> (NodeRef<'_>, bool) {
+    if callee.kind() == SyntaxKind::SuspendExpr {
+        let [inner] = callee.parts();
+        (inner, true)
+    } else {
+        (callee, bang)
     }
 }
 

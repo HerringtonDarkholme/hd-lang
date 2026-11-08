@@ -578,6 +578,19 @@ impl<'t> NodeRef<'t> {
             .find(|&token| matches!(tokens.kind(token), TokenKind::Ident | TokenKind::RawIdent))
     }
 
+    /// The first `N` children of a node the grammar builds with them, such
+    /// as a spread's operand or an `if`'s condition and suite. Stages past
+    /// the parser see only trees that parsed without a diagnostic.
+    #[must_use]
+    pub fn parts<const N: usize>(self) -> [NodeRef<'t>; N] {
+        let mut children = self.children();
+        std::array::from_fn(|_| {
+            children
+                .next()
+                .expect("the parser builds the node's required children")
+        })
+    }
+
     /// The first child of `kind`.
     #[must_use]
     pub fn child(self, kind: SyntaxKind) -> Option<NodeRef<'t>> {

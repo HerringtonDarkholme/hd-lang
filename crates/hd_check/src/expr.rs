@@ -214,9 +214,12 @@ impl Ck<'_, '_> {
             return Ok(v);
         }
         let kids: Vec<NodeRef<'_>> = n.children().collect();
-        Ok(match n.kind() {
-            SyntaxKind::LiteralExpr => self.literal(n, want)?,
-            SyntaxKind::StringExpr => {
+        // A node the grammar builds with fixed children is matched with them; a
+        // module with a syntax error is never checked, so any other shape is
+        // the parser's bug and falls to the last arm.
+        Ok(match (n.kind(), kids.as_slice()) {
+            (SyntaxKind::LiteralExpr, _) => self.literal(n, want)?,
+            (SyntaxKind::StringExpr, _) => {
                 let first = self.cx.src.text(self.cx.src.first(n));
                 match first.find('"') {
                     Some(0) | None => (self.string_expr(n)?, Ty::STRING),
@@ -226,73 +229,76 @@ impl Ck<'_, '_> {
                     }
                 }
             }
-            SyntaxKind::UnaryExpr => {
-                let v = self.unary(n, &kids, want)?;
+            (SyntaxKind::UnaryExpr, &[e]) => {
+                let v = self.unary(n, e, want)?;
                 // `!c` swaps the paths of `c`.
                 let negation = self.cx.src.tkind(self.cx.src.first(n)) == Some(TokenKind::Bang);
                 if negation
                     && let Some(f) = self.cond_flow.as_mut()
-                    && kids.first().is_some_and(|k| f.node == k.index())
+                    && f.node == e.index()
                 {
                     f.node = n.index();
                     std::mem::swap(&mut f.on_true, &mut f.on_false);
                 }
                 v
             }
-            SyntaxKind::RefExpr => self.ref_expr(n, want)?,
-            SyntaxKind::DerefExpr => self.deref_expr(n)?,
-            SyntaxKind::ParenExpr => match kids.as_slice() {
-                [e] => {
-                    let v = self.expr(*e, want)?;
-                    if let Some(f) = self.cond_flow.as_mut()
-                        && f.node == e.index()
-                    {
-                        f.node = n.index();
-                    }
-                    v
+            (SyntaxKind::RefExpr, _) => self.ref_expr(n, want)?,
+            (SyntaxKind::DerefExpr, _) => self.deref_expr(n)?,
+            (SyntaxKind::ParenExpr, &[e]) => {
+                let v = self.expr(e, want)?;
+                if let Some(f) = self.cond_flow.as_mut()
+                    && f.node == e.index()
+                {
+                    f.node = n.index();
                 }
-                _ => return unsupported("a parenthesized expression shape"),
-            },
-            SyntaxKind::TupleExpr => self.tuple_expr(n, &kids, want)?,
-            SyntaxKind::NameExpr => self.name_expr(n, want)?,
-            SyntaxKind::VariantExpr => {
+                v
+            }
+            (SyntaxKind::TupleExpr, _) => self.tuple_expr(n, &kids, want)?,
+            (SyntaxKind::NameExpr, _) => self.name_expr(n, want)?,
+            (SyntaxKind::VariantExpr, _) => {
                 self.variant_value(n, &crate::call::Args::empty(), want, None)?
             }
-            SyntaxKind::AdditiveExpr
-            | SyntaxKind::MultiplicativeExpr
-            | SyntaxKind::ComparisonExpr
-            | SyntaxKind::LogicalAndExpr
-            | SyntaxKind::LogicalOrExpr
-            | SyntaxKind::BitwiseAndExpr
-            | SyntaxKind::BitwiseOrExpr
-            | SyntaxKind::BitwiseXorExpr
-            | SyntaxKind::ShiftExpr => self.binary(n, &kids)?,
-            SyntaxKind::PowerExpr => self.power(n, &kids)?,
-            SyntaxKind::FieldExpr => self.field_expr(n, &kids, want)?,
-            SyntaxKind::IndexExpr => self.index_expr(n, &kids)?,
-            SyntaxKind::CallExpr => {
+            (
+                SyntaxKind::AdditiveExpr
+                | SyntaxKind::MultiplicativeExpr
+                | SyntaxKind::ComparisonExpr
+                | SyntaxKind::LogicalAndExpr
+                | SyntaxKind::LogicalOrExpr
+                | SyntaxKind::BitwiseAndExpr
+                | SyntaxKind::BitwiseOrExpr
+                | SyntaxKind::BitwiseXorExpr
+                | SyntaxKind::ShiftExpr,
+                &[l, r],
+            ) => self.binary(n, l, r)?,
+            (SyntaxKind::PowerExpr, &[l, r]) => self.power(n, l, r)?,
+            (SyntaxKind::FieldExpr, &[base, ..]) => self.field_expr(n, base, want)?,
+            (SyntaxKind::IndexExpr, &[base, key]) => self.index_expr(n, base, key)?,
+            (SyntaxKind::CallExpr, &[callee, al]) => {
                 self.chain_receivers(n)?;
-                self.call(n, &kids, want)?
+                self.call(n, callee, al, want)?
             }
-            SyntaxKind::DataExpr => self.data_expr(n, &kids, want)?,
-            SyntaxKind::ListExpr => self.list_expr(n, &kids, want)?,
-            SyntaxKind::MapExpr => self.map_expr(n, &kids, want)?,
-            SyntaxKind::IfExpr => self.if_expr(n, want)?,
-            SyntaxKind::WhileExpr => self.while_expr(n, want)?,
-            SyntaxKind::ForExpr => self.for_expr(n, want)?,
-            SyntaxKind::MatchExpr => self.match_expr(n, want)?,
-            SyntaxKind::ClosureExpr => self.closure(n, want)?,
-            SyntaxKind::TrailingCallExpr => self.trailing_call(n, want)?,
-            SyntaxKind::PipeExpr => self.pipe(&kids, want)?,
-            SyntaxKind::PlaceholderExpr => self.placeholder_value(n),
-            SyntaxKind::ComprehensionExpr => self.comprehension(n, &kids, want)?,
-            SyntaxKind::TryExpr => self.try_expr(n, &kids, want)?,
-            SyntaxKind::RangeExpr => self.range_expr(n, &kids, want)?,
-            SyntaxKind::ContextExpr => self.context_expr(n, want)?,
-            SyntaxKind::BindingExpr => {
-                let [pat, rhs] = kids.as_slice() else {
-                    return unsupported("this binding form");
-                };
+            (SyntaxKind::DataExpr, &[name, ref fields @ ..]) => {
+                self.data_expr(n, name, fields, want)?
+            }
+            (SyntaxKind::ListExpr, _) => self.list_expr(n, &kids, want)?,
+            (SyntaxKind::MapExpr, _) => self.map_expr(n, &kids, want)?,
+            (SyntaxKind::IfExpr, _) => self.if_expr(n, want)?,
+            (SyntaxKind::WhileExpr, _) => self.while_expr(n, want)?,
+            (SyntaxKind::ForExpr, _) => self.for_expr(n, want)?,
+            (SyntaxKind::MatchExpr, _) => self.match_expr(n, want)?,
+            (SyntaxKind::ClosureExpr, _) => self.closure(n, want)?,
+            (SyntaxKind::TrailingCallExpr, &[head, block]) => {
+                self.trailing_call(n, head, block, want)?
+            }
+            (SyntaxKind::PipeExpr, &[lhs, step]) => self.pipe(lhs, step, want)?,
+            (SyntaxKind::PlaceholderExpr, _) => self.placeholder_value(n),
+            (SyntaxKind::ComprehensionExpr, &[ref clauses @ .., element]) => {
+                self.comprehension(n, clauses, element, want)?
+            }
+            (SyntaxKind::TryExpr, &[e]) => self.try_expr(n, e, want)?,
+            (SyntaxKind::RangeExpr, _) => self.range_expr(n, &kids, want)?,
+            (SyntaxKind::ContextExpr, _) => self.context_expr(n, want)?,
+            (SyntaxKind::BindingExpr, [pat, rhs]) => {
                 // `grammar.stmt.chain`: a chain `a := b := e` is `a := (b := e)`;
                 // `let_pattern` checks the inner binding through this same arm.
                 // `names.bind.no-redeclare`, `names.scope.duplicate`.
@@ -325,9 +331,11 @@ impl Ck<'_, '_> {
                     None => (Ref(NONE), Ty::VOID),
                 }
             }
-            SyntaxKind::TypeArgsExpr => self.explicit_item_value(n, want)?,
-            SyntaxKind::PathExpr => self.path_value(n, want, &[])?,
-            other => return unsupported(format!("expression {other:?}")),
+            (SyntaxKind::TypeArgsExpr, &[inner, tl]) => {
+                self.explicit_item_value(n, inner, tl, want)?
+            }
+            (SyntaxKind::PathExpr, _) => self.path_value(n, want, &[])?,
+            (other, _) => return unsupported(format!("expression {other:?}")),
         })
     }
 
@@ -1089,18 +1097,15 @@ impl Ck<'_, '_> {
     fn unary(
         &mut self,
         n: NodeRef<'_>,
-        kids: &[NodeRef<'_>],
+        e: NodeRef<'_>,
         want: Option<Ty>,
     ) -> StageResult<(Ref, Ty)> {
         let op = self.cx.src.tkind(self.cx.src.first(n));
-        let Some(e) = kids.first() else {
-            return unsupported("an operand-less unary");
-        };
-        let (r, t) = self.expr(*e, want)?;
+        let (r, t) = self.expr(e, want)?;
         // `expr.op.ref-read`: `+x`, `-x` and `~x` read a `&T` operand's `T`.
         let (r, t) = match op {
             Some(k @ (TokenKind::Plus | TokenKind::Minus | TokenKind::Tilde)) => {
-                let (r, t, _) = self.ref_operand(k, (r, t, false), *e);
+                let (r, t, _) = self.ref_operand(k, (r, t, false), e);
                 (r, t)
             }
             _ => (r, t),
@@ -1112,7 +1117,7 @@ impl Ck<'_, '_> {
         // value has its base's type, so `-2 ** 2` marks the `2`. Only an
         // unbound literal class is marked (`Infer::mark_signed`), so a
         // concrete unsigned operand still mismatches below.
-        let mut core = *e;
+        let mut core = e;
         while core.kind() == SyntaxKind::ParenExpr
             && let Some(inner) = core.children().next()
         {
@@ -1201,13 +1206,13 @@ impl Ck<'_, '_> {
                     (self.b.prim(PrimOp::Neg as u32, &[r], t, n.index()), t)
                 }
             }
-            Some(TokenKind::Bang | TokenKind::Tilde) => {
+            // `!` or `~`: the parser builds `UnaryExpr` for these four.
+            _ => {
                 if op == Some(TokenKind::Bang) {
-                    self.expect(t, Ty::BOOL, *e, "operand", ExpectPosition::Operand);
+                    self.expect(t, Ty::BOOL, e, "operand", ExpectPosition::Operand);
                 }
                 (self.b.prim(PrimOp::Not as u32, &[r], t, n.index()), t)
             }
-            _ => return unsupported("this unary operator"),
         })
     }
 
@@ -1233,22 +1238,19 @@ impl Ck<'_, '_> {
         }
     }
 
-    fn binary(&mut self, n: NodeRef<'_>, kids: &[NodeRef<'_>]) -> StageResult<(Ref, Ty)> {
-        let [l, r] = kids else {
-            return unsupported("a binary expression shape");
-        };
-        let op_tok = hd_base::TokenIdx::from_raw(self.cx.src.last(*l).raw() + 1);
+    fn binary(&mut self, n: NodeRef<'_>, l: NodeRef<'_>, r: NodeRef<'_>) -> StageResult<(Ref, Ty)> {
+        let op_tok = hd_base::TokenIdx::from_raw(self.cx.src.last(l).raw() + 1);
         let Some(op) = self.cx.src.tkind(op_tok) else {
             return unsupported("a binary operator");
         };
         if matches!(op, TokenKind::AndAnd | TokenKind::OrOr) {
-            let (a, at) = self.expr(*l, Some(Ty::BOOL))?;
-            self.expect(at, Ty::BOOL, *l, "operand", ExpectPosition::Operand);
+            let (a, at) = self.expr(l, Some(Ty::BOOL))?;
+            self.expect(at, Ty::BOOL, l, "operand", ExpectPosition::Operand);
             let m = self.b.open_block();
             let mut rhs = None;
-            self.short_circuit(n, (*l, *r), op == TokenKind::AndAnd, |ck| {
-                let (c, ct) = ck.expr(*r, Some(Ty::BOOL))?;
-                ck.expect(ct, Ty::BOOL, *r, "operand", ExpectPosition::Operand);
+            self.short_circuit(n, (l, r), op == TokenKind::AndAnd, |ck| {
+                let (c, ct) = ck.expr(r, Some(Ty::BOOL))?;
+                ck.expect(ct, Ty::BOOL, r, "operand", ExpectPosition::Operand);
                 rhs = Some(c);
                 Ok(())
             })?;
@@ -1272,7 +1274,7 @@ impl Ck<'_, '_> {
                         .is_some_and(|c| c.kind() == SyntaxKind::VariantExpr))
         };
         let eq_op = matches!(op, TokenKind::EqEq | TokenKind::NotEq);
-        let left_want = if eq_op && contextual(*l) && !contextual(*r) {
+        let left_want = if eq_op && contextual(l) && !contextual(r) {
             Some(self.infer.fresh(self.pool(), VarKind::General))
         } else {
             None
@@ -1280,30 +1282,30 @@ impl Ck<'_, '_> {
         // `expr.eq.trait.ref`, `expr.ord.trait.ref`: `Eq.eq` and
         // `PartialOrd.partial_cmp` take both operands by reference, so an
         // operand that is a place passes its address.
-        let (a, at, la) = if left_want.is_none() && self.operand_place(op, *l, None) {
-            let (a, at) = self.index_place_receiver(*l)?;
+        let (a, at, la) = if left_want.is_none() && self.operand_place(op, l, None) {
+            let (a, at) = self.index_place_receiver(l)?;
             (a, at, true)
         } else {
             // `expr.op.ref-read`: a `&T` operand reads its `T`.
-            let (a, at) = self.expr(*l, left_want)?;
-            self.ref_operand(op, (a, at, false), *l)
+            let (a, at) = self.expr(l, left_want)?;
+            self.ref_operand(op, (a, at, false), l)
         };
-        let right_want = if left_want.is_none() && eq_op && contextual(*l) {
+        let right_want = if left_want.is_none() && eq_op && contextual(l) {
             Ty::POISON
         } else {
             at
         };
-        let (c, ct, lc) = if self.operand_place(op, *r, Some(at)) {
-            let (c, ct) = self.index_place_receiver(*r)?;
+        let (c, ct, lc) = if self.operand_place(op, r, Some(at)) {
+            let (c, ct) = self.index_place_receiver(r)?;
             (c, ct, true)
         } else {
-            let (c, ct) = self.expr(*r, Some(right_want))?;
-            let (c, ct, lc) = self.ref_operand(op, (c, ct, false), *r);
+            let (c, ct) = self.expr(r, Some(right_want))?;
+            let (c, ct, lc) = self.ref_operand(op, (c, ct, false), r);
             // A right `&T` that `Eq.eq` or `PartialOrd.partial_cmp` takes
             // as it is must refer to the left operand's type.
             if lc
                 && self.op_by_trait(op, at)
-                && self.expect(ct, at, *r, "operand", ExpectPosition::Operand)
+                && self.expect(ct, at, r, "operand", ExpectPosition::Operand)
             {
                 let v = self.b.emit(Tag::Poison, NONE, NONE, Ty::BOOL, n.index());
                 return Ok((v, Ty::BOOL));
@@ -1314,17 +1316,17 @@ impl Ck<'_, '_> {
             op,
             TokenKind::Lt | TokenKind::LtEq | TokenKind::Gt | TokenKind::GtEq
         ) {
-            self.record_comparison(op, *l, at, *r, ct, n);
+            self.record_comparison(op, l, at, r, ct, n);
         }
         // `ref.identity.no-equality`: `==` between two counted references
         // is ambiguous, so it is an error with a fix-it for each meaning.
         // A local reference was read above.
         if eq_op && self.ref_of(at).is_some() && self.ref_of(ct).is_some() {
-            self.reference_equality(op == TokenKind::NotEq, op_tok, (*l, *r), n);
+            self.reference_equality(op == TokenKind::NotEq, op_tok, (l, r), n);
             let v = self.b.emit(Tag::Poison, NONE, NONE, Ty::BOOL, n.index());
             return Ok((v, Ty::BOOL));
         }
-        let v = self.binary_operands(op, (a, at, la), (c, ct, lc), n, *r)?;
+        let v = self.binary_operands(op, (a, at, la), (c, ct, lc), n, r)?;
         let t = self.b.ty_of(v);
         Ok((v, t))
     }
@@ -1604,25 +1606,6 @@ impl Ck<'_, '_> {
             (c, ct)
         };
         let pool = self.pool();
-        let prim = match op {
-            TokenKind::Plus => Some(PrimOp::Add),
-            TokenKind::Minus => Some(PrimOp::Sub),
-            TokenKind::Star => Some(PrimOp::Mul),
-            TokenKind::Slash => Some(PrimOp::Div),
-            TokenKind::Percent => Some(PrimOp::Rem),
-            TokenKind::EqEq => Some(PrimOp::Eq),
-            TokenKind::NotEq => Some(PrimOp::Ne),
-            TokenKind::Lt => Some(PrimOp::Lt),
-            TokenKind::LtEq => Some(PrimOp::Le),
-            TokenKind::Gt => Some(PrimOp::Gt),
-            TokenKind::GtEq => Some(PrimOp::Ge),
-            TokenKind::Amp => Some(PrimOp::BitAnd),
-            TokenKind::Pipe => Some(PrimOp::BitOr),
-            TokenKind::Caret => Some(PrimOp::BitXor),
-            TokenKind::Shl => Some(PrimOp::Shl),
-            TokenKind::Shr => Some(PrimOp::Shr),
-            _ => None,
-        };
         if op == TokenKind::KwIs {
             // `ref.identity.same-place`: a reference compares its place.
             if self.ref_of(at).is_some() || self.ref_of(ct).is_some() {
@@ -1650,8 +1633,25 @@ impl Ck<'_, '_> {
             }
             return Ok(self.b.emit(Tag::Is, a.0, c.0, Ty::BOOL, n.index()));
         }
-        let Some(prim) = prim else {
-            return unsupported("this binary operator");
+        // The parser's other infix operators have their own nodes or
+        // return above, so `>>` is the last.
+        let prim = match op {
+            TokenKind::Plus => PrimOp::Add,
+            TokenKind::Minus => PrimOp::Sub,
+            TokenKind::Star => PrimOp::Mul,
+            TokenKind::Slash => PrimOp::Div,
+            TokenKind::Percent => PrimOp::Rem,
+            TokenKind::EqEq => PrimOp::Eq,
+            TokenKind::NotEq => PrimOp::Ne,
+            TokenKind::Lt => PrimOp::Lt,
+            TokenKind::LtEq => PrimOp::Le,
+            TokenKind::Gt => PrimOp::Gt,
+            TokenKind::GtEq => PrimOp::Ge,
+            TokenKind::Amp => PrimOp::BitAnd,
+            TokenKind::Pipe => PrimOp::BitOr,
+            TokenKind::Caret => PrimOp::BitXor,
+            TokenKind::Shl => PrimOp::Shl,
+            _ => PrimOp::Shr,
         };
         let cmp = matches!(
             prim,
@@ -2187,27 +2187,24 @@ impl Ck<'_, '_> {
     /// (`expr.op.not-overloaded`). An integer base takes an unsigned
     /// exponent, a float base an exponent of its own type, and the result
     /// has the base's type.
-    fn power(&mut self, n: NodeRef<'_>, kids: &[NodeRef<'_>]) -> StageResult<(Ref, Ty)> {
-        let [l, r] = kids else {
-            return unsupported("a power expression shape");
-        };
+    fn power(&mut self, n: NodeRef<'_>, l: NodeRef<'_>, r: NodeRef<'_>) -> StageResult<(Ref, Ty)> {
         // `expr.op.ref-read`: a `&T` base or exponent reads its `T`.
-        let (a, at) = self.expr(*l, None)?;
-        let (a, at, _) = self.ref_operand(TokenKind::StarStar, (a, at, false), *l);
+        let (a, at) = self.expr(l, None)?;
+        let (a, at, _) = self.ref_operand(TokenKind::StarStar, (a, at, false), l);
         let base = self.power_base(at);
         let want = match base {
             PowerBase::Int => Some(Ty::prim(Prim::U32)),
             PowerBase::Float => Some(at),
             PowerBase::Poison | PowerBase::Other => None,
         };
-        let (c, ct) = self.expr(*r, want)?;
-        let (c, ct, _) = self.ref_operand(TokenKind::StarStar, (c, ct, false), *r);
+        let (c, ct) = self.expr(r, want)?;
+        let (c, ct, _) = self.ref_operand(TokenKind::StarStar, (c, ct, false), r);
         // A rejected operand makes the whole expression an error value, so
         // its context reports nothing more.
         let rejected = match base {
-            PowerBase::Int => !self.unsigned_count(ct, *r, "an exponent", false),
+            PowerBase::Int => !self.unsigned_count(ct, r, "an exponent", false),
             PowerBase::Float => {
-                self.expect(ct, at, *r, "operand", ExpectPosition::Operand);
+                self.expect(ct, at, r, "operand", ExpectPosition::Operand);
                 false
             }
             PowerBase::Poison => false,
@@ -2564,23 +2561,20 @@ impl Ck<'_, '_> {
     fn field_expr(
         &mut self,
         n: NodeRef<'_>,
-        kids: &[NodeRef<'_>],
+        base: NodeRef<'_>,
         want: Option<Ty>,
     ) -> StageResult<(Ref, Ty)> {
-        let Some(base) = kids.first() else {
-            return unsupported("a field without a base");
-        };
         let name = self.cx.src.text(self.cx.src.last(n)).to_owned();
         // `Type.Variant`, `module.item`, `module.Type.Variant`.
-        if (base.kind() == SyntaxKind::NameExpr && self.find_local(self.sym_of(*base)).is_none()
+        if (base.kind() == SyntaxKind::NameExpr && self.find_local(self.sym_of(base)).is_none()
             || base.kind() == SyntaxKind::FieldExpr)
-            && let Some(v) = self.static_member_value(*base, &name, want, n)?
+            && let Some(v) = self.static_member_value(base, &name, want, n)?
         {
             return Ok(v);
         }
-        self.elem_may_stand(*base, crate::elem_refs::ElemUse::Through);
-        let based = self.expr(*base, None)?;
-        self.field_of_value(based, &name, (*base, n))
+        self.elem_may_stand(base, crate::elem_refs::ElemUse::Through);
+        let based = self.expr(base, None)?;
+        self.field_of_value(based, &name, (base, n))
     }
 
     /// The field `name` of the value `r` of type `bt`, which `base`
@@ -2717,14 +2711,16 @@ impl Ck<'_, '_> {
         self.b.emit(Tag::Intrinsic, op as u32, rec, vt, at)
     }
 
-    fn index_expr(&mut self, n: NodeRef<'_>, kids: &[NodeRef<'_>]) -> StageResult<(Ref, Ty)> {
-        let [base, key] = kids else {
-            return unsupported("an index shape");
-        };
+    fn index_expr(
+        &mut self,
+        n: NodeRef<'_>,
+        base: NodeRef<'_>,
+        key: NodeRef<'_>,
+    ) -> StageResult<(Ref, Ty)> {
         // `expr.index.trait.read-ref`: a place read through `Index` takes
         // the place's address, as a `&self` call does, so the read neither
         // copies nor moves the receiver.
-        if let Some(pt) = self.peek_place_ty(*base)
+        if let Some(pt) = self.peek_place_ty(base)
             && self.ref_of(pt).is_none()
         {
             let vt = self.infer.resolve(self.pool(), pt);
@@ -2734,12 +2730,12 @@ impl Ck<'_, '_> {
                 Some((get, _, _)) => get != Indexed::Map && key.kind() == SyntaxKind::RangeExpr,
             };
             if traited {
-                let (br, bt) = self.index_place_receiver(*base)?;
-                let (kr, kt) = self.index_key_value(*key, builtin)?;
-                return self.index_of_value((br, bt), builtin, (kr, kt), (*key, n));
+                let (br, bt) = self.index_place_receiver(base)?;
+                let (kr, kt) = self.index_key_value(key, builtin)?;
+                return self.index_of_value((br, bt), builtin, (kr, kt), (key, n));
             }
         }
-        let (br, bt) = self.expr(*base, None)?;
+        let (br, bt) = self.expr(base, None)?;
         // A base that already failed, such as a type name written where a
         // value is needed, leaves nothing to index.
         if br.0 == NONE && matches!(bt, Ty::NEVER | Ty::POISON) {
@@ -2747,8 +2743,8 @@ impl Ck<'_, '_> {
         }
         let (br, bt) = self.deref_index_base(br, bt, base.index());
         let builtin = self.index_kind(bt);
-        let (kr, kt) = self.index_key_value(*key, builtin)?;
-        self.index_of_value((br, bt), builtin, (kr, kt), (*key, n))
+        let (kr, kt) = self.index_key_value(key, builtin)?;
+        self.index_of_value((br, bt), builtin, (kr, kt), (key, n))
     }
 
     /// The index expression `n` on the evaluated base `br` of type `bt`,
@@ -3016,9 +3012,6 @@ impl Ck<'_, '_> {
         let mut refs = Vec::new();
         let mut tys = Vec::new();
         for (i, e) in plain.iter().enumerate() {
-            if e.kind() == SyntaxKind::SpreadExpr {
-                return unsupported("a tuple spread before the last element");
-            }
             let w = wants.get(i).copied().flatten().or(rest_item);
             let (r, t) = self.stored_expr(*e, w, "in this tuple")?;
             let r = match w {
@@ -3030,9 +3023,7 @@ impl Ck<'_, '_> {
         }
         let tail = match spread {
             Some(sp) => {
-                let Some(operand) = sp.children().next() else {
-                    return unsupported("a spread without an operand");
-                };
+                let [operand] = sp.parts();
                 let (r, t) = self.expr(operand, want_rest)?;
                 Some((r, t, operand))
             }
@@ -3165,13 +3156,8 @@ impl Ck<'_, '_> {
             let mut refs = Vec::new();
             let mut spreads = Vec::new();
             for (k, e) in kids.iter().enumerate() {
-                if e.kind() == SyntaxKind::ComprehensionFor {
-                    return unsupported("a list comprehension");
-                }
                 if e.kind() == SyntaxKind::SpreadExpr {
-                    let Some(operand) = e.children().next() else {
-                        return unsupported("a spread without an operand");
-                    };
+                    let [operand] = e.parts();
                     let list_ty = pool.intern_ty(&TyData::Adt {
                         def: list,
                         args: pool.list(&[elem]),
@@ -3273,14 +3259,11 @@ impl Ck<'_, '_> {
             this.join_site(vw, |this, v| {
                 let mut refs = Vec::new();
                 for e in kids {
-                    let ek: Vec<NodeRef<'_>> = e.children().collect();
-                    let [ke, ve] = ek.as_slice() else {
-                        return unsupported("a map entry shape");
-                    };
-                    let (kr, kt) = this.stored_expr(*ke, Some(k), "as this map key")?;
-                    refs.push(this.coerce(kr, kt, k, *ke, "map key", ExpectPosition::General));
-                    let (vr, vt) = this.stored_expr(*ve, Some(v), "as this map value")?;
-                    refs.push(this.coerce(vr, vt, v, *ve, "map value", ExpectPosition::General));
+                    let [ke, ve] = e.parts();
+                    let (kr, kt) = this.stored_expr(ke, Some(k), "as this map key")?;
+                    refs.push(this.coerce(kr, kt, k, ke, "map key", ExpectPosition::General));
+                    let (vr, vt) = this.stored_expr(ve, Some(v), "as this map value")?;
+                    refs.push(this.coerce(vr, vt, v, ve, "map value", ExpectPosition::General));
                 }
                 // A key type an expected map type did not fix meets the key
                 // bound here (types.map-key.declared-bound).
@@ -3307,28 +3290,21 @@ impl Ck<'_, '_> {
     fn data_expr(
         &mut self,
         n: NodeRef<'_>,
-        kids: &[NodeRef<'_>],
+        name_node: NodeRef<'_>,
+        inits: &[NodeRef<'_>],
         want: Option<Ty>,
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
-        let Some(name_node) = kids.first() else {
-            return unsupported("a data literal without a name");
-        };
+        let mut name_parts = name_node.children();
         let (path_node, targ_nodes): (NodeRef<'_>, Vec<NodeRef<'_>>) =
-            if name_node.kind() == SyntaxKind::TypeArgsExpr {
-                let Some(inner) = name_node.children().next() else {
-                    return unsupported("a data literal name");
-                };
-                let tl: Vec<NodeRef<'_>> = Src::child(*name_node, SyntaxKind::TypeArgumentList)
-                    .map(|l| {
-                        l.children()
-                            .filter(|c| c.kind().is_type() || c.kind() == SyntaxKind::ConstArgument)
-                            .collect()
-                    })
-                    .unwrap_or_default();
-                (inner, tl)
-            } else {
-                (*name_node, vec![])
+            match (name_node.kind(), name_parts.next(), name_parts.next()) {
+                (SyntaxKind::TypeArgsExpr, Some(inner), Some(tl)) => (
+                    inner,
+                    tl.children()
+                        .filter(|c| c.kind().is_type() || c.kind() == SyntaxKind::ConstArgument)
+                        .collect(),
+                ),
+                _ => (name_node, vec![]),
             };
         let segs = self.segments_expr(path_node);
         let Some(def) = self.resolve_path(&segs).or_else(|| {
@@ -3344,7 +3320,7 @@ impl Ck<'_, '_> {
                 _ => String::new(),
             };
             let msg = format!("no type named `{}`{hint}", segs.join("."));
-            self.err(Code::UnknownType, *name_node, &msg);
+            self.err(Code::UnknownType, name_node, &msg);
             return Ok((Ref(NONE), Ty::NEVER));
         };
         let Some(item) = self.cx.lookup.item(def) else {
@@ -3352,7 +3328,7 @@ impl Ck<'_, '_> {
         };
         let ItemData::Struct(fields) = item.data.clone() else {
             let msg = format!("no type named `{}`: not a data type", segs.join("."));
-            self.err(Code::UnknownType, *name_node, &msg);
+            self.err(Code::UnknownType, name_node, &msg);
             return Ok((Ref(NONE), Ty::NEVER));
         };
         self.check_literal_visible(def, n);
@@ -3361,7 +3337,7 @@ impl Ck<'_, '_> {
             targs.push(self.explicit_slot_arg(*t, item.generics.get(i), i)?);
         }
         let generics = item.generics.clone();
-        self.check_data_targ_kinds(def, &generics, &targs, *name_node);
+        self.check_data_targ_kinds(def, &generics, &targs, name_node);
         let explicit = targs.len();
         while let Some(g) = item.generics.get(targs.len()) {
             // `ref.lifetime.struct`: a lifetime has its one argument.
@@ -3403,14 +3379,14 @@ impl Ck<'_, '_> {
         let mut seen = vec![false; fields.len()];
         // `expr.update.form`: a leading spread supplies every field the
         // literal does not name. The fields it names are replaced.
-        let spread = kids[1..]
+        let spread = inits
             .iter()
             .find(|a| a.kind() == SyntaxKind::SpreadExpr)
             .copied();
         let replaced: Vec<bool> = fields
             .iter()
             .map(|f| {
-                kids[1..]
+                inits
                     .iter()
                     .any(|a| a.kind() != SyntaxKind::SpreadExpr && self.sym_of(*a) == f.name)
             })
@@ -3421,7 +3397,7 @@ impl Ck<'_, '_> {
         // literal's given/missing accounting cannot be trusted then, so
         // no missing-required-field follows.
         let mut failed = false;
-        for a in &kids[1..] {
+        for a in inits {
             if a.kind() == SyntaxKind::SpreadExpr {
                 if source.is_some() {
                     continue;
@@ -3430,9 +3406,7 @@ impl Ck<'_, '_> {
                     def,
                     args: pool.list(&targs),
                 });
-                let Some(inner) = a.children().next() else {
-                    return unsupported("a spread without a source");
-                };
+                let [inner] = a.parts();
                 // `expr.update.spread-first`, `expr.update.exact-type`.
                 let (sr, st) = self.expr(inner, Some(target))?;
                 if matches!(self.infer.resolve(pool, st), Ty::NEVER | Ty::POISON) {
@@ -3444,7 +3418,7 @@ impl Ck<'_, '_> {
                 // `expr.update.copy-time`: the copied fields are read now,
                 // when an explicit field expression could change the
                 // source before construction.
-                if kids[1..].iter().any(|f| may_run_code(*f)) {
+                if inits.iter().any(|f| may_run_code(*f)) {
                     self.copy_fields_now((sr, st), &replaced, &mut vals, *a);
                 }
                 source = Some((sr, st));
@@ -3591,30 +3565,18 @@ impl Ck<'_, '_> {
     /// branch.
     pub(crate) fn if_expr(&mut self, e: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
-        let Some(cond) = e.children().next() else {
-            return unsupported("an `if` without a condition");
-        };
-        let Some(then_node) = Src::child(e, SyntaxKind::Block) else {
-            return unsupported("an `if` without a block");
-        };
+        let [cond, then_node] = e.parts();
         // Each branch: its node, condition, and suite.
         let mut branches = vec![(e, cond, then_node)];
         let mut last_else = None;
         for clause in e.children() {
             match clause.kind() {
                 SyntaxKind::ElseIfClause => {
-                    let (Some(cond), Some(blk)) = (
-                        clause.children().next(),
-                        Src::child(clause, SyntaxKind::Block),
-                    ) else {
-                        return unsupported("an `else if` without a condition or a block");
-                    };
+                    let [cond, blk] = clause.parts();
                     branches.push((clause, cond, blk));
                 }
                 SyntaxKind::ElseClause => {
-                    let Some(blk) = Src::child(clause, SyntaxKind::Block) else {
-                        return unsupported("an `else` without a block");
-                    };
+                    let [blk] = clause.parts();
                     last_else = Some((clause, blk));
                 }
                 _ => {}
@@ -3687,7 +3649,9 @@ impl Ck<'_, '_> {
                 _ => (Ref(NONE), Ty::VOID),
             };
             // From the last branch back to the first: each `If` is the
-            // value of the `else` block of the branch before it.
+            // value of the `else` block of the branch before it, which every
+            // branch but the last opens. The first branch's `If` is the value.
+            let mut value = (Ref(NONE), Ty::VOID);
             while let Some(f) = frames.pop() {
                 let both_never = f.tty == Ty::NEVER && ety == Ty::NEVER;
                 // `names.definite.merge`, `names.definite.diverging`: a
@@ -3701,11 +3665,9 @@ impl Ck<'_, '_> {
                 let ty = if both_never { Ty::NEVER } else { site };
                 let rec = this.b.refs_record(&[f.then, els]);
                 let r = this.b.emit(Tag::If, f.c.0, rec, ty, f.node);
-                let Some(outer) = frames.last() else {
-                    return Ok((r, ty));
-                };
-                let Some(eb) = outer.els else {
-                    return unsupported("an `else if` without an `else` block");
+                value = (r, ty);
+                let Some(eb) = frames.last().and_then(|outer| outer.els) else {
+                    continue;
                 };
                 let t = this.infer.shallow(pool, ty);
                 let tail = if t == Ty::VOID || r.0 == NONE {
@@ -3719,7 +3681,7 @@ impl Ck<'_, '_> {
                 els = this.b.close_block(eb, tail, t, f.node);
                 ety = t;
             }
-            unsupported("an `if` without a branch")
+            Ok(value)
         })
     }
 
@@ -3734,12 +3696,7 @@ impl Ck<'_, '_> {
         e: NodeRef<'_>,
         els: Option<(hd_base::NodeIdx, Ty)>,
     ) -> StageResult<(Ref, Ty)> {
-        let Some(cond) = e.children().next() else {
-            return unsupported("a `while` without a condition");
-        };
-        let Some(body) = Src::child(e, SyntaxKind::Block) else {
-            return unsupported("a `while` without a block");
-        };
+        let [cond, body] = e.parts();
         let result = els.map(|(_, t)| t);
         // `flow.while.infinite`: `while true`, or `while (true)`, without
         // a `break` never completes.
@@ -3796,9 +3753,7 @@ impl Ck<'_, '_> {
         let Some(clause) = Src::child(e, SyntaxKind::ElseClause) else {
             return run(self, None);
         };
-        let Some(blk) = Src::child(clause, SyntaxKind::Block) else {
-            return unsupported("a loop `else` without a block");
-        };
+        let [blk] = clause.parts();
         self.join_site(want, |this, result| run(this, Some((blk.index(), result))))
     }
 
@@ -3846,15 +3801,10 @@ impl Ck<'_, '_> {
     /// is already an `Iterator`), then a loop around `next` and a match on
     /// its option (`crates/hd_tir/DESIGN.md` "What The Checker Desugars").
     fn for_expr(&mut self, e: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
-        let kids: Vec<NodeRef<'_>> = e.children().collect();
-        let (Some(pat), Some(src), Some(body)) =
-            (kids.first(), kids.get(1), Src::child(e, SyntaxKind::Block))
-        else {
-            return unsupported("a `for` shape");
-        };
+        let [pat, src, body] = e.parts();
         self.loop_site(e, want, |this, els| {
             this.loop_else = els;
-            this.iterate(*pat, *src, e, &mut |me: &mut Self| {
+            this.iterate(pat, src, e, &mut |me: &mut Self| {
                 me.block_value(body, Some(Ty::VOID)).map(|_| ())
             })
         })
@@ -4567,33 +4517,35 @@ impl Ck<'_, '_> {
         kids.any(|child| self.pipe_step_suite(child))
     }
 
-    fn pipe(&mut self, kids: &[NodeRef<'_>], want: Option<Ty>) -> StageResult<(Ref, Ty)> {
-        let [lhs, step] = kids else {
-            return unsupported("a pipe shape");
-        };
-        if self.pipe_step_suite(*step) {
+    fn pipe(
+        &mut self,
+        lhs: NodeRef<'_>,
+        step: NodeRef<'_>,
+        want: Option<Ty>,
+    ) -> StageResult<(Ref, Ty)> {
+        if self.pipe_step_suite(step) {
             self.err(
                 Code::MultiLinePipeStep,
-                *step,
+                step,
                 "a pipe step must not contain an indented suite",
             );
-            return Ok(self.poison_value(*step));
+            return Ok(self.poison_value(step));
         }
-        let v = self.expr(*lhs, None)?;
-        if is_bare_path(*step) {
+        let v = self.expr(lhs, None)?;
+        if is_bare_path(step) {
             // `expr.pipe.bare.call`: `value |> path` is the call
             // `path(value)`, the value already evaluated.
             let mut args = crate::call::Args::empty();
-            args.positional.push(*lhs);
+            args.positional.push(lhs);
             let saved = self.pipe_arg.replace((lhs.index(), v));
             let saved_bare = std::mem::replace(&mut self.bare_step, true);
-            let r = self.call_args(*step, *step, &args, want);
+            let r = self.call_args(step, step, &args, want);
             self.bare_step = saved_bare;
             self.pipe_arg = saved;
             return r;
         }
         let (mut own, mut closed) = (Vec::new(), Vec::new());
-        step_slots(*step, false, &mut own, &mut closed);
+        step_slots(step, false, &mut own, &mut closed);
         let mut rejected = false;
         for slot in &closed {
             self.err(
@@ -4612,25 +4564,25 @@ impl Ck<'_, '_> {
             rejected = true;
         }
         if rejected {
-            return Ok(self.poison_value(*step));
+            return Ok(self.poison_value(step));
         }
         if own.is_empty() {
             // `expr.pipe.bare.needs-placeholder`: not a bare step, no `_`.
             self.err(
                 Code::PipeStepNeedsPlaceholder,
-                *step,
+                step,
                 "write `_` where the piped value goes",
             );
             return Ok((Ref(NONE), Ty::NEVER));
         }
         let saved = self.placeholder.replace(v);
-        let r = self.expr(*step, want);
+        let r = self.expr(step, want);
         let unused = self.placeholder.take().is_some();
         self.placeholder = saved;
         if unused {
             self.err(
                 Code::PipeStepNeedsPlaceholder,
-                *step,
+                step,
                 "write `_` where the piped value goes",
             );
         }
@@ -4642,14 +4594,12 @@ impl Ck<'_, '_> {
     fn comprehension(
         &mut self,
         n: NodeRef<'_>,
-        kids: &[NodeRef<'_>],
+        clauses: &[NodeRef<'_>],
+        element: NodeRef<'_>,
         want: Option<Ty>,
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
         let is_map = self.cx.src.tkind(self.cx.src.first(n)) == Some(TokenKind::LBrace);
-        let Some((element, clauses)) = kids.split_last() else {
-            return unsupported("an empty comprehension");
-        };
         let want = want.map(|w| self.strip_mut(w));
         let (def, args) = if is_map {
             let map = self.cx.names.known.map;
@@ -4689,7 +4639,7 @@ impl Ck<'_, '_> {
             self.reserve_into = Some((acc, mt));
         }
         self.scopes.push(HashMap::default());
-        let r = self.clauses(clauses, *element, (acc, mt), &args, n);
+        let r = self.clauses(clauses, element, (acc, mt), &args, n);
         self.scopes.pop();
         r?;
         let v = self.b.get(acc, mt, n.index());
@@ -4708,14 +4658,11 @@ impl Ck<'_, '_> {
             // The element: a push, or a map insert.
             let a = self.b.get(acc.0, acc.1, n.index());
             if last.kind() == SyntaxKind::MapEntry {
-                let ek: Vec<NodeRef<'_>> = last.children().collect();
-                let [k, v] = ek.as_slice() else {
-                    return unsupported("a map comprehension entry");
-                };
-                let (kr, kt) = self.stored_expr(*k, Some(args[0]), "as this map key")?;
-                let kr = self.coerce(kr, kt, args[0], *k, "map key", ExpectPosition::General);
-                let (vr, vt) = self.stored_expr(*v, Some(args[1]), "as this map value")?;
-                let vr = self.coerce(vr, vt, args[1], *v, "map value", ExpectPosition::General);
+                let [k, v] = last.parts();
+                let (kr, kt) = self.stored_expr(k, Some(args[0]), "as this map key")?;
+                let kr = self.coerce(kr, kt, args[0], k, "map key", ExpectPosition::General);
+                let (vr, vt) = self.stored_expr(v, Some(args[1]), "as this map value")?;
+                let vr = self.coerce(vr, vt, args[1], v, "map value", ExpectPosition::General);
                 let rec = self.b.refs_record(&[a, kr, vr]);
                 self.b.emit(
                     Tag::Intrinsic,
@@ -4740,18 +4687,13 @@ impl Ck<'_, '_> {
         };
         match c.kind() {
             SyntaxKind::ComprehensionFor => {
-                let ck: Vec<NodeRef<'_>> = c.children().collect();
-                let [pat, src] = ck.as_slice() else {
-                    return unsupported("a comprehension `for` shape");
-                };
-                self.iterate(*pat, *src, *c, &mut |me: &mut Self| {
+                let [pat, src] = c.parts();
+                self.iterate(pat, src, *c, &mut |me: &mut Self| {
                     me.clauses(rest, last, acc, args, n)
                 })?;
             }
             SyntaxKind::ComprehensionIf => {
-                let Some(cond) = c.children().next() else {
-                    return unsupported("a comprehension `if` shape");
-                };
+                let [cond] = c.parts();
                 let (cr, ct) = self.expr(cond, Some(Ty::BOOL))?;
                 self.expect(ct, Ty::BOOL, cond, "condition", ExpectPosition::General);
                 let tb = self.b.open_block();
@@ -4773,13 +4715,9 @@ impl Ck<'_, '_> {
 
     /// The source parts of the `fn(params) -> R: body` expression `n`.
     pub(crate) fn closure_parts<'t>(&self, n: NodeRef<'t>) -> StageResult<ClosureParts<'t>> {
-        let body = match Src::child(n, SyntaxKind::Block) {
-            Some(b) => b,
-            // An inline suite: one expression.
-            None => match n.children().filter(|c| !c.kind().is_type()).last() {
-                Some(e) => e,
-                None => return unsupported("a closure without a body"),
-            },
+        // `fn(..): e` on one line is a suite too: the parser builds a block.
+        let Some(body) = Src::child(n, SyntaxKind::Block) else {
+            return unsupported("a closure without a body");
         };
         Ok(ClosureParts {
             params: Src::child(n, SyntaxKind::ParameterList),
@@ -5181,13 +5119,10 @@ impl Ck<'_, '_> {
     fn try_expr(
         &mut self,
         n: NodeRef<'_>,
-        kids: &[NodeRef<'_>],
+        e: NodeRef<'_>,
         want: Option<Ty>,
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
-        let Some(e) = kids.first() else {
-            return unsupported("a `?` without an operand");
-        };
         let ret = self.infer.resolve(pool, *self.rets.last().expect("ret"));
         let result = self.cx.names.known.result;
         // `expr.try.expected`: the operand's hint is `Result[T, E]` or `T?`,
@@ -5207,7 +5142,7 @@ impl Ck<'_, '_> {
             }
             _ => None,
         };
-        let (r, t) = self.expr(*e, hint)?;
+        let (r, t) = self.expr(e, hint)?;
         let mut t = self.infer.resolve(pool, t);
         // A call whose result an expected type solves later, such as
         // `collect()`, is still open here: the hint gives its shape now
@@ -5251,17 +5186,17 @@ impl Ck<'_, '_> {
                 let err_b = self.b.open_block();
                 let ev = self.b.payload(r, 1, 0, et, n.index());
                 let ev = if self.can_unify(et, ret_e) {
-                    self.expect(et, ret_e, *e, "error", ExpectPosition::General);
+                    self.expect(et, ret_e, e, "error", ExpectPosition::General);
                     ev
                 } else if let Some((tv, mutable)) = self.dyn_ref_of(ret_e)
                     && self.dyn_fits(self.ref_of(et).map_or(et, |(inner, _)| inner), tv)
                 {
                     let (ev, source) = if self.ref_of(et).is_none() {
-                        self.new_object_ref(ev, et, mutable, *e)
+                        self.new_object_ref(ev, et, mutable, e)
                     } else {
                         (ev, et)
                     };
-                    self.coerce(ev, source, ret_e, *e, "error", ExpectPosition::General)
+                    self.coerce(ev, source, ret_e, e, "error", ExpectPosition::General)
                 } else {
                     let from = self.cx.names.known.from;
                     let tref = hd_types::solver::TraitRef {
@@ -5334,10 +5269,8 @@ impl Ck<'_, '_> {
             self.cx.src.tkind(first_tok),
             Some(TokenKind::DotDot | TokenKind::DotDotEq)
         );
-        let (def, fields): (DefId, Vec<NodeRef<'_>>) = match (kids.len(), starts_open) {
-            (2, _) => (known.range, kids.to_vec()),
-            (1, true) => (known.range_to, kids.to_vec()),
-            (1, false) => (known.range_from, kids.to_vec()),
+        // The parser builds at most two bounds.
+        let def = match (kids.len(), starts_open) {
             // `expr.range.form.full`: `RangeFull {}`, with no bound and
             // no element type.
             (0, _) => {
@@ -5348,12 +5281,14 @@ impl Ck<'_, '_> {
                 let rec = self.b.refs_record(&[]);
                 return Ok((self.b.emit(Tag::NewStruct, NONE, rec, t, n.index()), t));
             }
-            _ => return unsupported("a range with more than two bounds"),
+            (1, true) => known.range_to,
+            (1, false) => known.range_from,
+            _ => known.range,
         };
         let et = self.infer.fresh(pool, VarKind::General);
         let mut refs = Vec::new();
         let mut bound_tys = Vec::new();
-        for f in &fields {
+        for f in kids {
             let (r, t) = self.expr(*f, Some(et))?;
             bound_tys.push(t);
             refs.push(self.coerce(r, t, et, *f, "range bound", ExpectPosition::Operand));
@@ -5367,7 +5302,7 @@ impl Ck<'_, '_> {
                 .kind_of(pool, e)
                 .is_some_and(|k| k.literal_default().is_some())
         {
-            self.expect(e, bw, fields[0], "range bound", ExpectPosition::Operand);
+            self.expect(e, bw, kids[0], "range bound", ExpectPosition::Operand);
         }
         // `expr.range.bound.numeric`: the element type is an integer or a
         // floating-point type. The one error lands on the first bound that
@@ -5379,7 +5314,7 @@ impl Ck<'_, '_> {
                 "a range bound must have an integer or floating-point type, found {}",
                 self.show(bound_tys[i])
             );
-            self.err(Code::TypeMismatch, fields[i], &msg);
+            self.err(Code::TypeMismatch, kids[i], &msg);
         }
         if def != known.range_from {
             refs.push(self.b.const_value(Ty::BOOL, u64::from(inclusive)));
@@ -5501,13 +5436,8 @@ impl Ck<'_, '_> {
     /// evaluated, must implement its key, and covers the key in the block.
     fn with_expr(&mut self, n: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
-        let Some(al) = Src::child(n, SyntaxKind::ArgumentList) else {
-            return unsupported("a `$.with` without providers");
-        };
+        let [al, body] = n.parts();
         let (pairs, keys) = self.provider_entries(al, true)?;
-        let Some(body) = Src::child(n, SyntaxKind::Block) else {
-            return unsupported("a `$.with` without a block");
-        };
         // An entry in error covers every key, so its block reports no
         // missing key on its account.
         let frame = match keys {
@@ -5532,9 +5462,7 @@ impl Ck<'_, '_> {
     /// (`req.context.one-per-key`).
     fn context_new(&mut self, n: NodeRef<'_>) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
-        let Some(al) = Src::child(n, SyntaxKind::ArgumentList) else {
-            return unsupported("a `$.context` without providers");
-        };
+        let [al] = n.parts();
         let (pairs, keys) = self.provider_entries(al, false)?;
         // An entry in error leaves the context's row unknown.
         let t = match keys {
