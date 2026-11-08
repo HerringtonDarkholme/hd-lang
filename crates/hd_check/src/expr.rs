@@ -3163,7 +3163,8 @@ impl Ck<'_, '_> {
             return Ok(self.poison_value(n));
         }
         let inferred = elem.is_none();
-        self.join_site(elem, |this, elem| {
+        let mut pending = None;
+        let result = self.join_site(elem, |this, elem| {
             let mut refs = Vec::new();
             let mut spreads = Vec::new();
             for (k, e) in kids.iter().enumerate() {
@@ -3251,6 +3252,13 @@ impl Ck<'_, '_> {
                 def: list,
                 args: pool.list(&[elem]),
             });
+            if inferred {
+                // The join closes before assembly, so every spread converts
+                // to the final element type, even one widened by a later value.
+                // Each operand was evaluated once to its captured list value.
+                pending = Some((refs, spreads, elem));
+                return Ok((Ref(NONE), t));
+            }
             let rec = this.b.refs_record(&refs);
             let marks = if spreads.is_empty() {
                 NONE
@@ -3258,7 +3266,33 @@ impl Ck<'_, '_> {
                 this.b.words_record(&spreads)
             };
             Ok((this.b.emit(Tag::NewList, marks, rec, t, n.index()), t))
-        })
+        })?;
+        let Some((mut refs, spreads, elem)) = pending else {
+            return Ok(result);
+        };
+        let target = self.infer.resolve(pool, elem);
+        for &index in &spreads {
+            let index = index as usize;
+            let r = refs[index];
+            let t = self.b.ty_of(r);
+            let Some(item) = self.list_item(self.infer.resolve(pool, t)) else {
+                continue;
+            };
+            // Optional injection is the join's representation-changing
+            // conversion. Static variance conversions keep the list as is.
+            if self.option_layers(self.strip_mut(item)) < self.option_layers(target) {
+                let [operand] = kids[index].parts();
+                refs[index] = self.convert_spread((r, t), (item, target), operand);
+            }
+        }
+        let rec = self.b.refs_record(&refs);
+        let marks = if spreads.is_empty() {
+            NONE
+        } else {
+            self.b.words_record(&spreads)
+        };
+        let t = result.1;
+        Ok((self.b.emit(Tag::NewList, marks, rec, t, n.index()), t))
     }
 
     /// The elements of the list `r` (`List[item]`, or a reference to

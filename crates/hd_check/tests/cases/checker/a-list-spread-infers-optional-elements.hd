@@ -1,0 +1,10 @@
+# @dump: tir
+# Each inferred spread inserts a converted copy of its evaluated list value,
+# including when a later optional element widens an earlier spread.
+fn before(xs: List[i32]):
+    let none: i32? = .None
+    [none, xs...]
+
+fn after(xs: List[i32]):
+    let none: i32? = .None
+    [xs..., none]

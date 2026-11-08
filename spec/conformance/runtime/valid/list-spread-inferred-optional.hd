@@ -1,0 +1,28 @@
+# test: inferred list spreads wrap each element, before or after the optional element
+# Spec 05 List Literals: expr.list.spread.convert, expr.list.spread.inferred.
+# expect-stdout: [Option.None, Option.Some(1), Option.Some(2)]
+# expect-stdout: [Option.Some(1), Option.Some(2), Option.None]
+# expect-stdout: [Option.None, Option.Some("old"), Option.Some("new")]
+# expect-stdout: 1
+
+fn source(calls: &mut i32) -> List[i32]:
+    *calls += 1
+    [1, 2]
+
+fn replace(items: &mut List[string]) -> string?:
+    items[0] = "new"
+    .Some("new")
+
+pub fn main() -> void $ Console:
+    let none: i32? = .None
+    let mut calls: i32 = 0
+    before := [none, source(&mut calls)...]
+    let xs: List[i32] = [1, 2]
+    after := [xs..., none]
+    println(debug(before))
+    println(debug(after))
+    let absent: string? = .None
+    let mut words = ["old"]
+    snapshot := [absent, words..., replace(&mut words)]
+    println(debug(snapshot))
+    println(calls)

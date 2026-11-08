@@ -47,17 +47,7 @@ struct Site {
 #[derive(Clone, Copy)]
 struct Joined {
     ty: Ty,
-    to: Conv,
-}
-
-/// Where a joined value's conversion goes.
-#[derive(Clone, Copy)]
-enum Conv {
-    /// A slot reserved after the value, filled when the site closes.
-    Slot(Slot, Ref, NodeIdx),
-    /// A list spread's elements: the list passes as it is, so only a
-    /// conversion with no run-time meaning is supported.
-    Spread,
+    to: (Slot, Ref, NodeIdx),
 }
 
 enum Undo {
@@ -88,7 +78,7 @@ impl Joins {
         }
     }
 
-    fn push(&mut self, var: Ty, ty: Ty, to: Conv) {
+    fn push(&mut self, var: Ty, ty: Ty, to: (Slot, Ref, NodeIdx)) {
         if let Some(site) = self.sites.get_mut(&var) {
             site.values.push(Joined { ty, to });
             self.log.push(Undo::Value(var));
@@ -200,7 +190,7 @@ impl Ck<'_, '_> {
             return run(self, result);
         }
         let out = run(self, result)?;
-        self.fill_join(result)?;
+        self.fill_join(result);
         self.joins.close(result);
         Ok(out)
     }
@@ -208,7 +198,7 @@ impl Ck<'_, '_> {
     /// Fills the slots of `var`'s site with each value's conversion to the
     /// site's final type: `WrapSome` for a value one optional layer short,
     /// else the static conversion the value takes, or `Identity`.
-    fn fill_join(&mut self, var: Ty) -> StageResult<()> {
+    fn fill_join(&mut self, var: Ty) {
         let pool = self.pool();
         let site = self.infer.resolve(pool, var);
         let values = self.joins.values(var).to_vec();
@@ -225,21 +215,10 @@ impl Ck<'_, '_> {
                     _ => Coercion::Variance,
                 }
             };
-            match v.to {
-                Conv::Slot(slot, r, syn) => {
-                    let rec = self.b.words_record(&[kind as u32, NONE]);
-                    self.b.fill(slot, Tag::Coerce, r.0, rec, var, syn);
-                }
-                Conv::Spread if kind == Coercion::WrapSome => {
-                    return Err(hd_base::NotImplemented::new(
-                        hd_base::Stage::Body,
-                        "a list spread that converts its elements",
-                    ));
-                }
-                Conv::Spread => {}
-            }
+            let (slot, r, syn) = v.to;
+            let rec = self.b.words_record(&[kind as u32, NONE]);
+            self.b.fill(slot, Tag::Coerce, r.0, rec, var, syn);
         }
-        Ok(())
     }
 
     /// The expected type a value at a site passes on to a literal it holds:
@@ -270,18 +249,17 @@ impl Ck<'_, '_> {
             let slot = self.b.reserve();
             let s = slot.as_ref();
             self.b.body_mut().ty[s.0 as usize] = got;
-            self.joins.push(var, got, Conv::Slot(slot, r, n.index()));
+            self.joins.push(var, got, (slot, r, n.index()));
             return s;
         }
         r
     }
 
-    /// A list spread's elements of type `got` at the site of `var`: the
-    /// list passes as it is (`expr.list.spread.expected`).
+    /// A spread contributes its element type to the join. Once the site
+    /// closes, list assembly converts its captured list value's elements
+    /// (`expr.list.spread.convert`).
     pub(crate) fn join_spread(&mut self, got: Ty, var: Ty, n: NodeRef<'_>, what: &str) {
-        if self.join_type(got, var, n, what) {
-            self.joins.push(var, got, Conv::Spread);
-        }
+        self.join_type(got, var, n, what);
     }
 
     /// Joins a value's type into the site of `var`, or reports why it
