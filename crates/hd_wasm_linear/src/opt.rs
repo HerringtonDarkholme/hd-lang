@@ -24,7 +24,7 @@
 //!    goes, `+ a ± b` is one addition, `x == 0` is `i32.eqz`, a test of
 //!    `x != 0` is a test of `x`, a multiplication, quotient or remainder by
 //!    a power of two is a shift or a mask, and a constant added to a load's
-//!    or store's address is its offset;
+//!    address is its offset (a store's is rule 9's);
 //! 8. `local.set a; R; local.set b; local.get a; local.get b`, where
 //!    those are `a`'s and `b`'s only writes and reads and `R` is a
 //!    straight-line run that pushes one value over what it found, is
@@ -1640,16 +1640,6 @@ fn fold(f: &mut Func) -> bool {
                     with_offset(load, c.cast_unsigned()).expect("a load"),
                 ));
                 k += 3;
-                changed = true;
-            }
-            (Some(Ins::Op(I::I32Const(c))), Some(Ins::Op(I::I32Add)), v, Some(Ins::Op(store)))
-                if *c >= 0 && push(v) && with_offset(store, 0).is_some() && !is_load(store) =>
-            {
-                out.push(*v.expect("a push"));
-                out.push(Ins::Op(
-                    with_offset(store, c.cast_unsigned()).expect("a store"),
-                ));
-                k += 4;
                 changed = true;
             }
             _ => {
