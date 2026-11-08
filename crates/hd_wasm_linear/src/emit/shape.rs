@@ -113,15 +113,13 @@ pub(super) fn ref_local(b: &Body, i: usize) -> Option<usize> {
 
 /// What a projection read of one step from a value reads, by the type
 /// of that value (`Em::projected`): one fact per instruction, in a table
-/// indexed by instruction. A read through a reference is `None`, though
-/// `Read [*%r .k]` has the shape of a data object's field.
+/// indexed by instruction. A read through a reference is `None`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(super) enum Projected {
     /// No projection read.
     #[default]
     None,
-    /// A field of a struct, newtype or data value (`[%v .k]`,
-    /// `[*%o .k]`).
+    /// A field of a struct or newtype value (`[%v .k]`).
     Field,
     /// An element of a tuple (`[%v .k]`).
     Element,

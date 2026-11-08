@@ -1,10 +1,8 @@
-//! Structs, tuples, enums and data values (`crates/hd_wasm_linear/DESIGN.md`
-//! §23.3, job 6). A struct, a tuple and a non-recursive enum are their
-//! values in locals ([`crate::layout::mem`]): construction pushes them, a
-//! field read picks some. A data value and a self-recursive enum are the
-//! address of an object in the heap, whose payload holds the same values
-//! at their offsets: construction allocates it and stores them, a field
-//! read loads them, a field write stores them.
+//! Structs, tuples and enums (`crates/hd_wasm_linear/DESIGN.md` §23.3,
+//! job 6). A struct, a tuple and a non-recursive enum are their values in
+//! locals ([`crate::layout::mem`]): construction pushes them, a field read
+//! picks some. A self-recursive enum is the address of a cell in the heap,
+//! which holds the enum's values at their offsets.
 
 use crate::op::Op as I;
 use hd_base::StageResult;
@@ -566,7 +564,7 @@ impl Em<'_, '_, '_> {
     }
 
     /// `CopyStruct`: a copy of `a` with the fields of the `(field, value)`
-    /// pairs `bw` replaced; a data value's copy is a new object.
+    /// pairs `bw` replaced.
     pub(super) fn copy_data(&mut self, i: u32, a: u32, bw: u32) -> StageResult<()> {
         let words = self.rec(bw);
         let repl: Vec<(u32, u32)> = words.chunks(2).map(|w| (w[0], w[1])).collect();
@@ -688,14 +686,14 @@ impl Em<'_, '_, '_> {
             self.f.op(I::I64Eq);
             return self.store(i);
         }
-        // A data value, a boxed enum, a list, a map and a trait value's
+        // A boxed enum, a list, a map and a trait value's
         // data are each one counted address first; a trait value that
         // boxed a value compares its boxes (`ref.identity.same-place`).
         let t = self.ty_of(a);
         if !matches!(self.kind(t), Kind::Boxed)
             && walk(self.pool(), self.env(), t).and_then(|w| w.single()) != Some(0)
         {
-            return unsupported("identity of a value that is not a data value");
+            return unsupported("identity of a value that is no object");
         }
         self.comp(a, 0)?;
         self.comp(b, 0)?;

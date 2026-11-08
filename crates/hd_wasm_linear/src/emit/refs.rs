@@ -1,8 +1,7 @@
 //! References as addresses (`crates/hd_wasm_linear/DESIGN.md` §23.5, §23.20). A
 //! reference is the address of its place: a local's cell, a top-level
 //! binding's static slot, a field inside either or inside what another
-//! reference refers to, a data object's field, or a list element in its
-//! buffer. Reading or writing through it needs only the address; a count
+//! reference refers to, or a list element in its buffer. Reading or writing through it needs only the address; a count
 //! through it reaches the object that holds the place through the page
 //! table, and a place in static data has none. A reference to a trait
 //! value is that trait value, whose data is already one address, as Rust's
@@ -204,8 +203,7 @@ impl Em<'_, '_, '_> {
     /// its locals: the part's type and which of the value's locals hold
     /// it, through struct and tuple fields, a newtype's one field and an
     /// enum's payload fields (`as .v .f`). `None` when a step leaves the
-    /// locals: a boxed enum, a data value, an open value, a dereference,
-    /// an element.
+    /// locals: a boxed enum, an open value, a dereference, an element.
     pub(super) fn part_slots(&self, t: Ty, proj: &[Proj]) -> StageResult<Option<(Ty, Vec<usize>)>> {
         let mut slots: Vec<usize> = (0..self.vals(t)?.len()).collect();
         let mut ty = t;
@@ -630,7 +628,7 @@ impl Em<'_, '_, '_> {
     /// element's slot, bounds-checked where the walk takes the place
     /// ([`Em::rooted_at`]), else at the buffer's address with no check, or
     /// at a map entry's value; a reference's referent, or the trait value
-    /// for a reference to one; a data object's field. A place with
+    /// for a reference to one. A place with
     /// neither is in its root's storage. [`Em::ref_from`] addresses the
     /// struct field the fields after the head name.
     fn counted_ref(&mut self, i: u32) -> StageResult<()> {
@@ -640,9 +638,7 @@ impl Em<'_, '_, '_> {
         };
         let last = self.last_through(&p)?;
         let start = self.place_start(i, &p, last)?;
-        // A data object's field is the head with its dereference.
         let (upto, head) = match last {
-            Some((d, None)) if p.proj[d] == Proj::Deref => ((d + 2).min(p.proj.len()), None),
             Some((d, through)) => (d, Some(through)),
             None => (0, None),
         };
@@ -1431,7 +1427,7 @@ impl Em<'_, '_, '_> {
     }
 
     /// A local holding the one 32-bit value at `at`: a list buffer, a
-    /// reference, a data object's or a boxed enum's address.
+    /// reference, or a boxed enum's address.
     pub(super) fn at_i32(&mut self, at: &At) -> StageResult<u32> {
         let (base, leaf) = match at {
             At::Vals(ls) if ls.len() == 1 => return Ok(ls[0]),
@@ -1540,8 +1536,8 @@ impl Em<'_, '_, '_> {
 
     /// Walks the steps of `p` up to step `upto` from its root's value
     /// (`docs/compiler/tir-v2.md`, "Places"): a field picks its part, a
-    /// variant its payload field, a dereference of a data value the
-    /// object's field, an element its slot in the buffer, bounds-checked
+    /// variant its payload field, an element its slot in the buffer,
+    /// bounds-checked
     /// (unchecked where the loop's range proof covers read `i`, and from the
     /// loop's cached buffer where the list is a stable list of a local).
     /// A dereference of a reference goes to its referent's address; where

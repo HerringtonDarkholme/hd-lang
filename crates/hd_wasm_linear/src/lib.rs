@@ -163,7 +163,7 @@ pub fn lending_types(pool: &InternPool, env: &dyn ProgramEnv, from: Ty, to: Ty) 
 /// variant `variant` of an enum that does not contain itself. False for
 /// any other type, whose parts no `move` or `Drop` can take one by one:
 /// a scalar, a string, a list, a map, a trait or function value, a
-/// reference, a data value, a recursive enum. The ownership passes'
+/// reference, a recursive enum. The ownership passes'
 /// `OwnCx::parts`.
 pub fn in_place_parts(
     pool: &InternPool,

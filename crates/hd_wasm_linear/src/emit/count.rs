@@ -180,8 +180,8 @@ impl Em<'_, '_, '_> {
         self.counted(t).is_some() || !self.drop_calls(t).is_empty()
     }
 
-    /// Whether a new object of type `t` (a data value, a self-recursive
-    /// enum's cell, a list's or a map's) takes part in cycle collection
+    /// Whether a new object of type `t` (a self-recursive enum's cell, a
+    /// list's or a map's) takes part in cycle collection
     /// (`crate::cycle`).
     pub(super) fn cyclic_object(&self, t: Ty) -> bool {
         self.input.runtime.is_some() && crate::cycle::object(self.pool(), self.env(), t)

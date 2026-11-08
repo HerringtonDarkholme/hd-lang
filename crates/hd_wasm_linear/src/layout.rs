@@ -8,8 +8,8 @@
 //! alignment. An enum is its tag, then slots that its variants share: the
 //! `k`th value of one Wasm type in a variant's payload is in that type's
 //! `k`th slot, so a variant fills only the slots it needs and loads and
-//! stores need no branch on the tag. A data value, a self-recursive enum
-//! and a suspension are one address; a string is its address and byte
+//! stores need no branch on the tag. A self-recursive enum and a
+//! suspension are one address; a string is its address and byte
 //! length; a trait value its data address and its vtable's address; a
 //! list or a map the address of its buffer (§23.7); a function value its
 //! code's table slot and its environment's address (§23.8). A reference,
@@ -545,8 +545,7 @@ pub enum Walk {
     /// test folds to false in a module that makes no view.
     View(u32),
     /// Value `k` is null, a static object's, or the payload start of a
-    /// counted object, eight bytes after its header: a data value, a boxed
-    /// enum's cell, a collection's buffer, a closure's environment, a
+    /// counted object, eight bytes after its header: a boxed enum's cell, a collection's buffer, a closure's environment, a
     /// thin counted reference ([`block_start`]); counting
     /// reads the header at `k - 8` (§23.30).
     Known(u32),
@@ -920,7 +919,7 @@ pub fn struct_mem(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult
     payload_mem(pool, env, &fields)
 }
 
-/// The layout of a data object's payload, or of a struct's fields.
+/// The layout of an object's payload of `fields`, or of a struct's fields.
 pub fn payload_mem(
     pool: &InternPool,
     env: &dyn ProgramEnv,

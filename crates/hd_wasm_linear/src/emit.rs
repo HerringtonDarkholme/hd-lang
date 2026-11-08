@@ -1895,7 +1895,7 @@ impl Em<'_, '_, '_> {
                 self.global_read(i, def)?;
             }
             // A projection read: a field, a tuple element or a payload
-            // field of a value, or a data object's field.
+            // field of a value.
             Tag::Read if let Some((base, p)) = self.projection(i as usize) => {
                 self.projection_read(i, base, p)?;
             }

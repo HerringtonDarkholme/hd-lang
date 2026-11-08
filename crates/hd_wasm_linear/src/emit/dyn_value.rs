@@ -1,6 +1,6 @@
 //! Trait values (`crates/hd_wasm_linear/DESIGN.md` §23.8, §23.19, job 11). A
 //! trait value is `(data, vtable)`. The data is the value itself when its
-//! layout is one counted address (a list, a map, a data value); any other
+//! layout is one counted address (a list, a map); any other
 //! value is boxed in a counted object of its layout, whose descriptor
 //! releases it. Either way the data is one counted address, so a trait
 //! value's release and trace are its data's, and the vtable is static: one

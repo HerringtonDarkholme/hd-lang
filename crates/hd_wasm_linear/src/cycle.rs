@@ -64,7 +64,7 @@ fn writable(pool: &InternPool, env: &dyn ProgramEnv, target: Ty) -> bool {
 }
 
 /// Whether an object of type `t` takes part: a list's buffer,
-/// a map's table, a data value's object or a self-recursive enum's cell.
+/// a map's table or a self-recursive enum's cell.
 pub fn object(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
     let t = strip(pool, env, t);
     reaches(pool, env, &contents(pool, env, t))
