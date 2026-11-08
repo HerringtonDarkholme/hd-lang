@@ -770,11 +770,7 @@ pub fn pass(pool: &InternPool, env: &dyn ProgramEnv, counts: bool, t: Ty) -> Pas
         return Pass::Uncounted;
     }
     if matches!(kind(pool, env, t), Kind::Ref { .. }) {
-        return if walk(pool, env, t).is_some() {
-            Pass::Borrowed
-        } else {
-            Pass::Uncounted
-        };
+        return Pass::Borrowed;
     }
     count_walk(pool, env, t).map_or(Pass::Uncounted, Pass::Owned)
 }
