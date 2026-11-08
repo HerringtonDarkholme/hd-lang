@@ -104,7 +104,7 @@ const conformance = (name: string, test: string, env: Record<string, string>): R
 });
 
 const RUNS: Run[] = [
-  { name: "driver", args: [...DRIVER, "--lib", "--test", "stages"], env: {} },
+  { name: "driver", args: [...DRIVER, "--lib", "--test", "stages", "--test", "all"], env: {} },
   conformance("conformance", SUITE, {}),
   conformance("conformance-checked", SUITE, { HD_CONFORMANCE_CHECKED: "1" }),
   conformance("conformance-checked-optimized", SUITE, {
