@@ -599,19 +599,24 @@ impl Ck<'_, '_> {
             return Ok(self.poison_value(n));
         }
         let Some(def) = self.resolve_path(&segs) else {
-            let hint = match segs.as_slice() {
-                [name] => self.name_hint(name),
-                _ => String::new(),
-            };
-            let msg = format!("`{}` is not defined{hint}", segs.join("."));
-            self.err(Code::UnknownName, n, &msg);
-            return Ok((Ref(NONE), Ty::POISON));
+            return Ok(self.undefined_path(&segs, n));
         };
         if let Some(ItemData::Fn(sig)) = self.cx.lookup.item(def).map(|i| &i.data) {
             let sig = sig.clone();
             return self.item_value(def, &sig, &explicit, want, n);
         }
         unsupported("a type with arguments used as a value")
+    }
+
+    /// `names.module.other-module.value`: a path that names nothing.
+    fn undefined_path(&mut self, segs: &[String], n: NodeRef<'_>) -> (Ref, Ty) {
+        let hint = match segs {
+            [name] => self.name_hint(name),
+            _ => String::new(),
+        };
+        let msg = format!("`{}` is not defined{hint}", segs.join("."));
+        self.err(Code::UnknownName, n, &msg);
+        (Ref(NONE), Ty::POISON)
     }
 
     /// The generic parameters of the function or type a type-argument
@@ -912,6 +917,11 @@ impl Ck<'_, '_> {
                     }
                     _ if matches!(inner.kind(), SyntaxKind::FieldExpr | SyntaxKind::PathExpr) => {
                         self.member_call(n, inner, args, bang, want, explicit)
+                    }
+                    None if inner.kind() == SyntaxKind::NameExpr
+                        && self.find_local(self.sym_of(inner)).is_none() =>
+                    {
+                        Ok(self.undefined_path(&segs, callee))
                     }
                     _ => unsupported("a call through explicit type arguments of a type"),
                 }

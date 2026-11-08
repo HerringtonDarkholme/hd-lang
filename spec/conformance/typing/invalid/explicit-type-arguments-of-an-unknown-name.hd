@@ -1,0 +1,5 @@
+# test: a call through explicit type arguments of a name not in scope
+# Spec 03 Module Scope: names.module.other-module.value.
+
+fn same(x: i32) -> bool:
+    cmp::[i32](x, x) # diagnostic: unknown-name
