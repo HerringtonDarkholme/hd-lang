@@ -588,12 +588,14 @@ pub enum Helper {
         args: Vec<crate::task::HostArg>,
         result: crate::boundary::CallRes,
     },
-    /// `(data, params) -> results`: a host handle's vtable slot, which
-    /// calls `inner`, a host call or a cold leaf, with the handle number
-    /// from the box at `data` first (`boundary.rs`).
+    /// `(data, params, ctx?) -> results`: a host handle's vtable slot,
+    /// which calls `inner`, a host call or a cold leaf, with the handle
+    /// number from the box at `data` first (`boundary.rs`). With `ctx`, it
+    /// takes the context its method's slot shape has last, and ignores it.
     HandleSlot {
         inner: Box<Helper>,
         params: Vec<Val>,
+        ctx: bool,
         results: Vec<Val>,
     },
     /// `(payload)`: remove the package handle's host binding on last release.
@@ -1161,7 +1163,7 @@ fn host_vtable(input: &Input<'_>, m: &mut Module, key: Ty) -> StageResult<usize>
             input, m, host.key, &row, method, false, None,
         )?));
     }
-    crate::drive::vtable(input, m, def, TyList::EMPTY, slots, Vec::new())
+    crate::drive::vtable(input, m, def, slots, Vec::new())
 }
 
 /// The vtable of a host trait that a runtime profile declares itself
@@ -1314,7 +1316,7 @@ fn profile_tree(
         }
     }
     seen.pop();
-    crate::drive::vtable(input, m, def, TyList::EMPTY, slots, parents)
+    crate::drive::vtable(input, m, def, slots, parents)
 }
 
 /// Adds `by` to the forbidden-context counter.
@@ -1462,8 +1464,9 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::HandleSlot {
             inner,
             params,
+            ctx,
             results,
-        } => crate::boundary::handle_slot(m, inner, params, results),
+        } => crate::boundary::handle_slot(m, inner, params, *ctx, results),
         Helper::PackageHandleRelease { module } => {
             let mut f = m.func("rt:package_handle_release", vec![Val::I32], vec![]);
             if !m.acyclic {

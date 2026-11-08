@@ -2641,16 +2641,12 @@ impl Em<'_, '_, '_> {
         else {
             unreachable!("collection dispatches only a trait method dynamically");
         };
-        // The trait value's arguments as this instance has them decide
-        // the slot's shape, as they did its vtable's.
-        let targs: Vec<Ty> = self
-            .pool()
-            .list_items(targs)
-            .iter()
+        // The trait value's arguments as this instance has them.
+        let targs: Vec<Ty> = (self.pool().list_items(targs).iter())
             .map(|t| self.sub(*t))
             .collect();
         let targs = self.pool().list(&targs);
-        let takes_ctx = ctx::slot_ctx(self.pool(), self.env(), method, targs)?;
+        let takes_ctx = ctx::slot_ctx(self.pool(), self.env(), method);
         let results = match (result, drive) {
             // The drive slot (§23.39): the frame or 0, then the results.
             (_, Some((t, _))) => [vec![Val::I32], self.vals(t)?].concat(),

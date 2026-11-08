@@ -1,0 +1,34 @@
+# expect-stdout: ran
+# expect-stdout: 7
+# expect-stdout: 3
+# expect-stdout: 3
+# test: a row-polymorphic function calls a trait value whose row argument is its row parameter, at a row with keys and at the empty row
+# Spec lang/09 Dynamic Safety: trait.dyn.generic-trait; lang/11 Row Parameters: req.row.param.data-owner.
+trait Runnable[$ R]:
+    fn run(&self) -> i32 $ R
+
+struct Announcer: pass
+
+impl Runnable[$ Console] for Announcer:
+    fn run(&self) -> i32 $ Console:
+        println("ran")
+        7
+
+struct Quiet: pass
+
+impl[$ R] Runnable[$ R] for Quiet:
+    fn run(&self) -> i32 $ R:
+        3
+
+fn any[$ R](r: &dyn Runnable[$ R]) -> i32 $ R:
+    r.run()
+
+fn plain(r: &dyn Runnable[$ ()]) -> i32:
+    any(r)
+
+pub fn main() -> void $ Console:
+    let loud: &dyn Runnable[$ Console] = &Announcer {}
+    println(any(loud))
+    let quiet: &dyn Runnable[$ Console] = &Quiet {}
+    println(any(quiet))
+    println(plain(&Quiet {}))

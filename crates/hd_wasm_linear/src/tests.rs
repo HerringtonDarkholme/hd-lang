@@ -223,6 +223,7 @@ fn every_runtime_helper_validates() {
         Sym::Helper(Helper::HandleSlot {
             inner: Box::new(leaf),
             params: vec![Val::I32, Val::I32],
+            ctx: false,
             results: vec![Val::I32],
         }),
     ]);

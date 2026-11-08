@@ -945,17 +945,10 @@ fn handle_vtable(
             ));
         }
         let slots = handle_slots(input, m, def, trait_, &tname, host, at, true)?;
-        parents.push(crate::drive::vtable(
-            input,
-            m,
-            def,
-            TyList::EMPTY,
-            slots,
-            Vec::new(),
-        )?);
+        parents.push(crate::drive::vtable(input, m, def, slots, Vec::new())?);
     }
     let slots = handle_slots(input, m, trait_, trait_, &tname, host, at, true)?;
-    crate::drive::vtable(input, m, trait_, TyList::EMPTY, slots, parents)
+    crate::drive::vtable(input, m, trait_, slots, parents)
 }
 
 fn package_handle_tree(
@@ -1015,7 +1008,7 @@ fn package_handle_tree(
         )?);
     }
     seen.pop();
-    crate::drive::vtable(input, m, owner, TyList::EMPTY, slots, parents)
+    crate::drive::vtable(input, m, owner, slots, parents)
 }
 
 pub fn add_package_method(
@@ -1108,6 +1101,7 @@ fn handle_slots(
         slots.push(Sym::Helper(Helper::HandleSlot {
             inner: Box::new(inner),
             params: pv,
+            ctx: crate::emit::slot_ctx(pool, env, method),
             results,
         }));
     }
@@ -1219,12 +1213,16 @@ pub fn host_call(
     f
 }
 
-/// [`Helper::HandleSlot`]: `(data, params) -> results`, a host handle's
-/// vtable slot: the handle number from the box at `data`, then the inner
-/// host call with it first.
-pub fn handle_slot(m: &Module, inner: &Helper, params: &[Val], results: &[Val]) -> Func {
+/// [`Helper::HandleSlot`]: `(data, params, ctx?) -> results`, a host
+/// handle's vtable slot: the handle number from the box at `data`, then
+/// the inner host call with it first. A host method has no row, so the
+/// slot ignores a context.
+pub fn handle_slot(m: &Module, inner: &Helper, params: &[Val], ctx: bool, results: &[Val]) -> Func {
     let mut all = vec![Val::I32];
     all.extend(params.iter().copied());
+    if ctx {
+        all.push(Val::I32);
+    }
     let mut f = m.func("rt:handle_slot", all, results.to_vec());
     f.get(0);
     f.get(0);

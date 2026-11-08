@@ -2151,11 +2151,14 @@ whose row changes and `$.Context` values on the linear backend
   `ContextNew` builds it from the last pair that binds each key, a trait
   value or an entry of a spread context. A spread in `$.with` reads each
   entry into provider locals, borrowed from the value.
-- **Dynamic calls.** A vtable slot of a method whose row lists a key, or
-  that has row parameters, takes one context last: the caller cannot know
-  the implementation's row, which may list fewer keys. The slot looks up
-  the implementation's own keys and passes the context on when the
-  target has row parameters. A method with row parameters of its own has
+- **Dynamic calls.** A vtable slot of a method whose row lists a key or
+  names a row parameter of its trait, or that has row parameters, takes
+  one context last: the caller cannot know the implementation's row,
+  which may list fewer keys. Every trait value of the trait shares that
+  shape, so `dyn Disposable[$ ()]` passes 0 and a row-polymorphic body
+  passes its context on for `dyn Runnable[$ R]`. The slot looks up the
+  implementation's own keys and passes the context on when the target
+  has row parameters; a host handle's slot ignores it. A method with row parameters of its own has
   no slot.
 
 ### 23.28 The Cycle Collector

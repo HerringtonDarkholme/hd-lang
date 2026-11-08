@@ -8,7 +8,7 @@
 use hd_base::{DefId, HashMap, InstId, StageResult};
 use hd_mono::{ProgramEnv, Sub, Target, TargetKind};
 use hd_tir::ir::{Body, Callee, NONE, PlaceRoot, ReadMode, Ref, Tag, Topology};
-use hd_types::{Ty, TyData, TyList};
+use hd_types::{Ty, TyData};
 
 use crate::module::{Module, Sym, Val};
 use crate::rt::Helper;
@@ -305,15 +305,12 @@ fn needs_slot(
     }
 }
 
-/// The vtable of trait `trait_` at the trait value's arguments `args`
-/// (`Self` left out), with async and then blocking drive slots after its
-/// normal slots and parents. A host vtable passes none: its slots take no
-/// context.
+/// The vtable of trait `trait_`, with async and then blocking drive slots
+/// after its normal slots and parents.
 pub fn vtable(
     input: &Input<'_>,
     m: &mut Module,
     trait_: DefId,
-    args: TyList,
     mut slots: Vec<Sym>,
     parents: Vec<usize>,
 ) -> StageResult<usize> {
@@ -322,12 +319,12 @@ pub fn vtable(
         let methods = input.env.trait_methods(trait_);
         for (method, cold) in methods.iter().zip(&slots) {
             if needs_slot(input.env, m, trait_, *method, false) {
-                drives.push(slot(input, *method, args, cold, false)?);
+                drives.push(slot(input, *method, cold, false)?);
             }
         }
         for (method, cold) in methods.iter().zip(&slots) {
             if needs_slot(input.env, m, trait_, *method, true) {
-                drives.push(slot(input, *method, args, cold, true)?);
+                drives.push(slot(input, *method, cold, true)?);
             }
         }
         // `index` counts on the method slots alone before the drive slots.
@@ -351,20 +348,14 @@ pub fn vtable(
 }
 
 /// The drive slot of `method` beside its cold slot `cold`.
-fn slot(
-    input: &Input<'_>,
-    method: DefId,
-    args: TyList,
-    cold: &Sym,
-    blocking: bool,
-) -> StageResult<Sym> {
+fn slot(input: &Input<'_>, method: DefId, cold: &Sym, blocking: bool) -> StageResult<Sym> {
     let (pool, env) = (input.pool, input.env);
     let (ptys, ret) = crate::boundary::signature(pool, env, method, None);
     let mut params = vec![Val::I32];
     for p in ptys {
         params.extend(crate::layout::vals(pool, env, p)?);
     }
-    if crate::emit::slot_ctx(pool, env, method, args)? {
+    if crate::emit::slot_ctx(pool, env, method) {
         params.push(Val::I32);
     }
     let results = crate::layout::vals(pool, env, ret)?;
