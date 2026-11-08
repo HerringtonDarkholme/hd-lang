@@ -1,0 +1,26 @@
+# test: a value from `get`, read after its own arm replaces that entry and grows the map, keeps its text in checked builds too, where a freed block is poisoned
+# Spec lang/04-type-system.md: types.coll.value.
+# expect-stdout: first1 9
+# expect-stdout: held2 9
+fn fill(m: &mut Map[string, string]) -> void:
+    for i in 0..8:
+        m["k${i}"] = "junk${i}"
+
+fn replace(m: &mut Map[string, string], k: string) -> void:
+    m[k] = "other${3}"
+
+pub fn main() -> void $ Console:
+    let mut m: Map[string, string] = { "a": "first${1}" }
+    match m.get("a"):
+        .Some(v) =>
+            m["a"] = "second${2}"
+            fill(&mut m)
+            println("$v ${m.len()}")
+        .None => println("none")
+    let mut n: Map[string, string] = { "b": "held${2}" }
+    match n.get("b"):
+        .Some(w) =>
+            replace(&mut n, "b")
+            fill(&mut n)
+            println("$w ${n.len()}")
+        .None => println("none")

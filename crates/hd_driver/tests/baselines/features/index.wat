@@ -9,8 +9,7 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:map_put" (func $rt:map_put (param i32 i32 i32 i32 i32 i32 i32) (result i32)))
   (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
-  (import "fixture" "rt:release'1" (func $rt:release'1 (param i32 i32 i32)))
-  (import "fixture" "rt:release'2" (func $rt:release'2 (param i32 i32)))
+  (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
@@ -152,7 +151,7 @@
     end
     local.get $xs
   )
-  (func $map_read (param $m i32) (param $k.0 i32) (param $k.1 i32) (result i32) (local $t1 i32) (local $t0 i32) (local $v.1 i32) (local $t2 i32)
+  (func $map_read (param $m i32) (param $k.0 i32) (param $k.1 i32) (result i32) (local $t0 i32) (local $v.1 i32) (local $t1 i32)
     ;; 20 |     match m.get(k):
     block
       local.get $m
@@ -180,33 +179,28 @@
         i32.add
         local.tee $m
         i32.load $heap offset=8
-        local.tee $k.0
+        local.set $k.0
         local.get $m
         i32.load $heap offset=12
         local.set $m
-        local.tee $k.1
-        if
-          local.get $k.1
-          call $retain
-        end
         i32.const 1
         local.get $k.0
         local.get $m
         local.set $v.1
+        drop
         local.set $t0
-        local.set $t1
       else
       end
       block
         block
           block
     ;; 21 |         .Some(v) => v.len()
-            local.get $t1
+            local.get $t0
             i32.const 1
             i32.eq
             br_if 0
     ;; 22 |         .None => 0
-            local.get $t1
+            local.get $t0
             i32.eqz
             br_if 1
             unreachable
@@ -217,7 +211,7 @@
           block
             block
               local.get $v.1
-              local.set $t2
+              local.set $t1
               br 0
             end
           end
@@ -227,10 +221,6 @@
         br 0
       end
       local.get $t1
-      local.get $t0
-      local.get $v.1
-      call $rt:release'1
-      local.get $t2
       local.set $m
     end
     local.get $m
@@ -294,7 +284,7 @@
           local.get $xs
           local.get $s.1
           i32.store $heap offset=4
-          call $rt:release'2
+          call $rt:release
     ;; 33 |     match xs.get_mut(i):
           br 1
         end

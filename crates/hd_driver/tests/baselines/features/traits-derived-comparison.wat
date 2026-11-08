@@ -5,8 +5,6 @@
   (import "fixture" "derive Eq for Key.eq" (func $"derive Eq for Key.eq" (param i32 i32) (result i32)))
   (import "fixture" "rt:map_hash'1" (func $rt:map_hash'1 (param i32 i32 i32) (result i32)))
   (import "fixture" "rt:map_find'1" (func $rt:map_find'1 (param i32 i32 i32 i32 i32) (result i32)))
-  (import "fixture" "retain" (func $retain (param i32)))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32)))
   (import "fixture" "rt:map_hash'2" (func $rt:map_hash'2 (param i32 i32 i32) (result i32)))
   (import "fixture" "rt:map_find'2" (func $rt:map_find'2 (param i32 i32 i32 i32 i32) (result i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
@@ -216,7 +214,7 @@
     i32.add
     global.set $locals
   )
-  (func $lookup (param $m i32) (param $k.name.0 i32) (param $k.name.1 i32) (param $k.n i32) (result i32) (local $t1 i32) (local $t0 i32) (local $v.1 i32) (local $t2 i32)
+  (func $lookup (param $m i32) (param $k.name.0 i32) (param $k.name.1 i32) (param $k.n i32) (result i32) (local $t0 i32) (local $v.1 i32) (local $t1 i32)
     ;; 21 |     match m.get(k):
     block
       local.get $m
@@ -246,33 +244,28 @@
         i32.add
         local.tee $m
         i32.load $heap offset=12
-        local.tee $k.name.0
+        local.set $k.name.0
         local.get $m
         i32.load $heap offset=16
         local.set $m
-        local.tee $k.name.1
-        if
-          local.get $k.name.1
-          call $retain
-        end
         i32.const 1
         local.get $k.name.0
         local.get $m
         local.set $v.1
+        drop
         local.set $t0
-        local.set $t1
       else
       end
       block
         block
           block
     ;; 22 |         .Some(v) => v.len()
-            local.get $t1
+            local.get $t0
             i32.const 1
             i32.eq
             br_if 0
     ;; 23 |         .None => 0
-            local.get $t1
+            local.get $t0
             i32.eqz
             br_if 1
             unreachable
@@ -283,7 +276,7 @@
           block
             block
               local.get $v.1
-              local.set $t2
+              local.set $t1
               br 0
             end
           end
@@ -293,10 +286,6 @@
         br 0
       end
       local.get $t1
-      local.get $t0
-      local.get $v.1
-      call $rt:release
-      local.get $t2
       local.set $m
     end
     local.get $m

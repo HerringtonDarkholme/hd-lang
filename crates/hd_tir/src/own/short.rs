@@ -5,8 +5,9 @@
 //! nor pinned.
 //!
 //! An **origin** is a reference-returning `map_probe` intrinsic, a
-//! `ptr_ref` intrinsic, or a shared `Ref` of an element of a
-//! local's list, or of a read of all of one. Its **holders** are the values
+//! `ptr_ref` intrinsic, a `MapGet` (its hit's value copy takes no count),
+//! or a shared `Ref` of an element of a local's list, or of a read of all
+//! of one. Its **holders** are the values
 //! and locals its reference flows into: a variant built around it, a
 //! block's tail its owner takes, a `break` value's target, a coercion
 //! that keeps its values, a local stored once from it, and a read of a
@@ -155,6 +156,11 @@ impl Pass<'_> {
                 Some((x, false, Vec::new()))
             }
             Tag::Ref => Some((x, false, self.shared_elem_ref(x)?)),
+            Tag::Intrinsic
+                if IntrinsicOp::from_u32(self.b.data[i][0]) == Some(IntrinsicOp::MapGet) =>
+            {
+                Some((x, false, Vec::new()))
+            }
             _ => None,
         }
     }
@@ -305,6 +311,14 @@ impl Pass<'_> {
             }
         }
         let roots = self.loan_roots(o);
+        // A lookup's copy of its value is the loan's own: it goes with it.
+        own.extend(
+            (0..self.b.len())
+                .map(|j| u32::try_from(j).expect("insts"))
+                .filter(|&j| {
+                    self.b.tags[j as usize] == Tag::Retain && self.b.data[j as usize][0] == o
+                }),
+        );
         if let [end] = ends[..]
             && self.topo.loop_of[o as usize] == self.topo.loop_of[end as usize]
             && self.quiet_span(o, end, &roots, &own)
@@ -566,7 +580,7 @@ impl Pass<'_> {
     fn loan_roots(&self, o: u32) -> (HashSet<u32>, HashSet<u32>) {
         let mut roots = (HashSet::default(), HashSet::default());
         let k = o as usize;
-        if self.b.tags[k] == Tag::Call {
+        if matches!(self.b.tags[k], Tag::Call | Tag::Intrinsic) {
             if let Some(&map) = self.b.record(self.b.data[k][1]).first() {
                 self.root_value(map, &mut roots, 0);
             }

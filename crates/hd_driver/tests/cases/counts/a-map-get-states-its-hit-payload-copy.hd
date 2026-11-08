@@ -1,6 +1,6 @@
 # @dump: own counts wat
 # @build: v8 release
-# expected: MapGet states its hit payload's copy for counted or open values; scalar results need none, and an unused result keeps its existing cleanup.
+# expected: MapGet states its hit payload's copy for counted or open values; scalar results need none, and an unused result is lent by the table, with no count (#1366).
 fn lookup[T](values: Map[string, T], key: string) -> T?:
     values.get(key)
 

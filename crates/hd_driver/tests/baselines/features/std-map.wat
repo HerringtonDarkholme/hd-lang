@@ -10,7 +10,6 @@
   (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
   (import "fixture" "rt:map_put'2" (func $rt:map_put'2 (param i32 i32 i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 7 funcref))
   (func $put (param $m i32) (param $k.0 i32) (param $k.1 i32) (param $v.0 i32) (param $v.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
@@ -178,7 +177,7 @@
       i32.store $heap offset=4
     end
   )
-  (func $lookup (param $m i32) (param $k.0 i32) (param $k.1 i32) (result i32) (local $t1 i32) (local $t0 i32) (local $v.1 i32) (local $t2 i32)
+  (func $lookup (param $m i32) (param $k.0 i32) (param $k.1 i32) (result i32) (local $t0 i32) (local $v.1 i32) (local $t1 i32)
     ;; 10 |     match m.get(k):
     block
       local.get $m
@@ -208,33 +207,28 @@
         i32.add
         local.tee $m
         i32.load $heap offset=8
-        local.tee $k.0
+        local.set $k.0
         local.get $m
         i32.load $heap offset=12
         local.set $m
-        local.tee $k.1
-        if
-          local.get $k.1
-          call $retain
-        end
         i32.const 1
         local.get $k.0
         local.get $m
         local.set $v.1
+        drop
         local.set $t0
-        local.set $t1
       else
       end
       block
         block
           block
     ;; 11 |         .Some(v) => v.len()
-            local.get $t1
+            local.get $t0
             i32.const 1
             i32.eq
             br_if 0
     ;; 12 |         .None => 0
-            local.get $t1
+            local.get $t0
             i32.eqz
             br_if 1
             unreachable
@@ -245,7 +239,7 @@
           block
             block
               local.get $v.1
-              local.set $t2
+              local.set $t1
               br 0
             end
           end
@@ -255,87 +249,50 @@
         br 0
       end
       local.get $t1
-      local.get $t0
-      local.get $v.1
-      call $rt:release
-      local.get $t2
       local.set $m
     end
     local.get $m
   )
-  (func $has (param $m i32) (param $k.0 i32) (param $k.1 i32) (result i32) (local $t2 i32) (local $t1 i32) (local $t0 i32) (local $t3 i32)
+  (func $has (param $m i32) (param $k.0 i32) (param $k.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 21 |     m.contains_key(k)
     block
       block
         block
           local.get $m
           i32.load $heap
-          local.tee $m
           local.get $k.0
           local.get $k.1
           call $rt:map_hash
           local.get $k.0
           local.get $k.1
           call $rt:map_find'1
-          local.tee $k.0
           i32.const 0
           i32.ge_s
           if
-            local.get $m
-            local.get $m
-            i32.load $heap offset=12
-            i32.const 12
-            i32.mul
-            i32.add
-            i32.const 24
-            i32.add
-            local.get $k.0
-            i32.const 16
-            i32.mul
-            i32.add
-            local.tee $m
-            i32.load $heap offset=8
-            local.tee $k.0
-            local.get $m
-            i32.load $heap offset=12
-            local.set $m
-            local.tee $k.1
-            if
-              local.get $k.1
-              call $retain
-            end
             i32.const 1
-            local.get $k.0
-            local.get $m
             local.set $t0
-            local.set $t1
-            local.set $t2
           else
           end
           block
             block
               block
-                local.get $t2
+                local.get $t0
                 i32.const 1
                 i32.eq
                 br_if 0
-                local.get $t2
+                local.get $t0
                 i32.eqz
                 br_if 1
                 unreachable
                 unreachable
               end
               i32.const 1
-              local.set $t3
+              local.set $t1
               br 1
             end
             br 0
           end
-          local.get $t2
           local.get $t1
-          local.get $t0
-          call $rt:release
-          local.get $t3
           local.set $m
           br 0
         end

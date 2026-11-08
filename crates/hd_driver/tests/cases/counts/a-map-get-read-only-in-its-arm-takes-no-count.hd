@@ -1,0 +1,26 @@
+# @dump: counts
+# @build: v8 release
+# expected: `length` reads the hit's value on the table's count, with no
+# retain or release (#1366). `rewrite` and `grow` change the map while
+# the value lives, so each keeps the value's retain and release.
+fn length(m: &Map[string, string], k: string) -> usize:
+    match m.get(k):
+        .Some(v) => v.len()
+        .None => 0
+
+fn rewrite(m: &mut Map[string, string], k: string) -> usize:
+    match m.get(k):
+        .Some(v) =>
+            m[k] = "x"
+            v.len()
+        .None => 0
+
+fn fill(m: &mut Map[string, string]) -> void:
+    m["k"] = "x"
+
+fn grow(m: &mut Map[string, string], k: string) -> usize:
+    match m.get(k):
+        .Some(v) =>
+            fill(m)
+            v.len()
+        .None => 0

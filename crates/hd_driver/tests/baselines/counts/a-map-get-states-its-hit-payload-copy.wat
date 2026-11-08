@@ -2,13 +2,12 @@
 (module
   (import "fixture" "rt:map_hash" (func $rt:map_hash (param i32 i32) (result i32)))
   (import "fixture" "rt:map_find'1" (func $rt:map_find'1 (param i32 i32 i32 i32) (result i32)))
-  (import "fixture" "retain" (func $retain (param i32)))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32)))
   (import "fixture" "rt:map_find'2" (func $rt:map_find'2 (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
   (import "fixture" "rt:map_find'3" (func $rt:map_find'3 (param i32 i32 i32 i32) (result i32)))
+  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $unused (param $values i32) (param $key.0 i32) (param $key.1 i32) (local $t2 i32) (local $t1 i32) (local $t0 i32)
+  (func $unused (param $values i32) (param $key.0 i32) (param $key.1 i32)
     ;; 17 |     _ := values.get(key)
     block
       local.get $values
@@ -18,45 +17,11 @@
       local.get $key.0
       local.get $key.1
       call $rt:map_find'1
-      local.tee $key.0
       i32.const 0
       i32.ge_s
       if
-        local.get $values
-        local.get $values
-        i32.load $heap offset=12
-        i32.const 12
-        i32.mul
-        i32.add
-        i32.const 24
-        i32.add
-        local.get $key.0
-        i32.const 16
-        i32.mul
-        i32.add
-        local.tee $values
-        i32.load $heap offset=8
-        local.tee $key.0
-        local.get $values
-        i32.load $heap offset=12
-        local.set $values
-        local.tee $key.1
-        if
-          local.get $key.1
-          call $retain
-        end
-        i32.const 1
-        local.get $key.0
-        local.get $values
-        local.set $t0
-        local.set $t1
-        local.set $t2
       else
       end
-      local.get $t2
-      local.get $t1
-      local.get $t0
-      call $rt:release
     end
   )
   (func $lists (param $values i32) (param $key.0 i32) (param $key.1 i32) (result i32 i32) (local $t0 i32)
