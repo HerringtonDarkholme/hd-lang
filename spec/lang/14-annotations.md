@@ -1749,7 +1749,7 @@ impl[S] Source[S] for CopySource[S]:  # variant, next, and member elided
     type Error = never
 
     fn missing[F](&mut self, h: Field[S, F]) -> Result[F, never]:
-        .Ok(h.get(self.old))
+        .Ok(*h.get(&self.old))
 ```
 
 > **Note.** A walker that holds a second value, such as a diff, checks
