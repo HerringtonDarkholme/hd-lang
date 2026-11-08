@@ -1,0 +1,13 @@
+{
+  "commit": "d55bcb086763e98285b15322a8ff46d57c538b8e",
+  "crates": {
+    "hd_syntax": 94.06,
+    "hd_resolve": 93.34,
+    "hd_types": 92.82,
+    "hd_check": 89.83,
+    "hd_tir": 96.98,
+    "hd_mono": 91.67,
+    "hd_opt": 94.29,
+    "hd_wasm_linear": 95.55
+  }
+}
