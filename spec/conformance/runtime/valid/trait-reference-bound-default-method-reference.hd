@@ -1,0 +1,25 @@
+# test: a function reference to a defaulted generic member, taken under a bound a trait value reference meets, runs the default body
+# Spec 09 Trait Values As Bounds: trait.dyn.bound.reference.
+trait Named:
+    fn name(&self) -> string
+    fn tagged[T < Display](&self, tag: T) -> string:
+        self.name() + tag.to_string()
+struct Point:
+    x: i32
+impl Named for Point:
+    fn name(&self) -> string:
+        "point"
+fn tag_of[N < ?Copy & Named](value: &N) -> string:
+    let tagged: fn(&N, i32) -> string = N::tagged
+    tagged(value, 3)
+tests:
+    use std.testing.assert_equal
+    it("the default body runs at the trait value reference"):
+        let point = Point { x: 1 }
+        let value: &dyn Named = &point
+        assert_equal(
+            tag_of(value),
+            "point3",
+            reason="the default body calls name through the table",
+        )
+        assert_equal(tag_of(&point), "point3", reason="the concrete type runs the same default")

@@ -3136,14 +3136,18 @@ impl Cx<'_> {
                     return err("a trait member reference without `Self`");
                 };
                 // At a trait-value `Self`, the adapter dispatches through
-                // the receiver's table (trait.dyn.bound.reference-dispatch).
+                // the receiver's table (trait.dyn.bound.reference-dispatch);
+                // a member with no slot runs its default body at the
+                // reference type (trait.dyn.bound.reference), as a call does.
                 let value_ty = match pool.get(self_ty) {
                     TyData::Adt { def, args } if env.ref_cells().holds(def) => {
                         pool.list_items(args)[0]
                     }
                     _ => self_ty,
                 };
-                if is_trait_value(pool, value_ty) {
+                if is_trait_value(pool, value_ty) && !slot_methods(env, trait_).contains(&item) {
+                    Target::Call(self.target(item, args, id)?)
+                } else if is_trait_value(pool, value_ty) {
                     reps.hash(env.path_hash(item));
                     self.out.dyn_methods.insert(item);
                     Target::Dyn
