@@ -75,6 +75,8 @@ interface Fixture {
   readonly expectHeader?: string;
   readonly expectedStdout?: string;
   readonly markerLine?: number;
+  /** Every `# diagnostic:` marker, for a `reject-all` case. */
+  readonly markedErrors?: readonly { readonly code: string; readonly line: number }[];
   readonly packageRole?: string;
   readonly testLayout?: string;
   /** `# fixture-package-tree: TREE/PATH` (README, Package Trees). */
@@ -283,7 +285,7 @@ async function readIndex(path: string): Promise<Map<string, IndexRow>> {
       fields.length !== 4 ||
       fields.some((field) => field === "") ||
       !/^(parse|type|runtime)$/.test(phase!) ||
-      !/^(accept|(reject|warn|panic):[a-z0-9-]+)$/.test(expectation!)
+      !/^(accept|reject-all|(reject|warn|panic):[a-z0-9-]+)$/.test(expectation!)
     ) {
       throw new UsageError(`${path}: invalid row: ${line}`);
     }
@@ -369,6 +371,13 @@ function markerError(
 ): string | undefined {
   if (row.expectation === "accept" && markers.length > 0) {
     return `accept case has a line marker (${markers[0]!.expectation} on line ${markers[0]!.line})`;
+  }
+  if (row.expectation === "reject-all") {
+    // Used by spec/check-examples.ts for an error example: one marker per
+    // rejected line, and the code `any` for a bare `# error`.
+    return markers.length > 0 && markers.every((marker) => marker.expectation.startsWith("reject:"))
+      ? undefined
+      : "expected only diagnostic line markers, at least one, for reject-all";
   }
   if (row.expectation !== "accept") {
     if (markers.length !== 1) {
@@ -500,6 +509,10 @@ function readFixture(source: string, row: IndexRow, panics: Set<string>): Fixtur
     expectHeader: expect,
     expectedStdout,
     markerLine: markers[0]?.line,
+    markedErrors: markers.map((marker) => ({
+      code: marker.expectation.slice("reject:".length),
+      line: marker.line,
+    })),
     packageRole,
     testLayout,
     ...(treeMatch ? { packageTree: { tree: treeMatch[1]!, path: treeMatch[2]! } } : {}),
@@ -714,6 +727,42 @@ function describe(entries: readonly Located[]): string {
     .join(", ");
 }
 
+/**
+ * A `reject-all` case: the located errors are on exactly the marked lines,
+ * and each marked line reports its marked code (the code `any` accepts every
+ * code). A marked line may report further codes, such as a cascade.
+ */
+async function judgeRejectAll({
+  result,
+  file,
+  marked,
+}: {
+  result: CommandResult;
+  file: string;
+  marked: readonly { readonly code: string; readonly line: number }[];
+}): Promise<string | undefined> {
+  if (result.status !== REJECTED) {
+    return `expected rejection (exit ${REJECTED}), got exit ${result.status}`;
+  }
+  const errors = (await locatedDiagnostics(result, file)).filter(
+    (entry) => !entry.warning && entry.sameFile,
+  );
+  const problems: string[] = [];
+  for (const mark of marked) {
+    const reported = errors.filter((entry) => entry.line === mark.line);
+    if (!reported.some((entry) => mark.code === "any" || entry.code === mark.code)) {
+      problems.push(
+        `no error ${mark.code} on line ${mark.line}${reported.length ? ` (found ${describe(reported)})` : ""}`,
+      );
+    }
+  }
+  const unmarked = errors.filter((entry) => !marked.some((mark) => mark.line === entry.line));
+  if (unmarked.length) {
+    problems.push(`unmarked errors reported: ${describe(unmarked)}`);
+  }
+  return problems.length ? problems.join("; ") : undefined;
+}
+
 async function judgeRejectOrWarn({
   result,
   file,
@@ -847,6 +896,10 @@ async function runStaticCase(context: CaseExecution): Promise<Verdict> {
   }
   if (row.expectation.startsWith("panic:")) {
     return { path: row.path, reason: `${row.phase}-phase case cannot expect a panic` };
+  }
+  if (row.expectation === "reject-all") {
+    const problem = await judgeRejectAll({ result, file, marked: fixture.markedErrors ?? [] });
+    return problem ? fail(`${action}: ${problem}`, [result]) : { path: row.path };
   }
   const problem = await judgeRejectOrWarn({
     result,

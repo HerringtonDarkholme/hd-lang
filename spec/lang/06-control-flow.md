@@ -51,6 +51,9 @@ fn demo(flag: bool) -> i32:
 5. r[flow.must-use.underscore] The `_` spelling does not bind a local name.
 
 ```text
+struct SaveError:
+    message: string
+
 fn save() -> Result[i32, SaveError]:
     .Err(SaveError { message: "failed" })
 

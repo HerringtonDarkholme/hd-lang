@@ -353,7 +353,7 @@ fn count(values...: i32) -> i32: values                       # error: type-mism
 fn apply(callback: fn(i32...) -> i32) -> i32: 0               # error: type-mismatch
 
 fn add2(a: i32, b: i32) -> i32: a + b
-fn call[Args < Tuple, O, R](f: Fn[Args, O, $ R], args...: Args) -> O $ R: f(args...)
+fn call[Args < Tuple, O, $R](f: Fn[Args, O, $ R], args...: Args) -> O $ R: f(args...)
 fn nested() -> i32: call(add2, (1, 2))                         # error: type-mismatch
 ```
 
@@ -522,7 +522,7 @@ fn demo(test: fn() -> bool) -> void:
             true
         ,
     )
-    check(test)  # error: unsatisfied-trait-bound
+    _ := check(test)  # error: unsatisfied-trait-bound
 ```
 
 1. r[fn.trait.read-only] A closure that changes a captured local implements `FnMut` but not `Fn`. Writing one where a type parameter bounded by `Fn` is expected is an error. Error: `not-writable`.

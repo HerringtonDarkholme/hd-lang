@@ -8,7 +8,7 @@ const stop = new Set(
     " ",
   ),
 );
-const examined = new Set(["complete", "known-failure", "fragment", "mixed"]);
+const examined = new Set(["complete", "known-failure", "fragment", "mixed", "error-fragment"]);
 
 /** Whether an inventory row names fixtures whose identifiers the example must share. */
 function isExamined(classification: string, fixtureText: string): boolean {

@@ -214,6 +214,10 @@ user := User {
 8. r[data.literal.eval-defaults] Then defaults for omitted fields are evaluated in field declaration order.
 
 ```text
+struct User:
+    id: string
+    email: string
+
 missing := User { id: "user_123" }                       # error: missing-required-field
 unknown := User { id: "u", email: "e", nickname: "Ada" } # error: unknown-field
 twice := User { id: "u", id: "v", email: "e" }           # error: duplicate-field
@@ -342,12 +346,18 @@ post := Post {
 3. r[data.embed.unique] The name must be unique among the outer struct's fields. A duplicate name that involves an embedded field is an error. Error: `duplicate-embedded-field`.
 
 ```text
+struct Box[T]:
+    value: T
+
 struct Storage:
     Box[i32]
     Box[string]  # error: duplicate-embedded-field
 ```
 
 ```text
+enum JobStatus:
+    Queued
+
 struct Holder[T]:
     JobStatus  # error: embedded-non-data
     List[i32]  # error: embedded-non-data
@@ -377,6 +387,9 @@ struct Post:
 Here `Site` reaches `Stamp` at depth 4, one level too deep:
 
 ```text
+struct Stamp:
+    at: i64
+
 struct Audit:
     Stamp
     by: string

@@ -286,7 +286,7 @@ struct Job:
 
 impl Arbitrary for Job:
     fn arbitrary(c: &mut Choices) -> Job:
-        n := c.int(0..=9)
+        n := c.int(0i32..=9)
         Job { run: fn() -> i32: n }
 ```
 

@@ -1143,6 +1143,9 @@ fn rename(other: User) -> void:
 ```
 
 ```text
+struct User:
+    name: string
+
 fn invalid() -> void:
     let user = User { name: "Ada" }
     user.name = "Grace"  # error: not-writable
@@ -1447,6 +1450,9 @@ arguments' types may differ only in an outer `mut`:
 7. r[types.generic.infer.join.not-lct] This join is narrower than the [least common type](#least-common-type), and is not one of that section's constructs.
 
 ```text
+struct User:
+    name: string
+
 fn max[T < Ord](left: T, right: T) -> T:
     match left.cmp(&right):
         .Less => right
@@ -2265,6 +2271,12 @@ fn pick(flag: bool) -> void:
 3. r[types.lct.no-least] When they have common types but these rules admit no unique least one, the failure is an error. Error: `no-least-common-type`.
 
 ```text
+trait Shown:
+    fn show(self) -> string
+
+trait Tagged:
+    fn tag(self) -> string
+
 fn mix(shown: *dyn Shown, tagged: *dyn Tagged) -> void:
     items := [shown, tagged]  # error: no-common-type
 ```

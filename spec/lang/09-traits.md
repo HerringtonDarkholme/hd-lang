@@ -2086,7 +2086,8 @@ fn count(counter: &mut dyn Counter) -> void:
 
 fn demo() -> i32:
     let mut tally = Tally { n: 0 }
-    count(tally)  # error: type-mismatch; the fix-it writes `count(&mut tally)`
+    # The fix-it writes `count(&mut tally)`.
+    count(tally)  # error: type-mismatch
     tally.n
 ```
 

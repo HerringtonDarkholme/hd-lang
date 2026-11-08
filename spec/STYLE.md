@@ -210,9 +210,10 @@ checked:
 | Classification | The example | Checked by | Fixtures |
 | --- | --- | --- | --- |
 | `complete` | stands alone: a positive example that declares or imports every name it uses beyond the prelude | `check` on the example as printed must succeed | optional |
-| `known-failure` | is complete, but `check` rejects it as printed; the rejection is an open bug in the example or the compiler | `check` must still fail, so a fixed example becomes `complete` | optional |
+| `known-failure` | is complete, but `check` rejects it as printed; the rejection is an open bug in the example or the compiler. An error example is a known failure when `check` does not report its marked lines | `check` must still fail, so a fixed example becomes `complete` (or `mixed`) | optional |
 | `fragment` | does not stand alone: it uses names an earlier example or the prose declares, elides a part with `...`, shows a signature without a body, or is one file of a package | nothing beyond the fixtures | optional |
-| `mixed` | is an error example (below), or shows a warning or a panic | nothing beyond the fixtures | required |
+| `mixed` | is an error example (below), or shows a warning or a panic | an error example is checked as printed: `check` must report errors on exactly its marked lines, each with its marked code | required |
+| `error-fragment` | is an error example that does not stand alone: it names items declared elsewhere, spans several files, or marks errors that the compiler reports in different phases | nothing beyond the fixtures | required |
 | `type-fragment`, `expression-fragment`, `pattern-fragment`, `type-relation` | is a type, an expression, a pattern, or a relation between types, not a program | nothing | `-` |
 | `lexical-inventory`, `filesystem-layout`, `illustrative-pseudocode` | is a token list, a directory tree, or pseudocode | nothing | `-` |
 
