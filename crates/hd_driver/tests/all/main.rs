@@ -136,6 +136,7 @@ mod unread_facts;
 mod unread_must_use_binding;
 mod unsigned_comparison;
 mod variant_binding_names;
+mod warm_source_reads;
 
 /// One content-addressed store shared by every test that only checks what
 /// a build produces: std compiles once for the process.
