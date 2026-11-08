@@ -1,0 +1,19 @@
+# test: `Inspectable` is declared `< ?Copy`, so `runtime_type` works on a type declared `impl !Copy`
+# Spec 09 Traits: trait.inspect.relaxed, ref.copy.trait.relaxed.
+use std.inspect.Inspectable
+
+struct Photo:
+    width: u32
+    pixels: List[u8]
+
+impl !Copy for Photo
+
+fn identity(photo: &Photo) -> string:
+    "${photo.runtime_type()}"
+
+fn generic_identity[T < ?Copy & Inspectable](value: &T) -> string:
+    "${value.runtime_type()}"
+
+pub fn main() -> void $ Console:
+    photo := Photo { width: 3, pixels: [] }
+    println("${identity(&photo)} ${generic_identity(&photo)}")

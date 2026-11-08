@@ -2301,7 +2301,7 @@ The standard module `std.inspect` lets a program erase a value so that its
 concrete type can be recovered later:
 
 ```text
-trait Inspectable:
+trait Inspectable < ?Copy:
     fn runtime_type(&self) -> TypeId
 
 impl dyn Inspectable:
@@ -2328,6 +2328,7 @@ impl TypeId:
 7. r[trait.inspect.dynamic] For a dynamic value of `Inspectable`, it is the concrete type recorded when the value was erased, never the trait. The same holds for a dynamic value of a trait that has `Inspectable` as a supertrait.
 8. r[trait.inspectable.counted-reference] A counted reference type is inspectable when its referent is inspectable or is a trait value type. A local reference type is not.
 9. r[trait.inspect.reference-recorded] For a trait value reference, `runtime_type()` returns the runtime identity of the concrete referent whose reference was erased.
+10. r[trait.inspect.relaxed] `Inspectable` is declared `< ?Copy`, so a type declared `impl !Copy` is inspectable and has `runtime_type()`. See [`ref.copy.trait.relaxed`](13-values-and-references.md#r-ref.copy.trait.relaxed).
 
 ```hd
 use std.inspect.Inspectable

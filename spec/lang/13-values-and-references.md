@@ -2057,7 +2057,7 @@ fn export(photo: Photo) -> Photo:
 10. r[ref.copy.generic.relaxed.only] A `?` before a trait other than `Copy` is an error. Error: `invalid-relaxed-bound`.
 11. r[ref.copy.trait.default] A trait's `Self` is `Copy`, so a bound on the trait implies `Copy`. An implementation for a type that is not `Copy` is an error. Error: `missing-supertrait-implementation`.
 12. r[ref.copy.trait.reference] A `&mut dyn` value meets no bound on a trait whose `Self` is `Copy`. Error: `unsatisfied-trait-bound`.
-13. r[ref.copy.trait.relaxed] `trait Name < ?Copy` lifts the `Copy` bound on `Self`. A type that is not `Copy` may implement the trait, and its default bodies move `Self`. `Index` and `IndexSet` are declared so.
+13. r[ref.copy.trait.relaxed] `trait Name < ?Copy` lifts the `Copy` bound on `Self`. A type that is not `Copy` may implement the trait, and its default bodies move `Self`. `Index`, `IndexSet`, and `Inspectable` are declared so.
 14. r[ref.copy.collections] `List`, `Map`, `Set`, `Deque`, and `Heap` hold `Copy` items. A list or map literal whose items are not `Copy` is an error. Error: `unsatisfied-trait-bound`.
 
 ```text

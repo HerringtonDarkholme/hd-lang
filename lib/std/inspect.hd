@@ -12,7 +12,7 @@ use std.rt.memory.Ptr
 
 ## The sealed trait of types with a runtime identity, which the compiler supplies.
 ## See [module.prelude.inspect-reference-api](../../spec/lang/10-modules.md#r-module.prelude.inspect-reference-api).
-pub trait Inspectable:
+pub trait Inspectable < ?Copy:
     fn runtime_type(&self) -> TypeId
 
 impl dyn Inspectable:
