@@ -4248,23 +4248,6 @@ impl Run<'_> {
             }
         }
         let all: Vec<Item> = out.modules.into_iter().flat_map(|m| m.items).collect();
-        for it in &all {
-            if let Some(k) = it.intrinsic()
-                && hd_host_abi::intrinsic(names.text(k)).is_none()
-            {
-                let msg = format!(
-                    "`{}` names the unknown intrinsic `{}`",
-                    names.path(it.def),
-                    names.text(k)
-                );
-                let span = Span {
-                    file: FileId::from_raw(folder.modules[0].raw()),
-                    lo: 0,
-                    hi: 0,
-                };
-                diags.error(Code::Unsupported, span, &msg);
-            }
-        }
         let hidden = if input {
             hd_base::HashSet::default()
         } else {

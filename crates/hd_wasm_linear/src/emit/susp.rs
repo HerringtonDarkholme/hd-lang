@@ -151,7 +151,9 @@ pub(super) const FRAME: u32 = 0;
 impl Em<'_, '_, '_> {
     /// The homogeneous list frame, unlike the fixed-arity tuple point.
     pub(super) fn all_frame(&mut self, i: u32, args: &[u32]) -> StageResult<()> {
-        // `all_frame[T](tasks: List[Suspend[T]])`.
+        // ruled out: no task list. Lowering checks the declaration
+        // against the intrinsic table (`hd_resolve::intrinsics`), whose
+        // `task_all_frame` takes one `List`: `[T](List[Suspend[T]])`.
         let tasks = args[0];
         let inner = self.susp_inner(self.ty_of(i));
         let (_, elem) = self.elem(inner)?;

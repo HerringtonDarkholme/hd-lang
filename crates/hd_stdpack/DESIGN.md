@@ -50,10 +50,12 @@ wins.
 
 ## Primitive Functions
 
-`hd_host_abi::INTRINSICS` lists every `@intrinsic("key")` std may name and
-its lowering: `Compiler` (code the emitter writes, crates/hd_mono/DESIGN.md
-§12.2) or a host primitive import of module `hd:prim`. A test checks that
-every key in `lib/std` has a row. Each key is declared once. A byte, text
+`hd_resolve::intrinsics::INTRINSICS` lists every `@intrinsic("key")` std
+may name and the signature shapes the compiler implements for it
+(`trait.impl.intrinsic.shape`); lowering reports a declaration of another
+key or shape as `invalid-intrinsic`. The emitter writes the code of most
+(crates/hd_mono/DESIGN.md §12.2); `hd_host_abi::PRIMITIVES` names those
+that are host primitive imports of module `hd:prim`. A byte, text
 or panic primitive that several std modules call is a `pub` function of the
 runtime module `std.rt.bytes` (`rt/bytes.hd`), which only std may use
 ([`module.rt.bytes`](../../spec/lang/10-modules.md#r-module.rt.bytes)); the

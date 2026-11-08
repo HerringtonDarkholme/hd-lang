@@ -1301,7 +1301,9 @@ impl Em<'_, '_, '_> {
     /// [`Helper::ListReserve`] itself, the routine `list_extend` reserves
     /// with, behind the same `count != 0` test.
     pub(super) fn list_ref_change(&mut self, key: &str, args: &[u32]) -> StageResult<()> {
-        // Each takes `items: &mut List[T]` first.
+        // ruled out: a first argument that is no reference. The intrinsic
+        // table (`hd_resolve::intrinsics`) gives each a `&mut` first, and
+        // std declares it `items: &mut List[T]`.
         let (lt, _) = self
             .ref_target(self.ty_of(args[0]))
             .expect("`&mut List[T]`");

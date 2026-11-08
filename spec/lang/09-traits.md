@@ -853,6 +853,7 @@ impl[N < Num] Add for N:
 3. r[trait.impl.intrinsic.operation] Each intrinsic method computes one primitive operation, such as integer addition, for every type that its implementation covers.
 4. r[trait.impl.intrinsic.rules] Every other rule for implementation methods applies to an intrinsic method, including its exact signature.
 5. r[trait.impl.intrinsic.inline] An implementation may compile a call of an intrinsic method to inline code, such as the machine addition for `a + b` on two `i32` operands. This is an optimization and never changes a result.
+6. r[trait.impl.intrinsic.shape] A standard library declaration may take a body that the implementation supplies by name, as the reference implementation's `@intrinsic("name")` line does. The name must be one the implementation supplies. The signature must have a shape the implementation gives that body: its parameter count, each parameter's kind, its number of type parameters, and its result's kind. Error: `invalid-intrinsic`.
 
 ```text
 use std.ops.Add

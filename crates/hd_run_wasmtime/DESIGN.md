@@ -25,7 +25,7 @@ build.
 | default-profile provider types (`HostConsole`, `HostFs`, ...) | hd declarations in `lib/std` whose method bodies are intrinsic | an intrinsic body maps to a host import by the ABI table (§17.1); the signature is plain hd |
 | frames, `join!` and `race!` frames, vtables, closure environments, entry wrappers, init sequencing, panic stubs, check sequences | generated | §12 to §15 |
 | boundary encoders and decoders | generated per boundary type | like a derive, from the type's structure (§17.4) |
-| `Array[T]` operations, string byte access, `dbg`, panics | intrinsics (`hd_host_abi::INTRINSICS`, lowering `Compiler`) | a few Wasm instructions each |
+| `Array[T]` operations, string byte access, `dbg`, panics | intrinsics (`hd_resolve::intrinsics::INTRINSICS`) | a few Wasm instructions each |
 | float text, float parsing, case mapping | host primitives (`hd:prim`, §17.2) | the spec makes them host work |
 | capability methods, `hd:rt` (block, abort, stderr, stdout, panic), `TestRunner`, `PropertyRunner` | host | §17 |
 
@@ -100,7 +100,7 @@ pub struct HostMethod {
 pub static TABLE: &[HostTrait];         // capability traits
 pub static RUNNERS: &[HostTrait];       // TestRunner, PropertyRunner
 pub static HANDLES: &[HostTrait];       // Net's TcpStream, TcpListener, UdpSocket
-pub static INTRINSICS: &[(&str, Lowering)];  // Compiler | HostPrimitive(name)
+pub const PRIMITIVES: &[&str];          // the hd:prim imports
 ```
 
 Four things are generated from it:
@@ -201,8 +201,8 @@ new operation. The Wasm wake table stores the full handle and ignores a
 wake whose generation does not match. `.finish` or `abort` on a stale
 handle is a `host-contract` panic.
 
-**Host primitives.** A key of `INTRINSICS` whose lowering is
-`HostPrimitive(name)` is one import `hd:prim` `name`. `hd_wasm` lowers
+**Host primitives.** An intrinsic key in `PRIMITIVES`, `name`, is one
+import `hd:prim` `name`. `hd_wasm` lowers
 its call as `Helper::HostPrim`: scalar arguments are import parameters
 (an `f32` or `f64` is the raw value, a `usize` an `i32`), a string
 argument is written in the exchange buffer with its byte length as the

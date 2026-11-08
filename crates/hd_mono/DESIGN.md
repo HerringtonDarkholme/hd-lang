@@ -138,7 +138,7 @@ TIR lives in `hd_tir`; there is no MIR crate.
 | --- | --- |
 | `hd_mono` | collection, substitution, instance keys (`layout`), the depth limit, row parameters (`rows`), the plan types (`plan`) |
 | `hd_opt` | the pass manager and the body passes (crates/hd_opt/DESIGN.md) |
-| `hd_host_abi` | the host ABI description: traits, methods, codecs, wait flags, intrinsic keys |
+| `hd_host_abi` | the host ABI description: traits, methods, codecs, wait flags, host primitive imports |
 | `hd_wasm` | Wasm layouts, emission with `wasm-encoder`, the code entry format, runtime helpers, the linker |
 | `hd_run` | engine-independent runtime pieces: panic frames, import checks |
 | `hd_run_wasmtime` | the wasmtime engine, providers of the default profile, limits, the `cwasm` cache |

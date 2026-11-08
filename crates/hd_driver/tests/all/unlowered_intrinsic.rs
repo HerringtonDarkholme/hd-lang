@@ -1,8 +1,53 @@
-//! Valid homogeneous frames preserve owned results. (A malformed std
-//! intrinsic declaration is the checker's to reject: #1524.)
+//! A std intrinsic declaration must have its intrinsic's shape
+//! (`trait.impl.intrinsic.shape`); valid homogeneous frames preserve owned
+//! results.
 
-use hd_driver::{Executor, Goal, Host, NoClock, std_sources};
+use hd_diag::Code;
+use hd_driver::{Executor, Goal, Host, NoClock, build, std_sources};
 use hd_sched::SerialOrder;
+
+#[test]
+fn a_frame_intrinsic_without_its_task_list_is_an_invalid_intrinsic() {
+    let mut sources = std_sources();
+    sources.insert(
+        "bad.hd",
+        r#"@intrinsic("task_all_frame")
+pub fn unlowered() -> void:
+    panic("intrinsic")
+"#,
+    );
+    sources.insert(
+        "main.hd",
+        r"use std.bad.unlowered
+
+pub fn main() -> void:
+    unlowered()
+",
+    );
+    let store = crate::warm_store();
+    let host = Host {
+        render_tir: &[],
+        sources: &sources,
+        store: &store,
+        clock: &NoClock,
+        executor: Executor::Serial(SerialOrder::Priority),
+    };
+    let out = build(
+        &host,
+        "std",
+        &Goal::Program {
+            entry: "main".into(),
+        },
+    );
+    let rendered = out.render();
+    assert!(out.wasm.is_none(), "the program compiled to Wasm");
+    assert_eq!(out.diags.code, [Code::InvalidIntrinsic], "{rendered}");
+    // On the declaration's decorator, `@intrinsic("task_all_frame")`.
+    let at = out.diags.primary[0];
+    assert_eq!((at.lo, at.hi), (0, 28), "{rendered}");
+    assert!(rendered.contains("bad.hd"), "{rendered}");
+    assert!(rendered.contains("`fn[1](List) -> Suspend`"), "{rendered}");
+}
 
 #[test]
 fn homogeneous_all_frame_keeps_typed_and_counted_results() {

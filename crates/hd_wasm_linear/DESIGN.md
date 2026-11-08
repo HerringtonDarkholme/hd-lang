@@ -435,7 +435,7 @@ issue-backed exceptions; there is no per-backend rollout pass list.
 
 - **`std.rt.memory`.** spec/lang/10-modules.md "Memory Intrinsics": plain
   hd declarations in `lib/std/rt/memory.hd` whose bodies are
-  `@intrinsic`, with the `mem_` keys of `hd_host_abi::INTRINSICS`. The
+  `@intrinsic`, with the `mem_` keys of `hd_resolve::intrinsics::INTRINSICS`. The
   linear backend lowers each to one instruction on memory 0: a
   little-endian load or store at any address, `memory.size`,
   `memory.grow` with its `-1` read as `.None`, `memory.copy`, which

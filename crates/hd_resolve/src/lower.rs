@@ -4586,7 +4586,7 @@ impl Lower<'_, '_, '_> {
                     self.result_required(f, result_required || self.src.is_pub(f));
                     let sig = self.sig(f, def, gn);
                     let call = CallAttrs {
-                        intrinsic: self.intrinsic(f),
+                        intrinsic: self.checked_intrinsic(f, &sig),
                         inline: self.inline_hint(f),
                         configured: false,
                     };
@@ -4709,6 +4709,38 @@ impl Lower<'_, '_, '_> {
             .into_iter()
             .find(|(d, _)| d == "intrinsic")
             .and_then(|(_, a)| a.first().map(|k| self.sym(k)))
+    }
+
+    /// A std declaration's `@intrinsic("key")`, checked against the
+    /// intrinsic table (`trait.impl.intrinsic.shape`). An unknown key or a
+    /// signature of none of the key's shapes is reported on the decorator,
+    /// once, while the interface is built.
+    fn checked_intrinsic(&mut self, n: NodeRef<'_>, sig: &FnSig) -> Option<Symbol> {
+        let (d, key) = n
+            .children()
+            .filter(|c| c.kind() == SyntaxKind::Decorator)
+            .find_map(|d| match decorator_line(&self.src, d) {
+                Some((name, args)) if name == "intrinsic" => Some((d, args.into_iter().next()?)),
+                _ => None,
+            })?;
+        // Outside std, `@intrinsic` names no binding
+        // (`trait.impl.intrinsic.std-only`), which decorator checking reports.
+        if self.in_std() && self.r.frozen.is_none() {
+            let msg = match crate::intrinsics::check(&self.names, &key, sig) {
+                Ok(()) => None,
+                Err(crate::intrinsics::Misfit::Unknown) => {
+                    Some(format!("no intrinsic has the key `{key}`"))
+                }
+                Err(crate::intrinsics::Misfit::Shape(shapes)) => Some(format!(
+                    "the intrinsic `{key}` has the signature `{shapes}`"
+                )),
+            };
+            if let Some(msg) = msg {
+                self.diags
+                    .error(Code::InvalidIntrinsic, self.src.span(d), &msg);
+            }
+        }
+        Some(self.sym(&key))
     }
 
     /// Reports a user `impl` of the sealed trait `trait_`, on the `impl`
@@ -5695,7 +5727,7 @@ impl Lower<'_, '_, '_> {
                 let sig = self.sig(n, h.def, &mut Gen::default());
                 let attrs = FnAttrs {
                     call: CallAttrs {
-                        intrinsic: self.intrinsic(n),
+                        intrinsic: self.checked_intrinsic(n, &sig),
                         inline: self.inline_hint(n),
                         configured: false,
                     },

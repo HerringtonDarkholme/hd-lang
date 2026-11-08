@@ -3118,7 +3118,11 @@ impl Em<'_, '_, '_> {
             "char_from_scalar" => self.char_from_scalar(i, args[0]),
             // The list's count goes to the helper, which takes over an
             // unshared buffer: the moved-in argument's, else one of its own.
-            "string_from_bytes" if args.len() == 3 && self.ty_of(args[0]) == Ty::STRING => {
+            // ruled out: another form. Lowering checks each std declaration
+            // against the intrinsic table (`hd_resolve::intrinsics`), whose
+            // three `string_from_bytes` shapes differ in arity: `(List)`,
+            // `(Buffer, usize)` and `(string, usize, usize)`.
+            "string_from_bytes" if args.len() == 3 => {
                 // The caller owns initialized room from new_string. Keep its
                 // allocation and replace only the exposed byte length.
                 let moved = self.take(args[0]);
@@ -3232,8 +3236,9 @@ impl Em<'_, '_, '_> {
             "mem_store_u8" => I::I32Store8(mem(HEAP, 0, 0)),
             "mem_store_u16" => I::I32Store16(mem(HEAP, 0, 1)),
             "mem_store_u32" => I::I32Store(mem(HEAP, 0, 2)),
-            "mem_store_u64" => I::I64Store(mem(HEAP, 0, 3)),
-            other => return unsupported(format!("the intrinsic `{other}`")),
+            // ruled out: any other key. The intrinsic table
+            // (`hd_resolve::intrinsics`) has no `mem_` key but the ones above.
+            _ => I::I64Store(mem(HEAP, 0, 3)),
         };
         for a in args {
             self.push(*a)?;

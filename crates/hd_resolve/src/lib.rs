@@ -19,6 +19,7 @@ pub mod error_type;
 pub mod facts;
 pub mod header;
 pub mod iface;
+pub mod intrinsics;
 pub mod known;
 pub mod literal;
 pub mod lower;

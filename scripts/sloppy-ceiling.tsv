@@ -1,9 +1,9 @@
 rule	crate	ceiling
 ban-unsupported	hd_check	32
 ban-unsupported	hd_diag	2
-ban-unsupported	hd_driver	4
+ban-unsupported	hd_driver	3
 ban-unsupported	hd_structure	18
-ban-unsupported	hd_wasm_linear	136
+ban-unsupported	hd_wasm_linear	135
 sloppy-catchall-empty	hd_check	38
 sloppy-catchall-empty	hd_driver	1
 sloppy-catchall-empty	hd_mono	11

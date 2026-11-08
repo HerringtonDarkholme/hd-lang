@@ -580,132 +580,18 @@ pub const RUNTIME_IMPORTS: &[(&str, &str)] = &[
     ("hd:rt", "hash_seed"),
 ];
 
-/// How the compiler supplies an `@intrinsic("key")` body of std
-/// (`crates/hd_stdpack/DESIGN.md`, "Primitive Functions"; `crates/hd_mono/DESIGN.md` §12.2).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Lowering {
-    /// Inline code the emitter writes (string and list kernels, `dbg`,
-    /// panics, task frames, facts).
-    Compiler,
-    /// A host primitive import of module `hd:prim`, by name.
-    HostPrimitive(&'static str),
-}
-
-/// Every intrinsic key std may name, and its lowering. The keys are the
-/// declarations' `@intrinsic` arguments; `panic_message`, `box`, `task_all` and
-/// `test_case` belong to the compiler-supplied `std.core.panic`, `std.core.box`,
-/// `std.task.all` and `std.testing.it`, `assert_equal` to
-/// `std.testing.assert_equal`, `entry_write` to `std.rt.entry`,
-/// `type_id_of` to `std.inspect`, the two reference recovery keys to
-/// inherent methods in `std.inspect` and `std.error`,
-/// `ref_identity` to `std.cmp.identity_of`, which the checker lowers, and
-/// the `mem_` and `ptr_` keys to the runtime module `std.rt.memory`, which only the
-/// linear backend lowers (`crates/hd_wasm_linear/DESIGN.md` §23.12).
-pub static INTRINSICS: &[(&str, Lowering)] = &[
-    ("bytes_len", Lowering::Compiler),
-    ("bytes_at", Lowering::Compiler),
-    ("bytes_slice", Lowering::Compiler),
-    ("bytes_index_set", Lowering::Compiler),
-    ("bytes_index", Lowering::Compiler),
-    ("bytes_index_pair", Lowering::Compiler),
-    ("bytes_mismatch", Lowering::Compiler),
-    ("utf8_valid_len", Lowering::Compiler),
-    ("string_from_bytes", Lowering::Compiler),
-    ("string_to_bytes", Lowering::Compiler),
-    ("char_scalar", Lowering::Compiler),
-    ("char_from_scalar", Lowering::Compiler),
-    ("int_wrapping_add", Lowering::Compiler),
-    ("int_wrapping_sub", Lowering::Compiler),
-    ("int_wrapping_mul", Lowering::Compiler),
-    ("int_min", Lowering::Compiler),
-    ("int_max", Lowering::Compiler),
-    ("int_count_ones", Lowering::Compiler),
-    ("int_leading_zeros", Lowering::Compiler),
-    ("int_trailing_zeros", Lowering::Compiler),
-    ("f64_to_bits", Lowering::Compiler),
-    ("f64_from_bits", Lowering::Compiler),
-    ("f32_to_bits", Lowering::Compiler),
-    ("f32_from_bits", Lowering::Compiler),
-    ("list_truncate", Lowering::Compiler),
-    ("list_extend", Lowering::Compiler),
-    ("list_reserve", Lowering::Compiler),
-    ("map_steps", Lowering::Compiler),
-    ("map_probe", Lowering::Compiler),
-    ("panic", Lowering::Compiler),
-    ("box", Lowering::Compiler),
-    ("panic_message", Lowering::Compiler),
-    ("facts_of", Lowering::Compiler),
-    ("type_id_of", Lowering::Compiler),
-    ("downcast_ref", Lowering::Compiler),
-    ("downcast_mut", Lowering::Compiler),
-    ("block_on", Lowering::Compiler),
-    ("task_race_frame", Lowering::Compiler),
-    ("task_cleanup_frame", Lowering::Compiler),
-    ("task_abandon", Lowering::Compiler),
-    ("task_pending_frame", Lowering::Compiler),
-    ("task_wait_cell", Lowering::Compiler),
-    ("task_wait_frame", Lowering::Compiler),
-    ("task_wait_signal", Lowering::Compiler),
-    ("task_all_frame", Lowering::Compiler),
-    ("task_all", Lowering::Compiler),
-    ("test_case", Lowering::Compiler),
-    ("entry_write", Lowering::Compiler),
-    ("assert_equal", Lowering::Compiler),
-    ("dbg", Lowering::Compiler),
-    ("dbg_write", Lowering::Compiler),
-    ("repl_write", Lowering::Compiler),
-    ("dbg_printer", Lowering::Compiler),
-    ("map_hash_seed", Lowering::Compiler),
-    ("ref_identity", Lowering::Compiler),
-    ("fn_call", Lowering::Compiler),
-    ("fn_mut_call", Lowering::Compiler),
-    ("weak_new", Lowering::Compiler),
-    ("weak_new_mut", Lowering::Compiler),
-    ("weak_upgrade", Lowering::Compiler),
-    ("weak_upgrade_mut", Lowering::Compiler),
-    ("weak_weaken", Lowering::Compiler),
-    ("descriptor_glue_mask", Lowering::Compiler),
-    ("format_int", Lowering::Compiler),
-    ("mem_pages", Lowering::Compiler),
-    ("mem_grow", Lowering::Compiler),
-    ("mem_load_u8", Lowering::Compiler),
-    ("mem_load_u16", Lowering::Compiler),
-    ("mem_load_u32", Lowering::Compiler),
-    ("mem_load_u64", Lowering::Compiler),
-    ("mem_store_u8", Lowering::Compiler),
-    ("mem_store_u16", Lowering::Compiler),
-    ("mem_store_u32", Lowering::Compiler),
-    ("mem_store_u64", Lowering::Compiler),
-    ("mem_copy", Lowering::Compiler),
-    ("mem_fill", Lowering::Compiler),
-    ("ptr_size_of", Lowering::Compiler),
-    ("ptr_read", Lowering::Compiler),
-    ("ptr_write", Lowering::Compiler),
-    ("ptr_offset", Lowering::Compiler),
-    ("ptr_ref", Lowering::Compiler),
-    ("ptr_mut", Lowering::Compiler),
-    ("mem_string_bytes", Lowering::Compiler),
-    ("mem_new_string", Lowering::Compiler),
-    ("format_f64", Lowering::HostPrimitive("format_f64")),
-    ("format_f32", Lowering::HostPrimitive("format_f32")),
-    ("string_lower", Lowering::HostPrimitive("string_lower")),
-    ("string_upper", Lowering::HostPrimitive("string_upper")),
-    ("parse_f64", Lowering::HostPrimitive("parse_f64")),
-    (
-        "snapshot_update",
-        Lowering::HostPrimitive("snapshot_update"),
-    ),
-    (
-        "format_f64_fixed",
-        Lowering::HostPrimitive("format_f64_fixed"),
-    ),
+/// The host primitives, imports of module `hd:prim`: the std intrinsics
+/// whose body is the host's (the `hd_resolve::intrinsics` table lists every
+/// intrinsic, and the linear backend's `host_prim` lowers these).
+pub const PRIMITIVES: &[&str] = &[
+    "format_f64",
+    "format_f32",
+    "format_f64_fixed",
+    "string_lower",
+    "string_upper",
+    "parse_f64",
+    "snapshot_update",
 ];
-
-/// The lowering of an intrinsic key, if std may name it.
-#[must_use]
-pub fn intrinsic(key: &str) -> Option<Lowering> {
-    INTRINSICS.iter().find(|(k, _)| *k == key).map(|(_, l)| *l)
-}
 
 /// A Wasm import: module and name fields.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -743,10 +629,7 @@ pub fn is_known_import(module: &str, name: &str) -> bool {
     RUNTIME_IMPORTS
         .iter()
         .any(|(m, n)| *m == module && *n == name)
-        || (module == "hd:prim"
-            && INTRINSICS
-                .iter()
-                .any(|(_, l)| matches!(l, Lowering::HostPrimitive(n) if *n == name)))
+        || (module == "hd:prim" && PRIMITIVES.contains(&name))
         || (RUNTIME_MODULES.contains(&module) && module != "hd:rt")
         || TABLE.iter().chain(HANDLES).any(|t| {
             t.methods.iter().any(|m| {
@@ -790,9 +673,7 @@ pub enum SlotState {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        HANDLES, Handle, INTRINSICS, RUNNERS, TABLE, imports_of, intrinsic, is_known_import,
-    };
+    use super::{HANDLES, Handle, RUNNERS, TABLE, imports_of, is_known_import};
 
     #[test]
     fn waiting_methods_import_a_start_finish_pair() {
@@ -815,39 +696,6 @@ mod tests {
         assert_eq!(h.slot(), 0xF_FFFF);
         assert_eq!(h.generation(), 0x7FF);
         assert!(i32::try_from(h.0).is_ok(), "never negative");
-    }
-
-    #[test]
-    fn every_std_intrinsic_key_has_a_lowering() {
-        let std = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../lib/std");
-        let mut stack = vec![std];
-        let mut keys = Vec::new();
-        while let Some(dir) = stack.pop() {
-            for e in std::fs::read_dir(&dir).expect("std dir").flatten() {
-                let p = e.path();
-                if p.is_dir() {
-                    stack.push(p);
-                } else if p.extension().is_some_and(|x| x == "hd") {
-                    let text = std::fs::read_to_string(&p).expect("std file");
-                    for line in text.lines() {
-                        if let Some(rest) = line.trim().strip_prefix("@intrinsic(\"") {
-                            keys.push(rest.trim_end_matches("\")").to_owned());
-                        }
-                    }
-                }
-            }
-        }
-        assert!(
-            keys.len() > 20,
-            "std's intrinsic declarations were not found"
-        );
-        for k in &keys {
-            assert!(
-                intrinsic(k).is_some(),
-                "@intrinsic(\"{k}\") has no lowering"
-            );
-        }
-        assert!(INTRINSICS.iter().all(|(k, _)| !k.is_empty()));
     }
 
     #[test]
