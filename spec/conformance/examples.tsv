@@ -266,7 +266,7 @@ lang/04-type-system.md	95	complete	-
 lang/04-type-system.md	96	complete	-
 lang/04-type-system.md	97	mixed	typing/invalid/user-anyref-implementation.hd|typing/invalid/user-anyval-implementation.hd
 lang/04-type-system.md	98	mixed	typing/invalid/user-map-key-bound.hd
-lang/04-type-system.md	99	known-failure	-
+lang/04-type-system.md	99	complete	-
 lang/04-type-system.md	100	complete	-
 lang/04-type-system.md	101	mixed	typing/valid/lct-drops-never.hd|runtime/valid/lct-optional-injection.hd|typing/invalid/lct-optional-two-layers.hd
 lang/04-type-system.md	102	mixed	typing/invalid/none-beside-values-needs-expected-type.hd|typing/invalid/none-branch-needs-expected-type.hd
@@ -503,7 +503,7 @@ lang/07-functions.md	64	mixed	typing/invalid/struct-field-write-self.hd|typing/i
 lang/07-functions.md	65	mixed	typing/invalid/counted-self-call-on-local.hd
 lang/07-functions.md	66	mixed	typing/invalid/recursive-closure-inferred-result.hd
 lang/07-functions.md	67	complete	-
-lang/07-functions.md	68	known-failure	-
+lang/07-functions.md	68	complete	-
 lang/07-functions.md	69	complete	-
 lang/08-data-and-enums.md	1	complete	-
 lang/08-data-and-enums.md	2	complete	-
@@ -1112,7 +1112,7 @@ std/iter.md	8	complete	runtime/valid/iterator-numeric-targets.hd
 std/iter.md	9	known-failure	typing/valid/collect-targets.hd
 std/iter.md	10	type-fragment	-
 std/iter.md	11	mixed	typing/invalid/collect-target-not-fromiterator.hd
-std/iter.md	12	known-failure	runtime/valid/list-and-optional-map.hd
+std/iter.md	12	complete	runtime/valid/list-and-optional-map.hd
 std/json.md	1	type-fragment	-
 std/json.md	2	type-fragment	-
 std/json.md	3	type-fragment	-
@@ -1157,7 +1157,7 @@ std/num.md	6	complete	runtime/valid/num-integer-u64.hd
 std/num.md	7	complete	runtime/valid/num-bit-counts.hd|runtime/valid/num-bit-count-widths.hd
 std/num.md	8	complete	runtime/valid/num-is-finite.hd|runtime/valid/num-is-nan.hd
 std/num.md	9	complete	runtime/valid/num-float-bits.hd
-std/num.md	10	known-failure	runtime/valid/num-float-total-cmp.hd
+std/num.md	10	complete	runtime/valid/num-float-total-cmp.hd
 std/num.md	11	complete	runtime/valid/num-parse-integers.hd
 std/num.md	12	type-fragment	-
 std/num.md	13	known-failure	runtime/valid/num-parse-trait.hd

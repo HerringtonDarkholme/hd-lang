@@ -2151,7 +2151,7 @@ fn demo() -> List[string]:
     m := {"b": +1, "a": +2}
     let mut keys: List[string] = []
     for entry in m:
-        keys.push(entry._0)
+        keys.push(*entry._0)
     keys   # ["b", "a"] or ["a", "b"]: the map's order, the same in every run
 ```
 

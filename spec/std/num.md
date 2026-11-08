@@ -257,7 +257,7 @@ Floats are not `Ord`, since NaN is unordered. `total_cmp` orders every float, so
 
 ```text
 fn sorted(times: List[f64]) -> List[f64]:
-    times.sorted_by(fn(a: f64, b: f64) -> Ordering: a.total_cmp(b))
+    times.sorted_by(fn(a: &f64, b: &f64) -> Ordering: a.total_cmp(*b))
 ```
 
 | Rule | Method | Result |

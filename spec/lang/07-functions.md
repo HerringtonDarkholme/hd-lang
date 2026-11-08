@@ -1397,7 +1397,7 @@ pub fn main() -> void:
 
 ```hd
 fn double_all(items: List[i32]) -> List[i32]:
-    items.map(fn(x: i32) -> i32: x * 2)   # the closure is written out
+    items.map(fn(x: &i32) -> i32: *x * 2)   # the closure is written out
 ```
 
 ### Method Values

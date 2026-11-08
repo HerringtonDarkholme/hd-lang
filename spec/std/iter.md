@@ -336,7 +336,7 @@ tests:
     use std.testing.assert_equal
 
     it("map doubles each item, in order"):
-        assert_equal([+3, 1, 2].map(fn(value: i32) -> i32: value * 2), [+6, 2, 4], reason="doubled")
+        assert_equal([+3, 1, 2].map(fn(value: &i32) -> i32: *value * 2), [+6, 2, 4], reason="doubled")
 
     it("optional map keeps .None"):
         let absent: i32? = .None
