@@ -36,7 +36,7 @@ use hd_syntax::{NodeRef, SyntaxKind};
 use hd_tir::Body;
 use hd_types::{ParamRef, Ty, TyData, TyList};
 
-use crate::body::{BodyCx, unsupported};
+use crate::body::BodyCx;
 use crate::call::subst_owner;
 use crate::derive::{MemberLine, OptIn};
 use crate::facts::{FactSource, FactTarget, check_fact_list, fact_lines};
@@ -504,7 +504,7 @@ pub fn fact_bodies(
     (owner, prefix): (DefId, &str),
     (facts, decl): (&FactLines<'_>, NodeRef<'_>),
     only: Option<(&[Slot], &FactBodies)>,
-) -> StageResult<(FactBodies, Vec<Body>)> {
+) -> Option<(FactBodies, Vec<Body>)> {
     let names = &cx.names;
     let mut out = FactBodies {
         of_type: None,
@@ -544,10 +544,9 @@ pub fn fact_bodies(
                     (facts.target(slot), facts.label(slot)),
                     decl,
                     &mut scratch,
-                )?;
-                if scratch.has_errors() {
-                    return unsupported("a derivation fact that does not check");
-                }
+                )
+                .ok()
+                .filter(|_| !scratch.has_errors())?;
                 bodies.push(body);
                 Some(def)
             }
@@ -558,7 +557,7 @@ pub fn fact_bodies(
             Slot::Member(v, m) => out.members[v][m] = def,
         }
     }
-    Ok((out, bodies))
+    Some((out, bodies))
 }
 
 /// The `Structure` bodies of `opt`, hidden methods of its

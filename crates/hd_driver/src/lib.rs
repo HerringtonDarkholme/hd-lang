@@ -7490,8 +7490,7 @@ impl Run<'_> {
             (opt.impl_, ""),
             (&view, block),
             Some((&edited, &base)),
-        )
-        .ok()?;
+        )?;
         derived.bodies.extend(bodies);
         Some(own)
     }
@@ -7632,8 +7631,7 @@ impl Run<'_> {
                 (data, "block "),
                 (&view, node),
                 Some((&edited, &base)),
-            )
-            .ok()?;
+            )?;
             derived.bodies.extend(bodies);
             Some(b)
         };
@@ -12819,8 +12817,7 @@ fn derivation_facts<'t>(
         (opt.impl_, ""),
         (&view, node),
         Some((&edited, &base)),
-    )
-    .ok()?;
+    )?;
     derived.bodies.extend(bodies);
     Some(own)
 }
@@ -12890,8 +12887,7 @@ fn declaration_bodies<'t>(
     let item = cx.lookup.item(data)?;
     let node = heads.iter().find(|h| h.def == data)?.node;
     let facts = hd_check::structure::declaration_facts(cx, item, node, traitless(cx, heads, data));
-    let (b, bodies) =
-        hd_check::structure::fact_bodies(cx, (data, ""), (&facts, node), None).ok()?;
+    let (b, bodies) = hd_check::structure::fact_bodies(cx, (data, ""), (&facts, node), None)?;
     derived.bodies.extend(bodies);
     Some(b)
 }
