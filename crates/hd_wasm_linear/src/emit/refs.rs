@@ -290,24 +290,6 @@ impl Em<'_, '_, '_> {
         Ok(true)
     }
 
-    /// `Drop` `i` of a part of a local or a value (`[$l .b]`,
-    /// `[%v as .1 .1]`), which the move pass writes for the rest of a base
-    /// it moved a part out of: the part's release, and zeros in its place.
-    pub(super) fn own_drop_part(&mut self, p: &Place) -> StageResult<()> {
-        let Some((t, ls)) = self.root_locals(p)? else {
-            return unsupported("a `Drop` of a part of a place whose root is in no locals");
-        };
-        let Some((pt, slots)) = self.part_slots(t, &p.proj)? else {
-            return unsupported("a `Drop` of a part that is not laid out in its root's locals");
-        };
-        let part: Vec<u32> = slots.iter().map(|&k| ls[k]).collect();
-        self.release_drop_place(&part, pt, p)?;
-        for l in part {
-            self.f.zero(l);
-        }
-        Ok(())
-    }
-
     /// `Drop [%r]` `i` of a whole value after moves or drops of its parts
     /// in the same block (the move pass keeps a base's drop whole): where this
     /// instance lays the value out in its locals, it releases only the

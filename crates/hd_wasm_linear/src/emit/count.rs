@@ -1028,7 +1028,8 @@ impl Em<'_, '_, '_> {
     }
 
     /// `Drop [$l]` or `Drop [%v]` `i`: releases the place's value and
-    /// zeroes it, so a later drop of it releases nothing.
+    /// zeroes it, so a later drop of it releases nothing. No pass writes a
+    /// `Drop` of a part of a place.
     pub(super) fn own_drop(&mut self, i: u32) -> StageResult<()> {
         let word = self.b.data[i as usize][0];
         if word & hd_tir::ir::place::BARE_LOCAL != 0 {
@@ -1045,10 +1046,7 @@ impl Em<'_, '_, '_> {
                 }
                 self.release_value(r.0)
             }
-            // The rest of a base the move pass moved a part out of
-            // (`docs/compiler/tir-v2.md`, "Move" rule 3).
-            Some(p) => self.own_drop_part(&p),
-            None => crate::unsupported("a malformed place"),
+            _ => crate::unsupported("a `Drop` of a part of a place"),
         }
     }
 
