@@ -454,9 +454,7 @@ impl Ck<'_, '_> {
         let mutable = n
             .direct_token(&self.cx.src.parse.tokens, TokenKind::KwMut)
             .is_some();
-        let Some(e) = n.children().next() else {
-            return unsupported("a reference expression without an operand");
-        };
+        let [e] = n.parts();
         // A trait value reference converts the whole reference
         // (`trait.dyn.ref.convert`), so its trait value type is no expected
         // type for the operand.
@@ -602,12 +600,11 @@ impl Ck<'_, '_> {
         want: Option<Ty>,
         use_: PlaceUse,
     ) -> StageResult<Option<Operand>> {
-        let kids: Vec<NodeRef<'_>> = e.children().collect();
         match e.kind() {
-            SyntaxKind::ParenExpr => match kids.as_slice() {
-                [inner] => self.place_of(*inner, want, use_),
-                _ => unsupported("a parenthesized expression shape"),
-            },
+            SyntaxKind::ParenExpr => {
+                let [inner] = e.parts();
+                self.place_of(inner, want, use_)
+            }
             SyntaxKind::NameExpr => {
                 let s = self.sym_of(e);
                 if let Some((l, d)) = self.find_local(s)
@@ -644,9 +641,7 @@ impl Ck<'_, '_> {
                 Ok(Some(Operand::Value(r, t)))
             }
             SyntaxKind::FieldExpr => {
-                let Some(base) = kids.first().copied() else {
-                    return unsupported("a field without a base");
-                };
+                let [base] = e.parts();
                 let name = self.cx.src.text(self.cx.src.last(e)).to_owned();
                 let global = base.kind() == SyntaxKind::NameExpr
                     && self.find_local(self.sym_of(base)).is_none()
@@ -666,9 +661,7 @@ impl Ck<'_, '_> {
                 self.field_step(b, &name, (base, e), use_)
             }
             SyntaxKind::DerefExpr => {
-                let Some(inner) = kids.first().copied() else {
-                    return unsupported("a dereference without an operand");
-                };
+                let [inner] = e.parts();
                 self.elem_may_stand(inner, crate::elem_refs::ElemUse::Through);
                 let (r, t) = self.expr(inner, None)?;
                 let Some((it, m)) = self.ref_of(t) else {
@@ -849,28 +842,25 @@ impl Ck<'_, '_> {
     /// (`types.coll.map-value.place`), at the evaluated key; else the value
     /// of the index expression.
     fn slot_operand(&mut self, e: NodeRef<'_>) -> StageResult<Option<Operand>> {
-        let kids: Vec<NodeRef<'_>> = e.children().collect();
-        let [base, key] = kids.as_slice() else {
-            return unsupported("an index shape");
-        };
-        if self.trait_index_base(*base) {
-            return self.trait_index_place(*base, *key, e, true, None);
+        let [base, key] = e.parts();
+        if self.trait_index_base(base) {
+            return self.trait_index_place(base, key, e, true, None);
         }
-        let (br, bt) = self.expr(*base, None)?;
+        let (br, bt) = self.expr(base, None)?;
         if br.0 == NONE && matches!(bt, Ty::NEVER | Ty::POISON) {
             return Ok(Some(Operand::Value(br, bt)));
         }
         let (br, bt) = self.deref_index_base(br, bt, base.index());
         let builtin = self.index_kind(bt);
         if !matches!(builtin, Some((Indexed::List | Indexed::Map, ..))) {
-            return self.trait_index_place(*base, *key, e, true, Some((br, bt)));
+            return self.trait_index_place(base, key, e, true, Some((br, bt)));
         }
-        let (kr, kt) = self.index_key_value(*key, builtin)?;
+        let (kr, kt) = self.index_key_value(key, builtin)?;
         match builtin {
             Some((get @ (Indexed::List | Indexed::Map), bkt, vt))
                 if get == Indexed::Map || !self.is_range_ty(kt) =>
             {
-                let kr = self.index_key((kr, kt), *key, bkt);
+                let kr = self.index_key((kr, kt), key, bkt);
                 Ok(Some(Operand::Place(Place {
                     root: Root::Slot(br, kr, bt, e.index()),
                     path: vec![],
@@ -878,7 +868,7 @@ impl Ck<'_, '_> {
                 })))
             }
             _ => {
-                let (v, vt) = self.index_of_value((br, bt), builtin, (kr, kt), (*key, e))?;
+                let (v, vt) = self.index_of_value((br, bt), builtin, (kr, kt), (key, e))?;
                 Ok(Some(Operand::Value(v, vt)))
             }
         }
@@ -1243,9 +1233,7 @@ impl Ck<'_, '_> {
     /// `*e` as a value (`ref.deref.read`): the whole referenced value, a
     /// copy.
     pub(crate) fn deref_expr(&mut self, n: NodeRef<'_>) -> StageResult<(Ref, Ty)> {
-        let Some(e) = n.children().next() else {
-            return unsupported("a dereference without an operand");
-        };
+        let [e] = n.parts();
         self.elem_may_stand(e, crate::elem_refs::ElemUse::Through);
         let (r, t) = self.expr(e, None)?;
         if self.dyn_ref_of(t).is_some() {
@@ -1273,9 +1261,7 @@ impl Ck<'_, '_> {
         compound: Option<TokenKind>,
         s: NodeRef<'_>,
     ) -> StageResult<()> {
-        let Some(e) = lhs.children().next() else {
-            return unsupported("a dereference without an operand");
-        };
+        let [e] = lhs.parts();
         self.elem_may_stand(e, crate::elem_refs::ElemUse::Through);
         let (r, t) = self.expr(e, None)?;
         let Some((inner, mutable)) = self.ref_of(t) else {

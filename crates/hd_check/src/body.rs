@@ -3136,9 +3136,7 @@ impl Ck<'_, '_> {
                 });
             }
             if last && value && s.kind() == SyntaxKind::ExprStmt {
-                let Some(e) = s.children().next() else {
-                    return unsupported("an empty expression statement");
-                };
+                let [e] = s.parts();
                 // A function-body tail that is an `if` without `else` is
                 // `missing-return-value`, so that `if` does not also
                 // report `flow.if.value.else`. Any other tail expression
@@ -3877,14 +3875,14 @@ impl Ck<'_, '_> {
                 }
                 return Ok(if t == Ty::NEVER { Ty::NEVER } else { Ty::VOID });
             }
-            SyntaxKind::LetStmt => self.let_stmt(s, &kids)?,
-            SyntaxKind::UsingStmt => self.using_stmt(s, &kids)?,
+            SyntaxKind::LetStmt => self.let_stmt(s)?,
+            SyntaxKind::UsingStmt => self.using_stmt(s)?,
             SyntaxKind::DiscardStmt => {
                 if let Some(e) = kids.last() {
                     self.expr(*e, None)?;
                 }
             }
-            SyntaxKind::AssignmentStmt => self.assign(s, &kids)?,
+            SyntaxKind::AssignmentStmt => self.assign(s)?,
             SyntaxKind::ReturnStmt => {
                 // `flow.return.outside`: the module init body is not a
                 // function, at any nesting depth; a closure or local
@@ -4044,23 +4042,18 @@ impl Ck<'_, '_> {
     }
 
     /// `x = e`, `x op= e`, `a.f = e`, `a[i] = e`, `v() = e`.
-    fn assign(&mut self, s: NodeRef<'_>, kids: &[NodeRef<'_>]) -> StageResult<()> {
-        let [lhs, rhs] = kids else {
-            return unsupported("this assignment form");
-        };
-        let op_tok = hd_base::TokenIdx::from_raw(self.cx.src.last(*lhs).raw() + 1);
-        let op = self.cx.src.tkind(op_tok);
-        let compound = match op {
-            Some(TokenKind::Eq) => None,
-            Some(k) => Some(k),
-            None => return unsupported("an assignment operator"),
-        };
+    fn assign(&mut self, s: NodeRef<'_>) -> StageResult<()> {
+        // The parser builds the target, the operator, then the value.
+        let [lhs, rhs] = s.parts();
+        let op_tok = hd_base::TokenIdx::from_raw(self.cx.src.last(lhs).raw() + 1);
+        let op = self.cx.src.parse.tokens.kind(op_tok);
+        let compound = (op != TokenKind::Eq).then_some(op);
         if lhs.kind() == SyntaxKind::DerefExpr {
-            return self.deref_assign(*lhs, *rhs, compound, s);
+            return self.deref_assign(lhs, rhs, compound, s);
         }
         match lhs.kind() {
             SyntaxKind::NameExpr => {
-                let name = self.sym_of(*lhs);
+                let name = self.sym_of(lhs);
                 // The module's own binding, else an earlier REPL input's
                 // (`cli.repl.declarations.bindings`).
                 let global = {
@@ -4079,13 +4072,13 @@ impl Ck<'_, '_> {
                             "`{}` is bound with `:=`; use `let` to reassign it",
                             self.cx.names.text(name)
                         );
-                        self.err(Code::NonReassignableBinding, *lhs, &msg);
+                        self.err(Code::NonReassignableBinding, lhs, &msg);
                     }
                     if compound.is_some() {
                         return unsupported("compound assignment to a top-level binding");
                     }
-                    let (r, t) = self.stored_expr(*rhs, Some(ty), "in this binding")?;
-                    let v = self.coerce(r, t, ty, *rhs, "assignment", ExpectPosition::General);
+                    let (r, t) = self.stored_expr(rhs, Some(ty), "in this binding")?;
+                    let v = self.coerce(r, t, ty, rhs, "assignment", ExpectPosition::General);
                     self.store_global(def, ty, v, s.index());
                     return Ok(());
                 }
@@ -4093,7 +4086,7 @@ impl Ck<'_, '_> {
                     let text = self.cx.names.text(name).to_owned();
                     if !self.is_poison_name(&text) {
                         let msg = format!("`{text}` is not defined");
-                        self.err(Code::UnknownName, *lhs, &msg);
+                        self.err(Code::UnknownName, lhs, &msg);
                     }
                     return Ok(());
                 };
@@ -4103,30 +4096,30 @@ impl Ck<'_, '_> {
                         "`{}` is bound with `using`, so it cannot be reassigned",
                         self.cx.names.text(name)
                     );
-                    self.err(Code::NonReassignableBinding, *lhs, &msg);
+                    self.err(Code::NonReassignableBinding, lhs, &msg);
                 } else if flags & local_flags::SHORT != 0 {
                     let msg = format!(
                         "`{}` is bound with `:=`; use `let` to reassign it",
                         self.cx.names.text(name)
                     );
-                    self.err(Code::NonReassignableBinding, *lhs, &msg);
+                    self.err(Code::NonReassignableBinding, lhs, &msg);
                     self.reassignable_binding_fix(l);
                 } else if flags & local_flags::PARAM != 0 && !self.mut_params.contains(&l) {
                     let msg = format!(
                         "parameter `{}` cannot be reassigned",
                         self.cx.names.text(name)
                     );
-                    self.err(Code::NonReassignableParameterBinding, *lhs, &msg);
+                    self.err(Code::NonReassignableParameterBinding, lhs, &msg);
                 }
                 let lt = self.b.local_ty(l);
                 let v = match compound {
                     None => {
-                        let (r, t) = self.stored_expr(*rhs, Some(lt), "in this binding")?;
-                        self.coerce(r, t, lt, *rhs, "assignment", ExpectPosition::General)
+                        let (r, t) = self.stored_expr(rhs, Some(lt), "in this binding")?;
+                        self.coerce(r, t, lt, rhs, "assignment", ExpectPosition::General)
                     }
                     Some(k) => {
-                        let (cur, _) = self.read_local(l, depth, *lhs);
-                        self.compound(k, cur, lt, *rhs, s)?
+                        let (cur, _) = self.read_local(l, depth, lhs);
+                        self.compound(k, cur, lt, rhs, s)?
                     }
                 };
                 self.note_write(l, depth);
@@ -4134,10 +4127,8 @@ impl Ck<'_, '_> {
                 self.set_local(l, v, s.index());
             }
             SyntaxKind::FieldExpr => {
-                let Some(base) = lhs.children().next() else {
-                    return unsupported("a field without a base");
-                };
-                let fname = self.cx.src.text(self.cx.src.last(*lhs)).to_owned();
+                let [base] = lhs.parts();
+                let fname = self.cx.src.text(self.cx.src.last(lhs)).to_owned();
                 self.elem_may_stand(base, crate::elem_refs::ElemUse::Through);
                 // The place the base names, which nothing reads yet
                 // (`docs/compiler/tir-v2.md`, "Field writes").
@@ -4149,12 +4140,7 @@ impl Ck<'_, '_> {
                     // (`types.value.writable-places`).
                     crate::refs::Operand::Place(p) if self.is_value_record_ty(p.ty) => {
                         let p = self.promote_place(p, &fname);
-                        return self.struct_field_assign(
-                            p,
-                            (base, *lhs, *rhs, s),
-                            &fname,
-                            compound,
-                        );
+                        return self.struct_field_assign(p, (base, lhs, rhs, s), &fname, compound);
                     }
                     crate::refs::Operand::Place(p) => self.read_place(&p, base),
                     crate::refs::Operand::Value(r, t) => (r, t),
@@ -4175,7 +4161,7 @@ impl Ck<'_, '_> {
                             "this writes through a read-only reference {}; take the reference with `&mut` to write through it",
                             self.show(bt)
                         );
-                        self.err(Code::NotWritable, *lhs, &msg);
+                        self.err(Code::NotWritable, lhs, &msg);
                         return Ok(());
                     }
                     Some((inner, true)) if self.is_value_record_ty(self.deref_ty(inner, true)) => {
@@ -4185,12 +4171,7 @@ impl Ck<'_, '_> {
                             ty: self.deref_ty(inner, true),
                         };
                         let p = self.promote_place(place, &fname);
-                        return self.struct_field_assign(
-                            p,
-                            (base, *lhs, *rhs, s),
-                            &fname,
-                            compound,
-                        );
+                        return self.struct_field_assign(p, (base, lhs, rhs, s), &fname, compound);
                     }
                     Some((_, true)) => self.emit_deref(br, bt, base.index()),
                     None => (br, bt),
@@ -4198,52 +4179,52 @@ impl Ck<'_, '_> {
                 // A struct value that is no place: its fields cannot change
                 // (`types.value.write.other-holder`).
                 if self.is_struct_ty(bt) {
-                    let (_, bt) = self.promote_base(br, bt, &fname, *lhs);
+                    let (_, bt) = self.promote_base(br, bt, &fname, lhs);
                     if self.field_of(bt, &fname).is_none() {
                         let msg = format!("no field `{fname}` on {}", self.show(bt));
-                        self.err(Code::UnknownField, *lhs, &msg);
+                        self.err(Code::UnknownField, lhs, &msg);
                         return Ok(());
                     }
-                    self.check_field_visible(bt, &fname, *lhs);
+                    self.check_field_visible(bt, &fname, lhs);
                     let msg = "this struct value is not a variable or a field of one, so its fields cannot change; copy it into a `let mut` first";
-                    self.err(Code::NotWritable, *lhs, msg);
+                    self.err(Code::NotWritable, lhs, msg);
                     return Ok(());
                 }
                 // A tuple value that is no place, as a struct's.
                 if self.is_value_record_ty(bt) {
                     if self.tuple_elem_of(bt, &fname).is_none() {
                         let msg = format!("no field `{fname}` on {}", self.show(bt));
-                        self.err(Code::UnknownField, *lhs, &msg);
+                        self.err(Code::UnknownField, lhs, &msg);
                         return Ok(());
                     }
                     let msg = "this tuple value is not a variable or a field of one, so its elements cannot change; copy it into a `let mut` first";
-                    self.err(Code::NotWritable, *lhs, msg);
+                    self.err(Code::NotWritable, lhs, msg);
                     return Ok(());
                 }
-                let (pr, pt) = self.promote_base(br, bt, &fname, *lhs);
+                let (pr, pt) = self.promote_base(br, bt, &fname, lhs);
                 let Some((idx, ft)) = self.field_of(pt, &fname) else {
                     // Shared enum data is selected but never stored through
                     // (`expr.place.enum-shared-field`).
                     if self.is_read_only_member(bt, &fname) {
                         let msg = format!("`{fname}` of {} cannot be assigned", self.show(bt));
-                        self.err(Code::InvalidAssignmentTarget, *lhs, &msg);
+                        self.err(Code::InvalidAssignmentTarget, lhs, &msg);
                         return Ok(());
                     }
                     let msg = format!("no field `{fname}` on {}", self.show(bt));
-                    self.err(Code::UnknownField, *lhs, &msg);
+                    self.err(Code::UnknownField, lhs, &msg);
                     return Ok(());
                 };
-                self.check_field_visible(pt, &fname, *lhs);
-                self.check_store_target((br, bt), *lhs);
+                self.check_field_visible(pt, &fname, lhs);
+                self.check_store_target((br, bt), lhs);
                 let br = pr;
                 let v = match compound {
                     None => {
-                        let (r, t) = self.stored_expr(*rhs, Some(ft), "in this field")?;
-                        self.coerce(r, t, ft, *rhs, "assignment", ExpectPosition::General)
+                        let (r, t) = self.stored_expr(rhs, Some(ft), "in this field")?;
+                        self.coerce(r, t, ft, rhs, "assignment", ExpectPosition::General)
                     }
                     Some(k) => {
                         let cur = self.b.field(br, idx, ft, lhs.index());
-                        self.compound(k, cur, ft, *rhs, s)?
+                        self.compound(k, cur, ft, rhs, s)?
                     }
                 };
                 // A data value's field: `Store [*%o .k] v`.
@@ -4254,14 +4235,11 @@ impl Ck<'_, '_> {
                 self.b.emit(Tag::Store, word, v.0, Ty::VOID, s.index());
             }
             SyntaxKind::IndexExpr => {
-                let ik: Vec<NodeRef<'_>> = lhs.children().collect();
-                let [base, key] = ik.as_slice() else {
-                    return unsupported("an index target shape");
-                };
+                let [base, key] = lhs.parts();
                 // A place without built-in indexing stores through
                 // `IndexSet`'s `&mut self` method, which takes the place's
                 // address (`expr.index.trait.mut-ref`).
-                if let Some(pt) = self.peek_place_ty(*base)
+                if let Some(pt) = self.peek_place_ty(base)
                     && self.ref_of(pt).is_none()
                     && !self.builtin_index_base(pt)
                 {
@@ -4269,29 +4247,29 @@ impl Ck<'_, '_> {
                     // into, whatever its binding (`expr.index.trait.write-ref`).
                     let set = self.cx.names.known.index_set;
                     if compound.is_none() && !self.op_fits(set, pt, None)? {
-                        self.expr(*base, None)?;
-                        self.no_index_set(pt, *lhs);
+                        self.expr(base, None)?;
+                        self.no_index_set(pt, lhs);
                         return Ok(());
                     }
                     if let Some(recv) = self.store_receiver(
-                        *base,
+                        base,
                         if compound.is_some() {
                             "index_mut"
                         } else {
                             "index_set"
                         },
                     )? {
-                        self.index_set(recv, (*base, *key), *rhs, compound, (*lhs, s))?;
+                        self.index_set(recv, (base, key), rhs, compound, (lhs, s))?;
                     }
                     return Ok(());
                 }
-                let (br, bt) = self.expr(*base, None)?;
+                let (br, bt) = self.expr(base, None)?;
                 let (br, bt) = self.deref_index_base(br, bt, base.index());
                 // `expr.index.trait.store-required`: a string is not a place.
                 if self.strip_mut(bt) == Ty::STRING {
                     self.err(
                         Code::InvalidAssignmentTarget,
-                        *lhs,
+                        lhs,
                         "this index cannot be assigned",
                     );
                     return Ok(());
@@ -4308,33 +4286,33 @@ impl Ck<'_, '_> {
                         } else {
                             "index_set"
                         },
-                        *base,
+                        base,
                     ) {
-                        self.index_set(recv, (*base, *key), *rhs, compound, (*lhs, s))?;
+                        self.index_set(recv, (base, key), rhs, compound, (lhs, s))?;
                     }
                     return Ok(());
                 };
-                let (kr, key_ty) = self.index_key_value(*key, builtin)?;
+                let (kr, key_ty) = self.index_key_value(key, builtin)?;
                 // `expr.index.range.no-store`: no range type stores into a
                 // list.
                 if op_get != Indexed::Map && self.is_range_ty(key_ty) {
                     self.err(
                         Code::InvalidAssignmentTarget,
-                        *lhs,
+                        lhs,
                         "this index cannot be assigned",
                     );
                     return Ok(());
                 }
-                self.check_store_target((br, bt), *lhs);
-                let kr = self.index_key((kr, key_ty), *key, kt);
+                self.check_store_target((br, bt), lhs);
+                let kr = self.index_key((kr, key_ty), key, kt);
                 let v = match compound {
                     None => {
-                        let (r, t) = self.stored_expr(*rhs, Some(vt), "in this element")?;
-                        self.coerce(r, t, vt, *rhs, "assignment", ExpectPosition::General)
+                        let (r, t) = self.stored_expr(rhs, Some(vt), "in this element")?;
+                        self.coerce(r, t, vt, rhs, "assignment", ExpectPosition::General)
                     }
                     Some(k) => {
                         let cur = self.index_read(op_get, (br, kr), vt, lhs.index());
-                        self.compound(k, cur, vt, *rhs, s)?
+                        self.compound(k, cur, vt, rhs, s)?
                     }
                 };
                 // A list element is a place of the list's buffer:
@@ -4361,11 +4339,11 @@ impl Ck<'_, '_> {
                     );
                 }
             }
-            SyntaxKind::CallExpr => self.call_place(*lhs, *rhs, compound, s)?,
+            SyntaxKind::CallExpr => self.call_place(lhs, rhs, compound, s)?,
             // `grammar.stmt.assign-place`: any other left side is no place.
             _ => self.err(
                 Code::InvalidAssignmentTarget,
-                *lhs,
+                lhs,
                 "this expression is not a place that can be assigned",
             ),
         }
@@ -4448,8 +4426,8 @@ impl Ck<'_, '_> {
             TokenKind::PipeEq => TokenKind::Pipe,
             TokenKind::CaretEq => TokenKind::Caret,
             TokenKind::ShlEq => TokenKind::Shl,
-            TokenKind::ShrEq => TokenKind::Shr,
-            _ => return unsupported("this compound assignment operator"),
+            // `>>=`, the parser's one other compound operator.
+            _ => TokenKind::Shr,
         };
         let want = (!matches!(op, TokenKind::Shl | TokenKind::Shr)).then_some(t);
         let (r, rt) = self.expr(rhs, want)?;

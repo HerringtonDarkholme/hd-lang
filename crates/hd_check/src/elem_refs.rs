@@ -359,28 +359,25 @@ impl Ck<'_, '_> {
         e: NodeRef<'_>,
         mutable: bool,
     ) -> StageResult<Option<crate::refs::Operand>> {
-        let kids: Vec<NodeRef<'_>> = e.children().collect();
-        let [base, key] = kids.as_slice() else {
-            return crate::body::unsupported("an index shape");
-        };
-        if self.trait_index_base(*base) {
-            return self.trait_index_place(*base, *key, e, mutable, None);
+        let [base, key] = e.parts();
+        if self.trait_index_base(base) {
+            return self.trait_index_place(base, key, e, mutable, None);
         }
-        let (br, bt) = self.expr(*base, None)?;
+        let (br, bt) = self.expr(base, None)?;
         if matches!(self.infer.resolve(self.pool(), bt), Ty::POISON | Ty::NEVER) {
             return Ok(None);
         }
         let (br, bt) = self.deref_index_base(br, bt, base.index());
         let builtin = self.index_kind(bt);
         let Some((get @ (Indexed::List | Indexed::Map), kt, vt)) = builtin else {
-            return self.trait_index_place(*base, *key, e, mutable, Some((br, bt)));
+            return self.trait_index_place(base, key, e, mutable, Some((br, bt)));
         };
-        let (kr, ktt) = self.index_key_value(*key, builtin)?;
+        let (kr, ktt) = self.index_key_value(key, builtin)?;
         if get == Indexed::List && self.is_range_ty(ktt) {
-            self.index_reference((br, bt), (kr, ktt), (*key, e), mutable)?;
+            self.index_reference((br, bt), (kr, ktt), (key, e), mutable)?;
             return Ok(None);
         }
-        let kr = self.index_key((kr, ktt), *key, kt);
+        let kr = self.index_key((kr, ktt), key, kt);
         let ct = self.strip_mut(self.infer.resolve(self.pool(), bt));
         // Insertion pins the collection before the reference.
         Ok(Some(crate::refs::Operand::Place(Place {

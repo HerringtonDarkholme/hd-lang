@@ -245,7 +245,8 @@ impl Ck<'_, '_> {
                     self.pattern_rejected = true;
                     return Ok(());
                 }
-                return self.bind_pattern_name(p, name, t, binds);
+                self.bind_pattern_name(p, name, t, binds);
+                return Ok(());
             }
             // A spread pattern is checked by its tuple pattern; here it
             // stands where a tuple pattern has no rest element.
@@ -264,7 +265,7 @@ impl Ck<'_, '_> {
                     )
                 }) {
                     let name = self.cx.src.symbol(nt, self.cx.names.syms);
-                    self.bind_pattern_name(p, name, Ty::POISON, binds)?;
+                    self.bind_pattern_name(p, name, Ty::POISON, binds);
                 }
             }
             SyntaxKind::LiteralPattern => {
@@ -350,7 +351,7 @@ impl Ck<'_, '_> {
                             )
                         }) {
                             let name = self.cx.src.symbol(nt, self.cx.names.syms);
-                            self.bind_pattern_name(sp, name, rest_ty, binds)?;
+                            self.bind_pattern_name(sp, name, rest_ty, binds);
                         }
                     }
                     // `flow.match.spread.required`.
@@ -507,7 +508,7 @@ impl Ck<'_, '_> {
                             self.declare_pattern(sub, Ty::POISON, binds)?;
                         } else {
                             let name = self.cx.names.syms.intern(&fname);
-                            self.bind_pattern_name(f, name, Ty::POISON, binds)?;
+                            self.bind_pattern_name(f, name, Ty::POISON, binds);
                         }
                         continue;
                     }
@@ -525,7 +526,7 @@ impl Ck<'_, '_> {
                         self.declare_pattern(sub, ft, binds)?;
                     } else {
                         let name = self.cx.names.syms.intern(&fname);
-                        self.bind_pattern_name(f, name, ft, binds)?;
+                        self.bind_pattern_name(f, name, ft, binds);
                     }
                 }
             }
@@ -590,7 +591,7 @@ impl Ck<'_, '_> {
         name: hd_base::Symbol,
         t: Ty,
         binds: &mut Vec<(NodeIdx, LocalId)>,
-    ) -> StageResult<()> {
+    ) {
         if binds
             .iter()
             .any(|(_, l)| self.b.body_mut().local_name[l.idx()] == name)
@@ -600,10 +601,6 @@ impl Ck<'_, '_> {
                 self.cx.names.text(name)
             );
             self.err(Code::DuplicateBinding, p, &msg);
-        }
-        if p.kind() == SyntaxKind::BindingPattern && p.children().next().is_some() {
-            // `name @ pattern`-like forms.
-            return unsupported("a binding with a sub-pattern");
         }
         let t = match self.let_view {
             Some(annotated)
@@ -643,7 +640,6 @@ impl Ck<'_, '_> {
             self.mut_locals.push(l);
         }
         binds.push((p.index(), l));
-        Ok(())
     }
 
     /// The field a data pattern field names: its first name token, past
@@ -857,21 +853,9 @@ impl Ck<'_, '_> {
 
     // ------------------------------------------------------------ let
 
-    pub(crate) fn let_stmt(&mut self, s: NodeRef<'_>, kids: &[NodeRef<'_>]) -> StageResult<()> {
-        let kids: Vec<NodeRef<'_>> = kids.to_vec();
-        let Some(pat) = kids.first().copied() else {
-            return unsupported("a `let` without a pattern");
-        };
-        let ty_node = kids.iter().copied().find(|k| k.kind().is_type());
+    pub(crate) fn let_stmt(&mut self, s: NodeRef<'_>) -> StageResult<()> {
+        let (pat, ty_node, rhs) = binding_parts(s);
         let els = Src::child(s, SyntaxKind::ElseClause);
-        let Some(rhs) = kids
-            .iter()
-            .copied()
-            .skip(1)
-            .find(|k| !k.kind().is_type() && k.kind() != SyntaxKind::ElseClause)
-        else {
-            return unsupported("a `let` without a value");
-        };
         self.let_pattern(pat, ty_node, rhs, els, s)
     }
 
@@ -1048,9 +1032,7 @@ impl Ck<'_, '_> {
             arm: 0,
         }];
         if let Some(e) = els {
-            let Some(blk) = Src::child(e, SyntaxKind::Block) else {
-                return unsupported("a `let ... else` without a suite");
-            };
+            let [blk] = e.parts();
             let eb = self.b.open_block();
             // `names.let-else.not-in-else`: the pattern's names are not
             // visible in the `else` block.
@@ -1093,9 +1075,7 @@ impl Ck<'_, '_> {
         n: NodeRef<'_>,
         want: Option<Ty>,
     ) -> StageResult<(Ref, Ty)> {
-        let Some(scrut) = n.children().next() else {
-            return unsupported("a `match` without a scrutinee");
-        };
+        let [scrut] = n.parts();
         let (sr, st) = self.expr(scrut, None)?;
         // A scrutinee that failed to check has reported its error (`sr` is
         // the empty ref) or is poisoned: its arms bind poisoned names and
@@ -1113,8 +1093,14 @@ impl Ck<'_, '_> {
                 .filter(|c| c.kind() == SyntaxKind::MatchArm)
                 .collect();
             for (i, arm) in arm_nodes.iter().enumerate() {
-                let Some(pat) = arm.children().next() else {
-                    return unsupported("an arm without a pattern");
+                // The parser builds an arm as its pattern, an optional
+                // guard, and its body.
+                let [pat, second] = arm.parts();
+                let body = if second.kind() == SyntaxKind::MatchGuard {
+                    let [_, _, body] = arm.parts();
+                    body
+                } else {
+                    second
                 };
                 this.scopes.push(HashMap::default());
                 let mut binds = Vec::new();
@@ -1122,20 +1108,14 @@ impl Ck<'_, '_> {
                 this.declare_pattern(pat, st, &mut binds)?;
                 let rejected = std::mem::replace(&mut this.pattern_rejected, outer_rejected);
                 rejected_arms.push(rejected);
-                let guard = match Src::child(*arm, SyntaxKind::MatchGuard) {
-                    Some(g) => {
-                        let Some(ge) = g.children().next() else {
-                            return unsupported("an empty guard");
-                        };
-                        let gb = this.b.open_block();
-                        let (gr, gt) = this.expr(ge, Some(Ty::BOOL))?;
-                        this.expect(gt, Ty::BOOL, ge, "guard", ExpectPosition::General);
-                        Some(this.b.close_block(gb, Some(gr), Ty::BOOL, g.index()))
-                    }
-                    None => None,
-                };
-                let Some(body) = Src::child(*arm, SyntaxKind::Block) else {
-                    return unsupported("an arm without a body");
+                let guard = if second.kind() == SyntaxKind::MatchGuard {
+                    let [ge] = second.parts();
+                    let gb = this.b.open_block();
+                    let (gr, gt) = this.expr(ge, Some(Ty::BOOL))?;
+                    this.expect(gt, Ty::BOOL, ge, "guard", ExpectPosition::General);
+                    Some(this.b.close_block(gb, Some(gr), Ty::BOOL, second.index()))
+                } else {
+                    None
                 };
                 let ab = this.b.open_block();
                 let (tail, ty) = this.block_value(body, Some(result))?;
@@ -2384,5 +2364,17 @@ impl Ck<'_, '_> {
             let msg = format!("no arm matches {missing}");
             self.err(Code::NonexhaustiveMatch, n, &msg);
         }
+    }
+}
+
+/// A `let` or `using` statement's pattern, optional type and value, as
+/// the parser builds them (an optional `else` clause follows).
+pub(crate) fn binding_parts(s: NodeRef<'_>) -> (NodeRef<'_>, Option<NodeRef<'_>>, NodeRef<'_>) {
+    let [pat, second] = s.parts();
+    if second.kind().is_type() {
+        let [_, _, rhs] = s.parts();
+        (pat, Some(second), rhs)
+    } else {
+        (pat, None, second)
     }
 }

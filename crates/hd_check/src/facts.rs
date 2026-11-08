@@ -350,9 +350,7 @@ fn fact_list_steps(
             }
             ck.move_to(cx.src.span(e).lo);
             if e.kind() == SyntaxKind::SpreadExpr {
-                let Some(operand) = e.children().next() else {
-                    return unsupported("a spread without an operand");
-                };
+                let [operand] = e.parts();
                 ck.move_to(cx.src.span(operand).lo);
                 if let Some(r) = ck.fact_list(operand, Code::TypeMismatch, items_ty)? {
                     spreads.push(u32::try_from(refs.len()).unwrap_or(0));

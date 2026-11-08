@@ -698,7 +698,7 @@ impl Ck<'_, '_> {
         ) else {
             return;
         };
-        if pat.kind() != SyntaxKind::BindingPattern || pat.children().next().is_some() {
+        if pat.kind() != SyntaxKind::BindingPattern {
             return;
         }
         let Some(nt) = pat.direct_tokens().find(|t| {
@@ -868,7 +868,7 @@ impl Ck<'_, '_> {
         ty_node: Option<NodeRef<'_>>,
         rhs: NodeRef<'_>,
     ) -> StageResult<(DefId, Ty)> {
-        if pat.kind() != SyntaxKind::BindingPattern || pat.children().next().is_some() {
+        if pat.kind() != SyntaxKind::BindingPattern {
             return unsupported("a top-level binding with a pattern");
         }
         let Some(nt) = pat.direct_tokens().find(|t| {

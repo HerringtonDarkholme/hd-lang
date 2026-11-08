@@ -16,23 +16,17 @@ use hd_tir::ir::{ChoiceKind, TirSink, local_flags};
 use hd_types::solver::{Answer, Evidence, TraitRef};
 use hd_types::{Ty, TyData, VarKind};
 
-use crate::body::{Ck, supertrait_args, unsupported};
+use crate::body::{Ck, supertrait_args};
 use crate::call::{Args, PENDING_CHOICE, TraitTarget};
 use crate::refs::{Place, Root};
 
 impl Ck<'_, '_> {
     /// A `using` statement (`flow.using.*`).
-    pub(crate) fn using_stmt(&mut self, s: NodeRef<'_>, kids: &[NodeRef<'_>]) -> StageResult<()> {
+    pub(crate) fn using_stmt(&mut self, s: NodeRef<'_>) -> StageResult<()> {
         let asynchronous = s
             .direct_token(&self.cx.src.parse.tokens, TokenKind::Bang)
             .is_some();
-        let Some(pat) = kids.first().copied() else {
-            return unsupported("a `using` without a name");
-        };
-        let ty_node = kids.iter().copied().find(|k| k.kind().is_type());
-        let Some(rhs) = kids.iter().copied().skip(1).find(|k| !k.kind().is_type()) else {
-            return unsupported("a `using` without a value");
-        };
+        let (pat, ty_node, rhs) = crate::pat::binding_parts(s);
         self.using_bind = true;
         self.let_pattern(pat, ty_node, rhs, None, s)?;
         let name = self.sym_of(pat);

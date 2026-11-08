@@ -14,7 +14,7 @@
 
 use hd_base::{DefId, StageResult};
 use hd_diag::{Code, Severity};
-use hd_resolve::{FnSig, HeadKind, ItemData, Src};
+use hd_resolve::{FnSig, HeadKind, ItemData};
 use hd_syntax::{NodeRef, SyntaxKind};
 use hd_tir::ir::{
     Callee, ChoiceKind, IntrinsicOp, NONE, Providers, Ref, Tag, TirSink, local_flags,
@@ -112,9 +112,7 @@ impl Ck<'_, '_> {
         want: Option<Ty>,
         method_targs: &[Ty],
     ) -> StageResult<(Ref, Ty)> {
-        let Some(base) = n.children().next() else {
-            return unsupported("a path without a base");
-        };
+        let [base] = n.parts();
         let name = self.cx.src.text(self.cx.src.last(n)).to_owned();
         // `fn.ref.unbound`: the owner names a type, a trait or a type
         // parameter (the forms of a qualified call).
@@ -124,15 +122,9 @@ impl Ck<'_, '_> {
             || base.kind() == SyntaxKind::FieldExpr
         {
             let (bnode, explicit) = if base.kind() == SyntaxKind::TypeArgsExpr {
-                let Some(inner) = base.children().next() else {
-                    return unsupported("a type-argument base");
-                };
-                let mut ex = Vec::new();
-                if let Some(tl) = Src::child(base, SyntaxKind::TypeArgumentList) {
-                    let gens = self.explicit_generics(inner);
-                    ex = self.explicit_targs(tl, &gens)?;
-                }
-                (inner, ex)
+                let [inner, tl] = base.parts();
+                let gens = self.explicit_generics(inner);
+                (inner, self.explicit_targs(tl, &gens)?)
             } else {
                 (base, vec![])
             };
@@ -343,15 +335,21 @@ impl Ck<'_, '_> {
         n: NodeRef<'_>,
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
-        let Some(item) = self.cx.lookup.item(tr) else {
-            return unsupported("a trait outside the closure");
-        };
-        let ItemData::Trait(td) = &item.data else {
-            return unsupported("a trait path");
-        };
-        let n_trait = item.generics.len();
+        // The caller resolved `tr` as a trait.
         let sym = self.cx.names.syms.intern(name);
-        let Some(&(_, method)) = td.methods.iter().find(|(s, _)| *s == sym) else {
+        let (n_trait, found) = match self.cx.lookup.item(tr) {
+            Some(
+                item @ hd_resolve::Item {
+                    data: ItemData::Trait(td),
+                    ..
+                },
+            ) => (
+                item.generics.len(),
+                td.methods.iter().find(|(s, _)| *s == sym),
+            ),
+            _ => (0, None),
+        };
+        let Some(&(_, method)) = found else {
             let msg = format!(
                 "no method `{name}` on trait {}",
                 self.cx.names.display_name(tr)
