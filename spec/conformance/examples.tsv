@@ -663,7 +663,7 @@ lang/09-traits.md	109	fragment	runtime/valid/trait-delegation-as-written.hd
 lang/09-traits.md	110	mixed	typing/invalid/delegation-associated-function-missing.hd
 lang/09-traits.md	111	complete	-
 lang/09-traits.md	112	mixed	typing/invalid/ambiguous-default-methods.hd
-lang/09-traits.md	113	known-failure	typing/invalid/derive-beside-written-impl.hd
+lang/09-traits.md	113	mixed	typing/invalid/derive-beside-written-impl.hd
 lang/10-modules.md	1	complete	-
 lang/10-modules.md	2	filesystem-layout	-
 lang/10-modules.md	3	filesystem-layout	-

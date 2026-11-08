@@ -2855,11 +2855,11 @@ fn invalid(user: User) -> string:
 2. r[trait.unsupported.abi] Dynamic trait-value representation is an ABI detail and must preserve the dispatch semantics in this chapter.
 
 ```text
-@derive(Eq)
+@derive(Eq)  # error: overlapping-impl
 struct Badge:
     text: string
 
-impl Eq for Badge:   # error: overlapping-impl
+impl Eq for Badge:
     fn eq(&self, other: &Badge) -> bool:
         self.text == other.text
 ```
