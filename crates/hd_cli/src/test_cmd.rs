@@ -550,20 +550,30 @@ impl Doc {
 
 /// The doc tests of the package's source files, or of FILE's module
 /// (`cli.test.doc.default`), each as a synthetic integration-view module
-/// under the test root (`crates/hd_tir/DESIGN.md` §4.13.9).
-pub(crate) fn doc_tests(sources: &disk::DiskSources, file: Option<&str>) -> Vec<Doc> {
+/// under the test root (`crates/hd_tir/DESIGN.md` §4.13.9). Only a listed
+/// file whose flags show a fence is read (`hd_driver::source_flags`).
+pub(crate) fn doc_tests(
+    sources: &disk::DiskSources,
+    flags: &[hd_driver::SourceFlags],
+    file: Option<&str>,
+) -> Vec<Doc> {
+    let listed: hd_base::HashSet<String> = sources.list().into_iter().map(|e| e.path).collect();
     let mut out = Vec::new();
-    for e in sources.list() {
-        if file.is_some_and(|f| f != e.path) || !e.path.starts_with("src/") {
+    for f in flags {
+        if !f.fences
+            || !f.path.starts_with("src/")
+            || file.is_some_and(|only| only != f.path)
+            || !listed.contains(&f.path)
+        {
             continue;
         }
-        let Some(text) = sources.read(&e.path) else {
+        let Some(text) = sources.read(&f.path) else {
             continue;
         };
-        for test in hd_project::doc_tests(&e.path, &String::from_utf8_lossy(&text)) {
+        for test in hd_project::doc_tests(&f.path, &String::from_utf8_lossy(&text)) {
             out.push(Doc {
                 path: format!("tests/$doc{}.hd", out.len()),
-                file: e.path.clone(),
+                file: f.path.clone(),
                 test,
             });
         }
@@ -603,23 +613,19 @@ fn test_one(
         .into_iter()
         .map(|e| e.file)
         .collect();
-    let untested: Vec<String> = program
-        .sources
-        .list()
-        .into_iter()
-        .map(|e| e.path)
-        .filter(|p| {
+    // Each file's flags from its skim, read only for a changed file.
+    let store = hd_cache::DeferredStore::new(crate::disk_store());
+    let flags = hd_driver::source_flags(&program.package, &program.sources, &store);
+    let untested: Vec<String> = flags
+        .iter()
+        .filter(|f| {
+            let p = &f.path;
             let task = p
                 .strip_prefix("tasks/")
                 .is_some_and(|rest| !rest.contains('/'));
-            (task || entries.contains(p)) && file != Some(p.as_str())
+            (task || entries.contains(p)) && file != Some(p.as_str()) && !f.tests_block
         })
-        .filter(|p| {
-            program
-                .sources
-                .read(p)
-                .is_none_or(|t| !hd_driver::has_tests_block(&String::from_utf8_lossy(&t)))
-        })
+        .map(|f| f.path.clone())
         .collect();
     // Every source file, which a program that starts the package's
     // executables and tasks reads (`cli.test.process`).
@@ -629,24 +635,26 @@ fn test_one(
     let docs = if file.is_some_and(integration_file) {
         Vec::new()
     } else {
-        doc_tests(&program.sources, file)
+        doc_tests(&program.sources, &flags, file)
     };
     for d in &docs {
         program.sources.add_synthetic(&d.path, &d.test.program);
     }
     // The programs: the unit-test program unless FILE is an integration
     // test file; each integration test file, or FILE alone; each doc test.
-    let specs: Vec<(hd_driver::TestProgram, Option<&Doc>)> =
-        hd_driver::test_programs(&program.package, &program.sources, file, &|p| {
-            docs.iter().any(|d| d.path == p)
-        })
-        .into_iter()
-        .map(|t| {
-            let doc = docs.iter().find(|d| Some(&d.path) == t.file.as_ref());
-            (t, doc)
-        })
-        .collect();
-    let store = hd_cache::DeferredStore::new(crate::disk_store());
+    let specs: Vec<(hd_driver::TestProgram, Option<&Doc>)> = hd_driver::test_programs(
+        &program.package,
+        &program.sources,
+        file,
+        &|p| docs.iter().any(|d| d.path == p),
+        &store,
+    )
+    .into_iter()
+    .map(|t| {
+        let doc = docs.iter().find(|d| Some(&d.path) == t.file.as_ref());
+        (t, doc)
+    })
+    .collect();
     let clock = Wall(Instant::now());
     let executor = if o.jobs == 1 {
         Executor::Serial(hd_sched::SerialOrder::Priority)
@@ -675,7 +683,8 @@ fn test_one(
         caps: &o.caps,
         program: &program,
     });
-    let data = affected::data(root, &every, program.single_file);
+    let mut stamps = affected::Stamps::at(root, program.single_file);
+    let data = affected::data(root, &every, program.single_file, &mut stamps);
     let mut every_hash = None;
     let mut records: Vec<TestProgramRecord> = Vec::new();
     let mut built: Vec<Built> = Vec::new();
@@ -708,7 +717,9 @@ fn test_one(
             let read = affected::Build::new(&out, &sources);
             let mut extra = Vec::new();
             if path.is_some() && out.wasm.as_deref().is_some_and(starts_programs) {
-                extra.push(*every_hash.get_or_insert_with(|| affected::all_sources(&every)));
+                extra.push(
+                    *every_hash.get_or_insert_with(|| affected::all_sources(&every, &mut stamps)),
+                );
             }
             // A program that can read environment variables
             // (`std.host.Env`) depends on them.
@@ -758,7 +769,7 @@ fn test_one(
                     None => add(
                         format!("unit {}", case.file),
                         &|c| c.file == case.file,
-                        &|| read.module(package, &case.file),
+                        &|| read.module(&case.file),
                     ),
                 })
                 .collect();
@@ -885,6 +896,7 @@ fn test_one(
     // directory; a FILE outside any package has none, so it records nothing
     // and `--affected` runs all of it.
     let kept = (!program.single_file).then(|| affected::Records::at(root));
+    stamps.save();
     // `cli.test.affected`: a program whose fingerprint is the one recorded
     // when it last passed in full is skipped.
     let fresh: Vec<bool> = records

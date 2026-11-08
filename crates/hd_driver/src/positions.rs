@@ -41,11 +41,16 @@ pub struct PositionPool {
 }
 
 /// One module as a run saw it: its file, text and `check` entry. Nothing
-/// is decoded or parsed until an anchor of the module is asked for, and
-/// then once.
+/// is read, decoded or parsed until an anchor of the module is asked for,
+/// and then once: a warm run reads no text for its positions
+/// (`crates/hd_cache/DESIGN.md` §5.5).
 struct ModuleSource {
     file: String,
-    text: Arc<str>,
+    /// The hash of its text, which tells two runs' versions apart.
+    hash: Hash128,
+    /// Its text: module `index` of `texts`.
+    texts: crate::Texts<'static>,
+    index: usize,
     check: Option<Arc<[u8]>>,
     input: Arc<ModuleInput>,
     read: OnceLock<Option<Module>>,
@@ -116,26 +121,37 @@ impl Body {
     }
 }
 
+impl ModuleSource {
+    fn text(&self) -> &Arc<str> {
+        self.texts
+            .get(self.index)
+            .unwrap_or_else(|| crate::texts::empty())
+    }
+}
+
 impl PositionPool {
-    /// The pool's module of `path` with this file, text and entry, added
-    /// when the pool has none.
+    /// The pool's module of `path` with this file, text (by its hash) and
+    /// entry, added when the pool has none.
     fn module(
         &mut self,
         path: &str,
         file: &str,
-        text: &Arc<str>,
+        (hash, texts, index): (Hash128, &crate::Texts<'static>, usize),
         check: Option<&Arc<[u8]>>,
         input: &Arc<ModuleInput>,
     ) -> Arc<ModuleSource> {
         let same = self.by_path.entry(path.to_owned()).or_default();
-        if let Some(m) = same.iter().find(|m| {
-            m.file == file && *m.text == **text && m.check.as_deref() == check.map(|c| &**c)
-        }) {
+        if let Some(m) = same
+            .iter()
+            .find(|m| m.file == file && m.hash == hash && m.check.as_deref() == check.map(|c| &**c))
+        {
             return Arc::clone(m);
         }
         let m = Arc::new(ModuleSource {
             file: file.to_owned(),
-            text: Arc::clone(text),
+            hash,
+            texts: texts.clone(),
+            index,
             check: check.cloned(),
             input: Arc::clone(input),
             read: OnceLock::new(),
@@ -152,10 +168,18 @@ impl Positions {
             .iter()
             .enumerate()
             .filter_map(|(m, path)| {
+                // A skimmed module's hash comes from its skim, so its text
+                // is read only when one of its anchors is asked for.
+                let hash = output
+                    .source_hashes
+                    .get(m)
+                    .copied()
+                    .flatten()
+                    .or_else(|| Some(hd_base::hash128(output.texts.get(m)?.as_bytes())))?;
                 let source = pool.module(
                     path,
                     output.files.get(m)?,
-                    output.texts.get(m)?,
+                    (hash, &output.texts, m),
                     output.checks.get(m).and_then(Option::as_ref),
                     output.position_inputs.get(m)?,
                 );
@@ -179,13 +203,14 @@ impl Positions {
         if node == NodeIdx::NONE || node.idx() >= module.parse.tree.len() {
             return None;
         }
+        let text = source.text();
         let src = Src {
             parse: &module.parse,
-            text: &source.text,
+            text,
             file: FileId::from_raw(0),
         };
         let lo = src.span(module.parse.tree.node(node)).lo as usize;
-        let before = source.text.get(..lo.min(source.text.len()))?;
+        let before = text.get(..lo.min(text.len()))?;
         let line = u32::try_from(
             module
                 .line_starts
@@ -230,7 +255,7 @@ impl Positions {
         }
         let src = Src {
             parse: &module.parse,
-            text: &source.text,
+            text: source.text(),
             file: FileId::from_raw(0),
         };
         let s = src.span(module.parse.tree.node(node));
@@ -321,8 +346,8 @@ impl ModuleSource {
             .input
             .parse
             .clone()
-            .unwrap_or_else(|| Arc::new(parse(self.text.as_bytes())));
-        let line_starts = lf_line_starts(&parse, &self.text);
+            .unwrap_or_else(|| Arc::new(parse(self.text().as_bytes())));
+        let line_starts = lf_line_starts(&parse, self.text());
         Some(Module {
             bodies,
             parse,
@@ -493,7 +518,9 @@ mod tests {
                     "pkg".into(),
                     Arc::new(ModuleSource {
                         file: "source.hd".into(),
-                        text: text.into(),
+                        hash: hd_base::hash128(text.as_bytes()),
+                        texts: crate::Texts::ready(vec![text.into()]),
+                        index: 0,
                         check: None,
                         input: Arc::new(ModuleInput::default()),
                         read: OnceLock::from(Some(Module {

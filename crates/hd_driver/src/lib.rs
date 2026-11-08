@@ -66,6 +66,8 @@ mod pipeline;
 mod positions;
 mod report;
 mod skims;
+mod texts;
+pub use texts::Texts;
 #[cfg(test)]
 mod strip_comments;
 
@@ -532,6 +534,7 @@ pub fn test_programs(
     sources: &dyn SourceSet,
     only: Option<&str>,
     doc: &dyn Fn(&str) -> bool,
+    store: &dyn CacheStore,
 ) -> Vec<TestProgram> {
     let paths: Vec<String> = sources.list().into_iter().map(|e| e.path).collect();
     let mut out = Vec::new();
@@ -539,7 +542,7 @@ pub fn test_programs(
         out.push(TestProgram {
             file: None,
             keep: match only {
-                Some(f) => use_closure(package, sources, f),
+                Some(f) => use_closure(package, sources, f, store),
                 None => paths
                     .iter()
                     .filter(|p| !p.starts_with("tests/"))
@@ -558,7 +561,7 @@ pub fn test_programs(
         if wanted {
             out.push(TestProgram {
                 file: Some(p.clone()),
-                keep: use_closure(package, sources, p),
+                keep: use_closure(package, sources, p, store),
                 module: Some(hd_project::module_path(package, p)),
             });
         }
@@ -645,11 +648,16 @@ pub struct Output {
     /// Per file, the text the run read: the text its spans index. A
     /// dependency's file (`<std>/serde.hd`) is not in the root package's
     /// sources, so positions are located in this text.
-    pub texts: Vec<Arc<str>>,
+    pub texts: Texts<'static>,
     /// Per file, the files of the modules its `use`s reach, its `tests:`
     /// block's included (from the skims this run made; empty for a file it
     /// did not skim).
     pub uses: Vec<Vec<usize>>,
+    /// Per file, the hash of its text (`hd_syntax` skim's `source_hash`),
+    /// from the skims this run made or its set's last-run record; `None`
+    /// for a file it did not skim. A caller fingerprints sources with it
+    /// instead of reading every text.
+    pub source_hashes: Vec<Option<Hash128>>,
     /// Per file, its module's path.
     pub modules: Vec<String>,
     /// Per file, its module's `check` entry, which [`Output::positions`]
@@ -1302,13 +1310,12 @@ struct CollectOut {
 fn skim_module(
     table: &ModuleTable,
     m: usize,
-    text: &str,
     file: Arc<skims::FileSkim>,
     session: Vec<String>,
 ) -> SkimOut {
     let module = &table.modules[m].path;
     let roots = table.use_roots(ModuleId::from_raw(u32_of(m)));
-    let mut uses = written_uses(text, &file.use_lines, &roots);
+    let mut uses = written_uses(&file, &roots);
     // A `tests:` block's uses, of this package or another, such as a dev
     // dependency (`module.test.dev-dependency.in-tests`): the block is
     // test code, so they make no folder edge (`module.cycle.test-code`).
@@ -1583,7 +1590,7 @@ fn repl_texts(
     repl: &ReplInputs,
     text: &mut dyn FnMut(usize) -> Arc<str>,
     files: &skims::FileSkims<'_>,
-) -> Option<ModuleTexts> {
+) -> Option<ModuleTexts<'static>> {
     let start = repl.input?;
     let n = table.modules.len();
     let mut texts: Vec<Arc<str>> = vec![Arc::from(""); n];
@@ -1597,8 +1604,8 @@ fn repl_texts(
             continue;
         }
         texts[m] = text(m);
-        let file = files.get(table, m, &texts[m]);
-        let s = skim_module(table, m, &texts[m], file, session_uses(table, repl, m));
+        let file = files.get(table, m, || Arc::clone(&texts[m]));
+        let s = skim_module(table, m, file, session_uses(table, repl, m));
         for u in &s.uses {
             if let Some(id) = table.module_of_use(u) {
                 stack.push(id.idx());
@@ -1615,15 +1622,15 @@ fn repl_texts(
     }
     let reached = Some(skims.iter().map(Option::is_some).collect());
     Some(ModuleTexts {
-        texts,
+        texts: Texts::ready(texts),
         skims,
         reached,
     })
 }
 
 /// The module texts a run reads, by module: an unread module's is empty.
-struct ModuleTexts {
-    texts: Vec<Arc<str>>,
+struct ModuleTexts<'a> {
+    texts: Texts<'a>,
     /// The skims computed while reading, by module.
     skims: Vec<Option<SkimOut>>,
     /// Per module, whether it was read; `None` when every module was.
@@ -1667,7 +1674,7 @@ struct Run<'a> {
     /// The run's module trie nodes mapped to project rows. Never cast between
     /// `PathId` and `ModuleId`: the tables have unrelated insertion orders.
     module_nodes: HashMap<PathId, ModuleId>,
-    texts: Vec<Arc<str>>,
+    texts: Texts<'a>,
     pool: Arc<InternPool>,
     paths: Arc<PathTable>,
     /// The compiler-known std items, resolved once for the run.
@@ -1855,7 +1862,8 @@ impl HostPackage {
 /// unused executable bodies are never checked as a side effect.
 fn check_host_declarations(
     table: &ModuleTable,
-    texts: &[Arc<str>],
+    texts: &Texts<'_>,
+    host_marker: &dyn Fn(usize) -> bool,
     parsed: &[OnceLock<Parse>],
     packages: &[HostPackage],
     declaration_sources: &[&dyn SourceSet],
@@ -1884,7 +1892,7 @@ fn check_host_declarations(
         let lists_module = listed
             .iter()
             .any(|t| t.rsplit_once('.').map_or("", |(p, _)| p) == relative);
-        if !(lists_module || texts[m].contains('@') && texts[m].contains("host")) {
+        if !(lists_module || host_marker(m)) {
             continue;
         }
         let fresh;
@@ -2410,26 +2418,16 @@ fn build_packages_inner(
         .collect()
     };
     let mut table = ModuleTable::discover_all(&ins);
-    let mut read: Vec<Option<Arc<str>>> = vec![None; table.modules.len()];
-    let mut text = |m: usize| -> Arc<str> {
-        let found = read[m].get_or_insert_with(|| {
-            let (pi, p) = &table.sources[m];
-            let pi = usize::from(*pi);
-            if let Some(t) = embedded
-                .filter(|_| pi + 1 == ins.len())
-                .and_then(|e| e.texts.get(p))
-            {
-                return Arc::clone(t);
-            }
-            let set = ins[pi].sources;
-            Arc::from(
-                set.read(p)
-                    .map(|b| String::from_utf8_lossy(&b).into_owned())
-                    .unwrap_or_default(),
-            )
-        });
-        Arc::clone(found)
-    };
+    // Texts are read on first use: a warm run takes an unchanged file's
+    // skim from its set's last-run record and reads no text it does not
+    // check (`crates/hd_cache/DESIGN.md` §5.5).
+    let sets: Vec<&dyn SourceSet> = ins.iter().map(|p| p.sources).collect();
+    let lazy = Texts::lazy(
+        &table.sources,
+        &sets,
+        embedded.map(|e| (ins.len() - 1, &e.texts)),
+    );
+    let mut text = |m: usize| -> Arc<str> { Arc::clone(&lazy[m]) };
     let std_hash = embedded.map_or_else(|| sources_hash(std, packages.std_leaf), |e| e.hash);
     let toolchain = toolchain_key(
         COMPILER,
@@ -2438,8 +2436,15 @@ fn build_packages_inner(
     );
     // Std's skims come from the toolchain's entry, unless std is the root
     // package, whose files are the user's.
+    let identities: Vec<Option<(Hash128, bool)>> = sets
+        .iter()
+        .map(|s| s.identity().map(|id| (id, s.partial())))
+        .collect();
     let files = skims::FileSkims::new(
+        host.store,
+        toolchain,
         (package != "std").then(|| skims::StdSkims::new(host.store, toolchain)),
+        &identities,
         table.modules.len(),
     );
     let repl_inputs = ReplInputs::new(
@@ -2458,7 +2463,7 @@ fn build_packages_inner(
     } = repl_texts(&table, &repl_inputs, &mut text, &files).unwrap_or_else(|| {
         let n = table.modules.len();
         ModuleTexts {
-            texts: (0..n).map(&mut text).collect(),
+            texts: lazy.clone(),
             skims: (0..n).map(|_| None).collect(),
             reached: None,
         }
@@ -2721,6 +2726,7 @@ fn build_packages_inner(
     check_host_declarations(
         &run.table,
         &run.texts,
+        &|m| run.skim_of(m).file.host_marker,
         &run.parse,
         &packages.host_packages,
         &packages.host_declaration_sources,
@@ -2886,8 +2892,13 @@ fn build_packages_inner(
         instruction_origins: run.instruction_origins.get().cloned().unwrap_or_default(),
         diags,
         files: run.table.files.clone(),
-        texts: run.texts.clone(),
+        texts: run.texts.detach(),
         uses,
+        source_hashes: run
+            .skim
+            .iter()
+            .map(|s| s.get().map(|s| s.file.source_hash))
+            .collect(),
         modules: run.table.modules.iter().map(|m| m.path.clone()).collect(),
         checks: run
             .check
@@ -2986,7 +2997,7 @@ struct FolderCycle {
 /// (`module.cycle.diagnostic.*`).
 fn recover_folder_cycles(
     table: &mut ModuleTable,
-    texts: &[Arc<str>],
+    texts: &Texts<'_>,
     files: &skims::FileSkims<'_>,
 ) -> Vec<FolderCycle> {
     let module_uses: Vec<Vec<(String, u32, u32)>> = (0..table.modules.len())
@@ -2995,7 +3006,7 @@ fn recover_folder_cycles(
                 return Vec::new();
             }
             let roots = table.use_roots(ModuleId::from_raw(u32_of(m)));
-            written_use_lines(&texts[m], &files.get(table, m, &texts[m]).use_lines, &roots)
+            written_use_lines(&files.get(table, m, || Arc::clone(&texts[m])), &roots)
         })
         .collect();
     let uses: Vec<Vec<String>> = module_uses
@@ -3024,21 +3035,11 @@ fn recover_folder_cycles(
 /// The module paths a file's `use` lines name, their roots replaced by
 /// the module paths they name. A path whose root names nothing makes no
 /// edge; resolution reports it.
-fn written_uses(text: &str, lines: &[(u32, u32)], roots: &hd_project::UseRoots) -> Vec<String> {
-    let mut uses = Vec::new();
-    for &(lo, hi) in lines {
-        let line = text.get(lo as usize..hi as usize).unwrap_or("").trim();
-        let rest = line.strip_prefix("pub ").unwrap_or(line);
-        if let Some(rest) = rest.strip_prefix("use ") {
-            let path = rest.split(".{").next().unwrap_or(rest);
-            let path = path.split(" as ").next().unwrap_or(path).trim();
-            let segs: Vec<&str> = path.split('.').collect();
-            if let Ok(abs) = roots.absolute(&segs) {
-                uses.push(abs.join("."));
-            }
-        }
-    }
-    uses
+fn written_uses(file: &skims::FileSkim, roots: &hd_project::UseRoots) -> Vec<String> {
+    written_use_lines(file, roots)
+        .into_iter()
+        .map(|(path, _, _)| path)
+        .collect()
 }
 
 /// The module paths a `tests:` block's `use` lines name (`test_uses`, as
@@ -3057,21 +3058,17 @@ fn written_test_uses(paths: &[String], roots: &hd_project::UseRoots) -> Vec<Stri
 /// The module paths a file's `use` lines name with their line spans, as
 /// `written_uses`, for the folder edge each use makes.
 fn written_use_lines(
-    text: &str,
-    lines: &[(u32, u32)],
+    file: &skims::FileSkim,
     roots: &hd_project::UseRoots,
 ) -> Vec<(String, u32, u32)> {
     let mut uses = Vec::new();
-    for &(lo, hi) in lines {
-        let line = text.get(lo as usize..hi as usize).unwrap_or("").trim();
-        let rest = line.strip_prefix("pub ").unwrap_or(line);
-        if let Some(rest) = rest.strip_prefix("use ") {
-            let path = rest.split(".{").next().unwrap_or(rest);
-            let path = path.split(" as ").next().unwrap_or(path).trim();
-            let segs: Vec<&str> = path.split('.').collect();
-            if let Ok(abs) = roots.absolute(&segs) {
-                uses.push((abs.join("."), lo, hi));
-            }
+    for (&(lo, hi), path) in file.use_lines.iter().zip(&file.use_paths) {
+        if path.is_empty() {
+            continue;
+        }
+        let segs: Vec<&str> = path.split('.').collect();
+        if let Ok(abs) = roots.absolute(&segs) {
+            uses.push((abs.join("."), lo, hi));
         }
     }
     uses
@@ -3184,7 +3181,7 @@ fn shortest_loop(table: &ModuleTable, adj: &[Vec<usize>], touch: &HashSet<usize>
 /// the fix.
 fn describe_cycles(
     table: &ModuleTable,
-    texts: &[Arc<str>],
+    texts: &Texts<'_>,
     module_uses: &[Vec<(String, u32, u32)>],
     cycles: &[Vec<FolderId>],
 ) -> Vec<FolderCycle> {
@@ -3313,19 +3310,17 @@ pub fn has_tests_block(text: &str) -> bool {
 /// edge: its cases read those modules. Only discovery and skims run, no
 /// check.
 #[must_use]
-pub fn use_closure(package: &str, sources: &dyn SourceSet, file: &str) -> Vec<String> {
-    let table = ModuleTable::discover_all(&[PackageIn {
-        name: package,
-        identity: package,
-        sources,
-        scope: Scope::All,
-        requires: Vec::new(),
-        entries: Vec::new(),
-        dev_requires: Vec::new(),
-    }]);
+pub fn use_closure(
+    package: &str,
+    sources: &dyn SourceSet,
+    file: &str,
+    store: &dyn CacheStore,
+) -> Vec<String> {
+    let table = one_package(package, sources);
     let Some(start) = table.files.iter().position(|f| f == file) else {
         return vec![file.to_owned()];
     };
+    let files = package_skims(store, sources, &table);
     let mut seen = vec![false; table.modules.len()];
     let mut order = Vec::new();
     let mut stack = vec![start];
@@ -3334,13 +3329,9 @@ pub fn use_closure(package: &str, sources: &dyn SourceSet, file: &str) -> Vec<St
             continue;
         }
         order.push(table.files[m].clone());
-        let text = sources
-            .read(&table.sources[m].1)
-            .map(|b| String::from_utf8_lossy(&b).into_owned())
-            .unwrap_or_default();
         let roots = table.use_roots(ModuleId::from_raw(u32_of(m)));
-        let file = skims::FileSkim::of(&text);
-        let uses = written_uses(&text, &file.use_lines, &roots);
+        let file = files.get(&table, m, || read_text(sources, &table.sources[m].1));
+        let uses = written_uses(&file, &roots);
         for u in uses
             .iter()
             .chain(&written_test_uses(&file.test_uses, &roots))
@@ -3350,7 +3341,84 @@ pub fn use_closure(package: &str, sources: &dyn SourceSet, file: &str) -> Vec<St
             }
         }
     }
+    files.finish(&table);
     order
+}
+
+/// What a tool asks of a source file before it builds: whether the text
+/// has a `tests:` block and whether it holds a fence (`` ``` ``), so may
+/// hold a doc test.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SourceFlags {
+    pub path: String,
+    pub tests_block: bool,
+    pub fences: bool,
+}
+
+/// Each file's [`SourceFlags`], from its skim: an unchanged file's from
+/// its set's last-run record, so only a changed file is read
+/// (`crates/hd_cache/DESIGN.md` §5.5).
+#[must_use]
+pub fn source_flags(
+    package: &str,
+    sources: &dyn SourceSet,
+    store: &dyn CacheStore,
+) -> Vec<SourceFlags> {
+    let table = one_package(package, sources);
+    let files = package_skims(store, sources, &table);
+    let out = (0..table.modules.len())
+        .map(|m| {
+            let skim = files.get(&table, m, || read_text(sources, &table.sources[m].1));
+            SourceFlags {
+                path: table.sources[m].1.clone(),
+                tests_block: skim.has_tests_block,
+                fences: skim.fences,
+            }
+        })
+        .collect();
+    files.finish(&table);
+    out
+}
+
+/// The module table of `sources` alone, as package `package`.
+fn one_package(package: &str, sources: &dyn SourceSet) -> ModuleTable {
+    ModuleTable::discover_all(&[PackageIn {
+        name: package,
+        identity: package,
+        sources,
+        scope: Scope::All,
+        requires: Vec::new(),
+        entries: Vec::new(),
+        dev_requires: Vec::new(),
+    }])
+}
+
+/// The skims of a one-package `table` over `sources`, through the set's
+/// last-run record under the toolchain a run with that root package has.
+fn package_skims<'a>(
+    store: &'a dyn CacheStore,
+    sources: &dyn SourceSet,
+    table: &ModuleTable,
+) -> skims::FileSkims<'a> {
+    let std = embedded_std().hash;
+    let toolchain = toolchain_key(COMPILER, TARGET, &format!("a1=bounded;std={:032x}", std.0));
+    skims::FileSkims::new(
+        store,
+        toolchain,
+        None,
+        &[sources.identity().map(|id| (id, sources.partial()))],
+        table.modules.len(),
+    )
+}
+
+/// The text of `path` in `sources`, empty when it cannot be read.
+fn read_text(sources: &dyn SourceSet, path: &str) -> Arc<str> {
+    Arc::from(
+        sources
+            .read(path)
+            .map(|b| String::from_utf8_lossy(&b).into_owned())
+            .unwrap_or_default(),
+    )
 }
 
 /// Runs every stage of the design over one package and counts how far
@@ -3567,8 +3635,9 @@ impl Run<'_> {
             TaskKind::PackageResult => self.package_result(sp),
             TaskKind::Ext(ExtTask::Collect) => self.collect(sp),
             TaskKind::Ext(ExtTask::Link) => self.link(),
+            // A file a `parse` entry says parses cleanly is not read for it.
             TaskKind::Parse(f) => {
-                self.parse_of(f as usize);
+                self.parses(f as usize);
             }
             TaskKind::Ext(ExtTask::Precompile | ExtTask::RunCase(_)) => {}
         }
@@ -3694,9 +3763,10 @@ impl Run<'_> {
         let file = if self.reached.as_ref().is_some_and(|reached| !reached[m]) {
             Arc::new(skims::FileSkim::of(&self.texts[m]))
         } else {
-            self.files.get(&self.table, m, &self.texts[m])
+            self.files
+                .get(&self.table, m, || Arc::clone(&self.texts[m]))
         };
-        skim_module(&self.table, m, &self.texts[m], file, self.session_uses(m))
+        skim_module(&self.table, m, file, self.session_uses(m))
     }
 
     fn skim(&self, m: usize) {
@@ -5941,11 +6011,12 @@ impl Run<'_> {
     /// (`crates/hd_check/DESIGN.md` (trait solver) §3.9). std's sources
     /// are in the toolchain key already.
     fn template_sources(&self, m: usize) -> Option<Vec<(String, Hash128)>> {
-        let text = &self.texts[m];
-        let opts_in = text.contains("derive") || text.contains("Structure");
+        // The text is read only for a module that may opt in and a
+        // closure with a user template to opt in to.
+        let opts_in = self.skim_of(m).file.derives;
         let closure = self.module_closure(m);
         self.template_hashes(&closure, &|trait_| {
-            opts_in && self.names_trait(&closure, text, trait_)
+            opts_in && self.names_trait(&closure, &self.texts[m], trait_)
         })
     }
 
@@ -6185,7 +6256,7 @@ impl Run<'_> {
     fn lines(&self, m: usize) -> Lines<'_> {
         Lines {
             starts: &self.skim_of(m).file.code_lines,
-            len: u32_of(self.texts[m].len()),
+            len: self.skim_of(m).file.len,
         }
     }
 
@@ -10004,12 +10075,18 @@ impl Run<'_> {
             } else {
                 None
             };
-            let text = &self.texts[m];
-            let upto = text.get(..r.at as usize).unwrap_or("");
+            // The skim's newlines place the case without the text.
+            let line = if let Some(lines) = &self.skim_of(m).file.newlines {
+                lines.partition_point(|&n| n < r.at) + 1
+            } else {
+                let text = &self.texts[m];
+                let upto = text.get(..r.at as usize).unwrap_or("");
+                upto.matches('\n').count() + 1
+            };
             out.push(TestCase {
                 module: self.table.modules[m].path.clone(),
                 file: self.table.files.get(m).cloned().unwrap_or_default(),
-                line: u32_of(upto.matches('\n').count() + 1),
+                line: u32_of(line),
                 name: r.name,
                 kind: r.kind,
                 ignore: r.ignore,
@@ -10282,23 +10359,33 @@ impl Run<'_> {
             else {
                 continue;
             };
-            let src = self.src(m);
+            // Only an entry module or one with test bodies is parsed: a
+            // warm run reads no other module's text (`crates/hd_cache/DESIGN.md` §5.5).
+            let entry = self.entry_module(m) && module.role != Role::Test;
+            let tests = self.regs[m]
+                .get()
+                .into_iter()
+                .flatten()
+                .any(|r| r.body.is_some());
+            if !entry && !tests {
+                continue;
+            }
+            let at = |(lo, hi): (u32, u32)| Span {
+                file: module.file,
+                lo,
+                hi,
+            };
             let mut entries = Vec::new();
-            if self.entry_module(m) && module.role != Role::Test {
+            if entry {
+                let facts = self.entry_facts(m);
                 let main = names.item(&module.path, "main");
-                if let Some(head) = hd_resolve::heads(&names, &src, &module.path, false)
-                    .into_iter()
-                    .find(|h| h.def == main)
-                {
-                    let row =
-                        hd_resolve::Src::child(head.node, hd_syntax::SyntaxKind::RequirementRow);
-                    let span = row.map_or_else(|| src.span(head.node), |r| src.span(r));
+                if let Some((head, row)) = facts.main {
                     let entry = if module.role == Role::Task {
                         CapabilityEntry::Task
                     } else {
                         CapabilityEntry::Main
                     };
-                    entries.push((main, span, entry, row.is_some()));
+                    entries.push((main, at(row.unwrap_or(head)), entry, row.is_some()));
                 }
                 if module.role == Role::Task {
                     let init = hd_check::default_body_def(
@@ -10306,10 +10393,10 @@ impl Run<'_> {
                         names.item(&module.path, "init"),
                         "init",
                     );
-                    if let Some(statement) = hd_check::init::init_statements(src.root()).first() {
+                    if let Some(statement) = facts.init {
                         self.capabilities_for_keys(
                             self.entry_init_keys(init),
-                            src.span(*statement),
+                            at(statement),
                             &CapabilityEntry::Task,
                             false,
                             &mut out,
@@ -10319,11 +10406,10 @@ impl Run<'_> {
             }
             for registration in self.regs[m].get().into_iter().flatten() {
                 if let Some(body) = &registration.body {
-                    let span = Span {
-                        lo: registration.at,
-                        hi: registration.at + u32_of(registration.kind.len()),
-                        ..src.span(src.root())
-                    };
+                    let span = at((
+                        registration.at,
+                        registration.at + u32_of(registration.kind.len()),
+                    ));
                     entries.push((
                         names.item(&module.path, body),
                         span,
@@ -10354,6 +10440,40 @@ impl Run<'_> {
             ))
         });
         out
+    }
+
+    /// Module `m`'s [`skims::EntryFacts`]: its skim's, else from its parse,
+    /// kept in the skim for the next run.
+    fn entry_facts(&self, m: usize) -> skims::EntryFacts {
+        let skim = Arc::clone(&self.skim_of(m).file);
+        if let Some(facts) = skim.entry.get() {
+            return facts.clone();
+        }
+        let names = self.names();
+        let module = &self.table.modules[m];
+        let src = self.src(m);
+        let span = |node| {
+            let s = src.span(node);
+            (s.lo, s.hi)
+        };
+        let main = names.item(&module.path, "main");
+        let facts = skims::EntryFacts {
+            main: hd_resolve::heads(&names, &src, &module.path, false)
+                .into_iter()
+                .find(|h| h.def == main)
+                .map(|head| {
+                    let row =
+                        hd_resolve::Src::child(head.node, hd_syntax::SyntaxKind::RequirementRow);
+                    (span(head.node), row.map(span))
+                }),
+            init: hd_check::init::init_statements(src.root())
+                .first()
+                .map(|s| span(*s)),
+        };
+        if skim.entry.set(facts.clone()).is_ok() {
+            self.files.gained(&self.table, m);
+        }
+        facts
     }
 
     fn entry_init_keys(&self, def: DefId) -> Vec<Ty> {
@@ -13122,16 +13242,18 @@ mod host_declaration_tests {
             })
             .collect();
         let table = ModuleTable::discover_all(&inputs);
-        let texts: Vec<Arc<str>> = table
-            .sources
-            .iter()
-            .map(|(p, file)| {
-                Arc::from(
-                    String::from_utf8_lossy(&files[usize::from(*p)].read(file).unwrap())
-                        .into_owned(),
-                )
-            })
-            .collect();
+        let texts = Texts::ready(
+            table
+                .sources
+                .iter()
+                .map(|(p, file)| {
+                    Arc::from(
+                        String::from_utf8_lossy(&files[usize::from(*p)].read(file).unwrap())
+                            .into_owned(),
+                    )
+                })
+                .collect(),
+        );
         let parsed = (0..texts.len())
             .map(|_| OnceLock::new())
             .collect::<Vec<_>>();
@@ -13143,6 +13265,7 @@ mod host_declaration_tests {
         check_host_declarations(
             &table,
             &texts,
+            &|m| texts[m].contains('@') && texts[m].contains("host"),
             &parsed,
             packages,
             &declaration_sources,
@@ -13209,14 +13332,15 @@ mod host_declaration_tests {
             entries: Vec::new(),
             dev_requires: Vec::new(),
         }]);
-        let texts = vec![Arc::from(
+        let texts = Texts::ready(vec![Arc::from(
             "@host\npub trait Server:\n    fn read(&self) -> string\n",
-        )];
+        )]);
         let mut diags = DiagBuf::default();
         let declaration_sources: [&dyn SourceSet; 1] = [&files];
         check_host_declarations(
             &table,
             &texts,
+            &|_| true,
             &[OnceLock::new()],
             &[metadata(0, &[])],
             &declaration_sources,

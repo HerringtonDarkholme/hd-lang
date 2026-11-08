@@ -36,10 +36,11 @@ Part of the [compiler design](../../docs/compiler/ARCHITECTURE.md).
 Touched: `iface`, `parse`, `check` and `graph` entries. Dependency
 bodies are never parsed: interfaces come from syntax alone.
 
-Planned, not built: the stat manifest diff, the `fast_key` lookup of a
-stored package result, keys taken from a last-run record without opening
-entries, and early cutoff (§5.3.1, §5.5); publishing on an I/O thread
-after output (§5.4).
+A warm run reads only the source files whose stamps changed, through
+each source set's last-run record (crates/hd_cache/DESIGN.md §5.5).
+Planned, not built: the `fast_key` lookup of a stored package result,
+keys taken from a last-run record without opening entries, and early
+cutoff (§5.3.1); publishing on an I/O thread after output (§5.4).
 
 ### 7.2 `hd check FILE`
 

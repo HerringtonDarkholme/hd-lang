@@ -209,10 +209,14 @@ fn check_one(mut t: Target, o: &Options, store: &dyn CacheStore) -> (Vec<Diag>, 
     let (tests, left_out) = scope(&mut t, o);
     // `cli.check.tests.doc`: the doc tests too, but for compile-fail ones.
     let docs: Vec<crate::test_cmd::Doc> = if tests && t.program.as_written.is_none() {
-        crate::test_cmd::doc_tests(&t.program.sources, t.only.as_deref())
-            .into_iter()
-            .filter(|d| d.test.compile_fail.is_none())
-            .collect()
+        crate::test_cmd::doc_tests(
+            &t.program.sources,
+            &hd_driver::source_flags(&t.program.package, &t.program.sources, store),
+            t.only.as_deref(),
+        )
+        .into_iter()
+        .filter(|d| d.test.compile_fail.is_none())
+        .collect()
     } else {
         Vec::new()
     };

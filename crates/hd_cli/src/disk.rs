@@ -5,9 +5,12 @@ use hd_base::SliceSort as _;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use hd_base::Hash128;
 use hd_diag::{Code, Severity};
 use hd_driver::{BuildProfile, Dependency, Packages};
-use hd_project::{Grant, Manifest, SourceEntry, SourceSet, module_below, parse_manifest};
+use hd_project::{
+    Grant, Manifest, SourceEntry, SourceSet, content_stamp, module_below, parse_manifest,
+};
 
 use crate::report::{Diag, Edit, Fix};
 
@@ -27,12 +30,19 @@ pub struct DiskSources {
     src: Option<String>,
     /// Files no disk holds, such as the program of a doc test, by path.
     synthetic: Vec<(String, Arc<[u8]>)>,
+    /// The set's name across runs (`SourceSet::identity`): a hash of the
+    /// package directory's real path; `None` for a single file or stdin.
+    identity: Option<Hash128>,
+    /// Whether `retain` left files out (`SourceSet::partial`).
+    partial: bool,
 }
 
 impl DiskSources {
     /// Keeps the files whose package-relative path `keep` accepts.
     pub fn retain(&mut self, keep: impl Fn(&str) -> bool) {
+        let before = self.files.len();
         self.files.retain(|e| keep(&e.path));
+        self.partial |= self.files.len() < before;
     }
 
     /// Adds a file no disk holds, listed at `path` (a doc test's program,
@@ -41,6 +51,7 @@ impl DiskSources {
         self.files.push(SourceEntry {
             path: path.to_owned(),
             size: text.len() as u64,
+            stamp: Some(content_stamp(text.as_bytes())),
         });
         self.files.sort_stable_by(|a, b| a.path.cmp(&b.path));
         self.synthetic
@@ -53,6 +64,7 @@ impl DiskSources {
     pub fn set_text(&mut self, path: &str, text: &str) {
         if let Some(e) = self.files.iter_mut().find(|e| e.path == path) {
             e.size = text.len() as u64;
+            e.stamp = Some(content_stamp(text.as_bytes()));
         }
         self.synthetic.retain(|(p, _)| p != path);
         self.synthetic
@@ -100,6 +112,62 @@ impl SourceSet for DiskSources {
             return Some(text.clone());
         }
         read_regular(&self.disk_path(path)).map(Arc::from)
+    }
+    fn identity(&self) -> Option<Hash128> {
+        self.identity
+    }
+    fn partial(&self) -> bool {
+        self.partial
+    }
+    fn detach(&self) -> Option<Arc<dyn SourceSet + Send>> {
+        Some(Arc::new(self.clone()))
+    }
+}
+
+/// How long before the listing a file's last change must lie for its
+/// stamp to be trusted: longer than the coarsest file-system timestamp
+/// (2 s, FAT) and the kernel's coarse-clock lag.
+const SETTLE: std::time::Duration = std::time::Duration::from_secs(2);
+
+/// A file's change stamp (`SourceEntry::stamp`, `crates/hd_cache/DESIGN.md`
+/// §5.5): its size, modification and change times, inode and device. Any
+/// write moves the change time, which no tool can set back, and a
+/// replacement (an editor's save by rename, a `git checkout`) brings a new
+/// inode. `None` (read the file) when either time is not `SETTLE` before
+/// `now`, the time the listing began: a write in the same timestamp tick
+/// as the run's read would keep every field (git's racy-clean rule), and a
+/// write after `now` lands in a later tick than any trusted time. `None`
+/// off Unix, where the standard library gives no change time.
+pub(crate) fn stamp(meta: &std::fs::Metadata, now: std::time::SystemTime) -> Option<Hash128> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt as _;
+        let settled = now
+            .checked_sub(SETTLE)?
+            .duration_since(std::time::UNIX_EPOCH)
+            .ok()?;
+        let settled = (
+            i64::try_from(settled.as_secs()).ok()?,
+            i64::from(settled.subsec_nanos()),
+        );
+        let mtime = (meta.mtime(), meta.mtime_nsec());
+        let ctime = (meta.ctime(), meta.ctime_nsec());
+        if mtime >= settled || ctime >= settled {
+            return None;
+        }
+        let mut h = hd_base::StableHasher::new("disk-stamp");
+        h.u64(meta.len());
+        for t in [mtime.0, mtime.1, ctime.0, ctime.1] {
+            h.u64(t.cast_unsigned());
+        }
+        h.u64(meta.ino());
+        h.u64(meta.dev());
+        Some(h.finish())
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = (meta, now);
+        None
     }
 }
 
@@ -170,9 +238,14 @@ pub fn source_dir(root: &Path) -> String {
         )
 }
 
-fn walk(root: &Path, dir: &Path, out: &mut Vec<SourceEntry>) -> Result<(), String> {
+fn walk(
+    root: &Path,
+    dir: &Path,
+    now: std::time::SystemTime,
+    out: &mut Vec<SourceEntry>,
+) -> Result<(), String> {
     let real = std::fs::canonicalize(dir).unwrap_or_else(|_| dir.to_path_buf());
-    walk_below(root, dir, out, &mut vec![real])
+    walk_below(root, dir, now, out, &mut vec![real])
 }
 
 /// Lists the sources below `dir`. `open` holds the real paths of the
@@ -182,9 +255,15 @@ fn walk(root: &Path, dir: &Path, out: &mut Vec<SourceEntry>) -> Result<(), Strin
 fn walk_below(
     root: &Path,
     dir: &Path,
+    now: std::time::SystemTime,
     out: &mut Vec<SourceEntry>,
     open: &mut Vec<PathBuf>,
 ) -> Result<(), String> {
+    // The stats are how an edit is seen at all without a file-system
+    // watcher (git's status does the same); their stamps spare the reads
+    // and hashes of every unchanged file (`crates/hd_cache/DESIGN.md` §5.5).
+    // cost: per run, one listing per source directory and one `stat` per
+    // file: metadata only, no file is opened or read.
     let entries = std::fs::read_dir(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
     let mut paths: Vec<(PathBuf, Kind)> =
         entries.flatten().map(|e| (e.path(), kind_of(&e))).collect();
@@ -205,7 +284,7 @@ fn walk_below(
                 continue;
             }
             open.push(real);
-            walk_below(root, &p, out, open)?;
+            walk_below(root, &p, now, out, open)?;
             open.pop();
         } else if kind == Kind::File && p.extension().is_some_and(|x| x == "hd") {
             let rel = p
@@ -213,8 +292,12 @@ fn walk_below(
                 .map_err(|e| e.to_string())?
                 .to_string_lossy()
                 .replace('\\', "/");
-            let size = std::fs::metadata(&p).map_or(0, |m| m.len());
-            out.push(SourceEntry { path: rel, size });
+            let meta = std::fs::metadata(&p).ok();
+            out.push(SourceEntry {
+                path: rel,
+                size: meta.as_ref().map_or(0, std::fs::Metadata::len),
+                stamp: meta.and_then(|m| stamp(&m, now)),
+            });
         }
     }
     Ok(())
@@ -751,26 +834,37 @@ pub fn sources_of(root: &Path) -> Result<(DiskSources, String), String> {
     let package = package_name(root)?;
     let src = source_dir(root);
     let mut files = Vec::new();
+    // Taken before any file is listed, so a write after it is never
+    // trusted as settled (`stamp`).
+    let now = std::time::SystemTime::now();
     if root.join("hd.toml").is_file() && root.join(&src).is_dir() {
         for dir in [src.as_str(), "tasks", "tests"] {
             if root.join(dir).is_dir() {
-                walk(root, &root.join(dir), &mut files)?;
+                walk(root, &root.join(dir), now, &mut files)?;
             }
         }
     } else {
-        walk(root, root, &mut files)?;
+        walk(root, root, now, &mut files)?;
     }
+    let identity = std::fs::canonicalize(root).ok().map(|real| {
+        let mut h = hd_base::StableHasher::new("disk-sources");
+        h.str(&real.to_string_lossy());
+        h.str(&src);
+        h.finish()
+    });
     let mut sources = DiskSources {
         root: root.to_path_buf(),
         files: Vec::new(),
         src: (src != "src").then_some(src),
         synthetic: Vec::new(),
+        identity,
+        partial: false,
     };
     sources.files = files
         .into_iter()
         .map(|e| SourceEntry {
             path: sources.listed(&e.path),
-            size: e.size,
+            ..e
         })
         .collect();
     Ok((sources, package))
@@ -820,6 +914,7 @@ pub fn load_file(target: &Path) -> Result<Program, String> {
     let files = vec![SourceEntry {
         path: name.clone(),
         size,
+        stamp: None,
     }];
     Ok(Program {
         sources: DiskSources {
@@ -827,6 +922,8 @@ pub fn load_file(target: &Path) -> Result<Program, String> {
             files,
             src: None,
             synthetic: Vec::new(),
+            identity: None,
+            partial: false,
         },
         package,
         entry: module_below(&name),
@@ -859,6 +956,8 @@ pub fn load_stdin(text: &str) -> Result<Program, String> {
         files: Vec::new(),
         src: None,
         synthetic: Vec::new(),
+        identity: None,
+        partial: false,
     };
     sources.add_synthetic("main.hd", text);
     Ok(Program {
@@ -896,6 +995,8 @@ pub fn load_session(cwd: &Path) -> Result<Program, String> {
             files: Vec::new(),
             src: None,
             synthetic: Vec::new(),
+            identity: None,
+            partial: false,
         },
         package: SESSION_PACKAGE.to_owned(),
         entry: String::new(),
@@ -930,6 +1031,8 @@ pub fn load_package(root: &Path, entry: &str) -> Result<Program, String> {
                 files: Vec::new(),
                 src: None,
                 synthetic: Vec::new(),
+                identity: None,
+                partial: false,
             },
             package: default_name(root),
             entry: module_below(entry),
@@ -1406,6 +1509,118 @@ mod host_declaration_tests {
             let provider = &declarations.providers.as_ref().unwrap()[0];
             assert_eq!(provider.line, 4);
             assert_eq!(provider.path.as_deref(), Some("provider.mjs"));
+        }
+    }
+}
+
+#[cfg(test)]
+mod stamp_tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use hd_driver::{Executor, Goal, Host, NoClock, build_packages};
+    use hd_sched::SerialOrder;
+    use hd_testkit::Scratch;
+
+    /// A disk set that counts the files read through it.
+    struct Counted {
+        disk: DiskSources,
+        reads: AtomicUsize,
+    }
+
+    impl SourceSet for Counted {
+        fn list(&self) -> Vec<SourceEntry> {
+            self.disk.list()
+        }
+        fn read(&self, path: &str) -> Option<Arc<[u8]>> {
+            self.reads.fetch_add(1, Ordering::Relaxed);
+            self.disk.read(path)
+        }
+        fn identity(&self) -> Option<Hash128> {
+            self.disk.identity()
+        }
+    }
+
+    /// The files `hd check` of the package at `root`, listed now, reads,
+    /// with its entry capability rows as the CLI asks for them, and the
+    /// files `hd test`'s planning reads (`source_flags`, `test_programs`).
+    fn reads(root: &Path, store: &hd_cache::MemoryStore) -> (usize, usize) {
+        let program = load_package(root, "main").expect("package");
+        let packages = program.packages();
+        let package = program.package.clone();
+        let sources = Counted {
+            disk: program.sources.clone(),
+            reads: AtomicUsize::new(0),
+        };
+        let host = Host {
+            render_tir: &[],
+            sources: &sources,
+            store,
+            clock: &NoClock,
+            executor: Executor::Serial(SerialOrder::Priority),
+        };
+        let out = build_packages(&host, &package, &packages, &Goal::Analyze);
+        assert!(out.diags.is_empty(), "{}", out.render());
+        assert!(!out.entry_capabilities.is_empty(), "main's `Console` row");
+        let check = sources.reads.swap(0, Ordering::Relaxed);
+        let _ = hd_driver::source_flags(&package, &sources, store);
+        let _ = hd_driver::test_programs(&package, &sources, None, &|_| false, store);
+        (check, sources.reads.load(Ordering::Relaxed))
+    }
+
+    /// Stamps from the disk listing: once settled, a warm check and a
+    /// test run's planning read no file of 1 + `n` modules, at ten times
+    /// the modules; one edit is one read.
+    #[test]
+    fn a_settled_package_is_read_only_where_it_changed() {
+        let dir = Scratch::new(
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/tmp"),
+            "disk-stamps",
+        );
+        let store = hd_cache::MemoryStore::default();
+        for n in [10, 100] {
+            let root = dir.join(format!("p{n}"));
+            std::fs::create_dir_all(root.join("src")).expect("src");
+            std::fs::create_dir_all(root.join("tests")).expect("tests");
+            std::fs::write(
+                root.join("hd.toml"),
+                "[package]\nname = \"shop\"\n\n[capabilities]\nConsole = true\n",
+            )
+            .expect("toml");
+            std::fs::write(
+                root.join("src/main.hd"),
+                "use std.console.Console\n\npub fn main() -> void $ Console:\n    println(\"hi\")\n",
+            )
+            .expect("main");
+            for i in 0..n {
+                std::fs::create_dir_all(root.join(format!("src/f{i}"))).expect("folder");
+                std::fs::write(
+                    root.join(format!("src/f{i}/m.hd")),
+                    format!("## Doc.\npub fn value() -> i32: {i}\n"),
+                )
+                .expect("module");
+            }
+            std::fs::write(
+                root.join("tests/t.hd"),
+                "use pkg.f0.m.{value}\nuse std.testing.{assert_equal}\n\nit(\"value\"):\n    assert_equal(value(), 0)\n",
+            )
+            .expect("test");
+            std::thread::sleep(SETTLE + std::time::Duration::from_millis(200));
+            let files = n + 2;
+            let (check, plan) = reads(&root, &store);
+            assert_eq!(check, files, "cold, {n} modules");
+            assert!(plan <= files, "{plan} plan reads, {n} modules");
+            assert_eq!(reads(&root, &store), (0, 0), "warm, {n} modules");
+            std::fs::write(
+                root.join("src/f1/m.hd"),
+                "## Doc.\npub fn value() -> i32: 99\n",
+            )
+            .expect("edit");
+            // A recent edit is not settled: read on every run until it is.
+            assert_eq!(reads(&root, &store).0, 1, "one edit, {n} modules");
+            std::thread::sleep(SETTLE + std::time::Duration::from_millis(200));
+            assert_eq!(reads(&root, &store).0, 1, "settled edit, {n} modules");
+            assert_eq!(reads(&root, &store), (0, 0), "warm again, {n} modules");
         }
     }
 }

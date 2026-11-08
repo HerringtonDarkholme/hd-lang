@@ -81,6 +81,7 @@ mod resource_limits;
 mod run;
 mod same_size_edit;
 mod spread_position;
+mod stat_manifest;
 mod test_bodies;
 mod test_cmd;
 mod test_env;

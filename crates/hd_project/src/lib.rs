@@ -14,7 +14,7 @@ use hd_base::SliceSort as _;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use hd_base::{FileId, FolderId, ModuleId, Span};
+use hd_base::{FileId, FolderId, Hash128, ModuleId, Span};
 use hd_diag::Code;
 
 pub use doctest::{DocTest, doc_tests};
@@ -30,6 +30,13 @@ pub use manifest::{
 pub struct SourceEntry {
     pub path: String,
     pub size: u64,
+    /// The file's change stamp (`crates/hd_cache/DESIGN.md` §5.5): two
+    /// listings of one set that give a file the same stamp give it the
+    /// same bytes, so the driver reuses what it recorded of the file
+    /// without reading it. `None` when the set cannot promise that, as for
+    /// a file written too recently to tell an edit within the same clock
+    /// tick (the racy-clean rule).
+    pub stamp: Option<Hash128>,
 }
 
 /// Where sources come from (§2.2 rule 3).
@@ -37,18 +44,67 @@ pub trait SourceSet: Sync {
     /// Every `.hd` file of the package, sorted by path bytes.
     fn list(&self) -> Vec<SourceEntry>;
     fn read(&self, path: &str) -> Option<Arc<[u8]>>;
+    /// The name of this set across runs, which the driver keeps the set's
+    /// last-run record under (`crates/hd_cache/DESIGN.md` §5.5): its
+    /// files' stamps and skims. `None` keeps no record, so every run reads
+    /// every file.
+    fn identity(&self) -> Option<Hash128> {
+        None
+    }
+    /// Whether this listing is part of its identity's files, as one test
+    /// program's: the record then keeps the files it does not list,
+    /// instead of taking them for deleted.
+    fn partial(&self) -> bool {
+        false
+    }
+    /// A handle that reads this set after the run, for the texts a run's
+    /// output holds but the run never read. `None`: the output holds only
+    /// the texts the run read.
+    fn detach(&self) -> Option<Arc<dyn SourceSet + Send>> {
+        None
+    }
 }
 
-/// An in-memory source set: tests, the playground, the REPL.
+/// The stamp of a file whose bytes are known: their hash. A set that holds
+/// its files' bytes in memory hashes each file once, when it is added.
+#[must_use]
+pub fn content_stamp(bytes: &[u8]) -> Hash128 {
+    let mut h = hd_base::StableHasher::new("source-content-stamp");
+    h.bytes(bytes);
+    h.finish()
+}
+
+/// An in-memory source set: tests, the playground, the REPL. Each file's
+/// stamp is its content's hash, taken when it is added.
 #[derive(Default, Clone)]
 pub struct MemorySources {
-    files: BTreeMap<String, Arc<[u8]>>,
+    files: BTreeMap<String, (Arc<[u8]>, Hash128)>,
+    identity: Option<Hash128>,
 }
 
 impl MemorySources {
+    /// An empty set that the driver keeps a last-run record of under
+    /// `name` (`SourceSet::identity`), as a long-lived editor or test
+    /// session holds one set across runs.
+    #[must_use]
+    pub fn named(name: &str) -> Self {
+        let mut h = hd_base::StableHasher::new("memory-sources");
+        h.str(name);
+        MemorySources {
+            files: BTreeMap::new(),
+            identity: Some(h.finish()),
+        }
+    }
+
     pub fn insert(&mut self, path: &str, text: &str) {
+        let stamp = content_stamp(text.as_bytes());
         self.files
-            .insert(path.to_owned(), Arc::from(text.as_bytes()));
+            .insert(path.to_owned(), (Arc::from(text.as_bytes()), stamp));
+    }
+
+    /// Removes the file at `path`.
+    pub fn remove(&mut self, path: &str) {
+        self.files.remove(path);
     }
 
     /// Keeps the files whose path `keep` accepts.
@@ -61,14 +117,21 @@ impl SourceSet for MemorySources {
     fn list(&self) -> Vec<SourceEntry> {
         self.files
             .iter()
-            .map(|(p, b)| SourceEntry {
+            .map(|(p, (b, stamp))| SourceEntry {
                 path: p.clone(),
                 size: b.len() as u64,
+                stamp: Some(*stamp),
             })
             .collect()
     }
     fn read(&self, path: &str) -> Option<Arc<[u8]>> {
-        self.files.get(path).cloned()
+        self.files.get(path).map(|(b, _)| Arc::clone(b))
+    }
+    fn identity(&self) -> Option<Hash128> {
+        self.identity
+    }
+    fn detach(&self) -> Option<Arc<dyn SourceSet + Send>> {
+        Some(Arc::new(self.clone()))
     }
 }
 
@@ -527,6 +590,9 @@ pub struct ModuleTable {
     pub files: Vec<String>,
     /// Where each file's text comes from: (package index, relative path).
     pub sources: Vec<(u16, String)>,
+    /// Per file, its stamp as its source set listed it
+    /// (`SourceEntry::stamp`).
+    pub stamps: Vec<Option<Hash128>>,
     pub modules: Vec<Module>,
     pub folders: Vec<Folder>,
     /// Identity errors of discovery (§4.7 step 3): each module's file, the
@@ -1198,6 +1264,7 @@ impl ModuleTable {
                     format!("<{shown}>/{}", e.path)
                 });
                 t.sources.push((pi, e.path.clone()));
+                t.stamps.push(e.stamp);
                 let floor = match Root::of(&e.path).0.segment() {
                     Some(seg) => format!("{root}.{seg}"),
                     None => root.clone(),

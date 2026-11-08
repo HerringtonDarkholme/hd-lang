@@ -29,7 +29,7 @@ says.
 | `check` | one module and role, in sections: diagnostics with severities and fix-its, metadata with the module's content hash, the module's items, TIR (only when the module has no error), test registrations, the init summary, `dbg` references, frame names; a REPL input adds its bindings | `ModuleFinish` | output, `InitOrder`, D2, `hd check --tests`, `hd test` |
 | `parse` | empty: its presence says a file's bytes parse with no diagnostic | `ModulePrep` | `ModulePrep`, before trusting a `check` hit |
 | `graph` | stage-B header findings and the folder's use diagnostics per folder (`hdr_key`); one entry per package run for the overlap findings and every folder's init order, keyed by their part keys; one entry per package for the coherence rows (§5.3) | `HeaderCheck`; the last of `Coherence` and the `InitOrder`s to finish; `Coherence` for the rows | output, `PackageResult`, D2; `Coherence` |
-| `depfiles` | the skims of every embedded std file | the first run of a toolchain | every later run (§5.5) |
+| `depfiles` | the skims of every embedded std file; per source set, its last-run record (stamp and skim per file) | the first run of a toolchain; a run that changed the set's files | every later run (§5.5) |
 | `codepack` | one folder group's emitted code (§13.8), keyed by the group's code keys | `Emit`, or `Collect` for a group it filled from older packs | `Collect` |
 | `packhint` | each folder group's last four `codepack` keys, one entry per package | `Link` | `Collect`, when a group misses its pack |
 | `link` | the program's Wasm, keyed by `prog_key`; the REPL prelude with its session exports | `Link` | D2, the REPL |
@@ -721,17 +721,79 @@ scripts are `/private/tmp/muse-792-{build-timed,measure}.py`.
 
 ### 5.5 The Stat Manifest And Change Detection
 
-Every run lists and reads every source file of the root package and
-skims it; there is no stat manifest. Embedded std files are not read
-from disk: their skims are one `depfiles` entry keyed by the toolchain,
-computed once per machine.
+A warm run reads no source file it does not check, and hashes none
+(#1503). Built as follows.
 
-Planned, not built: a stat manifest in `build/.hd/` of each package
-(size, mtime, ctime and inode per file, trusted only when both times are
-earlier than a file-system-stamped `written_at`, git's racy-clean rule),
-so a run hashes only changed files; a last-run record in the same file
-naming each folder's and module's keys from the previous run, so a miss
-reads only what changed; `depfiles` entries for fetched dependencies.
+- **Stamps.** A source set lists each file with a change stamp
+  (`SourceEntry::stamp`): equal stamps under one set promise equal
+  bytes. The disk set (`hd_cli::disk::stamp`) hashes the file's size,
+  modification and change times (seconds and nanoseconds), inode and
+  device, from the `stat` its listing makes anyway. Any write moves the
+  change time, which no tool can set back, so an edit that keeps the
+  size and restores the modification time is seen; an editor's save by
+  rename and a `git checkout` bring a new inode. The racy-clean rule: a
+  file whose modification or change time is not 2 s (`SETTLE`, above
+  the 2 s FAT granularity and the kernel's coarse-clock lag) before the
+  time the listing began gets no stamp and is read. A write after that
+  time lands in a later timestamp tick than any trusted time, so a
+  trusted stamp never names bytes the run did not see. The time is the
+  host clock, not a file-system stamp: `hd check` writes nothing into
+  the package (`build/` stays absent), and on a local file system the
+  kernel stamps files from that clock. A network file system whose
+  server clock lags the client's by more than `SETTLE` on a coarse
+  timestamp could trust a racy file; no stamp is trusted off Unix, where
+  the standard library gives no change time. An in-memory set
+  (`MemorySources`) stamps a file with its content hash when it is
+  added, once per edit, not per run.
+- **The last-run record.** Per source set with an identity
+  (`SourceSet::identity`: the disk set's real directory path,
+  `MemorySources::named`), one `depfiles` entry keyed by
+  `depfiles_key(toolchain, "src:" + identity)` holds, per stamped file,
+  its path, stamp and `FileSkim`: the hashes the keys read (source, API
+  text, template text, tokens, docs), the length and code lines, the
+  written `use` paths, the flags the driver otherwise scans the text for
+  (`tests:` block, `main`, a host marker, `derive`, a fence), the
+  newlines of a text that may register a test case, and once a run has
+  parsed an entry module, its capability-row spans (`EntryFacts`). A
+  module whose
+  listed stamp is the recorded one takes its skim from the record, so
+  every key (`reads_key`, `check_key`, `hdr_key`, the folder deep
+  hashes) is computed without its text. The folder and module keys are
+  recomputed from the skims each run, as hashes of hashes; they are not
+  stored. A run writes the record again only when it skimmed a stamped
+  file the record lacked or a recorded file is no longer listed, from
+  this run's skims and the old rows; a partial listing (a test program's
+  `retain`, `SourceSet::partial`) keeps the rows of the files it does
+  not list. Dependencies' sets are disk sets of their own, so a fetched
+  dependency has a record the same way; the embedded std keeps its
+  toolchain-keyed `depfiles` entry.
+- **Texts on demand.** Module texts are read on first use
+  (`hd_driver::Texts`): by a check that misses its entry, a parse whose
+  `parse` entry misses, a module that may opt in to a user derivation
+  template, a file whose skim holds a fence (`hd test`'s doc tests). The
+  output keeps the same cells and reads a text the run never read
+  through `SourceSet::detach`, for a diagnostic's position, a panic's
+  line (the position pool tells modules apart by their skims' hashes)
+  or a missing capability's row.
+- **New and deleted files.** The listing finds them: a new path has no
+  row and is read; a deleted one is not listed, and its row is dropped.
+  A renamed folder is new paths. Directory modification times would
+  spare the listing of an unchanged directory, but not the `stat` of
+  each file that an edit needs, so the listing stays.
+- **Fingerprints** of `hd test --affected` hold content hashes, never
+  stamps: a source file's from the build's skims
+  (`Output::source_hashes`), any other package file's from
+  `build/test-records/stamps` (path, stamp, content hash), read again
+  only when its stamp moved.
+
+Per-run cost, n files of which k changed: one listing per source
+directory and one `stat` per file (metadata only; git's status does the
+same, and nothing short of a file-system watcher sees an edit with
+less); one read of the record, O(n) skim bytes; O(n) key hashing over
+skims; the reads, skims and record rewrite of the k changed files (the
+rewrite is O(n) bytes, on a run that changed something); plus whatever
+those k changes make the checker redo. A no-change run reads no source
+file and writes nothing.
 
 ### 5.6 Verify Mode
 
@@ -840,9 +902,9 @@ On macOS a publish costs about 340 µs and an open and read 60 to 120 µs
 (under load), and a Linux runner is likely 5 to 20 times cheaper. With
 one file per entry, a warm one-function edit opens one `check` entry per
 module, publishes the edited module's `check`, and on a build opens one
-`codepack` per folder group (§5.4). The planned stat manifest (§5.5)
-and early cutoff (§5.3.1) exist to cut those counts to a few files per
-edit.
+`codepack` per folder group (§5.4). The stat manifest (§5.5) keeps
+source reads to the changed files; the planned early cutoff (§5.3.1)
+exists to cut the entry counts to a few files per edit.
 
 The first release rechecks a whole module on a body edit
 (crates/hd_check/DESIGN.md (type checking) §1.7). Per-body reuse inside

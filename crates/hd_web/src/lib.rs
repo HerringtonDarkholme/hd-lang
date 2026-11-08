@@ -212,7 +212,7 @@ impl Session {
                 },
             )],
             Goal::Check => vec![(None, self.sources.clone(), hd_driver::Goal::Analyze)],
-            Goal::Test => test_programs(PACKAGE, &self.sources, None, &|_| false)
+            Goal::Test => test_programs(PACKAGE, &self.sources, None, &|_| false, &self.store)
                 .into_iter()
                 .map(|t| {
                     let mut sources = self.sources.clone();

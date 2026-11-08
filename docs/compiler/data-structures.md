@@ -813,10 +813,13 @@ renumber its rows. Shared rows are repeated once per body on purpose.
 
 #### 3.20.3 The Stat Manifest
 
-Planned, not built: a stat manifest in `build/.hd/manifest`, one record
-per file (path, size, `mtime_ns`, `ctime_ns`, inode, source hash, api
-text hash, use paths, role), read whole at start, so a warm run hashes
-only files whose stat changed. It would also hold the last run's keys.
+Built as the last-run record of each source set, a `depfiles` entry in
+the cache rather than a file in `build/` (`hd check` writes nothing into
+the package): per file its path, change stamp (size, modification and
+change times, inode, device) and `FileSkim`, read whole at start, so a
+warm run reads and hashes only files whose stamp changed
+([crates/hd_cache/DESIGN.md §5.5](../../crates/hd_cache/DESIGN.md#55-the-stat-manifest-and-change-detection)).
+The keys are recomputed from the skims, not stored.
 
 #### 3.20.4 Entry Sections By Kind
 
@@ -825,7 +828,7 @@ only files whose stat changed. It would also hold the last run's keys.
 | `iface` | §3.16 |
 | `check` | diagnostics; module meta; items (private signatures and inferred results); the TIR, one section of bodies; row results; the init summary; `dbg` references; frame names; a REPL input's bindings |
 | `graph` | one part: a folder's header findings (`hdr`), the coherence result (`coh`) or a folder's init order (`init`) |
-| `depfiles` | a dependency package's file skims |
+| `depfiles` | the embedded std's file skims; a source set's last-run record (§3.20.3) |
 | `parse` | empty: the source parses cleanly |
 | `codepack` | one folder group's Wasm code (§3.22) |
 | `packhint` | each folder group's recent `codepack` keys, per package |

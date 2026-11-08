@@ -51,9 +51,10 @@ crosses a boundary by an in-memory ID. `Body(m)` is one scheduled task per
 module; the individual bodies remain the logical units for determinism,
 fuel and TIR.
 
-Planned, not built: a stat manifest in `build/` that lets a warm run
-skip hashing unchanged files, and a `pkgres` entry that answers a warm
-run with no edit from one key.
+A warm run reads and hashes only the source files whose stamps changed
+(the stat manifest, [crates/hd_cache/DESIGN.md §5.5](../../crates/hd_cache/DESIGN.md#55-the-stat-manifest-and-change-detection)).
+Planned, not built: a `pkgres` entry that answers a warm run with no
+edit from one key.
 
 ### 1.2 Stages
 
