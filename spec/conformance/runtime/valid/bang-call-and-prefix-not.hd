@@ -1,7 +1,7 @@
 # test: a bang directly before a parenthesis or a type-argument list calls a suspending function, a bang at the start of an operand negates, and != stays one token
 # Spec 02 Bang And Dot Tokens: grammar.expr.bang-suffix, grammar.expr.prefix-not, grammar.expr.not-equal.
 # Spec 02 Method Type Arguments: grammar.expr.method-type-arguments.bang, grammar.expr.method-type-arguments.valid.
-# Spec 01 Operators And Delimiters: lex.op.bang-call, lex.op.inequality.
+# Spec 01 Operators And Delimiters: lex.op.bang-call-token, lex.op.inequality.
 # expect-stdout: true 7 true false
 fn is_ready!(value: i32) -> bool:
     value > 0

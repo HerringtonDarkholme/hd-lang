@@ -1,0 +1,7 @@
+# test: a bang call takes the bang on the name, followed by its arguments or by explicit type arguments
+# Spec 01 Operators: lex.op.bang-call-token.
+fn run!(key: string) -> i32:
+    plain := fetch!(key)
+    generic := fetch!::[i32](key)
+    method := store.load!::[i32](key)
+    plain + generic + method

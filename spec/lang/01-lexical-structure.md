@@ -1020,7 +1020,7 @@ punctuation tokens:
 2. r[lex.op.longest.examples-separate-equals] For example, `**` is one token rather than two `*` tokens, and `...` is one token rather than three `.` tokens. The sequence `...=` is two tokens, `...` followed by `=`; `&&` and `||` are single tokens.
 3. r[lex.op.pipe] `|>` is one token, the [pipe operator](05-expressions.md#pipe-expressions).
 4. r[lex.op.inequality] The sequence `!=` is always the inequality token, so `f!=g` lexes as `f`, `!=`, `g`.
-5. r[lex.op.bang-call] A suspension call needs `!` immediately followed by `(`.
+5. r[lex.op.bang-call-token] A suspension call needs `!` immediately followed by `(`, or by `::[`, the type arguments, and then `(`.
 6. r[lex.op.compound-assign] `+=`, `-=`, `*=`, `/=`, `%=`, `&=`, `|=`, `^=`, `<<=`, and `>>=` are single tokens. A statement uses them for [compound assignment](05-expressions.md#compound-assignment), and a member line also uses `+=`, as [Member Lines](14-annotations.md#member-lines) defines.
 7. r[lex.op.compound-assign.examples] By longest match, `a-=b` lexes as `a`, `-=`, `b`, and `x<<=1` as `x`, `<<=`, `1`.
 8. r[lex.op.no-power-assign] `**=` is not a token: it lexes as `**` and `=`, which no grammar rule accepts.
