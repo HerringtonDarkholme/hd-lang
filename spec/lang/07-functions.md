@@ -459,6 +459,7 @@ may hold and call.
 8. r[fn.trait.bound.closure-inputs] An unannotated closure passed to a bare parameter `F` takes its parameter types from `F`'s `Fn` bound when those input types are known; the closure's concrete type still solves `F`.
 9. r[fn.trait.bound-closure] A closure or a concrete function value passed to a bare parameter `F` has the signature of `F`'s `Fn` or `FnMut` bound, its row included. Another signature is an argument error, and the bound itself reports nothing more. Error: `type-mismatch`.
 10. r[fn.trait.bound-sugar.next-bound] In a bound list, `&` after the sugar's result type starts the next bound. So `F < Fn() -> void & 'a` is `Fn() -> void` and `'a` ([Lifetime Bounds](13-values-and-references.md#lifetime-bounds)).
+11. r[fn.trait.no-dyn] `Fn` and `FnMut` are the two traits with no `dyn` type, as [`ref.type.dyn.no-fn`](13-values-and-references.md#r-ref.type.dyn.no-fn) states. Error: `trait-not-dynamically-safe`.
 
 > **Why.** The concrete `fn(...)` type remains the dynamic function value.
 > `Fn(...)` gives stored callbacks static dispatch without a second dynamic form.

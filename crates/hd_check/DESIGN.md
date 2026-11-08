@@ -2815,7 +2815,7 @@ keyed by concrete trait reference (crates/hd_mono/DESIGN.md §13.2).
 ### 9.1 Which Traits Can Be Values
 
 **Every trait can be a `dyn` type**
-([`trait.dyn.any-trait`](../../spec/lang/09-traits.md#r-trait.dyn.any-trait)).
+([`trait.dyn.except-fn`](../../spec/lang/09-traits.md#r-trait.dyn.except-fn)).
 A trait value type is written `dyn Tr`. What cannot work dynamically is
 decided **per member**, and the error is at the call, not at the type.
 

@@ -2013,7 +2013,7 @@ gives the rule.
 
 ### Dynamic Safety
 
-1. r[types.trait.dyn.any-trait] Every trait may be used as a `dyn` type. There is no per-trait safety check.
+1. r[types.trait.dyn.except-fn] Every trait except `Fn` and `FnMut` may be used as a `dyn` type, and `dyn Fn` and `dyn FnMut` are errors, as [`ref.type.dyn.no-fn`](13-values-and-references.md#r-ref.type.dyn.no-fn) states. There is no other per-trait safety check.
 2. r[types.trait.dyn.member] A member that cannot work through a `dyn` value is unavailable on it, and calling it there is an error at the call. [Dynamic Safety](09-traits.md#dynamic-safety) lists those members. Error: `dyn-member-unavailable`.
 3. r[types.trait.safe.assoc-bound.reference-values] The trait value type must bind each associated type of the trait and its supertraits, as in `&dyn Supplier[Item = i32]`.
 4. r[types.trait.safe.method-type-param] A method with a method-level type or row parameter is unavailable on a `dyn` value, whatever the parameter's bounds. A generic bound on the caller reaches it.

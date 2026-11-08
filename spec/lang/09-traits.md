@@ -1799,7 +1799,7 @@ fn demo(g: Greet) -> string:  # error: trait-used-as-type
 
 ### Dynamic Safety
 
-1. r[trait.dyn.any-trait] Every trait may be used as a `dyn` type. No rule about a trait's members makes its `dyn` type invalid.
+1. r[trait.dyn.except-fn] Every trait except `Fn` and `FnMut` may be used as a `dyn` type. No rule about a trait's members makes its `dyn` type invalid.
 2. r[trait.dyn.member.unavailable] A member of the trait or of a supertrait that cannot work dynamically is unavailable on the `dyn` value.
 3. r[trait.dyn.member.unavailable.error] Calling an unavailable member through a `dyn` value is an error, reported at the call. Error: `dyn-member-unavailable`.
 

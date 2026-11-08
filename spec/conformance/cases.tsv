@@ -3730,7 +3730,7 @@ typing/invalid/method-bound-bare-trait.hd	type	reject:trait-used-as-type	lang/09
 typing/invalid/impl-bound-bare-trait.hd	type	reject:trait-used-as-type	lang/09-traits.md#r-trait.dyn.reference-keyword
 typing/invalid/alias-bound-bare-trait.hd	type	reject:trait-used-as-type	lang/09-traits.md#r-trait.dyn.reference-keyword
 typing/invalid/newtype-bound-bare-trait.hd	type	reject:trait-used-as-type	lang/09-traits.md#r-trait.dyn.reference-keyword
-typing/valid/nested-dynamically-safe-trait-values.hd	type	accept	lang/09-traits.md#r-trait.dyn.any-trait
+typing/valid/nested-dynamically-safe-trait-values.hd	type	accept	lang/09-traits.md#r-trait.dyn.except-fn
 typing/invalid/anyref-subtrait-value-newtype.hd	type	reject:missing-supertrait-implementation	lang/09-traits.md#r-trait.sealed.extend.missing
 typing/valid/anyref-subtrait-reference-newtypes.hd	type	accept	lang/09-traits.md#r-trait.sealed.extend
 typing/invalid/anyref-subtrait-unbounded-generic-newtype.hd	type	reject:missing-supertrait-implementation	lang/09-traits.md#r-trait.super.impl-bounds
@@ -4227,7 +4227,7 @@ typing/valid/error-value-newtype.hd	type	accept	lang/09-traits.md#r-trait.error.
 typing/valid/generic-method-dynamically-safe.hd	type	accept	lang/09-traits.md#r-trait.dyn.member.type-param
 typing/invalid/optional-identity.hd	type	reject:identity-requires-references	lang/04-type-system.md#r-types.option.identity-error
 typing/invalid/template-helper-missing-result.hd	type	reject:missing-result-type	lang/10-modules.md#r-module.package.template-private.result
-typing/valid/dyn-any-trait.hd	type	accept	lang/09-traits.md#r-trait.dyn.any-trait
+typing/valid/dyn-any-trait.hd	type	accept	lang/09-traits.md#r-trait.dyn.except-fn
 parse/invalid/dyn-mut-order.hd	parse	reject:syntax-error	lang/02-grammar.md#r-grammar.type.dyn.mut
 runtime/valid/dyn-inherent-methods.hd	runtime	accept	lang/09-traits.md#r-trait.own.dyn-inherent.form
 typing/invalid/dyn-inherent-method-on-concrete.hd	type	reject:unknown-method	lang/09-traits.md#r-trait.own.dyn-inherent.receiver
