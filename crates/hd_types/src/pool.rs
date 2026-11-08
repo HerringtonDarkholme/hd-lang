@@ -304,21 +304,24 @@ impl Inputs {
 /// The decoded view of one type (§3.4 `TyView`), owned for simplicity.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum TyData {
+    /// A primitive: an integer, a float, `bool`, `char` or `string`.
     Prim(Prim),
+    /// `never`, the type of an expression that does not finish.
     Never,
+    /// The type of an expression whose error was already reported; it
+    /// unifies with anything, so one error isn't reported twice.
     Poison,
-    Adt {
-        def: DefId,
-        args: TyList,
-    },
-    Tuple {
-        elems: TyList,
-        rest: Option<Ty>,
-    },
+    /// A named type applied to its arguments: a struct, enum, newtype or
+    /// std type such as `List[T]`.
+    Adt { def: DefId, args: TyList },
+    /// A tuple `(A, B)`; `rest` is a variadic tail, `(A, ...R)`.
+    Tuple { elems: TyList, rest: Option<Ty> },
     /// An ordered anonymous sum. Members keep their arity, order,
     /// duplicates, and nested union identities.
     Union(TyList),
+    /// `T?`.
     Option(Ty),
+    /// A function type `fn(A) -> R $ Row`; `suspends` marks a bang function.
     Fn {
         params: TyList,
         result: Ty,
@@ -328,6 +331,7 @@ pub enum TyData {
         inputs: Inputs,
         deps: FnDeps,
     },
+    /// A trait value `dyn Trait[args]`, with its associated types bound.
     TraitValue {
         def: DefId,
         args: TyList,
@@ -361,6 +365,8 @@ pub enum TyData {
         self_ty: Ty,
         args: TyList,
     },
+    /// `mut T`: only in `mut Suspend[T]`, and as `&mut`'s mark after
+    /// [`Types::lower_refs`] (#1443 deletes both).
     Mut(Ty),
     /// A reference type (spec/lang/13-values-and-references.md): a
     /// counted `*T` or `*mut T`, or a local `&T` or `&mut T`
@@ -371,6 +377,8 @@ pub enum TyData {
         mutable: bool,
         counted: bool,
     },
+    /// An inference variable: a type the checker has not solved yet; the
+    /// solver substitutes its answer.
     Infer(InferVar),
     /// A canonical placeholder of the solver (`crates/hd_check/DESIGN.md` (trait solver) §2.2).
     Canon(u8),
