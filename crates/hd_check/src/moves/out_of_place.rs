@@ -261,10 +261,13 @@ impl Ck<'_, '_> {
             TyData::Tuple { elems, .. } => pool.list_items(elems).get(j as usize).copied(),
             TyData::Adt { def, args } => {
                 let fields = match (&self.cx.lookup.item(def)?.data, variant) {
-                    (ItemData::Struct(fs), None) => fs,
-                    (ItemData::Enum { shared, variants }, Some(k)) if shared.is_empty() => {
-                        &variants.get(k as usize)?.fields
-                    }
+                    (ItemData::Struct(fs, _), None) => fs,
+                    (
+                        ItemData::Enum {
+                            shared, variants, ..
+                        },
+                        Some(k),
+                    ) if shared.is_empty() => &variants.get(k as usize)?.fields,
                     _ => return None,
                 };
                 let ft = fields.get(j as usize)?.ty;

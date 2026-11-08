@@ -47,7 +47,7 @@ impl Ck<'_, '_> {
         let TyData::Adt { def, .. } = pool.get(self.resolved(self.infer.resolve(pool, st))) else {
             return;
         };
-        let Some(ItemData::Struct(fields)) = self.cx.lookup.item(def).map(|i| &i.data) else {
+        let Some(ItemData::Struct(fields, _)) = self.cx.lookup.item(def).map(|i| &i.data) else {
             return;
         };
         let names: Vec<(usize, String)> = fields

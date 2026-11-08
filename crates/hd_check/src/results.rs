@@ -557,7 +557,7 @@ pub fn omitted_results(cx: &BodyCx<'_>, bodies: &[(DefId, NodeRef<'_>)]) {
         };
         let private = !item.public
             && match &item.data {
-                ItemData::Fn(_) => true,
+                ItemData::Fn(_, _) => true,
                 ItemData::Method { owner, .. } => matches!(
                     cx.lookup.item(*owner).map(|o| &o.data),
                     Some(ItemData::Impl {

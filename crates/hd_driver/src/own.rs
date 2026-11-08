@@ -876,8 +876,10 @@ impl Env<'_> {
             return true;
         };
         let in_trait = matches!(item.data, hd_resolve::ItemData::Trait(_));
-        if in_trait && p.index == 0 {
-            return !item.not_copy;
+        if let hd_resolve::ItemData::Trait(t) = &item.data
+            && p.index == 0
+        {
+            return !t.relaxed_copy;
         }
         let generics = item.sig().map_or(&item.generics[..], |s| &s.generics[..]);
         let at = usize::from(p.index) - usize::from(in_trait);
@@ -1327,7 +1329,7 @@ impl InlineEnv for Env<'_> {
         self.p
             .items
             .get(def)
-            .map_or(InlineHint::Default, |i| match i.inline {
+            .map_or(InlineHint::Default, |i| match i.inline() {
                 hd_resolve::iface::INLINE_AUTO => InlineHint::Auto,
                 hd_resolve::iface::INLINE_ALWAYS => InlineHint::Always,
                 hd_resolve::iface::INLINE_NEVER | hd_resolve::iface::COLD => InlineHint::Never,

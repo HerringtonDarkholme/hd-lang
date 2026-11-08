@@ -19,7 +19,7 @@ impl<'a> Ck<'a, '_> {
             return None;
         };
         match &self.cx.lookup.item(def)?.data {
-            ItemData::Struct(fields) => Some((def, fields)),
+            ItemData::Struct(fields, _) => Some((def, fields)),
             _ => None,
         }
     }
@@ -73,7 +73,7 @@ impl<'a> Ck<'a, '_> {
     /// (`data.vis.literal`, `data.vis.private-fields`). Reports the first
     /// private field.
     pub(crate) fn check_literal_visible(&mut self, def: DefId, n: NodeRef<'_>) {
-        let Some(ItemData::Struct(fields)) = self.cx.lookup.item(def).map(|i| &i.data) else {
+        let Some(ItemData::Struct(fields, _)) = self.cx.lookup.item(def).map(|i| &i.data) else {
             return;
         };
         let Some(f) = fields

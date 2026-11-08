@@ -410,7 +410,7 @@ impl Folder<'_, '_> {
         for (m, heads) in self.mods.iter().zip(self.heads) {
             for h in heads.iter().filter(|h| h.kind == HeadKind::Struct) {
                 let Some(Item {
-                    data: ItemData::Struct(fields),
+                    data: ItemData::Struct(fields, _),
                     ..
                 }) = self.own.get(&h.def).copied()
                 else {
@@ -443,7 +443,7 @@ impl Folder<'_, '_> {
             let Some(it) = item(d) else {
                 return Vec::new();
             };
-            let ItemData::Struct(fields) = &it.data else {
+            let ItemData::Struct(fields, _) = &it.data else {
                 return Vec::new();
             };
             fields

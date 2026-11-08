@@ -9,7 +9,9 @@ use hd_base::Symbol;
 use hd_intern::PathKind;
 use hd_types::{ParamRef, Prim, RowData, RowId, RowParamRef, Ty, TyData, TyList};
 
-use crate::iface::{Field, FnSig, Generic, Item, ItemData, Names, TraitData, Variant};
+use crate::iface::{
+    CallAttrs, Field, FnAttrs, FnSig, Generic, Item, ItemData, Names, TraitData, TypeAttrs, Variant,
+};
 
 /// The modules that have compiler-supplied items.
 pub const SEEDED: &[&str] = &[
@@ -49,6 +51,18 @@ fn sym(names: &Names<'_>, s: &str) -> Symbol {
 }
 
 /// The compiler-supplied items of `module` (empty for any other module).
+#[must_use]
+/// A seeded function whose body is the compiler's `@intrinsic(key)`.
+fn intrinsic(names: &Names<'_>, key: &str) -> FnAttrs {
+    FnAttrs {
+        call: CallAttrs {
+            intrinsic: Some(sym(names, key)),
+            ..CallAttrs::default()
+        },
+        ..FnAttrs::default()
+    }
+}
+
 #[must_use]
 pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
     let pool = names.pool;
@@ -97,7 +111,11 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
             let copy = bound(names.known.copy);
             let mut list_gens = gens(names, &["T"]);
             list_gens[0].bounds = vec![copy];
-            item("List", list_gens, ItemData::Struct(vec![]));
+            item(
+                "List",
+                list_gens,
+                ItemData::Struct(vec![], TypeAttrs::default()),
+            );
             // `Map[K < Eq & Hash, V]` (types.map-key.declared-bound).
             let mut map_gens = gens(names, &["K", "V"]);
             map_gens[0].bound = Some(names.known.eq);
@@ -106,7 +124,11 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
                 .map(bound)
                 .collect();
             map_gens[1].bounds = vec![copy];
-            item("Map", map_gens, ItemData::Struct(vec![]));
+            item(
+                "Map",
+                map_gens,
+                ItemData::Struct(vec![], TypeAttrs::default()),
+            );
             let opt = names.item(module, "Option");
             let t = param(names, opt, 0);
             item(
@@ -136,6 +158,7 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
                 ItemData::Enum {
                     shared: vec![],
                     variants,
+                    attrs: TypeAttrs::default(),
                 },
             );
             let any = names.item(module, "Any");
@@ -156,10 +179,11 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
                 );
             }
             let sig = FnSig::simple(vec![], vec![(sym(names, "message"), Ty::STRING)], Ty::NEVER);
-            item("panic", vec![], ItemData::Fn(sig));
-            if let Some(p) = out.last_mut() {
-                p.intrinsic = Some(sym(names, "panic_message"));
-            }
+            item(
+                "panic",
+                vec![],
+                ItemData::Fn(sig, intrinsic(names, "panic_message")),
+            );
             // `'static` (ref.generic.static): a sealed trait that no
             // path names, which a type parameter's bound `'static` writes.
             let st = names.item(module, "'static");
@@ -187,9 +211,12 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
             let mut box_gens = gens(names, &["T"]);
             box_gens[0].bounds = vec![static_tv];
             let sig = FnSig::simple(box_gens, vec![(sym(names, "value"), t)], boxed);
-            let mut it = Item::new(bx, sym(names, "box"), true, ItemData::Fn(sig));
-            it.intrinsic = Some(sym(names, "box"));
-            out.push(it);
+            out.push(Item::new(
+                bx,
+                sym(names, "box"),
+                true,
+                ItemData::Fn(sig, intrinsic(names, "box")),
+            ));
             // The data types `&T` (`Ref`), `&mut T` (`RefMut`), `*T`
             // (`Counted`) and `*mut T` (`CountedMut`) lower to when the checker finishes a body
             // (`hd_types::Types::lower_refs`), which the backend recognizes
@@ -199,13 +226,22 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
             // visible to programs.
             for name in ["Ref", "RefMut", "Counted", "CountedMut"] {
                 let cell = names.item(module, name);
-                let mut it = Item::new(cell, sym(names, name), false, ItemData::Struct(vec![]));
+                let mut it = Item::new(
+                    cell,
+                    sym(names, name),
+                    false,
+                    ItemData::Struct(vec![], TypeAttrs::default()),
+                );
                 it.generics = gens(names, &["T"]);
                 out.push(it);
             }
         }
         "std.task" => {
-            item("Suspend", gens(names, &["T"]), ItemData::Struct(vec![]));
+            item(
+                "Suspend",
+                gens(names, &["T"]),
+                ItemData::Struct(vec![], TypeAttrs::default()),
+            );
             let poll_def = names.item(module, "Poll");
             item(
                 "Poll",
@@ -224,6 +260,7 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
                             fields: vec![],
                         },
                     ],
+                    attrs: TypeAttrs::default(),
                 },
             );
             // Only the host runtime and `std.task` construct one
@@ -233,17 +270,26 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
             let mut private = field(names, "waker", Ty::VOID);
             private.public = false;
             private.has_default = true;
-            item("PollContext", vec![], ItemData::Struct(vec![private]));
-            item("Waker", vec![], ItemData::Struct(vec![]));
+            item(
+                "PollContext",
+                vec![],
+                ItemData::Struct(vec![private], TypeAttrs::default()),
+            );
+            item(
+                "Waker",
+                vec![],
+                ItemData::Struct(vec![], TypeAttrs::default()),
+            );
             // `join!` has no written signature (`crates/hd_wasm_linear/DESIGN.md` §14.5): its
             // checker rule is the compiler's.
             let mut join = FnSig::simple(vec![], vec![], Ty::VOID);
             join.suspends = true;
             join.variadic = true;
-            item("join", vec![], ItemData::Fn(join));
-            if let Some(p) = out.last_mut() {
-                p.intrinsic = Some(sym(names, "task_all"));
-            }
+            item(
+                "join",
+                vec![],
+                ItemData::Fn(join, intrinsic(names, "task_all")),
+            );
         }
         "std.function" => {
             let tr = names.item(module, "Fn");
@@ -293,7 +339,7 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
                     ..TraitData::default()
                 }),
             );
-            let mut call = Item::new(
+            let call = Item::new(
                 method,
                 sym(names, "call"),
                 true,
@@ -301,10 +347,14 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
                     owner: tr,
                     sig,
                     has_body: false,
+                    call: intrinsic(names, "fn_call").call,
                 },
             );
-            call.intrinsic = Some(sym(names, "fn_call"));
-            item("SuspendFn", g, ItemData::Struct(vec![]));
+            item(
+                "SuspendFn",
+                g,
+                ItemData::Struct(vec![], TypeAttrs::default()),
+            );
             out.push(call);
         }
         "std.structure" => {
@@ -335,6 +385,7 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
                         owner: tr,
                         sig,
                         has_body: false,
+                        call: CallAttrs::default(),
                     },
                 ));
             };
@@ -392,15 +443,18 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
                 vec![],
                 ItemData::Trait(TraitData {
                     methods,
+                    relaxed_copy: true,
                     ..TraitData::default()
                 }),
             );
-            item("UnionType", vec![], ItemData::Trait(TraitData::default()));
-            for declaration in &mut out {
-                if declaration.def == tr || declaration.def == names.known.union_type {
-                    declaration.not_copy = true;
-                }
-            }
+            item(
+                "UnionType",
+                vec![],
+                ItemData::Trait(TraitData {
+                    relaxed_copy: true,
+                    ..TraitData::default()
+                }),
+            );
             out.extend(members);
         }
         "std.testing" => {
@@ -415,11 +469,14 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
             item(
                 "it",
                 vec![],
-                ItemData::Fn(FnSig::simple(
-                    vec![],
-                    vec![(sym(names, "name"), Ty::STRING), (sym(names, "body"), body)],
-                    Ty::VOID,
-                )),
+                ItemData::Fn(
+                    FnSig::simple(
+                        vec![],
+                        vec![(sym(names, "name"), Ty::STRING), (sym(names, "body"), body)],
+                        Ty::VOID,
+                    ),
+                    FnAttrs::default(),
+                ),
             );
             // `assert_equal[T < Eq & Debug](actual: T, expected: T, reason:
             // string = "")` (module.testing.assertions.signatures): the
@@ -450,15 +507,21 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
                 Ty::VOID,
             );
             sig.defaults[2] = true;
-            item("assert_equal", vec![], ItemData::Fn(sig));
+            item(
+                "assert_equal",
+                vec![],
+                ItemData::Fn(sig, FnAttrs::default()),
+            );
         }
         _ => {}
     }
     for (name, key) in [("it", "test_case"), ("assert_equal", "assert_equal")] {
         if module == "std.testing"
-            && let Some(p) = out.iter_mut().find(|i| i.def == names.item(module, name))
+            && let Some(c) = (out.iter_mut())
+                .find(|i| i.def == names.item(module, name))
+                .and_then(Item::call_mut)
         {
-            p.intrinsic = Some(sym(names, key));
+            c.intrinsic = Some(sym(names, key));
         }
     }
     for it in &out {

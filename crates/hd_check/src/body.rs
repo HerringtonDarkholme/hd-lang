@@ -14,7 +14,7 @@ use std::fmt::Write as _;
 
 use hd_base::{DefId, Fuel, LocalId, ModuleId, NotImplemented, Span, Stage, StageResult, Symbol};
 use hd_diag::{Code, DiagBuf};
-use hd_resolve::{ItemData, Lookup, LookupDecls, ModuleScope, Names, Src};
+use hd_resolve::{Item, ItemData, Lookup, LookupDecls, ModuleScope, Names, Src};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::Body;
 use hd_tir::ir::{
@@ -1153,7 +1153,7 @@ fn fn_body_steps(
         (sig.ret, sig.row),
         diags,
     );
-    ck.auto_closing_function = item.auto_closing;
+    ck.auto_closing_function = item.fn_attrs().is_some_and(|a| a.auto_closing);
     if let Some(o) = opt_in {
         ck.enter_opt_in(o);
     }
@@ -1250,7 +1250,7 @@ fn default_steps(
     };
     let sym = cx.names.syms.intern(name);
     let (ty, params) = match (&item.data, item.sig()) {
-        (ItemData::Struct(fields), _) => match fields.iter().find(|f| f.name == sym) {
+        (ItemData::Struct(fields, _), _) => match fields.iter().find(|f| f.name == sym) {
             Some(f) => (f.ty, vec![]),
             None => return unsupported("a default of an unknown field"),
         },
@@ -3808,7 +3808,8 @@ impl Ck<'_, '_> {
                 let selected = self.selected_item_callee(*e, result);
                 let auto_closing = selected
                     .and_then(|def| self.cx.lookup.item(def))
-                    .is_some_and(|item| item.auto_closing);
+                    .and_then(Item::fn_attrs)
+                    .is_some_and(|a| a.auto_closing);
                 if auto_closing && !matches!(t, Ty::NEVER | Ty::POISON) {
                     self.register_auto_closing(result, t, *e)?;
                 }
@@ -5089,7 +5090,7 @@ struct VerifyFacts<'x, 'a> {
 impl VerifyFacts<'_, '_> {
     fn sig(&self, def: DefId) -> Option<&hd_resolve::FnSig> {
         match &self.cx.lookup.item(def)?.data {
-            ItemData::Fn(sig) | ItemData::Method { sig, .. } => Some(sig),
+            ItemData::Fn(sig, _) | ItemData::Method { sig, .. } => Some(sig),
             _ => None,
         }
     }

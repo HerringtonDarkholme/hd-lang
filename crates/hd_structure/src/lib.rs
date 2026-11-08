@@ -56,7 +56,7 @@ pub use dbg::{
 
 use hd_base::{DefId, LocalId, NodeIdx, NotImplemented, Stage, StageResult};
 use hd_intern::PathKind;
-use hd_resolve::{FnSig, Generic, Item, ItemData, Lookup, Names};
+use hd_resolve::{CallAttrs, FnSig, Generic, Item, ItemData, Lookup, Names};
 use hd_tir::Body;
 use hd_tir::ir::{
     BodyKind, Callee, ChoiceKind, Coercion, NONE, Place, PlaceRoot, Proj, Providers, ReadMode, Ref,
@@ -445,6 +445,7 @@ pub fn derivation(cx: &Cx<'_, '_>, target: &Target, owner: DefId) -> StageResult
                 owner,
                 sig,
                 has_body: true,
+                call: CallAttrs::default(),
             },
         ));
         out.bodies.push(body);
@@ -509,6 +510,7 @@ fn handle_bodies(
                 owner,
                 sig: FnSig::simple(Vec::new(), Vec::new(), helper_ret(cx, mode, h)),
                 has_body: true,
+                call: CallAttrs::default(),
             },
         ));
         out.bodies.push(body);
@@ -905,7 +907,7 @@ impl<'a, 'n> Gen<'a, 'n> {
     /// The fields of a `std.structure` struct.
     fn std_fields(&self, def: DefId) -> StageResult<&'a [hd_resolve::Field]> {
         match self.cx.items.item(def).map(|i| &i.data) {
-            Some(ItemData::Struct(fs)) => Ok(fs),
+            Some(ItemData::Struct(fs, _)) => Ok(fs),
             _ => self
                 .cx
                 .unsupported("a `std.structure` data type outside the module's view"),

@@ -148,7 +148,7 @@ impl Ck<'_, '_> {
                         self.missing_export(m, &name, n);
                         return Ok((Ref(NONE), Ty::NEVER));
                     };
-                    if let Some(ItemData::Fn(sig)) = self.cx.lookup.item(def).map(|i| &i.data) {
+                    if let Some(ItemData::Fn(sig, _)) = self.cx.lookup.item(def).map(|i| &i.data) {
                         let sig = sig.clone();
                         return self.item_value(def, &sig, method_targs, want, n);
                     }
@@ -269,7 +269,7 @@ impl Ck<'_, '_> {
             .cx
             .lookup
             .item(def)
-            .and_then(|i| i.intrinsic)
+            .and_then(hd_resolve::Item::intrinsic)
             .is_some_and(|k| self.cx.names.text(k) == "facts_of")
         {
             return Ok(self.bad_facts_target(n, "it is called, not used as a value"));
@@ -279,7 +279,7 @@ impl Ck<'_, '_> {
             .cx
             .lookup
             .item(def)
-            .and_then(|i| i.intrinsic)
+            .and_then(hd_resolve::Item::intrinsic)
             .is_some_and(|k| self.cx.names.text(k) == "task_all")
         {
             self.err(

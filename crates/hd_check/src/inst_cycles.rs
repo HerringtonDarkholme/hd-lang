@@ -260,7 +260,7 @@ fn parent(cx: &BodyCx<'_>, def: DefId) -> Option<(DefId, usize)> {
     };
     let o = cx.lookup.item(*owner)?;
     match &o.data {
-        ItemData::Impl { .. } | ItemData::Struct(_) | ItemData::Enum { .. } => {
+        ItemData::Impl { .. } | ItemData::Struct(_, _) | ItemData::Enum { .. } => {
             Some((*owner, o.generics.len()))
         }
         ItemData::Trait(_) => Some((*owner, 1 + o.generics.len())),

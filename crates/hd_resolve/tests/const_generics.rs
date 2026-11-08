@@ -294,7 +294,7 @@ fn const_parameters_and_parameter_arguments_survive_an_interface() {
 
     // `N` in `Buffer[T, N]` is `keep`'s own parameter, by path and position.
     let keep = item("keep");
-    let hd_resolve::ItemData::Fn(sig) = &keep.data else {
+    let hd_resolve::ItemData::Fn(sig, _) = &keep.data else {
         panic!("`keep` is not a function");
     };
     assert_eq!(kinds(&sig.generics), [None, Some(Prim::Usize)]);

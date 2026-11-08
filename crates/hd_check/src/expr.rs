@@ -771,7 +771,7 @@ impl Ck<'_, '_> {
         let pool = self.pool();
         let def = self.cx.names.item("std.text", "StringBuilder");
         let item = self.cx.lookup.item(def).expect("stdpack StringBuilder");
-        let ItemData::Struct(fields) = &item.data else {
+        let ItemData::Struct(fields, _) = &item.data else {
             unreachable!("stdpack StringBuilder is a struct");
         };
         let [field] = fields.as_slice() else {
@@ -2481,7 +2481,7 @@ impl Ck<'_, '_> {
         let TyData::Adt { def, args } = pool.get(t) else {
             return None;
         };
-        let ItemData::Struct(fields) = &self.cx.lookup.item(def)?.data else {
+        let ItemData::Struct(fields, _) = &self.cx.lookup.item(def)?.data else {
             return None;
         };
         let sym = self.cx.names.syms.intern(name);
@@ -3400,7 +3400,7 @@ impl Ck<'_, '_> {
             return Ok((Ref(NONE), Ty::NEVER));
         };
         let item = self.cx.lookup.item(def);
-        let Some((item, ItemData::Struct(fields))) = item.map(|i| (i, i.data.clone())) else {
+        let Some((item, ItemData::Struct(fields, _))) = item.map(|i| (i, i.data.clone())) else {
             let msg = format!("no type named `{}`: not a data type", segs.join("."));
             self.err(Code::UnknownType, name_node, &msg);
             return Ok((Ref(NONE), Ty::NEVER));

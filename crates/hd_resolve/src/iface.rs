@@ -147,7 +147,7 @@ impl Names<'_> {
     pub fn record_params(&self, item: &Item) {
         let owner = PathId::from_raw(item.def.raw());
         let (generics, offset) = match &item.data {
-            ItemData::Fn(sig) | ItemData::Method { sig, .. } => (sig.generics.as_slice(), 0),
+            ItemData::Fn(sig, _) | ItemData::Method { sig, .. } => (sig.generics.as_slice(), 0),
             ItemData::Trait(_) => {
                 self.paths.set_param_name(owner, 0, "Self");
                 (item.generics.as_slice(), 1)
@@ -453,6 +453,54 @@ pub struct TraitData {
     pub assoc: Vec<(Symbol, DefId)>,
     /// Supertraits as trait-value types over the trait's `Self`.
     pub supers: Vec<Ty>,
+    /// `trait T < ?Copy` (`ref.copy.trait.relaxed`): its `Self` may be
+    /// non-copyable.
+    pub relaxed_copy: bool,
+}
+
+/// What a callable's own decorators say: a module-level function's or a
+/// method's.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub struct CallAttrs {
+    /// `@intrinsic("key")`: the body is the compiler's.
+    pub intrinsic: Option<Symbol>,
+    /// The `@inline` or `@cold` line, as one of `INLINE_AUTO`,
+    /// `INLINE_ALWAYS`, `INLINE_NEVER` and `COLD`, or 0
+    /// (`annot.inline.recognized`).
+    pub inline: u8,
+    /// One checked body for each build profile (`annot.cfg.pair`).
+    pub configured: bool,
+}
+
+/// What a module-level function's decorators say beyond [`CallAttrs`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub struct FnAttrs {
+    pub call: CallAttrs,
+    /// `@num_suffix` (`LITERAL_SUFFIX`) or `@str_prefix`
+    /// (`LITERAL_PREFIX`), or 0 (`expr.literal-fn.marker`).
+    pub literal_fn: u8,
+    /// The compiler decorator `@auto_closing`
+    /// (`annot.auto-closing.compiler-decorator`).
+    pub auto_closing: bool,
+    /// Decorators attach values: `facts_of` of the function reads its facts
+    /// body (`annot.facts-of.result.compiler-decorators.v2`).
+    pub has_facts: bool,
+}
+
+/// What a struct's or enum's declaration says beyond its members.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub struct TypeAttrs {
+    /// The target kinds a fact type's `@annotate(...)` line allows, as the
+    /// bits of `crate::lower::kind` (`annot.target.limit`); `None` limits
+    /// nothing.
+    pub targets: Option<u16>,
+    /// A typed fact type's pattern: the type argument of its
+    /// `@annotate::[pattern]` line, over the type's own parameters
+    /// (`annot.typed-fact.declare`, `annot.typed-fact.pattern`); `None`
+    /// for an untyped fact type or any other type.
+    pub fact_pattern: Option<Ty>,
+    /// Declared `impl !Copy` (`ref.copy.opt-out`): its values move.
+    pub not_copy: bool,
 }
 
 /// What an impl declaration is (`crates/hd_check/DESIGN.md` (trait solver) §3.10, annotations §Templates).
@@ -502,11 +550,12 @@ impl ImplKind {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ItemData {
-    Fn(FnSig),
-    Struct(Vec<Field>),
+    Fn(FnSig, FnAttrs),
+    Struct(Vec<Field>, TypeAttrs),
     Enum {
         shared: Vec<Field>,
         variants: Vec<Variant>,
+        attrs: TypeAttrs,
     },
     Trait(TraitData),
     /// `trait_` is `DefId::NONE` for an inherent block.
@@ -523,6 +572,15 @@ pub enum ItemData {
         assoc: Vec<(DefId, Ty)>,
         by: Option<Symbol>,
         kind: ImplKind,
+        /// Carries `std.structure`'s `fills_defaults()`
+        /// (`annot.impl-fact.fills-defaults`): as a derivation's source, its
+        /// `build` fills each member that declares a default from it.
+        fills_defaults: bool,
+        /// The fact types the implementation names with `std.structure`'s
+        /// `skips::[F]()` (`annot.impl-fact.skips`): as a derivation's
+        /// walker, describer or source, it omits each member whose known
+        /// facts hold a value of one of them.
+        skips: Vec<Ty>,
     },
     /// A trait's or impl's method; `Self` in a trait method is the trait's
     /// parameter 0, and the trait's declared parameters follow it.
@@ -530,6 +588,7 @@ pub enum ItemData {
         owner: DefId,
         sig: FnSig,
         has_body: bool,
+        call: CallAttrs,
     },
     AssocType {
         owner: DefId,
@@ -555,63 +614,24 @@ pub struct Item {
     pub public: bool,
     /// The declaration's own parameters (a function's are in its `FnSig`).
     pub generics: Vec<Generic>,
-    /// `@intrinsic("key")`: the body is the compiler's.
-    pub intrinsic: Option<Symbol>,
-    /// The target kinds a fact type's `@annotate(...)` line allows, as the
-    /// bits of `crate::lower::kind` (`annot.target.limit`); `None` limits
-    /// nothing.
-    pub targets: Option<u16>,
-    /// A function marked `@num_suffix` (`LITERAL_SUFFIX`) or `@str_prefix`
-    /// (`LITERAL_PREFIX`), or 0 (`expr.literal-fn.marker`).
-    pub literal_fn: u8,
-    /// A function's or method's `@inline` or `@cold` line, as one of
-    /// `INLINE_AUTO`, `INLINE_ALWAYS`, `INLINE_NEVER` and `COLD`, or 0
-    /// (`annot.inline.recognized`).
-    pub inline: u8,
-    /// A module-level function marked with the compiler decorator
-    /// `@auto_closing` (`annot.auto-closing.compiler-decorator`).
-    pub auto_closing: bool,
-    /// A function whose decorators attach values: `facts_of` of it reads
-    /// its facts body (`annot.facts-of.result.compiler-decorators.v2`).
-    pub has_facts: bool,
-    /// Whether this callable has one checked body for each build profile.
-    pub configured: bool,
-    /// A typed fact type's pattern: the type argument of its
-    /// `@annotate::[pattern]` line, over the type's own parameters
-    /// (`annot.typed-fact.declare`, `annot.typed-fact.pattern`); `None`
-    /// for an untyped fact type or any other item.
-    pub fact_pattern: Option<Ty>,
-    /// An implementation that carries `std.structure`'s `fills_defaults()`
-    /// (`annot.impl-fact.fills-defaults`): as a derivation's source, its
-    /// `build` fills each member that declares a default from it.
-    pub fills_defaults: bool,
-    /// The fact types an implementation names with `std.structure`'s
-    /// `skips::[F]()` (`annot.impl-fact.skips`): as a derivation's walker,
-    /// describer or source, it omits each member whose known facts hold a
-    /// value of one of them.
-    pub skips: Vec<Ty>,
-    /// A struct or enum declared `impl !Copy` (`ref.copy.opt-out`): its
-    /// values move. On a trait, `trait T < ?Copy`
-    /// (`ref.copy.trait.relaxed`): its `Self` may be non-copyable.
-    pub not_copy: bool,
     /// Attached declaration docs, keyed by relative variant/member names;
     /// an empty path is the type itself. Stored outside semantic blobs.
     pub docs: ItemDocs,
     pub data: ItemData,
 }
 
-/// `Item::literal_fn` of a suffix function.
+/// `FnAttrs::literal_fn` of a suffix function.
 pub const LITERAL_SUFFIX: u8 = 1;
-/// `Item::literal_fn` of a prefix function.
+/// `FnAttrs::literal_fn` of a prefix function.
 pub const LITERAL_PREFIX: u8 = 2;
 
-/// `Item::inline` of `@inline` and `@inline(.Auto)`.
+/// `CallAttrs::inline` of `@inline` and `@inline(.Auto)`.
 pub const INLINE_AUTO: u8 = 1;
-/// `Item::inline` of `@inline(.Always)`.
+/// `CallAttrs::inline` of `@inline(.Always)`.
 pub const INLINE_ALWAYS: u8 = 2;
-/// `Item::inline` of `@inline(.Never)`.
+/// `CallAttrs::inline` of `@inline(.Never)`.
 pub const INLINE_NEVER: u8 = 3;
-/// `Item::inline` of `@cold`.
+/// `CallAttrs::inline` of `@cold`.
 pub const COLD: u8 = 4;
 
 impl Item {
@@ -622,19 +642,64 @@ impl Item {
             name,
             public,
             generics: Vec::new(),
-            intrinsic: None,
-            targets: None,
-            literal_fn: 0,
-            inline: 0,
-            auto_closing: false,
-            has_facts: false,
-            configured: false,
-            fact_pattern: None,
-            fills_defaults: false,
-            skips: Vec::new(),
-            not_copy: false,
             docs: Vec::new(),
             data,
+        }
+    }
+    /// A callable's own attributes: a module-level function's or a
+    /// method's; `None` for any other item.
+    #[must_use]
+    pub fn call(&self) -> Option<&CallAttrs> {
+        match &self.data {
+            ItemData::Fn(_, a) => Some(&a.call),
+            ItemData::Method { call, .. } => Some(call),
+            _ => None,
+        }
+    }
+    #[must_use]
+    pub fn call_mut(&mut self) -> Option<&mut CallAttrs> {
+        match &mut self.data {
+            ItemData::Fn(_, a) => Some(&mut a.call),
+            ItemData::Method { call, .. } => Some(call),
+            _ => None,
+        }
+    }
+    /// A callable's `@intrinsic("key")`.
+    #[must_use]
+    pub fn intrinsic(&self) -> Option<Symbol> {
+        self.call().and_then(|c| c.intrinsic)
+    }
+    /// A callable's `@inline` or `@cold` choice, or 0.
+    #[must_use]
+    pub fn inline(&self) -> u8 {
+        self.call().map_or(0, |c| c.inline)
+    }
+    /// Whether this callable has one checked body for each build profile.
+    #[must_use]
+    pub fn configured(&self) -> bool {
+        self.call().is_some_and(|c| c.configured)
+    }
+    /// A module-level function's attributes.
+    #[must_use]
+    pub fn fn_attrs(&self) -> Option<&FnAttrs> {
+        match &self.data {
+            ItemData::Fn(_, a) => Some(a),
+            _ => None,
+        }
+    }
+    /// A struct's or enum's attributes.
+    #[must_use]
+    pub fn type_attrs(&self) -> Option<&TypeAttrs> {
+        match &self.data {
+            ItemData::Struct(_, a) | ItemData::Enum { attrs: a, .. } => Some(a),
+            _ => None,
+        }
+    }
+    #[must_use]
+    pub fn type_attrs_mut(&mut self) -> Option<&mut TypeAttrs> {
+        match &mut self.data {
+            ItemData::Struct(_, a) | ItemData::Enum { attrs: a, .. } => Some(a),
+            _ => None,
         }
     }
     /// Whether this is a trait whose `Self` is `Copy`, so that a bound
@@ -642,19 +707,21 @@ impl Item {
     /// one declared `< ?Copy`.
     #[must_use]
     pub fn requires_copy(&self) -> bool {
-        matches!(self.data, ItemData::Trait(_)) && !self.not_copy
+        matches!(&self.data, ItemData::Trait(t) if !t.relaxed_copy)
     }
     /// What the `Copy` row reads of a type declaration
     /// (`ref.copy.structure`): its fields and payloads, unless it is
     /// declared `!Copy`.
     #[must_use]
     pub fn copy_decl(&self) -> CopyDecl {
-        if self.not_copy {
-            return CopyDecl::NotCopy;
-        }
         match &self.data {
-            ItemData::Struct(fs) => CopyDecl::Members(fs.iter().map(|f| f.ty).collect()),
-            ItemData::Enum { shared, variants } => CopyDecl::Members(
+            ItemData::Struct(_, a) | ItemData::Enum { attrs: a, .. } if a.not_copy => {
+                CopyDecl::NotCopy
+            }
+            ItemData::Struct(fs, _) => CopyDecl::Members(fs.iter().map(|f| f.ty).collect()),
+            ItemData::Enum {
+                shared, variants, ..
+            } => CopyDecl::Members(
                 (shared.iter())
                     .chain(variants.iter().flat_map(|v| &v.fields))
                     .map(|f| f.ty)
@@ -670,7 +737,7 @@ impl Item {
         match &self.data {
             ItemData::Enum { .. } => TypeDecl::Enum,
             ItemData::Newtype(base) => TypeDecl::Newtype(*base),
-            ItemData::Struct(_) => TypeDecl::Struct,
+            ItemData::Struct(_, _) => TypeDecl::Struct,
             _ => TypeDecl::Data,
         }
     }
@@ -685,15 +752,15 @@ impl Item {
     #[must_use]
     pub fn sig(&self) -> Option<&FnSig> {
         match &self.data {
-            ItemData::Fn(s) | ItemData::Method { sig: s, .. } => Some(s),
+            ItemData::Fn(s, _) | ItemData::Method { sig: s, .. } => Some(s),
             _ => None,
         }
     }
     #[must_use]
     pub fn kind(&self) -> Option<HeadKind> {
         Some(match self.data {
-            ItemData::Fn(_) => HeadKind::Fn,
-            ItemData::Struct(_) => HeadKind::Struct,
+            ItemData::Fn(_, _) => HeadKind::Fn,
+            ItemData::Struct(_, _) => HeadKind::Struct,
             ItemData::Enum { .. } => HeadKind::Enum,
             ItemData::Trait(_) => HeadKind::Trait,
             ItemData::Impl { .. } => HeadKind::Impl,
@@ -1384,31 +1451,29 @@ fn put_item(w: &mut Writer, t: &mut TableWriter<'_>, it: &Item) -> StageResult<(
     w.u32(t.sym(it.name));
     w.u8(u8::from(it.public));
     put_generics(w, t, &it.generics)?;
-    w.u32(it.intrinsic.map_or(u32::MAX, |s| t.sym(s)));
-    w.u32(it.targets.map_or(u32::MAX, u32::from));
-    w.u8(it.literal_fn);
-    w.u8(it.inline);
-    w.u8(u8::from(it.auto_closing));
-    w.u8(u8::from(it.has_facts));
-    w.u8(u8::from(it.configured));
-    w.u32(opt_ty(t, it.fact_pattern)?);
-    w.u8(u8::from(it.fills_defaults));
-    put_tys(w, t, &it.skips)?;
-    w.u8(u8::from(it.not_copy));
     match &it.data {
-        ItemData::Fn(s) => {
+        ItemData::Fn(s, a) => {
             w.u8(0);
             put_sig(w, t, s)?;
+            put_call(
+                w,
+                t,
+                a.call,
+                u8::from(a.auto_closing) << 2 | u8::from(a.has_facts) << 3,
+            );
+            w.u8(a.literal_fn);
         }
-        ItemData::Struct(fields) => {
+        ItemData::Struct(fields, a) => {
             w.u8(1);
             put_fields(w, t, fields)?;
+            put_type_attrs(w, t, a)?;
         }
         ItemData::Trait(td) => {
             w.u8(2);
             put_pairs(w, t, &td.methods);
             put_pairs(w, t, &td.assoc);
             put_tys(w, t, &td.supers)?;
+            w.u8(u8::from(td.relaxed_copy));
         }
         ItemData::Impl {
             trait_,
@@ -1420,6 +1485,8 @@ fn put_item(w: &mut Writer, t: &mut TableWriter<'_>, it: &Item) -> StageResult<(
             assoc,
             by,
             kind,
+            fills_defaults,
+            skips,
         } => {
             w.u8(3);
             w.u32(if *trait_ == DefId::NONE {
@@ -1444,19 +1511,25 @@ fn put_item(w: &mut Writer, t: &mut TableWriter<'_>, it: &Item) -> StageResult<(
                 w.u32(t.ty(*x)?);
             }
             w.u32(by.map_or(u32::MAX, |s| t.sym(s)));
-            w.u8(*kind as u8);
+            w.u8(*kind as u8 | if *fills_defaults { FILLS_DEFAULTS } else { 0 });
+            put_tys(w, t, skips)?;
         }
         ItemData::Method {
             owner,
             sig,
             has_body,
+            call,
         } => {
             w.u8(4);
             w.u32(t.def(*owner));
             put_sig(w, t, sig)?;
-            w.u8(u8::from(*has_body));
+            put_call(w, t, *call, u8::from(*has_body) << 2);
         }
-        ItemData::Enum { shared, variants } => {
+        ItemData::Enum {
+            shared,
+            variants,
+            attrs,
+        } => {
             w.u8(5);
             put_fields(w, t, shared)?;
             w.len_of(variants);
@@ -1465,6 +1538,7 @@ fn put_item(w: &mut Writer, t: &mut TableWriter<'_>, it: &Item) -> StageResult<(
                 w.u32(t.def(v.def));
                 put_fields(w, t, &v.fields)?;
             }
+            put_type_attrs(w, t, attrs)?;
         }
         ItemData::AssocType {
             owner,
@@ -1497,28 +1571,26 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
     let name = t.sym(r.u32())?;
     let public = r.u8() != 0;
     let generics = get_generics(r, t)?;
-    let i = r.u32();
-    let intrinsic = if i == u32::MAX { None } else { Some(t.sym(i)?) };
-    let targets = match r.u32() {
-        u32::MAX => None,
-        m => Some(u16::try_from(m).ok()?),
-    };
-    let literal_fn = r.u8();
-    let inline = r.u8();
-    let auto_closing = r.u8() != 0;
-    let has_facts = r.u8() != 0;
-    let configured = r.u8() != 0;
-    let fact_pattern = get_opt_ty(r, t).ok()?;
-    let fills_defaults = r.u8() != 0;
-    let skips = get_tys(r, t)?;
-    let not_copy = r.u8() != 0;
     let data = match r.u8() {
-        0 => ItemData::Fn(get_sig(r, t)?),
-        1 => ItemData::Struct(get_fields(r, t)?),
+        0 => {
+            let sig = get_sig(r, t)?;
+            let (call, flags) = get_call(r, t)?;
+            ItemData::Fn(
+                sig,
+                FnAttrs {
+                    call,
+                    auto_closing: flags & 4 != 0,
+                    has_facts: flags & 8 != 0,
+                    literal_fn: r.u8(),
+                },
+            )
+        }
+        1 => ItemData::Struct(get_fields(r, t)?, get_type_attrs(r, t)?),
         2 => ItemData::Trait(TraitData {
             methods: get_pairs(r, t)?,
             assoc: get_pairs(r, t)?,
             supers: get_tys(r, t)?,
+            relaxed_copy: r.u8() != 0,
         }),
         3 => {
             let tr = r.u32();
@@ -1545,7 +1617,8 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
             }
             let b = r.u32();
             let by = if b == u32::MAX { None } else { Some(t.sym(b)?) };
-            let kind = *ImplKind::ALL.get(r.u8() as usize)?;
+            let k = r.u8();
+            let kind = *ImplKind::ALL.get(usize::from(k & !FILLS_DEFAULTS))?;
             ItemData::Impl {
                 trait_,
                 trait_args,
@@ -1556,15 +1629,19 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
                 assoc,
                 by,
                 kind,
+                fills_defaults: k & FILLS_DEFAULTS != 0,
+                skips: get_tys(r, t)?,
             }
         }
         4 => {
             let owner = t.def(r.u32())?;
             let sig = get_sig(r, t)?;
+            let (call, flags) = get_call(r, t)?;
             ItemData::Method {
                 owner,
                 sig,
-                has_body: r.u8() != 0,
+                has_body: flags & 4 != 0,
+                call,
             }
         }
         5 => {
@@ -1579,7 +1656,11 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
                     fields: get_fields(r, t)?,
                 });
             }
-            ItemData::Enum { shared, variants }
+            ItemData::Enum {
+                shared,
+                variants,
+                attrs: get_type_attrs(r, t)?,
+            }
         }
         6 => {
             let owner = t.def(r.u32())?;
@@ -1606,19 +1687,69 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
         name,
         public,
         generics,
-        intrinsic,
-        targets,
-        literal_fn,
-        inline,
-        auto_closing,
-        has_facts,
-        configured,
-        fact_pattern,
-        fills_defaults,
-        skips,
-        not_copy,
         docs: Vec::new(),
         data,
+    })
+}
+
+/// In an impl record's kind byte: the impl carries `fills_defaults()`.
+const FILLS_DEFAULTS: u8 = 0x80;
+
+/// A callable's attributes: the intrinsic key, the inline choice, and one
+/// flags byte whose bit 0 is `configured`; the caller's own flags take
+/// bits 2 and up.
+fn put_call(w: &mut Writer, t: &mut TableWriter<'_>, c: CallAttrs, flags: u8) {
+    w.u32(c.intrinsic.map_or(u32::MAX, |s| t.sym(s)));
+    w.u8(c.inline);
+    w.u8(flags | u8::from(c.configured));
+}
+
+/// Reads `put_call`'s record; returns the flags byte for the caller's bits.
+fn get_call(r: &mut Reader<'_>, t: &Tables) -> Option<(CallAttrs, u8)> {
+    let i = r.u32();
+    let intrinsic = if i == u32::MAX { None } else { Some(t.sym(i)?) };
+    let inline = r.u8();
+    let flags = r.u8();
+    let call = CallAttrs {
+        intrinsic,
+        inline,
+        configured: flags & 1 != 0,
+    };
+    Some((call, flags))
+}
+
+/// A struct's or enum's attributes. The common case, none at all, is one
+/// byte; otherwise bit 1 adds `targets` and bit 2 `fact_pattern`.
+fn put_type_attrs(w: &mut Writer, t: &mut TableWriter<'_>, a: &TypeAttrs) -> StageResult<()> {
+    let flags = u8::from(a.not_copy)
+        | if a.targets.is_some() { 2 } else { 0 }
+        | if a.fact_pattern.is_some() { 4 } else { 0 };
+    w.u8(flags);
+    if let Some(m) = a.targets {
+        w.u32(u32::from(m));
+    }
+    if let Some(p) = a.fact_pattern {
+        w.u32(t.ty(p)?);
+    }
+    Ok(())
+}
+
+fn get_type_attrs(r: &mut Reader<'_>, t: &Tables) -> Option<TypeAttrs> {
+    let flags = r.u8();
+    let targets = if flags & 2 != 0 {
+        Some(u16::try_from(r.u32()).ok()?)
+    } else {
+        None
+    };
+    let fact_pattern = if flags & 4 != 0 {
+        Some(t.ty(r.u32())?)
+    } else {
+        None
+    };
+    Some(TypeAttrs {
+        targets,
+        fact_pattern,
+        not_copy: flags & 1 != 0,
     })
 }
 
@@ -1655,7 +1786,7 @@ pub fn encode_items(names: &Names<'_>, items: &[Item], exports: &[Export]) -> St
         index.u32(u32::try_from(body.bytes.len()).expect("blob"));
         index.u8(impl_tag(it));
         let (own, params) = param_names(it);
-        index.u8(u8::from(own) | if it.configured { CONFIGURED } else { 0 });
+        index.u8(u8::from(own) | if it.configured() { CONFIGURED } else { 0 });
         index.len_of(params);
         for g in params {
             index.u32(t.sym(g.name));
@@ -1706,7 +1837,7 @@ const CONFIGURED: u8 = 2;
 /// its own `Self` comes first (a trait's).
 fn param_names(item: &Item) -> (bool, &[Generic]) {
     match &item.data {
-        ItemData::Fn(sig) | ItemData::Method { sig, .. } => (false, &sig.generics),
+        ItemData::Fn(sig, _) | ItemData::Method { sig, .. } => (false, &sig.generics),
         ItemData::Trait(_) => (true, &item.generics),
         _ => (false, &item.generics),
     }
@@ -1833,7 +1964,7 @@ impl Items {
         let defs = items.iter().map(|i| i.def).collect();
         let tags = items.iter().map(impl_tag).collect();
         let configured = (0..items.len())
-            .filter(|&i| items[i].configured)
+            .filter(|&i| items[i].configured())
             .map(|i| u32::try_from(i).expect("items"))
             .collect();
         let slots = items
@@ -2093,9 +2224,11 @@ pub fn mentioned_defs<'a>(
     for it in items {
         gens(&it.generics, &mut tys);
         match &it.data {
-            ItemData::Fn(s) | ItemData::Method { sig: s, .. } => sig(s, &mut tys),
-            ItemData::Struct(fs) => tys.extend(fs.iter().map(|f| f.ty)),
-            ItemData::Enum { shared, variants } => {
+            ItemData::Fn(s, _) | ItemData::Method { sig: s, .. } => sig(s, &mut tys),
+            ItemData::Struct(fs, _) => tys.extend(fs.iter().map(|f| f.ty)),
+            ItemData::Enum {
+                shared, variants, ..
+            } => {
                 tys.extend(shared.iter().map(|f| f.ty));
                 for v in variants {
                     tys.extend(v.fields.iter().map(|f| f.ty));
@@ -2626,8 +2759,8 @@ fn show_row_in(
 #[cfg(test)]
 mod tests {
     use super::{
-        Export, FnSig, Generic, HeadKind, Item, ItemData, Names, decode_items, decode_lazy,
-        encode_items,
+        CallAttrs, Export, FnAttrs, FnSig, Generic, HeadKind, INLINE_NEVER, Item, ItemData,
+        LITERAL_SUFFIX, Names, TypeAttrs, decode_items, decode_lazy, encode_items,
     };
     use hd_intern::{PathTable, ShardedInterner};
     use hd_types::{InternPool, ParamRef, Ty, TyData};
@@ -2637,7 +2770,7 @@ mod tests {
             def,
             hd_base::Symbol::from_raw(name),
             true,
-            ItemData::Struct(Vec::new()),
+            ItemData::Struct(Vec::new(), TypeAttrs::default()),
         )
     }
 
@@ -2776,7 +2909,7 @@ mod tests {
                     names.item("app", &name),
                     syms.intern(&name),
                     true,
-                    ItemData::Struct(Vec::new()),
+                    ItemData::Struct(Vec::new(), TypeAttrs::default()),
                 )
             })
             .collect();
@@ -2818,7 +2951,7 @@ mod tests {
             names.item("app", "Record"),
             syms.intern("Record"),
             true,
-            ItemData::Struct(vec![]),
+            ItemData::Struct(vec![], TypeAttrs::default()),
         );
         let plain = encode_items(&names, &[item.clone()], &[]).expect("semantic blob");
         item.docs = vec![
@@ -2857,8 +2990,17 @@ mod tests {
         let mut anonymous = Generic::plain(syms.intern("T"));
         anonymous.anonymous = true;
         let sig = FnSig::simple(vec![anonymous], vec![(syms.intern("a"), t)], t);
-        let mut item = Item::new(f, syms.intern("first"), true, ItemData::Fn(sig));
-        item.auto_closing = true;
+        let attrs = FnAttrs {
+            call: CallAttrs {
+                intrinsic: Some(syms.intern("first")),
+                inline: INLINE_NEVER,
+                configured: true,
+            },
+            literal_fn: LITERAL_SUFFIX,
+            auto_closing: true,
+            has_facts: true,
+        };
+        let item = Item::new(f, syms.intern("first"), true, ItemData::Fn(sig, attrs));
         let items = vec![item];
         let exports = vec![Export {
             module: "app.geo".into(),
@@ -2882,10 +3024,14 @@ mod tests {
         let (back, ex) = decode_items(&n2, &blob).expect("decode");
         assert_eq!(back[0].def, n2.item("app.geo", "first"));
         assert_eq!(ex[0].def, n2.item("app.geo", "first"));
-        assert!(back[0].auto_closing);
-        let ItemData::Fn(sig) = &back[0].data else {
+        let ItemData::Fn(sig, back_attrs) = &back[0].data else {
             panic!("not a function");
         };
+        assert_eq!(back_attrs.call.inline, INLINE_NEVER);
+        assert!(back_attrs.call.configured && back[0].configured());
+        assert_eq!(back_attrs.literal_fn, LITERAL_SUFFIX);
+        assert!(back_attrs.auto_closing && back_attrs.has_facts);
+        assert_eq!(back[0].intrinsic().map(|k| n2.text(k)), Some("first"));
         assert!(sig.generics[0].anonymous);
         assert_eq!(encode_items(&n2, &back, &ex).expect("again"), blob);
         // The parameter names come with the index, before any record.
@@ -2969,7 +3115,12 @@ mod tests {
                     vec![(syms.intern("a"), t)],
                     t,
                 );
-                Item::new(f, syms.intern(&name), true, ItemData::Fn(sig))
+                Item::new(
+                    f,
+                    syms.intern(&name),
+                    true,
+                    ItemData::Fn(sig, FnAttrs::default()),
+                )
             })
             .collect();
         let blob = encode_items(&n, &items, &[]).expect("encode");

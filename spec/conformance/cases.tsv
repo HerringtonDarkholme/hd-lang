@@ -2330,6 +2330,7 @@ typing/valid/derive-debug-shapes.hd	type	accept	std/format.md#r-std-format.debug
 typing/invalid/derive-before-trait.hd	type	reject:decorator-not-annotator	lang/14-annotations.md#r-annot.decorator.derive-targets
 typing/invalid/duplicate-function-fact.hd	type	reject:duplicate-fact	lang/14-annotations.md#r-annot.decorator.duplicate
 typing/valid/cfg-pair.hd	type	accept	lang/14-annotations.md#r-annot.cfg.pair
+typing/valid/cfg-pair-own-inline.hd	type	accept	lang/14-annotations.md#r-annot.cfg.signature
 typing/invalid/cfg-missing-profile.hd	type	reject:invalid-cfg-declaration	lang/14-annotations.md#r-annot.cfg.pair
 typing/invalid/cfg-ordinary-beside-configured.hd	type	reject:invalid-cfg-declaration	lang/14-annotations.md#r-annot.cfg.pair
 typing/invalid/cfg-duplicate-profile.hd	type	reject:invalid-cfg-declaration	lang/14-annotations.md#r-annot.cfg.pair

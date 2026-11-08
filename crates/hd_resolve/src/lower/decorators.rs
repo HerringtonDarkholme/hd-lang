@@ -13,7 +13,7 @@ use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_types::{Ty, TyData};
 
 use super::Lower;
-use crate::iface::{Field, HeadKind, ImplKind, Item, ItemData};
+use crate::iface::{Field, HeadKind, ImplKind, Item, ItemData, TypeAttrs};
 use crate::view::Src;
 use crate::{Binding, BindingKind};
 
@@ -162,6 +162,16 @@ impl Lower<'_, '_, '_> {
         nodes.into_iter().map(|t| self.ty(Some(t), gn)).collect()
     }
 
+    /// A struct's or enum's `@annotate` attributes; `not_copy` is set once
+    /// the module's `impl !Copy` lines are known.
+    pub(super) fn type_attrs(&mut self, n: NodeRef<'_>, gn: &super::Gen) -> TypeAttrs {
+        TypeAttrs {
+            targets: self.annotate_mask(n),
+            fact_pattern: self.annotate_pattern(n, gn),
+            not_copy: false,
+        }
+    }
+
     /// The pattern of the `@annotate::[pattern](...)` line that makes the
     /// declaration `n` a typed fact type, lowered among its parameters
     /// `gn` (`annot.typed-fact.declare`, `annot.typed-fact.pattern.scope`).
@@ -240,18 +250,22 @@ impl Lower<'_, '_, '_> {
             return true;
         };
         let fact = match item.data {
-            ItemData::Fn(sig) => match self.names.pool.get(sig.ret) {
+            ItemData::Fn(sig, _) => match self.names.pool.get(sig.ret) {
                 TyData::Adt { def, .. } => Some(def),
                 _ => None,
             },
-            ItemData::Struct(_) | ItemData::Enum { .. } => Some(def),
+            ItemData::Struct(_, _) | ItemData::Enum { .. } => Some(def),
             _ => None,
         };
         let Some(fact) = fact else { return true };
         let mask = items
             .get(&fact)
-            .map(|i| i.targets)
-            .or_else(|| self.r.item(fact).map(|i| i.targets))
+            .map(|i| i.type_attrs().and_then(|a| a.targets))
+            .or_else(|| {
+                self.r
+                    .item(fact)
+                    .map(|i| i.type_attrs().and_then(|a| a.targets))
+            })
             .flatten();
         mask.is_none_or(|m| m & kind != 0)
     }
@@ -537,7 +551,7 @@ impl Lower<'_, '_, '_> {
         items.get(&d).copied()
     }
 
-    /// The `Item::inline` value of one decorator line that names std's
+    /// The `CallAttrs::inline` value of one decorator line that names std's
     /// `inline` or `cold` (`annot.inline.recognized`), and whether its
     /// argument is one the compiler reads (`annot.inline.argument`);
     /// `None` for any other line.
@@ -589,7 +603,7 @@ impl Lower<'_, '_, '_> {
     }
 
     /// A function's or method's `@inline` or `@cold` choice, as
-    /// `Item::inline` holds it, or 0 (`annot.inline.recognized`).
+    /// `CallAttrs::inline` holds it, or 0 (`annot.inline.recognized`).
     pub(super) fn inline_hint(&self, n: NodeRef<'_>) -> u8 {
         n.children()
             .filter(|c| c.kind() == SyntaxKind::Decorator)
@@ -886,7 +900,7 @@ impl Lower<'_, '_, '_> {
         };
         let name = self.src.text(first);
         match &item.data {
-            ItemData::Struct(fields) => fields.iter().any(|f| {
+            ItemData::Struct(fields, _) => fields.iter().any(|f| {
                 let n = self.names.text(f.name);
                 n == name || name.strip_prefix('_') == Some(n)
             }),
@@ -1012,7 +1026,7 @@ impl Lower<'_, '_, '_> {
                     );
                     let types = match self.item_of(n, TokenKind::KwStruct, items) {
                         Some(Item {
-                            data: ItemData::Struct(fs),
+                            data: ItemData::Struct(fs, _),
                             ..
                         }) if fs.len() == fields.len() => fs.as_slice(),
                         _ => &[],

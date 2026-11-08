@@ -13,7 +13,7 @@ use hd_base::HashSet;
 
 use hd_base::{DefId, StageResult};
 use hd_diag::{Code, DiagBuf};
-use hd_resolve::{FnSig, Item, ItemData, Src};
+use hd_resolve::{FnAttrs, FnSig, Item, ItemData, Src};
 use hd_syntax::{NodeRef, SyntaxKind};
 use hd_tir::Body;
 use hd_tir::ir::{BodyKind, Ref, TirSink};
@@ -214,7 +214,7 @@ fn registration_kind(cx: &BodyCx<'_>, callee: NodeRef<'_>) -> Option<&'static st
     } else if cx
         .lookup
         .item(def)
-        .and_then(|i| i.intrinsic)
+        .and_then(hd_resolve::Item::intrinsic)
         .is_some_and(|k| cx.names.text(k) == "test_case")
     {
         Some("it")
@@ -440,7 +440,12 @@ fn too_complex_case(
         lifetimes: Vec::new(),
         paths: Vec::new(),
     };
-    let item = Item::new(def, cx.names.syms.intern(name), false, ItemData::Fn(sig));
+    let item = Item::new(
+        def,
+        cx.names.syms.intern(name),
+        false,
+        ItemData::Fn(sig, FnAttrs::default()),
+    );
     Ok((body, item))
 }
 
@@ -547,7 +552,12 @@ fn check_case(
         lifetimes: Vec::new(),
         paths: Vec::new(),
     };
-    let item = Item::new(def, cx.names.syms.intern(name), false, ItemData::Fn(sig));
+    let item = Item::new(
+        def,
+        cx.names.syms.intern(name),
+        false,
+        ItemData::Fn(sig, FnAttrs::default()),
+    );
     Ok((body, item))
 }
 
@@ -746,6 +756,11 @@ fn check_registration(
         lifetimes: Vec::new(),
         paths: Vec::new(),
     };
-    let item = Item::new(def, cx.names.syms.intern(name), false, ItemData::Fn(sig));
+    let item = Item::new(
+        def,
+        cx.names.syms.intern(name),
+        false,
+        ItemData::Fn(sig, FnAttrs::default()),
+    );
     Ok((body, item))
 }

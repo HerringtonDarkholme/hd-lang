@@ -7,7 +7,7 @@
 use hd_base::{DefId, StageResult};
 use hd_diag::Code;
 use hd_resolve::iface::{LITERAL_PREFIX, LITERAL_SUFFIX};
-use hd_resolve::{BindingKind, ItemData};
+use hd_resolve::{BindingKind, Item};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{NONE, Ref, Tag, TirSink};
 use hd_types::{Prim, Ty, TyData, VarKind};
@@ -151,7 +151,8 @@ impl Ck<'_, '_> {
                     .cx
                     .lookup
                     .item(def)
-                    .is_some_and(|i| matches!(i.data, ItemData::Fn(_)) && i.literal_fn == kind);
+                    .and_then(Item::fn_attrs)
+                    .is_some_and(|a| a.literal_fn == kind);
             if !marked {
                 let (code, name_of, what) = if kind == LITERAL_SUFFIX {
                     (
@@ -321,7 +322,7 @@ impl Ck<'_, '_> {
         let Some(item) = self.cx.lookup.item(def) else {
             return;
         };
-        let kind = item.literal_fn;
+        let kind = item.fn_attrs().map_or(0, |a| a.literal_fn);
         let Some(sig) = item.sig().cloned() else {
             return;
         };

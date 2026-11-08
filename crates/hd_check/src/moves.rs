@@ -130,12 +130,13 @@ fn param_copies((pool, lookup): (Types<'_>, &Lookup<'_>), p: ParamRef) -> bool {
     let Some(item) = lookup.item(p.owner) else {
         return true;
     };
-    let in_trait = matches!(item.data, ItemData::Trait(_));
-    if in_trait && p.index == 0 {
-        return !item.not_copy;
+    if let ItemData::Trait(t) = &item.data
+        && p.index == 0
+    {
+        return !t.relaxed_copy;
     }
     let generics = item.sig().map_or(&item.generics[..], |s| &s.generics[..]);
-    let at = usize::from(p.index) - usize::from(in_trait);
+    let at = usize::from(p.index) - usize::from(matches!(item.data, ItemData::Trait(_)));
     generics.get(at).is_none_or(|g| {
         g.bounds.iter().any(|&b| {
             pool.trait_value(b)
@@ -641,10 +642,13 @@ impl Ck<'_, '_> {
             return None;
         };
         let fields = match (&self.cx.lookup.item(def)?.data, variant) {
-            (ItemData::Struct(fs), None) => fs,
-            (ItemData::Enum { shared, variants }, Some(k)) if shared.is_empty() => {
-                &variants.get(k as usize)?.fields
-            }
+            (ItemData::Struct(fs, _), None) => fs,
+            (
+                ItemData::Enum {
+                    shared, variants, ..
+                },
+                Some(k),
+            ) if shared.is_empty() => &variants.get(k as usize)?.fields,
             _ => return None,
         };
         Some(fields.get(j as usize)?.ty)

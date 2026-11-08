@@ -1934,7 +1934,8 @@ impl Ck<'_, '_> {
                 let TyData::Adt { def, .. } = pool.get(st) else {
                     return P::Lit;
                 };
-                let Some(ItemData::Struct(fs)) = self.cx.lookup.item(def).map(|i| &i.data) else {
+                let Some(ItemData::Struct(fs, _)) = self.cx.lookup.item(def).map(|i| &i.data)
+                else {
                     return P::Lit;
                 };
                 let mut args = vec![P::Wild; fs.len()];
@@ -2055,7 +2056,7 @@ impl Ck<'_, '_> {
                             .collect(),
                     )
                 }
-                ItemData::Struct(fs) => {
+                ItemData::Struct(fs, _) => {
                     let argv = pool.list_items(args);
                     Some(vec![(
                         "{}".into(),

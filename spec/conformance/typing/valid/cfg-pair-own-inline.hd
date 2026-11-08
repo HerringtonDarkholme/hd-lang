@@ -1,0 +1,33 @@
+# test: the two bodies of a configured callable may differ in @inline and @cold
+# Spec 14 Build-Profile Bodies: annot.cfg.signature compares signatures,
+# not the bodies' own decorators.
+use std.annotation.{cold, inline}
+
+@cfg(.Debug)
+@inline(.Never)
+fn selected(value: i32) -> i32:
+    value + 1
+
+@cfg(.Release)
+@inline(.Always)
+fn selected(value: i32) -> i32:
+    value + 2
+
+fn use_selected() -> i32:
+    selected(1)
+
+struct ConfiguredMethod: pass
+
+impl ConfiguredMethod:
+    @cfg(.Debug)
+    @cold
+    fn selected(self) -> i32:
+        1
+
+    @cfg(.Release)
+    @inline
+    fn selected(self) -> i32:
+        2
+
+fn use_selected_method(value: ConfiguredMethod) -> i32:
+    value.selected()

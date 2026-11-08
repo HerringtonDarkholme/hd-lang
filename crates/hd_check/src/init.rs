@@ -947,7 +947,10 @@ impl Ck<'_, '_> {
         let Some(item) = self.cx.lookup.item(def) else {
             return unsupported("shared data of an unknown enum");
         };
-        let ItemData::Enum { shared, variants } = item.data.clone() else {
+        let ItemData::Enum {
+            shared, variants, ..
+        } = item.data.clone()
+        else {
             return unsupported("shared data outside an enum");
         };
         let params: Vec<(Symbol, Ty)> = shared.iter().map(|f| (f.name, f.ty)).collect();

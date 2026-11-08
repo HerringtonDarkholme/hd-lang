@@ -62,7 +62,9 @@ pub fn error_bodies(
         .map(<[Field]>::to_vec)
         .collect();
     let (variants, shared) = match &item.data {
-        ItemData::Enum { shared, variants } => (
+        ItemData::Enum {
+            shared, variants, ..
+        } => (
             variants.iter().map(|v| (v.name, v.def)).collect(),
             // Unnamed shared data is not in scope
             // (`annot.error.message.shared-unnamed`).

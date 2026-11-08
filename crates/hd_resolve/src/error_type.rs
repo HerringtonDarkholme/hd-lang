@@ -307,7 +307,7 @@ pub fn label(names: &Names<'_>, f: &Field) -> String {
 pub fn fields(data: &ItemData) -> Vec<&[Field]> {
     match data {
         ItemData::Enum { variants, .. } => variants.iter().map(|v| v.fields.as_slice()).collect(),
-        ItemData::Struct(fs) => vec![fs.as_slice()],
+        ItemData::Struct(fs, _) => vec![fs.as_slice()],
         _ => Vec::new(),
     }
 }

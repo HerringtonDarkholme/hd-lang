@@ -161,7 +161,7 @@ type MemberSites<'t> = Vec<(Option<NodeRef<'t>>, Vec<(NodeRef<'t>, Ty)>)>;
 fn member_sites<'t>(item: &Item, decl: NodeRef<'t>) -> MemberSites<'t> {
     let nodes = member_nodes(decl);
     match &item.data {
-        ItemData::Struct(fields) => {
+        ItemData::Struct(fields, _) => {
             let members = nodes
                 .into_iter()
                 .zip(fields)
@@ -225,7 +225,7 @@ pub fn member_fact_sites<'t>(
                 continue;
             };
             let ty = match &target.data {
-                ItemData::Struct(fields) if v == 0 => fields.get(m).map(|f| f.ty),
+                ItemData::Struct(fields, _) if v == 0 => fields.get(m).map(|f| f.ty),
                 _ => None,
             };
             let Some(ty) = ty else { continue };
@@ -327,7 +327,7 @@ fn block_view<'t>(
     };
     let target = cx.lookup.item(data)?;
     let tys: Vec<Vec<Ty>> = match &target.data {
-        ItemData::Struct(fields) => vec![fields.iter().map(|f| f.ty).collect()],
+        ItemData::Struct(fields, _) => vec![fields.iter().map(|f| f.ty).collect()],
         ItemData::Enum { variants, .. } => variants
             .iter()
             .map(|v| v.fields.iter().map(|f| f.ty).collect())
@@ -382,7 +382,7 @@ pub fn layered_facts<'t>(
     lines: &[MemberLine<'t>],
 ) -> (FactLines<'t>, Vec<Slot>) {
     let tys: Vec<Vec<Ty>> = match &item.data {
-        ItemData::Struct(fields) => vec![fields.iter().map(|f| f.ty).collect()],
+        ItemData::Struct(fields, _) => vec![fields.iter().map(|f| f.ty).collect()],
         ItemData::Enum { variants, .. } => variants
             .iter()
             .map(|v| v.fields.iter().map(|f| f.ty).collect())
@@ -422,7 +422,7 @@ fn place_labels(cx: &BodyCx<'_>, item: &Item, ty: &str) -> (Vec<String>, Vec<Vec
     let label =
         |parent: &str, field: &hd_resolve::Field| format!("{parent}.{}", names.text(field.name));
     match &item.data {
-        ItemData::Struct(fields) => (
+        ItemData::Struct(fields, _) => (
             vec![ty.to_owned()],
             vec![fields.iter().map(|f| label(ty, f)).collect()],
         ),
@@ -450,7 +450,7 @@ fn line_slot(cx: &BodyCx<'_>, item: &Item, name: &str) -> Option<Slot> {
         return Some(Slot::Type);
     }
     match &item.data {
-        ItemData::Struct(fields) => fields
+        ItemData::Struct(fields, _) => fields
             .iter()
             .position(|f| {
                 let n = names.text(f.name);
@@ -694,7 +694,7 @@ fn variants(cx: &BodyCx<'_>, opt: &OptIn, ty: Ty, facts: &FactBodies) -> Vec<Var
     };
     let mut out = Vec::new();
     match &item.data {
-        ItemData::Struct(fields) => {
+        ItemData::Struct(fields, _) => {
             let members: Vec<Mem> = fields
                 .iter()
                 .enumerate()
@@ -716,7 +716,9 @@ fn variants(cx: &BodyCx<'_>, opt: &OptIn, ty: Ty, facts: &FactBodies) -> Vec<Var
                 shared: Vec::new(),
             });
         }
-        ItemData::Enum { shared, variants } => {
+        ItemData::Enum {
+            shared, variants, ..
+        } => {
             for (k, v) in variants.iter().enumerate() {
                 let members: Vec<Mem> = v
                     .fields
@@ -784,7 +786,7 @@ impl<'a, 'c> SelfRefs<'a, 'c> {
             })
         };
         match &self.cx.lookup.item(def)?.data {
-            ItemData::Struct(fs) => Some((true, vec![fs.iter().map(|f| ty(f.ty)).collect()])),
+            ItemData::Struct(fs, _) => Some((true, vec![fs.iter().map(|f| ty(f.ty)).collect()])),
             ItemData::Enum { variants, .. } => Some((
                 false,
                 variants

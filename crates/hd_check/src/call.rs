@@ -544,11 +544,11 @@ impl Ck<'_, '_> {
         n: NodeRef<'_>,
     ) -> StageResult<Option<(Ref, Ty)>> {
         if let Some(item) = self.cx.lookup.item(def) {
-            if let ItemData::Fn(sig) = &item.data {
+            if let ItemData::Fn(sig, _) = &item.data {
                 let sig = sig.clone();
                 return self.item_value(def, &sig, &[], want, n).map(Some);
             }
-            if let ItemData::Struct(fields) = &item.data
+            if let ItemData::Struct(fields, _) = &item.data
                 && fields.is_empty()
             {
                 let t = self.ctor(def, &[])?;
@@ -600,7 +600,7 @@ impl Ck<'_, '_> {
         let Some(def) = self.resolve_path(&segs) else {
             return Ok(self.undefined_path(&segs, n));
         };
-        if let Some(ItemData::Fn(sig)) = self.cx.lookup.item(def).map(|i| &i.data) {
+        if let Some(ItemData::Fn(sig, _)) = self.cx.lookup.item(def).map(|i| &i.data) {
             let sig = sig.clone();
             return self.item_value(def, &sig, &explicit, want, n);
         }
@@ -907,8 +907,8 @@ impl Ck<'_, '_> {
                         if matches!(
                             self.cx.lookup.item(def).map(|i| &i.data),
                             Some(
-                                ItemData::Fn(_)
-                                    | ItemData::Struct(_)
+                                ItemData::Fn(_, _)
+                                    | ItemData::Struct(_, _)
                                     | ItemData::Enum { .. }
                                     | ItemData::Newtype(_)
                                     | ItemData::Alias { .. }
@@ -2214,14 +2214,16 @@ impl Ck<'_, '_> {
         let Some(item) = self.cx.lookup.item(def) else {
             return unsupported("a call of an item outside the closure");
         };
-        if item.auto_closing && self.auto_closing_statement != Some(n.index()) {
+        if item.fn_attrs().is_some_and(|a| a.auto_closing)
+            && self.auto_closing_statement != Some(n.index())
+        {
             self.err(
                 Code::UnregisteredAutoClosing,
                 n,
                 "an `@auto_closing` function is called only as a statement, where its result is registered for cleanup",
             );
         }
-        if !matches!(&item.data, ItemData::Fn(_)) {
+        if !matches!(&item.data, ItemData::Fn(_, _)) {
             let generics = item.generics.clone();
             self.check_data_targ_kinds(def, &generics, explicit, n);
         }
@@ -2255,9 +2257,9 @@ impl Ck<'_, '_> {
             self.check_snapshot_expect(args);
         }
         match &item.data {
-            ItemData::Fn(sig) => {
+            ItemData::Fn(sig, _) => {
                 if item
-                    .intrinsic
+                    .intrinsic()
                     .is_some_and(|k| self.cx.names.text(k) == "task_all")
                     && !explicit.is_empty()
                 {
@@ -2286,13 +2288,13 @@ impl Ck<'_, '_> {
                     self.registration_body_result(&params, args)?;
                 }
                 if item
-                    .intrinsic
+                    .intrinsic()
                     .is_some_and(|k| self.cx.names.text(k) == "task_all")
                 {
                     return self.await_all(args, n, bang);
                 }
                 if item
-                    .intrinsic
+                    .intrinsic()
                     .is_some_and(|k| self.cx.names.text(k) == "facts_of")
                 {
                     return Ok(self.facts_of_call(args, n));
@@ -2451,7 +2453,7 @@ impl Ck<'_, '_> {
                 // std's `identity_of(r)` (lib/std/cmp.hd): the identity
                 // fields of the reference (`crate::refs`), as the result.
                 if item
-                    .intrinsic
+                    .intrinsic()
                     .is_some_and(|k| self.cx.names.text(k) == "ref_identity")
                     && let [r] = refs[..]
                 {
@@ -2462,7 +2464,7 @@ impl Ck<'_, '_> {
                 // (ref.box.copy). Its `T < 'static` keeps a local
                 // reference out (ref.box.no-local).
                 if item
-                    .intrinsic
+                    .intrinsic()
                     .is_some_and(|k| self.cx.names.text(k) == "box")
                     && let ([v], [t]) = (&refs[..], &vars[..])
                 {
@@ -2474,7 +2476,7 @@ impl Ck<'_, '_> {
                 // A checked `assert_equal` call runs std's `check_equal`
                 // (lib/std/testing.hd), which has the same signature.
                 let def = if item
-                    .intrinsic
+                    .intrinsic()
                     .is_some_and(|k| self.cx.names.text(k) == "assert_equal")
                 {
                     self.cx.names.known.check_equal
@@ -2511,7 +2513,7 @@ impl Ck<'_, '_> {
                 let rec = self.b.refs_record(&[r]);
                 Ok((self.b.emit(Tag::NewStruct, NONE, rec, t, n.index()), t))
             }
-            ItemData::Struct(_) | ItemData::Enum { .. } | ItemData::Alias { .. } => {
+            ItemData::Struct(_, _) | ItemData::Enum { .. } | ItemData::Alias { .. } => {
                 let to = self.ctor(def, explicit)?;
                 match pool.get(to) {
                     // An alias calls the type it expands to.
@@ -2755,7 +2757,11 @@ impl Ck<'_, '_> {
             self.note_call(*def);
             // `Ptr[T]`'s `read` and `write` (lib/std/rt/memory.hd) are a
             // read and a store of the place at the pointer's target.
-            let key = self.cx.lookup.item(*def).and_then(|it| it.intrinsic);
+            let key = self
+                .cx
+                .lookup
+                .item(*def)
+                .and_then(hd_resolve::Item::intrinsic);
             let key = key.map(|k| self.cx.names.text(k));
             if let (Some(k @ ("ptr_read" | "ptr_write")), [p, rest @ ..]) = (key, refs) {
                 let root = hd_tir::ir::PlaceRoot::Ptr(*p);
@@ -5470,7 +5476,7 @@ impl Ck<'_, '_> {
                 .cx
                 .lookup
                 .item(def)
-                .and_then(|i| i.intrinsic)
+                .and_then(hd_resolve::Item::intrinsic)
                 .is_some_and(|k| self.cx.names.text(k) == "test_case")
     }
 

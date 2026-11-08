@@ -220,7 +220,7 @@ impl OptIn {
         match &lookup.item(def)?.data {
             // A struct's members are its fields, embedded ones included
             // (`data.derive.members`).
-            ItemData::Struct(fields) => {
+            ItemData::Struct(fields, _) => {
                 for (i, f) in fields.iter().enumerate() {
                     let l = label(f);
                     if omitted.contains(&l) {
@@ -240,7 +240,9 @@ impl OptIn {
             }
             // An enum's members are each variant's payload parameters;
             // shared constructor data is not a member (`data.derive.shared`).
-            ItemData::Enum { shared, variants } => {
+            ItemData::Enum {
+                shared, variants, ..
+            } => {
                 // The shared fields' positions come first.
                 let mut at = shared.len();
                 for (k, v) in variants.iter().enumerate() {
@@ -335,7 +337,7 @@ pub fn check_omitted_defaults(
     let TyData::Adt { def, .. } = pool.get(*self_ty) else {
         return;
     };
-    let Some(ItemData::Struct(fields)) = lookup.item(def).map(|i| &i.data) else {
+    let Some(ItemData::Struct(fields, _)) = lookup.item(def).map(|i| &i.data) else {
         return;
     };
     for (name, line) in omit_lines(src, block) {
@@ -619,6 +621,7 @@ pub fn instance(
             owner: opt.impl_,
             sig,
             has_body: true,
+            call: hd_resolve::CallAttrs::default(),
         },
     );
     Ok((item, body))
@@ -833,8 +836,14 @@ impl<'c> Ck<'_, 'c> {
             role_bounds(StructureMemberRole::DataMember).unwrap_or_else(|| member.clone());
         let rest = role_bounds(StructureMemberRole::Rest);
         let item = self.cx.lookup.item(def);
-        let fills_defaults = protocol == k.source && item.is_some_and(|it| it.fills_defaults);
-        let skips = item.map(|it| it.skips.clone()).unwrap_or_default();
+        let (fills_defaults, skips) = match item.map(|it| &it.data) {
+            Some(ItemData::Impl {
+                fills_defaults,
+                skips,
+                ..
+            }) => (protocol == k.source && *fills_defaults, skips.clone()),
+            _ => (false, Vec::new()),
+        };
         Ok(Some(WalkerBounds {
             member,
             data_member,
@@ -912,7 +921,7 @@ impl<'c> Ck<'_, 'c> {
         }
         let data = matches!(
             self.cx.lookup.item(opt.data).map(|item| &item.data),
-            Some(ItemData::Struct(_))
+            Some(ItemData::Struct(_, _))
         );
         for wb in found {
             if wb.fills_defaults {

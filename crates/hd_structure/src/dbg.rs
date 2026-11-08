@@ -54,7 +54,7 @@ pub fn target(cx: &Cx<'_, '_>, ty: Ty) -> Option<Target> {
         }
     };
     let vars = match &item.data {
-        ItemData::Struct(fields) => vec![Var {
+        ItemData::Struct(fields, _) => vec![Var {
             name: shown.clone(),
             index: 0,
             def,
@@ -92,7 +92,9 @@ pub fn target(cx: &Cx<'_, '_>, ty: Ty) -> Option<Target> {
             facts: None,
             shared: Vec::new(),
         }],
-        ItemData::Enum { shared, variants } if shared.is_empty() => variants
+        ItemData::Enum {
+            shared, variants, ..
+        } if shared.is_empty() => variants
             .iter()
             .enumerate()
             .map(|(k, vr)| Var {

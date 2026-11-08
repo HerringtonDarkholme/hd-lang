@@ -23,7 +23,7 @@ impl Ck<'_, '_> {
         let TyData::Adt { def, .. } = pool.get(t) else {
             return Vec::new();
         };
-        let Some(ItemData::Struct(fields)) = self.cx.lookup.item(def).map(|i| &i.data) else {
+        let Some(ItemData::Struct(fields, _)) = self.cx.lookup.item(def).map(|i| &i.data) else {
             return Vec::new();
         };
         fields
@@ -77,7 +77,7 @@ impl Ck<'_, '_> {
             };
             matches!(
                 ck.cx.lookup.item(def).map(|i| &i.data),
-                Some(ItemData::Struct(fields))
+                Some(ItemData::Struct(fields, _))
                     if fields.iter().any(|f| f.name == sym && (f.public || f.embedded))
             )
         })

@@ -183,7 +183,7 @@ pub struct EntryFinding {
 /// solver as an ordinary trait bound.
 pub fn entry_point(cx: &HeaderCx<'_>, it: &Item, host: &[DefId]) -> StageResult<Vec<EntryFinding>> {
     let mut out = Vec::new();
-    let ItemData::Fn(sig) = &it.data else {
+    let ItemData::Fn(sig, _) = &it.data else {
         return Ok(out);
     };
     let pool = cx.names.pool.types();
@@ -325,7 +325,7 @@ fn environment(cx: &HeaderCx<'_>, it: &Item) -> ParamEnv {
             owner(*o, &mut env);
             generics(it.def, &sig.generics, 0, &mut env);
         }
-        ItemData::Fn(sig) => generics(it.def, &sig.generics, 0, &mut env),
+        ItemData::Fn(sig, _) => generics(it.def, &sig.generics, 0, &mut env),
         ItemData::Trait(_) => owner(it.def, &mut env),
         _ => generics(it.def, &it.generics, 0, &mut env),
     }
@@ -391,14 +391,16 @@ impl<'a> ItemCheck<'_, 'a> {
         // Where the signature's row keys start in `tys`.
         let mut keys_from = usize::MAX;
         let tys: Vec<Ty> = match &it.data {
-            ItemData::Fn(s) | ItemData::Method { sig: s, .. } => {
+            ItemData::Fn(s, _) | ItemData::Method { sig: s, .. } => {
                 let mut tys = sig_tys(s);
                 keys_from = tys.len();
                 tys.extend(self.pool().row_data(s.row).keys.iter().copied());
                 tys
             }
-            ItemData::Struct(fs) => fs.iter().map(|f| f.ty).collect(),
-            ItemData::Enum { shared, variants } => shared
+            ItemData::Struct(fs, _) => fs.iter().map(|f| f.ty).collect(),
+            ItemData::Enum {
+                shared, variants, ..
+            } => shared
                 .iter()
                 .chain(variants.iter().flat_map(|v| &v.fields))
                 .map(|f| f.ty)
@@ -411,16 +413,16 @@ impl<'a> ItemCheck<'_, 'a> {
         // function or enum, but of data only the `pub` fields and the
         // embedded fields (`module.vis.signature.coverage`).
         let open: Vec<bool> = match &it.data {
-            ItemData::Struct(fs) => fs.iter().map(|f| f.public || f.embedded).collect(),
+            ItemData::Struct(fs, _) => fs.iter().map(|f| f.public || f.embedded).collect(),
             _ => vec![true; tys.len()],
         };
         // Slot 0 is the header; written types of functions, data and
         // enums have their own (`anchor`).
         let positional = matches!(
             it.data,
-            ItemData::Fn(_)
+            ItemData::Fn(_, _)
                 | ItemData::Method { .. }
-                | ItemData::Struct(_)
+                | ItemData::Struct(_, _)
                 | ItemData::Enum { .. }
                 | ItemData::Newtype(_)
                 | ItemData::Alias { .. }
@@ -446,8 +448,8 @@ impl<'a> ItemCheck<'_, 'a> {
             }
             self.check_ty(t, slot)?;
         }
-        if it.auto_closing
-            && let ItemData::Fn(sig) = &it.data
+        if let ItemData::Fn(sig, attrs) = &it.data
+            && attrs.auto_closing
             && self.fails_ref(
                 TraitRef {
                     trait_: self.cx.names.known.auto_closing,
@@ -471,7 +473,7 @@ impl<'a> ItemCheck<'_, 'a> {
         // The bounds the item writes are written types too
         // (`trait.bound.no-implied.positions`); they report at the header.
         let gens: &[Generic] = match &it.data {
-            ItemData::Fn(s) | ItemData::Method { sig: s, .. } => &s.generics,
+            ItemData::Fn(s, _) | ItemData::Method { sig: s, .. } => &s.generics,
             _ => &it.generics,
         };
         for b in gens.iter().filter(|g| !g.row).flat_map(|g| &g.bounds) {
@@ -693,7 +695,7 @@ impl<'a> ItemCheck<'_, 'a> {
         };
         gens(&it.generics);
         match &it.data {
-            ItemData::Fn(s) | ItemData::Method { sig: s, .. } => gens(&s.generics),
+            ItemData::Fn(s, _) | ItemData::Method { sig: s, .. } => gens(&s.generics),
             _ => {}
         }
         match &it.data {
@@ -1176,8 +1178,10 @@ impl<'a> ItemCheck<'_, 'a> {
     /// (`data.struct.no-recursion.fix`, `data.enum.no-recursion.fix`).
     fn value_item(&mut self, it: &Item) {
         let (fields, kind, part): (Vec<&hd_resolve::Field>, &str, &str) = match &it.data {
-            ItemData::Struct(fs) => (fs.iter().collect(), "struct", "field"),
-            ItemData::Enum { shared, variants } => (
+            ItemData::Struct(fs, _) => (fs.iter().collect(), "struct", "field"),
+            ItemData::Enum {
+                shared, variants, ..
+            } => (
                 shared
                     .iter()
                     .chain(variants.iter().flat_map(|v| &v.fields))
@@ -1231,7 +1235,7 @@ impl<'a> ItemCheck<'_, 'a> {
         let mut seen = Vec::new();
         let mut stack = vec![def];
         while let Some(d) = stack.pop() {
-            let Some(ItemData::Struct(fs)) = lookup.item(d).map(|i| &i.data) else {
+            let Some(ItemData::Struct(fs, _)) = lookup.item(d).map(|i| &i.data) else {
                 continue;
             };
             for f in fs.iter().filter(|f| f.embedded) {
@@ -1271,8 +1275,10 @@ impl<'a> ItemCheck<'_, 'a> {
         let mine = key(def);
         held.into_iter().filter(|&y| y != def).any(|y| {
             let own: Vec<Ty> = match lookup.item(y).map(|i| &i.data) {
-                Some(ItemData::Struct(fs)) => fs.iter().map(|f| f.ty).collect(),
-                Some(ItemData::Enum { shared, variants }) => shared
+                Some(ItemData::Struct(fs, _)) => fs.iter().map(|f| f.ty).collect(),
+                Some(ItemData::Enum {
+                    shared, variants, ..
+                }) => shared
                     .iter()
                     .chain(variants.iter().flat_map(|v| &v.fields))
                     .map(|f| f.ty)
@@ -1318,7 +1324,7 @@ impl<'a> ItemCheck<'_, 'a> {
         let TyData::Adt { def, args } = pool.get(self_ty) else {
             return Ok(());
         };
-        let Some(ItemData::Struct(fields)) = lookup.item(def).map(|i| &i.data) else {
+        let Some(ItemData::Struct(fields, _)) = lookup.item(def).map(|i| &i.data) else {
             return Ok(());
         };
         let args = pool.list_items(args);
@@ -1425,7 +1431,7 @@ impl ItemCheck<'_, '_> {
                 let known = self.cx.names.known;
                 match self.cx.lookup.item(def).map(|i| &i.data) {
                     _ if def == known.list || def == known.map => argv.to_vec(),
-                    Some(ItemData::Struct(fields)) => {
+                    Some(ItemData::Struct(fields, _)) => {
                         if fields.iter().any(|f| !f.public && !f.embedded) {
                             let bound = pool.intern_ty(&TyData::TraitValue {
                                 def: tr,
@@ -1436,7 +1442,9 @@ impl ItemCheck<'_, '_> {
                         }
                         fields.iter().map(|f| sub(f.ty)).collect()
                     }
-                    Some(ItemData::Enum { shared, variants }) => shared
+                    Some(ItemData::Enum {
+                        shared, variants, ..
+                    }) => shared
                         .iter()
                         .chain(variants.iter().flat_map(|v| &v.fields))
                         .map(|f| sub(f.ty))

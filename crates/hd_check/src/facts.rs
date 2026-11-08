@@ -20,7 +20,7 @@ use hd_diag::{Code, DiagBuf};
 use hd_intern::PathKind;
 use hd_resolve::facts::fact_lines as resolved_fact_lines;
 use hd_resolve::iface::{LITERAL_PREFIX, LITERAL_SUFFIX};
-use hd_resolve::{BindingKind, Head, HeadKind, ItemData};
+use hd_resolve::{BindingKind, Head, HeadKind, Item, ItemData};
 use hd_syntax::{NodeRef, SyntaxKind};
 use hd_tir::Body;
 use hd_tir::ir::{BodyKind, Coercion, NONE, Ref, Tag, TirSink};
@@ -35,7 +35,7 @@ use crate::ty::Named;
 /// `Facts` and the type of its `items`.
 fn facts_types(cx: &BodyCx<'_>) -> (Ty, Ty) {
     let facts = cx.names.item("std.structure", "Facts");
-    let ItemData::Struct(fields) = &cx.lookup.item(facts).expect("stdpack Facts").data else {
+    let ItemData::Struct(fields, _) = &cx.lookup.item(facts).expect("stdpack Facts").data else {
         unreachable!("stdpack Facts is a struct");
     };
     let items = fields.first().expect("stdpack Facts.items").ty;
@@ -478,7 +478,7 @@ fn internal_payload_allowed(cx: &BodyCx<'_>, mut ty: Ty) -> bool {
             TyData::Adt { def, .. } => {
                 return matches!(
                     cx.lookup.item(def),
-                    Some(item) if matches!(&item.data, ItemData::Struct(_))
+                    Some(item) if matches!(&item.data, ItemData::Struct(_, _))
                 );
             }
             _ => return false,
@@ -1011,9 +1011,9 @@ pub fn check_enum_tagging_decls(cx: &BodyCx<'_>, heads: &[Head<'_>], diags: &mut
 /// [`check_facts`] checks.
 pub fn check_decl_facts(cx: &BodyCx<'_>, owner: DefId, node: NodeRef<'_>, diags: &mut DiagBuf) {
     let data = cx.lookup.item(owner).map(|i| &i.data);
-    let is_fn = matches!(data, Some(ItemData::Fn(_)));
+    let is_fn = matches!(data, Some(ItemData::Fn(_, _)));
     let lines = match (cx.lookup.item(owner), data) {
-        (Some(item), Some(ItemData::Struct(_) | ItemData::Enum { .. })) => {
+        (Some(item), Some(ItemData::Struct(_, _) | ItemData::Enum { .. })) => {
             crate::structure::declaration_facts(cx, item, node, None)
         }
         (_, Some(ItemData::Impl { by: Some(_), .. })) => {
@@ -1116,7 +1116,7 @@ impl Ck<'_, '_> {
         }
         let def = self.resolve_path(&self.segments_expr(callee))?;
         match self.cx.lookup.item(def).map(|i| &i.data) {
-            Some(ItemData::Fn(sig)) => Some(sig.ret),
+            Some(ItemData::Fn(sig, _)) => Some(sig.ret),
             _ => None,
         }
     }
@@ -1126,7 +1126,7 @@ impl Ck<'_, '_> {
         self.cx
             .lookup
             .item(def)
-            .is_some_and(|i| i.fact_pattern.is_some())
+            .is_some_and(|i| i.type_attrs().is_some_and(|a| a.fact_pattern.is_some()))
     }
 
     /// The typed fact type of the value `e` writes
@@ -1184,7 +1184,7 @@ impl Ck<'_, '_> {
         let Some(item) = self.cx.lookup.item(fact) else {
             return Ok(None);
         };
-        let Some(pattern) = item.fact_pattern else {
+        let Some(pattern) = item.type_attrs().and_then(|a| a.fact_pattern) else {
             return Ok(None);
         };
         let generics = item.generics.clone();
@@ -1340,7 +1340,7 @@ impl Ck<'_, '_> {
             .cx
             .lookup
             .item(fact)
-            .is_none_or(|i| i.fact_pattern.is_none())
+            .is_none_or(|i| i.type_attrs().is_none_or(|a| a.fact_pattern.is_none()))
         {
             return Ok(());
         }
@@ -1447,7 +1447,7 @@ impl Ck<'_, '_> {
             if let Some(Named::Item(def)) = self.scope_name(&text)
                 && matches!(
                     self.cx.lookup.item(def).map(|i| &i.data),
-                    Some(ItemData::Fn(_))
+                    Some(ItemData::Fn(_, _))
                 )
             {
                 let args = Args {
@@ -1501,12 +1501,15 @@ impl Ck<'_, '_> {
         };
         if !matches!(
             self.cx.lookup.item(def).map(|i| &i.data),
-            Some(ItemData::Fn(_))
+            Some(ItemData::Fn(_, _))
         ) {
             return self.bad_facts_target(*arg, "this name is not a function");
         }
         // A function with no value-bearing decorator holds no facts.
-        if !self.cx.lookup.item(def).is_some_and(|i| i.has_facts) {
+        if !(self.cx.lookup.item(def))
+            .and_then(Item::fn_attrs)
+            .is_some_and(|a| a.has_facts)
+        {
             let rec = self.b.refs_record(&[]);
             let list = self.b.emit(Tag::NewList, NONE, rec, items_ty, n.index());
             let rec = self.b.refs_record(&[list]);

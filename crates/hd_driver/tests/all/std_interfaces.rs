@@ -140,15 +140,17 @@ fn std_interfaces_hold_no_poison_type() {
                     .flat_map(|g| g.bounds.iter().copied().chain(g.default))
                     .collect();
                 match &it.data {
-                    ItemData::Fn(s) | ItemData::Method { sig: s, .. } => {
+                    ItemData::Fn(s, _) | ItemData::Method { sig: s, .. } => {
                         tys.extend(s.params.iter().map(|p| p.1));
                         tys.push(s.ret);
                         for g in &s.generics {
                             tys.extend(g.bounds.iter().copied().chain(g.default));
                         }
                     }
-                    ItemData::Struct(fs) => tys.extend(fs.iter().map(|f| f.ty)),
-                    ItemData::Enum { shared, variants } => tys.extend(
+                    ItemData::Struct(fs, _) => tys.extend(fs.iter().map(|f| f.ty)),
+                    ItemData::Enum {
+                        shared, variants, ..
+                    } => tys.extend(
                         shared
                             .iter()
                             .chain(variants.iter().flat_map(|v| &v.fields))
@@ -455,7 +457,7 @@ fn written_lifetimes_map_reference_slots() {
         let mut got: Vec<(String, Vec<u16>)> = items
             .iter()
             .filter_map(|it| match &it.data {
-                ItemData::Fn(s) | ItemData::Method { sig: s, .. } => {
+                ItemData::Fn(s, _) | ItemData::Method { sig: s, .. } => {
                     Some((n.text(it.name).to_owned(), s.lifetimes.clone()))
                 }
                 _ => None,

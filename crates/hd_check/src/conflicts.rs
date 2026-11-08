@@ -89,7 +89,7 @@ pub fn promotion_conflicts(
     it: &Item,
 ) -> Vec<Conflict> {
     let mut out = Vec::new();
-    let ItemData::Struct(root_fields) = &it.data else {
+    let ItemData::Struct(root_fields, _) = &it.data else {
         return out;
     };
     let pool = names.pool;
@@ -103,7 +103,7 @@ pub fn promotion_conflicts(
             let fields = if *def == it.def {
                 root_fields
             } else if let Some(Item {
-                data: ItemData::Struct(fields),
+                data: ItemData::Struct(fields, _),
                 ..
             }) = lookup.item(*def)
             {

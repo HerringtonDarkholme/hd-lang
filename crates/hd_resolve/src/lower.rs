@@ -25,8 +25,9 @@ use hd_types::{
 
 use crate::const_eval::{ConstArg, ConstName};
 use crate::iface::{
-    Export, Field, FnSig, FolderIface, Generic, HeadKind, ImplKind, Item, ItemData, Lookup, Names,
-    ResultPath, TraitData, Variant, fill_trait_args, fill_type_args, show_ty,
+    CallAttrs, Export, Field, FnAttrs, FnSig, FolderIface, Generic, HeadKind, ImplKind, Item,
+    ItemData, Lookup, Names, ResultPath, TraitData, Variant, fill_trait_args, fill_type_args,
+    show_ty,
 };
 use crate::known::KnownItems;
 use crate::variance::{self, Seen};
@@ -4584,7 +4585,12 @@ impl Lower<'_, '_, '_> {
                     let def = self.names.member(owner, PathKind::Member, &text);
                     self.result_required(f, result_required || self.src.is_pub(f));
                     let sig = self.sig(f, def, gn);
-                    let mut it = Item::new(
+                    let call = CallAttrs {
+                        intrinsic: self.intrinsic(f),
+                        inline: self.inline_hint(f),
+                        configured: false,
+                    };
+                    out.push(Item::new(
                         def,
                         name,
                         public || self.src.is_pub(f),
@@ -4592,11 +4598,9 @@ impl Lower<'_, '_, '_> {
                             owner,
                             sig,
                             has_body: Src::child(f, SyntaxKind::Block).is_some(),
+                            call,
                         },
-                    );
-                    it.intrinsic = self.intrinsic(f);
-                    it.inline = self.inline_hint(f);
-                    out.push(it);
+                    ));
                     methods.push((name, def));
                 }
                 SyntaxKind::AssociatedTypeDecl => {
@@ -4788,6 +4792,8 @@ impl Lower<'_, '_, '_> {
                 assoc: vec![],
                 by: None,
                 kind: ImplKind::Poison,
+                fills_defaults: false,
+                skips: vec![],
             },
         );
         item.generics = generics;
@@ -5090,11 +5096,11 @@ impl Lower<'_, '_, '_> {
                 assoc,
                 by: by.map(|b| self.sym(&b)),
                 kind,
+                fills_defaults: self.fills_defaults(h.node),
+                skips: self.skips(h.node, &gn),
             },
         );
         it.generics = generics;
-        it.fills_defaults = self.fills_defaults(h.node);
-        it.skips = self.skips(h.node, &gn);
         out.push(it);
     }
 
@@ -5364,6 +5370,8 @@ impl Lower<'_, '_, '_> {
                         assoc: vec![],
                         by: None,
                         kind: ImplKind::Derived,
+                        fills_defaults: false,
+                        skips: vec![],
                     },
                 );
                 it.generics = gs;
@@ -5570,6 +5578,7 @@ impl Lower<'_, '_, '_> {
                         owner: def,
                         sig,
                         has_body: true,
+                        call: CallAttrs::default(),
                     },
                 ));
                 vec![(self.sym(method), mdef)]
@@ -5589,6 +5598,8 @@ impl Lower<'_, '_, '_> {
                     assoc: vec![],
                     by: None,
                     kind: ImplKind::Error,
+                    fills_defaults: false,
+                    skips: vec![],
                 },
             );
             it.generics = gs;
@@ -5682,16 +5693,20 @@ impl Lower<'_, '_, '_> {
             HeadKind::Fn => {
                 self.result_required(n, h.public);
                 let sig = self.sig(n, h.def, &mut Gen::default());
-                let mut it = Item::new(h.def, h.name, h.public, ItemData::Fn(sig));
-                it.intrinsic = self.intrinsic(n);
-                it.literal_fn = self.literal_fn(n);
-                it.inline = self.inline_hint(n);
-                it.auto_closing = self.auto_closing(n);
-                it.has_facts = !crate::facts::fact_lines(&self.src, n, |d| {
-                    self.literal_marker(d).is_some() || self.inline_marker(d)
-                })
-                .is_empty();
-                out.push(it);
+                let attrs = FnAttrs {
+                    call: CallAttrs {
+                        intrinsic: self.intrinsic(n),
+                        inline: self.inline_hint(n),
+                        configured: false,
+                    },
+                    literal_fn: self.literal_fn(n),
+                    auto_closing: self.auto_closing(n),
+                    has_facts: !crate::facts::fact_lines(&self.src, n, |d| {
+                        self.literal_marker(d).is_some() || self.inline_marker(d)
+                    })
+                    .is_empty(),
+                };
+                out.push(Item::new(h.def, h.name, h.public, ItemData::Fn(sig, attrs)));
             }
             HeadKind::Struct => {
                 let mut gn = Gen::default();
@@ -5705,10 +5720,9 @@ impl Lower<'_, '_, '_> {
                 let member_types: Vec<_> = fields.iter().map(|field| field.ty).collect();
                 self.derived(h, &generics, &member_types, out);
                 self.error_impls(h, &generics, &[fields.as_slice()], out);
-                let mut it = Item::new(h.def, h.name, h.public, ItemData::Struct(fields));
+                let attrs = self.type_attrs(n, &gn);
+                let mut it = Item::new(h.def, h.name, h.public, ItemData::Struct(fields, attrs));
                 it.generics = generics;
-                it.targets = self.annotate_mask(n);
-                it.fact_pattern = self.annotate_pattern(n, &gn);
                 out.push(it);
             }
             HeadKind::Enum => {
@@ -5763,11 +5777,13 @@ impl Lower<'_, '_, '_> {
                 let payloads: Vec<&[Field]> =
                     variants.iter().map(|v| v.fields.as_slice()).collect();
                 self.error_impls(h, &generics, &payloads, out);
-                let mut it =
-                    Item::new(h.def, h.name, h.public, ItemData::Enum { shared, variants });
+                let data = ItemData::Enum {
+                    shared,
+                    variants,
+                    attrs: self.type_attrs(n, &gn),
+                };
+                let mut it = Item::new(h.def, h.name, h.public, data);
                 it.generics = generics;
-                it.targets = self.annotate_mask(n);
-                it.fact_pattern = self.annotate_pattern(n, &gn);
                 out.push(it);
             }
             HeadKind::Trait => {
@@ -5818,6 +5834,7 @@ impl Lower<'_, '_, '_> {
                         methods,
                         assoc,
                         supers,
+                        relaxed_copy: false,
                     }),
                 );
                 it.generics = generics;
@@ -6560,7 +6577,7 @@ fn misplaced_block_in<'a>(
         ItemData::Newtype(_) => {
             return Some("a derivation block cannot target a newtype; derive it with `@derive`");
         }
-        ItemData::Struct(_) | ItemData::Enum { .. } => {}
+        ItemData::Struct(_, _) | ItemData::Enum { .. } => {}
         _ if traitless => {
             return Some("a derivation block with no trait targets a data type or enum");
         }
@@ -6732,7 +6749,7 @@ fn configured_pairs(
         let same = own.len() == 2
             && own[0].public == own[1].public
             && own[0].generics == own[1].generics
-            && own[0].data == own[1].data;
+            && same_signature(&own[0].data, &own[1].data);
         if !same && report {
             diags.error(
                 Code::InvalidCfgDeclaration,
@@ -6747,7 +6764,10 @@ fn configured_pairs(
     let mut seen = HashSet::default();
     items.retain(|it| !configured.contains(&it.def) || seen.insert(it.def));
     for it in items.iter_mut().filter(|it| configured.contains(&it.def)) {
-        it.configured = true;
+        // `body_nodes` yields only functions and methods.
+        if let Some(c) = it.call_mut() {
+            c.configured = true;
+        }
     }
     for it in items {
         let methods = match &mut it.data {
@@ -6757,6 +6777,30 @@ fn configured_pairs(
         };
         let mut seen = HashSet::default();
         methods.retain(|(_, def)| seen.insert(*def));
+    }
+}
+
+/// Whether two declarations of a configured callable have one signature
+/// (`annot.cfg.signature`). Their own attributes, such as `@inline`, may
+/// differ.
+fn same_signature(a: &ItemData, b: &ItemData) -> bool {
+    match (a, b) {
+        (ItemData::Fn(x, _), ItemData::Fn(y, _)) => x == y,
+        (
+            ItemData::Method {
+                owner: o1,
+                sig: s1,
+                has_body: b1,
+                call: _,
+            },
+            ItemData::Method {
+                owner: o2,
+                sig: s2,
+                has_body: b2,
+                call: _,
+            },
+        ) => o1 == o2 && s1 == s2 && b1 == b2,
+        _ => a == b,
     }
 }
 
@@ -7541,7 +7585,13 @@ pub fn build_folder_with_facts(
         {
             let not_copy = r.not_copy.borrow();
             for it in items.iter_mut().filter(|i| not_copy.contains(&i.def)) {
-                it.not_copy = true;
+                // `impl !Copy` marks a struct or an enum (`ref.copy.opt-out`),
+                // `< ?Copy` a trait (`ref.copy.trait.relaxed`).
+                match &mut it.data {
+                    ItemData::Struct(_, a) | ItemData::Enum { attrs: a, .. } => a.not_copy = true,
+                    ItemData::Trait(t) => t.relaxed_copy = true,
+                    _ => {}
+                }
             }
         }
         let mut have: HashSet<DefId> = items.iter().map(|i| i.def).collect();
@@ -7905,7 +7955,7 @@ fn delegations(r: &Resolver<'_, '_>, modules: &mut [ModOut]) {
             // from an embedded field. A derived newtype takes every method
             // from its base type (trait.derive.newtype.base).
             let (part, receivers_only) = match (kind, by, item(c).map(|i| i.data)) {
-                (ImplKind::Delegated, Some(by), Some(ItemData::Struct(fields))) => {
+                (ImplKind::Delegated, Some(by), Some(ItemData::Struct(fields, _))) => {
                     let Some(field) = fields.iter().find(|f| f.embedded && f.name == *by) else {
                         continue;
                     };
@@ -7994,6 +8044,7 @@ fn delegations(r: &Resolver<'_, '_>, modules: &mut [ModOut]) {
                         owner: it.def,
                         sig: fsig,
                         has_body: true,
+                        call: CallAttrs::default(),
                     },
                 ));
             }

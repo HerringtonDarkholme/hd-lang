@@ -405,10 +405,12 @@ fn walk_values(
             return;
         };
         match &item.data {
-            hd_resolve::ItemData::Struct(fs) => {
+            hd_resolve::ItemData::Struct(fs, _) => {
                 tys.extend(fs.iter().map(|f| sub(f.ty)));
             }
-            hd_resolve::ItemData::Enum { shared, variants } => {
+            hd_resolve::ItemData::Enum {
+                shared, variants, ..
+            } => {
                 tys.extend(
                     shared
                         .iter()

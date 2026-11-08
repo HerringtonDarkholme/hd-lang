@@ -315,7 +315,7 @@ impl Ck<'_, '_> {
                     .then(|| args.get(p.index as usize).copied())
                     .flatten()
             }),
-            Some(ItemData::Struct(_) | ItemData::Enum { .. } | ItemData::Newtype(_)) => pool
+            Some(ItemData::Struct(_, _) | ItemData::Enum { .. } | ItemData::Newtype(_)) => pool
                 .intern_ty(&TyData::Adt {
                     def,
                     args: pool.list(&args),

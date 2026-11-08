@@ -1075,7 +1075,7 @@ mod program_items_tests {
             DefId::from_raw(raw),
             Symbol::from_raw(raw),
             public,
-            ItemData::Struct(Vec::new()),
+            ItemData::Struct(Vec::new(), hd_resolve::TypeAttrs::default()),
         )
     }
 
@@ -4249,7 +4249,7 @@ impl Run<'_> {
         }
         let all: Vec<Item> = out.modules.into_iter().flat_map(|m| m.items).collect();
         for it in &all {
-            if let Some(k) = it.intrinsic
+            if let Some(k) = it.intrinsic()
                 && hd_host_abi::intrinsic(names.text(k)).is_none()
             {
                 let msg = format!(
@@ -6285,7 +6285,7 @@ impl Run<'_> {
             let TyData::Adt { def, args } = pool.get(t) else {
                 return None;
             };
-            let hd_resolve::ItemData::Struct(fs) = &lookup.item(def)?.data else {
+            let hd_resolve::ItemData::Struct(fs, _) = &lookup.item(def)?.data else {
                 return None;
             };
             let f = fs.get(k as usize)?;
@@ -6525,8 +6525,7 @@ impl Run<'_> {
             let Some(item) = lookup.item(h.def) else {
                 continue;
             };
-            let embeds =
-                matches!(&item.data, ItemData::Struct(fields) if fields.iter().any(|f| f.embedded));
+            let embeds = matches!(&item.data, ItemData::Struct(fields, _) if fields.iter().any(|f| f.embedded));
             if !embeds {
                 continue;
             }
@@ -6845,7 +6844,11 @@ impl Run<'_> {
         for h in heads
             .iter()
             .filter(|h| h.kind == hd_resolve::HeadKind::Fn)
-            .filter(|h| lookup.item(h.def).is_some_and(|item| item.has_facts))
+            .filter(|h| {
+                (lookup.item(h.def))
+                    .and_then(Item::fn_attrs)
+                    .is_some_and(|a| a.has_facts)
+            })
         {
             match hd_check::check_facts(&cx, h.def, h.node, &mut diags) {
                 Ok(b) => {
@@ -8054,7 +8057,7 @@ impl Run<'_> {
             inferred.iter().map(|i| (i.def, *i)).collect();
         for it in &mut all_items {
             if let Some(inf) = inferred.get(&it.def)
-                && let ItemData::Fn(sig) | ItemData::Method { sig, .. } = &mut it.data
+                && let ItemData::Fn(sig, _) | ItemData::Method { sig, .. } = &mut it.data
             {
                 if let Some(ret) = inf.ret {
                     sig.ret = ret;
@@ -8449,7 +8452,7 @@ impl Run<'_> {
                 .get(2)
                 .and_then(|bytes| hd_resolve::decode_items(&self.names(), bytes))
             {
-                for item in decoded.0.iter().filter(|item| item.configured) {
+                for item in decoded.0.iter().filter(|item| item.configured()) {
                     let canonical = self.names().path_hash(item.def);
                     configured.insert(
                         cfg_body_key(canonical, BuildProfile::Checked),
@@ -8463,11 +8466,11 @@ impl Run<'_> {
                 for item in decoded
                     .0
                     .into_iter()
-                    .filter(|item| item.inline == hd_resolve::iface::INLINE_ALWAYS)
+                    .filter(|item| item.inline() == hd_resolve::iface::INLINE_ALWAYS)
                 {
                     let canonical = self.names().path_hash(item.def);
                     wanted.insert(canonical);
-                    if item.configured {
+                    if item.configured() {
                         wanted.insert(cfg_body_key(canonical, BuildProfile::Checked));
                         wanted.insert(cfg_body_key(canonical, BuildProfile::Release));
                     }
@@ -9039,7 +9042,7 @@ impl Run<'_> {
             let TyData::Adt { def, args } = pool.get(t) else {
                 return None;
             };
-            let ItemData::Struct(fs) = &p.items.get(def)?.data else {
+            let ItemData::Struct(fs, _) = &p.items.get(def)?.data else {
                 return None;
             };
             let f = fs.get(k as usize)?;
@@ -9687,7 +9690,7 @@ impl Run<'_> {
                 let Some(item) = p.items.get(head.def) else {
                     continue;
                 };
-                if !matches!(item.data, ItemData::Struct(_)) || !item.generics.is_empty() {
+                if !matches!(item.data, ItemData::Struct(_, _)) || !item.generics.is_empty() {
                     continue;
                 }
                 let ty = self.pool.intern_ty(&TyData::Adt {
@@ -10312,7 +10315,7 @@ impl Run<'_> {
             }
             for (def, span, entry, written_row) in entries {
                 if let Some(item) = items.0.iter().find(|i| i.def == def)
-                    && let ItemData::Fn(sig) = &item.data
+                    && let ItemData::Fn(sig, _) = &item.data
                 {
                     self.capabilities_for_keys(
                         self.pool.row_data(sig.row).keys,
@@ -11681,7 +11684,7 @@ fn cfg_body_key(canonical: Hash128, profile: BuildProfile) -> Hash128 {
 /// The canonical body keys owned by a configured callable: its function
 /// body, parameter defaults, and function-facts body.
 fn configured_body_keys(names: &Names<'_>, item: &Item) -> Vec<Hash128> {
-    if !item.configured {
+    if !item.configured() {
         return Vec::new();
     }
     let mut defs = vec![item.def];
@@ -11696,7 +11699,7 @@ fn configured_body_keys(names: &Names<'_>, item: &Item) -> Vec<Hash128> {
             }
         }
     }
-    if item.has_facts {
+    if item.fn_attrs().is_some_and(|a| a.has_facts) {
         defs.push(names.member(item.def, hd_intern::PathKind::Hidden, "facts"));
     }
     defs.into_iter().map(|def| names.path_hash(def)).collect()
@@ -12381,7 +12384,7 @@ impl ProgramEnv for Env<'_> {
         match &o.data {
             // A struct or enum owns its declaration `Structure`'s
             // hidden methods (`crates/hd_mono/DESIGN.md` §12.3).
-            ItemData::Impl { .. } | ItemData::Struct(_) | ItemData::Enum { .. } => {
+            ItemData::Impl { .. } | ItemData::Struct(_, _) | ItemData::Enum { .. } => {
                 Some((*owner, o.generics.len()))
             }
             ItemData::Trait(_) => Some((*owner, 1 + o.generics.len())),
@@ -12474,7 +12477,7 @@ impl ProgramEnv for Env<'_> {
                 .map(|m| m.1)
                 .filter(|m| {
                     self.p.items.get(*m).is_none_or(|i| {
-                        i.intrinsic.is_none()
+                        i.intrinsic().is_none()
                             && self.takes_self(i)
                             && !self.names_self(i, trait_)
                             && i.sig().is_none_or(|s| !self.run.pool.has_opaque(s.ret))
@@ -12497,10 +12500,10 @@ impl ProgramEnv for Env<'_> {
         self.p
             .items
             .get(def)
-            .is_some_and(|i| i.inline == hd_resolve::iface::COLD)
+            .is_some_and(|i| i.inline() == hd_resolve::iface::COLD)
     }
     fn intrinsic(&self, def: DefId) -> Option<String> {
-        let k = self.p.items.get(def)?.intrinsic?;
+        let k = self.p.items.get(def)?.intrinsic()?;
         Some(self.run.syms.resolve(k).to_owned())
     }
     fn is_package_host_trait(&self, def: DefId) -> bool {
@@ -12511,7 +12514,7 @@ impl ProgramEnv for Env<'_> {
     }
     fn data_fields(&self, def: DefId) -> Option<Vec<Ty>> {
         match &self.p.items.get(def)?.data {
-            ItemData::Struct(fs) => Some(fs.iter().map(|f| self.low(f.ty)).collect()),
+            ItemData::Struct(fs, _) => Some(fs.iter().map(|f| self.low(f.ty)).collect()),
             // A newtype is a data value of its one inner value.
             ItemData::Newtype(inner) => Some(vec![self.low(*inner)]),
             _ => None,
@@ -12539,7 +12542,7 @@ impl ProgramEnv for Env<'_> {
     }
     fn data_field_names(&self, def: DefId) -> Option<Vec<String>> {
         match &self.p.items.get(def)?.data {
-            ItemData::Struct(fs) => {
+            ItemData::Struct(fs, _) => {
                 let names = self.run.names();
                 Some(fs.iter().map(|f| names.text(f.name).to_owned()).collect())
             }
@@ -12554,7 +12557,7 @@ impl ProgramEnv for Env<'_> {
     }
     fn has_private_field(&self, def: DefId) -> bool {
         self.p.items.get(def).is_some_and(
-            |i| matches!(&i.data, ItemData::Struct(fs) if fs.iter().any(|f| !f.public)),
+            |i| matches!(&i.data, ItemData::Struct(fs, _) if fs.iter().any(|f| !f.public)),
         )
     }
     fn path_hash(&self, def: DefId) -> Hash128 {

@@ -199,7 +199,7 @@ impl KnownItems {
     /// suspensions and lowered reference carriers with their own rules.
     #[must_use]
     pub fn is_struct(&self, item: &crate::Item) -> bool {
-        matches!(item.data, crate::ItemData::Struct(_))
+        matches!(item.data, crate::ItemData::Struct(_, _))
             && ![
                 self.list,
                 self.map,
