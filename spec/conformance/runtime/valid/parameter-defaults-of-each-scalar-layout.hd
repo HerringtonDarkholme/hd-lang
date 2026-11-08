@@ -1,0 +1,24 @@
+# expect-stdout: 3.0
+# expect-stdout: 5.0
+# expect-stdout: 7
+# expect-stdout: true
+# test: an omitted parameter whose default is one constant takes it at an f32, f64, i64 and bool parameter
+# Spec 07 Defaults: fn.default.omit.
+
+fn scale(x: f32, by: f32 = 1.5f32) -> f32:
+    x * by
+
+fn shift(x: f64, by: f64 = 2.5) -> f64:
+    x * by
+
+fn wide(x: i64, by: i64 = 5i64) -> i64:
+    x + by
+
+fn flag(on: bool = true) -> bool:
+    on
+
+pub fn main() -> void $ Console:
+    println(scale(2.0f32))
+    println(shift(2.0))
+    println(wide(2i64))
+    println(flag())

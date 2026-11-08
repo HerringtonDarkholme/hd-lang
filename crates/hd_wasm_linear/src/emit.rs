@@ -1529,24 +1529,30 @@ impl Em<'_, '_, '_> {
                 vec![Ins::Op(I::I32Const(len.cast_signed()))],
             ]);
         }
-        let low = u32::try_from(bits & 0xffff_ffff).expect("low bits");
-        let ops = match self.vals(ty)?.as_slice() {
-            [] => vec![],
-            [Val::I32] => vec![vec![I::I32Const(low.cast_signed())]],
-            [Val::I64] => vec![vec![I::I64Const(bits.cast_signed())]],
-            // A float literal's constant holds its `f64` bits whatever
-            // type the literal ends up with (`hd_check`'s literal).
-            [Val::F32] => vec![vec![
-                I::F64Const(wasm_encoder::Ieee64::new(bits)),
-                I::F32DemoteF64,
-            ]],
-            [Val::F64] => vec![vec![I::F64Const(wasm_encoder::Ieee64::new(bits))]],
-            _ => return unsupported(format!("a constant of type `{}`", self.pool().display(ty))),
-        };
-        Ok(ops
+        Ok(self
+            .scalar_ops(ty, bits)?
             .into_iter()
             .map(|ops| ops.into_iter().map(Ins::Op).collect())
             .collect())
+    }
+
+    /// A constant of type `ty` other than a string, with bits `bits`, as
+    /// the instructions that push each of its values. Every such constant
+    /// is a literal or a count: a primitive scalar, or `void`.
+    fn scalar_ops(&self, ty: Ty, bits: u64) -> StageResult<Vec<Vec<I>>> {
+        let low = u32::try_from(bits & 0xffff_ffff).expect("low bits");
+        Ok(match self.vals(ty)?.first() {
+            None => vec![],
+            Some(Val::I32) => vec![vec![I::I32Const(low.cast_signed())]],
+            Some(Val::I64) => vec![vec![I::I64Const(bits.cast_signed())]],
+            // A float literal's constant holds its `f64` bits whatever
+            // type the literal ends up with (`hd_check`'s literal).
+            Some(Val::F32) => vec![vec![
+                I::F64Const(wasm_encoder::Ieee64::new(bits)),
+                I::F32DemoteF64,
+            ]],
+            Some(Val::F64) => vec![vec![I::F64Const(wasm_encoder::Ieee64::new(bits))]],
+        })
     }
 
     /// Instruction `i`'s locals, made on first use.
@@ -2731,20 +2737,10 @@ impl Em<'_, '_, '_> {
     /// earlier arguments, or a constant default inlined.
     fn default_call(&mut self, i: u32, bw: u32) -> StageResult<()> {
         match self.calls.get(&i).cloned() {
+            // A default body that is one constant, as a literal's.
             Some(Target::ConstDefault(bits)) => {
-                match self.vals(self.ty(i))?.as_slice() {
-                    [Val::I32] => self.f.i32(i32::from_ne_bytes(
-                        u32::try_from(bits & 0xffff_ffff)
-                            .expect("low bits")
-                            .to_ne_bytes(),
-                    )),
-                    [Val::I64] => self.f.op(Instruction::I64Const(i64::from_ne_bytes(
-                        bits.to_ne_bytes(),
-                    ))),
-                    [Val::F64] => self
-                        .f
-                        .op(Instruction::F64Const(wasm_encoder::Ieee64::new(bits))),
-                    _ => return unsupported("a constant default of this layout"),
+                for op in self.scalar_ops(self.ty(i), bits)?.into_iter().flatten() {
+                    self.f.op(op);
                 }
                 self.store(i)
             }
