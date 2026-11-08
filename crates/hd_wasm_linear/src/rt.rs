@@ -2596,14 +2596,6 @@ fn collect_if_due(f: &mut Func, m: &Module) {
 /// the collector's free.
 fn free_class(m: &Module) -> Func {
     let mut f = m.func("rt:free_class", vec![Val::I32], vec![]);
-    let Some(r) = m.runtime else {
-        return f;
-    };
-    if r.checked.is_some() || !m.fixed_allocations {
-        f.get(0);
-        f.call(Sym::Inst(r.free));
-        return f;
-    }
     let (desc, class) = (f.local(Val::I32), f.local(Val::I32));
     f.get(0);
     f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
@@ -2635,9 +2627,7 @@ fn free_class_loaded(m: &Module) -> Func {
 /// dispatch, so its generic path can reuse both values instead of loading and
 /// decoding the word again in [`Helper::FreeClass`].
 fn free_class_body(f: &mut Func, m: &Module, block: u32, desc: u32, class: u32) {
-    let Some(r) = m.runtime else {
-        return;
-    };
+    let r = m.runtime.unwrap();
     let list = f.local(Val::I32);
     f.op(Instruction::Block(BlockType::Empty));
     f.get(class);
