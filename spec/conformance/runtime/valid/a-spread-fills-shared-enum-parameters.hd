@@ -1,0 +1,11 @@
+# test: a positional spread fills a variant's shared constructor parameters
+# expect-stdout: 200 OK 404 Not Found
+# Spec 08 Shared Enum Constructor Data: data.shared.arguments; Spec 05: expr.call.spread.inputs.
+enum HttpStatus(code: i32, phrase: string):
+    Ok -> HttpStatus((200, "OK")...)
+    Missing -> HttpStatus(404, ("Not Found",)...)
+
+pub fn main() -> void $ Console:
+    ok := HttpStatus.Ok
+    missing := HttpStatus.Missing
+    println("${ok.code} ${ok.phrase} ${missing.code} ${missing.phrase}")

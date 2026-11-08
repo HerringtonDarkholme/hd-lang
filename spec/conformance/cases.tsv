@@ -6056,6 +6056,7 @@ runtime/valid/compound-assignment-to-a-top-level-binding.hd	runtime	accept	lang/
 typing/invalid/a-local-annotation-through-an-unknown-module-is-an-unknown-name.hd	type	reject:unknown-name	lang/03-names-and-scopes.md#r-names.module.other-module.value
 typing/invalid/a-local-annotation-through-a-module-that-lacks-the-type.hd	type	reject:unknown-import	lang/03-names-and-scopes.md#r-names.type.qualified
 typing/invalid/a-function-name-in-a-local-annotation-is-an-unknown-type.hd	type	reject:unknown-type	lang/03-names-and-scopes.md#r-names.module.other-module.type
+runtime/valid/a-spread-fills-shared-enum-parameters.hd	runtime	accept	lang/08-data-and-enums.md#r-data.shared.arguments
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

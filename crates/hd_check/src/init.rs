@@ -1003,9 +1003,6 @@ impl Ck<'_, '_> {
         at: NodeRef<'_>,
         ename: &str,
     ) -> StageResult<Vec<Ref>> {
-        if args.spread.is_some() {
-            return unsupported("a spread argument for a shared variant parameter");
-        }
         let mut slots: Vec<Option<Ref>> = vec![None; params.len()];
         if args.positional.len() > params.len() {
             let msg = format!("`{ename}` takes {} arguments", params.len());
@@ -1016,6 +1013,26 @@ impl Ck<'_, '_> {
             let (r, t) = self.expr(*e, w)?;
             if let (Some(w), Some(s)) = (w, slots.get_mut(i)) {
                 *s = Some(self.coerce(r, t, w, *e, "argument", ExpectPosition::General));
+            }
+        }
+        // `expr.call.spread.inputs`: a tuple fills the remaining parameters,
+        // one element each (`data.shared.arguments`).
+        if let Some(sp) = args.spread {
+            if let Some(late) = args.after_spread.first() {
+                let msg = "a positional spread must be the final positional argument";
+                self.err(Code::NonfinalPositionalSpread, *late, msg);
+            }
+            let from = args.positional.len().min(params.len());
+            let tys: Vec<Ty> = params[from..].iter().map(|p| p.1).collect();
+            let pool = self.pool();
+            let want = pool.intern_ty(&hd_types::TyData::Tuple {
+                elems: pool.list(&tys),
+                rest: None,
+            });
+            let (r, t) = self.expr(sp, Some(want))?;
+            let r = self.coerce(r, t, want, sp, "argument", ExpectPosition::General);
+            for (k, &ty) in (0u32..).zip(&tys) {
+                slots[from + k as usize] = Some(self.b.field(r, k, ty, sp.index()));
             }
         }
         for (pname, e) in &args.named {
