@@ -9,7 +9,7 @@
     "check:types": "tsc --noEmit && tsc --noEmit -p website/playground",
     "check:host-sources": "node scripts/check-host-sources.ts",
     "check:spec-sync": "node scripts/check-rule-citations.ts && node scripts/check-removed-forms.ts",
-    "check:cost": "node scripts/check-cost.ts",
+    "check:cost": "node scripts/check-cost.ts && node scripts/check-unsupported.ts",
     "check:typescript-sources": "node scripts/check-typescript-sources.ts",
     "format": "oxfmt --write 'host/**/*.ts' 'packages/server-sdk/**/*.ts' 'spec/**/*.ts' 'bench/**/*.ts' 'scripts/**/*.js' 'scripts/**/*.ts' 'website/*.ts' 'website/src/**/*.ts' 'website/client/**/*.ts' 'website/test/**/*.ts' 'website/assets/**/*.js' 'website/playground/**/*.ts' package.json .oxfmtrc.json .oxlintrc.json",
     "format:check": "oxfmt --check 'host/**/*.ts' 'packages/server-sdk/**/*.ts' 'spec/**/*.ts' 'bench/**/*.ts' 'scripts/**/*.js' 'scripts/**/*.ts' 'website/*.ts' 'website/src/**/*.ts' 'website/client/**/*.ts' 'website/test/**/*.ts' 'website/assets/**/*.js' 'website/playground/**/*.ts' package.json .oxfmtrc.json .oxlintrc.json",
