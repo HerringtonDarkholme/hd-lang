@@ -290,7 +290,7 @@ lang/05-expressions.md	8	mixed	runtime/panic/compound-assign-map-missing-key.hd|
 lang/05-expressions.md	9	mixed	typing/invalid/contextual-variant-without-type.hd
 lang/05-expressions.md	10	mixed	typing/invalid/module-path-private-member.hd|typing/invalid/module-path-missing-member.hd
 lang/05-expressions.md	11	complete	-
-lang/05-expressions.md	12	known-failure	runtime/valid/display-write-noncopy.hd
+lang/05-expressions.md	12	fragment	runtime/valid/display-write-noncopy.hd
 lang/05-expressions.md	13	mixed	typing/invalid/interpolation-without-display.hd
 lang/05-expressions.md	14	complete	typing/valid/literal-suffix-user.hd|runtime/valid/literal-suffix-call.hd
 lang/05-expressions.md	15	type-fragment	-
@@ -566,7 +566,7 @@ lang/09-traits.md	12	fragment	typing/valid/trait-features.hd
 lang/09-traits.md	13	mixed	typing/invalid/ambiguous-projection.hd
 lang/09-traits.md	14	mixed	typing/invalid/associated-type-bound-unsatisfied.hd|typing/valid/associated-type-bound.hd
 lang/09-traits.md	15	complete	-
-lang/09-traits.md	16	known-failure	typing/valid/prelude-surface.hd|runtime/valid/hasher-write-methods.hd
+lang/09-traits.md	16	fragment	typing/valid/prelude-surface.hd|runtime/valid/hasher-write-methods.hd
 lang/09-traits.md	17	mixed	typing/invalid/derived-hash-field-not-hash.hd|typing/invalid/derived-generic-bound.hd
 lang/09-traits.md	18	mixed	typing/invalid/derive-beside-written-impl.hd
 lang/09-traits.md	19	mixed	typing/invalid/mixed-derived-law.hd
