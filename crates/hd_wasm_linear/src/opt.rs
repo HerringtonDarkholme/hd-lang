@@ -2237,9 +2237,6 @@ fn is_load(i: &I) -> bool {
             | I::I32Load8U(_)
             | I::I32Load16S(_)
             | I::I32Load16U(_)
-            | I::I64Load8U(_)
-            | I::I64Load16U(_)
-            | I::I64Load32U(_)
     )
 }
 
@@ -2262,18 +2259,12 @@ fn with_offset(i: &I, by: u32) -> Option<I> {
         I::I32Load8U(m) => I::I32Load8U(bump(m)?),
         I::I32Load16S(m) => I::I32Load16S(bump(m)?),
         I::I32Load16U(m) => I::I32Load16U(bump(m)?),
-        I::I64Load8U(m) => I::I64Load8U(bump(m)?),
-        I::I64Load16U(m) => I::I64Load16U(bump(m)?),
-        I::I64Load32U(m) => I::I64Load32U(bump(m)?),
         I::I32Store(m) => I::I32Store(bump(m)?),
         I::I64Store(m) => I::I64Store(bump(m)?),
         I::F32Store(m) => I::F32Store(bump(m)?),
         I::F64Store(m) => I::F64Store(bump(m)?),
         I::I32Store8(m) => I::I32Store8(bump(m)?),
         I::I32Store16(m) => I::I32Store16(bump(m)?),
-        I::I64Store8(m) => I::I64Store8(bump(m)?),
-        I::I64Store16(m) => I::I64Store16(bump(m)?),
-        I::I64Store32(m) => I::I64Store32(bump(m)?),
         _ => return None,
     })
 }
