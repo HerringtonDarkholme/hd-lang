@@ -2099,7 +2099,7 @@ typing/valid/fn-trait-bounds.hd	type	accept	lang/07-functions.md#r-fn.trait.boun
 runtime/valid/fn-trait-bound-calls.hd	runtime	accept	lang/07-functions.md#r-fn.trait.call
 runtime/valid/fn-trait-bound-inference.hd	runtime	accept	lang/07-functions.md#r-fn.trait.bound.infer-instantiation
 typing/invalid/fn-trait-dyn.hd	type	reject:trait-not-dynamically-safe	lang/13-values-and-references.md#r-ref.type.dyn.no-fn
-typing/invalid/fn-trait-user-impl.hd	type	reject:sealed-trait-implementation	lang/09-traits.md#r-trait.sealed.fn
+typing/invalid/fn-trait-user-impl.hd	type	reject:sealed-trait-implementation	lang/09-traits.md#r-trait.sealed.fn-read-only
 typing/valid/fn-mut-bounds.hd	type	accept	lang/07-functions.md#r-fn.trait.mut.sugar
 runtime/valid/fn-mut-bound-calls.hd	runtime	accept	lang/07-functions.md#r-fn.trait.mut.call
 typing/invalid/fn-mut-call-not-writable.hd	type	reject:not-writable	lang/07-functions.md#r-fn.trait.mut.call
@@ -2114,6 +2114,8 @@ runtime/valid/fn-trailing-bound.hd	runtime	accept	lang/07-functions.md#r-fn.trai
 typing/invalid/fn-trailing-bound-changes-capture.hd	type	reject:not-writable	lang/07-functions.md#r-fn.trailing.fn-bound
 typing/invalid/fn-bound-ref-changes-receiver.hd	type	reject:not-writable	lang/07-functions.md#r-fn.trait.read-only.bound-ref
 typing/invalid/fn-value-only-fn-mut.hd	type	reject:unsatisfied-trait-bound	lang/07-functions.md#r-fn.trait.read-only.values
+typing/valid/fn-value-from-parameter-or-field-meets-fn-mut.hd	type	accept	lang/07-functions.md#r-fn.trait.read-only.values
+typing/invalid/fn-value-from-field-only-fn-mut.hd	type	reject:unsatisfied-trait-bound	lang/07-functions.md#r-fn.trait.read-only.values
 typing/invalid/fn-bound-lifetime-read-only.hd	type	reject:not-writable	lang/13-values-and-references.md#r-ref.generic.outlives.read-only
 typing/invalid/function-result-representation-change.hd	type	reject:variance-representation-change	lang/07-functions.md#r-fn.type.variance-repr.excluded
 typing/invalid/closure-identity.hd	type	reject:identity-requires-references	lang/05-expressions.md#r-expr.is.function.operand

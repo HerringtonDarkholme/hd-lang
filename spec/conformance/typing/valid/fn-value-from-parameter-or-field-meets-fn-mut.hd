@@ -1,0 +1,15 @@
+# test: a value of a concrete fn type, read from a parameter or a field, meets an FnMut bound
+# Spec Functions, Read-Only Fn Closures: fn.trait.read-only.values.
+use std.function.FnMut
+
+struct Holder:
+    test: fn() -> bool
+
+fn change[F < FnMut() -> bool](mut f: F) -> bool:
+    f()
+
+fn from_parameter(g: fn() -> bool) -> bool:
+    change(g)
+
+fn from_field(h: Holder) -> bool:
+    change(h.test)

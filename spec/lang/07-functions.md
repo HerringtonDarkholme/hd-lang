@@ -450,7 +450,7 @@ The `Fn` trait describes the exact plain function type that a generic value
 may hold and call.
 
 1. r[fn.trait.decl] `std.function` declares `trait Fn[I < Tuple, O, $R = $()]` with `fn call(&self, args: I) -> O $R`.
-2. r[fn.trait.function-values] Every plain function value implements `Fn` for its exact inputs tuple, output type, and requirement row.
+2. r[fn.trait.function-values-read-only] A plain function value implements `Fn` for its exact inputs tuple, output type, and requirement row, except where [`fn.trait.read-only`](#r-fn.trait.read-only) and the rules after it make it implement only `FnMut`.
 3. r[fn.trait.bound-sugar] In a bound, `Fn(A, B) -> O $R` denotes `Fn[(A, B), O, $R]`, and an omitted row is `$()`.
 4. r[fn.trait.bound-tuple] The tuple form `Fn[(A, B), O, $R]` remains valid in a bound.
 5. r[fn.trait.call] A value of type parameter `F < Fn(A, B) -> O $R` may be called as `f(a, b)` and requires `$R`.

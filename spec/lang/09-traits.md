@@ -2132,7 +2132,7 @@ compiler and the standard library supply.
 | r[trait.sealed.integer] Integer | `Integer` | `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`, and `usize` ([Numeric Traits](#numeric-traits)) |
 | r[trait.sealed.float] Float | `Float` | `f32` and `f64` ([Numeric Traits](#numeric-traits)) |
 | r[trait.sealed.tuple] Tuple | `Tuple` | every tuple type ([Function Type Constructors](07-functions.md#function-type-constructors)) |
-| r[trait.sealed.fn] Fn | `Fn` | every plain function type ([Static Fn Bounds](07-functions.md#static-fn-bounds)) |
+| r[trait.sealed.fn-read-only] Fn | `Fn` | every plain function type, except for values that [Read-Only Fn Closures](07-functions.md#r-fn.trait.read-only) leave with `FnMut` only ([Static Fn Bounds](07-functions.md#static-fn-bounds)) |
 | r[trait.sealed.fn-mut] FnMut | `FnMut` | every plain function type ([FnMut Bounds](07-functions.md#fnmut-bounds)) |
 | r[trait.sealed.copy] Copy | `Copy` | every type that holds no `&mut`, no type declared `impl !Copy`, and no type parameter that is not `Copy` ([Copy](13-values-and-references.md#copy)) |
 
