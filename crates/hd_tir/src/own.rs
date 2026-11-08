@@ -998,19 +998,6 @@ pub struct Summary {
     pub writes: bool,
 }
 
-impl Summary {
-    /// The facts that hold of both `self` and `other`.
-    #[must_use]
-    pub fn meet(self, other: Self) -> Self {
-        Self {
-            kept: self.kept | other.kept,
-            borrows: self.borrows & other.borrows,
-            returns: self.returns.filter(|&k| other.returns == Some(k)),
-            writes: self.writes || other.writes,
-        }
-    }
-}
-
 /// The locals of `b`'s own parameters, the receiver first; a closure's are
 /// its sub-body's.
 #[must_use]
@@ -2940,8 +2927,7 @@ pub(crate) mod tests {
 
     /// A parameter that only lends is not kept, one an owned argument
     /// takes is; a body whose result is a parameter's whole read returns
-    /// it, unless it stores that parameter. Two summaries meet in what
-    /// both allow.
+    /// it, unless it stores that parameter.
     #[test]
     fn a_summary_keeps_what_the_body_holds_and_names_the_returned_parameter() {
         let n = NodeIdx::from_raw(1);
@@ -2968,28 +2954,6 @@ pub(crate) mod tests {
             Ty::STRING,
         );
         assert_eq!(returns, None);
-        let a = super::Summary {
-            kept: 0b01,
-            borrows: 0b10,
-            returns: Some(0),
-            writes: false,
-        };
-        let b = super::Summary {
-            kept: 0b10,
-            borrows: 0b01,
-            returns: Some(1),
-            writes: true,
-        };
-        assert_eq!(
-            a.meet(b),
-            super::Summary {
-                kept: 0b11,
-                borrows: 0,
-                returns: None,
-                writes: true
-            }
-        );
-        assert_eq!(a.meet(a), a);
     }
 
     /// A summary may tentatively lend a parameter through a binding, but a
