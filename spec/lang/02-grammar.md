@@ -273,9 +273,9 @@ fn sum(id: i32) -> i32?:
 A `:=` binding binds exactly one name; destructuring uses `let`:
 
 ```text
-fn pair() -> (i32, i32): (1, 2)
+fn pair() -> (usize, usize): (1, 2)
 
-fn split() -> i32:
+fn split() -> usize:
     total := 0
     let (low, high) = pair()
     total + low + high
@@ -1233,11 +1233,16 @@ A range expression joins two bounds with `..` or `..=`. A `..` may leave
 out either bound or both, and a `..=` may leave out its start:
 
 ```text
-fn parts(text: string, n: i32) -> (string, string, string, string, string, i32):
+fn parts(n: usize) -> usize:
     let total = 0
     for i in 0..n + 1:
         total = total + i
-    (text[1..], text[..2], text[0..=1], text[..=1], text[..], total)
+    from := 1..
+    upto := ..2
+    closed := 0..=1
+    closed_upto := ..=1
+    every := ..
+    total
 ```
 
 1. r[grammar.expr.range.precedence] `..` and `..=` bind more loosely than `||` and more tightly than control-flow expressions and `:=`, as in Rust. So `0..n + 1` is `0..(n + 1)`.

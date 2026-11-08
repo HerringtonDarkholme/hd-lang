@@ -296,7 +296,7 @@ fn window(items: List[i32]) -> ListView[i32]:
     items.view(1, 3)
 
 fn total(view: ListView[i32]) -> i32:
-    let sum = 0
+    let sum: i32 = 0
     for item in view:
         sum = sum + item
     sum + view[view.len() - 1]

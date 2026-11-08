@@ -58,7 +58,7 @@ See also: [Requirements and Suspension](11-requirements-and-suspension.md).
 
 ```text
 fn total(entries: List[i32?]) -> i32:
-    let sum = 0
+    let sum: i32 = 0
     for entry in entries:
         amount := match entry:
             .Some(value) => value

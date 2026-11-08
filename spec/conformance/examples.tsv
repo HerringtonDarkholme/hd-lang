@@ -54,7 +54,7 @@ lang/02-grammar.md	4	mixed	parse/invalid/tests-block-in-function.hd|typing/inval
 lang/02-grammar.md	5	complete	typing/valid/let-data-pattern.hd
 lang/02-grammar.md	6	mixed	parse/valid/let-list-without-mut.hd|parse/invalid/let-mut-short-binding.hd|parse/invalid/let-mut-bare-list.hd|parse/invalid/let-bare-list.hd|parse/invalid/let-list-one-name.hd
 lang/02-grammar.md	7	complete	typing/valid/let-else.hd
-lang/02-grammar.md	8	known-failure	parse/valid/binding-list.hd|parse/valid/paren-line-new-statement.hd
+lang/02-grammar.md	8	complete	parse/valid/binding-list.hd|parse/valid/paren-line-new-statement.hd
 lang/02-grammar.md	9	mixed	parse/invalid/short-binding-data-pattern.hd|parse/invalid/short-binding-tuple-pattern.hd|parse/invalid/bare-binding-list.hd|parse/invalid/binding-list-one-name.hd|parse/invalid/declaration-without-let.hd
 lang/02-grammar.md	10	complete	-
 lang/02-grammar.md	11	complete	-
@@ -83,7 +83,7 @@ lang/02-grammar.md	33	mixed	parse/invalid/tuple-rest-not-last.hd|parse/invalid/v
 lang/02-grammar.md	34	fragment	typing/valid/declaration-owns-requirement-clause.hd
 lang/02-grammar.md	35	mixed	parse/invalid/unparenthesized-result-row.hd
 lang/02-grammar.md	36	mixed	parse/invalid/chained-comparison.hd
-lang/02-grammar.md	37	known-failure	parse/valid/range-expressions.hd
+lang/02-grammar.md	37	complete	parse/valid/range-expressions.hd
 lang/02-grammar.md	38	mixed	parse/invalid/range-chained.hd|parse/invalid/range-inclusive-no-end.hd
 lang/02-grammar.md	39	complete	parse/valid/list-item-binding-expression.hd
 lang/02-grammar.md	40	mixed	parse/invalid/multi-binding-in-list.hd|parse/invalid/multi-binding-nested.hd
@@ -170,7 +170,7 @@ lang/03-names-and-scopes.md	57	fragment	typing/valid/enums.hd
 lang/03-names-and-scopes.md	58	complete	-
 lang/04-type-system.md	1	complete	-
 lang/04-type-system.md	2	complete	-
-lang/04-type-system.md	3	known-failure	runtime/valid/never-break-continue.hd
+lang/04-type-system.md	3	complete	runtime/valid/never-break-continue.hd
 lang/04-type-system.md	4	complete	typing/valid/mut-self-primitive-impl.hd
 lang/04-type-system.md	5	complete	runtime/valid/mut-self-primitive-arithmetic.hd
 lang/04-type-system.md	6	complete	typing/valid/usize-type.hd
@@ -332,7 +332,7 @@ lang/05-expressions.md	50	complete	runtime/valid/tuple-spread-fixed.hd|runtime/v
 lang/05-expressions.md	51	mixed	typing/invalid/tuple-spread-arity.hd|typing/invalid/positional-spread-without-vararg.hd
 lang/05-expressions.md	52	mixed	runtime/valid/tuple-spread-rest.hd|typing/invalid/tuple-spread-plain-into-vararg.hd|typing/invalid/tuple-spread-rest-into-plain.hd
 lang/05-expressions.md	53	fragment	typing/valid/functions.hd
-lang/05-expressions.md	54	known-failure	typing/valid/callable-values.hd|runtime/valid/callable-values-run.hd
+lang/05-expressions.md	54	complete	typing/valid/callable-values.hd|runtime/valid/callable-values-run.hd
 lang/05-expressions.md	55	type-fragment	-
 lang/05-expressions.md	56	mixed	typing/invalid/callable-value-no-update.hd|typing/invalid/compound-assign-not-place.hd|typing/invalid/callable-value-arguments.hd|typing/invalid/list-call-not-callable.hd
 lang/05-expressions.md	57	mixed	typing/invalid/callable-value-short-binding-store.hd|typing/invalid/callable-value-readonly-parameter.hd
@@ -398,7 +398,7 @@ lang/06-control-flow.md	15	complete	-
 lang/06-control-flow.md	16	complete	runtime/valid/for-snapshot-doubled.hd
 lang/06-control-flow.md	17	complete	-
 lang/06-control-flow.md	18	mixed	typing/invalid/for-element-references-mut-short-binding.hd|typing/invalid/for-element-references-push-conflict.hd|typing/invalid/for-element-references-store.hd
-lang/06-control-flow.md	19	known-failure	runtime/valid/range-iteration.hd
+lang/06-control-flow.md	19	complete	runtime/valid/range-iteration.hd
 lang/06-control-flow.md	20	mixed	typing/invalid/range-to-not-iterable.hd|typing/invalid/range-full-not-iterable.hd|typing/invalid/for-float-range.hd
 lang/06-control-flow.md	21	complete	-
 lang/06-control-flow.md	22	fragment	typing/valid/control-flow.hd
@@ -443,7 +443,7 @@ lang/07-functions.md	4	mixed	typing/invalid/mutual-recursion-omitted-results.hd
 lang/07-functions.md	5	mixed	typing/invalid/missing-return-value.hd
 lang/07-functions.md	6	mixed	typing/invalid/overload.hd
 lang/07-functions.md	7	complete	parse/valid/layout.hd
-lang/07-functions.md	8	known-failure	typing/valid/local-functions.hd
+lang/07-functions.md	8	complete	typing/valid/local-functions.hd
 lang/07-functions.md	9	mixed	typing/valid/functions.hd|typing/invalid/readonly-mutation.hd
 lang/07-functions.md	10	mixed	typing/invalid/reassign-parameter.hd
 lang/07-functions.md	11	complete	-
@@ -1003,7 +1003,7 @@ std/collections.md	1	complete	runtime/valid/uniq-list-moves-noncopyable-elements
 std/collections.md	2	complete	runtime/valid/uniq-map-basic-api.hd
 std/collections.md	3	complete	runtime/valid/std-list-extend-own-copy.hd
 std/collections.md	4	complete	runtime/valid/list-chunks.hd
-std/collections.md	5	known-failure	runtime/valid/list-view-run.hd
+std/collections.md	5	complete	runtime/valid/list-view-run.hd
 std/collections.md	6	mixed	typing/invalid/list-view-assignment.hd
 std/collections.md	7	complete	runtime/valid/list-view-snapshot.hd
 std/collections.md	8	complete	runtime/valid/list-span.hd
@@ -1105,7 +1105,7 @@ std/iter.md	1	complete	runtime/valid/iterable-cursor-types.hd
 std/iter.md	2	complete	typing/valid/iterator-adapters.hd
 std/iter.md	3	mixed	typing/invalid/iterator-filter-callback-row.hd|typing/valid/iterator-owned-drain.hd|typing/invalid/adapter-callback-scope-key.hd
 std/iter.md	4	complete	typing/valid/adapter-callback-captured-provider.hd
-std/iter.md	5	known-failure	runtime/valid/iterator-skip-take-while.hd|runtime/valid/iterator-zip-iterable.hd|runtime/valid/iterator-search-count.hd
+std/iter.md	5	complete	runtime/valid/iterator-skip-take-while.hd|runtime/valid/iterator-zip-iterable.hd|runtime/valid/iterator-search-count.hd
 std/iter.md	6	mixed	typing/invalid/iterator-chain-iterator-arg.hd
 std/iter.md	7	complete	runtime/valid/iterator-trait-adapter-structs.hd
 std/iter.md	8	complete	runtime/valid/iterator-numeric-targets.hd

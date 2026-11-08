@@ -405,14 +405,14 @@ A `for` loop iterates the integers of a [range](05-expressions.md#range-expressi
 
 ```text
 fn total(n: i32) -> i32:
-    let sum = 0
+    let sum: i32 = 0
     for i in 0..n:
         sum = sum + i
     for i in 1..=3:
         sum = sum + i
     sum
 
-fn first_square_over(limit: i32) -> i32:
+fn first_square_over(limit: usize) -> usize:
     let found = 0
     for i in 1..:
         if i * i > limit:

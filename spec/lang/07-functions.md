@@ -127,7 +127,7 @@ fn total_with_bonus(values: List[i32], bonus: i32) -> i32:
     fn add_bonus(value: i32) -> i32:
         value + bonus
 
-    let total = 0
+    let total: i32 = 0
     for value in values:
         total = total + add_bonus(value)
     total

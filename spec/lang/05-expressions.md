@@ -1140,7 +1140,7 @@ struct Panel:
     count: Cell[i32]
 
 fn parent(panel: &mut Panel) -> string:
-    let mut count = live(0)
+    let mut count: Cell[i32] = live(0)
     count() = 1
     count() += 1
     (panel.count)() += 1

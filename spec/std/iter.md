@@ -153,7 +153,7 @@ and draining methods that search or count them:
 fn body(lines: List[string]) -> List[string]:
     lines.iter().skip(1).take_while(fn(line: &string) -> bool: line != "").collect()
 
-fn labeled(names: List[string]) -> List[(i32, string)]:
+fn labeled(names: List[string]) -> List[(usize, string)]:
     [1, 2, 3].iter().zip(names).collect()
 
 fn has_blank(lines: List[string]) -> bool:
