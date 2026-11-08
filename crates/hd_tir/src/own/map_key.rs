@@ -1,13 +1,15 @@
 //! The count a table takes of a key, after its hash and probe.
 //! `MapSet` puts and an inserting probe's miss pass a copied key to the table.
+//! The miss also stores a copy of the default, which the intrinsic's body lends.
 
 use super::OwnCx;
 use crate::ir::{Body, Callee, IntrinsicOp, Ref, Tag};
 
-pub(super) fn needed(b: &Body, cx: &dyn OwnCx, i: usize) -> bool {
+/// Whether operand `k` (1, the key, or 2, a probe's default) is copied.
+pub(super) fn needed(b: &Body, cx: &dyn OwnCx, i: usize, k: usize) -> bool {
     let args = match b.tags.get(i) {
         Some(Tag::Intrinsic)
-            if IntrinsicOp::from_u32(b.data[i][0]) == Some(IntrinsicOp::MapSet) =>
+            if k == 1 && IntrinsicOp::from_u32(b.data[i][0]) == Some(IntrinsicOp::MapSet) =>
         {
             b.record(b.data[i][1])
         }
@@ -19,14 +21,11 @@ pub(super) fn needed(b: &Body, cx: &dyn OwnCx, i: usize) -> bool {
         }
         _ => return false,
     };
-    let [_, key, _] = *args else { return false };
-    let key = Ref(key);
-    let ty = match key.as_inst() {
+    let [_, _, _] = *args else { return false };
+    let r = Ref(args[k]);
+    let ty = match r.as_inst() {
         Some(v) => b.ty.get(v.0 as usize).copied(),
-        None => b
-            .consts
-            .get((key.0 & !Ref::CONST_BIT) as usize)
-            .map(|c| c.0),
+        None => b.consts.get((r.0 & !Ref::CONST_BIT) as usize).map(|c| c.0),
     };
     ty.is_some_and(|ty| cx.counted(ty))
 }

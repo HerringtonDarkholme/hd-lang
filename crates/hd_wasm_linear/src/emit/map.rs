@@ -801,6 +801,8 @@ impl Em<'_, '_, '_> {
             if let Some(reason) = self.operation_count(i, Tag::Retain, Part::Operand(1)) {
                 self.because(reason, |s| s.retain_locals(&kl, kt))?;
             }
+            let copy = self.operation_count(i, Tag::Retain, Part::Operand(2));
+            let was = std::mem::replace(&mut self.f.reason, copy);
             self.map_put_taking_key(
                 m,
                 vt,
@@ -808,6 +810,7 @@ impl Em<'_, '_, '_> {
                 (&kl, hash, found),
                 &Src::Ref(default),
             )?;
+            self.f.reason = was;
             self.f.get(m);
             self.f.op(I::I32Load(mem(HEAP, USED, 2)));
             self.f.i32(1);

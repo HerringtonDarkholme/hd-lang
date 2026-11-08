@@ -72,9 +72,9 @@ fn group(m: &mut Map[string, List[string]], k: string, v: string) -> void:
 >   local $1 k: string [param read] value
 >     uses $1: entry -> %3 lend last
 >   local $2 v: string [param read] value
->     uses $2: entry -> %9 consume last
->   %0 = Release %14 Exit local $1 #2 : ()
->   %1 = Retain %14 Entry local $2 #0 : ()
+>     uses $2: entry -> %10 consume last
+>   %0 = Release %15 Exit local $1 #2 : ()
+>   %1 = Retain %15 Entry local $2 #0 : ()
     m.get_or_insert(k, []).push(v)
 >   %2 = Read borrow [$0] : Ref[mut Map[string, List[string]]]
 >   %3 = Read borrow [$1] : string
@@ -82,13 +82,14 @@ fn group(m: &mut Map[string, List[string]], k: string, v: string) -> void:
 >   %5 = Call std/collections/impl [ K < Eq & Hash , V ] Map [ K , V ].get_or_insert[string, List[string]] (%2, %3, %4) : Ref[mut List[string]]
 >   %6 = MakeUnique %5 Operation operand 0 #5 : ()
 >   %7 = Retain %5 Operation operand 1 #0 : ()
->   %8 = Drop [%4] : ()
->   %9 = Read move [$2] : string
->   %10 = IsUnique [*%5] : ()
->   %11 = Read borrow [*%5] : List[string]
->   %12 = Intrinsic ListPush [%11 %9] : ()
->   %13 = Drop [%5] : ()
->   %14 = Block - : ()
+>   %8 = Retain %5 Operation operand 2 #0 : ()
+>   %9 = Drop [%4] : ()
+>   %10 = Read move [$2] : string
+>   %11 = IsUnique [*%5] : ()
+>   %12 = Read borrow [*%5] : List[string]
+>   %13 = Intrinsic ListPush [%12 %10] : ()
+>   %14 = Drop [%5] : ()
+>   %15 = Block - : ()
 >   exit sub 0 drops [$2]
 >   summary kept [$2] borrows [$1] writes
 

@@ -58,17 +58,12 @@ fn expected(b: &Body, cx: &dyn OwnCx, topo: &Topology) -> Vec<(Tag, u32, Info)> 
     out.extend(map_probe_unique::counts(b, cx));
     out.extend(child::counts(b, cx, topo));
     out.extend(waker::counts(b));
-    out.extend(
-        (0..b.len())
-            .filter(|&i| map_key::needed(b, cx, i))
-            .map(|i| {
-                (
-                    Tag::Retain,
-                    u32_of(i),
-                    Info::new(At::Operation, Part::Operand(1), 0),
-                )
-            }),
-    );
+    for i in 0..b.len() {
+        for k in (1..3).filter(|&k| map_key::needed(b, cx, i, k as usize)) {
+            let info = Info::new(At::Operation, Part::Operand(k), 0);
+            out.push((Tag::Retain, u32_of(i), info));
+        }
+    }
     out
 }
 
