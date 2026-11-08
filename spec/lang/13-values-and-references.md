@@ -1618,9 +1618,9 @@ struct Point:
     y: i32
 
 fn demo() -> bool:
-    let mut p = Point { x: 1, y: 2 }
-    let mut q = Point { x: 1, y: 2 }
-    r := &mut p
+    p := Point { x: 1, y: 2 }
+    q := Point { x: 1, y: 2 }
+    r := &p
     s := &p
     t := &q
     r is s && !(s is t) && *s == *t

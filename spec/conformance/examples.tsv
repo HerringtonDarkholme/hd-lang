@@ -897,7 +897,7 @@ lang/13-values-and-references.md	45	complete	runtime/valid/match-reference-decla
 lang/13-values-and-references.md	46	mixed	runtime/valid/match-reference-payload-borrow.hd|typing/invalid/match-reference-payload-borrow-type.hd|typing/invalid/match-reference-payload-borrow-conflict.hd
 lang/13-values-and-references.md	47	complete	-
 lang/13-values-and-references.md	48	mixed	typing/invalid/reference-deref-write-shared.hd|typing/invalid/reference-write-through-shared-field.hd
-lang/13-values-and-references.md	49	known-failure	-
+lang/13-values-and-references.md	49	complete	-
 lang/13-values-and-references.md	50	mixed	typing/invalid/reference-identity-different-types.hd|typing/invalid/reference-identity-value-operand.hd
 lang/13-values-and-references.md	51	mixed	typing/invalid/reference-equality.hd|typing/invalid/reference-inequality.hd|typing/valid/reference-equality-local-values.hd
 lang/13-values-and-references.md	52	complete	-
