@@ -72,6 +72,19 @@ jobs:
       - name: Install browser target
         run: rustup target add wasm32-unknown-unknown
 
+      # check:cost runs one `ast-grep scan` (sgconfig.yml, rules/cost/).
+      - name: Install ast-grep
+        shell: bash
+        run: |
+          set -euo pipefail
+          zip="$RUNNER_TEMP/ast-grep.zip"
+          curl -fsSL -o "$zip" https://github.com/ast-grep/ast-grep/releases/download/0.50.0/app-x86_64-unknown-linux-gnu.zip
+          echo "0fd3f489639abb8465a914b74b8779171577582318d8a940d00399f59dba81c5  $zip" | sha256sum -c -
+          unzip -q -o -d "$RUNNER_TEMP/ast-grep" "$zip"
+          bin="$(find "$RUNNER_TEMP/ast-grep" -type f -name ast-grep | head -n 1)"
+          chmod +x "$bin"
+          dirname "$bin" >> "$GITHUB_PATH"
+
       - name: Lint and format JS/TS
         if: ${{ !cancelled() }}
         run: |
@@ -80,6 +93,7 @@ jobs:
           pnpm run -s check:types
           pnpm run -s check:host-sources
           pnpm run -s check:spec-sync
+          pnpm run -s check:cost
           pnpm run -s check:typescript-sources
 
       - name: Check formatting

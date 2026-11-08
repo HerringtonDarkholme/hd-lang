@@ -386,6 +386,7 @@ impl Place {
     pub(crate) fn read_dir(&self) -> io::Result<(Place, Names)> {
         match self {
             Place::Ambient(path) => Ok((
+                // cost: the running program's own listing, one per its call.
                 Place::Ambient(path.clone()),
                 Box::new(std::fs::read_dir(path)?.map(|item| item.map(|e| e.file_name()))),
             )),

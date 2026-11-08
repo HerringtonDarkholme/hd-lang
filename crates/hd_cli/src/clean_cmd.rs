@@ -99,6 +99,7 @@ fn clean_cache() -> Result<Vec<String>, String> {
         return foreign("it is the home directory");
     }
     let mut present = Vec::new();
+    // cost: `hd clean` only; one listing of the directory it removes.
     for entry in std::fs::read_dir(&real).map_err(|e| format!("{shown}: {e}"))? {
         let name = entry.map_err(|e| e.to_string())?.file_name();
         let name = name.to_string_lossy().into_owned();
@@ -129,6 +130,8 @@ fn clean_cache() -> Result<Vec<String>, String> {
 /// (`cli.cache.entry`): a directory whose name holds `@`. Symbolic links
 /// are not followed.
 fn versions_in(pkg: &Path, dir: &Path, out: &mut Vec<String>) {
+    // cost: `hd cache clean` only; one listing per directory of the
+    // fetched versions it reports and removes.
     let Ok(entries) = std::fs::read_dir(dir) else {
         return;
     };
@@ -178,6 +181,7 @@ fn make_writable(dir: &Path) {
         perms.set_mode(perms.mode() | 0o700);
         let _ = std::fs::set_permissions(dir, perms);
     }
+    // cost: removal only, proportional to the tree it deletes.
     if let Ok(entries) = std::fs::read_dir(dir) {
         for entry in entries.flatten() {
             if entry.file_type().is_ok_and(|t| t.is_dir()) {

@@ -34,6 +34,7 @@ function chapters(specDir: string): string[] {
     ["std", /\.md$/],
     ["cli", /\.md$/],
   ] as const) {
+    // cost: three fixed spec directories, listed once per run.
     for (const name of readdirSync(join(specDir, directory)).sort()) {
       if (pattern.test(name) && name !== "README.md") {
         names.push(`${directory}/${name}`);

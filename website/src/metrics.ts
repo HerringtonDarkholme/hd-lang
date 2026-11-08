@@ -75,6 +75,7 @@ function loadSeries(dir: string): { series: Series[]; latest: string } {
     (left[col("finished")] ?? "").localeCompare(right[col("finished")] ?? ""),
   );
   // Goals live in the run files; the newest one names the current targets.
+  // cost: one listing per website build; the directory gains one name a day, names only.
   const daily = join(dir, "daily");
   const newest = existsSync(daily)
     ? readdirSync(daily)

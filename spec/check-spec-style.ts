@@ -168,6 +168,7 @@ async function main(args: readonly string[]): Promise<number> {
     await read("README.md"),
     await read(`${LANG_DIRECTORY}/06-control-flow.md`),
   );
+  // cost: the fixed spec tier directories, listed once per run.
   const markdown = async (directory: string): Promise<string[]> =>
     (await readdir(resolve(specDirectory, directory)).catch(() => []))
       .filter((name) => name.endsWith(".md"))

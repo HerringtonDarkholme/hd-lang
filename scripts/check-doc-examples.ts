@@ -32,6 +32,7 @@ function docFiles(repoDir: string): string[] {
       continue;
     }
     const directory = pattern.slice(0, pattern.lastIndexOf("/"));
+    // cost: one listing per doc directory DOC_FILES names, once per run.
     for (const name of readdirSync(join(repoDir, directory)).sort()) {
       if (name.endsWith(".md")) {
         files.push(`${directory}/${name}`);

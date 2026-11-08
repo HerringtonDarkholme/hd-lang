@@ -194,6 +194,8 @@ pub fn tree_files(dir: &Path) -> std::io::Result<Vec<String>> {
         if !rel.is_empty() && dir.join("hd.toml").symlink_metadata().is_ok() {
             return Ok(());
         }
+        // cost: a version tree is hashed once, when it is fetched or its
+        // hash record is missing; later runs read the record.
         for entry in std::fs::read_dir(dir)? {
             let entry = entry?;
             let name = entry.file_name().to_string_lossy().into_owned();

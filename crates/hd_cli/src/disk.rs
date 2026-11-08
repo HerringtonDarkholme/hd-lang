@@ -1310,6 +1310,7 @@ pub fn executables(root: &Path, package: &str) -> Vec<Runnable> {
 
 /// The package's tasks: each file `tasks/NAME.hd` (`cli.task.file`).
 pub fn tasks(root: &Path) -> Vec<Runnable> {
+    // cost: one listing of `tasks/`, a few files, per command that lists the runnables.
     let Ok(entries) = std::fs::read_dir(root.join("tasks")) else {
         return Vec::new();
     };

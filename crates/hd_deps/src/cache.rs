@@ -145,6 +145,7 @@ impl Cache {
 /// stays writable until it is in place, since some systems cannot rename a
 /// directory that is not writable.
 fn make_contents_read_only(dir: &Path) -> std::io::Result<()> {
+    // cost: once per fetched version, over the tree being stored.
     for entry in std::fs::read_dir(dir)? {
         let entry = entry?;
         let kind = entry.file_type()?;
@@ -183,6 +184,7 @@ fn set_read_only(path: &Path, read_only: bool) -> std::io::Result<()> {
 pub fn remove_tree(path: &Path) -> std::io::Result<()> {
     fn writable(dir: &Path) {
         let _ = set_read_only(dir, false);
+        // cost: removal only, proportional to the tree it deletes.
         if let Ok(entries) = std::fs::read_dir(dir) {
             for e in entries.flatten() {
                 if e.file_type().is_ok_and(|t| t.is_dir()) {

@@ -200,6 +200,7 @@ export function parseTourPage(source: string, text: string, number: number): Tou
 
 /** Every tour page, in order. */
 export function loadTour(repoDir: string): TourPage[] {
+  // cost: one listing of the tour directory per build.
   return readdirSync(join(repoDir, TOUR_DIR))
     .filter((name) => name.endsWith(".md"))
     .sort()

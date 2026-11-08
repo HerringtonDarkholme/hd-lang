@@ -1163,6 +1163,8 @@ mod packed {
                 .as_ref()
                 .map(|s| s.entries.values().map(|loc| loc.pack).collect())
                 .unwrap_or_default();
+            // cost: walks the pack directory only for `hd cache gc`, or when the
+            // recorded total is over the cap or unknown (#1501).
             for e in std::fs::read_dir(&self.root)? {
                 let e = e?;
                 if !e.file_type()?.is_file() {
@@ -1189,6 +1191,8 @@ mod packed {
             deadline: Option<Instant>,
         ) -> io::Result<()> {
             let mut attempted = false;
+            // cost: the slow path of `scan` only: `hd cache gc`, or a recorded
+            // total over the cap or unknown.
             for e in std::fs::read_dir(&self.root)? {
                 if attempted && deadline.is_some_and(|d| Instant::now() >= d) {
                     break;

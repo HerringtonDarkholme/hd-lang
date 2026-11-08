@@ -615,6 +615,7 @@ ${body}`;
 // Stale generated fixtures: a matrix file the generator no longer writes.
 for (const dir of ["runtime/valid", "runtime/panic", "typing/invalid"]) {
   const full = resolve(root, "conformance", dir);
+  // cost: a generator run by hand; three fixed directories.
   for (const name of readdirSync(full)) {
     const path = resolve(full, name);
     if (name.startsWith(stem) && !written.has(path)) {

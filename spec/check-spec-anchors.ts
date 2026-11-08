@@ -58,6 +58,8 @@ async function isFile(path: string): Promise<boolean> {
 
 async function markdownPaths(directory: string): Promise<string[]> {
   const paths: string[] = [];
+  // cost: one listing per spec directory per run, names only; the check
+  // covers every spec file by design.
   for (const entry of await readdir(directory, { withFileTypes: true })) {
     const path = resolve(directory, entry.name);
     if (entry.isDirectory()) {

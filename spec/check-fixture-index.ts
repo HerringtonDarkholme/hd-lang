@@ -105,6 +105,8 @@ for (const row of cases) {
 
 // Every fixture outside the package sources has exactly one cases.tsv row.
 function walk(directory: string): string[] {
+  // cost: one listing per conformance directory per run, names only; the
+  // check covers every fixture by design.
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = join(directory, entry.name);
     if (entry.isDirectory())
@@ -158,6 +160,7 @@ for (const row of cliRows) {
     }
   }
 }
+// cost: one listing of conformance/cli per run.
 for (const entry of readdirSync(join(conformance, "cli"), { withFileTypes: true })) {
   if (entry.isDirectory() && !cliNamed.has(entry.name)) {
     fail(`cli case directory ${entry.name} has no cli-cases.tsv row`);

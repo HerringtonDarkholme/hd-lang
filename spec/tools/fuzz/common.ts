@@ -84,6 +84,7 @@ export function invoke({
   const started = performance.now();
   return new Promise((complete) => {
     const words = action === "run" ? [] : [action];
+    // cost: one process per fuzz case the caller asks for (--cases); no check path runs it.
     const child = spawn(command[0]!, [...command.slice(1), ...words, ...options, path], {
       cwd,
       stdio: ["ignore", "pipe", "pipe"],
@@ -217,6 +218,7 @@ export function loadInventory(): Inventory {
 
 export function specFiles(directory: string, extension = ".hd"): string[] {
   const result: string[] = [];
+  // cost: one seed directory, listed once per fuzz run.
   for (const name of readdirSync(directory).sort()) {
     const path = join(directory, name);
     if (statSync(path).isDirectory()) {

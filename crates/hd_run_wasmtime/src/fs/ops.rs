@@ -78,6 +78,7 @@ pub(crate) fn run(
             // Incremental heap ordering allows checks during ordering, not just
             // around one potentially large, uncancellable sort operation.
             let mut names = std::collections::BinaryHeap::new();
+            // cost: the running program's own listing, one per its `scandir` call.
             let (dir, entries) = place
                 .read_dir()
                 .map_err(|err| Failure::new("scandir", below_a_file(place, err)))?;

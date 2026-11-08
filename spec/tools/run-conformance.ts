@@ -841,6 +841,7 @@ async function packageOptions(
     return {};
   }
   const directory = resolve(options.root, "packages");
+  // cost: one listing of a case's own packages/ directory, only for a case that selects a role.
   const entries = await readdir(directory, { withFileTypes: true }).catch(() => []);
   const names = entries
     .filter((entry) => entry.isDirectory())

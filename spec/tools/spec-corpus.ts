@@ -72,6 +72,7 @@ function directoryReader(specRoot: string): SpecReader {
   return {
     list: (directory) => {
       try {
+        // cost: one listing per call; callers list the fixed spec tier directories once per run.
         return readdirSync(resolve(specRoot, directory));
       } catch {
         return [];

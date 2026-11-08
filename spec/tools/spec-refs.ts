@@ -170,6 +170,7 @@ function scannedFiles(repoRoot: string): string[] {
       }
       return;
     }
+    // cost: walks the roots a `pnpm spec` command names, once per command; no check path runs it.
     for (const entry of readdirSync(path)) {
       if (entry !== "node_modules" && !entry.startsWith(".")) {
         walk(resolve(path, entry));

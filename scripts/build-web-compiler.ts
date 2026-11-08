@@ -50,6 +50,7 @@ function report(label: string, { raw, gzip }: { raw: number; gzip: number }): vo
 
 function build() {
   for (const crate of ["hd_web", "hd_wat"]) {
+    // cost: two fixed crates, one cargo process each, once per build.
     execFileSync(
       "cargo",
       [

@@ -1,0 +1,49 @@
+# Cost Model (.agents/skills/shared-rules.md): one process per item is work
+# proportional to the item count on every run. A call in a loop body, an
+# array callback, or a `new Promise` executor (a per-item process helper).
+id: cost-ts-spawn-in-loop
+language: TypeScript
+severity: error
+message: one process per item (loop body, array callback or promise helper); state its cost in a `cost:` comment
+files:
+  - scripts/**/*.ts
+  - spec/**/*.ts
+  - website/**/*.ts
+  - packages/**/*.ts
+ignores:
+  - '**/*.test.ts'
+  - '**/test/**'
+  - '**/tests/**'
+rule:
+  kind: call_expression
+  has:
+    field: function
+    regex: '(^|\.)(spawnSync|spawn|execFileSync|execFile|execSync)$'
+  inside:
+    stopBy: end
+    any:
+      - inside:
+          field: body
+          any:
+            - kind: for_statement
+            - kind: for_in_statement
+            - kind: while_statement
+            - kind: do_statement
+      - any:
+          - kind: arrow_function
+          - kind: function_expression
+        inside:
+          kind: arguments
+          inside:
+            kind: call_expression
+            has:
+              field: function
+              kind: member_expression
+              has:
+                field: property
+                regex: '^(map|forEach|flatMap|filter|reduce|some|every|find|findIndex)$'
+      # A promisified spawn is the per-item process helper its caller loops over.
+      - kind: new_expression
+        has:
+          field: constructor
+          regex: '^Promise$'

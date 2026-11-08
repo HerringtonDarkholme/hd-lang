@@ -343,6 +343,7 @@ export function createSupervisor({
     publish("cancelling");
   };
   for (const slot of slots) {
+    // cost: one worker per configured slot, fixed by the deployment.
     spawn(slot);
   }
   return Object.freeze({

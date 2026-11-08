@@ -1,0 +1,39 @@
+# Cost Model (.agents/skills/shared-rules.md): a directory listing on a
+# per-run path costs the size of the directory, not of the change.
+id: cost-rust-read-dir
+language: Rust
+severity: error
+message: directory listing on a per-run path; state its cost in a `cost:` comment
+files:
+  - crates/*/src/**/*.rs
+ignores:
+  - crates/*/src/**/tests.rs
+  - crates/*/src/**/*_tests.rs
+  - crates/*/src/**/test_*.rs
+  - crates/*/src/**/tests/**
+  # Test support, a dev-dependency only.
+  - crates/hd_testkit/**
+rule:
+  kind: call_expression
+  has:
+    field: function
+    regex: '(^|::|\.)(read_dir|WalkDir::new)$'
+  not:
+    inside:
+      stopBy: end
+      matches: cfg-test-item
+utils:
+  cfg-test-item:
+    any:
+      - kind: mod_item
+      - kind: function_item
+      - kind: impl_item
+    follows:
+      stopBy:
+        not:
+          any:
+            - kind: attribute_item
+            - kind: line_comment
+            - kind: block_comment
+      kind: attribute_item
+      regex: '^#\[(test|cfg\(test\))\]$'

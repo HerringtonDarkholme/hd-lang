@@ -1,0 +1,60 @@
+# Cost Model (.agents/skills/shared-rules.md): one process per item is work
+# proportional to the item count on every run.
+id: cost-rust-spawn-in-loop
+language: Rust
+severity: error
+message: one process per loop iteration or iterator item; state its cost in a `cost:` comment
+files:
+  - crates/*/src/**/*.rs
+ignores:
+  - crates/*/src/**/tests.rs
+  - crates/*/src/**/*_tests.rs
+  - crates/*/src/**/test_*.rs
+  - crates/*/src/**/tests/**
+  # Test support, a dev-dependency only.
+  - crates/hd_testkit/**
+rule:
+  kind: call_expression
+  has:
+    field: function
+    regex: '(^|::)Command::new$'
+  inside:
+    stopBy: end
+    any:
+      - kind: block
+        inside:
+          field: body
+          any:
+            - kind: for_expression
+            - kind: while_expression
+            - kind: loop_expression
+      - kind: closure_expression
+        inside:
+          kind: arguments
+          inside:
+            kind: call_expression
+            has:
+              field: function
+              kind: field_expression
+              has:
+                field: field
+                regex: '^(map|for_each|try_for_each|filter_map|flat_map|filter|fold|try_fold|any|all|find|find_map|map_while|scan|inspect)$'
+  not:
+    inside:
+      stopBy: end
+      matches: cfg-test-item
+utils:
+  cfg-test-item:
+    any:
+      - kind: mod_item
+      - kind: function_item
+      - kind: impl_item
+    follows:
+      stopBy:
+        not:
+          any:
+            - kind: attribute_item
+            - kind: line_comment
+            - kind: block_comment
+      kind: attribute_item
+      regex: '^#\[(test|cfg\(test\))\]$'

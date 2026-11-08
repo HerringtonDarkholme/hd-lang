@@ -1,0 +1,20 @@
+# Cost Model (.agents/skills/shared-rules.md): a directory listing on a
+# per-run path costs the size of the directory, not of the change.
+id: cost-ts-readdir
+language: TypeScript
+severity: error
+message: directory listing on a per-run path; state its cost in a `cost:` comment
+files:
+  - scripts/**/*.ts
+  - spec/**/*.ts
+  - website/**/*.ts
+  - packages/**/*.ts
+ignores:
+  - '**/*.test.ts'
+  - '**/test/**'
+  - '**/tests/**'
+rule:
+  kind: call_expression
+  has:
+    field: function
+    regex: '(^|\.)(readdirSync|readdir|opendirSync|opendir)$'
