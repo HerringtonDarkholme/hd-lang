@@ -6,7 +6,7 @@
 use hd_base::SliceSort as _;
 use hd_base::{HashMap, HashSet};
 
-use hd_base::{DefId, StageResult, Symbol};
+use hd_base::{DefId, InferVar, StageResult, Symbol};
 use hd_diag::Code;
 use hd_intern::PathKind;
 use hd_resolve::{BindingKind, FnSig, HeadKind, Item, ItemData, Src};
@@ -176,6 +176,8 @@ pub(crate) enum Hit {
     },
     /// Methods of two or more traits (`trait.resolve.ambiguous`).
     Ambiguous(Vec<DefId>),
+    /// Open receiver arguments decide which trait supplies the method.
+    UnknownReceiver(Vec<InferVar>),
     /// A lookup among these traits whose proof needs more than 64 nested
     /// bounds (`trait.bound.depth.limit`).
     TooDeep(Vec<DefId>),
@@ -3676,6 +3678,9 @@ impl Ck<'_, '_> {
         // `X`'s instantiations of `From` like a dot call.
         if !is_param {
             match self.trait_part(t, sym, &self.available_traits(sym))? {
+                Some(Hit::UnknownReceiver(on)) => {
+                    return Ok(self.unknown_method_receiver(&on, name, n));
+                }
                 Some(Hit::Ambiguous(found)) => {
                     let names: Vec<String> = self
                         .cx
@@ -4417,7 +4422,7 @@ impl Ck<'_, '_> {
         };
         let cands = match self.solve_goal(&goal)? {
             Answer::Candidates(c) => c,
-            Answer::Stalled { .. } => return self.waiting_trait(t, &builtin, traits),
+            Answer::Stalled { on } => return self.waiting_trait(t, &builtin, traits, on),
             Answer::Overflow => return Ok(Some(Hit::TooDeep(asked))),
             // ruled out: TableSolver::methods absorbs Fails and returns candidates,
             // stall or depth; solve_goal handles fuel. Direct Holds is poison recovery.
@@ -4466,6 +4471,7 @@ impl Ck<'_, '_> {
         t: Ty,
         builtin: &[(DefId, DefId, Vec<Ty>)],
         traits: &[(DefId, DefId)],
+        on: Vec<InferVar>,
     ) -> StageResult<Option<Hit>> {
         let mut open: Vec<DefId> = builtin.iter().map(|b| b.0).collect();
         for &(tr, _) in traits {
@@ -4484,12 +4490,37 @@ impl Ck<'_, '_> {
             }
         }
         match open.as_slice() {
+            // ruled out: Methods stalls only when an Instantiations goal stalls.
+            [] => Ok(None),
             [tr] => Ok(traits
                 .iter()
                 .find(|(x, _)| x == tr)
                 .map(|&(trait_, method)| Hit::Pending { trait_, method })),
-            _ => unsupported("a method of several traits whose impl waits for inference"),
+            _ => Ok(Some(Hit::UnknownReceiver(on))),
         }
+    }
+
+    /// `trait.resolve.lookup.unknown-argument`: later context does not
+    /// choose between traits at this lookup. Poison open receiver arguments
+    /// so closing the original generic call adds no duplicate error.
+    pub(crate) fn unknown_method_receiver(
+        &mut self,
+        on: &[InferVar],
+        name: &str,
+        n: NodeRef<'_>,
+    ) -> (Ref, Ty) {
+        self.err(
+            Code::CannotInferType,
+            n,
+            &format!("the receiver's type arguments are not known here: annotate its binding before selecting `{name}`"),
+        );
+        let pool = self.pool();
+        for &v in on {
+            let v = pool.intern_ty(&TyData::Infer(v));
+            self.infer
+                .rebind(pool, self.infer.shallow(pool, v), Ty::POISON);
+        }
+        self.poison_value(n)
     }
 
     /// `recv.name(args)`.
@@ -4537,6 +4568,7 @@ impl Ck<'_, '_> {
             return self.method_on(recv, rt, name, args, (n, bang), want);
         }
         match hit {
+            Some(Hit::UnknownReceiver(on)) => Ok(self.unknown_method_receiver(&on, name, n)),
             Some(Hit::TooDeep(traits)) => {
                 self.method_too_deep(name, &traits, n);
                 Ok((Ref(NONE), Ty::POISON))

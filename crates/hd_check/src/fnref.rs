@@ -509,6 +509,10 @@ impl Ck<'_, '_> {
                     self_ty,
                 }));
             }
+            Some(Hit::UnknownReceiver(on)) => {
+                self.unknown_method_receiver(&on, name, n);
+                return Ok(None);
+            }
             Some(Hit::TooDeep(traits)) => {
                 self.method_too_deep(name, &traits, n);
                 return Ok(None);

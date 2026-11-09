@@ -6187,6 +6187,11 @@ runtime/panic/assert-equal-used-as-a-function-value-fails-on-unequal-arguments.h
 runtime/valid/assert-equal-used-as-a-function-value-compares-its-arguments.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.category.value
 runtime/valid/box-used-as-a-function-value-makes-a-new-object-per-call.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.category.value
 runtime/valid/fn-call-used-as-a-function-value-calls-its-receiver.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.category.value
+typing/invalid/a-method-call-does-not-wait-for-a-later-receiver-argument.hd	type	reject:cannot-infer-type	lang/09-traits.md#r-trait.resolve.lookup.unknown-argument
+typing/invalid/a-method-reference-needs-the-receivers-trait-selecting-argument.hd	type	reject:cannot-infer-type	lang/07-functions.md#r-fn.ref.lookup
+typing/valid/an-earlier-annotation-selects-a-receivers-method-trait.hd	type	accept	lang/09-traits.md#r-trait.resolve.lookup
+typing/valid/one-pending-method-trait-keeps-later-receiver-context.hd	type	accept	lang/04-type-system.md#r-types.generic.infer
+typing/invalid/a-method-trait-choice-reports-once-without-later-context.hd	type	reject:cannot-infer-type	lang/09-traits.md#r-trait.resolve.lookup.unknown-argument
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
