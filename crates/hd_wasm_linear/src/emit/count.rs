@@ -50,6 +50,8 @@ impl Em<'_, '_, '_> {
         if self.retained_before_result.remove(&value) {
             return Ok(());
         }
+        // ruled out: retained_results verifies Retain immediately after its value;
+        // lowering stores that value or records its earlier retain above.
         let Some(locals) = self.vals.get(&value).cloned() else {
             return crate::unsupported("a retain before its value is constructed");
         };
@@ -417,6 +419,8 @@ impl Em<'_, '_, '_> {
             self.assert_cancelled(&super::drop_flags::Root::Local(l));
             // A slot has one holder, its local (`closure::slot_locals`).
             if self.slots.contains_key(&l) {
+                // ruled out: only captures request a retained local; storage::run
+                // gives their child-body storage cells, while slots belong to sub 0.
                 if retain {
                     return crate::unsupported("a second count of a local's slot");
                 }
@@ -704,6 +708,7 @@ impl Em<'_, '_, '_> {
         }
         // Saved reference-object slots have their own normal-exit contract.
         for (l, held) in self.frame_refs.clone() {
+            // ruled out: own::referent pairs every saved cold reference with an Exit release.
             let Some(reason) = self.stated_count(
                 Tag::Release,
                 At::Exit,
@@ -1037,18 +1042,13 @@ impl Em<'_, '_, '_> {
             let l = (word & !hd_tir::ir::place::BARE_LOCAL) as usize;
             return self.release_local(l);
         }
-        match self.b.decode_place(word) {
-            Some(hd_tir::ir::Place {
-                root: hd_tir::ir::PlaceRoot::Value(r),
-                proj,
-            }) if proj.is_empty() && r.as_inst().is_some() => {
-                if self.counting && self.own_drop_rest(i, r.0)? {
-                    return Ok(());
-                }
-                self.release_value(r.0)
-            }
-            _ => crate::unsupported("a `Drop` of a part of a place"),
+        // ruled out: own::insert writes only [ROOT_VALUE, instruction] records
+        // for non-local Drops; moves leave that whole root Drop in place.
+        let value = self.b.record(word)[1];
+        if self.counting && self.own_drop_rest(i, value)? {
+            return Ok(());
         }
+        self.release_value(value)
     }
 
     /// `LoanEnd` `i`: the holder's reference counts nothing, so only its
