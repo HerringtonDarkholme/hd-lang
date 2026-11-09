@@ -715,15 +715,9 @@ impl Em<'_, '_, '_> {
                         return false;
                     };
                     match &call.kind {
-                        hd_mono::TargetKind::Intrinsic(key) => {
-                            key == "sqrt"
-                                || key == "abs"
-                                || key == "trunc"
-                                || key == "floor"
-                                || key == "ceil"
-                                || key == "round_ties_even"
-                                || key == "copysign"
-                        }
+                        // The float operations are `Builtin` methods; no
+                        // intrinsic key names one (`hd_resolve::intrinsics`).
+                        hd_mono::TargetKind::Intrinsic(_) => false,
                         hd_mono::TargetKind::Builtin { self_ty, .. } => {
                             matches!(self.pool().get(*self_ty), TyData::Prim(p) if p.is_float())
                                 && matches!(
