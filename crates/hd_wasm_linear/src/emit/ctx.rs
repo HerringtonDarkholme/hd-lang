@@ -106,6 +106,7 @@ impl Em<'_, '_, '_> {
                 let id = key_id(self.input, k);
                 Ok(ctx_lookup(&mut self.f, c, id))
             }
+            // ruled out: checking covers each key; body_func installs its parameter or open context.
             None => unsupported(format!(
                 "a provider of `{}` this function does not take",
                 self.pool().display(k)
@@ -116,14 +117,13 @@ impl Em<'_, '_, '_> {
     /// The keys of function type `t`'s row in key order, but its open
     /// row, and whether it lists the open row, whose keys only the
     /// context names.
-    pub(super) fn fn_row(&self, t: Ty) -> StageResult<(Vec<Ty>, bool)> {
+    pub(super) fn fn_row(&self, t: Ty) -> (Vec<Ty>, bool) {
         let TyData::Fn { row, .. } = self.pool().get(strip(self.pool(), self.env(), t)) else {
             unreachable!("a closure's or a called value's type is a function");
         };
+        // ruled out: mono::subst replaces owned row parameters with concrete keys
+        // or the open-row key before fn_row is called (req.poly.one-body).
         let data = self.pool().row_data(row);
-        if !data.params.is_empty() {
-            return unsupported("a function value with an unsolved row");
-        }
         let open = hd_mono::row_is_open(self.pool(), row);
         let keys: Vec<Ty> = data
             .keys
@@ -132,10 +132,10 @@ impl Em<'_, '_, '_> {
             .filter(|k| !matches!(self.pool().get(*k), TyData::Canon(_)))
             .collect();
         let env = self.env();
-        Ok((
+        (
             hd_mono::key_order(self.pool(), &|d| env.path_hash(d), keys),
             open,
-        ))
+        )
     }
 
     /// The keys of a context type's row, whole and in key order: the
@@ -187,9 +187,11 @@ impl Em<'_, '_, '_> {
             }
             return Ok(None);
         }
+        // ruled out: the driver roots std runtime items before collecting a program.
         if self.input.runtime.is_none() {
             return unsupported("a context without std's allocator");
         }
+        // ruled out: own::call_row states provider copies for every call needing a context.
         let Some(copy) = copy else {
             return unsupported("a call context without its stated provider copies");
         };
@@ -247,7 +249,7 @@ impl Em<'_, '_, '_> {
     /// the providers of its row's keys, in front of the open context when
     /// the row lists the open row (§12.4, one callable ABI).
     pub(super) fn push_fn_ctx(&mut self, i: u32, ft: Ty) -> StageResult<Option<u32>> {
-        let (mut keys, open) = self.fn_row(ft)?;
+        let (mut keys, open) = self.fn_row(ft);
         if open {
             self.scope_keys(&mut keys);
         }
@@ -259,6 +261,7 @@ impl Em<'_, '_, '_> {
     /// A forwarded caller context remains borrowed and emits no release.
     pub(super) fn release_call_ctx(&mut self, i: u32, c: Option<u32>) -> StageResult<()> {
         if c.is_some() {
+            // ruled out: own::call_row pairs each constructed context with its release packet.
             let Some(end) = self.operation_count(i, Tag::Release, Part::Row) else {
                 return unsupported("a call context without its stated release");
             };
@@ -321,6 +324,7 @@ impl Em<'_, '_, '_> {
     /// last pair that binds it: a trait value of the key, or the entry of a
     /// spread context.
     pub(super) fn context_new(&mut self, i: u32, rec: u32) -> StageResult<()> {
+        // ruled out: the driver roots std runtime items before collecting a program.
         if self.input.runtime.is_none() {
             return unsupported("a context without std's allocator");
         }
@@ -342,6 +346,7 @@ impl Em<'_, '_, '_> {
                     break;
                 }
             }
+            // ruled out: check::context_new derives this row from these provider/spread pairs.
             let Some(src) = src else {
                 return unsupported("a context key that no entry binds");
             };
@@ -369,6 +374,7 @@ impl Em<'_, '_, '_> {
         let copy = self.operation_count(i, Tag::Retain, Part::Row);
         for (j, (k, [d, v])) in keys.iter().zip(provs).enumerate() {
             let id = key_id(self.input, *k);
+            // ruled out: own::context states provider copies for nonempty ContextNew records.
             let Some(reason) = copy else {
                 return unsupported("a context without its stated provider copies");
             };

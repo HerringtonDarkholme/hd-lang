@@ -1,0 +1,10 @@
+# @dump: wat
+# expected: forwarding the open context passes its pointer unchanged;
+# no context allocation, provider count or constructed-context release.
+# The owned callback environment still has its last-use release.
+fn invoke[$ R](callback: fn() -> u32 $ R) -> u32 $ R:
+    callback()
+    #^^^^^^^^^^
+
+fn run(callback: fn() -> u32 $ Console) -> u32 $ Console:
+    invoke(callback)
