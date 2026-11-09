@@ -1,0 +1,9 @@
+[package]
+name = "diamond-host"
+
+[host]
+"main.Both" = "provider.ts"
+
+[capabilities]
+Console = true
+"pkg.main.Both" = true

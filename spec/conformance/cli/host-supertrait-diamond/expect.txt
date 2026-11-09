@@ -1,0 +1,8 @@
+run: hd run --engine node --time-limit 2s
+stdout: 23
+stdout: 21
+stdout: 22
+run: hd run --engine node --release --time-limit 2s
+stdout: 23
+stdout: 21
+stdout: 22

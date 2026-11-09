@@ -1,0 +1,27 @@
+# @dump: wat
+# expected: Both's Left and Right pointers are at offsets 4 and 8.
+# Each branch's Base pointer is at offset 4; dispatch uses Base's slot 0.
+# The payload is unchanged; widening retains/releases it without allocation.
+trait Base:
+    fn base(&self) -> u32
+
+trait Left < Base:
+    fn left(&self) -> u32
+
+trait Right < Base:
+    fn right(&self) -> u32
+
+trait Both < Left & Right:
+    fn both(&self) -> u32
+
+fn left(value: &dyn Left) -> u32:
+    value.base()
+
+fn right(value: &dyn Right) -> u32:
+    value.base()
+
+fn via_left(value: &dyn Both) -> u32:
+    left(value)
+
+fn via_right(value: &dyn Both) -> u32:
+    right(value)

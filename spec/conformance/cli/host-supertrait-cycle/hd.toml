@@ -1,0 +1,8 @@
+[package]
+name = "cycle-host"
+
+[host]
+"main.Both" = "provider.ts"
+
+[capabilities]
+"pkg.main.Both" = true

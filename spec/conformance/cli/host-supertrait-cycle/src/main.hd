@@ -1,0 +1,10 @@
+# Spec Traits: trait.super.acyclic, trait.super.cycle-report.
+pub trait Parent < Both:
+    fn parent(&self) -> u32
+
+@host
+pub trait Both < Parent:
+    fn both(&self) -> u32
+
+pub fn main() -> void $ Both:
+    pass
