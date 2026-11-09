@@ -84,34 +84,39 @@ fn package_error_exits_101_and_prints_it() {
     );
 }
 
-/// A program the checker cannot take yet: a method on a value whose type
-/// is not yet known (`f.go()`). `hd build` stops on it with the same error.
-const UNSUPPORTED: &str = "fn mk[T]() -> T:\n    panic(\"x\")\n\npub fn main() -> void:\n    f := mk()\n    let _ = f.go()\n";
+/// Method lookup needs its receiver's type (`trait.resolve.lookup.unknown-receiver`).
+/// `hd build` stops on the same source-located inference error.
+const UNKNOWN_RECEIVER: &str = "fn mk[T]() -> T:\n    panic(\"x\")\n\npub fn main() -> void:\n    f := mk()\n    let _ = f.go()\n";
 
 #[test]
-fn unsupported_program_fails_the_check() {
-    let dir = package("hd-check-unsupported", UNSUPPORTED);
+fn unknown_receiver_fails_the_check() {
+    let dir = package("hd-check-unknown-receiver", UNKNOWN_RECEIVER);
     let r = check(&dir, &[]);
     assert_eq!(r.code, Some(101), "{}", r.err);
     assert_eq!(
         r.err,
-        "error: main.hd:6:13: unsupported: stage Body: a method on a value whose type is not yet known is not supported\n\
+        "error: main.hd:6:13: cannot-infer-type: the receiver's type is not known enough here: annotate its binding before selecting `go`\n\
          check result: FAILED. errors: 1; warnings: 0\n"
     );
     assert!(!dir.join("build").exists(), "check writes no build output");
 }
 
 #[test]
-fn unsupported_program_fails_the_check_in_json() {
-    let dir = package("hd-check-unsupported-json", UNSUPPORTED);
+fn unknown_receiver_fails_the_check_in_json() {
+    let dir = package("hd-check-unknown-receiver-json", UNKNOWN_RECEIVER);
     let r = check(&dir, &["--format", "json"]);
     assert_eq!(r.code, Some(101), "{}", r.err);
     let lines: Vec<&str> = r.out.lines().collect();
     assert_eq!(lines.len(), 2, "{}", r.out);
     assert!(
         lines[0].starts_with(
-            "{\"kind\":\"diagnostic\",\"code\":\"unsupported\",\"severity\":\"error\",\"message\":\"stage Body: "
+            "{\"kind\":\"diagnostic\",\"code\":\"cannot-infer-type\",\"severity\":\"error\",\"message\":\"the receiver's type is not known enough here: "
         ),
+        "{}",
+        lines[0]
+    );
+    assert!(
+        lines[0].contains("\"file\":\"main.hd\",\"line\":6,\"column\":13"),
         "{}",
         lines[0]
     );

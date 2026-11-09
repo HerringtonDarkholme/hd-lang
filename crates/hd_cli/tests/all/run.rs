@@ -335,26 +335,26 @@ fn run_file_ignores_broken_siblings() {
     assert_eq!(hd_run(&cache("hd-cache-sibling"), &file), "fine\n");
 }
 
-/// An `unsupported` error names the file and position of the construct,
-/// not the sentinel span `:0..0`.
+/// An unresolved receiver is a source-located inference error
+/// (`trait.resolve.lookup.unknown-receiver`).
 #[test]
-fn unsupported_error_names_its_file() {
-    let dir = Scratch::new(env!("CARGO_TARGET_TMPDIR"), "hd-run-unsupported");
+fn unknown_receiver_error_names_its_file() {
+    let dir = Scratch::new(env!("CARGO_TARGET_TMPDIR"), "hd-run-unknown-receiver");
     let file = dir.join("pattern.hd");
     std::fs::write(
         &file,
         "fn mk[T]() -> T:\n    panic(\"x\")\n\npub fn main() -> void:\n    f := mk()\n    let _ = f.go()\n",
     )
     .expect("write");
-    let output = hd(&cache("hd-cache-unsupported"))
+    let output = hd(&cache("hd-cache-unknown-receiver"))
         .arg(&file)
         .output()
         .expect("run hd");
     assert!(!output.status.success());
     let err = String::from_utf8_lossy(&output.stderr);
-    assert!(err.contains("pattern.hd:"), "{err}");
+    assert!(err.contains("pattern.hd:6:13: cannot-infer-type"), "{err}");
     assert!(
-        err.contains("a method on a value whose type is not yet known"),
+        err.contains("the receiver's type is not known enough here"),
         "{err}"
     );
     assert!(!err.contains(":0..0"), "{err}");

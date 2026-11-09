@@ -3,4 +3,4 @@
 
 fn count(words: List[string]) -> usize:
     names := words.iter().collect() # diagnostic: cannot-infer-type
-    names.len()
+    0
