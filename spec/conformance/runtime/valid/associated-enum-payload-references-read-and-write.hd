@@ -1,0 +1,37 @@
+# test: associated enum payload references support shared reads and mutable replacement
+# Spec References: ref.match.borrow; Traits: trait.assoc.projection; Data: data.enum.generic.instance.
+# expect-stdout: 9
+trait Source:
+    type Item
+
+struct Provider: pass
+
+struct Number:
+    value: u32
+
+impl !Copy for Number
+
+impl Source for Provider:
+    type Item = Number
+
+enum Holder[S < Source]:
+    Empty
+    Full(value: S::Item)
+
+fn rewrite(holder: &mut Holder[Provider], replacement: Number) -> void:
+    match holder:
+        .Full(value) => *value = replacement
+        .Empty => pass
+
+fn number(value: &Number) -> u32:
+    value.value
+
+fn read(holder: &Holder[Provider]) -> u32:
+    match holder:
+        .Full(value) => number(value)
+        .Empty => 0
+
+pub fn main() -> void $ Console:
+    let mut holder = Holder::[Provider].Full(Number { value: 1 })
+    rewrite(&mut holder, Number { value: 9 })
+    println(read(&holder))

@@ -1,0 +1,27 @@
+# test: an associated payload borrow exposes its concrete fields for assignment
+# Spec References: ref.match.borrow; ref.write.field; Traits: trait.assoc.projection.
+trait Source:
+    type Item
+
+struct Provider: pass
+
+struct Number:
+    value: u32
+
+impl !Copy for Number
+
+impl Source for Provider:
+    type Item = Number
+
+enum Holder[S < Source]:
+    Empty
+    Full(value: S::Item)
+
+fn write(holder: &mut Holder[Provider]) -> void:
+    match holder:
+        .Full(value) => value.value = 9
+        .Empty => pass
+
+pub fn main() -> void:
+    let mut holder = Holder::[Provider].Full(Number { value: 1 })
+    write(&mut holder)

@@ -732,6 +732,7 @@ impl Em<'_, '_, '_> {
         while k < steps.len() {
             match (steps[k], steps.get(k + 1)) {
                 (Proj::Variant(v), Some(&Proj::Field(f))) => {
+                    // gap: #1544: associated payload declarations can use a boxed layout.
                     if matches!(self.kind(ty), Kind::Boxed) {
                         return unsupported("a reference to a payload field of a boxed enum");
                     }
