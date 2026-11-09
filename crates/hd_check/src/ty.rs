@@ -1141,26 +1141,30 @@ impl Ck<'_, '_> {
                 Some(child) => self.ty_node_as(child, role)?,
                 None => Ty::VOID,
             },
+            SyntaxKind::RestType => {
+                let t = first(self, n)?;
+                // Tuple types and function inputs use the same rest
+                // element (`types.tuple.rest.list`, `fn.type.vararg-rest`).
+                let list = self.cx.names.known.list;
+                if !matches!(pool.get(t), TyData::Adt { def, .. } if def == list) && t != Ty::POISON
+                {
+                    self.err(
+                        Code::TypeMismatch,
+                        n,
+                        "a rest element's type must be a `List`",
+                    );
+                }
+                t
+            }
             SyntaxKind::TupleType => {
                 let mut elems = Vec::new();
                 let mut rest = None;
                 for c in n.children().filter(|c| c.kind().is_type()) {
+                    let t = self.ty_node(c)?;
                     if c.kind() == SyntaxKind::RestType {
-                        let t = first(self, c)?;
-                        // `types.tuple.rest.list`: a rest element is a `List`.
-                        let list = self.cx.names.known.list;
-                        if !matches!(pool.get(t), TyData::Adt { def, .. } if def == list)
-                            && t != Ty::POISON
-                        {
-                            self.err(
-                                hd_diag::Code::TypeMismatch,
-                                c,
-                                "a rest element's type must be a `List`",
-                            );
-                        }
                         rest = Some(t);
                     } else {
-                        elems.push(self.ty_node(c)?);
+                        elems.push(t);
                     }
                 }
                 pool.intern_ty(&TyData::Tuple {
@@ -1312,7 +1316,9 @@ impl Ck<'_, '_> {
                     counted,
                 })
             }
-            other => return unsupported(format!("the type form {other:?} in a body")),
+            // `parser::types` emits only the type production kinds above
+            // (`SyntaxKind::is_type`); malformed types stop before bodies.
+            _ => Ty::POISON,
         })
     }
 }

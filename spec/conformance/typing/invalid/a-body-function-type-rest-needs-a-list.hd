@@ -1,0 +1,4 @@
+# test: a function type written in a closure parameter needs a List rest input
+# Spec rules types.tuple.rest.list, fn.type.vararg-rest
+fn run() -> void:
+    _ := fn(callback: fn(i32...) -> i32) -> void: pass # diagnostic: type-mismatch

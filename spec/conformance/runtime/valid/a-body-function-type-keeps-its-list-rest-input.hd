@@ -1,0 +1,14 @@
+# test: body-written function types preserve List rest inputs
+# Spec rules fn.type.vararg-rest, fn.type.rest-call
+# expect-stdout: 1 6 10 15
+fn sum(start: i32, values...: List[i32]) -> i32:
+    let total = start
+    for value in values:
+        total += value
+    total
+
+pub fn main() -> void $ Console:
+    let callback: fn(i32, List[i32]...) -> i32 = sum
+    let nested: List[fn(i32, List[i32]...) -> i32] = [sum]
+    apply := fn(f: fn(i32, List[i32]...) -> i32) -> i32: f(4, 5, 6)
+    println("${callback(1)} ${callback(1, 2, 3)} ${nested[0](1, [4, 5]...)} ${apply(sum)}")

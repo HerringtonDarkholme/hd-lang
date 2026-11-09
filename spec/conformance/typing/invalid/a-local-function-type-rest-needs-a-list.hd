@@ -1,0 +1,5 @@
+# test: a local function signature needs a List rest input in a function type
+# Spec rules types.tuple.rest.list, fn.type.vararg-rest
+fn run() -> void:
+    fn apply(callback: fn(i32...) -> i32) -> void: # diagnostic: type-mismatch
+        pass
