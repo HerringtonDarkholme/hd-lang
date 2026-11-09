@@ -922,9 +922,9 @@ impl Em<'_, '_, '_> {
 
     /// The local holding the data address of the trait value reference at
     /// `at`, its first value.
-    fn data_address(&mut self, at: &super::refs::At) -> StageResult<u32> {
+    fn data_address(&mut self, at: &super::refs::At) -> u32 {
         match at {
-            super::refs::At::Vals(ls) if !ls.is_empty() => Ok(ls[0]),
+            super::refs::At::Vals(ls) if !ls.is_empty() => ls[0],
             _ => self.at_i32(at),
         }
     }
@@ -1149,7 +1149,7 @@ impl Em<'_, '_, '_> {
                 }
                 (k, _, _, Some((r, q))) if k >= READ && k != ROOT => {
                     let (at, _) = self.walk_place(*r, q, k - READ, None)?;
-                    self.at_i32(&at)?
+                    self.at_i32(&at)
                 }
                 _ => {
                     // ruled out: `ROOT` is pushed only for `Roots::of`'s root,
@@ -1160,7 +1160,7 @@ impl Em<'_, '_, '_> {
                     // there. What remains is a step of the place itself.
                     debug_assert!(k < READ, "a root or read crossing without its object");
                     let (at, _) = self.walk_place(i, &p, k, None)?;
-                    self.at_i32(&at)?
+                    self.at_i32(&at)
                 }
             };
             let header = self.f.local(Val::I32);
@@ -1190,7 +1190,7 @@ impl Em<'_, '_, '_> {
             let key = matches!(p.root, PlaceRoot::Local(_) | PlaceRoot::Global(..))
                 .then(|| self.borrow_key((p.root, p.proj.clone(), ANY_FRAME)));
             let (at, _) = self.walk_place(i, &p, p.proj.len(), None)?;
-            let o = self.at_i32(&at)?;
+            let o = self.at_i32(&at);
             let header = self.f.local(Val::I32);
             self.f.get(o);
             self.f.u32(crate::module::HEADER - 4);
@@ -1792,9 +1792,9 @@ impl Em<'_, '_, '_> {
             .then(|| self.borrow_key((p.root, p.proj[..pointer].to_vec(), ANY_FRAME)));
         let (at, _) = self.walk_place(i, &p, pointer, None)?;
         let o = if dyn_recv.is_some() {
-            self.data_address(&at)?
+            self.data_address(&at)
         } else {
-            self.at_i32(&at)?
+            self.at_i32(&at)
         };
         let header = self.f.local(Val::I32);
         if dyn_recv.is_some() {
