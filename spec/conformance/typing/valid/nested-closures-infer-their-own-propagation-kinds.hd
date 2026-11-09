@@ -1,0 +1,15 @@
+# test: nested closures keep distinct inferred propagation targets
+fn make[T]() -> T:
+    panic("unused")
+
+fn run() -> void:
+    outer := fn():
+        inner := fn():
+            let a: i32 = make()?
+            let final: i32? = .Some(a)
+            final
+        let a: string = make()?
+        let final: Result[string, string] = .Ok(a)
+        _ := inner()
+        final
+    _ := outer()

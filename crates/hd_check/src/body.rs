@@ -1241,6 +1241,7 @@ fn fn_body_steps(
         ck.join_site(want, |ck, ret| {
             ck.rets[0] = ret;
             let (tail, _) = ck.block_value(body, Some(ret))?;
+            ck.finish_tries(ret)?;
             Ok((tail, ret))
         })?
     };

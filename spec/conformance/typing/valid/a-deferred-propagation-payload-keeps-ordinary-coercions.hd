@@ -1,0 +1,12 @@
+# test: an operand fixed later can inject its payload into the expected optional type
+fn make[T]() -> T:
+    panic("unused")
+
+fn run() -> void:
+    job := fn():
+        operand := make()
+        let value: i32? = operand?
+        let fixed: Result[i32, string] = operand
+        let final: Result[i32?, string] = .Ok(value)
+        final
+    _ := job()

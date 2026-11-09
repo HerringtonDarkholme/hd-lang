@@ -41,6 +41,8 @@ struct Site {
     /// Inferred return sites keep each `?`'s required outer result kind.
     /// Later optional widening must not turn a Result target into an optional.
     propagation: Vec<(bool, NodeIdx)>,
+    /// Unknown-kind operands, lowered at the end of this function's body.
+    deferred: Vec<DeferredTry>,
     /// A value did not join and was reported: the site reports once.
     failed: bool,
 }
@@ -53,10 +55,19 @@ struct Joined {
     to: (Slot, Ref, NodeIdx),
 }
 
+#[derive(Clone, Copy)]
+struct DeferredTry {
+    operand: (Ref, Ty),
+    payload: Ty,
+    slot: Slot,
+    at: (NodeIdx, NodeIdx),
+}
+
 enum Undo {
     Open(Ty),
     Value(Ty),
     Propagation(Ty),
+    Deferred(Ty),
     Failed(Ty),
     Closed(Ty, Site),
 }
@@ -98,6 +109,17 @@ impl Joins {
         }
     }
 
+    fn defer(&mut self, var: Ty, deferred: DeferredTry) {
+        if let Some(site) = self.sites.get_mut(&var) {
+            site.deferred.push(deferred);
+            self.log.push(Undo::Deferred(var));
+        }
+    }
+
+    fn deferred(&self, var: Ty) -> &[DeferredTry] {
+        self.sites.get(&var).map_or(&[], |site| &site.deferred)
+    }
+
     fn fail(&mut self, var: Ty) {
         if let Some(site) = self.sites.get_mut(&var)
             && !site.failed
@@ -137,6 +159,11 @@ impl Joins {
                         site.propagation.pop();
                     }
                 }
+                Some(Undo::Deferred(v)) => {
+                    if let Some(site) = self.sites.get_mut(&v) {
+                        site.deferred.pop();
+                    }
+                }
                 Some(Undo::Failed(v)) => {
                     if let Some(site) = self.sites.get_mut(&v) {
                         site.failed = false;
@@ -172,6 +199,97 @@ impl Dir {
 const DEPTH: u32 = 32;
 
 impl Ck<'_, '_> {
+    /// A `?` whose operand kind awaits this function's inferred result.
+    /// Its payload still participates in ordinary checking immediately.
+    pub(crate) fn defer_try(
+        &mut self,
+        target: Ty,
+        operand: (Ref, Ty),
+        payload: Ty,
+        n: NodeRef<'_>,
+        e: NodeRef<'_>,
+    ) -> Ref {
+        let slot = self.b.reserve();
+        let r = slot.as_ref();
+        self.b.body_mut().ty[r.0 as usize] = payload;
+        self.joins.defer(
+            target,
+            DeferredTry {
+                operand,
+                payload,
+                slot,
+                at: (n.index(), e.index()),
+            },
+        );
+        r
+    }
+
+    /// Finish only this function's deferred operands, before its root
+    /// block closes, so their child blocks stay in that function.
+    pub(crate) fn finish_tries(&mut self, target: Ty) -> StageResult<()> {
+        let pool = self.pool();
+        let deferred = self.joins.deferred(target).to_vec();
+        for d in deferred {
+            let ret = self.infer.resolve(pool, target);
+            self.charge()?;
+            let n = self.cx.src.parse.tree.node(d.at.0);
+            let e = self.cx.src.parse.tree.node(d.at.1);
+            let hint = match pool.get(ret) {
+                TyData::Option(_) => Some(pool.intern_ty(&TyData::Option(d.payload))),
+                TyData::Adt { def, args } if def == self.cx.names.known.result => {
+                    Some(pool.intern_ty(&TyData::Adt {
+                        def,
+                        args: pool.list(&[d.payload, pool.list_items(args)[1]]),
+                    }))
+                }
+                _ => None,
+            };
+            if let Some(hint) = hint {
+                // A hint solves only open parts, as at the original
+                // operand. Later context may have fixed a different error
+                // type; that error still joins without From conversion.
+                if pool.has_infer(self.infer.resolve(pool, d.operand.1)) {
+                    let snap = self.infer.snapshot();
+                    if self.infer.unify(pool, d.operand.1, hint).is_err() {
+                        self.infer.rollback(snap);
+                    }
+                }
+                let t = self.infer.resolve(pool, d.operand.1);
+                let ret = self.try_return(target, t, ret, n);
+                // A Scope's child block may be forward, unlike value
+                // operands. Keep lowering and any payload conversion in
+                // that block; the original slot runs it at the `?`.
+                let mark = self.b.open_block();
+                let (value, ty) = self.lower_try(n, e, (d.operand.0, t), (target, ret))?;
+                let value = self.coerce(
+                    value,
+                    ty,
+                    d.payload,
+                    n,
+                    "propagation value",
+                    crate::body::ExpectPosition::General,
+                );
+                let block = self.b.close_block(mark, Some(value), d.payload, n.index());
+                let cleanups = self.b.refs_record(&[]);
+                self.b
+                    .fill(d.slot, Tag::Scope, block.0, cleanups, d.payload, n.index());
+            } else {
+                if !pool.has_poison(ret) {
+                    self.err(
+                        Code::InvalidResultPropagation,
+                        n,
+                        "the inferred function result is not a target for this `?`",
+                    );
+                }
+                self.infer.rebind(pool, d.operand.1, Ty::POISON);
+                self.infer.rebind(pool, d.payload, Ty::POISON);
+                self.b
+                    .fill(d.slot, Tag::Poison, NONE, NONE, Ty::POISON, n.index());
+            }
+        }
+        Ok(())
+    }
+
     /// The type a least-common-type site (`types.lct.sites`) joins its
     /// values into: the expected type, or else a fresh join variable. A
     /// variable not yet solved, such as a generic argument's, is no
@@ -839,5 +957,43 @@ impl Ck<'_, '_> {
         );
         self.err(Code::TypeMismatch, n, &msg);
         true
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use hd_tir::ir::{BodyKind, TirBuilder};
+
+    #[test]
+    fn deferred_tries_visit_only_their_return_site_and_roll_back() {
+        for unrelated in [100, 1000] {
+            let mut joins = Joins::default();
+            let mut builder = TirBuilder::new(DefId::NONE, BodyKind::Fn);
+            let deferred = DeferredTry {
+                operand: (Ref(NONE), Ty::VOID),
+                payload: Ty::VOID,
+                slot: builder.reserve(),
+                at: (NodeIdx::NONE, NodeIdx::NONE),
+            };
+            for i in 0..unrelated {
+                let var = Ty(i + 128);
+                joins.open(var);
+                joins.defer(var, deferred);
+            }
+            let target = Ty(5000);
+            joins.open(target);
+            joins.defer(target, deferred);
+            let mark = joins.mark();
+            joins.defer(target, deferred);
+            assert_eq!(joins.deferred(target).len(), 2);
+            joins.rollback(mark);
+            assert_eq!(joins.deferred(target).len(), 1);
+            let mut visited = 0;
+            for _ in joins.deferred(target) {
+                visited += 1;
+            }
+            assert_eq!(visited, 1, "unrelated state: {unrelated}");
+        }
     }
 }

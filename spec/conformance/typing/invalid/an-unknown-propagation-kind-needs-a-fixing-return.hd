@@ -1,0 +1,9 @@
+# test: an inferred closure with no Result or optional return cannot propagate
+fn make[T]() -> T:
+    panic("unused")
+
+fn run() -> void:
+    job := fn():
+        let a: i32 = make()? # diagnostic: invalid-result-propagation
+        a
+    _ := job()

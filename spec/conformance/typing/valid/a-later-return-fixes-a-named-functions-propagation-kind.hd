@@ -1,0 +1,11 @@
+# test: an omitted named result supplies the kind of an earlier unknown propagation operand
+fn make[T]() -> T:
+    panic("unused")
+
+fn collect():
+    let a: i32 = make()?
+    let final: Result[i32, string] = .Ok(a)
+    final
+
+fn run() -> void:
+    _ := collect()

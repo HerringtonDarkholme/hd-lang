@@ -5076,6 +5076,7 @@ impl Ck<'_, '_> {
                     ret,
                 )
             };
+            self.finish_tries(ret)?;
             if opaque.is_some() {
                 self.check_opaque_occurrences(occurrences.clone(), n)?;
             }
@@ -5259,11 +5260,26 @@ impl Ck<'_, '_> {
                 self.infer.rollback(snap);
             }
         }
-        // In an inferred result, the failure itself contributes a return
-        // type; it is not converted to an earlier failure's error type
-        // (`expr.try.convert.inferred-closure`). The normal result and all
-        // failures meet at the existing return join site.
-        let ret = if self.joins.is_site(target) {
+        // The nearest inferred return join can acquire its kind from a
+        // later return (`expr.try.expected.inferred-kind`). Keep this
+        // operand's variable and payload context until that body closes.
+        if self.infer.kind_of(pool, ret) == Some(VarKind::General)
+            && self.infer.kind_of(pool, t) == Some(VarKind::General)
+            && self.joins.is_site(target)
+        {
+            let value = self.defer_try(target, (r, t), success, n, e);
+            return Ok((value, success));
+        }
+        let ret = self.try_return(target, t, ret, n);
+        self.lower_try(n, e, (r, t), (target, ret))
+    }
+
+    /// An inferred return joins the failure's own error type, without
+    /// From conversion (`expr.try.convert.inferred-closure`).
+    pub(crate) fn try_return(&mut self, target: Ty, t: Ty, ret: Ty, n: NodeRef<'_>) -> Ty {
+        let pool = self.pool();
+        let result = self.cx.names.known.result;
+        if self.joins.is_site(target) {
             match pool.get(t) {
                 TyData::Option(_) => {
                     self.joins.propagate(target, true, n.index());
@@ -5283,7 +5299,19 @@ impl Ck<'_, '_> {
             }
         } else {
             ret
-        };
+        }
+    }
+
+    /// Lower a known propagation shape in the current function body.
+    pub(crate) fn lower_try(
+        &mut self,
+        n: NodeRef<'_>,
+        e: NodeRef<'_>,
+        (r, t): (Ref, Ty),
+        (target, ret): (Ty, Ty),
+    ) -> StageResult<(Ref, Ty)> {
+        let pool = self.pool();
+        let result = self.cx.names.known.result;
         match (pool.get(t), pool.get(ret)) {
             (TyData::Option(inner), TyData::Option(_)) => {
                 let ok_b = self.b.open_block();
@@ -5354,17 +5382,6 @@ impl Ck<'_, '_> {
                 Ok((self.b.emit(Tag::SwitchTag, r.0, rec, okt, n.index()), okt))
             }
             _ => {
-                let open_target = self.infer.kind_of(pool, ret) == Some(VarKind::General);
-                let open_operand = self.infer.kind_of(pool, t) == Some(VarKind::General);
-                let valid_target = matches!(pool.get(ret), TyData::Option(_))
-                    || matches!(pool.get(ret), TyData::Adt { def, .. } if def == result);
-                let valid_operand = matches!(pool.get(t), TyData::Option(_))
-                    || matches!(pool.get(t), TyData::Adt { def, .. } if def == result);
-                if (open_target && (open_operand || valid_operand))
-                    || (valid_target && open_operand)
-                {
-                    return unsupported("`?` on a value whose type is not yet known");
-                }
                 self.err(
                     Code::InvalidResultPropagation,
                     n,

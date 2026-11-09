@@ -1,0 +1,24 @@
+# test: a deferred operand's known error contributes without From conversion
+use std.convert.From
+
+enum First:
+    Error
+
+enum Second:
+    Error
+
+impl From[First] for Second:
+    fn from(value: First) -> Second:
+        .Error
+
+fn make[T]() -> T:
+    panic("unused")
+
+fn run() -> void:
+    job := fn():
+        operand := make()
+        let value: i32 = operand? # diagnostic: no-common-type
+        let fixed: Result[i32, First] = operand
+        let final: Result[i32, Second] = .Ok(value)
+        final
+    _ := job()

@@ -1,0 +1,10 @@
+# test: learning Result fixes the kind and error but does not invent its discarded payload
+fn make[T]() -> T:
+    panic("unused")
+
+fn run() -> void:
+    job := fn():
+        _ := make()? # diagnostic: cannot-infer-type
+        let final: Result[i32, string] = .Ok(7)
+        final
+    _ := job()

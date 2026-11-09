@@ -1,0 +1,90 @@
+# test: deferred propagation lowers both kinds and preserves early return and operand evaluation
+# expect-stdout: ok 8
+# expect-stdout: bad
+# expect-stdout: some 10
+# expect-stdout: none
+# expect-stdout: injected 7
+# expect-stdout: retry 7
+# expect-stdout: 426
+use std.ops.defer
+
+trait Build:
+    fn make(good: bool) -> Self
+
+impl Build for Result[i32, string]:
+    fn make(good: bool) -> Result[i32, string]:
+        if good: .Ok(7) else: .Err("bad")
+
+impl Build for i32?:
+    fn make(good: bool) -> i32?:
+        if good: .Some(9) else: .None
+
+struct Counter:
+    count: usize
+
+fn make[T < Build](good: bool, counter: *mut Counter) -> T:
+    counter.count += 1
+    T::make(good)
+
+fn result_job(good: bool, counter: *mut Counter) -> Result[i32, string]:
+    job := fn():
+        defer(fn() -> void: counter.count += 100)
+        let a: i32 = make(good, counter)?
+        counter.count += 10
+        let final: Result[i32, string] = .Ok(a + 1)
+        final
+    job()
+
+fn optional_job(good: bool, counter: *mut Counter) -> i32?:
+    job := fn():
+        defer(fn() -> void: counter.count += 100)
+        let a: i32 = make(good, counter)?
+        counter.count += 10
+        let final: i32? = .Some(a + 1)
+        final
+    job()
+
+fn injected_job(counter: *mut Counter) -> Result[i32?, string]:
+    job := fn():
+        operand := make(true, counter)
+        let value: i32? = operand?
+        let fixed: Result[i32, string] = operand
+        let final: Result[i32?, string] = .Ok(value)
+        final
+    job()
+
+fn recursive_job(counter: *mut Counter) -> void $ Console:
+    fn visit(n: i32) -> void:
+        if n > 0:
+            visit(n - 1)
+        job := fn():
+            let a: i32 = make(true, counter)?
+            let final: Result[i32, string] = .Ok(a)
+            final
+        match job():
+            .Ok(n) => println("retry $n")
+            .Err(error) => println(error)
+    visit(0)
+
+pub fn main() -> void $ Console:
+    counter := box(Counter { count: 0 })
+    match result_job(true, counter):
+        .Ok(n) => println("ok $n")
+        .Err(error) => println(error)
+    match result_job(false, counter):
+        .Ok(n) => println("ok $n")
+        .Err(error) => println(error)
+    match optional_job(true, counter):
+        .Some(n) => println("some $n")
+        .None => println("none")
+    match optional_job(false, counter):
+        .Some(n) => println("some $n")
+        .None => println("none")
+    match injected_job(counter):
+        .Ok(value) =>
+            match value:
+                .Some(n) => println("injected $n")
+                .None => println("no payload")
+        .Err(error) => println(error)
+    recursive_job(counter)
+    println("${counter.count}")

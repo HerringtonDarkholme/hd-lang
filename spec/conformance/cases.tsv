@@ -6164,6 +6164,17 @@ typing/invalid/a-default-callback-local-type-stays-in-the-callback.hd	type	rejec
 runtime/valid/a-body-function-type-keeps-its-list-rest-input.hd	runtime	accept	lang/07-functions.md#r-fn.type.rest-call
 typing/invalid/a-body-function-type-rest-needs-a-list.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.tuple.rest.list
 typing/invalid/a-local-function-type-rest-needs-a-list.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.tuple.rest.list
+typing/valid/a-later-result-return-fixes-an-unknown-propagation-kind.hd	type	accept	lang/05-expressions.md#r-expr.try.expected.inferred-kind
+typing/valid/a-later-optional-return-fixes-an-unknown-propagation-kind.hd	type	accept	lang/05-expressions.md#r-expr.try.expected.inferred-kind
+typing/valid/nested-closures-infer-their-own-propagation-kinds.hd	type	accept	lang/05-expressions.md#r-expr.try.expected.inferred-kind
+typing/invalid/an-unknown-propagation-kind-needs-a-fixing-return.hd	type	reject:invalid-result-propagation	lang/05-expressions.md#r-expr.try.target.nearest-function
+typing/invalid/a-deferred-propagation-payload-still-needs-a-type.hd	type	reject:cannot-infer-type	lang/04-type-system.md#r-types.generic.default.unsolved
+runtime/valid/deferred-propagation-lowers-result-and-option-once.hd	runtime	accept	lang/05-expressions.md#r-expr.try.expected.inferred-kind
+typing/valid/a-later-return-fixes-a-named-functions-propagation-kind.hd	type	accept	lang/05-expressions.md#r-expr.try.expected.inferred-kind
+typing/valid/deferred-propagation-survives-a-recursive-row-retry.hd	type	accept	lang/05-expressions.md#r-expr.try.expected.inferred-kind
+typing/invalid/a-nested-closure-cannot-use-the-outer-propagation-kind.hd	type	reject:invalid-result-propagation	lang/05-expressions.md#r-expr.try.target.nearest-function
+typing/valid/a-deferred-propagation-payload-keeps-ordinary-coercions.hd	type	accept	lang/05-expressions.md#r-expr.try.expected.inferred-kind
+typing/invalid/a-deferred-propagation-keeps-an-error-solved-later.hd	type	reject:no-common-type	lang/04-type-system.md#r-types.lct.no-common
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

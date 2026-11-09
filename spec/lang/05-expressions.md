@@ -1253,6 +1253,7 @@ Postfix `?` handles either an optional or a `Result` value:
 4. r[expr.try.expected.result] The hint is `Result[T, E]` when the nearest function returns `Result[U, E]`.
 5. r[expr.try.expected.option] The hint is `T?` when the nearest function returns an optional.
 6. r[expr.try.expected.hint-only] The hint only solves what the operand leaves open, such as a call's type arguments; it never coerces the operand.
+7. r[expr.try.expected.inferred-kind] When an operand's kind is unknown, the nearest function's inferred result kind fixes it.
 
 ```text
 fn empty_ok[T]() -> Result[List[T], string]:
@@ -1265,6 +1266,20 @@ fn no_ports() -> Result[List[i32], string]:
 
 In `no_ports`, the hint `Result[List[i32], string]` solves `empty_ok`'s
 open type argument `T` as `i32`.
+
+The result kind may be fixed by a later return:
+
+```text
+fn make[T]() -> T:
+    panic("unused")
+
+fn run() -> void:
+    job := fn():
+        let a: i32 = make()?
+        let final: Result[i32, string] = .Ok(a)
+        final
+    _ := job()
+```
 
 #### Error Conversion
 

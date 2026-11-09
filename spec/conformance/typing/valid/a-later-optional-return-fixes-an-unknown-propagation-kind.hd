@@ -1,0 +1,10 @@
+# test: a later optional return supplies the kind of an unknown propagation operand
+fn make[T]() -> T:
+    panic("unused")
+
+fn run() -> void:
+    job := fn():
+        let a: i32 = make()?
+        let final: i32? = .Some(a)
+        final
+    _ := job()

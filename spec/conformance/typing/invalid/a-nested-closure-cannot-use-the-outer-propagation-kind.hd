@@ -1,0 +1,10 @@
+# test: an inferred inner closure needs its own Result or optional result
+fn make[T]() -> T:
+    panic("unused")
+
+fn outer() -> Result[i32, string]:
+    job := fn():
+        let a: i32 = make()? # diagnostic: invalid-result-propagation
+        a
+    _ := job()
+    .Ok(7)

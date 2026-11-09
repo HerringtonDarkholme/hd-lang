@@ -1,0 +1,15 @@
+# test: deferred propagation records roll back with a recursive local row trial
+fn make[T]() -> T:
+    panic("unused")
+
+fn run() -> void $ Console:
+    fn visit(n: i32) -> void:
+        if n > 0:
+            visit(n - 1)
+        job := fn():
+            let a: i32 = make()?
+            let final: Result[i32, string] = .Ok(a)
+            final
+        _ := job()
+        println("visit")
+    visit(0)
