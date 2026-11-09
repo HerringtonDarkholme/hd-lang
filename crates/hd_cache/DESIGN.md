@@ -360,7 +360,13 @@ obj/
   ranges. A process-local mutex protects those pages and cached file
   cursors; it is not shared with other processes. At most 64 open pack
   handles are cached. A concurrent replacement or eviction leaves an older
-  reader whole frame bytes or a miss, never a partial publication.
+  reader whole frame bytes or a miss, never a partial publication. A merge
+  or GC deletes a pack only after committing an index that no longer names
+  it, so a pack a reader's pages name but it cannot find means another
+  process committed since: the reader reads the head and its pages again,
+  once per vanished pack, as git rescans its packs when one disappears.
+  A pack, once renamed into place, is removed only by GC under the lock,
+  also when the commit that follows fails.
 - **Cost per run.** A run that reads `k` keys reads the 64-byte head and at
   most `k` pages; one that writes `j` entries or marks `j` hits rewrites at
   most `j` pages plus one page per split, the head and the pack table (24

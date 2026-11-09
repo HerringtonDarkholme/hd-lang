@@ -74,14 +74,16 @@ impl Entry {
 
 /// Read the logical directory and verify every indexed range exists in a
 /// physical pack. Merely enumerating loose files would silently test none.
+/// The pack lengths are read with the index, under its lock: another
+/// test's hd may merge packs of a shared store right after.
 pub(super) fn entries(obj: &Path) -> Vec<Entry> {
     DiskStore::new(obj.to_path_buf())
         .index_entries()
         .into_iter()
         .map(|e| {
             assert!(
-                e.offset.checked_add(e.len).unwrap()
-                    <= e.pack.metadata().expect("indexed pack").len()
+                e.offset.checked_add(e.len).unwrap() <= e.pack_len.expect("indexed pack"),
+                "{e:?} past its pack"
             );
             Entry {
                 kind: e.kind,

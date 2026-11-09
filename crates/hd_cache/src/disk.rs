@@ -122,6 +122,9 @@ pub struct IndexedEntry {
     pub key: Hash128,
     /// The pack file that holds it.
     pub pack: PathBuf,
+    /// The pack's length when the index was read, `None` when it was
+    /// missing; the pack may go after the publication lock is released.
+    pub pack_len: Option<u64>,
     pub offset: u64,
     pub len: u64,
     /// Last use, in Unix seconds.
@@ -187,25 +190,13 @@ impl DiskStore {
         self.cap / SHARDS as u64
     }
 
-    /// Every indexed data entry, read without the publication lock. It
-    /// reads the whole index: for tests and tools, never a command.
+    /// Every indexed data entry with its pack's length, both read under
+    /// the publication lock. It reads the whole index: for tests and tools,
+    /// never a command.
     #[doc(hidden)]
     #[must_use]
     pub fn index_entries(&self) -> Vec<IndexedEntry> {
-        self.packed
-            .entries()
-            .into_iter()
-            .filter_map(|(kind, key, pack, offset, len, used)| {
-                Some(IndexedEntry {
-                    kind: EntryKind::ALL.into_iter().find(|k| *k as u16 == kind)?,
-                    key: Hash128(key),
-                    pack,
-                    offset,
-                    len,
-                    used,
-                })
-            })
-            .collect()
+        self.packed.entries()
     }
 
     /// Sets an indexed entry's last use to `unix_secs`, as a hit then
@@ -728,7 +719,7 @@ mod packed {
 
     #[cfg(test)]
     use super::cost;
-    use super::{Collected, EntryKind, USE_MARK_AGE, is_real_dir, parse_key};
+    use super::{Collected, EntryKind, IndexedEntry, USE_MARK_AGE, is_real_dir, parse_key};
 
     /// The single-file index of older hd, read until the first writer
     /// migrates it.
@@ -800,6 +791,9 @@ mod packed {
         pages: BTreeMap<u64, Entries>,
         files: BTreeMap<u128, Opened>,
         touched: BTreeMap<Key, u64>,
+        /// Packs found missing after the index was read again: each one
+        /// refreshes the view at most once per run.
+        gone: BTreeSet<u128>,
     }
 
     pub(super) struct Store {
@@ -1826,6 +1820,9 @@ mod packed {
             lease.file.unlock()?;
             std::fs::rename(&lease.path, &path)?;
             lease.path = path;
+            // Pages that name it may be on disk before the commit fails:
+            // from here only GC, under the lock and by the index, removes it.
+            lease.committed = true;
             Ok(())
         }
 
@@ -1878,15 +1875,7 @@ mod packed {
             self.used.store(1, Ordering::Relaxed);
             let mut guard = self.state();
             let state = self.snapshot(&mut guard);
-            let k = (kind as u16, key.0);
-            let loc = self.locate(state, k)?;
-            if !state.files.contains_key(&loc.pack) {
-                let file = self.open(loc.pack).ok()?;
-                if state.files.len() >= MAX_HANDLES {
-                    state.files.pop_first();
-                }
-                state.files.insert(loc.pack, file);
-            }
+            let loc = self.opened(state, (kind as u16, key.0))?;
             let opened = state.files.get_mut(&loc.pack)?;
             if loc.len > MAX_ENTRY || loc.offset.checked_add(loc.len)? > opened.len {
                 return None;
@@ -1896,9 +1885,44 @@ mod packed {
             opened.file.read_exact(&mut bytes).ok()?;
             let at = now();
             if at.saturating_sub(loc.used) > USE_MARK_AGE.as_secs() {
-                state.touched.insert(k, at);
+                state.touched.insert((kind as u16, key.0), at);
             }
             Some(Arc::from(bytes))
+        }
+
+        /// `key`'s location, with its pack open in the snapshot. Packs are
+        /// immutable and a merge or GC removes one only after committing
+        /// an index that no longer names it, so a pack the snapshot names
+        /// but cannot find means its pages predate another process's
+        /// commit. The snapshot then reads the head and pages again, once
+        /// per vanished pack, as git rescans its packs when one disappears
+        /// (`reprepare_packed_git`). Cost: nothing on a hit or an ordinary
+        /// miss; per vanished pack, one head and the pages read after it.
+        fn opened(&self, state: &mut Snapshot, key: Key) -> Option<Location> {
+            loop {
+                let loc = self.locate(state, key)?;
+                if state.files.contains_key(&loc.pack) {
+                    return Some(loc);
+                }
+                match self.open(loc.pack) {
+                    Ok(file) => {
+                        if state.files.len() >= MAX_HANDLES {
+                            state.files.pop_first();
+                        }
+                        state.files.insert(loc.pack, file);
+                        return Some(loc);
+                    }
+                    // A pack the index still names after a refresh is
+                    // missing for good: a miss, left to GC's slow path.
+                    Err(e)
+                        if e.kind() == io::ErrorKind::NotFound && state.gone.insert(loc.pack) =>
+                    {
+                        state.view = self.view();
+                        state.pages.clear();
+                    }
+                    Err(_) => return None,
+                }
+            }
         }
 
         pub(super) fn touch(&self, kind: EntryKind, key: &Hash128) {
@@ -1995,7 +2019,6 @@ mod packed {
             // The writer lock still excludes GC; unlock before readers
             // can see the new rows (Windows byte-range locks block reads).
             txn.commit(Some(&lock), pack_len, || self.finish(&mut lease))?;
-            lease.committed = true;
             self.published.store(true, Ordering::Relaxed);
             self.adopt(&txn);
             Ok(())
@@ -2158,10 +2181,9 @@ mod packed {
             for (id, _) in ids {
                 txn.untrack(*id)?;
             }
-            // Committing here makes every newly unlocked pack indexed
-            // before its lease guard is dropped, also if later work fails.
+            // Readers holding pages from before this commit may still name
+            // the old packs; they read the index again when one is gone.
             txn.commit(Some(lock), len, || self.finish(&mut lease))?;
-            lease.committed = true;
             let mut removed = 0;
             for (id, _) in ids {
                 let path = self.path(*id);
@@ -2419,9 +2441,17 @@ mod packed {
             self.used.load(Ordering::Relaxed) != 0
         }
 
-        /// Every indexed entry: kind, key, pack file, offset, length and
-        /// last use, read without the lock. For tests and tools.
-        pub(super) fn entries(&self) -> Vec<(u16, u128, PathBuf, u64, u64, u64)> {
+        /// Every indexed entry: kind, key, pack file, offset, length, last
+        /// use and the pack's length, `None` when it is missing. It holds
+        /// the publication lock, so no merge or GC moves a row or removes
+        /// its pack between reading the row and the pack's length. When the
+        /// lock cannot be taken, as in a read-only cache, it reads as a
+        /// command does. It reads the whole index: for tests and tools.
+        pub(super) fn entries(&self) -> Vec<IndexedEntry> {
+            if !is_real_dir(&self.root) {
+                return Vec::new();
+            }
+            let _lock = self.lock().ok();
             let rows = match self.view() {
                 View::Empty => Entries::new(),
                 View::Legacy(entries) => entries,
@@ -2438,8 +2468,26 @@ mod packed {
                     entries
                 }
             };
+            let mut packs = BTreeMap::<u128, Option<u64>>::new();
             rows.into_iter()
-                .map(|((kind, key), l)| (kind, key, self.path(l.pack), l.offset, l.len, l.used))
+                .filter_map(|((kind, key), l)| {
+                    let pack = self.path(l.pack);
+                    let pack_len = *packs.entry(l.pack).or_insert_with(|| {
+                        std::fs::symlink_metadata(&pack)
+                            .ok()
+                            .filter(|m| m.file_type().is_file())
+                            .map(|m| m.len())
+                    });
+                    Some(IndexedEntry {
+                        kind: EntryKind::ALL.into_iter().find(|k| *k as u16 == kind)?,
+                        key: Hash128(key),
+                        pack,
+                        pack_len,
+                        offset: l.offset,
+                        len: l.len,
+                        used: l.used,
+                    })
+                })
                 .collect()
         }
 
@@ -2708,7 +2756,7 @@ mod packed {
             let root = scratch("missing");
             let store = Store::new(&root);
             store.publish(&[item(1, b"one"), item(2, b"two")]).unwrap();
-            let path = store.entries()[0].2.clone();
+            let path = store.entries()[0].pack.clone();
             OpenOptions::new()
                 .write(true)
                 .open(&path)
@@ -2970,7 +3018,7 @@ mod packed {
                 .publish(&[item(1, &data), item(2, &data), item(3, &data)])
                 .unwrap();
             ages(&store, &[(1, 1), (2, 2), (3, 3)]);
-            let path = store.entries()[0].2.clone();
+            let path = store.entries()[0].pack.clone();
             let mut options = OpenOptions::new();
             options.read(true);
             #[cfg(windows)]
@@ -3022,6 +3070,90 @@ mod packed {
                 Some(b"readable".as_slice())
             );
             reader.join().unwrap();
+        }
+
+        /// Asserts every row `root`'s index lists lies within its pack,
+        /// and returns the distinct packs.
+        fn indexed_packs(root: &Path) -> BTreeSet<PathBuf> {
+            DiskStore::new(root.to_path_buf())
+                .index_entries()
+                .into_iter()
+                .map(|e| {
+                    let len = e.pack_len.expect("indexed pack");
+                    assert!(e.offset + e.len <= len, "{e:?} past its pack");
+                    e.pack
+                })
+                .collect()
+        }
+
+        /// Cold, then warm with another process's merge between (#1538):
+        /// every indexed pack exists after each step, and a reader whose
+        /// page predates the merge reads the index again once and hits.
+        #[test]
+        fn a_reader_older_than_a_merge_reads_the_index_again_once() {
+            let root = scratch("stale-reader");
+            let data = [7; 100];
+            let writer = Store::new(&root);
+            for key in 1..=FANOUT as u128 {
+                writer.publish(&[item(key, &data)]).unwrap();
+            }
+            assert_eq!(indexed_packs(&root).len(), FANOUT);
+            let reader = Store::new(&root);
+            assert_eq!(
+                reader.get(EntryKind::Check, &Hash128(1)).as_deref(),
+                Some(data.as_slice())
+            );
+            Store::new(&root).maintain(u64::MAX, None).unwrap();
+            assert_eq!(indexed_packs(&root).len(), 1, "the four packs merged");
+            let _ = cost::take();
+            for key in 2..=FANOUT as u128 {
+                assert_eq!(
+                    reader.get(EntryKind::Check, &Hash128(key)).as_deref(),
+                    Some(data.as_slice()),
+                    "key {key} after the merge"
+                );
+            }
+            // One refresh for the vanished pack: the head and the one page,
+            // then the merged pack, opened once for all three keys.
+            let counts = cost::take();
+            assert_eq!(counts.index_read, (HEAD_LEN + page_len(FANOUT)) as u64);
+            assert_eq!(counts.packs_opened, 1);
+            assert_eq!(counts.dirs_listed, 0);
+        }
+
+        /// Two writers share one cache (#1538). One publishes and then
+        /// merges, as each hd process does on exit; the other publishes,
+        /// reads back every key it published, and lists the index. No
+        /// read misses, and every listed row lies within its pack.
+        #[test]
+        fn two_writers_merging_keep_every_indexed_pack_readable() {
+            const N: u128 = 64;
+            let root = scratch("two-writers");
+            std::thread::scope(|scope| {
+                let root = &root;
+                // cost: one test thread, N publications and merges.
+                scope.spawn(move || {
+                    for key in 0..N {
+                        let store = Store::new(root);
+                        store.publish(&[item(1_000 + key, &[1; 64])]).unwrap();
+                        store
+                            .maintain(u64::MAX, Some(Duration::from_secs(5)))
+                            .unwrap();
+                    }
+                });
+                let store = Store::new(root);
+                for key in 0..N {
+                    store.publish(&[item(key, &[2; 64])]).unwrap();
+                    for k in 0..=key {
+                        assert_eq!(
+                            store.get(EntryKind::Check, &Hash128(k)).as_deref(),
+                            Some([2; 64].as_slice()),
+                            "key {k} after publishing {key}"
+                        );
+                    }
+                    indexed_packs(root);
+                }
+            });
         }
 
         /// The keys a warm run reads, the same at every cache size.
