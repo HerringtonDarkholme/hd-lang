@@ -2407,8 +2407,10 @@ impl Ck<'_, '_> {
         want: Option<Ty>,
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
+        // ruled out: driver::body builds Lookup from the module's prepared
+        // items and closure interfaces; name/export lookup selects those items.
         let Some(item) = self.cx.lookup.item(def) else {
-            return unsupported("a call of an item outside the closure");
+            return Ok(self.poison_value(n));
         };
         if item.fn_attrs().is_some_and(|a| a.auto_closing)
             && self.auto_closing_statement != Some(n.index())
@@ -4416,7 +4418,9 @@ impl Ck<'_, '_> {
             Answer::Candidates(c) => c,
             Answer::Stalled { .. } => return self.waiting_trait(t, &builtin, traits),
             Answer::Overflow => return Ok(Some(Hit::TooDeep(asked))),
-            other => return unsupported(format!("solver answer {other:?} to a method lookup")),
+            // ruled out: TableSolver::methods absorbs Fails and returns candidates,
+            // stall or depth; solve_goal handles fuel. Direct Holds is poison recovery.
+            _ => return Ok(None),
         };
         // The candidates by trait, in content order of their first one.
         let mut groups: Vec<(DefId, Vec<Candidate>)> = Vec::new();
