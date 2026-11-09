@@ -90,38 +90,63 @@ impl Scratch {
     }
 }
 
-fn widths(mut n: u32) -> Vec<(u32, u32)> {
+/// The width of one scalar load or store: 1, 2, 4 or 8 bytes.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Width {
+    W1 = 1,
+    W2 = 2,
+    W4 = 4,
+    W8 = 8,
+}
+
+impl Width {
+    /// The width of `n` bytes, when one scalar moves them.
+    const fn of(n: u32) -> Option<Self> {
+        match n {
+            1 => Some(Self::W1),
+            2 => Some(Self::W2),
+            4 => Some(Self::W4),
+            8 => Some(Self::W8),
+            _ => None,
+        }
+    }
+
+    const fn bytes(self) -> u32 {
+        self as u32
+    }
+}
+
+/// `n` bytes as scalar chunks, widest first, with their offsets.
+fn widths(mut n: u32) -> Vec<(u32, Width)> {
     let mut out = Vec::new();
     let mut offset = 0;
-    for width in [8, 4, 2, 1] {
-        while n >= width {
+    for width in [Width::W8, Width::W4, Width::W2, Width::W1] {
+        while n >= width.bytes() {
             out.push((offset, width));
-            offset += width;
-            n -= width;
+            offset += width.bytes();
+            n -= width.bytes();
         }
     }
     out
 }
 
-fn load(f: &mut Func, memory: u32, offset: u32, width: u32) {
+fn load(f: &mut Func, memory: u32, offset: u32, width: Width) {
     let arg = mem(memory, u64::from(offset), 0);
     f.op(match width {
-        8 => I::I64Load(arg),
-        4 => I::I32Load(arg),
-        2 => I::I32Load16U(arg),
-        1 => I::I32Load8U(arg),
-        _ => unreachable!("scalar width"),
+        Width::W8 => I::I64Load(arg),
+        Width::W4 => I::I32Load(arg),
+        Width::W2 => I::I32Load16U(arg),
+        Width::W1 => I::I32Load8U(arg),
     });
 }
 
-fn store(f: &mut Func, memory: u32, offset: u32, width: u32) {
+fn store(f: &mut Func, memory: u32, offset: u32, width: Width) {
     let arg = mem(memory, u64::from(offset), 0);
     f.op(match width {
-        8 => I::I64Store(arg),
-        4 => I::I32Store(arg),
-        2 => I::I32Store16(arg),
-        1 => I::I32Store8(arg),
-        _ => unreachable!("scalar width"),
+        Width::W8 => I::I64Store(arg),
+        Width::W4 => I::I32Store(arg),
+        Width::W2 => I::I32Store16(arg),
+        Width::W1 => I::I32Store8(arg),
     });
 }
 
@@ -187,15 +212,15 @@ fn inline(f: &mut Func, scratch: &mut Scratch, n: u32, source: u32, dest: u32, c
         zero_on_stack(f, dest);
         return;
     }
-    if n <= 8 && n.is_power_of_two() {
+    if let Some(width) = Width::of(n) {
         if copying {
-            load(f, source, 0, n);
+            load(f, source, 0, width);
         } else if let Some(byte) = byte {
             literal_pattern(f, byte, n);
         } else {
             byte_pattern(f, n);
         }
-        store(f, dest, 0, n);
+        store(f, dest, 0, width);
         return;
     }
     let chunks = widths(n);
@@ -207,8 +232,8 @@ fn inline(f: &mut Func, scratch: &mut Scratch, n: u32, source: u32, dest: u32, c
         let mut parts = Vec::new();
         let mut word = 2;
         for &(offset, width) in &chunks[..chunks.len() - 1] {
-            let value = scratch.local(f, width, if width == 8 { 0 } else { word });
-            if width != 8 {
+            let value = scratch.local(f, width.bytes(), if width == Width::W8 { 0 } else { word });
+            if width != Width::W8 {
                 word += 1;
             }
             f.get(from);
@@ -240,10 +265,10 @@ fn inline(f: &mut Func, scratch: &mut Scratch, n: u32, source: u32, dest: u32, c
                 f.get(to);
             }
             if let Some(byte) = byte {
-                literal_pattern(f, byte, width);
+                literal_pattern(f, byte, width.bytes());
             } else {
                 f.get(value.expect("fill pattern"));
-                if wide && width != 8 {
+                if wide && width != Width::W8 {
                     f.op(I::I32WrapI64);
                 }
             }
@@ -280,19 +305,23 @@ fn filled(f: &mut Func, value: u32, width: u32) {
     }
 }
 
-fn pair(f: &mut Func, source: u32, dest: u32, width: u32, pattern: Option<u32>) {
+fn pair(f: &mut Func, source: u32, dest: u32, width: Width, pattern: Option<u32>) {
     // Keep the first destination beneath the source loads, so the tail
     // value can flow directly from its load into the first store.
-    tail(f, 0, width);
+    tail(f, 0, width.bytes());
     let first = if let Some(value) = pattern {
-        filled(f, value, width);
+        filled(f, value, width.bytes());
         None
     } else {
-        let value = f.local(if width == 8 { Val::I64 } else { Val::I32 });
+        let value = f.local(if width == Width::W8 {
+            Val::I64
+        } else {
+            Val::I32
+        });
         f.get(1);
         load(f, source, 0, width);
         f.set(value);
-        tail(f, 1, width);
+        tail(f, 1, width.bytes());
         load(f, source, 0, width);
         Some(value)
     };
@@ -301,7 +330,7 @@ fn pair(f: &mut Func, source: u32, dest: u32, width: u32, pattern: Option<u32>) 
     if let Some(value) = first {
         f.get(value);
     } else {
-        filled(f, pattern.expect("fill pattern"), width);
+        filled(f, pattern.expect("fill pattern"), width.bytes());
     }
     store(f, dest, 0, width);
 }
@@ -325,20 +354,20 @@ fn tiny(f: &mut Func, source: u32, dest: u32, copying: bool) {
         for position in 0..2 {
             let value = f.local(Val::I32);
             tiny_at(f, 1, position);
-            load(f, source, 0, 1);
+            load(f, source, 0, Width::W1);
             f.set(value);
             parts.push(value);
         }
         tiny_at(f, 1, 2);
-        load(f, source, 0, 1);
+        load(f, source, 0, Width::W1);
     } else {
         f.get(1);
     }
-    store(f, dest, 0, 1);
+    store(f, dest, 0, Width::W1);
     for position in (0..2).rev() {
         tiny_at(f, 0, position);
         f.get(if copying { parts[position as usize] } else { 1 });
-        store(f, dest, 0, 1);
+        store(f, dest, 0, Width::W1);
     }
 }
 
@@ -383,9 +412,9 @@ pub fn helper(m: &Module, source: u32, dest: u32, copying: bool) -> Func {
     no_wrap(&mut f, 0);
     if copying {
         no_wrap(&mut f, 1);
-        for width in [8, 4] {
+        for width in [Width::W8, Width::W4] {
             f.get(2);
-            f.u32(width);
+            f.u32(width.bytes());
             f.op(I::I32GeU);
             f.op(I::If(BlockType::Empty));
             pair(&mut f, source, dest, width, None);
@@ -406,9 +435,9 @@ pub fn helper(m: &Module, source: u32, dest: u32, copying: bool) -> Func {
         f.i32(8);
         f.op(I::I32GeU);
         f.op(I::If(BlockType::Empty));
-        pair(&mut f, source, dest, 8, Some(value));
+        pair(&mut f, source, dest, Width::W8, Some(value));
         f.op(I::Else);
-        pair(&mut f, source, dest, 4, Some(value));
+        pair(&mut f, source, dest, Width::W4, Some(value));
         f.op(I::End);
         f.op(I::Else);
         tiny(&mut f, source, dest, false);
