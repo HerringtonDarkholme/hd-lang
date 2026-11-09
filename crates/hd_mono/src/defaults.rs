@@ -434,9 +434,16 @@ pub fn specialize(body: &Body, defaults: &[(u32, Value)]) -> Option<Body> {
     out.extra.push(0);
     for (i, fold) in folds {
         match fold {
+            // A decision left with one arm that never finishes never
+            // finishes either, so what follows it in its block is dead
+            // (`mark`): a let-else whose `else` is the arm that runs
+            // leaves its bindings unstored, and their reads go with it.
             Fold::Scope(block) => {
                 out.tags[i] = Tag::Scope;
                 out.data[i] = [block, empty];
+                if body.ty[block as usize] == Ty::NEVER {
+                    out.ty[i] = Ty::NEVER;
+                }
             }
             // The `if` stays, on its condition's constant, so the backend
             // folds it as it folds `if true:` (no block is left around the
@@ -454,6 +461,11 @@ pub fn specialize(body: &Body, defaults: &[(u32, Value)]) -> Option<Body> {
                 }
                 if let Some(&dead) = body.record(arms).get(1 - k) {
                     unreachable_arm(&mut out, dead);
+                }
+                if let Some(&taken) = body.record(arms).get(k)
+                    && body.ty.get(taken as usize) == Some(&Ty::NEVER)
+                {
+                    out.ty[i] = Ty::NEVER;
                 }
             }
             Fold::Left => {
@@ -474,6 +486,19 @@ pub fn specialize(body: &Body, defaults: &[(u32, Value)]) -> Option<Body> {
             out.tags[i] = Tag::Block;
             out.data[i] = [empty, NONE];
             out.ty[i] = Ty::VOID;
+        }
+    }
+    // A block whose tail comes after a member that never finishes has no
+    // value, as a dead arm's block has none (`unreachable_arm`).
+    for i in 0..out.len() {
+        let tail = out.data[i][1];
+        if live[i]
+            && out.tags[i] == Tag::Block
+            && tail != NONE
+            && tail & Ref::CONST_BIT == 0
+            && !live[tail as usize]
+        {
+            out.data[i][1] = NONE;
         }
     }
     out.susp.retain(|s| live[s.inst as usize]);
@@ -593,6 +618,9 @@ fn unreachable_arm(out: &mut Body, dead: u32) {
 
 /// The instructions reachable from `root`, by a worklist: each is pushed
 /// once, so the walk is O(n) and its depth is the heap's, not the stack's.
+/// A block's members run in order, so none after one that never finishes
+/// (`never`: a `return`, a `break`, a folded decision whose arm returns)
+/// is reached, and neither is the block's tail.
 fn mark(body: &Body, root: u32) -> Vec<bool> {
     let mut live = vec![false; body.len()];
     let mut work = vec![root];
@@ -607,12 +635,20 @@ fn mark(body: &Body, root: u32) -> Vec<bool> {
         live[i] = true;
         let [a, b] = body.data[i];
         if body.tags[i] == Tag::Block {
-            work.extend(
-                body.record(a)
-                    .iter()
-                    .filter(|&&child| body.tags[child as usize] != Tag::Block),
-            );
-            work.push(b);
+            let mut finishes = true;
+            for &child in body.record(a) {
+                if body.tags[child as usize] == Tag::Block {
+                    continue;
+                }
+                work.push(child);
+                if body.ty[child as usize] == Ty::NEVER {
+                    finishes = false;
+                    break;
+                }
+            }
+            if finishes {
+                work.push(b);
+            }
             continue;
         }
         if body.tags[i] == Tag::Closure
@@ -929,6 +965,43 @@ mod tests {
             });
             assert_eq!(specialize(&body, &[]).is_some(), !lend, "lent: {lend}");
         }
+    }
+
+    /// A decided `if` whose arm that runs returns ends its block: a read
+    /// after it of a local only the other arm stores goes with the block's
+    /// tail, as in a let-else whose `else` is known to run.
+    #[test]
+    fn a_decision_whose_arm_returns_drops_what_follows() {
+        let n = NodeIdx::NONE;
+        let mut b = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+        let root = b.open_block();
+        let param = b.local(Ty::BOOL, Symbol::from_raw(0), local_flags::PARAM, n);
+        let bound = b.local(Ty::I32, Symbol::from_raw(1), 0, n);
+        let cond = b.get(param, Ty::BOOL, n);
+        let yes = b.open_block();
+        let minus = b.const_value(Ty::I32, 1);
+        b.emit(Tag::Return, minus.0, NONE, Ty::NEVER, n);
+        let yes = b.close_block(yes, None, Ty::NEVER, n);
+        let no = b.open_block();
+        let five = b.const_value(Ty::I32, 5);
+        b.set(bound, five, n);
+        let no = b.close_block(no, None, Ty::VOID, n);
+        let blocks = b.refs_record(&[yes, no]);
+        b.emit(Tag::If, cond.0, blocks, Ty::VOID, n);
+        let read = b.get(bound, Ty::I32, n);
+        let root = b.close_block(root, Some(read), Ty::I32, n);
+        let body = b.finish(root, &[]).expect("valid function body");
+        let store = body
+            .tags
+            .iter()
+            .position(|t| *t == Tag::Store)
+            .expect("the store");
+        let out = specialize(&body, &[(0, Value::Scalar(1))]).expect("a decided if");
+        assert!(gone(&out, Ref(index(store))));
+        assert!(gone(&out, read));
+        assert_eq!(out.data[root.0 as usize][1], NONE);
+        let errors = hd_tir::ir::verify(&out);
+        assert!(errors.is_empty(), "specialized TIR: {errors:?}");
     }
 
     /// A body whose only effect is one known result collapses to it; one
