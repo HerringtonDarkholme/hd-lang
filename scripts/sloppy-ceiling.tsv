@@ -2,7 +2,7 @@ rule	crate	ceiling
 ban-unsupported	hd_diag	2
 ban-unsupported	hd_driver	3
 ban-unsupported	hd_structure	18
-ban-unsupported	hd_wasm_linear	121
+ban-unsupported	hd_wasm_linear	117
 sloppy-catchall-empty	hd_check	37
 sloppy-catchall-empty	hd_driver	1
 sloppy-catchall-empty	hd_mono	10
@@ -20,7 +20,7 @@ sloppy-expect	hd_resolve	16
 sloppy-expect	hd_syntax	69
 sloppy-expect	hd_tir	66
 sloppy-expect	hd_types	48
-sloppy-expect	hd_wasm_linear	278
+sloppy-expect	hd_wasm_linear	277
 sloppy-for-now	hd_check	16
 sloppy-for-now	hd_opt	1
 sloppy-for-now	hd_tir	19
