@@ -30,7 +30,7 @@ sloppy-panic	hd_driver	1
 sloppy-panic	hd_opt	2
 sloppy-std-path	hd_check	30
 sloppy-std-path	hd_driver	26
-sloppy-std-path	hd_resolve	128
+sloppy-std-path	hd_resolve	27
 sloppy-std-path	hd_structure	4
 sloppy-std-path	hd_wasm_linear	9
 sloppy-unreachable	hd_check	18

@@ -18,6 +18,9 @@ files:
   - crates/hd_structure/src/**/*.rs
   - crates/hd_driver/src/**/*.rs
 ignores:
+  # The known-items table is where std items are named by path, once each: the
+  # message's own remedy. Every other path string is the sloppy kind.
+  - crates/hd_resolve/src/known.rs
   - crates/*/src/**/tests.rs
   - crates/*/src/**/*_tests.rs
   - crates/*/src/**/test_*.rs
