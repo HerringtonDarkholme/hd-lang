@@ -43,6 +43,17 @@ enum ValueAt<'a> {
 }
 
 impl At {
+    fn memory(&self) -> (u32, u32) {
+        let memory = match self {
+            Self::Mem(a, off) => Some((*a, *off)),
+            Self::Vals(_) | Self::Globals(..) => None,
+        };
+        // ruled out: rooted stores reach memory through Elem/Deref;
+        // counted_ref addresses a payload's borrowed base in memory.
+        assert!(memory.is_some(), "the checked place must reach memory");
+        memory.as_slice()[0]
+    }
+
     fn value(&self) -> ValueAt<'_> {
         let value = match self {
             Self::Vals(ls) => Some(ValueAt::Vals(ls)),
@@ -764,39 +775,32 @@ impl Em<'_, '_, '_> {
     /// type `ty`. A payload is a struct at one offset of its enum
     /// (`layout::Flat`), so the field is at a fixed offset from it.
     fn payload_ref(&mut self, i: u32, base: &At, parent_ty: Ty, steps: &[Proj]) -> StageResult<()> {
-        // ruled out: types.trait.value.reference-values stores a reference,
-        // never a bare trait value; borrowing that stored reference is thin.
-        // ruled out: pat::pattern_place_ref extends the payload's place
-        // through its reference; counted_ref addresses that dereference.
-        let &At::Mem(a, off) = base else {
-            return unsupported("a reference to a payload field in no memory");
-        };
+        let (a, off) = base.memory();
         let mut ty = parent_ty;
         let mut offset = off;
-        let mut k = 0;
-        while k < steps.len() {
-            match (steps[k], steps.get(k + 1)) {
-                (Proj::Variant(v), Some(&Proj::Field(f))) => {
-                    // gap: #1544: associated payload declarations can use a boxed layout.
-                    if matches!(self.kind(ty), Kind::Boxed) {
-                        return unsupported("a reference to a payload field of a boxed enum");
-                    }
+        let mut steps = steps.iter();
+        while let Some(&step) = steps.next() {
+            match step {
+                Proj::Variant(v) => {
+                    let f = place_field(steps.next());
+                    // ruled out: data.enum.no-recursion/no-boxing; hd_check
+                    // rejects cycles after associated payload substitution (#1554).
+                    assert!(
+                        !matches!(self.kind(ty), Kind::Boxed),
+                        "checked enum payloads have a value layout"
+                    );
                     // A checked place's payload step names a field of
                     // its variant.
                     // A `Proj::Variant` step, into an enum or an optional.
                     offset += self.enum_flat(ty)?.offsets[v as usize][f as usize];
                     ty = self.variant_tys(ty)[v as usize][f as usize];
-                    k += 2;
                 }
-                (Proj::Field(f), _) => {
+                step => {
+                    let f = place_field(Some(&step));
                     let (ft, part) = self.path_step(ty, f)?;
                     offset += part.offset;
                     ty = ft;
-                    k += 1;
                 }
-                // ruled out: counted_ref consumed the last Elem/Deref;
-                // the checker pairs every payload Variant with its Field.
-                _ => return unsupported("a reference to a payload field through this place"),
             }
         }
         self.f.get(a);
@@ -1136,12 +1140,15 @@ impl Em<'_, '_, '_> {
         if let Some((d, Some((target, _)))) = last {
             let (at, _) = self.walk_place(i, &p, d, start)?;
             let r = self.at_i32(&at)?;
-            match fields(&p.proj[d + 1..]) {
-                Some(fs) if fs.is_empty() => self.deref_write_at(r, target, v)?,
-                Some(fs) => self.deref_field_write_at(r, target, &fs, v)?,
-                // ruled out: checker stores use fields, not variant paths;
-                // pattern payload writes dereference their borrowed binding.
-                None => return unsupported("a payload write through a reference"),
+            let path = fields(&p.proj[d + 1..]);
+            // ruled out: checker stores use fields, not variant paths;
+            // pattern payload writes dereference their borrowed binding.
+            assert!(path.is_some(), "checked stores have a field suffix");
+            let fs = &path.as_slice()[0];
+            if fs.is_empty() {
+                self.deref_write_at(r, target, v)?;
+            } else {
+                self.deref_field_write_at(r, target, fs, v)?;
             }
             return Ok(());
         }
@@ -1417,14 +1424,7 @@ impl Em<'_, '_, '_> {
 
     /// The address and leaves of a rooted store's required memory place.
     fn memory_leaves(&self, at: &At, ty: Ty) -> StageResult<(u32, Vec<Leaf>)> {
-        let memory = match at {
-            At::Mem(a, off) => Some((*a, *off)),
-            _ => None,
-        };
-        // ruled out: place_store handles local/global stores first; rooted
-        // stores reach memory through their Elem/Deref.
-        assert!(memory.is_some(), "rooted stores must reach memory");
-        let (a, off) = memory.as_slice()[0];
+        let (a, off) = at.memory();
         let mut leaves = mem_of(self.pool(), self.env(), ty)?.leaves;
         for l in &mut leaves {
             l.offset += off;
@@ -1604,7 +1604,7 @@ impl Em<'_, '_, '_> {
                 Proj::Elem(_) => ty = self.elem(ty)?.0,
                 Proj::Deref => ty = self.checked_ref_target(ty).0,
                 Proj::Variant(v) => {
-                    let f = payload_field(&mut steps);
+                    let f = place_field(steps.next());
                     ty = self.variant_tys(ty)[v as usize][f as usize];
                 }
             }
@@ -1622,7 +1622,7 @@ impl Em<'_, '_, '_> {
                     (at, ty) = self.at_field(at, ty, f)?;
                 }
                 Proj::Variant(v) => {
-                    let f = payload_field(&mut steps);
+                    let f = place_field(steps.next());
                     (at, ty) = self.at_variant(&at, ty, v, f)?;
                 }
                 step => {
@@ -1673,17 +1673,18 @@ impl Em<'_, '_, '_> {
     }
 }
 
-/// Consumes the field paired with the Variant a place walk just consumed.
-fn payload_field(steps: &mut std::slice::Iter<'_, Proj>) -> u32 {
-    let field = match steps.next() {
+/// The next checked field, paired with a Variant or in a plain suffix.
+fn place_field(step: Option<&Proj>) -> u32 {
+    let field = match step {
         Some(Proj::Field(f)) => Some(*f),
         _ => None,
     };
     // ruled out: checker patterns and TirBuilder::payload pair Variant/Field;
-    // callers split only at Elem/Deref or the end of the place.
+    // callers split only at Elem/Deref or the end of the place. counted_ref
+    // consumes the last Elem/Deref before walking a payload's field suffix.
     assert!(
         field.is_some(),
-        "checked Variant must have its payload Field"
+        "a checked place suffix must name its Field"
     );
     field.as_slice()[0]
 }
