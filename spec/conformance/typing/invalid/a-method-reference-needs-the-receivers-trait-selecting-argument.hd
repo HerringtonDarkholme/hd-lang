@@ -1,0 +1,25 @@
+# test: method references use the same receiver lookup
+trait Left:
+    fn choose(self) -> i32
+
+trait Right:
+    fn choose(self) -> i32
+
+struct Holder[T]:
+    item: T
+
+impl Left for Holder[i32]:
+    fn choose(self) -> i32:
+        +1
+
+impl Right for Holder[string]:
+    fn choose(self) -> i32:
+        +2
+
+fn unknown[T]() -> Holder[T]:
+    panic("unused")
+
+fn probe() -> void:
+    value := unknown()
+    _ := value::choose # diagnostic: cannot-infer-type
+    let fixed: Holder[i32] = value

@@ -1,0 +1,18 @@
+# test: a known method trait can keep its implementation pending
+trait Left:
+    fn choose(self) -> i32
+
+struct Holder[T]:
+    item: T
+
+impl Left for Holder[i32]:
+    fn choose(self) -> i32:
+        +1
+
+fn unknown[T]() -> Holder[T]:
+    panic("unused")
+
+fn probe() -> void:
+    value := unknown()
+    _ := value.choose()
+    let fixed: Holder[i32] = value
