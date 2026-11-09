@@ -1,0 +1,43 @@
+# test: a payload declared `S::Item` whose binding is a counted trait value is borrowed and its methods called through the borrow
+# Spec 13 Values And References: ref.match.borrow, ref.write.field. Spec 9 Traits: trait.assoc.projection.
+# expect-stdout: 9
+trait Source:
+    type Item
+
+trait Shape:
+    fn area(&self) -> u32
+    fn grow(&mut self) -> void
+
+struct Square:
+    side: u32
+
+impl Shape for Square:
+    fn area(&self) -> u32:
+        self.side * self.side
+    fn grow(&mut self) -> void:
+        self.side += 1
+
+struct Provider: pass
+
+impl Source for Provider:
+    type Item = *mut dyn Shape
+
+enum Holder[S < Source]:
+    Empty
+    Full(value: S::Item)
+
+fn grow(holder: &mut Holder[Provider]) -> void:
+    match holder:
+        .Full(value) => value.grow()
+        .Empty => pass
+
+fn area(holder: &Holder[Provider]) -> u32:
+    match holder:
+        .Full(value) => value.area()
+        .Empty => 0
+
+pub fn main() -> void $ Console:
+    let s: *mut dyn Shape = box(Square { side: 2 })
+    let mut holder = Holder::[Provider].Full(s)
+    grow(&mut holder)
+    println(area(&holder))

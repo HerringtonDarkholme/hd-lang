@@ -1,0 +1,37 @@
+# @dump: wat
+# A payload declared `S::Item` is laid out from the instance, where
+# `Item` is `Number` (#1544): `Holder[Provider]` is a value enum, as
+# `Plain` is, not a boxed one.
+# expected: `rewrite` and `rewrite_plain` emit the same instructions: the
+# payload borrow is the enum's address plus the payload offset, and the
+# replacement stores there.
+trait Source:
+    type Item
+
+struct Provider: pass
+
+struct Number:
+    value: u32
+
+impl !Copy for Number
+
+impl Source for Provider:
+    type Item = Number
+
+enum Holder[S < Source]:
+    Empty
+    Full(value: S::Item)
+
+enum Plain:
+    Empty
+    Full(value: Number)
+
+fn rewrite(holder: &mut Holder[Provider], replacement: Number) -> void:
+    match holder:
+        .Full(value) => *value = replacement
+        .Empty => pass
+
+fn rewrite_plain(holder: &mut Plain, replacement: Number) -> void:
+    match holder:
+        .Full(value) => *value = replacement
+        .Empty => pass

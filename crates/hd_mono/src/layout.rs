@@ -85,9 +85,13 @@ pub trait LayoutEnv {
     fn is_enum(&self, def: DefId) -> bool {
         self.enum_declared(def).is_some()
     }
-    /// Whether an enum is self-recursive (`recursive_enums`): every
-    /// instance of it is boxed.
-    fn recursive_enum(&self, def: DefId) -> bool;
+    /// How an enum's declaration lays out its instances
+    /// ([`enum_boxing`]).
+    fn enum_boxing(&self, def: DefId) -> EnumBoxing;
+    /// Whether the instance `def[args]` of an enum is boxed: by its
+    /// declaration ([`Self::enum_boxing`]), or, for one that holds a
+    /// projection, by its own resolved payloads ([`recursive_instance`]).
+    fn recursive_enum(&self, def: DefId, args: TyList) -> bool;
     /// Which built-in std type `def` is, if any. Required: a default of
     /// `Other` would lay out `List`, `Map` and `Suspend` as plain data.
     fn std_kind(&self, def: DefId) -> StdKind;
@@ -120,10 +124,37 @@ pub trait LayoutEnv {
 /// references and end a path. A cycle decides, so a payload naming its
 /// own enum at growing arguments (`E[T?]` in `E[T]`) is boxed like a
 /// plain one, and every other enum's value layout is finite. A projection
-/// in a value position is not resolved here, so its enum counts as
-/// self-recursive.
+/// in a value position (`S::Item`) names no declaration here: an enum
+/// that holds one and is in no cycle is decided per instance
+/// ([`recursive_instance`]).
 #[must_use]
 pub fn recursive_enums(pool: &InternPool, env: &dyn LayoutEnv, enums: &[DefId]) -> HashSet<DefId> {
+    value_graph(pool, env, enums).0
+}
+
+/// How an enum's declaration lays out its instances.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EnumBoxing {
+    /// Every instance is a value: the declaration is in no cycle and
+    /// holds no projection by value.
+    Value,
+    /// Every instance is boxed: the declaration is self-recursive
+    /// ([`recursive_enums`]).
+    Boxed,
+    /// The declaration holds a projection by value and is in no cycle:
+    /// each instance decides from its resolved payloads
+    /// ([`recursive_instance`]), as rustc lays out each monomorphic
+    /// instance rather than the generic declaration.
+    ByInstance,
+}
+
+/// The self-recursive enums among `enums`, and those that hold a
+/// projection in a value position.
+fn value_graph(
+    pool: &InternPool,
+    env: &dyn LayoutEnv,
+    enums: &[DefId],
+) -> (HashSet<DefId>, HashSet<DefId>) {
     let mut g = ValueGraph {
         enums: enums.iter().copied().collect(),
         ..ValueGraph::default()
@@ -150,19 +181,20 @@ pub fn recursive_enums(pool: &InternPool, env: &dyn LayoutEnv, enums: &[DefId]) 
     for c in &comp {
         *size.entry(*c).or_default() += 1;
     }
-    let mut out = g.opaque;
+    let mut out = HashSet::default();
     for (i, e) in enums.iter().enumerate() {
         if size[&comp[i]] > 1 || succ[i].contains(&i) {
             out.insert(*e);
         }
     }
-    out
+    (out, g.opaque)
 }
 
-/// Whether `def` is self-recursive, as [`recursive_enums`] finds over every enum. Only
-/// the enums `def` can hold decide it: their declarations are all this reads.
+/// How `def`'s declaration lays out its instances, as [`recursive_enums`]
+/// finds over every enum. Only the enums `def` can hold decide it: their
+/// declarations are all this reads.
 #[must_use]
-pub fn is_recursive_enum(pool: &InternPool, env: &dyn LayoutEnv, def: DefId) -> bool {
+pub fn enum_boxing(pool: &InternPool, env: &dyn LayoutEnv, def: DefId) -> EnumBoxing {
     let mut enums = vec![def];
     let mut seen: HashSet<DefId> = enums.iter().copied().collect();
     let mut at = 0;
@@ -186,7 +218,94 @@ pub fn is_recursive_enum(pool: &InternPool, env: &dyn LayoutEnv, def: DefId) -> 
             }
         }
     }
-    recursive_enums(pool, env, &enums).contains(&def)
+    let (recursive, opaque) = value_graph(pool, env, &enums);
+    if recursive.contains(&def) {
+        EnumBoxing::Boxed
+    } else if opaque.contains(&def) {
+        EnumBoxing::ByInstance
+    } else {
+        EnumBoxing::Value
+    }
+}
+
+/// Whether the instance `def[args]` of an [`EnumBoxing::ByInstance`] enum
+/// is boxed: whether its payloads, at `args` with every projection
+/// resolved ([`LayoutEnv::enum_variants`]), hold `def` again, at any
+/// arguments, through the value positions of [`recursive_enums`] and a
+/// union's members. A [`EnumBoxing::Boxed`] enum is an address and ends a
+/// path.
+///
+/// Only a projection hides an edge from the declarations, so every cycle
+/// they miss passes through a `ByInstance` instance, whose own walk finds
+/// it. A `ByInstance` enum met again on the current path is a cycle of
+/// its own or a chain that may grow through projections (`Item` of `W[T]`
+/// bound to `E[W[W[T]]]`): `def[args]` is boxed then, as a declared cycle
+/// boxes every enum on it, which keeps the walk and the layout finite.
+///
+/// Cost: an explicit depth-first stack over distinct instances, each
+/// expanded once, so linear in the payload types of the enum instances
+/// `def[args]` holds by value; the caller memoizes per instance.
+#[must_use]
+pub fn recursive_instance(
+    pool: &InternPool,
+    env: &dyn LayoutEnv,
+    def: DefId,
+    args: TyList,
+) -> bool {
+    let payloads = |d: DefId, a: TyList| env.enum_variants(d, a).unwrap_or_default().concat();
+    // One frame per expanded instance on the current path: its enum and
+    // the value-held types left to visit.
+    let mut path: Vec<(DefId, Vec<Ty>)> = vec![(def, payloads(def, args))];
+    let mut seen: HashSet<Ty> = HashSet::default();
+    while let Some((_, todo)) = path.last_mut() {
+        let Some(t) = todo.pop() else {
+            path.pop();
+            continue;
+        };
+        let t = strip_newtype(pool, env, t);
+        match pool.get(t) {
+            TyData::Tuple { elems, rest } => {
+                todo.extend_from_slice(pool.list_items(elems));
+                todo.extend(rest);
+            }
+            TyData::Union(members) => todo.extend_from_slice(pool.list_items(members)),
+            TyData::Adt { def: d, args: a } => {
+                // Data and collections are held by reference.
+                if !env.is_enum(d) {
+                    continue;
+                }
+                if d == def {
+                    return true;
+                }
+                match env.enum_boxing(d) {
+                    EnumBoxing::Boxed => continue,
+                    EnumBoxing::ByInstance if path.iter().any(|(on, _)| *on == d) => return true,
+                    EnumBoxing::ByInstance | EnumBoxing::Value => {}
+                }
+                if seen.insert(t) {
+                    path.push((d, payloads(d, a)));
+                }
+            }
+            // A scalar, a function, a trait value or a reference is one
+            // leaf or address. Resolved payloads hold no parameter,
+            // projection, opaque result or inference variable.
+            TyData::Prim(_)
+            | TyData::Never
+            | TyData::Poison
+            | TyData::Const(_)
+            | TyData::Fn { .. }
+            | TyData::TraitValue { .. }
+            | TyData::Ref { .. }
+            | TyData::Opaque { .. }
+            | TyData::Param(_)
+            | TyData::Assoc { .. }
+            | TyData::Infer(_)
+            | TyData::Canon(_)
+            | TyData::Row(_)
+            | TyData::Context(_) => {}
+        }
+    }
+    false
 }
 
 /// The enum graph of `recursive_enums`.
@@ -763,7 +882,10 @@ mod tests {
         fn enum_declared(&self, def: DefId) -> Option<Vec<Vec<Ty>>> {
             self.enum_variants(def, TyList::EMPTY)
         }
-        fn recursive_enum(&self, _: DefId) -> bool {
+        fn enum_boxing(&self, _: DefId) -> super::EnumBoxing {
+            super::EnumBoxing::Value
+        }
+        fn recursive_enum(&self, _: DefId, _: TyList) -> bool {
             false
         }
         fn std_kind(&self, _: DefId) -> StdKind {
@@ -785,7 +907,10 @@ mod tests {
         fn enum_declared(&self, _: DefId) -> Option<Vec<Vec<Ty>>> {
             None
         }
-        fn recursive_enum(&self, _: DefId) -> bool {
+        fn enum_boxing(&self, _: DefId) -> super::EnumBoxing {
+            super::EnumBoxing::Value
+        }
+        fn recursive_enum(&self, _: DefId, _: TyList) -> bool {
             false
         }
         fn std_kind(&self, _: DefId) -> StdKind {
@@ -861,7 +986,10 @@ mod tests {
                 .find(|(d, _)| *d == def.raw())
                 .map(|(_, v)| v.clone())
         }
-        fn recursive_enum(&self, _: DefId) -> bool {
+        fn enum_boxing(&self, _: DefId) -> super::EnumBoxing {
+            super::EnumBoxing::Value
+        }
+        fn recursive_enum(&self, _: DefId, _: TyList) -> bool {
             false
         }
         fn std_kind(&self, _: DefId) -> StdKind {
@@ -914,8 +1042,133 @@ mod tests {
         assert_eq!(got, [1, 2, 4]);
         // One enum's answer needs only the enums it can hold.
         for e in &all {
-            assert_eq!(super::is_recursive_enum(&p, &decls, *e), rec.contains(e));
+            let boxed = super::enum_boxing(&p, &decls, *e) == super::EnumBoxing::Boxed;
+            assert_eq!(boxed, rec.contains(e));
         }
+    }
+
+    /// Enum instances for `recursive_instance`: each instance's resolved
+    /// payloads by its arguments, and each declaration's boxing.
+    struct Instances {
+        payloads: Vec<((u32, TyList), Vec<Ty>)>,
+        boxing: Vec<(u32, super::EnumBoxing)>,
+        /// How many instances the walk expanded.
+        expanded: std::cell::Cell<usize>,
+    }
+    impl LayoutEnv for Instances {
+        fn enum_variants(&self, def: DefId, args: TyList) -> Option<Vec<Vec<Ty>>> {
+            self.expanded.set(self.expanded.get() + 1);
+            let found = self.payloads.iter().find(|(k, _)| *k == (def.raw(), args));
+            Some(vec![found.map(|(_, v)| v.clone()).unwrap_or_default()])
+        }
+        fn enum_declared(&self, def: DefId) -> Option<Vec<Vec<Ty>>> {
+            self.boxing
+                .iter()
+                .any(|(d, _)| *d == def.raw())
+                .then(Vec::new)
+        }
+        fn enum_boxing(&self, def: DefId) -> super::EnumBoxing {
+            self.boxing
+                .iter()
+                .find(|(d, _)| *d == def.raw())
+                .map_or(super::EnumBoxing::Value, |(_, b)| *b)
+        }
+        fn recursive_enum(&self, _: DefId, _: TyList) -> bool {
+            false
+        }
+        fn std_kind(&self, _: DefId) -> StdKind {
+            StdKind::Other
+        }
+        fn newtype_base(&self, _: DefId) -> Option<Ty> {
+            None
+        }
+        fn option(&self) -> DefId {
+            DefId::from_raw(7)
+        }
+    }
+
+    #[test]
+    fn recursive_instances_follow_resolved_projections() {
+        use super::EnumBoxing::{Boxed, ByInstance, Value};
+        let p = InternPool::new();
+        let d = DefId::from_raw;
+        let adt = |def: u32, args: &[Ty]| {
+            p.intern_ty(&TyData::Adt {
+                def: d(def),
+                args: p.list(args),
+            })
+        };
+        let data = |raw: u32| adt(raw, &[]);
+        let (number, provider, looping) = (data(20), data(21), data(22));
+        let walk = |payloads: Vec<((u32, TyList), Vec<Ty>)>, boxing, def: u32, args: &[Ty]| {
+            let env = Instances {
+                payloads,
+                boxing,
+                expanded: std::cell::Cell::new(0),
+            };
+            let boxed = super::recursive_instance(&p, &env, d(def), p.list(args));
+            (boxed, env.expanded.get())
+        };
+        // 1: `Holder[S] = Full(S::Item) | Empty`; `Item` of Provider is Number.
+        let holder = vec![((1, p.list(&[provider])), vec![number])];
+        assert_eq!(
+            walk(holder, vec![(1, ByInstance)], 1, &[provider]),
+            (false, 1)
+        );
+        // `Item` of Looping is `Holder[Looping]` itself.
+        let selfish = vec![((1, p.list(&[looping])), vec![adt(1, &[looping])])];
+        assert!(walk(selfish, vec![(1, ByInstance)], 1, &[looping]).0);
+        // 2: `Other[S] = O(S::Item)`, Holder's `Item` is `Other[P]` and
+        // Other's is `Holder[P]`: a cycle only the two instances show.
+        let mutual = vec![
+            ((1, p.list(&[provider])), vec![adt(2, &[provider])]),
+            ((2, p.list(&[provider])), vec![adt(1, &[provider])]),
+        ];
+        let both = vec![(1, ByInstance), (2, ByInstance)];
+        assert!(walk(mutual.clone(), both.clone(), 1, &[provider]).0);
+        assert!(walk(mutual, both, 2, &[provider]).0);
+        // A boxed enum is an address and ends the path.
+        let through_box = vec![
+            ((1, p.list(&[provider])), vec![adt(3, &[])]),
+            ((3, TyList::EMPTY), vec![adt(1, &[provider])]),
+        ];
+        assert!(
+            !walk(
+                through_box,
+                vec![(1, ByInstance), (3, Boxed)],
+                1,
+                &[provider]
+            )
+            .0
+        );
+        // A value enum in a tuple is walked through.
+        let in_tuple = vec![
+            (
+                (1, p.list(&[provider])),
+                vec![p.intern_ty(&TyData::Tuple {
+                    elems: p.list(&[Ty::I32, adt(3, &[])]),
+                    rest: None,
+                })],
+            ),
+            ((3, TyList::EMPTY), vec![adt(1, &[provider])]),
+        ];
+        assert!(walk(in_tuple, vec![(1, ByInstance), (3, Value)], 1, &[provider]).0);
+        // 4: `Grow[S] = G(S::Item)` whose `Item` at `W^k` is `Grow[W^(k+1)]`,
+        // held by Holder: the chain is cut at its second Grow, two
+        // expansions after Holder's.
+        let w = |t: Ty| adt(23, &[t]);
+        let grow = vec![
+            ((1, p.list(&[provider])), vec![adt(4, &[w(number)])]),
+            ((4, p.list(&[w(number)])), vec![adt(4, &[w(w(number))])]),
+            (
+                (4, p.list(&[w(w(number))])),
+                vec![adt(4, &[w(w(w(number)))])],
+            ),
+        ];
+        assert_eq!(
+            walk(grow, vec![(1, ByInstance), (4, ByInstance)], 1, &[provider]),
+            (true, 2)
+        );
     }
 
     #[test]

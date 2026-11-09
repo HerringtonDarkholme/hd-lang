@@ -232,7 +232,7 @@ pub enum Kind {
 /// Which kind `t` is.
 pub fn kind(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Kind {
     let t = strip(pool, env, t);
-    let def = match pool.get(t) {
+    let (def, args) = match pool.get(t) {
         TyData::Ref { inner, counted, .. } => {
             return Kind::Ref {
                 target: strip(pool, env, inner),
@@ -240,14 +240,15 @@ pub fn kind(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Kind {
                 whole: counted,
             };
         }
-        TyData::Adt { def, .. } => def,
+        TyData::Adt { def, args } => (def, args),
         _ => return Kind::Value,
     };
     if env.std_kind(def) != StdKind::Other {
         return Kind::Value;
     }
+    // The instance decides, as its resolved payloads do (`enum_boxing`).
     if env.is_enum(def) {
-        return if env.recursive_enum(def) {
+        return if env.recursive_enum(def, args) {
             Kind::Boxed
         } else {
             Kind::Value

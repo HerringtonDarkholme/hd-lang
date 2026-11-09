@@ -1,0 +1,40 @@
+# test: a closure that captures a `*mut` owner borrows and writes a payload and a field declared `S::Item`
+# Spec 13 Values And References: ref.match.borrow, ref.write.field. Spec 9 Traits: trait.assoc.projection.
+# expect-stdout: 9
+# expect-stdout: 5
+trait Source:
+    type Item
+
+struct Provider: pass
+
+struct Number:
+    value: u32
+
+impl !Copy for Number
+
+impl Source for Provider:
+    type Item = Number
+
+enum Holder[S < Source]:
+    Empty
+    Full(value: S::Item)
+
+struct Box2[S < Source]:
+    item: S::Item
+
+pub fn main() -> void $ Console:
+    let h: *mut Holder[Provider] = box(Holder::[Provider].Full(Number { value: 1 }))
+    set := fn(n: u32) -> void:
+        match &mut *h:
+            .Full(value) => value.value = n
+            .Empty => pass
+    set(9)
+    get := fn() -> u32:
+        match &*h:
+            .Full(value) => value.value
+            .Empty => 0
+    println(get())
+    let b: *mut Box2[Provider] = box(Box2::[Provider] { item: Number { value: 1 } })
+    bump := fn() -> void: b.item.value += 4
+    bump()
+    println(b.item.value)

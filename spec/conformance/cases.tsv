@@ -6222,6 +6222,14 @@ runtime/valid/associated-enum-payload-references-read-and-write.hd	runtime	accep
 typing/valid/associated-enum-payload-field-write.hd	type	accept	lang/13-values-and-references.md#r-ref.write.field
 typing/valid/associated-struct-field-write.hd	type	accept	lang/13-values-and-references.md#r-ref.write.field
 runtime/valid/a-lifetime-enum-borrows-its-mutable-trait-reference.hd	runtime	accept	lang/13-values-and-references.md#r-ref.match.borrow
+runtime/valid/associated-enum-payload-references-fields-and-empty.hd	runtime	accept	lang/13-values-and-references.md#r-ref.match.borrow
+runtime/valid/associated-payload-writes-under-a-generic-bound.hd	runtime	accept	lang/13-values-and-references.md#r-ref.match.borrow
+runtime/valid/associated-payload-writes-through-a-pointer-owner.hd	runtime	accept	lang/13-values-and-references.md#r-ref.match.borrow
+runtime/valid/associated-payload-writes-in-a-nested-enum-payload.hd	runtime	accept	lang/13-values-and-references.md#r-ref.match.borrow
+runtime/valid/associated-payload-writes-in-a-closure-capture.hd	runtime	accept	lang/13-values-and-references.md#r-ref.match.borrow
+runtime/valid/associated-payload-writes-in-a-suspending-function.hd	runtime	accept	lang/13-values-and-references.md#r-ref.match.borrow
+runtime/valid/associated-payload-holds-a-trait-value.hd	runtime	accept	lang/13-values-and-references.md#r-ref.match.borrow
+runtime/valid/associated-payload-writes-under-a-trait-value-argument.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.bound.reference-projection
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

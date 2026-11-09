@@ -1,0 +1,43 @@
+# test: a suspending function borrows and writes a payload declared `S::Item` across suspension points
+# Spec 13 Values And References: ref.match.borrow, ref.write.field. Spec 9 Traits: trait.assoc.projection.
+# expect-stdout: 9
+use std.time.{Clock, ms, sleep}
+trait Source:
+    type Item
+
+struct Provider: pass
+
+struct Number:
+    value: u32
+
+impl !Copy for Number
+
+impl Source for Provider:
+    type Item = Number
+
+enum Holder[S < Source]:
+    Empty
+    Full(value: S::Item)
+
+struct Box2[S < Source]:
+    item: S::Item
+
+fn write!(holder: &mut Holder[Provider]) -> void $ Clock:
+    sleep!(ms(1))
+    match holder:
+        .Full(value) =>
+            sleep!(ms(1))
+            value.value = 9
+        .Empty => pass
+
+fn read!(holder: &Holder[Provider]) -> u32 $ Clock:
+    match holder:
+        .Full(value) =>
+            sleep!(ms(1))
+            value.value
+        .Empty => 0
+
+pub fn main!() -> void $ Console + Clock:
+    let mut holder = Holder::[Provider].Full(Number { value: 1 })
+    write!(&mut holder)
+    println(read!(&holder))

@@ -833,9 +833,13 @@ struct ProgramTables {
     /// never shared with a library-role context, nor one of theirs used
     /// here. Empty outside a test run.
     test_impls: hd_types::solver::ImplTable,
-    /// The program's self-recursive enums (`hd_mono::layout::recursive_enums`),
-    /// found once on the first layout that asks.
-    recursive_enums: Mutex<HashMap<DefId, bool>>,
+    /// How each enum's declaration lays out its instances
+    /// (`hd_mono::layout::enum_boxing`), found once on the first layout
+    /// that asks.
+    recursive_enums: Mutex<HashMap<DefId, hd_mono::layout::EnumBoxing>>,
+    /// Whether each instance of an enum that holds a projection is boxed
+    /// (`hd_mono::layout::recursive_instance`), found once per instance.
+    recursive_instances: Mutex<HashMap<(DefId, TyList), bool>>,
     /// The declarations with a `std.rt.Drop` implementation, found once
     /// on the first layout that asks.
     drop_defs: OnceLock<hd_base::HashSet<DefId>>,
@@ -8726,6 +8730,7 @@ impl Run<'_> {
             extra,
             test_impls,
             recursive_enums: Mutex::new(HashMap::default()),
+            recursive_instances: Mutex::new(HashMap::default()),
             drop_defs: OnceLock::new(),
         });
         self.program.get()
@@ -11631,13 +11636,28 @@ impl LayoutEnv for Env<'_> {
             _ => None,
         }
     }
-    fn recursive_enum(&self, def: DefId) -> bool {
+    fn enum_boxing(&self, def: DefId) -> hd_mono::layout::EnumBoxing {
         if let Some(known) = lock(&self.p.recursive_enums).get(&def) {
             return *known;
         }
-        let recursive = hd_mono::layout::is_recursive_enum(&self.run.pool, self, def);
-        lock(&self.p.recursive_enums).insert(def, recursive);
-        recursive
+        let boxing = hd_mono::layout::enum_boxing(&self.run.pool, self, def);
+        lock(&self.p.recursive_enums).insert(def, boxing);
+        boxing
+    }
+    fn recursive_enum(&self, def: DefId, args: TyList) -> bool {
+        use hd_mono::layout::EnumBoxing;
+        match self.enum_boxing(def) {
+            EnumBoxing::Value => false,
+            EnumBoxing::Boxed => true,
+            EnumBoxing::ByInstance => {
+                if let Some(known) = lock(&self.p.recursive_instances).get(&(def, args)) {
+                    return *known;
+                }
+                let boxed = hd_mono::layout::recursive_instance(&self.run.pool, self, def, args);
+                lock(&self.p.recursive_instances).insert((def, args), boxed);
+                boxed
+            }
+        }
     }
     fn option(&self) -> DefId {
         self.run.known.option

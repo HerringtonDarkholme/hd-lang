@@ -1,0 +1,52 @@
+# test: a multi-field noncopyable payload whose type is an associated projection is read, written field by field and replaced through payload borrows; the empty variant is left alone
+# Spec 13 Values And References: ref.match.borrow, ref.write.field. Spec 9 Traits: trait.assoc.projection.
+# expect-stdout: 0
+# expect-stdout: 3 hi
+# expect-stdout: 10 hi!
+# expect-stdout: 7 new
+trait Source:
+    type Item
+
+struct Provider: pass
+
+struct Entry:
+    count: u32
+    label: string
+
+impl !Copy for Entry
+
+impl Source for Provider:
+    type Item = Entry
+
+enum Holder[S < Source]:
+    Empty
+    Full(entry: S::Item)
+
+fn show(holder: &Holder[Provider]) -> string:
+    match holder:
+        .Full(entry) => "${entry.count} ${entry.label}"
+        .Empty => "0"
+
+fn bump(holder: &mut Holder[Provider]) -> void:
+    match holder:
+        .Full(entry) =>
+            entry.count += 7
+            entry.label = "${entry.label}!"
+        .Empty => pass
+
+fn replace(holder: &mut Holder[Provider], next: Entry) -> void:
+    match holder:
+        .Full(entry) => *entry = next
+        .Empty => pass
+
+pub fn main() -> void $ Console:
+    let mut empty: Holder[Provider] = .Empty
+    bump(&mut empty)
+    replace(&mut empty, Entry { count: 1, label: "unused" })
+    println(show(&empty))
+    let mut full = Holder::[Provider].Full(Entry { count: 3, label: "hi" })
+    println(show(&full))
+    bump(&mut full)
+    println(show(&full))
+    replace(&mut full, Entry { count: 7, label: "new" })
+    println(show(&full))

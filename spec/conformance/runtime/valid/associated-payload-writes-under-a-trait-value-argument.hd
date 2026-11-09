@@ -1,0 +1,41 @@
+# test: a payload and a field declared `S::Item` are written when `S` is a trait value that binds `Item`
+# Spec 13 Values And References: ref.match.borrow, ref.write.field. Spec 9 Traits: trait.dyn.bound.reference-projection.
+# expect-stdout: 9
+# expect-stdout: 3
+trait Source:
+    type Item
+
+struct Provider: pass
+
+struct Number:
+    value: u32
+
+impl !Copy for Number
+
+impl Source for Provider:
+    type Item = Number
+
+enum Holder[S < Source]:
+    Empty
+    Full(value: S::Item)
+
+struct Box2[S < Source]:
+    item: S::Item
+
+fn write(holder: &mut Holder[*dyn Source[Item = Number]]) -> void:
+    match holder:
+        .Full(value) => value.value = 9
+        .Empty => pass
+
+fn read(holder: &Holder[*dyn Source[Item = Number]]) -> u32:
+    match holder:
+        .Full(value) => value.value
+        .Empty => 0
+
+pub fn main() -> void $ Console:
+    let mut holder = Holder::[*dyn Source[Item = Number]].Full(Number { value: 1 })
+    write(&mut holder)
+    println(read(&holder))
+    let mut b = Box2::[*dyn Source[Item = Number]] { item: Number { value: 1 } }
+    b.item.value = 3
+    println(b.item.value)

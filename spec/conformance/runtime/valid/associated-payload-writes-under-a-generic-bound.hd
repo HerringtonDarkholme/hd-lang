@@ -1,0 +1,44 @@
+# test: a payload and a field declared `S::Item` are borrowed and written in a function generic over `S` whose bound binds `Item`
+# Spec 13 Values And References: ref.match.borrow, ref.write.field. Spec 9 Traits: trait.assoc.projection.
+# expect-stdout: 2
+# expect-stdout: 11
+trait Source:
+    type Item
+
+struct Provider: pass
+
+struct Number:
+    value: u32
+
+impl !Copy for Number
+
+impl Source for Provider:
+    type Item = Number
+
+enum Holder[S < Source]:
+    Empty
+    Full(value: S::Item)
+
+struct Box2[S < Source]:
+    item: S::Item
+
+fn write[S < Source[Item = Number]](holder: &mut Holder[S]) -> void:
+    match holder:
+        .Full(value) => value.value += 1
+        .Empty => pass
+
+fn read[S < Source[Item = Number]](holder: &Holder[S]) -> u32:
+    match holder:
+        .Full(value) => value.value
+        .Empty => 0
+
+fn write_box[S < Source[Item = Number]](b: &mut Box2[S]) -> void:
+    b.item.value += 10
+
+pub fn main() -> void $ Console:
+    let mut holder = Holder::[Provider].Full(Number { value: 1 })
+    write(&mut holder)
+    println(read(&holder))
+    let mut b = Box2::[Provider] { item: Number { value: 1 } }
+    write_box(&mut b)
+    println(b.item.value)

@@ -1,0 +1,44 @@
+# test: a payload declared `S::Item` is borrowed and written below another enum's payload borrow
+# Spec 13 Values And References: ref.match.borrow, ref.write.field. Spec 9 Traits: trait.assoc.projection.
+# expect-stdout: 9
+trait Source:
+    type Item
+
+struct Provider: pass
+
+struct Number:
+    value: u32
+
+impl !Copy for Number
+
+impl Source for Provider:
+    type Item = Number
+
+enum Holder[S < Source]:
+    Empty
+    Full(value: S::Item)
+
+struct Box2[S < Source]:
+    item: S::Item
+
+enum Outer:
+    None
+    Wrap(holder: Holder[Provider])
+
+fn write(o: &mut Outer) -> void:
+    match o:
+        .Wrap(holder) =>
+            match holder:
+                .Full(value) => value.value = 9
+                .Empty => pass
+        .None => pass
+
+fn read(o: &Outer) -> u32:
+    match o:
+        .Wrap(.Full(value)) => value.value
+        _ => 0
+
+pub fn main() -> void $ Console:
+    let mut o = Outer.Wrap(Holder::[Provider].Full(Number { value: 1 }))
+    write(&mut o)
+    println(read(&o))
