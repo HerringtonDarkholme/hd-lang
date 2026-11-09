@@ -340,6 +340,8 @@ impl Em<'_, '_, '_> {
             return Ok(());
         }
         let Some(reason) = self.stated_count(Tag::Retain, at, CountPart::Row) else {
+            // ruled out: counts::expected states Cold/Materialize Row retains
+            // for cold_row::roots, including every closure's caller context.
             return unsupported("a suspension row without its stated copy");
         };
         self.because(reason, |em| {
@@ -353,6 +355,8 @@ impl Em<'_, '_, '_> {
     fn susp_key(&self) -> StageResult<Hash128> {
         match &self.susp {
             Some(s) => Ok(s.key),
+            // ruled out: only suspend/cancel_here materialize under point;
+            // emit::instance installs Susp for their checked suspending ABI.
             None => unsupported("a suspension point outside a suspending body"),
         }
     }
@@ -389,10 +393,8 @@ impl Em<'_, '_, '_> {
     /// (`req.cancel.await`): its frame is marked and the point's
     /// cancellation branch runs. A child the frame does not hold yet
     /// becomes its child, with the count in `child`.
-    fn cancel_here(&mut self, child: Option<u32>) -> StageResult<()> {
-        let Some(at) = self.susp.as_ref().and_then(|s| s.cancel_to) else {
-            return unsupported("a cancelled await outside a point");
-        };
+    fn cancel_here(&mut self, at: usize, child: Option<u32>) -> StageResult<()> {
+        // ruled out: callers pass point's cancellation target before emitting the branch.
         self.materialize()?;
         if let Some(c) = child {
             self.f.get(FRAME);
@@ -568,6 +570,8 @@ impl Em<'_, '_, '_> {
                         }
                         self.await_stored(i, k, true, &|em| em.push_dyn(i, a, &args, None, None))
                     }
+                    // ruled out: mono scans each Await's checked callee;
+                    // req.suspend.type.not-suspending excludes plain intrinsics.
                     _ => unsupported("a bang call that collection did not resolve"),
                 }
             }
@@ -624,11 +628,11 @@ impl Em<'_, '_, '_> {
         self.ctl.push(Ctl::Plain);
         // A child that ended cancelled hands back its frame: this task is
         // cancelled too (`req.cancel.await`).
-        if self.susp.as_ref().is_some_and(|s| s.cancel_to.is_some()) {
+        if let Some(at) = self.susp.as_ref().and_then(|s| s.cancel_to) {
             self.is_cancelled(nc);
             self.f.op(I::If(BlockType::Empty));
             self.ctl.push(Ctl::Plain);
-            self.cancel_here(Some(nc))?;
+            self.cancel_here(at, Some(nc))?;
             self.close();
         }
         self.suspend(k, nc)?;
@@ -674,6 +678,8 @@ impl Em<'_, '_, '_> {
     ) -> StageResult<()> {
         let tag = if retain { Tag::Retain } else { Tag::Release };
         let Some(reason) = self.operation_count(i, tag, part) else {
+            // ruled out: own::child states Await/AwaitValue child ownership;
+            // own::waker states AwaitAll's release, including its cleanup path.
             return unsupported("a suspension point without its stated reference count");
         };
         self.because(reason, |em| {
@@ -762,11 +768,11 @@ impl Em<'_, '_, '_> {
             self.count_child(i, s, true)?;
             self.f.op(I::End);
         }
-        if self.susp.as_ref().is_some_and(|x| x.cancel_to.is_some()) {
+        if let Some(at) = self.susp.as_ref().and_then(|s| s.cancel_to) {
             self.is_cancelled(s);
             self.f.op(I::If(BlockType::Empty));
             self.ctl.push(Ctl::Plain);
-            self.cancel_here(Some(s))?;
+            self.cancel_here(at, Some(s))?;
             self.close();
         }
         self.suspend(k, s)?;
@@ -841,11 +847,11 @@ impl Em<'_, '_, '_> {
         self.f.op(I::I32Eqz);
         self.f.op(I::If(BlockType::Empty));
         self.ctl.push(Ctl::Plain);
-        if self.susp.as_ref().is_some_and(|x| x.cancel_to.is_some()) {
+        if let Some(at) = self.susp.as_ref().and_then(|s| s.cancel_to) {
             self.is_cancelled(s);
             self.f.op(I::If(BlockType::Empty));
             self.ctl.push(Ctl::Plain);
-            self.cancel_here(Some(s))?;
+            self.cancel_here(at, Some(s))?;
             self.close();
         }
         self.suspend(k, s)?;
@@ -986,11 +992,11 @@ impl Em<'_, '_, '_> {
         self.f.op(I::I32Ne);
         self.f.op(I::If(BlockType::Empty));
         self.ctl.push(Ctl::Plain);
-        if self.susp.as_ref().is_some_and(|x| x.cancel_to.is_some()) {
+        if let Some(at) = self.susp.as_ref().and_then(|s| s.cancel_to) {
             self.f.get(gone);
             self.f.op(I::If(BlockType::Empty));
             self.ctl.push(Ctl::Plain);
-            self.cancel_here(None)?;
+            self.cancel_here(at, None)?;
             self.close();
         }
         let no_child = self.f.local(Val::I32);
@@ -1269,6 +1275,8 @@ impl Em<'_, '_, '_> {
     /// results and the frame returned.
     pub(super) fn leave_cancelled(&mut self) -> StageResult<()> {
         let Some(cancelled) = self.susp.as_ref().map(|s| s.cancelled) else {
+            // ruled out: Exit::Cancel comes only from point or a suspending
+            // dispose ladder; emit::instance installs Susp for their ABI.
             return unsupported("a cancellation outside a suspending body");
         };
         if self.counting {
@@ -1436,6 +1444,8 @@ pub(super) fn finish(
                 CountAt::FrameDrop,
                 CountPart::Referent(u32::try_from(l).expect("local")),
             ) else {
+                // ruled out: own::referent states FrameDrop for each saved
+                // reference parameter's object, separately from its value count.
                 return unsupported("a frame reference without its stated object release");
             };
             em.because(reason, |em| {
@@ -1471,6 +1481,8 @@ pub(super) fn finish(
         if !row.is_empty() {
             let Some(reason) = em.stated_count(Tag::Release, CountAt::FrameDrop, CountPart::Row)
             else {
+                // ruled out: counts::expected pairs cold_row::roots' row
+                // copies with this distinct FrameDrop Row release.
                 return unsupported("a suspension row without its stated teardown release");
             };
             em.because(reason, |em| {
@@ -1556,6 +1568,8 @@ pub(super) fn finish(
                 CountAt::Cold,
                 CountPart::Referent(u32::try_from(l).expect("local")),
             ) else {
+                // ruled out: own::referent states Cold for every parameter
+                // whose thin referent the concrete frame layout saves here.
                 return unsupported("a frame reference without its stated object retain");
             };
             em.f.get(x);
@@ -1593,6 +1607,8 @@ pub(super) fn finish(
             }
             if em.counting {
                 let Some(reason) = copy else {
+                    // ruled out: own::cold_captures states Captures whenever
+                    // closure_self exists, even without other environment fields.
                     return unsupported("a cold closure without its stated self copy");
                 };
                 em.because(reason, |em| em.ref_retain(0));
@@ -1635,6 +1651,8 @@ pub(super) fn finish(
                 em.f.op(m.leaves[p.first].load(0));
                 em.f.set(y);
                 let Some(reason) = copy else {
+                    // ruled out: own::cold_captures includes the counted/shared
+                    // pointer captures whose creator loan cells own_caps copies.
                     return unsupported("a cold closure without its stated creator loan copy");
                 };
                 em.because(reason, |em| {
