@@ -3380,7 +3380,16 @@ impl Em<'_, '_, '_> {
             "format_f64" | "format_f32" | "format_f64_fixed" | "string_lower" | "string_upper"
             | "parse_f64" | "snapshot_update" => self.host_prim(i, key, args),
             key if key.starts_with("mem_") => self.memory(i, key, args),
-            other => unsupported(format!("the intrinsic `{other}`")),
+            // ruled out: every other key is lowered before emission.
+            // Checking lowers each call and function value of `box`,
+            // `assert_equal`, `identity_of`, `Fn.call` and `FnMut.call_mut`
+            // (`hd_check` `Ck::lowered_call`), and each `facts_of`, `join`
+            // and `it` call, and refuses those three as values (`fnref.rs`);
+            // collection gives `dbg` and `dbg_printer` their generated body
+            // (`hd_mono` `dbg_target`) and a map probe its key's probe
+            // (`Target::MapKey`); `call` above takes the `ptr_`, `weak_`,
+            // `downcast_` and `type_id_of` keys first.
+            other => unreachable!("ruled out: the intrinsic `{other}` is lowered before emission"),
         }
     }
 
@@ -3756,28 +3765,20 @@ impl Em<'_, '_, '_> {
             return self.runtime_type(i, self_ty, args[0]);
         }
         let (_, _, float) = self.num(t);
+        if prim
+            && float
+            && let Some([op32, op64]) = float_unary(name)
+        {
+            self.comp(args[0], 0)?;
+            self.f.op(if self.vals(t)? == [Val::F32] {
+                op32
+            } else {
+                op64
+            });
+            return self.store(i);
+        }
         match name {
             "cmp" | "partial_cmp" if prim => self.ordering(i, args, name == "partial_cmp", float),
-            "abs" | "trunc" | "floor" | "ceil" | "round_ties_even" | "sqrt" if prim && float => {
-                self.comp(args[0], 0)?;
-                let f32 = self.vals(t)? == [Val::F32];
-                self.f.op(match (name, f32) {
-                    ("abs", true) => I::F32Abs,
-                    ("abs", false) => I::F64Abs,
-                    ("trunc", true) => I::F32Trunc,
-                    ("trunc", false) => I::F64Trunc,
-                    ("floor", true) => I::F32Floor,
-                    ("floor", false) => I::F64Floor,
-                    ("ceil", true) => I::F32Ceil,
-                    ("ceil", false) => I::F64Ceil,
-                    ("round_ties_even", true) => I::F32Nearest,
-                    ("round_ties_even", false) => I::F64Nearest,
-                    ("sqrt", true) => I::F32Sqrt,
-                    ("sqrt", false) => I::F64Sqrt,
-                    _ => unreachable!(),
-                });
-                self.store(i)
-            }
             "copysign" if prim && float => {
                 self.comp(args[0], 0)?;
                 self.comp(args[1], 0)?;
@@ -4729,4 +4730,19 @@ pub(crate) fn operand_range(
 /// The mask of a sub-word width's bits.
 const fn width_mask(bits: u8) -> i32 {
     (1i32 << bits) - 1
+}
+
+/// The one-instruction lowering of a float method that takes only its
+/// receiver, at `f32` and at `f64`: Wasm's `abs`, `trunc`, `floor`,
+/// `ceil`, `nearest` (ties to even) and `sqrt`. `None` for any other name.
+fn float_unary(name: &str) -> Option<[I; 2]> {
+    Some(match name {
+        "abs" => [I::F32Abs, I::F64Abs],
+        "trunc" => [I::F32Trunc, I::F64Trunc],
+        "floor" => [I::F32Floor, I::F64Floor],
+        "ceil" => [I::F32Ceil, I::F64Ceil],
+        "round_ties_even" => [I::F32Nearest, I::F64Nearest],
+        "sqrt" => [I::F32Sqrt, I::F64Sqrt],
+        _ => return None,
+    })
 }
