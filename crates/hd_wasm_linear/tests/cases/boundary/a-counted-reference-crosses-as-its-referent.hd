@@ -1,0 +1,18 @@
+# @dump: wat
+# @build: program
+# @profile: serde-vault
+# @helpers: hd:Vault/keep enc dec
+# expected: a counted reference crosses as its referent's tree (#1555).
+# `Expr` reaches itself through `*Expr`, so it has one encoder and one
+# decoder. Its object's encoder marks the count word while the object is on
+# the path and panics with boundary-cycle if it is already marked; the
+# decoder builds each referent and puts it in a new object.
+pub enum Expr:
+    Num(n: i32)
+    Add(a: *Expr, b: *Expr)
+
+pub trait Vault:
+    fn keep(self, e: *Expr) -> *Expr
+
+pub fn main() -> void $ Vault:
+    _ := $.use(Vault).keep(box(Expr.Add(box(Expr.Num(+1)), box(Expr.Num(+2)))))

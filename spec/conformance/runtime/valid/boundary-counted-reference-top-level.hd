@@ -1,0 +1,37 @@
+# test: a counted reference a top-level binding holds crosses a host call twice, and its object and counts are intact after the results are released
+# Spec Modules, Boundary Encoding: module.boundary.tree, module.boundary.sharing (#1555).
+# A top-level `box` of constants is still a heap object (`ref.box.new`); the
+# encoder's mark on its count word comes off after each walk, so the checked
+# run's count audit balances.
+# fixture-runtime-profile: serde-vault
+use std.testing.assert_equal
+
+pub enum Expr:
+    Num(n: i32)
+    Add(a: *Expr, b: *Expr)
+
+pub struct Pair:
+    pub left: *Expr
+    pub right: *Expr
+    pub empty: *List[i32]
+
+pub trait Vault:
+    fn keep(self, pair: Pair) -> Pair
+
+let shared: *Expr = box(Expr.Add(box(Expr.Num(+1)), box(Expr.Num(+2))))
+let nothing: *List[i32] = box([])
+
+fn eval(e: *Expr) -> i32:
+    match *e:
+        Expr.Num(n) => n
+        Expr.Add(a, b) => eval(a) + eval(b)
+
+fn cross() -> i32 $ Vault:
+    kept := $.use(Vault).keep(Pair { left: shared, right: shared, empty: nothing })
+    eval(kept.left) + eval(kept.right) + i32(kept.empty.len())
+
+pub fn main() -> void $ Vault:
+    assert_equal(cross(), +6, reason="the first crossing encodes the shared node on both paths")
+    assert_equal(cross(), +6, reason="the second crossing sees no mark left by the first")
+    assert_equal(eval(shared), +3, reason="the binding's object is intact after the results are released")
+    assert_equal(nothing.len(), 0, reason="the empty list's object is intact")

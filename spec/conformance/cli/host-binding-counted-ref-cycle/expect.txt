@@ -1,0 +1,7 @@
+# The encoder marks each object on its path; reaching `a` again through
+# `b` is the boundary-cycle failure, so the host is never called.
+run: hd run --engine node
+exit: 3
+stdout: before
+stderr: panic: boundary-cycle: a value reaches itself
+stderr:     src/main.hd:17 counted_cycle.main.main

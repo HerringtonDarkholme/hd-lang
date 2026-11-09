@@ -1,0 +1,18 @@
+# Spec Modules, Boundary Encoding: module.boundary.tree, module.boundary.sharing (#1555).
+# A counted reference crosses a package host as its referent's tree, both
+# ways; a node the host's result shares arrives once per path, as two objects.
+pub enum Expr:
+    Num(n: i32)
+    Add(a: *Expr, b: *Expr)
+
+@host
+pub trait Surface:
+    fn eval(&self, e: Expr) -> i32
+    fn twice(&self, e: *Expr) -> Expr
+
+pub fn main() -> void $ Surface + Console:
+    one := box(Expr.Num(+1))
+    n := $.use(Surface).eval(Expr.Add(one, box(Expr.Add(one, box(Expr.Num(+2))))))
+    match $.use(Surface).twice(box(Expr.Num(+4))):
+        Expr.Add(a, b) => println("$n ${a is b}")
+        Expr.Num(_) => println("$n num")

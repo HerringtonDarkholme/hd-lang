@@ -1,0 +1,17 @@
+# Spec Modules, Boundary Encoding: module.boundary.cycle (#1555).
+# A counted reference graph that reaches itself is the boundary-cycle
+# failure when hd encodes it for the host, not an unbounded walk.
+pub struct Node:
+    pub label: i32
+    pub next: (*mut Node)?
+
+@host
+pub trait Surface:
+    fn size(&self, node: *mut Node) -> i32
+
+pub fn main() -> void $ Surface + Console:
+    a := box(Node { label: +1, next: .None })
+    b := box(Node { label: +2, next: .Some(a) })
+    a.next = .Some(b)
+    println("before")
+    println("${$.use(Surface).size(a)}")

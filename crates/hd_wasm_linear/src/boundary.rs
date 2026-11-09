@@ -74,7 +74,53 @@ pub enum LTy {
     /// entry's key and value in the order they were added
     /// (`module.boundary.allowed`).
     Map(Box<LMap>),
+    /// A counted reference `*T` or `*mut T` to data, the object's
+    /// address: its referent's tree (`module.boundary.tree`).
+    Object(Box<LObject>),
 }
+
+/// A counted reference at the boundary. It crosses as its referent, with
+/// no trace of the reference, as std's `Serialize for *T` writes it
+/// (`std-serde.std.counted-reference`). The decoder puts each referent in
+/// a new object (`ref.box.new`), so a node that an acyclic graph shares
+/// arrives once per path, as that many objects (`module.boundary.sharing`).
+///
+/// The encoder marks an object on its path in the object's count word
+/// ([`ON_PATH`]), as a tracing collector marks a header during its walk,
+/// so a value that reaches itself again is the `boundary-cycle` failure
+/// (`module.boundary.cycle`) at O(1) per object, with no set to allocate.
+/// Only an object that can be on a cycle (`cycle::holding`) is marked.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct LObject {
+    /// The referent's layout in the object and the object's release
+    /// glue: its counted references, and whether it takes part in cycle
+    /// collection. No std type with a `Drop` hook crosses into hd (none
+    /// implements `Deserialize`, `module.boundary.error`), so it has no
+    /// drop calls.
+    pub elem: Elem,
+    /// Whether its release glue can reach another object with the same
+    /// glue (`cycle::recursive_object`), which then drains iteratively.
+    pub recursive: bool,
+    /// The descriptor alias a weak reference to the type reads, when the
+    /// program makes one (`Module::weak_types`).
+    pub weak: Option<Hash128>,
+    /// Whether an object of the type can be on a cycle, so the encoder
+    /// marks it on its path.
+    pub tracked: bool,
+    pub ty: LTy,
+}
+
+/// The count-word bit the encoder sets on an object while the object is
+/// on its path ([`LObject`]). A count stays below it, as 2^30 references
+/// would fill all of wasm32's memory. Every `*T` object is a heap one from
+/// `rt:new` (`box`, `ref.expr.allocate`, or a decoder), counted from 1: a
+/// static object, whose count word is 0, is a list buffer, a string, a
+/// once-cell or a top-level binding's slot, and `ref.box.object` lets no
+/// counted reference refer to one. Between the mark and the unmark only the
+/// referent's encoders run; they read the value and write the buffer, and
+/// a codec's retain of its argument is released by the codec, so any count
+/// taken in between is given back around the bit.
+const ON_PATH: u32 = 1 << 30;
 
 /// A map at the boundary: its entry as the map glue lays it out, the key
 /// operations its decoder rebuilds the table with
@@ -173,7 +219,7 @@ impl LTy {
             LTy::F32 => vec![Val::F32],
             LTy::F64 => vec![Val::F64],
             LTy::Str | LTy::DiscardStr | LTy::Handle(_) => vec![Val::I32, Val::I32],
-            LTy::Bytes | LTy::List(_) | LTy::Map(_) => vec![Val::I32],
+            LTy::Bytes | LTy::List(_) | LTy::Map(_) | LTy::Object(_) => vec![Val::I32],
             LTy::Record(fields) => fields.iter().flat_map(LTy::vals).collect(),
             LTy::Enum(e) => e.layout.mem.vals(),
             LTy::Codec(c) => c.vals.clone(),
@@ -204,6 +250,7 @@ impl LTy {
                 LTy::Handle(_) => return true,
                 LTy::List(l) => work.push(&l.ty),
                 LTy::Map(mp) => work.extend([&mp.key, &mp.val]),
+                LTy::Object(o) => work.push(&o.ty),
                 LTy::Record(fields) => work.extend(fields),
                 LTy::Enum(e) => work.extend(e.variants.iter().flatten()),
                 LTy::Named(n) => {
@@ -325,6 +372,17 @@ fn of_at(
                 LTy::Record(fields)
             }
         }
+        TyData::Ref { inner, counted, .. }
+            if !matches!(
+                pool.get(layout::strip(pool, env, inner)),
+                TyData::TraitValue { .. }
+            ) =>
+        {
+            // ruled out: module.boundary.not-safe.error (hd_check
+            // header::crossing_fault) rejects a local reference to data.
+            debug_assert!(counted, "a local reference to data at the host boundary");
+            return object_of(input, m, inner, path, at);
+        }
         TyData::Ref { inner, .. } => {
             // A trait value reference to a host handle: the handle,
             // behind the reference the `host_provider` instance makes.
@@ -429,6 +487,47 @@ fn of_at(
         }
         _ => return unsupported(what()),
     })
+}
+
+/// The boundary type of a counted reference to `target` ([`LObject`]):
+/// the referent's, with the layout and descriptor of the object the
+/// decoder puts it in, as `box` makes one (`ref.box.new`).
+fn object_of(
+    input: &Input<'_>,
+    m: &mut Module,
+    target: Ty,
+    path: &mut Path,
+    at: Option<AtProfile<'_>>,
+) -> StageResult<LTy> {
+    let (pool, env) = (input.pool, input.env);
+    let mem = layout::mem(pool, env, target)?;
+    let counts = input.runtime.is_some();
+    let tracked = crate::cycle::holding(pool, env, &[target]);
+    let key = hd_mono::layout::canon(
+        pool,
+        &|d| env.path_hash(d),
+        &mut hd_mono::layout::CanonMemo::default(),
+        target,
+    );
+    let weak = (m.open_world || m.weak_types.contains(&key)).then_some(key);
+    let elem = Elem {
+        size: mem.size,
+        leaves: mem.leaves,
+        walk: input
+            .runtime
+            .and_then(|_| layout::count_walk(pool, env, target)),
+        drops: Vec::new(),
+        colls: Vec::new(),
+        cyclic: counts && tracked,
+    };
+    let ty = of_at(input, m, target, path, at)?;
+    Ok(LTy::Object(Box::new(LObject {
+        elem,
+        recursive: counts && crate::cycle::recursive_object(pool, env, target),
+        weak,
+        tracked,
+        ty,
+    })))
 }
 
 /// The boundary type of the unboxed struct or enum `s`, instance `def[args]`.
@@ -1819,6 +1918,35 @@ fn enc_body(f: &mut Func, b: &LTy, m: &Module) {
             });
             release(f, m, &text, vec![Val::I32, Val::I32], Some(Walk::Ref(0)));
         }
+        LTy::Object(o) => {
+            // The count word, marked while the object is on the path.
+            let count = f.local(Val::I32);
+            if o.tracked {
+                f.get(1);
+                f.u32(crate::module::HEADER);
+                f.op(I::I32Sub);
+                f.set(count);
+                f.get(count);
+                f.op(I::I32Load(mem(HEAP, 0, 2)));
+                f.u32(ON_PATH);
+                f.op(I::I32And);
+                f.op(I::If(BlockType::Empty));
+                f.helper(Helper::Panic(
+                    "boundary-cycle: a value reaches itself".into(),
+                ));
+                f.op(I::End);
+                on_path(f, count, I::I32Add);
+            }
+            enc_call(f, 0, &o.ty, |f| {
+                for leaf in &o.elem.leaves {
+                    f.get(1);
+                    f.op(leaf.load(0));
+                }
+            });
+            if o.tracked {
+                on_path(f, count, I::I32Sub);
+            }
+        }
         LTy::Handle(_) => {
             f.op(I::Unreachable);
             return;
@@ -1826,6 +1954,17 @@ fn enc_body(f: &mut Func, b: &LTy, m: &Module) {
         LTy::Named(n) => return enc_body(f, m.named_codecs.def(n.id), m),
     }
     f.get(0);
+}
+
+/// Adds [`ON_PATH`] to the count word at local `count`, or takes it off,
+/// by `op`.
+fn on_path(f: &mut Func, count: u32, op: I) {
+    f.get(count);
+    f.get(count);
+    f.op(I::I32Load(mem(HEAP, 0, 2)));
+    f.u32(ON_PATH);
+    f.op(op);
+    f.op(I::I32Store(mem(HEAP, 0, 2)));
 }
 
 /// [`Helper::Dec`]: the decoder of `b`, `(off) -> (values..., off')`.
@@ -2005,6 +2144,42 @@ fn dec_body(f: &mut Func, b: &LTy, m: &mut Module) {
             f.get(buf);
         }
         LTy::Map(mp) => dec_map(f, mp),
+        LTy::Object(o) => {
+            // The referent's values, each with its count, move into a new
+            // object, as `box` makes one (`emit::value`'s `object_drops`).
+            let vals = dec_into(f, 0, &o.ty);
+            let obj = f.local(Val::I32);
+            f.u32(o.elem.size);
+            let glue = o.elem.walk.as_ref().map(|w| {
+                Sym::Helper(Helper::DropFields {
+                    leaves: o.elem.leaves.clone(),
+                    walk: w.clone(),
+                    drops: Vec::new(),
+                })
+            });
+            if let Some(key) = o.weak {
+                crate::rt::push_typed_desc_recursive(f, glue, o.elem.cyclic, o.recursive, key);
+            } else {
+                crate::rt::push_desc_recursive(f, glue, o.elem.cyclic, o.recursive);
+            }
+            if m.runtime.is_some_and(|r| r.checked.is_none())
+                && o.elem
+                    .size
+                    .checked_add(crate::module::HEADER)
+                    .is_some_and(|n| n <= 2048)
+            {
+                f.helper(Helper::NewFixed { size: o.elem.size });
+            } else {
+                f.helper(Helper::New);
+            }
+            f.set(obj);
+            for (leaf, v) in o.elem.leaves.iter().zip(&vals) {
+                f.get(obj);
+                f.get(*v);
+                f.op(leaf.store(0));
+            }
+            f.get(obj);
+        }
         LTy::Record(fields) => {
             let mut all = Vec::new();
             for fb in fields {

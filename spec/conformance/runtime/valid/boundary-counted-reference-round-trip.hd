@@ -1,0 +1,39 @@
+# test: a counted reference crosses a host call as its referent's tree; a node two paths share crosses twice and comes back as two objects
+# Spec Modules, Boundary Encoding: module.boundary.tree, module.boundary.sharing (#1555).
+# fixture-runtime-profile: serde-vault
+use std.testing.assert_equal
+
+pub enum Expr:
+    Num(n: i32)
+    Add(a: *Expr, b: *Expr)
+
+pub struct Pair:
+    pub left: *Expr
+    pub right: *Expr
+    pub cell: *mut i32
+    pub chain: List[*Expr]
+
+pub trait Vault:
+    fn keep(self, pair: Pair) -> Pair
+
+fn eval(e: *Expr) -> i32:
+    match *e:
+        Expr.Num(n) => n
+        Expr.Add(a, b) => eval(a) + eval(b)
+
+pub fn main() -> void $ Vault:
+    let shared: *Expr = box(Expr.Add(box(Expr.Num(+1)), box(Expr.Num(+2))))
+    let mut deep: *Expr = box(Expr.Num(+0))
+    let i = +0
+    while i < 200:
+        deep = box(Expr.Add(deep, box(Expr.Num(+1))))
+        i += 1
+    cell := box(+5)
+    kept := $.use(Vault).keep(Pair { left: shared, right: shared, cell, chain: [shared, deep] })
+    assert_equal(eval(kept.left), +3, reason="the referent crosses")
+    assert_equal(eval(kept.right), +3, reason="a shared node crosses once per path")
+    assert_equal(kept.left is kept.right, false, reason="decoding does not restore sharing")
+    assert_equal(eval(kept.chain[1]), +200, reason="a deep tree crosses")
+    assert_equal(*kept.cell, +5, reason="a mutable counted reference crosses as its value")
+    *kept.cell = +6
+    assert_equal(*cell, +5, reason="the decoded object is a new one")
