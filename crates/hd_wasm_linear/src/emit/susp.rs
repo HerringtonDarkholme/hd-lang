@@ -21,7 +21,6 @@ use super::scope::Exit;
 use super::{Ctl, Em};
 use crate::module::{Global, HEAP, Ins, Part, Sym, Val, mem};
 use crate::rt::Helper;
-use crate::unsupported;
 
 use crate::task::{
     ABANDONED, ACTIVE, CANCELLED, DONE, EXITED, F_CANCEL, F_CHILD, F_FLAGS, F_POLL, F_SAVED,
@@ -315,17 +314,21 @@ impl Em<'_, '_, '_> {
 
     /// Allocates the frame when it is still 0 (§14.3): a zeroed counted
     /// object with this body's poll and cancel.
-    fn materialize(&mut self) -> StageResult<()> {
-        let key = self.susp_key()?;
-        self.f.get(FRAME);
-        self.f.op(I::I32Eqz);
-        self.f.op(I::If(BlockType::Empty));
-        self.f.helper(Helper::Frame(key));
-        self.f.set(FRAME);
-        self.flags_or(FRAME, RUNNING);
-        self.retain_row(CountAt::Materialize, 0);
-        self.f.op(I::End);
-        Ok(())
+    fn materialize(&mut self) {
+        // ruled out: suspend/cancel_here are reached under point; emit::instance
+        // installs Susp before emitting their checked suspending body.
+        let key = self.susp.as_ref().map(|s| s.key);
+        assert!(key.is_some(), "emit::instance must install this frame");
+        if let Some(key) = key {
+            self.f.get(FRAME);
+            self.f.op(I::I32Eqz);
+            self.f.op(I::If(BlockType::Empty));
+            self.f.helper(Helper::Frame(key));
+            self.f.set(FRAME);
+            self.flags_or(FRAME, RUNNING);
+            self.retain_row(CountAt::Materialize, 0);
+            self.f.op(I::End);
+        }
     }
 
     /// Copies provider data and the open context in this physical row ABI.
@@ -352,19 +355,10 @@ impl Em<'_, '_, '_> {
         }
     }
 
-    fn susp_key(&self) -> StageResult<Hash128> {
-        match &self.susp {
-            Some(s) => Ok(s.key),
-            // ruled out: only suspend/cancel_here materialize under point;
-            // emit::instance installs Susp for their checked suspending ABI.
-            None => unsupported("a suspension point outside a suspending body"),
-        }
-    }
-
     /// Pending at state `k`, waiting on the child in local `child`, whose
     /// count the frame takes: saves every local and returns the frame.
-    fn suspend(&mut self, k: u32, child: u32) -> StageResult<()> {
-        self.materialize()?;
+    fn suspend(&mut self, k: u32, child: u32) {
+        self.materialize();
         self.f.push(Ins::Save(k));
         self.f.get(FRAME);
         self.f.get(child);
@@ -377,7 +371,6 @@ impl Em<'_, '_, '_> {
         }
         self.f.get(FRAME);
         self.f.op(I::Return);
-        Ok(())
     }
 
     /// Pushes whether the task at the address in local `c` is cancelled.
@@ -393,9 +386,9 @@ impl Em<'_, '_, '_> {
     /// (`req.cancel.await`): its frame is marked and the point's
     /// cancellation branch runs. A child the frame does not hold yet
     /// becomes its child, with the count in `child`.
-    fn cancel_here(&mut self, at: usize, child: Option<u32>) -> StageResult<()> {
+    fn cancel_here(&mut self, at: usize, child: Option<u32>) {
         // ruled out: callers pass point's cancellation target before emitting the branch.
-        self.materialize()?;
+        self.materialize();
         if let Some(c) = child {
             self.f.get(FRAME);
             self.f.get(c);
@@ -404,7 +397,6 @@ impl Em<'_, '_, '_> {
         self.flags_or(FRAME, CANCELLED | UNWINDING);
         let d = u32::try_from(self.ctl.len() - 1 - at).expect("depth");
         self.f.op(I::Br(d));
-        Ok(())
     }
 
     /// Sets bits `bits` in the flags of the task in local `t`.
@@ -516,7 +508,7 @@ impl Em<'_, '_, '_> {
         self.f.get(wait);
         self.f.op(I::If(BlockType::Empty));
         self.ctl.push(Ctl::Plain);
-        self.suspend(k, c)?;
+        self.suspend(k, c);
         self.close();
         // The results of the children that completed are let go.
         if let Some(all) = all {
@@ -557,22 +549,24 @@ impl Em<'_, '_, '_> {
             Tag::Await => {
                 let rec = self.rec(bw);
                 let args = rec[..rec.len().saturating_sub(3)].to_vec();
-                match self.calls.get(&i).cloned() {
-                    // Checking calls with `!` only a suspending function
+                let target = self.calls.get(&i).cloned();
+                if let Some(Target::Call(t)) = target {
+                    // ruled out: checking calls with `!` only a suspending function
                     // (`not-suspending`), which an implementation matches
                     // (`trait-method-signature`).
-                    Some(Target::Call(t)) if t.kind == TargetKind::Instance => {
-                        self.await_direct(i, k, t.key, t.item, t.args, &args)
-                    }
-                    Some(Target::Dyn) => {
-                        if self.shield == 0 && self.drives(a) {
-                            return self.await_driven(i, k, a, &args);
-                        }
-                        self.await_stored(i, k, true, &|em| em.push_dyn(i, a, &args, None, None))
-                    }
+                    assert!(t.kind == TargetKind::Instance, "bang calls require a body");
+                    self.await_direct(i, k, t.key, t.item, t.args, &args)
+                } else {
                     // ruled out: mono scans each Await's checked callee;
                     // req.suspend.type.not-suspending excludes plain intrinsics.
-                    _ => unsupported("a bang call that collection did not resolve"),
+                    assert!(
+                        matches!(target, Some(Target::Dyn)),
+                        "mono::scan must resolve Await"
+                    );
+                    if self.shield == 0 && self.drives(a) {
+                        return self.await_driven(i, k, a, &args);
+                    }
+                    self.await_stored(i, k, true, &|em| em.push_dyn(i, a, &args, None, None))
                 }
             }
             // `AwaitAll`: the checker emits `race!` as std hd, never an
@@ -632,10 +626,10 @@ impl Em<'_, '_, '_> {
             self.is_cancelled(nc);
             self.f.op(I::If(BlockType::Empty));
             self.ctl.push(Ctl::Plain);
-            self.cancel_here(at, Some(nc))?;
+            self.cancel_here(at, Some(nc));
             self.close();
         }
-        self.suspend(k, nc)?;
+        self.suspend(k, nc);
         self.close();
         // Ready: a resumed child's frame is done with.
         self.release_child(i, ch);
@@ -765,10 +759,10 @@ impl Em<'_, '_, '_> {
             self.is_cancelled(s);
             self.f.op(I::If(BlockType::Empty));
             self.ctl.push(Ctl::Plain);
-            self.cancel_here(at, Some(s))?;
+            self.cancel_here(at, Some(s));
             self.close();
         }
-        self.suspend(k, s)?;
+        self.suspend(k, s);
         self.close();
         self.f.get(held);
         self.f.op(I::If(BlockType::Empty));
@@ -844,10 +838,10 @@ impl Em<'_, '_, '_> {
             self.is_cancelled(s);
             self.f.op(I::If(BlockType::Empty));
             self.ctl.push(Ctl::Plain);
-            self.cancel_here(at, Some(s))?;
+            self.cancel_here(at, Some(s));
             self.close();
         }
-        self.suspend(k, s)?;
+        self.suspend(k, s);
         self.close();
         self.f.get(held);
         self.f.op(I::If(BlockType::Empty));
@@ -989,11 +983,11 @@ impl Em<'_, '_, '_> {
             self.f.get(gone);
             self.f.op(I::If(BlockType::Empty));
             self.ctl.push(Ctl::Plain);
-            self.cancel_here(at, None)?;
+            self.cancel_here(at, None);
             self.close();
         }
         let no_child = self.f.local(Val::I32);
-        self.suspend(k, no_child)?;
+        self.suspend(k, no_child);
         self.close();
         self.count_point_ref(i, CountPart::Waker, node, false);
         self.f.i32(0);
@@ -1266,12 +1260,16 @@ impl Em<'_, '_, '_> {
     /// noted for [`Self::exit_frame`] and taken; without, the zero
     /// results and the frame returned.
     pub(super) fn leave_cancelled(&mut self) -> StageResult<()> {
-        let Some(cancelled) = self.susp.as_ref().map(|s| s.cancelled) else {
-            // ruled out: Exit::Cancel comes only from point or a suspending
-            // dispose ladder; emit::instance installs Susp for their ABI.
-            return unsupported("a cancellation outside a suspending body");
-        };
-        if self.counting {
+        // ruled out: Exit::Cancel comes only from point or a suspending
+        // dispose ladder; emit::instance installs Susp for their ABI.
+        let cancelled = self.susp.as_ref().map(|s| s.cancelled);
+        assert!(
+            cancelled.is_some(),
+            "emit::instance must install cancellation state"
+        );
+        if self.counting
+            && let Some(cancelled) = cancelled
+        {
             // The exit releases only its exit set.
             self.release_unwound(self.cancel_from)?;
             for l in self.ret.clone() {
