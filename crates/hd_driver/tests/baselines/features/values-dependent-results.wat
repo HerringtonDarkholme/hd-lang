@@ -99,7 +99,7 @@
     i32.add
     global.set $locals
   )
-  (func $read_list (param $t1 i32) (result i32) (local $t0 i32) (local $us i32)
+  (func $read_list (param $t1 i32) (result i32) (local $t0 i32) (local $us i32) (local $t2 i32)
     ;; 19 |     first_name(&us).len()
     global.get $locals
     global.get $locals_base
@@ -143,10 +143,17 @@
       block
         block
           local.get $us
-          local.get $us
           i32.load $heap
+          local.tee $t1
           call $rt:list_unique
-          i32.store $heap
+          local.tee $t2
+          local.get $t1
+          i32.ne
+          if
+            local.get $us
+            local.get $t2
+            i32.store $heap
+          end
           local.get $us
           i32.load $heap
           local.set $t1
@@ -191,14 +198,21 @@
     i32.add
     global.set $locals
   )
-  (func $first_name (param $us i32) (result i32)
+  (func $first_name (param $us i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 13 |     &us[0].name
     block
       local.get $us
-      local.get $us
       i32.load $heap
+      local.tee $t0
       call $rt:list_unique
-      i32.store $heap
+      local.tee $t1
+      local.get $t0
+      i32.ne
+      if
+        local.get $us
+        local.get $t1
+        i32.store $heap
+      end
       local.get $us
       i32.load $heap
       local.set $us

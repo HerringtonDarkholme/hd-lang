@@ -8,10 +8,17 @@
     ;; 8 |     set(&mut xs[0][0], 9)
     block
       local.get $xs
-      local.get $xs
       i32.load $heap
+      local.tee $t0
       call $rt:list_unique'1
-      i32.store $heap
+      local.tee $t1
+      local.get $t0
+      i32.ne
+      if
+        local.get $xs
+        local.get $t1
+        i32.store $heap
+      end
       local.get $xs
       i32.load $heap
       local.set $t0

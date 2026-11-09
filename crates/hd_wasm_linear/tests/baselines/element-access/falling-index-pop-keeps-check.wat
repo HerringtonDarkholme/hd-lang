@@ -4,7 +4,7 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $shift (param $items i32) (param $start i32) (local $t0 i32) (local $t1 i32)
+  (func $shift (param $items i32) (param $start i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     block
       ;; ...
     ;; 9 |     while j > 0:
@@ -44,10 +44,17 @@
           local.set $t0
     ;; 9 |     while j > 0:
           local.get $items
-          local.get $items
           i32.load $heap
+          local.tee $t1
           call $rt:list_unique
-          i32.store $heap
+          local.tee $t2
+          local.get $t1
+          i32.ne
+          if
+            local.get $items
+            local.get $t2
+            i32.store $heap
+          end
     ;; 11 |         items[j] = items[j - 1]
           local.get $items
           i32.load $heap

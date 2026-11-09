@@ -1114,10 +1114,7 @@ impl Em<'_, '_, '_> {
                 hd_tir::own::reason(self.b, i as usize),
             );
         }
-        // A place in locals, or behind a reference's dereference, takes
-        // the buffer back with one store.
-        let through_ref = matches!(self.last_through(&self.place(word))?, Some((_, Some(_))));
-        let Some(at) = at.filter(|_| !through_ref) else {
+        let Some(at) = at else {
             self.f.set(h);
             return self.put_buffer(word, h).map(|()| h);
         };

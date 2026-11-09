@@ -98,10 +98,17 @@
       i32.load8_u $heap
       i32.store8 $heap
       local.get $xs
-      local.get $xs
       i32.load $heap
+      local.tee $t0
       call $rt:list_unique
-      i32.store $heap
+      local.tee $t1
+      local.get $t0
+      i32.ne
+      if
+        local.get $xs
+        local.get $t1
+        i32.store $heap
+      end
       local.get $xs
       i32.load $heap
       local.set $xs

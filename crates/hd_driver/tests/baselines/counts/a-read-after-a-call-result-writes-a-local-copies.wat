@@ -9,14 +9,21 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $"impl Bag.item_mut" (param $self i32) (param $i i32) (result i32)
+  (func $"impl Bag.item_mut" (param $self i32) (param $i i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 17 |         &mut self.items[i]
     block
       local.get $self
-      local.get $self
       i32.load $heap offset=8
+      local.tee $t0
       call $rt:list_unique
-      i32.store $heap offset=8
+      local.tee $t1
+      local.get $t0
+      i32.ne
+      if
+        local.get $self
+        local.get $t1
+        i32.store $heap offset=8
+      end
       local.get $self
       i32.load $heap offset=8
       local.set $self
@@ -101,10 +108,17 @@
       block
         block
           local.get $name.1
-          local.get $name.1
           i32.load $heap offset=8
+          local.tee $t1
           call $rt:list_unique
-          i32.store $heap offset=8
+          local.tee $t2
+          local.get $t1
+          i32.ne
+          if
+            local.get $name.1
+            local.get $t2
+            i32.store $heap offset=8
+          end
           local.get $name.1
           i32.load $heap offset=8
           local.set $name.1

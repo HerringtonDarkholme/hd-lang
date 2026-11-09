@@ -29,7 +29,7 @@
     local.get $label.0
     local.get $label.1
   )
-  (func $"impl Disposable for Guard.dispose" (param $self i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32)
+  (func $"impl Disposable for Guard.dispose" (param $self i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
     ;; 14 |         self.log.push(self.label)
     block
       local.get $self
@@ -45,31 +45,36 @@
       end
       local.get $self
       i32.load $heap offset=8
+      local.tee $t2
       i32.load $heap
-      call $rt:list_unique
-      local.set $t2
-      local.get $self
-      i32.load $heap offset=8
-      local.get $t2
-      i32.store $heap
-      local.get $t2
-      i32.load $heap offset=4
       local.tee $t3
-      local.get $t2
+      call $rt:list_unique
+      local.tee $t4
+      local.get $t3
+      i32.ne
+      if
+        local.get $t2
+        local.get $t4
+        i32.store $heap
+      end
+      local.get $t4
+      i32.load $heap offset=4
+      local.tee $t2
+      local.get $t4
       i32.load $heap
       i32.eq
       if
-        local.get $t2
+        local.get $t4
         i32.const 1
         call_indirect $table0 (param i32) (result i32)
-        local.set $t2
+        local.set $t4
         local.get $self
         i32.load $heap offset=8
-        local.get $t2
+        local.get $t4
         i32.store $heap
       end
+      local.get $t4
       local.get $t2
-      local.get $t3
       i32.const 8
       i32.mul
       i32.add
@@ -79,8 +84,8 @@
       local.get $self
       local.get $t0
       i32.store $heap offset=20
+      local.get $t4
       local.get $t2
-      local.get $t3
       i32.const 1
       i32.add
       i32.store $heap offset=4
@@ -147,29 +152,34 @@
         local.set $label.0
         local.get $log
         i32.load $heap
+        local.tee $t1
         call $rt:list_unique
-        local.set $t1
-        local.get $log
-        local.get $t1
-        i32.store $heap
-    ;; 25 |     log.push("work")
-        local.get $t1
-        i32.load $heap offset=4
         local.tee $t2
         local.get $t1
+        i32.ne
+        if
+          local.get $log
+          local.get $t2
+          i32.store $heap
+        end
+        local.get $t2
+    ;; 25 |     log.push("work")
+        i32.load $heap offset=4
+        local.tee $t1
+        local.get $t2
         i32.load $heap
         i32.eq
         if
-          local.get $t1
+          local.get $t2
           i32.const 1
           call_indirect $table0 (param i32) (result i32)
-          local.set $t1
+          local.set $t2
           local.get $log
-          local.get $t1
+          local.get $t2
           i32.store $heap
         end
-        local.get $t1
         local.get $t2
+        local.get $t1
         i32.const 8
         i32.mul
         i32.add
@@ -179,8 +189,8 @@
         local.get $log
         i32.const 4
         i32.store $heap offset=20
-        local.get $t1
         local.get $t2
+        local.get $t1
         i32.const 1
         i32.add
         i32.store $heap offset=4

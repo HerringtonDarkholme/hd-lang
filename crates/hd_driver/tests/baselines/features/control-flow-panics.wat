@@ -12,7 +12,7 @@
   (import "fixture" "forbid" (global $forbid (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 6 funcref))
-  (func $"impl Disposable for Res.dispose" (param $self i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32)
+  (func $"impl Disposable for Res.dispose" (param $self i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
     ;; 15 |         self.log.push(self.name)
     block
       local.get $self
@@ -28,31 +28,36 @@
       end
       local.get $self
       i32.load $heap offset=8
+      local.tee $t2
       i32.load $heap
-      call $rt:list_unique
-      local.set $t2
-      local.get $self
-      i32.load $heap offset=8
-      local.get $t2
-      i32.store $heap
-      local.get $t2
-      i32.load $heap offset=4
       local.tee $t3
-      local.get $t2
+      call $rt:list_unique
+      local.tee $t4
+      local.get $t3
+      i32.ne
+      if
+        local.get $t2
+        local.get $t4
+        i32.store $heap
+      end
+      local.get $t4
+      i32.load $heap offset=4
+      local.tee $t2
+      local.get $t4
       i32.load $heap
       i32.eq
       if
-        local.get $t2
+        local.get $t4
         i32.const 1
         call_indirect $table0 (param i32) (result i32)
-        local.set $t2
+        local.set $t4
         local.get $self
         i32.load $heap offset=8
-        local.get $t2
+        local.get $t4
         i32.store $heap
       end
+      local.get $t4
       local.get $t2
-      local.get $t3
       i32.const 8
       i32.mul
       i32.add
@@ -62,8 +67,8 @@
       local.get $self
       local.get $t0
       i32.store $heap offset=20
+      local.get $t4
       local.get $t2
-      local.get $t3
       i32.const 1
       i32.add
       i32.store $heap offset=4

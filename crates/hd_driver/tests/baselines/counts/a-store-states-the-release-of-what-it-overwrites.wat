@@ -67,7 +67,7 @@
     end
     local.get $k
   )
-  (func $element_over (param $xs i32) (param $i i32) (param $k i32) (local $t0 i32)
+  (func $element_over (param $xs i32) (param $i i32) (param $k i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 29 |     xs[i] = make(k)
     block
       local.get $k
@@ -75,10 +75,17 @@
       local.set $t0
       local.set $k
       local.get $xs
-      local.get $xs
       i32.load $heap
+      local.tee $t1
       call $rt:list_unique
-      i32.store $heap
+      local.tee $t2
+      local.get $t1
+      i32.ne
+      if
+        local.get $xs
+        local.get $t2
+        i32.store $heap
+      end
       local.get $xs
       i32.load $heap
       local.set $xs

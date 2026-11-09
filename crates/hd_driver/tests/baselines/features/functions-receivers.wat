@@ -260,14 +260,21 @@
     end
     local.get $v.name.0
   )
-  (func $element_receiver (param $xs i32) (param $i i32)
+  (func $element_receiver (param $xs i32) (param $i i32) (local $t0 i32) (local $t1 i32)
     ;; 34 |     xs[i].shift(1)
     block
       local.get $xs
-      local.get $xs
       i32.load $heap
+      local.tee $t0
       call $rt:list_unique
-      i32.store $heap
+      local.tee $t1
+      local.get $t0
+      i32.ne
+      if
+        local.get $xs
+        local.get $t1
+        i32.store $heap
+      end
       local.get $xs
       i32.load $heap
       local.set $xs
