@@ -959,15 +959,13 @@ impl Em<'_, '_, '_> {
 
     /// The element type of list type `t` and its layout for the glue.
     pub(super) fn elem(&self, t: Ty) -> StageResult<(Ty, Elem)> {
-        if self.input.runtime.is_none() {
-            return unsupported("lists without std's allocator");
-        }
+        // ruled out: the driver roots std runtime items before collecting list operations.
+        // ruled out: list intrinsic signatures and checked projections supply List[T].
         let TyData::Adt { args, .. } = self.pool().get(strip(self.pool(), self.env(), t)) else {
             return unsupported("a list operation on a value that is not a list");
         };
-        let Some(&et) = self.pool().list_items(args).first() else {
-            return unsupported("a list without its element type");
-        };
+        // ruled out: the seeded List[T] has one completed generic argument.
+        let et = self.pool().list_items(args)[0];
         let m = mem_of(self.pool(), self.env(), et)?;
         let elem = Elem {
             size: m.size,
