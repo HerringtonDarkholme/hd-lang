@@ -197,7 +197,7 @@ impl Em<'_, '_, '_> {
             if !matches!(em.kind(ty), Kind::Value) {
                 return;
             }
-            if let Ok(variants) = em.variant_tys(ty) {
+            if let Some(variants) = em.try_variant_tys(ty) {
                 for (v, fields) in variants.iter().enumerate() {
                     let mut variant = path.to_vec();
                     variant.push(Proj::Variant(u32::try_from(v).expect("variant")));

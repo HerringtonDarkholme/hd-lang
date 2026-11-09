@@ -100,15 +100,22 @@ impl Em<'_, '_, '_> {
 
     /// The payload types of each variant of enum (or optional) `t`.
     pub(super) fn variant_tys(&self, t: Ty) -> StageResult<Rc<Vec<Vec<Ty>>>> {
-        if let Some(v) = self.variant_tys.borrow().get(&t) {
-            return Ok(v.clone());
-        }
-        let Some(vs) = variants(self.pool(), self.env(), t) else {
+        // ruled out: typed Proj::Variant callers have already validated enum_flat.
+        // Traversal probes use try_variant_tys, where a non-enum means None.
+        let Some(vs) = self.try_variant_tys(t) else {
             return unsupported("a variant of a type that is not an enum");
         };
-        let vs = Rc::new(vs);
-        self.variant_tys.borrow_mut().insert(t, vs.clone());
         Ok(vs)
+    }
+
+    /// Payload types for an enum or optional; None for ordinary value types.
+    pub(super) fn try_variant_tys(&self, t: Ty) -> Option<Rc<Vec<Vec<Ty>>>> {
+        if let Some(v) = self.variant_tys.borrow().get(&t) {
+            return Some(v.clone());
+        }
+        let vs = Rc::new(variants(self.pool(), self.env(), t)?);
+        self.variant_tys.borrow_mut().insert(t, vs.clone());
+        Some(vs)
     }
 
     /// The counted references of a boxed enum's cell: its value's, as the
@@ -271,7 +278,7 @@ impl Em<'_, '_, '_> {
                     path.to_vec(),
                 ));
             }
-            if let Ok(variants) = em.variant_tys(t)
+            if let Some(variants) = em.try_variant_tys(t)
                 && let Ok(Some(flat)) = em.flat(t)
                 && variants.len() == flat.positions.len()
             {
@@ -821,8 +828,7 @@ impl Em<'_, '_, '_> {
         // A variant's construction, of an enum or an optional.
         let flat = self.enum_flat(t)?;
         let tys = self
-            .variant_tys(t)
-            .ok()
+            .try_variant_tys(t)
             .and_then(|vs| vs.get(v as usize).cloned())
             .unwrap_or_default();
         // Construction consumes its parts (§23.25).

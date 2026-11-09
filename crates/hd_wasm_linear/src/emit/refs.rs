@@ -1560,7 +1560,7 @@ impl Em<'_, '_, '_> {
                     let Some(&Proj::Field(f)) = steps.get(k + 1) else {
                         return unsupported("a variant without its payload field");
                     };
-                    let tys = self.variant_tys(ty).unwrap_or_default();
+                    let tys = self.try_variant_tys(ty).unwrap_or_default();
                     ty = tys
                         .get(v as usize)
                         .and_then(|fs| fs.get(f as usize))
