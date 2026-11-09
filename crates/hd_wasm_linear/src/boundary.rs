@@ -340,9 +340,9 @@ fn of_at(
         }
         TyData::Adt { def, args } if !suspension => match env.std_kind(def) {
             hd_mono::layout::StdKind::List => {
-                let Some(&e) = pool.list_items(args).first() else {
-                    return unsupported(what());
-                };
+                let items = pool.list_items(args);
+                debug_assert_eq!(items.len(), 1, "ruled out: `List` has one element type");
+                let e = items[0];
                 if input.runtime.is_none() {
                     return unsupported("lists without std's allocator");
                 }
@@ -2351,9 +2351,9 @@ fn package_value(
             Value::Option(Box::new(package_value(input, inner, path)?))
         }
         TyData::Adt { def, args } if env.std_kind(def) == hd_mono::layout::StdKind::List => {
-            let Some(&elem) = pool.list_items(args).first() else {
-                return fail();
-            };
+            let items = pool.list_items(args);
+            debug_assert_eq!(items.len(), 1, "ruled out: `List` has one element type");
+            let elem = items[0];
             if pool.get(layout::strip(pool, env, elem)) == TyData::Prim(Prim::U8) {
                 Value::Bytes
             } else {
