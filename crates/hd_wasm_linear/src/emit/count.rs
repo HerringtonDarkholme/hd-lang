@@ -53,7 +53,10 @@ impl Em<'_, '_, '_> {
         }
         // ruled out: retained_results verifies Retain immediately after its value;
         // lowering stores that value or records its earlier retain above.
-        debug_assert!(self.vals.contains_key(&value));
+        assert!(
+            self.vals.contains_key(&value),
+            "retained_results: Retain must follow a constructed or pre-retained value"
+        );
         let locals = self.vals[&value].clone();
         self.retain_locals(&locals, self.ty_of(value))
     }
@@ -418,7 +421,10 @@ impl Em<'_, '_, '_> {
             if self.slots.contains_key(&l) {
                 // ruled out: only captures request a retained local; storage::run
                 // gives their child-body storage cells, while slots belong to sub 0.
-                debug_assert!(!retain);
+                assert!(
+                    !retain,
+                    "storage::run and closure::slot_locals: a slot has only its local holder"
+                );
                 return self.release_cell_of(l, ls[0]);
             }
             self.f.get(ls[0]);
@@ -703,21 +709,25 @@ impl Em<'_, '_, '_> {
         }
         // Saved reference-object slots have their own normal-exit contract.
         for (l, held) in self.frame_refs.clone() {
-            let reason = Reason::ByDesign;
-            // ruled out: own::referent states Exit/Referent releases with reason 8;
-            // its verifier rejects a missing action or a different reason.
-            debug_assert_eq!(
-                self.stated_count(
-                    Tag::Release,
-                    At::Exit,
-                    Part::Referent(u32::try_from(l).expect("local")),
-                ),
-                Some(reason)
+            let local = u32::try_from(l);
+            assert!(
+                local.is_ok(),
+                "frame_refs must contain u32 TIR parameter IDs from own::referent"
             );
-            self.because(reason, |em| {
-                em.f.get(held);
-                em.f.helper(Helper::ReleaseRef);
-            });
+            if let Ok(local) = local {
+                // ruled out: own::referent states this saved reference's Exit release.
+                let reason = self.stated_count(Tag::Release, At::Exit, Part::Referent(local));
+                assert!(
+                    reason.is_some(),
+                    "own::referent must state an Exit/Referent release for every saved frame reference"
+                );
+                if let Some(reason) = reason {
+                    self.because(reason, |em| {
+                        em.f.get(held);
+                        em.f.helper(Helper::ReleaseRef);
+                    });
+                }
+            }
         }
         let nodes = self
             .susp
