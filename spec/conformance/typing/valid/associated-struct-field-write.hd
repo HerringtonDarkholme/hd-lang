@@ -1,0 +1,31 @@
+# test: a struct field whose type is an associated projection is a place: its own fields are written, compounded and borrowed
+# Spec 13 Values And References: ref.write.field. Spec 9 Traits: trait.assoc.projection.
+trait Source:
+    type Item
+
+struct Provider: pass
+
+struct Number:
+    value: u32
+
+impl !Copy for Number
+
+impl Source for Provider:
+    type Item = Number
+
+struct W[S < Source]:
+    item: S::Item
+
+fn write(w: &mut W[Provider]) -> void:
+    w.item.value = 9
+
+pub fn main() -> void:
+    let mut w = W::[Provider] { item: Number { value: 1 } }
+    w.item.value = 3
+    write(&mut w)
+
+fn whole(w: &mut W[Provider]) -> void:
+    w.item = Number { value: 4 }
+    w.item.value += 1
+    r := &mut w.item.value
+    *r = 5

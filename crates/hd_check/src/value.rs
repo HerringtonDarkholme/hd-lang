@@ -49,8 +49,8 @@ impl Ck<'_, '_> {
         if !self.place_writable_for_field(&place, (base, lhs)) {
             return Ok(());
         }
-        place.path.push((idx, ft));
-        place.ty = ft;
+        self.push_field(&mut place, idx, ft);
+        let ft = place.ty;
         let v = match compound {
             None => {
                 let (r, t) = self.stored_expr(rhs, Some(ft), "in this field")?;

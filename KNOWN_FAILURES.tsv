@@ -1,4 +1,3 @@
 path	issue	engine	reason
 runtime/valid/dbg-tuple-rest-arguments.hd	#1543		Collect refuses dbg arguments with a runtime List rest
 runtime/valid/associated-enum-payload-references-read-and-write.hd	#1544		Link refuses a borrowed payload of an associated-type enum
-typing/valid/associated-enum-payload-field-write.hd	#1545		Checker does not normalize an associated payload for field assignment

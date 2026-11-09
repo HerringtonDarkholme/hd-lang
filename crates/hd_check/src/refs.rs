@@ -69,7 +69,10 @@ pub(crate) enum PlaceUse {
 
 /// A place a reference refers to (`ref.place.forms`): its root, the
 /// struct fields read from it in order (each with the type it reads), and
-/// the place's type.
+/// the place's type. The types along the path are in normal form, as an
+/// expression's type is ([`Ck::expr`]): a field or binding declared as a
+/// projection whose self type is known names its bound type
+/// (`trait.assoc.projection`).
 pub(crate) struct Place {
     pub(crate) root: Root,
     pub(crate) path: Vec<(u32, Ty)>,
@@ -618,10 +621,11 @@ impl Ck<'_, '_> {
                 if let Some((l, d)) = self.find_local(s)
                     && !self.local_generics.contains_key(&l)
                 {
+                    let ty = self.b.local_ty(l);
                     return Ok(Some(Operand::Place(Place {
                         root: Root::Local(l, d),
                         path: vec![],
-                        ty: self.b.local_ty(l),
+                        ty: self.norm_ty(ty),
                     })));
                 }
                 if self.find_local(s).is_none()
@@ -642,7 +646,7 @@ impl Ck<'_, '_> {
                     return Ok(Some(Operand::Place(Place {
                         root: Root::Global(s, g.def, g.ty),
                         path: vec![],
-                        ty: g.ty,
+                        ty: self.norm_ty(g.ty),
                     })));
                 }
                 let (r, t) = self.expr(e, want)?;
@@ -751,10 +755,20 @@ impl Ck<'_, '_> {
                 p.ty = saved.1;
                 return p;
             }
-            p.path.push((idx, ft));
-            p.ty = ft;
+            self.push_field(&mut p, idx, ft);
         }
         p
+    }
+
+    /// Extends `p` by its field `idx` of declared type `ft`, which the
+    /// place reads in normal form: a field declared `S::Item` at known
+    /// arguments is the bound type (`trait.assoc.projection`), so the next
+    /// step and the write find its fields. O(1) for a type without
+    /// projections (a pool flag).
+    pub(crate) fn push_field(&mut self, p: &mut Place, idx: u32, ft: Ty) {
+        let ft = self.norm_ty(ft);
+        p.path.push((idx, ft));
+        p.ty = ft;
     }
 
     fn field_step(
@@ -772,8 +786,7 @@ impl Ck<'_, '_> {
         };
         let b = match b {
             Operand::Place(mut p) if let Some((idx, et)) = elem => {
-                p.path.push((idx, et));
-                p.ty = et;
+                self.push_field(&mut p, idx, et);
                 return Ok(Some(Operand::Place(p)));
             }
             Operand::Place(p) if !self.is_struct_ty(p.ty) => {
@@ -793,8 +806,7 @@ impl Ck<'_, '_> {
                         let Some((idx, ft)) = self.field_of(p.ty, step) else {
                             break;
                         };
-                        p.path.push((idx, ft));
-                        p.ty = ft;
+                        self.push_field(&mut p, idx, ft);
                     }
                 }
                 let Some((idx, ft)) = self.field_of(p.ty, name) else {
@@ -802,8 +814,7 @@ impl Ck<'_, '_> {
                     return Ok(None);
                 };
                 self.check_field_visible(p.ty, name, e);
-                p.path.push((idx, ft));
-                p.ty = ft;
+                self.push_field(&mut p, idx, ft);
                 Ok(Some(Operand::Place(p)))
             }
             Operand::Value(r, t) => {
@@ -1047,7 +1058,9 @@ impl Ck<'_, '_> {
             v = self.field_read(v, idx, ft, n.index());
             t = ft;
         }
-        (v, t)
+        // The value read has the place's normal-form type, as an
+        // expression's has ([`Ck::expr`]).
+        (v, self.norm_ty(t))
     }
 
     fn read_root(&mut self, root: Root, n: NodeRef<'_>) -> (Ref, Ty) {
