@@ -1,0 +1,35 @@
+# test: closed, open and empty rows preserve their nearest providers across indirect calls
+# Spec Requirements: req.poly.one-body; req.with.nearest.row-parameter;
+# req.context.order; req.context.one-per-key; req.context.empty.
+# expect-stdout: seen/chosen:seen/inner
+# expect-stdout: quiet
+# expect-stdout: outer
+trait Label:
+    fn text(&self) -> string
+
+struct Named:
+    value: string
+
+impl Label for Named:
+    fn text(&self) -> string:
+        self.value
+
+fn invoke[$ R](callback: fn() -> string $ R) -> string $ R:
+    callback()
+
+fn nested[$ R](callback: fn() -> string $ R) -> string $ R:
+    first := invoke(callback)
+    $.with(Label=box(Named { value: "inner" })):
+        first + ":" + invoke(callback)
+
+pub fn main() -> void $ Console:
+    let empty: $.Context[$ ()] = $.context()
+    base := $.context(Label=box(Named { value: "outer" }))
+    over := $.context(base..., Label=box(Named { value: "chosen" }), empty...)
+    $.with(over...):
+        prefix := "seen/"
+        callback := fn() -> string $ Label: prefix + $.use(Label).text()
+        println(nested::[$ Label](callback))
+    println(invoke(fn() -> string: "quiet"))
+    $.with(base...):
+        println($.use(Label).text())

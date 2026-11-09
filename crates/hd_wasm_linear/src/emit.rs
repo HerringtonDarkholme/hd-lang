@@ -205,7 +205,7 @@ fn body_func<'a>(
     // context for the keys it does not name.
     let mut row = Vec::new();
     if let Some(ci) = closure {
-        let (ks, open) = em.fn_row(em.sub(b.ty[ci]))?;
+        let (ks, open) = em.fn_row(em.sub(b.ty[ci]));
         row = ks;
         if open {
             em.open_ctx = ctx;

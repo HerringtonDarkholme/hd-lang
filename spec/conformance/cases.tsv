@@ -6215,6 +6215,7 @@ runtime/valid/reference-arguments-keep-their-values.hd	runtime	accept	lang/13-va
 runtime/valid/dbg-tuple-rest-arguments.hd	runtime	accept	lang/10-modules.md#r-module.dbg.check
 runtime/valid/defer-flags-follow-nested-exits.hd	runtime	accept	std/ops.md#r-std-ops.defer.cleanup
 runtime/valid/dynamic-bang-slots-keep-reference-and-value-receivers.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.ref.member
+runtime/valid/row-contexts-preserve-nearest-providers-and-empty-rows.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.with.nearest.row-parameter
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
