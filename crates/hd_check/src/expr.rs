@@ -212,9 +212,8 @@ impl Ck<'_, '_> {
             return Ok(v);
         }
         let kids: Vec<NodeRef<'_>> = n.children().collect();
-        // A node the grammar builds with fixed children is matched with them; a
-        // module with a syntax error is never checked, so any other shape is
-        // the parser's bug and falls to the last arm.
+        // ruled out: parser::primary/postfix fix expression kinds and child
+        // shapes; suites and bang/spread wrappers use their parent checkers.
         Ok(match (n.kind(), kids.as_slice()) {
             (SyntaxKind::LiteralExpr, _) => self.literal(n, want)?,
             (SyntaxKind::StringExpr, _) => {
@@ -333,7 +332,7 @@ impl Ck<'_, '_> {
                 self.explicit_item_value(n, inner, tl, want)?
             }
             (SyntaxKind::PathExpr, _) => self.path_value(n, want, &[])?,
-            (other, _) => return unsupported(format!("expression {other:?}")),
+            _ => self.poison_value(n),
         })
     }
 
