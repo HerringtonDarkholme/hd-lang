@@ -1,25 +1,20 @@
 //! Advice over selected, lexically valid source tokens, without checked-body facts.
 
+use crate::{Cx, Event};
 #[cfg(test)]
 use hd_base::{FileId, Span};
 use hd_diag::{Code, DiagBuf};
-use hd_driver::analysis::Event;
 use hd_syntax::SyntaxKind;
 #[cfg(test)]
 use hd_syntax::{TokenKind, lex};
 
 /// `types.lifetime.convention`: a lifetime parameter written before a type
 /// parameter of the same generic list.
-pub(crate) fn lifetime_order(
-    event: &Event<'_>,
-    view: &hd_check::analysis::CheckedView<'_>,
-    out: &mut DiagBuf,
-) {
-    if !matches!(event, Event::Module(_)) {
+pub(crate) fn lifetime_order(event: &Event<'_>, cx: &Cx<'_>, out: &mut DiagBuf) {
+    if !matches!(event, Event::Module) {
         return;
     }
-    let source = view.source();
-    for list in source.root().descendants() {
+    for list in cx.src.root().descendants() {
         if list.kind() != SyntaxKind::GenericParameterList {
             continue;
         }
@@ -34,8 +29,8 @@ pub(crate) fn lifetime_order(
             if p.kind() != SyntaxKind::LifetimeParameter {
                 continue;
             }
-            let span = source.span(*p);
-            let text = source.text_at(span).unwrap_or("lifetime");
+            let span = cx.src.span(*p);
+            let text = cx.text_at(span).unwrap_or("lifetime");
             out.push(
                 Code::LifetimeOrder,
                 hd_diag::Severity::Warning,
@@ -49,15 +44,11 @@ pub(crate) fn lifetime_order(
     }
 }
 
-pub(crate) fn mixed_script(
-    event: &Event<'_>,
-    view: &hd_check::analysis::CheckedView<'_>,
-    out: &mut DiagBuf,
-) {
+pub(crate) fn mixed_script(event: &Event<'_>, cx: &Cx<'_>, out: &mut DiagBuf) {
     let Event::Ident(span) = event else {
         return;
     };
-    let Some(text) = view.source().text_at(*span) else {
+    let Some(text) = cx.text_at(*span) else {
         return;
     };
     if text.is_ascii() {

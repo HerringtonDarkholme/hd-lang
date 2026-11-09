@@ -1,24 +1,17 @@
-//! Optional checked source facts for tools. No diagnostic or policy lives here.
+//! Optional checked facts for tools: only what needs checker state. Names,
+//! spans and written forms are read from syntax by the consumer, and no
+//! diagnostic or policy lives here.
 
-use hd_base::{DefId, LocalId, NodeIdx, Span};
-use hd_syntax::TokenKind;
+use hd_base::{DefId, LocalId, NodeIdx};
 use hd_types::Prim;
 
-/// An operand's source node and checked primitive type; its written form is
-/// read from syntax by the consumer.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Operand {
-    pub node: NodeIdx,
-    pub primitive: Option<Prim>,
-}
-
-/// One source ordering comparison; consumers decide whether it needs advice.
+/// One ordering comparison: its binary node and each operand's checked
+/// primitive type.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Comparison {
-    pub span: Span,
-    pub operator: TokenKind,
-    pub left: Operand,
-    pub right: Operand,
+    pub node: NodeIdx,
+    pub left: Option<Prim>,
+    pub right: Option<Prim>,
 }
 
 /// One source binding after body checking has recorded every read and capture.
@@ -26,11 +19,14 @@ pub struct Comparison {
 pub struct Binding {
     pub body: DefId,
     pub local: LocalId,
-    pub name: String,
-    pub span: Span,
+    /// The syntax the binding was declared by.
+    pub node: NodeIdx,
+    /// The syntax whose first identifier is the binding's name: `node`, or
+    /// a recursive closure's binding pattern.
+    pub name: NodeIdx,
     pub read: bool,
     /// The binding used ordinary `:=` or `let` for a value that implements a
-    /// disposal protocol. Policy and diagnostics stay in `hd_lint`.
+    /// disposal protocol.
     pub unbound_disposable: bool,
     pub mutability: Option<Mutability>,
 }
@@ -54,14 +50,6 @@ pub struct VariantPattern {
     pub subs: Vec<Option<NodeIdx>>,
 }
 
-/// A statement's source reachability, before dead code can be lowered away.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Statement {
-    pub body: DefId,
-    pub span: Span,
-    pub reachable: bool,
-}
-
 /// The first checked change to a `mut` parameter or `mut self` copy in one
 /// direct statement of its function body. Whether a later use observes it
 /// is read from syntax by the consumer.
@@ -82,8 +70,7 @@ pub struct DiscardedExpression {
     pub selected: Option<DefId>,
     /// Declaration identity, including qualified calls and type arguments.
     pub prelude_debug: bool,
-    /// The discarded value implements a disposal protocol. Policy and
-    /// diagnostics stay in `hd_lint`.
+    /// The discarded value implements a disposal protocol.
     pub unbound_disposable: bool,
     /// For a `std.format.debug` call by a bare name: whether the bare names
     /// `debug` and `dbg` resolve to their std.format declarations here.
@@ -98,7 +85,9 @@ pub struct SourceFacts {
     pub comparisons: Vec<Comparison>,
     pub bindings: Vec<Binding>,
     pub patterns: Vec<VariantPattern>,
-    pub statements: Vec<Statement>,
+    /// The statements after a diverging one in their suite, before dead
+    /// code can be lowered away.
+    pub unreachable: Vec<NodeIdx>,
     pub parameter_writes: Vec<ParameterWrite>,
     pub discarded: Vec<DiscardedExpression>,
 }
@@ -108,7 +97,7 @@ impl SourceFacts {
         self.comparisons.extend(other.comparisons);
         self.bindings.extend(other.bindings);
         self.patterns.extend(other.patterns);
-        self.statements.extend(other.statements);
+        self.unreachable.extend(other.unreachable);
         self.parameter_writes.extend(other.parameter_writes);
         self.discarded.extend(other.discarded);
     }

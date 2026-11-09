@@ -1,21 +1,17 @@
 //! Derivation advice over nominal, resolved declaration facts.
 
+use crate::{Cx, Event};
 use hd_base::{SliceSort as _, Span};
 use hd_diag::{Code, DiagBuf, FixSafety, Severity};
-use hd_driver::analysis::Event;
 use hd_resolve::Src;
 use hd_resolve::facts::{BlockDecorator, DerivationBlock, DerivationFacts, Derived};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 
-pub(crate) fn unused(
-    event: &Event<'_>,
-    view: &hd_check::analysis::CheckedView<'_>,
-    out: &mut DiagBuf,
-) {
-    let Event::Derivations(event) = event else {
+pub(crate) fn unused(event: &Event<'_>, cx: &Cx<'_>, out: &mut DiagBuf) {
+    let Event::Derivations(facts) = event else {
         return;
     };
-    collect_unused(event.facts(), view.source().text(), out);
+    collect_unused(facts, cx.src.text, out);
 }
 
 fn collect_unused(facts: &DerivationFacts, text: &str, out: &mut DiagBuf) {
@@ -37,19 +33,14 @@ fn collect_unused(facts: &DerivationFacts, text: &str, out: &mut DiagBuf) {
     }
 }
 
-pub(crate) fn drift(
-    event: &Event<'_>,
-    view: &hd_check::analysis::CheckedView<'_>,
-    out: &mut DiagBuf,
-) {
-    let Event::Derivations(event) = event else {
+pub(crate) fn drift(event: &Event<'_>, cx: &Cx<'_>, out: &mut DiagBuf) {
+    let Event::Derivations(facts) = event else {
         return;
     };
-    let facts = event.facts();
     if facts.blocks.is_empty() {
         return;
     }
-    let src = view.source().syntax();
+    let src = cx.src;
     // One pass over the top-level declarations, in source order: a block's
     // span is its `impl` declaration's, and a module's blocks are its own
     // file's declarations.

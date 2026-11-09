@@ -1,6 +1,6 @@
 use hd_base::{FileId, Span};
 use hd_diag::{Code, DiagBuf, Severity};
-use hd_driver::analysis::Events;
+use hd_lint::Events;
 use hd_lint::{Level, Policy, RULES};
 use hd_project::parse_manifest;
 

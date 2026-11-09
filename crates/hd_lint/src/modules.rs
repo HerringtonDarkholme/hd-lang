@@ -1,17 +1,13 @@
 //! Advice over selected source modules and their executable graph membership.
 
+use crate::{Cx, Event};
 use hd_diag::{Code, DiagBuf, FixSafety};
-use hd_driver::analysis::Event;
 #[cfg(test)]
 use hd_project::MainSite;
 use hd_project::Role;
 use hd_syntax::TokenKind;
 
-pub(crate) fn private_main(
-    event: &Event<'_>,
-    view: &hd_check::analysis::CheckedView<'_>,
-    out: &mut DiagBuf,
-) {
+pub(crate) fn private_main(event: &Event<'_>, cx: &Cx<'_>, out: &mut DiagBuf) {
     let Event::MainSite(site) = event else {
         return;
     };
@@ -25,7 +21,7 @@ pub(crate) fn private_main(
         "main is not pub, so it is not the entry point",
         None,
     );
-    let Some(header) = view.source().text_at(site.span) else {
+    let Some(header) = cx.text_at(site.span) else {
         return;
     };
     let lexed = hd_syntax::lex(header.as_bytes());
@@ -56,11 +52,7 @@ pub(crate) fn private_main(
     );
 }
 
-pub(crate) fn unselected_main(
-    event: &Event<'_>,
-    _: &hd_check::analysis::CheckedView<'_>,
-    out: &mut DiagBuf,
-) {
+pub(crate) fn unselected_main(event: &Event<'_>, _: &Cx<'_>, out: &mut DiagBuf) {
     let Event::MainSite(site) = event else {
         return;
     };

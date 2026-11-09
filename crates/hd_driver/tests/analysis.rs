@@ -2,29 +2,31 @@
 
 use std::sync::Mutex;
 
-use hd_base::Hash128;
+use hd_base::{Hash128, Span};
 use hd_cache::{CacheStore, EntryKind, LAYOUT_VERSION, MemoryStore, encode_entry};
-use hd_check::analysis::CheckedView;
 use hd_diag::{Code, DiagBuf, FixSafety, Severity};
-use hd_driver::analysis::{AnalysisSink, Event, Events};
+use hd_driver::analysis::{AnalysisSink, Module, Requests};
 use hd_driver::{
     Dependency, Executor, Goal, Host, NoClock, Packages, build_packages,
     build_packages_with_analysis,
 };
 use hd_project::MemorySources;
+use hd_resolve::Src;
 use hd_sched::SerialOrder;
+use hd_syntax::Decl;
 
-#[derive(Default)]
+/// Records each hook call, and reports each public declaration's name with
+/// a label and a fix, so cached findings carry every part.
 struct Recorder {
     events: Mutex<Vec<String>>,
-    interests: Events,
+    requests: Requests,
 }
 
 impl Recorder {
-    fn new(interests: Events) -> Self {
+    fn new(requests: Requests) -> Self {
         Self {
             events: Mutex::default(),
-            interests,
+            requests,
         }
     }
 
@@ -34,63 +36,55 @@ impl Recorder {
 }
 
 impl AnalysisSink for Recorder {
-    fn interests(&self) -> Events {
-        self.interests
+    fn requests(&self) -> Requests {
+        self.requests
     }
 
     fn diagnostic_code(&self, name: &str) -> Option<Code> {
         (name == Code::MixedScriptIdentifier.as_str()).then_some(Code::MixedScriptIdentifier)
     }
 
-    fn event(&self, event: &Event<'_>, view: &CheckedView<'_>, out: &mut DiagBuf) {
-        let source = view.source();
-        let shown = match event {
-            Event::Ident(span) => format!("ident:{}", source.text_at(*span).unwrap()),
-            Event::Decl(event) => {
-                let name = event
-                    .name
-                    .and_then(|span| source.text_at(span))
-                    .unwrap_or("impl");
-                if event.public
-                    && let Some(span) = event.name
-                {
-                    out.push(
-                        Code::MixedScriptIdentifier,
-                        Severity::Warning,
-                        span,
-                        "synthetic analysis finding",
-                        None,
-                    );
-                    out.add_label(event.span, "the public declaration");
-                    out.add_fix("rename it", FixSafety::Exact, &[(span, "entry")]);
-                }
-                format!("decl:{name}")
-            }
-            Event::Module(event) => {
-                format!("module:{}", event.path)
-            }
-            Event::Comparison(_) => "comparison".to_owned(),
-            Event::Binding(_) => "binding".to_owned(),
-            Event::Statement(_) => "statement".to_owned(),
-            Event::ParameterWrite(_) => "parameter-write".to_owned(),
-            Event::Pattern(_) => "pattern".to_owned(),
-            Event::Discard(_) => "discard".to_owned(),
-            Event::Derivations(_) => "derivations".to_owned(),
-            Event::MainSite(_) => "main-site".to_owned(),
-            Event::FetchedDebug(event) => {
-                let reference = source.text_at(event.span).unwrap();
-                assert!(reference.starts_with("dbg"), "{reference}");
+    fn module(&self, module: &Module<'_>, out: &mut DiagBuf) {
+        let src = module.src;
+        for node in src.root().descendants() {
+            let Some(decl) = Decl::cast(node) else {
+                continue;
+            };
+            if decl.is_pub(&src.parse.tokens)
+                && let Some(name) = decl.name(&src.parse.tokens)
+            {
+                let span = src.token_span(name);
                 out.push(
-                    Code::DbgInDependency,
+                    Code::MixedScriptIdentifier,
                     Severity::Warning,
-                    event.span,
-                    "synthetic fetched debug finding",
+                    span,
+                    "synthetic analysis finding",
                     None,
                 );
-                format!("fetched-debug:{}:{reference}", event.package)
+                out.add_label(src.span(node), "the public declaration");
+                out.add_fix("rename it", FixSafety::Exact, &[(span, "entry")]);
             }
-        };
-        self.events.lock().unwrap().push(shown);
+        }
+        self.events
+            .lock()
+            .unwrap()
+            .push(format!("module:{}", module.path));
+    }
+
+    fn fetched_debug(&self, package: &str, span: Span, src: Src<'_>, out: &mut DiagBuf) {
+        let reference = &src.text[span.lo as usize..span.hi as usize];
+        assert!(reference.starts_with("dbg"), "{reference}");
+        out.push(
+            Code::DbgInDependency,
+            Severity::Warning,
+            span,
+            "synthetic fetched debug finding",
+            None,
+        );
+        self.events
+            .lock()
+            .unwrap()
+            .push(format!("fetched-debug:{package}:{reference}"));
     }
 }
 
@@ -107,6 +101,7 @@ fn run(store: &MemoryStore, source: &str, sink: Option<&dyn AnalysisSink>) -> hd
     build_packages_with_analysis(&host, "app", &Packages::default(), &Goal::Analyze, sink)
 }
 
+/// Shows what each checked view answers.
 #[derive(Default)]
 struct TypedRecorder {
     events: Mutex<Vec<String>>,
@@ -119,93 +114,76 @@ impl TypedRecorder {
 }
 
 impl AnalysisSink for TypedRecorder {
-    fn interests(&self) -> Events {
-        Events::CHECKED
+    fn requests(&self) -> Requests {
+        Requests::CHECKED
     }
 
     fn diagnostic_code(&self, _: &str) -> Option<Code> {
         None
     }
 
-    fn event(&self, event: &Event<'_>, view: &CheckedView<'_>, _: &mut DiagBuf) {
-        let shown = match event {
-            Event::Comparison(event) => {
-                let left = view.expression(event.left).unwrap();
-                let right = view.expression(event.right).unwrap();
-                let primitive = view.adjusted_type(event.left).unwrap().primitive();
-                format!(
-                    "comparison:{:?}:{primitive:?}:{}:{}",
-                    event.operator,
-                    view.source().text_at(left.span()).unwrap(),
-                    view.source().text_at(right.span()).unwrap()
-                )
-            }
-            Event::Binding(source) => {
-                let binding = view.binding(*source).unwrap();
-                let mutability = binding.mutability();
-                format!(
-                    "binding:{}:{}:{}",
-                    binding.name(),
-                    binding.is_read(),
-                    mutability.is_some_and(|fact| {
-                        fact.is_primitive()
-                            && !fact.mutable_address_taken()
-                            && view
-                                .source()
-                                .text_at(view.source().span(fact.pattern()))
-                                .is_some_and(|text| text.starts_with("mut "))
-                    })
-                )
-            }
-            Event::Statement(source) => {
-                let statement = view.statement(*source).unwrap();
-                format!("statement:{}", statement.is_reachable())
-            }
-            Event::ParameterWrite(source) => {
-                let write = view.parameter_write(*source).unwrap();
-                let source = view.source();
-                format!(
-                    "parameter-write:{}:{}:{}",
-                    write.name(),
-                    source.text_at(source.span(write.statement())).unwrap(),
-                    source.text_at(source.span(write.write())).unwrap()
-                )
-            }
-            Event::Pattern(source) => {
-                let pattern = view.pattern(*source).unwrap();
-                let source = view.source();
-                let bindings: Vec<_> = pattern
-                    .subpatterns()
-                    .map(|sub| {
-                        sub.and_then(|sub| source.text_at(source.span(sub)))
-                            .unwrap()
-                    })
-                    .collect();
-                format!(
-                    "pattern:{}:{:?}:{bindings:?}",
-                    pattern.variant(),
-                    pattern.fields()
-                )
-            }
-            Event::Discard(source) => {
-                let call = view.call(*source).unwrap();
-                let selected = view.selected_declaration(*source);
-                format!(
-                    "discard:{}:{}:{}:{}",
-                    view.source().text_at(call.span()).unwrap(),
-                    selected.is_some_and(hd_check::analysis::DeclRef::is_prelude_debug),
-                    call.standard_debug(),
-                    call.standard_dbg()
-                )
-            }
-            Event::Ident(_)
-            | Event::Decl(_)
-            | Event::Module(_)
-            | Event::Derivations(_)
-            | Event::MainSite(_)
-            | Event::FetchedDebug(_) => unreachable!(),
-        };
-        self.events.lock().unwrap().push(shown);
+    fn module(&self, module: &Module<'_>, _: &mut DiagBuf) {
+        let src = module.src;
+        let text = |node| &src.text[src.span(node).lo as usize..src.span(node).hi as usize];
+        let checked = module.checked;
+        let mut events = self.events.lock().unwrap();
+        for comparison in checked.comparisons() {
+            events.push(format!(
+                "comparison:{}:{:?}:{:?}",
+                text(comparison.node()),
+                comparison.primitive(false),
+                comparison.primitive(true)
+            ));
+        }
+        for binding in checked.bindings() {
+            let mutability = binding.mutability();
+            events.push(format!(
+                "binding:{}:{}:{}",
+                text(binding.node()),
+                binding.is_read(),
+                mutability.is_some_and(|fact| {
+                    fact.is_primitive()
+                        && !fact.mutable_address_taken()
+                        && text(fact.pattern()).starts_with("mut ")
+                })
+            ));
+        }
+        for statement in checked.unreachable() {
+            events.push(format!("unreachable:{}", text(statement)));
+        }
+        for write in checked.parameter_writes() {
+            events.push(format!(
+                "parameter-write:{}:{}:{}",
+                write.name(),
+                text(write.statement()),
+                text(write.write())
+            ));
+        }
+        for pattern in checked.patterns() {
+            let bindings: Vec<_> = pattern
+                .subpatterns()
+                .map(|sub| sub.map(text).unwrap())
+                .collect();
+            events.push(format!(
+                "pattern:{}:{:?}:{bindings:?}",
+                pattern.variant(),
+                pattern.fields()
+            ));
+        }
+        for call in checked.discarded() {
+            events.push(format!(
+                "discard:{}:{}:{}:{}",
+                text(call.node()),
+                call.selected_declaration()
+                    .is_some_and(hd_check::analysis::DeclRef::is_prelude_debug),
+                call.standard_debug(),
+                call.standard_dbg()
+            ));
+        }
+    }
+
+    fn fetched_debug(&self, _: &str, _: Span, _: Src<'_>, _: &mut DiagBuf) {
+        unreachable!("ruled out: the recorder requests checked facts only");
     }
 }
 
@@ -247,7 +225,7 @@ fn fetched_debug_event_reuses_dependency_check_entries_without_body_rechecks() {
     assert!(!checked.counters.modules_checked.is_empty());
 
     for _ in 0..2 {
-        let sink = Recorder::new(Events::FETCHED_DEBUG);
+        let sink = Recorder::new(Requests::FETCHED_DEBUG);
         let lint = build_packages_with_analysis(&host, "app", &packages, &goal, Some(&sink));
         assert!(lint.diags.is_empty(), "{}", lint.render());
         let events = sink.take();
@@ -260,7 +238,7 @@ fn fetched_debug_event_reuses_dependency_check_entries_without_body_rechecks() {
 
 #[test]
 fn checked_views_expose_completed_types_bindings_flow_patterns_and_callees() {
-    let source = "enum Pair:\n    Values(left: i32, right: i32)\nfn inspect(value: Pair, remaining: usize) -> bool:\n    let mut count = +1\n    _ := count\n    match value:\n        .Values(right, left) =>\n            debug(+1)\n            remaining < 0\n";
+    let source = "enum Pair:\n    Values(left: i32, right: i32)\nfn inspect(value: Pair, remaining: usize) -> bool:\n    let mut count = +1\n    _ := count\n    match value:\n        .Values(right, left) =>\n            debug(+1)\n            remaining < 0\nfn stop() -> i32:\n    return +1\n    +2\n";
     let store = MemoryStore::default();
     let checked = run(&store, source, None);
     assert!(!checked.diags.has_errors(), "{}", checked.render());
@@ -275,13 +253,13 @@ fn checked_views_expose_completed_types_bindings_flow_patterns_and_callees() {
     assert!(
         events
             .iter()
-            .any(|event| event == "comparison:Lt:Some(Usize):remaining:0"),
+            .any(|event| event == "comparison:remaining < 0:Some(Usize):None"),
         "{events:#?}"
     );
     assert!(
         events
             .iter()
-            .any(|event| event == "binding:count:true:true"),
+            .any(|event| event == "binding:mut count:true:true"),
         "{events:#?}"
     );
     assert!(
@@ -296,7 +274,10 @@ fn checked_views_expose_completed_types_bindings_flow_patterns_and_callees() {
             .any(|event| event == "discard:debug(+1):true:true:true"),
         "{events:#?}"
     );
-    assert!(events.iter().any(|event| event == "statement:true"));
+    assert!(
+        events.iter().any(|event| event == "unreachable:+2"),
+        "{events:#?}"
+    );
 
     let warm = TypedRecorder::default();
     let out = run(&store, source, Some(&warm));
@@ -307,31 +288,19 @@ fn checked_views_expose_completed_types_bindings_flow_patterns_and_callees() {
 }
 
 #[test]
-fn verified_source_walk_is_ordered_then_loads_the_lint_cache() {
+fn verified_modules_reach_the_hook_then_load_the_lint_cache() {
     let source =
         "pub fn alpha(value: i32) -> i32:\n    value\n\nfn beta() -> void:\n    _ := alpha(+1)\n";
     let store = MemoryStore::default();
-    let expected = [
-        "ident:alpha",
-        "ident:value",
-        "ident:i32",
-        "ident:i32",
-        "ident:value",
-        "decl:alpha",
-        "ident:beta",
-        "ident:void",
-        "ident:alpha",
-        "decl:beta",
-        "module:app.main",
-    ];
-    let cold_sink = Recorder::new(Events::SOURCE);
+    let expected = ["module:app.main"];
+    let cold_sink = Recorder::new(Requests::MODULE);
     let cold = run(&store, source, Some(&cold_sink));
     assert!(!cold.diags.has_errors(), "{}", cold.render());
     assert_eq!(cold_sink.take(), expected);
     assert_eq!(cold.analysis_diags.code, [Code::MixedScriptIdentifier]);
     assert_eq!(cold.counters.miss("lint"), 1);
 
-    let warm_sink = Recorder::new(Events::SOURCE);
+    let warm_sink = Recorder::new(Requests::MODULE);
     let warm = run(&store, source, Some(&warm_sink));
     assert!(!warm.diags.has_errors(), "{}", warm.render());
     assert!(warm_sink.take().is_empty());
@@ -351,14 +320,14 @@ fn verified_source_walk_is_ordered_then_loads_the_lint_cache() {
 fn cached_finding_spans_follow_comment_only_line_shifts() {
     let store = MemoryStore::default();
     let source = "pub fn main() -> void:\n    pass\n";
-    let cold_sink = Recorder::new(Events::SOURCE);
+    let cold_sink = Recorder::new(Requests::MODULE);
     let cold = run(&store, source, Some(&cold_sink));
     assert!(!cold.diags.has_errors(), "{}", cold.render());
     assert_eq!(cold.analysis_diags.len(), 1);
 
     let prefix = "# inserted comment\n\n";
     let shifted = format!("{prefix}{source}");
-    let warm_sink = Recorder::new(Events::SOURCE);
+    let warm_sink = Recorder::new(Requests::MODULE);
     let warm = run(&store, &shifted, Some(&warm_sink));
     assert!(!warm.diags.has_errors(), "{}", warm.render());
     assert!(warm_sink.take().is_empty());
@@ -392,7 +361,7 @@ fn cached_finding_spans_follow_comment_only_line_shifts() {
 fn lint_entries_from_another_toolchain_are_cache_misses() {
     let source = "pub fn main() -> void:\n    pass\n";
     let store = MemoryStore::default();
-    let cold_sink = Recorder::new(Events::SOURCE);
+    let cold_sink = Recorder::new(Requests::MODULE);
     let cold = run(&store, source, Some(&cold_sink));
     assert!(!cold.diags.has_errors(), "{}", cold.render());
     let key = cold.counters.check_keys["app.main"];
@@ -406,7 +375,7 @@ fn lint_entries_from_another_toolchain_are_cache_misses() {
     );
     store.put(EntryKind::Lint, &key, &foreign);
 
-    let sink = Recorder::new(Events::SOURCE);
+    let sink = Recorder::new(Requests::MODULE);
     let out = run(&store, source, Some(&sink));
     assert!(!out.diags.has_errors(), "{}", out.render());
     assert!(!sink.take().is_empty());
@@ -437,39 +406,36 @@ fn changing_one_module_misses_only_its_lint_entry() {
     }
 
     let store = MemoryStore::default();
-    let cold_sink = Recorder::new(Events::SOURCE);
+    let cold_sink = Recorder::new(Requests::MODULE);
     let cold = build(&store, "    pass", &cold_sink);
     assert!(!cold.diags.has_errors(), "{}", cold.render());
     assert_eq!(cold.analysis_diags.len(), 2);
 
-    let warm_sink = Recorder::new(Events::SOURCE);
+    let warm_sink = Recorder::new(Requests::MODULE);
     let warm = build(&store, "    pass", &warm_sink);
     assert!(!warm.diags.has_errors(), "{}", warm.render());
     assert!(warm_sink.take().is_empty());
     assert_eq!(warm.counters.hit("lint"), 2);
 
-    let changed_sink = Recorder::new(Events::SOURCE);
+    let changed_sink = Recorder::new(Requests::MODULE);
     let changed = build(&store, "    _ := +1", &changed_sink);
     assert!(!changed.diags.has_errors(), "{}", changed.render());
-    assert_eq!(
-        changed_sink.take(),
-        ["ident:b", "ident:void", "decl:b", "module:app.b"]
-    );
+    assert_eq!(changed_sink.take(), ["module:app.b"]);
     assert_eq!(changed.counters.hit("lint"), 1);
     assert_eq!(changed.counters.miss("lint"), 1);
     assert_eq!(changed.counters.modules_checked, ["app.b"]);
 }
 
 #[test]
-fn interests_skip_unrequested_events_and_errors_discard_findings() {
+fn errors_discard_findings() {
     let store = MemoryStore::default();
-    let sink = Recorder::new(Events::DECL.union(Events::MODULE));
+    let sink = Recorder::new(Requests::MODULE);
     let out = run(&store, "pub fn main() -> void:\n    pass\n", Some(&sink));
     assert!(!out.diags.has_errors(), "{}", out.render());
-    assert_eq!(sink.take(), ["decl:main", "module:app.main"]);
+    assert_eq!(sink.take(), ["module:app.main"]);
     assert_eq!(out.analysis_diags.len(), 1);
 
-    let failed = Recorder::new(Events::SOURCE);
+    let failed = Recorder::new(Requests::MODULE);
     let out = run(
         &MemoryStore::default(),
         "pub fn main() -> void:\n    missing_name\n",
@@ -499,14 +465,14 @@ fn ordinary_builds_do_not_run_analysis() {
 }
 
 #[test]
-fn an_empty_interest_set_keeps_warm_checks_warm() {
+fn no_requests_keep_warm_checks_warm() {
     let source = "fn value() -> i32:\n    +1\n";
     let store = MemoryStore::default();
     let cold = run(&store, source, None);
     assert!(!cold.diags.has_errors(), "{}", cold.render());
     assert!(!cold.counters.modules_checked.is_empty());
 
-    let sink = Recorder::new(Events::default());
+    let sink = Recorder::new(Requests::NONE);
     let warm = run(&store, source, Some(&sink));
     assert!(!warm.diags.has_errors(), "{}", warm.render());
     assert!(sink.take().is_empty());
@@ -529,7 +495,7 @@ fn module_findings_are_merged_in_source_table_order() {
             clock: &NoClock,
             executor,
         };
-        let sink = Recorder::new(Events::DECL.union(Events::MODULE));
+        let sink = Recorder::new(Requests::MODULE);
         let out = build_packages_with_analysis(
             &host,
             "app",

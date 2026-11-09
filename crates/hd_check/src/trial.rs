@@ -57,7 +57,7 @@ pub(crate) struct Checkpoint {
     diags: DiagMark,
     pending: usize,
     comparisons: usize,
-    statements: usize,
+    unreachable: usize,
     discarded: usize,
     param_writes: usize,
     mut_bindings: usize,
@@ -245,7 +245,7 @@ impl Ck<'_, '_> {
             diags: self.diags.mark(),
             pending: self.pending.len(),
             comparisons: self.comparisons.len(),
-            statements: self.statements.len(),
+            unreachable: self.unreachable.len(),
             discarded: self.discarded.len(),
             param_writes: self.param_writes.len(),
             mut_bindings: self.mut_bindings.len(),
@@ -307,7 +307,7 @@ impl Ck<'_, '_> {
         }
         self.b.rollback(c.tir);
         self.comparisons.truncate(c.comparisons);
-        self.statements.truncate(c.statements);
+        self.unreachable.truncate(c.unreachable);
         self.discarded.truncate(c.discarded);
         self.param_writes.truncate(c.param_writes);
         self.mut_bindings.truncate(c.mut_bindings);

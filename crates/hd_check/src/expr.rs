@@ -1282,7 +1282,7 @@ impl Ck<'_, '_> {
             op,
             TokenKind::Lt | TokenKind::LtEq | TokenKind::Gt | TokenKind::GtEq
         ) {
-            self.record_comparison(op, l, at, r, ct, n);
+            self.record_comparison(at, ct, n);
         }
         // `ref.identity.no-equality`: `==` between two counted references
         // is ambiguous, so it is an error with a fix-it for each meaning.
@@ -1469,34 +1469,20 @@ impl Ck<'_, '_> {
             .add_fix("compare the values with `*`", FixSafety::Suggestion, &edits);
     }
 
-    /// Records source and checked operand types only when a tool requested facts.
-    fn record_comparison(
-        &mut self,
-        op: TokenKind,
-        l: NodeRef<'_>,
-        at: Ty,
-        r: NodeRef<'_>,
-        ct: Ty,
-        n: NodeRef<'_>,
-    ) {
+    /// Records the operands' checked primitive types only when a tool
+    /// requested facts; the operator and operands are read from `n`.
+    fn record_comparison(&mut self, at: Ty, ct: Ty, n: NodeRef<'_>) {
         if self.cx.source_facts.is_none() {
             return;
         }
-        let operand = |node: NodeRef<'_>, ty| {
-            let primitive = match self.pool().get(self.resolved(ty)) {
-                TyData::Prim(p) => Some(p),
-                _ => None,
-            };
-            crate::comparison::Operand {
-                node: node.index(),
-                primitive,
-            }
+        let primitive = |ty| match self.pool().get(self.resolved(ty)) {
+            TyData::Prim(p) => Some(p),
+            _ => None,
         };
         let fact = crate::comparison::Comparison {
-            span: self.cx.src.span(n),
-            operator: op,
-            left: operand(l, at),
-            right: operand(r, ct),
+            node: n.index(),
+            left: primitive(at),
+            right: primitive(ct),
         };
         self.comparisons.push(fact);
     }

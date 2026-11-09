@@ -1,49 +1,34 @@
-//! Optional post-verification analysis dispatch.
+//! Optional post-verification analysis: the hook a lint run attaches and
+//! its per-module findings cache. The walk and every rule live in the
+//! consumer; a plain check or build attaches none and does no analysis work.
 
-use hd_base::SliceSort as _;
-use hd_base::{FileId, Span, TokenIdx};
-use hd_check::analysis::{
-    CheckedView, SourceBinding, SourceCall, SourceExpr, SourceParameterWrite, SourcePattern,
-    SourceStatement,
-};
-use hd_check::comparison::SourceFacts;
+use hd_base::{FileId, Span};
+use hd_check::analysis::CheckedView;
 use hd_diag::{Code, DiagBuf, FixSafety, Severity};
 use hd_project::MainSite;
 use hd_resolve::Src;
 use hd_resolve::facts::DerivationFacts;
-use hd_syntax::{Decl, SyntaxKind, TokenKind};
 
 use crate::{Lines, Reader, Writer};
 
-/// Source event families requested by an analysis consumer.
+/// What an analysis consumer asks a run to collect beyond a plain check.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct Events(u16);
+pub struct Requests(u8);
 
-impl Events {
-    pub const IDENT: Self = Self(1 << 0);
-    pub const DECL: Self = Self(1 << 1);
-    pub const MODULE: Self = Self(1 << 2);
-    pub const COMPARISON: Self = Self(1 << 3);
-    pub const BINDING: Self = Self(1 << 4);
-    pub const STATEMENT: Self = Self(1 << 5);
-    pub const PATTERN: Self = Self(1 << 6);
-    pub const DISCARD: Self = Self(1 << 7);
-    pub const DERIVATIONS: Self = Self(1 << 8);
-    pub const MAIN_SITE: Self = Self(1 << 9);
-    pub const FETCHED_DEBUG: Self = Self(1 << 10);
-    pub const PARAMETER_WRITE: Self = Self(1 << 11);
-    pub const CHECKED: Self = Self(
-        Self::COMPARISON.0
-            | Self::BINDING.0
-            | Self::STATEMENT.0
-            | Self::PATTERN.0
-            | Self::DISCARD.0
-            | Self::PARAMETER_WRITE.0,
-    );
-    pub const SOURCE: Self = Self(Self::IDENT.0 | Self::DECL.0 | Self::MODULE.0);
-    pub const MODULE_ANALYSIS: Self =
-        Self(Self::SOURCE.0 | Self::CHECKED.0 | Self::DERIVATIONS.0 | Self::MAIN_SITE.0);
-    pub const ALL: Self = Self(Self::MODULE_ANALYSIS.0 | Self::FETCHED_DEBUG.0);
+impl Requests {
+    pub const NONE: Self = Self(0);
+    /// Call [`AnalysisSink::module`] for each verified root module.
+    pub const MODULE: Self = Self(1 << 0);
+    /// Record checked body facts, and call the module hook.
+    pub const CHECKED: Self = Self(1 << 1);
+    /// Collect resolved derivation facts, and call the module hook.
+    pub const DERIVATIONS: Self = Self(1 << 2);
+    /// Find each root module's `main` site, and call the module hook.
+    pub const MAIN_SITE: Self = Self(1 << 3);
+    /// Call [`AnalysisSink::fetched_debug`] for fetched packages.
+    pub const FETCHED_DEBUG: Self = Self(1 << 4);
+    const PER_MODULE: Self =
+        Self(Self::MODULE.0 | Self::CHECKED.0 | Self::DERIVATIONS.0 | Self::MAIN_SITE.0);
 
     #[must_use]
     pub const fn union(self, other: Self) -> Self {
@@ -55,113 +40,33 @@ impl Events {
         self.0 & other.0 == other.0
     }
 
+    /// Whether the run calls the module hook.
     #[must_use]
-    pub const fn intersects(self, other: Self) -> bool {
-        self.0 & other.0 != 0
+    pub(crate) const fn per_module(self) -> bool {
+        self.0 & Self::PER_MODULE.0 != 0
     }
 }
 
-/// A checked ordering comparison and its two source operands.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ComparisonEvent {
-    pub span: Span,
-    pub operator: TokenKind,
-    pub left: SourceExpr,
-    pub right: SourceExpr,
-}
-
-/// A declaration after its complete source subtree has been visited.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct DeclEvent {
-    pub kind: SyntaxKind,
-    pub span: Span,
-    pub name: Option<Span>,
-    pub public: bool,
-}
-
-/// A module after all of its source and declaration events.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ModuleEvent<'v> {
+/// One verified root module with the facts its run collected.
+#[derive(Clone, Copy)]
+pub struct Module<'v> {
+    pub src: Src<'v>,
     pub path: &'v str,
-    pub span: Span,
+    pub checked: CheckedView<'v>,
+    pub derivations: Option<&'v DerivationFacts>,
+    pub main_site: Option<MainSite>,
 }
 
-/// Resolved derivation metadata for one verified module.
-#[derive(Clone, Copy, Debug)]
-pub struct DerivationsEvent<'v> {
-    facts: &'v DerivationFacts,
-}
-
-/// The first cached `dbg` reference found in one fetched package.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct FetchedDebugEvent<'v> {
-    pub package: &'v str,
-    pub span: Span,
-}
-
-impl<'v> DerivationsEvent<'v> {
-    #[must_use]
-    pub const fn facts(self) -> &'v DerivationFacts {
-        self.facts
-    }
-}
-
-/// One neutral event in the verified module's source-order walk.
-#[derive(Clone, Copy, Debug)]
-pub enum Event<'v> {
-    Ident(Span),
-    Decl(DeclEvent),
-    Module(ModuleEvent<'v>),
-    Comparison(ComparisonEvent),
-    Binding(SourceBinding),
-    Statement(SourceStatement),
-    ParameterWrite(SourceParameterWrite),
-    Pattern(SourcePattern),
-    Discard(SourceCall),
-    Derivations(DerivationsEvent<'v>),
-    MainSite(MainSite),
-    FetchedDebug(FetchedDebugEvent<'v>),
-}
-
-impl Event<'_> {
-    #[must_use]
-    pub const fn family(self) -> Events {
-        match self {
-            Self::Ident(_) => Events::IDENT,
-            Self::Decl(_) => Events::DECL,
-            Self::Module(_) => Events::MODULE,
-            Self::Comparison(_) => Events::COMPARISON,
-            Self::Binding(_) => Events::BINDING,
-            Self::Statement(_) => Events::STATEMENT,
-            Self::ParameterWrite(_) => Events::PARAMETER_WRITE,
-            Self::Pattern(_) => Events::PATTERN,
-            Self::Discard(_) => Events::DISCARD,
-            Self::Derivations(_) => Events::DERIVATIONS,
-            Self::MainSite(_) => Events::MAIN_SITE,
-            Self::FetchedDebug(_) => Events::FETCHED_DEBUG,
-        }
-    }
-}
-
-/// A read-only consumer of one verified, source-order module walk.
+/// A read-only consumer of verified modules.
 pub trait AnalysisSink: Sync {
-    fn interests(&self) -> Events;
+    fn requests(&self) -> Requests;
     /// Resolves a stable diagnostic name from a policy-free cache entry.
     fn diagnostic_code(&self, name: &str) -> Option<Code>;
-    fn event(&self, event: &Event<'_>, view: &CheckedView<'_>, out: &mut DiagBuf);
-}
-
-/// Dispatch one graph-level event against the source view that owns its span.
-/// These events reuse neutral facts from the ordinary Check entry and need no
-/// checked-body facts.
-pub(crate) fn dispatch(
-    sink: &dyn AnalysisSink,
-    event: &Event<'_>,
-    src: Src<'_>,
-    out: &mut DiagBuf,
-) {
-    let view = CheckedView::from_source(src, None);
-    sink.event(event, &view, out);
+    /// One verified root module without errors.
+    fn module(&self, module: &Module<'_>, out: &mut DiagBuf);
+    /// The first cached `dbg` reference, at `span` in `src`, of one fetched
+    /// package.
+    fn fetched_debug(&self, package: &str, span: Span, src: Src<'_>, out: &mut DiagBuf);
 }
 
 /// Encodes one module's policy-free findings with line-relative spans.
@@ -275,173 +180,4 @@ pub(crate) fn decode_cache(
         }
     }
     r.ok().then_some(findings)
-}
-
-struct Pending<'v> {
-    at: u32,
-    finish: bool,
-    family: u8,
-    event: Event<'v>,
-}
-
-impl Pending<'_> {
-    const fn key(&self) -> (u32, bool, u8) {
-        (self.at, self.finish, self.family)
-    }
-}
-
-pub(crate) fn walk<'v>(
-    sink: &dyn AnalysisSink,
-    interests: Events,
-    src: Src<'v>,
-    facts: Option<&'v SourceFacts>,
-    derivations: Option<&'v DerivationFacts>,
-    main_site: Option<MainSite>,
-    module_path: &'v str,
-    out: &mut DiagBuf,
-) {
-    let view = CheckedView::from_source(src, facts);
-    let mut pending = Vec::new();
-    if interests.contains(Events::IDENT) {
-        for raw in 0..src.parse.tokens.len() {
-            let token = TokenIdx::from_raw(u32::try_from(raw).expect("source tokens"));
-            if src.parse.tokens.kind(token) == TokenKind::Ident {
-                let span = src.token_span(token);
-                pending.push(Pending {
-                    at: span.lo,
-                    finish: false,
-                    family: 6,
-                    event: Event::Ident(span),
-                });
-            }
-        }
-    }
-    if interests.contains(Events::MAIN_SITE)
-        && let Some(site) = main_site
-    {
-        pending.push(Pending {
-            at: site.span.lo,
-            finish: false,
-            family: 5,
-            event: Event::MainSite(site),
-        });
-    }
-    if interests.contains(Events::DECL) {
-        for node in src.root().descendants() {
-            let Some(decl) = Decl::cast(node) else {
-                continue;
-            };
-            let event = DeclEvent {
-                kind: node.kind(),
-                span: src.span(node),
-                name: decl
-                    .name(&src.parse.tokens)
-                    .map(|name| src.token_span(name)),
-                public: decl.is_pub(&src.parse.tokens),
-            };
-            pending.push(Pending {
-                at: event.span.hi,
-                finish: true,
-                family: 0,
-                event: Event::Decl(event),
-            });
-        }
-    }
-    if let Some(facts) = facts {
-        if interests.contains(Events::STATEMENT) {
-            pending.extend(
-                facts
-                    .statements
-                    .iter()
-                    .enumerate()
-                    .map(|(i, fact)| Pending {
-                        at: fact.span.lo,
-                        finish: false,
-                        family: 0,
-                        event: Event::Statement(SourceStatement::from_index(i)),
-                    }),
-            );
-        }
-        if interests.contains(Events::BINDING) {
-            pending.extend(facts.bindings.iter().enumerate().map(|(i, fact)| Pending {
-                at: fact.span.lo,
-                finish: false,
-                family: 1,
-                event: Event::Binding(SourceBinding::from_index(i)),
-            }));
-        }
-        if interests.contains(Events::PARAMETER_WRITE) {
-            pending.extend(
-                facts
-                    .parameter_writes
-                    .iter()
-                    .enumerate()
-                    .map(|(i, fact)| Pending {
-                        at: src.span(src.parse.tree.node(fact.statement)).lo,
-                        finish: false,
-                        family: 5,
-                        event: Event::ParameterWrite(SourceParameterWrite::from_index(i)),
-                    }),
-            );
-        }
-        if interests.contains(Events::PATTERN) {
-            pending.extend(facts.patterns.iter().enumerate().map(|(i, fact)| Pending {
-                at: src.span(src.parse.tree.node(fact.node)).lo,
-                finish: false,
-                family: 2,
-                event: Event::Pattern(SourcePattern::from_index(i)),
-            }));
-        }
-        if interests.contains(Events::COMPARISON) {
-            pending.extend(
-                facts
-                    .comparisons
-                    .iter()
-                    .enumerate()
-                    .map(|(i, fact)| Pending {
-                        at: fact.span.lo,
-                        finish: false,
-                        family: 3,
-                        event: Event::Comparison(ComparisonEvent {
-                            span: fact.span,
-                            operator: fact.operator,
-                            left: SourceExpr::comparison(i, false),
-                            right: SourceExpr::comparison(i, true),
-                        }),
-                    }),
-            );
-        }
-        if interests.contains(Events::DISCARD) {
-            pending.extend(facts.discarded.iter().enumerate().map(|(i, fact)| Pending {
-                at: src.span(src.parse.tree.node(fact.node)).lo,
-                finish: false,
-                family: 4,
-                event: Event::Discard(SourceCall::from_index(i)),
-            }));
-        }
-    }
-    if interests.contains(Events::DERIVATIONS)
-        && let Some(facts) = derivations
-    {
-        pending.push(Pending {
-            at: u32::try_from(src.text.len()).expect("source length"),
-            finish: true,
-            family: 1,
-            event: Event::Derivations(DerivationsEvent { facts }),
-        });
-    }
-    pending.sort_stable_by_key(Pending::key);
-    for pending in pending {
-        sink.event(&pending.event, &view, out);
-    }
-    if interests.contains(Events::MODULE) {
-        sink.event(
-            &Event::Module(ModuleEvent {
-                path: module_path,
-                span: src.span(src.root()),
-            }),
-            &view,
-            out,
-        );
-    }
 }

@@ -4,16 +4,19 @@
 mod derivation;
 mod modules;
 mod syntax;
+mod walk;
 
+use hd_base::Span;
 use hd_check::analysis::CheckedView;
 use hd_diag::{Code, DiagBuf, FixSafety, Severity};
 use hd_driver::Output;
-use hd_driver::analysis::{AnalysisSink, Event, Events};
+use hd_driver::analysis::{AnalysisSink, Module, Requests};
 use hd_driver::diagnostics::Diag;
 use hd_project::LintTable;
 use hd_resolve::{Src, literal};
 use hd_syntax::{CommentKind, NodeRef, SyntaxKind, TokenKind};
 use hd_types::Prim;
+pub use walk::{BindingEvent, Cx, Event, Events, binding_name, walk};
 
 pub const DERIVATION_DRIFT: &str = Code::DerivationLineDrift.as_str();
 pub const BROKEN_DOC_LINK: &str = Code::BrokenDocLink.as_str();
@@ -40,7 +43,7 @@ pub struct Rule {
     check: Check,
 }
 
-type Check = for<'v> fn(&Event<'v>, &CheckedView<'v>, &mut DiagBuf);
+type Check = for<'v> fn(&Event<'v>, &Cx<'v>, &mut DiagBuf);
 
 impl Rule {
     const fn new(code: Code, default: Level, events: Events, check: Check) -> Self {
@@ -177,34 +180,28 @@ pub const RULES: &[Rule] = &[
     ),
 ];
 
-fn no_event(_: &Event<'_>, _: &CheckedView<'_>, _: &mut DiagBuf) {}
+fn no_event(_: &Event<'_>, _: &Cx<'_>, _: &mut DiagBuf) {}
 
-fn unbound_disposable(event: &Event<'_>, view: &CheckedView<'_>, out: &mut DiagBuf) {
+fn unbound_disposable(event: &Event<'_>, cx: &Cx<'_>, out: &mut DiagBuf) {
     let (span, message) = match event {
-        Event::Binding(source) => {
-            let Some(binding) = view.binding(*source) else {
-                return;
-            };
-            if !binding.is_unbound_disposable() {
+        Event::Binding(binding) => {
+            if !binding.view.is_unbound_disposable() {
                 return;
             }
             (
-                binding.span(),
+                binding.span,
                 format!(
                     "`{}` binds a disposable value without registering cleanup; use `using` or `using!`",
-                    binding.name()
+                    binding.name
                 ),
             )
         }
-        Event::Discard(source) => {
-            let Some(call) = view.call(*source) else {
-                return;
-            };
+        Event::Discard(call) => {
             if !call.is_unbound_disposable() {
                 return;
             }
             (
-                call.span(),
+                cx.src.span(call.node()),
                 "this disposable value is discarded without registering cleanup; use `using` or `using!`"
                     .to_owned(),
             )
@@ -244,30 +241,24 @@ pub fn broken_doc_link(policy: Policy, name: &str, private: bool) -> Option<Diag
     ))
 }
 
-fn dbg_in_dependency(event: &Event<'_>, _view: &CheckedView<'_>, out: &mut DiagBuf) {
-    let Event::FetchedDebug(event) = event else {
+fn dbg_in_dependency(event: &Event<'_>, _: &Cx<'_>, out: &mut DiagBuf) {
+    let Event::FetchedDebug { package, span } = event else {
         return;
     };
     out.push(
         Code::DbgInDependency,
         Severity::Warning,
-        event.span,
-        &format!(
-            "fetched package `{}` contains `dbg`; its debug output is suppressed",
-            event.package
-        ),
+        *span,
+        &format!("fetched package `{package}` contains `dbg`; its debug output is suppressed"),
         None,
     );
 }
 
-fn lost_write(event: &Event<'_>, view: &CheckedView<'_>, out: &mut DiagBuf) {
-    let Event::ParameterWrite(source) = event else {
+fn lost_write(event: &Event<'_>, cx: &Cx<'_>, out: &mut DiagBuf) {
+    let Event::ParameterWrite(write) = event else {
         return;
     };
-    let Some(write) = view.parameter_write(*source) else {
-        return;
-    };
-    let src = view.source().syntax();
+    let src = cx.src;
     let name = write.name();
     let statements: Vec<_> = write.body().children().collect();
     let statement = write.statement();
@@ -373,10 +364,8 @@ pub struct Analyzer;
 pub static ANALYZER: Analyzer = Analyzer;
 
 impl AnalysisSink for Analyzer {
-    fn interests(&self) -> Events {
-        RULES.iter().fold(Events::default(), |events, rule| {
-            rule.events.map_or(events, |more| events.union(more))
-        })
+    fn requests(&self) -> Requests {
+        interests().requests()
     }
 
     fn diagnostic_code(&self, name: &str) -> Option<Code> {
@@ -386,14 +375,34 @@ impl AnalysisSink for Analyzer {
             .map(|rule| rule.code())
     }
 
-    fn event(&self, event: &Event<'_>, view: &CheckedView<'_>, out: &mut DiagBuf) {
-        let family = event.family();
-        for rule in RULES
-            .iter()
-            .filter(|rule| rule.events.is_some_and(|events| events.contains(family)))
-        {
-            (rule.check)(event, view, out);
-        }
+    fn module(&self, module: &Module<'_>, out: &mut DiagBuf) {
+        walk(module, interests(), out, &mut dispatch);
+    }
+
+    fn fetched_debug(&self, package: &str, span: Span, src: Src<'_>, out: &mut DiagBuf) {
+        let cx = Cx {
+            src,
+            checked: CheckedView::new(src, None),
+        };
+        dispatch(&Event::FetchedDebug { package, span }, &cx, out);
+    }
+}
+
+/// The event families some rule reads.
+fn interests() -> Events {
+    RULES.iter().fold(Events::default(), |events, rule| {
+        rule.events.map_or(events, |more| events.union(more))
+    })
+}
+
+/// Runs each rule that reads `event`'s family.
+fn dispatch<'v>(event: &Event<'v>, cx: &Cx<'v>, out: &mut DiagBuf) {
+    let family = event.family();
+    for rule in RULES
+        .iter()
+        .filter(|rule| rule.events.is_some_and(|events| events.contains(family)))
+    {
+        (rule.check)(event, cx, out);
     }
 }
 
@@ -719,41 +728,41 @@ fn append_row(out: &mut DiagBuf, source: &DiagBuf, row: usize) {
     }
 }
 
-fn unsigned_comparison(event: &Event<'_>, view: &CheckedView<'_>, out: &mut DiagBuf) {
-    let Event::Comparison(event) = event else {
+fn unsigned_comparison(event: &Event<'_>, cx: &Cx<'_>, out: &mut DiagBuf) {
+    let Event::Comparison(comparison) = event else {
         return;
     };
-    let Some(left) = view.expression(event.left) else {
+    let src = cx.src;
+    let node = comparison.node();
+    let mut operands = node.children();
+    let (Some(left), Some(right)) = (operands.next(), operands.next()) else {
         return;
     };
-    let Some(right) = view.expression(event.right) else {
-        return;
-    };
-    let src = view.source().syntax();
-    let zero = |operand: hd_check::analysis::ExpressionView<'_>| zero_literal(src, operand.node());
-    let (operand, always, operator) = match event.operator {
-        TokenKind::GtEq if zero(right) => (event.left, true, ">="),
-        TokenKind::LtEq if zero(left) => (event.right, true, "<="),
-        TokenKind::Lt if zero(right) => (event.left, false, "<"),
-        TokenKind::Gt if zero(left) => (event.right, false, ">"),
+    // The parser builds a binary node as left operand, operator, right.
+    let operator = src
+        .parse
+        .tokens
+        .kind(hd_base::TokenIdx::from_raw(src.last(left).raw() + 1));
+    let zero = |operand: NodeRef<'_>| zero_literal(src, operand);
+    let (on_right, always, operator) = match operator {
+        TokenKind::GtEq if zero(right) => (false, true, ">="),
+        TokenKind::LtEq if zero(left) => (true, true, "<="),
+        TokenKind::Lt if zero(right) => (false, false, "<"),
+        TokenKind::Gt if zero(left) => (true, false, ">"),
         _ => return,
     };
-    let Some(primitive) = view
-        .adjusted_type(operand)
-        .and_then(hd_check::analysis::TypeRef::primitive)
+    let Some(primitive) = comparison
+        .primitive(on_right)
         .filter(|primitive| primitive.is_unsigned())
     else {
         return;
     };
-    let Some(operand) = view.expression(operand) else {
-        return;
-    };
-    let name = view.source().text_at(operand.span()).unwrap_or("the value");
-    let left_operand = operand.span() == left.span();
-    let form = if left_operand {
-        format!("{name} {operator} 0")
-    } else {
+    let operand = if on_right { right } else { left };
+    let name = cx.text_at(src.span(operand)).unwrap_or("the value");
+    let form = if on_right {
         format!("0 {operator} {name}")
+    } else {
+        format!("{name} {operator} 0")
     };
     let ordering = if always {
         "always true"
@@ -767,7 +776,7 @@ fn unsigned_comparison(event: &Event<'_>, view: &CheckedView<'_>, out: &mut Diag
     out.push(
         Code::UnsignedComparisonAlways,
         Severity::Warning,
-        event.span,
+        src.span(node),
         &message,
         None,
     );
@@ -794,53 +803,29 @@ fn zero_literal(src: Src<'_>, n: NodeRef<'_>) -> bool {
     literal::decimal_digits(&digits) && digits.parse::<u64>().ok() == Some(0)
 }
 
-fn unused_binding(event: &Event<'_>, view: &CheckedView<'_>, out: &mut DiagBuf) {
-    let Event::Binding(source) = event else {
+fn unused_binding(event: &Event<'_>, _: &Cx<'_>, out: &mut DiagBuf) {
+    let Event::Binding(binding) = event else {
         return;
     };
-    let Some(binding) = view.binding(*source) else {
-        return;
-    };
-    if binding.is_read() || binding.name().starts_with('_') {
+    // Of the unread bindings on one line, only the first is reported.
+    if binding.view.is_read() || binding.name.starts_with('_') || !binding.first_unread_on_line {
         return;
     }
-    let text = view.source().text();
-    let line_of = |span: hd_base::Span| {
-        let lo = (span.lo as usize).min(text.len());
-        text.get(..lo).and_then(|prefix| prefix.rfind('\n'))
-    };
-    let line = line_of(binding.span());
-    let earlier = view.bindings().any(|other| {
-        let Some(other) = view.binding(other) else {
-            return false;
-        };
-        !other.is_read()
-            && !other.name().starts_with('_')
-            && other.same_owner(binding)
-            && other.precedes(binding)
-            && line_of(other.span()) == line
-    });
-    if earlier {
-        return;
-    }
-    let name = binding.name();
+    let name = binding.name;
     out.push(
         Code::UnusedLocalBinding,
         Severity::Warning,
-        binding.span(),
+        binding.span,
         &format!("`{name}` is never read; name it `_{name}` to keep it"),
         None,
     );
 }
 
-fn redundant_mut(event: &Event<'_>, view: &CheckedView<'_>, out: &mut DiagBuf) {
-    let Event::Binding(source) = event else {
+fn redundant_mut(event: &Event<'_>, cx: &Cx<'_>, out: &mut DiagBuf) {
+    let Event::Binding(binding) = event else {
         return;
     };
-    let Some(binding) = view.binding(*source) else {
-        return;
-    };
-    let Some(fact) = binding.mutability() else {
+    let Some(fact) = binding.view.mutability() else {
         return;
     };
     if fact.mutable_address_taken() {
@@ -853,11 +838,11 @@ fn redundant_mut(event: &Event<'_>, view: &CheckedView<'_>, out: &mut DiagBuf) {
     out.push(
         Code::RedundantLetMut,
         Severity::Warning,
-        binding.span(),
+        binding.span,
         message,
         None,
     );
-    let src = view.source().syntax();
+    let src = cx.src;
     if let Some(token) = fact
         .pattern()
         .direct_token(&src.parse.tokens, TokenKind::KwMut)
@@ -874,14 +859,11 @@ fn redundant_mut(event: &Event<'_>, view: &CheckedView<'_>, out: &mut DiagBuf) {
     }
 }
 
-fn variant_binding(event: &Event<'_>, view: &CheckedView<'_>, out: &mut DiagBuf) {
-    let Event::Pattern(source) = event else {
+fn variant_binding(event: &Event<'_>, cx: &Cx<'_>, out: &mut DiagBuf) {
+    let Event::Pattern(pattern) = event else {
         return;
     };
-    let Some(pattern) = view.pattern(*source) else {
-        return;
-    };
-    let src = view.source().syntax();
+    let src = cx.src;
     for (position, sub) in pattern.subpatterns().enumerate() {
         // A bare name binding directly in a payload position.
         let Some(sub) = sub.filter(|sub| {
@@ -923,49 +905,41 @@ fn variant_binding(event: &Event<'_>, view: &CheckedView<'_>, out: &mut DiagBuf)
     }
 }
 
-fn unreachable(event: &Event<'_>, view: &CheckedView<'_>, out: &mut DiagBuf) {
-    let Event::Statement(source) = event else {
+fn unreachable(event: &Event<'_>, cx: &Cx<'_>, out: &mut DiagBuf) {
+    let Event::Unreachable(statement) = event else {
         return;
     };
-    let Some(statement) = view.statement(*source) else {
-        return;
-    };
-    if !statement.is_reachable() {
-        out.push(
-            Code::UnreachableCode,
-            Severity::Warning,
-            statement.span(),
-            "this statement is unreachable",
-            None,
-        );
-    }
+    out.push(
+        Code::UnreachableCode,
+        Severity::Warning,
+        cx.src.span(*statement),
+        "this statement is unreachable",
+        None,
+    );
 }
 
-fn unused_debug(event: &Event<'_>, view: &CheckedView<'_>, out: &mut DiagBuf) {
-    let Event::Discard(source) = event else {
+fn unused_debug(event: &Event<'_>, cx: &Cx<'_>, out: &mut DiagBuf) {
+    let Event::Discard(call) = event else {
         return;
     };
-    if !view
-        .selected_declaration(*source)
+    if !call
+        .selected_declaration()
         .is_some_and(hd_check::analysis::DeclRef::is_prelude_debug)
     {
         return;
     }
-    let Some(call) = view.call(*source) else {
-        return;
-    };
     out.push(
         Code::UnusedDebugText,
         Severity::Warning,
-        call.span(),
+        cx.src.span(call.node()),
         "a `debug(...)` statement discards its text; use `dbg(...)` to print it",
         None,
     );
     let Some(shape) = CallShape::of(call.node()) else {
         return;
     };
-    let span = view.source().syntax().span(shape.name);
-    if view.source().text_at(span) == Some("debug")
+    let span = cx.src.span(shape.name);
+    if cx.text_at(span) == Some("debug")
         && shape.positional == 1
         && shape.named == 0
         && !shape.spread

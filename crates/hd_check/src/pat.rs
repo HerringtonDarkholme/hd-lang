@@ -910,7 +910,7 @@ impl Ck<'_, '_> {
             let l = match own {
                 Some(l) => {
                     self.b.body_mut().local_ty[l.idx()] = t;
-                    self.user_locals.push(l);
+                    self.user_locals.push((l, pat.index()));
                     l
                 }
                 None => self.bind_local(name, t, pat),

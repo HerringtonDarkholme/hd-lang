@@ -214,7 +214,7 @@ pub(crate) struct Ck<'a, 'c> {
     pub cx: &'c BodyCx<'a>,
     /// Body-local append-only facts: failed trials truncate these before publication.
     pub comparisons: Vec<crate::comparison::Comparison>,
-    pub statements: Vec<crate::comparison::Statement>,
+    pub unreachable: Vec<hd_base::NodeIdx>,
     pub discarded: Vec<crate::comparison::DiscardedExpression>,
     /// The body's local pool: its types that hold inference variables.
     pub local: &'c hd_types::LocalPool,
@@ -462,8 +462,10 @@ pub(crate) struct Ck<'a, 'c> {
     /// The pattern bindings that take a reference to their payload rather
     /// than a copy, and whether it is `&mut` (`ref.match.borrow`).
     pub ref_bound: HashMap<LocalId, bool>,
-    /// Source bindings for unread-suspension checks and optional tooling facts.
-    pub user_locals: Vec<LocalId>,
+    /// Source bindings for unread-suspension checks and optional tooling
+    /// facts, each with the node whose first identifier names it: its
+    /// declaring node, or a recursive closure's binding pattern.
+    pub user_locals: Vec<(LocalId, hd_base::NodeIdx)>,
     /// Whether the body read a name that a failed `use` poisoned, or a
     /// local whose declared type is poison (a header parameter's type in
     /// error): its poison types come from that error, not from a failed
@@ -587,7 +589,7 @@ pub(crate) fn new_ck<'a, 'c>(
         cx,
         local,
         comparisons: Vec::new(),
-        statements: Vec::new(),
+        unreachable: Vec::new(),
         discarded: Vec::new(),
         b: TirBuilder::new(item, kind),
         infer: InferTable::default(),
@@ -1396,7 +1398,7 @@ impl Ck<'_, '_> {
         let mut bindings = Vec::new();
         let mut mutability = std::mem::take(&mut self.mut_bindings);
         mutability.sort_stable_by(|a, b| a.0.raw().cmp(&b.0.raw()));
-        for l in std::mem::take(&mut self.user_locals) {
+        for (l, named) in std::mem::take(&mut self.user_locals) {
             let body = self.b.body_mut();
             let (item, flags, name, at) = (
                 body.item,
@@ -1428,8 +1430,8 @@ impl Ck<'_, '_> {
                 bindings.push(crate::comparison::Binding {
                     body: item,
                     local: l,
-                    name: self.cx.names.text(name).to_owned(),
-                    span: self.cx.src.span(self.cx.src.parse.tree.node(at)),
+                    node: at,
+                    name: named,
                     read,
                     unbound_disposable,
                     mutability: mutability
@@ -1806,7 +1808,7 @@ impl Ck<'_, '_> {
         self.check_prelude_shadow(name, at);
         let l = self.b.local(t, name, local_flags::ASSIGNED, at.index());
         self.scopes.last_mut().expect("scope").insert(name, l);
-        self.user_locals.push(l);
+        self.user_locals.push((l, at.index()));
         l
     }
 
@@ -3128,12 +3130,8 @@ impl Ck<'_, '_> {
         for (i, s) in stmts.iter().copied().enumerate() {
             let last = i + 1 == stmts.len();
             self.move_to(self.cx.src.span(s).lo);
-            if self.cx.source_facts.is_some() {
-                self.statements.push(crate::comparison::Statement {
-                    body: self.b.body().item,
-                    span: self.cx.src.span(s),
-                    reachable: !dead,
-                });
+            if dead && self.cx.source_facts.is_some() {
+                self.unreachable.push(s.index());
             }
             if last && value && s.kind() == SyntaxKind::ExprStmt {
                 let [e] = s.parts();
@@ -5045,7 +5043,7 @@ impl Ck<'_, '_> {
             sink.comparisons.extend(self.comparisons);
             sink.bindings.extend(bindings);
             sink.patterns.extend(self.variant_patterns);
-            sink.statements.extend(self.statements);
+            sink.unreachable.extend(self.unreachable);
             sink.parameter_writes.extend(self.parameter_writes);
             sink.discarded.extend(self.discarded);
         }

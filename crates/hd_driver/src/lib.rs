@@ -1541,7 +1541,7 @@ fn session_uses(table: &ModuleTable, repl: &ReplInputs, m: usize) -> Vec<String>
 
 struct Run<'a> {
     #[cfg(feature = "analysis")]
-    analysis: Option<(&'a dyn analysis::AnalysisSink, analysis::Events)>,
+    analysis: Option<(&'a dyn analysis::AnalysisSink, analysis::Requests)>,
     #[cfg(feature = "analysis")]
     analysis_diags: Vec<OnceLock<DiagBuf>>,
     host: &'a Host<'a>,
@@ -2423,8 +2423,8 @@ fn build_packages_inner(
     let run = Run {
         #[cfg(feature = "analysis")]
         analysis: analysis
-            .map(|sink| (sink, sink.interests()))
-            .filter(|(_, interests)| *interests != analysis::Events::default()),
+            .map(|sink| (sink, sink.requests()))
+            .filter(|(_, requests)| *requests != analysis::Requests::NONE),
         #[cfg(feature = "analysis")]
         analysis_diags: (0..n).map(|_| OnceLock::new()).collect(),
         host,
@@ -3368,7 +3368,7 @@ impl Run<'_> {
         #[cfg(feature = "analysis")]
         {
             self.analysis
-                .is_some_and(|(_, events)| events.intersects(analysis::Events::CHECKED))
+                .is_some_and(|(_, requests)| requests.contains(analysis::Requests::CHECKED))
         }
         #[cfg(not(feature = "analysis"))]
         {
@@ -3381,13 +3381,13 @@ impl Run<'_> {
         self.table.modules[m].package == 0
             && self
                 .analysis
-                .is_some_and(|(_, events)| events.contains(analysis::Events::DERIVATIONS))
+                .is_some_and(|(_, requests)| requests.contains(analysis::Requests::DERIVATIONS))
     }
 
     #[cfg(feature = "analysis")]
     fn analysis_main_site(&self, m: usize) -> Option<hd_project::MainSite> {
-        let (_, events) = self.analysis?;
-        if !events.contains(analysis::Events::MAIN_SITE) {
+        let (_, requests) = self.analysis?;
+        if !requests.contains(analysis::Requests::MAIN_SITE) {
             return None;
         }
         let module = &self.table.modules[m];
@@ -6023,9 +6023,8 @@ impl Run<'_> {
         // entries. Recheck selected root bodies on a Lint miss; dependencies keep
         // ordinary cache hits, and a Lint hit skips the analysis walk entirely.
         #[cfg(feature = "analysis")]
-        let analyze = self.analysis.is_some_and(|(_, events)| {
-            self.table.modules[mi].package == 0
-                && events.intersects(analysis::Events::MODULE_ANALYSIS)
+        let analyze = self.analysis.is_some_and(|(_, requests)| {
+            self.table.modules[mi].package == 0 && requests.per_module()
         });
         #[cfg(feature = "analysis")]
         let cached_analysis = if analyze {
@@ -6944,19 +6943,20 @@ impl Run<'_> {
         #[cfg(feature = "analysis")]
         if !diags.has_errors()
             && module.package == 0
-            && let Some((sink, interests)) = self.analysis
+            && let Some((sink, _)) = self.analysis
         {
             let mut findings = DiagBuf::default();
             let facts = cx.source_facts.as_ref().map(std::cell::RefCell::borrow);
-            analysis::walk(
-                sink,
-                interests,
-                cx.src,
-                facts.as_deref(),
-                self.collect_derivation_facts(m)
-                    .then_some(&prep.derivations),
-                self.analysis_main_site(m),
-                &module.path,
+            sink.module(
+                &analysis::Module {
+                    src: cx.src,
+                    path: &module.path,
+                    checked: hd_check::analysis::CheckedView::new(cx.src, facts.as_deref()),
+                    derivations: self
+                        .collect_derivation_facts(m)
+                        .then_some(&prep.derivations),
+                    main_site: self.analysis_main_site(m),
+                },
                 &mut findings,
             );
             let _ = self.analysis_diags[m].set(findings);
@@ -8230,10 +8230,10 @@ impl Run<'_> {
     /// the event is reconstructed cheaply from the cached reference section.
     #[cfg(feature = "analysis")]
     fn lint_dbg_in_dependencies(&self) {
-        let Some((sink, interests)) = self.analysis else {
+        let Some((sink, requests)) = self.analysis else {
             return;
         };
-        if !interests.contains(analysis::Events::FETCHED_DEBUG) {
+        if !requests.contains(analysis::Requests::FETCHED_DEBUG) {
             return;
         }
         let mut warned = BTreeSet::new();
@@ -8247,12 +8247,9 @@ impl Run<'_> {
             };
             if warned.insert(package) {
                 let mut findings = DiagBuf::default();
-                analysis::dispatch(
-                    sink,
-                    &analysis::Event::FetchedDebug(analysis::FetchedDebugEvent {
-                        package: &self.table.packages[package],
-                        span: reference.span,
-                    }),
+                sink.fetched_debug(
+                    &self.table.packages[package],
+                    reference.span,
                     self.src(m),
                     &mut findings,
                 );
