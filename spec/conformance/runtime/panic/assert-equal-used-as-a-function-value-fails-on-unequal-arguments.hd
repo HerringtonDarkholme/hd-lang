@@ -1,0 +1,7 @@
+# test: assert_equal used as a function value fails on unequal arguments
+use std.testing.assert_equal
+
+pub fn main() -> void $ Console:
+    let f: fn(i32, i32, string) -> void = assert_equal
+    f(+1, +2, "differ") # panic: assertion-failed
+    println("unreached")

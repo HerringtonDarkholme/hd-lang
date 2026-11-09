@@ -817,10 +817,96 @@ impl Ck<'_, '_> {
             }
         };
         targs.extend(&m.vars);
+        if self.lowers_call(m.def)
+            && let TyData::Fn { params, result, .. } = pool.get(ft)
+        {
+            return Ok((self.lowered_ref(&m, (params, result), ft, n), ft));
+        }
         let a = self.b.refs_record(&[Ref(m.def.raw())]);
         let l = pool.list(&targs);
         let bw = self.b.refs_record(&[Ref(l.0)]);
         Ok((self.b.emit(Tag::ItemRef, a, bw, ft, n.index()), ft))
+    }
+
+    /// The callee a reference to member `m` calls, at its owner's
+    /// arguments and its own.
+    fn member_callee(&mut self, m: &Member) -> Callee {
+        let pool = self.pool();
+        match &m.owner {
+            Owner::Item => Callee::Item {
+                def: m.def,
+                targs: pool.list(&m.vars),
+            },
+            Owner::Impl { args, .. } => {
+                let mut all = args.clone();
+                all.extend(&m.vars);
+                Callee::Item {
+                    def: m.def,
+                    targs: pool.list(&all),
+                }
+            }
+            Owner::Trait {
+                def,
+                self_ty,
+                args,
+                choice,
+            } => {
+                let mut all = args.clone();
+                all.extend(&m.vars);
+                Callee::TraitMethod {
+                    trait_: *def,
+                    method: m.def,
+                    self_ty: self.infer.resolve(pool, *self_ty),
+                    targs: pool.list(&all),
+                    choice: choice.unwrap_or((ChoiceKind::Builtin, 0)),
+                }
+            }
+        }
+    }
+
+    /// A reference to a member whose call checking lowers itself
+    /// (`Ck::lowered_call`: `box`, `assert_equal`, `identity_of`,
+    /// `Ptr.read`, `Ptr.write`, `Fn.call`, `FnMut.call_mut`): a closure of
+    /// type `ft` (`params` to `result`) whose body is that lowered call of
+    /// its parameters, as
+    /// `builtin_ref` makes for a built-in method. Such a member has no body
+    /// a later stage could call, so an `ItemRef` of it would have no target.
+    /// Cost: one closure body of one call, per reference.
+    fn lowered_ref(
+        &mut self,
+        m: &Member,
+        (params, result): (hd_types::TyList, Ty),
+        ft: Ty,
+        n: NodeRef<'_>,
+    ) -> Ref {
+        let pool = self.pool();
+        let syn = n.index();
+        let ptys = pool.list_items(params).to_vec();
+        let locals: Vec<_> = ptys
+            .iter()
+            .enumerate()
+            .map(|(i, t)| {
+                let s = self.cx.names.syms.intern(&format!("${i}"));
+                self.b.local(*t, s, local_flags::PARAM, syn)
+            })
+            .collect();
+        let callee = self.member_callee(m);
+        let mark = self.b.open_sub(&locals);
+        let blk = self.b.open_block();
+        let refs: Vec<Ref> = locals
+            .iter()
+            .zip(&ptys)
+            .map(|(l, t)| self.b.get(*l, *t, syn))
+            .collect();
+        // A new object `box` makes belongs to this closure's body.
+        self.scopes.push(hd_base::HashMap::default());
+        let r = match self.lowered_call(&callee, &refs, result, false, n) {
+            Some((r, _)) => r,
+            None => self.b.call(&callee, &refs, Providers::None, result, syn),
+        };
+        self.scopes.pop();
+        let root = self.b.close_block(blk, Some(r), result, syn);
+        self.b.close_sub(mark, root, ft, syn)
     }
 
     /// A reference to a built-in method of `List` or `Map`
@@ -1145,36 +1231,7 @@ impl Ck<'_, '_> {
         else {
             unreachable!("member_fn_ty constructs TyData::Fn");
         };
-        let callee = match &m.owner {
-            Owner::Item => Callee::Item {
-                def: m.def,
-                targs: pool.list(&m.vars),
-            },
-            Owner::Impl { args, .. } => {
-                let mut all = args.clone();
-                all.extend(&m.vars);
-                Callee::Item {
-                    def: m.def,
-                    targs: pool.list(&all),
-                }
-            }
-            Owner::Trait {
-                def,
-                self_ty,
-                args,
-                choice,
-            } => {
-                let mut all = args.clone();
-                all.extend(&m.vars);
-                Callee::TraitMethod {
-                    trait_: *def,
-                    method: m.def,
-                    self_ty: self.infer.resolve(pool, *self_ty),
-                    targs: pool.list(&all),
-                    choice: choice.unwrap_or((ChoiceKind::Builtin, 0)),
-                }
-            }
-        };
+        let callee = self.member_callee(&m);
         let syn = n.index();
         let receiver = self.cx.names.syms.intern("$receiver");
         // A reference receiver is captured as the reference.
@@ -1207,7 +1264,10 @@ impl Ck<'_, '_> {
         for (l, t) in locals.iter().zip(&ptys) {
             refs.push(self.b.get(*l, *t, syn));
         }
-        let r = self.b.call(&callee, &refs, Providers::None, result, syn);
+        let r = match self.lowered_call(&callee, &refs, result, false, n) {
+            Some((r, _)) => r,
+            None => self.b.call(&callee, &refs, Providers::None, result, syn),
+        };
         if suspends {
             self.b.body_mut().tags[r.0 as usize] = Tag::Await;
         }

@@ -1,0 +1,18 @@
+# test: box used as a function value makes a new object per call
+# expect-stdout: 5 6
+# expect-stdout: 1 2 3
+# expect-stdout: false
+fn apply[T, R](f: fn(T) -> R, x: T) -> R:
+    f(x)
+
+pub fn main() -> void $ Console:
+    let f: fn(i32) -> *mut i32 = box
+    a := f(+5)
+    b := apply(box, +5)
+    *b = *b + 1
+    println("${*a} ${*b}")
+    let mut cells: List[*mut i32] = []
+    for x in [+1, 2, 3]:
+        cells.push(apply(box, x))
+    println("${*cells[0]} ${*cells[1]} ${*cells[2]}")
+    println(a is b)

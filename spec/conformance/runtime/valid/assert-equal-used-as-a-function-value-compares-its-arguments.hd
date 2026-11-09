@@ -1,0 +1,13 @@
+# test: assert_equal used as a function value compares its arguments
+# expect-stdout: equal
+use std.testing.assert_equal
+
+fn check_all[T < Eq & Debug](pairs: List[(T, T)], check: fn(T, T, string) -> void) -> void:
+    for (a, b) in pairs:
+        check(a, b, "pair")
+
+pub fn main() -> void $ Console:
+    let f: fn(i32, i32, string) -> void = assert_equal
+    f(+1, +1, "same")
+    check_all([("a", "a"), ("b", "b")], assert_equal)
+    println("equal")

@@ -102,6 +102,20 @@ tests:
         assert(first.mass == 1.5 && first.id == +3 && first.alive, "the first value")
         assert(second.mass == -2.0 && second.id == +4 && !second.alive, "the second value")
 
+    it("read and write used as function values move values as their calls do"):
+        at := fresh_page()
+        let p: Ptr[Body] = Ptr { address: at }
+        let write: fn(Ptr[Body], Body) -> void = Ptr::write
+        let read: fn(Ptr[Body]) -> Body = Ptr::read
+        write(p, Body { mass: 2.5, id: +7, alive: true })
+        let q: Ptr[string] = Ptr { address: at + 64 }
+        put := q::write
+        take := q::read
+        put(label(+5))
+        back := read(p)
+        assert(back.mass == 2.5 && back.id == +7 && back.alive, "the unbound pair")
+        assert(take() == "n5", "the bound pair")
+
     it("a write stores a copy, which a later change of the source misses"):
         at := fresh_page()
         let p: Ptr[List[i32]] = Ptr { address: at }

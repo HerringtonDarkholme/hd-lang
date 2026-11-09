@@ -2647,49 +2647,19 @@ impl Ck<'_, '_> {
                     };
                     return Ok(self.emit_call(&c, &refs, result, true, true, n));
                 }
-                // std's `identity_of(r)` (lib/std/cmp.hd): the identity
-                // fields of the reference (`crate::refs`), as the result.
-                if item
-                    .intrinsic()
-                    .is_some_and(|k| self.cx.names.text(k) == "ref_identity")
-                    && let [r] = refs[..]
-                {
-                    return Ok((self.ref_identity_value(r, ret, n), ret));
-                }
-                // `box(e)` (ref.box.new): a new object holding the
-                // argument's value, which the argument already copied
-                // (ref.box.copy). Its `T < 'static` keeps a local
-                // reference out (ref.box.no-local).
-                if item
-                    .intrinsic()
-                    .is_some_and(|k| self.cx.names.text(k) == "box")
-                    && let ([v], [t]) = (&refs[..], &vars[..])
-                {
-                    let t = self.infer.resolve(pool, *t);
-                    let (r, rt) = self.new_object_ref(*v, t, true, n);
-                    self.boxes.insert(r.0);
-                    return Ok((r, rt));
-                }
-                // A checked `assert_equal` call runs std's `check_equal`
-                // (lib/std/testing.hd), which has the same signature.
-                let def = if item
-                    .intrinsic()
-                    .is_some_and(|k| self.cx.names.text(k) == "assert_equal")
-                {
-                    self.cx.names.known.check_equal
-                } else {
-                    def
+                let c = Callee::Item {
+                    def,
+                    targs: pool.list(&vars),
                 };
+                if let Some(lowered) = self.lowered_call(&c, &refs, ret, bang, n) {
+                    return Ok(lowered);
+                }
                 if def == self.cx.names.known.dbg
                     && let (Some(&tuple), Some(&args_ty)) = (refs.first(), vars.first())
                     && let Some(r) = self.dbg_bare(tuple, args_ty, n)
                 {
                     return Ok((r, Ty::VOID));
                 }
-                let c = Callee::Item {
-                    def,
-                    targs: pool.list(&vars),
-                };
                 Ok(self.emit_call(&c, &refs, ret, sig.suspends, bang, n))
             }
             ItemData::Newtype(inner) => {
@@ -2954,6 +2924,100 @@ impl Ck<'_, '_> {
             "a bare pipe step cannot suspend; write `_` and `!`",
         );
         (Ref(NONE), Ty::NEVER)
+    }
+
+    /// Whether checking lowers a call of `def` itself
+    /// ([`Ck::lowered_call`]): the intrinsics with no body a later stage
+    /// lowers.
+    pub(crate) fn lowers_call(&self, def: DefId) -> bool {
+        self.cx
+            .lookup
+            .item(def)
+            .and_then(hd_resolve::Item::intrinsic)
+            .is_some_and(|k| {
+                matches!(
+                    self.cx.names.text(k),
+                    "ref_identity"
+                        | "box"
+                        | "assert_equal"
+                        | "ptr_read"
+                        | "ptr_write"
+                        | "fn_call"
+                        | "fn_mut_call"
+                )
+            })
+    }
+
+    /// A call of `c` that checking lowers itself rather than leaving a
+    /// `Call` for a later stage: a direct call and the body of a function
+    /// value of the same callee (`Ck::lowered_ref`, `fnref.rs`) both come
+    /// here, so a value runs what a call runs (`names.category.value`).
+    /// `None` for any other callee, which stays an ordinary `Call`.
+    /// Cost: one intrinsic key read per call.
+    pub(crate) fn lowered_call(
+        &mut self,
+        c: &Callee,
+        refs: &[Ref],
+        ret: Ty,
+        bang: bool,
+        n: NodeRef<'_>,
+    ) -> Option<(Ref, Ty)> {
+        let pool = self.pool();
+        let (def, targs) = match c {
+            Callee::Item { def, targs } => (*def, *targs),
+            Callee::TraitMethod { method, .. } => (*method, TyList::EMPTY),
+        };
+        let key = self
+            .cx
+            .lookup
+            .item(def)
+            .and_then(hd_resolve::Item::intrinsic)?;
+        match (self.cx.names.text(key), refs) {
+            // std's `identity_of(r)` (lib/std/cmp.hd): the identity
+            // fields of the reference (`crate::refs`), as the result.
+            ("ref_identity", [r]) => Some((self.ref_identity_value(*r, ret, n), ret)),
+            // `box(e)` (ref.box.new): a new object holding the argument's
+            // value, which the argument already copied (ref.box.copy). Its
+            // `T < 'static` keeps a local reference out (ref.box.no-local).
+            ("box", [v]) => {
+                let &[t] = pool.list_items(targs) else {
+                    return None;
+                };
+                let t = self.infer.resolve(pool, t);
+                let (r, rt) = self.new_object_ref(*v, t, true, n);
+                self.boxes.insert(r.0);
+                Some((r, rt))
+            }
+            // A checked `assert_equal` call runs std's `check_equal`
+            // (lib/std/testing.hd), which has the same signature.
+            ("assert_equal", _) => {
+                let check = Callee::Item {
+                    def: self.cx.names.known.check_equal,
+                    targs,
+                };
+                Some(self.emit_call(&check, refs, ret, false, bang, n))
+            }
+            // `Ptr[T]`'s `read` and `write`: `emit_call` makes them a read
+            // and a store of the place at the pointer's target.
+            ("ptr_read" | "ptr_write", _) => Some(self.emit_call(c, refs, ret, false, bang, n)),
+            // `Fn.call` and `FnMut.call_mut` call the function value their
+            // receiver refers to: only a plain function value implements
+            // either (`fn.trait.function-values-read-only`,
+            // `fn.trait.mut.function-values`; both are sealed).
+            ("fn_call" | "fn_mut_call", [receiver, args @ ..]) => {
+                let receiver_ty = self.b.ty_of(*receiver);
+                let (function, _) = self.emit_deref(*receiver, receiver_ty, n.index());
+                let rec = self.b.refs_record(args);
+                if bang {
+                    self.check_bang(false, n);
+                }
+                Some((
+                    self.b.emit(Tag::CallValue, function.0, rec, ret, n.index()),
+                    ret,
+                ))
+            }
+            _ => None,
+        }
     }
 
     /// Emits a `Call`, or an `Await` for a bang call of a suspending
@@ -4986,23 +5050,6 @@ impl Ck<'_, '_> {
             }
         };
         let ret = self.normalize_deep(inst(sig.ret))?;
-        let known = &self.cx.names.known;
-        if ((trait_ == known.fn_trait && method == known.fn_call)
-            || (trait_ == known.fn_mut_trait && method == known.fn_mut_call))
-            && choice != PENDING_CHOICE
-            && let Some(&receiver) = refs.first()
-        {
-            let receiver_ty = self.b.ty_of(receiver);
-            let (function, _) = self.emit_deref(receiver, receiver_ty, n.index());
-            let rec = self.b.refs_record(&refs[1..]);
-            if bang {
-                self.check_bang(false, n);
-            }
-            return Ok((
-                self.b.emit(Tag::CallValue, function.0, rec, ret, n.index()),
-                ret,
-            ));
-        }
         let mut all = targs.clone();
         all.extend(&vars);
         let c = Callee::TraitMethod {
@@ -5012,6 +5059,11 @@ impl Ck<'_, '_> {
             targs: pool.list(&all),
             choice,
         };
+        if choice != PENDING_CHOICE
+            && let Some(lowered) = self.lowered_call(&c, &refs, ret, bang, n)
+        {
+            return Ok(lowered);
+        }
         Ok(self.emit_call(&c, &refs, ret, sig.suspends, bang, n))
     }
 
