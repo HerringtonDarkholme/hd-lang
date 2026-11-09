@@ -1,0 +1,14 @@
+# @dump: wat
+# @build: release
+# A user value enum nested five times holds no reference, so the object
+# that stores it is acyclic, as five nested optionals are.
+
+enum Wrap[T]:
+    Held(value: T)
+    Empty
+
+struct Deep:
+    w: Wrap[Wrap[Wrap[Wrap[Wrap[string]]]]]
+
+fn make() -> *Deep:
+    box(Deep { w: Wrap.Empty })

@@ -7,7 +7,7 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 8 funcref))
+  (import "fixture" "table0" (table $table0 7 funcref))
   (func $"same[std.rt_tests.stage_case.Item]" (param $a i32) (param $b i32) (result i32)
     ;; 13 |     a is b
     block

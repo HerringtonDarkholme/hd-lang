@@ -1,0 +1,25 @@
+# test: a counted chain held through a user value enum nested twice releases whole
+# expect-stdout: 0: 10000
+# expect-stdout: 1: 10000
+# expect-stdout: 2: 10000
+enum Wrap[T]:
+    Held(value: T)
+    Empty
+
+enum Tree:
+    Leaf
+    Node(next: Wrap[Wrap[*Tree]])
+
+fn chain(n: usize) -> *Tree:
+    if n == 0:
+        return box(Tree.Leaf)
+    box(Tree.Node(Wrap.Held(Wrap.Held(chain(n - 1)))))
+
+fn depth(tree: *Tree) -> usize:
+    match tree:
+        .Node(.Held(.Held(next))) => 1 + depth(next)
+        _ => 0
+
+pub fn main() -> void $ Console:
+    for round in 0..3:
+        println("${round}: ${depth(chain(10000))}")

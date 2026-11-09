@@ -1,0 +1,12 @@
+# @dump: wat
+# A shared cell of a union of scalars and strings holds no reference, so
+# the cell is acyclic; the closure environment holding the cell keeps the
+# bit.
+
+type Choice = i32 | string
+
+fn shared(seed: i32) -> fn() -> Choice:
+    let value: Choice = ._0(seed)
+    read := fn() -> Choice: value
+    value = ._1("changed")
+    read
