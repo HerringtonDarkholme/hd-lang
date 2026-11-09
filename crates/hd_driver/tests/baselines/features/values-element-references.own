@@ -13,7 +13,7 @@ struct Player:
 fn reward(player: &mut Player, points: i32) -> void:
     player.score += points
 > app/main/reward
->   local $0 player: RefMut[Player] [param read] value
+>   local $0 player: &mut Player [param read] value
 >     uses $0: entry -> %0 lend, %3 lend last
 >   local $1 points: i32 [param read] value
 >     uses $1: entry -> %1 lend last
@@ -42,7 +42,7 @@ fn rewarded(players: List[Player], best: usize, s: string) -> List[Player]:
     reward(&mut out[best], 10)
 >   %4 = Read copy [$1] : usize
 >   %5 = IsUnique [$3] : ()
->   %6 = Ref mut local [$3 [%4]] : RefMut[Player]
+>   %6 = Ref mut local [$3 [%4]] : &mut Player
 >   %7 = Call app/main/reward[] (%6, 10:i32) : ()
 >   %8 = LoanEnd [%6] : ()
     out[best].score += 1
@@ -80,7 +80,7 @@ fn by_key(m: Map[string, Player], k: string) -> Map[string, Player]:
 >   %5 = Read borrow [$1] : string
 >   %6 = Intrinsic MapEntry [%4 %5] : usize
 >   %7 = IsUnique [$2] : ()
->   %8 = Ref mut local [$2 [%6]] : RefMut[Player]
+>   %8 = Ref mut local [$2 [%6]] : &mut Player
 >   %9 = Call app/main/reward[] (%8, 10:i32) : ()
 >   %10 = LoanEnd [%8] : ()
     out

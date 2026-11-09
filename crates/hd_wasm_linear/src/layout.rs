@@ -13,8 +13,8 @@
 //! suspension are one address; a string is its address and byte
 //! length; a trait value its data address and its vtable's address; a
 //! list or a map the address of its buffer (§23.7); a function value its
-//! code's table slot and its environment's address (§23.8). A reference,
-//! the checker's `std.core.Ref[T]`, is the address of its place (§23.5,
+//! code's table slot and its environment's address (§23.8). A reference
+//! of either kind is the address of its place (§23.5,
 //! §23.20); a reference to a trait value is that trait value, whose data
 //! is already one address, as Rust's `&dyn Tr` is a fat pointer.
 
@@ -221,8 +221,8 @@ pub enum Kind {
     /// A self-recursive enum: the address of a cell holding the enum's
     /// value as a non-recursive enum lays it out.
     Boxed,
-    /// A reference to a place of type `T` (`std.core.Ref[T]`, or
-    /// `std.core.Counted[T]` when `whole`): the place's address, or, when
+    /// A reference to a place of type `T` (`&T` or `&mut T`, or `*T` or
+    /// `*mut T` when `whole`): the place's address, or, when
     /// `T` is a trait value (`fat`), that trait value. A `whole` one is
     /// counted, so it refers to a whole object (`ref.box.object`): it is
     /// null or a payload start (§23.30).
@@ -232,19 +232,17 @@ pub enum Kind {
 /// Which kind `t` is.
 pub fn kind(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Kind {
     let t = strip(pool, env, t);
-    let TyData::Adt { def, args } = pool.get(t) else {
-        return Kind::Value;
+    let def = match pool.get(t) {
+        TyData::Ref { inner, counted, .. } => {
+            return Kind::Ref {
+                target: strip(pool, env, inner),
+                fat: fat(pool, env, inner),
+                whole: counted,
+            };
+        }
+        TyData::Adt { def, .. } => def,
+        _ => return Kind::Value,
     };
-    if env.ref_cells().holds(def) {
-        let target = pool
-            .list_items(args)
-            .first()
-            .map_or(Ty::VOID, |a| strip(pool, env, *a));
-        // A reference to a trait value is the value itself.
-        let fat = matches!(pool.get(target), TyData::TraitValue { .. });
-        let whole = env.ref_cells().is_counted(def);
-        return Kind::Ref { target, fat, whole };
-    }
     if env.std_kind(def) != StdKind::Other {
         return Kind::Value;
     }
@@ -258,10 +256,21 @@ pub fn kind(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Kind {
     Kind::Value
 }
 
-/// Whether reference type `t` is `&mut` or `*mut`: its carrier is
-/// `std.core.RefMut` or `std.core.CountedMut` (`hd_types::Types::lower_refs`).
+/// Whether a reference to `target` is fat: a reference to a trait value
+/// is the value itself.
+fn fat(pool: &InternPool, env: &dyn ProgramEnv, target: Ty) -> bool {
+    matches!(
+        pool.get(strip(pool, env, target)),
+        TyData::TraitValue { .. }
+    )
+}
+
+/// Whether reference type `t` is `&mut` or `*mut`.
 pub fn ref_mutable(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
-    matches!(pool.get(strip(pool, env, t)), TyData::Adt { def, .. } if env.ref_cells().is_mutable(def))
+    matches!(
+        pool.get(strip(pool, env, t)),
+        TyData::Ref { mutable: true, .. }
+    )
 }
 
 /// `t` with newtypes erased: what its layout reads.
@@ -572,8 +581,8 @@ fn mem_one(
             StdKind::Suspend => Mem::address(),
             StdKind::List | StdKind::Map => Mem::nonnull(),
             StdKind::Other => match kind(pool, env, t) {
-                Kind::Boxed | Kind::Ref { fat: false, .. } => Mem::nonnull(),
-                Kind::Ref { fat: true, .. } => record(&[Mem::address(), Mem::nonnull()]).0,
+                Kind::Boxed => Mem::nonnull(),
+                Kind::Ref { fat, .. } => ref_mem(fat),
                 Kind::Value => match env.enum_variants(def, args) {
                     Some(variants) => enum_flat_by(t, &variants, part)?,
                     None => payload_mem_by(&value_parts(pool, env, t), part)?.0,
@@ -587,13 +596,23 @@ fn mem_one(
         // A `$.Context` value is the address of a counted context
         // (`rt::ctx_elem`).
         TyData::Context(_) => Mem::address(),
-        TyData::Ref { .. } => return unsupported("references (job 12)"),
+        TyData::Ref { inner, .. } => ref_mem(fat(pool, env, inner)),
         // An instance that collection shares among reference arguments
         // (A1, `crates/hd_mono/DESIGN.md` §13.2) holds one as an address:
         // Collection selects it with [`crate::shared_reference_layout`].
         TyData::Canon(_) if hd_mono::is_class_ref(pool, t) => Mem::address(),
         _ => return unsupported(format!("values of type `{}`", pool.display(t))),
     })
+}
+
+/// A reference's layout: its place's address, nonnull, or, to a trait
+/// value (`fat`), that trait value.
+fn ref_mem(fat: bool) -> Mem {
+    if fat {
+        record(&[Mem::address(), Mem::nonnull()]).0
+    } else {
+        Mem::nonnull()
+    }
 }
 
 /// Enum `t`'s layout from its parts' layouts, which `part` reads, kept
@@ -769,19 +788,11 @@ fn walk_one(
         TyData::Tuple { .. } => fields_walk_by(pool, env, &tuple_members(pool, t), part),
         TyData::Adt { def, .. } if env.std_kind(def) != StdKind::Other => Some(Walk::Known(0)),
         TyData::Union(_) => switch_walk_by(pool, env, t, part),
+        TyData::Ref { inner, counted, .. } => ref_walk(fat(pool, env, inner), counted, counting),
         TyData::Adt { def, args } if env.std_kind(def) == StdKind::Other => {
             match kind(pool, env, t) {
                 Kind::Boxed => Some(Walk::Known(0)),
-                Kind::Ref {
-                    fat: false,
-                    whole: false,
-                    ..
-                } if counting => None,
-                Kind::Ref { fat, whole, .. } => Some(if whole && !fat {
-                    Walk::Known(0)
-                } else {
-                    Walk::Ref(0)
-                }),
+                Kind::Ref { fat, whole, .. } => ref_walk(fat, whole, counting),
                 Kind::Value => {
                     let w = match env.enum_variants(def, args) {
                         Some(_) => switch_walk_by(pool, env, t, part),
@@ -793,6 +804,17 @@ fn walk_one(
         }
         TyData::Canon(_) if hd_mono::is_class_ref(pool, t) => Some(Walk::Ref(0)),
         _ => None,
+    }
+}
+
+/// A reference's walk: a thin counted one (`whole`) is a payload start, a
+/// fat one or a local one goes through the page table, and a thin local
+/// one counts nothing (`ref.count.local`) when `counting`.
+fn ref_walk(fat: bool, whole: bool, counting: bool) -> Option<Walk> {
+    match (fat, whole) {
+        (false, true) => Some(Walk::Known(0)),
+        (false, false) if counting => None,
+        (false, false) | (true, _) => Some(Walk::Ref(0)),
     }
 }
 
@@ -1099,6 +1121,9 @@ pub fn struct_mem(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult
             .into_iter()
             .map(|f| subst(pool, env, def, args, f))
             .collect(),
+        // A reference holds no field of its own: its referent's are reached
+        // through it.
+        TyData::Ref { .. } => Vec::new(),
         _ => return unsupported("a field of a value that is not a struct or a tuple"),
     };
     payload_mem(pool, env, &fields)

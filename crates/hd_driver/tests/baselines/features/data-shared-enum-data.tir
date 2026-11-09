@@ -26,7 +26,7 @@ fn phrase_len(s: HttpStatus) -> usize:
 >   %8 = Block %7 : string
 >   %9 = SwitchTag %0 [#0 %2 %8] : string
 >   %10 = Store [$1] %9 : ()
->   %11 = Ref local [$1] : Ref[string]
+>   %11 = Ref local [$1] : &string
 >   %12 = Call std/text/impl string.len[] (%11) : usize
 >   %13 = Block %12 : usize
 

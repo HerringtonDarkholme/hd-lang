@@ -10,23 +10,23 @@ struct User:
 fn name_of(u: &User) -> &string:
     &u.name
 > app/main/name_of
->   local $0 u: Ref[User] [param read] value
+>   local $0 u: &User [param read] value
 >     uses $0: entry -> %0 lend last
->   %0 = Ref local [*$0 .name] : Ref[string]
->   %1 = Block %0 : Ref[string]
+>   %0 = Ref local [*$0 .name] : &string
+>   %1 = Block %0 : &string
 >   summary kept []
 
 fn apply(f: fn(&User) -> &string, u: &User) -> usize:
 > app/main/apply
->   local $0 f: fn(Ref[User]) -> Ref[string] [param read] value
+>   local $0 f: fn(&User) -> &string [param read] value
 >     uses $0: entry -> %1 lend last
->   local $1 u: Ref[User] [param read] value
+>   local $1 u: &User [param read] value
 >     uses $1: entry -> %2 lend last
 >   %0 = Release %6 Exit local $0 #2 : ()
     f(u).len()
->   %1 = Read borrow [$0] : fn(Ref[User]) -> Ref[string]
->   %2 = Read borrow [$1] : Ref[User]
->   %3 = CallValue %1 [%2] : Ref[string]
+>   %1 = Read borrow [$0] : fn(&User) -> &string
+>   %2 = Read borrow [$1] : &User
+>   %3 = CallValue %1 [%2] : &string
 >   %4 = Call std/text/impl string.len[] (%3) : usize
 >   %5 = Drop [%3] : ()
 >   %6 = Block %4 : usize
@@ -35,20 +35,20 @@ fn apply(f: fn(&User) -> &string, u: &User) -> usize:
 fn demo(a: &User) -> usize:
     apply(name_of, a) + apply(fn(u): &u.name, a)
 > app/main/demo
->   local $0 a: Ref[User] [param read] value
+>   local $0 a: &User [param read] value
 >     uses $0: entry -> %1 lend, %9 lend last
->   local $1 u: Ref[User] [param read] value
+>   local $1 u: &User [param read] value
 >     uses $1: entry -> %5 lend last
->   %0 = ItemRef #0 [..] : fn(Ref[User]) -> Ref[string]
->   %1 = Read borrow [$0] : Ref[User]
+>   %0 = ItemRef #0 [..] : fn(&User) -> &string
+>   %1 = Read borrow [$0] : &User
 >   %2 = Call app/main/apply[] (%0, %1) : usize
 >   %3 = Drop [%0] : ()
 >   %4 = Retain %7 Entry local $1 #0 : ()
->   %5 = Ref local [*$1 .name] : Ref[string]
+>   %5 = Ref local [*$1 .name] : &string
 >   %6 = Drop [$1] : ()
->   %7 = Block %5 : Ref[string]
->   %8 = Closure #1 [%0 %0] : fn(Ref[User]) -> Ref[string]
->   %9 = Read borrow [$0] : Ref[User]
+>   %7 = Block %5 : &string
+>   %8 = Closure #1 [%0 %0] : fn(&User) -> &string
+>   %9 = Read borrow [$0] : &User
 >   %10 = Call app/main/apply[] (%8, %9) : usize
 >   %11 = Drop [%8] : ()
 >   %12 = Prim Add [%2 %10] : usize

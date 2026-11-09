@@ -12,7 +12,7 @@ fn map_index(m: Map[string, string], k: string) -> usize:
 >   %0 = Read [$0] : Map[string, string]
 >   %1 = Read [$1] : string
 >   %2 = Intrinsic MapEntry [%0 %1] : usize
->   %3 = Ref local [$0 [%2]] : Ref[string]
+>   %3 = Ref local [$0 [%2]] : &string
 >   %4 = Call std/text/impl string.len[] (%3) : usize
 >   %5 = Block %4 : usize
 
@@ -42,6 +42,6 @@ fn ref_list_index(xs: &List[string], i: usize) -> usize:
 > app/main/ref_list_index
 >   local $1 i: usize [param read]
 >   %0 = Read [$1] : usize
->   %1 = Ref local [*$0 [%0]] : Ref[string]
+>   %1 = Ref local [*$0 [%0]] : &string
 >   %2 = Call std/text/impl string.len[] (%1) : usize
 >   %3 = Block %2 : usize

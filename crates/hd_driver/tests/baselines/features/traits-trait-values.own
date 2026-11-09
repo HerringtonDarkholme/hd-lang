@@ -14,7 +14,7 @@ impl dyn Greet:
     fn twice(&self) -> usize:
         self.greet().len() * 2
 > app/main/impl dyn Greet.twice
->   local $0 self: Ref[Greet] [param read] value
+>   local $0 self: &dyn Greet [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 $ref: string [read assigned captured captured-assigned] value
 >     uses $1: %2 -> %3 lend last
@@ -38,7 +38,7 @@ impl Greet for User:
     fn greet(&self) -> string:
         "hi " + self.name
 > app/main/impl Greet for User.greet
->   local $0 self: Ref[User] [param read] value
+>   local $0 self: &User [param read] value
 >     uses $0: entry -> %0 lend last
 >   %0 = Read borrow [*$0 .name] : string
 >   %1 = Intrinsic StrConcat ["hi " %0] : string
@@ -47,7 +47,7 @@ impl Greet for User:
 
     fn rename(&mut self, n: string) -> void:
 > app/main/impl Greet for User.rename
->   local $0 self: RefMut[User] [param read] value
+>   local $0 self: &mut User [param read] value
 >     uses $0: entry -> %2 lend last
 >   local $1 n: string [param read] value
 >     uses $1: entry -> %1 consume last
@@ -65,21 +65,21 @@ fn boxed(u: User) -> *dyn Greet:
 >   local $0 u: User [param read] value
 >     uses $0: entry -> %1 consume last
 >   local $1 $ref: User [read assigned captured captured-assigned] place
->   local $2 $ref: Counted[User] [read assigned captured] value
+>   local $2 $ref: *User [read assigned captured] value
 >     uses $2: %5 -> %6 lend last
 >   %0 = Retain %11 Entry local $0 #0 : ()
     box(u)
 >   %1 = Read move [$0] : User
 >   %2 = Store [$1] %1 : ()
->   %3 = Ref take mut [$1] : CountedMut[User]
->   %4 = Coerce %3 [Weaken -] : Counted[User]
+>   %3 = Ref take mut [$1] : *mut User
+>   %4 = Coerce %3 [Weaken -] : *User
 >   %5 = Store [$2] %4 : ()
->   %6 = Read move [$2] : Counted[User]
+>   %6 = Read move [$2] : *User
 >   %7 = Coerce %6 [RefToTraitValue -] : Greet
 >   %8 = LoanEnd [%6] : ()
 >   %9 = Block %7 : Greet
->   %10 = RefDyn %9 : Counted[Greet]
->   %11 = Block %10 : Counted[Greet]
+>   %10 = RefDyn %9 : *dyn Greet
+>   %11 = Block %10 : *dyn Greet
 >   %3 finds [$1] full
 >   exit sub 0 drops [$0]
 >   storage sub 0: $1 cell
@@ -87,7 +87,7 @@ fn boxed(u: User) -> *dyn Greet:
 
 fn through_mut(g: &mut dyn Greet, n: string) -> usize:
 > app/main/through_mut
->   local $0 g: RefMut[Greet] [param read] value
+>   local $0 g: &mut dyn Greet [param read] value
 >     uses $0: entry -> %1 lend, %4 consume last
 >   local $1 n: string [param read] value
 >     uses $1: entry -> %2 lend last
@@ -98,8 +98,8 @@ fn through_mut(g: &mut dyn Greet, n: string) -> usize:
 >   %3 = Call app/main/Greet.rename for Greet [] via TraitValue (%1, %2) : ()
 >   %7 = Block %6 : usize
     g.twice()
->   %4 = Read borrow [$0] : RefMut[Greet]
->   %5 = Coerce %4 [Weaken -] : Ref[Greet]
+>   %4 = Read borrow [$0] : &mut dyn Greet
+>   %5 = Coerce %4 [Weaken -] : &dyn Greet
 >   %6 = Call app/main/impl dyn Greet.twice[] (%5) : usize
 >   summary kept [] borrows [$1] writes
 
@@ -110,7 +110,7 @@ fn local_mut(u: User, n: string) -> usize:
 >   local $1 n: string [param read] value
 >     uses $1: entry -> %12 lend last
 >   local $2 v: User [read assigned captured captured-assigned] place
->   local $3 $ref: RefMut[User] [read assigned captured] value
+>   local $3 $ref: &mut User [read assigned captured] value
 >     uses $3: %5 -> %6 lend last
 >   %0 = Release %17 Exit local $1 #2 : ()
 >   %1 = Retain %17 Entry local $0 #0 : ()
@@ -119,14 +119,14 @@ fn local_mut(u: User, n: string) -> usize:
 >   %3 = Store [$2] %2 : ()
 >   %17 = Block %13 : usize
     through_mut(&mut v, n)
->   %4 = Ref mut local frame [$2] : RefMut[User]
+>   %4 = Ref mut local frame [$2] : &mut User
 >   %5 = Store [$3] %4 : ()
->   %6 = Read move [$3] : RefMut[User]
+>   %6 = Read move [$3] : &mut User
 >   %7 = Coerce %6 [RefToTraitValue -] : Greet
 >   %8 = Retain %7 Value #0 : ()
 >   %9 = LoanEnd [%6] : ()
 >   %10 = Block %7 : Greet
->   %11 = RefDyn %10 : RefMut[Greet]
+>   %11 = RefDyn %10 : &mut dyn Greet
 >   %12 = Read borrow [$1] : string
 >   %13 = Call app/main/through_mut[] (%11, %12) : usize
 >   %14 = Retain %13 Operation operand 1 #0 : ()

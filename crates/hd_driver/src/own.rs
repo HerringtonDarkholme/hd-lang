@@ -122,6 +122,7 @@ fn instance_leaves(pool: &hd_types::InternPool, args: TyList) -> u64 {
             }
             TyData::Adt { args, .. } => sum(pool.list_items(args), memo),
             TyData::Union(ms) => sum(pool.list_items(ms), memo),
+            TyData::Ref { inner, .. } => sum(&[inner], memo),
             _ => 1,
         };
         memo.insert(t, n);
@@ -760,7 +761,7 @@ impl OwnCx for Env<'_> {
     }
 
     fn holds_ref(&self, ty: Ty) -> bool {
-        holds_ref(&self.run.pool, self.ref_cells(), self.run.known.ptr, ty, 0)
+        holds_ref(&self.run.pool, self.run.known.ptr, ty, 0)
     }
 
     fn function_value(&self, ty: Ty) -> bool {
@@ -778,14 +779,7 @@ impl OwnCx for Env<'_> {
         // counted `Ref` taken out holds none.
         let pool = &self.run.pool;
         let mut counted = false;
-        let only = refs_kinds(
-            pool,
-            self.ref_cells(),
-            self.run.known.ptr,
-            ty,
-            0,
-            &mut counted,
-        );
+        let only = refs_kinds(pool, self.run.known.ptr, ty, 0, &mut counted);
         only && counted
     }
 
@@ -895,7 +889,7 @@ impl Env<'_> {
 }
 
 /// Whether a value of type `t` may hold a reference: a reference type,
-/// its carrier (`Ref[T]`, `Counted[T]`), a trait value, a `Ptr[T]` (`ptr`),
+/// a trait value, a `Ptr[T]` (`ptr`),
 /// whose address `as_ref` makes a reference of, so a `Ptr` read from what
 /// a reference reaches lives on what it reaches, or a type whose
 /// arguments or parts are one. A type parameter's value may hold a local
@@ -907,7 +901,6 @@ impl Env<'_> {
 /// or open type.
 fn refs_kinds(
     pool: &hd_types::InternPool,
-    cells: hd_types::RefCells,
     ptr: DefId,
     t: Ty,
     depth: u32,
@@ -919,7 +912,7 @@ fn refs_kinds(
     let all = |l, counted: &mut bool| {
         pool.list_items(l)
             .iter()
-            .all(|&a| refs_kinds(pool, cells, ptr, a, depth + 1, counted))
+            .all(|&a| refs_kinds(pool, ptr, a, depth + 1, counted))
     };
     match pool.get(t) {
         TyData::Ref { counted: true, .. } => {
@@ -927,16 +920,9 @@ fn refs_kinds(
             true
         }
         TyData::Ref { .. } | TyData::TraitValue { .. } => false,
-        TyData::Adt { def, .. }
-            if cells.is_counted(def) && def != cells.local && def != cells.local_mut =>
-        {
-            *counted = true;
-            true
-        }
-        TyData::Adt { def, args } => def != ptr && !cells.holds(def) && all(args, counted),
+        TyData::Adt { def, args } => def != ptr && all(args, counted),
         TyData::Tuple { elems, rest } => {
-            all(elems, counted)
-                && rest.is_none_or(|r| refs_kinds(pool, cells, ptr, r, depth + 1, counted))
+            all(elems, counted) && rest.is_none_or(|r| refs_kinds(pool, ptr, r, depth + 1, counted))
         }
         TyData::Union(members) => all(members, counted),
         TyData::Param(..) => false,
@@ -944,27 +930,21 @@ fn refs_kinds(
     }
 }
 
-fn holds_ref(
-    pool: &hd_types::InternPool,
-    cells: hd_types::RefCells,
-    ptr: DefId,
-    t: Ty,
-    depth: u32,
-) -> bool {
+fn holds_ref(pool: &hd_types::InternPool, ptr: DefId, t: Ty, depth: u32) -> bool {
     if depth > 32 {
         return true;
     }
     let any = |l| {
         pool.list_items(l)
             .iter()
-            .any(|&a| holds_ref(pool, cells, ptr, a, depth + 1))
+            .any(|&a| holds_ref(pool, ptr, a, depth + 1))
     };
     match pool.get(t) {
         // A function value may hold the references its closure captured.
         TyData::Ref { .. } | TyData::TraitValue { .. } | TyData::Fn { .. } => true,
-        TyData::Adt { def, args } => def == ptr || cells.holds(def) || any(args),
+        TyData::Adt { def, args } => def == ptr || any(args),
         TyData::Tuple { elems, rest } => {
-            any(elems) || rest.is_some_and(|r| holds_ref(pool, cells, ptr, r, depth + 1))
+            any(elems) || rest.is_some_and(|r| holds_ref(pool, ptr, r, depth + 1))
         }
         TyData::Union(members) => any(members),
         _ => false,
@@ -1009,13 +989,10 @@ impl Env<'_> {
         self.value_parameter(self.low(sig.params[k].1))
     }
 
-    /// What a reference cell type `t` holds, or `t` itself.
+    /// What a reference type `t` refers to, or `t` itself.
     fn ref_target_or(&self, t: Ty) -> Ty {
-        let pool = &self.run.pool;
-        match pool.get(t) {
-            TyData::Adt { def, args } if self.run.known.ref_cells().holds(def) => {
-                pool.list_items(args)[0]
-            }
+        match self.run.pool.get(t) {
+            TyData::Ref { inner, .. } => inner,
             _ => t,
         }
     }
@@ -1105,7 +1082,6 @@ impl Env<'_> {
         let pool = &self.run.pool;
         match pool.get(t) {
             TyData::Ref { .. } => Pass::Lent,
-            TyData::Adt { def, .. } if self.run.known.ref_cells().holds(def) => Pass::Lent,
             _ if self.is_open(t) => Pass::Owned,
             _ => match self.layout_facts(t) {
                 (true, false) => Pass::Owned,
@@ -1430,9 +1406,7 @@ impl InlineEnv for Env<'_> {
         // A trait value receiver dispatches through its table, and a
         // derived newtype impl forwards to its base's, whatever the choice.
         let value = match pool.get(self_ty) {
-            TyData::Adt { def, args } if self.run.known.ref_cells().holds(def) => {
-                pool.list_items(args)[0]
-            }
+            TyData::Ref { inner, .. } => inner,
             _ => self_ty,
         };
         if hd_mono::is_trait_value(pool, value)
@@ -1681,12 +1655,6 @@ impl FactEnv for Env<'_> {
     fn fact_ref_inner(&self, ty: Ty) -> Option<Ty> {
         match self.run.pool.get(ty) {
             TyData::Ref { inner, .. } => Some(inner),
-            // Lowered local and counted sources use the `Ref` and `Counted`
-            // carriers. Both are reference layouts; the coercion shape above
-            // already proves this is a reference converted to a trait value.
-            TyData::Adt { args, .. } if self.reference(ty) => {
-                self.run.pool.list_items(args).first().copied()
-            }
             _ => None,
         }
     }
@@ -2214,11 +2182,8 @@ impl Env<'_> {
         if mask == 0 {
             return None;
         }
-        let cells = self.ref_cells();
         let referent = |t: Ty| match pool.get(t) {
-            TyData::Adt { def, args } if cells.holds(def) => {
-                pool.list_items(args).first().copied().unwrap_or(t)
-            }
+            TyData::Ref { inner, .. } => inner,
             _ => t,
         };
         let copy = hd_tir::own::promote::promote(b, mask, referent);

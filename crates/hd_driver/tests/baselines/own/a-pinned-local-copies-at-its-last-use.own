@@ -2,7 +2,7 @@
 app/main/run
   local $0 xs: List[i64] [read assigned] place
   %6 = IsUnique repeat [$0] : ()
-  %7 = Ref local [$0 [0:usize]] : Ref[i64]
+  %7 = Ref local [$0 [0:usize]] : &i64
   %8 = Read copy [$0] : List[i64]
   %9 = Call app/main/read_after[] (%7, %8) : i64
   %10 = LoanEnd [%7] : ()

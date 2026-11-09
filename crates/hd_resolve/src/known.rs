@@ -203,7 +203,7 @@ impl KnownItems {
         matches!(item.data, crate::ItemData::Struct(_, _))
     }
 
-    /// The four reference carriers (`hd_types::Types::lower_refs`).
+    /// The four seeded reference carriers, which no type names any more.
     #[must_use]
     pub fn ref_cells(&self) -> hd_types::RefCells {
         hd_types::RefCells {

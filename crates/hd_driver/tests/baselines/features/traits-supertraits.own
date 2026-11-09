@@ -19,7 +19,7 @@ impl Animal for Pup:
     fn name(&self) -> string:
         self.name
 > app/main/impl Animal for Pup.name
->   local $0 self: Ref[Pup] [param read] value
+>   local $0 self: &Pup [param read] value
 >     uses $0: entry -> %0 lend last
 >   %0 = Read copy [*$0 .name] : string
 >   %1 = Block %0 : string
@@ -35,7 +35,7 @@ impl Dog for Pup:
 fn name_of(a: &dyn Animal) -> usize:
     a.name().len()
 > app/main/name_of
->   local $0 a: Ref[Animal] [param read] value
+>   local $0 a: &dyn Animal [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 $ref: string [read assigned captured captured-assigned] value
 >     uses $1: %2 -> %3 lend last
@@ -54,19 +54,19 @@ fn name_of(a: &dyn Animal) -> usize:
 fn widen(d: &dyn Dog) -> usize:
     name_of(d) + d.bark().len()
 > app/main/widen
->   local $0 d: Ref[Dog] [param read] value
+>   local $0 d: &dyn Dog [param read] value
 >     uses $0: entry -> %0 consume, %9 lend last
->   local $1 $ref: Ref[Dog] [read assigned captured] value
+>   local $1 $ref: &dyn Dog [read assigned captured] value
 >     uses $1: %1 -> %2 lend last
 >   local $2 $ref: string [read assigned captured captured-assigned] value
 >     uses $2: %11 -> %12 lend last
->   %0 = Read borrow [$0] : Ref[Dog]
+>   %0 = Read borrow [$0] : &dyn Dog
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read copy [*$1] : Dog
 >   %3 = Coerce %2 [Supertrait -] : Animal
 >   %4 = LoanEnd [%2] : ()
 >   %5 = Block %3 : Animal
->   %6 = RefDyn %5 : Ref[Animal]
+>   %6 = RefDyn %5 : &dyn Animal
 >   %7 = Call app/main/name_of[] (%6) : usize
 >   %8 = Drop [%6] : ()
 >   %9 = Read borrow [*$0] : Dog
@@ -91,7 +91,7 @@ fn loud[T < Dog](d: T) -> usize:
 >     uses $2: %15 -> %16 lend last
 >   %0 = Retain %23 Entry local $0 #0 : ()
     d.name().len() + d.bark().len()
->   %1 = Ref local frame [$0] : Ref[T]
+>   %1 = Ref local frame [$0] : &T
 >   %2 = Call app/main/Animal.name for T [] via Bound (%1) : string
 >   %3 = Drop [%1] : ()
 >   %4 = Store [$1] %2 : ()
@@ -101,7 +101,7 @@ fn loud[T < Dog](d: T) -> usize:
 >   %8 = Block - : usize
 >   %9 = Scope %8 [] : usize
 >   %10 = Drop [$1] : ()
->   %11 = Ref local frame [$0] : Ref[T]
+>   %11 = Ref local frame [$0] : &T
 >   %12 = Call app/main/Dog.bark for T [] via Bound (%11) : string
 >   %13 = Drop [%11] : ()
 >   %14 = Drop [$0] : ()
@@ -121,7 +121,7 @@ fn loud[T < Dog](d: T) -> usize:
 fn use_pup(p: Pup) -> usize:
 > app/main/use_pup
 >   local $0 p: Pup [param read captured] place
->   local $1 $ref: Ref[Pup] [read assigned captured] value
+>   local $1 $ref: &Pup [read assigned captured] value
 >     uses $1: %2 -> %3 lend last
 >   local $2 d: Pup [read captured] place
 >   local $3 $ref: string [read assigned captured captured-assigned] place
@@ -129,31 +129,31 @@ fn use_pup(p: Pup) -> usize:
 >   %0 = Retain %36 Entry local $0 #0 : ()
 >   %12 = Release %11 Operation local $0 #2 : ()
     widen(&p) + loud(p)
->   %1 = Ref local frame [$0] : Ref[Pup]
+>   %1 = Ref local frame [$0] : &Pup
 >   %2 = Store [$1] %1 : ()
->   %3 = Read move [$1] : Ref[Pup]
+>   %3 = Read move [$1] : &Pup
 >   %4 = Coerce %3 [RefToTraitValue -] : Dog
 >   %5 = Retain %4 Value #0 : ()
 >   %6 = LoanEnd [%3] : ()
 >   %7 = Block %4 : Dog
->   %8 = RefDyn %7 : Ref[Dog]
+>   %8 = RefDyn %7 : &dyn Dog
 >   %9 = Call app/main/widen[] (%8) : usize
 >   %10 = Drop [%8] : ()
 >   %11 = Read move [$0] : Pup
 >   %13 = Store [$2] %11 : ()
->   %14 = Ref local frame [$2] : Ref[Pup]
+>   %14 = Ref local frame [$2] : &Pup
 >   %15 = Call app/main/Animal.name for Pup [] via Impl (%14) : string
 >   %16 = LoanEnd [%14] : ()
 >   %17 = Store [$3] %15 : ()
->   %18 = Ref local frame [$3] : Ref[string]
+>   %18 = Ref local frame [$3] : &string
 >   %19 = Call std/text/impl string.len[] (%18) : usize
 >   %20 = LoanEnd [%18] : ()
 >   %21 = Drop [$3] : ()
->   %22 = Ref local frame [$2] : Ref[Pup]
+>   %22 = Ref local frame [$2] : &Pup
 >   %23 = Call app/main/Dog.bark for Pup [] via Impl (%22) : string
 >   %24 = LoanEnd [%22] : ()
 >   %25 = Store [$4] %23 : ()
->   %26 = Ref local frame [$4] : Ref[string]
+>   %26 = Ref local frame [$4] : &string
 >   %27 = Call std/text/impl string.len[] (%26) : usize
 >   %28 = LoanEnd [%26] : ()
 >   %29 = Drop [$4] : ()

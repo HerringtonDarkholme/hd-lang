@@ -25,7 +25,7 @@ fn sized!(u: UniqList[i32]) -> usize $ Clock:
 >   %11 = Release %10 Operation child #2 : ()
 >   %16 = Block %13 : usize
     u.len()
->   %12 = Ref local [$0] : Ref[UniqList[i32]]
+>   %12 = Ref local [$0] : &UniqList[i32]
 >   %13 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].len[i32] (%12) : usize
 >   %14 = LoanEnd [%12] : ()
 >   %15 = Drop [$0] : ()
@@ -50,7 +50,7 @@ pub fn main!() -> void $ Console + Clock:
 >     uses $6: %71 -> %72 lend last
 >   local $7 value: u64 [read] value
 >     uses $7: %64 -> %65 lend last
->   local $8 self: RefMut[UniqList[i32]] [read] value
+>   local $8 self: &mut UniqList[i32] [read] value
 >     uses $8: %24 -> %26 consume, %30 lend, %35 lend, %41 lend, %49 lend last
 >   local $9 value: i32 [read] value
 >     uses $9: %25 -> %45 consume last
@@ -86,25 +86,25 @@ pub fn main!() -> void $ Console + Clock:
 >   %55 = Release %54 Operation local $0 #2 : ()
 >   %94 = Block - : ()
     u.push(1)
->   %23 = Ref mut local [$0] : RefMut[UniqList[i32]]
+>   %23 = Ref mut local [$0] : &mut UniqList[i32]
 >   %24 = Store [$8] %23 : ()
 >   %25 = Store [$9] 1:i32 : ()
->   %26 = Read borrow [$8] : RefMut[UniqList[i32]]
->   %27 = Coerce %26 [Weaken -] : Ref[UniqList[i32]]
+>   %26 = Read borrow [$8] : &mut UniqList[i32]
+>   %27 = Coerce %26 [Weaken -] : &UniqList[i32]
 >   %28 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].len[i32] (%27) : usize
 >   %29 = Store [$10] %28 : ()
->   %30 = Ref local [*$8 .buffer] : Ref[Buffer[i32]]
+>   %30 = Ref local [*$8 .buffer] : &Buffer[i32]
 >   %31 = Call std/rt.memory/impl [ T < ? Copy ] Buffer [ T ].capacity[i32] (%30) : usize
 >   %32 = Drop [%30] : ()
 >   %33 = Read copy [$10] : usize
 >   %34 = Prim Le [%31 %33] : bool
->   %35 = Read borrow [$8] : RefMut[UniqList[i32]]
+>   %35 = Read borrow [$8] : &mut UniqList[i32]
 >   %36 = Read copy [$10] : usize
 >   %37 = Prim Add [%36 1:usize] : usize
 >   %38 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].reserve_for[i32] (%35, %37) : ()
 >   %39 = Block - : ()
 >   %40 = If %34 [%39 -] : ()
->   %41 = Ref local [*$8 .buffer] : Ref[Buffer[i32]]
+>   %41 = Ref local [*$8 .buffer] : &Buffer[i32]
 >   %42 = Read copy [$10] : usize
 >   %43 = Call std/rt.memory/impl [ T < ? Copy ] Buffer [ T ].at[i32] (%41, %42) : Ptr[i32]
 >   %44 = Drop [%41] : ()
@@ -125,7 +125,7 @@ pub fn main!() -> void $ Console + Clock:
 >   %58 = Store [$1] %56 : ()
 >   %54 finds [$0] full
     println("$a")
->   %59 = Ref local [$1] : Ref[usize]
+>   %59 = Ref local [$1] : &usize
 >   %60 = Read copy [*%59] : usize
 >   %61 = LoanEnd [%59] : ()
 >   %62 = Prim Conv [%60] : u64

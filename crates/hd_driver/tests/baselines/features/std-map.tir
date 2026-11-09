@@ -19,7 +19,7 @@ fn lookup(m: &Map[string, string], k: string) -> usize:
 >   %19 = Match %2 [%18 %5 %6] : usize
 >   %20 = Block %19 : usize
         .Some(v) => v.len()
->   %3 = Ref local [$2] : Ref[string]
+>   %3 = Ref local [$2] : &string
 >   %4 = Call std/text/impl string.len[] (%3) : usize
 >   %5 = Block %4 : usize
 >   %7 = Read [%2 as #1 .0] : string
@@ -47,13 +47,13 @@ fn put(m: &mut Map[string, string], k: string, v: string) -> void:
 fn group(m: &mut Map[string, List[string]], k: string, v: string) -> void:
     m.get_or_insert(k, []).push(v)
 > app/main/group
->   local $0 m: RefMut[Map[string, List[string]]] [param read]
+>   local $0 m: &mut Map[string, List[string]] [param read]
 >   local $1 k: string [param read]
 >   local $2 v: string [param read]
->   %0 = Read [$0] : RefMut[Map[string, List[string]]]
+>   %0 = Read [$0] : &mut Map[string, List[string]]
 >   %1 = Read [$1] : string
 >   %2 = NewList - [] : List[string]
->   %3 = Call std/collections/impl [ K < Eq & Hash , V ] Map [ K , V ].get_or_insert[string, List[string]] (%0, %1, %2) : RefMut[List[string]]
+>   %3 = Call std/collections/impl [ K < Eq & Hash , V ] Map [ K , V ].get_or_insert[string, List[string]] (%0, %1, %2) : &mut List[string]
 >   %4 = Read [*%3] : List[string]
 >   %5 = Read [$2] : string
 >   %6 = Intrinsic ListPush [%4 %5] : ()
@@ -62,9 +62,9 @@ fn group(m: &mut Map[string, List[string]], k: string, v: string) -> void:
 fn has(m: &Map[string, string], k: string) -> bool:
     m.contains_key(k)
 > app/main/has
->   local $0 m: Ref[Map[string, string]] [param read]
+>   local $0 m: &Map[string, string] [param read]
 >   local $1 k: string [param read]
->   %0 = Read [$0] : Ref[Map[string, string]]
+>   %0 = Read [$0] : &Map[string, string]
 >   %1 = Read [$1] : string
 >   %2 = Call std/collections/impl [ K < Eq & Hash , V ] Map [ K , V ].contains_key[string, string] (%0, %1) : bool
 >   %3 = Block %2 : bool

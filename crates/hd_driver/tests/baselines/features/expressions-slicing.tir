@@ -23,7 +23,7 @@ fn str_slice_len(s: string, n: usize) -> usize:
 >   %1 = Read [$1] : usize
 >   %2 = Call std/text/impl string.slice[] (%0, 0:usize, %1) : string
 >   %3 = Store [$2] %2 : ()
->   %4 = Ref local [$2] : Ref[string]
+>   %4 = Ref local [$2] : &string
 >   %5 = Call std/text/impl string.len[] (%4) : usize
 >   %6 = Block %5 : usize
 
@@ -31,7 +31,7 @@ fn list_slice(xs: List[string]) -> List[string]:
     xs.slice(1, xs.len())
 > app/main/list_slice
 >   local $0 xs: List[string] [param read captured]
->   %0 = Ref local [$0] : Ref[List[string]]
+>   %0 = Ref local [$0] : &List[string]
 >   %1 = Read [$0] : List[string]
 >   %2 = Intrinsic ListLen [%1] : usize
 >   %3 = Call std/collections/impl [ T ] List [ T ].slice[string] (%0, 1:usize, %2) : List[string]
@@ -41,7 +41,7 @@ fn list_full(xs: List[string]) -> List[string]:
     xs.slice(0, xs.len())
 > app/main/list_full
 >   local $0 xs: List[string] [param read captured]
->   %0 = Ref local [$0] : Ref[List[string]]
+>   %0 = Ref local [$0] : &List[string]
 >   %1 = Read [$0] : List[string]
 >   %2 = Intrinsic ListLen [%1] : usize
 >   %3 = Call std/collections/impl [ T ] List [ T ].slice[string] (%0, 0:usize, %2) : List[string]
@@ -51,7 +51,7 @@ fn list_slice_len(xs: List[string]) -> usize:
     xs.slice(0, 2).len()
 > app/main/list_slice_len
 >   local $0 xs: List[string] [param read captured]
->   %0 = Ref local [$0] : Ref[List[string]]
+>   %0 = Ref local [$0] : &List[string]
 >   %1 = Call std/collections/impl [ T ] List [ T ].slice[string] (%0, 0:usize, 2:usize) : List[string]
 >   %2 = Intrinsic ListLen [%1] : usize
 >   %3 = Block %2 : usize

@@ -14,7 +14,7 @@ impl Disposable for Guard:
     fn dispose(&mut self) -> void:
         self.log.push(self.label)
 > app/main/impl Disposable for Guard.dispose
->   local $0 self: RefMut[Guard] [param read] value
+>   local $0 self: &mut Guard [param read] value
 >     uses $0: entry -> %0 lend, %2 lend last
 >   %0 = Read copy [*$0 .label] : string
 >   %1 = IsUnique [*$0 .log *] : ()
@@ -28,14 +28,14 @@ impl AutoClosing for Guard:
 
 @auto_closing
 > app/main/guard
->   local $0 log: CountedMut[List[string]] [param read] value
+>   local $0 log: *mut List[string] [param read] value
 >     uses $0: entry -> %1 consume last
 >   local $1 label: string [param read] value
 >     uses $1: entry -> %2 consume last
 >   %0 = Retain %4 Entry local $1 #0 : ()
 fn guard(log: *mut List[string], label: string) -> Guard:
     Guard { log: log, label: label }
->   %1 = Read copy [$0] : CountedMut[List[string]]
+>   %1 = Read copy [$0] : *mut List[string]
 >   %2 = Read move [$1] : string
 >   %3 = NewStruct [%1 %2] : Guard
 >   %4 = Block %3 : Guard
@@ -44,18 +44,18 @@ fn guard(log: *mut List[string], label: string) -> Guard:
 
 fn work(log: *mut List[string], label: string) -> void:
 > app/main/work
->   local $0 log: CountedMut[List[string]] [param read] value
+>   local $0 log: *mut List[string] [param read] value
 >     uses $0: entry -> %1 lend, %11 lend last
 >   local $1 label: string [param read] value
 >     uses $1: entry -> %2 consume last
 >   local $2 $ref: Guard [:= read assigned captured captured-assigned] place
 >   %0 = Retain %16 Entry local $1 #0 : ()
     guard(log, label)
->   %1 = Read borrow [$0] : CountedMut[List[string]]
+>   %1 = Read borrow [$0] : *mut List[string]
 >   %2 = Read move [$1] : string
 >   %3 = Call app/main/guard[] (%1, %2) : Guard
 >   %4 = Store [$2] %3 : ()
->   %5 = Ref mut local frame [$2] : RefMut[Guard]
+>   %5 = Ref mut local frame [$2] : &mut Guard
 >   %6 = Call std/ops/Disposable.dispose for Guard [$()] via Impl (%5) : ()
 >   %7 = LoanEnd [%5] : ()
 >   %8 = Block - : ()

@@ -12,7 +12,7 @@ fn read_field(r: Rec) -> usize:
     r.name.len() + r.tags.len()
 > app/main/read_field
 >   local $0 r: Rec [param read captured]
->   %0 = Ref local [$0 .name] : Ref[string]
+>   %0 = Ref local [$0 .name] : &string
 >   %1 = Call std/text/impl string.len[] (%0) : usize
 >   %2 = Read [$0 .tags] : List[string]
 >   %3 = Intrinsic ListLen [%2] : usize

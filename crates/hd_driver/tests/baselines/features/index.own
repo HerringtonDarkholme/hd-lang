@@ -46,7 +46,7 @@ fn list_take(xs: List[string], i: usize) -> string:
 
 fn list_write(xs: &mut List[string], i: usize, s: string) -> void:
 > app/main/list_write
->   local $0 xs: RefMut[List[string]] [param read] value
+>   local $0 xs: &mut List[string] [param read] value
 >     uses $0: entry -> %4 lend last
 >   local $1 i: usize [param read] value
 >     uses $1: entry -> %1 lend last
@@ -103,7 +103,7 @@ fn map_read(m: Map[string, string], k: string) -> usize:
 
 fn map_write(m: &mut Map[string, string], k: string, v: string) -> void:
 > app/main/map_write
->   local $0 m: RefMut[Map[string, string]] [param read] value
+>   local $0 m: &mut Map[string, string] [param read] value
 >     uses $0: entry -> %5 lend last
 >   local $1 k: string [param read] value
 >     uses $1: entry -> %2 lend last
@@ -125,28 +125,28 @@ fn map_write(m: &mut Map[string, string], k: string, v: string) -> void:
 fn uniq_read(xs: &UniqList[string], i: usize) -> usize:
     match xs.get_ref(i):
 > app/main/uniq_read
->   local $0 xs: Ref[UniqList[string]] [param read] value
+>   local $0 xs: &UniqList[string] [param read] value
 >     uses $0: entry -> %0 consume last
 >   local $1 i: usize [param read] value
 >     uses $1: entry -> %1 consume last
->   local $2 s: Ref[string] [read assigned] value
+>   local $2 s: &string [read assigned] value
 >     uses $2: %32 -> %27 lend last
->   local $3 self: Ref[UniqList[string]] [read] value
+>   local $3 self: &UniqList[string] [read] value
 >     uses $3: %2 -> %5 lend, %9 lend last
 >   local $4 index: usize [read] value
 >     uses $4: %3 -> %4 lend, %10 consume last
 >   local $6 index: usize [read] value
 >     uses $6: %11 -> %14 lend last
->   %0 = Read borrow [$0] : Ref[UniqList[string]]
+>   %0 = Read borrow [$0] : &UniqList[string]
 >   %1 = Read copy [$1] : usize
 >   %2 = Store [$3] %0 : ()
 >   %3 = Store [$4] %1 : ()
 >   %4 = Read copy [$4] : usize
 >   %5 = Read copy [*$3 .len] : usize
 >   %6 = Prim Ge [%4 %5] : bool
->   %7 = NewVariant #0 [] : Ref[string]?
->   %8 = Block %7 : Ref[string]?
->   %9 = Ref local [*$3 .buffer] : Ref[Buffer[string]]
+>   %7 = NewVariant #0 [] : &string?
+>   %8 = Block %7 : &string?
+>   %9 = Ref local [*$3 .buffer] : &Buffer[string]
 >   %10 = Read copy [$4] : usize
 >   %11 = Store [$6] %10 : ()
 >   %12 = Read copy [*%9 .address] : usize
@@ -157,22 +157,22 @@ fn uniq_read(xs: &UniqList[string], i: usize) -> usize:
 >   %17 = Block - : Ptr[string]
 >   %18 = Scope %17 [] : Ptr[string]
 >   %19 = Drop [%9] : ()
->   %20 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].as_ref[string] (%18) : Ref[string]
->   %21 = NewVariant #1 [%20] : Ref[string]?
->   %22 = Block %21 : Ref[string]?
->   %23 = If %6 [%8 %22] : Ref[string]?
+>   %20 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].as_ref[string] (%18) : &string
+>   %21 = NewVariant #1 [%20] : &string?
+>   %22 = Block %21 : &string?
+>   %23 = If %6 [%8 %22] : &string?
 >   %24 = Break L1 %23 : never
->   %25 = Block - : Ref[string]?
->   %26 = Scope %25 [] : Ref[string]?
+>   %25 = Block - : &string?
+>   %26 = Scope %25 [] : &string?
 >   %42 = Block - : never
 >   %43 = Match %26 [%42 %29 %30] : usize
 >   %44 = LoanEnd [%26] : ()
 >   %45 = Block %43 : usize
         .Some(s) => s.len()
->   %27 = Read borrow [$2] : Ref[string]
+>   %27 = Read borrow [$2] : &string
 >   %28 = Call std/text/impl string.len[] (%27) : usize
 >   %29 = Block %28 : usize
->   %31 = Read borrow [%26 as #1 .0] : Ref[string]
+>   %31 = Read borrow [%26 as #1 .0] : &string
 >   %32 = Store [$2] %31 : ()
 >   %34 = Block - : never
 >   %40 = Block - : never
@@ -186,15 +186,15 @@ fn uniq_read(xs: &UniqList[string], i: usize) -> usize:
 
 fn uniq_write(xs: &mut UniqList[string], i: usize, s: string) -> void:
 > app/main/uniq_write
->   local $0 xs: RefMut[UniqList[string]] [param read] value
+>   local $0 xs: &mut UniqList[string] [param read] value
 >     uses $0: entry -> %1 consume last
 >   local $1 i: usize [param read] value
 >     uses $1: entry -> %2 consume last
 >   local $2 s: string [param read] value
 >     uses $2: entry -> %28 consume last
->   local $3 r: RefMut[string] [read assigned] value
+>   local $3 r: &mut string [read assigned] value
 >     uses $3: %35 -> %29 lend last
->   local $4 self: RefMut[UniqList[string]] [read] value
+>   local $4 self: &mut UniqList[string] [read] value
 >     uses $4: %3 -> %6 lend, %10 lend last
 >   local $5 index: usize [read] value
 >     uses $5: %4 -> %5 lend, %11 consume last
@@ -202,16 +202,16 @@ fn uniq_write(xs: &mut UniqList[string], i: usize, s: string) -> void:
 >     uses $7: %12 -> %15 lend last
 >   %0 = Retain %50 Entry local $2 #0 : ()
     match xs.get_mut(i):
->   %1 = Read borrow [$0] : RefMut[UniqList[string]]
+>   %1 = Read borrow [$0] : &mut UniqList[string]
 >   %2 = Read copy [$1] : usize
 >   %3 = Store [$4] %1 : ()
 >   %4 = Store [$5] %2 : ()
 >   %5 = Read copy [$5] : usize
 >   %6 = Read copy [*$4 .len] : usize
 >   %7 = Prim Ge [%5 %6] : bool
->   %8 = NewVariant #0 [] : RefMut[string]?
->   %9 = Block %8 : RefMut[string]?
->   %10 = Ref local [*$4 .buffer] : Ref[Buffer[string]]
+>   %8 = NewVariant #0 [] : &mut string?
+>   %9 = Block %8 : &mut string?
+>   %10 = Ref local [*$4 .buffer] : &Buffer[string]
 >   %11 = Read copy [$5] : usize
 >   %12 = Store [$7] %11 : ()
 >   %13 = Read copy [*%10 .address] : usize
@@ -222,13 +222,13 @@ fn uniq_write(xs: &mut UniqList[string], i: usize, s: string) -> void:
 >   %18 = Block - : Ptr[string]
 >   %19 = Scope %18 [] : Ptr[string]
 >   %20 = Drop [%10] : ()
->   %21 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].as_mut[string] (%19) : RefMut[string]
->   %22 = NewVariant #1 [%21] : RefMut[string]?
->   %23 = Block %22 : RefMut[string]?
->   %24 = If %7 [%9 %23] : RefMut[string]?
+>   %21 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].as_mut[string] (%19) : &mut string
+>   %22 = NewVariant #1 [%21] : &mut string?
+>   %23 = Block %22 : &mut string?
+>   %24 = If %7 [%9 %23] : &mut string?
 >   %25 = Break L1 %24 : never
->   %26 = Block - : RefMut[string]?
->   %27 = Scope %26 [] : RefMut[string]?
+>   %26 = Block - : &mut string?
+>   %27 = Scope %26 [] : &mut string?
 >   %46 = Block - : never
 >   %47 = Match %27 [%46 %31 %33] : ()
 >   %48 = LoanEnd [%27] : ()
@@ -239,7 +239,7 @@ fn uniq_write(xs: &mut UniqList[string], i: usize, s: string) -> void:
 >   %29 = Store [*$3] %28 : ()
 >   %30 = Release %29 Operation #3 : ()
 >   %31 = Block - : ()
->   %34 = Read borrow [%27 as #1 .0] : RefMut[string]
+>   %34 = Read borrow [%27 as #1 .0] : &mut string
 >   %35 = Store [$3] %34 : ()
 >   %36 = Release %35 Operation #3 : ()
 >   %38 = Block - : never

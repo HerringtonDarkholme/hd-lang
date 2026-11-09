@@ -19,7 +19,7 @@ fn lbl(n: i64) -> Label:
     Label { text: "#${n}" }
 > app/main/lbl
 >   local $0 n: i64 [param read captured]
->   %0 = Ref local [$0] : Ref[i64]
+>   %0 = Ref local [$0] : &i64
 >   %1 = Read [*%0] : i64
 >   %2 = Prim Conv [%1] : i64
 >   %3 = Call std/text/impl StringBuilder.signed_width[] (%2) : usize

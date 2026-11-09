@@ -31,7 +31,7 @@ impl Members:
     fn peek(&self, position: usize) -> usize:
         self.infos.len() + position
 > app/main/impl Members.peek
->   local $0 self: Ref[Members] [param read] value
+>   local $0 self: &Members [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 position: usize [param read] value
 >     uses $1: entry -> %2 lend last
@@ -44,11 +44,11 @@ impl Members:
     fn pop(&mut self) -> usize:
         match self.infos.pop():
 > app/main/impl Members.pop
->   local $0 self: RefMut[Members] [param read] value
+>   local $0 self: &mut Members [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 info: Info [read assigned] value
 >     uses $1: %7 -> %3 consume last
->   %0 = Ref mut local [*$0 .infos] : RefMut[List[Info]]
+>   %0 = Ref mut local [*$0 .infos] : &mut List[Info]
 >   %1 = Call std/collections/impl [ T ] List [ T ].pop[Info] (%0) : Info?
 >   %2 = Drop [%0] : ()
 >   %17 = Block - : never
@@ -93,7 +93,7 @@ fn by_reference(m: Members, i: usize) -> usize:
     m.peek(m.infos[i].position)
 >   %1 = Read copy [$1] : usize
 >   %2 = Read copy [$0 .infos [%1] .position] : usize
->   %3 = Ref local frame [$0] : Ref[Members]
+>   %3 = Ref local frame [$0] : &Members
 >   %4 = Call app/main/impl Members.peek[] (%3, %2) : usize
 >   %5 = LoanEnd [%3] : ()
 >   %6 = Drop [$0] : ()
@@ -114,7 +114,7 @@ fn changed_by_argument(items: List[Info]) -> usize:
 >   %10 = Block %9 : usize
     m.at(m.pop())
 >   %4 = Read copy [$1] : Members
->   %5 = Ref mut local frame [$1] : RefMut[Members]
+>   %5 = Ref mut local frame [$1] : &mut Members
 >   %6 = Call app/main/impl Members.pop[] (%5) : usize
 >   %7 = LoanEnd [%5] : ()
 >   %8 = Drop [$1] : ()

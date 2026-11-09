@@ -56,7 +56,7 @@ fn add(mut m: Map[string, List[i64]], n: i64) -> Map[string, List[i64]]:
 fn next(k: &mut string) -> i64:
     *k = "b"
 > app/main/next
->   local $0 k: RefMut[string] [param read] value
+>   local $0 k: &mut string [param read] value
 >     uses $0: entry -> %0 lend last
 >   %0 = Store [*$0] "b" : ()
 >   %1 = Release %0 Operation #3 : ()
@@ -75,7 +75,7 @@ fn add_at(mut m: Map[string, List[i64]], mut k: string) -> Map[string, List[i64]
 >   %3 = Read copy [$1] : string
 >   %4 = Intrinsic MapEntry [%2 %3] : usize
 >   %5 = Read borrow [$0 [%4]] : List[i64]
->   %6 = Ref mut local frame [$1] : RefMut[string]
+>   %6 = Ref mut local frame [$1] : &mut string
 >   %7 = Call app/main/next[] (%6) : i64
 >   %8 = LoanEnd [%6] : ()
 >   %9 = Drop [$1] : ()

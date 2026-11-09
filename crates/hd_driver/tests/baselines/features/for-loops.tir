@@ -46,7 +46,7 @@ fn over_value(xs: List[string]) -> usize:
 >   %32 = Loop %31 - : ()
         n += x.len()
 >   %17 = Read [$1] : usize
->   %18 = Ref local [$6] : Ref[string]
+>   %18 = Ref local [$6] : &string
 >   %19 = Call std/text/impl string.len[] (%18) : usize
 >   %20 = Prim Add [%17 %19] : usize
 >   %21 = Store [$1] %20 : ()
@@ -93,7 +93,7 @@ fn over_ref(xs: &List[string]) -> usize:
 >   %32 = Loop %31 - : ()
         n += x.len()
 >   %17 = Read [$1] : usize
->   %18 = Ref local [$6] : Ref[string]
+>   %18 = Ref local [$6] : &string
 >   %19 = Call std/text/impl string.len[] (%18) : usize
 >   %20 = Prim Add [%17 %19] : usize
 >   %21 = Store [$1] %20 : ()
@@ -105,7 +105,7 @@ fn over_mut(xs: &mut List[string]) -> void:
 > app/main/over_mut
 >   local $1 $len: usize [assigned]
 >   local $2 $pos: usize [assigned]
->   local $3 x: RefMut[string] [read assigned]
+>   local $3 x: &mut string [read assigned]
 >   %0 = Read [*$0] : List[string]
 >   %1 = Intrinsic ListLen [%0] : usize
 >   %2 = Store [$1] %1 : ()
@@ -117,7 +117,7 @@ fn over_mut(xs: &mut List[string]) -> void:
 >   %8 = Read [$2] : usize
 >   %9 = Prim Add [%8 1:usize] : usize
 >   %10 = Store [$2] %9 : ()
->   %11 = Ref mut local [%0 [%7]] : RefMut[string]
+>   %11 = Ref mut local [%0 [%7]] : &mut string
 >   %15 = Block - : ()
 >   %16 = Store [$3] %11 : ()
 >   %18 = Block - : never
@@ -213,7 +213,7 @@ fn comprehension(xs: List[string]) -> List[usize]:
 >   %19 = Prim Add [%18 1:usize] : usize
 >   %20 = Store [$4] %19 : ()
 >   %21 = Read [$1] : List[usize]
->   %22 = Ref local [$6] : Ref[string]
+>   %22 = Ref local [$6] : &string
 >   %23 = Call std/text/impl string.len[] (%22) : usize
 >   %24 = Intrinsic ListPush [%21 %23] : ()
 >   %25 = Block - : ()

@@ -223,12 +223,8 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
                 ItemData::Fn(sig, intrinsic(names, "box")),
             ));
             // The data types `&T` (`Ref`), `&mut T` (`RefMut`), `*T`
-            // (`Counted`) and `*mut T` (`CountedMut`) lower to when the checker finishes a body
-            // (`hd_types::Types::lower_refs`), which the backend recognizes
-            // as the reference carriers: a reference is its place's address
-            // (`crates/hd_wasm_linear/DESIGN.md` §23.20), so they have no
-            // fields, and a `Counted` one is a whole object's (§23.30). Not
-            // visible to programs.
+            // (`Counted`) and `*mut T` (`CountedMut`) once lowered to. No
+            // type names them any more. Not visible to programs.
             for name in ["Ref", "RefMut", "Counted", "CountedMut"] {
                 let cell = names.item(module, name);
                 let mut it = Item::new(cell, sym(names, name), false, ItemData::Builtin);

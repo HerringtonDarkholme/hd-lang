@@ -21,36 +21,36 @@ impl Shape for Sq:
 fn shapes(xs: List[*Sq]) -> List[*dyn Shape]:
     [xs...]
 > app/main/shapes
->   local $0 xs: List[Counted[Sq]] [param read]
->   local $1 $coll: List[Counted[Sq]] [assigned]
+>   local $0 xs: List[*Sq] [param read]
+>   local $1 $coll: List[*Sq] [assigned]
 >   local $2 $len: usize [assigned]
 >   local $3 $pos: usize [assigned]
->   local $4 $acc: List[Counted[Shape]] [assigned]
->   local $5 $ref: Counted[Sq] [read assigned captured]
->   %0 = Read [$0] : List[Counted[Sq]]
+>   local $4 $acc: List[*dyn Shape] [assigned]
+>   local $5 $ref: *Sq [read assigned captured]
+>   %0 = Read [$0] : List[*Sq]
 >   %1 = Store [$1] %0 : ()
->   %2 = Read [$1] : List[Counted[Sq]]
+>   %2 = Read [$1] : List[*Sq]
 >   %3 = Intrinsic ListLen [%2] : usize
 >   %4 = Store [$2] %3 : ()
->   %5 = NewList - [] : List[Counted[Shape]]
+>   %5 = NewList - [] : List[*dyn Shape]
 >   %6 = Store [$4] %5 : ()
 >   %7 = Read [$2] : usize
->   %8 = Read [$4] : List[Counted[Shape]]
+>   %8 = Read [$4] : List[*dyn Shape]
 >   %9 = Intrinsic ListReserve [%8 %7] : ()
 >   %10 = Store [$3] 0:usize : ()
 >   %11 = Read [$3] : usize
 >   %12 = Read [$2] : usize
 >   %13 = Prim Lt [%11 %12] : bool
 >   %14 = Read [$3] : usize
->   %15 = Read [$1 [%14]] : Counted[Sq]
+>   %15 = Read [$1 [%14]] : *Sq
 >   %16 = Prim Add [%14 1:usize] : usize
 >   %17 = Store [$3] %16 : ()
 >   %18 = Store [$5] %15 : ()
->   %19 = Read [$5] : Counted[Sq]
+>   %19 = Read [$5] : *Sq
 >   %20 = Coerce %19 [RefToTraitValue -] : Shape
 >   %21 = Block %20 : Shape
->   %22 = RefDyn %21 : Counted[Shape]
->   %23 = Read [$4] : List[Counted[Shape]]
+>   %22 = RefDyn %21 : *dyn Shape
+>   %23 = Read [$4] : List[*dyn Shape]
 >   %24 = Intrinsic ListPush [%23 %22] : ()
 >   %25 = Block - : ()
 >   %26 = Break L0 - : never
@@ -58,8 +58,8 @@ fn shapes(xs: List[*Sq]) -> List[*dyn Shape]:
 >   %28 = If %13 [%25 %27] : ()
 >   %29 = Block - : ()
 >   %30 = Loop %29 - : ()
->   %31 = Read [$4] : List[Counted[Shape]]
->   %32 = Block %31 : List[Counted[Shape]]
+>   %31 = Read [$4] : List[*dyn Shape]
+>   %32 = Block %31 : List[*dyn Shape]
 
 fn padded(xs: List[i32]) -> List[i32?]:
     [0, xs...]

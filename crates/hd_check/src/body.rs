@@ -5025,8 +5025,7 @@ impl Ck<'_, '_> {
         // mismatched store as a body-local type error.
         let errors = self.diags.has_errors() || self.read_poison_name;
         let tolerated: &[u8] = if errors { &[4] } else { &[] };
-        // The backend sees `&T` as the data type `Ref[T]` and `*T` as
-        // `Counted[T]` (`refs.rs`).
+        // The backend reads each reference's kind as written (`refs.rs`).
         self.lower_body_refs();
         // Every place starts at its local (`docs/compiler/tir-v2.md`,
         // stage 2 commit 12a). The walkers above read the base reads, so

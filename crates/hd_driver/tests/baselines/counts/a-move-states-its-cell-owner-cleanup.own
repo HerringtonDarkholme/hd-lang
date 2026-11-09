@@ -9,12 +9,12 @@ use std.time.{Clock, ms, sleep}
 fn same[T](a: &T, b: &T) -> bool:
     a is b
 > std/rt_tests.stage_case/same
->   local $0 a: Ref[T] [param read] value
+>   local $0 a: &T [param read] value
 >     uses $0: entry -> %0 lend last
->   local $1 b: Ref[T] [param read] value
+>   local $1 b: &T [param read] value
 >     uses $1: entry -> %1 lend last
->   %0 = Read borrow [$0] : Ref[T]
->   %1 = Read borrow [$1] : Ref[T]
+>   %0 = Read borrow [$0] : &T
+>   %1 = Read borrow [$1] : &T
 >   %2 = Is %0 %1 : bool
 >   %3 = Block %2 : bool
 
@@ -34,9 +34,9 @@ fn take![T < 'static](value: T) -> T $ Clock:
 >   %3 = Retain %25 Materialize row #0 : ()
 >   %4 = Release %25 FrameDrop row #2 : ()
 >   %8 = Release %25 FrameDrop child #2 : ()
->   %9 = Ref local [$0] : Ref[T]
->   %10 = Coerce %9 [Weaken -] : Ref[T]
->   %11 = Ref local [$0] : Ref[T]
+>   %9 = Ref local [$0] : &T
+>   %10 = Coerce %9 [Weaken -] : &T
+>   %11 = Ref local [$0] : &T
 >   %12 = Call std/rt_tests.stage_case/same[T] (%10, %11) : bool
 >   %13 = Drop [%11] : ()
 >   %14 = Drop [%10] : ()
@@ -63,9 +63,9 @@ fn take![T < 'static](value: T) -> T $ Clock:
 >   %8 = Release %7 Operation local $0 #2 : ()
 fn stack[T](value: T) -> T:
     _ := same(&value, &value)
->   %1 = Ref local frame [$0] : Ref[T]
->   %2 = Coerce %1 [Weaken -] : Ref[T]
->   %3 = Ref local frame [$0] : Ref[T]
+>   %1 = Ref local frame [$0] : &T
+>   %2 = Coerce %1 [Weaken -] : &T
+>   %3 = Ref local frame [$0] : &T
 >   %4 = Call std/rt_tests.stage_case/same[T] (%2, %3) : bool
 >   %5 = Drop [%3] : ()
 >   %6 = Drop [%2] : ()

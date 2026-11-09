@@ -31,7 +31,7 @@ fn read_tag() -> usize $ Tag:
 >   local $0 $ref: string [read assigned captured captured-assigned] value
 >     uses $0: %5 -> %6 lend last
 >   %0 = ProviderGet #0 : Tag
->   %1 = Coerce %0 [ProviderAsRef -] : Ref[Tag]
+>   %1 = Coerce %0 [ProviderAsRef -] : &dyn Tag
 >   %2 = Read borrow [*%1] : Tag
 >   %3 = LoanEnd [%1] : ()
 >   %4 = Call app/main/Tag.name for Tag [] via TraitValue (%2) : string
@@ -59,13 +59,13 @@ fn by_value(s: string) -> usize:
 >   %3 = Store [$1] %2 : ()
 >   %4 = Read move [$1] : Named
 >   %5 = Store [$2] %4 : ()
->   %6 = Ref take mut [$2] : CountedMut[Named]
+>   %6 = Ref take mut [$2] : *mut Named
 >   %7 = Break L0 %6 : never
->   %8 = Block - : CountedMut[Named]
->   %9 = Scope %8 [] : CountedMut[Named]
+>   %8 = Block - : *mut Named
+>   %9 = Scope %8 [] : *mut Named
 >   %10 = Coerce %9 [RefToTraitValue -] : Tag
 >   %11 = Block %10 : Tag
->   %12 = RefDyn %11 : Counted[Tag]
+>   %12 = RefDyn %11 : *dyn Tag
 >   %13 = LoanEnd [%9] : ()
 >   %14 = Coerce %12 [RefAsProvider -] : Tag
 >   %15 = LoanEnd [%12] : ()
@@ -102,13 +102,13 @@ fn nested(a: string, b: string) -> usize:
 >   %4 = Store [$5] %3 : ()
 >   %5 = Read move [$5] : Named
 >   %6 = Store [$6] %5 : ()
->   %7 = Ref take mut [$6] : CountedMut[Named]
+>   %7 = Ref take mut [$6] : *mut Named
 >   %8 = Break L1 %7 : never
->   %9 = Block - : CountedMut[Named]
->   %10 = Scope %9 [] : CountedMut[Named]
+>   %9 = Block - : *mut Named
+>   %10 = Scope %9 [] : *mut Named
 >   %11 = Coerce %10 [RefToTraitValue -] : Tag
 >   %12 = Block %11 : Tag
->   %13 = RefDyn %12 : Counted[Tag]
+>   %13 = RefDyn %12 : *dyn Tag
 >   %14 = LoanEnd [%10] : ()
 >   %15 = Coerce %13 [RefAsProvider -] : Tag
 >   %16 = LoanEnd [%13] : ()
@@ -126,13 +126,13 @@ fn nested(a: string, b: string) -> usize:
 >   %21 = Store [$3] %20 : ()
 >   %22 = Read move [$3] : Named
 >   %23 = Store [$4] %22 : ()
->   %24 = Ref take mut [$4] : CountedMut[Named]
+>   %24 = Ref take mut [$4] : *mut Named
 >   %25 = Break L0 %24 : never
->   %26 = Block - : CountedMut[Named]
->   %27 = Scope %26 [] : CountedMut[Named]
+>   %26 = Block - : *mut Named
+>   %27 = Scope %26 [] : *mut Named
 >   %28 = Coerce %27 [RefToTraitValue -] : Tag
 >   %29 = Block %28 : Tag
->   %30 = RefDyn %29 : Counted[Tag]
+>   %30 = RefDyn %29 : *dyn Tag
 >   %31 = LoanEnd [%27] : ()
 >   %32 = Coerce %30 [RefAsProvider -] : Tag
 >   %33 = LoanEnd [%30] : ()
@@ -163,7 +163,7 @@ fn lexical(s: string) -> usize:
 > app/main/lexical
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %1 consume last
->   local $1 tag: Ref[Tag] [:= read assigned captured] value
+>   local $1 tag: &dyn Tag [:= read assigned captured] value
 >     uses $1: %19 -> %21 lend, %33 consume last
 >   local $2 $ref: string [read assigned captured captured-assigned] value
 >     uses $2: %25 -> %26 lend last
@@ -179,13 +179,13 @@ fn lexical(s: string) -> usize:
 >   %3 = Store [$5] %2 : ()
 >   %4 = Read move [$5] : Named
 >   %5 = Store [$6] %4 : ()
->   %6 = Ref take mut [$6] : CountedMut[Named]
+>   %6 = Ref take mut [$6] : *mut Named
 >   %7 = Break L2 %6 : never
->   %8 = Block - : CountedMut[Named]
->   %9 = Scope %8 [] : CountedMut[Named]
+>   %8 = Block - : *mut Named
+>   %9 = Scope %8 [] : *mut Named
 >   %10 = Coerce %9 [RefToTraitValue -] : Tag
 >   %11 = Block %10 : Tag
->   %12 = RefDyn %11 : Counted[Tag]
+>   %12 = RefDyn %11 : *dyn Tag
 >   %13 = LoanEnd [%9] : ()
 >   %14 = Coerce %12 [RefAsProvider -] : Tag
 >   %15 = LoanEnd [%12] : ()
@@ -196,7 +196,7 @@ fn lexical(s: string) -> usize:
         tag := $.use(Tag)
 >   %16 = ProviderGet #19 : Tag
 >   %17 = Retain %16 Value #0 : ()
->   %18 = Coerce %16 [ProviderAsRef -] : Ref[Tag]
+>   %18 = Coerce %16 [ProviderAsRef -] : &dyn Tag
 >   %19 = Store [$1] %18 : ()
 >   %42 = Block %40 : usize
         apply(fn() -> usize: tag.name().len())

@@ -20,15 +20,15 @@ struct DiskError:
 > app/main/error Error for SaveError.source
 >   local $1 $self: SaveError[error Error for SaveError#0] [assigned]
 >   local $2 $ref: DiskError [read assigned captured captured-assigned]
->   local $3 $ref: Counted[DiskError] [read assigned captured]
+>   local $3 $ref: *DiskError [read assigned captured]
 >   local $4 $ref: error Error for SaveError#0 [read assigned captured captured-assigned]
 >   local $5 $ref: DiskError [read assigned captured captured-assigned]
->   local $6 $ref: Counted[DiskError] [read assigned captured]
+>   local $6 $ref: *DiskError [read assigned captured]
 >   local $7 $ref: DiskError [read assigned captured captured-assigned]
->   local $8 $ref: Counted[DiskError] [read assigned captured]
+>   local $8 $ref: *DiskError [read assigned captured]
 >   %0 = Read [*$0] : SaveError[error Error for SaveError#0]
 >   %1 = Store [$1] %0 : ()
->   %50 = Block %49 : Counted[Error]?
+>   %50 = Block %49 : *dyn Error?
 > app/main/error From 0.0 for SaveError.from
 >   local $0 value: DiskError [param]
 >   %0 = Read [$0] : DiskError
@@ -40,70 +40,70 @@ enum SaveError[E]:
 >   %15 = Block %14 : string
 >   %16 = Read [$1] : SaveError[error Display for SaveError#0]
 >   %17 = SwitchTag %16 [#0 %2 %15] : string
->   %11 = Block %10 : Counted[Error]?
->   %47 = Block %46 : Counted[Error]?
+>   %11 = Block %10 : *dyn Error?
+>   %47 = Block %46 : *dyn Error?
 >   %48 = Read [$1] : SaveError[error Error for SaveError#0]
->   %49 = SwitchTag %48 [#0 %11 %47] : Counted[Error]?
+>   %49 = SwitchTag %48 [#0 %11 %47] : *dyn Error?
     Write(@from error: DiskError)
 >   %2 = Read [$1 as #0 .0] : DiskError
 >   %3 = Store [$2] %2 : ()
->   %4 = Ref [$2] : Counted[DiskError]
+>   %4 = Ref [$2] : *DiskError
 >   %5 = Store [$3] %4 : ()
->   %6 = Read [$3] : Counted[DiskError]
+>   %6 = Read [$3] : *DiskError
 >   %7 = Coerce %6 [RefToTraitValue -] : Error
 >   %8 = Block %7 : Error
->   %9 = RefDyn %8 : Counted[Error]
->   %10 = Coerce %9 [WrapSome -] : Counted[Error]?
+>   %9 = RefDyn %8 : *dyn Error
+>   %10 = Coerce %9 [WrapSome -] : *dyn Error?
     @error(transparent)
 >   %7 = Block %6 : string
 >   %12 = Block %11 : string
 >   %13 = Read [$1] : SaveError[error Display for SaveError#0]
 >   %14 = SwitchTag %13 [#1 %7 %12] : string
->   %16 = Block %15 : Counted[Error]?
->   %44 = Block %43 : Counted[Error]?
+>   %16 = Block %15 : *dyn Error?
+>   %44 = Block %43 : *dyn Error?
 >   %45 = Read [$1] : SaveError[error Error for SaveError#0]
->   %46 = SwitchTag %45 [#1 %16 %44] : Counted[Error]?
+>   %46 = SwitchTag %45 [#1 %16 %44] : *dyn Error?
     Wrap(@source inner: E)
 >   %3 = Read [$1 as #1 .0] : error Display for SaveError#0
 >   %4 = Store [$2] %3 : ()
->   %5 = Ref local [$2] : Ref[error Display for SaveError#0]
+>   %5 = Ref local [$2] : &error Display for SaveError#0
 >   %6 = Call std/format/Display.to_string for error Display for SaveError#0 [] via Bound (%5) : string
 >   %12 = Read [$1 as #1 .0] : error Error for SaveError#0
 >   %13 = Store [$4] %12 : ()
->   %14 = Ref local [$4] : Ref[error Error for SaveError#0]
->   %15 = Call std/error/Error.source for error Error for SaveError#0 [] via Bound (%14) : Counted[Error]?
+>   %14 = Ref local [$4] : &error Error for SaveError#0
+>   %15 = Call std/error/Error.source for error Error for SaveError#0 [] via Bound (%14) : *dyn Error?
     @error("two")
 >   %8 = Block "two" : string
 >   %9 = Block "opt" : string
 >   %10 = Read [$1] : SaveError[error Display for SaveError#0]
 >   %11 = SwitchTag %10 [#2 %8 %9] : string
->   %26 = Block %25 : Counted[Error]?
->   %41 = Block %40 : Counted[Error]?
+>   %26 = Block %25 : *dyn Error?
+>   %41 = Block %40 : *dyn Error?
 >   %42 = Read [$1] : SaveError[error Error for SaveError#0]
->   %43 = SwitchTag %42 [#2 %26 %41] : Counted[Error]?
+>   %43 = SwitchTag %42 [#2 %26 %41] : *dyn Error?
     Pair(a: string, @source b: DiskError)
 >   %17 = Read [$1 as #2 .1] : DiskError
 >   %18 = Store [$5] %17 : ()
->   %19 = Ref [$5] : Counted[DiskError]
+>   %19 = Ref [$5] : *DiskError
 >   %20 = Store [$6] %19 : ()
->   %21 = Read [$6] : Counted[DiskError]
+>   %21 = Read [$6] : *DiskError
 >   %22 = Coerce %21 [RefToTraitValue -] : Error
 >   %23 = Block %22 : Error
->   %24 = RefDyn %23 : Counted[Error]
->   %25 = Coerce %24 [WrapSome -] : Counted[Error]?
+>   %24 = RefDyn %23 : *dyn Error
+>   %25 = Coerce %24 [WrapSome -] : *dyn Error?
     @error("opt")
     Opt(@source c: DiskError?)
 >   %27 = Read [$1 as #3 .0] : DiskError?
 >   %28 = Read [%27 as #1 .0] : DiskError
 >   %29 = Store [$7] %28 : ()
->   %30 = Ref [$7] : Counted[DiskError]
+>   %30 = Ref [$7] : *DiskError
 >   %31 = Store [$8] %30 : ()
->   %32 = Read [$8] : Counted[DiskError]
+>   %32 = Read [$8] : *DiskError
 >   %33 = Coerce %32 [RefToTraitValue -] : Error
 >   %34 = Block %33 : Error
->   %35 = RefDyn %34 : Counted[Error]
->   %36 = Coerce %35 [WrapSome -] : Counted[Error]?
->   %37 = Block %36 : Counted[Error]?
->   %38 = NewVariant #0 [] : Counted[Error]?
->   %39 = Block %38 : Counted[Error]?
->   %40 = SwitchTag %27 [#1 %37 %39] : Counted[Error]?
+>   %35 = RefDyn %34 : *dyn Error
+>   %36 = Coerce %35 [WrapSome -] : *dyn Error?
+>   %37 = Block %36 : *dyn Error?
+>   %38 = NewVariant #0 [] : *dyn Error?
+>   %39 = Block %38 : *dyn Error?
+>   %40 = SwitchTag %27 [#1 %37 %39] : *dyn Error?

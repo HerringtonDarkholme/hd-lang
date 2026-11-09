@@ -56,7 +56,7 @@ fn uniq(xs: UniqList[string], s: string) -> UniqList[string]:
 >   %1 = Store [$2] %0 : ()
 >   %6 = Block %5 : UniqList[string]
     ys.push(s)
->   %2 = Ref mut local [$2] : RefMut[UniqList[string]]
+>   %2 = Ref mut local [$2] : &mut UniqList[string]
 >   %3 = Read [$1] : string
 >   %4 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].push[string] (%2, %3) : ()
     ys
@@ -74,18 +74,18 @@ fn grow(c: &mut Photo, s: string) -> void:
 fn reborrow(c: &mut Photo, s: string, t: string) -> void:
     grow(c, s)
 > app/main/reborrow
->   local $0 c: RefMut[Photo] [param read]
+>   local $0 c: &mut Photo [param read]
 >   local $1 s: string [param read]
 >   local $2 t: string [param read]
->   local $3 d: RefMut[Photo] [:= read assigned]
->   %0 = Read [$0] : RefMut[Photo]
+>   local $3 d: &mut Photo [:= read assigned]
+>   %0 = Read [$0] : &mut Photo
 >   %1 = Read [$1] : string
 >   %2 = Call app/main/grow[] (%0, %1) : ()
 >   %8 = Block - : ()
     d := c
->   %3 = Read [$0] : RefMut[Photo]
+>   %3 = Read [$0] : &mut Photo
 >   %4 = Store [$3] %3 : ()
     grow(d, t)
->   %5 = Read [$3] : RefMut[Photo]
+>   %5 = Read [$3] : &mut Photo
 >   %6 = Read [$2] : string
 >   %7 = Call app/main/grow[] (%5, %6) : ()

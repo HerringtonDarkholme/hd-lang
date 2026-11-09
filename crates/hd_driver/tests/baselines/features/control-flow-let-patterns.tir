@@ -25,7 +25,7 @@ fn read_user(u: User) -> usize:
 >   %8 = Match %0 [%7 %1] : ()
 >   %14 = Block %13 : usize
     name.len() + tags.len()
->   %9 = Ref local [$1] : Ref[string]
+>   %9 = Ref local [$1] : &string
 >   %10 = Call std/text/impl string.len[] (%9) : usize
 >   %11 = Read [$2] : List[string]
 >   %12 = Intrinsic ListLen [%11] : usize
@@ -62,9 +62,9 @@ fn pair(p: (string, string)) -> usize:
 >   %8 = Match %0 [%7 %1] : ()
 >   %14 = Block %13 : usize
     a.len() + b.len()
->   %9 = Ref local [$1] : Ref[string]
+>   %9 = Ref local [$1] : &string
 >   %10 = Call std/text/impl string.len[] (%9) : usize
->   %11 = Ref local [$2] : Ref[string]
+>   %11 = Ref local [$2] : &string
 >   %12 = Call std/text/impl string.len[] (%11) : usize
 >   %13 = Prim Add [%10 %12] : usize
 
@@ -87,5 +87,5 @@ fn present(o: string?) -> usize:
         return 0
 >   %2 = Return 0:usize : never
     s.len()
->   %13 = Ref local [$1] : Ref[string]
+>   %13 = Ref local [$1] : &string
 >   %14 = Call std/text/impl string.len[] (%13) : usize

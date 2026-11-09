@@ -46,13 +46,13 @@ fn trailing(s: string) -> usize:
     measure("t"):
 >   %8 = Store [$1] "t" : ()
 >   %9 = Store [$2] %6 : ()
->   %10 = Ref local frame [$1] : Ref[string]
+>   %10 = Ref local frame [$1] : &string
 >   %11 = Call std/text/impl string.len[] (%10) : usize
 >   %12 = LoanEnd [%10] : ()
 >   %13 = Read borrow [$2] : fn() -> string
 >   %14 = CallValue %13 [] : string
 >   %15 = Store [$3] %14 : ()
->   %16 = Ref local frame [$3] : Ref[string]
+>   %16 = Ref local frame [$3] : &string
 >   %17 = Call std/text/impl string.len[] (%16) : usize
 >   %18 = LoanEnd [%16] : ()
 >   %19 = Drop [$3] : ()

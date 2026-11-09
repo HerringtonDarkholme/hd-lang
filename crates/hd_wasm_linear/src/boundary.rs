@@ -199,7 +199,6 @@ fn of_at(
     // A data type with a field that is not `pub` crosses a profile's
     // boundary as the string of its std host codec.
     if let (TyData::Adt { def, .. }, Some(at)) = (pool.get(s), at)
-        && !env.ref_cells().holds(def)
         && env.has_private_field(def)
     {
         return codec(input, t, s, at);
@@ -234,10 +233,9 @@ fn of_at(
                 LTy::Record(fields)
             }
         }
-        TyData::Adt { def, args } if env.ref_cells().holds(def) => {
+        TyData::Ref { inner, .. } => {
             // A trait value reference to a host handle: the handle,
             // behind the reference the `host_provider` instance makes.
-            let inner = pool.list_items(args).first().copied().unwrap_or(Ty::VOID);
             let inner = layout::strip(pool, env, inner);
             let wrap = input.collected.boundary.get(&t).and_then(|c| c.handle_ref);
             match (of_at(input, m, inner, depth + 1, at)?, wrap) {
@@ -2014,16 +2012,13 @@ fn package_value(input: &Input<'_>, t: Ty, depth: u32) -> StageResult<hd_host_ab
         return fail();
     }
     let s = layout::strip(pool, env, t);
-    if let TyData::Adt { def, args } = pool.get(s) {
-        if env.ref_cells().holds(def) {
-            let Some(&inner) = pool.list_items(args).first() else {
-                return fail();
-            };
-            return package_value(input, inner, depth + 1);
-        }
-        if env.has_private_field(def) {
-            return Ok(Value::Json);
-        }
+    if let TyData::Ref { inner, .. } = pool.get(s) {
+        return package_value(input, inner, depth + 1);
+    }
+    if let TyData::Adt { def, .. } = pool.get(s)
+        && env.has_private_field(def)
+    {
+        return Ok(Value::Json);
     }
     let int = |bits, signed| Value::Int { bits, signed };
     Ok(match pool.get(s) {

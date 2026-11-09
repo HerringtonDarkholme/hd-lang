@@ -18,7 +18,7 @@ fn bind(s: string) -> usize:
 >   %2 = Read [$1] : string
 >   %3 = Store [$2] %2 : ()
     u.len()
->   %4 = Ref local [$2] : Ref[string]
+>   %4 = Ref local [$2] : &string
 >   %5 = Call std/text/impl string.len[] (%4) : usize
 
 fn bind_twice(xs: List[string]) -> usize:

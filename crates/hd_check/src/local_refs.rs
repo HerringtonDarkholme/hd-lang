@@ -7,9 +7,8 @@
 //! result may hold one, whose source its signature elides
 //! ([`declarations`], `crate::dep_results`).
 //!
-//! Both kinds have one layout (`ref.type.local-uncounted`): they
-//! lower to `Ref[T]` and `Counted[T]` (`hd_types::Types::lower_refs`),
-//! which differ only in what the backend knows of the address, so
+//! Both kinds have one layout (`ref.type.local-uncounted`): they differ
+//! only in what the backend knows of the address, so
 //! nothing here changes the body's code. Three checks cover the positions:
 //! [`declarations`] reads the written types of a module, `coerce` reports
 //! a local reference where a counted one is expected

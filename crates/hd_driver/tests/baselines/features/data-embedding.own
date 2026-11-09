@@ -13,7 +13,7 @@ impl Stamp:
     pub fn by_len(&self) -> usize:
         self.by.len()
 > app/main/impl Stamp.by_len
->   local $0 self: Ref[Stamp] [param read] value
+>   local $0 self: &Stamp [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 self: string [read] value
 >     uses $1: %1 -> %2 lend last
@@ -96,7 +96,7 @@ fn promoted(p: Post) -> usize:
 fn stamp_of(p: &Post) -> Stamp:
     p.Stamp
 > app/main/stamp_of
->   local $0 p: Ref[Post] [param read] value
+>   local $0 p: &Post [param read] value
 >     uses $0: entry -> %0 lend last
 >   %0 = Read copy [*$0 .Stamp] : Stamp
 >   %1 = Block %0 : Stamp

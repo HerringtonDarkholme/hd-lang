@@ -45,22 +45,22 @@ fn must(s: string, n: i32) -> usize:
 >   %12 = Call std/core/panic[] (%9) : never
 >   %13 = Block - : never
     t.len()
->   %15 = Ref local [$2] : Ref[string]
+>   %15 = Ref local [$2] : &string
 >   %16 = Call std/text/impl string.len[] (%15) : usize
 
 fn guarded(log: *mut List[string], s: string, n: i32) -> usize:
     using r = Res { name: s + "?", log: log }
 > app/main/guarded
->   local $0 log: CountedMut[List[string]] [param read]
+>   local $0 log: *mut List[string] [param read]
 >   local $1 s: string [param read]
 >   local $2 n: i32 [param read]
 >   local $3 r: Res [:= read assigned captured captured-assigned]
 >   %0 = Read [$1] : string
 >   %1 = Intrinsic StrConcat [%0 "?"] : string
->   %2 = Read [$0] : CountedMut[List[string]]
+>   %2 = Read [$0] : *mut List[string]
 >   %3 = NewStruct [%1 %2] : Res
 >   %4 = Store [$3] %3 : ()
->   %5 = Ref mut local [$3] : RefMut[Res]
+>   %5 = Ref mut local [$3] : &mut Res
 >   %6 = Call std/ops/Disposable.dispose for Res [$()] via Impl (%5) : ()
 >   %7 = Block - : ()
 >   %8 = Defer #7 : ()
@@ -75,5 +75,5 @@ fn guarded(log: *mut List[string], s: string, n: i32) -> usize:
 >   %11 = Call std/core/panic[] ("negative") : never
 >   %12 = Block - : never
     r.name.len()
->   %14 = Ref local [$3 .name] : Ref[string]
+>   %14 = Ref local [$3 .name] : &string
 >   %15 = Call std/text/impl string.len[] (%14) : usize

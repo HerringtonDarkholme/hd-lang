@@ -21,7 +21,7 @@ fn total(t: (string, List[string]...)) -> usize:
 >   %8 = Match %0 [%7 %1] : ()
 >   %14 = Block %13 : usize
     a.len() + xs.len()
->   %9 = Ref local [$1] : Ref[string]
+>   %9 = Ref local [$1] : &string
 >   %10 = Call std/text/impl string.len[] (%9) : usize
 >   %11 = Read [$2] : List[string]
 >   %12 = Intrinsic ListLen [%11] : usize

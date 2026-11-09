@@ -104,18 +104,11 @@ fn type_of(b: &Body, w: u32) -> Option<Ty> {
 }
 
 /// The type a dereference of a value of type `t` reaches: a reference's
-/// referent, before or after the checker lowers it to `std.core.Ref[T]`;
-/// a compiler-supplied data object's payload is the object's own type.
+/// referent; a compiler-supplied data object's payload is the object's own
+/// type.
 fn deref_ty(names: &Names<'_>, t: Ty) -> Ty {
-    use hd_types::TyData;
-    let strip = |t: Ty| t;
-    match names.pool.get(strip(t)) {
-        TyData::Ref { inner, .. } => inner,
-        TyData::Adt { def, args } if names.known.ref_cells().holds(def) => names
-            .pool
-            .list_items(args)
-            .first()
-            .map_or(t, |inner| strip(*inner)),
+    match names.pool.get(t) {
+        hd_types::TyData::Ref { inner, .. } => inner,
         _ => t,
     }
 }

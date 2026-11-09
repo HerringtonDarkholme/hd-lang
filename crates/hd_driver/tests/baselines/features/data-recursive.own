@@ -11,7 +11,7 @@ struct Chain:
 
 fn push_front(head: *Chain?, name: string) -> *Chain:
 > app/main/push_front
->   local $0 head: Counted[Chain]? [param read] value
+>   local $0 head: *Chain? [param read] value
 >     uses $0: entry -> %3 consume last
 >   local $1 name: string [param read] value
 >     uses $1: entry -> %2 consume last
@@ -20,12 +20,12 @@ fn push_front(head: *Chain?, name: string) -> *Chain:
 >   %1 = Retain %8 Entry local $1 #0 : ()
     box(Chain { name: name, next: head })
 >   %2 = Read move [$1] : string
->   %3 = Read move [$0] : Counted[Chain]?
+>   %3 = Read move [$0] : *Chain?
 >   %4 = NewStruct [%2 %3] : Chain
 >   %5 = Store [$2] %4 : ()
->   %6 = Ref take mut [$2] : CountedMut[Chain]
->   %7 = Coerce %6 [Weaken -] : Counted[Chain]
->   %8 = Block %7 : Counted[Chain]
+>   %6 = Ref take mut [$2] : *mut Chain
+>   %7 = Coerce %6 [Weaken -] : *Chain
+>   %8 = Block %7 : *Chain
 >   %6 finds [$2] full
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $2 cell
@@ -33,11 +33,11 @@ fn push_front(head: *Chain?, name: string) -> *Chain:
 
 fn total(head: *Chain?) -> usize:
 > app/main/total
->   local $0 head: Counted[Chain]? [param read] value
+>   local $0 head: *Chain? [param read] value
 >     uses $0: entry -> %2 consume last
 >   local $1 n: usize [read assigned mutated] place
->   local $2 cur: Counted[Chain]? [read assigned mutated] place
->   local $3 c: Counted[Chain] [read assigned] value
+>   local $2 cur: *Chain? [read assigned mutated] place
+>   local $3 c: *Chain [read assigned] value
 >     uses $3: %23 -> %6 lend, %16 lend last
 >   local $4 self: string [read] value
 >     uses $4: %7 -> %9 lend last
@@ -46,7 +46,7 @@ fn total(head: *Chain?) -> usize:
 >   %1 = Store [$1] 0:usize : ()
 >   %44 = Block %43 : usize
     let cur = head
->   %2 = Read move [$0] : Counted[Chain]?
+>   %2 = Read move [$0] : *Chain?
 >   %3 = Store [$2] %2 : ()
     while true:
 >   %37 = Break L0 - : never
@@ -56,12 +56,12 @@ fn total(head: *Chain?) -> usize:
 >   %41 = Loop %40 - : ()
 >   %42 = Drop [$2] : ()
         match cur:
->   %4 = Read borrow [$2] : Counted[Chain]?
+>   %4 = Read borrow [$2] : *Chain?
 >   %34 = Block - : never
 >   %35 = Match %4 [%34 %19 %21] : ()
 >   %36 = Block - : ()
             .Some(c) =>
->   %22 = Read borrow [%4 as #1 .0] : Counted[Chain]
+>   %22 = Read borrow [%4 as #1 .0] : *Chain
 >   %23 = Store [$3] %22 : ()
 >   %24 = Release %23 Operation #3 : ()
 >   %26 = Block - : never
@@ -81,7 +81,7 @@ fn total(head: *Chain?) -> usize:
 >   %15 = Store [$1] %14 : ()
 >   %19 = Block - : ()
                 cur = c.next
->   %16 = Read copy [*$3 .next] : Counted[Chain]?
+>   %16 = Read copy [*$3 .next] : *Chain?
 >   %17 = Store [$2] %16 : ()
 >   %18 = Release %17 Operation #3 : ()
             .None => break

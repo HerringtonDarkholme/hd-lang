@@ -1996,26 +1996,24 @@ references, and open values.
   counted through the page table. On json at 6,000 records this moved 846,000 of
   3,450,000 page-table counts to the known path, with the count total
   unchanged.
-- **Counted references** (#988). Every counted reference refers to a
-  whole object (`ref.box.object`), so `*T` and `*mut T` lower to a
-  carrier of their own, `std.core.Counted[T]`, and `&T` and `&mut T` to
-  `std.core.Ref[T]` (`hd_types::Types::lower_refs`). A thin counted
-  reference is null or a payload start in every build: its walk is
-  `Walk::Known` and `block_start` holds. A local reference may point
+- **Counted references** (#988, #1444). Every counted reference refers
+  to a whole object (`ref.box.object`), and each reference type keeps its
+  kind, `TyData::Ref { counted, .. }`, through every stage to this
+  backend, whose `layout::kind` reads it as `Kind::Ref { whole }`. A thin
+  counted reference is null or a payload start in every build: its walk
+  is `Walk::Known` and `block_start` holds. A local reference may point
   inside an object (a field, an element), so a local `&T` value keeps
-  the page-table path. The checker keeps the counted carrier whole
+  the page-table path. The checker keeps a counted reference whole
   (`hd_check`'s `lower_body_refs`):
-  - each `Ref` lowers by its place: a local's or a value's own storage
-    (a cell, or a frame slot with its zero count word, §23.38) or what a
-    counted reference refers to is a whole object, so even `&mut x` and a
-    call receiver's address count the header; a place inside an object,
-    such as a call receiver's field, lowers as a local reference;
+  - it makes a counted `Ref` only for a whole object: a local's or a
+    value's own storage (a cell, or a frame slot with its zero count
+    word, §23.38) or what a counted reference refers to; a place inside
+    an object, such as a call receiver's field, is a local reference;
   - a counted value stored in a local reference's local, or given as a
     block's value, takes the local type, since a lend changes nothing at
     run time;
   - an implementation on a reference type covers only its declared kind
-    (`ref.type.kind-impl`), so its head, signatures and bodies lower each
-    reference by the kind they write.
+    (`ref.type.kind-impl`), as its head, signatures and bodies write it.
 - **Checked proofs.** Checked mode verifies that every claimed payload
   start agrees with `block_of`, then performs the existing audited count
   update. An incorrect proof fails even when the ordinary count would

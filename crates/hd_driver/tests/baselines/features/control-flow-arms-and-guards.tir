@@ -22,7 +22,7 @@ fn pick(t: Tag) -> string:
 >   %43 = Match %0 [%42 %6 %14 %16 %17] : string
 >   %44 = Block %43 : string
         .Named(n) if n.len() > 3 => n
->   %1 = Ref local [$1] : Ref[string]
+>   %1 = Ref local [$1] : &string
 >   %2 = Call std/text/impl string.len[] (%1) : usize
 >   %3 = Prim Gt [%2 3:usize] : bool
 >   %4 = Block %3 : bool
@@ -34,9 +34,9 @@ fn pick(t: Tag) -> string:
 >   %40 = Block - : never
 >   %41 = SwitchTag %0 [#0 %25 %40] : never
         .Pair(right = r, left = l) if l.len() > r.len() => l
->   %7 = Ref local [$2] : Ref[string]
+>   %7 = Ref local [$2] : &string
 >   %8 = Call std/text/impl string.len[] (%7) : usize
->   %9 = Ref local [$3] : Ref[string]
+>   %9 = Ref local [$3] : &string
 >   %10 = Call std/text/impl string.len[] (%9) : usize
 >   %11 = Prim Gt [%8 %10] : bool
 >   %12 = Block %11 : bool
@@ -67,11 +67,11 @@ fn whole(o: string?) -> usize:
 >   %28 = Match %0 [%27 %7 %13] : usize
 >   %29 = Block %28 : usize
         .Some(s) if s.len() > 0 => s.len()
->   %1 = Ref local [$1] : Ref[string]
+>   %1 = Ref local [$1] : &string
 >   %2 = Call std/text/impl string.len[] (%1) : usize
 >   %3 = Prim Gt [%2 0:usize] : bool
 >   %4 = Block %3 : bool
->   %5 = Ref local [$1] : Ref[string]
+>   %5 = Ref local [$1] : &string
 >   %6 = Call std/text/impl string.len[] (%5) : usize
 >   %7 = Block %6 : usize
 >   %14 = Read [%0 as #1 .0] : string
@@ -83,7 +83,7 @@ fn whole(o: string?) -> usize:
 >   %18 = Store [$2] %0 : ()
 >   %23 = Store [$2] %0 : ()
             if other.is_some(): 1 else: 0
->   %8 = Ref local [$2] : Ref[string?]
+>   %8 = Ref local [$2] : &string?
 >   %9 = Call std/option/impl [ T < ? Copy ] T ?.is_some[string] (%8) : bool
 >   %10 = Block 1:usize : usize
 >   %11 = Block 0:usize : usize

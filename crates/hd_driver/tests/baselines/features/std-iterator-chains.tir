@@ -13,7 +13,7 @@ fn lens(xs: List[string]) -> List[usize]:
 >   local $1 s: string [param read captured]
 >   %0 = Read [$0] : List[string]
 >   %1 = Call std/iter/Iterable.iter for List[string] [string] via Impl (%0) : ListIter[string]
->   %2 = Ref local [$1] : Ref[string]
+>   %2 = Ref local [$1] : &string
 >   %3 = Call std/text/impl string.len[] (%2) : usize
 >   %4 = Block %3 : usize
 >   %5 = Closure #1 [%0 %0] : fn(string) -> usize
@@ -25,20 +25,20 @@ fn loud(xs: List[string]) -> List[string]:
     xs.iter()
 > app/main/loud
 >   local $0 xs: List[string] [param read]
->   local $1 s: Ref[string] [param read]
+>   local $1 s: &string [param read]
 >   local $2 s: string [param read]
 >   %0 = Read [$0] : List[string]
 >   %1 = Call std/iter/Iterable.iter for List[string] [string] via Impl (%0) : ListIter[string]
->   %7 = Call std/iter/Iterator.filter for ListIter[string] [string, fn(Ref[string]) -> bool] via Impl (%1, %6) : Filter[ListIter[string], string, fn(Ref[string]) -> bool]
->   %12 = Call std/iter/Iterator.map for Filter[ListIter[string], string, fn(Ref[string]) -> bool] [string, string, fn(string) -> string] via Impl (%7, %11) : MapIter[Filter[ListIter[string], string, fn(Ref[string]) -> bool], string, string, fn(string) -> string]
->   %13 = Call std/iter/Iterator.collect for MapIter[Filter[ListIter[string], string, fn(Ref[string]) -> bool], string, string, fn(string) -> string] [string, List[string]] via Impl (%12) : List[string]
+>   %7 = Call std/iter/Iterator.filter for ListIter[string] [string, fn(&string) -> bool] via Impl (%1, %6) : Filter[ListIter[string], string, fn(&string) -> bool]
+>   %12 = Call std/iter/Iterator.map for Filter[ListIter[string], string, fn(&string) -> bool] [string, string, fn(string) -> string] via Impl (%7, %11) : MapIter[Filter[ListIter[string], string, fn(&string) -> bool], string, string, fn(string) -> string]
+>   %13 = Call std/iter/Iterator.collect for MapIter[Filter[ListIter[string], string, fn(&string) -> bool], string, string, fn(string) -> string] [string, List[string]] via Impl (%12) : List[string]
 >   %14 = Block %13 : List[string]
         .filter(fn(s: &string) -> bool: s.len() > 2)
->   %2 = Read [$1] : Ref[string]
+>   %2 = Read [$1] : &string
 >   %3 = Call std/text/impl string.len[] (%2) : usize
 >   %4 = Prim Gt [%3 2:usize] : bool
 >   %5 = Block %4 : bool
->   %6 = Closure #1 [%0 %0] : fn(Ref[string]) -> bool
+>   %6 = Closure #1 [%0 %0] : fn(&string) -> bool
         .map(fn(s: string) -> string: s + "!")
 >   %8 = Read [$2] : string
 >   %9 = Intrinsic StrConcat [%8 "!"] : string

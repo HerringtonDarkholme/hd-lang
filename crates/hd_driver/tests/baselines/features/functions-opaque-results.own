@@ -7,7 +7,7 @@
 fn names(xs: &List[string]) -> impl Iterator[string]:
     xs.iter()
 > app/main/names
->   local $0 xs: Ref[List[string]] [param read] value
+>   local $0 xs: &List[string] [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 self: List[string] [read] value
 >     uses $1: %1 -> %2 consume last
@@ -27,7 +27,7 @@ fn count_long(xs: List[string]) -> usize:
 >     uses $0: entry -> %2 consume last
 >   local $1 n: usize [read assigned mutated] place
 >   local $2 $ref: ListIter[string] [read assigned captured captured-assigned] place
->   local $3 $iter: RefMut[ListIter[string]] [assigned] value
+>   local $3 $iter: &mut ListIter[string] [assigned] value
 >     uses $3: %12 -> %13 lend
 >   local $4 x: string [read assigned] value
 >     uses $4: %28 -> %16 lend last
@@ -45,9 +45,9 @@ fn count_long(xs: List[string]) -> usize:
 >   %8 = Block - : ListIter[string]
 >   %9 = Scope %8 [] : ListIter[string]
 >   %10 = Store [$2] %9 : ()
->   %11 = Ref mut local frame [$2] : RefMut[ListIter[string]]
+>   %11 = Ref mut local frame [$2] : &mut ListIter[string]
 >   %12 = Store [$3] %11 : ()
->   %13 = Read borrow [$3] : RefMut[ListIter[string]]
+>   %13 = Read borrow [$3] : &mut ListIter[string]
 >   %14 = Call std/iter/Iterator.next for ListIter[string] [string] via Bound (%13) : string?
 >   %23 = Block - : ()
 >   %24 = Drop [%14] : ()

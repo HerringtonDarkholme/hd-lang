@@ -9,29 +9,29 @@ struct User:
 fn same_ref(a: &User, b: &User) -> bool:
     a is b
 > app/main/same_ref
->   local $0 a: Ref[User] [param read]
->   local $1 b: Ref[User] [param read]
->   %0 = Read [$0] : Ref[User]
->   %1 = Read [$1] : Ref[User]
+>   local $0 a: &User [param read]
+>   local $1 b: &User [param read]
+>   %0 = Read [$0] : &User
+>   %1 = Read [$1] : &User
 >   %2 = Is %0 %1 : bool
 >   %3 = Block %2 : bool
 
 fn same_box(a: *User, b: *User) -> bool:
     a is b
 > app/main/same_box
->   local $0 a: Counted[User] [param read]
->   local $1 b: Counted[User] [param read]
->   %0 = Read [$0] : Counted[User]
->   %1 = Read [$1] : Counted[User]
+>   local $0 a: *User [param read]
+>   local $1 b: *User [param read]
+>   %0 = Read [$0] : *User
+>   %1 = Read [$1] : *User
 >   %2 = Is %0 %1 : bool
 >   %3 = Block %2 : bool
 
 fn mixed(a: *mut User, b: *User) -> bool:
     a is b
 > app/main/mixed
->   local $0 a: CountedMut[User] [param read]
->   local $1 b: Counted[User] [param read]
->   %0 = Read [$0] : CountedMut[User]
->   %1 = Read [$1] : Counted[User]
+>   local $0 a: *mut User [param read]
+>   local $1 b: *User [param read]
+>   %0 = Read [$0] : *mut User
+>   %1 = Read [$1] : *User
 >   %2 = Is %0 %1 : bool
 >   %3 = Block %2 : bool

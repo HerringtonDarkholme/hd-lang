@@ -21,7 +21,7 @@ fn construct(key: string) -> usize:
 >   %1 = Call app/main/fetch[] (%0) : Suspend[string]
 >   %4 = Block %3 : usize
     key.len()
->   %2 = Ref local [$0] : Ref[string]
+>   %2 = Ref local [$0] : &string
 >   %3 = Call std/text/impl string.len[] (%2) : usize
 
 fn run_twice!(body: fn!() -> string) -> usize:
@@ -34,13 +34,13 @@ fn run_twice!(body: fn!() -> string) -> usize:
 >   %1 = CallValue %0 [] : Suspend[string]
 >   %2 = AwaitValue %1 : string
 >   %3 = Store [$1] %2 : ()
->   %4 = Ref local [$1] : Ref[string]
+>   %4 = Ref local [$1] : &string
 >   %5 = Call std/text/impl string.len[] (%4) : usize
 >   %6 = Read [$0] : fn!() -> string
 >   %7 = CallValue %6 [] : Suspend[string]
 >   %8 = AwaitValue %7 : string
 >   %9 = Store [$2] %8 : ()
->   %10 = Ref local [$2] : Ref[string]
+>   %10 = Ref local [$2] : &string
 >   %11 = Call std/text/impl string.len[] (%10) : usize
 >   %12 = Prim Add [%5 %11] : usize
 >   %13 = Block %12 : usize
@@ -76,5 +76,5 @@ fn stored!(key: string) -> usize:
 >   %7 = CallValue %5 [%6] : Suspend[string]
 >   %8 = AwaitValue %7 : string
 >   %9 = Store [$3] %8 : ()
->   %10 = Ref local [$3] : Ref[string]
+>   %10 = Ref local [$3] : &string
 >   %11 = Call std/text/impl string.len[] (%10) : usize

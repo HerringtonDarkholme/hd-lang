@@ -39,7 +39,7 @@ fn lbl(n: i64) -> Label:
 >     uses $9: %5 -> %6 consume last
 >   local $10 value: i64 [read] value
 >     uses $10: %7 -> %8 lend, %11 lend last
->   %0 = Ref local frame [$0] : Ref[i64]
+>   %0 = Ref local frame [$0] : &i64
 >   %1 = Read copy [*%0] : i64
 >   %2 = LoanEnd [%0] : ()
 >   %3 = Prim Conv [%1] : i64
@@ -145,7 +145,7 @@ fn suffixed() -> Label:
 > app/main/suffixed
 >   local $0 n: i64 [read captured] place
 >   %0 = Store [$0] 12:i64 : ()
->   %1 = Ref local frame [$0] : Ref[i64]
+>   %1 = Ref local frame [$0] : &i64
 >   %2 = Read copy [*%1] : i64
 >   %3 = LoanEnd [%1] : ()
 >   %4 = Prim Conv [%2] : i64

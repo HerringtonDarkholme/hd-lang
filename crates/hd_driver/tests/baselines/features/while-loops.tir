@@ -27,7 +27,7 @@ fn count_while(xs: List[string]) -> usize:
         n += xs[i].len()
 >   %6 = Read [$2] : usize
 >   %7 = Read [$1] : usize
->   %8 = Ref local [$0 [%7]] : Ref[string]
+>   %8 = Ref local [$0 [%7]] : &string
 >   %9 = Call std/text/impl string.len[] (%8) : usize
 >   %10 = Prim Add [%6 %9] : usize
 >   %11 = Store [$2] %10 : ()

@@ -20,7 +20,7 @@ struct Keep:
 impl Sink for Count:
     fn put(&mut self, m: Member) -> void:
 > app/main/impl Sink for Count.put
->   local $0 self: RefMut[Count] [param read] value
+>   local $0 self: &mut Count [param read] value
 >     uses $0: entry -> %3 lend, %5 lend last
 >   local $1 m: Member [param read] value
 >     uses $1: entry -> %1 lend last
@@ -40,7 +40,7 @@ impl Sink for Count:
 impl Sink for Keep:
     fn put(&mut self, m: Member) -> void:
 > app/main/impl Sink for Keep.put
->   local $0 self: RefMut[Keep] [param read] value
+>   local $0 self: &mut Keep [param read] value
 >     uses $0: entry -> %3 lend last
 >   local $1 m: Member [param read] value
 >     uses $1: entry -> %1 consume last
@@ -56,7 +56,7 @@ impl Sink for Keep:
 
 fn emit(s: &mut dyn Sink, m: Member) -> void:
 > app/main/emit
->   local $0 s: RefMut[Sink] [param read] value
+>   local $0 s: &mut dyn Sink [param read] value
 >     uses $0: entry -> %1 lend last
 >   local $1 m: Member [param read] value
 >     uses $1: entry -> %2 lend last

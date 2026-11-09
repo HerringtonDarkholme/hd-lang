@@ -8,7 +8,7 @@
 fn fill(xs: &mut List[i32], n: i32) -> i32:
     let mut i = +0
 > app/main/fill
->   local $0 xs: RefMut[List[i32]] [param read] value
+>   local $0 xs: &mut List[i32] [param read] value
 >     uses $0: entry -> %11 lend
 >   local $1 n: i32 [param read] value
 >     uses $1: entry -> %3 lend

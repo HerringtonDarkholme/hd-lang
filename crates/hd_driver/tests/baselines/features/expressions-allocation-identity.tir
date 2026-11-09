@@ -20,28 +20,28 @@ impl Named for User:
 fn same_dyn(user: &mut User) -> bool:
     let first: &mut dyn Named = user
 > app/main/same_dyn
->   local $0 user: RefMut[User] [param read]
->   local $1 $ref: RefMut[User] [read assigned captured]
->   local $2 first: RefMut[Named] [read assigned]
->   local $3 $ref: RefMut[User] [read assigned captured]
->   local $4 second: RefMut[Named] [read assigned]
->   %0 = Read [$0] : RefMut[User]
+>   local $0 user: &mut User [param read]
+>   local $1 $ref: &mut User [read assigned captured]
+>   local $2 first: &mut dyn Named [read assigned]
+>   local $3 $ref: &mut User [read assigned captured]
+>   local $4 second: &mut dyn Named [read assigned]
+>   %0 = Read [$0] : &mut User
 >   %1 = Store [$1] %0 : ()
->   %2 = Read [$1] : RefMut[User]
+>   %2 = Read [$1] : &mut User
 >   %3 = Coerce %2 [RefToTraitValue -] : Named
 >   %4 = Block %3 : Named
->   %5 = RefDyn %4 : RefMut[Named]
+>   %5 = RefDyn %4 : &mut dyn Named
 >   %6 = Store [$2] %5 : ()
 >   %17 = Block %16 : bool
     let second: &mut dyn Named = user
->   %7 = Read [$0] : RefMut[User]
+>   %7 = Read [$0] : &mut User
 >   %8 = Store [$3] %7 : ()
->   %9 = Read [$3] : RefMut[User]
+>   %9 = Read [$3] : &mut User
 >   %10 = Coerce %9 [RefToTraitValue -] : Named
 >   %11 = Block %10 : Named
->   %12 = RefDyn %11 : RefMut[Named]
+>   %12 = RefDyn %11 : &mut dyn Named
 >   %13 = Store [$4] %12 : ()
     first is second
->   %14 = Read [$2] : RefMut[Named]
->   %15 = Read [$4] : RefMut[Named]
+>   %14 = Read [$2] : &mut dyn Named
+>   %15 = Read [$4] : &mut dyn Named
 >   %16 = Is %14 %15 : bool

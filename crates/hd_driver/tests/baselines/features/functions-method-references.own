@@ -30,7 +30,7 @@ impl User:
 
     fn rename(&mut self, n: string) -> void:
 > app/main/impl User.rename
->   local $0 self: RefMut[User] [param read] value
+>   local $0 self: &mut User [param read] value
 >     uses $0: entry -> %2 lend last
 >   local $1 n: string [param read] value
 >     uses $1: entry -> %1 consume last
@@ -115,11 +115,11 @@ fn bound(u: User) -> usize:
 
 fn bound_mut(u: *mut User, n: string) -> void:
 > app/main/bound_mut
->   local $0 u: CountedMut[User] [param read] value
+>   local $0 u: *mut User [param read] value
 >     uses $0: entry -> %1 consume last
 >   local $1 n: string [param read] value
 >     uses $1: entry -> %14 consume last
->   local $2 $receiver: CountedMut[User] [read assigned captured] value
+>   local $2 $receiver: *mut User [read assigned captured] value
 >     uses $2: %2 -> %5 lend, %10 consume last
 >   local $3 $0: string [param] value
 >     uses $3: entry -> %6 consume last
@@ -127,11 +127,11 @@ fn bound_mut(u: *mut User, n: string) -> void:
 >     uses $4: %12 -> %13 lend last
 >   %0 = Retain %17 Entry local $1 #0 : ()
     f := u::rename
->   %1 = Read copy [$0] : CountedMut[User]
+>   %1 = Read copy [$0] : *mut User
 >   %2 = Store [$2] %1 : ()
 >   %3 = Retain %9 Entry captures #0 : ()
 >   %4 = Retain %9 Entry local $3 #0 : ()
->   %5 = Read move [$2] : CountedMut[User]
+>   %5 = Read move [$2] : *mut User
 >   %6 = Read move [$3] : string
 >   %7 = Call app/main/impl User.rename[] (%5, %6) : ()
 >   %8 = Drop [%5] : ()

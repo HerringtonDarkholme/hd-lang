@@ -17,9 +17,9 @@ impl !Copy for Bag
 fn through_reference(bag: &Bag) -> usize:
     bag.buffer.capacity()
 > std/rt_tests.stage_case/through_reference
->   local $0 bag: Ref[Bag] [param read] value
+>   local $0 bag: &Bag [param read] value
 >     uses $0: entry -> %0 lend last
->   %0 = Ref local [*$0 .buffer] : Ref[Buffer[i32]]
+>   %0 = Ref local [*$0 .buffer] : &Buffer[i32]
 >   %1 = Call std/rt.memory/impl [ T < ? Copy ] Buffer [ T ].capacity[i32] (%0) : usize
 >   %2 = Drop [%0] : ()
 >   %3 = Block %1 : usize
@@ -28,7 +28,7 @@ fn through_owned_box() -> usize:
     bag := box(Bag { buffer: Buffer::[i32].new(4) })
 > std/rt_tests.stage_case/through_owned_box
 >   local $0 $ref: Bag [read assigned captured captured-assigned] place
->   local $1 bag: CountedMut[Bag] [:= read assigned] value
+>   local $1 bag: *mut Bag [:= read assigned] value
 >     uses $1: %12 -> %13 lend last
 >   local $2 capacity: usize [read] value
 >     uses $2: %0 -> %1 lend, %4 consume last
@@ -43,12 +43,12 @@ fn through_owned_box() -> usize:
 >   %8 = Scope %7 [] : Buffer[i32]
 >   %9 = NewStruct [%8] : Bag
 >   %10 = Store [$0] %9 : ()
->   %11 = Ref take mut [$0] : CountedMut[Bag]
+>   %11 = Ref take mut [$0] : *mut Bag
 >   %12 = Store [$1] %11 : ()
 >   %17 = Block %14 : usize
 >   %11 finds [$0] full
     bag.buffer.capacity()
->   %13 = Ref local [*$1 .buffer] : Ref[Buffer[i32]]
+>   %13 = Ref local [*$1 .buffer] : &Buffer[i32]
 >   %14 = Call std/rt.memory/impl [ T < ? Copy ] Buffer [ T ].capacity[i32] (%13) : usize
 >   %15 = Drop [%13] : ()
 >   %16 = Drop [$1] : ()

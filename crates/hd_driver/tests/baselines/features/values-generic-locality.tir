@@ -24,31 +24,31 @@ fn left_or_right(pair: &Pair, left: bool) -> &User:
     let o: (&User)? = if left: .Some(&pair.left) else: .None
 > app/main/left_or_right
 >   local $1 left: bool [param read]
->   local $2 o: Ref[User]? [read assigned]
+>   local $2 o: &User? [read assigned]
 >   %0 = Read [$1] : bool
->   %1 = Ref local [*$0 .left] : Ref[User]
->   %2 = NewVariant #1 [%1] : Ref[User]?
->   %3 = Block %2 : Ref[User]?
->   %4 = NewVariant #0 [] : Ref[User]?
->   %5 = Block %4 : Ref[User]?
->   %6 = If %0 [%3 %5] : Ref[User]?
+>   %1 = Ref local [*$0 .left] : &User
+>   %2 = NewVariant #1 [%1] : &User?
+>   %3 = Block %2 : &User?
+>   %4 = NewVariant #0 [] : &User?
+>   %5 = Block %4 : &User?
+>   %6 = If %0 [%3 %5] : &User?
 >   %7 = Store [$2] %6 : ()
->   %11 = Block %10 : Ref[User]
+>   %11 = Block %10 : &User
     o.unwrap_or(&pair.right)
->   %8 = Read [$2] : Ref[User]?
->   %9 = Ref local [*$0 .right] : Ref[User]
->   %10 = Call std/option/impl [ T < ? Copy ] T ?.unwrap_or[Ref[User]] (%8, %9) : Ref[User]
+>   %8 = Read [$2] : &User?
+>   %9 = Ref local [*$0 .right] : &User
+>   %10 = Call std/option/impl [ T < ? Copy ] T ?.unwrap_or[&User] (%8, %9) : &User
 
 fn demo(u: &User) -> usize:
     n := id(&u.name)
 > app/main/demo
->   local $1 n: Ref[string] [:= read assigned]
->   %0 = Ref local [*$0 .name] : Ref[string]
->   %1 = Call app/main/id[Ref[string]] (%0) : Ref[string]
+>   local $1 n: &string [:= read assigned]
+>   %0 = Ref local [*$0 .name] : &string
+>   %1 = Call app/main/id[&string] (%0) : &string
 >   %2 = Store [$1] %1 : ()
 >   %5 = Block %4 : usize
     n.len()
->   %3 = Read [$1] : Ref[string]
+>   %3 = Read [$1] : &string
 >   %4 = Call std/text/impl string.len[] (%3) : usize
 
 fn keep[T < 'static](value: T) -> *mut T:
@@ -58,8 +58,8 @@ fn keep[T < 'static](value: T) -> *mut T:
 >   local $1 $ref: T [read assigned captured captured-assigned]
 >   %0 = Read [$0] : T
 >   %1 = Store [$1] %0 : ()
->   %2 = Ref mut [$1] : CountedMut[T]
->   %3 = Block %2 : CountedMut[T]
+>   %2 = Ref mut [$1] : *mut T
+>   %3 = Block %2 : *mut T
 
 fn later[T < 'static](value: T) -> fn() -> T:
     fn() -> T: value
@@ -74,17 +74,17 @@ fn bounded(u: User) -> usize:
     kept := keep(u)
 > app/main/bounded
 >   local $0 u: User [param read]
->   local $1 kept: CountedMut[User] [:= read assigned]
+>   local $1 kept: *mut User [:= read assigned]
 >   local $2 $ref: string [read assigned captured captured-assigned]
 >   %0 = Read [$0] : User
->   %1 = Call app/main/keep[User] (%0) : CountedMut[User]
+>   %1 = Call app/main/keep[User] (%0) : *mut User
 >   %2 = Store [$1] %1 : ()
 >   %10 = Block %9 : usize
     later(kept)().name.len()
->   %3 = Read [$1] : CountedMut[User]
->   %4 = Call app/main/later[CountedMut[User]] (%3) : fn() -> CountedMut[User]
->   %5 = CallValue %4 [] : CountedMut[User]
+>   %3 = Read [$1] : *mut User
+>   %4 = Call app/main/later[*mut User] (%3) : fn() -> *mut User
+>   %5 = CallValue %4 [] : *mut User
 >   %6 = Read [*%5 .name] : string
 >   %7 = Store [$2] %6 : ()
->   %8 = Ref local [$2] : Ref[string]
+>   %8 = Ref local [$2] : &string
 >   %9 = Call std/text/impl string.len[] (%8) : usize

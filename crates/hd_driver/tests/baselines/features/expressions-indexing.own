@@ -63,7 +63,7 @@ fn string_byte(s: string, i: usize) -> u8:
 fn ref_list_index(xs: &List[string], i: usize) -> usize:
     xs[i].len()
 > app/main/ref_list_index
->   local $0 xs: Ref[List[string]] [param read] value
+>   local $0 xs: &List[string] [param read] value
 >     uses $0: entry -> %1 lend last
 >   local $1 i: usize [param read] value
 >     uses $1: entry -> %0 lend last

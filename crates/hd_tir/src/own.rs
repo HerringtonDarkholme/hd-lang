@@ -221,7 +221,7 @@ pub trait OwnCx {
         let _ = ty;
         false
     }
-    /// Whether this concrete type is a thin Counted reference carrier.
+    /// Whether this concrete type is a thin counted reference, `*T`.
     /// This is a type fact, independent of a reference's storage or uses.
     fn thin_counted_reference(&self, ty: Ty) -> bool {
         let _ = ty;
@@ -360,8 +360,7 @@ pub trait OwnCx {
     /// at any depth, or a type the instance decides. Hoisting reads it.
     fn holds_coll(&self, ty: Ty) -> bool;
     /// Whether a value of `ty` may hold a local reference: a reference of
-    /// either kind (a `&self` receiver's address has the counted
-    /// carrier), a trait value, or a type built of one. A type parameter
+    /// either kind, a trait value, or a type built of one. A type parameter
     /// never points into a local of its body (`ref.generic.body`). Frame locals' origins follow such
     /// values (`frame`). The default answers yes.
     fn holds_ref(&self, ty: Ty) -> bool {
@@ -589,7 +588,7 @@ pub(crate) fn lending_coercion(b: &Body, cx: &dyn OwnCx, i: usize) -> bool {
 
 /// Whether `Read` `i` reads all of a local holding a counted reference
 /// as a local one (`ref.convert.lend`, a read the checker typed with the
-/// local reference's carrier): it lends the local, which never moves
+/// local reference's type): it lends the local, which never moves
 /// there and lives until the read value's last use (`frame`, rule 5).
 pub(crate) fn lending_read(b: &Body, cx: &dyn OwnCx, i: usize) -> bool {
     if b.tags[i] != Tag::Read {

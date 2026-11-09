@@ -17,7 +17,7 @@ fn assign(a: string, b: string) -> usize:
 >   %2 = Read [$1] : string
 >   %3 = Store [$2] %2 : ()
     s.len()
->   %4 = Ref local [$2] : Ref[string]
+>   %4 = Ref local [$2] : &string
 >   %5 = Call std/text/impl string.len[] (%4) : usize
 
 fn compound(a: string) -> string:

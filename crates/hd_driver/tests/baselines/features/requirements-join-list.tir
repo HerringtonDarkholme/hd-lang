@@ -31,7 +31,7 @@ fn all!(keys: List[string]) -> usize:
 >   local $9 n: usize [read assigned mutated]
 >   local $10 $len: usize [assigned]
 >   local $11 $pos: usize [assigned]
->   local $12 r: Ref[string] [read assigned]
+>   local $12 r: &string [read assigned]
 >   %0 = NewList - [] : List[Suspend[string]]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read [$0] : List[string]
@@ -88,7 +88,7 @@ fn all!(keys: List[string]) -> usize:
 >   %50 = Read [$11] : usize
 >   %51 = Prim Add [%50 1:usize] : usize
 >   %52 = Store [$11] %51 : ()
->   %53 = Ref local [%42 [%49]] : Ref[string]
+>   %53 = Ref local [%42 [%49]] : &string
 >   %59 = Block - : ()
 >   %60 = Store [$12] %53 : ()
 >   %62 = Block - : never
@@ -101,7 +101,7 @@ fn all!(keys: List[string]) -> usize:
 >   %69 = Loop %68 - : ()
         n += r.len()
 >   %54 = Read [$9] : usize
->   %55 = Read [$12] : Ref[string]
+>   %55 = Read [$12] : &string
 >   %56 = Call std/text/impl string.len[] (%55) : usize
 >   %57 = Prim Add [%54 %56] : usize
 >   %58 = Store [$9] %57 : ()

@@ -21,7 +21,7 @@ fn read_match(s: Shape) -> usize:
 >   %31 = Match %0 [%30 %3 %9 %10] : usize
 >   %32 = Block %31 : usize
         .Named(n) => n.len()
->   %1 = Ref local [$1] : Ref[string]
+>   %1 = Ref local [$1] : &string
 >   %2 = Call std/text/impl string.len[] (%1) : usize
 >   %3 = Block %2 : usize
 >   %11 = Read [%0 as #0 .0] : string
@@ -30,9 +30,9 @@ fn read_match(s: Shape) -> usize:
 >   %28 = Block - : never
 >   %29 = SwitchTag %0 [#0 %14 %28] : never
         .Pair(a, b) => a.len() + b.len()
->   %4 = Ref local [$2] : Ref[string]
+>   %4 = Ref local [$2] : &string
 >   %5 = Call std/text/impl string.len[] (%4) : usize
->   %6 = Ref local [$3] : Ref[string]
+>   %6 = Ref local [$3] : &string
 >   %7 = Call std/text/impl string.len[] (%6) : usize
 >   %8 = Prim Add [%5 %7] : usize
 >   %9 = Block %8 : usize
@@ -84,16 +84,16 @@ fn take_match(s: Shape) -> string:
 fn ref_match(s: &Shape) -> usize:
     match s:
 > app/main/ref_match
->   local $0 s: Ref[Shape] [param read]
+>   local $0 s: &Shape [param read]
 >   local $1 n: string [read assigned captured]
 >   local $2 a: string [read assigned captured]
 >   local $3 b: string [read assigned captured]
->   %0 = Read [$0] : Ref[Shape]
+>   %0 = Read [$0] : &Shape
 >   %31 = Block - : never
 >   %32 = Match %0 [%31 %3 %9 %10] : usize
 >   %33 = Block %32 : usize
         .Named(n) => n.len()
->   %1 = Ref local [$1] : Ref[string]
+>   %1 = Ref local [$1] : &string
 >   %2 = Call std/text/impl string.len[] (%1) : usize
 >   %3 = Block %2 : usize
 >   %11 = Read [*%0] : Shape
@@ -103,9 +103,9 @@ fn ref_match(s: &Shape) -> usize:
 >   %29 = Block - : never
 >   %30 = SwitchTag %11 [#0 %15 %29] : never
         .Pair(a, b) => a.len() + b.len()
->   %4 = Ref local [$2] : Ref[string]
+>   %4 = Ref local [$2] : &string
 >   %5 = Call std/text/impl string.len[] (%4) : usize
->   %6 = Ref local [$3] : Ref[string]
+>   %6 = Ref local [$3] : &string
 >   %7 = Call std/text/impl string.len[] (%6) : usize
 >   %8 = Prim Add [%5 %7] : usize
 >   %9 = Block %8 : usize

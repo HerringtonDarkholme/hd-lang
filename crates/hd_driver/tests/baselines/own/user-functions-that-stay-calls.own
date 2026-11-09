@@ -18,7 +18,7 @@ app/main/calls
   %7 = Scope %6 [] : i64
   %8 = Call app/main/long[] (2:i64) : i64
   %9 = Prim Add [%7 %8] : i64
-  %10 = Ref local frame [$0] : Ref[List[i64]]
+  %10 = Ref local frame [$0] : &List[i64]
   %11 = Call app/main/first[] (%10) : i64
   %12 = LoanEnd [%10] : ()
   %13 = Drop [$0] : ()

@@ -9038,7 +9038,7 @@ impl Run<'_> {
     fn render_owned(&self, p: &ProgramTables, body: &Body) -> String {
         let names = self.names();
         // A field by name, its type as the program's bodies hold it, with
-        // references lowered.
+        // no dependency map.
         let fields = |t: Ty, k: u32| -> Option<(String, Ty)> {
             let pool = names.pool;
             let TyData::Adt { def, args } = pool.get(t) else {
@@ -9054,10 +9054,7 @@ impl Run<'_> {
                     .then(|| argv.get(q.index as usize).copied())
                     .flatten()
             });
-            Some((
-                names.text(f.name).to_owned(),
-                pool.lower_refs(self.known.ref_cells(), ft),
-            ))
+            Some((names.text(f.name).to_owned(), pool.erase_fn_deps(ft)))
         };
         let text = hd_check::render(&names, body, &fields);
         // Each local's class (`hd_tir::own::values`) after its line, and a
@@ -10023,9 +10020,6 @@ impl Run<'_> {
         let error = known.error;
         let reference = match pool.get(err) {
             TyData::Ref { inner, .. } => Some(inner),
-            TyData::Adt { def, args } if known.ref_cells().holds(def) => {
-                pool.list_items(args).first().copied()
-            }
             _ => None,
         };
         if reference.is_some_and(
@@ -11843,30 +11837,18 @@ impl hd_opt::whole::ObjectLayout for Env<'_> {
         hd_wasm_linear::object_layout::strip(&self.run.pool, self, t)
     }
     fn mutable_counted_ref_target(&self, t: Ty) -> Option<Ty> {
-        if let TyData::Ref {
+        let TyData::Ref {
             inner,
             mutable: true,
-            counted: true,
+            ..
         } = self.run.pool.get(t)
-        {
-            return Some(hd_wasm_linear::object_layout::strip(
-                &self.run.pool,
-                self,
-                self.low(inner),
-            ));
-        }
-        let t = self.low(t);
-        let TyData::Adt { def, args } = self.run.pool.get(t) else {
+        else {
             return None;
         };
-        if !self.run.known.ref_cells().is_mutable(def) {
-            return None;
-        }
-        let &target = self.run.pool.list_items(args).first()?;
         Some(hd_wasm_linear::object_layout::strip(
             &self.run.pool,
             self,
-            target,
+            self.low(inner),
         ))
     }
 }
@@ -11876,11 +11858,10 @@ impl Env<'_> {
         self.p.items.get(def)?.sig()
     }
 
-    /// A declared type as the backend reads it: each reference type
-    /// lowered to `std.core.Ref[T]` or `std.core.Counted[T]`
-    /// (`hd_types::Types::lower_refs`).
+    /// A declared type as the backend reads it: with no function type's
+    /// dependency map (`hd_types::Types::erase_fn_deps`).
     fn low(&self, t: Ty) -> Ty {
-        self.run.pool.lower_refs(self.run.known.ref_cells(), t)
+        self.run.pool.erase_fn_deps(t)
     }
 
     /// Whether a method has a `self` receiver; one without is an
@@ -12422,14 +12403,11 @@ impl ProgramEnv for Env<'_> {
                 self_ty,
                 trait_args,
                 ..
-            } => {
-                let cells = self.run.known.ref_cells();
-                Some((
-                    self.run.pool.lower_refs(cells, *self_ty),
-                    self.run.pool.lower_refs_list(cells, *trait_args),
-                    it.generics.len(),
-                ))
-            }
+            } => Some((
+                self.run.pool.erase_fn_deps(*self_ty),
+                self.run.pool.erase_fn_deps_list(*trait_args),
+                it.generics.len(),
+            )),
             _ => None,
         }
     }

@@ -13,7 +13,7 @@ impl Stamp:
     pub fn by_len(&self) -> usize:
         self.by.len()
 > app/main/impl Stamp.by_len
->   %0 = Ref local [*$0 .by] : Ref[string]
+>   %0 = Ref local [*$0 .by] : &string
 >   %1 = Call std/text/impl string.len[] (%0) : usize
 >   %2 = Block %1 : usize
 
@@ -39,12 +39,12 @@ fn promoted(p: Post) -> usize:
 >   local $1 $ref: string [read assigned captured captured-assigned]
 >   %0 = Read [$0 .Stamp .by] : string
 >   %1 = Store [$1] %0 : ()
->   %2 = Ref local [$1] : Ref[string]
+>   %2 = Ref local [$1] : &string
 >   %3 = Call std/text/impl string.len[] (%2) : usize
->   %4 = Ref local [$0 .Stamp] : Ref[Stamp]
+>   %4 = Ref local [$0 .Stamp] : &Stamp
 >   %5 = Call app/main/impl Stamp.by_len[] (%4) : usize
 >   %6 = Prim Add [%3 %5] : usize
->   %7 = Ref local [$0 .title] : Ref[string]
+>   %7 = Ref local [$0 .title] : &string
 >   %8 = Call std/text/impl string.len[] (%7) : usize
 >   %9 = Prim Add [%6 %8] : usize
 >   %10 = Block %9 : usize

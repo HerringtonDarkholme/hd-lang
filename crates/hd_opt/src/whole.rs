@@ -13,7 +13,8 @@ use hd_types::{InternPool, Ty, TyData, TyList};
 pub trait ObjectLayout {
     /// `t` with newtypes erased: what its layout reads.
     fn strip(&self, t: Ty) -> Ty;
-    /// The stripped target of a mutable counted reference type, or none.
+    /// The stripped target of a mutable reference type of either kind, or
+    /// none.
     fn mutable_counted_ref_target(&self, t: Ty) -> Option<Ty>;
 }
 

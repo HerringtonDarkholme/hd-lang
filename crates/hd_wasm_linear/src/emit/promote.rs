@@ -79,9 +79,7 @@ fn declared_referent(
 ) -> Option<Ty> {
     let t = crate::layout::strip(pool, env, t);
     match pool.get(t) {
-        hd_types::TyData::Adt { def, args } if env.ref_cells().holds(def) => {
-            pool.list_items(args).first().copied()
-        }
+        hd_types::TyData::Ref { inner, .. } => Some(inner),
         _ => None,
     }
 }

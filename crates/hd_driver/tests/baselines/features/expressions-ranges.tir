@@ -61,7 +61,7 @@ fn lens(xs: List[string]) -> usize:
         n += xs[i].len()
 >   %18 = Read [$1] : usize
 >   %19 = Read [$5] : usize
->   %20 = Ref local [$0 [%19]] : Ref[string]
+>   %20 = Ref local [$0 [%19]] : &string
 >   %21 = Call std/text/impl string.len[] (%20) : usize
 >   %22 = Prim Add [%18 %21] : usize
 >   %23 = Store [$1] %22 : ()

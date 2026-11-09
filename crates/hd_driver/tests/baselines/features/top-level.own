@@ -129,7 +129,7 @@ fn read_top() -> usize:
     greeting.len() + names.len()
 > app/main/read_top
 >   %0 = Read borrow [@app/main/greeting] : string
->   %1 = Ref local [@app/main/greeting] : Ref[string]
+>   %1 = Ref local [@app/main/greeting] : &string
 >   %2 = Call std/text/impl string.len[] (%1) : usize
 >   %3 = LoanEnd [%1] : ()
 >   %4 = Read borrow [@app/main/names] : List[string]

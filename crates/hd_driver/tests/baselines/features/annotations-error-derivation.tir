@@ -15,7 +15,7 @@ impl Display for YamlError:
     fn to_string(&self) -> string:
         "bad yaml at line ${self.line}"
 > app/main/impl Display for YamlError.to_string
->   %0 = Ref local [*$0 .line] : Ref[i64]
+>   %0 = Ref local [*$0 .line] : &i64
 >   %1 = Read [*%0] : i64
 >   %2 = Prim Conv [%1] : i64
 >   %3 = Call std/text/impl StringBuilder.signed_width[] (%2) : usize
@@ -64,13 +64,13 @@ enum FsError:
 > app/main/error Error for LoadError.source
 >   local $1 $self: LoadError [assigned]
 >   local $2 $ref: FsError [read assigned captured captured-assigned]
->   local $3 $ref: Counted[FsError] [read assigned captured]
+>   local $3 $ref: *FsError [read assigned captured]
 >   local $4 $ref: YamlError [read assigned captured captured-assigned]
->   local $5 $ref: Counted[YamlError] [read assigned captured]
+>   local $5 $ref: *YamlError [read assigned captured]
 >   local $6 $ref: FsError [read assigned captured captured-assigned]
 >   %0 = Read [*$0] : LoadError
 >   %1 = Store [$1] %0 : ()
->   %32 = Block %31 : Counted[Error]?
+>   %32 = Block %31 : *dyn Error?
 > app/main/error From 1.0 for LoadError.from
 >   local $0 value: YamlError [param]
 >   %0 = Read [$0] : YamlError
@@ -94,10 +94,10 @@ enum LoadError:
 >   %20 = Block %19 : string
 >   %21 = Read [$1] : LoadError
 >   %22 = SwitchTag %21 [#0 %11 %20] : string
->   %11 = Block %10 : Counted[Error]?
->   %29 = Block %28 : Counted[Error]?
+>   %11 = Block %10 : *dyn Error?
+>   %29 = Block %28 : *dyn Error?
 >   %30 = Read [$1] : LoadError
->   %31 = SwitchTag %30 [#0 %11 %29] : Counted[Error]?
+>   %31 = SwitchTag %30 [#0 %11 %29] : *dyn Error?
     Read(
         path: string,
 >   %2 = Read [$1 as #0 .0] : string
@@ -105,13 +105,13 @@ enum LoadError:
         @source
 >   %2 = Read [$1 as #0 .1] : FsError
 >   %3 = Store [$2] %2 : ()
->   %4 = Ref [$2] : Counted[FsError]
+>   %4 = Ref [$2] : *FsError
 >   %5 = Store [$3] %4 : ()
->   %6 = Read [$3] : Counted[FsError]
+>   %6 = Read [$3] : *FsError
 >   %7 = Coerce %6 [RefToTraitValue -] : Error
 >   %8 = Block %7 : Error
->   %9 = RefDyn %8 : Counted[Error]
->   %10 = Coerce %9 [WrapSome -] : Counted[Error]?
+>   %9 = RefDyn %8 : *dyn Error
+>   %10 = Coerce %9 [WrapSome -] : *dyn Error?
         error: FsError,
     )
     @error("bad config")
@@ -119,21 +119,21 @@ enum LoadError:
 >   %17 = Block %16 : string
 >   %18 = Read [$1] : LoadError
 >   %19 = SwitchTag %18 [#1 %12 %17] : string
->   %21 = Block %20 : Counted[Error]?
->   %26 = Block %25 : Counted[Error]?
+>   %21 = Block %20 : *dyn Error?
+>   %26 = Block %25 : *dyn Error?
 >   %27 = Read [$1] : LoadError
->   %28 = SwitchTag %27 [#1 %21 %26] : Counted[Error]?
+>   %28 = SwitchTag %27 [#1 %21 %26] : *dyn Error?
     Yaml(
         @from
 >   %12 = Read [$1 as #1 .0] : YamlError
 >   %13 = Store [$4] %12 : ()
->   %14 = Ref [$4] : Counted[YamlError]
+>   %14 = Ref [$4] : *YamlError
 >   %15 = Store [$5] %14 : ()
->   %16 = Read [$5] : Counted[YamlError]
+>   %16 = Read [$5] : *YamlError
 >   %17 = Coerce %16 [RefToTraitValue -] : Error
 >   %18 = Block %17 : Error
->   %19 = RefDyn %18 : Counted[Error]
->   %20 = Coerce %19 [WrapSome -] : Counted[Error]?
+>   %19 = RefDyn %18 : *dyn Error
+>   %20 = Coerce %19 [WrapSome -] : *dyn Error?
         error: YamlError,
     )
     @error(transparent)
@@ -141,12 +141,12 @@ enum LoadError:
         @from
 >   %13 = Read [$1 as #2 .0] : FsError
 >   %14 = Store [$3] %13 : ()
->   %15 = Ref local [$3] : Ref[FsError]
+>   %15 = Ref local [$3] : &FsError
 >   %16 = Call std/format/Display.to_string for FsError [] via Impl (%15) : string
 >   %22 = Read [$1 as #2 .0] : FsError
 >   %23 = Store [$6] %22 : ()
->   %24 = Ref local [$6] : Ref[FsError]
->   %25 = Call std/error/Error.source for FsError [] via Impl (%24) : Counted[Error]?
+>   %24 = Ref local [$6] : &FsError
+>   %25 = Call std/error/Error.source for FsError [] via Impl (%24) : *dyn Error?
         error: FsError,
     )
 
@@ -154,7 +154,7 @@ fn parse(text: string) -> Result[i64, YamlError]:
     if text.len() > 3:
 > app/main/parse
 >   local $0 text: string [param read captured]
->   %0 = Ref local [$0] : Ref[string]
+>   %0 = Ref local [$0] : &string
 >   %1 = Call std/text/impl string.len[] (%0) : usize
 >   %2 = Prim Gt [%1 3:usize] : bool
 >   %7 = If %2 [%6 -] : ()
@@ -191,11 +191,11 @@ fn load(text: string) -> Result[i64, LoadError]:
 fn message(e: &LoadError) -> usize:
     e.to_string().len()
 > app/main/message
->   local $0 e: Ref[LoadError] [param read]
+>   local $0 e: &LoadError [param read]
 >   local $1 $ref: string [read assigned captured captured-assigned]
->   %0 = Read [$0] : Ref[LoadError]
+>   %0 = Read [$0] : &LoadError
 >   %1 = Call std/format/Display.to_string for LoadError [] via Impl (%0) : string
 >   %2 = Store [$1] %1 : ()
->   %3 = Ref local [$1] : Ref[string]
+>   %3 = Ref local [$1] : &string
 >   %4 = Call std/text/impl string.len[] (%3) : usize
 >   %5 = Block %4 : usize

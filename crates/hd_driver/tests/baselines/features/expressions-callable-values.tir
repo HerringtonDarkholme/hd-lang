@@ -39,16 +39,16 @@ fn read_cell(c: Cell) -> usize:
 >   %0 = Read [$0] : Cell
 >   %1 = Call std/ops/Apply.apply for Cell [] via Impl (%0) : string
 >   %2 = Store [$1] %1 : ()
->   %3 = Ref local [$1] : Ref[string]
+>   %3 = Ref local [$1] : &string
 >   %4 = Call std/text/impl string.len[] (%3) : usize
 >   %5 = Block %4 : usize
 
 fn store_cell(c: &mut Cell, s: string) -> void:
     c() = s
 > app/main/store_cell
->   local $0 c: RefMut[Cell] [param read]
+>   local $0 c: &mut Cell [param read]
 >   local $1 s: string [param read]
->   %0 = Read [$0] : RefMut[Cell]
+>   %0 = Read [$0] : &mut Cell
 >   %1 = Read [$1] : string
 >   %2 = Call std/ops/Update.update for Cell [string] via Impl (%0, %1) : ()
 >   %3 = Block - : ()
@@ -56,8 +56,8 @@ fn store_cell(c: &mut Cell, s: string) -> void:
 fn append_cell(c: &mut Cell) -> void:
     c() += "!"
 > app/main/append_cell
->   local $0 c: RefMut[Cell] [param read]
->   %0 = Read [$0] : RefMut[Cell]
+>   local $0 c: &mut Cell [param read]
+>   %0 = Read [$0] : &mut Cell
 >   %1 = Read [*%0] : Cell
 >   %2 = Call std/ops/Apply.apply for Cell [] via Impl (%1) : string
 >   %3 = Intrinsic StrConcat [%2 "!"] : string

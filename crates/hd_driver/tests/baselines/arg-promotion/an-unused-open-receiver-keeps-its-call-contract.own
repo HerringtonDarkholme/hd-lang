@@ -17,9 +17,9 @@ impl[T] Room[T]:
 fn caller[T](room: &Room[T]) -> usize:
     room.count()
 > app/main/caller
->   local $0 room: Ref[Room[T]] [param read] value
+>   local $0 room: &Room[T] [param read] value
 >     uses $0: entry -> %0 lend last
->   %0 = Read borrow [$0] : Ref[Room[T]]
+>   %0 = Read borrow [$0] : &Room[T]
 >   %1 = Call app/main/impl [ T ] Room [ T ].count[T] (%0) : usize
 >   %2 = Block %1 : usize
 >   summary kept [] writes

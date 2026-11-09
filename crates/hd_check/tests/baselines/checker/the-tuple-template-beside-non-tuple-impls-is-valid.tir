@@ -12,7 +12,7 @@ impl Encode for i64:
         "$self"
 > app/main/impl Encode for i64.encode
 >   local $0 self: i64 [param read captured]
->   %0 = Ref local [$0] : Ref[i64]
+>   %0 = Ref local [$0] : &i64
 >   %1 = Read [*%0] : i64
 >   %2 = Prim Conv [%1] : i64
 >   %3 = Call std/text/impl StringBuilder.signed_width[] (%2) : usize
@@ -56,8 +56,8 @@ impl[T < Tuple] Encode for T by Structure:
 >   %1 = Store [$1] %0 : ()
 >   %6 = Block %5 : string
         _ := Structure::walk(&self, &mut w)
->   %2 = Ref local [$0] : Ref[T]
->   %3 = Ref mut local [$1] : RefMut[Encoder]
+>   %2 = Ref local [$0] : &T
+>   %3 = Ref mut local [$1] : &mut Encoder
 >   %4 = Call std/structure/Structure.walk for T [Encoder] via Bound (%2, %3) : Result[(), never]
         w.out
 >   %5 = Read [$1 .out] : string

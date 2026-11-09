@@ -20,7 +20,7 @@ fn sizes(u: User) -> usize:
 >   %13 = Match %0 [%12 %6] : usize
 >   %14 = Block %13 : usize
         User { name, tags } => name.len() + tags.len()
->   %1 = Ref local [$1] : Ref[string]
+>   %1 = Ref local [$1] : &string
 >   %2 = Call std/text/impl string.len[] (%1) : usize
 >   %3 = Read [$2] : List[string]
 >   %4 = Intrinsic ListLen [%3] : usize

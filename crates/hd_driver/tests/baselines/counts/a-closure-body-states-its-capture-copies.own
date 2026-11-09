@@ -32,7 +32,7 @@ fn word(i: i32) -> string:
 >     uses $9: %5 -> %6 consume last
 >   local $10 value: i64 [read] value
 >     uses $10: %7 -> %8 lend, %11 lend last
->   %0 = Ref local frame [$0] : Ref[i32]
+>   %0 = Ref local frame [$0] : &i32
 >   %1 = Read copy [*%0] : i32
 >   %2 = LoanEnd [%0] : ()
 >   %3 = Prim Conv [%1] : i64
@@ -148,7 +148,7 @@ pub fn main() -> void $ Console:
 >   local $0 original: string [:= read assigned] value
 >     uses $0: %1 -> %2 consume, %11 consume, %16 consume, %28 consume, %45 consume last
 >   local $1 $ref: Named [read assigned captured captured-assigned] place
->   local $2 shared: CountedMut[Named] [:= read assigned] value
+>   local $2 shared: *mut Named [:= read assigned] value
 >     uses $2: %20 -> %21 lend, %42 lend last
 >   local $3 items: List[string] [:= read assigned] value
 >     uses $3: %31 -> %32 consume, %39 lend last
@@ -176,13 +176,13 @@ pub fn main() -> void $ Console:
 >   %16 = Read copy [$0] : string
 >   %17 = NewStruct [%16] : Named
 >   %18 = Store [$1] %17 : ()
->   %19 = Ref take mut [$1] : CountedMut[Named]
+>   %19 = Ref take mut [$1] : *mut Named
 >   %20 = Store [$2] %19 : ()
 >   %19 finds [$1] full
     println(keep(shared)().text)
->   %21 = Read borrow [$2] : CountedMut[Named]
->   %22 = Call app/main/keep[CountedMut[Named]] (%21) : fn() -> CountedMut[Named]
->   %23 = CallValue %22 [] : CountedMut[Named]
+>   %21 = Read borrow [$2] : *mut Named
+>   %22 = Call app/main/keep[*mut Named] (%21) : fn() -> *mut Named
+>   %23 = CallValue %22 [] : *mut Named
 >   %24 = Drop [%22] : ()
 >   %25 = Read copy [*%23 .text] : string
 >   %26 = Drop [%23] : ()

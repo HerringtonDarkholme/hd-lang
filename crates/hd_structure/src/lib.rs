@@ -1514,11 +1514,10 @@ impl<'a, 'n> Gen<'a, 'n> {
             .b
             .finish(root, &[])
             .map_err(|e| VerifyError::bug(stage, "generated structure TIR verifier", &e))?;
-        // The backend sees each reference type as `std.core.Ref[T]`
-        // (`hd_types::Types::lower_refs`).
-        let (pool, cell) = (self.cx.names.pool, self.cx.names.known.ref_cells());
-        hd_tir::ir::map_body_types(&mut body, &|t| pool.lower_refs(cell, t), &|l| {
-            pool.lower_refs_list(cell, l)
+        // The backend reads no dependency map (`hd_types::Types::erase_fn_deps`).
+        let pool = self.cx.names.pool;
+        hd_tir::ir::map_body_types(&mut body, &|t| pool.erase_fn_deps(t), &|l| {
+            pool.erase_fn_deps_list(l)
         });
         Ok((body, wanted))
     }

@@ -29,7 +29,7 @@ impl['a] Cursor['a]:
     fn next(&mut self) -> usize?:
         while self.at < self.items.used:
 > std/rt_tests.stage_case/impl [ 'a ] Cursor [ 'a ].next
->   local $0 self: RefMut[Cursor[Ref[()]]] [param read] value
+>   local $0 self: &mut Cursor [param read] value
 >     uses $0: entry -> %0 lend, %1 lend, %3 lend, %5 lend, %7 lend, %8 lend
 >   local $1 index: usize [:= read assigned] value
 >     uses $1: %4 -> %9 consume last
@@ -55,7 +55,7 @@ impl['a] Cursor['a]:
 >   %6 = Prim Add [%5 1:usize] : usize
 >   %7 = Store [*$0 .at] %6 : ()
             match self.items.slots.at(index).as_ref():
->   %8 = Ref local [*$0 .items * .slots] : Ref[Buffer[Slot]]
+>   %8 = Ref local [*$0 .items * .slots] : &Buffer[Slot]
 >   %9 = Read copy [$1] : usize
 >   %10 = Store [$4] %9 : ()
 >   %11 = Read copy [*%8 .address] : usize
@@ -66,7 +66,7 @@ impl['a] Cursor['a]:
 >   %16 = Block - : Ptr[Slot]
 >   %17 = Scope %16 [] : Ptr[Slot]
 >   %18 = Drop [%8] : ()
->   %19 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].as_ref[Slot] (%17) : Ref[Slot]
+>   %19 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].as_ref[Slot] (%17) : &Slot
 >   %38 = Block - : never
 >   %39 = Match %19 [%38 %24 %25] : ()
 >   %40 = LoanEnd [%19] : ()

@@ -4,15 +4,15 @@
 # expected: insertion takes the string key's stated count only on a miss; scalar keys need none.
 fn bump(items: &mut Map[string, i32], key: string) -> void:
 > app/main/bump
->   local $0 items: RefMut[Map[string, i32]] [param read] value
+>   local $0 items: &mut Map[string, i32] [param read] value
 >     uses $0: entry -> %1 lend last
 >   local $1 key: string [param read] value
 >     uses $1: entry -> %2 lend last
 >   %0 = Release %10 Exit local $1 #2 : ()
     *items.get_or_insert(key, +0) += 1
->   %1 = Read borrow [$0] : RefMut[Map[string, i32]]
+>   %1 = Read borrow [$0] : &mut Map[string, i32]
 >   %2 = Read borrow [$1] : string
->   %3 = Call std/collections/impl [ K < Eq & Hash , V ] Map [ K , V ].get_or_insert[string, i32] (%1, %2, 0:i32) : RefMut[i32]
+>   %3 = Call std/collections/impl [ K < Eq & Hash , V ] Map [ K , V ].get_or_insert[string, i32] (%1, %2, 0:i32) : &mut i32
 >   %4 = MakeUnique %3 Operation operand 0 #5 : ()
 >   %5 = Retain %3 Operation operand 1 #0 : ()
 >   %6 = Read copy [*%3] : i32
@@ -25,13 +25,13 @@ fn bump(items: &mut Map[string, i32], key: string) -> void:
 fn scalar(items: &mut Map[usize, i32], key: usize) -> void:
     *items.get_or_insert(key, +0) += 1
 > app/main/scalar
->   local $0 items: RefMut[Map[usize, i32]] [param read] value
+>   local $0 items: &mut Map[usize, i32] [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 key: usize [param read] value
 >     uses $1: entry -> %1 lend last
->   %0 = Read borrow [$0] : RefMut[Map[usize, i32]]
+>   %0 = Read borrow [$0] : &mut Map[usize, i32]
 >   %1 = Read copy [$1] : usize
->   %2 = Call std/collections/impl [ K < Eq & Hash , V ] Map [ K , V ].get_or_insert[usize, i32] (%0, %1, 0:i32) : RefMut[i32]
+>   %2 = Call std/collections/impl [ K < Eq & Hash , V ] Map [ K , V ].get_or_insert[usize, i32] (%0, %1, 0:i32) : &mut i32
 >   %3 = MakeUnique %2 Operation operand 0 #5 : ()
 >   %4 = Read copy [*%2] : i32
 >   %5 = Prim Add [%4 1:i32] : i32

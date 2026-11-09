@@ -29,7 +29,7 @@ fn make() -> (fn!(string) -> usize $ Clock):
 >   %12 = Await std/time/sleep[] (%11) : ()
 >   %13 = Release %12 Operation child #2 : ()
         text.len()
->   %14 = Ref local [$0] : Ref[string]
+>   %14 = Ref local [$0] : &string
 >   %15 = Call std/text/impl string.len[] (%14) : usize
 >   %16 = LoanEnd [%14] : ()
 >   %17 = Drop [$0] : ()

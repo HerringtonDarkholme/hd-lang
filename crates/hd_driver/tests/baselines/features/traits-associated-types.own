@@ -18,7 +18,7 @@ impl Supplier for Constant:
     fn get(&self) -> string:
         self.value
 > app/main/impl Supplier for Constant.get
->   local $0 self: Ref[Constant] [param read] value
+>   local $0 self: &Constant [param read] value
 >     uses $0: entry -> %0 lend last
 >   %0 = Read copy [*$0 .value] : string
 >   %1 = Block %0 : string
@@ -29,7 +29,7 @@ fn first[T < Supplier](source: T) -> T::Item:
 >   local $0 source: T [param read captured] place
 >   %0 = Retain %5 Entry local $0 #0 : ()
     source.get()
->   %1 = Ref local frame [$0] : Ref[T]
+>   %1 = Ref local frame [$0] : &T
 >   %2 = Call app/main/Supplier.get for T [] via Bound (%1) : T::Item
 >   %3 = Drop [%1] : ()
 >   %4 = Drop [$0] : ()
@@ -67,7 +67,7 @@ fn first_len(c: Constant) -> usize:
 fn read(source: &dyn Supplier[Item = string]) -> usize:
     source.get().len()
 > app/main/read
->   local $0 source: Ref[Supplier] [param read] value
+>   local $0 source: &dyn Supplier [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 $ref: string [read assigned captured captured-assigned] value
 >     uses $1: %2 -> %3 lend last
@@ -86,18 +86,18 @@ fn read(source: &dyn Supplier[Item = string]) -> usize:
 fn read_const(c: Constant) -> usize:
 > app/main/read_const
 >   local $0 c: Constant [param read captured] place
->   local $1 $ref: Ref[Constant] [read assigned captured] value
+>   local $1 $ref: &Constant [read assigned captured] value
 >     uses $1: %2 -> %3 lend last
 >   %0 = Retain %12 Entry local $0 #0 : ()
     read(&c)
->   %1 = Ref local frame [$0] : Ref[Constant]
+>   %1 = Ref local frame [$0] : &Constant
 >   %2 = Store [$1] %1 : ()
->   %3 = Read move [$1] : Ref[Constant]
+>   %3 = Read move [$1] : &Constant
 >   %4 = Coerce %3 [RefToTraitValue -] : Supplier
 >   %5 = Retain %4 Value #0 : ()
 >   %6 = LoanEnd [%3] : ()
 >   %7 = Block %4 : Supplier
->   %8 = RefDyn %7 : Ref[Supplier]
+>   %8 = RefDyn %7 : &dyn Supplier
 >   %9 = Call app/main/read[] (%8) : usize
 >   %10 = Drop [%8] : ()
 >   %11 = Drop [$0] : ()

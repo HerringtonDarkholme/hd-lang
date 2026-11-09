@@ -34,7 +34,7 @@ fn one!(s: string) -> usize:
 >   %5 = Release %4 Operation child #2 : ()
 >   %6 = Drop [%3] : ()
 >   %7 = Store [$1] %4 : ()
->   %8 = Ref local [$1] : Ref[string]
+>   %8 = Ref local [$1] : &string
 >   %9 = Call std/text/impl string.len[] (%8) : usize
 >   %10 = LoanEnd [%8] : ()
 >   %11 = Drop [$1] : ()
@@ -79,11 +79,11 @@ fn both!(a: string, b: string) -> usize:
 >   %22 = Match %8 [%21 %15] : ()
 >   %32 = Block %31 : usize
     x.len() + y.len()
->   %23 = Ref local [$2] : Ref[string]
+>   %23 = Ref local [$2] : &string
 >   %24 = Call std/text/impl string.len[] (%23) : usize
 >   %25 = LoanEnd [%23] : ()
 >   %26 = Drop [$2] : ()
->   %27 = Ref local [$3] : Ref[string]
+>   %27 = Ref local [$3] : &string
 >   %28 = Call std/text/impl string.len[] (%27) : usize
 >   %29 = LoanEnd [%27] : ()
 >   %30 = Drop [$3] : ()
@@ -120,7 +120,7 @@ fn either!(a: string, b: string) -> usize:
 >   %13 = Release %12 Operation child #2 : ()
 >   %14 = Drop [%11] : ()
 >   %15 = Store [$2] %12 : ()
->   %16 = Ref local [$2] : Ref[string]
+>   %16 = Ref local [$2] : &string
 >   %17 = Call std/text/impl string.len[] (%16) : usize
 >   %18 = LoanEnd [%16] : ()
 >   %19 = Drop [$2] : ()

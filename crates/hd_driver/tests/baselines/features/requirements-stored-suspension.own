@@ -51,7 +51,7 @@ fn tagged!() -> usize $ Tag:
 >   %1 = Retain %15 Materialize row #0 : ()
 >   %2 = Release %15 FrameDrop row #2 : ()
 >   %3 = ProviderGet #0 : Tag
->   %4 = Coerce %3 [ProviderAsRef -] : Ref[Tag]
+>   %4 = Coerce %3 [ProviderAsRef -] : &dyn Tag
 >   %5 = Read borrow [*%4] : Tag
 >   %6 = LoanEnd [%4] : ()
 >   %7 = Call app/main/Tag.name for Tag [] via TraitValue (%5) : string
@@ -88,7 +88,7 @@ fn later!(key: string) -> usize:
 >   %10 = Retain %8 Operation child #0 : ()
 >   %11 = Drop [%7] : ()
 >   %12 = Store [$2] %8 : ()
->   %13 = Ref local [$2] : Ref[string]
+>   %13 = Ref local [$2] : &string
 >   %14 = Call std/text/impl string.len[] (%13) : usize
 >   %15 = LoanEnd [%13] : ()
 >   %16 = Drop [$2] : ()
@@ -162,15 +162,15 @@ fn bound!(s: string) -> usize:
 >   %5 = Store [$2] %4 : ()
 >   %6 = Read move [$2] : Named
 >   %7 = Store [$3] %6 : ()
->   %8 = Ref mut [$3] : CountedMut[Named]
+>   %8 = Ref mut [$3] : *mut Named
 >   %9 = Retain %8 Value #0 : ()
 >   %10 = Break L0 %8 : never
->   %11 = Block - : CountedMut[Named]
->   %12 = Scope %11 [] : CountedMut[Named]
+>   %11 = Block - : *mut Named
+>   %12 = Scope %11 [] : *mut Named
 >   %13 = Coerce %12 [RefToTraitValue -] : Tag
 >   %14 = Retain %13 Value #0 : ()
 >   %15 = Block %13 : Tag
->   %16 = RefDyn %15 : Counted[Tag]
+>   %16 = RefDyn %15 : *dyn Tag
 >   %17 = Drop [%12] : ()
 >   %18 = Coerce %16 [RefAsProvider -] : Tag
 >   %19 = LoanEnd [%16] : ()

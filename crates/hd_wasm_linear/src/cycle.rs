@@ -87,6 +87,7 @@ pub fn recursive_object(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool 
         let children = match pool.get(t) {
             TyData::Prim(_) | TyData::Never => Vec::new(),
             TyData::Tuple { .. } => tuple_members(pool, t),
+            TyData::Ref { inner, .. } => vec![inner],
             TyData::Adt { def, args } => {
                 // A declaration that reaches itself at growing arguments
                 // (`E[T?]` in `E[T]`) is one finite release-glue edge per
@@ -146,7 +147,7 @@ fn contents(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<Ty> {
         {
             pool.list_items(args).to_vec()
         }
-        TyData::Adt { .. } => match kind(pool, env, t) {
+        TyData::Adt { .. } | TyData::Ref { .. } => match kind(pool, env, t) {
             Kind::Boxed => variants(pool, env, t)
                 .unwrap_or_default()
                 .into_iter()
@@ -172,6 +173,15 @@ fn reaches(pool: &InternPool, env: &dyn ProgramEnv, start: &[Ty]) -> bool {
             TyData::Prim(_) | TyData::Never => Vec::new(),
             TyData::Tuple { .. } => tuple_members(pool, t),
             TyData::Adt { .. } if optional(pool, env, t) => value_parts(pool, env, t),
+            TyData::Ref { inner, .. } => {
+                if path.contains(&t) {
+                    continue;
+                }
+                if writable(pool, env, inner) {
+                    return true;
+                }
+                vec![inner]
+            }
             TyData::Adt { def, args } => {
                 if path.contains(&t) {
                     continue;
@@ -209,7 +219,7 @@ fn reaches(pool: &InternPool, env: &dyn ProgramEnv, start: &[Ty]) -> bool {
             _ => return true,
         };
         let mut child_path = path;
-        if matches!(pool.get(t), TyData::Adt { .. }) {
+        if matches!(pool.get(t), TyData::Adt { .. } | TyData::Ref { .. }) {
             child_path.push(t);
         }
         for child in children {

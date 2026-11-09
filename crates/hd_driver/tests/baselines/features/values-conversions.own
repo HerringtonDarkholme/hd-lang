@@ -11,7 +11,7 @@ struct Point:
 fn nudge(p: &mut Point) -> void:
     p.n += 1
 > app/main/nudge
->   local $0 p: RefMut[Point] [param read] value
+>   local $0 p: &mut Point [param read] value
 >     uses $0: entry -> %0 lend, %2 lend last
 >   %0 = Read copy [*$0 .n] : i32
 >   %1 = Prim Add [%0 1:i32] : i32
@@ -22,7 +22,7 @@ fn nudge(p: &mut Point) -> void:
 fn view(p: &Point) -> usize:
     p.name.len()
 > app/main/view
->   local $0 p: Ref[Point] [param read] value
+>   local $0 p: &Point [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 self: string [read] value
 >     uses $1: %1 -> %2 lend last
@@ -39,32 +39,32 @@ fn view(p: &Point) -> usize:
 fn bump(p: &mut Point) -> void:
     q := p
 > app/main/bump
->   local $0 p: RefMut[Point] [param read] value
+>   local $0 p: &mut Point [param read] value
 >     uses $0: entry -> %0 consume last
->   local $1 q: RefMut[Point] [:= read assigned] value
+>   local $1 q: &mut Point [:= read assigned] value
 >     uses $1: %1 -> %2 lend last
->   %0 = Read borrow [$0] : RefMut[Point]
+>   %0 = Read borrow [$0] : &mut Point
 >   %1 = Store [$1] %0 : ()
 >   %4 = Block - : ()
     nudge(q)
->   %2 = Read borrow [$1] : RefMut[Point]
+>   %2 = Read borrow [$1] : &mut Point
 >   %3 = Call app/main/nudge[] (%2) : ()
 >   summary kept [] writes
 
 fn lend(h: *mut Point) -> usize:
     nudge(h)
 > app/main/lend
->   local $0 h: CountedMut[Point] [param read] value
+>   local $0 h: *mut Point [param read] value
 >     uses $0: entry -> %0 lend, %2 lend, %4 lend last
->   %0 = Read borrow [$0] : CountedMut[Point]
+>   %0 = Read borrow [$0] : *mut Point
 >   %1 = Call app/main/nudge[] (%0) : ()
 >   %7 = Block %6 : usize
     bump(h)
->   %2 = Read borrow [$0] : CountedMut[Point]
+>   %2 = Read borrow [$0] : *mut Point
 >   %3 = Call app/main/bump[] (%2) : ()
     view(h)
->   %4 = Read borrow [$0] : CountedMut[Point]
->   %5 = Coerce %4 [Weaken -] : Ref[Point]
+>   %4 = Read borrow [$0] : *mut Point
+>   %5 = Coerce %4 [Weaken -] : &Point
 >   %6 = Call app/main/view[] (%5) : usize
 >   summary kept [] writes
 
@@ -73,7 +73,7 @@ fn local(s: string) -> usize:
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %1 consume last
 >   local $1 origin: Point [read assigned captured captured-assigned] place
->   local $2 r: RefMut[Point] [read assigned] value
+>   local $2 r: &mut Point [read assigned] value
 >     uses $2: %8 -> %9 lend last
 >   local $3 p: Point [read] value
 >     uses $3: %14 -> %15 consume last
@@ -87,16 +87,16 @@ fn local(s: string) -> usize:
 >   %13 = Release %12 Operation local $1 #2 : ()
 >   %26 = Block %24 : usize
     nudge(&mut origin)
->   %4 = Ref mut local frame [$1] : RefMut[Point]
+>   %4 = Ref mut local frame [$1] : &mut Point
 >   %5 = Call app/main/nudge[] (%4) : ()
 >   %6 = LoanEnd [%4] : ()
 >   %4 finds [$1] full
     let r: &mut Point = &mut origin
->   %7 = Ref mut local frame [$1] : RefMut[Point]
+>   %7 = Ref mut local frame [$1] : &mut Point
 >   %8 = Store [$2] %7 : ()
 >   %7 finds [$1] full
     bump(r)
->   %9 = Read move [$2] : RefMut[Point]
+>   %9 = Read move [$2] : &mut Point
 >   %10 = Call app/main/bump[] (%9) : ()
 >   %11 = LoanEnd [%9] : ()
     view(&origin)
@@ -121,9 +121,9 @@ fn local(s: string) -> usize:
 fn weaken(h: *mut Point) -> *Point:
     h
 > app/main/weaken
->   local $0 h: CountedMut[Point] [param read] value
+>   local $0 h: *mut Point [param read] value
 >     uses $0: entry -> %0 consume last
->   %0 = Read copy [$0] : CountedMut[Point]
->   %1 = Coerce %0 [Weaken -] : Counted[Point]
->   %2 = Block %1 : Counted[Point]
+>   %0 = Read copy [$0] : *mut Point
+>   %1 = Coerce %0 [Weaken -] : *Point
+>   %2 = Block %1 : *Point
 >   summary kept [$0]

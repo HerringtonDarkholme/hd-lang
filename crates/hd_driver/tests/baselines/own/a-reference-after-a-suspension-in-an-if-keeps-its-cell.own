@@ -17,7 +17,7 @@ fn pause!() -> void:
 fn tick(c: &mut Counter) -> void:
     c.hits = c.hits + 1
 > app/main/tick
->   local $0 c: RefMut[Counter] [param read] value
+>   local $0 c: &mut Counter [param read] value
 >     uses $0: entry -> %0 lend, %2 lend last
 >   %0 = Read copy [*$0 .hits] : i32
 >   %1 = Prim Add [%0 1:i32] : i32
@@ -42,7 +42,7 @@ fn run!(go: bool) -> void:
 >   %5 = Release %4 Operation child #2 : ()
 >   %6 = Block - : ()
     tick(&mut c)
->   %8 = Ref mut local [$1] : RefMut[Counter]
+>   %8 = Ref mut local [$1] : &mut Counter
 >   %9 = Call app/main/tick[] (%8) : ()
 >   %10 = LoanEnd [%8] : ()
 >   %11 = Drop [$1] : ()

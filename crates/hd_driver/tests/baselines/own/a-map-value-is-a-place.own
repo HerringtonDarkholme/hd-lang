@@ -10,7 +10,7 @@ struct Stock:
 fn add(stock: &mut Stock, n: i32) -> void:
     stock.count += n
 > app/main/add
->   local $0 stock: RefMut[Stock] [param read] value
+>   local $0 stock: &mut Stock [param read] value
 >     uses $0: entry -> %0 lend, %3 lend last
 >   local $1 n: i32 [param read] value
 >     uses $1: entry -> %1 lend last
@@ -32,7 +32,7 @@ fn restock(mut shelves: Map[string, Stock], name: string) -> Map[string, Stock]:
 >   %3 = Read borrow [$1] : string
 >   %4 = Intrinsic MapEntry [%2 %3] : usize
 >   %5 = IsUnique [$0] : ()
->   %6 = Ref mut local [$0 [%4]] : RefMut[Stock]
+>   %6 = Ref mut local [$0 [%4]] : &mut Stock
 >   %7 = Call app/main/add[] (%6, 1:i32) : ()
 >   %8 = LoanEnd [%6] : ()
 >   %15 = Block %14 : Map[string, Stock]

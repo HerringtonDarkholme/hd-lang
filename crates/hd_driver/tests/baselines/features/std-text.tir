@@ -10,13 +10,13 @@ use std.text.StringBuilder
 fn build(parts: &List[string]) -> string:
     sb := StringBuilder::new()
 > app/main/build
->   local $1 sb: CountedMut[StringBuilder] [:= read assigned]
+>   local $1 sb: *mut StringBuilder [:= read assigned]
 >   local $2 $coll: List[string] [assigned]
 >   local $3 $len: usize [assigned]
 >   local $4 $pos: usize [assigned]
 >   local $5 $end: usize [assigned]
 >   local $6 p: string [read assigned]
->   %0 = Call std/text/impl StringBuilder.new[] () : CountedMut[StringBuilder]
+>   %0 = Call std/text/impl StringBuilder.new[] () : *mut StringBuilder
 >   %1 = Store [$1] %0 : ()
 >   %36 = Block %35 : string
     for p in parts:
@@ -47,14 +47,14 @@ fn build(parts: &List[string]) -> string:
 >   %32 = Block - : ()
 >   %33 = Loop %32 - : ()
         sb.push(p)
->   %18 = Read [$1] : CountedMut[StringBuilder]
+>   %18 = Read [$1] : *mut StringBuilder
 >   %19 = Read [$6] : string
 >   %20 = Call std/text/impl StringBuilder.push[] (%18, %19) : ()
         sb.push(",")
->   %21 = Read [$1] : CountedMut[StringBuilder]
+>   %21 = Read [$1] : *mut StringBuilder
 >   %22 = Call std/text/impl StringBuilder.push[] (%21, ",") : ()
     sb.build()
->   %34 = Read [$1] : CountedMut[StringBuilder]
+>   %34 = Read [$1] : *mut StringBuilder
 >   %35 = Call std/text/impl StringBuilder.build[] (%34) : string
 
 fn fields(line: string) -> usize:
@@ -99,7 +99,7 @@ fn fields(line: string) -> usize:
 >   %33 = Loop %32 - : ()
         n += f.len()
 >   %18 = Read [$1] : usize
->   %19 = Ref local [$6] : Ref[string]
+>   %19 = Ref local [$6] : &string
 >   %20 = Call std/text/impl string.len[] (%19) : usize
 >   %21 = Prim Add [%18 %20] : usize
 >   %22 = Store [$1] %21 : ()

@@ -158,7 +158,7 @@ fn tag(label: string, level: i64) -> string:
 >   %6 = Break L6 %5 : never
 >   %7 = Block - : usize
 >   %8 = Scope %7 [] : usize
->   %9 = Ref local frame [$1] : Ref[i64]
+>   %9 = Ref local frame [$1] : &i64
 >   %10 = Read copy [*%9] : i64
 >   %11 = LoanEnd [%9] : ()
 >   %12 = Prim Conv [%10] : i64
@@ -304,7 +304,7 @@ fn chain(raw: string) -> string:
 >   %19 = Read borrow [$1] : string
 >   %20 = Call std/text/impl StringBuilder.text_width[] (%19) : usize
 >   %21 = Retain %20 Operation operand 0 #0 : ()
->   %22 = Ref local frame [$2] : Ref[i64]
+>   %22 = Ref local frame [$2] : &i64
 >   %23 = Read copy [*%22] : i64
 >   %24 = LoanEnd [%22] : ()
 >   %25 = Prim Conv [%23] : i64
@@ -359,7 +359,7 @@ fn direct(raw: string) -> string:
 >   %19 = Read borrow [$1] : string
 >   %20 = Call std/text/impl StringBuilder.text_width[] (%19) : usize
 >   %21 = Retain %20 Operation operand 0 #0 : ()
->   %22 = Ref local frame [$2] : Ref[i64]
+>   %22 = Ref local frame [$2] : &i64
 >   %23 = Read copy [*%22] : i64
 >   %24 = LoanEnd [%22] : ()
 >   %25 = Prim Conv [%23] : i64

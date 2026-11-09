@@ -34,7 +34,7 @@ fn read_config(path: string) -> Result[string, FsError]:
     if path.len() > 0: .Ok(path + "!") else: .Err(FsError.NotFound(path))
 > app/main/read_config
 >   local $0 path: string [param read captured]
->   %0 = Ref local [$0] : Ref[string]
+>   %0 = Ref local [$0] : &string
 >   %1 = Call std/text/impl string.len[] (%0) : usize
 >   %2 = Prim Gt [%1 0:usize] : bool
 >   %3 = Read [$0] : string
@@ -53,7 +53,7 @@ fn load(path: string) -> Result[string, *dyn Error]:
 > app/main/load
 >   local $0 path: string [param read]
 >   local $1 $ref: FsError [read assigned captured captured-assigned]
->   local $2 $ref: Counted[FsError] [read assigned captured]
+>   local $2 $ref: *FsError [read assigned captured]
 >   local $3 text: string [:= read assigned]
 >   %0 = Read [$0] : string
 >   %1 = Call app/main/read_config[] (%0) : Result[string, FsError]
@@ -61,18 +61,18 @@ fn load(path: string) -> Result[string, *dyn Error]:
 >   %3 = Block %2 : string
 >   %4 = Read [%1 as #1 .0] : FsError
 >   %5 = Store [$1] %4 : ()
->   %6 = Ref [$1] : Counted[FsError]
+>   %6 = Ref [$1] : *FsError
 >   %7 = Store [$2] %6 : ()
->   %8 = Read [$2] : Counted[FsError]
+>   %8 = Read [$2] : *FsError
 >   %9 = Coerce %8 [RefToTraitValue -] : Error
 >   %10 = Block %9 : Error
->   %11 = RefDyn %10 : Counted[Error]
->   %12 = NewVariant #1 [%11] : Result[string, Counted[Error]]
+>   %11 = RefDyn %10 : *dyn Error
+>   %12 = NewVariant #1 [%11] : Result[string, *dyn Error]
 >   %13 = Return %12 : never
 >   %14 = Block - : never
 >   %15 = SwitchTag %1 [#0 %3 %14] : string
 >   %16 = Store [$3] %15 : ()
->   %19 = Block %18 : Result[string, Counted[Error]]
+>   %19 = Block %18 : Result[string, *dyn Error]
     .Ok(text)
 >   %17 = Read [$3] : string
->   %18 = NewVariant #0 [%17] : Result[string, Counted[Error]]
+>   %18 = NewVariant #0 [%17] : Result[string, *dyn Error]

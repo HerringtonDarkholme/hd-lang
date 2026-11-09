@@ -47,7 +47,7 @@ fn total(parts...: List[string]) -> usize:
 >   %32 = Loop %31 - : ()
         n += p.len()
 >   %17 = Read [$1] : usize
->   %18 = Ref local [$6] : Ref[string]
+>   %18 = Ref local [$6] : &string
 >   %19 = Call std/text/impl string.len[] (%18) : usize
 >   %20 = Prim Add [%17 %19] : usize
 >   %21 = Store [$1] %20 : ()

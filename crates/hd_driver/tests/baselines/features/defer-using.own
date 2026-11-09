@@ -16,7 +16,7 @@ impl Disposable for Res:
     fn dispose(&mut self) -> void:
         self.log.push(self.name)
 > app/main/impl Disposable for Res.dispose
->   local $0 self: RefMut[Res] [param read] value
+>   local $0 self: &mut Res [param read] value
 >     uses $0: entry -> %0 lend, %2 lend last
 >   %0 = Read copy [*$0 .name] : string
 >   %1 = IsUnique [*$0 .log *] : ()
@@ -27,11 +27,11 @@ impl Disposable for Res:
 
 fn with_defer(log: *mut List[string], s: string) -> usize:
 > app/main/with_defer
->   local $0 log: CountedMut[List[string]] [param read captured] value
+>   local $0 log: *mut List[string] [param read captured] value
 >     uses $0: entry -> %5 lend, %9 consume last
 >   local $1 s: string [param read captured] value
 >     uses $1: entry -> %3 consume, %9 consume, %23 lend last
->   local $2 $ref: DeferGuard[fn() -> (), $(), Ref[()]] [:= read assigned captured captured-assigned] place
+>   local $2 $ref: DeferGuard[fn() -> (), $()] [:= read assigned captured captured-assigned] place
 >   local $4 action: fn() -> () [read] value
 >     uses $4: %11 -> %12 consume last
 >   %1 = Retain %33 Entry local $0 #0 : ()
@@ -48,13 +48,13 @@ fn with_defer(log: *mut List[string], s: string) -> usize:
 >   %10 = Retain %9 Operation captures #0 : ()
 >   %11 = Store [$4] %9 : ()
 >   %12 = Read move [$4] : fn() -> ()
->   %13 = NewStruct [%12] : DeferGuard[fn() -> (), $(), Ref[()]]
+>   %13 = NewStruct [%12] : DeferGuard[fn() -> (), $()]
 >   %14 = Break L1 %13 : never
->   %15 = Block - : DeferGuard[fn() -> (), $(), Ref[()]]
->   %16 = Scope %15 [] : DeferGuard[fn() -> (), $(), Ref[()]]
+>   %15 = Block - : DeferGuard[fn() -> (), $()]
+>   %16 = Scope %15 [] : DeferGuard[fn() -> (), $()]
 >   %17 = Store [$2] %16 : ()
->   %18 = Ref mut local frame [$2] : RefMut[DeferGuard[fn() -> (), $(), Ref[()]]]
->   %19 = Call std/ops/Disposable.dispose for DeferGuard[fn() -> (), $(), Ref[()]] [$()] via Impl (%18) : ()
+>   %18 = Ref mut local frame [$2] : &mut DeferGuard[fn() -> (), $()]
+>   %19 = Call std/ops/Disposable.dispose for DeferGuard[fn() -> (), $()] [$()] via Impl (%18) : ()
 >   %20 = LoanEnd [%18] : ()
 >   %21 = Block - : ()
 >   %22 = Defer #21 : ()
@@ -78,23 +78,23 @@ fn with_defer(log: *mut List[string], s: string) -> usize:
 
 fn with_using(log: *mut List[string], s: string) -> usize:
 > app/main/with_using
->   local $0 log: CountedMut[List[string]] [param read] value
+>   local $0 log: *mut List[string] [param read] value
 >     uses $0: entry -> %2 consume last
 >   local $1 s: string [param read] value
 >     uses $1: entry -> %1 consume last
 >   local $2 $ref: Res [read assigned captured captured-assigned] place
->   local $3 r: CountedMut[Res] [:= read assigned] place
+>   local $3 r: *mut Res [:= read assigned] place
 >   local $4 self: string [read] value
 >     uses $4: %12 -> %13 lend last
 >   %0 = Retain %21 Entry local $1 #0 : ()
     using r = box(Res { name: s, log: log })
 >   %1 = Read move [$1] : string
->   %2 = Read copy [$0] : CountedMut[List[string]]
+>   %2 = Read copy [$0] : *mut List[string]
 >   %3 = NewStruct [%1 %2] : Res
 >   %4 = Store [$2] %3 : ()
->   %5 = Ref take mut [$2] : CountedMut[Res]
+>   %5 = Ref take mut [$2] : *mut Res
 >   %6 = Store [$3] %5 : ()
->   %7 = Read borrow [$3] : CountedMut[Res]
+>   %7 = Read borrow [$3] : *mut Res
 >   %8 = Call std/ops/Disposable.dispose for Res [$()] via Impl (%7) : ()
 >   %9 = Block - : ()
 >   %10 = Defer #9 : ()

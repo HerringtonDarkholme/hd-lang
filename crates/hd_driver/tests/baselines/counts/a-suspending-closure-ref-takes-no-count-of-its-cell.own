@@ -7,7 +7,7 @@ struct Tally:
 
 fn bump!(t: &mut Tally) -> void:
 > app/main/bump
->   local $0 t: RefMut[Tally] [param read] value
+>   local $0 t: &mut Tally [param read] value
 >     uses $0: entry -> %5 lend, %7 lend last
 >   %0 = Retain %9 Cold local $0 #0 : ()
 >   %1 = Retain %9 Entry local $0 #0 : ()
@@ -25,7 +25,7 @@ fn bump!(t: &mut Tally) -> void:
 
 fn read!(t: &Tally) -> i64:
 > app/main/read
->   local $0 t: Ref[Tally] [param read] value
+>   local $0 t: &Tally [param read] value
 >     uses $0: entry -> %5 lend last
 >   %0 = Retain %7 Cold local $0 #0 : ()
 >   %1 = Retain %7 Entry local $0 #0 : ()
@@ -58,7 +58,7 @@ fn local!() -> i64:
 >   %5 = NewStruct [0:i64] : Tally
 >   %6 = Store [$1] %5 : ()
         bump!(&mut tally)
->   %7 = Ref mut local [$1] : RefMut[Tally]
+>   %7 = Ref mut local [$1] : &mut Tally
 >   %8 = Await app/main/bump[] (%7) : ()
 >   %9 = Release %8 Operation child #2 : ()
 >   %10 = LoanEnd [%7] : ()
@@ -101,7 +101,7 @@ fn shared!() -> i64:
 >   %6 = Retain %14 Cold captures #0 : ()
 >   %7 = Retain %14 Entry captures #0 : ()
 >   %8 = Release %14 FrameDrop child #2 : ()
->   %9 = Ref mut local [$0] : RefMut[Tally]
+>   %9 = Ref mut local [$0] : &mut Tally
 >   %10 = Await app/main/bump[] (%9) : ()
 >   %11 = Release %10 Operation child #2 : ()
 >   %12 = Drop [%9] : ()
@@ -148,7 +148,7 @@ fn copied!() -> i64:
 >   %4 = Retain %12 Materialize row #0 : ()
 >   %5 = Release %12 FrameDrop row #2 : ()
 >   %6 = Release %12 FrameDrop child #2 : ()
->   %7 = Ref local [$0] : Ref[Tally]
+>   %7 = Ref local [$0] : &Tally
 >   %8 = Await app/main/read[] (%7) : i64
 >   %9 = Release %8 Operation child #2 : ()
 >   %10 = Drop [%7] : ()

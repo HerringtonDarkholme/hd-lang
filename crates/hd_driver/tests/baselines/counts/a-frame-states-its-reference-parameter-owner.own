@@ -4,7 +4,7 @@
 # expected: cold, exit and teardown state the parameter's object counts; an ordinary call has none.
 fn read!(value: &i32) -> i32:
 > app/main/read
->   local $0 value: Ref[i32] [param read] value
+>   local $0 value: &i32 [param read] value
 >     uses $0: entry -> %5 lend last
 >   %0 = Retain %7 Cold local $0 #0 : ()
 >   %1 = Retain %7 Entry local $0 #0 : ()
@@ -21,7 +21,7 @@ fn read!(value: &i32) -> i32:
 fn plain(value: &i32) -> i32:
     *value
 > app/main/plain
->   local $0 value: Ref[i32] [param read] value
+>   local $0 value: &i32 [param read] value
 >     uses $0: entry -> %0 lend last
 >   %0 = Read copy [*$0] : i32
 >   %1 = Block %0 : i32

@@ -19,8 +19,8 @@ fn same(a: Key, b: Key) -> bool:
 >   %0 = Retain %9 Entry local $0 #0 : ()
 >   %1 = Retain %9 Entry local $1 #0 : ()
     a == b
->   %2 = Ref local frame [$0] : Ref[Key]
->   %3 = Ref local frame [$1] : Ref[Key]
+>   %2 = Ref local frame [$0] : &Key
+>   %3 = Ref local frame [$1] : &Key
 >   %4 = Call std/core/Eq.eq for Key [] via Impl (%2, %3) : bool
 >   %5 = LoanEnd [%3] : ()
 >   %6 = LoanEnd [%2] : ()
@@ -38,8 +38,8 @@ fn before(a: Key, b: Key) -> bool:
 >   %0 = Retain %16 Entry local $0 #0 : ()
 >   %1 = Retain %16 Entry local $1 #0 : ()
     a < b
->   %2 = Ref local frame [$0] : Ref[Key]
->   %3 = Ref local frame [$1] : Ref[Key]
+>   %2 = Ref local frame [$0] : &Key
+>   %3 = Ref local frame [$1] : &Key
 >   %4 = Call std/cmp/PartialOrd.partial_cmp for Key [] via Impl (%2, %3) : Ordering?
 >   %5 = LoanEnd [%3] : ()
 >   %6 = LoanEnd [%2] : ()

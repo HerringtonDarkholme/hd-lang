@@ -83,7 +83,7 @@ pub fn single_counted_address_type(pool: &InternPool, env: &dyn ProgramEnv, ty: 
         && layout::walk(pool, env, ty).and_then(|w| w.single()) == Some(0)
 }
 
-/// Whether the concrete type is a thin counted carrier of a whole object.
+/// Whether the concrete type is a thin counted reference to a whole object.
 #[must_use]
 pub fn thin_counted_reference_type(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> bool {
     matches!(

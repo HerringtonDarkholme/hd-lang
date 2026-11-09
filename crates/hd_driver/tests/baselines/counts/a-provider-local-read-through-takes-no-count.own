@@ -13,7 +13,7 @@ struct Count:
 impl Sink for Count:
     fn put(&mut self, text: string) -> void:
 > app/main/impl Sink for Count.put
->   local $0 self: RefMut[Count] [param read] value
+>   local $0 self: &mut Count [param read] value
 >     uses $0: entry -> %1 lend, %8 lend last
 >   local $1 text: string [param read] value
 >     uses $1: entry -> %2 lend last
@@ -34,12 +34,12 @@ fn line(text: string) -> void $ Sink:
 > app/main/line
 >   local $0 text: string [param read] value
 >     uses $0: entry -> %5 lend last
->   local $1 sink: RefMut[Sink] [read assigned] value
+>   local $1 sink: &mut dyn Sink [read assigned] value
 >     uses $1: %3 -> %4 lend, %7 lend last
 >   %0 = Release %10 Exit local $0 #2 : ()
     let sink: &mut dyn Sink = $.use(Sink)
 >   %1 = ProviderGet #0 : Sink
->   %2 = Coerce %1 [ProviderAsRef -] : RefMut[Sink]
+>   %2 = Coerce %1 [ProviderAsRef -] : &mut dyn Sink
 >   %3 = Store [$1] %2 : ()
 >   %10 = Block - : ()
     sink.put(text)
@@ -56,15 +56,15 @@ fn swapped(text: string, other: &mut dyn Sink) -> void $ Sink:
 > app/main/swapped
 >   local $0 text: string [param read] value
 >     uses $0: entry -> %6 lend last
->   local $1 other: RefMut[Sink] [param read] value
+>   local $1 other: &mut dyn Sink [param read] value
 >     uses $1: entry -> %8 consume last
->   local $2 sink: RefMut[Sink] [read assigned mutated] value ×2
+>   local $2 sink: &mut dyn Sink [read assigned mutated] value ×2
 >     uses $2: %4 -> %5 lend last; %9 -> %11 lend last
 >   %0 = Release %14 Exit local $0 #2 : ()
     let mut sink: &mut dyn Sink = $.use(Sink)
 >   %1 = ProviderGet #0 : Sink
 >   %2 = Retain %1 Value #0 : ()
->   %3 = Coerce %1 [ProviderAsRef -] : RefMut[Sink]
+>   %3 = Coerce %1 [ProviderAsRef -] : &mut dyn Sink
 >   %4 = Store [$2] %3 : ()
 >   %14 = Block - : ()
     sink.put(text)
@@ -72,7 +72,7 @@ fn swapped(text: string, other: &mut dyn Sink) -> void $ Sink:
 >   %6 = Read borrow [$0] : string
 >   %7 = Call app/main/Sink.put for Sink [] via TraitValue (%5, %6) : ()
     sink = other
->   %8 = Read copy [$1] : RefMut[Sink]
+>   %8 = Read copy [$1] : &mut dyn Sink
 >   %9 = Store [$2] %8 : ()
 >   %10 = Release %9 Operation #3 : ()
     sink.put("!")
@@ -85,35 +85,35 @@ pub fn go() -> usize:
     first := box(Count { n: 0 })
 > app/main/go
 >   local $0 $ref: Count [read assigned captured captured-assigned] place
->   local $1 first: CountedMut[Count] [:= read assigned] value
+>   local $1 first: *mut Count [:= read assigned] value
 >     uses $1: %3 -> %8 consume, %31 lend last
 >   local $2 $ref: Count [read assigned captured captured-assigned] place
->   local $3 second: CountedMut[Count] [:= read assigned] value
+>   local $3 second: *mut Count [:= read assigned] value
 >     uses $3: %7 -> %18 consume, %32 lend last
->   local $4 $ref: CountedMut[Count] [read assigned captured] value
+>   local $4 $ref: *mut Count [read assigned captured] value
 >     uses $4: %9 -> %10 lend last
->   local $5 $ref: RefMut[Count] [read assigned captured] value
+>   local $5 $ref: &mut Count [read assigned captured] value
 >     uses $5: %19 -> %20 lend last
 >   %0 = NewStruct [0:usize] : Count
 >   %1 = Store [$0] %0 : ()
->   %2 = Ref take mut [$0] : CountedMut[Count]
+>   %2 = Ref take mut [$0] : *mut Count
 >   %3 = Store [$1] %2 : ()
 >   %36 = Block %33 : usize
 >   %2 finds [$0] full
     second := box(Count { n: 0 })
 >   %4 = NewStruct [0:usize] : Count
 >   %5 = Store [$2] %4 : ()
->   %6 = Ref take mut [$2] : CountedMut[Count]
+>   %6 = Ref take mut [$2] : *mut Count
 >   %7 = Store [$3] %6 : ()
 >   %6 finds [$2] full
     $.with(Sink = first):
->   %8 = Read copy [$1] : CountedMut[Count]
+>   %8 = Read copy [$1] : *mut Count
 >   %9 = Store [$4] %8 : ()
->   %10 = Read move [$4] : CountedMut[Count]
+>   %10 = Read move [$4] : *mut Count
 >   %11 = Coerce %10 [RefToTraitValue -] : Sink
 >   %12 = LoanEnd [%10] : ()
 >   %13 = Block %11 : Sink
->   %14 = RefDyn %13 : CountedMut[Sink]
+>   %14 = RefDyn %13 : *mut dyn Sink
 >   %15 = Coerce %14 [RefAsProvider -] : Sink
 >   %16 = LoanEnd [%14] : ()
 >   %29 = With [Sink %15] %28 : ()
@@ -122,14 +122,14 @@ pub fn go() -> usize:
 >   %17 = Call app/main/line[] ("ab") : ()
 >   %28 = Block - : ()
         swapped("c", second)
->   %18 = Read copy [$3] : RefMut[Count]
+>   %18 = Read copy [$3] : &mut Count
 >   %19 = Store [$5] %18 : ()
->   %20 = Read move [$5] : RefMut[Count]
+>   %20 = Read move [$5] : &mut Count
 >   %21 = Coerce %20 [RefToTraitValue -] : Sink
 >   %22 = Retain %21 Value #0 : ()
 >   %23 = Drop [%20] : ()
 >   %24 = Block %21 : Sink
->   %25 = RefDyn %24 : RefMut[Sink]
+>   %25 = RefDyn %24 : &mut dyn Sink
 >   %26 = Call app/main/swapped[] ("c", %25) : ()
 >   %27 = Drop [%25] : ()
     first.n + second.n

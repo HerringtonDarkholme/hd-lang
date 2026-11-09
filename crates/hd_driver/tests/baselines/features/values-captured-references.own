@@ -11,7 +11,7 @@ struct Point:
 
 fn bump(p: *mut Point) -> fn() -> void:
 > app/main/bump
->   local $0 p: CountedMut[Point] [param read captured] value
+>   local $0 p: *mut Point [param read captured] value
 >     uses $0: entry -> %2 lend, %4 lend, %7 consume last
 >   %1 = Retain %9 Entry local $0 #0 : ()
     fn() -> void: p.x = p.x + 1
@@ -33,7 +33,7 @@ fn demo(s: string) -> i32:
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %1 consume last
 >   local $1 $ref: Point [read assigned captured captured-assigned] place
->   local $2 origin: CountedMut[Point] [:= read assigned] value
+>   local $2 origin: *mut Point [:= read assigned] value
 >     uses $2: %5 -> %6 lend, %14 lend last
 >   local $3 step: fn() -> () [:= read assigned] value
 >     uses $3: %8 -> %9 lend, %11 lend last
@@ -42,12 +42,12 @@ fn demo(s: string) -> i32:
 >   %1 = Read move [$0] : string
 >   %2 = NewStruct [%1 0:i32] : Point
 >   %3 = Store [$1] %2 : ()
->   %4 = Ref take mut [$1] : CountedMut[Point]
+>   %4 = Ref take mut [$1] : *mut Point
 >   %5 = Store [$2] %4 : ()
 >   %16 = Block %14 : i32
 >   %4 finds [$1] full
     step := bump(origin)
->   %6 = Read borrow [$2] : CountedMut[Point]
+>   %6 = Read borrow [$2] : *mut Point
 >   %7 = Call app/main/bump[] (%6) : fn() -> ()
 >   %8 = Store [$3] %7 : ()
     step()
@@ -77,7 +77,7 @@ fn apply(f: fn() -> usize) -> usize:
 
 fn local(xs: &List[string]) -> usize:
 > app/main/local
->   local $0 xs: Ref[List[string]] [param read captured] value
+>   local $0 xs: &List[string] [param read captured] value
 >     uses $0: entry -> %2 lend, %7 consume last
 >   local $1 f: fn() -> usize [read] value
 >     uses $1: %9 -> %10 lend last

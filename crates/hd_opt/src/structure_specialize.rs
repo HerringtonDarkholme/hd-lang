@@ -406,7 +406,7 @@ fn fits_call(env: &dyn StructureEnv, caller: &Body, call: usize, copy: &mut Body
             return false;
         };
         let want = copy.local_ty[local];
-        if crate::inline::lends_by_kind(pool, env.ref_cells(), arg_ty, want) {
+        if crate::inline::lends_by_kind(pool, arg_ty, want) {
             copy.local_ty[local] = arg_ty;
         } else if !fits(Some(arg_ty), want) {
             return false;

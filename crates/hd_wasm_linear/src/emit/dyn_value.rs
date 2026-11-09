@@ -24,14 +24,10 @@ impl Em<'_, '_, '_> {
     }
 
     pub(super) fn dyn_value_ty(&self, mut ty: Ty) -> Ty {
-        loop {
-            match self.pool().get(ty) {
-                TyData::Adt { def, args } if self.env().ref_cells().holds(def) => {
-                    ty = self.pool().list_items(args)[0];
-                }
-                _ => return ty,
-            }
+        while let TyData::Ref { inner, .. } = self.pool().get(ty) {
+            ty = inner;
         }
+        ty
     }
 
     /// The trait value that `value`, a reference to one, perhaps through
@@ -232,9 +228,7 @@ impl Em<'_, '_, '_> {
                 && (self.input.path)(*m).rsplit(['.', '/']).next() == Some("runtime_type")
             {
                 let recorded = match self.pool().get(self_ty) {
-                    TyData::Adt { def, args } if self.env().ref_cells().holds(def) => {
-                        self.pool().list_items(args)[0]
-                    }
+                    TyData::Ref { inner, .. } => inner,
                     _ => self_ty,
                 };
                 let parts = self.type_id_parts(recorded);

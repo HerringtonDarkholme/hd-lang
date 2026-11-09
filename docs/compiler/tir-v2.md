@@ -79,8 +79,8 @@ collector, never Wasm GC. A reference is one thin address. No
 whole-program or cross-function analysis (#702 and #703 stay held). No
 second copies of a callee for result demand (#681). Bounds-check
 elimination is separate (#711). Interior references carry no tag: a counted
-reference always refers to a whole object (#912), so `*T` lowers to a
-carrier of its own whose counts read the header (§23.30, #988); [Stage 2](#stage-2) says what places
+reference always refers to a whole object (#912), so a `*T`'s counts
+read the header (§23.30, #988, #1444); [Stage 2](#stage-2) says what places
 make cheaper. TIR v2 replaces TIR: the checker emits it, the emitter
 consumes it, and nothing sits between them. Compile time, memory,
 compiler size and cognitive load count as much as run time.
@@ -1372,12 +1372,8 @@ audit on the commits that touch the emitter).
     `NewStruct` and `CopyStruct`; every module is identical to commit
     9's. Stage 1 is done.
 
-An eleventh commit is possible but not needed: stop lowering `&T` to
-the `std.core.Ref[T]` data type in the checker's finish
-(`lower_body_refs`, `Types::lower_refs`), so references stay
-`TyData::Ref` through the backend. Without closure forms nothing needs
-the data type, but the change moves instance keys and layout lookups
-everywhere, so it is better done alone after stage 1.
+References now stay `TyData::Ref` through the backend (#1444); the
+checker no longer lowers them to data types.
 
 ### Acceptance cases and their expected diffs
 

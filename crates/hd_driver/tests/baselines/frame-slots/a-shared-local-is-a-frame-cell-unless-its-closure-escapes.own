@@ -161,7 +161,7 @@ fn listed() -> usize:
 fn pushed(fs: &mut List[fn() -> void]) -> void:
     let n: usize = 0
 > app/main/pushed
->   local $0 fs: RefMut[List[fn() -> ()]] [param read] value
+>   local $0 fs: &mut List[fn() -> ()] [param read] value
 >     uses $0: entry -> %12 lend last
 >   local $1 n: usize [read assigned captured captured-assigned] place
 >   %0 = Store [$1] 0:usize : ()

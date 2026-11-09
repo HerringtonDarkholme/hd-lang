@@ -53,7 +53,7 @@ fn ret_new(n: i64) -> string:
 >     uses $9: %5 -> %6 consume last
 >   local $10 value: i64 [read] value
 >     uses $10: %7 -> %8 lend, %11 lend last
->   %0 = Ref local frame [$0] : Ref[i64]
+>   %0 = Ref local frame [$0] : &i64
 >   %1 = Read copy [*%0] : i64
 >   %2 = LoanEnd [%0] : ()
 >   %3 = Prim Conv [%1] : i64
@@ -127,10 +127,10 @@ fn ret_new(n: i64) -> string:
 fn ret_ref_field(r: &Rec) -> &string:
     &r.name
 > app/main/ret_ref_field
->   local $0 r: Ref[Rec] [param read] value
+>   local $0 r: &Rec [param read] value
 >     uses $0: entry -> %0 lend last
->   %0 = Ref local [*$0 .name] : Ref[string]
->   %1 = Block %0 : Ref[string]
+>   %0 = Ref local [*$0 .name] : &string
+>   %1 = Block %0 : &string
 >   summary kept []
 
 fn use_rets(r: Rec) -> usize:
@@ -140,7 +140,7 @@ fn use_rets(r: Rec) -> usize:
 >     uses $1: %7 -> %8 lend last
 >   local $2 $ref: string [read assigned captured captured-assigned] value
 >     uses $2: %20 -> %21 lend last
->   local $3 r: Ref[Rec] [read] value
+>   local $3 r: &Rec [read] value
 >     uses $3: %29 -> %30 lend last
 >   local $5 r: Rec [read] value
 >     uses $5: %15 -> %16 consume last
@@ -175,12 +175,12 @@ fn use_rets(r: Rec) -> usize:
 >   %25 = Scope %24 [] : usize
 >   %26 = Drop [$2] : ()
 >   %27 = Prim Add [%12 %25] : usize
->   %28 = Ref local frame [$0] : Ref[Rec]
+>   %28 = Ref local frame [$0] : &Rec
 >   %29 = Store [$3] %28 : ()
->   %30 = Ref local [*$3 .name] : Ref[string]
+>   %30 = Ref local [*$3 .name] : &string
 >   %31 = Break L0 %30 : never
->   %32 = Block - : Ref[string]
->   %33 = Scope %32 [] : Ref[string]
+>   %32 = Block - : &string
+>   %33 = Scope %32 [] : &string
 >   %34 = Call std/text/impl string.len[] (%33) : usize
 >   %35 = Drop [%33] : ()
 >   %36 = LoanEnd [$3] : ()

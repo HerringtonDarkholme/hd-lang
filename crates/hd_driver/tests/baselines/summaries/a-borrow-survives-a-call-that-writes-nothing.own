@@ -12,11 +12,11 @@ impl Node:
     fn twice(&self) -> usize:
         match self.left:
 > app/main/impl Node.twice
->   local $0 self: Ref[Node] [param read] value
+>   local $0 self: &Node [param read] value
 >     uses $0: entry -> %0 lend last
->   local $1 left: Counted[Node] [read assigned] value
+>   local $1 left: *Node [read assigned] value
 >     uses $1: %11 -> %2 lend, %4 lend last
->   %0 = Read borrow [*$0 .left] : Counted[Node]?
+>   %0 = Read borrow [*$0 .left] : *Node?
 >   %19 = Block - : never
 >   %20 = Match %0 [%19 %1 %7] : usize
 >   %21 = Block %20 : usize
@@ -26,13 +26,13 @@ impl Node:
 >   %17 = Block - : never
 >   %18 = SwitchTag %0 [#0 %9 %17] : never
             .Some(left) => depth(left) + depth(left)
->   %2 = Read borrow [$1] : Counted[Node]
+>   %2 = Read borrow [$1] : *Node
 >   %3 = Call app/main/depth[] (%2) : usize
->   %4 = Read borrow [$1] : Counted[Node]
+>   %4 = Read borrow [$1] : *Node
 >   %5 = Call app/main/depth[] (%4) : usize
 >   %6 = Prim Add [%3 %5] : usize
 >   %7 = Block %6 : usize
->   %10 = Read borrow [%0 as #1 .0] : Counted[Node]
+>   %10 = Read borrow [%0 as #1 .0] : *Node
 >   %11 = Store [$1] %10 : ()
 >   %13 = Block - : never
 >   %15 = Block - : never
@@ -42,11 +42,11 @@ impl Node:
 fn depth(node: &Node) -> usize:
     match node.left:
 > app/main/depth
->   local $0 node: Ref[Node] [param read] value
+>   local $0 node: &Node [param read] value
 >     uses $0: entry -> %0 lend last
->   local $1 left: Counted[Node] [read assigned] value
+>   local $1 left: *Node [read assigned] value
 >     uses $1: %9 -> %2 lend last
->   %0 = Read borrow [*$0 .left] : Counted[Node]?
+>   %0 = Read borrow [*$0 .left] : *Node?
 >   %17 = Block - : never
 >   %18 = Match %0 [%17 %1 %5] : usize
 >   %19 = Block %18 : usize
@@ -56,11 +56,11 @@ fn depth(node: &Node) -> usize:
 >   %15 = Block - : never
 >   %16 = SwitchTag %0 [#0 %7 %15] : never
         .Some(left) => 1 + depth(left)
->   %2 = Read borrow [$1] : Counted[Node]
+>   %2 = Read borrow [$1] : *Node
 >   %3 = Call app/main/depth[] (%2) : usize
 >   %4 = Prim Add [1:usize %3] : usize
 >   %5 = Block %4 : usize
->   %8 = Read borrow [%0 as #1 .0] : Counted[Node]
+>   %8 = Read borrow [%0 as #1 .0] : *Node
 >   %9 = Store [$1] %8 : ()
 >   %11 = Block - : never
 >   %13 = Block - : never
@@ -70,13 +70,13 @@ fn depth(node: &Node) -> usize:
 fn check(node: &Node) -> i64:
     match node.left:
 > app/main/check
->   local $0 node: Ref[Node] [param read] value
+>   local $0 node: &Node [param read] value
 >     uses $0: entry -> %0 lend, %2 lend last
->   local $1 left: Counted[Node] [read assigned] value
+>   local $1 left: *Node [read assigned] value
 >     uses $1: %31 -> %3 lend last, %7 lend last
->   local $2 right: Counted[Node] [read assigned] value
+>   local $2 right: *Node [read assigned] value
 >     uses $2: %17 -> %10 lend last
->   %0 = Read borrow [*$0 .left] : Counted[Node]?
+>   %0 = Read borrow [*$0 .left] : *Node?
 >   %39 = Block - : never
 >   %40 = Match %0 [%39 %1 %27] : i64
 >   %41 = Block %40 : i64
@@ -86,18 +86,18 @@ fn check(node: &Node) -> i64:
 >   %37 = Block - : never
 >   %38 = SwitchTag %0 [#0 %29 %37] : never
         .Some(left) =>
->   %30 = Read borrow [%0 as #1 .0] : Counted[Node]
+>   %30 = Read borrow [%0 as #1 .0] : *Node
 >   %31 = Store [$1] %30 : ()
 >   %33 = Block - : never
 >   %35 = Block - : never
 >   %36 = SwitchTag %0 [#1 %33 %35] : never
             match node.right:
->   %2 = Read borrow [*$0 .right] : Counted[Node]?
+>   %2 = Read borrow [*$0 .right] : *Node?
 >   %25 = Block - : never
 >   %26 = Match %2 [%25 %6 %13] : i64
 >   %27 = Block %26 : i64
                 .None => 1 + check(left)
->   %3 = Read borrow [$1] : Counted[Node]
+>   %3 = Read borrow [$1] : *Node
 >   %4 = Call app/main/check[] (%3) : i64
 >   %5 = Prim Add [1:i64 %4] : i64
 >   %6 = Block %5 : i64
@@ -105,14 +105,14 @@ fn check(node: &Node) -> i64:
 >   %23 = Block - : never
 >   %24 = SwitchTag %2 [#0 %15 %23] : never
                 .Some(right) => 1 + check(left) + check(right)
->   %7 = Read borrow [$1] : Counted[Node]
+>   %7 = Read borrow [$1] : *Node
 >   %8 = Call app/main/check[] (%7) : i64
 >   %9 = Prim Add [1:i64 %8] : i64
->   %10 = Read borrow [$2] : Counted[Node]
+>   %10 = Read borrow [$2] : *Node
 >   %11 = Call app/main/check[] (%10) : i64
 >   %12 = Prim Add [%9 %11] : i64
 >   %13 = Block %12 : i64
->   %16 = Read borrow [%2 as #1 .0] : Counted[Node]
+>   %16 = Read borrow [%2 as #1 .0] : *Node
 >   %17 = Store [$2] %16 : ()
 >   %19 = Block - : never
 >   %21 = Block - : never

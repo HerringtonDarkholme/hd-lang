@@ -30,7 +30,7 @@ fn read_tag() -> usize $ Tag:
 >   local $0 $ref: string [read assigned captured captured-assigned] value
 >     uses $0: %5 -> %6 lend last
 >   %0 = ProviderGet #0 : Tag
->   %1 = Coerce %0 [ProviderAsRef -] : Ref[Tag]
+>   %1 = Coerce %0 [ProviderAsRef -] : &dyn Tag
 >   %2 = Read borrow [*%1] : Tag
 >   %3 = LoanEnd [%1] : ()
 >   %4 = Call app/main/Tag.name for Tag [] via TraitValue (%2) : string
@@ -61,13 +61,13 @@ fn with_tag[$ R](s: string, callback: fn() -> usize $ R + Tag) -> usize $ R:
 >   %4 = Store [$2] %3 : ()
 >   %5 = Read move [$2] : Named
 >   %6 = Store [$3] %5 : ()
->   %7 = Ref take mut [$3] : CountedMut[Named]
+>   %7 = Ref take mut [$3] : *mut Named
 >   %8 = Break L0 %7 : never
->   %9 = Block - : CountedMut[Named]
->   %10 = Scope %9 [] : CountedMut[Named]
+>   %9 = Block - : *mut Named
+>   %10 = Scope %9 [] : *mut Named
 >   %11 = Coerce %10 [RefToTraitValue -] : Tag
 >   %12 = Block %11 : Tag
->   %13 = RefDyn %12 : Counted[Tag]
+>   %13 = RefDyn %12 : *dyn Tag
 >   %14 = LoanEnd [%10] : ()
 >   %15 = Coerce %13 [RefAsProvider -] : Tag
 >   %16 = LoanEnd [%13] : ()
@@ -109,7 +109,7 @@ fn closure(s: string) -> usize:
     with_tag(s, fn() -> usize $ Tag: $.use(Tag).name().len())
 >   %1 = Read move [$0] : string
 >   %2 = ProviderGet #1 : Tag
->   %3 = Coerce %2 [ProviderAsRef -] : Ref[Tag]
+>   %3 = Coerce %2 [ProviderAsRef -] : &dyn Tag
 >   %4 = Read borrow [*%3] : Tag
 >   %5 = LoanEnd [%3] : ()
 >   %6 = Call app/main/Tag.name for Tag [] via TraitValue (%4) : string

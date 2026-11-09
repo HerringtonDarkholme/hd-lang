@@ -5,7 +5,7 @@ app/main/absent
   local $1 value: Envelope [param read captured] place
   %1 = Read move [$0] : Result[Envelope, string]
   %2 = Retain %8 Entry local $1 #0 : ()
-  %3 = Ref local [$1 .filter] : Ref[Payload?]
+  %3 = Ref local [$1 .filter] : &Payload?
   %4 = Call app/main/missing[] (%3) : bool
   %5 = LoanEnd [%3] : ()
   %6 = Drop [$1] : ()

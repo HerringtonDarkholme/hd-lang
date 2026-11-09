@@ -16,14 +16,14 @@ fn keep() -> *dyn Store $ Store:
     $.use(Store)
 > app/main/keep
 >   %0 = ProviderGet #0 : Store
->   %1 = Coerce %0 [ProviderAsRef -] : Counted[Store]
->   %2 = Block %1 : Counted[Store]
+>   %1 = Coerce %0 [ProviderAsRef -] : *dyn Store
+>   %2 = Block %1 : *dyn Store
 
 fn holder() -> Holder $ Store:
     Holder { store: $.use(Store) }
 > app/main/holder
 >   %0 = ProviderGet #0 : Store
->   %1 = Coerce %0 [ProviderAsRef -] : Counted[Store]
+>   %1 = Coerce %0 [ProviderAsRef -] : *dyn Store
 >   %2 = NewStruct [%1] : Holder
 >   %3 = Block %2 : Holder
 
@@ -32,10 +32,10 @@ fn fetch!() -> usize $ Store:
 > app/main/fetch
 >   local $0 $ref: string [read assigned captured captured-assigned]
 >   %0 = ProviderGet #0 : Store
->   %1 = Coerce %0 [ProviderAsRef -] : Ref[Store]
+>   %1 = Coerce %0 [ProviderAsRef -] : &dyn Store
 >   %2 = Read [*%1] : Store
 >   %3 = Call app/main/Store.get for Store [] via TraitValue (%2) : string
 >   %4 = Store [$0] %3 : ()
->   %5 = Ref local [$0] : Ref[string]
+>   %5 = Ref local [$0] : &string
 >   %6 = Call std/text/impl string.len[] (%5) : usize
 >   %7 = Block %6 : usize

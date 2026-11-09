@@ -14,43 +14,43 @@ fn probe(items: UniqList[string]) -> string:
 >   local $0 items: UniqList[string] [param read] value
 >     uses $0: entry -> %0 consume last
 >   local $1 $ref: Outer [read assigned captured captured-assigned] place
->   local $2 p: CountedMut[Outer] [:= read assigned] value
+>   local $2 p: *mut Outer [:= read assigned] value
 >     uses $2: %4 -> %5 lend last
->   local $3 r: Ref[string] [:= read assigned] value
+>   local $3 r: &string [:= read assigned] value
 >     uses $3: %26 -> %28 lend last
->   local $5 self: Ref[UniqList[string]] [read] value
+>   local $5 self: &UniqList[string] [read] value
 >     uses $5: %6 -> %9 lend, %13 lend last
 >   local $6 index: usize [read] value
 >     uses $6: %7 -> %8 lend, %14 lend last
 >   %0 = Read move [$0] : UniqList[string]
 >   %1 = NewStruct [%0] : Outer
 >   %2 = Store [$1] %1 : ()
->   %3 = Ref take mut [$1] : CountedMut[Outer]
+>   %3 = Ref take mut [$1] : *mut Outer
 >   %4 = Store [$2] %3 : ()
 >   %35 = Block %30 : string
 >   %3 finds [$1] full
     r := p.items.get_ref(0).expect("slot")
->   %5 = Ref local [*$2 .items] : Ref[UniqList[string]]
+>   %5 = Ref local [*$2 .items] : &UniqList[string]
 >   %6 = Store [$5] %5 : ()
 >   %7 = Store [$6] 0:usize : ()
 >   %8 = Read copy [$6] : usize
 >   %9 = Read copy [*$5 .len] : usize
 >   %10 = Prim Ge [%8 %9] : bool
->   %11 = NewVariant #0 [] : Ref[string]?
->   %12 = Block %11 : Ref[string]?
->   %13 = Ref local [*$5 .buffer] : Ref[Buffer[string]]
+>   %11 = NewVariant #0 [] : &string?
+>   %12 = Block %11 : &string?
+>   %13 = Ref local [*$5 .buffer] : &Buffer[string]
 >   %14 = Read copy [$6] : usize
 >   %15 = Call std/rt.memory/impl [ T < ? Copy ] Buffer [ T ].at[string] (%13, %14) : Ptr[string]
 >   %16 = Drop [%13] : ()
->   %17 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].as_ref[string] (%15) : Ref[string]
->   %18 = NewVariant #1 [%17] : Ref[string]?
->   %19 = Block %18 : Ref[string]?
->   %20 = If %10 [%12 %19] : Ref[string]?
+>   %17 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].as_ref[string] (%15) : &string
+>   %18 = NewVariant #1 [%17] : &string?
+>   %19 = Block %18 : &string?
+>   %20 = If %10 [%12 %19] : &string?
 >   %21 = Break L0 %20 : never
->   %22 = Block - : Ref[string]?
->   %23 = Scope %22 [] : Ref[string]?
+>   %22 = Block - : &string?
+>   %23 = Scope %22 [] : &string?
 >   %24 = Drop [$5] : ()
->   %25 = Call std/option/impl [ T < ? Copy ] T ?.expect[Ref[string]] (%23, "slot") : Ref[string]
+>   %25 = Call std/option/impl [ T < ? Copy ] T ?.expect[&string] (%23, "slot") : &string
 >   %26 = Store [$3] %25 : ()
     junk := "j".repeat(4)
 >   %27 = Call std/text/impl string.repeat[] ("j", 4:usize) : string

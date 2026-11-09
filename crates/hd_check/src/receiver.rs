@@ -5,8 +5,8 @@
 //! A call on a place needs it writable for `&mut self`; either reference
 //! receiver on a temporary refers to a new object holding its value.
 //!
-//! In the checker's intermediate closure form the address is a `std.core.Ref[T]`
-//! (`crates/hd_wasm_linear/DESIGN.md` §15.2, "References"), built by `refs.rs`.
+//! The address is a reference value (`crates/hd_wasm_linear/DESIGN.md`
+//! §15.2, "References"), built by `refs.rs`.
 
 use hd_base::{DefId, LocalId, NodeIdx, StageResult};
 use hd_diag::{Code, FixSafety};

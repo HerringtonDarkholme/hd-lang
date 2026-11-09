@@ -32,7 +32,7 @@ fn rewarded(players: List[Player], best: usize, s: string) -> List[Player]:
 >   %14 = Block %13 : List[Player]
     reward(&mut out[best], 10)
 >   %2 = Read [$1] : usize
->   %3 = Ref mut local [$3 [%2]] : RefMut[Player]
+>   %3 = Ref mut local [$3 [%2]] : &mut Player
 >   %4 = Call app/main/reward[] (%3, 10:i32) : ()
     out[best].score += 1
 >   %5 = Read [$1] : usize
@@ -60,7 +60,7 @@ fn by_key(m: Map[string, Player], k: string) -> Map[string, Player]:
 >   %2 = Read [$2] : Map[string, Player]
 >   %3 = Read [$1] : string
 >   %4 = Intrinsic MapEntry [%2 %3] : usize
->   %5 = Ref mut local [$2 [%4]] : RefMut[Player]
+>   %5 = Ref mut local [$2 [%4]] : &mut Player
 >   %6 = Call app/main/reward[] (%5, 10:i32) : ()
     out
 >   %7 = Read [$2] : Map[string, Player]

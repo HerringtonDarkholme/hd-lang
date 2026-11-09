@@ -44,7 +44,7 @@ fn all!(keys: List[string]) -> usize:
 >   local $10 $len: usize [assigned] value
 >     uses $10: %54 -> %57 lend
 >   local $11 $pos: usize [assigned] place
->   local $12 r: Ref[string] [read assigned] value
+>   local $12 r: &string [read assigned] value
 >     uses $12: %71 -> %65 lend last
 >   %0 = Retain %85 Cold local $0 #0 : ()
 >   %1 = Retain %85 Entry local $0 #0 : ()
@@ -113,9 +113,9 @@ fn all!(keys: List[string]) -> usize:
 >   %60 = Read copy [$11] : usize
 >   %61 = Prim Add [%60 1:usize] : usize
 >   %62 = Store [$11] %61 : ()
->   %63 = Ref local pins [%52 [%59]] : Ref[string]
+>   %63 = Ref local pins [%52 [%59]] : &string
 >   %69 = Block - : ()
->   %70 = Read borrow [%63] : Ref[string]
+>   %70 = Read borrow [%63] : &string
 >   %71 = Store [$12] %70 : ()
 >   %72 = Release %71 Operation #3 : ()
 >   %74 = Block - : never
@@ -130,7 +130,7 @@ fn all!(keys: List[string]) -> usize:
 >   %83 = Drop [$8] : ()
         n += r.len()
 >   %64 = Read copy [$9] : usize
->   %65 = Read borrow [$12] : Ref[string]
+>   %65 = Read borrow [$12] : &string
 >   %66 = Call std/text/impl string.len[] (%65) : usize
 >   %67 = Prim Add [%64 %66] : usize
 >   %68 = Store [$9] %67 : ()

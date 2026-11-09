@@ -17,9 +17,9 @@ fn read_copy(r: &User) -> usize:
 >   %1 = Store [$1] %0 : ()
 >   %7 = Block %6 : usize
     r.name.len() + copy.name.len()
->   %2 = Ref local [*$0 .name] : Ref[string]
+>   %2 = Ref local [*$0 .name] : &string
 >   %3 = Call std/text/impl string.len[] (%2) : usize
->   %4 = Ref local [$1 .name] : Ref[string]
+>   %4 = Ref local [$1 .name] : &string
 >   %5 = Call std/text/impl string.len[] (%4) : usize
 >   %6 = Prim Add [%3 %5] : usize
 

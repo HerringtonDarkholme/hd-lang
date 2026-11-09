@@ -14,7 +14,7 @@ impl Iterator[string] for Words:
     fn next(&mut self) -> string?:
         if self.at >= self.items.len():
 > app/main/impl Iterator [ string ] for Words.next
->   local $0 self: RefMut[Words] [param read] value
+>   local $0 self: &mut Words [param read] value
 >     uses $0: entry -> %0 lend, %1 lend, %8 lend, %10 lend, %11 lend, %13 lend last
 >   %0 = Read copy [*$0 .at] : usize
 >   %1 = Read borrow [*$0 .items] : List[string]
@@ -43,7 +43,7 @@ fn user_cursor(words: Words) -> usize:
 >     uses $0: entry -> %2 consume last
 >   local $1 n: usize [read assigned mutated] place
 >   local $2 $ref: Words [read assigned captured captured-assigned] place
->   local $3 $iter: RefMut[Words] [assigned] value
+>   local $3 $iter: &mut Words [assigned] value
 >     uses $3: %5 -> %6 lend
 >   local $4 w: string [read assigned] value
 >     uses $4: %21 -> %9 lend last
@@ -54,9 +54,9 @@ fn user_cursor(words: Words) -> usize:
     for w in words:
 >   %2 = Read move [$0] : Words
 >   %3 = Store [$2] %2 : ()
->   %4 = Ref mut local frame [$2] : RefMut[Words]
+>   %4 = Ref mut local frame [$2] : &mut Words
 >   %5 = Store [$3] %4 : ()
->   %6 = Read borrow [$3] : RefMut[Words]
+>   %6 = Read borrow [$3] : &mut Words
 >   %7 = Call std/iter/Iterator.next for Words [string] via Impl (%6) : string?
 >   %16 = Block - : ()
 >   %17 = Drop [%7] : ()
@@ -95,12 +95,12 @@ fn twice(xs: List[string]) -> usize:
 >     uses $0: entry -> %2 consume, %39 consume last
 >   local $1 n: usize [read assigned mutated] place
 >   local $2 $ref: ListIter[string] [read assigned captured captured-assigned] place
->   local $3 $iter: RefMut[ListIter[string]] [assigned] value
+>   local $3 $iter: &mut ListIter[string] [assigned] value
 >     uses $3: %9 -> %10 lend
 >   local $4 x: string [read assigned] value
 >     uses $4: %25 -> %13 lend last
 >   local $5 $ref: ListIter[string] [read assigned captured captured-assigned] place
->   local $6 $iter: RefMut[ListIter[string]] [assigned] value
+>   local $6 $iter: &mut ListIter[string] [assigned] value
 >     uses $6: %46 -> %47 lend
 >   local $7 x: string [read assigned] value
 >     uses $7: %62 -> %50 lend last
@@ -115,9 +115,9 @@ fn twice(xs: List[string]) -> usize:
 >   %5 = Block - : ListIter[string]
 >   %6 = Scope %5 [] : ListIter[string]
 >   %7 = Store [$2] %6 : ()
->   %8 = Ref mut local frame [$2] : RefMut[ListIter[string]]
+>   %8 = Ref mut local frame [$2] : &mut ListIter[string]
 >   %9 = Store [$3] %8 : ()
->   %10 = Read borrow [$3] : RefMut[ListIter[string]]
+>   %10 = Read borrow [$3] : &mut ListIter[string]
 >   %11 = Call std/iter/Iterator.next for ListIter[string] [string] via Impl (%10) : string?
 >   %20 = Block - : ()
 >   %21 = Drop [%11] : ()
@@ -151,9 +151,9 @@ fn twice(xs: List[string]) -> usize:
 >   %42 = Block - : ListIter[string]
 >   %43 = Scope %42 [] : ListIter[string]
 >   %44 = Store [$5] %43 : ()
->   %45 = Ref mut local frame [$5] : RefMut[ListIter[string]]
+>   %45 = Ref mut local frame [$5] : &mut ListIter[string]
 >   %46 = Store [$6] %45 : ()
->   %47 = Read borrow [$6] : RefMut[ListIter[string]]
+>   %47 = Read borrow [$6] : &mut ListIter[string]
 >   %48 = Call std/iter/Iterator.next for ListIter[string] [string] via Impl (%47) : string?
 >   %57 = Block - : ()
 >   %58 = Drop [%48] : ()

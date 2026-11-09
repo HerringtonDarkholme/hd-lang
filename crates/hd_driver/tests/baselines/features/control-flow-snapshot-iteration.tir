@@ -73,12 +73,12 @@ fn cursor_then_push(values: List[string], s: string) -> usize:
 >   %6 = Read [$1] : string
 >   %7 = Intrinsic ListPush [%5 %6] : ()
     match cursor.next():
->   %8 = Ref mut local [$3] : RefMut[ListIter[string]]
+>   %8 = Ref mut local [$3] : &mut ListIter[string]
 >   %9 = Call std/iter/Iterator.next for ListIter[string] [string] via Impl (%8) : string?
 >   %30 = Block - : never
 >   %31 = Match %9 [%30 %15 %18] : usize
         .Some(first) => first.len() + items.len()
->   %10 = Ref local [$4] : Ref[string]
+>   %10 = Ref local [$4] : &string
 >   %11 = Call std/text/impl string.len[] (%10) : usize
 >   %12 = Read [$2] : List[string]
 >   %13 = Intrinsic ListLen [%12] : usize

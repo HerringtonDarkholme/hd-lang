@@ -3,8 +3,8 @@ app/main/replaced
   local $0 k: i32 [param read captured] place
   local $1 p: P [:= read assigned captured] place
   local $2 q: P [:= read assigned captured] place
-  local $3 ps: List[Ref[P]] [read assigned] place
-  local $4 d: Ref[string] [:= read assigned] value
+  local $3 ps: List[&P] [read assigned] place
+  local $4 d: &string [:= read assigned] value
     uses $4: %13 -> %85 lend last
   local $5 junk: string [:= read assigned] value
     uses $5: %84 -> %99 lend last
@@ -37,18 +37,18 @@ app/main/replaced
   %4 = Prim Add [%3 1:i32] : i32
   %5 = Call app/main/make[] (%4) : P
   %6 = Store [$2] %5 : ()
-  %7 = Ref local frame [$1] : Ref[P]
-  %8 = Coerce %7 [Identity -] : Ref[P]
-  %9 = NewList - [%8] : List[Ref[P]]
+  %7 = Ref local frame [$1] : &P
+  %8 = Coerce %7 [Identity -] : &P
+  %9 = NewList - [%8] : List[&P]
   %10 = Store [$3] %9 : ()
   %11 = IsUnique [$3] : ()
-  %12 = Ref local [$3 [0:usize] * .name] : Ref[string]
+  %12 = Ref local [$3 [0:usize] * .name] : &string
   %13 = Store [$4] %12 : ()
-  %14 = Ref local frame [$2] : Ref[P]
+  %14 = Ref local frame [$2] : &P
   %15 = IsUnique [$3] : ()
   %16 = Store [$3 [0:usize]] %14 : ()
   %17 = Release %16 Operation #3 : ()
-  %18 = Ref local frame [$0] : Ref[i32]
+  %18 = Ref local frame [$0] : &i32
   %19 = Read copy [*%18] : i32
   %20 = LoanEnd [%18] : ()
   %21 = Prim Conv [%19] : i64
@@ -115,7 +115,7 @@ app/main/replaced
   %82 = Scope %81 [] : ()
   %83 = Read move [%48] : string
   %84 = Store [$5] %83 : ()
-  %85 = Read move [$4] : Ref[string]
+  %85 = Read move [$4] : &string
   %86 = Call std/text/impl string.len[] (%85) : usize
   %87 = Drop [%85] : ()
   %88 = Read borrow [$3 [0:usize] * .name] : string

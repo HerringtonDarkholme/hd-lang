@@ -12,7 +12,7 @@ fn save(s: string) -> Result[string, SaveError]:
     if s.len() > 0: .Ok(s + "!") else: .Err(SaveError.Failed("empty"))
 > app/main/save
 >   local $0 s: string [param read captured]
->   %0 = Ref local [$0] : Ref[string]
+>   %0 = Ref local [$0] : &string
 >   %1 = Call std/text/impl string.len[] (%0) : usize
 >   %2 = Prim Gt [%1 0:usize] : bool
 >   %3 = Read [$0] : string
@@ -39,7 +39,7 @@ fn discard(s: string) -> usize:
 >   %6 = Block - : never
 >   %7 = Match %3 [%6 %4] : ()
     s.len()
->   %8 = Ref local [$0] : Ref[string]
+>   %8 = Ref local [$0] : &string
 >   %9 = Call std/text/impl string.len[] (%8) : usize
 
 fn unused(s: string) -> usize:
@@ -51,5 +51,5 @@ fn unused(s: string) -> usize:
 >   %1 = Store [$1] %0 : ()
 >   %4 = Block %3 : usize
     s.len()
->   %2 = Ref local [$0] : Ref[string]
+>   %2 = Ref local [$0] : &string
 >   %3 = Call std/text/impl string.len[] (%2) : usize

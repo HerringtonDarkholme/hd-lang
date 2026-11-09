@@ -15,17 +15,17 @@ fn make(n: string) -> *Node:
 >   local $0 n: string [param read]
 >   local $1 $ref: Node [read assigned captured captured-assigned]
 >   %0 = Read [$0] : string
->   %1 = NewVariant #0 [] : Counted[Node]?
+>   %1 = NewVariant #0 [] : *Node?
 >   %2 = NewStruct [%0 %1] : Node
 >   %3 = Store [$1] %2 : ()
->   %4 = Ref mut [$1] : CountedMut[Node]
->   %5 = Coerce %4 [Weaken -] : Counted[Node]
->   %6 = Block %5 : Counted[Node]
+>   %4 = Ref mut [$1] : *mut Node
+>   %5 = Coerce %4 [Weaken -] : *Node
+>   %6 = Block %5 : *Node
 
 fn read_ptr(p: *Node) -> usize:
     p.name.len()
 > app/main/read_ptr
->   %0 = Ref local [*$0 .name] : Ref[string]
+>   %0 = Ref local [*$0 .name] : &string
 >   %1 = Call std/text/impl string.len[] (%0) : usize
 >   %2 = Block %1 : usize
 
@@ -40,8 +40,8 @@ fn write_ptr(p: *mut Node, n: string) -> void:
 fn share(p: *Node) -> (*Node, *Node):
     (p, p)
 > app/main/share
->   local $0 p: Counted[Node] [param read]
->   %0 = Read [$0] : Counted[Node]
->   %1 = Read [$0] : Counted[Node]
->   %2 = NewTuple - [%0 %1] : (Counted[Node], Counted[Node])
->   %3 = Block %2 : (Counted[Node], Counted[Node])
+>   local $0 p: *Node [param read]
+>   %0 = Read [$0] : *Node
+>   %1 = Read [$0] : *Node
+>   %2 = NewTuple - [%0 %1] : (*Node, *Node)
+>   %3 = Block %2 : (*Node, *Node)

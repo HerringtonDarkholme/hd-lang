@@ -14,7 +14,7 @@ fn list_read(xs: List[string], i: usize) -> usize:
 >   local $0 xs: List[string] [param read]
 >   local $1 i: usize [param read]
 >   %0 = Read [$1] : usize
->   %1 = Ref local [$0 [%0]] : Ref[string]
+>   %1 = Ref local [$0 [%0]] : &string
 >   %2 = Call std/text/impl string.len[] (%1) : usize
 >   %3 = Block %2 : usize
 
@@ -50,7 +50,7 @@ fn map_read(m: Map[string, string], k: string) -> usize:
 >   %19 = Match %2 [%18 %5 %6] : usize
 >   %20 = Block %19 : usize
         .Some(v) => v.len()
->   %3 = Ref local [$2] : Ref[string]
+>   %3 = Ref local [$2] : &string
 >   %4 = Call std/text/impl string.len[] (%3) : usize
 >   %5 = Block %4 : usize
 >   %7 = Read [%2 as #1 .0] : string
@@ -78,20 +78,20 @@ fn map_write(m: &mut Map[string, string], k: string, v: string) -> void:
 fn uniq_read(xs: &UniqList[string], i: usize) -> usize:
     match xs.get_ref(i):
 > app/main/uniq_read
->   local $0 xs: Ref[UniqList[string]] [param read]
+>   local $0 xs: &UniqList[string] [param read]
 >   local $1 i: usize [param read]
->   local $2 s: Ref[string] [read assigned]
->   %0 = Read [$0] : Ref[UniqList[string]]
+>   local $2 s: &string [read assigned]
+>   %0 = Read [$0] : &UniqList[string]
 >   %1 = Read [$1] : usize
->   %2 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].get_ref[string] (%0, %1) : Ref[string]?
+>   %2 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].get_ref[string] (%0, %1) : &string?
 >   %18 = Block - : never
 >   %19 = Match %2 [%18 %5 %6] : usize
 >   %20 = Block %19 : usize
         .Some(s) => s.len()
->   %3 = Read [$2] : Ref[string]
+>   %3 = Read [$2] : &string
 >   %4 = Call std/text/impl string.len[] (%3) : usize
 >   %5 = Block %4 : usize
->   %7 = Read [%2 as #1 .0] : Ref[string]
+>   %7 = Read [%2 as #1 .0] : &string
 >   %8 = Store [$2] %7 : ()
 >   %10 = Block - : never
 >   %16 = Block - : never
@@ -105,13 +105,13 @@ fn uniq_read(xs: &UniqList[string], i: usize) -> usize:
 fn uniq_write(xs: &mut UniqList[string], i: usize, s: string) -> void:
     match xs.get_mut(i):
 > app/main/uniq_write
->   local $0 xs: RefMut[UniqList[string]] [param read]
+>   local $0 xs: &mut UniqList[string] [param read]
 >   local $1 i: usize [param read]
 >   local $2 s: string [param read]
->   local $3 r: RefMut[string] [read assigned]
->   %0 = Read [$0] : RefMut[UniqList[string]]
+>   local $3 r: &mut string [read assigned]
+>   %0 = Read [$0] : &mut UniqList[string]
 >   %1 = Read [$1] : usize
->   %2 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].get_mut[string] (%0, %1) : RefMut[string]?
+>   %2 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].get_mut[string] (%0, %1) : &mut string?
 >   %19 = Block - : never
 >   %20 = Match %2 [%19 %5 %7] : ()
 >   %21 = Block - : ()
@@ -119,7 +119,7 @@ fn uniq_write(xs: &mut UniqList[string], i: usize, s: string) -> void:
 >   %3 = Read [$2] : string
 >   %4 = Store [*$3] %3 : ()
 >   %5 = Block - : ()
->   %8 = Read [%2 as #1 .0] : RefMut[string]
+>   %8 = Read [%2 as #1 .0] : &mut string
 >   %9 = Store [$3] %8 : ()
 >   %11 = Block - : never
 >   %17 = Block - : never

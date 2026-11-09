@@ -127,7 +127,7 @@ pub fn run(steps: i64) -> f64:
 >   %26 = Block - : ()
 >   %27 = Loop %26 - : ()
         advance(&mut bodies, 0.01)
->   %20 = Ref mut local [$1] : RefMut[List[Body]]
+>   %20 = Ref mut local [$1] : &mut List[Body]
 >   %21 = Call app/main/advance[] (%20, 0.01:f64) : ()
     bodies[0].x
 >   %28 = Read [$1 [0:usize] .x] : f64

@@ -24,8 +24,8 @@ fn list_ne(a: List[string], b: List[string]) -> bool:
 > app/main/list_ne
 >   local $0 a: List[string] [param read captured]
 >   local $1 b: List[string] [param read captured]
->   %0 = Ref local [$0] : Ref[List[string]]
->   %1 = Ref local [$1] : Ref[List[string]]
+>   %0 = Ref local [$0] : &List[string]
+>   %1 = Ref local [$1] : &List[string]
 >   %2 = Call std/core/Eq.eq for List[string] [] via Impl (%0, %1) : bool
 >   %3 = Prim Not [%2] : bool
 >   %4 = Block %3 : bool
@@ -35,8 +35,8 @@ fn rec_eq(a: Rec, b: Rec) -> bool:
 > app/main/rec_eq
 >   local $0 a: Rec [param read captured]
 >   local $1 b: Rec [param read captured]
->   %0 = Ref local [$0] : Ref[Rec]
->   %1 = Ref local [$1] : Ref[Rec]
+>   %0 = Ref local [$0] : &Rec
+>   %1 = Ref local [$1] : &Rec
 >   %2 = Call std/core/Eq.eq for Rec [] via Impl (%0, %1) : bool
 >   %3 = Block %2 : bool
 
@@ -44,7 +44,7 @@ fn opt_none(o: string?) -> bool:
     o == .None
 > app/main/opt_none
 >   local $0 o: string? [param read captured]
->   %0 = Ref local [$0] : Ref[string?]
+>   %0 = Ref local [$0] : &string?
 >   %1 = NewVariant #0 [] : string?
 >   %2 = Read [*%0] : string?
 >   %3 = ToArm #0 : never
@@ -64,11 +64,11 @@ fn opt_some(o: string?, s: string) -> bool:
 >   local $0 o: string? [param read captured]
 >   local $1 s: string [param read]
 >   local $2 $ref: string? [read assigned captured captured-assigned]
->   %0 = Ref local [$0] : Ref[string?]
+>   %0 = Ref local [$0] : &string?
 >   %1 = Read [$1] : string
 >   %2 = NewVariant #1 [%1] : string?
 >   %3 = Store [$2] %2 : ()
->   %4 = Ref local [$2] : Ref[string?]
+>   %4 = Ref local [$2] : &string?
 >   %5 = Call std/core/Eq.eq for string? [] via Impl (%0, %4) : bool
 >   %6 = Block %5 : bool
 
@@ -77,7 +77,7 @@ fn map_eq(a: Map[string, string], b: Map[string, string]) -> bool:
 > app/main/map_eq
 >   local $0 a: Map[string, string] [param read captured]
 >   local $1 b: Map[string, string] [param read captured]
->   %0 = Ref local [$0] : Ref[Map[string, string]]
->   %1 = Ref local [$1] : Ref[Map[string, string]]
+>   %0 = Ref local [$0] : &Map[string, string]
+>   %1 = Ref local [$1] : &Map[string, string]
 >   %2 = Call std/core/Eq.eq for Map[string, string] [] via Impl (%0, %1) : bool
 >   %3 = Block %2 : bool

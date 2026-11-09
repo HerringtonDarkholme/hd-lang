@@ -2,17 +2,17 @@
 app/main/first
   local $0 k: i32 [param read] value
     uses $0: entry -> %2 lend, %10 lend last
-  local $1 seen: List[Ref[User]] [read assigned captured captured-assigned] place
+  local $1 seen: List[&User] [read assigned captured captured-assigned] place
   local $2 a: User [:= read assigned captured] place
   local $3 b: User [:= read assigned] value
     uses $3: %13 -> %18 lend last
-  %0 = NewList - [] : List[Ref[User]]
+  %0 = NewList - [] : List[&User]
   %1 = Store [$1] %0 : ()
   %2 = Read copy [$0] : i32
   %3 = Call app/main/make[] (%2) : User
   %4 = Store [$2] %3 : ()
-  %5 = Ref mut local frame [$1] : RefMut[List[Ref[User]]]
-  %6 = Ref local frame [$2] : Ref[User]
+  %5 = Ref mut local frame [$1] : &mut List[&User]
+  %6 = Ref local frame [$2] : &User
   %7 = Call app/main/remember[User] (%5, %6) : ()
   %8 = LoanEnd [%6] : ()
   %9 = LoanEnd [%5] : ()

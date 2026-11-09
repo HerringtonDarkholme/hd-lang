@@ -17,8 +17,8 @@ fn keep() -> *dyn Store $ Store:
 > app/main/keep
 >   %0 = ProviderGet #0 : Store
 >   %1 = Retain %0 Value #0 : ()
->   %2 = Coerce %0 [ProviderAsRef -] : Counted[Store]
->   %3 = Block %2 : Counted[Store]
+>   %2 = Coerce %0 [ProviderAsRef -] : *dyn Store
+>   %3 = Block %2 : *dyn Store
 >   summary kept [] writes
 
 fn holder() -> Holder $ Store:
@@ -26,7 +26,7 @@ fn holder() -> Holder $ Store:
 > app/main/holder
 >   %0 = ProviderGet #0 : Store
 >   %1 = Retain %0 Value #0 : ()
->   %2 = Coerce %0 [ProviderAsRef -] : Counted[Store]
+>   %2 = Coerce %0 [ProviderAsRef -] : *dyn Store
 >   %3 = NewStruct [%2] : Holder
 >   %4 = Block %3 : Holder
 >   summary kept [] writes
@@ -40,7 +40,7 @@ fn fetch!() -> usize $ Store:
 >   %1 = Retain %15 Materialize row #0 : ()
 >   %2 = Release %15 FrameDrop row #2 : ()
 >   %3 = ProviderGet #0 : Store
->   %4 = Coerce %3 [ProviderAsRef -] : Ref[Store]
+>   %4 = Coerce %3 [ProviderAsRef -] : &dyn Store
 >   %5 = Read borrow [*%4] : Store
 >   %6 = LoanEnd [%4] : ()
 >   %7 = Call app/main/Store.get for Store [] via TraitValue (%5) : string

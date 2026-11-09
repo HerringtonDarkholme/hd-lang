@@ -50,7 +50,7 @@ fn until_long(xs: List[string]) -> usize:
 >   %18 = Intrinsic StrConcat [%17 "!"] : string
 >   %19 = Store [$7] %18 : ()
         if t.len() < 3:
->   %20 = Ref local [$7] : Ref[string]
+>   %20 = Ref local [$7] : &string
 >   %21 = Call std/text/impl string.len[] (%20) : usize
 >   %22 = Prim Lt [%21 3:usize] : bool
 >   %25 = If %22 [%24 -] : ()
@@ -58,7 +58,7 @@ fn until_long(xs: List[string]) -> usize:
 >   %23 = Continue L0 : never
 >   %24 = Block - : never
         if t.len() > 9:
->   %26 = Ref local [$7] : Ref[string]
+>   %26 = Ref local [$7] : &string
 >   %27 = Call std/text/impl string.len[] (%26) : usize
 >   %28 = Prim Gt [%27 9:usize] : bool
 >   %31 = If %28 [%30 -] : ()
@@ -67,7 +67,7 @@ fn until_long(xs: List[string]) -> usize:
 >   %30 = Block - : never
         n += t.len()
 >   %32 = Read [$1] : usize
->   %33 = Ref local [$7] : Ref[string]
+>   %33 = Ref local [$7] : &string
 >   %34 = Call std/text/impl string.len[] (%33) : usize
 >   %35 = Prim Add [%32 %34] : usize
 >   %36 = Store [$1] %35 : ()

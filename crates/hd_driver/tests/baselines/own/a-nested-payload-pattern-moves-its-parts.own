@@ -16,7 +16,7 @@ fn drain(parcels: UniqMap[string, Parcel]) -> usize:
 >     uses $0: entry -> %1 consume last
 >   local $1 n: usize [read assigned mutated] place
 >   local $2 $ref: UniqMapIntoIter[string, Parcel] [read assigned captured captured-assigned] place
->   local $3 $iter: RefMut[UniqMapIntoIter[string, Parcel]] [assigned] value
+>   local $3 $iter: &mut UniqMapIntoIter[string, Parcel] [assigned] value
 >     uses $3: %8 -> %9 lend
 >   local $4 key: string [read assigned] value
 >     uses $4: %35 -> %12 lend last
@@ -33,9 +33,9 @@ fn drain(parcels: UniqMap[string, Parcel]) -> usize:
 >   %4 = Block - : UniqMapIntoIter[string, Parcel]
 >   %5 = Scope %4 [] : UniqMapIntoIter[string, Parcel]
 >   %6 = Store [$2] %5 : ()
->   %7 = Ref mut local frame [$2] : RefMut[UniqMapIntoIter[string, Parcel]]
+>   %7 = Ref mut local frame [$2] : &mut UniqMapIntoIter[string, Parcel]
 >   %8 = Store [$3] %7 : ()
->   %9 = Read borrow [$3] : RefMut[UniqMapIntoIter[string, Parcel]]
+>   %9 = Read borrow [$3] : &mut UniqMapIntoIter[string, Parcel]
 >   %10 = Call std/iter/Iterator.next for UniqMapIntoIter[string, Parcel] [(string, Parcel)] via Impl (%9) : (string, Parcel)?
 >   %28 = Block - : ()
 >   %29 = Drop [%10] : ()

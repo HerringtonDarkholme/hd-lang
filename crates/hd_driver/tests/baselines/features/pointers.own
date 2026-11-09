@@ -17,12 +17,12 @@ fn make(n: string) -> *Node:
 >   %0 = Retain %7 Entry local $0 #0 : ()
     box(Node { name: n, next: .None })
 >   %1 = Read move [$0] : string
->   %2 = NewVariant #0 [] : Counted[Node]?
+>   %2 = NewVariant #0 [] : *Node?
 >   %3 = NewStruct [%1 %2] : Node
 >   %4 = Store [$1] %3 : ()
->   %5 = Ref take mut [$1] : CountedMut[Node]
->   %6 = Coerce %5 [Weaken -] : Counted[Node]
->   %7 = Block %6 : Counted[Node]
+>   %5 = Ref take mut [$1] : *mut Node
+>   %6 = Coerce %5 [Weaken -] : *Node
+>   %7 = Block %6 : *Node
 >   %5 finds [$1] full
 >   exit sub 0 drops [$0]
 >   storage sub 0: $1 cell
@@ -31,7 +31,7 @@ fn make(n: string) -> *Node:
 fn read_ptr(p: *Node) -> usize:
     p.name.len()
 > app/main/read_ptr
->   local $0 p: Counted[Node] [param read] value
+>   local $0 p: *Node [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 self: string [read] value
 >     uses $1: %1 -> %2 lend last
@@ -47,7 +47,7 @@ fn read_ptr(p: *Node) -> usize:
 
 fn write_ptr(p: *mut Node, n: string) -> void:
 > app/main/write_ptr
->   local $0 p: CountedMut[Node] [param read] value
+>   local $0 p: *mut Node [param read] value
 >     uses $0: entry -> %2 lend last
 >   local $1 n: string [param read] value
 >     uses $1: entry -> %1 consume last
@@ -63,10 +63,10 @@ fn write_ptr(p: *mut Node, n: string) -> void:
 fn share(p: *Node) -> (*Node, *Node):
     (p, p)
 > app/main/share
->   local $0 p: Counted[Node] [param read] value
+>   local $0 p: *Node [param read] value
 >     uses $0: entry -> %0 consume, %1 consume last
->   %0 = Read copy [$0] : Counted[Node]
->   %1 = Read copy [$0] : Counted[Node]
->   %2 = NewTuple - [%1 %0] : (Counted[Node], Counted[Node])
->   %3 = Block %2 : (Counted[Node], Counted[Node])
+>   %0 = Read copy [$0] : *Node
+>   %1 = Read copy [$0] : *Node
+>   %2 = NewTuple - [%1 %0] : (*Node, *Node)
+>   %3 = Block %2 : (*Node, *Node)
 >   summary kept [$0]

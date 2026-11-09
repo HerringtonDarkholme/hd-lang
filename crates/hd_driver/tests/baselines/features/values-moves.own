@@ -76,7 +76,7 @@ fn uniq(xs: UniqList[string], s: string) -> UniqList[string]:
 >   local $1 s: string [param read] value
 >     uses $1: entry -> %37 consume last
 >   local $2 ys: UniqList[string] [read assigned captured captured-assigned] place
->   local $3 self: RefMut[UniqList[string]] [read] value
+>   local $3 self: &mut UniqList[string] [read] value
 >     uses $3: %4 -> %5 consume, %12 lend, %20 lend, %26 lend, %42 lend last
 >   local $5 size: usize [:= read assigned] value
 >     uses $5: %11 -> %18 lend, %21 lend, %27 consume, %40 lend last
@@ -89,16 +89,16 @@ fn uniq(xs: UniqList[string], s: string) -> UniqList[string]:
 >   %48 = Release %47 Operation local $2 #2 : ()
 >   %49 = Block %47 : UniqList[string]
     ys.push(s)
->   %3 = Ref mut local frame [$2] : RefMut[UniqList[string]]
+>   %3 = Ref mut local frame [$2] : &mut UniqList[string]
 >   %4 = Store [$3] %3 : ()
->   %5 = Read borrow [$3] : RefMut[UniqList[string]]
->   %6 = Coerce %5 [Weaken -] : Ref[UniqList[string]]
+>   %5 = Read borrow [$3] : &mut UniqList[string]
+>   %6 = Coerce %5 [Weaken -] : &UniqList[string]
 >   %7 = Read copy [*%6 .len] : usize
 >   %8 = Break L2 %7 : never
 >   %9 = Block - : usize
 >   %10 = Scope %9 [] : usize
 >   %11 = Store [$5] %10 : ()
->   %12 = Ref local [*$3 .buffer] : Ref[Buffer[string]]
+>   %12 = Ref local [*$3 .buffer] : &Buffer[string]
 >   %13 = Read copy [*%12 .capacity] : usize
 >   %14 = Break L1 %13 : never
 >   %15 = Block - : usize
@@ -106,13 +106,13 @@ fn uniq(xs: UniqList[string], s: string) -> UniqList[string]:
 >   %17 = Drop [%12] : ()
 >   %18 = Read copy [$5] : usize
 >   %19 = Prim Le [%16 %18] : bool
->   %20 = Read borrow [$3] : RefMut[UniqList[string]]
+>   %20 = Read borrow [$3] : &mut UniqList[string]
 >   %21 = Read copy [$5] : usize
 >   %22 = Prim Add [%21 1:usize] : usize
 >   %23 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].reserve_for[string] (%20, %22) : ()
 >   %24 = Block - : ()
 >   %25 = If %19 [%24 -] : ()
->   %26 = Ref local [*$3 .buffer] : Ref[Buffer[string]]
+>   %26 = Ref local [*$3 .buffer] : &Buffer[string]
 >   %27 = Read copy [$5] : usize
 >   %28 = Store [$7] %27 : ()
 >   %29 = Read copy [*%26 .address] : usize
@@ -143,7 +143,7 @@ fn uniq(xs: UniqList[string], s: string) -> UniqList[string]:
 
 fn grow(c: &mut Photo, s: string) -> void:
 > app/main/grow
->   local $0 c: RefMut[Photo] [param read] value
+>   local $0 c: &mut Photo [param read] value
 >     uses $0: entry -> %3 lend last
 >   local $1 s: string [param read] value
 >     uses $1: entry -> %1 consume last
@@ -159,26 +159,26 @@ fn grow(c: &mut Photo, s: string) -> void:
 
 fn reborrow(c: &mut Photo, s: string, t: string) -> void:
 > app/main/reborrow
->   local $0 c: RefMut[Photo] [param read] value
+>   local $0 c: &mut Photo [param read] value
 >     uses $0: entry -> %2 lend, %5 consume last
 >   local $1 s: string [param read] value
 >     uses $1: entry -> %3 consume last
 >   local $2 t: string [param read] value
 >     uses $2: entry -> %8 consume last
->   local $3 d: RefMut[Photo] [:= read assigned] value
+>   local $3 d: &mut Photo [:= read assigned] value
 >     uses $3: %6 -> %7 lend last
 >   %0 = Retain %10 Entry local $1 #0 : ()
 >   %1 = Retain %10 Entry local $2 #0 : ()
     grow(c, s)
->   %2 = Read borrow [$0] : RefMut[Photo]
+>   %2 = Read borrow [$0] : &mut Photo
 >   %3 = Read move [$1] : string
 >   %4 = Call app/main/grow[] (%2, %3) : ()
 >   %10 = Block - : ()
     d := c
->   %5 = Read borrow [$0] : RefMut[Photo]
+>   %5 = Read borrow [$0] : &mut Photo
 >   %6 = Store [$3] %5 : ()
     grow(d, t)
->   %7 = Read borrow [$3] : RefMut[Photo]
+>   %7 = Read borrow [$3] : &mut Photo
 >   %8 = Read move [$2] : string
 >   %9 = Call app/main/grow[] (%7, %8) : ()
 >   exit sub 0 drops [$1 $2]

@@ -104,7 +104,7 @@ fn take_match(s: Shape) -> string:
 fn ref_match(s: &Shape) -> usize:
     match s:
 > app/main/ref_match
->   local $0 s: Ref[Shape] [param read] value
+>   local $0 s: &Shape [param read] value
 >     uses $0: entry -> %0 lend, %20 lend, %21 lend last, %25 lend, %26 lend last
 >   local $1 n: string [read assigned] value
 >     uses $1: %22 -> %1 lend last
@@ -112,7 +112,7 @@ fn ref_match(s: &Shape) -> usize:
 >     uses $2: %27 -> %7 lend last
 >   local $3 b: string [read assigned] value
 >     uses $3: %28 -> %12 lend last
->   %0 = Read borrow [$0] : Ref[Shape]
+>   %0 = Read borrow [$0] : &Shape
 >   %40 = Block - : never
 >   %41 = Match %0 [%40 %6 %18 %19] : usize
 >   %42 = Block %41 : usize

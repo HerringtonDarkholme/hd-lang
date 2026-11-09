@@ -42,7 +42,7 @@ fn first_long(xs: List[string]) -> string:
 >   %33 = Loop %32 - : string
 >   %34 = Block %33 : string
         if x.len() > 3:
->   %16 = Ref local [$5] : Ref[string]
+>   %16 = Ref local [$5] : &string
 >   %17 = Call std/text/impl string.len[] (%16) : usize
 >   %18 = Prim Gt [%17 3:usize] : bool
 >   %22 = If %18 [%21 -] : ()
@@ -72,7 +72,7 @@ fn first_index(xs: List[string]) -> usize:
 >   %23 = Loop %22 - : usize
         if xs[i].len() > 3:
 >   %5 = Read [$1] : usize
->   %6 = Ref local [$0 [%5]] : Ref[string]
+>   %6 = Ref local [$0 [%5]] : &string
 >   %7 = Call std/text/impl string.len[] (%6) : usize
 >   %8 = Prim Gt [%7 3:usize] : bool
 >   %12 = If %8 [%11 -] : ()
@@ -105,7 +105,7 @@ fn forever(s: string) -> string:
 >   %16 = Block - : ()
 >   %17 = Loop %16 - : never
         if out.len() > 8:
->   %2 = Ref local [$1] : Ref[string]
+>   %2 = Ref local [$1] : &string
 >   %3 = Call std/text/impl string.len[] (%2) : usize
 >   %4 = Prim Gt [%3 8:usize] : bool
 >   %8 = If %4 [%7 -] : ()

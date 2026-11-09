@@ -10,7 +10,7 @@ use std.collections.{UniqList, UniqMap}
 
 fn put(m: &mut UniqMap[string, string], k: string, v: string) -> void:
 > app/main/put
->   local $0 m: RefMut[UniqMap[string, string]] [param read] value
+>   local $0 m: &mut UniqMap[string, string] [param read] value
 >     uses $0: entry -> %2 lend last
 >   local $1 k: string [param read] value
 >     uses $1: entry -> %3 consume last
@@ -19,7 +19,7 @@ fn put(m: &mut UniqMap[string, string], k: string, v: string) -> void:
 >   %0 = Retain %7 Entry local $1 #0 : ()
 >   %1 = Retain %7 Entry local $2 #0 : ()
     _ := m.insert(k, v)
->   %2 = Read borrow [$0] : RefMut[UniqMap[string, string]]
+>   %2 = Read borrow [$0] : &mut UniqMap[string, string]
 >   %3 = Read move [$1] : string
 >   %4 = Read move [$2] : string
 >   %5 = Call std/collections/impl [ K < Eq & Hash , V < ? Copy ] UniqMap [ K , V ].insert[string, string] (%2, %3, %4) : string?
@@ -30,26 +30,26 @@ fn put(m: &mut UniqMap[string, string], k: string, v: string) -> void:
 
 fn lookup(m: &UniqMap[string, string], k: string) -> usize:
 > app/main/lookup
->   local $0 m: Ref[UniqMap[string, string]] [param read] value
+>   local $0 m: &UniqMap[string, string] [param read] value
 >     uses $0: entry -> %1 lend last
 >   local $1 k: string [param read] value
 >     uses $1: entry -> %2 consume last
->   local $2 v: Ref[string] [read assigned] value
+>   local $2 v: &string [read assigned] value
 >     uses $2: %9 -> %4 lend last
 >   %0 = Retain %22 Entry local $1 #0 : ()
     match m.get_ref(k):
->   %1 = Read borrow [$0] : Ref[UniqMap[string, string]]
+>   %1 = Read borrow [$0] : &UniqMap[string, string]
 >   %2 = Read move [$1] : string
->   %3 = Call std/collections/impl [ K < Eq & Hash , V < ? Copy ] UniqMap [ K , V ].get_ref[string, string] (%1, %2) : Ref[string]?
+>   %3 = Call std/collections/impl [ K < Eq & Hash , V < ? Copy ] UniqMap [ K , V ].get_ref[string, string] (%1, %2) : &string?
 >   %19 = Block - : never
 >   %20 = Match %3 [%19 %6 %7] : usize
 >   %21 = Drop [%3] : ()
 >   %22 = Block %20 : usize
         .Some(v) => v.len()
->   %4 = Read borrow [$2] : Ref[string]
+>   %4 = Read borrow [$2] : &string
 >   %5 = Call std/text/impl string.len[] (%4) : usize
 >   %6 = Block %5 : usize
->   %8 = Read borrow [%3 as #1 .0] : Ref[string]
+>   %8 = Read borrow [%3 as #1 .0] : &string
 >   %9 = Store [$2] %8 : ()
 >   %11 = Block - : never
 >   %17 = Block - : never
@@ -64,13 +64,13 @@ fn lookup(m: &UniqMap[string, string], k: string) -> usize:
 
 fn group(m: &mut UniqMap[string, UniqList[string]], k: string, v: string) -> void:
 > app/main/group
->   local $0 m: RefMut[UniqMap[string, UniqList[string]]] [param read] value
+>   local $0 m: &mut UniqMap[string, UniqList[string]] [param read] value
 >     uses $0: entry -> %2 lend last
 >   local $1 k: string [param read] value
 >     uses $1: entry -> %3 consume last
 >   local $2 v: string [param read] value
 >     uses $2: entry -> %56 consume last
->   local $3 self: RefMut[UniqList[string]] [read] value
+>   local $3 self: &mut UniqList[string] [read] value
 >     uses $3: %23 -> %24 consume, %31 lend, %39 lend, %45 lend, %61 lend last
 >   local $5 size: usize [:= read assigned] value
 >     uses $5: %30 -> %37 lend, %40 lend, %46 consume, %59 lend last
@@ -83,7 +83,7 @@ fn group(m: &mut UniqMap[string, UniqList[string]], k: string, v: string) -> voi
 >   %0 = Retain %66 Entry local $1 #0 : ()
 >   %1 = Retain %66 Entry local $2 #0 : ()
     m.get_or_insert(k, UniqList::new()).push(v)
->   %2 = Read borrow [$0] : RefMut[UniqMap[string, UniqList[string]]]
+>   %2 = Read borrow [$0] : &mut UniqMap[string, UniqList[string]]
 >   %3 = Read move [$1] : string
 >   %4 = Store [$10] 0:usize : ()
 >   %5 = Read copy [$10] : usize
@@ -103,16 +103,16 @@ fn group(m: &mut UniqMap[string, UniqList[string]], k: string, v: string) -> voi
 >   %19 = Break L6 %18 : never
 >   %20 = Block - : UniqList[string]
 >   %21 = Scope %20 [] : UniqList[string]
->   %22 = Call std/collections/impl [ K < Eq & Hash , V < ? Copy ] UniqMap [ K , V ].get_or_insert[string, UniqList[string]] (%2, %3, %21) : RefMut[UniqList[string]]
+>   %22 = Call std/collections/impl [ K < Eq & Hash , V < ? Copy ] UniqMap [ K , V ].get_or_insert[string, UniqList[string]] (%2, %3, %21) : &mut UniqList[string]
 >   %23 = Store [$3] %22 : ()
->   %24 = Read borrow [$3] : RefMut[UniqList[string]]
->   %25 = Coerce %24 [Weaken -] : Ref[UniqList[string]]
+>   %24 = Read borrow [$3] : &mut UniqList[string]
+>   %25 = Coerce %24 [Weaken -] : &UniqList[string]
 >   %26 = Read copy [*%25 .len] : usize
 >   %27 = Break L2 %26 : never
 >   %28 = Block - : usize
 >   %29 = Scope %28 [] : usize
 >   %30 = Store [$5] %29 : ()
->   %31 = Ref local [*$3 .buffer] : Ref[Buffer[string]]
+>   %31 = Ref local [*$3 .buffer] : &Buffer[string]
 >   %32 = Read copy [*%31 .capacity] : usize
 >   %33 = Break L1 %32 : never
 >   %34 = Block - : usize
@@ -120,13 +120,13 @@ fn group(m: &mut UniqMap[string, UniqList[string]], k: string, v: string) -> voi
 >   %36 = Drop [%31] : ()
 >   %37 = Read copy [$5] : usize
 >   %38 = Prim Le [%35 %37] : bool
->   %39 = Read borrow [$3] : RefMut[UniqList[string]]
+>   %39 = Read borrow [$3] : &mut UniqList[string]
 >   %40 = Read copy [$5] : usize
 >   %41 = Prim Add [%40 1:usize] : usize
 >   %42 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].reserve_for[string] (%39, %41) : ()
 >   %43 = Block - : ()
 >   %44 = If %38 [%43 -] : ()
->   %45 = Ref local [*$3 .buffer] : Ref[Buffer[string]]
+>   %45 = Ref local [*$3 .buffer] : &Buffer[string]
 >   %46 = Read copy [$5] : usize
 >   %47 = Store [$7] %46 : ()
 >   %48 = Read copy [*%45 .address] : usize

@@ -13,17 +13,17 @@ struct User:
 fn user_name(value: &dyn Inspectable) -> string:
     match value.downcast_ref::[User]():
 > app/main/user_name
->   local $0 value: Ref[Inspectable] [param read]
->   local $1 user: Ref[User] [read assigned]
->   %0 = Read [$0] : Ref[Inspectable]
->   %1 = Call std/inspect/impl dyn Inspectable.downcast_ref[User] (%0) : Ref[User]?
+>   local $0 value: &dyn Inspectable [param read]
+>   local $1 user: &User [read assigned]
+>   %0 = Read [$0] : &dyn Inspectable
+>   %1 = Call std/inspect/impl dyn Inspectable.downcast_ref[User] (%0) : &User?
 >   %16 = Block - : never
 >   %17 = Match %1 [%16 %3 %4] : string
 >   %18 = Block %17 : string
         .Some(user) => user.name
 >   %2 = Read [*$1 .name] : string
 >   %3 = Block %2 : string
->   %5 = Read [%1 as #1 .0] : Ref[User]
+>   %5 = Read [%1 as #1 .0] : &User
 >   %6 = Store [$1] %5 : ()
 >   %8 = Block - : never
 >   %14 = Block - : never
@@ -43,9 +43,9 @@ fn is_user(value: &dyn Inspectable) -> bool:
 >   %1 = Call std/inspect/Inspectable.runtime_type for Inspectable [] via TraitValue (%0) : TypeId
 >   %2 = Call std/inspect/impl TypeId.of[User] () : TypeId
 >   %3 = Store [$1] %1 : ()
->   %4 = Ref local [$1] : Ref[TypeId]
+>   %4 = Ref local [$1] : &TypeId
 >   %5 = Store [$2] %2 : ()
->   %6 = Ref local [$2] : Ref[TypeId]
+>   %6 = Ref local [$2] : &TypeId
 >   %7 = Call std/core/Eq.eq for TypeId [] via Impl (%4, %6) : bool
 >   %8 = Block %7 : bool
 
@@ -54,14 +54,14 @@ fn erase(u: User) -> *dyn Inspectable:
 > app/main/erase
 >   local $0 u: User [param read]
 >   local $1 $ref: User [read assigned captured captured-assigned]
->   local $2 $ref: Counted[User] [read assigned captured]
+>   local $2 $ref: *User [read assigned captured]
 >   %0 = Read [$0] : User
 >   %1 = Store [$1] %0 : ()
->   %2 = Ref mut [$1] : CountedMut[User]
->   %3 = Coerce %2 [Weaken -] : Counted[User]
+>   %2 = Ref mut [$1] : *mut User
+>   %3 = Coerce %2 [Weaken -] : *User
 >   %4 = Store [$2] %3 : ()
->   %5 = Read [$2] : Counted[User]
+>   %5 = Read [$2] : *User
 >   %6 = Coerce %5 [RefToTraitValue -] : Inspectable
 >   %7 = Block %6 : Inspectable
->   %8 = RefDyn %7 : Counted[Inspectable]
->   %9 = Block %8 : Counted[Inspectable]
+>   %8 = RefDyn %7 : *dyn Inspectable
+>   %9 = Block %8 : *dyn Inspectable

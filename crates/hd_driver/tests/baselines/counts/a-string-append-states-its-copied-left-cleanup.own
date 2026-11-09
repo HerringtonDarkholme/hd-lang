@@ -100,7 +100,7 @@ fn dynamic(text: string, suffix: string) -> string:
 
 fn borrowed(text: &mut string, suffix: string) -> void:
 > app/main/borrowed
->   local $0 text: RefMut[string] [param read] value
+>   local $0 text: &mut string [param read] value
 >     uses $0: entry -> %1 lend, %4 lend last
 >   local $1 suffix: string [param read] value
 >     uses $1: entry -> %2 lend last
@@ -117,7 +117,7 @@ fn borrowed(text: &mut string, suffix: string) -> void:
 fn replace(text: &mut string) -> string:
     *text = "replacement"
 > app/main/replace
->   local $0 text: RefMut[string] [param read] value
+>   local $0 text: &mut string [param read] value
 >     uses $0: entry -> %0 lend last
 >   %0 = Store [*$0] "replacement" : ()
 >   %1 = Release %0 Operation #3 : ()
@@ -128,11 +128,11 @@ fn replace(text: &mut string) -> string:
 fn changed_rhs(text: &mut string) -> void:
     *text += replace(text)
 > app/main/changed_rhs
->   local $0 text: RefMut[string] [param read] value
+>   local $0 text: &mut string [param read] value
 >     uses $0: entry -> %0 lend, %2 lend, %8 lend last
->   %0 = Read borrow [$0] : RefMut[string]
+>   %0 = Read borrow [$0] : &mut string
 >   %1 = Read copy [*%0] : string
->   %2 = Read borrow [$0] : RefMut[string]
+>   %2 = Read borrow [$0] : &mut string
 >   %3 = Call app/main/replace[] (%2) : string
 >   %4 = Intrinsic StrConcat [%1 %3] : string
 >   %5 = Release %4 Operation operand 0 #2 : ()

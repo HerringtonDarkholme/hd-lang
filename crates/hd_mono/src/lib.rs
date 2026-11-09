@@ -121,9 +121,9 @@ pub trait ProgramEnv: LayoutEnv {
     fn generics_owner(&self, def: DefId) -> DefId;
     /// An impl's head: self type, trait arguments, parameter count.
     fn impl_head(&self, impl_: DefId) -> Option<(Ty, TyList, usize)>;
-    /// The data types `std.core.Ref[T]` and `std.core.Counted[T]` that `&T`
-    /// and `*T` lower to (`hd_types::Types::lower_refs`); selection raises
-    /// them back (`hd_types::Types::raise_refs`), the form impl heads name.
+    /// The seeded reference carriers (`hd_types::RefCells`), which no
+    /// type names any more; selection still raises them
+    /// (`hd_types::Types::raise_refs`).
     fn ref_cells(&self) -> hd_types::RefCells;
     /// The suspension type `Suspend[T]`, a suspending call's cold value.
     fn suspend_def(&self) -> DefId;
@@ -381,7 +381,7 @@ pub enum SlotRecv {
     /// The payload itself: the concrete value, or, for a payload that is a
     /// reference, the reference a `&self` or `&mut self` target takes.
     Payload,
-    /// The payload is a reference (`std.core.Ref[T]`) and the target takes
+    /// The payload is a reference (`&T`) and the target takes
     /// the value: the adapter reads the value through the reference first.
     ReadThrough,
 }
@@ -390,13 +390,9 @@ pub enum SlotRecv {
 /// that trait or a declared supertrait without wrapping its referent again.
 /// Nested references still erase their reference-valued referent normally.
 pub fn trait_reference_widens(pool: &InternPool, env: &dyn ProgramEnv, from: Ty, to: Ty) -> bool {
-    let TyData::Adt { def, args } = pool.get(from) else {
+    let TyData::Ref { inner, .. } = pool.get(from) else {
         return false;
     };
-    if !env.ref_cells().holds(def) {
-        return false;
-    }
-    let inner = pool.list_items(args)[0];
     let (TyData::TraitValue { def: from, .. }, TyData::TraitValue { def: to, .. }) =
         (pool.get(inner), pool.get(to))
     else {
@@ -541,7 +537,7 @@ pub fn subst(pool: &InternPool, env: &dyn ProgramEnv, item: DefId, args: TyList,
         let cell = env.ref_cells();
         let source = types.raise_refs(cell, s);
         let normalized = hd_types::solver::normalize_concrete(types, env.impls(), source);
-        types.lower_refs(cell, normalized)
+        types.erase_fn_deps(normalized)
     } else {
         s
     }
@@ -812,14 +808,6 @@ fn name_into(
         }
         TyData::Prim(p) => out.push_str(p.name()),
         TyData::Never => out.push_str("never"),
-        TyData::Adt { def, args } if env.ref_cells().holds(def) => {
-            let cells = env.ref_cells();
-            out.push(if cells.is_counted(def) { '*' } else { '&' });
-            if cells.is_mutable(def) {
-                out.push_str("mut ");
-            }
-            name_into(pool, env, printed, pool.list_items(args)[0], out, limit);
-        }
         // `Option[T]` is spelled `T?` (`types.option.sugar`).
         TyData::Adt { def, args } if def == env.option() => {
             for &inner in pool.list_items(args) {
@@ -1021,6 +1009,9 @@ pub fn unify(pool: &InternPool, owner: DefId, pattern: Ty, t: Ty, out: &mut Vec<
             unify_row(pool, owner, ar, br, out);
         }
         (TyData::Row(a), TyData::Row(b)) => unify_row(pool, owner, a, b, out),
+        (TyData::Ref { inner: a, .. }, TyData::Ref { inner: b, .. }) => {
+            unify(pool, owner, a, b, out);
+        }
         _ => {}
     }
 }
@@ -1096,6 +1087,7 @@ fn items_in(pool: &InternPool, t: Ty, out: &mut Vec<DefId>, seen: &mut HashSet<T
             list(params, out, seen);
             items_in(pool, result, out, seen);
         }
+        TyData::Ref { inner, .. } => items_in(pool, inner, out, seen),
         _ => {}
     }
 }
@@ -2136,7 +2128,6 @@ impl Cx<'_> {
             return shared;
         }
         let pool = self.pool;
-        let cell = self.env.ref_cells();
         let mut list = |args: TyList| {
             let args: Vec<Ty> = pool
                 .list_items(args)
@@ -2146,9 +2137,10 @@ impl Cx<'_> {
             pool.list(&args)
         };
         let data = match pool.get(ty) {
-            TyData::Adt { def, args } if cell.holds(def) => TyData::Adt {
-                def: cell.of(false, cell.is_counted(def)),
-                args: pool.list(&[self.shared_permission_type(pool.list_items(args)[0])]),
+            TyData::Ref { inner, counted, .. } => TyData::Ref {
+                inner: self.shared_permission_type(inner),
+                mutable: false,
+                counted,
             },
             TyData::Adt { def, args } => TyData::Adt {
                 def,
@@ -2331,9 +2323,8 @@ impl Cx<'_> {
             };
             at
         } else {
-            // Impl heads name `&T`, which bodies and declarations reach
-            // here lowered to `Ref[T]`: select on the raised form. The
-            // arguments below unify the lowered head with `self_ty`.
+            // Impl heads name `&T`, as bodies and declarations do. The
+            // arguments below unify the head with `self_ty`.
             let cell = env.ref_cells();
             let types = self.pool.types();
             let tref = ConcreteTraitRef(TraitRef {
@@ -2492,11 +2483,8 @@ impl Cx<'_> {
             match self.pool.get(ty) {
                 // A trait value reference to a host handle crosses as the
                 // handle, which `host_provider` puts behind a new object.
-                TyData::Adt { def, args } if self.env.ref_cells().holds(def) => {
-                    if let [inner] = self.pool.list_items(args)[..]
-                        && !out
-                        && is_trait_value(self.pool, inner)
-                    {
+                TyData::Ref { inner, .. } => {
+                    if !out && is_trait_value(self.pool, inner) {
                         // The wrapper builds a handle value. Reference permission
                         // stays in the boundary key, not its payload type.
                         let (provider, value) = self
@@ -2509,7 +2497,7 @@ impl Cx<'_> {
                         let wrap = self.target(provider, at, InstId::NONE)?;
                         self.out.boundary.entry(ty).or_default().handle_ref = Some(wrap.key);
                     }
-                    todo.extend(self.pool.list_items(args).iter().copied());
+                    todo.push(inner);
                 }
                 TyData::Adt { def, args } => {
                     if self.env.has_private_field(def) {
@@ -2796,8 +2784,7 @@ impl Cx<'_> {
     ) -> StageResult<VTable> {
         let (pool, env) = (self.pool, self.env);
         let targs = pool.list_items(trait_args);
-        let cell = env.ref_cells();
-        let is_ref = |t: Ty| matches!(pool.get(t), TyData::Adt { def, .. } if cell.holds(def));
+        let is_ref = |t: Ty| matches!(pool.get(t), TyData::Ref { .. });
         let takes_ref = |d: DefId| {
             env.params(d)
                 .and_then(|ps| ps.first().copied())
@@ -2807,9 +2794,7 @@ impl Cx<'_> {
         // implementation (`RefToTraitValue`), except for a sealed trait,
         // which the compiler answers at the reference type itself.
         let inner = match pool.get(from) {
-            TyData::Adt { def, args } if through && cell.holds(def) => {
-                pool.list_items(args).first().copied()
-            }
+            TyData::Ref { inner, .. } if through => Some(inner),
             _ => None,
         }
         .filter(|_| !env.decls().sealed().supplies(trait_));
@@ -3084,9 +3069,7 @@ impl Cx<'_> {
                 // a member with no slot runs its default body at the
                 // reference type (trait.dyn.bound.reference), as a call does.
                 let value_ty = match pool.get(self_ty) {
-                    TyData::Adt { def, args } if env.ref_cells().holds(def) => {
-                        pool.list_items(args)[0]
-                    }
+                    TyData::Ref { inner, .. } => inner,
                     _ => self_ty,
                 };
                 if is_trait_value(pool, value_ty) && !slot_methods(env, trait_).contains(&item) {
@@ -3141,13 +3124,8 @@ impl Cx<'_> {
     fn map_key(&mut self, map: Ty, parent: InstId, reps: &mut StableHasher) -> StageResult<Target> {
         let pool = self.pool;
         let mut map = map;
-        loop {
-            map = match pool.get(map) {
-                TyData::Adt { def, args } if self.env.ref_cells().holds(def) => {
-                    pool.list_items(args)[0]
-                }
-                _ => break,
-            };
+        while let TyData::Ref { inner, .. } = pool.get(map) {
+            map = inner;
         }
         let TyData::Adt { args, .. } = pool.get(map) else {
             return err("a map operation on a non-map type");
@@ -3364,9 +3342,7 @@ impl Cx<'_> {
                             // checker chose: a bound at `T = dyn Tr`
                             // included (trait.dyn.bound.reference-dispatch).
                             let value_ty = match pool.get(self_ty) {
-                                TyData::Adt { def, args } if env.ref_cells().holds(def) => {
-                                    pool.list_items(args)[0]
-                                }
+                                TyData::Ref { inner, .. } => inner,
                                 _ => self_ty,
                             };
                             if is_trait_value(pool, value_ty) {
@@ -3580,13 +3556,8 @@ impl Cx<'_> {
                     // (trait.erase.keeps, trait.dyn.widen).
                     let mut value_ty = from;
                     if through {
-                        loop {
-                            match pool.get(value_ty) {
-                                TyData::Adt { def, args } if env.ref_cells().holds(def) => {
-                                    value_ty = pool.list_items(args)[0];
-                                }
-                                _ => break,
-                            }
+                        while let TyData::Ref { inner, .. } = pool.get(value_ty) {
+                            value_ty = inner;
                         }
                     }
                     let sealed = env.decls().sealed();
@@ -3919,6 +3890,8 @@ fn pinned(
                 pinned(pool, env, def, e, true, out);
             }
         }
+        // A reference stores its referent's address, never erased.
+        TyData::Ref { inner, .. } => pinned(pool, env, def, inner, true, out),
         _ => {}
     }
 }

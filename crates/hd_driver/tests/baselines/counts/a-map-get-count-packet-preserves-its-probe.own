@@ -4,7 +4,7 @@
 # expected: the count packet is nonexecuting metadata; the following put reuses the get's hash and probe while the old value keeps its count.
 fn replace(values: &mut Map[string, string], key: string, value: string) -> string?:
 > app/main/replace
->   local $0 values: RefMut[Map[string, string]] [param read] value
+>   local $0 values: &mut Map[string, string] [param read] value
 >     uses $0: entry -> %2 lend, %10 lend last
 >   local $1 key: string [param read] value
 >     uses $1: entry -> %3 lend, %7 lend last

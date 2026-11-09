@@ -9,15 +9,15 @@ enum Expr:
 fn eval(expr: &Expr) -> i64:
     match expr:
 > app/main/eval
->   local $0 expr: Ref[Expr] [param read] value
+>   local $0 expr: &Expr [param read] value
 >     uses $0: entry -> %0 lend, %10 lend, %15 lend last
 >   local $1 value: i64 [read assigned] value
 >     uses $1: %12 -> %1 consume last
->   local $2 left: Counted[Expr] [read assigned] value
+>   local $2 left: *Expr [read assigned] value
 >     uses $2: %17 -> %3 lend last
->   local $3 right: Counted[Expr] [read assigned] value
+>   local $3 right: *Expr [read assigned] value
 >     uses $3: %18 -> %6 lend last
->   %0 = Read borrow [$0] : Ref[Expr]
+>   %0 = Read borrow [$0] : &Expr
 >   %26 = Block - : never
 >   %27 = Match %0 [%26 %2 %9] : i64
 >   %28 = Drop [$3] : ()
@@ -32,15 +32,15 @@ fn eval(expr: &Expr) -> i64:
 >   %24 = Block - : never
 >   %25 = SwitchTag %10 [#0 %14 %24] : never
         .Add(left, right) => eval(left) + eval(right)
->   %3 = Read copy [$2] : Counted[Expr]
+>   %3 = Read copy [$2] : *Expr
 >   %4 = Call app/main/eval[] (%3) : i64
 >   %5 = Drop [%3] : ()
->   %6 = Read borrow [$3] : Counted[Expr]
+>   %6 = Read borrow [$3] : *Expr
 >   %7 = Call app/main/eval[] (%6) : i64
 >   %8 = Prim Add [%4 %7] : i64
 >   %9 = Block %8 : i64
->   %15 = Read borrow [*$0 as #1 .0] : Counted[Expr]
->   %16 = Read copy [%10 as #1 .1] : Counted[Expr]
+>   %15 = Read borrow [*$0 as #1 .0] : *Expr
+>   %16 = Read copy [%10 as #1 .1] : *Expr
 >   %17 = Store [$2] %15 : ()
 >   %18 = Store [$3] %16 : ()
 >   %20 = Block - : never

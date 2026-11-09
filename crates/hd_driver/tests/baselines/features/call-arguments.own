@@ -53,16 +53,16 @@ fn by_value(s: string) -> usize:
 fn by_ref(s: &string) -> usize:
     (s.len() + 1) * (s.len() + 2) * (s.len() + 3) * (s.len() + 4) / (s.len() + 5)
 > app/main/by_ref
->   local $0 s: Ref[string] [param read] value
+>   local $0 s: &string [param read] value
 >     uses $0: entry -> %0 lend, %7 lend, %15 lend, %23 lend, %31 lend last
->   %0 = Read borrow [$0] : Ref[string]
+>   %0 = Read borrow [$0] : &string
 >   %1 = Read borrow [*%0] : string
 >   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
 >   %3 = Break L4 %2 : never
 >   %4 = Block - : usize
 >   %5 = Scope %4 [] : usize
 >   %6 = Prim Add [%5 1:usize] : usize
->   %7 = Read borrow [$0] : Ref[string]
+>   %7 = Read borrow [$0] : &string
 >   %8 = Read borrow [*%7] : string
 >   %9 = Call std/rt.bytes/bytes_len[] (%8) : usize
 >   %10 = Break L3 %9 : never
@@ -70,7 +70,7 @@ fn by_ref(s: &string) -> usize:
 >   %12 = Scope %11 [] : usize
 >   %13 = Prim Add [%12 2:usize] : usize
 >   %14 = Prim Mul [%6 %13] : usize
->   %15 = Read borrow [$0] : Ref[string]
+>   %15 = Read borrow [$0] : &string
 >   %16 = Read borrow [*%15] : string
 >   %17 = Call std/rt.bytes/bytes_len[] (%16) : usize
 >   %18 = Break L2 %17 : never
@@ -78,7 +78,7 @@ fn by_ref(s: &string) -> usize:
 >   %20 = Scope %19 [] : usize
 >   %21 = Prim Add [%20 3:usize] : usize
 >   %22 = Prim Mul [%14 %21] : usize
->   %23 = Read borrow [$0] : Ref[string]
+>   %23 = Read borrow [$0] : &string
 >   %24 = Read borrow [*%23] : string
 >   %25 = Call std/rt.bytes/bytes_len[] (%24) : usize
 >   %26 = Break L1 %25 : never
@@ -86,7 +86,7 @@ fn by_ref(s: &string) -> usize:
 >   %28 = Scope %27 [] : usize
 >   %29 = Prim Add [%28 4:usize] : usize
 >   %30 = Prim Mul [%22 %29] : usize
->   %31 = Read borrow [$0] : Ref[string]
+>   %31 = Read borrow [$0] : &string
 >   %32 = Read borrow [*%31] : string
 >   %33 = Call std/rt.bytes/bytes_len[] (%32) : usize
 >   %34 = Break L0 %33 : never
@@ -100,7 +100,7 @@ fn by_ref(s: &string) -> usize:
 fn by_mut(s: &mut string) -> void:
     *s += "x"
 > app/main/by_mut
->   local $0 s: RefMut[string] [param read] value
+>   local $0 s: &mut string [param read] value
 >     uses $0: entry -> %0 lend, %2 lend last
 >   %0 = Read borrow [*$0] : string
 >   %1 = Intrinsic StrConcat [%0 "x"] : string
@@ -112,7 +112,7 @@ fn by_mut(s: &mut string) -> void:
 fn by_ptr(n: *Node) -> usize:
     (n.name.len() + 1) * (n.name.len() + 2) * (n.name.len() + 3) / (n.name.len() + 5)
 > app/main/by_ptr
->   local $0 n: Counted[Node] [param read] value
+>   local $0 n: *Node [param read] value
 >     uses $0: entry -> %0 lend, %8 lend, %17 lend, %26 lend last
 >   local $1 self: string [read] value
 >     uses $1: %27 -> %28 lend last
@@ -163,7 +163,7 @@ fn by_ptr(n: *Node) -> usize:
 fn calls(s: string, n: *Node) -> usize:
 > app/main/calls
 >   local $0 s: string [param read captured] place
->   local $1 n: Counted[Node] [param read] value
+>   local $1 n: *Node [param read] value
 >     uses $1: entry -> %19 lend last
 >   local $2 t: string [read assigned captured captured-assigned] place
 >   %0 = Retain %22 Entry local $0 #0 : ()
@@ -173,7 +173,7 @@ fn calls(s: string, n: *Node) -> usize:
 >   %15 = Release %14 Operation local $2 #2 : ()
 >   %22 = Block %21 : usize
     by_mut(&mut t)
->   %3 = Ref mut local frame [$2] : RefMut[string]
+>   %3 = Ref mut local frame [$2] : &mut string
 >   %4 = Call app/main/by_mut[] (%3) : ()
 >   %5 = LoanEnd [%3] : ()
 >   %3 finds [$2] full
@@ -181,7 +181,7 @@ fn calls(s: string, n: *Node) -> usize:
 >   %6 = Read borrow [$0] : string
 >   %7 = Call app/main/by_value[] (%6) : usize
 >   %8 = Retain %7 Operation operand 0 #0 : ()
->   %9 = Ref local frame [$0] : Ref[string]
+>   %9 = Ref local frame [$0] : &string
 >   %10 = Call app/main/by_ref[] (%9) : usize
 >   %11 = LoanEnd [%9] : ()
 >   %12 = Drop [$0] : ()
@@ -190,7 +190,7 @@ fn calls(s: string, n: *Node) -> usize:
 >   %16 = Call app/main/by_value[] (%14) : usize
 >   %17 = Drop [%14] : ()
 >   %18 = Prim Add [%13 %16] : usize
->   %19 = Read borrow [$1] : Counted[Node]
+>   %19 = Read borrow [$1] : *Node
 >   %20 = Call app/main/by_ptr[] (%19) : usize
 >   %21 = Prim Add [%18 %20] : usize
 >   %14 finds [$2] full

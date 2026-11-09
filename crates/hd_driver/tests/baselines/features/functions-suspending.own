@@ -54,7 +54,7 @@ fn run_twice!(body: fn!() -> string) -> usize:
 >   %7 = Retain %5 Operation child #0 : ()
 >   %8 = Drop [%4] : ()
 >   %9 = Store [$1] %5 : ()
->   %10 = Ref local [$1] : Ref[string]
+>   %10 = Ref local [$1] : &string
 >   %11 = Call std/text/impl string.len[] (%10) : usize
 >   %12 = LoanEnd [%10] : ()
 >   %13 = Drop [$1] : ()
@@ -66,7 +66,7 @@ fn run_twice!(body: fn!() -> string) -> usize:
 >   %19 = Drop [%15] : ()
 >   %20 = Drop [%14] : ()
 >   %21 = Store [$2] %16 : ()
->   %22 = Ref local [$2] : Ref[string]
+>   %22 = Ref local [$2] : &string
 >   %23 = Call std/text/impl string.len[] (%22) : usize
 >   %24 = LoanEnd [%22] : ()
 >   %25 = Drop [$2] : ()
@@ -154,7 +154,7 @@ fn stored!(key: string) -> usize:
 >   %23 = Drop [%17] : ()
 >   %24 = Drop [%16] : ()
 >   %25 = Store [$3] %19 : ()
->   %26 = Ref local [$3] : Ref[string]
+>   %26 = Ref local [$3] : &string
 >   %27 = Call std/text/impl string.len[] (%26) : usize
 >   %28 = LoanEnd [%26] : ()
 >   %29 = Drop [$3] : ()

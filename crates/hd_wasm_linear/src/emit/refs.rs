@@ -654,7 +654,7 @@ impl Em<'_, '_, '_> {
         let (mut at, mut ty) = self.walk_place(i, &p, upto, start)?;
         // A capture's copy lies in the closure's environment too, which
         // outlives the code's call: a local reference points there. (A
-        // receiver's counted carrier points at a whole object: a copy.)
+        // receiver's counted reference points at a whole object: a copy.)
         if let (At::Vals(_), PlaceRoot::Local(l), None) = (&at, p.root, head)
             && let Some(&(env, off)) = self.env_caps.get(&l.idx())
             && matches!(self.kind(self.ty(i)), Kind::Ref { whole: false, .. })
@@ -851,8 +851,8 @@ impl Em<'_, '_, '_> {
                 let colls = self.copied(ty);
                 self.retain_fields(obj, &m, w.as_ref(), &colls, colls.len());
                 self.f.get(obj);
-                // A local reference owns the copy; a counted carrier's
-                // count of it is the carrier's own.
+                // A local reference owns the copy; a counted reference's
+                // count of it is the reference's own.
                 if self.local_ref(self.ty(i)) {
                     self.owned_refs.insert(i);
                 }
@@ -1651,9 +1651,7 @@ impl Em<'_, '_, '_> {
         let ty = self.walk_ty(self.at_root_ty(p.root), &p.proj[..d])?;
         let (pool, env) = (self.pool(), self.env());
         let declared = match pool.get(crate::layout::strip(pool, env, ty)) {
-            TyData::Adt { def, args } if env.ref_cells().holds(def) => {
-                pool.list_items(args).first().copied()
-            }
+            TyData::Ref { inner, .. } => Some(inner),
             _ => None,
         };
         declared.map_or_else(

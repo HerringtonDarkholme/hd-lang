@@ -15,7 +15,7 @@ impl Namer for Fixed:
     fn name(&self) -> string:
         self.n
 > app/main/impl Namer for Fixed.name
->   local $0 self: Ref[Fixed] [param read] value
+>   local $0 self: &Fixed [param read] value
 >     uses $0: entry -> %0 lend last
 >   %0 = Read copy [*$0 .n] : string
 >   %1 = Block %0 : string
@@ -27,7 +27,7 @@ fn ask() -> usize $ Namer:
 >   local $0 $ref: string [read assigned captured captured-assigned] value
 >     uses $0: %5 -> %6 lend last
 >   %0 = ProviderGet #0 : Namer
->   %1 = Coerce %0 [ProviderAsRef -] : Ref[Namer]
+>   %1 = Coerce %0 [ProviderAsRef -] : &dyn Namer
 >   %2 = Read borrow [*%1] : Namer
 >   %3 = LoanEnd [%1] : ()
 >   %4 = Call app/main/Namer.name for Namer [] via TraitValue (%2) : string
@@ -46,28 +46,28 @@ fn install(s: string) -> usize:
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %1 consume last
 >   local $1 $ref: Fixed [read assigned captured captured-assigned] place
->   local $2 f: CountedMut[Fixed] [:= read assigned] value
+>   local $2 f: *mut Fixed [:= read assigned] value
 >     uses $2: %5 -> %6 consume last
->   local $3 $ref: Counted[Fixed] [read assigned captured] value
+>   local $3 $ref: *Fixed [read assigned captured] value
 >     uses $3: %8 -> %9 lend last
 >   %0 = Retain %20 Entry local $0 #0 : ()
     f := box(Fixed { n: s })
 >   %1 = Read move [$0] : string
 >   %2 = NewStruct [%1] : Fixed
 >   %3 = Store [$1] %2 : ()
->   %4 = Ref take mut [$1] : CountedMut[Fixed]
+>   %4 = Ref take mut [$1] : *mut Fixed
 >   %5 = Store [$2] %4 : ()
 >   %20 = Block %18 : usize
 >   %4 finds [$1] full
     $.with(Namer=f):
->   %6 = Read move [$2] : CountedMut[Fixed]
->   %7 = Coerce %6 [Weaken -] : Counted[Fixed]
+>   %6 = Read move [$2] : *mut Fixed
+>   %7 = Coerce %6 [Weaken -] : *Fixed
 >   %8 = Store [$3] %7 : ()
->   %9 = Read move [$3] : Counted[Fixed]
+>   %9 = Read move [$3] : *Fixed
 >   %10 = Coerce %9 [RefToTraitValue -] : Namer
 >   %11 = LoanEnd [%9] : ()
 >   %12 = Block %10 : Namer
->   %13 = RefDyn %12 : Counted[Namer]
+>   %13 = RefDyn %12 : *dyn Namer
 >   %14 = Coerce %13 [RefAsProvider -] : Namer
 >   %15 = LoanEnd [%13] : ()
 >   %18 = With [Namer %14] %17 : usize

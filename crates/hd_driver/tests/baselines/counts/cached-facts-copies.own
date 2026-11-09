@@ -23,15 +23,15 @@ impl[S] Walker[S] for Reader[S]:
     fn member[F](&mut self, handle: Field[S, F], value: &F) -> Result[void, never]:
         self.found = !handle.info.facts.items.is_empty()
 > app/main/impl [ S ] Walker [ S ] for Reader [ S ].member
->   local $0 self: RefMut[Reader[S]] [param read] value
+>   local $0 self: &mut Reader[S] [param read] value
 >     uses $0: entry -> %9 lend last
->   local $1 handle: Counted[FieldRecord[S, F]] [param read] value
+>   local $1 handle: *FieldRecord[S, F] [param read] value
 >     uses $1: entry -> %0 lend last
->   local $3 self: List[Counted[Inspectable]] [read] value
+>   local $3 self: List[*dyn Inspectable] [read] value
 >     uses $3: %1 -> %2 lend last
->   %0 = Read borrow [*$1 .info .facts .items] : List[Counted[Inspectable]]
+>   %0 = Read borrow [*$1 .info .facts .items] : List[*dyn Inspectable]
 >   %1 = Store [$3] %0 : ()
->   %2 = Read borrow [$3] : List[Counted[Inspectable]]
+>   %2 = Read borrow [$3] : List[*dyn Inspectable]
 >   %3 = Intrinsic ListLen [%2] : usize
 >   %4 = Prim Eq [%3 0:usize] : bool
 >   %5 = Break L0 %4 : never
@@ -52,9 +52,9 @@ impl[T] HasFacts for T by Structure:
 > app/main/impl HasFacts for Record by Structure.has_facts
 >   local $0 self: Record [param read captured] place
 >   local $1 reader: Reader[Record] [read assigned captured captured-assigned] place
->   local $2 self: Ref[Record] value
+>   local $2 self: &Record value
 >     uses $2: %5 -> %7 lend last
->   local $3 p: RefMut[Reader[Record]] value
+>   local $3 p: &mut Reader[Record] value
 >     uses $3: %6 -> %9 consume, %32 consume last
 >   %0 = Retain %72 Entry local $0 #0 : ()
 > app/main/impl [ T ] HasFacts for T by Structure.has_facts
@@ -69,8 +69,8 @@ impl[T] HasFacts for T by Structure:
 >   %2 = Store [$1] %1 : ()
 >   %11 = Block %9 : bool
         _ := Structure::walk(&self, &mut reader)
->   %3 = Ref local frame [$0] : Ref[Record]
->   %4 = Ref mut local frame [$1] : RefMut[Reader[Record]]
+>   %3 = Ref local frame [$0] : &Record
+>   %4 = Ref mut local frame [$1] : &mut Reader[Record]
 >   %5 = Store [$2] %3 : ()
 >   %6 = Store [$3] %4 : ()
 >   %64 = Break L4 %63 : never
@@ -79,8 +79,8 @@ impl[T] HasFacts for T by Structure:
 >   %68 = LoanEnd [$2] : ()
 >   %69 = Drop [$0] : ()
 >   %4 finds [$1] full
->   %3 = Ref local frame [$0] : Ref[T]
->   %4 = Ref mut local frame [$1] : RefMut[Reader[T]]
+>   %3 = Ref local frame [$0] : &T
+>   %4 = Ref mut local frame [$1] : &mut Reader[T]
 >   %5 = Call std/structure/Structure.walk for T [Reader[T]] via Bound (%3, %4) : Result[(), never]
 >   %6 = Drop [%4] : ()
 >   %7 = Drop [%3] : ()
@@ -103,11 +103,11 @@ impl[T] HasFacts for T by Structure:
 struct Record:
 > app/main/impl HasFacts for Record by Structure.structure member facts 0 0
 >   local $0 $ref: Mark [read assigned captured captured-assigned] place
->   local $1 $ref: Counted[Mark] [read assigned captured] value
+>   local $1 $ref: *Mark [read assigned captured] value
 >     uses $1: %5 -> %6 lend last
 >   %0 = Retain %13 CacheRead #0 : ()
 >   %1 = Retain %13 CacheWrite #0 : ()
->   %11 = NewList - [%10] : List[Counted[Inspectable]]
+>   %11 = NewList - [%10] : List[*dyn Inspectable]
 >   %12 = NewStruct [%11] : Facts
 >   %13 = Block %12 : Facts
     name: string
@@ -116,13 +116,13 @@ impl HasFacts for Record by Structure:
     name = [Mark { label: "mark" }]
 >   %2 = NewStruct ["mark"] : Mark
 >   %3 = Store [$0] %2 : ()
->   %4 = Ref take [$0] : Counted[Mark]
+>   %4 = Ref take [$0] : *Mark
 >   %5 = Store [$1] %4 : ()
->   %6 = Read move [$1] : Counted[Mark]
+>   %6 = Read move [$1] : *Mark
 >   %7 = Coerce %6 [RefToTraitValue -] : Inspectable
 >   %8 = LoanEnd [%6] : ()
 >   %9 = Block %7 : Inspectable
->   %10 = RefDyn %9 : Counted[Inspectable]
+>   %10 = RefDyn %9 : *dyn Inspectable
 >   %4 finds [$0] full
 >   storage sub 0: $0 cell
 

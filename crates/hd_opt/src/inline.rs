@@ -12,7 +12,7 @@ use hd_base::{DefId, Hash128, HashMap, HashSet, StableHasher};
 use hd_mono::ProgramEnv;
 use hd_tir::inline::Site;
 use hd_tir::ir::{Body, Callee, Proj, Ref, Tag, local_flags, place, ref_word};
-use hd_types::{InternPool, RefCells, Ty, TyData, TyList};
+use hd_types::{InternPool, Ty, TyData, TyList};
 
 /// The default callee size budget, in std and outside it alike.
 /// `hd_tir::inline::inlinable` accepts the raw-row bound or a lowering
@@ -547,7 +547,7 @@ impl dyn InlineEnv + '_ {
     fn fits_size(&self, def: DefId, targs: TyList, copy: &Body, limit: usize) -> bool {
         if copy.len() > limit {
             let declared = self.result(def).map(|t| {
-                let t = self.pool().lower_refs(self.ref_cells(), t);
+                let t = self.pool().erase_fn_deps(t);
                 hd_mono::subst(self.pool(), self, def, targs, t)
             });
             let root = copy
@@ -560,7 +560,7 @@ impl dyn InlineEnv + '_ {
             if declared
                 .into_iter()
                 .chain(root)
-                .any(|t| holds_local(self.pool(), self.ref_cells(), t, 0))
+                .any(|t| holds_local(self.pool(), t, 0))
             {
                 return false;
             }
@@ -637,7 +637,7 @@ impl dyn InlineEnv + '_ {
             && (hd_mono::default_needs_bracket(body)
                 || self
                     .result(def)
-                    .is_some_and(|t| holds_local(self.pool(), self.ref_cells(), t, 0)))
+                    .is_some_and(|t| holds_local(self.pool(), t, 0)))
         {
             return None;
         }
@@ -675,7 +675,7 @@ impl dyn InlineEnv + '_ {
         };
         let getter = self
             .result(def)
-            .is_some_and(|r| holds_local(self.pool(), self.ref_cells(), r, 0));
+            .is_some_and(|r| holds_local(self.pool(), r, 0));
         refs.len() > 1 || (refs.len() == 1 && !getter)
     }
 
@@ -730,13 +730,7 @@ impl dyn InlineEnv + '_ {
         let Some(refs) = self.reference_params(def, targs, true) else {
             return false;
         };
-        let shared = |ty| match self.pool().get(ty) {
-            TyData::Ref { mutable, .. } => !mutable,
-            TyData::Adt { def, .. } => {
-                self.ref_cells().holds(def) && !self.ref_cells().is_mutable(def)
-            }
-            _ => false,
-        };
+        let shared = |ty| matches!(self.pool().get(ty), TyData::Ref { mutable: false, .. });
         // A mutable-reference parameter establishes its call loan even
         // if this particular body only reads it. Keep that boundary.
         if refs.iter().any(|(k, ty)| *k >= 64 || !shared(*ty)) {
@@ -786,27 +780,15 @@ impl dyn InlineEnv + '_ {
             .is_some_and(|refs| refs.iter().all(|&(_, t)| self.local_reference_type(t)))
     }
 
-    /// Whether `t` is a local reference type, as the backend reads it.
+    /// Whether `t` is a local reference type.
     fn local_reference_type(&self, t: Ty) -> bool {
-        match self.pool().get(t) {
-            TyData::Ref { counted, .. } => !counted,
-            TyData::Adt { def, .. } => {
-                let cells = self.ref_cells();
-                cells.holds(def) && !cells.is_counted(def)
-            }
-            _ => false,
-        }
+        matches!(self.pool().get(t), TyData::Ref { counted: false, .. })
     }
 
     /// Whether a declared parameter of `def` is a local reference.
     fn declares_local_reference(&self, def: DefId) -> bool {
-        self.signature(def).is_some_and(|(params, _, _)| {
-            let lowered = |&t: &Ty| self.pool().lower_refs(self.ref_cells(), t);
-            params
-                .iter()
-                .map(lowered)
-                .any(|t| self.local_reference_type(t))
-        })
+        self.signature(def)
+            .is_some_and(|(params, _, _)| params.iter().any(|&t| self.local_reference_type(t)))
     }
 
     /// Whether `copy` only moves scalars through plain memory: every call it
@@ -858,14 +840,12 @@ impl dyn InlineEnv + '_ {
         let pool = self.pool();
         let mut refs = Vec::new();
         for (k, &t) in params.iter().enumerate() {
-            // As the backend reads a declared type: each reference type
-            // lowered to `std.core.Ref[T]` or `std.core.Counted[T]`.
-            let mut t = pool.lower_refs(self.ref_cells(), t);
+            // As the backend reads a declared type: with no dependency map.
+            let mut t = pool.erase_fn_deps(t);
             if self.is_open(t) {
                 t = hd_mono::subst(pool, self, def, targs, t);
             }
-            let reference = matches!(pool.get(t), TyData::Ref { .. })
-                || matches!(pool.get(t), TyData::Adt { def, .. } if self.ref_cells().holds(def));
+            let reference = matches!(pool.get(t), TyData::Ref { .. });
             if t == Ty::POISON || (self.is_open(t) && !(open_referents && reference)) {
                 return None;
             }
@@ -912,9 +892,9 @@ impl dyn InlineEnv + '_ {
                 return false;
             };
             let want = copy.local_ty[l];
-            if lends_by_kind(pool, self.ref_cells(), arg, want) {
+            if lends_by_kind(pool, arg, want) {
                 copy.local_ty[l] = arg;
-                keep_parameter_carrier(pool, self.ref_cells(), copy, l);
+                keep_parameter_kind(pool, copy, l);
                 rebound = true;
             } else if !fits(Some(arg), want) {
                 return false;
@@ -923,7 +903,7 @@ impl dyn InlineEnv + '_ {
         let root = copy.sub_root.first().map(|&r| copy.ty[r as usize]);
         n == args.len()
             && root.is_some_and(|root| fits(open(caller.ty[c]), root))
-            && (!rebound || carriers_agree(copy))
+            && (!rebound || kinds_agree(copy))
     }
 }
 
@@ -1049,9 +1029,9 @@ fn captured_read_args(body: &Body, call: usize) -> u64 {
 /// inlined into `copy`. Bottom-up inlining may have bound a nested
 /// `&mut self` to a read of the outer parameter before this caller made
 /// that parameter counted. Its whole reads and the binding locals they
-/// fill must follow the argument's carrier too; otherwise ownership sees
-/// a `Ref` read of a `Counted` local and inserts a page-table count.
-fn keep_parameter_carrier(pool: &InternPool, cells: RefCells, copy: &mut Body, param: usize) {
+/// fill must follow the argument's kind too; otherwise ownership sees a
+/// `&mut T` read of a `*mut T` local and inserts a page-table count.
+fn keep_parameter_kind(pool: &InternPool, copy: &mut Body, param: usize) {
     let mut locals = vec![false; copy.local_ty.len()];
     locals[param] = true;
     let mut values = vec![false; copy.len()];
@@ -1066,9 +1046,9 @@ fn keep_parameter_carrier(pool: &InternPool, cells: RefCells, copy: &mut Body, p
         if let Some(local) = copy.local_read(i)
             && locals[local.idx()]
         {
-            let carrier = copy.local_ty[local.idx()];
-            if copy.ty[i] == carrier || lends_by_kind(pool, cells, carrier, copy.ty[i]) {
-                copy.ty[i] = carrier;
+            let kind = copy.local_ty[local.idx()];
+            if copy.ty[i] == kind || lends_by_kind(pool, kind, copy.ty[i]) {
+                copy.ty[i] = kind;
                 values[i] = true;
             }
         }
@@ -1081,11 +1061,9 @@ fn keep_parameter_carrier(pool: &InternPool, cells: RefCells, copy: &mut Body, p
                 && values.get(source) == Some(&true)
                 && stores[local] == 1
             {
-                let carrier = copy.ty[source];
-                if copy.local_ty[local] == carrier
-                    || lends_by_kind(pool, cells, carrier, copy.local_ty[local])
-                {
-                    copy.local_ty[local] = carrier;
+                let kind = copy.ty[source];
+                if copy.local_ty[local] == kind || lends_by_kind(pool, kind, copy.local_ty[local]) {
+                    copy.local_ty[local] = kind;
                     locals[local] = true;
                 }
             }
@@ -1095,9 +1073,9 @@ fn keep_parameter_carrier(pool: &InternPool, cells: RefCells, copy: &mut Body, p
 
 /// Whether each value a block of `copy` takes, as its tail or by a
 /// `Break`, still has the block's type once parameters took their
-/// arguments' carriers: a getter returning `self` would give the counted
-/// carrier where its result is the local one.
-fn carriers_agree(copy: &Body) -> bool {
+/// arguments' kinds: a getter returning `self` would give the counted
+/// reference where its result is the local one.
+fn kinds_agree(copy: &Body) -> bool {
     let has = |v: u32, want: Ty| {
         Ref(v).as_inst().is_none_or(|v| {
             let t = copy.ty[v.0 as usize];
@@ -1116,24 +1094,22 @@ fn carriers_agree(copy: &Body) -> bool {
     })
 }
 
-/// Whether a value of type `t` holds a local reference, as declared
-/// (`&T`) or lowered (`Ref[T]`), outside function types.
-fn holds_local(pool: &InternPool, cells: RefCells, t: Ty, depth: u32) -> bool {
+/// Whether a value of type `t` holds a local reference (`&T`), outside
+/// function types.
+fn holds_local(pool: &InternPool, t: Ty, depth: u32) -> bool {
     if depth > 32 {
         return false;
     }
     let any = |l| {
         pool.list_items(l)
             .iter()
-            .any(|&a| holds_local(pool, cells, a, depth + 1))
+            .any(|&a| holds_local(pool, a, depth + 1))
     };
     match pool.get(t) {
-        TyData::Ref { counted, inner, .. } => {
-            !counted || holds_local(pool, cells, inner, depth + 1)
-        }
-        TyData::Adt { def, args } => (cells.holds(def) && !cells.is_counted(def)) || any(args),
+        TyData::Ref { counted, inner, .. } => !counted || holds_local(pool, inner, depth + 1),
+        TyData::Adt { args, .. } => any(args),
         TyData::Tuple { elems, rest } => {
-            any(elems) || rest.is_some_and(|r| holds_local(pool, cells, r, depth + 1))
+            any(elems) || rest.is_some_and(|r| holds_local(pool, r, depth + 1))
         }
         _ => false,
     }
@@ -1142,10 +1118,10 @@ fn holds_local(pool: &InternPool, cells: RefCells, t: Ty, depth: u32) -> bool {
 /// Whether argument type `arg` differs from parameter type `want` only by
 /// reference kinds: a counted argument lends itself to a local reference
 /// parameter (`ref.convert.lend`), so a copy's parameter local takes the
-/// argument's carrier.
-pub(crate) fn lends_by_kind(pool: &InternPool, cells: RefCells, arg: Ty, want: Ty) -> bool {
-    let erase = |t| pool.lower_refs(cells.local_only(), pool.types().raise_refs(cells, t));
-    arg != want && erase(arg) == erase(want)
+/// argument's kind.
+pub(crate) fn lends_by_kind(pool: &InternPool, arg: Ty, want: Ty) -> bool {
+    let types = pool.types();
+    arg != want && types.erase_ref_kinds(arg) == types.erase_ref_kinds(want)
 }
 
 /// Visits the call graph from `root` bottom-up with an iterative Tarjan
@@ -1214,38 +1190,26 @@ mod tests {
 
     use hd_base::DefId;
     use hd_tir::ir::{Body, BodyKind, ReadMode, Tag, local_flags, place};
-    use hd_types::{InternPool, RefCells, Ty, TyData};
+    use hd_types::{InternPool, Ty, TyData};
 
-    use super::{bottom_up, keep_parameter_carrier};
+    use super::{bottom_up, keep_parameter_kind};
 
     /// A counted parameter flows through the unique binding local of an
     /// already-inlined method. A local with another write stays local:
     /// changing it would make that unrelated write ill typed.
     #[test]
-    fn parameter_carrier_follows_only_unique_binding_stores() {
+    fn parameter_kind_follows_only_unique_binding_stores() {
         let pool = InternPool::new();
-        let cells = RefCells {
-            local: DefId::from_raw(70),
-            local_mut: DefId::from_raw(72),
-            counted: DefId::from_raw(71),
-            counted_mut: DefId::from_raw(73),
-        };
-        let local = pool.lower_refs(
-            cells,
-            pool.intern_ty(&TyData::Ref {
-                inner: Ty::I32,
-                mutable: true,
-                counted: false,
-            }),
-        );
-        let counted = pool.lower_refs(
-            cells,
-            pool.intern_ty(&TyData::Ref {
-                inner: Ty::I32,
-                mutable: true,
-                counted: true,
-            }),
-        );
+        let local = pool.intern_ty(&TyData::Ref {
+            inner: Ty::I32,
+            mutable: true,
+            counted: false,
+        });
+        let counted = pool.intern_ty(&TyData::Ref {
+            inner: Ty::I32,
+            mutable: true,
+            counted: true,
+        });
         let mut body = Body::new(DefId::from_raw(1), BodyKind::Fn);
         body.local_ty = vec![counted, local, local, local];
         body.local_flags = vec![local_flags::PARAM, 0, 0, 0];
@@ -1267,15 +1231,12 @@ mod tests {
         ];
         body.ty = vec![local, Ty::VOID, local, Ty::VOID, local, Ty::VOID];
 
-        keep_parameter_carrier(&pool, cells, &mut body, 0);
+        keep_parameter_kind(&pool, &mut body, 0);
 
         assert_eq!(body.ty[0], counted);
         assert_eq!(body.local_ty[1], counted);
         assert_eq!(body.ty[2], counted);
-        assert_eq!(
-            body.local_ty[2], local,
-            "two writes keep the declared carrier"
-        );
+        assert_eq!(body.local_ty[2], local, "two writes keep the declared kind");
         assert_eq!(body.ty[4], local, "the unrelated read stays local");
     }
 

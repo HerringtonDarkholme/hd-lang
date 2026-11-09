@@ -35,6 +35,6 @@ fn name_len(s: string) -> usize:
 >   %1 = Call std/convert/From.from for Name [string] via Impl (%0) : Name
 >   %2 = Read [%1 .text] : string
 >   %3 = Store [$1] %2 : ()
->   %4 = Ref local [$1] : Ref[string]
+>   %4 = Ref local [$1] : &string
 >   %5 = Call std/text/impl string.len[] (%4) : usize
 >   %6 = Block %5 : usize

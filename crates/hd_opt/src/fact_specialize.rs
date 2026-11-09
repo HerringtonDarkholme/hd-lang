@@ -36,7 +36,7 @@ pub trait FactEnv: StructureEnv {
     /// A stable structural digest of one closed concrete fact type.
     fn fact_type_hash(&self, ty: Ty) -> Hash128;
 
-    /// The target of either a checker reference or its lowered `Ref[T]`.
+    /// The target of a reference type.
     fn fact_ref_inner(&self, ty: Ty) -> Option<Ty>;
 }
 

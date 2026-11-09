@@ -10,7 +10,7 @@ fn select(t: (string, List[string])) -> usize:
     t._0.len() + t._1.len()
 > app/main/select
 >   local $0 t: (string, List[string]) [param read captured]
->   %0 = Ref local [$0 .0] : Ref[string]
+>   %0 = Ref local [$0 .0] : &string
 >   %1 = Call std/text/impl string.len[] (%0) : usize
 >   %2 = Read [$0 .1] : List[string]
 >   %3 = Intrinsic ListLen [%2] : usize
@@ -21,7 +21,7 @@ fn nested(t: ((string, string), string)) -> usize:
     t._0._1.len()
 > app/main/nested
 >   local $0 t: ((string, string), string) [param read captured]
->   %0 = Ref local [$0 .0 .1] : Ref[string]
+>   %0 = Ref local [$0 .0 .1] : &string
 >   %1 = Call std/text/impl string.len[] (%0) : usize
 >   %2 = Block %1 : usize
 

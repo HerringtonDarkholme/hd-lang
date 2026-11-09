@@ -11,13 +11,13 @@ struct User:
 fn remember['a](seen: &mut List[&'a User], u: &'a User) -> void:
     seen.push(u)
 > app/main/remember
->   local $0 seen: RefMut[List[Ref[User]]] [param read] value
+>   local $0 seen: &mut List[&User] [param read] value
 >     uses $0: entry -> %2 lend last
->   local $1 u: Ref[User] [param read] value
+>   local $1 u: &User [param read] value
 >     uses $1: entry -> %0 consume last
->   %0 = Read copy [$1] : Ref[User]
+>   %0 = Read copy [$1] : &User
 >   %1 = IsUnique [*$0] : ()
->   %2 = Read borrow [*$0] : List[Ref[User]]
+>   %2 = Read borrow [*$0] : List[&User]
 >   %3 = Intrinsic ListPush [%2 %0] : ()
 >   %4 = Block - : ()
 >   summary kept [$1] writes
@@ -25,14 +25,14 @@ fn remember['a](seen: &mut List[&'a User], u: &'a User) -> void:
 fn index['a](by: &mut Map[string, &'a User], u: &'a User) -> void:
     by[u.name] = u
 > app/main/index
->   local $0 by: RefMut[Map[string, Ref[User]]] [param read] value
+>   local $0 by: &mut Map[string, &User] [param read] value
 >     uses $0: entry -> %3 lend last
->   local $1 u: Ref[User] [param read] value
+>   local $1 u: &User [param read] value
 >     uses $1: entry -> %0 lend, %1 consume last
 >   %0 = Read copy [*$1 .name] : string
->   %1 = Read copy [$1] : Ref[User]
+>   %1 = Read copy [$1] : &User
 >   %2 = IsUnique [*$0] : ()
->   %3 = Read borrow [*$0] : Map[string, Ref[User]]
+>   %3 = Read borrow [*$0] : Map[string, &User]
 >   %4 = Intrinsic MapSet [%3 %0 %1] : ()
 >   %5 = Retain %4 Operation operand 1 #0 : ()
 >   %6 = Drop [%0] : ()
@@ -43,8 +43,8 @@ fn total(a: User, b: User) -> usize:
 > app/main/total
 >   local $0 a: User [param read captured] place
 >   local $1 b: User [param read captured] place
->   local $2 seen: List[Ref[User]] [read assigned captured captured-assigned] place
->   local $3 by: Map[string, Ref[User]] [read assigned captured captured-assigned] place
+>   local $2 seen: List[&User] [read assigned captured captured-assigned] place
+>   local $3 by: Map[string, &User] [read assigned captured captured-assigned] place
 >   local $4 self: string [read] value
 >     uses $4: %29 -> %30 lend last
 >   local $5 self: string [read] value
@@ -52,30 +52,30 @@ fn total(a: User, b: User) -> usize:
 >   %0 = Retain %44 Entry local $0 #0 : ()
 >   %1 = Retain %44 Entry local $1 #0 : ()
     let mut seen: List[&User] = []
->   %2 = NewList - [] : List[Ref[User]]
+>   %2 = NewList - [] : List[&User]
 >   %3 = Store [$2] %2 : ()
 >   %44 = Block %43 : usize
     remember(&mut seen, &a)
->   %4 = Ref mut local frame [$2] : RefMut[List[Ref[User]]]
->   %5 = Ref local frame [$0] : Ref[User]
+>   %4 = Ref mut local frame [$2] : &mut List[&User]
+>   %5 = Ref local frame [$0] : &User
 >   %6 = Call app/main/remember[] (%4, %5) : ()
 >   %7 = LoanEnd [%5] : ()
 >   %8 = LoanEnd [%4] : ()
 >   %4 finds [$2] full
     remember(&mut seen, &b)
->   %9 = Ref mut local frame [$2] : RefMut[List[Ref[User]]]
->   %10 = Ref local frame [$1] : Ref[User]
+>   %9 = Ref mut local frame [$2] : &mut List[&User]
+>   %10 = Ref local frame [$1] : &User
 >   %11 = Call app/main/remember[] (%9, %10) : ()
 >   %12 = LoanEnd [%10] : ()
 >   %13 = LoanEnd [%9] : ()
 >   %9 finds [$2] full
     let mut by: Map[string, &User] = {}
->   %14 = NewMap [] : Map[string, Ref[User]]
+>   %14 = NewMap [] : Map[string, &User]
 >   %15 = Store [$3] %14 : ()
 >   %39 = Release %38 Operation local $3 #2 : ()
     index(&mut by, &a)
->   %16 = Ref mut local frame [$3] : RefMut[Map[string, Ref[User]]]
->   %17 = Ref local frame [$0] : Ref[User]
+>   %16 = Ref mut local frame [$3] : &mut Map[string, &User]
+>   %17 = Ref local frame [$0] : &User
 >   %18 = Call app/main/index[] (%16, %17) : ()
 >   %19 = LoanEnd [%17] : ()
 >   %20 = LoanEnd [%16] : ()
@@ -98,7 +98,7 @@ fn total(a: User, b: User) -> usize:
 >   %35 = Drop [$2] : ()
 >   %36 = Drop [$1] : ()
 >   %37 = Prim Add [%27 %34] : usize
->   %38 = Read move [$3] : Map[string, Ref[User]]
+>   %38 = Read move [$3] : Map[string, &User]
 >   %40 = Intrinsic MapLen [%38] : usize
 >   %41 = Drop [%38] : ()
 >   %42 = Drop [$0] : ()

@@ -45,11 +45,11 @@ fn has_style(facts: Facts) -> bool:
 fn name_of(m: &Member, frames: &List[Frame]) -> string:
     member_name(m, frames[0].facts)
 > app/main/name_of
->   local $0 m: Ref[Member] [param read] value
+>   local $0 m: &Member [param read] value
 >     uses $0: entry -> %0 lend last
->   local $1 frames: Ref[List[Frame]] [param read] value
+>   local $1 frames: &List[Frame] [param read] value
 >     uses $1: entry -> %1 lend last
->   %0 = Read borrow [$0] : Ref[Member]
+>   %0 = Read borrow [$0] : &Member
 >   %1 = Read borrow [*$1 [0:usize] .facts] : Facts
 >   %2 = Call std/serde/member_name[] (%0, %1) : string
 >   %3 = Retain %2 Operation operand 1 #0 : ()

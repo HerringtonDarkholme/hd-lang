@@ -39,7 +39,7 @@ fn first[T](xs: List[T]) -> T?:
 fn size[T](xs: &List[T]) -> usize:
     xs.len()
 > app/main/size
->   local $0 xs: Ref[List[T]] [param read] value
+>   local $0 xs: &List[T] [param read] value
 >     uses $0: entry -> %0 lend last
 >   %0 = Read borrow [*$0] : List[T]
 >   %1 = Intrinsic ListLen [%0] : usize
@@ -86,7 +86,7 @@ fn use_generic(s: string, xs: List[string]) -> usize:
 >     uses $9: %47 -> %42 consume last
 >   local $10 xs: List[string] [read] value
 >     uses $10: %25 -> %26 lend, %29 lend last
->   local $11 xs: Ref[List[string]] [read] value
+>   local $11 xs: &List[string] [read] value
 >     uses $11: %15 -> %16 lend last
 >   %0 = Retain %85 Entry local $0 #0 : ()
 >   %1 = Retain %85 Entry local $1 #0 : ()
@@ -103,8 +103,8 @@ fn use_generic(s: string, xs: List[string]) -> usize:
 >   %10 = Block - : usize
 >   %11 = Scope %10 [] : usize
 >   %12 = Drop [$2] : ()
->   %13 = Ref local frame [$1] : Ref[List[string]]
->   %14 = Coerce %13 [Weaken -] : Ref[List[string]]
+>   %13 = Ref local frame [$1] : &List[string]
+>   %14 = Coerce %13 [Weaken -] : &List[string]
 >   %15 = Store [$11] %14 : ()
 >   %16 = Read borrow [*$11] : List[string]
 >   %17 = Intrinsic ListLen [%16] : usize

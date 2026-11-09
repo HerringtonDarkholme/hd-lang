@@ -9,7 +9,7 @@ impl Item:
     fn label(&self) -> string?:
         .Some(self.name)
 > app/main/impl Item.label
->   local $0 self: Ref[Item] [param read] value
+>   local $0 self: &Item [param read] value
 >     uses $0: entry -> %0 lend last
 >   %0 = Read copy [*$0 .name] : string
 >   %1 = NewVariant #1 [%0] : string?
@@ -37,7 +37,7 @@ fn read(items: List[Item]) -> string?:
 >   %3 = Read copy [%2 [0:usize]] : Item
 >   %4 = Drop [%2] : ()
 >   %5 = Store [$1] %3 : ()
->   %6 = Ref local frame [$1] : Ref[Item]
+>   %6 = Ref local frame [$1] : &Item
 >   %7 = Call app/main/impl Item.label[] (%6) : string?
 >   %8 = LoanEnd [%6] : ()
 >   %9 = Drop [$1] : ()

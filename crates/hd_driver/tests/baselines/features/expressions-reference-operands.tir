@@ -39,10 +39,10 @@ fn arith(x: &i64, y: &i64) -> i64:
 fn order_refs(a: &string, b: &string) -> bool:
     a < b
 > app/main/order_refs
->   local $0 a: Ref[string] [param read]
->   local $1 b: Ref[string] [param read]
->   %0 = Read [$0] : Ref[string]
->   %1 = Read [$1] : Ref[string]
+>   local $0 a: &string [param read]
+>   local $1 b: &string [param read]
+>   %0 = Read [$0] : &string
+>   %1 = Read [$1] : &string
 >   %2 = Call std/cmp/PartialOrd.partial_cmp for string [] via Impl (%0, %1) : Ordering?
 >   %3 = Read [%2 as #1 .0] : Ordering
 >   %4 = Block 1:bool : bool
@@ -56,9 +56,9 @@ fn order_refs(a: &string, b: &string) -> bool:
 fn list_eq(a: &List[string], b: &List[string]) -> bool:
     a == b
 > app/main/list_eq
->   local $0 a: Ref[List[string]] [param read]
->   local $1 b: Ref[List[string]] [param read]
->   %0 = Read [$0] : Ref[List[string]]
->   %1 = Read [$1] : Ref[List[string]]
+>   local $0 a: &List[string] [param read]
+>   local $1 b: &List[string] [param read]
+>   %0 = Read [$0] : &List[string]
+>   %1 = Read [$1] : &List[string]
 >   %2 = Call std/core/Eq.eq for List[string] [] via Impl (%0, %1) : bool
 >   %3 = Block %2 : bool

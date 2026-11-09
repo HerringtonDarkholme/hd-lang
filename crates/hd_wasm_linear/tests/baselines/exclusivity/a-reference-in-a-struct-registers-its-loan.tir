@@ -13,9 +13,9 @@ struct Held['a]:
 fn in_struct(t: &Team, alias: *mut User) -> string:
     held := Held { name: &t.lead.name }
 > app/main/in_struct
->   local $2 held: Held[Ref[()]] [:= read assigned]
->   %0 = Ref local [*$0 .lead * .name] : Ref[string]
->   %1 = NewStruct [%0] : Held[Ref[()]]
+>   local $2 held: Held [:= read assigned]
+>   %0 = Ref local [*$0 .lead * .name] : &string
+>   %1 = NewStruct [%0] : Held
 >   %2 = Store [$2] %1 : ()
 >   %5 = Block %4 : string
     alias.name = "b"
@@ -26,9 +26,9 @@ fn in_struct(t: &Team, alias: *mut User) -> string:
 fn in_tuple(t: &Team, alias: *mut User) -> string:
     held := (&t.lead.name, +1)
 > app/main/in_tuple
->   local $2 held: (Ref[string], i32) [:= read assigned]
->   %0 = Ref local [*$0 .lead * .name] : Ref[string]
->   %1 = NewTuple - [%0 1:i32] : (Ref[string], i32)
+>   local $2 held: (&string, i32) [:= read assigned]
+>   %0 = Ref local [*$0 .lead * .name] : &string
+>   %1 = NewTuple - [%0 1:i32] : (&string, i32)
 >   %2 = Store [$2] %1 : ()
 >   %5 = Block %4 : string
     alias.name = "b"
@@ -39,22 +39,22 @@ fn in_tuple(t: &Team, alias: *mut User) -> string:
 fn in_option(t: &Team, alias: *mut User) -> string:
     let held: Option[&string] = .Some(&t.lead.name)
 > app/main/in_option
->   local $2 held: Ref[string]? [read assigned]
->   local $3 name: Ref[string] [read assigned]
->   %0 = Ref local [*$0 .lead * .name] : Ref[string]
->   %1 = NewVariant #1 [%0] : Ref[string]?
+>   local $2 held: &string? [read assigned]
+>   local $3 name: &string [read assigned]
+>   %0 = Ref local [*$0 .lead * .name] : &string
+>   %1 = NewVariant #1 [%0] : &string?
 >   %2 = Store [$2] %1 : ()
 >   %21 = Block %20 : string
     alias.name = "b"
 >   %3 = Store [*$1 .name] "b" : ()
     match held:
->   %4 = Read [$2] : Ref[string]?
+>   %4 = Read [$2] : &string?
 >   %19 = Block - : never
 >   %20 = Match %4 [%19 %6 %7] : string
         .Some(name) => *name
 >   %5 = Read [*$3] : string
 >   %6 = Block %5 : string
->   %8 = Read [%4 as #1 .0] : Ref[string]
+>   %8 = Read [%4 as #1 .0] : &string
 >   %9 = Store [$3] %8 : ()
 >   %11 = Block - : never
 >   %17 = Block - : never

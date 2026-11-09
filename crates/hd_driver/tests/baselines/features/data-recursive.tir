@@ -12,28 +12,28 @@ struct Chain:
 fn push_front(head: *Chain?, name: string) -> *Chain:
     box(Chain { name: name, next: head })
 > app/main/push_front
->   local $0 head: Counted[Chain]? [param read]
+>   local $0 head: *Chain? [param read]
 >   local $1 name: string [param read]
 >   local $2 $ref: Chain [read assigned captured captured-assigned]
 >   %0 = Read [$1] : string
->   %1 = Read [$0] : Counted[Chain]?
+>   %1 = Read [$0] : *Chain?
 >   %2 = NewStruct [%0 %1] : Chain
 >   %3 = Store [$2] %2 : ()
->   %4 = Ref mut [$2] : CountedMut[Chain]
->   %5 = Coerce %4 [Weaken -] : Counted[Chain]
->   %6 = Block %5 : Counted[Chain]
+>   %4 = Ref mut [$2] : *mut Chain
+>   %5 = Coerce %4 [Weaken -] : *Chain
+>   %6 = Block %5 : *Chain
 
 fn total(head: *Chain?) -> usize:
     let n: usize = 0
 > app/main/total
->   local $0 head: Counted[Chain]? [param read]
+>   local $0 head: *Chain? [param read]
 >   local $1 n: usize [read assigned mutated]
->   local $2 cur: Counted[Chain]? [read assigned mutated]
->   local $3 c: Counted[Chain] [read assigned]
+>   local $2 cur: *Chain? [read assigned mutated]
+>   local $3 c: *Chain [read assigned]
 >   %0 = Store [$1] 0:usize : ()
 >   %34 = Block %33 : usize
     let cur = head
->   %1 = Read [$0] : Counted[Chain]?
+>   %1 = Read [$0] : *Chain?
 >   %2 = Store [$2] %1 : ()
     while true:
 >   %28 = Break L0 - : never
@@ -42,25 +42,25 @@ fn total(head: *Chain?) -> usize:
 >   %31 = Block - : ()
 >   %32 = Loop %31 - : ()
         match cur:
->   %3 = Read [$2] : Counted[Chain]?
+>   %3 = Read [$2] : *Chain?
 >   %25 = Block - : never
 >   %26 = Match %3 [%25 %11 %13] : ()
 >   %27 = Block - : ()
             .Some(c) =>
->   %14 = Read [%3 as #1 .0] : Counted[Chain]
+>   %14 = Read [%3 as #1 .0] : *Chain
 >   %15 = Store [$3] %14 : ()
 >   %17 = Block - : never
 >   %23 = Block - : never
 >   %24 = SwitchTag %3 [#1 %17 %23] : never
                 n += c.name.len()
 >   %4 = Read [$1] : usize
->   %5 = Ref local [*$3 .name] : Ref[string]
+>   %5 = Ref local [*$3 .name] : &string
 >   %6 = Call std/text/impl string.len[] (%5) : usize
 >   %7 = Prim Add [%4 %6] : usize
 >   %8 = Store [$1] %7 : ()
 >   %11 = Block - : ()
                 cur = c.next
->   %9 = Read [*$3 .next] : Counted[Chain]?
+>   %9 = Read [*$3 .next] : *Chain?
 >   %10 = Store [$2] %9 : ()
             .None => break
 >   %12 = Break L0 - : never

@@ -25,7 +25,7 @@ fn temp_ref(s: string) -> usize:
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %1 consume last
 >   local $1 $ref: Named [read assigned captured captured-assigned] place
->   local $2 n: Ref[Named] [:= read assigned] value
+>   local $2 n: &Named [:= read assigned] value
 >     uses $2: %8 -> %9 lend last
 >   local $3 self: string [read] value
 >     uses $3: %10 -> %11 lend last
@@ -37,7 +37,7 @@ fn temp_ref(s: string) -> usize:
 >   %4 = Block - : Named
 >   %5 = Scope %4 [] : Named
 >   %6 = Store [$1] %5 : ()
->   %7 = Ref local frame [$1] : Ref[Named]
+>   %7 = Ref local frame [$1] : &Named
 >   %8 = Store [$2] %7 : ()
 >   %18 = Block %15 : usize
 >   %7 finds [$1] full
@@ -62,7 +62,7 @@ fn new_mut(s: string, t: string) -> usize:
 >   local $1 t: string [param read] value
 >     uses $1: entry -> %7 consume last
 >   local $2 $ref: Named [read assigned captured captured-assigned] place
->   local $3 m: RefMut[Named] [:= read assigned] value
+>   local $3 m: &mut Named [:= read assigned] value
 >     uses $3: %6 -> %8 lend, %10 lend last
 >   local $4 self: string [read] value
 >     uses $4: %11 -> %12 lend last
@@ -72,7 +72,7 @@ fn new_mut(s: string, t: string) -> usize:
 >   %2 = Read move [$0] : string
 >   %3 = NewStruct [%2] : Named
 >   %4 = Store [$2] %3 : ()
->   %5 = Ref mut local frame [$2] : RefMut[Named]
+>   %5 = Ref mut local frame [$2] : &mut Named
 >   %6 = Store [$3] %5 : ()
 >   %19 = Block %16 : usize
 >   %5 finds [$2] full
@@ -101,7 +101,7 @@ fn field_ref(s: string, t: string) -> usize:
 >   local $1 t: string [param read] value
 >     uses $1: entry -> %7 consume last
 >   local $2 p: Named [read assigned captured captured-assigned] place
->   local $3 q: RefMut[string] [:= read assigned] value
+>   local $3 q: &mut string [:= read assigned] value
 >     uses $3: %6 -> %8 lend last
 >   local $4 self: string [read] value
 >     uses $4: %12 -> %13 lend last
@@ -113,7 +113,7 @@ fn field_ref(s: string, t: string) -> usize:
 >   %4 = Store [$2] %3 : ()
 >   %19 = Block %17 : usize
     q := &mut p.name
->   %5 = Ref mut local frame [$2 .name] : RefMut[string]
+>   %5 = Ref mut local frame [$2 .name] : &mut string
 >   %6 = Store [$3] %5 : ()
 >   %5 finds [$2] full
     *q = t

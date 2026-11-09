@@ -107,7 +107,7 @@ impl Prim {
     }
 }
 
-/// The data types reference types lower to ([`Types::lower_refs`]):
+/// The seeded data types that once stood for the reference types:
 /// `local` for `&T`, `local_mut` for `&mut T`, `counted` for `*T` and
 /// `counted_mut` for `*mut T`. The carrier is the reference's whole
 /// identity, permission included, so `T` stays the referent.
@@ -271,7 +271,7 @@ pub struct RowData {
 /// lifetime of each slot of its inputs and then of its result
 /// ([`Types::ref_slots`] order), numbered by first occurrence
 /// ([`Types::fn_deps`]). `NONE` when the result has no reference slot. It
-/// is part of the type's identity and erased by [`Types::lower_refs`], so
+/// is part of the type's identity and erased by [`Types::erase_fn_deps`], so
 /// it never reaches a monomorphization key.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct FnDeps(u32);
@@ -341,7 +341,7 @@ pub enum TyData {
     Poison,
     /// A named type applied to its arguments (`types.forms.with-impl-types`):
     /// a struct, enum, newtype (`types.newtype.decl`) or std type such as
-    /// `List[T]`. After [`Types::lower_refs`] also a reference carrier.
+    /// `List[T]`.
     Adt { def: DefId, args: TyList },
     /// A tuple `(A, B)` (`types.tuple.structural`). `rest` is the `List[T]`
     /// of a rest element, as in `(A, List[T]...)` (`types.tuple.rest.form`,
@@ -412,10 +412,9 @@ pub enum TyData {
     /// counted `*T` or `*mut T` (`ref.type.counted-forms`). One variant holds
     /// all four, as `ref.type.kinds` groups them; each kind is its own pool
     /// tag, so the kinds stay distinct types (`ref.type.distinct`,
-    /// `ref.type.kind-distinct`). [`Types::lower_refs`] turns each kind into
-    /// its own carrier ([`RefCells`]). A counted reference refers to a whole
-    /// object (`ref.box.object`), so its address is a payload start
-    /// (`crates/hd_wasm_linear/DESIGN.md` §23.30).
+    /// `ref.type.kind-distinct`), through every stage to the backend. A
+    /// counted reference refers to a whole object (`ref.box.object`), so its
+    /// address is a payload start (`crates/hd_wasm_linear/DESIGN.md` §23.30).
     Ref {
         inner: Ty,
         mutable: bool,
@@ -1037,15 +1036,15 @@ impl InternPool {
     pub fn display(&self, t: Ty) -> String {
         self.types().display(t)
     }
-    /// [`Types::lower_refs`].
+    /// [`Types::erase_fn_deps`].
     #[must_use]
-    pub fn lower_refs(&self, cell: RefCells, t: Ty) -> Ty {
-        self.types().lower_refs(cell, t)
+    pub fn erase_fn_deps(&self, t: Ty) -> Ty {
+        self.types().erase_fn_deps(t)
     }
-    /// [`Types::lower_refs_list`].
+    /// [`Types::erase_fn_deps_list`].
     #[must_use]
-    pub fn lower_refs_list(&self, cell: RefCells, l: TyList) -> TyList {
-        self.types().lower_refs_list(cell, l)
+    pub fn erase_fn_deps_list(&self, l: TyList) -> TyList {
+        self.types().erase_fn_deps_list(l)
     }
     #[must_use]
     pub fn len(&self) -> u32 {
@@ -1685,134 +1684,37 @@ impl<'a> Types<'a> {
         }
     }
 
-    /// `t` with each reference type replaced by the data type `cell[T]`
-    /// of its carrier ([`RefCells::of`]), all with the
-    /// same physical RC reference layout (`crates/hd_wasm_linear/DESIGN.md`
-    /// §23.20). The checker applies it to a finished body and the driver
-    /// to the declarations the backend reads, so the backend never sees a
-    /// reference type, and it knows a counted one starts at an object
-    /// (§23.30).
+    /// `t` with every function type's dependency map erased
+    /// ([`FnDeps::NONE`]): the identity monomorphization keys and the
+    /// backend read. A map is `NONE` unless its result holds a reference
+    /// slot, so only a type with a function type and a reference
+    /// ([`meta::HAS_FN`], [`meta::HAS_REF`]) is walked, each distinct part
+    /// once. The checker applies it to a finished body and the driver to the
+    /// declarations the backend reads; every reference type stays, its kind
+    /// included (`ref.type.kind-distinct`).
     #[must_use]
-    pub fn lower_refs(self, cell: RefCells, t: Ty) -> Ty {
-        if !self.has_ref(t) {
-            return t;
-        }
-        let l = |x: TyList| {
-            self.list(
-                &self
-                    .list_items(x)
-                    .iter()
-                    .map(|e| self.lower_refs(cell, *e))
-                    .collect::<Vec<_>>(),
-            )
-        };
-        let d = match self.get(t) {
-            // Both kinds have one layout; only a counted one holds a count
-            // and is a whole object's address (`ref.type.local-uncounted`,
-            // `ref.box.object`).
-            TyData::Ref {
-                inner,
-                mutable,
-                counted,
-            } => TyData::Adt {
-                def: cell.of(mutable, counted),
-                args: self.list(&[self.lower_refs(cell, inner)]),
-            },
-            TyData::Adt { def, args } => TyData::Adt { def, args: l(args) },
-            TyData::Opaque {
-                owner,
-                site,
-                borrows,
-                args,
-                bound,
-            } => TyData::Opaque {
-                owner,
-                site,
-                borrows,
-                args: l(args),
-                bound: self.lower_refs(cell, bound),
-            },
-            TyData::Tuple { elems, rest } => TyData::Tuple {
-                elems: l(elems),
-                rest: rest.map(|r| self.lower_refs(cell, r)),
-            },
-            TyData::Union(members) => TyData::Union(l(members)),
-            TyData::Fn {
-                params,
-                result,
-                row,
-                suspends,
-                inputs,
-                deps: _,
-            } => TyData::Fn {
-                params: l(params),
-                result: self.lower_refs(cell, result),
-                row: self.lower_refs_row(cell, row),
-                suspends,
-                inputs,
-                // Erased before monomorphization keys form.
-                deps: FnDeps::NONE,
-            },
-            TyData::Row(r) => TyData::Row(self.lower_refs_row(cell, r)),
-            TyData::Context(r) => TyData::Context(self.lower_refs_row(cell, r)),
-            TyData::TraitValue {
-                def,
-                args,
-                bindings,
-            } => TyData::TraitValue {
-                def,
-                args: l(args),
-                bindings: bindings
-                    .into_iter()
-                    .map(|(d, b)| (d, self.lower_refs(cell, b)))
-                    .collect(),
-            },
-            TyData::Assoc {
-                assoc,
-                trait_,
-                self_ty,
-                args,
-            } => TyData::Assoc {
-                assoc,
-                trait_,
-                self_ty: self.lower_refs(cell, self_ty),
-                args: l(args),
-            },
-            _ => return t,
-        };
-        self.intern_ty(&d)
+    pub fn erase_fn_deps(self, t: Ty) -> Ty {
+        Erase::Deps.ty(self, t)
     }
 
-    /// [`Self::lower_refs`] over a row's keys.
+    /// [`Self::erase_fn_deps`] over a list.
     #[must_use]
-    pub fn lower_refs_row(self, cell: RefCells, r: RowId) -> RowId {
-        if self.row_meta(r) & meta::HAS_REF == 0 {
-            return r;
-        }
-        let d = self.row_data(r);
-        self.row(&RowData {
-            keys: d.keys.iter().map(|k| self.lower_refs(cell, *k)).collect(),
-            params: d.params,
-        })
+    pub fn erase_fn_deps_list(self, l: TyList) -> TyList {
+        Erase::Deps.list(self, l)
     }
 
-    /// [`Self::lower_refs`] over a list.
+    /// `t` with every counted reference made local, permission kept, and
+    /// its dependency maps erased: two types that differ only by reference
+    /// kinds, as a counted argument that lends itself to a local reference
+    /// parameter does (`ref.convert.lend`), erase to one. Only a type with a
+    /// reference ([`meta::HAS_REF`]) is walked, each distinct part once.
     #[must_use]
-    pub fn lower_refs_list(self, cell: RefCells, l: TyList) -> TyList {
-        if self.list_meta(l) & meta::HAS_REF == 0 {
-            return l;
-        }
-        self.list(
-            &self
-                .list_items(l)
-                .iter()
-                .map(|e| self.lower_refs(cell, *e))
-                .collect::<Vec<_>>(),
-        )
+    pub fn erase_ref_kinds(self, t: Ty) -> Ty {
+        Erase::Kinds.ty(self, t)
     }
 
-    /// The inverse of [`Self::lower_refs`] on a concrete type, for trait
-    /// selection after lowering: each carrier becomes its reference type
+    /// The inverse of the reference lowering on a concrete type, for trait
+    /// selection: each carrier becomes its reference type
     /// again, `cell.local_mut[T]` `&mut T` among them. Compound types, including
     /// projections and function signatures, retain this distinction.
     #[must_use]
@@ -2223,6 +2125,158 @@ pub fn with_assoc_args(pool: Types<'_>, t: Ty, trait_: DefId, args: TyList) -> T
         _ => return t,
     };
     pool.intern_ty(&d)
+}
+
+/// What [`Types::erase_fn_deps`] and [`Types::erase_ref_kinds`] erase:
+/// the walk is one, and each distinct part of a type is visited once, since
+/// a type built by doubling shares its parts and a walk without the memo
+/// would be exponential in its depth.
+#[derive(Clone, Copy)]
+enum Erase {
+    /// Function types' dependency maps.
+    Deps,
+    /// Those, and each counted reference's kind.
+    Kinds,
+}
+
+impl Erase {
+    /// Whether a part with these meta flags may hold something to erase.
+    const fn holds(self, m: u32) -> bool {
+        match self {
+            Erase::Deps => m & (meta::HAS_FN | meta::HAS_REF) == meta::HAS_FN | meta::HAS_REF,
+            Erase::Kinds => m & meta::HAS_REF != 0,
+        }
+    }
+
+    fn ty(self, p: Types<'_>, t: Ty) -> Ty {
+        if !self.holds(p.meta_of(t)) {
+            return t;
+        }
+        self.ty_in(p, t, &mut hd_base::HashMap::default())
+    }
+
+    fn list(self, p: Types<'_>, l: TyList) -> TyList {
+        if !self.holds(p.list_meta(l)) {
+            return l;
+        }
+        self.list_in(p, l, &mut hd_base::HashMap::default())
+    }
+
+    fn list_in(self, p: Types<'_>, l: TyList, memo: &mut hd_base::HashMap<Ty, Ty>) -> TyList {
+        if !self.holds(p.list_meta(l)) {
+            return l;
+        }
+        let items: Vec<Ty> = p
+            .list_items(l)
+            .iter()
+            .map(|&e| self.ty_in(p, e, memo))
+            .collect();
+        p.list(&items)
+    }
+
+    fn row_in(self, p: Types<'_>, r: RowId, memo: &mut hd_base::HashMap<Ty, Ty>) -> RowId {
+        if !self.holds(p.row_meta(r)) {
+            return r;
+        }
+        let d = p.row_data(r);
+        p.row(&RowData {
+            keys: d.keys.iter().map(|&k| self.ty_in(p, k, memo)).collect(),
+            params: d.params,
+        })
+    }
+
+    fn ty_in(self, p: Types<'_>, t: Ty, memo: &mut hd_base::HashMap<Ty, Ty>) -> Ty {
+        if !self.holds(p.meta_of(t)) {
+            return t;
+        }
+        if let Some(&r) = memo.get(&t) {
+            return r;
+        }
+        let d = match p.get(t) {
+            TyData::Ref {
+                inner,
+                mutable,
+                counted,
+            } => TyData::Ref {
+                inner: self.ty_in(p, inner, memo),
+                mutable,
+                counted: counted && matches!(self, Erase::Deps),
+            },
+            TyData::Adt { def, args } => TyData::Adt {
+                def,
+                args: self.list_in(p, args, memo),
+            },
+            TyData::Opaque {
+                owner,
+                site,
+                borrows,
+                args,
+                bound,
+            } => TyData::Opaque {
+                owner,
+                site,
+                borrows,
+                args: self.list_in(p, args, memo),
+                bound: self.ty_in(p, bound, memo),
+            },
+            TyData::Tuple { elems, rest } => TyData::Tuple {
+                elems: self.list_in(p, elems, memo),
+                rest: rest.map(|r| self.ty_in(p, r, memo)),
+            },
+            TyData::Union(members) => TyData::Union(self.list_in(p, members, memo)),
+            TyData::Fn {
+                params,
+                result,
+                row,
+                suspends,
+                inputs,
+                deps: _,
+            } => TyData::Fn {
+                params: self.list_in(p, params, memo),
+                result: self.ty_in(p, result, memo),
+                row: self.row_in(p, row, memo),
+                suspends,
+                inputs,
+                deps: FnDeps::NONE,
+            },
+            TyData::Row(r) => TyData::Row(self.row_in(p, r, memo)),
+            TyData::Context(r) => TyData::Context(self.row_in(p, r, memo)),
+            TyData::TraitValue {
+                def,
+                args,
+                bindings,
+            } => TyData::TraitValue {
+                def,
+                args: self.list_in(p, args, memo),
+                bindings: bindings
+                    .into_iter()
+                    .map(|(d, b)| (d, self.ty_in(p, b, memo)))
+                    .collect(),
+            },
+            TyData::Assoc {
+                assoc,
+                trait_,
+                self_ty,
+                args,
+            } => TyData::Assoc {
+                assoc,
+                trait_,
+                self_ty: self.ty_in(p, self_ty, memo),
+                args: self.list_in(p, args, memo),
+            },
+            // A leaf holds nothing to erase.
+            TyData::Prim(_)
+            | TyData::Never
+            | TyData::Poison
+            | TyData::Param(_)
+            | TyData::Const(_)
+            | TyData::Infer(_)
+            | TyData::Canon(_) => return t,
+        };
+        let r = p.intern_ty(&d);
+        memo.insert(t, r);
+        r
+    }
 }
 
 #[cfg(test)]
@@ -2698,62 +2752,84 @@ mod tests {
         assert_eq!(local.len(), 3);
     }
     #[test]
-    fn reference_lowering_preserves_permission_identity() {
+    fn erasing_fn_deps_keeps_every_reference_kind() {
+        use crate::pool::FnDeps;
         let pool = InternPool::new();
-        let cell = super::RefCells {
-            local: hd_base::DefId::from_raw(776),
-            local_mut: hd_base::DefId::from_raw(780),
-            counted: hd_base::DefId::from_raw(777),
-            counted_mut: hd_base::DefId::from_raw(781),
+        let kinds: Vec<Ty> = [(false, false), (true, false), (false, true), (true, true)]
+            .into_iter()
+            .map(|(mutable, counted)| {
+                pool.intern_ty(&TyData::Ref {
+                    inner: Ty::I32,
+                    mutable,
+                    counted,
+                })
+            })
+            .collect();
+        let local = kinds[0];
+        let types = pool.types();
+        let deps = types.fn_deps(&[1], &[1]);
+        assert_ne!(deps, FnDeps::NONE);
+        let lending = |deps| {
+            pool.intern_ty(&TyData::Fn {
+                params: pool.list(&[local]),
+                result: local,
+                row: RowId::EMPTY,
+                suspends: false,
+                inputs: Inputs::Fixed,
+                deps,
+            })
         };
-        let shared = pool.intern_ty(&TyData::Ref {
-            inner: Ty::I32,
-            mutable: false,
-            counted: true,
-        });
-        let writable = pool.intern_ty(&TyData::Ref {
-            inner: Ty::I32,
-            mutable: true,
-            counted: true,
-        });
-        let local = pool.intern_ty(&TyData::Ref {
-            inner: Ty::I32,
-            mutable: false,
-            counted: false,
-        });
-        assert_ne!(
-            pool.lower_refs(cell, shared),
-            pool.lower_refs(cell, writable)
-        );
-        assert_ne!(
-            pool.lower_refs(cell, local),
-            pool.lower_refs(cell, shared),
-            "the kinds lower to two carriers"
-        );
-        assert_eq!(
-            pool.lower_refs(cell.local_only(), local),
-            pool.lower_refs(cell.local_only(), shared),
-        );
-        let projection = pool.intern_ty(&TyData::Assoc {
-            assoc: hd_base::DefId::from_raw(778),
-            trait_: hd_base::DefId::from_raw(779),
-            self_ty: writable,
-            args: pool.list(&[shared]),
-        });
-        let function = pool.intern_ty(&TyData::Fn {
-            params: pool.list(&[shared]),
-            result: projection,
-            row: RowId::EMPTY,
-            suspends: false,
-            inputs: Inputs::Fixed,
-            deps: crate::pool::FnDeps::NONE,
-        });
-        for reference in [shared, writable, local, projection, function] {
-            assert_eq!(
-                pool.types()
-                    .raise_refs(cell, pool.lower_refs(cell, reference)),
-                reference
-            );
+        let (with, without) = (lending(deps), lending(FnDeps::NONE));
+        assert_ne!(with, without, "the map is part of the type");
+        for (k, &reference) in kinds.iter().enumerate() {
+            assert_eq!(pool.erase_fn_deps(reference), reference, "kind {k} stays");
+            let held = pool.intern_ty(&TyData::Tuple {
+                elems: pool.list(&[reference, with]),
+                rest: None,
+            });
+            let erased = pool.intern_ty(&TyData::Tuple {
+                elems: pool.list(&[reference, without]),
+                rest: None,
+            });
+            assert_eq!(pool.erase_fn_deps(held), erased);
         }
+        // A type built by doubling: 64 levels, each part walked once.
+        let mut t = with;
+        for _ in 0..64 {
+            t = pool.intern_ty(&TyData::Tuple {
+                elems: pool.list(&[t, t]),
+                rest: None,
+            });
+        }
+        let erased = pool.erase_fn_deps(t);
+        let mut u = without;
+        for _ in 0..64 {
+            u = pool.intern_ty(&TyData::Tuple {
+                elems: pool.list(&[u, u]),
+                rest: None,
+            });
+        }
+        assert_eq!(erased, u);
+        let no_ref = pool.list(&[Ty::I32, without]);
+        assert_eq!(
+            pool.erase_fn_deps_list(no_ref),
+            no_ref,
+            "no reference, no walk"
+        );
+        // Erasing kinds keeps the permission and makes a counted one local.
+        for (k, &reference) in kinds.iter().enumerate() {
+            assert_eq!(types.erase_ref_kinds(reference), kinds[k & 1]);
+        }
+        let in_fn = |inner| {
+            pool.intern_ty(&TyData::Fn {
+                params: pool.list(&[inner]),
+                result: Ty::VOID,
+                row: RowId::EMPTY,
+                suspends: false,
+                inputs: Inputs::Fixed,
+                deps: FnDeps::NONE,
+            })
+        };
+        assert_eq!(types.erase_ref_kinds(in_fn(kinds[3])), in_fn(kinds[1]));
     }
 }

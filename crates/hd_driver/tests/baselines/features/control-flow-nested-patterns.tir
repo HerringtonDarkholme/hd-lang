@@ -25,7 +25,7 @@ fn read_nested(s: Shape) -> usize:
 >   %40 = Match %0 [%39 %3 %7 %13] : usize
 >   %41 = Block %40 : usize
         .Dot(User { name, age: 0 }) => name.len()
->   %1 = Ref local [$1] : Ref[string]
+>   %1 = Ref local [$1] : &string
 >   %2 = Call std/text/impl string.len[] (%1) : usize
 >   %3 = Block %2 : usize
 >   %14 = Read [%0 as #0 .0] : User
@@ -40,15 +40,15 @@ fn read_nested(s: Shape) -> usize:
 >   %37 = Block - : never
 >   %38 = SwitchTag %0 [#0 %25 %37] : never
         .Dot(User { name: n }) => n.len() + 1
->   %4 = Ref local [$2] : Ref[string]
+>   %4 = Ref local [$2] : &string
 >   %5 = Call std/text/impl string.len[] (%4) : usize
 >   %6 = Prim Add [%5 1:usize] : usize
 >   %7 = Block %6 : usize
 >   %21 = Store [$2] %15 : ()
         .Line(start = User { name: a }, end = User { name: b }) => a.len() + b.len()
->   %8 = Ref local [$3] : Ref[string]
+>   %8 = Ref local [$3] : &string
 >   %9 = Call std/text/impl string.len[] (%8) : usize
->   %10 = Ref local [$4] : Ref[string]
+>   %10 = Ref local [$4] : &string
 >   %11 = Call std/text/impl string.len[] (%10) : usize
 >   %12 = Prim Add [%9 %11] : usize
 >   %13 = Block %12 : usize

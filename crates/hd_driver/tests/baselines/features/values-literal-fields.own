@@ -38,7 +38,7 @@ impl Histogram:
     fn add(&mut self, at: usize) -> void:
         self.buckets[at] = self.buckets[at] + 1
 > app/main/impl Histogram.add
->   local $0 self: RefMut[Histogram] [param read] value
+>   local $0 self: &mut Histogram [param read] value
 >     uses $0: entry -> %2 lend, %5 lend last
 >   local $1 at: usize [param read] value
 >     uses $1: entry -> %0 lend, %1 lend last
@@ -55,7 +55,7 @@ impl Shelf:
     fn put(&mut self, v: i64) -> void:
         self.items[0] = v
 > app/main/impl Shelf.put
->   local $0 self: RefMut[Shelf] [param read] value
+>   local $0 self: &mut Shelf [param read] value
 >     uses $0: entry -> %2 lend last
 >   local $1 v: i64 [param read] value
 >     uses $1: entry -> %0 consume last
@@ -158,7 +158,7 @@ pub fn main() -> void $ Console:
 >   %31 = Loop %30 - : ()
 >   %31 finds [$0] full
         h.add(i % 4)
->   %21 = Ref mut local frame [$0] : RefMut[Histogram]
+>   %21 = Ref mut local frame [$0] : &mut Histogram
 >   %22 = Read copy [$4] : usize
 >   %23 = Prim Rem [%22 4:usize] : usize
 >   %24 = Call app/main/impl Histogram.add[] (%21, %23) : ()
@@ -172,7 +172,7 @@ pub fn main() -> void $ Console:
 >   %36 = Scope %35 [] : Shelf
 >   %37 = Store [$5] %36 : ()
     s.put(9)
->   %38 = Ref mut local frame [$5] : RefMut[Shelf]
+>   %38 = Ref mut local frame [$5] : &mut Shelf
 >   %39 = Call app/main/impl Shelf.put[] (%38, 9:i64) : ()
 >   %40 = LoanEnd [%38] : ()
 >   %38 finds [$5] full

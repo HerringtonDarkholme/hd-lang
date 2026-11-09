@@ -24,16 +24,16 @@ impl Disposable for Res:
 fn two(log: *mut List[string], a: string, b: string) -> usize:
     using first = Res { name: a, log: log }
 > app/main/two
->   local $0 log: CountedMut[List[string]] [param read]
+>   local $0 log: *mut List[string] [param read]
 >   local $1 a: string [param read]
 >   local $2 b: string [param read]
 >   local $3 first: Res [:= read assigned captured captured-assigned]
 >   local $4 second: Res [:= read assigned captured captured-assigned]
 >   %0 = Read [$1] : string
->   %1 = Read [$0] : CountedMut[List[string]]
+>   %1 = Read [$0] : *mut List[string]
 >   %2 = NewStruct [%0 %1] : Res
 >   %3 = Store [$3] %2 : ()
->   %4 = Ref mut local [$3] : RefMut[Res]
+>   %4 = Ref mut local [$3] : &mut Res
 >   %5 = Call std/ops/Disposable.dispose for Res [$()] via Impl (%4) : ()
 >   %6 = Block - : ()
 >   %7 = Defer #6 : ()
@@ -42,24 +42,24 @@ fn two(log: *mut List[string], a: string, b: string) -> usize:
 >   %23 = Block %22 : usize
     using second = Res { name: b, log: log }
 >   %8 = Read [$2] : string
->   %9 = Read [$0] : CountedMut[List[string]]
+>   %9 = Read [$0] : *mut List[string]
 >   %10 = NewStruct [%8 %9] : Res
 >   %11 = Store [$4] %10 : ()
->   %12 = Ref mut local [$4] : RefMut[Res]
+>   %12 = Ref mut local [$4] : &mut Res
 >   %13 = Call std/ops/Disposable.dispose for Res [$()] via Impl (%12) : ()
 >   %14 = Block - : ()
 >   %15 = Defer #14 : ()
     first.name.len() + second.name.len()
->   %16 = Ref local [$3 .name] : Ref[string]
+>   %16 = Ref local [$3 .name] : &string
 >   %17 = Call std/text/impl string.len[] (%16) : usize
->   %18 = Ref local [$4 .name] : Ref[string]
+>   %18 = Ref local [$4 .name] : &string
 >   %19 = Call std/text/impl string.len[] (%18) : usize
 >   %20 = Prim Add [%17 %19] : usize
 
 fn per_round(log: *mut List[string], xs: List[string]) -> void:
     for x in xs:
 > app/main/per_round
->   local $0 log: CountedMut[List[string]] [param read]
+>   local $0 log: *mut List[string] [param read]
 >   local $1 xs: List[string] [param read]
 >   local $2 $coll: List[string] [assigned]
 >   local $3 $len: usize [assigned]
@@ -96,10 +96,10 @@ fn per_round(log: *mut List[string], xs: List[string]) -> void:
 >   %37 = Block - : ()
         using r = Res { name: x, log: log }
 >   %16 = Read [$6] : string
->   %17 = Read [$0] : CountedMut[List[string]]
+>   %17 = Read [$0] : *mut List[string]
 >   %18 = NewStruct [%16 %17] : Res
 >   %19 = Store [$7] %18 : ()
->   %20 = Ref mut local [$7] : RefMut[Res]
+>   %20 = Ref mut local [$7] : &mut Res
 >   %21 = Call std/ops/Disposable.dispose for Res [$()] via Impl (%20) : ()
 >   %22 = Block - : ()
 >   %23 = Defer #22 : ()
@@ -110,11 +110,11 @@ fn per_round(log: *mut List[string], xs: List[string]) -> void:
 fn by_ref(r: &mut Res) -> usize:
     using held = r
 > app/main/by_ref
->   local $0 r: RefMut[Res] [param read]
->   local $1 held: RefMut[Res] [:= read assigned]
->   %0 = Read [$0] : RefMut[Res]
+>   local $0 r: &mut Res [param read]
+>   local $1 held: &mut Res [:= read assigned]
+>   %0 = Read [$0] : &mut Res
 >   %1 = Store [$1] %0 : ()
->   %2 = Read [$1] : RefMut[Res]
+>   %2 = Read [$1] : &mut Res
 >   %3 = Call std/ops/Disposable.dispose for Res [$()] via Impl (%2) : ()
 >   %4 = Block - : ()
 >   %5 = Defer #4 : ()
@@ -122,5 +122,5 @@ fn by_ref(r: &mut Res) -> usize:
 >   %9 = Scope %8 [%4] : usize
 >   %10 = Block %9 : usize
     held.name.len()
->   %6 = Ref local [*$1 .name] : Ref[string]
+>   %6 = Ref local [*$1 .name] : &string
 >   %7 = Call std/text/impl string.len[] (%6) : usize

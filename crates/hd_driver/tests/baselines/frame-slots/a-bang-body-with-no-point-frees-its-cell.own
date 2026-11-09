@@ -3,7 +3,7 @@ app/main/helper
   local $0 sink: Sink [read assigned captured captured-assigned] place
   %0 = NewStruct [""] : Sink
   %1 = Store [$0] %0 : ()
-  %2 = Ref mut local [$0] : RefMut[Sink]
+  %2 = Ref mut local [$0] : &mut Sink
   %3 = Call app/main/impl Sink.set[] (%2, "helper") : ()
   %4 = LoanEnd [%2] : ()
   %5 = Read copy [$0 .text] : string

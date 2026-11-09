@@ -15,10 +15,9 @@
 //! through a reference or in a data value starts at that value, as
 //! `[*%r .x]` or `[*%o .k .x]`; `&e` on any other value binds it to a
 //! fresh local, which is the new object. A field write is one `Store` of
-//! its place (`value.rs`). The checker lowers `&T` and
-//! `&mut T` to `Ref[T]`, and `*T` and `*mut T` to `Counted[T]`, when it
-//! finishes a body (`Types::lower_refs`), so the layout pass recognizes
-//! the reference carriers and `&mut T` to `&T` costs nothing.
+//! its place (`value.rs`). Every reference keeps its type, kind included,
+//! through the backend, whose layout reads the kind, so `&mut T` to `&T`
+//! costs nothing.
 //!
 //! Identity (`ref.identity.*`): two references are the same place when
 //! they hold the same address, which `r is s` and `identity_of` compare
@@ -1288,9 +1287,9 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// Lowers every reference type the finished body records to `Ref[T]`
-    /// or `Counted[T]`, the data types that represent `&T` and `*T` on the
-    /// backend (`Types::lower_refs`).
+    /// Readies the finished body's references for the backend, which reads
+    /// each reference type's kind as written (`ref.type.kind-distinct`) and
+    /// no function type's dependency map (`Types::erase_fn_deps`).
     ///
     /// A `Ref` that makes a local reference, `&T` or `&mut T`, also keeps
     /// its kind as `ref_word::LOCAL`, which says where the local it refers
@@ -1301,7 +1300,6 @@ impl Ck<'_, '_> {
     /// (`ref.type.kind-impl`).
     pub(crate) fn lower_body_refs(&mut self) {
         let pool = self.pool();
-        let cell = self.cx.names.known.ref_cells();
         let b = self.b.body_mut();
         for i in 0..b.tags.len() {
             if b.tags[i] == hd_tir::ir::Tag::Ref
@@ -1322,7 +1320,7 @@ impl Ck<'_, '_> {
         // A counted value stored in a local reference's local, or a
         // block's value, lends itself with no conversion
         // (`ref.convert.lend`): it takes the local reference's type, so
-        // that the two carriers agree there (invariant 4).
+        // that the two kinds agree there (invariant 4).
         for i in 0..b.tags.len() {
             let [a, v] = b.data[i];
             let want = match b.tags[i] {
@@ -1345,8 +1343,8 @@ impl Ck<'_, '_> {
                 b.ty[v as usize] = want;
             }
         }
-        hd_tir::ir::map_body_types(self.b.body_mut(), &|t| pool.lower_refs(cell, t), &|l| {
-            pool.lower_refs_list(cell, l)
+        hd_tir::ir::map_body_types(self.b.body_mut(), &|t| pool.erase_fn_deps(t), &|l| {
+            pool.erase_fn_deps_list(l)
         });
     }
 }

@@ -381,14 +381,9 @@ fn layout_in(
             values: vec![ValType::EqRef, ValType::Ref { nullable: false }],
             packed_bits: None,
         },
-        // The checker lowers every reference type to `std.core.Ref[T]`
-        // (`hd_types::Types::lower_refs`).
-        TyData::Ref { .. } => {
-            return Err(NotImplemented::bug(
-                Stage::Emit,
-                "layout of a reference type the checker did not lower",
-            ));
-        }
+        // A reference of either kind is its place's address
+        // (`ref.type.local-uncounted`).
+        TyData::Ref { .. } => one(LayoutClass::Ref, ValType::Ref { nullable: false }),
         TyData::Row(_) => {
             return Err(NotImplemented::new(
                 Stage::Emit,
@@ -488,6 +483,7 @@ pub fn is_recursive_enum(pool: &InternPool, env: &dyn LayoutEnv, def: DefId) -> 
                     todo.extend_from_slice(pool.list_items(elems));
                     todo.extend(rest);
                 }
+                TyData::Ref { inner, .. } => todo.push(inner),
                 _ => {}
             }
         }
@@ -664,7 +660,7 @@ pub fn canon(
             row,
             suspends,
             inputs,
-            // Erased before monomorphization (`Types::lower_refs`).
+            // Erased before monomorphization (`Types::erase_fn_deps`).
             deps: _,
         } => {
             h.u8(5);
@@ -693,11 +689,15 @@ pub fn canon(
                 h.hash(t);
             }
         }
-        // Not in an instance key: the checker lowers reference types to
-        // their carriers, which keep the kind.
-        TyData::Ref { inner, mutable, .. } => {
+        // Both the permission and the kind are the type's identity
+        // (`ref.type.distinct`, `ref.type.kind-distinct`).
+        TyData::Ref {
+            inner,
+            mutable,
+            counted,
+        } => {
             h.u8(17);
-            h.u8(u8::from(mutable));
+            h.u8(u8::from(mutable) | u8::from(counted) << 1);
             h.hash(canon(pool, path_hash, memo, inner));
         }
         TyData::Row(r) => {

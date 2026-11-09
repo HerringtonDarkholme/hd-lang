@@ -13,7 +13,7 @@ fn total_len(xs: List[string]) -> usize:
 >   local $2 $len: usize [assigned] value
 >     uses $2: %4 -> %7 lend
 >   local $3 $pos: usize [assigned] place
->   local $4 p: Ref[string] [read assigned] value
+>   local $4 p: &string [read assigned] value
 >     uses $4: %21 -> %15 lend last
 >   %0 = Release %34 Exit local $0 #2 : ()
     let n: usize = 0
@@ -31,9 +31,9 @@ fn total_len(xs: List[string]) -> usize:
 >   %10 = Read copy [$3] : usize
 >   %11 = Prim Add [%10 1:usize] : usize
 >   %12 = Store [$3] %11 : ()
->   %13 = Ref local pins [%2 [%9]] : Ref[string]
+>   %13 = Ref local pins [%2 [%9]] : &string
 >   %19 = Block - : ()
->   %20 = Read borrow [%13] : Ref[string]
+>   %20 = Read borrow [%13] : &string
 >   %21 = Store [$4] %20 : ()
 >   %22 = Release %21 Operation #3 : ()
 >   %24 = Block - : never
@@ -47,7 +47,7 @@ fn total_len(xs: List[string]) -> usize:
 >   %32 = Loop %31 - : ()
         n += p.len()
 >   %14 = Read copy [$1] : usize
->   %15 = Read borrow [$4] : Ref[string]
+>   %15 = Read borrow [$4] : &string
 >   %16 = Call std/text/impl string.len[] (%15) : usize
 >   %17 = Prim Add [%14 %16] : usize
 >   %18 = Store [$1] %17 : ()
@@ -58,13 +58,13 @@ fn total_len(xs: List[string]) -> usize:
 fn through_ref(r: &List[string]) -> usize:
     let n: usize = 0
 > app/main/through_ref
->   local $0 r: Ref[List[string]] [param read] value
+>   local $0 r: &List[string] [param read] value
 >     uses $0: entry -> %1 lend last
 >   local $1 n: usize [read assigned mutated] place
 >   local $2 $len: usize [assigned] value
 >     uses $2: %3 -> %6 lend
 >   local $3 $pos: usize [assigned] place
->   local $4 p: Ref[string] [read assigned] value
+>   local $4 p: &string [read assigned] value
 >     uses $4: %20 -> %14 lend last
 >   %0 = Store [$1] 0:usize : ()
 >   %33 = Block %32 : usize
@@ -80,9 +80,9 @@ fn through_ref(r: &List[string]) -> usize:
 >   %9 = Read copy [$3] : usize
 >   %10 = Prim Add [%9 1:usize] : usize
 >   %11 = Store [$3] %10 : ()
->   %12 = Ref local pins [%1 [%8]] : Ref[string]
+>   %12 = Ref local pins [%1 [%8]] : &string
 >   %18 = Block - : ()
->   %19 = Read borrow [%12] : Ref[string]
+>   %19 = Read borrow [%12] : &string
 >   %20 = Store [$4] %19 : ()
 >   %21 = Release %20 Operation #3 : ()
 >   %23 = Block - : never
@@ -96,7 +96,7 @@ fn through_ref(r: &List[string]) -> usize:
 >   %31 = Loop %30 - : ()
         n += p.len()
 >   %13 = Read copy [$1] : usize
->   %14 = Read borrow [$4] : Ref[string]
+>   %14 = Read borrow [$4] : &string
 >   %15 = Call std/text/impl string.len[] (%14) : usize
 >   %16 = Prim Add [%13 %15] : usize
 >   %17 = Store [$1] %16 : ()
@@ -112,7 +112,7 @@ fn shouted(prices: List[string]) -> List[string]:
 >   local $2 $len: usize [assigned] value
 >     uses $2: %5 -> %9 lend
 >   local $3 $pos: usize [assigned] place
->   local $4 p: RefMut[string] [read assigned] value
+>   local $4 p: &mut string [read assigned] value
 >     uses $4: %23 -> %17 lend, %19 lend last
 >   %0 = Retain %36 Entry local $0 #0 : ()
     let mut out = prices
@@ -133,9 +133,9 @@ fn shouted(prices: List[string]) -> List[string]:
 >   %13 = Prim Add [%12 1:usize] : usize
 >   %14 = Store [$3] %13 : ()
 >   %15 = Read borrow [$1] : List[string]
->   %16 = Ref mut local [%15 [%11]] : RefMut[string]
+>   %16 = Ref mut local [%15 [%11]] : &mut string
 >   %21 = Block - : ()
->   %22 = Read borrow [%16] : RefMut[string]
+>   %22 = Read borrow [%16] : &mut string
 >   %23 = Store [$4] %22 : ()
 >   %24 = Release %23 Operation #3 : ()
 >   %26 = Block - : never

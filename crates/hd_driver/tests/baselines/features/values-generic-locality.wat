@@ -6,8 +6,8 @@
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
-  (import "fixture" "rt:new/class-1'2" (func $rt:new/class-1'2 (param i32 i32) (result i32)))
   (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
+  (import "fixture" "rt:new/class-1'2" (func $rt:new/class-1'2 (param i32 i32) (result i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 10 funcref))
@@ -161,6 +161,18 @@
     end
     local.get $u.name.0
   )
+  (func $demo (param $u i32) (result i32)
+    ;; 23 |     n := id(&u.name)
+    block
+      local.get $u
+      call $"id[^240]"
+    ;; 24 |     n.len()
+      call $"impl string.len"
+    ;; 23 |     n := id(&u.name)
+      local.set $u
+    end
+    local.get $u
+  )
   (func $"later[*User]" (param $value i32) (result i32 i32) (local $t0 i32)
     ;; 30 |     fn() -> T: value
     local.get $value
@@ -186,17 +198,5 @@
     end
     local.get $value
     local.get $t0
-  )
-  (func $demo (param $u i32) (result i32)
-    ;; 23 |     n := id(&u.name)
-    block
-      local.get $u
-      call $"id[^240]"
-    ;; 24 |     n.len()
-      call $"impl string.len"
-    ;; 23 |     n := id(&u.name)
-      local.set $u
-    end
-    local.get $u
   )
 )

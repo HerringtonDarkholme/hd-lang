@@ -15,7 +15,7 @@ impl Disposable for Res:
     fn dispose(&mut self) -> void:
         self.log.push(self.name)
 > app/main/impl Disposable for Res.dispose
->   local $0 self: RefMut[Res] [param read] value
+>   local $0 self: &mut Res [param read] value
 >     uses $0: entry -> %0 lend, %2 lend last
 >   %0 = Read copy [*$0 .name] : string
 >   %1 = IsUnique [*$0 .log *] : ()
@@ -127,7 +127,7 @@ fn must(s: string, n: i32) -> usize:
 
 fn guarded(log: *mut List[string], s: string, n: i32) -> usize:
 > app/main/guarded
->   local $0 log: CountedMut[List[string]] [param read] value
+>   local $0 log: *mut List[string] [param read] value
 >     uses $0: entry -> %3 consume last
 >   local $1 s: string [param read] value
 >     uses $1: entry -> %1 lend last
@@ -140,10 +140,10 @@ fn guarded(log: *mut List[string], s: string, n: i32) -> usize:
     using r = Res { name: s + "?", log: log }
 >   %1 = Read borrow [$1] : string
 >   %2 = Intrinsic StrConcat [%1 "?"] : string
->   %3 = Read copy [$0] : CountedMut[List[string]]
+>   %3 = Read copy [$0] : *mut List[string]
 >   %4 = NewStruct [%2 %3] : Res
 >   %5 = Store [$3] %4 : ()
->   %6 = Ref mut local frame [$3] : RefMut[Res]
+>   %6 = Ref mut local frame [$3] : &mut Res
 >   %7 = Call std/ops/Disposable.dispose for Res [$()] via Impl (%6) : ()
 >   %8 = LoanEnd [%6] : ()
 >   %9 = Block - : ()

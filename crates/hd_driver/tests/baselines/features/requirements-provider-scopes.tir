@@ -26,11 +26,11 @@ fn read_tag() -> usize $ Tag:
 > app/main/read_tag
 >   local $0 $ref: string [read assigned captured captured-assigned]
 >   %0 = ProviderGet #0 : Tag
->   %1 = Coerce %0 [ProviderAsRef -] : Ref[Tag]
+>   %1 = Coerce %0 [ProviderAsRef -] : &dyn Tag
 >   %2 = Read [*%1] : Tag
 >   %3 = Call app/main/Tag.name for Tag [] via TraitValue (%2) : string
 >   %4 = Store [$0] %3 : ()
->   %5 = Ref local [$0] : Ref[string]
+>   %5 = Ref local [$0] : &string
 >   %6 = Call std/text/impl string.len[] (%5) : usize
 >   %7 = Block %6 : usize
 
@@ -40,10 +40,10 @@ fn by_value(s: string) -> usize:
 >   local $0 s: string [param read]
 >   %0 = Read [$0] : string
 >   %1 = NewStruct [%0] : Named
->   %2 = Call std/rt.entry/host_provider[Named] (%1) : CountedMut[Named]
+>   %2 = Call std/rt.entry/host_provider[Named] (%1) : *mut Named
 >   %3 = Coerce %2 [RefToTraitValue -] : Tag
 >   %4 = Block %3 : Tag
->   %5 = RefDyn %4 : Counted[Tag]
+>   %5 = RefDyn %4 : *dyn Tag
 >   %6 = Coerce %5 [RefAsProvider -] : Tag
 >   %9 = With [Tag %6] %8 : usize
 >   %10 = Block %9 : usize
@@ -59,10 +59,10 @@ fn nested(a: string, b: string) -> usize:
 >   local $2 outer: usize [:= read assigned]
 >   %0 = Read [$0] : string
 >   %1 = NewStruct [%0] : Named
->   %2 = Call std/rt.entry/host_provider[Named] (%1) : CountedMut[Named]
+>   %2 = Call std/rt.entry/host_provider[Named] (%1) : *mut Named
 >   %3 = Coerce %2 [RefToTraitValue -] : Tag
 >   %4 = Block %3 : Tag
->   %5 = RefDyn %4 : Counted[Tag]
+>   %5 = RefDyn %4 : *dyn Tag
 >   %6 = Coerce %5 [RefAsProvider -] : Tag
 >   %22 = With [Tag %6] %21 : usize
 >   %23 = Block %22 : usize
@@ -73,10 +73,10 @@ fn nested(a: string, b: string) -> usize:
         $.with(Tag=Named { label: b }):
 >   %9 = Read [$1] : string
 >   %10 = NewStruct [%9] : Named
->   %11 = Call std/rt.entry/host_provider[Named] (%10) : CountedMut[Named]
+>   %11 = Call std/rt.entry/host_provider[Named] (%10) : *mut Named
 >   %12 = Coerce %11 [RefToTraitValue -] : Tag
 >   %13 = Block %12 : Tag
->   %14 = RefDyn %13 : Counted[Tag]
+>   %14 = RefDyn %13 : *dyn Tag
 >   %15 = Coerce %14 [RefAsProvider -] : Tag
 >   %20 = With [Tag %15] %19 : usize
             outer + read_tag()
@@ -97,27 +97,27 @@ fn lexical(s: string) -> usize:
     $.with(Tag=Named { label: s }):
 > app/main/lexical
 >   local $0 s: string [param read]
->   local $1 tag: Ref[Tag] [:= read assigned captured]
+>   local $1 tag: &dyn Tag [:= read assigned captured]
 >   local $2 $ref: string [read assigned captured captured-assigned]
 >   %0 = Read [$0] : string
 >   %1 = NewStruct [%0] : Named
->   %2 = Call std/rt.entry/host_provider[Named] (%1) : CountedMut[Named]
+>   %2 = Call std/rt.entry/host_provider[Named] (%1) : *mut Named
 >   %3 = Coerce %2 [RefToTraitValue -] : Tag
 >   %4 = Block %3 : Tag
->   %5 = RefDyn %4 : Counted[Tag]
+>   %5 = RefDyn %4 : *dyn Tag
 >   %6 = Coerce %5 [RefAsProvider -] : Tag
 >   %19 = With [Tag %6] %18 : usize
 >   %20 = Block %19 : usize
         tag := $.use(Tag)
 >   %7 = ProviderGet #19 : Tag
->   %8 = Coerce %7 [ProviderAsRef -] : Ref[Tag]
+>   %8 = Coerce %7 [ProviderAsRef -] : &dyn Tag
 >   %9 = Store [$1] %8 : ()
 >   %18 = Block %17 : usize
         apply(fn() -> usize: tag.name().len())
 >   %10 = Read [*$1] : Tag
 >   %11 = Call app/main/Tag.name for Tag [] via TraitValue (%10) : string
 >   %12 = Store [$2] %11 : ()
->   %13 = Ref local [$2] : Ref[string]
+>   %13 = Ref local [$2] : &string
 >   %14 = Call std/text/impl string.len[] (%13) : usize
 >   %15 = Block %14 : usize
 >   %16 = Closure #1 [%0 %1] : fn() -> usize

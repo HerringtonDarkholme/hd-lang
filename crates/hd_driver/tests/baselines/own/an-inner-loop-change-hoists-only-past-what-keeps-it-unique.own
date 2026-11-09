@@ -188,7 +188,7 @@ fn copy(items: List[usize], n: usize) -> List[List[usize]]:
 
 fn call(items: &mut List[usize], n: usize, f: fn() -> void) -> void:
 > app/main/call
->   local $0 items: RefMut[List[usize]] [param read] value
+>   local $0 items: &mut List[usize] [param read] value
 >     uses $0: entry -> %19 lend, %40 lend
 >   local $1 n: usize [param read] value
 >     uses $1: entry -> %1 consume last

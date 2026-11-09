@@ -9,14 +9,14 @@ use std.annotation.inline
 fn push_len['a](out: &mut List[&'a string], xs: &List[string]) -> usize:
     out.reserve(xs.len())
 > app/main/push_len
->   local $0 out: RefMut[List[Ref[string]]] [param read] value
+>   local $0 out: &mut List[&string] [param read] value
 >     uses $0: entry -> %0 lend last
->   local $1 xs: Ref[List[string]] [param read] value
+>   local $1 xs: &List[string] [param read] value
 >     uses $1: entry -> %1 lend, %4 lend last
->   %0 = Read borrow [$0] : RefMut[List[Ref[string]]]
+>   %0 = Read borrow [$0] : &mut List[&string]
 >   %1 = Read borrow [*$1] : List[string]
 >   %2 = Intrinsic ListLen [%1] : usize
->   %3 = Call std/collections/impl [ T ] List [ T ].reserve[Ref[string]] (%0, %2) : ()
+>   %3 = Call std/collections/impl [ T ] List [ T ].reserve[&string] (%0, %2) : ()
 >   %6 = Block %5 : usize
     xs.len()
 >   %4 = Read borrow [*$1] : List[string]
@@ -26,23 +26,23 @@ fn push_len['a](out: &mut List[&'a string], xs: &List[string]) -> usize:
 fn non_storing(xs: List[string]) -> usize:
 > app/main/non_storing
 >   local $0 xs: List[string] [param read captured] place
->   local $1 out: List[Ref[string]] [read assigned captured captured-assigned] place
+>   local $1 out: List[&string] [read assigned captured captured-assigned] place
 >   %0 = Retain %14 Entry local $0 #0 : ()
     let mut out: List[&string] = []
->   %1 = NewList - [] : List[Ref[string]]
+>   %1 = NewList - [] : List[&string]
 >   %2 = Store [$1] %1 : ()
 >   %10 = Release %9 Operation local $1 #2 : ()
 >   %14 = Block %13 : usize
     size := push_len(&mut out, &xs)
->   %3 = Ref mut local frame [$1] : RefMut[List[Ref[string]]]
->   %4 = Ref local frame [$0] : Ref[List[string]]
+>   %3 = Ref mut local frame [$1] : &mut List[&string]
+>   %4 = Ref local frame [$0] : &List[string]
 >   %5 = Call app/main/push_len[] (%3, %4) : usize
 >   %6 = LoanEnd [%4] : ()
 >   %7 = LoanEnd [%3] : ()
 >   %8 = Drop [$0] : ()
 >   %3 finds [$1] full
     size + out.len()
->   %9 = Read move [$1] : List[Ref[string]]
+>   %9 = Read move [$1] : List[&string]
 >   %11 = Intrinsic ListLen [%9] : usize
 >   %12 = Drop [%9] : ()
 >   %13 = Prim Add [%5 %11] : usize
@@ -55,13 +55,13 @@ fn non_storing(xs: List[string]) -> usize:
 fn remember['a](out: &mut List[&'a string], value: &'a string) -> void:
     out.push(value)
 > app/main/remember
->   local $0 out: RefMut[List[Ref[string]]] [param read] value
+>   local $0 out: &mut List[&string] [param read] value
 >     uses $0: entry -> %2 lend last
->   local $1 value: Ref[string] [param read] value
+>   local $1 value: &string [param read] value
 >     uses $1: entry -> %0 consume last
->   %0 = Read copy [$1] : Ref[string]
+>   %0 = Read copy [$1] : &string
 >   %1 = IsUnique [*$0] : ()
->   %2 = Read borrow [*$0] : List[Ref[string]]
+>   %2 = Read borrow [*$0] : List[&string]
 >   %3 = Intrinsic ListPush [%2 %0] : ()
 >   %4 = Block - : ()
 >   summary kept [$1] writes
@@ -69,22 +69,22 @@ fn remember['a](out: &mut List[&'a string], value: &'a string) -> void:
 fn storing(xs: List[string]) -> usize:
 > app/main/storing
 >   local $0 xs: List[string] [param read] place
->   local $1 out: List[Ref[string]] [read assigned captured captured-assigned] place
+>   local $1 out: List[&string] [read assigned captured captured-assigned] place
 >   %0 = Retain %14 Entry local $0 #0 : ()
     let mut out: List[&string] = []
->   %1 = NewList - [] : List[Ref[string]]
+>   %1 = NewList - [] : List[&string]
 >   %2 = Store [$1] %1 : ()
 >   %14 = Block %11 : usize
     remember(&mut out, &xs[0])
->   %3 = Ref mut local frame [$1] : RefMut[List[Ref[string]]]
+>   %3 = Ref mut local frame [$1] : &mut List[&string]
 >   %4 = IsUnique [$0] : ()
->   %5 = Ref local [$0 [0:usize]] : Ref[string]
+>   %5 = Ref local [$0 [0:usize]] : &string
 >   %6 = Call app/main/remember[] (%3, %5) : ()
 >   %7 = LoanEnd [%5] : ()
 >   %8 = LoanEnd [%3] : ()
 >   %3 finds [$1] full
     out[0].len()
->   %9 = Read copy [$1 [0:usize]] : Ref[string]
+>   %9 = Read copy [$1 [0:usize]] : &string
 >   %10 = Drop [$1] : ()
 >   %11 = Call std/text/impl string.len[] (%9) : usize
 >   %12 = Drop [%9] : ()

@@ -17,7 +17,7 @@ impl Meter for Counters:
     fn record(&mut self, value: i64) -> void:
         self.calls += 1
 > app/main/impl Meter for Counters.record
->   local $0 self: RefMut[Counters] [param read] value
+>   local $0 self: &mut Counters [param read] value
 >     uses $0: entry -> %0 lend, %2 lend, %3 lend, %6 lend last
 >   local $1 value: i64 [param read] value
 >     uses $1: entry -> %4 lend last
@@ -69,7 +69,7 @@ fn count(n: i64) -> void $ Meter:
 >   %28 = Block - : ()
         $.use(Meter).record(i)
 >   %16 = ProviderGet #22 : Meter
->   %17 = Coerce %16 [ProviderAsRef -] : RefMut[Meter]
+>   %17 = Coerce %16 [ProviderAsRef -] : &mut dyn Meter
 >   %18 = Read borrow [*%17] : Meter
 >   %19 = LoanEnd [%17] : ()
 >   %20 = Read copy [$4] : i64
@@ -122,7 +122,7 @@ fn count_later!(n: i64, wait: Suspend[void]) -> void $ Meter:
 >   %40 = Block - : ()
         $.use(Meter).record(i)
 >   %22 = ProviderGet #22 : Meter
->   %23 = Coerce %22 [ProviderAsRef -] : RefMut[Meter]
+>   %23 = Coerce %22 [ProviderAsRef -] : &mut dyn Meter
 >   %24 = Read borrow [*%23] : Meter
 >   %25 = LoanEnd [%23] : ()
 >   %26 = Read copy [$5] : i64
@@ -144,24 +144,24 @@ pub fn run(n: i64) -> i64:
 >   local $0 n: i64 [param read] value
 >     uses $0: entry -> %13 lend last
 >   local $1 $ref: Counters [read assigned captured captured-assigned] place
->   local $2 counters: CountedMut[Counters] [:= read assigned] value
+>   local $2 counters: *mut Counters [:= read assigned] value
 >     uses $2: %3 -> %4 consume, %18 lend last
->   local $3 $ref: CountedMut[Counters] [read assigned captured] value
+>   local $3 $ref: *mut Counters [read assigned captured] value
 >     uses $3: %5 -> %6 lend last
 >   %0 = NewStruct [0:usize 0:i64] : Counters
 >   %1 = Store [$1] %0 : ()
->   %2 = Ref take mut [$1] : CountedMut[Counters]
+>   %2 = Ref take mut [$1] : *mut Counters
 >   %3 = Store [$2] %2 : ()
 >   %20 = Block %18 : i64
 >   %2 finds [$1] full
     $.with(Meter=counters):
->   %4 = Read copy [$2] : CountedMut[Counters]
+>   %4 = Read copy [$2] : *mut Counters
 >   %5 = Store [$3] %4 : ()
->   %6 = Read move [$3] : CountedMut[Counters]
+>   %6 = Read move [$3] : *mut Counters
 >   %7 = Coerce %6 [RefToTraitValue -] : Meter
 >   %8 = LoanEnd [%6] : ()
 >   %9 = Block %7 : Meter
->   %10 = RefDyn %9 : CountedMut[Meter]
+>   %10 = RefDyn %9 : *mut dyn Meter
 >   %11 = Coerce %10 [RefAsProvider -] : Meter
 >   %12 = LoanEnd [%10] : ()
 >   %16 = With [Meter %11] %15 : ()

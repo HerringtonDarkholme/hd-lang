@@ -14,7 +14,7 @@ impl User:
         self.name.len()
 > app/main/impl User.name_len
 >   local $0 self: User [param read captured]
->   %0 = Ref local [$0 .name] : Ref[string]
+>   %0 = Ref local [$0 .name] : &string
 >   %1 = Call std/text/impl string.len[] (%0) : usize
 >   %2 = Block %1 : usize
 
@@ -63,14 +63,14 @@ fn bound(u: User) -> usize:
 fn bound_mut(u: *mut User, n: string) -> void:
     f := u::rename
 > app/main/bound_mut
->   local $0 u: CountedMut[User] [param read]
+>   local $0 u: *mut User [param read]
 >   local $1 n: string [param read]
->   local $2 $receiver: CountedMut[User] [read assigned captured]
+>   local $2 $receiver: *mut User [read assigned captured]
 >   local $3 $0: string [param]
 >   local $4 f: fn(string) -> () [:= read assigned]
->   %0 = Read [$0] : CountedMut[User]
+>   %0 = Read [$0] : *mut User
 >   %1 = Store [$2] %0 : ()
->   %2 = Read [$2] : CountedMut[User]
+>   %2 = Read [$2] : *mut User
 >   %3 = Read [$3] : string
 >   %4 = Call app/main/impl User.rename[] (%2, %3) : ()
 >   %5 = Block %4 : ()

@@ -41,7 +41,7 @@ fn weight(f: Field) -> i64:
 
 fn remember(all: &mut List[Field], f: Field) -> void:
 > app/main/remember
->   local $0 all: RefMut[List[Field]] [param read] value
+>   local $0 all: &mut List[Field] [param read] value
 >     uses $0: entry -> %3 lend last
 >   local $1 f: Field [param read] value
 >     uses $1: entry -> %1 consume last
@@ -116,13 +116,13 @@ fn collect(f: Field) -> usize:
 >   %12 = Release %11 Operation local $1 #2 : ()
 >   %15 = Block %13 : usize
     remember(&mut all, f)
->   %3 = Ref mut local frame [$1] : RefMut[List[Field]]
+>   %3 = Ref mut local frame [$1] : &mut List[Field]
 >   %4 = Read copy [$0] : Field
 >   %5 = Call app/main/remember[] (%3, %4) : ()
 >   %6 = LoanEnd [%3] : ()
 >   %3 finds [$1] full
     remember(&mut all, f)
->   %7 = Ref mut local frame [$1] : RefMut[List[Field]]
+>   %7 = Ref mut local frame [$1] : &mut List[Field]
 >   %8 = Read move [$0] : Field
 >   %9 = Call app/main/remember[] (%7, %8) : ()
 >   %10 = LoanEnd [%7] : ()
@@ -154,7 +154,7 @@ fn apply(g: fn(Field) -> i64, f: Field) -> i64:
 
 fn set_first(target: &i64, xs: List[i64]) -> i64:
 > app/main/set_first
->   local $0 target: Ref[i64] [param read] value
+>   local $0 target: &i64 [param read] value
 >     uses $0: entry -> %1 lend last
 >   local $1 xs: List[i64] [param read] value
 >     uses $1: entry -> %2 lend last
@@ -178,7 +178,7 @@ fn pinned() -> i64:
 >   %3 = Store [$0 [1:usize]] 3:i64 : ()
     set_first(&xs[0], xs)
 >   %4 = IsUnique repeat [$0] : ()
->   %5 = Ref local [$0 [0:usize]] : Ref[i64]
+>   %5 = Ref local [$0 [0:usize]] : &i64
 >   %6 = Read borrow [$0] : List[i64]
 >   %7 = Call app/main/set_first[] (%5, %6) : i64
 >   %8 = Retain %7 Operation operand 1 #0 : ()
@@ -277,11 +277,11 @@ pub fn main() -> void $ Console:
     println(collect(f))
 >   %65 = NewList - [] : List[Field]
 >   %66 = Store [$5] %65 : ()
->   %67 = Ref mut local frame [$5] : RefMut[List[Field]]
+>   %67 = Ref mut local frame [$5] : &mut List[Field]
 >   %68 = Read copy [$0] : Field
 >   %69 = Call app/main/remember[] (%67, %68) : ()
 >   %70 = LoanEnd [%67] : ()
->   %71 = Ref mut local frame [$5] : RefMut[List[Field]]
+>   %71 = Ref mut local frame [$5] : &mut List[Field]
 >   %72 = Read copy [$0] : Field
 >   %73 = Call app/main/remember[] (%71, %72) : ()
 >   %74 = LoanEnd [%71] : ()
@@ -315,7 +315,7 @@ pub fn main() -> void $ Console:
 >   %97 = IsUnique [$1] : ()
 >   %98 = Store [$1 [1:usize]] 3:i64 : ()
 >   %99 = IsUnique repeat [$1] : ()
->   %100 = Ref local [$1 [0:usize]] : Ref[i64]
+>   %100 = Ref local [$1 [0:usize]] : &i64
 >   %101 = Read borrow [$1] : List[i64]
 >   %102 = Call app/main/set_first[] (%100, %101) : i64
 >   %103 = Retain %102 Operation operand 1 #0 : ()

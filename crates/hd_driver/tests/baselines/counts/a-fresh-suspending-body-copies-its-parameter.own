@@ -26,7 +26,7 @@ fn after!(text: string) -> usize $ Clock:
 >   %13 = Release %12 Operation child #2 : ()
 >   %18 = Block %15 : usize
     text.len()
->   %14 = Ref local [$0] : Ref[string]
+>   %14 = Ref local [$0] : &string
 >   %15 = Call std/text/impl string.len[] (%14) : usize
 >   %16 = LoanEnd [%14] : ()
 >   %17 = Drop [$0] : ()

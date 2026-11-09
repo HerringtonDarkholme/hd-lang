@@ -15,7 +15,7 @@ impl Display for YamlError:
     fn to_string(&self) -> string:
         "bad yaml at line ${self.line}"
 > app/main/impl Display for YamlError.to_string
->   local $0 self: Ref[YamlError] [param read] value
+>   local $0 self: &YamlError [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 result: string [read] value
 >     uses $1: %50 -> %55 lend last
@@ -37,7 +37,7 @@ impl Display for YamlError:
 >     uses $9: %4 -> %5 consume last
 >   local $10 value: i64 [read] value
 >     uses $10: %6 -> %7 lend, %10 lend last
->   %0 = Ref local [*$0 .line] : Ref[i64]
+>   %0 = Ref local [*$0 .line] : &i64
 >   %1 = Read copy [*%0] : i64
 >   %2 = Drop [%0] : ()
 >   %3 = Prim Conv [%1] : i64
@@ -109,7 +109,7 @@ impl Error for YamlError
 
 @error
 > app/main/error Display for FsError.to_string
->   local $0 self: Ref[FsError] [param] value
+>   local $0 self: &FsError [param] value
 >     uses $0: entry -> %0 lend last
 >   local $1 $self: FsError [assigned] value
 >     uses $1: %1 -> %2 lend last, %60 lend
@@ -200,7 +200,7 @@ enum FsError:
 
 @error
 > app/main/error Display for LoadError.to_string
->   local $0 self: Ref[LoadError] [param] value
+>   local $0 self: &LoadError [param] value
 >     uses $0: entry -> %0 lend last
 >   local $1 $self: LoadError [assigned] value
 >     uses $1: %1 -> %2 lend last, %60 consume last, %79 lend, %82 lend
@@ -226,21 +226,21 @@ enum FsError:
 >   %1 = Store [$1] %0 : ()
 >   %84 = Block %83 : string
 > app/main/error Error for LoadError.source
->   local $0 self: Ref[LoadError] [param] value
+>   local $0 self: &LoadError [param] value
 >     uses $0: entry -> %0 lend last
 >   local $1 $self: LoadError [assigned] value
 >     uses $1: %1 -> %2 consume last, %14 consume last, %26 consume last, %33 lend, %36 lend
 >   local $2 $ref: FsError [read assigned captured captured-assigned] place
->   local $3 $ref: Counted[FsError] [read assigned captured] value
+>   local $3 $ref: *FsError [read assigned captured] value
 >     uses $3: %5 -> %6 lend last
 >   local $4 $ref: YamlError [read assigned captured captured-assigned] place
->   local $5 $ref: Counted[YamlError] [read assigned captured] value
+>   local $5 $ref: *YamlError [read assigned captured] value
 >     uses $5: %17 -> %18 lend last
 >   local $6 $ref: FsError [read assigned captured captured-assigned] value
 >     uses $6: none
 >   %0 = Read borrow [*$0] : LoadError
 >   %1 = Store [$1] %0 : ()
->   %38 = Block %37 : Counted[Error]?
+>   %38 = Block %37 : *dyn Error?
 > app/main/error From 1.0 for LoadError.from
 >   local $0 value: YamlError [param] value
 >     uses $0: entry -> %0 consume last
@@ -318,24 +318,24 @@ enum LoadError:
 >   %81 = Block %80 : string
 >   %82 = Read borrow [$1] : LoadError
 >   %83 = SwitchTag %82 [#0 %58 %81] : string
->   %13 = Block %11 : Counted[Error]?
->   %35 = Block %34 : Counted[Error]?
+>   %13 = Block %11 : *dyn Error?
+>   %35 = Block %34 : *dyn Error?
 >   %36 = Read borrow [$1] : LoadError
->   %37 = SwitchTag %36 [#0 %13 %35] : Counted[Error]?
+>   %37 = SwitchTag %36 [#0 %13 %35] : *dyn Error?
     Read(
         path: string,
 >   %2 = Read copy [$1 as #0 .0] : string
         @source
 >   %2 = Read copy [$1 as #0 .1] : FsError
 >   %3 = Store [$2] %2 : ()
->   %4 = Ref take [$2] : Counted[FsError]
+>   %4 = Ref take [$2] : *FsError
 >   %5 = Store [$3] %4 : ()
->   %6 = Read move [$3] : Counted[FsError]
+>   %6 = Read move [$3] : *FsError
 >   %7 = Coerce %6 [RefToTraitValue -] : Error
 >   %8 = LoanEnd [%6] : ()
 >   %9 = Block %7 : Error
->   %10 = RefDyn %9 : Counted[Error]
->   %11 = Coerce %10 [WrapSome -] : Counted[Error]?
+>   %10 = RefDyn %9 : *dyn Error
+>   %11 = Coerce %10 [WrapSome -] : *dyn Error?
 >   %12 = Drop [%10] : ()
 >   %4 finds [$2] full
         error: FsError,
@@ -345,22 +345,22 @@ enum LoadError:
 >   %78 = Block %77 : string
 >   %79 = Read borrow [$1] : LoadError
 >   %80 = SwitchTag %79 [#1 %59 %78] : string
->   %25 = Block %23 : Counted[Error]?
->   %32 = Block %31 : Counted[Error]?
+>   %25 = Block %23 : *dyn Error?
+>   %32 = Block %31 : *dyn Error?
 >   %33 = Read borrow [$1] : LoadError
->   %34 = SwitchTag %33 [#1 %25 %32] : Counted[Error]?
+>   %34 = SwitchTag %33 [#1 %25 %32] : *dyn Error?
     Yaml(
         @from
 >   %14 = Read copy [$1 as #1 .0] : YamlError
 >   %15 = Store [$4] %14 : ()
->   %16 = Ref take [$4] : Counted[YamlError]
+>   %16 = Ref take [$4] : *YamlError
 >   %17 = Store [$5] %16 : ()
->   %18 = Read move [$5] : Counted[YamlError]
+>   %18 = Read move [$5] : *YamlError
 >   %19 = Coerce %18 [RefToTraitValue -] : Error
 >   %20 = LoanEnd [%18] : ()
 >   %21 = Block %19 : Error
->   %22 = RefDyn %21 : Counted[Error]
->   %23 = Coerce %22 [WrapSome -] : Counted[Error]?
+>   %22 = RefDyn %21 : *dyn Error
+>   %23 = Coerce %22 [WrapSome -] : *dyn Error?
 >   %24 = Drop [%22] : ()
 >   %16 finds [$4] full
         error: YamlError,
@@ -389,10 +389,10 @@ enum LoadError:
 >   summary kept [] writes relies [$0]
 >   %26 = Read borrow [$1 as #2 .0] : FsError
 >   %27 = Store [$6] %26 : ()
->   %28 = NewVariant #0 [] : Counted[Error]?
+>   %28 = NewVariant #0 [] : *dyn Error?
 >   %29 = Break L0 %28 : never
->   %30 = Block - : Counted[Error]?
->   %31 = Scope %30 [] : Counted[Error]?
+>   %30 = Block - : *dyn Error?
+>   %31 = Scope %30 [] : *dyn Error?
 >   storage sub 0: $2 cell, $4 cell
 >   summary kept []
         error: FsError,
@@ -465,11 +465,11 @@ fn load(text: string) -> Result[i64, LoadError]:
 fn message(e: &LoadError) -> usize:
     e.to_string().len()
 > app/main/message
->   local $0 e: Ref[LoadError] [param read] value
+>   local $0 e: &LoadError [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 $ref: string [read assigned captured captured-assigned] value
 >     uses $1: %2 -> %3 lend last
->   %0 = Read borrow [$0] : Ref[LoadError]
+>   %0 = Read borrow [$0] : &LoadError
 >   %1 = Call std/format/Display.to_string for LoadError [] via Impl (%0) : string
 >   %2 = Store [$1] %1 : ()
 >   %3 = Read borrow [$1] : string

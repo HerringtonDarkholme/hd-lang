@@ -12,7 +12,7 @@ trait Work:
 fn ordinary(work: &dyn Work) -> i32 $ Tag:
     work.run()
 > app/main/ordinary
->   local $0 work: Ref[Work] [param read] value
+>   local $0 work: &dyn Work [param read] value
 >     uses $0: entry -> %0 lend last
 >   %0 = Read borrow [*$0] : Work
 >   %1 = Call app/main/Work.run for Work [] via TraitValue (%0) : i32
@@ -24,7 +24,7 @@ fn ordinary(work: &dyn Work) -> i32 $ Tag:
 fn cold(work: &dyn Work) -> Suspend[i32] $ Tag:
     work.later()
 > app/main/cold
->   local $0 work: Ref[Work] [param read] value
+>   local $0 work: &dyn Work [param read] value
 >     uses $0: entry -> %0 lend last
 >   %0 = Read borrow [*$0] : Work
 >   %1 = Call app/main/Work.later for Work [] via TraitValue (%0) : Suspend[i32]
@@ -35,7 +35,7 @@ fn cold(work: &dyn Work) -> Suspend[i32] $ Tag:
 
 fn awaited!(work: &dyn Work) -> i32 $ Tag:
 > app/main/awaited
->   local $0 work: Ref[Work] [param read] value
+>   local $0 work: &dyn Work [param read] value
 >     uses $0: entry -> %6 lend last
 >   %0 = Retain %12 Cold local $0 #0 : ()
 >   %1 = Retain %12 Entry local $0 #0 : ()

@@ -13,7 +13,7 @@ fn total_len(xs: List[string]) -> usize:
 >   local $1 n: usize [read assigned mutated]
 >   local $2 $len: usize [assigned]
 >   local $3 $pos: usize [assigned]
->   local $4 p: Ref[string] [read assigned]
+>   local $4 p: &string [read assigned]
 >   %0 = Store [$1] 0:usize : ()
 >   %30 = Block %29 : usize
     for p in &xs:
@@ -28,7 +28,7 @@ fn total_len(xs: List[string]) -> usize:
 >   %9 = Read [$3] : usize
 >   %10 = Prim Add [%9 1:usize] : usize
 >   %11 = Store [$3] %10 : ()
->   %12 = Ref local [%1 [%8]] : Ref[string]
+>   %12 = Ref local [%1 [%8]] : &string
 >   %18 = Block - : ()
 >   %19 = Store [$4] %12 : ()
 >   %21 = Block - : never
@@ -41,7 +41,7 @@ fn total_len(xs: List[string]) -> usize:
 >   %28 = Loop %27 - : ()
         n += p.len()
 >   %13 = Read [$1] : usize
->   %14 = Read [$4] : Ref[string]
+>   %14 = Read [$4] : &string
 >   %15 = Call std/text/impl string.len[] (%14) : usize
 >   %16 = Prim Add [%13 %15] : usize
 >   %17 = Store [$1] %16 : ()
@@ -54,7 +54,7 @@ fn through_ref(r: &List[string]) -> usize:
 >   local $1 n: usize [read assigned mutated]
 >   local $2 $len: usize [assigned]
 >   local $3 $pos: usize [assigned]
->   local $4 p: Ref[string] [read assigned]
+>   local $4 p: &string [read assigned]
 >   %0 = Store [$1] 0:usize : ()
 >   %30 = Block %29 : usize
     for p in &r:
@@ -69,7 +69,7 @@ fn through_ref(r: &List[string]) -> usize:
 >   %9 = Read [$3] : usize
 >   %10 = Prim Add [%9 1:usize] : usize
 >   %11 = Store [$3] %10 : ()
->   %12 = Ref local [%1 [%8]] : Ref[string]
+>   %12 = Ref local [%1 [%8]] : &string
 >   %18 = Block - : ()
 >   %19 = Store [$4] %12 : ()
 >   %21 = Block - : never
@@ -82,7 +82,7 @@ fn through_ref(r: &List[string]) -> usize:
 >   %28 = Loop %27 - : ()
         n += p.len()
 >   %13 = Read [$1] : usize
->   %14 = Read [$4] : Ref[string]
+>   %14 = Read [$4] : &string
 >   %15 = Call std/text/impl string.len[] (%14) : usize
 >   %16 = Prim Add [%13 %15] : usize
 >   %17 = Store [$1] %16 : ()
@@ -96,7 +96,7 @@ fn shouted(prices: List[string]) -> List[string]:
 >   local $1 out: List[string] [read assigned]
 >   local $2 $len: usize [assigned]
 >   local $3 $pos: usize [assigned]
->   local $4 p: RefMut[string] [read assigned]
+>   local $4 p: &mut string [read assigned]
 >   %0 = Read [$0] : List[string]
 >   %1 = Store [$1] %0 : ()
 >   %29 = Block %28 : List[string]
@@ -112,7 +112,7 @@ fn shouted(prices: List[string]) -> List[string]:
 >   %10 = Read [$3] : usize
 >   %11 = Prim Add [%10 1:usize] : usize
 >   %12 = Store [$3] %11 : ()
->   %13 = Ref mut local [%2 [%9]] : RefMut[string]
+>   %13 = Ref mut local [%2 [%9]] : &mut string
 >   %17 = Block - : ()
 >   %18 = Store [$4] %13 : ()
 >   %20 = Block - : never
