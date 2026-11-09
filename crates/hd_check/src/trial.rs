@@ -42,6 +42,8 @@ pub(crate) enum BodyUndo {
     RowEdge(usize),
     /// A captured-reference diagnostic first recorded by this trial.
     RefCaptured(LocalId),
+    /// A bound receiver's escape first reported by this trial.
+    BoundEscape(u32),
 }
 
 /// Everything a trial may change, as lengths and a mark in the undo log
@@ -182,6 +184,9 @@ impl Ck<'_, '_> {
                 }
                 BodyUndo::RefCaptured(l) => {
                     self.ref_captured.remove(&l);
+                }
+                BodyUndo::BoundEscape(lo) => {
+                    self.bound_escapes.remove(&lo);
                 }
                 BodyUndo::Call(d) => {
                     self.facts.calls.remove(&d);
@@ -623,7 +628,10 @@ impl Ck<'_, '_> {
             .chain(args.spread)
             .chain(args.named.iter().map(|(_, e)| *e));
         for e in all {
-            if needs_expected(e) || self.pre_args.iter().any(|p| p.0 == e.index()) {
+            if needs_expected(e)
+                || self.bound_local_ref(e)
+                || self.pre_args.iter().any(|p| p.0 == e.index())
+            {
                 continue;
             }
             let (r, t) = self.expr(e, None)?;
@@ -728,7 +736,10 @@ impl Ck<'_, '_> {
             matches!(pool.get(self.resolved(t)), TyData::Fn { .. })
         });
         let saved = self.local_capture_argument;
-        if scoped_capture && direct_fn && e.kind() == SyntaxKind::ClosureExpr {
+        // A closure, or a bound method reference, passed directly to a
+        // `fn(...)` parameter may capture local references
+        // (`fn.capture.local-parameter`).
+        if scoped_capture && direct_fn {
             self.local_capture_argument = Some(e.index());
         }
         let result = self.expr(e, want);

@@ -1,0 +1,13 @@
+# test: a bound `&mut self` method reference on a local captures a local reference, which a binding cannot store
+# Spec 07 Method References: fn.ref.bound.address; Spec 13: ref.local.escape.capture-stored, fn.capture.no-local-reference-stored.
+struct Vec2:
+    x: f64
+
+impl Vec2:
+    fn shift(&mut self, d: f64) -> void:
+        self.x += d
+
+pub fn main() -> void:
+    let mut p = Vec2 { x: 1.0 }
+    step := p::shift # diagnostic: local-reference-escapes
+    step(1.0)

@@ -104,6 +104,17 @@ fn inst_row(pool: hd_types::Types<'_>, m: &Member, r: RowId) -> RowId {
 }
 
 impl Ck<'_, '_> {
+    /// Whether `e` is a bound method reference on a local, `local::name`,
+    /// which a call checks against its parameter's type so that one passed
+    /// directly to a `fn(...)` parameter may hold a local reference to
+    /// that local (`fn.capture.local-parameter`).
+    pub(crate) fn bound_local_ref(&self, e: NodeRef<'_>) -> bool {
+        e.kind() == SyntaxKind::PathExpr
+            && e.children().next().is_some_and(|base| {
+                base.kind() == SyntaxKind::NameExpr && self.find_local(self.sym_of(base)).is_some()
+            })
+    }
+
     /// `Owner::name` or `value::name` as a value; `method_targs` are the
     /// member's written type arguments (`Counter::pick::[i32]`).
     pub(crate) fn path_value(
@@ -174,8 +185,8 @@ impl Ck<'_, '_> {
         }
         // `fn.ref.bound`: the base names a value. A `&self` or `&mut self`
         // method takes the address of a place now (`fn.ref.bound.address`).
-        if let Some((recv, rt)) = self.auto_address(base, &name, false)? {
-            self.bound_receiver_kept(recv, base);
+        if let Some((recv, rt)) = self.auto_address(base, &name)? {
+            self.bound_receiver_kept(recv, base, n);
             return self.bound_ref(recv, rt, &name, method_targs, want, n);
         }
         // A bound `push` or `remove` of a `let mut` collection takes the
@@ -184,22 +195,31 @@ impl Ck<'_, '_> {
         // in place; a copy of the list would get its own buffer at the
         // change.
         if let Some((recv, rt)) = self.in_place_bound_receiver(base, &name)? {
+            self.bound_receiver_kept(recv, base, n);
             return self.bound_ref(recv, rt, &name, method_targs, want, n);
         }
         let (recv, rt) = self.expr(base, None)?;
         if let Some((recv, rt)) = self.pass_reference_receiver(recv, rt, &name, base)? {
-            self.bound_receiver_kept(recv, base);
+            self.bound_receiver_kept(recv, base, n);
             return self.bound_ref(recv, rt, &name, method_targs, want, n);
         }
-        self.bound_receiver_kept(recv, base);
+        self.bound_receiver_kept(recv, base, n);
         self.bound_ref(recv, rt, &name, method_targs, want, n)
     }
 
-    /// A bound method reference keeps its receiver, as a closure keeps
+    /// A bound method reference `n` keeps its receiver, as a closure keeps
     /// what it captures, so a local reference receiver escapes
-    /// (`ref.local.escape.capture-stored`).
-    fn bound_receiver_kept(&mut self, recv: Ref, base: NodeRef<'_>) {
-        if recv.0 != NONE && self.ref_counted(self.b.ty_of(recv)) == Some(false) {
+    /// (`ref.local.escape.capture-stored`) unless `n` is passed directly
+    /// to a `fn(...)` parameter (`fn.capture.local-parameter`).
+    fn bound_receiver_kept(&mut self, recv: Ref, base: NodeRef<'_>, n: NodeRef<'_>) {
+        if recv.0 != NONE
+            && self.local_capture_argument != Some(n.index())
+            && self.ref_counted(self.b.ty_of(recv)) == Some(false)
+        {
+            let lo = self.cx.src.span(base).lo;
+            if self.bound_escapes.insert(lo) {
+                self.log_undo(crate::trial::BodyUndo::BoundEscape(lo));
+            }
             self.local_ref_escapes(base, crate::local_refs::Escape::Capture);
         }
     }
@@ -229,13 +249,7 @@ impl Ck<'_, '_> {
         if !changes || !self.mut_locals.contains(&l) || self.local_generics.contains_key(&l) {
             return Ok(None);
         }
-        Ok(Some(self.address_of_place(
-            base,
-            name,
-            true,
-            Vec::new(),
-            false,
-        )?))
+        Ok(Some(self.address_of_place(base, name, true, Vec::new())?))
     }
 
     /// A function item as a value (`fn.type.generic.*`).

@@ -151,14 +151,13 @@ impl Ck<'_, '_> {
     /// to. A receiver that already is a reference is passed on. `None`
     /// when the call takes its receiver some other way.
     ///
-    /// For a call (`call`), not a bound method reference, which keeps its
-    /// receiver, a `&self` or `&mut self` receiver's address is marked
-    /// local ([`hd_tir::ir::ref_word::LOCAL`]).
+    /// A `&self` or `&mut self` receiver's address is a local reference,
+    /// for a call and a bound method reference alike
+    /// ([`hd_tir::ir::ref_word::LOCAL`]).
     pub(crate) fn auto_address(
         &mut self,
         base: NodeRef<'_>,
         name: &str,
-        call: bool,
     ) -> StageResult<Option<(Ref, Ty)>> {
         let mut bt = self.peek_place_ty(base);
         let mut indexed = base;
@@ -245,11 +244,7 @@ impl Ck<'_, '_> {
             self.expr(base, None)?;
             return Ok(Some(self.poisoned(base)));
         }
-        // A call's `&self` or `&mut self` receiver is a local reference
-        // (`ref.local.self.keep`).
-        Ok(Some(
-            self.address_of_place(base, name, mutable, part, call)?,
-        ))
+        Ok(Some(self.address_of_place(base, name, mutable, part)?))
     }
 
     /// The reference that a call of `name`, a method taking `&self` or
@@ -257,17 +252,15 @@ impl Ck<'_, '_> {
     /// that holds its value (`fn.method.auto-address`), with the type of
     /// that value. An error leaves a poisoned receiver.
     ///
-    /// A `local` one, a call's receiver, is `&T` and marked
-    /// `ref_word::LOCAL`. Any other is counted only when its place is a
-    /// whole object (`ref.box.object`): a local's own storage, or what a
-    /// counted reference refers to.
+    /// It is a local reference, `&T` or `&mut T`, marked
+    /// `ref_word::LOCAL`, for a call and a bound method reference alike
+    /// (`ref.local.self.keep`, `fn.ref.bound.address`).
     pub(crate) fn address_of_place(
         &mut self,
         base: NodeRef<'_>,
         name: &str,
         mutable: bool,
         part: Vec<(u32, Ty)>,
-        local: bool,
     ) -> StageResult<(Ref, Ty)> {
         let use_ = if mutable {
             crate::refs::PlaceUse::MutRef
@@ -322,16 +315,9 @@ impl Ck<'_, '_> {
             self.begin_access(coll);
         }
         let inner = self.resolved(place.ty);
-        let whole = !local
-            && place.path.is_empty()
-            && match place.root {
-                Root::Local(..) => true,
-                Root::Deref(_, t) => self.ref_counted(t) == Some(true),
-                Root::Global(..) | Root::Elem(..) | Root::Slot(..) => false,
-            };
-        let rt = self.ref_ty(inner, mutable, whole);
+        let rt = self.ref_ty(inner, mutable, false);
         let r = self.make_ref(&place, mutable, rt, base);
-        Ok((if local { self.local_receiver(r) } else { r }, place.ty))
+        Ok((self.local_receiver(r), place.ty))
     }
 
     /// The receiver of a store through an operator trait's `&mut self`
@@ -349,7 +335,7 @@ impl Ck<'_, '_> {
             .peek_place_ty(base)
             .is_some_and(|t| self.ref_of(t).is_none())
         {
-            let (r, t) = self.address_of_place(base, name, true, Vec::new(), true)?;
+            let (r, t) = self.address_of_place(base, name, true, Vec::new())?;
             return Ok((t != Ty::POISON).then_some((r, t)));
         }
         let (r, t) = self.expr(base, None)?;

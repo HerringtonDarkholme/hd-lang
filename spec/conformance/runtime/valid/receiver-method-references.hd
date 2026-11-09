@@ -1,8 +1,9 @@
-# test: a bound reference to a `&mut self` method takes the receiver's address when it is made, so calling it changes the binding; an unbound one takes `&mut Self` first, and a bound `&self` reference reads the place
-# Spec 07 Method References: fn.ref.bound.address, fn.ref.unbound.ref-self, fn.ref.unbound.receiver.
+# test: a bound reference to a `&mut self` method takes the receiver's address when it is made, so calling it changes the place; an unbound one takes `&mut Self` first, and a bound `&self` reference reads the place
+# Spec 07 Method References: fn.ref.bound.address, fn.ref.unbound.ref-self, fn.ref.unbound.receiver, fn.capture.local-parameter.
 # expect-stdout: 3.0
 # expect-stdout: 5.0
 # expect-stdout: 5.0
+# expect-stdout: 7.0
 struct Vec2:
     x: f64
 
@@ -13,14 +14,22 @@ impl Vec2:
     fn shift(&mut self, d: f64) -> void:
         self.x += d
 
+fn twice(step: fn(f64) -> void, d: f64) -> void:
+    step(d)
+    step(d)
+
+fn read(get: fn() -> f64) -> f64:
+    get()
+
 pub fn main() -> void $ Console:
     let mut p = Vec2 { x: 1.0 }
     move := Vec2::shift
     move(&mut p, 2.0)
     println("${p.x}")
-    step := p::shift
-    step(1.0)
-    step(1.0)
+    twice(p::shift, 1.0)
     println("${p.x}")
-    read := p::get_x
-    println("${read()}")
+    println("${read(p::get_x)}")
+    shared := box(Vec2 { x: 6.0 })
+    bump := shared::shift
+    bump(1.0)
+    println("${shared.x}")

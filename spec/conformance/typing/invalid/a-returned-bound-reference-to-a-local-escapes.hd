@@ -1,0 +1,12 @@
+# test: a bound `&self` method reference on a local cannot be returned, since it holds a local reference to that local
+# Spec 07 Method References: fn.ref.bound.address; Spec 13: ref.local.escape.capture-stored.
+struct Point:
+    x: i32
+
+impl Point:
+    fn get(&self) -> i32:
+        self.x
+
+fn reader() -> fn() -> i32:
+    p := Point { x: 3 }
+    p::get # diagnostic: local-reference-escapes

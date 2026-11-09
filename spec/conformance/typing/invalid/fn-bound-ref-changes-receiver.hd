@@ -13,5 +13,5 @@ fn run[F < Fn(i32) -> void](f: F) -> void:
     f(1)
 
 fn invalid() -> void:
-    let mut c = Counter { value: +0 }
+    c := box(Counter { value: +0 })
     run(c::bump) # diagnostic: not-writable

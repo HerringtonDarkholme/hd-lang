@@ -2810,7 +2810,7 @@ impl Ck<'_, '_> {
     /// marked local as a call's receiver address is, with the type of the
     /// value it refers to.
     fn index_place_receiver(&mut self, base: NodeRef<'_>) -> StageResult<(Ref, Ty)> {
-        self.address_of_place(base, "index", false, vec![], true)
+        self.address_of_place(base, "index", false, vec![])
     }
 
     /// The `&self` receiver of `Index::index` for the receiver `r` of type

@@ -384,6 +384,10 @@ pub(crate) struct Ck<'a, 'c> {
     /// reported, and the types the body and its signature write.
     pub ref_origins: HashMap<LocalId, hd_base::TokenIdx>,
     pub ref_captured: HashSet<LocalId>,
+    /// The source starts of bound method references whose local receiver
+    /// already reported `local-reference-escapes`, so the result checks
+    /// report no second one there.
+    pub bound_escapes: HashSet<u32>,
     /// The references `box(e)` makes, as opposed to the counted address
     /// of a loop's cursor (`ref.generic.outlives.box`).
     pub boxes: HashSet<u32>,
@@ -662,6 +666,7 @@ pub(crate) fn new_ck<'a, 'c>(
         elem_ok: HashMap::default(),
         ref_origins: HashMap::default(),
         ref_captured: HashSet::default(),
+        bound_escapes: HashSet::default(),
         boxes: HashSet::default(),
         local_capture_argument: None,
         closure_writes: HashMap::default(),

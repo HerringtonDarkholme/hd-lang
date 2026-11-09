@@ -1949,7 +1949,11 @@ impl Ck<'_, '_> {
         let mut seen = HashSet::default();
         let mut out = Vec::new();
         let mut push = |at: NodeIdx, msg: &dyn Fn() -> String| {
-            if at != NodeIdx::NONE && seen.insert(at) {
+            if at != NodeIdx::NONE
+                && seen.insert(at)
+                && !(self.bound_escapes)
+                    .contains(&self.cx.src.span(self.cx.src.parse.tree.node(at)).lo)
+            {
                 out.push((at, Code::LocalReferenceEscapes, msg()));
             }
         };

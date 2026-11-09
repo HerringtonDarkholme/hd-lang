@@ -1885,7 +1885,7 @@ impl Ck<'_, '_> {
                 }
                 _ => w,
             };
-            let scoped_capture = e.kind() == SyntaxKind::ClosureExpr
+            let scoped_capture = (e.kind() == SyntaxKind::ClosureExpr || self.bound_local_ref(*e))
                 && (bounded.is_none() && formals.inferred.get(skip + i).is_none_or(Vec::is_empty)
                     || fn_want.is_some_and(|f| f.scoped));
             let (r, t) = self.placed_arg(*e, expect, scoped_capture, formals.destination)?;
@@ -2014,7 +2014,7 @@ impl Ck<'_, '_> {
             } else {
                 w
             };
-            let scoped_capture = e.kind() == SyntaxKind::ClosureExpr
+            let scoped_capture = (e.kind() == SyntaxKind::ClosureExpr || self.bound_local_ref(*e))
                 && (bounded.is_none() && formals.inferred.get(skip + i).is_none_or(Vec::is_empty)
                     || fn_want.is_some_and(|f| f.scoped));
             let (r, t) = self.placed_arg(*e, Some(expect), scoped_capture, formals.destination)?;
@@ -3580,7 +3580,7 @@ impl Ck<'_, '_> {
         }
         // A `&self` or `&mut self` method on a place takes its address
         // (`fn.method.auto-address`).
-        if let Some((recv, rt)) = self.auto_address(base, &name, true)? {
+        if let Some((recv, rt)) = self.auto_address(base, &name)? {
             self.method_targs = method_targs;
             return self.method_on(recv, rt, &name, args, (n, bang), want);
         }

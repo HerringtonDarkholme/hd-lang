@@ -980,7 +980,7 @@ impl Ck<'_, '_> {
         }
         // One report per source position: a call and its callee start
         // at the same place.
-        let mut reported = HashSet::default();
+        let mut reported = self.bound_escapes.clone();
         for (at, e) in found {
             let node = self.cx.src.parse.tree.node(at);
             if !reported.insert(self.cx.src.span(node).lo) {

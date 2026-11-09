@@ -203,6 +203,8 @@ typing/invalid/impl-targets-a-trait-impl-outside-the-module-of-the-trait-or-targ
 typing/invalid/impl-targets-an-inherent-impl-of-a-dependency-type-is-an-orphan-57.hd	type	reject:orphan-impl	lang/09-traits.md#implementation-ownership
 typing/invalid/impl-targets-an-inherent-impl-on-a-tuple-or-an-alias-is-invalid-not-an-orphan-62.hd	type	reject:invalid-impl-target	lang/09-traits.md#implementation-ownership
 typing/invalid/impl-targets-an-inherent-impl-outside-the-module-of-its-type-is-nonlocal-69.hd	type	reject:nonlocal-impl	lang/09-traits.md#implementation-modules
+typing/invalid/a-stored-bound-reference-to-a-local-escapes.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.local.escape.capture-stored
+typing/invalid/a-returned-bound-reference-to-a-local-escapes.hd	type	reject:local-reference-escapes	lang/07-functions.md#r-fn.ref.bound.address
 typing/invalid/bound-reference-to-an-interior-place-is-local.hd	type	reject:local-reference-escapes	lang/07-functions.md#r-fn.ref.bound.address
 typing/invalid/impl-trait-borrows-nothing.hd	type	reject:local-reference-escapes	lang/04-type-system.md#r-types.opaque.borrows.body
 typing/invalid/impl-trait-borrow-outlives-local.hd	type	reject:local-reference-outlives-local	lang/04-type-system.md#r-types.opaque.borrows.call
