@@ -1,0 +1,39 @@
+# test: map cursors keep the entry shape across padding, empty values, and counted enums
+# Spec std.iter: std-iter.cursor.map, std-iter.cursor.private; Control Flow: flow.for.cursor.snapshot.
+enum Payload:
+    Empty
+    Rich(label: string, bits: (u8, u64))
+
+tests:
+    use std.testing.assert_equal
+
+    it("a wide key and a padded tuple"):
+        let values: Map[u64, (u8, u64, bool)] = { 7u64: (3u8, 99u64, true) }
+        let mut cursor = values.iter()
+        assert_equal(cursor.next(), .Some((7u64, (3u8, 99u64, true))))
+        assert_equal(cursor.next(), .None)
+
+    it("a zero sized value"):
+        let values: Map[u64, void] = { 1u64: () }
+        let mut cursor = values.iter()
+        assert_equal(cursor.next(), .Some((1u64, ())))
+        assert_equal(cursor.next(), .None)
+
+    it("a counted enum stays in the cursor snapshot"):
+        let mut values: Map[string, Payload] = { "key": .Rich("payload", (5u8, 123u64)) }
+        let mut cursor = values.iter()
+        values["key"] = .Empty
+        match cursor.next():
+            .Some((key, .Rich(label, bits))) =>
+                assert_equal(key, "key")
+                assert_equal(label, "payload")
+                assert_equal(bits, (5u8, 123u64))
+            _ => panic("the original entry was lost")
+        match cursor.next():
+            .None => pass
+            _ => panic("cursor was not exhausted")
+
+    it("an empty map"):
+        let values: Map[u64, (u8, u64)] = {}
+        let mut cursor = values.iter()
+        assert_equal(cursor.next(), .None)

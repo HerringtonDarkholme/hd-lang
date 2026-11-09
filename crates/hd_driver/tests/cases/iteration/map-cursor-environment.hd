@@ -1,0 +1,8 @@
+# @dump: wat
+# @build: v8 release
+# expected: one iterator environment with two i32 fields (map table, used
+# count), keeping the map snapshot alive. Key/value padding is in the table.
+use std.iter.MapEntries
+
+fn cursor(values: Map[u64, (u8, u64)]) -> MapEntries[u64, (u8, u64)]:
+    values.iter()
