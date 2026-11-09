@@ -6210,6 +6210,7 @@ runtime/valid/stable-sort-merges-noncopyable-records.hd	runtime	accept	std/colle
 runtime/valid/map-cursors-keep-entry-layouts.hd	runtime	accept	std/iter.md#r-std-iter.cursor.map
 runtime/valid/reference-arguments-keep-their-values.hd	runtime	accept	lang/13-values-and-references.md#r-ref.deref.read
 runtime/valid/dbg-tuple-rest-arguments.hd	runtime	accept	lang/10-modules.md#r-module.dbg.check
+runtime/valid/defer-flags-follow-nested-exits.hd	runtime	accept	std/ops.md#r-std-ops.defer.cleanup
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

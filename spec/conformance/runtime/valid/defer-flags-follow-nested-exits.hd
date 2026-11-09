@@ -1,0 +1,36 @@
+# test: nested and conditional defer registrations survive return, continue, and break
+# Spec std.ops: std-ops.defer.cleanup, std-ops.defer.order; Control Flow: flow.cleanup.run.
+# expect-stdout: 9
+# expect-stdout: inner
+# expect-stdout: outer
+# expect-stdout: 4
+# expect-stdout: round0
+# expect-stdout: round1
+# expect-stdout: outer
+use std.ops.defer
+
+struct Trace:
+    items: List[string]
+
+fn run(trace: *mut Trace, early: bool) -> i32:
+    defer(fn() -> void: trace.items.push("outer"))
+    if early:
+        defer(fn() -> void: trace.items.push("inner"))
+        return 9
+    for i in 0..3:
+        defer(fn() -> void: trace.items.push("round$i"))
+        if i == 0:
+            continue
+        if i == 1:
+            break
+    4
+
+pub fn main() -> void $ Console:
+    first := box(Trace { items: [] })
+    println(run(first, true))
+    for text in first.items:
+        println(text)
+    second := box(Trace { items: [] })
+    println(run(second, false))
+    for text in second.items:
+        println(text)

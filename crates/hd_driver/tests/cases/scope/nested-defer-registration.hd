@@ -1,0 +1,12 @@
+# @dump: wat
+# @build: v8 release
+# expected: local suite flags register cleanup before either return;
+# the inner suite runs before the outer on the early-return path.
+use std.ops.defer
+
+fn nested(log: *mut List[i32], early: bool) -> i32:
+    defer(fn() -> void: log.push(+1))
+    if early:
+        defer(fn() -> void: log.push(+2))
+        return 3
+    4
