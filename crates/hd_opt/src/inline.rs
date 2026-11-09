@@ -8,7 +8,7 @@
 use std::borrow::Cow;
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
-use hd_base::{DefId, Hash128, HashMap, HashSet, StableHasher};
+use hd_base::{DefId, Hash128, HashMap, HashSet, SliceSort, StableHasher};
 use hd_mono::ProgramEnv;
 use hd_tir::inline::Site;
 use hd_tir::ir::{Body, Callee, Proj, Ref, Tag, local_flags, place, ref_word};
@@ -133,6 +133,26 @@ pub struct Memo {
     /// The instances the inliner found on a cycle of calls
     /// (`inline_into`): a call of one stays a call.
     recursive: Mutex<HashSet<(DefId, TyList)>>,
+    /// Per flag method instance (`annot.bound.recursive.flag`), the
+    /// constant its call copies as, or `None` where the call stays a call
+    /// (`flag_site`); each is solved once per run.
+    flags: Mutex<HashMap<(DefId, TyList), Option<Inlined>>>,
+    /// Held while one thread solves flags, so another waits for its
+    /// values instead of keeping its calls.
+    solve: Mutex<()>,
+    /// The thread solving flags now: its own flag calls stay calls.
+    solver: Mutex<Option<std::thread::ThreadId>>,
+}
+
+/// What a call of a flag method copies (`flag_site`).
+enum FlagSite {
+    /// Its solved value.
+    Folded(Box<Inlined>),
+    /// Nothing: the call stays a call, a node of the solve in progress.
+    Kept,
+    /// Whatever the ordinary rules copy: not a flag, or one the solve
+    /// leaves to its runtime flag.
+    Plain,
 }
 
 /// A copy on the inliner's stack: its function and type arguments, or no
@@ -306,6 +326,13 @@ impl dyn InlineEnv + '_ {
             {
                 continue;
             }
+            // A flag method's call copies its solved value, even its own
+            // call inside its body.
+            let folded = match self.flag_site(def, targs) {
+                FlagSite::Folded(copy) => Some(*copy),
+                FlagSite::Kept => continue,
+                FlagSite::Plain => None,
+            };
             // A cycle is a call of an instance already on the stack. A
             // function at other type arguments is another instance (a
             // derived flag asking a member's), up to `MAX_DEPTH` copies of
@@ -313,15 +340,19 @@ impl dyn InlineEnv + '_ {
             // which stops a polymorphic recursion's ever-larger types.
             let same = |&(d, a): &Frame| d == def && a.is_none_or(|a| a == targs);
             let again = stack.iter().filter(|f| f.0 == def).count();
-            if let Some(at) = stack.iter().position(same).or_else(|| {
-                (again >= usize::from(hd_mono::layout::MAX_DEPTH))
-                    .then(|| stack.iter().position(|f| f.0 == def))
-                    .flatten()
-            }) {
+            if folded.is_none()
+                && let Some(at) = stack.iter().position(same).or_else(|| {
+                    (again >= usize::from(hd_mono::layout::MAX_DEPTH))
+                        .then(|| stack.iter().position(|f| f.0 == def))
+                        .flatten()
+                })
+            {
                 self.found_cycle(&stack[at..]);
                 continue;
             }
-            let Some((mut copy, callee_hash)) = self.callee_copy(def, targs, stack) else {
+            let Some((mut copy, callee_hash)) =
+                folded.or_else(|| self.callee_copy(def, targs, stack))
+            else {
                 continue;
             };
             // A copy made for another caller may call one on the way down.
@@ -581,8 +612,27 @@ impl dyn InlineEnv + '_ {
         targs: TyList,
         stack: &mut Vec<Frame>,
     ) -> Option<(Body, Hash128)> {
-        // Only a function with no parameters can make one value at every
-        // call; its body need not be one the inliner copies as written.
+        let (mut scratch, hash, prepared) = self.prepared(def, targs)?;
+        if prepared == hash {
+            return None;
+        }
+        stack.push((def, Some(targs)));
+        let h = self.inline_into(&mut scratch, prepared, stack);
+        stack.pop();
+        let quiet = |b: &Body, i: usize| self.quiet(b, i);
+        let mut c = hd_mono::defaults::collapse_quiet(&scratch, &quiet)?;
+        // A derived instance's constant is copied as any function's.
+        c.kind = hd_tir::ir::BodyKind::Fn;
+        Some((c, h))
+    }
+
+    /// The body of `def`, a function with no parameters, at `targs`,
+    /// with its types settled, its trait calls chosen, and the folds its
+    /// own instance body takes (`InlineEnv::prepare_copy`) applied; with
+    /// its checked hash and the hash after those folds. Only a function
+    /// with no parameters can make one value at every call; its body need
+    /// not be one the inliner copies as written.
+    fn prepared(&self, def: DefId, targs: TyList) -> Option<(Body, Hash128, Hash128)> {
         let (params, suspends, has_row) = self.signature(def)?;
         if !params.is_empty() || suspends || has_row || self.intrinsic(def).is_some() {
             return None;
@@ -608,17 +658,138 @@ impl dyn InlineEnv + '_ {
         }
         hd_tir::inline::rechoose(&mut scratch, &|t, s, a| self.select_impl(t, s, a));
         let prepared = self.prepare_copy(&mut scratch, hash);
-        if prepared == hash {
-            return None;
+        Some((scratch, hash, prepared))
+    }
+
+    /// What a call of `def` at `targs` copies when it is a flag method
+    /// (`annot.bound.recursive.flag`) in a release build that folds
+    /// constants: the value `hd_opt::whole::solve_flags` gives it, solved
+    /// with every flag it reaches on first ask. Dev keeps every call, and
+    /// its runtime flag answers a re-entry.
+    fn flag_site(&self, def: DefId, targs: TyList) -> FlagSite {
+        let Some(memo) = self.memo() else {
+            return FlagSite::Plain;
+        };
+        if !self.const_fold() || !crate::whole::is_flag_method(self, def, targs) {
+            return FlagSite::Plain;
         }
-        stack.push((def, Some(targs)));
-        let h = self.inline_into(&mut scratch, prepared, stack);
-        stack.pop();
-        let quiet = |b: &Body, i: usize| self.quiet(b, i);
-        let mut c = hd_mono::defaults::collapse_quiet(&scratch, &quiet)?;
-        // A derived instance's constant is copied as any function's.
-        c.kind = hd_tir::ir::BodyKind::Fn;
-        Some((c, h))
+        let solved = || {
+            lock(&memo.flags).get(&(def, targs)).map(|s| {
+                s.clone()
+                    .map_or(FlagSite::Plain, |c| FlagSite::Folded(Box::new(c)))
+            })
+        };
+        if let Some(site) = solved() {
+            return site;
+        }
+        let me = std::thread::current().id();
+        if *lock(&memo.solver) == Some(me) {
+            return FlagSite::Kept;
+        }
+        let _one = lock(&memo.solve);
+        if let Some(site) = solved() {
+            return site;
+        }
+        *lock(&memo.solver) = Some(me);
+        self.solve_flags_from((def, targs), memo);
+        *lock(&memo.solver) = None;
+        solved().unwrap_or(FlagSite::Plain)
+    }
+
+    /// Solves the flag methods `root` reaches and records each one's copy
+    /// in `memo` (`crate::whole::solve_flags`). Each flag's body is its
+    /// prepared body with its calls copied, every flag call kept as a
+    /// call (`FlagSite::Kept`), then folded; the flags those calls name
+    /// are the graph's nodes, found breadth-first. A flag solved before
+    /// is no node: its call was copied as its value. Cost: one copy and
+    /// one scan per flag, each flag solved once per run, then the solve's
+    /// own bound.
+    fn solve_flags_from(&self, root: (DefId, TyList), memo: &Memo) {
+        let mut index: HashMap<(DefId, TyList), u32> = HashMap::default();
+        index.insert(root, 0);
+        let mut nodes = vec![root];
+        let mut bodies: Vec<Option<Body>> = Vec::new();
+        // Per node: its flag calls, by instruction, sorted.
+        let mut sites: Vec<Vec<(u32, u32)>> = Vec::new();
+        let (mut from, mut callees) = (vec![0u32], Vec::new());
+        while let Some(&(def, targs)) = nodes.get(bodies.len()) {
+            let body = self.prepared(def, targs).map(|(mut b, _, prepared)| {
+                self.inline_into(&mut b, prepared, &mut vec![(def, Some(targs))]);
+                hd_mono::defaults::specialize(&b, &[]).unwrap_or(b)
+            });
+            let mut mine = Vec::new();
+            for c in 0..body.as_ref().map_or(0, Body::len) {
+                let Some(b) = &body else { break };
+                let Some((d, t)) = (b.tags[c] == Tag::Call)
+                    .then(|| hd_tir::inline::known_call(b, c))
+                    .flatten()
+                    .and_then(|callee| match callee {
+                        Callee::Item { def, targs } => Some((def, targs)),
+                        Callee::TraitMethod { .. } => self.impl_target(&callee),
+                    })
+                else {
+                    continue;
+                };
+                if !crate::whole::is_flag_method(self, d, t)
+                    || lock(&memo.flags).contains_key(&(d, t))
+                {
+                    continue;
+                }
+                let j = *index.entry((d, t)).or_insert_with(|| {
+                    nodes.push((d, t));
+                    index_word(nodes.len() - 1)
+                });
+                mine.push((index_word(c), j));
+            }
+            let mut out: Vec<u32> = mine.iter().map(|s| s.1).collect();
+            out.sort_stable();
+            out.dedup();
+            callees.extend(out);
+            from.push(index_word(callees.len()));
+            bodies.push(body);
+            sites.push(mine);
+        }
+        let site = |i: usize, c: usize| {
+            sites[i]
+                .binary_search_by_key(&index_word(c), |s| s.0)
+                .ok()
+                .map(|k| sites[i][k].1)
+        };
+        let local: Vec<bool> = (0..nodes.len())
+            .map(|i| {
+                bodies[i].as_ref().is_some_and(|b| {
+                    let quiet = |b: &Body, c: usize| site(i, c).is_some() || self.quiet(b, c);
+                    hd_mono::defaults::local_only(b, &quiet)
+                })
+            })
+            .collect();
+        let mut eval = |i: u32, seed: &dyn Fn(u32) -> Option<bool>| {
+            let i = i as usize;
+            let calls = |c: usize| {
+                site(i, c)
+                    .and_then(seed)
+                    .map(|v| hd_mono::defaults::Value::Scalar(u64::from(v)))
+            };
+            match hd_mono::defaults::value_given(bodies[i].as_ref()?, &calls)? {
+                hd_mono::defaults::Value::Scalar(bits) => Some(bits != 0),
+                hd_mono::defaults::Value::Variant(_) => None,
+            }
+        };
+        let values = crate::whole::solve_flags(&from, &callees, &local, &mut eval, &mut 0);
+        let mut flags = lock(&memo.flags);
+        for (i, &(def, targs)) in nodes.iter().enumerate() {
+            let made = values[i].and_then(|v| {
+                let value = hd_mono::defaults::Value::Scalar(u64::from(v));
+                let mut copy = hd_mono::defaults::constant_copy(bodies[i].as_ref()?, value)?;
+                copy.kind = hd_tir::ir::BodyKind::Fn;
+
+                let mut h = StableHasher::new("flag-value");
+                h.hash(self.checked_body(def)?.1);
+                h.u8(u8::from(v));
+                Some((copy, h.finish()))
+            });
+            flags.insert((def, targs), made);
+        }
     }
 
     /// The callee's body at the call's types, with its hash, and whether
@@ -1302,6 +1473,13 @@ pub fn bottom_up<N: Copy + Eq + std::hash::Hash>(
             scc(&mut members, recursive);
         }
     }
+}
+
+/// `i`, a body position or a count of flags, as a `u32` word.
+fn index_word(i: usize) -> u32 {
+    // ruled out: TIR positions are u32 words, and a solve's flags are
+    // instances, whose ids are u32 words too.
+    u32::try_from(i).unwrap_or(u32::MAX)
 }
 
 #[cfg(test)]

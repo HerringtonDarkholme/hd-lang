@@ -96,7 +96,7 @@ pub fn constant(body: &Body) -> Option<Value> {
         return None;
     }
     let root = *body.sub_root.first()?;
-    Values::new(body, &[])?.word(body, root)
+    Values::new(body, &[], &|_| None)?.word(body, root)
 }
 
 /// Whether variant construction `i` carries no value: no fields, or only
@@ -146,8 +146,15 @@ struct Values {
 }
 
 impl Values {
-    /// `None` when a parameter `defaults` names does not exist.
-    fn new(body: &Body, defaults: &[(u32, Value)]) -> Option<Self> {
+    /// `None` when a parameter `defaults` names does not exist. `calls`
+    /// gives the result of a `Call` its caller knows (a flag method's
+    /// solved value, `hd_opt::whole::solve_flags`); every other call's
+    /// result is unknown.
+    fn new(
+        body: &Body,
+        defaults: &[(u32, Value)],
+        calls: &dyn Fn(usize) -> Option<Value>,
+    ) -> Option<Self> {
         let n = body.len();
         let locals = body.local_ty.len();
         let mut writes = vec![0u32; locals];
@@ -222,6 +229,7 @@ impl Values {
                     out.agree(body, tail.into_iter().chain(live))
                 }
                 Tag::Scope => out.word(body, a),
+                Tag::Call => calls(i),
                 Tag::Read if body.local_read(i).is_none() => {
                     // A whole copy of an instruction's value (a match's
                     // scrutinee) is that value.
@@ -257,18 +265,43 @@ impl Values {
                     _ => None,
                 },
                 Tag::And | Tag::Or if body.ty[i] == Ty::BOOL => {
-                    match (body.tags[i], out.word(body, a)) {
-                        (Tag::And, Some(Value::Scalar(0))) => Some(Value::Scalar(0)),
-                        (Tag::Or, Some(Value::Scalar(bits))) if bits != 0 => Some(Value::Scalar(1)),
+                    match (body.tags[i], out.word(body, a), out.word(body, b)) {
+                        (Tag::And, Some(Value::Scalar(0)), _) => Some(Value::Scalar(0)),
+                        (Tag::Or, Some(Value::Scalar(bits)), _) if bits != 0 => {
+                            Some(Value::Scalar(1))
+                        }
                         // A non-deciding left operand: the right decides.
-                        (_, Some(Value::Scalar(_))) => out.word(body, b),
+                        (_, Some(Value::Scalar(_)), right) => right,
+                        // An unknown left operand: a right one that decides
+                        // the operator alone decides it either way, as
+                        // Kleene's strong three-valued `and` and `or` do.
+                        (Tag::And, None, Some(Value::Scalar(0))) => Some(Value::Scalar(0)),
+                        (Tag::Or, None, Some(Value::Scalar(bits))) if bits != 0 => {
+                            Some(Value::Scalar(1))
+                        }
                         _ => None,
                     }
                 }
                 Tag::If | Tag::Match => {
                     let chosen = out.chosen(body, i);
                     arms.decide(i, chosen);
-                    chosen.and_then(|k| out.word(body, k))
+                    if let Some(k) = chosen {
+                        out.word(body, k)
+                    } else {
+                        // An undecided decision whose every arm makes one
+                        // value makes it whichever runs.
+                        let arms = body.record(b);
+                        let arms = if body.tags[i] == Tag::Match {
+                            arms.get(1..).unwrap_or_default()
+                        } else {
+                            arms
+                        };
+                        if arms.len() < 2 || arms.contains(&NONE) {
+                            None
+                        } else {
+                            out.agree(body, arms.iter().copied())
+                        }
+                    }
                 }
                 Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar => {
                     arms.decide(i, out.switched(body, i));
@@ -545,7 +578,7 @@ fn params(body: &Body) -> Vec<usize> {
 /// walk, O(n).
 #[must_use]
 pub fn specialize(body: &Body, defaults: &[(u32, Value)]) -> Option<Body> {
-    let values = Values::new(body, defaults)?;
+    let values = Values::new(body, defaults, &|_| None)?;
     // A decisive short-circuit operand is itself a branch. Replace the
     // operator, not just an enclosing decision, so reachability does not
     // retain the unevaluated right-hand block. Keep the left operand as an
@@ -683,7 +716,7 @@ pub fn collapse(body: &Body) -> Option<Body> {
     let &[root] = body.sub_root.as_slice() else {
         return None;
     };
-    let values = Values::new(body, &[])?;
+    let values = Values::new(body, &[], &|_| None)?;
     let value = values
         .word(body, root)
         .filter(|_| values.pure[root as usize])?;
@@ -700,11 +733,23 @@ pub fn collapse(body: &Body) -> Option<Body> {
 /// before IPSCCP folds its calls. Cost: one pass, O(n).
 #[must_use]
 pub fn collapse_quiet(body: &Body, quiet: &dyn Fn(&Body, usize) -> bool) -> Option<Body> {
-    let &[root] = body.sub_root.as_slice() else {
+    if !local_only(body, quiet) {
         return None;
-    };
+    }
+    constant_copy(body, value_given(body, &|_| None)?)
+}
+
+/// Whether running `body` has no effect its caller sees: its one root
+/// only writes its own locals, makes values, and calls only what
+/// `quiet(body, i)` vouches for ([`collapse_quiet`]'s test). Cost: one
+/// pass, O(n).
+#[must_use]
+pub fn local_only(body: &Body, quiet: &dyn Fn(&Body, usize) -> bool) -> bool {
+    if body.sub_root.len() != 1 {
+        return false;
+    }
     for i in 0..body.len() {
-        let [a, b] = body.data[i];
+        let a = body.data[i][0];
         let ok = match body.tags[i] {
             Tag::Block
             | Tag::Scope
@@ -736,12 +781,34 @@ pub fn collapse_quiet(body: &Body, quiet: &dyn Fn(&Body, usize) -> bool) -> Opti
             Tag::Call | Tag::Drop => quiet(body, i),
             _ => false,
         };
-        let _ = b;
         if !ok {
-            return None;
+            return false;
         }
     }
-    let value = Values::new(body, &[])?.word(body, root)?;
+    true
+}
+
+/// The value `body`'s root makes when each `Call` `calls` answers
+/// returns that answer ([`Values`] over the seeded results), or `None`
+/// when that does not decide it. An unknown result decides an operator or
+/// a decision only where every value it could take gives one answer, as
+/// Kleene's strong three-valued logic reads unknowns. Cost: one pass,
+/// O(n).
+#[must_use]
+pub fn value_given(body: &Body, calls: &dyn Fn(usize) -> Option<Value>) -> Option<Value> {
+    let &[root] = body.sub_root.as_slice() else {
+        return None;
+    };
+    Values::new(body, &[], calls)?.word(body, root)
+}
+
+/// `body` as one instruction that makes `value` ([`collapse`]'s copy);
+/// `None` for a body already that small.
+#[must_use]
+pub fn constant_copy(body: &Body, value: Value) -> Option<Body> {
+    let &[root] = body.sub_root.as_slice() else {
+        return None;
+    };
     collapsed(body, root, value)
 }
 

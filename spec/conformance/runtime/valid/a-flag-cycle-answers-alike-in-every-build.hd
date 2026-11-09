@@ -1,0 +1,53 @@
+# test: a flag cycle answers alike in every build
+# Rules: annot.bound.recursive.flag, std-serde.regular.recursive.
+# expect-stdout: false true true
+# expect-stdout: true false
+# expect-stdout: {"kids":[{"kids":[]}]}
+# expect-stdout: {"kids":[],"bad":{"label":"x"}}
+# A release build solves a cycle of flag calls at compile time, and its
+# answer is the one the runtime rule gives: `A` negates its own re-entry,
+# so it is `false`; `B` and `C` negate each other, so each is `true` when
+# asked first. A recursive derived type is regular unless a member is not.
+use std.json.encode
+use std.serde.{Serialize, rename}
+
+trait On:
+    fn on() -> bool
+
+struct A: pass
+
+struct B: pass
+
+struct C: pass
+
+impl On for A:
+    fn on() -> bool:
+        !A::on()
+
+impl On for B:
+    fn on() -> bool:
+        !C::on()
+
+impl On for C:
+    fn on() -> bool:
+        !B::on()
+
+@derive(Serialize)
+struct Node:
+    kids: List[Node]
+
+@derive(Serialize)
+struct Bad:
+    @rename("label")
+    name: string
+
+@derive(Serialize)
+struct Mixed:
+    kids: List[Mixed]
+    bad: Bad
+
+pub fn main() -> void $ Console:
+    println("${A::on()} ${B::on()} ${C::on()}")
+    println("${Node::regular()} ${Mixed::regular()}")
+    println(encode(Node { kids: [Node { kids: [] }] }))
+    println(encode(Mixed { kids: [], bad: Bad { name: "x" } }))

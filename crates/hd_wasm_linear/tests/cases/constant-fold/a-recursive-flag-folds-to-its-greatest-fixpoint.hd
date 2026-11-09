@@ -1,8 +1,9 @@
 # @dump: wat
 # @build: v8 release
-# A flag that asks itself again (a recursive type's derived flag) has no
-# constant to fold (#1518): the inliner stops at the cycle, so `entry`
-# keeps the call and both arms, and the build terminates.
+# A flag that asks itself again (a recursive type's derived flag) reads
+# `true` for that inner call (annot.bound.recursive.flag). A release build
+# solves the cycle at compile time (#1542), so `entry` keeps only the fast
+# arm, with no call, as for a flag that does not recur.
 trait Fast:
     fn regular() -> bool
 

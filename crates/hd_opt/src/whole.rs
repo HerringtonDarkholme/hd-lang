@@ -278,9 +278,15 @@ fn word(i: usize) -> u32 {
 /// an item body (no closure) of a method with no parameters, a `bool`
 /// result, no requirement row, and no suspension.
 fn flag_method(env: &dyn ProgramEnv, table: &InstanceTable, i: usize) -> bool {
-    let (item, args) = (table.item[i], table.args[i]);
-    table.sub[i] == Sub::Body(0)
-        && env.parent(item).is_some()
+    table.sub[i] == Sub::Body(0) && is_flag_method(env, table.item[i], table.args[i])
+}
+
+/// Whether `item` at `args` is a flag method of
+/// `annot.bound.recursive.flag`: a method with no parameters, a `bool`
+/// result, no requirement row, and no suspension.
+#[must_use]
+pub fn is_flag_method(env: &dyn ProgramEnv, item: DefId, args: TyList) -> bool {
+    env.parent(item).is_some()
         && env.params(item).is_some_and(|p| p.is_empty())
         && env.ret(item) == Some(Ty::BOOL)
         && !env.suspends(item)
@@ -289,34 +295,64 @@ fn flag_method(env: &dyn ProgramEnv, table: &InstanceTable, i: usize) -> bool {
 }
 
 /// The flag nodes of `0..n` on a cycle of `edges`, where node `n` is the
-/// virtual node of dynamic calls, which reaches every flag. An iterative
-/// Tarjan walk (Tarjan 1972, in the shape of rustc's
-/// `rustc_data_structures::graph::scc`): dense per-node arrays, one
-/// explicit frame stack whose successor lists share one buffer, each node
-/// entered once and each edge followed once. Only a flag can be on a
-/// reported cycle, and a walk from it finds every cycle through it, so the
-/// walk starts at flags alone. `work` counts the nodes entered and the
-/// edges followed, for the cost test.
+/// virtual node of dynamic calls, which reaches every flag. Only a flag
+/// can be on a reported cycle, and a walk from it finds every cycle
+/// through it, so the walk ([`components`]) starts at flags alone.
+/// `work` counts the nodes entered and the edges followed, for the cost
+/// test.
 fn coinductive_cycles(
     n: usize,
     flag: &[bool],
     edges: &mut dyn FnMut(u32, &mut Vec<u32>),
     work: &mut u64,
 ) -> Vec<bool> {
-    const UNSEEN: u32 = u32::MAX;
     let virt = word(n);
     let flags: Vec<u32> = (0..virt).filter(|&i| flag[i as usize]).collect();
-    let mut index = vec![UNSEEN; n + 1];
-    let mut low = vec![0u32; n + 1];
-    let mut on_stack = vec![false; n + 1];
-    let mut stack: Vec<u32> = Vec::new();
     let mut cyclic = vec![false; n];
+    let mut succ = |v: u32, out: &mut Vec<u32>| {
+        if v == virt {
+            out.extend_from_slice(&flags);
+        } else {
+            edges(v, out);
+        }
+    };
+    components(n + 1, &flags, &mut succ, work, &mut |members, looped| {
+        for &m in members {
+            if m != virt {
+                cyclic[m as usize] = looped && flag[m as usize];
+            }
+        }
+    });
+    cyclic
+}
+
+/// The strongly connected components of the graph `edges` gives over
+/// nodes `0..n` that `roots` reach, each passed to `emit` with whether it
+/// is a cycle (more than one member, or a member calling itself). A
+/// component is emitted after every component it reaches, callees first.
+/// An iterative Tarjan walk (Tarjan 1972, in the shape of rustc's
+/// `rustc_data_structures::graph::scc`): dense per-node arrays, one
+/// explicit frame stack whose successor lists share one buffer, each node
+/// entered once and each edge followed once, no native recursion. `work`
+/// counts the nodes entered and the edges followed.
+fn components(
+    n: usize,
+    roots: &[u32],
+    edges: &mut dyn FnMut(u32, &mut Vec<u32>),
+    work: &mut u64,
+    emit: &mut dyn FnMut(&[u32], bool),
+) {
+    const UNSEEN: u32 = u32::MAX;
+    let mut index = vec![UNSEEN; n];
+    let mut low = vec![0u32; n];
+    let mut on_stack = vec![false; n];
+    let mut stack: Vec<u32> = Vec::new();
     // Per frame: its node, its next successor, and the range of its
     // successors in `succ`; a child's range follows its parent's.
     let mut frames: Vec<(u32, usize, usize, usize)> = Vec::new();
     let mut succ: Vec<u32> = Vec::new();
     let mut next = 0u32;
-    for &root in &flags {
+    for &root in roots {
         if index[root as usize] != UNSEEN {
             continue;
         }
@@ -330,11 +366,7 @@ fn coinductive_cycles(
                 stack.push(v);
                 on_stack[v as usize] = true;
                 let from = succ.len();
-                if v == virt {
-                    succ.extend_from_slice(&flags);
-                } else {
-                    edges(v, &mut succ);
-                }
+                edges(v, &mut succ);
                 frames.push((v, from, from, succ.len()));
             }
             let Some(&mut (v, ref mut at, from, end)) = frames.last_mut() else {
@@ -356,12 +388,11 @@ fn coinductive_cycles(
                 // until its component closes, and `v` closes it here.
                 let at = stack.iter().rposition(|&m| m == v).unwrap_or(0);
                 let looped = stack.len() - at > 1 || succ[from..end].contains(&v);
-                for m in stack.drain(at..) {
+                for &m in &stack[at..] {
                     on_stack[m as usize] = false;
-                    if m != virt {
-                        cyclic[m as usize] = looped && flag[m as usize];
-                    }
                 }
+                emit(&stack[at..], looped);
+                stack.truncate(at);
             }
             frames.pop();
             succ.truncate(from);
@@ -370,12 +401,176 @@ fn coinductive_cycles(
             }
         }
     }
-    cyclic
+}
+
+/// [`solve_flags`]'s evaluation of one node's body, where a call of node
+/// `j` returns `seed(j)`.
+pub type FlagEval<'a> = dyn FnMut(u32, &dyn Fn(u32) -> Option<bool>) -> Option<bool> + 'a;
+
+/// The value of each flag method of a call graph that the rule
+/// `annot.bound.recursive.flag` decides at compile time, or `None` where
+/// the call stays a call whose re-entry the backend answers at runtime.
+/// Node `i`'s body calls `callees[from[i]..from[i + 1]]`, and `local[i]`
+/// says whether it has no effect a caller sees, those calls aside.
+/// `eval(i, seed)` evaluates node `i`'s body where a call of node `j`
+/// returns `seed(j)`, `None` meaning unknown (any value), and gives its
+/// value where that decides it (`hd_mono::defaults::value_given`, whose
+/// unknowns read as Kleene's strong three-valued logic).
+///
+/// The runtime rule is co-SLD resolution's (Simon, Gupta et al., ICLP
+/// 2006): a call made while the same flag evaluates reads `true`. A
+/// folded value must equal what that rule gives in every context the
+/// call can run in, so each component of the graph (callees first) is
+/// solved in two passes, each a worklist in which a member changes once:
+///
+/// 1. Coinductive: the greatest set of members that evaluate to `true`
+///    when every member of the set reads `true` and every other member
+///    is unknown. All start in the set; a member that is not then surely
+///    `true` leaves it, and its callers in the set are evaluated again.
+///    By induction on the members not yet evaluating, each member left
+///    is `true` in every context, as a cycle of `&&` and `||` is at its
+///    greatest fixpoint.
+/// 2. Inductive: each other member whose own re-entry reads `true`, the
+///    set's members `true`, the members already settled their values, and
+///    the rest unknown, surely evaluates to one value is settled to it;
+///    its callers are evaluated again. Once settled, a member's whole
+///    evaluation has that value wherever it starts, so it folds.
+///
+/// A member left unsettled (`A::on()` asking `!B::on()` and back, whose
+/// answer depends on which one the program asks first) keeps its runtime
+/// flag, and so does every member whose value depends on it. A member
+/// whose body has an effect, or calls one that does, never folds.
+///
+/// Cost: purity is one walk over the reversed edges, O(n + e); the
+/// components are one Tarjan walk, O(n + e). Each pass evaluates a member
+/// once, then once more per change of a member it calls, at most once per
+/// edge: at most 2(n + e) evaluations, each linear in its body, so
+/// O(sum of bodies x component size) in the worst case and linear when
+/// bodies call a bounded number of flags. `work` counts the evaluations
+/// and the walk's nodes and edges.
+pub fn solve_flags(
+    from: &[u32],
+    callees: &[u32],
+    local: &[bool],
+    eval: &mut FlagEval<'_>,
+    work: &mut u64,
+) -> Vec<Option<bool>> {
+    let n = local.len();
+    let out_of = |i: u32| &callees[from[i as usize] as usize..from[i as usize + 1] as usize];
+    // The reversed edges, as one counting sort: `callers[rfrom[j]..rfrom[j
+    // + 1]]` call `j`.
+    let mut rfrom = vec![0u32; n + 1];
+    for &j in callees {
+        rfrom[j as usize + 1] += 1;
+    }
+    for j in 0..n {
+        rfrom[j + 1] += rfrom[j];
+    }
+    let mut fill = rfrom.clone();
+    let mut by_callee = vec![0u32; callees.len()];
+    for i in 0..word(n) {
+        for &j in out_of(i) {
+            by_callee[fill[j as usize] as usize] = i;
+            fill[j as usize] += 1;
+        }
+    }
+    let callers_of =
+        |j: u32| &by_callee[rfrom[j as usize] as usize..rfrom[j as usize + 1] as usize];
+    // A body is pure when it is local and calls only pure bodies: the
+    // effects spread to every caller.
+    let mut pure = local.to_vec();
+    let mut spread: Vec<u32> = (0..word(n)).filter(|&i| !pure[i as usize]).collect();
+    while let Some(j) = spread.pop() {
+        for &i in callers_of(j) {
+            if pure[i as usize] {
+                pure[i as usize] = false;
+                spread.push(i);
+            }
+        }
+    }
+    let mut value: Vec<Option<bool>> = vec![None; n];
+    let mut comp = vec![u32::MAX; n];
+    let mut in_set = vec![false; n];
+    let mut settled: Vec<Option<bool>> = vec![None; n];
+    let roots: Vec<u32> = (0..word(n)).collect();
+    let mut walk = 0;
+    let mut evals = 0;
+    let mut succ = |v: u32, out: &mut Vec<u32>| out.extend_from_slice(out_of(v));
+    let mut next_comp = 0u32;
+    components(n, &roots, &mut succ, &mut walk, &mut |members, _| {
+        let c = next_comp;
+        next_comp += 1;
+        for &m in members {
+            comp[m as usize] = c;
+            in_set[m as usize] = pure[m as usize];
+        }
+        // Pass 1: the greatest set that is surely `true`.
+        let mut list: Vec<u32> = members
+            .iter()
+            .copied()
+            .filter(|&m| pure[m as usize])
+            .collect();
+        while let Some(x) = list.pop() {
+            if !in_set[x as usize] {
+                continue;
+            }
+            let seed = |j: u32| {
+                if comp[j as usize] == c {
+                    (j == x || in_set[j as usize]).then_some(true)
+                } else {
+                    value[j as usize]
+                }
+            };
+            evals += 1;
+            if eval(x, &seed) != Some(true) {
+                in_set[x as usize] = false;
+                list.extend(
+                    callers_of(x)
+                        .iter()
+                        .filter(|&&i| comp[i as usize] == c && in_set[i as usize]),
+                );
+            }
+        }
+        // Pass 2: settle what the set and the settled members decide.
+        let open = |m: u32| pure[m as usize] && !in_set[m as usize];
+        let mut list: Vec<u32> = members.iter().copied().filter(|&m| open(m)).collect();
+        while let Some(x) = list.pop() {
+            if settled[x as usize].is_some() {
+                continue;
+            }
+            let seed = |j: u32| {
+                if comp[j as usize] != c {
+                    value[j as usize]
+                } else if j == x || in_set[j as usize] {
+                    Some(true)
+                } else {
+                    settled[j as usize]
+                }
+            };
+            evals += 1;
+            if let Some(v) = eval(x, &seed) {
+                settled[x as usize] = Some(v);
+                list.extend(callers_of(x).iter().filter(|&&i| {
+                    comp[i as usize] == c && open(i) && settled[i as usize].is_none()
+                }));
+            }
+        }
+        for &m in members {
+            value[m as usize] = if in_set[m as usize] {
+                Some(true)
+            } else {
+                settled[m as usize]
+            };
+        }
+    });
+    *work += walk + evals;
+    value
 }
 
 #[cfg(test)]
 mod tests {
-    use super::coinductive_cycles;
+    use super::{coinductive_cycles, solve_flags};
+    use hd_base::SliceSort;
 
     fn cycles(n: usize, flag: &[bool], edges: &[(u32, u32)], dynamic: &[u32]) -> (Vec<bool>, u64) {
         let mut work = 0;
@@ -439,5 +634,217 @@ mod tests {
         let out = coinductive_cycles(n, &flag, &mut succ, &mut work);
         assert!(out.iter().all(|&c| !c));
         assert_eq!(work, 20_000 + 2 * 19_000);
+    }
+
+    /// A flag body for the solver tests: constants, calls of other flags,
+    /// `!`, `&&` and `||`.
+    #[derive(Clone, Debug)]
+    enum Flag {
+        Is(bool),
+        Call(u32),
+        Not(Box<Flag>),
+        And(Box<Flag>, Box<Flag>),
+        Or(Box<Flag>, Box<Flag>),
+    }
+
+    impl Flag {
+        /// Kleene's strong three-valued reading, as `Values` reads an
+        /// unknown call result.
+        fn eval(&self, seed: &dyn Fn(u32) -> Option<bool>) -> Option<bool> {
+            match self {
+                Flag::Is(b) => Some(*b),
+                Flag::Call(j) => seed(*j),
+                Flag::Not(a) => a.eval(seed).map(|b| !b),
+                Flag::And(a, b) => match (a.eval(seed), b.eval(seed)) {
+                    (Some(false), _) | (_, Some(false)) => Some(false),
+                    (Some(true), Some(true)) => Some(true),
+                    _ => None,
+                },
+                Flag::Or(a, b) => match (a.eval(seed), b.eval(seed)) {
+                    (Some(true), _) | (_, Some(true)) => Some(true),
+                    (Some(false), Some(false)) => Some(false),
+                    _ => None,
+                },
+            }
+        }
+
+        /// The runtime answer, `annot.bound.recursive.flag` itself: a call
+        /// of a flag on `stack` (a bit set) reads `true`, any other
+        /// evaluates its body with itself on the stack.
+        fn run(&self, bodies: &[Flag], stack: u32) -> bool {
+            match self {
+                Flag::Is(b) => *b,
+                Flag::Call(j) if stack & (1 << j) != 0 => true,
+                Flag::Call(j) => bodies[*j as usize].run(bodies, stack | (1 << j)),
+                Flag::Not(a) => !a.run(bodies, stack),
+                Flag::And(a, b) => a.run(bodies, stack) && b.run(bodies, stack),
+                Flag::Or(a, b) => a.run(bodies, stack) || b.run(bodies, stack),
+            }
+        }
+
+        fn calls(&self, out: &mut Vec<u32>) {
+            match self {
+                Flag::Is(_) => {}
+                Flag::Call(j) => out.push(*j),
+                Flag::Not(a) => a.calls(out),
+                Flag::And(a, b) | Flag::Or(a, b) => {
+                    a.calls(out);
+                    b.calls(out);
+                }
+            }
+        }
+    }
+
+    /// The solver over `bodies`, with its counted work.
+    fn solve(bodies: &[Flag]) -> (Vec<Option<bool>>, u64) {
+        let mut from = vec![0u32];
+        let mut callees = Vec::new();
+        for b in bodies {
+            let mut out = Vec::new();
+            b.calls(&mut out);
+            out.sort_stable();
+            out.dedup();
+            callees.extend(out);
+            from.push(u32::try_from(callees.len()).expect("small"));
+        }
+        let local = vec![true; bodies.len()];
+        let mut work = 0;
+        let mut eval = |i: u32, seed: &dyn Fn(u32) -> Option<bool>| bodies[i as usize].eval(seed);
+        let out = solve_flags(&from, &callees, &local, &mut eval, &mut work);
+        (out, work)
+    }
+
+    /// A random flag body over `n` flags, `depth` operators deep.
+    fn body(next: &mut dyn FnMut(u64) -> u64, n: u64, depth: u32) -> Flag {
+        match if depth == 0 { next(2) } else { next(6) } {
+            0 => Flag::Is(next(4) != 0),
+            1 => Flag::Call(u32::try_from(next(n)).expect("small")),
+            2 => Flag::Not(Box::new(body(next, n, depth - 1))),
+            3 => Flag::And(
+                Box::new(body(next, n, depth - 1)),
+                Box::new(body(next, n, depth - 1)),
+            ),
+            _ => Flag::Or(
+                Box::new(body(next, n, depth - 1)),
+                Box::new(body(next, n, depth - 1)),
+            ),
+        }
+    }
+
+    /// The program with each folded flag replaced by its value answers
+    /// every flag's call as the runtime rule does: over small random
+    /// systems with negation, against the rule run as written.
+    #[test]
+    fn folding_keeps_every_flags_runtime_answer() {
+        let mut state = 0x9E37_79B9_7F4A_7C15u64;
+        let mut next = move |m: u64| {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            state % m
+        };
+        let (mut folded, mut kept) = (0, 0);
+        for _ in 0..20_000 {
+            let n = 1 + next(5);
+            let bodies: Vec<Flag> = (0..n).map(|_| body(&mut next, n, 3)).collect();
+            let (values, _) = solve(&bodies);
+            // The release program: each folded flag is its constant.
+            let release: Vec<Flag> = (bodies.iter().zip(&values))
+                .map(|(b, v)| v.map_or_else(|| b.clone(), Flag::Is))
+                .collect();
+            for x in 0..n {
+                let x = u32::try_from(x).expect("small");
+                match values[x as usize] {
+                    Some(_) => folded += 1,
+                    None => kept += 1,
+                }
+                let dev = bodies[x as usize].run(&bodies, 1 << x);
+                let rel = release[x as usize].run(&release, 1 << x);
+                assert_eq!(dev, rel, "flag {x}: {bodies:?} {values:?}");
+            }
+        }
+        assert!(folded > kept, "{folded} folded, {kept} kept");
+    }
+
+    /// The cases the rule's tests name: a flag that negates itself is
+    /// `false`; two that negate each other answer by which is asked first,
+    /// so both stay runtime; a cycle of `&&` and `||` is `true`; one false
+    /// member makes its callers false.
+    #[test]
+    fn the_rules_cases() {
+        let a = [Flag::Not(Box::new(Flag::Call(0)))];
+        assert_eq!(solve(&a).0, vec![Some(false)]);
+        let bc = [
+            Flag::Not(Box::new(Flag::Call(1))),
+            Flag::Not(Box::new(Flag::Call(0))),
+        ];
+        assert_eq!(solve(&bc).0, vec![None, None]);
+        let even_odd = [
+            Flag::And(Box::new(Flag::Call(1)), Box::new(Flag::Is(true))),
+            Flag::Or(Box::new(Flag::Call(0)), Box::new(Flag::Call(2))),
+            Flag::And(Box::new(Flag::Is(true)), Box::new(Flag::Call(2))),
+        ];
+        assert_eq!(solve(&even_odd).0, vec![Some(true); 3]);
+        let falls = [
+            Flag::And(Box::new(Flag::Call(1)), Box::new(Flag::Call(2))),
+            Flag::And(Box::new(Flag::Call(0)), Box::new(Flag::Call(2))),
+            Flag::Is(false),
+        ];
+        assert_eq!(solve(&falls).0, vec![Some(false); 3]);
+        let through = [
+            Flag::And(Box::new(Flag::Call(1)), Box::new(Flag::Call(1))),
+            Flag::And(Box::new(Flag::Call(0)), Box::new(Flag::Is(false))),
+        ];
+        assert_eq!(solve(&through).0, vec![Some(false); 2]);
+    }
+
+    /// The cost check (`.agents/skills/shared-rules.md` "Cost Model"): 20
+    /// layers of 1,000 flags, each the `&&` of two flags of the next
+    /// layer, the last calling back to the first: one component of 20,000
+    /// members and 40,000 edges. All `true`: one evaluation per member.
+    /// With one member `false`: each member leaves the set once and
+    /// settles once, each change evaluating its callers again, within
+    /// 2(n + e).
+    #[test]
+    fn the_solve_is_linear_at_width_1000_and_depth_20() {
+        const WIDTH: u32 = 1_000;
+        const DEPTH: u32 = 20;
+        let node = |d: u32, j: u32| d % DEPTH * WIDTH + j % WIDTH;
+        let layered = |first: Flag| -> Vec<Flag> {
+            (0..DEPTH * WIDTH)
+                .map(|i| {
+                    let (d, j) = (i / WIDTH, i % WIDTH);
+                    if i == 0 {
+                        return first.clone();
+                    }
+                    Flag::And(
+                        Box::new(Flag::Call(node(d + 1, j))),
+                        Box::new(Flag::Call(node(d + 1, j + 1))),
+                    )
+                })
+                .collect()
+        };
+        let n = u64::from(DEPTH * WIDTH);
+        let e = 2 * n;
+        let walk = n + e;
+        let regular = layered(Flag::And(
+            Box::new(Flag::Call(node(1, 0))),
+            Box::new(Flag::Call(node(1, 1))),
+        ));
+        let (values, work) = solve(&regular);
+        assert!(values.iter().all(|&v| v == Some(true)));
+        assert_eq!(work, walk + n);
+        let one_false = layered(Flag::And(
+            Box::new(Flag::Is(false)),
+            Box::new(Flag::And(
+                Box::new(Flag::Call(node(1, 0))),
+                Box::new(Flag::Call(node(1, 1))),
+            )),
+        ));
+        let (values, work) = solve(&one_false);
+        assert!(values.iter().all(|&v| v == Some(false)));
+        assert!(work - walk <= 2 * (n + e), "{work}");
+        // 79,998 evaluations, under 4n: linear.
+        assert_eq!(work, walk + 79_998);
     }
 }

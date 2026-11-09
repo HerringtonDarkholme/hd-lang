@@ -5088,6 +5088,7 @@ runtime/valid/a-suspending-method-and-a-row-forward-as-declared.hd	runtime	accep
 runtime/valid/a-user-template-derives-for-an-enum.hd	runtime	accept	lang/14-annotations.md#typed-derivation
 runtime/valid/a-cycle-of-flag-calls-is-its-greatest-fixpoint.hd	runtime	accept	lang/14-annotations.md#r-annot.bound.recursive.flag
 runtime/valid/serde-regular-answers-per-type.hd	runtime	accept	std/serde.md#r-std-serde.regular
+runtime/valid/a-flag-cycle-answers-alike-in-every-build.hd	runtime	accept	lang/14-annotations.md#r-annot.bound.recursive.flag
 runtime/valid/a-generic-type-derives-under-its-parameter-bound.hd	runtime	accept	std/cmp.md#derived-equality
 runtime/valid/derive-keeps-declared-parameter-bounds.hd	runtime	accept	lang/14-annotations.md#r-annot.bound.declared
 runtime/valid/source-fills-defaults.hd	runtime	accept	lang/14-annotations.md#r-annot.impl-fact.fills-defaults
