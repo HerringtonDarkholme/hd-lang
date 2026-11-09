@@ -1,0 +1,16 @@
+# test: a bound `&self` method reference on a field takes a local reference, which a stored function value cannot capture
+# Spec 07 Method References: fn.ref.bound.address; Spec 13: ref.local.escape.capture-stored.
+struct Point:
+    x: i32
+
+impl Point:
+    fn get(&self) -> i32:
+        self.x
+
+struct Pair:
+    left: Point
+
+pub fn main() -> void:
+    pair := Pair { left: Point { x: 3 } }
+    read := pair.left::get # diagnostic: local-reference-escapes
+    _ := read()

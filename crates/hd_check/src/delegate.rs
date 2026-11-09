@@ -194,7 +194,7 @@ impl Forwarder<'_> {
                     path: vec![(idx, ft)],
                     ty: ft,
                 };
-                let rt = ck.ref_ty(ft, mutable, true);
+                let rt = ck.ref_ty(ft, mutable, false);
                 refs.push(ck.make_ref(&place, mutable, rt, node));
             } else {
                 let (idx, ft) = ck.field_of(st, part_name).expect(EMBEDDED);

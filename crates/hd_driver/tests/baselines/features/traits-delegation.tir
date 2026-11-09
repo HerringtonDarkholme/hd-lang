@@ -24,7 +24,7 @@ struct Service:
 
 impl Describe for Service by Logger
 > app/main/impl Describe for Service by Logger.describe
->   %0 = Ref [*$0 .Logger] : Ref[Logger]
+>   %0 = Ref local [*$0 .Logger] : Ref[Logger]
 >   %1 = Call app/main/Describe.describe for Logger [] via Impl (%0) : string
 >   %2 = Block %1 : string
 

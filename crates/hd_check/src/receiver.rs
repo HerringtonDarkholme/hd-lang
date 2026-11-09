@@ -246,32 +246,29 @@ impl Ck<'_, '_> {
             self.expr(base, None)?;
             return Ok(Some(self.poisoned(base)));
         }
-        let (r, t) = self.address_of_place(base, name, mutable, part)?;
-        // The address is counted, but a call's `&self` or `&mut self`
-        // receiver takes it as a local reference, which the `Ref` records
-        // (`ref_word::LOCAL`, `ref.local.self.keep`).
-        if call
-            && !counted
-            && let Some(i) = r.as_inst()
-        {
-            let b = self.b.body_mut();
-            if b.tags[i.0 as usize] == Tag::Ref {
-                b.data[i.0 as usize][1] |= hd_tir::ir::ref_word::LOCAL;
-            }
-        }
-        Ok(Some((r, t)))
+        // A call's `&self` or `&mut self` receiver is a local reference
+        // (`ref.local.self.keep`).
+        Ok(Some(
+            self.address_of_place(base, name, mutable, part, call)?,
+        ))
     }
 
     /// The reference that a call of `name`, a method taking `&self` or
     /// (`mutable`) `&mut self`, takes to the place-shaped receiver `base`
     /// that holds its value (`fn.method.auto-address`), with the type of
     /// that value. An error leaves a poisoned receiver.
+    ///
+    /// A `local` one, a call's receiver, is `&T` and marked
+    /// `ref_word::LOCAL`. Any other is counted only when its place is a
+    /// whole object (`ref.box.object`): a local's own storage, or what a
+    /// counted reference refers to.
     pub(crate) fn address_of_place(
         &mut self,
         base: NodeRef<'_>,
         name: &str,
         mutable: bool,
         part: Vec<(u32, Ty)>,
+        local: bool,
     ) -> StageResult<(Ref, Ty)> {
         let use_ = if mutable {
             crate::refs::PlaceUse::MutRef
@@ -326,11 +323,16 @@ impl Ck<'_, '_> {
             self.begin_access(coll);
         }
         let inner = self.resolved(place.ty);
-        // The address a call takes is counted, and lends itself to a
-        // `&self` receiver.
-        let rt = self.ref_ty(inner, mutable, true);
+        let whole = !local
+            && place.path.is_empty()
+            && match place.root {
+                Root::Local(..) => true,
+                Root::Deref(_, t) => self.ref_counted(t) == Some(true),
+                Root::Global(..) | Root::Elem(..) | Root::Slot(..) => false,
+            };
+        let rt = self.ref_ty(inner, mutable, whole);
         let r = self.make_ref(&place, mutable, rt, base);
-        Ok((r, place.ty))
+        Ok((if local { self.local_receiver(r) } else { r }, place.ty))
     }
 
     /// The receiver of a store through an operator trait's `&mut self`
@@ -348,8 +350,7 @@ impl Ck<'_, '_> {
             .peek_place_ty(base)
             .is_some_and(|t| self.ref_of(t).is_none())
         {
-            let (r, t) = self.address_of_place(base, name, true, Vec::new())?;
-            let r = self.local_receiver(r);
+            let (r, t) = self.address_of_place(base, name, true, Vec::new(), true)?;
             return Ok((t != Ty::POISON).then_some((r, t)));
         }
         let (r, t) = self.expr(base, None)?;
@@ -495,11 +496,28 @@ impl Ck<'_, '_> {
     /// reference (`ref_word::LOCAL`, as [`Self::auto_address`] marks one of
     /// a place), so the object's local lives until the last use of what
     /// the call's result points into it (`ref.dep.temporary`).
-    fn local_receiver(&mut self, r: Ref) -> Ref {
+    ///
+    /// It is a local reference, `&T` or `&mut T`, whatever place it
+    /// refers to (`ref.local.self.keep`).
+    pub(crate) fn local_receiver(&mut self, r: Ref) -> Ref {
+        let pool = self.pool();
         if let Some(i) = r.as_inst() {
             let b = self.b.body_mut();
-            if b.tags[i.0 as usize] == Tag::Ref {
-                b.data[i.0 as usize][1] |= hd_tir::ir::ref_word::LOCAL;
+            let i = i.0 as usize;
+            if b.tags[i] == Tag::Ref {
+                b.data[i][1] |= hd_tir::ir::ref_word::LOCAL;
+                if let TyData::Ref {
+                    inner,
+                    mutable,
+                    counted: true,
+                } = pool.get(b.ty[i])
+                {
+                    b.ty[i] = pool.intern_ty(&TyData::Ref {
+                        inner,
+                        mutable,
+                        counted: false,
+                    });
+                }
             }
         }
         r

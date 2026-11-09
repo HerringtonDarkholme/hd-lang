@@ -229,7 +229,13 @@ impl Ck<'_, '_> {
         if !changes || !self.mut_locals.contains(&l) || self.local_generics.contains_key(&l) {
             return Ok(None);
         }
-        Ok(Some(self.address_of_place(base, name, true, Vec::new())?))
+        Ok(Some(self.address_of_place(
+            base,
+            name,
+            true,
+            Vec::new(),
+            false,
+        )?))
     }
 
     /// A function item as a value (`fn.type.generic.*`).

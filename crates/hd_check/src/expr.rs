@@ -725,12 +725,9 @@ impl Ck<'_, '_> {
             path: vec![],
             ty,
         };
-        let rt = self.ref_ty(self.resolved(ty), false, true);
+        let rt = self.ref_ty(self.resolved(ty), false, false);
         let r = self.make_ref(&place, false, rt, n);
-        if let Some(i) = r.as_inst() {
-            self.b.body_mut().data[i.0 as usize][1] |= hd_tir::ir::ref_word::LOCAL;
-        }
-        (r, ty, true)
+        (self.local_receiver(r), ty, true)
     }
 
     /// Evaluates one value for later assembly, or streams it into the
@@ -2817,14 +2814,7 @@ impl Ck<'_, '_> {
     /// marked local as a call's receiver address is, with the type of the
     /// value it refers to.
     fn index_place_receiver(&mut self, base: NodeRef<'_>) -> StageResult<(Ref, Ty)> {
-        let (r, t) = self.address_of_place(base, "index", false, vec![])?;
-        if let Some(i) = r.as_inst() {
-            let b = self.b.body_mut();
-            if b.tags[i.0 as usize] == Tag::Ref {
-                b.data[i.0 as usize][1] |= hd_tir::ir::ref_word::LOCAL;
-            }
-        }
-        Ok((r, t))
+        self.address_of_place(base, "index", false, vec![], true)
     }
 
     /// The `&self` receiver of `Index::index` for the receiver `r` of type

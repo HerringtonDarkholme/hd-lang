@@ -1313,7 +1313,12 @@ impl Ck<'_, '_> {
                 b.data[i][1] |= hd_tir::ir::ref_word::LOCAL;
             }
         }
-        whole_object_refs(pool, b);
+        // ruled out: ref.box.object; no expression makes a counted
+        // reference to an interior place.
+        debug_assert!(
+            counted_refs_are_whole(pool, b),
+            "a counted reference to an interior place"
+        );
         // A counted value stored in a local reference's local, or a
         // block's value, lends itself with no conversion
         // (`ref.convert.lend`): it takes the local reference's type, so
@@ -1346,47 +1351,23 @@ impl Ck<'_, '_> {
     }
 }
 
-/// Gives each `Ref` the carrier of where its address lies (`ref.box.object`,
-/// `crates/hd_wasm_linear/DESIGN.md` §23.30): counted for a whole object,
-/// a local's or a value's own storage (a cell, or a frame slot with a zero
-/// count word, §23.38) or what a counted reference refers to; local for a
-/// place inside an object, such as a call receiver's field, and for a
-/// local reference (`ref_word::LOCAL`) wherever its address lies. Only the
-/// `Ref`'s own value changes type: a counted one lends itself where a
-/// local one is expected.
-fn whole_object_refs(pool: hd_types::Types<'_>, b: &mut hd_tir::ir::Body) {
-    use hd_tir::ir::{PlaceRoot, Proj};
-    use hd_types::TyData;
+/// Whether every counted `Ref` of `b` refers to a whole object
+/// (`ref.box.object`): a local's or a value's own storage, or what a
+/// counted reference refers to. The checker makes a counted one only for
+/// such a place, so the backend counts it as a payload start (§23.30).
+fn counted_refs_are_whole(pool: hd_types::Types<'_>, b: &hd_tir::ir::Body) -> bool {
     let counted = |t: Ty| matches!(pool.get(t), TyData::Ref { counted: true, .. });
-    for i in 0..b.tags.len() {
-        let TyData::Ref {
-            inner,
-            mutable,
-            counted: was,
-        } = pool.get(b.ty[i])
-        else {
-            continue;
-        };
-        if b.tags[i] != Tag::Ref {
-            continue;
-        }
-        let whole = b
-            .decode_place(b.data[i][0])
-            .is_some_and(|p| match (p.root, &p.proj[..]) {
-                (PlaceRoot::Local(_) | PlaceRoot::Value(_), []) => true,
-                (PlaceRoot::Local(l), [Proj::Deref]) => counted(b.local_ty[l.idx()]),
-                (PlaceRoot::Value(v), [Proj::Deref]) => {
-                    v.as_inst().is_some_and(|v| counted(b.ty[v.0 as usize]))
-                }
-                _ => false,
-            })
-            && b.data[i][1] & hd_tir::ir::ref_word::LOCAL == 0;
-        if whole != was {
-            b.ty[i] = pool.intern_ty(&TyData::Ref {
-                inner,
-                mutable,
-                counted: whole,
-            });
-        }
-    }
+    (0..b.tags.len()).all(|i| {
+        b.tags[i] != Tag::Ref
+            || !counted(b.ty[i])
+            || b.decode_place(b.data[i][0])
+                .is_some_and(|p| match (p.root, &p.proj[..]) {
+                    (PlaceRoot::Local(_) | PlaceRoot::Value(_), []) => true,
+                    (PlaceRoot::Local(l), [Proj::Deref]) => counted(b.local_ty[l.idx()]),
+                    (PlaceRoot::Value(v), [Proj::Deref]) => {
+                        v.as_inst().is_some_and(|v| counted(b.ty[v.0 as usize]))
+                    }
+                    _ => false,
+                })
+    })
 }

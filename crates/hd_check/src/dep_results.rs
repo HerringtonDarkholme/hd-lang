@@ -1090,30 +1090,14 @@ impl Inputs<'_> {
 }
 
 /// The type of argument `a` as a source argument. The address a call
-/// takes for a `&self` or `&mut self` receiver is counted, but the call
-/// lends it as a local reference, so it has the type of the explicit `&x`
-/// or `&mut x` it stands for (`fn.method.auto-address`,
-/// `ref.dep.origin.place`).
-fn arg_ty(pool: Types<'_>, b: &Body, a: u32) -> Option<Ty> {
+/// takes for a `&self` or `&mut self` receiver is already the local
+/// reference the explicit `&x` or `&mut x` would be
+/// (`fn.method.auto-address`, `ref.dep.origin.place`).
+fn arg_ty(b: &Body, a: u32) -> Option<Ty> {
     if a & hd_tir::ir::Ref::CONST_BIT != 0 {
         return None;
     }
-    let t = *b.ty.get(a as usize)?;
-    if b.tags[a as usize] == Tag::Ref
-        && b.data[a as usize][1] & hd_tir::ir::ref_word::LOCAL != 0
-        && let TyData::Ref {
-            inner,
-            mutable,
-            counted: true,
-        } = pool.get(t)
-    {
-        return Some(pool.intern_ty(&TyData::Ref {
-            inner,
-            mutable,
-            counted: false,
-        }));
-    }
-    Some(t)
+    b.ty.get(a as usize).copied()
 }
 
 /// The type of argument `a` for a parameter of type `decl`: its source
@@ -1122,7 +1106,7 @@ fn arg_ty(pool: Types<'_>, b: &Body, a: u32) -> Option<Ty> {
 /// and a trait value given for `&Self` or `&T` is lent as a reference to
 /// it, its own slot and its lifetime arguments' apart (`ref.dep.trait`).
 fn call_arg_ty(pool: Types<'_>, b: &Body, a: u32, decl: Ty) -> Option<Ty> {
-    let t = arg_ty(pool, b, a)?;
+    let t = arg_ty(b, a)?;
     if let TyData::Ref {
         counted: false,
         mutable,
@@ -1271,7 +1255,7 @@ impl Ck<'_, '_> {
         let receiver = (tag == Tag::CallDyn).then(|| b.data[i][0]);
         slots(b, i, |_, v, word| {
             let arg = matches!(word, Word::Value(Role::Arg(_)));
-            if (arg || receiver == Some(v)) && arg_ty(pool, b, v).is_some_and(|t| ls.holds(t)) {
+            if (arg || receiver == Some(v)) && arg_ty(b, v).is_some_and(|t| ls.holds(t)) {
                 holds = true;
                 held |= arg && ls.holds(b.ty[v as usize]);
             }
@@ -1306,7 +1290,7 @@ impl Ck<'_, '_> {
                 else {
                     return None;
                 };
-                let t = source_arg(b, i, 0).and_then(|a| arg_ty(pool, b, a))?;
+                let t = source_arg(b, i, 0).and_then(|a| arg_ty(b, a))?;
                 (
                     Some(method),
                     Some(*owner),

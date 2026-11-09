@@ -154,15 +154,12 @@ impl Ck<'_, '_> {
             let rty = pool.intern_ty(&TyData::Ref {
                 inner,
                 mutable: true,
-                counted: true,
+                counted: false,
             });
             // A `&mut self` receiver's address, which never outlives the
             // `dispose` call (`ref_word::LOCAL`).
             let r = self.make_ref(&place, true, rty, s);
-            if let Some(i) = r.as_inst() {
-                self.b.body_mut().data[i.0 as usize][1] |= hd_tir::ir::ref_word::LOCAL;
-            }
-            r
+            self.local_receiver(r)
         };
         let none = Args {
             positional: Vec::new(),

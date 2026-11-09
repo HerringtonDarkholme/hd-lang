@@ -413,9 +413,9 @@ pub enum TyData {
     /// all four, as `ref.type.kinds` groups them; each kind is its own pool
     /// tag, so the kinds stay distinct types (`ref.type.distinct`,
     /// `ref.type.kind-distinct`). [`Types::lower_refs`] turns each kind into
-    /// its own carrier ([`RefCells`]). After checking, `counted` also says
-    /// the address is a payload start: the checker's `lower_body_refs` retypes a
-    /// `&x` of a whole object to `*T` or `*mut T`.
+    /// its own carrier ([`RefCells`]). A counted reference refers to a whole
+    /// object (`ref.box.object`), so its address is a payload start
+    /// (`crates/hd_wasm_linear/DESIGN.md` §23.30).
     Ref {
         inner: Ty,
         mutable: bool,
