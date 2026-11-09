@@ -688,25 +688,13 @@ impl Em<'_, '_, '_> {
 
     /// `a is b` (`expr.is.*`): two values refer to the same object.
     pub(super) fn is(&mut self, i: u32, a: u32, b: u32) -> StageResult<()> {
-        // `ref.identity.same-place`: two references compare the places
-        // they refer to, which are their addresses; two references to
-        // trait values compare their data.
-        let t = self.ty_of(a);
-        if matches!(self.kind(t), Kind::Ref { .. }) {
-            self.comp(a, 0)?;
-            self.comp(b, 0)?;
-            self.f.op(I::I32Eq);
-            return self.store(i);
-        }
-        // A boxed enum, a list, a map and a trait value's
-        // data are each one counted address first; a trait value that
-        // boxed a value compares its boxes (`ref.identity.same-place`).
-        let t = self.ty_of(a);
-        if !matches!(self.kind(t), Kind::Boxed)
-            && walk(self.pool(), self.env(), t).and_then(|w| w.single()) != Some(0)
-        {
-            return unsupported("identity of a value that is no object");
-        }
+        // Each operand's first word is its identity
+        // (`ref.identity.same-place`): a reference's is the address of the
+        // place it refers to, a counted object's its address, a trait
+        // value's its data, whose box a trait value that boxed a value
+        // compares. ruled out: any other operand. Checking types `is` only
+        // on references, counted objects and trait values
+        // (`expr.is.value-operand`, `identity-requires-references`).
         self.comp(a, 0)?;
         self.comp(b, 0)?;
         self.f.op(I::I32Eq);
