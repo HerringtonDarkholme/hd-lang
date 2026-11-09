@@ -137,6 +137,39 @@ fn static_bytes_and_vtables_are_shared_by_content() {
     assert_ne!(m.vtable(vec![host()]), v);
 }
 
+/// Cost Model (#1553): requesting n distinct vtables, then each again,
+/// compares O(n) tables, not one per earlier table, and a request for a
+/// table already built returns the first one.
+#[test]
+fn vtable_requests_compare_a_linear_number_of_tables() {
+    let mut m = Module::default();
+    let n = 5_000_u32;
+    let slot = |k: u32| {
+        Sym::Import(crate::module::Import::new(
+            "hd:T",
+            &format!("m{k}"),
+            &[],
+            &[],
+        ))
+    };
+    let first: Vec<usize> = (0..n).map(|k| m.vtable(vec![slot(k)])).collect();
+    assert_eq!(m.vtable_compares, 0, "distinct tables meet no equal hash");
+    for k in 0..n {
+        assert_eq!(m.vtable(vec![slot(k)]), first[k as usize]);
+    }
+    assert_eq!(
+        m.vtable_compares, n as usize,
+        "one comparison per repeated request"
+    );
+    // A reserved table filled with an existing table's content keeps the
+    // first table the one a later request finds.
+    let reserved = m.vtable_reserve();
+    let built = m.vtable(vec![slot(7)]);
+    let k = reserved.fill(&mut m, built);
+    assert_ne!(k, first[7]);
+    assert_eq!(m.vtable(vec![slot(7)]), first[7]);
+}
+
 /// Every runtime helper an instance or a vtable names is built, and the
 /// module with all of them validates: the panics, the buffer copy, the
 /// bump allocation, integer text, string equality, the forbidden-context

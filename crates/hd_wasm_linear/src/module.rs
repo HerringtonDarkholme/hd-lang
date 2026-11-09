@@ -1027,8 +1027,34 @@ impl ReservedVtable {
         } else if built != k {
             m.vtables[k] = m.vtables[built].clone();
         }
+        // `k` is now an unreserved table of that content: the index names
+        // the first one, as a scan from the start would find it. A table
+        // that moved into `k` from `built > k` is no longer there.
+        let hash = vtable_hash(&m.vtables[k]);
+        let at = m.vtable_at.entry(hash).or_insert(k);
+        *at = (*at).min(k);
         k
     }
+}
+
+/// A static vtable's slots, its direct supertraits' vtables and its drive
+/// slots ([`Module::vtable_full`]).
+type VTable = (Vec<SymId>, Vec<usize>, Vec<SymId>);
+
+/// The content hash [`Module::vtable_at`] indexes a vtable by.
+fn vtable_hash((slots, parents, drives): &VTable) -> Hash128 {
+    let mut h = hd_base::StableHasher::new("vtable");
+    for part in [slots, drives] {
+        h.u64(part.len() as u64);
+        for s in part {
+            h.u32(s.0);
+        }
+    }
+    h.u64(parents.len() as u64);
+    for p in parents {
+        h.u64(*p as u64);
+    }
+    h.finish()
 }
 
 /// The module under construction.
@@ -1055,7 +1081,15 @@ pub struct Module {
     data_at: BTreeMap<Vec<u8>, u32>,
     /// Static vtables: each one's slots, then the vtables of its direct
     /// supertraits, then async and blocking drive slots (§23.39), after the data.
-    vtables: Vec<(Vec<SymId>, Vec<usize>, Vec<SymId>)>,
+    vtables: Vec<VTable>,
+    /// The first unreserved vtable of each content hash (#1553): a
+    /// request looks its table up here and compares it with one table,
+    /// not with every table so far.
+    vtable_at: hd_base::HashMap<Hash128, usize>,
+    /// The vtable contents [`Module::vtable_full`] compared, which the
+    /// cost test counts.
+    #[cfg(test)]
+    pub vtable_compares: usize,
     /// Vtables [`Module::vtable_reserve`] holds for a table whose slots
     /// are still being built: no other table deduplicates into one.
     reserved_vtables: hd_base::HashSet<usize>,
@@ -1299,21 +1333,31 @@ impl Module {
 
     /// [`Module::vtable_with`] with the drive slots `drives` after the
     /// parents (§23.39).
+    ///
+    /// Cost: hashing the table, then at most one table comparison
+    /// ([`Module::vtable_at`]), so n requests do O(n) comparisons, as an
+    /// interner does; a scan of every earlier table made it O(n²) (#1553).
     pub fn vtable_full(&mut self, slots: Vec<Sym>, parents: Vec<usize>, drives: Vec<Sym>) -> usize {
         let v = (
             slots.into_iter().map(|s| self.symbols.intern(s)).collect(),
             parents,
             drives.into_iter().map(|s| self.symbols.intern(s)).collect(),
         );
-        if let Some(k) = self
-            .vtables
-            .iter()
-            .enumerate()
-            .position(|(k, x)| *x == v && !self.reserved_vtables.contains(&k))
-        {
-            return k;
+        let hash = vtable_hash(&v);
+        if let Some(&k) = self.vtable_at.get(&hash) {
+            #[cfg(test)]
+            {
+                self.vtable_compares += 1;
+            }
+            // A 128-bit collision keeps its own table, unindexed.
+            if self.vtables[k] == v {
+                return k;
+            }
+            self.vtables.push(v);
+            return self.vtables.len() - 1;
         }
         self.vtables.push(v);
+        self.vtable_at.insert(hash, self.vtables.len() - 1);
         self.vtables.len() - 1
     }
 
@@ -2124,7 +2168,7 @@ impl Module {
         let mut code = CodeSection::new();
         let mut names = NameMap::new();
         let mut lines: Vec<(u32, Vec<(u32, u32)>)> = Vec::new();
-        let (mut frames, mut paths) = (Vec::new(), Vec::new());
+        let (mut frames, mut paths) = (Vec::new(), Paths::default());
         for im in &imports {
             names.append(
                 index[&self.symbols.intern(Sym::Import(im.clone()))],
@@ -2727,8 +2771,8 @@ impl Module {
         }
         // Last, so that `hd build`, which resolves the frames into
         // `hd.positions`, can cut it off.
-        if !paths.is_empty() {
-            module.section(&inlined_frames(&frames, &paths));
+        if !paths.list.is_empty() {
+            module.section(&inlined_frames(&frames, &paths.list));
         }
         Ok((
             crate::MappedModule {
@@ -2830,7 +2874,7 @@ fn reach(
     all: &[(String, u32, u32)],
     map: &mut [Option<u32>],
     kept: &mut Vec<[u32; 3]>,
-    paths: &mut Vec<String>,
+    paths: &mut Paths,
 ) -> u32 {
     let k = (a & !hd_tir::ir::INLINED) as usize;
     if a & hd_tir::ir::INLINED == 0 {
@@ -2840,14 +2884,35 @@ fn reach(
     }
     let (path, inst, parent) = &all[k];
     let parent = reach(*parent, all, map, kept, paths);
-    let p = paths.iter().position(|x| x == path).unwrap_or_else(|| {
-        paths.push(path.clone());
-        paths.len() - 1
-    });
-    kept.push([u32::try_from(p).expect("paths"), *inst, parent]);
+    let p = paths.index(path);
+    kept.push([p, *inst, parent]);
     let n = u32::try_from(kept.len() - 1).expect("frames");
     map[k] = Some(n);
     hd_tir::ir::INLINED | n
+}
+
+/// The `hd.inlined` section's callee paths, each once, with each one's
+/// index (#1553): a frame finds its path by hash, not by a scan of every
+/// path so far.
+#[derive(Default)]
+struct Paths {
+    list: Vec<String>,
+    at: hd_base::HashMap<String, u32>,
+}
+
+impl Paths {
+    fn index(&mut self, path: &str) -> u32 {
+        if let Some(&p) = self.at.get(path) {
+            return p;
+        }
+        // ruled out: 2^32 callee paths. Each is a distinct inlined item's
+        // path, and a Wasm module holds fewer than 2^32 functions.
+        let p = u32::try_from(self.list.len())
+            .expect("ruled out: fewer inlined callee paths than a module has functions");
+        self.list.push(path.to_owned());
+        self.at.insert(path.to_owned(), p);
+        p
+    }
 }
 
 /// The `hd.names` section of a release build (`crates/hd_wasm_linear/DESIGN.md`
