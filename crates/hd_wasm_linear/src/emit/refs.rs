@@ -1248,10 +1248,10 @@ impl Em<'_, '_, '_> {
     /// `RefIdentity` `i` of reference `r` (std's `RefIdentity`): no base
     /// object, the address as the serial and no key, so two references
     /// share an identity exactly when they share an address.
+    /// ruled out: another layout. std declares `RefIdentity`
+    /// (lib/std/cmp.hd) as `base: *dyn Any`, `serial: i64`, `key: string`:
+    /// a trait value's two words, an `i64`, then a string's two words.
     pub(super) fn ref_identity(&mut self, i: u32, r: u32) -> StageResult<()> {
-        if self.vals(self.ty(i))? != [Val::I32, Val::I32, Val::I64, Val::I32, Val::I32] {
-            return unsupported("a reference identity of an unexpected layout");
-        }
         self.f.i32(0);
         self.f.i32(0);
         self.comp(r, 0)?;
