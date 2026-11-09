@@ -3603,9 +3603,8 @@ impl Em<'_, '_, '_> {
         // `.Some(ordering)`, whose one payload leaf is the ordering's
         // tag, or, for a NaN operand, `.None`.
         let layout = self.flat(self.ty(i))?;
-        let (first, some, n) = crate::layout::variant_steps(&layout, 1);
-        let (_, none, _) = crate::layout::variant_steps(&layout, 0);
-        let tmps: Vec<u32> = (0..n).map(|_| self.f.local(Val::I64)).collect();
+        let some = crate::layout::variant_steps(&layout, 1);
+        let none = crate::layout::variant_steps(&layout, 0);
         let ordered = if float {
             let some = self.f.local(Val::I32);
             self.prim_value(PrimOp::Eq, &[ops[0], ops[0]], Ty::BOOL)?;
@@ -3620,15 +3619,13 @@ impl Em<'_, '_, '_> {
             em.f.get(tag);
             Ok(())
         };
-        let mut no_cell = |_: &mut Self, _: u32| Ok(());
-        self.run_steps(&first, &mut no_cell, &mut leaf, &tmps)?;
-        let cells = &layout.mem.leaves;
+        let values = &layout.mem.leaves;
         for (c, (s, n)) in some.iter().zip(&none).enumerate() {
-            let s = crate::layout::cell_or_zero(cells, c, s.as_ref());
-            self.run_steps(&s, &mut no_cell, &mut leaf, &tmps)?;
+            let s = crate::layout::value_or_zero(values, c, s.as_ref());
+            self.run_steps(&s, &mut leaf)?;
             if let Some(ordered) = ordered {
-                let n = crate::layout::cell_or_zero(cells, c, n.as_ref());
-                self.run_steps(&n, &mut no_cell, &mut leaf, &tmps)?;
+                let n = crate::layout::value_or_zero(values, c, n.as_ref());
+                self.run_steps(&n, &mut leaf)?;
                 self.f.get(ordered);
                 self.f.op(I::Select);
             }

@@ -268,14 +268,10 @@ fn ref_slots_at(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, depth: usize) ->
         let Ok(flat) = flat(pool, env, t) else {
             return Vec::new();
         };
-        // A reference is a whole cell ([`crate::layout::Pick::cell`]).
         return ref_slots_at(pool, env, inner, depth + 1)
             .into_iter()
             .filter_map(|(slot, ty)| {
-                Some((
-                    flat.positions.get(1)?.first()?.get(slot)?.cell() as usize,
-                    ty,
-                ))
+                Some((*flat.positions.get(1)?.first()?.get(slot)? as usize, ty))
             })
             .collect();
     }
@@ -336,7 +332,7 @@ fn projection_slots(
                     .get(case as usize)?
                     .get(field as usize)?
                     .iter()
-                    .map(|p| p.cell() as usize)
+                    .map(|&p| p as usize)
                     .collect();
                 ty = *all.get(case as usize)?.get(field as usize)?;
                 slots = at.iter().map(|&slot| slots[slot]).collect();
@@ -679,9 +675,7 @@ fn value_binds_at(
                     )
                     .into_iter()
                     // A loan's holder is a reference, a whole cell.
-                    .filter_map(|(slot, bind, loan)| {
-                        Some((slots.get(slot)?.cell() as usize, bind, loan))
-                    })
+                    .filter_map(|(slot, bind, loan)| Some((*slots.get(slot)? as usize, bind, loan)))
                 })
                 .collect()
         }

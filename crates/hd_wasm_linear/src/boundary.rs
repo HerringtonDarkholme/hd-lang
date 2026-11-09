@@ -1561,11 +1561,9 @@ pub fn enc(b: &LTy, m: &Module) -> Func {
         }
         LTy::Enum(e) => {
             let flat = &e.layout;
-            let cell = |f: &mut Func, c: u32| f.get(1 + c);
             let tag = |f: &mut Func| {
-                if let Some((l, p)) = flat.tag {
-                    let steps = layout::read_steps(&flat.mem.leaves, l, p);
-                    layout::run_steps(f, &steps, &cell, &|_, _, _| {}, &[]);
+                if let Some((_, k)) = flat.tag {
+                    f.get(1 + k);
                 } else {
                     // A nullable enum's variant 1 is a non-null address.
                     f.get(1);
@@ -1587,9 +1585,8 @@ pub fn enc(b: &LTy, m: &Module) -> Func {
                 f.op(I::If(BlockType::Empty));
                 for (fi, fb) in fields.iter().enumerate() {
                     enc_call(&mut f, 0, fb, |f| {
-                        for (l, p) in flat.leaves[v][fi].iter().zip(&flat.positions[v][fi]) {
-                            let steps = layout::read_steps(&flat.mem.leaves, *l, *p);
-                            layout::run_steps(f, &steps, &cell, &|_, _, _| {}, &[]);
+                        for &k in &flat.positions[v][fi] {
+                            f.get(1 + k);
                         }
                     });
                 }
@@ -1824,11 +1821,11 @@ pub fn dec(b: &LTy, m: &mut Module) -> Func {
             f.op(I::If(BlockType::Empty));
             malformed(&mut f);
             f.op(I::End);
-            // A variant with no payload values is its tag, at byte 0 of
-            // its cell, the rest zero; the others build every cell.
-            if let Some((_, p)) = flat.tag {
+            // A variant with no payload values is its tag, the rest zero;
+            // the others build every value.
+            if let Some((_, k)) = flat.tag {
                 f.get(tag);
-                f.set(res[p.cell() as usize]);
+                f.set(res[k as usize]);
             }
             for (v, fields) in (0u32..).zip(&e.variants) {
                 if fields.iter().all(|fb| fb.vals().is_empty()) {
@@ -1839,23 +1836,15 @@ pub fn dec(b: &LTy, m: &mut Module) -> Func {
                 f.op(I::I32Eq);
                 f.op(I::If(BlockType::Empty));
                 let ls: Vec<Vec<u32>> = fields.iter().map(|fb| dec_into(&mut f, 0, fb)).collect();
-                let (first, cells, n) = layout::variant_steps(flat, v);
-                let tmps: Vec<u32> = (0..n).map(|_| f.local(Val::I64)).collect();
+                let values = layout::variant_steps(flat, v);
                 let leaf = |f: &mut Func, fi: usize, k: usize| f.get(ls[fi][k]);
-                layout::run_steps(&mut f, &first, &|_, _| {}, &leaf, &tmps);
-                // A cell the variant leaves unused stays zero, as its
-                // local starts, and the tag's cell holds the tag already
-                // unless the variant has leaves there too.
-                for (c, (steps, r)) in (0u32..).zip(cells.iter().zip(&res)) {
-                    let tag_alone = flat.tag.is_some_and(|(_, p)| p.cell() == c)
-                        && matches!(
-                            steps.as_deref(),
-                            Some([layout::Step::Op(I::I32Const(k))]) if i64::from(*k) == i64::from(v)
-                        );
+                // A value the variant leaves zero stays zero, as its local
+                // starts, and the tag's holds the tag already.
+                for (c, (steps, r)) in (0u32..).zip(values.iter().zip(&res)) {
                     if let Some(steps) = steps
-                        && !tag_alone
+                        && flat.tag.is_none_or(|(_, k)| k != c)
                     {
-                        layout::run_steps(&mut f, steps, &|_, _| {}, &leaf, &tmps);
+                        layout::run_steps(&mut f, steps, &leaf);
                         f.set(*r);
                     }
                 }

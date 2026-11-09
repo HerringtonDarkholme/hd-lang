@@ -794,8 +794,7 @@ pub fn step(m: &Module, entry: &Entry, item: &crate::layout::Flat) -> Func {
     let (i, end, at) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
     let out: Vec<u32> = results.iter().map(|v| f.local(*v)).collect();
     let elems: Vec<u32> = entry.leaves.iter().map(|l| f.local(l.val)).collect();
-    let (first, cells, n) = crate::layout::variant_steps(item, 1);
-    let tmps: Vec<u32> = (0..n).map(|_| f.local(Val::I64)).collect();
+    let values = crate::layout::variant_steps(item, 1);
     load_u32(&mut f, 0, 0);
     f.set(t);
     load_u32(&mut f, t, CAP);
@@ -832,11 +831,10 @@ pub fn step(m: &Module, entry: &Entry, item: &crate::layout::Flat) -> Func {
     }
     // The payload's one field, the `(usize, (K, V))` tuple.
     let leaf = |f: &mut Func, _: usize, k: usize| f.get(if k == 0 { i } else { elems[k - 1] });
-    crate::layout::run_steps(&mut f, &first, &|_, _| {}, &leaf, &tmps);
-    // A cell `.Some` leaves unused stays zero, as its local starts.
-    for (steps, x) in cells.iter().zip(&out) {
+    // A value `.Some` leaves zero stays zero, as its local starts.
+    for (steps, x) in values.iter().zip(&out) {
         if let Some(steps) = steps {
-            crate::layout::run_steps(&mut f, steps, &|_, _| {}, &leaf, &tmps);
+            crate::layout::run_steps(&mut f, steps, &leaf);
             f.set(*x);
         }
     }

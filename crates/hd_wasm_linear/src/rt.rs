@@ -2255,10 +2255,7 @@ pub(crate) fn walk_code(
                 let Some(arm) = arm else {
                     continue;
                 };
-                get(f, tag.cell);
-                for op in tag.read() {
-                    f.op(op);
-                }
+                get(f, *tag);
                 f.u32(u32::try_from(v).expect("variants"));
                 f.op(Instruction::I32Eq);
                 f.op(Instruction::If(BlockType::Empty));

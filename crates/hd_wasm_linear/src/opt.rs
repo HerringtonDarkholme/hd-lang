@@ -4211,7 +4211,7 @@ mod origin_tests {
                     Sym::Helper(Helper::Release {
                         vals: vec![Val::I32, Val::I32],
                         walk: crate::layout::Walk::Switch(
-                            crate::layout::Discr::whole(0),
+                            0,
                             vec![None, Some(crate::layout::Walk::Ref(1))],
                         ),
                     }),

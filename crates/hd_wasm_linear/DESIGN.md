@@ -220,7 +220,7 @@ type in every position; aggregate values are inline in memory.
 | --- | --- | --- |
 | integers, `bool`, `char`, floats | the scalar | packed: 1 byte for `bool`, `i8`, `u8`; 2 for 16-bit integers; 4 or 8 otherwise, aligned to its size |
 | struct, tuple | its fields' values, flattened, in declaration order (Wasm multi-value) | its fields inline, ordered as rustc's `univariant` orders them (largest alignment group first), each at its alignment; the struct aligned to its widest field |
-| enum | its cells: one Wasm value per 4- or 8-byte word of its memory layout, a bit container where variants disagree on a word (`layout::Flat`) | rustc's tagged layout: the tag, the smallest integer that counts the variants widened to the payloads' smallest first-field alignment, then each payload as one struct at one offset, small fields first |
+| enum | one Wasm value per distinct leaf of its variants, shared where two variants have the same leaf at the same offset (`layout::Flat`) | rustc's tagged layout: the tag, the smallest integer that counts the variants widened to the payloads' smallest first-field alignment, then each payload as one struct at one offset, small fields first |
 | self-recursive enum (today's language) | the address of a counted cell holding the enum value | the address |
 | `T?` of a reference `T` | the address; 0 is `.None` | 4 bytes |
 | `T?` of another `T` | as an enum with one payload | as an enum |
@@ -527,18 +527,14 @@ lowers their instructions.
   tag, then each variant's payload as one struct at one offset
   (`layout::Flat`), as rustc lays out a tagged enum: a `&` or `&mut` to a
   payload field is the enum's address plus the field's offset. In locals,
-  the enum is its cells, one Wasm value per word of that memory: an 8-byte
-  word whose every leaf is 8 bytes at its start is one 64-bit cell, any
-  other word 4 bytes (or the 2 or 1 left at the end). A word one leaf alone
-  fills is that leaf; a word variants disagree on is an `i32` bit
-  container, from which a payload read shifts and masks its leaf (an `i64`
-  or `f64` leaf over two such words joins their halves), and into which a
-  construction ors it (`layout::read_steps`, `layout::variant_steps`). So
-  a load, a store or a copy is one per cell, with no branch on the tag. A
-  cell's bits outside its variant's leaves are zero. Every 4-byte `i32`
-  leaf at a 4-aligned offset, so every counted address, is a whole cell: a
-  count walk reads cells, never bits. The tag is a [`layout::Discr`] in
-  its cell.
+  one Wasm value per distinct leaf of every variant, never two leaves in
+  one value (owner, 2026-11-08): a `u8?` is two values, as Rust's scalar
+  pair. Variants share a value where they have the same leaf at the same
+  offset. A value the taken variant does not use holds the bytes that
+  variant puts there, as a load from memory gives it
+  (`layout::variant_steps`), so the values store in any order and a load,
+  a store or a copy is one per value, with no branch on the tag. Every
+  counted address is a whole value.
 
 ### 23.15 String Emission And Host Primitives
 

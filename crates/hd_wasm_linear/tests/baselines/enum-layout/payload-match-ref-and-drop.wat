@@ -13,7 +13,7 @@
     local.get $r.3
     call $rt:release
   )
-  (func $area (param $s i32) (result f64) (local $r f64) (local $a i32) (local $b i32) (local $c i32) (local $h f64) (local $t0 i64)
+  (func $area (param $s i32) (result f64) (local $t0 f64) (local $a i32) (local $b i32) (local $r f64) (local $c i32) (local $h f64) (local $t1 i64)
     ;; 18 |     match s:
     block
       block
@@ -29,25 +29,19 @@
                 local.get $s
                 i32.load $heap offset=8
                 local.get $s
+                f64.load $heap offset=8
+                local.get $s
                 i32.load $heap offset=12
                 local.get $s
                 f64.load $heap offset=16
                 local.set $h
                 local.set $c
+                local.set $r
                 local.set $b
                 local.set $a
                 local.tee $s
                 i32.eqz
                 if
-                  local.get $b
-                  i64.extend_i32_u
-                  local.get $c
-                  i64.extend_i32_u
-                  i64.const 32
-                  i64.shl
-                  i64.or
-                  f64.reinterpret_i64
-                  local.set $r
                   br 1
                 else
     ;; 20 |         .Rect(w, h) => w * h
@@ -55,15 +49,6 @@
                   i32.const 1
                   i32.eq
                   if
-                    local.get $b
-                    i64.extend_i32_u
-                    local.get $c
-                    i64.extend_i32_u
-                    i64.const 32
-                    i64.shl
-                    i64.or
-                    f64.reinterpret_i64
-                    local.set $r
                     br 3
                   else
     ;; 21 |         .Tri(a, b, c) => f64(a + b + c)
@@ -95,7 +80,7 @@
               local.get $r
               f64.mul
     ;; 18 |     match s:
-              local.set $r
+              local.set $t0
               br 3
             end
     ;; 20 |         .Rect(w, h) => w * h
@@ -103,7 +88,7 @@
             local.get $h
             f64.mul
     ;; 18 |     match s:
-            local.set $r
+            local.set $t0
             br 2
           end
     ;; 21 |         .Tri(a, b, c) => f64(a + b + c)
@@ -112,10 +97,10 @@
           local.get $b
           i64.extend_i32_s
           i64.add
-          local.tee $t0
+          local.tee $t1
           i64.const 2147483647
           i64.gt_s
-          local.get $t0
+          local.get $t1
           i64.const -2147483648
           i64.lt_s
           i32.or
@@ -123,16 +108,16 @@
             call $rt:panic
             unreachable
           end
-          local.get $t0
+          local.get $t1
           i32.wrap_i64
           i64.extend_i32_s
           local.get $c
           i64.extend_i32_s
           i64.add
-          local.tee $t0
+          local.tee $t1
           i64.const 2147483647
           i64.gt_s
-          local.get $t0
+          local.get $t1
           i64.const -2147483648
           i64.lt_s
           i32.or
@@ -140,17 +125,17 @@
             call $rt:panic
             unreachable
           end
-          local.get $t0
+          local.get $t1
           i32.wrap_i64
           f64.convert_i32_s
     ;; 18 |     match s:
-          local.set $r
+          local.set $t0
           br 1
         end
         br 0
       end
     end
-    local.get $r
+    local.get $t0
   )
   (func $is_some (param $v i32) (result i32) (local $t0 i32)
     ;; 43 |     match v:
@@ -216,7 +201,7 @@
     end
     local.get $r
   )
-  (func $width (param $s i32) (result f64) (local $w f64) (local $t0 i32)
+  (func $width (param $s i32) (result f64) (local $w f64) (local $t0 f64)
     ;; 25 |     match s:
     block
       block
@@ -230,22 +215,15 @@
             local.get $s
             i32.load $heap offset=8
             local.get $s
-            i32.load $heap offset=12
+            f64.load $heap offset=8
             local.set $t0
-            local.set $s
+            drop
             drop
             i32.const 1
             i32.eq
             i32.eqz
             br_if 1
-            local.get $s
-            i64.extend_i32_u
             local.get $t0
-            i64.extend_i32_u
-            i64.const 32
-            i64.shl
-            i64.or
-            f64.reinterpret_i64
             local.set $w
             br 0
     ;; 25 |     match s:
