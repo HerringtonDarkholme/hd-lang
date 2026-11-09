@@ -563,28 +563,29 @@ impl Em<'_, '_, '_> {
     /// Makes the table in `m` unique before returning a mutable value
     /// reference. Entry numbers and a miss probe survive this copy.
     fn map_probe_unique(&mut self, i: u32, m: u32, entry: &Entry) {
-        let reason = hd_tir::own::Reason::MayBeShared;
-        // ruled out: own::map_probe_unique states three-argument probes' action
-        // with reason 5; own::counts verifies that exact adjacent descriptor.
-        debug_assert_eq!(
-            self.operation_count(i, Tag::MakeUnique, Part::Operand(0)),
-            Some(reason)
+        let reason = self.operation_count(i, Tag::MakeUnique, Part::Operand(0));
+        // ruled out: own::map_probe_unique states each three-argument probe's action.
+        assert!(
+            reason.is_some(),
+            "own::map_probe_unique must state the probe's MakeUnique/Operand(0) action"
         );
-        self.because(reason, |em| {
-            em.f.get(m);
-            em.f.u32(HEADER);
-            em.f.op(I::I32Sub);
-            em.f.op(I::I32Load(mem(HEAP, 0, 2)));
-            em.f.i32(1);
-            em.f.op(I::I32Ne);
-            em.f.op(I::If(BlockType::Empty));
-            em.f.get(m);
-            em.f.helper(Helper::MapUnique {
-                entry: entry.clone(),
+        if let Some(reason) = reason {
+            self.because(reason, |em| {
+                em.f.get(m);
+                em.f.u32(HEADER);
+                em.f.op(I::I32Sub);
+                em.f.op(I::I32Load(mem(HEAP, 0, 2)));
+                em.f.i32(1);
+                em.f.op(I::I32Ne);
+                em.f.op(I::If(BlockType::Empty));
+                em.f.get(m);
+                em.f.helper(Helper::MapUnique {
+                    entry: entry.clone(),
+                });
+                em.f.set(m);
+                em.f.op(I::End);
             });
-            em.f.set(m);
-            em.f.op(I::End);
-        });
+        }
     }
 
     /// Stores a probe's changed table through its map reference.
