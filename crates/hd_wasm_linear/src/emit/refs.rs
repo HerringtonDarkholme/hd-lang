@@ -606,9 +606,7 @@ impl Em<'_, '_, '_> {
             let x = bare_local(self.b, self.b.data[i as usize][0]);
             // ruled out: moves excludes frame locals; storage::slots requires
             // local frame references, whose local count cannot be taken.
-            if self.slots.contains_key(&x) {
-                return unsupported("a reference that takes a frame slot's local");
-            }
+            debug_assert!(!self.slots.contains_key(&x));
             let fat = self.ref_target(self.ty(i)).is_some_and(|(_, f)| f);
             if self.is_cell(x) && !fat {
                 let at = self.cell_of(x)?;
@@ -628,11 +626,9 @@ impl Em<'_, '_, '_> {
     fn promoted_take(&mut self, i: u32) -> StageResult<()> {
         // ruled out: moves::take marks only whole locals, encoded BARE_LOCAL.
         let x = bare_local(self.b, self.b.data[i as usize][0]);
-        // ruled out: promote::lent_ref rejects captures and other addresses
+        // ruled out: own::promote::lent_ref rejects captures and other addresses
         // for TAKES; stored_locals omits its sole promoted address.
-        if self.is_cell(x) || self.slots.contains_key(&x) {
-            return unsupported("a promoted reference that takes a cell's local");
-        }
+        debug_assert!(!self.is_cell(x) && !self.slots.contains_key(&x));
         let ls = self.local(u32::try_from(x).expect("locals"))?;
         for &v in &ls {
             self.f.get(v);
@@ -843,12 +839,14 @@ impl Em<'_, '_, '_> {
                     self.f.get(*l);
                 }
             }
-            // ruled out: storage::run gives addressed mutable locals cells
-            // or slots; the checker gives a mutable rvalue a local too.
-            At::Vals(_) if crate::layout::ref_mutable(self.pool(), self.env(), self.ty(i)) => {
-                return unsupported("a `&mut` to a local that lives in no cell");
-            }
             At::Vals(ls) => {
+                // ruled out: storage::run gives addressed mutable locals cells
+                // or slots; the checker gives a mutable rvalue a local too.
+                debug_assert!(!crate::layout::ref_mutable(
+                    self.pool(),
+                    self.env(),
+                    self.ty(i)
+                ));
                 // A local no cell holds, as a closure's copy of what it
                 // captured, which never changes: the reference is to a new
                 // object holding a copy (`ref.expr.allocate`).
@@ -1161,13 +1159,12 @@ impl Em<'_, '_, '_> {
     ) -> StageResult<Option<(At, Ty)>> {
         let tag = self.b.tags[i as usize];
         let t = self.at_root_ty(p.root);
+        let rooted = self.rooted_at(i);
+        // ruled out: rooted stores have an Elem/Deref; the checker
+        // borrows a pattern payload rather than storing a Variant path.
+        debug_assert!(tag != Tag::Store || !rooted || last.is_some());
         let at = match (p.root, last) {
-            // ruled out: rooted stores have an Elem/Deref; the checker
-            // borrows a pattern payload rather than storing a Variant path.
-            (_, None) if tag == Tag::Store && self.rooted_at(i) => {
-                return unsupported("a store into a place in no memory");
-            }
-            _ if self.rooted_at(i) => return Ok(None),
+            _ if rooted => return Ok(None),
             (PlaceRoot::Value(r), Some((0, _)))
                 if tag != Tag::Ref && matches!(p.proj[0], Proj::Elem(_)) =>
             {
@@ -1204,11 +1201,13 @@ impl Em<'_, '_, '_> {
                 self.note_stored(h, t, Some((slot, m.leaves)))?;
                 return self.at_root(p.root).map(Some);
             }
-            // ruled out: address_globals reserves every Ref's global root.
-            (PlaceRoot::Global(def, _), None) if self.def_slot(def).is_none() => {
-                return unsupported("a top-level binding without its static slot");
+            (root, None) if tag == Tag::Ref => {
+                // ruled out: address_globals reserves every Ref's global root.
+                debug_assert!(
+                    !matches!(root, PlaceRoot::Global(def, _) if self.def_slot(def).is_none())
+                );
+                return self.at_root(root).map(Some);
             }
-            (root, None) if tag == Tag::Ref => return self.at_root(root).map(Some),
             // ruled out: checked stores address a local/global or go
             // through a reference/element; inst_tag handles raw pointers.
             _ => return unsupported("a store into a place that is not writable"),
