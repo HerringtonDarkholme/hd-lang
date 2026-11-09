@@ -7,7 +7,8 @@
 //! module's top level reports it on the module, a test case on its
 //! registration, and a fact list on the decorated item. A header goal (a
 //! signature or field bound) that runs out reports it on its item too,
-//! never counting the goal as proved.
+//! never counting the goal as proved. Generated error and forwarding
+//! methods use the same boundary, including newtype derivation analysis.
 
 use hd_diag::Code;
 use hd_driver::{Executor, Goal, Host, NoClock, Packages, build_packages};
@@ -113,6 +114,45 @@ fn a_long_default_is_too_complex() {
         long_sum(100)
     );
     assert_eq!(diags(&main, Some(FUEL)), vec![(Code::ItemTooComplex, 1)]);
+}
+
+#[test]
+fn a_long_generated_error_message_is_too_complex_on_its_type() {
+    let main = format!(
+        "@error(\"value ${{{}}}\")\nstruct Failure:\n    code: i32\n\npub fn main() -> void:\n    pass\n",
+        long_sum(100)
+    );
+    assert_eq!(diags(&main, Some(FUEL)), vec![(Code::ItemTooComplex, 1)]);
+    assert_eq!(diags(&main, None), vec![]);
+}
+
+const FORWARDER: &str = "trait Read:\n    fn read(&self) -> i32\n\nstruct Part:\n    value: i32\n\nimpl Read for Part:\n    fn read(&self) -> i32: self.value\n\n";
+
+#[test]
+fn a_delegated_method_reports_exhausted_fuel_as_item_too_complex() {
+    let main = format!(
+        "{FORWARDER}struct Whole:\n    Part\n\nimpl Read for Whole by Part\n\npub fn main() -> void:\n    pass\n"
+    );
+    assert_eq!(diags(&main, None), vec![]);
+    let errors = diags(&main, Some(0));
+    assert!(errors.contains(&(Code::ItemTooComplex, 13)), "{errors:?}");
+    assert!(
+        errors.iter().all(|&(code, _)| code == Code::ItemTooComplex),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn a_derived_newtype_reports_exhausted_fuel_as_item_too_complex() {
+    let main =
+        format!("{FORWARDER}@derive(Read)\ntype Whole(Part)\n\npub fn main() -> void:\n    pass\n");
+    assert_eq!(diags(&main, None), vec![]);
+    let errors = diags(&main, Some(0));
+    assert!(errors.contains(&(Code::ItemTooComplex, 10)), "{errors:?}");
+    assert!(
+        errors.iter().all(|&(code, _)| code == Code::ItemTooComplex),
+        "{errors:?}"
+    );
 }
 
 #[test]

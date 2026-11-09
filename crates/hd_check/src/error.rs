@@ -33,7 +33,7 @@ use hd_tir::ir::{BodyKind, NONE, Ref, Tag, TirSink, local_flags};
 use hd_types::solver::TraitRef;
 use hd_types::{ParamRef, RowId, Ty, TyData, TyList};
 
-use crate::body::{BodyCx, Ck, ExpectPosition, new_ck};
+use crate::body::{BodyCx, Ck, ExpectPosition, is_out_of_fuel, new_ck, too_complex};
 
 /// The error type a body is generated for.
 struct Target<'s, 't> {
@@ -104,7 +104,26 @@ pub fn error_bodies(
 
 impl Target<'_, '_> {
     /// The body of `g`'s method `method`, of the implementation `def`.
+    /// Fuel exhaustion is reported on the annotated type, as for a
+    /// written item's body (`fn.limit.complexity.error`).
     fn body(
+        &self,
+        cx: &BodyCx<'_>,
+        g: Generated,
+        def: DefId,
+        method: DefId,
+        sig: &FnSig,
+        diags: &mut DiagBuf,
+    ) -> StageResult<Body> {
+        match self.body_steps(cx, g, def, method, sig, diags) {
+            Err(e) if is_out_of_fuel(&e) => {
+                too_complex(cx, (method, BodyKind::Fn), self.shape.line, diags)
+            }
+            result => result,
+        }
+    }
+
+    fn body_steps(
         &self,
         cx: &BodyCx<'_>,
         g: Generated,

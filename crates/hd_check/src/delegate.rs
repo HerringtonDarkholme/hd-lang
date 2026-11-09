@@ -19,7 +19,7 @@ use hd_tir::ir::{BodyKind, Callee, TirSink, local_flags};
 use hd_types::solver::TraitRef;
 use hd_types::{ParamRef, Ty, TyData, TyList, with_assoc_args};
 
-use crate::body::{BodyCx, Ck, ExpectPosition, new_ck};
+use crate::body::{BodyCx, Ck, ExpectPosition, is_out_of_fuel, new_ck, too_complex};
 use crate::newtype::Conversion;
 
 /// A forwarder's part is an embedded field: [`forwarder_bodies`] makes no
@@ -141,7 +141,23 @@ pub(crate) enum Forwarded {
 }
 
 impl Forwarder<'_> {
+    /// Generated methods use the ordinary item-fuel diagnostic and poison
+    /// recovery, including the newtype derivation analysis that uses them.
     pub(crate) fn body(
+        &self,
+        cx: &BodyCx<'_>,
+        sig: &FnSig,
+        node: NodeRef<'_>,
+        diags: &mut DiagBuf,
+    ) -> StageResult<Forwarded> {
+        match self.body_steps(cx, sig, node, diags) {
+            Err(e) if is_out_of_fuel(&e) => too_complex(cx, (self.def, BodyKind::Fn), node, diags)
+                .map(|body| Forwarded::Body(Box::new(body))),
+            result => result,
+        }
+    }
+
+    fn body_steps(
         &self,
         cx: &BodyCx<'_>,
         sig: &FnSig,
