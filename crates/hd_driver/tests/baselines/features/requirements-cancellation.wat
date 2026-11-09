@@ -574,14 +574,8 @@
           block
     ;; 16 |         .Finished => true
             local.get $key.1
-            i32.eqz
-            br_if 0
-    ;; 17 |         .Abandoned => false
-            local.get $key.1
-            i32.const 1
-            i32.eq
             br_if 1
-            unreachable
+            br 0
     ;; 15 |     match end:
             unreachable
           end

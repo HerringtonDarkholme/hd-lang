@@ -18,13 +18,8 @@
             block
               block
                 local.get $x.0
-                i32.eqz
-                br_if 0
-                local.get $x.0
-                i32.const 1
-                i32.eq
                 br_if 1
-                unreachable
+                br 0
                 unreachable
               end
               i32.const 1

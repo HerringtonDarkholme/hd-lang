@@ -39,36 +39,19 @@
                 local.set $r
                 local.set $b
                 local.set $a
-                local.tee $s
-                i32.eqz
-                if
-                  br 1
-                else
-    ;; 20 |         .Rect(w, h) => w * h
-                  local.get $s
-                  i32.const 1
-                  i32.eq
-                  if
-                    br 3
-                  else
-    ;; 21 |         .Tri(a, b, c) => f64(a + b + c)
-                    local.get $s
-                    i32.const 2
-                    i32.eq
-                    if
-                      br 5
-                    else
-    ;; 22 |         .Empty => 0.0
-                      local.get $s
-                      i32.const 3
-                      i32.eq
-                      br_if 6
-                      unreachable
-    ;; 21 |         .Tri(a, b, c) => f64(a + b + c)
+                local.set $s
+                block
+                  block
+                    block
+                      block
+                        local.get $s
+                        br_table 0 1 2 7 7
+                      end
+                      br 3
                     end
-    ;; 20 |         .Rect(w, h) => w * h
+                    br 3
                   end
-    ;; 19 |         .Circle(r) => 3.0 * r * r
+                  br 3
                 end
     ;; 18 |     match s:
                 unreachable
@@ -146,11 +129,7 @@
     ;; 44 |         .Some(_) => true
             local.get $v
             br_if 0
-    ;; 45 |         .None => false
-            local.get $v
-            i32.eqz
-            br_if 1
-            unreachable
+            br 1
     ;; 43 |     match v:
             unreachable
           end

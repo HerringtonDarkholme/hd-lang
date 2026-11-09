@@ -110,25 +110,14 @@
           block
             block
     ;; 13 |         .Completed(n) => n
-              local.get $s.1
-              i32.eqz
-              if
+              block
+                block
+                  local.get $s.1
+                  br_table 0 3 4 4
+                end
                 local.get $text.1
                 local.set $n
                 br 1
-              else
-    ;; 14 |         .Cancelled => 0
-                local.get $s.1
-                i32.const 1
-                i32.eq
-                br_if 2
-    ;; 15 |         .Abandoned => 0
-                local.get $s.1
-                i32.const 2
-                i32.eq
-                br_if 3
-                unreachable
-    ;; 13 |         .Completed(n) => n
               end
     ;; 12 |     match block_on(call):
               unreachable

@@ -12,45 +12,36 @@
     ;; 25 |         .Named(n) => n.len()
               local.get $s
               i32.load $heap
-              local.tee $a.1
-              i32.eqz
-              if
-                local.get $s
-                i32.load $heap offset=4
-                local.get $s
-                i32.load $heap offset=8
-                local.set $s
-                drop
-                br 1
-              else
-    ;; 26 |         .Pair(a, b) => a.len() + b.len()
-                local.get $a.1
-                i32.const 1
-                i32.eq
-                if
+              local.set $a.1
+              block
+                block
+                  block
+                    local.get $a.1
+                    br_table 0 1 5 5
+                  end
                   local.get $s
                   i32.load $heap offset=4
                   local.get $s
                   i32.load $heap offset=8
-                  local.get $s
-                  i32.load $heap offset=12
-                  local.get $s
-                  i32.load $heap offset=16
-                  local.set $b.1
+                  local.set $s
                   drop
-                  local.set $a.1
-                  drop
-                  br 3
-                else
-    ;; 27 |         .Empty => 0
-                  local.get $a.1
-                  i32.const 2
-                  i32.eq
-                  br_if 4
-                  unreachable
-    ;; 26 |         .Pair(a, b) => a.len() + b.len()
+                  br 2
                 end
+    ;; 26 |         .Pair(a, b) => a.len() + b.len()
+                local.get $s
+                i32.load $heap offset=4
+                local.get $s
+                i32.load $heap offset=8
+                local.get $s
+                i32.load $heap offset=12
+                local.get $s
+                i32.load $heap offset=16
+                local.set $b.1
+                drop
+                local.set $a.1
+                drop
     ;; 25 |         .Named(n) => n.len()
+                br 2
               end
     ;; 24 |     match s:
               unreachable
@@ -101,20 +92,16 @@
           block
             block
     ;; 13 |         .Named(n) => n.len()
-              local.get $s.0
-              i32.eqz
-              br_if 0
-    ;; 14 |         .Pair(a, b) => a.len() + b.len()
-              local.get $s.0
-              i32.const 1
-              i32.eq
-              br_if 1
-    ;; 15 |         .Empty => 0
-              local.get $s.0
-              i32.const 2
-              i32.eq
-              br_if 2
-              unreachable
+              block
+                block
+                  block
+                    local.get $s.0
+                    br_table 0 1 5 5
+                  end
+                  br 2
+                end
+                br 2
+              end
     ;; 12 |     match s:
               unreachable
             end
@@ -166,35 +153,25 @@
           block
             block
     ;; 19 |         .Named(n) => n
-              local.get $s.0
-              i32.eqz
-              if
-                local.get $s.1
-                local.get $s.2
-                local.set $n.1
-                local.set $s.0
-                br 1
-              else
-    ;; 20 |         .Pair(a, _) => a
-                local.get $s.0
-                i32.const 1
-                i32.eq
-                if
+              block
+                block
+                  block
+                    local.get $s.0
+                    br_table 0 1 5 5
+                  end
                   local.get $s.1
                   local.get $s.2
                   local.set $n.1
                   local.set $s.0
-                  br 3
-                else
-    ;; 21 |         .Empty => ""
-                  local.get $s.0
-                  i32.const 2
-                  i32.eq
-                  br_if 4
-                  unreachable
-    ;; 20 |         .Pair(a, _) => a
+                  br 2
                 end
+    ;; 20 |         .Pair(a, _) => a
+                local.get $s.1
+                local.get $s.2
+                local.set $n.1
+                local.set $s.0
     ;; 19 |         .Named(n) => n
+                br 2
               end
     ;; 18 |     match s:
               unreachable

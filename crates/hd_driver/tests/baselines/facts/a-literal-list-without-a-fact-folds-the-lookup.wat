@@ -39,14 +39,8 @@
               block
                 local.get $t2
                 i32.load $heap
-                local.tee $t2
-                i32.const 1
-                i32.eq
                 br_if 0
-                local.get $t2
-                i32.eqz
-                br_if 1
-                unreachable
+                br 1
                 unreachable
               end
               i32.const 1

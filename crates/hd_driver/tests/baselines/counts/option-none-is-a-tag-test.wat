@@ -56,8 +56,6 @@
           block
             local.get $value
             i32.load $heap
-            i32.eqz
-            i32.eqz
             br_if 1
             br 0
             unreachable
@@ -139,8 +137,6 @@
           block
             local.get $value
             i32.load $heap
-            i32.eqz
-            i32.eqz
             br_if 1
             br 0
             unreachable
@@ -186,8 +182,6 @@
         block
           block
             local.get $value.0
-            i32.eqz
-            i32.eqz
             br_if 1
             br 0
             unreachable
@@ -210,8 +204,6 @@
         block
           block
             local.get $value.0
-            i32.eqz
-            i32.eqz
             br_if 1
             br 0
             unreachable
@@ -235,8 +227,6 @@
           block
             local.get $value
             i32.load $heap
-            i32.eqz
-            i32.eqz
             br_if 1
             br 0
             unreachable

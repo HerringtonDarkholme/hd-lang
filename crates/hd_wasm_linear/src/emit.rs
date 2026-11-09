@@ -1637,6 +1637,178 @@ impl Em<'_, '_, '_> {
         self.f.op(Instruction::End);
     }
 
+    /// The one instruction block `blk` holds, when it holds only that and
+    /// nothing branches to it.
+    fn sole_item(&self, blk: u32) -> Option<u32> {
+        if blk == NONE
+            || self.b.tags[blk as usize] != Tag::Block
+            || self.topo.label_of[blk as usize] != NONE
+            || self.range(blk).is_some()
+        {
+            return None;
+        }
+        let [list, tail] = self.b.data[blk as usize];
+        match self.items(list).as_slice() {
+            &[k] if tail == NONE || tail == k => Some(k),
+            _ => None,
+        }
+    }
+
+    /// The arm block `blk` only goes to, in its match's decision.
+    fn sole_to_arm(&self, blk: u32) -> Option<u32> {
+        let k = self.sole_item(blk)?;
+        (self.b.tags[k as usize] == Tag::ToArm).then(|| self.b.data[k as usize][0])
+    }
+
+    /// A switch on enum value `a` (#1422 step 11): `SwitchTag` `i` and
+    /// the ones its `else` chains to on the same value branch once on the
+    /// tag. In a match's decision, two targets that only go to arms are
+    /// one `br_if`; three or more are one `br_table` on the tag less the
+    /// smallest case, each target's block after it, its default the last
+    /// `else`, or the last case where that `else` is `unreachable` (the
+    /// switches cover every tag). False, emitting nothing, for two targets
+    /// with other work, a suspending body's switch, or cases too sparse
+    /// for a table.
+    fn switch_to_arms(&mut self, i: u32, a: u32) -> StageResult<bool> {
+        let mut cases: Vec<(u32, u32)> = Vec::new();
+        let mut cur = i;
+        let other = loop {
+            if self.range(cur).is_some() {
+                return Ok(false);
+            }
+            let r = self.rec(self.b.data[cur as usize][1]);
+            if cases.iter().any(|(c, _)| *c == r[0]) {
+                return Ok(false);
+            }
+            cases.push((r[0], r[1]));
+            if r[2] == NONE {
+                break None;
+            }
+            match self.sole_item(r[2]) {
+                Some(k)
+                    if self.b.tags[k as usize] == Tag::SwitchTag
+                        && self.b.data[k as usize][0] == a =>
+                {
+                    cur = k;
+                }
+                // An `else` that is `unreachable`: no other tag gets here.
+                Some(k) if self.b.tags[k as usize] == Tag::Unreachable => break None,
+                _ => break Some(r[2]),
+            }
+        };
+        let targets = cases.len() + usize::from(other.is_some());
+        if targets == 2 {
+            return self.switch_two_arms(a, &cases, other);
+        }
+        if targets < 2 {
+            return Ok(false);
+        }
+        let lo = cases.iter().map(|(c, _)| *c).min().unwrap_or(0);
+        let hi = cases.iter().map(|(c, _)| *c).max().unwrap_or(0);
+        let span = u64::from(hi - lo) + 1;
+        if span > 2 * targets as u64 {
+            return Ok(false);
+        }
+        let blocks: Vec<u32> = cases.iter().map(|(_, b)| *b).chain(other).collect();
+        // A target that only goes to an arm of the match being decided is
+        // that arm; any other is a block after the table.
+        let m = self.deciding.last().copied();
+        let direct: Vec<Option<u32>> = blocks
+            .iter()
+            .map(|b| m.and_then(|_| self.sole_to_arm(*b)))
+            .collect();
+        let coded: Vec<usize> = (0..blocks.len()).filter(|&j| direct[j].is_none()).collect();
+        let n = u32::try_from(coded.len()).expect("ruled out: a switch's cases fit u32");
+        if n > 0 {
+            self.open(Ctl::Plain);
+        }
+        for _ in 0..n {
+            self.open(Ctl::Plain);
+        }
+        let mut label = Vec::with_capacity(blocks.len());
+        for (j, arm) in direct.iter().enumerate() {
+            label.push(match (arm, m) {
+                (Some(arm), Some(m)) => self.depth(Ctl::Arm(m, *arm))?,
+                _ => (0u32..)
+                    .zip(&coded)
+                    .find(|(_, c)| **c == j)
+                    .map_or(0, |(k, _)| k),
+            });
+        }
+        // Where the last `else` is `unreachable`, no other tag reaches
+        // the switch: the last case stands for the rest.
+        let rest = label[blocks.len() - 1];
+        self.tag(a)?;
+        if lo != 0 {
+            self.f.u32(lo);
+            self.f.op(Instruction::I32Sub);
+        }
+        let labels: Vec<u32> = (lo..=hi)
+            .map(|v| {
+                cases
+                    .iter()
+                    .position(|(c, _)| *c == v)
+                    .map_or(rest, |k| label[k])
+            })
+            .collect();
+        self.f.br_table(labels, rest);
+        for (pos, &j) in (0u32..).zip(&coded) {
+            // The block of the `pos`th target with code ends here: its
+            // code follows, then the switch's end, `n - 1 - pos` out.
+            self.close();
+            self.block_into(blocks[j], Some(i))?;
+            if !self.diverges(blocks[j]) {
+                self.f.op(Instruction::Br(n - 1 - pos));
+            }
+        }
+        if n > 0 {
+            self.close();
+        }
+        Ok(true)
+    }
+
+    /// [`Em::switch_to_arms`] of two targets that each only go to an arm
+    /// of the match being decided: the tag, one `br_if` to one arm and a
+    /// `br` to the other. Case 0 against the rest tests the tag itself.
+    fn switch_two_arms(
+        &mut self,
+        a: u32,
+        cases: &[(u32, u32)],
+        other: Option<u32>,
+    ) -> StageResult<bool> {
+        let Some(&m) = self.deciding.last() else {
+            return Ok(false);
+        };
+        let arms: Option<Vec<u32>> = cases
+            .iter()
+            .map(|(_, b)| *b)
+            .chain(other)
+            .map(|b| self.sole_to_arm(b))
+            .collect();
+        let Some(arms) = arms else {
+            return Ok(false);
+        };
+        let case = cases[0].0;
+        let exhaustive_01 = other.is_none()
+            && cases.iter().any(|(c, _)| *c == 0)
+            && cases.iter().any(|(c, _)| *c == 1);
+        self.tag(a)?;
+        let (yes, no) = if case == 0 {
+            (arms[1], arms[0])
+        } else {
+            if !exhaustive_01 {
+                self.f.u32(case);
+                self.f.op(Instruction::I32Eq);
+            }
+            (arms[0], arms[1])
+        };
+        let dy = self.depth(Ctl::Arm(m, yes))?;
+        let dn = self.depth(Ctl::Arm(m, no))?;
+        self.f.op(Instruction::BrIf(dy));
+        self.f.op(Instruction::Br(dn));
+        Ok(true)
+    }
+
     /// The branch depth of the open block `c`.
     fn depth(&self, c: Ctl) -> StageResult<u32> {
         match self.ctl.iter().rev().position(|x| *x == c) {
@@ -2061,6 +2233,7 @@ impl Em<'_, '_, '_> {
                 let d = self.depth(Ctl::Arm(m, a))?;
                 self.f.op(Instruction::Br(d));
             }
+            Tag::SwitchTag if self.switch_to_arms(i, a)? => {}
             Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar => {
                 // Every switch the checker and `hd_structure` emit is
                 // `[case then else]`; a `SwitchInt` tests a `usize`, one

@@ -128,8 +128,6 @@
                 block
     ;; 26 |                     .Less => larger = left + 1
                   local.get $t0
-                  i32.eqz
-                  i32.eqz
                   br_if 1
                   br 0
     ;; 25 |                 match self.items[left].cmp(&self.items[left + 1]):
@@ -181,8 +179,6 @@
               block
     ;; 29 |                 .Less => pass
                 local.get $left
-                i32.eqz
-                i32.eqz
                 br_if 1
                 br 0
     ;; 28 |             match value.cmp(&self.items[larger]):
@@ -443,8 +439,6 @@
                 block
     ;; 26 |                     .Less => larger = left + 1
                   local.get $t2
-                  i32.eqz
-                  i32.eqz
                   br_if 1
                   br 0
     ;; 25 |                 match self.items[left].cmp(&self.items[left + 1]):
@@ -495,8 +489,6 @@
               block
     ;; 29 |                 .Less => pass
                 local.get $left
-                i32.eqz
-                i32.eqz
                 br_if 1
                 br 0
     ;; 28 |             match value.cmp(&self.items[larger]):
@@ -979,8 +971,6 @@
                 block
     ;; 26 |                     .Less => larger = left + 1
                   local.get $t0
-                  i32.eqz
-                  i32.eqz
                   br_if 1
                   br 0
     ;; 25 |                 match self.items[left].cmp(&self.items[left + 1]):
@@ -1028,8 +1018,6 @@
               block
     ;; 29 |                 .Less => pass
                 local.get $left
-                i32.eqz
-                i32.eqz
                 br_if 1
                 br 0
     ;; 28 |             match value.cmp(&self.items[larger]):
@@ -1429,8 +1417,6 @@
                 block
     ;; 26 |                     .Less => larger = left + 1
                   local.get $t2
-                  i32.eqz
-                  i32.eqz
                   br_if 1
                   br 0
     ;; 25 |                 match self.items[left].cmp(&self.items[left + 1]):
@@ -1475,8 +1461,6 @@
               block
     ;; 29 |                 .Less => pass
                 local.get $left
-                i32.eqz
-                i32.eqz
                 br_if 1
                 br 0
     ;; 28 |             match value.cmp(&self.items[larger]):

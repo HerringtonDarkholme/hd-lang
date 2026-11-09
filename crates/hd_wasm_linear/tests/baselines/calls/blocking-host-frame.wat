@@ -147,8 +147,6 @@
             i32.eqz
             br_if 1
             local.get $provider0
-            i32.eqz
-            i32.eqz
             br_if 1
             br 0
     ;; 10 |     match block_on(call):

@@ -394,8 +394,6 @@
           block
             local.get $o
             i32.load $heap
-            i32.eqz
-            i32.eqz
             br_if 1
             br 0
             unreachable
