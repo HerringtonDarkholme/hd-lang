@@ -1,0 +1,9 @@
+# test: a local generic callback call requires its solved row
+# Rule: req.row.set.call.
+fn say() -> void $ Console:
+    println("unused")
+
+fn invalid() -> void $ ():
+    fn run[$ R](job: fn() -> void $ R) -> void $ R:
+        job()
+    run(say) # diagnostic: missing-requirement

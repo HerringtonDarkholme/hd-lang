@@ -1,0 +1,37 @@
+# test: local function row defaults fill unsolved slots and expected value types solve rows
+# Rule: types.generic.default.fill.
+# expect-stdout: 9
+# expect-stdout: value
+# expect-stdout: default
+# expect-stdout: 5
+# expect-stdout: value
+
+type Task[$ R] = fn() -> void $ R
+
+fn say() -> void $ Console:
+    println("value")
+
+fn pure() -> i32 $ ():
+    fn make[$ R = $ Console]() -> (fn() -> i32 $ R) $ ():
+        fn() -> i32: +5
+    let task: fn() -> i32 = make()
+    task()
+
+pub fn main() -> void $ Console:
+    fn read[T = i32, $ R = $ Console](job: fn() -> T $ R) -> T $ R:
+        job()
+    println(read(fn() -> i32: +9))
+    fn run[$ R](job: Task[$ R]) -> void $ R:
+        job()
+    let value: fn(Task[$ Console]) -> void $ Console = run
+    value(say)
+    fn unused[$ R = $ Console]() -> void $ R:
+        pass
+    unused()
+    println("default")
+    println(pure())
+    defaulted := unused::[_]
+    defaulted()
+    fn forward[$ R = $ Console, $ S = $ R](job: Task[$ S]) -> void $ S:
+        job()
+    forward(say)

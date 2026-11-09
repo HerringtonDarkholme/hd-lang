@@ -1,0 +1,21 @@
+# test: recursive and nested local functions substitute rows through their callbacks
+# Rule: req.row.param.marked.use.
+# expect-stdout: tick
+# expect-stdout: tick
+# expect-stdout: nested
+
+fn tick() -> void $ Console:
+    println("tick")
+
+fn outer[$ Outer](job: fn() -> void $ Outer) -> void $ Outer:
+    fn inner[$ Inner](task: fn() -> void $ Inner) -> void $ Inner:
+        task()
+    inner(job)
+
+pub fn main() -> void $ Console:
+    fn repeat[$ R](count: i32, job: fn() -> void $ R) -> void $ R:
+        if count > 0:
+            job()
+            repeat(count - 1, job)
+    repeat(+2, tick)
+    outer(fn() -> void $ Console: println("nested"))

@@ -1,0 +1,6 @@
+# test: an explicit local row argument is written after a dollar
+# Rule: fn.generic.explicit.row-dollar.
+fn invalid() -> void:
+    fn run[$ R]() -> void $ R:
+        pass
+    run::[Console]() # diagnostic: generic-kind-mismatch

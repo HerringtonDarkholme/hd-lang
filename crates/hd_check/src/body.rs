@@ -281,6 +281,9 @@ pub(crate) struct Ck<'a, 'c> {
     pub rows: Vec<RowFrame>,
     /// Row parameters by name: the impl's, then the function's.
     pub row_gens: Vec<(Symbol, hd_types::RowParamRef)>,
+    /// The first generic parameter not visible while reading a local default.
+    pub generic_default_from: Option<u16>,
+    pub generic_sources: Vec<crate::local::GenericSource>,
     pub subs: Vec<OpenSub>,
     /// Goals on types not yet known at their use: bounds are solved at
     /// the end of the body, calls and projections also at the end of
@@ -626,6 +629,8 @@ pub(crate) fn new_ck<'a, 'c>(
             },
         ],
         row_gens: Vec::new(),
+        generic_default_from: None,
+        generic_sources: Vec::new(),
         subs: Vec::new(),
         pending: Vec::new(),
         never_args: Vec::new(),
@@ -1167,6 +1172,22 @@ fn fn_body_steps(
         (sig.ret, sig.row),
         diags,
     );
+    if let Some(params) = Src::child(node, SyntaxKind::GenericParameterList) {
+        ck.generic_sources.push(crate::local::GenericSource {
+            owner: def,
+            first: 0,
+            params: params
+                .children()
+                .filter(|n| {
+                    matches!(
+                        n.kind(),
+                        SyntaxKind::GenericParameter | SyntaxKind::ConstParameter
+                    )
+                })
+                .map(NodeRef::index)
+                .collect(),
+        });
+    }
     ck.auto_closing_function = item.fn_attrs().is_some_and(|a| a.auto_closing);
     if let Some(budget) = infer.budget {
         ck.fuel = Fuel::new(budget);

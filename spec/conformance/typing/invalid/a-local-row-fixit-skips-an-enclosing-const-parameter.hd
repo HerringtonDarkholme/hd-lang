@@ -1,0 +1,5 @@
+# test: an unmarked type parameter in a local row needs its declaration marker
+# Rule: req.row.param.unmarked.
+fn outer[N<const usize, T]() -> void:
+    fn run[$ R = $ T]() -> void $ R: # diagnostic: generic-kind-mismatch
+        pass

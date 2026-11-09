@@ -1,0 +1,6 @@
+# test: an unused local row argument takes its written default
+# Rule: types.generic.default.fill.
+fn invalid() -> void $ ():
+    fn run[$ R = $ Console]() -> void $ R:
+        pass
+    run() # diagnostic: missing-requirement

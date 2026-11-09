@@ -1,0 +1,7 @@
+# test: an unmarked type parameter in a local row needs its declaration marker
+# Rule: req.row.param.unmarked.
+fn outer() -> void:
+    fn before[T](value: T) -> T:
+        value
+    fn after[T, $ R = $ T]() -> void $ R: # diagnostic: generic-kind-mismatch
+        pass

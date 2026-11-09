@@ -473,6 +473,23 @@ impl Ck<'_, '_> {
                 return Ok(Ty::POISON);
             }
             if let Some(t) = self.type_param(name) {
+                if let TyData::Param(p) = pool.get(t)
+                    && self.generic_default_invisible(p, name, n)
+                {
+                    return Ok(Ty::POISON);
+                }
+                if let TyData::Param(p) = pool.get(t)
+                    && self
+                        .row_gens
+                        .iter()
+                        .any(|(_, r)| r.owner == p.owner && r.index == p.index)
+                {
+                    let msg = format!(
+                        "`{name}` is a row parameter, not a type; write it inside a row after `$`"
+                    );
+                    self.err(Code::GenericKindMismatch, n, &msg);
+                    return Ok(Ty::POISON);
+                }
                 return Ok(t);
             }
             if name == "never" {
@@ -806,6 +823,34 @@ impl Ck<'_, '_> {
         }
     }
 
+    /// `types.generic.default.later`: a local default sees only the
+    /// parameters before its own slot.
+    fn generic_default_invisible(&mut self, p: ParamRef, name: &str, n: NodeRef<'_>) -> bool {
+        let blocked = p.owner == self.gen_owner
+            && self
+                .generic_default_from
+                .is_some_and(|from| p.index >= from);
+        if blocked {
+            let msg = format!(
+                "`{name}` is not visible here: a generic default names only earlier parameters"
+            );
+            self.err(Code::BindingNotYetVisible, n, &msg);
+        }
+        blocked
+    }
+
+    /// The declaration of a function or local function parameter, found
+    /// among only its active lexical scopes (`req.row.param.unmarked`).
+    fn generic_source(&self, p: ParamRef) -> Option<NodeRef<'_>> {
+        let node = self.generic_sources.iter().rev().find_map(|scope| {
+            let position = usize::from(p.index.checked_sub(scope.first)?);
+            (scope.owner == p.owner)
+                .then(|| scope.params.get(position).copied())
+                .flatten()
+        })?;
+        Some(self.cx.src.parse.tree.node(node))
+    }
+
     /// A written row: keys, and the body's row parameters by name
     /// (`req.row.param.marked.use`).
     pub(crate) fn row_of(&mut self, n: NodeRef<'_>) -> StageResult<RowId> {
@@ -819,7 +864,44 @@ impl Ck<'_, '_> {
                     .rev()
                     .find(|(s, _)| self.cx.names.text(*s) == name.as_str())
             {
-                data.params.push(*p);
+                let p = *p;
+                if !self.generic_default_invisible(
+                    ParamRef {
+                        owner: p.owner,
+                        index: p.index,
+                    },
+                    name,
+                    c,
+                ) {
+                    data.params.push(p);
+                }
+                continue;
+            }
+            if let [name] = segs.as_slice()
+                && let Some(t) = self.type_param(name)
+                && let TyData::Param(p) = self.pool().get(t)
+                && !self.const_gens.iter().any(|(_, c, _)| *c == p)
+            {
+                if !self.generic_default_invisible(p, name, c) {
+                    let msg = format!(
+                        "`{name}` is a type parameter, not a row parameter: declare it as `${name}`"
+                    );
+                    self.err(Code::GenericKindMismatch, c, &msg);
+                    if let Some(declaration) = self.generic_source(p) {
+                        let span = self.cx.src.span(declaration);
+                        self.diags.add_fix(
+                            "mark the parameter as a row parameter",
+                            hd_diag::FixSafety::Exact,
+                            &[(
+                                Span {
+                                    hi: span.lo,
+                                    ..span
+                                },
+                                "$",
+                            )],
+                        );
+                    }
+                }
                 continue;
             }
             let t = self.named_ty_as(c, NameRole::Trait)?;

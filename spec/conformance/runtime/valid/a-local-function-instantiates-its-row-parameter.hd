@@ -1,0 +1,20 @@
+# test: local functions instantiate declared row parameters
+# Rules: fn.local.declare, req.row.param.marked, req.row.param.marked.use.
+# expect-stdout: inferred
+# expect-stdout: explicit
+# expect-stdout: 7
+
+fn say() -> void $ Console:
+    println("inferred")
+
+fn explicit() -> void $ Console:
+    println("explicit")
+
+pub fn main() -> void $ Console:
+    fn run[$ R](job: fn() -> void $ R) -> void $ R:
+        job()
+    run(say)
+    run::[$ Console](explicit)
+    fn read[T, $ R](job: fn() -> T $ R) -> T $ R:
+        job()
+    println(read(fn() -> i32: +7))

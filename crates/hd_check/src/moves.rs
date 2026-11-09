@@ -323,8 +323,8 @@ impl Ck<'_, '_> {
                 .is_some_and(|(d, _)| lookup.item(d).is_some_and(hd_resolve::Item::requires_copy))
         };
         (self.local_generics.values())
-            .flat_map(|g| g.params.iter().zip(&g.bounds))
-            .filter(|(_, bs)| !bs.iter().any(copies))
+            .flat_map(|g| g.params.iter().zip(&g.generics))
+            .filter(|(_, generic)| !generic.row && !generic.bounds.iter().any(copies))
             .map(|(&p, _)| p)
             .collect()
     }

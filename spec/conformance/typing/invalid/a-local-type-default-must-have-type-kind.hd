@@ -1,0 +1,5 @@
+# test: a local type default has type kind
+# Rule: types.generic.default.kind.
+fn invalid() -> void:
+    fn run[T = $ ()]() -> void: # diagnostic: generic-kind-mismatch
+        pass

@@ -654,8 +654,10 @@ impl Ck<'_, '_> {
     /// `req.row.slot.data`), and a const slot takes a const argument.
     /// Empty for any other callee.
     pub(crate) fn explicit_generics(&self, callee: NodeRef<'_>) -> Vec<hd_resolve::Generic> {
-        if self.local_generic_named(callee).is_some() {
-            return vec![];
+        if let Some(l) = self.local_generic_named(callee)
+            && let Some(g) = self.local_generics.get(&l)
+        {
+            return g.generics.clone();
         }
         self.resolve_path(&self.segments_expr(callee))
             .and_then(|d| self.cx.lookup.item(d))
@@ -695,26 +697,7 @@ impl Ck<'_, '_> {
             );
             self.err(Code::ArgumentCount, n, &msg);
         }
-        // `fn.generic.explicit.row-dollar`: the slot of a row parameter
-        // takes a row type argument written after `$`. A bare key or row
-        // alias there is a kind error; an inferred or poisoned slot stays
-        // to inference or its own error.
-        for (g, t) in sig.generics.iter().filter(|g| !g.anonymous).zip(explicit) {
-            if !g.row {
-                continue;
-            }
-            let row_like = matches!(
-                pool.get(*t),
-                TyData::Row(_) | TyData::Infer(_) | TyData::Poison
-            );
-            if !row_like {
-                let msg = format!(
-                    "the slot of row parameter `${}` takes a row type argument written after `$`, as in `::[$ ...]`",
-                    self.cx.names.text(g.name)
-                );
-                self.err(Code::GenericKindMismatch, n, &msg);
-            }
-        }
+        self.check_fn_targ_kinds(&sig.generics, explicit, n);
         let vars: Vec<Ty> = sig
             .generics
             .iter()
@@ -730,6 +713,38 @@ impl Ck<'_, '_> {
             })
             .collect();
         vars
+    }
+
+    pub(crate) fn check_fn_targ_kinds(
+        &mut self,
+        generics: &[hd_resolve::Generic],
+        explicit: &[Ty],
+        n: NodeRef<'_>,
+    ) {
+        let pool = self.pool();
+        // `fn.generic.explicit.row-dollar`: the slot of a row parameter
+        // takes a row type argument written after `$`. A bare key or row
+        // alias there is a kind error; an inferred or poisoned slot stays
+        // to inference or its own error.
+        for (g, t) in generics.iter().filter(|g| !g.anonymous).zip(explicit) {
+            if matches!(pool.get(*t), TyData::Infer(_) | TyData::Poison) {
+                continue;
+            }
+            if matches!(pool.get(*t), TyData::Row(_)) != g.row {
+                let msg = if g.row {
+                    format!(
+                        "the slot of row parameter `${}` takes a row type argument written after `$`, as in `::[$ ...]`",
+                        self.cx.names.text(g.name)
+                    )
+                } else {
+                    format!(
+                        "the slot of type parameter `{}` takes a type, not a row",
+                        self.cx.names.text(g.name)
+                    )
+                };
+                self.err(Code::GenericKindMismatch, n, &msg);
+            }
+        }
     }
 
     /// A const parameter of a call that no explicit argument fills and no
@@ -872,7 +887,19 @@ impl Ck<'_, '_> {
                             Some(v) => self.local_generic_inst(l, v, callee),
                             None => self.read_local(l, d, callee),
                         };
-                        return self.call_value_form(f, ft, args, n, bang, Some((&form, vars)));
+                        return self.call_value_form(
+                            f,
+                            ft,
+                            args,
+                            n,
+                            bang,
+                            Some(crate::local::LocalCall {
+                                local: l,
+                                form: &form,
+                                vars,
+                                want,
+                            }),
+                        );
                     }
                     let (f, ft) = self.read_local(l, d, callee);
                     return self.call_value(f, ft, args, n, bang);
@@ -926,9 +953,19 @@ impl Ck<'_, '_> {
                         None => (Ref(NONE), Ty::NEVER),
                     };
                     return match self.local_forms.get(&l).cloned() {
-                        Some(form) => {
-                            self.call_value_form(f, ft, args, n, bang, Some((&form, vars)))
-                        }
+                        Some(form) => self.call_value_form(
+                            f,
+                            ft,
+                            args,
+                            n,
+                            bang,
+                            Some(crate::local::LocalCall {
+                                local: l,
+                                form: &form,
+                                vars,
+                                want,
+                            }),
+                        ),
                         None => self.call_value(f, ft, args, n, bang),
                     };
                 }
@@ -1330,7 +1367,7 @@ impl Ck<'_, '_> {
         args: &Args<'_>,
         n: NodeRef<'_>,
         bang: bool,
-        form: Option<(&crate::local::LocalForm, Option<Vec<Ty>>)>,
+        form: Option<crate::local::LocalCall<'_>>,
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
         // A callee that already failed has been reported.
@@ -1421,7 +1458,9 @@ impl Ck<'_, '_> {
             self.err(Code::NotCallable, n, &msg);
             return Ok((Ref(NONE), Ty::NEVER));
         };
-        if let Some((_, Some(vars))) = &form {
+        if let Some(call) = &form
+            && let Some(vars) = &call.vars
+        {
             let explicit = n
                 .children()
                 .next()
@@ -1446,12 +1485,12 @@ impl Ck<'_, '_> {
             return Ok((Ref(NONE), Ty::NEVER));
         }
         let ps = pool.list_items(params);
-        let refs = if let Some((form, vars)) = form {
+        let refs = if let Some(call) = &form {
+            let form = call.form;
             let formals: Vec<(Symbol, Ty)> =
                 form.names.iter().copied().zip(ps.iter().copied()).collect();
             let defaults: Vec<bool> = form.defaults.iter().map(Option::is_some).collect();
-            // Reached only through explicit type arguments: every formal is
-            // fixed, and the join check stays off.
+            // Local parameters use the instantiated function type.
             let inferred: Vec<Vec<usize>> = vec![Vec::new(); formals.len()];
             let formals = Formals {
                 params: &formals,
@@ -1463,7 +1502,7 @@ impl Ck<'_, '_> {
             };
             self.local_defaults = Some(crate::local::LocalDefaults {
                 defaults: form.defaults.clone(),
-                vars,
+                vars: call.vars.clone(),
             });
             self.check_args(&formals, 0, args, n, &form.name)?
         } else if inputs == Inputs::Tuple {
@@ -1493,6 +1532,19 @@ impl Ck<'_, '_> {
             };
             self.check_args(&formals, 0, args, n, "the function value")?
         };
+        if let Some(call) = &form
+            && let Some(vars) = &call.vars
+        {
+            if let Some(want) = call.want {
+                let mark = self.infer.snapshot();
+                if self.infer.unify(pool, result, want).is_err() {
+                    self.infer.rollback(mark);
+                } else {
+                    self.solve_nested_rows(result, want, 1);
+                }
+            }
+            self.local_call_defaults(call.local, vars);
+        }
         self.check_row(row, n);
         let rec = self.b.refs_record(&refs);
         if !suspends {

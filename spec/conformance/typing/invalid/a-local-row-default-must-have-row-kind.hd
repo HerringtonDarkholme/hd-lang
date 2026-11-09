@@ -1,0 +1,5 @@
+# test: a local row default has row kind
+# Rule: types.generic.default.kind.
+fn invalid() -> void:
+    fn run[$ R = i32]() -> void $ R: # diagnostic: generic-kind-mismatch
+        pass

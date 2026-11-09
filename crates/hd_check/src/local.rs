@@ -14,7 +14,7 @@
 
 use hd_base::{DefId, LocalId, StageResult};
 use hd_diag::Code;
-use hd_resolve::{HeadKind, ItemData, Src};
+use hd_resolve::{Generic, HeadKind, ItemData, Src};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{NONE, Ref, Tag, TirSink, local_flags, sub_flags};
 use hd_types::solver::TraitRef;
@@ -23,6 +23,14 @@ use hd_types::{ParamRef, Ty, TyData, VarKind};
 use crate::body::{Ck, PendingGoal, Waiting, unsupported};
 use crate::expr::ClosureParts;
 use crate::ty::NameRole;
+
+/// Source declarations for the generic parameters currently in scope.
+/// A local declaration leaves no entry after its header and body are checked.
+pub(crate) struct GenericSource {
+    pub owner: hd_base::DefId,
+    pub first: u16,
+    pub params: Vec<hd_base::NodeIdx>,
+}
 
 /// A generic local function: what a use of its name instantiates.
 #[derive(Clone, Debug)]
@@ -34,8 +42,7 @@ pub(crate) struct LocalGeneric {
     /// generic local functions.
     pub first: u16,
     pub params: Vec<Ty>,
-    pub bounds: Vec<Vec<Ty>>,
-    pub defaults: Vec<Option<Ty>>,
+    pub generics: Vec<Generic>,
     /// Its function type over them; while its body is checked, the type
     /// its written result and row give.
     pub fn_ty: Ty,
@@ -58,6 +65,15 @@ pub(crate) struct LocalForm {
     /// The hidden local holding the closure of each parameter's default,
     /// over the earlier parameters (`fn.default.eval`).
     pub defaults: Vec<Option<hd_base::Symbol>>,
+}
+
+/// A direct local-function call keeps its declaration and result context
+/// until argument inference has finished.
+pub(crate) struct LocalCall<'a> {
+    pub local: LocalId,
+    pub form: &'a LocalForm,
+    pub vars: Option<Vec<Ty>>,
+    pub want: Option<Ty>,
 }
 
 /// The defaults of the local function a call is checking arguments for.
@@ -267,9 +283,11 @@ impl Ck<'_, '_> {
         let toks = &src.parse.tokens;
         let pool = self.pool();
         let in_scope = self.gens.len();
+        let in_rows = self.row_gens.len();
         let first = self.next_gen;
         let mut params = Vec::new();
         let mut nodes = Vec::new();
+        let mut generics = Vec::new();
         for g in gl
             .children()
             .filter(|c| c.kind() == SyntaxKind::GenericParameter)
@@ -277,9 +295,6 @@ impl Ck<'_, '_> {
             let Some(gt) = g.name(toks) else {
                 continue;
             };
-            if g.direct_token(toks, TokenKind::Dollar).is_some() {
-                return self.gap(g, "a row parameter of a local function");
-            }
             let sym = src.symbol(gt, self.cx.names.syms);
             self.check_prelude_shadow(sym, g);
             // `names.type-param.no-redeclare`: an earlier one of the list.
@@ -300,13 +315,32 @@ impl Ck<'_, '_> {
                 index,
             }));
             self.gens.push((sym, p));
+            let mut generic = Generic::plain(sym);
+            generic.row = g.direct_token(toks, TokenKind::Dollar).is_some();
+            if generic.row {
+                self.row_gens.push((
+                    sym,
+                    hd_types::RowParamRef {
+                        owner: self.gen_owner,
+                        index,
+                    },
+                ));
+            }
             params.push(p);
             nodes.push(g);
+            generics.push(generic);
         }
+        let source_scope = self.generic_sources.len();
+        self.generic_sources.push(GenericSource {
+            owner: self.gen_owner,
+            first,
+            params: nodes.iter().map(|n| n.index()).collect(),
+        });
         // Bounds and defaults, once every parameter has its name.
-        let mut bounds = Vec::new();
-        let mut defaults = Vec::new();
-        for (&p, &g) in params.iter().zip(&nodes) {
+        let mut defaulted = false;
+        for (position, ((&p, &g), generic)) in
+            params.iter().zip(&nodes).zip(&mut generics).enumerate()
+        {
             let mut bs = Vec::new();
             let mut lifted = false;
             if let Some(bl) = Src::child(g, SyntaxKind::BoundList) {
@@ -347,7 +381,7 @@ impl Ck<'_, '_> {
                 }
             }
             // The default `Copy` bound (`ref.copy.generic.default`).
-            if !lifted {
+            if !lifted && !generic.row {
                 let copy = pool.intern_ty(&TyData::TraitValue {
                     def: self.cx.names.known.copy,
                     args: hd_types::TyList::EMPTY,
@@ -356,23 +390,45 @@ impl Ck<'_, '_> {
                 self.add_bound(p, copy, 0);
                 bs.push(copy);
             }
-            bounds.push(bs);
-            let written = Src::child(g, SyntaxKind::TypeDefault).and_then(|d| {
-                d.children()
-                    .find(|c| c.kind().is_type() && c.kind() != SyntaxKind::RequirementRow)
-            });
-            defaults.push(match written {
-                Some(d) => Some(self.ty_node(d)?),
+            generic.bounds = bs;
+            let written = Src::child(g, SyntaxKind::TypeDefault)
+                .and_then(|d| d.children().find(|c| c.kind().is_type()));
+            if written.is_some() {
+                defaulted = true;
+            } else if defaulted {
+                self.err(
+                    Code::DefaultOrder,
+                    g,
+                    "a generic parameter following a default needs a default too",
+                );
+            }
+            generic.default = match written {
+                Some(d) => {
+                    let from = first.saturating_add(u16::try_from(position).unwrap_or(u16::MAX));
+                    let saved = self.generic_default_from.replace(from);
+                    let checked = self.ty_node(d);
+                    self.generic_default_from = saved;
+                    let t = checked?;
+                    if t != Ty::POISON && matches!(pool.get(t), TyData::Row(_)) != generic.row {
+                        self.err(
+                            Code::GenericKindMismatch,
+                            d,
+                            "a generic default has its parameter's type or row kind",
+                        );
+                        Some(Ty::POISON)
+                    } else {
+                        Some(t)
+                    }
+                }
                 None => None,
-            });
+            };
         }
         self.env.key = Some(self.cx.global.env_key(&self.env));
         parts.generic = Some(LocalGeneric {
             sub: NONE,
             first,
             params,
-            bounds,
-            defaults,
+            generics,
             fn_ty: Ty::POISON,
             open: true,
             recursive: false,
@@ -392,6 +448,8 @@ impl Ck<'_, '_> {
         parts.form = Some(form);
         self.generic_closure(n, &mut parts)?;
         self.gens.truncate(in_scope);
+        self.row_gens.truncate(in_rows);
+        self.generic_sources.truncate(source_scope);
         Ok(())
     }
 
@@ -570,6 +628,7 @@ impl Ck<'_, '_> {
             );
             self.err(Code::ArgumentCount, n, &msg);
         }
+        self.check_fn_targ_kinds(&g.generics, explicit, n);
         let vars: Vec<Ty> = (0..g.params.len())
             .map(|i| {
                 explicit
@@ -587,11 +646,16 @@ impl Ck<'_, '_> {
             })
         };
         for (i, &v) in vars.iter().enumerate() {
-            if i >= explicit.len() {
-                let d = g.defaults[i].map(inst);
+            if i >= explicit.len() || matches!(pool.get(v), TyData::Infer(_)) {
+                let generic = &g.generics[i];
+                let d = generic.default.map(inst).or_else(|| {
+                    generic
+                        .row
+                        .then(|| pool.intern_ty(&TyData::Row(hd_types::RowId::EMPTY)))
+                });
                 self.ref_params.push((v, d, n.index()));
             }
-            for &b in &g.bounds[i] {
+            for &b in &g.generics[i].bounds {
                 if let TyData::TraitValue {
                     def: trait_, args, ..
                 } = pool.get(inst(b))
@@ -612,6 +676,36 @@ impl Ck<'_, '_> {
             }
         }
         Some(vars)
+    }
+
+    /// Fill defaults after the call's arguments and expected result have
+    /// solved their variables, before checking its instantiated row.
+    pub(crate) fn local_call_defaults(&mut self, l: LocalId, vars: &[Ty]) {
+        let Some(g) = self.local_generics.get(&l) else {
+            return;
+        };
+        let pool = self.pool();
+        let inst = |t: Ty| {
+            pool.subst(t, &|p: ParamRef| {
+                let k = usize::from(p.index.checked_sub(g.first)?);
+                (p.owner == self.gen_owner)
+                    .then(|| vars.get(k).copied())
+                    .flatten()
+            })
+        };
+        for (generic, &v) in g.generics.iter().zip(vars) {
+            if !self.unsolved(v) {
+                continue;
+            }
+            let default = generic.default.map(inst).or_else(|| {
+                generic
+                    .row
+                    .then(|| pool.intern_ty(&TyData::Row(hd_types::RowId::EMPTY)))
+            });
+            if let Some(default) = default {
+                let _ = self.infer.unify(pool, v, default);
+            }
+        }
     }
 
     /// A closure of the generic local function `l` at `vars`.

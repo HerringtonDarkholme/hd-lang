@@ -1,0 +1,6 @@
+# test: an explicit local type argument cannot be a row
+# Rule: req.row.param.one-kind.
+fn invalid() -> void:
+    fn run[T]() -> void:
+        pass
+    run::[$ ()]() # diagnostic: generic-kind-mismatch

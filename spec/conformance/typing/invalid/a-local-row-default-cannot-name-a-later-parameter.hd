@@ -1,0 +1,5 @@
+# test: a local row default cannot name a later parameter
+# Rule: types.generic.default.later.
+fn invalid() -> void:
+    fn run[$ R = $ S, $ S = $ ()]() -> void $ R: # diagnostic: binding-not-yet-visible
+        pass

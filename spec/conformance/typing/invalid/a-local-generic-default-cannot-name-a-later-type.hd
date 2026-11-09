@@ -1,0 +1,5 @@
+# test: a local type default cannot name a later parameter
+# Rule: types.generic.default.later.
+fn invalid() -> void:
+    fn run[T = U, U = i32]() -> void: # diagnostic: binding-not-yet-visible
+        pass

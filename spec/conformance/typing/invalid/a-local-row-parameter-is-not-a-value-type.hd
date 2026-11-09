@@ -1,0 +1,5 @@
+# test: a local row parameter cannot annotate a value
+# Rule: req.row.param.as-type.
+fn invalid() -> void:
+    fn run[$ R](value: R) -> void: # diagnostic: generic-kind-mismatch
+        pass

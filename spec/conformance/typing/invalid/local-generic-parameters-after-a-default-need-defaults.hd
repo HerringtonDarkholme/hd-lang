@@ -1,0 +1,5 @@
+# test: a local generic parameter after a default needs a default
+# Rule: types.generic.default.order.
+fn invalid() -> void:
+    fn run[$ R = $ (), T]() -> void $ R: # diagnostic: default-order
+        pass

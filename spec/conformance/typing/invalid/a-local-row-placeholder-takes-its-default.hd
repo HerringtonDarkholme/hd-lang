@@ -1,0 +1,6 @@
+# test: an explicit local row placeholder takes its declared default
+# Rule: types.generic.default.fill.
+fn invalid() -> void $ ():
+    fn run[$ R = $ Console]() -> void $ R:
+        pass
+    run::[_]() # diagnostic: missing-requirement

@@ -1,0 +1,6 @@
+# test: a local function row parameter is out of scope after its declaration
+# Rule: req.key.in-scope.
+fn invalid() -> void:
+    fn run[$ R]() -> void $ R:
+        pass
+    let value: fn() -> void $ R = fn() -> void: pass # diagnostic: unknown-trait
