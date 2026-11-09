@@ -1301,7 +1301,7 @@ impl Ck<'_, '_> {
             _ => return None,
         };
         let sig = match def {
-            Some(def) => Some(self.sig_of(def).ok()?),
+            Some(def) => Some(self.sig_of(def)?),
             None => None,
         };
         let dep = match &sig {
@@ -1561,7 +1561,7 @@ impl Ck<'_, '_> {
                     sig.ret = ret;
                     Some(sig)
                 } else {
-                    self.sig_of(body.item).ok()
+                    self.sig_of(body.item)
                 }
             })
             .flatten();

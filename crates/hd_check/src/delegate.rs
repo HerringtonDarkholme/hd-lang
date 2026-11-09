@@ -226,7 +226,9 @@ impl Forwarder<'_> {
             return Ok(Forwarded::Nothing);
         };
         let choice = ck.choice_of(Some(&evidence));
-        let tsig = ck.sig_of(self.tm)?;
+        let Some(tsig) = ck.sig_of(self.tm) else {
+            return Ok(Forwarded::Nothing);
+        };
         let ta = pool.list_items(self.trait_args);
         let (trait_, tm, part) = (self.trait_, self.tm, self.part);
         let inst = |x: Ty| {

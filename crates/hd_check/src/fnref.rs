@@ -362,7 +362,9 @@ impl Ck<'_, '_> {
             Some(t) => t,
             None => self.infer.fresh(pool, VarKind::General),
         };
-        let sig = self.sig_of(method)?;
+        let Some(sig) = self.sig_of(method) else {
+            return Ok(self.poison_value(n));
+        };
         let vars = self.fresh_generics(&sig, explicit, n);
         let m = Member {
             def: method,
@@ -439,7 +441,9 @@ impl Ck<'_, '_> {
                 impl_def,
                 impl_args,
             }) => {
-                let sig = self.sig_of(method)?;
+                let Some(sig) = self.sig_of(method) else {
+                    return Ok(None);
+                };
                 let vars = self.fresh_generics(&sig, explicit, n);
                 Member {
                     def: method,
@@ -458,7 +462,9 @@ impl Ck<'_, '_> {
                 choice,
             }) => {
                 let (self_ty, args, method) = trait_member(self, trait_, method, args);
-                let sig = self.sig_of(method)?;
+                let Some(sig) = self.sig_of(method) else {
+                    return Ok(None);
+                };
                 let vars = self.fresh_generics(&sig, explicit, n);
                 Member {
                     def: method,
@@ -478,7 +484,9 @@ impl Ck<'_, '_> {
             // bound check leaving its goal pending.
             Some(Hit::Choice { trait_, method, .. } | Hit::Pending { trait_, method }) => {
                 let (self_ty, args, method) = trait_member(self, trait_, method, vec![]);
-                let sig = self.sig_of(method)?;
+                let Some(sig) = self.sig_of(method) else {
+                    return Ok(None);
+                };
                 let vars = self.fresh_generics(&sig, explicit, n);
                 Member {
                     def: method,
@@ -551,9 +559,12 @@ impl Ck<'_, '_> {
     /// generic scope, with its `!` and requirement row: the type a typed
     /// fact on it checks against (`annot.typed-fact.declared-type`).
     pub(crate) fn own_fn_ty(&mut self, def: DefId) -> StageResult<Ty> {
+        let Some(sig) = self.sig_of(def) else {
+            return Ok(Ty::POISON);
+        };
         let m = Member {
             def,
-            sig: self.sig_of(def)?,
+            sig,
             vars: Vec::new(),
             owner: Owner::Item,
         };
@@ -1219,7 +1230,7 @@ impl Ck<'_, '_> {
         self.note_call(m.def);
         // `fn.ref.bound.address.writable`.
         let addressed = self.addressed(recv, rt);
-        let by_ref = self.ref_receiver_kind(m.def)?;
+        let by_ref = self.ref_receiver_kind(m.def);
         let recv = match by_ref {
             Some(kind) if !addressed => self.fit_receiver(recv, rt, kind, name, n),
             _ => recv,

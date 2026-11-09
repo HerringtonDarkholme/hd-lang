@@ -9,7 +9,7 @@ use hd_base::{HashMap, HashSet};
 use hd_base::{DefId, StageResult, Symbol};
 use hd_diag::Code;
 use hd_intern::PathKind;
-use hd_resolve::{BindingKind, FnSig, HeadKind, ItemData, Src};
+use hd_resolve::{BindingKind, FnSig, HeadKind, Item, ItemData, Src};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{
     Callee, ChoiceKind, IntrinsicOp, NONE, PrimOp, Providers, Ref, Tag, TirSink, local_flags,
@@ -3624,7 +3624,9 @@ impl Ck<'_, '_> {
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
         if !is_param && let Some((method, impl_def, impl_args)) = self.find_inherent(t, name) {
-            let sig = self.sig_of(method)?;
+            let Some(sig) = self.sig_of(method) else {
+                return Ok(self.poison_value(n));
+            };
             let explicit = std::mem::take(&mut self.method_targs);
             let mut vars = self.fresh_generics(&sig, &explicit, n);
             self.unsolvable_consts(&sig, method, explicit.len(), &mut vars, n);
@@ -3866,15 +3868,14 @@ impl Ck<'_, '_> {
 
     /// A declaration's signature without inferred result or row overlays.
     /// Reads of parameters and generics borrow this instead of cloning it.
-    pub(crate) fn declared_sig(&self, d: DefId) -> StageResult<&FnSig> {
-        match self.cx.lookup.item(d).and_then(|i| i.sig()) {
-            Some(sig) => Ok(sig),
-            None => unsupported("a method without a signature"),
-        }
+    /// ruled out: `MethodIndex`, trait method tables and stdpack select function
+    /// or method items. TIR analyses also query constructors, which have none.
+    pub(crate) fn declared_sig(&self, d: DefId) -> Option<&FnSig> {
+        self.cx.lookup.item(d).and_then(Item::sig)
     }
 
-    pub(crate) fn sig_of(&self, d: DefId) -> StageResult<FnSig> {
-        Ok(self.with_result(d, self.declared_sig(d)?.clone()))
+    pub(crate) fn sig_of(&self, d: DefId) -> Option<FnSig> {
+        Some(self.with_result(d, self.declared_sig(d)?.clone()))
     }
 
     /// The bounds of a callee's own parameters, under its full
@@ -4562,7 +4563,7 @@ impl Ck<'_, '_> {
                 cands,
             }) => {
                 let t = self.resolved(self.infer.resolve(pool, rt));
-                let recv = match self.ref_receiver_kind(method)? {
+                let recv = match self.ref_receiver_kind(method) {
                     Some(k) if !addressed => self.fit_call_receiver(recv, rt, k, name, n),
                     _ => recv,
                 };
@@ -4577,7 +4578,7 @@ impl Ck<'_, '_> {
             }
             Some(Hit::Pending { trait_, method }) => {
                 let t = self.resolved(self.infer.resolve(pool, rt));
-                let recv = match self.ref_receiver_kind(method)? {
+                let recv = match self.ref_receiver_kind(method) {
                     Some(k) if !addressed => self.fit_call_receiver(recv, rt, k, name, n),
                     _ => recv,
                 };
@@ -4599,7 +4600,9 @@ impl Ck<'_, '_> {
                 impl_def,
                 impl_args,
             }) => {
-                let sig = self.sig_of(method)?;
+                let Some(sig) = self.sig_of(method) else {
+                    return Ok(self.poison_value(n));
+                };
                 let explicit = std::mem::take(&mut self.method_targs);
                 let mut vars = self.fresh_generics(&sig, &explicit, n);
                 self.unsolvable_consts(&sig, method, explicit.len(), &mut vars, n);
@@ -4622,7 +4625,7 @@ impl Ck<'_, '_> {
                     self.err(Code::UnknownMethod, n, &msg);
                     return Ok((Ref(NONE), Ty::POISON));
                 }
-                let recv = match self.ref_receiver_kind(method)? {
+                let recv = match self.ref_receiver_kind(method) {
                     Some(k) if !addressed => self.fit_call_receiver(recv, rt, k, name, n),
                     _ => recv,
                 };
@@ -4773,7 +4776,9 @@ impl Ck<'_, '_> {
                 // A trait value read through `&dyn` or `&mut dyn`
                 // (`trait.dyn.ref.member`).
                 let via_dyn = dyn_recv.filter(|_| choice.0 == ChoiceKind::TraitValue);
-                let sig = self.declared_sig(method)?;
+                let Some(sig) = self.declared_sig(method) else {
+                    return Ok(self.poison_value(n));
+                };
                 let (ret, _) = self.result_row(method, sig.ret, sig.row);
                 if choice.0 == ChoiceKind::TraitValue && pool.has_opaque(ret) {
                     for e in &args.positional {
@@ -4804,7 +4809,7 @@ impl Ck<'_, '_> {
                         return Ok((Ref(NONE), Ty::NEVER));
                     }
                     if choice.0 == ChoiceKind::TraitValue
-                        && self.names_self_beyond_receiver(method, trait_)?
+                        && self.names_self_beyond_receiver(method, trait_, sig)
                     {
                         // The receiver is the only place a trait value can
                         // supply `Self` (trait.dyn.member.self).
@@ -4831,7 +4836,7 @@ impl Ck<'_, '_> {
                 }
                 // A trait value passes its payload to a reference receiver
                 // itself (`hd_mono::SlotRecv`).
-                let recv = match self.ref_receiver_kind(method)? {
+                let recv = match self.ref_receiver_kind(method) {
                     Some(k) if !addressed && choice.0 != ChoiceKind::TraitValue => {
                         self.fit_call_receiver(recv, rt, k, name, n)
                     }
@@ -4871,9 +4876,8 @@ impl Ck<'_, '_> {
     /// Whether a trait method's signature names `Self` anywhere but its
     /// receiver (trait.dyn.member.self). `Self::Assoc` projections do not
     /// count: the associated type is bound by the `dyn` type.
-    fn names_self_beyond_receiver(&self, method: DefId, trait_: DefId) -> StageResult<bool> {
+    fn names_self_beyond_receiver(&self, method: DefId, trait_: DefId, sig: &FnSig) -> bool {
         let pool = self.pool();
-        let sig = self.declared_sig(method)?;
         let (ret, row) = self.result_row(method, sig.ret, sig.row);
         let has_receiver = sig
             .params
@@ -4886,7 +4890,7 @@ impl Ck<'_, '_> {
             .chain(sig.generics.iter().flat_map(|g| g.bounds.iter().copied()));
         let mut found = tys.into_iter().any(|t| pool.names_trait_self(t, trait_));
         found |= pool.row_names_trait_self(row, trait_);
-        Ok(found)
+        found
     }
 
     /// A trait method call: `Self` is `self_ty`, the trait's parameters
@@ -4907,7 +4911,9 @@ impl Ck<'_, '_> {
             args: mut targs,
         } = target;
         self.note_call(method);
-        let sig = self.sig_of(method)?;
+        let Some(sig) = self.sig_of(method) else {
+            return Ok(self.poison_value(n));
+        };
         let n_trait = self.cx.lookup.item(trait_).map_or(0, |i| i.generics.len());
         while targs.len() < n_trait {
             targs.push(self.infer.fresh(pool, VarKind::General));
@@ -5078,7 +5084,10 @@ impl Ck<'_, '_> {
     ) -> StageResult<(Ref, Ty, TyList)> {
         let pool = self.pool();
         let method = self.cx.names.member(trait_, PathKind::Member, name);
-        let sig = self.sig_of(method)?;
+        let Some(sig) = self.sig_of(method) else {
+            let (r, t) = self.poison_value(n);
+            return Ok((r, t, TyList::EMPTY));
+        };
         let t = self.infer.resolve(pool, rt);
         let n_trait = self.cx.lookup.item(trait_).map_or(0, |i| i.generics.len());
         let mut targs: Vec<Ty> = (0..n_trait)

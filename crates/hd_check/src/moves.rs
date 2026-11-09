@@ -691,7 +691,6 @@ impl Ck<'_, '_> {
         let pool = self.pool();
         let sig = |def| {
             self.sig_of(def)
-                .ok()
                 .map(|s| s.params.iter().map(|p| p.1).collect())
         };
         let params: Option<Vec<Ty>> = match b.tags[i] {

@@ -22,22 +22,19 @@ impl Ck<'_, '_> {
     /// Whether the method `method` takes a reference receiver, as
     /// `(mutable, counted)`: whether it is `&mut`, and whether it is
     /// counted, `*self` or `*mut self`.
-    pub(crate) fn ref_receiver_kind(&self, method: DefId) -> StageResult<Option<(bool, bool)>> {
+    pub(crate) fn ref_receiver_kind(&self, method: DefId) -> Option<(bool, bool)> {
         let pool = self.pool();
-        let sig = self.declared_sig(method)?;
-        let Some(&(s, st)) = sig.params.first() else {
-            return Ok(None);
-        };
+        let &(s, st) = self.declared_sig(method)?.params.first()?;
         if self.cx.names.text(s) != "self" {
-            return Ok(None);
+            return None;
         }
         if let TyData::Ref {
             mutable, counted, ..
         } = pool.get(st)
         {
-            return Ok(Some((mutable, counted)));
+            return Some((mutable, counted));
         }
-        Ok(None)
+        None
     }
 
     /// Whether the method `name` on `t` takes a counted receiver, `*self`
@@ -60,7 +57,7 @@ impl Ck<'_, '_> {
             _ => return Ok(false),
         };
         Ok(self
-            .ref_receiver_kind(method)?
+            .ref_receiver_kind(method)
             .is_some_and(|(_, counted)| counted))
     }
 
@@ -133,17 +130,19 @@ impl Ck<'_, '_> {
         if matches!(self.resolved(t), Ty::NEVER | Ty::POISON) {
             return Ok(None);
         }
-        match self.resolve_method(t, name)? {
-            Some(Hit::Inherent { method, .. }) => self.ref_receiver_kind(method),
+        Ok(match self.resolve_method(t, name)? {
             // A trait value passes its payload to a reference receiver
             // itself (`trait.dyn.ref.member`), or a bare one has none
             // (`trait.dyn.ref.member`); the call decides.
-            Some(Hit::Trait { choice, .. }) if choice.0 == ChoiceKind::TraitValue => Ok(None),
-            Some(Hit::Trait { method, .. }) => self.ref_receiver_kind(method),
-            Some(Hit::Choice { method, .. }) => self.ref_receiver_kind(method),
-            Some(Hit::Pending { method, .. }) => self.ref_receiver_kind(method),
-            _ => Ok(None),
-        }
+            Some(Hit::Trait { choice, .. }) if choice.0 == ChoiceKind::TraitValue => None,
+            Some(
+                Hit::Inherent { method, .. }
+                | Hit::Trait { method, .. }
+                | Hit::Choice { method, .. }
+                | Hit::Pending { method, .. },
+            ) => self.ref_receiver_kind(method),
+            _ => None,
+        })
     }
 
     /// The receiver of `base.name(...)` when the method takes `&self` or

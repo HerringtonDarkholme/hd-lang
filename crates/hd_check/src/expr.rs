@@ -571,7 +571,7 @@ impl Ck<'_, '_> {
         self.interpolate(*arg, &mut out)?;
         if !out.text.is_empty() {
             let text = self.b.const_str(&std::mem::take(&mut out.text));
-            return Ok(Some(self.builder_call("push", &[recv, text], n)?));
+            return Ok(Some(self.builder_call("push", &[recv, text], n)));
         }
         Ok(Some((Ref(NONE), Ty::VOID)))
     }
@@ -747,11 +747,11 @@ impl Ck<'_, '_> {
             if size != 0 {
                 let hint = self.b.const_value(Ty::prim(Prim::Usize), u64::from(size));
                 let receiver = self.interpolation_ref(builder, n);
-                self.builder_call("reserve", &[receiver, hint], n)?;
+                self.builder_call("reserve", &[receiver, hint], n);
             }
             out.reserved = true;
         }
-        self.push_pending_text(out, builder, n)?;
+        self.push_pending_text(out, builder, n);
         let display = self.cx.names.known.display;
         let value_receiver = self.eq_operand_ref((r, t, held), n);
         let receiver = self.interpolation_ref(builder, n);
@@ -938,7 +938,7 @@ impl Ck<'_, '_> {
                         let bt = self.b.ty_of(dest);
                         self.trait_call_args(display, "write", receiver, t, &[(dest, bt, n)], n)?;
                         let dest = self.interpolation_ref(builder, n);
-                        self.builder_call("build", &[dest], n)?.0
+                        self.builder_call("build", &[dest], n).0
                     }
                 };
                 let width = self.interpolation_helper("text_width", &[text], n);
@@ -1009,24 +1009,18 @@ impl Ck<'_, '_> {
         out: &mut Interpolation,
         builder: InterpolationBuilder,
         n: NodeRef<'_>,
-    ) -> StageResult<()> {
+    ) {
         if out.text.is_empty() {
-            return Ok(());
+            return;
         }
         let text = self.b.const_str(&std::mem::take(&mut out.text));
         let receiver = self.interpolation_ref(builder, n);
-        self.builder_call("push", &[receiver, text], n)?;
-        Ok(())
+        self.builder_call("push", &[receiver, text], n);
     }
 
     /// A call of the `std.text.StringBuilder` method `name` that
     /// interpolation lowers to, each argument fitted to its parameter.
-    pub(crate) fn builder_call(
-        &mut self,
-        name: &str,
-        args: &[Ref],
-        n: NodeRef<'_>,
-    ) -> StageResult<(Ref, Ty)> {
+    pub(crate) fn builder_call(&mut self, name: &str, args: &[Ref], n: NodeRef<'_>) -> (Ref, Ty) {
         let pool = self.pool();
         let def = self.cx.names.item("std.text", "StringBuilder");
         let sb = pool.intern_ty(&TyData::Adt {
@@ -1036,7 +1030,9 @@ impl Ck<'_, '_> {
         let (method, _, _) = self
             .find_inherent_any(sb, name)
             .expect("stdpack StringBuilder method");
-        let sig = self.sig_of(method)?;
+        let Some(sig) = self.sig_of(method) else {
+            return self.poison_value(n);
+        };
         self.note_call(method);
         let mut refs = Vec::with_capacity(args.len());
         for (r, p) in args.iter().zip(&sig.params) {
@@ -1050,7 +1046,7 @@ impl Ck<'_, '_> {
         let r = self
             .b
             .call(&c, &refs, hd_tir::ir::Providers::None, sig.ret, n.index());
-        Ok((r, sig.ret))
+        (r, sig.ret)
     }
 
     /// The bits of the constant `bits` of type `ct`, negated: a float
