@@ -136,9 +136,8 @@ fn body_func<'a>(
     // Where each local lives (`Body::storage`).
     let (stored, slots) = closure::stored_locals(input, b, (item, args), sub, &promoted);
     let cells = closure::cell_locals(b, &stored);
-    let direct_json = input.direct_json_encoders.contains(&own.key);
     let inst = (m.inst_of.get(&own.key).copied()).unwrap_or(InstId::from_raw(u32::MAX));
-    let mut em = Em::new(input, m, b, (item, args), targets, cells, direct_json);
+    let mut em = Em::new(input, m, b, (item, args), targets, cells);
     em.inst = inst;
     em.type_promoted(promoted)?;
     em.plan_slots(&slots)?;
@@ -1045,7 +1044,6 @@ struct Em<'i, 'a, 'm> {
     /// This final body's instruction types at the instance's arguments.
     inst_ty: Vec<Ty>,
     item: DefId,
-    direct_json: bool,
     origin_root: u32,
     args: TyList,
     calls: &'i HashMap<u32, Target>,
@@ -1300,7 +1298,6 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
         (item, args): (DefId, TyList),
         calls: &'i HashMap<u32, Target>,
         shared: HashMap<usize, u32>,
-        direct_json: bool,
     ) -> Self {
         let f = m.func("", vec![], vec![]);
         let mut em = Em {
@@ -1309,7 +1306,6 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             b,
             inst_ty: hd_mono::instruction_types(input.pool, input.env, item, args, b),
             item,
-            direct_json,
             origin_root: b.anchor(b.sub_root[0]),
             args,
             calls,
@@ -2707,10 +2703,6 @@ impl Em<'_, '_, '_> {
             Some(Target::MapKey { .. } | Target::MapInline(_)) => self.map_probe(i, &args),
             Some(Target::Call(ct)) => match &ct.kind {
                 TargetKind::Instance => {
-                    if self.direct_json && self.input.json_fallbacks.contains(&ct.item) {
-                        self.f.op(Instruction::Unreachable);
-                        return self.call_results(i, ct.ret);
-                    }
                     if self.env().suspends(ct.item)
                         && let Some(on) =
                             crate::drive::block_on_of(self.b, &self.topo, self.calls, i)

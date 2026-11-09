@@ -1315,6 +1315,10 @@ pub fn from_json[T < Deserialize](value: Json) -> Result[T, JsonError]:
 pub fn encode[T < Serialize](value: T) -> string:
     let mut writer = TextWriter::new(false)
     _ := value.serialize(&mut writer)
+    # A regular walk is written whole (r-std-serde.regular); the
+    # constant answer drops the tree path from the instance.
+    if T::regular():
+        return writer.out.take_text()
     match writer.finish():
         .Some(text) => text
         .None => encode_fallback(value)
@@ -1327,6 +1331,10 @@ pub fn encode[T < Serialize](value: T) -> string:
 pub fn encode_pretty[T < Serialize](value: T) -> string:
     let mut writer = TextWriter::new(true)
     _ := value.serialize(&mut writer)
+    # A regular walk is written whole (r-std-serde.regular); the
+    # constant answer drops the tree path from the instance.
+    if T::regular():
+        return writer.out.take_text()
     match writer.finish():
         .Some(text) => text
         .None => encode_pretty_fallback(value)
@@ -1353,6 +1361,9 @@ pub fn decode[T < Deserialize](text: string) -> Result[T, JsonError]:
 # `Json` writes and reads itself (r-std-json.std.json).
 # Keep handwritten Serialize: write the JSON value itself, not an externally tagged enum.
 impl Serialize for Json:
+    fn regular() -> bool:
+        true
+
     fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
         match *self:
             .Null => out.null()
@@ -3419,10 +3430,10 @@ impl Deserializer for TextReader:
     fn is_absent(&mut self) -> bool:
         !self.present
 
-# Kept as one call so a closed program whose concrete serializer is known
-# to make a regular walk can leave the whole tree path unlinked; `@cold`
-# keeps the inliner from copying the tree path into the encoder. These stay
-# last so adding the private link boundary changes no existing item ID.
+# The tree path of `encode` and `encode_pretty`, out of line: `@cold`
+# keeps the inliner from copying it into the encoder, and a `T` whose
+# `regular()` holds never calls it. These stay last so no existing item ID
+# changes.
 @cold
 fn encode_fallback[T < Serialize](value: T) -> string:
     "${to_json(value)}"

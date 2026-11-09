@@ -676,6 +676,9 @@ impl Clock for ManualClock:
 # r-std-time.serde.text-form).
 # Keep handwritten Serialize: keep the canonical text wire format instead of a field object.
 impl Serialize for Duration:
+    fn regular() -> bool:
+        true
+
     fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
         out.int(self.millis)
 
@@ -696,6 +699,9 @@ impl Deserialize for Duration:
 
 # Keep handwritten Serialize: keep the canonical text wire format instead of a field object.
 impl Serialize for Timestamp:
+    fn regular() -> bool:
+        true
+
     fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
         out.text(self.to_rfc3339())
 
@@ -709,6 +715,9 @@ impl Deserialize for Timestamp:
 
 # Keep handwritten Serialize: keep the millisecond scalar wire format instead of a field object.
 impl Serialize for Instant:
+    fn regular() -> bool:
+        true
+
     fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
         out.int(self.millis)
 

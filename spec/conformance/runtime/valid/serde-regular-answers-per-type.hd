@@ -1,0 +1,60 @@
+# test: serde regular answers per type
+# Rules: std-serde.regular, std-serde.regular.std, std-serde.regular.std.pairs, std-serde.regular.derive, std-serde.regular.distinct, std-serde.regular.recursive.
+# expect-stdout: true true true
+# expect-stdout: false false false false
+# expect-stdout: true {"v":1,"kids":[{"v":2,"kids":[]}]}
+# expect-stdout: {"name":"a"}
+use std.json.encode
+use std.serde.{MapKey, MapKeyValue, Serialize, Serializer, rename}
+
+@derive(Serialize)
+struct Point:
+    x: i32
+    tags: List[string]
+
+@derive(Serialize)
+struct Renamed:
+    @rename("label")
+    name: string
+
+struct Hand:
+    n: i32
+
+impl Serialize for Hand:
+    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
+        out.int(i64(self.n))
+
+@derive(Eq, Hash)
+struct Code:
+    text: string
+
+impl MapKey for Code:
+    fn to_key(&self) -> MapKeyValue:
+        MapKeyValue.Text(self.text)
+    fn from_key(value: MapKeyValue) -> Code?:
+        match value:
+            .Text(text) => .Some(Code { text: text })
+            _ => .None
+
+@derive(Serialize)
+struct Tree:
+    v: i32
+    kids: List[Tree]
+
+@derive(Serialize)
+struct Named:
+    name: string
+
+pub fn main() -> void $ Console:
+    a := Point::regular()
+    b := Map::[string, List[Point?]]::regular()
+    c := Result::[i64, string]::regular()
+    println("$a $b $c")
+    d := Renamed::regular()
+    e := Hand::regular()
+    f := List::[Hand]::regular()
+    g := Map::[Code, i32]::regular()
+    println("$d $e $f $g")
+    tree := Tree { v: 1, kids: [Tree { v: 2, kids: [] }] }
+    println("${Tree::regular()} ${encode(tree)}")
+    println(encode(Named { name: "a" }))

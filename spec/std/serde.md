@@ -285,6 +285,34 @@ For example, `@skip()` on `cached: usize = 0` leaves the cache out of documents.
 > serde nothing. Saying so on the walker and source keeps the rule in
 > library code.
 
+### Regular Walks
+
+A format can write a value directly when it knows the walk ahead of time.
+`Serialize.regular()` says so for a type:
+
+```text
+use std.json.encode
+
+@derive(Serialize)
+struct Point:
+    x: i32
+    y: i32
+
+encode(Point { x: 1, y: 2 })   # Point::regular() is true: TextWriter alone writes it
+```
+
+1. r[std-serde.regular] `Serialize` declares `regular() -> bool`, `false` by default. It is `true` only when every value of the type makes a **regular walk**.
+2. r[std-serde.regular.walk] A regular walk writes one value, a key before each map or member value, a new key each time in its object, and each end after its begin.
+3. r[std-serde.regular.std] The scalars, `Json`, `Duration`, `Timestamp`, and `Instant` answer `true`. `T?`, the references, `List[T]`, and `Set[T]` answer `T::regular()`.
+4. r[std-serde.regular.std.pairs] `Result[T, E]` answers `T::regular() && E::regular()`. `Map[K, V]` answers `K::distinct() && V::regular()`.
+5. r[std-serde.regular.derive] A derived implementation answers `true` when the type, its variants, and its walked members carry no facts and every member type is regular.
+6. r[std-serde.regular.distinct] `MapKey` declares `distinct() -> bool`, `false` by default: whether two different keys always give different scalars. The standard and derived implementations answer `true`.
+7. r[std-serde.regular.recursive] A recursive type asks its own `regular()` again; that call is `true` by [`annot.bound.recursive.flag`](../lang/14-annotations.md#r-annot.bound.recursive.flag).
+
+> **Why.** A fact can rename two members to one key, and a hand-written
+> implementation can write anything. Both answer `false`, so a format keeps
+> its general path for them.
+
 ## Standard Implementations
 
 `std.serde` implements both traits for these types:

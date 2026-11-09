@@ -256,6 +256,11 @@ pub trait Serialize < ?Copy:
     fn is_absent(&self) -> bool:
         false
 
+    ## Whether every value's `serialize` makes a regular walk, so a format may write it directly: one value, a key before each map or member value, every key new in its object, and each end matching its begin.
+    ## See [std-serde.regular](../../spec/std/serde.md#r-std-serde.regular).
+    fn regular() -> bool:
+        false
+
 # A value that opts in to be built by every format
 # (r-annot.serde.definition).
 ## A type that can read itself from a `Deserializer`; the compiler knows it for the boundary rule.
@@ -284,6 +289,11 @@ impl MapKeyValue:
 pub trait MapKey:
     fn to_key(&self) -> MapKeyValue
     fn from_key(value: MapKeyValue) -> Self?
+
+    ## Whether two different keys always write different `to_key` values, so a map's keys stay new in its object.
+    ## See [std-serde.regular](../../spec/std/serde.md#r-std-serde.regular).
+    fn distinct() -> bool:
+        false
 
 # A format's writer: one call per value of the data model
 # (r-std-serde.model.one-value).
@@ -386,6 +396,9 @@ pub trait Deserializer:
 # `serialize` for each included walked member, then `end_variant`
 # (r-std-serde.derive.serialize.data-and-enum-forms).
 impl[T < ?Copy] Serialize for T by Structure:
+    fn regular() -> bool:
+        T::facts().items.is_empty() && T::describe(&mut RegularProbe {}).is_ok()
+
     fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
         let mut walker = SerializeWalker::[T, W] {
             out: out,
@@ -399,6 +412,9 @@ impl[T < ?Copy] Serialize for T by Structure:
 
 # Union `Serialize`: the ordinary enum derivation over positional cases.
 impl[T < ?Copy & UnionType] Serialize for T by Structure:
+    fn regular() -> bool:
+        T::facts().items.is_empty() && T::describe(&mut RegularProbe {}).is_ok()
+
     fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
         let mut walker = SerializeWalker::[T, W] {
             out: out,
@@ -409,6 +425,22 @@ impl[T < ?Copy & UnionType] Serialize for T by Structure:
         match walker.form:
             .Data => walker.out.end_data()
             _ => walker.out.end_variant()
+
+# The describer of a derived `regular` (r-std-serde.regular): a variant
+# or member with facts, which may rename or skip it, or a member whose
+# type is not regular, stops the description. Each hook only answers, so
+# a release build folds the whole description to its one result.
+struct RegularProbe: pass
+
+@skips::[Skip]()
+impl[S < ?Copy] Describer[S] for RegularProbe:
+    type Error = void
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, void]:
+        if v.info.facts.items.is_empty(): .Ok(()) else: .Err(())
+
+    fn member[F < ?Copy & Serialize](&mut self, h: Field[S, F]) -> Result[void, void]:
+        if h.info.facts.items.is_empty() && F::regular(): .Ok(()) else: .Err(())
 
 enum VariantForm:
     Data
@@ -718,6 +750,9 @@ impl['a, S < ?Copy, R < Deserializer] Source[S] for DeserializeSource[S, R, 'a]:
 
 # Keep handwritten Serialize: implement the builtin scalar protocol, which has no derivable declaration.
 impl Serialize for bool:
+    fn regular() -> bool:
+        true
+
     fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
         out.bool(*self)
 
@@ -728,6 +763,9 @@ impl Deserialize for bool:
 
 # Keep handwritten Serialize: implement the builtin scalar protocol, which has no derivable declaration.
 impl Serialize for string:
+    fn regular() -> bool:
+        true
+
     fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
         out.text(*self)
 
@@ -739,6 +777,9 @@ impl Deserialize for string:
 # A `char` is a text of one character (r-std-serde.std.char).
 # Keep handwritten Serialize: implement the builtin scalar protocol, which has no derivable declaration.
 impl Serialize for char:
+    fn regular() -> bool:
+        true
+
     fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
         out.text("${*self}")
 
@@ -778,6 +819,9 @@ fn unsigned_in[R < Deserializer](
 
 # Keep handwritten Serialize: implement the builtin scalar protocol, which has no derivable declaration.
 impl Serialize for i8:
+    fn regular() -> bool:
+        true
+
     fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
         out.int(i64(*self))
 
@@ -788,6 +832,9 @@ impl Deserialize for i8:
 
 # Keep handwritten Serialize: implement the builtin scalar protocol, which has no derivable declaration.
 impl Serialize for i16:
+    fn regular() -> bool:
+        true
+
     fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
         out.int(i64(*self))
 
@@ -798,6 +845,9 @@ impl Deserialize for i16:
 
 # Keep handwritten Serialize: implement the builtin scalar protocol, which has no derivable declaration.
 impl Serialize for i32:
+    fn regular() -> bool:
+        true
+
     fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
         out.int(i64(*self))
 
@@ -808,6 +858,9 @@ impl Deserialize for i32:
 
 # Keep handwritten Serialize: implement the builtin scalar protocol, which has no derivable declaration.
 impl Serialize for i64:
+    fn regular() -> bool:
+        true
+
     fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
         out.int(*self)
 
@@ -818,6 +871,9 @@ impl Deserialize for i64:
 
 # Keep handwritten Serialize: implement the builtin scalar protocol, which has no derivable declaration.
 impl Serialize for u8:
+    fn regular() -> bool:
+        true
+
     fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
         out.uint(u64(*self))
 
@@ -828,6 +884,9 @@ impl Deserialize for u8:
 
 # Keep handwritten Serialize: implement the builtin scalar protocol, which has no derivable declaration.
 impl Serialize for u16:
+    fn regular() -> bool:
+        true
+
     fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
         out.uint(u64(*self))
 
@@ -838,11 +897,17 @@ impl Deserialize for u16:
 
 # Keep handwritten Serialize: implement the builtin scalar protocol, which has no derivable declaration.
 impl Serialize for u32:
+    fn regular() -> bool:
+        true
+
     fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
         out.uint(u64(*self))
 
 # Keep handwritten Serialize: implement the builtin scalar protocol, which has no derivable declaration.
 impl Serialize for usize:
+    fn regular() -> bool:
+        true
+
     fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
         out.uint(u64(*self))
 
@@ -858,6 +923,9 @@ impl Deserialize for usize:
 
 # Keep handwritten Serialize: implement the builtin scalar protocol, which has no derivable declaration.
 impl Serialize for u64:
+    fn regular() -> bool:
+        true
+
     fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
         out.uint(*self)
 
@@ -868,6 +936,9 @@ impl Deserialize for u64:
 
 # Keep handwritten Serialize: implement the builtin scalar protocol, which has no derivable declaration.
 impl Serialize for f64:
+    fn regular() -> bool:
+        true
+
     fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
         out.float(*self)
 
@@ -878,6 +949,9 @@ impl Deserialize for f64:
 
 # Keep handwritten Serialize: implement the builtin scalar protocol, which has no derivable declaration.
 impl Serialize for f32:
+    fn regular() -> bool:
+        true
+
     fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
         out.float(f64(*self))
 
@@ -894,6 +968,9 @@ impl Deserialize for f32:
 # `.None` is `null` (r-std-serde.std.optional).
 # Keep handwritten Serialize: keep the builtin optional wire form instead of a tagged object.
 impl[T < ?Copy & Serialize] Serialize for T?:
+    fn regular() -> bool:
+        T::regular()
+
     fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
         match self:
             .Some(found) => found.serialize(out)
@@ -925,6 +1002,9 @@ fn result_variant(name: string, index: usize) -> VariantInfo:
     }
 
 impl[T < ?Copy & Serialize, E < ?Copy & Serialize] Serialize for Result[T, E]:
+    fn regular() -> bool:
+        T::regular() && E::regular()
+
     fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
         match self:
             .Ok(value) =>
@@ -953,21 +1033,33 @@ impl[T < Deserialize, E < Deserialize] Deserialize for Result[T, E]:
 # (r-std-serde.std.counted-reference).
 # Keep handwritten Serialize: delegate through the reference; structural derivation is for its referent.
 impl[T < ?Copy & Serialize] Serialize for *T:
+    fn regular() -> bool:
+        T::regular()
+
     fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
         (*(*self)).serialize(out)
 
 # Keep handwritten Serialize: delegate through the reference; structural derivation is for its referent.
 impl[T < ?Copy & Serialize] Serialize for *mut T:
+    fn regular() -> bool:
+        T::regular()
+
     fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
         (*(*self)).serialize(out)
 
 # Keep handwritten Serialize: delegate through the reference; structural derivation is for its referent.
 impl[T < ?Copy & Serialize] Serialize for &T:
+    fn regular() -> bool:
+        T::regular()
+
     fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
         (*(*self)).serialize(out)
 
 # Keep handwritten Serialize: delegate through the reference; structural derivation is for its referent.
 impl[T < ?Copy & Serialize] Serialize for &mut T:
+    fn regular() -> bool:
+        T::regular()
+
     fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
         (*(*self)).serialize(out)
 
@@ -987,6 +1079,9 @@ impl[T < Deserialize & 'static] Deserialize for *mut T:
 # and an empty struct writes its data name. The private bound has no
 # implementations, so any payload member rejects the derivation.
 impl[T] MapKey for T by Structure:
+    fn distinct() -> bool:
+        true
+
     fn to_key(&self) -> MapKeyValue:
         let mut walker = MapKeyWalker::[T] { name: "" }
         _ := Structure::walk(self, &mut walker)
@@ -1113,6 +1208,9 @@ fn unsigned_key(value: MapKeyValue, high: u64) -> u64?:
         .Bool(_) => .None
 
 impl MapKey for string:
+    fn distinct() -> bool:
+        true
+
     fn to_key(&self) -> MapKeyValue:
         MapKeyValue.Text(*self)
 
@@ -1122,6 +1220,9 @@ impl MapKey for string:
             _ => .None
 
 impl MapKey for bool:
+    fn distinct() -> bool:
+        true
+
     fn to_key(&self) -> MapKeyValue:
         MapKeyValue.Bool(*self)
 
@@ -1133,6 +1234,9 @@ impl MapKey for bool:
             _ => .None
 
 impl MapKey for char:
+    fn distinct() -> bool:
+        true
+
     fn to_key(&self) -> MapKeyValue:
         MapKeyValue.Text("${*self}")
 
@@ -1145,6 +1249,9 @@ impl MapKey for char:
             _ => .None
 
 impl MapKey for i8:
+    fn distinct() -> bool:
+        true
+
     fn to_key(&self) -> MapKeyValue:
         MapKeyValue.Int(i64(*self))
 
@@ -1152,6 +1259,9 @@ impl MapKey for i8:
         signed_key(value, -128, 127).map(fn(found): i8(found))
 
 impl MapKey for i16:
+    fn distinct() -> bool:
+        true
+
     fn to_key(&self) -> MapKeyValue:
         MapKeyValue.Int(i64(*self))
 
@@ -1159,6 +1269,9 @@ impl MapKey for i16:
         signed_key(value, -32768, 32767).map(fn(found): i16(found))
 
 impl MapKey for i32:
+    fn distinct() -> bool:
+        true
+
     fn to_key(&self) -> MapKeyValue:
         MapKeyValue.Int(i64(*self))
 
@@ -1166,6 +1279,9 @@ impl MapKey for i32:
         signed_key(value, -2147483648, 2147483647).map(fn(found): i32(found))
 
 impl MapKey for i64:
+    fn distinct() -> bool:
+        true
+
     fn to_key(&self) -> MapKeyValue:
         MapKeyValue.Int(*self)
 
@@ -1173,6 +1289,9 @@ impl MapKey for i64:
         signed_key(value, -9223372036854775807 - 1, 9223372036854775807)
 
 impl MapKey for u8:
+    fn distinct() -> bool:
+        true
+
     fn to_key(&self) -> MapKeyValue:
         MapKeyValue.Uint(u64(*self))
 
@@ -1180,6 +1299,9 @@ impl MapKey for u8:
         unsigned_key(value, 255u64).map(fn(found): u8(found))
 
 impl MapKey for u16:
+    fn distinct() -> bool:
+        true
+
     fn to_key(&self) -> MapKeyValue:
         MapKeyValue.Uint(u64(*self))
 
@@ -1187,6 +1309,9 @@ impl MapKey for u16:
         unsigned_key(value, 65535u64).map(fn(found): u16(found))
 
 impl MapKey for u32:
+    fn distinct() -> bool:
+        true
+
     fn to_key(&self) -> MapKeyValue:
         MapKeyValue.Uint(u64(*self))
 
@@ -1194,6 +1319,9 @@ impl MapKey for u32:
         unsigned_key(value, 4294967295u64).map(fn(found): u32(found))
 
 impl MapKey for u64:
+    fn distinct() -> bool:
+        true
+
     fn to_key(&self) -> MapKeyValue:
         MapKeyValue.Uint(*self)
 
@@ -1201,6 +1329,9 @@ impl MapKey for u64:
         unsigned_key(value, 18446744073709551615u64)
 
 impl MapKey for usize:
+    fn distinct() -> bool:
+        true
+
     fn to_key(&self) -> MapKeyValue:
         MapKeyValue.Uint(u64(*self))
 
@@ -1211,6 +1342,9 @@ impl MapKey for usize:
 # (r-std-serde.std.map-key-bound).
 # Keep handwritten Serialize: write the collection wire form rather than backing storage.
 impl[T < Serialize] Serialize for List[T]:
+    fn regular() -> bool:
+        T::regular()
+
     fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
         out.begin_list(self.len())?
         for item in self:
@@ -1228,6 +1362,9 @@ impl[T < Deserialize] Deserialize for List[T]:
 
 # Keep handwritten Serialize: write the collection wire form rather than backing storage.
 impl[K < Eq & Hash & MapKey, V < Serialize] Serialize for Map[K, V]:
+    fn regular() -> bool:
+        K::distinct() && V::regular()
+
     fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
         out.begin_map(self.len())?
         for entry in self:
@@ -1254,6 +1391,9 @@ impl[K < Eq & Hash & MapKey, V < Deserialize] Deserialize for Map[K, V]:
 # (r-std-serde.std.set).
 # Keep handwritten Serialize: write the collection wire form rather than backing storage.
 impl[T < Eq & Hash & Serialize] Serialize for Set[T]:
+    fn regular() -> bool:
+        T::regular()
+
     fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
         out.begin_list(self.len())?
         for item in *self:
@@ -1274,6 +1414,9 @@ impl[T < Eq & Hash & Deserialize] Deserialize for Set[T]:
 # order. A counting pass over the members' types gives `begin_list` its
 # length before the one walk over the values.
 impl[T < ?Copy & Tuple] Serialize for T by Structure:
+    fn regular() -> bool:
+        T::describe(&mut RegularProbe {}).is_ok()
+
     fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
         let mut count = MemberCount { total: 0 }
         _ := T::describe(&mut count)

@@ -365,12 +365,6 @@ pub struct Input<'a> {
     /// Each instance's TIR body, by instance: its instance body (a
     /// default argument's or a plan's), its supplied body, or its item's.
     pub body: &'a dyn Fn(InstId) -> Option<&'a Body>,
-    /// Concrete `std.json.encode`/`encode_pretty` instances whose selected
-    /// `Serialize` walk is statically regular, and the two private fallback
-    /// functions. Emission makes those instances' fallback arms unreachable,
-    /// so final reachability does not root the tree writer.
-    pub direct_json_encoders: &'a hd_base::HashSet<Hash128>,
-    pub json_fallbacks: [DefId; 2],
     /// The private `std.num` implementations of floating power and
     /// remainder, which Wasm has no native instructions for.
     pub float_ops: FloatOps,
