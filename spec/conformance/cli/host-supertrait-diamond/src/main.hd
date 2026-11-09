@@ -1,0 +1,26 @@
+# A package host reaches a shared supertrait through either diamond path.
+# Spec Traits: trait.dyn.supertrait-methods, trait.super.acyclic.
+pub trait Base:
+    fn base(&self) -> u32
+
+pub trait Left < Base:
+    fn left(&self) -> u32
+
+pub trait Right < Base:
+    fn right(&self) -> u32
+
+@host
+pub trait Both < Left & Right:
+    fn both(&self) -> u32
+
+fn via_left(value: &dyn Left) -> u32:
+    value.base() + value.left()
+
+fn via_right(value: &dyn Right) -> u32:
+    value.base() + value.right()
+
+pub fn main() -> void $ Console + Both:
+    let value: &dyn Both = $.use(Both)
+    println("${value.base() + value.both()}")
+    println("${via_left(value)}")
+    println("${via_right(value)}")

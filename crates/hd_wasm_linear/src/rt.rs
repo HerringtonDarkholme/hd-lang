@@ -1137,7 +1137,7 @@ fn profile_vtable(
         arguments: None,
     };
     let mut methods = Vec::new();
-    let vtable = profile_tree(input, m, def, def, key, at, &mut methods, &mut Vec::new())?;
+    let vtable = profile_tree(input, m, def, def, key, at, &mut methods)?;
     if let (Some(identity), Some(module)) = (package, module) {
         crate::boundary::record_package_interface(
             m,
@@ -1153,6 +1153,8 @@ fn profile_vtable(
     Ok(vtable)
 }
 
+// ruled out: hd_resolve checks trait.super.acyclic before collection.
+// Shared ancestors in a diamond need neither a cycle check nor a visited set.
 fn profile_tree(
     input: &Input<'_>,
     m: &mut Module,
@@ -1161,13 +1163,8 @@ fn profile_tree(
     key: &str,
     at: crate::boundary::AtProfile<'_>,
     methods: &mut Vec<hd_host_abi::schema::Method>,
-    seen: &mut Vec<hd_base::DefId>,
 ) -> StageResult<usize> {
     use hd_host_abi::{Codec, Wait};
-    if seen.contains(&def) {
-        return unsupported("cyclic package host supertraits");
-    }
-    seen.push(def);
     let mut slots = Vec::new();
     for method in input.env.trait_methods(def) {
         if !input.collected.calls_dyn(method) {
@@ -1253,11 +1250,9 @@ fn profile_tree(
                     ..at
                 },
                 methods,
-                seen,
             )?);
         }
     }
-    seen.pop();
     crate::drive::vtable(input, m, def, slots, parents)
 }
 
