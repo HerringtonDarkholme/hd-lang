@@ -10425,24 +10425,33 @@ impl Run<'_> {
                 key,
                 own,
                 report,
-            } => match inits.iter().position(|k| k == key) {
-                Some(at) if report.is_none() || at + 1 == inits.len() => {
-                    hd_wasm_linear::Entry::Script {
-                        init: *def,
-                        key: *key,
-                        before: inits[..at].iter().map(|k| (*k, true)).collect(),
-                        after: inits[at + 1..]
-                            .iter()
-                            .map(|k| (*k, !own.contains(k)))
-                            .collect(),
-                        report: *report,
-                    }
+            } => {
+                // The inits before the script's root body, then those after
+                // it: the later runs of its module cycle and the cycles
+                // after it. ruled out: the root is the entry's first own
+                // init body, and `hd_mono::collect` pushes every init's
+                // instance into `inits` in order, so `key` is there. A `?`
+                // report ends the script, so no init may follow it; none
+                // does, as no module may use an entry module
+                // (`module.path.main-no-use`, `cli.exe.entry-no-use`,
+                // `cli.task.program-use`), so its cycle is itself alone and
+                // `group_init_order` puts it after every cycle it uses
+                // (`module.init.cycle.once`).
+                let before = inits.iter().take_while(|k| *k != key);
+                let after: Vec<_> = inits.iter().skip_while(|k| *k != key).skip(1).collect();
+                debug_assert!(inits.contains(key), "a script's init that is not run");
+                debug_assert!(
+                    report.is_none() || after.is_empty(),
+                    "a script using `?` whose module cycle runs inits after it"
+                );
+                hd_wasm_linear::Entry::Script {
+                    init: *def,
+                    key: *key,
+                    before: before.map(|k| (*k, true)).collect(),
+                    after: after.into_iter().map(|k| (*k, !own.contains(k))).collect(),
+                    report: *report,
                 }
-                Some(_) => {
-                    hd_wasm_linear::Entry::Unsupported("a script using `?` with later inits")
-                }
-                None => hd_wasm_linear::Entry::Unsupported("a script whose init is not run"),
-            },
+            }
             Roots::Inputs(inputs) => {
                 // The inits no input reaches through its uses, as the
                 // linear runtime's, which the compiler roots: they run

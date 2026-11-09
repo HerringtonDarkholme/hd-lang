@@ -853,7 +853,6 @@ pub fn entry(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
             }
             return Ok(());
         }
-        Entry::Unsupported(what) => return unsupported(*what),
     };
     m.export("hd.init", Sym::Helper(Helper::EntryInit { inits: before }));
     let poll = poll(input, m, main, key, report, after)?;

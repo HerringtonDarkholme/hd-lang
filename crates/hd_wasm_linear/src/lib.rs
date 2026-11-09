@@ -304,8 +304,6 @@ pub enum Entry {
     /// Development-only fixture bodies, retained without executable exports.
     /// Every supplied instance and its suspension parts survive link pruning.
     Fixture { roots: Vec<Hash128> },
-    /// An entry this backend does not build.
-    Unsupported(&'static str),
 }
 
 /// One input of [`Entry::Inputs`], as [`Entry::Script`] has a script.
@@ -339,10 +337,7 @@ impl Entry {
         match self {
             Entry::Main { main, .. } | Entry::Scenario { main, .. } => *main == item,
             Entry::Tests { cases, .. } => cases.iter().any(|(def, _, _)| *def == item),
-            Entry::Script { .. }
-            | Entry::Inputs(_)
-            | Entry::Fixture { .. }
-            | Entry::Unsupported(_) => false,
+            Entry::Script { .. } | Entry::Inputs(_) | Entry::Fixture { .. } => false,
         }
     }
 }
