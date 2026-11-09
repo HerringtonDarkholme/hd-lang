@@ -6,7 +6,7 @@
 # expect-stdout: after
 # expect-stdout: missing
 # expect-stdout: after
-# Spec 13: ref.convert.readonly-covariant, ref.convert.readonly-option
+# Spec 13: ref.convert.readonly-covariant, ref.convert.readonly-payload
 struct User:
     name: string
 

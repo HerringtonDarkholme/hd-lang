@@ -1,0 +1,20 @@
+# Spec 13: ref.convert.readonly-payload
+struct User:
+    name: string
+
+enum Maybe[T]:
+    Nothing
+    Just(T)
+
+enum Either[A, B]:
+    Left(A)
+    Right(B)
+
+fn maybe(view: *Maybe[*mut User]) -> *Maybe[*User]:
+    view
+
+fn either(view: &Either[*mut User, string]) -> &Either[*User, string]:
+    view
+
+fn nested(view: *List[Maybe[*mut User]]) -> *List[Maybe[*User]]:
+    view

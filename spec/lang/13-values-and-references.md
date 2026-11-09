@@ -309,7 +309,7 @@ A writable reference converts to a read-only one, and a counted reference lends 
 4. r[ref.convert.no-counted] A local reference never converts to a counted one, as [`ref.local.escape.counted`](#r-ref.local.escape.counted) states.
 5. r[ref.convert.listed-only] Reference conversions are limited to this section and [Trait Value References](09-traits.md#trait-value-references).
 6. r[ref.convert.readonly-covariant] A readonly container reference permits `*mut U` to `*U` weakening through covariant container arguments and tuple elements.
-7. r[ref.convert.readonly-option] The same weakening enters an optional payload beneath a readonly reference.
+7. r[ref.convert.readonly-payload] The same weakening enters an enum argument beneath a readonly reference when every field of the enum that mentions that type parameter is exactly the parameter, a whole payload or shared field, as `T` is in `Option[T]`; a parameter inside a field's type, as in `*mut T` or `List[T]`, keeps its declared variance.
 8. r[ref.convert.readonly-invariant] The conversion preserves invariant arguments and the operands of mutable references retained in the target.
 9. r[ref.convert.readonly-representation] The conversion preserves representation and reference identity, without copying elements or inserting wrappers.
 

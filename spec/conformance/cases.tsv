@@ -5982,6 +5982,8 @@ runtime/valid/list-literal-spreads-lend-their-lists.hd	runtime	accept	lang/05-ex
 runtime/valid/a-generic-call-lends-a-reference-argument.hd	runtime	accept	lang/13-values-and-references.md#r-ref.generic.call
 runtime/valid/a-call-at-a-trait-value-lends-a-counted-argument.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.bound.reference-dispatch
 runtime/valid/nested-user-enum-chain-releases.hd	runtime	accept	lang/13-values-and-references.md#r-ref.box.lifetime
+typing/valid/reference-readonly-user-enum-payload.hd	type	accept	lang/13-values-and-references.md#r-ref.convert.readonly-payload
+typing/invalid/reference-readonly-enum-field-type-keeps-variance.hd	type	reject:type-mismatch	lang/13-values-and-references.md#r-ref.convert.readonly-payload
 typing/invalid/a-pointer-read-from-a-place-keeps-its-root-list-call.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.dep.call.pointer
 typing/invalid/a-pointer-read-from-a-place-keeps-its-root-list-direct.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.shared
 typing/invalid/a-pointer-read-from-a-place-keeps-its-root-map-call.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.dep.call.pointer

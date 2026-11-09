@@ -119,7 +119,37 @@ impl Ck<'_, '_> {
         self.infer.resolve(self.pool(), inner)
     }
 
-    /// `ref.convert.readonly-covariant`, `ref.convert.readonly-option`:
+    /// For each type parameter of `def`, whether `def` is an enum whose
+    /// variant payload fields and shared fields hold that parameter only as
+    /// a whole field (`ref.convert.readonly-payload`): `Option[T]`'s `T`,
+    /// or any user enum's alike. Beneath a readonly reference such an
+    /// argument converts as a covariant one does. Cost: one walk of the
+    /// enum's declared field types per query.
+    fn whole_payload_params(&self, def: DefId) -> Vec<bool> {
+        let Some(item) = self.cx.lookup.item(def) else {
+            return Vec::new();
+        };
+        let hd_resolve::ItemData::Enum {
+            shared, variants, ..
+        } = &item.data
+        else {
+            return Vec::new();
+        };
+        let global = self.cx.names.pool;
+        let mut seen = vec![hd_resolve::variance::Seen::default(); item.generics.len()];
+        let no_variance = |_: DefId| Vec::new();
+        for field in shared.iter().chain(variants.iter().flat_map(|v| &v.fields)) {
+            match global.get(field.ty) {
+                TyData::Param(p) if p.owner == def => {}
+                _ => hd_resolve::variance::walk(global, field.ty, 1, def, &no_variance, &mut seen),
+            }
+        }
+        seen.iter()
+            .map(|s| *s == hd_resolve::variance::Seen::default())
+            .collect()
+    }
+
+    /// `ref.convert.readonly-covariant`, `ref.convert.readonly-payload`:
     /// representation-preserving permission weakening through a readonly
     /// container view. A mutable reference and an invariant argument keep
     /// their exact operands. The caller rolls back a failed inference trial.
@@ -149,16 +179,6 @@ impl Ck<'_, '_> {
                     counted: kb,
                 },
             ) if ka || !kb => self.readonly_view_fits(a, b, d),
-            // An optional's payload converts as a readonly view does.
-            (
-                TyData::Adt { def, args: a },
-                TyData::Adt {
-                    def: other,
-                    args: b,
-                },
-            ) if def == other && def == self.cx.names.known.option => {
-                self.readonly_view_fits(pool.list_items(a)[0], pool.list_items(b)[0], d)
-            }
             (
                 TyData::Adt { def, args: a },
                 TyData::Adt {
@@ -168,9 +188,10 @@ impl Ck<'_, '_> {
             ) if def == other => {
                 let (a, b) = (pool.list_items(a), pool.list_items(b));
                 let variance = self.declared_variances(def);
+                let whole = self.whole_payload_params(def);
                 a.len() == b.len()
                     && a.iter().zip(b).enumerate().all(|(i, (&a, &b))| {
-                        if variance.get(i) == Some(&1) {
+                        if variance.get(i) == Some(&1) || whole.get(i) == Some(&true) {
                             self.readonly_view_fits(a, b, d)
                         } else {
                             self.infer.unify(pool, a, b).is_ok() && self.perm_fits(a, b, false, d)

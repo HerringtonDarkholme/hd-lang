@@ -1,0 +1,10 @@
+# Spec 13: ref.convert.readonly-payload
+struct User:
+    name: string
+
+enum Slot[T]:
+    Empty
+    At(*mut T)
+
+fn slot(view: *Slot[*mut User]) -> *Slot[*User]:
+    view # diagnostic: type-mismatch
