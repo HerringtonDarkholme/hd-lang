@@ -513,14 +513,18 @@ impl Em<'_, '_, '_> {
         if !slot {
             self.init_cell_drop(c, self.sub(self.b.local_ty[l]), false);
             self.f.get(c);
-            // ruled out: own::cell_move states the release for this moved local's storage row.
-            let Some(reason) = self.operation_count(
+            let reason = self.operation_count(
                 i,
                 Tag::Release,
                 super::CountPart::Local(u32::try_from(l).expect("local")),
-            ) else {
-                return crate::unsupported("a moved cell without its stated storage cleanup");
-            };
+            );
+            // ruled out: own::cell_move states the release for this moved
+            // local's storage row; consume the reason that packet states.
+            assert!(
+                reason.is_some(),
+                "a moved cell must state its storage cleanup"
+            );
+            let reason = reason.as_slice()[0];
             self.because(reason, Self::release_cell);
         }
         self.f.zero(c);
