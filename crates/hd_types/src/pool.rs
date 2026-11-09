@@ -952,6 +952,11 @@ impl InternPool {
     pub fn tuple_parts(&self, t: Ty) -> (TyList, Option<Ty>) {
         self.types().tuple_parts(t)
     }
+    /// [`Types::ref_inner`].
+    #[must_use]
+    pub fn ref_inner(&self, t: Ty) -> Ty {
+        self.types().ref_inner(t)
+    }
     /// [`Types::trait_value`].
     #[must_use]
     pub fn trait_value(&self, t: Ty) -> Option<(DefId, TyList)> {
@@ -1414,6 +1419,18 @@ impl<'a> Types<'a> {
             let off = c.data[i];
             (TyList(c.extra[off]), Some(Ty(c.extra[off + 1])))
         }
+    }
+
+    /// The declared referent of an already checked reference constructor.
+    #[must_use]
+    pub fn ref_inner(self, t: Ty) -> Ty {
+        let (c, i) = self.at(t.0);
+        // ruled out: callers established a local or counted reference constructor.
+        debug_assert!(matches!(
+            c.tag[i],
+            PoolTag::Ref | PoolTag::RefMut | PoolTag::CRef | PoolTag::CRefMut
+        ));
+        Ty(c.data[i])
     }
 
     /// `T` when `t` is `def[T]`: the payload of `Option[T]`, which `T?`
@@ -2232,6 +2249,19 @@ mod tests {
         let variable = p.intern_ty(&TyData::Infer(hd_base::InferVar::from_raw(3)));
         let def = DefId::from_raw(7);
         for item in [Ty::I32, variable] {
+            for mutable in [false, true] {
+                for counted in [false, true] {
+                    let reference = p.intern_ty(&TyData::Ref {
+                        inner: item,
+                        mutable,
+                        counted,
+                    });
+                    assert_eq!(p.ref_inner(reference), item);
+                    if !reference.is_local() {
+                        assert_eq!(g.ref_inner(reference), item);
+                    }
+                }
+            }
             let args = p.list(&[item]);
             let list = p.intern_ty(&TyData::Adt { def, args });
             assert_eq!(p.adt_parts(list), (def, args));
@@ -2256,6 +2286,10 @@ mod tests {
         );
         assert!(
             std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| g.tuple_parts(Ty::I32)))
+                .is_err()
+        );
+        assert!(
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| g.ref_inner(Ty::I32)))
                 .is_err()
         );
     }

@@ -96,6 +96,16 @@ impl Em<'_, '_, '_> {
         }
     }
 
+    /// The target and ABI width of a reference established by checked Deref.
+    fn checked_ref_target(&self, t: Ty) -> Referent {
+        let (pool, env) = (self.pool(), self.env());
+        // ruled out: checked Deref typing preserves the reference constructor.
+        let target = pool.ref_inner(crate::layout::strip(pool, env, t));
+        let target = crate::layout::strip(pool, env, target);
+        let fat = matches!(pool.get(target), TyData::TraitValue { .. });
+        (target, fat)
+    }
+
     /// The place in operand word `word`, which the TIR builder encoded.
     pub(super) fn place(&self, word: u32) -> Place {
         self.b.decode_place(word).expect("an encoded place")
@@ -1574,12 +1584,7 @@ impl Em<'_, '_, '_> {
                 Proj::Field(f) => ty = self.path_step(ty, f)?.0,
                 Proj::Elem(_) if self.is_map(ty) => ty = self.entry(ty)?.1,
                 Proj::Elem(_) => ty = self.elem(ty)?.0,
-                Proj::Deref => match self.kind(ty) {
-                    Kind::Ref { target, .. } => ty = target,
-                    // ruled out: checker projections dereference reference
-                    // types; substitution preserves that outer constructor.
-                    _ => return unsupported("a dereference of a value that is no reference"),
-                },
+                Proj::Deref => ty = self.checked_ref_target(ty).0,
                 Proj::Variant(v) => {
                     // ruled out: the checker pairs Variant/Field; callers
                     // split paths only at Elem/Deref or the end of the place.
@@ -1617,24 +1622,15 @@ impl Em<'_, '_, '_> {
                 // ruled out: walk_place splits before each Elem; the other
                 // callers pass the suffix after last_through's final step.
                 Proj::Elem(_) => return unsupported("an element among a walk's plain steps"),
-                Proj::Deref => match self.kind(ty) {
-                    Kind::Ref {
-                        target, fat: false, ..
-                    } => {
-                        // The referent at its address.
-                        at = At::Mem(self.at_i32(&at)?, 0);
-                        ty = target;
-                        k += 1;
-                    }
-                    // ruled out: checked Deref has a reference type. Trait
-                    // values have no fields; terminal fat reads/refs are
-                    // handled in place_read/counted_ref, not walked through.
-                    _ => {
-                        return unsupported(
-                            "a step through a trait value reference or a value that is no reference",
-                        );
-                    }
-                },
+                Proj::Deref => {
+                    let (target, fat) = self.checked_ref_target(ty);
+                    // ruled out: trait values have no fields; terminal fat
+                    // reads/refs run in place_read/counted_ref, not this walk.
+                    debug_assert!(!fat);
+                    at = At::Mem(self.at_i32(&at)?, 0);
+                    ty = target;
+                    k += 1;
+                }
             }
         }
         Ok((at, ty))
@@ -1666,16 +1662,9 @@ impl Em<'_, '_, '_> {
     pub(super) fn declared_referent(&self, p: &Place, d: usize) -> StageResult<Ty> {
         let ty = self.walk_ty(self.at_root_ty(p.root), &p.proj[..d])?;
         let (pool, env) = (self.pool(), self.env());
-        let declared = match pool.get(crate::layout::strip(pool, env, ty)) {
-            TyData::Ref { inner, .. } => Some(inner),
-            _ => None,
-        };
         // ruled out: callers use last_through's successful thin Ref step;
         // erasing newtypes preserves its declared reference constructor.
-        declared.map_or_else(
-            || unsupported("a dereference of a value that is not a reference"),
-            Ok,
-        )
+        Ok(pool.ref_inner(crate::layout::strip(pool, env, ty)))
     }
 }
 
