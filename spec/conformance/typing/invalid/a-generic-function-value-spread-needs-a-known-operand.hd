@@ -1,0 +1,9 @@
+# test: generic tuple inputs give no expected type to a spread operand
+# Spec 05 Positional Spreads: expr.call.spread.unknown.
+use std.function.{Fn, Tuple}
+
+fn make[T < ?Copy]() -> T:
+    panic("unused")
+
+fn call[Args < Tuple](f: Fn[Args, i32, $ ()]) -> i32:
+    f(make()...) # diagnostic: cannot-infer-type

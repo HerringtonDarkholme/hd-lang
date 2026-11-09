@@ -1613,7 +1613,21 @@ impl Ck<'_, '_> {
                 return Ok(None);
             }
         };
-        let (r, t) = self.arg_value(spread, Some(input), false)?;
+        // A spread supplies its own type, even when the callee's inputs
+        // are a tuple parameter (`expr.call.spread.unknown`).
+        let (r, t) = self.arg_value(spread, None, false)?;
+        let t = self.infer.resolve(pool, t);
+        if self.infer.kind_of(pool, t) == Some(VarKind::General) {
+            self.err(
+                Code::CannotInferType,
+                spread,
+                "the type of this spread operand is not known here: annotate the value",
+            );
+            self.infer.rebind(pool, t, Ty::POISON);
+            let input = self.infer.resolve(pool, input);
+            self.infer.rebind(pool, input, Ty::POISON);
+            return Ok(None);
+        }
         let r = self.coerce(r, t, input, spread, "argument", ExpectPosition::General);
         let solved = self.infer.resolve(pool, input);
         match pool.get(solved) {
@@ -1631,7 +1645,6 @@ impl Ck<'_, '_> {
                 }
                 Ok(Some(refs))
             }
-            TyData::Infer(_) => unsupported("a call of a value whose inputs are not yet known"),
             _ => Ok(Some(vec![r])),
         }
     }

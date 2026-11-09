@@ -6132,6 +6132,9 @@ typing/invalid/a-local-row-default-rejects-an-unmarked-enclosing-parameter.hd	ty
 typing/invalid/a-local-row-fixit-skips-an-enclosing-const-parameter.hd	type	reject:generic-kind-mismatch	lang/11-requirements-and-suspension.md#r-req.row.param.unmarked
 typing/invalid/a-local-row-annotation-rejects-an-unmarked-parameter.hd	type	reject:generic-kind-mismatch	lang/11-requirements-and-suspension.md#r-req.row.param.unmarked
 typing/invalid/a-local-row-fixit-uses-the-active-declaration.hd	type	reject:generic-kind-mismatch	lang/11-requirements-and-suspension.md#r-req.row.param.unmarked
+typing/invalid/a-generic-function-value-spread-needs-a-known-operand.hd	type	reject:cannot-infer-type	lang/05-expressions.md#r-expr.call.spread.unknown
+typing/invalid/a-function-value-with-unknown-inputs-needs-a-known-spread.hd	type	reject:cannot-infer-type	lang/05-expressions.md#r-expr.call.spread.unknown
+typing/valid/a-known-spread-solves-a-function-values-inputs.hd	type	accept	lang/05-expressions.md#r-expr.call.spread.inputs
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
