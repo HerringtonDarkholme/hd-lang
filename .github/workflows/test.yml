@@ -78,7 +78,7 @@ jobs:
         run: |
           set -euo pipefail
           zip="$RUNNER_TEMP/ast-grep.zip"
-          curl -fsSL -o "$zip" https://github.com/ast-grep/ast-grep/releases/download/0.50.0/app-x86_64-unknown-linux-gnu.zip
+          curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 -o "$zip" https://github.com/ast-grep/ast-grep/releases/download/0.50.0/app-x86_64-unknown-linux-gnu.zip
           echo "0fd3f489639abb8465a914b74b8779171577582318d8a940d00399f59dba81c5  $zip" | sha256sum -c -
           unzip -q -o -d "$RUNNER_TEMP/ast-grep" "$zip"
           bin="$(find "$RUNNER_TEMP/ast-grep" -type f -name ast-grep | head -n 1)"
