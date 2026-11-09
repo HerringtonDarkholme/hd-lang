@@ -5,7 +5,12 @@ use hd_driver::{Executor, Host, NoClock, Output, Packages, build_packages};
 use hd_sched::SerialOrder;
 
 /// What names a build: the program's sources and its [`super::Build`].
-type Key = (super::Build, String, Vec<(String, String)>);
+type Key = (
+    super::Build,
+    String,
+    Vec<(String, String)>,
+    Option<Vec<String>>,
+);
 
 thread_local! {
     /// This thread's last build. A case's views all ask for the same one.
@@ -15,7 +20,7 @@ thread_local! {
 /// The build the compiled views read: with instruction origins and the text
 /// of the case's own bodies, which add output and leave the module unchanged.
 pub(super) fn build(p: &super::Program, at: super::Build) -> Rc<Output> {
-    let key = (at, p.text.clone(), p.files.clone());
+    let key = (at, p.text.clone(), p.files.clone(), p.profile.clone());
     if let Some(built) = LAST.with_borrow(|last| {
         last.as_ref()
             .filter(|(k, _)| *k == key)
@@ -69,6 +74,7 @@ fn fresh(p: &super::Program, at: super::Build) -> Output {
             },
             checked: at.checked,
             std_leaf: at.std.then_some(super::own::STD_CASE),
+            profile: p.profile.clone(),
             ..Packages::default()
         },
         &at.goal(),

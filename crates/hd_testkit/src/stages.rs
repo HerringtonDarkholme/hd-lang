@@ -32,6 +32,11 @@ pub struct Program {
     pub text: String,
     pub subject: (usize, usize),
     pub files: Vec<(String, String)>,
+    /// The host capability traits of the `# @profile:` runtime profile.
+    pub profile: Option<Vec<String>>,
+    /// The runtime helpers the `wat` view prints whole, by name without
+    /// `rt:` and `#k` (`# @helpers: enc dec`).
+    pub helpers: Vec<String>,
     marked: bool,
 }
 
@@ -47,6 +52,8 @@ impl Program {
             text: text.to_owned(),
             subject: span.unwrap_or((0, text.len())),
             files: Vec::new(),
+            profile: None,
+            helpers: Vec::new(),
             marked: span.is_some(),
         })
     }
@@ -71,8 +78,11 @@ impl Program {
     }
 }
 
-/// Parses directives. `@dump` and `@build` belong in the header comments
-/// before the first line of code. `@file` begins a virtual module;
+/// Parses directives. `@dump`, `@build`, `@profile` and `@helpers` belong
+/// in the header comments before the first line of code. `@profile` names
+/// a conformance runtime profile ([`crate::profile_traits`]) whose traits
+/// the case's main module declares; `@helpers` names runtime helpers the
+/// `wat` view prints whole. `@file` begins a virtual module;
 /// subsequent lines belong to it until the next `@file`. Main defaults to
 /// `main.hd`.
 ///
@@ -82,6 +92,8 @@ impl Program {
 pub fn parse(text: &str) -> Result<Case, String> {
     let mut dumps = Vec::new();
     let mut build = Build::default();
+    let mut profile = None;
+    let mut helpers = Vec::new();
     let mut modules = BTreeMap::<String, String>::new();
     let mut current = "main.hd".to_owned();
     let mut declared = Vec::new();
@@ -95,7 +107,7 @@ pub fn parse(text: &str) -> Result<Case, String> {
                 .split_once(':')
                 .ok_or("a directive needs `:`")?;
             let value = value.trim();
-            if !header && matches!(name, "dump" | "build") {
+            if !header && matches!(name, "dump" | "build" | "profile" | "helpers") {
                 return Err(format!("`@{name}` after the header comments"));
             }
             match name {
@@ -117,6 +129,14 @@ pub fn parse(text: &str) -> Result<Case, String> {
                     build =
                         Build::parse(value).ok_or_else(|| format!("unknown build `{value}`"))?;
                 }
+                "profile" => {
+                    let module = hd_project::module_path("app", "main.hd");
+                    profile = Some(
+                        crate::profile_traits(value, &module)
+                            .ok_or_else(|| format!("unknown profile `{value}`"))?,
+                    );
+                }
+                "helpers" => helpers.extend(value.split_whitespace().map(str::to_owned)),
                 "file" => {
                     let path = Path::new(value);
                     if value.is_empty()
@@ -156,6 +176,8 @@ pub fn parse(text: &str) -> Result<Case, String> {
     let main = modules.remove("main.hd").ok_or("no main.hd module")?;
     let mut program = Program::new(&main)?;
     program.files = modules.into_iter().collect();
+    program.profile = profile;
+    program.helpers = helpers;
     Ok(Case {
         program,
         dumps,

@@ -15,6 +15,29 @@ use hd_sched::SerialOrder;
 pub mod known_failures;
 pub mod stages;
 
+/// The host capability traits of conformance runtime profile `name`
+/// (`spec/conformance/README.md` "Runtime Profiles"), as a build receives
+/// them: the fixture's own traits it names, in module `module`, or the
+/// prelude `Console`. `None` for `console`, the profile of a fixture that
+/// names none, and for a name no profile has. Conformance fixtures
+/// (`# fixture-runtime-profile:`) and stage cases (`# @profile:`) share it.
+#[must_use]
+pub fn profile_traits(name: &str, module: &str) -> Option<Vec<String>> {
+    let own = |traits: &[&str]| Some(traits.iter().map(|t| format!("{module}.{t}")).collect());
+    match name {
+        "serde-vault" => own(&["Vault"]),
+        "disposed-file" => own(&["Files", "FileHandle"]),
+        "pending-gate" => own(&["Gate"]),
+        "misbehaving-host" => own(&["Gauge"]),
+        "special-float-host" => own(&["Sensor"]),
+        "tick" | "pending-tick" => Some(vec![
+            "std.console.Console".to_owned(),
+            format!("{module}.Tick"),
+        ]),
+        _ => None,
+    }
+}
+
 /// A fresh scratch directory that removes itself, read-only entries
 /// included, when it drops, so a test run leaves nothing under
 /// `target/tmp`. It derefs to its path.

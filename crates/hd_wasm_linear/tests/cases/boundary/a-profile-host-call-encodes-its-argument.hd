@@ -1,0 +1,15 @@
+# @dump: wat
+# @build: program
+# @profile: serde-vault
+# @helpers: hd:Vault/keep enc dec
+# expected: the `keep` slot encodes the record's two fields into the
+# exchange buffer, calls the `hd:Vault` import, and decodes the result.
+pub struct Token:
+    pub owner: string
+    pub id: i32
+
+pub trait Vault:
+    fn keep(self, token: Token) -> Token
+
+pub fn main() -> void $ Vault:
+    _ := $.use(Vault).keep(Token { owner: "ada", id: +7 })

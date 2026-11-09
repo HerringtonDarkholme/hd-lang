@@ -69,8 +69,15 @@ pub fn wat_for(p: &Program, at: Build) -> String {
         // Each function's excerpt, as tokens, before anything is named.
         let mut excerpts: Vec<(&FunctionOrigins, Instructions)> = Vec::new();
         for f in &built.instruction_origins {
-            let Some(item) = f.item.as_deref().filter(|i| i.starts_with(prefix)) else {
-                continue;
+            // A runtime helper the case names in `# @helpers:` prints whole.
+            let helper = f.item.is_none()
+                && short_name(&f.name)
+                    .strip_prefix("rt:")
+                    .is_some_and(|name| p.helpers.iter().any(|h| h == name));
+            let item = match f.item.as_deref() {
+                Some(item) if item.starts_with(prefix) => item,
+                _ if helper => "",
+                _ => continue,
             };
             let (start, end) = module.bodies[&f.index];
             let instructions: Vec<_> = f
@@ -98,7 +105,7 @@ pub fn wat_for(p: &Program, at: Build) -> String {
                     )
                 })
                 .collect();
-            let kept = focused(p, instructions);
+            let kept = focused(p, instructions, helper);
             if !kept.is_empty() {
                 excerpts.push((f, kept));
             }
@@ -314,12 +321,14 @@ fn delimiter(ts: &[Tok]) -> bool {
 /// Keep the subject's instructions, every instruction of a subject
 /// function with no source position, and only the control delimiters
 /// needed to parse the excerpt. Omitted runs are comments, not code.
-fn focused(p: &Program, code: SourceInstructions) -> Instructions {
+/// A `whole` function (a named runtime helper, which has no source
+/// position) keeps every instruction.
+fn focused(p: &Program, code: SourceInstructions, whole: bool) -> Instructions {
     let subject: Vec<bool> = code
         .iter()
         .map(|(span, _)| span.is_some_and(|(lo, hi)| p.inside(lo, hi)))
         .collect();
-    let unspanned: Vec<bool> = if subject.iter().any(|k| *k) {
+    let unspanned: Vec<bool> = if whole || subject.iter().any(|k| *k) {
         code.iter()
             .map(|(span, ts)| span.is_none() && !delimiter(ts))
             .collect()

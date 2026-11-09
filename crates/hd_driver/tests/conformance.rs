@@ -499,19 +499,10 @@ fn build_for(
 /// no profile.
 fn profile(fixture: &Fixture) -> Option<Vec<String>> {
     let module = hd_project::module_path("fixture", &fixture.primary);
-    let own = |traits: &[&str]| Some(traits.iter().map(|t| format!("{module}.{t}")).collect());
-    match directive(&fixture.text, "fixture-runtime-profile")? {
-        "serde-vault" => own(&["Vault"]),
-        "disposed-file" => own(&["Files", "FileHandle"]),
-        "pending-gate" => own(&["Gate"]),
-        "misbehaving-host" => own(&["Gauge"]),
-        "special-float-host" => own(&["Sensor"]),
-        "tick" | "pending-tick" => Some(vec![
-            "std.console.Console".to_owned(),
-            format!("{module}.Tick"),
-        ]),
-        _ => None,
-    }
+    hd_testkit::profile_traits(
+        directive(&fixture.text, "fixture-runtime-profile")?,
+        &module,
+    )
 }
 
 fn marker_line(text: &str, kind: &str) -> Option<usize> {
