@@ -28,8 +28,10 @@
 //   node scripts/coverage.ts --check --from REPORT      check a stored report
 //
 // `--check` fails when a crate's percent is more than 0.05 points under
-// bench/coverage/baseline.json, and prints its uncovered ranges on lines
-// changed since the baseline's commit. With no baseline yet it only reports.
+// bench/coverage/baseline.json and an uncovered line sits on a line changed
+// since the baseline's commit; it prints those ranges. A fall with no such
+// line is covered code deleted and passes (#1521). Without a diff from the
+// baseline's commit, any fall fails. With no baseline yet it only reports.
 // `--record` rewrites the baseline from the measured report, or from a
 // report.json that CI uploaded (its uncovered/ folder beside it). Both need
 // every run. The baseline only moves by `--record`: CI measures on a schedule,
@@ -562,18 +564,27 @@ function check({ report, uncovered }: Measured, baseline: Baseline | undefined):
     if (row.percent >= base - TOLERANCE) {
       continue;
     }
-    ok = false;
     console.log(`${crate}: ${row.percent}% fell below the baseline ${base}%`);
     const ranges = uncovered.get(crate) ?? [];
     const changed = changedLines(baseline.commit, report.commit, crate);
     if (changed === undefined) {
+      ok = false;
       printRanges(`uncovered ranges (no diff from ${baseline.commit.slice(0, 9)})`, ranges);
-    } else {
-      printRanges(
-        `uncovered ranges on lines changed since ${baseline.commit.slice(0, 9)}`,
-        newRanges(ranges, changed),
-      );
+      continue;
     }
+    // A change fails only for what it makes worse: an uncovered line on a
+    // line it changed. Deleting covered code lowers the percentage without
+    // leaving any such line, and passes (#1521).
+    const fresh = newRanges(ranges, changed);
+    if (fresh.length === 0) {
+      console.log(
+        `${crate}: no uncovered line on lines changed since ${baseline.commit.slice(0, 9)}; ` +
+          "the fall is covered code deleted, which passes",
+      );
+      continue;
+    }
+    ok = false;
+    printRanges(`uncovered ranges on lines changed since ${baseline.commit.slice(0, 9)}`, fresh);
   }
   return ok;
 }
