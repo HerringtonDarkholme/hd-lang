@@ -1281,58 +1281,6 @@ impl Module {
         self.inst_order.retain(|s| seen.contains(*s));
     }
 
-    /// Reuse the existing no-view link fact before cycle selection:
-    /// projections are address offsets plus their owned count, and a
-    /// reference's identity serial is its zero-extended physical address.
-    /// Removing unreachable view helpers also keeps their allocation
-    /// descriptors from needlessly linking the collector.
-    fn physical_references(&mut self) {
-        let runtime = self.runtime;
-        for f in self.funcs.iter_mut().flatten() {
-            let body = std::mem::take(&mut f.body);
-            let origins = f.origins.as_mut().map(std::mem::take);
-            let outer = f.origin_at;
-            for (i, ins) in body.into_iter().enumerate() {
-                f.origin_at = origins.as_ref().and_then(|o| o[i]);
-                if matches!(ins, Ins::Call(id)
-                    if matches!(&*self.symbols.get(id), Sym::Helper(crate::rt::Helper::RefAddress)))
-                {
-                    // RefAddress returns i64 to also represent an erased
-                    // word plus its field offset. With no views, its whole
-                    // loop is just the unsigned physical i32 address.
-                    f.op(Instruction::I64ExtendI32U);
-                    continue;
-                }
-                let projection = match ins {
-                    Ins::Call(id) => match &*self.symbols.get(id) {
-                        Sym::Helper(crate::rt::Helper::RefProject {
-                            offset, borrowed, ..
-                        }) => Some((*offset, *borrowed)),
-                        _ => None,
-                    },
-                    _ => None,
-                };
-                if let Some((offset, borrowed)) = projection {
-                    if offset != 0 {
-                        f.u32(offset);
-                        f.op(Instruction::I32Add);
-                    }
-                    if !borrowed && let Some(runtime) = runtime {
-                        let at = f.local(Val::I32);
-                        f.set(at);
-                        f.get(at);
-                        f.call(Sym::Inst(runtime.retain));
-                        f.get(at);
-                    }
-                } else {
-                    f.push(ins);
-                }
-            }
-            f.origin_at = outer;
-            f.rebuild_callees();
-        }
-    }
-
     /// What the exports reach, building the helpers among it.
     fn reached(&mut self) -> Reached {
         let mut seen = Reached::default();
@@ -1496,18 +1444,7 @@ impl Module {
             self.keep(|_, s| !matches!(s, Sym::Helper(_)));
             seen = self.reached();
         }
-        if !session
-            && !seen.iter().any(|s| {
-                matches!(
-                    &*self.symbols.get(s),
-                    Sym::Helper(crate::rt::Helper::RefPayload { .. })
-                )
-            })
-        {
-            self.physical_references();
-            seen = self.reached();
-        }
-        // An extension can introduce cyclic objects, reference views, wakers
+        // An extension can introduce cyclic objects, wakers
         // and cancellation after this base has already been initialized.
         // Closed-world absence facts are valid only for ordinary programs.
         let cyclic = session
@@ -1599,14 +1536,6 @@ impl Module {
                 })
             })
             .collect();
-        let physical = !session
-            && !self.funcs.iter().enumerate().any(|(k, f)| {
-                f.is_some()
-                    && matches!(
-                        &*self.symbols.get(SymId(u32::try_from(k).expect("symbols"))),
-                        Sym::Helper(crate::rt::Helper::RefPayload { .. })
-                    )
-            });
         for f in self.funcs.iter_mut().flatten() {
             let body = std::mem::take(&mut f.body);
             let origins = f.origins.as_mut().map(std::mem::take);
@@ -1622,8 +1551,6 @@ impl Module {
                 }
                 let helper = match ins {
                     Ins::Call(id) => match &*self.symbols.get(id) {
-                        Sym::Helper(crate::rt::Helper::RefIsView) => 1,
-                        Sym::Helper(crate::rt::Helper::RefViewsAbsent) => 2,
                         Sym::Helper(crate::rt::Helper::CanCancel) => 3,
                         Sym::Helper(crate::rt::Helper::CancellationRoot) => 4,
                         _ => 0,
@@ -1631,11 +1558,6 @@ impl Module {
                     _ => 0,
                 };
                 match helper {
-                    1 if physical => {
-                        f.op(Instruction::Drop);
-                        f.i32(0);
-                    }
-                    2 => f.i32(i32::from(physical)),
                     3 => f.i32(i32::from(self.cancellable)),
                     4 => {}
                     _ => f.push(ins),
@@ -1779,22 +1701,8 @@ impl Module {
         {
             count_sites.u8(1);
             let mut next = 1;
-            for (id, f) in self
-                .funcs
-                .iter_mut()
-                .enumerate()
-                .filter_map(|(id, f)| f.as_mut().map(|f| (id, f)))
-            {
-                let symbol =
-                    (*self.symbols.get(SymId(u32::try_from(id).expect("symbols")))).clone();
-                crate::count_audit::instrument(
-                    f,
-                    &symbol,
-                    &r,
-                    c.count_audit,
-                    &mut next,
-                    &mut count_sites,
-                );
+            for f in self.funcs.iter_mut().flatten() {
+                crate::count_audit::instrument(f, &r, c.count_audit, &mut next, &mut count_sites);
             }
         }
         if let Some(previous) = previous {

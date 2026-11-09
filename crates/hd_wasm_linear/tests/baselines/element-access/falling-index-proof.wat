@@ -16,12 +16,10 @@
               i32.eqz
               br_if 1
     ;; 12 |             if items[j - 1] <= key:
+              local.get $items
               local.get $j
               i32.const 1
               i32.sub
-              local.set $t0
-              local.get $items
-              local.get $t0
               i32.const 4
               i32.mul
               i32.add
@@ -34,12 +32,10 @@
     ;; 12 |             if items[j - 1] <= key:
               end
     ;; 14 |             items[j] = items[j - 1]
+              local.get $items
               local.get $j
               i32.const 1
               i32.sub
-              local.set $t0
-              local.get $items
-              local.get $t0
               i32.const 4
               i32.mul
               i32.add

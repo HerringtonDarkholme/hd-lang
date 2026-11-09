@@ -2670,7 +2670,7 @@
     i32.store $heap offset=40
     local.get $t0
   )
-  (func $bump'1 (param $frame i32) (param $t i32) (result i32) (local $t1 i32) (local $t2 i32) (local $t3 i64) (local $t0 i32)
+  (func $bump'1 (param $frame i32) (param $t i32) (result i32) (local $t1 i32) (local $t2 i32) (local $t0 i32)
     ;; 8 |     t.n += 1
     local.get $frame
     if
@@ -2701,17 +2701,10 @@
     end
     block
       local.get $t
+      local.get $t
       i64.load $heap
       i64.const 1
       i64.add
-      local.set $t3
-      i32.const 0
-      if (result i32)
-        local.get $t
-      else
-        local.get $t
-      end
-      local.get $t3
       i64.store $heap
     end
     local.get $t2

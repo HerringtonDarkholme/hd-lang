@@ -23,12 +23,10 @@
       call $rt:release
     ;; 17 |     r.n += 1
       local.get $r
+      local.get $r
       i32.load $heap offset=8
       i32.const 1
       i32.add
-      local.set $s.0
-      local.get $r
-      local.get $s.0
       i32.store $heap offset=8
     ;; 16 |     *r = User { name: s, n: 0 }
     end

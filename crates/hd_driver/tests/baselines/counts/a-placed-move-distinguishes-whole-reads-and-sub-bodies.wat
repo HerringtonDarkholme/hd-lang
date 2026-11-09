@@ -12,10 +12,8 @@
     ;; 13 |     a is b
     block
       local.get $a
-      i64.extend_i32_u
       local.get $b
-      i64.extend_i32_u
-      i64.eq
+      i32.eq
       local.set $a
     end
     local.get $a
@@ -112,10 +110,8 @@
     ;; 13 |     a is b
     block
       local.get $a
-      i64.extend_i32_u
       local.get $b
-      i64.extend_i32_u
-      i64.eq
+      i32.eq
       local.set $a
     end
     local.get $a

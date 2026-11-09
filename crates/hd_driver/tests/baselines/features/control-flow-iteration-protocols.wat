@@ -28,12 +28,10 @@
       end
     ;; 16 |         self.at += 1
       local.get $self
+      local.get $self
       i32.load $heap offset=4
       i32.const 1
       i32.add
-      local.set $t0
-      local.get $self
-      local.get $t0
       i32.store $heap offset=4
     ;; 17 |         .Some(self.items[self.at - 1])
       local.get $self

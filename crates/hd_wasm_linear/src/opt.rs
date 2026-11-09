@@ -2772,9 +2772,7 @@ fn fixed_locals(
 /// Makes each direct call of a runtime helper with no effect and no result
 /// the `drop` of its arguments. Such a helper is one whose body only reads
 /// and writes its locals and branches forward, or calls another such
-/// helper. A release helper whose counted part folded away is one: in a
-/// module that makes no representation view, the release of a `(&T)?`
-/// keeps its option test around nothing. A body with a loop, a store, a
+/// helper. A release helper whose counted part folded away is one. A body with a loop, a store, a
 /// trap or any other call keeps its calls. Gives, per function, whether
 /// any of its calls went.
 pub fn effect_free_calls(funcs: &mut [Option<Func>], symbols: &Symbols) -> Vec<bool> {

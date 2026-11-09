@@ -174,7 +174,7 @@ impl Em<'_, '_, '_> {
             };
             self.inst_ty[a as usize] = target;
             let takes = self.b.data[a as usize][1] & hd_tir::ir::ref_word::TAKES != 0;
-            if self.counted(target).is_some() && !takes {
+            if self.tracked(target) && !takes {
                 self.loans.insert(a);
             }
         }

@@ -11,9 +11,8 @@
   (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
-  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 12 funcref))
+  (import "fixture" "table0" (table $table0 6 funcref))
   (func $list_write (param $xs i32) (param $i i32) (param $s.0 i32) (param $s.1 i32)
     ;; 17 |     xs[i] = s
     block
@@ -333,8 +332,6 @@
         i32.const 8
         i32.sub
         i32.load $heap
-        global.get $tracing
-        i32.or
         if
           local.get $t1
           call $rt:release_ref'2

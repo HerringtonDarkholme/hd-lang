@@ -859,7 +859,7 @@
     end
     local.get $t0
   )
-  (func $change'2 (param $frame i32) (param $n i32) (result i32 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32) (local $t4 i32) (local $t0 i32)
+  (func $change'2 (param $frame i32) (param $n i32) (result i32 i32) (local $t1 i32) (local $t0 i32)
     ;; 10 |     n.text = "m"
     local.get $frame
     if
@@ -886,25 +886,15 @@
     else
     end
     block
-      i32.const 114 ;; &"m"
-      i32.const 1
-      local.set $t2
-      local.set $t3
-      i32.const 0
-      if (result i32)
-        local.get $n
-      else
-        local.get $n
-      end
-      local.tee $t4
+      local.get $n
       i32.load $heap
-      local.get $t4
+      local.get $n
       i32.load $heap offset=4
-      local.get $t4
-      local.get $t3
+      local.get $n
+      i32.const 114 ;; &"m"
       i32.store $heap
-      local.get $t4
-      local.get $t2
+      local.get $n
+      i32.const 1
       i32.store $heap offset=4
       call $rt:release
     ;; 11 |     n.text.len()

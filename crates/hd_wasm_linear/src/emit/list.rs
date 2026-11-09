@@ -194,12 +194,7 @@ impl Em<'_, '_, '_> {
                         }
                     }
                     Tag::Coerce => values.get(a as usize) == Some(&true),
-                    _ => {
-                        aliases
-                            && self
-                                .counted(self.ty(u32::try_from(i).expect("insts")))
-                                .is_some()
-                    }
+                    _ => aliases && self.tracked(self.ty(u32::try_from(i).expect("insts"))),
                 };
                 if reaches && !values[i] {
                     values[i] = true;
@@ -241,7 +236,7 @@ impl Em<'_, '_, '_> {
         }
         *budget -= 1;
         let [a, w] = self.b.data[i as usize];
-        if self.counted(self.ty(i)).is_some() {
+        if self.tracked(self.ty(i)) {
             return false;
         }
         match self.b.tags[i as usize] {
@@ -759,9 +754,8 @@ impl Em<'_, '_, '_> {
                 }
                 Tag::Store
                     if external
-                        && store.is_some_and(|(l, _)| {
-                            self.counted(self.sub(self.b.local_ty[l])).is_some()
-                        }) =>
+                        && store
+                            .is_some_and(|(l, _)| self.tracked(self.sub(self.b.local_ty[l]))) =>
                 {
                     return false;
                 }
@@ -783,7 +777,7 @@ impl Em<'_, '_, '_> {
                 | Tag::NewVariant
                 | Tag::NewList
                 | Tag::NewMap
-                    if external && self.counted(self.ty(x)).is_some() =>
+                    if external && self.tracked(self.ty(x)) =>
                 {
                     return false;
                 }
@@ -802,7 +796,7 @@ impl Em<'_, '_, '_> {
                     if external
                         && !reaches
                         && (self.b.element_read(i).is_some() || rooted.is_some())
-                        && self.counted(self.ty(x)).is_some() =>
+                        && self.tracked(self.ty(x)) =>
                 {
                     return false;
                 }
@@ -839,9 +833,7 @@ impl Em<'_, '_, '_> {
     /// (`docs/compiler/tir-v2.md`, "Hoisting"): the statements before the
     /// test, which the pass found pure, run once more, then the test. With
     /// no loop (`None`), no test, or in a suspending body, they run
-    /// unguarded, which costs only a copy an empty loop did not need. One
-    /// behind a dereference runs only where no reference view is reachable;
-    /// elsewhere the covered ones in the loop run instead.
+    /// unguarded, which costs only a copy an empty loop did not need.
     pub(super) fn hoisted_uniques(&mut self, l: Option<u32>) -> StageResult<()> {
         let uniques = std::mem::take(&mut self.hoisted);
         if uniques.is_empty() {
@@ -866,21 +858,7 @@ impl Em<'_, '_, '_> {
         let was = self.f.reason;
         for i in uniques {
             self.f.reason = hd_tir::own::reason(self.b, i as usize);
-            let deref = self
-                .b
-                .decode_place(self.b.data[i as usize][0])
-                .is_some_and(|p| p.proj.contains(&hd_tir::ir::Proj::Deref));
-            if deref {
-                self.f.helper(Helper::RefViewsAbsent);
-                self.f.op(I::If(BlockType::Empty));
-                self.deref_physical = true;
-                let r = self.unique_at(i);
-                self.deref_physical = false;
-                r?;
-                self.f.op(I::End);
-            } else {
-                self.unique_at(i)?;
-            }
+            self.unique_at(i)?;
         }
         self.f.reason = was;
         if test.is_some() {
@@ -893,7 +871,7 @@ impl Em<'_, '_, '_> {
     /// lists for loop `l` (`Body::stable_lists`), a local's list or the
     /// list a reference local refers to, with no counted leaf in its
     /// elements, keep their buffer and length in locals for the
-    /// loop, where no reference view is reachable. Their uniqueness, if the
+    /// loop. Their uniqueness, if the
     /// loop changes them, was a hoisted `IsUnique`'s.
     fn own_list_caches(&mut self, l: u32) -> StageResult<Vec<ListRoot>> {
         let rows = &self.b.stable_lists;
@@ -941,8 +919,6 @@ impl Em<'_, '_, '_> {
         if roots.is_empty() {
             return Ok(roots);
         }
-        self.f.helper(Helper::RefViewsAbsent);
-        self.f.op(I::If(BlockType::Empty));
         for &root in &roots {
             let local = self.local_value(root.local)?[0];
             self.f.get(local);
@@ -957,7 +933,6 @@ impl Em<'_, '_, '_> {
             self.f.set(len);
             self.list_caches.push((root, ListCache { buffer, len }));
         }
-        self.f.op(I::End);
         Ok(roots)
     }
 
@@ -1008,7 +983,7 @@ impl Em<'_, '_, '_> {
     }
 
     /// A local holding the buffer of list or map value `r`: a loop's cached
-    /// one where no reference view is reachable.
+    /// one where it has one.
     pub(super) fn buffer(&mut self, r: u32) -> StageResult<u32> {
         let b = self.f.local(Val::I32);
         let cache = self
@@ -1021,12 +996,7 @@ impl Em<'_, '_, '_> {
             })
             .copied();
         if let Some(cache) = cache {
-            self.f.helper(Helper::RefViewsAbsent);
-            self.f.op(I::If(BlockType::Result(Val::I32.wasm())));
             self.f.get(cache.buffer);
-            self.f.op(I::Else);
-            self.comp(r, 0)?;
-            self.f.op(I::End);
             self.cached_buffers.push((b, cache.len));
         } else {
             self.comp(r, 0)?;
@@ -1042,13 +1012,7 @@ impl Em<'_, '_, '_> {
             .find(|(key, _)| *key == b)
             .map(|(_, len)| *len)
         {
-            self.f.helper(Helper::RefViewsAbsent);
-            self.f.op(I::If(BlockType::Result(Val::I32.wasm())));
             self.f.get(len);
-            self.f.op(I::Else);
-            self.f.get(b);
-            self.f.op(I::I32Load(mem(HEAP, LIST_LEN, 2)));
-            self.f.op(I::End);
         } else {
             self.f.get(b);
             self.f.op(I::I32Load(mem(HEAP, LIST_LEN, 2)));
@@ -1322,28 +1286,12 @@ impl Em<'_, '_, '_> {
         let at = self.f.local(Val::I32);
         self.comp(args[0], 0)?;
         self.f.set(at);
-        // A field reference may be a representation view: a copy of the
-        // list it lends, which the change's unique copy replaces, and the
-        // new buffer stored back by its setter.
-        self.f.get(at);
-        self.f.helper(Helper::RefIsView);
-        self.f.op(I::If(BlockType::Empty));
-        let value = self.ref_layout(lt)?;
-        // A list is one header word.
-        let list = crate::rt::ref_load(&mut self.f, at, &value)[0];
-        self.f.get(list);
-        self.push(args[1])?;
-        self.f.helper(helper.clone());
-        self.f.set(list);
-        crate::rt::ref_store(&mut self.f, at, &[list], &value, true, true);
-        self.f.op(I::Else);
         self.f.get(at);
         self.f.get(at);
         self.f.op(I::I32Load(mem(HEAP, 0, 2)));
         self.push(args[1])?;
         self.f.helper(helper);
         self.f.op(I::I32Store(mem(HEAP, 0, 2)));
-        self.f.op(I::End);
         if reserve {
             self.f.op(I::End);
         }

@@ -36,8 +36,6 @@ pub enum Reason {
     MayBeShared,
     /// A reference through a `*T` outlives its expression.
     PointerLoan,
-    /// The value may be a representation view.
-    View,
     /// The `&dyn` data count (#1354), a suspension's counted reference
     /// (#1355).
     ByDesign,
@@ -45,32 +43,28 @@ pub enum Reason {
     Conservative(&'static str),
 }
 
-const NAMED: [Reason; 9] = [
-    Reason::Stored,
-    Reason::SecondOwner,
-    Reason::LastUse,
-    Reason::Overwritten,
-    Reason::Cancelled,
-    Reason::MayBeShared,
-    Reason::PointerLoan,
-    Reason::View,
-    Reason::ByDesign,
-];
-
 impl Reason {
-    /// A `Drop`'s data word b: any other word is a conservative `Drop`.
+    /// A `Drop`'s data word b, or a count's reason word: any other word is
+    /// a conservative `Drop`. Word 7 named the retired `view` reason
+    /// (#1448), and the passes write no 7.
     #[must_use]
     pub fn from_word(w: u32) -> Self {
-        NAMED
-            .get(w as usize)
-            .copied()
-            .unwrap_or(Reason::Conservative("drop"))
+        match w {
+            0 => Reason::Stored,
+            1 => Reason::SecondOwner,
+            LAST_USE => Reason::LastUse,
+            3 => Reason::Overwritten,
+            4 => Reason::Cancelled,
+            5 => Reason::MayBeShared,
+            6 => Reason::PointerLoan,
+            8 => Reason::ByDesign,
+            _ => Reason::Conservative("drop"),
+        }
     }
 }
 
 /// The data word b of a `Drop` the passes place after a last use.
 pub(crate) const LAST_USE: u32 = 2;
-const _: () = assert!(matches!(NAMED[LAST_USE as usize], Reason::LastUse));
 
 impl std::fmt::Display for Reason {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -82,7 +76,6 @@ impl std::fmt::Display for Reason {
             Reason::Cancelled => "cancelled",
             Reason::MayBeShared => "may be shared",
             Reason::PointerLoan => "pointer loan",
-            Reason::View => "view",
             Reason::ByDesign => "by design",
             Reason::Conservative(site) => return write!(f, "conservative: {site}"),
         })
@@ -91,7 +84,7 @@ impl std::fmt::Display for Reason {
 
 /// The reason of count statement `i`: a `Drop`'s word. An `IsUnique` that
 /// runs is what hoisting's walks couldn't prove fresh or a repeat, so its
-/// buffer may be shared, and a covered one is kept only for a view. A copy
+/// buffer may be shared; a covered one runs no check. A copy
 /// goes before every read, proving nothing. `None` for any other instruction.
 #[must_use]
 pub fn reason(b: &Body, i: usize) -> Option<Reason> {
@@ -101,7 +94,7 @@ pub fn reason(b: &Body, i: usize) -> Option<Reason> {
             Reason::from_word(crate::ir::count::Info::read(b, i)?.reason)
         }
         Tag::Drop => Reason::from_word(w),
-        Tag::IsUnique if w == unique_word::COVERED => Reason::View,
+        Tag::IsUnique if w == unique_word::COVERED => return None,
         Tag::IsUnique if w == 0 || w == unique_word::HOISTED => Reason::MayBeShared,
         Tag::Read if w == ReadMode::Copy as u32 => Reason::Conservative("copy read"),
         _ => return None,

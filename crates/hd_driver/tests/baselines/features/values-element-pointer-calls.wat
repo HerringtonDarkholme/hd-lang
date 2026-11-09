@@ -14,12 +14,10 @@
     ;; 26 |         self.sum += value
     block
       local.get $self
+      local.get $self
       i64.load $heap
       local.get $value
       i64.add
-      local.set $value
-      local.get $self
-      local.get $value
       i64.store $heap
     end
   )
@@ -82,7 +80,7 @@
       end
     end
   )
-  (func $run (param $root i32) (result i64) (local $t3 i64) (local $t0 i32) (local $t1 i32) (local $keeper i32) (local $t2 i32)
+  (func $run (param $root i32) (result i64) (local $t3 i64) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 39 |     let mut total = Total { sum: 0 }
     global.get $locals
     global.get $locals_base
@@ -125,18 +123,17 @@
       i64.store $heap
       local.get $t1
     ;; 40 |     walk(root, &mut total)
-      local.tee $keeper
       local.tee $t2
       if
         local.get $t2
         call $retain
       end
       local.get $root
-      local.get $keeper
-      i32.const 296 ;; &vtable[func46]
+      local.get $t1
+      i32.const 240 ;; &vtable[func46]
       call $walk
     ;; 39 |     let mut total = Total { sum: 0 }
-      local.get $keeper
+      local.get $t1
       local.tee $t2
       if
         local.get $t2
@@ -149,28 +146,29 @@
       local.get $t0
       i32.const 24
       i32.add
-      local.tee $keeper
+      local.tee $t2
       i32.const 80 ;; &empty-buffer
       i32.store $heap
-      local.get $keeper
     ;; 42 |     save(root, &mut keeper)
-      local.set $t2
       local.get $root
+    ;; 41 |     let mut keeper = Keeper { saved: [] }
       local.get $t2
+      local.tee $root
+    ;; 42 |     save(root, &mut keeper)
       call $save
     ;; 39 |     let mut total = Total { sum: 0 }
       local.get $t1
     ;; 43 |     total.sum + i64(keeper.saved.len())
       i64.load $heap
-      local.get $keeper
+      local.get $root
       i32.load $heap
-      local.tee $root
-      local.get $keeper
+      local.tee $t1
+      local.get $root
       i32.const 0
       i32.store $heap
       i32.load $heap offset=4
     ;; 39 |     let mut total = Total { sum: 0 }
-      local.get $root
+      local.get $t1
       local.tee $t2
       if
         local.get $t2

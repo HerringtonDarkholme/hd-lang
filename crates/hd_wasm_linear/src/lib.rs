@@ -60,13 +60,18 @@ pub fn counted_type(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> bool {
     layout::holds_drop(pool, env, ty) || layout::walk(pool, env, ty).is_some()
 }
 
-/// Whether this concrete parameter layout is one thin local reference view.
-/// Its cold frame holds a separate page-table count of the referenced object.
+/// Whether this concrete parameter type is one thin local reference
+/// (`ref.count.local`), which counts nothing. Its cold frame holds a
+/// separate page-table count of the referenced object.
 #[must_use]
 pub fn frame_referent_type(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> bool {
     matches!(
-        layout::count_walk(pool, env, ty),
-        Some(layout::Walk::View(_))
+        layout::kind(pool, env, ty),
+        layout::Kind::Ref {
+            fat: false,
+            whole: false,
+            ..
+        }
     )
 }
 
@@ -99,12 +104,14 @@ pub fn reference_target_type(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) ->
     }
 }
 
-/// Whether every count of `ty` is a thin local reference's, which counts
-/// only if it is a representation view, with no `std.rt.Drop` to run.
+/// Whether every counted value of `ty` the ownership passes track is a
+/// thin local reference's, which counts nothing, with no `std.rt.Drop` to
+/// run.
 #[must_use]
 pub fn plain_reference_type(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> bool {
     !layout::holds_drop(pool, env, ty)
-        && layout::count_walk(pool, env, ty).is_some_and(|w| w.only_views())
+        && layout::walk(pool, env, ty).is_some()
+        && layout::count_walk(pool, env, ty).is_none()
 }
 
 /// Whether ownership must transfer an inline runtime Drop value rather

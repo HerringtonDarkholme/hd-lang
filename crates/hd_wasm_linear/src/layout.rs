@@ -548,11 +548,6 @@ pub enum Walk {
     /// string's bytes, a local reference, an open value; counting finds its
     /// block through the page table (§23.5).
     Ref(u32),
-    /// Value `k` is a thin local reference (`ref.count.local`): a plain
-    /// address, which counts nothing, unless it is a representation view
-    /// (`rt:ref_is_view`), a payload start that the reference owns; that
-    /// test folds to false in a module that makes no view.
-    View(u32),
     /// Value `k` is null, a static object's, or the payload start of a
     /// counted object, eight bytes after its header: a boxed enum's cell, a collection's buffer, a closure's environment, a
     /// thin counted reference ([`block_start`]); counting
@@ -641,7 +636,6 @@ impl Walk {
         let cell = |k: &u32| picks[*k as usize].cell();
         match self {
             Walk::Ref(k) => Walk::Ref(cell(k)),
-            Walk::View(k) => Walk::View(cell(k)),
             Walk::Known(k) => Walk::Known(cell(k)),
             Walk::Glue => Walk::Glue,
             Walk::Seq(ws) => Walk::Seq(ws.iter().map(|w| w.place(picks)).collect()),
@@ -655,24 +649,11 @@ impl Walk {
         }
     }
 
-    /// Whether the walk counts nothing but thin local references.
-    #[must_use]
-    pub fn only_views(&self) -> bool {
-        match self {
-            Walk::View(_) => true,
-            Walk::Ref(_) | Walk::Known(_) | Walk::Glue => false,
-            Walk::Seq(ws) => ws.iter().all(Walk::only_views),
-            Walk::Switch(_, arms) => arms.iter().flatten().all(Walk::only_views),
-            Walk::Nullable(w) => w.only_views(),
-        }
-    }
-
     /// The walk with each value index `k` replaced by `to(k)`.
     #[must_use]
     pub fn remap(&self, to: &dyn Fn(u32) -> u32) -> Walk {
         match self {
             Walk::Ref(k) => Walk::Ref(to(*k)),
-            Walk::View(k) => Walk::View(to(*k)),
             Walk::Known(k) => Walk::Known(to(*k)),
             Walk::Glue => Walk::Glue,
             Walk::Seq(ws) => Walk::Seq(ws.iter().map(|w| w.remap(to)).collect()),
@@ -695,7 +676,6 @@ impl Walk {
     pub fn without(&self, skip: &[u32]) -> Option<Walk> {
         match self {
             Walk::Ref(k) => (!skip.contains(k)).then_some(Walk::Ref(*k)),
-            Walk::View(k) => (!skip.contains(k)).then_some(Walk::View(*k)),
             Walk::Known(k) => (!skip.contains(k)).then_some(Walk::Known(*k)),
             Walk::Glue => Some(Walk::Glue),
             Walk::Seq(ws) => Walk::seq(ws.iter().filter_map(|w| w.without(skip)).collect()),
@@ -714,7 +694,7 @@ impl Walk {
     #[must_use]
     pub fn single(&self) -> Option<u32> {
         match self {
-            Walk::Ref(k) | Walk::View(k) | Walk::Known(k) => Some(*k),
+            Walk::Ref(k) | Walk::Known(k) => Some(*k),
             Walk::Glue | Walk::Seq(_) | Walk::Switch(..) | Walk::Nullable(_) => None,
         }
     }
@@ -733,9 +713,7 @@ impl Walk {
         match self {
             Walk::Ref(_) => Some(Addr::Ref),
             Walk::Known(_) => Some(Addr::Known),
-            Walk::View(_) | Walk::Glue | Walk::Seq(_) | Walk::Switch(..) | Walk::Nullable(_) => {
-                None
-            }
+            Walk::Glue | Walk::Seq(_) | Walk::Switch(..) | Walk::Nullable(_) => None,
         }
     }
 
@@ -768,9 +746,9 @@ pub fn walk(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<Walk> {
     })
 }
 
-/// [`walk`] as counting sees it: a thin local reference is a
-/// [`Walk::View`], which counts only a representation view, though the
-/// ownership passes track it as a counted value ([`walk`]).
+/// [`walk`] as counting sees it: a thin local reference
+/// (`ref.count.local`) is a plain address, which counts nothing, though
+/// the ownership passes track it as a counted value ([`walk`]).
 pub fn count_walk(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<Walk> {
     memoized(&COUNT_WALKS, pool, env, t, &|u, part| {
         walk_one(pool, env, u, part, true)
@@ -783,7 +761,7 @@ fn walk_one(
     env: &dyn ProgramEnv,
     t: Ty,
     part: &dyn Fn(Ty) -> Option<Walk>,
-    views: bool,
+    counting: bool,
 ) -> Option<Walk> {
     let t = strip(pool, env, t);
     match pool.get(t) {
@@ -801,7 +779,7 @@ fn walk_one(
                     fat: false,
                     whole: false,
                     ..
-                } if views => Some(Walk::View(0)),
+                } if counting => None,
                 Kind::Ref { fat, whole, .. } => Some(if whole && !fat {
                     Walk::Known(0)
                 } else {

@@ -54,8 +54,10 @@ impl hd_tir::own::short::Context for Em<'_, '_, '_> {
     fn element(&self, ty: Ty) -> Option<Ty> {
         self.elem(ty).ok().map(|(element, _)| element)
     }
+    // The ownership passes' notion: a thin local reference is counted
+    // there, though it counts nothing ([`crate::layout::walk`]).
     fn counted(&self, ty: Ty) -> bool {
-        Em::counted(self, ty).is_some()
+        self.tracked(ty)
     }
     fn needs_drop(&self, ty: Ty) -> bool {
         Em::needs_drop(self, ty)

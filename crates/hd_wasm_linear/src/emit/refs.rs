@@ -14,14 +14,13 @@
 
 use crate::op::Op as I;
 use hd_base::{DefId, StageResult};
-use hd_mono::layout::{CanonMemo, canon};
 use hd_tir::ir::{NONE, Place, PlaceRoot, Proj, Ref, Tag};
 use hd_types::{Ty, TyData};
 
 use super::Em;
 use super::value::{Dst, Src};
 use crate::layout::{Kind, Leaf, Part, Pick, mem as mem_of, struct_mem};
-use crate::module::{EMPTY, HEAP, Sym, Val, mem};
+use crate::module::{EMPTY, HEAP, Val, mem};
 use crate::rt::{self, Helper, LIST_ELEMS, LIST_LEN, RefLayout};
 use crate::unsupported;
 
@@ -44,14 +43,6 @@ impl Em<'_, '_, '_> {
     pub(super) fn ref_layout(&self, ty: Ty) -> StageResult<RefLayout> {
         let m = mem_of(self.pool(), self.env(), ty)?;
         let walk = self.counted(ty);
-        let boxed = self.vals(ty)? != [Val::I32]
-            || !crate::layout::walk(self.pool(), self.env(), ty).is_some_and(|w| w.plain_single());
-        let key = canon(
-            self.pool(),
-            &|d| self.env().path_hash(d),
-            &mut CanonMemo::default(),
-            ty,
-        );
         Ok(RefLayout {
             known: crate::layout::block_start(self.pool(), self.env(), ty),
             size: m.size,
@@ -63,17 +54,7 @@ impl Em<'_, '_, '_> {
                 Box::default()
             },
             colls: self.copied(ty).into(),
-            boxed,
-            weak: (self.m.open_world || self.m.weak_types.contains(&key)).then_some(key),
         })
-    }
-
-    /// One count less on the counted address in local `o`.
-    pub(super) fn release_open(&mut self, o: u32) {
-        if self.input.runtime.is_some() {
-            self.f.get(o);
-            self.f.helper(Helper::ReleaseRef);
-        }
     }
 
     /// Locals holding value `r`: its instruction's, or a constant's,
@@ -426,7 +407,6 @@ impl Em<'_, '_, '_> {
         }
         let (at, _) = self.walk_place(i, &p, d, None)?;
         let reference = self.at_i32(&at)?;
-        let value = self.ref_layout(target)?;
         let helper = Helper::MapUnique {
             entry: self.entry(target)?.2,
         };
@@ -445,16 +425,7 @@ impl Em<'_, '_, '_> {
             }
         };
         let header = self.f.local(Val::I32);
-        self.f.get(reference);
-        self.f.helper(Helper::RefIsView);
-        self.f.op(I::If(wasm_encoder::BlockType::Empty));
         // A map is one header word.
-        let taken = rt::ref_take(&mut self.f, reference, &value)[0];
-        self.f.get(taken);
-        unique(self);
-        self.f.set(header);
-        rt::ref_store(&mut self.f, reference, &[header], &value, true, true);
-        self.f.op(I::Else);
         self.f.get(reference);
         self.f.op(I::I32Load(mem(HEAP, 0, 2)));
         unique(self);
@@ -462,7 +433,6 @@ impl Em<'_, '_, '_> {
         self.f.get(reference);
         self.f.get(header);
         self.f.op(I::I32Store(mem(HEAP, 0, 2)));
-        self.f.op(I::End);
         Ok(Some(header))
     }
 
@@ -524,28 +494,6 @@ impl Em<'_, '_, '_> {
             Some((d, Some((target, false)))) => {
                 let (at, _) = self.walk_place(NONE, &p, d, None)?;
                 let r = self.at_i32(&at)?;
-                // A view's referent has no address of its own to store at.
-                self.f.get(r);
-                self.f.helper(Helper::RefIsView);
-                self.f.op(I::If(wasm_encoder::BlockType::Empty));
-                if d + 1 == p.proj.len() && self.is_map(target) {
-                    // The change consumed the old table's count. Take its
-                    // stale header out without releasing it before the
-                    // setter restores the replacement's count.
-                    let value = self.ref_layout(target)?;
-                    rt::ref_take(&mut self.f, r, &value);
-                    rt::ref_store(&mut self.f, r, &[b], &value, true, true);
-                    self.f.op(I::Else);
-                    self.f.get(r);
-                    self.f.get(b);
-                    self.f.op(I::I32Store(mem(HEAP, 0, 2)));
-                    self.f.op(I::End);
-                    return Ok(());
-                }
-                self.f.helper(Helper::Panic(
-                    "internal: a collection changed through a reference view".into(),
-                ));
-                self.f.op(I::End);
                 (At::Mem(r, 0), target, d + 1)
             }
             Some(_) => {
@@ -640,7 +588,7 @@ impl Em<'_, '_, '_> {
             self.f.get(v);
         }
         self.store_owned(i)?;
-        if self.counted(self.ty(i)).is_some() {
+        if self.tracked(self.ty(i)) {
             for v in ls {
                 self.f.zero(v);
             }
@@ -777,54 +725,21 @@ impl Em<'_, '_, '_> {
     }
 
     /// The rest of `Ref` `i` of the part at `off` of the value at address
-    /// `at`, the leaves from `first`: a physical place projects by the
-    /// offset, and only a representation view needs a forwarding object and
-    /// its helper call.
-    #[allow(clippy::too_many_arguments)]
+    /// `at`: the address there, or the trait value a fat reference reads
+    /// at it.
     fn ref_projection(
         &mut self,
         i: u32,
         at: u32,
-        parent: RefLayout,
         field: &RefLayout,
-        first: u32,
         off: u32,
         fat: bool,
     ) -> StageResult<()> {
-        self.f.get(at);
-        self.f.helper(Helper::RefIsView);
-        self.f
-            .op(I::If(wasm_encoder::BlockType::Result(Val::I32.wasm())));
-        self.f.get(at);
-        self.f.helper(Helper::RefProject {
-            borrowed: false,
-            parent,
-            field: field.clone(),
-            first,
-            offset: off,
-        });
-        self.f.op(I::Else);
-        self.f.get(at);
-        if off != 0 {
-            self.f.u32(off);
-            self.f.op(I::I32Add);
-        }
-        // A plain address counts nothing; a trait value read at it is
-        // released below as the view's projection would be.
-        if fat && let Some(runtime) = self.m.runtime {
-            let physical = self.f.local(Val::I32);
-            self.f.set(physical);
-            self.f.get(physical);
-            self.f
-                .count_call(Sym::Inst(runtime.retain), crate::views::CountAction::Retain);
-            self.f.get(physical);
-        }
-        self.f.op(I::End);
+        let at = self.offset_local(at, off);
         if fat {
-            let projected = self.f.local(Val::I32);
-            self.f.set(projected);
-            self.load_through(projected, field);
-            self.release_open(projected);
+            self.load_through(at, field);
+        } else {
+            self.f.get(at);
         }
         self.store_owned(i)?;
         Ok(())
@@ -845,7 +760,6 @@ impl Em<'_, '_, '_> {
             At::Mem(a, off) => At::Mem(self.offset_local(a, off), 0),
             base => base,
         };
-        let parent_ty = ty;
         let has_path = !path.is_empty();
         let (mut off, mut first) = (0, 0);
         for &f in path {
@@ -858,10 +772,8 @@ impl Em<'_, '_, '_> {
         if let At::Mem(at, _) = &base
             && has_path
         {
-            let parent = self.ref_layout(parent_ty)?;
             let field = self.ref_layout(ty)?;
-            let first = u32::try_from(first).expect("field");
-            return self.ref_projection(i, *at, parent, &field, first, off, fat);
+            return self.ref_projection(i, *at, &field, off, fat);
         }
         match base {
             At::Mem(at, _) if fat => {
@@ -905,7 +817,7 @@ impl Em<'_, '_, '_> {
                 self.f.get(obj);
                 // A local reference owns the copy; a counted carrier's
                 // count of it is the carrier's own.
-                if matches!(self.counted(self.ty(i)), Some(crate::layout::Walk::View(_))) {
+                if self.local_ref(self.ty(i)) {
                     self.owned_refs.insert(i);
                 }
                 return self.store_owned(i);
@@ -1012,32 +924,19 @@ impl Em<'_, '_, '_> {
     }
 
     /// Reads only `part` of the value that the reference in local `at`
-    /// names, into instruction `dest`'s value, as a read of a physical
-    /// place does: through a view, of the leaves the view lends
-    /// ([`rt::ref_lend`]), else of the leaves at the address.
+    /// names, into instruction `dest`'s value: the part's leaves at the
+    /// address.
     fn read_part(&mut self, dest: u32, at: u32, value: &RefLayout, part: Part) -> StageResult<()> {
-        self.f.get(at);
-        self.f.helper(Helper::RefIsView);
-        self.f.op(I::If(wasm_encoder::BlockType::Empty));
-        let parent = rt::view_lend(&mut self.f, at, value);
-        for l in &parent[part.first..part.first + part.count] {
-            self.f.get(*l);
-        }
-        self.store(dest)?;
-        self.f.op(I::Else);
         for leaf in &value.leaves[part.first..part.first + part.count] {
             self.f.get(at);
             self.f.op(leaf.load(0));
         }
-        self.store(dest)?;
-        self.f.op(I::End);
-        Ok(())
+        self.store(dest)
     }
 
-    /// Reads a payload path from the value reference `at` names. A recursive
-    /// enum stores its payload in its boxed cell, while a flat enum selects
-    /// shared slots; [`Em::walk_steps`] handles both layouts for a view and a
-    /// physical referent.
+    /// Reads a payload path from the value reference `at` names: a boxed
+    /// enum's payload in its cell, a flat enum's at its offset
+    /// ([`Em::walk_steps`]).
     fn read_path(&mut self, dest: u32, at: u32, ty: Ty, steps: &[Proj]) -> StageResult<()> {
         if steps
             .iter()
@@ -1045,20 +944,9 @@ impl Em<'_, '_, '_> {
         {
             return unsupported("a payload read through this reference");
         }
-        let value = self.ref_layout(ty)?;
-        self.f.get(at);
-        self.f.helper(Helper::RefIsView);
-        self.f.op(I::If(wasm_encoder::BlockType::Empty));
-        let parent = rt::view_lend(&mut self.f, at, &value);
-        let (view, view_ty) = self.walk_steps(At::Vals(parent), ty, steps)?;
-        self.push_at(&view, view_ty)?;
-        self.store(dest)?;
-        self.f.op(I::Else);
         let (place, place_ty) = self.walk_steps(At::Mem(at, 0), ty, steps)?;
         self.push_at(&place, place_ty)?;
-        self.store(dest)?;
-        self.f.op(I::End);
-        Ok(())
+        self.store(dest)
     }
 
     /// Pushes the value that the reference in local `at` names, with
@@ -1247,9 +1135,7 @@ impl Em<'_, '_, '_> {
     }
 
     /// A write of `v` into the struct field `path` reaches in the `target`
-    /// the reference in local `at` refers to. A physical place takes the
-    /// value at its offset; a representation view takes it through a field
-    /// view (`RefProject`) made for the write and released after it.
+    /// the reference in local `at` refers to: the value at its offset.
     fn deref_field_write_at(
         &mut self,
         at: u32,
@@ -1258,47 +1144,14 @@ impl Em<'_, '_, '_> {
         v: u32,
     ) -> StageResult<()> {
         let (ft, part) = self.fold_path(target, path)?;
-        let parent = self.ref_layout(target)?;
         let field = self.ref_layout(ft)?;
         let ls: Vec<u32> = field.leaves.iter().map(|l| self.f.local(l.val)).collect();
         // A value the store consumes moves its count into the place.
         let moved = self.take(v);
         self.write_new(Dst::Locals(&ls), &Src::Ref(v))?;
-        let view = self.f.local(Val::I32);
-        self.f.get(at);
-        self.f.helper(Helper::RefIsView);
-        self.f.set(view);
-        let dst = self.f.local(Val::I32);
-        self.f.get(view);
-        self.f
-            .op(I::If(wasm_encoder::BlockType::Result(Val::I32.wasm())));
-        self.f.get(at);
-        // Only a view reaches the helper here, and a field view always
-        // holds its source; `borrowed` drops only the retain of the
-        // helper's physical branch, which this write never takes.
-        self.f.helper(Helper::RefProject {
-            borrowed: true,
-            parent,
-            field: field.clone(),
-            first: u32::try_from(part.first).expect("field"),
-            offset: part.offset,
-        });
-        self.f.op(I::Else);
-        self.f.get(at);
-        if part.offset != 0 {
-            self.f.u32(part.offset);
-            self.f.op(I::I32Add);
-        }
-        self.f.op(I::End);
-        self.f.set(dst);
+        let dst = self.offset_local(at, part.offset);
         let release = self.releases_old();
         rt::ref_store(&mut self.f, dst, &ls, &field, moved, release);
-        if self.input.runtime.is_some() {
-            self.f.get(view);
-            self.f.op(I::If(wasm_encoder::BlockType::Empty));
-            self.release_open(dst);
-            self.f.op(I::End);
-        }
         Ok(())
     }
 
@@ -1312,7 +1165,7 @@ impl Em<'_, '_, '_> {
         self.f.i32(0);
         self.f.i32(0);
         self.comp(r, 0)?;
-        self.f.helper(Helper::RefAddress);
+        self.f.op(I::I64ExtendI32U);
         self.f.u32(EMPTY);
         self.f.i32(0);
         self.store(i)
@@ -1525,9 +1378,8 @@ impl Em<'_, '_, '_> {
     /// bounds-checked
     /// (unchecked where the loop's range proof covers read `i`, and from the
     /// loop's cached buffer where the list is a stable list of a local).
-    /// A dereference of a reference goes to its referent's address; where
-    /// a reference view may be reached, the walk reads on in the value the
-    /// view lends to the next step's address. So every dereference before
+    /// A dereference of a reference goes to its referent's address. So
+    /// every dereference before
     /// `upto` is followed, by `upto`, by another element or dereference, or
     /// by fields and variants down to one 32-bit value.
     pub(super) fn walk_place(
@@ -1564,18 +1416,9 @@ impl Em<'_, '_, '_> {
         };
         let lead_cache = lead.and_then(|e| cached(self, e == 1).map(|c| (c, e)));
         if let Some((cache, elem)) = lead_cache {
-            // The cached buffer, where no view is reachable; else the walk.
+            // The cached buffer.
             let h = self.f.local(Val::I32);
-            self.f.helper(Helper::RefViewsAbsent);
-            self.f
-                .op(I::If(wasm_encoder::BlockType::Result(Val::I32.wasm())));
             self.f.get(cache.buffer);
-            self.f.op(I::Else);
-            let (a, t) = self.at_root(p.root)?;
-            let (a, _) = self.walk_steps(a, t, &steps[..elem])?;
-            let x = self.at_i32(&a)?;
-            self.f.get(x);
-            self.f.op(I::End);
             self.f.set(h);
             self.cached_buffers.push((h, cache.len));
             ty = self.walk_ty(self.at_root_ty(p.root), &steps[..elem])?;
@@ -1613,14 +1456,7 @@ impl Em<'_, '_, '_> {
             let proven = lead == Some(k) && self.proven_list_indices.contains(&i);
             let ix = if proven {
                 let x = self.f.local(Val::I32);
-                self.f.helper(Helper::RefViewsAbsent);
-                self.f
-                    .op(I::If(wasm_encoder::BlockType::Result(Val::I32.wasm())));
                 self.comp(ix.0, 0)?;
-                self.f.op(I::Else);
-                let checked = self.index(b, ix.0)?;
-                self.f.get(checked);
-                self.f.op(I::End);
                 self.f.set(x);
                 x
             } else {
@@ -1696,48 +1532,10 @@ impl Em<'_, '_, '_> {
                     Kind::Ref {
                         target, fat: false, ..
                     } => {
-                        let r = self.at_i32(&at)?;
-                        // The steps to the next dereference, or to the end.
-                        let next = steps[k + 1..]
-                            .iter()
-                            .position(|s| *s == Proj::Deref)
-                            .map_or(steps.len(), |x| k + 1 + x);
-                        if self.deref_physical {
-                            at = At::Mem(r, 0);
-                            ty = target;
-                            k += 1;
-                            continue;
-                        }
-                        // The value the steps to the next dereference reach,
-                        // in locals both ways: through a view, from the
-                        // leaves it lends ([`rt::ref_lend`]); an open value
-                        // there may be a box that goes once the view has it
-                        // back. Else loaded from the referent's
-                        // address.
-                        let t = self.walk_ty(target, &steps[k + 1..next])?;
-                        let xs: Vec<u32> =
-                            self.vals(t)?.into_iter().map(|v| self.f.local(v)).collect();
-                        let value = self.ref_layout(target)?;
-                        self.f.get(r);
-                        self.f.helper(Helper::RefIsView);
-                        self.f.op(I::If(wasm_encoder::BlockType::Empty));
-                        let vals = rt::view_lend(&mut self.f, r, &value);
-                        let (a, _) =
-                            self.walk_steps(At::Vals(vals.clone()), target, &steps[k + 1..next])?;
-                        self.push_at(&a, t)?;
-                        for x in xs.iter().rev() {
-                            self.f.set(*x);
-                        }
-                        self.f.op(I::Else);
-                        let (a, _) = self.walk_steps(At::Mem(r, 0), target, &steps[k + 1..next])?;
-                        self.push_at(&a, t)?;
-                        for x in xs.iter().rev() {
-                            self.f.set(*x);
-                        }
-                        self.f.op(I::End);
-                        at = At::Vals(xs);
-                        ty = t;
-                        k = next;
+                        // The referent at its address.
+                        at = At::Mem(self.at_i32(&at)?, 0);
+                        ty = target;
+                        k += 1;
                     }
                     _ => {
                         return unsupported(

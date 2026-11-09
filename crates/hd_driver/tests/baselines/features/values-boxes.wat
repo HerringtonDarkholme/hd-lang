@@ -6,7 +6,6 @@
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
-  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $copy_box (param $s.0 i32) (param $s.1 i32) (param $t.0 i32) (param $t.1 i32) (result i32) (local $copy i32) (local $t0 i32)
     ;; 15 |     let mut p = Point { name: s }
@@ -63,8 +62,6 @@
         i32.const 8
         i32.sub
         i32.load $heap
-        global.get $tracing
-        i32.or
         if
           local.get $t0
           call $rt:release_ref'2
@@ -164,8 +161,6 @@
         i32.const 8
         i32.sub
         i32.load $heap
-        global.get $tracing
-        i32.or
         if
           local.get $t0
           call $rt:release_ref'2
@@ -190,8 +185,6 @@
         i32.const 8
         i32.sub
         i32.load $heap
-        global.get $tracing
-        i32.or
         if
           local.get $t0
           call $rt:release_ref'2

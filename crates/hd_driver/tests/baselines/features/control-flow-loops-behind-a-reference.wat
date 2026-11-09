@@ -114,17 +114,10 @@
       i32.lt_u
       if
         local.get $self
+        local.get $self
         i32.load $heap
-        local.tee $t0
         call $rt:list_unique
-        local.tee $t1
-        local.get $t0
-        i32.ne
-        if
-          local.get $self
-          local.get $t1
-          i32.store $heap
-        end
+        i32.store $heap
       end
       block
         loop
@@ -441,17 +434,10 @@
       i32.lt_u
       if
         local.get $self
+        local.get $self
         i32.load $heap
-        local.tee $t1
         call $rt:list_unique
-        local.tee $t2
-        local.get $t1
-        i32.ne
-        if
-          local.get $self
-          local.get $t2
-          i32.store $heap
-        end
+        i32.store $heap
       end
       block
         loop

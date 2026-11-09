@@ -171,49 +171,49 @@
       i32.load $heap offset=328
       local.set $t38
       local.get $frame
-      i32.load $heap offset=476
+      i32.load $heap offset=464
       local.set $t39
       local.get $frame
-      i32.load $heap offset=480
+      i32.load $heap offset=468
       local.set $t40
       local.get $frame
-      i32.load $heap offset=484
+      i32.load $heap offset=472
       local.set $t41
       local.get $frame
-      i32.load $heap offset=524
+      i32.load $heap offset=512
       local.set $t42
       local.get $frame
-      i32.load $heap offset=528
+      i32.load $heap offset=516
       local.set $t43
       local.get $frame
-      i32.load $heap offset=532
+      i32.load $heap offset=520
       local.set $t44
       local.get $frame
-      i32.load $heap offset=556
+      i32.load $heap offset=544
       local.set $t45
       local.get $frame
-      i32.load $heap offset=560
+      i32.load $heap offset=548
       local.set $t46
       local.get $frame
-      i32.load $heap offset=564
+      i32.load $heap offset=552
       local.set $t47
       local.get $frame
-      i32.load $heap offset=568
+      i32.load $heap offset=556
       local.set $t48
       local.get $frame
-      i32.load $heap offset=572
+      i32.load $heap offset=560
       local.set $t49
       local.get $frame
-      i32.load $heap offset=576
+      i32.load $heap offset=564
       local.set $t50
       local.get $frame
-      i32.load $heap offset=580
+      i32.load $heap offset=568
       local.set $t51
       local.get $frame
-      i32.load $heap offset=584
+      i32.load $heap offset=572
       local.set $t52
       local.get $frame
-      i32.load $heap offset=624
+      i32.load $heap offset=612
       local.set $t53
       local.get $frame
       i32.load $heap offset=8
@@ -410,24 +410,11 @@
               call $rt:panic
               unreachable
             end
+            local.get $t55
             local.get $t45
             i32.const 1
             i32.add
-            local.get $t55
-            local.set $t56
-            local.set $t45
-            i32.const 0
-            if (result i32)
-              local.get $t56
-              i32.const 8
-              i32.add
-            else
-              local.get $t56
-              i32.const 8
-              i32.add
-            end
-            local.get $t45
-            i32.store $heap
+            i32.store $heap offset=8
             br 0
           end
         end
@@ -744,49 +731,49 @@
             i32.store $heap offset=328
             local.get $frame
             local.get $t39
-            i32.store $heap offset=476
+            i32.store $heap offset=464
             local.get $frame
             local.get $t40
-            i32.store $heap offset=480
+            i32.store $heap offset=468
             local.get $frame
             local.get $t41
-            i32.store $heap offset=484
+            i32.store $heap offset=472
             local.get $frame
             local.get $t42
-            i32.store $heap offset=524
+            i32.store $heap offset=512
             local.get $frame
             local.get $t43
-            i32.store $heap offset=528
+            i32.store $heap offset=516
             local.get $frame
             local.get $t44
-            i32.store $heap offset=532
+            i32.store $heap offset=520
             local.get $frame
             local.get $t45
-            i32.store $heap offset=556
+            i32.store $heap offset=544
             local.get $frame
             local.get $t46
-            i32.store $heap offset=560
+            i32.store $heap offset=548
             local.get $frame
             local.get $t47
-            i32.store $heap offset=564
+            i32.store $heap offset=552
             local.get $frame
             local.get $t48
-            i32.store $heap offset=568
+            i32.store $heap offset=556
             local.get $frame
             local.get $t49
-            i32.store $heap offset=572
+            i32.store $heap offset=560
             local.get $frame
             local.get $t50
-            i32.store $heap offset=576
+            i32.store $heap offset=564
             local.get $frame
             local.get $t51
-            i32.store $heap offset=580
+            i32.store $heap offset=568
             local.get $frame
             local.get $t52
-            i32.store $heap offset=584
+            i32.store $heap offset=572
             local.get $frame
             local.get $t53
-            i32.store $heap offset=624
+            i32.store $heap offset=612
             local.get $frame
             local.get $t55
             i32.store $heap offset=16
@@ -998,49 +985,49 @@
           i32.store $heap offset=328
           local.get $frame
           local.get $t39
-          i32.store $heap offset=476
+          i32.store $heap offset=464
           local.get $frame
           local.get $t40
-          i32.store $heap offset=480
+          i32.store $heap offset=468
           local.get $frame
           local.get $t41
-          i32.store $heap offset=484
+          i32.store $heap offset=472
           local.get $frame
           local.get $t42
-          i32.store $heap offset=524
+          i32.store $heap offset=512
           local.get $frame
           local.get $t43
-          i32.store $heap offset=528
+          i32.store $heap offset=516
           local.get $frame
           local.get $t44
-          i32.store $heap offset=532
+          i32.store $heap offset=520
           local.get $frame
           local.get $t45
-          i32.store $heap offset=556
+          i32.store $heap offset=544
           local.get $frame
           local.get $t46
-          i32.store $heap offset=560
+          i32.store $heap offset=548
           local.get $frame
           local.get $t47
-          i32.store $heap offset=564
+          i32.store $heap offset=552
           local.get $frame
           local.get $t48
-          i32.store $heap offset=568
+          i32.store $heap offset=556
           local.get $frame
           local.get $t49
-          i32.store $heap offset=572
+          i32.store $heap offset=560
           local.get $frame
           local.get $t50
-          i32.store $heap offset=576
+          i32.store $heap offset=564
           local.get $frame
           local.get $t51
-          i32.store $heap offset=580
+          i32.store $heap offset=568
           local.get $frame
           local.get $t52
-          i32.store $heap offset=584
+          i32.store $heap offset=572
           local.get $frame
           local.get $t53
-          i32.store $heap offset=624
+          i32.store $heap offset=612
           local.get $frame
           local.get $t54
           i32.store $heap offset=16

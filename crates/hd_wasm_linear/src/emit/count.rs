@@ -82,10 +82,9 @@ impl Em<'_, '_, '_> {
     /// (`docs/compiler/tir-v2.md`, "Borrow"): a borrow takes no count, so
     /// it joins [`Em::loans`], and its read lowers
     /// as a copy's would with no count. One through a reference takes no
-    /// count, through a view too, which lends its place's own value
-    /// ([`crate::rt::ref_lend`]). A local the passes store a borrow into
-    /// holds no count ([`Em::loan_locals`]): its stores count nothing, and
-    /// its `Drop`s release only a view's value.
+    /// count ([`crate::rt::ref_lend`]). A local the passes store a borrow
+    /// into holds no count ([`Em::loan_locals`]): its stores and `Drop`s
+    /// count nothing.
     pub(super) fn prepare_own_loans(&mut self) {
         use hd_tir::ir::place;
         self.prepare_string_slice_comparisons();
@@ -174,10 +173,36 @@ impl Em<'_, '_, '_> {
         crate::layout::count_walk(self.pool(), self.env(), t)
     }
 
+    /// Whether the ownership passes track a value of `t` in a program
+    /// that counts ([`crate::layout::walk`]): one with a counted
+    /// reference, a thin local reference among them, though that counts
+    /// nothing ([`Em::counted`]).
+    pub(super) fn tracked(&self, t: Ty) -> bool {
+        self.input.runtime.is_some() && crate::layout::walk(self.pool(), self.env(), t).is_some()
+    }
+
+    /// Whether `t` is a thin local reference (`ref.count.local`) in a
+    /// program that counts: a plain address, which counts nothing, though
+    /// one may own the object it names ([`Em::owned_refs`]).
+    pub(super) fn local_ref(&self, t: Ty) -> bool {
+        self.input.runtime.is_some()
+            && matches!(
+                self.kind(t),
+                crate::layout::Kind::Ref {
+                    fat: false,
+                    whole: false,
+                    ..
+                }
+            )
+    }
+
     /// Whether releasing a value has work: reference counts, a
     /// `std.rt.Drop` hook on an inline value, or one on an inline field.
+    /// A thin local reference counts nothing, but its end ends its loans
+    /// and releases an object it owns, so it has work too: this is the
+    /// ownership passes' walk ([`crate::layout::walk`]), not the count's.
     pub(super) fn needs_drop(&self, t: Ty) -> bool {
-        self.counted(t).is_some() || !self.drop_calls(t).is_empty()
+        self.tracked(t) || !self.drop_calls(t).is_empty()
     }
 
     /// Whether a new object of type `t` (a self-recursive enum's cell, a
@@ -216,12 +241,9 @@ impl Em<'_, '_, '_> {
     /// a value no count of its own keeps, which the count makes a copy.
     pub(super) fn count_locals(&mut self, ls: &[u32], t: Ty, retain: bool) -> StageResult<()> {
         let start = self.f.body.len();
-        // A `&dyn`'s data count stands by design (#1354); a thin reference
-        // counts only a view it owns.
+        // A `&dyn`'s data count stands by design (#1354).
         let reason = if self.ref_target(t).is_some_and(|(_, fat)| fat) {
             Some(Reason::ByDesign)
-        } else if matches!(self.counted(t), Some(Walk::View(_))) {
-            Some(Reason::View)
         } else {
             self.f.reason
         };
@@ -263,9 +285,6 @@ impl Em<'_, '_, '_> {
             Some(Reason::Cancelled) => self.susp.is_some(),
             Some(Reason::ByDesign) => {
                 self.ref_target(t).is_some_and(|(_, fat)| fat) || self.susp.is_some()
-            }
-            Some(Reason::View) => {
-                matches!(self.counted(t), Some(Walk::View(_)))
             }
             _ => true,
         };
@@ -330,20 +349,6 @@ impl Em<'_, '_, '_> {
                 Some(rest) => w = rest,
                 None => return Ok(()),
             }
-        }
-        // A plain reference counts only a representation view it owns.
-        if let Walk::View(k) = w {
-            self.f.get(ls[k as usize]);
-            self.f.helper(Helper::RefIsView);
-            self.f.op(crate::op::Op::If(wasm_encoder::BlockType::Empty));
-            self.f.get(ls[k as usize]);
-            if retain {
-                self.f.helper(Helper::RetainKnown);
-            } else {
-                self.f.helper(Helper::ReleaseKnown);
-            }
-            self.f.op(crate::op::Op::End);
-            return Ok(());
         }
         if let (Some(k), Some(addr)) = (w.single(), w.addr()) {
             self.f.get(ls[k as usize]);
@@ -458,7 +463,7 @@ impl Em<'_, '_, '_> {
     pub(super) fn retain_ref(&mut self, r: u32) -> StageResult<Src> {
         if r == NONE
             || Ref(r).as_inst().is_none()
-            || self.counted(self.ty_of(r)).is_none()
+            || !self.tracked(self.ty_of(r))
             || self.short_holders.contains(&r)
         {
             return Ok(Src::Ref(r));
@@ -491,7 +496,7 @@ impl Em<'_, '_, '_> {
         let stated = self.b.tags[i as usize] == Tag::Ref
             && hd_tir::ir::count::following(self.b, &self.topo, i, Tag::Retain)
                 == Some(Info::new(At::Value, Part::Result, 0));
-        if !stated && !owned && self.counted(t).is_some() && !self.loans.contains(&i) {
+        if !stated && !owned && self.tracked(t) && !self.loans.contains(&i) {
             self.retain_locals(&ls, t)?;
         }
         self.mark_drop_root(super::drop_flags::Root::Value(i), t, true);
@@ -587,9 +592,7 @@ impl Em<'_, '_, '_> {
     }
 
     /// Releases the count local `l` (Wasm locals `ls`) holds. A binding
-    /// local ([`Em::loan_locals`]) holds a borrow, with no count, except
-    /// where it is a copy read through a view: the borrow's flag
-    /// ([`Em::view_loans`]) says so, and is cleared.
+    /// local ([`Em::loan_locals`]) holds a borrow, with no count.
     fn release_owned_local(&mut self, l: usize, ls: &[u32]) -> StageResult<()> {
         self.borrow_release(l);
         if self.owned_locals.contains(&l) {
@@ -1065,23 +1068,13 @@ impl Em<'_, '_, '_> {
     pub(super) fn own_unique(&mut self, i: u32) -> StageResult<()> {
         use hd_tir::ir::unique_word::{COVERED, FRESH, HOISTED, REPEAT};
         match self.b.data[i as usize][1] {
-            // Of a buffer nothing else can hold, or one an earlier check
-            // left unique: no check.
-            FRESH | REPEAT => return Ok(()),
+            // Of a buffer nothing else can hold, one an earlier check left
+            // unique, or one the hoisted check before its loop covers: no
+            // check.
+            FRESH | REPEAT | COVERED => return Ok(()),
             // It runs at the loop that follows (`Em::hoisted_uniques`).
             HOISTED => {
                 self.hoisted.push(i);
-                return Ok(());
-            }
-            // The hoisted one before the loop covers it unless a reference
-            // view's getter may make its buffer fresh.
-            COVERED => {
-                // The shape the link folds where no view is reachable.
-                self.f.helper(Helper::RefViewsAbsent);
-                self.f.op(crate::op::Op::If(wasm_encoder::BlockType::Empty));
-                self.f.op(crate::op::Op::Else);
-                self.unique_at(i)?;
-                self.f.op(crate::op::Op::End);
                 return Ok(());
             }
             _ => {}
@@ -1121,7 +1114,10 @@ impl Em<'_, '_, '_> {
                 hd_tir::own::reason(self.b, i as usize),
             );
         }
-        let Some(at) = at else {
+        // A place in locals, or behind a reference's dereference, takes
+        // the buffer back with one store.
+        let through_ref = matches!(self.last_through(&self.place(word))?, Some((_, Some(_))));
+        let Some(at) = at.filter(|_| !through_ref) else {
             self.f.set(h);
             return self.put_buffer(word, h).map(|()| h);
         };

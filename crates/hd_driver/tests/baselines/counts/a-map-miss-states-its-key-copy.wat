@@ -87,12 +87,10 @@
         local.set $items
       end
       local.get $items
+      local.get $items
       i32.load $heap
       i32.const 1
       i32.add
-      local.set $key
-      local.get $items
-      local.get $key
       i32.store $heap
     end
   )
@@ -181,12 +179,10 @@
         local.set $items
       end
       local.get $items
+      local.get $items
       i32.load $heap
       i32.const 1
       i32.add
-      local.set $key.0
-      local.get $items
-      local.get $key.0
       i32.store $heap
     end
   )

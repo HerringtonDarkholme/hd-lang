@@ -9,7 +9,7 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 10 funcref))
+  (import "fixture" "table0" (table $table0 5 funcref))
   (func $through_mut (param $g.0 i32) (param $g.1 i32) (param $n.0 i32) (param $n.1 i32) (result i32)
     ;; 30 |     g.rename(n)
     block
@@ -109,7 +109,7 @@
       local.get $u.name.1
       i32.store $heap offset=4
       local.get $t0
-      i32.const 160 ;; &vtable[func63, func64]
+      i32.const 160 ;; &vtable[func44, func45]
       local.set $u.name.1
       local.set $u.name.0
     end
@@ -170,7 +170,7 @@
         call $retain
       end
       local.get $u.name.1
-      i32.const 160 ;; &vtable[func63, func64]
+      i32.const 160 ;; &vtable[func44, func45]
       local.get $n.0
       local.get $n.1
       call $through_mut

@@ -1092,15 +1092,16 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
 - **References count only views** (model A,
   `docs/future-work/POINTER_LOANS.md` phase 10, spec
   `ref.count.pointer`, `ref.count.local`, `ref.count.new-object`). A
-  thin local reference is a plain address: its count walk is
-  `Walk::View`, which retains or releases only where `rt:ref_is_view`
-  finds a representation view, the one reference that owns an object; the
-  test folds to nothing in a module that makes no view. The ownership
+  thin local reference is a plain address, which counts nothing: its
+  count walk is none (#1448 deleted the representation views it once
+  tested for, once every enum payload sat at one offset). One that owns a
+  new object (`ref.expr.allocate`, a lent counted reference) releases
+  that object at its end (`Em::owned_refs`). The ownership
   passes still track a reference as counted, so its `Drop`s stay, and keep
   what it points into alive until its last use (`hd_tir/src/own/frame.rs`,
-  rules 4 and 5). Its end is a `Drop` where the reference may be a view, and
-  a `LoanEnd`, which only ends its loans, where its origin rules a view out
-  (`hd_tir/src/own/plain.rs`). A `&dyn` reference's data address keeps its page-table
+  rules 4 and 5). Its end is a `Drop` where the reference may own an
+  object, and a `LoanEnd`, which only ends its loans, where its origin
+  rules that out (`hd_tir/src/own/plain.rs`). A `&dyn` reference's data address keeps its page-table
   count. The paragraphs below, from #1320, describe which references
   took a count before this; their loans remain.
 - **References count what they cross** (issue #1320,
@@ -1594,10 +1595,11 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
 - **References count only views** (model A,
   `docs/future-work/POINTER_LOANS.md` phase 10, spec
   `ref.count.pointer`, `ref.count.local`, `ref.count.new-object`). A
-  thin local reference is a plain address: its count walk is
-  `Walk::View`, which retains or releases only where `rt:ref_is_view`
-  finds a representation view, the one reference that owns an object; the
-  test folds to nothing in a module that makes no view. The ownership
+  thin local reference is a plain address, which counts nothing: its
+  count walk is none (#1448 deleted the representation views it once
+  tested for, once every enum payload sat at one offset). One that owns a
+  new object (`ref.expr.allocate`, a lent counted reference) releases
+  that object at its end (`Em::owned_refs`). The ownership
   passes still track a reference as counted, so its `Drop`s stay, and keep
   what it points into alive until its last use (`hd_tir/src/own/frame.rs`,
   rules 4 and 5). A `&dyn` reference's data address keeps its page-table
@@ -2476,12 +2478,9 @@ references, and open values.
   right 32 gives the exact quotient for every class. No variable division
   remains in that lookup. The allocator fixture checks every offset in
   all 20 classes against integer division.
-- **Physical references.** After reachability, a module with no
-  `RefView` constructor cannot contain a representation view. Its
-  `ref_is_view` calls become false, removing their page-table queries.
-  Field projection cannot originate a view without a parent view. A
-  module with a payload field its enum's slots scatter (`Helper::RefPayload`)
-  keeps the full discriminator.
+- **Physical references.** Every reference is a physical address
+  (#1448): a field or payload projection adds its offset, and a
+  reference's identity is its address.
 - **Counts on constants** (issue #910, `opt::static_counts`). A count
   whose every operand is a constant goes at link, in every pipeline. A
   constant address is null or static data, which no runtime counts:
@@ -2593,9 +2592,7 @@ store, and removes the scaffolding that a folded view test left.
   An `if` whose condition is an `i32` constant becomes a `block` of the
   arm that runs, which keeps every branch depth inside it. An `if` with
   no `else` and no result that never runs goes. An `i32` local whose every
-  write stores 0 is read as 0. In a module with no reference views,
-  `ref_is_view` is already `i32.const 0`, so the view's `call_indirect`
-  arm and its release flag fold away at every read through a reference.
+  write stores 0 is read as 0.
 - **Cost.** nbody's `advance` (release, V8 target) goes from 63
   `f64.store`s and 146 `f64.load`s to 9 and 83, from 154 calls to 47, and
   from 3,211 to 1,508 lines of text. The module shrinks from 20,446 bytes

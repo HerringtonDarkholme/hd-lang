@@ -73,10 +73,8 @@
       local.get $t1
       local.get $s.1
       i32.store $heap offset=8
-      local.get $t1
-      local.set $t2
       local.get $o
-      local.get $t2
+      local.get $t1
       call $"impl [ T < ? Copy & Eq ] Eq for T ?.eq[string]"
       local.set $t2
       local.get $t1

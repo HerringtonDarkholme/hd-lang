@@ -11,17 +11,10 @@
       i32.gt_u
       if
         local.get $items
+        local.get $items
         i32.load $heap
-        local.tee $t0
         call $rt:list_unique
-        local.tee $t1
-        local.get $t0
-        i32.ne
-        if
-          local.get $items
-          local.get $t1
-          i32.store $heap
-        end
+        i32.store $heap
       end
       local.get $items
       i32.load $heap

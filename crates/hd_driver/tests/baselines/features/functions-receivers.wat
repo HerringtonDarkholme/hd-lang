@@ -348,12 +348,10 @@
     ;; 18 |         self.x += d
     block
       local.get $self
+      local.get $self
       i64.load $heap offset=8
       local.get $d
       i64.add
-      local.set $d
-      local.get $self
-      local.get $d
       i64.store $heap offset=8
     end
   )

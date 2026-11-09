@@ -15,7 +15,7 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 5 funcref))
-  (func $"impl Trail.enter" (param $self i32) (param $step i64) (local $t0 i32)
+  (func $"impl Trail.enter" (param $self i32) (param $step i64)
     ;; 22 |         record_step(&mut self.steps, self.depth, step)
     block
       local.get $self
@@ -25,12 +25,10 @@
       call $record_step
     ;; 23 |         self.depth = self.depth + 1
       local.get $self
+      local.get $self
       i32.load $heap offset=4
       i32.const 1
       i32.add
-      local.set $t0
-      local.get $self
-      local.get $t0
       i32.store $heap offset=4
     ;; 22 |         record_step(&mut self.steps, self.depth, step)
     end
@@ -137,9 +135,7 @@
       call $set_first
     ;; 32 |     println("${trail.depth} ${saved[0]} ${local[0]}")
       local.get $trail
-      i32.const 4
-      i32.add
-      i32.load $heap
+      i32.load $heap offset=4
       i64.extend_i32_u
       local.set $t3
     ;; 26 |     let mut trail = Trail { steps: [], depth: 0 }

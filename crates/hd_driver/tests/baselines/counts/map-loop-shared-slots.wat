@@ -49,11 +49,9 @@
               unreachable
             end
     ;; 11 |         total += key + value
-            local.get $key
-            i32.load $heap
-            local.set $key
             local.get $total
             local.get $key
+            i32.load $heap
             local.get $value
             i32.load $heap
             i32.add

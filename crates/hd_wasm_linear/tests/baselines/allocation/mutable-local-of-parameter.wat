@@ -3,7 +3,7 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $"impl Counter.next" (param $self i32) (result i32 i64) (local $value i64) (local $t0 i64)
+  (func $"impl Counter.next" (param $self i32) (result i32 i64) (local $value i64)
     ;; 13 |         if self.at >= self.end:
     block
       local.get $self
@@ -18,6 +18,8 @@
         return
     ;; 13 |         if self.at >= self.end:
       end
+    ;; 16 |         self.at = value + 1
+      local.get $self
     ;; 15 |         value := self.at
       local.get $self
       i64.load $heap
@@ -25,9 +27,6 @@
     ;; 16 |         self.at = value + 1
       i64.const 1
       i64.add
-      local.set $t0
-      local.get $self
-      local.get $t0
       i64.store $heap
     ;; 17 |         .Some(value)
       i32.const 1

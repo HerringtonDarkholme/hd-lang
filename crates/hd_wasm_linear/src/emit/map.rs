@@ -588,17 +588,10 @@ impl Em<'_, '_, '_> {
     }
 
     /// Stores a probe's changed table through its map reference.
-    fn map_probe_store(&mut self, at: u32, owned: u32, m: u32, t: Ty) -> StageResult<()> {
-        self.f.get(owned);
-        self.f.op(I::If(BlockType::Empty));
-        let value = self.ref_layout(t)?;
-        crate::rt::ref_store(&mut self.f, at, &[m], &value, true, true);
-        self.f.op(I::Else);
+    fn map_probe_store(&mut self, at: u32, m: u32) {
         self.f.get(at);
         self.f.get(m);
         self.f.op(I::I32Store(mem(HEAP, 0, 2)));
-        self.f.op(I::End);
-        Ok(())
     }
 
     /// Releases a directly consumed probe result through its known table,
@@ -642,10 +635,9 @@ impl Em<'_, '_, '_> {
         let at = self.f.local(Val::I32);
         self.comp(map, 0)?;
         self.f.set(at);
-        let owned = self.f.local(Val::I32);
         let value = self.ref_layout(mt)?;
         // A map is one header word.
-        let m = crate::rt::ref_load_borrowed(&mut self.f, at, &value, owned)[0];
+        let m = crate::rt::ref_lend(&mut self.f, at, &value)[0];
         // A local reference takes no count of its table (`ref.count.local`):
         // the map's root lives until its last use.
         self.map_probe_refs.insert(i, (m, false));
@@ -658,7 +650,7 @@ impl Em<'_, '_, '_> {
         self.f.op(I::I32GeS);
         self.f.op(I::If(BlockType::Empty));
         self.ctl.push(Ctl::Plain);
-        self.map_probe_store(at, owned, m, mt)?;
+        self.map_probe_store(at, m);
         let (_, value_at) = self.map_value_from(m, mt, &Src::Locals(vec![found]))?;
         self.f.get(value_at);
         self.store_owned(i)?;
@@ -683,7 +675,7 @@ impl Em<'_, '_, '_> {
         self.f.i32(1);
         self.f.op(I::I32Sub);
         self.f.set(inserted);
-        self.map_probe_store(at, owned, m, mt)?;
+        self.map_probe_store(at, m);
         let (_, value_at) = self.map_value_from(m, mt, &Src::Locals(vec![inserted]))?;
         self.f.get(value_at);
         self.store_owned(i)?;

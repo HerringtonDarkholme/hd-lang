@@ -74,12 +74,10 @@
           block
             block
               local.get $t2
+              local.get $t2
               i64.load $heap
               i64.const 1
               i64.add
-              local.set $i
-              local.get $t2
-              local.get $i
               i64.store $heap
               br 0
             end

@@ -50,7 +50,6 @@
       local.get $s.1
       i32.store $heap offset=4
       local.get $t1
-    ;; 24 |     q := &mut p.name
       local.tee $s.0
     ;; 25 |     *q = t
       local.tee $s.1

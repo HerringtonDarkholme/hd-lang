@@ -62,7 +62,7 @@
       end
       local.get $t0
       local.set $t1
-      i32.const 296 ;; &vtable[func52, func51]
+      i32.const 240 ;; &vtable[func52, func51]
       local.set $t2
       block
     ;; 30 |         _ := tick(a)

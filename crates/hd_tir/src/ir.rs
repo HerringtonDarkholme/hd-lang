@@ -801,9 +801,8 @@ pub mod unique_word {
     /// when that loop's entry test lets the loop in, once before it.
     pub const HOISTED: u32 = 1;
     /// Inside a loop that a `HOISTED` `IsUnique` of the same place
-    /// precedes, which makes it unneeded where no dereference on its place
-    /// makes a fresh value (no reference view is reachable); kept for the
-    /// instances where one may.
+    /// precedes, which makes it unneeded: no check runs. It stays as the
+    /// earlier check a `REPEAT` of its place in its block names.
     pub const COVERED: u32 = 2;
     /// Of all of a fresh-buffer local (`own::hoist::fresh_locals`), whose
     /// buffer nothing else can hold: always unique, so no check runs.

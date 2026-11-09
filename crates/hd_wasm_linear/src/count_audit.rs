@@ -9,7 +9,6 @@ use hd_base::wire::{Reader, Writer};
 
 pub(crate) fn instrument(
     f: &mut Func,
-    symbol: &Sym,
     r: &Runtime,
     hooks: CountAudit,
     next: &mut u32,
@@ -37,15 +36,6 @@ pub(crate) fn instrument(
     let address = f.local(Val::I32);
     let source = f.local(Val::I32);
     let length = f.local(Val::I32);
-    let view = matches!(
-        symbol,
-        Sym::Helper(crate::Helper::RefFieldGet { .. } | crate::Helper::RefPayloadGet { .. })
-    );
-    if view {
-        f.get(0);
-        f.call(Sym::Inst(hooks.observe));
-        f.op(I::Drop);
-    }
     for (position, ins) in body.into_iter().enumerate() {
         f.origin_at = origins.as_ref().and_then(|o| o[position]);
         let count = match ins {
@@ -139,9 +129,6 @@ pub(crate) fn instrument(
             _ => {}
         }
         f.push(ins);
-        if view && matches!(ins, Ins::Op(I::I32Load(_))) {
-            f.call(Sym::Inst(hooks.observe));
-        }
     }
     f.origin_at = outer;
     f.rebuild_callees();

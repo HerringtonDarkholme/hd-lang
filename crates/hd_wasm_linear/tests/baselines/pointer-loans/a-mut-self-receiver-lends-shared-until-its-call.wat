@@ -27,11 +27,9 @@
         call $rt:panic'1
         unreachable
       end
+      local.get $self
       local.get $t0
       i32.wrap_i64
-      local.set $k
-      local.get $self
-      local.get $k
       i32.store $heap
     ;; 13 |         other.n += 1
       local.get $other

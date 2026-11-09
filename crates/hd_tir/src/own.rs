@@ -208,9 +208,9 @@ pub trait OwnCx {
     /// instances, whose types are concrete, and over a generic item's own
     /// body past the instance limit, where a type parameter's value counts.
     fn counted(&self, ty: Ty) -> bool;
-    /// Whether the layout may be exactly one thin local reference view.
-    /// A cold frame keeps that address's object, independently of the
-    /// reference value's own view count. Open instance types may qualify.
+    /// Whether the layout may be exactly one thin local reference, which
+    /// counts nothing. A cold frame keeps that address's object. Open
+    /// instance types may qualify.
     fn may_frame_referent(&self, ty: Ty) -> bool {
         let _ = ty;
         false
@@ -239,8 +239,7 @@ pub trait OwnCx {
         false
     }
     /// Whether every count `ty` holds is a thin local reference's, which
-    /// counts only if it is a representation view (`own/plain.rs`). The
-    /// default answers no.
+    /// counts nothing (`own/plain.rs`). The default answers no.
     fn plain_reference(&self, ty: Ty) -> bool {
         let _ = ty;
         false

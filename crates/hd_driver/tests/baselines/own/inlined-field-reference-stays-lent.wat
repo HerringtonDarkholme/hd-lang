@@ -2,16 +2,14 @@
 (module
   (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $write (param $target i32) (local $t0 i32)
+  (func $write (param $target i32)
     ;; 11 |     *target += 1
     block
+      local.get $target
       local.get $target
       i32.load $heap
       i32.const 1
       i32.add
-      local.set $t0
-      local.get $target
-      local.get $t0
       i32.store $heap
     end
   )
@@ -59,25 +57,23 @@
     end
     local.get $target
   )
-  (func $forward (param $point i32) (local $t0 i32)
+  (func $forward (param $point i32)
     ;; 15 |     write(&mut point.x)
     block
       block
         block
           local.get $point
+          local.get $point
           i32.load $heap
           i32.const 1
           i32.add
-          local.set $t0
-          local.get $point
-          local.get $t0
           i32.store $heap
           br 0
         end
       end
     end
   )
-  (func $exercise (param $point i32) (local $t0 i32)
+  (func $exercise (param $point i32)
     ;; 19 |     forward(point)
     block
       block
@@ -85,12 +81,10 @@
           block
             block
               local.get $point
+              local.get $point
               i32.load $heap
               i32.const 1
               i32.add
-              local.set $t0
-              local.get $point
-              local.get $t0
               i32.store $heap
               br 0
             end

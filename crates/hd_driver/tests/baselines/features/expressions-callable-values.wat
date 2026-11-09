@@ -6,7 +6,7 @@
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 8 funcref))
+  (import "fixture" "table0" (table $table0 2 funcref))
   (func $"impl Update [ string ] for Cell.update" (param $self i32) (param $value.0 i32) (param $value.1 i32)
     ;; 19 |         self.value = value
     block

@@ -44,8 +44,6 @@
           local.set $t1
           block
             block
-              local.get $k
-              local.set $k
               br 0
               unreachable
             end

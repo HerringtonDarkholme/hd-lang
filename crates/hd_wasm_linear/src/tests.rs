@@ -325,7 +325,7 @@ fn every_boundary_type() -> LTy {
 
 #[test]
 fn instruction_origins_do_not_change_bytes_and_offsets_match_operators() {
-    for helper in [Helper::RefIsView, Helper::RefViewsAbsent] {
+    for helper in [Helper::CanCancel] {
         let make = |tracked: bool| {
             let mut m = Module::default();
             m.track_origins = tracked;
@@ -334,10 +334,6 @@ fn instruction_origins_do_not_change_bytes_and_offsets_match_operators() {
                 f.origins = Some(Vec::new());
                 f.origin_item = Some("app/main/mapped".into());
                 f.origin_root = Some(99);
-            }
-            if helper == Helper::RefIsView {
-                f.origin_at = Some(10);
-                f.get(0);
             }
             f.origin_at = Some(11);
             f.call(Sym::Helper(helper.clone()));
@@ -381,8 +377,7 @@ fn instruction_origins_do_not_change_bytes_and_offsets_match_operators() {
                             .collect::<Vec<_>>()
                     );
                     assert_eq!(source.before_opt.last(), Some(&Some(11)));
-                    // `RefIsView` folds to a dropped argument and a
-                    // constant, and the dropped read goes with its drop.
+                    // `CanCancel` folds to a constant.
                     assert_eq!(source.instructions.first().unwrap().origin, Some(11));
                     assert_eq!(source.instructions.last().unwrap().origin, Some(99));
                     index += 1;
@@ -610,13 +605,12 @@ fn session_base_exports_shared_storage_and_keeps_its_table_growable() {
 }
 
 /// A base cannot specialize away capabilities just because input 1 never
-/// uses them: later modules must see the same view/cancellation runtime.
+/// uses them: later modules must see the same cancellation runtime.
 #[test]
-fn session_base_does_not_assume_future_views_and_cancellation_are_absent() {
+fn session_base_does_not_assume_future_cancellation_is_absent() {
     let mut m = Module::default();
     let key = Sym::Inst(Hash128(646));
-    let mut f = m.func("future_features", vec![], vec![Val::I32; 2]);
-    f.helper(Helper::RefViewsAbsent);
+    let mut f = m.func("future_features", vec![], vec![Val::I32]);
     f.helper(Helper::CanCancel);
     m.define(key.clone(), f);
     m.export("future_features", key);
@@ -632,62 +626,7 @@ fn session_base_does_not_assume_future_views_and_cancellation_are_absent() {
             }
         }
     }
-    assert_eq!(constants, [0, 1]);
-}
-
-/// A closed program can compare physical addresses directly. A session
-/// must keep canonicalization because a later input can create views.
-#[test]
-fn reference_identity_keeps_view_canonicalization_for_sessions_only() {
-    for session in [false, true] {
-        let mut m = Module::default();
-        let key = Sym::Inst(Hash128(1378));
-        let mut f = m.func("same", vec![Val::I32, Val::I32], vec![Val::I32]);
-        f.get(0);
-        f.helper(Helper::RefAddress);
-        f.get(1);
-        f.helper(Helper::RefAddress);
-        f.op(crate::op::Op::I64Eq);
-        m.define(key.clone(), f);
-        m.export("same", key);
-        let wasm = if session {
-            m.finish_session(true).expect("session").0.wasm
-        } else {
-            m.finish().expect("closed program")
-        };
-        validate(&wasm);
-        let mut index = None;
-        let mut calls = 0;
-        let mut extends = 0;
-        let mut function = 0;
-        for payload in wasmparser::Parser::new(0).parse_all(&wasm) {
-            match payload.expect("payload") {
-                wasmparser::Payload::ExportSection(exports) => {
-                    for export in exports {
-                        let export = export.expect("export");
-                        if export.name == "same" {
-                            index = Some(export.index);
-                        }
-                    }
-                }
-                wasmparser::Payload::CodeSectionEntry(body) => {
-                    if Some(function) == index {
-                        for op in body.get_operators_reader().expect("operators") {
-                            match op.expect("operator") {
-                                wasmparser::Operator::Call { .. } => calls += 1,
-                                wasmparser::Operator::I64ExtendI32U => extends += 1,
-                                _ => {}
-                            }
-                        }
-                    }
-                    function += 1;
-                }
-                _ => {}
-            }
-        }
-        assert_eq!(calls, if session { 2 } else { 0 });
-        assert_eq!(extends, if session { 0 } else { 2 });
-    }
+    assert_eq!(constants, [1]);
 }
 
 /// Literal shared-data values cross the old value's release through a

@@ -614,12 +614,10 @@
           local.get $t1
           local.get $t3
           i32.store $heap
+          local.get $t2
           local.get $t4
           i32.const 1
           i32.add
-          local.set $t3
-          local.get $t2
-          local.get $t3
           i32.store $heap offset=8
           br 0
         end

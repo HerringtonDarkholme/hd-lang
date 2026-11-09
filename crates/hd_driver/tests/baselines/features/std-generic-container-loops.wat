@@ -35,17 +35,10 @@
       i32.lt_u
       if
         local.get $self
+        local.get $self
         i32.load $heap
-        local.tee $left
         call $rt:list_unique'1
-        local.tee $larger
-        local.get $left
-        i32.ne
-        if
-          local.get $self
-          local.get $larger
-          i32.store $heap
-        end
+        i32.store $heap
       end
       block
         loop
@@ -171,9 +164,7 @@
           i32.const 8
           i32.mul
           i32.add
-          i32.const 16
-          i32.add
-          i64.load $heap
+          i64.load $heap offset=16
           local.set $t2
           i32.const 1
           local.get $value
@@ -909,17 +900,10 @@
       i32.lt_u
       if
         local.get $self
+        local.get $self
         i32.load $heap
-        local.tee $left
         call $rt:list_unique'2
-        local.tee $larger
-        local.get $left
-        i32.ne
-        if
-          local.get $self
-          local.get $larger
-          i32.store $heap
-        end
+        i32.store $heap
       end
       block
         loop
@@ -1366,17 +1350,10 @@
       i32.lt_u
       if
         local.get $self
+        local.get $self
         i32.load $heap
-        local.tee $left
         call $rt:list_unique'3
-        local.tee $larger
-        local.get $left
-        i32.ne
-        if
-          local.get $self
-          local.get $larger
-          i32.store $heap
-        end
+        i32.store $heap
       end
       block
         loop

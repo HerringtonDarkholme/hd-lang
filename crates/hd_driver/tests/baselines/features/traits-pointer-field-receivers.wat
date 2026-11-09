@@ -37,7 +37,7 @@
     local.get $self
     local.get $t2
   )
-  (func $"impl Step for Counter.step" (param $self i32) (result i32 i64) (local $value i64) (local $t0 i64)
+  (func $"impl Step for Counter.step" (param $self i32) (result i32 i64) (local $value i64)
     ;; 20 |         if self.at >= self.end:
     block
       local.get $self
@@ -52,6 +52,8 @@
         return
     ;; 20 |         if self.at >= self.end:
       end
+    ;; 23 |         self.at = value + 1
+      local.get $self
     ;; 22 |         value := self.at
       local.get $self
       i64.load $heap
@@ -59,9 +61,6 @@
     ;; 23 |         self.at = value + 1
       i64.const 1
       i64.add
-      local.set $t0
-      local.get $self
-      local.get $t0
       i64.store $heap
     ;; 24 |         .Some(value)
       i32.const 1

@@ -382,16 +382,14 @@
     i32.add
     global.set $locals
   )
-  (func $through_reference (param $p i32) (local $t0 i32)
+  (func $through_reference (param $p i32)
     ;; 23 |     *p = Item { ...*p, r: p.r + 1 }
     block
+      local.get $p
       local.get $p
       i32.load $heap offset=8
       i32.const 1
       i32.add
-      local.set $t0
-      local.get $p
-      local.get $t0
       i32.store $heap offset=8
     end
   )
@@ -622,16 +620,14 @@
     ;; 19 |     previous := items[i]
     end
   )
-  (func $field (param $o i32) (local $t0 i32)
+  (func $field (param $o i32)
     ;; 26 |     o.item = Item { ...o.item, r: o.item.r + 1 }
     block
+      local.get $o
       local.get $o
       i32.load $heap offset=16
       i32.const 1
       i32.add
-      local.set $t0
-      local.get $o
-      local.get $t0
       i32.store $heap offset=16
     end
   )

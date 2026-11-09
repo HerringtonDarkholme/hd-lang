@@ -58,13 +58,11 @@
             end
     ;; 11 |         *value += key
             local.get $value
+            local.get $value
             i32.load $heap
             local.get $key
             i32.load $heap
             i32.add
-            local.set $key
-            local.get $value
-            local.get $key
             i32.store $heap
     ;; 12 |         total += *value
             local.get $total

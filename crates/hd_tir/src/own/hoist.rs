@@ -56,8 +56,8 @@
 //! `borrow` of it lives across the loop's entry, and its type names no
 //! type parameter. When the loop hoists `p`, every other `IsUnique` of `p`
 //! in it, at any depth, goes too; one behind a dereference stays, marked
-//! `COVERED`, for the instances where a reference view's getter makes the
-//! header fresh, and the backend skips it where no view is reachable.
+//! `COVERED`, which runs no check: it is the earlier check of its block
+//! that a `REPEAT` after it names.
 //! Loops are taken outermost first, so an outer loop's hoist covers the
 //! inner loops' `IsUnique`s.
 //!

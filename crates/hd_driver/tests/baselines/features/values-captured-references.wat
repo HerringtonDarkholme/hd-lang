@@ -7,7 +7,7 @@
   (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 12 funcref))
+  (import "fixture" "table0" (table $table0 11 funcref))
   (func $bump#1 (param $env i32) (param $ctx i32)
     ;; 12 |     fn() -> void: p.x = p.x + 1
     local.get $env
@@ -15,12 +15,10 @@
     local.set $env
     block
       local.get $env
+      local.get $env
       i32.load $heap offset=8
       i32.const 1
       i32.add
-      local.set $ctx
-      local.get $env
-      local.get $ctx
       i32.store $heap offset=8
     end
   )
@@ -57,7 +55,7 @@
     block
       i32.const 0
       i32.const 4
-      i32.const 2
+      i32.const 0
       call $rt:new/class-1
       local.tee $t0
       local.get $xs
@@ -103,7 +101,7 @@
     ;; 15 |     origin := box(Point { name: s, x: 0 })
     block
       i32.const 12
-      i32.const 4
+      i32.const 3
       call $rt:new/class-2
       local.tee $origin
       local.get $s.0
@@ -169,9 +167,9 @@
   (func $bump (param $p i32) (result i32 i32) (local $t0 i32)
     ;; 12 |     fn() -> void: p.x = p.x + 1
     block
+      i32.const 3
       i32.const 4
-      i32.const 4
-      i32.const -2147483642
+      i32.const -2147483643
       call $rt:new/class-1
       local.tee $t0
       local.get $p

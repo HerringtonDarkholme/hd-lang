@@ -96,12 +96,10 @@
           local.get $k.1
           local.get $v.1
           i32.store $heap offset=4
+          local.get $m
           local.get $k.0
           i32.const 1
           i32.add
-          local.set $k.0
-          local.get $m
-          local.get $k.0
           i32.store $heap offset=8
           br 0
         end

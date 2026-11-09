@@ -118,16 +118,14 @@
     end
     local.get $p
   )
-  (func $nudge (param $p i32) (local $t0 i32)
+  (func $nudge (param $p i32)
     ;; 11 |     p.n += 1
     block
+      local.get $p
       local.get $p
       i32.load $heap offset=8
       i32.const 1
       i32.add
-      local.set $t0
-      local.get $p
-      local.get $t0
       i32.store $heap offset=8
     end
   )

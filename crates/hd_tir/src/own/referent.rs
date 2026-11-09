@@ -1,6 +1,6 @@
 //! A cold frame's saved count of a thin reference parameter's object.
-//! This owner is separate from the reference value's representation view.
-//! A generic body's conditional contract lowers only for a View layout.
+//! A generic body's conditional contract lowers only for a thin local
+//! reference's layout.
 //! Normal exit releases the live slot; teardown releases it if not EXITED.
 
 use super::{OwnCx, cold};

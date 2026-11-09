@@ -54,12 +54,10 @@
     ;; 13 |     player.score += points
     block
       local.get $player
+      local.get $player
       i32.load $heap offset=8
       local.get $points
       i32.add
-      local.set $points
-      local.get $player
-      local.get $points
       i32.store $heap offset=8
     end
   )

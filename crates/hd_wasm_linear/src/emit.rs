@@ -406,7 +406,7 @@ fn body_func<'a>(
                     );
                     if let Some(reason) = copy {
                         em.because(reason, |em| em.count_locals(ls, t, true))?;
-                    } else if em.counted(t).is_some() {
+                    } else if em.tracked(t) {
                         return unsupported("an owned parameter without its stated entry copy");
                     }
                 }
@@ -416,7 +416,7 @@ fn body_func<'a>(
                 em.stated_count(Tag::Retain, CountAt::Entry, CountPart::Captures)
             {
                 em.because(reason, |em| em.count_local(*l, ls, true))?;
-            } else if em.is_cell(*l) || em.counted(em.sub(b.local_ty[*l])).is_some() {
+            } else if em.is_cell(*l) || em.tracked(em.sub(b.local_ty[*l])) {
                 return unsupported("a loaded capture without its stated entry copy");
             }
         }
@@ -454,7 +454,7 @@ fn body_func<'a>(
                         CountPart::Referent(u32::try_from(l).expect("local")),
                     )
                     .is_some()
-                    && matches!(em.counted(t), Some(crate::layout::Walk::View(_)))
+                    && em.local_ref(t)
                 {
                     let held = em.f.local(Val::I32);
                     em.frame_refs.push((l, held));
@@ -1140,9 +1140,6 @@ struct Em<'i, 'a, 'm> {
     /// (`docs/compiler/tir-v2.md`, "Hoisting"), which run at that loop
     /// under its entry test ([`Em::hoisted_uniques`]).
     hoisted: Vec<u32>,
-    /// While a hoisted `IsUnique` runs: a dereference on its place reads
-    /// the reference's address, in a module no reference view reaches.
-    deref_physical: bool,
     /// The `Read` right after a plain `IsUnique` of its place, and the
     /// local holding the buffer the check left ([`Em::own_unique`]).
     walked: Option<(u32, u32)>,
@@ -1289,7 +1286,6 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             topo: hd_tir::ir::Topology::new(b),
             own_ops: Vec::new(),
             hoisted: Vec::new(),
-            deref_physical: false,
             walked: None,
             driven: HashMap::default(),
         };
@@ -1576,7 +1572,7 @@ impl Em<'_, '_, '_> {
         if matches!(
             self.counted(self.ty_of(a)),
             Some(crate::layout::Walk::Known(_))
-        ) && matches!(self.counted(self.ty(i)), Some(crate::layout::Walk::View(_)))
+        ) && self.local_ref(self.ty(i))
             && self.take(a)
         {
             self.push(a)?;
@@ -2412,7 +2408,7 @@ impl Em<'_, '_, '_> {
         // the checker typed as a local reference (`ref.convert.lend`, as
         // `let r: &mut T = make()`) owns the object that count keeps.
         if matches!(self.counted(ret), Some(crate::layout::Walk::Known(_)))
-            && matches!(self.counted(self.ty(i)), Some(crate::layout::Walk::View(_)))
+            && self.local_ref(self.ty(i))
         {
             self.owned_refs.insert(i);
         }
@@ -2791,8 +2787,9 @@ impl Em<'_, '_, '_> {
                     &mut CanonMemo::default(),
                     target,
                 );
+                // The weak key is the referent's address.
                 self.comp(args[0], 0)?;
-                self.f.helper(Helper::RefAddress);
+                self.f.op(Instruction::I64ExtendI32U);
                 self.f.push(Ins::WeakType(type_key));
                 self.f.push(Ins::WeakTypeTable);
                 self.f.push(Ins::WeakTypeCount);

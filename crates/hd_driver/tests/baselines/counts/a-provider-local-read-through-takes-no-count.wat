@@ -123,12 +123,10 @@
           br 0
         end
       end
+      local.get $self
       local.get $text.0
       local.get $text.1
       i32.add
-      local.set $text.0
-      local.get $self
-      local.get $text.0
       i32.store $heap
     end
   )
