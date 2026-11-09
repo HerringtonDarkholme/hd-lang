@@ -97,51 +97,37 @@ fn counted(
 /// Inspect one concrete type using the shared source-field and value-path
 /// APIs, without generated Wasm identifiers.
 pub fn inspect_layout(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> StageResult<TypeLayout> {
-    fn fields(
+    // The fields of struct `ty` at `base`, named under `prefix`, last
+    // first, so a stack pops them in declaration order. Anything else
+    // has none.
+    fn children(
         pool: &InternPool,
         env: &dyn ProgramEnv,
         ty: Ty,
         prefix: &str,
         base: u32,
-        out: &mut Vec<FieldLayout>,
-        depth: usize,
-    ) -> StageResult<()> {
-        if depth > 32 {
-            return crate::unsupported("a development layout deeper than 32 fields");
-        }
+    ) -> StageResult<Vec<(Ty, String, u32)>> {
         let TyData::Adt { def, args } = pool.get(layout::strip(pool, env, ty)) else {
-            return Ok(());
+            return Ok(Vec::new());
         };
         if !env.is_struct(def) || env.std_kind(def) != hd_mono::layout::StdKind::Other {
-            return Ok(());
+            return Ok(Vec::new());
         }
         let types = env.data_fields(def).unwrap_or_default();
         let names_here = env.data_field_names(def).unwrap_or_default();
         let (_, parts) = layout::struct_mem(pool, env, ty)?;
-        for ((field, part), name) in types.into_iter().zip(parts).zip(names_here) {
-            let field = subst(pool, env, def, args, field);
-            let m = layout::mem(pool, env, field)?;
-            let path = if prefix.is_empty() {
-                name
-            } else {
-                format!("{prefix}.{name}")
-            };
-            let offset = base + part.offset;
-            out.push(FieldLayout {
-                path: path.clone(),
-                ty: printed_type_name(pool, env, field),
-                offset,
-                size: m.size,
-                align: m.align,
-                counted: counted(pool, env, field, offset)?,
-                niche: m.niche.map(|n| layout::Niche {
-                    offset: offset + n.offset,
-                    ..n
-                }),
-            });
-            fields(pool, env, field, &path, offset, out, depth + 1)?;
-        }
-        Ok(())
+        let mut out: Vec<_> = (types.into_iter().zip(parts).zip(names_here))
+            .map(|((field, part), name)| {
+                let path = if prefix.is_empty() {
+                    name
+                } else {
+                    format!("{prefix}.{name}")
+                };
+                (subst(pool, env, def, args, field), path, base + part.offset)
+            })
+            .collect();
+        out.reverse();
+        Ok(out)
     }
     let mem = layout::mem(pool, env, ty)?;
     let mut out = TypeLayout {
@@ -153,7 +139,26 @@ pub fn inspect_layout(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> StageR
         fields: Vec::new(),
         niche: mem.niche,
     };
-    fields(pool, env, ty, "", 0, &mut out.fields, 0)?;
+    // Each field, then the fields inside it, in declaration order: a
+    // preorder walk on an explicit stack, so a deep nesting of inline
+    // structs costs heap, not native stack. Work: one entry per field.
+    let mut stack = children(pool, env, ty, "", 0)?;
+    while let Some((field, path, offset)) = stack.pop() {
+        let m = layout::mem(pool, env, field)?;
+        out.fields.push(FieldLayout {
+            path: path.clone(),
+            ty: printed_type_name(pool, env, field),
+            offset,
+            size: m.size,
+            align: m.align,
+            counted: counted(pool, env, field, offset)?,
+            niche: m.niche.map(|n| layout::Niche {
+                offset: offset + n.offset,
+                ..n
+            }),
+        });
+        stack.extend(children(pool, env, field, &path, offset)?);
+    }
     Ok(out)
 }
 
