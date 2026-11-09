@@ -1725,7 +1725,9 @@ impl Em<'_, '_, '_> {
             .map(|b| m.and_then(|_| self.sole_to_arm(*b)))
             .collect();
         let coded: Vec<usize> = (0..blocks.len()).filter(|&j| direct[j].is_none()).collect();
-        let n = u32::try_from(coded.len()).expect("ruled out: a switch's cases fit u32");
+        // ruled out: more targets than u32 counts; a switch's cases are
+        // `u32` tags.
+        let n = u32::try_from(coded.len()).expect("a switch's cases fit u32");
         if n > 0 {
             self.open(Ctl::Plain);
         }
@@ -3782,7 +3784,8 @@ impl Em<'_, '_, '_> {
         }
         // `.Some(ordering)`, whose one payload leaf is the ordering's
         // tag, or, for a NaN operand, `.None`.
-        let layout = self.flat(self.ty(i))?;
+        // `partial_cmp`'s result, an `Ordering?`.
+        let layout = self.enum_flat(self.ty(i))?;
         let some = crate::layout::variant_steps(&layout, 1);
         let none = crate::layout::variant_steps(&layout, 0);
         let ordered = if float {

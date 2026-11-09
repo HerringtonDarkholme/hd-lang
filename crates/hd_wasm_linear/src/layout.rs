@@ -841,7 +841,7 @@ fn switch_walk_by(
         // The address is value 0, null for variant 0.
         return part(variants[1][0]).map(|w| Walk::Nullable(Box::new(w)));
     }
-    let flat = flat(pool, env, t).ok()?;
+    let flat = flat(pool, env, t).ok()??;
     let arms: Vec<Option<Walk>> = variants
         .iter()
         .zip(&flat.positions)
@@ -1204,22 +1204,26 @@ pub fn enum_mem(
 }
 
 /// The layout of enum or optional type `t`, unboxed, once per type in a
-/// link ([`cached`]).
-pub fn flat(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult<std::rc::Rc<Flat>> {
+/// link ([`cached`]); `None` for a type that is neither.
+pub fn flat(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    t: Ty,
+) -> StageResult<Option<std::rc::Rc<Flat>>> {
     let t = strip(pool, env, t);
-    if let Some(got) = FLATS.with(|m| m.borrow().as_ref().and_then(|m| m.get(&t)).cloned()) {
-        return got;
-    }
-    let got = match variants(pool, env, t) {
-        Some(vs) => enum_mem(pool, env, &vs).map(std::rc::Rc::new),
-        None => unsupported("a variant of a type that is not an enum"),
+    let Some(vs) = variants(pool, env, t) else {
+        return Ok(None);
     };
+    if let Some(got) = FLATS.with(|m| m.borrow().as_ref().and_then(|m| m.get(&t)).cloned()) {
+        return got.map(Some);
+    }
+    let got = enum_mem(pool, env, &vs).map(std::rc::Rc::new);
     FLATS.with(|m| {
         if let Some(m) = m.borrow_mut().as_mut() {
             m.insert(t, got.clone());
         }
     });
-    got
+    got.map(Some)
 }
 
 /// [`enum_mem`], with each payload field's layout read by `part`: rustc's

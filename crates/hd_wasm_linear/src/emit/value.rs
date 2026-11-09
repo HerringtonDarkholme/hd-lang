@@ -55,14 +55,30 @@ impl Em<'_, '_, '_> {
     }
 
     /// An enum's (or an optional's) layout as values, whether or not it is
-    /// boxed, and where each payload field lies in it.
-    pub(super) fn flat(&self, t: Ty) -> StageResult<Rc<Flat>> {
+    /// boxed, and where each payload field lies in it; `None` for a type
+    /// that is neither.
+    pub(super) fn flat(&self, t: Ty) -> StageResult<Option<Rc<Flat>>> {
         if let Some(f) = self.flats.borrow().get(&t) {
-            return Ok(f.clone());
+            return Ok(Some(f.clone()));
         }
         let f = crate::layout::flat(self.pool(), self.env(), t)?;
-        self.flats.borrow_mut().insert(t, f.clone());
+        if let Some(f) = &f {
+            self.flats.borrow_mut().insert(t, f.clone());
+        }
         Ok(f)
+    }
+
+    /// [`Em::flat`] of a type its caller knows is an enum or an optional:
+    /// a value a `SwitchTag`, a payload read, a variant's construction or a
+    /// place's `as .v .f` step reaches, each of which the checker types
+    /// only on an enum or an optional (each caller names its own).
+    pub(super) fn enum_flat(&self, t: Ty) -> StageResult<Rc<Flat>> {
+        // Every caller decides on, reads a payload of, builds or steps
+        // into a variant of a value the checker typed as an enum or an
+        // optional (`Tag::SwitchTag`, `Tag::Payload`, `Tag::NewVariant`,
+        // `Proj::Variant`), or names an optional type itself.
+        // ruled out: a type that is no enum, by the checker's typing above.
+        Ok(self.flat(t)?.expect("an enum or an optional"))
     }
 
     /// Carries out the steps `steps` ([`Step`]): `leaf` pushes field
@@ -255,7 +271,7 @@ impl Em<'_, '_, '_> {
                 ));
             }
             if let Ok(variants) = em.variant_tys(t)
-                && let Ok(flat) = em.flat(t)
+                && let Ok(Some(flat)) = em.flat(t)
                 && variants.len() == flat.positions.len()
             {
                 // A nullable enum's one payload is a reference, which
@@ -695,14 +711,16 @@ impl Em<'_, '_, '_> {
     /// ([`crate::layout::nullable`]): its tag is whether the address is
     /// not null.
     pub(super) fn nullable(&self, t: Ty) -> bool {
-        self.flat(t).is_ok_and(|f| f.tag.is_none())
+        self.flat(t)
+            .is_ok_and(|f| f.is_some_and(|f| f.tag.is_none()))
     }
 
     /// Pushes the tag of enum value `a`, loaded from its cell when it is
     /// boxed.
     pub(super) fn tag(&mut self, a: u32) -> StageResult<()> {
         let t = self.ty_of(a);
-        let flat = self.flat(t)?;
+        // A `SwitchTag`'s scrutinee, an enum or an optional.
+        let flat = self.enum_flat(t)?;
         let Some((leaf, k)) = flat.tag else {
             // A nullable enum's variant 1 is a non-null address.
             self.scrutinee_word(a)?;
@@ -734,7 +752,8 @@ impl Em<'_, '_, '_> {
     /// A payload read: field `field` of variant `variant` of enum value `a`.
     pub(super) fn payload(&mut self, i: u32, a: u32, variant: u32, field: u32) -> StageResult<()> {
         let t = self.ty_of(a);
-        let flat = self.flat(t)?;
+        // A payload read's operand, an enum or an optional.
+        let flat = self.enum_flat(t)?;
         // A checked payload step names a field of its variant.
         let (v, f) = (variant as usize, field as usize);
         if let Some(&(at, _)) = self.lazy.get(&a) {
@@ -765,7 +784,8 @@ impl Em<'_, '_, '_> {
     /// its cells ([`variant_steps`]), in a counted cell if boxed.
     pub(super) fn variant(&mut self, i: u32, v: u32, fs: &[Src], moved: bool) -> StageResult<()> {
         let t = self.ty(i);
-        let flat = self.flat(t)?;
+        // A variant's construction, of an enum or an optional.
+        let flat = self.enum_flat(t)?;
         let tys = self
             .variant_tys(t)
             .ok()

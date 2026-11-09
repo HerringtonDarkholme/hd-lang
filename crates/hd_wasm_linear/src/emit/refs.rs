@@ -193,7 +193,8 @@ impl Em<'_, '_, '_> {
                     };
                     // A checked place's payload step names a field of
                     // its variant.
-                    let at = self.flat(ty)?.selection(v as usize, f as usize);
+                    // A `Proj::Variant` step, into an enum or an optional.
+                    let at = self.enum_flat(ty)?.selection(v as usize, f as usize);
                     slots = at.iter().map(|&p| slots[p]).collect();
                     ty = self.variant_tys(ty)?[v as usize][f as usize];
                     k += 2;
@@ -661,7 +662,8 @@ impl Em<'_, '_, '_> {
                     }
                     // A checked place's payload step names a field of
                     // its variant.
-                    offset += self.flat(ty)?.offsets[v as usize][f as usize];
+                    // A `Proj::Variant` step, into an enum or an optional.
+                    offset += self.enum_flat(ty)?.offsets[v as usize][f as usize];
                     ty = self.variant_tys(ty)?[v as usize][f as usize];
                     k += 2;
                 }
@@ -821,7 +823,8 @@ impl Em<'_, '_, '_> {
                     // Its tag, or a nullable enum's address, once.
                     let word = self.f.local(Val::I32);
                     self.f.get(r);
-                    match self.flat(target)?.tag {
+                    // `lazy_borrow` holds only for an enum or an optional.
+                    match self.enum_flat(target)?.tag {
                         Some((leaf, _)) => self.f.op(leaf.load(0)),
                         None => self.f.op(I::I32Load(mem(HEAP, 0, 2))),
                     }
@@ -1352,7 +1355,8 @@ impl Em<'_, '_, '_> {
     /// the payload's struct at its offset, in the boxed enum's cell when it
     /// has one; in locals, the values that hold its leaves.
     fn at_variant(&mut self, at: At, ty: Ty, v: u32, f: u32) -> StageResult<(At, Ty)> {
-        let flat = self.flat(ty)?;
+        // A `Proj::Variant` step, into an enum or an optional.
+        let flat = self.enum_flat(ty)?;
         // A checked place's payload step names a field of its variant.
         let (v, f) = (v as usize, f as usize);
         let ft = self.variant_tys(ty)?[v][f];

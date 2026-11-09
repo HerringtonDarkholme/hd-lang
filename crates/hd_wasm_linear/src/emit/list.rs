@@ -194,7 +194,11 @@ impl Em<'_, '_, '_> {
                         }
                     }
                     Tag::Coerce => values.get(a as usize) == Some(&true),
-                    _ => aliases && self.tracked(self.ty(u32::try_from(i).expect("insts"))),
+                    _ => {
+                        // ruled out: an instruction index past u32; `Body`
+                        // numbers its instructions in u32.
+                        aliases && self.tracked(self.ty(u32::try_from(i).expect("insts")))
+                    }
                 };
                 if reaches && !values[i] {
                     values[i] = true;

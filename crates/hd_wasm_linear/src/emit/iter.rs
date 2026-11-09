@@ -88,7 +88,8 @@ impl Em<'_, '_, '_> {
             return unsupported("a map entry that lays out unlike its tuple");
         }
         let ot = self.pool().intern_ty(&TyData::Option(item));
-        let opt = self.flat(ot)?;
+        // `ot` is the optional of the entry type.
+        let opt = self.enum_flat(ot)?;
         let count = |at: u64| {
             move |em: &mut Self, h: u32| {
                 em.f.get(h);

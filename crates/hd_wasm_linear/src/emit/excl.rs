@@ -265,7 +265,7 @@ fn ref_slots_at(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, depth: usize) ->
         return vec![(0, t)];
     }
     if let TyData::Option(inner) = pool.get(t) {
-        let Ok(flat) = flat(pool, env, t) else {
+        let Ok(Some(flat)) = flat(pool, env, t) else {
             return Vec::new();
         };
         return ref_slots_at(pool, env, inner, depth + 1)
@@ -324,7 +324,7 @@ fn projection_slots(
                     return None;
                 };
                 let all = variants(pool, env, ty)?;
-                let layout = flat(pool, env, ty).ok()?;
+                let layout = flat(pool, env, ty).ok()??;
                 // A loan is a reference, a whole cell; a leaf in shared
                 // bits names its cell.
                 let at: Vec<usize> = layout
@@ -650,7 +650,7 @@ fn value_binds_at(
             let Some(all) = variants(pool, env, ty) else {
                 return Vec::new();
             };
-            let Ok(layout) = flat(pool, env, ty) else {
+            let Ok(Some(layout)) = flat(pool, env, ty) else {
                 return Vec::new();
             };
             let case = b.data[c][0] as usize;
