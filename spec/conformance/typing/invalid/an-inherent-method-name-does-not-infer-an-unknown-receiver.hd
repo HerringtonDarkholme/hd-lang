@@ -1,0 +1,23 @@
+# test: an unrelated inherent method does not select the receiver
+trait Choose:
+    fn receiver_code(self) -> i32
+
+struct Value: pass
+
+impl Choose for Value:
+    fn receiver_code(self) -> i32:
+        +1
+
+struct Decoy: pass
+
+impl Decoy:
+    fn receiver_code(self) -> i32:
+        +2
+
+fn unknown[T]() -> T:
+    panic("unused")
+
+fn probe() -> void:
+    value := unknown()
+    _ := value.receiver_code() # diagnostic: cannot-infer-type
+    let fixed: Value = value

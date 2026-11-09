@@ -1,0 +1,17 @@
+# test: later context cannot fix a receiver type at method lookup
+trait Choose:
+    fn receiver_code(self) -> i32
+
+struct Value: pass
+
+impl Choose for Value:
+    fn receiver_code(self) -> i32:
+        +1
+
+fn unknown[T]() -> T:
+    panic("unused")
+
+fn probe() -> void:
+    value := unknown()
+    _ := value.receiver_code() # diagnostic: cannot-infer-type
+    let fixed: Value = value

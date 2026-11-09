@@ -1,0 +1,17 @@
+# test: earlier receiver context permits method calls and references
+trait Choose:
+    fn receiver_code(self) -> i32
+
+struct Value: pass
+
+impl Choose for Value:
+    fn receiver_code(self) -> i32:
+        +1
+
+fn unknown[T]() -> T:
+    panic("unused")
+
+fn probe() -> void:
+    let value: Value = unknown()
+    _ := value.receiver_code()
+    _ := value::receiver_code
