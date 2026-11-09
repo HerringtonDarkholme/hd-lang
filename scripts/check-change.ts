@@ -24,7 +24,8 @@
 // overrides it was given into an empty "Review overrides" commit of the batch.
 //
 // Cost per run: one `git diff -U3` per check and one `git log` of the range, plus
-// one `git show` per commit in the range. Linear in the change, not the repository.
+// one `git show` per commit in the range and per changed Rust file a check reads.
+// Linear in the change, not the repository.
 
 import { execFileSync } from "node:child_process";
 
@@ -60,6 +61,18 @@ interface Added {
   inTest: boolean;
 }
 
+// The first line of a Rust file's top-level `#[cfg(test)]` item, 1-based, or
+// Infinity: everything from it on is test code, where a panic on a broken
+// setup is the intended failure. Reads the file at HEAD once.
+function testStart(file: string): number {
+  if (!file.endsWith(".rs")) {
+    return Infinity;
+  }
+  const text = git("show", `${head}:${file}`);
+  const index = text.split("\n").findIndex((line) => line.startsWith("#[cfg(test)]"));
+  return index < 0 ? Infinity : index + 1;
+}
+
 // Added lines of `git diff -U3`, each with the 3 lines above it in the new file.
 function addedLines(paths: string[], exclude: string[] = []): Added[] {
   const excluded = exclude.map((path) => `:(exclude)${path}`);
@@ -67,15 +80,23 @@ function addedLines(paths: string[], exclude: string[] = []): Added[] {
   const out: Added[] = [];
   let file = "";
   let before: string[] = [];
-  let inTest = false;
+  let tests = Infinity;
+  // The new file's line number of the next context or added line.
+  let lineNo = 0;
   for (const line of diff.split("\n")) {
     if (line.startsWith("+++ ")) {
       file = line.slice(6).trim();
+      tests = line.startsWith("+++ /dev/null") ? Infinity : testStart(file);
       before = [];
-      inTest = false;
       continue;
     }
-    const header = ["--- ", "@@", "diff ", "index "].some((prefix) => line.startsWith(prefix));
+    const hunk = /^@@ -\d+(?:,\d+)? \+(\d+)/.exec(line);
+    if (hunk) {
+      lineNo = Number(hunk[1]);
+      before = [];
+      continue;
+    }
+    const header = ["--- ", "diff ", "index "].some((prefix) => line.startsWith(prefix));
     if (header) {
       before = [];
       continue;
@@ -84,13 +105,11 @@ function addedLines(paths: string[], exclude: string[] = []): Added[] {
       continue;
     }
     const body = line.slice(1);
-    if (body.includes("mod tests") || body.includes("#[cfg(test)]")) {
-      inTest = true;
-    }
     if (line.startsWith("+")) {
-      out.push({ file, body, before: [...before], inTest });
+      out.push({ file, body, before: [...before], inTest: lineNo >= tests });
     }
     before = [...before, body].slice(-3);
+    lineNo += 1;
   }
   return out;
 }
