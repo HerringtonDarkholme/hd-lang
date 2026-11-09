@@ -7039,13 +7039,18 @@ impl Run<'_> {
             fuel: cx.fuel,
         };
         // A returned trait value is a host handle when its trait is the
-        // program's own, or std's host handle trait. A package host's
-        // handle also needs its package identity (`package_value`).
+        // program's own, or a std trait the host provides: a handle trait, a
+        // capability trait, or one bridged to a wire trait (`std.http.Http`).
+        // A package host's handle also needs its package identity
+        // (`package_value`).
         let returned = |def: DefId, package: bool| {
             use hd_check::header::Returned;
             let path = cx.names.path(def).replace('/', ".");
             if path.starts_with("std.") {
-                if hd_host_abi::handle_trait(&path).is_some() {
+                if hd_host_abi::handle_trait(&path).is_some()
+                    || hd_host_abi::host_trait(&path).is_some()
+                    || hd_host_abi::provider_bridge(&path).is_some()
+                {
                     Returned::StdHandle
                 } else {
                     Returned::NotHandle
