@@ -1,0 +1,19 @@
+# @dump: wat own
+# expected: a thin payload address, then dispatch through stored data/vtable.
+# The receiver copy keeps one retain/release pair; no object is allocated.
+trait Counter:
+    fn bump(&mut self) -> void
+
+enum Slot['a]:
+    Empty
+    Full(value: &'a mut dyn Counter)
+
+fn touch['a](slot: &mut Slot['a]) -> void:
+    # subject
+    match slot:
+        .Full(value) => value.bump()
+        .Empty => pass
+
+fn run(counter: &mut dyn Counter) -> void:
+    let mut slot = Slot.Full(counter)
+    touch(&mut slot)

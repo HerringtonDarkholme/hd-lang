@@ -496,6 +496,8 @@ impl Em<'_, '_, '_> {
                 return Ok(());
             }
             At::Mem(a, off) => (*a, *off),
+            // ruled out: callers update a one-word List/Map header; at_root
+            // loads globals into locals, so no At::Globals reaches put_at.
             _ => return unsupported("a collection of several values"),
         };
         self.f.get(a);
@@ -585,11 +587,10 @@ impl Em<'_, '_, '_> {
         // is released here, as the `Drop` the pass deleted did. A frame
         // local's count is never taken (`ref_word::FRAME`).
         if self.b.data[i as usize][1] & hd_tir::ir::ref_word::TAKES != 0 {
-            let p = self.place(self.b.data[i as usize][0]);
-            let (PlaceRoot::Local(l), true) = (p.root, p.proj.is_empty()) else {
-                return unsupported("a reference that takes the count of no whole local");
-            };
-            let x = l.idx();
+            // ruled out: moves::take marks only whole locals, encoded BARE_LOCAL.
+            let x = (self.b.data[i as usize][0] & !hd_tir::ir::place::BARE_LOCAL) as usize;
+            // ruled out: moves excludes frame locals; storage::slots requires
+            // local frame references, whose local count cannot be taken.
             if self.slots.contains_key(&x) {
                 return unsupported("a reference that takes a frame slot's local");
             }
@@ -610,11 +611,10 @@ impl Em<'_, '_, '_> {
     /// Promoted `Ref` `i` that takes its whole local's count: the local's
     /// value with that count, and the local left empty.
     fn promoted_take(&mut self, i: u32) -> StageResult<()> {
-        let p = self.place(self.b.data[i as usize][0]);
-        let (PlaceRoot::Local(l), true) = (p.root, p.proj.is_empty()) else {
-            return unsupported("a promoted reference that takes the count of no whole local");
-        };
-        let x = l.idx();
+        // ruled out: moves::take marks only whole locals, encoded BARE_LOCAL.
+        let x = (self.b.data[i as usize][0] & !hd_tir::ir::place::BARE_LOCAL) as usize;
+        // ruled out: promote::lent_ref rejects captures and other addresses
+        // for TAKES; stored_locals omits its sole promoted address.
         if self.is_cell(x) || self.slots.contains_key(&x) {
             return unsupported("a promoted reference that takes a cell's local");
         }
@@ -642,9 +642,8 @@ impl Em<'_, '_, '_> {
     /// struct field the fields after the head name.
     fn counted_ref(&mut self, i: u32) -> StageResult<()> {
         let p = self.place(self.b.data[i as usize][0]);
-        let Some((_, fat)) = self.ref_target(self.ty(i)) else {
-            return unsupported("a reference whose type is no reference");
-        };
+        // ruled out: checked Tag::Ref keeps a reference result after substitution.
+        let fat = matches!(self.kind(self.ty(i)), Kind::Ref { fat: true, .. });
         let last = self.last_through(&p)?;
         let start = self.place_start(i, &p, last)?;
         let (upto, head) = match last {
@@ -697,11 +696,13 @@ impl Em<'_, '_, '_> {
                 }
                 (_, Some((target, true))) => (at, target),
                 (_, Some((target, false))) => (At::Mem(self.at_i32(&at)?, 0), target),
+                // ruled out: last_through selects only Elem or Deref; the
+                // Elem arms above leave only a checked reference dereference.
                 (_, None) => return unsupported("a dereference of a value that is no reference"),
             };
         }
         let Some(path) = fields(&p.proj[from..]) else {
-            self.payload_ref(i, &at, ty, &p.proj[from..], fat)?;
+            self.payload_ref(i, &at, ty, &p.proj[from..])?;
             return Ok(());
         };
         self.ref_from(i, at, ty, &path, fat)?;
@@ -712,17 +713,11 @@ impl Em<'_, '_, '_> {
     /// (`ref.match.borrow`): the field's address in the enum at `base`, of
     /// type `ty`. A payload is a struct at one offset of its enum
     /// (`layout::Flat`), so the field is at a fixed offset from it.
-    fn payload_ref(
-        &mut self,
-        i: u32,
-        base: &At,
-        parent_ty: Ty,
-        steps: &[Proj],
-        fat: bool,
-    ) -> StageResult<()> {
-        if fat {
-            return unsupported("a reference to a payload field that is a trait value");
-        }
+    fn payload_ref(&mut self, i: u32, base: &At, parent_ty: Ty, steps: &[Proj]) -> StageResult<()> {
+        // ruled out: types.trait.value.reference-values stores a reference,
+        // never a bare trait value; borrowing that stored reference is thin.
+        // ruled out: pat::pattern_place_ref extends the payload's place
+        // through its reference; counted_ref addresses that dereference.
         let &At::Mem(a, off) = base else {
             return unsupported("a reference to a payload field in no memory");
         };
@@ -749,6 +744,8 @@ impl Em<'_, '_, '_> {
                     ty = ft;
                     k += 1;
                 }
+                // ruled out: counted_ref consumed the last Elem/Deref;
+                // the checker pairs every payload Variant with its Field.
                 _ => return unsupported("a reference to a payload field through this place"),
             }
         }
@@ -831,6 +828,8 @@ impl Em<'_, '_, '_> {
                     self.f.get(*l);
                 }
             }
+            // ruled out: storage::run gives addressed mutable locals cells
+            // or slots; the checker gives a mutable rvalue a local too.
             At::Vals(_) if crate::layout::ref_mutable(self.pool(), self.env(), self.ty(i)) => {
                 return unsupported("a `&mut` to a local that lives in no cell");
             }
@@ -859,6 +858,8 @@ impl Em<'_, '_, '_> {
                 }
                 return self.store_owned(i);
             }
+            // ruled out: place_start constructs At::Globals only for stores;
+            // at_root instead loads globals or addresses their static slot.
             At::Globals(..) => {
                 return unsupported("a reference to a place in no memory");
             }

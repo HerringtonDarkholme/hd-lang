@@ -1,0 +1,34 @@
+# test: a lifetime enum lends its stored mutable trait reference to one call
+# Spec References: ref.match.borrow; ref.lifetime.enum.match;
+# Types: types.trait.value.reference-values.
+# expect-stdout: 3
+trait Counter:
+    fn bump(&mut self) -> void
+
+struct Tally:
+    value: u32
+
+impl Counter for Tally:
+    fn bump(&mut self) -> void:
+        self.value += 1
+
+enum Slot['a]:
+    Empty
+    Full(value: &'a mut dyn Counter)
+
+fn touch['a](slot: &mut Slot['a]) -> void:
+    match slot:
+        .Full(value) => value.bump()
+        .Empty => pass
+
+pub fn main() -> void $ Console:
+    let mut tally = Tally { value: 1 }
+    if true:
+        let mut slot = Slot.Full(&mut tally)
+        touch(&mut slot)
+    if true:
+        let mut slot = Slot.Full(&mut tally)
+        match &mut slot:
+            .Full(value) => value.bump()
+            .Empty => pass
+    println(tally.value)
