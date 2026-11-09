@@ -1,0 +1,9 @@
+# test: an imported trait is a non-value kind in a body const slot
+# Spec 04 Const Generic Arguments: types.generic.const.argument.kind.
+# fixture-package-tree: module-names/src/checkout.hd
+use pkg.cart.Priced
+
+struct Fixed[N<const usize]: pass
+
+fn wrong_kind() -> void:
+    let value: Fixed[Priced] = panic("unused") # diagnostic: generic-kind-mismatch

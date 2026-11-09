@@ -6144,6 +6144,14 @@ typing/invalid/a-propagating-result-cannot-widen-to-an-optional-target.hd	type	r
 typing/invalid/an-unknown-operand-does-not-enable-a-void-propagation-target.hd	type	reject:invalid-result-propagation	lang/05-expressions.md#r-expr.try.target.nearest-function
 typing/invalid/a-known-non-result-in-an-inferred-closure-rejects-propagation.hd	type	reject:invalid-result-propagation	lang/05-expressions.md#r-expr.try.misuse.operand
 typing/invalid/a-propagation-target-check-survives-recursive-row-retries.hd	type	reject:invalid-result-propagation	lang/05-expressions.md#r-expr.try.target.nearest-function
+typing/invalid/a-trait-name-in-a-body-const-slot-is-a-kind-error.hd	type	reject:generic-kind-mismatch	lang/04-type-system.md#r-types.generic.const.argument.kind
+typing/invalid/a-trait-name-in-a-header-const-slot-is-a-kind-error.hd	type	reject:generic-kind-mismatch	lang/04-type-system.md#r-types.generic.const.argument.kind
+typing/invalid/an-imported-trait-in-a-header-const-slot-is-a-kind-error.hd	type	reject:generic-kind-mismatch	lang/04-type-system.md#r-types.generic.const.argument.kind
+typing/invalid/an-imported-trait-in-a-body-const-slot-is-a-kind-error.hd	type	reject:generic-kind-mismatch	lang/04-type-system.md#r-types.generic.const.argument.kind
+typing/invalid/an-imported-type-in-a-const-slot-keeps-its-kind-error.hd	type	reject:generic-kind-mismatch	lang/04-type-system.md#r-types.generic.const.argument.kind
+typing/invalid/a-type-parameter-in-a-body-const-slot-is-a-kind-error.hd	type	reject:generic-kind-mismatch	lang/04-type-system.md#r-types.generic.const.argument.kind
+typing/invalid/a-const-slot-kind-check-keeps-default-visibility.hd	type	reject:binding-not-yet-visible	lang/04-type-system.md#r-types.generic.default.later
+typing/invalid/a-function-name-in-a-const-slot-remains-runtime-dependent.hd	type	reject:nonconstant-generic-argument	lang/04-type-system.md#r-types.generic.const.nonconstant
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

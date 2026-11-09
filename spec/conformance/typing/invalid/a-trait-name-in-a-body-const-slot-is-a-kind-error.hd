@@ -1,0 +1,8 @@
+# test: a trait name is not a const value in a body annotation
+# Spec 04 Const Generic Arguments: types.generic.const.argument.kind.
+trait Marker
+
+struct Fixed[N<const usize]: pass
+
+fn wrong_kind() -> void:
+    let wrong: Fixed[Marker] = panic("unused") # diagnostic: generic-kind-mismatch

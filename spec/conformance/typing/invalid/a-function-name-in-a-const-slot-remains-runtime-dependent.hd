@@ -1,0 +1,9 @@
+# test: a function name is a runtime value rather than a non-value kind
+# Spec 04 Const Generic Arguments: types.generic.const.nonconstant.
+struct Fixed[N<const usize]: pass
+
+fn amount() -> usize:
+    3
+
+fn wrong_kind() -> void:
+    let value: Fixed[amount] = panic("unused") # diagnostic: nonconstant-generic-argument

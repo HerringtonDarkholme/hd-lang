@@ -1,0 +1,8 @@
+# test: header lowering rejects a trait name in a const slot
+# Spec 04 Const Generic Arguments: types.generic.const.argument.kind.
+trait Marker
+
+struct Fixed[N<const usize]: pass
+
+fn wrong_kind(value: Fixed[Marker]) -> void: # diagnostic: generic-kind-mismatch
+    pass

@@ -1404,23 +1404,24 @@ fn symbolic[N < const usize](value: Fixed[i32, N + 1]) -> void:  # error: noncon
 ### Const Generic Arguments
 
 1. r[types.generic.const.argument] A const generic argument is either a closed const expression or one bare const parameter allowed by [`types.generic.const.type-position`](#r-types.generic.const.type-position).
-2. r[types.generic.const.closed] A **closed const expression** is a literal, a named top-level constant, or an allowed scalar operator whose operands are recursively closed const expressions.
-3. r[types.generic.const.named] A top-level `:=` binding is a named top-level constant when its initializer is closed. Every referenced binding must recursively qualify too.
-4. r[types.generic.const.operators] Allowed operators are built-in primitive unary and binary operators whose operands and result have allowed const types.
-5. r[types.generic.const.operator-set] They are integer arithmetic, bitwise operations, shifts, comparisons, boolean logic, and string `+`.
-6. r[types.generic.const.short-circuit] Const evaluation of `&&` and `||` short-circuits, so an unevaluated right operand causes no evaluation failure.
-7. r[types.generic.const.no-cast-or-trait] Casts and user trait operators are not const operations in stage 1, even when all their inputs are closed.
-8. r[types.generic.const.evaluate] The compiler evaluates a closed const argument while checking its use, using the parameter's declared type.
-9. r[types.generic.const.evaluate-failure] Overflow, division by zero, or an invalid shift during that evaluation is an error on the argument expression. Error: `const-evaluation-failed`.
-10. r[types.generic.const.evaluate-message] A `const-evaluation-failed` diagnostic names the failure as overflow, division by zero, or invalid shift.
-11. r[types.generic.const.nonconstant] A runtime-dependent argument, a cast, a user trait operation, or a symbolic expression over a const parameter is an error on that argument. Error: `nonconstant-generic-argument`.
-12. r[types.generic.const.nonconstant-message] A `nonconstant-generic-argument` diagnostic says whether the expression depends on runtime data, uses symbolic const arithmetic, or contains an operation unavailable to const evaluation.
-13. r[types.generic.const.identity] The evaluated value and its declared type determine const identity. Thus `Fixed[i32, 2 + 2]` equals `Fixed[i32, 4]`, but not `Fixed[i32, 5]`.
-14. r[types.generic.const.display] A const argument in a displayed type uses its evaluated canonical literal spelling: decimal integers, `true` or `false`, and escaped character or string literals.
-15. r[types.generic.const.infer-argument-type] Call-site inference may solve a const parameter by matching an argument's type against a parameter type that contains the const parameter.
-16. r[types.generic.const.no-runtime-inference] A runtime argument value never solves a const parameter, even when its value is a literal.
-17. r[types.generic.const.infer-unsolved] A const parameter left unsolved by argument types is an error unless the caller supplies it explicitly. Error: `cannot-infer-type`.
-18. r[types.generic.const.impl-exact] Trait and inherent implementation selection matches const arguments by their exact evaluated value and declared type.
+2. r[types.generic.const.argument.kind] A type or trait name in a const argument slot is an error. Error: `generic-kind-mismatch`.
+3. r[types.generic.const.closed] A **closed const expression** is a literal, a named top-level constant, or an allowed scalar operator whose operands are recursively closed const expressions.
+4. r[types.generic.const.named] A top-level `:=` binding is a named top-level constant when its initializer is closed. Every referenced binding must recursively qualify too.
+5. r[types.generic.const.operators] Allowed operators are built-in primitive unary and binary operators whose operands and result have allowed const types.
+6. r[types.generic.const.operator-set] They are integer arithmetic, bitwise operations, shifts, comparisons, boolean logic, and string `+`.
+7. r[types.generic.const.short-circuit] Const evaluation of `&&` and `||` short-circuits, so an unevaluated right operand causes no evaluation failure.
+8. r[types.generic.const.no-cast-or-trait] Casts and user trait operators are not const operations in stage 1, even when all their inputs are closed.
+9. r[types.generic.const.evaluate] The compiler evaluates a closed const argument while checking its use, using the parameter's declared type.
+10. r[types.generic.const.evaluate-failure] Overflow, division by zero, or an invalid shift during that evaluation is an error on the argument expression. Error: `const-evaluation-failed`.
+11. r[types.generic.const.evaluate-message] A `const-evaluation-failed` diagnostic names the failure as overflow, division by zero, or invalid shift.
+12. r[types.generic.const.nonconstant] A runtime-dependent argument, a cast, a user trait operation, or a symbolic expression over a const parameter is an error on that argument. Error: `nonconstant-generic-argument`.
+13. r[types.generic.const.nonconstant-message] A `nonconstant-generic-argument` diagnostic says whether the expression depends on runtime data, uses symbolic const arithmetic, or contains an operation unavailable to const evaluation.
+14. r[types.generic.const.identity] The evaluated value and its declared type determine const identity. Thus `Fixed[i32, 2 + 2]` equals `Fixed[i32, 4]`, but not `Fixed[i32, 5]`.
+15. r[types.generic.const.display] A const argument in a displayed type uses its evaluated canonical literal spelling: decimal integers, `true` or `false`, and escaped character or string literals.
+16. r[types.generic.const.infer-argument-type] Call-site inference may solve a const parameter by matching an argument's type against a parameter type that contains the const parameter.
+17. r[types.generic.const.no-runtime-inference] A runtime argument value never solves a const parameter, even when its value is a literal.
+18. r[types.generic.const.infer-unsolved] A const parameter left unsolved by argument types is an error unless the caller supplies it explicitly. Error: `cannot-infer-type`.
+19. r[types.generic.const.impl-exact] Trait and inherent implementation selection matches const arguments by their exact evaluated value and declared type.
 
 For example, `Byte[127i8 + 1i8]`, `Byte[1i8 / 0i8]`, and
 `Byte[1i8 << 8i8]` report `const-evaluation-failed` for overflow, division
@@ -1436,9 +1437,19 @@ fn canonical(value: Fixed[WIDTH]) -> Fixed[4]:
     value
 ```
 
+```text
+trait Marker
+
+struct Fixed[N < const usize]: pass
+
+fn wrong_kind() -> void:
+    let wrong: Fixed[Marker] = panic("unused") # error: generic-kind-mismatch
+```
+
 > **Why.** Evaluating closed expressions gives `2 + 2` one stable identity
 > without admitting general compile-time execution. Argument-type-only
 > inference makes a const value visible in the source type that proves it.
+> A const slot takes values, so type and trait names share one kind diagnostic.
 
 ### Inference From Several Arguments
 

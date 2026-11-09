@@ -202,12 +202,21 @@ impl Ck<'_, '_> {
 
     /// A const argument of declared type `want`: its evaluated value or a
     /// bare const parameter (`types.generic.const.argument`).
-    fn const_arg(&mut self, a: NodeRef<'_>, want: Option<Prim>) -> StageResult<Ty> {
+    fn const_arg(&mut self, a: NodeRef<'_>, want: Option<Prim>) -> Ty {
         use hd_resolve::const_eval::{ConstArg, ConstName, const_argument};
+        if a.kind() == SyntaxKind::NamedType {
+            let segs = self.segments(a);
+            if let [name] = segs.as_slice()
+                && let Some(ty) = self.type_param(name)
+                && let TyData::Param(p) = self.pool().get(ty)
+                && self.generic_default_invisible(p, name, a)
+            {
+                return Ty::POISON;
+            }
+        }
         let src = self.cx.src;
         let syms = self.cx.names.syms;
         let paths = self.cx.names.paths;
-        let mut elsewhere = false;
         let mut declared = None;
         let result = {
             let mut lookup = |name: &str| {
@@ -216,6 +225,9 @@ impl Ck<'_, '_> {
                 {
                     declared = Some(*prim);
                     return ConstName::Param(*p);
+                }
+                if self.type_param(name).is_some() {
+                    return ConstName::Type;
                 }
                 if self.find_local(sym).is_some() {
                     return ConstName::Runtime;
@@ -227,15 +239,17 @@ impl Ck<'_, '_> {
                     return ConstName::Type;
                 }
                 match self.scope_name(name) {
-                    Some(Named::Item(d)) if self.kind_of_item(d) == Some(HeadKind::Fn) => {
-                        ConstName::Runtime
-                    }
-                    Some(Named::Item(d)) if self.kind_of_item(d).is_some_and(HeadKind::is_type) => {
-                        ConstName::Type
-                    }
-                    Some(Named::Item(_)) => {
-                        elsewhere = true;
-                        ConstName::Poison
+                    Some(Named::Item(d)) => {
+                        if self
+                            .cx
+                            .lookup
+                            .item(d)
+                            .is_some_and(|item| item.sig().is_some())
+                        {
+                            ConstName::Runtime
+                        } else {
+                            ConstName::Type
+                        }
                     }
                     Some(Named::Poison) => {
                         self.read_poison_name = true;
@@ -248,7 +262,7 @@ impl Ck<'_, '_> {
         };
         let pool = self.pool();
         match result {
-            Ok(ConstArg::Value(v)) => Ok(pool.intern_ty(&TyData::Const(v))),
+            Ok(ConstArg::Value(v)) => pool.intern_ty(&TyData::Const(v)),
             Ok(ConstArg::Param(p)) => {
                 if let (Some(want), Some(have)) = (want, declared)
                     && want != have
@@ -259,17 +273,14 @@ impl Ck<'_, '_> {
                         want.name()
                     );
                     self.err(Code::TypeMismatch, a, &msg);
-                    return Ok(Ty::POISON);
+                    return Ty::POISON;
                 }
-                Ok(pool.intern_ty(&TyData::Param(p)))
+                pool.intern_ty(&TyData::Param(p))
             }
-            Ok(ConstArg::Poison) if elsewhere => {
-                unsupported("a const generic argument that names another module's value")
-            }
-            Ok(ConstArg::Poison) => Ok(Ty::POISON),
+            Ok(ConstArg::Poison) => Ty::POISON,
             Err(e) => {
                 self.err(e.code, a, &e.message);
-                Ok(Ty::POISON)
+                Ty::POISON
             }
         }
     }
@@ -404,7 +415,7 @@ impl Ck<'_, '_> {
                     .filter(|_| a.kind() == SyntaxKind::ConstArgument || a.kind().is_type())
                     .and_then(|d| self.const_slot_type(d, position))
                 {
-                    args.push(self.const_arg(a, Some(want))?);
+                    args.push(self.const_arg(a, Some(want)));
                     arg_nodes.push(a);
                     position += 1;
                 } else if a.kind() == SyntaxKind::ConstArgument {
@@ -983,7 +994,7 @@ impl Ck<'_, '_> {
         position: usize,
     ) -> StageResult<Ty> {
         if let Some(prim) = g.and_then(|g| g.const_type) {
-            return self.const_arg(t, Some(prim));
+            return Ok(self.const_arg(t, Some(prim)));
         }
         if t.kind() == SyntaxKind::ConstArgument {
             let msg = format!(

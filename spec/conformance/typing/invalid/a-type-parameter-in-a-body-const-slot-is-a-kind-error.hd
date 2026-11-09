@@ -1,0 +1,6 @@
+# test: a body type parameter is not a const parameter or value
+# Spec 04 Const Generic Arguments: types.generic.const.argument.kind.
+struct Fixed[N<const usize]: pass
+
+fn wrong_kind[T]() -> void:
+    let value: Fixed[T] = panic("unused") # diagnostic: generic-kind-mismatch

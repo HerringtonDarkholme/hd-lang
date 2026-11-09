@@ -2062,7 +2062,6 @@ impl Lower<'_, '_, '_> {
         }
         let src = self.src;
         let pool = self.names.pool;
-        let mut other_module = false;
         let mut declared = None;
         let result = {
             let syms = self.names.syms;
@@ -2095,11 +2094,7 @@ impl Lower<'_, '_, '_> {
                     });
                 match kind {
                     Some(HeadKind::Fn) => ConstName::Runtime,
-                    Some(kind) if kind.is_type() => ConstName::Type,
-                    Some(_) => {
-                        other_module = true;
-                        ConstName::Poison
-                    }
+                    Some(_) => ConstName::Type,
                     None if self.is_poisoned(sym) => ConstName::Poison,
                     None => ConstName::Unknown,
                 }
@@ -2125,12 +2120,7 @@ impl Lower<'_, '_, '_> {
                 }
                 pool.intern_ty(&TyData::Param(p))
             }
-            Ok(ConstArg::Poison) => {
-                if other_module {
-                    self.gap("a const generic argument that names another module's value");
-                }
-                Ty::POISON
-            }
+            Ok(ConstArg::Poison) => Ty::POISON,
             Err(e) => {
                 self.diags
                     .error(e.code, self.src.span(argument), &e.message);

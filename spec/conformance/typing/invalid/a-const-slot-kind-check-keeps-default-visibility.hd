@@ -1,0 +1,8 @@
+# test: a const slot does not hide a later generic parameter's visibility error
+# Spec 04 Type-Argument Defaults: types.generic.default.later.
+struct Fixed[N<const usize]: pass
+
+fn run() -> void:
+    fn local[T = Fixed[U], U = i32]() -> void: # diagnostic: binding-not-yet-visible
+        pass
+    local()
