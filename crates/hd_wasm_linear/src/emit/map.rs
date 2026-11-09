@@ -54,9 +54,7 @@ impl Em<'_, '_, '_> {
     /// The key and value types of map type `t`, and its entry as the glue
     /// sees it.
     pub(super) fn entry(&self, t: Ty) -> StageResult<(Ty, Ty, Entry)> {
-        if self.input.runtime.is_none() {
-            return unsupported("maps without std's allocator");
-        }
+        // ruled out: the driver roots std runtime items before collecting map operations.
         // A map operation's operand is a `Map[K, V]`.
         let (_, args) = (self.pool().adt(strip(self.pool(), self.env(), t))).expect("a map");
         let (kt, vt) = (
@@ -566,6 +564,7 @@ impl Em<'_, '_, '_> {
     /// Makes the table in `m` unique before returning a mutable value
     /// reference. Entry numbers and a miss probe survive this copy.
     fn map_probe_unique(&mut self, i: u32, m: u32, entry: &Entry) -> StageResult<()> {
+        // ruled out: own::map_probe_unique states this action for three-argument map_probe calls.
         let Some(reason) = self.operation_count(i, Tag::MakeUnique, Part::Operand(0)) else {
             return unsupported("a map probe without its stated uniqueness action");
         };
