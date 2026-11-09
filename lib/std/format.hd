@@ -823,6 +823,11 @@ fn dbg_opaque[T](head: string, value: T, text: string) -> T:
 fn dbg_bare_one[T](prefix: string, value: T, show: fn(T, *mut DebugWriter) -> void) -> void:
     dbg_write("$prefix${dbg_layout(prefix.len(), value, show)}")
 
+# A runtime vararg rest prints one value per line, using the same selected printer.
+fn dbg_bare_rest[T](prefix: string, items: List[T], show: fn(T, *mut DebugWriter) -> void) -> void:
+    for value in items:
+        dbg_bare_one(prefix, value, show)
+
 fn dbg_bare_shown[T < Debug](prefix: string, value: T) -> void:
     dbg_bare_one(prefix, value, fn(shown: T, out: *mut DebugWriter) -> void: shown.debug(out))
 

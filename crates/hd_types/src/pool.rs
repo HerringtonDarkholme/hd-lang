@@ -942,6 +942,16 @@ impl InternPool {
     pub fn adt(&self, t: Ty) -> Option<(DefId, TyList)> {
         self.types().adt(t)
     }
+    /// [`Types::adt_parts`].
+    #[must_use]
+    pub fn adt_parts(&self, t: Ty) -> (DefId, TyList) {
+        self.types().adt_parts(t)
+    }
+    /// [`Types::tuple_parts`].
+    #[must_use]
+    pub fn tuple_parts(&self, t: Ty) -> (TyList, Option<Ty>) {
+        self.types().tuple_parts(t)
+    }
     /// [`Types::trait_value`].
     #[must_use]
     pub fn trait_value(&self, t: Ty) -> Option<(DefId, TyList)> {
@@ -1380,6 +1390,30 @@ impl<'a> Types<'a> {
         }
         let off = c.data[i];
         Some((DefId::from_raw(c.extra[off]), TyList(c.extra[off + 1])))
+    }
+
+    /// The definition and arguments of a type already checked as an ADT.
+    #[must_use]
+    pub fn adt_parts(self, t: Ty) -> (DefId, TyList) {
+        let (c, i) = self.at(t.0);
+        // ruled out: callers have established the ADT constructor.
+        debug_assert_eq!(c.tag[i], PoolTag::Adt);
+        let off = c.data[i];
+        (DefId::from_raw(c.extra[off]), TyList(c.extra[off + 1]))
+    }
+
+    /// Fixed elements and optional List rest of an already checked tuple.
+    #[must_use]
+    pub fn tuple_parts(self, t: Ty) -> (TyList, Option<Ty>) {
+        let (c, i) = self.at(t.0);
+        // ruled out: callers have established a tuple, including a List rest.
+        debug_assert!(matches!(c.tag[i], PoolTag::Tuple | PoolTag::TupleRest));
+        if c.tag[i] == PoolTag::Tuple {
+            (TyList(c.data[i]), None)
+        } else {
+            let off = c.data[i];
+            (TyList(c.extra[off]), Some(Ty(c.extra[off + 1])))
+        }
     }
 
     /// `T` when `t` is `def[T]`: the payload of `Option[T]`, which `T?`
@@ -2188,6 +2222,42 @@ mod tests {
         assert_eq!(p.trait_value(value), Some((def, args)));
         assert_eq!(p.list_items(args), &[Ty::I32]);
         assert_eq!(p.get(value), form, "local associated binding is retained");
+    }
+
+    #[test]
+    fn checked_parts_read_global_and_local_records() {
+        let g = InternPool::new();
+        let local = LocalPool::new();
+        let p = Types::with_local(&g, &local);
+        let variable = p.intern_ty(&TyData::Infer(hd_base::InferVar::from_raw(3)));
+        let def = DefId::from_raw(7);
+        for item in [Ty::I32, variable] {
+            let args = p.list(&[item]);
+            let list = p.intern_ty(&TyData::Adt { def, args });
+            assert_eq!(p.adt_parts(list), (def, args));
+            for rest in [None, Some(list)] {
+                let tuple = p.intern_ty(&TyData::Tuple { elems: args, rest });
+                assert_eq!(p.tuple_parts(tuple), (args, rest));
+                if !tuple.is_local() {
+                    assert_eq!(g.tuple_parts(tuple), (args, rest));
+                    assert_eq!(g.adt_parts(list), (def, args));
+                }
+            }
+        }
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    fn checked_parts_assert_the_constructor() {
+        let g = InternPool::new();
+        assert!(
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| g.adt_parts(Ty::I32)))
+                .is_err()
+        );
+        assert!(
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| g.tuple_parts(Ty::I32)))
+                .is_err()
+        );
     }
 
     #[test]

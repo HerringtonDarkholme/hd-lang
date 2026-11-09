@@ -188,11 +188,8 @@ pub fn printer_body(cx: &Cx<'_, '_>, item: DefId, ty: Ty, debug: bool) -> StageR
 pub fn values_body(cx: &Cx<'_, '_>, item: DefId, args: Ty) -> StageResult<Body> {
     let names = cx.names;
     let pool = names.pool;
-    // gap: #1543: collected tuples may end in a runtime List rest.
     // ruled out: dbg's sealed Args < Tuple bound excludes non-tuples.
-    let TyData::Tuple { elems, rest: None } = pool.get(args) else {
-        return cx.unsupported("a `dbg` whose arguments are not a plain tuple");
-    };
+    let (elems, rest) = pool.tuple_parts(args);
     let elems = pool.list_items(elems).to_vec();
     let mut g = Gen::new(cx, args, item, Handles::Supplied);
     g.b = TirBuilder::new(item, BodyKind::Fn);
@@ -204,10 +201,14 @@ pub fn values_body(cx: &Cx<'_, '_>, item: DefId, args: Ty) -> StageResult<Body> 
     );
     let blk = g.b.open_block();
     let bare = names.item(FORMAT, "dbg_bare_one");
-    for (k, e) in elems.iter().enumerate() {
+    // ruled out: interned type-list lengths and TIR field indices are u32.
+    debug_assert!(u32::try_from(elems.len()).is_ok());
+    let mut position = 0u32;
+    for e in &elems {
         let e = *e;
         let tuple = g.b.get(values, args, SYN);
-        let v = g.b.field(tuple, u32::try_from(k).unwrap_or(0), e, SYN);
+        let v = g.b.field(tuple, position, e, SYN);
+        position += 1;
         let prefix = g.b.const_str("");
         let show = g.printer(e);
         g.b.call(
@@ -216,6 +217,26 @@ pub fn values_body(cx: &Cx<'_, '_>, item: DefId, args: Ty) -> StageResult<Body> 
                 targs: pool.list(&[e]),
             },
             &[prefix, v, show],
+            Providers::None,
+            Ty::VOID,
+            SYN,
+        );
+    }
+    if let Some(rest_type) = rest {
+        let (def, args) = pool.adt_parts(rest_type);
+        // ruled out: types.tuple.rest.list fixes the rest to List[T].
+        debug_assert_eq!(def, names.known.list);
+        let item = pool.list_items(args)[0];
+        let tuple = g.b.get(values, g.target, SYN);
+        let tail = g.b.field(tuple, position, rest_type, SYN);
+        let prefix = g.b.const_str("");
+        let show = g.printer(item);
+        g.b.call(
+            &Callee::Item {
+                def: names.item(FORMAT, "dbg_bare_rest"),
+                targs: pool.list(&[item]),
+            },
+            &[prefix, tail, show],
             Providers::None,
             Ty::VOID,
             SYN,
