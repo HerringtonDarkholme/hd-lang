@@ -358,6 +358,8 @@ fn slot(input: &Input<'_>, method: DefId, cold: &Sym, blocking: bool) -> StageRe
         params.push(Val::I32);
     }
     let results = crate::layout::vals(pool, env, ret)?;
+    // ruled out: dyn_value::vtable_of, rt::{host_vtable, profile_tree} and
+    // boundary::handle_slots construct only Helper slots, including traps.
     let Sym::Helper(h) = cold else {
         return unsupported("a vtable slot that is not a helper");
     };

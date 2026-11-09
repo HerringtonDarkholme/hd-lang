@@ -1,0 +1,44 @@
+# test: async and blocking dyn slots preserve reference and copied value receivers
+# Spec Traits: trait.dyn.ref.member; Suspension: req.drive.block-on.completed.
+# expect-stdout: 11
+# expect-stdout: 19
+use std.annotation.inline
+use std.task.block_on
+
+trait Borrowed:
+    fn borrow!(&self, delta: u32) -> u32
+
+trait Owned:
+    fn own!(self, delta: u32) -> u32
+
+struct Worker:
+    id: u32
+
+impl Borrowed for Worker:
+    fn borrow!(&self, delta: u32) -> u32:
+        self.id + delta
+
+impl Owned for Worker:
+    fn own!(self, delta: u32) -> u32:
+        self.id * 2 + delta
+
+@inline(.Never)
+fn borrowed!(worker: &dyn Borrowed) -> u32:
+    first := worker.borrow!(1)
+    second := match block_on(worker.borrow(2)):
+        .Completed(value) => value
+        _ => panic("borrow did not complete")
+    first + second
+
+@inline(.Never)
+fn owned!(worker: &dyn Owned) -> u32:
+    first := worker.own!(1)
+    second := match block_on(worker.own(2)):
+        .Completed(value) => value
+        _ => panic("own did not complete")
+    first + second
+
+pub fn main!() -> void $ Console:
+    worker := Worker { id: 4 }
+    println(borrowed!(&worker))
+    println(owned!(&worker))

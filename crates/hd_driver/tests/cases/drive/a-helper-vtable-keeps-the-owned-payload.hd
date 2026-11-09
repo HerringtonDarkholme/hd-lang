@@ -1,0 +1,23 @@
+# @dump: wat
+# expected: make returns one owned Worker payload and its vtable address;
+# coercion adds no runtime adapter or count operation.
+use std.task.block_on
+
+trait Job:
+    fn value!(&self) -> u32
+
+struct Worker:
+    id: u32
+
+impl Job for Worker:
+    fn value!(&self) -> u32:
+        self.id
+
+fn make(id: u32) -> *dyn Job:
+    box(Worker { id: id })
+    #^^^^^^^^^^^^^^^^^^^^^
+
+fn drive(job: &dyn Job) -> u32:
+    match block_on(job.value()):
+        .Completed(value) => value
+        _ => 0
