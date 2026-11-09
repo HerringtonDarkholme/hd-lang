@@ -1,0 +1,4 @@
+# test: a cast of a `&mut i32` names it and suggests `*`
+# Spec 04 Numeric Casts: types.cast.nonnumeric. Spec 13 Values And References: ref.read.auto.explicit.
+fn widen(x: &mut i32) -> usize:
+    usize(x) # diagnostic: not-callable

@@ -8,7 +8,7 @@ pub fn main() -> void:
     while i < 2000000:
         # subject
         for (key, value) in values:
-            total += key.len() + usize(value)
+            total += key.len() + usize(*value)
         i += 1
     if total != 220000000:
         panic("bad map loop total")

@@ -1,0 +1,4 @@
+# test: a cast of a value of an unbounded type parameter is no numeric cast, and the message names the parameter
+# Spec 04 Numeric Casts: types.cast.nonnumeric. Spec 13 Values And References: ref.read.auto.explicit.
+fn widen[T](x: T) -> usize:
+    usize(x) # diagnostic: not-callable

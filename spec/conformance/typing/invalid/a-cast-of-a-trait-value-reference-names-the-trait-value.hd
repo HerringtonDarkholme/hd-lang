@@ -1,0 +1,7 @@
+# test: a cast of a trait value reference names the trait value type
+# Spec 04 Numeric Casts: types.cast.nonnumeric. Spec 13 Values And References: ref.read.auto.explicit.
+trait Size:
+    fn size(&self) -> i32
+
+fn widen(x: &dyn Size) -> usize:
+    usize(x) # diagnostic: not-callable

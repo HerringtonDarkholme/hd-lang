@@ -1,0 +1,7 @@
+# test: a cast of a reference to `S::Item`, bound to `i32`, names `&i32` and suggests `*`
+# Spec 04 Numeric Casts: types.cast.nonnumeric. Spec 13 Values And References: ref.read.auto.explicit.
+trait Source:
+    type Item
+
+fn widen[S < Source[Item = i32]](x: &S::Item) -> usize:
+    usize(x) # diagnostic: not-callable

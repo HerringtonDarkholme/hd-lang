@@ -1,0 +1,7 @@
+# test: a map loop binds a reference to each value, and a cast does not read through it: `usize(value)` names the argument's type and suggests `*`
+# Spec 06 Control Flow: flow.for.map.borrowed-entries. Spec 13 Values And References: ref.read.auto.explicit. Spec 04 Numeric Casts: types.cast.nonnumeric.
+fn total(values: Map[string, i32]) -> usize:
+    let sum: usize = 0
+    for (_, value) in values:
+        sum += usize(value) # diagnostic: not-callable
+    sum

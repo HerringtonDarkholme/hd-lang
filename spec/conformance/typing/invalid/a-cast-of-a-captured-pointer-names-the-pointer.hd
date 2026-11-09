@@ -1,0 +1,5 @@
+# test: a cast in a closure of a captured pointer names the pointer and suggests `*`
+# Spec 04 Numeric Casts: types.cast.nonnumeric. Spec 13 Values And References: ref.read.auto.explicit.
+fn widen(p: *i32) -> usize:
+    read := fn() -> usize: usize(p) # diagnostic: not-callable
+    read()

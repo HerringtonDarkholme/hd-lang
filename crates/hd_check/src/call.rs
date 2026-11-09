@@ -1117,6 +1117,37 @@ impl Ck<'_, '_> {
         Ok(None)
     }
 
+    /// A numeric cast `to(e)` whose argument has the nonnumeric type `t`:
+    /// no cast, by `types.cast.nonnumeric`, and the message names the
+    /// argument's type. A reference to a number is the usual case (a map
+    /// loop's `&V`): a cast keeps an explicit `*` (`ref.read.auto.explicit`),
+    /// so the fix inserts one.
+    fn nonnumeric_cast_argument(&mut self, to: Ty, t: Ty, e: NodeRef<'_>, n: NodeRef<'_>) {
+        if matches!(self.resolved(t), Ty::POISON | Ty::NEVER) {
+            return;
+        }
+        let (target, arg) = (self.show(to), self.show(t));
+        let Some((inner, _)) = self.ref_of(t).filter(|(i, _)| self.cast_numeric(*i)) else {
+            let msg = format!("`{target}(...)` converts a number, and this argument is {arg}");
+            self.err(Code::NotCallable, n, &msg);
+            return;
+        };
+        let msg = format!(
+            "`{target}(...)` converts a number, and this argument is {arg}; a cast does not read through a reference, so read the {} with `*`",
+            self.show(inner)
+        );
+        self.err(Code::NotCallable, n, &msg);
+        let lo = self.cx.src.span(e).lo;
+        let at = hd_base::Span {
+            file: self.cx.src.file,
+            lo,
+            hi: lo,
+        };
+        let title = format!("read the {} with `*`", self.show(inner));
+        self.diags
+            .add_fix(&title, hd_diag::FixSafety::Suggestion, &[(at, "*")]);
+    }
+
     /// `i64(x)`: a numeric conversion.
     fn conversion(&mut self, to: Ty, args: &Args<'_>, n: NodeRef<'_>) -> StageResult<(Ref, Ty)> {
         if let Some(spread) = args.spread {
@@ -1158,12 +1189,16 @@ impl Ck<'_, '_> {
         // Only a numeric-to-numeric call is a cast (`types.cast.nonnumeric`);
         // any other constructor-style call of a primitive type is a call of
         // something that is not a function.
-        if !self.cast_numeric(t) || !self.cast_numeric(to) {
+        if !self.cast_numeric(to) {
             let msg = format!(
                 "`{}` is not a function: only numeric types convert by a constructor-style call",
                 self.show(to)
             );
             self.err(Code::NotCallable, n, &msg);
+            return Ok((Ref(NONE), Ty::POISON));
+        }
+        if !self.cast_numeric(t) {
+            self.nonnumeric_cast_argument(to, t, e, n);
             return Ok((Ref(NONE), Ty::POISON));
         }
         // A literal argument takes the target's type directly.

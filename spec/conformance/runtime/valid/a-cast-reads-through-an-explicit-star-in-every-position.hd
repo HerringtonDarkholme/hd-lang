@@ -1,0 +1,53 @@
+# test: a cast reads a number through an explicit `*` from a map loop value, an associated `&S::Item`, a `&mut`, a pointer payload, a closure capture and a suspending function
+# Spec 06 Control Flow: flow.for.map.borrowed-entries. Spec 13 Values And References: ref.read.auto.explicit. Spec 04 Numeric Casts: types.cast.syntax.
+# expect-stdout: 30
+# expect-stdout: 4
+# expect-stdout: 7
+# expect-stdout: 8
+# expect-stdout: 8
+# expect-stdout: 4
+use std.time.{Clock, ms, sleep}
+
+trait Source:
+    type Item
+
+struct Provider: pass
+
+impl Source for Provider:
+    type Item = i32
+
+enum Slot:
+    Empty
+    Held(at: *i32)
+
+fn widen[S < Source[Item = i32]](x: &S::Item) -> usize:
+    usize(*x)
+
+fn bump(x: &mut i32) -> usize:
+    *x += 1
+    usize(*x)
+
+fn slot(s: &Slot) -> usize:
+    match s:
+        .Held(at) => usize(*at)
+        .Empty => 0
+
+fn later!(x: &i32) -> usize $ Clock:
+    sleep!(ms(1))
+    usize(*x)
+
+pub fn main!() -> void $ Console + Clock:
+    values := { "a": 10, "b": 20 }
+    let total: usize = 0
+    for (_, value) in values:
+        total += usize(*value)
+    println(total)
+    let n: i32 = 4
+    println(widen::[Provider](&n))
+    let mut m: i32 = 6
+    println(bump(&mut m))
+    let p: *i32 = box(8)
+    println(slot(&Slot.Held(p)))
+    read := fn() -> usize: usize(*p)
+    println(read())
+    println(later!(&n))
