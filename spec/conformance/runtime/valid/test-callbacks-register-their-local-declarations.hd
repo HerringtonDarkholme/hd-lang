@@ -1,0 +1,13 @@
+# test: a test registration callback checks local types and implementations
+# Spec 03 Local Type Declarations: names.local-type.name; Local Implementations: names.local-impl.extent.
+tests:
+    it("local declaration"):
+        struct Point:
+            x: i32
+        trait Read:
+            fn read(self) -> i32
+        impl Read for Point:
+            fn read(self) -> i32:
+                self.x
+        point := Point { x: 7 }
+        assert_equal(point.read(), 7)

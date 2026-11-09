@@ -6769,7 +6769,10 @@ impl Run<'_> {
             if h.kind == hd_resolve::HeadKind::Struct
                 && let Some(ItemData::Struct(fields, _)) = cx.lookup.item(h.def).map(|i| &i.data)
             {
-                for f in h.node.descendants() {
+                for f in hd_resolve::Src::child(h.node, hd_syntax::SyntaxKind::Block)
+                    .into_iter()
+                    .flat_map(hd_syntax::NodeRef::children)
+                {
                     if f.kind() == hd_syntax::SyntaxKind::DataField
                         && let Some(dv) =
                             hd_resolve::Src::child(f, hd_syntax::SyntaxKind::DefaultValue)

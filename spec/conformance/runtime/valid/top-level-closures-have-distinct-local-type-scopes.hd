@@ -1,0 +1,16 @@
+# test: separate top-level closures may declare the same local type name
+# Spec 03 Local Type Declarations: names.local-type.name, names.local-type.identity.
+# expect-stdout: 3
+# expect-stdout: right
+left := fn() -> i32:
+    struct Value:
+        amount: i32
+    Value { amount: 3 }.amount
+
+right := fn() -> string:
+    struct Value:
+        text: string
+    Value { text: "right" }.text
+
+println(left())
+println(right())

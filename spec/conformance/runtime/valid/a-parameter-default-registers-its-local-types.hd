@@ -1,0 +1,13 @@
+# test: a callback in a parameter default has its own local type scope
+# Spec 03 Local Type Declarations: names.local-type.name, names.local-type.static.
+# expect-stdout: 8
+fn run(
+    callback: fn() -> i32 = fn():
+        struct Value:
+            amount: i32
+        Value { amount: 8 }.amount
+) -> i32:
+    callback()
+
+pub fn main() -> void $ Console:
+    println(run())

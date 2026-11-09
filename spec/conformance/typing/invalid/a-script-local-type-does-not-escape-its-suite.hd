@@ -1,0 +1,9 @@
+# test: a local type in a script suite is not visible in a later function
+# Spec 03 Local Type Declarations: names.local-type.not-visible.
+if true:
+    struct Point:
+        x: i32
+    _ := Point { x: 7 }
+
+fn outside() -> void:
+    let wrong: Point = panic("unused") # diagnostic: unknown-type

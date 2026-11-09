@@ -430,7 +430,7 @@ pub struct LocalSite<'t> {
     pub hi: u32,
     /// The enclosing suite.
     pub suite: hd_base::NodeIdx,
-    /// The top-level declaration whose text holds it, which its anchors
+    /// The top-level declaration or statement whose text holds it, which its anchors
     /// count from.
     pub top: NodeRef<'t>,
 }
@@ -569,6 +569,18 @@ pub fn heads<'t>(names: &Names<'_>, src: &Src<'t>, module: &str, tests: bool) ->
         });
     for (n, holder) in top.chain(in_tests) {
         let Some((kind, kw)) = decl_kind(src, n) else {
+            // The tests block is visited through `in_tests`, so its module
+            // declarations stay distinct from registration callbacks' locals.
+            if n.kind() != SyntaxKind::TestsBlock {
+                let owner = DefId::from_raw(names.module(module).raw());
+                local_heads(
+                    names,
+                    src,
+                    (owner, n),
+                    (holder.unwrap_or(n), holder),
+                    &mut out,
+                );
+            }
             continue;
         };
         let h = if kind == HeadKind::Impl {
@@ -609,17 +621,30 @@ pub fn heads<'t>(names: &Names<'_>, src: &Src<'t>, module: &str, tests: bool) ->
             }
         };
         out.push(h);
-        for (owner, f) in body_nodes(names, src, &[h]) {
-            local_heads(
-                names,
-                src,
-                (owner, f),
-                (holder.unwrap_or(n), holder),
-                &mut out,
-            );
-        }
+        item_local_heads(names, src, h, (holder.unwrap_or(n), holder), &mut out);
     }
     out
+}
+
+/// The executable source of one item: function bodies and defaults, or
+/// data-field defaults and enum shared-constructor arguments.
+fn item_local_heads<'t>(
+    names: &Names<'_>,
+    src: &Src<'t>,
+    h: Head<'t>,
+    top: (NodeRef<'t>, Option<NodeRef<'t>>),
+    out: &mut Vec<Head<'t>>,
+) {
+    if matches!(
+        h.kind,
+        HeadKind::Struct | HeadKind::Enum | HeadKind::Newtype | HeadKind::Alias
+    ) {
+        local_heads(names, src, (h.def, h.node), top, out);
+    } else {
+        for (owner, f) in body_nodes(names, src, &[h]) {
+            local_heads(names, src, (owner, f), top, out);
+        }
+    }
 }
 
 /// The block-local type, trait and impl declarations of the body of
@@ -634,11 +659,8 @@ fn local_heads<'t>(
     (top, holder): (NodeRef<'t>, Option<NodeRef<'t>>),
     out: &mut Vec<Head<'t>>,
 ) {
-    let Some(body) = Src::child(f, SyntaxKind::Block) else {
-        return;
-    };
     let mut found = Vec::new();
-    local_decls(body, &mut found);
+    local_decls(f, &mut found);
     for (i, (n, suite)) in found.into_iter().enumerate() {
         let Some((kind, kw)) = decl_kind(src, n) else {
             continue;
@@ -648,7 +670,18 @@ fn local_heads<'t>(
         if kind == HeadKind::Impl && traitless_block(src, n) {
             continue;
         }
-        let scope = names.local_scope(owner, i);
+        // Module-level executable roots share a namespace, so their
+        // declaration node distinguishes same-named locals in different
+        // statements. No scope path is interned for a root with no locals.
+        let index = if matches!(
+            names.paths.kind(hd_base::PathId::from_raw(owner.raw())),
+            PathKind::Package | PathKind::Module
+        ) {
+            n.index().idx()
+        } else {
+            i
+        };
+        let scope = names.local_scope(owner, index);
         let (name, def) = if kind == HeadKind::Impl {
             let seg = impl_segment(src, n);
             (
@@ -680,9 +713,7 @@ fn local_heads<'t>(
             test: holder,
         };
         out.push(h);
-        for (m, mf) in body_nodes(names, src, &[h]) {
-            local_heads(names, src, (m, mf), (top, holder), out);
-        }
+        item_local_heads(names, src, h, (top, holder), out);
     }
 }
 

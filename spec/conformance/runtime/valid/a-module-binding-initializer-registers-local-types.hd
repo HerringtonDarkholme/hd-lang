@@ -1,0 +1,11 @@
+# test: a local type in a top-level initializer is checked as a local declaration
+# Spec 03 Local Type Declarations: names.local-type.name.
+# expect-stdout: 4
+value := if true:
+    struct Point:
+        x: i32
+    Point { x: 4 }.x
+else:
+    +0
+
+println(value)

@@ -1,0 +1,18 @@
+# test: local declarations in a module executable suite have lexical scope
+# Spec 03 Local Type Declarations: names.local-type.name, names.local-type.static; Local Implementations: names.local-impl.extent.
+# expect-stdout: 7
+if true:
+    struct Point:
+        x: i32
+    trait Read:
+        fn read(self) -> i32
+    impl Read for Point:
+        fn read(self) -> i32:
+            self.x
+    type Alias = Point
+    enum Choice:
+        Value(point: Alias)
+    let point: Alias = Point { x: 7 }
+    item := Choice.Value(point)
+    match item:
+        .Value(point) => println(point.read())

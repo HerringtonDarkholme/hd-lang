@@ -1,0 +1,14 @@
+# test: separate top-level closure declarations have distinct nominal identities
+# Spec 03 Local Type Declarations: names.local-type.identity; Spec 04 Nominal Types: types.nominal.distinct.
+left := fn():
+    struct Value:
+        amount: i32
+    Value { amount: 3 }
+
+right := fn():
+    struct Value:
+        amount: i32
+    Value { amount: 4 }
+
+let value = left()
+value = right() # diagnostic: type-mismatch

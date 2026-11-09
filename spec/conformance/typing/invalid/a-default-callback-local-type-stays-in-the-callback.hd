@@ -1,0 +1,10 @@
+# test: a local type inside a parameter default does not enter the function body
+# Spec 03 Local Type Declarations: names.local-type.not-visible.
+fn run(
+    callback: fn() -> i32 = fn():
+        struct Value:
+            amount: i32
+        Value { amount: 8 }.amount
+) -> i32:
+    let wrong: Value = panic("unused") # diagnostic: unknown-type
+    callback()

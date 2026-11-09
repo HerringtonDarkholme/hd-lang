@@ -6152,6 +6152,15 @@ typing/invalid/an-imported-type-in-a-const-slot-keeps-its-kind-error.hd	type	rej
 typing/invalid/a-type-parameter-in-a-body-const-slot-is-a-kind-error.hd	type	reject:generic-kind-mismatch	lang/04-type-system.md#r-types.generic.const.argument.kind
 typing/invalid/a-const-slot-kind-check-keeps-default-visibility.hd	type	reject:binding-not-yet-visible	lang/04-type-system.md#r-types.generic.default.later
 typing/invalid/a-function-name-in-a-const-slot-remains-runtime-dependent.hd	type	reject:nonconstant-generic-argument	lang/04-type-system.md#r-types.generic.const.nonconstant
+runtime/valid/local-declarations-in-a-script-suite-are-registered.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.local-type.name
+runtime/valid/top-level-closures-have-distinct-local-type-scopes.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.local-type.identity
+runtime/valid/test-callbacks-register-their-local-declarations.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.local-type.name
+runtime/valid/a-parameter-default-registers-its-local-types.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.local-type.name
+runtime/valid/nested-field-defaults-keep-their-own-declaration-owner.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.local-type.name
+runtime/valid/a-module-binding-initializer-registers-local-types.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.local-type.name
+typing/invalid/a-script-local-type-does-not-escape-its-suite.hd	type	reject:unknown-type	lang/03-names-and-scopes.md#r-names.local-type.not-visible
+typing/invalid/separate-module-closures-declare-distinct-nominal-types.hd	type	reject:type-mismatch	lang/03-names-and-scopes.md#r-names.local-type.identity
+typing/invalid/a-default-callback-local-type-stays-in-the-callback.hd	type	reject:unknown-type	lang/03-names-and-scopes.md#r-names.local-type.not-visible
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

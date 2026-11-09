@@ -1,0 +1,13 @@
+# test: nested default callbacks register local types and collect each field's own default
+# Spec 03 Local Type Declarations: names.local-type.name; Spec 08 Field Defaults.
+# expect-stdout: 9
+struct Plan:
+    run: fn() -> i32 = (fn():
+        struct Value:
+            run: i32 = 9
+        Value {}.run
+    )
+
+pub fn main() -> void $ Console:
+    plan := Plan {}
+    println((plan.run)())
