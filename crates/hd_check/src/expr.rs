@@ -2309,7 +2309,7 @@ impl Ck<'_, '_> {
         let crt = self.b.ty_of(c);
         let (v, _) = self.trait_call_args(tr, "partial_cmp", a, at, &[(c, crt, rn)], n)?;
         // `std.cmp.PartialOrd.partial_cmp` returns `Ordering?`.
-        let ord_ty = self.ctor(self.cx.names.known.ordering, &[], n)?;
+        let ord_ty = self.ctor(self.cx.names.known.ordering, &[], n);
         // None is unordered, so every relational operator returns false.
         // In Some, <= excludes Greater and >= excludes Less. Ordinary
         // variant tests preserve the representation selected by the backend.

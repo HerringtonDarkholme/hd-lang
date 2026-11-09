@@ -164,7 +164,7 @@ impl Ck<'_, '_> {
                         return self.trait_ref(def, explicit, &name, method_targs, want, n);
                     }
                     Some(k) if k.is_type() => {
-                        let t = self.ctor(def, &explicit, n)?;
+                        let t = self.ctor(def, &explicit, n);
                         return self.type_ref(t, &name, method_targs, want, n);
                     }
                     _ => {}

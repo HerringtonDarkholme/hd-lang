@@ -18,9 +18,7 @@ use hd_types::lookup::OWN_TABLE;
 use hd_types::solver::{Evidence, PlanStep};
 use hd_types::{RowData, RowId, Ty};
 
-use crate::body::{
-    BodyCx, Ck, ExpectPosition, RowFrame, is_out_of_fuel, new_ck, too_complex, unsupported,
-};
+use crate::body::{BodyCx, Ck, ExpectPosition, RowFrame, is_out_of_fuel, new_ck, too_complex};
 
 type Set = hd_base::HashSet<hd_base::LocalId>;
 
@@ -944,14 +942,14 @@ impl Ck<'_, '_> {
         let ename = self.cx.src.text(t).to_owned();
         let module = self.module_init.clone().unwrap_or_default();
         let def = self.cx.names.item(&module, &ename);
-        let Some(item) = self.cx.lookup.item(def) else {
-            return unsupported("shared data of an unknown enum");
-        };
-        let ItemData::Enum {
+        // `top_level` selects an EnumDecl; header lowering registers its
+        // enum before any initializer runs. A failed header has already
+        // reported the missing or conflicting declaration.
+        let Some(ItemData::Enum {
             shared, variants, ..
-        } = item.data.clone()
+        }) = self.cx.lookup.item(def).map(|item| &item.data)
         else {
-            return unsupported("shared data outside an enum");
+            return Ok(());
         };
         let params: Vec<(Symbol, Ty)> = shared.iter().map(|f| (f.name, f.ty)).collect();
         for v in s

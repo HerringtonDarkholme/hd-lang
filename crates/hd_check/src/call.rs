@@ -578,7 +578,7 @@ impl Ck<'_, '_> {
             if let ItemData::Struct(fields, _) = &item.data
                 && fields.is_empty()
             {
-                let t = self.ctor(def, &[], n)?;
+                let t = self.ctor(def, &[], n);
                 let rec = self.b.refs_record(&[]);
                 return Ok(Some((
                     self.b.emit(Tag::NewStruct, NONE, rec, t, n.index()),
@@ -2695,7 +2695,7 @@ impl Ck<'_, '_> {
             ItemData::Newtype(inner) => {
                 let inner = *inner;
                 let name = self.cx.names.text(item.name).to_owned();
-                let targs = self.ctor_args(def, explicit, n)?;
+                let targs = self.ctor_args(item, explicit, n);
                 let t = pool.intern_ty(&TyData::Adt {
                     def,
                     args: pool.list(&targs),
@@ -2721,7 +2721,7 @@ impl Ck<'_, '_> {
             | ItemData::Builtin
             | ItemData::Enum { .. }
             | ItemData::Alias { .. } => {
-                let to = self.ctor(def, explicit, n)?;
+                let to = self.ctor(def, explicit, n);
                 match pool.get(to) {
                     // An alias calls the type it expands to.
                     TyData::Adt { def: base, args: a } if base != def => {
@@ -3273,7 +3273,7 @@ impl Ck<'_, '_> {
                 Ok(Some((Ref(NONE), Ty::POISON)))
             }
             Some(Named::Item(def)) if self.is_enum_head(def) => {
-                let t = self.ctor(def, &[], n)?;
+                let t = self.ctor(def, &[], n);
                 if self.kind_of_item(def) == Some(HeadKind::Alias)
                     && self.variant_fields(t, name).is_none()
                 {
@@ -3494,11 +3494,11 @@ impl Ck<'_, '_> {
                 Some(Named::Item(def)) => match self.kind_of_item(def) {
                     Some(HeadKind::Enum | HeadKind::Alias)
                         if {
-                            let et = self.ctor(def, &explicit, n)?;
+                            let et = self.ctor(def, &explicit, n);
                             self.variant_fields(et, &name).is_some()
                         } =>
                     {
-                        let t = self.ctor(def, &explicit, n)?;
+                        let t = self.ctor(def, &explicit, n);
                         let t = match want {
                             Some(w) if self.can_unify(w, t) => {
                                 self.expect(t, w, n, "variant", ExpectPosition::General);
@@ -3513,7 +3513,7 @@ impl Ck<'_, '_> {
                         return self.trait_static(def, explicit, &name, args, n, bang);
                     }
                     Some(k) if k.is_type() => {
-                        let t = self.ctor(def, &explicit, n)?;
+                        let t = self.ctor(def, &explicit, n);
                         self.method_targs = method_targs;
                         return self.static_on_type(t, &name, args, (n, bang), false, want);
                     }

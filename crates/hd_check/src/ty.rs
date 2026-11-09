@@ -316,41 +316,43 @@ impl Ck<'_, '_> {
         self.cx.lookup.item(d).and_then(hd_resolve::Item::kind)
     }
 
-    /// A type constructor applied to arguments (aliases expanded).
-    pub(crate) fn ctor(&mut self, def: DefId, args: &[Ty], n: NodeRef<'_>) -> StageResult<Ty> {
+    /// A type constructor already selected by `named_ty_as`, the call
+    /// dispatcher's type-kind arms, or the std known-item table. The
+    /// driver's closure contains those declarations; failed headers may
+    /// leave poison, as at other declaration reads.
+    pub(crate) fn ctor(&mut self, def: DefId, args: &[Ty], n: NodeRef<'_>) -> Ty {
         let pool = self.pool();
-        let args = self.ctor_args(def, args, n)?;
-        Ok(match self.cx.lookup.item(def).map(|i| &i.data) {
-            Some(ItemData::Alias { body, .. }) => pool.subst(*body, &|p: ParamRef| {
+        let Some(item) = self.cx.lookup.item(def) else {
+            return Ty::POISON;
+        };
+        let args = self.ctor_args(item, args, n);
+        match &item.data {
+            ItemData::Alias { body, .. } => pool.subst(*body, &|p: ParamRef| {
                 (p.owner == def)
                     .then(|| args.get(p.index as usize).copied())
                     .flatten()
             }),
-            Some(
-                ItemData::Struct(_, _)
-                | ItemData::Enum { .. }
-                | ItemData::Newtype(_)
-                | ItemData::Builtin,
-            ) => pool.intern_ty(&TyData::Adt {
+            ItemData::Struct(_, _)
+            | ItemData::Enum { .. }
+            | ItemData::Newtype(_)
+            | ItemData::Builtin => pool.intern_ty(&TyData::Adt {
                 def,
                 args: pool.list(&args),
             }),
-            _ => return unsupported("a non-type name in type position"),
-        })
+            _ => Ty::POISON,
+        }
     }
 
-    /// The arguments of type constructor `def`: those written, then each
-    /// omitted one's default or a fresh variable.
+    /// The arguments of the selected declaration: those written, then
+    /// each omitted one's default or a fresh variable.
     pub(crate) fn ctor_args(
         &mut self,
-        def: DefId,
+        item: &hd_resolve::Item,
         args: &[Ty],
         n: NodeRef<'_>,
-    ) -> StageResult<Vec<Ty>> {
+    ) -> Vec<Ty> {
         let pool = self.pool();
-        let Some(item) = self.cx.lookup.item(def) else {
-            return unsupported(format!("the type {}", self.cx.names.path(def)));
-        };
+        let def = item.def;
         // An omitted trailing argument takes its default with the earlier
         // arguments substituted (`types.generic.default.written`).
         let mut args = hd_resolve::fill_type_args(self.cx.names.pool, def, &item.generics, args);
@@ -363,7 +365,7 @@ impl Ck<'_, '_> {
             });
         }
         self.row_argument_vars(def, &args, n);
-        Ok(args)
+        args
     }
 
     fn named_ty_as(&mut self, n: NodeRef<'_>, role: NameRole) -> StageResult<Ty> {
@@ -698,7 +700,7 @@ impl Ck<'_, '_> {
                 return Ok(Ty::POISON);
             }
         }
-        let t = self.ctor(def, &args, n)?;
+        let t = self.ctor(def, &args, n);
         // Where a trait goes, only a row alias stands besides a trait: any
         // other type, a type alias among them, is no trait
         // (`req.key.traits`, `req.row.alias.type-alias.key`).
