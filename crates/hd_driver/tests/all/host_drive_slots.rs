@@ -311,18 +311,22 @@ import {{ readFileSync }} from 'node:fs';
 import {{ pathToFileURL }} from 'node:url';
 const root = pathToFileURL({root:?} + '/');
 const {{ createCoreHost }} = await import(new URL('host/core.ts', root));
+const {{ cycleReport }} = await import(new URL('host/checked-report.ts', root));
 const {{ createPackageRuntime }} = await import(new URL('host/package-providers.ts', root));
 const generated = await import(pathToFileURL({glue_path:?}));
 const {{ default: provider }} = await import(pathToFileURL({provider_path:?}));
 const module = new WebAssembly.Module(readFileSync({wasm_path:?}));
-const host = createCoreHost({{out: text => process.stdout.write(text), err: text => process.stderr.write(text)}}, {{
+let diagnostics = '';
+const host = createCoreHost({{out: text => process.stdout.write(text), err: text => {{ diagnostics += text; }} }}, {{
   module, createPackageRuntime, grants: {{Console: true, 'pkg.main.Child': true}},
   packageBindings: runtime => generated.bind(runtime, new Map([[{module_name:?}, provider]])),
 }});
 try {{
   const instance = new WebAssembly.Instance(module, host.imports);
   const result = await host.run(instance, 'hd.init', 'hd.poll');
-  if (result.trapped || result.status !== 0) throw Error(JSON.stringify(result));
+  if (result.trapped || result.status !== 0) throw Error(JSON.stringify({{result, diagnostics}}));
+  // Checked reporting is an audit message; reject every other diagnostic.
+  if (diagnostics !== (cycleReport(module, instance) ?? '')) throw Error(diagnostics);
 }} finally {{ host.close(); }}
 ",
             root = root.to_string_lossy(),
