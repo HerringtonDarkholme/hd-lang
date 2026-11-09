@@ -413,8 +413,9 @@ impl Em<'_, '_, '_> {
     }
 
     /// `char_from_scalar(point)`: `.Some(point)` when `point` is a scalar
-    /// value (at most `0x10FFFF`, not a surrogate), else `.None`, whose
-    /// slot holds zero. A `char?` is its tag and its scalar.
+    /// value (at most `0x10FFFF`, not a surrogate), else `.None`: each of
+    /// the `char?`'s values (its niche's, `layout::variant_steps`) for
+    /// `.Some` or `.None`, chosen by a `select`.
     pub(super) fn char_from_scalar(&mut self, i: u32, point: u32) -> StageResult<()> {
         let (p, ok) = (self.f.local(Val::I32), self.f.local(Val::I32));
         self.comp(point, 0)?;
@@ -429,10 +430,19 @@ impl Em<'_, '_, '_> {
         self.f.op(I::I32GtU);
         self.f.op(I::I32And);
         self.f.set(ok);
-        self.f.get(ok);
-        self.f.get(p);
-        self.f.get(ok);
-        self.f.op(I::I32Mul);
+        // `char_from_scalar`'s result, a `char?`.
+        let layout = self.enum_flat(self.ty(i))?;
+        let some = crate::layout::variant_steps(&layout, 1);
+        let none = crate::layout::variant_steps(&layout, 0);
+        let values = &layout.mem.leaves;
+        for (c, (s, n)) in some.iter().zip(&none).enumerate() {
+            let s = crate::layout::value_or_zero(values, c, s.as_ref());
+            let n = crate::layout::value_or_zero(values, c, n.as_ref());
+            crate::layout::run_steps(&mut self.f, &s, &|f, _, _| f.get(p));
+            crate::layout::run_steps(&mut self.f, &n, &|f, _, _| f.get(p));
+            self.f.get(ok);
+            self.f.op(I::Select);
+        }
         self.store(i)
     }
 

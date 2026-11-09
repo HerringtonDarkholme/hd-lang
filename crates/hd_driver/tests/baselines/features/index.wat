@@ -185,15 +185,9 @@
         i32.add
         local.tee $m
         i32.load $heap offset=8
-        local.set $k.0
         local.get $m
         i32.load $heap offset=12
-        local.set $m
-        i32.const 1
-        local.get $k.0
-        local.get $m
         local.set $v.1
-        drop
         local.set $t0
       else
       end
@@ -202,8 +196,6 @@
           block
     ;; 21 |         .Some(v) => v.len()
             local.get $t0
-            i32.const 1
-            i32.eq
             br_if 0
     ;; 22 |         .None => 0
             local.get $t0

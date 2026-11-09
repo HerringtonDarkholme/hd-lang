@@ -1431,6 +1431,7 @@ runtime/valid/defaults-run-in-declaration-order-after-every-explicit-argument.hd
 runtime/valid/defer-after-return-value.hd	runtime	accept	std/ops.md#r-std-ops.defer.cleanup
 runtime/valid/defer-lifo-and-loop-exits.hd	runtime	accept	std/ops.md#r-std-ops.defer.cleanup
 runtime/panic/explicit-panic-skips-defer.hd	runtime	panic:explicit-panic	lang/06-control-flow.md#runtime-panics
+runtime/valid/enum-niche-values.hd	runtime	accept	lang/08-data-and-enums.md#matching-enums
 runtime/valid/enum-payload-match.hd	runtime	accept	lang/08-data-and-enums.md#matching-enums
 typing/invalid/bare-variant-pattern-in-match.hd	type	reject:bare-variant-pattern	lang/06-control-flow.md#match-expressions
 typing/invalid/enum-match-missing-variant.hd	type	reject:nonexhaustive-match	lang/06-control-flow.md#match-expressions

@@ -1,9 +1,9 @@
 # @dump: wat
 # A nested optional and an enum whose variant fits in a niche of its
 # largest payload (#1422).
-# expected: `i32??` and `A` are 8 bytes and 2 values, and each match is one
-# `br_table` on value 0; today they are tagged, 12 bytes and 3 values, with
-# an `if` chain per match (niches: #1422 part B).
+# expected: `i32??` and `A` are 8 bytes and 2 values (niches), and each
+# match is one `br_table` on value 0; today each level of the match tests
+# value 0 on its own: the nested switches on one cell are not grouped.
 enum A:
     Maybe(i32?)
     Must(i32)

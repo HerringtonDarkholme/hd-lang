@@ -59,13 +59,13 @@
           i32.add
           local.tee $tally
           local.get $i
-          i64.store $heap
+          i64.store $heap offset=8
           local.get $tally
           i32.const 65 ;; &"tally"
-          i32.store $heap offset=8
+          i32.store $heap
           local.get $tally
           i32.const 5
-          i32.store $heap offset=12
+          i32.store $heap offset=4
           local.get $tally
     ;; 19 |         let r = &mut tally
           local.tee $r
@@ -75,24 +75,24 @@
             block
               local.get $t2
               local.get $t2
-              i64.load $heap
+              i64.load $heap offset=8
               i64.const 1
               i64.add
-              i64.store $heap
+              i64.store $heap offset=8
               br 0
             end
           end
     ;; 21 |         sum = sum + r.n
           local.get $sum
           local.get $r
-          i64.load $heap
+          i64.load $heap offset=8
           i64.add
           local.set $sum
     ;; 17 |     for i in 0..k:
           local.get $tally
           if
             local.get $tally
-            i32.load $heap offset=8
+            i32.load $heap
             local.tee $tally
             if
               local.get $tally

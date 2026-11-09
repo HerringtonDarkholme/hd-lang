@@ -62,18 +62,11 @@
     local.get $r.name.1
     local.get $r.tags
   )
-  (func $make_enum (param $n.0 i32) (param $n.1 i32) (result i32 i32 i32) (local $t0 i32)
+  (func $make_enum (param $n.0 i32) (param $n.1 i32) (result i32 i32)
     ;; 22 |     Shape.Named(n)
     block
-      i32.const 0
-      local.get $n.0
-      local.get $n.1
-      local.set $t0
-      local.set $n.1
-      local.set $n.0
     end
     local.get $n.0
     local.get $n.1
-    local.get $t0
   )
 )

@@ -33,7 +33,7 @@
       i32.mul
       i32.add
       local.tee $out
-      i32.load $heap offset=20
+      i32.load $heap offset=16
       local.tee $index
       if
         local.get $index
@@ -47,10 +47,10 @@
       end
       local.get $out
       local.get $items
-      i32.store $heap offset=16
+      i32.store $heap offset=20
       local.get $out
       local.get $t1
-      i32.store $heap offset=20
+      i32.store $heap offset=16
       local.get $out
       local.get $t0
       i32.store $heap offset=24

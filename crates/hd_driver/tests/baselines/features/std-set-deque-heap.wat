@@ -3,10 +3,10 @@
   (import "fixture" "impl [ T < Eq & Hash ] Set [ T ].insert[string]" (func $"impl [ T < Eq & Hash ] Set [ T ].insert[string]" (param i32 i32 i32) (result i32)))
   (import "fixture" "impl [ T < Eq & Hash ] Set [ T ].contains[string]" (func $"impl [ T < Eq & Hash ] Set [ T ].contains[string]" (param i32 i32 i32) (result i32)))
   (import "fixture" "impl [ T ] Deque [ T ].push_back[string]" (func $"impl [ T ] Deque [ T ].push_back[string]" (param i32 i32 i32)))
-  (import "fixture" "impl [ T ] Deque [ T ].pop_front[string]" (func $"impl [ T ] Deque [ T ].pop_front[string]" (param i32) (result i32 i32 i32)))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32)))
+  (import "fixture" "impl [ T ] Deque [ T ].pop_front[string]" (func $"impl [ T ] Deque [ T ].pop_front[string]" (param i32) (result i32 i32)))
+  (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
   (import "fixture" "impl [ T < Ord ] Heap [ T ].push[string]" (func $"impl [ T < Ord ] Heap [ T ].push[string]" (param i32 i32 i32)))
-  (import "fixture" "impl [ T < Ord ] Heap [ T ].pop[string]" (func $"impl [ T < Ord ] Heap [ T ].pop[string]" (param i32) (result i32 i32 i32)))
+  (import "fixture" "impl [ T < Ord ] Heap [ T ].pop[string]" (func $"impl [ T < Ord ] Heap [ T ].pop[string]" (param i32) (result i32 i32)))
   (func $seen (param $s i32) (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32)
     ;; 11 |     _ := s.insert(a)
     block
@@ -35,7 +35,6 @@
     ;; 16 |     match q.pop_front():
       local.get $q
       call $"impl [ T ] Deque [ T ].pop_front[string]"
-      local.set $a.1
       local.set $a.0
       local.set $q
       block
@@ -43,8 +42,6 @@
           block
     ;; 17 |         .Some(x) => x.len()
             local.get $q
-            i32.const 1
-            i32.eq
             br_if 0
     ;; 18 |         .None => 0
             local.get $q
@@ -57,7 +54,7 @@
     ;; 17 |         .Some(x) => x.len()
           block
             block
-              local.get $a.1
+              local.get $a.0
               local.set $t0
               br 0
             end
@@ -70,7 +67,6 @@
     ;; 15 |     q.push_back(a)
       local.get $q
       local.get $a.0
-      local.get $a.1
       call $rt:release
       local.get $t0
       local.set $q
@@ -87,7 +83,6 @@
     ;; 22 |     match h.pop():
       local.get $h
       call $"impl [ T < Ord ] Heap [ T ].pop[string]"
-      local.set $a.1
       local.set $a.0
       local.set $h
       block
@@ -95,8 +90,6 @@
           block
     ;; 23 |         .Some(x) => x.len()
             local.get $h
-            i32.const 1
-            i32.eq
             br_if 0
     ;; 24 |         .None => 0
             local.get $h
@@ -109,7 +102,7 @@
     ;; 23 |         .Some(x) => x.len()
           block
             block
-              local.get $a.1
+              local.get $a.0
               local.set $t0
               br 0
             end
@@ -122,7 +115,6 @@
     ;; 21 |     h.push(a)
       local.get $h
       local.get $a.0
-      local.get $a.1
       call $rt:release
       local.get $t0
       local.set $h

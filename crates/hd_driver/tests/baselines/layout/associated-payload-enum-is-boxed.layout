@@ -20,9 +20,9 @@ enum Wrap[T < Value]:
     Present(value: T::Item)
 
 struct Holder:
-> app.main.Holder size=4 align=4 cycle-capable=false
+> app.main.Holder size=4 align=4 cycle-capable=false niche=0:4/0x1..=0xffffffff
 >   counted: 0
->   value: app.main.Wrap[app.main.Carrier] offset=0 size=4 align=4 counted=0
+>   value: app.main.Wrap[app.main.Carrier] offset=0 size=4 align=4 counted=0 niche=0:4/0x1..=0xffffffff
     value: Wrap[Carrier]
 
 @inline(.Never)

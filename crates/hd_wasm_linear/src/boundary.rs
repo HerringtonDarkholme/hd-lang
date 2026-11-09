@@ -152,6 +152,9 @@ impl LTy {
             return false;
         };
         e.variants.len() < 128
+            && e.layout
+                .cell()
+                .is_some_and(|d| d.enc == layout::Enc::Direct)
             && e.variants.iter().all(|v| match v.as_slice() {
                 [] | [LTy::Void] => true,
                 [LTy::Enum(p)] => p.variants.len() < 128 && p.variants.iter().all(Vec::is_empty),
@@ -1561,36 +1564,40 @@ pub fn enc(b: &LTy, m: &Module) -> Func {
         }
         LTy::Enum(e) => {
             let flat = &e.layout;
-            let tag = |f: &mut Func| {
-                if let Some((_, k)) = flat.tag {
-                    f.get(1 + k);
-                } else {
-                    // A nullable enum's variant 1 is a non-null address.
-                    f.get(1);
-                    f.i32(0);
-                    f.op(I::I32Ne);
-                }
-            };
+            // The host format is the variant's index (`read_discr`), then
+            // its payload, under a test of the discriminant cell.
             put(&mut f, 0, |f| {
-                tag(f);
+                layout::read_discr(f, flat.disc, &|f, k| f.get(1 + k));
                 f.op(I::I64ExtendI32U);
             });
-            for (v, fields) in e.variants.iter().enumerate() {
+            for (v, fields) in (0u32..).zip(&e.variants) {
                 if fields.iter().all(|fb| fb.vals().is_empty()) {
                     continue;
                 }
-                tag(&mut f);
-                f.i32(i32::try_from(v).expect("variants"));
-                f.op(I::I32Eq);
-                f.op(I::If(BlockType::Empty));
+                let test = match flat.test(v) {
+                    layout::Test::Const(false) | layout::Test::Read(_, layout::Is::Never) => {
+                        continue;
+                    }
+                    layout::Test::Const(true) => false,
+                    layout::Test::Read(d, is) => {
+                        f.get(1 + d.value);
+                        for op in is.ops() {
+                            f.op(op);
+                        }
+                        f.op(I::If(BlockType::Empty));
+                        true
+                    }
+                };
                 for (fi, fb) in fields.iter().enumerate() {
                     enc_call(&mut f, 0, fb, |f| {
-                        for &k in &flat.positions[v][fi] {
+                        for &k in &flat.positions[v as usize][fi] {
                             f.get(1 + k);
                         }
                     });
                 }
-                f.op(I::End);
+                if test {
+                    f.op(I::End);
+                }
             }
         }
         LTy::Codec(c) => {
@@ -1821,14 +1828,22 @@ pub fn dec(b: &LTy, m: &mut Module) -> Func {
             f.op(I::If(BlockType::Empty));
             malformed(&mut f);
             f.op(I::End);
-            // A variant with no payload values is its tag, the rest zero;
-            // the others build every value.
-            if let Some((_, k)) = flat.tag {
+            // A tag is the index itself, set once; a variant whose values
+            // are then all set or zero needs no more. Any other builds its
+            // values (`write_discr` and its payload) under a test of the
+            // index; a value it leaves zero stays zero, as its local starts.
+            let tag_value = flat
+                .cell()
+                .filter(|d| d.enc == layout::Enc::Direct)
+                .map(|d| d.value as usize);
+            if let Some(k) = tag_value {
                 f.get(tag);
-                f.set(res[k as usize]);
+                f.set(res[k]);
             }
             for (v, fields) in (0u32..).zip(&e.variants) {
-                if fields.iter().all(|fb| fb.vals().is_empty()) {
+                let values = layout::variant_steps(flat, v);
+                let built = |c: usize| values[c].is_some() && tag_value != Some(c);
+                if !(0..values.len()).any(built) {
                     continue;
                 }
                 f.get(tag);
@@ -1836,13 +1851,10 @@ pub fn dec(b: &LTy, m: &mut Module) -> Func {
                 f.op(I::I32Eq);
                 f.op(I::If(BlockType::Empty));
                 let ls: Vec<Vec<u32>> = fields.iter().map(|fb| dec_into(&mut f, 0, fb)).collect();
-                let values = layout::variant_steps(flat, v);
                 let leaf = |f: &mut Func, fi: usize, k: usize| f.get(ls[fi][k]);
-                // A value the variant leaves zero stays zero, as its local
-                // starts, and the tag's holds the tag already.
-                for (c, (steps, r)) in (0u32..).zip(values.iter().zip(&res)) {
+                for (c, (steps, r)) in values.iter().zip(&res).enumerate() {
                     if let Some(steps) = steps
-                        && flat.tag.is_none_or(|(_, k)| k != c)
+                        && built(c)
                     {
                         layout::run_steps(&mut f, steps, &leaf);
                         f.set(*r);
@@ -2264,18 +2276,7 @@ mod discarded_tests {
     }
 
     fn result_type() -> LTy {
-        let string = || crate::layout::Mem {
-            size: 8,
-            align: 4,
-            leaves: [0, 4]
-                .map(|offset| crate::layout::Leaf {
-                    offset,
-                    val: Val::I32,
-                    bytes: 4,
-                    signed: false,
-                })
-                .to_vec(),
-        };
+        let string = crate::layout::Mem::string;
         let error_layout = crate::layout::flat_of(&[vec![], vec![string()]]);
         let outer = crate::layout::flat_of(&[vec![], vec![error_layout.mem.clone()]]);
         let error = LTy::Enum(Box::new(LEnum {
@@ -2347,19 +2348,21 @@ for (const i of WebAssembly.Module.imports(module)) {{
   imports[i.module][i.name] = () => {{ if (i.name === 'panic') panics++; return 0; }};
 }}
 const e = new WebAssembly.Instance(module, imports).exports;
+// The result is `string??`'s values (the outer tag, then the inner
+// optional's string, whose non-null address says `.Some`) and the bytes read.
 const buffer = new Uint8Array(e['hd.x'].buffer);
 const text = 'failure λ 🦀';
 const utf8 = new TextEncoder().encode(text);
 const reply = new Uint8Array([1, 1, utf8.length, ...utf8]);
 buffer.set(reply);
 const full = e.owned(0);
-if (full[0] !== 1 || full[1] !== 1 || full[3] !== utf8.length || full[4] !== reply.length) throw Error('owned result shape');
+if (full[0] !== 1 || full[1] === 0 || full[2] !== utf8.length || full[3] !== reply.length) throw Error('owned result shape');
 buffer.fill(90);
-const kept = new Uint8Array(Array.from({{length:full[3]}}, (_, i) => e.byte(full[2] + i)));
+const kept = new Uint8Array(Array.from({{length:full[2]}}, (_, i) => e.byte(full[1] + i)));
 if (new TextDecoder().decode(kept) !== text) throw Error('owned error lost after another host buffer write');
 buffer.set(reply);
 const skipped = e.discarded(0);
-if (skipped[0] !== 1 || skipped[1] !== 1 || skipped[3] !== 0 || skipped[4] !== reply.length) throw Error('discarded result shape');
+if (skipped[0] !== 1 || skipped[1] === 0 || skipped[2] !== 0 || skipped[3] !== reply.length) throw Error('discarded result shape');
 // Invalid outer/inner tags and a string length exceeding the exchange memory.
 for (const bad of [[2], [1,2], [1,1,128,128,8]]) {{
   for (const decode of [e.owned, e.discarded]) {{

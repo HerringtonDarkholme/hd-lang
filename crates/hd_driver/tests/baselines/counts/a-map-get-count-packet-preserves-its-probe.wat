@@ -6,7 +6,7 @@
   (import "fixture" "rt:map_unique" (func $rt:map_unique (param i32) (result i32)))
   (import "fixture" "rt:map_put" (func $rt:map_put (param i32 i32 i32 i32 i32 i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $replace (param $values i32) (param $key.0 i32) (param $key.1 i32) (param $value.0 i32) (param $value.1 i32) (result i32 i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t5 i32) (local $t4 i32)
+  (func $replace (param $values i32) (param $key.0 i32) (param $key.1 i32) (param $value.0 i32) (param $value.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
     ;; 5 |     previous := values.get(key)
     block
       local.get $values
@@ -46,9 +46,9 @@
           local.get $t4
           call $retain
         end
-        i32.const 1
+        local.get $t3
         local.get $t0
-        local.set $t5
+        local.set $t3
       else
         i32.const 0
       end
@@ -80,13 +80,10 @@
       i32.store $heap
     ;; 5 |     previous := values.get(key)
       local.get $t3
-      local.get $t5
-      local.set $key.1
       local.set $key.0
       local.set $values
     end
     local.get $values
     local.get $key.0
-    local.get $key.1
   )
 )

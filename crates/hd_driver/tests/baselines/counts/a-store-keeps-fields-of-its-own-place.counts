@@ -68,7 +68,7 @@ pub fn main() -> void $ Console:
 >   unique List[app.main.Item] (may be shared)
 >   unique List[app.main.Item] (may be shared)
 >   release List[app.main.Item] (last use)
->   release app.main.Outer [tag.0, item.batches, item.depots] (last use)
+>   release app.main.Outer [item.batches, item.depots, tag.0] (last use)
 >   release List[app.main.Item] (last use)
     shared := items
 >   copy List[app.main.Item] (second owner)

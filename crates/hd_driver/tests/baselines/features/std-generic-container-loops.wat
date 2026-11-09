@@ -771,7 +771,7 @@
     ;; 49 |     q.settle(0, "z")
       local.get $q
       i32.const 0
-      i32.const 260 ;; &"z"
+      i32.const 244 ;; &"z"
       i32.const 1
       call $"impl [ T < Ord ] Queue [ T ].settle[string]"
     ;; 50 |     q.items[0].len() + saved.items[0].len()

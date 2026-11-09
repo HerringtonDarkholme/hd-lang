@@ -20,13 +20,13 @@ fn count(facts: Facts) -> usize:
 fn read_again(m: Member) -> usize:
     x := m
 > app/main/read_again
->   release app.main.Member [name.0, doc.0, facts] (last use)
+>   release app.main.Member [name.0, facts, doc.0] (last use)
 >   release string (last use)
     count(x.facts) + m.name.len()
 
 fn last_read(m: Member) -> usize:
     x := m
 > app/main/last_read
->   release app.main.Member [name.0, doc.0, facts] (last use)
+>   release app.main.Member [name.0, facts, doc.0] (last use)
 >   release string (last use)
     count(x.facts) + x.doc.len()

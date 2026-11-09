@@ -1188,9 +1188,8 @@ fn walk_indices(w: &Walk, out: &mut Vec<u32>) {
         Walk::Ref(k) | Walk::Known(k) => out.push(*k),
         Walk::Glue => {}
         Walk::Seq(ws) => ws.iter().for_each(|w| walk_indices(w, out)),
-        Walk::Nullable(w) => walk_indices(w, out),
-        Walk::Switch(k, arms) => {
-            out.push(*k);
+        Walk::Switch(d, arms) => {
+            out.push(d.value);
             arms.iter().flatten().for_each(|w| walk_indices(w, out));
         }
     }

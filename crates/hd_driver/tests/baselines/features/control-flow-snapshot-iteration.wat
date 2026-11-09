@@ -4,8 +4,8 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "impl [ T ] Iterator [ T ] for ListIter [ T ].next[string]" (func $"impl [ T ] Iterator [ T ] for ListIter [ T ].next[string]" (param i32) (result i32 i32 i32)))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32)))
+  (import "fixture" "impl [ T ] Iterator [ T ] for ListIter [ T ].next[string]" (func $"impl [ T ] Iterator [ T ] for ListIter [ T ].next[string]" (param i32) (result i32 i32)))
+  (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
@@ -109,7 +109,7 @@
     end
     local.get $values
   )
-  (func $cursor_then_push (param $values i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t1 i32) (local $t0 i32) (local $first.1 i32) (local $t2 i32) (local $t3 i32)
+  (func $cursor_then_push (param $values i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
     ;; 15 |     let mut items = values
     global.get $locals
     global.get $locals_base
@@ -156,52 +156,51 @@
       local.get $t0
       i32.const 8
       i32.add
-      local.tee $first.1
+      local.tee $t2
       local.get $t1
       i32.store $heap
-      local.get $first.1
+      local.get $t2
       i32.const 0
       i32.store $heap offset=4
-      local.get $first.1
+      local.get $t2
       local.set $t1
     ;; 15 |     let mut items = values
       local.get $values
       call $rt:list_unique
       local.tee $values
     ;; 17 |     items.push(s)
-      local.tee $first.1
-      i32.load $heap offset=4
       local.tee $t2
-      local.get $first.1
+      i32.load $heap offset=4
+      local.tee $t3
+      local.get $t2
       i32.load $heap
       i32.eq
       if
-        local.get $first.1
+        local.get $t2
         i32.const 0
         call_indirect $table0 (param i32) (result i32)
-        local.tee $first.1
+        local.tee $t2
         local.set $values
       end
-      local.get $first.1
       local.get $t2
+      local.get $t3
       i32.const 8
       i32.mul
       i32.add
-      local.tee $t3
+      local.tee $t4
       local.get $s.0
       i32.store $heap offset=16
-      local.get $t3
+      local.get $t4
       local.get $s.1
       i32.store $heap offset=20
-      local.get $first.1
       local.get $t2
+      local.get $t3
       i32.const 1
       i32.add
       i32.store $heap offset=4
     ;; 18 |     match cursor.next():
       local.get $t1
       call $"impl [ T ] Iterator [ T ] for ListIter [ T ].next[string]"
-      local.set $first.1
       local.set $s.1
       local.set $s.0
     ;; 15 |     let mut items = values
@@ -227,8 +226,6 @@
           block
     ;; 19 |         .Some(first) => first.len() + items.len()
             local.get $s.0
-            i32.const 1
-            i32.eq
             br_if 0
     ;; 20 |         .None => items.len()
             local.get $s.0
@@ -241,7 +238,7 @@
     ;; 19 |         .Some(first) => first.len() + items.len()
           block
             block
-              local.get $first.1
+              local.get $s.1
               local.set $t1
               br 0
             end
@@ -264,7 +261,6 @@
     ;; 15 |     let mut items = values
       local.get $s.0
       local.get $s.1
-      local.get $first.1
       call $rt:release
       local.get $values
       local.tee $t2

@@ -2,15 +2,13 @@
 (module
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $present (param $o.0 i32) (param $o.1 i32) (param $o.2 i32) (result i32)
+  (func $present (param $o.0 i32) (param $o.1 i32) (result i32)
     ;; 24 |     let .Some(s) = o else:
     block
       block
         block
           block
             local.get $o.0
-            i32.const 1
-            i32.eq
             i32.eqz
             br_if 1
             br 0
@@ -27,7 +25,7 @@
     ;; 26 |     s.len()
       block
         block
-          local.get $o.2
+          local.get $o.1
           local.set $o.0
           br 0
         end

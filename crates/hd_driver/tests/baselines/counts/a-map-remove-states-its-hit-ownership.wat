@@ -9,12 +9,12 @@
   (import "fixture" "rt:map_unique'2" (func $rt:map_unique'2 (param i32) (result i32)))
   (import "fixture" "rt:map_find'2" (func $rt:map_find'2 (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "retain" (func $retain (param i32)))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32)))
+  (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
   (import "fixture" "rt:map_unique'3" (func $rt:map_unique'3 (param i32) (result i32)))
   (import "fixture" "rt:map_hash'2" (func $rt:map_hash'2 (param i32) (result i32)))
   (import "fixture" "rt:map_find'3" (func $rt:map_find'3 (param i32 i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $"remove_value[List[string]]" (param $values i32) (param $key.0 i32) (param $key.1 i32) (result i32 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
+  (func $"remove_value[List[string]]" (param $values i32) (param $key.0 i32) (param $key.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 5 |     values.remove(key)
     block
       local.get $values
@@ -35,7 +35,6 @@
       i32.const 0
       i32.ge_s
       if
-        i32.const 1
         local.get $t0
         local.get $t0
         i32.load $heap offset=12
@@ -53,7 +52,6 @@
         local.tee $key.1
         call $rt:coll_copy
         local.set $t1
-        local.set $t2
         local.get $key.1
         if
           local.get $key.1
@@ -94,15 +92,12 @@
         i32.store $heap
       else
       end
-      local.get $t2
       local.get $t1
-      local.set $key.0
       local.set $values
     end
     local.get $values
-    local.get $key.0
   )
-  (func $unused (param $values i32) (param $key.0 i32) (param $key.1 i32) (local $t0 i32) (local $t1 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32)
+  (func $unused (param $values i32) (param $key.0 i32) (param $key.1 i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32)
     ;; 20 |     _ := values.remove(key)
     block
       local.get $values
@@ -146,11 +141,9 @@
           local.get $t2
           call $retain
         end
-        i32.const 1
         local.get $key.1
         local.get $t1
         local.set $t3
-        local.set $t4
         local.set $t1
         local.get $key.1
         local.tee $t2
@@ -188,23 +181,20 @@
       else
       end
       local.get $t1
-      local.get $t4
       local.get $t3
       call $rt:release
     end
   )
-  (func $lists (param $values i32) (param $key.0 i32) (param $key.1 i32) (result i32 i32)
+  (func $lists (param $values i32) (param $key.0 i32) (param $key.1 i32) (result i32)
     ;; 11 |     remove_value(values, key)
     block
       local.get $values
       local.get $key.0
       local.get $key.1
       call $"remove_value[List[string]]"
-      local.set $key.0
       local.set $values
     end
     local.get $values
-    local.get $key.0
   )
   (func $scalar (param $values i32) (param $key i32) (result i32 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
     ;; 14 |     values.remove(key)
@@ -271,22 +261,20 @@
     local.get $values
     local.get $key
   )
-  (func $text (param $values i32) (param $key.0 i32) (param $key.1 i32) (result i32 i32 i32)
+  (func $text (param $values i32) (param $key.0 i32) (param $key.1 i32) (result i32 i32)
     ;; 8 |     remove_value(values, key)
     block
       local.get $values
       local.get $key.0
       local.get $key.1
       call $"remove_value[string]"
-      local.set $key.1
       local.set $key.0
       local.set $values
     end
     local.get $values
     local.get $key.0
-    local.get $key.1
   )
-  (func $"remove_value[string]" (param $values i32) (param $key.0 i32) (param $key.1 i32) (result i32 i32 i32) (local $t0 i32) (local $t1 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32)
+  (func $"remove_value[string]" (param $values i32) (param $key.0 i32) (param $key.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32)
     ;; 5 |     values.remove(key)
     block
       local.get $values
@@ -330,11 +318,9 @@
           local.get $t2
           call $retain
         end
-        i32.const 1
         local.get $key.1
         local.get $t1
         local.set $t3
-        local.set $t4
         local.set $t1
         local.get $key.1
         local.tee $t2
@@ -372,17 +358,14 @@
       else
       end
       local.get $t1
-      local.get $t4
       local.get $t3
-      local.set $key.1
       local.set $key.0
       local.set $values
     end
     local.get $values
     local.get $key.0
-    local.get $key.1
   )
-  (func $constant_key (param $values i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t4 i32) (local $t3 i32)
+  (func $constant_key (param $values i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 17 |     values.remove("fixed")
     block
       local.get $values
@@ -403,7 +386,6 @@
       i32.const 0
       i32.ge_s
       if
-        i32.const 1
         local.get $t0
         local.get $t0
         i32.load $heap offset=12
@@ -421,7 +403,6 @@
         local.tee $t2
         call $rt:coll_copy
         local.set $t3
-        local.set $t4
         local.get $t2
         if
           local.get $t2
@@ -462,12 +443,9 @@
         i32.store $heap
       else
       end
-      local.get $t4
       local.get $t3
-      local.set $t0
       local.set $values
     end
     local.get $values
-    local.get $t0
   )
 )

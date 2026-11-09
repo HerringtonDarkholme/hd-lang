@@ -8,7 +8,7 @@ struct First:
     x: i32
 
 struct Second:
-> app.main.Second size=8 align=4 cycle-capable=false
+> app.main.Second size=8 align=4 cycle-capable=false niche=0:4/0x1..=0xffffffff
 >   counted: 0
->   text: string offset=0 size=8 align=4 counted=0
+>   text: string offset=0 size=8 align=4 counted=0 niche=0:4/0x1..=0xffffffff
     text: string

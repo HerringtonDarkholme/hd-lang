@@ -12,7 +12,8 @@ use std::rc::Rc;
 
 use super::Em;
 use crate::layout::{
-    Flat, Kind, Leaf, Mem, Part, Step, Walk, kind, struct_mem, variant_steps, variants, walk,
+    Discr, Flat, Is, Kind, Leaf, Mem, Part, Step, Test, Walk, kind, struct_mem, variant_steps,
+    variants, walk,
 };
 use crate::module::{HEAP, Sym, Val, mem};
 use crate::rt::{DropCall, Helper};
@@ -254,7 +255,7 @@ impl Em<'_, '_, '_> {
             t: Ty,
             base: u32,
             root: bool,
-            guards: &[(Leaf, u32)],
+            guards: &[(Leaf, Is)],
             path: &[hd_tir::ir::Proj],
             out: &mut Vec<(DropCall, Vec<hd_tir::ir::Proj>)>,
         ) {
@@ -274,25 +275,30 @@ impl Em<'_, '_, '_> {
                 && let Ok(Some(flat)) = em.flat(t)
                 && variants.len() == flat.positions.len()
             {
-                // A nullable enum's one payload is a reference, which
-                // holds no inline value.
-                let Some((tag, _)) = flat.tag else {
-                    return;
-                };
-                let tag = Leaf {
-                    offset: base + tag.offset,
-                    ..tag
-                };
-                for (variant, (fields, offsets)) in variants.iter().zip(&flat.offsets).enumerate() {
+                for (variant, (fields, offsets)) in (0u32..).zip(variants.iter().zip(&flat.offsets))
+                {
+                    // The test that the discriminant says `variant`: none
+                    // for the one variant, and no call for a variant no
+                    // value takes.
                     let mut nested = guards.to_vec();
-                    nested.push((tag, u32::try_from(variant).expect("variants")));
+                    match flat.test(variant) {
+                        Test::Const(true) => {}
+                        Test::Const(false) | Test::Read(_, Is::Never) => continue,
+                        Test::Read(d, is) => nested.push((
+                            Leaf {
+                                offset: base + d.leaf.offset,
+                                ..d.leaf
+                            },
+                            is,
+                        )),
+                    }
                     for (index, (&field, &offset)) in fields.iter().zip(offsets).enumerate() {
                         if !matches!(em.kind(field), Kind::Value) {
                             continue;
                         }
                         let mut child = path.to_vec();
                         child.extend([
-                            hd_tir::ir::Proj::Variant(u32::try_from(variant).expect("variant")),
+                            hd_tir::ir::Proj::Variant(variant),
                             hd_tir::ir::Proj::Field(u32::try_from(index).expect("field")),
                         ]);
                         add(em, field, base + offset, false, &nested, &child, out);
@@ -368,7 +374,7 @@ impl Em<'_, '_, '_> {
                         bytes: 4,
                         signed: false,
                     },
-                    1,
+                    Is::Eq(1),
                 ));
             }
         }
@@ -707,46 +713,38 @@ impl Em<'_, '_, '_> {
         self.store(i)
     }
 
-    /// Whether enum or optional type `t` is a nullable address
-    /// ([`crate::layout::nullable`]): its tag is whether the address is
-    /// not null.
-    pub(super) fn nullable(&self, t: Ty) -> bool {
-        self.flat(t)
-            .is_ok_and(|f| f.is_some_and(|f| f.tag.is_none()))
-    }
-
-    /// Pushes the tag of enum value `a`, loaded from its cell when it is
-    /// boxed.
-    pub(super) fn tag(&mut self, a: u32) -> StageResult<()> {
-        let t = self.ty_of(a);
-        // A `SwitchTag`'s scrutinee, an enum or an optional.
-        let flat = self.enum_flat(t)?;
-        let Some((leaf, k)) = flat.tag else {
-            // A nullable enum's variant 1 is a non-null address.
-            self.scrutinee_word(a)?;
-            self.f.i32(0);
-            self.f.op(I::I32Ne);
-            return Ok(());
-        };
-        if let Some(&(_, tag)) = self.lazy.get(&a) {
-            // A borrow through a reference read its tag in place.
-            self.f.get(tag);
-            return Ok(());
-        }
-        if matches!(self.kind(t), Kind::Boxed) {
-            return self.load(&|em: &mut Self| em.comp(a, 0), 0, leaf);
-        }
-        self.comp(a, k as usize)
-    }
-
-    /// Value 0 of enum value `a`: a nullable enum's address, loaded in
-    /// place for a borrow through a reference ([`Em::lazy_borrow`]).
-    pub(super) fn scrutinee_word(&mut self, a: u32) -> StageResult<()> {
+    /// Pushes the cell that says enum value `a`'s variant, a tag or a
+    /// niche ([`Flat::cell`]): from its locals, from its cell when it is
+    /// boxed, or as a borrow through a reference read it in place
+    /// ([`Em::lazy_borrow`]). An enum of one variant has no cell; its
+    /// tests need no read ([`Em::is_variant`]).
+    pub(super) fn discr_cell(&mut self, a: u32, d: Discr) -> StageResult<()> {
         if let Some(&(_, word)) = self.lazy.get(&a) {
             self.f.get(word);
             return Ok(());
         }
-        self.comp(a, 0)
+        if matches!(self.kind(self.ty_of(a)), Kind::Boxed) {
+            return self.load(&|em: &mut Self| em.comp(a, 0), 0, d.leaf);
+        }
+        self.comp(a, d.value as usize)
+    }
+
+    /// Pushes an `i32` that is nonzero exactly when enum value `a` is
+    /// variant `v` (`read_discr` against `v`): a compare of its cell, or a
+    /// constant for an enum of one variant.
+    pub(super) fn is_variant(&mut self, a: u32, v: u32) -> StageResult<()> {
+        // A `SwitchTag`'s scrutinee, an enum or an optional.
+        let flat = self.enum_flat(self.ty_of(a))?;
+        match flat.test(v) {
+            Test::Const(b) => self.f.i32(i32::from(b)),
+            Test::Read(d, is) => {
+                self.discr_cell(a, d)?;
+                for op in is.ops() {
+                    self.f.op(op);
+                }
+            }
+        }
+        Ok(())
     }
 
     /// A payload read: field `field` of variant `variant` of enum value `a`.
@@ -802,8 +800,8 @@ impl Em<'_, '_, '_> {
         let mut leaf = |em: &mut Self, f: usize, k: usize| em.src(&fields[f], k);
         let m = &flat.mem;
         if matches!(self.kind(t), Kind::Boxed) {
-            // The cell is memory: the tag and the variant's leaves at
-            // their offsets.
+            // The cell is memory: the discriminant and the variant's leaves
+            // at their offsets.
             let walk = self.cell_walk(t);
             let cyclic = self.cyclic_object(t);
             let recursive = self.recursive_object(t);
@@ -812,9 +810,12 @@ impl Em<'_, '_, '_> {
                 em.f.get(cell);
                 Ok(())
             };
-            if let Some((tag, _)) = flat.tag {
-                self.store_leaf(&at, 0, tag, &mut |em: &mut Self| {
-                    em.f.u32(v);
+            // `write_discr`: the tag, or a niche value, when `v` writes one.
+            if let Some(d) = flat.cell()
+                && let Some(raw) = d.enc.raw(v)
+            {
+                self.store_leaf(&at, 0, d.leaf, &mut |em: &mut Self| {
+                    em.f.u32(raw);
                     Ok(())
                 })?;
             }

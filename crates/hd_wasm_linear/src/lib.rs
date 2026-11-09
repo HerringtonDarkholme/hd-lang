@@ -28,6 +28,7 @@ mod scan;
 mod tables;
 mod task;
 pub mod views;
+pub use layout::Niche;
 mod wide;
 
 use hd_base::{DefId, Hash128, InstId, NotImplemented, Stage, StageResult};

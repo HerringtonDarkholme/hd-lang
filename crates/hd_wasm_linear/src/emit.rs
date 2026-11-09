@@ -26,7 +26,7 @@ use hd_tir::own::Reason;
 use hd_types::{InternPool, Ty, TyData, TyList};
 use wasm_encoder::BlockType;
 
-use crate::layout::{Pass, num, vals};
+use crate::layout::{Enc, Is, Pass, Test, num, vals};
 use crate::module::{
     Func, GLUE, Global, HEAP, Import, Ins, Module, Part, Stored, Sym, Val, WEAK_GLUE, mem,
 };
@@ -1710,8 +1710,20 @@ impl Em<'_, '_, '_> {
         if targets < 2 {
             return Ok(false);
         }
-        let lo = cases.iter().map(|(c, _)| *c).min().unwrap_or(0);
-        let hi = cases.iter().map(|(c, _)| *c).max().unwrap_or(0);
+        // The table's index: the tag less the smallest case, or a niche
+        // cell less the first niche value, whose entries are the niche's
+        // variants and whose default is the untagged one.
+        let flat = self.enum_flat(self.ty_of(a))?;
+        let Some(cell) = flat.cell() else {
+            return Ok(false);
+        };
+        let (lo, hi) = match cell.enc {
+            Enc::Direct => (
+                cases.iter().map(|(c, _)| *c).min().unwrap_or(0),
+                cases.iter().map(|(c, _)| *c).max().unwrap_or(0),
+            ),
+            Enc::Niche { first, last, .. } => (first, last),
+        };
         let span = u64::from(hi - lo) + 1;
         if span > 2 * targets as u64 {
             return Ok(false);
@@ -1747,20 +1759,36 @@ impl Em<'_, '_, '_> {
         // Where the last `else` is `unreachable`, no other tag reaches
         // the switch: the last case stands for the rest.
         let rest = label[blocks.len() - 1];
-        self.tag(a)?;
-        if lo != 0 {
-            self.f.u32(lo);
-            self.f.op(Instruction::I32Sub);
-        }
-        let labels: Vec<u32> = (lo..=hi)
-            .map(|v| {
-                cases
-                    .iter()
-                    .position(|(c, _)| *c == v)
-                    .map_or(rest, |k| label[k])
-            })
-            .collect();
-        self.f.br_table(labels, rest);
+        let label_of = |v: u32| {
+            cases
+                .iter()
+                .position(|(c, _)| *c == v)
+                .map_or(rest, |k| label[k])
+        };
+        self.discr_cell(a, cell)?;
+        let default = match cell.enc {
+            Enc::Niche {
+                untagged,
+                first,
+                last,
+                start,
+                bytes,
+            } => {
+                for op in crate::layout::Is::rel(start, last - first + 1, bytes) {
+                    self.f.op(op);
+                }
+                label_of(untagged)
+            }
+            Enc::Direct => {
+                if lo != 0 {
+                    self.f.u32(lo);
+                    self.f.op(Instruction::I32Sub);
+                }
+                rest
+            }
+        };
+        let labels: Vec<u32> = (lo..=hi).map(label_of).collect();
+        self.f.br_table(labels, default);
         for (pos, &j) in (0u32..).zip(&coded) {
             // The block of the `pos`th target with code ends here: its
             // code follows, then the switch's end, `n - 1 - pos` out.
@@ -1798,18 +1826,25 @@ impl Em<'_, '_, '_> {
             return Ok(false);
         };
         let case = cases[0].0;
-        let exhaustive_01 = other.is_none()
+        let flat = self.enum_flat(self.ty_of(a))?;
+        let exhaustive_01 = flat.cell().is_some_and(|d| d.enc == Enc::Direct)
+            && other.is_none()
             && cases.iter().any(|(c, _)| *c == 0)
             && cases.iter().any(|(c, _)| *c == 1);
-        self.tag(a)?;
-        let (yes, no) = if case == 0 {
-            (arms[1], arms[0])
-        } else {
-            if !exhaustive_01 {
-                self.f.u32(case);
-                self.f.op(Instruction::I32Eq);
+        let (yes, no) = match flat.test(case) {
+            // A cell of 0 for `case`: the cell itself says the other one.
+            Test::Read(d, Is::Eq(0)) => {
+                self.discr_cell(a, d)?;
+                (arms[1], arms[0])
             }
-            (arms[0], arms[1])
+            Test::Read(d, Is::Eq(1)) if exhaustive_01 => {
+                self.discr_cell(a, d)?;
+                (arms[0], arms[1])
+            }
+            Test::Const(_) | Test::Read(..) => {
+                self.is_variant(a, case)?;
+                (arms[0], arms[1])
+            }
         };
         let dy = self.depth(Ctl::Arm(m, yes))?;
         let dn = self.depth(Ctl::Arm(m, no))?;
@@ -2249,18 +2284,10 @@ impl Em<'_, '_, '_> {
                 // `i32`, and `SwitchChar` has no emitter.
                 let r = self.rec(bw);
                 let (case, then, other) = (r[0], r[1], r[2]);
-                if self.b.tags[i as usize] == Tag::SwitchTag && self.nullable(self.ty_of(a)) {
-                    // Variant 1 is a non-null address.
-                    self.scrutinee_word(a)?;
-                    if case == 0 {
-                        self.f.op(Instruction::I32Eqz);
-                    }
+                if self.b.tags[i as usize] == Tag::SwitchTag {
+                    self.is_variant(a, case)?;
                 } else {
-                    if self.b.tags[i as usize] == Tag::SwitchTag {
-                        self.tag(a)?;
-                    } else {
-                        self.comp(a, 0)?;
-                    }
+                    self.comp(a, 0)?;
                     self.f.u32(case);
                     self.f.op(Instruction::I32Eq);
                 }

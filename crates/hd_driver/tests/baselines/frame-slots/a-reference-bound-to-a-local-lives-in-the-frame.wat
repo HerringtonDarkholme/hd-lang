@@ -13,13 +13,13 @@
       i32.add
       local.tee $tally
       i64.const 0
-      i64.store $heap
+      i64.store $heap offset=8
       local.get $tally
       i32.const 16 ;; &"tally"
-      i32.store $heap offset=8
+      i32.store $heap
       local.get $tally
       i32.const 5
-      i32.store $heap offset=12
+      i32.store $heap offset=4
       local.get $tally
       ;; ...
     end

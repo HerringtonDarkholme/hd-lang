@@ -27,11 +27,11 @@
           i32.mul
           i32.add
           local.tee $u.name.0
-          i64.load $heap offset=16
+          i64.load $heap offset=24
           local.get $u.name.0
-          i32.load $heap offset=24
+          i32.load $heap offset=16
           local.get $u.name.0
-          i32.load $heap offset=28
+          i32.load $heap offset=20
           local.get $u.name.0
           i32.load8_u $heap offset=32
           local.set $u.active
@@ -117,11 +117,11 @@
           i32.mul
           i32.add
           local.tee $u.name.0
-          i64.load $heap offset=16
+          i64.load $heap offset=24
           local.get $u.name.0
-          i32.load $heap offset=24
+          i32.load $heap offset=16
           local.get $u.name.0
-          i32.load $heap offset=28
+          i32.load $heap offset=20
           local.get $u.name.0
           i32.load8_u $heap offset=32
           local.set $u.active
@@ -193,11 +193,11 @@
           i32.mul
           i32.add
           local.tee $u.name.0
-          i64.load $heap offset=16
+          i64.load $heap offset=24
           local.get $u.name.0
-          i32.load $heap offset=24
+          i32.load $heap offset=16
           local.get $u.name.0
-          i32.load $heap offset=28
+          i32.load $heap offset=20
           local.set $u.name.1
           drop
           drop

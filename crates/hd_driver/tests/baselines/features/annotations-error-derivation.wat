@@ -10,39 +10,30 @@
   (import "fixture" "signed_magnitude" (func $signed_magnitude (param i64) (result i64)))
   (import "fixture" "unsigned_width" (func $unsigned_width (param i64) (result i32)))
   (import "fixture" "write_signed_sized" (func $write_signed_sized (param i64 i32 i32)))
-  (import "fixture" "rt:retain" (func $rt:retain (param i32 i32 i32)))
-  (import "fixture" "rt:new/class-2" (func $rt:new/class-2 (param i32 i32) (result i32)))
+  (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $"error From 2.0 for LoadError.from" (param $value.0 i32) (param $value.1 i32) (param $value.2 i32) (result i32 i32 i32 i64 i32 i32 i32) (local $t1 i64) (local $t0 i32)
+  (func $"error From 2.0 for LoadError.from" (param $value.0 i32) (param $value.1 i32) (result i32 i32 i32 i64 i32 i32) (local $t1 i32) (local $t0 i64)
     ;; 25 | @error
     block
-      local.get $value.2
-      local.set $t0
       i32.const 2
       local.get $value.0
       local.get $value.1
       local.get $value.1
       i64.extend_i32_u
-      local.get $t0
-      i64.extend_i32_u
-      i64.const 32
-      i64.shl
-      i64.or
+      local.set $t0
       local.set $t1
-      local.set $value.2
       local.set $value.1
       local.set $value.0
     end
     local.get $value.0
     local.get $value.1
-    local.get $value.2
     local.get $t1
     local.get $t0
     i32.const 0
     i32.const 0
   )
-  (func $"error Display for LoadError.to_string" (param $self i32) (result i32 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $t0 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i64)
+  (func $"error Display for LoadError.to_string" (param $self i32) (result i32 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $t0 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t7 i64)
     ;; 25 | @error
     block
       local.get $self
@@ -57,23 +48,20 @@
       i32.load $heap offset=12
       local.get $self
       i32.load $heap offset=16
-      local.get $self
-      i32.load $heap offset=20
       local.set $t0
       local.set $t1
-      local.set $t2
       drop
+      local.set $t2
       local.set $t3
-      local.set $t4
       local.tee $self
     ;; 27 |     @error("cannot read $path")
       i32.eqz
       if (result i32)
     ;; 29 |         path: string,
         local.get $t1
-        local.tee $t5
+        local.tee $t4
         if
-          local.get $t5
+          local.get $t4
           call $retain
         end
     ;; 27 |     @error("cannot read $path")
@@ -85,7 +73,7 @@
           end
         end
         i32.const 12
-        local.tee $t4
+        local.tee $t3
         local.get $self
         i32.add
         local.set $self
@@ -93,35 +81,35 @@
           block
             local.get $self
             i32.const 16 ;; &"cannot read "
-            local.set $t3
+            local.set $t2
             if
               local.get $self
               call $rt:str
-              local.set $t3
+              local.set $t2
             end
-            local.get $t3
+            local.get $t2
             local.get $self
-            local.set $t3
+            local.set $t2
             local.set $self
             br 0
           end
         end
         i32.const 16 ;; &"cannot read "
-        local.set $t2
+        local.set $t4
         block
           block
             local.get $self
-            local.get $t2
-            local.set $t6
-            local.tee $t7
-            local.get $t6
+            local.get $t4
+            local.set $t5
+            local.tee $t6
+            local.get $t5
             i64.load $heap align=1
-            local.set $t8
-            local.get $t6
+            local.set $t7
+            local.get $t5
             i32.load $heap offset=8 align=1
             i32.store $heap offset=8 align=1
+            local.get $t6
             local.get $t7
-            local.get $t8
             i64.store $heap align=1
             br 0
           end
@@ -129,7 +117,7 @@
         block
           block
             local.get $self
-            local.get $t4
+            local.get $t3
             i32.add
             local.get $t1
             local.get $t0
@@ -138,14 +126,14 @@
           end
         end
         local.get $t1
-        local.tee $t5
+        local.tee $t4
         if
-          local.get $t5
+          local.get $t4
           call $rt:release_ref
         end
         local.get $self
-        local.get $t3
-        local.set $t4
+        local.get $t2
+        local.set $t3
       else
     ;; 33 |     @error("bad config")
         local.get $self
@@ -154,19 +142,18 @@
         if
           i32.const 28 ;; &"bad config"
           i32.const 10
-          local.set $t4
+          local.set $t3
           local.set $self
         else
     ;; 40 |         @from
           block
             block
-              local.get $t4
-              i32.eqz
+              local.get $t3
               if (result i32)
                 local.get $t3
-                local.tee $t5
+                local.tee $t4
                 if
-                  local.get $t5
+                  local.get $t4
                   call $retain
                 end
                 i32.const 11
@@ -175,31 +162,33 @@
                 call $"impl StringBuilder.text_width"
                 i32.add
                 call $"impl StringBuilder.value_new"
-                local.set $t4
+                local.set $t1
                 local.tee $self
-                local.get $t4
+                local.get $t1
                 i32.const 0
                 i32.const 38 ;; &"not found: "
                 i32.const 11
                 call $"impl StringBuilder.value_text"
                 local.get $self
-                local.get $t4
+                local.get $t1
                 i32.const 11
                 local.get $t3
                 local.get $t2
                 call $"impl StringBuilder.value_text"
                 local.get $t3
-                local.tee $t5
+                local.tee $t4
                 if
-                  local.get $t5
+                  local.get $t4
                   call $rt:release_ref
                 end
                 local.get $self
               else
                 i32.const 49 ;; &"Busy"
                 i32.const 4
-                local.set $t4
+                local.set $t1
               end
+              local.get $t1
+              local.set $t3
               local.set $self
               br 0
             end
@@ -213,7 +202,7 @@
       local.set $self
     end
     local.get $self
-    local.get $t4
+    local.get $t3
   )
   (func $"impl Display for YamlError.to_string" (param $self i32) (result i32 i32) (local $t2 i32) (local $t0 i64) (local $t1 i64) (local $t3 i32) (local $t4 i32) (local $t5 i32)
     ;; 15 |         "bad yaml at line ${self.line}"
@@ -348,7 +337,7 @@
     end
     local.get $e
   )
-  (func $"error Error for LoadError.source" (param $self i32) (result i32 i32 i32) (local $t3 i32) (local $t2 i32) (local $t1 i64) (local $t0 i32) (local $t5 i32) (local $t4 i32)
+  (func $"error Error for LoadError.source" (param $self i32) (result i32 i32) (local $t2 i32) (local $t1 i32) (local $t0 i64) (local $t3 i32)
     ;; 25 | @error
     block
       local.get $self
@@ -359,53 +348,44 @@
       i32.load $heap offset=8
       local.get $self
       i64.load $heap offset=8
-      local.get $self
-      i32.load $heap offset=12
       local.set $t0
       local.set $t1
       local.set $t2
-      local.set $t3
       local.tee $self
     ;; 27 |     @error("cannot read $path")
       i32.eqz
       if (result i32)
     ;; 30 |         @source
-        local.get $t3
         local.get $t2
-        local.get $t0
+        local.get $t1
         call $rt:retain
-        i32.const 12
+        i32.const 8
         i32.const 10
-        call $rt:new/class-2
+        call $rt:new/class-1
         local.tee $self
-        local.get $t3
+        local.get $t2
         i32.store $heap
         local.get $self
-        local.get $t2
+        local.get $t1
         i32.store $heap offset=4
         local.get $self
-        local.get $t0
-        i32.store $heap offset=8
-        local.get $self
-        local.tee $t3
+        local.tee $t2
         if
-          local.get $t3
+          local.get $t2
           call $retain
         end
+        local.get $self
     ;; 27 |     @error("cannot read $path")
         local.get $self
-        local.tee $t3
+        local.tee $t2
         if
-          local.get $t3
+          local.get $t2
           call $rt:release_ref
         end
     ;; 30 |         @source
-        i32.const 1
-        local.get $self
-        i32.const 468 ;; &vtable[func71]
+        i32.const 468 ;; &vtable[func69]
     ;; 27 |     @error("cannot read $path")
         local.set $t2
-        local.set $t3
       else
     ;; 33 |     @error("bad config")
         local.get $self
@@ -417,28 +397,26 @@
           i32.const 0
           call $rt:new/class-1
           local.tee $self
-          local.get $t1
+          local.get $t0
           i64.store $heap
           local.get $self
-          local.tee $t3
+          local.tee $t2
           if
-            local.get $t3
+            local.get $t2
             call $retain
           end
+          local.get $self
     ;; 33 |     @error("bad config")
           local.get $self
-          local.tee $t3
+          local.tee $t2
           if
-            local.get $t3
+            local.get $t2
             call $rt:release_ref
           end
     ;; 35 |         @from
-          i32.const 1
-          local.get $self
-          i32.const 492 ;; &vtable[func69]
+          i32.const 492 ;; &vtable[func67]
     ;; 33 |     @error("bad config")
-          local.set $t4
-          local.set $t5
+          local.set $t3
         else
     ;; 40 |         @from
           block
@@ -450,19 +428,16 @@
           i32.const 0
         end
     ;; 27 |     @error("cannot read $path")
-        local.get $t5
-        local.get $t4
+        local.get $t3
         local.set $t2
-        local.set $t3
       end
     ;; 25 | @error
       local.set $self
     end
     local.get $self
-    local.get $t3
     local.get $t2
   )
-  (func $load (param $text.0 i32) (param $text.1 i32) (result i32 i32 i64 i32 i32 i64 i32 i32 i32) (local $t0 i64) (local $t1 i32) (local $t4 i32) (local $t3 i64) (local $t2 i32)
+  (func $load (param $text.0 i32) (param $text.1 i32) (result i32 i32 i32 i64 i32 i32) (local $t1 i32) (local $t0 i64) (local $t2 i32)
     ;; 50 |     value := parse(text)?
     block
       block
@@ -509,28 +484,17 @@
             i64.and
             i32.wrap_i64
             local.set $t2
-            local.set $t3
-            local.set $t4
+            local.set $t0
             local.set $t1
+            local.set $text.1
             local.set $text.0
             br 0
           end
         end
-        i32.const 1
-        local.get $text.0
-        local.get $text.0
-        i64.extend_i32_u
-        local.get $t1
-        i64.extend_i32_u
-        i64.const 32
-        i64.shl
-        i64.or
-        local.set $t0
-        local.set $text.1
-        local.set $text.0
         br 1
       end
     ;; 51 |     .Ok(value)
+      i32.const 3
       i32.const 0
       local.get $t0
       i64.const 4294967295
@@ -544,22 +508,20 @@
       i64.and
       i32.wrap_i64
     ;; 50 |     value := parse(text)?
-      local.set $t1
+      local.set $t2
       local.set $t0
+      local.set $t1
       local.set $text.1
       local.set $text.0
     end
     local.get $text.0
     local.get $text.1
-    local.get $t0
     local.get $t1
-    local.get $t4
-    local.get $t3
+    local.get $t0
     local.get $t2
     i32.const 0
-    i32.const 0
   )
-  (func $"error From 1.0 for LoadError.from" (param $value i64) (result i32 i32 i32 i64 i32 i32 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $t0 i32)
+  (func $"error From 1.0 for LoadError.from" (param $value i64) (result i32 i32 i32 i64 i32 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $t0 i32)
     ;; 25 | @error
     block
       i32.const 1
@@ -587,7 +549,6 @@
     local.get $value
     local.get $t0
     i32.const 0
-    i32.const 0
   )
   (func $"error Display for FsError.to_string" (param $self i32) (result i32 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t7 i64) (local $t8 i32)
     ;; 19 | @error
@@ -596,12 +557,9 @@
       i32.load $heap
       local.get $self
       i32.load $heap offset=4
-      local.get $self
-      i32.load $heap offset=8
       local.set $t0
-      local.set $self
+      local.tee $self
     ;; 21 |     @error("not found: $path")
-      i32.eqz
       if (result i32)
     ;; 22 |     NotFound(path: string)
         local.get $self

@@ -4,12 +4,12 @@
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32)))
+  (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 4 funcref))
-  (func $use_generic (param $s.0 i32) (param $s.1 i32) (param $t1 i32) (result i32) (local $t0 i32) (local $xs i32) (local $t3 i32) (local $t5 i32) (local $t4 i32) (local $t6 i32) (local $t2 i32)
+  (func $use_generic (param $s.0 i32) (param $s.1 i32) (param $t1 i32) (result i32) (local $t0 i32) (local $xs i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t2 i32)
     ;; 22 |     ident(s).len() + size(&xs) + first(xs).unwrap_or("").len() + keep(s).len()
     global.get $locals
     global.get $locals_base
@@ -115,13 +115,13 @@
             local.get $xs
             i32.load $heap offset=20
             local.set $t4
-            local.tee $t5
+            local.tee $t3
             local.tee $t2
             if
               local.get $t2
               call $retain
             end
-            i32.const 1
+            local.get $t3
           else
             i32.const 0
           end
@@ -149,12 +149,10 @@
             block
               block
                 local.get $t3
-                i32.const 1
-                i32.eq
                 if
-                  local.get $t5
+                  local.get $t3
                   local.get $t4
-                  local.set $t6
+                  local.set $t5
                   local.set $xs
                   br 1
                 else
@@ -179,12 +177,11 @@
         end
       end
       local.get $t3
-      local.get $t5
       local.get $t4
       call $rt:release
       block
         block
-          local.get $t6
+          local.get $t5
           local.set $t3
           br 0
         end
@@ -205,7 +202,7 @@
           local.tee $xs
           local.tee $t3
           i32.load $heap offset=4
-          local.tee $t5
+          local.tee $t4
           local.get $t3
           i32.load $heap
           i32.eq
@@ -217,18 +214,18 @@
             local.set $xs
           end
           local.get $t3
-          local.get $t5
+          local.get $t4
           i32.const 8
           i32.mul
           i32.add
-          local.tee $t4
+          local.tee $t5
           local.get $s.0
           i32.store $heap offset=16
-          local.get $t4
+          local.get $t5
           local.get $s.1
           i32.store $heap offset=20
           local.get $t3
-          local.get $t5
+          local.get $t4
           i32.const 1
           i32.add
           i32.store $heap offset=4

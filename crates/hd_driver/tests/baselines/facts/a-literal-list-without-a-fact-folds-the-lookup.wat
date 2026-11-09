@@ -13,7 +13,7 @@
       i32.const 8
       i32.add
       local.tee $t1
-      i32.const 0
+      i32.const 3
       i32.store $heap
       local.get $t1
       i32.const 0
@@ -28,9 +28,6 @@
       i32.const 0
       i32.store $heap offset=16
       local.get $t1
-      i32.const 0
-      i32.store $heap offset=20
-      local.get $t1
       local.set $t2
       block
         block
@@ -39,6 +36,8 @@
               block
                 local.get $t2
                 i32.load $heap
+                i32.const 3
+                i32.ne
                 br_if 0
                 br 1
                 unreachable

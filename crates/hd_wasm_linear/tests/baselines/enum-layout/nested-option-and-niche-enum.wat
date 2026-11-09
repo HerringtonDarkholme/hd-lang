@@ -4,19 +4,17 @@
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 4 funcref))
-  (func $wrap (param $x i32) (result i32 i32 i32)
+  (func $wrap (param $x i32) (result i32 i32)
     ;; 18 |     .Some(.Some(x))
     i32.const 1
-    i32.const 1
     local.get $x
   )
-  (func $make_a (param $x i32) (result i32 i32 i32)
+  (func $make_a (param $x i32) (result i32 i32)
     ;; 27 |     .Maybe(.Some(x))
-    i32.const 0
     i32.const 1
     local.get $x
   )
-  (func $load (param $slot i32) (result i32 i32 i32) (local $t1 i32) (local $t0 i32)
+  (func $load (param $slot i32) (result i32 i32) (local $t0 i32)
     ;; 33 |     slot[0]
     block
       local.get $slot
@@ -34,17 +32,13 @@
       i32.load $heap offset=16
       local.get $slot
       i32.load $heap offset=20
-      local.get $slot
-      i32.load $heap offset=24
       local.set $t0
-      local.set $t1
       local.set $slot
     end
     local.get $slot
-    local.get $t1
     local.get $t0
   )
-  (func $read_a (param $a.0 i32) (param $a.1 i32) (param $a.2 i32) (result i32)
+  (func $read_a (param $a.0 i32) (param $a.1 i32) (result i32)
     ;; 21 |     match a:
     block
       block
@@ -52,16 +46,17 @@
           block
     ;; 22 |         .Maybe(.Some(x)) => x
             local.get $a.0
-            i32.eqz
+            i32.const 2
+            i32.ne
             if
-              local.get $a.1
+              local.get $a.0
               i32.const 1
               i32.eq
               if
                 br 2
               else
     ;; 23 |         .Maybe(.None) => 1
-                local.get $a.1
+                local.get $a.0
                 i32.eqz
                 br_if 3
                 unreachable
@@ -70,7 +65,7 @@
             else
     ;; 24 |         .Must(y) => y
               local.get $a.0
-              i32.const 1
+              i32.const 2
               i32.eq
               if
                 br 4
@@ -83,7 +78,7 @@
             unreachable
           end
     ;; 22 |         .Maybe(.Some(x)) => x
-          local.get $a.2
+          local.get $a.1
     ;; 21 |     match a:
           return
         end
@@ -97,7 +92,7 @@
     end
     local.get $a.0
   )
-  (func $twice (param $v.0 i32) (param $v.1 i32) (param $v.2 i32) (result i32)
+  (func $twice (param $v.0 i32) (param $v.1 i32) (result i32)
     ;; 12 |     match v:
     block
       block
@@ -105,17 +100,17 @@
           block
     ;; 13 |         .Some(.Some(x)) => x
             local.get $v.0
-            i32.const 1
-            i32.eq
+            i32.const 2
+            i32.ne
             if
-              local.get $v.1
+              local.get $v.0
               i32.const 1
               i32.eq
               if
                 br 2
               else
     ;; 14 |         .Some(.None) => 1
-                local.get $v.1
+                local.get $v.0
                 i32.eqz
                 br_if 3
                 unreachable
@@ -124,7 +119,8 @@
             else
     ;; 15 |         .None => 0
               local.get $v.0
-              i32.eqz
+              i32.const 2
+              i32.eq
               br_if 3
               unreachable
     ;; 13 |         .Some(.Some(x)) => x
@@ -133,7 +129,7 @@
             unreachable
           end
     ;; 13 |         .Some(.Some(x)) => x
-          local.get $v.2
+          local.get $v.1
     ;; 12 |     match v:
           return
         end
@@ -145,7 +141,7 @@
     end
     local.get $v.0
   )
-  (func $store (param $slot i32) (param $v.0 i32) (param $v.1 i32) (param $v.2 i32) (local $t0 i32) (local $t1 i32)
+  (func $store (param $slot i32) (param $v.0 i32) (param $v.1 i32) (local $t0 i32) (local $t1 i32)
     ;; 30 |     slot.push(v)
     block
       local.get $slot
@@ -177,7 +173,7 @@
       end
       local.get $t1
       local.get $t0
-      i32.const 12
+      i32.const 8
       i32.mul
       i32.add
       local.tee $slot
@@ -186,9 +182,6 @@
       local.get $slot
       local.get $v.1
       i32.store $heap offset=20
-      local.get $slot
-      local.get $v.2
-      i32.store $heap offset=24
       local.get $t1
       local.get $t0
       i32.const 1

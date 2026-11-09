@@ -1,0 +1,73 @@
+# test: enums whose variants fill a niche keep their values, match, move and drop
+enum A:
+    Maybe(i32?)
+    Must(i32)
+
+enum Three:
+    Full(string, string, string)
+    Empty
+
+fn twice(v: i32??) -> i32:
+    match v:
+        .Some(.Some(x)) => x
+        .Some(.None) => 1
+        .None => 0
+
+fn read_a(a: A) -> i32:
+    match a:
+        .Maybe(.Some(x)) => x
+        .Maybe(.None) => 1
+        .Must(y) => y
+
+fn deep(b: bool???) -> i32:
+    match b:
+        .Some(.Some(.Some(true))) => 4
+        .Some(.Some(.Some(false))) => 3
+        .Some(.Some(.None)) => 2
+        .Some(.None) => 1
+        .None => 0
+
+fn first(t: Three) -> string:
+    match t:
+        .Full(x, _, _) => x
+        .Empty => "none"
+
+fn size(s: string?) -> usize:
+    match s:
+        .Some(text) => text.len()
+        .None => 0
+
+tests:
+    use std.testing.assert_equal
+
+    it("reads nested optionals from one tag"):
+        assert_equal(twice(.Some(.Some(7))), 7, reason="some some")
+        assert_equal(twice(.Some(.None)), 1, reason="some none")
+        assert_equal(twice(.None), 0, reason="none")
+
+    it("reads a variant stored in a niche"):
+        assert_equal(read_a(.Maybe(.Some(5))), 5, reason="maybe some")
+        assert_equal(read_a(.Maybe(.None)), 1, reason="maybe none")
+        assert_equal(read_a(.Must(9)), 9, reason="must")
+
+    it("nests a bool three deep in one byte"):
+        assert_equal(deep(.Some(.Some(.Some(true)))), 4, reason="true")
+        assert_equal(deep(.Some(.Some(.Some(false)))), 3, reason="false")
+        assert_equal(deep(.Some(.Some(.None))), 2, reason="two")
+        assert_equal(deep(.Some(.None)), 1, reason="one")
+        assert_equal(deep(.None), 0, reason="none")
+
+    it("moves a field that holds the niche and drops the rest"):
+        assert_equal(first(.Full("a${1}", "b${2}", "c${3}")), "a1", reason="first")
+        assert_equal(first(.Empty), "none", reason="empty")
+
+    it("keeps an optional string and a char in their own bytes"):
+        assert_equal(size(.Some("abc")), 3, reason="some")
+        assert_equal(size(.None), 0, reason="none")
+        let c: char? = .None
+        assert_equal(c, .None, reason="char none")
+        let d: char? = .Some('x')
+        assert_equal(d, .Some('x'), reason="char some")
+        let items: List[i32??] = [.Some(.Some(1)), .None, .Some(.None)]
+        assert_equal(items[1], .None, reason="list element")
+        assert_equal(items[2], .Some(.None), reason="list element 2")

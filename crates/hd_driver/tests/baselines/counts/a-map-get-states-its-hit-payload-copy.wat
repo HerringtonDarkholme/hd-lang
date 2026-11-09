@@ -24,7 +24,7 @@
       end
     end
   )
-  (func $lists (param $values i32) (param $key.0 i32) (param $key.1 i32) (result i32 i32) (local $t0 i32)
+  (func $lists (param $values i32) (param $key.0 i32) (param $key.1 i32) (result i32)
     ;; 11 |     lookup(values, key)
     block
       block
@@ -40,7 +40,6 @@
           i32.const 0
           i32.ge_s
           if (result i32)
-            i32.const 1
             local.get $values
             local.get $values
             i32.load $heap offset=12
@@ -55,19 +54,15 @@
             i32.add
             i32.load $heap offset=8
             call $rt:coll_copy
-            local.set $t0
           else
             i32.const 0
           end
-          local.get $t0
-          local.set $key.0
           local.set $values
           br 0
         end
       end
     end
     local.get $values
-    local.get $key.0
   )
   (func $scalar (param $values i32) (param $key.0 i32) (param $key.1 i32) (result i32 i32) (local $t0 i32)
     ;; 14 |     lookup(values, key)
@@ -113,7 +108,7 @@
     local.get $values
     local.get $key.0
   )
-  (func $text (param $values i32) (param $key.0 i32) (param $key.1 i32) (result i32 i32 i32) (local $t1 i32) (local $t0 i32)
+  (func $text (param $values i32) (param $key.0 i32) (param $key.1 i32) (result i32 i32) (local $t0 i32)
     ;; 8 |     lookup(values, key)
     block
       block
@@ -152,17 +147,13 @@
               local.get $key.1
               call $retain
             end
-            i32.const 1
             local.get $key.0
             local.get $values
             local.set $t0
-            local.set $t1
           else
             i32.const 0
           end
-          local.get $t1
           local.get $t0
-          local.set $key.1
           local.set $key.0
           local.set $values
           br 0
@@ -171,6 +162,5 @@
     end
     local.get $values
     local.get $key.0
-    local.get $key.1
   )
 )

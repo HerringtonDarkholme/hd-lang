@@ -266,18 +266,7 @@ fn string_area() -> Elem {
 
 /// A record of every kind of boundary type the codecs build.
 fn every_boundary_type() -> LTy {
-    let string = crate::layout::Mem {
-        size: 8,
-        align: 4,
-        leaves: [0, 4]
-            .map(|offset| crate::layout::Leaf {
-                offset,
-                val: Val::I32,
-                bytes: 4,
-                signed: false,
-            })
-            .to_vec(),
-    };
+    let string = crate::layout::Mem::string();
     let int = crate::layout::Mem::one(Val::I64, 8, false);
     let opt = LTy::Enum(Box::new(LEnum {
         layout: Box::new(crate::layout::flat_of(&[vec![], vec![string], vec![int]])),

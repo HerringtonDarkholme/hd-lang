@@ -5,24 +5,14 @@
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $"impl From [ ReadError ] for AppError.from" (param $value.0 i32) (param $value.1 i32) (param $value.2 i32) (result i32 i32 i32 i32) (local $t0 i32)
+  (func $"impl From [ ReadError ] for AppError.from" (param $value.0 i32) (param $value.1 i32) (result i32 i32)
     ;; 17 |         AppError.Read(value)
     block
-      i32.const 0
-      local.get $value.0
-      local.get $value.1
-      local.get $value.2
-      local.set $t0
-      local.set $value.2
-      local.set $value.1
-      local.set $value.0
     end
     local.get $value.0
     local.get $value.1
-    local.get $value.2
-    local.get $t0
   )
-  (func $result_try (param $path.0 i32) (param $path.1 i32) (result i32 i32 i32 i32) (local $t2 i32) (local $text.0 i32) (local $text.1 i32) (local $t0 i32) (local $t1 i32)
+  (func $result_try (param $path.0 i32) (param $path.1 i32) (result i32 i32) (local $text.0 i32) (local $text.1 i32) (local $t0 i32)
     ;; 23 |     text := read(path)?
     block
       block
@@ -38,19 +28,19 @@
             i32.add
             local.tee $text.0
             call $rt:str
+            local.tee $text.1
             local.tee $t0
-            local.tee $t1
             local.get $path.0
             local.get $path.1
             call $rt:memory_copy/0/0
-            local.get $t1
+            local.get $t0
             local.get $path.1
             i32.add
             i32.const 65 ;; &"/"
             i32.load8_u $heap
             i32.store8 $heap
             i32.const 0
-            local.get $t0
+            local.get $text.1
             local.set $path.1
           else
             local.get $path.0
@@ -58,15 +48,13 @@
             i32.const 0
             local.set $path.0
             i32.const 1
-            i32.const 0
+            local.get $text.0
             local.get $path.1
-            local.set $text.1
+            local.set $text.0
             local.set $path.1
           end
           local.get $path.1
           local.get $text.0
-          local.get $text.1
-          local.set $t0
           local.set $text.1
           local.set $text.0
           local.set $path.1
@@ -82,10 +70,8 @@
       i32.eqz
       if
       else
-        i32.const 1
         local.get $text.0
         local.get $text.1
-        local.get $t0
         return
       end
     ;; 24 |     .Ok(text.len())
@@ -110,10 +96,8 @@
     end
     local.get $path.0
     local.get $path.1
-    local.get $t2
-    local.get $t2
   )
-  (func $converted (param $path.0 i32) (param $path.1 i32) (result i32 i32 i32 i32 i32) (local $t4 i32) (local $t0 i32) (local $t3 i32) (local $t1 i32) (local $t2 i32)
+  (func $converted (param $path.0 i32) (param $path.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 27 |     text := read(path)?
     block
       block
@@ -149,16 +133,14 @@
             i32.const 0
             local.set $path.0
             i32.const 1
-            i32.const 0
+            local.get $t0
             local.get $path.1
-            local.set $t3
+            local.set $t0
             local.set $path.1
           end
           local.get $path.1
           local.get $t0
-          local.get $t3
           local.set $t1
-          local.set $t3
           local.set $t0
           local.set $path.1
           br 0
@@ -175,28 +157,21 @@
       else
         block
           block
-            i32.const 0
             local.get $t0
-            local.get $t3
             local.get $t1
-            local.set $t0
-            local.set $t4
             local.set $path.1
             local.set $path.0
             br 0
           end
         end
-        i32.const 1
         local.get $path.0
         local.get $path.1
-        local.get $t4
-        local.get $t0
         return
       end
     ;; 28 |     .Ok(text.len())
       block
         block
-          local.get $t3
+          local.get $t1
           local.set $path.1
           br 0
         end
@@ -215,11 +190,8 @@
     end
     local.get $path.0
     local.get $path.1
-    local.get $t4
-    local.get $t4
-    local.get $t4
   )
-  (func $read (param $path.0 i32) (param $path.1 i32) (result i32 i32 i32 i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32)
+  (func $read (param $path.0 i32) (param $path.1 i32) (result i32 i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 20 |     if path.len() > 0: .Ok(path + "/") else: .Err(ReadError.Missing(path))
     block
       block
@@ -253,14 +225,12 @@
         local.set $path.1
       else
         local.get $path.0
-        local.set $t1
+        local.set $t0
         i32.const 0
         local.set $path.0
         i32.const 1
-        i32.const 0
         local.get $path.1
-        local.set $t3
-        local.set $t0
+        local.set $t1
         local.set $path.1
       end
       local.get $path.0
@@ -271,8 +241,6 @@
       local.get $path.1
       local.get $t0
       local.get $t1
-      local.get $t3
-      local.set $t1
       local.set $t0
       local.set $path.1
       local.set $path.0
@@ -280,6 +248,5 @@
     local.get $path.0
     local.get $path.1
     local.get $t0
-    local.get $t1
   )
 )

@@ -780,7 +780,7 @@ pub fn slot_next(m: &Module) -> Func {
 /// (`flow.for.cursor.snapshot`), and the written entry count at 4. The
 /// entry leaves with its own counts. `item` is the optional's layout: its
 /// `.Some` payload's leaf 0 is the entry number and leaf `k` the entry's
-/// leaf `k - 1`. No entry leaves every result zero, `.None`.
+/// leaf `k - 1`. No entry leaves the results `.None`'s values, set first.
 pub fn step(m: &Module, entry: &Entry, item: &crate::layout::Flat) -> Func {
     // A closure's code: the environment, the first entry to look at, then
     // the context it ignores.
@@ -795,6 +795,14 @@ pub fn step(m: &Module, entry: &Entry, item: &crate::layout::Flat) -> Func {
     let out: Vec<u32> = results.iter().map(|v| f.local(*v)).collect();
     let elems: Vec<u32> = entry.leaves.iter().map(|l| f.local(l.val)).collect();
     let values = crate::layout::variant_steps(item, 1);
+    // `.None`'s values: its niche value or tag where it is not zero, as
+    // the locals start.
+    for (steps, x) in crate::layout::variant_steps(item, 0).iter().zip(&out) {
+        if let Some(steps) = steps {
+            crate::layout::run_steps(&mut f, steps, &|_, _, _| {});
+            f.set(*x);
+        }
+    }
     load_u32(&mut f, 0, 0);
     f.set(t);
     load_u32(&mut f, t, CAP);

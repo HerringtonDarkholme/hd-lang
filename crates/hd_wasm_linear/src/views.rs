@@ -15,6 +15,9 @@ pub struct TypeLayout {
     pub counted: Vec<CountedLeaf>,
     pub cycle_capable: bool,
     pub fields: Vec<FieldLayout>,
+    /// The largest niche (`layout::Niche`): bytes with values no value of
+    /// the type has.
+    pub niche: Option<layout::Niche>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -34,6 +37,7 @@ pub struct FieldLayout {
     pub size: u32,
     pub align: u32,
     pub counted: Vec<CountedLeaf>,
+    pub niche: Option<layout::Niche>,
 }
 
 fn counted(
@@ -58,7 +62,6 @@ fn counted(
                 }
                 out
             }
-            Walk::Nullable(w) => walk(w).into_keys().map(|k| (k, true)).collect(),
             Walk::Switch(_, arms) => {
                 let arms: Vec<_> = arms
                     .iter()
@@ -131,6 +134,10 @@ pub fn inspect_layout(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> StageR
                 size: m.size,
                 align: m.align,
                 counted: counted(pool, env, field, offset)?,
+                niche: m.niche.map(|n| layout::Niche {
+                    offset: offset + n.offset,
+                    ..n
+                }),
             });
             fields(pool, env, field, &path, offset, out, depth + 1)?;
         }
@@ -144,6 +151,7 @@ pub fn inspect_layout(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> StageR
         counted: counted(pool, env, ty, 0)?,
         cycle_capable: crate::cycle::object(pool, env, ty),
         fields: Vec::new(),
+        niche: mem.niche,
     };
     fields(pool, env, ty, "", 0, &mut out.fields, 0)?;
     Ok(out)

@@ -250,7 +250,7 @@ impl Em<'_, '_, '_> {
                             bytes: 4,
                             signed: false,
                         },
-                        1,
+                        crate::layout::Is::Eq(1),
                     ));
                 }
                 call

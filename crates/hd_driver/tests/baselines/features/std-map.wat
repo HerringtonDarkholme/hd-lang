@@ -212,15 +212,9 @@
         i32.add
         local.tee $m
         i32.load $heap offset=8
-        local.set $k.0
         local.get $m
         i32.load $heap offset=12
-        local.set $m
-        i32.const 1
-        local.get $k.0
-        local.get $m
         local.set $v.1
-        drop
         local.set $t0
       else
       end
@@ -229,8 +223,6 @@
           block
     ;; 11 |         .Some(v) => v.len()
             local.get $t0
-            i32.const 1
-            i32.eq
             br_if 0
     ;; 12 |         .None => 0
             local.get $t0
@@ -265,16 +257,30 @@
         block
           local.get $m
           i32.load $heap
+          local.tee $m
           local.get $k.0
           local.get $k.1
           call $rt:map_hash
           local.get $k.0
           local.get $k.1
           call $rt:map_find'1
+          local.tee $k.0
           i32.const 0
           i32.ge_s
           if
-            i32.const 1
+            local.get $m
+            local.get $m
+            i32.load $heap offset=12
+            i32.const 12
+            i32.mul
+            i32.add
+            i32.const 24
+            i32.add
+            local.get $k.0
+            i32.const 16
+            i32.mul
+            i32.add
+            i32.load $heap offset=8
             local.set $t0
           else
           end

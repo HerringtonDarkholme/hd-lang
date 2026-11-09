@@ -220,7 +220,7 @@
     ;; 36 |     c.tags.push(s)
     block
       local.get $c
-      i32.load $heap offset=4
+      i32.load $heap
       local.tee $t0
       call $rt:list_unique
       local.tee $t1
@@ -229,7 +229,7 @@
       if
         local.get $c
         local.get $t1
-        i32.store $heap offset=4
+        i32.store $heap
       end
       local.get $t1
       i32.load $heap offset=4
@@ -244,7 +244,7 @@
         local.set $t1
         local.get $c
         local.get $t1
-        i32.store $heap offset=4
+        i32.store $heap
       end
       local.get $t1
       local.get $t0

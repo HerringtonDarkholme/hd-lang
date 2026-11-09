@@ -49,6 +49,7 @@ use hd_types::solver::{
     UniverseImpls, folder_table,
 };
 use hd_types::{InternPool, Ty, TyData, TyList};
+pub use hd_wasm_linear::Niche;
 pub use hd_wasm_linear::views::{
     CountAction, CountOperation, CountedLeaf, FieldLayout, TypeLayout,
 };

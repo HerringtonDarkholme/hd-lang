@@ -61,7 +61,6 @@
     local.get $t3
     i32.store $heap offset=4
     block
-      i32.const 0
       local.get $text
       local.get $other
       call $word
@@ -96,24 +95,20 @@
     i32.add
     global.set $locals
   )
-  (func $word (param $t.0 i32) (param $t.1 i32) (param $fallback i32) (result i32)
+  (func $word (param $t i32) (param $fallback i32) (result i32)
     ;; 19 |     match t:
     block
       block
         block
           block
     ;; 20 |         Token.Word(w) => w
-            local.get $t.0
-            i32.eqz
+            local.get $t
             if
-              local.get $t.1
-              local.set $t.0
               br 1
             else
     ;; 21 |         Token.End => fallback
-              local.get $t.0
-              i32.const 1
-              i32.eq
+              local.get $t
+              i32.eqz
               br_if 2
               unreachable
     ;; 20 |         Token.Word(w) => w
@@ -126,11 +121,11 @@
     ;; 21 |         Token.End => fallback
         local.get $fallback
     ;; 19 |     match t:
-        local.set $t.0
+        local.set $t
         br 0
       end
     end
-    local.get $t.0
+    local.get $t
   )
   (func $parser (param $src i32) (result i32 i32)
     ;; 16 |     Parser { src: src, pos: 0 }

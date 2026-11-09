@@ -1,5 +1,16 @@
 use std::fmt::Write as _;
 
+/// A layout's niche as ` niche=OFFSET:BYTES/START..=END`: the bytes at
+/// `OFFSET` hold only `START..=END` (wrapping); empty for none.
+fn niche(n: Option<hd_driver::Niche>) -> String {
+    n.map_or_else(String::new, |n| {
+        format!(
+            " niche={}:{}/{:#x}..={:#x}",
+            n.offset, n.bytes, n.start, n.end
+        )
+    })
+}
+
 /// Exact memory layouts of the concrete declarations inside the subject.
 pub(super) fn view(p: &super::Program, at: super::Build) -> String {
     let built = super::inspection::build(p, at);
@@ -12,8 +23,12 @@ pub(super) fn view(p: &super::Program, at: super::Build) -> String {
         let layout = &ty.layout;
         let _ = writeln!(
             out,
-            "{} size={} align={} cycle-capable={}",
-            layout.name, layout.size, layout.align, layout.cycle_capable
+            "{} size={} align={} cycle-capable={}{}",
+            layout.name,
+            layout.size,
+            layout.align,
+            layout.cycle_capable,
+            niche(layout.niche)
         );
         let counted = |leaves: &[hd_driver::CountedLeaf]| {
             if leaves.is_empty() {
@@ -29,13 +44,14 @@ pub(super) fn view(p: &super::Program, at: super::Build) -> String {
         for f in &layout.fields {
             let _ = writeln!(
                 out,
-                "  {}: {} offset={} size={} align={} counted={}",
+                "  {}: {} offset={} size={} align={} counted={}{}",
                 f.path,
                 f.ty,
                 f.offset,
                 f.size,
                 f.align,
-                counted(&f.counted)
+                counted(&f.counted),
+                niche(f.niche)
             );
         }
     }

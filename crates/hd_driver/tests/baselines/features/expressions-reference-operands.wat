@@ -2,7 +2,7 @@
 (module
   (import "fixture" "rt:str_eq" (func $rt:str_eq (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "impl [ T < Eq ] Eq for List [ T ].eq[string]" (func $"impl [ T < Eq ] Eq for List [ T ].eq[string]" (param i32 i32) (result i32)))
-  (import "fixture" "impl PartialOrd for string.partial_cmp" (func $"impl PartialOrd for string.partial_cmp" (param i32 i32) (result i32 i32)))
+  (import "fixture" "impl PartialOrd for string.partial_cmp" (func $"impl PartialOrd for string.partial_cmp" (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $eq_lit (param $name i32) (result i32)
     ;; 10 |     name == "ada"
@@ -34,9 +34,9 @@
       local.get $a
       local.get $b
       call $"impl PartialOrd for string.partial_cmp"
-      local.set $a
-      i32.const 1
-      i32.eq
+      local.tee $a
+      i32.const 3
+      i32.ne
       if (result i32)
         local.get $a
         i32.eqz

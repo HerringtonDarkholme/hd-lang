@@ -81,19 +81,75 @@ impl Leaf {
     }
 }
 
-/// A type's layout: its size and alignment in memory, and its values.
+/// Bytes of a value that have invalid values (rustc's `Niche`,
+/// `rustc_abi` lib.rs): the unsigned scalar leaf at `offset`, `bytes`
+/// wide, whose valid values are `start..=end`, wrapping at its width. Its
+/// other values are free for an enclosing enum's other variants
+/// (`docs/future-work/ENUM-LAYOUT.md`). `size` is the scalar's whole
+/// width, which a tag widened to 8 bytes keeps although its leaf is its
+/// low 4: an enum places a variant after the niche past `size` bytes, as
+/// rustc places it past `niche.value.size`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct Niche {
+    pub offset: u32,
+    pub bytes: u8,
+    pub size: u8,
+    pub start: u32,
+    pub end: u32,
+}
+
+impl Niche {
+    /// The largest value of the niche's width.
+    #[must_use]
+    pub fn max(self) -> u32 {
+        u32::MAX >> (32 - 8 * u32::from(self.bytes))
+    }
+
+    /// How many values are free: rustc's `Niche::available`.
+    #[must_use]
+    pub fn available(self) -> u32 {
+        self.start.wrapping_sub(self.end).wrapping_sub(1) & self.max()
+    }
+
+    /// `count` free values for an enclosing enum's variants (decision 3:
+    /// always upward from the valid range's end, wrapping): the first one
+    /// and the niche with them now valid. `None` when fewer are free.
+    fn reserve(self, count: u32) -> Option<(u32, Niche)> {
+        if count == 0 || count > self.available() {
+            return None;
+        }
+        let start = self.end.wrapping_add(1) & self.max();
+        let end = self.end.wrapping_add(count) & self.max();
+        Some((start, Niche { end, ..self }))
+    }
+
+    fn at(self, offset: u32) -> Niche {
+        Niche {
+            offset: self.offset + offset,
+            ..self
+        }
+    }
+}
+
+/// A type's layout: its size and alignment in memory, and its values; its
+/// largest niche ([`Niche`]), and whether no value has the type.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Mem {
     pub size: u32,
     pub align: u32,
     pub leaves: Vec<Leaf>,
+    pub niche: Option<Niche>,
+    pub uninhabited: bool,
 }
 
 impl Mem {
-    const EMPTY: Mem = Mem {
+    /// `never`, and an enum with no variant a value can have.
+    const NEVER: Mem = Mem {
         size: 0,
         align: 1,
         leaves: Vec::new(),
+        niche: None,
+        uninhabited: true,
     };
 
     pub(crate) fn one(val: Val, bytes: u8, signed: bool) -> Mem {
@@ -106,12 +162,41 @@ impl Mem {
                 bytes,
                 signed,
             }],
+            niche: None,
+            uninhabited: false,
         }
     }
 
-    /// An address: data, a self-recursive enum's cell, a frame.
+    /// An unsigned `i32` scalar of `bytes` whose valid values are
+    /// `start..=end`: `bool`, `char`, a non-null address.
+    pub(crate) fn valid(bytes: u8, start: u32, end: u32) -> Mem {
+        Mem {
+            niche: Some(Niche {
+                offset: 0,
+                bytes,
+                size: bytes,
+                start,
+                end,
+            }),
+            ..Mem::one(Val::I32, bytes, false)
+        }
+    }
+
+    /// An address: a frame, a context, data no rule says is never null.
     pub(crate) fn address() -> Mem {
         Mem::one(Val::I32, 4, false)
+    }
+
+    /// An address that is never null (decision 2: null is an address's one
+    /// niche): a thin reference, a boxed cell, a list's or a map's buffer,
+    /// a string's bytes, a vtable.
+    pub(crate) fn nonnull() -> Mem {
+        Mem::valid(4, 1, u32::MAX)
+    }
+
+    /// A string: its bytes' address, never null, and its length.
+    pub(crate) fn string() -> Mem {
+        record(&[Mem::nonnull(), Mem::address()]).0
     }
 
     pub fn vals(&self) -> Vec<Val> {
@@ -467,41 +552,43 @@ fn mem_one(
     Ok(match pool.get(t) {
         TyData::Prim(p) => match p {
             Prim::I8 => Mem::one(Val::I32, 1, true),
-            Prim::U8 | Prim::Bool => Mem::one(Val::I32, 1, false),
+            Prim::U8 => Mem::one(Val::I32, 1, false),
+            Prim::Bool => Mem::valid(1, 0, 1),
             Prim::I16 => Mem::one(Val::I32, 2, true),
             Prim::U16 => Mem::one(Val::I32, 2, false),
-            Prim::I32 | Prim::U32 | Prim::Usize | Prim::Char => Mem::one(Val::I32, 4, false),
+            Prim::I32 | Prim::U32 | Prim::Usize => Mem::one(Val::I32, 4, false),
+            Prim::Char => Mem::valid(4, 0, 0x10_FFFF),
             Prim::I64 | Prim::U64 => Mem::one(Val::I64, 8, false),
             Prim::F32 => Mem::one(Val::F32, 4, false),
             Prim::F64 => Mem::one(Val::F64, 8, false),
-            Prim::String => record(&[Mem::address(), Mem::address()]).0,
+            Prim::String => Mem::string(),
         },
-        TyData::Never => Mem::EMPTY,
+        TyData::Never => Mem::NEVER,
         TyData::Tuple { .. } => payload_mem_by(&tuple_members(pool, t), part)?.0,
         TyData::Option(inner) => {
             let variants = [vec![], vec![inner]];
-            enum_flat_by(t, &variants, nullable(pool, env, &variants), part)?
+            enum_flat_by(t, &variants, part)?
         }
         TyData::Union(members) => {
             let variants = union_variants(pool, members);
-            enum_flat_by(t, &variants, false, part)?
+            enum_flat_by(t, &variants, part)?
         }
         TyData::Adt { def, args } => match env.std_kind(def) {
             StdKind::Suspend => Mem::address(),
-            StdKind::List | StdKind::Map => Mem::address(),
+            StdKind::List | StdKind::Map => Mem::nonnull(),
             StdKind::Other => match kind(pool, env, t) {
-                Kind::Boxed | Kind::Ref { fat: false, .. } => Mem::address(),
-                Kind::Ref { fat: true, .. } => record(&[Mem::address(), Mem::address()]).0,
+                Kind::Boxed | Kind::Ref { fat: false, .. } => Mem::nonnull(),
+                Kind::Ref { fat: true, .. } => record(&[Mem::address(), Mem::nonnull()]).0,
                 Kind::Value => match env.enum_variants(def, args) {
-                    Some(variants) => {
-                        enum_flat_by(t, &variants, nullable(pool, env, &variants), part)?
-                    }
+                    Some(variants) => enum_flat_by(t, &variants, part)?,
                     None => payload_mem_by(&value_parts(pool, env, t), part)?.0,
                 },
             },
         },
+        // A function value's code is a table slot, which may be 0, and its
+        // environment is 0 when it captures nothing: no niche.
         TyData::Fn { .. } => record(&[Mem::address(), Mem::address()]).0,
-        TyData::TraitValue { .. } => record(&[Mem::address(), Mem::address()]).0,
+        TyData::TraitValue { .. } => record(&[Mem::address(), Mem::nonnull()]).0,
         // A `$.Context` value is the address of a counted context
         // (`rt::ctx_elem`).
         TyData::Context(_) => Mem::address(),
@@ -519,10 +606,9 @@ fn mem_one(
 fn enum_flat_by(
     t: Ty,
     variants: &[Vec<Ty>],
-    nullable: bool,
     part: &dyn Fn(Ty) -> StageResult<Mem>,
 ) -> StageResult<Mem> {
-    let got = enum_mem_by(variants, nullable, part).map(std::rc::Rc::new);
+    let got = enum_mem_by(variants, part).map(std::rc::Rc::new);
     FLATS.with(|m| {
         if let Some(m) = m.borrow_mut().as_mut() {
             m.insert(t, got.clone());
@@ -560,12 +646,10 @@ pub enum Walk {
     Glue,
     /// Each part in turn.
     Seq(Vec<Walk>),
-    /// Value `k` is an enum's tag; arm `v`, when there is one, walks
-    /// variant `v`'s payload.
-    Switch(u32, Vec<Option<Walk>>),
-    /// A [`nullable`] enum's address, which the inner walk counts unless
-    /// it is null.
-    Nullable(Box<Walk>),
+    /// An enum's discriminant; arm `v`, when there is one, walks variant
+    /// `v`'s payload, where the discriminant says `v` ([`Enc::is`]).
+    /// The discriminant is boxed: a walk is part of many helpers' keys.
+    Switch(Box<Discr>, Vec<Option<Walk>>),
 }
 
 impl Walk {
@@ -577,13 +661,15 @@ impl Walk {
             Walk::Known(k) => Walk::Known(to(*k)),
             Walk::Glue => Walk::Glue,
             Walk::Seq(ws) => Walk::Seq(ws.iter().map(|w| w.remap(to)).collect()),
-            Walk::Switch(k, arms) => Walk::Switch(
-                to(*k),
+            Walk::Switch(d, arms) => Walk::Switch(
+                Box::new(Discr {
+                    value: to(d.value),
+                    ..**d
+                }),
                 arms.iter()
                     .map(|a| a.as_ref().map(|w| w.remap(to)))
                     .collect(),
             ),
-            Walk::Nullable(w) => Walk::Nullable(Box::new(w.remap(to))),
         }
     }
 
@@ -596,13 +682,12 @@ impl Walk {
             Walk::Known(k) => (!skip.contains(k)).then_some(Walk::Known(*k)),
             Walk::Glue => Some(Walk::Glue),
             Walk::Seq(ws) => Walk::seq(ws.iter().filter_map(|w| w.without(skip)).collect()),
-            Walk::Switch(k, arms) => Some(Walk::Switch(
-                *k,
+            Walk::Switch(d, arms) => Some(Walk::Switch(
+                d.clone(),
                 arms.iter()
                     .map(|a| a.as_ref().and_then(|w| w.without(skip)))
                     .collect(),
             )),
-            Walk::Nullable(w) => w.without(skip).map(|w| Walk::Nullable(Box::new(w))),
         }
     }
 
@@ -612,7 +697,7 @@ impl Walk {
     pub fn single(&self) -> Option<u32> {
         match self {
             Walk::Ref(k) | Walk::Known(k) => Some(*k),
-            Walk::Glue | Walk::Seq(_) | Walk::Switch(..) | Walk::Nullable(_) => None,
+            Walk::Glue | Walk::Seq(_) | Walk::Switch(..) => None,
         }
     }
 
@@ -630,7 +715,7 @@ impl Walk {
         match self {
             Walk::Ref(_) => Some(Addr::Ref),
             Walk::Known(_) => Some(Addr::Known),
-            Walk::Glue | Walk::Seq(_) | Walk::Switch(..) | Walk::Nullable(_) => None,
+            Walk::Glue | Walk::Seq(_) | Walk::Switch(..) => None,
         }
     }
 
@@ -837,10 +922,6 @@ fn switch_walk_by(
     part: &dyn Fn(Ty) -> Option<Walk>,
 ) -> Option<Walk> {
     let variants = variants(pool, env, t)?;
-    if nullable(pool, env, &variants) {
-        // The address is value 0, null for variant 0.
-        return part(variants[1][0]).map(|w| Walk::Nullable(Box::new(w)));
-    }
     let flat = flat(pool, env, t).ok()??;
     let arms: Vec<Option<Walk>> = variants
         .iter()
@@ -855,20 +936,53 @@ fn switch_walk_by(
             )
         })
         .collect();
-    if arms.iter().all(Option::is_none) {
-        return None;
+    match flat.disc {
+        // One variant: its walk, with no test.
+        Disc::One(k) => arms.into_iter().nth(k as usize).flatten(),
+        Disc::Cell(_) if arms.iter().all(Option::is_none) => None,
+        Disc::Cell(d) => Some(Walk::Switch(Box::new(d), arms)),
     }
-    Some(Walk::Switch(flat.discr(), arms))
 }
 
 /// The captures of a closure environment in order, each at its alignment:
 /// the whole layout and each capture's place in it. The environment's code
-/// reads them at these offsets.
+/// reads them at these offsets. Its niche is its fields' largest, the
+/// first of equals.
 fn record(fields: &[Mem]) -> (Mem, Vec<Part>) {
-    let mut out = Mem::EMPTY;
-    let mut parts = Vec::new();
-    for f in fields {
-        let offset = out.size.next_multiple_of(f.align);
+    let offsets: Vec<u32> = fields
+        .iter()
+        .scan(0u32, |end, f| {
+            let offset = end.next_multiple_of(f.align);
+            *end = offset + f.size;
+            Some(offset)
+        })
+        .collect();
+    place(fields, &offsets, 0, Bias::Start)
+}
+
+/// Which niche a struct keeps among its fields' equal largest ones, and
+/// where [`univariant`] moves it: rustc's `NicheBias`.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Bias {
+    Start,
+    End,
+}
+
+/// The layout of `fields` at `offsets`, after `prefix` bytes: its leaves
+/// in declaration order, each field's together, so a field's values in
+/// locals are its [`Part`]; its niche the largest of its fields', the
+/// first of equals in memory order (`Bias::Start`) or the last
+/// (`Bias::End`), as rustc's `univariant_biased` keeps it.
+fn place(fields: &[Mem], offsets: &[u32], prefix: u32, bias: Bias) -> (Mem, Vec<Part>) {
+    let mut out = Mem {
+        size: prefix,
+        align: prefix.max(1),
+        leaves: Vec::with_capacity(fields.iter().map(|f| f.leaves.len()).sum()),
+        niche: None,
+        uninhabited: false,
+    };
+    let mut parts = Vec::with_capacity(fields.len());
+    for (f, &offset) in fields.iter().zip(offsets) {
         parts.push(Part {
             first: out.leaves.len(),
             count: f.leaves.len(),
@@ -878,63 +992,105 @@ fn record(fields: &[Mem]) -> (Mem, Vec<Part>) {
             offset: l.offset + offset,
             ..*l
         }));
-        out.size = offset + f.size;
+        out.size = out.size.max(offset + f.size);
         out.align = out.align.max(f.align);
+        out.uninhabited |= f.uninhabited;
+    }
+    let mut by_offset: Vec<usize> = (0..fields.len()).collect();
+    by_offset.sort_stable_by_key(|&k| offsets[k]);
+    let mut best = 0;
+    for k in by_offset {
+        let Some(n) = fields[k].niche else {
+            continue;
+        };
+        let more = match bias {
+            Bias::Start => n.available() > best,
+            Bias::End => n.available() >= best,
+        };
+        if more && n.available() > 0 {
+            best = n.available();
+            out.niche = Some(n.at(offsets[k]));
+        }
     }
     out.size = out.size.next_multiple_of(out.align);
     (out, parts)
 }
 
-/// A field's alignment group, rustc's `alignment_group_key` with no niche
-/// (`rustc_abi` layout.rs:1155): `log2` of the larger of its alignment and
-/// its size, so a field of four bytes at alignment 1 groups with the
-/// 4-aligned ones.
-fn align_group(m: &Mem) -> u32 {
-    m.align.max(m.size).trailing_zeros()
+/// Fields placed as rustc's `univariant` places them (layout.rs:265,
+/// 1091; decision 1 of `docs/future-work/ENUM-LAYOUT.md`): a struct's
+/// (`prefix` 0) by alignment group, largest first, then its largest niche
+/// first; a payload behind a tag of `prefix` bytes by group, smallest
+/// first, the largest niche last, so that small fields pack after the
+/// tag. When the niche is then neither at the start nor at the end, the
+/// layout biased to put it last is kept where that leaves more room before
+/// it than either edge had (layout.rs:288): an enclosing enum's other
+/// variants fit there. Both sorts are stable.
+///
+/// Cost: two sorts of the fields, at most.
+fn univariant(fields: &[Mem], prefix: u32) -> (Mem, Vec<Part>) {
+    let got = univariant_biased(fields, prefix, Bias::Start);
+    let Some(n) = got.0.niche else {
+        return got;
+    };
+    let head = n.offset;
+    let tail = got.0.size - head - u32::from(n.size);
+    if fields.len() < 2 || head == 0 || tail == 0 {
+        return got;
+    }
+    let alt = univariant_biased(fields, prefix, Bias::End);
+    match alt.0.niche {
+        Some(m) if m.offset > head && m.offset > tail => alt,
+        Some(_) | None => got,
+    }
 }
 
-/// Fields placed as rustc's `univariant` places them (layout.rs:1091,
-/// decision 1 of `docs/future-work/ENUM-LAYOUT.md`): a struct's (`prefix`
-/// 0) by alignment group, largest first; a payload behind a tag of
-/// `prefix` bytes by group, smallest first, so that small fields pack
-/// after the tag. The sort is stable. The leaves stay in declaration
-/// order, each field's together, so a field's values in locals are its
-/// [`Part`]; only the offsets move.
-fn univariant(fields: &[Mem], prefix: u32) -> (Mem, Vec<Part>) {
+/// [`univariant`] with one bias: rustc's `univariant_biased`.
+fn univariant_biased(fields: &[Mem], prefix: u32, bias: Bias) -> (Mem, Vec<Part>) {
+    let available = |f: &Mem| f.niche.map_or(0, Niche::available);
+    let largest = fields.iter().map(available).max().unwrap_or(0);
+    let max_align = fields.iter().map(|f| f.align).max().unwrap_or(1);
+    // rustc's `alignment_group_key` (layout.rs:1155): `log2` of the larger
+    // of a field's alignment and size, so four bytes at alignment 1 group
+    // with the 4-aligned fields; with a niche about, capped at the largest
+    // alignment (start bias), or the field with the largest niche at its
+    // own alignment (end bias).
+    let group = |f: &Mem| {
+        let size_as_align = f.align.max(f.size).trailing_zeros();
+        match bias {
+            _ if largest == 0 => size_as_align,
+            Bias::Start => max_align.trailing_zeros().min(size_as_align),
+            Bias::End if available(f) == largest => f.align.trailing_zeros(),
+            Bias::End => size_as_align,
+        }
+    };
     let mut order: Vec<usize> = (0..fields.len()).collect();
-    if prefix == 0 {
-        order.sort_stable_by_key(|&k| std::cmp::Reverse(align_group(&fields[k])));
-    } else {
-        order.sort_stable_by_key(|&k| align_group(&fields[k]));
+    if fields.len() > 1 {
+        if prefix == 0 {
+            order.sort_stable_by_key(|&k| {
+                let f = &fields[k];
+                let inner = f.niche.map_or(0, |n| match bias {
+                    Bias::Start => u64::from(n.offset),
+                    Bias::End => !u64::from(f.size - n.offset),
+                });
+                let niche = match bias {
+                    Bias::Start => !u64::from(available(f)),
+                    Bias::End => u64::from(available(f)),
+                };
+                (std::cmp::Reverse(group(f)), niche, inner)
+            });
+        } else {
+            order.sort_stable_by_key(|&k| (group(&fields[k]), available(&fields[k])));
+        }
     }
     let mut offsets = vec![0u32; fields.len()];
     let mut size = prefix;
-    let mut align = prefix.max(1);
     for &k in &order {
         let f = &fields[k];
         let offset = size.next_multiple_of(f.align);
         offsets[k] = offset;
         size = offset + f.size;
-        align = align.max(f.align);
     }
-    let mut out = Mem {
-        size: size.next_multiple_of(align),
-        align,
-        leaves: Vec::with_capacity(fields.iter().map(|f| f.leaves.len()).sum()),
-    };
-    let mut parts = Vec::with_capacity(fields.len());
-    for (f, &offset) in fields.iter().zip(&offsets) {
-        parts.push(Part {
-            first: out.leaves.len(),
-            count: f.leaves.len(),
-            offset,
-        });
-        out.leaves.extend(f.leaves.iter().map(|l| Leaf {
-            offset: l.offset + offset,
-            ..*l
-        }));
-    }
-    (out, parts)
+    place(fields, &offsets, prefix, bias)
 }
 
 /// A struct value's or a tuple's layout and its fields' places.
@@ -978,14 +1134,250 @@ fn payload_mem_by(
 /// the enum's values.
 pub type Positions = Vec<Vec<Vec<u32>>>;
 
-/// An enum's layout (`docs/future-work/ENUM-LAYOUT.md` (b), tagged path):
-/// in memory, its tag, then each variant's payload as one struct at one
-/// offset; in locals, one Wasm value per distinct leaf of every variant
-/// (owner, 2026-11-08: never two leaves in one value), as a [`Mem`] whose
-/// leaves, in offset order, may overlap where variants do. Two variants
-/// share a value where they have the same leaf at the same offset. The
-/// tag's value (none for a [`nullable`] enum), and each variant's payload:
-/// its fields' offsets, and each field leaf's offset in the enum and value.
+/// How an enum's discriminant cell ([`Discr`]) says its variant (rustc's
+/// `TagEncoding`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum Enc {
+    /// The cell is a tag holding the variant's index.
+    Direct,
+    /// No tag: variant `untagged` writes nothing, its payload's niche
+    /// holding one of its valid values; variant `v` in `first..=last`
+    /// writes `v - first + start` in the niche, wrapping at its `bytes`.
+    Niche {
+        untagged: u32,
+        first: u32,
+        last: u32,
+        start: u32,
+        bytes: u8,
+    },
+}
+
+/// A test of a discriminant cell's value ([`Enc::is`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum Is {
+    /// No value is the variant: one absent beside a niche's variants.
+    Never,
+    /// The cell holds this value.
+    Eq(u32),
+    /// The cell holds none of the `count` values from `start`, wrapping at
+    /// `bytes`: a niche's untagged variant.
+    Outside { start: u32, count: u32, bytes: u8 },
+}
+
+impl Enc {
+    /// The test that a value is variant `v` (`read_discr` against `v`).
+    #[must_use]
+    pub fn is(self, v: u32) -> Is {
+        match self {
+            Enc::Direct => Is::Eq(v),
+            Enc::Niche {
+                untagged,
+                first,
+                last,
+                start,
+                bytes,
+            } => {
+                if v == untagged {
+                    Is::Outside {
+                        start,
+                        count: last - first + 1,
+                        bytes,
+                    }
+                } else if (first..=last).contains(&v) {
+                    Is::Eq(niche_value(v - first, start, bytes))
+                } else {
+                    Is::Never
+                }
+            }
+        }
+    }
+
+    /// The value variant `v` writes in the cell (`write_discr`), `None` for
+    /// the untagged one, which writes nothing.
+    #[must_use]
+    pub fn raw(self, v: u32) -> Option<u32> {
+        match self {
+            Enc::Direct => Some(v),
+            Enc::Niche {
+                untagged,
+                first,
+                start,
+                bytes,
+                ..
+            } => (v != untagged).then(|| niche_value(v.wrapping_sub(first), start, bytes)),
+        }
+    }
+
+    /// The variant a cell holding `raw` says (`read_discr` at compile time).
+    #[must_use]
+    pub fn reads(self, raw: u32) -> u32 {
+        match self {
+            Enc::Direct => raw,
+            Enc::Niche {
+                untagged,
+                first,
+                last,
+                start,
+                bytes,
+            } => {
+                let rel = niche_value(raw.wrapping_sub(start), 0, bytes);
+                if rel <= last - first {
+                    first + rel
+                } else {
+                    untagged
+                }
+            }
+        }
+    }
+}
+
+/// The `k`th value from `start` of a niche `bytes` wide.
+fn niche_value(k: u32, start: u32, bytes: u8) -> u32 {
+    start.wrapping_add(k) & (u32::MAX >> (32 - 8 * u32::from(bytes)))
+}
+
+impl Is {
+    /// The instructions that turn the cell's value on the stack into an
+    /// `i32` that is nonzero exactly when the test holds: one compare, or
+    /// none for a null address's niche (the address itself), and a
+    /// subtraction and a range compare for an untagged variant beside
+    /// several niche values.
+    #[must_use]
+    pub fn ops(self) -> Vec<I> {
+        match self {
+            Is::Never => vec![I::Drop, I::I32Const(0)],
+            Is::Eq(0) => vec![I::I32Eqz],
+            Is::Eq(k) => vec![I::I32Const(k.cast_signed()), I::I32Eq],
+            Is::Outside {
+                start: 0, count: 1, ..
+            } => vec![],
+            Is::Outside {
+                start, count: 1, ..
+            } => {
+                vec![I::I32Const(start.cast_signed()), I::I32Ne]
+            }
+            Is::Outside {
+                start,
+                count,
+                bytes,
+            } => {
+                let mut ops = Is::rel(start, count, bytes);
+                ops.extend([I::I32Const((count - 1).cast_signed()), I::I32GtU]);
+                ops
+            }
+        }
+    }
+
+    /// The instructions that turn a niche cell on the stack into its
+    /// index among the `count` values from `start`: any index past them
+    /// for any other value. A narrow niche whose values wrap past its
+    /// width is masked; one that does not wrap needs no mask, as a value
+    /// below `start` leaves a negative, a large unsigned index.
+    #[must_use]
+    pub fn rel(start: u32, count: u32, bytes: u8) -> Vec<I> {
+        let max = u32::MAX >> (32 - 8 * u32::from(bytes));
+        let mut ops = Vec::new();
+        if start != 0 {
+            ops.extend([I::I32Const(start.cast_signed()), I::I32Sub]);
+        }
+        if bytes < 4 && u64::from(start) + u64::from(count) > u64::from(max) + 1 {
+            ops.extend([I::I32Const(max.cast_signed()), I::I32And]);
+        }
+        ops
+    }
+}
+
+/// An enum's discriminant cell: the leaf that holds its tag or niche,
+/// that leaf's index among the enum's values, and how it says the
+/// variant.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct Discr {
+    pub leaf: Leaf,
+    pub value: u32,
+    pub enc: Enc,
+}
+
+/// What says an enum value's variant (rustc's `Variants`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum Disc {
+    /// One variant is present (`Variants::Single`): no bytes say it.
+    One(u32),
+    /// Its discriminant cell (`Variants::Multiple`).
+    Cell(Discr),
+}
+
+/// How to test that an enum value is a variant ([`Flat::test`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Test {
+    /// Known with no read: an enum of one variant.
+    Const(bool),
+    /// A test of the discriminant cell's value.
+    Read(Discr, Is),
+}
+
+/// Pushes the variant index of an enum whose cell's value `push` pushes,
+/// given the value's index (`read_discr`,
+/// `docs/future-work/ENUM-LAYOUT.md`): the tag itself, a
+/// constant, or for a niche one compare and a `select`. Several niche
+/// values need the index twice, in a local of `f`'s.
+pub fn read_discr(
+    f: &mut crate::module::Func,
+    disc: Disc,
+    push: &dyn Fn(&mut crate::module::Func, u32),
+) {
+    let d = match disc {
+        Disc::One(k) => return f.op(I::I32Const(k.cast_signed())),
+        Disc::Cell(d) => d,
+    };
+    match d.enc {
+        Enc::Direct => push(f, d.value),
+        Enc::Niche {
+            untagged,
+            first,
+            last,
+            start,
+            ..
+        } if first == last => {
+            f.op(I::I32Const(first.cast_signed()));
+            f.op(I::I32Const(untagged.cast_signed()));
+            push(f, d.value);
+            for op in Is::Eq(start).ops() {
+                f.op(op);
+            }
+            f.op(I::Select);
+        }
+        Enc::Niche {
+            untagged,
+            first,
+            last,
+            start,
+            bytes,
+        } => {
+            let rel = f.local(Val::I32);
+            push(f, d.value);
+            for op in Is::rel(start, last - first + 1, bytes) {
+                f.op(op);
+            }
+            f.op(I::LocalTee(rel));
+            f.op(I::I32Const(first.cast_signed()));
+            f.op(I::I32Add);
+            f.op(I::I32Const(untagged.cast_signed()));
+            f.op(I::LocalGet(rel));
+            f.op(I::I32Const((last - first).cast_signed()));
+            f.op(I::I32LeU);
+            f.op(I::Select);
+        }
+    }
+}
+
+/// An enum's layout (`docs/future-work/ENUM-LAYOUT.md`): in memory, each
+/// variant's payload as one struct at one offset, behind a tag or around
+/// a niche ([`Disc`]); in locals, one Wasm value per distinct leaf of
+/// every variant (owner, 2026-11-08: never two leaves in one value), as a
+/// [`Mem`] whose leaves, in offset order, may overlap where variants do.
+/// Two variants share a value where they have the same leaf at the same
+/// offset. What says the variant, and each variant's payload: its
+/// fields' offsets, and each field leaf's offset in the enum and value.
 ///
 /// A value of a variant not taken holds the bytes the taken variant puts
 /// there ([`variant_steps`]), as a load of each value from memory gives:
@@ -993,7 +1385,7 @@ pub type Positions = Vec<Vec<Vec<u32>>>;
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Flat {
     pub mem: Mem,
-    pub tag: Option<(Leaf, u32)>,
+    pub disc: Disc,
     pub positions: Positions,
     pub offsets: Vec<Vec<u32>>,
     pub leaves: Vec<Vec<Vec<Leaf>>>,
@@ -1006,11 +1398,22 @@ impl Flat {
         self.positions[v][f].iter().map(|&k| k as usize).collect()
     }
 
-    /// The tag's value, for a [`Walk::Switch`]: a nullable enum's is its
-    /// address, whose zero is variant 0.
+    /// The test that a value is variant `v`.
     #[must_use]
-    pub fn discr(&self) -> u32 {
-        self.tag.map_or(0, |(_, k)| k)
+    pub fn test(&self, v: u32) -> Test {
+        match self.disc {
+            Disc::One(k) => Test::Const(v == k),
+            Disc::Cell(d) => Test::Read(d, d.enc.is(v)),
+        }
+    }
+
+    /// The discriminant cell; `None` for one variant.
+    #[must_use]
+    pub fn cell(&self) -> Option<Discr> {
+        match self.disc {
+            Disc::One(_) => None,
+            Disc::Cell(d) => Some(d),
+        }
     }
 }
 
@@ -1103,7 +1506,8 @@ fn shadow_steps(s: Leaf, parts: &[(usize, usize, Leaf)], out: &mut Vec<Step>) {
 }
 
 /// How to build variant `v`'s values: for each of the enum's values,
-/// `None` where it is zero, else the steps that push it: the tag, a leaf
+/// `None` where it is zero, else the steps that push it: the tag or niche
+/// value it writes (`write_discr`), a leaf
 /// of the variant, or the bytes the variant's leaves put in another
 /// variant's value ([`Flat`]).
 ///
@@ -1120,13 +1524,18 @@ pub fn variant_steps(flat: &Flat, v: u32) -> Vec<Option<Vec<Step>>> {
             own.push((f, k, l));
         }
     }
-    if let Some((_, k)) = flat.tag
-        && v != 0
+    // `write_discr`: the tag, or the niche value of a variant that is not
+    // the untagged one, in the cell.
+    let written = flat
+        .cell()
+        .and_then(|d| Some((d.value as usize, d.enc.raw(v)?)));
+    if let Some((k, raw)) = written
+        && raw != 0
     {
-        out[k as usize] = Some(vec![Step::Op(I::I32Const(v.cast_signed()))]);
+        out[k] = Some(vec![Step::Op(I::I32Const(raw.cast_signed()))]);
     }
     for (slot, s) in values.iter().enumerate() {
-        if out[slot].is_some() || flat.tag.is_some_and(|(_, k)| k as usize == slot) {
+        if out[slot].is_some() || written.is_some_and(|(k, _)| k == slot) {
             continue;
         }
         let end = s.offset + u32::from(s.bytes);
@@ -1181,16 +1590,6 @@ pub fn overlapping(values: &[Leaf], leaves: &[Leaf]) -> Vec<usize> {
         .collect()
 }
 
-/// Whether an enum of `variants` is a nullable address
-/// (`types.option.repr`): variant 0 has no payload and variant 1 one thin
-/// reference, never null. Its one value is that address, null for variant
-/// 0; it has no tag.
-pub fn nullable(pool: &InternPool, env: &dyn ProgramEnv, variants: &[Vec<Ty>]) -> bool {
-    matches!(variants, [none, some] if none.is_empty()
-        && some.len() == 1
-        && matches!(kind(pool, env, some[0]), Kind::Ref { fat: false, .. }))
-}
-
 /// An enum's layout from its variants' payload types ([`Flat`]). Not
 /// cached: [`flat`] is, by type.
 pub fn enum_mem(
@@ -1198,9 +1597,7 @@ pub fn enum_mem(
     env: &dyn ProgramEnv,
     variants: &[Vec<Ty>],
 ) -> StageResult<Flat> {
-    enum_mem_by(variants, nullable(pool, env, variants), &|f| {
-        mem(pool, env, f)
-    })
+    enum_mem_by(variants, &|f| mem(pool, env, f))
 }
 
 /// The layout of enum or optional type `t`, unboxed, once per type in a
@@ -1226,28 +1623,8 @@ pub fn flat(
     got.map(Some)
 }
 
-/// [`enum_mem`], with each payload field's layout read by `part`: rustc's
-/// tagged layout (`layout_of_enum`, layout.rs:751). The tag is the
-/// smallest unsigned integer that counts the variants, widened to the
-/// smallest first-field alignment of the payloads (layout.rs:891); each
-/// payload is [`univariant`] behind it. A tag wider than 4 bytes keeps
-/// its value in its low 4, and the rest is padding.
-fn enum_mem_by(
-    variants: &[Vec<Ty>],
-    nullable: bool,
-    part: &dyn Fn(Ty) -> StageResult<Mem>,
-) -> StageResult<Flat> {
-    if nullable {
-        let mem = Mem::address();
-        let leaf = mem.leaves[0];
-        return Ok(Flat {
-            mem,
-            tag: None,
-            positions: vec![vec![], vec![vec![0]]],
-            offsets: vec![vec![], vec![0]],
-            leaves: vec![vec![], vec![vec![leaf]]],
-        });
-    }
+/// [`enum_mem`], with each payload field's layout read by `part`.
+fn enum_mem_by(variants: &[Vec<Ty>], part: &dyn Fn(Ty) -> StageResult<Mem>) -> StageResult<Flat> {
     let ms = variants
         .iter()
         .map(|fields| fields.iter().map(|f| part(*f)).collect())
@@ -1255,12 +1632,132 @@ fn enum_mem_by(
     Ok(flat_of(&ms))
 }
 
-/// The tagged layout of an enum whose variants' payload fields are laid
-/// out as `variants` ([`enum_mem_by`]).
+/// The layout of an enum whose variants' payload fields are laid out as
+/// `variants`: rustc's `layout_of_enum` (layout.rs:573). Of the
+/// niche-filling layout ([`niche_filled`]) and the tagged one
+/// ([`tagged`]), the smaller; of equal sizes, the one with more free
+/// niche values; else the tagged one (layout.rs:1070).
+///
+/// Cost: [`univariant`] twice per variant, and one pass over the leaves.
 pub(crate) fn flat_of(variants: &[Vec<Mem>]) -> Flat {
-    let min: u32 = match variants.len() {
-        0..=256 => 1,
-        257..=65536 => 2,
+    // rustc's `layout_of_struct_or_enum` (layout.rs:340): with no variant
+    // the enum is `never`, and with one it is that variant's struct, with
+    // no discriminant.
+    if variants.len() < 2 {
+        return single(variants, (!variants.is_empty()).then_some(0));
+    }
+    let tagged = tagged(variants);
+    let free = |f: &Flat| f.mem.niche.map_or(0, Niche::available);
+    match niche_filled(variants) {
+        Some(n)
+            if n.mem.size < tagged.mem.size
+                || n.mem.size == tagged.mem.size && free(&n) > free(&tagged) =>
+        {
+            n
+        }
+        Some(_) | None => tagged,
+    }
+}
+
+/// Whether a variant of `fields` is uninhabited: a field is.
+fn uninhabited(fields: &[Mem]) -> bool {
+    fields.iter().any(|f| f.uninhabited)
+}
+
+/// The layout of an enum whose one variant is `only` (rustc's
+/// `Variants::Single`): that variant's struct, and no discriminant. With
+/// no variant the enum is `never`: no bytes, and no value.
+fn single(variants: &[Vec<Mem>], only: Option<usize>) -> Flat {
+    let payloads: Vec<(Mem, Vec<Part>)> = variants.iter().map(|ms| univariant(ms, 0)).collect();
+    let (mem, k) = match only {
+        Some(k) => (payloads[k].0.clone(), k),
+        None => (Mem::NEVER, 0),
+    };
+    // ruled out: more variants than u32 counts; an enum's variants are
+    // `u32` indices in TIR.
+    let k = u32::try_from(k).expect("a variant index fits u32");
+    assemble(
+        &payloads,
+        mem.size,
+        mem.align,
+        mem.niche,
+        Say::One(k),
+        variants,
+    )
+}
+
+/// The niche-filling layout (rustc's `layout_of_enum` step 1,
+/// layout.rs:591): the largest variant (the last of equals) is untagged,
+/// its largest niche holding the other variants' values, `reserve`d
+/// upward from its valid range's end (decision 3); every other variant
+/// fits before the niche or after it within the untagged one's size.
+/// `None` when the largest has no niche with room, or a variant does not
+/// fit.
+fn niche_filled(variants: &[Vec<Mem>]) -> Option<Flat> {
+    let mut payloads: Vec<(Mem, Vec<Part>)> = variants.iter().map(|ms| univariant(ms, 0)).collect();
+    let untagged = (0..payloads.len()).max_by_key(|&i| payloads[i].0.size)?;
+    let needs: Vec<usize> = (0..payloads.len()).filter(|&i| i != untagged).collect();
+    let (&first, &last) = (needs.first()?, needs.last()?);
+    let count = u32::try_from(last - first + 1).ok()?;
+    let niche = payloads[untagged].0.niche?;
+    let (start, valid) = niche.reserve(count)?;
+    let align = payloads.iter().map(|(m, _)| m.align).max().unwrap_or(1);
+    let size = payloads[untagged].0.size.next_multiple_of(align);
+    for (i, (m, parts)) in payloads.iter_mut().enumerate() {
+        if i == untagged || m.size <= niche.offset {
+            continue;
+        }
+        let o = (niche.offset + u32::from(niche.size)).next_multiple_of(m.align);
+        if o + m.size > size {
+            return None;
+        }
+        for l in &mut m.leaves {
+            l.offset += o;
+        }
+        for p in parts.iter_mut() {
+            p.offset += o;
+        }
+    }
+    let cell = Leaf {
+        offset: niche.offset,
+        val: Val::I32,
+        bytes: niche.bytes,
+        signed: false,
+    };
+    let enc = Enc::Niche {
+        untagged: u32::try_from(untagged).ok()?,
+        first: u32::try_from(first).ok()?,
+        last: u32::try_from(last).ok()?,
+        start,
+        bytes: niche.bytes,
+    };
+    Some(assemble(
+        &payloads,
+        size,
+        align,
+        Some(valid),
+        Say::Cell(cell, enc),
+        variants,
+    ))
+}
+
+/// The tagged layout (rustc's `layout_of_enum` step 2, layout.rs:751): the
+/// tag is the smallest unsigned integer that counts the inhabited
+/// variants, widened to the smallest first-field alignment of the
+/// payloads (layout.rs:891); each payload is [`univariant`] behind it. A
+/// tag wider than 4 bytes keeps its value in its low 4, and the rest is
+/// padding. Its niche is the tag's values no inhabited variant takes.
+fn tagged(variants: &[Vec<Mem>]) -> Flat {
+    // The discriminants of the inhabited variants; with none, 0 alone.
+    let mut live = (0u32..)
+        .zip(variants)
+        .filter(|(_, fs)| !uninhabited(fs))
+        .map(|(k, _)| k);
+    let lo = live.next().unwrap_or(0);
+    let hi = live.last().unwrap_or(lo);
+    let min: u32 = match hi {
+        0..=0xff => 1,
+        0x100..=0xffff => 2,
         _ => 4,
     };
     let mut payloads = Vec::with_capacity(variants.len());
@@ -1296,28 +1793,70 @@ pub(crate) fn flat_of(variants: &[Vec<Mem>]) -> Flat {
         align = align.max(m.align);
     }
     let size = size.next_multiple_of(align);
+    let bytes: u8 = match ity {
+        1 => 1,
+        2 => 2,
+        _ => 4,
+    };
     let tag = Leaf {
         offset: 0,
         val: Val::I32,
-        bytes: match ity {
-            1 => 1,
-            2 => 2,
-            _ => 4,
-        },
+        bytes,
         signed: false,
     };
-    let mut values = vec![tag];
-    for (m, _) in &payloads {
+    let niche = Niche {
+        offset: 0,
+        bytes,
+        // ruled out: a tag wider than 8 bytes; `ity` is at most 8.
+        size: u8::try_from(ity).expect("a tag of at most 8 bytes"),
+        start: lo,
+        end: hi,
+    };
+    assemble(
+        &payloads,
+        size,
+        align,
+        Some(niche),
+        Say::Cell(tag, Enc::Direct),
+        variants,
+    )
+}
+
+/// What says the variant of an enum being assembled ([`Disc`]): the one
+/// variant, or the cell's leaf and how it says it.
+#[derive(Clone, Copy)]
+enum Say {
+    One(u32),
+    Cell(Leaf, Enc),
+}
+
+/// An enum's [`Flat`] from its payloads at their places: its values, one
+/// per distinct leaf of the cell and the payloads, in offset order, and
+/// each payload field's values among them.
+fn assemble(
+    payloads: &[(Mem, Vec<Part>)],
+    size: u32,
+    align: u32,
+    niche: Option<Niche>,
+    say: Say,
+    variants: &[Vec<Mem>],
+) -> Flat {
+    let mut values: Vec<Leaf> = match say {
+        Say::One(_) => Vec::new(),
+        Say::Cell(cell, _) => vec![cell],
+    };
+    for (m, _) in payloads {
         values.extend(&m.leaves);
     }
     values.sort_stable();
     values.dedup();
     let index: hd_base::HashMap<Leaf, u32> = (0u32..).zip(&values).map(|(k, l)| (*l, k)).collect();
-    let at = |l: &Leaf| index.get(l).copied().unwrap_or_default();
+    // Every leaf looked up is one of `values`, which holds them all.
+    let at = |l: &Leaf| index[l];
     let mut positions = Vec::with_capacity(payloads.len());
     let mut offsets = Vec::with_capacity(payloads.len());
     let mut leaves = Vec::with_capacity(payloads.len());
-    for (m, parts) in &payloads {
+    for (m, parts) in payloads {
         let fields: Vec<Vec<Leaf>> = parts
             .iter()
             .map(|p| m.leaves[p.first..p.first + p.count].to_vec())
@@ -1331,14 +1870,23 @@ pub(crate) fn flat_of(variants: &[Vec<Mem>]) -> Flat {
         offsets.push(parts.iter().map(|p| p.offset).collect());
         leaves.push(fields);
     }
-    let tag_at = at(&tag);
+    let disc = match say {
+        Say::One(k) => Disc::One(k),
+        Say::Cell(leaf, enc) => Disc::Cell(Discr {
+            leaf,
+            value: at(&leaf),
+            enc,
+        }),
+    };
     Flat {
+        disc,
         mem: Mem {
             size,
             align,
             leaves: values,
+            niche: niche.filter(|n| n.available() > 0),
+            uninhabited: variants.iter().all(|fs| uninhabited(fs)),
         },
-        tag: Some((tag, tag_at)),
         positions,
         offsets,
         leaves,
@@ -1423,7 +1971,7 @@ mod tests {
                 m.borrow_mut()
                     .as_mut()
                     .expect("outer layout cache")
-                    .insert(Ty::VOID, Ok(Mem::EMPTY));
+                    .insert(Ty::VOID, Ok(Mem::NEVER));
             });
             WALKS.with(|w| {
                 w.borrow_mut()
@@ -1451,7 +1999,7 @@ mod tests {
                     .as_ref()
                     .and_then(|m| m.get(&Ty::VOID))
                     .expect("restored outer layout");
-                assert!(saved.as_ref().is_ok_and(|m| *m == Mem::EMPTY));
+                assert!(saved.as_ref().is_ok_and(|m| *m == Mem::NEVER));
             });
             WALKS.with(|w| {
                 let w = w.borrow();
@@ -1474,7 +2022,7 @@ mod tests {
         let item = pool.list_items(elems)[0];
         let computed = match pool.get(item) {
             TyData::Prim(Prim::I64) => Mem::one(Val::I64, 8, false),
-            TyData::Prim(Prim::String) => record(&[Mem::address(), Mem::address()]).0,
+            TyData::Prim(Prim::String) => Mem::string(),
             _ => panic!("test tuple item"),
         };
         MEMS.with(|m| {
@@ -1576,11 +2124,109 @@ mod tests {
             values(&pair),
             [(0, Val::I32, 1), (1, Val::I32, 1), (4, Val::I32, 4)]
         );
-        assert_eq!(pair.tag.map(|(_, k)| k), Some(0));
+        assert_eq!(pair.cell().map(|d| d.value), Some(0));
         assert_eq!(pair.positions, [vec![vec![1], vec![2]], vec![vec![2]]]);
         // `bool?` is two bytes and two values.
         let opt = flat_of(&[vec![], vec![bool_m]]);
         assert_eq!(values(&opt), [(0, Val::I32, 1), (1, Val::I32, 1)]);
+    }
+
+    #[test]
+    fn a_nested_optional_fills_the_inner_tags_niche() {
+        // `i32??` (the doc's walkthrough): `i32?`'s 4-byte tag holds 0 or 1,
+        // so the outer `None` is 2 in it, with no tag of its own.
+        let inner = flat_of(&[vec![], vec![i32m()]]);
+        assert_eq!(inner.cell().map(|d| d.enc), Some(Enc::Direct));
+        let outer = flat_of(&[vec![], vec![inner.mem.clone()]]);
+        assert_eq!((outer.mem.size, outer.mem.align), (8, 4));
+        let enc = |f: &Flat| f.cell().map(|d| d.enc);
+        assert_eq!(
+            enc(&outer),
+            Some(Enc::Niche {
+                untagged: 1,
+                first: 0,
+                last: 0,
+                start: 2,
+                bytes: 4
+            })
+        );
+        assert_eq!(values(&outer), [(0, Val::I32, 4), (4, Val::I32, 4)]);
+        let raw = |f: &Flat, v| f.cell().and_then(|d| d.enc.raw(v));
+        assert_eq!(raw(&outer, 0), Some(2));
+        assert_eq!(raw(&outer, 1), None);
+        // Each level takes the next value up: `i32???`'s `None` is 3.
+        let third = flat_of(&[vec![], vec![outer.mem.clone()]]);
+        assert_eq!(third.mem.size, 8);
+        assert_eq!(raw(&third, 0), Some(3));
+        let reads = |raw| third.cell().map(|d| d.enc.reads(raw));
+        assert_eq!(reads(0), Some(1));
+        assert_eq!(reads(3), Some(0));
+    }
+
+    #[test]
+    fn a_smaller_variant_fits_after_the_niche() {
+        // `A: Maybe(i32?); Must(i32)` (the doc's walkthrough): `Must` is
+        // 2 in `Maybe`'s inner tag, its `i32` at 4, sharing `Some`'s value.
+        let opt = flat_of(&[vec![], vec![i32m()]]);
+        let a = flat_of(&[vec![opt.mem.clone()], vec![i32m()]]);
+        assert_eq!((a.mem.size, a.mem.align), (8, 4));
+        assert_eq!(
+            a.cell().map(|d| d.enc),
+            Some(Enc::Niche {
+                untagged: 0,
+                first: 1,
+                last: 1,
+                start: 2,
+                bytes: 4
+            })
+        );
+        assert_eq!(a.offsets, [vec![0], vec![4]]);
+        assert_eq!(a.positions, [vec![vec![0, 1]], vec![vec![1]]]);
+        let is = |v| match a.test(v) {
+            Test::Read(_, is) => Some(is),
+            Test::Const(_) => None,
+        };
+        assert_eq!(is(1), Some(Is::Eq(2)));
+        assert_eq!(
+            is(0),
+            Some(Is::Outside {
+                start: 2,
+                count: 1,
+                bytes: 4
+            })
+        );
+    }
+
+    #[test]
+    fn scalar_niches_extend_upward_from_their_valid_end() {
+        // Decision 3: `char?`'s `None` is 0x110000; `bool???` is one byte,
+        // its `None`s 2, 3 and 4; a null address is `(*T)?`'s `None`.
+        let char_opt = flat_of(&[vec![], vec![Mem::valid(4, 0, 0x10_FFFF)]]);
+        assert_eq!(char_opt.mem.size, 4);
+        let raw = |f: &Flat, v| f.cell().and_then(|d| d.enc.raw(v));
+        assert_eq!(raw(&char_opt, 0), Some(0x11_0000));
+        let mut b = Mem::valid(1, 0, 1);
+        for none in 2..=4 {
+            let f = flat_of(&[vec![], vec![b.clone()]]);
+            assert_eq!((f.mem.size, raw(&f, 0)), (1, Some(none)));
+            b = f.mem.clone();
+        }
+        let ptr = flat_of(&[vec![], vec![Mem::nonnull()]]);
+        assert_eq!(
+            (ptr.mem.size, raw(&ptr, 0), ptr.mem.niche),
+            (4, Some(0), None)
+        );
+    }
+
+    #[test]
+    fn one_variant_takes_no_discriminant() {
+        // `enum Only: V(i32)` is `V`'s struct, with no tag (rustc's
+        // `Variants::Single`); an enum of no variant is `never`.
+        let one = flat_of(&[vec![i32m()]]);
+        assert_eq!((one.mem.size, one.disc), (4, Disc::One(0)));
+        assert_eq!(one.test(0), Test::Const(true));
+        let none = flat_of(&[]);
+        assert!(none.mem.uninhabited && none.mem.size == 0);
     }
 
     #[test]

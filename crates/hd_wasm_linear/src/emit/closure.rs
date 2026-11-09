@@ -164,7 +164,6 @@ fn has_glue(w: &Walk) -> bool {
         Walk::Glue => true,
         Walk::Seq(ws) => ws.iter().any(has_glue),
         Walk::Switch(_, arms) => arms.iter().flatten().any(has_glue),
-        Walk::Nullable(w) => has_glue(w),
         Walk::Ref(_) | Walk::Known(_) => false,
     }
 }

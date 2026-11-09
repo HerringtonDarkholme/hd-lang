@@ -9,7 +9,7 @@ use hd_base::{DefId, Hash128, StageResult};
 use hd_types::{Ty, TyData, TyList};
 use wasm_encoder::BlockType;
 
-use crate::layout::{Addr, Leaf, Walk};
+use crate::layout::{Addr, Is, Leaf, Walk};
 use crate::map::{self, KeyOps};
 use crate::module::{
     BUF, CYCLIC, DescriptorKey, EMPTY, Func, GLUE, Global, HEADER, HEAP, Import, Ins, LOAN_EXCL,
@@ -674,12 +674,14 @@ impl Elem {
 }
 
 /// One `std.rt.Drop.drop` call in structural release glue. Every guard is
-/// an enclosing enum tag and the variant that contains the value.
+/// an enclosing enum's discriminant cell and the test that it says the
+/// variant that contains the value, or a drop flag and the test that it
+/// is set.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct DropCall {
     pub offset: u32,
     pub target: Hash128,
-    pub guards: Vec<(Leaf, u32)>,
+    pub guards: Vec<(Leaf, Is)>,
 }
 
 /// A reserved word of a list buffer and of a map table (§23.7), at the
@@ -2242,25 +2244,24 @@ pub(crate) fn walk_code(
                 walk_code(f, w, get, on);
             }
         }
-        Walk::Nullable(w) => {
-            if let Some(k) = w.single() {
-                get(f, k);
-                f.op(Instruction::If(BlockType::Empty));
-                walk_code(f, w, get, on);
-                f.op(Instruction::End);
-            }
-        }
-        Walk::Switch(tag, arms) => {
-            for (v, arm) in arms.iter().enumerate() {
+        Walk::Switch(d, arms) => {
+            for (v, arm) in (0u32..).zip(arms) {
                 let Some(arm) = arm else {
                     continue;
                 };
-                get(f, *tag);
-                f.u32(u32::try_from(v).expect("variants"));
-                f.op(Instruction::I32Eq);
-                f.op(Instruction::If(BlockType::Empty));
-                walk_code(f, arm, get, on);
-                f.op(Instruction::End);
+                // The test that the discriminant says `v` (`read_discr`).
+                match d.enc.is(v) {
+                    Is::Never => {}
+                    is @ (Is::Eq(_) | Is::Outside { .. }) => {
+                        get(f, d.value);
+                        for op in is.ops() {
+                            f.op(op);
+                        }
+                        f.op(Instruction::If(BlockType::Empty));
+                        walk_code(f, arm, get, on);
+                        f.op(Instruction::End);
+                    }
+                }
             }
         }
     }
@@ -3272,11 +3273,12 @@ fn drop_elems(m: &Module, elem: &Elem) -> Func {
 /// the value holds (`module.rt.drop.trace`).
 fn call_drops(f: &mut Func, base: u32, drops: &[DropCall]) {
     for drop in drops {
-        for &(tag, variant) in &drop.guards {
+        for &(cell, is) in &drop.guards {
             f.get(base);
-            f.op(tag.load(0));
-            f.u32(variant);
-            f.op(Instruction::I32Eq);
+            f.op(cell.load(0));
+            for op in is.ops() {
+                f.op(op);
+            }
             f.op(Instruction::If(BlockType::Empty));
         }
         f.get(base);
