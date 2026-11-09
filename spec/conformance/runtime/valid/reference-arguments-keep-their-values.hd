@@ -1,0 +1,50 @@
+# test: by-value lowering of read-only arguments preserves newtypes, tuples, and counted values
+# Spec Values And References: ref.deref.read, ref.read.shallow; Annotations: annot.inline.never.
+# expect-stdout: 7
+# expect-stdout: 9
+# expect-stdout: kept
+# expect-stdout: kept
+# expect-stdout: 8
+# expect-stdout: 8
+use std.annotation.inline
+
+type Meters(i32)
+
+struct Pair:
+    left: i32
+    right: i32
+
+struct Label:
+    text: string
+
+@inline(.Never)
+fn sum(value: &Pair) -> i32:
+    value.left + value.right
+
+@inline(.Never)
+fn meters(value: &Meters) -> i32:
+    i32(*value)
+
+@inline(.Never)
+fn label(value: &Label) -> string:
+    value.text
+
+@inline(.Never)
+fn change(value: &mut Pair) -> void:
+    value.left += 1
+
+@inline(.Never)
+fn forwarded(value: &Pair) -> i32:
+    sum(value)
+
+pub fn main() -> void $ Console:
+    let mut pair = Pair { left: +3, right: +4 }
+    println(sum(&pair))
+    distance := Meters(9)
+    println(meters(&distance))
+    named := Label { text: "kept" }
+    println(label(&named))
+    println(named.text)
+    change(&mut pair)
+    println(sum(&pair))
+    println(forwarded(&pair))

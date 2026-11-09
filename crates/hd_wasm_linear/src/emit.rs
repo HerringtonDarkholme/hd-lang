@@ -132,7 +132,7 @@ fn body_func<'a>(
         && !suspending
         && own.cold.is_none()
         && input.runtime.is_some();
-    let promoted = promote::promoted_refs(input, m, b, (item, args), targets, pick)?;
+    let promoted = promote::promoted_refs(input, m, b, (item, args), targets, pick);
     // Where each local lives (`Body::storage`).
     let (stored, slots) = closure::stored_locals(input, b, (item, args), sub, &promoted);
     let cells = closure::cell_locals(b, &stored);
@@ -140,7 +140,7 @@ fn body_func<'a>(
     let inst = (m.inst_of.get(&own.key).copied()).unwrap_or(InstId::from_raw(u32::MAX));
     let mut em = Em::new(input, m, b, (item, args), targets, cells, direct_json);
     em.inst = inst;
-    em.type_promoted(promoted)?;
+    em.type_promoted(promoted);
     em.plan_slots(&slots)?;
     em.origin_root = b.anchor(b.sub_root[sub as usize]);
     em.sub_id = sub;
