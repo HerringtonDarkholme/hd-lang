@@ -1141,7 +1141,7 @@ impl Em<'_, '_, '_> {
         self.f.get(h);
         self.f.op(crate::op::Op::I32Ne);
         self.f.op(crate::op::Op::If(wasm_encoder::BlockType::Empty));
-        self.put_at(&at, nb)?;
+        self.put_at(&at, nb);
         self.f.op(crate::op::Op::End);
         self.f.get(nb);
         self.f.set(h);

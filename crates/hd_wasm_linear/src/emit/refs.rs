@@ -35,6 +35,27 @@ pub(super) enum At {
     Mem(u32, u32),
 }
 
+/// A materialized value's location; store-only Wasm globals are excluded.
+#[derive(Clone, Copy)]
+enum ValueAt<'a> {
+    Vals(&'a [u32]),
+    Mem(u32, u32),
+}
+
+impl At {
+    fn value(&self) -> ValueAt<'_> {
+        let value = match self {
+            Self::Vals(ls) => Some(ValueAt::Vals(ls)),
+            Self::Mem(a, off) => Some(ValueAt::Mem(*a, *off)),
+            Self::Globals(..) => None,
+        };
+        // ruled out: place_start creates Globals only for stores; at_root
+        // loads globals into locals or addresses their static slot for values.
+        assert!(value.is_some(), "value walks must materialize globals");
+        value.as_slice()[0]
+    }
+}
+
 /// The type a reference refers to, and whether the reference is fat (a
 /// trait value's).
 type Referent = (Ty, bool);
@@ -511,24 +532,22 @@ impl Em<'_, '_, '_> {
 
     /// Stores the buffer in local `b` at `at`, where a walk found the
     /// place's collection ([`Em::place_header`]).
-    pub(super) fn put_at(&mut self, at: &At, b: u32) -> StageResult<()> {
-        let (a, off) = match at {
-            At::Vals(ls) if ls.len() == 1 => {
+    pub(super) fn put_at(&mut self, at: &At, b: u32) {
+        match at.value() {
+            ValueAt::Vals(ls) => {
+                // ruled out: List/Map headers occupy one Wasm local.
+                assert_eq!(ls.len(), 1, "collection headers must have one word");
                 if ls[0] != b {
                     self.f.get(b);
                     self.f.set(ls[0]);
                 }
-                return Ok(());
             }
-            At::Mem(a, off) => (*a, *off),
-            // ruled out: callers update a one-word List/Map header; at_root
-            // loads globals into locals, so no At::Globals reaches put_at.
-            _ => return unsupported("a collection of several values"),
-        };
-        self.f.get(a);
-        self.f.get(b);
-        self.f.op(I::I32Store(mem(HEAP, u64::from(off), 2)));
-        Ok(())
+            ValueAt::Mem(a, off) => {
+                self.f.get(a);
+                self.f.get(b);
+                self.f.op(I::I32Store(mem(HEAP, u64::from(off), 2)));
+            }
+        }
     }
 
     /// Stores the buffer in local `b`, which a change of its operand `r`
@@ -539,7 +558,8 @@ impl Em<'_, '_, '_> {
             return self.put_buffer(self.b.data[r as usize][0], b);
         }
         let ls = self.local_value_of(r)?;
-        self.put_at(&At::Vals(ls), b)
+        self.put_at(&At::Vals(ls), b);
+        Ok(())
     }
 
     /// Stores the buffer in local `b` into place `word`, raw: the change
@@ -579,7 +599,7 @@ impl Em<'_, '_, '_> {
             _ => None,
         };
         let (at, _) = self.walk_steps(at, ty, &p.proj[from..])?;
-        self.put_at(&at, b)?;
+        self.put_at(&at, b);
         // A binding in Wasm globals takes its changed value back.
         if let (Some((h, ls)), At::Vals(x)) = (globals, &at) {
             let k = ls.iter().position(|l| x.first() == Some(l)).unwrap_or(0);
@@ -824,6 +844,7 @@ impl Em<'_, '_, '_> {
             At::Mem(a, off) => At::Mem(self.offset_local(a, off), 0),
             base => base,
         };
+        let value = base.value();
         let has_path = !path.is_empty();
         let (mut off, mut first) = (0, 0);
         for &f in path {
@@ -833,32 +854,32 @@ impl Em<'_, '_, '_> {
             ty = ft;
         }
         let m = mem_of(self.pool(), self.env(), ty)?;
-        if let At::Mem(at, _) = &base
+        if let ValueAt::Mem(at, _) = value
             && has_path
         {
             let field = self.ref_layout(ty)?;
-            return self.ref_projection(i, *at, &field, off, fat);
+            return self.ref_projection(i, at, &field, off, fat);
         }
-        match base {
-            At::Mem(at, _) if fat => {
+        match value {
+            ValueAt::Mem(at, _) if fat => {
                 let value = self.ref_layout(ty)?;
                 self.load_through(at, &value);
                 self.store_owned(i)?;
                 return Ok(());
             }
-            At::Mem(at, _) => {
+            ValueAt::Mem(at, _) => {
                 self.f.get(at);
                 if off != 0 {
                     self.f.u32(off);
                     self.f.op(I::I32Add);
                 }
             }
-            At::Vals(ls) if fat => {
+            ValueAt::Vals(ls) if fat => {
                 for l in &ls[first..first + m.leaves.len()] {
                     self.f.get(*l);
                 }
             }
-            At::Vals(ls) => {
+            ValueAt::Vals(ls) => {
                 // ruled out: storage::run gives addressed mutable locals cells
                 // or slots; the checker gives a mutable rvalue a local too.
                 debug_assert!(!crate::layout::ref_mutable(
@@ -889,11 +910,6 @@ impl Em<'_, '_, '_> {
                     self.owned_refs.insert(i);
                 }
                 return self.store_owned(i);
-            }
-            // ruled out: place_start constructs At::Globals only for stores;
-            // at_root instead loads globals or addresses their static slot.
-            At::Globals(..) => {
-                return unsupported("a reference to a place in no memory");
             }
         }
         self.store(i)
@@ -1135,11 +1151,7 @@ impl Em<'_, '_, '_> {
             At::Vals(ls) if !rooted => Dst::Locals(ls),
             At::Globals(h, first, vals) => Dst::Globals(*h, *first, vals),
             _ => {
-                // ruled out: local/global stores were handled above; a
-                // rooted store reaches memory through its Elem or Deref.
-                let Some((a, lv)) = self.at_leaves(&at, ty)? else {
-                    return unsupported("a store into a place in no memory");
-                };
+                let (a, lv) = self.memory_leaves(&at, ty)?;
                 leaves = lv;
                 Dst::Mem(a, 0, &leaves)
             }
@@ -1403,36 +1415,34 @@ impl Em<'_, '_, '_> {
         Ok(x)
     }
 
-    /// The leaves of a value of type `ty` at `at` in memory, at their
-    /// offsets from its address local; `None` for a value in locals.
-    fn at_leaves(&self, at: &At, ty: Ty) -> StageResult<Option<(u32, Vec<Leaf>)>> {
-        Ok(match at {
-            At::Vals(_) | At::Globals(..) => None,
-            At::Mem(a, off) => {
-                let mut lv = mem_of(self.pool(), self.env(), ty)?.leaves;
-                for l in &mut lv {
-                    l.offset += off;
-                }
-                Some((*a, lv))
-            }
-        })
+    /// The address and leaves of a rooted store's required memory place.
+    fn memory_leaves(&self, at: &At, ty: Ty) -> StageResult<(u32, Vec<Leaf>)> {
+        let memory = match at {
+            At::Mem(a, off) => Some((*a, *off)),
+            _ => None,
+        };
+        // ruled out: place_store handles local/global stores first; rooted
+        // stores reach memory through their Elem/Deref.
+        assert!(memory.is_some(), "rooted stores must reach memory");
+        let (a, off) = memory.as_slice()[0];
+        let mut leaves = mem_of(self.pool(), self.env(), ty)?.leaves;
+        for l in &mut leaves {
+            l.offset += off;
+        }
+        Ok((a, leaves))
     }
 
     /// Pushes the value of type `ty` at `at`, with no count.
     fn push_at(&mut self, at: &At, ty: Ty) -> StageResult<()> {
-        match self.at_leaves(at, ty)? {
-            None => {
-                // ruled out: only stores create At::Globals; value walks
-                // load globals into locals in at_root before push_at.
-                let At::Vals(ls) = at else {
-                    return unsupported("a value in no locals");
-                };
+        match at.value() {
+            ValueAt::Vals(ls) => {
                 for l in ls {
                     self.f.get(*l);
                 }
             }
-            Some((a, lv)) => {
-                for l in lv {
+            ValueAt::Mem(a, off) => {
+                for mut l in mem_of(self.pool(), self.env(), ty)?.leaves {
+                    l.offset += off;
                     self.f.get(a);
                     self.f.op(l.load(0));
                 }
@@ -1456,7 +1466,7 @@ impl Em<'_, '_, '_> {
     /// Field `f` of variant `v`'s payload of the enum at `at`: in memory,
     /// the payload's struct at its offset, in the boxed enum's cell when it
     /// has one; in locals, the values that hold its leaves.
-    fn at_variant(&mut self, at: At, ty: Ty, v: u32, f: u32) -> StageResult<(At, Ty)> {
+    fn at_variant(&mut self, at: &At, ty: Ty, v: u32, f: u32) -> StageResult<(At, Ty)> {
         // A `Proj::Variant` step, into an enum or an optional.
         let flat = self.enum_flat(ty)?;
         // A checked place's payload step names a field of its variant.
@@ -1464,14 +1474,13 @@ impl Em<'_, '_, '_> {
         let ft = self.variant_tys(ty)[v][f];
         let field = flat.offsets[v][f];
         let at = if matches!(self.kind(ty), Kind::Boxed) {
-            At::Mem(self.at_i32(&at)?, field)
+            At::Mem(self.at_i32(at)?, field)
         } else {
-            match at {
-                At::Mem(a, off) => At::Mem(a, off + field),
-                At::Vals(ls) => At::Vals(flat.selection(v, f).iter().map(|&p| ls[p]).collect()),
-                // ruled out: only stores create At::Globals, and the
-                // checker writes payloads through their borrowed binding.
-                At::Globals(..) => return unsupported("a payload field in Wasm globals"),
+            match at.value() {
+                ValueAt::Mem(a, off) => At::Mem(a, off + field),
+                ValueAt::Vals(ls) => {
+                    At::Vals(flat.selection(v, f).iter().map(|&p| ls[p]).collect())
+                }
             }
         };
         Ok((at, ft))
@@ -1614,7 +1623,7 @@ impl Em<'_, '_, '_> {
                 }
                 Proj::Variant(v) => {
                     let f = payload_field(&mut steps);
-                    (at, ty) = self.at_variant(at, ty, v, f)?;
+                    (at, ty) = self.at_variant(&at, ty, v, f)?;
                 }
                 step => {
                     // ruled out: walk_place splits before each Elem; other
