@@ -105,6 +105,11 @@ pub struct Results {
     dirty: VecDeque<DefId>,
     queued: hd_base::HashSet<DefId>,
     rechecking: bool,
+    /// Pending row signatures discovered by an active body. Forcing them
+    /// runs on this queue after that body returns, never on its stack.
+    deferred_rows: VecDeque<DefId>,
+    deferred_queued: hd_base::HashSet<DefId>,
+    draining_rows: bool,
     returns: HashMap<DefId, Ty>,
     /// Rechecking a body spends the remainder of its existing work budget.
     remaining: HashMap<DefId, u64>,
@@ -158,6 +163,11 @@ fn row_changed(before: Option<RowId>, after: Option<RowId>) -> bool {
 }
 
 impl Results {
+    /// The native body-check depth, observed only by opt-in work tests.
+    pub(crate) fn active_depth(&self) -> usize {
+        self.active.len()
+    }
+
     /// A copy for a forked context, taken after M1: every callable is
     /// done, so no body is copied, and nothing waits.
     pub(crate) fn fork(&self) -> Results {
@@ -185,6 +195,9 @@ impl Results {
             dirty: VecDeque::new(),
             queued: hd_base::HashSet::default(),
             rechecking: false,
+            deferred_rows: VecDeque::new(),
+            deferred_queued: hd_base::HashSet::default(),
+            draining_rows: false,
             returns: HashMap::default(),
             remaining: HashMap::default(),
             waits: Vec::new(),
@@ -343,6 +356,17 @@ impl Results {
     fn settle(&mut self, cx: &BodyCx<'_>) {
         self.solve_ready(cx);
         self.check_waits(cx);
+    }
+
+    /// Queue a signature only when its body has not been checked. Active
+    /// cycle members use their approximation; completed members already
+    /// have indexed readers for subsequent changes.
+    fn defer_row(&mut self, def: DefId) {
+        if matches!(self.state.get(&def), Some(State::Pending(_)))
+            && self.deferred_queued.insert(def)
+        {
+            self.deferred_rows.push_back(def);
+        }
     }
 
     /// Only bodies that read this signature may need checking again.
@@ -919,8 +943,35 @@ fn seen(cx: &BodyCx<'_>, def: DefId, force: bool) -> Option<Seen> {
     }
     r.settle(cx);
     drop(r);
+    drain_rows(cx);
     recheck_readers(cx);
     seen(cx, def, false)
+}
+
+/// Force the row signatures requested by a body without nesting body
+/// checks. Requests made while draining append to the same queue. Only
+/// after it empties may the indexed reader worklist publish final bodies.
+/// Each pending declaration is forced once, independent of ring length.
+fn drain_rows(cx: &BodyCx<'_>) {
+    {
+        let mut r = cx.results.borrow_mut();
+        if r.draining_rows || !r.active.is_empty() || r.deferred_rows.is_empty() {
+            return;
+        }
+        r.draining_rows = true;
+    }
+    loop {
+        let def = {
+            let mut r = cx.results.borrow_mut();
+            let Some(def) = r.deferred_rows.pop_front() else {
+                r.draining_rows = false;
+                return;
+            };
+            r.deferred_queued.remove(&def);
+            def
+        };
+        seen(cx, def, true);
+    }
 }
 
 /// Drain the affected signature readers after the active check unwinds.
@@ -930,7 +981,7 @@ fn seen(cx: &BodyCx<'_>, def: DefId, force: bool) -> Option<Seen> {
 fn recheck_readers(cx: &BodyCx<'_>) {
     {
         let mut r = cx.results.borrow_mut();
-        if r.rechecking || !r.active.is_empty() || r.dirty.is_empty() {
+        if r.rechecking || r.draining_rows || !r.active.is_empty() || r.dirty.is_empty() {
             return;
         }
         r.rechecking = true;
@@ -970,12 +1021,17 @@ pub(crate) fn rechecking_rows(cx: &BodyCx<'_>) -> bool {
 /// inference keeps its written row.
 pub(crate) fn row_now(cx: &BodyCx<'_>, def: DefId, written: RowId) -> RowId {
     loop {
-        let Some(view) = seen(cx, def, true) else {
+        let active = !cx.results.borrow().active.is_empty();
+        let Some(view) = seen(cx, def, !active) else {
             return written;
         };
         match view.row {
             RowSeen::Solved(row) => return row,
             RowSeen::Written => return written,
+            RowSeen::Open if active => {
+                cx.results.borrow_mut().defer_row(def);
+                return RowId::EMPTY;
+            }
             RowSeen::Open => {}
         }
         // Its row waits on bodies not checked yet: check them too.

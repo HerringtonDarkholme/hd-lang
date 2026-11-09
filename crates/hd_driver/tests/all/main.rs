@@ -77,6 +77,7 @@ mod method_chain_depth;
 mod method_choice;
 mod mixed_signedness;
 mod module_case_collision;
+mod module_row_work;
 mod nonnumeric_cast;
 mod numeric_widen_fix;
 mod operator_fn_left_exact;

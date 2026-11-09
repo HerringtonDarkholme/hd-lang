@@ -1119,6 +1119,7 @@ fn check_fn_body_as(
     infer: Infer,
     inferred: Option<(Option<Ty>, Option<RowId>)>,
 ) -> StageResult<(Body, Ty, crate::results::RowFacts)> {
+    crate::work::item_body(cx, def, node.index());
     match fn_body_steps(cx, def, node, diags, hooks, infer, inferred) {
         Err(e) if is_out_of_fuel(&e) => {
             let body = too_complex(cx, (def, BodyKind::Fn), node, diags)?;
