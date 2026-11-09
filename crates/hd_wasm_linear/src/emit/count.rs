@@ -735,7 +735,7 @@ impl Em<'_, '_, '_> {
             .map(super::susp::Susp::wakers)
             .unwrap_or_default();
         for (node, i) in nodes {
-            self.count_point_ref(i, Part::Waker, node, false)?;
+            self.count_point_ref(i, Part::Waker, node, false);
         }
         Ok(())
     }

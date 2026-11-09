@@ -323,33 +323,33 @@ impl Em<'_, '_, '_> {
         self.f.helper(Helper::Frame(key));
         self.f.set(FRAME);
         self.flags_or(FRAME, RUNNING);
-        self.retain_row(CountAt::Materialize, 0)?;
+        self.retain_row(CountAt::Materialize, 0);
         self.f.op(I::End);
         Ok(())
     }
 
     /// Copies provider data and the open context in this physical row ABI.
     /// A cold constructor omits the body's frame parameter (shift 1).
-    fn retain_row(&mut self, at: CountAt, shift: u32) -> StageResult<()> {
+    fn retain_row(&mut self, at: CountAt, shift: u32) {
         let row = self
             .susp
             .as_ref()
             .map(|s| s.provs.clone())
             .unwrap_or_default();
         if row.is_empty() {
-            return Ok(());
+            return;
         }
-        let Some(reason) = self.stated_count(Tag::Retain, at, CountPart::Row) else {
-            // ruled out: counts::expected states Cold/Materialize Row retains
-            // for cold_row::roots, including every closure's caller context.
-            return unsupported("a suspension row without its stated copy");
-        };
-        self.because(reason, |em| {
-            for d in row {
-                em.ref_retain(d - shift);
-            }
-        });
-        Ok(())
+        // ruled out: counts::expected states separate Cold/Materialize copies
+        // for cold_row::roots, including each closure's caller context.
+        let reason = self.stated_count(Tag::Retain, at, CountPart::Row);
+        assert!(reason.is_some(), "own::cold_row must state this row copy");
+        if let Some(reason) = reason {
+            self.because(reason, |em| {
+                for d in row {
+                    em.ref_retain(d - shift);
+                }
+            });
+        }
     }
 
     fn susp_key(&self) -> StageResult<Hash128> {
@@ -533,13 +533,13 @@ impl Em<'_, '_, '_> {
             }
             self.f.i32(0);
             self.f.set(all.done);
-            self.count_point_ref(i, CountPart::Waker, all.node, false)?;
+            self.count_point_ref(i, CountPart::Waker, all.node, false);
             self.f.i32(0);
             self.f.set(all.node);
         } else {
             // A ladder that waits keeps its own child in the frame's slot.
             // A join's local c is zero: its children live in the argument list.
-            self.release_child(i, c)?;
+            self.release_child(i, c);
         }
         // The ladders run as fresh code.
         self.f.i32(0);
@@ -621,7 +621,7 @@ impl Em<'_, '_, '_> {
         }
         self.release_call_ctx(i, c)?;
         if shielded {
-            self.shield_leave(i, nc, Some(ch))?;
+            self.shield_leave(i, nc, Some(ch));
         }
         self.f.get(nc);
         self.f.op(I::If(BlockType::Empty));
@@ -638,7 +638,7 @@ impl Em<'_, '_, '_> {
         self.suspend(k, nc)?;
         self.close();
         // Ready: a resumed child's frame is done with.
-        self.release_child(i, ch)?;
+        self.release_child(i, ch);
         self.f.i32(0);
         self.f.set(pc);
         for l in &tmp {
@@ -649,48 +649,41 @@ impl Em<'_, '_, '_> {
 
     /// One count less on the child frame in local `c`, which the frame
     /// held, and none held any more.
-    fn release_child(&mut self, i: u32, c: u32) -> StageResult<()> {
+    fn release_child(&mut self, i: u32, c: u32) {
         self.f.get(c);
         self.f.op(I::If(BlockType::Empty));
         self.f.get(FRAME);
         self.f.i32(0);
         self.f.op(I::I32Store(mem(HEAP, F_CHILD, 2)));
-        self.count_child(i, c, false)?;
+        self.count_child(i, c, false);
         self.f.op(I::End);
-        Ok(())
     }
 
     /// Lowers the stated owner of a point's child, never its result.
-    fn count_child(&mut self, i: u32, c: u32, retain: bool) -> StageResult<()> {
+    fn count_child(&mut self, i: u32, c: u32, retain: bool) {
         if self.input.runtime.is_none() {
-            return Ok(());
+            return;
         }
-        self.count_point_ref(i, CountPart::Child, c, retain)
+        self.count_point_ref(i, CountPart::Child, c, retain);
     }
 
     /// A physical reference count stated at a suspension point.
-    pub(super) fn count_point_ref(
-        &mut self,
-        i: u32,
-        part: CountPart,
-        c: u32,
-        retain: bool,
-    ) -> StageResult<()> {
+    pub(super) fn count_point_ref(&mut self, i: u32, part: CountPart, c: u32, retain: bool) {
         let tag = if retain { Tag::Retain } else { Tag::Release };
-        let Some(reason) = self.operation_count(i, tag, part) else {
-            // ruled out: own::child states Await/AwaitValue child ownership;
-            // own::waker states AwaitAll's release, including its cleanup path.
-            return unsupported("a suspension point without its stated reference count");
-        };
-        self.because(reason, |em| {
-            if retain {
-                em.ref_retain(c);
-            } else {
-                em.f.get(c);
-                em.f.helper(Helper::ReleaseRef);
-            }
-        });
-        Ok(())
+        // ruled out: own::child states Await/AwaitValue's child ownership;
+        // own::waker states AwaitAll's release, including its cleanup path.
+        let reason = self.operation_count(i, tag, part);
+        assert!(reason.is_some(), "own::child/waker must state this count");
+        if let Some(reason) = reason {
+            self.because(reason, |em| {
+                if retain {
+                    em.ref_retain(c);
+                } else {
+                    em.f.get(c);
+                    em.f.helper(Helper::ReleaseRef);
+                }
+            });
+        }
     }
 
     /// A stored suspension (`s!()`, a trait-value bang call): polled
@@ -750,7 +743,7 @@ impl Em<'_, '_, '_> {
             self.f.get(s);
             self.f.set(gone);
             self.f.op(I::End);
-            self.shield_leave(i, gone, None)?;
+            self.shield_leave(i, gone, None);
             self.f.get(gone);
             self.f.op(I::I32Eqz);
             self.f.set(ready);
@@ -765,7 +758,7 @@ impl Em<'_, '_, '_> {
             self.f.get(held);
             self.f.op(I::I32Eqz);
             self.f.op(I::If(BlockType::Empty));
-            self.count_child(i, s, true)?;
+            self.count_child(i, s, true);
             self.f.op(I::End);
         }
         if let Some(at) = self.susp.as_ref().and_then(|s| s.cancel_to) {
@@ -779,10 +772,10 @@ impl Em<'_, '_, '_> {
         self.close();
         self.f.get(held);
         self.f.op(I::If(BlockType::Empty));
-        self.release_child(i, s)?;
+        self.release_child(i, s);
         if owned && self.input.runtime.is_some() {
             self.f.op(I::Else);
-            self.count_child(i, s, false)?;
+            self.count_child(i, s, false);
         }
         self.f.op(I::End);
         self.f.i32(0);
@@ -858,7 +851,7 @@ impl Em<'_, '_, '_> {
         self.close();
         self.f.get(held);
         self.f.op(I::If(BlockType::Empty));
-        self.release_child(i, s)?;
+        self.release_child(i, s);
         self.f.op(I::End);
         self.f.i32(0);
         self.f.set(pc);
@@ -1002,7 +995,7 @@ impl Em<'_, '_, '_> {
         let no_child = self.f.local(Val::I32);
         self.suspend(k, no_child)?;
         self.close();
-        self.count_point_ref(i, CountPart::Waker, node, false)?;
+        self.count_point_ref(i, CountPart::Waker, node, false);
         self.f.i32(0);
         self.f.set(node);
         // The results move into the tuple; a stale mask must not name
@@ -1052,7 +1045,7 @@ impl Em<'_, '_, '_> {
     /// `out` cleared, so the suite goes on; this frame's cleanup is then
     /// `ABANDONED`. A child that a fresh step made (`fresh` 0) loses the
     /// count it came with.
-    fn shield_leave(&mut self, i: u32, out: u32, fresh: Option<u32>) -> StageResult<()> {
+    fn shield_leave(&mut self, i: u32, out: u32, fresh: Option<u32>) {
         let wait = self.f.local(Val::I32);
         self.f.get(out);
         self.f.op(I::If(BlockType::Empty));
@@ -1073,14 +1066,13 @@ impl Em<'_, '_, '_> {
             self.f.get(h);
             self.f.op(I::I32Eqz);
             self.f.op(I::If(BlockType::Empty));
-            self.count_child(i, out, false)?;
+            self.count_child(i, out, false);
             self.f.op(I::End);
         }
         self.f.zero(out);
         self.f.op(I::End);
         self.f.op(I::End);
         self.close();
-        Ok(())
     }
 
     /// One more count on the address in local `x`.
@@ -1439,19 +1431,20 @@ pub(super) fn finish(
             let Some(loaded) = load(&mut em, &[held]) else {
                 continue;
             };
-            let Some(reason) = em.stated_count(
+            // ruled out: own::referent states each saved parameter object's
+            // FrameDrop release, separately from its value count.
+            let reason = em.stated_count(
                 Tag::Release,
                 CountAt::FrameDrop,
                 CountPart::Referent(u32::try_from(l).expect("local")),
-            ) else {
-                // ruled out: own::referent states FrameDrop for each saved
-                // reference parameter's object, separately from its value count.
-                return unsupported("a frame reference without its stated object release");
-            };
-            em.because(reason, |em| {
-                em.f.get(loaded[0]);
-                em.f.helper(Helper::ReleaseRef);
-            });
+            );
+            assert!(reason.is_some(), "own::referent must state FrameDrop");
+            if let Some(reason) = reason {
+                em.because(reason, |em| {
+                    em.f.get(loaded[0]);
+                    em.f.helper(Helper::ReleaseRef);
+                });
+            }
         }
         em.f.op(I::End);
         // A parameter a body with no suspension point borrows from its
@@ -1479,21 +1472,21 @@ pub(super) fn finish(
             .map(|s| s.provs.clone())
             .unwrap_or_default();
         if !row.is_empty() {
-            let Some(reason) = em.stated_count(Tag::Release, CountAt::FrameDrop, CountPart::Row)
-            else {
-                // ruled out: counts::expected pairs cold_row::roots' row
-                // copies with this distinct FrameDrop Row release.
-                return unsupported("a suspension row without its stated teardown release");
-            };
-            em.because(reason, |em| {
-                for d in row {
-                    if let Some((at, v)) = at_of(d) {
-                        em.f.get(FRAME);
-                        em.f.op(load_op(v, at));
-                        em.f.helper(Helper::ReleaseRef);
+            // ruled out: counts::expected pairs cold_row::roots' copies with
+            // this distinct FrameDrop Row release.
+            let reason = em.stated_count(Tag::Release, CountAt::FrameDrop, CountPart::Row);
+            assert!(reason.is_some(), "own::cold_row must state FrameDrop");
+            if let Some(reason) = reason {
+                em.because(reason, |em| {
+                    for d in row {
+                        if let Some((at, v)) = at_of(d) {
+                            em.f.get(FRAME);
+                            em.f.op(load_op(v, at));
+                            em.f.helper(Helper::ReleaseRef);
+                        }
                     }
-                }
-            });
+                });
+            }
         }
         if let Some(reason) = em.stated_count(Tag::Release, CountAt::FrameDrop, CountPart::Child) {
             em.because(reason, |em| {
@@ -1563,19 +1556,20 @@ pub(super) fn finish(
             let (Some(x), Some((at, v))) = (arrived(&em, l).first().copied(), at_of(held)) else {
                 continue;
             };
-            let Some(reason) = em.stated_count(
+            // ruled out: own::referent states Cold for every thin parameter
+            // referent whose object the concrete frame layout saves here.
+            let reason = em.stated_count(
                 Tag::Retain,
                 CountAt::Cold,
                 CountPart::Referent(u32::try_from(l).expect("local")),
-            ) else {
-                // ruled out: own::referent states Cold for every parameter
-                // whose thin referent the concrete frame layout saves here.
-                return unsupported("a frame reference without its stated object retain");
-            };
-            em.f.get(x);
-            em.because(reason, |em| {
-                em.f.count_call(Sym::Inst(r.retain), crate::views::CountAction::Retain);
-            });
+            );
+            assert!(reason.is_some(), "own::referent must state Cold");
+            if let Some(reason) = reason {
+                em.f.get(x);
+                em.because(reason, |em| {
+                    em.f.count_call(Sym::Inst(r.retain), crate::views::CountAction::Retain);
+                });
+            }
             em.f.get(fr);
             em.f.get(x);
             em.f.op(store_op(v, at));
@@ -1583,7 +1577,7 @@ pub(super) fn finish(
     }
     em.save_initial_drop_flags(plocals, fr, &area);
     if em.counting {
-        em.retain_row(CountAt::Cold, 1)?;
+        em.retain_row(CountAt::Cold, 1);
     }
     // A closure's code reads its captures from its environment, its first
     // parameter, into the frame, with a count of each.
@@ -1606,12 +1600,12 @@ pub(super) fn finish(
                 }
             }
             if em.counting {
-                let Some(reason) = copy else {
-                    // ruled out: own::cold_captures states Captures whenever
-                    // closure_self exists, even without other environment fields.
-                    return unsupported("a cold closure without its stated self copy");
-                };
-                em.because(reason, |em| em.ref_retain(0));
+                // ruled out: own::cold_captures states Captures whenever
+                // closure_self exists, even without other environment fields.
+                assert!(copy.is_some(), "own::cold_captures must state self copy");
+                if let Some(reason) = copy {
+                    em.because(reason, |em| em.ref_retain(0));
+                }
             }
         }
         let caps = super::closure::captures(em.b, ci);
@@ -1650,15 +1644,15 @@ pub(super) fn finish(
                 em.f.get(0);
                 em.f.op(m.leaves[p.first].load(0));
                 em.f.set(y);
-                let Some(reason) = copy else {
-                    // ruled out: own::cold_captures includes the counted/shared
-                    // pointer captures whose creator loan cells own_caps copies.
-                    return unsupported("a cold closure without its stated creator loan copy");
-                };
-                em.because(reason, |em| {
-                    em.f.get(y);
-                    em.f.helper(Helper::RetainKnown);
-                });
+                // ruled out: own::cold_captures includes the counted/shared
+                // pointer captures whose creator loan cells own_caps copies.
+                assert!(copy.is_some(), "own::cold_captures must state loan copy");
+                if let Some(reason) = copy {
+                    em.because(reason, |em| {
+                        em.f.get(y);
+                        em.f.helper(Helper::RetainKnown);
+                    });
+                }
                 for (x, cell) in em.own_frame_locals(l) {
                     if let Some((at, v)) = at_of(x) {
                         em.f.get(fr);
