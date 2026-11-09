@@ -27,6 +27,7 @@ use hd_tir::own::Reason;
 use hd_types::Ty;
 
 use super::Em;
+use super::refs::bare_local;
 use super::value::Src;
 use crate::layout::{Pass, Walk, coll_kind, coll_leaves};
 use crate::module::Val;
@@ -104,10 +105,10 @@ impl Em<'_, '_, '_> {
                 // A borrowed read or lent field reference stores its loan.
                 Tag::Store if let Some(w) = self.b.loan_read(w) => {
                     let l = if a & place::BARE_LOCAL != 0 {
-                        Some(a & !place::BARE_LOCAL)
+                        Some(bare_local(self.b, a))
                     } else {
                         match self.b.extra.get(a as usize..a as usize + 3) {
-                            Some(&[2, place::ROOT_LOCAL, l]) => Some(l),
+                            Some(&[2, place::ROOT_LOCAL, l]) => Some(l as usize),
                             _ => None,
                         }
                     };
@@ -119,13 +120,10 @@ impl Em<'_, '_, '_> {
                     {
                         let from = self.b.data[w as usize][0];
                         let held = (from & place::BARE_LOCAL != 0)
-                            .then(|| {
-                                self.loan_locals
-                                    .get(&((from & !place::BARE_LOCAL) as usize))
-                            })
+                            .then(|| self.loan_locals.get(&bare_local(self.b, from)))
                             .flatten()
                             .copied();
-                        self.loan_locals.insert(l as usize, held.unwrap_or(w));
+                        self.loan_locals.insert(l, held.unwrap_or(w));
                     }
                 }
                 _ => {}
@@ -882,7 +880,7 @@ impl Em<'_, '_, '_> {
                     }
                     continue;
                 }
-                if (w & !place::BARE_LOCAL) as usize != l {
+                if bare_local(b, w) != l {
                     continue;
                 }
                 if tag != Tag::Read {
@@ -958,7 +956,7 @@ impl Em<'_, '_, '_> {
                     }
                     continue;
                 }
-                if (w & !place::BARE_LOCAL) as usize != l {
+                if bare_local(b, w) != l {
                     continue;
                 }
                 if tag != Tag::Read {
@@ -1039,7 +1037,7 @@ impl Em<'_, '_, '_> {
     pub(super) fn own_drop(&mut self, i: u32) -> StageResult<()> {
         let word = self.b.data[i as usize][0];
         if word & hd_tir::ir::place::BARE_LOCAL != 0 {
-            let l = (word & !hd_tir::ir::place::BARE_LOCAL) as usize;
+            let l = bare_local(self.b, word);
             return self.release_local(l);
         }
         // ruled out: own::insert writes only [ROOT_VALUE, instruction] records

@@ -39,6 +39,21 @@ pub(super) enum At {
 /// trait value's).
 type Referent = (Ty, bool);
 
+/// The local index of the builder's canonical whole-local place word.
+#[inline]
+pub(super) fn bare_local(b: &hd_tir::ir::Body, word: u32) -> usize {
+    use hd_tir::ir::place::BARE_LOCAL;
+    // ruled out: callers require a whole local; the builder sets BARE_LOCAL.
+    debug_assert!(
+        b.decode_place(word).is_some_and(|p| {
+            p.proj.is_empty()
+                && matches!(p.root, PlaceRoot::Local(l) if word == (l.raw() | BARE_LOCAL))
+        }),
+        "expected a canonical BARE_LOCAL whole-local place"
+    );
+    (word & !BARE_LOCAL) as usize
+}
+
 impl Em<'_, '_, '_> {
     pub(super) fn ref_layout(&self, ty: Ty) -> StageResult<RefLayout> {
         let m = mem_of(self.pool(), self.env(), ty)?;
@@ -588,7 +603,7 @@ impl Em<'_, '_, '_> {
         // local's count is never taken (`ref_word::FRAME`).
         if self.b.data[i as usize][1] & hd_tir::ir::ref_word::TAKES != 0 {
             // ruled out: moves::take marks only whole locals, encoded BARE_LOCAL.
-            let x = (self.b.data[i as usize][0] & !hd_tir::ir::place::BARE_LOCAL) as usize;
+            let x = bare_local(self.b, self.b.data[i as usize][0]);
             // ruled out: moves excludes frame locals; storage::slots requires
             // local frame references, whose local count cannot be taken.
             if self.slots.contains_key(&x) {
@@ -612,7 +627,7 @@ impl Em<'_, '_, '_> {
     /// value with that count, and the local left empty.
     fn promoted_take(&mut self, i: u32) -> StageResult<()> {
         // ruled out: moves::take marks only whole locals, encoded BARE_LOCAL.
-        let x = (self.b.data[i as usize][0] & !hd_tir::ir::place::BARE_LOCAL) as usize;
+        let x = bare_local(self.b, self.b.data[i as usize][0]);
         // ruled out: promote::lent_ref rejects captures and other addresses
         // for TAKES; stored_locals omits its sole promoted address.
         if self.is_cell(x) || self.slots.contains_key(&x) {
@@ -1704,5 +1719,39 @@ pub(super) fn part_use(b: &hd_tir::ir::Body, k: usize) -> Option<u32> {
             .then_some(v)
         }
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::bare_local;
+    use hd_base::{DefId, LocalId};
+    use hd_tir::ir::{BodyKind, Place, PlaceRoot, Proj, Ref, TirBuilder, place};
+
+    #[test]
+    fn bare_local_decodes_canonical_whole_locals() {
+        let mut builder = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+        for local in [0, 7, 1024] {
+            let word = builder.place(&Place::local(LocalId::from_raw(local)));
+            assert_eq!(bare_local(builder.body(), word), local as usize);
+        }
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    fn bare_local_rejects_other_place_encodings() {
+        let mut builder = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+        let record_local = builder.words_record(&[place::ROOT_LOCAL, 7]);
+        let projected = builder.place(&Place {
+            root: PlaceRoot::Local(LocalId::from_raw(7)),
+            proj: vec![Proj::Field(0)],
+        });
+        let value = builder.place(&Place {
+            root: PlaceRoot::Value(Ref(0)),
+            proj: vec![],
+        });
+        for word in [record_local, projected, value, place::BARE_LOCAL - 1] {
+            assert!(std::panic::catch_unwind(|| bare_local(builder.body(), word)).is_err());
+        }
     }
 }
