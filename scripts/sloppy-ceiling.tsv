@@ -6,7 +6,7 @@ ban-unsupported	hd_structure	18
 ban-unsupported	hd_wasm_linear	123
 sloppy-catchall-empty	hd_check	37
 sloppy-catchall-empty	hd_driver	1
-sloppy-catchall-empty	hd_mono	11
+sloppy-catchall-empty	hd_mono	10
 sloppy-catchall-empty	hd_opt	4
 sloppy-catchall-empty	hd_resolve	16
 sloppy-catchall-empty	hd_syntax	10
