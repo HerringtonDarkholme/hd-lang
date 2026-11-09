@@ -3,15 +3,15 @@
 //! read of its place, of the referent's type, and its local needs no
 //! memory for it.
 
-use hd_base::{DefId, HashMap, HashSet, StageResult};
+use hd_base::{DefId, HashMap, HashSet};
 use hd_mono::{Target, TargetKind, subst};
 use hd_tir::ir::{Body, Ref, Tag};
 use hd_types::{Ty, TyList};
 
 use super::Em;
+use crate::Input;
 use crate::layout::{Kind, kind};
 use crate::module::Module;
-use crate::{Input, unsupported};
 
 /// The referent of `t` when a reference of type `t` may be passed by
 /// value (§23.40): a thin, read-only reference to a value held in
@@ -97,7 +97,7 @@ pub(super) fn promoted_refs(
     (item, args): (DefId, TyList),
     targets: &HashMap<u32, Target>,
     own: bool,
-) -> StageResult<HashSet<u32>> {
+) -> HashSet<u32> {
     let (pool, env) = (input.pool, input.env);
     let mut out = HashSet::default();
     for i in (0..b.len()).filter(|&i| b.tags[i] == Tag::Call) {
@@ -118,11 +118,10 @@ pub(super) fn promoted_refs(
                     if mask & (1 << k) == 0 {
                         continue;
                     }
-                    let a = Ref(w).as_inst().map_or(usize::MAX, |r| r.0 as usize);
-                    if a == usize::MAX || !hd_tir::own::promote::promotable_ref(b, a, i) {
-                        return unsupported("a promoted argument that is no local reference");
-                    }
-                    out.insert(u32::try_from(a).expect("insts"));
+                    // ruled out: collection's promoted_target installs this
+                    // mask only after promoted_call proves a local Ref. Its
+                    // operand word is therefore an instruction ID, not a constant.
+                    out.insert(w);
                 }
             }
             TargetKind::Builtin { .. } if own => {
@@ -132,20 +131,20 @@ pub(super) fn promoted_refs(
                     continue;
                 }
                 for &w in operands {
-                    let Some(a) = Ref(w).as_inst().map(|r| r.0 as usize) else {
+                    let Some(a) = Ref(w).as_inst() else {
                         continue;
                     };
-                    if hd_tir::own::promote::promotable_ref(b, a, i)
-                        && promotable_referent(pool, env, arg_ty(a)).is_some()
+                    if hd_tir::own::promote::promotable_ref(b, a.0 as usize, i)
+                        && promotable_referent(pool, env, arg_ty(a.0 as usize)).is_some()
                     {
-                        out.insert(u32::try_from(a).expect("insts"));
+                        out.insert(a.0);
                     }
                 }
             }
             _ => {}
         }
     }
-    Ok(out)
+    out
 }
 
 /// The parameters instance `key`, a promoted copy, takes by value: the
@@ -165,18 +164,18 @@ impl Em<'_, '_, '_> {
     /// local's count (`ref_word::TAKES`) moves the value out of the local
     /// instead ([`Em::place_ref`]), and its `Drop`, after the call,
     /// releases it.
-    pub(super) fn type_promoted(&mut self, promoted: HashSet<u32>) -> StageResult<()> {
+    pub(super) fn type_promoted(&mut self, promoted: HashSet<u32>) {
         for &a in &promoted {
-            let Some((target, false)) = self.ref_target(self.inst_ty[a as usize]) else {
-                return unsupported("a promoted argument whose type is no thin reference");
-            };
-            self.inst_ty[a as usize] = target;
-            let takes = self.b.data[a as usize][1] & hd_tir::ir::ref_word::TAKES != 0;
-            if self.tracked(target) && !takes {
-                self.loans.insert(a);
+            // ruled out: promoted copies select only lent_referent types;
+            // primitive comparisons use promotable_referent. Both are thin.
+            if let Some((target, false)) = self.ref_target(self.inst_ty[a as usize]) {
+                self.inst_ty[a as usize] = target;
+                let takes = self.b.data[a as usize][1] & hd_tir::ir::ref_word::TAKES != 0;
+                if self.tracked(target) && !takes {
+                    self.loans.insert(a);
+                }
             }
         }
         self.promoted = promoted;
-        Ok(())
     }
 }

@@ -1,0 +1,20 @@
+# @dump: wat
+# @build: v8 release
+# expected: use_values forwards the newtype's i64 and the tuple's i32/i64
+# values to promoted copies, with no caller frame slot or reference count.
+use std.annotation.inline
+
+type Meters(i64)
+
+@inline(.Never)
+fn meters(value: &Meters) -> i64:
+    i64(*value) + 1
+
+@inline(.Never)
+fn sum(value: &(i32, i64)) -> i64:
+    i64(value._0) + value._1
+
+fn use_values(n: i64) -> i64:
+    distance := Meters(n)
+    pair := (+3, n)
+    meters(&distance) + sum(&pair)
