@@ -3,7 +3,7 @@ ban-unsupported	hd_check	11
 ban-unsupported	hd_diag	2
 ban-unsupported	hd_driver	3
 ban-unsupported	hd_structure	18
-ban-unsupported	hd_wasm_linear	132
+ban-unsupported	hd_wasm_linear	124
 sloppy-catchall-empty	hd_check	37
 sloppy-catchall-empty	hd_driver	1
 sloppy-catchall-empty	hd_mono	11
@@ -36,6 +36,6 @@ sloppy-std-path	hd_wasm_linear	9
 sloppy-unreachable	hd_check	18
 sloppy-unreachable	hd_tir	2
 sloppy-unreachable	hd_types	2
-sloppy-unreachable	hd_wasm_linear	19
+sloppy-unreachable	hd_wasm_linear	18
 sloppy-unwrap	hd_driver	4
 sloppy-unwrap	hd_wasm_linear	9
