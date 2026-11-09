@@ -1641,10 +1641,13 @@ fn enum_mem_by(variants: &[Vec<Ty>], part: &dyn Fn(Ty) -> StageResult<Mem>) -> S
 /// Cost: [`univariant`] twice per variant, and one pass over the leaves.
 pub(crate) fn flat_of(variants: &[Vec<Mem>]) -> Flat {
     // rustc's `layout_of_struct_or_enum` (layout.rs:340): with no variant
-    // the enum is `never`, and with one it is that variant's struct, with
-    // no discriminant.
-    if variants.len() < 2 {
-        return single(variants, (!variants.is_empty()).then_some(0));
+    // present the enum is `never`, and with one it is that variant's
+    // struct, with no discriminant.
+    let mut present = (0..variants.len()).filter(|&i| !absent(&variants[i]));
+    match (present.next(), present.next()) {
+        (None, _) => return single(variants, None),
+        (Some(k), None) => return single(variants, Some(k)),
+        (Some(_), Some(_)) => {}
     }
     let tagged = tagged(variants);
     let free = |f: &Flat| f.mem.niche.map_or(0, Niche::available);
@@ -1664,9 +1667,18 @@ fn uninhabited(fields: &[Mem]) -> bool {
     fields.iter().any(|f| f.uninhabited)
 }
 
-/// The layout of an enum whose one variant is `only` (rustc's
-/// `Variants::Single`): that variant's struct, and no discriminant. With
-/// no variant the enum is `never`: no bytes, and no value.
+/// Whether a variant of `fields` is absent (rustc, layout.rs:88): no value
+/// has it, and its fields take no bytes and no alignment, so it needs
+/// neither a discriminant nor space. `B(never)` is; `B(i64, never)` is
+/// not, and keeps its space.
+fn absent(fields: &[Mem]) -> bool {
+    uninhabited(fields) && fields.iter().all(|f| f.size == 0 && f.align == 1)
+}
+
+/// The layout of an enum whose one present variant is `only`
+/// (rustc's `Variants::Single`): that variant's struct, every absent one
+/// empty at offset 0, and no discriminant. With none present the enum is
+/// `never`: no bytes, and no value.
 fn single(variants: &[Vec<Mem>], only: Option<usize>) -> Flat {
     let payloads: Vec<(Mem, Vec<Part>)> = variants.iter().map(|ms| univariant(ms, 0)).collect();
     let (mem, k) = match only {
@@ -1696,7 +1708,9 @@ fn single(variants: &[Vec<Mem>], only: Option<usize>) -> Flat {
 fn niche_filled(variants: &[Vec<Mem>]) -> Option<Flat> {
     let mut payloads: Vec<(Mem, Vec<Part>)> = variants.iter().map(|ms| univariant(ms, 0)).collect();
     let untagged = (0..payloads.len()).max_by_key(|&i| payloads[i].0.size)?;
-    let needs: Vec<usize> = (0..payloads.len()).filter(|&i| i != untagged).collect();
+    let needs: Vec<usize> = (0..payloads.len())
+        .filter(|&i| i != untagged && !absent(&variants[i]))
+        .collect();
     let (&first, &last) = (needs.first()?, needs.last()?);
     let count = u32::try_from(last - first + 1).ok()?;
     let niche = payloads[untagged].0.niche?;
@@ -2219,13 +2233,23 @@ mod tests {
     }
 
     #[test]
-    fn one_variant_takes_no_discriminant() {
-        // `enum Only: V(i32)` is `V`'s struct, with no tag (rustc's
-        // `Variants::Single`); an enum of no variant is `never`.
-        let one = flat_of(&[vec![i32m()]]);
+    fn an_absent_variant_takes_no_discriminant() {
+        // `WithNever: A(i32); B(never)`: `B` is absent, so the enum is
+        // `A`'s struct, with no tag (rustc's `Variants::Single`).
+        let one = flat_of(&[vec![i32m()], vec![Mem::NEVER]]);
         assert_eq!((one.mem.size, one.disc), (4, Disc::One(0)));
         assert_eq!(one.test(0), Test::Const(true));
-        let none = flat_of(&[]);
+        assert_eq!(one.test(1), Test::Const(false));
+        // `WithNever2: A(i32); B(i64, never); C`: `B` is uninhabited but
+        // not absent, so it keeps its space behind the tag.
+        let i64m = Mem::one(Val::I64, 8, false);
+        let two = flat_of(&[vec![i32m()], vec![i64m, Mem::NEVER], vec![]]);
+        assert_eq!(
+            (two.mem.size, two.cell().map(|d| d.enc)),
+            (16, Some(Enc::Direct))
+        );
+        // No variant present: `never`.
+        let none = flat_of(&[vec![Mem::NEVER]]);
         assert!(none.mem.uninhabited && none.mem.size == 0);
     }
 
