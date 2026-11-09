@@ -38,7 +38,7 @@ stays open (#18, #163, #166, #181, #182, #646, #807).
 
 ### Memory model and performance
 
-- [Enum Layout](ENUM-LAYOUT.md): proposal, not accepted: rustc's enum layout on wasm32 (payload as a struct at one offset, widened tag, niche filling), its gap against hd today, the algorithm in pseudocode, and the view deletion it enables (#1422, #1448).
+- [Enum Layout](ENUM-LAYOUT.md): built and closed 2026-11-08 (#1422, #1448): rustc's enum layout on wasm32 (payload as a struct at one offset, widened tag, niche filling), its gap against hd today, the algorithm in pseudocode, and the view deletion it enables (#1422, #1448).
 - [Pointer Loans](POINTER_LOANS.md): accepted 2026-11-03, model A, built (#1336), its loan placement in TIR (#1399): aliasing through `*T` by per-object loans with per-reference elision, with a stress test and a 424-case matrix (#1323).
 - [Parallelism And Locality](PARALLELISM_AND_LOCALITY.md): workers, copied messages and shared bytes on Wasm today; frozen data later is parked. There is no `^` mode (#163).
 - [The Path To Returned Local References](RETURNED_REFERENCES_PATH.md): accepted 2026-10-29: Rust lifetime variables and elision over counted references, in stages; stages 1 to 9 built (6i not planned for now; stage 8 without borrow flags); `&mut` copies and parameter view types not scheduled.

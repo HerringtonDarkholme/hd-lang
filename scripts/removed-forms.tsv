@@ -3,6 +3,7 @@ user-declared data objects (grammar.data.struct-only)	Kind::Data is_data_object_
 the data declaration's syntax and resolver kinds, named after the removed form	DataDecl HeadKind::Data ItemKind::Data	-	renamed to StructDecl, HeadKind::Struct and ItemKind::Struct (with HeaderKind::Struct and the KwStruct head keyword) in the #1444 rename commit.	-
 the mut type modifier (grammar.type.no-mut) and its readonly views	TyData::Mut has_mut_access	-	deleted in c8e142296 (TyData::Mut) and 31b3db17d (has_mut_access and the readonly-view checks).	(?:: |-> |\[|`)mut (?:Suspend\b|fn\b|[A-Z])
 the mut type modifier's syntax node and its checker errors (grammar.type.no-mut)	MutType MutOnStruct MutableImplTarget ReadonlyArgumentToMutableParameter keeps_mut	-	deleted with the mut type modifier; a type that starts with mut is a syntax-error.	\b(?:mut-on-struct|mutable-impl-target|readonly-argument-to-mutable-parameter)\b
-views on & (owner: views are a Go-style leftover)	RefPayload ref_is_view Walk::View	#1448	waits on #1422 rule 1, a physical payload layout.	-
+views on & (owner: views are a Go-style leftover)	RefPayload ref_is_view Walk::View	-	deleted by #1448 after #1422 made payloads physical (2026-11-08).	-
 the REPL whole-history build and replay mode	Session::start	-	no real caller; deleted in 12fdabc2c.	\bwhole-history\b
-JSON as a compiler special case at the host boundary (module.boundary.serialize.exact: a host is one more format)	LJson	#1445	a host serializer in std replaces it.	-
+JSON as a compiler special case at the host boundary (module.boundary.serialize.exact: a host is one more format)	LJson	-	a host is one more format: std.host writes and reads private-field boundary values; deleted in 6df9eaf16.	-
+std.json's fast path chosen by the emitter, a std-specific rewrite in the compiler (#1445 part 2)	direct_json_encoders json_fallbacks	#1445	std.json should choose its fast path in hd.

@@ -1,6 +1,6 @@
 # Enum Layout
 
-Proposal, 2026-11-08; domain: compiler internals (`hd_wasm_linear`); owner
+Built and closed 2026-11-08 (#1422; views deleted by #1448); domain: compiler internals (`hd_wasm_linear`); owner
 decided its five questions on 2026-11-08 (below). Issue #1422. Owner direction on record: "how rust is doing this,
 do no worse" and "i32?? should be 8, not 12. this is general".
 

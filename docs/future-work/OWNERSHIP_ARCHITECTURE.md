@@ -326,8 +326,8 @@ convention moved it. Dev is not a performance target.
 3. **Minimal relative to named facts.** Every remaining count traces to
    one fact. The facts are imprecise in three known places: a call not
    inlined and not summarized (dev) may write or keep its arguments; a
-   write through a `*T` may reach any object of its type; a reference
-   to a scattered payload field may be a view (#1422). The `own` view prints the fact behind
+   write through a `*T` may reach any object of its type. (A third, a
+   reference to a scattered payload field, went with views: #1422, #1448.) The `own` view prints the fact behind
    each count, not the pattern that missed.
 4. **Two backstops.** A CI report lists every count by reason over the
    bench programs and std, and "conservative" has a budget that may only
@@ -354,8 +354,8 @@ for a baseline; the verifier makes them checked.
 - **Views.** A representation view is the one reference that owns an
   object (`crates/hd_wasm_linear/DESIGN.md` §23.20). Being a view becomes a
   per-value fact: only references to a payload field its enum's slots
-  scatter may be views (#1421 removed erased calls; #1422 removes the rest). Only those take a release with the reason
-  "view". The module-wide `views_absent` and the link fold go.
+  scatter may be views (#1421 removed erased calls; #1422 removed the rest, and
+  #1448 deleted views on 2026-11-08). The module-wide `views_absent` and the link fold went with them.
 - **`Drop`, `Disposable` and `using`.** `std.rt.Drop` runs inside release
   glue ([Runtime Drop Hook](../../spec/lang/10-modules.md#runtime-drop-hook));
   the design moves no release later or earlier than today's last-use rule
