@@ -126,7 +126,7 @@ spec/lang/10-modules.md, Built-In Methods.
 | Formatting | `display`, `debug`, `dbg` | keep: interpolation and `dbg` |
 | Hashing | `hash`, `key_bucket_hash`, `key_equal`, `int_bucket_hash`, `string_bucket_hash` | hd later: the `Map` codegen picks a hash per key type by these names; with `Map` in hd they become ordinary calls |
 | Testing | `check_equal`, `it_each`, `it_prop`, `it_prop_with`, `each_case`, `prop_case`, `prop_with_case`, `snapshot`, `test_runner`, `property_runner` | review: which of these need the compiler (source spans, test registration) and which are plain std |
-| Output and serde | `println`, `json_encode`, `json_decode`, `serialize`, `deserialize`, `serializer_begin_data`, `serializer_end_data` | `println` goes (#1236); `json_encode` keeps the driver's fallback proof; the serde boundaries inline by hint (#1237) |
+| Output and serde | `println`, `serialize`, `deserialize`, `serializer_begin_data`, `serializer_end_data` | `println` goes (#1236); the serde boundaries inline by hint (#1237). std.json picks its fast path in hd with `Serialize.regular()` (#1445) |
 | Collections | `list`, `list_is_empty`, `map`, `buffer` | hd later, with kind 3 |
 | Code-generation hints | `inline`, `cold` | keep |
 
