@@ -43,6 +43,7 @@ mod join;
 mod literals;
 mod local;
 mod local_refs;
+mod local_rows;
 mod moves;
 mod opaque;
 mod pat;
@@ -62,6 +63,7 @@ mod ty;
 mod update;
 mod using;
 mod value;
+pub mod work;
 mod written_bounds;
 
 pub use body::{

@@ -46,13 +46,8 @@ pub(crate) struct LocalGeneric {
     /// Its function type over them; while its body is checked, the type
     /// its written result and row give.
     pub fn_ty: Ty,
-    /// Whether its body is being checked.
-    pub open: bool,
-    /// Whether its body uses its name: a recursive call checks against the
-    /// type the header gives.
-    pub recursive: bool,
-    /// The outer locals it captures, once known: after its body, or on a
-    /// second check of a body whose closure uses the function.
+    /// The outer locals it captures, settled for the whole lexical group
+    /// before its final body check.
     pub caps: Option<Vec<LocalId>>,
 }
 
@@ -428,8 +423,6 @@ impl Ck<'_, '_> {
             params,
             generics,
             fn_ty: Ty::POISON,
-            open: true,
-            recursive: false,
             caps: None,
         });
         // `fn.default.eval`: each default is a generic closure of the
@@ -458,23 +451,7 @@ impl Ck<'_, '_> {
         n: NodeRef<'_>,
         parts: &mut ClosureParts<'_>,
     ) -> StageResult<LocalId> {
-        let cp = self.checkpoint();
-        let (mut r, mut ft, mut own) = self.closure_with(n, parts, None)?;
-        // A closure in the body used the function before its captures
-        // were known: the body is checked again knowing them.
-        if let Some(l) = own
-            && let Some(at) = self.generic_recheck.iter().position(|x| *x == l)
-        {
-            self.generic_recheck.remove(at);
-            let caps = self.closure_caps(r);
-            self.rollback(cp);
-            if let Some(g) = &mut parts.generic {
-                g.caps = Some(caps);
-            }
-            (r, ft, own) = self.closure_with(n, parts, None)?;
-        } else {
-            self.commit(cp);
-        }
+        let (r, ft, own) = self.closure_with(n, parts, None)?;
         let l = own.expect("a named closure binds its name");
         let caps = self.closure_caps(r);
         // `closure_with` enters a named generic closure in `local_generics`.
@@ -483,7 +460,6 @@ impl Ck<'_, '_> {
             .get_mut(&l)
             .expect("a generic local function's entry");
         g.fn_ty = ft;
-        g.open = false;
         g.caps = Some(caps);
         let sub = g.sub as usize;
         let body = self.b.body_mut();
@@ -718,30 +694,20 @@ impl Ck<'_, '_> {
         };
         let pool = self.pool();
         let (owner, first) = (self.gen_owner, g.first);
-        let inst = |t: Ty| {
-            pool.subst(t, &|p: ParamRef| {
-                let k = usize::from(p.index.checked_sub(first)?);
-                (p.owner == owner).then(|| vars.get(k).copied()).flatten()
-            })
-        };
-        let ft = inst(self.infer.resolve(pool, g.fn_ty));
+        let ft = self.local_row_inst(
+            self.infer.resolve(pool, g.fn_ty),
+            owner,
+            first,
+            vars,
+            n.index(),
+        );
         // Its captures cross every closure open around this use; inside
         // its own body they are its own.
-        let nested = self
-            .subs
-            .last()
-            .is_some_and(|s| s.mark.sub().raw() != g.sub);
+        self.local_capture_use(g.sub);
         if let Some(caps) = &g.caps {
             for &c in caps {
                 self.note_capture(c);
             }
-        } else if g.open && nested && !self.generic_recheck.contains(&l) {
-            self.generic_recheck.push(l);
-        }
-        if g.open
-            && let Some(e) = self.local_generics.get_mut(&l)
-        {
-            e.recursive = true;
         }
         let list = pool.list(vars);
         let rec = self.b.words_record(&[0, 0, u32::from(first), list.0]);

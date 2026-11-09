@@ -68,11 +68,12 @@ pub(crate) struct Checkpoint {
     mut_locals: usize,
     mut_params: usize,
     changed_locals: usize,
-    generic_recheck: usize,
     local_ref_call_targs: usize,
     assoc_self: usize,
     row_banks: usize,
     row_sources: usize,
+    local_rows: Option<crate::local_rows::Mark>,
+    next_gen: u16,
     pre_args: usize,
     open_params: usize,
     ref_params: usize,
@@ -252,11 +253,15 @@ impl Ck<'_, '_> {
             mut_locals: self.mut_locals.len(),
             mut_params: self.mut_params.len(),
             changed_locals: self.changed_locals.len(),
-            generic_recheck: self.generic_recheck.len(),
             local_ref_call_targs: self.local_ref_call_targs.len(),
             assoc_self: self.assoc_self.len(),
             row_banks: self.row_banks.len(),
             row_sources: self.row_sources.len(),
+            local_rows: self
+                .local_rows
+                .as_ref()
+                .map(crate::local_rows::LocalRows::mark),
+            next_gen: self.next_gen,
             pre_args: self.pre_args.len(),
             open_params: self.open_params.len(),
             ref_params: self.ref_params.len(),
@@ -303,9 +308,6 @@ impl Ck<'_, '_> {
         self.mut_bindings.truncate(c.mut_bindings);
         self.ref_taken.truncate(c.ref_taken);
         self.variant_patterns.truncate(c.variant_patterns);
-        // A generic local function declared in the trial is gone with its
-        // local, whose number a later local reuses.
-        self.generic_recheck.truncate(c.generic_recheck);
         self.mut_locals.truncate(c.mut_locals);
         self.mut_params.truncate(c.mut_params);
         self.changed_locals.truncate(c.changed_locals);
@@ -313,6 +315,12 @@ impl Ck<'_, '_> {
         self.assoc_self.truncate(c.assoc_self);
         self.row_banks.truncate(c.row_banks);
         self.row_sources.truncate(c.row_sources);
+        self.next_gen = c.next_gen;
+        if let Some(mark) = c.local_rows
+            && let Some(rows) = &mut self.local_rows
+        {
+            rows.rollback(mark);
+        }
         // A check that stopped with "not implemented" may leave frames
         // open; the body is abandoned then, so only shrink.
         self.rows.truncate(c.depths[5]);

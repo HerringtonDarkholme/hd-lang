@@ -419,6 +419,7 @@ pub(crate) struct Ck<'a, 'c> {
     /// source argument or requirement use, and the current body's variables.
     pub row_banks: Vec<HashMap<crate::rows::RowOrigin, Ty>>,
     pub row_sources: Vec<(Ty, crate::rows::RowOrigin)>,
+    pub local_rows: Option<crate::local_rows::LocalRows>,
     /// A pipe's value while its step is checked (`_`).
     pub placeholder: Option<(Ref, Ty)>,
     /// A bare pipe step's piped value, which stands for the argument node
@@ -528,10 +529,6 @@ pub(crate) struct Ck<'a, 'c> {
     pub gen_owner: DefId,
     /// The next free parameter number of `gen_owner`.
     pub next_gen: u16,
-    /// The generic local functions used from a closure inside their own
-    /// body before their captures were known: each body is checked again
-    /// with them.
-    pub generic_recheck: Vec<LocalId>,
     /// Whether the body is a `by Structure` template's, which names no
     /// top-level binding (`module.package.template-private.no-binding`).
     pub in_template: Option<DefId>,
@@ -678,6 +675,7 @@ pub(crate) fn new_ck<'a, 'c>(
         open_trials: 0,
         row_banks: Vec::new(),
         row_sources: Vec::new(),
+        local_rows: None,
         placeholder: None,
         pipe_arg: None,
         chain_recv: None,
@@ -711,7 +709,6 @@ pub(crate) fn new_ck<'a, 'c>(
         local_generics: HashMap::default(),
         gen_owner: env,
         next_gen: 0,
-        generic_recheck: Vec::new(),
         in_template: None,
     };
     // No local declaration holds byte 0: every local impl starts hidden.

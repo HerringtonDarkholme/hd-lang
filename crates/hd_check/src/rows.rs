@@ -31,7 +31,7 @@ pub(crate) enum RowOrigin {
 }
 
 pub(crate) struct RowSeed {
-    encoded: RowId,
+    encoded: Vec<RowId>,
     vars: Vec<RowSeedVar>,
     scopes: hd_base::HashMap<hd_base::DefId, usize>,
 }
@@ -238,18 +238,21 @@ impl Ck<'_, '_> {
     /// Union-find may have chosen a newer variable as their representative.
     /// Encode those representatives as parameters, resolve the
     /// row, then restore the original, persistent variables with subst.
-    pub(crate) fn recursive_row_seed(
+    pub(crate) fn recursive_row_seeds(
         &mut self,
-        row: RowId,
+        rows: &[RowId],
         roots: &[Ty],
         sources: usize,
     ) -> RowSeed {
         let pool = self.pool();
-        let row = self.infer.resolve_row(pool, row);
-        let vars = self.collect_infer(pool.row_data(row).keys);
+        let rows: Vec<_> = rows
+            .iter()
+            .map(|&r| self.infer.resolve_row(pool, r))
+            .collect();
+        let vars = self.collect_infer(rows.iter().flat_map(|&r| pool.row_data(r).keys));
         if vars.is_empty() {
             return RowSeed {
-                encoded: row,
+                encoded: rows,
                 vars: Vec::new(),
                 scopes: hd_base::HashMap::default(),
             };
@@ -302,7 +305,10 @@ impl Ck<'_, '_> {
             self.infer
                 .rebind(pool, v, pool.intern_ty(&TyData::Param(p)));
         }
-        let encoded = self.infer.resolve_row(pool, row);
+        let encoded = rows
+            .into_iter()
+            .map(|r| self.infer.resolve_row(pool, r))
+            .collect();
         self.infer.rollback(snap);
         RowSeed {
             encoded,
@@ -314,7 +320,7 @@ impl Ck<'_, '_> {
     /// Allocate promoted variables after rollback, before the next body
     /// checkpoint. Their source arguments meet the same variables on the
     /// next pass, even when no surrounding context has solved them yet.
-    pub(crate) fn restore_row_seed(&mut self, seed: RowSeed, bank: usize) -> RowId {
+    pub(crate) fn restore_row_seeds(&mut self, seed: RowSeed, bank: usize) -> Vec<RowId> {
         let pool = self.pool();
         let originals: Vec<_> = seed
             .vars
@@ -336,14 +342,19 @@ impl Ck<'_, '_> {
                 }
             })
             .collect();
-        pool.subst_row(seed.encoded, &|p| {
-            let base = if p.owner == hd_base::DefId::NONE {
-                0
-            } else {
-                *seed.scopes.get(&p.owner)?
-            };
-            originals.get(base + usize::from(p.index)).copied()
-        })
+        seed.encoded
+            .into_iter()
+            .map(|row| {
+                pool.subst_row(row, &|p| {
+                    let base = if p.owner == hd_base::DefId::NONE {
+                        0
+                    } else {
+                        *seed.scopes.get(&p.owner)?
+                    };
+                    originals.get(base + usize::from(p.index)).copied()
+                })
+            })
+            .collect()
     }
 
     /// Counts distinct solutions for matching `got[index..]` against the
@@ -394,7 +405,7 @@ impl Ck<'_, '_> {
             self.infer.resolve_row(pool, a),
             self.infer.resolve_row(pool, b),
         );
-        if a == b {
+        if a == b || self.local_row_open(a) || self.local_row_open(b) {
             return true;
         }
         let (da, db) = (pool.row_data(a), pool.row_data(b));
@@ -783,6 +794,9 @@ impl Ck<'_, '_> {
         };
         d.params.sort_stable_by_cached_key(&name_of);
         for p in d.params {
+            if self.local_row_requirement(p, n) {
+                continue;
+            }
             // Only this body's own row parameters reach here substituted;
             // another owner's are a callee's that was not instantiated.
             if !self.row_gens.iter().any(|(_, g)| *g == p) {
@@ -849,6 +863,11 @@ impl Ck<'_, '_> {
             for v in rest {
                 let _ = self.infer.unify(pool, *v, empty);
             }
+            return;
+        }
+        // Discovery records the unknown part as an equation. Concrete
+        // row subsumption is checked on the group's final traversal.
+        if self.local_row_open(got) || self.local_row_open(want) {
             return;
         }
         let mut missing = Vec::new();

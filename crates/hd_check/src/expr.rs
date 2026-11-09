@@ -4896,6 +4896,7 @@ impl Ck<'_, '_> {
     ) -> StageResult<(Ref, Ty, Option<hd_base::LocalId>)> {
         let pool = self.pool();
         let suspends = parts.suspends;
+        let local_base = self.b.body().local_ty.len();
         let mut params = Vec::new();
         let mut ptys = Vec::new();
         self.scopes.push(HashMap::default());
@@ -5029,12 +5030,20 @@ impl Ck<'_, '_> {
         let infer_recursive_row = own.is_some() && written.is_none();
         let source_base = self.row_sources.len();
         let bank = self.row_banks.len();
-        if infer_recursive_row {
+        let group_root = own.is_some() && self.local_rows.is_none();
+        if group_root {
             self.row_banks.push(HashMap::default());
+            self.local_rows = Some(crate::local_rows::LocalRows::Discover(
+                crate::local_rows::Discovery::new(n.index(), self.gen_owner),
+            ));
         }
+        let header = infer_recursive_row
+            .then(|| self.local_row_header(n.index()))
+            .flatten();
+        own_row = header.unwrap_or(own_row);
         loop {
-            // The header and its variables remain alive across row passes.
-            // Only the current closure body is rolled back when its row grows.
+            // One discovery and one final traversal per lexical group.
+            // Nested declarations never retry their own subtrees.
             if let Some(l) = own {
                 let t = pool.intern_ty(&TyData::Fn {
                     params: pool.list(&ptys),
@@ -5046,9 +5055,15 @@ impl Ck<'_, '_> {
                 });
                 self.b.body_mut().local_ty[l.idx()] = t;
             }
-            let cp = (own.is_some() && written.is_none()).then(|| self.checkpoint());
-            let sources = self.row_sources.len();
+            let cp = (group_root
+                && matches!(
+                    self.local_rows,
+                    Some(crate::local_rows::LocalRows::Discover(_))
+                ))
+            .then(|| self.checkpoint());
+            crate::work::local_body(self, n.index());
             let mark = self.b.open_sub(&params);
+            self.local_capture_open(mark.sub().raw(), n.index(), local_base, own);
             // A generic local function's name: what its uses instantiate, over
             // its type so far (the written result and row), for a recursive
             // call in its body.
@@ -5056,7 +5071,9 @@ impl Ck<'_, '_> {
                 let mut g = g.clone();
                 g.sub = mark.sub().raw();
                 g.fn_ty = self.b.local_ty(l);
-                g.open = true;
+                if let Some(caps) = self.local_capture_header(n.index()) {
+                    g.caps = Some(caps);
+                }
                 self.local_generics.insert(l, g);
             }
             self.subs.push(OpenSub {
@@ -5106,10 +5123,26 @@ impl Ck<'_, '_> {
             } else {
                 deps
             };
+            if let Some(header) = header {
+                if let Some(wrow) = wrow {
+                    let mark = self.diags.mark();
+                    self.fit_row(row, wrow, n, "closure");
+                    self.diags.truncate(mark);
+                }
+                self.local_row_equation(header, row);
+            }
+            let exported_row = if matches!(
+                self.local_rows,
+                Some(crate::local_rows::LocalRows::Discover(_))
+            ) {
+                header.unwrap_or(row)
+            } else {
+                row
+            };
             let ft = pool.intern_ty(&TyData::Fn {
                 params: pool.list(&ptys),
                 result: public_ret,
-                row,
+                row: exported_row,
                 suspends,
                 inputs: hd_types::Inputs::Fixed,
                 deps,
@@ -5126,38 +5159,50 @@ impl Ck<'_, '_> {
             let scoped = self.local_capture_argument == Some(n.index());
             self.local_ref_captures(mark, n, scoped);
             let r = self.b.close_sub(mark, root, ft, n.index());
-            let recursive = own.is_some_and(|l| {
-                self.b.body().local_flags[l.idx()] & local_flags::CAPTURED != 0
-                    || self.local_generics.get(&l).is_some_and(|g| g.recursive)
-            });
+            if matches!(
+                self.local_rows,
+                Some(crate::local_rows::LocalRows::Discover(_))
+            ) {
+                let caps = self.closure_caps(r);
+                self.local_capture_close(mark.sub().raw(), &caps);
+            }
             if let Some(cp) = cp {
-                if recursive && !self.rows_equal(row, own_row) {
-                    // The expected row may determine a generic key before
-                    // the next body pass. The ordinary coercion checks it
-                    // again once the closure's type is final.
-                    if let Some(wrow) = wrow {
-                        let mark = self.diags.mark();
-                        self.fit_row(row, wrow, n, "closure");
-                        self.diags.truncate(mark);
-                    }
-                    if !self.rows_equal(row, own_row) {
-                        let mut roots = ptys.clone();
-                        roots.push(public_ret);
-                        roots.push(ret);
-                        roots.extend(wrow.map(|row| pool.intern_ty(&TyData::Row(row))));
-                        roots.extend(self.closure_caps(r).into_iter().map(|l| self.b.local_ty(l)));
-                        let seed = self.recursive_row_seed(row, &roots, sources);
-                        self.rollback(cp);
-                        own_row = self.restore_row_seed(seed, bank);
-                        continue;
-                    }
+                let discovery = self.local_rows.take();
+                if let Some(crate::local_rows::LocalRows::Discover(discovery)) = discovery {
+                    let crate::local_rows::Solution {
+                        rows: settled,
+                        errors,
+                        captures,
+                    } = discovery.solve(self)?;
+                    // All rows share one variable/origin index for this
+                    // group; no per-body scan of accumulated sources.
+                    let rows: Vec<_> = settled.iter().map(|(_, row)| *row).collect();
+                    let mut roots = ptys.clone();
+                    roots.extend([public_ret, ret]);
+                    roots.extend(wrow.map(|row| pool.intern_ty(&TyData::Row(row))));
+                    roots.extend(self.closure_caps(r).into_iter().map(|l| self.b.local_ty(l)));
+                    let seed = self.recursive_row_seeds(&rows, &roots, source_base);
+                    self.rollback(cp);
+                    let rows = self.restore_row_seeds(seed, bank);
+                    let rows: HashMap<_, _> =
+                        settled.into_iter().map(|(at, _)| at).zip(rows).collect();
+                    own_row = rows.get(&n.index()).copied().unwrap_or(own_row);
+                    self.local_rows = Some(crate::local_rows::LocalRows::Final {
+                        rows,
+                        errors,
+                        diag_base: self.diags.code.len(),
+                        captures,
+                        replay: crate::local_rows::CaptureReplay::new(self.b.body().local_ty.len()),
+                    });
+                    continue;
                 }
                 self.commit(cp);
             }
             if opaque.is_some() {
                 self.strict_rets.truncate(strict_before);
             }
-            if infer_recursive_row {
+            if group_root {
+                self.finish_local_rows();
                 self.row_banks.pop();
                 if self.row_banks.is_empty() {
                     self.row_sources.truncate(source_base);

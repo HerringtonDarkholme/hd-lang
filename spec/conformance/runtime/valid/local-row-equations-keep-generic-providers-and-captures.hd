@@ -1,0 +1,30 @@
+# test: nested recursive rows substitute keys, subtract providers, and retain later captures
+# Rules: req.row.omitted.cycle, req.row.subsume, fn.local.capture-rules.
+# expect-stdout: 7
+
+trait Repo[T]:
+    fn read(self) -> T
+
+struct Source[T]:
+    value: T
+
+impl[T] Repo[T] for Source[T]:
+    fn read(self) -> T:
+        self.value
+
+fn read[T]() -> T $ Repo[T]:
+    $.use(Repo[T]).read()
+
+pub fn main() -> void $ Console:
+    floor := +42
+    fn recur[T < 'static](value: T, n: i32) -> T:
+        fn nested[U < 'static](value: U, n: i32) -> U:
+            $.with(Repo[U]=Source { value: value }):
+                recur(value, n - 1)
+        if n == 0:
+            _ := floor
+            return read::[T]()
+        let pure: fn(T, i32) -> T = nested::[T]
+        pure(value, n)
+    $.with(Repo[i32]=Source { value: +99 }):
+        println(recur(7i32, 2))

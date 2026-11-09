@@ -68,6 +68,7 @@ mod let_mut_module_level;
 mod list_cursor_run;
 mod literals;
 mod local_items_run;
+mod local_row_work;
 mod map_key_bounds;
 mod map_run;
 mod match_decision_tree_run;
