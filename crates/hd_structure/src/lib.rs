@@ -292,6 +292,7 @@ fn structure_methods(cx: &Cx<'_, '_>) -> StageResult<Vec<(String, DefId, FnSig)>
     let names = cx.names;
     let st = names.known.structure;
     let Some(ItemData::Trait(t)) = cx.items.item(st).map(|i| &i.data) else {
+        // ruled out: seed::items supplies sealed Structure before either generator caller.
         return cx.unsupported("a `Structure` without `std.structure`");
     };
     let mut out = Vec::new();
@@ -763,7 +764,7 @@ impl<'a, 'n> Gen<'a, 'n> {
         let any = self.closure(&[s], Ty::BOOL, |g, _| Ok(g.bool_(true)))?;
         for m in v.members.iter().filter(|m| !m.omitted) {
             let handle = self.field_handle(v, m, m.ty);
-            let info = self.handle_info(handle, member_t)?;
+            let info = self.record_path(handle, &[(self.names.known.field, "info")], member_t)?;
             infos.push(info);
             let key = self.new_data(key_def, &[s], &[("info", info), ("hd_type", any)])?;
             keys.push(self.static_ref(key, key_t));
@@ -847,16 +848,6 @@ impl<'a, 'n> Gen<'a, 'n> {
         self.record_ref(self.std("MembersRecord"), &[self.target])
     }
 
-    /// The `info` of the record that `handle`, a `Field`, refers to.
-    fn handle_info(&mut self, handle: Ref, member_t: Ty) -> StageResult<Ref> {
-        self.record_field(handle, self.names.known.field, "info", member_t)
-    }
-
-    /// Field `name` of the `std.structure` record `def` that `r` refers to.
-    fn record_field(&mut self, r: Ref, def: DefId, name: &str, t: Ty) -> StageResult<Ref> {
-        self.record_path(r, &[(def, name)], t)
-    }
-
     /// The value at `path` in the `std.structure` record that `r` refers
     /// to, read in one place: each step is a struct and its field.
     fn record_path(&mut self, r: Ref, path: &[(DefId, &str)], t: Ty) -> StageResult<Ref> {
@@ -864,6 +855,7 @@ impl<'a, 'n> Gen<'a, 'n> {
         for &(def, name) in path {
             let fs = self.std_fields(def)?;
             let Some(k) = fs.iter().position(|f| self.names.text(f.name) == name) else {
+                // ruled out: record paths use the fields declared by annot.structure.decl.
                 return self
                     .cx
                     .unsupported(format!("the `std.structure` field `{name}`"));
@@ -912,24 +904,23 @@ impl<'a, 'n> Gen<'a, 'n> {
     fn std_fields(&self, def: DefId) -> StageResult<&'a [hd_resolve::Field]> {
         match self.cx.items.item(def).map(|i| &i.data) {
             Some(ItemData::Struct(fs, _)) => Ok(fs),
+            // ruled out: checker/mono contexts include the std.structure records used here.
             _ => self
                 .cx
                 .unsupported("a `std.structure` data type outside the module's view"),
         }
     }
 
-    /// A field's declared type in a `std.structure` struct, its
-    /// parameters replaced by `args`.
-    fn field_ty(&self, def: DefId, field: &str, args: &[Ty]) -> StageResult<Ty> {
+    /// A nongeneric `std.structure` metadata field's declared type.
+    fn field_ty(&self, def: DefId, field: &str) -> StageResult<Ty> {
         let fs = self.std_fields(def)?;
         let Some(f) = fs.iter().find(|f| self.names.text(f.name) == field) else {
+            // ruled out: callers request Facts.items, Member.doc or VariantInfo.shared.
             return self
                 .cx
                 .unsupported(format!("the `std.structure` field `{field}`"));
         };
-        Ok(self.names.pool.subst(f.ty, &|p: ParamRef| {
-            (p.owner == def).then(|| args.get(usize::from(p.index)).copied())?
-        }))
+        Ok(f.ty)
     }
 
     /// A data value of `def[args]` from its fields' values by name, in
@@ -940,6 +931,7 @@ impl<'a, 'n> Gen<'a, 'n> {
         for f in fs {
             let n = self.names.text(f.name);
             let Some((_, v)) = vals.iter().find(|(k, _)| *k == n) else {
+                // ruled out: each generator constructor supplies the declared std record fields.
                 return self
                     .cx
                     .unsupported(format!("the `std.structure` field `{n}`"));
@@ -978,7 +970,7 @@ impl<'a, 'n> Gen<'a, 'n> {
     /// `Facts { items: [] }`.
     fn no_facts(&mut self) -> StageResult<Ref> {
         let facts = self.std("Facts");
-        let lt = self.field_ty(facts, "items", &[])?;
+        let lt = self.field_ty(facts, "items")?;
         let items = self.empty_list(lt);
         self.new_data(facts, &[], &[("items", items)])
     }
@@ -1027,35 +1019,32 @@ impl<'a, 'n> Gen<'a, 'n> {
     /// shared field's name with its value, read from its global.
     fn shared_pairs(&mut self, v: &Var) -> StageResult<Ref> {
         let pool = self.names.pool;
-        let lt = self.field_ty(self.std("VariantInfo"), "shared", &[])?;
+        let lt = self.field_ty(self.std("VariantInfo"), "shared")?;
         let TyData::Adt { args, .. } = pool.get(lt) else {
+            // ruled out: VariantInfo.shared is List[(string, *dyn Inspectable)]
+            // by annot.structure.decl/annot.variant.shared-pairs; List has one argument.
             return self
                 .cx
                 .unsupported("a `VariantInfo.shared` that is not a list");
         };
-        let pair_t = pool.list_items(args).first().copied().unwrap_or(Ty::POISON);
-        let TyData::Tuple { elems, .. } = pool.get(pair_t) else {
-            return self
-                .cx
-                .unsupported("a `VariantInfo.shared` item that is not a pair");
-        };
-        let value_t = pool.list_items(elems).get(1).copied().unwrap_or(Ty::POISON);
+        let pair_t = pool.list_items(args)[0];
+        // ruled out: shared pairs erase values to *dyn Inspectable, as
+        // annot.variant.shared-pairs declares; no field-dependent type remains.
+        let inner = pool.intern_ty(&TyData::TraitValue {
+            def: self.names.known.inspectable,
+            args: TyList::EMPTY,
+            bindings: vec![],
+        });
         let mut pairs = Vec::new();
         for f in &v.shared {
             let name = self.str_(&f.name);
             let x = self.b.read_global(f.global, f.ty, SYN);
-            let TyData::Ref { inner, .. } = pool.get(value_t) else {
-                return self
-                    .cx
-                    .unsupported("a shared member without a trait reference type");
-            };
             let value = self.erase_value_reference(x, f.ty, inner);
             let rec = self.b.refs_record(&[name, value]);
             pairs.push(self.b.emit(Tag::NewTuple, NONE, rec, pair_t, SYN));
         }
         let rec = self.b.refs_record(&pairs);
-        let t = lt;
-        Ok(self.b.emit(Tag::NewList, NONE, rec, t, SYN))
+        Ok(self.b.emit(Tag::NewList, NONE, rec, lt, SYN))
     }
 
     fn self_ref(&mut self, k: u32) -> Ref {
@@ -1221,7 +1210,7 @@ impl<'a, 'n> Gen<'a, 'n> {
     fn doc_value(&mut self, v: &Var, member: Option<&Mem>, type_doc: bool) -> StageResult<Ref> {
         let names = self.names;
         if v.def == DefId::NONE {
-            let ty = self.field_ty(self.std("Member"), "doc", &[])?;
+            let ty = self.field_ty(self.std("Member"), "doc")?;
             return Ok(self.unit_variant(0, ty));
         }
         let mut path = Vec::new();
@@ -1243,7 +1232,7 @@ impl<'a, 'n> Gen<'a, 'n> {
             .item(owner)
             .and_then(|i| i.docs.iter().find(|(p, _)| *p == path))
             .map(|(_, text)| text.clone());
-        let ty = self.field_ty(self.std("Member"), "doc", &[])?;
+        let ty = self.field_ty(self.std("Member"), "doc")?;
         Ok(match text {
             Some(text) => {
                 let value = self.str_(&text);
@@ -1422,15 +1411,18 @@ impl<'a, 'n> Gen<'a, 'n> {
         let names = self.names;
         let pool = names.pool;
         let Some(ItemData::Trait(t)) = self.cx.items.item(trait_).map(|i| &i.data) else {
+            // ruled out: visit/build use std.structure Walker, Describer and Source.
             return self
                 .cx
                 .unsupported("a structure protocol trait outside the module's view");
         };
+        // ruled out: visit/build request only the std protocol's declared methods.
         let Some(&(_, mdef)) = t.methods.iter().find(|(n, _)| names.text(*n) == method) else {
             return self
                 .cx
                 .unsupported(format!("the protocol method `{method}`"));
         };
+        // ruled out: header lowering registers a FnSig for every trait method item.
         let Some(sig) = self.cx.items.item(mdef).and_then(Item::sig) else {
             return self
                 .cx
@@ -1477,15 +1469,14 @@ impl<'a, 'n> Gen<'a, 'n> {
     fn result_args(&self, r: Ref) -> StageResult<(Ty, Ty)> {
         let pool = self.names.pool;
         let TyData::Adt { args, .. } = pool.get(self.b.ty_of(r)) else {
+            // ruled out: every std protocol method consumed by try_void/try_value
+            // declares Result[success, Error]; substitution preserves its two arguments.
             return self
                 .cx
                 .unsupported("a protocol method whose result is not a `Result`");
         };
         let items = pool.list_items(args);
-        Ok((
-            items.first().copied().unwrap_or(Ty::POISON),
-            items.get(1).copied().unwrap_or(Ty::POISON),
-        ))
+        Ok((items[0], items[1]))
     }
 
     /// `r?` for a `Result[void, E]` in a body whose result type is `ret`.
@@ -1504,11 +1495,13 @@ impl<'a, 'n> Gen<'a, 'n> {
     }
 
     /// The parameters' locals of a body with signature `sig`.
-    fn params(&mut self, sig: &FnSig) -> Vec<(LocalId, Ty)> {
-        sig.params
-            .iter()
-            .map(|(n, t)| (self.b.local(*t, *n, local_flags::PARAM, SYN), *t))
-            .collect()
+    fn params<const N: usize>(&mut self, sig: &FnSig) -> [(LocalId, Ty); N] {
+        // ruled out: seed::items fixes walk/describe/build at 2/1/1 parameters;
+        // derivation and supplied substitute types without changing the shape.
+        std::array::from_fn(|i| {
+            let (n, t) = sig.params[i];
+            (self.b.local(t, n, local_flags::PARAM, SYN), t)
+        })
     }
 
     fn finish(self, root: Ref) -> StageResult<(Body, Vec<Handle>)> {
@@ -1590,8 +1583,9 @@ impl<'a, 'n> Gen<'a, 'n> {
         let pool = self.names.pool;
         match pool.get(t) {
             TyData::Adt { def, args } if def == self.names.known.list => {
-                Ok(pool.list_items(args).first().copied().unwrap_or(Ty::POISON))
+                Ok(pool.list_items(args)[0])
             }
+            // ruled out: tuple_target receives List[T] rests checked by types.tuple.rest.list.
             _ => self.cx.unsupported("a rest element that is not a `List`"),
         }
     }
@@ -1604,10 +1598,7 @@ impl<'a, 'n> Gen<'a, 'n> {
 
     /// `walk(&self, w)`: matches the borrowed value, then lends its members.
     fn walk_body(mut self, sig: &FnSig, vars: &[Var]) -> StageResult<(Body, Vec<Handle>)> {
-        let ps = self.params(sig);
-        let [(s, st), w] = ps[..] else {
-            return self.cx.unsupported("a `walk` signature");
-        };
+        let [(s, st), w] = self.params(sig);
         let walker = self.names.known.walker;
         let blk = self.b.open_block();
         let x = self.b.get(s, st, SYN);
@@ -1625,10 +1616,7 @@ impl<'a, 'n> Gen<'a, 'n> {
 
     /// `describe(d)`: every variant in order (`annot.describe.order`).
     fn describe_body(mut self, sig: &FnSig, vars: &[Var]) -> StageResult<(Body, Vec<Handle>)> {
-        let ps = self.params(sig);
-        let [d] = ps[..] else {
-            return self.cx.unsupported("a `describe` signature");
-        };
+        let [d] = self.params(sig);
         let describer = self.names.known.describer;
         let blk = self.b.open_block();
         for v in vars {
@@ -1665,6 +1653,7 @@ impl<'a, 'n> Gen<'a, 'n> {
     fn default_of(&mut self, v: &Var, m: &Mem, t: Ty) -> StageResult<Ref> {
         let body = self.names.member(v.def, PathKind::Hidden, &m.declared);
         let TyData::Adt { args, .. } = self.names.pool.get(self.target) else {
+            // ruled out: checker defaults belong to ADTs; tuple/union_target set none.
             return self
                 .cx
                 .unsupported("a member default of a target that is not a data type or enum");
@@ -1818,10 +1807,7 @@ impl<'a, 'n> Gen<'a, 'n> {
     /// `build(s)` (`annot.build.enum-variant`): the source chooses among every
     /// variant, then the chosen one is built.
     fn build_body(mut self, sig: &FnSig, vars: &[Var]) -> StageResult<(Body, Vec<Handle>)> {
-        let ps = self.params(sig);
-        let [src] = ps[..] else {
-            return self.cx.unsupported("a `build` signature");
-        };
+        let [src] = self.params(sig);
         let names = self.names;
         let ret = sig.ret;
         let blk = self.b.open_block();
