@@ -100,9 +100,12 @@ fn stage_b_over<'i>(
     items: impl Iterator<Item = &'i Item>,
 ) -> StageResult<Vec<Finding>> {
     let mut out = Vec::new();
+    let mut cycles = crate::value::ProjectionCycles::default();
     for it in items {
         let mut hc = ItemCheck::new(cx, it, &mut out);
+        hc.cycles = cycles;
         hc.item(it)?;
+        cycles = hc.cycles;
     }
     Ok(out)
 }
@@ -337,6 +340,7 @@ struct ItemCheck<'c, 'a> {
     cx: &'c HeaderCx<'a>,
     env: ParamEnv,
     memo: BodyMemo,
+    cycles: crate::value::ProjectionCycles,
     fuel: Fuel,
     item: DefId,
     out: &'c mut Vec<Finding>,
@@ -355,6 +359,7 @@ impl<'c, 'a> ItemCheck<'c, 'a> {
             cx,
             env,
             memo: BodyMemo::default(),
+            cycles: crate::value::ProjectionCycles::default(),
             fuel: Fuel::new(cx.fuel),
             item: it.def,
             out,
@@ -778,6 +783,7 @@ impl<'a> ItemCheck<'_, 'a> {
         let pool = self.pool();
         let args = pool.list_items(*trait_args);
         for (a, bound_to) in assoc {
+            self.check_ty(*bound_to, 0)?;
             let Some(ItemData::AssocType { bounds, .. }) = self.cx.lookup.item(*a).map(|i| &i.data)
             else {
                 continue;
@@ -1098,6 +1104,17 @@ impl<'a> ItemCheck<'_, 'a> {
     /// Written types against their declared bounds (`trait.bound.no-implied`).
     fn check_ty(&mut self, t: Ty, slot: u32) -> StageResult<()> {
         let pool = self.pool();
+        if !self.too_complex {
+            match self.cycles.check(pool, self.cx.lookup, Impls::Owned(self.cx.impls), t, &mut self.fuel) {
+                Ok(true) => self.report(slot, Code::RecursiveValueType,
+                    "this instance contains itself by value through an associated payload; use a counted reference (`*`) to break the cycle".to_owned()),
+                Err(()) => {
+                    self.too_complex = true;
+                    self.report(0, Code::ItemTooComplex, TOO_COMPLEX.to_owned());
+                }
+                Ok(false) => {}
+            }
+        }
         match pool.get(t) {
             TyData::Adt { def, args } => {
                 let args_v = pool.list_items(args);

@@ -6242,6 +6242,12 @@ typing/invalid/a-cast-in-a-suspending-function-names-the-reference.hd	type	rejec
 runtime/valid/a-cast-reads-through-an-explicit-star-in-every-position.hd	runtime	accept	lang/13-values-and-references.md#r-ref.read.auto.explicit
 runtime/valid/boundary-fieldless-struct-crosses.hd	runtime	accept	lang/10-modules.md#r-module.boundary.allowed
 runtime/valid/boundary-recursive-type-round-trip.hd	runtime	accept	lang/10-modules.md#r-module.boundary.allowed
+typing/invalid/local-associated-enum-instance-contains-itself.hd	type	reject:recursive-value-type	lang/08-data-and-enums.md#r-data.enum.no-recursion
+typing/invalid/associated-enum-instance-contains-itself.hd	type	reject:recursive-value-type	lang/08-data-and-enums.md#r-data.enum.no-recursion
+typing/invalid/associated-enum-instances-contain-each-other.hd	type	reject:recursive-value-type	lang/08-data-and-enums.md#r-data.enum.no-recursion
+typing/invalid/inferred-associated-enum-instance-contains-itself.hd	type	reject:recursive-value-type	lang/08-data-and-enums.md#r-data.enum.no-recursion
+typing/valid/associated-enum-instances-nest-finitely.hd	type	accept	lang/08-data-and-enums.md#r-data.enum.no-recursion
+typing/valid/associated-enum-instance-recurses-through-reference.hd	type	accept	lang/08-data-and-enums.md#r-data.enum.no-recursion
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

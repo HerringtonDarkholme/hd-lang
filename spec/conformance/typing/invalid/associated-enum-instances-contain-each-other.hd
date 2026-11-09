@@ -1,0 +1,17 @@
+# data.enum.no-recursion, data.enum.no-recursion.group: mutual associated payloads form one cycle.
+trait Source:
+    type Item
+
+struct Provider: pass
+
+enum Holder[S < Source]:
+    Empty
+    Full(value: S::Item)
+
+struct Other: pass
+
+impl Source for Provider: # diagnostic: recursive-value-type
+    type Item = Holder[Other]
+
+impl Source for Other:
+    type Item = Holder[Provider]
