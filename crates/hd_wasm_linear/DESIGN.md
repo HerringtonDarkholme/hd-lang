@@ -220,10 +220,10 @@ type in every position; aggregate values are inline in memory.
 | --- | --- | --- |
 | integers, `bool`, `char`, floats | the scalar | packed: 1 byte for `bool`, `i8`, `u8`; 2 for 16-bit integers; 4 or 8 otherwise, aligned to its size |
 | struct, tuple | its fields' values, flattened, in declaration order (Wasm multi-value) | its fields inline, ordered as rustc's `univariant` orders them (largest alignment group first), each at its alignment; the struct aligned to its widest field |
-| enum | one Wasm value per distinct leaf of its variants, shared where two variants have the same leaf at the same offset (`layout::Flat`) | rustc's tagged layout: the tag, the smallest integer that counts the variants widened to the payloads' smallest first-field alignment, then each payload as one struct at one offset, small fields first |
+| enum | one Wasm value per distinct leaf of its variants, shared where two variants have the same leaf at the same offset (`layout::Flat`) | rustc's `layout_of_enum`: each payload as one struct at one offset, and of two layouts the smaller (on a tie, the one with more free niche values, else the tagged one): the tagged one, whose tag is the smallest integer that counts the inhabited variants widened to the payloads' smallest first-field alignment, small fields after it; or the niche-filled one, where the largest variant has no tag and the others are values of its largest niche, each placed before or after that niche (`layout::Enc`) |
+| enum of one present variant | that variant's struct; an absent variant (uninhabited, all fields zero-sized) takes neither a discriminant nor space | that variant's struct |
 | self-recursive enum (today's language) | the address of a counted cell holding the enum value | the address |
-| `T?` of a reference `T` | the address; 0 is `.None` | 4 bytes |
-| `T?` of another `T` | as an enum with one payload | as an enum |
+| `T?` | as an enum of `.None` and `.Some(T)`: of a reference `T` its address, null for `.None` | as an enum |
 | `string` | `(address, length)`: two `i32` | 8 bytes |
 | `&T`, `&mut T` | the address of the `T`, possibly inside an object (§23.5); of a trait value, that trait value (§23.20) | 4 bytes; 8 for a trait value |
 | a compiler-supplied data type | the address of a counted object holding the fields | 4 bytes |
@@ -241,6 +241,22 @@ type in every position; aggregate values are inline in memory.
   large struct passed by value is the price the tier-1 design (`58c3d470f:docs/future-work/OBJECT_MODEL_TIER1.md`) §3
   accepts. A signature too wide for Wasm values passes through the
   shadow stack (§23.29).
+- **Niches** (`layout::Niche`, `docs/future-work/ENUM-LAYOUT.md`). A
+  `bool`'s valid values are 0 and 1, a `char`'s 0 to `0x10FFFF`, a tag's
+  its inhabited variants', and an address's every value but 0 (a thin
+  reference, a boxed cell, a list's or a map's buffer, a string's bytes,
+  a trait value's vtable; a function value's code slot and environment,
+  a frame and a context have none). An enum spends the free values
+  upward from the valid range's end: `char?`'s `.None` is `0x110000`,
+  `bool??`'s are 2 and 3, `(*T)?`'s is null. A struct's niche is its
+  fields' largest, which `univariant` puts at an edge. A variant's test
+  (`layout::Is`) is one compare of the cell holding the tag or niche, or
+  a range compare for the untagged variant beside several niche values;
+  construction writes the variant's tag or niche value
+  (`layout::variant_steps`). Zeros are a valid value of every type, but
+  for a niche type not always the first variant: a part moved out of an
+  enum's payload that zeros its niche leaves the rest released field by
+  field (`Em::own_drop_rest`).
 - **Type-only.** Every rule reads the type's definition and the
   definitions its fields name, never a use, so a laid-out instance is
   valid in every program that reaches it.
