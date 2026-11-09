@@ -85,6 +85,29 @@ jobs:
           chmod +x "$bin"
           dirname "$bin" >> "$GITHUB_PATH"
 
+      # Output-quality checks on the pushed change only (owner, 2026-11-08: "make it only
+      # check the changed case, do not run full check"): no added `unsupported`, no
+      # unreasoned shortcut, a stated cost, a test with each fix, a .wat for new programs.
+      # The base is the push's `before` on main, else the merge base with main.
+      - name: Change quality
+        if: ${{ !cancelled() }}
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = pull_request ]; then
+            base="$PR_BASE"
+          elif [ "$REF" = refs/heads/main ] && [[ ! "$BEFORE" =~ ^0+$ ]] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            base="$BEFORE"
+          else
+            base="$(git merge-base HEAD origin/main)"
+          fi
+          node scripts/check-change.ts "$base" HEAD
+
       # Each check runs under its time budget (scripts/check-budgets.tsv).
       - name: Lint and format JS/TS
         if: ${{ !cancelled() }}
