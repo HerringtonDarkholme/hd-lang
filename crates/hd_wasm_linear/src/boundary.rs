@@ -31,10 +31,6 @@ use crate::rt::{Elem, Helper, LIST_ELEMS, LIST_LEN, own_arg};
 use crate::task::{HostArg, HostRes};
 use crate::{Input, unsupported};
 
-/// How deep boundary types may nest: a recursive type does not cross
-/// (`module.boundary.cycle`).
-const MAX_DEPTH: u32 = 32;
-
 /// A boundary type on this backend: its structure, and what its codecs
 /// need of its linear layout.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -70,6 +66,44 @@ pub enum LTy {
     /// boundary: the string its std host codec writes or reads
     /// (`module.boundary.serialize.exact`).
     Codec(Box<LCodec>),
+    /// A recursive data type: its one encoder and one decoder, which call
+    /// themselves where the type recurs ([`Named`]).
+    Named(Box<LNamed>),
+}
+
+/// A recursive data type's codec pair by number, in [`Named`], and its
+/// Wasm values. Every occurrence of the type, the recursive ones inside
+/// its own definition included, is this one node, so the type has one
+/// encoder and one decoder.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct LNamed {
+    pub id: usize,
+    pub vals: Vec<Val>,
+}
+
+/// The module's recursive boundary types (#1550): each one's definition,
+/// in which the type's own occurrences are [`LTy::Named`], by number, and
+/// the number of each type at each boundary direction.
+///
+/// [`of`] finds a recursive type as a nominal type it reaches again on its
+/// path, as rustc's trait solver finds a cycle on its evaluation stack.
+/// Only such a type is named; any other stays inline, so a program with
+/// no recursive boundary type emits the codecs it did before.
+#[derive(Default)]
+pub struct Named {
+    defs: Vec<Option<LTy>>,
+    at: hd_base::HashMap<(Ty, Option<(bool, bool)>), usize>,
+}
+
+impl Named {
+    /// Type `id`'s definition.
+    fn def(&self, id: usize) -> &LTy {
+        // ruled out: `data_of` fills a definition before it returns any
+        // type that names it; a failed fill fails the link first.
+        self.defs[id]
+            .as_ref()
+            .expect("ruled out: a named boundary type is defined before its codec is built")
+    }
 }
 
 /// A list's element: its layout in the buffer and its boundary type.
@@ -127,6 +161,7 @@ impl LTy {
             LTy::Record(fields) => fields.iter().flat_map(LTy::vals).collect(),
             LTy::Enum(e) => e.layout.mem.vals(),
             LTy::Codec(c) => c.vals.clone(),
+            LTy::Named(n) => n.vals.clone(),
         }
     }
 
@@ -143,16 +178,33 @@ impl LTy {
     }
 
     /// Whether a host handle is in the value: it only crosses from the
-    /// host.
+    /// host. Each named type's definition is visited once.
     #[must_use]
-    pub fn holds_handle(&self) -> bool {
-        match self {
-            LTy::Handle(_) => true,
-            LTy::List(l) => l.ty.holds_handle(),
-            LTy::Record(fields) => fields.iter().any(LTy::holds_handle),
-            LTy::Enum(e) => e.variants.iter().flatten().any(LTy::holds_handle),
-            _ => false,
+    pub fn holds_handle(&self, named: &Named) -> bool {
+        let mut seen = hd_base::HashSet::default();
+        let mut work = vec![self];
+        while let Some(t) = work.pop() {
+            match t {
+                LTy::Handle(_) => return true,
+                LTy::List(l) => work.push(&l.ty),
+                LTy::Record(fields) => work.extend(fields),
+                LTy::Enum(e) => work.extend(e.variants.iter().flatten()),
+                LTy::Named(n) => {
+                    if seen.insert(n.id) {
+                        work.push(named.def(n.id));
+                    }
+                }
+                LTy::Void
+                | LTy::Int { .. }
+                | LTy::F32
+                | LTy::F64
+                | LTy::Str
+                | LTy::DiscardStr
+                | LTy::Bytes
+                | LTy::Codec(_) => {}
+            }
         }
+        false
     }
 
     /// An enum whose payloads are at most one payload-free enum each. Its
@@ -188,23 +240,29 @@ pub struct AtProfile<'a> {
 }
 
 /// The boundary type of `t`, or `unsupported` for a type that does not
-/// cross (a function, another trait value, a map, a recursive type).
+/// cross (a function, another trait value, a map).
 pub fn of(input: &Input<'_>, m: &mut Module, t: Ty, at: Option<AtProfile<'_>>) -> StageResult<LTy> {
-    of_at(input, m, t, 0, at)
+    of_at(input, m, t, &mut Vec::new(), at)
 }
+
+/// The nominal data types `of_at` is building, outermost first, each with
+/// its [`Named`] number once one of its parts reaches it again.
+type Path = Vec<(Ty, Option<usize>)>;
+
+/// The nominal data types [`package_value`] is building, outermost first,
+/// each with its schema binder number once one of its parts reaches it
+/// again.
+type Binders = Vec<(Ty, Option<u32>)>;
 
 fn of_at(
     input: &Input<'_>,
     m: &mut Module,
     t: Ty,
-    depth: u32,
+    path: &mut Path,
     at: Option<AtProfile<'_>>,
 ) -> StageResult<LTy> {
     let (pool, env) = (input.pool, input.env);
     let what = || format!("`{}` at the host boundary", pool.display(t));
-    if depth > MAX_DEPTH {
-        return unsupported(what());
-    }
     let s = layout::strip(pool, env, t);
     // A data type with a field that is not `pub` crosses a profile's
     // boundary as the string of its std host codec.
@@ -233,7 +291,7 @@ fn of_at(
         TyData::Tuple { elems, rest: None } => {
             let mut fields = Vec::new();
             for e in pool.list_items(elems) {
-                fields.push(of_at(input, m, *e, depth + 1, at)?);
+                fields.push(of_at(input, m, *e, path, at)?);
             }
             // `void` is the empty tuple (`types.void`): it crosses as no
             // value.
@@ -248,7 +306,7 @@ fn of_at(
             // behind the reference the `host_provider` instance makes.
             let inner = layout::strip(pool, env, inner);
             let wrap = input.collected.boundary.get(&t).and_then(|c| c.handle_ref);
-            match (of_at(input, m, inner, depth + 1, at)?, wrap) {
+            match (of_at(input, m, inner, path, at)?, wrap) {
                 (LTy::Handle(mut h), Some(wrap)) => {
                     h.wrap = Some(wrap);
                     LTy::Handle(h)
@@ -279,29 +337,13 @@ fn of_at(
                         colls: layout::coll_leaves(pool, env, e),
                         cyclic: input.runtime.is_some() && crate::cycle::object(pool, env, t),
                     };
-                    let ty = of_at(input, m, e, depth + 1, at)?;
+                    let ty = of_at(input, m, e, path, at)?;
                     LTy::List(Box::new(LList { elem, ty }))
                 }
             }
             hd_mono::layout::StdKind::Other => match layout::kind(pool, env, s) {
                 layout::Kind::Value => {
-                    if let Some(variants) = env.enum_variants(def, args) {
-                        enum_of(input, m, &variants, depth, at)?
-                    } else {
-                        let fields: Vec<Ty> = env
-                            .data_fields(def)
-                            .unwrap_or_default()
-                            .into_iter()
-                            .map(|f| subst(pool, env, def, args, f))
-                            .collect();
-                        // A struct with no fields crosses as an empty
-                        // record: no bytes and no Wasm values.
-                        let mut out = Vec::new();
-                        for f in fields {
-                            out.push(of_at(input, m, f, depth + 1, at)?);
-                        }
-                        LTy::Record(out)
-                    }
+                    return data_of(input, m, s, def, args, path, at);
                 }
                 _ => return unsupported(what()),
             },
@@ -340,13 +382,84 @@ fn of_at(
     })
 }
 
+/// The boundary type of the unboxed struct or enum `s`, instance `def[args]`.
+/// A type that one of its parts reaches again is recursive: that part,
+/// and every later occurrence, is [`LTy::Named`], whose definition this
+/// builds (`module.boundary.allowed` admits it; #1550).
+///
+/// Cost: one memo lookup per nominal type reached and one scan of the
+/// path of nominal types being built, which is as deep as the type's
+/// nesting of distinct nominal types. A recursive type's definition is
+/// built once per boundary direction.
+fn data_of(
+    input: &Input<'_>,
+    m: &mut Module,
+    s: Ty,
+    def: DefId,
+    args: TyList,
+    path: &mut Path,
+    at: Option<AtProfile<'_>>,
+) -> StageResult<LTy> {
+    let (pool, env) = (input.pool, input.env);
+    let key = (s, at.map(|a| (a.out, a.package)));
+    let named = |id: usize| -> StageResult<LTy> {
+        Ok(LTy::Named(Box::new(LNamed {
+            id,
+            vals: layout::vals(pool, env, s)?,
+        })))
+    };
+    if let Some(&id) = m.named_codecs.at.get(&key) {
+        return named(id);
+    }
+    if let Some((_, id)) = path.iter_mut().find(|(t, _)| *t == s) {
+        let id = *id.get_or_insert_with(|| {
+            m.named_codecs.defs.push(None);
+            m.named_codecs.defs.len() - 1
+        });
+        return named(id);
+    }
+    path.push((s, None));
+    let built = if let Some(variants) = env.enum_variants(def, args) {
+        enum_of(input, m, &variants, path, at)
+    } else {
+        // A struct with no fields crosses as an empty record: no bytes
+        // and no Wasm values.
+        let mut out = Vec::new();
+        for f in env.data_fields(def).unwrap_or_default() {
+            match of_at(input, m, subst(pool, env, def, args, f), path, at) {
+                Ok(f) => out.push(f),
+                Err(e) => {
+                    path.pop();
+                    return Err(e);
+                }
+            }
+        }
+        Ok(LTy::Record(out))
+    };
+    // The entry pushed above, with its number if a part reached it.
+    let id = path.pop().and_then(|(_, id)| id);
+    let built = built?;
+    let Some(id) = id else {
+        return Ok(built);
+    };
+    let node = named(id)?;
+    assert_eq!(
+        built.vals(),
+        node.vals(),
+        "a named boundary type's values are its layout's (layout::vals)"
+    );
+    m.named_codecs.defs[id] = Some(built);
+    m.named_codecs.at.insert(key, id);
+    Ok(node)
+}
+
 /// The boundary type of an enum of `variants`, laid out as
 /// `layout::enum_mem` lays it out.
 fn enum_of(
     input: &Input<'_>,
     m: &mut Module,
     variants: &[Vec<Ty>],
-    depth: u32,
+    path: &mut Path,
     at: Option<AtProfile<'_>>,
 ) -> StageResult<LTy> {
     let layout = layout::enum_mem(input.pool, input.env, variants)?;
@@ -354,7 +467,7 @@ fn enum_of(
     for fields in variants {
         let mut v = Vec::new();
         for f in fields {
-            v.push(of_at(input, m, *f, depth + 1, at)?);
+            v.push(of_at(input, m, *f, path, at)?);
         }
         vs.push(v);
     }
@@ -504,7 +617,7 @@ pub fn host_slot(
             (Codec::Buffer(_), _) if row.params.len() == 1 && *pt == Ty::STRING => HostArg::Str,
             (Codec::Buffer(_), _) => {
                 let b = of(input, mm, *pt, at.map(|a| AtProfile { out: true, ..a }))?;
-                if b.holds_handle() {
+                if b.holds_handle(&mm.named_codecs) {
                     return unsupported("a host handle passed to the host");
                 }
                 HostArg::Buf(b)
@@ -859,12 +972,8 @@ fn handle_vtable_slots(
     at: Option<AtProfile<'_>>,
 ) -> StageResult<usize> {
     let tp = (input.path)(trait_);
-    let package = at.is_some_and(|a| a.package);
-    let identity = if package {
-        (input.package_trait)(trait_)
-    } else {
-        None
-    };
+    let package_at = at.filter(|a| a.package);
+    let identity = package_at.and_then(|_| (input.package_trait)(trait_));
     let module = identity.as_ref().map(|i| package_module(i, true));
     let tname = module
         .as_deref()
@@ -895,7 +1004,7 @@ fn handle_vtable_slots(
             _ => None,
         })
         .unwrap_or(trait_);
-    if package {
+    if let Some(package_at) = package_at {
         let mut methods = Vec::new();
         let key = tname.clone();
         let vtable = package_handle_tree(
@@ -905,7 +1014,7 @@ fn handle_vtable_slots(
             trait_,
             &key,
             enabled,
-            at.expect("package boundary"),
+            package_at,
             &mut methods,
             &mut Vec::new(),
         )?;
@@ -1458,6 +1567,12 @@ pub fn enc(b: &LTy, m: &Module) -> Func {
     let mut params = vec![Val::I32];
     params.extend(b.vals());
     let mut f = m.func("rt:enc", params, vec![Val::I32]);
+    enc_body(&mut f, b, m);
+    f
+}
+
+/// [`enc`]'s body for `b`; a named type's is its definition's.
+fn enc_body(f: &mut Func, b: &LTy, m: &Module) {
     match b {
         LTy::Void => {}
         LTy::Int { bits, signed } => {
@@ -1471,7 +1586,7 @@ pub fn enc(b: &LTy, m: &Module) -> Func {
                 });
             }
             f.set(x);
-            put(&mut f, 0, |f| {
+            put(f, 0, |f| {
                 f.get(x);
                 if *signed {
                     f.op(I::I64Const(1));
@@ -1502,22 +1617,22 @@ pub fn enc(b: &LTy, m: &Module) -> Func {
             f.set(0);
         }
         LTy::Str | LTy::DiscardStr => {
-            put(&mut f, 0, |f| {
+            put(f, 0, |f| {
                 f.get(2);
                 f.op(I::I64ExtendI32U);
             });
-            copy(&mut f, 0, 2, true, |f| f.get(1));
+            copy(f, 0, 2, true, |f| f.get(1));
         }
         LTy::Bytes => {
             let (buf, n) = (1, f.local(Val::I32));
             f.get(buf);
             f.op(I::I32Load(mem(HEAP, LIST_LEN, 2)));
             f.set(n);
-            put(&mut f, 0, |f| {
+            put(f, 0, |f| {
                 f.get(n);
                 f.op(I::I64ExtendI32U);
             });
-            copy(&mut f, 0, n, true, |f| {
+            copy(f, 0, n, true, |f| {
                 f.get(buf);
                 f.u32(LIST_ELEMS);
                 f.op(I::I32Add);
@@ -1530,7 +1645,7 @@ pub fn enc(b: &LTy, m: &Module) -> Func {
             f.get(at);
             f.op(I::I32Load(mem(HEAP, LIST_LEN, 2)));
             f.set(n);
-            put(&mut f, 0, |f| {
+            put(f, 0, |f| {
                 f.get(n);
                 f.op(I::I64ExtendI32U);
             });
@@ -1544,7 +1659,7 @@ pub fn enc(b: &LTy, m: &Module) -> Func {
             f.get(n);
             f.op(I::I32GeU);
             f.op(I::BrIf(1));
-            enc_call(&mut f, 0, &l.ty, |f| {
+            enc_call(f, 0, &l.ty, |f| {
                 for leaf in &l.elem.leaves {
                     f.get(at);
                     f.op(leaf.load(0));
@@ -1566,7 +1681,7 @@ pub fn enc(b: &LTy, m: &Module) -> Func {
             let mut first = 1;
             for fb in fields {
                 let n = u32::try_from(fb.vals().len()).expect("values");
-                enc_call(&mut f, 0, fb, |f| {
+                enc_call(f, 0, fb, |f| {
                     for k in first..first + n {
                         f.get(k);
                     }
@@ -1578,7 +1693,7 @@ pub fn enc(b: &LTy, m: &Module) -> Func {
             let flat = &e.layout;
             // The host format is the variant's index (`read_discr`), then
             // its payload, under a test of the discriminant cell.
-            put(&mut f, 0, |f| {
+            put(f, 0, |f| {
                 layout::read_discr(f, flat.disc, &|f, k| f.get(1 + k));
                 f.op(I::I64ExtendI32U);
             });
@@ -1601,7 +1716,7 @@ pub fn enc(b: &LTy, m: &Module) -> Func {
                     }
                 };
                 for (fi, fb) in fields.iter().enumerate() {
-                    enc_call(&mut f, 0, fb, |f| {
+                    enc_call(f, 0, fb, |f| {
                         for &k in &flat.positions[v as usize][fi] {
                             f.get(1 + k);
                         }
@@ -1622,31 +1737,25 @@ pub fn enc(b: &LTy, m: &Module) -> Func {
                 }
             };
             if m.runtime.is_some() {
-                own_arg(&mut f, &c.vals, c.walk.as_ref(), &get);
+                own_arg(f, &c.vals, c.walk.as_ref(), &get);
             }
-            get(&mut f);
+            get(f);
             f.call(Sym::Inst(c.codec));
             f.set(text[1]);
             f.set(text[0]);
-            enc_call(&mut f, 0, &LTy::Str, |f| {
+            enc_call(f, 0, &LTy::Str, |f| {
                 f.get(text[0]);
                 f.get(text[1]);
             });
-            release(
-                &mut f,
-                m,
-                &text,
-                vec![Val::I32, Val::I32],
-                Some(Walk::Ref(0)),
-            );
+            release(f, m, &text, vec![Val::I32, Val::I32], Some(Walk::Ref(0)));
         }
         LTy::Handle(_) => {
             f.op(I::Unreachable);
-            return f;
+            return;
         }
+        LTy::Named(n) => return enc_body(f, m.named_codecs.def(n.id), m),
     }
     f.get(0);
-    f
 }
 
 /// [`Helper::Dec`]: the decoder of `b`, `(off) -> (values..., off')`.
@@ -1657,6 +1766,12 @@ pub fn dec(b: &LTy, m: &mut Module) -> Func {
     let mut results = b.vals();
     results.push(Val::I32);
     let mut f = m.func("rt:dec", vec![Val::I32], results);
+    dec_body(&mut f, b, m);
+    f
+}
+
+/// [`dec`]'s body for `b`; a named type's is its definition's.
+fn dec_body(f: &mut Func, b: &LTy, m: &mut Module) {
     match b {
         LTy::Void => {}
         LTy::Int { bits, signed } => {
@@ -1709,7 +1824,7 @@ pub fn dec(b: &LTy, m: &mut Module) -> Func {
             let size = f.local(Val::I32);
             f.i32(n);
             f.set(size);
-            check_room(&mut f, 0, size);
+            check_room(f, 0, size);
             f.get(0);
             f.op(if n == 8 {
                 I::F64Load(mem(BUF, 0, 0))
@@ -1723,9 +1838,9 @@ pub fn dec(b: &LTy, m: &mut Module) -> Func {
         }
         LTy::DiscardStr => {
             let n = f.local(Val::I32);
-            get_len(&mut f, 0);
+            get_len(f, 0);
             f.set(n);
-            check_room(&mut f, 0, n);
+            check_room(f, 0, n);
             f.get(0);
             f.get(n);
             f.op(I::I32Add);
@@ -1735,9 +1850,9 @@ pub fn dec(b: &LTy, m: &mut Module) -> Func {
         }
         LTy::Str => {
             let (n, s) = (f.local(Val::I32), f.local(Val::I32));
-            get_len(&mut f, 0);
+            get_len(f, 0);
             f.set(n);
-            check_room(&mut f, 0, n);
+            check_room(f, 0, n);
             // Every empty string is the one static view (§23.7).
             f.u32(EMPTY);
             f.set(s);
@@ -1746,23 +1861,23 @@ pub fn dec(b: &LTy, m: &mut Module) -> Func {
             f.get(n);
             f.helper(Helper::Str);
             f.set(s);
-            copy(&mut f, 0, n, false, |f| f.get(s));
+            copy(f, 0, n, false, |f| f.get(s));
             f.op(I::End);
             f.get(s);
             f.get(n);
         }
         LTy::Bytes => {
             let (n, buf) = (f.local(Val::I32), f.local(Val::I32));
-            get_len(&mut f, 0);
+            get_len(f, 0);
             f.set(n);
-            check_room(&mut f, 0, n);
+            check_room(f, 0, n);
             f.get(n);
             f.helper(Helper::ListBuf { elem: byte_elem() });
             f.set(buf);
             f.get(buf);
             f.get(n);
             f.op(I::I32Store(mem(HEAP, LIST_LEN, 2)));
-            copy(&mut f, 0, n, false, |f| {
+            copy(f, 0, n, false, |f| {
                 f.get(buf);
                 f.u32(LIST_ELEMS);
                 f.op(I::I32Add);
@@ -1776,10 +1891,10 @@ pub fn dec(b: &LTy, m: &mut Module) -> Func {
                 f.local(Val::I32),
                 f.local(Val::I32),
             );
-            get_len(&mut f, 0);
+            get_len(f, 0);
             f.set(n);
             // Every element takes at least one byte.
-            check_room(&mut f, 0, n);
+            check_room(f, 0, n);
             f.get(n);
             f.helper(Helper::ListBuf {
                 elem: l.elem.clone(),
@@ -1795,7 +1910,7 @@ pub fn dec(b: &LTy, m: &mut Module) -> Func {
             f.get(n);
             f.op(I::I32GeU);
             f.op(I::BrIf(1));
-            let vals = dec_into(&mut f, 0, &l.ty);
+            let vals = dec_into(f, 0, &l.ty);
             for (leaf, v) in l.elem.leaves.iter().zip(&vals) {
                 f.get(at);
                 f.get(*v);
@@ -1822,7 +1937,7 @@ pub fn dec(b: &LTy, m: &mut Module) -> Func {
         LTy::Record(fields) => {
             let mut all = Vec::new();
             for fb in fields {
-                all.extend(dec_into(&mut f, 0, fb));
+                all.extend(dec_into(f, 0, fb));
             }
             for l in all {
                 f.get(l);
@@ -1832,13 +1947,13 @@ pub fn dec(b: &LTy, m: &mut Module) -> Func {
             let flat = &e.layout;
             let tag = f.local(Val::I32);
             let res: Vec<u32> = flat.mem.leaves.iter().map(|l| f.local(l.val)).collect();
-            get_len(&mut f, 0);
+            get_len(f, 0);
             f.set(tag);
             f.get(tag);
             f.i32(i32::try_from(e.variants.len()).expect("variants"));
             f.op(I::I32GeU);
             f.op(I::If(BlockType::Empty));
-            malformed(&mut f);
+            malformed(f);
             f.op(I::End);
             // A tag is the index itself, set once; a variant whose values
             // are then all set or zero needs no more. Any other builds its
@@ -1862,13 +1977,13 @@ pub fn dec(b: &LTy, m: &mut Module) -> Func {
                 f.u32(v);
                 f.op(I::I32Eq);
                 f.op(I::If(BlockType::Empty));
-                let ls: Vec<Vec<u32>> = fields.iter().map(|fb| dec_into(&mut f, 0, fb)).collect();
+                let ls: Vec<Vec<u32>> = fields.iter().map(|fb| dec_into(f, 0, fb)).collect();
                 let leaf = |f: &mut Func, fi: usize, k: usize| f.get(ls[fi][k]);
                 for (c, (steps, r)) in values.iter().zip(&res).enumerate() {
                     if let Some(steps) = steps
                         && built(c)
                     {
-                        layout::run_steps(&mut f, steps, &leaf);
+                        layout::run_steps(f, steps, &leaf);
                         f.set(*r);
                     }
                 }
@@ -1880,13 +1995,13 @@ pub fn dec(b: &LTy, m: &mut Module) -> Func {
         }
         LTy::Handle(h) => {
             let (number, data) = (f.local(Val::I32), f.local(Val::I32));
-            get_len(&mut f, 0);
+            get_len(f, 0);
             f.set(number);
             // The number owns one host binding. Aliases count this box;
             // its last release drops the binding, never an I/O resource.
             f.i32(4);
             crate::rt::push_desc(
-                &mut f,
+                f,
                 h.release.as_ref().map(|module| {
                     Sym::Helper(Helper::PackageHandleRelease {
                         module: module.clone(),
@@ -1906,25 +2021,28 @@ pub fn dec(b: &LTy, m: &mut Module) -> Func {
                 // first goes. `wrap` owns its argument (`layout::Pass`),
                 // so it takes a count of the box of its own.
                 if m.runtime.is_some() {
-                    own_arg(&mut f, &[Val::I32], Some(&Walk::Ref(0)), &|f| f.get(data));
+                    own_arg(f, &[Val::I32], Some(&Walk::Ref(0)), &|f| f.get(data));
                 }
                 f.call(Sym::Inst(wrap));
-                release(&mut f, m, &[data], vec![Val::I32], Some(Walk::Ref(0)));
+                release(f, m, &[data], vec![Val::I32], Some(Walk::Ref(0)));
             }
         }
         LTy::Codec(c) => {
             // The decoded string's count goes to the codec, which owns its
             // argument (`layout::Pass`); a value that does not deserialize
             // is its `host-contract` panic (`module.boundary.deserialize.exact`).
-            let text = dec_into(&mut f, 0, &LTy::Str);
+            let text = dec_into(f, 0, &LTy::Str);
             for l in text {
                 f.get(l);
             }
             f.call(Sym::Inst(c.codec));
         }
+        LTy::Named(n) => {
+            let def = m.named_codecs.def(n.id).clone();
+            return dec_body(f, &def, m);
+        }
     }
     f.get(0);
-    f
 }
 
 /// The element of a `List[u8]`.
@@ -2012,23 +2130,28 @@ pub fn package_method(
         member: path.rsplit(['.', '/']).next().unwrap_or("").to_owned(),
         params: params
             .into_iter()
-            .map(|t| package_value(input, t, 0))
+            .map(|t| package_value(input, t, &mut Binders::new()))
             .collect::<StageResult<_>>()?,
-        result: package_value(input, ret, 0)?,
+        result: package_value(input, ret, &mut Binders::new())?,
         suspends: input.env.suspends(method),
     })
 }
 
-fn package_value(input: &Input<'_>, t: Ty, depth: u32) -> StageResult<hd_host_abi::schema::Value> {
-    use hd_host_abi::schema::{Field, Value, Variant};
+/// The package schema of `t`. A struct or enum that one of its parts
+/// reaches again is recursive: it is a `Rec` binder, numbered on `path`,
+/// and the part a `Ref` to it (#1550). Cost: one scan of the path of
+/// nominal types being built per nominal type reached.
+fn package_value(
+    input: &Input<'_>,
+    t: Ty,
+    path: &mut Binders,
+) -> StageResult<hd_host_abi::schema::Value> {
+    use hd_host_abi::schema::Value;
     let (pool, env) = (input.pool, input.env);
     let fail = || unsupported(format!("the generated JS codec for `{}`", pool.display(t)));
-    if depth > MAX_DEPTH {
-        return fail();
-    }
     let s = layout::strip(pool, env, t);
     if let TyData::Ref { inner, .. } = pool.get(s) {
-        return package_value(input, inner, depth + 1);
+        return package_value(input, inner, path);
     }
     if let TyData::Adt { def, .. } = pool.get(s)
         && env.has_private_field(def)
@@ -2056,7 +2179,7 @@ fn package_value(input: &Input<'_>, t: Ty, depth: u32) -> StageResult<hd_host_ab
             let ts = pool
                 .list_items(elems)
                 .iter()
-                .map(|t| package_value(input, *t, depth + 1))
+                .map(|t| package_value(input, *t, path))
                 .collect::<StageResult<Vec<_>>>()?;
             if ts.is_empty() {
                 Value::Void
@@ -2065,7 +2188,7 @@ fn package_value(input: &Input<'_>, t: Ty, depth: u32) -> StageResult<hd_host_ab
             }
         }
         TyData::Adt { .. } if let Some(inner) = pool.sole_arg(t, env.option()) => {
-            Value::Option(Box::new(package_value(input, inner, depth + 1)?))
+            Value::Option(Box::new(package_value(input, inner, path)?))
         }
         TyData::Adt { def, args } if env.std_kind(def) == hd_mono::layout::StdKind::List => {
             let Some(&elem) = pool.list_items(args).first() else {
@@ -2074,18 +2197,58 @@ fn package_value(input: &Input<'_>, t: Ty, depth: u32) -> StageResult<hd_host_ab
             if pool.get(layout::strip(pool, env, elem)) == TyData::Prim(Prim::U8) {
                 Value::Bytes
             } else {
-                Value::List(Box::new(package_value(input, elem, depth + 1)?))
+                Value::List(Box::new(package_value(input, elem, path)?))
             }
         }
         TyData::Adt { def, args } => {
+            if let Some(at) = path.iter().position(|(t, _)| *t == s) {
+                // Each binder on the path has its own number: the count
+                // of binders before it.
+                let next = path.iter().map(|(_, id)| u32::from(id.is_some())).sum();
+                let id = *path[at].1.get_or_insert(next);
+                return Ok(Value::Ref(id));
+            }
+            path.push((s, None));
+            let built = package_data(input, def, args, path, &fail);
+            // The entry pushed above, with its number if a part reached it.
+            let id = path.pop().and_then(|(_, id)| id);
+            let built = built?;
+            return Ok(match id {
+                Some(id) => Value::Rec(id, Box::new(built)),
+                None => built,
+            });
+        }
+        TyData::TraitValue { def, args, .. } if args == TyList::EMPTY => {
+            let Some(identity) = (input.package_trait)(def) else {
+                return fail();
+            };
+            Value::Handle(package_module(&identity, true))
+        }
+        _ => return fail(),
+    })
+}
+
+/// [`package_value`]'s struct or enum instance `def[args]`; `fail` is its
+/// refusal.
+fn package_data(
+    input: &Input<'_>,
+    def: DefId,
+    args: TyList,
+    path: &mut Binders,
+    fail: &dyn Fn() -> StageResult<hd_host_abi::schema::Value>,
+) -> StageResult<hd_host_abi::schema::Value> {
+    use hd_host_abi::schema::{Field, Value, Variant};
+    let (pool, env) = (input.pool, input.env);
+    Ok({
+        {
             if let Some(variants) = env.enum_variants(def, args) {
                 if (input.path)(def).replace('/', ".") == "std.core.Result"
                     && variants.len() == 2
                     && variants.iter().all(|v| v.len() == 1)
                 {
                     Value::Result(
-                        Box::new(package_value(input, variants[0][0], depth + 1)?),
-                        Box::new(package_value(input, variants[1][0], depth + 1)?),
+                        Box::new(package_value(input, variants[0][0], path)?),
+                        Box::new(package_value(input, variants[1][0], path)?),
                     )
                 } else {
                     let Some(names) = env.enum_variant_names(def) else {
@@ -2107,7 +2270,7 @@ fn package_value(input: &Input<'_>, t: Ty, depth: u32) -> StageResult<hd_host_ab
                                 .map(|(name, ty)| {
                                     Ok(Field {
                                         name,
-                                        value: package_value(input, ty, depth + 1)?,
+                                        value: package_value(input, ty, path)?,
                                     })
                                 })
                                 .collect::<StageResult<_>>()?,
@@ -2132,24 +2295,13 @@ fn package_value(input: &Input<'_>, t: Ty, depth: u32) -> StageResult<hd_host_ab
                         .map(|(name, ty)| {
                             Ok(Field {
                                 name,
-                                value: package_value(
-                                    input,
-                                    subst(pool, env, def, args, ty),
-                                    depth + 1,
-                                )?,
+                                value: package_value(input, subst(pool, env, def, args, ty), path)?,
                             })
                         })
                         .collect::<StageResult<_>>()?,
                 )
             }
         }
-        TyData::TraitValue { def, args, .. } if args == TyList::EMPTY => {
-            let Some(identity) = (input.package_trait)(def) else {
-                return fail();
-            };
-            Value::Handle(package_module(&identity, true))
-        }
-        _ => return fail(),
     })
 }
 

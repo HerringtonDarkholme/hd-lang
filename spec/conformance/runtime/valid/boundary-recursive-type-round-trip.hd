@@ -1,0 +1,38 @@
+# test: a recursive enum crosses a host call out of hd and back in, nested 40 deep, past any fixed nesting limit
+# Spec Modules, Boundary-Safe Values: module.boundary.allowed, module.boundary.tree, module.boundary.direction (#1550).
+# fixture-runtime-profile: serde-vault
+use std.testing.assert_equal
+
+pub enum Token:
+    Leaf(n: i32)
+    Node(kids: List[Token])
+
+pub trait Vault:
+    fn keep(self, token: Token) -> Token
+
+fn chain(depth: i32) -> Token:
+    let t = Token.Leaf(depth)
+    let i = +0
+    while i < depth:
+        t = Token.Node([t, Token.Leaf(i)])
+        i += 1
+    t
+
+fn depth_of(t: Token) -> i32:
+    match t:
+        Token.Leaf(_) => +0
+        Token.Node(kids) => depth_of(kids[0]) + 1
+
+fn leaves(t: Token) -> i32:
+    match t:
+        Token.Leaf(n) => n
+        Token.Node(kids) =>
+            let total = +0
+            for k in kids:
+                total += leaves(k)
+            total
+
+pub fn main() -> void $ Vault:
+    kept := $.use(Vault).keep(chain(40))
+    assert_equal(depth_of(kept), 40, reason="every level crosses")
+    assert_equal(leaves(kept), 820, reason="every leaf crosses with its payload")

@@ -1,0 +1,16 @@
+# @dump: wat
+# @build: program
+# @profile: serde-vault
+# @helpers: hd:Vault/keep enc dec
+# expected: `Token` has one encoder and one decoder (#1550). Each calls
+# the list's codec, whose element loop calls the `Token` codec again: no
+# per-level copy, and no nesting limit.
+pub enum Token:
+    Leaf(n: i32)
+    Node(kids: List[Token])
+
+pub trait Vault:
+    fn keep(self, token: Token) -> Token
+
+pub fn main() -> void $ Vault:
+    _ := $.use(Vault).keep(Token.Node([Token.Leaf(+1)]))

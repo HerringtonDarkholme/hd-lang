@@ -39,6 +39,13 @@ pub enum Value {
     Json,
     /// The import module of a host-returned handle interface.
     Handle(String),
+    /// A recursive struct or enum: `Rec(id, body)` binds `id`, and each
+    /// [`Value::Ref`] of `id` inside `body` is the whole type again. A
+    /// `Ref` lies under a list, an option, an enum or a result between it
+    /// and its binder, so every value of the type is finite.
+    Rec(u32, Box<Self>),
+    /// The recursive type its enclosing `Rec` of the same id binds.
+    Ref(u32),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -223,17 +230,42 @@ impl Contract {
                     }
                 }
                 for v in m.params.iter().chain(std::iter::once(&m.result)) {
-                    self.validate_value(v, 0)?;
+                    self.validate_value(v, 0, &mut Binders::default())?;
                 }
             }
         }
         Ok(())
     }
 
-    fn validate_value(&self, v: &Value, depth: usize) -> Result<(), &'static str> {
+    fn validate_value(
+        &self,
+        v: &Value,
+        depth: usize,
+        binders: &mut Binders,
+    ) -> Result<(), &'static str> {
         if depth > MAX_DEPTH {
             return Err("package host value nesting exceeds the boundary limit");
         }
+        // A list, an option, a result or an enum of more than one variant
+        // guards every binder around it: each has a value without the part
+        // below it, so a `Ref` there is a finite value's part.
+        let guard = binders.guard;
+        if matches!(v, Value::List(_) | Value::Option(_) | Value::Result(..))
+            || matches!(v, Value::Enum(vs) if vs.len() > 1)
+        {
+            binders.guard = binders.ids.len();
+        }
+        let checked = self.validate_shape(v, depth, binders);
+        binders.guard = guard;
+        checked
+    }
+
+    fn validate_shape(
+        &self,
+        v: &Value,
+        depth: usize,
+        binders: &mut Binders,
+    ) -> Result<(), &'static str> {
         match v {
             Value::Int { bits, .. } if ![8, 16, 32, 64].contains(bits) => {
                 return Err("invalid package host integer width");
@@ -246,47 +278,76 @@ impl Contract {
             {
                 return Err("missing package host handle interface");
             }
-            Value::List(t) | Value::Option(t) => self.validate_value(t, depth + 1)?,
+            Value::List(t) | Value::Option(t) => self.validate_value(t, depth + 1, binders)?,
             Value::Result(a, b) => {
-                self.validate_value(a, depth + 1)?;
-                self.validate_value(b, depth + 1)?;
+                self.validate_value(a, depth + 1, binders)?;
+                self.validate_value(b, depth + 1, binders)?;
             }
             Value::Tuple(ts) => {
                 for t in ts {
-                    self.validate_value(t, depth + 1)?;
+                    self.validate_value(t, depth + 1, binders)?;
                 }
             }
-            Value::Record(fs) => self.validate_fields(fs, depth + 1)?,
+            Value::Record(fs) => self.validate_fields(fs, depth + 1, binders)?,
             Value::Enum(vs) => {
                 let mut names = BTreeSet::new();
                 for variant in vs {
                     if variant.name.is_empty() || !names.insert(&variant.name) {
                         return Err("empty or duplicate package host variant");
                     }
-                    self.validate_fields(&variant.fields, depth + 1)?;
+                    self.validate_fields(&variant.fields, depth + 1, binders)?;
                 }
             }
+            Value::Rec(id, body) => {
+                if binders.ids.contains(id) || !matches!(**body, Value::Record(_) | Value::Enum(_))
+                {
+                    return Err("invalid package host recursive type");
+                }
+                binders.ids.push(*id);
+                let checked = self.validate_value(body, depth + 1, binders);
+                binders.ids.pop();
+                checked?;
+            }
+            Value::Ref(id) => match binders.ids.iter().rposition(|b| b == id) {
+                Some(at) if at < binders.guard => {}
+                _ => return Err("unbound or unguarded package host recursive type"),
+            },
             _ => {}
         }
         Ok(())
     }
 
-    fn validate_fields(&self, fs: &[Field], depth: usize) -> Result<(), &'static str> {
+    fn validate_fields(
+        &self,
+        fs: &[Field],
+        depth: usize,
+        binders: &mut Binders,
+    ) -> Result<(), &'static str> {
         let mut names = BTreeSet::new();
         for f in fs {
             if f.name.is_empty() || !names.insert(&f.name) {
                 return Err("empty or duplicate package host field");
             }
-            self.validate_value(&f.value, depth)?;
+            self.validate_value(&f.value, depth, binders)?;
         }
         Ok(())
     }
 }
 
+/// The recursive types around a value being validated, outermost first,
+/// and how many of them a list, option, enum or result guards.
+#[derive(Default)]
+struct Binders {
+    ids: Vec<u32>,
+    guard: usize,
+}
+
 struct Writer(Vec<u8>);
 impl Writer {
     fn len(&mut self, n: usize) {
-        let mut n = u32::try_from(n).expect("Wasm contract length");
+        self.number(u32::try_from(n).expect("Wasm contract length"));
+    }
+    fn number(&mut self, mut n: u32) {
         loop {
             let mut b = (n & 127) as u8;
             n >>= 7;
@@ -334,6 +395,8 @@ impl Writer {
             Value::Result(..) => 13,
             Value::Json => 14,
             Value::Handle(_) => 15,
+            Value::Rec(..) => 16,
+            Value::Ref(_) => 17,
         });
         match v {
             Value::Int { bits, signed } => self.0.extend_from_slice(&[*bits, u8::from(*signed)]),
@@ -352,6 +415,11 @@ impl Writer {
                 self.value(b);
             }
             Value::Handle(module) => self.string(module),
+            Value::Rec(id, body) => {
+                self.number(*id);
+                self.value(body);
+            }
+            Value::Ref(id) => self.number(*id),
             _ => {}
         }
     }
@@ -385,6 +453,14 @@ impl<'a> Reader<'a> {
         }
     }
     fn len(&mut self) -> Result<usize, &'static str> {
+        let n = self.number()? as usize;
+        if n <= self.bytes.len() - self.at {
+            Ok(n)
+        } else {
+            Err("truncated package host contract vector")
+        }
+    }
+    fn number(&mut self) -> Result<u32, &'static str> {
         let mut n = 0_u32;
         for shift in (0..35).step_by(7) {
             let b = self.byte()?;
@@ -393,12 +469,7 @@ impl<'a> Reader<'a> {
             }
             n |= u32::from(b & 127) << shift;
             if b < 128 {
-                let n = n as usize;
-                return if n <= self.bytes.len() - self.at {
-                    Ok(n)
-                } else {
-                    Err("truncated package host contract vector")
-                };
+                return Ok(n);
             }
         }
         Err("invalid package host contract length")
@@ -457,6 +528,8 @@ impl<'a> Reader<'a> {
             ),
             14 => Value::Json,
             15 => Value::Handle(self.string()?),
+            16 => Value::Rec(self.number()?, Box::new(self.value(depth + 1)?)),
+            17 => Value::Ref(self.number()?),
             _ => return Err("unknown package host value codec"),
         })
     }
@@ -492,6 +565,75 @@ pub fn from_wasm(wasm: &[u8]) -> Result<Option<Contract>, &'static str> {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+
+    /// `enum Tree: Leaf | Node(kids: List[kid])`.
+    fn tree(kid: Value) -> Value {
+        Value::Enum(vec![
+            Variant {
+                name: "Leaf".into(),
+                fields: vec![],
+            },
+            Variant {
+                name: "Node".into(),
+                fields: vec![Field {
+                    name: "kids".into(),
+                    value: Value::List(Box::new(kid)),
+                }],
+            },
+        ])
+    }
+
+    #[test]
+    fn recursive_types_are_bound_unshadowed_and_guarded() {
+        let with = |v: Value| {
+            let mut c = sample();
+            c.interfaces[0].methods[0].result = v;
+            c
+        };
+        // A recursive type nested in another, each with its own number.
+        let nested = Value::Rec(
+            0,
+            Box::new(tree(Value::Rec(
+                1,
+                Box::new(tree(Value::Tuple(vec![Value::Ref(0), Value::Ref(1)]))),
+            ))),
+        );
+        let c = with(nested);
+        assert_eq!(Contract::decode(&c.encode()).unwrap(), c);
+        let refused = [
+            Value::Ref(0),
+            Value::Rec(0, Box::new(tree(Value::Ref(1)))),
+            Value::Rec(
+                0,
+                Box::new(tree(Value::Rec(0, Box::new(tree(Value::Ref(0)))))),
+            ),
+            Value::Rec(0, Box::new(Value::List(Box::new(Value::Ref(0))))),
+            // A record or a one-variant enum straight back to itself has no
+            // finite value.
+            Value::Rec(
+                0,
+                Box::new(Value::Record(vec![Field {
+                    name: "next".into(),
+                    value: Value::Ref(0),
+                }])),
+            ),
+            Value::Rec(
+                0,
+                Box::new(Value::Enum(vec![Variant {
+                    name: "Only".into(),
+                    fields: vec![Field {
+                        name: "next".into(),
+                        value: Value::Ref(0),
+                    }],
+                }])),
+            ),
+        ];
+        for v in refused {
+            let c = with(v.clone());
+            assert!(c.validate().is_err(), "{v:?}");
+            assert!(Contract::decode(&c.encode()).is_err(), "{v:?}");
+        }
+    }
 
     pub(crate) fn sample() -> Contract {
         Contract {
@@ -546,6 +688,7 @@ pub(crate) mod tests {
                                     },
                                 }],
                             }]),
+                            Value::Rec(0, Box::new(tree(Value::Ref(0)))),
                         ],
                         result: Value::Result(
                             Box::new(Value::Handle("hd:pkg:events".into())),

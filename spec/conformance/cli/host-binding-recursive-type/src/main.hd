@@ -1,0 +1,35 @@
+# Spec Modules, Boundary-Safe Values: module.boundary.allowed (#1550).
+# A recursive type crosses a package host both ways, deeper than 32.
+pub enum Tree:
+    Leaf
+    Node(kids: List[Tree])
+
+@host
+pub trait Surface:
+    fn render(&self, t: Tree) -> Tree
+
+fn chain(depth: i32) -> Tree:
+    let t = Tree.Leaf
+    let i = +0
+    while i < depth:
+        t = Tree.Node([t])
+        i += 1
+    t
+
+fn leaves(t: Tree) -> i32:
+    match t:
+        Tree.Leaf => +1
+        Tree.Node(kids) =>
+            let total = +0
+            for k in kids:
+                total += leaves(k)
+            total
+
+fn depth_of(t: Tree) -> i32:
+    match t:
+        Tree.Leaf => +0
+        Tree.Node(kids) => depth_of(kids[0]) + 1
+
+pub fn main() -> void $ Surface + Console:
+    t := $.use(Surface).render(chain(40))
+    println("${depth_of(t)} ${leaves(t)}")

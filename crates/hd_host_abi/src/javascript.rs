@@ -145,6 +145,16 @@ fn codec(out: &mut String, v: &Value) {
             codec(out, b);
             out.push(')');
         }
+        // One codec per recursive type: `r<id>` is the codec being built,
+        // which its own body calls.
+        Value::Rec(id, body) => {
+            let _ = write!(out, "runtime.rec({id},r{id}=>");
+            codec(out, body);
+            out.push(')');
+        }
+        Value::Ref(id) => {
+            let _ = write!(out, "r{id}");
+        }
     }
 }
 
@@ -200,7 +210,7 @@ const runtime = new Proxy({{
     if (abiVersion !== 1 || bytes.length !== contract.length) throw Error('wrong ABI');
     if (interfaces[0].methods[0].name !== {}) throw Error('name changed');
     if (interfaces[0].methods[0].wait !== 'may' || interfaces[1].methods[0].wait !== 'never') throw Error('wait changed');
-    if (interfaces[0].methods[0].params.length !== 13) throw Error('parameters changed');
+    if (interfaces[0].methods[0].params.length !== 14) throw Error('parameters changed');
     if (interfaces[0].methods[0].params[2] !== 'int:64,true') throw Error('integer type changed');
     if (interfaces[0].methods[0].params[11] !== 'record:text,str') throw Error('record fields lost');
     if (bytes[0] !== 1 || providers.length !== 1) throw Error('contract or provider count changed');

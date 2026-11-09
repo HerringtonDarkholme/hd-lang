@@ -322,11 +322,17 @@ the codecs generated from the ABI model (`host/gen/abi.ts`), built on
   closes an open handle and does nothing for a closed one.
   A runtime profile's own trait that a profile method returns crosses
   the same way, its slots imported from `hd:<Trait>` by method name with
-  the number first (the `disposed-file` profile's `FileHandle`). A trait
-  that one of its own methods returns does not cross.
-- **Nesting.** Boundary types nest at most 32 deep, and recursive types
-  do not cross, so a crossing value has no cycle
-  ([`module.boundary.cycle`](../../spec/lang/10-modules.md#r-module.boundary.cycle)).
+  the number first (the `disposed-file` profile's `FileHandle`).
+- **Recursion.** A recursive struct or enum crosses through one encoder
+  and one decoder, each calling itself where the type recurs (#1550), so a
+  value crosses at any depth. An hd value at the boundary has no cycle:
+  boundary-safe types hold no reference, closure or trait value, and value
+  edges never close one (`crate::cycle` in `hd_wasm_linear`). A package
+  provider's JS value can; its generated codec tracks the values on its
+  path and fails `boundary-cycle`
+  ([`module.boundary.cycle.tracked`](../../spec/lang/10-modules.md#r-module.boundary.cycle.tracked)).
+  A package schema writes the type as a `Rec(id, body)` binder whose
+  recurrences are `Ref(id)`.
   Maps, functions and other trait values do not cross yet; a host method
   over one stops at Link as unsupported.
 

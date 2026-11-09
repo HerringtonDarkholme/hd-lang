@@ -11,7 +11,9 @@ export type ContractValue =
   | [11, ContractField[]]
   | [12, [string, ContractField[]][]]
   | [13, ContractValue, ContractValue]
-  | [15, string];
+  | [15, string]
+  | [16, number, ContractValue]
+  | [17, number];
 export type ContractField = [string, ContractValue];
 export interface ContractIdentity {
   package: string;
@@ -61,7 +63,20 @@ function validateContract(interfaces: ContractInterface[]): void {
       checkValue(value);
     }
   };
+  // The recursive types around the value being checked, outermost first,
+  // and how many of them a list, option, result or enum of more than one
+  // variant guards (hd_host_abi schema.rs `Binders`).
+  const binders: number[] = [];
+  let guard = 0;
   const checkValue = (value: ContractValue): void => {
+    const outer = guard;
+    if ([8, 9, 13].includes(value[0]) || (value[0] === 12 && (value[1] as unknown[]).length > 1)) {
+      guard = binders.length;
+    }
+    checkShape(value);
+    guard = outer;
+  };
+  const checkShape = (value: ContractValue): void => {
     const [tag, left, right] = value;
     if (tag === 15 && !interfaces.some((item) => item.handle && item.module === left)) {
       fail("missing handle interface");
@@ -85,6 +100,27 @@ function validateContract(interfaces: ContractInterface[]): void {
     if (tag === 13) {
       checkValue(left);
       checkValue(right);
+    }
+    if (tag === 16 || tag === 17) {
+      checkRecursive(value);
+    }
+  };
+  // `[16, id, body]` binds `id` over a struct or enum body; `[17, id]`
+  // names a binder around it, guarded since.
+  const checkRecursive = (value: ContractValue): void => {
+    if (value[0] === 16) {
+      const [, id, body] = value;
+      if (binders.includes(id) || ![11, 12].includes(body[0])) {
+        fail("invalid recursive type");
+      }
+      binders.push(id);
+      checkValue(body);
+      binders.pop();
+    } else if (value[0] === 17) {
+      const at = binders.lastIndexOf(value[1]);
+      if (at < 0 || at >= guard) {
+        fail("unbound or unguarded recursive type");
+      }
     }
   };
   for (const item of interfaces) {
@@ -140,7 +176,8 @@ export function readPackageContract(bytes: Uint8Array): ContractInterface[] {
     }
     return byteValue === 1;
   };
-  const count = (): number => {
+  // A canonical unsigned LEB128 number below 2^32.
+  const number = (): number => {
     let count = 0;
     for (let shift = 0; shift < 35; shift += 7) {
       const byteValue = byte();
@@ -149,13 +186,21 @@ export function readPackageContract(bytes: Uint8Array): ContractInterface[] {
       }
       count += (byteValue & 127) * 2 ** shift;
       if (byteValue < 128) {
-        if ((shift && byteValue === 0) || count > bytes.length - at) {
+        if (shift && byteValue === 0) {
           fail("invalid contract length");
         }
         return count;
       }
     }
     return fail("invalid contract length");
+  };
+  // A length, which the remaining bytes must hold.
+  const count = (): number => {
+    const count = number();
+    if (count > bytes.length - at) {
+      fail("invalid contract length");
+    }
+    return count;
   };
   const string = (): string => {
     const length = count();
@@ -203,6 +248,12 @@ export function readPackageContract(bytes: Uint8Array): ContractInterface[] {
     }
     if (tag === 15) {
       return [tag, string()];
+    }
+    if (tag === 16) {
+      return [tag, number(), value(depth + 1)];
+    }
+    if (tag === 17) {
+      return [tag, number()];
     }
     return fail("unknown contract value tag");
   };

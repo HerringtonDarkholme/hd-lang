@@ -495,7 +495,39 @@ export function createPackageRuntime(
       },
       () => fail("a handle cannot be passed as a data argument"),
     );
+  // A recursive type's one codec (`[16, id, body]`). `build` makes the
+  // body from the codec of `[17, id]`, which calls the body again. Encoding
+  // tracks the values on its path: a provider value that reaches itself
+  // again is the `boundary-cycle` failure (module.boundary.cycle.tracked),
+  // never an unbounded walk.
+  const rec = (id: number, build: (self: RuntimeCodec) => RuntimeCodec): RuntimeCodec => {
+    const active = new Set<object>();
+    let body: RuntimeCodec | undefined;
+    const self = codec(
+      [17, id],
+      (error, value, tx) => {
+        const tracked = typeof value === "object" && value !== null;
+        if (tracked && active.has(value)) {
+          fail("boundary-cycle: a provider value reaches itself");
+        }
+        if (tracked) {
+          active.add(value);
+        }
+        try {
+          body!.enc(error, value, tx);
+        } finally {
+          if (tracked) {
+            active.delete(value);
+          }
+        }
+      },
+      (data) => body!.dec(data),
+    );
+    body = build(self);
+    return codec([16, id, body.shape], self.enc, self.dec);
+  };
   const runtime = {
+    rec,
     unit,
     bool,
     char,
@@ -591,6 +623,9 @@ export function createPackageRuntime(
         }
         if (value[0] === 13) {
           visit(value[1]);
+          visit(value[2]);
+        }
+        if (value[0] === 16) {
           visit(value[2]);
         }
       };

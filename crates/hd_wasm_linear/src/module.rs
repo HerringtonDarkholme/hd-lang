@@ -1064,6 +1064,8 @@ pub struct Module {
     /// slots are built, so a handle method that returns its own trait
     /// names the table being built (#1551).
     pub handle_vtables: hd_base::HashMap<(hd_base::DefId, bool, Option<hd_types::TyList>), usize>,
+    /// The recursive boundary types' codecs (`boundary::Named`, #1550).
+    pub named_codecs: crate::boundary::Named,
     /// The bang methods that some call awaits at once through a trait
     /// value, whose vtables carry a drive slot (§23.39).
     pub driven: hd_base::HashSet<hd_base::DefId>,

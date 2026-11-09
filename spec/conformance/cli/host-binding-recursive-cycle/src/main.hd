@@ -1,0 +1,16 @@
+# Spec Modules, Boundary Encoding: module.boundary.cycle, module.boundary.cycle.tracked (#1550).
+# A provider value of a recursive type that reaches itself is the
+# boundary-cycle failure, not an unbounded walk.
+pub enum Tree:
+    Leaf
+    Node(kids: List[Tree])
+
+@host
+pub trait Surface:
+    fn grow(&self) -> Tree
+
+pub fn main() -> void $ Surface + Console:
+    t := $.use(Surface).grow()
+    match t:
+        Tree.Leaf => println("leaf")
+        Tree.Node(_) => println("node")
