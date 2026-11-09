@@ -24,6 +24,27 @@ use crate::module::{EMPTY, HEAP, Val, mem};
 use crate::rt::{self, Helper, LIST_ELEMS, LIST_LEN, RefLayout};
 use crate::unsupported;
 
+/// A value-backed root after globals and raw-pointer instructions split off.
+#[derive(Clone, Copy)]
+enum ValueRoot {
+    Local(hd_base::LocalId),
+    Value(Ref),
+}
+
+impl ValueRoot {
+    fn checked(root: PlaceRoot) -> Self {
+        let value = match root {
+            PlaceRoot::Local(l) => Some(Self::Local(l)),
+            PlaceRoot::Value(r) => Some(Self::Value(r)),
+            PlaceRoot::Global(..) | PlaceRoot::Frame(_) | PlaceRoot::Ptr(_) => None,
+        };
+        // ruled out: callers split off globals; inst_tag handles Ptr and
+        // invariant 20 excludes Frame from these value place walks.
+        assert!(value.is_some(), "the place must have a value-backed root");
+        value.as_slice()[0]
+    }
+}
+
 /// Where a step of a place lies while [`Em::walk_place`] resolves it: in
 /// Wasm locals; in a top-level binding's Wasm globals from value `first`
 /// on, of the types `vals` (`(h, first, vals)`, the root of a store); in
@@ -1206,29 +1227,28 @@ impl Em<'_, '_, '_> {
             (PlaceRoot::Value(r), Some((0, _)))
                 if tag != Tag::Ref && matches!(p.proj[0], Proj::Elem(_)) =>
             {
-                At::Vals(vec![self.buffer(r.0)?])
+                Some(At::Vals(vec![self.buffer(r.0)?]))
             }
             (root, Some((0, through)))
                 if tag == Tag::Store || tag == Tag::Read && matches!(through, Some((_, false))) =>
             {
                 let x = self.f.local(Val::I32);
-                match root {
-                    PlaceRoot::Local(l) => {
+                match ValueRoot::checked(root) {
+                    ValueRoot::Local(l) => {
                         let ls = self.local_value(l.raw())?;
                         self.f.get(ls[0]);
                     }
-                    PlaceRoot::Value(r) => self.comp(r.0, 0)?,
-                    // ruled out: globals take the rooted walk above;
-                    // inst_tag handles Ptr, and invariant 20 excludes Frame.
-                    _ => return unsupported("a dereference of a binding's or a frame's place"),
+                    ValueRoot::Value(r) => self.comp(r.0, 0)?,
                 }
                 self.f.set(x);
-                At::Vals(vec![x])
+                Some(At::Vals(vec![x]))
             }
             (_, Some(_)) if tag != Tag::Store => return Ok(None),
             (_, None) if tag == Tag::Read => return Ok(None),
-            (PlaceRoot::Local(l), None) if !self.is_cell(l.idx()) => At::Vals(self.local(l.raw())?),
-            (PlaceRoot::Local(l), None) => At::Mem(self.cell_of(l.idx())?, 0),
+            (PlaceRoot::Local(l), None) if !self.is_cell(l.idx()) => {
+                Some(At::Vals(self.local(l.raw())?))
+            }
+            (PlaceRoot::Local(l), None) => Some(At::Mem(self.cell_of(l.idx())?, 0)),
             (PlaceRoot::Global(def, _), None) if tag == Tag::Store => {
                 let h = self.def_hash(def);
                 let Some(slot) = self.def_slot(def) else {
@@ -1246,11 +1266,12 @@ impl Em<'_, '_, '_> {
                 );
                 return self.at_root(root).map(Some);
             }
-            // ruled out: checked stores address a local/global or go
-            // through a reference/element; inst_tag handles raw pointers.
-            _ => return unsupported("a store into a place that is not writable"),
+            _ => None,
         };
-        Ok(Some((at, t)))
+        // ruled out: checked stores address a local/global or go through
+        // a reference/element; inst_tag handles raw pointers.
+        assert!(at.is_some(), "a checked store must have a writable start");
+        Ok(at.map(|at| (at, t)))
     }
 
     /// A write of `v` through the reference in local `at` to a `target`.
@@ -1365,35 +1386,34 @@ impl Em<'_, '_, '_> {
     /// from its cell when it has one), a top-level binding's (its static
     /// slot, or its Wasm globals read into locals) or an instruction's.
     fn at_root(&mut self, root: PlaceRoot) -> StageResult<(At, Ty)> {
-        match root {
-            PlaceRoot::Local(l) => {
+        if let PlaceRoot::Global(def, t) = root {
+            let t = self.sub(t);
+            if let Some(slot) = self.def_slot(def) {
+                let a = self.f.local(Val::I32);
+                self.f.address(slot);
+                self.f.set(a);
+                return Ok((At::Mem(a, 0), t));
+            }
+            let h = self.def_hash(def);
+            let mut ls = Vec::new();
+            for (k, v) in self.vals(t)?.into_iter().enumerate() {
+                // ruled out: the materialized value ABI uses u32 local/slot indices.
+                let k = u32::try_from(k).expect("k");
+                ls.push(self.f.local(v));
+                self.f.global_get(crate::module::Global::Storage(h, k, v));
+                self.f.set(ls[ls.len() - 1]);
+            }
+            return Ok((At::Vals(ls), t));
+        }
+        match ValueRoot::checked(root) {
+            ValueRoot::Local(l) => {
                 Ok((At::Vals(self.local_value(l.raw())?), self.at_root_ty(root)))
             }
-            PlaceRoot::Global(def, t) => {
-                let t = self.sub(t);
-                if let Some(slot) = self.def_slot(def) {
-                    let a = self.f.local(Val::I32);
-                    self.f.address(slot);
-                    self.f.set(a);
-                    return Ok((At::Mem(a, 0), t));
-                }
-                let h = self.def_hash(def);
-                let mut ls = Vec::new();
-                for (k, v) in self.vals(t)?.into_iter().enumerate() {
-                    let k = u32::try_from(k).expect("k");
-                    ls.push(self.f.local(v));
-                    self.f.global_get(crate::module::Global::Storage(h, k, v));
-                    self.f.set(ls[ls.len() - 1]);
-                }
-                Ok((At::Vals(ls), t))
-            }
             // A borrow a match reads in place is its referent.
-            PlaceRoot::Value(r) if let Some(&z) = self.lazy.get(&r.0) => {
+            ValueRoot::Value(r) if let Some(&z) = self.lazy.get(&r.0) => {
                 Ok((At::Mem(z.at, z.off), self.ty_of(r.0)))
             }
-            PlaceRoot::Value(r) => Ok((At::Vals(self.local_value_of(r.0)?), self.ty_of(r.0))),
-            // ruled out: invariant 20 excludes Frame; inst_tag handles Ptr.
-            _ => unsupported("a place rooted at a frame slot or a pointer's target"),
+            ValueRoot::Value(r) => Ok((At::Vals(self.local_value_of(r.0)?), self.ty_of(r.0))),
         }
     }
 
