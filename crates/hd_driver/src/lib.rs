@@ -12228,12 +12228,8 @@ impl ProgramEnv for Env<'_> {
             adapter,
         })
     }
-    fn shared_reference_layout(&self, ty: Ty) -> Option<bool> {
-        Some(hd_wasm_linear::shared_reference_layout(
-            &self.run.pool,
-            self,
-            ty,
-        ))
+    fn shared_reference_layout(&self, ty: Ty) -> bool {
+        hd_wasm_linear::shared_reference_layout(&self.run.pool, self, ty)
     }
 
     fn body(&self, def: DefId) -> Option<&Body> {

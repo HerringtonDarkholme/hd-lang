@@ -1,73 +1,19 @@
-//! Instance keys, A1 classes and Wasm layouts over the full type
+//! Instance keys, A1 classes and layout facts over the full type
 //! representation (`crates/hd_mono/DESIGN.md` §13.2, §13.3; `crates/hd_wasm_linear/DESIGN.md` §15.1, §15.2;
 //! `docs/compiler/data-structures.md` §3.22).
 
 use hd_base::SliceSort as _;
-use hd_base::{DefId, Hash128, InstId, NotImplemented, StableHasher, Stage, StageResult};
+use hd_base::{DefId, Hash128, InstId, StableHasher};
 use hd_base::{HashMap, HashSet};
 
 use hd_types::{InternPool, ParamRef, Prim, Ty, TyData, TyList};
 
-/// The A1 class of a move-only type argument (§13.2).
+/// The A1 class of a move-only type argument (§13.2): one non-null
+/// reference, the only class a key shares. Its `Debug` text is hashed
+/// into instance keys ([`instance_key`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum A1Class {
-    /// The parameter needs its exact representation.
-    Exact,
-    /// One non-null reference.
     Ref,
-    /// One nullable reference.
-    RefNull,
-    /// A scalar class, by its Wasm value type.
-    Scalar(ValType),
-    Void,
-}
-
-/// Wasm value types the layouts use.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum ValType {
-    I32,
-    I64,
-    F32,
-    F64,
-    /// `(ref $T)` or `(ref null $T)`.
-    Ref {
-        nullable: bool,
-    },
-    /// `eqref`: erased storage.
-    EqRef,
-}
-
-/// Layout classes (§15.1).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum LayoutClass {
-    I32,
-    I64,
-    F32,
-    F64,
-    Ref,
-    Multi,
-    Erased,
-    Void,
-}
-
-/// A layout: its class and its Wasm values in locals and results.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Layout {
-    pub class: LayoutClass,
-    pub values: Vec<ValType>,
-    /// Packed storage in a field or array element (`i8` for `bool`, ...), in bits.
-    pub packed_bits: Option<u8>,
-}
-
-/// The value bound (§15.1): Wasm values after slot sharing; default 4.
-pub const VALUE_BOUND: usize = 4;
-
-fn one(class: LayoutClass, v: ValType) -> Layout {
-    Layout {
-        class,
-        values: vec![v],
-        packed_bits: None,
-    }
 }
 
 /// The std types the backend gives a built-in shape.
@@ -164,254 +110,6 @@ pub trait LayoutEnv {
     fn newtype_base(&self, def: DefId) -> Option<Ty>;
     /// The prelude enum `Option`, which `T?` names (`types.option.sugar`).
     fn option(&self) -> DefId;
-}
-
-/// The layout of a type (§15.1 and the value table of §15.2). Every type
-/// form has a row; forms that need declared shapes ask `env`. A
-/// self-recursive enum is one boxed reference (`recursive_enums`), so the
-/// walk through value positions is finite. The enums `t` holds by value
-/// are laid out first, innermost first (`value_enums`), so the recursion
-/// is only as deep as tuples and optionals nest.
-pub fn layout_of(pool: &InternPool, env: &dyn LayoutEnv, t: Ty) -> StageResult<Layout> {
-    let t = strip_newtype(pool, env, t);
-    let mut memo: HashMap<Ty, Layout> = HashMap::default();
-    for e in value_enums(pool, env, t) {
-        let l = layout_in(pool, env, e, &memo)?;
-        memo.insert(e, l);
-    }
-    layout_in(pool, env, t, &memo)
-}
-
-/// The enum instances `t` holds by value, `t` included, each after the
-/// enums it holds: enum payloads, tuple elements and `T?`. A self-recursive
-/// enum is a reference and ends the walk; it is not listed.
-#[must_use]
-pub fn value_enums(pool: &InternPool, env: &dyn LayoutEnv, t: Ty) -> Vec<Ty> {
-    let mut out = Vec::new();
-    let mut seen = HashSet::default();
-    let mut stack = vec![(strip_newtype(pool, env, t), false)];
-    while let Some((t, finished)) = stack.pop() {
-        if finished {
-            out.push(t);
-            continue;
-        }
-        match pool.get(t) {
-            TyData::Adt { def, args } => {
-                if let Some(vs) = env.enum_variants(def, args)
-                    && !env.recursive_enum(def)
-                    && seen.insert(t)
-                {
-                    stack.push((t, true));
-                    stack.extend(vs.into_iter().flatten().map(|f| (f, false)));
-                }
-            }
-            TyData::Union(members) if seen.insert(t) => {
-                stack.push((t, true));
-                stack.extend(
-                    pool.list_items(members)
-                        .iter()
-                        .map(|member| (*member, false)),
-                );
-            }
-            TyData::Tuple { elems, rest } => {
-                stack.extend(pool.list_items(elems).iter().map(|e| (*e, false)));
-                stack.extend(rest.map(|r| (r, false)));
-            }
-            _ => {}
-        }
-    }
-    out
-}
-
-/// The in-place layout shared by a nonrecursive nominal enum and a union.
-fn enum_layout_in(
-    pool: &InternPool,
-    env: &dyn LayoutEnv,
-    variants: &[Vec<Ty>],
-    memo: &HashMap<Ty, Layout>,
-) -> StageResult<Layout> {
-    if variants.iter().all(Vec::is_empty) {
-        return Ok(one(LayoutClass::I32, ValType::I32));
-    }
-    let mut slots: Vec<(ValType, usize)> = Vec::new();
-    for variant in variants {
-        let mut here: Vec<(ValType, usize)> = Vec::new();
-        for field in variant {
-            for value in layout_in(pool, env, *field, memo)?.values {
-                let value = if matches!(value, ValType::Ref { .. }) {
-                    ValType::EqRef
-                } else {
-                    value
-                };
-                match here.iter_mut().find(|slot| slot.0 == value) {
-                    Some(slot) => slot.1 += 1,
-                    None => here.push((value, 1)),
-                }
-            }
-        }
-        for (value, count) in here {
-            match slots.iter_mut().find(|slot| slot.0 == value) {
-                Some(slot) => slot.1 = slot.1.max(count),
-                None => slots.push((value, count)),
-            }
-        }
-    }
-    let mut values = vec![ValType::I32];
-    for (value, count) in slots {
-        values.extend(std::iter::repeat_n(value, count));
-    }
-    Ok(if values.len() > VALUE_BOUND {
-        one(LayoutClass::Ref, ValType::Ref { nullable: false })
-    } else {
-        Layout {
-            class: LayoutClass::Multi,
-            values,
-            packed_bits: None,
-        }
-    })
-}
-
-/// `layout_of`, with the enums `memo` holds already laid out.
-fn layout_in(
-    pool: &InternPool,
-    env: &dyn LayoutEnv,
-    t: Ty,
-    memo: &HashMap<Ty, Layout>,
-) -> StageResult<Layout> {
-    let t = strip_newtype(pool, env, t);
-    if let Some(l) = memo.get(&t) {
-        return Ok(l.clone());
-    }
-    let l = match pool.get(t) {
-        TyData::Prim(p) => match p {
-            Prim::Bool | Prim::I8 | Prim::U8 => Layout {
-                packed_bits: Some(8),
-                ..one(LayoutClass::I32, ValType::I32)
-            },
-            Prim::I16 | Prim::U16 => Layout {
-                packed_bits: Some(16),
-                ..one(LayoutClass::I32, ValType::I32)
-            },
-            Prim::I32 | Prim::U32 | Prim::Usize | Prim::Char => one(LayoutClass::I32, ValType::I32),
-            Prim::I64 | Prim::U64 => one(LayoutClass::I64, ValType::I64),
-            Prim::F32 => one(LayoutClass::F32, ValType::F32),
-            Prim::F64 => one(LayoutClass::F64, ValType::F64),
-            // A view: (ref $bytes, i64 span).
-            Prim::String => Layout {
-                class: LayoutClass::Multi,
-                values: vec![ValType::Ref { nullable: false }, ValType::I64],
-                packed_bits: None,
-            },
-        },
-        TyData::Never => Layout {
-            class: LayoutClass::Void,
-            values: vec![],
-            packed_bits: None,
-        },
-        // An optional of a reference is a nullable one.
-        TyData::Adt { .. } if let Some(inner) = pool.sole_arg(t, env.option()) => {
-            let li = layout_in(pool, env, inner, memo)?;
-            match (li.class, li.values.as_slice()) {
-                (LayoutClass::Ref, [ValType::Ref { .. }]) => {
-                    one(LayoutClass::Ref, ValType::Ref { nullable: true })
-                }
-                (LayoutClass::Multi, [ValType::Ref { .. }, ValType::I64])
-                    if inner == Ty::STRING =>
-                {
-                    Layout {
-                        class: LayoutClass::Multi,
-                        values: vec![ValType::Ref { nullable: true }, ValType::I64],
-                        packed_bits: None,
-                    }
-                }
-                _ => {
-                    let mut values = vec![ValType::I32];
-                    values.extend(li.values);
-                    if values.len() > VALUE_BOUND {
-                        one(LayoutClass::Ref, ValType::Ref { nullable: true })
-                    } else {
-                        Layout {
-                            class: LayoutClass::Multi,
-                            values,
-                            packed_bits: None,
-                        }
-                    }
-                }
-            }
-        }
-        TyData::Adt { def, args } => match env.enum_variants(def, args) {
-            None => one(LayoutClass::Ref, ValType::Ref { nullable: false }),
-            Some(_) if env.recursive_enum(def) => {
-                one(LayoutClass::Ref, ValType::Ref { nullable: false })
-            }
-            Some(variants) => enum_layout_in(pool, env, &variants, memo)?,
-        },
-        // A rest element is the tuple's last member, a `List`.
-        TyData::Tuple { elems, rest } => {
-            let mut values = Vec::new();
-            for e in pool.list_items(elems).iter().copied().chain(rest) {
-                values.extend(layout_in(pool, env, e, memo)?.values);
-            }
-            match values.len() {
-                0 => Layout {
-                    class: LayoutClass::Void,
-                    values,
-                    packed_bits: None,
-                },
-                n if n <= VALUE_BOUND => Layout {
-                    class: LayoutClass::Multi,
-                    values,
-                    packed_bits: None,
-                },
-                _ => one(LayoutClass::Ref, ValType::Ref { nullable: false }),
-            }
-        }
-        TyData::Union(members) => {
-            let variants: Vec<Vec<Ty>> = pool
-                .list_items(members)
-                .iter()
-                .map(|member| vec![*member])
-                .collect();
-            enum_layout_in(pool, env, &variants, memo)?
-        }
-        TyData::Fn { .. } => one(LayoutClass::Ref, ValType::Ref { nullable: false }),
-        // (eqref, (ref $VT)).
-        TyData::TraitValue { .. } => Layout {
-            class: LayoutClass::Multi,
-            values: vec![ValType::EqRef, ValType::Ref { nullable: false }],
-            packed_bits: None,
-        },
-        // A reference of either kind is its place's address
-        // (`ref.type.local-uncounted`).
-        TyData::Ref { .. } => one(LayoutClass::Ref, ValType::Ref { nullable: false }),
-        TyData::Row(_) => {
-            return Err(NotImplemented::new(
-                Stage::Emit,
-                "the layout of a requirement row",
-            ));
-        }
-        // A const argument has no values (`types.generic.const.runtime`).
-        TyData::Const(_) => {
-            return Err(NotImplemented::new(
-                Stage::Emit,
-                "the layout of a const generic argument",
-            ));
-        }
-        // One providers array (`crates/hd_mono/DESIGN.md` §12.4, "Context values").
-        TyData::Context(_) => one(LayoutClass::Ref, ValType::Ref { nullable: false }),
-        TyData::Opaque { .. }
-        | TyData::Param(_)
-        | TyData::Assoc { .. }
-        | TyData::Infer(_)
-        | TyData::Canon(_)
-        | TyData::Poison => {
-            return Err(NotImplemented::bug(
-                Stage::Emit,
-                "layout of a non-concrete type (substitution missing)",
-            ));
-        }
-    };
-    Ok(l)
 }
 
 /// The self-recursive enums among `enums`, the program's enum declarations
@@ -593,18 +291,6 @@ pub fn sccs(succ: &[Vec<usize>]) -> Vec<usize> {
         }
     }
     comp
-}
-
-/// The A1 class of a concrete type argument.
-pub fn a1_class(pool: &InternPool, env: &dyn LayoutEnv, t: Ty) -> StageResult<A1Class> {
-    let l = layout_of(pool, env, t)?;
-    Ok(match (l.class, l.values.as_slice()) {
-        (LayoutClass::Ref, [ValType::Ref { nullable: false }]) => A1Class::Ref,
-        (LayoutClass::Ref, [ValType::Ref { nullable: true }]) => A1Class::RefNull,
-        (LayoutClass::Void, _) => A1Class::Void,
-        (_, [v]) => A1Class::Scalar(*v),
-        _ => A1Class::Exact,
-    })
 }
 
 /// Each type's `canon` digest, for one build: a type is encoded once, and
@@ -1058,8 +744,8 @@ impl InstanceTable {
 #[cfg(test)]
 mod tests {
     use super::{
-        A1Class, CanonMemo, InstanceTable, KeyArg, LayoutClass, LayoutEnv, StdKind, Sub, ValType,
-        a1_class, inline_map_key, instance_key, known_key, layout_of, strip_newtype,
+        A1Class, CanonMemo, InstanceTable, KeyArg, LayoutEnv, StdKind, Sub, inline_map_key,
+        instance_key, known_key, strip_newtype,
     };
     use hd_base::SliceSort as _;
     use hd_base::{DefId, Hash128, InstId};
@@ -1144,7 +830,6 @@ mod tests {
             }
             assert_eq!(strip_newtype(&p, &env, wrapped), scalar);
             assert!(inline_map_key(&p, &env, wrapped));
-            assert_eq!(layout_of(&p, &env, wrapped), layout_of(&p, &env, scalar));
         }
     }
 
@@ -1435,77 +1120,6 @@ mod tests {
         // And a different type a different one.
         let other = doubled(&p, 3);
         assert_ne!(super::canon(&p, &ph, &mut CanonMemo::default(), other), a);
-    }
-
-    #[test]
-    fn layouts_cover_every_concrete_form() {
-        let p = InternPool::new();
-        let adt = |d: u32| {
-            p.intern_ty(&TyData::Adt {
-                def: DefId::from_raw(d),
-                args: TyList::EMPTY,
-            })
-        };
-        let data = adt(9);
-        assert_eq!(
-            layout_of(&p, &Env, Ty::I32).expect("i32").class,
-            LayoutClass::I32
-        );
-        assert_eq!(
-            layout_of(&p, &Env, Ty::BOOL).expect("bool").packed_bits,
-            Some(8)
-        );
-        assert_eq!(
-            layout_of(&p, &Env, Ty::STRING).expect("str").values.len(),
-            2
-        );
-        assert_eq!(
-            layout_of(&p, &Env, adt(1)).expect("tag enum").class,
-            LayoutClass::I32
-        );
-        let value_enum = layout_of(&p, &Env, adt(2)).expect("value enum");
-        assert_eq!(value_enum.class, LayoutClass::Multi);
-        assert_eq!(
-            value_enum.values,
-            [ValType::I32, ValType::I32, ValType::EqRef, ValType::I64]
-        );
-        let union = p.intern_ty(&TyData::Union(p.list(&[Ty::I32, Ty::STRING])));
-        assert_eq!(layout_of(&p, &Env, union).expect("union"), value_enum);
-        let nested = p.intern_ty(&TyData::Union(p.list(&[union, Ty::BOOL])));
-        assert_eq!(
-            layout_of(&p, &Env, nested).expect("nested").class,
-            LayoutClass::Ref
-        );
-        let opt_data = p.applied(Env.option(), data);
-        assert_eq!(
-            layout_of(&p, &Env, opt_data).expect("opt").values,
-            [ValType::Ref { nullable: true }]
-        );
-        let opt_i32 = p.applied(Env.option(), Ty::I32);
-        assert_eq!(
-            layout_of(&p, &Env, opt_i32).expect("opt i32").values.len(),
-            2
-        );
-        let tv = p.intern_ty(&TyData::TraitValue {
-            def: DefId::from_raw(3),
-            args: TyList::EMPTY,
-            bindings: vec![],
-        });
-        assert_eq!(
-            layout_of(&p, &Env, tv).expect("dyn").values[0],
-            ValType::EqRef
-        );
-        let big = p.intern_ty(&TyData::Tuple {
-            elems: p.list(&[Ty::STRING, Ty::STRING, Ty::I32]),
-            rest: None,
-        });
-        assert_eq!(
-            layout_of(&p, &Env, big).expect("boxed tuple").class,
-            LayoutClass::Ref
-        );
-        assert_eq!(a1_class(&p, &Env, data).expect("a1"), A1Class::Ref);
-        assert_eq!(a1_class(&p, &Env, opt_data).expect("a1"), A1Class::RefNull);
-        assert!(layout_of(&p, &Env, Ty::POISON).is_err());
     }
 
     #[test]

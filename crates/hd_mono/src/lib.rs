@@ -30,17 +30,17 @@ use hd_types::{InternPool, ParamRef, Prim, RowId, Ty, TyData, TyList};
 
 pub use crate::layout::Sub;
 use crate::layout::{
-    A1Class, CanonMemo, KeyArg, LayoutEnv, MAX_CHAIN, MAX_DEPTH, StdKind, a1_class, canon,
-    instance_key,
+    A1Class, CanonMemo, KeyArg, LayoutEnv, MAX_CHAIN, MAX_DEPTH, StdKind, canon, instance_key,
 };
 use crate::plan::{BodyPlan, Planner, Source};
 
 /// What collection reads about the program (the driver implements it over
 /// TIR and interfaces).
 pub trait ProgramEnv: LayoutEnv {
-    /// The RC layout's A1 reference-storage class. `None` uses the
-    /// generic reference classification; concrete layouts retain their keys.
-    fn shared_reference_layout(&self, _ty: Ty) -> Option<bool>;
+    /// Whether `ty`'s layout is one thin counted address, the A1 class
+    /// [`A1Class::Ref`] whose instances share one key; every other type
+    /// keeps its own key.
+    fn shared_reference_layout(&self, ty: Ty) -> bool;
     fn body(&self, def: DefId) -> Option<&Body>;
     /// Whether `def` has a body ([`ProgramEnv::body`]), asked without
     /// running the passes over it.
@@ -1673,7 +1673,7 @@ impl Cx<'_> {
             return Ok(None);
         }
         let own_from = self.env.parent(def).map_or(0, |p| p.1);
-        let args = self.classify(def, self.pool.list_items(targs), own_from)?;
+        let args = self.classify(def, self.pool.list_items(targs), own_from);
         let inst = rowless(self.pool, self.env, def, args);
         // The copy of the body the instance runs: its instance body, whose
         // summary decides how the copy takes its parameters.
@@ -2149,7 +2149,7 @@ impl Cx<'_> {
 
     /// A1 (`crates/hd_mono/DESIGN.md` §13.2): an unbounded, move-only argument of a
     /// reference layout is keyed and laid out as the class `REF`.
-    fn classify(&mut self, def: DefId, args: &[Ty], own_from: usize) -> StageResult<TyList> {
+    fn classify(&mut self, def: DefId, args: &[Ty], own_from: usize) -> TyList {
         let bounded = self.env.bounded(def).unwrap_or_default();
         let pinned = self.exact_params(def);
         let shared_args: Vec<Ty> = args
@@ -2174,17 +2174,10 @@ impl Cx<'_> {
                 || matches!(self.pool.get(t), TyData::Row(_))
                 || !self.env.has_body(def)
                 || holds_coll(self.pool, self.env, t);
-            let shared = if exact {
-                false
-            } else {
-                match self.env.shared_reference_layout(t) {
-                    Some(shared) => shared,
-                    None => a1_class(self.pool, self.env, t)? == A1Class::Ref,
-                }
-            };
+            let shared = !exact && self.env.shared_reference_layout(t);
             a.push(if shared { class_ref(self.pool) } else { t });
         }
-        Ok(self.pool.list(&a))
+        self.pool.list(&a)
     }
 
     /// The target of a call of `def` at full arguments `args`.
@@ -2256,7 +2249,7 @@ impl Cx<'_> {
         }
         let own_from = self.env.parent(def).map_or(0, |p| p.1);
         let raw = args;
-        let args = self.classify(def, self.pool.list_items(args), own_from)?;
+        let args = self.classify(def, self.pool.list_items(args), own_from);
         // One instance serves every row of the item's own row parameters
         // (`req.poly.one-body`, §12.4): it is keyed at the open row, and
         // the target keeps the call's rows, whose keys the caller passes
@@ -2929,7 +2922,7 @@ impl Cx<'_> {
             return Ok(Specialize::Plain);
         }
         let own_from = env.parent(def).map_or(0, |p| p.1);
-        let cargs = self.classify(def, pool.list_items(targs), own_from)?;
+        let cargs = self.classify(def, pool.list_items(targs), own_from);
         let (item, iargs) = (self.out.table.item[id.idx()], self.out.table.args[id.idx()]);
         let known: Vec<(u32, Hash128)> = found
             .into_iter()
