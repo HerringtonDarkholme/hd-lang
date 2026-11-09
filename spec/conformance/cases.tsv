@@ -6182,6 +6182,10 @@ typing/invalid/a-field-read-does-not-wait-for-a-later-receiver-type.hd	type	reje
 typing/invalid/a-field-read-does-not-infer-a-generic-call-receiver.hd	type	reject:cannot-infer-type	lang/05-expressions.md#r-expr.member.field-read.unknown-receiver
 typing/invalid/a-field-read-needs-the-type-behind-a-reference.hd	type	reject:cannot-infer-type	lang/05-expressions.md#r-expr.member.field-read.unknown-receiver
 typing/valid/an-earlier-annotation-supplies-a-field-receivers-type.hd	type	accept	lang/05-expressions.md#r-expr.member.field-read.unknown-receiver
+runtime/panic/assert-equal-used-as-a-function-value-fails-on-unequal-arguments.hd	runtime	panic:assertion-failed	lang/03-names-and-scopes.md#r-names.category.value
+runtime/valid/assert-equal-used-as-a-function-value-compares-its-arguments.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.category.value
+runtime/valid/box-used-as-a-function-value-makes-a-new-object-per-call.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.category.value
+runtime/valid/fn-call-used-as-a-function-value-calls-its-receiver.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.category.value
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
