@@ -472,3 +472,64 @@ if (result.trapped || result.status !== 0) throw Error(JSON.stringify(result));
         );
     }
 }
+
+/// trait.dyn.supertrait-methods also applies to an embedding's runtime
+/// profile: its Child module supplies both inherited and own methods.
+#[test]
+fn profile_supertraits_keep_async_and_blocking_drive_slots()
+-> Result<(), Box<dyn std::error::Error>> {
+    let source = r#"
+use std.task.block_on
+pub trait Parent:
+    fn parent!(&self) -> u32
+pub trait Child < Parent:
+    fn child!(&self) -> u32
+pub fn main!() -> void $ Child:
+    let value: &dyn Child = $.use(Child)
+    if value.parent!() != 35: panic("wrong parent")
+    if value.child!() != 7: panic("wrong child")
+    match block_on(value.child()):
+        .Completed(n) => if n != 7: panic("wrong blocking child")
+        _ => panic("child did not complete")
+"#;
+    let store = crate::warm_store();
+    let core = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../host/core.ts")
+        .canonicalize()?;
+    for (profile, level) in [
+        (BuildProfile::Checked, OptLevel::Dev),
+        (BuildProfile::Checked, OptLevel::Optimized),
+        (BuildProfile::Release, OptLevel::Optimized),
+    ] {
+        let out = build_in_mode(&store, source, &["Child"], profile, level);
+        assert!(!out.diags.has_errors(), "{}", out.render());
+        let wasm = out.wasm.ok_or("missing Wasm")?;
+        let script = format!(
+            r"
+import {{ pathToFileURL }} from 'node:url';
+const {{ createCoreHost }} = await import(pathToFileURL({core:?}));
+const host = createCoreHost({{out(){{}},err(text){{process.stderr.write(text)}}}}, {{providers: ({{put,Enc}}) => ({{
+  'hd:Child': {{
+    'parent.start': () => [0,put(new Enc().leb(35))], 'parent.finish': () => put(new Enc().leb(35)),
+    'child.start': () => [0,put(new Enc().leb(7))], 'child.finish': () => put(new Enc().leb(7)),
+  }}
+}})}});
+try {{
+ const instance = new WebAssembly.Instance(new WebAssembly.Module(new Uint8Array({wasm:?})), host.imports);
+ const result = await host.run(instance,'hd.init','hd.poll');
+ if (result.trapped || result.status !== 0) throw Error(JSON.stringify(result));
+}} finally {{ host.close(); }}
+"
+        );
+        // cost: one Node process for each of three fixed compiler modes.
+        let ran = std::process::Command::new("node")
+            .args(["--input-type=module", "-e", &script])
+            .output()?;
+        assert!(
+            ran.status.success(),
+            "{profile:?}/{level:?}: {}",
+            String::from_utf8_lossy(&ran.stderr)
+        );
+    }
+    Ok(())
+}

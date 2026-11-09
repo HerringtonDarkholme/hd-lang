@@ -6207,6 +6207,7 @@ typing/invalid/a-provider-spread-of-unknown-type-cannot-infer.hd	type	reject:can
 typing/invalid/a-function-value-takes-no-type-arguments.hd	type	reject:argument-count	lang/07-functions.md#r-fn.generic.call-list
 typing/invalid/a-trait-with-type-arguments-is-not-callable.hd	type	reject:not-callable	lang/07-functions.md#r-fn.generic.call-list
 runtime/valid/stable-sort-merges-noncopyable-records.hd	runtime	accept	std/collections.md#r-std-collections.helper.sort.stable
+runtime/valid/supertrait-drives-skip-generic-methods.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.supertrait-methods
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

@@ -231,3 +231,123 @@ pub fn main!() -> void $ Clock:
         }
     }
 }
+
+/// trait.dyn.supertrait-methods and module.host.package.marker: the same
+/// package-host fixture exercises parent drives, its own pending drive,
+/// and an immediate blocking parent call in each compiler pipeline.
+#[test]
+fn package_host_supertraits_keep_async_and_blocking_drive_slots()
+-> Result<(), Box<dyn std::error::Error>> {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .canonicalize()?;
+    let fixture = root.join("spec/conformance/cli/host-supertrait-drive");
+    let mut sources = MemorySources::default();
+    sources.insert(
+        "main.hd",
+        &std::fs::read_to_string(fixture.join("src/main.hd"))?,
+    );
+    let store = crate::warm_store();
+    let scratch = hd_testkit::Scratch::new(env!("CARGO_TARGET_TMPDIR"), "host-supertrait-drive");
+    for (profile, level) in [
+        (BuildProfile::Checked, OptLevel::Dev),
+        (BuildProfile::Checked, OptLevel::Optimized),
+        (BuildProfile::Release, OptLevel::Optimized),
+    ] {
+        let out = hd_driver::build_packages(
+            &Host {
+                render_tir: &[],
+                sources: &sources,
+                store: &store,
+                clock: &NoClock,
+                executor: Executor::Serial(SerialOrder::Priority),
+            },
+            "super-host",
+            &Packages {
+                build_profile: profile,
+                level,
+                checked: profile == BuildProfile::Checked && level == OptLevel::Optimized,
+                verify_own: true,
+                host_packages: vec![hd_driver::HostPackage {
+                    package: 0,
+                    identity: fixture.to_string_lossy().into_owned(),
+                    versioned_source: None,
+                    manifest: "hd.toml".into(),
+                    declarations: Some(hd_project::HostDeclarations {
+                        providers: Some(vec![hd_project::HostProvider {
+                            trait_path: "main.Child".into(),
+                            path: Some("provider.ts".into()),
+                            line: 5,
+                        }]),
+                        line: 4,
+                    }),
+                }],
+                ..Packages::default()
+            },
+            &Goal::Program {
+                entry: "main".into(),
+            },
+        );
+        assert!(
+            !out.diags.has_errors(),
+            "{profile:?}/{level:?}: {}",
+            out.render()
+        );
+        let wasm = out.wasm.ok_or("missing Wasm")?;
+        wasmparser::Validator::new_with_features(wasmparser::WasmFeatures::all())
+            .validate_all(&wasm)?;
+        let artifacts = out.host_artifacts.ok_or("missing host artifacts")?;
+        assert_eq!(artifacts.contract.interfaces.len(), 1);
+        let interface = &artifacts.contract.interfaces[0];
+        assert_eq!(interface.identity.trait_path, "main.Child");
+        assert_eq!(interface.methods.len(), 2, "own and inherited methods");
+        let wasm_path = scratch.join("main.wasm");
+        let glue_path = scratch.join("main.host.mjs");
+        std::fs::write(&wasm_path, wasm)?;
+        std::fs::write(&glue_path, artifacts.javascript)?;
+        let script = format!(
+            r"
+import {{ readFileSync }} from 'node:fs';
+import {{ pathToFileURL }} from 'node:url';
+const root = pathToFileURL({root:?} + '/');
+const {{ createCoreHost }} = await import(new URL('host/core.ts', root));
+const {{ createPackageRuntime }} = await import(new URL('host/package-providers.ts', root));
+const generated = await import(pathToFileURL({glue_path:?}));
+const {{ default: provider }} = await import(pathToFileURL({provider_path:?}));
+const module = new WebAssembly.Module(readFileSync({wasm_path:?}));
+const host = createCoreHost({{out: text => process.stdout.write(text), err: text => process.stderr.write(text)}}, {{
+  module, createPackageRuntime, grants: {{Console: true, 'pkg.main.Child': true}},
+  packageBindings: runtime => generated.bind(runtime, new Map([[{module_name:?}, provider]])),
+}});
+try {{
+  const instance = new WebAssembly.Instance(module, host.imports);
+  const result = await host.run(instance, 'hd.init', 'hd.poll');
+  if (result.trapped || result.status !== 0) throw Error(JSON.stringify(result));
+}} finally {{ host.close(); }}
+",
+            root = root.to_string_lossy(),
+            provider_path = fixture.join("provider.ts"),
+            module_name = interface.module
+        );
+        // cost: one Node process per fixed build mode, never per accumulated entry.
+        let ran = std::process::Command::new("node")
+            .args(["--input-type=module", "-e", &script])
+            .output()?;
+        assert!(
+            ran.status.success(),
+            "{profile:?}/{level:?}: {}",
+            String::from_utf8_lossy(&ran.stderr)
+        );
+        assert_eq!(
+            String::from_utf8(ran.stdout)?,
+            "35 7 35\n",
+            "{profile:?}/{level:?}"
+        );
+        assert!(
+            ran.stderr.is_empty(),
+            "{}",
+            String::from_utf8_lossy(&ran.stderr)
+        );
+    }
+    Ok(())
+}

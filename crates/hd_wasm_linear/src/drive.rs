@@ -16,13 +16,11 @@ use crate::{Input, unsupported};
 
 /// Whether a dynamic call of `method`, of trait `trait_`, may use a drive
 /// slot: a bang method that is not generic, of a trait with no type
-/// arguments and no supertraits, so every vtable of the trait has the same
-/// shape (its slots, then its drive slots) and the slot's signature is
-/// the method's own.
+/// arguments, so the slot's signature is the method's own. Parent vtable
+/// pointers precede the drive slots, just as in ordinary trait vtables.
 pub fn drivable(env: &dyn ProgramEnv, trait_: DefId, method: DefId) -> bool {
     env.suspends(method)
         && env.trait_arity(trait_) == 0
-        && env.decls().supertraits(trait_).is_empty()
         && env.bounded(method).is_none_or(|b| b.is_empty())
 }
 
@@ -262,8 +260,8 @@ pub fn collect(input: &Input<'_>, m: &mut Module) {
     }
 }
 
-/// The vtable word index of a drive slot: normal methods, async drive
-/// slots, then blocking drive slots, each group in declaration order.
+/// The vtable word index of a drive slot: dispatchable methods, parent
+/// pointers, async drives, then blocking drives, each in declaration order.
 pub fn index(
     env: &dyn ProgramEnv,
     m: &Module,
@@ -271,7 +269,7 @@ pub fn index(
     method: DefId,
     blocking: bool,
 ) -> u32 {
-    let methods = env.trait_methods(trait_);
+    let methods = hd_mono::slot_methods(env, trait_);
     let selected = |candidate, blocking| needs_slot(env, m, trait_, candidate, blocking);
     let preceding = if blocking {
         methods.iter().filter(|d| selected(**d, false)).count()
@@ -283,7 +281,9 @@ pub fn index(
         .take_while(|d| **d != method)
         .filter(|d| selected(**d, blocking))
         .count();
-    u32::try_from(methods.len() + preceding + rank).expect("slots")
+    // ruled out: a vtable fits Wasm32 memory, with four bytes per slot.
+    u32::try_from(methods.len() + env.decls().supertraits(trait_).len() + preceding + rank)
+        .expect("slots")
 }
 
 /// Persistent vtable values can be called by later inputs in either mode.
@@ -316,7 +316,7 @@ pub fn vtable(
 ) -> StageResult<usize> {
     let mut drives = Vec::new();
     if m.open_world || !m.driven.is_empty() || !m.blocking_driven.is_empty() {
-        let methods = input.env.trait_methods(trait_);
+        let methods = hd_mono::slot_methods(input.env, trait_);
         for (method, cold) in methods.iter().zip(&slots) {
             if needs_slot(input.env, m, trait_, *method, false) {
                 drives.push(slot(input, *method, cold, false)?);
@@ -327,16 +327,15 @@ pub fn vtable(
                 drives.push(slot(input, *method, cold, true)?);
             }
         }
-        // `index` counts on the method slots alone before the drive slots.
-        if !drives.is_empty() && (!parents.is_empty() || slots.len() != methods.len()) {
-            return unsupported("drive slots in a vtable of another shape");
-        }
     }
     // Construct drive helpers from the real cold symbols first. Replacing
     // an unused table entry leaves their direct constructor calls as real
     // reachability edges, including a host drive's owned Pending fallback.
     if !m.open_world {
-        for (method, normal) in input.env.trait_methods(trait_).iter().zip(&mut slots) {
+        for (method, normal) in hd_mono::slot_methods(input.env, trait_)
+            .iter()
+            .zip(&mut slots)
+        {
             if m.blocking_only.contains(method)
                 && matches!(normal, Sym::Helper(Helper::HostCold { .. }))
             {

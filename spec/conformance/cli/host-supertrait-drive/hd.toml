@@ -1,0 +1,10 @@
+[package]
+name = "super-host"
+
+[host]
+"main.Child" = "provider.ts"
+
+[capabilities]
+Console = true
+"pkg.main.Child" = true
+
