@@ -54,6 +54,15 @@ pub fn shared_reference_layout(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) 
     )
 }
 
+/// The types a value of `ty` holds by value, `ty` stripped of newtypes
+/// first: a tuple's or a union's members, a value enum's payload fields,
+/// a struct's fields (`layout::value_parts`). A self-recursive enum, a
+/// collection, a reference or a scalar holds none in place.
+#[must_use]
+pub fn value_part_types(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> Vec<Ty> {
+    layout::value_parts(pool, env, layout::strip(pool, env, ty))
+}
+
 /// Whether `ty` needs ownership tracking: a counted leaf or a Drop hook.
 /// This answers the ownership passes' `OwnCx::counted` query for a concrete type.
 #[must_use]

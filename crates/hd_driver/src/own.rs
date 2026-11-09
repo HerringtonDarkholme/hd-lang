@@ -1093,47 +1093,34 @@ impl Env<'_> {
     /// A cold frame can retain reference-counted values, including open
     /// Suspend[T] handles. Only an inline Drop value must transfer its
     /// ownership; an open value parameter may become one at instantiation.
+    /// The walk follows the types `t` holds by value, as the backend lays
+    /// them out (`hd_wasm_linear::value_part_types`): tuple and union
+    /// members, struct fields, and every value enum's payloads, `Option`'s
+    /// as any other's. A self-recursive enum's cell, a list or a map is a
+    /// counted object the frame retains by its count.
+    ///
+    /// Cost: one visit per distinct type held by value, with a worklist.
     fn cold_moves(&self, t: Ty) -> bool {
-        fn visit(env: &Env<'_>, t: Ty, seen: &mut hd_base::HashSet<Ty>) -> bool {
-            let pool = &env.run.pool;
-            let t = hd_wasm_linear::strip_type(pool, env, t);
+        let pool = &self.run.pool;
+        let mut seen = hd_base::HashSet::default();
+        let mut work = vec![t];
+        while let Some(t) = work.pop() {
+            let t = hd_wasm_linear::strip_type(pool, self, t);
             if !seen.insert(t) {
-                return false;
+                continue;
             }
-            if hd_wasm_linear::holds_drop_type(pool, env, t) {
+            if hd_wasm_linear::holds_drop_type(pool, self, t) {
                 return true;
             }
             match pool.get(t) {
                 // Copy-bound arguments may be lent to the constructor.
                 // Only a ?Copy parameter needs a possible ownership transfer.
-                TyData::Param(p) => !env.param_copies(p),
-                TyData::Assoc { .. } | TyData::Opaque { .. } => true,
-                TyData::Tuple { elems, rest } => pool
-                    .list_items(elems)
-                    .iter()
-                    .copied()
-                    .chain(rest)
-                    .any(|t| visit(env, t, seen)),
-                TyData::Adt { .. } if let Some(inner) = pool.sole_arg(t, env.run.known.option) => {
-                    visit(env, inner, seen)
-                }
-                TyData::Union(members) => pool
-                    .list_items(members)
-                    .iter()
-                    .any(|&t| visit(env, t, seen)),
-                TyData::Adt { def, args }
-                    if env.std_kind(def) == hd_mono::layout::StdKind::Other
-                        && env.is_struct(def) =>
-                {
-                    env.data_fields(def)
-                        .unwrap_or_default()
-                        .into_iter()
-                        .any(|field| visit(env, hd_mono::subst(pool, env, def, args, field), seen))
-                }
-                _ => false,
+                TyData::Param(p) if !self.param_copies(p) => return true,
+                TyData::Assoc { .. } | TyData::Opaque { .. } => return true,
+                _ => work.extend(hd_wasm_linear::value_part_types(pool, self, t)),
             }
         }
-        visit(self, t, &mut hd_base::HashSet::default())
+        false
     }
 
     /// Whether a value of type `t`, which names no parameter, holds a

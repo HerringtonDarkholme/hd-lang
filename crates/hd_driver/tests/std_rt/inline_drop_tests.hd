@@ -118,6 +118,18 @@ fn moved_enum(present: bool) -> usize:
 fn relayed![T < ?Copy](value: T) -> T:
     identity(value)
 
+enum Slot[T < ?Copy]:
+    Vacant
+    Held(T)
+
+impl[T < ?Copy] !Copy for Slot[T]
+
+fn relayed_slot![T < ?Copy](value: Slot[T]) -> Slot[T]:
+    identity(value)
+
+fn relayed_option![T < ?Copy](value: T?) -> T?:
+    identity(value)
+
 struct Named:
     token: Token
     name: string
@@ -259,6 +271,20 @@ tests:
         let job: Suspend[Token] = relayed(Token { id: 0 })
         value := job!()
         assert_equal(value.id, 0)
+        _ := identity(value)
+        assert_equal(drops, before + 1)
+
+    it("a suspension transfers an optional parameter's Drop ownership"):
+        before := drops
+        let job: Suspend[Token?] = relayed_option(.Some(Token { id: 0 }))
+        value := job!()
+        _ := identity(value)
+        assert_equal(drops, before + 1)
+
+    it("a suspension transfers a user enum parameter's Drop ownership"):
+        before := drops
+        let job: Suspend[Slot[Token]] = relayed_slot(Slot.Held(Token { id: 0 }))
+        value := job!()
         _ := identity(value)
         assert_equal(drops, before + 1)
 
