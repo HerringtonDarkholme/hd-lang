@@ -134,32 +134,29 @@ fn drift_merge[T < ?Copy](
     let left = start
     let right = middle
     let out = start
-    while out < end:
-        let take_right = left == middle
-        if !take_right && right < end:
-            take_right = drift_less(items, by, right, left)
-        classes.at(out).write(if take_right: 1u8 else: 0u8)
-        if take_right:
-            right += 1
-        else:
-            left += 1
+    while left < middle && right < end:
+        take_right := if drift_less(items, by, right, left): 1u8 else: 0u8
+        classes.at(out).write(take_right)
+        step := usize(take_right)
+        left += 1 - step
+        right += step
         out += 1
-    # Finish callbacks before opening holes in either input run.
+    fill(classes.at(out).address, if left == middle: 1u8 else: 0u8, end - out)
+    # Finish callbacks before opening holes in either input run. The class
+    # byte selects an address; neither movement nor cursor updates branch.
     left = start
     right = middle
     out = start
     while out < end:
-        if classes.at(out).read() == 1:
-            scratch.at(out).write(items.at(right).read())
-            right += 1
-        else:
-            scratch.at(out).write(items.at(left).read())
-            left += 1
+        step := usize(classes.at(out).read())
+        source := left + step * (right - left)
+        scratch.at(out).write(items.at(source).read())
+        left += 1 - step
+        right += step
         out += 1
-    let index = start
-    while index < end:
-        items.at(index).write(scratch.at(index).read())
-        index += 1
+    # Scratch holds exactly one moved value for every destination slot.
+    # Move their bytes back together; Buffer drops only its raw allocation.
+    copy_bytes(items.at(start).address, scratch.at(start).address, (end - start) * size_of::[T]())
 
 fn drift_merge_sort[T < ?Copy](
     items: &Buffer[T],
@@ -196,8 +193,88 @@ fn drift_log2(value: usize) -> usize:
         bits += 1
     bits
 
-# A stable three-way quicksort. It is driftsort's lazy-run engine: equal keys
-# form one finished middle partition, which keeps low-cardinality inputs fast.
+# Rust 1.81's sampled pivot policy: medians from the first, middle and
+# last eighth, recursively sampled for regions of at least 64 elements.
+fn drift_sample_median[T < ?Copy](
+    items: &Buffer[T],
+    by: fn(&T, &T) -> Ordering,
+    first: usize,
+    middle: usize,
+    last: usize,
+    width: usize,
+) -> usize:
+    let a = first
+    let b = middle
+    let c = last
+    # Each incoming region is one eighth of its parent, so width >= 8
+    # is the reference policy's parent-size threshold of 64.
+    if width >= 8:
+        eighth := width / 8
+        a = drift_sample_median(items, by, a, a + eighth * 4, a + eighth * 7, eighth)
+        b = drift_sample_median(items, by, b, b + eighth * 4, b + eighth * 7, eighth)
+        c = drift_sample_median(items, by, c, c + eighth * 4, c + eighth * 7, eighth)
+    x := drift_less(items, by, a, b)
+    y := drift_less(items, by, a, c)
+    if x == y:
+        z := drift_less(items, by, b, c)
+        if z != x: c else: b
+    else:
+        a
+
+# Classify and distribute in one pass while the original values remain
+# live through every callback. Less values grow forwards in scratch;
+# equal/greater values grow backwards, with one equality bit beside each.
+# Unlike Rust's bool comparator, Ordering gives the equal group for free.
+fn drift_partition[T < ?Copy](
+    items: &Buffer[T],
+    by: fn(&T, &T) -> Ordering,
+    scratch: &Buffer[T],
+    classes: &Buffer[u8],
+    start: usize,
+    end: usize,
+    pivot: usize,
+) -> (usize, usize):
+    let left: usize = 0
+    let equal: usize = 0
+    let pivot_to = start
+    let index = start
+    while index < end:
+        part := if index == pivot:
+            (0usize, 1u8)
+        else:
+            match (by)(items.at(index).as_ref(), items.at(pivot).as_ref()):
+                .Less => (1usize, 0u8)
+                .Equal => (0usize, 1u8)
+                .Greater => (0usize, 0u8)
+        reverse := end - 1 - (index - start)
+        destination := start + left + (1 - part._0) * (reverse - start)
+        copy_bytes(scratch.at(destination).address, items.at(index).address, size_of::[T]())
+        classes.at(destination).write(part._1)
+        if index == pivot:
+            pivot_to = destination
+        left += part._0
+        equal += usize(part._1)
+        index += 1
+    if equal == end - start:
+        return (0, equal)
+    # Refresh the pivot after all callbacks, then transfer the permutation.
+    copy_bytes(scratch.at(pivot_to).address, items.at(pivot).address, size_of::[T]())
+    copy_bytes(items.at(start).address, scratch.at(start).address, left * size_of::[T]())
+    let equal_at = start + left
+    let greater_at = equal_at + equal
+    let offset: usize = 0
+    while offset < end - start - left:
+        source := end - 1 - offset
+        step := usize(classes.at(source).read())
+        destination := greater_at - step * (greater_at - equal_at)
+        items.at(destination).write(scratch.at(source).read())
+        equal_at += step
+        greater_at += 1 - step
+        offset += 1
+    (left, equal)
+
+# Stable three-way quicksort with sampled pivots and a merge fallback.
+# The equal middle is finished, retaining low-cardinality performance.
 fn drift_quick_sort[T < ?Copy](
     items: &Buffer[T],
     by: fn(&T, &T) -> Ordering,
@@ -207,55 +284,27 @@ fn drift_quick_sort[T < ?Copy](
     end: usize,
     limit: usize,
 ) -> void:
-    size := end - start
-    if size <= 16:
-        drift_insertion_sort(items, by, start, end)
-        return
-    if limit == 0:
-        drift_merge_sort(items, by, scratch, classes, start, end)
-        return
-    pivot := start + size / 2
-    let less: usize = 0
-    let equal: usize = 0
-    let index = start
-    while index < end:
-        class := match (by)(items.at(index).as_ref(), items.at(pivot).as_ref()):
-            .Less =>
-                less += 1
-                0u8
-            .Equal =>
-                equal += 1
-                1u8
-            .Greater => 2u8
-        # Classify before moving any value, so the pivot's slot stays live.
-        # One byte per element also keeps inconsistent callbacks from changing
-        # the partition sizes between counting and distributing.
-        classes.at(index).write(class)
-        index += 1
-    if equal == size:
-        return
-    let less_at = start
-    let equal_at = start + less
-    let greater_at = equal_at + equal
-    index = start
-    while index < end:
-        match classes.at(index).read():
-            0 =>
-                scratch.at(less_at).write(items.at(index).read())
-                less_at += 1
-            1 =>
-                scratch.at(equal_at).write(items.at(index).read())
-                equal_at += 1
-            _ =>
-                scratch.at(greater_at).write(items.at(index).read())
-                greater_at += 1
-        index += 1
-    index = start
-    while index < end:
-        items.at(index).write(scratch.at(index).read())
-        index += 1
-    drift_quick_sort(items, by, scratch, classes, start, start + less, limit - 1)
-    drift_quick_sort(items, by, scratch, classes, start + less + equal, end, limit - 1)
+    let last = end
+    let remaining = limit
+    while last - start > 16:
+        if remaining == 0:
+            drift_merge_sort(items, by, scratch, classes, start, last)
+            return
+        remaining -= 1
+        eighth := (last - start) / 8
+        pivot := drift_sample_median(
+            items,
+            by,
+            start,
+            start + eighth * 4,
+            start + eighth * 7,
+            eighth,
+        )
+        partition := drift_partition(items, by, scratch, classes, start, last, pivot)
+        middle := start + partition._0
+        drift_quick_sort(items, by, scratch, classes, middle + partition._1, last, remaining)
+        last = middle
+    drift_insertion_sort(items, by, start, last)
 
 fn drift_sort_lazy_run[T < ?Copy](
     items: &Buffer[T],

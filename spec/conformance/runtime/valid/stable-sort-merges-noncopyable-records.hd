@@ -1,0 +1,85 @@
+# test: both sort families preserve stable records across lazy and natural-run merges
+# expect: test
+# Spec std/collections: std-collections.helper.sort.stable, std-collections.uniq-list.sort.
+use std.collections.UniqList
+
+struct Entry:
+    key: usize
+    serial: usize
+    label: string
+
+struct MovingEntry:
+    key: usize
+    serial: usize
+    payload: UniqList[string]
+
+impl !Copy for MovingEntry
+
+tests:
+    it("moves every stable record once across small and natural-run boundaries"):
+        for stride in [1, 37]:
+            for size in [0, 1, 2, 15, 16, 17, 63, 64, 65, 127, 128, 129, 256, 257, 512, 1024]:
+                let mut original: List[Entry] = []
+                let mut moving = UniqList::[MovingEntry].new()
+                for serial in 0..size:
+                    label := "record_$serial"
+                    original.push(
+                        Entry { key: (serial * stride) % 64, serial: serial, label: label },
+                    )
+                    moving.push(
+                        MovingEntry {
+                            key: (serial * stride) % 64,
+                            serial: serial,
+                            payload: UniqList::[string].from_list([label]),
+                        },
+                    )
+                sorted := original.sorted_by(
+                    fn(left: &Entry, right: &Entry) -> Ordering: left.key.cmp(&right.key)
+                )
+                moving.sort_by(
+                    fn(left: &MovingEntry, right: &MovingEntry) -> Ordering:
+                        left.key.cmp(&right.key)
+                )
+                let at: usize = 0
+                for key in 0..64:
+                    for serial in 0..size:
+                        if (serial * stride) % 64 != key:
+                            continue
+                        copied := sorted[at]
+                        moved := moving.get_ref(at).expect("every moved record remains")
+                        assert_equal(copied.key, key)
+                        assert_equal(copied.serial, serial)
+                        assert_equal(copied.label, "record_$serial")
+                        assert_equal(moved.key, key)
+                        assert_equal(moved.serial, serial)
+                        assert_equal(moved.payload.get(0), .Some("record_$serial"))
+                        at += 1
+                assert_equal(at, size)
+                assert_equal(sorted.len(), size)
+                assert_equal(moving.len(), size)
+                for serial in 0..size:
+                    assert_equal(original[serial].serial, serial)
+                    assert_equal(original[serial].label, "record_$serial")
+
+    it("keeps every owned value when comparisons always choose one side"):
+        let comparisons: List[Ordering] = [.Less, .Greater]
+        for ordering in comparisons:
+            for size in [17, 33, 65, 129]:
+                let mut moving = UniqList::[MovingEntry].new()
+                for serial in 0..size:
+                    moving.push(
+                        MovingEntry {
+                            key: serial,
+                            serial: serial,
+                            payload: UniqList::[string].from_list(["record_$serial"]),
+                        },
+                    )
+                moving.sort_by(fn(_left: &MovingEntry, _right: &MovingEntry) -> Ordering: ordering)
+                let mut seen: List[bool] = [for _ in 0..size => false]
+                for at in 0..size:
+                    moved := moving.get_ref(at).expect("every owned record remains")
+                    assert(moved.serial < size)
+                    assert(!seen[moved.serial])
+                    seen[moved.serial] = true
+                    assert_equal(moved.payload.get(0), .Some("record_${moved.serial}"))
+                assert_equal(moving.len(), size)
