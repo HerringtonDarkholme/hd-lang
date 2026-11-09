@@ -202,6 +202,7 @@ export function renderLayout(input: LayoutInput): string {
 <title>${escapeHtml(pageTitle)}</title>
 <meta name="description" content="${escapeHtml(input.description)}">
 <meta name="color-scheme" content="light dark">
+<meta name="darkreader-lock">
 <meta name="theme-color" content="#0b0f14" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#f7fafa" media="(prefers-color-scheme: light)">
 <script>try{var t=localStorage.getItem("${THEME_KEY}");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
