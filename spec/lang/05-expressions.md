@@ -709,9 +709,10 @@ fn demo(items: List[i32]) -> usize:
 
 1. r[expr.member.select-identifier] `value.member` selects a member named by an identifier, and `tuple._0` selects a tuple element.
 2. r[expr.member.field-read] Without an argument clause, `value.name` reads a field. A field the type does not declare is an error. Error: `unknown-field`.
-3. r[expr.member.lookup] [Member Resolution](03-names-and-scopes.md#member-resolution) defines field and method lookup, including promoted members and the declaration-time check `ambiguous-promoted-member`.
-4. r[expr.member.enum-variant] `Enum.Variant` is not member access: it names an enum variant.
-5. r[expr.member.variant-fn-value] A variant constructor with exactly one payload field is a function value.
+3. r[expr.member.field-read.unknown-receiver] A field read whose receiver type is unknown there is an error, even if later context fixes it. Error: `cannot-infer-type`.
+4. r[expr.member.lookup] [Member Resolution](03-names-and-scopes.md#member-resolution) defines field and method lookup, including promoted members and the declaration-time check `ambiguous-promoted-member`.
+5. r[expr.member.enum-variant] `Enum.Variant` is not member access: it names an enum variant.
+6. r[expr.member.variant-fn-value] A variant constructor with exactly one payload field is a function value.
 
 ```hd
 struct Point:
@@ -720,6 +721,21 @@ struct Point:
 
 fn demo(p: Point) -> i32:
     p.x + p.y
+```
+
+Later context does not determine a field receiver:
+
+```text
+struct Point:
+    x: i32
+
+fn make[T]() -> T:
+    panic("unused")
+
+fn run() -> void:
+    value := make()
+    let x: i32 = value.x # error: cannot-infer-type
+    let fixed: Point = value
 ```
 
 See also: [Enum Declarations](08-data-and-enums.md#enum-declarations).

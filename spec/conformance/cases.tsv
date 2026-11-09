@@ -6175,6 +6175,10 @@ typing/valid/deferred-propagation-survives-a-recursive-row-retry.hd	type	accept	
 typing/invalid/a-nested-closure-cannot-use-the-outer-propagation-kind.hd	type	reject:invalid-result-propagation	lang/05-expressions.md#r-expr.try.target.nearest-function
 typing/valid/a-deferred-propagation-payload-keeps-ordinary-coercions.hd	type	accept	lang/05-expressions.md#r-expr.try.expected.inferred-kind
 typing/invalid/a-deferred-propagation-keeps-an-error-solved-later.hd	type	reject:no-common-type	lang/04-type-system.md#r-types.lct.no-common
+typing/invalid/a-field-read-does-not-wait-for-a-later-receiver-type.hd	type	reject:cannot-infer-type	lang/05-expressions.md#r-expr.member.field-read.unknown-receiver
+typing/invalid/a-field-read-does-not-infer-a-generic-call-receiver.hd	type	reject:cannot-infer-type	lang/05-expressions.md#r-expr.member.field-read.unknown-receiver
+typing/invalid/a-field-read-needs-the-type-behind-a-reference.hd	type	reject:cannot-infer-type	lang/05-expressions.md#r-expr.member.field-read.unknown-receiver
+typing/valid/an-earlier-annotation-supplies-a-field-receivers-type.hd	type	accept	lang/05-expressions.md#r-expr.member.field-read.unknown-receiver
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

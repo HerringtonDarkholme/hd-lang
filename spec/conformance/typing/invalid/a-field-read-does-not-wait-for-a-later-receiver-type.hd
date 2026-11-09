@@ -1,0 +1,11 @@
+# test: field selection needs the receiver type at the read
+struct Point:
+    x: i32
+
+fn make[T]() -> T:
+    panic("unused")
+
+fn run() -> void:
+    value := make()
+    let x: i32 = value.x # diagnostic: cannot-infer-type
+    let fixed: Point = value

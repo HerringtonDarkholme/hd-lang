@@ -2572,7 +2572,13 @@ impl Ck<'_, '_> {
             return Ok(v);
         }
         if matches!(pool.get(inner), TyData::Infer(_)) {
-            return self.gap(n, "a field of a value whose type is not yet known");
+            self.err(
+                Code::CannotInferType,
+                n,
+                "the receiver's type is not known here: annotate its binding before reading a field",
+            );
+            self.infer.rebind(pool, inner, Ty::POISON);
+            return Ok((Ref(NONE), Ty::POISON));
         }
         // In a trait's default body, `self` is the trait itself, whose
         // members resolve as methods: naming one there that neither the

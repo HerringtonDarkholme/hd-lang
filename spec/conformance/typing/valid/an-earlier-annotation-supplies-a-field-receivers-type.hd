@@ -1,0 +1,13 @@
+# test: an annotation before a field read supplies its receiver type
+struct Point:
+    x: i32
+
+fn make[T]() -> T:
+    panic("unused")
+
+fn run() -> void:
+    let value: Point = make()
+    let x: i32 = value.x
+    other := make()
+    let fixed: Point = other
+    let y: i32 = other.x

@@ -1,0 +1,6 @@
+# test: auto-dereferencing does not determine an unknown field receiver
+fn make[T]() -> *T:
+    panic("unused")
+
+fn run() -> void:
+    let x: i32 = make().x # diagnostic: cannot-infer-type

@@ -1342,12 +1342,6 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// A construct not carried yet, with where it is (after ` @`).
-    pub(crate) fn gap<T>(&self, n: NodeRef<'_>, what: &str) -> StageResult<T> {
-        let span = self.cx.src.span(n);
-        unsupported(format!("{what} @{}", span.lo))
-    }
-
     pub(crate) fn err(&mut self, code: Code, n: NodeRef<'_>, msg: &str) {
         let span = self.cx.src.span(n);
         self.diags.error(code, span, msg);
