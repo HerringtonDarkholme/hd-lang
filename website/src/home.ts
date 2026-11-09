@@ -32,8 +32,8 @@ const ARROW_ICON =
 /** How many of the slogan's last words the hero lights in the logo's colors. */
 const SLOGAN_GLOW_WORDS = 2;
 
-/** The README's heading over the three pillars. */
-const PILLARS_HEADING = "Algebraic effects, emulated by three pillars";
+/** The README's heading over the three pillars, listed as bold-labelled bullets. */
+const PILLARS_HEADING = "A taste: algebraic effects in orbit";
 
 /** Each pillar's mark, in the README's order. */
 const PILLAR_GLYPHS = ["$", "$.with", "!"];
@@ -58,7 +58,8 @@ interface ExplorerItem {
 /**
  * Splits the README into the hero's parts and its `##` sections. The slogan
  * is the bold paragraph and the pitch the plain one before the first `##`
- * heading.
+ * heading. Headings and HTML blocks, such as the README's centred logo, are
+ * skipped: the landing page draws its own.
  */
 function readmeParts(readme: string): {
   slogan: string;
@@ -70,7 +71,7 @@ function readmeParts(readme: string): {
   const paragraphs = intro
     .split(/\n\s*\n/)
     .map((block) => block.trim())
-    .filter((block) => block !== "" && !block.startsWith("#"));
+    .filter((block) => block !== "" && !block.startsWith("#") && !block.startsWith("<"));
   const slogan = /^\*\*(.+)\*\*$/.exec(paragraphs[0] ?? "")?.[1];
   const pitch = paragraphs[1];
   if (!slogan || !pitch) {
@@ -220,7 +221,7 @@ ${agentCards}
   // Algebraic effects: one step per pillar. The README names each step; the
   // playground example shows it at work.
   const pillarsBody = section(sections, PILLARS_HEADING);
-  const pillars = labeledItems(pillarsBody, /^\d+\.\s+/);
+  const pillars = labeledItems(pillarsBody, /^-\s+/);
   if (pillars.length !== PILLAR_GLYPHS.length || pillars.length !== EFFECT_STEPS.length) {
     throw new Error(`landing page: the README must list ${PILLAR_GLYPHS.length} pillars`);
   }
