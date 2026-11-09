@@ -55,7 +55,9 @@ pub use hd_wasm_linear::views::{
 };
 pub use hd_wasm_linear::{FunctionOrigins, InstructionOrigin, StaticData};
 
-#[cfg(feature = "analysis")]
+// The web compiler builds without the analysis hook; `analysis_off.rs`
+// holds the no-op twin of each hook the run calls.
+#[cfg_attr(not(feature = "analysis"), path = "analysis_off.rs")]
 pub mod analysis;
 pub mod bench;
 mod checked_rooms;
@@ -517,8 +519,7 @@ pub struct EntryCapability {
 
 /// The result of a run.
 pub struct Output {
-    /// Policy-free findings from the optional post-verification walk.
-    #[cfg(feature = "analysis")]
+    /// Policy-free findings from the optional post-verification analysis.
     pub analysis_diags: DiagBuf,
     /// Checked entry rows, including capabilities unused by the linked code.
     pub entry_capabilities: Vec<EntryCapability>,
@@ -664,7 +665,6 @@ impl Output {
     /// this build when it has one. A warm cache hit may retain only source
     /// text; analysis clients then materialize syntax without rechecking a
     /// body or changing the ordinary Check entry.
-    #[cfg(feature = "analysis")]
     #[must_use]
     pub fn source_parse(&self, file: usize) -> Option<Arc<hd_syntax::Parse>> {
         let input = self.position_inputs.get(file)?;
@@ -744,7 +744,6 @@ struct PrepOut {
     /// ([`Run::file_has_errors`]) or the module finishes.
     use_errors: bool,
     /// Neutral resolver observations requested by the optional analysis sink.
-    #[cfg(feature = "analysis")]
     derivations: hd_resolve::facts::DerivationFacts,
 }
 
@@ -1540,10 +1539,8 @@ fn session_uses(table: &ModuleTable, repl: &ReplInputs, m: usize) -> Vec<String>
 }
 
 struct Run<'a> {
-    #[cfg(feature = "analysis")]
-    analysis: Option<(&'a dyn analysis::AnalysisSink, analysis::Requests)>,
-    #[cfg(feature = "analysis")]
-    analysis_diags: Vec<OnceLock<DiagBuf>>,
+    /// The attached analysis consumer, when a lint run asked for one.
+    lint: Option<analysis::Lint<'a>>,
     host: &'a Host<'a>,
     package: String,
     /// Whether the root package is a single-file program
@@ -2233,17 +2230,11 @@ pub fn build_packages(
     packages: &Packages<'_>,
     goal: &Goal,
 ) -> Output {
-    build_packages_inner(
-        host,
-        package,
-        packages,
-        goal,
-        #[cfg(feature = "analysis")]
-        None,
-    )
+    build_packages_inner(host, package, packages, goal, None)
 }
 
 /// `build_packages`, with one optional post-verification analysis consumer.
+// Only a lint client attaches a consumer; the web compiler has none.
 #[cfg(feature = "analysis")]
 #[must_use]
 pub fn build_packages_with_analysis(
@@ -2261,7 +2252,7 @@ fn build_packages_inner(
     package: &str,
     packages: &Packages<'_>,
     goal: &Goal,
-    #[cfg(feature = "analysis")] analysis: Option<&dyn analysis::AnalysisSink>,
+    analysis: Option<analysis::Sink<'_>>,
 ) -> Output {
     // The embedded std, or the root package's own when it is std.
     let embedded = (package != "std").then(embedded_std);
@@ -2421,12 +2412,7 @@ fn build_packages_inner(
         package_key = key.finish();
     }
     let run = Run {
-        #[cfg(feature = "analysis")]
-        analysis: analysis
-            .map(|sink| (sink, sink.requests()))
-            .filter(|(_, requests)| *requests != analysis::Requests::NONE),
-        #[cfg(feature = "analysis")]
-        analysis_diags: (0..n).map(|_| OnceLock::new()).collect(),
+        lint: analysis::Lint::new(analysis, n),
         host,
         package: package.to_owned(),
         single_file: packages.single_file,
@@ -2764,17 +2750,10 @@ fn build_packages_inner(
         }
     }
     let mut output = Output {
-        #[cfg(feature = "analysis")]
         analysis_diags: if diags.has_errors() {
             DiagBuf::default()
         } else {
-            let mut findings = DiagBuf::default();
-            for module in &run.analysis_diags {
-                if let Some(module) = module.get() {
-                    findings.append(module);
-                }
-            }
-            findings
+            run.lint_findings()
         },
         entry_capabilities,
         tests: cases,
@@ -3359,68 +3338,6 @@ struct OptInFinding {
 }
 
 impl Run<'_> {
-    /// Whether this root module needs the narrow completed checker facts used
-    /// by the optional analysis sink.
-    fn collect_checked_facts(&self, m: usize) -> bool {
-        if self.table.modules[m].package != 0 {
-            return false;
-        }
-        #[cfg(feature = "analysis")]
-        {
-            self.analysis
-                .is_some_and(|(_, requests)| requests.contains(analysis::Requests::CHECKED))
-        }
-        #[cfg(not(feature = "analysis"))]
-        {
-            false
-        }
-    }
-
-    #[cfg(feature = "analysis")]
-    fn collect_derivation_facts(&self, m: usize) -> bool {
-        self.table.modules[m].package == 0
-            && self
-                .analysis
-                .is_some_and(|(_, requests)| requests.contains(analysis::Requests::DERIVATIONS))
-    }
-
-    #[cfg(feature = "analysis")]
-    fn analysis_main_site(&self, m: usize) -> Option<hd_project::MainSite> {
-        let (_, requests) = self.analysis?;
-        if !requests.contains(analysis::Requests::MAIN_SITE) {
-            return None;
-        }
-        let module = &self.table.modules[m];
-        if module.package != 0 {
-            return None;
-        }
-        let skim = &self.skim_of(m).file;
-        let (lo, hi, public) = skim
-            .public_main
-            .map(|(lo, hi)| (lo, hi, true))
-            .or_else(|| skim.private_main.map(|(lo, hi)| (lo, hi, false)))?;
-        Some(hd_project::MainSite {
-            span: Span {
-                file: module.file,
-                lo,
-                hi,
-            },
-            public,
-            entry_module: self.entry_module(m),
-            make_public_exact: !self
-                .table
-                .modules
-                .iter()
-                .enumerate()
-                .any(|(other, candidate)| {
-                    candidate.package == 0 && self.skim_of(other).file.public_main.is_some()
-                }),
-            role: module.role,
-            entry: module.entry,
-            source_root: self.table.files[module.file.idx()].starts_with("src/"),
-        })
-    }
-
     /// Whether the build links the linear backend's checked runtime
     /// (the internal allocation/count audit setting).
     fn checked(&self) -> bool {
@@ -6022,32 +5939,8 @@ impl Run<'_> {
         // Typed analysis facts are deliberately off-band, not persisted in Check
         // entries. Recheck selected root bodies on a Lint miss; dependencies keep
         // ordinary cache hits, and a Lint hit skips the analysis walk entirely.
-        #[cfg(feature = "analysis")]
-        let analyze = self.analysis.is_some_and(|(_, requests)| {
-            self.table.modules[mi].package == 0 && requests.per_module()
-        });
-        #[cfg(feature = "analysis")]
-        let cached_analysis = if analyze {
-            let (sink, _) = self.analysis.expect("analysis sink");
-            self.lookup(EntryKind::Lint, key).and_then(|sections| {
-                (sections.len() == 1)
-                    .then(|| sections[0].as_ref())
-                    .and_then(|bytes| {
-                        analysis::decode_cache(
-                            bytes,
-                            &self.lines(mi),
-                            FileId::from_raw(u32_of(mi)),
-                            sink,
-                        )
-                    })
-            })
-        } else {
-            None
-        };
-        #[cfg(feature = "analysis")]
-        let analysis_missing = analyze && cached_analysis.is_none();
-        #[cfg(not(feature = "analysis"))]
-        let analysis_missing = false;
+        let cached_analysis = self.lint_cached(mi, key);
+        let analysis_missing = cached_analysis.is_none() && self.lint_runs(mi);
         // Only a fresh check makes a rendered body's text.
         let cached = if analysis_missing || self.renders_module(mi) {
             None
@@ -6065,9 +5958,8 @@ impl Run<'_> {
                 let _ = self.check[mi].set(None);
                 return None;
             }
-            #[cfg(feature = "analysis")]
             if let Some(findings) = cached_analysis {
-                let _ = self.analysis_diags[mi].set(findings);
+                self.lint_keep(mi, findings);
             }
             lock(&self.report).ok(Stage::ModulePrep);
             self.read_check(mi, &sections, Arc::from(join_sections(&sections)));
@@ -6084,10 +5976,7 @@ impl Run<'_> {
         }
         let mut scratch = DiagBuf::default();
         let mut facts = hd_resolve::facts::DerivationFacts::default();
-        #[cfg(feature = "analysis")]
         let collect = self.collect_derivation_facts(mi);
-        #[cfg(not(feature = "analysis"))]
-        let collect = false;
         let items = self
             .lower_module_with_facts(
                 mi,
@@ -6113,7 +6002,6 @@ impl Run<'_> {
             items,
             diags: DiagBuf::default(),
             use_errors,
-            #[cfg(feature = "analysis")]
             derivations: facts,
         }));
         let pr = self.graph.get().map(|g| g.package_result)?;
@@ -6940,26 +6828,8 @@ impl Run<'_> {
             let _ = self.body[m].set(None);
             return;
         }
-        #[cfg(feature = "analysis")]
-        if !diags.has_errors()
-            && module.package == 0
-            && let Some((sink, _)) = self.analysis
-        {
-            let mut findings = DiagBuf::default();
-            let facts = cx.source_facts.as_ref().map(std::cell::RefCell::borrow);
-            sink.module(
-                &analysis::Module {
-                    src: cx.src,
-                    path: &module.path,
-                    checked: hd_check::analysis::CheckedView::new(cx.src, facts.as_deref()),
-                    derivations: self
-                        .collect_derivation_facts(m)
-                        .then_some(&prep.derivations),
-                    main_site: self.analysis_main_site(m),
-                },
-                &mut findings,
-            );
-            let _ = self.analysis_diags[m].set(findings);
+        if !diags.has_errors() {
+            self.lint_module(m, &cx, &prep.derivations);
         }
         lock(&self.report).body_ok += derived.bodies.len();
         for b in &derived.bodies {
@@ -8169,16 +8039,7 @@ impl Run<'_> {
             return;
         }
         self.put(EntryKind::Check, key, &sections);
-        #[cfg(feature = "analysis")]
-        if self.analysis.is_some() && self.table.modules[m].package == 0 {
-            let empty = DiagBuf::default();
-            let findings = self.analysis_diags[m].get().unwrap_or(&empty);
-            if let Some(bytes) =
-                analysis::encode_cache(findings, &lines, FileId::from_raw(u32_of(m)))
-            {
-                self.put(EntryKind::Lint, key, &[&bytes]);
-            }
-        }
+        self.lint_store(m, key, &lines);
         lock(&self.counters)
             .modules_checked
             .push(self.table.modules[m].path.clone());
@@ -8221,39 +8082,6 @@ impl Run<'_> {
                         &[(del, "")],
                     );
                 }
-            }
-        }
-    }
-
-    /// Send one neutral cached-`dbg` event per fetched package to optional
-    /// lint analysis. Dependency bodies stay on ordinary Check cache hits;
-    /// the event is reconstructed cheaply from the cached reference section.
-    #[cfg(feature = "analysis")]
-    fn lint_dbg_in_dependencies(&self) {
-        let Some((sink, requests)) = self.analysis else {
-            return;
-        };
-        if !requests.contains(analysis::Requests::FETCHED_DEBUG) {
-            return;
-        }
-        let mut warned = BTreeSet::new();
-        for (m, module) in self.table.modules.iter().enumerate() {
-            let package = usize::from(module.package);
-            if !self.fetched.get(package).copied().unwrap_or(false) {
-                continue;
-            }
-            let Some(reference) = self.dbg_refs[m].get().and_then(|refs| refs.first()) else {
-                continue;
-            };
-            if warned.insert(package) {
-                let mut findings = DiagBuf::default();
-                sink.fetched_debug(
-                    &self.table.packages[package],
-                    reference.span,
-                    self.src(m),
-                    &mut findings,
-                );
-                let _ = self.analysis_diags[m].set(findings);
             }
         }
     }
@@ -8733,7 +8561,6 @@ impl Run<'_> {
             t
         };
         self.dbg_in_release();
-        #[cfg(feature = "analysis")]
         self.lint_dbg_in_dependencies();
         match &self.goal {
             Goal::Program { .. }

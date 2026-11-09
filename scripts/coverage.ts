@@ -78,11 +78,10 @@ const CORE = [
 ] as const;
 type Crate = (typeof CORE)[number];
 
-// The features CI's conformance builds turn on in the core: hd_check's
-// analysis walk and hd_wasm_linear's checked report. wasmtime (the other
-// engine) is left out; the default engine is Node.
+// The features CI's conformance builds turn on in the core: hd_wasm_linear's
+// checked report. wasmtime (the other engine) is left out; the default engine
+// is Node.
 const CRATE_FEATURES: Partial<Record<Crate, string>> = {
-  hd_check: "hd_check/analysis",
   hd_wasm_linear: "hd_wasm_linear/checked-report",
 };
 const DRIVER = ["-p", "hd_driver", "--features", "analysis,checked-report"];
