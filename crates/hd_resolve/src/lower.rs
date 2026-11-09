@@ -2862,15 +2862,28 @@ impl Lower<'_, '_, '_> {
     /// generic list `gl`.
     fn owner_path<'s>(&'s self, gl: NodeRef<'_>) -> Vec<NodeRef<'s>> {
         let x = gl.index().raw();
-        let mut path = vec![self.src.root()];
-        while let Some(c) = path.last().and_then(|p| {
+        let holder = |p: NodeRef<'s>| {
             p.children()
                 .find(|c| c.index().raw() <= x && x < c.end().raw())
-        }) {
+        };
+        // The root's child that holds `gl`: the item index lists the root's
+        // children in order (all but `use` and error nodes), so a binary
+        // search finds it in O(log items), not a walk over every item
+        // before it, which made lowering a module quadratic in its items.
+        let at = &self.src.parse.items.at;
+        let top = at
+            .partition_point(|a| a.raw() <= x)
+            .checked_sub(1)
+            .map(|k| self.src.parse.tree.node(at[k]))
+            .filter(|c| x < c.end().raw());
+        let mut path = vec![self.src.root()];
+        let mut next = top.or_else(|| holder(self.src.root()));
+        while let Some(c) = next {
             if c.index() == gl.index() {
                 break;
             }
             path.push(c);
+            next = holder(c);
         }
         path
     }
