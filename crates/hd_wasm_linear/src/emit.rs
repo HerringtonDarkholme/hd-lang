@@ -2155,9 +2155,14 @@ impl Em<'_, '_, '_> {
                     .iter()
                     .any(|c| *c as u32 == k) =>
                     {
-                        if self.vals(self.ty_of(a))? != self.vals(self.ty(i))? {
-                            return unsupported("a coercion that changes the layout");
-                        }
+                        // ruled out: a change of layout. Checking refuses
+                        // a variance conversion that changes a
+                        // representation (`types.variance.no-insertion`,
+                        // `variance-representation-change`); `Weaken` drops
+                        // a `mut`, `RowSubsume` and `SuspendFnToCtor` change
+                        // only a function type, which is always a code and
+                        // an environment address (`layout::mem`), and
+                        // `Identity` changes nothing.
                         // A function value's code looks its row up in the
                         // context its caller passes, so a row that changes
                         // changes nothing (`ctx.rs`). The value is the
@@ -2982,9 +2987,11 @@ impl Em<'_, '_, '_> {
         targs: TyList,
         args: &[u32],
     ) -> StageResult<()> {
-        if self.vals(self.ty(i))? != [Val::I32] {
-            return unsupported("a weak operation with a non-nullable-address result");
-        }
+        // Each result is one address word, 0 for `.None`. ruled out:
+        // another layout. std declares the five (lib/std/weak.hd) to return
+        // `Weak[T]?`, `WeakMut[T]?`, `(*T)?`, `(*mut T)?` or `Weak[T]`: a
+        // counted address, or its optional, which the address's niche keeps
+        // one word (§23.3, `layout_of_enum`).
         match key {
             "weak_new" | "weak_new_mut" => {
                 // `weak_new[T]` and `weak_new_mut[T]`
