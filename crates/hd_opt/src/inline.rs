@@ -133,16 +133,17 @@ pub struct Memo {
     /// The instances the inliner found on a cycle of calls
     /// (`inline_into`): a call of one stays a call.
     recursive: Mutex<HashSet<(DefId, TyList)>>,
-    /// Per flag method instance (`annot.bound.recursive.flag`), the
-    /// constant its call copies as, or `None` where the call stays a call
-    /// (`flag_site`); each is solved once per run.
-    flags: Mutex<HashMap<(DefId, TyList), Option<Inlined>>>,
-    /// Held while one thread solves flags, so another waits for its
-    /// values instead of keeping its calls.
-    solve: Mutex<()>,
-    /// The thread solving flags now: its own flag calls stay calls.
-    solver: Mutex<Option<std::thread::ThreadId>>,
+    /// Per flag method instance (`annot.bound.recursive.flag`), its
+    /// solved value and the constant its call copies as, or `None` where
+    /// the call stays a call (`flag_site`). Insert-once: the first value
+    /// written stays; a thread that solved the same component meanwhile
+    /// found the same values, and drops them.
+    flags: Mutex<HashMap<(DefId, TyList), Solved>>,
 }
+
+/// A flag's solved value and its copy ([`Memo`]), both `None` where the
+/// call stays a call.
+type Solved = (Option<bool>, Option<Inlined>);
 
 /// What a call of a flag method copies (`flag_site`).
 enum FlagSite {
@@ -173,7 +174,39 @@ fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
 /// each parameter bound by its pass mode, and returns the body's hash with
 /// each copied callee's TIR hash.
 pub fn inline_calls(env: &dyn InlineEnv, body: &mut Body, hash: Hash128) -> Hash128 {
-    env.inline_into(body, hash, &mut vec![(body.item, None)])
+    env.inline_into(body, hash, &mut Stack::new((body.item, None), false))
+}
+
+/// The inliner's stack of copies ([`Frame`]), the caller first, and
+/// whether they are copied for a flag solve (`solve_flags_from`), passed
+/// down explicitly as rustc's query stack is: inside a solve, every flag
+/// call not yet solved is one of the solve's members (its scan adds those
+/// the copy keeps), so it stays a call (`FlagSite::Kept`).
+struct Stack {
+    frames: Vec<Frame>,
+    solving: bool,
+}
+
+impl Stack {
+    fn new(first: Frame, solving: bool) -> Self {
+        Self {
+            frames: vec![first],
+            solving,
+        }
+    }
+}
+
+impl std::ops::Deref for Stack {
+    type Target = Vec<Frame>;
+    fn deref(&self) -> &Vec<Frame> {
+        &self.frames
+    }
+}
+
+impl std::ops::DerefMut for Stack {
+    fn deref_mut(&mut self) -> &mut Vec<Frame> {
+        &mut self.frames
+    }
 }
 
 impl dyn InlineEnv + '_ {
@@ -186,7 +219,7 @@ impl dyn InlineEnv + '_ {
 
     /// [`inline_calls`] inside the copies on `stack`, the caller first: a
     /// call of one of them stays a call, so recursion never inlines.
-    fn inline_into(&self, body: &mut Body, hash: Hash128, stack: &mut Vec<Frame>) -> Hash128 {
+    fn inline_into(&self, body: &mut Body, hash: Hash128, stack: &mut Stack) -> Hash128 {
         let mut hash = hash;
         // A call through a function reference the body knows is a call
         // of its item, which may copy in turn. A copy may bring more: a
@@ -291,7 +324,7 @@ impl dyn InlineEnv + '_ {
         &self,
         body: &mut Body,
         hash: Hash128,
-        stack: &mut Vec<Frame>,
+        stack: &mut Stack,
         loops_only: bool,
     ) -> (Hash128, bool) {
         let pool = self.pool();
@@ -328,7 +361,7 @@ impl dyn InlineEnv + '_ {
             }
             // A flag method's call copies its solved value, even its own
             // call inside its body.
-            let folded = match self.flag_site(def, targs) {
+            let folded = match self.flag_site(def, targs, stack.solving) {
                 FlagSite::Folded(copy) => Some(*copy),
                 FlagSite::Kept => continue,
                 FlagSite::Plain => None,
@@ -537,12 +570,7 @@ impl dyn InlineEnv + '_ {
     /// makes one per explicit call site. Dev builds consider only explicitly
     /// decorated user functions; release builds also consider ordinary user
     /// functions.
-    fn callee_copy(
-        &self,
-        def: DefId,
-        targs: TyList,
-        stack: &mut Vec<Frame>,
-    ) -> Option<(Body, Hash128)> {
+    fn callee_copy(&self, def: DefId, targs: TyList, stack: &mut Stack) -> Option<(Body, Hash128)> {
         let memo = self.memo();
         if let Some(memo) = memo {
             if let Some(made) = lock(&memo.inlined).get(&(def, targs)) {
@@ -610,7 +638,7 @@ impl dyn InlineEnv + '_ {
         &self,
         def: DefId,
         targs: TyList,
-        stack: &mut Vec<Frame>,
+        stack: &mut Stack,
     ) -> Option<(Body, Hash128)> {
         let (mut scratch, hash, prepared) = self.prepared(def, targs)?;
         if prepared == hash {
@@ -666,7 +694,7 @@ impl dyn InlineEnv + '_ {
     /// constants: the value `hd_opt::whole::solve_flags` gives it, solved
     /// with every flag it reaches on first ask. Dev keeps every call, and
     /// its runtime flag answers a re-entry.
-    fn flag_site(&self, def: DefId, targs: TyList) -> FlagSite {
+    fn flag_site(&self, def: DefId, targs: TyList, solving: bool) -> FlagSite {
         let Some(memo) = self.memo() else {
             return FlagSite::Plain;
         };
@@ -675,24 +703,17 @@ impl dyn InlineEnv + '_ {
         }
         let solved = || {
             lock(&memo.flags).get(&(def, targs)).map(|s| {
-                s.clone()
+                s.1.clone()
                     .map_or(FlagSite::Plain, |c| FlagSite::Folded(Box::new(c)))
             })
         };
         if let Some(site) = solved() {
             return site;
         }
-        let me = std::thread::current().id();
-        if *lock(&memo.solver) == Some(me) {
+        if solving {
             return FlagSite::Kept;
         }
-        let _one = lock(&memo.solve);
-        if let Some(site) = solved() {
-            return site;
-        }
-        *lock(&memo.solver) = Some(me);
         self.solve_flags_from((def, targs), memo);
-        *lock(&memo.solver) = None;
         solved().unwrap_or(FlagSite::Plain)
     }
 
@@ -701,9 +722,12 @@ impl dyn InlineEnv + '_ {
     /// prepared body with its calls copied, every flag call kept as a
     /// call (`FlagSite::Kept`), then folded; the flags those calls name
     /// are the graph's nodes, found breadth-first. A flag solved before
-    /// is no node: its call was copied as its value. Cost: one copy and
-    /// one scan per flag, each flag solved once per run, then the solve's
-    /// own bound.
+    /// is no node: its call was copied as its value. Nothing is locked
+    /// while solving: each component is solved once per thread that
+    /// reaches it before the first insert, so at most the thread count
+    /// (`HD_JOBS`, at most 8) times one solve, and once in the common
+    /// case. One solve costs one copy and one scan per flag, then
+    /// [`crate::whole::solve_flags`]'s bound.
     fn solve_flags_from(&self, root: (DefId, TyList), memo: &Memo) {
         let mut index: HashMap<(DefId, TyList), u32> = HashMap::default();
         index.insert(root, 0);
@@ -714,7 +738,7 @@ impl dyn InlineEnv + '_ {
         let (mut from, mut callees) = (vec![0u32], Vec::new());
         while let Some(&(def, targs)) = nodes.get(bodies.len()) {
             let body = self.prepared(def, targs).map(|(mut b, _, prepared)| {
-                self.inline_into(&mut b, prepared, &mut vec![(def, Some(targs))]);
+                self.inline_into(&mut b, prepared, &mut Stack::new((def, Some(targs)), true));
                 hd_mono::defaults::specialize(&b, &[]).unwrap_or(b)
             });
             let mut mine = Vec::new();
@@ -788,7 +812,18 @@ impl dyn InlineEnv + '_ {
                 h.u8(u8::from(v));
                 Some((copy, h.finish()))
             });
-            flags.insert((def, targs), made);
+            match flags.entry((def, targs)) {
+                std::collections::hash_map::Entry::Occupied(first) => {
+                    debug_assert_eq!(
+                        first.get().0,
+                        values[i],
+                        "flag values differ between solves"
+                    );
+                }
+                std::collections::hash_map::Entry::Vacant(slot) => {
+                    slot.insert((values[i], made));
+                }
+            }
         }
     }
 

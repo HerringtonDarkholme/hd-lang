@@ -447,7 +447,10 @@ pub type FlagEval<'a> = dyn FnMut(u32, &dyn Fn(u32) -> Option<bool>) -> Option<b
 /// edge: at most 2(n + e) evaluations, each linear in its body, so
 /// O(sum of bodies x component size) in the worst case and linear when
 /// bodies call a bounded number of flags. `work` counts the evaluations
-/// and the walk's nodes and edges.
+/// and the walk's nodes and edges. The release inliner solves a component
+/// on its first call, without a lock, so once per thread that reaches it
+/// before the first result is recorded: at most the thread count
+/// (`HD_JOBS`, at most 8) times this bound, and once in the common case.
 pub fn solve_flags(
     from: &[u32],
     callees: &[u32],
