@@ -24,7 +24,6 @@ use super::value::{Dst, Src};
 use crate::layout::{coll_kind, coll_leaves, mem as mem_of, strip};
 use crate::module::{HEADER, HEAP, Val, mem};
 use crate::rt::{Elem, Helper, LIST_ELEMS, LIST_LEN, empty_buffer};
-use crate::unsupported;
 
 /// A stable list, directly in a local or behind a reference local.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -961,11 +960,12 @@ impl Em<'_, '_, '_> {
     pub(super) fn elem(&self, t: Ty) -> StageResult<(Ty, Elem)> {
         // ruled out: the driver roots std runtime items before collecting list operations.
         // ruled out: list intrinsic signatures and checked projections supply List[T].
-        let TyData::Adt { args, .. } = self.pool().get(strip(self.pool(), self.env(), t)) else {
-            return unsupported("a list operation on a value that is not a list");
-        };
+        let (def, args) = self.pool().adt_parts(strip(self.pool(), self.env(), t));
+        debug_assert_eq!(self.env().std_kind(def), StdKind::List);
+        let items = self.pool().list_items(args);
         // ruled out: the seeded List[T] has one completed generic argument.
-        let et = self.pool().list_items(args)[0];
+        debug_assert_eq!(items.len(), 1);
+        let et = items[0];
         let m = mem_of(self.pool(), self.env(), et)?;
         let elem = Elem {
             size: m.size,
