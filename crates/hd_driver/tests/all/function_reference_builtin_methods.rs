@@ -92,22 +92,25 @@ pub fn main() -> void $ Console:
 }
 
 /// A bound reference to a built-in method captures its receiver when the
-/// reference is made, and a bound `push` changes that receiver.
+/// reference is made, and a bound `push` changes that receiver. A bound
+/// reference to a local captures a local reference, so it is passed straight
+/// to a `fn(...)` parameter, never stored (`ref.local.escape.capture-stored`).
 #[test]
 fn bound_references_to_builtin_methods_capture_the_receiver() {
-    let main = "pub fn main() -> void $ Console:
+    let main = "fn size_of(f: fn() -> usize) -> usize: f()
+fn push_two(f: fn(i32) -> void) -> void:
+    f(5)
+    f(6)
+
+pub fn main() -> void $ Console:
     let xs: List[i32] = [1, 2, 3]
-    len := xs::len
-    println(len())
+    println(size_of(xs::len))
     let mut acc: List[i32] = []
-    add := acc::push
-    add(5)
-    add(6)
+    push_two(acc::push)
     println(acc.len())
     println(acc[1])
     let m: Map[string, i32] = {\"a\": 1}
-    mlen := m::len
-    println(mlen())
+    println(size_of(m::len))
 ";
     assert_eq!(run("bound", main), "3\n2\n6\n1\n");
 }
