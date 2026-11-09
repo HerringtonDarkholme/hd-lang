@@ -1,0 +1,13 @@
+# @dump: wat
+# @build: v8 release
+# expected: one sort_by call forwards the unique list descriptor; the comparator reads only keys and copies no owned payload.
+use std.collections.UniqList
+
+struct Entry:
+    key: usize
+    payload: UniqList[string]
+
+impl !Copy for Entry
+
+fn reorder(values: &mut UniqList[Entry]) -> void:
+    values.sort_by(fn(left: &Entry, right: &Entry) -> Ordering: left.key.cmp(&right.key))
