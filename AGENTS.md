@@ -17,6 +17,28 @@ The compiler's build, test and gate commands are in
 [crates/README.md](crates/README.md), and docs are indexed in
 [docs/README.md](docs/README.md).
 
+## Every Commit: Performant, Well Thought, State Of The Art
+
+Owner, 2026-11-08: "each commit should be performant, well-thought,
+reflecting compiler software's SOTA". Before committing compiler or tool
+code, the author checks each of these and says so in the report:
+
+- **Performant.** State the cost per run as a function of the input, and
+  check it by reading the loops (.agents/skills/shared-rules.md "Cost
+  Model"). A retry, recheck or fixpoint states its width and depth bounds
+  and has a generated test that counts the work. Nothing is quadratic or
+  exponential in program size, and nothing recurses natively to a depth
+  the input controls.
+- **Well thought.** The case is handled, not refused or special-cased: no
+  `unsupported`, no benchmark or one-type special case, no asserted-away
+  case without its `ruled out:` reason. The design was priced against what
+  it protects before it was built.
+- **State of the art.** Do what the best production compilers do (rustc,
+  LLVM, Swift, GHC, V8) and cite it: rustc's enum layout, worklists over
+  recursion, interned and cached queries, one pass where one suffices. A
+  naive algorithm needs a stated reason. Where hd does worse than the
+  reference, the commit says so and why.
+
 ## Design Cost Order
 
 When a design needs a new mechanism, prefer the cheapest kind of change.
