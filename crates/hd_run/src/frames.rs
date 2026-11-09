@@ -360,23 +360,37 @@ pub fn positions_section(
         leb(out, s.len());
         out.extend_from_slice(s.as_bytes());
     }
-    fn index<'s>(s: &'s str, strings: &mut Vec<&'s str>) -> usize {
-        strings.iter().position(|x| *x == s).unwrap_or_else(|| {
+    // Each path and name gets its table index on first sight: one hash
+    // lookup per use, so the section costs time linear in the functions
+    // and frames, not in functions times distinct names.
+    fn index<'s>(
+        s: &'s str,
+        strings: &mut Vec<&'s str>,
+        seen: &mut HashMap<&'s str, usize>,
+    ) -> usize {
+        *seen.entry(s).or_insert_with(|| {
             strings.push(s);
             strings.len() - 1
         })
     }
     let mut strings: Vec<&str> = Vec::new();
+    let mut seen: HashMap<&str, usize> = HashMap::default();
     let mut rows = Vec::new();
     for (f, file, fname, lines) in funcs {
-        let (fi, ni) = (index(file, &mut strings), index(fname, &mut strings));
+        let (fi, ni) = (
+            index(file, &mut strings, &mut seen),
+            index(fname, &mut strings, &mut seen),
+        );
         rows.push((*f, fi, ni, lines));
     }
     let mut frames = Vec::new();
     for ((f, k), list) in inlined {
         let list: Vec<_> = list
             .iter()
-            .map(|(file, name, line)| (index(file, &mut strings), index(name, &mut strings), *line))
+            .map(|(file, name, line)| {
+                let file = index(file, &mut strings, &mut seen);
+                (file, index(name, &mut strings, &mut seen), *line)
+            })
             .collect();
         frames.push((*f, *k, list));
     }
@@ -572,6 +586,29 @@ mod tests {
             t.resolved_lines(&[(2, start + 8)]),
             ["<std>/t.hd:12 std.t.g", "src/main.hd:4 app.main.f"]
         );
+    }
+
+    /// Each path and name is in the string table once, in first-seen
+    /// order, however many functions share it.
+    #[test]
+    fn positions_name_each_string_once_in_first_seen_order() {
+        let funcs: Vec<_> = (0..300)
+            .map(|f| (f, format!("src/m{}.hd", f % 3), "app.f".to_owned(), vec![1]))
+            .collect();
+        let section = super::positions_section(&funcs, &[]);
+        // id 0, the size (two LEB bytes here), the name, then the table.
+        let body = &section[3..];
+        let tag = b"hd.positions";
+        assert_eq!(&body[1..=tag.len()], tag);
+        let mut at = 1 + tag.len();
+        let mut strings = Vec::new();
+        for _ in 0..body[at] {
+            at += 1;
+            let len = usize::from(body[at]);
+            strings.push(std::str::from_utf8(&body[at + 1..=at + len]).expect("utf-8"));
+            at += len;
+        }
+        assert_eq!(strings, ["src/m0.hd", "app.f", "src/m1.hd", "src/m2.hd"]);
     }
 
     #[test]
