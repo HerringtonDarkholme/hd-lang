@@ -43,14 +43,14 @@ DESCRIBE = {
     "empty-else": "an `else` with nothing in it",
     "set-then-get": "`local.set $x` straight before `local.get $x` (a tee saves bytes)",
     # IR
-    "ir-ref-drop": "a Drop of a reference type, which counts nothing unless it is a view (#1360)",
+    "ir-ref-drop": "a Drop of a reference type: the link folds it in a view-free module, so it predicts no time or size (#1399 20a: byte-identical with it gone); it matters only to #1360 and #1448",
     "ir-copy-only-lends": "a counted Read copy whose only uses lend it, then a Drop: one retain and one release",
     "ir-store-then-read": "a Store to a local straight before a Read of it",
     "ir-unused-read": "a counted Read that nothing uses",
     "ir-conservative": "a count the compiler could not name a reason for",
     "ir-exit-unlowered": "a stated parameter exit release with no release in the function's counts: describes TIR text, emits nothing, so it predicts no time or size",
 }
-INFO_ONLY = {"set-then-get", "br-to-end", "empty-block", "empty-else", "ir-store-then-read", "ir-exit-unlowered"}
+INFO_ONLY = {"set-then-get", "br-to-end", "empty-block", "empty-else", "ir-store-then-read", "ir-exit-unlowered", "ir-ref-drop"}
 
 COUNT_HELPERS = re.compile(r"^(retain|rt:retain|rt:release|rt:coll_copy|rt:drop)")
 RETAINS = re.compile(r"^(retain|rt:retain|rt:coll_copy)")
