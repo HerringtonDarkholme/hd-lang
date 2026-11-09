@@ -13,7 +13,7 @@
     local.get $r.3
     call $rt:release
   )
-  (func $area (param $s i32) (result f64) (local $t0 f64) (local $a i32) (local $b i32) (local $r f64) (local $c i32) (local $h f64) (local $t1 i64)
+  (func $area (param $s i32) (result f64) (local $r f64) (local $b i32) (local $w f64) (local $a i32) (local $t0 i64)
     ;; 18 |     match s:
     block
       block
@@ -24,33 +24,40 @@
     ;; 19 |         .Circle(r) => 3.0 * r * r
                 local.get $s
                 i32.load $heap
-                local.get $s
-                i32.load $heap offset=4
-                local.get $s
-                i32.load $heap offset=8
-                local.get $s
-                f64.load $heap offset=8
-                local.get $s
-                i32.load $heap offset=12
-                local.get $s
-                f64.load $heap offset=16
-                local.set $h
-                local.set $c
-                local.set $r
                 local.set $b
-                local.set $a
-                local.set $s
                 block
                   block
                     block
                       block
-                        local.get $s
+                        local.get $b
                         br_table 0 1 2 7 7
                       end
+                      local.get $s
+                      f64.load $heap offset=8
+                      local.set $r
                       br 3
                     end
+    ;; 20 |         .Rect(w, h) => w * h
+                    local.get $s
+                    f64.load $heap offset=8
+                    local.get $s
+                    f64.load $heap offset=16
+                    local.set $r
+                    local.set $w
+    ;; 19 |         .Circle(r) => 3.0 * r * r
                     br 3
                   end
+    ;; 21 |         .Tri(a, b, c) => f64(a + b + c)
+                  local.get $s
+                  i32.load $heap offset=4
+                  local.get $s
+                  i32.load $heap offset=8
+                  local.set $b
+                  local.get $s
+                  i32.load $heap offset=12
+                  local.set $s
+                  local.set $a
+    ;; 19 |         .Circle(r) => 3.0 * r * r
                   br 3
                 end
     ;; 18 |     match s:
@@ -63,15 +70,15 @@
               local.get $r
               f64.mul
     ;; 18 |     match s:
-              local.set $t0
+              local.set $r
               br 3
             end
     ;; 20 |         .Rect(w, h) => w * h
+            local.get $w
             local.get $r
-            local.get $h
             f64.mul
     ;; 18 |     match s:
-            local.set $t0
+            local.set $r
             br 2
           end
     ;; 21 |         .Tri(a, b, c) => f64(a + b + c)
@@ -80,10 +87,10 @@
           local.get $b
           i64.extend_i32_s
           i64.add
-          local.tee $t1
+          local.tee $t0
           i64.const 2147483647
           i64.gt_s
-          local.get $t1
+          local.get $t0
           i64.const -2147483648
           i64.lt_s
           i32.or
@@ -91,16 +98,16 @@
             call $rt:panic
             unreachable
           end
-          local.get $t1
+          local.get $t0
           i32.wrap_i64
           i64.extend_i32_s
-          local.get $c
+          local.get $s
           i64.extend_i32_s
           i64.add
-          local.tee $t1
+          local.tee $t0
           i64.const 2147483647
           i64.gt_s
-          local.get $t1
+          local.get $t0
           i64.const -2147483648
           i64.lt_s
           i32.or
@@ -108,17 +115,17 @@
             call $rt:panic
             unreachable
           end
-          local.get $t1
+          local.get $t0
           i32.wrap_i64
           f64.convert_i32_s
     ;; 18 |     match s:
-          local.set $t0
+          local.set $r
           br 1
         end
         br 0
       end
     end
-    local.get $t0
+    local.get $r
   )
   (func $is_some (param $v i32) (result i32) (local $t0 i32)
     ;; 43 |     match v:
@@ -180,7 +187,7 @@
     end
     local.get $r
   )
-  (func $width (param $s i32) (result f64) (local $w f64) (local $t0 f64)
+  (func $width (param $s i32) (result f64) (local $w f64)
     ;; 25 |     match s:
     block
       block
@@ -189,20 +196,12 @@
     ;; 26 |         .Rect(w, _) => w
             local.get $s
             i32.load $heap
-            local.get $s
-            i32.load $heap offset=4
-            local.get $s
-            i32.load $heap offset=8
-            local.get $s
-            f64.load $heap offset=8
-            local.set $t0
-            drop
-            drop
             i32.const 1
             i32.eq
             i32.eqz
             br_if 1
-            local.get $t0
+            local.get $s
+            f64.load $heap offset=8
             local.set $w
             br 0
     ;; 25 |     match s:

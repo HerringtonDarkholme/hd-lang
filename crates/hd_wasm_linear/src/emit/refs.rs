@@ -224,7 +224,7 @@ impl Em<'_, '_, '_> {
             PlaceRoot::Local(l) if !self.is_cell(l.idx()) => {
                 Ok(Some((self.at_root_ty(p.root), self.local(l.raw())?)))
             }
-            PlaceRoot::Value(r) if r.as_inst().is_some() => {
+            PlaceRoot::Value(r) if r.as_inst().is_some() && !self.lazy.contains_key(&r.0) => {
                 Ok(Some((self.ty_of(r.0), self.computed(r.0)?)))
             }
             _ => Ok(None),
@@ -815,8 +815,20 @@ impl Em<'_, '_, '_> {
             let r = self.at_i32(&at)?;
             let value = self.ref_layout(target)?;
             if fields.as_ref().is_some_and(Vec::is_empty) {
-                // A loan is the leaves its place holds, through a view
-                // too.
+                // A loan is the leaves its place holds, or, for an enum a
+                // match only decides on and binds parts of, the place.
+                if self.lazy_borrow(i, target, ref_ty) {
+                    // Its tag, or a nullable enum's address, once.
+                    let word = self.f.local(Val::I32);
+                    self.f.get(r);
+                    match self.flat(target)?.tag {
+                        Some((leaf, _)) => self.f.op(leaf.load(0)),
+                        None => self.f.op(I::I32Load(mem(HEAP, 0, 2))),
+                    }
+                    self.f.set(word);
+                    self.lazy.insert(i, (r, word));
+                    return Ok(());
+                }
                 if self.loans.contains(&i) {
                     for l in rt::ref_lend(&mut self.f, r, &value) {
                         self.f.get(l);
@@ -842,6 +854,47 @@ impl Em<'_, '_, '_> {
         self.push_at(&at, ty)?;
         self.store(i)?;
         Ok(())
+    }
+
+    /// Whether read `i` of a whole `target` through reference type
+    /// `ref_ty` is an enum that matches read in place (#1422 step 12): a
+    /// `borrow`, or a copy through `&` of a value that counts nothing,
+    /// which nothing can change while the shared reference lives; of a
+    /// flat enum every use of which decides on its tag (`SwitchTag`) or
+    /// reads, refers to or ends the loan of a part of its payload, in a
+    /// body that does not suspend. Then the tag loads once and each arm's
+    /// fields where they are read, as Rust's match through `&` does, not
+    /// all its values first.
+    fn lazy_borrow(&self, i: u32, target: Ty, ref_ty: Ty) -> bool {
+        let shared_copy = !crate::layout::ref_mutable(self.pool(), self.env(), ref_ty)
+            && !self.tracked(target)
+            && self.drop_calls(target).is_empty();
+        if self.susp.is_some()
+            || !(self.loans.contains(&i) || shared_copy)
+            || !matches!(self.kind(target), Kind::Value)
+            || crate::layout::variants(self.pool(), self.env(), target).is_none()
+        {
+            return false;
+        }
+        let mut ops = Vec::new();
+        (0..self.b.len()).all(|k| {
+            hd_tir::own::operands(self.b, k, &mut ops);
+            if !ops.iter().any(|o| o.value == i) {
+                return true;
+            }
+            let [a, _] = self.b.data[k];
+            match self.b.tags[k] {
+                Tag::SwitchTag => a == i,
+                Tag::Read | Tag::Ref | Tag::LoanEnd | Tag::Drop => {
+                    self.b.decode_place(a).is_some_and(|p| {
+                        p.root == PlaceRoot::Value(Ref(i))
+                            && (self.b.tags[k] != Tag::Read && self.b.tags[k] != Tag::Ref
+                                || matches!(p.proj.first(), Some(Proj::Variant(_))))
+                    })
+                }
+                _ => false,
+            }
+        })
     }
 
     /// `Read move` `i` of a field path of a local whose value lives in
@@ -1214,6 +1267,10 @@ impl Em<'_, '_, '_> {
                     self.f.set(ls[ls.len() - 1]);
                 }
                 Ok((At::Vals(ls), t))
+            }
+            // A borrow a match reads in place is its referent.
+            PlaceRoot::Value(r) if let Some(&(at, _)) = self.lazy.get(&r.0) => {
+                Ok((At::Mem(at, 0), self.ty_of(r.0)))
             }
             PlaceRoot::Value(r) => Ok((At::Vals(self.local_value_of(r.0)?), self.ty_of(r.0))),
             _ => unsupported("a place rooted at a frame slot or a pointer's target"),

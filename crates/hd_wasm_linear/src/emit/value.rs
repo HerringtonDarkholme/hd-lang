@@ -705,15 +705,30 @@ impl Em<'_, '_, '_> {
         let flat = self.flat(t)?;
         let Some((leaf, k)) = flat.tag else {
             // A nullable enum's variant 1 is a non-null address.
-            self.comp(a, 0)?;
+            self.scrutinee_word(a)?;
             self.f.i32(0);
             self.f.op(I::I32Ne);
             return Ok(());
         };
+        if let Some(&(_, tag)) = self.lazy.get(&a) {
+            // A borrow through a reference read its tag in place.
+            self.f.get(tag);
+            return Ok(());
+        }
         if matches!(self.kind(t), Kind::Boxed) {
             return self.load(&|em: &mut Self| em.comp(a, 0), 0, leaf);
         }
         self.comp(a, k as usize)
+    }
+
+    /// Value 0 of enum value `a`: a nullable enum's address, loaded in
+    /// place for a borrow through a reference ([`Em::lazy_borrow`]).
+    pub(super) fn scrutinee_word(&mut self, a: u32) -> StageResult<()> {
+        if let Some(&(_, word)) = self.lazy.get(&a) {
+            self.f.get(word);
+            return Ok(());
+        }
+        self.comp(a, 0)
     }
 
     /// A payload read: field `field` of variant `variant` of enum value `a`.
@@ -722,7 +737,13 @@ impl Em<'_, '_, '_> {
         let flat = self.flat(t)?;
         // A checked payload step names a field of its variant.
         let (v, f) = (variant as usize, field as usize);
-        if matches!(self.kind(t), Kind::Boxed) {
+        if let Some(&(at, _)) = self.lazy.get(&a) {
+            // A borrow through a reference reads the field in place.
+            for l in &flat.leaves[v][f] {
+                self.f.get(at);
+                self.f.op(l.load(0));
+            }
+        } else if matches!(self.kind(t), Kind::Boxed) {
             // The cell holds the payload at its offset.
             for l in &flat.leaves[v][f] {
                 self.load(&|em: &mut Self| em.comp(a, 0), 0, *l)?;

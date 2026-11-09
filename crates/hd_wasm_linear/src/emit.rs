@@ -1051,6 +1051,12 @@ struct Em<'i, 'a, 'm> {
     /// body returns one (`hd_mono::Target::Default`'s `owned`), and a
     /// `Ref` of a suspending body's parameter, a copy (`ref.expr.allocate`).
     owned_refs: hd_base::HashSet<u32>,
+    /// Each `borrow` read of an enum through a reference that a match
+    /// only decides on and binds parts of (#1422 step 12): the referent's
+    /// address, and its tag (a nullable enum's address), loaded once at
+    /// the read. Each arm's fields load where they are read
+    /// ([`Em::lazy_borrow`]).
+    lazy: HashMap<u32, (u32, u32)>,
     /// Adjacent TIR Retains lowered during construction, before the result's
     /// vtable loads. Their statement must not emit the same count again.
     retained_before_result: hd_base::HashSet<u32>,
@@ -1255,6 +1261,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             projs: Vec::new(),
             env_caps: HashMap::default(),
             owned_refs: hd_base::HashSet::default(),
+            lazy: HashMap::default(),
             retained_before_result: hd_base::HashSet::default(),
             owned_locals: hd_base::HashSet::default(),
             frame_refs: Vec::new(),
@@ -2242,7 +2249,7 @@ impl Em<'_, '_, '_> {
                 let (case, then, other) = (r[0], r[1], r[2]);
                 if self.b.tags[i as usize] == Tag::SwitchTag && self.nullable(self.ty_of(a)) {
                     // Variant 1 is a non-null address.
-                    self.comp(a, 0)?;
+                    self.scrutinee_word(a)?;
                     if case == 0 {
                         self.f.op(Instruction::I32Eqz);
                     }

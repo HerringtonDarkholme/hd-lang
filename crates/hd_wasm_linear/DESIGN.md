@@ -535,6 +535,12 @@ lowers their instructions.
   (`layout::variant_steps`), so the values store in any order and a load,
   a store or a copy is one per value, with no branch on the tag. Every
   counted address is a whole value.
+- **Matches on enums** (#1422 steps 11 and 12). A decision's chain of
+  `SwitchTag`s on one value branches once on the tag: two targets that
+  only go to arms are one `br_if`, more are one `br_table`
+  (`Em::switch_to_arms`). A match through `&` on a whole enum read only
+  to decide and bind parts loads the tag once and each arm's fields where
+  the arm binds them (`Em::lazy_borrow`), not every value first.
 
 ### 23.15 String Emission And Host Primitives
 

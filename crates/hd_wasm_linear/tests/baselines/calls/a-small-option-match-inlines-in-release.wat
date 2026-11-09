@@ -17,21 +17,16 @@
     ;; 54 |         .Deleted => +0
             local.get $slot
             i32.load $heap
-            local.get $slot
-            i32.load $heap offset=4
-            local.get $slot
-            i32.load $heap offset=8
-            local.set $t0
-            drop
-            local.tee $slot
+            local.tee $t0
             i32.eqz
             br_if 0
     ;; 55 |         .Occupied(_, v) => v
-            local.get $slot
+            local.get $t0
             i32.const 1
             i32.eq
             if
-              local.get $t0
+              local.get $slot
+              i32.load $heap offset=8
               local.set $v
               br 2
             else
@@ -106,20 +101,15 @@
               block
                 local.get $t1
                 i32.load $heap
-                local.get $t1
-                i32.load $heap offset=4
-                local.get $t1
-                i32.load $heap offset=8
-                local.set $t2
-                drop
-                local.tee $t1
+                local.tee $t2
                 i32.eqz
                 br_if 0
-                local.get $t1
+                local.get $t2
                 i32.const 1
                 i32.eq
                 if
-                  local.get $t2
+                  local.get $t1
+                  i32.load $heap offset=8
                   local.set $t3
                   br 2
                 else
@@ -143,20 +133,15 @@
               block
                 local.get $slot
                 i32.load $heap
-                local.get $slot
-                i32.load $heap offset=4
-                local.get $slot
-                i32.load $heap offset=8
-                local.set $t3
-                drop
-                local.tee $slot
+                local.tee $t3
                 i32.eqz
                 br_if 0
-                local.get $slot
+                local.get $t3
                 i32.const 1
                 i32.eq
                 if
-                  local.get $t3
+                  local.get $slot
+                  i32.load $heap offset=8
                   local.set $t4
                   br 2
                 else
