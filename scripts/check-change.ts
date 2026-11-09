@@ -210,7 +210,9 @@ for (const commit of git("rev-list", "--reverse", `${base}..${head}`).split("\n"
     continue;
   }
   const status = git("show", "--name-status", "--format=", commit);
-  if (/^A\s+(spec\/conformance\/(runtime|typing|parse|cli)\/|crates\/[a-z_]+\/tests\/)/m.test(status)) {
+  if (
+    /^A\s+(spec\/conformance\/(runtime|typing|parse|cli)\/|crates\/[a-z_]+\/tests\/)/m.test(status)
+  ) {
     continue;
   }
   untested.push(`${commit.slice(0, 9)} ${message.split("\n")[0].slice(0, 100)}`);
