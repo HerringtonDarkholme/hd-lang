@@ -91,6 +91,10 @@ pub struct NotImplemented {
     /// An internal check failed: the input is not unsupported, the
     /// compiler has a bug.
     pub bug: bool,
+    /// The stage's work budget ran out ([`NotImplemented::out_of_fuel`]):
+    /// not a construct this build lacks. The stage's caller turns it into
+    /// its own diagnostic, such as the checker's `item-too-complex`.
+    pub out_of_fuel: bool,
 }
 
 impl NotImplemented {
@@ -101,6 +105,18 @@ impl NotImplemented {
             what: what.into(),
             span: None,
             bug: false,
+            out_of_fuel: false,
+        }
+    }
+
+    /// `stage` spent its work budget on one item: the caller reports the
+    /// item as too complex (`fn.limit.complexity.error`), never as a
+    /// construct this build lacks.
+    #[must_use]
+    pub fn out_of_fuel(stage: Stage, what: impl Into<String>) -> Self {
+        Self {
+            out_of_fuel: true,
+            ..Self::new(stage, what)
         }
     }
 
@@ -127,6 +143,13 @@ impl fmt::Display for NotImplemented {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.bug {
             write!(f, "stage {} hit a bug: {}", self.stage.name(), self.what)
+        } else if self.out_of_fuel {
+            write!(
+                f,
+                "stage {} ran out of fuel: {}",
+                self.stage.name(),
+                self.what
+            )
         } else {
             write!(
                 f,

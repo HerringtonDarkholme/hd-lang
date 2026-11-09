@@ -13,7 +13,7 @@ use hd_tir::ir::{Coercion, IntrinsicOp, NONE, PrimOp, Ref, Tag, TirSink, local_f
 use hd_types::solver::{Answer, Evidence, TraitRef};
 use hd_types::{ParamRef, Prim, Ty, TyData, VarKind};
 
-use crate::body::{Ck, ExpectPosition, OpenSub, unsupported};
+use crate::body::{Ck, ExpectPosition, OpenSub};
 
 /// A counted loop's `else` suite with the loop's result type, and the
 /// comprehension result it reserves room in before the loop, if any.
@@ -5605,7 +5605,14 @@ impl Ck<'_, '_> {
                     .kind_of(pool, ct)
                     .is_none_or(|k| k.literal_default().is_none()) =>
             {
-                return unsupported("a provider spread whose type is not yet known");
+                // `req.context.spread`: the spread's keys must be known where
+                // it is written, as a member lookup's receiver must be
+                // (`expr.member.field-read`); a later use does not fix them.
+                self.err(
+                    Code::CannotInferType,
+                    vn,
+                    "the type of this provider spread is not known here; annotate it as `$.Context[...]`",
+                );
             }
             _ => {
                 let msg = format!(

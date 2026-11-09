@@ -114,22 +114,18 @@ impl BodyCx<'_> {
     }
 }
 
-pub(crate) fn unsupported<T>(what: impl Into<String>) -> StageResult<T> {
-    Err(NotImplemented::new(Stage::Body, what))
-}
-
 /// What a check stops with when the body's fuel runs out, in its own
 /// steps or the solver's: the body's entry turns it into
 /// `item-too-complex` (`too_complex`).
 const OUT_OF_FUEL: &str = "the body's fuel ran out";
 
 pub(crate) fn out_of_fuel<T>() -> StageResult<T> {
-    unsupported(OUT_OF_FUEL)
+    Err(NotImplemented::out_of_fuel(Stage::Body, OUT_OF_FUEL))
 }
 
 /// Whether a check stopped because its body's fuel ran out.
 pub(crate) fn is_out_of_fuel(e: &NotImplemented) -> bool {
-    e.stage == Stage::Body && e.what == OUT_OF_FUEL
+    e.stage == Stage::Body && e.out_of_fuel
 }
 
 /// The message of `item-too-complex`, in a body and in a header.

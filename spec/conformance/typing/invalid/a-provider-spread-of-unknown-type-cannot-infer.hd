@@ -1,0 +1,11 @@
+# test: a provider spread's context type must be known where the spread is written, not by a later use
+# Rules: req.context.spread.known.
+
+fn make[T]() -> T:
+    panic("unused")
+
+fn run(job: fn() -> void $ Console) -> void:
+    providers := make()
+    $.with(providers...): # diagnostic: cannot-infer-type
+        job()
+    let fixed: $.Context[$ Console] = providers

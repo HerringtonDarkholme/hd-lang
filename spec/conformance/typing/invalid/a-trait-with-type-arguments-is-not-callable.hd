@@ -1,0 +1,8 @@
+# test: a trait is not a function, with type arguments as without
+# Rules: fn.generic.call-list.
+
+trait Show:
+    fn show(self) -> string
+
+fn run() -> void:
+    _ := Show::[i32]() # diagnostic: not-callable

@@ -1,0 +1,6 @@
+# test: a function value has no type parameters, so a type-argument list on its call is one argument too many
+# Rules: fn.generic.call-list.
+
+fn run() -> void:
+    f := fn(x: i32) -> i32: x
+    _ := f::[i32](1) # diagnostic: argument-count

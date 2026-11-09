@@ -886,8 +886,9 @@ $.with(Database=db, Logger=logger, prod_context()...):
 4. r[req.context.create] `$.context` creates a context value.
 5. r[req.context.spread] An entry `ctx...` spreads the providers of the context value `ctx`.
 6. r[req.context.spread.suffix] Like every spread, a context spread is written with a suffix `...`, and a prefix `...ctx` is a syntax error. Error: `syntax-error`.
-7. r[req.context.order] Context spreads and explicit bindings are applied left to right, and the later binding wins when the same key appears more than once.
-8. r[req.context.one-per-key] The resulting context still has one provider per key.
+7. r[req.context.spread.known] The spread value's type must be known where the spread is written; a later use does not fix it. Error: `cannot-infer-type`.
+8. r[req.context.order] Context spreads and explicit bindings are applied left to right, and the later binding wins when the same key appears more than once.
+9. r[req.context.one-per-key] The resulting context still has one provider per key.
 
 ```text
 trait Tag:

@@ -17,7 +17,7 @@ use hd_tir::ir::{
 use hd_types::solver::{Answer, Candidate, Evidence, Goal, TraitRef};
 use hd_types::{Inputs, ParamRef, Prim, Ty, TyData, TyList, VarKind, with_assoc_args};
 
-use crate::body::{Ck, ExpectPosition, unsupported};
+use crate::body::{Ck, ExpectPosition};
 use crate::ty::Named;
 
 /// Own methods followed by the shared methods of the ordered visible interfaces.
@@ -992,7 +992,26 @@ impl Ck<'_, '_> {
                     {
                         Ok(self.undefined_path(&segs, callee))
                     }
-                    _ => unsupported("a call through explicit type arguments of a type"),
+                    // An item that names no function or constructor, such as a
+                    // trait: the call is of something that is not a function,
+                    // as it is without the type arguments.
+                    Some(_) => {
+                        let msg = format!("`{}` is not a function", segs.join("."));
+                        self.err(Code::NotCallable, callee, &msg);
+                        Ok((Ref(NONE), Ty::POISON))
+                    }
+                    // A local value: a function value has no type parameters, so
+                    // any type argument is one too many (`argument-count`). The
+                    // call is still checked without them.
+                    None => {
+                        self.err(
+                            Code::ArgumentCount,
+                            tl,
+                            "a function value takes no type arguments",
+                        );
+                        let (f, ft) = self.expr(inner, None)?;
+                        self.call_value(f, ft, args, n, bang)
+                    }
                 }
             }
             SyntaxKind::FieldExpr | SyntaxKind::PathExpr => {
