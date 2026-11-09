@@ -185,7 +185,7 @@ impl Ck<'_, '_> {
         let lt = self.b.local_ty(l);
         let f = self.b.body_mut().local_flags[l.idx()];
         let fixed = f & local_flags::SHORT != 0
-            || (f & local_flags::PARAM != 0 && !self.mut_params.contains(&l));
+            || (f & local_flags::PARAM != 0 && !self.mut_params.iter().any(|(p, _)| *p == l));
         fixed && self.ref_counted(lt) == Some(false) && self.ref_of(lt).is_some_and(|(_, m)| m)
     }
 
@@ -231,7 +231,8 @@ impl Ck<'_, '_> {
             if let Some(l) = self.b.body_mut().local_read(i) {
                 let f = self.b.body_mut().local_flags[l.idx()];
                 let fixed = f & local_flags::SHORT != 0
-                    || (f & local_flags::PARAM != 0 && !self.mut_params.contains(&l));
+                    || (f & local_flags::PARAM != 0
+                        && !self.mut_params.iter().any(|(p, _)| *p == l));
                 return if fixed { Key::Local(l) } else { Key::Unknown };
             }
             let (tag, data) = {

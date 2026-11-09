@@ -6,7 +6,7 @@ mod modules;
 mod syntax;
 mod walk;
 
-use hd_base::Span;
+use hd_base::{SliceSort as _, Span};
 use hd_check::analysis::CheckedView;
 use hd_diag::{Code, DiagBuf, FixSafety, Severity};
 use hd_driver::Output;
@@ -254,45 +254,121 @@ fn dbg_in_dependency(event: &Event<'_>, _: &Cx<'_>, out: &mut DiagBuf) {
     );
 }
 
+/// The first change of a `mut` parameter in one direct statement of its
+/// function body.
+#[derive(Clone, Copy)]
+pub struct ParameterWriteEvent<'v> {
+    /// The parameter's name; `self` for a `mut self` receiver.
+    pub name: &'v str,
+    /// The body's direct statement that contains the change.
+    pub statement: NodeRef<'v>,
+    /// The syntax recorded as the change itself.
+    pub write: NodeRef<'v>,
+    /// A closure anywhere in the body, or a later statement, names the
+    /// parameter.
+    pub named_later: bool,
+}
+
+/// Groups the checked parameter changes by the direct body statement they
+/// sit in, keeping each parameter name's first change per statement.
+///
+/// Cost: one sort of the changes; each body's statement list once per run
+/// of its changes; one pass over the body per changed parameter for the
+/// names; one binary search per change for its statement.
+fn parameter_writes<'v>(src: Src<'v>, checked: CheckedView<'v>) -> Vec<ParameterWriteEvent<'v>> {
+    struct Parameter<'v> {
+        node: hd_base::NodeIdx,
+        name: &'v str,
+        captured: bool,
+        last_named: Option<usize>,
+    }
+    let mut writes: Vec<_> = checked
+        .parameter_writes()
+        .map(|write| (write.parameter(), write.write(), write.body()))
+        .collect();
+    writes
+        .sort_stable_by_key(|(parameter, write, _)| (parameter.index().raw(), write.index().raw()));
+    let mut out = Vec::new();
+    let mut seen = hd_base::HashSet::default();
+    let mut body = hd_base::NodeIdx::NONE;
+    let mut statements: Vec<NodeRef<'v>> = Vec::new();
+    let mut parameter: Option<Parameter<'v>> = None;
+    for (node, write, of) in writes {
+        if of.index() != body {
+            body = of.index();
+            statements = of.children().collect();
+            parameter = None;
+        }
+        let span = src.span(write);
+        let Some(index) = statements
+            .partition_point(|statement| src.span(*statement).lo <= span.lo)
+            .checked_sub(1)
+            .filter(|&at| {
+                let statement = src.span(statements[at]);
+                statement.lo <= span.lo && span.hi <= statement.hi
+            })
+        else {
+            continue;
+        };
+        let current = match parameter {
+            Some(ref held) if held.node == node.index() => held,
+            _ => {
+                let name = if node
+                    .direct_token(&src.parse.tokens, TokenKind::KwSelfValue)
+                    .is_some()
+                {
+                    "self"
+                } else {
+                    node.name(&src.parse.tokens)
+                        .map_or("", |token| src.text(token).trim_matches('`'))
+                };
+                parameter.insert(Parameter {
+                    node: node.index(),
+                    name,
+                    captured: statements
+                        .iter()
+                        .any(|statement| captures_name(src, *statement, name)),
+                    last_named: statements
+                        .iter()
+                        .rposition(|statement| names_name(src, *statement, name)),
+                })
+            }
+        };
+        if !seen.insert((statements[index].index(), current.name)) {
+            continue;
+        }
+        out.push(ParameterWriteEvent {
+            name: current.name,
+            statement: statements[index],
+            write,
+            named_later: current.captured || current.last_named.is_some_and(|last| last > index),
+        });
+    }
+    out
+}
+
 fn lost_write(event: &Event<'_>, cx: &Cx<'_>, out: &mut DiagBuf) {
     let Event::ParameterWrite(write) = event else {
         return;
     };
     let src = cx.src;
-    let name = write.name();
-    let statements: Vec<_> = write.body().children().collect();
-    let statement = write.statement();
-    let Some(index) = statements
-        .iter()
-        .position(|other| other.index() == statement.index())
-    else {
-        return;
-    };
-    let write_span = src.span(write.write());
+    let name = write.name;
     // Conservative: a closure anywhere in the body, a loop around the
     // write, or any later statement that names the parameter observes it.
-    let observed_after = statements
-        .iter()
-        .any(|statement| captures_name(src, *statement, name))
-        || loop_observes_name(src, statement, write_span, name)
-        || statements[index + 1..]
-            .iter()
-            .any(|statement| names_name(src, *statement, name));
-    if observed_after {
+    if write.named_later || loop_observes_name(src, write.statement, src.span(write.write), name) {
         return;
     }
     let message = if name == "self" {
         "this write to `self` is lost: the copy is never read afterwards or returned; take `&mut self` to change the caller's value".to_owned()
     } else {
         format!(
-            "this write to the parameter `{}` is lost: the copy is never read afterwards or returned; take `&mut T` to change the caller's value",
-            write.name()
+            "this write to the parameter `{name}` is lost: the copy is never read afterwards or returned; take `&mut T` to change the caller's value"
         )
     };
     out.push(
         Code::LostWrite,
         Severity::Warning,
-        src.span(statement),
+        src.span(write.statement),
         &message,
         None,
     );

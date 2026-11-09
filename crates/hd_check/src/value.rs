@@ -15,7 +15,6 @@
 //! map value's `Store [%m [%e] .b .x] v` at the number `%e` of the key's
 //! entry (`MapEntry`).
 
-use hd_base::SliceSort as _;
 use hd_base::{DefId, LocalId, StageResult};
 use hd_diag::Code;
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
@@ -224,58 +223,22 @@ impl Ck<'_, '_> {
                     && p.direct_token(toks, TokenKind::Star).is_none()
             })
             .map(|p| {
-                if p.direct_token(toks, TokenKind::KwSelfValue).is_some() {
+                let name = if p.direct_token(toks, TokenKind::KwSelfValue).is_some() {
                     "self".to_owned()
                 } else {
                     p.name(toks)
                         .map_or_else(String::new, |t| self.cx.src.text(t).to_owned())
-                }
+                };
+                (name, p.index())
             })
             .collect();
-        for name in marked {
+        for (name, parameter) in marked {
             let sym = self.cx.names.syms.intern(&name);
             let Some(&l) = self.scopes[0].get(&sym) else {
                 continue;
             };
-            self.mut_params.push(l);
+            self.mut_params.push((l, parameter));
             self.mut_locals.push(l);
-        }
-    }
-
-    /// Groups checked mutations by their direct body statement, keeping the
-    /// first write of each parameter per statement.
-    pub(crate) fn finish_parameter_writes(&mut self, body: NodeRef<'_>) {
-        let mut writes = std::mem::take(&mut self.param_writes);
-        writes.sort_stable_by_key(|(local, at)| (local.raw(), at.raw()));
-        writes.dedup();
-        let statements: Vec<_> = body.children().collect();
-        for (local, at) in writes {
-            let write_span = self.cx.src.span(self.cx.src.parse.tree.node(at));
-            let Some(statement) = statements.iter().find(|statement| {
-                let span = self.cx.src.span(**statement);
-                span.lo <= write_span.lo && write_span.hi <= span.hi
-            }) else {
-                continue;
-            };
-            let name = self
-                .cx
-                .names
-                .text(self.b.body_mut().local_name[local.idx()])
-                .to_owned();
-            if self
-                .parameter_writes
-                .iter()
-                .any(|write| write.statement == statement.index() && write.name == name)
-            {
-                continue;
-            }
-            self.parameter_writes
-                .push(crate::comparison::ParameterWrite {
-                    body: body.index(),
-                    statement: statement.index(),
-                    write: at,
-                    name,
-                });
         }
     }
 }

@@ -153,9 +153,8 @@ impl AnalysisSink for TypedRecorder {
         }
         for write in checked.parameter_writes() {
             events.push(format!(
-                "parameter-write:{}:{}:{}",
-                write.name(),
-                text(write.statement()),
+                "parameter-write:{}:{}",
+                text(write.parameter()),
                 text(write.write())
             ));
         }

@@ -8,7 +8,7 @@
 
 use hd_base::{HashMap, SliceSort as _, Span, TokenIdx};
 use hd_check::analysis::{
-    BindingView, BodyRef, CallView, CheckedView, ComparisonView, ParameterWriteView, PatternView,
+    BindingView, BodyRef, CallView, CheckedView, ComparisonView, PatternView,
 };
 use hd_diag::DiagBuf;
 use hd_driver::analysis::{Module, Requests};
@@ -98,7 +98,7 @@ pub enum Event<'v> {
     Comparison(ComparisonView<'v>),
     Binding(BindingEvent<'v>),
     Unreachable(NodeRef<'v>),
-    ParameterWrite(ParameterWriteView<'v>),
+    ParameterWrite(crate::ParameterWriteEvent<'v>),
     Pattern(PatternView<'v>),
     Discard(CallView<'v>),
     Derivations(&'v DerivationFacts),
@@ -237,12 +237,16 @@ pub fn walk<'v>(
         }));
     }
     if interests.contains(Events::PARAMETER_WRITE) {
-        pending.extend(checked.parameter_writes().map(|write| Pending {
-            at: at(write.statement()),
-            finish: false,
-            family: 5,
-            event: Event::ParameterWrite(write),
-        }));
+        pending.extend(
+            crate::parameter_writes(src, checked)
+                .into_iter()
+                .map(|write| Pending {
+                    at: at(write.statement),
+                    finish: false,
+                    family: 5,
+                    event: Event::ParameterWrite(write),
+                }),
+        );
     }
     if interests.contains(Events::PATTERN) {
         pending.extend(checked.patterns().map(|pattern| Pending {

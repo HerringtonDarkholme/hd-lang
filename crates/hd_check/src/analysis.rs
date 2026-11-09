@@ -152,7 +152,7 @@ impl<'v> MutabilityView<'v> {
     }
 }
 
-/// The first mutation of a `mut` parameter in one direct body statement.
+/// A checked change to a function's own `mut` parameter copy.
 #[derive(Clone, Copy)]
 pub struct ParameterWriteView<'v> {
     write: &'v ParameterWrite,
@@ -160,25 +160,19 @@ pub struct ParameterWriteView<'v> {
 }
 
 impl<'v> ParameterWriteView<'v> {
-    /// The parameter's name; `self` for a `mut self` receiver.
-    #[must_use]
-    pub fn name(self) -> &'v str {
-        &self.write.name
-    }
-
     /// The function body block.
     #[must_use]
     pub fn body(self) -> NodeRef<'v> {
         self.src.parse.tree.node(self.write.body)
     }
 
-    /// The body's direct statement that contains the write.
+    /// The changed parameter's `Parameter` node.
     #[must_use]
-    pub fn statement(self) -> NodeRef<'v> {
-        self.src.parse.tree.node(self.write.statement)
+    pub fn parameter(self) -> NodeRef<'v> {
+        self.src.parse.tree.node(self.write.parameter)
     }
 
-    /// The syntax recorded as the mutation itself.
+    /// The syntax recorded as the change itself.
     #[must_use]
     pub fn write(self) -> NodeRef<'v> {
         self.src.parse.tree.node(self.write.write)

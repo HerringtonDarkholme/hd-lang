@@ -50,15 +50,16 @@ pub struct VariantPattern {
     pub subs: Vec<Option<NodeIdx>>,
 }
 
-/// The first checked change to a `mut` parameter or `mut self` copy in one
-/// direct statement of its function body. Whether a later use observes it
-/// is read from syntax by the consumer.
+/// A checked change to a `mut` parameter or `mut self` copy. The consumer
+/// groups the changes by the body statement they sit in.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ParameterWrite {
+    /// The function body block.
     pub body: NodeIdx,
-    pub statement: NodeIdx,
+    /// The `Parameter` node of the changed parameter.
+    pub parameter: NodeIdx,
+    /// The syntax recorded as the change itself.
     pub write: NodeIdx,
-    pub name: String,
 }
 
 /// An implicit expression statement; explicit `_ := ...` is not a discard

@@ -261,11 +261,9 @@ pub(crate) struct Ck<'a, 'c> {
     /// (`fn.capture.cell.writes`).
     pub changed_locals: Vec<LocalId>,
     /// The `mut` parameters (and `mut self`) whose value is the callee's own
-    /// copy.
-    pub mut_params: Vec<LocalId>,
-    /// Checked mutations of those copies, before direct-statement grouping.
-    pub param_writes: Vec<(LocalId, hd_base::NodeIdx)>,
-    /// Neutral facts published to optional post-check analysis.
+    /// copy, each with its `Parameter` node.
+    pub mut_params: Vec<(LocalId, hd_base::NodeIdx)>,
+    /// Checked changes of those copies, published to optional analysis.
     pub parameter_writes: Vec<crate::comparison::ParameterWrite>,
     /// Source-only mutable-address and written binding facts requested by tooling.
     pub ref_taken: Vec<LocalId>,
@@ -614,7 +612,6 @@ pub(crate) fn new_ck<'a, 'c>(
         mut_locals: Vec::new(),
         changed_locals: Vec::new(),
         mut_params: Vec::new(),
-        param_writes: Vec::new(),
         parameter_writes: Vec::new(),
         ref_taken: Vec::new(),
         mut_bindings: Vec::new(),
@@ -1247,7 +1244,6 @@ fn fn_body_steps(
         })?
     };
     let root = ck.b.close_block(blk, tail, ret, body.index());
-    ck.finish_parameter_writes(body);
     ck.finish_with(root, ret, Some(node))
 }
 
@@ -1743,10 +1739,19 @@ impl Ck<'_, '_> {
         self.add_flags(l, local_flags::ASSIGNED);
     }
 
-    /// Records a checked mutation of a function's own mutable parameter copy.
+    /// Records a checked change of a function's own mutable parameter copy,
+    /// when a tool requested facts.
     pub(crate) fn note_param_write(&mut self, l: LocalId, at: hd_base::NodeIdx) {
-        if self.cx.source_facts.is_some() && self.mut_params.contains(&l) {
-            self.param_writes.push((l, at));
+        if self.cx.source_facts.is_some()
+            && let Some(body) = self.fn_body
+            && let Some(&(_, parameter)) = self.mut_params.iter().find(|(p, _)| *p == l)
+        {
+            self.parameter_writes
+                .push(crate::comparison::ParameterWrite {
+                    body,
+                    parameter,
+                    write: at,
+                });
         }
     }
 
@@ -4068,7 +4073,9 @@ impl Ck<'_, '_> {
                     );
                     self.err(Code::NonReassignableBinding, lhs, &msg);
                     self.reassignable_binding_fix(l);
-                } else if flags & local_flags::PARAM != 0 && !self.mut_params.contains(&l) {
+                } else if flags & local_flags::PARAM != 0
+                    && !self.mut_params.iter().any(|(p, _)| *p == l)
+                {
                     let msg = format!(
                         "parameter `{}` cannot be reassigned",
                         self.cx.names.text(name)

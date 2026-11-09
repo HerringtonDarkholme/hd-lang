@@ -4930,7 +4930,7 @@ impl Ck<'_, '_> {
                 if p.direct_token(&self.cx.src.parse.tokens, TokenKind::KwMut)
                     .is_some()
                 {
-                    self.mut_params.push(l);
+                    self.mut_params.push((l, p.index()));
                     self.mut_locals.push(l);
                 }
                 params.push(l);
