@@ -1,0 +1,27 @@
+# test: a tuple with a rest element crosses a host call out of hd and back in, its rest element as one more list member
+# Spec Modules, Boundary-Safe Values: module.boundary.allowed; Types, Tuples: types.tuple.rest.value (#1557).
+# fixture-runtime-profile: serde-vault
+use std.testing.assert_equal
+
+pub struct Row:
+    pub head: (i32, List[string]...)
+    pub tail: (string, bool, List[(i32, List[i32]...)]...)
+
+pub trait Vault:
+    fn keep(self, row: Row) -> Row
+
+pub fn main() -> void $ Vault:
+    let head: (i32, List[string]...) = (+7, "a", "b", "c")
+    let inner: (i32, List[i32]...) = (+1, +2, +3)
+    let none: (i32, List[i32]...) = (+4,)
+    let tail: (string, bool, List[(i32, List[i32]...)]...) = ("t", true, inner, none)
+    kept := $.use(Vault).keep(Row { head, tail })
+    assert_equal(kept.head._0, +7, reason="the fixed element crosses")
+    assert_equal(kept.head._1.len(), 3, reason="every rest value crosses")
+    assert_equal(kept.head._1[2], "c", reason="rest values keep their order")
+    assert_equal(kept.tail._0, "t", reason="a string fixed element crosses")
+    assert_equal(kept.tail._1, true, reason="a bool fixed element crosses")
+    assert_equal(kept.tail._2.len(), 2, reason="a rest list of rest tuples crosses")
+    assert_equal(kept.tail._2[0]._1[1], +3, reason="a nested rest tuple keeps its values")
+    assert_equal(kept.tail._2[1]._1.len(), 0, reason="an empty rest element crosses")
+    assert_equal(kept.tail == tail, true, reason="the round trip is the same value")

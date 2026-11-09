@@ -310,10 +310,12 @@ fn of_at(
             Prim::Char => int(21, false),
             Prim::String => LTy::Str,
         },
-        TyData::Tuple { elems, rest: None } => {
+        // A rest element is one more member, its `List[T]`
+        // (`types.tuple.rest.list`).
+        TyData::Tuple { .. } => {
             let mut fields = Vec::new();
-            for e in pool.list_items(elems) {
-                fields.push(of_at(input, m, *e, path, at)?);
+            for e in layout::tuple_members(pool, s) {
+                fields.push(of_at(input, m, e, path, at)?);
             }
             // `void` is the empty tuple (`types.void`): it crosses as no
             // value.
@@ -2334,11 +2336,10 @@ fn package_value(
             Prim::F64 => Value::F64,
             Prim::String => Value::String,
         },
-        TyData::Tuple { elems, rest: None } => {
-            let ts = pool
-                .list_items(elems)
-                .iter()
-                .map(|t| package_value(input, *t, path))
+        TyData::Tuple { .. } => {
+            let ts = layout::tuple_members(pool, s)
+                .into_iter()
+                .map(|t| package_value(input, t, path))
                 .collect::<StageResult<Vec<_>>>()?;
             if ts.is_empty() {
                 Value::Void

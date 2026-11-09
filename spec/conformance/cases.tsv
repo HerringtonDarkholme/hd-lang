@@ -6256,6 +6256,7 @@ typing/invalid/associated-enum-instances-contain-each-other.hd	type	reject:recur
 typing/invalid/inferred-associated-enum-instance-contains-itself.hd	type	reject:recursive-value-type	lang/08-data-and-enums.md#r-data.enum.no-recursion
 typing/valid/associated-enum-instances-nest-finitely.hd	type	accept	lang/08-data-and-enums.md#r-data.enum.no-recursion
 typing/valid/associated-enum-instance-recurses-through-reference.hd	type	accept	lang/08-data-and-enums.md#r-data.enum.no-recursion
+runtime/valid/boundary-rest-tuple-round-trip.hd	runtime	accept	lang/10-modules.md#r-module.boundary.allowed
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

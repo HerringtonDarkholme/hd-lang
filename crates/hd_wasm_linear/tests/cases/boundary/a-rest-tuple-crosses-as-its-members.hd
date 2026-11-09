@@ -1,0 +1,14 @@
+# @dump: wat
+# @build: program
+# @profile: serde-vault
+# @helpers: hd:Vault/keep enc dec
+# expected: a tuple with a rest element crosses as a record of its fixed
+# elements, then its rest element as one more member, a list
+# (`types.tuple.rest.value`, #1557). The encoder writes the i32, then the
+# list's count and each string; the decoder reads them back in order.
+pub trait Vault:
+    fn keep(self, t: (i32, List[string]...)) -> (i32, List[string]...)
+
+pub fn main() -> void $ Vault:
+    let t: (i32, List[string]...) = (+1, "a", "b")
+    _ := $.use(Vault).keep(t)
