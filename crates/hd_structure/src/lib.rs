@@ -54,7 +54,7 @@ pub use dbg::{
     printer_body as dbg_printer_body, target as dbg_target, values_body as dbg_values_body,
 };
 
-use hd_base::{DefId, LocalId, NodeIdx, NotImplemented, Stage, StageResult};
+use hd_base::{DefId, LocalId, NodeIdx, Stage, StageResult};
 use hd_intern::PathKind;
 use hd_resolve::{CallAttrs, FnSig, Generic, Item, ItemData, Lookup, Names};
 use hd_tir::Body;
@@ -77,7 +77,7 @@ impl Items for Lookup<'_> {
 }
 
 /// The generator's context: the run's names and the declarations it sees.
-/// `stage` labels what the generator cannot carry yet.
+/// `stage` labels failures of the generated TIR verifier.
 pub struct Cx<'a, 'n> {
     pub names: &'a Names<'n>,
     pub items: &'a dyn Items,
@@ -85,8 +85,30 @@ pub struct Cx<'a, 'n> {
 }
 
 impl Cx<'_, '_> {
-    fn unsupported<T>(&self, what: impl Into<String>) -> StageResult<T> {
-        Err(NotImplemented::new(self.stage, what))
+    /// A required Structure protocol's declaration from the resolver view.
+    fn trait_data(&self, def: DefId) -> &hd_resolve::TraitData {
+        let data = self.items.item(def).and_then(|i| match &i.data {
+            ItemData::Trait(data) => Some(data),
+            _ => None,
+        });
+        // ruled out: seed/header lowering supplies Structure and its protocols
+        // before either the checker or mono invokes the generator.
+        assert!(
+            data.is_some(),
+            "resolver must supply the structure protocol trait"
+        );
+        data.as_slice()[0]
+    }
+
+    /// A required declared method's lowered signature.
+    fn method_sig(&self, def: DefId) -> &FnSig {
+        let sig = self.items.item(def).and_then(Item::sig);
+        // ruled out: header lowering registers FnSig for every declared trait method.
+        assert!(
+            sig.is_some(),
+            "header lowering must supply the method signature"
+        );
+        sig.as_slice()[0]
     }
 }
 
@@ -288,20 +310,16 @@ pub struct Generated {
 }
 
 /// The `Structure` methods of `Structure` itself, by name.
-fn structure_methods(cx: &Cx<'_, '_>) -> StageResult<Vec<(String, DefId, FnSig)>> {
+fn structure_methods(cx: &Cx<'_, '_>) -> Vec<(String, DefId, FnSig)> {
     let names = cx.names;
     let st = names.known.structure;
-    let Some(ItemData::Trait(t)) = cx.items.item(st).map(|i| &i.data) else {
-        // ruled out: seed::items supplies sealed Structure before either generator caller.
-        return cx.unsupported("a `Structure` without `std.structure`");
-    };
+    let t = cx.trait_data(st);
     let mut out = Vec::new();
     for &(sym, sdef) in &t.methods {
-        if let Some(sig) = cx.items.item(sdef).and_then(Item::sig) {
-            out.push((names.text(sym).to_owned(), sdef, sig.clone()));
-        }
+        let sig = cx.method_sig(sdef);
+        out.push((names.text(sym).to_owned(), sdef, sig.clone()));
     }
-    Ok(out)
+    out
 }
 
 /// The body of `Structure`'s method `name` for `target`, with signature
@@ -427,7 +445,7 @@ pub fn derivation(cx: &Cx<'_, '_>, target: &Target, owner: DefId) -> StageResult
     let st = names.known.structure;
     let mut out = Generated::default();
     let mut handles: Vec<Handle> = Vec::new();
-    for (name, sdef, trait_sig) in structure_methods(cx)? {
+    for (name, sdef, trait_sig) in structure_methods(cx) {
         let def = hidden_method(names, owner, &name);
         let sig = subst_sig(names, &trait_sig, &|p: ParamRef| {
             if p.owner == st && p.index == 0 {
@@ -549,7 +567,7 @@ fn helper_ret(cx: &Cx<'_, '_>, mode: Handles, h: Handle) -> Ty {
 pub fn supplied(cx: &Cx<'_, '_>, target: &Target, method: DefId) -> StageResult<Option<Supplied>> {
     let names = cx.names;
     let st = names.known.structure;
-    let Some((name, _, trait_sig)) = structure_methods(cx)?.into_iter().find(|m| m.1 == method)
+    let Some((name, _, trait_sig)) = structure_methods(cx).into_iter().find(|m| m.1 == method)
     else {
         return Ok(None);
     };
@@ -764,9 +782,9 @@ impl<'a, 'n> Gen<'a, 'n> {
         let any = self.closure(&[s], Ty::BOOL, |g, _| Ok(g.bool_(true)))?;
         for m in v.members.iter().filter(|m| !m.omitted) {
             let handle = self.field_handle(v, m, m.ty);
-            let info = self.record_path(handle, &[(self.names.known.field, "info")], member_t)?;
+            let info = self.record_path(handle, &[(self.names.known.field, "info")], member_t);
             infos.push(info);
-            let key = self.new_data(key_def, &[s], &[("info", info), ("hd_type", any)])?;
+            let key = self.new_data(key_def, &[s], &[("info", info), ("hd_type", any)]);
             keys.push(self.static_ref(key, key_t));
         }
         let rec = self.b.refs_record(&infos);
@@ -776,7 +794,7 @@ impl<'a, 'n> Gen<'a, 'n> {
         let kt = self.adt(self.names.known.list, &[key_t]);
         let keys = self.b.emit(Tag::NewList, NONE, rec, kt, SYN);
         let def = self.std("MembersRecord");
-        let record = self.new_data(def, &[s], &[("infos", infos), ("hd_keys", keys)])?;
+        let record = self.new_data(def, &[s], &[("infos", infos), ("hd_keys", keys)]);
         Ok(self.static_ref(record, self.members_ty()))
     }
 
@@ -850,23 +868,17 @@ impl<'a, 'n> Gen<'a, 'n> {
 
     /// The value at `path` in the `std.structure` record that `r` refers
     /// to, read in one place: each step is a struct and its field.
-    fn record_path(&mut self, r: Ref, path: &[(DefId, &str)], t: Ty) -> StageResult<Ref> {
+    fn record_path(&mut self, r: Ref, path: &[(DefId, &str)], t: Ty) -> Ref {
         let mut proj = vec![Proj::Deref];
         for &(def, name) in path {
-            let fs = self.std_fields(def)?;
-            let Some(k) = fs.iter().position(|f| self.names.text(f.name) == name) else {
-                // ruled out: record paths use the fields declared by annot.structure.decl.
-                return self
-                    .cx
-                    .unsupported(format!("the `std.structure` field `{name}`"));
-            };
-            proj.push(Proj::Field(u32::try_from(k).unwrap_or(0)));
+            let (k, _) = self.std_field(def, name);
+            proj.push(Proj::Field(k));
         }
         let word = self.b.place(&Place {
             root: PlaceRoot::Value(r),
             proj,
         });
-        Ok(self.b.emit(Tag::Read, word, ReadMode::Use as u32, t, SYN))
+        self.b.emit(Tag::Read, word, ReadMode::Use as u32, t, SYN)
     }
 
     /// A reference of type `t` to `record`, held in a local's cell, which
@@ -901,46 +913,56 @@ impl<'a, 'n> Gen<'a, 'n> {
     }
 
     /// The fields of a `std.structure` struct.
-    fn std_fields(&self, def: DefId) -> StageResult<&'a [hd_resolve::Field]> {
-        match self.cx.items.item(def).map(|i| &i.data) {
-            Some(ItemData::Struct(fs, _)) => Ok(fs),
-            // ruled out: checker/mono contexts include the std.structure records used here.
-            _ => self
-                .cx
-                .unsupported("a `std.structure` data type outside the module's view"),
-        }
+    fn std_fields(&self, def: DefId) -> &'a [hd_resolve::Field] {
+        let fields = self.cx.items.item(def).and_then(|i| match &i.data {
+            ItemData::Struct(fields, _) => Some(fields.as_slice()),
+            _ => None,
+        });
+        // ruled out: checker/mono views include the records of annot.structure.decl.
+        assert!(
+            fields.is_some(),
+            "resolver must supply the structure record"
+        );
+        fields.as_slice()[0]
+    }
+
+    /// A required metadata field's declared index and data.
+    fn std_field(&self, def: DefId, name: &str) -> (u32, &'a hd_resolve::Field) {
+        let field = (0u32..)
+            .zip(self.std_fields(def))
+            .find(|(_, f)| self.names.text(f.name) == name);
+        // ruled out: record paths and metadata reads name the declared fields
+        // of annot.structure.decl; their TIR field indices are u32.
+        assert!(
+            field.is_some(),
+            "structure record must declare field {name}"
+        );
+        field.as_slice()[0]
     }
 
     /// A nongeneric `std.structure` metadata field's declared type.
-    fn field_ty(&self, def: DefId, field: &str) -> StageResult<Ty> {
-        let fs = self.std_fields(def)?;
-        let Some(f) = fs.iter().find(|f| self.names.text(f.name) == field) else {
-            // ruled out: callers request Facts.items, Member.doc or VariantInfo.shared.
-            return self
-                .cx
-                .unsupported(format!("the `std.structure` field `{field}`"));
-        };
-        Ok(f.ty)
+    fn field_ty(&self, def: DefId, field: &str) -> Ty {
+        self.std_field(def, field).1.ty
     }
 
     /// A data value of `def[args]` from its fields' values by name, in
     /// declaration order.
-    fn new_data(&mut self, def: DefId, args: &[Ty], vals: &[(&str, Ref)]) -> StageResult<Ref> {
-        let fs = self.std_fields(def)?;
+    fn new_data(&mut self, def: DefId, args: &[Ty], vals: &[(&str, Ref)]) -> Ref {
+        let fs = self.std_fields(def);
         let mut refs = Vec::new();
         for f in fs {
             let n = self.names.text(f.name);
-            let Some((_, v)) = vals.iter().find(|(k, _)| *k == n) else {
-                // ruled out: each generator constructor supplies the declared std record fields.
-                return self
-                    .cx
-                    .unsupported(format!("the `std.structure` field `{n}`"));
-            };
-            refs.push(*v);
+            let value = vals.iter().find(|(k, _)| *k == n);
+            // ruled out: each generator constructor supplies the declared record fields.
+            assert!(
+                value.is_some(),
+                "structure constructor must supply field {n}"
+            );
+            refs.push(value.as_slice()[0].1);
         }
         let rec = self.b.refs_record(&refs);
         let t = self.adt(def, args);
-        Ok(self.b.emit(Tag::NewStruct, NONE, rec, t, SYN))
+        self.b.emit(Tag::NewStruct, NONE, rec, t, SYN)
     }
 
     fn str_(&mut self, s: &str) -> Ref {
@@ -968,9 +990,9 @@ impl<'a, 'n> Gen<'a, 'n> {
     }
 
     /// `Facts { items: [] }`.
-    fn no_facts(&mut self) -> StageResult<Ref> {
+    fn no_facts(&mut self) -> Ref {
         let facts = self.std("Facts");
-        let lt = self.field_ty(facts, "items")?;
+        let lt = self.field_ty(facts, "items");
         let items = self.empty_list(lt);
         self.new_data(facts, &[], &[("items", items)])
     }
@@ -978,7 +1000,7 @@ impl<'a, 'n> Gen<'a, 'n> {
     /// The `Facts` that `body` builds (`annot.fact.read`): a call of it,
     /// like a default's, since it takes no argument; or `Facts { items:
     /// [] }` with no body.
-    fn facts_value(&mut self, body: Option<DefId>) -> StageResult<Ref> {
+    fn facts_value(&mut self, body: Option<DefId>) -> Ref {
         let Some(def) = body else {
             return self.no_facts();
         };
@@ -986,7 +1008,7 @@ impl<'a, 'n> Gen<'a, 'n> {
         let targs = self.facts_args(def);
         let a = self.b.refs_record(&[Ref(def.raw()), Ref(targs.0)]);
         let earlier = self.b.refs_record(&[]);
-        Ok(self.b.emit(Tag::DefaultCall, a, earlier, t, SYN))
+        self.b.emit(Tag::DefaultCall, a, earlier, t, SYN)
     }
 
     /// The instance arguments of the facts body `def` here: a typed fact
@@ -1017,9 +1039,9 @@ impl<'a, 'n> Gen<'a, 'n> {
 
     /// `VariantInfo.shared` of `v` (`annot.variant.shared-pairs`): each
     /// shared field's name with its value, read from its global.
-    fn shared_pairs(&mut self, v: &Var) -> StageResult<Ref> {
+    fn shared_pairs(&mut self, v: &Var) -> Ref {
         let pool = self.names.pool;
-        let lt = self.field_ty(self.std("VariantInfo"), "shared")?;
+        let lt = self.field_ty(self.std("VariantInfo"), "shared");
         // ruled out: annot.structure.decl/annot.variant.shared-pairs declare
         // VariantInfo.shared as List[(string, *dyn Inspectable)].
         let (def, args) = pool.adt_parts(lt);
@@ -1044,7 +1066,7 @@ impl<'a, 'n> Gen<'a, 'n> {
             pairs.push(self.b.emit(Tag::NewTuple, NONE, rec, pair_t, SYN));
         }
         let rec = self.b.refs_record(&pairs);
-        Ok(self.b.emit(Tag::NewList, NONE, rec, lt, SYN))
+        self.b.emit(Tag::NewList, NONE, rec, lt, SYN)
     }
 
     fn self_ref(&mut self, k: u32) -> Ref {
@@ -1207,11 +1229,11 @@ impl<'a, 'n> Gen<'a, 'n> {
         self.b.emit(Tag::Unreachable, NONE, NONE, Ty::NEVER, SYN)
     }
 
-    fn doc_value(&mut self, v: &Var, member: Option<&Mem>, type_doc: bool) -> StageResult<Ref> {
+    fn doc_value(&mut self, v: &Var, member: Option<&Mem>, type_doc: bool) -> Ref {
         let names = self.names;
         if v.def == DefId::NONE {
-            let ty = self.field_ty(self.std("Member"), "doc")?;
-            return Ok(self.unit_variant(0, ty));
+            let ty = self.field_ty(self.std("Member"), "doc");
+            return self.unit_variant(0, ty);
         }
         let mut path = Vec::new();
         let owner = if v.shape == Shape::Enum {
@@ -1232,25 +1254,25 @@ impl<'a, 'n> Gen<'a, 'n> {
             .item(owner)
             .and_then(|i| i.docs.iter().find(|(p, _)| *p == path))
             .map(|(_, text)| text.clone());
-        let ty = self.field_ty(self.std("Member"), "doc")?;
-        Ok(match text {
+        let ty = self.field_ty(self.std("Member"), "doc");
+        match text {
             Some(text) => {
                 let value = self.str_(&text);
                 let rec = self.b.refs_record(&[value]);
                 self.b.emit(Tag::NewVariant, 1, rec, ty, SYN)
             }
             None => self.unit_variant(0, ty),
-        })
+        }
     }
 
     /// `VariantInfo` of `v`.
-    fn variant_info(&mut self, v: &Var) -> StageResult<Ref> {
+    fn variant_info(&mut self, v: &Var) -> Ref {
         let vi = self.std("VariantInfo");
         let name = self.str_(&v.name);
         let index = self.usize_(v.index);
-        let facts = self.facts_value(v.facts)?;
-        let doc = self.doc_value(v, None, false)?;
-        let type_doc = self.doc_value(v, None, true)?;
+        let facts = self.facts_value(v.facts);
+        let doc = self.doc_value(v, None, false);
+        let type_doc = self.doc_value(v, None, true);
         let of_data = self.bool_(v.of_data());
         let positional = self.usize_(
             v.members
@@ -1270,7 +1292,7 @@ impl<'a, 'n> Gen<'a, 'n> {
                 .filter(|m| m.positional && !m.omitted)
                 .fold(0, |n, _| n + 1),
         );
-        let shared = self.shared_pairs(v)?;
+        let shared = self.shared_pairs(v);
         let self_ref = self.self_ref(v.self_ref);
         self.new_data(
             vi,
@@ -1294,7 +1316,7 @@ impl<'a, 'n> Gen<'a, 'n> {
     /// The handle `Variant[S]` of `v` (`annot.handle.constants`), with
     /// `holds` (`annot.handle.holds`).
     fn new_variant_handle(&mut self, v: &Var) -> StageResult<Ref> {
-        let info = self.variant_info(v)?;
+        let info = self.variant_info(v);
         let s = self.target;
         let of_data = v.of_data();
         let index = v.index;
@@ -1313,17 +1335,17 @@ impl<'a, 'n> Gen<'a, 'n> {
             Ok(g.switch_borrowed_tag(source, index, then, other, Ty::BOOL))
         })?;
         let var = self.std("VariantRecord");
-        let record = self.new_data(var, &[s], &[("info", info), ("hd_holds", holds)])?;
+        let record = self.new_data(var, &[s], &[("info", info), ("hd_holds", holds)]);
         Ok(self.static_ref(record, self.variant_ty()))
     }
 
     /// `Member` of `m`.
-    fn member_info(&mut self, v: &Var, m: &Mem) -> StageResult<Ref> {
+    fn member_info(&mut self, v: &Var, m: &Mem) -> Ref {
         let mi = self.std("Member");
         let name = self.str_(&m.name);
         let position = self.usize_(m.position);
-        let facts = self.facts_value(m.facts)?;
-        let doc = self.doc_value(v, Some(m), false)?;
+        let facts = self.facts_value(m.facts);
+        let doc = self.doc_value(v, Some(m), false);
         let embedded = self.bool_(m.embedded);
         let positional = self.bool_(m.positional);
         let self_ref = self.self_ref(m.self_ref);
@@ -1347,7 +1369,7 @@ impl<'a, 'n> Gen<'a, 'n> {
     /// `structure-variant-mismatch` on another variant; `default` runs
     /// the member's declared default.
     fn new_field_handle(&mut self, v: &Var, m: &Mem, f: Ty) -> StageResult<Ref> {
-        let info = self.member_info(v, m)?;
+        let info = self.member_info(v, m);
         let s = self.target;
         let borrowed = self.shared(s);
         let result = self.shared(f);
@@ -1394,7 +1416,7 @@ impl<'a, 'n> Gen<'a, 'n> {
                 ("hd_default", default),
                 ("hd_witness", witness),
             ],
-        )?;
+        );
         Ok(self.static_ref(record, self.handle_ty(f)))
     }
 
@@ -1407,27 +1429,18 @@ impl<'a, 'n> Gen<'a, 'n> {
         w: (LocalId, Ty),
         method_args: &[Ty],
         args: &[Ref],
-    ) -> StageResult<Ref> {
+    ) -> Ref {
         let names = self.names;
         let pool = names.pool;
-        let Some(ItemData::Trait(t)) = self.cx.items.item(trait_).map(|i| &i.data) else {
-            // ruled out: visit/build use std.structure Walker, Describer and Source.
-            return self
-                .cx
-                .unsupported("a structure protocol trait outside the module's view");
-        };
+        let t = self.cx.trait_data(trait_);
+        let member = t.methods.iter().find(|(n, _)| names.text(*n) == method);
         // ruled out: visit/build request only the std protocol's declared methods.
-        let Some(&(_, mdef)) = t.methods.iter().find(|(n, _)| names.text(*n) == method) else {
-            return self
-                .cx
-                .unsupported(format!("the protocol method `{method}`"));
-        };
-        // ruled out: header lowering registers a FnSig for every trait method item.
-        let Some(sig) = self.cx.items.item(mdef).and_then(Item::sig) else {
-            return self
-                .cx
-                .unsupported(format!("the protocol method `{method}`"));
-        };
+        assert!(
+            member.is_some(),
+            "structure protocol must declare method {method}"
+        );
+        let mdef = member.as_slice()[0].1;
+        let sig = self.cx.method_sig(mdef);
         // `w` is a `&mut W` (annot.structure.protocol-ref); each protocol
         // method takes `&mut self`, so the call passes the reference on.
         let wt = match pool.get(w.1) {
@@ -1450,7 +1463,7 @@ impl<'a, 'n> Gen<'a, 'n> {
         all.extend_from_slice(args);
         let mut targs = vec![s];
         targs.extend_from_slice(method_args);
-        Ok(self.b.call(
+        self.b.call(
             &Callee::TraitMethod {
                 trait_,
                 method: mdef,
@@ -1462,7 +1475,7 @@ impl<'a, 'n> Gen<'a, 'n> {
             Providers::None,
             ret,
             SYN,
-        ))
+        )
     }
 
     /// The error type of a `Result` value `r`.
@@ -1522,7 +1535,7 @@ impl<'a, 'n> Gen<'a, 'n> {
     /// builds, or none.
     fn facts_body(mut self, sig: &FnSig, body: Option<DefId>) -> StageResult<(Body, Vec<Handle>)> {
         let blk = self.b.open_block();
-        let f = self.facts_value(body)?;
+        let f = self.facts_value(body);
         let root = self.b.close_block(blk, Some(f), sig.ret, SYN);
         self.finish(root)
     }
@@ -1541,18 +1554,11 @@ impl<'a, 'n> Gen<'a, 'n> {
     /// `annot.describe.order`); `walk` passes a rest member to `rest`
     /// (`annot.walk.rest`). `value` is the walked value, or `None` for
     /// `describe`.
-    fn visit(
-        &mut self,
-        trait_: DefId,
-        w: (LocalId, Ty),
-        v: &Var,
-        value: Option<Ref>,
-        ret: Ty,
-    ) -> StageResult<()> {
+    fn visit(&mut self, trait_: DefId, w: (LocalId, Ty), v: &Var, value: Option<Ref>, ret: Ty) {
         let data = trait_ == self.names.known.walker && v.shape == Shape::Data;
         let h = self.variant_handle(v);
         let method = if data { "data_variant" } else { "variant" };
-        let r = self.protocol_call(trait_, method, w, &[], &[h])?;
+        let r = self.protocol_call(trait_, method, w, &[], &[h]);
         self.try_void(r, ret);
         for m in v.members.iter().filter(|m| !m.omitted) {
             let f = m.ty;
@@ -1571,10 +1577,9 @@ impl<'a, 'n> Gen<'a, 'n> {
                 }
                 None => ("member", f),
             };
-            let r = self.protocol_call(trait_, method, w, &[targ], &args)?;
+            let r = self.protocol_call(trait_, method, w, &[targ], &args);
             self.try_void(r, ret);
         }
-        Ok(())
     }
 
     /// The item type `T` of a rest member's `List[T]`.
@@ -1599,11 +1604,11 @@ impl<'a, 'n> Gen<'a, 'n> {
         let blk = self.b.open_block();
         let x = self.b.get(s, st, SYN);
         match vars {
-            [v] if v.of_data() => self.visit(walker, w, v, Some(x), sig.ret)?,
+            [v] if v.of_data() => self.visit(walker, w, v, Some(x), sig.ret),
             [] => {
                 self.b.emit(Tag::Unreachable, NONE, NONE, Ty::NEVER, SYN);
             }
-            _ => self.dispatch(vars, x, &mut |g, v| g.visit(walker, w, v, Some(x), sig.ret))?,
+            _ => self.dispatch(vars, x, &mut |g, v| g.visit(walker, w, v, Some(x), sig.ret)),
         }
         let ok = self.ok_void(sig.ret);
         let root = self.b.close_block(blk, Some(ok), sig.ret, SYN);
@@ -1616,7 +1621,7 @@ impl<'a, 'n> Gen<'a, 'n> {
         let describer = self.names.known.describer;
         let blk = self.b.open_block();
         for v in vars {
-            self.visit(describer, d, v, None, sig.ret)?;
+            self.visit(describer, d, v, None, sig.ret);
         }
         let ok = self.ok_void(sig.ret);
         let root = self.b.close_block(blk, Some(ok), sig.ret, SYN);
@@ -1678,7 +1683,7 @@ impl<'a, 'n> Gen<'a, 'n> {
     /// `annot.build.construct`, `annot.tuple.build`): `next` until
     /// `.None`, `member` per key with the value read so far, `missing` per
     /// member never named, then the value from one local per member.
-    fn build_variant(&mut self, v: &Var, src: (LocalId, Ty), ret: Ty) -> StageResult<Ref> {
+    fn build_variant(&mut self, v: &Var, src: (LocalId, Ty), ret: Ty) -> Ref {
         let names = self.names;
         let pool = names.pool;
         let source = names.known.source;
@@ -1702,7 +1707,7 @@ impl<'a, 'n> Gen<'a, 'n> {
             .collect();
         let lp = self.b.open_loop();
         let lb = self.b.open_block();
-        let r = self.protocol_call(source, "next", src, &[], &[members])?;
+        let r = self.protocol_call(source, "next", src, &[], &[members]);
         let key_option = self.try_value(r, ret);
         let key_def = self.std("KeyRecord");
         let key_ty = self.record_ref(key_def, &[s]);
@@ -1715,8 +1720,8 @@ impl<'a, 'n> Gen<'a, 'n> {
         let key = self.switch_tag(key_option, 0, none, some, key_ty);
         let member = self.std("Member");
         let path = [(key_def, "info"), (member, "position")];
-        let pos = self.record_path(key, &path, Ty::prim(Prim::Usize))?;
-        self.read_key(v, &walked, &slots, pos, src, ret)?;
+        let pos = self.record_path(key, &path, Ty::prim(Prim::Usize));
+        self.read_key(v, &walked, &slots, pos, src, ret);
         let body = self.b.close_block(lb, None, Ty::VOID, SYN);
         self.b.close_loop(lp, body, Ty::VOID, SYN);
         let mut values = Vec::new();
@@ -1738,20 +1743,20 @@ impl<'a, 'n> Gen<'a, 'n> {
             let some = self.b.close_block(sb, Some(got), m.ty, SYN);
             let nb = self.b.open_block();
             let h = self.field_handle(v, m, m.ty);
-            let r = self.protocol_call(source, "missing", src, &[m.ty], &[h])?;
+            let r = self.protocol_call(source, "missing", src, &[m.ty], &[h]);
             let x = self.try_value(r, ret);
             let none = self.b.close_block(nb, Some(x), m.ty, SYN);
             values.push(self.switch_tag(cur, 1, some, none, m.ty));
         }
         let rec = self.b.refs_record(&values);
-        Ok(match v.shape {
+        match v.shape {
             Shape::Data => {
                 let t = s;
                 self.b.emit(Tag::NewStruct, NONE, rec, t, SYN)
             }
             Shape::Tuple => self.b.emit(Tag::NewTuple, NONE, rec, s, SYN),
             Shape::Enum => self.b.emit(Tag::NewVariant, v.index, rec, s, SYN),
-        })
+        }
     }
 
     /// One key of `build`'s loop: the member at position `pos` gets
@@ -1765,13 +1770,13 @@ impl<'a, 'n> Gen<'a, 'n> {
         pos: Ref,
         src: (LocalId, Ty),
         ret: Ty,
-    ) -> StageResult<()> {
+    ) {
         let Some((m, later)) = walked.split_first() else {
             self.panic(
                 "structure-variant-mismatch",
                 &format!("the key names no member of the variant `{}`", v.name),
             );
-            return Ok(());
+            return;
         };
         let pool = self.names.pool;
         let tb = self.b.open_block();
@@ -1783,17 +1788,16 @@ impl<'a, 'n> Gen<'a, 'n> {
         } else {
             "member"
         };
-        let r = self.protocol_call(self.names.known.source, method, src, &[m.ty], &[h, prev])?;
+        let r = self.protocol_call(self.names.known.source, method, src, &[m.ty], &[h, prev]);
         let x = self.try_value(r, ret);
         let rec = self.b.refs_record(&[x]);
         let some = self.b.emit(Tag::NewVariant, 1, rec, ot, SYN);
         self.b.set(slots[0], some, SYN);
         let then = self.b.close_block(tb, None, Ty::VOID, SYN);
         let eb = self.b.open_block();
-        self.read_key(v, later, &slots[1..], pos, src, ret)?;
+        self.read_key(v, later, &slots[1..], pos, src, ret);
         let other = self.b.close_block(eb, None, Ty::VOID, SYN);
         self.switch_int(pos, m.position, then, other, Ty::VOID);
-        Ok(())
     }
 
     /// `build(s)` (`annot.build.enum-variant`): the source chooses among every
@@ -1806,21 +1810,20 @@ impl<'a, 'n> Gen<'a, 'n> {
         let value = match vars {
             [v] if v.shape == Shape::Data => {
                 let choice = self.variant_handle(v);
-                let r =
-                    self.protocol_call(names.known.source, "data_variant", src, &[], &[choice])?;
+                let r = self.protocol_call(names.known.source, "data_variant", src, &[], &[choice]);
                 let _ = self.try_value(r, ret);
-                self.build_variant(v, src, ret)?
+                self.build_variant(v, src, ret)
             }
             _ => {
                 let choices = self.choices();
-                let r = self.protocol_call(names.known.source, "variant", src, &[], &[choices])?;
+                let r = self.protocol_call(names.known.source, "variant", src, &[], &[choices]);
                 let chosen = self.try_value(r, ret);
                 let path = [
                     (self.std("VariantRecord"), "info"),
                     (self.std("VariantInfo"), "index"),
                 ];
-                let index = self.record_path(chosen, &path, Ty::prim(Prim::Usize))?;
-                self.build_choice(vars, index, src, ret)?
+                let index = self.record_path(chosen, &path, Ty::prim(Prim::Usize));
+                self.build_choice(vars, index, src, ret)
             }
         };
         let rec = self.b.refs_record(&[value]);
@@ -1830,44 +1833,33 @@ impl<'a, 'n> Gen<'a, 'n> {
     }
 
     /// The chosen variant, by its index, built.
-    fn build_choice(
-        &mut self,
-        vars: &[Var],
-        index: Ref,
-        src: (LocalId, Ty),
-        ret: Ty,
-    ) -> StageResult<Ref> {
+    fn build_choice(&mut self, vars: &[Var], index: Ref, src: (LocalId, Ty), ret: Ty) -> Ref {
         let s = self.target;
         let Some((v, later)) = vars.split_first() else {
-            return Ok(self.panic(
+            return self.panic(
                 "structure-variant-mismatch",
                 "the source chose no variant of the type",
-            ));
+            );
         };
         let tb = self.b.open_block();
-        let x = self.build_variant(v, src, ret)?;
+        let x = self.build_variant(v, src, ret);
         let then = self.b.close_block(tb, Some(x), s, SYN);
         let eb = self.b.open_block();
-        let y = self.build_choice(later, index, src, ret)?;
+        let y = self.build_choice(later, index, src, ret);
         let tail = (self.b.ty_of(y) != Ty::NEVER).then_some(y);
         let other = self
             .b
             .close_block(eb, tail, if tail.is_some() { s } else { Ty::NEVER }, SYN);
-        Ok(self.switch_int(index, v.index, then, other, s))
+        self.switch_int(index, v.index, then, other, s)
     }
 
     /// Walks a borrowed enum through an ordinary match: one decision read,
     /// then the selected variant's callbacks in its arm.
-    fn dispatch(
-        &mut self,
-        vars: &[Var],
-        subject: Ref,
-        each: &mut dyn FnMut(&mut Self, &Var) -> StageResult<()>,
-    ) -> StageResult<()> {
+    fn dispatch(&mut self, vars: &[Var], subject: Ref, each: &mut dyn FnMut(&mut Self, &Var)) {
         let mut arms = Vec::with_capacity(vars.len());
         for variant in vars {
             let arm = self.b.open_block();
-            each(self, variant)?;
+            each(self, variant);
             arms.push(self.b.close_block(arm, None, Ty::VOID, SYN));
         }
         let db = self.b.open_block();
@@ -1878,7 +1870,6 @@ impl<'a, 'n> Gen<'a, 'n> {
         blocks.extend(arms);
         let blocks = self.b.refs_record(&blocks);
         self.b.emit(Tag::Match, subject.0, blocks, Ty::VOID, SYN);
-        Ok(())
     }
 
     fn decide_variants(&mut self, vars: &[Var], value: Ref, arm: u32) {
