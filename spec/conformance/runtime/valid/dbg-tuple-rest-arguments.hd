@@ -1,0 +1,10 @@
+# test: dbg accepts a tuple with a runtime list rest as its collected arguments
+# Spec Debug Printing: module.dbg.check, module.dbg.body.print, module.dbg.body.value.
+# Spec Functions: fn.type.ctor.tuple-trait.rest.
+# expect-empty-stdout: true
+pub fn main() -> void:
+    let tail: List[i32] = [1, 2]
+    let values: (i32, List[i32]...) = (0, tail...)
+    dbg(values...)
+    let show: fn((i32, List[i32]...)) -> void = dbg
+    show(values)
