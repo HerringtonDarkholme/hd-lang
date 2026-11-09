@@ -14,7 +14,7 @@
 // - cost: an added line that walks a directory, spawns a process or rewrites an
 //   index needs a `cost:` comment within 3 lines (shared-rules "Cost Model").
 // - fix-test: a commit that says it fixes, reverts, leaks or miscompiles, and
-//   adds compiler or std source, adds a runtime fixture or a test.
+//   adds compiler or std source, adds a conformance fixture or a test.
 // - price: a change to code the compiler emits that adds programs needs a .wat
 //   baseline showing what they emit.
 //
@@ -210,7 +210,7 @@ for (const commit of git("rev-list", "--reverse", `${base}..${head}`).split("\n"
     continue;
   }
   const status = git("show", "--name-status", "--format=", commit);
-  if (/^A\s+(spec\/conformance\/runtime\/|crates\/[a-z_]+\/tests\/)/m.test(status)) {
+  if (/^A\s+(spec\/conformance\/(runtime|typing|parse|cli)\/|crates\/[a-z_]+\/tests\/)/m.test(status)) {
     continue;
   }
   untested.push(`${commit.slice(0, 9)} ${message.split("\n")[0].slice(0, 100)}`);
