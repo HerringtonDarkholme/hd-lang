@@ -1107,6 +1107,12 @@ impl Em<'_, '_, '_> {
         let write = write && !(call.is_some_and(|(_, two_phase)| two_phase) && last_kept);
         let mut taken = Vec::new();
         let mut heads = Vec::new();
+        // A top-level binding root's slot: `Roots::of` returns a global
+        // root only for a `Module::objects` member.
+        let slot = match root_obj {
+            Some((PlaceRoot::Global(def, _), _)) => self.def_slot(def),
+            _ => None,
+        };
         for (n, (k, object)) in crossed.into_iter().enumerate() {
             let writes = write && n == last;
             let mask = match self.lent_of(object) {
@@ -1133,25 +1139,26 @@ impl Em<'_, '_, '_> {
                 }
                 continue;
             }
-            let o = match (k, root_obj) {
-                (ROOT, Some((PlaceRoot::Local(l), _))) => self.cell_of(l.idx())?,
-                (ROOT, Some((PlaceRoot::Global(def, _), _))) => {
-                    let Some(at) = self.def_slot(def) else {
-                        return crate::unsupported("an object binding with no slot");
-                    };
+            let o = match (k, root_obj, slot, &read) {
+                (ROOT, Some((PlaceRoot::Local(l), _)), _, _) => self.cell_of(l.idx())?,
+                (ROOT, _, Some(at), _) => {
                     let o = self.f.local(Val::I32);
                     self.f.address(at);
                     self.f.set(o);
                     o
                 }
-                (k, _) if k >= READ && k != ROOT => {
-                    let Some((r, q)) = &read else {
-                        return crate::unsupported("a read crossing with no read");
-                    };
+                (k, _, _, Some((r, q))) if k >= READ && k != ROOT => {
                     let (at, _) = self.walk_place(*r, q, k - READ, None)?;
                     self.at_i32(&at)?
                 }
                 _ => {
+                    // ruled out: `ROOT` is pushed only for `Roots::of`'s root,
+                    // a shared local's cell or a `Module::objects` binding,
+                    // and lib.rs `address_globals` gives every object its
+                    // `Module::addressed` slot; `READ + k` only for a
+                    // dereference of `root_read`'s place, so the read is
+                    // there. What remains is a step of the place itself.
+                    debug_assert!(k < READ, "a root or read crossing without its object");
                     let (at, _) = self.walk_place(i, &p, k, None)?;
                     self.at_i32(&at)?
                 }
