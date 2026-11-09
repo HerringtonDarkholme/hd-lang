@@ -338,10 +338,8 @@ impl Em<'_, '_, '_> {
                 }
             }
             // ruled out: check::context_new derives this row from these provider/spread pairs.
-            let Some(src) = src else {
-                return unsupported("a context key that no entry binds");
-            };
-            from.push(src);
+            assert!(src.is_some(), "each context key must name its source entry");
+            from.push(src.as_slice()[0]);
         }
         let mut provs = Vec::new();
         for (v, at) in from {
