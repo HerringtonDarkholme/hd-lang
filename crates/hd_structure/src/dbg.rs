@@ -188,6 +188,8 @@ pub fn printer_body(cx: &Cx<'_, '_>, item: DefId, ty: Ty, debug: bool) -> StageR
 pub fn values_body(cx: &Cx<'_, '_>, item: DefId, args: Ty) -> StageResult<Body> {
     let names = cx.names;
     let pool = names.pool;
+    // gap: #1543: collected tuples may end in a runtime List rest.
+    // ruled out: dbg's sealed Args < Tuple bound excludes non-tuples.
     let TyData::Tuple { elems, rest: None } = pool.get(args) else {
         return cx.unsupported("a `dbg` whose arguments are not a plain tuple");
     };
