@@ -211,7 +211,7 @@ impl Em<'_, '_, '_> {
                     // A `Proj::Variant` step, into an enum or an optional.
                     let at = self.enum_flat(ty)?.selection(v as usize, f as usize);
                     slots = at.iter().map(|&p| slots[p]).collect();
-                    ty = self.variant_tys(ty)?[v as usize][f as usize];
+                    ty = self.variant_tys(ty)[v as usize][f as usize];
                     k += 2;
                 }
                 Proj::Deref | Proj::Elem(_) => return Ok(None),
@@ -275,7 +275,7 @@ impl Em<'_, '_, '_> {
                     }
                     let at = flat.selection(v as usize, f as usize);
                     slots = at.iter().map(|&p| slots[p]).collect();
-                    ty = self.variant_tys(ty)?[v as usize][f as usize];
+                    ty = self.variant_tys(ty)[v as usize][f as usize];
                     k += 2;
                 }
                 Proj::Deref | Proj::Elem(_) => return Ok(out),
@@ -750,7 +750,7 @@ impl Em<'_, '_, '_> {
                     // its variant.
                     // A `Proj::Variant` step, into an enum or an optional.
                     offset += self.enum_flat(ty)?.offsets[v as usize][f as usize];
-                    ty = self.variant_tys(ty)?[v as usize][f as usize];
+                    ty = self.variant_tys(ty)[v as usize][f as usize];
                     k += 2;
                 }
                 (Proj::Field(f), _) => {
@@ -1443,7 +1443,7 @@ impl Em<'_, '_, '_> {
         let flat = self.enum_flat(ty)?;
         // A checked place's payload step names a field of its variant.
         let (v, f) = (v as usize, f as usize);
-        let ft = self.variant_tys(ty)?[v][f];
+        let ft = self.variant_tys(ty)[v][f];
         let field = flat.offsets[v][f];
         let at = if matches!(self.kind(ty), Kind::Boxed) {
             At::Mem(self.at_i32(&at)?, field)
@@ -1587,7 +1587,7 @@ impl Em<'_, '_, '_> {
                     let Some(&Proj::Field(f)) = steps.get(k + 1) else {
                         return unsupported("a variant without its payload field");
                     };
-                    ty = self.variant_tys(ty)?[v as usize][f as usize];
+                    ty = self.variant_tys(ty)[v as usize][f as usize];
                     k += 1;
                 }
             }

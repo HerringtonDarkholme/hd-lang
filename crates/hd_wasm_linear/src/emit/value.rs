@@ -17,7 +17,6 @@ use crate::layout::{
 };
 use crate::module::{HEAP, Sym, Val, mem};
 use crate::rt::{DropCall, Helper};
-use crate::unsupported;
 
 /// Where a payload field's values come from: a TIR value, or locals.
 #[derive(Clone)]
@@ -99,23 +98,30 @@ impl Em<'_, '_, '_> {
     }
 
     /// The payload types of each variant of enum (or optional) `t`.
-    pub(super) fn variant_tys(&self, t: Ty) -> StageResult<Rc<Vec<Vec<Ty>>>> {
-        // ruled out: typed Proj::Variant callers have already validated enum_flat.
-        // Traversal probes use try_variant_tys, where a non-enum means None.
-        let Some(vs) = self.try_variant_tys(t) else {
-            return unsupported("a variant of a type that is not an enum");
-        };
-        Ok(vs)
+    pub(super) fn variant_tys(&self, t: Ty) -> Rc<Vec<Vec<Ty>>> {
+        let present = self.cache_variant_tys(t);
+        // ruled out: checked Proj::Variant steps name enum or optional payloads;
+        // other callers select enum_flat first. Traversal probes remain optional.
+        debug_assert!(present);
+        self.variant_tys.borrow()[&t].clone()
     }
 
     /// Payload types for an enum or optional; None for ordinary value types.
     pub(super) fn try_variant_tys(&self, t: Ty) -> Option<Rc<Vec<Vec<Ty>>>> {
-        if let Some(v) = self.variant_tys.borrow().get(&t) {
-            return Some(v.clone());
+        self.cache_variant_tys(t)
+            .then(|| self.variant_tys.borrow()[&t].clone())
+    }
+
+    /// Populate the existing body-local cache without cloning its payload.
+    fn cache_variant_tys(&self, t: Ty) -> bool {
+        if self.variant_tys.borrow().contains_key(&t) {
+            return true;
         }
-        let vs = Rc::new(variants(self.pool(), self.env(), t)?);
-        self.variant_tys.borrow_mut().insert(t, vs.clone());
-        Some(vs)
+        let Some(vs) = variants(self.pool(), self.env(), t) else {
+            return false;
+        };
+        self.variant_tys.borrow_mut().insert(t, Rc::new(vs));
+        true
     }
 
     /// The counted references of a boxed enum's cell: its value's, as the
@@ -827,15 +833,15 @@ impl Em<'_, '_, '_> {
         let t = self.ty(i);
         // A variant's construction, of an enum or an optional.
         let flat = self.enum_flat(t)?;
-        let tys = self
-            .try_variant_tys(t)
-            .and_then(|vs| vs.get(v as usize).cloned())
-            .unwrap_or_default();
+        let variants = self.variant_tys(t);
+        // ruled out: a checked constructor names one of this enum's variants.
+        debug_assert!((v as usize) < variants.len());
+        let tys = &variants[v as usize];
         // Construction consumes its parts (§23.25).
         let fields = if moved || self.short_origins.contains(&i) {
             fs.to_vec()
         } else {
-            self.count_parts(fs, &tys)?
+            self.count_parts(fs, tys)?
         };
         // The checker builds a variant of its enum with each of its
         // fields, as the backend's own constructions do.
