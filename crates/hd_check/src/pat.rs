@@ -285,7 +285,7 @@ impl Ck<'_, '_> {
                 let bounds = self.range_bounds(p);
                 for b in [bounds.lo, bounds.hi].into_iter().flatten() {
                     let before = self.diags.len();
-                    let (r, lt) = self.bound_literal(b, t)?;
+                    let (r, lt) = self.bound_literal(b, t, p);
                     self.expect(lt, t, p, "pattern", ExpectPosition::General);
                     if self.diags.len() != before {
                         // One `type-mismatch` per pattern.
@@ -714,7 +714,7 @@ impl Ck<'_, '_> {
                     // An interpolated string is the pattern's child.
                     match self.cx.src.tkind(tok) {
                         Some(TokenKind::String) => (self.string_expr(p)?, Ty::STRING),
-                        _ => self.literal_at(tok)?,
+                        _ => self.literal_at(tok, false, p),
                     }
                 };
                 Ok(self.pattern_value(r, t, want, neg))
@@ -776,9 +776,9 @@ impl Ck<'_, '_> {
     }
 
     /// A range bound's constant, checked against the subject type `t`.
-    fn bound_literal(&mut self, b: Bound, t: Ty) -> StageResult<(Ref, Ty)> {
-        let (r, lt) = self.literal_at(b.tok)?;
-        Ok(self.pattern_value(r, lt, Some(t), b.neg))
+    fn bound_literal(&mut self, b: Bound, t: Ty, at: NodeRef<'_>) -> (Ref, Ty) {
+        let (r, lt) = self.literal_at(b.tok, false, at);
+        self.pattern_value(r, lt, Some(t), b.neg)
     }
 
     /// A pattern bound's integer value.
@@ -1747,11 +1747,11 @@ impl Ck<'_, '_> {
             let bounds = self.range_bounds(p);
             let mut tests = Vec::new();
             if let Some(lo) = bounds.lo {
-                let (l, _) = self.bound_literal(lo, t)?;
+                let (l, _) = self.bound_literal(lo, t, p);
                 tests.push(self.b.prim(PrimOp::Ge as u32, &[v, l], Ty::BOOL, p.index()));
             }
             if let Some(hi) = bounds.hi {
-                let (h, _) = self.bound_literal(hi, t)?;
+                let (h, _) = self.bound_literal(hi, t, p);
                 let op = if bounds.inclusive {
                     PrimOp::Le
                 } else {

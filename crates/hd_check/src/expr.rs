@@ -2,11 +2,9 @@
 //! interpolation, names, operators, fields, indexing, collection and data
 //! literals, `if`, loops, closures, `?`, ranges and providers.
 
-use hd_base::HashMap;
 use std::fmt::Write as _;
 
-use hd_base::DefId;
-use hd_base::StageResult;
+use hd_base::{DefId, HashMap, StageResult, TokenIdx};
 use hd_diag::{Code, FixSafety};
 use hd_intern::PathKind;
 use hd_resolve::{ItemData, Src, show_ty_rows_in};
@@ -388,7 +386,7 @@ impl Ck<'_, '_> {
                 }
             }
         }
-        let (r, mut t) = self.literal_tok(first, strip)?;
+        let (r, mut t) = self.literal_at(first, strip, n);
         self.row_argument_vars(DefId::NONE, &[t], n);
         if let Some(fixed) = primitive {
             self.expect(t, fixed, n, "literal", ExpectPosition::General);
@@ -400,17 +398,10 @@ impl Ck<'_, '_> {
         Ok((r, t))
     }
 
-    /// The literal token at `t`.
-    pub(crate) fn literal_at(&mut self, t: hd_base::TokenIdx) -> StageResult<(Ref, Ty)> {
-        self.literal_tok(t, false)
-    }
-
-    /// The literal token at `t`; `strip` drops a number's literal suffix.
-    /// An integer literal is an integer class even where a float is
-    /// expected (`types.literal.int-not-float`).
-    fn literal_tok(&mut self, t: hd_base::TokenIdx, strip: bool) -> StageResult<(Ref, Ty)> {
+    /// A parser-selected literal; `strip` drops an expression's suffix.
+    pub(crate) fn literal_at(&mut self, t: TokenIdx, strip: bool, n: NodeRef<'_>) -> (Ref, Ty) {
         let pool = self.pool();
-        Ok(match self.cx.src.tkind(t) {
+        match self.cx.src.tkind(t) {
             Some(TokenKind::KwTrue) => (self.b.const_value(Ty::BOOL, 1), Ty::BOOL),
             Some(TokenKind::KwFalse) => (self.b.const_value(Ty::BOOL, 0), Ty::BOOL),
             Some(TokenKind::KwPass) => (Ref(NONE), Ty::VOID),
@@ -458,11 +449,17 @@ impl Ck<'_, '_> {
                     let ft = self.infer.fresh(pool, VarKind::FloatLit);
                     (self.b.const_value(ft, f.to_bits()), ft)
                 } else {
-                    return unsupported(format!("the literal `{text}`"));
+                    // ruled out: lexer::number validates the numeric text,
+                    // literal() strips suffixes, and range_bound rejects
+                    // suffixed patterns. Damaged tokens retain their parse
+                    // diagnostic through the ordinary poison value.
+                    self.poison_value(n)
                 }
             }
-            _ => return unsupported("this literal form"),
-        })
+            // ruled out: primary() selects bool, pass, char or number;
+            // pattern_literal() handles strings before calling here.
+            _ => self.poison_value(n),
+        }
     }
 
     /// A constant, or evaluated pieces measured before one result allocation
