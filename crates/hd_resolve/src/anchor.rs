@@ -243,6 +243,11 @@ pub(crate) fn collect(
                 let block = Src::child(n, SyntaxKind::Block);
                 if h.kind == HeadKind::Impl {
                     cx.bindings(h.def, n, block);
+                } else if let Some(params) = Src::child(n, SyntaxKind::GenericParameterList) {
+                    // A trait's type parameter list, at slot 1
+                    // (`module.host.package.not-generic`).
+                    let a = cx.at(n, 0, params, false);
+                    cx.push(h.def, 1, a);
                 }
                 for (i, f) in block.iter().flat_map(|b| b.children()).enumerate() {
                     if f.kind() != SyntaxKind::FnDecl {

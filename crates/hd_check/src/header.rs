@@ -1401,9 +1401,12 @@ enum Fault {
 /// handles, and of their supertraits. A signature with a type that would
 /// cross without the trait its direction needs (`module.boundary.error`),
 /// or that is not boundary-safe (`module.boundary.not-safe.error`), is an
-/// error there, once per signature. `roots` are the host traits, each
-/// marked when it is a package's; `returned` says what a trait value its
-/// methods return is, for a package's host or not.
+/// error there, once per signature. A runtime profile's host trait and a
+/// host handle trait that declare type parameters are errors at that list
+/// (`module.host.package.not-generic`); the `@host` marker check reports a
+/// package's own. `roots` are the host traits, each marked when it is a
+/// package's; `returned` says what a trait value its methods return is, for
+/// a package's host or not.
 ///
 /// Cost: each trait the walk reaches once, and each signature's distinct
 /// types once per signature.
@@ -1417,6 +1420,24 @@ pub fn boundary(
     let deserialize = cx.names.item("std.serde", "Deserialize");
     let mut traits = roots.to_vec();
     let mut queued: hd_base::HashSet<DefId> = roots.iter().map(|r| r.0).collect();
+    // The traits a host binds a provider or a handle for, each once.
+    let generic = |def: DefId, what: &str, out: &mut Vec<Finding>| {
+        if cx.lookup.item(def).is_some_and(|i| !i.generics.is_empty()) {
+            out.push(Finding {
+                item: def,
+                slot: 1,
+                code: Code::BoundaryNotSafe,
+                message: format!("a {what} trait declares no type parameters"),
+                ref_fix: Vec::new(),
+            });
+        }
+    };
+    for &(def, package) in roots {
+        if !package {
+            generic(def, "host capability", &mut out);
+        }
+    }
+    let mut bound = queued.clone();
     let mut next = 0;
     while let Some(&(def, package)) = traits.get(next) {
         next += 1;
@@ -1438,6 +1459,7 @@ pub fn boundary(
             let Some(sig) = mi.sig() else {
                 continue;
             };
+            let mut found = Vec::new();
             let mut hc = ItemCheck::new(cx, mi, &mut out);
             let crossing: Vec<(Ty, bool)> = sig
                 .params
@@ -1450,12 +1472,14 @@ pub fn boundary(
                 let tr = if way_out { serialize } else { deserialize };
                 let mut handles = Vec::new();
                 let fault = hc.crossing_fault(t, tr, way_out, &returned, &mut handles)?;
-                traits.extend(
-                    handles
-                        .into_iter()
-                        .filter(|h| queued.insert(*h))
-                        .map(|h| (h, package)),
-                );
+                for h in handles {
+                    if bound.insert(h) {
+                        found.push(h);
+                    }
+                    if queued.insert(h) {
+                        traits.push((h, package));
+                    }
+                }
                 let Some((bad, fault)) = fault else {
                     continue;
                 };
@@ -1475,6 +1499,9 @@ pub fn boundary(
                     }
                 }
                 break;
+            }
+            for h in found {
+                generic(h, "host handle", &mut out);
             }
         }
     }
@@ -1516,7 +1543,7 @@ impl ItemCheck<'_, '_> {
             let parts: Vec<Ty> = match pool.get(t) {
                 TyData::Fn { .. } => return not_safe("a function or closure is not boundary-safe"),
                 TyData::Ref { inner, counted, .. } => {
-                    let TyData::TraitValue { def, args, .. } = pool.get(inner) else {
+                    let TyData::TraitValue { def, .. } = pool.get(inner) else {
                         // A counted reference crosses as its referent's
                         // tree (`module.boundary.tree`).
                         if counted {
@@ -1525,9 +1552,6 @@ impl ItemCheck<'_, '_> {
                         }
                         return not_safe("a local reference is not boundary-safe");
                     };
-                    if args != TyList::EMPTY {
-                        return not_safe("a generic trait value is not boundary-safe");
-                    }
                     if out {
                         return not_safe(
                             "no trait value crosses to the host, neither the program's own nor a host handle",

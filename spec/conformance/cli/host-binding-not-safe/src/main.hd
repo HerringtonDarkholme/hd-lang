@@ -1,4 +1,4 @@
-# Spec Modules, Private Fields At A Boundary: module.boundary.not-safe.error (#1552).
+# Spec Modules: module.boundary.not-safe.error (#1552), module.host.package.not-generic (#1569).
 # A package host trait's signatures name types that cannot cross: each is an error there.
 pub trait Shape:
     fn area(&self) -> i32

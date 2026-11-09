@@ -1844,7 +1844,10 @@ fn check_host_declarations(
             } else {
                 None
             };
-            if why.is_none() && !listed.contains(&path.as_str()) {
+            // A generic host trait is an error at its parameters
+            // (`module.host.package.not-generic`), so no listing helps.
+            let generic = Src::child(node, SyntaxKind::GenericParameterList).is_some();
+            if why.is_none() && !generic && !listed.contains(&path.as_str()) {
                 diags.error(Code::InvalidManifest, span, &format!(
                     "host trait `{path}` is marked `@host` here but is missing from `[host]` at {manifest}:{line}; list `{path}` in its owning package's manifest"
                 ));

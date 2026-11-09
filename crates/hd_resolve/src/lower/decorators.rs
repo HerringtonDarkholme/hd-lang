@@ -357,6 +357,15 @@ impl Lower<'_, '_, '_> {
                             span,
                             "write bare `@host`, without arguments or type arguments",
                         );
+                    } else if let Some(params) = Src::child(n, SyntaxKind::GenericParameterList) {
+                        // `module.host.package.not-generic`: the invoker
+                        // binds one provider for the trait, not one per
+                        // instance.
+                        self.diags.error(
+                            Code::BoundaryNotSafe,
+                            self.src.span(params),
+                            "a host capability trait declares no type parameters",
+                        );
                     }
                 }
                 "auto_closing" => {

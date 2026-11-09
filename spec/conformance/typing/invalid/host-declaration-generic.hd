@@ -1,0 +1,4 @@
+# module.host.package.not-generic
+@host
+pub trait Surface[T]: # diagnostic: boundary-not-safe
+    fn get(&self) -> T

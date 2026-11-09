@@ -5324,6 +5324,7 @@ typing/invalid/host-declaration-private.hd	type	reject:decorator-target-kind	lan
 typing/invalid/host-declaration-call.hd	type	reject:decorator-target-kind	lang/10-modules.md#r-module.host.package.bare
 typing/invalid/host-declaration-type-arguments.hd	type	reject:decorator-target-kind	lang/10-modules.md#r-module.host.package.bare
 typing/invalid/host-declaration-function.hd	type	reject:decorator-target-kind	lang/10-modules.md#r-module.host.package.target
+typing/invalid/host-declaration-generic.hd	type	reject:boundary-not-safe	lang/10-modules.md#r-module.host.package.not-generic
 parse/valid/counted-reference-types.hd	parse	accept	lang/02-grammar.md#r-grammar.type.counted-ref
 parse/invalid/counted-reference-type-power.hd	parse	reject:syntax-error	lang/13-values-and-references.md#r-ref.type.counted-no-nesting
 typing/valid/local-reference-arguments.hd	type	accept	lang/13-values-and-references.md#r-ref.local.argument
@@ -6068,7 +6069,7 @@ typing/invalid/boundary-badge-result-private-field.hd	type	reject:boundary-priva
 typing/invalid/boundary-not-safe-function.hd	type	reject:boundary-not-safe	lang/10-modules.md#r-module.boundary.not-safe.error
 typing/invalid/boundary-not-safe-reference.hd	type	reject:boundary-not-safe	lang/10-modules.md#r-module.boundary.not-safe.error
 typing/invalid/boundary-not-safe-program-trait-value.hd	type	reject:boundary-not-safe	lang/10-modules.md#r-module.boundary.not-safe.error
-typing/invalid/boundary-not-safe-generic-trait-value.hd	type	reject:boundary-not-safe	lang/10-modules.md#r-module.boundary.not-safe.error
+typing/invalid/boundary-not-safe-generic-trait-value.hd	type	reject:boundary-not-safe	lang/10-modules.md#r-module.host.package.not-generic
 typing/invalid/boundary-not-safe-handle-passed-back.hd	type	reject:boundary-not-safe	lang/10-modules.md#r-module.boundary.not-safe.error
 typing/invalid/boundary-not-safe-handle-method.hd	type	reject:boundary-not-safe	lang/10-modules.md#r-module.boundary.not-safe.error
 typing/invalid/boundary-not-safe-erased-error.hd	type	reject:boundary-not-safe	lang/10-modules.md#r-module.boundary.not-safe.error

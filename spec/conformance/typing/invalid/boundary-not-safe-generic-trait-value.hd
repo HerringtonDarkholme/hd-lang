@@ -1,11 +1,11 @@
-# test: a host capability method cannot return a generic trait value
-# Spec Modules, Boundary-Safe Values: module.boundary.not-safe.error (#1552).
+# test: a host handle trait cannot declare type parameters
+# Spec Modules, Package Host Traits: module.host.package.not-generic (#1569).
 # fixture-runtime-profile: serde-vault
-pub trait Holder[T]:
+pub trait Holder[T]: # diagnostic: boundary-not-safe
     fn get(&self) -> T
 
 pub trait Vault:
-    fn keep(self) -> *dyn Holder[i32] # diagnostic: boundary-not-safe
+    fn keep(self) -> *dyn Holder[i32]
 
 pub fn main() -> void $ Vault:
     _ := $.use(Vault).keep().get()

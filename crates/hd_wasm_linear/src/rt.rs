@@ -1080,10 +1080,15 @@ fn host_vtable(input: &Input<'_>, m: &mut Module, key: Ty) -> StageResult<usize>
     let TyData::TraitValue { def, args, .. } = input.pool.get(key) else {
         return unsupported("a provider key that is not a trait");
     };
+    // ruled out: module.host.package.not-generic. The `@host` marker check
+    // (hd_resolve lower/decorators.rs) and hd_check header::boundary, for
+    // a runtime profile's host trait, reject a host trait with type
+    // parameters, so a provider key names no instance.
+    debug_assert!(
+        args == TyList::EMPTY,
+        "a generic host trait reached linking"
+    );
     let p = (input.path)(def).replace('/', ".");
-    if args != TyList::EMPTY {
-        return unsupported(format!("the default provider of `{p}`"));
-    }
     let Some(host) = hd_host_abi::host_trait(&p) else {
         return profile_vtable(input, m, def, &p);
     };
