@@ -715,11 +715,20 @@ impl Em<'_, '_, '_> {
                     self.f.set(a);
                     (At::Mem(a, 0), et)
                 }
-                (_, Some((target, true))) => (at, target),
-                (_, Some((target, false))) => (At::Mem(self.at_i32(&at)?, 0), target),
-                // ruled out: last_through selects only Elem or Deref; the
-                // Elem arms above leave only a checked reference dereference.
-                (_, None) => return unsupported("a dereference of a value that is no reference"),
+                (_, through) => {
+                    // ruled out: last_through selects only Elem/Deref; the
+                    // Elem arms leave a checked reference with its target.
+                    assert!(
+                        through.is_some(),
+                        "last_through must state the Deref target"
+                    );
+                    let (target, fat) = through.as_slice()[0];
+                    if fat {
+                        (at, target)
+                    } else {
+                        (At::Mem(self.at_i32(&at)?, 0), target)
+                    }
+                }
             };
         }
         let Some(path) = fields(&p.proj[from..]) else {
@@ -1578,24 +1587,18 @@ impl Em<'_, '_, '_> {
 
     /// The type steps `steps` reach from type `ty`.
     pub(super) fn walk_ty(&self, mut ty: Ty, steps: &[Proj]) -> StageResult<Ty> {
-        let mut k = 0;
-        while k < steps.len() {
-            match steps[k] {
+        let mut steps = steps.iter();
+        while let Some(&step) = steps.next() {
+            match step {
                 Proj::Field(f) => ty = self.path_step(ty, f)?.0,
                 Proj::Elem(_) if self.is_map(ty) => ty = self.entry(ty)?.1,
                 Proj::Elem(_) => ty = self.elem(ty)?.0,
                 Proj::Deref => ty = self.checked_ref_target(ty).0,
                 Proj::Variant(v) => {
-                    // ruled out: the checker pairs Variant/Field; callers
-                    // split paths only at Elem/Deref or the end of the place.
-                    let Some(&Proj::Field(f)) = steps.get(k + 1) else {
-                        return unsupported("a variant without its payload field");
-                    };
+                    let f = payload_field(&mut steps);
                     ty = self.variant_tys(ty)[v as usize][f as usize];
-                    k += 1;
                 }
             }
-            k += 1;
         }
         Ok(ty)
     }
@@ -1603,33 +1606,26 @@ impl Em<'_, '_, '_> {
     /// Walks `steps`, which hold no element, from `at` of type `ty`
     /// ([`Em::walk_place`]).
     fn walk_steps(&mut self, mut at: At, mut ty: Ty, steps: &[Proj]) -> StageResult<(At, Ty)> {
-        let mut k = 0;
-        while k < steps.len() {
-            match steps[k] {
+        let mut steps = steps.iter();
+        while let Some(&step) = steps.next() {
+            match step {
                 Proj::Field(f) => {
                     (at, ty) = self.at_field(at, ty, f)?;
-                    k += 1;
                 }
                 Proj::Variant(v) => {
-                    // ruled out: the checker pairs Variant/Field; callers
-                    // split paths only at Elem/Deref or the end of the place.
-                    let Some(&Proj::Field(f)) = steps.get(k + 1) else {
-                        return unsupported("a variant without its payload field");
-                    };
+                    let f = payload_field(&mut steps);
                     (at, ty) = self.at_variant(at, ty, v, f)?;
-                    k += 2;
                 }
-                // ruled out: walk_place splits before each Elem; the other
-                // callers pass the suffix after last_through's final step.
-                Proj::Elem(_) => return unsupported("an element among a walk's plain steps"),
-                Proj::Deref => {
+                step => {
+                    // ruled out: walk_place splits before each Elem; other
+                    // callers pass the suffix after last_through's final step.
+                    assert!(matches!(step, Proj::Deref), "plain walks exclude Elem");
                     let (target, fat) = self.checked_ref_target(ty);
                     // ruled out: trait values have no fields; terminal fat
                     // reads/refs run in place_read/counted_ref, not this walk.
                     debug_assert!(!fat);
                     at = At::Mem(self.at_i32(&at)?, 0);
                     ty = target;
-                    k += 1;
                 }
             }
         }
@@ -1666,6 +1662,21 @@ impl Em<'_, '_, '_> {
         // erasing newtypes preserves its declared reference constructor.
         Ok(pool.ref_inner(crate::layout::strip(pool, env, ty)))
     }
+}
+
+/// Consumes the field paired with the Variant a place walk just consumed.
+fn payload_field(steps: &mut std::slice::Iter<'_, Proj>) -> u32 {
+    let field = match steps.next() {
+        Some(Proj::Field(f)) => Some(*f),
+        _ => None,
+    };
+    // ruled out: checker patterns and TirBuilder::payload pair Variant/Field;
+    // callers split only at Elem/Deref or the end of the place.
+    assert!(
+        field.is_some(),
+        "checked Variant must have its payload Field"
+    );
+    field.as_slice()[0]
 }
 
 /// The struct field indices `steps` name, when they are all fields.
