@@ -1,0 +1,17 @@
+# data.enum.no-recursion, trait.assoc.projection: an inferred concrete return still rejects a by-value cycle.
+trait Source:
+    type Item
+
+struct Provider[T]: pass
+
+enum Holder[S < Source]:
+    Empty
+    Full(value: S::Item)
+
+impl[T] Source for Provider[T]:
+    type Item = Holder[Provider[T]]
+
+fn make[S < Source]() -> Holder[S]: .Empty
+
+pub fn main() -> void:
+    value := make::[Provider[i32]]() # diagnostic: recursive-value-type

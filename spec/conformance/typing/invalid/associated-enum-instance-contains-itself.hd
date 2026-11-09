@@ -1,0 +1,12 @@
+# data.enum.no-recursion, trait.assoc.projection: substitute before following an associated payload.
+trait Source:
+    type Item
+
+struct Provider: pass
+
+enum Holder[S < Source]:
+    Empty
+    Full(value: S::Item)
+
+impl Source for Provider: # diagnostic: recursive-value-type
+    type Item = Holder[Provider]

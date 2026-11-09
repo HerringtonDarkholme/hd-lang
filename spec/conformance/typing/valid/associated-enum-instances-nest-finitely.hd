@@ -1,0 +1,19 @@
+# data.enum.no-recursion, trait.assoc.projection: repeating a declaration with different instance arguments can be finite.
+trait Source:
+    type Item
+
+struct Provider: pass
+
+enum Holder[S < Source]:
+    Empty
+    Full(value: S::Item)
+
+struct Other: pass
+
+impl Source for Provider:
+    type Item = Holder[Other]
+
+impl Source for Other:
+    type Item = i32
+
+fn inspect(value: &Holder[Provider]) -> void: pass

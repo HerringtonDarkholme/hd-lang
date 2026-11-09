@@ -1,0 +1,14 @@
+# data.enum.no-recursion, data.struct.contains.reference: an explicit counted reference ends containment.
+trait Source:
+    type Item
+
+struct Provider: pass
+
+enum Holder[S < Source]:
+    Empty
+    Full(value: S::Item)
+
+impl Source for Provider:
+    type Item = *Holder[Provider]
+
+fn inspect(value: &Holder[Provider]) -> void: pass

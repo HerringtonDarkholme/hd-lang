@@ -15,7 +15,7 @@
 //! map value's `Store [%m [%e] .b .x] v` at the number `%e` of the key's
 //! entry (`MapEntry`).
 
-use hd_base::{DefId, LocalId, StageResult};
+use hd_base::{DefId, Fuel, HashMap, HashSet, LocalId, StageResult};
 use hd_diag::Code;
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{Place as TirPlace, PlaceRoot, Proj, Ref, Tag, TirSink, local_flags};
@@ -23,6 +23,223 @@ use hd_types::{ParamRef, Ty, TyData};
 
 use crate::body::{Ck, ExpectPosition};
 use crate::refs::{Place, Root};
+
+/// Concrete containment under one immutable impl view. Edges normalize
+/// projections *after* substituting the containing instance's arguments
+/// (`trait.assoc.projection`, `data.enum.no-recursion`). Declaration cycles
+/// without a projection retain the existing field diagnostics and fix-its.
+/// Each reachable instance and edge is expanded once; no type-pool scan.
+#[derive(Default)]
+pub(crate) struct ProjectionCycles {
+    done: HashMap<Ty, Option<Ty>>,
+    reported: HashSet<Ty>,
+    checked: HashSet<Ty>,
+    normalized: HashMap<Ty, Ty>,
+}
+
+impl ProjectionCycles {
+    pub(crate) fn check(
+        &mut self,
+        pool: hd_types::Types<'_>,
+        lookup: &hd_resolve::Lookup<'_>,
+        impls: hd_types::solver::Impls<'_>,
+        ty: Ty,
+        fuel: &mut Fuel,
+    ) -> Result<bool, ()> {
+        // A rigid projection can acquire a concrete payload at a later
+        // instantiation. Do not remember that open instance as acyclic.
+        if pool.has_param(ty) || pool.has_infer(ty) {
+            return Ok(false);
+        }
+        let cycle = Self::search(
+            &mut self.done,
+            ty,
+            fuel,
+            &mut |t| {
+                *self
+                    .normalized
+                    .entry(t)
+                    .or_insert_with(|| hd_types::solver::normalize_concrete(pool, impls, t))
+            },
+            &mut |t| {
+                let mut children = Vec::new();
+                match pool.get(t) {
+                    TyData::Adt { def, args } => {
+                        let argv = pool.list_items(args);
+                        let sub = |f| {
+                            pool.subst(f, &|p: ParamRef| {
+                                (p.owner == def)
+                                    .then(|| argv.get(usize::from(p.index)).copied())
+                                    .flatten()
+                            })
+                        };
+                        if let Some(item) = lookup.item(def) {
+                            match &item.data {
+                                hd_resolve::ItemData::Struct(fs, _) => {
+                                    children.extend(fs.iter().map(|f| sub(f.ty)));
+                                }
+                                hd_resolve::ItemData::Enum {
+                                    shared, variants, ..
+                                } => {
+                                    children.extend(
+                                        shared
+                                            .iter()
+                                            .chain(variants.iter().flat_map(|v| &v.fields))
+                                            .map(|f| sub(f.ty)),
+                                    );
+                                }
+                                hd_resolve::ItemData::Newtype(base) => children.push(sub(*base)),
+                                hd_resolve::ItemData::Fn(..)
+                                | hd_resolve::ItemData::Trait(..)
+                                | hd_resolve::ItemData::Impl { .. }
+                                | hd_resolve::ItemData::Method { .. }
+                                | hd_resolve::ItemData::AssocType { .. }
+                                | hd_resolve::ItemData::Alias { .. }
+                                | hd_resolve::ItemData::Builtin => {}
+                            }
+                        }
+                    }
+                    TyData::Tuple { elems, .. } => children.extend(pool.list_items(elems)),
+                    TyData::Union(members) => children.extend(pool.list_items(members)),
+                    // References, functions and trait values end containment;
+                    // unresolved projections and parameters have no known fields.
+                    TyData::Prim(_)
+                    | TyData::Never
+                    | TyData::Poison
+                    | TyData::Fn { .. }
+                    | TyData::TraitValue { .. }
+                    | TyData::Opaque { .. }
+                    | TyData::Param(_)
+                    | TyData::Const(_)
+                    | TyData::Assoc { .. }
+                    | TyData::Ref { .. }
+                    | TyData::Infer(_)
+                    | TyData::Canon(_)
+                    | TyData::Row(_)
+                    | TyData::Context(_) => {}
+                }
+                children
+            },
+        )?;
+        Ok(cycle.is_some_and(|t| self.reported.insert(t)))
+    }
+
+    fn search(
+        done: &mut HashMap<Ty, Option<Ty>>,
+        root: Ty,
+        fuel: &mut Fuel,
+        normalize: &mut impl FnMut(Ty) -> Ty,
+        expand: &mut impl FnMut(Ty) -> Vec<Ty>,
+    ) -> Result<Option<Ty>, ()> {
+        // Enter/leave events keep both width and depth off the Rust stack.
+        let mut todo = vec![(root, None)];
+        let mut path: Vec<(Ty, bool)> = Vec::new();
+        let mut active = HashMap::default();
+        while let Some((raw, leave)) = todo.pop() {
+            if let Some(t) = leave {
+                active.remove(&t);
+                path.pop();
+                done.insert(raw, None);
+                done.insert(t, None);
+                continue;
+            }
+            if let Some(&cycle) = done.get(&raw) {
+                if cycle.is_some() {
+                    for &(t, _) in &path {
+                        done.insert(t, cycle);
+                    }
+                    return Ok(cycle);
+                }
+                continue;
+            }
+            if !fuel.charge(1) {
+                return Err(());
+            }
+            let t = normalize(raw);
+            let projected = t != raw;
+            if let Some(&at) = active.get(&t) {
+                if projected || path[at + 1..].iter().any(|&(_, p)| p) {
+                    for &(p, _) in &path {
+                        done.insert(p, Some(t));
+                    }
+                    done.insert(raw, Some(t));
+                    return Ok(Some(t));
+                }
+                continue;
+            }
+            if let Some(&cycle) = done.get(&t) {
+                done.insert(raw, cycle);
+                if cycle.is_some() {
+                    for &(t, _) in &path {
+                        done.insert(t, cycle);
+                    }
+                    return Ok(cycle);
+                }
+                continue;
+            }
+            active.insert(t, path.len());
+            path.push((t, projected));
+            todo.push((raw, Some(t)));
+            todo.extend(expand(t).into_iter().rev().map(|c| (c, None)));
+        }
+        Ok(None)
+    }
+
+    /// Written type components, separate from containment edges: a reference
+    /// ends containment but its referent must still be a well-formed type.
+    /// Used after body inference settles, outside speculative trials.
+    pub(crate) fn check_nested(
+        &mut self,
+        pool: hd_types::Types<'_>,
+        lookup: &hd_resolve::Lookup<'_>,
+        impls: hd_types::solver::Impls<'_>,
+        ty: Ty,
+        fuel: &mut Fuel,
+    ) -> Result<bool, ()> {
+        let mut todo = vec![ty];
+        let mut bad = false;
+        while let Some(t) = todo.pop() {
+            if !self.checked.insert(t) {
+                continue;
+            }
+            bad |= self.check(pool, lookup, impls, t, fuel)?;
+            match pool.get(t) {
+                TyData::Adt { args, .. } => todo.extend(pool.list_items(args)),
+                TyData::Union(members) => todo.extend(pool.list_items(members)),
+                TyData::Ref { inner, .. } => todo.push(inner),
+                TyData::Tuple { elems, rest } => {
+                    todo.extend(pool.list_items(elems));
+                    todo.extend(rest);
+                }
+                TyData::Fn { params, result, .. } => {
+                    todo.extend(pool.list_items(params));
+                    todo.push(result);
+                }
+                TyData::TraitValue { args, bindings, .. } => {
+                    todo.extend(pool.list_items(args));
+                    todo.extend(bindings.into_iter().map(|(_, t)| t));
+                }
+                TyData::Opaque { args, bound, .. } => {
+                    todo.extend(pool.list_items(args));
+                    todo.push(bound);
+                }
+                TyData::Assoc { self_ty, args, .. } => {
+                    todo.push(self_ty);
+                    todo.extend(pool.list_items(args));
+                }
+                TyData::Row(row) | TyData::Context(row) => todo.extend(pool.row_data(row).keys),
+                TyData::Prim(_)
+                | TyData::Never
+                | TyData::Poison
+                | TyData::Param(_)
+                | TyData::Const(_)
+                | TyData::Infer(_)
+                | TyData::Canon(_) => {}
+            }
+        }
+        Ok(bad)
+    }
+}
 
 impl Ck<'_, '_> {
     /// `base.name = rhs` or `base.name op= rhs` where `base` names the
@@ -333,4 +550,103 @@ fn walk_values(
     inner
         .into_iter()
         .any(|i| walk_values(pool, lookup, i, seen, found))
+}
+
+#[cfg(test)]
+mod containment_tests {
+    use super::*;
+
+    #[test]
+    fn projection_graph_work_depends_only_on_reachable_width_and_depth() {
+        // A thousand roots share a depth-20 suffix. A repeated check adds
+        // no expansion, even with ten times as much unrelated memo state.
+        for unrelated in [100, 1000] {
+            let mut done = HashMap::default();
+            for i in 0..unrelated {
+                done.insert(Ty(100_000 + i), None);
+            }
+            let mut fuel = Fuel::new(100_000);
+            let mut expanded = 0;
+            let mut expand = |t: Ty| {
+                expanded += 1;
+                if t.0 < 1000 {
+                    vec![Ty(5000 + t.0)]
+                } else if t.0 < 1019 {
+                    // Shared branches must not cause exponential retries.
+                    vec![Ty(t.0 + 1), Ty(t.0 + 1)]
+                } else {
+                    vec![]
+                }
+            };
+            for _ in 0..2 {
+                for i in 0..1000 {
+                    assert_eq!(
+                        ProjectionCycles::search(
+                            &mut done,
+                            Ty(i),
+                            &mut fuel,
+                            &mut |t| if (5000..6000).contains(&t.0) {
+                                Ty(1000)
+                            } else {
+                                t
+                            },
+                            &mut expand
+                        ),
+                        Ok(None)
+                    );
+                }
+            }
+            assert_eq!(expanded, 1020);
+            // The first projection enters the suffix's root directly;
+            // only its other nineteen nodes need separate enter events.
+            assert_eq!(fuel.spent(), 2019);
+        }
+    }
+
+    #[test]
+    fn a_thousand_node_projected_ring_is_iterative_and_memoized() {
+        let mut done = HashMap::default();
+        let mut fuel = Fuel::new(2000);
+        let mut expanded = 0;
+        let mut expand = |t: Ty| {
+            expanded += 1;
+            vec![Ty(t.0 + 1)]
+        };
+        assert_eq!(
+            ProjectionCycles::search(
+                &mut done,
+                Ty(0),
+                &mut fuel,
+                &mut |t| if t == Ty(1000) { Ty(0) } else { t },
+                &mut expand
+            ),
+            Ok(Some(Ty(0)))
+        );
+        for i in 0..1000 {
+            assert_eq!(
+                ProjectionCycles::search(
+                    &mut done,
+                    Ty(i),
+                    &mut fuel,
+                    &mut |t| if t == Ty(1000) { Ty(0) } else { t },
+                    &mut expand
+                ),
+                Ok(Some(Ty(0)))
+            );
+        }
+        assert_eq!(expanded, 1000);
+        assert_eq!(fuel.spent(), 1001);
+    }
+
+    #[test]
+    fn exhaustion_does_not_cache_an_unfinished_graph_as_valid() {
+        let mut done = HashMap::default();
+        let mut expand = |t: Ty| vec![Ty(t.0 + 1)];
+        let mut fuel = Fuel::new(20);
+        assert_eq!(
+            ProjectionCycles::search(&mut done, Ty(0), &mut fuel, &mut |t| t, &mut expand),
+            Err(())
+        );
+        assert!(done.is_empty());
+    }
 }

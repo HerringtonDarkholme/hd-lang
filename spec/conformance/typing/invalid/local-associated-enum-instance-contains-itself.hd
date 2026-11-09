@@ -1,0 +1,12 @@
+# data.enum.no-recursion, trait.assoc.projection: use the impl visible at the local declaration.
+trait Source:
+    type Item
+
+enum Holder[S < Source]:
+    Empty
+    Full(value: S::Item)
+
+pub fn main() -> void:
+    struct Provider: pass
+    impl Source for Provider: # diagnostic: recursive-value-type
+        type Item = Holder[Provider]

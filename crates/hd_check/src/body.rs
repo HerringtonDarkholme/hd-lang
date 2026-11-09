@@ -4823,10 +4823,42 @@ impl Ck<'_, '_> {
         self.opt_in_obligations()?;
         self.tuple_plan_steps()?;
         let open = self.b.body_mut().ty.clone();
+        // Inferred instances are concrete only after the obligations settle.
+        // This memo belongs to this finalization, never a speculative trial.
+        let mut cycles = crate::value::ProjectionCycles::default();
+        let mut cycle_scope = self.hidden.clone();
+        let cycle_at = self.at;
+        let local_impls = self
+            .cx
+            .locals
+            .iter()
+            .any(|l| l.kind == hd_resolve::HeadKind::Impl);
         for i in 0..n {
+            let syn = self.b.body().syn[i];
+            if local_impls && syn != hd_base::NodeIdx::NONE {
+                let node = self.cx.src.parse.tree.node(syn);
+                self.move_to(self.cx.src.span(node).lo);
+                if self.hidden != cycle_scope {
+                    cycles = crate::value::ProjectionCycles::default();
+                    cycle_scope.clone_from(&self.hidden);
+                }
+            }
             let t = self.b.body_mut().ty[i];
             let z = self.zonk(t);
             self.b.body_mut().ty[i] = z;
+            if syn != hd_base::NodeIdx::NONE && !self.diags.has_errors() {
+                let node = self.cx.src.parse.tree.node(syn);
+                let view = self.cx.impls.hiding(&self.hidden);
+                match cycles.check_nested(pool, self.cx.lookup, Impls::Owned(&view), z, &mut self.fuel) {
+                    Ok(true) => self.err(Code::RecursiveValueType, node,
+                        "this instance contains itself by value through an associated payload; use a counted reference (`*`) to break the cycle"),
+                    Err(()) => return out_of_fuel(),
+                    Ok(false) => {}
+                }
+            }
+        }
+        if local_impls {
+            self.move_to(cycle_at);
         }
         for i in 0..self.b.body_mut().local_ty.len() {
             let t = self.b.body_mut().local_ty[i];
