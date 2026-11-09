@@ -130,6 +130,18 @@ impl LTy {
         }
     }
 
+    /// Whether the value has no bytes on the wire and no Wasm values:
+    /// `void`, or a record of such fields, as a struct with no fields.
+    /// Its codecs do nothing, so a caller emits no call to them.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        match self {
+            LTy::Void => true,
+            LTy::Record(fields) => fields.iter().all(LTy::is_empty),
+            _ => false,
+        }
+    }
+
     /// Whether a host handle is in the value: it only crosses from the
     /// host.
     #[must_use]
@@ -284,9 +296,8 @@ fn of_at(
                             .into_iter()
                             .map(|f| subst(pool, env, def, args, f))
                             .collect();
-                        if fields.is_empty() {
-                            return unsupported(what());
-                        }
+                        // A struct with no fields crosses as an empty
+                        // record: no bytes and no Wasm values.
                         let mut out = Vec::new();
                         for f in fields {
                             out.push(of_at(input, m, f, depth + 1, at)?);
@@ -1405,6 +1416,9 @@ fn copy(f: &mut Func, off: u32, n: u32, out: bool, at: impl FnOnce(&mut Func)) {
 /// Calls `b`'s encoder at local `off` over the values `get` pushes, and
 /// advances `off`.
 fn enc_call(f: &mut Func, off: u32, b: &LTy, get: impl FnOnce(&mut Func)) {
+    if b.is_empty() {
+        return;
+    }
     f.get(off);
     get(f);
     f.helper(Helper::Enc(b.clone()));
@@ -1414,6 +1428,9 @@ fn enc_call(f: &mut Func, off: u32, b: &LTy, get: impl FnOnce(&mut Func)) {
 /// Calls `b`'s decoder at local `off`, advances `off`, and stores the
 /// values in fresh locals, which it returns.
 fn dec_into(f: &mut Func, off: u32, b: &LTy) -> Vec<u32> {
+    if b.is_empty() {
+        return Vec::new();
+    }
     f.get(off);
     f.helper(Helper::Dec(b.clone()));
     f.set(off);

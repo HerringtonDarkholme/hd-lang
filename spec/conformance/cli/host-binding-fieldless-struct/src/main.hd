@@ -1,0 +1,21 @@
+# Spec Modules, Boundary-Safe Values: module.boundary.allowed (a struct with no fields).
+pub struct Empty: pass
+
+pub struct Wrap:
+    pub before: i32
+    pub e: Empty
+    pub after: string
+
+pub enum Pick:
+    Nothing
+    One(e: Empty, n: i32)
+
+@host
+pub trait Surface:
+    fn render(&self, alone: Empty, wrap: Wrap, pick: Pick, many: List[Empty]) -> (Empty, Wrap, Pick, List[Empty])
+
+pub fn main() -> void $ Surface + Console:
+    let (_, wrap, pick, many) = $.use(Surface).render(Empty {}, Wrap { before: +1, e: Empty {}, after: "z" }, Pick.One(Empty {}, +7), [Empty {}, Empty {}])
+    match pick:
+        .One(_, n) => println("${wrap.before} ${wrap.after} $n ${many.len()}")
+        .Nothing => println("none")

@@ -1,0 +1,27 @@
+# test: a struct with no fields crosses a host boundary out of hd and back in, alone and inside other values
+# Spec Modules, Boundary-Safe Values: module.boundary.allowed.
+# fixture-runtime-profile: serde-vault
+pub struct Empty: pass
+
+pub enum Pick:
+    Nothing
+    One(e: Empty, n: i32)
+
+pub struct Token:
+    pub before: i32
+    pub alone: Empty
+    pub pick: Pick
+    pub many: List[Empty]
+    pub after: string
+
+pub trait Vault:
+    fn keep(self, token: Token) -> Token
+
+pub fn main() -> void $ Vault:
+    sent := Token { before: +1, alone: Empty {}, pick: Pick.One(Empty {}, +7), many: [Empty {}, Empty {}], after: "z" }
+    back := $.use(Vault).keep(sent)
+    if back.before != +1 || back.after != "z" || back.many.len() != 2:
+        panic("the fields around the empty struct changed")
+    match back.pick:
+        .One(_, n) if n == +7 => pass
+        _ => panic("the payload was lost")

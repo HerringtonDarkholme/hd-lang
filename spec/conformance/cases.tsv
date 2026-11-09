@@ -6240,6 +6240,7 @@ typing/invalid/a-cast-of-a-pointer-payload-names-the-pointer.hd	type	reject:not-
 typing/invalid/a-cast-of-a-captured-pointer-names-the-pointer.hd	type	reject:not-callable	lang/04-type-system.md#r-types.cast.nonnumeric
 typing/invalid/a-cast-in-a-suspending-function-names-the-reference.hd	type	reject:not-callable	lang/04-type-system.md#r-types.cast.nonnumeric
 runtime/valid/a-cast-reads-through-an-explicit-star-in-every-position.hd	runtime	accept	lang/13-values-and-references.md#r-ref.read.auto.explicit
+runtime/valid/boundary-fieldless-struct-crosses.hd	runtime	accept	lang/10-modules.md#r-module.boundary.allowed
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

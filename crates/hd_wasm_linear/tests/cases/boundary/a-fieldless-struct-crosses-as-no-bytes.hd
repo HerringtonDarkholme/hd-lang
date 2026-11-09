@@ -1,0 +1,23 @@
+# @dump: wat
+# @build: program
+# @profile: serde-vault
+# @helpers: hd:Vault/keep enc dec
+# expected: `Empty` adds no codec instruction and no Wasm value; the
+# codecs write and read only `before` and the `Pick` tag and payload `n`
+# (#1548).
+pub struct Empty: pass
+
+pub enum Pick:
+    Nothing
+    One(e: Empty, n: i32)
+
+pub struct Token:
+    pub before: i32
+    pub alone: Empty
+    pub pick: Pick
+
+pub trait Vault:
+    fn keep(self, token: Token) -> Token
+
+pub fn main() -> void $ Vault:
+    _ := $.use(Vault).keep(Token { before: +1, alone: Empty {}, pick: Pick.One(Empty {}, +7) })
