@@ -533,11 +533,9 @@ pub fn subst(pool: &InternPool, env: &dyn ProgramEnv, item: DefId, args: TyList,
     let s = substitute(pool, env, item, args, t);
     let s = reveal(pool, env, s).unwrap_or(Ty::POISON);
     if pool.has_assoc(s) {
+        // An impl's binding may name a function type with a dependency map.
         let types = pool.types();
-        let cell = env.ref_cells();
-        let source = types.raise_refs(cell, s);
-        let normalized = hd_types::solver::normalize_concrete(types, env.impls(), source);
-        types.erase_fn_deps(normalized)
+        types.erase_fn_deps(hd_types::solver::normalize_concrete(types, env.impls(), s))
     } else {
         s
     }
@@ -606,7 +604,6 @@ fn opaque_result(
     let n = env.trait_arity(trait_);
     let trait_args = pool.list(rest.get(..n)?);
     let types = pool.types();
-    let cell = env.ref_cells();
     let (universe, global) = env.solving();
     let penv = ParamEnv::default();
     let mut memo = BodyMemo::default();
@@ -624,14 +621,8 @@ fn opaque_result(
             &mut cx,
             ConcreteTraitRef(TraitRef {
                 trait_,
-                self_ty: types.raise_refs(cell, self_ty),
-                args: types.list(
-                    &pool
-                        .list_items(trait_args)
-                        .iter()
-                        .map(|&t| types.raise_refs(cell, t))
-                        .collect::<Vec<_>>(),
-                ),
+                self_ty,
+                args: trait_args,
             }),
         )
         .ok()?
@@ -2325,18 +2316,10 @@ impl Cx<'_> {
         } else {
             // Impl heads name `&T`, as bodies and declarations do. The
             // arguments below unify the head with `self_ty`.
-            let cell = env.ref_cells();
-            let types = self.pool.types();
             let tref = ConcreteTraitRef(TraitRef {
                 trait_,
-                self_ty: types.raise_refs(cell, self_ty),
-                args: types.list(
-                    &types
-                        .list_items(trait_args)
-                        .iter()
-                        .map(|a| types.raise_refs(cell, *a))
-                        .collect::<Vec<_>>(),
-                ),
+                self_ty,
+                args: trait_args,
             });
             let (universe, global) = env.solving();
             let mut cx = SolveCx {

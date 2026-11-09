@@ -1444,12 +1444,10 @@ impl InlineEnv for Env<'_> {
         {
             return None;
         }
-        let cell = self.run.known.ref_cells();
-        let raised: Vec<Ty> = args.iter().map(|&a| types.raise_refs(cell, a)).collect();
         let tref = TraitRef {
             trait_,
-            self_ty: types.raise_refs(cell, self_ty),
-            args: types.list(&raised),
+            self_ty,
+            args: types.list(args),
         };
         let (universe, global) = self.solving();
         let mut cx = SolveCx {

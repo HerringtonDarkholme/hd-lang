@@ -285,8 +285,7 @@ fn adt_of_ref(body: &Body, value: u32, env: &dyn StructureEnv) -> Option<(DefId,
         *body.ty.get(value as usize)?
     };
     let pool = env.pool();
-    let raised = pool.types().raise_refs(env.ref_cells(), ty);
-    let TyData::Ref { inner, .. } = pool.get(raised) else {
+    let TyData::Ref { inner, .. } = pool.get(ty) else {
         return None;
     };
     match pool.get(inner) {
