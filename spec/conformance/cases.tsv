@@ -6198,6 +6198,7 @@ typing/invalid/a-method-call-needs-its-whole-receiver-type-before-lookup.hd	type
 typing/invalid/a-method-reference-needs-its-whole-receiver-type-before-lookup.hd	type	reject:cannot-infer-type	lang/09-traits.md#r-trait.resolve.lookup.unknown-receiver
 typing/invalid/an-inherent-method-name-does-not-infer-an-unknown-receiver.hd	type	reject:cannot-infer-type	lang/09-traits.md#r-trait.resolve.lookup.unknown-receiver
 typing/valid/an-earlier-type-allows-a-method-call-and-reference.hd	type	accept	lang/09-traits.md#r-trait.resolve.lookup
+typing/invalid/a-method-name-does-not-choose-a-collect-target.hd	type	reject:cannot-infer-type	std/iter.md#r-std-iter.collect.no-default
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

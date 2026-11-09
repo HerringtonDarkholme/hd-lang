@@ -1,0 +1,7 @@
+# test: a method name does not choose an unknown collect target
+# std Iterators, What Collect Builds: std-iter.collect.no-default.
+# language Method Resolution: trait.resolve.lookup.unknown-receiver.
+
+fn count(words: List[string]) -> usize:
+    names := words.iter().collect()
+    names.len() # diagnostic: cannot-infer-type
