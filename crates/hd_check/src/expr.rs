@@ -4039,7 +4039,7 @@ impl Ck<'_, '_> {
             // copy and advances with no trait value.
             _ => {
                 let iterable = self.cx.names.known.iterable;
-                let (r, t) = self.trait_call(iterable, "iter", sr, st, &[], src)?;
+                let (r, t, args) = self.trait_call_inferred(iterable, "iter", sr, st, &[], src)?;
                 let t = self.normalize_deep(t)?;
                 let t = self.resolved(self.infer.resolve(pool, t));
                 // A source already reported, or one with no `Iterable`
@@ -4047,9 +4047,10 @@ impl Ck<'_, '_> {
                 if pool.has_poison(t) || pool.has_poison(self.infer.resolve(pool, st)) {
                     return Ok(self.poison_value(e));
                 }
-                let Some(item) = self.iterator_item(t)? else {
-                    return unsupported("an `iter` result that does not implement `Iterator`");
-                };
+                // `Iterable[T]::IntoIter` is bounded by `Iterator[T]`
+                // (`flow.for.iterable.noncopy-cursor`); header checking
+                // validates that bound, so its item is this call's `T`.
+                let item = pool.list_items(args)[0];
                 (self.cursor_ref(r, t, src), t, item)
             }
         };

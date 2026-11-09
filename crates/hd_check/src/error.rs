@@ -319,7 +319,7 @@ impl Target<'_, '_> {
                 let r = self.read(ck, p, vi, 0, t);
                 let r = ck.eq_operand_ref((r, t, false), node);
                 let display = names.known.display;
-                Ok(ck.trait_call(display, "to_string", r, t, &[], node)?.0)
+                Ok(ck.trait_call_args(display, "to_string", r, t, &[], node)?.0)
             }
             _ => {
                 let name = self
@@ -360,7 +360,7 @@ impl Target<'_, '_> {
             let r = self.read(ck, p, vi, 0, t);
             let r = ck.eq_operand_ref((r, t, false), node);
             let error = ck.cx.names.known.error;
-            let (c, ct) = ck.trait_call(error, "source", r, t, &[], node)?;
+            let (c, ct) = ck.trait_call_args(error, "source", r, t, &[], node)?;
             return Ok(ck.coerce(c, ct, ret, node, "a cause", ExpectPosition::General));
         }
         let Some(c) = v.cause() else {

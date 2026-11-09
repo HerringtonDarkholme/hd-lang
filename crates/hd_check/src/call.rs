@@ -5016,18 +5016,6 @@ impl Ck<'_, '_> {
     }
 
     /// `trait_.name(recv, args...)` for operators, `Display` and `iter`.
-    pub(crate) fn trait_call(
-        &mut self,
-        trait_: DefId,
-        name: &str,
-        recv: Ref,
-        rt: Ty,
-        args: &[(Ref, Ty, NodeRef<'_>)],
-        n: NodeRef<'_>,
-    ) -> StageResult<(Ref, Ty)> {
-        self.trait_call_args(trait_, name, recv, rt, args, n)
-    }
-
     pub(crate) fn trait_call_args(
         &mut self,
         trait_: DefId,
@@ -5037,6 +5025,21 @@ impl Ck<'_, '_> {
         args: &[(Ref, Ty, NodeRef<'_>)],
         n: NodeRef<'_>,
     ) -> StageResult<(Ref, Ty)> {
+        let (r, t, _) = self.trait_call_inferred(trait_, name, recv, rt, args, n)?;
+        Ok((r, t))
+    }
+
+    /// The same call with its inferred trait arguments. A language
+    /// desugaring such as `for` uses the trait's item type directly.
+    pub(crate) fn trait_call_inferred(
+        &mut self,
+        trait_: DefId,
+        name: &str,
+        recv: Ref,
+        rt: Ty,
+        args: &[(Ref, Ty, NodeRef<'_>)],
+        n: NodeRef<'_>,
+    ) -> StageResult<(Ref, Ty, TyList)> {
         let pool = self.pool();
         let method = self.cx.names.member(trait_, PathKind::Member, name);
         let sig = self.sig_of(method)?;
@@ -5069,7 +5072,7 @@ impl Ck<'_, '_> {
             .into_iter()
             .map(|x| self.infer.resolve(pool, x))
             .collect();
-        let tv = targs.clone();
+        let tv = targs;
         let tl = pool.list(&tv);
         let inst = |x: Ty| {
             let x = pool.subst(x, &|p: ParamRef| {
@@ -5097,10 +5100,11 @@ impl Ck<'_, '_> {
             trait_,
             method,
             self_ty: t,
-            targs: pool.list(&targs),
+            targs: tl,
             choice,
         };
-        Ok(self.emit_call(&c, &refs, ret, sig.suspends, false, n))
+        let (r, t) = self.emit_call(&c, &refs, ret, sig.suspends, false, n);
+        Ok((r, t, tl))
     }
 
     // ------------------------------------------------------------ projections
