@@ -552,10 +552,8 @@ impl Ck<'_, '_> {
         if self.is_poison_name(&text) {
             return Ok(self.poison_value(n));
         }
-        if let Some(Named::Item(def)) = self.scope_name(&text)
-            && let Some(v) = self.declaration_value(def, &text, want, n)?
-        {
-            return Ok(v);
+        if let Some(Named::Item(def)) = self.scope_name(&text) {
+            return self.declaration_value(def, &text, want, n);
         }
         let msg = format!("`{text}` is not defined{}", self.name_hint(&text));
         self.err(Code::UnknownName, n, &msg);
@@ -564,45 +562,43 @@ impl Ck<'_, '_> {
 
     /// The declaration `def`, written as `name`, used as a value: a
     /// function, or a struct without fields. A type, alias or trait is
-    /// an error (`names.type-as-value`); `None` for any other declaration.
+    /// an error (`names.type-as-value`).
     pub(crate) fn declaration_value(
         &mut self,
         def: DefId,
         name: &str,
         want: Option<Ty>,
         n: NodeRef<'_>,
-    ) -> StageResult<Option<(Ref, Ty)>> {
+    ) -> StageResult<(Ref, Ty)> {
         if let Some(item) = self.cx.lookup.item(def) {
             if let ItemData::Fn(sig, _) = &item.data {
                 let sig = sig.clone();
-                return self.item_value(def, &sig, &[], want, n).map(Some);
+                return self.item_value(def, &sig, &[], want, n);
             }
             if let ItemData::Struct(fields, _) = &item.data
                 && fields.is_empty()
             {
                 let t = self.ctor(def, &[], n);
                 let rec = self.b.refs_record(&[]);
-                return Ok(Some((
-                    self.b.emit(Tag::NewStruct, NONE, rec, t, n.index()),
-                    t,
-                )));
+                return Ok((self.b.emit(Tag::NewStruct, NONE, rec, t, n.index()), t));
             }
         }
         Ok(self.type_as_value(def, name, n))
     }
 
     /// `names.type-as-value`: a type, alias or trait `def`, written as
-    /// `name`, used as a value; `None` for any other declaration.
-    fn type_as_value(&mut self, def: DefId, name: &str, n: NodeRef<'_>) -> Option<(Ref, Ty)> {
-        let kind = self.kind_of_item(def)?;
-        let what = match kind {
-            HeadKind::Trait => "a trait",
-            k if k.is_type() => "a type",
-            _ => return None,
+    /// `name`, used as a value.
+    fn type_as_value(&mut self, def: DefId, name: &str, n: NodeRef<'_>) -> (Ref, Ty) {
+        let what = match self.kind_of_item(def) {
+            Some(HeadKind::Trait) => "a trait",
+            Some(k) if k.is_type() => "a type",
+            // ruled out: header scopes/exports bind functions, types and traits;
+            // callers handle functions, and path_value handles member paths.
+            _ => return self.poison_value(n),
         };
         let msg = format!("`{name}` is {what}, not a value");
         self.err(Code::TypeUsedAsValue, n, &msg);
-        Some((Ref(NONE), Ty::POISON))
+        (Ref(NONE), Ty::POISON)
     }
 
     /// `f::[T]` as a value, or a member's `Owner::name::[T]`: `n` is
@@ -633,10 +629,7 @@ impl Ck<'_, '_> {
             let sig = sig.clone();
             return self.item_value(def, &sig, &explicit, want, n);
         }
-        match self.type_as_value(def, &segs.join("."), n) {
-            Some(v) => Ok(v),
-            None => unsupported("this declaration with type arguments used as a value"),
-        }
+        Ok(self.type_as_value(def, &segs.join("."), n))
     }
 
     /// `names.module.other-module.value`: a path that names nothing.
@@ -3325,12 +3318,7 @@ impl Ck<'_, '_> {
                     self.missing_export(m, name, n);
                     return Ok(Some((Ref(NONE), Ty::POISON)));
                 };
-                if let Some(v) = self.declaration_value(def, name, want, n)? {
-                    return Ok(Some(v));
-                }
-                let msg = format!("`{name}` is not a value");
-                self.err(Code::UnknownName, n, &msg);
-                Ok(Some((Ref(NONE), Ty::POISON)))
+                self.declaration_value(def, name, want, n).map(Some)
             }
             Some(Named::Item(def)) if self.is_enum_head(def) => {
                 let t = self.ctor(def, &[], n);

@@ -163,12 +163,7 @@ impl Ck<'_, '_> {
                         let sig = sig.clone();
                         return self.item_value(def, &sig, method_targs, want, n);
                     }
-                    if let Some(v) = self.declaration_value(def, &name, want, n)? {
-                        return Ok(v);
-                    }
-                    let msg = format!("`{name}` is not a value");
-                    self.err(Code::UnknownName, n, &msg);
-                    return Ok((Ref(NONE), Ty::NEVER));
+                    return self.declaration_value(def, &name, want, n);
                 }
                 Some(Named::Item(def)) => match self.kind_of_item(def) {
                     Some(HeadKind::Trait) => {
