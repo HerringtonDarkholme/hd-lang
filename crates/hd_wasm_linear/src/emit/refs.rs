@@ -931,7 +931,10 @@ impl Em<'_, '_, '_> {
                 self.read_part(i, r, &value, part)?;
             } else {
                 let declared = self.declared_referent(&p, d)?;
-                self.read_path(i, r, declared, steps)?;
+                // ruled out: steps follow last_through's final Elem/Deref.
+                let (at, ty) = self.walk_steps(At::Mem(r, 0), declared, steps)?;
+                self.push_at(&at, ty)?;
+                self.store(i)?;
             }
             return Ok(());
         }
@@ -1014,21 +1017,6 @@ impl Em<'_, '_, '_> {
         self.store(dest)
     }
 
-    /// Reads a payload path from the value reference `at` names: a boxed
-    /// enum's payload in its cell, a flat enum's at its offset
-    /// ([`Em::walk_steps`]).
-    fn read_path(&mut self, dest: u32, at: u32, ty: Ty, steps: &[Proj]) -> StageResult<()> {
-        if steps
-            .iter()
-            .any(|step| matches!(step, Proj::Deref | Proj::Elem(_)))
-        {
-            return unsupported("a payload read through this reference");
-        }
-        let (place, place_ty) = self.walk_steps(At::Mem(at, 0), ty, steps)?;
-        self.push_at(&place, place_ty)?;
-        self.store(dest)
-    }
-
     /// Pushes the value that the reference in local `at` names, with
     /// counts of its own ([`rt::ref_load`]).
     fn load_through(&mut self, at: u32, value: &RefLayout) {
@@ -1103,6 +1091,8 @@ impl Em<'_, '_, '_> {
             match fields(&p.proj[d + 1..]) {
                 Some(fs) if fs.is_empty() => self.deref_write_at(r, target, v)?,
                 Some(fs) => self.deref_field_write_at(r, target, &fs, v)?,
+                // ruled out: checker stores use fields, not variant paths;
+                // pattern payload writes dereference their borrowed binding.
                 None => return unsupported("a payload write through a reference"),
             }
             return Ok(());
@@ -1113,6 +1103,8 @@ impl Em<'_, '_, '_> {
             At::Vals(ls) if !rooted => Dst::Locals(ls),
             At::Globals(h, first, vals) => Dst::Globals(*h, *first, vals),
             _ => {
+                // ruled out: local/global stores were handled above; a
+                // rooted store reaches memory through its Elem or Deref.
                 let Some((a, lv)) = self.at_leaves(&at, ty)? else {
                     return unsupported("a store into a place in no memory");
                 };
@@ -1155,6 +1147,8 @@ impl Em<'_, '_, '_> {
         let tag = self.b.tags[i as usize];
         let t = self.at_root_ty(p.root);
         let at = match (p.root, last) {
+            // ruled out: rooted stores have an Elem/Deref; the checker
+            // borrows a pattern payload rather than storing a Variant path.
             (_, None) if tag == Tag::Store && self.rooted_at(i) => {
                 return unsupported("a store into a place in no memory");
             }
@@ -1174,6 +1168,8 @@ impl Em<'_, '_, '_> {
                         self.f.get(ls[0]);
                     }
                     PlaceRoot::Value(r) => self.comp(r.0, 0)?,
+                    // ruled out: globals take the rooted walk above;
+                    // inst_tag handles Ptr, and invariant 20 excludes Frame.
                     _ => return unsupported("a dereference of a binding's or a frame's place"),
                 }
                 self.f.set(x);
@@ -1193,10 +1189,13 @@ impl Em<'_, '_, '_> {
                 self.note_stored(h, t, Some((slot, m.leaves)))?;
                 return self.at_root(p.root).map(Some);
             }
+            // ruled out: address_globals reserves every Ref's global root.
             (PlaceRoot::Global(def, _), None) if self.def_slot(def).is_none() => {
                 return unsupported("a top-level binding without its static slot");
             }
             (root, None) if tag == Tag::Ref => return self.at_root(root).map(Some),
+            // ruled out: checked stores address a local/global or go
+            // through a reference/element; inst_tag handles raw pointers.
             _ => return unsupported("a store into a place that is not writable"),
         };
         Ok(Some((at, t)))
@@ -1341,6 +1340,7 @@ impl Em<'_, '_, '_> {
                 Ok((At::Mem(z.at, z.off), self.ty_of(r.0)))
             }
             PlaceRoot::Value(r) => Ok((At::Vals(self.local_value_of(r.0)?), self.ty_of(r.0))),
+            // ruled out: invariant 20 excludes Frame; inst_tag handles Ptr.
             _ => unsupported("a place rooted at a frame slot or a pointer's target"),
         }
     }
@@ -1359,6 +1359,8 @@ impl Em<'_, '_, '_> {
                     signed: false,
                 },
             ),
+            // ruled out: address/header callers have one word; trait loan
+            // callers extract the data word separately in data_address.
             _ => return unsupported("an address step from a value of several parts"),
         };
         let x = self.f.local(Val::I32);
@@ -1387,6 +1389,8 @@ impl Em<'_, '_, '_> {
     fn push_at(&mut self, at: &At, ty: Ty) -> StageResult<()> {
         match self.at_leaves(at, ty)? {
             None => {
+                // ruled out: only stores create At::Globals; value walks
+                // load globals into locals in at_root before push_at.
                 let At::Vals(ls) = at else {
                     return unsupported("a value in no locals");
                 };
@@ -1432,6 +1436,8 @@ impl Em<'_, '_, '_> {
             match at {
                 At::Mem(a, off) => At::Mem(a, off + field),
                 At::Vals(ls) => At::Vals(flat.selection(v, f).iter().map(|&p| ls[p]).collect()),
+                // ruled out: only stores create At::Globals, and the
+                // checker writes payloads through their borrowed binding.
                 At::Globals(..) => return unsupported("a payload field in Wasm globals"),
             }
         };
@@ -1556,18 +1562,17 @@ impl Em<'_, '_, '_> {
                 Proj::Elem(_) => ty = self.elem(ty)?.0,
                 Proj::Deref => match self.kind(ty) {
                     Kind::Ref { target, .. } => ty = target,
+                    // ruled out: checker projections dereference reference
+                    // types; substitution preserves that outer constructor.
                     _ => return unsupported("a dereference of a value that is no reference"),
                 },
                 Proj::Variant(v) => {
+                    // ruled out: the checker pairs Variant/Field; callers
+                    // split paths only at Elem/Deref or the end of the place.
                     let Some(&Proj::Field(f)) = steps.get(k + 1) else {
                         return unsupported("a variant without its payload field");
                     };
-                    let tys = self.try_variant_tys(ty).unwrap_or_default();
-                    ty = tys
-                        .get(v as usize)
-                        .and_then(|fs| fs.get(f as usize))
-                        .copied()
-                        .unwrap_or(Ty::VOID);
+                    ty = self.variant_tys(ty)?[v as usize][f as usize];
                     k += 1;
                 }
             }
@@ -1587,12 +1592,16 @@ impl Em<'_, '_, '_> {
                     k += 1;
                 }
                 Proj::Variant(v) => {
+                    // ruled out: the checker pairs Variant/Field; callers
+                    // split paths only at Elem/Deref or the end of the place.
                     let Some(&Proj::Field(f)) = steps.get(k + 1) else {
                         return unsupported("a variant without its payload field");
                     };
                     (at, ty) = self.at_variant(at, ty, v, f)?;
                     k += 2;
                 }
+                // ruled out: walk_place splits before each Elem; the other
+                // callers pass the suffix after last_through's final step.
                 Proj::Elem(_) => return unsupported("an element among a walk's plain steps"),
                 Proj::Deref => match self.kind(ty) {
                     Kind::Ref {
@@ -1603,6 +1612,9 @@ impl Em<'_, '_, '_> {
                         ty = target;
                         k += 1;
                     }
+                    // ruled out: checked Deref has a reference type. Trait
+                    // values have no fields; terminal fat reads/refs are
+                    // handled in place_read/counted_ref, not walked through.
                     _ => {
                         return unsupported(
                             "a step through a trait value reference or a value that is no reference",
@@ -1644,6 +1656,8 @@ impl Em<'_, '_, '_> {
             TyData::Ref { inner, .. } => Some(inner),
             _ => None,
         };
+        // ruled out: callers use last_through's successful thin Ref step;
+        // erasing newtypes preserves its declared reference constructor.
         declared.map_or_else(
             || unsupported("a dereference of a value that is not a reference"),
             Ok,
