@@ -22,7 +22,6 @@ use super::value::{Dst, Src};
 use crate::layout::{Kind, Leaf, Part, Walk, mem as mem_of, struct_mem, walk};
 use crate::module::{EMPTY, HEAP, Val, mem};
 use crate::rt::{self, Helper, LIST_ELEMS, LIST_LEN, RefLayout};
-use crate::unsupported;
 
 /// A value-backed root after globals and raw-pointer instructions split off.
 #[derive(Clone, Copy)]
@@ -519,7 +518,7 @@ impl Em<'_, '_, '_> {
             return Ok(None);
         }
         let (at, _) = self.walk_place(i, &p, d, None)?;
-        let reference = self.at_i32(&at)?;
+        let reference = self.at_i32(&at);
         let helper = Helper::MapUnique {
             entry: self.entry(target)?.2,
         };
@@ -558,7 +557,7 @@ impl Em<'_, '_, '_> {
     pub(super) fn place_header(&mut self, word: u32) -> StageResult<(u32, Ty, Option<At>)> {
         let p = self.place(word);
         let (at, ty) = self.walk_place(NONE, &p, p.proj.len(), None)?;
-        let h = self.at_i32(&at)?;
+        let h = self.at_i32(&at);
         Ok((h, ty, (!matches!(at, At::Vals(_))).then_some(at)))
     }
 
@@ -607,7 +606,7 @@ impl Em<'_, '_, '_> {
         let (at, ty, from) = match self.last_through(&p)? {
             Some((d, Some((target, false)))) => {
                 let (at, _) = self.walk_place(NONE, &p, d, None)?;
-                let r = self.at_i32(&at)?;
+                let r = self.at_i32(&at);
                 (At::Mem(r, 0), target, d + 1)
             }
             Some(_) => {
@@ -738,18 +737,18 @@ impl Em<'_, '_, '_> {
             from += 1;
             (at, ty) = match (p.proj[upto], through) {
                 (Proj::Elem(ix), _) if self.rooted_at(i) => {
-                    let b = self.at_i32(&at)?;
+                    let b = self.at_i32(&at);
                     let (et, slot) = self.elem_slot(b, ty, ix.0)?;
                     (At::Mem(slot, LIST_ELEMS), et)
                 }
                 (Proj::Elem(ix), _) if self.is_map(ty) => {
-                    let h = self.at_i32(&at)?;
+                    let h = self.at_i32(&at);
                     let (vt, a) = self.map_value_at(h, ty, ix.0)?;
                     (At::Mem(a, 0), vt)
                 }
                 (Proj::Elem(ix), _) => {
                     let (et, e) = self.elem(ty)?;
-                    let b = self.at_i32(&at)?;
+                    let b = self.at_i32(&at);
                     let a = self.f.local(Val::I32);
                     self.f.get(b);
                     // An element of no bytes lies at no address of its own;
@@ -778,7 +777,7 @@ impl Em<'_, '_, '_> {
                     if fat {
                         (at, target)
                     } else {
-                        (At::Mem(self.at_i32(&at)?, 0), target)
+                        (At::Mem(self.at_i32(&at), 0), target)
                     }
                 }
             };
@@ -964,7 +963,7 @@ impl Em<'_, '_, '_> {
                 self.store(i)?;
                 return Ok(());
             }
-            let r = self.at_i32(&at)?;
+            let r = self.at_i32(&at);
             let value = self.ref_layout(target)?;
             if fields.as_ref().is_some_and(Vec::is_empty) {
                 // A loan is the leaves its place holds, or, for an enum a
@@ -1160,7 +1159,7 @@ impl Em<'_, '_, '_> {
         // (`type-mismatch`).
         if let Some((d, Some((target, _)))) = last {
             let (at, _) = self.walk_place(i, &p, d, start)?;
-            let r = self.at_i32(&at)?;
+            let r = self.at_i32(&at);
             let path = fields(&p.proj[d + 1..]);
             // ruled out: checker stores use fields, not variant paths;
             // pattern payload writes dereference their borrowed binding.
@@ -1419,27 +1418,29 @@ impl Em<'_, '_, '_> {
 
     /// A local holding the one 32-bit value at `at`: a list buffer, a
     /// reference, or a boxed enum's address.
-    pub(super) fn at_i32(&mut self, at: &At) -> StageResult<u32> {
-        let (base, leaf) = match at {
-            At::Vals(ls) if ls.len() == 1 => return Ok(ls[0]),
-            At::Mem(a, off) => (
-                *a,
+    pub(super) fn at_i32(&mut self, at: &At) -> u32 {
+        let (base, leaf) = match at.value() {
+            ValueAt::Vals(ls) => {
+                // ruled out: address/header callers have one word; trait
+                // loans extract their data word separately in data_address.
+                assert_eq!(ls.len(), 1, "an address has exactly one word");
+                return ls[0];
+            }
+            ValueAt::Mem(a, off) => (
+                a,
                 Leaf {
-                    offset: *off,
+                    offset: off,
                     val: Val::I32,
                     bytes: 4,
                     signed: false,
                 },
             ),
-            // ruled out: address/header callers have one word; trait loan
-            // callers extract the data word separately in data_address.
-            _ => return unsupported("an address step from a value of several parts"),
         };
         let x = self.f.local(Val::I32);
         self.f.get(base);
         self.f.op(leaf.load(0));
         self.f.set(x);
-        Ok(x)
+        x
     }
 
     /// The address and leaves of a rooted store's required memory place.
@@ -1494,7 +1495,7 @@ impl Em<'_, '_, '_> {
         let ft = self.variant_tys(ty)[v][f];
         let field = flat.offsets[v][f];
         let at = if matches!(self.kind(ty), Kind::Boxed) {
-            At::Mem(self.at_i32(at)?, field)
+            At::Mem(self.at_i32(at), field)
         } else {
             match at.value() {
                 ValueAt::Mem(a, off) => At::Mem(a, off + field),
@@ -1576,7 +1577,7 @@ impl Em<'_, '_, '_> {
             };
             // A map's value at entry `ix` (`ref.elem.map`).
             if self.is_map(ty) {
-                let h = self.at_i32(&at)?;
+                let h = self.at_i32(&at);
                 let (vt, a) = self.map_value_at(h, ty, ix.0)?;
                 at = At::Mem(a, 0);
                 ty = vt;
@@ -1584,7 +1585,7 @@ impl Em<'_, '_, '_> {
                 continue;
             }
             let (et, e) = self.elem(ty)?;
-            let b = self.at_i32(&at)?;
+            let b = self.at_i32(&at);
             // The first element of a list, which a loop's range proof may
             // cover.
             let proven = lead == Some(k) && self.proven_list_indices.contains(&i);
@@ -1653,7 +1654,7 @@ impl Em<'_, '_, '_> {
                     // ruled out: trait values have no fields; terminal fat
                     // reads/refs run in place_read/counted_ref, not this walk.
                     debug_assert!(!fat);
-                    at = At::Mem(self.at_i32(&at)?, 0);
+                    at = At::Mem(self.at_i32(&at), 0);
                     ty = target;
                 }
             }
