@@ -121,10 +121,6 @@ pub trait ProgramEnv: LayoutEnv {
     fn generics_owner(&self, def: DefId) -> DefId;
     /// An impl's head: self type, trait arguments, parameter count.
     fn impl_head(&self, impl_: DefId) -> Option<(Ty, TyList, usize)>;
-    /// The seeded reference carriers (`hd_types::RefCells`), which no
-    /// type names any more; selection still raises them
-    /// (`hd_types::Types::raise_refs`).
-    fn ref_cells(&self) -> hd_types::RefCells;
     /// The suspension type `Suspend[T]`, a suspending call's cold value.
     fn suspend_def(&self) -> DefId;
     /// The compiler-known `std.rt.Drop` trait and its one method. `None`

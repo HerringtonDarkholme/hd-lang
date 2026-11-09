@@ -222,15 +222,6 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
                 true,
                 ItemData::Fn(sig, intrinsic(names, "box")),
             ));
-            // The data types `&T` (`Ref`), `&mut T` (`RefMut`), `*T`
-            // (`Counted`) and `*mut T` (`CountedMut`) once lowered to. No
-            // type names them any more. Not visible to programs.
-            for name in ["Ref", "RefMut", "Counted", "CountedMut"] {
-                let cell = names.item(module, name);
-                let mut it = Item::new(cell, sym(names, name), false, ItemData::Builtin);
-                it.generics = gens(names, &["T"]);
-                out.push(it);
-            }
         }
         "std.task" => {
             item("Suspend", gens(names, &["T"]), ItemData::Builtin);

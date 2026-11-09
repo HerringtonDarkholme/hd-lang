@@ -1130,7 +1130,7 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   into a cell because the passes keep a cell local alive over every use of
   what may point into it (`hd_tir/src/own/frame.rs`, the origin rule, and
   in a suspending body the frame holding the cell). Such a reference is a
-  local reference (`Ref[T]`, `whole_object_refs`), whose count walk is
+  local reference (`&T`), whose count walk is
   none; a count of a slot's address does nothing, as its count word
   is zero. A reference through a parameter's referent keeps the lent
   rule (`ref_word::LENT`): the caller keeps that referent alive for the

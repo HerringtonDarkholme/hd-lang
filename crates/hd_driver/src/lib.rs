@@ -12411,9 +12411,6 @@ impl ProgramEnv for Env<'_> {
             _ => None,
         }
     }
-    fn ref_cells(&self) -> hd_types::RefCells {
-        self.run.known.ref_cells()
-    }
     fn suspend_def(&self) -> DefId {
         self.run.known.suspend
     }

@@ -90,8 +90,8 @@ impl SealedTraits {
 /// What a nominal type's declaration is, as the rows read it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TypeDecl {
-    /// A std type the compiler declares (`List`, `Map`, `Suspend`, the
-    /// reference carriers), or no type declaration.
+    /// A std type the compiler declares (`List`, `Map`, `Suspend`), or no
+    /// type declaration.
     Builtin,
     /// A `struct`: a value type (`types.value.struct`).
     Struct,

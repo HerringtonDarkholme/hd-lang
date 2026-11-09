@@ -603,9 +603,8 @@ pub enum ItemData {
     },
     Newtype(Ty),
     /// A std type the compiler declares, with rules of its own and no
-    /// written declaration: `List` and `Map` (`types.coll.*`), `Suspend`
-    /// (`types.suspend`), and the reference carriers
-    /// ([`crate::KnownItems::ref_cells`]). Not a struct.
+    /// written declaration: `List` and `Map` (`types.coll.*`) and `Suspend`
+    /// (`types.suspend`). Not a struct.
     Builtin,
 }
 

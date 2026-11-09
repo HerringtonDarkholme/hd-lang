@@ -23,15 +23,6 @@ pub struct KnownItems {
     /// `List.is_empty`, whose result is known for a generated empty facts list.
     pub list_is_empty: DefId,
     pub map: DefId,
-    /// The carrier a reference type lowers to for the backend
-    /// (`hd_resolve::seed`, `crates/hd_wasm_linear/DESIGN.md` §15.2 "References").
-    pub ref_cell: DefId,
-    /// The carrier `&mut T` lowers to.
-    pub ref_mut_cell: DefId,
-    /// The carrier a counted reference type lowers to (§23.30).
-    pub counted_cell: DefId,
-    /// The carrier `*mut T` lowers to.
-    pub counted_mut_cell: DefId,
     // std.function
     pub function_module: PathId,
     /// The `Fn[I, O, $R]` trait. In a type position the same declaration
@@ -203,16 +194,6 @@ impl KnownItems {
         matches!(item.data, crate::ItemData::Struct(_, _))
     }
 
-    /// The four seeded reference carriers, which no type names any more.
-    #[must_use]
-    pub fn ref_cells(&self) -> hd_types::RefCells {
-        hd_types::RefCells {
-            local: self.ref_cell,
-            local_mut: self.ref_mut_cell,
-            counted: self.counted_cell,
-            counted_mut: self.counted_mut_cell,
-        }
-    }
     /// The sealed traits the solver's compiler-supplied rows answer
     /// (`crates/hd_check/DESIGN.md` (trait solver) §3.9).
     #[must_use]
@@ -290,10 +271,6 @@ impl KnownItems {
             ptr: item("std.rt.memory", "Ptr"),
             drop_trait,
             drop_method: trait_method(drop_trait, "drop"),
-            ref_cell: item("std.core", "Ref"),
-            ref_mut_cell: item("std.core", "RefMut"),
-            counted_cell: item("std.core", "Counted"),
-            counted_mut_cell: item("std.core", "CountedMut"),
             function_module: module("std.function"),
             fn_trait,
             fn_call: trait_method(fn_trait, "call"),

@@ -74,8 +74,6 @@ fn every_known_item_is_declared() {
         ("result", known.result),
         ("list", known.list),
         ("map", known.map),
-        // The four reference carriers (`ref_cell` and the rest) are left out: private seeded items
-        // (`hd_resolve::seed`), which no interface carries.
         ("tuple", known.tuple),
         ("structure", known.structure),
         ("field", known.field),
