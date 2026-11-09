@@ -1,0 +1,36 @@
+# test: indirect calls preserve tuple and enum parameters and local reference addresses
+# Spec Functions: fn.type.ctor.no-flatten; Values And References: ref.deref.read.
+# expect-stdout: 40
+# expect-stdout: 80
+# expect-stdout: 50
+use std.annotation.inline
+
+enum Weight:
+    Small(value: u32)
+    Large(value: u64, extra: u32)
+
+fn score(pair: (u64, u32), weight: Weight, value: &u32) -> u64:
+    base := pair._0 + u64(pair._1) + u64(*value)
+    amount := match weight:
+        .Small(part) => u64(part)
+        .Large(part, extra) => part + u64(extra)
+    base + amount
+
+fn double(pair: (u64, u32), weight: Weight, value: &u32) -> u64:
+    score(pair, weight, value) * 2
+
+@inline(.Never)
+fn invoke(
+    callback: fn((u64, u32), Weight, &u32) -> u64,
+    pair: (u64, u32),
+    weight: Weight,
+    value: &u32,
+) -> u64:
+    callback(pair, weight, value)
+
+pub fn main() -> void $ Console:
+    let value: u32 = 3
+    for first in [true, false]:
+        let callback: fn((u64, u32), Weight, &u32) -> u64 = if first: score else: double
+        println(invoke(callback, (10, 20), .Small(7), &value))
+    println(invoke(score, (10, 20), .Large(8, 9), &value))

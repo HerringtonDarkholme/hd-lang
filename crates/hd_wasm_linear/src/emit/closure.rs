@@ -23,7 +23,6 @@ use super::value::{Dst, Src};
 use crate::layout::{Mem, Part, Walk, env_mem, mem as mem_of, strip};
 use crate::module::{Sym, Val};
 use crate::rt::Helper;
-use crate::unsupported;
 
 /// Each local of `stored` (a cell or a slot, [`stored_locals`]) mapped
 /// to the instruction of its first store outside any closure that
@@ -514,6 +513,7 @@ impl Em<'_, '_, '_> {
         if !slot {
             self.init_cell_drop(c, self.sub(self.b.local_ty[l]), false);
             self.f.get(c);
+            // ruled out: own::cell_move states the release for this moved local's storage row.
             let Some(reason) = self.operation_count(
                 i,
                 Tag::Release,
@@ -778,13 +778,8 @@ impl Em<'_, '_, '_> {
             ps.extend(self.vals(t)?);
             tys.push(t);
         }
-        let mut have = vec![Val::I32];
-        for r in args {
-            have.extend(self.vals(self.ty_of(*r))?);
-        }
-        if have != ps {
-            return unsupported("a call whose arguments lay out unlike the callee's parameters");
-        }
+        // ruled out: check_args/tuple_inputs_args already coerced each TIR
+        // argument to its parameter type, so their flattened ABIs agree.
         self.comp(callee, 1)?;
         // A suspending value's code counts each argument into its frame.
         let copy = self.operation_count(i, Tag::Retain, hd_tir::ir::count::Part::Arguments);

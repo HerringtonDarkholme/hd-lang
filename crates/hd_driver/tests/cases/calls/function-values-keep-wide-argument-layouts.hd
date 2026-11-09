@@ -1,0 +1,15 @@
+# @dump: wat
+# expected: pass tuple and enum leaves directly with the local reference address;
+# the indirect callee receives one environment and one empty-row context argument.
+enum Weight:
+    Small(value: u32)
+    Large(value: u64, extra: u32)
+
+fn invoke(
+    callback: fn((u64, u32), Weight, &u32) -> u64,
+    pair: (u64, u32),
+    weight: Weight,
+    value: &u32,
+) -> u64:
+    callback(pair, weight, value)
+    #^^^^^^^^^^^^^^^^^^^^^^^^^^^^
