@@ -79,11 +79,11 @@ fn discard(s: string) -> usize:
 >   %34 = Break L1 %33 : never
 >   %35 = Block - : Result[string, SaveError]
 >   %36 = Scope %35 [] : Result[string, SaveError]
->   %37 = Drop [$2] : ()
->   %38 = Block - : ()
->   %40 = Block - : never
->   %41 = Match %36 [%40 %38] : ()
->   %42 = Drop [%36] : ()
+>   %37 = Drop [%36] : ()
+>   %38 = Drop [$2] : ()
+>   %39 = Block - : ()
+>   %41 = Block - : ()
+>   %42 = Scope %39 [] : ()
 >   %22 finds [$2] full
 >   %26 finds [$2] full
     s.len()

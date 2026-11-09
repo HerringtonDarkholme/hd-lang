@@ -1,0 +1,34 @@
+# @dump: wat
+# @build: v8 release
+# A flag that asks itself again (a recursive type's derived flag) has no
+# constant to fold (#1518): the inliner stops at the cycle, so `entry`
+# keeps the call and both arms, and the build terminates.
+trait Fast:
+    fn regular() -> bool
+
+struct A:
+    x: i32
+
+struct Node:
+    x: i32
+
+impl Fast for A:
+    fn regular() -> bool:
+        true
+
+impl Fast for Node:
+    fn regular() -> bool:
+        A::regular() && Node::regular()
+
+fn slow(n: i32) -> string:
+    let mut s = ""
+    for i in 0..n:
+        s = s + "$i,"
+    s
+
+fn pick[T < Fast](n: i32) -> string:
+    if T::regular(): "fast" else: slow(n)
+
+# subject
+fn entry(n: i32) -> string:
+    pick::[Node](n)

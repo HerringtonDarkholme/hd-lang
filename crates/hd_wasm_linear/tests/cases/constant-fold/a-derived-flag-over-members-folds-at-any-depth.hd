@@ -1,0 +1,48 @@
+# @dump: wat
+# @build: v8 release
+# A per-type flag made of its members' flags, as a derive writes it
+# (#1518): each copy that only makes a constant is copied as that
+# constant, so `entry` keeps only the fast arm whatever the depth.
+trait Fast:
+    fn regular() -> bool
+
+struct A:
+    x: i32
+
+struct B:
+    x: i32
+
+struct C:
+    x: i32
+
+struct D:
+    x: i32
+
+impl Fast for A:
+    fn regular() -> bool:
+        true
+
+impl Fast for B:
+    fn regular() -> bool:
+        A::regular() && A::regular() && A::regular()
+
+impl Fast for C:
+    fn regular() -> bool:
+        B::regular() && B::regular() && B::regular() && A::regular()
+
+impl Fast for D:
+    fn regular() -> bool:
+        C::regular() && C::regular() && C::regular() && B::regular()
+
+fn slow(n: i32) -> string:
+    let mut s = ""
+    for i in 0..n:
+        s = s + "$i,"
+    s
+
+fn pick[T < Fast](n: i32) -> string:
+    if T::regular(): "fast" else: slow(n)
+
+# subject
+fn entry(n: i32) -> string:
+    pick::[D](n)

@@ -1282,6 +1282,10 @@ impl InlineEnv for Env<'_> {
         self.run.summaries.as_ref().map(|all| &all.inline)
     }
 
+    fn const_fold(&self) -> bool {
+        self.run.const_fold
+    }
+
     fn module_text(&self, def: DefId) -> std::borrow::Cow<'_, str> {
         self.run.item_module_text(def)
     }
@@ -1745,12 +1749,16 @@ impl Env<'_> {
     /// for an item's own body and for one instance's
     /// (`ProgramEnv::instance_body`) alike: generated structure walks,
     /// then, in release, declaration facts and the constants they decide,
-    /// then the inliner. The result's hash.
+    /// then the inliner, then, where facts folded or the pipeline holds
+    /// `const_fold`, the decisions the result's own values decide (an
+    /// inlined trait method's constant among them, #1518). The result's
+    /// hash: the fold is a function of the inlined body and the pipeline,
+    /// whose hash every code key carries.
     pub(super) fn fold_and_inline(&self, body: &mut Body, hash: Hash128) -> Hash128 {
         let structure = hd_opt::structure_specialize::specialize_calls(self, body, hash);
         let facts = hd_opt::fact_specialize::specialize_calls(self, body, structure);
         let hash = hd_opt::inline::inline_calls(self, body, facts);
-        if facts != structure
+        if (facts != structure || self.run.const_fold)
             && let Some(specialized) = hd_mono::defaults::specialize(body, &[])
         {
             *body = specialized;

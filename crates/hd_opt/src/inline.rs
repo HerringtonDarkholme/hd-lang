@@ -103,6 +103,12 @@ pub trait InlineEnv: ProgramEnv {
     fn call_may_write(&self, _callee: &Callee) -> bool {
         true
     }
+    /// Whether the pipeline holds `const_fold` (#1518): a copy whose only
+    /// effect is one known result is copied as that result
+    /// (`hd_mono::defaults::collapse`), whatever its size.
+    fn const_fold(&self) -> bool {
+        false
+    }
 }
 
 /// A release build's inliner state for one run. Only looked up, never
@@ -484,6 +490,14 @@ impl dyn InlineEnv + '_ {
             });
             if memo.is_some_and(|memo| lock(&memo.recursive).contains(&def)) {
                 return None;
+            }
+            // A copy that only makes a known value is that value, at any
+            // size: a call of it folds, and so do the decisions it makes.
+            if self.const_fold()
+                && let Some(c) =
+                    hd_mono::defaults::collapse(nested.as_ref().map_or(&copy, |n| &n.0))
+            {
+                return Some((c, nested.as_ref().map_or(hash, |n| n.1)));
             }
             match nested {
                 Some((nested, h)) if fits && self.inline_hint(def) != InlineHint::Default => {

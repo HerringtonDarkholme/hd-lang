@@ -1,0 +1,27 @@
+# @dump: wat
+# @build: v8 release
+# A static trait method whose body is a constant decides `pick`'s branch
+# for each instance (#1518): after inlining, `entry` keeps only the fast
+# arm, with no call to `slow` and no test, as `if true:` would.
+trait Fast:
+    fn regular() -> bool
+
+struct A:
+    x: i32
+
+impl Fast for A:
+    fn regular() -> bool:
+        true
+
+fn slow(n: i32) -> string:
+    let mut s = ""
+    for i in 0..n:
+        s = s + "$i,"
+    s
+
+fn pick[T < Fast](n: i32) -> string:
+    if T::regular(): "fast" else: slow(n)
+
+# subject
+fn entry(n: i32) -> string:
+    pick::[A](n)

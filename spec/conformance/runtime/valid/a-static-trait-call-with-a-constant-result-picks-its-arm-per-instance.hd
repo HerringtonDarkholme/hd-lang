@@ -1,0 +1,51 @@
+# test: a static trait call whose result is constant for each instance picks that instance's arm
+# Spec 09 Traits: trait.assoc-call.parameter, trait.assoc-call.parameter.static.
+# expect-stdout: fast 3
+# expect-stdout: slow 0,1,2,
+# expect-stdout: deep 3
+# expect-stdout: mixed 0,1,
+trait Fast:
+    fn regular() -> bool
+
+struct Plain:
+    x: i32
+
+struct Tree:
+    x: i32
+
+struct Pair:
+    x: i32
+
+struct Mixed:
+    x: i32
+
+impl Fast for Plain:
+    fn regular() -> bool:
+        true
+
+impl Fast for Tree:
+    fn regular() -> bool:
+        false
+
+impl Fast for Pair:
+    fn regular() -> bool:
+        Plain::regular() && Plain::regular()
+
+impl Fast for Mixed:
+    fn regular() -> bool:
+        Pair::regular() && !Plain::regular() || Tree::regular()
+
+fn slow(n: i32) -> string:
+    let mut s = ""
+    for i in 0..n:
+        s = s + "$i,"
+    s
+
+fn pick[T < Fast](n: i32) -> string:
+    if T::regular(): "$n" else: slow(n)
+
+pub fn main() -> void $ Console:
+    println("fast ${pick::[Plain](3)}")
+    println("slow ${pick::[Tree](3)}")
+    println("deep ${pick::[Pair](3)}")
+    println("mixed ${pick::[Mixed](2)}")

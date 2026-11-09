@@ -361,6 +361,20 @@ pub static PASSES: &[PassSpec] = &[
         Optional,
         Body(value_flow)
     ),
+    // Constant decisions after inlining (#1518, `hd_mono::defaults::
+    // specialize`): the driver folds each instance body's `if` and `match`
+    // whose operand its own values decide, an inlined trait method's
+    // constant result among them, and drops what they no longer run
+    // before collection reaches it.
+    pass!(
+        "const_fold",
+        TirDecision,
+        [InlinePlan],
+        [],
+        gate::HAS_CALL,
+        Optional,
+        Instance(not_yet)
+    ),
     pass!(
         "devirt_known",
         TirDecision,
@@ -479,6 +493,7 @@ pub static OPTIMIZED: Pipeline = Pipeline {
         "value_flow",
         "use_counts",
         "inline_plan",
+        "const_fold",
         "devirt_known",
         "closure_spec",
         "summaries",
@@ -787,8 +802,8 @@ mod tests {
 
     /// A change to these values changes every code key. Job (c1) changed
     /// both: the hash dropped the pipeline name and gained the knob values
-    /// and the link passes; the release summaries and argument promotion
-    /// changed the optimized one, and only it.
+    /// and the link passes; the release summaries, argument promotion and
+    /// `const_fold` changed the optimized one, and only it.
     #[test]
     fn pipeline_hashes_are_pinned() {
         let dev = validate(&DEV).expect("dev validates").0;
@@ -798,7 +813,7 @@ mod tests {
             "dev"
         );
         assert_eq!(
-            optimized, 321_480_786_636_863_885_057_137_669_080_240_890_939,
+            optimized, 19_408_209_892_203_045_537_533_861_478_783_717_452,
             "optimized"
         );
     }

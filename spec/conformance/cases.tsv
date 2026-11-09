@@ -2078,6 +2078,7 @@ typing/invalid/trait-variance-marker.hd	type	reject:invalid-variance	lang/09-tra
 typing/invalid/inherent-member-unifying-targets.hd	type	reject:duplicate-inherent-member	lang/09-traits.md#r-trait.inherent.unique-unifying
 runtime/valid/inherent-members-disjoint-targets.hd	runtime	accept	lang/09-traits.md#r-trait.inherent.unique-unifying.disjoint
 runtime/valid/associated-function-calls.hd	runtime	accept	lang/09-traits.md#associated-function-calls
+runtime/valid/a-static-trait-call-with-a-constant-result-picks-its-arm-per-instance.hd	runtime	accept	lang/09-traits.md#associated-function-calls
 typing/invalid/associated-function-ambiguous-traits.hd	type	reject:ambiguous-method	lang/09-traits.md#r-trait.assoc-call.type.ambiguous
 typing/valid/dynamic-safety-row-parameter.hd	type	accept	lang/09-traits.md#r-trait.dyn.member.row-parameter
 typing/invalid/least-common-type-supertrait-widening.hd	type	reject:no-common-type	lang/04-type-system.md#r-types.lct.no-supertrait-widening
