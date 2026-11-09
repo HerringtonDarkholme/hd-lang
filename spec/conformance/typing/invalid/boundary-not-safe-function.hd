@@ -1,0 +1,8 @@
+# test: a host capability method cannot take a function: a closure does not cross to the host
+# Spec Modules, Boundary-Safe Values: module.boundary.not-safe.error, module.boundary.not-safe (#1552).
+# fixture-runtime-profile: serde-vault
+pub trait Vault:
+    fn keep(self, f: fn(i32) -> i32) -> i32 # diagnostic: boundary-not-safe
+
+pub fn main() -> void $ Vault:
+    _ := $.use(Vault).keep(fn(x: i32) -> i32: x + 1)

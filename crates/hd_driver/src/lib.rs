@@ -6807,7 +6807,7 @@ impl Run<'_> {
         // checked after the first sweep took the module's reports.
         diags.append(&hd_check::results::module_diags(&cx));
         self.private_headers(&cx, &heads, &mut diags);
-        self.profile_boundaries(&cx, &heads, &mut diags);
+        self.host_boundaries(&cx, &heads, &mut diags);
         self.entry_points(m, &cx, &heads, &mut diags);
         // Each derivation opt-in checks its template's instance
         // (spec 14 `annot.template.checked`, `crates/hd_tir/DESIGN.md` §4.13.9),
@@ -7008,10 +7008,11 @@ impl Run<'_> {
         }
     }
 
-    /// The boundary checks of the host capability traits of the run's
-    /// runtime profile that this module declares
-    /// (`hd_check::header::boundary`, `module.boundary.error`).
-    fn profile_boundaries(
+    /// The boundary checks of the host capability traits this module
+    /// declares, the run's runtime profile's and the package's `@host`
+    /// ones (`hd_check::header::boundary`, `module.boundary.error`,
+    /// `module.boundary.not-safe.error`).
+    fn host_boundaries(
         &self,
         cx: &BodyCx<'_>,
         heads: &[hd_resolve::Head<'_>],
@@ -7037,21 +7038,54 @@ impl Run<'_> {
             session: cx.session,
             fuel: cx.fuel,
         };
-        for it in cx.lookup.own.iter().filter(|it| traits.contains(&it.def)) {
-            let Ok(findings) = hd_check::header::boundary(&hcx, it) else {
-                continue;
-            };
-            for f in findings {
-                let span = hd_resolve::anchor::span_in_module(
-                    &cx.names,
-                    &cx.src,
-                    heads,
-                    cx.lookup.own,
-                    (f.item, f.slot),
-                )
-                .unwrap_or_else(|| self.item_span(f.item, f.slot));
-                diags.error(f.code, span, &f.message);
+        // A returned trait value is a host handle when its trait is the
+        // program's own, or std's host handle trait. A package host's
+        // handle also needs its package identity (`package_value`).
+        let returned = |def: DefId, package: bool| {
+            use hd_check::header::Returned;
+            let path = cx.names.path(def).replace('/', ".");
+            if path.starts_with("std.") {
+                if hd_host_abi::handle_trait(&path).is_some() {
+                    Returned::StdHandle
+                } else {
+                    Returned::NotHandle
+                }
+            } else if !package || self.package_trait_identity(def).is_some() {
+                Returned::Program
+            } else {
+                Returned::NotHandle
             }
+        };
+        let roots: Vec<(DefId, bool)> = cx
+            .lookup
+            .own
+            .iter()
+            .filter_map(|it| {
+                if traits.contains(&it.def) {
+                    Some((it.def, false))
+                } else {
+                    (matches!(it.data, ItemData::Trait(_))
+                        && self.package_host_identity(it.def).is_some())
+                    .then_some((it.def, true))
+                }
+            })
+            .collect();
+        if roots.is_empty() {
+            return;
+        }
+        let Ok(findings) = hd_check::header::boundary(&hcx, &roots, &returned) else {
+            return;
+        };
+        for f in findings {
+            let span = hd_resolve::anchor::span_in_module(
+                &cx.names,
+                &cx.src,
+                heads,
+                cx.lookup.own,
+                (f.item, f.slot),
+            )
+            .unwrap_or_else(|| self.item_span(f.item, f.slot));
+            diags.error(f.code, span, &f.message);
         }
     }
 

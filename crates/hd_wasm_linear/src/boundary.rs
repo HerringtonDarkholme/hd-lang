@@ -290,7 +290,8 @@ fn of_at(
     }
     let int = |bits, signed| LTy::Int { bits, signed };
     // A suspension is a live runtime handle, not boundary-safe
-    // (`module.boundary.not-safe`): it falls to the refusal below.
+    // (`module.boundary.not-safe`): `hd check` rejects one in a host
+    // signature (`module.boundary.not-safe.error`).
     let suspension =
         matches!(pool.get(s), TyData::Adt { def, .. } if env.std_kind(def) == StdKind::Suspend);
     Ok(match pool.get(s) {
@@ -400,17 +401,18 @@ fn of_at(
                 handle_vtable(input, m, def, None, Some(at))?
             } else if let Some(host) = hd_host_abi::handle_trait(&path) {
                 handle_vtable(input, m, def, Some(host), None)?
-            } else if let Some(at) = at
-                && !at.out
-                && !path.starts_with("std.")
-            {
+            } else {
                 // A value of a program's own trait that a profile's host
                 // method returns can only be a handle the profile made.
                 // A method of that trait may return it again: its vtable
                 // is reserved before its slots are built.
-                handle_vtable(input, m, def, None, Some(at))?
-            } else {
-                return unsupported(what());
+                debug_assert!(
+                    at.is_some_and(|a| !a.out) && !path.starts_with("std."),
+                    "ruled out: module.boundary.not-safe.error (hd_check header::boundary) \
+                     rejects a trait value passed to the host and a returned one whose \
+                     trait is std's but not a host handle trait"
+                );
+                handle_vtable(input, m, def, None, at)?
             };
             let release = if at.is_some_and(|a| a.package && !a.out) {
                 (input.package_trait)(def).map(|i| package_module(&i, true))
@@ -662,9 +664,11 @@ pub fn host_slot(
             (Codec::Buffer(_), _) if row.params.len() == 1 && *pt == Ty::STRING => HostArg::Str,
             (Codec::Buffer(_), _) => {
                 let b = of(input, mm, *pt, at.map(|a| AtProfile { out: true, ..a }))?;
-                if b.holds_handle(&mm.named_codecs) {
-                    return unsupported("a host handle passed to the host");
-                }
+                debug_assert!(
+                    !b.holds_handle(&mm.named_codecs),
+                    "ruled out: module.boundary.not-safe.error (hd_check header::boundary) \
+                     rejects a host handle passed to the host; no std host method takes one"
+                );
                 HostArg::Buf(b)
             }
             (Codec::Scalar(_), [v @ (Val::I32 | Val::I64 | Val::F64)]) => HostArg::Scalar(*v),
@@ -2386,9 +2390,10 @@ fn package_value(
             });
         }
         TyData::TraitValue { def, args, .. } if args == TyList::EMPTY => {
-            let Some(identity) = (input.package_trait)(def) else {
-                return fail();
-            };
+            let identity = (input.package_trait)(def).expect(
+                "ruled out: module.boundary.not-safe.error (hd_check header::boundary) rejects \
+                 a package host's returned trait value without a package identity",
+            );
             Value::Handle(package_module(&identity, true))
         }
         _ => return fail(),

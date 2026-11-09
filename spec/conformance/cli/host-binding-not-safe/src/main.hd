@@ -1,0 +1,22 @@
+# Spec Modules, Private Fields At A Boundary: module.boundary.not-safe.error (#1552).
+# A package host trait's signatures name types that cannot cross: each is an error there.
+pub trait Shape:
+    fn area(&self) -> i32
+
+pub trait Node:
+    fn id(&self) -> i32
+
+pub trait Holder[T]:
+    fn get(&self) -> T
+
+@host
+pub trait Surface:
+    fn apply(&self, f: fn(i32) -> i32) -> i32
+    fn borrow(&self, n: &i32) -> i32
+    fn shape(&self, s: *dyn Shape) -> i32
+    fn holder(&self) -> *dyn Holder[i32]
+    fn node(&self) -> *dyn Node
+    fn put(&self, n: *dyn Node) -> void
+
+pub fn main() -> void $ Surface + Console:
+    println("${$.use(Surface).node().id()}")

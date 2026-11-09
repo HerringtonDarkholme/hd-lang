@@ -1,0 +1,9 @@
+# test: a host capability method cannot take a reference to a value
+# Spec Modules, Boundary-Safe Values: module.boundary.not-safe.error (#1552).
+# fixture-runtime-profile: serde-vault
+pub trait Vault:
+    fn keep(self, n: &i32) -> i32 # diagnostic: boundary-not-safe
+
+pub fn main() -> void $ Vault:
+    let n = +1
+    _ := $.use(Vault).keep(&n)

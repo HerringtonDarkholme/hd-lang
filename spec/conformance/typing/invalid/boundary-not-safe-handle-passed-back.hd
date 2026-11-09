@@ -1,0 +1,13 @@
+# test: a host handle a host method returned cannot be passed back to the host
+# Spec Modules, Boundary-Safe Values: module.boundary.not-safe.error (#1552).
+# fixture-runtime-profile: serde-vault
+pub trait Node:
+    fn id(&self) -> i32
+
+pub trait Vault:
+    fn node(self) -> *dyn Node
+    fn keep(self, node: *dyn Node) -> i32 # diagnostic: boundary-not-safe
+
+pub fn main() -> void $ Vault:
+    node := $.use(Vault).node()
+    _ := $.use(Vault).keep(node)

@@ -1,0 +1,10 @@
+# test: a host capability method cannot return the erased error, a std trait value that is not a host handle
+# Spec Modules, Boundary-Safe Values: module.boundary.erased-error, module.boundary.not-safe.error (#1552).
+# fixture-runtime-profile: serde-vault
+use std.error.Error
+
+pub trait Vault:
+    fn keep(self) -> *dyn Error # diagnostic: boundary-not-safe
+
+pub fn main() -> void $ Vault:
+    _ := $.use(Vault).keep()

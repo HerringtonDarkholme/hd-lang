@@ -1,0 +1,17 @@
+# test: a host capability method cannot take a value of the program's own trait
+# Spec Modules, Boundary-Safe Values: module.boundary.not-safe.error, module.boundary.not-safe (#1552).
+# fixture-runtime-profile: serde-vault
+pub trait Shape:
+    fn area(&self) -> i32
+
+pub struct Square:
+    pub side: i32
+
+impl Shape for Square:
+    fn area(&self) -> i32: self.side * self.side
+
+pub trait Vault:
+    fn keep(self, shape: *dyn Shape) -> i32 # diagnostic: boundary-not-safe
+
+pub fn main() -> void $ Vault:
+    _ := $.use(Vault).keep(box(Square { side: +2 }))

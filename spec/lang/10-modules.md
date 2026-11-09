@@ -2503,6 +2503,7 @@ pub trait Vault:  # a host capability of the selected runtime profile
 6. r[module.boundary.public] A struct type whose fields are all `pub` crosses in either direction without either trait. An enum's payloads have no visibility, so they need neither trait.
 7. r[module.boundary.direction] A registered function's arguments cross into hd, and its result crosses out. A host capability method's arguments cross out of hd, and its result crosses in.
 8. r[module.boundary.error] A boundary signature whose type, or a type inside it, would cross without the trait its direction needs is an error, reported at that signature. Error: `boundary-private-field`.
+9. r[module.boundary.not-safe.error] A host capability method signature whose type, or a type inside it, is not boundary-safe is an error, reported at that signature. Such types are a function or closure type, a suspension, a generic trait value, and a local reference `&T` to anything but a host handle. So is any trait value an argument passes to the host, and a returned trait value of a std trait that is not a host handle trait. Error: `boundary-not-safe`.
 
 > **Why.** A host is one more format. A type's `serialize` decides what
 > leaves hd, and only its `deserialize` can rebuild private state on the

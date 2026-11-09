@@ -1356,45 +1356,107 @@ fn sig_tys(sig: &FnSig) -> Vec<Ty> {
     sig.params.iter().map(|p| p.1).chain([sig.ret]).collect()
 }
 
-/// A host capability trait of the run's runtime profile
-/// (`module.profile.definition`): each method's arguments cross out of hd
-/// and its result crosses in (`module.boundary.direction`). A value of a
-/// struct with a field that is not `pub` crosses out only through
-/// `std.serde.Serialize` and in only through `std.serde.Deserialize`
-/// (`module.boundary.out`, `module.boundary.in`). A signature with a type
-/// that would cross without it is an error there, once per signature
-/// (`module.boundary.error`).
-pub fn boundary(cx: &HeaderCx<'_>, trait_: &Item) -> StageResult<Vec<Finding>> {
+/// What a trait value a host method returns is
+/// (`module.boundary.not-safe.error`): the program's own trait, whose
+/// methods cross the boundary as a host handle's; a std host handle
+/// trait, whose methods the host ABI fixes; or neither.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Returned {
+    Program,
+    StdHandle,
+    NotHandle,
+}
+
+/// Why a type in a host signature cannot cross there.
+enum Fault {
+    /// A type with a field that is not `pub` and without the trait its
+    /// direction needs (`module.boundary.error`).
+    Private,
+    /// A type `module.boundary.not-safe` excludes, and why
+    /// (`module.boundary.not-safe.error`).
+    NotSafe(&'static str),
+}
+
+/// A host capability trait (`module.profile.definition`,
+/// `module.host.package.marker`): each method's arguments cross out of hd
+/// and its result crosses in (`module.boundary.direction`), and so do
+/// those of every program trait whose values a method returns as host
+/// handles, and of their supertraits. A signature with a type that would
+/// cross without the trait its direction needs (`module.boundary.error`),
+/// or that is not boundary-safe (`module.boundary.not-safe.error`), is an
+/// error there, once per signature. `roots` are the host traits, each
+/// marked when it is a package's; `returned` says what a trait value its
+/// methods return is, for a package's host or not.
+///
+/// Cost: each trait the walk reaches once, and each signature's distinct
+/// types once per signature.
+pub fn boundary(
+    cx: &HeaderCx<'_>,
+    roots: &[(DefId, bool)],
+    returned: &dyn Fn(DefId, bool) -> Returned,
+) -> StageResult<Vec<Finding>> {
     let mut out = Vec::new();
-    let ItemData::Trait(t) = &trait_.data else {
-        return Ok(out);
-    };
     let serialize = cx.names.item("std.serde", "Serialize");
     let deserialize = cx.names.item("std.serde", "Deserialize");
-    for &(_, m) in &t.methods {
-        let Some(mi) = cx.lookup.item(m) else {
+    let mut traits = roots.to_vec();
+    let mut queued: hd_base::HashSet<DefId> = roots.iter().map(|r| r.0).collect();
+    let mut next = 0;
+    while let Some(&(def, package)) = traits.get(next) {
+        next += 1;
+        let returned = |d| returned(d, package);
+        let Some(ItemData::Trait(t)) = cx.lookup.item(def).map(|i| &i.data) else {
             continue;
         };
-        let Some(sig) = mi.sig() else {
-            continue;
-        };
-        let mut hc = ItemCheck::new(cx, mi, &mut out);
-        let crossing: Vec<(Ty, DefId)> = sig
-            .params
-            .iter()
-            .filter(|p| cx.names.text(p.0) != "self")
-            .map(|p| (p.1, serialize))
-            .chain([(sig.ret, deserialize)])
-            .collect();
-        for (t, tr) in crossing {
-            if let Some(bad) = hc.crosses_without(t, tr, &mut Vec::new())? {
-                let way = if tr == serialize { "out of" } else { "into" };
-                let message = format!(
-                    "{} has a private field and does not implement {}, so it cannot cross {way} hd here",
-                    hc.show(bad),
-                    cx.names.display_name(tr)
+        for sup in &t.supers {
+            if let TyData::TraitValue { def, .. } = cx.names.pool.types().get(*sup)
+                && queued.insert(def)
+            {
+                traits.push((def, package));
+            }
+        }
+        for &(_, m) in &t.methods {
+            let Some(mi) = cx.lookup.item(m) else {
+                continue;
+            };
+            let Some(sig) = mi.sig() else {
+                continue;
+            };
+            let mut hc = ItemCheck::new(cx, mi, &mut out);
+            let crossing: Vec<(Ty, bool)> = sig
+                .params
+                .iter()
+                .filter(|p| cx.names.text(p.0) != "self")
+                .map(|p| (p.1, true))
+                .chain([(sig.ret, false)])
+                .collect();
+            for (t, way_out) in crossing {
+                let tr = if way_out { serialize } else { deserialize };
+                let mut handles = Vec::new();
+                let fault = hc.crossing_fault(t, tr, way_out, &returned, &mut handles)?;
+                traits.extend(
+                    handles
+                        .into_iter()
+                        .filter(|h| queued.insert(*h))
+                        .map(|h| (h, package)),
                 );
-                hc.report(0, Code::BoundaryPrivateField, message);
+                let Some((bad, fault)) = fault else {
+                    continue;
+                };
+                let way = if way_out { "out of" } else { "into" };
+                match fault {
+                    Fault::Private => {
+                        let message = format!(
+                            "{} has a private field and does not implement {}, so it cannot cross {way} hd here",
+                            hc.show(bad),
+                            cx.names.display_name(tr)
+                        );
+                        hc.report(0, Code::BoundaryPrivateField, message);
+                    }
+                    Fault::NotSafe(why) => {
+                        let message = format!("{} cannot cross {way} hd here: {why}", hc.show(bad));
+                        hc.report(0, Code::BoundaryNotSafe, message);
+                    }
+                }
                 break;
             }
         }
@@ -1403,60 +1465,115 @@ pub fn boundary(cx: &HeaderCx<'_>, trait_: &Item) -> StageResult<Vec<Finding>> {
 }
 
 impl ItemCheck<'_, '_> {
-    /// The first type in `t` that has a field that is not `pub` and does
-    /// not implement `tr`. Such a type that implements `tr` crosses as its
-    /// implementation writes or builds it (`module.boundary.serialize.exact`,
-    /// `module.boundary.deserialize.exact`). A struct whose fields are
-    /// all `pub` crosses through its fields, an enum through its payloads
-    /// (`module.boundary.public`), and the other types that may cross
-    /// through their contents (`module.boundary.allowed`).
-    fn crosses_without(&mut self, t: Ty, tr: DefId, seen: &mut Vec<Ty>) -> StageResult<Option<Ty>> {
+    /// The first type in `t`, crossing out of hd when `out`, that cannot
+    /// cross: one that `module.boundary.not-safe` excludes, or one that
+    /// has a field that is not `pub` and does not implement `tr`. Such a
+    /// type that implements `tr` crosses as its implementation writes or
+    /// builds it (`module.boundary.serialize.exact`,
+    /// `module.boundary.deserialize.exact`), so its fields do not cross. A
+    /// struct whose fields are all `pub` crosses through its fields, an
+    /// enum through its payloads (`module.boundary.public`), and the other
+    /// types that may cross through their contents
+    /// (`module.boundary.allowed`). The program traits whose values a
+    /// result returns as host handles go to `handles`.
+    ///
+    /// Cost: one visit per distinct type in `t`, over a worklist, so a
+    /// deeply nested type does not deepen the native stack.
+    fn crossing_fault(
+        &mut self,
+        t: Ty,
+        tr: DefId,
+        out: bool,
+        returned: &dyn Fn(DefId) -> Returned,
+        handles: &mut Vec<DefId>,
+    ) -> StageResult<Option<(Ty, Fault)>> {
         let pool = self.pool();
-        if seen.contains(&t) {
-            return Ok(None);
-        }
-        seen.push(t);
-        let parts: Vec<Ty> = match pool.get(t) {
-            TyData::Tuple { elems, rest } => {
-                pool.list_items(elems).iter().copied().chain(rest).collect()
+        let known = self.cx.names.known;
+        let mut todo = vec![t];
+        let mut seen = hd_base::HashSet::default();
+        while let Some(t) = todo.pop() {
+            if !seen.insert(t) {
+                continue;
             }
-            TyData::Adt { def, args } => {
-                let argv = pool.list_items(args);
-                let sub = |x: Ty| {
-                    pool.subst(x, &|p: ParamRef| {
-                        (p.owner == def).then(|| argv.get(usize::from(p.index)).copied())?
-                    })
-                };
-                let known = self.cx.names.known;
-                match self.cx.lookup.item(def).map(|i| &i.data) {
-                    _ if def == known.list || def == known.map => argv.to_vec(),
-                    Some(ItemData::Struct(fields, _)) => {
-                        if fields.iter().any(|f| !f.public && !f.embedded) {
-                            let bound = pool.intern_ty(&TyData::TraitValue {
-                                def: tr,
-                                args: TyList::EMPTY,
-                                bindings: vec![],
-                            });
-                            return Ok(self.fails(t, bound, 0)?.then_some(t));
+            let not_safe = |why| Ok(Some((t, Fault::NotSafe(why))));
+            let parts: Vec<Ty> = match pool.get(t) {
+                TyData::Fn { .. } => return not_safe("a function or closure is not boundary-safe"),
+                TyData::Ref { inner, counted, .. } => {
+                    let TyData::TraitValue { def, args, .. } = pool.get(inner) else {
+                        // A counted reference crosses as its referent's
+                        // tree (`module.boundary.tree`).
+                        if counted {
+                            todo.push(inner);
+                            continue;
                         }
-                        fields.iter().map(|f| sub(f.ty)).collect()
+                        return not_safe("a local reference is not boundary-safe");
+                    };
+                    if args != TyList::EMPTY {
+                        return not_safe("a generic trait value is not boundary-safe");
                     }
-                    Some(ItemData::Enum {
-                        shared, variants, ..
-                    }) => shared
-                        .iter()
-                        .chain(variants.iter().flat_map(|v| &v.fields))
-                        .map(|f| sub(f.ty))
-                        .collect(),
-                    _ => Vec::new(),
+                    if out {
+                        return not_safe(
+                            "no trait value crosses to the host, neither the program's own nor a host handle",
+                        );
+                    }
+                    match returned(def) {
+                        Returned::Program => handles.push(def),
+                        Returned::StdHandle => {}
+                        Returned::NotHandle => {
+                            return not_safe(
+                                "its trait is not a host handle trait, so it is not boundary-safe",
+                            );
+                        }
+                    }
+                    Vec::new()
                 }
-            }
-            _ => Vec::new(),
-        };
-        for p in parts {
-            if let Some(bad) = self.crosses_without(p, tr, seen)? {
-                return Ok(Some(bad));
-            }
+                TyData::Tuple { elems, rest } => {
+                    pool.list_items(elems).iter().copied().chain(rest).collect()
+                }
+                TyData::Adt { def, args } => {
+                    let argv = pool.list_items(args);
+                    let sub = |x: Ty| {
+                        pool.subst(x, &|p: ParamRef| {
+                            (p.owner == def).then(|| argv.get(usize::from(p.index)).copied())?
+                        })
+                    };
+                    if def == known.suspend {
+                        return not_safe(
+                            "a suspension is a live runtime handle, which is not boundary-safe",
+                        );
+                    }
+                    match self.cx.lookup.item(def).map(|i| &i.data) {
+                        _ if def == known.list || def == known.map => argv.to_vec(),
+                        Some(ItemData::Struct(fields, _)) => {
+                            if fields.iter().any(|f| !f.public && !f.embedded) {
+                                let bound = pool.intern_ty(&TyData::TraitValue {
+                                    def: tr,
+                                    args: TyList::EMPTY,
+                                    bindings: vec![],
+                                });
+                                if self.fails(t, bound, 0)? {
+                                    return Ok(Some((t, Fault::Private)));
+                                }
+                                // It crosses as its implementation writes
+                                // or builds it, not through its fields.
+                                continue;
+                            }
+                            fields.iter().map(|f| sub(f.ty)).collect()
+                        }
+                        Some(ItemData::Enum {
+                            shared, variants, ..
+                        }) => shared
+                            .iter()
+                            .chain(variants.iter().flat_map(|v| &v.fields))
+                            .map(|f| sub(f.ty))
+                            .collect(),
+                        _ => Vec::new(),
+                    }
+                }
+                _ => Vec::new(),
+            };
+            // In source order: the first part is taken first.
+            todo.extend(parts.into_iter().rev());
         }
         Ok(None)
     }

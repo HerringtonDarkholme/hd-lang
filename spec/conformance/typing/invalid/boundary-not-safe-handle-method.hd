@@ -1,0 +1,11 @@
+# test: a returned host handle's method crosses the boundary too, so it cannot take a function
+# Spec Modules, Boundary-Safe Values: module.boundary.not-safe.error (#1552).
+# fixture-runtime-profile: serde-vault
+pub trait Node:
+    fn apply(&self, f: fn(i32) -> i32) -> i32 # diagnostic: boundary-not-safe
+
+pub trait Vault:
+    fn node(self) -> *dyn Node
+
+pub fn main() -> void $ Vault:
+    _ := $.use(Vault).node().apply(fn(x: i32) -> i32: x + 1)
