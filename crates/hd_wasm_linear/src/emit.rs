@@ -2311,7 +2311,7 @@ impl Em<'_, '_, '_> {
             }
             Tag::Unreachable => self.f.op(Instruction::Unreachable),
             Tag::Scope if !self.rec(bw).is_empty() => self.scope(i, a, bw)?,
-            Tag::Defer => self.defer(a)?,
+            Tag::Defer => self.defer(a),
             Tag::Scope => {
                 self.slot(i)?;
                 self.open(Ctl::Plain);

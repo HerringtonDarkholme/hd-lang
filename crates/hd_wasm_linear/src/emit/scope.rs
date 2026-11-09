@@ -15,7 +15,6 @@ use wasm_encoder::BlockType;
 
 use super::{Ctl, Em};
 use crate::module::Val;
-use crate::unsupported;
 
 /// A way out of a cleanup scope.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -164,13 +163,13 @@ impl Em<'_, '_, '_> {
     }
 
     /// `Defer`: suite `s` is registered.
-    pub(super) fn defer(&mut self, s: u32) -> StageResult<()> {
-        let Some(&f) = self.defer_flags.get(&s) else {
-            return unsupported("a `Defer` outside its scope");
-        };
-        self.f.i32(1);
-        self.f.set(f);
-        Ok(())
+    pub(super) fn defer(&mut self, s: u32) {
+        // ruled out: TirBuilder::close_scope records every Defer suite;
+        // scope installs all of their flags before emitting its body.
+        if let Some(&f) = self.defer_flags.get(&s) {
+            self.f.i32(1);
+            self.f.set(f);
+        }
     }
 
     /// Leaves by `e`: to the innermost cleanup scope it crosses, which runs
