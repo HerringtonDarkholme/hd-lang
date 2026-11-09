@@ -1290,8 +1290,9 @@ This section defines which trait methods are usable at a use and how trait
 candidates are reported.
 
 1. r[trait.resolve.lookup] For a receiver of nominal type `S`, `value.method(args)` selects a method with the method lookup in [Member Resolution](03-names-and-scopes.md#member-resolution).
-2. r[trait.resolve.lookup.kinds] That lookup covers inherent methods, trait methods, and promoted methods together.
-3. r[trait.resolve.no-field] It never selects a field.
+2. r[trait.resolve.lookup.unknown-argument] Receiver type arguments that distinguish available candidate traits must be known at the call. Error: `cannot-infer-type`.
+3. r[trait.resolve.lookup.kinds] That lookup covers inherent methods, trait methods, and promoted methods together.
+4. r[trait.resolve.no-field] It never selects a field.
 
 ```hd
 struct Counter:
@@ -1303,6 +1304,27 @@ impl Counter:
 fn demo(c: Counter) -> i32:
     c.read()
 ```
+
+```text
+trait Left:
+    fn choose(self) -> i32
+trait Right:
+    fn choose(self) -> i32
+struct Holder[T]:
+    item: T
+impl Left for Holder[i32]:
+    fn choose(self) -> i32: +1
+impl Right for Holder[string]:
+    fn choose(self) -> i32: +2
+fn unknown[T]() -> Holder[T]: panic("unused")
+fn demo() -> void:
+    value := unknown()
+    _ := value.choose() # error: cannot-infer-type
+    let fixed: Holder[i32] = value
+```
+
+> **Why.** Lookup needs the receiver's type arguments when they choose
+> between traits; later context does not select the trait retroactively.
 
 ### Trait Availability
 
