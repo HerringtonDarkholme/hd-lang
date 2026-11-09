@@ -13,7 +13,6 @@ use crate::op::Op as I;
 use hd_base::StageResult;
 use hd_mono::layout::{CanonMemo, canon};
 use hd_tir::ir::{Tag, count::Part};
-use hd_tir::own::Reason;
 use hd_types::{Ty, TyData, TyList};
 
 use super::Em;
@@ -184,10 +183,12 @@ impl Em<'_, '_, '_> {
         }
         // ruled out: the driver roots std runtime items before collecting a program.
         debug_assert!(self.input.runtime.is_some());
-        let copy = Reason::Stored;
-        // ruled out: own::call_row writes nonempty contexts' copy packet with
-        // reason 0; own::counts verifies that exact adjacent Operation/Row fact.
-        debug_assert_eq!(self.operation_count(i, Tag::Retain, Part::Row), Some(copy));
+        let copy = self.operation_count(i, Tag::Retain, Part::Row);
+        // ruled out: own::call_row states nonempty contexts' provider-copy packet.
+        assert!(
+            copy.is_some(),
+            "own::call_row must state the nonempty context's Retain/Row packet"
+        );
         let mut provs = Vec::new();
         for k in keys {
             provs.push(self.provider(*k)?);
@@ -200,9 +201,11 @@ impl Em<'_, '_, '_> {
         }
         self.f.helper(Helper::CtxNew);
         self.f.set(c);
-        for (j, (k, [d, v])) in keys.iter().zip(provs).enumerate() {
-            let id = key_id(self.input, *k);
-            self.because(copy, |em| em.fill_entry(c, j, id, d, v));
+        if let Some(copy) = copy {
+            for (j, (k, [d, v])) in keys.iter().zip(provs).enumerate() {
+                let id = key_id(self.input, *k);
+                self.because(copy, |em| em.fill_entry(c, j, id, d, v));
+            }
         }
         self.f.get(c);
         Ok(Some(c))
@@ -359,15 +362,17 @@ impl Em<'_, '_, '_> {
         self.f.i32(0);
         self.f.helper(Helper::CtxNew);
         self.f.set(c);
-        let copy = Reason::Stored;
-        // ruled out: own::context gives every nonempty ContextNew record a
-        // reason-0 provider packet; own::counts verifies the exact descriptor.
-        debug_assert!(
-            keys.is_empty() || self.operation_count(i, Tag::Retain, Part::Row) == Some(copy)
+        let copy = self.operation_count(i, Tag::Retain, Part::Row);
+        // ruled out: own::context states the constructed context's provider copies.
+        assert!(
+            keys.is_empty() || copy.is_some(),
+            "own::context must state Retain/Row when concrete context keys are copied"
         );
-        for (j, (k, [d, v])) in keys.iter().zip(provs).enumerate() {
-            let id = key_id(self.input, *k);
-            self.because(copy, |em| em.fill_entry(c, j, id, d, v));
+        if let Some(copy) = copy {
+            for (j, (k, [d, v])) in keys.iter().zip(provs).enumerate() {
+                let id = key_id(self.input, *k);
+                self.because(copy, |em| em.fill_entry(c, j, id, d, v));
+            }
         }
         self.f.get(c);
         self.store_owned(i)
