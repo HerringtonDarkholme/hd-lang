@@ -1,0 +1,14 @@
+# @dump: wat
+# @build: program
+# @profile: serde-vault
+# @helpers: hd:Vault/root hd:Node/next dec
+# expected: `next` decodes its result as a handle of the vtable it is a
+# slot of, one table for `Node`, reserved before its slots (#1551).
+pub trait Node:
+    fn next(&self) -> *dyn Node
+
+pub trait Vault:
+    fn root(self) -> *dyn Node
+
+pub fn main() -> void $ Vault:
+    _ := $.use(Vault).root().next()

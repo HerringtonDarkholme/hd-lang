@@ -1,0 +1,17 @@
+# Spec Modules, Package Host Traits: module.host.package.js-values (#1551).
+# A returned handle trait whose method returns the same trait.
+pub trait Node:
+    fn depth_of(&self) -> i32
+    fn next(&self) -> *dyn Node
+
+@host
+pub trait Surface:
+    fn root(&self) -> *dyn Node
+
+pub fn main() -> void $ Surface + Console:
+    let node = $.use(Surface).root()
+    let i = +0
+    while i < 3:
+        node = node.next()
+        i += 1
+    println("${node.depth_of()}")

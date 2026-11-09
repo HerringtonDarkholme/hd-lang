@@ -2,9 +2,9 @@
 //! the profile declares itself: a handle the profile made
 //! (`module.resource.closed`, spec/conformance/README.md "Runtime Profiles").
 //! It crosses as its number, and its methods are imported from
-//! `hd:<Trait>` by name with the number first. A handle trait that one
-//! of its own called methods returns does not cross. A method no code
-//! calls is imported by no one.
+//! `hd:<Trait>` by name with the number first, including a method that
+//! returns its own trait (#1551). A method no code calls is imported by
+//! no one.
 
 use hd_base::SliceSort as _;
 use hd_cache::{CacheStore, MemoryStore};
@@ -209,16 +209,23 @@ fn a_returned_profile_trait_value_is_a_handle_whose_methods_take_its_number() {
 }
 
 #[test]
-fn a_handle_trait_that_its_own_method_returns_stops_at_link() {
+fn a_handle_trait_that_its_own_method_returns_links() {
     let text = format!(
         "{FILES}    fn again(&mut self) -> *mut dyn FileHandle\n{MAIN}    let _ = handle.again()\n"
     );
     let out = build(&text, &["Files", "FileHandle"]);
-    assert!(out.wasm.is_none());
-    assert!(
-        out.render().contains("which a method of its own returns"),
-        "{}",
-        out.render()
+    assert!(!out.diags.has_errors(), "{}", out.render());
+    let wasm = out.wasm.as_deref().expect("the program links (#1551)");
+    assert_eq!(
+        profile_imports(wasm),
+        [
+            "hd:FileHandle again",
+            "hd:FileHandle close",
+            "hd:FileHandle read.finish",
+            "hd:FileHandle read.start",
+            "hd:Files open.finish",
+            "hd:Files open.start",
+        ]
     );
 }
 

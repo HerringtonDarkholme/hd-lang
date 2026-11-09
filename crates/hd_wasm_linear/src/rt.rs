@@ -1132,7 +1132,6 @@ fn profile_vtable(
     let at = crate::boundary::AtProfile {
         codecs: &input.collected.boundary,
         out: false,
-        handles: &[],
         package: package.is_some(),
         arguments: None,
     };

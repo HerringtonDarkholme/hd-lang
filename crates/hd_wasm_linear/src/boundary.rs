@@ -176,13 +176,11 @@ impl LTy {
 }
 
 /// A runtime profile's boundary: the host codecs its private-field types
-/// cross through, whether the value leaves hd, and the profile handle
-/// traits whose slots enclose it, innermost last.
+/// cross through, and whether the value leaves hd.
 #[derive(Clone, Copy)]
 pub struct AtProfile<'a> {
     pub codecs: &'a BoundaryMap,
     pub out: bool,
-    pub handles: &'a [DefId],
     /// Package adapters use nominal namespaces, including returned handles.
     pub package: bool,
     /// The concrete owner arguments of an inherited method, Self first.
@@ -312,20 +310,7 @@ fn of_at(
         TyData::TraitValue { def, args, .. } if args == TyList::EMPTY => {
             let path = (input.path)(def).replace('/', ".");
             let vtable = if let Some(at) = at.filter(|a| a.package && !a.out) {
-                if at.handles.contains(&def) {
-                    return unsupported(format!("the self-returning host handle trait `{path}`"));
-                }
-                let handles = [at.handles, &[def]].concat();
-                handle_vtable(
-                    input,
-                    m,
-                    def,
-                    None,
-                    Some(AtProfile {
-                        handles: &handles,
-                        ..at
-                    }),
-                )?
+                handle_vtable(input, m, def, None, Some(at))?
             } else if let Some(host) = hd_host_abi::handle_trait(&path) {
                 handle_vtable(input, m, def, Some(host), None)?
             } else if let Some(at) = at
@@ -334,19 +319,9 @@ fn of_at(
             {
                 // A value of a program's own trait that a profile's host
                 // method returns can only be a handle the profile made.
-                // Its slots' own results are built here too, so a trait
-                // that one of its methods returns cannot cross.
-                if at.handles.contains(&def) {
-                    return unsupported(format!(
-                        "the host handle trait `{path}`, which a method of its own returns"
-                    ));
-                }
-                let handles = [at.handles, &[def]].concat();
-                let inner = AtProfile {
-                    handles: &handles,
-                    ..at
-                };
-                handle_vtable(input, m, def, None, Some(inner))?
+                // A method of that trait may return it again: its vtable
+                // is reserved before its slots are built.
+                handle_vtable(input, m, def, None, Some(at))?
             } else {
                 return unsupported(what());
             };
@@ -854,6 +829,29 @@ fn args_area(input: &Input<'_>, types: &[Ty]) -> StageResult<Elem> {
 /// capability's module; a runtime profile's own trait imports them from
 /// `hd:<Trait>` by name, with every argument and result in the buffer.
 fn handle_vtable(
+    input: &Input<'_>,
+    m: &mut Module,
+    trait_: DefId,
+    host: Option<&hd_host_abi::HostTrait>,
+    at: Option<AtProfile<'_>>,
+) -> StageResult<usize> {
+    let package = at.is_some_and(|a| a.package);
+    // One vtable per handle trait and boundary, reserved before its slots
+    // are built: a slot whose result is a handle of a trait being built,
+    // its own included, names the reserved table (#1551).
+    let memo = (trait_, package, at.and_then(|a| a.arguments));
+    if let Some(&k) = m.handle_vtables.get(&memo) {
+        return Ok(k);
+    }
+    let reserved = m.vtable_reserve();
+    m.handle_vtables.insert(memo, reserved.index());
+    let built = handle_vtable_slots(input, m, trait_, host, at)?;
+    Ok(reserved.fill(m, built))
+}
+
+/// The vtable [`handle_vtable`] reserves for `trait_`: built, and then
+/// moved into the reserved index.
+fn handle_vtable_slots(
     input: &Input<'_>,
     m: &mut Module,
     trait_: DefId,

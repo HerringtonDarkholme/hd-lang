@@ -1000,6 +1000,37 @@ impl Session {
     }
 }
 
+/// A vtable index held by [`Module::vtable_reserve`] until
+/// [`ReservedVtable::fill`] consumes it.
+#[must_use]
+pub struct ReservedVtable(usize);
+
+impl ReservedVtable {
+    /// The reserved index, for slots that refer to it.
+    #[must_use]
+    pub fn index(&self) -> usize {
+        self.0
+    }
+
+    /// Makes this reserved vtable the table `built`, which
+    /// [`Module::vtable_full`] has just returned, and returns its index.
+    /// Only [`Module::vtable_reserve`] makes a [`ReservedVtable`], and this
+    /// consumes it, so each reservation is filled exactly once.
+    pub fn fill(self, m: &mut Module, built: usize) -> usize {
+        let k = self.0;
+        m.reserved_vtables.remove(&k);
+        // A table that is new is the last one: it moves into `k`, dropping
+        // the placeholder. One that deduplicated into an older table is
+        // copied, since that one stays.
+        if built + 1 == m.vtables.len() && built > k {
+            m.vtables.swap_remove(k);
+        } else if built != k {
+            m.vtables[k] = m.vtables[built].clone();
+        }
+        k
+    }
+}
+
 /// The module under construction.
 #[derive(Default)]
 pub struct Module {
@@ -1025,6 +1056,14 @@ pub struct Module {
     /// Static vtables: each one's slots, then the vtables of its direct
     /// supertraits, then async and blocking drive slots (§23.39), after the data.
     vtables: Vec<(Vec<SymId>, Vec<usize>, Vec<SymId>)>,
+    /// Vtables [`Module::vtable_reserve`] holds for a table whose slots
+    /// are still being built: no other table deduplicates into one.
+    reserved_vtables: hd_base::HashSet<usize>,
+    /// Host handle vtables by trait, package boundary and inherited
+    /// arguments (`boundary::handle_vtable`). Each is reserved before its
+    /// slots are built, so a handle method that returns its own trait
+    /// names the table being built (#1551).
+    pub handle_vtables: hd_base::HashMap<(hd_base::DefId, bool, Option<hd_types::TyList>), usize>,
     /// The bang methods that some call awaits at once through a trait
     /// value, whose vtables carry a drive slot (§23.39).
     pub driven: hd_base::HashSet<hd_base::DefId>,
@@ -1264,11 +1303,25 @@ impl Module {
             parents,
             drives.into_iter().map(|s| self.symbols.intern(s)).collect(),
         );
-        if let Some(k) = self.vtables.iter().position(|x| *x == v) {
+        if let Some(k) = self
+            .vtables
+            .iter()
+            .enumerate()
+            .position(|(k, x)| *x == v && !self.reserved_vtables.contains(&k))
+        {
             return k;
         }
         self.vtables.push(v);
         self.vtables.len() - 1
+    }
+
+    /// A vtable index whose table [`ReservedVtable::fill`] supplies later,
+    /// for a table whose own slots refer to it.
+    pub fn vtable_reserve(&mut self) -> ReservedVtable {
+        self.vtables.push(Default::default());
+        let k = self.vtables.len() - 1;
+        self.reserved_vtables.insert(k);
+        ReservedVtable(k)
     }
 
     /// Builds the helpers that the exports reach, to a fixed point, and
@@ -1850,15 +1903,32 @@ impl Module {
         while !self.data.len().is_multiple_of(4) {
             self.data.push(0);
         }
-        let mut vtable_at = Vec::new();
-        let mut data_relocations = Vec::new();
+        // Every vtable's address first: a reserved handle vtable
+        // (`Module::vtable_reserve`) is numbered before its parents.
+        // ruled out: static data fits a 32-bit Wasm memory.
+        let mut vtable_at = Vec::with_capacity(self.vtables.len());
+        let mut at = STATIC_BASE + u32::try_from(self.data.len()).expect("static data");
         for v in &self.vtables {
-            vtable_at.push(STATIC_BASE + u32::try_from(self.data.len()).expect("static data"));
+            vtable_at.push(at);
+            // One 4-byte word per slot, parent and drive slot.
+            for _ in v.0.iter().chain(&v.2) {
+                at += 4;
+            }
+            for _ in &v.1 {
+                at += 4;
+            }
+        }
+        let mut data_relocations = Vec::new();
+        for (v, at) in self.vtables.iter().zip(&vtable_at) {
+            assert_eq!(
+                self.data.len(),
+                (*at - STATIC_BASE) as usize,
+                "ruled out: the prefix sum above counts each vtable's words"
+            );
             for s in &v.0 {
                 let k = slot(s, &mut slots)?;
                 self.data.extend_from_slice(&k.to_le_bytes());
             }
-            // A parent is always numbered before the vtables that name it.
             for p in &v.1 {
                 if previous.is_some() {
                     data_relocations.push(u32::try_from(self.data.len()).expect("data relocation"));
