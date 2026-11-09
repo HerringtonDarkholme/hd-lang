@@ -4053,8 +4053,10 @@ impl Em<'_, '_, '_> {
             (Val::F32 | Val::F64, Val::I32 | Val::I64) => {
                 self.float_to_int(from, tbits, tsigned);
             }
-            (a, b) if a == b => {}
-            _ => return unsupported("this numeric conversion"),
+            (Val::I32, Val::I32)
+            | (Val::I64, Val::I64)
+            | (Val::F32, Val::F32)
+            | (Val::F64, Val::F64) => {}
         }
         // An integer cast keeps the target's low bits (`types.cast.wrap`).
         if !tfloat && !float {
@@ -4163,7 +4165,24 @@ impl Em<'_, '_, '_> {
             (PrimOp::Le, true) => I::F32Le,
             (PrimOp::Gt, true) => I::F32Gt,
             (PrimOp::Ge, true) => I::F32Ge,
-            _ => return unsupported(format!("the float operator {op:?} (job 3, #540)")),
+            // ruled out: `&&`, `||` and `!` on a float, and the bit and
+            // shift operators, fail checking: only `bool` and the sealed
+            // `Integer` types implement them (`trait.sealed.integer`), and
+            // `Conv` and `Pow`/`Rem` are lowered above.
+            (
+                PrimOp::And
+                | PrimOp::Or
+                | PrimOp::BitAnd
+                | PrimOp::BitOr
+                | PrimOp::BitXor
+                | PrimOp::Shl
+                | PrimOp::Shr
+                | PrimOp::Not
+                | PrimOp::Conv
+                | PrimOp::Rem
+                | PrimOp::Pow,
+                _,
+            ) => unreachable!("ruled out: the operator {op:?} on a float"),
         });
         Ok(())
     }
