@@ -273,6 +273,10 @@ fn body_func<'a>(
     if b.kind == BodyKind::Init && sub == 0 {
         em.init_key = Some(key);
     }
+    let reentry = (sub == 0 && input.coinductive_flags.contains(&key)).then(|| Reentry::new(key));
+    if let Some(guard) = &reentry {
+        guard.enter(&mut em, &input.path, item);
+    }
     if let Some(cell) = &once {
         if b.kind == BodyKind::Handle {
             em.static_cells = Some(key);
@@ -324,7 +328,7 @@ fn body_func<'a>(
     }
     // Once-cells also need the common exit when their result is uncounted:
     // every return must publish the cached value and end fact evaluation.
-    em.counting = em.counts_anything() || once.is_some();
+    em.counting = em.counts_anything() || once.is_some() || reentry.is_some();
     let mut held: Vec<(usize, Vec<u32>)> = em.locals.iter().map(|(k, v)| (*k, v.clone())).collect();
     held.sort_stable();
     if em.counting {
@@ -510,6 +514,9 @@ fn body_func<'a>(
     if let Some(cell) = &once {
         cell.leave(&mut em, ret)?;
     }
+    if let Some(guard) = &reentry {
+        guard.leave(&mut em.f);
+    }
     if em.f.local_names.is_some() {
         let mut named: Vec<(usize, Vec<u32>)> =
             em.locals.iter().map(|(k, v)| (*k, v.clone())).collect();
@@ -544,6 +551,62 @@ fn body_func<'a>(
         None
     };
     susp::finish(em, key, &plocals, &params, ret, closure, held)
+}
+
+/// The evaluating flag of a flag method on a call cycle
+/// (`annot.bound.recursive.flag`): a call that finds it set is a call made
+/// while the same instance evaluates, and answers `true` at once; any
+/// other sets it for the body's run. This is co-SLD resolution's rule
+/// (Simon, Gupta et al., ICLP 2006), a call that meets its own ancestor
+/// succeeds, which for a body that only joins the cycle's results with
+/// `&&` and `||` is their greatest fixpoint. Cost: a global read and two
+/// writes per call of such a method, none for any other.
+struct Reentry {
+    flag: Global,
+}
+
+impl Reentry {
+    fn new(key: Hash128) -> Self {
+        let mut h = hd_base::StableHasher::new("coinductive-flag");
+        h.hash(key);
+        Self {
+            flag: Global::Storage(h.finish(), 0, Val::I32),
+        }
+    }
+
+    fn enter(&self, em: &mut Em<'_, '_, '_>, path: &dyn Fn(DefId) -> String, item: DefId) {
+        let Global::Storage(cell, ..) = self.flag else {
+            return;
+        };
+        if em.input.runtime.and_then(|r| r.checked).is_some() {
+            // Teardown zeros the flag between test cases, as a once-cell's.
+            em.m.stored.insert(
+                cell,
+                Stored {
+                    vals: vec![Val::I32],
+                    walk: crate::layout::Walk::Seq(vec![]),
+                    slot: None,
+                },
+            );
+        }
+        if em.m.track_origins {
+            em.m.storage_names
+                .insert(cell, format!("{}#evaluating", path(item)));
+        }
+        em.f.global_get(self.flag);
+        em.f.op(I::If(BlockType::Empty));
+        em.f.i32(1);
+        em.f.op(I::Return);
+        em.f.op(I::End);
+        em.f.i32(1);
+        em.f.global_set(self.flag);
+    }
+
+    /// At the common exit, the result on the stack: the run is over.
+    fn leave(&self, f: &mut Func) {
+        f.i32(0);
+        f.global_set(self.flag);
+    }
 }
 
 /// A facts or structure-handle body owns one cached result per instance.

@@ -1,0 +1,60 @@
+# test: a cycle of flag calls is its greatest fixpoint
+# Rules: annot.bound.recursive.flag.
+# expect-stdout: fast
+# expect-stdout: true false
+# expect-stdout: false false
+# Leaf static `-> bool` method that asks itself again, directly or through
+# another, gets `true` for that inner call, in every build mode; dev used
+# to overflow the stack.
+trait Fast:
+    fn regular() -> bool
+
+struct Leaf:
+    x: i32
+
+struct Tree:
+    x: i32
+
+struct Even:
+    x: i32
+
+struct Odd:
+    x: i32
+
+struct Bad:
+    x: i32
+
+struct Loop:
+    x: i32
+
+impl Fast for Leaf:
+    fn regular() -> bool:
+        true
+
+impl Fast for Tree:
+    fn regular() -> bool:
+        Leaf::regular() && Tree::regular()
+
+impl Fast for Even:
+    fn regular() -> bool:
+        Odd::regular() && Leaf::regular()
+
+impl Fast for Odd:
+    fn regular() -> bool:
+        Even::regular() || Tree::regular()
+
+impl Fast for Bad:
+    fn regular() -> bool:
+        false
+
+impl Fast for Loop:
+    fn regular() -> bool:
+        Bad::regular() && Loop::regular()
+
+fn pick[T < Fast](n: i32) -> string:
+    if T::regular(): "fast" else: "slow $n"
+
+pub fn main() -> void $ Console:
+    println(pick::[Tree](3))
+    println("${Even::regular()} ${Loop::regular()}")
+    println("${Bad::regular()} ${Loop::regular() || Bad::regular()}")

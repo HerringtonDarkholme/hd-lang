@@ -1,0 +1,22 @@
+# @dump: wat
+# A flag method on a call cycle (annot.bound.recursive.flag): its code
+# reads its evaluating flag first and answers a re-entry with `true`, so
+# `Tree::regular()` is `Leaf::regular()` instead of an endless recursion.
+# `Leaf::regular`, on no cycle, keeps plain code.
+trait Fast:
+    fn regular() -> bool
+
+struct Leaf:
+    x: i32
+
+struct Tree:
+    x: i32
+
+impl Fast for Leaf:
+    fn regular() -> bool:
+        true
+
+impl Fast for Tree:
+    # subject
+    fn regular() -> bool:
+        Leaf::regular() && Tree::regular()

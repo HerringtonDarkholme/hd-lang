@@ -232,6 +232,7 @@ The stdlib chapters' terms are in the
 | **fact** | An ordinary value attached to a type, member, or variant for derivations to read. See [Facts](lang/14-annotations.md#facts). |
 | **field lookup** | The steps that resolve `x.name` to one field from a module. See [Field Lookup](lang/03-names-and-scopes.md#field-lookup). |
 | **fixed elements** | The elements of a tuple type other than its rest element. See [`types.tuple.rest.form`](lang/04-type-system.md#r-types.tuple.rest.form). |
+| **flag method** | A static method with no parameters, no requirement row, and a `bool` result; a call of one made while the same instance evaluates is `true`. See [`annot.bound.recursive.flag`](lang/14-annotations.md#r-annot.bound.recursive.flag). |
 | **folder** | The directory that holds a source file, or for a file `x.hd` with child modules, the directory `x/` that holds them; nested directories are separate folders. See [`module.folder.holder`](lang/10-modules.md#r-module.folder.holder). |
 | **folder graph** | A package's folders, with an edge where a file in one folder uses a module in another. It must be acyclic. See [`module.cycle.folder-edge`](lang/10-modules.md#r-module.cycle.folder-edge). |
 | **generic call cycle** | A chain of calls that passes a type parameter on to the callee's type parameters until it reaches itself again. See [`types.generic.call-cycle`](lang/04-type-system.md#r-types.generic.call-cycle). |

@@ -10719,6 +10719,8 @@ impl Run<'_> {
         env.own_program(&instances);
         let mutation_targets =
             || hd_opt::whole::mutation_targets(&self.pool, &env, &env, &instances);
+        let coinductive_flags =
+            hd_opt::whole::coinductive_flags(&env, &instances, &c.collected.calls);
         let input = hd_wasm_linear::Input {
             pool: &self.pool,
             env: &env,
@@ -10741,6 +10743,7 @@ impl Run<'_> {
             host_refs: &c.host_refs,
             own_cx: &env,
             mutation_targets: &mutation_targets,
+            coinductive_flags: &coinductive_flags,
         };
         // A session's build always links: a REPL input over earlier
         // modules imports them.

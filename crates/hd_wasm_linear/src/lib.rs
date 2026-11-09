@@ -404,6 +404,10 @@ pub struct Input<'a> {
     /// types whose existing heap objects can be written, or `None` when any
     /// may. Called only for closed-world optimized release links.
     pub mutation_targets: &'a dyn Fn() -> Option<hd_base::HashSet<Ty>>,
+    /// The flag methods on a call cycle (`hd_opt::whole::coinductive_flags`,
+    /// `annot.bound.recursive.flag`): each one's code answers a call made
+    /// while the same instance is evaluating with `true`.
+    pub coinductive_flags: &'a hd_base::HashSet<Hash128>,
 }
 
 /// The std module whose functions emitted code calls by key, and their

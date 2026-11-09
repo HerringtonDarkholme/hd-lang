@@ -1900,7 +1900,8 @@ See also: [Omitted Members](#omitted-members).
 2. r[annot.bound.declared] A derived implementation also keeps every bound the type declares on its parameters. So `@derive(Eq) struct Pair[T < Eq & Debug]` derives `impl[T < Eq & Debug] Eq for Pair[T]`.
 3. r[annot.bound.omitted] An omitted member contributes no bound.
 4. r[annot.bound.recursive] Recursion is checked coinductively: while checking the members of `Tree[T]`, its own derived implementation is assumed to hold.
-5. r[annot.bound.more] When a member needs more than `T < Trait`, as a `Map[T, V]` member needs `T < Hash`, the error suggests a derivation block whose header states the bounds. Error: `member-not-derivable`.
+5. r[annot.bound.recursive.flag] A **flag method** is a static method with no parameters, no requirement row, and a `bool` result. A call of a flag method made while the same instance is still evaluating evaluates to `true`, in every build mode. So a cycle of flag calls joined by `&&` and `||` evaluates to its greatest fixpoint.
+6. r[annot.bound.more] When a member needs more than `T < Trait`, as a `Map[T, V]` member needs `T < Hash`, the error suggests a derivation block whose header states the bounds. Error: `member-not-derivable`.
 
 ```hd
 @derive(Eq, Debug)
@@ -1910,6 +1911,29 @@ struct Box[T]:
 fn same(a: Box[i32], b: Box[i32]) -> bool:
     a == b   # the derived implementation has T < Eq, and i32 meets it
 ```
+
+```hd
+trait Fast:
+    fn regular() -> bool
+
+struct Leaf:
+    x: i32
+
+struct Tree:
+    x: i32
+
+impl Fast for Leaf:
+    fn regular() -> bool:
+        true
+
+impl Fast for Tree:
+    fn regular() -> bool:
+        Leaf::regular() && Tree::regular()   # the inner call is true, so this is true
+```
+
+> **Why.** A derived per-type flag, such as a format's "this type writes
+> directly", asks each member's flag; a recursive type asks its own. Rust
+> answers its coinductive auto traits (`Send`, `Sync`) the same way.
 
 > **Note.** A derived bound names the trait, as `T < Encode`. When a
 > walker's strengthened bound asks for more, that bound is the obligation
