@@ -1,0 +1,56 @@
+# @dump: wat
+# @build: v8 release
+# A flag that asks another instance of its own function (#1445):
+# `List[Outer]`'s flag asks `Outer`'s, which asks `List[Inner]`'s, then
+# `Inner`'s and `List[i32]`'s. The inliner's cycles are instances, not
+# functions, so none of these is a cycle, every copy folds, and `entry`
+# keeps only the fast arm.
+use std.structure.{Structure, Describer, Variant, Field}
+
+trait Fast:
+    fn regular() -> bool
+
+impl Fast for i32:
+    fn regular() -> bool:
+        true
+
+impl[T < Fast] Fast for List[T]:
+    fn regular() -> bool:
+        T::regular()
+
+struct Probe: pass
+
+impl[S < ?Copy] Describer[S] for Probe:
+    type Error = void
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, void]:
+        .Ok(())
+
+    fn member[F < ?Copy & Fast](&mut self, h: Field[S, F]) -> Result[void, void]:
+        if F::regular(): .Ok(()) else: .Err(())
+
+impl[T < ?Copy] Fast for T by Structure:
+    fn regular() -> bool:
+        let mut p = Probe {}
+        T::describe(&mut p).is_ok()
+
+@derive(Fast)
+struct Inner:
+    tags: List[i32]
+
+@derive(Fast)
+struct Outer:
+    xs: List[Inner]
+
+fn slow(n: i32) -> string:
+    let mut s = ""
+    for i in 0..n:
+        s = s + "$i,"
+    s
+
+fn pick[T < Fast](n: i32) -> string:
+    if T::regular(): "fast" else: slow(n)
+
+# subject
+fn entry(n: i32) -> string:
+    pick::[List[Outer]](n)

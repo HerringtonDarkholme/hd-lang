@@ -130,10 +130,16 @@ pub struct Memo {
     /// own calls copied first, and its hash, or `None` when a call of it
     /// stays (`callee_copy`).
     inlined: Mutex<HashMap<(DefId, TyList), Option<Inlined>>>,
-    /// The functions the inliner found on a cycle of calls
+    /// The instances the inliner found on a cycle of calls
     /// (`inline_into`): a call of one stays a call.
-    recursive: Mutex<HashSet<DefId>>,
+    recursive: Mutex<HashSet<(DefId, TyList)>>,
 }
+
+/// A copy on the inliner's stack: its function and type arguments, or no
+/// type arguments for the body being inlined into, whose instance the
+/// inliner is not told. A frame with none stands for every instance of
+/// its function.
+type Frame = (DefId, Option<TyList>);
 
 /// A copy a call inlines, and its hash ([`Memo`]).
 type Inlined = (Body, Hash128);
@@ -147,7 +153,7 @@ fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
 /// each parameter bound by its pass mode, and returns the body's hash with
 /// each copied callee's TIR hash.
 pub fn inline_calls(env: &dyn InlineEnv, body: &mut Body, hash: Hash128) -> Hash128 {
-    env.inline_into(body, hash, &mut vec![body.item])
+    env.inline_into(body, hash, &mut vec![(body.item, None)])
 }
 
 impl dyn InlineEnv + '_ {
@@ -160,7 +166,7 @@ impl dyn InlineEnv + '_ {
 
     /// [`inline_calls`] inside the copies on `stack`, the caller first: a
     /// call of one of them stays a call, so recursion never inlines.
-    fn inline_into(&self, body: &mut Body, hash: Hash128, stack: &mut Vec<DefId>) -> Hash128 {
+    fn inline_into(&self, body: &mut Body, hash: Hash128, stack: &mut Vec<Frame>) -> Hash128 {
         let mut hash = hash;
         // A call through a function reference the body knows is a call
         // of its item, which may copy in turn. A copy may bring more: a
@@ -265,7 +271,7 @@ impl dyn InlineEnv + '_ {
         &self,
         body: &mut Body,
         hash: Hash128,
-        stack: &mut Vec<DefId>,
+        stack: &mut Vec<Frame>,
         loops_only: bool,
     ) -> (Hash128, bool) {
         let pool = self.pool();
@@ -300,7 +306,18 @@ impl dyn InlineEnv + '_ {
             {
                 continue;
             }
-            if let Some(at) = stack.iter().position(|&d| d == def) {
+            // A cycle is a call of an instance already on the stack. A
+            // function at other type arguments is another instance (a
+            // derived flag asking a member's), up to `MAX_DEPTH` copies of
+            // one function, collection's own bound on instance nesting,
+            // which stops a polymorphic recursion's ever-larger types.
+            let same = |&(d, a): &Frame| d == def && a.is_none_or(|a| a == targs);
+            let again = stack.iter().filter(|f| f.0 == def).count();
+            if let Some(at) = stack.iter().position(same).or_else(|| {
+                (again >= usize::from(hd_mono::layout::MAX_DEPTH))
+                    .then(|| stack.iter().position(|f| f.0 == def))
+                    .flatten()
+            }) {
                 self.found_cycle(&stack[at..]);
                 continue;
             }
@@ -308,9 +325,9 @@ impl dyn InlineEnv + '_ {
                 continue;
             };
             // A copy made for another caller may call one on the way down.
-            if let Some(at) = stack.iter().position(|&d| self.calls(&copy, d)) {
+            if let Some(at) = stack.iter().position(|&f| self.calls_frame(&copy, f)) {
                 self.found_cycle(&stack[at..]);
-                self.found_cycle(&[def]);
+                self.found_cycle(&[(def, Some(targs))]);
                 continue;
             }
             if !self.fits_call(body, c, &mut copy) {
@@ -436,19 +453,32 @@ impl dyn InlineEnv + '_ {
     /// cycle is rejected by the package check and none is copied. A mixed
     /// cycle breaks at every function not marked `.Always`, so `.Always`
     /// calls on either side can still be copied.
-    fn found_cycle(&self, members: &[DefId]) {
+    /// A frame with no type arguments is the body being inlined into,
+    /// which no copy names; its own calls stay calls without a mark.
+    fn found_cycle(&self, members: &[Frame]) {
         if let Some(memo) = self.memo() {
-            let breaks: Vec<_> = members
+            let known = |&(d, a): &Frame| a.map(|a| (d, a));
+            let breaks: Vec<Frame> = members
                 .iter()
                 .copied()
-                .filter(|def| self.inline_hint(*def) != InlineHint::Always)
+                .filter(|f| self.inline_hint(f.0) != InlineHint::Always)
                 .collect();
-            lock(&memo.recursive).extend(if breaks.is_empty() {
-                members.to_vec()
-            } else {
-                breaks
-            });
+            let breaks = if breaks.is_empty() { members } else { &breaks };
+            lock(&memo.recursive).extend(breaks.iter().filter_map(known));
         }
+    }
+
+    /// Whether `body` calls an instance of `frame`, by name or through a
+    /// trait method's impl.
+    fn calls_frame(&self, body: &Body, (def, args): Frame) -> bool {
+        (0..body.len()).any(|c| {
+            hd_tir::inline::known_call(body, c)
+                .and_then(|callee| match callee {
+                    Callee::Item { def, targs } => Some((def, targs)),
+                    Callee::TraitMethod { .. } => self.impl_target(&callee),
+                })
+                .is_some_and(|(d, t)| d == def && args.is_none_or(|a| a == t))
+        })
     }
 
     /// Whether `body` calls `def`, by name or through a trait method's
@@ -480,14 +510,14 @@ impl dyn InlineEnv + '_ {
         &self,
         def: DefId,
         targs: TyList,
-        stack: &mut Vec<DefId>,
+        stack: &mut Vec<Frame>,
     ) -> Option<(Body, Hash128)> {
         let memo = self.memo();
         if let Some(memo) = memo {
             if let Some(made) = lock(&memo.inlined).get(&(def, targs)) {
                 return made.clone();
             }
-            if lock(&memo.recursive).contains(&def) {
+            if lock(&memo.recursive).contains(&(def, targs)) {
                 return None;
             }
         }
@@ -502,7 +532,7 @@ impl dyn InlineEnv + '_ {
         let made = self.instance(def, targs).and_then(|(copy, hash, fits)| {
             let nested = (!hd_tir::inline::leaf(&copy)).then(|| {
                 let mut nested = copy.clone();
-                stack.push(def);
+                stack.push((def, Some(targs)));
                 let h = self.inline_into(&mut nested, hash, stack);
                 stack.pop();
                 // The decisions the copied callees' constants settle fold
@@ -515,7 +545,7 @@ impl dyn InlineEnv + '_ {
                 }
                 (nested, h)
             });
-            if memo.is_some_and(|memo| lock(&memo.recursive).contains(&def)) {
+            if memo.is_some_and(|memo| lock(&memo.recursive).contains(&(def, targs))) {
                 return None;
             }
             // A copy that only makes a known value is that value, at any
@@ -549,7 +579,7 @@ impl dyn InlineEnv + '_ {
         &self,
         def: DefId,
         targs: TyList,
-        stack: &mut Vec<DefId>,
+        stack: &mut Vec<Frame>,
     ) -> Option<(Body, Hash128)> {
         // Only a function with no parameters can make one value at every
         // call; its body need not be one the inliner copies as written.
@@ -581,7 +611,7 @@ impl dyn InlineEnv + '_ {
         if prepared == hash {
             return None;
         }
-        stack.push(def);
+        stack.push((def, Some(targs)));
         let h = self.inline_into(&mut scratch, prepared, stack);
         stack.pop();
         let quiet = |b: &Body, i: usize| self.quiet(b, i);
