@@ -53,9 +53,8 @@ impl Em<'_, '_, '_> {
         }
         // ruled out: retained_results verifies Retain immediately after its value;
         // lowering stores that value or records its earlier retain above.
-        let Some(locals) = self.vals.get(&value).cloned() else {
-            return crate::unsupported("a retain before its value is constructed");
-        };
+        debug_assert!(self.vals.contains_key(&value));
+        let locals = self.vals[&value].clone();
         self.retain_locals(&locals, self.ty_of(value))
     }
 
@@ -419,9 +418,7 @@ impl Em<'_, '_, '_> {
             if self.slots.contains_key(&l) {
                 // ruled out: only captures request a retained local; storage::run
                 // gives their child-body storage cells, while slots belong to sub 0.
-                if retain {
-                    return crate::unsupported("a second count of a local's slot");
-                }
+                debug_assert!(!retain);
                 return self.release_cell_of(l, ls[0]);
             }
             self.f.get(ls[0]);
@@ -706,14 +703,17 @@ impl Em<'_, '_, '_> {
         }
         // Saved reference-object slots have their own normal-exit contract.
         for (l, held) in self.frame_refs.clone() {
-            // ruled out: own::referent pairs every saved cold reference with an Exit release.
-            let Some(reason) = self.stated_count(
-                Tag::Release,
-                At::Exit,
-                Part::Referent(u32::try_from(l).expect("local")),
-            ) else {
-                return crate::unsupported("a frame reference without its stated exit release");
-            };
+            let reason = Reason::ByDesign;
+            // ruled out: own::referent states Exit/Referent releases with reason 8;
+            // its verifier rejects a missing action or a different reason.
+            debug_assert_eq!(
+                self.stated_count(
+                    Tag::Release,
+                    At::Exit,
+                    Part::Referent(u32::try_from(l).expect("local")),
+                ),
+                Some(reason)
+            );
             self.because(reason, |em| {
                 em.f.get(held);
                 em.f.helper(Helper::ReleaseRef);
