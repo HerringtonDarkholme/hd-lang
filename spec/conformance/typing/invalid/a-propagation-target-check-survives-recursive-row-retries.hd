@@ -1,0 +1,13 @@
+# test: recursive row inference preserves one final propagation-target diagnostic
+# Spec 05 Propagation Targets: expr.try.target.nearest-function; Spec 11 Rows: req.row.omitted.inferred-private.
+fn run() -> void $ Console:
+    fn recur(n: i32) -> void:
+        job := fn(value: Result[i32, string]):
+            _ := value? # diagnostic: invalid-result-propagation
+            let final: Result[i32, string]? = .Some(.Ok(7))
+            final
+        _ := job(.Ok(3))
+        println("row")
+        if n > 0:
+            recur(n - 1)
+    recur(1)

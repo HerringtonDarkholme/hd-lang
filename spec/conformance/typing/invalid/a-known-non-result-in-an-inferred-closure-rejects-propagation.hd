@@ -1,0 +1,7 @@
+# test: an inferred result does not make an integer a valid propagation operand
+# Spec 05 Propagation Targets: expr.try.misuse.operand.
+fn run() -> void:
+    job := fn():
+        _ := (+1)? # diagnostic: invalid-result-propagation
+        pass
+    job()

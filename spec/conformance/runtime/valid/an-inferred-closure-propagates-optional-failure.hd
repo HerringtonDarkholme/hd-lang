@@ -1,0 +1,18 @@
+# test: optional failures contribute to an inferred closure's result
+# Spec 05 Propagation: expr.try.option; Spec 07 Closures: fn.closure.result-inferred.common.
+# expect-stdout: some 5
+# expect-stdout: none
+# expect-stdout: none
+fn show(value: i32?) -> string:
+    match value:
+        .Some(n) => "some $n"
+        .None => "none"
+
+pub fn main() -> void $ Console:
+    job := fn(a: i32?, b: i32?):
+        left := a?
+        right := b?
+        left + right
+    println(show(job(2, 3)))
+    println(show(job(.None, 3)))
+    println(show(job(2, .None)))

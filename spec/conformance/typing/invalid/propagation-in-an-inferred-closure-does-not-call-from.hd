@@ -1,0 +1,22 @@
+# test: available From implementations do not convert an inferred closure's errors
+# Spec 05 Error Conversion: expr.try.convert.inferred-closure; Spec 07 Closures: fn.closure.result-inferred.common.
+use std.convert.From
+
+struct First: pass
+struct Second: pass
+
+impl From[First] for Second:
+    fn from(value: First) -> Second:
+        Second {}
+
+fn first() -> Result[void, First]:
+    .Ok(())
+fn second() -> Result[void, Second]:
+    .Ok(())
+
+fn run() -> void:
+    job := fn():
+        first()?
+        second()? # diagnostic: no-common-type
+        .Ok(())
+    _ := job()

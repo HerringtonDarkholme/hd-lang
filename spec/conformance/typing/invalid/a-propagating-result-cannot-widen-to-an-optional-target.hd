@@ -1,0 +1,8 @@
+# test: a later optional return does not provide a Result propagation target
+# Spec 05 Propagation Targets: expr.try.target.nearest-function.
+fn run() -> void:
+    job := fn(value: Result[i32, string]):
+        _ := value? # diagnostic: invalid-result-propagation
+        let final: Result[i32, string]? = .Some(.Ok(7))
+        final
+    _ := job(.Ok(3))

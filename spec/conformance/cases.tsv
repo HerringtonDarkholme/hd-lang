@@ -6135,6 +6135,15 @@ typing/invalid/a-local-row-fixit-uses-the-active-declaration.hd	type	reject:gene
 typing/invalid/a-generic-function-value-spread-needs-a-known-operand.hd	type	reject:cannot-infer-type	lang/05-expressions.md#r-expr.call.spread.unknown
 typing/invalid/a-function-value-with-unknown-inputs-needs-a-known-spread.hd	type	reject:cannot-infer-type	lang/05-expressions.md#r-expr.call.spread.unknown
 typing/valid/a-known-spread-solves-a-function-values-inputs.hd	type	accept	lang/05-expressions.md#r-expr.call.spread.inputs
+runtime/valid/an-inferred-closure-propagates-result-errors.hd	runtime	accept	lang/05-expressions.md#r-expr.try.convert.inferred-closure
+runtime/valid/an-inferred-closure-propagates-optional-failure.hd	runtime	accept	lang/05-expressions.md#r-expr.try.option
+runtime/valid/omitted-function-results-include-propagation.hd	runtime	accept	lang/05-expressions.md#r-expr.try.result
+runtime/valid/expected-closure-results-still-convert-propagated-errors.hd	runtime	accept	lang/05-expressions.md#r-expr.try.convert.inferred-closure
+typing/invalid/propagation-in-an-inferred-closure-does-not-call-from.hd	type	reject:no-common-type	lang/05-expressions.md#r-expr.try.convert.inferred-closure
+typing/invalid/a-propagating-result-cannot-widen-to-an-optional-target.hd	type	reject:invalid-result-propagation	lang/05-expressions.md#r-expr.try.target.nearest-function
+typing/invalid/an-unknown-operand-does-not-enable-a-void-propagation-target.hd	type	reject:invalid-result-propagation	lang/05-expressions.md#r-expr.try.target.nearest-function
+typing/invalid/a-known-non-result-in-an-inferred-closure-rejects-propagation.hd	type	reject:invalid-result-propagation	lang/05-expressions.md#r-expr.try.misuse.operand
+typing/invalid/a-propagation-target-check-survives-recursive-row-retries.hd	type	reject:invalid-result-propagation	lang/05-expressions.md#r-expr.try.target.nearest-function
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

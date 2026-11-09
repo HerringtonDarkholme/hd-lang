@@ -5223,7 +5223,8 @@ impl Ck<'_, '_> {
         want: Option<Ty>,
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
-        let ret = self.infer.resolve(pool, *self.rets.last().expect("ret"));
+        let target = *self.rets.last().expect("ret");
+        let ret = self.infer.resolve(pool, target);
         let result = self.cx.names.known.result;
         // `expr.try.expected`: the operand's hint is `Result[T, E]` or `T?`,
         // by the nearest function's result kind.
@@ -5258,6 +5259,31 @@ impl Ck<'_, '_> {
                 self.infer.rollback(snap);
             }
         }
+        // In an inferred result, the failure itself contributes a return
+        // type; it is not converted to an earlier failure's error type
+        // (`expr.try.convert.inferred-closure`). The normal result and all
+        // failures meet at the existing return join site.
+        let ret = if self.joins.is_site(target) {
+            match pool.get(t) {
+                TyData::Option(_) => {
+                    self.joins.propagate(target, true, n.index());
+                    let value = self.infer.fresh(pool, VarKind::General);
+                    pool.intern_ty(&TyData::Option(value))
+                }
+                TyData::Adt { def, args } if def == result => {
+                    self.joins.propagate(target, false, n.index());
+                    let value = self.infer.fresh(pool, VarKind::General);
+                    let error = pool.list_items(args)[1];
+                    pool.intern_ty(&TyData::Adt {
+                        def,
+                        args: pool.list(&[value, error]),
+                    })
+                }
+                _ => ret,
+            }
+        } else {
+            ret
+        };
         match (pool.get(t), pool.get(ret)) {
             (TyData::Option(inner), TyData::Option(_)) => {
                 let ok_b = self.b.open_block();
@@ -5266,6 +5292,7 @@ impl Ck<'_, '_> {
                 let none_b = self.b.open_block();
                 let empty = self.b_empty_rec();
                 let nv = self.b.emit(Tag::NewVariant, 0, empty, ret, n.index());
+                let nv = self.coerce(nv, ret, target, n, "result", ExpectPosition::General);
                 self.b.emit(Tag::Return, nv.0, NONE, Ty::NEVER, n.index());
                 let none = self.b.close_block(none_b, None, Ty::NEVER, n.index());
                 let rec = self.b.refs_record(&[Ref(1), ok, none]);
@@ -5320,13 +5347,22 @@ impl Ck<'_, '_> {
                 };
                 let rec = self.b.refs_record(&[ev]);
                 let errv = self.b.emit(Tag::NewVariant, 1, rec, ret, n.index());
+                let errv = self.coerce(errv, ret, target, n, "result", ExpectPosition::General);
                 self.b.emit(Tag::Return, errv.0, NONE, Ty::NEVER, n.index());
                 let err = self.b.close_block(err_b, None, Ty::NEVER, n.index());
                 let rec = self.b.refs_record(&[Ref(0), ok, err]);
                 Ok((self.b.emit(Tag::SwitchTag, r.0, rec, okt, n.index()), okt))
             }
             _ => {
-                if pool.has_infer(t) || pool.has_infer(ret) {
+                let open_target = self.infer.kind_of(pool, ret) == Some(VarKind::General);
+                let open_operand = self.infer.kind_of(pool, t) == Some(VarKind::General);
+                let valid_target = matches!(pool.get(ret), TyData::Option(_))
+                    || matches!(pool.get(ret), TyData::Adt { def, .. } if def == result);
+                let valid_operand = matches!(pool.get(t), TyData::Option(_))
+                    || matches!(pool.get(t), TyData::Adt { def, .. } if def == result);
+                if (open_target && (open_operand || valid_operand))
+                    || (valid_target && open_operand)
+                {
                     return unsupported("`?` on a value whose type is not yet known");
                 }
                 self.err(
@@ -5334,6 +5370,8 @@ impl Ck<'_, '_> {
                     n,
                     "`?` needs a Result or an optional in a function returning one",
                 );
+                self.infer.rebind(pool, t, Ty::POISON);
+                self.infer.rebind(pool, ret, Ty::POISON);
                 Ok((Ref(NONE), Ty::NEVER))
             }
         }

@@ -1,0 +1,28 @@
+# test: omitted function results include propagated failure returns
+# Spec 07 Function Declarations: fn.decl.result-inferred.common; Spec 05 Propagation: expr.try.option, expr.try.result.
+# expect-stdout: 7
+# expect-stdout: failure
+# expect-stdout: 8
+# expect-stdout: none
+
+fn from_result(value: Result[i32, string]):
+    found := value?
+    .Ok(found + 1)
+
+fn from_optional(value: i32?):
+    found := value?
+    found + 2
+
+pub fn main() -> void $ Console:
+    match from_result(.Ok(6)):
+        .Ok(value) => println(value)
+        .Err(error) => println(error)
+    match from_result(.Err("failure")):
+        .Ok(value) => println(value)
+        .Err(error) => println(error)
+    match from_optional(6):
+        .Some(value) => println(value)
+        .None => println("none")
+    match from_optional(.None):
+        .Some(value) => println(value)
+        .None => println("none")

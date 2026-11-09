@@ -1,0 +1,30 @@
+# test: inferred errors keep their type and context-supplied errors use From
+# Spec 05 Error Conversion: expr.try.convert.inferred-closure, expr.try.convert.from.
+# expect-stdout: original
+# expect-stdout: converted
+use std.convert.From
+
+struct First: pass
+struct Second: pass
+
+impl From[First] for Second:
+    fn from(value: First) -> Second:
+        Second {}
+
+fn first() -> Result[i32, First]:
+    .Err(First {})
+
+pub fn main() -> void $ Console:
+    inferred := fn():
+        value := first()?
+        .Ok(value + 1)
+    let original: Result[i32, First] = inferred()
+    match original:
+        .Ok(_) => println("unexpected success")
+        .Err(_) => println("original")
+    let expected: fn() -> Result[i32, Second] = fn():
+        value := first()?
+        .Ok(value + 1)
+    match expected():
+        .Ok(_) => println("unexpected success")
+        .Err(_) => println("converted")

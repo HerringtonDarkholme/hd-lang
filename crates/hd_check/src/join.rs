@@ -38,6 +38,9 @@ pub(crate) struct Joins {
 struct Site {
     /// The values joined so far, in order.
     values: Vec<Joined>,
+    /// Inferred return sites keep each `?`'s required outer result kind.
+    /// Later optional widening must not turn a Result target into an optional.
+    propagation: Vec<(bool, NodeIdx)>,
     /// A value did not join and was reported: the site reports once.
     failed: bool,
 }
@@ -53,6 +56,7 @@ struct Joined {
 enum Undo {
     Open(Ty),
     Value(Ty),
+    Propagation(Ty),
     Failed(Ty),
     Closed(Ty, Site),
 }
@@ -82,6 +86,15 @@ impl Joins {
         if let Some(site) = self.sites.get_mut(&var) {
             site.values.push(Joined { ty, to });
             self.log.push(Undo::Value(var));
+        }
+    }
+
+    /// A propagated return at this inferred site's original source node.
+    /// `optional` distinguishes an Option operand from a Result operand.
+    pub(crate) fn propagate(&mut self, var: Ty, optional: bool, at: NodeIdx) {
+        if let Some(site) = self.sites.get_mut(&var) {
+            site.propagation.push((optional, at));
+            self.log.push(Undo::Propagation(var));
         }
     }
 
@@ -117,6 +130,11 @@ impl Joins {
                 Some(Undo::Value(v)) => {
                     if let Some(site) = self.sites.get_mut(&v) {
                         site.values.pop();
+                    }
+                }
+                Some(Undo::Propagation(v)) => {
+                    if let Some(site) = self.sites.get_mut(&v) {
+                        site.propagation.pop();
                     }
                 }
                 Some(Undo::Failed(v)) => {
@@ -201,6 +219,28 @@ impl Ck<'_, '_> {
     fn fill_join(&mut self, var: Ty) {
         let pool = self.pool();
         let site = self.infer.resolve(pool, var);
+        let propagation = self
+            .joins
+            .sites
+            .get(&var)
+            .filter(|_| !self.joins.failed(var))
+            .map_or_else(Vec::new, |s| s.propagation.clone());
+        for (optional, at) in propagation {
+            let valid = match pool.get(site) {
+                TyData::Poison => true,
+                TyData::Option(_) => optional,
+                TyData::Adt { def, .. } if def == self.cx.names.known.result => !optional,
+                _ => false,
+            };
+            if !valid {
+                let node = self.cx.src.parse.tree.node(at);
+                self.err(
+                    Code::InvalidResultPropagation,
+                    node,
+                    "the inferred function result is not a compatible target for this `?`",
+                );
+            }
+        }
         let values = self.joins.values(var).to_vec();
         for v in values {
             let g = self.infer.resolve(pool, v.ty);

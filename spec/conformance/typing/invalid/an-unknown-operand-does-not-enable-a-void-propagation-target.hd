@@ -1,0 +1,7 @@
+# test: an unresolved operand does not obscure a known invalid propagation target
+# Spec 05 Propagation Targets: expr.try.target.nearest-function.
+fn make[T]() -> T:
+    panic("unused")
+
+fn run() -> void:
+    _ := make()? # diagnostic: invalid-result-propagation

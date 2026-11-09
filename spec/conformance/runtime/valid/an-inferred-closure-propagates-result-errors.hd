@@ -1,0 +1,18 @@
+# test: result failures join an inferred closure's result without conversion
+# Spec 05 Error Conversion: expr.try.convert.inferred-closure; Propagation: expr.try.result.
+# expect-stdout: ok 5
+# expect-stdout: first
+# expect-stdout: second
+fn show(value: Result[i32, string]) -> string:
+    match value:
+        .Ok(n) => "ok $n"
+        .Err(error) => error
+
+pub fn main() -> void $ Console:
+    job := fn(a: Result[i32, string], b: Result[i32, string]):
+        left := a?
+        right := b?
+        .Ok(left + right)
+    println(show(job(.Ok(2), .Ok(3))))
+    println(show(job(.Err("first"), .Ok(3))))
+    println(show(job(.Ok(2), .Err("second"))))
