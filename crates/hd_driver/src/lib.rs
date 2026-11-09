@@ -1030,15 +1030,6 @@ impl ProgramItems {
             })
     }
 
-    /// Every declaration this program holds, without reading a record.
-    fn defs(&self) -> impl Iterator<Item = DefId> + '_ {
-        self.slots
-            .iter()
-            .enumerate()
-            .filter(|(_, slot)| slot.is_some())
-            .map(|(def, _)| DefId::from_raw(u32_of(def)))
-    }
-
     /// A checked module's items replace earlier versions of those items.
     fn add_checked(&mut self, items: hd_resolve::Items) {
         self.add(ItemSource::Check(Box::new(items)), true);
@@ -9544,9 +9535,11 @@ impl Run<'_> {
         }
         layouts.sort_stable_by(|a, b| a.item.cmp(&b.item));
         let _ = self.fixture_layouts.set(layouts);
-        let mut definitions: Vec<DefId> = p
-            .items
-            .defs()
+        // Every declaration the program holds, by its slot, without
+        // reading a record first.
+        let mut definitions: Vec<DefId> = (p.items.slots.iter().enumerate())
+            .filter(|(_, slot)| slot.is_some())
+            .map(|(def, _)| DefId::from_raw(u32_of(def)))
             .filter(|def| {
                 names.module_node(*def) == module_node
                     && p.items.get(*def).is_some_and(|item| item.sig().is_some())
