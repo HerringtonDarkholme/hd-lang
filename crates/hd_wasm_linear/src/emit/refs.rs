@@ -946,41 +946,21 @@ impl Em<'_, '_, '_> {
     /// `ref_ty` is an enum that matches read in place (#1422 step 12): a
     /// `borrow`, or a copy through `&` of a value that counts nothing,
     /// which nothing can change while the shared reference lives; of a
-    /// flat enum every use of which decides on its tag (`SwitchTag`) or
-    /// reads, refers to or ends the loan of a part of its payload, in a
-    /// body that does not suspend. Then the tag loads once and each arm's
-    /// fields where they are read, as Rust's match through `&` does, not
-    /// all its values first.
+    /// flat enum every use of which decides on its tag or reaches a part
+    /// of it ([`Em::part_only`]), in a body that does not suspend. Then
+    /// the tag loads once and each arm's fields where they are read, as
+    /// Rust's match through `&` does, not all its values first. O(1): the
+    /// use fact is the body's, computed once.
     pub(super) fn lazy_borrow(&self, i: u32, target: Ty, ref_ty: Ty) -> bool {
+        crate::work::use_facts(1);
         let shared_copy = !crate::layout::ref_mutable(self.pool(), self.env(), ref_ty)
             && !self.tracked(target)
             && self.drop_calls(target).is_empty();
-        if self.susp.is_some()
-            || !(self.loans.contains(&i) || shared_copy)
-            || !matches!(self.kind(target), Kind::Value)
-            || crate::layout::variants(self.pool(), self.env(), target).is_none()
-        {
-            return false;
-        }
-        let mut ops = Vec::new();
-        (0..self.b.len()).all(|k| {
-            hd_tir::own::operands(self.b, k, &mut ops);
-            if !ops.iter().any(|o| o.value == i) {
-                return true;
-            }
-            let [a, _] = self.b.data[k];
-            match self.b.tags[k] {
-                Tag::SwitchTag => a == i,
-                Tag::Read | Tag::Ref | Tag::LoanEnd | Tag::Drop => {
-                    self.b.decode_place(a).is_some_and(|p| {
-                        p.root == PlaceRoot::Value(Ref(i))
-                            && (self.b.tags[k] != Tag::Read && self.b.tags[k] != Tag::Ref
-                                || matches!(p.proj.first(), Some(Proj::Variant(_))))
-                    })
-                }
-                _ => false,
-            }
-        })
+        self.susp.is_none()
+            && (self.loans.contains(&i) || shared_copy)
+            && matches!(self.kind(target), Kind::Value)
+            && crate::layout::variants(self.pool(), self.env(), target).is_some()
+            && self.part_only[i as usize]
     }
 
     /// `Read move` `i` of a field path of a local whose value lives in
@@ -1687,5 +1667,26 @@ fn counts(arm: &Walk, k: u32) -> bool {
         Walk::Glue => false,
         Walk::Seq(ws) => ws.iter().any(|w| counts(w, k)),
         Walk::Switch(_, arms) => arms.iter().flatten().any(|w| counts(w, k)),
+    }
+}
+
+/// The one value instruction `k` of `b` uses only to decide on its tag
+/// or to reach a part of it, if any ([`Em::part_only`]): a `SwitchTag`'s
+/// scrutinee; the root of a `Read` or `Ref` whose first step is a
+/// variant's payload; the root of a `LoanEnd` or `Drop`. Every other
+/// operand of `k` is a use of another kind.
+pub(super) fn part_use(b: &hd_tir::ir::Body, k: usize) -> Option<u32> {
+    let a = b.data[k][0];
+    let tag = b.tags[k];
+    match tag {
+        Tag::SwitchTag => Some(a),
+        Tag::Read | Tag::Ref | Tag::LoanEnd | Tag::Drop => {
+            let p = b.view(a);
+            let v = p.value()?;
+            (matches!(tag, Tag::LoanEnd | Tag::Drop)
+                || matches!(p.first(b), Some(Proj::Variant(_))))
+            .then_some(v)
+        }
+        _ => None,
     }
 }

@@ -28,6 +28,7 @@ mod scan;
 mod tables;
 mod task;
 pub mod views;
+pub mod work;
 pub use layout::Niche;
 mod wide;
 

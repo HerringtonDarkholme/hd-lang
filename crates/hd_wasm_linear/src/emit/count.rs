@@ -730,7 +730,9 @@ impl Em<'_, '_, '_> {
 
 impl Em<'_, '_, '_> {
     /// The consumer of each value of an owned body, by the passes' rule
-    /// (`hd_tir::own::consumers`).
+    /// (`hd_tir::own::consumers`), and the body's per-value use facts
+    /// ([`Em::used`], [`Em::value_uses`], [`Em::part_only`]) in one pass
+    /// over its operands: O(instructions + operands).
     pub(super) fn own_consumers(&mut self) {
         hd_tir::own::consumers(self.b, &self.topo, self.input.own_cx, &mut self.consumer);
         let verify = cfg!(not(target_arch = "wasm32"))
@@ -766,6 +768,8 @@ impl Em<'_, '_, '_> {
         self.used.resize(self.b.len(), false);
         self.value_uses.clear();
         self.value_uses.resize(self.b.len(), 0);
+        self.part_only.clear();
+        self.part_only.resize(self.b.len(), true);
         let mut ops = std::mem::take(&mut self.own_ops);
         for i in 0..self.b.len() {
             if self.b.tags[i] == Tag::Retain
@@ -774,13 +778,18 @@ impl Em<'_, '_, '_> {
                 self.used[self.b.data[i][0] as usize] = true;
             }
             hd_tir::own::operands(self.b, i, &mut ops);
+            let part = super::refs::part_use(self.b, i);
             for op in &ops {
                 self.used[op.value as usize] = true;
                 if op.role != hd_tir::ir::Role::Dropped {
                     self.value_uses[op.value as usize] += 1;
                 }
+                if part != Some(op.value) {
+                    self.part_only[op.value as usize] = false;
+                }
             }
         }
+        crate::work::use_facts(self.b.len());
         self.own_ops = ops;
     }
 

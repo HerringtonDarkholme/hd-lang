@@ -1152,6 +1152,11 @@ struct Em<'i, 'a, 'm> {
     used: Vec<bool>,
     /// Non-drop uses, for lowerings that retire a copied operand early.
     value_uses: Vec<u32>,
+    /// Whether each value is used only to decide on its tag or to reach a
+    /// part of it: every instruction that has it as an operand is one
+    /// whose [`refs::part_use`] it is. An enum read through `&` that
+    /// holds this matches in place ([`Em::lazy_borrow`]).
+    part_only: Vec<bool>,
     /// The body's block structure.
     topo: hd_tir::ir::Topology,
     own_ops: Vec<hd_tir::own::Operand>,
@@ -1303,6 +1308,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             copy_reasons: Vec::new(),
             used: Vec::new(),
             value_uses: Vec::new(),
+            part_only: Vec::new(),
             topo: hd_tir::ir::Topology::new(b),
             own_ops: Vec::new(),
             hoisted: Vec::new(),

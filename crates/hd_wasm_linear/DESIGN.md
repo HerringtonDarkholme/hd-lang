@@ -558,7 +558,10 @@ lowers their instructions.
   only go to arms are one `br_if`, more are one `br_table`
   (`Em::switch_to_arms`). A match through `&` on a whole enum read only
   to decide and bind parts loads the tag once and each arm's fields where
-  the arm binds them (`Em::lazy_borrow`), not every value first.
+  the arm binds them (`Em::lazy_borrow`), not every value first. Which
+  values every use only decides on or reaches a part of is a per-body
+  fact (`Em::part_only`), one pass over the operands, so each read asks
+  in O(1) (#1540).
 - **Nested matches on one cell** (#1532, rustc's `SwitchInt` on the
   niche). An enum and the enums nested in its untagged payload share the
   niche cell, so the decision's `SwitchTag`s on them are grouped: each
