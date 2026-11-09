@@ -77,10 +77,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # GitHub release downloads returned 504 for every attempt on 2026-11-09, so the
+          # npm registry's copy of the same 0.50.0 binary is the fallback. Both are pinned.
           zip="$RUNNER_TEMP/ast-grep.zip"
-          curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 -o "$zip" https://github.com/ast-grep/ast-grep/releases/download/0.50.0/app-x86_64-unknown-linux-gnu.zip
-          echo "0fd3f489639abb8465a914b74b8779171577582318d8a940d00399f59dba81c5  $zip" | sha256sum -c -
-          unzip -q -o -d "$RUNNER_TEMP/ast-grep" "$zip"
+          tgz="$RUNNER_TEMP/ast-grep.tgz"
+          mkdir -p "$RUNNER_TEMP/ast-grep"
+          if curl -fsSL --retry 3 --retry-all-errors --retry-delay 5 -o "$zip" https://github.com/ast-grep/ast-grep/releases/download/0.50.0/app-x86_64-unknown-linux-gnu.zip; then
+            echo "0fd3f489639abb8465a914b74b8779171577582318d8a940d00399f59dba81c5  $zip" | sha256sum -c -
+            unzip -q -o -d "$RUNNER_TEMP/ast-grep" "$zip"
+          else
+            curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 -o "$tgz" https://registry.npmjs.org/@ast-grep/cli-linux-x64-gnu/-/cli-linux-x64-gnu-0.50.0.tgz
+            echo "c2d5154f158512e331de68b0e2ab155a8acd9fc0045177728b0ebabcd5f27512  $tgz" | sha256sum -c -
+            tar -xzf "$tgz" -C "$RUNNER_TEMP/ast-grep"
+          fi
           bin="$(find "$RUNNER_TEMP/ast-grep" -type f -name ast-grep | head -n 1)"
           chmod +x "$bin"
           dirname "$bin" >> "$GITHUB_PATH"
