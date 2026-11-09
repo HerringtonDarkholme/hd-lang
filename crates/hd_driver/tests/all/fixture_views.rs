@@ -118,6 +118,8 @@ fn count_labels_preserve_bytes_offsets_and_real_source_origins() {
                 .find(|l| l.layout.name == "app.main.Value")
                 .expect("layout")
                 .layout;
+            // Fields in declaration order, at rustc's `univariant` offsets
+            // (#1422): the 4-aligned `text` and `items` first, `flag` last.
             assert_eq!(layout.size, 16);
             assert_eq!(
                 layout
@@ -125,11 +127,11 @@ fn count_labels_preserve_bytes_offsets_and_real_source_origins() {
                     .iter()
                     .map(|f| (f.path.as_str(), f.offset))
                     .collect::<Vec<_>>(),
-                [("flag", 0), ("text", 4), ("items", 12)]
+                [("flag", 12), ("text", 0), ("items", 8)]
             );
             assert_eq!(
                 layout.counted.iter().map(|l| l.offset).collect::<Vec<_>>(),
-                [4, 12]
+                [0, 8]
             );
         }
     }

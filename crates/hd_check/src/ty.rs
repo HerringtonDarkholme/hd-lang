@@ -10,7 +10,7 @@ use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{NONE, Ref, Tag, TirSink};
 use hd_types::{Inputs, ParamRef, Prim, RowData, RowId, Ty, TyData, VarKind};
 
-use crate::body::{Ck, unsupported};
+use crate::body::Ck;
 
 /// What a (possibly qualified) name in a body reaches.
 #[derive(Clone, Copy, Debug)]
