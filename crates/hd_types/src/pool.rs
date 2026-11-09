@@ -2652,4 +2652,87 @@ mod tests {
         };
         assert_eq!(types.erase_ref_kinds(in_fn(kinds[3])), in_fn(kinds[1]));
     }
+
+    /// Every form that can hold a function type with a reference is walked:
+    /// the erasure reaches the map through each holder, and a holder with
+    /// nothing to erase comes back unchanged.
+    #[test]
+    fn erasing_fn_deps_reaches_every_holder_form() {
+        use crate::pool::FnDeps;
+        let pool = InternPool::new();
+        let types = pool.types();
+        let local = pool.intern_ty(&TyData::Ref {
+            inner: Ty::I32,
+            mutable: false,
+            counted: false,
+        });
+        let lending = |deps| {
+            pool.intern_ty(&TyData::Fn {
+                params: pool.list(&[local]),
+                result: local,
+                row: RowId::EMPTY,
+                suspends: false,
+                inputs: Inputs::Fixed,
+                deps,
+            })
+        };
+        let (with, without) = (lending(types.fn_deps(&[1], &[1])), lending(FnDeps::NONE));
+        let def = hd_base::DefId::from_raw(7);
+        let other = hd_base::DefId::from_raw(8);
+        let row = |t: Ty| {
+            pool.row(&RowData {
+                keys: vec![t],
+                params: vec![],
+            })
+        };
+        let holders: Vec<Box<dyn Fn(Ty) -> TyData + '_>> = vec![
+            Box::new(|t| TyData::Adt {
+                def,
+                args: pool.list(&[t]),
+            }),
+            Box::new(|t| TyData::Opaque {
+                owner: def,
+                site: 1,
+                borrows: false,
+                args: pool.list(&[t]),
+                bound: t,
+            }),
+            Box::new(|t| TyData::Tuple {
+                elems: pool.list(&[Ty::I32]),
+                rest: Some(t),
+            }),
+            Box::new(|t| TyData::Union(pool.list(&[Ty::I32, t]))),
+            Box::new(|t| TyData::Row(row(t))),
+            Box::new(|t| TyData::Context(row(t))),
+            Box::new(|t| TyData::TraitValue {
+                def,
+                args: pool.list(&[t]),
+                bindings: vec![(other, t)],
+            }),
+            Box::new(|t| TyData::Assoc {
+                assoc: def,
+                trait_: other,
+                self_ty: t,
+                args: pool.list(&[t]),
+            }),
+        ];
+        for (i, holder) in holders.iter().enumerate() {
+            let held = pool.intern_ty(&holder(with));
+            let erased = pool.intern_ty(&holder(without));
+            assert_eq!(pool.erase_fn_deps(held), erased, "holder {i}");
+            assert_eq!(pool.erase_fn_deps(erased), erased, "holder {i} unchanged");
+        }
+        // `sole_arg` answers only for one argument of the named definition.
+        let one = pool.intern_ty(&TyData::Adt {
+            def,
+            args: pool.list(&[Ty::I32]),
+        });
+        let two = pool.intern_ty(&TyData::Adt {
+            def,
+            args: pool.list(&[Ty::I32, Ty::I32]),
+        });
+        assert_eq!(types.sole_arg(one, def), Some(Ty::I32));
+        assert_eq!(types.sole_arg(two, def), None);
+        assert_eq!(types.sole_arg(one, other), None);
+    }
 }
