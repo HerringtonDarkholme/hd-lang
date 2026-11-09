@@ -279,6 +279,7 @@ host-binding-private-values	cli.host.package.value-conversion,cli.host.package.p
 host-binding-fieldless-struct	cli.host.package.value-conversion
 host-binding-self-returning-handle	cli.host.package.generated,cli.host.package.contract
 host-binding-recursive-type	cli.host.package.generated,cli.host.package.contract
+host-binding-map	cli.host.package.value-conversion,cli.host.package.generated
 host-binding-recursive-cycle	cli.host.package.generated,cli.host.package.contract
 host-binding-readiness	cli.host.package.completion-forms,cli.host.package.context-pending,cli.host.package.poll-result,cli.host.package.poll-delivery,cli.host.package.poll-abort,cli.host.package.poll-abort-signal
 host-context-console	cli.host.package.context-console,cli.host.package.context-console-allows,cli.host.package.context-console-readonly

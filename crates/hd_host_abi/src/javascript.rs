@@ -138,6 +138,13 @@ fn codec(out: &mut String, v: &Value) {
             }
             out.push_str("])");
         }
+        Value::Map(k, v) => {
+            out.push_str("runtime.map(");
+            codec(out, k);
+            out.push(',');
+            codec(out, v);
+            out.push(')');
+        }
         Value::Result(a, b) => {
             out.push_str("runtime.result(");
             codec(out, a);

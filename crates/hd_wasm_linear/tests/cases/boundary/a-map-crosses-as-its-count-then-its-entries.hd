@@ -1,0 +1,13 @@
+# @dump: wat
+# @build: program
+# @profile: serde-vault
+# @helpers: hd:Vault/keep enc dec
+# expected: a map crosses as its live count, then each entry's key and
+# value in insertion order (#1549). Its decoder sizes one table for the
+# count and puts each entry through the string key's hash and probe, so
+# no put grows the table.
+pub trait Vault:
+    fn keep(self, m: Map[string, i32]) -> Map[string, i32]
+
+pub fn main() -> void $ Vault:
+    _ := $.use(Vault).keep({"a": +1})

@@ -1,0 +1,37 @@
+# test: a map crosses a host call out of hd and back in, entries in insertion order, a struct key rebuilt through its Eq and Hash
+# Spec Modules, Boundary-Safe Values: module.boundary.allowed, module.boundary.map-decode (#1549).
+# fixture-runtime-profile: serde-vault
+use std.hash.Hash
+use std.testing.assert_equal
+
+@derive(Eq, Hash)
+pub struct Tag:
+    pub id: i32
+    pub name: string
+
+pub struct Shelf:
+    pub counts: Map[string, i32]
+    pub tags: Map[Tag, List[string]]
+
+pub trait Vault:
+    fn keep(self, shelf: Shelf) -> Shelf
+
+pub fn main() -> void $ Vault:
+    let mut counts: Map[string, i32] = {}
+    let i = +0
+    while i < 40:
+        counts["k$i"] = i
+        i += 1
+    let mut tags: Map[Tag, List[string]] = {}
+    tags[Tag { id: +1, name: "one" }] = ["a", "b"]
+    tags[Tag { id: +2, name: "two" }] = []
+    kept := $.use(Vault).keep(Shelf { counts, tags })
+    assert_equal(kept.counts.len(), 40, reason="every entry crosses")
+    assert_equal(kept.counts["k17"], +17, reason="a decoded key finds its value")
+    let order = ""
+    for (k, _) in kept.tags:
+        order = order + "${k.name};"
+    assert_equal(order, "one;two;", reason="entries keep insertion order")
+    assert_equal(kept.tags[Tag { id: +1, name: "one" }].len(), 2, reason="a struct key hashes and compares through its impls")
+    let empty: Map[string, i32] = {}
+    assert_equal($.use(Vault).keep(Shelf { counts: empty, tags: {} }).counts.len(), 0, reason="an empty map crosses")

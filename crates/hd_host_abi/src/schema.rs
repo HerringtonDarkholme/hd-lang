@@ -35,6 +35,9 @@ pub enum Value {
     Record(Vec<Field>),
     Enum(Vec<Variant>),
     Result(Box<Self>, Box<Self>),
+    /// `Map[K, V]`: its entry count, then each key and value in the
+    /// order the map holds them.
+    Map(Box<Self>, Box<Self>),
     /// A private-field boundary's Serialize/Deserialize value (typed transport).
     Json,
     /// The import module of a host-returned handle interface.
@@ -250,8 +253,10 @@ impl Contract {
         // guards every binder around it: each has a value without the part
         // below it, so a `Ref` there is a finite value's part.
         let guard = binders.guard;
-        if matches!(v, Value::List(_) | Value::Option(_) | Value::Result(..))
-            || matches!(v, Value::Enum(vs) if vs.len() > 1)
+        if matches!(
+            v,
+            Value::List(_) | Value::Option(_) | Value::Result(..) | Value::Map(..)
+        ) || matches!(v, Value::Enum(vs) if vs.len() > 1)
         {
             binders.guard = binders.ids.len();
         }
@@ -279,7 +284,7 @@ impl Contract {
                 return Err("missing package host handle interface");
             }
             Value::List(t) | Value::Option(t) => self.validate_value(t, depth + 1, binders)?,
-            Value::Result(a, b) => {
+            Value::Result(a, b) | Value::Map(a, b) => {
                 self.validate_value(a, depth + 1, binders)?;
                 self.validate_value(b, depth + 1, binders)?;
             }
@@ -397,6 +402,7 @@ impl Writer {
             Value::Handle(_) => 15,
             Value::Rec(..) => 16,
             Value::Ref(_) => 17,
+            Value::Map(..) => 18,
         });
         match v {
             Value::Int { bits, signed } => self.0.extend_from_slice(&[*bits, u8::from(*signed)]),
@@ -410,7 +416,7 @@ impl Writer {
                     self.fields(&variant.fields);
                 }
             }
-            Value::Result(a, b) => {
+            Value::Result(a, b) | Value::Map(a, b) => {
                 self.value(a);
                 self.value(b);
             }
@@ -530,6 +536,10 @@ impl<'a> Reader<'a> {
             15 => Value::Handle(self.string()?),
             16 => Value::Rec(self.number()?, Box::new(self.value(depth + 1)?)),
             17 => Value::Ref(self.number()?),
+            18 => Value::Map(
+                Box::new(self.value(depth + 1)?),
+                Box::new(self.value(depth + 1)?),
+            ),
             _ => return Err("unknown package host value codec"),
         })
     }

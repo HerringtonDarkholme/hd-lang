@@ -408,6 +408,35 @@ export function createPackageRuntime(
         return Array.from({ length }, () => text.dec(data));
       },
     );
+  // `Map[K, V]` as a JS `Map`: its size, then each key and value in the
+  // map's order. Decoding keeps a repeated key's last value, as hd's
+  // decoder does (module.boundary.map-decode).
+  const map = (key: RuntimeCodec, value: RuntimeCodec): RuntimeCodec =>
+    codec(
+      [18, key.shape, value.shape],
+      (error, entries, tx) => {
+        if (!(entries instanceof Map)) {
+          fail("expected Map");
+        }
+        error.leb(entries.size);
+        for (const [entryKey, entryValue] of entries) {
+          key.enc(error, entryKey, tx);
+          value.enc(error, entryValue, tx);
+        }
+      },
+      (data) => {
+        const size = data.num();
+        if (!Number.isSafeInteger(size) || size > 0xffffffff) {
+          fail("invalid map size");
+        }
+        const out = new Map<unknown, unknown>();
+        for (let index = 0; index < size; index++) {
+          const entryKey = key.dec(data);
+          out.set(entryKey, value.dec(data));
+        }
+        return out;
+      },
+    );
   const option = (text: RuntimeCodec): RuntimeCodec =>
     codec(
       [9, text.shape],
@@ -538,6 +567,7 @@ export function createPackageRuntime(
     bytes,
     json,
     list,
+    map,
     option,
     tuple,
     record,

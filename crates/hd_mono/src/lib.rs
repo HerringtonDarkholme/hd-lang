@@ -435,7 +435,7 @@ pub struct HostItems {
 /// The host codec instances of one private-field boundary type, by
 /// crossing direction (`module.boundary.direction`): `encode` for a value
 /// leaving hd, `decode` for one entering it.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct BoundaryCodecs {
     pub package_encode: Option<Hash128>,
     pub package_decode: Option<Hash128>,
@@ -446,6 +446,11 @@ pub struct BoundaryCodecs {
     /// `std.rt.host_provider` instance at `dyn H`, which puts the handle's
     /// trait value behind a new object (`crates/hd_wasm_linear/DESIGN.md` §15.2).
     pub handle_ref: Option<Hash128>,
+    /// For a `Map[K, V]` at the boundary: its key operations
+    /// ([`Target::MapInline`] or [`Target::MapKey`]), which the map's
+    /// decoder hashes and compares each key with as it rebuilds the table
+    /// (`module.boundary.map-decode`).
+    pub map_key: Option<Target>,
 }
 
 /// The host codecs of the private-field types in the entry rows'
@@ -2475,6 +2480,12 @@ impl Cx<'_> {
                     if self.env.has_private_field(def) {
                         self.note_private_boundary(ty, out, package)?;
                     }
+                    // A map's decoder rebuilds its table through the key's
+                    // hash and equality (`module.boundary.map-decode`).
+                    if self.env.std_kind(def) == layout::StdKind::Map {
+                        let ops = self.map_key(ty, InstId::NONE, None)?;
+                        self.out.boundary.entry(ty).or_default().map_key = Some(ops);
+                    }
                     todo.extend(self.pool.list_items(args).iter().copied());
                     for field in self.env.data_fields(def).unwrap_or_default() {
                         todo.push(subst(self.pool, self.env, def, args, field));
@@ -3064,7 +3075,7 @@ impl Cx<'_> {
                 let Some(&map) = env.params(item).unwrap_or_default().first() else {
                     return err("a map probe without its map");
                 };
-                self.map_key(s(map), id, &mut reps)?
+                self.map_key(s(map), id, Some(&mut reps))?
             }
             _ => t,
         };
@@ -3093,7 +3104,14 @@ impl Cx<'_> {
     /// the keyed bucket hash of an inline key, else `key_bucket_hash` and
     /// `key_equal` at the key type, selected here so the TIR carries only
     /// the key type.
-    fn map_key(&mut self, map: Ty, parent: InstId, reps: &mut StableHasher) -> StageResult<Target> {
+    /// A boundary map's codec belongs to no instance, so it hashes into no
+    /// instance's `reps`.
+    fn map_key(
+        &mut self,
+        map: Ty,
+        parent: InstId,
+        reps: Option<&mut StableHasher>,
+    ) -> StageResult<Target> {
         let pool = self.pool;
         let mut map = map;
         while let TyData::Ref { inner, .. } = pool.get(map) {
@@ -3109,7 +3127,9 @@ impl Cx<'_> {
             let stripped = layout::strip_newtype(pool, self.env, key);
             let string = matches!(pool.get(stripped), TyData::Prim(Prim::String));
             let hash = self.target(self.env.inline_bucket_hash(string), TyList::EMPTY, parent)?;
-            self.hash_target(&hash, reps);
+            if let Some(reps) = reps {
+                self.hash_target(&hash, reps);
+            }
             return Ok(Target::MapInline(hash));
         }
         let Some((key_equal, key_hash)) = self.env.map_key_items() else {
@@ -3117,8 +3137,10 @@ impl Cx<'_> {
         };
         let eq = self.target(key_equal, pool.list(&[key]), parent)?;
         let hash = self.target(key_hash, pool.list(&[key]), parent)?;
-        self.hash_target(&eq, reps);
-        self.hash_target(&hash, reps);
+        if let Some(reps) = reps {
+            self.hash_target(&eq, reps);
+            self.hash_target(&hash, reps);
+        }
         Ok(Target::MapKey { hash, eq })
     }
 
@@ -3389,7 +3411,7 @@ impl Cx<'_> {
                         let Some(&map) = body.record(b).first() else {
                             return err("a map probe without its map");
                         };
-                        let target = self.map_key(s(value_ty(body, map)), id, &mut reps)?;
+                        let target = self.map_key(s(value_ty(body, map)), id, Some(&mut reps))?;
                         calls.insert(ix, target);
                         continue;
                     }
@@ -3565,7 +3587,7 @@ impl Cx<'_> {
                 // inserts each entry, and lookup, insertion and removal
                 // hash and compare the key through its impls.
                 Tag::NewMap if !body.record(b).is_empty() => {
-                    let t = self.map_key(ty, id, &mut reps)?;
+                    let t = self.map_key(ty, id, Some(&mut reps))?;
                     calls.insert(ix, t);
                 }
                 Tag::Intrinsic
@@ -3582,7 +3604,7 @@ impl Cx<'_> {
                     let Some(&m) = body.record(b).first() else {
                         return err("a map operation without its map");
                     };
-                    let t = self.map_key(s(value_ty(body, m)), id, &mut reps)?;
+                    let t = self.map_key(s(value_ty(body, m)), id, Some(&mut reps))?;
                     calls.insert(ix, t);
                 }
                 _ => {}

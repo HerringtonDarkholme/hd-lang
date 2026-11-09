@@ -8,7 +8,6 @@
 use crate::op::Op as I;
 use hd_base::StageResult;
 use hd_mono::layout::StdKind;
-use hd_mono::{CallTarget, Target};
 use hd_tir::ir::count::Part;
 use hd_tir::ir::{Callee, IntrinsicOp, NONE, PlaceRoot, Tag};
 use hd_types::Ty;
@@ -16,7 +15,7 @@ use wasm_encoder::BlockType;
 
 use super::value::{Dst, Src};
 use super::{Ctl, Em, MapProbe};
-use crate::layout::{coll_kind, coll_leaves, payload_mem, strip};
+use crate::layout::{coll_kind, payload_mem, strip};
 use crate::map::{Entry, KeyOps, LIVE, USED, entry_address, hash_address};
 use crate::module::{Global, HEADER, HEAP, Import, Sym, Val, mem};
 use crate::rt::{Helper, empty_buffer};
@@ -60,22 +59,7 @@ impl Em<'_, '_, '_> {
             self.pool().list_items(args)[0],
             self.pool().list_items(args)[1],
         );
-        let (m, parts) = payload_mem(self.pool(), self.env(), &[kt, vt])?;
-        let keys = parts[0].count;
-        let shift = u32::try_from(keys).expect("values");
-        let entry = Entry {
-            size: m.size,
-            leaves: m.leaves,
-            keys,
-            key_walk: self.counted(kt),
-            val_walk: self.counted(vt).map(|w| w.remap(&|k| k + shift)),
-            colls: coll_leaves(self.pool(), self.env(), vt)
-                .into_iter()
-                .map(|k| k + shift)
-                .collect(),
-            cyclic: self.cyclic_object(t),
-        };
-        Ok((kt, vt, entry))
+        Ok((kt, vt, Entry::of(self.input, t, kt, vt)?))
     }
 
     /// How instruction `i`'s map hashes and compares keys whose values
@@ -88,33 +72,15 @@ impl Em<'_, '_, '_> {
     /// `key_bucket_hash[K](K) -> u32` and `key_equal[K](K, K) -> bool`, so
     /// each takes the key's values.
     fn key_ops(&self, i: u32, key: &[Val]) -> KeyOps {
-        match self.calls.get(&i) {
-            Some(Target::MapInline(hash)) => match key {
-                [Val::I32] => KeyOps::I32(hash.key),
-                [Val::I64] => KeyOps::I64(hash.key),
-                _ => KeyOps::Str(hash.key, self.key_own(hash, 0)),
-            },
-            Some(Target::MapKey { hash, eq }) => KeyOps::Call {
-                hash: hash.key,
-                eq: eq.key,
-                own: [
-                    self.key_own(hash, 0),
-                    self.key_own(eq, 0),
-                    self.key_own(eq, 1),
-                ],
-            },
-            _ => unreachable!("collection selects a map operation's key operations"),
-        }
-    }
-
-    /// The walk of parameter `k` of a key operation's instance when the
-    /// instance owns it (`layout::Pass`): the map glue that lends it the
-    /// key then counts a copy for it.
-    fn key_own(&self, t: &CallTarget, k: usize) -> Option<crate::layout::Walk> {
-        let p = super::callee_params(self.input, self.m, t.key, t.item, t.args)[k];
-        match self.pass_at(self.env().lends(t.item, t.args), k, p) {
-            crate::layout::Pass::Owned(w) => Some(w),
-            _ => None,
+        let ops = self
+            .calls
+            .get(&i)
+            .and_then(|t| KeyOps::of(self.input, self.m, t, key));
+        match ops {
+            Some(ops) => ops,
+            // ruled out: hd_mono's collection selects every map operation's
+            // key operations (`map_key`).
+            None => unreachable!("collection selects a map operation's key operations"),
         }
     }
 

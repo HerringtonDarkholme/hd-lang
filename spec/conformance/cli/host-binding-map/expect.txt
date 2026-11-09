@@ -1,0 +1,2 @@
+run: hd run --engine node
+stdout: 3 z=26;b=20;a=10; 10

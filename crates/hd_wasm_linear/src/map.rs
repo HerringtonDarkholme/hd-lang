@@ -9,7 +9,12 @@ use crate::op::Op as I;
 use hd_base::Hash128;
 use wasm_encoder::BlockType;
 
-use crate::layout::{Leaf, Walk};
+use hd_base::StageResult;
+use hd_mono::{CallTarget, Target};
+use hd_types::Ty;
+
+use crate::Input;
+use crate::layout::{Leaf, Pass, Walk};
 use crate::module::{Func, HEADER, HEAP, Module, Sym, Val, mem};
 use crate::rt::{Helper, LIST_OWN, own_arg, retain_call, walk_code};
 
@@ -86,6 +91,83 @@ impl Entry {
             (None, None) => None,
         }
     }
+}
+
+impl Entry {
+    /// The entry of a `Map[kt, vt]` of type `t`, for a map operation or a
+    /// boundary map's codec.
+    pub(crate) fn of(input: &Input<'_>, t: Ty, kt: Ty, vt: Ty) -> StageResult<Self> {
+        let (pool, env, counts) = (input.pool, input.env, input.runtime.is_some());
+        let (m, parts) = crate::layout::payload_mem(pool, env, &[kt, vt])?;
+        let keys = parts[0].count;
+        let shift = n32(keys);
+        let counted = |t: Ty| {
+            counts
+                .then(|| crate::layout::count_walk(pool, env, t))
+                .flatten()
+        };
+        Ok(Entry {
+            size: m.size,
+            leaves: m.leaves,
+            keys,
+            key_walk: counted(kt),
+            val_walk: counted(vt).map(|w| w.remap(&|k| k + shift)),
+            colls: crate::layout::coll_leaves(pool, env, vt)
+                .into_iter()
+                .map(|k| k + shift)
+                .collect(),
+            cyclic: counts && crate::cycle::object(pool, env, t),
+        })
+    }
+}
+
+impl KeyOps {
+    /// The key operations collection selected as `target` (`hd_mono`
+    /// `map_key`), for keys whose values are `key`: std's
+    /// `int_bucket_hash(u64)` or `string_bucket_hash(string)` by the key's
+    /// primitive type, else `key_bucket_hash[K](K) -> u32` and
+    /// `key_equal[K](K, K) -> bool`, so each takes the key's values.
+    /// `None` when `target` is not a map's key operations.
+    pub(crate) fn of(input: &Input<'_>, m: &Module, target: &Target, key: &[Val]) -> Option<Self> {
+        // The walk of parameter `k` of a key operation's instance when
+        // the instance owns it (`layout::Pass`): the map glue that lends
+        // it the key then counts a copy for it.
+        let own = |t: &CallTarget, k: usize| -> Option<Walk> {
+            let p = crate::emit::callee_params(input, m, t.key, t.item, t.args)[k];
+            let lent = k < 64 && input.env.lends(t.item, t.args) & (1 << k) != 0;
+            match crate::layout::pass(input.pool, input.env, input.runtime.is_some(), p) {
+                Pass::Owned(w) if !lent => Some(w),
+                _ => None,
+            }
+        };
+        Some(match target {
+            Target::MapInline(hash) => match key {
+                [Val::I32] => KeyOps::I32(hash.key),
+                [Val::I64] => KeyOps::I64(hash.key),
+                _ => KeyOps::Str(hash.key, own(hash, 0)),
+            },
+            Target::MapKey { hash, eq } => KeyOps::Call {
+                hash: hash.key,
+                eq: eq.key,
+                own: [own(hash, 0), own(eq, 0), own(eq, 1)],
+            },
+            _ => return None,
+        })
+    }
+}
+
+/// Emits a loop over the live entries of the map table in local `t`,
+/// in the order they were added: `body` runs for each with a local that
+/// holds the entry's address.
+pub(crate) fn each_entry(f: &mut Func, t: u32, size: u32, body: &dyn Fn(&mut Func, u32)) {
+    let (cap, e, at) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
+    load_u32(f, t, CAP);
+    f.set(cap);
+    each_live(f, t, cap, e, &|f| {
+        entry_at(f, t, cap, e, size);
+        f.set(at);
+        body(f, at);
+    });
 }
 
 fn n32(n: usize) -> u32 {

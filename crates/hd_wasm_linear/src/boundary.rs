@@ -18,6 +18,7 @@
 
 use crate::op::Op as I;
 use hd_base::{DefId, Hash128, StageResult};
+use hd_mono::layout::StdKind;
 use hd_mono::{BoundaryMap, ProgramEnv, Target, subst};
 use hd_tir::ir::{
     Body, Callee, NONE, PlaceRoot, Proj, Ref, Role, Tag, Topology, Word, local_flags, slot_words,
@@ -69,6 +70,21 @@ pub enum LTy {
     /// A recursive data type: its one encoder and one decoder, which call
     /// themselves where the type recurs ([`Named`]).
     Named(Box<LNamed>),
+    /// `Map[K, V]`, a table's address: its live entry count, then each
+    /// entry's key and value in the order they were added
+    /// (`module.boundary.allowed`).
+    Map(Box<LMap>),
+}
+
+/// A map at the boundary: its entry as the map glue lays it out, the key
+/// operations its decoder rebuilds the table with
+/// (`module.boundary.map-decode`), and its key and value types.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct LMap {
+    pub entry: crate::map::Entry,
+    pub ops: crate::map::KeyOps,
+    pub key: LTy,
+    pub val: LTy,
 }
 
 /// A recursive data type's codec pair by number, in [`Named`], and its
@@ -157,7 +173,7 @@ impl LTy {
             LTy::F32 => vec![Val::F32],
             LTy::F64 => vec![Val::F64],
             LTy::Str | LTy::DiscardStr | LTy::Handle(_) => vec![Val::I32, Val::I32],
-            LTy::Bytes | LTy::List(_) => vec![Val::I32],
+            LTy::Bytes | LTy::List(_) | LTy::Map(_) => vec![Val::I32],
             LTy::Record(fields) => fields.iter().flat_map(LTy::vals).collect(),
             LTy::Enum(e) => e.layout.mem.vals(),
             LTy::Codec(c) => c.vals.clone(),
@@ -187,6 +203,7 @@ impl LTy {
             match t {
                 LTy::Handle(_) => return true,
                 LTy::List(l) => work.push(&l.ty),
+                LTy::Map(mp) => work.extend([&mp.key, &mp.val]),
                 LTy::Record(fields) => work.extend(fields),
                 LTy::Enum(e) => work.extend(e.variants.iter().flatten()),
                 LTy::Named(n) => {
@@ -240,7 +257,7 @@ pub struct AtProfile<'a> {
 }
 
 /// The boundary type of `t`, or `unsupported` for a type that does not
-/// cross (a function, another trait value, a map).
+/// cross (a function, another trait value).
 pub fn of(input: &Input<'_>, m: &mut Module, t: Ty, at: Option<AtProfile<'_>>) -> StageResult<LTy> {
     of_at(input, m, t, &mut Vec::new(), at)
 }
@@ -272,6 +289,10 @@ fn of_at(
         return codec(input, t, s, at);
     }
     let int = |bits, signed| LTy::Int { bits, signed };
+    // A suspension is a live runtime handle, not boundary-safe
+    // (`module.boundary.not-safe`): it falls to the refusal below.
+    let suspension =
+        matches!(pool.get(s), TyData::Adt { def, .. } if env.std_kind(def) == StdKind::Suspend);
     Ok(match pool.get(s) {
         TyData::Prim(p) => match p {
             Prim::F32 => LTy::F32,
@@ -314,7 +335,7 @@ fn of_at(
                 _ => return unsupported(what()),
             }
         }
-        TyData::Adt { def, args } => match env.std_kind(def) {
+        TyData::Adt { def, args } if !suspension => match env.std_kind(def) {
             hd_mono::layout::StdKind::List => {
                 let Some(&e) = pool.list_items(args).first() else {
                     return unsupported(what());
@@ -341,13 +362,37 @@ fn of_at(
                     LTy::List(Box::new(LList { elem, ty }))
                 }
             }
-            hd_mono::layout::StdKind::Other => match layout::kind(pool, env, s) {
+            hd_mono::layout::StdKind::Map => {
+                let items = pool.list_items(args);
+                debug_assert_eq!(
+                    items.len(),
+                    2,
+                    "ruled out: `Map` has a key and a value type"
+                );
+                let (k, v) = (items[0], items[1]);
+                let entry = crate::map::Entry::of(input, s, k, v)?;
+                let collected = &input.collected.boundary;
+                // ruled out: hd_mono's note_boundary_value selects the key
+                // operations of every map type a boundary value reaches.
+                let ops = (collected.get(&t).or_else(|| collected.get(&s)))
+                    .and_then(|c| c.map_key.as_ref())
+                    .and_then(|o| crate::map::KeyOps::of(input, m, o, &entry.key_vals()))
+                    .expect("ruled out: a boundary map without its key operations");
+                let key = of_at(input, m, k, path, at)?;
+                let val = of_at(input, m, v, path, at)?;
+                LTy::Map(Box::new(LMap {
+                    entry,
+                    ops,
+                    key,
+                    val,
+                }))
+            }
+            StdKind::Other | StdKind::Suspend => match layout::kind(pool, env, s) {
                 layout::Kind::Value => {
                     return data_of(input, m, s, def, args, path, at);
                 }
                 _ => return unsupported(what()),
             },
-            _ => return unsupported(what()),
         },
         TyData::TraitValue { def, args, .. } if args == TyList::EMPTY => {
             let path = (input.path)(def).replace('/', ".");
@@ -1678,16 +1723,36 @@ fn enc_body(f: &mut Func, b: &LTy, m: &Module) {
             f.op(I::End);
         }
         LTy::Record(fields) => {
-            let mut first = 1;
+            let mut params = 1..;
             for fb in fields {
-                let n = u32::try_from(fb.vals().len()).expect("values");
+                let own: Vec<u32> = params.by_ref().take(fb.vals().len()).collect();
                 enc_call(f, 0, fb, |f| {
-                    for k in first..first + n {
+                    for k in own {
                         f.get(k);
                     }
                 });
-                first += n;
             }
+        }
+        LTy::Map(mp) => {
+            let t = f.local(Val::I32);
+            f.get(1);
+            f.set(t);
+            put(f, 0, |f| {
+                f.get(t);
+                f.op(I::I32Load(mem(HEAP, crate::map::LIVE, 2)));
+                f.op(I::I64ExtendI32U);
+            });
+            let (key, val) = mp.entry.leaves.split_at(mp.entry.keys);
+            crate::map::each_entry(f, t, mp.entry.size, &|f, at| {
+                for (ty, leaves) in [(&mp.key, key), (&mp.val, val)] {
+                    enc_call(f, 0, ty, |f| {
+                        for leaf in leaves {
+                            f.get(at);
+                            f.op(leaf.load(0));
+                        }
+                    });
+                }
+            });
         }
         LTy::Enum(e) => {
             let flat = &e.layout;
@@ -1730,10 +1795,9 @@ fn enc_body(f: &mut Func, b: &LTy, m: &Module) {
         LTy::Codec(c) => {
             let text = [f.local(Val::I32), f.local(Val::I32)];
             // The encoder borrows the value; the codec owns its copy.
-            let n = u32::try_from(c.vals.len()).expect("values");
             let get = |f: &mut Func| {
-                for k in 0..n {
-                    f.get(1 + k);
+                for k in (1..).take(c.vals.len()) {
+                    f.get(k);
                 }
             };
             if m.runtime.is_some() {
@@ -1934,6 +1998,7 @@ fn dec_body(f: &mut Func, b: &LTy, m: &mut Module) {
             f.op(I::End);
             f.get(buf);
         }
+        LTy::Map(mp) => dec_map(f, mp),
         LTy::Record(fields) => {
             let mut all = Vec::new();
             for fb in fields {
@@ -2043,6 +2108,96 @@ fn dec_body(f: &mut Func, b: &LTy, m: &mut Module) {
         }
     }
     f.get(0);
+}
+
+/// [`dec_body`] of a map: its count, then each entry put into a table
+/// sized for them all, so no put grows it. Each key hashes and probes
+/// through the operations collection chose, so a repeated key's later
+/// value replaces the earlier one in its place, as in a literal
+/// (`module.boundary.map-decode`, `expr.map.duplicate.last`).
+///
+/// Cost: one hash, one probe and one put per entry; the table is
+/// allocated once.
+fn dec_map(f: &mut Func, mp: &LMap) {
+    let e = &mp.entry;
+    let (n, t, cap, i, h, probe) = (
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+    );
+    get_len(f, 0);
+    f.set(n);
+    // Every entry takes at least one byte.
+    check_room(f, 0, n);
+    // The capacity: the least power of two of at least `n` entries, and
+    // at least 4, as a literal's (`1 << (32 - clz(n - 1))`; Wasm shifts
+    // by the count mod 32, so 0 and 1 entries give 1).
+    f.i32(1);
+    f.i32(32);
+    f.get(n);
+    f.i32(1);
+    f.op(I::I32Sub);
+    f.op(I::I32Clz);
+    f.op(I::I32Sub);
+    f.op(I::I32Shl);
+    f.set(cap);
+    f.get(cap);
+    f.i32(4);
+    f.get(cap);
+    f.i32(4);
+    f.op(I::I32GtU);
+    f.op(I::Select);
+    f.helper(Helper::MapTable { entry: e.clone() });
+    f.set(t);
+    f.op(I::Block(BlockType::Empty));
+    f.op(I::Loop(BlockType::Empty));
+    f.get(i);
+    f.get(n);
+    f.op(I::I32GeU);
+    f.op(I::BrIf(1));
+    let key = dec_into(f, 0, &mp.key);
+    let val = dec_into(f, 0, &mp.val);
+    for l in &key {
+        f.get(*l);
+    }
+    f.helper(Helper::MapHash {
+        key: e.key_vals(),
+        ops: mp.ops.clone(),
+    });
+    f.set(h);
+    f.get(t);
+    f.get(h);
+    for l in &key {
+        f.get(*l);
+    }
+    f.helper(Helper::MapFind {
+        entry: e.clone(),
+        ops: mp.ops.clone(),
+    });
+    f.set(probe);
+    // The table takes the key's and the value's counts as they stand.
+    f.get(t);
+    f.get(h);
+    f.get(probe);
+    for l in key.iter().chain(&val) {
+        f.get(*l);
+    }
+    f.helper(Helper::MapPut {
+        entry: e.clone(),
+        ops: mp.ops.clone(),
+    });
+    f.set(t);
+    f.get(i);
+    f.i32(1);
+    f.op(I::I32Add);
+    f.set(i);
+    f.op(I::Br(0));
+    f.op(I::End);
+    f.op(I::End);
+    f.get(t);
 }
 
 /// The element of a `List[u8]`.
@@ -2199,6 +2354,18 @@ fn package_value(
             } else {
                 Value::List(Box::new(package_value(input, elem, path)?))
             }
+        }
+        TyData::Adt { def, args } if env.std_kind(def) == hd_mono::layout::StdKind::Map => {
+            let items = pool.list_items(args);
+            debug_assert_eq!(
+                items.len(),
+                2,
+                "ruled out: `Map` has a key and a value type"
+            );
+            Value::Map(
+                Box::new(package_value(input, items[0], path)?),
+                Box::new(package_value(input, items[1], path)?),
+            )
         }
         TyData::Adt { def, args } => {
             if let Some(at) = path.iter().position(|(t, _)| *t == s) {

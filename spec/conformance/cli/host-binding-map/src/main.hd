@@ -1,0 +1,12 @@
+# Spec Modules, Boundary-Safe Values: module.boundary.allowed, module.boundary.map-decode (#1549).
+# A map crosses a package host both ways, entries in insertion order.
+@host
+pub trait Surface:
+    fn render(&self, m: Map[string, i32]) -> Map[string, i32]
+
+pub fn main() -> void $ Surface + Console:
+    n := $.use(Surface).render({"b": +2, "a": +1})
+    let out = ""
+    for (k, v) in n:
+        out = out + "$k=$v;"
+    println("${n.len()} $out ${n["a"]}")

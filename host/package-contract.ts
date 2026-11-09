@@ -10,7 +10,7 @@ export type ContractValue =
   | [10, ContractValue[]]
   | [11, ContractField[]]
   | [12, [string, ContractField[]][]]
-  | [13, ContractValue, ContractValue]
+  | [13 | 18, ContractValue, ContractValue]
   | [15, string]
   | [16, number, ContractValue]
   | [17, number];
@@ -70,7 +70,10 @@ function validateContract(interfaces: ContractInterface[]): void {
   let guard = 0;
   const checkValue = (value: ContractValue): void => {
     const outer = guard;
-    if ([8, 9, 13].includes(value[0]) || (value[0] === 12 && (value[1] as unknown[]).length > 1)) {
+    if (
+      [8, 9, 13, 18].includes(value[0]) ||
+      (value[0] === 12 && (value[1] as unknown[]).length > 1)
+    ) {
       guard = binders.length;
     }
     checkShape(value);
@@ -97,7 +100,7 @@ function validateContract(interfaces: ContractInterface[]): void {
         checkFields(fields);
       }
     }
-    if (tag === 13) {
+    if (tag === 13 || tag === 18) {
       checkValue(left);
       checkValue(right);
     }
@@ -231,8 +234,8 @@ export function readPackageContract(bytes: Uint8Array): ContractInterface[] {
       }
       return [tag, bits, signed];
     }
-    if (tag === 8 || tag === 9) {
-      return [tag, value(depth + 1)];
+    if ([8, 9].includes(tag)) {
+      return [tag as 8 | 9, value(depth + 1)];
     }
     if (tag === 10) {
       return [tag, vector(() => value(depth + 1))];
@@ -243,8 +246,8 @@ export function readPackageContract(bytes: Uint8Array): ContractInterface[] {
     if (tag === 12) {
       return [tag, vector<[string, ContractField[]]>(() => [string(), fields(depth)])];
     }
-    if (tag === 13) {
-      return [tag, value(depth + 1), value(depth + 1)];
+    if ([13, 18].includes(tag)) {
+      return [tag as 13 | 18, value(depth + 1), value(depth + 1)];
     }
     if (tag === 15) {
       return [tag, string()];
