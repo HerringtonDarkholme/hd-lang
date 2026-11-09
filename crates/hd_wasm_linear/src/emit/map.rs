@@ -20,7 +20,6 @@ use crate::layout::{coll_kind, coll_leaves, payload_mem, strip};
 use crate::map::{Entry, KeyOps, LIVE, USED, entry_address, hash_address};
 use crate::module::{Global, HEADER, HEAP, Import, Sym, Val, mem};
 use crate::rt::{Helper, empty_buffer};
-use crate::unsupported;
 
 impl Em<'_, '_, '_> {
     /// The value type of map type `t` and a local holding the address of
@@ -563,11 +562,14 @@ impl Em<'_, '_, '_> {
 
     /// Makes the table in `m` unique before returning a mutable value
     /// reference. Entry numbers and a miss probe survive this copy.
-    fn map_probe_unique(&mut self, i: u32, m: u32, entry: &Entry) -> StageResult<()> {
-        // ruled out: own::map_probe_unique states this action for three-argument map_probe calls.
-        let Some(reason) = self.operation_count(i, Tag::MakeUnique, Part::Operand(0)) else {
-            return unsupported("a map probe without its stated uniqueness action");
-        };
+    fn map_probe_unique(&mut self, i: u32, m: u32, entry: &Entry) {
+        let reason = hd_tir::own::Reason::MayBeShared;
+        // ruled out: own::map_probe_unique states three-argument probes' action
+        // with reason 5; own::counts verifies that exact adjacent descriptor.
+        debug_assert_eq!(
+            self.operation_count(i, Tag::MakeUnique, Part::Operand(0)),
+            Some(reason)
+        );
         self.because(reason, |em| {
             em.f.get(m);
             em.f.u32(HEADER);
@@ -583,7 +585,6 @@ impl Em<'_, '_, '_> {
             em.f.set(m);
             em.f.op(I::End);
         });
-        Ok(())
     }
 
     /// Stores a probe's changed table through its map reference.
@@ -642,7 +643,7 @@ impl Em<'_, '_, '_> {
         self.map_probe_refs.insert(i, (m, false));
         let (kl, hash) = self.map_key(key, &entry, &ops)?;
         let found = self.map_find(m, hash, &kl, &entry, &ops);
-        self.map_probe_unique(i, m, &entry)?;
+        self.map_probe_unique(i, m, &entry);
 
         self.f.get(found);
         self.f.i32(0);
