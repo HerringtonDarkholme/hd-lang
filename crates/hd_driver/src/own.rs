@@ -122,7 +122,6 @@ fn instance_leaves(pool: &hd_types::InternPool, args: TyList) -> u64 {
             }
             TyData::Adt { args, .. } => sum(pool.list_items(args), memo),
             TyData::Union(ms) => sum(pool.list_items(ms), memo),
-            TyData::Option(i) => sum(&[i], memo),
             _ => 1,
         };
         memo.insert(t, n);
@@ -814,7 +813,6 @@ impl Env<'_> {
             _ => Tri::Yes,
         };
         match pool.get(t) {
-            TyData::Option(i) => self.copy_parts(i, open),
             TyData::Tuple { elems, rest } => {
                 let mut c = rest.map_or(Tri::Yes, |r| self.copy_parts(r, open));
                 for &e in pool.list_items(elems) {
@@ -941,7 +939,6 @@ fn refs_kinds(
                 && rest.is_none_or(|r| refs_kinds(pool, cells, ptr, r, depth + 1, counted))
         }
         TyData::Union(members) => all(members, counted),
-        TyData::Option(i) => refs_kinds(pool, cells, ptr, i, depth + 1, counted),
         TyData::Param(..) => false,
         _ => true,
     }
@@ -970,7 +967,6 @@ fn holds_ref(
             any(elems) || rest.is_some_and(|r| holds_ref(pool, cells, ptr, r, depth + 1))
         }
         TyData::Union(members) => any(members),
-        TyData::Option(i) => holds_ref(pool, cells, ptr, i, depth + 1),
         _ => false,
     }
 }
@@ -1142,7 +1138,9 @@ impl Env<'_> {
                     .copied()
                     .chain(rest)
                     .any(|t| visit(env, t, seen)),
-                TyData::Option(inner) => visit(env, inner, seen),
+                TyData::Adt { .. } if let Some(inner) = pool.sole_arg(t, env.run.known.option) => {
+                    visit(env, inner, seen)
+                }
                 TyData::Union(members) => pool
                     .list_items(members)
                     .iter()

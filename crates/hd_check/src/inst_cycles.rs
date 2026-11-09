@@ -339,7 +339,6 @@ fn head_match(pool: Types<'_>, owner: DefId, pattern: Ty, t: Ty, out: &mut Vec<O
                 head_match(pool, owner, x, y, out);
             }
         }
-        (TyData::Option(x), TyData::Option(y)) => head_match(pool, owner, x, y, out),
         (
             TyData::Fn {
                 params: a,
@@ -389,7 +388,7 @@ pub(crate) fn params_in(pool: Types<'_>, t: Ty, out: &mut Vec<ParamRef>) {
                 params_in(pool, member, out);
             }
         }
-        TyData::Option(i) | TyData::Ref { inner: i, .. } => {
+        TyData::Ref { inner: i, .. } => {
             params_in(pool, i, out);
         }
         TyData::Fn {

@@ -1122,7 +1122,6 @@ fn fold_vars(
             },
         },
         TyData::Union(members) => TyData::Union(fold_list(pool, members, canon, f)?),
-        TyData::Option(i) => TyData::Option(fold_vars(pool, i, canon, f)?),
         TyData::Ref {
             inner,
             mutable,
@@ -1437,7 +1436,6 @@ fn match_ty(pool: Types<'_>, owner: DefId, pat: Ty, t: Ty, binds: &mut Vec<Optio
             both(r, match_ty(pool, owner, r1, r2, binds))
         }
         (TyData::Union(a), TyData::Union(b)) => match_list(pool, owner, a, b, binds),
-        (TyData::Option(p), TyData::Option(x)) => match_ty(pool, owner, p, x, binds),
         (
             TyData::Fn {
                 params: p1,
@@ -2512,7 +2510,7 @@ fn collect_vars(pool: Types<'_>, t: Ty, out: &mut Vec<InferVar>) {
                 collect_vars(pool, a, out);
             }
         }
-        TyData::Option(i) | TyData::Ref { inner: i, .. } => {
+        TyData::Ref { inner: i, .. } => {
             collect_vars(pool, i, out);
         }
         TyData::Fn { params, result, .. } => {
@@ -3061,7 +3059,6 @@ fn norm_concrete(pool: Types<'_>, impls: Impls<'_>, t: Ty, depth: u32, reads: &m
             rest: rest.map(|r| norm_concrete(pool, impls, r, depth, reads)),
         },
         TyData::Union(members) => TyData::Union(norm_list(pool, impls, members, depth, reads)),
-        TyData::Option(i) => TyData::Option(norm_concrete(pool, impls, i, depth, reads)),
         TyData::Ref {
             inner,
             mutable,
@@ -5169,7 +5166,6 @@ mod tests {
             Ty::STRING,
             list(Ty::I32),
             list(dyn_show),
-            p.intern_ty(&TyData::Option(dyn_show)),
             tuple(&[Ty::I32, list(dyn_show)]),
             reference(Ty::STRING, true),
             reference(dyn_show, true),
@@ -5189,7 +5185,6 @@ mod tests {
             list(Ty::NEVER),
             reference(Ty::STRING, false),
             reference(reference(Ty::STRING, false), true),
-            p.intern_ty(&TyData::Option(reference(Ty::I32, false))),
             tuple(&[Ty::I32, reference(Ty::I32, false)]),
             view,
             list(view),

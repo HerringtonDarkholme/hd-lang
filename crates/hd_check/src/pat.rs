@@ -435,7 +435,7 @@ impl Ck<'_, '_> {
                     // variants to name.
                     let enum_like = matches!(
                         pool.get(self.infer.resolve(pool, inner)),
-                        TyData::Option(_) | TyData::Adt { .. } | TyData::Union(_)
+                        TyData::Adt { .. } | TyData::Union(_)
                     );
                     if !enum_like {
                         let msg = format!("`.{name}` needs an enum subject, not {}", self.show(t));
@@ -1532,7 +1532,7 @@ impl Ck<'_, '_> {
         lits: &mut HashMap<NodeIdx, P>,
     ) -> StageResult<()> {
         let (v, t) = occs[j];
-        let is_option = matches!(self.pool().get(self.strip(t)), TyData::Option(_));
+        let is_option = self.option_arg(self.strip(t)).is_some();
         let mut fails = Vec::with_capacity(named.len());
         for (idx, fs, at) in named {
             let (idx, at) = (*idx, *at);
@@ -2008,7 +2008,6 @@ impl Ck<'_, '_> {
             }
             // The rest element is the tuple's last member.
             TyData::Tuple { .. } => Some(vec![("()".into(), self.tuple_members(st))]),
-            TyData::Option(i) => Some(vec![("None".into(), vec![]), ("Some".into(), vec![i])]),
             TyData::Union(members) => Some(
                 pool.list_items(members)
                     .iter()

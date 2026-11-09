@@ -352,8 +352,6 @@ pub enum TyData {
     /// arity, order, duplicates, and nested union identities
     /// (`types.union.nesting`).
     Union(TyList),
-    /// `T?`, the sugar for `Option[T]` (`types.option.sugar`).
-    Option(Ty),
     /// A function type `fn(A) -> R $ Row` (`types.fn.constructor`);
     /// `suspends` marks a bang function, `SuspendFn`.
     Fn {
@@ -447,7 +445,6 @@ enum PoolTag {
     Adt,
     Tuple,
     TupleRest,
-    Option,
     Fn,
     TraitValue,
     Opaque,
@@ -1001,6 +998,15 @@ impl InternPool {
     pub fn trait_value(&self, t: Ty) -> Option<(DefId, TyList)> {
         self.types().trait_value(t)
     }
+    /// [`Types::sole_arg`].
+    #[must_use]
+    pub fn sole_arg(&self, t: Ty, def: DefId) -> Option<Ty> {
+        self.types().sole_arg(t, def)
+    }
+    /// [`Types::applied`].
+    pub fn applied(&self, def: DefId, arg: Ty) -> Ty {
+        self.types().applied(def, arg)
+    }
     #[must_use]
     pub fn has_infer(&self, t: Ty) -> bool {
         self.types().has_infer(t)
@@ -1267,7 +1273,6 @@ impl<'a> Types<'a> {
                 rest: Some(r),
             } => (T::TupleRest, 0, self.list_meta(*elems) | self.meta_of(*r)),
             TyData::Union(members) => (T::Union, members.0, self.list_meta(*members)),
-            TyData::Option(inner) => (T::Option, inner.0, self.meta_of(*inner)),
             TyData::Fn {
                 params,
                 result,
@@ -1428,6 +1433,28 @@ impl<'a> Types<'a> {
         Some((DefId::from_raw(c.extra[off]), TyList(c.extra[off + 1])))
     }
 
+    /// `T` when `t` is `def[T]`: the payload of `Option[T]`, which `T?`
+    /// spells (`types.option.sugar`), read without decoding `t`.
+    #[must_use]
+    pub fn sole_arg(self, t: Ty, def: DefId) -> Option<Ty> {
+        match self.adt(t)? {
+            (d, args) if d == def => match self.list_items(args) {
+                &[arg] => Some(arg),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    /// `def[arg]`: `Option[T]` for `T?` (`types.option.sugar`).
+    #[must_use]
+    pub fn applied(self, def: DefId, arg: Ty) -> Ty {
+        self.intern_ty(&TyData::Adt {
+            def,
+            args: self.list(&[arg]),
+        })
+    }
+
     /// A trait value's trait and argument-list identity, without allocating
     /// associated bindings. Callers that need bindings still use `get`.
     #[must_use]
@@ -1463,7 +1490,6 @@ impl<'a> Types<'a> {
                 rest: Some(Ty(x[1])),
             },
             PoolTag::Union => TyData::Union(TyList(d)),
-            PoolTag::Option => TyData::Option(Ty(d)),
             PoolTag::Fn => TyData::Fn {
                 params: TyList(x[0]),
                 result: Ty(x[1]),
@@ -1568,7 +1594,7 @@ impl<'a> Types<'a> {
                 list(elems) || rest.is_some_and(|r| self.names_trait_self(r, trait_))
             }
             TyData::Union(members) => list(members),
-            TyData::Option(i) | TyData::Ref { inner: i, .. } => self.names_trait_self(i, trait_),
+            TyData::Ref { inner: i, .. } => self.names_trait_self(i, trait_),
             TyData::Fn {
                 params,
                 result,
@@ -1650,7 +1676,6 @@ impl<'a> Types<'a> {
                 ..
             } => 1 + self.ref_slots_at(inner, d),
             TyData::Opaque { borrows: true, .. } => 1,
-            TyData::Option(i) => self.ref_slots_at(i, d),
             TyData::Tuple { elems, rest } => {
                 list(elems) + rest.map_or(0, |r| self.ref_slots_at(r, d))
             }
@@ -1712,7 +1737,6 @@ impl<'a> Types<'a> {
                 rest: rest.map(|r| self.lower_refs(cell, r)),
             },
             TyData::Union(members) => TyData::Union(l(members)),
-            TyData::Option(i) => TyData::Option(self.lower_refs(cell, i)),
             TyData::Fn {
                 params,
                 result,
@@ -1842,7 +1866,6 @@ impl<'a> Types<'a> {
                 rest: rest.map(|r| self.raise_refs_in(cell, r, memo)),
             },
             TyData::Union(members) => TyData::Union(l(members, memo)),
-            TyData::Option(i) => TyData::Option(self.raise_refs_in(cell, i, memo)),
             TyData::Assoc {
                 assoc,
                 trait_,
@@ -1955,7 +1978,6 @@ impl<'a> Types<'a> {
                 rest: rest.map(|r| self.subst(r, f)),
             },
             TyData::Union(members) => TyData::Union(l(members)),
-            TyData::Option(i) => TyData::Option(self.subst(i, f)),
             TyData::Ref {
                 inner,
                 mutable,
@@ -2071,7 +2093,6 @@ impl<'a> Types<'a> {
                 })
                 .collect::<Vec<_>>()
                 .join(" | "),
-            TyData::Option(i) => format!("{}?", self.display(i)),
             TyData::Fn {
                 params,
                 result,
@@ -2175,7 +2196,6 @@ pub fn with_assoc_args(pool: Types<'_>, t: Ty, trait_: DefId, args: TyList) -> T
             rest,
         },
         TyData::Union(members) => TyData::Union(list(members)),
-        TyData::Option(i) => TyData::Option(with_assoc_args(pool, i, trait_, args)),
         TyData::Ref {
             inner,
             mutable,
@@ -2320,7 +2340,6 @@ mod tests {
                     mutable: true,
                     counted: false,
                 },
-                TyData::Option(inner),
                 TyData::Tuple {
                     elems: args,
                     rest: None,
@@ -2425,9 +2444,11 @@ mod tests {
                     s.spawn(|| {
                         (0..2000u32)
                             .map(|n| {
-                                let o = p.intern_ty(&TyData::Option(Ty::prim(
-                                    Prim::ALL[(n % 14) as usize],
-                                )));
+                                let o = p.intern_ty(&TyData::Ref {
+                                    inner: Ty::prim(Prim::ALL[(n % 14) as usize]),
+                                    mutable: false,
+                                    counted: false,
+                                });
                                 p.list(&[o, Ty::prim(Prim::ALL[(n / 14 % 14) as usize])])
                             })
                             .collect()
@@ -2463,7 +2484,6 @@ mod tests {
                 rest: Some(Ty::BOOL),
             },
             TyData::Union(list),
-            TyData::Option(Ty::I32),
             TyData::Fn {
                 params: list,
                 result: Ty::VOID,
@@ -2513,8 +2533,6 @@ mod tests {
             assert_eq!(p.intern_ty(&f), t, "hash-consed");
         }
         assert_eq!(p.row_data(row).keys.len(), 2);
-        let opt = p.intern_ty(&TyData::Option(Ty::POISON));
-        assert!(p.has_poison(opt));
     }
 
     #[test]
@@ -2641,10 +2659,19 @@ mod tests {
         assert_eq!(of(Ty::VOID), of(unit), "`void` is `()`");
     }
 
+    /// `&T`: a one-child type for the tests below.
+    fn shared(inner: Ty) -> TyData {
+        TyData::Ref {
+            inner,
+            mutable: false,
+            counted: false,
+        }
+    }
+
     #[test]
     fn poison_marks_its_holders() {
         let p = InternPool::new();
-        let opt = p.intern_ty(&TyData::Option(Ty::POISON));
+        let opt = p.intern_ty(&shared(Ty::POISON));
         assert!(p.has_poison(opt));
     }
 
@@ -2658,14 +2685,14 @@ mod tests {
         let local = LocalPool::new();
         let p = Types::with_local(&g, &local);
         let v = p.intern_ty(&TyData::Infer(hd_base::InferVar::from_raw(3)));
-        let opt = p.intern_ty(&TyData::Option(v));
+        let opt = p.intern_ty(&shared(v));
         let l = p.list(&[opt, Ty::I32]);
         assert!(v.is_local() && opt.is_local() && Ty(l.0).is_local());
-        assert_eq!(p.get(opt), TyData::Option(v));
+        assert_eq!(p.get(opt), shared(v));
         assert_eq!(p.list_items(l), &[opt, Ty::I32]);
-        assert_eq!(p.intern_ty(&TyData::Option(v)), opt, "hash-consed locally");
+        assert_eq!(p.intern_ty(&shared(v)), opt, "hash-consed locally");
         assert!(p.has_infer(opt));
-        let plain = p.intern_ty(&TyData::Option(Ty::I32));
+        let plain = p.intern_ty(&shared(Ty::I32));
         assert!(!plain.is_local());
         assert_eq!(g.len(), before + 1, "only the variable-free type is global");
         assert_eq!(local.len(), 3);

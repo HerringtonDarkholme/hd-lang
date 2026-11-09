@@ -230,8 +230,7 @@ fn has_kind(names: &Names<'_>, t: Ty, k: Kind) -> bool {
                 ..
             },
         ) => mutable == m && counted == c,
-        (Opt, TyData::Option(_)) => true,
-        (Opt, TyData::Adt { def, .. }) => is_named(def, "Option"),
+        (Opt, TyData::Adt { def, .. }) => def == names.known.option,
         (Tuple(n), TyData::Tuple { elems, rest: None }) => {
             names.pool.list_items(elems).len() == usize::from(n)
         }

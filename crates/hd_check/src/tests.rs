@@ -659,7 +659,7 @@ pub(crate) fn timeout_ty(cx: &BodyCx<'_>) -> Ty {
         def: cx.names.item("std.time", "Duration"),
         args: TyList::EMPTY,
     });
-    pool.intern_ty(&TyData::Option(duration))
+    pool.applied(cx.names.known.option, duration)
 }
 
 /// Adds the runner capability `runner` to a case's row.

@@ -80,7 +80,6 @@ fn blocker(
         TyData::Ref {
             mutable, counted, ..
         } => (mutable && !counted).then_some(t),
-        TyData::Option(i) => blocker(cx, i, seen, normalize),
         TyData::Tuple { elems, rest } => any(pool.list_items(elems), seen)
             .or_else(|| rest.and_then(|r| blocker(cx, r, seen, normalize))),
         TyData::Union(ms) => any(pool.list_items(ms), seen),

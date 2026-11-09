@@ -212,7 +212,7 @@ impl Ck<'_, '_> {
                 children.extend_from_slice(pool.list_items(args));
                 children.push(bound);
             }
-            TyData::Option(i) | TyData::Ref { inner: i, .. } => children.push(i),
+            TyData::Ref { inner: i, .. } => children.push(i),
             TyData::Fn {
                 params,
                 result,
@@ -447,7 +447,6 @@ impl Ck<'_, '_> {
             (TyData::Adt { def, args: a }, TyData::Adt { def: e, args: b }) if def == e => {
                 pairs(a, b)
             }
-            (TyData::Option(a), TyData::Option(b)) => vec![(a, b)],
             (TyData::Tuple { elems: a, .. }, TyData::Tuple { elems: b, .. })
             | (TyData::TraitValue { args: a, .. }, TyData::TraitValue { args: b, .. }) => {
                 pairs(a, b)

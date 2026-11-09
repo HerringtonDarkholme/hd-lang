@@ -626,7 +626,6 @@ fn line_up_in(ls: &Layouts<'_>, d: Ty, t: Ty, call: bool) -> Option<Vec<Key>> {
                 walk(ls, a, b, st, d1)
             }
             (TyData::Ref { counted: true, .. }, TyData::Ref { counted: true, .. }) => true,
-            (TyData::Option(a), TyData::Option(b)) => walk(ls, a, b, st, d1),
             (TyData::Tuple { elems: a, rest: ra }, TyData::Tuple { elems: b, rest: rb }) => {
                 list(a, b, st)
                     && match (ra, rb) {
@@ -745,7 +744,6 @@ impl Layout {
                 out[k].end = out.len();
             }
             TyData::Opaque { borrows: true, .. } | TyData::Fn { .. } => out.push(slot),
-            TyData::Option(i) => walk(i, top, out),
             TyData::Tuple { elems, rest } => {
                 for &e in pool.list_items(elems) {
                     walk(e, top, out);
@@ -876,7 +874,6 @@ impl<'a> Layouts<'a> {
                 let start = es[..j as usize].iter().map(|&x| len(x)).sum();
                 Some((e, run(start, e)))
             }
-            (TyData::Option(i), Some(1)) if j == 0 => Some((i, run(0, i))),
             (TyData::Adt { def, args }, _) => {
                 let item = cx.lookup.item(def)?;
                 let fields = match (&item.data, variant) {

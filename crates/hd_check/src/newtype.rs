@@ -136,10 +136,9 @@ impl Conversion {
         }
         let known = ck.cx.names.known;
         match (pool.get(from), pool.get(to)) {
-            (TyData::Option(a), TyData::Option(b)) => self.can(ck, a, b),
             (TyData::Adt { def: d, args: a }, TyData::Adt { def: e, args: b }) if d == e => {
                 let (a, b) = (pool.list_items(a), pool.list_items(b));
-                if d == known.list {
+                if d == known.list || d == known.option {
                     self.can(ck, a[0], b[0])
                 } else if d == known.result {
                     a[1] == b[1] && self.can(ck, a[0], b[0])
@@ -198,7 +197,10 @@ impl Conversion {
         }
         let known = ck.cx.names.known;
         match (pool.get(f), pool.get(t)) {
-            (TyData::Option(a), TyData::Option(b)) => {
+            (TyData::Adt { def, args: a }, TyData::Adt { def: to, args: b })
+                if def == known.option && to == known.option =>
+            {
+                let (a, b) = (pool.list_items(a)[0], pool.list_items(b)[0]);
                 let tb = ck.b.open_block();
                 let u = ck.b.payload(r, 1, 0, a, at);
                 let c = self.apply(ck, u, (a, b), node)?;

@@ -397,7 +397,6 @@ pub fn value_paths(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<String
 pub fn value_parts(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<Ty> {
     match pool.get(t) {
         TyData::Tuple { .. } => tuple_members(pool, t),
-        TyData::Option(inner) => vec![inner],
         TyData::Union(members) => pool.list_items(members).to_vec(),
         TyData::Adt { def, args }
             if env.std_kind(def) == StdKind::Other && matches!(kind(pool, env, t), Kind::Value) =>
@@ -565,10 +564,6 @@ fn mem_one(
         },
         TyData::Never => Mem::NEVER,
         TyData::Tuple { .. } => payload_mem_by(&tuple_members(pool, t), part)?.0,
-        TyData::Option(inner) => {
-            let variants = [vec![], vec![inner]];
-            enum_flat_by(t, &variants, part)?
-        }
         TyData::Union(members) => {
             let variants = union_variants(pool, members);
             enum_flat_by(t, &variants, part)?
@@ -773,7 +768,7 @@ fn walk_one(
         TyData::Context(_) => Some(Walk::Known(0)),
         TyData::Tuple { .. } => fields_walk_by(pool, env, &tuple_members(pool, t), part),
         TyData::Adt { def, .. } if env.std_kind(def) != StdKind::Other => Some(Walk::Known(0)),
-        TyData::Option(_) | TyData::Union(_) => switch_walk_by(pool, env, t, part),
+        TyData::Union(_) => switch_walk_by(pool, env, t, part),
         TyData::Adt { def, args } if env.std_kind(def) == StdKind::Other => {
             match kind(pool, env, t) {
                 Kind::Boxed => Some(Walk::Known(0)),
@@ -1926,8 +1921,6 @@ pub fn holds_drop(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
 pub fn variants(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<Vec<Vec<Ty>>> {
     let t = strip(pool, env, t);
     match pool.get(t) {
-        // `None` is variant 0 and `Some` variant 1, as the tag says.
-        TyData::Option(inner) => Some(vec![vec![], vec![inner]]),
         TyData::Union(members) => Some(union_variants(pool, members)),
         TyData::Adt { def, args } => env.enum_variants(def, args),
         _ => None,

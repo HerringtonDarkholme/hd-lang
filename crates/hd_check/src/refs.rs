@@ -150,7 +150,16 @@ impl Ck<'_, '_> {
                     counted: kb,
                 },
             ) if ka || !kb => self.readonly_view_fits(a, b, d),
-            (TyData::Option(a), TyData::Option(b)) => self.readonly_view_fits(a, b, d),
+            // An optional's payload converts as a readonly view does.
+            (
+                TyData::Adt { def, args: a },
+                TyData::Adt {
+                    def: other,
+                    args: b,
+                },
+            ) if def == other && def == self.cx.names.known.option => {
+                self.readonly_view_fits(pool.list_items(a)[0], pool.list_items(b)[0], d)
+            }
             (
                 TyData::Adt { def, args: a },
                 TyData::Adt {
@@ -268,7 +277,7 @@ impl Ck<'_, '_> {
             }
             _ => {
                 self.infer.unify(pool, from, to).is_ok()
-                    && self.perm_fits(from, to, !matches!(pool.get(from), TyData::Option(_)), d)
+                    && self.perm_fits(from, to, self.option_arg(from).is_none(), d)
             }
         }
     }

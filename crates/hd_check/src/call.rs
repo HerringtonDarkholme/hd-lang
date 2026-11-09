@@ -3130,7 +3130,6 @@ impl Ck<'_, '_> {
                 elems: list(self, elems),
                 rest,
             },
-            TyData::Option(i) => TyData::Option(self.open_projections(i, n)),
             TyData::Ref {
                 inner,
                 mutable,
@@ -3176,9 +3175,7 @@ impl Ck<'_, '_> {
         let name = self.cx.src.text(self.cx.src.last(v)).to_owned();
         let w = want.map(|w| self.infer.shallow(pool, w));
         let enum_ty = match w.map(|w| pool.get(w)) {
-            Some(TyData::Option(_) | TyData::Adt { .. } | TyData::Union(_)) => {
-                w.unwrap_or(Ty::POISON)
-            }
+            Some(TyData::Adt { .. } | TyData::Union(_)) => w.unwrap_or(Ty::POISON),
             // A poisoned expectation already reported its error.
             Some(TyData::Poison) => return Ok((Ref(NONE), Ty::POISON)),
             // An open expectation may still resolve to an optional or a
@@ -3191,8 +3188,8 @@ impl Ck<'_, '_> {
                 match name.as_str() {
                     "Some" | "None" => {
                         let t = self.infer.fresh(pool, VarKind::General);
-                        self.row_argument_vars(DefId::NONE, &[t], v);
-                        pool.intern_ty(&TyData::Option(t))
+                        self.row_argument_vars(self.cx.names.known.option, &[t], v);
+                        self.optional(t)
                     }
                     _ => {
                         let a = self.infer.fresh(pool, VarKind::General);
@@ -3229,11 +3226,6 @@ impl Ck<'_, '_> {
         let pool = self.pool();
         let t = self.infer.shallow(pool, enum_ty);
         match pool.get(t) {
-            TyData::Option(inner) => match name {
-                "None" => Some((0, vec![])),
-                "Some" => Some((1, vec![inner])),
-                _ => None,
-            },
             TyData::Adt { def, args } => {
                 let ItemData::Enum { variants, .. } = &self.cx.lookup.item(def)?.data else {
                     return None;
@@ -3399,7 +3391,6 @@ impl Ck<'_, '_> {
         // The enum's own type arguments are decided like a reference's.
         let targs = match pool.get(self.infer.resolve(pool, t)) {
             TyData::Adt { args, .. } => pool.list_items(args).to_vec(),
-            TyData::Option(inner) => vec![inner],
             _ => vec![],
         };
         for a in targs {
@@ -3469,9 +3460,6 @@ impl Ck<'_, '_> {
     pub(crate) fn variant_field_names(&self, t: Ty, name: &str) -> Vec<String> {
         let pool = self.pool();
         let t = self.infer.resolve(pool, t);
-        if matches!(pool.get(t), TyData::Option(_)) && name == "None" {
-            return vec![];
-        }
         let TyData::Adt { def, .. } = pool.get(t) else {
             return vec!["0".into()];
         };
@@ -4069,7 +4057,7 @@ impl Ck<'_, '_> {
         {
             return "; write `{}` for an empty map".to_owned();
         }
-        if name == "unwrap" && matches!(data, TyData::Option(_)) {
+        if name == "unwrap" && self.option_arg(bare).is_some() {
             return "; use `expect(message)` or `unwrap_or(fallback)`".to_owned();
         }
         if name == "append" && self.builtin_method(t, "push").is_some() {
@@ -4290,16 +4278,8 @@ impl Ck<'_, '_> {
             (1, "len") => Some((IntrinsicOp::ListLen, vec![], usize_t)),
             (1, "push") => Some((IntrinsicOp::ListPush, vec![a[0]], Ty::VOID)),
             (2, "len") => Some((IntrinsicOp::MapLen, vec![], usize_t)),
-            (2, "get") => Some((
-                IntrinsicOp::MapGet,
-                vec![a[0]],
-                pool.intern_ty(&TyData::Option(a[1])),
-            )),
-            (2, "remove") => Some((
-                IntrinsicOp::MapRemove,
-                vec![a[0]],
-                pool.intern_ty(&TyData::Option(a[1])),
-            )),
+            (2, "get") => Some((IntrinsicOp::MapGet, vec![a[0]], self.optional(a[1]))),
+            (2, "remove") => Some((IntrinsicOp::MapRemove, vec![a[0]], self.optional(a[1]))),
             _ => None,
         }
     }
@@ -5369,7 +5349,7 @@ impl Ck<'_, '_> {
                     todo.extend_from_slice(pool.list_items(elems));
                     todo.extend(rest);
                 }
-                TyData::Option(i) | TyData::Ref { inner: i, .. } => todo.push(i),
+                TyData::Ref { inner: i, .. } => todo.push(i),
                 TyData::Fn {
                     params,
                     result,
@@ -5617,7 +5597,6 @@ impl Ck<'_, '_> {
                 elems: list(self, elems)?,
                 rest,
             },
-            TyData::Option(i) => TyData::Option(self.normalize_deep(i)?),
             TyData::Ref {
                 inner,
                 mutable,
@@ -5775,10 +5754,11 @@ impl Ck<'_, '_> {
     /// (`std-testing.runner.timeout`), nothing for `.None`.
     pub(crate) fn report_timeout(&mut self, timeout: Ref, n: NodeRef<'_>) {
         let pool = self.pool();
-        let duration = match pool.get(crate::tests::timeout_ty(self.cx)) {
-            TyData::Option(inner) => inner,
-            _ => Ty::POISON,
-        };
+        let duration = (pool.sole_arg(
+            crate::tests::timeout_ty(self.cx),
+            self.cx.names.known.option,
+        ))
+        .unwrap_or(Ty::POISON);
         let some = self.b.open_block();
         let d = self.b.payload(timeout, 1, 0, duration, n.index());
         let c = Callee::Item {

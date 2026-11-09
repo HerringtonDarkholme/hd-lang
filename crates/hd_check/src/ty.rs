@@ -1127,7 +1127,7 @@ impl Ck<'_, '_> {
             }
             SyntaxKind::OptionalType => {
                 let t = first(self, n)?;
-                pool.intern_ty(&TyData::Option(t))
+                pool.applied(self.cx.names.known.option, t)
             }
             SyntaxKind::UnionType => {
                 let members: StageResult<Vec<Ty>> = n

@@ -1698,7 +1698,6 @@ impl Ck<'_, '_> {
             pool.get(t),
             TyData::Adt { .. }
                 | TyData::Tuple { .. }
-                | TyData::Option(_)
                 | TyData::Fn { .. }
                 | TyData::TraitValue { .. }
         )
@@ -1989,7 +1988,7 @@ impl Ck<'_, '_> {
         // above, including the payload's Eq obligation. Newtypes and
         // user enum Eq implementations still follow their selected body.
         if tr == k.eq
-            && matches!(pool.get(operand), TyData::Option(_))
+            && self.option_arg(operand).is_some()
             && operand == self.infer.resolve(pool, self.resolved(ct))
         {
             let none = |r: Ref, held: bool| {
@@ -4078,7 +4077,7 @@ impl Ck<'_, '_> {
             None,
         )?;
         let _ = nt;
-        let opt = pool.intern_ty(&TyData::Option(item_ty));
+        let opt = self.optional(item_ty);
         let result = els.map(|(_, t)| t);
         self.loops.push((lp, result));
         self.scopes.push(HashMap::default());
@@ -4142,7 +4141,7 @@ impl Ck<'_, '_> {
             }
             TyData::Adt { args, .. } => pool.list_items(args).to_vec(),
             TyData::Tuple { elems, .. } => pool.list_items(elems).to_vec(),
-            TyData::Option(i) | TyData::Ref { inner: i, .. } => vec![i],
+            TyData::Ref { inner: i, .. } => vec![i],
             _ => vec![],
         };
         let mut any = false;
@@ -5281,8 +5280,9 @@ impl Ck<'_, '_> {
             Some(w) => self.resolved(w),
             None => self.infer.fresh(pool, VarKind::General),
         };
+        let option = self.cx.names.known.option;
         let hint = match pool.get(ret) {
-            TyData::Option(_) => Some(pool.intern_ty(&TyData::Option(success))),
+            TyData::Adt { def, .. } if def == option => Some(self.optional(success)),
             TyData::Adt { def, args } if def == result => {
                 let err = pool.list_items(args)[1];
                 Some(pool.intern_ty(&TyData::Adt {
@@ -5329,10 +5329,10 @@ impl Ck<'_, '_> {
         let result = self.cx.names.known.result;
         if self.joins.is_site(target) {
             match pool.get(t) {
-                TyData::Option(_) => {
+                TyData::Adt { def, .. } if def == self.cx.names.known.option => {
                     self.joins.propagate(target, true, n.index());
                     let value = self.infer.fresh(pool, VarKind::General);
-                    pool.intern_ty(&TyData::Option(value))
+                    self.optional(value)
                 }
                 TyData::Adt { def, args } if def == result => {
                     self.joins.propagate(target, false, n.index());
@@ -5359,9 +5359,12 @@ impl Ck<'_, '_> {
         (target, ret): (Ty, Ty),
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
-        let result = self.cx.names.known.result;
+        let (result, option) = (self.cx.names.known.result, self.cx.names.known.option);
         match (pool.get(t), pool.get(ret)) {
-            (TyData::Option(inner), TyData::Option(_)) => {
+            (TyData::Adt { def, args }, TyData::Adt { def: to, .. })
+                if def == option && to == option =>
+            {
+                let inner = pool.list_items(args)[0];
                 let ok_b = self.b.open_block();
                 let v = self.b.payload(r, 1, 0, inner, n.index());
                 let ok = self.b.close_block(ok_b, Some(v), inner, n.index());

@@ -11826,6 +11826,9 @@ impl LayoutEnv for Env<'_> {
         lock(&self.p.recursive_enums).insert(def, recursive);
         recursive
     }
+    fn option(&self) -> DefId {
+        self.run.known.option
+    }
     fn newtype_base(&self, def: DefId) -> Option<Ty> {
         match &self.p.items.get(def)?.data {
             ItemData::Newtype(inner) => Some(self.low(*inner)),

@@ -364,7 +364,6 @@ fn walk_values(
             }
             field_tys(def, args, &mut inner);
         }
-        TyData::Option(i) => inner.push(i),
         TyData::Tuple { elems, .. } => inner.extend(pool.list_items(elems).iter().copied()),
         _ => {}
     }

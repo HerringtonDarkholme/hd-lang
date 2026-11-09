@@ -121,14 +121,27 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
                 .collect();
             map_gens[1].bounds = vec![copy];
             item("Map", map_gens, ItemData::Builtin);
-            let opt = names.item(module, "Option");
-            let t = param(names, opt, 0);
+            // `enum Option[T] { None, Some(T) }` (`types.option.decl`).
+            let opt = names.known.option;
+            let variants = vec![
+                Variant {
+                    name: sym(names, "None"),
+                    def: names.member(opt, PathKind::Variant, "None"),
+                    fields: vec![],
+                },
+                Variant {
+                    name: sym(names, "Some"),
+                    def: names.member(opt, PathKind::Variant, "Some"),
+                    fields: vec![field(names, "0", param(names, opt, 0))],
+                },
+            ];
             item(
                 "Option",
                 gens(names, &["T"]),
-                ItemData::Alias {
-                    body: pool.intern_ty(&TyData::Option(t)),
-                    lifetimes: vec![],
+                ItemData::Enum {
+                    shared: vec![],
+                    variants,
+                    attrs: TypeAttrs::default(),
                 },
             );
             let res = names.item(module, "Result");

@@ -351,7 +351,9 @@ impl Target<'_, '_> {
             return Ok(no_cause(ck, v.node));
         };
         let pool = ck.cx.names.pool;
-        let TyData::Option(erased) = pool.get(ret) else {
+        let option = ck.cx.names.known.option;
+        let Some(erased) = pool.sole_arg(ret, option) else {
+            // ruled out: std's `Error.source` returns `(*Error)?`.
             unreachable!("stdpack Error.source returns an optional reference");
         };
         if let (Message::Transparent, [f]) = (v.message, fs) {
@@ -371,10 +373,7 @@ impl Target<'_, '_> {
         // `annot.error.cause.type`: the cause member's type implements
         // `Error`, an unmet bound like any other; with the bound unmet
         // the member has no conversion to check.
-        let cause_ty = match pool.get(t) {
-            TyData::Option(inner) => inner,
-            _ => t,
-        };
+        let cause_ty = pool.sole_arg(t, option).unwrap_or(t);
         let before = ck.diags.len();
         let tref = TraitRef {
             trait_: ck.cx.names.known.error,
@@ -388,7 +387,7 @@ impl Target<'_, '_> {
         let r = self.read(ck, p, vi, c, t);
         // An optional `@source` gives a cause only when present
         // (`annot.error.cause.optional`).
-        if let TyData::Option(inner) = pool.get(t) {
+        if let Some(inner) = pool.sole_arg(t, option) {
             let tb = ck.b.open_block();
             let u = ck.b.payload(r, 1, 0, inner, node.index());
             let (u, inner) = ck.new_object_ref(u, inner, false, node);

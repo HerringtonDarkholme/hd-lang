@@ -87,12 +87,11 @@ pub fn recursive_object(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool 
         let children = match pool.get(t) {
             TyData::Prim(_) | TyData::Never => Vec::new(),
             TyData::Tuple { .. } => tuple_members(pool, t),
-            TyData::Option(inner) => vec![inner],
             TyData::Adt { def, args } => {
                 // A declaration that reaches itself at growing arguments
                 // (`E[T?]` in `E[T]`) is one finite release-glue edge per
                 // concrete type, not recursion back to this glue.
-                if path.contains(&def) {
+                if path.contains(&def) && !optional(pool, env, t) {
                     continue;
                 }
                 match env.std_kind(def) {
@@ -113,7 +112,9 @@ pub fn recursive_object(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool 
             _ => Vec::new(),
         };
         let mut child_path = path;
-        if let TyData::Adt { def, .. } = pool.get(t) {
+        if let TyData::Adt { def, .. } = pool.get(t)
+            && !optional(pool, env, t)
+        {
             child_path.push(def);
         }
         for child in children {
@@ -121,6 +122,12 @@ pub fn recursive_object(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool 
         }
     }
     false
+}
+
+/// Whether `t` is `Option[T]`, which holds `T` in place and never itself,
+/// so no walk needs to cut it (`T??` nests finitely).
+fn optional(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
+    pool.sole_arg(t, env.option()).is_some()
 }
 
 /// Whether an object holding values of `parts` takes part, when only
@@ -164,7 +171,7 @@ fn reaches(pool: &InternPool, env: &dyn ProgramEnv, start: &[Ty]) -> bool {
         let children = match pool.get(t) {
             TyData::Prim(_) | TyData::Never => Vec::new(),
             TyData::Tuple { .. } => tuple_members(pool, t),
-            TyData::Option(inner) => vec![inner],
+            TyData::Adt { .. } if optional(pool, env, t) => value_parts(pool, env, t),
             TyData::Adt { def, args } => {
                 if path.contains(&t) {
                     continue;

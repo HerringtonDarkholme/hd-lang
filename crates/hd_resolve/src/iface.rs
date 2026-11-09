@@ -2290,7 +2290,7 @@ pub fn mentioned_defs<'a>(
                 stack.extend(rest);
             }
             TyData::Union(members) => stack.extend(pool.list_items(members)),
-            TyData::Option(i) | TyData::Ref { inner: i, .. } => stack.push(i),
+            TyData::Ref { inner: i, .. } => stack.push(i),
             TyData::Fn {
                 params,
                 result,
@@ -2588,6 +2588,13 @@ fn show_marked(
         TyData::Never => "never".into(),
         TyData::Poison => "_".into(),
         TyData::Const(v) => const_literal(names, v),
+        // `Option[T]` is spelled `T?` (`types.option.sugar`).
+        TyData::Adt { .. } if let Some(inner) = pool.sole_arg(t, names.known.option) => {
+            format!(
+                "{}?",
+                show_marked(names, pool, inner, (rows, qualified), marks)
+            )
+        }
         TyData::Adt { def, args } | TyData::TraitValue { def, args, .. }
             if args == TyList::EMPTY =>
         {
@@ -2637,7 +2644,6 @@ fn show_marked(
             })
             .collect::<Vec<_>>()
             .join(" | "),
-        TyData::Option(i) => format!("{}?", show_marked(names, pool, i, (rows, qualified), marks)),
         TyData::Ref {
             inner,
             mutable,

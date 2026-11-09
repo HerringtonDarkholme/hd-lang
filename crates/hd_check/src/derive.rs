@@ -700,11 +700,15 @@ pub(crate) fn structure_member_role(
     };
     let direct = match names.pool.get(value) {
         TyData::Param(p) => p.owner == method && p.index == 0,
-        TyData::Option(inner) => matches!(
-            names.pool.get(inner),
-            TyData::Param(p) if p.owner == method && p.index == 0
-        ),
-        _ => false,
+        _ => names
+            .pool
+            .sole_arg(value, known.option)
+            .is_some_and(|inner| {
+                matches!(
+                    names.pool.get(inner),
+                    TyData::Param(p) if p.owner == method && p.index == 0
+                )
+            }),
     };
     if trait_ == known.walker && !direct {
         Some(StructureMemberRole::Rest)

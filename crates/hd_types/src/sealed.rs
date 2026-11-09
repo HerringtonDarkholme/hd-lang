@@ -165,9 +165,7 @@ enum Category {
 
 fn category(pool: Types<'_>, decls: &dyn Declarations, t: Ty) -> Category {
     match pool.get(t) {
-        TyData::Prim(_) | TyData::Tuple { .. } | TyData::Option(_) | TyData::Fn { .. } => {
-            Category::Val
-        }
+        TyData::Prim(_) | TyData::Tuple { .. } | TyData::Fn { .. } => Category::Val,
         // A reference has identity: what it refers to (ref.type.any-ref).
         TyData::TraitValue { .. } | TyData::Ref { .. } => Category::Ref,
         // A collection is a value (`types.coll.value`).
@@ -318,10 +316,6 @@ pub(crate) fn row(
             // A declaration applied to inspectable arguments, `Option`
             // included (`trait.inspectable.declared`, `.option`), unless it
             // is local to a block suite (`trait.inspectable.not.local`).
-            TyData::Option(i) => {
-                argument(pool, i, &mut subs);
-                true
-            }
             TyData::Adt { def, .. } if decls.is_local(def) => false,
             // A const argument is part of the type's identity, not a type
             // with a row of its own.
@@ -380,7 +374,6 @@ fn copy_parts(
         TyData::Ref {
             mutable, counted, ..
         } => !mutable || counted,
-        TyData::Option(i) => copy_parts(pool, decls, i, subs, seen),
         TyData::Tuple { elems, rest } => {
             pool.list_items(elems)
                 .iter()
@@ -443,7 +436,6 @@ fn static_row(pool: Types<'_>, self_ty: Ty) -> Row {
         TyData::Ref { counted: false, .. } => return Row::Fails(FailReason::NoImpl),
         // `box` made the object from a value that met `'static`.
         TyData::Ref { .. } => {}
-        TyData::Option(inner) => subs.push(strip(inner)),
         TyData::Tuple { elems, rest } => {
             subs.extend(pool.list_items(elems).iter().map(|&e| strip(e)));
             subs.extend(rest.map(strip));

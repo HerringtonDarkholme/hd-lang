@@ -141,7 +141,6 @@ impl Ck<'_, '_> {
                         _ => self.perm_fits(a, b, false, d),
                     })
             }
-            (TyData::Option(a), TyData::Option(b)) => self.perm_fits(a, b, false, d),
             // `ref.type.distinct`: a reference type is invariant in its
             // operand.
             (

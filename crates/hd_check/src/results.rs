@@ -580,7 +580,7 @@ pub(crate) fn depth(pool: Types<'_>, t: Ty, at: u32) -> u32 {
             p.extend(rest);
             p
         }
-        TyData::Option(i) | TyData::Ref { inner: i, .. } => vec![i],
+        TyData::Ref { inner: i, .. } => vec![i],
         TyData::Fn { params, result, .. } => {
             let mut p = pool.list_items(params).to_vec();
             p.push(result);

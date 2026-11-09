@@ -423,14 +423,13 @@ fn read_frame_names(bytes: &[u8]) -> Option<HashMap<String, String>> {
 }
 
 /// The name an impl's type goes by in a frame, without generic arguments:
-/// a declared type by its name, `T?` as `Option`, a parameter by the name
+/// a declared type by its name, so `T?` as `Option`, a parameter by the name
 /// the impl gives it (`generics`), and a tuple by its elements' names. Any
 /// other type, such as a function, prints as a type does.
 pub(crate) fn self_type_name(names: &Names<'_>, generics: &[Generic], ty: Ty) -> String {
     let pool = names.pool.types();
     match pool.get(ty) {
         TyData::Adt { def, .. } => names.display_name(def).to_owned(),
-        TyData::Option(_) => "Option".to_owned(),
         TyData::Param(p) => generics
             .get(usize::from(p.index))
             .map_or_else(|| show_ty(names, ty), |g| names.text(g.name).to_owned()),

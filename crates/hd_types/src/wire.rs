@@ -40,7 +40,6 @@ mod tag {
     pub const POISON: u8 = 2;
     pub const ADT: u8 = 3;
     pub const TUPLE: u8 = 4;
-    pub const OPTION: u8 = 5;
     pub const PARAM: u8 = 6;
     pub const FN: u8 = 8;
     pub const LIST: u8 = 9;
@@ -51,6 +50,7 @@ mod tag {
     pub const ROW: u8 = 14;
     pub const ROW_TY: u8 = 15;
     pub const CONTEXT: u8 = 16;
+    // 5 was an optional, `T?`, now `Option[T]` (`types.option.sugar`).
     // 17 was an owned type, `own T`, 18 a borrowed type, `^T`, and 19
     // and 20 a lifetime and a lifetime argument; they are not reused.
     pub const REF: u8 = 21;
@@ -217,10 +217,6 @@ impl<'a> TableWriter<'a> {
             TyData::Union(members) => {
                 let members = self.list(members)?;
                 self.row(tag::UNION, &[members])
-            }
-            TyData::Option(i) => {
-                let inner = self.ty(i)?;
-                self.row(tag::OPTION, &[inner])
             }
             TyData::Opaque {
                 owner,
@@ -430,7 +426,6 @@ impl Tables {
                     })
                     .0
                 }
-                tag::OPTION => pool.intern_ty(&TyData::Option(Ty(row(0)?))).0,
                 tag::OPAQUE => {
                     pool.intern_ty(&TyData::Opaque {
                         owner: def(0)?,
@@ -704,7 +699,11 @@ mod tests {
         };
         let (zulu, alpha) = (member("Zulu"), member("Alpha"));
         let symbol = syms.intern("noteλ");
-        let optional = pool.intern_ty(&TyData::Option(Ty::I32));
+        let optional = pool.intern_ty(&TyData::Ref {
+            inner: Ty::I32,
+            mutable: false,
+            counted: false,
+        });
         let adt = pool.intern_ty(&TyData::Adt {
             def: point,
             args: pool.list(&[optional, Ty::BOOL]),
@@ -762,10 +761,10 @@ mod tests {
         expected.str("noteλ");
         let rows: &[(u8, &[u32])] = &[
             (0, &[2]),                  // i32
-            (5, &[0]),                  // i32?
+            (21, &[0]),                 // &i32
             (0, &[11]),                 // bool
             (9, &[1, 2]),               // type list
-            (3, &[2, 3]),               // Point[i32?, bool]
+            (3, &[2, 3]),               // Point[&i32, bool]
             (14, &[2, 0, 2, 2, 2]),     // sorted keys and row parameter
             (9, &[4, 1]),               // function inputs
             (9, &[0]),                  // tuple's fixed prefix

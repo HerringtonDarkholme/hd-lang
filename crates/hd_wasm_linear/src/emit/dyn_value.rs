@@ -334,7 +334,8 @@ impl Em<'_, '_, '_> {
         targs: hd_types::TyList,
         recv: u32,
     ) -> StageResult<()> {
-        let TyData::Option(target) = self.pool().get(self.ty(i)) else {
+        let Some(target) = self.pool().sole_arg(self.ty(i), self.env().option()) else {
+            // ruled out: the intrinsic's shape (`Opt`) checks its result.
             unreachable!("a recovery intrinsic returns `(&T)?`");
         };
         let concrete = self.sub(self.pool().list_items(targs)[0]);

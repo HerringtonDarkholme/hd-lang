@@ -264,7 +264,7 @@ fn ref_slots_at(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, depth: usize) ->
     ) {
         return vec![(0, t)];
     }
-    if let TyData::Option(inner) = pool.get(t) {
+    if let Some(inner) = pool.sole_arg(t, env.option()) {
         let Ok(Some(flat)) = flat(pool, env, t) else {
             return Vec::new();
         };

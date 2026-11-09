@@ -269,7 +269,6 @@ impl InferTable {
                 rest: rest.map(r),
             },
             TyData::Union(members) => TyData::Union(rl(members)),
-            TyData::Option(i) => TyData::Option(r(i)),
             TyData::Ref {
                 inner,
                 mutable,
@@ -359,7 +358,7 @@ impl InferTable {
                 .iter()
                 .copied()
                 .any(|x| self.occurs(pool, v, x)),
-            TyData::Option(i) | TyData::Ref { inner: i, .. } => self.occurs(pool, v, i),
+            TyData::Ref { inner: i, .. } => self.occurs(pool, v, i),
             TyData::Fn { params, result, .. } => {
                 self.occurs(pool, v, result)
                     || pool
@@ -508,7 +507,6 @@ impl InferTable {
                 self.unify(pool, r1, r2)
             }
             (TyData::Union(x), TyData::Union(y)) => self.unify_lists(pool, x, y, a, b),
-            (TyData::Option(x), TyData::Option(y)) => self.unify(pool, x, y),
             (
                 TyData::TraitValue {
                     def: d1, args: a1, ..
@@ -764,7 +762,7 @@ mod tests {
         assert_eq!(table.shallow(p, root), root);
         assert_eq!(lp.len(), before);
         let snap = table.snapshot();
-        let global = p.intern_ty(&TyData::Option(Ty::I32));
+        let global = p.intern_ty(&TyData::Union(p.list(&[Ty::I32])));
         table.unify(p, b, global).expect("bind class");
         assert!(!global.is_local());
         for ty in [a, b, alias] {
@@ -877,8 +875,8 @@ mod tests {
         let p = Types::with_local(&gp, &lp);
         let mut t = InferTable::default();
         let a = t.fresh(p, VarKind::General);
-        let opt_a = p.intern_ty(&TyData::Option(a));
-        let opt_i32 = p.intern_ty(&TyData::Option(Ty::I32));
+        let opt_a = p.intern_ty(&TyData::Union(p.list(&[a])));
+        let opt_i32 = p.intern_ty(&TyData::Union(p.list(&[Ty::I32])));
         let snap = t.snapshot();
         t.unify(p, opt_a, opt_i32).expect("unify");
         assert_eq!(t.resolve(p, opt_a), opt_i32);
@@ -942,7 +940,7 @@ mod tests {
         t.unify(p, old[2], new)
             .expect("an old variable joins a new one");
         t.unify(p, new, lit).expect("the class becomes a literal");
-        t.unify(p, old[0], p.intern_ty(&TyData::Option(new)))
+        t.unify(p, old[0], p.intern_ty(&TyData::Union(p.list(&[new]))))
             .expect("an old class binds through a new variable");
         t.mark_signed(p, lit);
         assert_eq!(t.kind_of(p, old[2]), Some(VarKind::SignedIntLit));

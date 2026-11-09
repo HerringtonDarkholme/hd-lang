@@ -1375,7 +1375,7 @@ impl<'a, 'n> Gen<'a, 'n> {
             Ok(g.switch_borrowed_tag(x, v.index, then, other, result))
         })?;
         let has_default = self.bool_(m.has_default);
-        let opt = self.names.pool.intern_ty(&TyData::Option(f));
+        let opt = self.names.pool.applied(self.names.known.option, f);
         let default = self.closure(&[], opt, |g, _| {
             if !m.has_default {
                 return Ok(g.unit_variant(0, opt));
@@ -1704,7 +1704,7 @@ impl<'a, 'n> Gen<'a, 'n> {
         let slots: Vec<LocalId> = walked
             .iter()
             .map(|m| {
-                let t = pool.intern_ty(&TyData::Option(m.ty));
+                let t = pool.applied(names.known.option, m.ty);
                 let l = self.b.local(
                     t,
                     names.syms.intern(&m.name),
@@ -1747,7 +1747,7 @@ impl<'a, 'n> Gen<'a, 'n> {
             }
             let slot = slots[k];
             k += 1;
-            let ot = pool.intern_ty(&TyData::Option(m.ty));
+            let ot = pool.applied(names.known.option, m.ty);
             let cur = self.b.get(slot, ot, SYN);
             let sb = self.b.open_block();
             let got = self.b.payload(cur, 1, 0, m.ty, SYN);
@@ -1791,7 +1791,7 @@ impl<'a, 'n> Gen<'a, 'n> {
         };
         let pool = self.names.pool;
         let tb = self.b.open_block();
-        let ot = pool.intern_ty(&TyData::Option(m.ty));
+        let ot = pool.applied(self.names.known.option, m.ty);
         let h = self.field_handle(v, m, m.ty);
         let prev = self.b.get(slots[0], ot, SYN);
         let method = if v.shape == Shape::Data {

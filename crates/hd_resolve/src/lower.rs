@@ -1681,8 +1681,7 @@ fn slot_paths(pool: Types<'_>, t: Ty, f: &mut impl FnMut(&TyData)) {
             counted: false,
             inner: i,
             ..
-        }
-        | TyData::Option(i) => slot_paths(pool, i, f),
+        } => slot_paths(pool, i, f),
         TyData::Tuple { elems, rest } => {
             for &e in pool.list_items(elems).iter().chain(rest.as_ref()) {
                 slot_paths(pool, e, f);
@@ -3192,7 +3191,7 @@ impl Lower<'_, '_, '_> {
             }
             SyntaxKind::OptionalType => {
                 let t = first_ty(self, n);
-                pool.intern_ty(&TyData::Option(t))
+                pool.applied(self.names.known.option, t)
             }
             SyntaxKind::UnionType => {
                 let members: Vec<Ty> = n
@@ -5487,10 +5486,7 @@ impl Lower<'_, '_, '_> {
             }
             if let Some(c) = v.cause() {
                 let t = fs[c].ty;
-                let inner = match pool.get(t) {
-                    TyData::Option(x) => x,
-                    _ => t,
-                };
+                let inner = pool.sole_arg(t, known.option).unwrap_or(t);
                 if let Some(i) = param_of(inner) {
                     cause[i] = true;
                 }
@@ -5526,7 +5522,7 @@ impl Lower<'_, '_, '_> {
             mutable: false,
             counted: true,
         });
-        let cause_ty = pool.intern_ty(&TyData::Option(cause_ref));
+        let cause_ty = pool.applied(known.option, cause_ref);
         let mut heads = Vec::new();
         for g in shape.generated() {
             heads.push(match g {
@@ -6294,7 +6290,7 @@ fn ty_any(pool: &InternPool, t: Ty, pred: &mut dyn FnMut(TyData) -> bool) -> boo
             kids.extend(rest);
         }
         TyData::Union(members) => kids.extend(pool.list_items(members)),
-        TyData::Option(i) | TyData::Ref { inner: i, .. } => kids.push(i),
+        TyData::Ref { inner: i, .. } => kids.push(i),
         TyData::Fn {
             params,
             result,
@@ -6469,11 +6465,9 @@ pub fn impl_placement(
             TyData::Adt { def, .. } | TyData::TraitValue { def, .. } => {
                 Some(names.module_node(def))
             }
-            TyData::Prim(_)
-            | TyData::Tuple { .. }
-            | TyData::Option(_)
-            | TyData::Fn { .. }
-            | TyData::Ref { .. } => Some(names.module("std.core")),
+            TyData::Prim(_) | TyData::Tuple { .. } | TyData::Fn { .. } | TyData::Ref { .. } => {
+                Some(names.module("std.core"))
+            }
             _ => None,
         }
     };

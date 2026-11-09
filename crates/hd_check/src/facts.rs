@@ -1306,7 +1306,7 @@ impl Ck<'_, '_> {
     ) -> StageResult<Option<Vec<Ty>>> {
         if let Some(written) = optional_written {
             let target = self.norm_ty(target);
-            if let TyData::Option(payload) = self.pool().get(target)
+            if let Some(payload) = self.option_arg(target)
                 && self.fact_type_fits_target(fact, payload, written, at)?
             {
                 return self.match_fact_pattern(fact, payload, at);

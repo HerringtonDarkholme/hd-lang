@@ -470,7 +470,6 @@ fn escape_in(pool: Types<'_>, t: Ty, top_ok: bool, depth: u32) -> Option<Escape>
             }
         }
         TyData::Ref { inner, .. } => escape_in(inner, true),
-        TyData::Option(i) => escape_in(i, top_ok),
         TyData::Tuple { elems, rest } => {
             list(elems, top_ok).or_else(|| rest.and_then(|r| escape_in(r, top_ok)))
         }
@@ -596,7 +595,7 @@ pub(crate) fn scoped_param(
         };
         match pool.get(t) {
             TyData::Param(q) => under && q == p,
-            TyData::Option(i) | TyData::Ref { inner: i, .. } => hidden(pool, i, p, under, d),
+            TyData::Ref { inner: i, .. } => hidden(pool, i, p, under, d),
             TyData::Tuple { elems, rest } => {
                 list(elems, under) || rest.is_some_and(|r| hidden(pool, r, p, under, d))
             }
@@ -663,7 +662,6 @@ pub(crate) fn lends(pool: Types<'_>, from: Ty, to: Ty, polarity: i8, depth: u32)
             };
             kind && lends(pool, a, b, 0, d)
         }
-        (TyData::Option(a), TyData::Option(b)) => lends(pool, a, b, 0, d),
         (TyData::Adt { def: x, args: a }, TyData::Adt { def: y, args: b }) if x == y => {
             list(a, b, 0)
         }
@@ -738,11 +736,10 @@ impl Ck<'_, '_> {
         let w = self.infer.shallow(pool, w);
         let (want, optional) = match pool.get(w) {
             TyData::Ref { counted, .. } => (counted, false),
-            TyData::Option(i) => match pool.get(self.infer.shallow(pool, i)) {
+            _ => match pool.get(self.infer.shallow(pool, self.option_arg(w)?)) {
                 TyData::Ref { counted, .. } => (counted, true),
                 _ => return None,
             },
-            _ => return None,
         };
         match (got, want) {
             (false, true) => {

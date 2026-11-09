@@ -234,9 +234,10 @@ impl Ck<'_, '_> {
             self.charge()?;
             let n = self.cx.src.parse.tree.node(d.at.0);
             let e = self.cx.src.parse.tree.node(d.at.1);
+            let known = self.cx.names.known;
             let hint = match pool.get(ret) {
-                TyData::Option(_) => Some(pool.intern_ty(&TyData::Option(d.payload))),
-                TyData::Adt { def, args } if def == self.cx.names.known.result => {
+                TyData::Adt { def, .. } if def == known.option => Some(self.optional(d.payload)),
+                TyData::Adt { def, args } if def == known.result => {
                     Some(pool.intern_ty(&TyData::Adt {
                         def,
                         args: pool.list(&[d.payload, pool.list_items(args)[1]]),
@@ -346,7 +347,7 @@ impl Ck<'_, '_> {
         for (optional, at) in propagation {
             let valid = match pool.get(site) {
                 TyData::Poison => true,
-                TyData::Option(_) => optional,
+                TyData::Adt { def, .. } if def == self.cx.names.known.option => optional,
                 TyData::Adt { def, .. } if def == self.cx.names.known.result => !optional,
                 _ => false,
             };
@@ -463,7 +464,7 @@ impl Ck<'_, '_> {
         let gs = self.resolved(g);
         // `types.lct.optional`: a plain value joins an optional site by
         // injection, one layer only (`types.lct.optional.one-layer`).
-        if let TyData::Option(inner) = pool.get(cur)
+        if let Some(inner) = self.option_arg(cur)
             && self.option_layers(gs) < self.option_layers(cur)
             && !(open(gs) && self.infer.kind_of(pool, gs) == Some(VarKind::General))
         {
@@ -478,7 +479,7 @@ impl Ck<'_, '_> {
         // An optional value joins a plain site of its inner type: the
         // site's type widens to the optional one, and the values joined
         // before it are wrapped when the site closes (`join_site`).
-        if let TyData::Option(inner) = pool.get(gs)
+        if let Some(inner) = self.option_arg(gs)
             && self.option_layers(cur) < self.option_layers(gs)
         {
             let snap = self.infer.snapshot();
@@ -840,13 +841,10 @@ impl Ck<'_, '_> {
             return true;
         }
         let t = self.infer.resolve(pool, t);
-        match pool.get(t) {
-            TyData::Option(inner) => {
-                self.option_layers(self.resolved(v)) < self.option_layers(t)
-                    && self.lct_converts(v, inner, true, 0)
-            }
-            _ => false,
-        }
+        self.option_arg(t).is_some_and(|inner| {
+            self.option_layers(self.resolved(v)) < self.option_layers(t)
+                && self.lct_converts(v, inner, true, 0)
+        })
     }
 
     /// The declared variance of each of `def`'s parameters: `1` covariant,

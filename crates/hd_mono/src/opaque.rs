@@ -153,8 +153,7 @@ fn result_facts(pool: &InternPool, declared: Ty, hidden: Ty, syn: NodeIdx, out: 
                 result_facts(pool, declared, hidden, syn, out);
             }
         }
-        (TyData::Option(declared), TyData::Option(hidden))
-        | (
+        (
             TyData::Ref {
                 inner: declared, ..
             },
@@ -305,7 +304,6 @@ impl Reveal<'_> {
                 elems: self.list(elems)?,
                 rest: rest.map(|t| self.ty(t)).transpose()?,
             },
-            TyData::Option(t) => TyData::Option(self.ty(t)?),
             TyData::Ref {
                 inner,
                 mutable,

@@ -74,7 +74,6 @@ impl Ck<'_, '_> {
                 elems: self.opaque_return_args(elems, mode),
                 rest: rest.map(|ty| self.map_opaque_return(ty, mode)),
             },
-            TyData::Option(inner) => TyData::Option(self.map_opaque_return(inner, mode)),
             TyData::Ref {
                 inner,
                 mutable,
@@ -162,7 +161,7 @@ impl Ck<'_, '_> {
             TyData::Tuple { elems, rest } => {
                 list(elems) || rest.is_some_and(|t| self.strict_opaque_return(t))
             }
-            TyData::Option(t) | TyData::Ref { inner: t, .. } => self.strict_opaque_return(t),
+            TyData::Ref { inner: t, .. } => self.strict_opaque_return(t),
             TyData::Fn {
                 params,
                 result,
@@ -225,12 +224,13 @@ impl Ck<'_, '_> {
                 .zip(pool.list_items(want))
                 .all(|(&g, &w)| me.constrain_opaque_return(g, w, node))
         };
+        if let Some(inner) = self.option_arg(wanted)
+            && self.injects_into(incoming, wanted)
+        {
+            return self.constrain_opaque_return(got, inner, node);
+        }
         match (pool.get(incoming), pool.get(wanted)) {
-            (_, TyData::Option(inner)) if self.injects_into(incoming, wanted) => {
-                self.constrain_opaque_return(got, inner, node)
-            }
-            (TyData::Option(g), TyData::Option(w))
-            | (TyData::Ref { inner: g, .. }, TyData::Ref { inner: w, .. }) => {
+            (TyData::Ref { inner: g, .. }, TyData::Ref { inner: w, .. }) => {
                 self.constrain_opaque_return(g, w, node)
             }
             (TyData::Adt { def: a, args: g }, TyData::Adt { def: b, args: w }) if a == b => {

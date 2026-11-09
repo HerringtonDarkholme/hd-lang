@@ -1809,12 +1809,22 @@ impl Ck<'_, '_> {
         l
     }
 
+    /// `T` when `t` is `Option[T]`, which `T?` spells (`types.option.sugar`).
+    pub(crate) fn option_arg(&self, t: Ty) -> Option<Ty> {
+        self.pool().sole_arg(t, self.cx.names.known.option)
+    }
+
+    /// `Option[t]`, which `t?` spells (`types.option.sugar`).
+    pub(crate) fn optional(&self, t: Ty) -> Ty {
+        self.pool().applied(self.cx.names.known.option, t)
+    }
+
     /// How many optional layers `t` has: `0` for an `i32`, `2` for an
     /// `i32??`. A layer still an unsolved variable ends the count.
     pub(crate) fn option_layers(&self, mut t: Ty) -> usize {
         let pool = self.pool();
         let mut n = 0;
-        while let TyData::Option(inner) = pool.get(self.infer.shallow(pool, t)) {
+        while let Some(inner) = self.option_arg(self.infer.shallow(pool, t)) {
             n += 1;
             t = inner;
         }
@@ -1919,11 +1929,10 @@ impl Ck<'_, '_> {
         // optional; `&T` never converts to `&mut T` (`ref.convert.no-upgrade`).
         let shared_target = |t: Ty| match pool.get(t) {
             TyData::Ref { mutable, .. } => Some(mutable),
-            TyData::Option(i) => match pool.get(self.infer.shallow(pool, i)) {
+            _ => match pool.get(self.infer.shallow(pool, self.option_arg(t)?)) {
                 TyData::Ref { mutable, .. } => Some(mutable),
                 _ => None,
             },
-            _ => None,
         };
         if let TyData::Ref {
             inner,
@@ -1976,7 +1985,7 @@ impl Ck<'_, '_> {
             .kind_of(pool, gs)
             .and_then(VarKind::literal_default);
         let open = matches!(pool.get(gs), TyData::Infer(_)) && lit.is_none();
-        if let TyData::Option(inner) = pool.get(ws)
+        if let Some(inner) = self.option_arg(ws)
             && !open
             && self.injects_into(gs, ws)
         {
@@ -2470,10 +2479,8 @@ impl Ck<'_, '_> {
                 (!mutable || writable) && self.dyn_fits(inner, tv)
             });
         }
-        match pool.get(to) {
-            TyData::Option(inner) => self.injects_into(from, to) && self.can_unify(from, inner),
-            _ => false,
-        }
+        self.option_arg(to)
+            .is_some_and(|inner| self.injects_into(from, to) && self.can_unify(from, inner))
     }
 
     /// Whether two types can unify, with no lasting effect.
@@ -2629,7 +2636,6 @@ impl Ck<'_, '_> {
                 elems: list(elems),
                 rest: rest.map(|t| self.integer_variant(t, replacement, changed)),
             },
-            TyData::Option(t) => TyData::Option(self.integer_variant(t, replacement, changed)),
             TyData::Ref {
                 inner,
                 mutable,
@@ -2737,7 +2743,7 @@ impl Ck<'_, '_> {
         if self.integer_default_hint_helps(origin) {
             msg.push_str("; integer literals defaulted to `usize`");
         }
-        let optional = matches!(pool.get(ty), TyData::Option(_));
+        let optional = self.option_arg(ty).is_some();
         let collection = matches!(pool.get(ty), TyData::Adt { def, .. } if def == self.cx.names.known.list || def == self.cx.names.known.map)
             || matches!(pool.get(ty), TyData::Tuple { .. });
         if tref.trait_ == self.cx.names.known.display && (optional || collection) {
@@ -3277,9 +3283,9 @@ impl Ck<'_, '_> {
     /// [`Self::must_use`] with the kind: `Some(true)` for a suspension.
     fn must_use_in(&self, t: Ty) -> Option<bool> {
         let pool = self.pool();
+        let known = self.cx.names.known;
         match pool.get(self.infer.resolve(pool, t)) {
-            TyData::Option(_) => Some(false),
-            TyData::Adt { def, .. } if def == self.cx.names.known.result => Some(false),
+            TyData::Adt { def, .. } if def == known.option || def == known.result => Some(false),
             TyData::Adt { def, .. } if def == self.cx.names.known.suspend => Some(true),
             _ => None,
         }
@@ -4434,10 +4440,6 @@ impl Ck<'_, '_> {
                 let rest = rest.map(|t| self.zonk(t));
                 pool.intern_ty(&TyData::Tuple { elems: e, rest })
             }
-            TyData::Option(i) => {
-                let i = self.zonk(i);
-                pool.intern_ty(&TyData::Option(i))
-            }
             TyData::Ref {
                 inner,
                 mutable,
@@ -5075,7 +5077,6 @@ impl VerifyFacts<'_, '_> {
 impl hd_tir::ir::VerifyCx for VerifyFacts<'_, '_> {
     fn variant_count(&self, ty: Ty) -> Option<u32> {
         match self.cx.names.pool.get(ty) {
-            TyData::Option(_) => Some(2),
             TyData::Adt { def, .. } => match &self.cx.lookup.item(def)?.data {
                 ItemData::Enum { variants, .. } => u32::try_from(variants.len()).ok(),
                 _ => None,

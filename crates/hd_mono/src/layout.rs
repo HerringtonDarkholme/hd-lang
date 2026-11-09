@@ -162,6 +162,8 @@ pub trait LayoutEnv {
     /// own parameters (`types.newtype.construct-ref`,
     /// `types.newtype.construct-value`); `None` for any other item.
     fn newtype_base(&self, def: DefId) -> Option<Ty>;
+    /// The prelude enum `Option`, which `T?` names (`types.option.sugar`).
+    fn option(&self) -> DefId;
 }
 
 /// The layout of a type (§15.1 and the value table of §15.2). Every type
@@ -214,9 +216,6 @@ pub fn value_enums(pool: &InternPool, env: &dyn LayoutEnv, t: Ty) -> Vec<Ty> {
             TyData::Tuple { elems, rest } => {
                 stack.extend(pool.list_items(elems).iter().map(|e| (*e, false)));
                 stack.extend(rest.map(|r| (r, false)));
-            }
-            TyData::Option(i) => {
-                stack.push((i, false));
             }
             _ => {}
         }
@@ -309,6 +308,37 @@ fn layout_in(
             values: vec![],
             packed_bits: None,
         },
+        // An optional of a reference is a nullable one.
+        TyData::Adt { .. } if let Some(inner) = pool.sole_arg(t, env.option()) => {
+            let li = layout_in(pool, env, inner, memo)?;
+            match (li.class, li.values.as_slice()) {
+                (LayoutClass::Ref, [ValType::Ref { .. }]) => {
+                    one(LayoutClass::Ref, ValType::Ref { nullable: true })
+                }
+                (LayoutClass::Multi, [ValType::Ref { .. }, ValType::I64])
+                    if inner == Ty::STRING =>
+                {
+                    Layout {
+                        class: LayoutClass::Multi,
+                        values: vec![ValType::Ref { nullable: true }, ValType::I64],
+                        packed_bits: None,
+                    }
+                }
+                _ => {
+                    let mut values = vec![ValType::I32];
+                    values.extend(li.values);
+                    if values.len() > VALUE_BOUND {
+                        one(LayoutClass::Ref, ValType::Ref { nullable: true })
+                    } else {
+                        Layout {
+                            class: LayoutClass::Multi,
+                            values,
+                            packed_bits: None,
+                        }
+                    }
+                }
+            }
+        }
         TyData::Adt { def, args } => match env.enum_variants(def, args) {
             None => one(LayoutClass::Ref, ValType::Ref { nullable: false }),
             Some(_) if env.recursive_enum(def) => {
@@ -343,36 +373,6 @@ fn layout_in(
                 .map(|member| vec![*member])
                 .collect();
             enum_layout_in(pool, env, &variants, memo)?
-        }
-        TyData::Option(inner) => {
-            let li = layout_in(pool, env, inner, memo)?;
-            match (li.class, li.values.as_slice()) {
-                (LayoutClass::Ref, [ValType::Ref { .. }]) => {
-                    one(LayoutClass::Ref, ValType::Ref { nullable: true })
-                }
-                (LayoutClass::Multi, [ValType::Ref { .. }, ValType::I64])
-                    if inner == Ty::STRING =>
-                {
-                    Layout {
-                        class: LayoutClass::Multi,
-                        values: vec![ValType::Ref { nullable: true }, ValType::I64],
-                        packed_bits: None,
-                    }
-                }
-                _ => {
-                    let mut values = vec![ValType::I32];
-                    values.extend(li.values);
-                    if values.len() > VALUE_BOUND {
-                        one(LayoutClass::Ref, ValType::Ref { nullable: true })
-                    } else {
-                        Layout {
-                            class: LayoutClass::Multi,
-                            values,
-                            packed_bits: None,
-                        }
-                    }
-                }
-            }
         }
         TyData::Fn { .. } => one(LayoutClass::Ref, ValType::Ref { nullable: false }),
         // (eqref, (ref $VT)).
@@ -488,7 +488,6 @@ pub fn is_recursive_enum(pool: &InternPool, env: &dyn LayoutEnv, def: DefId) -> 
                     todo.extend_from_slice(pool.list_items(elems));
                     todo.extend(rest);
                 }
-                TyData::Option(i) => todo.push(i),
                 _ => {}
             }
         }
@@ -536,9 +535,6 @@ impl ValueGraph {
                 TyData::Tuple { elems, rest } => {
                     todo.extend(pool.list_items(elems).iter().map(|e| (f, *e)));
                     todo.extend(rest.map(|r| (f, r)));
-                }
-                TyData::Option(i) => {
-                    todo.push((f, i));
                 }
                 TyData::Assoc { .. } => {
                     self.opaque.insert(f);
@@ -661,10 +657,6 @@ pub fn canon(
         TyData::Union(members) => {
             h.u8(20);
             canon_list(pool, path_hash, memo, members, &mut h);
-        }
-        TyData::Option(i) => {
-            h.u8(4);
-            h.hash(canon(pool, path_hash, memo, i));
         }
         TyData::Fn {
             params,
@@ -1094,6 +1086,9 @@ mod tests {
         fn newtype_base(&self, _: DefId) -> Option<Ty> {
             None
         }
+        fn option(&self) -> DefId {
+            DefId::from_raw(7)
+        }
     }
 
     struct Newtypes(Vec<(DefId, Ty)>);
@@ -1112,6 +1107,9 @@ mod tests {
         }
         fn newtype_base(&self, def: DefId) -> Option<Ty> {
             self.0.iter().find(|(d, _)| *d == def).map(|(_, t)| *t)
+        }
+        fn option(&self) -> DefId {
+            DefId::from_raw(7)
         }
     }
 
@@ -1187,6 +1185,9 @@ mod tests {
         fn newtype_base(&self, _: DefId) -> Option<Ty> {
             None
         }
+        fn option(&self) -> DefId {
+            DefId::from_raw(7)
+        }
     }
 
     #[test]
@@ -1205,7 +1206,7 @@ mod tests {
                 args: p.list(args),
             })
         };
-        let opt = |t: Ty| p.intern_ty(&TyData::Option(t));
+        let opt = |t: Ty| adt(7, &[t]);
         // 1: `Tree[T] = Leaf(T) | Node(Tree[T], Tree[T])`.
         let tree = adt(1, &[param(1, 0)]);
         // 2: `Grow[T] = More(Grow[T?]) | Done(T)`: growing arguments.
@@ -1412,7 +1413,7 @@ mod tests {
         let p = InternPool::new();
         let shared = doubled(&p, 2);
         let q = InternPool::new();
-        let _noise = q.intern_ty(&TyData::Option(Ty::STRING));
+        let _noise = q.intern_ty(&TyData::Union(q.list(&[Ty::STRING])));
         let pair = |q: &InternPool| {
             q.intern_ty(&TyData::Tuple {
                 elems: q.list(&[Ty::I32, Ty::I32]),
@@ -1475,12 +1476,12 @@ mod tests {
             layout_of(&p, &Env, nested).expect("nested").class,
             LayoutClass::Ref
         );
-        let opt_data = p.intern_ty(&TyData::Option(data));
+        let opt_data = p.applied(Env.option(), data);
         assert_eq!(
             layout_of(&p, &Env, opt_data).expect("opt").values,
             [ValType::Ref { nullable: true }]
         );
-        let opt_i32 = p.intern_ty(&TyData::Option(Ty::I32));
+        let opt_i32 = p.applied(Env.option(), Ty::I32);
         assert_eq!(
             layout_of(&p, &Env, opt_i32).expect("opt i32").values.len(),
             2

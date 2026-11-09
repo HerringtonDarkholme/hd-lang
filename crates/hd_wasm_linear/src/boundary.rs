@@ -234,7 +234,6 @@ fn of_at(
                 LTy::Record(fields)
             }
         }
-        TyData::Option(inner) => enum_of(input, m, &[vec![], vec![inner]], depth, at)?,
         TyData::Adt { def, args } if env.ref_cells().holds(def) => {
             // A trait value reference to a host handle: the handle,
             // behind the reference the `host_provider` instance makes.
@@ -2055,7 +2054,9 @@ fn package_value(input: &Input<'_>, t: Ty, depth: u32) -> StageResult<hd_host_ab
                 Value::Tuple(ts)
             }
         }
-        TyData::Option(inner) => Value::Option(Box::new(package_value(input, inner, depth + 1)?)),
+        TyData::Adt { .. } if let Some(inner) = pool.sole_arg(t, env.option()) => {
+            Value::Option(Box::new(package_value(input, inner, depth + 1)?))
+        }
         TyData::Adt { def, args } if env.std_kind(def) == hd_mono::layout::StdKind::List => {
             let Some(&elem) = pool.list_items(args).first() else {
                 return fail();

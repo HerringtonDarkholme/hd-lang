@@ -16,6 +16,8 @@ pub struct KnownItems {
     pub any: DefId,
     pub any_val: DefId,
     pub any_ref: DefId,
+    /// The prelude enum `Option[T]`, which `T?` names (`types.option.sugar`).
+    pub option: DefId,
     pub result: DefId,
     pub list: DefId,
     /// `List.is_empty`, whose result is known for a generated empty facts list.
@@ -279,6 +281,7 @@ impl KnownItems {
             any,
             any_val,
             any_ref,
+            option: item("std.core", "Option"),
             result: item("std.core", "Result"),
             list: item("std.core", "List"),
             list_is_empty: inherent_method("std.collections", "impl [ T ] List [ T ]", "is_empty"),

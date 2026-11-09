@@ -79,7 +79,7 @@ impl Em<'_, '_, '_> {
         let TyData::Fn { result, .. } = self.pool().get(self.ty(i)) else {
             return unsupported("a map step that is not a function");
         };
-        let TyData::Option(item) = self.pool().get(result) else {
+        let Some(item) = self.pool().sole_arg(result, self.env().option()) else {
             return unsupported("a map step whose result is not optional");
         };
         let mut want = vec![crate::module::Val::I32];
@@ -87,8 +87,8 @@ impl Em<'_, '_, '_> {
         if self.vals(item)? != want {
             return unsupported("a map entry that lays out unlike its tuple");
         }
-        let ot = self.pool().intern_ty(&TyData::Option(item));
-        // `ot` is the optional of the entry type.
+        // `result` is the optional of the entry type.
+        let ot = result;
         let opt = self.enum_flat(ot)?;
         let count = |at: u64| {
             move |em: &mut Self, h: u32| {

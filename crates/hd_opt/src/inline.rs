@@ -1135,7 +1135,6 @@ fn holds_local(pool: &InternPool, cells: RefCells, t: Ty, depth: u32) -> bool {
         TyData::Tuple { elems, rest } => {
             any(elems) || rest.is_some_and(|r| holds_local(pool, cells, r, depth + 1))
         }
-        TyData::Option(i) => holds_local(pool, cells, i, depth + 1),
         _ => false,
     }
 }

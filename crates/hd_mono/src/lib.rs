@@ -820,6 +820,13 @@ fn name_into(
             }
             name_into(pool, env, printed, pool.list_items(args)[0], out, limit);
         }
+        // `Option[T]` is spelled `T?` (`types.option.sugar`).
+        TyData::Adt { def, args } if def == env.option() => {
+            for &inner in pool.list_items(args) {
+                name_into(pool, env, printed, inner, out, limit);
+            }
+            out.push('?');
+        }
         TyData::Adt { def, args } => {
             out.push_str(&def_name(env, printed, def));
             if !pool.list_items(args).is_empty() {
@@ -879,10 +886,6 @@ fn name_into(
                     out.push(')');
                 }
             }
-        }
-        TyData::Option(i) => {
-            name_into(pool, env, printed, i, out, limit);
-            out.push('?');
         }
         TyData::Ref {
             inner,
@@ -977,7 +980,6 @@ pub fn unify(pool: &InternPool, owner: DefId, pattern: Ty, t: Ty, out: &mut Vec<
                 unify(pool, owner, x, y, out);
             }
         }
-        (TyData::Option(x), TyData::Option(y)) => unify(pool, owner, x, y, out),
         (
             TyData::Fn {
                 params: a,
@@ -1090,7 +1092,6 @@ fn items_in(pool: &InternPool, t: Ty, out: &mut Vec<DefId>, seen: &mut HashSet<T
                 items_in(pool, r, out, seen);
             }
         }
-        TyData::Option(i) => items_in(pool, i, out, seen),
         TyData::Fn { params, result, .. } => {
             list(params, out, seen);
             items_in(pool, result, out, seen);
@@ -1748,7 +1749,7 @@ impl Cx<'_> {
                 parts.extend(rest);
             }
             TyData::Union(members) => parts.extend(pool.list_items(members)),
-            TyData::Option(i) | TyData::Ref { inner: i, .. } => parts.push(i),
+            TyData::Ref { inner: i, .. } => parts.push(i),
             TyData::Fn {
                 params,
                 result,
@@ -2153,7 +2154,6 @@ impl Cx<'_> {
                 def,
                 args: list(args),
             },
-            TyData::Option(inner) => TyData::Option(self.shared_permission_type(inner)),
             TyData::Tuple { elems, rest } => TyData::Tuple {
                 elems: list(elems),
                 rest: rest.map(|t| self.shared_permission_type(t)),
@@ -2527,7 +2527,6 @@ impl Cx<'_> {
                         }
                     }
                 }
-                TyData::Option(inner) => todo.push(inner),
                 TyData::Tuple { elems, rest } => {
                     todo.extend(self.pool.list_items(elems).iter().copied());
                     todo.extend(rest);
@@ -2693,7 +2692,6 @@ impl Cx<'_> {
                     .chain(rest)
                     .collect(),
             ],
-            TyData::Option(inner) => vec![vec![inner]],
             _ => Vec::new(),
         };
         for child in children.into_iter().flatten() {
@@ -3866,7 +3864,6 @@ fn pinned(
                 *x = true;
             }
         }
-        TyData::Option(x) => pinned(pool, env, def, x, inside, out),
         TyData::Adt { def: d, args } => {
             // `List`, `Map`, a buffer's room and enum payloads store
             // references erased.
