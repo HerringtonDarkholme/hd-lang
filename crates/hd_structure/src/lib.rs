@@ -1020,13 +1020,13 @@ impl<'a, 'n> Gen<'a, 'n> {
     fn shared_pairs(&mut self, v: &Var) -> StageResult<Ref> {
         let pool = self.names.pool;
         let lt = self.field_ty(self.std("VariantInfo"), "shared")?;
-        let TyData::Adt { args, .. } = pool.get(lt) else {
-            // ruled out: VariantInfo.shared is List[(string, *dyn Inspectable)]
-            // by annot.structure.decl/annot.variant.shared-pairs; List has one argument.
-            return self
-                .cx
-                .unsupported("a `VariantInfo.shared` that is not a list");
-        };
+        // ruled out: annot.structure.decl/annot.variant.shared-pairs declare
+        // VariantInfo.shared as List[(string, *dyn Inspectable)].
+        let (def, args) = pool.adt_parts(lt);
+        assert_eq!(
+            def, self.names.known.list,
+            "VariantInfo.shared must be List"
+        );
         let pair_t = pool.list_items(args)[0];
         // ruled out: shared pairs erase values to *dyn Inspectable, as
         // annot.variant.shared-pairs declares; no field-dependent type remains.
@@ -1373,7 +1373,7 @@ impl<'a, 'n> Gen<'a, 'n> {
             if !m.has_default {
                 return Ok(g.unit_variant(0, opt));
             }
-            let d = g.default_of(v, m, f)?;
+            let d = g.default_of(v, m, f);
             let rec = g.b.refs_record(&[d]);
             Ok(g.b.emit(Tag::NewVariant, 1, rec, opt, SYN))
         })?;
@@ -1466,22 +1466,22 @@ impl<'a, 'n> Gen<'a, 'n> {
     }
 
     /// The error type of a `Result` value `r`.
-    fn result_args(&self, r: Ref) -> StageResult<(Ty, Ty)> {
+    fn result_args(&self, r: Ref) -> (Ty, Ty) {
         let pool = self.names.pool;
-        let TyData::Adt { args, .. } = pool.get(self.b.ty_of(r)) else {
-            // ruled out: every std protocol method consumed by try_void/try_value
-            // declares Result[success, Error]; substitution preserves its two arguments.
-            return self
-                .cx
-                .unsupported("a protocol method whose result is not a `Result`");
-        };
+        // ruled out: std protocol methods consumed by try_void/try_value declare
+        // Result[success, Error]; substitution preserves its constructor and arguments.
+        let (def, args) = pool.adt_parts(self.b.ty_of(r));
+        assert_eq!(
+            def, self.names.known.result,
+            "protocol results must be Result"
+        );
         let items = pool.list_items(args);
-        Ok((items[0], items[1]))
+        (items[0], items[1])
     }
 
     /// `r?` for a `Result[void, E]` in a body whose result type is `ret`.
-    fn try_void(&mut self, r: Ref, ret: Ty) -> StageResult<()> {
-        let (_, err) = self.result_args(r)?;
+    fn try_void(&mut self, r: Ref, ret: Ty) {
+        let (_, err) = self.result_args(r);
         let ob = self.b.open_block();
         let ok = self.b.close_block(ob, None, Ty::VOID, SYN);
         let eb = self.b.open_block();
@@ -1491,7 +1491,6 @@ impl<'a, 'n> Gen<'a, 'n> {
         self.b.emit(Tag::Return, v.0, NONE, Ty::NEVER, SYN);
         let other = self.b.close_block(eb, None, Ty::NEVER, SYN);
         self.switch_tag(r, 0, ok, other, Ty::VOID);
-        Ok(())
     }
 
     /// The parameters' locals of a body with signature `sig`.
@@ -1554,7 +1553,7 @@ impl<'a, 'n> Gen<'a, 'n> {
         let h = self.variant_handle(v);
         let method = if data { "data_variant" } else { "variant" };
         let r = self.protocol_call(trait_, method, w, &[], &[h])?;
-        self.try_void(r, ret)?;
+        self.try_void(r, ret);
         for m in v.members.iter().filter(|m| !m.omitted) {
             let f = m.ty;
             let h = self.field_handle(v, m, f);
@@ -1565,7 +1564,7 @@ impl<'a, 'n> Gen<'a, 'n> {
                     if data {
                         ("data_member", f)
                     } else if m.rest {
-                        ("rest", self.list_item(f)?)
+                        ("rest", self.list_item(f))
                     } else {
                         ("member", f)
                     }
@@ -1573,21 +1572,18 @@ impl<'a, 'n> Gen<'a, 'n> {
                 None => ("member", f),
             };
             let r = self.protocol_call(trait_, method, w, &[targ], &args)?;
-            self.try_void(r, ret)?;
+            self.try_void(r, ret);
         }
         Ok(())
     }
 
     /// The item type `T` of a rest member's `List[T]`.
-    fn list_item(&self, t: Ty) -> StageResult<Ty> {
+    fn list_item(&self, t: Ty) -> Ty {
         let pool = self.names.pool;
-        match pool.get(t) {
-            TyData::Adt { def, args } if def == self.names.known.list => {
-                Ok(pool.list_items(args)[0])
-            }
-            // ruled out: tuple_target receives List[T] rests checked by types.tuple.rest.list.
-            _ => self.cx.unsupported("a rest element that is not a `List`"),
-        }
+        // ruled out: tuple_target receives List[T] rests checked by types.tuple.rest.list.
+        let (def, args) = pool.adt_parts(t);
+        assert_eq!(def, self.names.known.list, "tuple rests must be List");
+        pool.list_items(args)[0]
     }
 
     /// `.Ok(())` of `ret`.
@@ -1628,8 +1624,8 @@ impl<'a, 'n> Gen<'a, 'n> {
     }
 
     /// `r?` for a `Result[T, E]`: its `T`, or a return of the `.Err`.
-    fn try_value(&mut self, r: Ref, ret: Ty) -> StageResult<Ref> {
-        let (ok_t, err) = self.result_args(r)?;
+    fn try_value(&mut self, r: Ref, ret: Ty) -> Ref {
+        let (ok_t, err) = self.result_args(r);
         let ob = self.b.open_block();
         let v = self.b.payload(r, 0, 0, ok_t, SYN);
         let ok = self.b.close_block(ob, Some(v), ok_t, SYN);
@@ -1639,7 +1635,7 @@ impl<'a, 'n> Gen<'a, 'n> {
         let v = self.b.emit(Tag::NewVariant, 1, rec, ret, SYN);
         self.b.emit(Tag::Return, v.0, NONE, Ty::NEVER, SYN);
         let other = self.b.close_block(eb, None, Ty::NEVER, SYN);
-        Ok(self.switch_tag(r, 0, ok, other, ok_t))
+        self.switch_tag(r, 0, ok, other, ok_t)
     }
 
     /// `SwitchInt v [#value then else]` of type `t`.
@@ -1650,17 +1646,13 @@ impl<'a, 'n> Gen<'a, 'n> {
 
     /// The declared default of member `m` of `v`, as a value of type `t`
     /// (`annot.handle.default`, `annot.omit.default`).
-    fn default_of(&mut self, v: &Var, m: &Mem, t: Ty) -> StageResult<Ref> {
+    fn default_of(&mut self, v: &Var, m: &Mem, t: Ty) -> Ref {
         let body = self.names.member(v.def, PathKind::Hidden, &m.declared);
-        let TyData::Adt { args, .. } = self.names.pool.get(self.target) else {
-            // ruled out: checker defaults belong to ADTs; tuple/union_target set none.
-            return self
-                .cx
-                .unsupported("a member default of a target that is not a data type or enum");
-        };
+        // ruled out: checker defaults belong to ADTs; tuple/union_target set none.
+        let (_, args) = self.names.pool.adt_parts(self.target);
         let a = self.b.refs_record(&[Ref(body.raw()), Ref(args.0)]);
         let bw = self.b.refs_record(&[]);
-        Ok(self.b.emit(Tag::DefaultCall, a, bw, t, SYN))
+        self.b.emit(Tag::DefaultCall, a, bw, t, SYN)
     }
 
     /// `T::default()` for a skipped positional member whose type is `T`.
@@ -1711,7 +1703,7 @@ impl<'a, 'n> Gen<'a, 'n> {
         let lp = self.b.open_loop();
         let lb = self.b.open_block();
         let r = self.protocol_call(source, "next", src, &[], &[members])?;
-        let key_option = self.try_value(r, ret)?;
+        let key_option = self.try_value(r, ret);
         let key_def = self.std("KeyRecord");
         let key_ty = self.record_ref(key_def, &[s]);
         let nb = self.b.open_block();
@@ -1733,7 +1725,7 @@ impl<'a, 'n> Gen<'a, 'n> {
             if m.omitted {
                 values.push(match m.type_default {
                     Some(choice) => self.type_default(m.ty, choice),
-                    None => self.default_of(v, m, m.ty)?,
+                    None => self.default_of(v, m, m.ty),
                 });
                 continue;
             }
@@ -1747,7 +1739,7 @@ impl<'a, 'n> Gen<'a, 'n> {
             let nb = self.b.open_block();
             let h = self.field_handle(v, m, m.ty);
             let r = self.protocol_call(source, "missing", src, &[m.ty], &[h])?;
-            let x = self.try_value(r, ret)?;
+            let x = self.try_value(r, ret);
             let none = self.b.close_block(nb, Some(x), m.ty, SYN);
             values.push(self.switch_tag(cur, 1, some, none, m.ty));
         }
@@ -1792,7 +1784,7 @@ impl<'a, 'n> Gen<'a, 'n> {
             "member"
         };
         let r = self.protocol_call(self.names.known.source, method, src, &[m.ty], &[h, prev])?;
-        let x = self.try_value(r, ret)?;
+        let x = self.try_value(r, ret);
         let rec = self.b.refs_record(&[x]);
         let some = self.b.emit(Tag::NewVariant, 1, rec, ot, SYN);
         self.b.set(slots[0], some, SYN);
@@ -1816,13 +1808,13 @@ impl<'a, 'n> Gen<'a, 'n> {
                 let choice = self.variant_handle(v);
                 let r =
                     self.protocol_call(names.known.source, "data_variant", src, &[], &[choice])?;
-                let _ = self.try_value(r, ret)?;
+                let _ = self.try_value(r, ret);
                 self.build_variant(v, src, ret)?
             }
             _ => {
                 let choices = self.choices();
                 let r = self.protocol_call(names.known.source, "variant", src, &[], &[choices])?;
-                let chosen = self.try_value(r, ret)?;
+                let chosen = self.try_value(r, ret);
                 let path = [
                     (self.std("VariantRecord"), "info"),
                     (self.std("VariantInfo"), "index"),
