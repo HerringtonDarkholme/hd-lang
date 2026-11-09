@@ -279,15 +279,44 @@ the slot's start:
   `address - 8`.
 - **The descriptor word** identifies shared release glue, not a nominal
   type record. Its low 16 bits are the glue's table slot plus one, so a
-  module's function table has fewer than 65,535 slots (32,767 when weak
-  references are linked); six bits are the borrow state, three the
-  collector's state, five carry an allocator class, and the top two are
-  collector flags. Every update of one field is a read-modify-write that
-  keeps the others. Every block is header plus payload, so a
-  cycle-capable type's object takes the same class as any other.
-  The allocator supplies the block size. An interior reference finds its
-  block through the page table, then runs that block's glue. Types with
-  identical layouts may share the descriptor and have no stored type name.
+  module's function table has at most 65,535 slots (32,767 when weak
+  references are linked, or may be, as in a REPL session); six bits are
+  the borrow state, three the collector's state, five carry an allocator
+  class, and the top two are collector flags. Every update of one field
+  is a read-modify-write that keeps the others. Every block is header
+  plus payload, so a cycle-capable type's object takes the same class as
+  any other. The allocator supplies the block size. An interior
+  reference finds its block through the page table, then runs that
+  block's glue. Types with identical layouts may share the descriptor
+  and have no stored type name.
+- **The table limit and its price** (#1536). The link checks the
+  table's final size once, in `module::table_fits`. A program past the
+  limit gets `program-too-large` (`module.limit.program-size.error`),
+  which names the slots it needs, the limit and the field's width; no
+  descriptor wraps into the borrow state. The limit counts every slot,
+  not only descriptors: one check, and no ordering rule for the table.
+  The table report (`crates/hd_driver/tests/all/table_report.rs`)
+  measured 142 programs in dev and release: every bench program,
+  `bench/study`, the generated 10,000-line package, the std runtime test
+  modules, the 25 largest runtime conformance programs and every
+  weak-linked one. The most is 191 slots and 27 descriptors
+  (`crates/hd_driver/tests/std_rt/scan_tests.hd`): 0.29% of the limit,
+  343 times headroom, where 5% would be 3,277 slots. A bench program
+  uses at most 60 (`bench/study/json.hd`, dev); the median program uses
+  5. A weak-linked program uses at most 15 of its 32,767. Each slot is a
+  function, so a program past the limit is a program of 65,536
+  functions: the generated ones in
+  `crates/hd_driver/tests/all/table_limit.rs`
+  build to the error in 7.4 s (65,536 functions) and 3.7 s (32,768,
+  weak) in the debug test harness. Lifting the limit is not worth its
+  cost. A type index into a static descriptor table, the owner's
+  2026-11-08 question, adds a load to every release that reaches zero
+  and a row per type. Widening the field takes bits that the borrow
+  state, the collector and the allocator class use: the word is full.
+  If a real program ever comes within 5%, the cheap lift is to number
+  descriptor glue first, so the limit counts descriptors (27 at most
+  today) instead of slots. That reorders every module's table and costs
+  nothing per object or call.
 - **Immortal objects.** A literal or constant object starts at count
   2^31, and lives in a static page anyway; a program never releases more
   references than it made, so it never reaches zero.

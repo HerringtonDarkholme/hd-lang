@@ -95,6 +95,10 @@ pub struct NotImplemented {
     /// not a construct this build lacks. The stage's caller turns it into
     /// its own diagnostic, such as the checker's `item-too-complex`.
     pub out_of_fuel: bool,
+    /// The input passed an implementation limit of a whole program
+    /// ([`NotImplemented::over_limit`]): not a construct this build lacks.
+    /// The driver reports it as `program-too-large`.
+    pub over_limit: bool,
 }
 
 impl NotImplemented {
@@ -106,6 +110,7 @@ impl NotImplemented {
             span: None,
             bug: false,
             out_of_fuel: false,
+            over_limit: false,
         }
     }
 
@@ -116,6 +121,17 @@ impl NotImplemented {
     pub fn out_of_fuel(stage: Stage, what: impl Into<String>) -> Self {
         Self {
             out_of_fuel: true,
+            ..Self::new(stage, what)
+        }
+    }
+
+    /// The program passed one of `stage`'s implementation limits: `what`
+    /// names the limit and how far past it the program is
+    /// (`program.limit.size.error`).
+    #[must_use]
+    pub fn over_limit(stage: Stage, what: impl Into<String>) -> Self {
+        Self {
+            over_limit: true,
             ..Self::new(stage, what)
         }
     }
@@ -143,6 +159,13 @@ impl fmt::Display for NotImplemented {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.bug {
             write!(f, "stage {} hit a bug: {}", self.stage.name(), self.what)
+        } else if self.over_limit {
+            write!(
+                f,
+                "stage {} reached a limit: {}",
+                self.stage.name(),
+                self.what
+            )
         } else if self.out_of_fuel {
             write!(
                 f,

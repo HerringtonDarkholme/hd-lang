@@ -2212,6 +2212,14 @@ pub fn main(args: List[string]) -> void:  # error: entry-point-parameters
 
 See also: [Mutable Providers](11-requirements-and-suspension.md#mutable-providers).
 
+### Program Size
+
+1. r[module.limit.program-size] An implementation may limit the size of one built program, such as how many functions it reaches through function values, trait values, and cleanup. The limit is implementation-defined.
+2. r[module.limit.program-size.error] A program over that limit is an error, reported when the program is built. Error: `program-too-large`.
+
+> **Why.** Building a program is the first time its whole size is known,
+> so only a build reports this limit, as it does the instantiation limit.
+
 ### Entry Results
 
 1. r[module.entry.exit-report] When an entry point returns, the process exits with the `u8` held by the `ExitCode` that `report()` returns for its result, as [Exit Status](#exit-status) describes.

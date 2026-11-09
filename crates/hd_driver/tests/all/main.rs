@@ -119,6 +119,8 @@ mod stored_fn_call;
 mod structure_run;
 mod structure_specialize;
 mod suspending_closures_run;
+mod table_limit;
+mod table_report;
 mod template_shape;
 mod test_placement;
 mod test_plan;

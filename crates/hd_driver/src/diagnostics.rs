@@ -230,8 +230,10 @@ pub fn from_output(out: &Output, as_written: Option<&str>) -> Vec<Diag> {
 
 /// Reports a stage's stop at the construct, or at the sentinel span when
 /// the stage has no position: a construct this build does not support, as
-/// an `unsupported` error, or a failed internal check
-/// ([`NotImplemented::bug`]), as an internal error that asks for a report.
+/// an `unsupported` error; a program past an implementation limit
+/// ([`NotImplemented::over_limit`]), as `program-too-large`; or a failed
+/// internal check ([`NotImplemented::bug`]), as an internal error that asks
+/// for a report.
 pub(crate) fn report_stop(diags: &mut DiagBuf, s: Stage, e: &NotImplemented) {
     let span = e.span.unwrap_or(Span {
         file: FileId::from_raw(u32::MAX),
@@ -244,6 +246,8 @@ pub(crate) fn report_stop(diags: &mut DiagBuf, s: Stage, e: &NotImplemented) {
             span,
             &format!("the compiler hit a bug in stage {name} ({what}); please report it"),
         );
+    } else if e.over_limit {
+        diags.error(Code::ProgramTooLarge, span, what);
     } else {
         diags.error(
             Code::Unsupported,

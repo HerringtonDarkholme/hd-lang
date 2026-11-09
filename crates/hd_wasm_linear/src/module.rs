@@ -1791,11 +1791,6 @@ impl Module {
         // in the order first named.
         let mut slots: Vec<u32> = Vec::new();
         let table_start = previous.map_or(0, |p| p.table_len);
-        let descriptor_limit = if self.uses_weak || self.open_world {
-            WEAK_GLUE
-        } else {
-            GLUE
-        };
         let mut slot_of = Numbers::new();
         let mut descriptor_origins = BTreeMap::new();
         let mut descriptors: BTreeMap<(SymId, DescriptorKey), u32> = BTreeMap::new();
@@ -1873,47 +1868,43 @@ impl Module {
         // Resolve every body slot in the same order encoding will visit it.
         // Weak descriptor aliases must be complete before their link-time
         // descriptor-to-type registry is appended to static data.
+        // The descriptor slots, for the table report ([`TableUse`]).
+        let mut described: Vec<u32> = Vec::new();
         for s in &defined {
             let f = self.funcs[s.idx()].as_ref().expect("defined function");
             for (position, ins) in f.body.iter().enumerate() {
-                #[cfg(not(feature = "checked-report"))]
-                let _ = position;
                 match ins {
                     Ins::Descriptor(t, key) => {
-                        descriptor_slot(
+                        let k = descriptor_slot(
                             *t,
                             *key,
                             table_start,
-                            descriptor_limit,
                             &index,
                             &mut slots,
                             &mut descriptors,
                         )?;
+                        described.push(k);
                     }
                     Ins::TableSlot(t) => {
+                        let descriptor = starts_descriptor(&f.body, position);
                         #[cfg(feature = "checked-report")]
-                        let descriptor = self.runtime.is_some_and(|r| r.checked.is_some())
-                            && matches!(f.body.get(position + 1), Some(Ins::Op(Instruction::I32Const(c))) if c.cast_unsigned() == 1 || c.cast_unsigned() == CYCLIC + 1)
-                            && matches!(
-                                f.body.get(position + 2),
-                                Some(Ins::Op(Instruction::I32Add))
-                            );
-                        #[cfg(feature = "checked-report")]
-                        if descriptor {
+                        let k = if descriptor && self.runtime.is_some_and(|r| r.checked.is_some()) {
                             descriptor_slot(
                                 *t,
                                 DescriptorKey::default(),
                                 table_start,
-                                descriptor_limit,
                                 &index,
                                 &mut slots,
                                 &mut descriptors,
-                            )?;
+                            )?
                         } else {
-                            slot(t, &mut slots)?;
-                        }
+                            slot(t, &mut slots)?
+                        };
                         #[cfg(not(feature = "checked-report"))]
-                        slot(t, &mut slots)?;
+                        let k = slot(t, &mut slots)?;
+                        if descriptor {
+                            described.push(k);
+                        }
                     }
                     _ => {}
                 }
@@ -2232,7 +2223,6 @@ impl Module {
                             *t,
                             *key,
                             table_start,
-                            descriptor_limit,
                             &index,
                             &mut slots,
                             &mut descriptors,
@@ -2241,19 +2231,13 @@ impl Module {
                     }
                     Ins::TableSlot(t) => {
                         #[cfg(feature = "checked-report")]
-                        let descriptor = self.runtime.is_some_and(|r| r.checked.is_some())
-                            && matches!(f.body.get(position + 1), Some(Ins::Op(Instruction::I32Const(c))) if c.cast_unsigned() == 1 || c.cast_unsigned() == CYCLIC + 1)
-                            && matches!(
-                                f.body.get(position + 2),
-                                Some(Ins::Op(Instruction::I32Add))
-                            );
-                        #[cfg(feature = "checked-report")]
-                        let k = if descriptor {
+                        let k = if self.runtime.is_some_and(|r| r.checked.is_some())
+                            && starts_descriptor(&f.body, position)
+                        {
                             descriptor_slot(
                                 *t,
                                 DescriptorKey::default(),
                                 table_start,
-                                descriptor_limit,
                                 &index,
                                 &mut slots,
                                 &mut descriptors,
@@ -2263,16 +2247,6 @@ impl Module {
                         };
                         #[cfg(not(feature = "checked-report"))]
                         let k = slot(t, &mut slots)?;
-                        let glue_limit = if self.uses_weak || self.open_world {
-                            WEAK_GLUE
-                        } else {
-                            GLUE
-                        };
-                        if k >= glue_limit {
-                            return crate::unsupported(
-                                "a function table exceeding the descriptor glue field",
-                            );
-                        }
                         // A constant added to the slot, a descriptor's
                         // flags, folds into one constant.
                         let plus = match (f.body.get(position + 1), f.body.get(position + 2)) {
@@ -2541,6 +2515,13 @@ impl Module {
             manifest.weak_type_ids = weak_type_ids.clone();
         }
         manifest.table_len = table_start + u32::try_from(slots.len()).expect("table");
+        let weak = self.uses_weak || self.open_world;
+        table_fits(manifest.table_len, weak)?;
+        TABLE_USE.set(TableUse {
+            slots: manifest.table_len,
+            descriptors: distinct(&described, manifest.table_len),
+            weak,
+        });
         let mut data = DataSection::new();
         if !self.data.is_empty() {
             data.active(
@@ -2797,11 +2778,94 @@ fn compact_names(own: &[(u32, String)]) -> wasm_encoder::CustomSection<'static> 
     }
 }
 
+/// What one link put in its function table: its slots, how many of them
+/// are object descriptors (§23.4), and whether the weak glue field caps it.
+/// [`last_table_use`] reads the last link on the calling thread, for
+/// `hd_driver`'s table report.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct TableUse {
+    pub slots: u32,
+    pub descriptors: u32,
+    pub weak: bool,
+}
+
+thread_local! {
+    static TABLE_USE: std::cell::Cell<TableUse> = const {
+        std::cell::Cell::new(TableUse { slots: 0, descriptors: 0, weak: false })
+    };
+}
+
+/// The [`TableUse`] of the last link that finished on this thread.
+#[must_use]
+pub fn last_table_use() -> TableUse {
+    TABLE_USE.get()
+}
+
+/// The most function-table slots a module may have: every descriptor's
+/// glue field holds a slot plus one (§23.4), so the table's last slot must
+/// fit [`GLUE`], or [`WEAK_GLUE`] in a weak-linked module.
+#[must_use]
+pub const fn table_limit(weak: bool) -> u32 {
+    if weak { WEAK_GLUE } else { GLUE }
+}
+
+/// Stops a link whose function table is past [`table_limit`], with the
+/// limit's diagnostic (`program-too-large`) rather than a descriptor that
+/// wraps into the borrow state.
+fn table_fits(len: u32, weak: bool) -> StageResult<()> {
+    let limit = table_limit(weak);
+    if len <= limit {
+        return Ok(());
+    }
+    let with = if weak {
+        " that may hold weak references"
+    } else {
+        ""
+    };
+    Err(NotImplemented::over_limit(
+        Stage::Link,
+        format!(
+            "the program needs {len} function-table slots, and a module{with} may have at \
+             most {limit}: an object's descriptor word stores its release glue's slot in \
+             {} bits",
+            limit.count_ones()
+        ),
+    ))
+}
+
+/// Whether the `TableSlot` at `position` starts a descriptor word: the slot,
+/// then `i32.const` of its flags plus one, then `i32.add`
+/// ([`crate::rt::push_desc`]).
+fn starts_descriptor(body: &[Ins], position: usize) -> bool {
+    matches!(
+        body.get(position + 1..position + 3),
+        Some([Ins::Op(Instruction::I32Const(c)), Ins::Op(Instruction::I32Add)])
+            if c.cast_unsigned() == 1 || c.cast_unsigned() == CYCLIC + 1
+    )
+}
+
+/// The number of distinct slots in `slots`, each below `len`: one bit per
+/// table slot, so a link pays a pass over its descriptor sites and
+/// `len / 64` words.
+fn distinct(slots: &[u32], len: u32) -> u32 {
+    let mut seen = vec![0u64; len.div_ceil(64) as usize];
+    let mut count = 0;
+    for &k in slots {
+        let (word, bit) = ((k / 64) as usize, 1u64 << (k % 64));
+        if let Some(w) = seen.get_mut(word)
+            && *w & bit == 0
+        {
+            *w |= bit;
+            count += 1;
+        }
+    }
+    count
+}
+
 fn descriptor_slot(
     s: SymId,
     key: DescriptorKey,
     table_start: u32,
-    limit: u32,
     index: &Numbers,
     slots: &mut Vec<u32>,
     ids: &mut BTreeMap<(SymId, DescriptorKey), u32>,
@@ -2814,9 +2878,6 @@ fn descriptor_slot(
         .get(s)
         .ok_or_else(|| NotImplemented::bug(Stage::Link, "undefined descriptor glue"))?;
     let k = table_start + u32::try_from(slots.len()).expect("descriptor table");
-    if k >= limit {
-        return crate::unsupported("a descriptor table exceeding the glue field");
-    }
     slots.push(f);
     ids.insert(pair, k);
     Ok(k)
@@ -2837,7 +2898,6 @@ mod checked_descriptor_tests {
                 glue,
                 DescriptorKey::checked(1),
                 0,
-                WEAK_GLUE,
                 &index,
                 &mut slots,
                 &mut ids
@@ -2850,7 +2910,6 @@ mod checked_descriptor_tests {
                 glue,
                 DescriptorKey::checked(2),
                 0,
-                WEAK_GLUE,
                 &index,
                 &mut slots,
                 &mut ids
@@ -2863,7 +2922,6 @@ mod checked_descriptor_tests {
                 glue,
                 DescriptorKey::checked(1),
                 0,
-                WEAK_GLUE,
                 &index,
                 &mut slots,
                 &mut ids
@@ -2886,7 +2944,6 @@ mod checked_descriptor_tests {
                 glue,
                 DescriptorKey::checked(1),
                 41,
-                WEAK_GLUE,
                 &index,
                 &mut slots,
                 &mut ids
@@ -2899,7 +2956,6 @@ mod checked_descriptor_tests {
                 glue,
                 DescriptorKey::checked(2),
                 41,
-                WEAK_GLUE,
                 &index,
                 &mut slots,
                 &mut ids
@@ -2912,7 +2968,6 @@ mod checked_descriptor_tests {
                 glue,
                 DescriptorKey::checked(1),
                 41,
-                WEAK_GLUE,
                 &index,
                 &mut slots,
                 &mut ids
@@ -2937,59 +2992,66 @@ mod checked_descriptor_tests {
         let mut a2 = DescriptorKey::weak(Hash128(1));
         a2.kind = 2;
         assert_eq!(
-            descriptor_slot(glue, a1, 0, WEAK_GLUE, &index, &mut slots, &mut ids).unwrap(),
+            descriptor_slot(glue, a1, 0, &index, &mut slots, &mut ids).unwrap(),
             0
         );
         assert_eq!(
-            descriptor_slot(glue, b1, 0, WEAK_GLUE, &index, &mut slots, &mut ids).unwrap(),
+            descriptor_slot(glue, b1, 0, &index, &mut slots, &mut ids).unwrap(),
             1
         );
         assert_eq!(
-            descriptor_slot(glue, a2, 0, WEAK_GLUE, &index, &mut slots, &mut ids).unwrap(),
+            descriptor_slot(glue, a2, 0, &index, &mut slots, &mut ids).unwrap(),
             2
         );
         assert_eq!(
-            descriptor_slot(glue, a1, 0, WEAK_GLUE, &index, &mut slots, &mut ids).unwrap(),
+            descriptor_slot(glue, a1, 0, &index, &mut slots, &mut ids).unwrap(),
             0
         );
         assert_eq!(slots, [7, 7, 7]);
     }
+}
+
+#[cfg(test)]
+mod table_limit_tests {
+    use super::*;
 
     #[test]
-    fn no_weak_module_keeps_the_old_descriptor_capacity() {
-        let glue = SymId(3);
-        let mut index = Numbers::new();
-        index.insert(glue, 7);
-        let mut slots = Vec::new();
-        let mut ids = BTreeMap::new();
-        assert_eq!(
-            descriptor_slot(
-                glue,
-                DescriptorKey::checked(1),
-                WEAK_GLUE,
-                GLUE,
-                &index,
-                &mut slots,
-                &mut ids,
-            )
-            .unwrap(),
-            WEAK_GLUE
-        );
+    fn a_table_fills_the_glue_field_and_no_more() {
+        assert!(table_fits(GLUE, false).is_ok());
+        let past = table_fits(GLUE + 1, false).unwrap_err();
+        assert!(past.over_limit && !past.bug, "{past}");
+        assert!(past.what.contains("65536 function-table slots"), "{past}");
+        assert!(past.what.contains("at most 65535"), "{past}");
+        assert!(past.what.contains("16 bits"), "{past}");
+    }
 
-        let mut slots = Vec::new();
-        let mut ids = BTreeMap::new();
+    #[test]
+    fn a_weak_linked_table_loses_the_weak_bit() {
+        assert!(table_fits(WEAK_GLUE, true).is_ok());
+        let past = table_fits(WEAK_GLUE + 1, true).unwrap_err();
+        assert!(past.over_limit, "{past}");
         assert!(
-            descriptor_slot(
-                glue,
-                DescriptorKey::checked(1),
-                WEAK_GLUE,
-                WEAK_GLUE,
-                &index,
-                &mut slots,
-                &mut ids,
-            )
-            .is_err()
+            past.what
+                .contains("that may hold weak references may have at most 32767"),
+            "{past}"
         );
+        assert!(past.what.contains("15 bits"), "{past}");
+    }
+
+    #[test]
+    fn descriptor_words_are_the_slot_then_its_flags() {
+        let slot = |c: u32| {
+            [
+                Ins::TableSlot(SymId(0)),
+                Ins::Op(Instruction::I32Const(c.cast_signed())),
+                Ins::Op(Instruction::I32Add),
+            ]
+        };
+        assert!(starts_descriptor(&slot(1), 0));
+        assert!(starts_descriptor(&slot(CYCLIC + 1), 0));
+        assert!(!starts_descriptor(&slot(2), 0));
+        assert!(!starts_descriptor(&slot(1)[..2], 0));
+        assert_eq!(distinct(&[3, 0, 3, 64, 0], 65), 3);
     }
 }
 

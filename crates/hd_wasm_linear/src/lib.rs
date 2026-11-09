@@ -41,7 +41,7 @@ use hd_types::{InternPool, Ty, TyData};
 #[cfg(feature = "checked-report")]
 pub use count_audit::resolve as resolve_count_audit;
 pub use emit::{lent_referent, promotable_referent, rooted_referent};
-pub use module::{Session, Sym};
+pub use module::{Session, Sym, TableUse, last_table_use, table_limit};
 pub use origins::{FunctionOrigins, InstructionOrigin, MappedModule, StaticData};
 pub use rt::Helper;
 
