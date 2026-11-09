@@ -111,7 +111,7 @@ impl Em<'_, '_, '_> {
     /// The type of field `f` of struct type `t`, and where it lies: its
     /// part of `t`'s values and memory. A newtype's one field is the
     /// value itself.
-    fn path_step(&self, t: Ty, f: u32) -> StageResult<(Ty, Part)> {
+    pub(super) fn path_step(&self, t: Ty, f: u32) -> StageResult<(Ty, Part)> {
         if let TyData::Adt { def, args } = self.pool().get(t)
             && let Some(base) = self.env().newtype_base(def)
         {
@@ -904,7 +904,15 @@ impl Em<'_, '_, '_> {
                         self.f.op(d.leaf.load(0));
                         self.f.set(word);
                     }
-                    self.lazy.insert(i, (r, word));
+                    self.lazy.insert(
+                        i,
+                        super::Lazy {
+                            at: r,
+                            off: 0,
+                            word,
+                            ref_ty,
+                        },
+                    );
                     return Ok(());
                 }
                 if self.loans.contains(&i) {
@@ -943,7 +951,7 @@ impl Em<'_, '_, '_> {
     /// body that does not suspend. Then the tag loads once and each arm's
     /// fields where they are read, as Rust's match through `&` does, not
     /// all its values first.
-    fn lazy_borrow(&self, i: u32, target: Ty, ref_ty: Ty) -> bool {
+    pub(super) fn lazy_borrow(&self, i: u32, target: Ty, ref_ty: Ty) -> bool {
         let shared_copy = !crate::layout::ref_mutable(self.pool(), self.env(), ref_ty)
             && !self.tracked(target)
             && self.drop_calls(target).is_empty();
@@ -1347,8 +1355,8 @@ impl Em<'_, '_, '_> {
                 Ok((At::Vals(ls), t))
             }
             // A borrow a match reads in place is its referent.
-            PlaceRoot::Value(r) if let Some(&(at, _)) = self.lazy.get(&r.0) => {
-                Ok((At::Mem(at, 0), self.ty_of(r.0)))
+            PlaceRoot::Value(r) if let Some(&z) = self.lazy.get(&r.0) => {
+                Ok((At::Mem(z.at, z.off), self.ty_of(r.0)))
             }
             PlaceRoot::Value(r) => Ok((At::Vals(self.local_value_of(r.0)?), self.ty_of(r.0))),
             _ => unsupported("a place rooted at a frame slot or a pointer's target"),

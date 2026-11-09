@@ -2,8 +2,9 @@
 # A nested optional and an enum whose variant fits in a niche of its
 # largest payload (#1422).
 # expected: `i32??` and `A` are 8 bytes and 2 values (niches), and each
-# match is one `br_table` on value 0; today each level of the match tests
-# value 0 on its own: the nested switches on one cell are not grouped.
+# match is one `br_table` on value 0: the nested switches on one cell are
+# grouped (#1532). Through `&`, the cell loads once before the table and
+# each arm loads only its own field.
 enum A:
     Maybe(i32?)
     Must(i32)
@@ -18,6 +19,12 @@ fn wrap(x: i32) -> i32??:
     .Some(.Some(x))
 
 fn read_a(a: A) -> i32:
+    match a:
+        .Maybe(.Some(x)) => x
+        .Maybe(.None) => 1
+        .Must(y) => y
+
+fn read_a_ref(a: &A) -> i32:
     match a:
         .Maybe(.Some(x)) => x
         .Maybe(.None) => 1

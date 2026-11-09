@@ -97,16 +97,9 @@
         end
       end
       local.get $t1
-      i32.const 3
-      i32.ne
+      i32.eqz
       if (result i32)
-        local.get $t1
-        i32.eqz
-        if (result i32)
-          i32.const 1
-        else
-          i32.const 0
-        end
+        i32.const 1
       else
         i32.const 0
       end

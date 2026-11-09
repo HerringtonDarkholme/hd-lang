@@ -89,17 +89,14 @@
       end
       local.get $t1
       i32.const 3
-      i32.ne
+      i32.eq
+      local.get $t1
+      i32.eqz
+      i32.or
       if (result i32)
-        local.get $t1
-        i32.eqz
-        if (result i32)
-          i32.const 0
-        else
-          i32.const 1
-        end
-      else
         i32.const 0
+      else
+        i32.const 1
       end
       local.set $b
     end
@@ -124,16 +121,9 @@
         end
       end
       local.get $a.0
-      i32.const 3
-      i32.ne
+      i32.eqz
       if (result i32)
-        local.get $a.0
-        i32.eqz
-        if (result i32)
-          i32.const 1
-        else
-          i32.const 0
-        end
+        i32.const 1
       else
         i32.const 0
       end
@@ -228,17 +218,10 @@
         end
       end
       local.get $t1
-      i32.const 3
-      i32.ne
+      i32.const 2
+      i32.eq
       if (result i32)
-        local.get $t1
-        i32.const 2
-        i32.eq
-        if (result i32)
-          i32.const 1
-        else
-          i32.const 0
-        end
+        i32.const 1
       else
         i32.const 0
       end
@@ -342,18 +325,15 @@
       end
       local.get $t1
       i32.const 3
-      i32.ne
+      i32.eq
+      local.get $t1
+      i32.const 2
+      i32.eq
+      i32.or
       if (result i32)
-        local.get $t1
-        i32.const 2
-        i32.eq
-        if (result i32)
-          i32.const 0
-        else
-          i32.const 1
-        end
-      else
         i32.const 0
+      else
+        i32.const 1
       end
       local.set $b
     end

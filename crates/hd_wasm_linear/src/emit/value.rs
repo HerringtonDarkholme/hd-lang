@@ -707,8 +707,8 @@ impl Em<'_, '_, '_> {
     /// ([`Em::lazy_borrow`]). An enum of one variant has no cell; its
     /// tests need no read ([`Em::is_variant`]).
     pub(super) fn discr_cell(&mut self, a: u32, d: Discr) -> StageResult<()> {
-        if let Some(&(_, word)) = self.lazy.get(&a) {
-            self.f.get(word);
+        if let Some(l) = self.lazy.get(&a) {
+            self.f.get(l.word);
             return Ok(());
         }
         if matches!(self.kind(self.ty_of(a)), Kind::Boxed) {
@@ -735,18 +735,66 @@ impl Em<'_, '_, '_> {
         Ok(())
     }
 
+    /// Payload read `i` of field `f` of variant `v` of enum value `a` read
+    /// in place through a reference ([`Em::lazy_borrow`]), when the field
+    /// is itself an enum a match only decides on and reads parts of: it
+    /// is read in place too, at its offset in `a`, with whether its
+    /// discriminant cell is `a`'s, as the payload enums an untagged
+    /// variant's niche holds share it (`i32??`). Each arm then loads only
+    /// its own fields, as for `a`.
+    pub(super) fn nested_lazy(
+        &self,
+        i: u32,
+        a: u32,
+        v: u32,
+        f: u32,
+    ) -> StageResult<Option<(super::Lazy, bool)>> {
+        let Some(&z) = self.lazy.get(&a) else {
+            return Ok(None);
+        };
+        let t = self.ty(i);
+        if self.flat(t)?.is_none() || !self.lazy_borrow(i, t, z.ref_ty) {
+            return Ok(None);
+        }
+        // A payload read's operand, an enum or an optional, and a checked
+        // payload step names a field of its variant.
+        let parent = self.enum_flat(self.ty_of(a))?;
+        let off = z.off + parent.offsets[v as usize][f as usize];
+        let same = match (parent.cell(), self.enum_flat(t)?.cell()) {
+            (Some(pc), Some(c)) => {
+                z.off + pc.leaf.offset == off + c.leaf.offset
+                    && pc.leaf.bytes == c.leaf.bytes
+                    && pc.leaf.val == c.leaf.val
+            }
+            _ => false,
+        };
+        Ok(Some((super::Lazy { off, ..z }, same)))
+    }
+
     /// A payload read: field `field` of variant `variant` of enum value `a`.
     pub(super) fn payload(&mut self, i: u32, a: u32, variant: u32, field: u32) -> StageResult<()> {
+        if let Some((z, same)) = self.nested_lazy(i, a, variant, field)? {
+            // Its own cell, unless it shares its parent's, loads once here.
+            let mut word = z.word;
+            if !same && let Some(d) = self.enum_flat(self.ty(i))?.cell() {
+                word = self.f.local(Val::I32);
+                self.f.get(z.at);
+                self.f.op(d.leaf.load(z.off));
+                self.f.set(word);
+            }
+            self.lazy.insert(i, super::Lazy { word, ..z });
+            return Ok(());
+        }
         let t = self.ty_of(a);
         // A payload read's operand, an enum or an optional.
         let flat = self.enum_flat(t)?;
         // A checked payload step names a field of its variant.
         let (v, f) = (variant as usize, field as usize);
-        if let Some(&(at, _)) = self.lazy.get(&a) {
+        if let Some(&z) = self.lazy.get(&a) {
             // A borrow through a reference reads the field in place.
             for l in &flat.leaves[v][f] {
-                self.f.get(at);
-                self.f.op(l.load(0));
+                self.f.get(z.at);
+                self.f.op(l.load(z.off));
             }
         } else if matches!(self.kind(t), Kind::Boxed) {
             // The cell holds the payload at its offset.

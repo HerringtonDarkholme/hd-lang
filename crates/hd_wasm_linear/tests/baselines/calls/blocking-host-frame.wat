@@ -131,13 +131,6 @@
           block
     ;; 11 |         .Completed(.Ok(_)) => true
             local.get $path.1
-            i32.const 9
-            i32.sub
-            i32.const 1
-            i32.gt_u
-            i32.eqz
-            br_if 1
-            local.get $path.1
             i32.const 8
             i32.eq
             br_if 0

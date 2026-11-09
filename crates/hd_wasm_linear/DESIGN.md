@@ -559,6 +559,18 @@ lowers their instructions.
   (`Em::switch_to_arms`). A match through `&` on a whole enum read only
   to decide and bind parts loads the tag once and each arm's fields where
   the arm binds them (`Em::lazy_borrow`), not every value first.
+- **Nested matches on one cell** (#1532, rustc's `SwitchInt` on the
+  niche). An enum and the enums nested in its untagged payload share the
+  niche cell, so the decision's `SwitchTag`s on them are grouped: each
+  target gets the raw cell values that select it, targets whose code is
+  the same (a value switch's constant `else`s) are one, and the cell is
+  branched on once (`emit/switch.rs`). A `br_table` on `cell - min`, as
+  LLVM lowers a dense switch to a jump table, where it is no larger than
+  a compare chain; else the chain, the target most values select last.
+  `i32??`'s match is `br_table` on value 0: `[Some(None), Some(Some x),
+  None]`; `a < b` on `Ordering?` is one compare, as in rustc. Through `&`,
+  a payload enum is read in place too and reuses the loaded cell
+  (`Em::nested_lazy`).
 
 ### 23.15 String Emission And Host Primitives
 

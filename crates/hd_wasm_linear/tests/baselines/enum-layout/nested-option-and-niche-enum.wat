@@ -5,17 +5,60 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 4 funcref))
   (func $wrap (param $x i32) (result i32 i32)
-    ;; 18 |     .Some(.Some(x))
+    ;; 19 |     .Some(.Some(x))
     i32.const 1
     local.get $x
   )
   (func $make_a (param $x i32) (result i32 i32)
-    ;; 27 |     .Maybe(.Some(x))
+    ;; 34 |     .Maybe(.Some(x))
     i32.const 1
     local.get $x
   )
+  (func $read_a_ref (param $a i32) (result i32) (local $t0 i32)
+    ;; 28 |     match a:
+    block
+      block
+        block
+          block
+            block
+    ;; 29 |         .Maybe(.Some(x)) => x
+              local.get $a
+              i32.load $heap
+              local.set $t0
+              block
+                block
+                  block
+                    local.get $t0
+                    br_table 4 1 0 1
+                  end
+    ;; 31 |         .Must(y) => y
+                  local.get $a
+                  i32.load $heap offset=4
+                  local.set $a
+    ;; 29 |         .Maybe(.Some(x)) => x
+                  br 4
+                end
+                local.get $a
+                i32.load $heap offset=4
+                local.set $a
+                br 1
+              end
+    ;; 28 |     match a:
+              unreachable
+            end
+            br 2
+          end
+          i32.const 1
+          local.set $a
+          br 1
+        end
+        br 0
+      end
+    end
+    local.get $a
+  )
   (func $load (param $slot i32) (result i32 i32) (local $t0 i32)
-    ;; 33 |     slot[0]
+    ;; 40 |     slot[0]
     block
       local.get $slot
       i32.load $heap
@@ -39,98 +82,60 @@
     local.get $t0
   )
   (func $read_a (param $a.0 i32) (param $a.1 i32) (result i32)
-    ;; 21 |     match a:
+    ;; 22 |     match a:
     block
       block
         block
           block
-    ;; 22 |         .Maybe(.Some(x)) => x
-            local.get $a.0
-            i32.const 2
-            i32.ne
-            if
-              local.get $a.0
-              i32.const 1
-              i32.eq
-              if
-                br 2
-              else
-    ;; 23 |         .Maybe(.None) => 1
-                local.get $a.0
-                i32.eqz
-                br_if 3
-                unreachable
-    ;; 22 |         .Maybe(.Some(x)) => x
-              end
-            else
-    ;; 24 |         .Must(y) => y
-              local.get $a.0
-              i32.const 2
-              i32.eq
-              if
+    ;; 23 |         .Maybe(.Some(x)) => x
+            block
+              block
+                block
+                  local.get $a.0
+                  br_table 4 1 0 1
+                end
                 br 4
-              else
-                unreachable
               end
-    ;; 22 |         .Maybe(.Some(x)) => x
+              br 1
             end
-    ;; 21 |     match a:
+    ;; 22 |     match a:
             unreachable
           end
-    ;; 22 |         .Maybe(.Some(x)) => x
+    ;; 23 |         .Maybe(.Some(x)) => x
           local.get $a.1
-    ;; 21 |     match a:
+    ;; 22 |     match a:
           return
         end
         i32.const 1
         return
       end
-    ;; 24 |         .Must(y) => y
+    ;; 25 |         .Must(y) => y
       local.get $a.1
-    ;; 21 |     match a:
+    ;; 22 |     match a:
       return
     end
     local.get $a.0
   )
   (func $twice (param $v.0 i32) (param $v.1 i32) (result i32)
-    ;; 12 |     match v:
+    ;; 13 |     match v:
     block
       block
         block
           block
-    ;; 13 |         .Some(.Some(x)) => x
-            local.get $v.0
-            i32.const 2
-            i32.ne
-            if
-              local.get $v.0
-              i32.const 1
-              i32.eq
-              if
-                br 2
-              else
-    ;; 14 |         .Some(.None) => 1
+    ;; 14 |         .Some(.Some(x)) => x
+            block
+              block
                 local.get $v.0
-                i32.eqz
-                br_if 3
-                unreachable
-    ;; 13 |         .Some(.Some(x)) => x
+                br_table 3 0 4 0
               end
-            else
-    ;; 15 |         .None => 0
-              local.get $v.0
-              i32.const 2
-              i32.eq
-              br_if 3
-              unreachable
-    ;; 13 |         .Some(.Some(x)) => x
+              br 1
             end
-    ;; 12 |     match v:
+    ;; 13 |     match v:
             unreachable
           end
-    ;; 13 |         .Some(.Some(x)) => x
+    ;; 14 |         .Some(.Some(x)) => x
           local.get $v.1
-    ;; 12 |     match v:
+    ;; 13 |     match v:
           return
         end
         i32.const 1
@@ -142,7 +147,7 @@
     local.get $v.0
   )
   (func $store (param $slot i32) (param $v.0 i32) (param $v.1 i32) (local $t0 i32) (local $t1 i32)
-    ;; 30 |     slot.push(v)
+    ;; 37 |     slot.push(v)
     block
       local.get $slot
       i32.load $heap

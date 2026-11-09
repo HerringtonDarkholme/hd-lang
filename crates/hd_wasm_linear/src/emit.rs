@@ -56,6 +56,7 @@ mod refs;
 mod scope;
 mod shape;
 mod susp;
+mod switch;
 mod text;
 mod value;
 
@@ -956,6 +957,18 @@ enum Ctl {
     Scope(u32),
 }
 
+/// An enum read in place through a reference ([`Em::lazy_borrow`]): the
+/// local holding the referent's address, the enum's offset from it (a
+/// payload enum's inside its parent's, [`Em::nested_lazy`]), the local
+/// holding its discriminant cell, loaded once, and the reference's type.
+#[derive(Clone, Copy)]
+struct Lazy {
+    at: u32,
+    off: u32,
+    word: u32,
+    ref_ty: Ty,
+}
+
 #[derive(Clone, Copy)]
 struct MapProbe {
     hash: u32,
@@ -1056,7 +1069,7 @@ struct Em<'i, 'a, 'm> {
     /// address, and its tag (a nullable enum's address), loaded once at
     /// the read. Each arm's fields load where they are read
     /// ([`Em::lazy_borrow`]).
-    lazy: HashMap<u32, (u32, u32)>,
+    lazy: HashMap<u32, Lazy>,
     /// Adjacent TIR Retains lowered during construction, before the result's
     /// vtable loads. Their statement must not emit the same count again.
     retained_before_result: hd_base::HashSet<u32>,
@@ -1677,32 +1690,17 @@ impl Em<'_, '_, '_> {
     /// with other work, a suspending body's switch, or cases too sparse
     /// for a table.
     fn switch_to_arms(&mut self, i: u32, a: u32) -> StageResult<bool> {
-        let mut cases: Vec<(u32, u32)> = Vec::new();
-        let mut cur = i;
-        let other = loop {
-            if self.range(cur).is_some() {
-                return Ok(false);
-            }
-            let r = self.rec(self.b.data[cur as usize][1]);
-            if cases.iter().any(|(c, _)| *c == r[0]) {
-                return Ok(false);
-            }
-            cases.push((r[0], r[1]));
-            if r[2] == NONE {
-                break None;
-            }
-            match self.sole_item(r[2]) {
-                Some(k)
-                    if self.b.tags[k as usize] == Tag::SwitchTag
-                        && self.b.data[k as usize][0] == a =>
-                {
-                    cur = k;
-                }
-                // An `else` that is `unreachable`: no other tag gets here.
-                Some(k) if self.b.tags[k as usize] == Tag::Unreachable => break None,
-                _ => break Some(r[2]),
-            }
+        // Nested enums whose switches read this one's cell branch once on
+        // it (#1532).
+        if let Some(g) = self.cell_group(i, a)? {
+            self.cell_switch(i, a, &g)?;
+            return Ok(true);
+        }
+        let Some((chain, other)) = self.switch_chain(i, a) else {
+            return Ok(false);
         };
+        let cases: Vec<(u32, u32)> = chain.iter().map(|&(c, b, _)| (c, b)).collect();
+        let other = other.map(|(b, _)| b);
         let targets = cases.len() + usize::from(other.is_some());
         if targets == 2 {
             return self.switch_two_arms(a, &cases, other);
