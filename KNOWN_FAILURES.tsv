@@ -1,2 +1,1 @@
 path	issue	engine	reason
-runtime/valid/dbg-tuple-rest-arguments.hd	#1543		Collect refuses dbg arguments with a runtime List rest

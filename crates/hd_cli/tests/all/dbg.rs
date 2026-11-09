@@ -449,3 +449,86 @@ fn release_rejects_dbg_in_path_dependencies_and_workspace_members() {
     assert_eq!(debug.code, Some(0), "{}", debug.err);
     assert_eq!(debug.out, "4\n");
 }
+
+/// Runtime tuple rests follow module.dbg.body.print and module.dbg.line.bare.
+#[test]
+fn dbg_tuple_rest_direct_spread_and_named_calls_keep_the_location() {
+    let ran = run_main(
+        "hd-dbg-tuple-rest-direct",
+        r"pub fn main() -> void:
+    let tail: List[i32] = [1, 2]
+    let values: (i32, List[i32]...) = (0, tail...)
+    dbg(values...)
+    dbg(values=values)
+",
+    );
+    assert_eq!(ran.code, Some(0), "{}", ran.err);
+    assert_eq!(ran.out, "");
+    assert_eq!(
+        ran.err,
+        "src/main.hd:4:5: 0\nsrc/main.hd:4:5: 1\nsrc/main.hd:4:5: 2\nsrc/main.hd:5:5: 0\nsrc/main.hd:5:5: 1\nsrc/main.hd:5:5: 2\n"
+    );
+}
+
+/// A function value prints each string and no site; an empty rest adds no line.
+#[test]
+fn dbg_tuple_rest_function_value_handles_counted_strings_and_empty_tails() {
+    let ran = run_main(
+        "hd-dbg-tuple-rest-value",
+        r#"pub fn main() -> void:
+    let tail: List[string] = ["a" + "b", "c" + "d"]
+    let values: (string, List[string]...) = ("head", tail...)
+    let show: fn((string, List[string]...)) -> void = dbg
+    show(values)
+    let empty: (string, List[string]...) = ("empty",)
+    show(empty)
+    let none: (List[string]...,) = ()
+    dbg(none...)
+"#,
+    );
+    assert_eq!(ran.code, Some(0), "{}", ran.err);
+    assert_eq!(ran.out, "");
+    assert_eq!(ran.err, "\"head\"\n\"ab\"\n\"cd\"\n\"empty\"\n");
+}
+
+/// Spread arguments finish evaluation once, left to right, before any value line.
+#[test]
+fn dbg_tuple_rest_evaluates_arguments_once_before_printing() {
+    let ran = run_main(
+        "hd-dbg-tuple-rest-evaluation",
+        r#"let fixed_calls = +0
+let rest_calls = +0
+
+fn fixed() -> i32:
+    fixed_calls += 1
+    dbg("fixed")
+    +7
+
+fn tail() -> List[string]:
+    rest_calls += 1
+    dbg("rest")
+    ["a" + "b", "c" + "d"]
+
+pub fn main() -> void $ Console:
+    dbg::[(i32, List[string]...)](fixed(), tail()...)
+    let show: fn((i32, List[string]...)) -> void = dbg
+    show((fixed(), tail()...))
+    println("$fixed_calls $rest_calls")
+"#,
+    );
+    assert_eq!(ran.code, Some(0), "{}", ran.err);
+    assert_eq!(ran.out, "2 2\n");
+    assert_eq!(
+        ran.err,
+        concat!(
+            "src/main.hd:6:5: \"fixed\" = \"fixed\"\n",
+            "src/main.hd:11:5: \"rest\" = \"rest\"\n",
+            "src/main.hd:15:5: 7\n",
+            "src/main.hd:15:5: \"ab\"\n",
+            "src/main.hd:15:5: \"cd\"\n",
+            "src/main.hd:6:5: \"fixed\" = \"fixed\"\n",
+            "src/main.hd:11:5: \"rest\" = \"rest\"\n",
+            "7\n\"ab\"\n\"cd\"\n",
+        )
+    );
+}

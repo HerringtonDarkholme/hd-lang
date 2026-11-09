@@ -1,0 +1,8 @@
+# @dump: wat
+# expected: the runtime tail is passed to one ordinary std helper; function-value dispatch stays indirect.
+fn direct(values: (List[string]...,)) -> void:
+    dbg(values...)
+
+fn function_value(values: (List[string]...,)) -> void:
+    let show: fn((List[string]...,)) -> void = dbg
+    show(values)

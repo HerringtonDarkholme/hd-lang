@@ -8,3 +8,9 @@ pub fn main() -> void:
     dbg(values...)
     let show: fn((i32, List[i32]...)) -> void = dbg
     show(values)
+    let words: (string, List[string]...) = ("head", ["a" + "b", "c" + "d"]...)
+    dbg(words...)
+    let show_words: fn((string, List[string]...)) -> void = dbg
+    show_words(words)
+    let empty: (List[string]...,) = ()
+    dbg(empty...)

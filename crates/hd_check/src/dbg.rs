@@ -234,20 +234,34 @@ impl Ck<'_, '_> {
     pub(crate) fn dbg_bare(&mut self, tuple: Ref, args_ty: Ty, n: NodeRef<'_>) -> Option<Ref> {
         let pool = self.pool();
         let resolved = self.infer.resolve(pool, args_ty);
-        let TyData::Tuple { elems, rest: None } = pool.get(resolved) else {
+        let TyData::Tuple { elems, rest } = pool.get(resolved) else {
             return None;
         };
         let elems: Vec<Ty> = pool.list_items(elems).to_vec();
         let prefix = format!("{}: ", self.dbg_location(n));
         let mut last = None;
-        for (k, e) in elems.iter().enumerate() {
+        // ruled out: interned type-list lengths and TIR field indices are u32.
+        debug_assert!(u32::try_from(elems.len()).is_ok());
+        let mut position = 0u32;
+        for e in &elems {
             let e = self.resolved(*e);
-            let v = self
-                .b
-                .field(tuple, u32::try_from(k).unwrap_or(0), e, n.index());
+            let v = self.b.field(tuple, position, e, n.index());
+            position += 1;
             let head = self.b.const_str(&prefix);
             let show = self.dbg_printer_ref(e, n);
             last = Some(self.dbg_support("dbg_bare_one", &[e], &[head, v, show], Ty::VOID, n));
+        }
+        if let Some(rest_type) = rest {
+            let rest_type = self.resolved(rest_type);
+            let (def, args) = pool.adt_parts(rest_type);
+            // ruled out: types.tuple.rest.list fixes the rest to List[T].
+            debug_assert_eq!(def, self.cx.names.known.list);
+            let item = self.resolved(pool.list_items(args)[0]);
+            let tail = self.b.field(tuple, position, rest_type, n.index());
+            let head = self.b.const_str(&prefix);
+            let show = self.dbg_printer_ref(item, n);
+            last =
+                Some(self.dbg_support("dbg_bare_rest", &[item], &[head, tail, show], Ty::VOID, n));
         }
         if last.is_none() {
             // An empty tuple prints nothing (`module.dbg.line`): the
