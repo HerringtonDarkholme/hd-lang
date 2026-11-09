@@ -1225,7 +1225,8 @@ std/serde.md	1	complete	runtime/valid/serde-derive-call-order.hd
 std/serde.md	2	type-fragment	-
 std/serde.md	3	complete	runtime/valid/serde-derive-call-order.hd
 std/serde.md	4	complete	runtime/valid/serde-map-key-round-trip.hd
-std/serde.md	5	mixed	typing/invalid/serde-map-key-not-implemented.hd
+std/serde.md	5	mixed	runtime/valid/serde-regular-answers-per-type.hd
+std/serde.md	6	mixed	typing/invalid/serde-map-key-not-implemented.hd
 std/task.md	1	type-fragment	-
 std/task.md	2	complete	runtime/valid/task-retry.hd
 std/task.md	3	complete	runtime/valid/task-retry-when.hd
