@@ -1290,9 +1290,10 @@ This section defines which trait methods are usable at a use and how trait
 candidates are reported.
 
 1. r[trait.resolve.lookup] For a receiver of nominal type `S`, `value.method(args)` selects a method with the method lookup in [Member Resolution](03-names-and-scopes.md#member-resolution).
-2. r[trait.resolve.lookup.unknown-argument] Receiver type arguments that distinguish available candidate traits must be known at the call. Error: `cannot-infer-type`.
-3. r[trait.resolve.lookup.kinds] That lookup covers inherent methods, trait methods, and promoted methods together.
-4. r[trait.resolve.no-field] It never selects a field.
+2. r[trait.resolve.lookup.unknown-receiver] A method lookup whose receiver type is unknown there is an error, even if later context fixes it. Error: `cannot-infer-type`.
+3. r[trait.resolve.lookup.unknown-argument] Receiver type arguments that distinguish available candidate traits must be known at the call. Error: `cannot-infer-type`.
+4. r[trait.resolve.lookup.kinds] That lookup covers inherent methods, trait methods, and promoted methods together.
+5. r[trait.resolve.no-field] It never selects a field.
 
 ```hd
 struct Counter:
@@ -1325,6 +1326,19 @@ fn demo() -> void:
 
 > **Why.** Lookup needs the receiver's type arguments when they choose
 > between traits; later context does not select the trait retroactively.
+
+```text
+trait Code:
+    fn receiver_code(self) -> i32
+struct Value: pass
+impl Code for Value:
+    fn receiver_code(self) -> i32: +1
+fn unknown[T]() -> T: panic("unused")
+fn demo() -> void:
+    value := unknown()
+    _ := value.receiver_code() # error: cannot-infer-type
+    let fixed: Value = value
+```
 
 ### Trait Availability
 

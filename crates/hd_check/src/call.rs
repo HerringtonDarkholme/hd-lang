@@ -4299,6 +4299,14 @@ impl Ck<'_, '_> {
         if matches!(pool.get(t), TyData::Infer(_)) && self.learn_waiting(t)? {
             return self.resolve_method(rt, name);
         }
+        // `trait.resolve.lookup.unknown-receiver`: an inherent method name
+        // does not choose an unknown receiver's type. Literal classes keep
+        // their specified width inference and defaulting below.
+        if let TyData::Infer(v) = pool.get(t)
+            && self.infer.kind_of(pool, t) == Some(VarKind::General)
+        {
+            return Ok(Some(Hit::UnknownReceiver(vec![v])));
+        }
         if let Some((method, impl_def, impl_args)) = self.find_inherent(t, name) {
             return Ok(Some(Hit::Inherent {
                 method,
@@ -4361,12 +4369,6 @@ impl Ck<'_, '_> {
             };
             let _ = self.infer.unify(pool, t, d);
             return self.resolve_method(d, name);
-        }
-        if matches!(pool.get(t), TyData::Infer(_)) {
-            return Err(hd_base::NotImplemented::new(
-                hd_base::Stage::Body,
-                "a method on a value whose type is not yet known",
-            ));
         }
         self.trait_part(t, sym, &self.available_traits(sym))
     }
@@ -4500,9 +4502,9 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// `trait.resolve.lookup.unknown-argument`: later context does not
-    /// choose between traits at this lookup. Poison open receiver arguments
-    /// so closing the original generic call adds no duplicate error.
+    /// The receiver and its trait-selecting arguments must be known at lookup
+    /// (`trait.resolve.lookup.unknown-receiver`, `.unknown-argument`).
+    /// Poison blocking variables so the generic call adds no duplicate error.
     pub(crate) fn unknown_method_receiver(
         &mut self,
         on: &[InferVar],
@@ -4512,7 +4514,7 @@ impl Ck<'_, '_> {
         self.err(
             Code::CannotInferType,
             n,
-            &format!("the receiver's type arguments are not known here: annotate its binding before selecting `{name}`"),
+            &format!("the receiver's type is not known enough here: annotate its binding before selecting `{name}`"),
         );
         let pool = self.pool();
         for &v in on {
