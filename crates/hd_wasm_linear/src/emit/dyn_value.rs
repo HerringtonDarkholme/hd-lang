@@ -147,7 +147,7 @@ impl Em<'_, '_, '_> {
             }
             _ => None,
         };
-        let methods = self.env().trait_methods(table.trait_);
+        let methods = hd_mono::slot_methods(self.env(), table.trait_);
         let mut slots = Vec::new();
         for ((m, t), recv) in methods.iter().zip(&table.slots).zip(&table.recv) {
             let env = self.env();
@@ -494,7 +494,8 @@ impl Em<'_, '_, '_> {
                 *found = Some(path.clone());
             }
         }
-        let own = u32::try_from(env.trait_methods(def).len()).expect("slots");
+        // ruled out: a vtable fits Wasm32 memory, with four bytes per slot.
+        let own = u32::try_from(hd_mono::slot_methods(env, def).len()).expect("slots");
         let mut full = vec![at];
         full.extend(pool.list_items(args).iter().copied());
         let full = pool.list(&full);

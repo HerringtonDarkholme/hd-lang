@@ -1,0 +1,5 @@
+# Checked/dev and release/optimized package execution.
+run: hd run --engine node --time-limit 2s
+stdout: 35 7 35
+run: hd run --engine node --release --time-limit 2s
+stdout: 35 7 35

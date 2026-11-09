@@ -1089,7 +1089,7 @@ fn host_vtable(input: &Input<'_>, m: &mut Module, key: Ty) -> StageResult<usize>
         return profile_vtable(input, m, def, &p);
     };
     let mut slots = Vec::new();
-    for method in input.env.trait_methods(def) {
+    for method in hd_mono::slot_methods(input.env, def) {
         // A method no reachable code calls links no host method.
         if !input.collected.calls_dyn(method) {
             slots.push(Sym::Helper(crate::boundary::uncalled_slot(input, method)?));
@@ -1169,7 +1169,7 @@ fn profile_tree(
     }
     seen.push(def);
     let mut slots = Vec::new();
-    for method in input.env.trait_methods(def) {
+    for method in hd_mono::slot_methods(input.env, def) {
         if !input.collected.calls_dyn(method) {
             slots.push(Sym::Helper(crate::boundary::uncalled_slot_at(
                 input,
@@ -1225,8 +1225,10 @@ fn profile_tree(
         }
     }
     let mut parents = Vec::new();
-    if at.package {
-        for &sup in input.env.decls().supertraits(def) {
+    // Both package and embedding profiles retain their supertrait pointers.
+    let supertraits = input.env.decls().supertraits(def);
+    if !supertraits.is_empty() {
+        for &sup in supertraits {
             let full = at
                 .arguments
                 .unwrap_or_else(|| input.pool.list(&[hd_mono::class_ref(input.pool)]));

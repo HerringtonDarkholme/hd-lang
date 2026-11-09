@@ -1,0 +1,20 @@
+# @dump: wat
+# expected: Child's blocking drive follows its normal slot and Parent
+# pointer (offset 8). An inherited cold call loads Parent at offset 4.
+# A generic method has no vtable slot (trait.dyn.type-param.no-slot).
+use std.task.block_on
+
+trait Parent:
+    fn parent!(&self) -> u32
+
+trait Child < Parent:
+    fn generic[T](&self, value: T) -> T
+    fn child!(&self) -> u32
+
+fn blocking(value: &dyn Child) -> u32:
+    match block_on(value.child()):
+        .Completed(n) => n
+        _ => 0
+
+fn inherited(value: &dyn Child) -> Suspend[u32]:
+    value.parent()

@@ -1,0 +1,40 @@
+# test: drive slots follow dispatchable methods and parent pointers
+# expect-stdout: 35 7 11
+# Spec Traits: trait.dyn.supertrait-methods, trait.dyn.type-param.no-slot.
+use std.task.block_on
+
+trait Parent:
+    fn parent!(&self) -> u32
+
+trait Child < Parent:
+    fn generic[T](&self, value: T) -> T
+    fn child!(&self) -> u32
+    fn ready!(&self) -> u32
+
+struct Value: pass
+
+impl Parent for Value:
+    fn parent!(&self) -> u32:
+        35
+
+impl Child for Value:
+    fn generic[T](&self, value: T) -> T:
+        value
+    fn child!(&self) -> u32:
+        7
+    fn ready!(&self) -> u32:
+        11
+
+fn values!(value: &dyn Child, depth: u32) -> (u32, u32, u32):
+    if depth != 0:
+        return values!(value, depth - 1)
+    inherited := value.parent!()
+    own := value.child!()
+    driven := match block_on(value.ready()):
+        .Completed(n) => n
+        _ => panic("ready did not complete")
+    (inherited, own, driven)
+
+pub fn main!() -> void $ Console:
+    result := values!(&Value {}, 2)
+    println("${result._0} ${result._1} ${result._2}")

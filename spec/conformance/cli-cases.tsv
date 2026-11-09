@@ -314,3 +314,4 @@ lint-lifetime-order	cli.lint.lifetime-order,cli.lint.default,cli.lint.levels
 release-reference-behind-pointer	cli.profile.release
 folder-cycle-fix-flat-file	cli.package.whole,cli.check.default,cli.json.lines.build,cli.json.diagnostic.fixes,cli.json.fix.object,cli.exit.hd-failure
 folder-cycle-no-fix-all-directories	cli.package.whole,cli.check.default,cli.json.lines.build,cli.json.diagnostic.fixes,cli.exit.hd-failure
+host-supertrait-drive	cli.host.package.entry,cli.host.package.generated,cli.host.package.completion-forms,cli.profile.pipeline.unobservable
