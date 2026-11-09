@@ -7,45 +7,49 @@
 
 use crate::op::Op as I;
 use hd_base::StageResult;
-use hd_types::{Prim, TyData};
+use hd_types::{Prim, Ty, TyData};
 
 use super::Em;
 use crate::layout::{Mem, Part, fields_walk, payload_mem};
 use crate::map::USED;
 use crate::module::{HEAP, Sym, mem};
 use crate::rt::Helper;
-use crate::unsupported;
-
-/// Pushes one `i32` field of an iterator environment, given the local
-/// holding the collection's buffer.
-type IntField<'f, E> = dyn Fn(&mut E, u32) -> StageResult<()> + 'f;
 
 impl Em<'_, '_, '_> {
-    /// A new iterator environment holding collection `coll`'s buffer,
-    /// then `ints` `i32` values, each pushed by its closure; and the code
-    /// that steps it, pushed as the closure's code.
-    fn iter_env(
-        &mut self,
-        i: u32,
-        coll: u32,
-        ints: &[&IntField<'_, Self>],
-        code: Helper,
-    ) -> StageResult<()> {
-        let int = self.pool().intern_ty(&TyData::Prim(Prim::I32));
-        let mut tys = vec![self.ty_of(coll)];
-        tys.extend(ints.iter().map(|_| int));
-        let (m, parts) = payload_mem(self.pool(), self.env(), &tys)?;
-        // The step code reads the fields at these offsets.
-        let want: Vec<u32> = (0..tys.len())
-            .map(|k| 4 * u32::try_from(k).expect("fields"))
-            .collect();
-        if m.leaves.iter().map(|l| l.offset).collect::<Vec<_>>() != want {
-            return unsupported("an iterator environment of another layout");
-        }
-        let walk = fields_walk(self.pool(), self.env(), &tys);
+    /// `map_steps` of map `map`: the cursor's step closure over its
+    /// entries, each as its entry number and a `(K, V)` tuple.
+    pub(super) fn map_iter(&mut self, i: u32, map: u32) -> StageResult<()> {
+        let (key, value, entry) = self.entry(self.ty_of(map))?;
+        let pool = self.pool();
+        let tuple = |fields: &[Ty]| {
+            pool.intern_ty(&TyData::Tuple {
+                elems: pool.list(fields),
+                rest: None,
+            })
+        };
+        // ruled out: std's sole map_steps signature returns the step
+        // function fn(usize) -> (usize, (K, V))?. Its payload leaves are
+        // exactly the index followed by the map entry's leaves.
+        let index = pool.intern_ty(&TyData::Prim(Prim::Usize));
+        let item = tuple(&[index, tuple(&[key, value])]);
+        let result = pool.intern_ty(&TyData::Adt {
+            def: self.env().option(),
+            args: pool.list(&[item]),
+        });
+        let opt = self.enum_flat(result)?;
+        let code = Helper::MapStep {
+            entry,
+            item: Box::new((*opt).clone()),
+        };
+        // ruled out: the environment has only a Map's i32 table pointer
+        // and an i32 used count, at offsets 0 and 4, for every K and V.
+        let int = pool.intern_ty(&TyData::Prim(Prim::I32));
+        let tys = [self.ty_of(map), int];
+        let (m, parts) = payload_mem(pool, self.env(), &tys)?;
+        let walk = fields_walk(pool, self.env(), &tys);
         let cyclic = self.cyclic_holding(&tys);
         let env = self.object(&m, walk.as_ref(), cyclic, false, None);
-        let h = self.buffer(coll)?;
+        let h = self.buffer(map)?;
         let store = |em: &mut Self, m: &Mem, p: Part, v: &dyn Fn(&mut Self) -> StageResult<()>| {
             em.store_leaf(
                 &|em: &mut Self| {
@@ -61,47 +65,16 @@ impl Em<'_, '_, '_> {
             em.f.get(h);
             Ok(())
         })?;
-        for (p, v) in parts[1..].iter().zip(ints) {
-            store(self, &m, *p, &|em| v(em, h))?;
-        }
+        store(self, &m, parts[1], &|em| {
+            em.f.get(h);
+            em.f.op(I::I32Load(mem(HEAP, USED, 2)));
+            Ok(())
+        })?;
         let colls = self.part_colls(&tys, &parts);
         self.retain_fields(env, &m, walk.as_ref(), &colls, colls.len());
         self.f.table_slot(Sym::Helper(code));
         self.f.get(env);
         // The new environment arrives with its count.
         self.store_owned(i)
-    }
-
-    /// `map_steps` of map `map`: the cursor's step closure over its
-    /// entries, each as its entry number and a `(K, V)` tuple.
-    pub(super) fn map_iter(&mut self, i: u32, map: u32) -> StageResult<()> {
-        let (_, _, entry) = self.entry(self.ty_of(map))?;
-        let TyData::Fn { result, .. } = self.pool().get(self.ty(i)) else {
-            return unsupported("a map step that is not a function");
-        };
-        let Some(item) = self.pool().sole_arg(result, self.env().option()) else {
-            return unsupported("a map step whose result is not optional");
-        };
-        let mut want = vec![crate::module::Val::I32];
-        want.extend(entry.leaves.iter().map(|l| l.val));
-        if self.vals(item)? != want {
-            return unsupported("a map entry that lays out unlike its tuple");
-        }
-        // `result` is the optional of the entry type.
-        let ot = result;
-        let opt = self.enum_flat(ot)?;
-        let count = |at: u64| {
-            move |em: &mut Self, h: u32| {
-                em.f.get(h);
-                em.f.op(I::I32Load(mem(HEAP, at, 2)));
-                Ok(())
-            }
-        };
-        let used = count(USED);
-        let code = Helper::MapStep {
-            entry,
-            item: Box::new((*opt).clone()),
-        };
-        self.iter_env(i, map, &[&used], code)
     }
 }
