@@ -213,8 +213,8 @@ and calls per element are. SIMD is step 29 ([3.9](#39-simd-byte-scans-428)).
 Each fix lists its expected gain (the review's estimate unless it says
 measured), its cost in code churn, compiler size and compile time, its
 risk, and what it waits on. Compiler size matters because the web
-compiler has a 2 MB gzip gate, and it stands at about 1.58 MB
-(`2a274b8ad`). Compile time matters because the budget is per function
+compiler has a 2.5 MB gzip gate, and it stands at 2.00 MB
+(2,001,095 B at `bcdecbdde`; bringing it back down is #1558). Compile time matters because the budget is per function
 and the dev pipeline is what `hd run` and `hd test` use.
 
 ### 3.1 Allocation per element

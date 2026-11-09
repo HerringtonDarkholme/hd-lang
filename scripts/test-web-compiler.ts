@@ -36,10 +36,11 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const FIXTURE = join(root, "spec", "conformance", "runtime", "valid", "println-console-stdout.hd");
 
 // #852 removes the printer from ordinary compilation. The compiler's gzip
-// cap is the owner's hard 2 MB ceiling (raised from a 1,878,000 tripwire
-// on 2026-11-02, at 1,876,353); the WAT printer's keeps a modest margin
-// above 147,828 gzip bytes.
-const GZIP_LIMIT = 2_000_000;
+// cap is the owner's 2.5 MB ceiling (2026-11-09, at 2,001,095, over the
+// earlier 2 MB): it fails the build. Bringing the size back down is #1558,
+// triaged once #1490's `unsupported` count is zero. The WAT printer's cap
+// keeps a modest margin above 147,828 gzip bytes.
+const GZIP_LIMIT = 2_500_000;
 const WAT_GZIP_LIMIT = 160_000;
 const RAW_FLOOR = 2e6;
 
@@ -196,10 +197,10 @@ assert.equal(early.status, STATUS.malformed);
 console.log(`repl: session program ${built} B, first input cold ${firstMs.toFixed(0)} ms`);
 
 assert.ok(watSize.gzip <= WAT_GZIP_LIMIT, `WAT gzip ${watSize.gzip} is over ${WAT_GZIP_LIMIT}`);
-// The owner lifted this cap until #1399 is done (2026-11-06). Restore the assert then.
-if (gzip > GZIP_LIMIT) {
-  console.log(`warning: gzip ${formatBytes(gzip)} is over ${formatBytes(GZIP_LIMIT)}`);
-}
+assert.ok(
+  gzip <= GZIP_LIMIT,
+  `gzip ${formatBytes(gzip)} is over ${formatBytes(GZIP_LIMIT)} (#1558)`,
+);
 assert.ok(
   raw >= RAW_FLOOR,
   `raw ${formatBytes(raw)} is under ${formatBytes(RAW_FLOOR)}: LTO shrink`,
