@@ -99,6 +99,21 @@ pub fn constant(body: &Body) -> Option<Value> {
     Values::new(body, &[])?.word(body, root)
 }
 
+/// Whether variant construction `i` carries no value: no fields, or only
+/// `void` ones (`.Ok(())`), which a match cannot read.
+fn no_payload(body: &Body, i: usize) -> bool {
+    body.record(body.data[i][1]).iter().all(|&f| {
+        f == NONE
+            || if f & Ref::CONST_BIT != 0 {
+                body.consts
+                    .get((f & !Ref::CONST_BIT) as usize)
+                    .is_some_and(|c| c.0 == Ty::VOID)
+            } else {
+                body.ty.get(f as usize) == Some(&Ty::VOID)
+            }
+    })
+}
+
 fn transparent(body: &Body, i: usize) -> bool {
     matches!(body.record(body.data[i][1]).first().copied(),
         Some(k) if k == Coercion::Identity as u32 || k == Coercion::Weaken as u32)
@@ -177,13 +192,13 @@ impl Values {
             from[t + 1] += from[t];
         }
         let mut next = from.clone();
-        let mut carried = vec![NONE; from[n] as usize];
+        let mut breaks = vec![NONE; from[n] as usize];
         for i in 0..n {
             if body.tags[i] == Tag::Break
                 && let Some(&t) = body.label_inst.get(body.data[i][0] as usize)
                 && (t as usize) < n
             {
-                carried[next[t as usize] as usize] = body.data[i][1];
+                breaks[next[t as usize] as usize] = index(i);
                 next[t as usize] += 1;
             }
         }
@@ -191,26 +206,46 @@ impl Values {
             val: vec![None; n],
             pure: vec![false; n],
         };
+        let mut arms = Arms::new(body);
         for i in 0..n {
             let [a, b] = body.data[i];
             out.pure[i] = out.pure_at(body, i);
             let v = match body.tags[i] {
                 Tag::Block => {
-                    let breaks = &carried[from[i] as usize..from[i + 1] as usize];
+                    let breaks = &breaks[from[i] as usize..from[i + 1] as usize];
                     let tail = (b != NONE).then_some(b);
-                    out.agree(body, tail.into_iter().chain(breaks.iter().copied()))
+                    // A `Break` in an arm a decision rules out never runs.
+                    let live = breaks
+                        .iter()
+                        .filter(|&&k| arms.live(k, index(i)))
+                        .map(|&k| body.data[k as usize][1]);
+                    out.agree(body, tail.into_iter().chain(live))
                 }
                 Tag::Scope => out.word(body, a),
+                Tag::Read if body.local_read(i).is_none() => {
+                    // A whole copy of an instruction's value (a match's
+                    // scrutinee) is that value.
+                    body.decode_place(a).and_then(|p| match p.root {
+                        hd_tir::ir::PlaceRoot::Value(r) if p.proj.is_empty() => out.word(body, r.0),
+                        _ => None,
+                    })
+                }
                 Tag::Read => body.local_read(i).and_then(|l| {
                     let l = l.idx();
                     seeded[l].or_else(|| {
-                        let flags = local_flags::PARAM | local_flags::CAPTURED_ASSIGNED;
+                        // A body with no closure captures nothing, whatever
+                        // its checker flags say (a template's derived body).
+                        let flags = if body.sub_root.len() > 1 {
+                            local_flags::PARAM | local_flags::CAPTURED_ASSIGNED
+                        } else {
+                            local_flags::PARAM
+                        };
                         (writes[l] == 1 && body.local_flags[l] & flags == 0)
                             .then(|| out.word(body, assigned[l]))
                             .flatten()
                     })
                 }),
-                Tag::NewVariant if body.record(b).is_empty() => Some(Value::Variant(a)),
+                Tag::NewVariant if no_payload(body, i) => Some(Value::Variant(a)),
                 Tag::Coerce if transparent(body, i) => out.word(body, a),
                 Tag::Prim => match (PrimOp::from_u32(a), body.record(b).first()) {
                     (Some(PrimOp::Not), Some(&x)) if body.ty[i] == Ty::BOOL => {
@@ -230,7 +265,15 @@ impl Values {
                         _ => None,
                     }
                 }
-                Tag::If | Tag::Match => out.chosen(body, i).and_then(|k| out.word(body, k)),
+                Tag::If | Tag::Match => {
+                    let chosen = out.chosen(body, i);
+                    arms.decide(i, chosen);
+                    chosen.and_then(|k| out.word(body, k))
+                }
+                Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar => {
+                    arms.decide(i, out.switched(body, i));
+                    None
+                }
                 _ => None,
             };
             out.val[i] = v;
@@ -260,7 +303,7 @@ impl Values {
             }
             Tag::Scope => body.record(b).is_empty() && word(a),
             Tag::Read => body.local_read(i).is_some(),
-            Tag::NewVariant => body.record(b).is_empty(),
+            Tag::NewVariant => no_payload(body, i),
             Tag::Coerce => transparent(body, i) && word(a),
             Tag::Prim => {
                 PrimOp::from_u32(a) == Some(PrimOp::Not) && body.record(b).iter().all(|&x| word(x))
@@ -323,6 +366,21 @@ impl Values {
         }
     }
 
+    /// The block switch `i` runs, where its operand's value decides it.
+    fn switched(&self, body: &Body, i: usize) -> Option<u32> {
+        let rec = body.record(body.data[i][1]);
+        let equal = match (body.tags[i], self.word(body, body.data[i][0])?) {
+            (Tag::SwitchTag, Value::Variant(tag)) => tag == rec[0],
+            (Tag::SwitchInt | Tag::SwitchChar, Value::Scalar(bits)) => {
+                bits & u64::from(u32::MAX) == u64::from(rec[0])
+            }
+            _ => return None,
+        };
+        rec.get(if equal { 1 } else { 2 })
+            .copied()
+            .filter(|&k| k != NONE)
+    }
+
     /// Follow a pure match decision to its arm. Binding patterns and
     /// guards with unknown results retain the original match and all its
     /// effects. The decision tree's depth is the pattern's, capped at 64.
@@ -335,7 +393,7 @@ impl Values {
             let [a, b] = body.data[i];
             match body.tags[i] {
                 Tag::Block => {}
-                Tag::Read if body.local_read(i).is_some() => {}
+                Tag::Read if self.pure[i] || self.val[i].is_some() => {}
                 Tag::ToArm => return Some(a),
                 Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar => {
                     let val = self.word(body, a)?;
@@ -353,6 +411,106 @@ impl Values {
             }
         }
         None
+    }
+}
+
+/// Which arms the decisions seen so far rule out, for [`Values`]: the
+/// executable-edge half of SCCP (Wegman and Zadeck) for the one question a
+/// block's value asks, whether a `Break` to it can run. Each block knows
+/// its enclosing block, and each arm its decision; a decision comes before
+/// the block that holds it (`hd_tir::ir::topo`), so by the time a block
+/// reads its `Break`s, every decision between them and it is settled. The
+/// walk up from a `Break` keeps union-find's path compression: `jump[x]`
+/// skips blocks already found live, so all walks together cost near O(n).
+struct Arms {
+    /// Per instruction: the block that lists it, or `NONE`.
+    parent: Vec<u32>,
+    /// Per arm block: its decision, or `NONE`.
+    decision: Vec<u32>,
+    /// Per decision: the arm block it runs, once settled, or `NONE`.
+    chosen: Vec<u32>,
+    /// Per block: an enclosing block such that every block strictly
+    /// between them is live, or `NONE` for the parent.
+    jump: Vec<u32>,
+}
+
+impl Arms {
+    fn new(body: &Body) -> Self {
+        let n = body.len();
+        let mut parent = vec![NONE; n];
+        let mut decision = vec![NONE; n];
+        for i in 0..n {
+            let [a, b] = body.data[i];
+            let tag = body.tags[i];
+            if tag == Tag::Block {
+                for &m in body.record(a) {
+                    if let Some(p) = parent.get_mut(m as usize) {
+                        *p = index(i);
+                    }
+                }
+            }
+            // A decision's arms: an `if`'s or a `match`'s blocks, a
+            // switch's two after its value.
+            let arms = match tag {
+                Tag::If | Tag::Match => body.record(b),
+                Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar => {
+                    body.record(b).get(1..3).unwrap_or(&[])
+                }
+                _ => &[],
+            };
+            for &k in arms {
+                if let Some(d) = decision.get_mut(k as usize) {
+                    *d = index(i);
+                }
+            }
+        }
+        Self {
+            parent,
+            decision,
+            chosen: vec![NONE; n],
+            jump: vec![NONE; n],
+        }
+    }
+
+    fn decide(&mut self, i: usize, arm: Option<u32>) {
+        self.chosen[i] = arm.unwrap_or(NONE);
+    }
+
+    /// The block enclosing `x`: the block that lists it, or for an arm
+    /// listed by none, the one that lists its decision.
+    fn up(&self, x: u32) -> u32 {
+        match self.parent[x as usize] {
+            NONE => match self.decision[x as usize] {
+                NONE => NONE,
+                d => self.parent[d as usize],
+            },
+            p => p,
+        }
+    }
+
+    /// Whether `Break` `k` can run as far as its target block `t`: no
+    /// block between them is an arm its settled decision does not run.
+    fn live(&mut self, k: u32, t: u32) -> bool {
+        let mut seen = Vec::new();
+        let mut x = self.up(k);
+        let alive = loop {
+            if x == NONE || x >= t {
+                break true;
+            }
+            let d = self.decision[x as usize];
+            if d != NONE && self.chosen[d as usize] != NONE && self.chosen[d as usize] != x {
+                break false;
+            }
+            seen.push(x);
+            x = match self.jump[x as usize] {
+                NONE => self.up(x),
+                j => j,
+            };
+        };
+        for s in seen {
+            self.jump[s as usize] = x;
+        }
+        alive
     }
 }
 
@@ -529,6 +687,66 @@ pub fn collapse(body: &Body) -> Option<Body> {
     let value = values
         .word(body, root)
         .filter(|_| values.pure[root as usize])?;
+    collapsed(body, root, value)
+}
+
+/// [`collapse`] for a body whose effects all stay in its own frame: it
+/// writes only its own locals, makes values, and calls only what
+/// `quiet(body, i)` vouches for (a `Call` or a `Drop` with no effect a
+/// caller sees: a generated structure handle, a type with no drop glue).
+/// A derived flag runs a describer over its type, which binds handles and
+/// lends a describer local, and still only makes its result (#1445). Like
+/// LLVM's `FunctionAttrs` inferring `readnone` from local-only stores
+/// before IPSCCP folds its calls. Cost: one pass, O(n).
+#[must_use]
+pub fn collapse_quiet(body: &Body, quiet: &dyn Fn(&Body, usize) -> bool) -> Option<Body> {
+    let &[root] = body.sub_root.as_slice() else {
+        return None;
+    };
+    for i in 0..body.len() {
+        let [a, b] = body.data[i];
+        let ok = match body.tags[i] {
+            Tag::Block
+            | Tag::Scope
+            | Tag::Break
+            | Tag::ToArm
+            | Tag::If
+            | Tag::Match
+            | Tag::SwitchTag
+            | Tag::SwitchInt
+            | Tag::SwitchChar
+            | Tag::Unreachable
+            | Tag::Read
+            | Tag::Ref
+            | Tag::LoanEnd
+            | Tag::Release
+            | Tag::NewStruct
+            | Tag::NewVariant
+            | Tag::NewTuple
+            | Tag::And
+            | Tag::Or => true,
+            Tag::Coerce => transparent(body, i),
+            Tag::Prim => PrimOp::from_u32(a) == Some(PrimOp::Not),
+            // A store into a local of its own, not a parameter's referent.
+            Tag::Store => body.decode_place(a).is_some_and(|p| {
+                matches!(p.root, hd_tir::ir::PlaceRoot::Local(l)
+                    if body.local_flags[l.idx()] & local_flags::PARAM == 0)
+                    && !p.proj.contains(&hd_tir::ir::Proj::Deref)
+            }),
+            Tag::Call | Tag::Drop => quiet(body, i),
+            _ => false,
+        };
+        let _ = b;
+        if !ok {
+            return None;
+        }
+    }
+    let value = Values::new(body, &[])?.word(body, root)?;
+    collapsed(body, root, value)
+}
+
+/// `body` as one instruction that makes `value`, its root's result.
+fn collapsed(body: &Body, root: u32, value: Value) -> Option<Body> {
     let (ty, syn) = (body.ty[root as usize], body.syn[root as usize]);
     let mut out = Body::new(body.item, body.kind);
     out.extra.clone_from(&body.extra);
@@ -884,6 +1102,41 @@ mod tests {
         b.body_mut().label_inst[label.0.idx()] = inner.0;
         let scope = b.open_scope();
         b.close_scope(scope, inner, Ty::BOOL, n)
+    }
+
+    /// #1445: a `return` in an arm its own constant condition rules out
+    /// (a `?` on a known `.Ok`) never runs, so the copy's tail alone is
+    /// its value and the caller's branch folds.
+    #[test]
+    fn a_break_in_a_ruled_out_arm_does_not_unsettle_its_block() {
+        let n = NodeIdx::NONE;
+        let mut cond = Ref(NONE);
+        let (body, two, three) = decide(|b| {
+            let label = b.open_loop();
+            let inner = b.open_block();
+            let yes = b.open_block();
+            let yes = b.close_block(yes, None, Ty::VOID, n);
+            let no = b.open_block();
+            let zero = b.const_value(Ty::BOOL, 0);
+            b.emit(Tag::Break, label.0.raw(), zero.0, Ty::NEVER, n);
+            let no = b.close_block(no, None, Ty::NEVER, n);
+            let known = b.const_value(Ty::BOOL, 1);
+            let arms = b.refs_record(&[yes, no]);
+            b.emit(Tag::If, known.0, arms, Ty::VOID, n);
+            let one = b.const_value(Ty::BOOL, 1);
+            let inner = b.close_block(inner, Some(one), Ty::BOOL, n);
+            b.body_mut().label_inst[label.0.idx()] = inner.0;
+            let scope = b.open_scope();
+            cond = b.close_scope(scope, inner, Ty::BOOL, n);
+            cond
+        });
+        // ruled out: the constant condition settles the `if`, so the fold
+        // has a decision to make.
+        let out = specialize(&body, &[]).expect("the dead arm's break is no value");
+        assert_eq!(out.tags[two.0 as usize], Tag::Call);
+        assert!(gone(&out, three));
+        // The condition's `if` is no pure value, so the scope stays.
+        assert_eq!(out.tags[cond.0 as usize], Tag::Scope);
     }
 
     /// #1518: an inlined trait method's constant result decides the

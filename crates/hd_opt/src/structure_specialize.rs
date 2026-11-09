@@ -19,6 +19,12 @@ pub trait StructureEnv: InlineEnv {
     /// Whether `def` is the hidden `build` body emitted by `hd_structure`.
     fn generated_structure_build(&self, def: DefId) -> bool;
 
+    /// Whether `def` is the hidden `describe` body emitted by `hd_structure`.
+    fn generated_structure_describe(&self, def: DefId) -> bool;
+
+    /// The compiler-known `std.structure.Describer` trait.
+    fn describer_trait(&self) -> DefId;
+
     /// The compiler-known `std.structure.Walker` trait.
     fn walker_trait(&self) -> DefId;
 
@@ -77,7 +83,8 @@ pub fn specialize_calls(env: &dyn StructureEnv, body: &mut Body, hash: Hash128) 
         };
         let walk = env.generated_structure_walk(def);
         let build = env.generated_structure_build(def);
-        if (!walk && !build) || !closed(env, targs) {
+        let describe = env.generated_structure_describe(def);
+        if (!walk && !build && !describe) || !closed(env, targs) {
             continue;
         }
         let Some((mut copy, copy_hash)) = instance(env, def, targs) else {
@@ -93,6 +100,14 @@ pub fn specialize_calls(env: &dyn StructureEnv, body: &mut Body, hash: Hash128) 
             hashes.extend(inline_always_methods(env, &mut copy));
             fold_handle_accessors(env, &mut copy);
             hashes
+        } else if describe {
+            // A describer's hooks see each member's type, never a value.
+            let describer = env.describer_trait();
+            inline_selected_methods(
+                env,
+                &mut copy,
+                &|callee| matches!(callee, Callee::TraitMethod { trait_, .. } if *trait_ == describer),
+            )
         } else {
             let mut hashes = inline_source_methods(env, &mut copy);
             // `Source.data_variant` and `data_member` default to the ordinary

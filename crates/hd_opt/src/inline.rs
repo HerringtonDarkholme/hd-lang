@@ -109,6 +109,17 @@ pub trait InlineEnv: ProgramEnv {
     fn const_fold(&self) -> bool {
         false
     }
+    /// The release folds an instance's own body takes before the inliner
+    /// (generated structure traversals, declaration facts), applied to a
+    /// copy; returns its hash, the same one when nothing changed.
+    fn prepare_copy(&self, _body: &mut Body, hash: Hash128) -> Hash128 {
+        hash
+    }
+    /// Whether `Call` or `Drop` `i` of `body` has no effect a caller sees
+    /// (`hd_mono::defaults::collapse_quiet`).
+    fn quiet(&self, _body: &Body, _i: usize) -> bool {
+        false
+    }
 }
 
 /// A release build's inliner state for one run. Only looked up, never
@@ -480,12 +491,28 @@ impl dyn InlineEnv + '_ {
                 return None;
             }
         }
+        if self.const_fold()
+            && let Some(c) = self.quiet_constant(def, targs, stack)
+        {
+            if let Some(memo) = memo {
+                lock(&memo.inlined).insert((def, targs), Some(c.clone()));
+            }
+            return Some(c);
+        }
         let made = self.instance(def, targs).and_then(|(copy, hash, fits)| {
             let nested = (!hd_tir::inline::leaf(&copy)).then(|| {
                 let mut nested = copy.clone();
                 stack.push(def);
                 let h = self.inline_into(&mut nested, hash, stack);
                 stack.pop();
+                // The decisions the copied callees' constants settle fold
+                // before the copy's size is judged, as its instance's own
+                // body folds them (#1445).
+                if self.const_fold()
+                    && let Some(folded) = hd_mono::defaults::specialize(&nested, &[])
+                {
+                    nested = folded;
+                }
                 (nested, h)
             });
             if memo.is_some_and(|memo| lock(&memo.recursive).contains(&def)) {
@@ -511,6 +538,57 @@ impl dyn InlineEnv + '_ {
             lock(&memo.inlined).insert((def, targs), made.clone());
         }
         made
+    }
+
+    /// The copy of `def` as the one value it makes, where the folds its
+    /// own instance body takes (`InlineEnv::prepare_copy`) expose a body
+    /// whose effects all stay in its frame (a derived flag's describer
+    /// walk, #1445). `None` when those folds change nothing, so every
+    /// other callee keeps the ordinary path, or no constant results.
+    fn quiet_constant(
+        &self,
+        def: DefId,
+        targs: TyList,
+        stack: &mut Vec<DefId>,
+    ) -> Option<(Body, Hash128)> {
+        // Only a function with no parameters can make one value at every
+        // call; its body need not be one the inliner copies as written.
+        let (params, suspends, has_row) = self.signature(def)?;
+        if !params.is_empty() || suspends || has_row || self.intrinsic(def).is_some() {
+            return None;
+        }
+        let hash = self.checked_body(def)?.1;
+        let mut scratch = self.fresh_body(def)?;
+        let pool = self.pool();
+        let ty = |t: Ty| hd_mono::subst(pool, self, def, targs, t);
+        let list = |l| {
+            pool.list(
+                &pool
+                    .list_items(l)
+                    .iter()
+                    .map(|&t| ty(t))
+                    .collect::<Vec<_>>(),
+            )
+        };
+        hd_tir::ir::map_body_types(&mut scratch, &ty, &list);
+        if scratch.ty.iter().chain(&scratch.local_ty).any(|&t| {
+            t == Ty::POISON || pool.has_param(t) || pool.has_assoc(t) || pool.has_opaque(t)
+        }) {
+            return None;
+        }
+        hd_tir::inline::rechoose(&mut scratch, &|t, s, a| self.select_impl(t, s, a));
+        let prepared = self.prepare_copy(&mut scratch, hash);
+        if prepared == hash {
+            return None;
+        }
+        stack.push(def);
+        let h = self.inline_into(&mut scratch, prepared, stack);
+        stack.pop();
+        let quiet = |b: &Body, i: usize| self.quiet(b, i);
+        let mut c = hd_mono::defaults::collapse_quiet(&scratch, &quiet)?;
+        // A derived instance's constant is copied as any function's.
+        c.kind = hd_tir::ir::BodyKind::Fn;
+        Some((c, h))
     }
 
     /// The callee's body at the call's types, with its hash, and whether

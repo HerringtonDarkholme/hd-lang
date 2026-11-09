@@ -344,6 +344,7 @@ pub fn is_generated_walk(names: &Names<'_>, def: DefId) -> bool {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum GeneratedBody {
     Build,
+    Describe,
     Facts,
     Walk,
     Handle(GeneratedHandle),
@@ -378,6 +379,9 @@ pub fn generated_body(names: &Names<'_>, def: DefId) -> Option<GeneratedBody> {
     }
     if segment == "structure walk" {
         return Some(GeneratedBody::Walk);
+    }
+    if segment == "structure describe" {
+        return Some(GeneratedBody::Describe);
     }
     if segment == "structure choices" {
         return Some(GeneratedBody::Handle(GeneratedHandle::Choices));

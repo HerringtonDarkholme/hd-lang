@@ -1274,6 +1274,30 @@ impl InlineEnv for Env<'_> {
         &self.run.pool
     }
 
+    fn prepare_copy(&self, body: &mut Body, hash: Hash128) -> Hash128 {
+        let structure = hd_opt::structure_specialize::specialize_calls(self, body, hash);
+        hd_opt::fact_specialize::specialize_calls(self, body, structure)
+    }
+
+    fn quiet(&self, body: &Body, i: usize) -> bool {
+        match body.tags[i] {
+            // A generated handle or facts factory builds its static record
+            // once and only returns it.
+            hd_tir::Tag::Call => matches!(
+                hd_tir::ir::Callee::from_words(body.record(body.data[i][0])),
+                Some(hd_tir::ir::Callee::Item { def, .. })
+                    if matches!(
+                        hd_structure::generated_body(&self.run.names(), def),
+                        Some(hd_structure::GeneratedBody::Handle(_) | hd_structure::GeneratedBody::Facts)
+                    )
+            ),
+            hd_tir::Tag::Drop => body.local_in_place(body.data[i][0]).is_some_and(|l| {
+                !hd_wasm_linear::holds_drop_type(&self.run.pool, self, body.local_ty[l.idx()])
+            }),
+            _ => false,
+        }
+    }
+
     fn call_may_write(&self, callee: &Callee) -> bool {
         self.declared_may_write(callee)
     }
@@ -1467,6 +1491,15 @@ impl StructureEnv for Env<'_> {
     fn generated_structure_build(&self, def: DefId) -> bool {
         hd_structure::generated_body(&self.run.names(), def)
             == Some(hd_structure::GeneratedBody::Build)
+    }
+
+    fn generated_structure_describe(&self, def: DefId) -> bool {
+        hd_structure::generated_body(&self.run.names(), def)
+            == Some(hd_structure::GeneratedBody::Describe)
+    }
+
+    fn describer_trait(&self) -> DefId {
+        self.run.known.describer
     }
 
     fn walker_trait(&self) -> DefId {
