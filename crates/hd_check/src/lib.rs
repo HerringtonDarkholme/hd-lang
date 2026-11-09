@@ -65,7 +65,8 @@ mod value;
 mod written_bounds;
 
 pub use body::{
-    BodyCx, TestsView, check_default, check_fn, check_fn_with_inferred, default_body_def,
+    BodyCx, DefaultInput, TestsView, check_default, check_fn, check_fn_with_inferred,
+    default_body_def,
 };
 pub use call::MethodIndex;
 pub use conform::{AssocFaults, assoc_faults, omitted_trait_methods};

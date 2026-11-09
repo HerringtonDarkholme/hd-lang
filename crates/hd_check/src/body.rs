@@ -1256,6 +1256,16 @@ pub fn default_body_def(names: &Names<'_>, owner: DefId, name: &str) -> DefId {
     names.member(owner, hd_intern::PathKind::Hidden, name)
 }
 
+/// The resolved slot and parameter visibility of one default expression.
+/// Field defaults have empty slices; parameter defaults see earlier values
+/// while their own and later names are not yet visible.
+#[derive(Clone, Copy)]
+pub struct DefaultInput<'a> {
+    pub slot: (Symbol, Ty),
+    pub earlier: &'a [(Symbol, Ty)],
+    pub later: &'a [(Symbol, Ty)],
+}
+
 /// Checks one default expression as a body of kind `Default`
 /// (`crates/hd_check/DESIGN.md` (type checking) §1.7): a struct field's (no parameters) or a function
 /// parameter's (the earlier parameters are its parameters). A default
@@ -1263,13 +1273,13 @@ pub fn default_body_def(names: &Names<'_>, owner: DefId, name: &str) -> DefId {
 pub fn check_default(
     cx: &BodyCx<'_>,
     owner: DefId,
-    name: &str,
+    input: DefaultInput<'_>,
     expr: NodeRef<'_>,
     diags: &mut DiagBuf,
 ) -> StageResult<Body> {
-    match default_steps(cx, owner, name, expr, diags) {
+    match default_steps(cx, owner, input, expr, diags) {
         Err(e) if is_out_of_fuel(&e) => {
-            let def = default_body_def(&cx.names, owner, name);
+            let def = default_body_def(&cx.names, owner, cx.names.text(input.slot.0));
             too_complex(cx, (def, BodyKind::Default), expr, diags)
         }
         r => r,
@@ -1279,26 +1289,12 @@ pub fn check_default(
 fn default_steps(
     cx: &BodyCx<'_>,
     owner: DefId,
-    name: &str,
+    input: DefaultInput<'_>,
     expr: NodeRef<'_>,
     diags: &mut DiagBuf,
 ) -> StageResult<Body> {
-    let Some(item) = cx.lookup.item(owner) else {
-        return unsupported("a default of an item outside the module");
-    };
-    let sym = cx.names.syms.intern(name);
-    let (ty, params) = match (&item.data, item.sig()) {
-        (ItemData::Struct(fields, _), _) => match fields.iter().find(|f| f.name == sym) {
-            Some(f) => (f.ty, vec![]),
-            None => return unsupported("a default of an unknown field"),
-        },
-        (_, Some(sig)) => match sig.params.iter().position(|p| p.0 == sym) {
-            Some(i) => (sig.params[i].1, sig.params[..i].to_vec()),
-            None => return unsupported("a default of an unknown parameter"),
-        },
-        _ => return unsupported("a default of this item kind"),
-    };
-    let def = default_body_def(&cx.names, owner, name);
+    let (name, ty) = input.slot;
+    let def = default_body_def(&cx.names, owner, cx.names.text(name));
     let local = hd_types::LocalPool::new();
     let mut ck = new_ck(
         cx,
@@ -1313,19 +1309,15 @@ fn default_steps(
     ck.move_to(cx.src.span(expr).lo);
     ck.default_row = Some(false);
     let blk = ck.b.open_block();
-    for (n, t) in params {
+    for &(n, t) in input.earlier {
         let l = ck.b.local(t, n, local_flags::PARAM, expr.index());
         ck.scopes[0].insert(n, l);
     }
     // The parameter itself and the later ones are named but not visible
     // (`fn.default.later-parameter`).
-    if let (_, Some(sig)) = (&item.data, item.sig())
-        && let Some(i) = sig.params.iter().position(|p| p.0 == sym)
-    {
-        for &(n, t) in &sig.params[i..] {
-            let l = ck.b.local(t, n, local_flags::NOT_YET, expr.index());
-            ck.scopes[0].insert(n, l);
-        }
+    for &(n, t) in input.later {
+        let l = ck.b.local(t, n, local_flags::NOT_YET, expr.index());
+        ck.scopes[0].insert(n, l);
     }
     let (r, t) = ck.expr(expr, Some(ty))?;
     let r = ck.coerce(r, t, ty, expr, "default", ExpectPosition::General);

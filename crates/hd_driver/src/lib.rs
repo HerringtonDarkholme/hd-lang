@@ -6766,20 +6766,32 @@ impl Run<'_> {
         // (`crates/hd_tir/DESIGN.md` "Default calls").
         let mut defaults = Vec::new();
         for h in &heads {
-            if h.kind == hd_resolve::HeadKind::Struct {
+            if h.kind == hd_resolve::HeadKind::Struct
+                && let Some(ItemData::Struct(fields, _)) = cx.lookup.item(h.def).map(|i| &i.data)
+            {
                 for f in h.node.descendants() {
                     if f.kind() == hd_syntax::SyntaxKind::DataField
                         && let Some(dv) =
                             hd_resolve::Src::child(f, hd_syntax::SyntaxKind::DefaultValue)
                         && let Some(e) = dv.children().next()
                         && let Some(t) = f.name(&src.parse.tokens)
+                        && let Some(field) =
+                            fields.iter().find(|f| names.text(f.name) == src.text(t))
                     {
-                        defaults.push((h.def, src.text(t).to_owned(), e, None));
+                        let input = hd_check::DefaultInput {
+                            slot: (field.name, field.ty),
+                            earlier: &[],
+                            later: &[],
+                        };
+                        defaults.push((h.def, input, e, None));
                     }
                 }
             }
         }
         for (def, node) in hd_resolve::body_nodes(&names, &src, &heads) {
+            let Some(sig) = cx.lookup.item(def).and_then(Item::sig) else {
+                continue;
+            };
             let Some(pl) = hd_resolve::Src::child(node, hd_syntax::SyntaxKind::ParameterList)
             else {
                 continue;
@@ -6788,18 +6800,22 @@ impl Run<'_> {
                 if let Some(dv) = hd_resolve::Src::child(p, hd_syntax::SyntaxKind::DefaultValue)
                     && let Some(e) = dv.children().next()
                     && let Some(t) = p.name(&src.parse.tokens)
+                    && let Some(i) = sig
+                        .params
+                        .iter()
+                        .position(|p| names.text(p.0) == src.text(t))
                 {
-                    defaults.push((
-                        def,
-                        src.text(t).to_owned(),
-                        e,
-                        hd_resolve::lower::cfg_profile(&src, node),
-                    ));
+                    let input = hd_check::DefaultInput {
+                        slot: sig.params[i],
+                        earlier: &sig.params[..i],
+                        later: &sig.params[i..],
+                    };
+                    defaults.push((def, input, e, hd_resolve::lower::cfg_profile(&src, node)));
                 }
             }
         }
-        for (owner, name, e, profile) in defaults {
-            match hd_check::check_default(&cx, owner, &name, e, &mut diags) {
+        for (owner, input, e, profile) in defaults {
+            match hd_check::check_default(&cx, owner, input, e, &mut diags) {
                 Ok(b) => {
                     lock(&self.report).body_ok += 1;
                     if let Some(profile) = profile {
@@ -6813,8 +6829,9 @@ impl Run<'_> {
                     let short: String = err.what.chars().take(90).collect();
                     *r.body_reasons.entry(short).or_default() += 1;
                     r.body_failures.push(format!(
-                        "{} default {name}: {}",
+                        "{} default {}: {}",
                         names.path(owner),
+                        names.text(input.slot.0),
                         err.what
                     ));
                     drop(r);
