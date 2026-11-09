@@ -68,6 +68,13 @@ correct??"
   that changes k things does work proportional to k.
 - Where state can grow, a test grows it tenfold and asserts the run cost
   stays flat.
+- A compiler pass that retries, rechecks or iterates to a fixpoint states its
+  bound in both **width** (items in a group, ring length) and **depth**
+  (nesting), and ships a generated test at width 1000 and depth 20 that
+  counts the work (bodies checked, iterations), not the time. #1512's body
+  retry was exponential in nesting depth (#1529) and its ring propagation
+  overflowed the stack at 400 (#1530). Both passed a width-only cost test.
+  Owner, 2026-11-08: "probably it is quadratic", then "bad impl".
 
 ## Spec Tiers
 
