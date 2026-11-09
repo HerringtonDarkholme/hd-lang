@@ -173,12 +173,7 @@ impl Em<'_, '_, '_> {
     /// when no key goes in front, 0 when there is neither. Returns the
     /// local of a context it built, which the caller releases once the
     /// call has returned; a callee that keeps it takes a count of its own.
-    fn push_ctx_of(
-        &mut self,
-        keys: &[Ty],
-        open: bool,
-        copy: Option<Reason>,
-    ) -> StageResult<Option<u32>> {
+    fn push_ctx_of(&mut self, i: u32, keys: &[Ty], open: bool) -> StageResult<Option<u32>> {
         let base = if open { self.open_ctx } else { None };
         if keys.is_empty() {
             match base {
@@ -188,13 +183,11 @@ impl Em<'_, '_, '_> {
             return Ok(None);
         }
         // ruled out: the driver roots std runtime items before collecting a program.
-        if self.input.runtime.is_none() {
-            return unsupported("a context without std's allocator");
-        }
-        // ruled out: own::call_row states provider copies for every call needing a context.
-        let Some(copy) = copy else {
-            return unsupported("a call context without its stated provider copies");
-        };
+        debug_assert!(self.input.runtime.is_some());
+        let copy = Reason::Stored;
+        // ruled out: own::call_row writes nonempty contexts' copy packet with
+        // reason 0; own::counts verifies that exact adjacent Operation/Row fact.
+        debug_assert_eq!(self.operation_count(i, Tag::Retain, Part::Row), Some(copy));
         let mut provs = Vec::new();
         for k in keys {
             provs.push(self.provider(*k)?);
@@ -253,8 +246,7 @@ impl Em<'_, '_, '_> {
         if open {
             self.scope_keys(&mut keys);
         }
-        let copy = self.operation_count(i, Tag::Retain, Part::Row);
-        self.push_ctx_of(&keys, open, copy)
+        self.push_ctx_of(i, &keys, open)
     }
 
     /// End only the temporary context this call constructed.
@@ -295,8 +287,7 @@ impl Em<'_, '_, '_> {
         if open {
             self.scope_keys(&mut keys);
         }
-        let copy = self.operation_count(i, Tag::Retain, Part::Row);
-        self.push_ctx_of(&keys, open, copy)
+        self.push_ctx_of(i, &keys, open)
     }
 
     /// Pushes the context a dynamic call of trait method `method` at
@@ -315,8 +306,7 @@ impl Em<'_, '_, '_> {
         if open {
             self.scope_keys(&mut keys);
         }
-        let copy = self.operation_count(i, Tag::Retain, Part::Row);
-        self.push_ctx_of(&keys, open, copy)
+        self.push_ctx_of(i, &keys, open)
     }
 
     /// `$.context(...)` (`req.context.order`): a new context with one
@@ -325,9 +315,7 @@ impl Em<'_, '_, '_> {
     /// spread context.
     pub(super) fn context_new(&mut self, i: u32, rec: u32) -> StageResult<()> {
         // ruled out: the driver roots std runtime items before collecting a program.
-        if self.input.runtime.is_none() {
-            return unsupported("a context without std's allocator");
-        }
+        debug_assert!(self.input.runtime.is_some());
         let keys = self.context_keys(self.ty(i));
         let pairs = self.rec(rec);
         let mut from = Vec::new();
@@ -371,14 +359,15 @@ impl Em<'_, '_, '_> {
         self.f.i32(0);
         self.f.helper(Helper::CtxNew);
         self.f.set(c);
-        let copy = self.operation_count(i, Tag::Retain, Part::Row);
+        let copy = Reason::Stored;
+        // ruled out: own::context gives every nonempty ContextNew record a
+        // reason-0 provider packet; own::counts verifies the exact descriptor.
+        debug_assert!(
+            keys.is_empty() || self.operation_count(i, Tag::Retain, Part::Row) == Some(copy)
+        );
         for (j, (k, [d, v])) in keys.iter().zip(provs).enumerate() {
             let id = key_id(self.input, *k);
-            // ruled out: own::context states provider copies for nonempty ContextNew records.
-            let Some(reason) = copy else {
-                return unsupported("a context without its stated provider copies");
-            };
-            self.because(reason, |em| em.fill_entry(c, j, id, d, v));
+            self.because(copy, |em| em.fill_entry(c, j, id, d, v));
         }
         self.f.get(c);
         self.store_owned(i)
