@@ -31,7 +31,7 @@
       local.get $t2
       local.get $o.1
       i32.add
-      i32.const 65 ;; &"!"
+      i32.const 104 ;; &"!"
       i32.load8_u $heap
       i32.store8 $heap
     ;; 12 |     s := o?
@@ -82,7 +82,7 @@
   (func $or_default (param $o.0 i32) (param $o.1 i32) (result i32 i32) (local $t1 i32) (local $t0 i32)
     ;; 16 |     o.unwrap_or("none")
     block
-      i32.const 66 ;; &"none"
+      i32.const 105 ;; &"none"
       i32.const 4
       local.set $t0
       local.set $t1

@@ -254,9 +254,11 @@ type in every position; aggregate values are inline in memory.
   a range compare for the untagged variant beside several niche values;
   construction writes the variant's tag or niche value
   (`layout::variant_steps`). Zeros are a valid value of every type, but
-  for a niche type not always the first variant: a part moved out of an
-  enum's payload that zeros its niche leaves the rest released field by
-  field (`Em::own_drop_rest`).
+  for a niche type not always the first variant. A part moved out of an
+  enum's payload whose zeros would read as another variant writes its
+  niche cell back to a value of the variant it left: the static empty
+  buffer's address for a counted cell, which no count changes, else the
+  last value of the valid range (`Em::niche_repairs`).
 - **Type-only.** Every rule reads the type's definition and the
   definitions its fields name, never a use, so a laid-out instance is
   valid in every program that reaches it.

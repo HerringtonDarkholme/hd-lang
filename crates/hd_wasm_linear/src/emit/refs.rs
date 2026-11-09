@@ -205,26 +205,29 @@ impl Em<'_, '_, '_> {
         Ok(Some((ty, slots)))
     }
 
-    /// Whether zeros left in the values `zeroed` of a `t` value, a part's
-    /// at `proj` ([`Em::zero_part`]), would change what the value's
-    /// release walks: they cover the niche of an enum on the way that
-    /// reads 0 as another variant (a null address's), and that variant, or
-    /// the one moved from, has a counted leaf or drop glue the zeros do
-    /// not cover. The rest of such a value is released field by field
-    /// ([`Em::own_drop_rest`]).
-    pub(super) fn zeros_change_variant(
+    /// The values of a `t` value to write after zeros in the values
+    /// `zeroed`, a part's at `proj` ([`Em::zero_part`]), so that the value
+    /// still says the variant the part moved out of: each enum on the way
+    /// whose niche cell the zeros cover and whose niche reads 0 as another
+    /// variant (a null address's). The release of the rest then walks the
+    /// right variant, wherever its drop is. A counted cell gets the static
+    /// empty buffer's address (`None`), which no count changes; any other
+    /// the last value of its valid range, which `reserve` left just below
+    /// the niche's values.
+    fn niche_repairs(
         &self,
         t: Ty,
         proj: &[Proj],
         zeroed: &[usize],
-    ) -> StageResult<bool> {
+    ) -> StageResult<Vec<(usize, Option<u32>)>> {
+        let mut out = Vec::new();
         let mut slots: Vec<usize> = (0..self.vals(t)?.len()).collect();
         let mut ty = t;
         let mut k = 0;
         while k < proj.len() {
             let whole = self.newtype(ty) && proj[k] == Proj::Field(0);
             if !(whole || matches!(self.kind(ty), Kind::Value)) {
-                return Ok(false);
+                return Ok(out);
             }
             match proj[k] {
                 Proj::Field(f) => {
@@ -235,44 +238,35 @@ impl Em<'_, '_, '_> {
                 }
                 Proj::Variant(v) => {
                     let Some(&Proj::Field(f)) = proj.get(k + 1) else {
-                        return Ok(false);
+                        return Ok(out);
                     };
                     // A `Proj::Variant` step, into an enum or an optional.
                     let flat = self.enum_flat(ty)?;
-                    // The enum's values the zeros cover.
-                    let here: Vec<usize> = (0..slots.len())
-                        .filter(|&j| zeroed.contains(&slots[j]))
-                        .collect();
                     if let Some(d) = flat.cell()
-                        && let crate::layout::Enc::Niche { .. } = d.enc
+                        && let crate::layout::Enc::Niche { start, bytes, .. } = d.enc
                         && d.enc.reads(0) != v
-                        && here.contains(&(d.value as usize))
+                        && zeroed.contains(&slots[d.value as usize])
                     {
-                        let Some(Walk::Switch(_, arms)) = walk(self.pool(), self.env(), ty) else {
-                            return Ok(false);
-                        };
-                        let w = d.enc.reads(0);
-                        return Ok([v, w].iter().any(|&x| {
-                            // Glue of a variant whose every value is zero
-                            // went with the part, or runs on zeros.
-                            let whole = flat.positions[x as usize]
-                                .iter()
-                                .flatten()
-                                .all(|&j| here.contains(&(j as usize)));
-                            arms.get(x as usize)
+                        let counted = match walk(self.pool(), self.env(), ty) {
+                            Some(Walk::Switch(_, arms)) => arms
+                                .get(v as usize)
                                 .and_then(Option::as_ref)
-                                .is_some_and(|arm| !zeroed_covers(arm, &here, whole))
-                        }));
+                                .is_some_and(|arm| counts(arm, d.value)),
+                            Some(_) | None => false,
+                        };
+                        let last =
+                            start.wrapping_sub(1) & (u32::MAX >> (32 - 8 * u32::from(bytes)));
+                        out.push((slots[d.value as usize], (!counted).then_some(last)));
                     }
                     let at = flat.selection(v as usize, f as usize);
                     slots = at.iter().map(|&p| slots[p]).collect();
                     ty = self.variant_tys(ty)?[v as usize][f as usize];
                     k += 2;
                 }
-                Proj::Deref | Proj::Elem(_) => return Ok(false),
+                Proj::Deref | Proj::Elem(_) => return Ok(out),
             }
         }
-        Ok(false)
+        Ok(out)
     }
 
     /// Zeros the locals `ls` of a value of type `t` that hold the bytes of
@@ -331,6 +325,11 @@ impl Em<'_, '_, '_> {
         self.mark_drop_place(&p, false);
         if self.needs_drop(pt) {
             self.zero_part(t, &ls, &slots)?;
+            for (slot, value) in self.niche_repairs(t, &p.proj, &self.zeroed(t, &slots)?)? {
+                let value = value.unwrap_or_else(|| crate::rt::empty_buffer(self.m));
+                self.f.u32(value);
+                self.f.set(ls[slot]);
+            }
         }
         Ok(true)
     }
@@ -397,18 +396,6 @@ impl Em<'_, '_, '_> {
             Some(v) => vec![Proj::Variant(v), Proj::Field(f)],
             None => vec![Proj::Field(f)],
         };
-        // A part taken that holds a niche zero would misread was moved as
-        // a copy ([`Em::own_move_part`]): the whole value's release frees it.
-        // Zeros a part taken left in its enum's niche can make the value
-        // read as another variant: then the rest is released field by
-        // field, never by the whole value's glue, which reads the variant.
-        let mut misread = false;
-        for &f in &taken {
-            let Some((_, slots)) = self.part_slots(t, &step(f))? else {
-                return Ok(false);
-            };
-            misread |= self.zeros_change_variant(t, &step(f), &self.zeroed(t, &slots)?)?;
-        }
         // Every part taken must be in the locals at this instance: one that
         // is not was read as a copy, and the whole release frees it.
         let mut rest = Vec::new();
@@ -423,7 +410,7 @@ impl Em<'_, '_, '_> {
         }
         // More than one part left: the whole value's glue releases them in
         // one call, the parts taken being zero.
-        if rest.len() > 1 && !misread {
+        if rest.len() > 1 {
             return Ok(false);
         }
         for (ft, slots, field) in rest {
@@ -1687,20 +1674,12 @@ fn fields(steps: &[Proj]) -> Option<Vec<u32>> {
         .collect()
 }
 
-/// Whether every counted leaf of `arm` is among `zeroed`, and its drop
-/// glue, if any, belongs to a variant all zero (`whole`): zeros there
-/// release nothing.
-fn zeroed_covers(arm: &Walk, zeroed: &[usize], whole: bool) -> bool {
+/// Whether walk `arm` counts the address in value `k`.
+fn counts(arm: &Walk, k: u32) -> bool {
     match arm {
-        Walk::Ref(k) | Walk::Known(k) => zeroed.contains(&(*k as usize)),
-        Walk::Glue => whole,
-        Walk::Seq(ws) => ws.iter().all(|w| zeroed_covers(w, zeroed, whole)),
-        Walk::Switch(d, arms) => {
-            zeroed.contains(&(d.value as usize))
-                && arms
-                    .iter()
-                    .flatten()
-                    .all(|w| zeroed_covers(w, zeroed, whole))
-        }
+        Walk::Ref(x) | Walk::Known(x) => *x == k,
+        Walk::Glue => false,
+        Walk::Seq(ws) => ws.iter().any(|w| counts(w, k)),
+        Walk::Switch(_, arms) => arms.iter().flatten().any(|w| counts(w, k)),
     }
 }

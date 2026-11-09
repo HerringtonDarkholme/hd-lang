@@ -107,7 +107,7 @@
     ;; 12 |     match save(s):
             unreachable
           end
-          i32.const 66 ;; &"saved"
+          i32.const 104 ;; &"saved"
           i32.const 5
           local.set $s.1
           local.set $s.0

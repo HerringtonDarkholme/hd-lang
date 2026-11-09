@@ -2,35 +2,20 @@
 app/main/absent
   local $0 value: Result[Envelope, string] [param read] value
     uses $0: entry -> %1 consume last
-  local $1 value: Envelope [param read] value
-    uses $1: entry -> %3 consume last
-  local $2 self: Payload? [read] value
-    uses $2: %4 -> %5 lend last
+  local $1 value: Envelope [param read captured] place
   %1 = Read move [$0] : Result[Envelope, string]
-  %2 = Retain %25 Entry local $1 #0 : ()
-  %3 = Read move [$1 .filter] : Payload?
-  %4 = Store [$2] %3 : ()
-  %5 = Read borrow [$2] : Payload?
-  %6 = Block 0:bool : bool
-  %7 = Block 1:bool : bool
-  %8 = Read borrow [%5] : Payload?
-  %10 = Block - : never
-  %12 = Block - : never
-  %14 = Block - : never
-  %15 = SwitchTag %8 [#0 %12 %14] : never
-  %16 = Block - : never
-  %17 = SwitchTag %8 [#1 %10 %16] : never
-  %18 = Block - : never
-  %19 = Match %5 [%18 %6 %7] : bool
-  %20 = Break L0 %19 : never
-  %21 = Block - : bool
-  %22 = Scope %21 [] : bool
-  %23 = Drop [$2] : ()
-  %24 = Coerce %22 [Identity -] : bool
-  %25 = Block %24 : bool
-  %26 = Closure #1 [%0 %0] : fn(Envelope) -> bool
-  %27 = Call std/result/impl [ T < ? Copy , E < ? Copy ] Result [ T , E ].map[Envelope, string, bool] (%1, %26) : Result[bool, string]
-  %27 keeps %26
-  %28 = Block %27 : Result[bool, string]
+  %2 = Retain %8 Entry local $1 #0 : ()
+  %3 = Ref local [$1 .filter] : Ref[Payload?]
+  %4 = Call app/main/missing[] (%3) : bool
+  %5 = LoanEnd [%3] : ()
+  %6 = Drop [$1] : ()
+  %7 = Coerce %4 [Identity -] : bool
+  %8 = Block %7 : bool
+  %9 = Closure #1 [%0 %0] : fn(Envelope) -> bool
+  %10 = Call std/result/impl [ T < ? Copy , E < ? Copy ] Result [ T , E ].map[Envelope, string, bool] (%1, %9) : Result[bool, string]
+  %10 keeps %9
+  %11 = Block %10 : Result[bool, string]
   exit sub 0 drops [$0]
   exit sub 1 drops [$1]
+  storage sub 0: $1 cell
+  storage sub 1: $1 cell

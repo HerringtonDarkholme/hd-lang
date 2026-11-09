@@ -1,0 +1,72 @@
+# test: a payload field that holds its enum's niche moves out, and the rest of the value is released once, wherever its drop is
+enum Three:
+    Full(string, string, string)
+    Empty
+
+struct Box3:
+    t: Three
+
+fn make(k: i32) -> Three:
+    .Full("a${k}", "b${k}", "c${k}")
+
+fn in_if(take: bool) -> string:
+    let t = make(1)
+    let mut got = "none"
+    if take:
+        match t:
+            .Full(x, _, _) => got = x
+            .Empty => pass
+    got
+
+fn in_loop() -> List[string]:
+    let mut out: List[string] = []
+    for k in 0..3:
+        let t = make(k)
+        match t:
+            .Full(x, _, _) => out.push(x)
+            .Empty => pass
+    out
+
+fn after_match() -> string:
+    let t = make(2)
+    let s = match t:
+        .Full(x, _, _) => x
+        .Empty => "none"
+    "${s}!"
+
+fn through_mut(b: &mut Box3) -> string:
+    let old = b.t
+    b.t = .Empty
+    match old:
+        .Full(x, _, _) => x
+        .Empty => "none"
+
+fn in_field(take: bool) -> string:
+    let bx = Box3 { t: make(4) }
+    let mut got = "none"
+    if take:
+        match bx.t:
+            .Full(x, _, _) => got = x
+            .Empty => pass
+    got
+
+tests:
+    use std.testing.assert_equal
+
+    it("moves in an if branch and drops the rest at scope end"):
+        assert_equal(in_if(true), "a1", reason="taken")
+        assert_equal(in_if(false), "none", reason="not taken")
+
+    it("moves in a loop body"):
+        assert_equal(in_loop(), ["a0", "a1", "a2"], reason="three moves")
+
+    it("moves in a match arm and drops the rest after the match"):
+        assert_equal(after_match(), "a2!", reason="after")
+
+    it("moves out of a value replaced through a mutable reference"):
+        let mut b = Box3 { t: make(3) }
+        assert_equal(through_mut(&mut b), "a3", reason="replaced")
+
+    it("moves out of a struct field's enum"):
+        assert_equal(in_field(true), "a4", reason="taken")
+        assert_equal(in_field(false), "none", reason="not taken")
