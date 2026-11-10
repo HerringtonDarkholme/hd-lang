@@ -16,12 +16,12 @@
       i32.const 1
       i32.const 0
       i32.const 0
-      call $"with_tag[^241]'1"
+      call $"with_tag[{open row}]'1"
       local.set $s.0
     end
     local.get $s.0
   )
-  (func $"with_tag[^241]'2" (param $s.0 i32) (param $s.1 i32) (param $callback.0 i32) (param $callback.1 i32) (param $ctx i32) (result i32)
+  (func $"with_tag[{open row}]'2" (param $s.0 i32) (param $s.1 i32) (param $callback.0 i32) (param $callback.1 i32) (param $ctx i32) (result i32)
     ;; 22 |     $.with(Tag=Named { label: s }):
     block
       block
@@ -128,7 +128,7 @@
       i32.const 4
       i32.const 0
       i32.const 0
-      call $"with_tag[^241]'2"
+      call $"with_tag[{open row}]'2"
       local.set $s.0
     end
     local.get $s.0
@@ -157,7 +157,7 @@
     end
     local.get $provider0
   )
-  (func $"with_tag[^241]'1" (param $s.0 i32) (param $s.1 i32) (param $callback.0 i32) (param $callback.1 i32) (param $ctx i32) (result i32)
+  (func $"with_tag[{open row}]'1" (param $s.0 i32) (param $s.1 i32) (param $callback.0 i32) (param $callback.1 i32) (param $ctx i32) (result i32)
     ;; 22 |     $.with(Tag=Named { label: s }):
     block
       block

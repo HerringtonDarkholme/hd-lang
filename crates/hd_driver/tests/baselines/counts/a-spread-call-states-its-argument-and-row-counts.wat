@@ -7,7 +7,7 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 8 funcref))
-  (func $"call[(string, List[i32]), usize, ^241]" (param $f.0 i32) (param $f.1 i32) (param $args.0.0 i32) (param $args.0.1 i32) (param $args.1 i32) (param $ctx i32) (result i32)
+  (func $"call[(string, List[i32]), usize, {open row}]" (param $f.0 i32) (param $f.1 i32) (param $args.0.0 i32) (param $args.0.1 i32) (param $args.1 i32) (param $ctx i32) (result i32)
     ;; 10 |     f(args...)
     block
       local.get $f.1
@@ -66,7 +66,7 @@
         call $retain
       end
       local.get $f.0
-      call $"call[(string, List[i32]), usize, ^241]"
+      call $"call[(string, List[i32]), usize, {open row}]"
       local.get $f.0
       local.tee $provider0
       if
@@ -77,7 +77,7 @@
     end
     local.get $f.0
   )
-  (func $"call[(i32, usize), i32, ^241]" (param $f.0 i32) (param $f.1 i32) (param $args.0 i32) (param $args.1 i32) (param $ctx i32) (result i32)
+  (func $"call[(i32, usize), i32, {open row}]" (param $f.0 i32) (param $f.1 i32) (param $args.0 i32) (param $args.1 i32) (param $ctx i32) (result i32)
     ;; 10 |     f(args...)
     block
       local.get $f.1
@@ -98,7 +98,7 @@
       local.get $values.0
       local.get $values.1
       i32.const 0
-      call $"call[(i32, usize), i32, ^241]"
+      call $"call[(i32, usize), i32, {open row}]"
       local.set $f.0
     end
     local.get $f.0

@@ -6,7 +6,7 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
-  (import "fixture" "invoke[fn(i32) -> i32 $ Console, i32, i32, ^241]" (func $"invoke[fn(i32) -> i32 $ Console, i32, i32, ^241]" (param i32 i32 i32 i32 i32 i32) (result i32)))
+  (import "fixture" "invoke[fn(i32) -> i32 $ Console, i32, i32, {open row}]" (func $"invoke[fn(i32) -> i32 $ Console, i32, i32, {open row}]" (param i32 i32 i32 i32 i32 i32) (result i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 11 funcref))
@@ -114,7 +114,7 @@
         call $retain
       end
       local.get $t0
-      call $"invoke[fn(i32) -> i32 $ Console, i32, i32, ^241]"
+      call $"invoke[fn(i32) -> i32 $ Console, i32, i32, {open row}]"
       local.get $t0
       local.tee $provider0
       if

@@ -924,6 +924,7 @@ fn name_into(
         TyData::Infer(v) => {
             let _ = write!(out, "?{}", v.raw());
         }
+        TyData::Canon(_) if printed && arg_is_open(pool, t) => out.push_str("{open row}"),
         TyData::Canon(i) => {
             let _ = write!(out, "^{i}");
         }

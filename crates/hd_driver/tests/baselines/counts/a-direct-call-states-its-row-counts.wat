@@ -37,7 +37,7 @@
         call $retain
       end
       local.get $callback.0
-      call $"forward[^241]"
+      call $"forward[{open row}]"
       local.get $callback.0
       local.tee $provider0
       if
@@ -48,7 +48,7 @@
     end
     local.get $callback.0
   )
-  (func $"forward[^241]" (param $callback.0 i32) (param $callback.1 i32) (param $ctx i32) (result i32)
+  (func $"forward[{open row}]" (param $callback.0 i32) (param $callback.1 i32) (param $ctx i32) (result i32)
     ;; 8 |     callback()
     block
       local.get $callback.1
@@ -59,7 +59,7 @@
     end
     local.get $callback.0
   )
-  (func $"later[^241]" (param $frame i32) (param $callback.0 i32) (param $callback.1 i32) (param $ctx i32) (result i32 i32) (local $t1 i32) (local $t0 i32)
+  (func $"later[{open row}]" (param $frame i32) (param $callback.0 i32) (param $callback.1 i32) (param $ctx i32) (result i32 i32) (local $t1 i32) (local $t0 i32)
     ;; 11 |     callback()
     local.get $frame
     if
@@ -151,7 +151,7 @@
     i32.const 0
     i32.const 0
     i32.const 0
-    call $"later[^241]"
+    call $"later[{open row}]"
     local.set $t1
     local.set $t2
     local.get $t0
@@ -200,7 +200,7 @@
       i32.const 0
       i32.const 0
       i32.const 0
-      call $"later[^241]"
+      call $"later[{open row}]"
       local.set $t2
       drop
       local.get $t2
@@ -385,7 +385,7 @@
             call $retain
           end
           local.get $t7
-          call $"later[^241]"
+          call $"later[{open row}]"
           local.set $t8
           local.set $t4
           local.get $t7
@@ -885,7 +885,7 @@
       local.get $callback.0
       local.get $callback.1
       i32.const 0
-      call $"forward[^241]"
+      call $"forward[{open row}]"
       local.set $callback.0
     end
     local.get $callback.0
