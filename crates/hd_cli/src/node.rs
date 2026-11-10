@@ -348,6 +348,7 @@ impl NodeInstance {
         }
         let _ = std::io::stdout().flush();
         let status = Command::new("node")
+            .arg("--experimental-wasm-jspi")
             .arg(dir.0.join("run.ts"))
             .arg(dir.0.join("main.wasm"))
             .arg(&config)
@@ -722,6 +723,7 @@ pub fn run_cases(
         .map_err(|e| format!("{}: {e}", config.display()))?;
     let mut command = Command::new("node");
     command
+        .arg("--experimental-wasm-jspi")
         .arg(dir.0.join("test.ts"))
         .arg(dir.0.join("main.wasm"))
         .arg(&config);
@@ -1050,5 +1052,86 @@ mod tests {
         let panic = panicked.panic.expect("a panic");
         assert_eq!(panic.category, "explicit-panic");
         assert_eq!(panic.message, "x\npanic: integer-overflow: y");
+    }
+
+    #[test]
+    fn promise_package_hosts_complete_inside_block_on_in_every_pipeline()
+    -> Result<(), Box<dyn std::error::Error>> {
+        use hd_driver::{BuildProfile, EngineTarget, OptLevel};
+        let fixture = std::path::Path::new(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../spec/conformance/cli/host-binding-block-on-promise"
+        ));
+        let scratch = hd_testkit::Scratch::new(
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/tmp"),
+            "block-on-package-promises",
+        );
+        for name in ["hd.toml", "src/main.hd", "provider.ts"] {
+            let path = scratch.join(name);
+            std::fs::create_dir_all(path.parent().ok_or("fixture parent")?)?;
+            std::fs::copy(fixture.join(name), path)?;
+        }
+        let program = crate::disk::load_package(scratch.path(), "src/main.hd")?;
+        let store = hd_cache::DeferredStore::new(crate::disk_store());
+        let clock = crate::Wall(std::time::Instant::now());
+        let host = hd_driver::Host {
+            render_tir: &[],
+            sources: &program.sources,
+            store: &store,
+            clock: &clock,
+            executor: crate::executor(),
+        };
+        for (profile, level, checked) in [
+            (BuildProfile::Checked, OptLevel::Dev, false),
+            (BuildProfile::Checked, OptLevel::Optimized, true),
+            (BuildProfile::Release, OptLevel::Optimized, false),
+        ] {
+            let packages = hd_driver::Packages {
+                build_profile: profile,
+                target: EngineTarget::V8,
+                level,
+                checked,
+                verify_own: true,
+                ..program.packages()
+            };
+            let mut reporter = crate::Reporter::stderr(false);
+            let out = hd_driver::build_packages(
+                &host,
+                &program.package,
+                &packages,
+                &hd_driver::Goal::Program {
+                    entry: program.entry.clone(),
+                },
+            );
+            assert!(!reporter.diags(&crate::report::from_output(&out, None)));
+            let built = crate::Compiled {
+                wasm: out.wasm.ok_or("compiled fixture")?,
+                frames: None,
+            };
+            let code = crate::execute(
+                &built,
+                "main.hd",
+                &program.capabilities,
+                program.package_dir.as_deref(),
+                &[],
+                Some(&program),
+                &[],
+                (
+                    crate::engine::EngineKind::Node,
+                    level,
+                    crate::engine::ProgramLimits {
+                        wall_ms: Some(2000),
+                        cleanup_ms: None,
+                    },
+                ),
+                &mut reporter,
+            );
+            assert_eq!(
+                code,
+                std::process::ExitCode::SUCCESS,
+                "{profile:?} {level:?}"
+            );
+        }
+        Ok(())
     }
 }
