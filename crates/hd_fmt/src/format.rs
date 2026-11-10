@@ -275,7 +275,9 @@ impl<'s, 'p> Analysis<'s, 'p> {
             }
             S::NamedArgument | S::ContextEntry => self.mark_named_argument(node),
             S::UsingStmt => self.mark_using(node),
-            S::BoundList | S::RequirementRow | S::ImplDecl => self.mark_type_spacing(node),
+            S::BoundList | S::ConstParameter | S::RequirementRow | S::ImplDecl => {
+                self.mark_type_spacing(node);
+            }
             S::VariantExpr | S::VariantPattern => self.mark_variant(node),
             S::Decorator => {
                 if let Some((_, last)) = token_bounds(node) {
@@ -820,6 +822,8 @@ impl<'s, 'p> Analysis<'s, 'p> {
             let kind = tokens.kind[index];
             let spaced = match node.kind() {
                 S::BoundList => matches!(kind, T::Lt | T::Amp),
+                // `N < const usize`: its `<` is the parameter's own token.
+                S::ConstParameter => kind == T::Lt,
                 S::RequirementRow => kind == T::Plus,
                 S::ImplDecl => kind == T::KwFor,
                 _ => false,

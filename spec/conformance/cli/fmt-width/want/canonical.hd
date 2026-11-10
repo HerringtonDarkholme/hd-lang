@@ -14,3 +14,5 @@ fn terminal(flag: bool) -> void:
 fn partial(flag: bool):
     if flag:
         finish()
+struct Fixed[T < Copy, N < const usize]:
+    pass
