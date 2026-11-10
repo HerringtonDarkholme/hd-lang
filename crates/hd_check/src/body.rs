@@ -2927,26 +2927,8 @@ impl Ck<'_, '_> {
         // the plain-function case; the checker also admits the lowered
         // constructor of a suspending function, whose coercion is driven
         // by its generic bound rather than an expected concrete type.
-        let known = &self.cx.names.known;
-        let fn_mut = tref.trait_ == known.fn_mut_trait;
-        if (tref.trait_ == known.fn_trait || fn_mut)
-            && let Some(got) = self.fn_trait_args_of(tref.self_ty)
-        {
-            let want = pool.list_items(tref.args);
-            let mark = self.infer.snapshot();
-            let fits = got.len() == want.len()
-                && got
-                    .iter()
-                    .zip(want)
-                    .all(|(g, w)| self.infer.unify(pool, *g, *w).is_ok());
-            if fits {
-                return Ok(Some(Evidence::Builtin(if fn_mut {
-                    BuiltinImpl::FnMut
-                } else {
-                    BuiltinImpl::Fn
-                })));
-            }
-            self.infer.rollback(mark);
+        if let Some(evidence) = self.function_evidence(tref) {
+            return Ok(Some(evidence));
         }
         match self.solve(tref)? {
             Answer::Holds { evidence, learned } => {
@@ -3012,6 +2994,35 @@ impl Ck<'_, '_> {
             bindings: vec![],
             mut_: false,
         })
+    }
+
+    /// The unique sealed Fn/FnMut implementation learns its argument,
+    /// result and row types from the concrete function receiver. Use the
+    /// same unification when a delayed goal's receiver becomes known.
+    fn function_evidence(&mut self, tref: TraitRef) -> Option<Evidence> {
+        let pool = self.pool();
+        let known = &self.cx.names.known;
+        let fn_mut = tref.trait_ == known.fn_mut_trait;
+        if (tref.trait_ == known.fn_trait || fn_mut)
+            && let Some(got) = self.fn_trait_args_of(tref.self_ty)
+        {
+            let want = pool.list_items(tref.args);
+            let mark = self.infer.snapshot();
+            let fits = got.len() == want.len()
+                && got
+                    .iter()
+                    .zip(want)
+                    .all(|(g, w)| self.infer.unify(pool, *g, *w).is_ok());
+            if fits {
+                return Some(Evidence::Builtin(if fn_mut {
+                    BuiltinImpl::FnMut
+                } else {
+                    BuiltinImpl::Fn
+                }));
+            }
+            self.infer.rollback(mark);
+        }
+        None
     }
 
     /// Moves the checker to byte `at` of the module: the local declarations
@@ -3505,7 +3516,7 @@ impl Ck<'_, '_> {
     /// again now that the statement's literal classes have their types
     /// (`types.literal.local.class.open`); one that still waits is solved
     /// again at the end of the body.
-    fn settle_waiting(&mut self, waiting: usize) -> StageResult<()> {
+    pub(crate) fn settle_waiting(&mut self, waiting: usize) -> StageResult<()> {
         if !self
             .pending
             .get(waiting..)
@@ -3580,6 +3591,9 @@ impl Ck<'_, '_> {
         };
         let node = self.cx.src.parse.tree.node(g.at);
         self.move_to(self.cx.src.span(node).lo);
+        if self.function_evidence(tref).is_some() {
+            return Ok(true);
+        }
         match self.solve(tref)? {
             Answer::Holds { learned, .. } => {
                 if matches!(g.kind, Waiting::Bound { .. }) {

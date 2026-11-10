@@ -1,0 +1,15 @@
+# test: a function trait method value infers the callback row
+# Spec lang/07-functions.md: fn.type.generic.argument.sources.
+# expect-stdout: called
+# expect-stdout: 16
+use std.function.Fn
+
+fn invoke[F, T, R, $ E](call: fn(&F, (T,)) -> R $ E, f: F, value: T) -> R $ E:
+    call(&f, (value,))
+
+fn logged(value: i32) -> i32 $ Console:
+    println("called")
+    value + 1
+
+pub fn main() -> void $ Console:
+    println(invoke(Fn::call, logged, +15))

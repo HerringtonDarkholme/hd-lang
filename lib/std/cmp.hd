@@ -690,3 +690,15 @@ impl['a, S < ?Copy] Walker[S] for DeepEqualWalker[S, 'a]:
         if value.deep_eq(h.get(self.other), &mut *self.visits):
             return .Ok(())
         .Err(false)
+
+# names.category.value: the private intrinsic follows the same function-value
+# lowering as its direct call, within its declaring module.
+tests:
+    use std.testing.assert
+
+    it("identity_of used as a function value keeps reference identity"):
+        let identify: fn(&i32) -> RefIdentity = identity_of
+        first := box(+7)
+        second := box(+7)
+        assert(identify(first) == identify(first), "the same object keeps its identity")
+        assert(identify(first) != identify(second), "equal values in distinct objects differ")

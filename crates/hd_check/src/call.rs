@@ -1841,6 +1841,7 @@ impl Ck<'_, '_> {
         n: NodeRef<'_>,
         name: &str,
     ) -> StageResult<Vec<Ref>> {
+        let waiting = self.pending.len();
         // The callee's default bodies, taken before any argument is checked.
         let owner = self.default_owner.take();
         let local = self.local_defaults.take();
@@ -2200,6 +2201,10 @@ impl Ck<'_, '_> {
                 }
             }
         }
+        // Later arguments can fix the receiver of an earlier function
+        // value. Learn its inputs, output and row before checking the
+        // enclosing call's requirements.
+        self.settle_waiting(waiting)?;
         Ok(out)
     }
 
