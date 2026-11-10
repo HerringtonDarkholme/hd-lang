@@ -1,0 +1,7 @@
+# test: `is` in a const argument is no const operation
+# Spec 04 Const Generic Arguments: types.generic.const.nonconstant; of the
+# comparisons, const evaluation has the six ordering ones, not `is`.
+struct Fixed[N < const bool]: pass
+
+fn f() -> void:
+    let value: Fixed[1 is 1] = panic("not run") # diagnostic: nonconstant-generic-argument

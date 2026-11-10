@@ -6422,6 +6422,7 @@ typing/invalid/is-between-a-reference-and-an-anyref-parameter-is-incompatible.hd
 runtime/valid/a-reference-to-a-promoted-or-shared-enum-field.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.promoted.path
 typing/invalid/an-omitted-result-that-borrows-from-two-parameters-is-ambiguous.hd	type	reject:ambiguous-reference-source	lang/13-values-and-references.md#r-ref.dep.elide.ambiguous
 typing/invalid/an-omitted-result-that-borrows-with-no-reference-parameter-has-no-source.hd	type	reject:reference-result-without-source	lang/13-values-and-references.md#r-ref.dep.elide.none
+typing/invalid/is-in-a-const-argument-is-no-const-operation.hd	type	reject:nonconstant-generic-argument	lang/04-type-system.md#r-types.generic.const.nonconstant
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
