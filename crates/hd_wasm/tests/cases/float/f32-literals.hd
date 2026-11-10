@@ -1,0 +1,26 @@
+# @dump: wat
+# expected: f32 literals round once and push one f32.const; f64 literals
+# and a dynamic f64-to-f32 conversion keep their own instruction widths.
+pub fn contextual() -> f32:
+    1.5
+
+pub fn suffixed() -> f32:
+    1.5f32
+
+pub fn halfway_even_down() -> f32:
+    1.000000059604644775390625f32
+
+pub fn halfway_even_up() -> f32:
+    1.000000178813934326171875f32
+
+pub fn smallest_subnormal() -> f32:
+    1.401298464324817e-45f32
+
+pub fn negative_zero() -> f32:
+    -0.0f32
+
+pub fn wide() -> f64:
+    1.5
+
+pub fn dynamic_narrow(value: f64) -> f32:
+    f32(value)

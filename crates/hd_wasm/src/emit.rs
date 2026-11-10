@@ -1642,10 +1642,14 @@ impl Em<'_, '_, '_> {
             Some(Val::I64) => vec![vec![I::I64Const(bits.cast_signed())]],
             // A float literal's constant holds its `f64` bits whatever
             // type the literal ends up with (`hd_check`'s literal).
-            Some(Val::F32) => vec![vec![
-                I::F64Const(wasm_encoder::Ieee64::new(bits)),
-                I::F32DemoteF64,
-            ]],
+            Some(Val::F32) => {
+                #[expect(
+                    clippy::cast_possible_truncation,
+                    reason = "this is the specified f64-to-f32 literal conversion"
+                )]
+                let value = f64::from_bits(bits) as f32;
+                vec![vec![I::F32Const(value.into())]]
+            }
             Some(Val::F64) => vec![vec![I::F64Const(wasm_encoder::Ieee64::new(bits))]],
         })
     }
