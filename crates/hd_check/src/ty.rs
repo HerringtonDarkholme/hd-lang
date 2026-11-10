@@ -598,6 +598,13 @@ impl Ck<'_, '_> {
                 self.err(Code::GenericKindMismatch, n, &msg);
                 return Ok(Ty::POISON);
             }
+            if role == NameRole::Trait && (name == "Self" || self.type_param(name).is_some()) {
+                // A type parameter names a type, never a trait
+                // (`req.key.traits`), as a signature reports it.
+                let msg = format!("no trait named `{name}`");
+                self.err(Code::UnknownTrait, n, &msg);
+                return Ok(Ty::POISON);
+            }
             if let Some(t) = self.type_param(name) {
                 if let TyData::Param(p) = pool.get(t)
                     && self.generic_default_invisible(p, name, n)
@@ -627,6 +634,12 @@ impl Ck<'_, '_> {
                     .map(|p| Ty::prim(*p)),
             };
             if let Some(t) = builtin {
+                // A primitive, `void` or `never` is no trait (`req.key.traits`).
+                if role == NameRole::Trait {
+                    let msg = format!("no trait named `{name}`: not a trait");
+                    self.err(Code::UnknownTrait, n, &msg);
+                    return Ok(Ty::POISON);
+                }
                 return Ok(self.takes_no_arguments(n, name, t));
             }
         }

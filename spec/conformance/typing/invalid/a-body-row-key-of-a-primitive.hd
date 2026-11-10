@@ -1,0 +1,4 @@
+# test: a requirement key in a body type names a trait, so a primitive is an error
+# Spec 11 Requirement Keys: req.key.traits, for a row written in a body.
+fn f() -> void:
+    let g: fn() -> void $ i32 = panic("not run") # diagnostic: unknown-trait

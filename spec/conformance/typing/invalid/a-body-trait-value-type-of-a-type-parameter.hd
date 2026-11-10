@@ -1,0 +1,5 @@
+# test: a trait value type in a body names a trait, so a type parameter after dyn is an error
+# Spec 09 Trait Value Types: trait.dyn.reference-form, for a type written in
+# a body as in a signature.
+fn f[T]() -> void:
+    let c: *dyn T = panic("not run") # diagnostic: unknown-trait
