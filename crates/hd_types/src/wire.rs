@@ -43,14 +43,14 @@ mod tag {
     pub const PARAM: u8 = 6;
     pub const FN: u8 = 8;
     pub const LIST: u8 = 9;
-    pub const CANON: u8 = 10;
     pub const TUPLE_REST: u8 = 11;
     pub const TRAIT_VALUE: u8 = 12;
     pub const ASSOC: u8 = 13;
     pub const ROW: u8 = 14;
     pub const ROW_TY: u8 = 15;
     pub const CONTEXT: u8 = 16;
-    // 5 was an optional, `T?`, now `Option[T]` (`types.option.sugar`).
+    // 5 was an optional, `T?`, now `Option[T]` (`types.option.sugar`), and
+    // 10 a canonical variable, which only the solver's memo keys hold.
     // 17 was an owned type, `own T`, 18 a borrowed type, `^T`, and 19
     // and 20 a lifetime and a lifetime argument; they are not reused.
     pub const REF: u8 = 21;
@@ -312,7 +312,6 @@ impl<'a> TableWriter<'a> {
                 ];
                 self.row(tag::ASSOC, &words)
             }
-            TyData::Canon(i) => self.row(tag::CANON, &[u32::from(i)]),
             // `[prim, low, high]`; a string's value is its path row.
             TyData::Const(v) => {
                 let bits = match v {
@@ -330,10 +329,13 @@ impl<'a> TableWriter<'a> {
                 let row = self.row_id(r)?;
                 self.row(tag::CONTEXT, &[row])
             }
-            other @ TyData::Infer(_) => {
-                return Err(NotImplemented::new(
+            // A cache entry holds finished types: inference variables are
+            // solved before a body's facts are written, and canonical
+            // variables live only in the solver's memo keys.
+            other @ (TyData::Infer(_) | TyData::Canon(_)) => {
+                return Err(NotImplemented::bug(
                     Stage::ModuleFinish,
-                    format!("entry-local type row for {other:?}"),
+                    format!("a cache entry's type holds a variable: {other:?}"),
                 ));
             }
         };
@@ -534,10 +536,6 @@ impl Tables {
                 tag::LIST => {
                     let items: Option<Vec<Ty>> = (0..words.len()).map(|i| row(i).map(Ty)).collect();
                     pool.list(&items?).0
-                }
-                tag::CANON => {
-                    pool.intern_ty(&TyData::Canon(u8::try_from(*words.first()?).ok()?))
-                        .0
                 }
                 tag::ROW_TY => pool.intern_ty(&TyData::Row(RowId(row(0)?))).0,
                 tag::CONTEXT => pool.intern_ty(&TyData::Context(RowId(row(0)?))).0,
