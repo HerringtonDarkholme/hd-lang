@@ -606,7 +606,11 @@ fn literal(src: &Src<'_>, n: NodeRef<'_>, want: Option<Prim>, negated: bool) -> 
                 None => digits.parse::<u128>().ok(),
             };
             match v.and_then(|v| i128::try_from(v).ok()) {
-                Some(_) if negated && p.is_unsigned() => Err(mismatch(Prim::I64, p)),
+                // As the checker says of a body's literal (`types.literal.negation.unsigned`).
+                Some(_) if negated && p.is_unsigned() => Err(Fail::Error(ConstError {
+                    code: Code::TypeMismatch,
+                    message: format!("a negated literal does not fit unsigned {}", p.name()),
+                })),
                 Some(v) => int(if negated { -v } else { v }, p),
                 // A float literal, which no const type holds.
                 None if digits.contains(['.', 'e', 'E']) => Err(mismatch(p, Prim::F64)),

@@ -1,0 +1,9 @@
+# @dump: tir
+# types.literal.negation.unsigned: a negated literal for an unsigned
+# expected type is an error, in a const argument as in a body, with one
+# message.
+struct Fixed[N < const usize]: pass
+
+fn f() -> void:
+    let value: Fixed[-4] = panic("not run")
+    let n: u8 = -1
