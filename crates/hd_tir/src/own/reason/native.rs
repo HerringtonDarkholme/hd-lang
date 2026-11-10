@@ -136,6 +136,7 @@ pub(super) fn changes(b: &Body, topo: &Topology, cx: &dyn OwnCx, last: &[u32]) -
                 }
             }
             Tag::CallValue => indirect = u32_of(i),
+            Tag::Intrinsic if crate::own::changed(b, i).next().is_some() => indirect = u32_of(i),
             _ => {}
         }
         let mut r = first_query;
@@ -175,6 +176,7 @@ pub fn check_copy_reasons(
             || match b.tags[i] {
                 Tag::Store | Tag::IsUnique | Tag::Call | Tag::CallValue => true,
                 Tag::Ref => b.data[i][1] & ref_word::MUT != 0,
+                Tag::Intrinsic => crate::own::changed(b, i).next().is_some(),
                 _ => false,
             };
         operands(b, i, &mut ops);

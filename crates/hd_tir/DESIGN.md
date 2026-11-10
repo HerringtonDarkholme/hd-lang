@@ -1165,17 +1165,16 @@ Those test-only queries do not require a second checker-facing fact API.
     leading dereference at most and fields, and in that loop nothing
     copies it (a read of it, or of a place holding it, whose value a use
     keeps), references, writes, pins or suspends over it, and no call
-    may write unless it is a whole local no closure captures; a covered
-    one names a hoisted one's place inside that one's loop; the stable
+    may write unless it is a whole local no closure captures; the stable
     list rows name loops and such places, in order. A header that may
     change in place is held by one place (insertion's rule 7): with a
     local changing when an `IsUnique` or a `Pin` names a place rooted
     at it, or a value read from one, or a `&mut` reference takes its
     storage or a place in its list, a value that may hold a list or a
     map stored into a whole changing local is fresh (a copy included) or
-    a map value read for a change; and a changing parameter (not a `mut
-    self` view of a collection) is first read to be copied and stored
-    back.
+    a map value read for a change. A changing parameter that owns its
+    collection value is first read to be copied and stored back; a
+    receiver borrowing collection storage changes that storage directly.
 - **8.** Every call writes `Providers::None` today, and codegen reads
   providers from the callee's signature. So the check rejects a
   `Pending` form after `finish`, and pairs whose count is not the

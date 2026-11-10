@@ -41,7 +41,7 @@ fn set(xs: &mut UniqList[i32], i: usize, v: i32) -> void:
 >   %16 = Break L0 %15 : never
 >   %17 = Block - : Ptr[i32]
 >   %18 = Scope %17 [] : Ptr[i32]
->   %19 = Drop [%9] : ()
+>   %19 = LoanEnd [%9] : ()
 >   %20 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].as_mut[i32] (%18) : &mut i32
 >   %21 = NewVariant #1 [%20] : &mut i32?
 >   %22 = Block %21 : &mut i32?

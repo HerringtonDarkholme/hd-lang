@@ -450,6 +450,7 @@ fn changed_while(
                         .is_none_or(|c| cx.may_write(&c))
             }
             Tag::CallValue => src.behind,
+            Tag::Intrinsic => src.behind && super::changed(b, i).next().is_some(),
             _ => false,
         }
     })
