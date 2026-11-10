@@ -335,35 +335,19 @@ impl<'t> Iterator for ChildIter<'t> {
     }
 }
 
-pub trait AstNode<'t>: Copy {
-    const KIND: SyntaxKind;
-
-    fn cast(node: NodeRef<'t>) -> Option<Self>;
-
-    fn node(self) -> NodeRef<'t>;
-}
-
-macro_rules! ast_nodes {
-    ($( $name:ident => $kind:ident ),+ $(,)?) => {$ (
+/// A typed view of one node kind: the two that callers outside the parser
+/// name, `Block` (a declaration's suite or member block, `Decl::body`) and
+/// `ImplDecl` (`ImplDecl::header_types`). Everything else reads children
+/// by kind (`NodeRef::part`, `Src::child`).
+macro_rules! typed_nodes {
+    ($( $name:ident ),+ $(,)?) => {$ (
         #[derive(Clone, Copy)]
         pub struct $name<'t>(NodeRef<'t>);
-
-        impl<'t> AstNode<'t> for $name<'t> {
-            const KIND: SyntaxKind = SyntaxKind::$kind;
-
-            fn cast(node: NodeRef<'t>) -> Option<Self> {
-                (node.kind() == Self::KIND).then_some(Self(node))
-            }
-
-            fn node(self) -> NodeRef<'t> {
-                self.0
-            }
-        }
 
         impl<'t> $name<'t> {
             #[must_use]
             pub fn cast(node: NodeRef<'t>) -> Option<Self> {
-                <Self as AstNode>::cast(node)
+                (node.kind() == SyntaxKind::$name).then_some(Self(node))
             }
 
             #[must_use]
@@ -374,129 +358,7 @@ macro_rules! ast_nodes {
     )+ };
 }
 
-ast_nodes! {
-    SourceFile => Root,
-    UseDecl => UseDecl,
-    UseGroup => UseGroup,
-    UseItem => UseItem,
-    FnDecl => FnDecl,
-    StructDecl => StructDecl,
-    EnumDecl => EnumDecl,
-    TraitDecl => TraitDecl,
-    ImplDecl => ImplDecl,
-    TypeDecl => TypeDecl,
-    TestsBlock => TestsBlock,
-    Decorator => Decorator,
-    ParameterList => ParameterList,
-    Parameter => Parameter,
-    DefaultValue => DefaultValue,
-    GenericParameterList => GenericParameterList,
-    GenericParameter => GenericParameter,
-    ConstParameter => ConstParameter,
-    LifetimeParameter => LifetimeParameter,
-    BoundList => BoundList,
-    TypeDefault => TypeDefault,
-    TypeArgumentList => TypeArgumentList,
-    ConstArgument => ConstArgument,
-    AssociatedTypeBinding => AssociatedTypeBinding,
-    ArgumentList => ArgumentList,
-    Argument => Argument,
-    NamedArgument => NamedArgument,
-    DataField => DataField,
-    EmbeddedField => EmbeddedField,
-    EnumVariant => EnumVariant,
-    VariantSharedData => VariantSharedData,
-    AssociatedTypeDecl => AssociatedTypeDecl,
-    Derivation => Derivation,
-    Block => Block,
-    LetStmt => LetStmt,
-    DiscardStmt => DiscardStmt,
-    AssignmentStmt => AssignmentStmt,
-    ReturnStmt => ReturnStmt,
-    BreakStmt => BreakStmt,
-    ContinueStmt => ContinueStmt,
-    UsingStmt => UsingStmt,
-    ExprStmt => ExprStmt,
-    ElseClause => ElseClause,
-    ElseIfClause => ElseIfClause,
-    MatchArm => MatchArm,
-    MatchGuard => MatchGuard,
-    BindingExpr => BindingExpr,
-    RangeExpr => RangeExpr,
-    LogicalOrExpr => LogicalOrExpr,
-    LogicalAndExpr => LogicalAndExpr,
-    ComparisonExpr => ComparisonExpr,
-    PipeExpr => PipeExpr,
-    BitwiseOrExpr => BitwiseOrExpr,
-    BitwiseXorExpr => BitwiseXorExpr,
-    BitwiseAndExpr => BitwiseAndExpr,
-    ShiftExpr => ShiftExpr,
-    AdditiveExpr => AdditiveExpr,
-    MultiplicativeExpr => MultiplicativeExpr,
-    UnaryExpr => UnaryExpr,
-    RefExpr => RefExpr,
-    DerefExpr => DerefExpr,
-    PowerExpr => PowerExpr,
-    CallExpr => CallExpr,
-    IndexExpr => IndexExpr,
-    FieldExpr => FieldExpr,
-    TryExpr => TryExpr,
-    SuspendExpr => SuspendExpr,
-    PathExpr => PathExpr,
-    TypeArgsExpr => TypeArgsExpr,
-    TrailingCallExpr => TrailingCallExpr,
-    LiteralExpr => LiteralExpr,
-    NameExpr => NameExpr,
-    VariantExpr => VariantExpr,
-    PlaceholderExpr => PlaceholderExpr,
-    ParenExpr => ParenExpr,
-    TupleExpr => TupleExpr,
-    ListExpr => ListExpr,
-    MapExpr => MapExpr,
-    MapEntry => MapEntry,
-    DataExpr => DataExpr,
-    DataFieldInit => DataFieldInit,
-    SpreadExpr => SpreadExpr,
-    ClosureExpr => ClosureExpr,
-    IfExpr => IfExpr,
-    ForExpr => ForExpr,
-    WhileExpr => WhileExpr,
-    MatchExpr => MatchExpr,
-    ComprehensionExpr => ComprehensionExpr,
-    ComprehensionFor => ComprehensionFor,
-    ComprehensionIf => ComprehensionIf,
-    ContextExpr => ContextExpr,
-    ContextEntry => ContextEntry,
-    StringExpr => StringExpr,
-    Interpolation => Interpolation,
-    WildcardPattern => WildcardPattern,
-    BindingPattern => BindingPattern,
-    LiteralPattern => LiteralPattern,
-    VariantPattern => VariantPattern,
-    PatternArgumentList => PatternArgumentList,
-    NamedPattern => NamedPattern,
-    DataPattern => DataPattern,
-    DataPatternField => DataPatternField,
-    TuplePattern => TuplePattern,
-    SpreadPattern => SpreadPattern,
-    RangePattern => RangePattern,
-    NamedType => NamedType,
-    DynType => DynType,
-    ImplType => ImplType,
-    RefType => RefType,
-    OptionalType => OptionalType,
-    UnionType => UnionType,
-    TupleType => TupleType,
-    ParenType => ParenType,
-    FunctionType => FunctionType,
-    ProjectionType => ProjectionType,
-    ContextType => ContextType,
-    RestType => RestType,
-    InferType => InferType,
-    RequirementRow => RequirementRow,
-    ErrorNode => Error,
-    SkippedBody => SkippedBody,
-}
+typed_nodes!(Block, ImplDecl);
 
 /// Direct tokens of a node: its span minus its children's spans.
 pub struct DirectTokens<'t> {
