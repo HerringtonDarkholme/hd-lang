@@ -343,10 +343,10 @@ Most hd values are never counted:
 - **Counts never overflow on wasm32**: every reference occupies at
   least four bytes of a 4 GiB memory, so the increment has no overflow
   check (memory64 would need one).
-- **Literals and constants are immortal.** A constant object reached by
-  its base has a count that starts at 2^31; a program never releases
-  more references than it made, so it never reaches zero and needs no
-  test. A string literal is a view into the data segment, whose pages
+- **Literals and constants are immortal.** A static object has count word 0
+  and lives below the heap: `retain` and `release` skip addresses below the
+  heap, `retain_known`/`release_known` skip a zero count, and a write copies
+  it first (crates/hd_wasm_linear/DESIGN.md §23.4), so it is never freed. A string literal is a view into the data segment, whose pages
   the page table marks static; a count update through a view reads the
   page entry anyway (section 5) and skips static pages.
 
@@ -687,7 +687,7 @@ The runtime, in ten lines:
    the borrow-flag bits. A cycle-capable type's collector state is three
    bits of that word.
 2. No overflow check on wasm32; literals and constants are immortal
-   (a count starting at 2^31, or a static page).
+   (count word 0 below the heap, or a static page).
 3. A size-class allocator: classes up to 2 KiB in 64 KiB single-class
    pages, free lists and bump fill, a page table, coalesced page runs
    for large blocks.
