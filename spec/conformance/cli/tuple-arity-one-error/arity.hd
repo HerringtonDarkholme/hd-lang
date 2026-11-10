@@ -1,0 +1,5 @@
+fn pair() -> void:
+    let t: (i32, i32) = ((1, 2),)
+
+fn prefix() -> void:
+    let a: (i32, i32, List[i32]...) = ((1, 2),)

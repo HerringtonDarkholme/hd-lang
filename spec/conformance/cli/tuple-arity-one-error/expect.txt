@@ -1,0 +1,4 @@
+# A tuple of another arity than the expected tuple type is one error, for the whole tuple: its elements are not checked against the expected element types.
+run: hd check --format json arity.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"type-mismatch","message":"in binding: expected (i32, i32), found ((usize, usize))","line":2,"column":25,"file":"arity.hd"},{"kind":"diagnostic","code":"type-mismatch","message":"(i32, i32, List[i32]...) takes 2 elements before its rest, found 1","line":5,"column":39,"file":"arity.hd"},{"kind":"summary","errors":2,"warnings":0,"status":101}]

@@ -2914,6 +2914,20 @@ impl Ck<'_, '_> {
         if kids.is_empty() && want_rest.is_none() {
             return Ok((Ref(NONE), Ty::VOID));
         }
+        // An expected tuple of another arity is one mistake, reported once
+        // for the whole tuple (by the caller's coercion, or by
+        // `rest_tuple_value`), so its element types check no element.
+        let fits = match (want_rest, spread) {
+            (None, None) => plain.len() == wants.len(),
+            (None, Some(_)) => false,
+            (Some(_), None) => plain.len() >= wants.len(),
+            (Some(_), Some(_)) => plain.len() == wants.len(),
+        };
+        let (wants, rest_item) = if fits {
+            (wants, rest_item)
+        } else {
+            (Vec::new(), None)
+        };
         let mut refs = Vec::new();
         let mut tys = Vec::new();
         for (i, e) in plain.iter().enumerate() {
