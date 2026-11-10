@@ -52,6 +52,10 @@ mod tests {
 
     struct Facts;
     impl OwnCx for Facts {
+        fn temporary_owner_name(&self) -> hd_base::Symbol {
+            hd_base::Symbol::NONE
+        }
+
         fn function_suspends(&self, ty: Ty) -> bool {
             ty == Ty(45)
         }

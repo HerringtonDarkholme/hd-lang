@@ -1,0 +1,99 @@
+# test: a temporary map stays alive through the borrowing call
+# ref.elem.access.live, ref.elem.local-value, ref.convert.lend, ref.dep.temporary
+use std.testing.assert_equal
+
+fn source(value: u32) -> Map[string, u32]:
+    { "key": value }
+
+fn read(value: &u32) -> u32:
+    replacement := source(99)
+    actual := *value
+    if replacement["key"] != 99:
+        panic("replacement changed")
+    actual
+
+fn held() -> u32:
+    value := &source(11)["key"]
+    read(value)
+
+fn dependent(value: &u32) -> &u32:
+    value
+
+fn nested() -> u32:
+    value := &source(23)["key"]
+    outer := &value
+    read(*outer)
+
+fn enclosed() -> u32:
+    apply := fn() -> u32: read(&source(29)["key"])
+    apply()
+
+fn read_box(value: &u32) -> u32:
+    replacement := box(99u32)
+    actual := *value
+    if *replacement != 99u32:
+        panic("replacement changed")
+    actual
+
+fn branched(condition: bool) -> u32:
+    owner := source(31)
+    if condition:
+        assert_equal(read(&owner["key"]), 31)
+    read(&owner["key"])
+
+fn composite() -> u32:
+    pair := (&source(43)["key"], +0)
+    read(pair._0)
+
+fn composite_temporary() -> u32:
+    pointer := &(&source(47)["key"], +0)._0
+    read(*pointer)
+
+struct Record:
+    items: Map[string, u32]
+
+fn source_record(value: u32) -> Record:
+    Record { items: source(value) }
+
+fn read_items(items: &Map[string, u32]) -> u32:
+    replacement := source_record(99)
+    actual := items["key"]
+    if replacement.items["key"] != 99:
+        panic("replacement changed")
+    actual
+
+struct NestedRecord:
+    inner: Record
+
+fn nested_record(value: u32) -> NestedRecord:
+    NestedRecord { inner: source_record(value) }
+
+struct Plain:
+    value: u32
+
+fn plain(value: u32) -> Plain:
+    Plain { value: value }
+
+fn read_plain(value: &u32) -> u32:
+    replacement := plain(99)
+    actual := *value
+    if replacement.value != 99:
+        panic("replacement changed")
+    actual
+
+pub fn main() -> void:
+    assert_equal(read(&source(7)["key"]), 7)
+    assert_equal(held(), 11)
+    assert_equal(read(dependent(&source(17)["key"])), 17)
+    assert_equal(nested(), 23)
+    assert_equal(enclosed(), 29)
+    assert_equal(read_box(box(37u32)), 37)
+    assert_equal(read_box(dependent(box(41u32))), 41)
+    assert_equal(branched(true), 31)
+    assert_equal(branched(false), 31)
+    assert_equal(composite(), 43)
+    assert_equal(composite_temporary(), 47)
+    assert_equal(read_plain(&plain(53).value), 53)
+    assert_equal(read(&source_record(59).items["key"]), 59)
+    assert_equal(read_items(&source_record(61).items), 61)
+    assert_equal(read(&nested_record(67).inner.items["key"]), 67)

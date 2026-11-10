@@ -58,6 +58,10 @@ mod tests {
 
     struct Facts;
     impl OwnCx for Facts {
+        fn temporary_owner_name(&self) -> hd_base::Symbol {
+            hd_base::Symbol::NONE
+        }
+
         fn function_has_requirement_row(&self, ty: Ty) -> bool {
             ty == Ty(43) || ty == Ty(45)
         }
