@@ -1,0 +1,23 @@
+# test: union constructor arity and nested member positions distinguish implementation targets
+# Rules: trait.target.union.arity, trait.target.union.nesting, types.union.nesting.
+# expect-stdout: left right flat
+trait Shape:
+    fn shape(&self) -> string
+
+impl Shape for ((i32 | string) | bool):
+    fn shape(&self) -> string:
+        "left"
+
+impl Shape for (i32 | (string | bool)):
+    fn shape(&self) -> string:
+        "right"
+
+impl Shape for (i32 | string | bool):
+    fn shape(&self) -> string:
+        "flat"
+
+pub fn main() -> void $ Console:
+    let left: (i32 | string) | bool = ._0(._1("L"))
+    let right: i32 | (string | bool) = ._1(._0("R"))
+    let flat: i32 | string | bool = ._2(true)
+    println("${left.shape()} ${right.shape()} ${flat.shape()}")

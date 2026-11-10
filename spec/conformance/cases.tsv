@@ -6429,6 +6429,12 @@ typing/invalid/a-second-auto-closing-line-is-a-duplicate.hd	type	reject:duplicat
 runtime/valid/generic-local-function-builds-and-returns-a-struct.hd	runtime	accept	lang/07-functions.md#r-fn.local.declare
 runtime/valid/generic-local-function-constructs-an-unused-struct.hd	runtime	accept	lang/07-functions.md#r-fn.local.declare
 runtime/valid/generic-local-functions-keep-captured-ancestor-field-loans.hd	runtime	accept	lang/07-functions.md#r-fn.local.declare
+runtime/valid/impl-head-binds-union-members.hd	runtime	accept	lang/04-type-system.md#r-types.union.substitution
+runtime/valid/impl-head-binds-only-in-a-tuple-rest.hd	runtime	accept	lang/04-type-system.md#r-types.tuple.rest.same
+runtime/valid/impl-head-a-concrete-union-is-a-target.hd	runtime	accept	lang/09-traits.md#r-trait.target.union.valid
+runtime/valid/impl-head-a-generic-union-binds-two-instantiations.hd	runtime	accept	lang/09-traits.md#r-trait.target.union
+runtime/valid/impl-head-union-arity-and-nesting-are-distinct.hd	runtime	accept	lang/09-traits.md#r-trait.target.union.nesting
+runtime/valid/union-type-arguments-preserve-named-const-pipes.hd	runtime	accept	lang/04-type-system.md#r-types.generic.const.evaluate
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

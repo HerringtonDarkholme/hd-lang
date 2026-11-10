@@ -1,0 +1,20 @@
+# test: implementation arguments are fixed by union members nested in a declared target
+# Rules: trait.target.declaration, trait.target.arguments, types.union.substitution.
+# expect-stdout: 2 2 2 2
+struct Wrap[T]:
+    value: T
+
+trait Size:
+    fn size(&self) -> usize
+
+impl[A, B] Size for Wrap[A | B]:
+    fn size(&self) -> usize:
+        2
+
+pub fn main() -> void $ Console:
+    let u: i32 | string = ._1("a")
+    wrapped := Wrap { value: u }
+    let nested: Wrap[i32 | (bool | string)] = Wrap { value: ._1(._0(true)) }
+    let counted: Wrap[i32 | *string] = Wrap { value: ._1(box("kept")) }
+    let function: Wrap[i32 | fn() -> usize] = Wrap { value: ._1(fn() -> usize: 1) }
+    println("${wrapped.size()} ${nested.size()} ${counted.size()} ${function.size()}")

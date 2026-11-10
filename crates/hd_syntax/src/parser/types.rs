@@ -407,13 +407,45 @@ impl Parser<'_> {
         }
         let mut depth = leading_parens;
         let mut bracket_depth = 0_usize;
-        for &kind in &self.toks.kind[self.pos() + start + 1..] {
+        let mut prefix = false;
+        for pair in self.toks.kind[self.pos() + start..].windows(2) {
+            let (previous, kind) = (pair[0], pair[1]);
             match kind {
                 TokenKind::Comma | TokenKind::RBracket if depth == 0 => break,
                 // A comma inside the peeled parentheses makes a tuple type;
                 // scalar const expressions have no tuple form.
                 TokenKind::Comma if bracket_depth == 0 => return false,
-                TokenKind::LParen if bracket_depth == 0 => return true,
+                // A bare-name pipe chain can be a union or const bitwise OR.
+                // Keep it type-shaped; resolution knows the parameter kind.
+                TokenKind::Pipe if bracket_depth == 0 => prefix = true,
+                TokenKind::Amp | TokenKind::Star | TokenKind::KwFn | TokenKind::KwDyn
+                    if bracket_depth == 0 && prefix =>
+                {
+                    return false;
+                }
+                TokenKind::Number
+                | TokenKind::String
+                | TokenKind::StrHead
+                | TokenKind::Char
+                | TokenKind::KwTrue
+                | TokenKind::KwFalse
+                    if bracket_depth == 0 =>
+                {
+                    return true;
+                }
+                TokenKind::LParen if bracket_depth == 0 => {
+                    if matches!(
+                        previous,
+                        TokenKind::Ident
+                            | TokenKind::RawIdent
+                            | TokenKind::RBracket
+                            | TokenKind::RParen
+                    ) {
+                        return true;
+                    }
+                    depth += 1;
+                    prefix = true;
+                }
                 TokenKind::LBracket => {
                     depth += 1;
                     bracket_depth += 1;
@@ -439,7 +471,6 @@ impl Parser<'_> {
                 | TokenKind::GtEq
                 | TokenKind::KwIs
                 | TokenKind::PipeGt
-                | TokenKind::Pipe
                 | TokenKind::Caret
                 | TokenKind::Amp
                 | TokenKind::Shl
@@ -456,6 +487,7 @@ impl Parser<'_> {
                 {
                     return true;
                 }
+                TokenKind::Ident | TokenKind::RawIdent => prefix = false,
                 _ => {}
             }
         }

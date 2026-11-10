@@ -1,0 +1,19 @@
+# test: a concrete union is an implementation target separate from its members
+# Rules: trait.target.union.valid, types.union.no-member-injection.
+# expect-stdout: union union bare
+trait Label:
+    fn label(&self) -> string
+
+impl Label for (i32 | string):
+    fn label(&self) -> string:
+        "union"
+
+impl Label for i32:
+    fn label(&self) -> string:
+        "bare"
+
+pub fn main() -> void $ Console:
+    let number: i32 | string = ._0(+7)
+    let text: i32 | string = ._1("kept")
+    bare := +7
+    println("${number.label()} ${text.label()} ${bare.label()}")

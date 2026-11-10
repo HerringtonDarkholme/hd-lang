@@ -249,7 +249,7 @@ impl<'a> Eval<'_, 'a> {
                 }
             }
             SyntaxKind::StringExpr => Some(Prim::String),
-            SyntaxKind::ParenExpr => self.natural(src, *kids.first()?),
+            SyntaxKind::ParenExpr | SyntaxKind::ParenType => self.natural(src, *kids.first()?),
             SyntaxKind::UnaryExpr => match src.tkind(src.first(n))? {
                 TokenKind::Bang => Some(Prim::Bool),
                 _ => self.natural(src, *kids.first()?),
@@ -303,11 +303,12 @@ impl<'a> Eval<'_, 'a> {
         match n.kind() {
             SyntaxKind::LiteralExpr => literal(src, n, want, false),
             SyntaxKind::StringExpr => string(src, n),
-            SyntaxKind::ParenExpr => match kids.as_slice() {
+            SyntaxKind::ParenExpr | SyntaxKind::ParenType => match kids.as_slice() {
                 [e] => self.eval(src, *e, want),
                 _ => Err(nonconstant("a tuple is not a scalar")),
             },
             SyntaxKind::NameExpr | SyntaxKind::NamedType => self.name(src, n, want),
+            SyntaxKind::UnionType => self.pipe_argument(src, &kids, want),
             SyntaxKind::UnaryExpr => self.unary(src, n, &kids, want),
             SyntaxKind::LogicalAndExpr | SyntaxKind::LogicalOrExpr => {
                 let [l, r] = kids.as_slice() else {
@@ -334,6 +335,37 @@ impl<'a> Eval<'_, 'a> {
                 "this operation is not available to const evaluation",
             )),
         }
+    }
+
+    // A name-only pipe chain remains type-shaped in the parser. The
+    // declaration's const slot selects bitwise OR instead of a union.
+    // Flatten groups iteratively so nested pipe syntax adds no recursion.
+    fn pipe_argument(
+        &mut self,
+        src: &Src<'a>,
+        kids: &[NodeRef<'a>],
+        want: Option<Prim>,
+    ) -> Result<V, Fail> {
+        let mut work: Vec<_> = kids.iter().copied().rev().collect();
+        let mut leaves = Vec::new();
+        while let Some(node) = work.pop() {
+            if matches!(node.kind(), SyntaxKind::UnionType | SyntaxKind::ParenType) {
+                work.extend(node.children().collect::<Vec<_>>().into_iter().rev());
+            } else {
+                leaves.push(node);
+            }
+        }
+        let p = want
+            .or_else(|| leaves.iter().find_map(|&n| self.natural(src, n)))
+            .unwrap_or(Prim::I32);
+        let mut bits = 0;
+        for leaf in leaves {
+            match self.eval(src, leaf, Some(p))? {
+                V::Int(value, q) if p == q => bits |= value,
+                other => return Err(mismatch(p, other.prim())),
+            }
+        }
+        Ok(V::Int(bits, p))
     }
 
     fn bool(&mut self, src: &Src<'a>, n: NodeRef<'a>) -> Result<bool, Fail> {
