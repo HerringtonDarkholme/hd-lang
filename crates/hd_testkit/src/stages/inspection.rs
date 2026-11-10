@@ -11,6 +11,7 @@ type Key = (
     Vec<(String, String)>,
     Option<Vec<String>>,
     Vec<String>,
+    Option<u32>,
 );
 
 thread_local! {
@@ -27,6 +28,7 @@ pub(super) fn build(p: &super::Program, at: super::Build) -> Rc<Output> {
         p.files.clone(),
         p.profile.clone(),
         p.hosts.clone(),
+        p.repl,
     );
     if let Some(built) = LAST.with_borrow(|last| {
         last.as_ref()
@@ -85,28 +87,47 @@ fn fresh(p: &super::Program, at: super::Build) -> Output {
             manifest: "hd.toml".to_owned(),
         }]
     };
-    build_packages(
-        &host,
-        package,
-        &Packages {
-            host_packages,
-            instruction_origins: true,
-            target: at.target,
-            level: if at.release {
-                hd_driver::OptLevel::Optimized
-            } else {
-                hd_driver::OptLevel::Dev
+    let run = |session: Option<&hd_driver::Session>, goal: &hd_driver::Goal| {
+        build_packages(
+            &host,
+            package,
+            &Packages {
+                host_packages: host_packages.clone(),
+                session,
+                inputs_from: p.repl.map(|_| 1),
+                instruction_origins: true,
+                target: at.target,
+                level: if at.release {
+                    hd_driver::OptLevel::Optimized
+                } else {
+                    hd_driver::OptLevel::Dev
+                },
+                build_profile: if at.release {
+                    hd_driver::BuildProfile::Release
+                } else {
+                    hd_driver::BuildProfile::Checked
+                },
+                checked: at.checked,
+                std_leaf: at.std.then_some(super::own::STD_CASE),
+                profile: p.profile.clone(),
+                ..Packages::default()
             },
-            build_profile: if at.release {
-                hd_driver::BuildProfile::Release
-            } else {
-                hd_driver::BuildProfile::Checked
-            },
-            checked: at.checked,
-            std_leaf: at.std.then_some(super::own::STD_CASE),
-            profile: p.profile.clone(),
-            ..Packages::default()
-        },
-        &at.goal(),
-    )
+            goal,
+        )
+    };
+    let Some(last) = p.repl else {
+        return run(None, &at.goal());
+    };
+    let mut session = hd_driver::Session::linked();
+    let mut input = 1;
+    loop {
+        let mut built = run(Some(&session), &hd_driver::Goal::ReplInput { input });
+        if input == last || built.wasm.is_none() {
+            return built;
+        }
+        if let Some(added) = built.session_added.take() {
+            session.add(added);
+        }
+        input += 1;
+    }
 }

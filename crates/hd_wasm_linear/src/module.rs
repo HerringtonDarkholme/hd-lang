@@ -2788,6 +2788,11 @@ impl Module {
 /// once-cell's path, with the value's index after the first, or the
 /// runtime global's own name in snake case (`heap_top`).
 fn global_name(g: &Global, storage: &BTreeMap<Hash128, String>) -> String {
+    if let Global::Binding(h) = g
+        && let Some(path) = storage.get(h)
+    {
+        return path.clone();
+    }
     if let Global::Storage(h, k, _) = g {
         let path = storage.get(h).map_or("binding", String::as_str);
         return if *k == 0 {

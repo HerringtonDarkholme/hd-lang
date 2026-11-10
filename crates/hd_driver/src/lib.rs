@@ -10617,16 +10617,19 @@ impl Run<'_> {
         let linked = self.session.map(|s| s.linked.as_ref().unwrap_or(&base));
         let built = if let Some(previous) = linked {
             let built = if previous.is_empty() {
-                hd_wasm_linear::build_session_base(&input)
+                hd_wasm_linear::build_session_base(&input, self.map_instructions)
             } else {
-                hd_wasm_linear::build_session_extension(&input, previous)
+                hd_wasm_linear::build_session_extension(&input, previous, self.map_instructions)
             };
-            built.map(|(wasm, linked)| {
+            built.map(|(mapped, linked)| {
                 let _ = self.session_added.set(Session {
                     linked: Some(linked),
                     ..Session::default()
                 });
-                wasm
+                if self.map_instructions {
+                    let _ = self.instruction_origins.set(mapped.functions);
+                }
+                mapped.wasm
             })
         } else if self.map_instructions {
             hd_wasm_linear::build_with_origins(&input).map(|mapped| {

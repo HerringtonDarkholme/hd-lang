@@ -50,9 +50,9 @@ pub fn wat(p: &Program) -> String {
 #[must_use]
 pub fn wat_for(p: &Program, at: Build) -> String {
     let (prefix, case) = if at.std {
-        ("std/rt_tests.stage_case/", super::own::STD_CASE)
+        ("std/rt_tests.stage_case/", super::own::STD_CASE.to_owned())
     } else {
-        ("app/", "main.hd")
+        ("app/", p.main_file())
     };
     let built = super::inspection::build(p, at);
     let mut out = String::from("(module\n");
