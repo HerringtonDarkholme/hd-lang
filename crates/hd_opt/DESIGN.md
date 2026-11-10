@@ -67,7 +67,7 @@ place instances are made. `ValueFlow` reads only the body's own TIR, so it
 runs once per body, not once per instance.
 
 Planned, not built: instance-unit passes. `use_counts`, `inline_plan`,
-`escape` and `scalar_replace` are declared and report `Skipped`;
+`escape` and `scalar_replace` are declaration markers;
 `summaries` is declared, and the driver does that work: it owns bodies
 callees first, in `inline::bottom_up`'s order, and records their release
 summaries (docs/future-work/RELEASE_INTERPROC.md); the inliner
@@ -83,9 +83,9 @@ runs an instance pass.
 `WasmModule`), `reads` and `writes` (facts), `gate` (summary bits),
 `required_by`, `run` and `params`. `run` is `Run::Body(fn(&BodyCx,
 &mut BodyFacts, &mut Fuel))` for a pass per generic body, before and
-during collection, or `Run::Instance(..)` for a pass per instance at
-emission. The unit is the `Run` variant rather than a separate field, so
-a pass's unit and its function signature cannot disagree. `BodyCx` holds the body, its `DefId`, `&dyn ProgramEnv` and the
+during collection, or the `Run::Instance` declaration marker for work
+outside that planner. Only body passes carry callbacks. `BodyCx` holds the
+body, its `DefId`, `&dyn ProgramEnv` and the
 pass's knob values. `params` declares each knob with its inclusive range;
 the pipeline gives the values, and both are hashed (§3.3).
 

@@ -52,7 +52,7 @@ impl PipelinePlanner {
                         let params = s.params.iter().map(|d| (d.name, knob(s.name, d.name)));
                         Some((s.gate, run, params.collect()))
                     }
-                    Run::Instance(_) => None,
+                    Run::Instance => None,
                 }
             })
             .collect();
