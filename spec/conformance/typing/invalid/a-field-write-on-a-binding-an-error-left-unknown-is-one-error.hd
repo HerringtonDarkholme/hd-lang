@@ -1,0 +1,6 @@
+# test: a field write on a binding an earlier error left unknown is one error
+# Spec 03 Field Lookup: names.field-lookup.unknown; the unknown name is
+# the error, and the write adds no `unknown-field` of its own.
+fn main() -> void:
+    let mut q = undefined_name # diagnostic: unknown-name
+    q.zz = +1

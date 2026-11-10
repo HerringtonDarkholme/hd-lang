@@ -6413,6 +6413,7 @@ parse/invalid/a-colon-in-parentheses-before-a-bracketed-type-suggests-its-call.h
 parse/invalid/a-colon-in-parentheses-before-no-type-gives-the-schematic-hint.hd	parse	reject:trailing-block-position	lang/02-grammar.md#r-grammar.call.trailing-block.not-header
 parse/invalid/a-colon-in-parentheses-before-a-comma-gives-the-schematic-hint.hd	parse	reject:trailing-block-position	lang/02-grammar.md#r-grammar.call.trailing-block.not-header
 parse/invalid/a-colon-in-parentheses-after-a-long-operand-gives-the-schematic-hint.hd	parse	reject:trailing-block-position	lang/02-grammar.md#r-grammar.call.trailing-block.not-header
+typing/invalid/a-field-write-on-a-binding-an-error-left-unknown-is-one-error.hd	type	reject:unknown-name	lang/03-names-and-scopes.md#r-names.field-lookup.unknown
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

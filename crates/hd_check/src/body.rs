@@ -4158,6 +4158,12 @@ impl Ck<'_, '_> {
                     self.err(Code::NotWritable, lhs, msg);
                     return Ok(());
                 }
+                // A base whose type an earlier error left unknown adds
+                // nothing; the value stored still reports its own errors.
+                if matches!(self.resolved(bt), Ty::NEVER | Ty::POISON) {
+                    self.expr(rhs, Some(Ty::POISON))?;
+                    return Ok(());
+                }
                 // No other value has fields to store to, so no promoted
                 // ones either. Shared enum data is selected but never
                 // stored through (`expr.place.enum-shared-field`).
