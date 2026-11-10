@@ -2097,12 +2097,17 @@ impl Cx<'_> {
             Tag::CallValue | Tag::AwaitValue | Tag::DefaultCall => true,
             Tag::Coerce => {
                 let kind = body.record(body.data[i][1]).first().copied();
-                matches!(kind, Some(k) if k == Coercion::ToTraitValue as u32 || k == Coercion::RefToTraitValue as u32)
+                matches!(kind, Some(k) if k == Coercion::RefToTraitValue as u32)
                     && pool.has_param(value_ty(body, body.data[i][0]))
             }
             Tag::Call | Tag::Await => match Callee::from_words(body.record(body.data[i][0])) {
-                Some(Callee::TraitMethod { self_ty, targs, .. }) => pool.has_param(self_ty) || pool.list_items(targs).iter().any(|t| pool.has_param(*t)),
-                Some(Callee::Item { def: callee, targs }) if pool.list_items(targs).iter().any(|t| pool.has_param(*t)) => {
+                Some(Callee::TraitMethod { self_ty, targs, .. }) => {
+                    pool.has_param(self_ty)
+                        || pool.list_items(targs).iter().any(|t| pool.has_param(*t))
+                }
+                Some(Callee::Item { def: callee, targs })
+                    if pool.list_items(targs).iter().any(|t| pool.has_param(*t)) =>
+                {
                     if let Some(key) = env.intrinsic(callee) {
                         matches!(
                             key.as_str(),
@@ -2112,7 +2117,9 @@ impl Cx<'_> {
                                 | "weak_new"
                                 | "weak_new_mut"
                         )
-                    } else { self.observes_permission(callee, visiting) }
+                    } else {
+                        self.observes_permission(callee, visiting)
+                    }
                 }
                 _ => false,
             },
@@ -2773,7 +2780,6 @@ impl Cx<'_> {
         trait_: DefId,
         trait_args: TyList,
         from: Ty,
-        through: bool,
         parent: InstId,
         reps: &mut StableHasher,
     ) -> StageResult<VTable> {
@@ -2789,7 +2795,7 @@ impl Cx<'_> {
         // implementation (`RefToTraitValue`), except for a sealed trait,
         // which the compiler answers at the reference type itself.
         let inner = match pool.get(from) {
-            TyData::Ref { inner, .. } if through => Some(inner),
+            TyData::Ref { inner, .. } => Some(inner),
             _ => None,
         }
         .filter(|_| !env.decls().sealed().supplies(trait_));
@@ -2845,7 +2851,7 @@ impl Cx<'_> {
             else {
                 return err("a supertrait that is not a trait");
             };
-            parents.push(self.vtable(def, args, from, through, parent, reps)?);
+            parents.push(self.vtable(def, args, from, parent, reps)?);
         }
         Ok(VTable {
             trait_,
@@ -3551,26 +3557,21 @@ impl Cx<'_> {
                 }
                 Tag::Coerce => {
                     let rec = body.record(b);
-                    let through = rec.first().copied() == Some(Coercion::RefToTraitValue as u32);
-                    if !through && rec.first().copied() != Some(Coercion::ToTraitValue as u32) {
+                    if rec.first().copied() != Some(Coercion::RefToTraitValue as u32) {
                         continue;
                     }
                     let from = s(value_ty(body, a));
-                    // A trait value converted to a trait value, as at
-                    // `T = dyn Error` erased to `dyn Inspectable`, is a
-                    // widening: no implementation, no vtable
+                    // A reference whose target is already a trait value
+                    // widens without a new implementation or vtable
                     // (trait.erase.keeps, trait.dyn.widen).
                     let mut value_ty = from;
-                    if through {
-                        while let TyData::Ref { inner, .. } = pool.get(value_ty) {
-                            value_ty = inner;
-                        }
+                    while let TyData::Ref { inner, .. } = pool.get(value_ty) {
+                        value_ty = inner;
                     }
                     let sealed = env.decls().sealed();
                     let sealed_identity = matches!(pool.get(ty), TyData::TraitValue { def, .. } if def == sealed.inspectable || def == sealed.any);
-                    if is_trait_value(pool, from)
-                        || ((!sealed_identity || trait_reference_widens(pool, env, from, ty))
-                            && is_trait_value(pool, value_ty))
+                    if (!sealed_identity || trait_reference_widens(pool, env, from, ty))
+                        && is_trait_value(pool, value_ty)
                     {
                         continue;
                     }
@@ -3592,7 +3593,7 @@ impl Cx<'_> {
                         } else {
                             (trait_, trait_args)
                         };
-                    let vt = self.vtable(trait_, trait_args, from, through, id, &mut reps)?;
+                    let vt = self.vtable(trait_, trait_args, from, id, &mut reps)?;
                     calls.insert(ix, Target::VTable(vt));
                 }
                 // A map's key operations (`crates/hd_mono/DESIGN.md` §13.12): a literal

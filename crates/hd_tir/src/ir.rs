@@ -334,9 +334,8 @@ pub enum Coercion {
     Variance,
     WrapSome,
     RowSubsume,
-    ToTraitValue,
-    ToAny,
-    Supertrait,
+    // Wire tags 5 and 6 are retired; preserve the surviving encodings.
+    Supertrait = 7,
     SuspendFnToCtor,
     /// A least-common-type site's reserved slot whose value already has
     /// the site's type (`crates/hd_check/DESIGN.md` §4.3 step 6).

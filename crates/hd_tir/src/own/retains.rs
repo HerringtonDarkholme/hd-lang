@@ -264,13 +264,9 @@ pub(crate) fn result(b: &Body, cx: &dyn OwnCx, i: usize) -> bool {
             if kind == Some(Coercion::RefAsProvider as u32) {
                 return true;
             }
-            if ![
-                Coercion::ToTraitValue,
-                Coercion::Supertrait,
-                Coercion::RefToTraitValue,
-            ]
-            .iter()
-            .any(|c| kind == Some(*c as u32))
+            if ![Coercion::Supertrait, Coercion::RefToTraitValue]
+                .iter()
+                .any(|c| kind == Some(*c as u32))
             {
                 return false;
             }
@@ -381,14 +377,11 @@ mod tests {
     #[test]
     fn direct_trait_results_count_but_fresh_boxes_and_indirect_loads_do_not() {
         for (kind, source, counted) in [
-            (Coercion::ToTraitValue, Ty(42), true),
             (Coercion::RefToTraitValue, Ty(42), true),
             (Coercion::Supertrait, Ty(43), true),
-            (Coercion::ToTraitValue, Ty(43), true),
-            (Coercion::ToTraitValue, Ty(44), false),
+            (Coercion::RefToTraitValue, Ty(44), false),
             (Coercion::RefToTraitValue, Ty(46), true),
             (Coercion::RefToTraitValue, Ty(45), true),
-            (Coercion::ToTraitValue, Ty::I32, false),
             (Coercion::RefAsProvider, Ty(43), true),
         ] {
             let mut builder = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);

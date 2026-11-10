@@ -65,8 +65,6 @@ fn coercion(names: &Names<'_>, b: &Body, word: u32) -> String {
         Coercion::Variance,
         Coercion::WrapSome,
         Coercion::RowSubsume,
-        Coercion::ToTraitValue,
-        Coercion::ToAny,
         Coercion::Supertrait,
         Coercion::SuspendFnToCtor,
         Coercion::Identity,

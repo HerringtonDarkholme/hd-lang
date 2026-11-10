@@ -219,18 +219,18 @@ design:
 
 **Context values.** `$.Context[$ R]` is `TyData::Context(row)` with a
 concrete row. `$.with(...)` and `$.context(...)` check their entries
-alike, in source order. An entry `K=e` checks `e`, keeps the
-`mutable-upgrade` test of `req.mut.install-writable-counted`, and then coerces
-`e` to the key's trait value type `K` (`ToTraitValue`, or `Supertrait`
-from a subtrait value, or nothing from a `K` value), so a value whose
-type lacks the impl is `type-mismatch`. A `*S` or `*mut S` value becomes
-`K` by `RefToTraitValue`, sharing the object (`req.ref.share.counted-values`). When `K`'s
-trait has a `&self` or `&mut self` method (`req.ref.key.reference-values`), `e` converts
-to `*dyn K` or `*mut dyn K` as any value does (only a counted reference does,
-`req.ref.install-counted`, and a local one is `req.mut.install-no-local`), and `RefAsProvider` keeps
-that reference as the provider; `$.use(K)` reads it back with
-`ProviderAsRef`, so every value in a pair or a provider slot still has
-the key's type `K`. An entry `ctx...` needs a value
+alike, in source order. An entry `K=e` checks `e` and keeps the
+`mutable-upgrade` test of `req.mut.install-writable-counted`. Every provider
+keeps a counted trait value reference through `RefAsProvider`. A value
+provider for a trait without reference receivers is copied into a new
+object; an existing counted reference shares its place
+(`req.ref.share.counted-values`). The reference converts to `*dyn K` or
+`*mut dyn K` through `RefToTraitValue`, or widens through `Supertrait`.
+A key with reference receivers requires a counted reference
+(`req.ref.install-counted`); a local reference is
+`req.mut.install-no-local`. `$.use(K)` reads the reference back with
+`ProviderAsRef`, so each provider slot still has the key's type `K`.
+An entry `ctx...` needs a value
 of a context type, else `type-mismatch`. Both forms record
 `(key, value)` pairs, where a spread's key word is the spread value's
 own context type. `ContextNew` has the type `$.Context[$ keys]` over
@@ -629,14 +629,12 @@ holds.
 | `Variance` | `C[A]` → `C[B]` by declared variance, readonly outer type | none | none ([Representation-Preserving Variance](../../spec/lang/04-type-system.md#representation-preserving-variance)) |
 | `WrapSome` | `T` → `T?`, one layer | none | build `.Some` |
 | `RowSubsume` | `fn ... $ R1` → `fn ... $ R2` | none | none: every function value takes a context and looks its keys up by id, so a context holding `R2`'s keys serves `R1` (crates/hd_mono/DESIGN.md §12.4) |
-| `ToTraitValue` | `S` → `Tr` | the impl choice | box with its dispatch table |
-| `ToAny` | `S` → `Any` | none | box with its type id |
 | `Supertrait` | child trait value → parent trait value | none: the target type names the parent | re-table: load the parent's vtable from the child's |
 | `SuspendFnToCtor` | `fn!` type → constructor type | none | none, or a thin adapter |
 | `Identity` | `T` → `T` | none | none: a least-common-type slot whose value needed no conversion |
-| `RefToTraitValue` | `&S` or `&mut S` → `Tr`, inside a trait value reference's `get`, or as the provider of a key whose trait has no `&self` or `&mut self` method | none | box the reference itself, with a dispatch table at `S`'s impl that reads through it or passes it per slot (crates/hd_wasm/DESIGN.md §15.2, "Trait value references") |
-| `RefAsProvider` | `&dyn K` or `&mut dyn K` → `K`, the provider of a key whose trait has a `&self` or `&mut self` method | none | the reference is the payload; the vtable is the one its `get` returns, which no call reads (crates/hd_wasm/DESIGN.md §15.2, "Providers of reference traits") |
-| `ProviderAsRef` | `K` → `&dyn K` or `&mut dyn K`, at `$.use(K)` of such a key | none | cast the payload back to the reference |
+| `RefToTraitValue` | `&S` or `&mut S` → `Tr`, inside a trait value reference's `get`, or inside a counted provider reference | none | box the reference itself, with a dispatch table at `S`'s impl that reads through it or passes it per slot (crates/hd_wasm/DESIGN.md §15.2, "Trait value references") |
+| `RefAsProvider` | `&dyn K` or `&mut dyn K` → `K`, the provider slot of a requirement key | none | the reference is the payload; the vtable is the one its `get` returns, which no call reads (crates/hd_wasm/DESIGN.md §15.2, "Providers of reference traits") |
+| `ProviderAsRef` | `K` → `&dyn K` or `&mut dyn K`, at `$.use(K)` | none | cast the payload back to the reference |
 
 Today every `Coerce` writes `NONE` as its evidence word; the wire writer
 refuses any other value until it is remapped.
