@@ -1,0 +1,4 @@
+# One value given to a pair vararg: the found tuple holds the one value, its open literal shown at its default type.
+run: hd check --format json fill.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"type-mismatch","message":"in argument: expected (i32, string), found (usize)","line":5,"column":5,"file":"fill.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]

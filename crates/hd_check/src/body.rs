@@ -1340,15 +1340,24 @@ impl Ck<'_, '_> {
         self.diags.error(code, span, msg);
     }
 
+    /// `t` as a message names it. A literal inside a larger type shows the
+    /// type its class defaults to (`types.literal.local.default`), so
+    /// `collect(1)` against a pair finds `(usize)`, not `(?)`; the
+    /// literal stays open.
     pub(crate) fn show(&self, t: Ty) -> String {
-        let t = self.infer.resolve(self.pool(), t);
-        match self.pool().get(t) {
-            TyData::Infer(_) => match self.infer.kind_of(self.pool(), t) {
+        let pool = self.pool();
+        let t = self.infer.resolve(pool, t);
+        match pool.get(t) {
+            TyData::Infer(_) => match self.infer.kind_of(pool, t) {
                 Some(VarKind::IntLit | VarKind::SignedIntLit) => "an integer literal".into(),
                 Some(VarKind::FloatLit) => "a floating-point literal".into(),
                 _ => "{unknown}".into(),
             },
-            _ => hd_resolve::show_ty_in(&self.cx.names, self.pool(), t),
+            _ if pool.has_infer(t) => {
+                let shown = pool.map_children(t, &mut LiteralDefaults(self));
+                hd_resolve::show_ty_in(&self.cx.names, pool, shown)
+            }
+            _ => hd_resolve::show_ty_in(&self.cx.names, pool, t),
         }
     }
 
@@ -4976,6 +4985,32 @@ fn float_text_f32(text: &str) -> Option<f32> {
 /// [`Ck::zonk`] applied to each child of a type, and [`Ck::zonk_row`] to
 /// each row.
 struct Zonk<'k, 'a, 'c>(&'k mut Ck<'a, 'c>);
+
+/// A resolved type's open literals replaced by their default types, for a
+/// message only: it binds nothing. Cost: one walk of the type's
+/// variable-holding part.
+struct LiteralDefaults<'k, 'a, 'c>(&'k Ck<'a, 'c>);
+
+impl hd_types::TyMap for LiteralDefaults<'_, '_, '_> {
+    fn ty(&mut self, t: Ty) -> Ty {
+        let pool = self.0.pool();
+        if !pool.has_infer(t) {
+            return t;
+        }
+        match pool.get(t) {
+            TyData::Infer(_) => self
+                .0
+                .infer
+                .kind_of(pool, t)
+                .and_then(VarKind::literal_default)
+                .unwrap_or(t),
+            _ => pool.map_children(t, self),
+        }
+    }
+    fn row(&mut self, r: RowId) -> RowId {
+        r
+    }
+}
 
 impl hd_types::TyMap for Zonk<'_, '_, '_> {
     fn ty(&mut self, t: Ty) -> Ty {

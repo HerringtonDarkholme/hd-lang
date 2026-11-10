@@ -1,0 +1,7 @@
+# test: separate values of a tuple vararg collect as their tuple expression, so one value against a pair is a mismatch
+# Spec 07 Varargs: fn.vararg.collect.tuple-expr.
+fn collect(values...: (i32, string)) -> void:
+    ()
+
+fn fill() -> void:
+    collect(1) # diagnostic: type-mismatch

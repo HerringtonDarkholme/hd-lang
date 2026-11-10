@@ -1,0 +1,5 @@
+fn collect(values...: (i32, string)) -> void:
+    ()
+
+fn fill() -> void:
+    collect(1)
