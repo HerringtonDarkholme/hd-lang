@@ -1,0 +1,15 @@
+# test: an alias of an enum names its variants, with and without a payload
+# Spec 04 Type Aliases: types.alias.same.
+# expect-stdout: 2
+enum Shape:
+    Dot
+    Circle(i32)
+
+type Form = Shape
+
+pub fn main() -> void $ Console:
+    s := Form.Dot
+    c := Form.Circle(2)
+    match c:
+        Shape.Circle(r) => println("${r}")
+        Shape.Dot => println("dot")

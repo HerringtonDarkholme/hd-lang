@@ -3895,6 +3895,7 @@ typing/valid/variance-receiverless-function.hd	type	accept	lang/04-type-system.m
 typing/invalid/module-named-pkg.hd	type	reject:reserved-module-name	lang/10-modules.md#r-module.path.reserved-pkg
 typing/invalid/duplicate-variant.hd	type	reject:duplicate-variant	lang/08-data-and-enums.md#r-data.enum.unique
 typing/invalid/unknown-variant.hd	type	reject:unknown-variant	lang/08-data-and-enums.md#r-data.enum.unknown-variant
+typing/invalid/an-unknown-variant-through-an-enum-alias.hd	type	reject:unknown-variant	lang/08-data-and-enums.md#r-data.enum.unknown-variant
 typing/warnings/mixed-script-identifier.hd	parse	accept	lang/01-lexical-structure.md#r-lex.ident.mixed-script.lint
 parse/invalid/unclosed-delimiter.hd	parse	reject:unclosed-delimiter	lang/01-lexical-structure.md#r-lex.delim.unclosed
 parse/invalid/unmatched-delimiter.hd	parse	reject:unmatched-delimiter	lang/01-lexical-structure.md#r-lex.delim.unmatched
@@ -4450,6 +4451,7 @@ typing/invalid/fn-reference-optional-invariant.hd	type	reject:type-mismatch	lang
 typing/invalid/fn-reference-result-upgrade.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.variance.function
 runtime/valid/fn-reference-variance.hd	runtime	accept	lang/04-type-system.md#r-types.variance.function
 typing/valid/alias-same-type.hd	type	accept	lang/04-type-system.md#r-types.alias.same
+runtime/valid/an-enum-alias-names-its-variants.hd	runtime	accept	lang/04-type-system.md#r-types.alias.same
 typing/valid/alias-names-row.hd	type	accept	lang/04-type-system.md#r-types.alias.row
 typing/invalid/alias-cycle-reported-once.hd	type	reject:alias-cycle	lang/04-type-system.md#r-types.alias.cycle.reported
 typing/invalid/newtype-map-key-without-hash.hd	type	reject:unsatisfied-trait-bound	lang/04-type-system.md#r-types.newtype.map-key

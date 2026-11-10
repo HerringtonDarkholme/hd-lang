@@ -1,0 +1,11 @@
+# test: an alias of an enum names an unknown variant as the enum does
+# Spec 08 Enums: data.enum.unknown-variant, through a transparent alias
+# (types.alias.same); the alias is no type-used-as-value.
+enum Shape:
+    Dot
+    Circle(i32)
+
+type Form = Shape
+
+fn f() -> void:
+    s := Form.Square # diagnostic: unknown-variant

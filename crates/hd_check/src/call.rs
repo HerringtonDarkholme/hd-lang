@@ -3310,6 +3310,20 @@ impl Ck<'_, '_> {
         }
     }
 
+    /// Whether `t` is an enum or a union, whose values are its variants.
+    fn has_variants(&self, t: Ty) -> bool {
+        let pool = self.pool();
+        match pool.get(self.infer.shallow(pool, t)) {
+            TyData::Adt { def, .. } => self
+                .cx
+                .lookup
+                .item(def)
+                .is_some_and(|i| matches!(i.data, ItemData::Enum { .. })),
+            TyData::Union(_) => true,
+            _ => false,
+        }
+    }
+
     /// The anonymous union fixed by the expected result of `Union._k`.
     fn union_constructor_type(&mut self, want: Option<Ty>, n: NodeRef<'_>) -> Option<Ty> {
         let pool = self.pool();
@@ -3383,9 +3397,10 @@ impl Ck<'_, '_> {
             }
             Some(Named::Item(def)) if self.is_enum_head(def) => {
                 let t = self.ctor(def, &[], n);
-                if self.kind_of_item(def) == Some(HeadKind::Alias)
-                    && self.variant_fields(t, name).is_none()
-                {
+                // An alias of an enum names its variants as the enum does,
+                // an unknown one included; an alias of any other type has
+                // none (`types.alias.same`).
+                if self.kind_of_item(def) == Some(HeadKind::Alias) && !self.has_variants(t) {
                     return Ok(None);
                 }
                 if let Some(v) = self.variant_fn_value(t, name, want, n) {
