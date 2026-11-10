@@ -2439,8 +2439,8 @@ See also: [Error Trait](09-traits.md#error-trait).
 ### Boundary Encoding
 
 1. r[module.boundary.tree] Boundary values have tree semantics.
-2. r[module.boundary.cycle] Encoding a cycle is a boundary error. Boundary failure: `boundary-cycle`.
-3. r[module.boundary.cycle.tracked] The encoder finds a cycle at a struct value with fields, a list, or a map that it reaches again on its path. It does not track enum values.
+2. r[module.boundary.cycle] Encoding a cycle is a boundary error, whether hd encodes the value for the host or the host encodes it for hd. Either way it ends the program as a panic does: it prints `panic: boundary-cycle`, and the entry point exits with the profile's panic exit status, by [`module.entry.panic`](#r-module.entry.panic). Boundary failure: `boundary-cycle`.
+3. r[module.boundary.cycle.tracked] The encoder finds a cycle at a value that it reaches again on its path. In hd, only a counted reference `*T` or `*mut T` can close a cycle, so hd's encoder tracks those whose referent type can reach that type again. The host's encoder tracks a struct value with fields, a list, and a map, but not an enum value.
 4. r[module.boundary.sharing] When an acyclic graph shares a node, each incoming path encodes a duplicate tree value, and decoding does not restore sharing.
 5. r[module.boundary.map-decode] Decoding a map invokes the key type's ordinary `Eq` and `Hash` implementations.
 
