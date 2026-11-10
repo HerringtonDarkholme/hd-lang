@@ -6269,6 +6269,8 @@ runtime/valid/boundary-counted-reference-top-level.hd	runtime	accept	lang/10-mod
 runtime/valid/opaque-function-result-discard.hd	runtime	accept	lang/07-functions.md#r-fn.opaque.nested
 runtime/valid/opaque-function-result-call.hd	runtime	accept	lang/07-functions.md#r-fn.opaque.nested
 runtime/valid/opaque-function-input-discard.hd	runtime	accept	lang/07-functions.md#r-fn.opaque.nested
+typing/invalid/boundary-not-safe-provider-context-result.hd	type	reject:boundary-not-safe	lang/10-modules.md#r-module.boundary.not-safe.error
+typing/invalid/boundary-not-safe-provider-context-argument.hd	type	reject:boundary-not-safe	lang/10-modules.md#r-module.boundary.not-safe.error
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

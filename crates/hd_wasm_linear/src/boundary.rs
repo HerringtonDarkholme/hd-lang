@@ -480,8 +480,9 @@ fn of_at(
         },
         // ruled out: `never` crosses only as a host method's whole result,
         // which `result_type` takes first, and module.boundary.not-safe.error
-        // (hd_check header::crossing_fault) rejects it anywhere else and a
-        // function; a bare trait value is no value type
+        // (hd_check header::crossing_fault) rejects it anywhere else, a
+        // function and a provider context (`module.boundary.rows`); a bare
+        // trait value is no value type
         // (grammar.type.dyn.reference-values); `signature` and `subst`
         // leave no parameter, projection or opaque type in a checked host
         // method's signature (`dyn-member-unavailable` rejects a method
@@ -496,14 +497,15 @@ fn of_at(
         | TyData::Const(_)
         | TyData::Assoc { .. }
         | TyData::Row(_)
+        | TyData::Context(_)
         | TyData::Infer(_)
         | TyData::Canon(_) => {
             debug_assert!(false, "{} at the host boundary", pool.display(t));
             LTy::Void
         }
-        // gap: #1573 (a union) and #1574 (a provider context), the only
-        // kinds left here, wait on the owner's call.
-        _ => return unsupported(what()),
+        // gap: #1573 (a union), the one kind left here, waits on its
+        // codec.
+        TyData::Union(_) => return unsupported(what()),
     })
 }
 
@@ -2757,10 +2759,11 @@ fn package_value(
 
         // ruled out: `package_method` takes a whole `never` result first,
         // and module.boundary.not-safe.error (hd_check
-        // header::crossing_fault) rejects `never` anywhere else and a
-        // function; `signature` and `subst` leave no parameter, projection
-        // or opaque type in a checked host method's signature; a row is no
-        // value type, and checking solves every inference variable.
+        // header::crossing_fault) rejects `never` anywhere else, a
+        // function and a provider context (`module.boundary.rows`);
+        // `signature` and `subst` leave no parameter, projection or opaque
+        // type in a checked host method's signature; a row is no value
+        // type, and checking solves every inference variable.
         TyData::Never
         | TyData::Poison
         | TyData::Fn { .. }
@@ -2769,13 +2772,14 @@ fn package_value(
         | TyData::Const(_)
         | TyData::Assoc { .. }
         | TyData::Row(_)
+        | TyData::Context(_)
         | TyData::Infer(_)
         | TyData::Canon(_) => {
             debug_assert!(false, "{} in a package host schema", pool.display(t));
             Value::Void
         }
-        // gap: #1573 (a union) and #1574 (a provider context).
-        _ => return fail(),
+        // gap: #1573 (a union).
+        TyData::Union(_) => return fail(),
     })
 }
 

@@ -1577,6 +1577,13 @@ impl ItemCheck<'_, '_> {
                 TyData::Tuple { elems, rest } => {
                     pool.list_items(elems).iter().copied().chain(rest).collect()
                 }
+                // `module.boundary.rows`: a context bundles requirement
+                // bindings, which are no data.
+                TyData::Context(_) => {
+                    return not_safe(
+                        "a provider context bundles requirement bindings, not data, so it is not boundary-safe",
+                    );
+                }
                 TyData::Adt { def, args } => {
                     let argv = pool.list_items(args);
                     let sub = |x: Ty| {

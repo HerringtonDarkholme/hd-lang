@@ -1,0 +1,8 @@
+# test: a provider context cannot cross into hd from the host: it bundles requirement bindings, not data
+# Spec Modules, Boundary-Safe Values: module.boundary.rows, module.boundary.not-safe.error (#1574).
+# fixture-runtime-profile: serde-vault
+pub trait Vault:
+    fn keep(self) -> $.Context[$ Console] # diagnostic: boundary-not-safe
+
+pub fn main() -> void $ Vault:
+    _ := $.use(Vault).keep()
