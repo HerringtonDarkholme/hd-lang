@@ -212,9 +212,10 @@ pub struct NodeRef<'t> { tree: &'t GreenTree, index: NodeIdx }
 
 - Preorder with subtree sizes: a child walk is a loop, and skipping a
   subtree is one addition. `parent_links` builds parent links on demand.
-- **Typed views** (`FnDecl`, `IfExpr`, ...) come from the `ast_nodes!`
-  macro: each is a `NodeRef` of one kind. Accessors that find children by
-  kind are written by hand on the views that need them.
+- **Typed views.** Three remain: `Decl` (any named declaration, with
+  `name` and `body`), and `Block` and `ImplDecl` (`header_types`), the
+  ones hd_doc names. The resolver, checker and lints read children by
+  kind (`NodeRef::part`, `Src::child`).
 - **No red tree and no incremental reparse.** A whole file reparses
   quickly. An editor tier can add them later.
 - About 14 bytes per node.
