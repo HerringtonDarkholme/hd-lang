@@ -5734,12 +5734,6 @@ impl Ck<'_, '_> {
     }
 }
 
-/// Substitutes one owner's parameters.
-/// A callee with no final function parameter takes no trailing block
-/// (`grammar.call.trailing-block.eligible`); no diagnostic code names that
-/// yet (docs/audit/diagnostic-notes.md), so it stays a stop.
-/// The arguments of a form that takes neither a trailing block nor a
-/// positional spread.
 impl Ck<'_, '_> {
     /// Whether `def` is a test registration function: `it`, `it_each`,
     /// `it_prop` or `it_prop_with` (`module.testing.direct-call`).
@@ -5865,6 +5859,7 @@ fn bang_callee(callee: NodeRef<'_>, bang: bool) -> (NodeRef<'_>, bool) {
     }
 }
 
+/// Substitutes one owner's parameters.
 pub(crate) fn subst_owner(pool: hd_types::Types<'_>, owner: DefId, args: &[Ty], t: Ty) -> Ty {
     pool.subst(t, &|p: ParamRef| {
         (p.owner == owner)
