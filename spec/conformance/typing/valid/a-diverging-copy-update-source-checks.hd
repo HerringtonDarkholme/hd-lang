@@ -1,0 +1,8 @@
+# test: a `never` copy-update source fits the data type, as `never` fits any expected type
+# Spec 04 The `never` Type: types.never.fits.
+struct Point:
+    x: i32
+    y: i32
+
+fn gone() -> Point:
+    Point { ...panic("no source"), y: 1 }

@@ -1,0 +1,14 @@
+# test: `Self` names the implementation target, so `Self { ... }` in an inherent impl builds a value of it
+# Spec 03 The `Self` Name: names.self-type.reserved.
+# expect-stdout: 0 2
+struct Point:
+    x: i32
+    y: i32
+
+impl Point:
+    fn origin() -> Point:
+        Self { x: 0, y: 2 }
+
+pub fn main() -> void $ Console:
+    p := Point::origin()
+    println("${p.x} ${p.y}")
