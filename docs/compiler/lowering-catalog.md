@@ -136,7 +136,7 @@ and no declared type has object identity. See
 
 Part layouts and paths follow aggregate fields and reference ownership.
 See [inline aggregates](../../crates/hd_wasm/DESIGN.md#2314-inline-aggregate-layouts)
-and [reference addresses](../../crates/hd_wasm/DESIGN.md#2320-reference-addresses-and-typed-views).
+and [reference addresses](../../crates/hd_wasm/DESIGN.md#2320-reference-addresses).
 There is no separate object allocation per part merely because it is embedded.
 
 ### Payloadless Enums
@@ -540,7 +540,7 @@ Tuple destructuring does not itself allocate a wrapper.
 Identity compares counted addresses: an object's address, a collection's
 buffer, a trait value's data or a reference's place. See
 [§23.19 Identity](../../crates/hd_wasm/DESIGN.md#2319-closure-and-trait-values)
-and [§23.20](../../crates/hd_wasm/DESIGN.md#2320-reference-addresses-and-typed-views).
+and [§23.20](../../crates/hd_wasm/DESIGN.md#2320-reference-addresses).
 This is address comparison, not structural equality.
 
 ### Default Arguments

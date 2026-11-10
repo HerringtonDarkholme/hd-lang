@@ -285,7 +285,7 @@ impl Em<'_, '_, '_> {
     /// value, from a fact of the code writing it: what `Overwritten`
     /// replaces has its store's `Release`, `Cancelled` and a frame's
     /// `ByDesign` only run where a suspending body ends, `ByDesign` otherwise
-    /// counts a `&dyn`'s data, and `View` a view.
+    /// counts a `&dyn`'s data.
     fn assert_reason_fact(&self, t: Ty) {
         if cfg!(target_arch = "wasm32") || !self.f.names_counts {
             return;
@@ -1171,7 +1171,7 @@ impl Em<'_, '_, '_> {
     }
 
     /// `Read` `i` of the place whose buffer the `IsUnique` right before it
-    /// left in local `h`: one walk for both. A view's loan holds nothing.
+    /// left in local `h`: one walk for both.
     pub(super) fn read_walked(&mut self, i: u32, h: u32) -> StageResult<()> {
         self.f.get(h);
         self.store(i)

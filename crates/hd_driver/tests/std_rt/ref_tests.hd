@@ -240,14 +240,14 @@ tests:
         assert(retained() == before, "the caller keeps the parent alive")
         assert(point.left == 2000 && point.right == 1, "every field write reached the parent")
 
-    it("inlined field loans through erased views release their fresh owners"):
+    it("inlined field loans release their fresh owners"):
         before := live()
         let round = +0
         let sum = +0
         while round < 1000:
             sum += projected_round(round)
             round += 1
-        assert(sum == 501500, "every erased field write reached the parent")
+        assert(sum == 501500, "every projected field write reached the parent")
         assert(live() == before, "no fresh projected owner remains live")
 
     it("a caller's local reference keeps recursive stored field loans alive"):
@@ -267,7 +267,7 @@ tests:
         assert(retained() == before, "the field loan takes no parent count")
         assert(point.value.len() == 80, "the counted referent remains valid")
 
-    it("moving stored field loans preserves cleanup through erased views"):
+    it("moving stored field loans preserves cleanup"):
         before := live()
         let round = +0
         let sum = +0
@@ -275,7 +275,7 @@ tests:
             sum += projected_read_round(round)
             round += 1
         assert(sum == 2497500, "every moved field loan reads its parent")
-        assert(live() == before, "each fresh reference view is released once")
+        assert(live() == before, "each fresh projected owner is released once")
 
     it("a read-only closure borrows its physical reference parameter"):
         point := box(+42)

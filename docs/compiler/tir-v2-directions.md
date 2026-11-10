@@ -36,7 +36,6 @@ models them as a dynamic language would. The stage cases show it:
 
 | Defect | Evidence today |
 | --- | --- |
-| References are getter and setter closures | `body.x = 1.0` through `&mut Body` is 41 instructions: two `Closure`s, a `NewData` reference object, a `StrConcat` for its name, `RefPlace`, `RefWrite` |
 | Field writes rebuild the value | a nested local write is `CopyData` of `.body`, then `CopyData` of the whole `Nested`; #656 pattern 4 stores every field of `ListIter` per element |
 | 24 intrinsics make `List`, `Map` and `string` opaque | `ListLen`, `ListPush`, `ListIndex`, `MapGet`, `StrConcat`, `StrEq`, `ValueCopy`, pins and snapshots each need an emitter arm and a counting rule |
 | Ownership is invisible until the emitter | `emit/count.rs`, `emit/live.rs` and three loan kinds decide counts per instance; #656 patterns 1, 2, 6 and 10 are counts no IR pass can see |

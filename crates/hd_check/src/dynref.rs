@@ -289,8 +289,8 @@ impl Ck<'_, '_> {
             .coerce(Coercion::RefAsProvider, NONE, r, key, n.index())
     }
 
-    /// Reuse the runtime's generic object constructor. Local reference
-    /// getter/setter closures would become sub-bodies of every provider site.
+    /// Reuse the runtime's generic object constructor, so a provider site
+    /// builds no object code of its own.
     fn shared_provider_object(&mut self, value: Ref, ty: Ty, n: NodeRef<'_>) -> (Ref, Ty) {
         let pool = self.pool();
         let ret = self.ref_ty(ty, true, true);

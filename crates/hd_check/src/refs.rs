@@ -154,9 +154,9 @@ impl Ck<'_, '_> {
 
     /// `ref.convert.readonly-covariant`, `ref.convert.readonly-payload`:
     /// representation-preserving permission weakening through a readonly
-    /// container view. A mutable reference and an invariant argument keep
+    /// container reference. A mutable reference and an invariant argument keep
     /// their exact operands. The caller rolls back a failed inference trial.
-    pub(crate) fn readonly_view_fits(&mut self, from: Ty, to: Ty, depth: u32) -> bool {
+    pub(crate) fn readonly_reference_fits(&mut self, from: Ty, to: Ty, depth: u32) -> bool {
         if depth > 32 {
             return false;
         }
@@ -181,7 +181,7 @@ impl Ck<'_, '_> {
                     mutable: false,
                     counted: kb,
                 },
-            ) if ka || !kb => self.readonly_view_fits(a, b, d),
+            ) if ka || !kb => self.readonly_reference_fits(a, b, d),
             (
                 TyData::Adt { def, args: a },
                 TyData::Adt {
@@ -195,7 +195,7 @@ impl Ck<'_, '_> {
                 a.len() == b.len()
                     && a.iter().zip(b).enumerate().all(|(i, (&a, &b))| {
                         if variance.get(i) == Some(&1) || whole.get(i) == Some(&true) {
-                            self.readonly_view_fits(a, b, d)
+                            self.readonly_reference_fits(a, b, d)
                         } else {
                             self.infer.unify(pool, a, b).is_ok() && self.perm_fits(a, b, false, d)
                         }
@@ -206,9 +206,9 @@ impl Ck<'_, '_> {
                 a.len() == b.len()
                     && a.iter()
                         .zip(b)
-                        .all(|(&a, &b)| self.readonly_view_fits(a, b, d))
+                        .all(|(&a, &b)| self.readonly_reference_fits(a, b, d))
                     && match (ar, br) {
-                        (Some(a), Some(b)) => self.readonly_view_fits(a, b, d),
+                        (Some(a), Some(b)) => self.readonly_reference_fits(a, b, d),
                         (None, None) => true,
                         _ => false,
                     }
@@ -237,19 +237,17 @@ impl Ck<'_, '_> {
                 let (a, b) = (pool.list_items(a), pool.list_items(b));
                 a.len() == b.len()
                     && (depth == 0 || self.rows_equal(aw, bw))
-                    && a.iter()
-                        .zip(b)
-                        .all(|(&a, &b)| self.variance_view_fits(b, a, d))
-                    && self.variance_view_fits(ar, br, d)
+                    && a.iter().zip(b).all(|(&a, &b)| self.variance_fits(b, a, d))
+                    && self.variance_fits(ar, br, d)
             }
             _ => self.infer.unify(pool, from, to).is_ok() && self.perm_fits(from, to, false, d),
         }
     }
 
     /// Representation-preserving variance inside a function signature.
-    /// Unlike a readonly reference view, an ordinary optional or invariant
+    /// Unlike a readonly container reference, an ordinary optional or invariant
     /// argument cannot weaken permissions (`types.option.invariant`).
-    pub(crate) fn variance_view_fits(&mut self, from: Ty, to: Ty, depth: u32) -> bool {
+    pub(crate) fn variance_fits(&mut self, from: Ty, to: Ty, depth: u32) -> bool {
         if depth > 32 {
             return false;
         }
@@ -263,7 +261,7 @@ impl Ck<'_, '_> {
         match (pool.get(from), pool.get(to)) {
             (TyData::Fn { .. }, TyData::Fn { .. })
             | (TyData::Ref { .. }, TyData::Ref { mutable: false, .. }) => {
-                self.readonly_view_fits(from, to, depth)
+                self.readonly_reference_fits(from, to, depth)
             }
             (
                 TyData::Adt { def, args: a },
@@ -277,8 +275,8 @@ impl Ck<'_, '_> {
                 a.len() == b.len()
                     && a.iter().zip(b).enumerate().all(|(i, (&a, &b))| {
                         match variance.get(i).copied().unwrap_or(0) {
-                            1 => self.variance_view_fits(a, b, d),
-                            -1 => self.variance_view_fits(b, a, d),
+                            1 => self.variance_fits(a, b, d),
+                            -1 => self.variance_fits(b, a, d),
                             _ => {
                                 self.infer.unify(pool, a, b).is_ok()
                                     && self.perm_fits(a, b, false, d)
@@ -289,11 +287,9 @@ impl Ck<'_, '_> {
             (TyData::Tuple { elems: a, rest: ar }, TyData::Tuple { elems: b, rest: br }) => {
                 let (a, b) = (pool.list_items(a), pool.list_items(b));
                 a.len() == b.len()
-                    && a.iter()
-                        .zip(b)
-                        .all(|(&a, &b)| self.variance_view_fits(a, b, d))
+                    && a.iter().zip(b).all(|(&a, &b)| self.variance_fits(a, b, d))
                     && match (ar, br) {
-                        (Some(a), Some(b)) => self.variance_view_fits(a, b, d),
+                        (Some(a), Some(b)) => self.variance_fits(a, b, d),
                         (None, None) => true,
                         _ => false,
                     }

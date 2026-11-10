@@ -6,9 +6,9 @@ stopped: the map stays in Rust, #180 closed). The costs this design left
 open were measured as misses and closed on 2026-10-28: #857, #858 and #859;
 #860's size lever moved to #941. The concluded string
 experiments #861 and #862 remain in #426's history.
-Later removals, which this history still mentions: generic method calls
-through `dyn` and their erased bodies and thunks (#1421), and `own/pairs.rs`
-(#1399). As-built notes are under [Commits](#commits). The owner chose Direction 3 of
+Later removals: generic method calls through `dyn` and their erased bodies
+and thunks (#1421), `own/pairs.rs` (#1399), and reference views with their
+getters and setters (#1399 step 22; every `&T` and `&mut T` is one address). As-built notes are under [Commits](#commits). The owner chose Direction 3 of
 [tir-v2-directions.md](tir-v2-directions.md), which stays as the record
 of the alternatives. This document is the full design of that direction:
 the IR, what the checker emits, the ownership passes, the emitter, a
@@ -996,7 +996,7 @@ stage 2 lands one pass per commit.
 | §23.25 moves at last use, construction consumes (`Moves::sole`, `last_access`, `tails`, `Em::take*`) | move rules 1 and 2 | — |
 | §23.25 round two: immutable reads and loop elements borrow (`live::loans`) | borrow, rule 3's local case; a loop element of the private snapshot borrows because no user code writes the snapshot local | — |
 | §23.25 balanced pairs (`opt.rs`) | pair cancellation for TIR values; `opt.rs` keeps it for generated code | — |
-| §23.31 parameter and projection loans (`live::parameter_loans`, `prepare_parameter_loans`) | borrow, rule 3's parameter case | view temporaries keep their ownership flag in the emitter (erased views are an instance fact) |
+| §23.31 parameter and projection loans (`live::parameter_loans`, `prepare_parameter_loans`) | borrow, rule 3's parameter case | — |
 | §23.31 read the selected field | the place itself: `Read [*$0 [%i] .x]` loads one field | — |
 | §23.31 invariant buffer ownership; #710 loop projections (`unique_once`, `list_caches`) | hoisting, and its stable-list side table | the empty-loop entry test stays |
 | §23.36 span loans (`live::span_loans`, #676) | borrow, rules 1 to 4 | the three boundary fixtures (`local-replaced-inside-the-span`, `local-moved-inside-the-span`, `local-lent-by-mut-reference`) keep their counts by rules 2 and 3 |
@@ -1020,7 +1020,7 @@ count operations from them, and stage 2 ends with none above today's.
 | per-instance place resolution | new: one resolver for every place (below) | kept | kept |
 | count glue: retain, release, store-leaf per layout (`count.rs` glue, `rt.rs`) | kept | kept; `copy`, `move`, `borrow`, `Drop` expand to it | kept |
 | count decisions: `Moves`, `Drops`, loans, `prepare_loans`, `skip`, `moving`, `borrowed` (`count.rs`, `live.rs`) | kept, matching the new tags | deleted | — |
-| references: `ref_place`, `deref_read`, `deref_write` (`emit/refs.rs`) | merged into the place resolver; erased views kept | kept | kept |
+| references: `ref_place`, `deref_read`, `deref_write` (`emit/refs.rs`) | merged into the place resolver | kept | kept |
 | cells (`closure.rs`) | kept; roots come from `Ref`s of locals | `cell_made` reads known-null's facts | kept (a frame slot in tier 2) |
 | lists: header, literals, push, copy, snapshots, pins (`emit/list.rs`) | `list_field_set` and `ListSet` merged into the element store | pins become `Pin`; uniqueness becomes `IsUnique`; loop caches read hoisting's table | the header and its copy go; element places, `push` and `len` stay lowered over the buffer address (option B); growth, the unique copy and truncation are std code |
 | maps (`emit/map.rs`, `map.rs`) | kept | kept | deleted: std code |
@@ -1115,7 +1115,7 @@ must not change except where the plan below says it improves.
   `path_step`, serving `Read`, `Store` and `Ref`, as described in
   [The emitter after each stage](#the-emitter-after-each-stage).
   `deref_read` and `deref_write` become its `Read` and `Store` through a
-  dereference, keeping the erased-view paths (#619).
+  dereference.
 - **Element stores**: `list_field_set` becomes the resolver's element
   case, with the bounds check and `unique` it does today.
 - **Local stores**: `Store [$l]` is today's `LocalSet` code; a store
@@ -1177,9 +1177,7 @@ audit on the commits that touch the emitter).
    field path, and `RefPlace`, `RefRead` and `RefWrite` decode into the
    same form, so every existing baseline runs through it. `Read` lowers
    a place through a dereference, whole or with a field path that loads
-   only that part. `Store` lowers a store through a dereference (a field
-   path goes through a field view, made and released for the write,
-   only when the reference is a view), and
+   only that part. `Store` lowers a store through a dereference and
    into a whole local or top-level binding. A struct field of a local or
    top-level binding and a list element stay unsupported until commits
    7 and 8 bring their producers, since today's emitter has no
@@ -1264,10 +1262,7 @@ audit on the commits that touch the emitter).
    (`deref_field_write`), so the projected field reference, its
    retain-free tee and zeroing go: `field-write/through-mutable-self`,
    `field-write/update-one-counted-field` and
-   `allocation/mutable-local-of-parameter` lose instructions. Through a
-   representation view it projects with the borrowed `RefProject`: only
-   a view reaches that helper there, and a view holds its source either
-   way, so the counting helper only added a retain that never runs.
+   `allocation/mutable-local-of-parameter` lose instructions.
    #717's
    `field_spans` rejected `RefWrite` but not `Store` in a match span; it
    now treats a `Store` as `LocalSet` when it replaces a whole local and
@@ -1343,10 +1338,7 @@ audit on the commits that touch the emitter).
    the local's value as a capture, stores the field at concrete types
    and returns the new value, which the body stores into the whole local
    (or its cell); an open store into a top-level binding is outlined as
-   `GlobalSet` was. In a concrete instance, a field store into a cell
-   that keeps its erased view copies the value out, changes the field
-   and stores it back. Both were refused since commit 7
-   (`runtime/valid/erased-local-field-store`). Every conformance module
+   `GlobalSet` was. Every conformance module
    is byte-identical to commit 8's; TIR baselines print `Store [$l]`.
 10. **Delete and document.** Remove the tags and intrinsics with no
     producer, `strip_closure_forms`, `place_root`, `PlaceRec`, the old
@@ -1867,8 +1859,8 @@ is worth deciding only if they are hot.
    - **Not built: a `Ref` that counts a cell** (the plan's parenthesis).
      Cancelling it needs a `Ref` that takes no count: a new `ref_word`
      bit, its lowering (the cell's address, uncounted, except where an
-     instance makes the reference a fresh view or a trait value, whose
-     drop must then stay, as borrow's kept drops), and the verifier's
+     instance makes the reference a trait value, whose drop must then
+     stay, as borrow's kept drops), and the verifier's
      borrow rule for references. The old path counts these references
      too, so they are no part of the gap; no stage 2 commit plans them,
      so they need their own issue after parity (commit 13).
@@ -2050,10 +2042,8 @@ is worth deciding only if they are hot.
      word), and every `IsUnique` of it in the loop, at any depth, goes:
      the whole loop was checked, so an inner loop's or a branch's change
      needs no check of its own. One behind a dereference stays, marked
-     `unique_word::COVERED`: in a module where a reference view is
-     reachable a view's getter may make the header fresh on each read,
-     and the backend runs it there; where no view is reachable it is
-     skipped in the shape the link folds away.
+     `unique_word::COVERED`, and runs no check (#1661 asks whether it
+     can hoist now that references have no views).
    - **The stable-list table**, `Body::stable_lists`: rows of a loop and a
      place of the same form, read by an element read or store or a
      `ListLen` in the loop, that pass rules 2 and 3 with no `IsUnique` of
@@ -2194,7 +2184,7 @@ is worth deciding only if they are hot.
       read a value root named.
     - **The backend** (`hd_wasm/DESIGN.md` §23.16, "Places rooted
       at the local"): one walk (`Em::walk_place`) resolves a place from
-      its local's value step by step, a view's getter included, and a
+      its local's value step by step, and a
       read loads only the leaves the place names; a store stores them; a
       reference is the address after the last element or dereference; an
       `IsUnique` or `Pin` takes the header the place names, through a
@@ -2854,12 +2844,12 @@ compiler's own code.
 Such a copy can reach no alias, so its binding's loan ending at the last use
 and not at the return changes nothing. The fallback
 requires each reference parameter to be read through; an unused receiver
-keeps its argument loan and view cleanup contract. Other
+keeps its argument loan. Other
 promotable referents keep their existing call-site checks. The outer
 reference must be known; its generic referent need not have a concrete
 layout. The copy substitutes the already evaluated reference argument
-into its read-through places, preserving an erased view without an
-intermediate reference local or an owner copy. Those read-through uses
+into its read-through places, without an intermediate reference local or
+an owner copy. Those read-through uses
 also keep the existing non-escaping proof of the original call. Normal
 ownership lowering preserves the reference's lifetime.
 
@@ -3840,7 +3830,7 @@ argument read when that place is rooted at a local or a top-level
 binding, by the same lowering as a `Store` of it (`Em::store_into`,
 which `place_store` now calls), and releases its count: net, the place
 holds the same count of the same header. `DynRead` stores it back
-through the reference (`ref_store`, so a view's setter takes it);
+through the reference (`ref_store`);
 `DynSlot`, whose payload is the value itself, and a function value's
 adapter have no place and release it. The plan's "no count change" was
 written for 3g's convention, where the place's count moves into the
@@ -4170,9 +4160,7 @@ storing into `*bodies` 5.75 million times. Any other place is walked again
 binding's static slot or Wasm global, an element slot, a referent at a
 thin reference's address. A push stores the buffer growth leaves into the
 place its `borrow` operand names, and a map put the table; `list_truncate`
-stores through its reference, through a representation view's setter when
-the reference is one (the getter's copy is the one the truncation's unique
-copy replaces). Growth now zeroes the old buffer's length (a table's
+stores through its reference. Growth now zeroes the old buffer's length (a table's
 written count) and releases it where it freed it: an outlined change in an
 erased body runs in a thunk that holds a count of its operand, and returns
 the buffer it leaves for the erased body to store
@@ -4231,12 +4219,6 @@ nbody 0.210 s to 0.211 s. The web compiler's gzip grows 1,590 B
 (1,920,776 to 1,922,366, both built here), where the plan expected it to
 shrink 0.4 KB: the walk-based store back, the erased thunks' result and the
 view path in `list_truncate` add more than the header kernels give back.
-
-Left open: a change of a collection through a representation view other
-than `list_truncate` (a push or an `IsUnique` through a view's referent)
-panics `internal: a collection changed through a reference view`, which no
-conformance case reaches; a collection changed in an erased cell is
-supported only when the cell holds it as one address.
 
 3g removes the header copies for both kinds: `own/copies.rs`, the verifier's
 `header_copies`, `OwnCx::header_copy` and `HeaderCopy`, the driver's
@@ -4334,15 +4316,6 @@ compiler: json 0.265 s to 0.272 s, nbody 0.215 s to 0.206 s, noise at that
 load. The web compiler's gzip shrinks 10,192 B (1,922,360 to 1,912,168,
 both built here), against the planned 12.9 KB.
 
-Left open: a push or an `IsUnique` through a representation view still
-panics `internal: a collection changed through a reference view`, and no
-program reaches it: a view comes only from an erased crossing (a reference
-an erased instance passes to concrete code, a converting cell, a projection
-of a view, a kept suspension's result), and the type behind it is an erased
-type argument or part of one, which holds no list or map in place, since
-`hd_mono` keeps such an instance exact; a collection inside a tuple, an
-enum or an optional cannot be changed in place. So neither the setter path
-nor a runtime case could be written; the check stays.
 
 3h measured the list slow paths in std hd and kept `rt.rs`'s kernels:
 growth, the unique copy and truncation were written as `list_grow`,
@@ -4396,11 +4369,7 @@ reads whole, has no such instruction. That trigger also placed
 truncation's two panic strings in static data for every program (49 B),
 since static data is laid out before the link drops unreachable
 functions. The instances are exact, since `Buffer::new` takes its glue
-and its cycle bit from the element type. An erased body's `IsUnique` of
-an open list takes the instance at the erased view, one counted address
-(`class_ref`), as the kernel took that view's element. Without that,
-`a-dyn-generic-call-inside-an-erased-body-reaches-its-own-witness` ended
-in a trap in the collector. The emitter's three sites call the instance
+and its cycle bit from the element type. The emitter's three sites call the instance
 in place of the kernel, and `rt.rs` deletes 158 code lines: the three
 kernels, their variants and their dispatch. The Rust lines are
 `hd_mono` +76, the driver +4, `emit/list.rs` +9/−1, `emit.rs` +3/−3
@@ -4729,12 +4698,6 @@ The 18 cases of `crates/hd_check/tests/cases/known-bad-tir/` and the
 
 **Stage 1.**
 
-- *Risk:* the generalized place resolver changes emitted code for
-  references to erased views (#619), whose reads and writes go through
-  getter and setter slots. *Guard:* the resolver keeps `deref_read`'s
-  and `deref_write`'s view branches unchanged, and the seven
-  `erased-reference-*` conformance cases run in checked mode on every
-  commit.
 - *Risk:* `live.rs` misses an access when a tag changes, which delays a
   release (harmless) or moves a count wrongly (a leak or a use after
   free). *Guard:* commits 4 to 9 each keep the `counts` baselines

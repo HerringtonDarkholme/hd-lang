@@ -10,9 +10,8 @@
 //!
 //! - a `Ref` of a local or a top-level binding, through fields only: an
 //!   address in a slot, a cell or a frame, none of which it counts. A
-//!   dereference stays out: the reference it reads may be a view, whose
-//!   projection is a new object, and a variant step may make a payload view.
-//!   A capture's copy stays out too: a closure's reference to it is a new
+//!   dereference stays out (#1661: its reason was reference views, which
+//!   no longer exist). A capture's copy stays out too: a closure's reference to it is a new
 //!   object holding it;
 //! - a `Ref` of an element, or of fields of one, of a list no type parameter
 //!   opens: an address in the buffer, whatever came before the element;

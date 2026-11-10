@@ -65,9 +65,9 @@ fn push_slot_params(f: &mut Func, n: usize, ctx: Option<&SlotCtx>) {
     }
 }
 
-/// A reference's value representation and its counted fields. A view's
-/// getter/setter exchange erased values; concrete layouts box those that
-/// are not already one counted address.
+/// A reference's value representation and its counted fields. Concrete
+/// layouts box values that are not already one counted address (#1661
+/// asks whether that box is still needed).
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct RefLayout {
     pub size: u32,
@@ -3788,10 +3788,6 @@ fn str_append(m: &Module) -> Func {
     f
 }
 
-// Representation views retain a source reference, not a snapshot. Their
-// getter moves the value out of its place into one erased box, leaving
-// zeros there, and their setter moves a box's value in, releasing what the
-// place held: a fixed ABI that never copies the value.
 fn ref_vals(value: &RefLayout) -> Vec<Val> {
     value.leaves.iter().map(|l| l.val).collect()
 }

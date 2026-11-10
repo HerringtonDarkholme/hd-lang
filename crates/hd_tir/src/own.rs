@@ -244,7 +244,7 @@ pub trait OwnCx {
         let _ = ty;
         false
     }
-    /// Whether `callee`'s reference result is a plain address, no view: a
+    /// Whether `callee`'s reference result is a plain address: a
     /// pointer's `as_ref` or `as_mut`. The default answers no.
     fn plain_result(&self, callee: &Callee) -> bool {
         let _ = callee;
@@ -2784,8 +2784,8 @@ pub(crate) mod tests {
     }
 
     /// A change through a reference parameter's list hoists as the
-    /// referent's place, and the `IsUnique` in the loop stays, covered, for
-    /// the instances where a view's getter makes the header fresh. A loop
+    /// referent's place, and the `IsUnique` in the loop stays, covered
+    /// (#1661 asks whether it still must). A loop
     /// that only reads elements keeps its list stable.
     #[test]
     fn a_list_behind_a_reference_hoists_covered_and_a_read_loop_keeps_its_list() {

@@ -2,8 +2,8 @@
 # @build: std
 # A string read through a parameter reference borrows across a byte read
 # of it: `bytes_at` only reads its arguments, so no count of the string
-# is taken for the call. The read keeps its `Drop`, which releases only
-# what a reference view makes.
+# is taken for the call. The read keeps its `Drop`, which releases
+# nothing (#1661 asks whether it can go).
 struct Scan:
     text: string
     at: usize

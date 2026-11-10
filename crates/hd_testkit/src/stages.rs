@@ -581,15 +581,15 @@ pub fn view(name: &str, build: Build, p: &Program) -> Option<String> {
 /// (`module.rt.std-only`); the semantic and Wasm views read it.
 /// `checked` links the checked runtime (`crates/hd_wasm/DESIGN.md`
 /// §23.24), whose walks mark buffers, as checked conformance runs do.
-/// `program` links from `pub fn main`, including runtime helpers; fixture
-/// builds otherwise assume physical references and omit runtime views.
+/// `program` links from `pub fn main`, including the runtime helpers a
+/// fixture build leaves out.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Build {
     pub target: hd_driver::EngineTarget,
     pub release: bool,
     pub std: bool,
     pub checked: bool,
-    /// Link a complete program so runtime representation views are emitted.
+    /// Link a complete program, runtime helpers included.
     pub program: bool,
 }
 

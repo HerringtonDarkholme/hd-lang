@@ -4,7 +4,7 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 5 funcref))
   (func $push (param $b i32) (param $text.0 i32) (param $text.1 i32) (local $t0 i32) (local $t1 i32)
-    ;; 11 |     b.parts.push(text)
+    ;; 10 |     b.parts.push(text)
     block
       local.get $b
       i32.load $heap

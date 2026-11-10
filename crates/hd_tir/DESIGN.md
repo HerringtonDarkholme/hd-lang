@@ -809,8 +809,8 @@ The ownership passes write these after decoding; the checker never does
 nothing in b but `IsUnique`, whose b is 0, `unique_word::HOISTED` (it
 stands before the loop that follows it, which runs it once under its
 entry test) or `unique_word::COVERED` (a hoisted one before an
-enclosing loop makes it unneeded where no reference view is
-reachable); the type is `void`.
+enclosing loop makes it unneeded; #1661 asks whether it can go); the
+type is `void`.
 
 | Tag | Meaning |
 | --- | --- |

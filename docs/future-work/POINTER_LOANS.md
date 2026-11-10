@@ -921,8 +921,7 @@ Each about an hour, with its test; the matrix rows leave
     the element references' counts of their buffers the rest of the pin:
     `Tag::Pin`, the owner word and the eager copy in `coll_copy`; and the
     counts references take of a `Buffer`'s room.
-    The rule: a representation view is the only reference that owns
-    anything; every other local reference is a plain address that counts
+    The rule: every local reference is a plain address that counts
     nothing, and the ownership passes keep its root alive until its last
     use. The new object `&e` makes belongs to the reference that made it:
     a hidden local the passes keep alive, a static cell in a top-level

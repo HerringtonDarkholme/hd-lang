@@ -2,8 +2,8 @@
 # A reference into a lent parameter: `&mut h.c` refers into what `h` refers
 # to, which its caller keeps alive for the whole call, so it takes no count
 # where the referent is physical.
-# Its `Drop` stays for an instance whose reference view makes the referent
-# fresh; the `counts` view shows no count operation.
+# Its `Drop` stays (#1661 asks whether it can go now that references have
+# no views); the `counts` view shows no count operation.
 struct Counter:
     n: i64
 

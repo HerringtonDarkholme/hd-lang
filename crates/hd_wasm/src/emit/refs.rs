@@ -500,10 +500,10 @@ impl Em<'_, '_, '_> {
         Ok(true)
     }
 
-    /// A whole map behind a thin reference: uniqueness consumes
-    /// the view's original value and restores it through the setter.
-    /// Moving it out first keeps counts balanced and avoids forcing `CoW`
-    /// by copying a view's header before the uniqueness check.
+    /// A whole map behind a thin reference: uniqueness moves the value
+    /// out of the referent and stores it back, which keeps counts balanced
+    /// without copying its header before the check (#1661 asks whether
+    /// this move is still needed).
     pub(super) fn unique_ref_header(&mut self, i: u32) -> StageResult<Option<u32>> {
         if self.input.runtime.is_none() {
             return Ok(None);
@@ -550,7 +550,7 @@ impl Em<'_, '_, '_> {
     /// `Pin`, in a local, with the collection's type: the place resolved
     /// from its root's value ([`Em::walk_place`]), each element
     /// bounds-checked. Nothing takes a count: the buffer is the one the
-    /// place holds, which a view lends. Also where the
+    /// place holds. Also where the
     /// walk found it in memory, where the place keeps it ([`Em::put_at`]).
     pub(super) fn place_header(&mut self, word: u32) -> StageResult<(u32, Ty, Option<At>)> {
         let p = self.place(word);
@@ -1637,7 +1637,7 @@ impl Em<'_, '_, '_> {
     /// The index of the last step of `p` that goes into memory (an element
     /// or a dereference), with whether it is a dereference of a reference
     /// that only fields and variants follow: its referent is then read,
-    /// written or addressed through the reference, which may be a view.
+    /// written or addressed through the reference's address.
     pub(super) fn last_through(&self, p: &Place) -> StageResult<Option<(usize, Option<Referent>)>> {
         let Some(d) = p
             .proj

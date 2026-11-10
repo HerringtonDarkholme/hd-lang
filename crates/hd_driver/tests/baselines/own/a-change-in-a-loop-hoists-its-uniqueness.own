@@ -6,8 +6,8 @@
 # fresh and private, so the push's check hoists; it pushes, so it is no
 # stable list. In `shift` the list is behind a reference: the checks in
 # both loops hoist as `[*$0]` before the outer one, stay in the loops as
-# `covered` for an instance where a view's getter makes the header fresh,
-# and both loops keep the list stable (`loop %n keeps`). `total` only
+# `covered`, which runs no check (#1661 asks whether they can go), and
+# both loops keep the list stable (`loop %n keeps`). `total` only
 # reads, so its loop keeps its list with no check at all.
 fn fill(n: usize) -> List[i32]:
     let mut items: List[i32] = []

@@ -1,8 +1,7 @@
 # @dump: wat
 # A push through a reference (`b.parts`, behind `&mut`) reads its list
 # right after the list's `IsUnique`. The check walks the place to the
-# header, which may go through a reference view's getter, and the read
-# takes that header from the check's local (`local.get $t0`) instead of
+# header, and the read takes that header from the check's local (`local.get $t0`) instead of
 # walking the place again.
 struct Builder:
     parts: List[string]

@@ -295,7 +295,6 @@ when a reason holds:
 | `Release v` | cancelled | a suspension point is cancelled while `v` is live across it |
 | `IsUnique b` | may be shared | `b` is not fresh, and since its last check a retain, a consuming use or a keeping call may have shared it |
 | `LoanBegin`, `LoanEnd` | pointer loan | a reference through a `*T` outlives its expression, and elision found a possible conflicting access |
-| any | view | `v` may be a representation view (a reference to a payload field its enum's slots scatter) |
 | any | by design | the `&dyn` data count (#1354), a suspension's counted reference (#1355) |
 | any | conservative | a fact was not computed (a size cap); reported, and its budget may only fall |
 
@@ -351,11 +350,8 @@ for a baseline; the verifier makes them checked.
   it. Elision keeps model A's per-reference rule over release write
   summaries, moved from `emit/elide.rs` into a TIR pass. Same-root
   conflicts stay compile errors in the checker.
-- **Views.** A representation view is the one reference that owns an
-  object (`crates/hd_wasm/DESIGN.md` §23.20). Being a view becomes a
-  per-value fact: only references to a payload field its enum's slots
-  scatter may be views (#1421 removed erased calls; #1422 removed the rest, and
-  #1448 deleted views on 2026-11-08). The module-wide `views_absent` and the link fold went with them.
+- **Views.** None remain: #1448 deleted representation views on
+  2026-11-08, so every reference is a plain address that owns nothing.
 - **`Drop`, `Disposable` and `using`.** `std.rt.Drop` runs inside release
   glue ([Runtime Drop Hook](../../spec/lang/10-modules.md#runtime-drop-hook));
   the design moves no release later or earlier than today's last-use rule
