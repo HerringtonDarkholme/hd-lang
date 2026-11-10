@@ -1,0 +1,7 @@
+# test: a bare row parameter in a const parameter's slot is a kind error
+# Spec 04 Const Generic Arguments: types.generic.const.argument.kind.
+
+struct Fixed[N < const i64]: pass
+
+fn kinds[$R](f: Fixed[R]) -> void:  # diagnostic: generic-kind-mismatch
+    pass

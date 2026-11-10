@@ -581,6 +581,8 @@ typing/valid/const-generic-scalar-types-and-identity.hd	type	accept	lang/04-type
 typing/valid/const-argument-or-of-named-constants.hd	type	accept	lang/02-grammar.md#r-grammar.generic.const.argument
 typing/invalid/const-argument-or-of-named-constants-is-its-value.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.generic.const.identity
 typing/invalid/union-type-in-a-const-slot.hd	type	reject:generic-kind-mismatch	lang/04-type-system.md#r-types.generic.const.argument.kind
+typing/invalid/a-row-in-a-const-slot.hd	type	reject:generic-kind-mismatch	lang/04-type-system.md#r-types.generic.const.argument.kind
+typing/invalid/a-row-parameter-in-a-const-slot.hd	type	reject:generic-kind-mismatch	lang/04-type-system.md#r-types.generic.const.argument.kind
 typing/invalid/const-argument-or-of-named-constants-takes-the-parameter-type.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.generic.const.evaluate
 runtime/valid/union-type-arguments-fill-type-parameters.hd	runtime	accept	lang/04-type-system.md#r-types.union.syntax
 typing/valid/checker-contextual-variants-with-an-expected-type-are-clean-240.hd	type	accept	lang/08-data-and-enums.md#matching-enums

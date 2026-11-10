@@ -2082,7 +2082,7 @@ impl Lower<'_, '_, '_> {
                     // parameter takes it (`req.row.alias.generic.use`).
                     SyntaxKind::RequirementRow => {
                         if self.const_slot(def, position) {
-                            self.const_kind_mismatch(def, position, a, "a row");
+                            self.kind_mismatch(def, position, a, "a row");
                             args.push(Ty::POISON);
                         } else {
                             let r = self.row(Some(a), gn);
@@ -2095,7 +2095,7 @@ impl Lower<'_, '_, '_> {
                         if let Slot::Const(want) = self.slot(def, position) {
                             args.push(self.lower_const_argument(a, gn, want));
                         } else {
-                            self.const_kind_mismatch(def, position, a, "a const expression");
+                            self.kind_mismatch(def, position, a, "a const expression");
                             args.push(Ty::POISON);
                         }
                         position += 1;
@@ -2161,28 +2161,27 @@ impl Lower<'_, '_, '_> {
         }
     }
 
-    fn const_kind_mismatch(
-        &mut self,
-        def: DefId,
-        position: usize,
-        argument: NodeRef<'_>,
-        found: &str,
-    ) {
+    /// `argument`, a `found`, fills the slot of `def` at `position`, which
+    /// takes another kind (`types.generic.const.argument.kind`).
+    fn kind_mismatch(&mut self, def: DefId, position: usize, argument: NodeRef<'_>, found: &str) {
         let name = self.names.display_name(def);
-        let expected = if self
-            .r
-            .row_params
-            .get(&def)
-            .and_then(|slots| slots.get(position))
-            .copied()
-            .unwrap_or(false)
-        {
+        let row = || {
+            self.r
+                .row_params
+                .get(&def)
+                .and_then(|slots| slots.get(position))
+                .copied()
+                .unwrap_or(false)
+        };
+        let expected = if self.const_slot(def, position) {
+            "const"
+        } else if row() {
             "row"
         } else {
             "type"
         };
         let msg = format!(
-            "argument {} of `{name}` fills a {expected} parameter, not a const parameter: found {found}",
+            "argument {} of `{name}` fills a {expected} parameter, not {found}",
             position + 1
         );
         self.diags
