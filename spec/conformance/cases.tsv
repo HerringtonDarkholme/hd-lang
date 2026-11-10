@@ -6396,6 +6396,10 @@ typing/invalid/a-brace-literal-of-an-enum-is-no-data-literal.hd	type	reject:unkn
 runtime/valid/a-comprehension-over-an-inclusive-range-of-parameters-yields-its-end.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.range.inclusive
 typing/invalid/is-on-two-unrelated-type-parameters-is-incompatible.hd	type	reject:incompatible-identity-operands	lang/05-expressions.md#r-expr.is.incompatible.data
 typing/valid/is-with-a-diverging-operand-checks.hd	type	accept	lang/04-type-system.md#r-types.never.fits
+typing/invalid/assigning-a-branch-binding-after-the-conditional-is-unknown.hd	type	reject:unknown-name	lang/03-names-and-scopes.md#r-names.cond.no-leak
+typing/invalid/auto-closing-explicit-return-undecorated.hd	type	reject:unregistered-auto-closing	lang/06-control-flow.md#r-flow.auto-closing.return
+typing/invalid/assigning-an-unknown-field-of-a-returned-struct-is-unknown.hd	type	reject:unknown-field	lang/03-names-and-scopes.md#r-names.field-lookup.unknown
+typing/invalid/a-shorthand-field-of-a-wider-type-is-a-mismatch.hd	type	reject:type-mismatch	lang/08-data-and-enums.md#r-data.literal.shorthand.rules
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

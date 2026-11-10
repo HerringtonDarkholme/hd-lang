@@ -1,0 +1,7 @@
+# test: a binding made inside a branch is not visible after the conditional, so assigning it there is an error
+# Spec 03 Conditional Suites: names.cond.no-leak.
+fn f(b: bool) -> void:
+    if b:
+        let mut n = 1
+        n += 1
+    n = 2 # diagnostic: unknown-name

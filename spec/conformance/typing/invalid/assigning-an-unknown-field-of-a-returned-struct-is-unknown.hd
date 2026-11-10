@@ -1,0 +1,10 @@
+# test: assigning a field that a returned struct value does not have is an unknown field, before it is a write to no place
+# Spec 03 Field Lookup: names.field-lookup.unknown.
+struct Point:
+    x: i32
+
+fn make() -> Point:
+    Point { x: 1 }
+
+fn set() -> void:
+    make().z = 1 # diagnostic: unknown-field

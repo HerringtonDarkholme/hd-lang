@@ -1,0 +1,7 @@
+# test: a shorthand field follows the rules of the `field: value` it stands for, so a narrower integer for a wider field is a mismatch
+# Spec 08 Field Shorthand: data.literal.shorthand.rules; Spec 04: types.num.no-implicit.wider.
+struct Point:
+    x: i64
+
+fn make(x: i32) -> Point:
+    Point { x } # diagnostic: type-mismatch
