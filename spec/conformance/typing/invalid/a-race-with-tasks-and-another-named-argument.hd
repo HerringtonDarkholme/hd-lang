@@ -1,0 +1,8 @@
+# test: race with its task list and another named argument reports the unknown name
+# Spec 07 Named Arguments: fn.arg.unknown-name.
+use std.task.race
+
+fn number!() -> i32: 1
+
+fn pick!() -> i32:
+    race!(tasks=[number()], other=[number()])  # diagnostic: unknown-named-argument

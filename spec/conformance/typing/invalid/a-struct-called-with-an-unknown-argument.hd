@@ -1,0 +1,7 @@
+# test: a struct called like a function with an undefined argument reports only the name, not the type used as a value
+# Spec 03 Names: names.type-as-value.
+struct Point:
+    x: i32
+
+fn make() -> void:
+    a := Point(missing)  # diagnostic: unknown-name

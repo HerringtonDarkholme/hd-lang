@@ -59,6 +59,9 @@ typing/invalid/a-map-literal-keyed-by-an-unbounded-type-parameter.hd	type	reject
 typing/valid/a-map-literal-keyed-by-a-bounded-type-parameter.hd	type	accept	lang/04-type-system.md#r-types.map-key.declared-bound
 typing/invalid/a-body-projection-under-an-unknown-bound.hd	type	reject:unknown-trait	lang/09-traits.md#r-trait.assoc.no-type
 typing/invalid/a-body-projection-from-a-concrete-type.hd	type	reject:unknown-associated-type	lang/09-traits.md#r-trait.assoc.no-type
+typing/invalid/a-race-with-tasks-and-another-named-argument.hd	type	reject:unknown-named-argument	lang/07-functions.md#r-fn.arg.unknown-name
+typing/invalid/a-newtype-call-with-two-arguments.hd	type	reject:argument-count	lang/04-type-system.md#r-types.newtype.construct
+typing/invalid/a-struct-called-with-an-unknown-argument.hd	type	reject:unknown-name	lang/03-names-and-scopes.md#r-names.type-as-value
 runtime/valid/host-drive-slot-method-values.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.bound.reference-dispatch
 runtime/valid/host-drive-slot-shielded-await.hd	runtime	accept	lang/06-control-flow.md#r-flow.using.async.suite-suspends
 runtime/valid/host-driver-turns.hd	runtime	accept	std/time.md#clock

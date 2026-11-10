@@ -1,0 +1,6 @@
+# test: a newtype constructor takes exactly one argument
+# Spec 04 Newtypes: types.newtype.construct.
+type Meters(i32)
+
+fn make() -> void:
+    b := Meters(1, 2)  # diagnostic: argument-count
