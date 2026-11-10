@@ -426,7 +426,10 @@ impl OwnCx for Env<'_> {
     }
 
     fn retains_result(&self, callee: &Callee) -> bool {
-        matches!(callee, Callee::Item { def, .. } if self.intrinsic(*def).as_deref() == Some("bytes_slice"))
+        matches!(callee, Callee::Item { def, .. } if matches!(
+            self.intrinsic(*def).as_deref(),
+            Some("bytes_slice" | "weak_upgrade" | "weak_upgrade_mut")
+        ))
     }
 
     fn is_map_probe(&self, callee: &Callee) -> bool {

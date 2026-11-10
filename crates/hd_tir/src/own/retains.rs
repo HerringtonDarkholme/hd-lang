@@ -256,8 +256,7 @@ pub(crate) fn results(b: &Body, cx: &dyn OwnCx, topo: &Topology) -> Vec<bool> {
 pub(crate) fn result(b: &Body, cx: &dyn OwnCx, i: usize) -> bool {
     match b.tags.get(i) {
         Some(Tag::Call) => {
-            b.ty[i] == Ty::STRING
-                && Callee::from_words(b.record(b.data[i][0])).is_some_and(|c| cx.retains_result(&c))
+            Callee::from_words(b.record(b.data[i][0])).is_some_and(|c| cx.retains_result(&c))
         }
         Some(Tag::Coerce) if cx.counted(b.ty[i]) => {
             let kind = b.record(b.data[i][1]).first().copied();

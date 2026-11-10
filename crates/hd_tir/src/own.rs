@@ -196,8 +196,8 @@ pub trait OwnCx {
         let _ = item;
         false
     }
-    /// Whether this intrinsic constructs an owned result from borrowed
-    /// buffer bits, whose count is stated separately after the call.
+    /// Whether this intrinsic returns borrowed bits for a counted result.
+    /// Its own retain is stated separately after the call.
     fn retains_result(&self, callee: &Callee) -> bool {
         let _ = callee;
         false
