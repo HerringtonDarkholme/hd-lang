@@ -138,19 +138,18 @@ impl InferTable {
         self.binding[r as usize] = Some(t);
     }
 
-    /// Binds the unbound variable `var` to `t`, which may be another
-    /// variable, without joining their classes: a later `rebind` of `var`
-    /// leaves `t`'s class as it is. A least-common-type site's variable
-    /// takes its first value's type this way, so widening the site does
-    /// not retype that value (`crates/hd_check/DESIGN.md` §4.3).
-    pub fn alias(&mut self, pool: Types<'_>, var: Ty, t: Ty) {
-        let TyData::Infer(v) = pool.get(var) else {
-            return;
-        };
-        let r = self.root(v.raw());
-        if self.binding[r as usize].is_some() || self.shallow(pool, t) == self.shallow(pool, var) {
-            return;
-        }
+    /// Binds the unbound variable `var` to `t`, a type outside `var`'s
+    /// class that may be another variable, without joining their classes:
+    /// a later `rebind` of `var` leaves `t`'s class as it is. A
+    /// least-common-type site's variable takes its first value's type this
+    /// way, so widening the site does not retype that value
+    /// (`crates/hd_check/DESIGN.md` §4.3).
+    pub fn alias(&mut self, var: InferVar, t: Ty) {
+        let r = self.root(var.raw());
+        debug_assert!(
+            self.binding[r as usize].is_none(),
+            "alias binds a free variable"
+        );
         self.trail.push(Undo::Rebind(r, None));
         self.binding[r as usize] = Some(t);
     }
@@ -620,6 +619,14 @@ mod tests {
     use super::{InferTable, UnifyError, VarKind};
     use crate::pool::{Inputs, InternPool, LocalPool, RowData, RowId, Ty, TyData, Types};
 
+    /// The variable of a fresh variable's type.
+    fn var(p: Types<'_>, t: Ty) -> hd_base::InferVar {
+        let TyData::Infer(v) = p.get(t) else {
+            panic!("a fresh variable");
+        };
+        v
+    }
+
     #[test]
     fn data_row_argument_inference_binds_the_whole_row() {
         let (gp, lp) = (InternPool::new(), LocalPool::new());
@@ -687,7 +694,7 @@ mod tests {
         let alias = table.fresh(p, VarKind::General);
         assert_eq!(table.shallow(p, a), a);
         table.unify(p, a, b).expect("join classes");
-        table.alias(p, alias, a);
+        table.alias(var(p, alias), a);
         let root = table.shallow(p, a);
         assert_eq!(table.shallow(p, b), root);
         assert_eq!(table.shallow(p, alias), root);
@@ -722,7 +729,7 @@ mod tests {
             bindings: vec![(hd_base::DefId::from_raw(8), b)],
         });
         assert!(nested.is_local());
-        table.alias(p, a, nested);
+        table.alias(var(p, a), nested);
         assert_eq!(table.shallow(p, a), nested);
         assert_eq!(table.shallow(p, nested), nested);
         table.unify(p, b, Ty::I32).expect("bind nested variable");

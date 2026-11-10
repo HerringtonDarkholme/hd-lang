@@ -438,14 +438,16 @@ impl Ck<'_, '_> {
         // The first value solves the site; an open literal class has solved
         // it as "an integer literal", which an optional value still widens.
         let cur = self.infer.shallow(pool, var);
-        if matches!(pool.get(cur), TyData::Infer(_))
+        if let TyData::Infer(site) = pool.get(cur)
             && self.infer.kind_of(pool, cur) == Some(VarKind::General)
         {
             // A value whose type is still a variable, such as a literal's,
             // is aliased rather than joined, so a later widening of the
-            // site leaves the value's own type alone.
-            if matches!(pool.get(self.infer.shallow(pool, got)), TyData::Infer(_)) {
-                self.infer.alias(pool, var, got);
+            // site leaves the value's own type alone. A value of the site's
+            // own class unifies below, which binds nothing.
+            let value = self.infer.shallow(pool, got);
+            if matches!(pool.get(value), TyData::Infer(_)) && value != cur {
+                self.infer.alias(site, got);
                 return true;
             }
             let snap = self.infer.snapshot();
