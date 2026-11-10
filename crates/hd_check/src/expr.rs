@@ -3031,8 +3031,9 @@ impl Ck<'_, '_> {
         };
         let fixed = pool.list_items(elems).len();
         if items.len() < fixed || (tail.is_some() && items.len() != fixed) {
+            let noun = if fixed == 1 { "element" } else { "elements" };
             let msg = format!(
-                "{} takes {fixed} elements before its rest, found {}",
+                "{} takes {fixed} {noun} before its rest, found {}",
                 self.show(tt),
                 items.len()
             );
