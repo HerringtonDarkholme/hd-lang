@@ -193,7 +193,8 @@ fn value_uses(b: &Body, topo: &Topology, cx: &dyn OwnCx) -> (Vec<bool>, Vec<u32>
             last[v] = last[v].max(u32_of(i));
             count[v] += 1;
             let tail = op.role == Role::Tail && !topo.is_root[i];
-            consumed[v] |= consumes(b, cx, i, op, if tail { topo.owner[i] } else { NONE });
+            consumed[v] |= consumes(b, cx, i, op, if tail { topo.owner[i] } else { NONE })
+                || (b.tags[i] == Tag::Coerce && super::retains::took_source(b, topo, i));
         }
         if b.tags[i] == Tag::LoanEnd
             && let Root::Value(r) = b.view(b.data[i][0]).root

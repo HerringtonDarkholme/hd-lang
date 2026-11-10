@@ -33,7 +33,7 @@ fn demo(a: string, b: string) -> usize:
 >   release app.main.Recorder (last use)
 >   release *mut app.main.Log (last use)
     $.with(Recorder=tally):
->   retain *mut app.main.Log (conservative: copy read)
+>   retain *mut app.main.Log (stored)
         _ := tick(a)
         _ := tick(b)
     tally.lines.len()

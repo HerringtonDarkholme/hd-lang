@@ -25,7 +25,7 @@ pub(super) fn run(
         if block == NONE {
             return Err("a retained borrowed result outside a block".into());
         }
-        if let Some(drop) = handed(b, cx, topo, i, Tag::Drop) {
+        if let Some(drop) = handed(b, cx, topo, &results, i, Tag::Drop) {
             b.tags[drop as usize] = Tag::LoanEnd;
             continue;
         }
@@ -64,7 +64,14 @@ pub(super) fn run(
 /// source's right after a coercion that keeps the source's address, whose
 /// count becomes the result's; or, for a provider, its reference's, read only
 /// through, since the body's caller holds the provider for the whole body.
-pub(crate) fn handed(b: &Body, cx: &dyn OwnCx, topo: &Topology, i: usize, end: Tag) -> Option<u32> {
+pub(crate) fn handed(
+    b: &Body,
+    cx: &dyn OwnCx,
+    topo: &Topology,
+    results: &[bool],
+    i: usize,
+    end: Tag,
+) -> Option<u32> {
     let members = member_list(b, topo, i)?;
     let ends = |x: u32, v: u32| b.tags[x as usize] == end && whole_value(b, x, v);
     if b.tags[i] == Tag::Coerce {
@@ -84,7 +91,8 @@ pub(crate) fn handed(b: &Body, cx: &dyn OwnCx, topo: &Topology, i: usize, end: T
             }
             target = inner;
         }
-        return (ends(next, source.0) && owns_its_count(b, cx, source.0, 8)).then_some(next);
+        return (ends(next, source.0) && owns_its_count(b, cx, results, source.0, 8))
+            .then_some(next);
     }
     // A borrowed result dropped at once: nothing wanted the count.
     if b.tags[i] == Tag::Call {
@@ -153,18 +161,22 @@ fn read_through_end(b: &Body, store: usize, end: Tag) -> Option<u32> {
 /// that takes a count or keeps such a value, a `&dyn` or a block whose every value is one,
 /// and a move or a stored counted copy of all of a local whose one store is one. A call
 /// that lends its result counts too: a trait-value coercion is no use a short loan allows.
-fn owns_its_count(b: &Body, cx: &dyn OwnCx, v: u32, depth: u32) -> bool {
+fn owns_its_count(b: &Body, cx: &dyn OwnCx, results: &[bool], v: u32, depth: u32) -> bool {
     let i = v as usize;
     if depth == 0 || Ref(v).as_inst().is_none() {
         return false;
     }
     match b.tags[i] {
-        Tag::Ref => b.data[i][1] & ref_word::TAKES != 0,
+        // A physical reference copied from a frame cell has its own count
+        // from this pass's result retain. A Ref never hands off its source.
+        Tag::Ref => b.data[i][1] & ref_word::TAKES != 0 || results[i],
         Tag::Call | Tag::CallValue => true,
         // A result that takes a count, stated or its source's.
         Tag::Coerce if result(b, cx, i) => true,
-        Tag::Coerce => b.same_value_coercion(i) && owns_its_count(b, cx, b.data[i][0], depth - 1),
-        Tag::RefDyn => owns_its_count(b, cx, b.data[i][0], depth - 1),
+        Tag::Coerce => {
+            b.same_value_coercion(i) && owns_its_count(b, cx, results, b.data[i][0], depth - 1)
+        }
+        Tag::RefDyn => owns_its_count(b, cx, results, b.data[i][0], depth - 1),
         // Its tail and each `break` to it.
         Tag::Block | Tag::Scope => {
             let tail = if b.tags[i] == Tag::Scope {
@@ -179,8 +191,10 @@ fn owns_its_count(b: &Body, cx: &dyn OwnCx, v: u32, depth: u32) -> bool {
                 .map(|x| b.data[x][1])
                 .collect();
             (tail != NONE || !breaks.is_empty())
-                && (tail == NONE || owns_its_count(b, cx, tail, depth - 1))
-                && breaks.iter().all(|&x| owns_its_count(b, cx, x, depth - 1))
+                && (tail == NONE || owns_its_count(b, cx, results, tail, depth - 1))
+                && breaks
+                    .iter()
+                    .all(|&x| owns_its_count(b, cx, results, x, depth - 1))
         }
         Tag::Read if b.is_borrow(v) => false,
         Tag::Read => {
@@ -202,7 +216,7 @@ fn owns_its_count(b: &Body, cx: &dyn OwnCx, v: u32, depth: u32) -> bool {
                 (0..b.len()).filter(|&x| b.stored_local(x).is_some_and(|(y, _)| y == l));
             match (stores.next(), stores.next()) {
                 (Some(x), None) if b.stored_local(x).is_some_and(|(_, whole)| whole) => {
-                    owns_its_count(b, cx, b.data[x][1], depth - 1)
+                    owns_its_count(b, cx, results, b.data[x][1], depth - 1)
                 }
                 _ => false,
             }

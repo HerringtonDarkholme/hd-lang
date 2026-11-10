@@ -127,7 +127,8 @@ fn retained_results(b: &Body, cx: &dyn OwnCx, topo: &Topology, errs: &mut Vec<Ve
                 .flatten()
                 .copied();
             // A count that a `LoanEnd` ended is no count to take.
-            let handed = crate::own::retains::handed(b, cx, topo, i, Tag::LoanEnd).is_some();
+            let handed =
+                crate::own::retains::handed(b, cx, topo, &results, i, Tag::LoanEnd).is_some();
             if !handed
                 && !next.is_some_and(|next| {
                     b.tags[next as usize] == Tag::Retain

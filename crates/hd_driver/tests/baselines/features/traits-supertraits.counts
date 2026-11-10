@@ -35,7 +35,7 @@ fn name_of(a: &dyn Animal) -> usize:
 fn widen(d: &dyn Dog) -> usize:
     name_of(d) + d.bark().len()
 > app/main/widen
->   retain app.main.Dog (conservative: copy read)
+>   retain app.main.Dog (stored)
 >   release &app.main.Animal (by design)
 >   release string (last use)
 

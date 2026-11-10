@@ -1,0 +1,22 @@
+# @dump: own counts
+# @build: v8 release
+# expected: the provider conversion takes the source's count. The original
+# reference still has its own owner for the read after the provider scope.
+use std.time.{Clock, ms, sleep}
+
+trait Meter:
+    fn record(&mut self) -> void
+
+struct Counter:
+    n: i32
+
+impl Meter for Counter:
+    fn record(&mut self) -> void:
+        self.n += 1
+
+pub fn main!() -> void $ Console + Clock:
+    counter := box(Counter { n: 0 })
+    $.with(Meter=counter):
+        sleep!(ms(1))
+        $.use(Meter).record()
+    println("${counter.n}")

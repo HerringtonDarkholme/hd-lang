@@ -76,8 +76,6 @@ fn bound!(s: string) -> usize:
 > app/main/bound
 >   retain string (stored)
 >   retain *mut app.main.Named (stored)
->   retain app.main.Tag (stored)
->   release *mut app.main.Named (last use)
 >   release app.main.Tag (last use)
 >   release counted reference (last use)
 >   release Suspend[usize] (last use)
