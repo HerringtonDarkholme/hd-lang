@@ -2074,7 +2074,9 @@ references, and open values.
   local proven only from itself, such as a loop counter, does not
   qualify. A string literal or a capture-free closure then takes no
   count. On json this removes 17 calls and 334 bytes, among them
-  `Record.structure handle`'s retain of its static record.
+  `Record.structure handle`'s retain of its static record. A collection-copy call on
+  a proven static buffer leaves its operand on the stack as its result.
+  Its count is zero, so later writes still take the existing copy-on-write path.
 - **A test before each count call** (`count_tests.rs`, every target and
   pipeline). A retain or release in a compiled body first tests what its
   call would answer: a known payload start, null and the header's count, and

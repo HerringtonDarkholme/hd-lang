@@ -19,8 +19,6 @@ fn histogram() -> Histogram:
 
 fn shelf() -> Shelf:
     Shelf { items: START }
-> app/main/shelf
->   copy List[i64] (stored)
 
 impl Histogram:
     fn add(&mut self, at: usize) -> void:
@@ -42,6 +40,5 @@ pub fn main() -> void $ Console:
     for i in 0..8:
         h.add(i % 4)
     let mut s = shelf()
->   copy List[i64] (stored)
     s.put(9)
     println("${h.buckets[1]} ${s.items[0]} ${START[0]}")
