@@ -41,15 +41,14 @@
 //!   suspension point and a value;
 //! - no `Ref` takes its local's count of a cell in a sub-body that holds
 //!   a suspension point ([`takes_outside_suspension`]);
-//! - an `IsUnique` is plain, `HOISTED` or `COVERED`; a hoisted one stands
+//! - an `IsUnique` is plain, `HOISTED`, `FRESH` or `REPEAT`; a hoisted one stands
 //!   right before a loop (among other hoisted ones), names a local's place
 //!   with one leading dereference at most and fields, whose local no `Ref`
 //!   roots at; in that loop nothing copies it (a read of it or of a place
 //!   holding it whose value a use keeps), takes a `Ref` that overlaps it,
 //!   writes a place holding it, pins or suspends, and no call may write
-//!   unless it is a whole local no closure captures; a covered one names
-//!   the place a hoisted one before an enclosing loop does; each
-//!   stable-list row names a loop and a place of that form, in order
+//!   unless it is a whole local no closure captures; each stable-list
+//!   row names a loop and a place of that form, in order
 //!   ([`hoisted`]);
 //! - a collection change's operand that reads a place rooted at a local
 //!   or a top-level binding reads it right after the place's `IsUnique`
@@ -394,7 +393,7 @@ fn change_places(b: &Body, topo: &Topology, errs: &mut Vec<VerifyError>) {
 /// Hoisting's `IsUnique`s and stable lists (`docs/compiler/tir-v2.md`,
 /// "Hoisting"): what the pass relies on, checked again.
 fn hoisted(b: &Body, topo: &Topology, cx: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
-    use super::unique_word::{COVERED, FRESH, HOISTED, REPEAT};
+    use super::unique_word::{FRESH, HOISTED, REPEAT};
     use crate::own::hoist;
     let n = b.len();
     // A fresh buffer's `IsUnique` is of a local that keeps it fresh, and one
@@ -457,8 +456,6 @@ fn hoisted(b: &Body, topo: &Topology, cx: &dyn OwnCx, errs: &mut Vec<VerifyError
         }
     }
     let (mut steps, mut raw, mut other) = (Vec::new(), Vec::new(), Vec::new());
-    // The hoisted ones: (loop, local, steps).
-    let mut hoists: Vec<(u32, u32, Vec<u32>)> = Vec::new();
     for i in 0..n {
         if b.tags[i] != Tag::IsUnique {
             continue;
@@ -472,7 +469,7 @@ fn hoisted(b: &Body, topo: &Topology, cx: &dyn OwnCx, errs: &mut Vec<VerifyError
             );
             continue;
         }
-        if w != 0 && w != HOISTED && w != COVERED && w != FRESH && w != REPEAT {
+        if w != 0 && w != HOISTED && w != FRESH && w != REPEAT {
             err(
                 errs,
                 u32_of(i),
@@ -559,23 +556,6 @@ fn hoisted(b: &Body, topo: &Topology, cx: &dyn OwnCx, errs: &mut Vec<VerifyError
                 );
                 break;
             }
-        }
-        hoists.push((l, local, steps.clone()));
-    }
-    for i in 0..n {
-        if b.tags[i] != Tag::IsUnique || b.data[i][1] != COVERED {
-            continue;
-        }
-        let (local, _) = hoist::resolve(b, b.data[i][0], &mut steps, &mut raw);
-        let covered = hoists.iter().any(|(l, hl, hs)| {
-            *hl == local && *hs == steps && (first[*l as usize]..*l).contains(&u32_of(i))
-        });
-        if !covered {
-            err(
-                errs,
-                u32_of(i),
-                "a covered `IsUnique` that no hoisted one before an enclosing loop covers".into(),
-            );
         }
     }
     for (k, &(l, word)) in b.stable_lists.iter().enumerate() {

@@ -64,7 +64,7 @@ impl Trail:
 >   %1 = Read copy [*$0 .depth] : usize
 >   %2 = Read copy [$1] : i64
 >   %3 = Call app/main/record_step[] (%0, %1, %2) : ()
->   %4 = Drop [%0] : ()
+>   %4 = LoanEnd [%0] : ()
 >   %8 = Block - : ()
         self.depth = self.depth + 1
 >   %5 = Read copy [*$0 .depth] : usize

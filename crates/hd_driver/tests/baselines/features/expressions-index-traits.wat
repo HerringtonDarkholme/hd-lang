@@ -9,7 +9,7 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $read_len (param $t1 i32) (param $i i32) (result i32) (local $t0 i32) (local $n i32) (local $t2 i32)
+  (func $read_len (param $t1 i32) (param $i i32) (result i32) (local $t0 i32) (local $n i32)
     ;; 21 |     n[i].len()
     global.get $locals
     global.get $locals_base
@@ -53,17 +53,10 @@
       block
         block
           local.get $n
+          local.get $n
           i32.load $heap
-          local.tee $t1
           call $rt:list_unique
-          local.tee $t2
-          local.get $t1
-          i32.ne
-          if
-            local.get $n
-            local.get $t2
-            i32.store $heap
-          end
+          i32.store $heap
           local.get $n
           i32.load $heap
           local.set $t1
@@ -122,21 +115,14 @@
       call $"impl IndexSet[usize, string] for Names.index_set"
     end
   )
-  (func $"impl Index[usize] for Names.index" (param $self i32) (param $key i32) (result i32) (local $t0 i32) (local $t1 i32)
+  (func $"impl Index[usize] for Names.index" (param $self i32) (param $key i32) (result i32)
     ;; 14 |         &self.items[key]
     block
       local.get $self
+      local.get $self
       i32.load $heap
-      local.tee $t0
       call $rt:list_unique
-      local.tee $t1
-      local.get $t0
-      i32.ne
-      if
-        local.get $self
-        local.get $t1
-        i32.store $heap
-      end
+      i32.store $heap
       local.get $self
       i32.load $heap
       local.set $self
@@ -159,21 +145,14 @@
     end
     local.get $self
   )
-  (func $"impl IndexSet[usize, string] for Names.index_set" (param $self i32) (param $key i32) (param $value.0 i32) (param $value.1 i32) (local $t0 i32) (local $t1 i32)
+  (func $"impl IndexSet[usize, string] for Names.index_set" (param $self i32) (param $key i32) (param $value.0 i32) (param $value.1 i32)
     ;; 18 |         self.items[key] = value
     block
       local.get $self
+      local.get $self
       i32.load $heap
-      local.tee $t0
       call $rt:list_unique
-      local.tee $t1
-      local.get $t0
-      i32.ne
-      if
-        local.get $self
-        local.get $t1
-        i32.store $heap
-      end
+      i32.store $heap
       local.get $self
       i32.load $heap
       local.set $self

@@ -1,8 +1,7 @@
 //! Runtime pieces the compiler generates (`crates/hd_wasm/DESIGN.md`
-//! §23.9): the entry exports, panics, the exchange-buffer copy, the bump
-//! allocation that serves until the std allocator (job 5), integer text
-//! and the host provider stubs. Each is a [`Helper`], built once on its
-//! first request.
+//! §23.9): entry exports, panics, exchange-buffer copies, the bump-allocation
+//! fallback, integer text and host provider stubs. Each is a [`Helper`],
+//! built once on its first request.
 
 use crate::op::Op as Instruction;
 use hd_base::{DefId, Hash128, StageResult};
@@ -65,9 +64,9 @@ fn push_slot_params(f: &mut Func, n: usize, ctx: Option<&SlotCtx>) {
     }
 }
 
-/// A reference's value representation and its counted fields. Concrete
-/// layouts box values that are not already one counted address (#1661
-/// asks whether that box is still needed).
+/// The leaves at a reference's address and their copy/release operations.
+/// Direct loads and stores keep those leaves in locals; dynamic value
+/// receivers and handed-in arguments use the same counts and Drop hooks.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct RefLayout {
     pub size: u32,
@@ -78,7 +77,6 @@ pub struct RefLayout {
     pub drops: Box<[DropCall]>,
     /// The leaves a copy takes through the copy glue (`rt:coll_copy`).
     pub colls: Box<[u32]>,
-    pub known: bool,
 }
 
 /// A generated function, by what it does.
@@ -368,8 +366,8 @@ pub enum Helper {
         ctx: Option<SlotCtx>,
     },
     /// `(ref, params..) -> results`: a vtable slot whose payload is a
-    /// reference and whose target takes the value: reads it through the
-    /// reference's `get`, calls `target`, then releases the value read.
+    /// reference and whose target takes the value: loads its leaves from
+    /// that address, calls `target`, then releases the value read.
     DynRead {
         target: Hash128,
         read: RefRead,
@@ -3894,7 +3892,6 @@ fn ref_copy(f: &mut Func, ls: &[u32], value: &RefLayout) {
     }
     let rest = RefLayout {
         walk: value.walk.as_ref().and_then(|w| w.without(&value.colls)),
-        known: value.known && value.colls.is_empty(),
         ..value.clone()
     };
     ref_count(f, ls, &rest, true);

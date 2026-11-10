@@ -332,7 +332,7 @@ pub trait OwnCx {
     /// does not contain itself. False for any other type: a scalar, a
     /// string, a collection, a reference, a data type, a recursive enum,
     /// and a type that names a type parameter or an associated type, whose
-    /// value is one counted view in an erased instance. The move pass
+    /// concrete layout is unavailable to this query. The move pass
     /// splits a base's `Drop` into its other parts' only when this holds.
     fn parts(&self, ty: Ty, variant: Option<u32>, out: &mut Vec<Ty>) -> bool;
     /// How the body of `item` receives its own parameter `k` of `n`:
@@ -1653,9 +1653,6 @@ pub(crate) mod tests {
                 if tag == Tag::IsUnique && b.data[i][1] == crate::ir::unique_word::HOISTED {
                     line.push_str(" hoisted");
                 }
-                if tag == Tag::IsUnique && b.data[i][1] == crate::ir::unique_word::COVERED {
-                    line.push_str(" covered");
-                }
                 if tag == Tag::IsUnique && b.data[i][1] == crate::ir::unique_word::FRESH {
                     line.push_str(" fresh");
                 }
@@ -2804,11 +2801,10 @@ pub(crate) mod tests {
     }
 
     /// A change through a reference parameter's list hoists as the
-    /// referent's place, and the `IsUnique` in the loop stays, covered
-    /// (#1661 asks whether it still must). A loop
-    /// that only reads elements keeps its list stable.
+    /// referent's place, and its original in-loop check is removed by
+    /// that same-place proof. A read-only loop keeps its list stable.
     #[test]
-    fn a_list_behind_a_reference_hoists_covered_and_a_read_loop_keeps_its_list() {
+    fn a_list_behind_a_reference_hoists_and_a_read_loop_keeps_its_list() {
         let n = NodeIdx::from_raw(1);
         let us = Ty::prim(hd_types::Prim::Usize);
         let text = passes(
@@ -2829,7 +2825,7 @@ pub(crate) mod tests {
             Ty::VOID,
         );
         assert!(text.contains("IsUnique hoisted [*$0]"), "{text}");
-        assert!(text.contains("IsUnique covered"), "{text}");
+        assert_eq!(text.matches("IsUnique").count(), 1, "{text}");
         let text = passes(
             |b| {
                 let xs = local(b, 0);

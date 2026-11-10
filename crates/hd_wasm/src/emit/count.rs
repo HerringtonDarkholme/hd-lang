@@ -1085,12 +1085,11 @@ impl Em<'_, '_, '_> {
     /// `IsUnique` `i`: the list's or map's buffer made the place's own
     /// (`rt:list_unique`, `rt:map_unique`), and stored there.
     pub(super) fn own_unique(&mut self, i: u32) -> StageResult<()> {
-        use hd_tir::ir::unique_word::{COVERED, FRESH, HOISTED, REPEAT};
+        use hd_tir::ir::unique_word::{FRESH, HOISTED, REPEAT};
         match self.b.data[i as usize][1] {
-            // Of a buffer nothing else can hold, one an earlier check left
-            // unique, or one the hoisted check before its loop covers: no
-            // check.
-            FRESH | REPEAT | COVERED => return Ok(()),
+            // Of a buffer nothing else can hold, or one an earlier proof
+            // left unique: no check.
+            FRESH | REPEAT => return Ok(()),
             // It runs at the loop that follows (`Em::hoisted_uniques`).
             HOISTED => {
                 self.hoisted.push(i);
@@ -1106,9 +1105,6 @@ impl Em<'_, '_, '_> {
     /// The uniqueness check of `IsUnique` `i`'s place, which stores the
     /// buffer it leaves there, and the local that holds that buffer.
     pub(super) fn unique_at(&mut self, i: u32) -> StageResult<u32> {
-        if let Some(header) = self.unique_ref_header(i)? {
-            return Ok(header);
-        }
         let word = self.b.data[i as usize][0];
         let (h, t, at) = self.place_header(word)?;
         if self.input.runtime.is_none() {
@@ -1133,20 +1129,14 @@ impl Em<'_, '_, '_> {
                 hd_tir::own::reason(self.b, i as usize),
             );
         }
-        let Some(at) = at else {
-            self.f.set(h);
-            return self.put_buffer(word, h).map(|()| h);
-        };
-        // A place in memory takes a buffer the check replaced.
-        let nb = self.f.local(crate::module::Val::I32);
-        self.f.op(crate::op::Op::LocalTee(nb));
-        self.f.get(h);
-        self.f.op(crate::op::Op::I32Ne);
-        self.f.op(crate::op::Op::If(wasm_encoder::BlockType::Empty));
-        self.put_at(&at, nb);
-        self.f.op(crate::op::Op::End);
-        self.f.get(nb);
         self.f.set(h);
+        // Collection places are physical slots. Install the returned
+        // header at the same address, transferring its existing count.
+        if let Some(at) = at {
+            self.put_at(&at, h);
+        } else {
+            self.put_buffer(word, h)?;
+        }
         Ok(h)
     }
 

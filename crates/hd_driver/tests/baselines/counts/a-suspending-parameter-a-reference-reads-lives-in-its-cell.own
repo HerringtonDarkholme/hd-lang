@@ -95,7 +95,7 @@ pub fn main!() -> void $ Console + Clock:
 >   %29 = Store [$10] %28 : ()
 >   %30 = Ref local [*$8 .buffer] : &Buffer[i32]
 >   %31 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].capacity[i32] (%30) : usize
->   %32 = Drop [%30] : ()
+>   %32 = LoanEnd [%30] : ()
 >   %33 = Read copy [$10] : usize
 >   %34 = Prim Le [%31 %33] : bool
 >   %35 = Read borrow [$8] : &mut UniqList[i32]
@@ -107,7 +107,7 @@ pub fn main!() -> void $ Console + Clock:
 >   %41 = Ref local [*$8 .buffer] : &Buffer[i32]
 >   %42 = Read copy [$10] : usize
 >   %43 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].at[i32] (%41, %42) : Ptr[i32]
->   %44 = Drop [%41] : ()
+>   %44 = LoanEnd [%41] : ()
 >   %45 = Read copy [$9] : i32
 >   %46 = Store [ptr %43] %45 : ()
 >   %47 = Read copy [$10] : usize

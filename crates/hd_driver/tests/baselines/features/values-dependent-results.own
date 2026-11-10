@@ -40,7 +40,7 @@ fn read(u: User) -> usize:
 >   %5 = Block - : &string
 >   %6 = Scope %5 [] : &string
 >   %7 = Call std/text/impl string.len[] (%6) : usize
->   %8 = Drop [%6] : ()
+>   %8 = LoanEnd [%6] : ()
 >   %9 = LoanEnd [$1] : ()
 >   %10 = Drop [$0] : ()
 >   %11 = Block %7 : usize
@@ -85,6 +85,6 @@ fn through_ptr(u: *User) -> usize:
 >   %4 = Block - : &string
 >   %5 = Scope %4 [] : &string
 >   %6 = Call std/text/impl string.len[] (%5) : usize
->   %7 = Drop [%5] : ()
+>   %7 = LoanEnd [%5] : ()
 >   %8 = Block %6 : usize
 >   summary kept []

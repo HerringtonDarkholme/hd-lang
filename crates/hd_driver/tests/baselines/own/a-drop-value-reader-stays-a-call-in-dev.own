@@ -21,7 +21,7 @@ fn through_reference(bag: &Bag) -> usize:
 >     uses $0: entry -> %0 lend last
 >   %0 = Ref local [*$0 .buffer] : &Buffer[i32]
 >   %1 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].capacity[i32] (%0) : usize
->   %2 = Drop [%0] : ()
+>   %2 = LoanEnd [%0] : ()
 >   %3 = Block %1 : usize
 
 fn through_owned_box() -> usize:
@@ -50,6 +50,6 @@ fn through_owned_box() -> usize:
     bag.buffer.capacity()
 >   %13 = Ref local [*$1 .buffer] : &Buffer[i32]
 >   %14 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].capacity[i32] (%13) : usize
->   %15 = Drop [%13] : ()
+>   %15 = LoanEnd [%13] : ()
 >   %16 = Drop [$1] : ()
 >   storage sub 0: $0 cell

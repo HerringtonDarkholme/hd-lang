@@ -84,8 +84,7 @@ impl std::fmt::Display for Reason {
 
 /// The reason of count statement `i`: a `Drop`'s word. An `IsUnique` that
 /// runs is what hoisting's walks couldn't prove fresh or a repeat, so its
-/// buffer may be shared; a covered one runs no check. A copy
-/// goes before every read, proving nothing. `None` for any other instruction.
+/// buffer may be shared. A copy goes before every read, proving nothing. `None` for any other instruction.
 #[must_use]
 pub fn reason(b: &Body, i: usize) -> Option<Reason> {
     let [_, w] = b.data[i];
@@ -94,7 +93,6 @@ pub fn reason(b: &Body, i: usize) -> Option<Reason> {
             Reason::from_word(crate::ir::count::Info::read(b, i)?.reason)
         }
         Tag::Drop => Reason::from_word(w),
-        Tag::IsUnique if w == unique_word::COVERED => return None,
         Tag::IsUnique if w == 0 || w == unique_word::HOISTED => Reason::MayBeShared,
         Tag::Read if w == ReadMode::Copy as u32 => Reason::Conservative("copy read"),
         _ => return None,

@@ -189,7 +189,7 @@ fn copy(items: List[usize], n: usize) -> List[List[usize]]:
 fn call(items: &mut List[usize], n: usize, f: fn() -> void) -> void:
 > app/main/call
 >   local $0 items: &mut List[usize] [param read] value
->     uses $0: entry -> %19 lend, %40 lend
+>     uses $0: entry -> %19 lend, %39 lend
 >   local $1 n: usize [param read] value
 >     uses $1: entry -> %1 consume last
 >   local $2 f: fn() -> () [param read] value
@@ -208,7 +208,7 @@ fn call(items: &mut List[usize], n: usize, f: fn() -> void) -> void:
 >     uses $9: none
 >   local $10 i: usize [read assigned] value
 >     uses $10: %33 -> %37 lend last
->   %0 = Release %53 Exit local $2 #2 : ()
+>   %0 = Release %52 Exit local $2 #2 : ()
     for r in 0..n:
 >   %1 = Read copy [$1] : usize
 >   %2 = NewStruct [0:usize %1 0:bool] : Range[usize]
@@ -226,13 +226,13 @@ fn call(items: &mut List[usize], n: usize, f: fn() -> void) -> void:
 >   %14 = Read copy [$3] : usize
 >   %15 = Prim Add [%14 1:usize] : usize
 >   %16 = Store [$3] %15 : ()
->   %47 = Block - : ()
->   %48 = Break L0 - : never
->   %49 = Block - : ()
->   %50 = If %11 [%47 %49] : ()
->   %51 = Block - : ()
->   %52 = Loop %51 - : ()
->   %53 = Block - : ()
+>   %46 = Block - : ()
+>   %47 = Break L0 - : never
+>   %48 = Block - : ()
+>   %49 = If %11 [%46 %48] : ()
+>   %50 = Block - : ()
+>   %51 = Loop %50 - : ()
+>   %52 = Block - : ()
         f()
 >   %17 = Read borrow [$2] : fn() -> ()
 >   %18 = CallValue %17 [] : ()
@@ -255,15 +255,14 @@ fn call(items: &mut List[usize], n: usize, f: fn() -> void) -> void:
 >   %34 = Read copy [$7] : usize
 >   %35 = Prim Add [%34 1:usize] : usize
 >   %36 = Store [$7] %35 : ()
->   %41 = Block - : ()
->   %42 = Break L1 - : never
->   %43 = Block - : ()
->   %44 = If %31 [%41 %43] : ()
->   %45 = Block - : ()
->   %46 = Loop %45 - : ()
+>   %40 = Block - : ()
+>   %41 = Break L1 - : never
+>   %42 = Block - : ()
+>   %43 = If %31 [%40 %42] : ()
+>   %44 = Block - : ()
+>   %45 = Loop %44 - : ()
             items[i] = r
 >   %37 = Read copy [$10] : usize
 >   %38 = Read copy [$6] : usize
->   %39 = IsUnique covered [*$0] : ()
->   %40 = Store [*$0 [%37]] %38 : ()
->   loop %46 keeps [*$0]
+>   %39 = Store [*$0 [%37]] %38 : ()
+>   loop %45 keeps [*$0]

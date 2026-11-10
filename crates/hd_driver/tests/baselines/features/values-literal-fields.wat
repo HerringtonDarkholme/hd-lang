@@ -439,7 +439,7 @@
     i32.add
     global.set $locals
   )
-  (func $"impl Histogram.add" (param $self i32) (param $at i32) (local $t0 i32) (local $t1 i64) (local $t2 i32)
+  (func $"impl Histogram.add" (param $self i32) (param $at i32) (local $t0 i32) (local $t1 i64)
     ;; 24 |         self.buckets[at] = self.buckets[at] + 1
     block
       local.get $self
@@ -463,17 +463,10 @@
       i64.add
       local.set $t1
       local.get $self
+      local.get $self
       i32.load $heap
-      local.tee $t0
       call $rt:list_unique
-      local.tee $t2
-      local.get $t0
-      i32.ne
-      if
-        local.get $self
-        local.get $t2
-        i32.store $heap
-      end
+      i32.store $heap
       local.get $self
       i32.load $heap
       local.set $self
@@ -494,21 +487,14 @@
       i64.store $heap offset=16
     end
   )
-  (func $"impl Shelf.put" (param $self i32) (param $v i64) (local $t0 i32) (local $t1 i32)
+  (func $"impl Shelf.put" (param $self i32) (param $v i64)
     ;; 28 |         self.items[0] = v
     block
       local.get $self
+      local.get $self
       i32.load $heap
-      local.tee $t0
       call $rt:list_unique
-      local.tee $t1
-      local.get $t0
-      i32.ne
-      if
-        local.get $self
-        local.get $t1
-        i32.store $heap
-      end
+      i32.store $heap
       local.get $self
       i32.load $heap
       local.set $self

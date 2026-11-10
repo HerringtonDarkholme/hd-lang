@@ -3,7 +3,7 @@
 > no count operations
 # @build: v8 release
 # A reference made from a pointer, an element or a frame slot is a plain
-# address: its end is a `LoanEnd`, with no release to test for a view.
+# address: its end is a `LoanEnd` and releases no reference count.
 use std.collections.{UniqList}
 
 fn set(xs: &mut UniqList[i32], i: usize, v: i32) -> void:

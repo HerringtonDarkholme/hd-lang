@@ -41,7 +41,7 @@ fn probe(items: UniqList[string]) -> string:
 >   %13 = Ref local [*$5 .buffer] : &Buffer[string]
 >   %14 = Read copy [$6] : usize
 >   %15 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].at[string] (%13, %14) : Ptr[string]
->   %16 = Drop [%13] : ()
+>   %16 = LoanEnd [%13] : ()
 >   %17 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].as_ref[string] (%15) : &string
 >   %18 = NewVariant #1 [%17] : &string?
 >   %19 = Block %18 : &string?
@@ -49,7 +49,7 @@ fn probe(items: UniqList[string]) -> string:
 >   %21 = Break L0 %20 : never
 >   %22 = Block - : &string?
 >   %23 = Scope %22 [] : &string?
->   %24 = Drop [$5] : ()
+>   %24 = LoanEnd [$5] : ()
 >   %25 = Call std/option/impl[T < ?Copy] T?.expect[&string] (%23, "slot") : &string
 >   %26 = Store [$3] %25 : ()
     junk := "j".repeat(4)

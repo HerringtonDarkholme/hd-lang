@@ -39,7 +39,7 @@ impl Display for YamlError:
 >     uses $10: %6 -> %7 lend, %10 lend last
 >   %0 = Ref local [*$0 .line] : &i64
 >   %1 = Read copy [*%0] : i64
->   %2 = Drop [%0] : ()
+>   %2 = LoanEnd [%0] : ()
 >   %3 = Prim Conv [%1] : i64
 >   %4 = Store [$9] %3 : ()
 >   %5 = Read copy [$9] : i64

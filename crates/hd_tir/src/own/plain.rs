@@ -1,18 +1,19 @@
 //! References that count nothing (#1360). A reference owns something only
 //! when it is a new object it made
 //! (`crates/hd_wasm/DESIGN.md` §23.20), so a `Drop` of a value that
-//! holds only references of neither kind has no release to do; all it still
+//! holds only references owning nothing has no release to do; all it still
 //! does is end its holder's loans. This pass, the last, turns such a `Drop`
 //! into a `LoanEnd`.
 //!
 //! A value qualifies by where its reference comes from, since the type
 //! cannot say (`OwnCx::plain_reference` only rules out the rest):
 //!
-//! - a `Ref` of a local or a top-level binding, through fields only: an
-//!   address in a slot, a cell or a frame, none of which it counts. A
-//!   dereference stays out (#1661: its reason was reference views, which
-//!   no longer exist). A capture's copy stays out too: a closure's reference to it is a new
-//!   object holding it;
+//! - a `Ref` of a local or a top-level binding, through physical fields,
+//!   variants and dereferences: an address in existing storage, none of
+//!   which it counts (`ref.count.local`, `ref.count.pointer`). A capture's
+//!   copy stays out: its reference may own the new object holding that
+//!   copy. A value-rooted reference stays out too unless it is an element
+//!   address below: taking `&e` may create a new object (`ref.expr.allocate`);
 //! - a `Ref` of an element, or of fields of one, of a list no type parameter
 //!   opens: an address in the buffer, whatever came before the element;
 //! - a pointer's `as_ref` or `as_mut` (`OwnCx::plain_result`);
@@ -92,23 +93,16 @@ impl Origins<'_> {
         match b.tags[k] {
             Tag::Ref => {
                 let p = b.view(a);
-                // Whether only fields follow an element step, or no such
-                // step exists yet.
-                let (mut elem, mut fields) = (false, true);
-                for s in p.steps(b) {
-                    match s {
-                        Proj::Elem(_) => (elem, fields) = (true, true),
-                        Proj::Field(_) => {}
-                        Proj::Deref | Proj::Variant(_) => fields = false,
-                    }
-                }
+                // These projections compute physical addresses, not new
+                // objects. Allocation/capture ownership is still excluded
+                // by TAKES and the root cases below. One scan of the path.
+                let elem = p.steps(b).any(|s| matches!(s, Proj::Elem(_)));
                 let root = match p.root {
                     Root::Local(l) => Some(b.local_ty[l as usize]),
                     Root::Value(v) if Ref(v).as_inst().is_some() => Some(b.ty[v as usize]),
                     _ => None,
                 };
-                fields
-                    && w & ref_word::TAKES == 0
+                w & ref_word::TAKES == 0
                     && match p.root {
                         _ if elem => root.is_some(),
                         Root::Local(l) => !b.cap_local.iter().any(|c| c.raw() == l),

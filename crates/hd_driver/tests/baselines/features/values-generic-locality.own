@@ -46,8 +46,8 @@ fn left_or_right(pair: &Pair, left: bool) -> &User:
 >   %8 = Read move [$2] : &User?
 >   %9 = Ref local [*$0 .right] : &User
 >   %10 = Call std/option/impl[T < ?Copy] T?.unwrap_or[&User] (%8, %9) : &User
->   %11 = Drop [%9] : ()
->   %12 = Drop [%8] : ()
+>   %11 = LoanEnd [%9] : ()
+>   %12 = LoanEnd [%8] : ()
 >   summary kept []
 
 fn demo(u: &User) -> usize:
@@ -59,7 +59,7 @@ fn demo(u: &User) -> usize:
 >     uses $1: %3 -> %4 lend last
 >   %0 = Ref local [*$0 .name] : &string
 >   %1 = Call app/main/id[&string] (%0) : &string
->   %2 = Drop [%0] : ()
+>   %2 = LoanEnd [%0] : ()
 >   %3 = Store [$1] %1 : ()
 >   %7 = Block %5 : usize
     n.len()

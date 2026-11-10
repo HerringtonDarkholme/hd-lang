@@ -21,34 +21,29 @@
       local.set $s.0
       local.get $log
       i32.load $heap
-      local.tee $s.1
       call $rt:list_unique
+      local.set $s.1
+      local.get $log
+      local.get $s.1
+      i32.store $heap
+    ;; 11 |     log.push("started")
+      local.get $s.1
+      i32.load $heap offset=4
       local.tee $text.1
       local.get $s.1
-      i32.ne
-      if
-        local.get $log
-        local.get $text.1
-        i32.store $heap
-      end
-      local.get $text.1
-    ;; 11 |     log.push("started")
-      i32.load $heap offset=4
-      local.tee $s.1
-      local.get $text.1
       i32.load $heap
       i32.eq
       if
-        local.get $text.1
+        local.get $s.1
         i32.const 1
         call_indirect $table0 (param i32) (result i32)
-        local.set $text.1
+        local.set $s.1
         local.get $log
-        local.get $text.1
+        local.get $s.1
         i32.store $heap
       end
-      local.get $text.1
       local.get $s.1
+      local.get $text.1
       i32.const 8
       i32.mul
       i32.add
@@ -58,8 +53,8 @@
       local.get $log
       i32.const 7
       i32.store $heap offset=20
-      local.get $text.1
       local.get $s.1
+      local.get $text.1
       i32.const 1
       i32.add
       i32.store $heap offset=4

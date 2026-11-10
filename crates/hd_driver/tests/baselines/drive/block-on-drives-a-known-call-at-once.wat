@@ -294,34 +294,29 @@
       local.set $key.0
       local.get $log
       i32.load $heap
-      local.tee $key.1
       call $rt:list_unique
+      local.set $key.1
+      local.get $log
+      local.get $key.1
+      i32.store $heap
+    ;; 26 |     log.push("constructed")
+      local.get $key.1
+      i32.load $heap offset=4
       local.tee $value.1
       local.get $key.1
-      i32.ne
-      if
-        local.get $log
-        local.get $value.1
-        i32.store $heap
-      end
-      local.get $value.1
-    ;; 26 |     log.push("constructed")
-      i32.load $heap offset=4
-      local.tee $key.1
-      local.get $value.1
       i32.load $heap
       i32.eq
       if
-        local.get $value.1
+        local.get $key.1
         i32.const 1
         call_indirect $table0 (param i32) (result i32)
-        local.set $value.1
+        local.set $key.1
         local.get $log
-        local.get $value.1
+        local.get $key.1
         i32.store $heap
       end
-      local.get $value.1
       local.get $key.1
+      local.get $value.1
       i32.const 8
       i32.mul
       i32.add
@@ -331,8 +326,8 @@
       local.get $log
       i32.const 11
       i32.store $heap offset=20
-      local.get $value.1
       local.get $key.1
+      local.get $value.1
       i32.const 1
       i32.add
       i32.store $heap offset=4
