@@ -1,7 +1,8 @@
-# test: checker integer literals take their default types
+# test: checker integer literals take their default types: a method call settles a signed one to i32
 pub fn main() -> void:
     x := 3
     y := +3
     z := -1
+    a := y.abs()
     let w: usize = y # diagnostic: type-mismatch
     pass

@@ -1,0 +1,12 @@
+# @dump: tir
+# #1528: a literal class stays open across statements
+# (`types.literal.local.class.open`): `a` is an i32 and `x` an i64.
+fn use_i32(n: i32) -> i32:
+    n
+
+fn run() -> i64:
+    let a = 123
+    let b = use_i32(a)
+    x := 5
+    let y: i64 = x
+    y + i64(b)

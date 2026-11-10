@@ -640,6 +640,10 @@ impl Ck<'_, '_> {
     }
 
     fn require_key_at(&mut self, key: Ty, n: NodeRef<'_>, source: NodeRef<'_>, slot: usize) {
+        // A key is known where it is required: an open literal class in it
+        // takes its default type here, as a method receiver's does
+        // (`types.literal.local.method`).
+        let key = self.settle_literals_in(key);
         if !self.row_banks.is_empty() {
             let pool = self.pool();
             let mut work = vec![(self.infer.resolve(pool, key), Vec::new())];

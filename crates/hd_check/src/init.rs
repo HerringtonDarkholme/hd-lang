@@ -533,8 +533,9 @@ fn init_steps(
         let start = ck.infer.var_count();
         let first_inst = u32::try_from(ck.b.body_mut().tags.len()).expect("insts");
         ck.top_level(*s).map_err(|e| e.at(cx.src.span(*s)))?;
-        // A binding takes its initializer's type, and no later statement
-        // changes it (`types.literal.local.statement`).
+        // A top-level statement is a body of its own: its open literal
+        // classes take their defaults at its end
+        // (`types.literal.local.class.open`).
         ck.close_literals(start);
         if let Some((_, Some((r, t)))) = ck.shown.take() {
             ck.repl_value(r, t, *s);
