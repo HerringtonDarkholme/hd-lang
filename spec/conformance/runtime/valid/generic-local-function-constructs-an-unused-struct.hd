@@ -1,0 +1,11 @@
+# test: a generic local function may construct a struct whose fields use its own parameter
+# Rule: fn.local.declare.
+# expect-stdout: 1
+struct Box[T]:
+    item: T
+
+pub fn main() -> void $ Console:
+    fn outer[N](x: N) -> usize:
+        b := Box { item: x }
+        1
+    println("${outer(+1)}")

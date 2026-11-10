@@ -6426,6 +6426,9 @@ typing/invalid/is-in-a-const-argument-is-no-const-operation.hd	type	reject:nonco
 typing/invalid/auto-closing-before-a-struct-is-the-wrong-target.hd	type	reject:decorator-target-kind	lang/14-annotations.md#r-annot.auto-closing.target
 typing/invalid/auto-closing-with-an-argument-is-the-wrong-spelling.hd	type	reject:decorator-target-kind	lang/14-annotations.md#r-annot.auto-closing.target
 typing/invalid/a-second-auto-closing-line-is-a-duplicate.hd	type	reject:duplicate-fact	lang/14-annotations.md#r-annot.auto-closing.duplicate
+runtime/valid/generic-local-function-builds-and-returns-a-struct.hd	runtime	accept	lang/07-functions.md#r-fn.local.declare
+runtime/valid/generic-local-function-constructs-an-unused-struct.hd	runtime	accept	lang/07-functions.md#r-fn.local.declare
+runtime/valid/generic-local-functions-keep-captured-ancestor-field-loans.hd	runtime	accept	lang/07-functions.md#r-fn.local.declare
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
