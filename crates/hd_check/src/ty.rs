@@ -724,28 +724,19 @@ impl Ck<'_, '_> {
                 self.err(Code::ArgumentCount, n, &msg);
                 return Ok(Ty::POISON);
             }
-            if let Some((i, g)) = args
+            // A row slot's argument is a row or, once reported where it is
+            // written, poison (`bare_in_row_slot`); only a row in a type
+            // slot is left to report.
+            if let Some(i) = args
                 .iter()
                 .zip(item.generics.iter().filter(|g| !g.outer))
-                .enumerate()
-                .find_map(|(i, (a, g))| match pool.get(*a) {
-                    TyData::Poison | TyData::Infer(_) => None,
-                    data => (matches!(data, TyData::Row(_)) != g.row).then_some((i, g)),
-                })
+                .position(|(a, g)| !g.row && matches!(pool.get(*a), TyData::Row(_)))
             {
-                let msg = if g.row {
-                    format!(
-                        "argument {} of `{}` is a row parameter: write it after `$`",
-                        i + 1,
-                        self.cx.names.display_name(def)
-                    )
-                } else {
-                    format!(
-                        "argument {} of `{}` is a type parameter, not a row",
-                        i + 1,
-                        self.cx.names.display_name(def)
-                    )
-                };
+                let msg = format!(
+                    "argument {} of `{}` is a type parameter, not a row",
+                    i + 1,
+                    self.cx.names.display_name(def)
+                );
                 self.err(Code::GenericKindMismatch, n, &msg);
                 return Ok(Ty::POISON);
             }
