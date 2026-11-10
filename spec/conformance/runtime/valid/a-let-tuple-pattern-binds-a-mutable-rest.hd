@@ -1,0 +1,8 @@
+# test: a let tuple pattern binds its rest as a mutable list
+# Spec 06 Spread Patterns: flow.match.spread.rest, with `mut` in a let pattern.
+# expect-stdout: 1 3
+pub fn main() -> void $ Console:
+    let t: (i32, List[i32]...) = (1, 2, 3)
+    let (a, mut rest...) = t
+    rest.push(4)
+    println("${a} ${rest.len()}")

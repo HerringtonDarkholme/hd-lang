@@ -1,0 +1,4 @@
+# test: an identifier ends at a character that cannot continue it, which is no token
+# Spec 01 Identifiers: lex.ident.form.
+fn f() -> void:
+    abc€ := 1 # diagnostic: invalid-token
