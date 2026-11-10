@@ -611,7 +611,7 @@ impl Ck<'_, '_> {
         want: Option<Ty>,
     ) -> StageResult<(Ref, Ty)> {
         let gens = self.explicit_generics(inner);
-        let explicit = self.explicit_targs(tl, &gens)?;
+        let explicit = self.explicit_targs(inner, tl, &gens)?;
         if inner.kind() == SyntaxKind::PathExpr {
             return self.path_value(inner, want, &explicit);
         }
@@ -939,7 +939,7 @@ impl Ck<'_, '_> {
                 // inside the type-argument node (`grammar.expr.bang-suffix`).
                 let (inner, bang) = bang_callee(inner, bang);
                 let gens = self.explicit_generics(inner);
-                let explicit = self.explicit_targs(tl, &gens)?;
+                let explicit = self.explicit_targs(inner, tl, &gens)?;
                 // `f::[T](..)` of a generic local function.
                 if let Some(l) = self.local_generic_named(inner) {
                     let vars = self.local_generic_vars(l, &explicit, callee);
@@ -3570,7 +3570,7 @@ impl Ck<'_, '_> {
             let (bnode, explicit) = if base.kind() == SyntaxKind::TypeArgsExpr {
                 let [inner, tl] = base.parts();
                 let gens = self.explicit_generics(inner);
-                (inner, self.explicit_targs(tl, &gens)?)
+                (inner, self.explicit_targs(inner, tl, &gens)?)
             } else {
                 (base, vec![])
             };

@@ -2180,10 +2180,7 @@ impl Lower<'_, '_, '_> {
         } else {
             "type"
         };
-        let msg = format!(
-            "argument {} of `{name}` fills a {expected} parameter, not {found}",
-            position + 1
-        );
+        let msg = crate::generic_kind_mismatch(position, name, expected, found);
         self.diags
             .error(Code::GenericKindMismatch, self.src.span(argument), &msg);
     }

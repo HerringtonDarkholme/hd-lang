@@ -135,7 +135,7 @@ impl Ck<'_, '_> {
             let (bnode, explicit) = if base.kind() == SyntaxKind::TypeArgsExpr {
                 let [inner, tl] = base.parts();
                 let gens = self.explicit_generics(inner);
-                (inner, self.explicit_targs(tl, &gens)?)
+                (inner, self.explicit_targs(inner, tl, &gens)?)
             } else {
                 (base, vec![])
             };

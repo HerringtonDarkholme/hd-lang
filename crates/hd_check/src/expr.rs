@@ -3376,7 +3376,7 @@ impl Ck<'_, '_> {
         let mut targs = self.with_outer_args(item, &[]).into_owned();
         let taken = targs.len();
         for (i, t) in targ_nodes.iter().enumerate() {
-            targs.push(self.explicit_slot_arg(*t, item.generics.get(taken + i), i)?);
+            targs.push(self.explicit_slot_arg(path_node, *t, item.generics.get(taken + i), i)?);
         }
         let generics = item.generics.clone();
         self.check_data_targ_kinds(def, &generics, &mut targs[taken..], name_node);

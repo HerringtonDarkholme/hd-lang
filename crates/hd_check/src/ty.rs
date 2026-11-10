@@ -205,6 +205,16 @@ impl Ck<'_, '_> {
             .and_then(|g| g.const_type)
     }
 
+    /// The kind of the slot of `def` at `position` among its non-lifetime
+    /// parameters, as `generic-kind-mismatch` names it.
+    fn slot_kind(&self, def: DefId, position: usize) -> &'static str {
+        self.cx
+            .lookup
+            .item(def)
+            .and_then(|item| item.generics.iter().filter(|g| !g.lifetime).nth(position))
+            .map_or("type", Generic::kind_name)
+    }
+
     /// A const argument of declared type `want`: its evaluated value or a
     /// bare const parameter (`types.generic.const.argument`).
     fn const_arg(&mut self, a: NodeRef<'_>, want: Option<Prim>) -> Ty {
@@ -464,11 +474,18 @@ impl Ck<'_, '_> {
                     arg_nodes.push(a);
                     position += 1;
                 } else if a.kind() == SyntaxKind::ConstArgument {
-                    let msg = format!(
-                        "argument {} fills a type parameter, not a const parameter",
-                        position + 1
-                    );
-                    self.err(Code::GenericKindMismatch, a, &msg);
+                    // An unknown constructor is its own error, reported
+                    // with the name below.
+                    if let Some(def) = ctor {
+                        let slot = self.slot_kind(def, position);
+                        let msg = hd_resolve::generic_kind_mismatch(
+                            position,
+                            &segs.join("."),
+                            slot,
+                            "a const expression",
+                        );
+                        self.err(Code::GenericKindMismatch, a, &msg);
+                    }
                     args.push(Ty::POISON);
                     arg_nodes.push(a);
                     position += 1;
@@ -1023,6 +1040,7 @@ impl Ck<'_, '_> {
     /// other lowered as a type.
     pub(crate) fn explicit_targs(
         &mut self,
+        owner: NodeRef<'_>,
         tl: NodeRef<'_>,
         gens: &[Generic],
     ) -> StageResult<Vec<Ty>> {
@@ -1032,14 +1050,16 @@ impl Ck<'_, '_> {
             .filter(|c| c.kind().is_type() || c.kind() == SyntaxKind::ConstArgument)
             .enumerate()
         {
-            out.push(self.explicit_slot_arg(t, gens.get(i), i)?);
+            out.push(self.explicit_slot_arg(owner, t, gens.get(i), i)?);
         }
         Ok(out)
     }
 
-    /// One written argument `t` at `position` for the parameter `g`.
+    /// One written argument `t` at `position` for the parameter `g` of the
+    /// item `owner` names.
     pub(crate) fn explicit_slot_arg(
         &mut self,
+        owner: NodeRef<'_>,
         t: NodeRef<'_>,
         g: Option<&Generic>,
         position: usize,
@@ -1048,9 +1068,11 @@ impl Ck<'_, '_> {
             return Ok(self.const_arg(t, Some(prim)));
         }
         if t.kind() == SyntaxKind::ConstArgument {
-            let msg = format!(
-                "argument {} fills a type parameter, not a const parameter",
-                position + 1
+            let msg = hd_resolve::generic_kind_mismatch(
+                position,
+                self.cx.src.node_text(owner),
+                g.map_or("type", Generic::kind_name),
+                "a const expression",
             );
             self.err(Code::GenericKindMismatch, t, &msg);
             return Ok(Ty::POISON);

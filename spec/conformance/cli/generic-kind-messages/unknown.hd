@@ -1,0 +1,2 @@
+fn body() -> void:
+    let n: Nope[1] = 1

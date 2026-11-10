@@ -136,6 +136,12 @@ impl<'a> Src<'a> {
             },
         }
     }
+    /// The source text of `n`, from its first token to its last.
+    #[must_use]
+    pub fn node_text(&self, n: NodeRef<'_>) -> &'a str {
+        let span = self.span(n);
+        &self.text[span.lo as usize..span.hi as usize]
+    }
     #[must_use]
     pub fn token_span(&self, t: TokenIdx) -> Span {
         if self.tkind(t).is_none() {

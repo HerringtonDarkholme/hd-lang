@@ -1,0 +1,17 @@
+struct Holder[X]:
+    x: X
+
+struct OnExit[$ R]:
+    run: fn() -> void $ R
+
+fn signature(h: Holder[1]) -> void:
+    pass
+
+fn id[T](t: T) -> T:
+    t
+
+fn body() -> void:
+    let h: Holder[2] = Holder { x: 1 }
+    g := Holder::[3] { x: 1 }
+    i := id::[4](4)
+    let o: OnExit[5] = OnExit { run: fn() -> void: pass }

@@ -1,0 +1,8 @@
+# test: a const expression in a row parameter's slot of a body type is a kind error
+# Spec 04 Const Generic Arguments: types.generic.const.argument.kind.
+
+struct OnExit[$ R]:
+    run: fn() -> void $ R
+
+fn build() -> void:
+    let o: OnExit[5] = OnExit { run: fn() -> void: pass } # diagnostic: generic-kind-mismatch

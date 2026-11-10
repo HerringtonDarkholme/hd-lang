@@ -1,0 +1,7 @@
+# A const expression in a type or row slot reads the same from a signature and a body, and an unknown constructor is one error.
+run: hd check --format json kinds.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"generic-kind-mismatch","message":"argument 1 of `Holder` fills a type parameter, not a const expression","line":7,"column":24,"fixes":[],"file":"kinds.hd"},{"kind":"diagnostic","code":"generic-kind-mismatch","message":"argument 1 of `Holder` fills a type parameter, not a const expression","line":14,"column":19,"fixes":[],"file":"kinds.hd"},{"kind":"diagnostic","code":"generic-kind-mismatch","message":"argument 1 of `Holder` fills a type parameter, not a const expression","line":15,"column":19,"fixes":[],"file":"kinds.hd"},{"kind":"diagnostic","code":"generic-kind-mismatch","message":"argument 1 of `id` fills a type parameter, not a const expression","line":16,"column":15,"fixes":[],"file":"kinds.hd"},{"kind":"diagnostic","code":"generic-kind-mismatch","message":"argument 1 of `OnExit` fills a row parameter, not a const expression","line":17,"column":19,"fixes":[],"file":"kinds.hd"},{"kind":"summary","errors":5,"warnings":0,"status":101}]
+run: hd check --format json unknown.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"unknown-type","message":"no type named `Nope`","line":2,"column":12,"fixes":[],"file":"unknown.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]

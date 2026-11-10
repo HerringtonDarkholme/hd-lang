@@ -251,6 +251,32 @@ impl Generic {
             outer: false,
         }
     }
+
+    /// The slot's kind as `generic-kind-mismatch` names it: `const`,
+    /// `row` or `type`.
+    #[must_use]
+    pub fn kind_name(&self) -> &'static str {
+        if self.const_type.is_some() {
+            "const"
+        } else if self.row {
+            "row"
+        } else {
+            "type"
+        }
+    }
+}
+
+/// The `generic-kind-mismatch` message for written argument `position`
+/// (0-based) of `owner`, whose slot is of kind `slot` (see
+/// [`Generic::kind_name`]) and whose argument is `found`
+/// (`types.generic.const.argument.kind`). Resolve and check both report
+/// with it, so one error reads the same from either stage.
+#[must_use]
+pub fn generic_kind_mismatch(position: usize, owner: &str, slot: &str, found: &str) -> String {
+    format!(
+        "argument {} of `{owner}` fills a {slot} parameter, not {found}",
+        position + 1
+    )
 }
 
 /// A const argument's canonical literal spelling

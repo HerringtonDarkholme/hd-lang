@@ -33,9 +33,9 @@ pub use iface::{
     ItemData, Items, Lookup, LookupDecls, Names, ResultPath, TraitData, TypeAttrs, Variant,
     declares_assoc_function, decode_items, decode_lazy, decode_lazy_in, decode_module_uses,
     decode_private_names, deep_hash, encode_docs, encode_items, encode_module_uses,
-    encode_private_names, fill_trait_args, fill_type_args, folder_iface, impl_table,
-    interface_items, lifetime_arg, mentioned_defs, private_impl_items, show_ty, show_ty_in,
-    show_ty_rows_in,
+    encode_private_names, fill_trait_args, fill_type_args, folder_iface, generic_kind_mismatch,
+    impl_table, interface_items, lifetime_arg, mentioned_defs, private_impl_items, show_ty,
+    show_ty_in, show_ty_rows_in,
 };
 pub use known::KnownItems;
 pub use lower::{
