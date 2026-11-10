@@ -48,6 +48,7 @@ runtime/valid/cli-enum-values.hd	runtime	accept	std/cli.md#enum-value-sets
 runtime/valid/cli-positional-fact.hd	runtime	accept	std/cli.md#positional-field-facts
 runtime/valid/cli-short-fact.hd	runtime	accept	std/cli.md#short-field-facts
 typing/invalid/a-body-trait-value-type-of-a-primitive.hd	type	reject:unknown-trait	lang/09-traits.md#r-trait.dyn.reference-form
+typing/invalid/a-body-trait-value-type-of-a-struct.hd	type	reject:unknown-trait	lang/09-traits.md#r-trait.dyn.reference-form
 typing/invalid/a-body-trait-value-type-of-a-type-parameter.hd	type	reject:unknown-trait	lang/09-traits.md#r-trait.dyn.reference-form
 runtime/valid/host-drive-slot-method-values.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.bound.reference-dispatch
 runtime/valid/host-drive-slot-shielded-await.hd	runtime	accept	lang/06-control-flow.md#r-flow.using.async.suite-suspends
@@ -4551,6 +4552,7 @@ typing/invalid/init-read-through-call-chain.hd	type	reject:top-level-read-before
 typing/invalid/init-read-through-function-value.hd	type	reject:top-level-read-before-initialization	lang/03-names-and-scopes.md#r-names.init.references
 runtime/valid/init-reads-after-initialization.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.init.required
 typing/invalid/exec-binding-read-before-declared.hd	type	reject:binding-not-yet-visible	lang/03-names-and-scopes.md#r-names.exec.not-before
+typing/invalid/an-inferred-result-body-reads-a-later-binding.hd	type	reject:binding-not-yet-visible	lang/03-names-and-scopes.md#r-names.exec.not-before
 typing/invalid/use-names-exec-binding.hd	type	reject:unknown-import	lang/03-names-and-scopes.md#r-names.exec.not-usable
 typing/valid/files-of-folder-use-each-other.hd	type	accept	lang/03-names-and-scopes.md#r-names.use.cycles-in-folder
 typing/invalid/folders-use-each-other.hd	type	reject:folder-cycle	lang/03-names-and-scopes.md#r-names.use.folder-cycle

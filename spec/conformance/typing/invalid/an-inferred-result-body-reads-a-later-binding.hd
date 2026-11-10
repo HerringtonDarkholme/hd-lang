@@ -1,0 +1,9 @@
+# test: a function with an inferred result, checked for an earlier statement, reads a later binding
+# Spec 03 Module Execution Scope: names.exec.not-before; the body is checked
+# when `first` needs its result type, before `later` is declared.
+fn read_later():
+    later # diagnostic: binding-not-yet-visible
+
+let first = read_later()
+
+let later = +1

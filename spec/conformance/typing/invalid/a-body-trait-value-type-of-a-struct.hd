@@ -1,0 +1,7 @@
+# test: a trait value type in a body names a trait, so a struct after dyn is an error
+# Spec 09 Trait Value Types: trait.dyn.reference-form, for a type written in
+# a body as in a signature.
+struct Settings: pass
+
+fn f() -> void:
+    let c: &dyn Settings = &Settings {} # diagnostic: unknown-trait
