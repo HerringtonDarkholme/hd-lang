@@ -98,6 +98,17 @@ fn mismatch(want: Prim, found: Prim) -> Fail {
     Fail::Error(mismatch_error(want, found))
 }
 
+/// A unary `op` on an operand of type `found`, which it does not apply
+/// to: an integer operator on a `bool`, `char` or `string`, or `-` on
+/// an unsigned integer (`expr.arith.unary-minus`). The message names the
+/// operator, as the operand's type may be the one the slot wants.
+fn unary_mismatch(op: &str, found: Prim) -> Fail {
+    Fail::Error(ConstError {
+        code: Code::TypeMismatch,
+        message: format!("unary `{op}` does not apply to {}", found.name()),
+    })
+}
+
 /// Named constants nest at most this deep; a deeper chain is a cycle.
 const DEPTH: u32 = 64;
 
@@ -400,23 +411,23 @@ impl<'a> Eval<'_, 'a> {
                 }
                 match self.eval(src, *e, Some(p))? {
                     // `expr.arith.unary-minus`.
-                    V::Int(_, p) if p.is_unsigned() => Err(mismatch(Prim::I64, p)),
+                    V::Int(_, p) if p.is_unsigned() => Err(unary_mismatch("-", p)),
                     V::Int(v, p) => int(-v, p),
-                    v => Err(mismatch(p, v.prim())),
+                    v => Err(unary_mismatch("-", v.prim())),
                 }
             }
             Some(TokenKind::Plus) => {
                 let p = want.or_else(|| self.natural(src, *e)).unwrap_or(Prim::I32);
                 match self.eval(src, *e, Some(p))? {
                     v @ V::Int(..) => Ok(v),
-                    v => Err(mismatch(p, v.prim())),
+                    v => Err(unary_mismatch("+", v.prim())),
                 }
             }
             Some(TokenKind::Tilde) => {
                 let p = want.or_else(|| self.natural(src, *e)).unwrap_or(Prim::I32);
                 match self.eval(src, *e, Some(p))? {
                     V::Int(v, p) => Ok(V::Int(wrap(!v, p), p)),
-                    v => Err(mismatch(p, v.prim())),
+                    v => Err(unary_mismatch("~", v.prim())),
                 }
             }
             _ => Err(nonconstant(

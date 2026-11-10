@@ -1,0 +1,14 @@
+struct Flag[B < const bool]:
+    pass
+
+struct Small[N < const u8]:
+    pass
+
+fn minus(x: Flag[-true]) -> void:
+    pass
+
+fn plus(x: Flag[+true]) -> void:
+    pass
+
+fn unsigned(x: Small[-(1)]) -> void:
+    pass

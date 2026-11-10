@@ -1,0 +1,4 @@
+# A unary operator on a const operand it does not apply to names the operator and the operand type.
+run: hd check --format json unary.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"type-mismatch","message":"unary `-` does not apply to bool","line":7,"column":18,"file":"unary.hd"},{"kind":"diagnostic","code":"type-mismatch","message":"unary `+` does not apply to bool","line":10,"column":17,"file":"unary.hd"},{"kind":"diagnostic","code":"type-mismatch","message":"unary `-` does not apply to u8","line":13,"column":22,"file":"unary.hd"},{"kind":"summary","errors":3,"warnings":0,"status":101}]
