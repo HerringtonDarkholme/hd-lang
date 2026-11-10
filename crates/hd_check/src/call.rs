@@ -350,7 +350,7 @@ fn fn_bound_want(ck: &Ck, bounds: &[Ty], inst: &dyn Fn(Ty) -> Ty) -> Option<FnWa
 }
 
 /// The `argument-count` message for a callee of `count` parameters, as
-/// English for every count (`fn.call.arity`).
+/// English for every count.
 pub(crate) fn takes_arguments(name: &str, count: usize) -> String {
     match count {
         0 => format!("`{name}` takes no arguments"),
