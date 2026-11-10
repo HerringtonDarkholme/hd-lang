@@ -995,10 +995,6 @@ impl InternPool {
     pub fn subst_row(&self, r: RowId, f: &dyn Fn(ParamRef) -> Option<Ty>) -> RowId {
         self.types().subst_row(r, f)
     }
-    #[must_use]
-    pub fn display(&self, t: Ty) -> String {
-        self.types().display(t)
-    }
     /// [`Types::erase_fn_deps`].
     #[must_use]
     pub fn erase_fn_deps(&self, t: Ty) -> Ty {
@@ -1988,106 +1984,6 @@ impl<'a> Types<'a> {
         }
         self.row(&out)
     }
-
-    /// Prints a type with run IDs for items (`#n`); output that a user
-    /// sees goes through stable paths instead (§6.5).
-    #[must_use]
-    pub fn display(self, t: Ty) -> String {
-        let list = |l: TyList| {
-            self.list_items(l)
-                .iter()
-                .map(|x| self.display(*x))
-                .collect::<Vec<_>>()
-                .join(", ")
-        };
-        match self.get(t) {
-            TyData::Prim(p) => p.name().to_owned(),
-            TyData::Never => "never".into(),
-            TyData::Poison => "{poison}".into(),
-            TyData::Adt { def, args } if args == TyList::EMPTY => format!("#{}", def.raw()),
-            TyData::Adt { def, args } => format!("#{}[{}]", def.raw(), list(args)),
-            TyData::Tuple { elems, rest } => {
-                format!(
-                    "({}{})",
-                    list(elems),
-                    rest.map_or(String::new(), |r| format!(", ...{}", self.display(r)))
-                )
-            }
-            TyData::Union(members) => self
-                .list_items(members)
-                .iter()
-                .map(|&member| {
-                    let shown = self.display(member);
-                    if matches!(self.get(member), TyData::Union(_)) {
-                        format!("({shown})")
-                    } else {
-                        shown
-                    }
-                })
-                .collect::<Vec<_>>()
-                .join(" | "),
-            TyData::Fn {
-                params,
-                result,
-                suspends,
-                inputs: Inputs::Tuple,
-                ..
-            } => {
-                format!(
-                    "{}[{}, {}]",
-                    if suspends { "SuspendFn" } else { "Fn" },
-                    list(params),
-                    self.display(result)
-                )
-            }
-            TyData::Fn {
-                params,
-                result,
-                suspends,
-                ..
-            } => {
-                format!(
-                    "fn{}({}) -> {}",
-                    if suspends { "!" } else { "" },
-                    list(params),
-                    self.display(result)
-                )
-            }
-            TyData::TraitValue { def, .. } => format!("dyn #{}", def.raw()),
-            TyData::Opaque { bound, .. } => format!("impl {}", self.display(bound)),
-            TyData::Param(p) => format!("T{}@{}", p.index, p.owner.raw()),
-            // A string's text is not in the pool: its path id stands in.
-            TyData::Const(v) => v.literal(|p| format!("#{}", p.raw())),
-            TyData::Assoc { assoc, self_ty, .. } => {
-                format!("<{}>::#{}", self.display(self_ty), assoc.raw())
-            }
-            TyData::Ref {
-                inner,
-                mutable,
-                counted,
-            } => format!(
-                "{}{}{}",
-                if counted { "*" } else { "&" },
-                if mutable { "mut " } else { "" },
-                self.display(inner)
-            ),
-            TyData::Infer(v) => format!("?{}", v.raw()),
-            TyData::Canon(i) => format!("^{i}"),
-            TyData::Row(r) => self.display_row(r),
-            TyData::Context(r) => format!("$.Context[{}]", self.display_row(r)),
-        }
-    }
-
-    fn display_row(self, r: RowId) -> String {
-        let d = self.row_data(r);
-        let mut parts: Vec<String> = d.keys.iter().map(|k| self.display(*k)).collect();
-        parts.extend(
-            d.params
-                .iter()
-                .map(|p| format!("R{}@{}", p.index, p.owner.raw())),
-        );
-        format!("$({})", parts.join(" + "))
-    }
 }
 
 /// A projection written `Self::Out` in a trait names the trait's own
@@ -2689,8 +2585,6 @@ mod tests {
         assert_ne!(flat, nested_left);
         assert_ne!(flat, nested_right);
         assert_ne!(nested_left, nested_right);
-        assert_eq!(p.display(nested_left), "(i32 | string) | bool");
-        assert_eq!(p.display(nested_right), "i32 | (string | bool)");
 
         let owner = DefId::from_raw(81);
         let parameter = super::ParamRef { owner, index: 0 };

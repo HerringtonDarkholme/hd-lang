@@ -4912,17 +4912,17 @@ mod tests {
             bindings: vec![],
         });
         for t in [Ty::I32, Ty::STRING, Ty::VOID, pair, color, mile] {
-            assert_eq!(ask(2, t), Some(AnyVal), "{}", p.display(t));
-            assert_eq!(ask(3, t), None, "{}", p.display(t));
+            assert_eq!(ask(2, t), Some(AnyVal), "{:?}", p.get(t));
+            assert_eq!(ask(3, t), None, "{:?}", p.get(t));
         }
         // The seeded suspension is structurally declared but retains identity.
         let suspension = adt(p, id(24), &[]);
         for t in [point, owner, dyn_show, suspension] {
-            assert_eq!(ask(3, t), Some(AnyRef), "{}", p.display(t));
-            assert_eq!(ask(2, t), None, "{}", p.display(t));
+            assert_eq!(ask(3, t), Some(AnyRef), "{:?}", p.get(t));
+            assert_eq!(ask(2, t), None, "{:?}", p.get(t));
         }
         for t in [Ty::NEVER, Ty::I32, point, dyn_show] {
-            assert_eq!(ask(1, t), Some(Any), "{}", p.display(t));
+            assert_eq!(ask(1, t), Some(Any), "{:?}", p.get(t));
         }
         for tr in [2, 3] {
             let a = ask_row(p, &decls, &env, &global, on(tr, Ty::NEVER));
@@ -4956,7 +4956,7 @@ mod tests {
             assert_eq!(k.universe, None, "a known goal keys no universe");
             let i = global.lookup(&k).expect("published globally");
             let rec = global.record(i);
-            assert!(rec.reads.is_empty() && !rec.scoped, "{}", p.display(t));
+            assert!(rec.reads.is_empty() && !rec.scoped, "{:?}", p.get(t));
         }
         let i = global.lookup(&key(mile)).expect("entry");
         assert_eq!(global.entry(i).children, 1, "the base is a child");
@@ -5094,8 +5094,8 @@ mod tests {
             assert_eq!(
                 builtin_of(&ask(t)),
                 Some(super::BuiltinImpl::Inspectable),
-                "{}",
-                p.display(t)
+                "{:?}",
+                p.get(t)
             );
         }
         for t in [
@@ -5111,11 +5111,11 @@ mod tests {
             list(view),
             reference(dyn_borrowing, true),
         ] {
-            assert!(matches!(ask(t), Answer::Fails(_)), "{}", p.display(t));
+            assert!(matches!(ask(t), Answer::Fails(_)), "{:?}", p.get(t));
         }
         for (t, leaf) in [(list(list(func)), func), (list(view), lifetime)] {
             let Answer::Fails(info) = ask(t) else {
-                panic!("{} is not inspectable", p.display(t));
+                panic!("{:?} is not inspectable", p.get(t));
             };
             assert_eq!(info.reason, super::FailReason::NotInspectable { arg: leaf });
             assert_eq!(info.leaf.self_ty, leaf, "the leaf is the failing argument");
