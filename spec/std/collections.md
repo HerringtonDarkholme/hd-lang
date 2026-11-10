@@ -376,6 +376,7 @@ fn middle['a](items: &'a List[i32]) -> Span[i32, 'a]:
 | `slice` | `slice(self, range: Range[usize]) -> Span[T, 'a]` |
 | index read | `Index[usize]` with `Out = T` |
 | `iter` | `iter(self) -> SpanIter[T, 'a]` |
+| `index_of_span` | `index_of_span['b](&self, needle: Span[T, 'b]) -> usize?` with `T < Eq` |
 
 1. r[std-collections.span.type] `std.collections` declares `Span[T, 'a]` with private fields and the surface above.
 2. r[std-collections.span.list] `list.span()` borrows the list for `'a` and returns a span covering every element.
@@ -394,6 +395,10 @@ fn middle['a](items: &'a List[i32]) -> Span[i32, 'a]:
 15. r[std-collections.span.iter] `iter()` returns a cursor that yields each element in span order as `&'a T`.
 16. r[std-collections.span.cursor] A span's cursor type is `SpanIter[T, 'a]`, which `std.collections` declares with private fields.
 17. r[std-collections.span.iter-lifetime] A span cursor retains the span's borrow for `'a`, so it cannot outlive the borrowed list. Error: `local-reference-outlives-local`.
+18. r[std-collections.span.index-of-span] `index_of_span(needle)` returns `.Some` of the smallest relative index at which the span's elements equal `needle`'s, element by element with `Eq`, and `.None` when there is none. The span may hold any bytes, valid UTF-8 or not.
+19. r[std-collections.span.index-of-span.empty] An empty needle is at `.Some(0)`, as in `string.find`, even in an empty span.
+20. r[std-collections.span.index-of-span.longer] A needle longer than the span gives `.None`.
+21. r[std-collections.span.index-of-span.cost] The search makes at most a number of comparisons linear in the span's length plus the needle's.
 
 > **Why.** `Span` supports borrowed reads without a snapshot allocation.
 > Its explicit lifetime makes retention beyond the source list a compile-time error.

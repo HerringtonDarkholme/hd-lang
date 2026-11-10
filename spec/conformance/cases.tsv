@@ -6550,6 +6550,7 @@ runtime/valid/a-thirty-trait-supertrait-chain-reaches-the-root-trait.hd	runtime	
 typing/invalid/a-supertrait-cycle-is-the-only-error-of-code-using-it.hd	type	reject:supertrait-cycle	lang/09-traits.md#r-trait.super.acyclic
 typing/valid/a-chain-of-two-hundred-named-constants-evaluates.hd	type	accept	lang/04-type-system.md#r-types.generic.const.named-cycle
 runtime/valid/char-to-u32.hd	runtime	accept	std/text.md#r-std-text.char.to-u32
+runtime/valid/span-index-of-span.hd	runtime	accept	std/collections.md#r-std-collections.span.index-of-span
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

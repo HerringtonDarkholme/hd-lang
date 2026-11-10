@@ -1,0 +1,56 @@
+# expect-stdout: 3 2 0 none
+# test: index_of_span finds the first occurrence of a byte sequence in bytes that are not UTF-8, gives none when it is absent or longer than the span, and puts an empty needle at 0
+# Spec std/collections Spans: std-collections.span.index-of-span, std-collections.span.index-of-span.empty, std-collections.span.index-of-span.longer.
+use std.collections.Span
+
+fn find(haystack: &List[u8], needle: &List[u8]) -> usize?:
+    haystack.span().index_of_span(needle.span())
+
+fn show(at: usize?) -> string:
+    match at:
+        .Some(i) => "${i}"
+        .None => "none"
+
+pub fn main!() -> void $ Console:
+    let bytes: List[u8] = [255, 0, 254, 1, 2, 1, 2, 3]
+    let needle: List[u8] = [1, 2, 3]
+    let empty: List[u8] = []
+    let long: List[u8] = [255, 0, 254, 1, 2, 1, 2, 3, 4]
+    println(
+        "${show(find(&bytes, &[1, 2]))} ${show(bytes.span().slice(3..8).index_of_span(needle.span()))} ${show(find(&bytes, &empty))} ${show(find(&bytes, &long))}",
+    )
+
+tests:
+    use std.testing.assert_equal
+
+    it("found"):
+        let bytes: List[u8] = [255, 0, 254, 1, 2, 1, 2, 3]
+        assert_equal(find(&bytes, &[255]), .Some(0), reason="one element, at the start")
+        assert_equal(
+            find(&bytes, &[1, 2, 3]),
+            .Some(5),
+            reason="after a partial match that restarts",
+        )
+        assert_equal(find(&bytes, &bytes), .Some(0), reason="the whole span")
+        let periodic: List[u8] = [1, 1, 1, 1, 2]
+        assert_equal(find(&periodic, &[1, 1, 2]), .Some(2), reason="a needle with a border")
+
+    it("absent"):
+        let bytes: List[u8] = [255, 0, 254, 1, 2]
+        assert_equal(find(&bytes, &[2, 1]), .None, reason="reversed")
+        assert_equal(find(&bytes, &[7]), .None, reason="one element, absent")
+
+    it("empty needle"):
+        let empty: List[u8] = []
+        let bytes: List[u8] = [9]
+        assert_equal(find(&bytes, &empty), .Some(0), reason="in a span")
+        assert_equal(find(&empty, &empty), .Some(0), reason="in an empty span")
+
+    it("longer needle"):
+        let bytes: List[u8] = [1, 2]
+        assert_equal(find(&bytes, &[1, 2, 3]), .None, reason="longer than the span")
+
+    it("other element types"):
+        let words: List[string] = ["a", "b", "a", "b", "c"]
+        let needle: List[string] = ["a", "b", "c"]
+        assert_equal(words.span().index_of_span(needle.span()), .Some(2), reason="strings")

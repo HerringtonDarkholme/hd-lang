@@ -2321,6 +2321,54 @@ impl[T, 'a] Span[T, 'a]:
             panic_with("index-out-of-bounds", "span slice out of bounds")
         Span { items: self.items, start: self.start + range.start, end: self.start + stop }
 
+impl[T < Eq, 'a] Span[T, 'a]:
+    # Morris-Pratt (r-std-collections.span.index-of-span): `border[j]` is the
+    # length of the longest proper prefix of `needle[0..=j]` that is also its
+    # suffix, so the scan never steps back and the search is
+    # O(len + needle.len()) comparisons, with no table for a needle of one
+    # element. Cost: one table of `needle.len()` offsets per call.
+    ## Returns the offset of the first occurrence of `needle` in the span, or `.None`. An empty needle is at 0.
+    ## See [std-collections.span.index-of-span](../../spec/std/collections.md#r-std-collections.span.index-of-span).
+    pub fn index_of_span['b](&self, needle: Span[T, 'b]) -> usize?:
+        size := self.len()
+        count := needle.len()
+        if count == 0:
+            return .Some(0)
+        if count > size:
+            return .None
+        first := needle.items[needle.start]
+        if count == 1:
+            let at: usize = 0
+            while at < size:
+                if self.items[self.start + at] == first:
+                    return .Some(at)
+                at += 1
+            return .None
+        let mut border: List[usize] = []
+        border.push(0)
+        let matched: usize = 0
+        let j: usize = 1
+        while j < count:
+            value := needle.items[needle.start + j]
+            while matched > 0 && value != needle.items[needle.start + matched]:
+                matched = border[matched - 1]
+            if value == needle.items[needle.start + matched]:
+                matched += 1
+            border.push(matched)
+            j += 1
+        matched = 0
+        let at: usize = 0
+        while at < size:
+            value := self.items[self.start + at]
+            while matched > 0 && value != needle.items[needle.start + matched]:
+                matched = border[matched - 1]
+            if value == needle.items[needle.start + matched]:
+                matched += 1
+                if matched == count:
+                    return .Some(at + 1 - count)
+            at += 1
+        .None
+
 impl[T, 'a] Index[usize] for Span[T, 'a]:
     type Out = T
     fn index(&self, key: usize) -> &T:

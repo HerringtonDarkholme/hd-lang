@@ -30,7 +30,7 @@ fn run() -> i32:
 >   %5 = Closure #2 [%0 %0] : fn(F) -> ()
         pass
     apply(fn(x: i32) -> i32: x + 1) + top(fn(x: i32) -> i32: x + 1)
->   %6 = Closure #1 [%0 %0 %0 %4499] : fn(fn(i32) -> i32) -> i32
+>   %6 = Closure #1 [%0 %0 %0 %4503] : fn(fn(i32) -> i32) -> i32
 >   %7 = Read [$4] : i32
 >   %8 = Prim Add [%7 1:i32] : i32
 >   %9 = Block %8 : i32
