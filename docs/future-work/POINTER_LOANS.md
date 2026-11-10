@@ -758,9 +758,9 @@ upgrade (`ref.weak.upgrade.dead`) refuses instead of trapping.
   erased body or a vtable method takes loans and checks with no witness.
   A loan is taken where the reference crosses the pointer, usually the
   concrete caller; a `*mut dyn` receiver takes a call loan.
-- **Views.** A view object stands for an open reference argument for one
-  call, inside the caller's call loan, so it needs none of its own; #1320
-  gives it an explicit owner.
+- **Views (historical).** A representation view stood for an open
+  reference argument inside the caller's call loan; #1320 gave it an
+  explicit owner. #1448 removed those objects on 2026-11-08.
 - **Cycles.** A borrowed object is reachable from the live root of its
   loan, so the collector never frees it; trace glue reads fields without
   checks.
@@ -927,9 +927,11 @@ Each about an hour, with its test; the matrix rows leave
     a hidden local the passes keep alive, a static cell in a top-level
     binding's initializer, or, for a default argument's `&mut []`, an
     object the caller releases after the call (`Target::Default`'s
-    `owned`). A plain reference's count is `Walk::View`: a retain or
-    release only when `rt:ref_is_view` says it is a view, which folds to
-    nothing in a module that makes no view.
+    `owned`). #1448 deleted the remaining representation views on
+    2026-11-08. Under `ref.count.local` and `ref.box.root`, a local
+    reference keeps no storage alive; its root outlives its last use.
+    The residual implementation counts below are follow-ups, rather than
+    representation views.
     The passes that keep roots alive: a `*T` coerced to `&T` lends
     (`OwnCx::lends`); a call's result keeps alive the counted references it
     was lent; an element place roots its collection's local; a call that

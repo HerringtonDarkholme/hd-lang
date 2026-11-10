@@ -181,10 +181,10 @@ impl[T < ?Copy] Drop for Buffer[T]:
 # block starts with an 8-byte header that no reference counts (#1336
 # phase 10): a count word of 1 and a descriptor word of 0. It is reserved
 # for a bytes-to-string transfer (`string_from_bytes`), whose string takes
-# it as its own header with no copy. A descriptor of 0 is no glue, so a
-# view test (`rt:ref_is_view`) never takes the room for a view, and a view
-# over an element's place counts the block as it counts any other. Its
-# values follow.
+# it as its own header with no copy. While the buffer owns the room,
+# neither it nor a reference into an element takes a count
+# (`module.rt.buffer.not-copyable`).
+# Its values follow.
 fn room(capacity: usize, size: usize) -> usize:
     bytes := u64(capacity) * u64(size)
     if bytes == 0:

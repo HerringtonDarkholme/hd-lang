@@ -394,7 +394,7 @@ costs k layouts.
 | Code added | `univariant`, `layout_of_enum`, `reserve`, cells: about 500 lines |
 | Compile time | flat: one layout per type, as today |
 | Runtime | fewer locals and loads; one `br_table` per match |
-| Wasm size | -39 to -42% where views were made today (issue measure); smaller matches |
+| Wasm size | -39 to -42% where the old layout made views (issue measure); smaller matches |
 | Web compiler gzip | net negative: more lines are deleted than added |
 
 **Where hd stays worse than Rust.** LLVM folds some matches into
@@ -496,6 +496,11 @@ hd already does this (`nullable`). The proposal generalizes it. Source:
   nesting gets harder.
 
 ## Appendix D. Today in hd
+
+Historical snapshot from before #1422 and #1448 (2026-11-08). The built
+implementation follows [The Proposal](#the-proposal) above; #1448 deleted
+`RefPayload` and representation views. The following records the earlier
+layout that the proposal replaced.
 
 `layout.rs` `enum_mem_by`: the tag is 1, 2 or 4 bytes at 0. Then come shared
 slots: the `k`th `i32` value of any variant is in `i32` slot `k`, then `f32`,
