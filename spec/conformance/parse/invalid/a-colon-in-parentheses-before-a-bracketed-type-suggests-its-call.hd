@@ -1,0 +1,5 @@
+# Spec 02 Trailing Blocks: grammar.call.trailing-block.not-header; a `:`
+# inside parentheses is a trailing block, and the hint writes the
+# bracketed type as the call.
+fn f(x: i32) -> void:
+    v := (x: List[i32]) # diagnostic: trailing-block-position

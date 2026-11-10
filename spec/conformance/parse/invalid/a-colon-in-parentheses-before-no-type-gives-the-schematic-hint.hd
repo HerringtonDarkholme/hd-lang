@@ -1,0 +1,4 @@
+# Spec 02 Trailing Blocks: grammar.call.trailing-block.not-header; with
+# no type after the `:`, the hint is the schematic one.
+fn f(x: i32) -> void:
+    v := (x: ) # diagnostic: trailing-block-position

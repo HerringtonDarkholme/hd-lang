@@ -1,0 +1,4 @@
+# Spec 02 Trailing Blocks: grammar.call.trailing-block.not-header; an
+# operand over 32 bytes is not repeated in the hint.
+fn f(x: i32) -> void:
+    v := (a_very_long_identifier_name_over_32: i64) # diagnostic: trailing-block-position
