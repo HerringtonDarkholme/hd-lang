@@ -1,0 +1,25 @@
+# test: forwarding direct and nested suspensions keeps caller-owned borrows valid
+# Spec 13 Dependent Results: ref.dep.suspension.local, ref.dep.suspension.result.
+fn hold!(value: &string) -> usize:
+    value.len()
+
+fn relay(task: Suspend[usize]) -> Suspend[usize]:
+    task
+
+fn relay_list(tasks: List[Suspend[usize]]) -> List[Suspend[usize]]:
+    tasks
+
+fn valid(value: &string) -> Suspend[usize]:
+    relay(hold(value))
+
+fn valid_list(value: &string) -> List[Suspend[usize]]:
+    relay_list([hold(value)])
+
+fn read!(value: &string) -> &string:
+    value
+
+fn relay_output(task: Suspend[&string]) -> Suspend[&string]:
+    task
+
+fn valid_output(value: &string) -> Suspend[&string]:
+    relay_output(read(value))

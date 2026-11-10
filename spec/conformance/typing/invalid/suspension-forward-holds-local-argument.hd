@@ -1,0 +1,11 @@
+# test: forwarding a suspension keeps the local origins of its arguments
+# Spec 13 Dependent Results: ref.dep.suspension.local.
+fn hold!(value: &string) -> usize:
+    value.len()
+
+fn relay(task: Suspend[usize]) -> Suspend[usize]:
+    task
+
+fn bad() -> Suspend[usize]:
+    local := "list"
+    relay(hold(&local)) # diagnostic: local-reference-escapes

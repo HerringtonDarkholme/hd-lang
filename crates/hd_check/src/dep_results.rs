@@ -642,7 +642,17 @@ fn line_up_in(ls: &Layouts<'_>, d: Ty, t: Ty, call: bool) -> Option<Vec<Key>> {
                 TyData::TraitValue {
                     def: y, args: b, ..
                 },
-            ) if x == y => list(a, b, st),
+            ) if x == y => {
+                if !list(a, b, st) {
+                    return false;
+                }
+                // Layout::walk puts the suspension's retained origins after
+                // its result slots, including inside another type argument.
+                if x == ls.suspend {
+                    decl(st, 1);
+                }
+                true
+            }
             _ => ls.of(d).slots.is_empty() && ls.of(t).slots.is_empty(),
         }
     }

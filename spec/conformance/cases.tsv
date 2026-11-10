@@ -5420,6 +5420,9 @@ typing/invalid/dependent-result-store-caller-place.hd	type	reject:local-referenc
 typing/invalid/dependent-result-counted-lend.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.origin.lend
 typing/invalid/suspension-holds-local-argument.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.suspension.local
 typing/valid/suspension-holds-arguments.hd	type	accept	lang/13-values-and-references.md#r-ref.dep.suspension
+typing/invalid/suspension-forward-holds-local-argument.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.suspension.local
+typing/invalid/suspension-forward-list-holds-local-argument.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.suspension.store
+typing/valid/suspension-forward-holds-caller-argument.hd	type	accept	lang/13-values-and-references.md#r-ref.dep.suspension.result
 typing/valid/suspension-lifetime-field.hd	type	accept	lang/13-values-and-references.md#r-ref.dep.suspension.lifetime
 typing/invalid/suspension-lifetime-escapes.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.suspension.lifetime.field
 typing/invalid/suspension-local-boxed.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.suspension.store
