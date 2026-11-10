@@ -1096,7 +1096,7 @@ fn host_vtable(input: &Input<'_>, m: &mut Module, key: Ty) -> StageResult<usize>
     for method in hd_mono::slot_methods(input.env, def) {
         // A method no reachable code calls links no host method.
         if !input.collected.calls_dyn(method) {
-            slots.push(Sym::Helper(crate::boundary::uncalled_slot(input, method)?));
+            slots.push(crate::boundary::uncalled_slot(input, method)?);
             continue;
         }
         let mp = (input.path)(method);
@@ -1105,9 +1105,9 @@ fn host_vtable(input: &Input<'_>, m: &mut Module, key: Ty) -> StageResult<usize>
             return unsupported(format!("the host method `{name}`"));
         };
         let row = crate::boundary::Row::of(hm);
-        slots.push(Sym::Helper(crate::boundary::host_slot(
+        slots.push(crate::boundary::host_slot(
             input, m, host.key, &row, method, false, None,
-        )?));
+        )?);
     }
     crate::drive::vtable(input, m, def, slots, Vec::new())
 }
@@ -1171,11 +1171,11 @@ fn profile_tree(
     let mut slots = Vec::new();
     for method in hd_mono::slot_methods(input.env, def) {
         if !input.collected.calls_dyn(method) {
-            slots.push(Sym::Helper(crate::boundary::uncalled_slot_at(
+            slots.push(crate::boundary::uncalled_slot_at(
                 input,
                 method,
                 at.arguments,
-            )?));
+            )?);
             continue;
         }
         let mp = (input.path)(method);
@@ -1197,7 +1197,7 @@ fn profile_tree(
                 Wait::Never
             },
         };
-        slots.push(Sym::Helper(crate::boundary::host_slot(
+        slots.push(crate::boundary::host_slot(
             input,
             m,
             key,
@@ -1205,7 +1205,7 @@ fn profile_tree(
             method,
             false,
             Some(at),
-        )?));
+        )?);
     }
     if at.package {
         for method in input

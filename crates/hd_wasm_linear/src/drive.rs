@@ -10,9 +10,9 @@ use hd_mono::{ProgramEnv, Sub, Target, TargetKind};
 use hd_tir::ir::{Body, Callee, NONE, PlaceRoot, ReadMode, Ref, Tag, Topology};
 use hd_types::{Ty, TyData};
 
+use crate::Input;
 use crate::module::{Module, Sym, Val};
 use crate::rt::Helper;
-use crate::{Input, unsupported};
 
 /// Whether a dynamic call of `method`, of trait `trait_`, may use a drive
 /// slot: a bang method that is not generic, of a trait with no type
@@ -306,12 +306,13 @@ fn needs_slot(
 }
 
 /// The vtable of trait `trait_`, with async and then blocking drive slots
-/// after its normal slots and parents.
+/// after its normal slots and parents. Every slot is a runtime helper (a
+/// trap included), so its drive slot wraps or replaces that helper.
 pub fn vtable(
     input: &Input<'_>,
     m: &mut Module,
     trait_: DefId,
-    mut slots: Vec<Sym>,
+    mut slots: Vec<Helper>,
     parents: Vec<usize>,
 ) -> StageResult<usize> {
     let mut drives = Vec::new();
@@ -336,18 +337,17 @@ pub fn vtable(
             .iter()
             .zip(&mut slots)
         {
-            if m.blocking_only.contains(method)
-                && matches!(normal, Sym::Helper(Helper::HostCold { .. }))
-            {
-                *normal = Sym::Helper(crate::boundary::uncalled_slot(input, *method)?);
+            if m.blocking_only.contains(method) && matches!(normal, Helper::HostCold { .. }) {
+                *normal = crate::boundary::uncalled_slot(input, *method)?;
             }
         }
     }
+    let slots = slots.into_iter().map(Sym::Helper).collect();
     Ok(m.vtable_full(slots, parents, drives))
 }
 
 /// The drive slot of `method` beside its cold slot `cold`.
-fn slot(input: &Input<'_>, method: DefId, cold: &Sym, blocking: bool) -> StageResult<Sym> {
+fn slot(input: &Input<'_>, method: DefId, cold: &Helper, blocking: bool) -> StageResult<Sym> {
     let (pool, env) = (input.pool, input.env);
     let (ptys, ret) = crate::boundary::signature(pool, env, method, None);
     let mut params = vec![Val::I32];
@@ -358,12 +358,7 @@ fn slot(input: &Input<'_>, method: DefId, cold: &Sym, blocking: bool) -> StageRe
         params.push(Val::I32);
     }
     let results = crate::layout::vals(pool, env, ret)?;
-    // ruled out: dyn_value::vtable_of, rt::{host_vtable, profile_tree} and
-    // boundary::handle_slots construct only Helper slots, including traps.
-    let Sym::Helper(h) = cold else {
-        return unsupported("a vtable slot that is not a helper");
-    };
-    Ok(Sym::Helper(match h {
+    Ok(Sym::Helper(match cold {
         Helper::HostCold {
             module,
             method,

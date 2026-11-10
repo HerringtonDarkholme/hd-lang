@@ -1318,17 +1318,17 @@ fn handle_slots(
     host: Option<&hd_host_abi::HostTrait>,
     at: Option<AtProfile<'_>>,
     enabled: bool,
-) -> StageResult<Vec<Sym>> {
+) -> StageResult<Vec<Helper>> {
     use hd_host_abi::{Codec, Scalar, Wait};
     let (pool, env) = (input.pool, input.env);
     let mut slots = Vec::new();
     for method in env.trait_methods(trait_) {
         if !enabled || !input.collected.calls_dyn(method) {
-            slots.push(Sym::Helper(uncalled_slot_at(
+            slots.push(uncalled_slot_at(
                 input,
                 method,
                 at.and_then(|a| a.arguments),
-            )?));
+            )?);
             continue;
         }
         let mp = (input.path)(method);
@@ -1376,12 +1376,12 @@ fn handle_slots(
         } else {
             layout::vals(pool, env, ret)?
         };
-        slots.push(Sym::Helper(Helper::HandleSlot {
+        slots.push(Helper::HandleSlot {
             inner: Box::new(inner),
             params: pv,
             ctx: crate::emit::slot_ctx(pool, env, method),
             results,
-        }));
+        });
     }
     Ok(slots)
 }

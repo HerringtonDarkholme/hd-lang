@@ -15,7 +15,7 @@ use hd_types::{Ty, TyData};
 use super::Em;
 use super::value::Src;
 use crate::layout::{Leaf, Part, mem as mem_of, walk};
-use crate::module::{HEAP, Ins, Sym, Val, mem};
+use crate::module::{HEAP, Ins, Val, mem};
 use crate::rt::{Helper, RefRead, TypeIdParts};
 
 impl Em<'_, '_, '_> {
@@ -232,10 +232,10 @@ impl Em<'_, '_, '_> {
                     _ => self_ty,
                 };
                 let parts = self.type_id_parts(recorded);
-                slots.push(Sym::Helper(Helper::RuntimeType(parts)));
+                slots.push(Helper::RuntimeType(parts));
                 continue;
             }
-            slots.push(Sym::Helper(if traps {
+            slots.push(if traps {
                 let mut all = vec![Val::I32];
                 all.extend(params);
                 Helper::DynTrap {
@@ -262,7 +262,7 @@ impl Em<'_, '_, '_> {
                     given,
                     ctx,
                 }
-            }));
+            });
         }
         crate::drive::vtable(self.input, self.m, table.trait_, slots, parents)
     }
