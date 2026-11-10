@@ -96,6 +96,11 @@ fn fix_in_each_position_checks_clean() {
             "Box { n: i64(small) }",
         ),
         (
+            "a shorthand field",
+            "fn f(n: i16) -> Box:\n    Box { n }\n",
+            "Box { n: i64(n) }",
+        ),
+        (
             "a float",
             "fn f(x: f32) -> f64:\n    let wide: f64 = x\n    wide\n",
             "f64(x)",

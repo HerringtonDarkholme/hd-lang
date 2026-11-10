@@ -2238,16 +2238,22 @@ impl Ck<'_, '_> {
             // value, as `i64(small)`.
             if code == Code::TypeMismatch && self.num_widens(got, want) {
                 // A labelled field or argument: wrap the value after the
-                // label. A shorthand `{ x }` has no value to wrap.
-                let value = match n.kind() {
-                    SyntaxKind::DataFieldInit | SyntaxKind::NamedArgument => n.children().next(),
-                    _ => Some(n),
-                };
-                let Some(value) = value else {
-                    return true;
-                };
-                let span = self.cx.src.span(value);
+                // label. A shorthand `{ x }` names its value: it becomes
+                // `x: i64(x)`.
                 let ty = self.show(want);
+                let label = matches!(
+                    n.kind(),
+                    SyntaxKind::DataFieldInit | SyntaxKind::NamedArgument
+                );
+                let (span, open) = match n.children().next() {
+                    Some(value) if label => (self.cx.src.span(value), format!("{ty}(")),
+                    None if label => {
+                        let span = self.cx.src.span(n);
+                        let name = &self.cx.src.text[span.lo as usize..span.hi as usize];
+                        (span, format!("{name}: {ty}("))
+                    }
+                    _ => (self.cx.src.span(n), format!("{ty}(")),
+                };
                 self.diags.add_fix(
                     &format!("convert the value with `{ty}(...)`"),
                     hd_diag::FixSafety::Exact,
@@ -2257,7 +2263,7 @@ impl Ck<'_, '_> {
                                 hi: span.lo,
                                 ..span
                             },
-                            &format!("{ty}("),
+                            &open,
                         ),
                         (
                             Span {
