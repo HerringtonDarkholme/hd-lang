@@ -1,0 +1,11 @@
+# test: every union type meets the sealed trait UnionType and no other type does
+# Spec 09 Sealed Traits: trait.sealed.union-type.
+use std.structure.UnionType
+
+fn only[T < UnionType](x: T) -> void:
+    pass
+
+fn use_it() -> void:
+    let u: i32 | string = ._0(1)
+    only(u)
+    only(3) # diagnostic: unsatisfied-trait-bound

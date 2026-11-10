@@ -1,0 +1,14 @@
+# test: a generic impl for a tuple type with a rest element matches a tuple of that shape, its parameter fixed by the fixed element and the rest list
+# Spec 04 Rest Elements: types.tuple.rest.same, types.tuple.rest.value.
+# expect-stdout: 3 1
+trait Size:
+    fn size(&self) -> usize
+
+impl[T] Size for (T, List[T]...):
+    fn size(&self) -> usize:
+        1 + self._1.len()
+
+pub fn main() -> void $ Console:
+    let t: (i32, List[i32]...) = (1, 2, 3)
+    let u: (string, List[string]...) = ("a",)
+    println("${t.size()} ${u.size()}")
