@@ -1244,11 +1244,14 @@ fn borrow_spans(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
                 && matches!(&cx.places[r], Some(p) if p.proj == [Proj::Deref])
         })
         .collect();
+    let mut capture_drops = crate::own::capture_env::ReferenceDrops::default();
+    capture_drops.build(b, own, cx.topo);
     let mut walk = Live {
         cx,
         words,
         frame_uses,
         root_uses,
+        capture_drops,
         may,
         excl,
         frame,
@@ -1278,6 +1281,7 @@ struct Live<'a> {
     /// Each use of what may point into what a binding local holds, as
     /// (instruction, local), by instruction.
     root_uses: Vec<(u32, u32)>,
+    capture_drops: crate::own::capture_env::ReferenceDrops,
     /// Per instruction: a call that may write. Per local: a parameter
     /// whose referent exclusive mode lets a borrow live across such calls.
     may: Vec<bool>,
@@ -1368,8 +1372,10 @@ impl Backward for Live<'_> {
         // value as it is.
         if writes && let Some(q) = &self.cx.places[i] {
             let words = std::mem::take(&mut self.words);
+            let capture_drop = self.capture_drops.at(i);
             self.check(x, s, live, |r, p| {
                 q.root != PlaceRoot::Value(Ref(r))
+                    && !(capture_drop && q.root == p.root && p.proj.first() == Some(&Proj::Deref))
                     && if words[r as usize] {
                         let held = Place {
                             root: p.root,

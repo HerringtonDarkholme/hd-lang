@@ -3,8 +3,8 @@
 # @build: v8 release
 # Feature: Captured References (spec/lang/13-values-and-references.md, #1364).
 # expected: `bump` moves `p` into one environment; `demo` retains
-# `origin` once for it; `local` captures a `&List[string]` address in a
-# closure that never escapes, with no allocation and no count.
+# `origin` once for it; `local#1` reads through the captured address
+# without copying or releasing the list.
 struct Point:
     name: string
     x: i32
@@ -78,27 +78,26 @@ fn apply(f: fn() -> usize) -> usize:
 fn local(xs: &List[string]) -> usize:
 > app/main/local
 >   local $0 xs: &List[string] [param read captured] value
->     uses $0: entry -> %2 lend, %7 consume last
+>     uses $0: entry -> %2 lend, %6 consume last
 >   local $1 f: fn() -> usize [read] value
->     uses $1: %9 -> %10 lend last
->   %1 = Retain %16 Entry local $0 #0 : ()
+>     uses $1: %8 -> %9 lend last
+>   %1 = Retain %15 Entry local $0 #0 : ()
     apply(fn() -> usize: xs.len())
->   %0 = Retain %6 Entry captures #0 : ()
->   %2 = Read copy [*$0] : List[string]
+>   %0 = Retain %5 Entry captures #0 : ()
+>   %2 = Read borrow [*$0] : List[string]
 >   %3 = Drop [$0] : ()
 >   %4 = Intrinsic ListLen [%2] : usize
->   %5 = Drop [%2] : ()
->   %6 = Block %4 : usize
->   %7 = Closure #1 : fn() -> usize
->   %8 = Retain %7 Operation captures #0 : ()
->   %9 = Store [$1] %7 : ()
->   %10 = Read borrow [$1] : fn() -> usize
->   %11 = CallValue %10 [] : usize
->   %12 = Break L0 %11 : never
->   %13 = Block - : usize
->   %14 = Scope %13 [] : usize
->   %15 = Drop [$1] : ()
->   %16 = Block %14 : usize
+>   %5 = Block %4 : usize
+>   %6 = Closure #1 : fn() -> usize
+>   %7 = Retain %6 Operation captures #0 : ()
+>   %8 = Store [$1] %6 : ()
+>   %9 = Read borrow [$1] : fn() -> usize
+>   %10 = CallValue %9 [] : usize
+>   %11 = Break L0 %10 : never
+>   %12 = Block - : usize
+>   %13 = Scope %12 [] : usize
+>   %14 = Drop [$1] : ()
+>   %15 = Block %13 : usize
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   summary kept [$0] writes

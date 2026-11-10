@@ -1,0 +1,21 @@
+# Spec 13 Values and References: ref.count.local.
+# expect-stdout: 2 1 2
+
+fn apply(f: fn() -> usize) -> usize:
+    f()
+
+fn read_twice[T](xs: &List[T]) -> usize:
+    first := apply(fn() -> usize: xs.len())
+    first + apply(fn() -> usize: xs.len())
+
+fn snapshot(xs: &mut List[string]) -> usize:
+    apply:
+        before := *xs
+        xs.push("later")
+        before.len()
+
+pub fn main() -> void $ Console:
+    let mut items = ["first"]
+    first := read_twice(&items)
+    old := snapshot(&mut items)
+    println("$first $old ${items.len()}")

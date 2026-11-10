@@ -2,8 +2,8 @@
 # @build: v8 release
 # Feature: Captured References (spec/lang/13-values-and-references.md, #1364).
 # expected: `bump` moves `p` into one environment; `demo` retains
-# `origin` once for it; `local` captures a `&List[string]` address in a
-# closure that never escapes, with no allocation and no count.
+# `origin` once for it; `local#1` reads through the captured address
+# without copying or releasing the list.
 struct Point:
     name: string
     x: i32
