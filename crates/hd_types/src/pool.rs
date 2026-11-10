@@ -769,11 +769,6 @@ impl<'a> Types<'a> {
         }
     }
 
-    #[must_use]
-    pub fn global(self) -> &'a InternPool {
-        self.global
-    }
-
     /// The columns and row of an index.
     fn at(self, id: u32) -> (&'a Cols, u32) {
         if id & LOCAL == 0 {
@@ -975,10 +970,6 @@ impl InternPool {
     /// [`Types::applied`].
     pub fn applied(&self, def: DefId, arg: Ty) -> Ty {
         self.types().applied(def, arg)
-    }
-    #[must_use]
-    pub fn has_infer(&self, t: Ty) -> bool {
-        self.types().has_infer(t)
     }
     #[must_use]
     pub fn has_poison(&self, t: Ty) -> bool {

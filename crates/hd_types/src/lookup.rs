@@ -149,16 +149,6 @@ impl RefTable {
         RefTable { rows, by_trait }
     }
 
-    #[must_use]
-    pub fn len(&self) -> usize {
-        self.rows.len()
-    }
-
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.rows.is_empty()
-    }
-
     fn bucket(&self, s: u32, e: u32, code: u64) -> &[(u32, u64, ImplRef)] {
         let rows = &self.rows[s as usize..e as usize];
         let lo = rows.partition_point(|r| r.1 < code);

@@ -896,12 +896,6 @@ impl BodyMemo {
     pub fn records(&self) -> impl Iterator<Item = &MemoRecord> {
         self.records.iter()
     }
-    /// The slot a key maps to: a body entry (`BODY_ENTRY` set) or a
-    /// global one.
-    #[must_use]
-    pub fn slot(&self, k: &MemoKey) -> Option<u32> {
-        self.table.get(k).copied()
-    }
 }
 
 /// A memo slot's entry and record.
@@ -1033,14 +1027,10 @@ pub struct SolveCx<'a> {
 /// The solver's entry points (§1.3).
 pub trait Solver: Sync {
     fn solve(&self, cx: &mut SolveCx<'_>, goal: &Goal, fuel: &mut Fuel) -> StageResult<Answer>;
-    fn elaborate(&self, bounds: &[DeclaredBound], out: &mut ParamEnvBuilder) -> EnvKey;
     /// Codegen's entry (§8.3): the impl of a concrete trait reference,
     /// asked through the build's context, whose impls, universe and memos
     /// live as long as the build.
     fn select(&self, cx: &mut SolveCx<'_>, tref: ConcreteTraitRef) -> StageResult<Selection>;
-    /// Codegen's entry for associated types at an instance: every
-    /// projection in `t` with a concrete base, normalized.
-    fn normalize_concrete(&self, pool: Types<'_>, impls: Impls<'_>, t: Ty) -> StageResult<Ty>;
 }
 
 /// Canonicalizes a goal's self type and arguments (§2.2 steps 1 and 3):
@@ -2954,26 +2944,6 @@ impl Solver for TableSolver {
         }
     }
 
-    /// Elaborates the clauses. Their key is the run memo's
-    /// (`GlobalMemo::env_key`), interned on the first solve; it is
-    /// `EnvKey::EMPTY` for no bound and `EnvKey::UNSET` until then.
-    fn elaborate(&self, bounds: &[DeclaredBound], out: &mut ParamEnvBuilder) -> EnvKey {
-        for (i, b) in bounds.iter().enumerate() {
-            out.clause_self.push(b.tref.self_ty);
-            out.clause_trait.push(b.tref.trait_);
-            out.clause_args.push(b.tref.args);
-            out.clause_bindings.push(b.bindings.clone());
-            out.clause_mut.push(b.mut_);
-            out.clause_origin.push(u16::try_from(i).expect("bounds"));
-        }
-        out.key = None;
-        if out.clause_self.is_empty() {
-            EnvKey::EMPTY
-        } else {
-            EnvKey::UNSET
-        }
-    }
-
     fn select(&self, cx: &mut SolveCx<'_>, tref: ConcreteTraitRef) -> StageResult<Selection> {
         let mut fuel = Fuel::new(Fuel::BODY_DEFAULT);
         let mut s = Search::new(cx, &mut fuel);
@@ -2997,10 +2967,6 @@ impl Solver for TableSolver {
                 format!("select found no impl: {other:?}"),
             )),
         }
-    }
-
-    fn normalize_concrete(&self, pool: Types<'_>, impls: Impls<'_>, t: Ty) -> StageResult<Ty> {
-        Ok(normalize_concrete(pool, impls, t))
     }
 }
 
@@ -3203,6 +3169,9 @@ mod tests {
         }
         fn is_local(&self, _: DefId) -> bool {
             false
+        }
+        fn copy_decl(&self, _: DefId) -> super::CopyDecl {
+            super::CopyDecl::Copies
         }
     }
 
