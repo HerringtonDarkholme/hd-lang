@@ -429,17 +429,14 @@ fn static_row(pool: Types<'_>, self_ty: Ty) -> Row {
     let mut subs = Vec::new();
     match pool.get(self_ty) {
         TyData::Ref { counted: false, .. } => return Row::Fails(FailReason::NoImpl),
-        // `box` made the object from a value that met `'static`.
+        // `box` made the object from a value that met `'static`. A trait
+        // value is only ever a reference's referent, so this answers it.
         TyData::Ref { .. } => {}
         TyData::Tuple { elems, rest } => {
             subs.extend_from_slice(pool.list_items(elems));
             subs.extend(rest);
         }
         TyData::Adt { args, .. } => subs.extend_from_slice(pool.list_items(args)),
-        TyData::TraitValue { args, bindings, .. } => {
-            subs.extend_from_slice(pool.list_items(args));
-            subs.extend(bindings.iter().map(|&(_, b)| b));
-        }
         // A projection meets it when its parts do, as Rust's projection
         // rule has it (RFC 1214). An opaque type's hidden type is unknown
         // here, so it meets it only by an environment clause.
