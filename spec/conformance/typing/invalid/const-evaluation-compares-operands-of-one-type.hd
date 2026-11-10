@@ -1,0 +1,6 @@
+# Spec 04 Const Generic Arguments: types.generic.const.operators; a comparison takes two operands of one type.
+struct Flag[B < const bool]:
+    value: i32
+
+fn take(value: Flag[1 == 'a']) -> void: # diagnostic: type-mismatch
+    pass

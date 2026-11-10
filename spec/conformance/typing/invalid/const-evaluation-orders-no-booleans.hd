@@ -1,0 +1,6 @@
+# Spec 04 Const Generic Arguments: types.generic.const.operators; only `==` and `!=` compare two booleans; ordering them is a type error.
+struct Flag[B < const bool]:
+    value: i32
+
+fn take(value: Flag[true < false]) -> void: # diagnostic: type-mismatch
+    pass

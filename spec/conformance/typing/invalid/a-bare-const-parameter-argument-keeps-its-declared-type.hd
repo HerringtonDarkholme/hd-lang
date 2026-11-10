@@ -1,0 +1,8 @@
+# Spec 04 Const Generic Arguments: types.generic.const.evaluate; a bare
+# const parameter passed on keeps its declared type, which must be the
+# slot's.
+struct Buffer[N < const usize]:
+    size: i32
+
+fn small[N < const u8](buffer: Buffer[N]) -> void: # diagnostic: type-mismatch
+    pass

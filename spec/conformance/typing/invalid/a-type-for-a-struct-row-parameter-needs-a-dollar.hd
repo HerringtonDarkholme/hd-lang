@@ -1,0 +1,7 @@
+# Spec 02 Row Type Arguments: grammar.type.row-argument.kind; a struct's row
+# parameter takes a row after `$`, not a type.
+struct Job[$R]:
+    id: i32
+
+fn start(job: Job[i32]) -> void: # diagnostic: generic-kind-mismatch
+    pass

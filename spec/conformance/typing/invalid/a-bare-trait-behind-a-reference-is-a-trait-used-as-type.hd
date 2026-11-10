@@ -1,0 +1,7 @@
+# Spec 09 Trait Values: trait.dyn.reference-keyword; a bare trait name
+# behind an existing `&` is an error whose fix-it inserts `dyn`.
+trait Show:
+    fn show(&self) -> void
+
+fn display(value: &Show) -> void: # diagnostic: trait-used-as-type
+    pass

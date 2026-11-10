@@ -1,0 +1,5 @@
+# Spec 10 Package Host Traits: module.host.package.target; `@host` marks
+# only a package-owned public trait.
+@host # diagnostic: decorator-target-kind
+trait Clock:
+    fn now(self) -> i64

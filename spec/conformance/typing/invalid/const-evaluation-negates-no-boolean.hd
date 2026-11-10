@@ -1,0 +1,6 @@
+# Spec 04 Const Generic Arguments: types.generic.const.operators; unary `-` takes an integer operand.
+struct Num[N < const i32]:
+    value: i32
+
+fn take(value: Num[-true]) -> void: # diagnostic: type-mismatch
+    pass

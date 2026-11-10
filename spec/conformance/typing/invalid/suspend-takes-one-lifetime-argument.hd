@@ -1,0 +1,4 @@
+# Spec 13 Suspension Dependencies: ref.dep.suspension.lifetime; `Suspend`
+# takes at most one lifetime argument.
+fn wait['a, 'b](task: Suspend[i32, 'a, 'b]) -> void: # diagnostic: argument-count
+    pass

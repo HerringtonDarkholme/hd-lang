@@ -1,0 +1,6 @@
+# Spec 14 Derivation Blocks With No Trait: annot.no-trait.target; the
+# target is a struct or an enum, not a primitive type.
+use std.structure.Structure
+
+impl i32 by Structure: # diagnostic: misplaced-derivation
+    pass

@@ -1,0 +1,6 @@
+# Spec 14 Structure: annot.structure.named-positions.error; an anonymous
+# parameter bound names `Structure` only inside a template.
+use std.structure.Structure
+
+fn describe(value: impl Structure) -> void: # diagnostic: structure-outside-template
+    pass

@@ -1,0 +1,5 @@
+# Spec 14 Build Configuration: annot.cfg.target; `@cfg` precedes only a
+# function or a method with a body.
+@cfg(.Debug) # diagnostic: invalid-cfg-declaration
+struct Settings:
+    level: i32

@@ -1,0 +1,7 @@
+# Spec 02 Row Type Arguments: grammar.type.row-argument.kind; a trait's row
+# parameter takes a row after `$`, not a type.
+trait Runner[$R]:
+    fn run(self) -> void
+
+fn start[X < Runner[i32]](runner: X) -> void: # diagnostic: generic-kind-mismatch
+    pass

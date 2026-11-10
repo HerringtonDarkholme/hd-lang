@@ -1,0 +1,4 @@
+# Spec 11 Row Parameters: req.row.param.unmarked; a const parameter is not
+# a row parameter, so a row cannot name it.
+fn run[N < const usize]() -> void $ N: # diagnostic: generic-kind-mismatch
+    pass

@@ -1,0 +1,7 @@
+# Spec 02 Row Type Arguments: grammar.type.row-argument.kind; a trait's type
+# parameter takes a type, not a row.
+trait Holder[A]:
+    fn held(self) -> void
+
+fn start[X < Holder[$ Console]](holder: X) -> void: # diagnostic: generic-kind-mismatch
+    pass

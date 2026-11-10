@@ -1,0 +1,14 @@
+# Spec 04 Anonymous Parameter Types: types.impl-parameter.lifetime; an
+# anonymous parameter may be bounded by 'static.
+trait Show:
+    fn show(self) -> i32
+
+impl Show for i32:
+    fn show(self) -> i32:
+        self
+
+fn kept(value: impl Show & 'static) -> i32:
+    value.show()
+
+fn use_it() -> i32:
+    kept(+1)

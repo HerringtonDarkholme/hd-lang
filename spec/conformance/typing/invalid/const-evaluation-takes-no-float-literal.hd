@@ -1,0 +1,6 @@
+# Spec 04 Const Generic Arguments: types.generic.const.types; a float literal is not one of the const types.
+struct Num[N < const i32]:
+    value: i32
+
+fn take(value: Num[1.5]) -> void: # diagnostic: type-mismatch
+    pass

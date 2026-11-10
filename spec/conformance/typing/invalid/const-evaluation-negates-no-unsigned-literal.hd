@@ -1,0 +1,6 @@
+# Spec 04 Const Generic Arguments: types.generic.const.evaluate; a negated literal evaluated at the unsigned slot type is a type error.
+struct Small[N < const u8]:
+    value: i32
+
+fn take(value: Small[-1]) -> void: # diagnostic: type-mismatch
+    pass

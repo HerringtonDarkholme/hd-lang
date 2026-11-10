@@ -1,0 +1,6 @@
+# Spec 03 Lookup Categories: names.category.syntax; a type position
+# resolves its name as a type, and a function is not one.
+use std.cmp.max
+
+fn larger(value: max) -> void: # diagnostic: unknown-type
+    pass

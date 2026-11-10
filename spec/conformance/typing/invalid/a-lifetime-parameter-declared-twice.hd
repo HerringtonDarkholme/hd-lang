@@ -1,0 +1,4 @@
+# Spec 04 Lifetime Parameters: types.lifetime.unique; a generic list
+# declares each lifetime once.
+fn first['a, 'a](value: &'a i32) -> void: # diagnostic: duplicate-binding
+    pass

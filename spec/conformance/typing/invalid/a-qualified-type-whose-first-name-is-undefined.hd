@@ -1,0 +1,4 @@
+# Spec 03 Module Scope: names.module.scope; the first name of a qualified
+# type must be in the module scope.
+fn read(value: nothing.Thing) -> void: # diagnostic: unknown-name
+    pass

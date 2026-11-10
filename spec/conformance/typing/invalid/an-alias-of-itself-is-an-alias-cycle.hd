@@ -1,0 +1,3 @@
+# Spec 04 Type Aliases: types.alias.cycle; an alias that names itself
+# directly expands to itself.
+type Loop = Loop # diagnostic: alias-cycle

@@ -1,0 +1,4 @@
+# Spec 04 Const Generic Parameters: types.generic.const.parameter; a const
+# parameter denotes a value, so a bound cannot name it.
+fn pick[N < const usize, T < N](value: T) -> void: # diagnostic: generic-kind-mismatch
+    pass

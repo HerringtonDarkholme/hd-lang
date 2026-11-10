@@ -1,0 +1,7 @@
+# Spec 04 Const Generic Parameters: types.generic.const.parameter; a const
+# parameter denotes a value, so an implementation cannot implement it.
+struct Buffer[N < const usize]:
+    size: i32
+
+impl[N < const usize] N for Buffer[N]: # diagnostic: generic-kind-mismatch
+    pass

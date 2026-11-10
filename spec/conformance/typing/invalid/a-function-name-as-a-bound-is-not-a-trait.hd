@@ -1,0 +1,6 @@
+# Spec 03 Lookup Categories: names.category.syntax; a bound resolves its
+# name as a trait, and a function is not one.
+use std.cmp.max
+
+fn larger[T < max](value: T) -> void: # diagnostic: unknown-trait
+    pass

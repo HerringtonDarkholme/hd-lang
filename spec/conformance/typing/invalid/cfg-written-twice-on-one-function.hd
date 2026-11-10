@@ -1,0 +1,6 @@
+# Spec 14 Build Configuration: annot.cfg.argument; a declaration has one
+# `@cfg` line.
+@cfg(.Debug)
+@cfg(.Release) # diagnostic: invalid-cfg-declaration
+fn level() -> i32:
+    +1

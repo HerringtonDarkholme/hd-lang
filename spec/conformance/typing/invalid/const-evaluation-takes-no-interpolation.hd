@@ -1,0 +1,6 @@
+# Spec 04 Const Generic Arguments: types.generic.const.nonconstant; string interpolation is not a const operation.
+struct Word[S < const string]:
+    value: i32
+
+fn take(value: Word["a${1}"]) -> void: # diagnostic: nonconstant-generic-argument
+    pass

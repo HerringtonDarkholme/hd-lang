@@ -1,0 +1,7 @@
+# Spec 13 Copy: ref.copy.opt-out.invalid; `impl !Copy` declares no members.
+struct Photo:
+    pixels: i32
+
+impl !Copy for Photo: # diagnostic: invalid-negative-impl
+    fn size(self) -> i32:
+        self.pixels

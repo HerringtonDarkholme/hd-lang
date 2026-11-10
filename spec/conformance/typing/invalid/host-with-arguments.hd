@@ -1,0 +1,5 @@
+# Spec 10 Package Host Traits: module.host.package.bare; `@host` takes no
+# arguments.
+@host(1) # diagnostic: decorator-target-kind
+pub trait Clock:
+    fn now(self) -> i64
