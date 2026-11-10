@@ -1168,7 +1168,12 @@ impl Ck<'_, '_> {
                     rest,
                 })
             }
-            SyntaxKind::ImplType => self.declared_opaque_annotation(n)?,
+            // A local function's parameter annotation names its anonymous
+            // type parameter; any other `impl` is an opaque result.
+            SyntaxKind::ImplType => match self.impl_params.iter().find(|(i, _)| *i == n.index()) {
+                Some(&(_, t)) => t,
+                None => self.declared_opaque_annotation(n)?,
+            },
             SyntaxKind::DynType => {
                 if role != NameRole::Referent {
                     self.err(

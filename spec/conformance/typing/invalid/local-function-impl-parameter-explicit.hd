@@ -1,0 +1,6 @@
+# Spec 04 Anonymous Parameter Types: types.impl-parameter.explicit; a
+# local function's anonymous parameter takes no written type argument.
+fn show() -> string:
+    fn text(value: impl Display) -> string:
+        value.to_string()
+    text::[i32](+1) # diagnostic: argument-count

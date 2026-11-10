@@ -239,8 +239,13 @@ impl Ck<'_, '_> {
                 .map_or_else(|| format!("${i}"), |t| src.text(t).to_owned());
             form.names.push(self.cx.names.syms.intern(&pname));
         }
-        if let Some(gl) = generics {
-            return self.generic_local_fn(n, gl, parts, form, &param_nodes);
+        // `types.impl-parameter.anonymous`: an `impl Trait` parameter
+        // makes the function generic, as a written parameter does.
+        let anonymous = param_nodes
+            .iter()
+            .any(|p| Src::type_child(*p).is_some_and(|t| t.kind() == SyntaxKind::ImplType));
+        if generics.is_some() || anonymous {
+            return self.generic_local_fn(n, generics, parts, form, &param_nodes);
         }
         // `fn.default.eval`: each default is a closure of the earlier
         // parameters, declared before the function, so it sees the
@@ -263,11 +268,14 @@ impl Ck<'_, '_> {
 
     /// A generic local function: its own type parameters with their bounds
     /// and defaults are in scope for its header and body, which are checked
-    /// once, as a named generic function's are (`fn.local.declare`).
+    /// once, as a named generic function's are (`fn.local.declare`). The
+    /// written parameters come first, then one anonymous parameter per
+    /// `impl Trait` parameter annotation, as a top-level function's
+    /// (`types.impl-parameter.anonymous`).
     fn generic_local_fn<'t>(
         &mut self,
         n: NodeRef<'t>,
-        gl: NodeRef<'t>,
+        gl: Option<NodeRef<'t>>,
         mut parts: ClosureParts<'t>,
         mut form: LocalForm,
         param_nodes: &[NodeRef<'t>],
@@ -277,12 +285,14 @@ impl Ck<'_, '_> {
         let pool = self.pool();
         let in_scope = self.gens.len();
         let in_rows = self.row_gens.len();
+        let in_impl = self.impl_params.len();
         let first = self.next_gen;
         let mut params = Vec::new();
         let mut nodes = Vec::new();
         let mut generics = Vec::new();
         for g in gl
-            .children()
+            .iter()
+            .flat_map(|gl| gl.children())
             .filter(|c| c.kind() == SyntaxKind::GenericParameter)
         {
             let Some(gt) = g.name(toks) else {
@@ -323,6 +333,33 @@ impl Ck<'_, '_> {
             nodes.push(g);
             generics.push(generic);
         }
+        // `types.impl-parameter.distinct`: one per occurrence, named by a
+        // label no source writes.
+        for t in param_nodes
+            .iter()
+            .filter_map(|p| Src::type_child(*p))
+            .filter(|t| t.kind() == SyntaxKind::ImplType)
+        {
+            let index = self.next_gen;
+            self.next_gen = self.next_gen.saturating_add(1);
+            self.cx.names.paths.set_param_name(
+                hd_base::PathId::from_raw(self.gen_owner.raw()),
+                index,
+                "impl Trait",
+            );
+            let p = pool.intern_ty(&TyData::Param(ParamRef {
+                owner: self.gen_owner,
+                index,
+            }));
+            let sym = self.cx.names.syms.intern(&format!("<impl:{index}>"));
+            self.gens.push((sym, p));
+            self.impl_params.push((t.index(), p));
+            let mut generic = Generic::plain(sym);
+            generic.anonymous = true;
+            params.push(p);
+            nodes.push(t);
+            generics.push(generic);
+        }
         let source_scope = self.generic_sources.len();
         self.generic_sources.push(GenericSource {
             owner: self.gen_owner,
@@ -334,6 +371,10 @@ impl Ck<'_, '_> {
         for (position, ((&p, &g), generic)) in
             params.iter().zip(&nodes).zip(&mut generics).enumerate()
         {
+            if generic.anonymous {
+                generic.bounds = self.anonymous_bounds(p, g)?;
+                continue;
+            }
             let mut bs = Vec::new();
             let mut lifted = false;
             if let Some(bl) = Src::child(g, SyntaxKind::BoundList) {
@@ -440,8 +481,50 @@ impl Ck<'_, '_> {
         self.generic_closure(n, &mut parts)?;
         self.gens.truncate(in_scope);
         self.row_gens.truncate(in_rows);
+        self.impl_params.truncate(in_impl);
         self.generic_sources.truncate(source_scope);
         Ok(())
+    }
+
+    /// The bounds of the anonymous parameter `p` of the `impl` annotation
+    /// `n`: its written trait, `'static` if written, and the default
+    /// `Copy` (`types.impl-parameter.anonymous`, `ref.copy.generic.default`).
+    fn anonymous_bounds(&mut self, p: Ty, n: NodeRef<'_>) -> StageResult<Vec<Ty>> {
+        let pool = self.pool();
+        let mut bounds = Vec::new();
+        if let Some(b) = Src::child(n, SyntaxKind::NamedType) {
+            let t = self.ty_node_as(b, NameRole::Trait)?;
+            if matches!(pool.get(t), TyData::TraitValue { .. }) {
+                bounds.push(t);
+            }
+        }
+        // `types.impl-parameter.lifetime`: `impl Trait & 'static`. Any
+        // other lifetime is a lifetime variable in a body
+        // (`ref.lifetime.not-yet.body`).
+        if let Some(l) = n.direct_token(&self.cx.src.parse.tokens, TokenKind::Lifetime) {
+            if self.cx.src.text(l) == "'static" {
+                bounds.push(pool.intern_ty(&TyData::TraitValue {
+                    def: self.cx.names.known.static_bound,
+                    args: hd_types::TyList::EMPTY,
+                    bindings: vec![],
+                }));
+            } else {
+                self.err(
+                    Code::ReferencesNotYetChecked,
+                    n,
+                    "a lifetime inside a function body is not checked yet",
+                );
+            }
+        }
+        bounds.push(pool.intern_ty(&TyData::TraitValue {
+            def: self.cx.names.known.copy,
+            args: hd_types::TyList::EMPTY,
+            bindings: vec![],
+        }));
+        for &b in &bounds {
+            self.add_bound(p, b, 0);
+        }
+        Ok(bounds)
     }
 
     /// The closure of a generic local function, checked once, and its
@@ -594,11 +677,13 @@ impl Ck<'_, '_> {
     ) -> Option<Vec<Ty>> {
         let g = self.local_generics.get(&l).cloned()?;
         let pool = self.pool();
-        if explicit.len() > g.params.len() {
+        // `types.impl-parameter.explicit`: the anonymous parameters, last,
+        // take no written argument.
+        let written = g.generics.iter().filter(|g| !g.anonymous).count();
+        if explicit.len() > written {
             let msg = format!(
-                "{} type arguments are written, but the function takes {}",
+                "{} type arguments are written, but the function takes {written}",
                 explicit.len(),
-                g.params.len()
             );
             self.err(Code::ArgumentCount, n, &msg);
         }
@@ -607,6 +692,7 @@ impl Ck<'_, '_> {
             .map(|i| {
                 explicit
                     .get(i)
+                    .filter(|_| i < written)
                     .copied()
                     .unwrap_or_else(|| self.infer.fresh(pool, VarKind::General))
             })

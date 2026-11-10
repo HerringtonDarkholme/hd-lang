@@ -274,6 +274,10 @@ pub(crate) struct Ck<'a, 'c> {
     /// The first generic parameter not visible while reading a local default.
     pub generic_default_from: Option<u16>,
     pub generic_sources: Vec<crate::local::GenericSource>,
+    /// The anonymous type parameter of each `impl Trait` parameter
+    /// annotation of the generic local functions being checked, by its
+    /// `ImplType` node (`types.impl-parameter.anonymous`).
+    pub impl_params: Vec<(hd_base::NodeIdx, Ty)>,
     pub subs: Vec<OpenSub>,
     /// Goals on types not yet known at their use: bounds are solved at
     /// the end of the body, calls and projections also at the end of
@@ -619,6 +623,7 @@ pub(crate) fn new_ck<'a, 'c>(
         row_gens: Vec::new(),
         generic_default_from: None,
         generic_sources: Vec::new(),
+        impl_params: Vec::new(),
         subs: Vec::new(),
         pending: Vec::new(),
         never_args: Vec::new(),

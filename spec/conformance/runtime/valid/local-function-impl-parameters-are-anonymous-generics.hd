@@ -1,0 +1,46 @@
+# Spec 04 Anonymous Parameter Types: types.impl-parameter.anonymous,
+# types.impl-parameter.distinct; a local function is a named function, so
+# each `impl Trait` parameter is a fresh anonymous type parameter after
+# its written ones. It captures, takes a default after it, is used as a
+# function value at one instantiation, nests, and accepts `& 'static`.
+# expect-stdout: 104 140 k 7 6 3 103 6 9
+trait Number:
+    fn number(self) -> i32
+
+impl Number for i32:
+    fn number(self) -> i32:
+        self
+
+impl Number for bool:
+    fn number(self) -> i32:
+        if self:
+            1
+        else:
+            0
+
+struct Box[T]:
+    item: T
+
+impl[T < Number] Number for Box[T]:
+    fn number(self) -> i32:
+        self.item.number() * 10
+
+pub fn main() -> void $ Console:
+    let base = +100
+    fn sum(a: impl Number, b: impl Number) -> i32:
+        a.number() + b.number() + base
+    first := sum(+3, true)
+    second := sum(false, Box { item: +4 })
+    fn pair[T](t: T, x: impl Number) -> (T, i32):
+        (t, x.number())
+    let (s, k) = pair::[string]("k", +7)
+    fn deflt(x: impl Number, y: i32 = 5) -> i32:
+        x.number() + y
+    let f: fn(i32, i32) -> i32 = sum
+    fn outer(x: impl Number) -> i32:
+        fn inner(y: impl Number) -> i32:
+            y.number() * 2
+        inner(x) + inner(x.number() + 1)
+    fn kept(x: impl Number & 'static) -> i32:
+        x.number()
+    println("$first $second $s $k ${deflt(true)} ${deflt(+2, y=1)} ${f(+1, +2)} ${outer(+1)} ${kept(+9)}")
