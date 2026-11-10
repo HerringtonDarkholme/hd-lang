@@ -1710,42 +1710,17 @@ impl TirBuilder {
     /// in a module with errors may break invariant 4 after a reported
     /// mismatch, and D2 does not lower it.
     pub fn finish_tolerating(
-        self,
-        root: Ref,
-        capture_modes: &[CaptureMode],
-        tolerated: &[u8],
-    ) -> Result<Body, Vec<VerifyError>> {
-        self.finish_checked(root, capture_modes, tolerated, None)
-    }
-
-    /// [`Self::finish_tolerating`] with the checker's facts, so the
-    /// verifier also checks the invariants that need them ([`verify_in`]).
-    pub fn finish_in(
-        self,
-        root: Ref,
-        capture_modes: &[CaptureMode],
-        tolerated: &[u8],
-        cx: &dyn VerifyCx,
-    ) -> Result<Body, Vec<VerifyError>> {
-        self.finish_checked(root, capture_modes, tolerated, Some(cx))
-    }
-
-    fn finish_checked(
         mut self,
         root: Ref,
         capture_modes: &[CaptureMode],
         tolerated: &[u8],
-        cx: Option<&dyn VerifyCx>,
     ) -> Result<Body, Vec<VerifyError>> {
         self.body.sub_root[0] = root.0;
         self.body.cap_mode = capture_modes.to_vec();
         self.body
             .cap_mode
             .resize(self.body.cap_local.len(), CaptureMode::Shared);
-        let mut errs = match cx {
-            Some(cx) => verify_in(&self.body, cx),
-            None => verify(&self.body),
-        };
+        let mut errs = verify_checked(&self.body);
         errs.retain(|e| !tolerated.contains(&e.invariant));
         if errs.is_empty() {
             Ok(self.body)
@@ -1972,51 +1947,20 @@ impl VerifyError {
 }
 
 /// Invariants this verifier checks, some in part (`crates/hd_tir/DESIGN.md`
-/// §4.13.11, "Implementation differs"). Of them, 8, 11, 13 and 17 need
-/// the checker's facts ([`VerifyCx`], [`verify_in`]), 3's `Hole` and
-/// `Poison` half the module's errors ([`poison_sites`]), and 23 holds
-/// after the ownership passes ([`verify_owned`]) where 22 holds before.
+/// §4.13.11, "Implementation differs"). The raw corpus supplies independent
+/// facts for 8, 11, 13 and 17; the checker constructs those relationships.
+/// 3's `Hole` and `Poison` half needs the module's errors ([`poison_sites`]),
+/// and 23 holds after ownership ([`verify_owned`]) where 22 holds before.
 pub const CHECKED_INVARIANTS: &[u8] = &[
     1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 20, 21, 22, 23,
 ];
 
-/// What the verifier reads from the checker for the invariants a body
-/// alone cannot show (`crates/hd_tir/DESIGN.md` §4.13.11): read-only facts
-/// about the module, its items and the types the body names.
-pub trait VerifyCx {
-    /// How many variants `ty` has, an enum or an optional; `None` for any
-    /// other type (invariant 11).
-    fn variant_count(&self, ty: Ty) -> Option<u32>;
-    /// The sealed trait whose rows the compiler-supplied implementation
-    /// `index` (a `BuiltinImpl` as `u32`) answers (invariant 13).
-    fn builtin_trait(&self, index: u32) -> Option<DefId>;
-    /// How many method-level bounds trait method `method` has
-    /// (invariant 17).
-    fn method_bounds(&self, method: DefId) -> Option<u32>;
-    /// How many row keys a call of `callee` supplies providers for, when
-    /// the callee's row is closed (invariant 8).
-    fn row_keys(&self, callee: &Callee) -> Option<u32>;
-}
-
-/// [`verify`], then the invariants that need the checker's facts `cx`:
-/// - 8: a call's provider pairs, one per key of the callee's closed row,
-///   and no `Pending` providers after `finish`;
-/// - 9: no `CallHost` (std's provider bodies are generated in Wasm, not
-///   TIR) and only known intrinsics;
-/// - 11: a `SwitchTag` with no default has a case for every variant, and
-///   `SwitchInt`, `SwitchChar` and `SwitchStr` have a default;
-/// - 13: a `Builtin` choice that names a `BuiltinImpl` (its value is the
-///   impl plus one) names one of the callee's trait;
-/// - 17: a `CallDyn` has one evidence operand per method-level bound.
-pub fn verify_in(b: &Body, cx: &dyn VerifyCx) -> Vec<VerifyError> {
+/// Verifies a checked body, including record rules that need no external facts.
+/// The checker constructs switch defaults, provider contexts and selected trait
+/// evidence; raw contextual corruption checks live with the test corpus.
+#[must_use]
+pub fn verify_checked(b: &Body) -> Vec<VerifyError> {
     let mut errs = verify(b);
-    let ty_of = |v: u32| {
-        if v & Ref::CONST_BIT != 0 {
-            b.consts.get((v & !Ref::CONST_BIT) as usize).map(|c| c.0)
-        } else {
-            b.ty.get(v as usize).copied()
-        }
-    };
     for (i, (&tag, &[a, w])) in b.tags.iter().zip(&b.data).enumerate() {
         let inst = u32::try_from(i).expect("i");
         let mut err = |invariant: u8, what: String| {
@@ -2031,62 +1975,15 @@ pub fn verify_in(b: &Body, cx: &dyn VerifyCx) -> Vec<VerifyError> {
             Tag::Intrinsic if IntrinsicOp::from_u32(a).is_none() => {
                 err(9, format!("unknown intrinsic {a}"));
             }
-            Tag::SwitchTag => {
-                let r = b.record(w);
-                let (cases, default) = r.split_at(r.len().saturating_sub(1));
-                if default.first().is_some_and(|d| *d == NONE) {
-                    let mut seen: Vec<u32> = cases.iter().step_by(2).copied().collect();
-                    seen.sort_stable();
-                    seen.dedup();
-                    let have = u32::try_from(seen.len()).expect("cases");
-                    if let Some(n) = ty_of(a).and_then(|t| cx.variant_count(t))
-                        && have < n
-                    {
-                        err(11, format!("{have} of {n} variants and no default"));
-                    }
-                }
-            }
             Tag::SwitchInt | Tag::SwitchChar | Tag::SwitchStr => {
                 if b.record(w).last().is_none_or(|d| *d == NONE) {
                     err(11, format!("{} without a default", tag.name()));
                 }
             }
             Tag::Call | Tag::Await => {
-                let callee = Callee::from_words(b.record(a));
-                if let Some(Callee::TraitMethod {
-                    trait_,
-                    choice: (ChoiceKind::Builtin, v),
-                    ..
-                }) = callee
-                    && (1..=u32::from(u8::MAX)).contains(&v)
-                    && cx.builtin_trait(v - 1) != Some(trait_)
-                {
-                    err(
-                        13,
-                        format!("a builtin choice {} not of the callee's trait", v - 1),
-                    );
-                }
                 let r = b.record(w);
-                match r[r.len().saturating_sub(3)..] {
-                    [3, ..] => err(8, "providers still pending".into()),
-                    [1, _, len] => {
-                        if let Some(n) = callee.as_ref().and_then(|c| cx.row_keys(c))
-                            && n != len
-                        {
-                            err(8, format!("{len} provider pairs for {n} row keys"));
-                        }
-                    }
-                    _ => {}
-                }
-            }
-            Tag::CallDyn => {
-                // `[method, type arguments, evidence count, evidence...,
-                // arguments, providers]`.
-                if let [method, _, count, ..] = *b.record(w)
-                    && let Some(n) = cx.method_bounds(DefId::from_raw(method))
-                    && n != count
-                {
-                    err(17, format!("{count} evidence operands for {n} bounds"));
+                if matches!(r[r.len().saturating_sub(3)..], [3, ..]) {
+                    err(8, "providers still pending".into());
                 }
             }
             _ => {}
@@ -2094,6 +1991,14 @@ pub fn verify_in(b: &Body, cx: &dyn VerifyCx) -> Vec<VerifyError> {
     }
     errs
 }
+
+#[cfg(test)]
+mod context {
+    use crate::ir;
+    include!("../tests/support/context.rs");
+}
+#[cfg(test)]
+pub use context::{VerifyCx, verify_in};
 
 /// Maps every type a body records through `ty`, and every type list
 /// through `list`: the instruction and local columns, the constants, and

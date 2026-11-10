@@ -4951,10 +4951,9 @@ impl Ck<'_, '_> {
         // calls that write nothing, before the ownership passes.
         ROOTS.with(|r| hd_tir::ir::root_places(body, None, &mut r.borrow_mut()));
         let root = Ref(body.sub_root[0]);
-        let known = VerifyFacts { cx: self.cx };
         let body = self
             .b
-            .finish_in(root, &modes, tolerated, &known)
+            .finish_tolerating(root, &modes, tolerated)
             .map_err(|e| VerifyError::bug(Stage::Body, "TIR verifier", &e))?;
         if !self.diags.has_errors()
             && let Some(sink) = &self.cx.source_facts
@@ -4969,70 +4968,6 @@ thread_local! {
     /// The rooting step's tables, reused across the bodies a thread checks.
     static ROOTS: std::cell::RefCell<hd_tir::ir::RootTables> =
         std::cell::RefCell::new(hd_tir::ir::RootTables::default());
-}
-
-/// What the TIR verifier reads from the checker (`hd_tir::ir::VerifyCx`):
-/// the items and sealed traits a body names.
-struct VerifyFacts<'x, 'a> {
-    cx: &'x BodyCx<'a>,
-}
-
-impl VerifyFacts<'_, '_> {
-    fn sig(&self, def: DefId) -> Option<&hd_resolve::FnSig> {
-        match &self.cx.lookup.item(def)?.data {
-            ItemData::Fn(sig, _) | ItemData::Method { sig, .. } => Some(sig),
-            _ => None,
-        }
-    }
-}
-
-impl hd_tir::ir::VerifyCx for VerifyFacts<'_, '_> {
-    fn variant_count(&self, ty: Ty) -> Option<u32> {
-        match self.cx.names.pool.get(ty) {
-            TyData::Adt { def, .. } => match &self.cx.lookup.item(def)?.data {
-                ItemData::Enum { variants, .. } => u32::try_from(variants.len()).ok(),
-                _ => None,
-            },
-            _ => None,
-        }
-    }
-    fn builtin_trait(&self, index: u32) -> Option<DefId> {
-        use hd_types::solver::BuiltinImpl as B;
-        let s = self.cx.names.known.sealed();
-        [
-            (B::Any, s.any),
-            (B::AnyVal, s.any_val),
-            (B::AnyRef, s.any_ref),
-            (B::Inspectable, s.inspectable),
-            (B::Tuple, s.tuple),
-            (B::Structure, s.structure),
-            (B::Fn, s.fn_trait),
-            (B::FnMut, s.fn_mut_trait),
-        ]
-        .into_iter()
-        .find(|(b, _)| *b as u32 == index)
-        .map(|(_, t)| t)
-    }
-    fn method_bounds(&self, method: DefId) -> Option<u32> {
-        let n: usize = self
-            .sig(method)?
-            .generics
-            .iter()
-            .map(|g| g.bounds.len())
-            .sum();
-        u32::try_from(n).ok()
-    }
-    fn row_keys(&self, callee: &hd_tir::ir::Callee) -> Option<u32> {
-        let def = match callee {
-            hd_tir::ir::Callee::Item { def, .. } => *def,
-            hd_tir::ir::Callee::TraitMethod { method, .. } => *method,
-        };
-        let row = self.cx.names.pool.row_data(self.sig(def)?.row);
-        if !row.params.is_empty() {
-            return None;
-        }
-        u32::try_from(row.keys.len()).ok()
-    }
 }
 
 /// The first number in a literal node's source text, converted straight

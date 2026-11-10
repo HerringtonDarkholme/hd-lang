@@ -1094,11 +1094,16 @@ The verifier checks each of these:
 
 Implementation differs: `verify` checks invariants 1 to 15, 17 and 20
 to 22 (`CHECKED_INVARIANTS`), several in part, and `verify_owned` the
-same with 23 in place of 22, for a body after the ownership passes. The checker's facts come in
-through `VerifyCx`: `verify_in` and `TirBuilder::finish_in` take them,
-and the checker's own `finish` passes them for each body it checks. A
-body built elsewhere, such as a generated structure method, gets
-`verify` alone.
+same with 23 in place of 22, for a body after the ownership passes.
+The checker finishes each body with `verify_checked`: structural `verify`
+plus context-free record checks (host calls, intrinsic IDs, switch defaults and
+pending providers). Its switches
+always have defaults, call provider contexts are constructed from their rows,
+and trait evidence comes from the solver; it does not emit `CallDyn`.
+The raw corruption corpus additionally checks contextual relationships with
+independent synthetic facts (`tests/support/context.rs`), including malformed
+switches, provider pairs, builtin evidence and dynamic method-bound records.
+Those test-only queries do not require a second checker-facing fact API.
 - **Partial checks.**
   - 1 and 20: only def-before-use.
   - 2: only block lists.
