@@ -654,6 +654,13 @@ impl char:
             value = point - 55
         if u32(value) < radix: .Some(u32(value)) else: .None
 
+    # The scalar value, as Rust's `u32::from(c)` gives it
+    # (r-std-text.char.to-u32).
+    ## Returns the character's Unicode scalar value.
+    ## See [std-text.char.to-u32](../../spec/std/text.md#r-std-text.char.to-u32).
+    pub fn to_u32(self) -> u32:
+        char_scalar(self)
+
 impl List[string]:
     # The parts in order with `separator` between each two
     # (r-std-text.join.list-method).

@@ -122,8 +122,8 @@ fn word_count(text: string) -> usize:
 
 ## Character Classification
 
-`std` gives `char` four classification methods and `to_digit`, as Rust
-does:
+`std` gives `char` four classification methods, `to_digit` and `to_u32`,
+as Rust does:
 
 ```text
 fn word_start(c: char) -> bool:
@@ -140,6 +140,7 @@ fn hex_value(c: char) -> u32?:
 | r[std-text.char.alphanumeric] Alphanumeric | `is_alphanumeric(self) -> bool` | `true` for an `Alphabetic` scalar value, or one whose general category is `Nd`, `Nl`, or `No` |
 | r[std-text.char.whitespace] Whitespace | `is_whitespace(self) -> bool` | `true` for a scalar value with the Unicode `White_Space` property, the set that `trim` removes |
 | r[std-text.char.to-digit] To digit | `to_digit(self, radix: u32) -> u32?` | the digit's value in `radix`, by the rules below |
+| r[std-text.char.to-u32] Scalar value | `to_u32(self) -> u32` | the character's Unicode scalar value: `'a'.to_u32()` is `97`, and `'🙂'.to_u32()` is `128578` |
 
 1. r[std-text.char.unicode-version] The Unicode properties and general categories that this section names are those of Unicode 17.0.
 2. r[std-text.char.to-digit.value] `to_digit` gives `'0'` to `'9'` the values 0 to 9, and gives `'a'` to `'z'` and `'A'` to `'Z'` the values 10 to 35.

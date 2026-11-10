@@ -1,0 +1,23 @@
+# expect-stdout: 664
+# test: to_u32 gives a character's Unicode scalar value, for ASCII, a two-byte, a four-byte and the largest scalar, and sums the scalars of a string's chars
+# Spec std/text Character Classification: std-text.char.to-u32.
+fn scalar_sum(text: string) -> u32:
+    let mut sum: u32 = 0
+    for c in text.chars():
+        sum = sum + c.to_u32()
+    sum
+
+pub fn main!() -> void $ Console:
+    println("${scalar_sum("héllo")}")
+
+tests:
+    use std.testing.assert_equal
+
+    it("ASCII"):
+        assert_equal('a'.to_u32(), 97, reason="a")
+        assert_equal('\0'.to_u32(), 0, reason="the smallest scalar")
+
+    it("beyond ASCII"):
+        assert_equal('é'.to_u32(), 233, reason="a two-byte scalar")
+        assert_equal('🙂'.to_u32(), 128578, reason="a four-byte scalar")
+        assert_equal('\u{10FFFF}'.to_u32(), 1114111, reason="the largest scalar")

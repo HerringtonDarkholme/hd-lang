@@ -1,0 +1,5 @@
+# @dump: wat
+# expected: `to_u32` is the char's i32 value, with no call
+
+fn scalar(c: char) -> u32:
+    c.to_u32()
