@@ -1190,11 +1190,7 @@ fn profile_tree(
         let row = crate::boundary::Row {
             name: &name,
             params: &codecs,
-            result: if crate::layout::vals(input.pool, input.env, ret)?.is_empty() {
-                Codec::Void
-            } else {
-                Codec::Buffer("")
-            },
+            result: crate::boundary::result_codec(input, ret)?,
             wait: if input.env.suspends(method) {
                 Wait::May
             } else {

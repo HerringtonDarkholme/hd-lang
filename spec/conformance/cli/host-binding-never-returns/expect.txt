@@ -1,0 +1,7 @@
+# A provider that returns from a method that returns `never` breaks its
+# contract (module.boundary.never-result): the call is a `host-contract`
+# panic naming the method, exit 3. Its stderr names the package's local
+# identity, which hashes this directory, so the case checks the status.
+run: hd run --engine node
+exit: 3
+stdout: before

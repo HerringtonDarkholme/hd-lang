@@ -1,0 +1,14 @@
+# @dump: wat
+# @build: program
+# @host: main.Surface
+# A package host method whose result is `never`
+# (module.boundary.never-result): its schema result is `never`, whose JS
+# codec fails a provider that returns, and the Wasm call decodes nothing:
+# its decoder is the `host-contract` panic naming the method.
+@host
+pub trait Surface:
+    fn stop(&self) -> never
+
+pub fn main() -> void $ Surface + Console:
+    println("before")
+    $.use(Surface).stop()

@@ -1,0 +1,8 @@
+# test: a host capability method may return `never`
+# Spec Modules, Boundary-Safe Values: module.boundary.never-result (#1556).
+# fixture-runtime-profile: serde-vault
+pub trait Vault:
+    fn stop(self) -> never
+
+pub fn main() -> void $ Vault:
+    $.use(Vault).stop()

@@ -96,6 +96,7 @@ fn codec(out: &mut String, v: &Value) {
         Value::String => out.push_str("runtime.str"),
         Value::Bytes => out.push_str("runtime.bytes"),
         Value::Json => out.push_str("runtime.json"),
+        Value::Never => out.push_str("runtime.never"),
         Value::Int { bits, signed } => {
             let _ = write!(out, "runtime.int({bits},{signed})");
         }

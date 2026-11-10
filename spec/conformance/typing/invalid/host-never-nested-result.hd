@@ -1,0 +1,8 @@
+# test: `never` crosses only as a host method's whole result, not inside it
+# Spec Modules, Boundary-Safe Values: module.boundary.never-result (#1556).
+# fixture-runtime-profile: serde-vault
+pub trait Vault:
+    fn pick(self) -> never? # diagnostic: boundary-not-safe
+
+pub fn main() -> void $ Vault:
+    pass

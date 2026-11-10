@@ -4,7 +4,7 @@
 import { HostContract } from "./wire.ts";
 
 export type ContractValue =
-  | [0 | 1 | 2 | 4 | 5 | 6 | 7 | 14]
+  | [0 | 1 | 2 | 4 | 5 | 6 | 7 | 14 | 19]
   | [3, number, boolean]
   | [8 | 9, ContractValue]
   | [10, ContractValue[]]
@@ -81,6 +81,10 @@ function validateContract(interfaces: ContractInterface[]): void {
   };
   const checkShape = (value: ContractValue): void => {
     const [tag, left, right] = value;
+    // `never` is a method's whole result only (module.boundary.never-result).
+    if (tag === 19) {
+      fail("never outside a method's whole result");
+    }
     if (tag === 15 && !interfaces.some((item) => item.handle && item.module === left)) {
       fail("missing handle interface");
     }
@@ -156,7 +160,9 @@ function validateContract(interfaces: ContractInterface[]): void {
         unique(imports, name);
       }
       method.params.forEach(checkValue);
-      checkValue(method.result);
+      if (method.result[0] !== 19) {
+        checkValue(method.result);
+      }
     }
   }
 }
@@ -223,8 +229,8 @@ export function readPackageContract(bytes: Uint8Array): ContractInterface[] {
       fail("contract nesting exceeds the boundary limit");
     }
     const tag = byte();
-    if ([0, 1, 2, 4, 5, 6, 7, 14].includes(tag)) {
-      return [tag as 0 | 1 | 2 | 4 | 5 | 6 | 7 | 14];
+    if ([0, 1, 2, 4, 5, 6, 7, 14, 19].includes(tag)) {
+      return [tag as 0 | 1 | 2 | 4 | 5 | 6 | 7 | 14 | 19];
     }
     if (tag === 3) {
       const bits = byte();

@@ -1,0 +1,8 @@
+# Spec Modules, Boundary-Safe Values: module.boundary.never-result (#1556).
+@host
+pub trait Surface:
+    fn stop(&self) -> never
+
+pub fn main() -> void $ Surface + Console:
+    println("before")
+    $.use(Surface).stop()

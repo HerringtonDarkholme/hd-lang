@@ -1,0 +1,7 @@
+# A host method that returns `never` (module.boundary.never-result): the
+# host never answers `stop`, it ends the process, so nothing after the
+# call runs.
+run: hd run --engine node
+exit: 0
+stdout: before
+stdout: stopping

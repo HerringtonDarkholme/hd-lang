@@ -2415,10 +2415,11 @@ Registered boundaries initially allow recursively structural values:
 - `T?` and `Result[T, E]` whose contained types are boundary-safe.
 
 1. r[module.boundary.allowed] Registered boundaries initially allow the recursively structural values in the list above.
-2. r[module.boundary.not-safe] Dynamic trait values (including `Inspectable` values), `std.inspect.TypeId`, closures, and live runtime handles are not boundary-safe.
-3. r[module.boundary.rows] Requirement-row entries are host bindings and are not serialized parameters.
-4. r[module.boundary.erased-error] In particular, the erased error `std.error.Error` never crosses a registered boundary.
-5. r[module.boundary.domain-error] A registered function returns a boundary-safe error type, such as a domain error enum, and code converts an erased error to such a type explicitly.
+2. r[module.boundary.never-result] A host capability method may also declare `never` as its whole result: its call never returns. If the host answers it anyway, the call panics with a message that names the trait and the method, as for a result that fails its check. Panic: `host-contract`. `never` crosses nowhere else, neither as an argument nor inside another type.
+3. r[module.boundary.not-safe] Dynamic trait values (including `Inspectable` values), `std.inspect.TypeId`, closures, and live runtime handles are not boundary-safe.
+4. r[module.boundary.rows] Requirement-row entries are host bindings and are not serialized parameters.
+5. r[module.boundary.erased-error] In particular, the erased error `std.error.Error` never crosses a registered boundary.
+6. r[module.boundary.domain-error] A registered function returns a boundary-safe error type, such as a domain error enum, and code converts an erased error to such a type explicitly.
 
 ```hd
 struct User:
@@ -2503,7 +2504,7 @@ pub trait Vault:  # a host capability of the selected runtime profile
 6. r[module.boundary.public] A struct type whose fields are all `pub` crosses in either direction without either trait. An enum's payloads have no visibility, so they need neither trait.
 7. r[module.boundary.direction] A registered function's arguments cross into hd, and its result crosses out. A host capability method's arguments cross out of hd, and its result crosses in.
 8. r[module.boundary.error] A boundary signature whose type, or a type inside it, would cross without the trait its direction needs is an error, reported at that signature. Error: `boundary-private-field`.
-9. r[module.boundary.not-safe.error] A host capability method signature whose type, or a type inside it, is not boundary-safe is an error, reported at that signature. Such types are a function or closure type, a suspension, and a local reference `&T` to anything but a host handle. So is any trait value an argument passes to the host, and a returned trait value of a std trait that is not a host handle trait. Error: `boundary-not-safe`.
+9. r[module.boundary.not-safe.error] A host capability method signature whose type, or a type inside it, is not boundary-safe is an error, reported at that signature. Such types are a function or closure type, a suspension, `never` anywhere but the method's whole result, and a local reference `&T` to anything but a host handle. So is any trait value an argument passes to the host, and a returned trait value of a std trait that is not a host handle trait. Error: `boundary-not-safe`.
 
 > **Why.** A host is one more format. A type's `serialize` decides what
 > leaves hd, and only its `deserialize` can rebuild private state on the

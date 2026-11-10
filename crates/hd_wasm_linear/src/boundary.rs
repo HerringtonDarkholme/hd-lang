@@ -74,6 +74,10 @@ pub enum LTy {
     /// entry's key and value in the order they were added
     /// (`module.boundary.allowed`).
     Map(Box<LMap>),
+    /// A host method's `never` result (`module.boundary.never-result`): no
+    /// bytes and no values. Its decoder is the `host-contract` panic that
+    /// names the method `label`, for a host that answers anyway.
+    Never(Box<str>),
     /// A counted reference `*T` or `*mut T` to data, the object's
     /// address: its referent's tree (`module.boundary.tree`).
     Object(Box<LObject>),
@@ -214,7 +218,7 @@ impl LTy {
     #[must_use]
     pub fn vals(&self) -> Vec<Val> {
         match self {
-            LTy::Void => vec![],
+            LTy::Void | LTy::Never(_) => vec![],
             LTy::Int { bits, .. } => vec![if *bits > 32 { Val::I64 } else { Val::I32 }],
             LTy::F32 => vec![Val::F32],
             LTy::F64 => vec![Val::F64],
@@ -261,6 +265,7 @@ impl LTy {
                     }
                 }
                 LTy::Void
+                | LTy::Never(_)
                 | LTy::Int { .. }
                 | LTy::F32
                 | LTy::F64
@@ -814,6 +819,26 @@ pub fn host_slot(
     })
 }
 
+/// Whether `ty`, a host method's result, is `never`
+/// (`module.boundary.never-result`).
+fn never(input: &Input<'_>, ty: Ty) -> bool {
+    layout::strip(input.pool, input.env, ty) == Ty::NEVER
+}
+
+/// The row codec of a profile or package host method's result `ret`: none
+/// for a result with no values, except `never`, whose call a host that
+/// answers anyway breaks (`module.boundary.never-result`); else the
+/// exchange buffer.
+pub fn result_codec(input: &Input<'_>, ret: Ty) -> StageResult<hd_host_abi::Codec> {
+    Ok(
+        if layout::vals(input.pool, input.env, ret)?.is_empty() && !never(input, ret) {
+            hd_host_abi::Codec::Void
+        } else {
+            hd_host_abi::Codec::Buffer("")
+        },
+    )
+}
+
 /// The codec belongs to the method's caller set, never merely its result type.
 fn result_type(
     input: &Input<'_>,
@@ -822,6 +847,10 @@ fn result_type(
     ty: Ty,
     at: Option<AtProfile<'_>>,
 ) -> StageResult<LTy> {
+    if never(input, ty) {
+        let label = (input.path)(method).replace('/', ".");
+        return Ok(LTy::Never(label.into()));
+    }
     let mut boundary = of(input, module, ty, at.map(|a| AtProfile { out: false, ..a }))?;
     if input.optimized
         && !module.open_world
@@ -1326,11 +1355,7 @@ fn handle_slots(
                 let row = Row {
                     name,
                     params: &codecs,
-                    result: if layout::vals(pool, env, ret)?.is_empty() {
-                        Codec::Void
-                    } else {
-                        Codec::Buffer("")
-                    },
+                    result: result_codec(input, ret)?,
                     wait: if env.suspends(method) {
                         Wait::May
                     } else {
@@ -1723,11 +1748,14 @@ pub fn enc(b: &LTy, m: &Module) -> Func {
 /// [`enc`]'s body for `b`; a named type's is its definition's.
 fn enc_body(f: &mut Func, b: &LTy, m: &Module) {
     // ruled out: module.boundary.not-safe.error (hd_check header::boundary)
-    // rejects a trait value passed to the host, so no encoder meets a
-    // handle.
-    debug_assert!(!matches!(b, LTy::Handle(_)), "an encoder of a host handle");
+    // rejects a trait value passed to the host, and `never` anywhere but a
+    // host method's whole result, so no encoder meets a handle or `never`.
+    debug_assert!(
+        !matches!(b, LTy::Handle(_) | LTy::Never(_)),
+        "an encoder of a host handle or of `never`"
+    );
     match b {
-        LTy::Void | LTy::Handle(_) => {}
+        LTy::Void | LTy::Handle(_) | LTy::Never(_) => {}
         LTy::Int { bits, signed } => {
             let x = f.local(Val::I64);
             f.get(1);
@@ -1982,6 +2010,15 @@ pub fn dec(b: &LTy, m: &mut Module) -> Func {
 fn dec_body(f: &mut Func, b: &LTy, m: &mut Module) {
     match b {
         LTy::Void => {}
+        // A host that answers a call that never returns broke its contract
+        // (`module.boundary.never-result`).
+        LTy::Never(label) => {
+            // The panic's call ends with `unreachable` (`Func::helper`).
+            f.helper(Helper::Panic(format!(
+                "host-contract: {label} answered, but it never returns"
+            )));
+            return;
+        }
         LTy::Int { bits, signed } => {
             let x = f.local(Val::I64);
             f.get(0);
@@ -2467,7 +2504,11 @@ pub fn package_method(
             .into_iter()
             .map(|t| package_value(input, t, &mut Binders::new()))
             .collect::<StageResult<_>>()?,
-        result: package_value(input, ret, &mut Binders::new())?,
+        result: if never(input, ret) {
+            hd_host_abi::schema::Value::Never
+        } else {
+            package_value(input, ret, &mut Binders::new())?
+        },
         suspends: input.env.suspends(method),
     })
 }

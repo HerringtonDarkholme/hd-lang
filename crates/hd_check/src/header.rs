@@ -1533,6 +1533,7 @@ impl ItemCheck<'_, '_> {
     ) -> StageResult<Option<(Ty, Fault)>> {
         let pool = self.pool();
         let known = self.cx.names.known;
+        let whole = t;
         let mut todo = vec![t];
         let mut seen = hd_base::HashSet::default();
         while let Some(t) = todo.pop() {
@@ -1542,6 +1543,10 @@ impl ItemCheck<'_, '_> {
             let not_safe = |why| Ok(Some((t, Fault::NotSafe(why))));
             let parts: Vec<Ty> = match pool.get(t) {
                 TyData::Fn { .. } => return not_safe("a function or closure is not boundary-safe"),
+                // `module.boundary.never-result`.
+                TyData::Never if out || t != whole => {
+                    return not_safe("`never` crosses only as a host method's whole result");
+                }
                 TyData::Ref { inner, counted, .. } => {
                     let TyData::TraitValue { def, .. } = pool.get(inner) else {
                         // A counted reference crosses as its referent's

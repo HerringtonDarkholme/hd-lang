@@ -270,6 +270,14 @@ export function createPackageRuntime(
     },
     () => undefined,
   );
+  // A method that never returns (module.boundary.never-result): a provider
+  // that returns at all broke the contract, which `write` reports with
+  // the method's name.
+  const never = codec(
+    [19],
+    () => fail("the method never returns, but its provider returned"),
+    () => fail("a never result has no value"),
+  );
   const bool = codec(
     [1],
     (error, value) => {
@@ -558,6 +566,7 @@ export function createPackageRuntime(
   const runtime = {
     rec,
     unit,
+    never,
     bool,
     char,
     int,

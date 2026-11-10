@@ -1,0 +1,7 @@
+[package]
+name = "never_returns"
+[host]
+"main.Surface" = "provider.ts"
+[capabilities]
+"pkg.main.Surface" = true
+Console = true

@@ -49,6 +49,10 @@ pub enum Value {
     Rec(u32, Box<Self>),
     /// The recursive type its enclosing `Rec` of the same id binds.
     Ref(u32),
+    /// A method's whole result `never`: the call never returns, and a
+    /// provider that returns broke its contract
+    /// (`module.boundary.never-result`). No other position holds it.
+    Never,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -232,7 +236,8 @@ impl Contract {
                         return Err("colliding package host import names");
                     }
                 }
-                for v in m.params.iter().chain(std::iter::once(&m.result)) {
+                let result = (m.result != Value::Never).then_some(&m.result);
+                for v in m.params.iter().chain(result) {
                     self.validate_value(v, 0, &mut Binders::default())?;
                 }
             }
@@ -275,6 +280,7 @@ impl Contract {
             Value::Int { bits, .. } if ![8, 16, 32, 64].contains(bits) => {
                 return Err("invalid package host integer width");
             }
+            Value::Never => return Err("`never` outside a package host method's whole result"),
             Value::Handle(module)
                 if !self
                     .interfaces
@@ -403,6 +409,7 @@ impl Writer {
             Value::Rec(..) => 16,
             Value::Ref(_) => 17,
             Value::Map(..) => 18,
+            Value::Never => 19,
         });
         match v {
             Value::Int { bits, signed } => self.0.extend_from_slice(&[*bits, u8::from(*signed)]),
@@ -540,6 +547,7 @@ impl<'a> Reader<'a> {
                 Box::new(self.value(depth + 1)?),
                 Box::new(self.value(depth + 1)?),
             ),
+            19 => Value::Never,
             _ => return Err("unknown package host value codec"),
         })
     }

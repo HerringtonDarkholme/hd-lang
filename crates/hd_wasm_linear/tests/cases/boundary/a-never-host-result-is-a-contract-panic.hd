@@ -1,0 +1,13 @@
+# @dump: wat
+# @build: program
+# @profile: serde-vault
+# @helpers: hd:Vault/stop dec
+# A host method whose result is `never` (module.boundary.never-result):
+# the call reads a result buffer like any value's, and its decoder reads
+# nothing and is the `host-contract` panic naming the method, then
+# `unreachable`, for a host that answers anyway.
+pub trait Vault:
+    fn stop(self) -> never
+
+pub fn main() -> void $ Vault:
+    $.use(Vault).stop()
