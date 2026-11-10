@@ -1,0 +1,21 @@
+# @dump: own counts wat
+# expected: a static string passed to an owned string parameter needs no
+# retain or release glue at the call; the callee transfers its parameter.
+use std.annotation.inline
+
+struct Probes: pass
+
+# subject
+impl Probes:
+    @inline(.Never)
+    fn keep(value: string) -> string:
+        value
+
+    fn literal() -> string:
+        Probes::keep("first")
+
+tests:
+    it("constant owned arguments remain valid after repeated calls"):
+        first := Probes::literal()
+        assert_equal(first, "first")
+        assert_equal(Probes::literal(), first)
