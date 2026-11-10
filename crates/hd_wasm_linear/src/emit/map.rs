@@ -75,13 +75,9 @@ impl Em<'_, '_, '_> {
         let ops = self
             .calls
             .get(&i)
-            .and_then(|t| KeyOps::of(self.input, self.m, t, key));
-        match ops {
-            Some(ops) => ops,
-            // ruled out: hd_mono's collection selects every map operation's
-            // key operations (`map_key`).
-            None => unreachable!("collection selects a map operation's key operations"),
-        }
+            .map(|t| KeyOps::of(self.input, self.m, t, key));
+        // ruled out: hd_mono::map_key collects every map operation's key ops.
+        super::required(ops, "collection selects a map operation's key operations")
     }
 
     /// Key `r` in fresh locals.
@@ -529,29 +525,23 @@ impl Em<'_, '_, '_> {
     /// Makes the table in `m` unique before returning a mutable value
     /// reference. Entry numbers and a miss probe survive this copy.
     fn map_probe_unique(&mut self, i: u32, m: u32, entry: &Entry) {
-        let reason = self.operation_count(i, Tag::MakeUnique, Part::Operand(0));
-        // ruled out: own::map_probe_unique states each three-argument probe's action.
-        assert!(
-            reason.is_some(),
-            "own::map_probe_unique must state the probe's MakeUnique/Operand(0) action"
-        );
-        if let Some(reason) = reason {
-            self.because(reason, |em| {
-                em.f.get(m);
-                em.f.u32(HEADER);
-                em.f.op(I::I32Sub);
-                em.f.op(I::I32Load(mem(HEAP, 0, 2)));
-                em.f.i32(1);
-                em.f.op(I::I32Ne);
-                em.f.op(I::If(BlockType::Empty));
-                em.f.get(m);
-                em.f.helper(Helper::MapUnique {
-                    entry: entry.clone(),
-                });
-                em.f.set(m);
-                em.f.op(I::End);
+        // ruled out: own::map_probe_unique states every mutable probe's action.
+        let reason = self.required_operation_count(i, Tag::MakeUnique, Part::Operand(0));
+        self.because(reason, |em| {
+            em.f.get(m);
+            em.f.u32(HEADER);
+            em.f.op(I::I32Sub);
+            em.f.op(I::I32Load(mem(HEAP, 0, 2)));
+            em.f.i32(1);
+            em.f.op(I::I32Ne);
+            em.f.op(I::If(BlockType::Empty));
+            em.f.get(m);
+            em.f.helper(Helper::MapUnique {
+                entry: entry.clone(),
             });
-        }
+            em.f.set(m);
+            em.f.op(I::End);
+        });
     }
 
     /// Stores a probe's changed table through its map reference.

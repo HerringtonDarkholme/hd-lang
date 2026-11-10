@@ -1,0 +1,17 @@
+# @dump: wat
+# References: ref.match.borrow; Control Flow: flow.match.data.
+# The nested pattern borrows the string field through the enum payload
+# and its struct field in one place, so the final address includes both.
+struct Text:
+    value: string
+
+impl !Copy for Text
+
+struct Payload:
+    number: f64
+    text: Text
+
+fn replace(value: &mut (Payload?)) -> void:
+    match value:
+        .Some(Payload { text }) => *text = Text { value: "changed" }
+        .None => pass

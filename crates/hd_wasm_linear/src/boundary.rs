@@ -446,7 +446,7 @@ fn of_at(
                 // operations of every map type a boundary value reaches.
                 let ops = (collected.get(&t).or_else(|| collected.get(&s)))
                     .and_then(|c| c.map_key.as_ref())
-                    .and_then(|o| crate::map::KeyOps::of(input, m, o, &entry.key_vals()))
+                    .map(|o| crate::map::KeyOps::of(input, m, o, &entry.key_vals()))
                     .expect("ruled out: a boundary map without its key operations");
                 let key = of_at(input, m, k, path, at)?;
                 let val = of_at(input, m, v, path, at)?;

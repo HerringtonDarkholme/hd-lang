@@ -1,0 +1,20 @@
+# @dump: wat
+# References: ref.expr.place; types.trait.value.reference-values.
+# A local trait borrow loads both words of the counted trait reference
+# stored inside the holder, rather than borrowing its pointer word.
+trait Reader:
+    fn read(&self) -> i32
+
+struct Value:
+    number: i32
+
+impl Reader for Value:
+    fn read(&self) -> i32:
+        self.number
+
+struct Holder:
+    value: *dyn Reader
+
+fn read(holder: &mut Holder) -> i32:
+    let borrowed: &dyn Reader = &*holder.value
+    borrowed.read()

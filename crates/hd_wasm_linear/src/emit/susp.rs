@@ -656,9 +656,8 @@ impl Em<'_, '_, '_> {
 
     /// Lowers the stated owner of a point's child, never its result.
     fn count_child(&mut self, i: u32, c: u32, retain: bool) {
-        if self.input.runtime.is_none() {
-            return;
-        }
+        // The driver roots Runtime for every program and stage fixture;
+        // a checked suspension's child always has its ownership statement.
         self.count_point_ref(i, CountPart::Child, c, retain);
     }
 
@@ -667,18 +666,15 @@ impl Em<'_, '_, '_> {
         let tag = if retain { Tag::Retain } else { Tag::Release };
         // ruled out: own::child states Await/AwaitValue's child ownership;
         // own::waker states AwaitAll's release, including its cleanup path.
-        let reason = self.operation_count(i, tag, part);
-        assert!(reason.is_some(), "own::child/waker must state this count");
-        if let Some(reason) = reason {
-            self.because(reason, |em| {
-                if retain {
-                    em.ref_retain(c);
-                } else {
-                    em.f.get(c);
-                    em.f.helper(Helper::ReleaseRef);
-                }
-            });
-        }
+        let reason = self.required_operation_count(i, tag, part);
+        self.because(reason, |em| {
+            if retain {
+                em.ref_retain(c);
+            } else {
+                em.f.get(c);
+                em.f.helper(Helper::ReleaseRef);
+            }
+        });
     }
 
     /// A stored suspension (`s!()`, a trait-value bang call): polled
@@ -1432,18 +1428,15 @@ pub(super) fn finish(
             };
             // ruled out: own::referent states each saved parameter object's
             // FrameDrop release, separately from its value count.
-            let reason = em.stated_count(
+            let reason = em.required_stated_count(
                 Tag::Release,
                 CountAt::FrameDrop,
                 CountPart::Referent(u32::try_from(l).expect("local")),
             );
-            assert!(reason.is_some(), "own::referent must state FrameDrop");
-            if let Some(reason) = reason {
-                em.because(reason, |em| {
-                    em.f.get(loaded[0]);
-                    em.f.helper(Helper::ReleaseRef);
-                });
-            }
+            em.because(reason, |em| {
+                em.f.get(loaded[0]);
+                em.f.helper(Helper::ReleaseRef);
+            });
         }
         em.f.op(I::End);
         // A parameter a body with no suspension point borrows from its
@@ -1473,19 +1466,16 @@ pub(super) fn finish(
         if !row.is_empty() {
             // ruled out: counts::expected pairs cold_row::roots' copies with
             // this distinct FrameDrop Row release.
-            let reason = em.stated_count(Tag::Release, CountAt::FrameDrop, CountPart::Row);
-            assert!(reason.is_some(), "own::cold_row must state FrameDrop");
-            if let Some(reason) = reason {
-                em.because(reason, |em| {
-                    for d in row {
-                        if let Some((at, v)) = at_of(d) {
-                            em.f.get(FRAME);
-                            em.f.op(load_op(v, at));
-                            em.f.helper(Helper::ReleaseRef);
-                        }
+            let reason = em.required_stated_count(Tag::Release, CountAt::FrameDrop, CountPart::Row);
+            em.because(reason, |em| {
+                for d in row {
+                    if let Some((at, v)) = at_of(d) {
+                        em.f.get(FRAME);
+                        em.f.op(load_op(v, at));
+                        em.f.helper(Helper::ReleaseRef);
                     }
-                });
-            }
+                }
+            });
         }
         if let Some(reason) = em.stated_count(Tag::Release, CountAt::FrameDrop, CountPart::Child) {
             em.because(reason, |em| {
@@ -1557,18 +1547,16 @@ pub(super) fn finish(
             };
             // ruled out: own::referent states Cold for every thin parameter
             // referent whose object the concrete frame layout saves here.
-            let reason = em.stated_count(
+            let reason = em.required_stated_count(
                 Tag::Retain,
                 CountAt::Cold,
                 CountPart::Referent(u32::try_from(l).expect("local")),
             );
-            assert!(reason.is_some(), "own::referent must state Cold");
-            if let Some(reason) = reason {
-                em.f.get(x);
-                em.because(reason, |em| {
-                    em.f.count_call(Sym::Inst(r.retain), crate::views::CountAction::Retain);
-                });
-            }
+            em.f.get(x);
+            em.because(reason, |em| {
+                em.f.count_call(Sym::Inst(r.retain), crate::views::CountAction::Retain);
+            });
+
             em.f.get(fr);
             em.f.get(x);
             em.f.op(store_op(v, at));
@@ -1601,10 +1589,8 @@ pub(super) fn finish(
             if em.counting {
                 // ruled out: own::cold_captures states Captures whenever
                 // closure_self exists, even without other environment fields.
-                assert!(copy.is_some(), "own::cold_captures must state self copy");
-                if let Some(reason) = copy {
-                    em.because(reason, |em| em.ref_retain(0));
-                }
+                let reason = super::required(copy, "own::cold_captures must state self copy");
+                em.because(reason, |em| em.ref_retain(0));
             }
         }
         let caps = super::closure::captures(em.b, ci);
@@ -1645,13 +1631,12 @@ pub(super) fn finish(
                 em.f.set(y);
                 // ruled out: own::cold_captures includes the counted/shared
                 // pointer captures whose creator loan cells own_caps copies.
-                assert!(copy.is_some(), "own::cold_captures must state loan copy");
-                if let Some(reason) = copy {
-                    em.because(reason, |em| {
-                        em.f.get(y);
-                        em.f.helper(Helper::RetainKnown);
-                    });
-                }
+                let reason = super::required(copy, "own::cold_captures must state loan copy");
+                em.because(reason, |em| {
+                    em.f.get(y);
+                    em.f.helper(Helper::RetainKnown);
+                });
+
                 for (x, cell) in em.own_frame_locals(l) {
                     if let Some((at, v)) = at_of(x) {
                         em.f.get(fr);

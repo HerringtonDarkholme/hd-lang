@@ -32,15 +32,15 @@ enum ValueRoot {
 
 impl ValueRoot {
     fn checked(root: PlaceRoot) -> Self {
-        let value = match root {
-            PlaceRoot::Local(l) => Some(Self::Local(l)),
-            PlaceRoot::Value(r) => Some(Self::Value(r)),
-            PlaceRoot::Global(..) | PlaceRoot::Frame(_) | PlaceRoot::Ptr(_) => None,
-        };
-        // ruled out: callers split off globals; inst_tag handles Ptr and
-        // invariant 20 excludes Frame from these value place walks.
-        assert!(value.is_some(), "the place must have a value-backed root");
-        value.as_slice()[0]
+        match root {
+            PlaceRoot::Local(l) => Self::Local(l),
+            PlaceRoot::Value(r) => Self::Value(r),
+            // ruled out: callers split globals; inst_tag handles Ptr;
+            // invariant 20 excludes Frame from value place walks.
+            PlaceRoot::Global(..) | PlaceRoot::Frame(_) | PlaceRoot::Ptr(_) => {
+                super::required(None, "the place must have a value-backed root")
+            }
+        }
     }
 }
 
@@ -64,26 +64,24 @@ enum ValueAt<'a> {
 
 impl At {
     fn memory(&self) -> (u32, u32) {
-        let memory = match self {
-            Self::Mem(a, off) => Some((*a, *off)),
-            Self::Vals(_) | Self::Globals(..) => None,
-        };
-        // ruled out: rooted stores reach memory through Elem/Deref;
-        // counted_ref addresses a payload's borrowed base in memory.
-        assert!(memory.is_some(), "the checked place must reach memory");
-        memory.as_slice()[0]
+        match self {
+            Self::Mem(a, off) => (*a, *off),
+            // ruled out: rooted stores reach memory through Elem/Deref;
+            // counted_ref addresses a payload's borrowed base in memory.
+            Self::Vals(_) | Self::Globals(..) => {
+                super::required(None, "the checked place must reach memory")
+            }
+        }
     }
 
     fn value(&self) -> ValueAt<'_> {
-        let value = match self {
-            Self::Vals(ls) => Some(ValueAt::Vals(ls)),
-            Self::Mem(a, off) => Some(ValueAt::Mem(*a, *off)),
-            Self::Globals(..) => None,
-        };
-        // ruled out: place_start creates Globals only for stores; at_root
-        // loads globals into locals or addresses their static slot for values.
-        assert!(value.is_some(), "value walks must materialize globals");
-        value.as_slice()[0]
+        match self {
+            Self::Vals(ls) => ValueAt::Vals(ls),
+            Self::Mem(a, off) => ValueAt::Mem(*a, *off),
+            // ruled out: place_start creates Globals only for stores;
+            // at_root materializes globals for value walks.
+            Self::Globals(..) => super::required(None, "value walks must materialize globals"),
+        }
     }
 }
 
@@ -647,12 +645,13 @@ impl Em<'_, '_, '_> {
     /// `Ref` `i`: the place's address, or the trait value
     /// there for a reference to a trait value, with a count of its own.
     pub(super) fn place_ref(&mut self, i: u32) -> StageResult<()> {
-        // A promoted argument is its place's value (§23.40), moved out of
-        // its local when the reference takes the local's count.
+        // A promoted argument lends its place's value (§23.40); the
+        // caller's frame keeps the local alive through its last use.
         if self.promoted.contains(&i) {
-            if self.b.data[i as usize][1] & hd_tir::ir::ref_word::TAKES != 0 {
-                return self.promoted_take(i);
-            }
+            // ruled out: checked local references carry LOCAL; moves never
+            // takes them unless returned. promotable_ref requires one call
+            // use and no return, while frame references never take a count.
+            assert_eq!(self.b.data[i as usize][1] & hd_tir::ir::ref_word::TAKES, 0);
             return self.place_read(i);
         }
         // A reference the move pass marked to take its local's count of
@@ -680,27 +679,6 @@ impl Em<'_, '_, '_> {
             return self.release_local(x);
         }
         self.counted_ref(i)
-    }
-
-    /// Promoted `Ref` `i` that takes its whole local's count: the local's
-    /// value with that count, and the local left empty.
-    fn promoted_take(&mut self, i: u32) -> StageResult<()> {
-        // ruled out: moves::take marks only whole locals, encoded BARE_LOCAL.
-        let x = bare_local(self.b, self.b.data[i as usize][0]);
-        // ruled out: own::promote::lent_ref rejects captures and other addresses
-        // for TAKES; stored_locals omits its sole promoted address.
-        debug_assert!(!self.is_cell(x) && !self.slots.contains_key(&x));
-        let ls = self.local(u32::try_from(x).expect("locals"))?;
-        for &v in &ls {
-            self.f.get(v);
-        }
-        self.store_owned(i)?;
-        if self.tracked(self.ty(i)) {
-            for v in ls {
-                self.f.zero(v);
-            }
-        }
-        Ok(())
     }
 
     /// `Ref` `i`: the address of its place, with a count of its own. The
@@ -1226,7 +1204,7 @@ impl Em<'_, '_, '_> {
             (PlaceRoot::Value(r), Some((0, _)))
                 if tag != Tag::Ref && matches!(p.proj[0], Proj::Elem(_)) =>
             {
-                Some(At::Vals(vec![self.buffer(r.0)?]))
+                At::Vals(vec![self.buffer(r.0)?])
             }
             (root, Some((0, through)))
                 if tag == Tag::Store || tag == Tag::Read && matches!(through, Some((_, false))) =>
@@ -1240,14 +1218,12 @@ impl Em<'_, '_, '_> {
                     ValueRoot::Value(r) => self.comp(r.0, 0)?,
                 }
                 self.f.set(x);
-                Some(At::Vals(vec![x]))
+                At::Vals(vec![x])
             }
             (_, Some(_)) if tag != Tag::Store => return Ok(None),
             (_, None) if tag == Tag::Read => return Ok(None),
-            (PlaceRoot::Local(l), None) if !self.is_cell(l.idx()) => {
-                Some(At::Vals(self.local(l.raw())?))
-            }
-            (PlaceRoot::Local(l), None) => Some(At::Mem(self.cell_of(l.idx())?, 0)),
+            (PlaceRoot::Local(l), None) if !self.is_cell(l.idx()) => At::Vals(self.local(l.raw())?),
+            (PlaceRoot::Local(l), None) => At::Mem(self.cell_of(l.idx())?, 0),
             (PlaceRoot::Global(def, _), None) if tag == Tag::Store => {
                 let h = self.def_hash(def);
                 let Some(slot) = self.def_slot(def) else {
@@ -1265,12 +1241,11 @@ impl Em<'_, '_, '_> {
                 );
                 return self.at_root(root).map(Some);
             }
-            _ => None,
+            // ruled out: checker stores address a local/global or use
+            // Elem/Deref; inst_tag handles raw-pointer stores.
+            _ => super::required(None, "a checked store must have a writable start"),
         };
-        // ruled out: checked stores address a local/global or go through
-        // a reference/element; inst_tag handles raw pointers.
-        assert!(at.is_some(), "a checked store must have a writable start");
-        Ok(at.map(|at| (at, t)))
+        Ok(Some((at, t)))
     }
 
     /// A write of `v` through the reference in local `at` to a `target`.
@@ -1485,8 +1460,8 @@ impl Em<'_, '_, '_> {
     }
 
     /// Field `f` of variant `v`'s payload of the enum at `at`: in memory,
-    /// the payload's struct at its offset, in the boxed enum's cell when it
-    /// has one; in locals, the values that hold its leaves.
+    /// the payload's struct at its offset; in locals, the values that hold
+    /// its leaves.
     fn at_variant(&mut self, at: &At, ty: Ty, v: u32, f: u32) -> StageResult<(At, Ty)> {
         // A `Proj::Variant` step, into an enum or an optional.
         let flat = self.enum_flat(ty)?;
@@ -1494,15 +1469,12 @@ impl Em<'_, '_, '_> {
         let (v, f) = (v as usize, f as usize);
         let ft = self.variant_tys(ty)[v][f];
         let field = flat.offsets[v][f];
-        let at = if matches!(self.kind(ty), Kind::Boxed) {
-            At::Mem(self.at_i32(at), field)
-        } else {
-            match at.value() {
-                ValueAt::Mem(a, off) => At::Mem(a, off + field),
-                ValueAt::Vals(ls) => {
-                    At::Vals(flat.selection(v, f).iter().map(|&p| ls[p]).collect())
-                }
-            }
+        // ruled out: data.enum.no-recursion/no-boxing; hd_check rejects
+        // by-value enum cycles after associated payload substitution (#1554).
+        assert!(!matches!(self.kind(ty), Kind::Boxed));
+        let at = match at.value() {
+            ValueAt::Mem(a, off) => At::Mem(a, off + field),
+            ValueAt::Vals(ls) => At::Vals(flat.selection(v, f).iter().map(|&p| ls[p]).collect()),
         };
         Ok((at, ft))
     }
@@ -1696,18 +1668,12 @@ impl Em<'_, '_, '_> {
 
 /// The next checked field, paired with a Variant or in a plain suffix.
 fn place_field(step: Option<&Proj>) -> u32 {
-    let field = match step {
-        Some(Proj::Field(f)) => Some(*f),
-        _ => None,
-    };
-    // ruled out: checker patterns and TirBuilder::payload pair Variant/Field;
-    // callers split only at Elem/Deref or the end of the place. counted_ref
-    // consumes the last Elem/Deref before walking a payload's field suffix.
-    assert!(
-        field.is_some(),
-        "a checked place suffix must name its Field"
-    );
-    field.as_slice()[0]
+    match step {
+        Some(Proj::Field(f)) => *f,
+        // ruled out: checker patterns and TirBuilder::payload pair Variant
+        // with Field; counted_ref splits only at Elem/Deref or the end.
+        _ => super::required(None, "a checked place suffix must name its Field"),
+    }
 }
 
 /// The struct field indices `steps` name, when they are all fields.

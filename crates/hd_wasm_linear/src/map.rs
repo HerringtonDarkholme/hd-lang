@@ -127,8 +127,7 @@ impl KeyOps {
     /// `int_bucket_hash(u64)` or `string_bucket_hash(string)` by the key's
     /// primitive type, else `key_bucket_hash[K](K) -> u32` and
     /// `key_equal[K](K, K) -> bool`, so each takes the key's values.
-    /// `None` when `target` is not a map's key operations.
-    pub(crate) fn of(input: &Input<'_>, m: &Module, target: &Target, key: &[Val]) -> Option<Self> {
+    pub(crate) fn of(input: &Input<'_>, m: &Module, target: &Target, key: &[Val]) -> Self {
         // The walk of parameter `k` of a key operation's instance when
         // the instance owns it (`layout::Pass`): the map glue that lends
         // it the key then counts a copy for it.
@@ -140,7 +139,7 @@ impl KeyOps {
                 _ => None,
             }
         };
-        Some(match target {
+        match target {
             Target::MapInline(hash) => match key {
                 [Val::I32] => KeyOps::I32(hash.key),
                 [Val::I64] => KeyOps::I64(hash.key),
@@ -151,8 +150,10 @@ impl KeyOps {
                 eq: eq.key,
                 own: [own(hash, 0), own(eq, 0), own(eq, 1)],
             },
-            _ => return None,
-        })
+            // ruled out: map_key and note_boundary_value collect only these
+            // two target forms before the map emitters call this accessor.
+            _ => crate::emit::required(None, "collection must select map key operations"),
+        }
     }
 }
 

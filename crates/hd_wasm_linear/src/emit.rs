@@ -60,6 +60,19 @@ mod switch;
 mod text;
 mod value;
 
+/// Read a fact guaranteed by the named checked/collected producer.
+/// Typed accessors keep the producer proof beside the lookup; sharing this
+/// failure avoids a separate impossible branch at every consumer.
+#[track_caller]
+pub(crate) fn required<T>(value: Option<T>, producer: &str) -> T {
+    match value {
+        Some(value) => value,
+        // ruled out: each typed accessor establishes its checker, collection
+        // or ownership producer before requesting the mandatory fact.
+        None => unreachable!("{producer}"),
+    }
+}
+
 /// The function of instance `id`; the module assigns its final index.
 pub fn instance(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResult<Func> {
     let t = &input.collected.table;

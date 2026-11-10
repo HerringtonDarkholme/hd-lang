@@ -46,6 +46,23 @@ impl Em<'_, '_, '_> {
             .map(|c| Reason::from_word(c.reason))
     }
 
+    /// Mandatory ownership boundary fact; unlike `stated_count`, absence
+    /// is not an optional action at these producer-proven sites.
+    pub(super) fn required_stated_count(&self, tag: Tag, at: At, part: Part) -> Reason {
+        super::required(
+            self.stated_count(tag, at, part),
+            "ownership must state this boundary count",
+        )
+    }
+
+    /// Mandatory action in the ownership pass's adjacent operation bundle.
+    pub(super) fn required_operation_count(&self, i: u32, tag: Tag, part: Part) -> Reason {
+        super::required(
+            self.operation_count(i, tag, part),
+            "ownership must state this operation count",
+        )
+    }
+
     /// A TIR-stated count of an already constructed borrowed result.
     pub(super) fn own_retain(&mut self, value: u32) -> StageResult<()> {
         if self.retained_before_result.remove(&value) {
@@ -106,14 +123,8 @@ impl Em<'_, '_, '_> {
                 }
                 // A borrowed read or lent field reference stores its loan.
                 Tag::Store if let Some(w) = self.b.loan_read(w) => {
-                    let l = if a & place::BARE_LOCAL != 0 {
-                        Some(bare_local(self.b, a))
-                    } else {
-                        match self.b.extra.get(a as usize..a as usize + 3) {
-                            Some(&[2, place::ROOT_LOCAL, l]) => Some(l as usize),
-                            _ => None,
-                        }
-                    };
+                    let p = self.b.view(a);
+                    let l = p.whole().then(|| p.local()).flatten().map(|l| l as usize);
                     // A borrow of all of another such local holds that
                     // one's read, whose fresh value its kept `Drop`s
                     // release (`hd_tir::own::derive`'s bindings).
@@ -709,25 +720,16 @@ impl Em<'_, '_, '_> {
         }
         // Saved reference-object slots have their own normal-exit contract.
         for (l, held) in self.frame_refs.clone() {
-            let local = u32::try_from(l);
-            assert!(
-                local.is_ok(),
-                "frame_refs must contain u32 TIR parameter IDs from own::referent"
+            let local = super::required(
+                u32::try_from(l).ok(),
+                "frame_refs must contain u32 TIR parameter IDs from own::referent",
             );
-            if let Ok(local) = local {
-                // ruled out: own::referent states this saved reference's Exit release.
-                let reason = self.stated_count(Tag::Release, At::Exit, Part::Referent(local));
-                assert!(
-                    reason.is_some(),
-                    "own::referent must state an Exit/Referent release for every saved frame reference"
-                );
-                if let Some(reason) = reason {
-                    self.because(reason, |em| {
-                        em.f.get(held);
-                        em.f.helper(Helper::ReleaseRef);
-                    });
-                }
-            }
+            // ruled out: own::referent states this saved reference's Exit release.
+            let reason = self.required_stated_count(Tag::Release, At::Exit, Part::Referent(local));
+            self.because(reason, |em| {
+                em.f.get(held);
+                em.f.helper(Helper::ReleaseRef);
+            });
         }
         let nodes = self
             .susp

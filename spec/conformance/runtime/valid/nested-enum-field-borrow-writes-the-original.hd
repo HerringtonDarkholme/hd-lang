@@ -1,0 +1,23 @@
+# test: nested enum field borrow writes the original
+# Spec lang/13-values-and-references.md: ref.match.borrow; ref.expr.place.
+# expect-stdout: changed
+struct Text:
+    value: string
+
+impl !Copy for Text
+
+struct Payload:
+    number: f64
+    text: Text
+
+fn replace(value: &mut (Payload?)) -> void:
+    match value:
+        .Some(Payload { text }) => *text = Text { value: "changed" }
+        .None => pass
+
+pub fn main() -> void $ Console:
+    let mut value: Payload? = .Some(Payload { number: 3.5, text: Text { value: "before" } })
+    replace(&mut value)
+    match value:
+        .Some(payload) => println(payload.text.value)
+        .None => panic("still Some")
