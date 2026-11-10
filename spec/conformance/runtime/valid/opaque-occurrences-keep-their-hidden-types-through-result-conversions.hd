@@ -1,0 +1,89 @@
+# Spec 07 Opaque Results: fn.opaque.nested, fn.opaque.occurrence-same-type;
+# a returned value converts around its opaque occurrences (a counted
+# reference weakens inside a tuple, a reference, a trait value's argument
+# and binding, an alias of a function type) and each occurrence keeps the
+# hidden type it chose. Local functions return opaque types inside a
+# row-generic function and inside a trait's default method.
+# expect-stdout: 5 1 2 3 pet 4 9 7 7 10 6
+trait Number:
+    fn number(self) -> i32
+
+impl Number for i32:
+    fn number(self) -> i32:
+        self
+
+trait Source[Item]:
+    fn first(self) -> Item
+
+struct Pet:
+    n: i32
+
+impl Source[i32] for Pet:
+    fn first(self) -> i32:
+        self.n
+
+type Maker[T] = fn() -> T
+
+fn seven() -> i32:
+    +7
+
+fn make() -> Maker[impl Number]:
+    seven
+
+fn run[$ R](f: fn() -> i32 $ R) -> i32 $ R:
+    fn local() -> impl Number:
+        +7
+    f() + local().number() - +7
+
+trait Counter:
+    fn count(self) -> i32
+
+    fn doubled(self) -> i32:
+        fn twice(n: i32) -> impl Number:
+            n * +2
+        twice(self.count()).number()
+
+impl Counter for Pet:
+    fn count(self) -> i32:
+        self.n
+
+trait Supplier:
+    type Item
+    fn supply(self) -> Self::Item
+
+impl Supplier for Pet:
+    type Item = i32
+    fn supply(self) -> i32:
+        self.n + +1
+
+fn supplier() -> *dyn Supplier[Item = impl Number]:
+    let pet: *mut dyn Supplier[Item = i32] = box(Pet { n: +5 })
+    pet
+
+enum Holder[T]:
+    Value(value: T)
+
+fn tuple_weakens() -> (*i32, impl Number):
+    t := (box(+5), +1)
+    t
+
+fn boxed() -> *impl Number:
+    box(+2)
+
+fn source() -> *dyn Source[impl Number]:
+    let pet: *mut dyn Source[i32] = box(Pet { n: +3 })
+    pet
+
+fn holder(flag: bool) -> (Holder[impl Number], *i32):
+    if flag:
+        return (Holder.Value(value=+4), box(+9))
+    (panic("unreached"), box(+0))
+
+pub fn main() -> void $ Console:
+    a := tuple_weakens()
+    h := holder(true)
+    shown := match h._0:
+        .Value(value) => value.number()
+    println(
+        "${*a._0} ${a._1.number()} ${boxed().number()} ${source().first().number()} pet $shown ${*h._1} ${make()().number()} ${run(seven).number()} ${Pet { n: +5 }.doubled()} ${supplier().supply().number()}",
+    )

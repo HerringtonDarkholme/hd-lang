@@ -6303,6 +6303,7 @@ typing/invalid/dyn-member-names-self-in-a-context-result.hd	type	reject:dyn-memb
 runtime/valid/a-vararg-function-meets-an-fn-bound-with-a-rest-tuple.hd	runtime	accept	lang/07-functions.md#r-fn.trait.function-values-read-only
 runtime/valid/a-rest-tuple-and-a-union-are-inspectable.hd	runtime	accept	lang/09-traits.md#r-trait.inspectable.collections
 runtime/valid/a-vararg-function-meets-an-fn-bound-of-a-selected-impl.hd	runtime	accept	lang/07-functions.md#r-fn.trait.bound-tuple
+runtime/valid/opaque-occurrences-keep-their-hidden-types-through-result-conversions.hd	runtime	accept	lang/07-functions.md#r-fn.opaque.nested
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
