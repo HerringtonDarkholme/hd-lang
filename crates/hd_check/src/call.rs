@@ -2885,15 +2885,13 @@ impl Ck<'_, '_> {
             );
         }
         let pool = self.pool();
-        if !bang {
-            self.err(Code::NotSuspending, n, "`join` is called as `join!(...)`");
-        }
         if bang {
             self.check_bang(true, n);
         }
         let suspend = self.cx.names.known.suspend;
         let mut refs = Vec::new();
         let mut tys = Vec::new();
+        let mut inputs = Vec::new();
         for e in &args.positional {
             let (r, t) = self.expr(*e, None)?;
             let st = self.resolved(t);
@@ -2912,18 +2910,85 @@ impl Ck<'_, '_> {
             };
             refs.push(r);
             tys.push(x);
+            inputs.push(st);
         }
         let t = pool.intern_ty(&TyData::Tuple {
             elems: pool.list(&tys),
             rest: None,
         });
+        if !bang {
+            if self.bare_step {
+                return Ok(self.suspending_pipe_step(n));
+            }
+            return Ok(self.cold_join(&refs, &inputs, t, n));
+        }
         let rec = self.b.refs_record(&refs);
         Ok((self.b.emit(Tag::AwaitAll, NONE, rec, t, n.index()), t))
     }
 
-    /// `join!(tasks...)`, the list form (`req.combinator.join-list`): one
-    /// spread of a `List[Suspend[T]]` and no other argument, which
-    /// awaits std's `all_list!` engine and has type `List[T]`.
+    /// A compiler-supplied suspending callable reuses ordinary cold-frame
+    /// construction. Its parameters snapshot the already evaluated children.
+    fn cold_join(
+        &mut self,
+        children: &[Ref],
+        inputs: &[Ty],
+        result: Ty,
+        n: NodeRef<'_>,
+    ) -> (Ref, Ty) {
+        let pool = self.pool();
+        let syn = n.index();
+        let params: Vec<_> = inputs
+            .iter()
+            .enumerate()
+            .map(|(i, &ty)| {
+                let name = self.cx.names.syms.intern(&format!("$join{i}"));
+                self.b.local(ty, name, local_flags::PARAM, syn)
+            })
+            .collect();
+        let sub = self.b.open_sub(&params);
+        let block = self.b.open_block();
+        let values: Vec<_> = params
+            .iter()
+            .zip(inputs)
+            .map(|(&local, &ty)| self.b.get(local, ty, syn))
+            .collect();
+        let record = self.b.refs_record(&values);
+        let joined = self.b.emit(Tag::AwaitAll, NONE, record, result, syn);
+        let root = self.b.close_block(block, Some(joined), result, syn);
+        let callable = self.join_fn_ty(inputs, result);
+        let function = self.b.close_sub(sub, root, callable, syn);
+        let suspension = pool.intern_ty(&TyData::Adt {
+            def: self.cx.names.known.suspend,
+            args: pool.list(&[result]),
+        });
+        let args = self.b.refs_record(children);
+        (
+            self.b
+                .emit(Tag::CallValue, function.0, args, suspension, syn),
+            suspension,
+        )
+    }
+
+    /// The checked callable signature of either join engine. The children
+    /// and result keep the same reference slots in child order.
+    fn join_fn_ty(&self, inputs: &[Ty], result: Ty) -> Ty {
+        let pool = self.pool();
+        let slots: usize = inputs.iter().map(|&ty| pool.ref_slots(ty)).sum();
+        let origins: Vec<_> = (1..=u32::MAX).take(slots).collect();
+        let deps = pool.fn_deps(&origins, &origins);
+        pool.intern_ty(&TyData::Fn {
+            params: pool.list(inputs),
+            result,
+            row: hd_types::RowId::EMPTY,
+            suspends: true,
+            inputs: Inputs::Fixed,
+            deps,
+        })
+    }
+
+    /// The list form takes one spread of `List[Suspend[T]]` and no other
+    /// argument. A bang call awaits std's `all_list!` engine for `List[T]`;
+    /// a plain call stores its cold frame as `Suspend[List[T]]`.
     fn await_join_list(
         &mut self,
         args: &Args<'_>,
@@ -2938,9 +3003,6 @@ impl Ck<'_, '_> {
                 "`join` takes either its tasks as direct arguments or one spread of a list of tasks",
             );
             return Ok((Ref(NONE), Ty::NEVER));
-        }
-        if !bang {
-            self.err(Code::NotSuspending, n, "`join` is called as `join!(...)`");
         }
         let pool = self.pool();
         let suspend = self.cx.names.known.suspend;
@@ -2971,7 +3033,30 @@ impl Ck<'_, '_> {
             def: self.cx.names.known.all_list,
             targs: pool.list(&[x]),
         };
-        Ok(self.emit_call(&c, &[r], ret, true, bang, n))
+        if bang {
+            return Ok(self.emit_call(&c, &[r], ret, true, true, n));
+        }
+        if self.bare_step {
+            return Ok(self.suspending_pipe_step(n));
+        }
+        // The private engine is not a source-visible interface item. Carry
+        // its instantiated signature on ItemRef so the ordinary function-
+        // value call checks the captured argument's origins too.
+        self.note_call(self.cx.names.known.all_list);
+        let callable = self.join_fn_ty(&[self.resolved(t)], ret);
+        let item = self.b.words_record(&[self.cx.names.known.all_list.raw()]);
+        let targs = self.b.words_record(&[pool.list(&[x]).0]);
+        let function = self.b.emit(Tag::ItemRef, item, targs, callable, n.index());
+        let suspension = pool.intern_ty(&TyData::Adt {
+            def: self.cx.names.known.suspend,
+            args: pool.list(&[ret]),
+        });
+        let args = self.b.refs_record(&[r]);
+        Ok((
+            self.b
+                .emit(Tag::CallValue, function.0, args, suspension, n.index()),
+            suspension,
+        ))
     }
 
     /// `expr.pipe.bare.no-suspend`: a bare step would suspend with no `!`.

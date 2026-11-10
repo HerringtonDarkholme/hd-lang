@@ -10,7 +10,7 @@ use std::cell::RefCell;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use hd_base::{AppendVec, DefId, InferVar, PathId};
+use hd_base::{AppendVec, DefId, HashMap, HashSet, InferVar, PathId};
 
 /// A type: an `InternPool` index. Bit 31 set: a body-local index (§3.4).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -1079,28 +1079,46 @@ impl<'a> Types<'a> {
         if outs.is_empty() {
             return FnDeps::NONE;
         }
-        let mut seen: Vec<u32> = Vec::new();
+        let (words, _) = Self::dependency_words(ins, outs);
+        FnDeps(self.intern(PoolTag::Deps, 0, (&words, &[]), 0))
+    }
+
+    /// Canonical order follows the inputs, independent of hash-table order.
+    /// Work is one visit per input and two per output; no nesting or retry.
+    fn dependency_words(ins: &[u32], outs: &[u32]) -> (Vec<u32>, usize) {
+        let mut retained = HashSet::default();
+        let mut work = 0;
+        for &lifetime in outs {
+            retained.insert(lifetime);
+            work += 1;
+        }
+        let mut seen = HashMap::default();
+        // ruled out: the pool's dependency record and canonical slot IDs
+        // share the existing u32 slot-count domain.
         let mut words = vec![
             u32::try_from(ins.len()).expect("slots"),
             u32::try_from(outs.len()).expect("slots"),
         ];
         for (k, &l) in ins.iter().enumerate() {
-            let l = if outs.contains(&l) {
+            work += 1;
+            // ruled out: the encoded record bounds its input slots to u32.
+            let l = if retained.contains(&l) {
                 l
             } else {
                 1 << 31 | u32::try_from(k).expect("slots")
             };
-            let at = seen.iter().position(|&x| x == l).unwrap_or_else(|| {
-                seen.push(l);
-                seen.len() - 1
-            });
+            let next = seen.len();
+            let at = *seen.entry(l).or_insert(next);
+            // ruled out: canonical slots cannot exceed the input count.
             words.push(u32::try_from(at + 1).expect("slots"));
         }
         for &l in outs {
-            let at = seen.iter().position(|&x| x == l && l != 0);
+            work += 1;
+            let at = (l != 0).then(|| seen.get(&l).copied()).flatten();
+            // ruled out: canonical slots cannot exceed the input count.
             words.push(at.map_or(0, |at| u32::try_from(at + 1).expect("slots")));
         }
-        FnDeps(self.intern(PoolTag::Deps, 0, (&words, &[]), 0))
+        (words, work)
     }
 
     /// The map of a function type whose slots write `written`, one word
@@ -2208,6 +2226,30 @@ impl Erase {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn dependency_canonicalization_preserves_order_with_linear_work() {
+        for width in [100, 1000] {
+            for depth in [1, 20] {
+                let slots = width * depth;
+                let inputs: Vec<u32> = (1..=slots).collect();
+                let outputs: Vec<u32> = inputs.iter().rev().copied().collect();
+                let (words, work) = super::Types::dependency_words(&inputs, &outputs);
+                assert_eq!(work, 3 * slots as usize);
+                assert_eq!(&words[2..2 + slots as usize], &inputs);
+                assert_eq!(&words[2 + slots as usize..], &outputs);
+            }
+        }
+        let (words, work) = super::Types::dependency_words(&[7, 9, 7, 0], &[7, 0, 13]);
+        assert_eq!(words, [4, 3, 1, 2, 1, 3, 1, 0, 0]);
+        assert_eq!(work, 10);
+        let pool = super::InternPool::new();
+        assert_eq!(
+            pool.types().fn_deps(&[7, 9, 7, 0], &[7, 0, 13]),
+            pool.types().fn_deps(&[41, 73, 41, 0], &[41, 0, 99]),
+            "renaming origins keeps the same interned dependency map"
+        );
+    }
+
     #[test]
     fn opaque_identity_substitutes_args_without_revealing_a_body() {
         let pool = super::InternPool::new();

@@ -2,9 +2,11 @@
 # Spec lang/11 Standard Combinators: req.combinator.all-typing, req.combinator.join-list.
 use std.task.join
 
-fn number!() -> i32: 1
+fn number!() -> i32:
+    1
 
-fn word!() -> string: "w"
+fn word!() -> string:
+    "w"
 
 fn pair!() -> (i32, string):
     let both: (i32, string) = join!(number(), word())
@@ -18,3 +20,20 @@ fn many!(count: i32) -> List[i32]:
         i = i + 1
     let results: List[i32] = join!(tasks...)
     results
+
+# Plain calls are cold in ordinary non-suspending functions too.
+fn cold_pair() -> Suspend[(i32, string)]:
+    join(number(), word())
+
+fn cold_many(tasks: List[Suspend[i32]]) -> Suspend[List[i32]]:
+    join(tasks...)
+
+fn borrow!(value: &string) -> usize:
+    value.len()
+
+fn cold_borrow(value: &string) -> Suspend[(usize,)]:
+    join(borrow(value))
+
+fn cold_borrow_list(value: &string) -> Suspend[List[usize]]:
+    let tasks: List[Suspend[usize]] = [borrow(value)]
+    join(tasks...)

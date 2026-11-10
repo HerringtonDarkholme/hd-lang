@@ -118,14 +118,14 @@ fn race_frame[T](tasks: List[Suspend[T]]) -> Suspend[T]:
     panic("intrinsic")
 
 # The homogeneous list frame. It keeps each result at its child's index
-# and visits the waker tree's ready set, without a nested all! per child.
-# The fixed-arity all! expression has a separate tuple lowering.
+# and visits the waker tree's ready set, without a nested join! per child.
+# The fixed-arity join expression has a separate tuple lowering.
 @intrinsic("task_all_frame")
 fn all_frame[T](tasks: List[Suspend[T]]) -> Suspend[List[T]]:
     panic("intrinsic")
 
-# The private flat engine of map_join!. The worker suspensions stay cold
-# until the frame polls them, in list order.
+# The private flat engine shared by map_join! and the list form of join.
+# The child suspensions stay cold until the frame polls them, in list order.
 fn all_list![T](tasks: List[Suspend[T]]) -> List[T]:
     let frame: Suspend[List[T]] = all_frame(tasks)
     frame!()
