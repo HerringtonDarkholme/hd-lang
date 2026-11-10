@@ -188,9 +188,8 @@ pub enum TyData {              // the decoded view; owned
   word), so "does this type hold a variable or poison" is one load.
 
 **Rule TC-2. Types are handles, never text.** No checker code compares,
-hashes or parses type spellings. `Ty` has no `Display` impl; messages
-render through the checker's `show`, and `Types::display` is a debug
-printer.
+hashes or parses type spellings. `Ty` has no `Display` impl, and messages
+render through the checker's `show`.
 
 ### 1.5 What The Checker Needs From The TIR Builder
 
