@@ -764,27 +764,27 @@ fn local_heads<'t>(
 
 /// The type parameter names (and `Self`, inside an impl or trait) of the
 /// declarations of `top` that enclose the declaration starting at `at`,
-/// and their generic lists, outermost first. A local function's list is
-/// `None`: its parameters are a generic sub-body's, which a local type
-/// does not take yet.
+/// and their generic lists, outermost first; then the innermost impl or
+/// trait around it, whose `Self` it sees. A local function's list is one
+/// of them: its parameters are a generic sub-body's, which the checker
+/// keeps in scope there.
 fn enclosing_generics(
     src: &Src<'_>,
     top: NodeRef<'_>,
     at: u32,
-) -> (Vec<String>, Vec<Option<hd_base::NodeIdx>>) {
+) -> (Vec<String>, Vec<hd_base::NodeIdx>, Option<hd_base::NodeIdx>) {
     let mut out = Vec::new();
     let mut lists = Vec::new();
+    let mut self_owner = None;
     let mut n = top;
-    let mut in_fn = false;
     while src.span(n).lo < at {
         if decl_kind(src, n).is_some() {
             if matches!(n.kind(), SyntaxKind::ImplDecl | SyntaxKind::TraitDecl) {
                 out.push("Self".to_owned());
+                self_owner = Some(n.index());
             }
-            let local_fn = in_fn && n.kind() == SyntaxKind::FnDecl;
-            in_fn |= n.kind() == SyntaxKind::FnDecl;
             if let Some(gl) = Src::child(n, SyntaxKind::GenericParameterList) {
-                lists.push((!local_fn).then(|| gl.index()));
+                lists.push(gl.index());
             }
             for g in Src::child(n, SyntaxKind::GenericParameterList)
                 .iter()
@@ -803,7 +803,7 @@ fn enclosing_generics(
         };
         n = c;
     }
-    (out, lists)
+    (out, lists, self_owner)
 }
 
 /// The local declarations under `n` with their suites, outside nested
@@ -1859,6 +1859,10 @@ struct Lower<'a, 'r, 'x> {
     /// of the declarations around it, whose type parameters lead its own
     /// (`names.local-type.refs`, [`Lower::outer_generics`]).
     outer_lists: Vec<hd_base::NodeIdx>,
+    /// For a local declaration: the innermost impl or trait around it,
+    /// whose `Self` it names when it has none of its own
+    /// (`names.self-type.impl`, `names.local-type.refs`).
+    outer_self: Option<hd_base::NodeIdx>,
 }
 
 impl Lower<'_, '_, '_> {
@@ -1868,31 +1872,29 @@ impl Lower<'_, '_, '_> {
 
     /// Enters head `h`. The local declarations in scope are those visible
     /// where it is declared, itself included, and a local one sees the
-    /// type parameters of the declarations around it
-    /// (`names.local-type.refs`). A local struct, enum, newtype or alias
-    /// takes them as its leading parameters, as a local impl of one does
-    /// ([`Self::outer_generics`]).
+    /// type and const parameters of the declarations around it, local
+    /// functions' included (`names.local-type.refs`). A local struct,
+    /// enum, newtype or alias takes them as its leading parameters, as a
+    /// local impl of one does ([`Self::outer_generics`]).
     fn enter(&mut self, h: &Head<'_>) {
         self.at = self.src.span(h.node).lo;
-        let (outer, lists) = h
+        let (outer, lists, self_owner) = h
             .local
             .map(|l| enclosing_generics(&self.src, l.top, self.at))
             .unwrap_or_default();
         self.outer = outer;
+        self.outer_self = self_owner;
         self.outer_lists = Vec::new();
         if lists.is_empty() {
             return;
         }
-        // A local function's parameters, or a row or const parameter, are
-        // not taken: naming one stays a gap (`Lower::named`).
-        let Some(lists) = lists.into_iter().collect::<Option<Vec<_>>>() else {
-            return;
-        };
+        // A row parameter is not taken: naming one stays a gap
+        // (`Lower::named`). A const parameter has a type parameter's
+        // scopes (`types.generic.const.positions`).
         let plain = lists.iter().all(|&gl| {
             self.src.parse.tree.node(gl).children().all(|g| {
-                g.kind() != SyntaxKind::ConstParameter
-                    && g.direct_token(&self.src.parse.tokens, TokenKind::Dollar)
-                        .is_none()
+                g.direct_token(&self.src.parse.tokens, TokenKind::Dollar)
+                    .is_none()
             })
         });
         let takes = match h.kind {
@@ -1911,7 +1913,12 @@ impl Lower<'_, '_, '_> {
                             .tree
                             .node(gl)
                             .children()
-                            .filter(|g| g.kind() == SyntaxKind::GenericParameter)
+                            .filter(|g| {
+                                matches!(
+                                    g.kind(),
+                                    SyntaxKind::GenericParameter | SyntaxKind::ConstParameter
+                                )
+                            })
                             .count()
                     })
                     .sum();
@@ -1981,6 +1988,8 @@ impl Lower<'_, '_, '_> {
         for n in names {
             if let Some((_, t, _)) = gn.tys.iter().rev().find(|(s, _, _)| *s == n) {
                 out.push(*t);
+            } else if let Some((_, slot, _, _)) = gn.consts.iter().rev().find(|c| c.0 == n) {
+                out.push(self.names.pool.intern_ty(&TyData::Param(*slot)));
             } else {
                 // gap: #1632
                 self.gap("a local type that takes an enclosing type parameter, named where that parameter is not its own");
@@ -2801,6 +2810,23 @@ impl Lower<'_, '_, '_> {
         self.diags.error(Code::ArgumentCount, span, &msg);
     }
 
+    /// `Self` in a local declaration with none of its own: the target of
+    /// the impl around it (`names.self-type.impl`), lowered here, where
+    /// the impl's parameters are those the declaration takes from around
+    /// it (`names.local-type.refs`). `None` outside an impl. Inside a
+    /// trait, `Self` is the eventual implementing type, which a local
+    /// declaration does not take yet.
+    fn outer_self_ty(&mut self, gn: &Gen) -> Option<Ty> {
+        let owner = self.src.parse.tree.node(self.outer_self?);
+        if owner.kind() == SyntaxKind::TraitDecl {
+            // gap: #1632
+            self.gap("a use of an enclosing trait's `Self` in a local declaration");
+            return Some(Ty::POISON);
+        }
+        let target = owner.children().filter(|c| c.kind().is_type()).last()?;
+        Some(self.ty(Some(target), gn))
+    }
+
     /// Whether the named type `n`, `name`, which declares no generic
     /// parameters, writes a type argument list, which is then too long
     /// (`types.generic.too-long`).
@@ -2822,7 +2848,7 @@ impl Lower<'_, '_, '_> {
         };
         if segs.len() == 1 {
             if self.src.tkind(ft) == Some(TokenKind::KwSelfType) {
-                let Some(self_ty) = gn.self_ty else {
+                let Some(self_ty) = gn.self_ty.or_else(|| self.outer_self_ty(gn)) else {
                     // `Self` outside a trait or impl body names nothing
                     // (`names.self-type.outside`).
                     let msg = "no type named `Self` here: `Self` names the implementing type inside a trait or impl";
@@ -2891,12 +2917,11 @@ impl Lower<'_, '_, '_> {
         }
         let Some((def, kind)) = self.resolve_path(&segs, span) else {
             // A local struct, enum, newtype, alias or impl of one takes the
-            // type parameters around it (`names.local-type.refs`, `enter`);
-            // a local trait, `Self`, a local function's parameter and a row
-            // or const parameter are not taken yet.
+            // type and const parameters around it (`names.local-type.refs`,
+            // `enter`); a local trait and a row parameter are not taken yet.
             if segs.len() == 1 && self.outer.contains(&first) {
                 // gap: #1632
-                self.gap("a local trait, or a use of an enclosing `Self`, local function's, row or const parameter, in a local declaration");
+                self.gap("a local trait that names an enclosing type parameter");
                 return Ty::POISON;
             }
             if segs.len() == 1 {
@@ -6421,6 +6446,7 @@ fn lower_aliases(
                 at: mods[mi].src.span(h.node).lo,
                 outer: Vec::new(),
                 outer_lists: Vec::new(),
+                outer_self: None,
             };
             let scan = match h.kind {
                 HeadKind::Alias => Some(h.node),
@@ -6488,6 +6514,7 @@ fn lower_aliases(
                 at: 0,
                 outer: Vec::new(),
                 outer_lists: Vec::new(),
+                outer_self: None,
             };
             if alias {
                 low.alias_item(h, cyclic, &mut out[mi]);
@@ -7836,6 +7863,7 @@ pub fn build_folder(
                     at: 0,
                     outer: Vec::new(),
                     outer_lists: Vec::new(),
+                    outer_self: None,
                 };
                 // The aliases are lowered already (`lower_aliases`).
                 for h in hs
@@ -7963,6 +7991,7 @@ pub fn build_folder(
                 at: 0,
                 outer: Vec::new(),
                 outer_lists: Vec::new(),
+                outer_self: None,
             };
             low.check_module_decorators(&items);
         }
@@ -8102,6 +8131,7 @@ fn own_trait_generics(
                 at: m.src.span(h.node).lo,
                 outer: Vec::new(),
                 outer_lists: Vec::new(),
+                outer_self: None,
             };
             let (_, _, generics) = low.trait_generics(h);
             out.entry(h.def).or_insert(generics);
@@ -8378,6 +8408,7 @@ fn own_trait_supers(
                 at: m.src.span(h.node).lo,
                 outer: Vec::new(),
                 outer_lists: Vec::new(),
+                outer_self: None,
             };
             let (self_ty, gn, _) = low.trait_generics(h);
             let supers = low.supers(h.node, &gn, self_ty);

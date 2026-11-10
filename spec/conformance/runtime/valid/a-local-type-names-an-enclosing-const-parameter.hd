@@ -1,0 +1,39 @@
+# test: a local type names an enclosing function's const parameter
+# Spec 03 Local Type Declarations: names.local-type.refs; a const parameter
+# has a type parameter's scopes (types.generic.const.positions).
+# expect-stdout: 7
+# expect-stdout: 4
+# expect-stdout: kept
+# expect-stdout: 1
+# expect-stdout: 5
+struct Fixed[N < const i32]:
+    v: i32
+
+fn same[N < const i32](x: Fixed[N]) -> Fixed[N]:
+    x
+
+fn measure[N < const i32](v: i32) -> Fixed[N]:
+    struct Held:
+        x: Fixed[N]
+    impl Held:
+        fn get(&self) -> Fixed[N]:
+            same(self.x)
+    held := Held { x: Fixed { v: v } }
+    held.get()
+
+fn pair[T, N < const i32](value: T, f: Fixed[N]) -> T:
+    enum Slot:
+        Full(T, Fixed[N])
+        Empty
+    match Slot.Full(value, same::[N](f)):
+        Slot.Full(v, g) =>
+            println("${g.v}")
+            v
+        Slot.Empty => value
+
+pub fn main() -> void $ Console:
+    seven := measure::[3](7)
+    println("${seven.v}")
+    println(pair("kept", Fixed::[2] { v: 4 }))
+    n := pair(5, Fixed::[9] { v: 1 })
+    println("${n}")

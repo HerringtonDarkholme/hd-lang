@@ -1,0 +1,40 @@
+# test: a local type in a method body names the enclosing impl's `Self`
+# Spec 03 Local Type Declarations: names.local-type.refs; `Self` there is
+# the implementation's target type (names.self-type.impl).
+# expect-stdout: 3 4
+# expect-stdout: ab
+# expect-stdout: 10
+struct Pair[T]:
+    left: T
+    right: T
+
+impl[T < Copy] Pair[T]:
+    fn swapped(&self) -> Pair[T]:
+        struct Turn:
+            from: Self
+        impl Turn:
+            fn run(&self) -> Pair[T]:
+                Pair { left: self.from.right, right: self.from.left }
+        Turn { from: *self }.run()
+
+struct Counter:
+    n: i32
+
+trait Grow:
+    fn grow(&self) -> i32
+
+impl Grow for Counter:
+    fn grow(&self) -> i32:
+        enum Step:
+            Keep(Self)
+            Skip
+        match Step.Keep(Counter { n: self.n * 2 }):
+            Step.Keep(c) => c.n
+            Step.Skip => 0
+
+pub fn main() -> void $ Console:
+    p := Pair { left: 4, right: 3 }.swapped()
+    println("${p.left} ${p.right}")
+    s := Pair { left: "b", right: "a" }.swapped()
+    println(s.left + s.right)
+    println("${Counter { n: 5 }.grow()}")

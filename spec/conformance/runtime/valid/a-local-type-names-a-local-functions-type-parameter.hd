@@ -1,0 +1,39 @@
+# test: a local type names a local generic function's type parameter
+# Spec 03 Local Type Declarations: names.local-type.refs.
+# expect-stdout: 4 kept
+# expect-stdout: 2 v 3 7 8
+# expect-stdout: x 9
+fn g[T](x: T) -> T:
+    fn inner[U](u: U) -> U:
+        struct Both:
+            u: U
+        Both { u: u }.u
+    inner(x)
+
+fn mixed[T](t: T) -> string:
+    fn label[U < Display](u: U, n: i32) -> string:
+        enum Tagged:
+            One(U)
+            Two(U, i32)
+        impl Tagged:
+            fn show(&self) -> string:
+                match self:
+                    Tagged.One(v) => "${v}"
+                    Tagged.Two(v, k) => "${v} ${k}"
+        Tagged.Two(u, n).show()
+    fn count[V](items: List[V]) -> usize:
+        struct Bag:
+            items: List[V]
+        Bag { items: items }.items.len()
+    first := count([t, t])
+    "${first} " + label("v", 3) + " " + label(7, 8)
+
+pub fn main() -> void $ Console:
+    println("${g(+4)} ${g("kept")}")
+    println(mixed(1.5))
+    fn local_main[W < Display](w: W) -> string:
+        struct Keep:
+            w: W
+        k := Keep { w: w }
+        "${k.w}"
+    println("${local_main("x")} ${local_main(9)}")

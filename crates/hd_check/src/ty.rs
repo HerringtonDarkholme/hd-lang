@@ -420,6 +420,16 @@ impl Ck<'_, '_> {
         item.generics[..taken]
             .iter()
             .map(|g| {
+                if g.const_type.is_some() {
+                    return self
+                        .const_gens
+                        .iter()
+                        .rev()
+                        .find(|c| c.0 == g.name)
+                        .map_or(Ty::POISON, |(_, p, _)| {
+                            self.pool().intern_ty(&TyData::Param(*p))
+                        });
+                }
                 self.type_param(self.cx.names.text(g.name))
                     .unwrap_or(Ty::POISON)
             })
