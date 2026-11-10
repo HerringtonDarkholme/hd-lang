@@ -1,0 +1,14 @@
+# test: a local impl names an enclosing row parameter its target does not take
+# Spec 03 Local Type Declarations: names.local-type.refs.impl, req.row.param.scopes.
+
+struct Held[$ Row]:
+    value: i32
+
+fn outer() -> i32:
+    struct Cell:
+        v: i32
+    fn inner[$ R]() -> i32:
+        impl Cell:
+            fn held(&self) -> Held[$ R]: Held { value: self.v } # diagnostic: local-impl-outer-parameter
+        +0
+    +1

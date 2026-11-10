@@ -41,9 +41,9 @@ pub use known::KnownItems;
 pub use lower::{
     Cx, FolderOut, Head, Kinds, LocalItem, LocalSite, ModIn, ModOut, PRELUDE, Reads, Recorded,
     SessionScope, USE_CODES, UseDecl, World, body_nodes, build_folder, head_name_span, heads,
-    is_prelude_name, is_test_prelude_name, local_at, local_items, prelude_modules, prelude_rows,
-    runtime_module, test_prelude_item, test_use_decls, tests_items, traitless_block, use_decls,
-    use_diags,
+    is_enclosing_parameter, is_prelude_name, is_test_prelude_name, local_at, local_items,
+    prelude_modules, prelude_rows, runtime_module, test_prelude_item, test_use_decls, tests_items,
+    traitless_block, use_decls, use_diags,
 };
 pub use view::Src;
 

@@ -762,6 +762,18 @@ fn local_heads<'t>(
     }
 }
 
+/// Whether `name` is a type, const or row parameter, or the `Self`, of a
+/// declaration around byte `at`. A body that cannot see one is a local
+/// impl's that does not take it (`names.local-type.refs.impl`). It walks
+/// one path down the tree: called only for a name that reached nothing.
+#[must_use]
+pub fn is_enclosing_parameter(src: &Src<'_>, at: u32, name: &str) -> bool {
+    enclosing_generics(src, src.root(), at)
+        .0
+        .iter()
+        .any(|n| n == name)
+}
+
 /// The type parameter names (and `Self`, inside an impl or trait) of the
 /// declarations of `top` that enclose the declaration starting at `at`,
 /// and their generic lists, outermost first; then the innermost impl or
@@ -1911,37 +1923,50 @@ impl Lower<'_, '_, '_> {
         }
         // A const or row parameter has a type parameter's scopes
         // (`types.generic.const.positions`, `req.row.param.scopes`).
+        let mut lists = lists;
         let takes = match h.kind {
             HeadKind::Struct | HeadKind::Enum | HeadKind::Newtype | HeadKind::Alias => true,
-            // An impl takes them when its target is a local type that
-            // does, with the same parameters around it.
-            // The declarations around a local type visible here are some
-            // of those around the impl, outermost first: the same count of
-            // parameters is the same parameters.
+            // An impl takes those its local target or local trait takes
+            // (`names.local-type.refs.impl`). The declarations around a
+            // local type visible here are the outermost of those around
+            // the impl, so the count it takes names a prefix of them:
+            // `Self` of a trait around both first, then each list.
             HeadKind::Impl => {
-                let around: usize = lists
-                    .iter()
-                    .map(|&gl| {
-                        self.src
-                            .parse
-                            .tree
-                            .node(gl)
-                            .children()
-                            .filter(|g| {
-                                matches!(
-                                    g.kind(),
-                                    SyntaxKind::GenericParameter | SyntaxKind::ConstParameter
-                                )
-                            })
-                            .count()
-                    })
-                    .sum::<usize>()
-                    + usize::from(self_owner.is_some_and(|o| {
+                let taken = self
+                    .impl_target_outer(h.node)
+                    .max(self.impl_trait_outer(h.node))
+                    .unwrap_or(0);
+                let mut sum =
+                    usize::from(self_owner.is_some_and(|o| {
                         self.src.parse.tree.node(o).kind() == SyntaxKind::TraitDecl
                     }));
-                around > 0
-                    && (self.impl_target_outer(h.node) == Some(around)
-                        || self.impl_trait_outer(h.node) == Some(around))
+                let mut prefix = (taken == sum).then_some(0);
+                for (i, &gl) in lists.iter().enumerate() {
+                    if prefix.is_some() {
+                        break;
+                    }
+                    sum += self
+                        .src
+                        .parse
+                        .tree
+                        .node(gl)
+                        .children()
+                        .filter(|g| {
+                            matches!(
+                                g.kind(),
+                                SyntaxKind::GenericParameter | SyntaxKind::ConstParameter
+                            )
+                        })
+                        .count();
+                    prefix = (taken == sum).then_some(i + 1);
+                }
+                match prefix {
+                    Some(p) if taken > 0 => {
+                        lists.truncate(p);
+                        true
+                    }
+                    _ => false,
+                }
             }
             // A local trait takes them after its `Self`, so its members
             // name them as its own.
@@ -2086,8 +2111,15 @@ impl Lower<'_, '_, '_> {
     /// A written use of `def` with its written arguments `args`, after
     /// the arguments of the parameters it takes from around it: each the
     /// type, const or row parameter of the same name in scope here. `None` when it takes
-    /// none.
-    fn with_outer_args(&mut self, def: DefId, gn: &Gen, args: &[Ty]) -> Option<Vec<Ty>> {
+    /// none. One not in scope is an enclosing parameter a local impl does
+    /// not take (`names.local-type.refs.impl`), reported at `span`.
+    fn with_outer_args(
+        &mut self,
+        def: DefId,
+        gn: &Gen,
+        args: &[Ty],
+        span: Span,
+    ) -> Option<Vec<Ty>> {
         let names: Vec<Symbol> = self.r.with_generics(def, |g| {
             g.iter().take_while(|g| g.outer).map(|g| g.name).collect()
         })?;
@@ -2114,8 +2146,15 @@ impl Lower<'_, '_, '_> {
                 });
                 out.push(pool.intern_ty(&TyData::Row(row)));
             } else {
-                // gap: #1632
-                self.gap("a local type that takes an enclosing type parameter, named where that parameter is not its own");
+                // A local type and an impl around which take parameters
+                // from the same declarations take the same ones, so only
+                // an impl taking fewer than are around it reaches here.
+                let msg = format!(
+                    "`{}` takes the enclosing parameter `{}`, which this local impl does not take; a local impl names an enclosing parameter only through its local target or trait",
+                    self.names.display_name(def),
+                    self.names.text(n)
+                );
+                self.diags.error(Code::LocalImplOuterParameter, span, &msg);
                 out.push(Ty::POISON);
             }
         }
@@ -2492,6 +2531,9 @@ impl Lower<'_, '_, '_> {
                     Some(HeadKind::Fn) => ConstName::Runtime,
                     Some(_) => ConstName::Type,
                     None if self.is_poisoned(sym) => ConstName::Poison,
+                    None if !in_binding && self.outer.iter().any(|o| o == name) => {
+                        ConstName::Untaken
+                    }
                     None => ConstName::Unknown,
                 }
             };
@@ -2575,6 +2617,15 @@ impl Lower<'_, '_, '_> {
         }
         let Some((def, kind)) = found else {
             let name = segs.last().map_or("", |s| s.0.as_str()).to_owned();
+            // A row parameter around a local impl that does not take it
+            // (`names.local-type.refs.impl`).
+            if segs.len() == 1 && self.outer.contains(&name) {
+                let msg = format!(
+                    "`{name}` is an enclosing parameter this local impl does not take; a local impl names an enclosing parameter only through its local target or trait"
+                );
+                self.diags.error(Code::LocalImplOuterParameter, span, &msg);
+                return None;
+            }
             if segs.len() == 1 {
                 let msg = format!("no trait named `{name}`{}", self.import_hint(&name));
                 self.diags.error(Code::UnknownTrait, span, &msg);
@@ -2608,7 +2659,7 @@ impl Lower<'_, '_, '_> {
         if self.row_in_type_slot(def, &args, span) {
             return None;
         }
-        let args = self.with_outer_args(def, gn, &args).unwrap_or(args);
+        let args = self.with_outer_args(def, gn, &args, span).unwrap_or(args);
         let args = self
             .r
             .fill_trait_args(def, self.names.pool.list(&args), self_ty);
@@ -2853,7 +2904,7 @@ impl Lower<'_, '_, '_> {
             // A local type takes the parameters around it first
             // (`names.local-type.refs`); none is written.
             let written = args.len();
-            with_outer = self.with_outer_args(def, gn, args);
+            with_outer = self.with_outer_args(def, gn, args, span);
             let args = with_outer.as_deref().unwrap_or(args);
             let taken = args.len() - written;
             let (f, missing, arity) = self.r.fill_type_args(def, args);
@@ -3046,15 +3097,16 @@ impl Lower<'_, '_, '_> {
             return Ty::POISON;
         }
         let Some((def, kind)) = self.resolve_path(&segs, span) else {
-            // A local struct, enum, newtype, alias or trait, or an impl of
-            // one, takes the type, const and row parameters around it
-            // (`names.local-type.refs`, `enter`); a local impl whose target
-            // and trait take none does not.
+            // A local struct, enum, newtype, alias or trait takes the type,
+            // const and row parameters around it, and a local impl those its
+            // local target or trait takes (`names.local-type.refs`, `enter`):
+            // a name around it that is not in scope is one the impl does not
+            // take (`names.local-type.refs.impl`).
             if segs.len() == 1 && self.outer.contains(&first) {
-                // gap: #1632
-                self.gap(
-                    "a local impl whose target and trait take no enclosing parameter, naming one",
+                let msg = format!(
+                    "`{first}` is an enclosing parameter this local impl does not take; a local impl names an enclosing parameter only through its local target or trait"
                 );
+                self.diags.error(Code::LocalImplOuterParameter, span, &msg);
                 return Ty::POISON;
             }
             if segs.len() == 1 {

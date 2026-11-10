@@ -1,0 +1,11 @@
+# test: a local impl's method signature names an enclosing parameter its target does not take
+# Spec 03 Local Type Declarations: names.local-type.refs.impl.
+
+fn outer() -> i32:
+    struct Cell:
+        v: i32
+    fn inner[U](u: U) -> i32:
+        impl Cell:
+            fn keep(&self, u: U) -> i32: self.v # diagnostic: local-impl-outer-parameter
+        Cell { v: +1 }.keep(u)
+    inner(+2)

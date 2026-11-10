@@ -1,0 +1,15 @@
+# test: a local impl names a local type that takes an enclosing parameter the impl does not take
+# Spec 03 Local Type Declarations: names.local-type.refs.impl.
+
+fn outer[T](x: T) -> i32:
+    struct Cell:
+        v: i32
+    fn inner[U](u: U) -> i32:
+        struct Pair:
+            w: i32
+        impl Cell:
+            fn pair(&self) -> i32:
+                let p = Pair { w: self.v } # diagnostic: local-impl-outer-parameter
+                p.w
+        Cell { v: +1 }.pair()
+    inner(+2)

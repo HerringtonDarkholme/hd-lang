@@ -6495,6 +6495,12 @@ runtime/valid/a-local-type-names-an-enclosing-const-parameter.hd	runtime	accept	
 runtime/valid/a-local-type-names-an-enclosing-row-parameter.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.row.param.scopes
 runtime/valid/a-local-type-in-a-method-names-the-impls-self.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.local-type.refs
 runtime/valid/a-local-type-names-a-local-functions-type-parameter.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.local-type.refs
+runtime/valid/a-local-impl-takes-its-targets-enclosing-parameters.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.local-type.refs.impl
+typing/invalid/a-local-impl-body-names-an-enclosing-parameter-it-does-not-take.hd	type	reject:local-impl-outer-parameter	lang/03-names-and-scopes.md#r-names.local-type.refs.impl
+typing/invalid/a-local-impl-signature-names-an-enclosing-parameter-it-does-not-take.hd	type	reject:local-impl-outer-parameter	lang/03-names-and-scopes.md#r-names.local-type.refs.impl
+typing/invalid/a-local-impl-names-a-local-type-that-takes-a-parameter-it-does-not.hd	type	reject:local-impl-outer-parameter	lang/03-names-and-scopes.md#r-names.local-type.refs.impl
+typing/invalid/a-local-impl-names-an-enclosing-const-parameter-it-does-not-take.hd	type	reject:local-impl-outer-parameter	lang/03-names-and-scopes.md#r-names.local-type.refs.impl
+typing/invalid/a-local-impl-names-an-enclosing-row-parameter-it-does-not-take.hd	type	reject:local-impl-outer-parameter	lang/03-names-and-scopes.md#r-names.local-type.refs.impl
 typing/invalid/a-field-assignment-on-a-value-with-no-fields-is-unknown.hd	type	reject:unknown-field	lang/05-expressions.md#r-expr.member.field-read
 runtime/valid/a-result-projection-waits-for-its-self-type.hd	runtime	accept	lang/09-traits.md#r-trait.assoc.projection
 parse/invalid/a-colon-in-parentheses-before-a-bracketed-type-suggests-its-call.hd	parse	reject:trailing-block-position	lang/02-grammar.md#r-grammar.call.trailing-block.not-header

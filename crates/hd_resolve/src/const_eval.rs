@@ -24,6 +24,9 @@ pub enum ConstName<'a> {
     Runtime,
     /// No value of that name is in scope.
     Unknown,
+    /// An enclosing declaration's parameter that a local impl around the
+    /// use does not take (`names.local-type.refs.impl`).
+    Untaken,
     /// A type, trait or row, which no const slot takes.
     Type,
     /// A name already reported, or one this evaluator cannot read yet.
@@ -401,6 +404,12 @@ impl<'a> Eval<'_, 'a> {
             ConstName::Unknown => Err(Fail::Error(ConstError {
                 code: Code::UnknownName,
                 message: format!("no value named `{name}` is in scope"),
+            })),
+            ConstName::Untaken => Err(Fail::Error(ConstError {
+                code: Code::LocalImplOuterParameter,
+                message: format!(
+                    "`{name}` is an enclosing parameter this local impl does not take; a local impl names an enclosing parameter only through its local target or trait"
+                ),
             })),
             ConstName::Type => Err(Fail::Error(ConstError {
                 code: Code::GenericKindMismatch,

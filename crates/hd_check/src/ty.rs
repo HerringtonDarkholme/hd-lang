@@ -309,6 +309,11 @@ impl Ck<'_, '_> {
                         self.read_poison_name = true;
                         ConstName::Poison
                     }
+                    _ if !in_binding
+                        && hd_resolve::is_enclosing_parameter(&src, src.span(a).lo, name) =>
+                    {
+                        ConstName::Untaken
+                    }
                     _ => ConstName::Unknown,
                 }
             };
@@ -462,6 +467,34 @@ impl Ck<'_, '_> {
             .collect()
     }
 
+    /// Reports `item`'s first parameter from around it that is not in scope
+    /// at `n`: one a local impl around `n` does not take
+    /// (`names.local-type.refs.impl`). `with_outer` is
+    /// [`Self::with_outer_args`]'s result, whose leading arguments are
+    /// those parameters, poison where one is not in scope.
+    pub(crate) fn report_untaken_outer(
+        &mut self,
+        item: &hd_resolve::Item,
+        with_outer: &[Ty],
+        n: NodeRef<'_>,
+    ) {
+        let Some(g) = item
+            .generics
+            .iter()
+            .take_while(|g| g.outer)
+            .zip(with_outer)
+            .find_map(|(g, t)| (*t == Ty::POISON).then_some(g))
+        else {
+            return;
+        };
+        let msg = format!(
+            "`{}` takes the enclosing parameter `{}`, which this local impl does not take; a local impl names an enclosing parameter only through its local target or trait",
+            self.cx.names.display_name(item.def),
+            self.cx.names.text(g.name)
+        );
+        self.err(Code::LocalImplOuterParameter, n, &msg);
+    }
+
     /// The arguments of the selected declaration: for a local type, the
     /// type parameters it takes from around it, each the one of the same
     /// name in scope here (`names.local-type.refs`); then those written,
@@ -475,6 +508,7 @@ impl Ck<'_, '_> {
         let pool = self.pool();
         let def = item.def;
         let with_outer = self.with_outer_args(item, args);
+        self.report_untaken_outer(item, &with_outer, n);
         let args = with_outer.as_ref();
         // An omitted trailing argument takes its default with the earlier
         // arguments substituted (`types.generic.default.written`).
@@ -676,6 +710,13 @@ impl Ck<'_, '_> {
             // A single name that reaches nothing is `unknown-type`, or
             // `unknown-trait` where a trait is written (`req.key.in-scope`).
             if let [name] = segs.as_slice() {
+                if hd_resolve::is_enclosing_parameter(&self.cx.src, self.cx.src.span(n).lo, name) {
+                    let msg = format!(
+                        "`{name}` is an enclosing parameter this local impl does not take; a local impl names an enclosing parameter only through its local target or trait"
+                    );
+                    self.err(Code::LocalImplOuterParameter, n, &msg);
+                    return Ok(Ty::POISON);
+                }
                 let (code, what) = match role {
                     NameRole::Type | NameRole::Referent => (Code::UnknownType, "type"),
                     NameRole::Trait => (Code::UnknownTrait, "trait"),
@@ -803,7 +844,8 @@ impl Ck<'_, '_> {
             // one of the same name in scope (`names.local-type.refs`).
             let args = match self.cx.lookup.item(def) {
                 Some(it) => {
-                    let args = self.with_outer_args(it, &args);
+                    let args = self.with_outer_args(it, &args).into_owned();
+                    self.report_untaken_outer(it, &args, n);
                     hd_resolve::fill_trait_args(pool, def, &it.generics, pool.list(&args), None)
                 }
                 None => pool.list(&args),
@@ -834,6 +876,7 @@ impl Ck<'_, '_> {
             && let Some(item) = self.cx.lookup.item(def)
         {
             let with_outer = self.with_outer_args(item, &args);
+            self.report_untaken_outer(item, &with_outer, n);
             let filled =
                 hd_resolve::fill_type_args(self.cx.names.pool, def, &item.generics, &with_outer);
             if let Some(g) = item

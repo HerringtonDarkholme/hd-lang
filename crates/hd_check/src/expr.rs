@@ -3374,6 +3374,7 @@ impl Ck<'_, '_> {
         // A local type's parameters from around it come first
         // (`names.local-type.refs`); none is written.
         let mut targs = self.with_outer_args(item, &[]).into_owned();
+        self.report_untaken_outer(item, &targs, name_node);
         let taken = targs.len();
         for (i, t) in targ_nodes.iter().enumerate() {
             targs.push(self.explicit_slot_arg(path_node, *t, item.generics.get(taken + i), i)?);

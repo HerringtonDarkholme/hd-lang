@@ -1,0 +1,16 @@
+# test: a local impl names an enclosing const parameter its target does not take
+# Spec 03 Local Type Declarations: names.local-type.refs.impl.
+
+struct Sized[Size < const i32]:
+    value: i32
+
+fn outer() -> i32:
+    struct Cell:
+        v: i32
+    fn inner[N < const i32]() -> i32:
+        impl Cell:
+            fn sized(&self) -> i32:
+                let s: Sized[N] = Sized { value: self.v } # diagnostic: local-impl-outer-parameter
+                s.value
+        +0
+    +1

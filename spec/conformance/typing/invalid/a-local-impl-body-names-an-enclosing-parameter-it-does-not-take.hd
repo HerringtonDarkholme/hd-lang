@@ -1,0 +1,16 @@
+# test: a local impl's method body names an enclosing parameter its target does not take
+# Spec 03 Local Type Declarations: names.local-type.refs.impl.
+
+trait Show:
+    fn show(&self) -> i32
+
+fn outer[T](x: T) -> i32:
+    struct Cell:
+        v: i32
+    fn inner[U](u: U) -> i32:
+        impl Show for Cell:
+            fn show(&self) -> i32:
+                let none: List[U] = [] # diagnostic: local-impl-outer-parameter
+                self.v
+        Cell { v: +1 }.show()
+    inner(+2)

@@ -1,0 +1,33 @@
+# test: a local impl inside a generic local function takes only the enclosing parameters its target takes
+# Spec 03 Local Type Declarations: names.local-type.refs.impl.
+# expect-stdout: 5 7
+# expect-stdout: x 3
+
+trait Show:
+    fn show(&self) -> string
+
+fn outer[T < Display](x: T) -> string:
+    struct Cell:
+        v: T
+    fn inner[U](x: T, u: U, n: i32) -> string:
+        impl Show for Cell:
+            fn show(&self) -> string: "${self.v}"
+        impl Cell:
+            fn again(&self, k: i32) -> string:
+                let c: Cell = Cell { v: self.v }
+                "${c.show()} ${k}"
+        Cell { v: x }.again(n)
+    inner(x, "u", 3)
+
+fn plain() -> string:
+    struct Box2:
+        n: i32
+    fn inner[U](u: U) -> string:
+        impl Box2:
+            fn twice(&self) -> i32: self.n + 2
+        "${Box2 { n: +3 }.twice()}"
+    inner(1.5)
+
+pub fn main() -> void $ Console:
+    println("${plain()} ${7}")
+    println(outer("x"))

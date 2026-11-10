@@ -528,9 +528,10 @@ fn demo() -> i32:
 2. r[names.local-type.not-visible] The name is not visible before that point or outside the suite.
 3. r[names.local-type.static] Local type declarations do not execute, capture runtime values, or become module members nameable by a `use` declaration.
 4. r[names.local-type.refs] Local type declarations may refer to type names and type parameters visible at their declaration point.
-5. r[names.local-type.identity] A local nominal type has one declaration identity, not a fresh identity per call to the enclosing function.
-6. r[names.local-type.duplicate] Local type and value declarations cannot duplicate a name in the same scope.
-7. r[names.local-type.prelude] Local type declarations are also subject to the prelude shadowing rule.
+5. r[names.local-type.refs.impl] A local `impl` takes the enclosing parameters that its local target or local trait takes. It names an enclosing parameter only through them. Naming another one, or a local type that takes another one, is an error. Error: `local-impl-outer-parameter`.
+6. r[names.local-type.identity] A local nominal type has one declaration identity, not a fresh identity per call to the enclosing function.
+7. r[names.local-type.duplicate] Local type and value declarations cannot duplicate a name in the same scope.
+8. r[names.local-type.prelude] Local type declarations are also subject to the prelude shadowing rule.
 
 ```hd
 fn demo() -> i32:
