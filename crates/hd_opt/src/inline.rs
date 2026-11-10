@@ -10,6 +10,7 @@ use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use hd_base::{DefId, Hash128, HashMap, HashSet, SliceSort, StableHasher};
 use hd_mono::ProgramEnv;
+use hd_mono::defaults::SingleBody;
 use hd_tir::inline::Site;
 use hd_tir::ir::{Body, Callee, Proj, Ref, Tag, local_flags, place, ref_word};
 use hd_types::{InternPool, Ty, TyData, TyList};
@@ -596,8 +597,8 @@ impl dyn InlineEnv + '_ {
             // A copy that only makes a known value is that value, at any
             // size: a call of it folds, and so do the decisions it makes.
             if self.const_fold()
-                && let Some(c) =
-                    hd_mono::defaults::collapse(nested.as_ref().map_or(&copy, |n| &n.0))
+                && let Some(c) = SingleBody::new(nested.as_ref().map_or(&copy, |n| &n.0))
+                    .and_then(hd_mono::defaults::collapse)
             {
                 return Some((c, nested.as_ref().map_or(hash, |n| n.1)));
             }
@@ -634,7 +635,7 @@ impl dyn InlineEnv + '_ {
         let h = self.inline_into(&mut scratch, prepared, stack);
         stack.pop();
         let quiet = |b: &Body, i: usize| self.quiet(b, i);
-        let mut c = hd_mono::defaults::collapse_quiet(&scratch, &quiet)?;
+        let mut c = hd_mono::defaults::collapse_quiet(SingleBody::new(&scratch)?, &quiet)?;
         // A derived instance's constant is copied as any function's.
         c.kind = hd_tir::ir::BodyKind::Fn;
         Some((c, h))
@@ -767,10 +768,13 @@ impl dyn InlineEnv + '_ {
         };
         let local: Vec<bool> = (0..nodes.len())
             .map(|i| {
-                bodies[i].as_ref().is_some_and(|b| {
-                    let quiet = |b: &Body, c: usize| site(i, c).is_some() || self.quiet(b, c);
-                    hd_mono::defaults::local_only(b, &quiet)
-                })
+                bodies[i]
+                    .as_ref()
+                    .and_then(SingleBody::new)
+                    .is_some_and(|single| {
+                        let quiet = |b: &Body, c: usize| site(i, c).is_some() || self.quiet(b, c);
+                        hd_mono::defaults::local_only(single, &quiet)
+                    })
             })
             .collect();
         let mut eval = |i: u32, seed: &dyn Fn(u32) -> Option<bool>| {
@@ -780,7 +784,8 @@ impl dyn InlineEnv + '_ {
                     .and_then(seed)
                     .map(|v| hd_mono::defaults::Value::Scalar(u64::from(v)))
             };
-            let value = hd_mono::defaults::value_given(bodies[i].as_ref()?, &calls)?;
+            let value =
+                hd_mono::defaults::value_given(SingleBody::new(bodies[i].as_ref()?)?, &calls)?;
             // ruled out: whole::is_flag_method admits only a `bool` result,
             // and value_given makes a variant only of a `NewVariant`.
             debug_assert!(
@@ -794,7 +799,8 @@ impl dyn InlineEnv + '_ {
         for (i, &(def, targs)) in nodes.iter().enumerate() {
             let made = values[i].and_then(|v| {
                 let value = hd_mono::defaults::Value::Scalar(u64::from(v));
-                let mut copy = hd_mono::defaults::constant_copy(bodies[i].as_ref()?, value)?;
+                let mut copy =
+                    hd_mono::defaults::constant_copy(SingleBody::new(bodies[i].as_ref()?)?, value)?;
                 copy.kind = hd_tir::ir::BodyKind::Fn;
 
                 let mut h = StableHasher::new("flag-value");

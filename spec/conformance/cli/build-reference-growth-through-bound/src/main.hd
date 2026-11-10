@@ -1,0 +1,20 @@
+trait Recur:
+    fn step[T < 'static](&self, value: T, n: usize) -> usize
+
+struct Runner: pass
+
+struct AA名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名: pass
+
+impl Recur for Runner:
+    fn step[T < 'static](&self, value: T, n: usize) -> usize:
+        if n == 0: 0 else: run(self, box(value), n - 1)
+
+fn run[R < Recur, T < 'static](runner: &R, value: T, n: usize) -> usize:
+    runner.step(value, n)
+
+pub fn main() -> void:
+    _ := run(
+        &Runner {},
+        AA名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名 {},
+        1,
+    )

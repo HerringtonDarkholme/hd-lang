@@ -1,0 +1,32 @@
+# test: a projected union payload keeps its positional cases inside a value enum
+# Spec Data: data.enum.generic.instance; Types: types.union.representation.
+# expect-stdout: 7 ok empty
+trait Value:
+    type Item
+
+type Choice = i32 | string
+
+struct Carrier: pass
+
+impl Value for Carrier:
+    type Item = Choice
+
+enum Wrap[T < Value]:
+    Empty
+    Present(value: T::Item)
+
+fn describe(value: Choice) -> string:
+    match value:
+        ._0(number) => "$number"
+        ._1(text) => text
+
+fn label(value: Wrap[Carrier]) -> string:
+    match value:
+        .Empty => "empty"
+        .Present(payload) => describe(payload)
+
+pub fn main() -> void $ Console:
+    let first: Wrap[Carrier] = .Present(._0(+7))
+    let second: Wrap[Carrier] = .Present(._1("ok"))
+    let empty: Wrap[Carrier] = .Empty
+    println("${label(first)} ${label(second)} ${label(empty)}")

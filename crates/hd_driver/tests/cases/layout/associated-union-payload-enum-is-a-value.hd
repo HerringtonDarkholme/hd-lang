@@ -1,0 +1,35 @@
+# @dump: layout
+# expected: the associated union payload has a finite inline enum layout
+trait Value:
+    type Item
+
+type Choice = i32 | string
+
+struct Carrier: pass
+
+impl Value for Carrier:
+    type Item = Choice
+
+enum Wrap[T < Value]:
+    Empty
+    Present(value: T::Item)
+
+struct Holder:
+    value: Wrap[Carrier]
+
+fn describe(value: Choice) -> string:
+    match value:
+        ._0(number) => "$number"
+        ._1(text) => text
+
+fn label(value: Wrap[Carrier]) -> string:
+    match value:
+        .Empty => "empty"
+        .Present(payload) => describe(payload)
+
+pub fn main() -> void $ Console:
+    let first: Wrap[Carrier] = .Present(._0(+7))
+    let second: Wrap[Carrier] = .Present(._1("ok"))
+    let empty: Wrap[Carrier] = .Empty
+    held := Holder { value: first }
+    println("${label(held.value)} ${label(second)} ${label(empty)}")

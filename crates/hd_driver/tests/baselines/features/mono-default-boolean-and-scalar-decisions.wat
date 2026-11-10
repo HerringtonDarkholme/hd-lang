@@ -10,6 +10,75 @@
       i32.const 1
     end
   )
+  (func $choose_int.value (result i32) (local $t0 i32)
+    ;; 24 | fn choose_int(value: usize = integer_default()) -> usize:
+    block
+      block
+        block
+          block
+            block
+              block
+                i32.const 2
+                i32.const 1
+                i32.eq
+                br_if 0
+                i32.const 2
+                i32.const 2
+                i32.eq
+                i32.eqz
+                br_if 2
+                br 1
+                unreachable
+              end
+              i32.const 10
+              local.set $t0
+              br 2
+            end
+            i32.const 20
+            local.set $t0
+            br 1
+          end
+          i32.const 30
+          local.set $t0
+          br 0
+        end
+        br 0
+      end
+    end
+    local.get $t0
+  )
+  (func $integer_default (result i32) (local $t0 i32)
+    ;; 13 |     match +2:
+    block
+      block
+        block
+          block
+    ;; 14 |         1 => 10
+            i32.const 2
+            i32.const 1
+            i32.eq
+            br_if 0
+    ;; 15 |         2 => 20
+            i32.const 2
+            i32.const 2
+            i32.eq
+            i32.eqz
+            br_if 2
+            br 1
+    ;; 13 |     match +2:
+            unreachable
+          end
+          i32.const 10
+          return
+        end
+        i32.const 20
+        return
+      end
+      i32.const 30
+      return
+    end
+    local.get $t0
+  )
   (func $and_false (param $value i32) (result i32)
     ;; 7 |     value && false
     local.get $value
@@ -18,57 +87,25 @@
     end
     i32.const 0
   )
-  (func $choose_int (param $value i32) (result i32)
-    ;; 13 |     match value:
-    block
-      block
-        block
-          block
-    ;; 14 |         1 => 10
-            local.get $value
-            i32.const 1
-            i32.eq
-            br_if 0
-    ;; 15 |         2 => 20
-            local.get $value
-            i32.const 2
-            i32.eq
-            i32.eqz
-            br_if 2
-            br 1
-    ;; 13 |     match value:
-            unreachable
-          end
-          i32.const 10
-          return
-        end
-        i32.const 20
-        return
-      end
-      i32.const 30
-      return
-    end
-    local.get $value
-  )
-  (func $choose_char (param $value i32) (result i32)
-    ;; 19 |     match value:
+  (func $character_default (result i32) (local $t0 i32)
+    ;; 19 |     match 'β':
     block
       block
         block
           block
     ;; 20 |         'a' => 10
-            local.get $value
+            i32.const 946
             i32.const 97
             i32.eq
             br_if 0
     ;; 21 |         'β' => 20
-            local.get $value
+            i32.const 946
             i32.const 946
             i32.eq
             i32.eqz
             br_if 2
             br 1
-    ;; 19 |     match value:
+    ;; 19 |     match 'β':
             unreachable
           end
           i32.const 10
@@ -80,10 +117,18 @@
       i32.const 30
       return
     end
+    local.get $t0
+  )
+  (func $choose_int (param $value i32) (result i32)
+    ;; 25 |     value
+    local.get $value
+  )
+  (func $choose_char (param $value i32) (result i32)
+    ;; 28 |     value
     local.get $value
   )
   (func $probe (param $value i32) (result i32 i32 i32 i32) (local $t0 i32) (local $t1 i32)
-    ;; 25 |     (and_false(value), or_true(value), choose_int(), choose_char())
+    ;; 31 |     (and_false(value), or_true(value), choose_int(), choose_char())
     block
       block
         br 0
@@ -96,15 +141,52 @@
         br 0
       end
     end
-    i32.const 2
+    call $choose_int.value
     call $choose_int
     local.set $t0
-    i32.const 946
+    call $choose_char.value
     call $choose_char
     local.set $t1
     i32.const 0
     local.get $value
     local.get $t0
     local.get $t1
+  )
+  (func $choose_char.value (result i32) (local $t0 i32)
+    ;; 27 | fn choose_char(value: usize = character_default()) -> usize:
+    block
+      block
+        block
+          block
+            block
+              block
+                i32.const 946
+                i32.const 97
+                i32.eq
+                br_if 0
+                i32.const 946
+                i32.const 946
+                i32.eq
+                i32.eqz
+                br_if 2
+                br 1
+                unreachable
+              end
+              i32.const 10
+              local.set $t0
+              br 2
+            end
+            i32.const 20
+            local.set $t0
+            br 1
+          end
+          i32.const 30
+          local.set $t0
+          br 0
+        end
+        br 0
+      end
+    end
+    local.get $t0
   )
 )

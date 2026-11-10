@@ -1,0 +1,24 @@
+# test: constant flag analysis retains a nested function and its mutable capture
+# Spec Functions: fn.local.declare; Annotations: annot.bound.recursive.flag.
+# expect-stdout: true false
+trait Truth:
+    fn value() -> bool
+
+struct Nested: pass
+
+struct Plain: pass
+
+impl Truth for Nested:
+    fn value() -> bool:
+        let calls = 0
+        fn increment() -> bool:
+            calls = calls + 1
+            calls == 1
+        if true: increment() else: false
+
+impl Truth for Plain:
+    fn value() -> bool:
+        false
+
+pub fn main() -> void $ Console:
+    println("${Nested::value()} ${Plain::value()}")

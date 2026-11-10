@@ -342,3 +342,4 @@ repl-package-lib-binding	cli.repl.package.lib,cli.repl.redeclare.binding
 tuple-arity-one-error	cli.check.default,cli.exit.hd-failure,cli.json.diagnostic.fields
 argument-count-messages	cli.check.default,cli.exit.hd-failure,cli.json.diagnostic.fields
 if-value-without-else-one-error	cli.check.default,cli.exit.hd-failure,cli.json.diagnostic.fields
+build-reference-growth-through-bound	cli.build.depth-error,cli.check.no-depth-error,cli.json.lines.build,cli.json.diagnostic.file,cli.exit.hd-failure

@@ -7,17 +7,23 @@ fn and_false(value: bool) -> bool:
 fn or_true(value: bool) -> bool:
     value || true
 
-fn choose_int(value: i32 = +2) -> usize:
-    match value:
+fn integer_default() -> usize:
+    match +2:
         1 => 10
         2 => 20
         _ => 30
 
-fn choose_char(value: char = 'β') -> usize:
-    match value:
+fn character_default() -> usize:
+    match 'β':
         'a' => 10
         'β' => 20
         _ => 30
+
+fn choose_int(value: usize = integer_default()) -> usize:
+    value
+
+fn choose_char(value: usize = character_default()) -> usize:
+    value
 
 pub fn probe(value: bool) -> (bool, bool, usize, usize):
     (and_false(value), or_true(value), choose_int(), choose_char())

@@ -1,6 +1,7 @@
-//! Specialization of pure, omitted defaults before reachability collection.
-//! The transformed TIR keeps instruction indices stable for source locations
-//! and call targets; code generation receives this same body.
+//! Specialization of pure omitted defaults and optimizer-proven values.
+//! `specialize` keeps instruction indices stable for source locations and
+//! call targets; the collapse helpers instead rebuild a constant-result body
+//! with the original result's source location.
 
 use hd_base::{Hash128, StableHasher};
 use hd_tir::ir::{Body, Coercion, NONE, Op, PrimOp, Ref, Tag, Word, local_flags, ref_word, slots};
@@ -283,7 +284,14 @@ impl Values {
                     }
                 }
                 Tag::If | Tag::Match => {
-                    let chosen = out.chosen(body, i);
+                    let chosen = if body.tags[i] == Tag::If {
+                        out.taken(body, i)
+                            .and_then(|arm| body.record(b).get(arm))
+                            .copied()
+                            .filter(|&k| k != NONE)
+                    } else {
+                        out.chosen_match(body, i)
+                    };
                     arms.decide(i, chosen);
                     if let Some(k) = chosen {
                         out.word(body, k)
@@ -303,8 +311,8 @@ impl Values {
                         }
                     }
                 }
-                Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar => {
-                    arms.decide(i, out.switched(body, i));
+                Tag::SwitchTag => {
+                    arms.decide(i, out.switched_tag(body, i));
                     None
                 }
                 _ => None,
@@ -371,16 +379,13 @@ impl Values {
         out
     }
 
-    /// The block decision `i` (an `If` on a `bool` or a `Match`) runs,
-    /// where its operand's value decides it.
-    fn chosen(&self, body: &Body, i: usize) -> Option<u32> {
+    /// The block `Match` decision `i` runs, where its tree decides it.
+    fn chosen_match(&self, body: &Body, i: usize) -> Option<u32> {
         let blocks = body.record(body.data[i][1]);
-        let block = match body.tags[i] {
-            Tag::Match => blocks.get(self.arm(body, blocks[0], 0)? as usize + 1),
-            Tag::If => blocks.get(self.taken(body, i)?),
-            _ => None,
-        };
-        block.copied().filter(|&k| k != NONE)
+        blocks
+            .get(self.arm(body, blocks[0], 0)? as usize + 1)
+            .copied()
+            .filter(|&k| k != NONE)
     }
 
     /// The arm `If` `i` on a `bool` runs, 0 or 1, where its condition's
@@ -400,23 +405,20 @@ impl Values {
     }
 
     /// The block switch `i` runs, where its operand's value decides it.
-    fn switched(&self, body: &Body, i: usize) -> Option<u32> {
+    fn switched_tag(&self, body: &Body, i: usize) -> Option<u32> {
         let rec = body.record(body.data[i][1]);
-        let equal = match (body.tags[i], self.word(body, body.data[i][0])?) {
-            (Tag::SwitchTag, Value::Variant(tag)) => tag == rec[0],
-            (Tag::SwitchInt | Tag::SwitchChar, Value::Scalar(bits)) => {
-                bits & u64::from(u32::MAX) == u64::from(rec[0])
-            }
-            _ => return None,
+        let Value::Variant(tag) = self.word(body, body.data[i][0])? else {
+            return None;
         };
+        let equal = tag == rec[0];
         rec.get(if equal { 1 } else { 2 })
             .copied()
             .filter(|&k| k != NONE)
     }
 
-    /// Follow a pure match decision to its arm. Binding patterns and
-    /// guards with unknown results retain the original match and all its
-    /// effects. The decision tree's depth is the pattern's, capped at 64.
+    /// Follow a pure match decision to its arm. Bindings and unknown guards
+    /// keep the runtime match and its effects. Paths longer than 64 decision
+    /// edges also stay runtime, including chains of flat cases.
     fn arm(&self, body: &Body, block: u32, depth: usize) -> Option<u32> {
         if depth > 64 {
             return None;
@@ -428,16 +430,14 @@ impl Values {
                 Tag::Block => {}
                 Tag::Read if self.pure[i] || self.val[i].is_some() => {}
                 Tag::ToArm => return Some(a),
-                Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar => {
-                    let val = self.word(body, a)?;
-                    let rec = body.record(b);
-                    let equal = match (body.tags[i], val) {
-                        (Tag::SwitchTag, Value::Variant(tag)) => tag == rec[0],
-                        (Tag::SwitchInt | Tag::SwitchChar, Value::Scalar(bits)) => {
-                            bits & u64::from(u32::MAX) == u64::from(rec[0])
-                        }
-                        _ => return None,
+                // Checked scalar decisions use Prim Eq + If. Only enum
+                // tag decisions produce a switch in checked TIR.
+                Tag::SwitchTag => {
+                    let Value::Variant(tag) = self.word(body, a)? else {
+                        return None;
                     };
+                    let rec = body.record(b);
+                    let equal = tag == rec[0];
                     return self.arm(body, rec[if equal { 1 } else { 2 }], depth + 1);
                 }
                 _ => return None,
@@ -599,7 +599,7 @@ pub fn specialize(body: &Body, defaults: &[(u32, Value)]) -> Option<Body> {
             Tag::If if body.data[i][0] & Ref::CONST_BIT == 0 => {
                 values.taken(body, i).map(|k| (i, Fold::Arm(k)))
             }
-            Tag::Match => values.chosen(body, i).map(|k| (i, Fold::Scope(k))),
+            Tag::Match => values.chosen_match(body, i).map(|k| (i, Fold::Scope(k))),
             _ => None,
         })
         .collect();
@@ -703,24 +703,41 @@ pub fn specialize(body: &Body, defaults: &[(u32, Value)]) -> Option<Body> {
     Some(out)
 }
 
+/// An immutable body with exactly one sub-body root. Constant-result
+/// analyses share this fact instead of rechecking it at every step.
+#[derive(Clone, Copy)]
+pub struct SingleBody<'a> {
+    body: &'a Body,
+    root: u32,
+}
+
+impl<'a> SingleBody<'a> {
+    /// Admit a body without nested functions. Cost: O(1).
+    #[must_use]
+    pub fn new(body: &'a Body) -> Option<Self> {
+        let &[root] = body.sub_root.as_slice() else {
+            return None;
+        };
+        Some(Self { body, root })
+    }
+}
+
 /// A copy of `body` that only makes its result, where the result is a
 /// known value and running the body has no effect: the inliner's copy of
 /// a function whose every way out gives one constant (a derived per-type
 /// flag over its members' flags, once their copies are folded too, #1518)
-/// is one instruction, however large it was. Like LLVM's IPSCCP
-/// replacing a call to a function that returns a constant. `None` for any
-/// other body, one with sub-bodies, or one already that small. Cost: one
+/// becomes a constant-result copy, however large it was. Like LLVM's
+/// IPSCCP replacing a call to a function that returns a constant. `None`
+/// where no pure constant is known or the body is already that small. Cost: one
 /// pass of [`Values`], O(n).
 #[must_use]
-pub fn collapse(body: &Body) -> Option<Body> {
-    let &[root] = body.sub_root.as_slice() else {
-        return None;
-    };
+pub fn collapse(single: SingleBody<'_>) -> Option<Body> {
+    let SingleBody { body, root } = single;
     let values = Values::new(body, &[], &|_| None)?;
     let value = values
         .word(body, root)
         .filter(|_| values.pure[root as usize])?;
-    collapsed(body, root, value)
+    constant_copy(single, value)
 }
 
 /// [`collapse`] for a body whose effects all stay in its own frame: it
@@ -732,11 +749,14 @@ pub fn collapse(body: &Body) -> Option<Body> {
 /// LLVM's `FunctionAttrs` inferring `readnone` from local-only stores
 /// before IPSCCP folds its calls. Cost: one pass, O(n).
 #[must_use]
-pub fn collapse_quiet(body: &Body, quiet: &dyn Fn(&Body, usize) -> bool) -> Option<Body> {
-    if !local_only(body, quiet) {
+pub fn collapse_quiet(
+    single: SingleBody<'_>,
+    quiet: &dyn Fn(&Body, usize) -> bool,
+) -> Option<Body> {
+    if !local_only(single, quiet) {
         return None;
     }
-    constant_copy(body, value_given(body, &|_| None)?)
+    constant_copy(single, value_given(single, &|_| None)?)
 }
 
 /// Whether running `body` has no effect its caller sees: its one root
@@ -744,10 +764,8 @@ pub fn collapse_quiet(body: &Body, quiet: &dyn Fn(&Body, usize) -> bool) -> Opti
 /// `quiet(body, i)` vouches for ([`collapse_quiet`]'s test). Cost: one
 /// pass, O(n).
 #[must_use]
-pub fn local_only(body: &Body, quiet: &dyn Fn(&Body, usize) -> bool) -> bool {
-    if body.sub_root.len() != 1 {
-        return false;
-    }
+pub fn local_only(single: SingleBody<'_>, quiet: &dyn Fn(&Body, usize) -> bool) -> bool {
+    let body = single.body;
     for i in 0..body.len() {
         let a = body.data[i][0];
         let ok = match body.tags[i] {
@@ -795,25 +813,19 @@ pub fn local_only(body: &Body, quiet: &dyn Fn(&Body, usize) -> bool) -> bool {
 /// Kleene's strong three-valued logic reads unknowns. Cost: one pass,
 /// O(n).
 #[must_use]
-pub fn value_given(body: &Body, calls: &dyn Fn(usize) -> Option<Value>) -> Option<Value> {
-    let &[root] = body.sub_root.as_slice() else {
-        return None;
-    };
+pub fn value_given(
+    single: SingleBody<'_>,
+    calls: &dyn Fn(usize) -> Option<Value>,
+) -> Option<Value> {
+    let SingleBody { body, root } = single;
     Values::new(body, &[], calls)?.word(body, root)
 }
 
-/// `body` as one instruction that makes `value` ([`collapse`]'s copy);
-/// `None` for a body already that small.
+/// A smaller copy that makes `value` ([`collapse`]'s copy), or `None`
+/// when the body is already that small.
 #[must_use]
-pub fn constant_copy(body: &Body, value: Value) -> Option<Body> {
-    let &[root] = body.sub_root.as_slice() else {
-        return None;
-    };
-    collapsed(body, root, value)
-}
-
-/// `body` as one instruction that makes `value`, its root's result.
-fn collapsed(body: &Body, root: u32, value: Value) -> Option<Body> {
+pub fn constant_copy(single: SingleBody<'_>, value: Value) -> Option<Body> {
+    let SingleBody { body, root } = single;
     let (ty, syn) = (body.ty[root as usize], body.syn[root as usize]);
     let mut out = Body::new(body.item, body.kind);
     out.extra.clone_from(&body.extra);
@@ -1342,7 +1354,7 @@ mod tests {
             let and = b.emit(Tag::And, left.0, rhs.0, Ty::BOOL, n);
             let root = b.close_block(root, Some(and), Ty::BOOL, n);
             let body = b.finish(root, &[]).expect("valid function body");
-            let Some(out) = collapse(&body) else {
+            let Some(out) = SingleBody::new(&body).and_then(collapse) else {
                 assert!(call, "a pure constant body collapses");
                 continue;
             };

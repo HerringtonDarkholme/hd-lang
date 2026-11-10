@@ -829,12 +829,8 @@ impl InstanceTable {
         n
     }
     #[must_use]
-    pub fn len(&self) -> usize {
+    pub(crate) fn len(&self) -> usize {
         self.item.len()
-    }
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.item.is_empty()
     }
     /// Content order: by instance key (§6.5), never by id.
     #[must_use]

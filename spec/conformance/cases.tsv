@@ -5127,6 +5127,7 @@ runtime/valid/a-generic-part-delegates-at-the-targets-arguments.hd	runtime	accep
 runtime/valid/a-suspending-method-and-a-row-forward-as-declared.hd	runtime	accept	lang/09-traits.md#trait-delegation
 runtime/valid/a-user-template-derives-for-an-enum.hd	runtime	accept	lang/14-annotations.md#typed-derivation
 runtime/valid/a-cycle-of-flag-calls-is-its-greatest-fixpoint.hd	runtime	accept	lang/14-annotations.md#r-annot.bound.recursive.flag
+runtime/valid/a-flag-with-a-nested-function-keeps-its-frame.hd	runtime	accept	lang/07-functions.md#r-fn.local.declare
 runtime/valid/serde-regular-answers-per-type.hd	runtime	accept	std/serde.md#r-std-serde.regular
 runtime/valid/a-flag-cycle-answers-alike-in-every-build.hd	runtime	accept	lang/14-annotations.md#r-annot.bound.recursive.flag
 runtime/valid/a-generic-type-derives-under-its-parameter-bound.hd	runtime	accept	std/cmp.md#derived-equality
@@ -6292,6 +6293,7 @@ runtime/valid/dynamic-bang-slots-keep-reference-and-value-receivers.hd	runtime	a
 runtime/valid/row-contexts-preserve-nearest-providers-and-empty-rows.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.with.nearest.row-parameter
 runtime/valid/function-values-preserve-wide-arguments-and-local-references.hd	runtime	accept	lang/07-functions.md#r-fn.type.ctor.no-flatten
 runtime/valid/associated-enum-payload-references-read-and-write.hd	runtime	accept	lang/13-values-and-references.md#r-ref.match.borrow
+runtime/valid/associated-union-payload-enum-is-a-value.hd	runtime	accept	lang/08-data-and-enums.md#r-data.enum.generic.instance
 typing/valid/associated-enum-payload-field-write.hd	type	accept	lang/13-values-and-references.md#r-ref.write.field
 typing/valid/associated-struct-field-write.hd	type	accept	lang/13-values-and-references.md#r-ref.write.field
 runtime/valid/a-lifetime-enum-borrows-its-mutable-trait-reference.hd	runtime	accept	lang/13-values-and-references.md#r-ref.match.borrow
@@ -6507,6 +6509,7 @@ runtime/valid/impl-head-a-generic-union-binds-two-instantiations.hd	runtime	acce
 runtime/valid/impl-head-union-arity-and-nesting-are-distinct.hd	runtime	accept	lang/09-traits.md#r-trait.target.union.nesting
 runtime/valid/union-type-arguments-preserve-named-const-pipes.hd	runtime	accept	lang/04-type-system.md#r-types.generic.const.evaluate
 runtime/valid/mono-default-boolean-and-scalar-decisions.hd	runtime	accept	lang/07-functions.md#r-fn.default.eval
+runtime/valid/default-wide-enum-retains-the-full-decision.hd	runtime	accept	lang/07-functions.md#r-fn.default.eval
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
