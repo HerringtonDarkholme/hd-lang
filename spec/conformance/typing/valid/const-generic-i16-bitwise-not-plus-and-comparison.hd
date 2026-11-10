@@ -1,0 +1,17 @@
+# test: const arguments of an i16 slot wrap a bitwise not, keep a unary plus and compare integers
+# Spec 04 Const Generic Arguments: types.generic.const.operator-set.
+
+struct Fixed[N < const i16]:
+    pass
+
+struct Flag[B < const bool]:
+    pass
+
+fn not_zero(x: Fixed[-1]) -> Fixed[~0]:
+    x
+
+fn plus(x: Fixed[5]) -> Fixed[+5]:
+    x
+
+fn less(x: Flag[true]) -> Flag[1 < 2]:
+    x
