@@ -6299,7 +6299,7 @@ typing/valid/least-common-type-weakens-a-reference-inside-a-tuple.hd	type	accept
 typing/invalid/least-common-type-tuple-elements-keep-a-real-mismatch.hd	type	reject:no-common-type	lang/04-type-system.md#r-types.lct.tuple-elements
 typing/valid/least-common-type-weakens-a-covariant-list-element.hd	type	accept	lang/04-type-system.md#r-types.lct.conversions
 typing/invalid/dyn-member-names-self-inside-a-tuple-result.hd	type	reject:dyn-member-unavailable	lang/09-traits.md#r-trait.dyn.member.self
-typing/invalid/dyn-member-names-self-in-a-returned-function-row.hd	type	reject:dyn-member-unavailable	lang/09-traits.md#r-trait.dyn.member.self
+typing/invalid/dyn-member-names-self-in-a-context-result.hd	type	reject:dyn-member-unavailable	lang/09-traits.md#r-trait.dyn.member.self
 runtime/valid/a-vararg-function-meets-an-fn-bound-with-a-rest-tuple.hd	runtime	accept	lang/07-functions.md#r-fn.trait.function-values-read-only
 runtime/valid/a-rest-tuple-and-a-union-are-inspectable.hd	runtime	accept	lang/09-traits.md#r-trait.inspectable.collections
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

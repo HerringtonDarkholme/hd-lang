@@ -1,0 +1,11 @@
+# test: a method whose context result names Self in a row key is unavailable on a trait value
+# Spec 09 Trait Value Members: trait.dyn.member.self, trait.dyn.member.unavailable.error.
+
+trait Keep[T]:
+    fn keep(&self, value: T) -> void
+
+trait Saver:
+    fn context(&self) -> $.Context[$ Keep[Self]]
+
+fn use_it(saver: &dyn Saver) -> void:
+    _ := saver.context() # diagnostic: dyn-member-unavailable

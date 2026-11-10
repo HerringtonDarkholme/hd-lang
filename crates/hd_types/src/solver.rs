@@ -3016,54 +3016,40 @@ fn norm_concrete(pool: Types<'_>, impls: Impls<'_>, t: Ty, depth: u32, reads: &m
                 args: a,
             }
         }
-        TyData::Adt { def, args } => TyData::Adt {
-            def,
-            args: norm_list(pool, impls, args, depth, reads),
-        },
-        TyData::Tuple { elems, rest } => TyData::Tuple {
-            elems: norm_list(pool, impls, elems, depth, reads),
-            rest: rest.map(|r| norm_concrete(pool, impls, r, depth, reads)),
-        },
-        TyData::Union(members) => TyData::Union(norm_list(pool, impls, members, depth, reads)),
-        TyData::Ref {
-            inner,
-            mutable,
-            counted,
-        } => TyData::Ref {
-            inner: norm_concrete(pool, impls, inner, depth, reads),
-            mutable,
-            counted,
-        },
-        TyData::Fn {
-            params,
-            result,
-            row,
-            suspends,
-            inputs,
-            deps,
-        } => TyData::Fn {
-            params: norm_list(pool, impls, params, depth, reads),
-            result: norm_concrete(pool, impls, result, depth, reads),
-            row,
-            suspends,
-            inputs,
-            deps,
-        },
-        TyData::TraitValue {
-            def,
-            args,
-            bindings,
-        } => TyData::TraitValue {
-            def,
-            args: norm_list(pool, impls, args, depth, reads),
-            bindings: bindings
-                .into_iter()
-                .map(|(k, b)| (k, norm_concrete(pool, impls, b, depth, reads)))
-                .collect(),
-        },
-        _ => return t,
+        // An opaque type and a row keep their projections, and so does a
+        // function type's row.
+        TyData::Opaque { .. } | TyData::Row(_) | TyData::Context(_) => return t,
+        _ => {
+            return pool.map_children(
+                t,
+                &mut NormConcrete {
+                    pool,
+                    impls,
+                    depth,
+                    reads,
+                },
+            );
+        }
     };
     pool.intern_ty(&d)
+}
+
+/// [`norm_concrete`] applied to each child of a type; rows are left as
+/// they are.
+struct NormConcrete<'p, 'i, 'r> {
+    pool: Types<'p>,
+    impls: Impls<'i>,
+    depth: u32,
+    reads: &'r mut Reads,
+}
+
+impl crate::TyMap for NormConcrete<'_, '_, '_> {
+    fn ty(&mut self, t: Ty) -> Ty {
+        norm_concrete(self.pool, self.impls, t, self.depth, self.reads)
+    }
+    fn row(&mut self, r: crate::RowId) -> crate::RowId {
+        r
+    }
 }
 
 /// One projection step on a concrete base: a trait value's binding, or
