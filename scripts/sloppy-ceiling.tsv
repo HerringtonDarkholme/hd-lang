@@ -18,7 +18,7 @@ sloppy-expect	hd_opt	19
 sloppy-expect	hd_resolve	16
 sloppy-expect	hd_syntax	69
 sloppy-expect	hd_tir	66
-sloppy-expect	hd_types	47
+sloppy-expect	hd_types	46
 sloppy-expect	hd_wasm_linear	272
 sloppy-for-now	hd_check	16
 sloppy-for-now	hd_opt	1
