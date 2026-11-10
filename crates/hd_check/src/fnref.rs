@@ -396,7 +396,8 @@ impl Ck<'_, '_> {
                 args: from_args,
                 ..
             } = pool.get(tv)
-            && let Some(inherited) = supertrait_args(self.cx.lookup, pool, from, from_args, tr, 0)
+            && let Some(inherited) =
+                supertrait_args(self.cx.lookup, pool, (from, from_args), None, tr)
         {
             let mut m = m;
             if let Owner::Trait {

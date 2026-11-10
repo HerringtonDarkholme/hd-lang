@@ -4445,7 +4445,9 @@ impl Ck<'_, '_> {
         // arguments the value's trait gives it (trait.dyn.value-methods).
         if let TyData::TraitValue { def, args, .. } = pool.get(t) {
             for (tr, m) in &traits {
-                if let Some(a) = self.super_args(def, t, args, *tr, 0) {
+                if let Some(a) =
+                    crate::body::supertrait_args(self.cx.lookup, pool, (def, args), Some(t), *tr)
+                {
                     return Ok(Some(Hit::Trait {
                         trait_: *tr,
                         method: *m,
@@ -5376,77 +5378,20 @@ impl Ck<'_, '_> {
         self_ty: Ty,
         args: TyList,
         name: &str,
-        depth: u32,
     ) -> Option<(DefId, TyList, DefId)> {
-        let pool = self.pool();
-        let Some(ItemData::Trait(t)) = self.cx.lookup.item(trait_).map(|i| &i.data) else {
-            return None;
-        };
-        if let Some(&(_, d)) = t.assoc.iter().find(|(s, _)| self.cx.names.text(*s) == name) {
-            return Some((trait_, args, d));
-        }
-        if depth > 16 {
-            return None;
-        }
-        let known = pool.list_items(args);
-        for s in &t.supers {
-            let s = pool.subst(*s, &|p: ParamRef| {
-                if p.owner != trait_ {
-                    None
-                } else if p.index == 0 {
-                    Some(self_ty)
-                } else {
-                    known.get(p.index as usize - 1).copied()
-                }
-            });
-            if let TyData::TraitValue { def, args, .. } = pool.get(s)
-                && let Some(x) = self.assoc_decl(def, self_ty, args, name, depth + 1)
-            {
-                return Some(x);
-            }
-        }
-        None
-    }
-
-    /// The arguments of `target` as `trait_[args]` or one of its
-    /// transitive supertraits, `Self` replaced by `self_ty`: the first
-    /// found depth first in declared order.
-    fn super_args(
-        &self,
-        trait_: DefId,
-        self_ty: Ty,
-        args: TyList,
-        target: DefId,
-        depth: u32,
-    ) -> Option<TyList> {
-        if trait_ == target {
-            return Some(args);
-        }
-        let pool = self.pool();
-        let Some(ItemData::Trait(t)) = self.cx.lookup.item(trait_).map(|i| &i.data) else {
-            return None;
-        };
-        if depth > 16 {
-            return None;
-        }
-        let known = pool.list_items(args);
-        for s in &t.supers {
-            let s = pool.subst(*s, &|p: ParamRef| {
-                if p.owner != trait_ {
-                    None
-                } else if p.index == 0 {
-                    Some(self_ty)
-                } else {
-                    known.get(p.index as usize - 1).copied()
-                }
-            });
-            if let TyData::TraitValue { def, args, .. } = pool.get(s)
-                && let Some(x) = self.super_args(def, self_ty, args, target, depth + 1)
-            {
-                return Some(x);
-            }
-        }
-        None
+        let names = self.cx.names;
+        crate::body::walk_supertraits(
+            self.cx.lookup,
+            self.pool(),
+            (trait_, args),
+            crate::body::Fill::Args(Some(self_ty)),
+            |def, args, t| {
+                t.assoc
+                    .iter()
+                    .find(|(s, _)| names.text(*s) == name)
+                    .map(|&(_, d)| (def, args, d))
+            },
+        )
     }
 
     /// A projection's normal form, itself normalized once more; a cycle of
@@ -5485,7 +5430,7 @@ impl Ck<'_, '_> {
             seen.push(t);
             match pool.get(t) {
                 TyData::Opaque { bound, args, .. } => {
-                    self.add_bound(t, bound, 0);
+                    self.add_bound(t, bound);
                     todo.extend_from_slice(pool.list_items(args));
                 }
                 TyData::Adt { args, .. } => todo.extend_from_slice(pool.list_items(args)),
@@ -5550,7 +5495,7 @@ impl Ck<'_, '_> {
         let st = self_ty;
         let name = self.assoc_name(assoc).to_owned();
         let (trait_, args, assoc) = self
-            .assoc_decl(trait_, st, args, &name, 0)
+            .assoc_decl(trait_, st, args, &name)
             .unwrap_or((trait_, args, assoc));
         let bound = |bs: &[(DefId, Ty)], me: &Self| {
             bs.iter()

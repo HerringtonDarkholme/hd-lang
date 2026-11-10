@@ -12,7 +12,6 @@
 
 use hd_base::{DefId, NodeIdx, TokenIdx};
 use hd_diag::{Code, FixSafety};
-use hd_resolve::ItemData;
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{Callee, Coercion, NONE, Ref, Tag, TirSink, local_flags};
 use hd_types::{Ty, TyData, VarKind};
@@ -78,7 +77,8 @@ impl Ck<'_, '_> {
                     if from == to {
                         return None;
                     }
-                    let widened = supertrait_args(self.cx.lookup, pool, from, from_args, to, 0)?;
+                    let widened =
+                        supertrait_args(self.cx.lookup, pool, (from, from_args), None, to)?;
                     let widened = pool.intern_ty(&TyData::TraitValue {
                         def: to,
                         args: widened,
@@ -247,7 +247,7 @@ impl Ck<'_, '_> {
         } = pool.get(s)
         {
             return from == def
-                || supertrait_args(self.cx.lookup, pool, from, from_args, def, 0).is_some();
+                || supertrait_args(self.cx.lookup, pool, (from, from_args), None, def).is_some();
         }
         let tref = hd_types::solver::TraitRef {
             trait_: def,
@@ -270,7 +270,7 @@ impl Ck<'_, '_> {
         n: NodeRef<'_>,
     ) -> Ref {
         let pool = self.pool();
-        let mutable = self.trait_is_mutable(def, 0);
+        let mutable = self.trait_is_mutable(def);
         if self.ref_of(t).is_none() && !self.has_ref_receiver_member(def) {
             let inner = self.resolved(self.infer.resolve(pool, t));
             self.require_dyn_impl(inner, key, n);
@@ -323,7 +323,7 @@ impl Ck<'_, '_> {
     /// The provider is a local reference (`req.use.value.local`), or a
     /// counted one where one is expected (`req.use.value.counted`).
     pub(crate) fn provider_ty(&self, key: Ty, def: DefId, counted: bool) -> (Ty, bool) {
-        let mutable = self.trait_is_mutable(def, 0);
+        let mutable = self.trait_is_mutable(def);
         (self.ref_ty(key, mutable, counted), true)
     }
 
@@ -404,38 +404,30 @@ impl Ck<'_, '_> {
     /// Whether the trait or a supertrait requires an explicit reference
     /// provider through a `&self` or `&mut self` method.
     pub(crate) fn has_ref_receiver_member(&self, trait_: DefId) -> bool {
-        let mut todo = vec![trait_];
-        let mut seen = Vec::new();
-        while let Some(t) = todo.pop() {
-            if seen.contains(&t) || seen.len() > 64 {
-                continue;
-            }
-            seen.push(t);
-            let Some(ItemData::Trait(td)) = self.cx.lookup.item(t).map(|i| &i.data) else {
-                continue;
-            };
-            let pool = self.pool();
-            let by_ref = td.methods.iter().any(|&(_, m)| {
-                self.cx
-                    .lookup
-                    .item(m)
-                    .and_then(|i| i.sig())
-                    .and_then(|s| s.params.first())
-                    .is_some_and(|&(s, st)| {
-                        self.cx.names.text(s) == "self"
-                            && matches!(pool.get(st), TyData::Ref { .. })
+        let pool = self.pool();
+        crate::body::walk_supertraits(
+            self.cx.lookup,
+            pool,
+            (trait_, hd_types::TyList::EMPTY),
+            crate::body::Fill::No,
+            |_, _, td| {
+                td.methods
+                    .iter()
+                    .any(|&(_, m)| {
+                        self.cx
+                            .lookup
+                            .item(m)
+                            .and_then(|i| i.sig())
+                            .and_then(|s| s.params.first())
+                            .is_some_and(|&(s, st)| {
+                                self.cx.names.text(s) == "self"
+                                    && matches!(pool.get(st), TyData::Ref { .. })
+                            })
                     })
-            });
-            if by_ref {
-                return true;
-            }
-            for sup in &td.supers {
-                if let TyData::TraitValue { def, .. } = pool.get(*sup) {
-                    todo.push(def);
-                }
-            }
-        }
-        false
+                    .then_some(())
+            },
+        )
+        .is_some()
     }
 
     /// `trait.dyn.ref.member.mut`: a method that changes its receiver,

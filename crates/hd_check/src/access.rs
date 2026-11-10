@@ -5,7 +5,6 @@
 //! every write.
 
 use hd_diag::Code;
-use hd_resolve::ItemData;
 use hd_syntax::NodeRef;
 use hd_tir::ir::{Ref, Step};
 use hd_types::{Ty, TyData, VarKind};
@@ -84,24 +83,26 @@ impl Ck<'_, '_> {
     /// Whether a trait, or one of its supertraits, has a `mut self` or
     /// `&mut self` method: a mutable requirement trait
     /// (`req.mut.trait-changing`).
-    pub(crate) fn trait_is_mutable(&self, tr: hd_base::DefId, depth: u32) -> bool {
-        let pool = self.pool();
-        let Some(ItemData::Trait(t)) = self.cx.lookup.item(tr).map(|i| &i.data) else {
-            return false;
-        };
-        if depth > 16 {
-            return false;
-        }
-        t.methods.iter().any(|(_, m)| {
-            self.cx
-                .lookup
-                .item(*m)
-                .and_then(|i| i.sig())
-                .is_some_and(|sig| self.changes_receiver(sig))
-        }) || t.supers.iter().any(|s| match pool.get(*s) {
-            TyData::TraitValue { def, .. } => self.trait_is_mutable(def, depth + 1),
-            _ => false,
-        })
+    pub(crate) fn trait_is_mutable(&self, tr: hd_base::DefId) -> bool {
+        crate::body::walk_supertraits(
+            self.cx.lookup,
+            self.pool(),
+            (tr, hd_types::TyList::EMPTY),
+            crate::body::Fill::No,
+            |_, _, t| {
+                t.methods
+                    .iter()
+                    .any(|(_, m)| {
+                        self.cx
+                            .lookup
+                            .item(*m)
+                            .and_then(|i| i.sig())
+                            .is_some_and(|sig| self.changes_receiver(sig))
+                    })
+                    .then_some(())
+            },
+        )
+        .is_some()
     }
 
     /// Whether a method's receiver is `mut self` or `&mut self`

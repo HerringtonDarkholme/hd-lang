@@ -6546,6 +6546,8 @@ runtime/valid/a-row-generic-function-calls-an-inherent-row-method.hd	runtime	acc
 runtime/valid/a-local-row-holder-method-uses-the-enclosing-context.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.row.param.data-substitute
 runtime/valid/a-row-method-preserves-parent-and-own-argument-order.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.row.param.data-substitute
 runtime/valid/mono-default-boolean-and-scalar-decisions.hd	runtime	accept	lang/07-functions.md#r-fn.default.eval
+runtime/valid/a-thirty-trait-supertrait-chain-reaches-the-root-trait.hd	runtime	accept	lang/09-traits.md#r-trait.bound.supertraits
+typing/invalid/a-supertrait-cycle-is-the-only-error-of-code-using-it.hd	type	reject:supertrait-cycle	lang/09-traits.md#r-trait.super.acyclic
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

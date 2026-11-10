@@ -740,7 +740,7 @@ impl<'c> Ck<'_, 'c> {
                 index: u16::try_from(i).unwrap_or(u16::MAX),
             }));
             for b in &g.bounds {
-                self.add_bound(p, *b, 0);
+                self.add_bound(p, *b);
             }
         }
         self.env.key = Some(self.cx.global.env_key(&self.env));

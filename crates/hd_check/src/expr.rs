@@ -5576,7 +5576,7 @@ impl Ck<'_, '_> {
             // so a `$.use` provider installed again is counted
             // (`req.use.value.counted`).
             let hint = (crate::elem_refs::strip_parens(*vn).kind() == SyntaxKind::ContextExpr)
-                .then(|| self.ref_ty(key, self.trait_is_mutable(def, 0), true));
+                .then(|| self.ref_ty(key, self.trait_is_mutable(def), true));
             let (r, t) = self.expr(*vn, hint)?;
             let r = self.install_provider(r, t, (key, def), *vn);
             pairs.push(Ref(key.0));

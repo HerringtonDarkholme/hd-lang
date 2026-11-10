@@ -66,7 +66,7 @@ pub(crate) fn key_supplies(
             },
         ) => {
             (d1 == d2 && a1 == a2 && (b1.is_empty() || b2.is_empty() || b1 == b2))
-                || (d1 != d2 && crate::body::trait_extends(lookup, pool, d1, d2, 0))
+                || (d1 != d2 && crate::body::trait_extends(lookup, pool, d1, d2))
         }
         _ => false,
     }

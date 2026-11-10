@@ -78,7 +78,7 @@ impl Ck<'_, '_> {
         };
         let (implements, trait_args) =
             if let TyData::TraitValue { def, args, .. } = pool.get(self_ty) {
-                match supertrait_args(self.cx.lookup, pool, def, args, trait_, 0) {
+                match supertrait_args(self.cx.lookup, pool, (def, args), None, trait_) {
                     Some(args) => (true, pool.list_items(args).to_vec()),
                     None => (false, Vec::new()),
                 }

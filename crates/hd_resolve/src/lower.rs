@@ -959,6 +959,11 @@ struct Resolver<'a, 'b> {
     /// declares its associated type (trait.binding.name-reach) whatever
     /// the declaration order.
     own_supers: HashMap<DefId, Vec<Ty>>,
+    /// The supertrait edges dropped to break the folder's supertrait
+    /// cycles, by child trait, in declared order: each cycle is reported
+    /// (`trait.super.acyclic`), and the lowered graph keeps no cycle, so
+    /// every later walk over supertraits ends without a depth limit.
+    cut_supers: HashMap<DefId, Vec<DefId>>,
     /// The REPL inputs being lowered ([`ModIn::session`]): no `use` names
     /// one, yet each exports its own names.
     inputs: HashSet<String>,
@@ -5979,6 +5984,11 @@ impl Lower<'_, '_, '_> {
             }
             self.bound_clashes(self_ty, &supers, self.src.span(bl));
         }
+        if let TyData::Param(p) = self.names.pool.get(self_ty)
+            && let Some(cut) = self.r.cut_supers.get(&p.owner)
+        {
+            cut_edges(self.names.pool, &mut supers, cut);
+        }
         supers
     }
 
@@ -6599,6 +6609,7 @@ fn supertrait_cycles(
         .map(|(i, (_, h))| (h.def, i))
         .collect();
     let pool = r.cx.names.pool;
+    // The graph as written: the lowered edges and the cut ones.
     let edges: Vec<Vec<usize>> = sites
         .iter()
         .map(|(_, h)| {
@@ -6606,8 +6617,9 @@ fn supertrait_cycles(
                 .get(&h.def)
                 .into_iter()
                 .flatten()
-                .filter_map(|t| pool.trait_value(*t))
-                .filter_map(|(def, _)| index.get(&def).copied())
+                .filter_map(|t| pool.trait_value(*t).map(|(def, _)| def))
+                .chain(r.cut_supers.get(&h.def).into_iter().flatten().copied())
+                .filter_map(|def| index.get(&def).copied())
                 .collect()
         })
         .collect();
@@ -6633,6 +6645,85 @@ fn supertrait_cycles(
             )
         };
         diags.error(Code::SupertraitCycle, mods[mi].src.span(h.node), &msg);
+    }
+}
+
+/// Breaks every cycle of the folder's supertrait graph: a depth-first
+/// walk from each trait in declaration order, supertraits in declared
+/// order, records each edge to a trait still on its path as cut
+/// ([`Resolver::cut_supers`]) and drops it from `own_supers`; the lowered
+/// declarations leave it out too. What is left is acyclic and keeps every
+/// other edge, so a bound on the first trait of a cycle still reaches the
+/// rest of it. Each cycle is reported by [`supertrait_cycles`]. Linear in
+/// the folder's traits and supertrait edges, once per folder.
+fn cut_supertrait_cycles(r: &mut Resolver<'_, '_>, all_heads: &[Vec<Head<'_>>]) {
+    let traits: Vec<DefId> = all_heads
+        .iter()
+        .flatten()
+        .filter(|h| h.kind == HeadKind::Trait)
+        .map(|h| h.def)
+        .collect();
+    let index: HashMap<DefId, usize> = traits.iter().enumerate().map(|(i, d)| (*d, i)).collect();
+    let pool = r.cx.names.pool;
+    let edges: Vec<Vec<usize>> = traits
+        .iter()
+        .map(|d| {
+            r.own_supers
+                .get(d)
+                .into_iter()
+                .flatten()
+                .filter_map(|t| pool.trait_value(*t))
+                .filter_map(|(def, _)| index.get(&def).copied())
+                .collect()
+        })
+        .collect();
+    // 0: not reached; 1: on the current path; 2: done.
+    let mut state = vec![0u8; traits.len()];
+    let mut cut: HashMap<DefId, Vec<DefId>> = HashMap::default();
+    let mut path: Vec<(usize, usize)> = Vec::new();
+    for root in 0..traits.len() {
+        if state[root] != 0 {
+            continue;
+        }
+        state[root] = 1;
+        path.push((root, 0));
+        while let Some((v, next)) = path.last_mut() {
+            let v = *v;
+            let Some(&w) = edges[v].get(*next) else {
+                state[v] = 2;
+                path.pop();
+                continue;
+            };
+            *next += 1;
+            if state[w] == 0 {
+                state[w] = 1;
+                path.push((w, 0));
+            } else if state[w] == 1 {
+                // An edge back into the path closes a cycle.
+                let to = cut.entry(traits[v]).or_default();
+                if !to.contains(&traits[w]) {
+                    to.push(traits[w]);
+                }
+            }
+        }
+    }
+    for (from, to) in &cut {
+        if let Some(supers) = r.own_supers.get_mut(from) {
+            cut_edges(pool, supers, to);
+        }
+    }
+    r.cut_supers = cut;
+}
+
+/// `supers` without the edges to the traits `cut`, which close a reported
+/// supertrait cycle: they become one poison bound, so a bound on the
+/// trait satisfies every goal and names every member quietly, as a bound
+/// naming no trait does, and the cycle stays the only error.
+fn cut_edges(pool: &InternPool, supers: &mut Vec<Ty>, cut: &[DefId]) {
+    let before = supers.len();
+    supers.retain(|t| pool.trait_value(*t).is_none_or(|(d, _)| !cut.contains(&d)));
+    if supers.len() != before && !supers.contains(&Ty::POISON) {
+        supers.push(Ty::POISON);
     }
 }
 
@@ -7608,6 +7699,7 @@ fn resolver<'a, 'b>(
         own_types: RefCell::new(HashMap::default()),
         not_copy: RefCell::new(HashSet::default()),
         own_supers: HashMap::default(),
+        cut_supers: HashMap::default(),
         inputs: mods
             .iter()
             .filter(|m| m.session.is_some())
@@ -7826,6 +7918,7 @@ pub fn build_folder(
     // the bindings that name a supertrait's supertrait's associated type.
     r.own_supers = own_trait_supers(&r, mods, &all_heads, &scopes);
     r.own_supers = own_trait_supers(&r, mods, &all_heads, &scopes);
+    cut_supertrait_cycles(&mut r, &all_heads);
     let (alias_items, alias_gap) = lower_aliases(&r, mods, &all_heads, &mut scopes, diags);
     let mut unsupported = alias_gap;
     for (((m, hs), s), mut items) in mods.iter().zip(&all_heads).zip(scopes).zip(alias_items) {

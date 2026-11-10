@@ -1,0 +1,443 @@
+# expect-stdout: 7 7 4 7
+# test: a bound or a `dyn` reference on the end of a 30-trait supertrait chain reaches the root trait's method and associated type
+# Spec lang/09 trait.bound.supertraits: a bound implies every transitive supertrait however long the chain, with its methods and associated types (trait.dyn.supertrait-methods, trait.dyn.widen, trait.super.acyclic).
+trait T0:
+    type Item
+    fn get(self) -> Self::Item
+
+trait T1 < T0:
+    fn m1(self) -> i32
+
+trait T2 < T1:
+    fn m2(self) -> i32
+
+trait T3 < T2:
+    fn m3(self) -> i32
+
+trait T4 < T3:
+    fn m4(self) -> i32
+
+trait T5 < T4:
+    fn m5(self) -> i32
+
+trait T6 < T5:
+    fn m6(self) -> i32
+
+trait T7 < T6:
+    fn m7(self) -> i32
+
+trait T8 < T7:
+    fn m8(self) -> i32
+
+trait T9 < T8:
+    fn m9(self) -> i32
+
+trait T10 < T9:
+    fn m10(self) -> i32
+
+trait T11 < T10:
+    fn m11(self) -> i32
+
+trait T12 < T11:
+    fn m12(self) -> i32
+
+trait T13 < T12:
+    fn m13(self) -> i32
+
+trait T14 < T13:
+    fn m14(self) -> i32
+
+trait T15 < T14:
+    fn m15(self) -> i32
+
+trait T16 < T15:
+    fn m16(self) -> i32
+
+trait T17 < T16:
+    fn m17(self) -> i32
+
+trait T18 < T17:
+    fn m18(self) -> i32
+
+trait T19 < T18:
+    fn m19(self) -> i32
+
+trait T20 < T19:
+    fn m20(self) -> i32
+
+trait T21 < T20:
+    fn m21(self) -> i32
+
+trait T22 < T21:
+    fn m22(self) -> i32
+
+trait T23 < T22:
+    fn m23(self) -> i32
+
+trait T24 < T23:
+    fn m24(self) -> i32
+
+trait T25 < T24:
+    fn m25(self) -> i32
+
+trait T26 < T25:
+    fn m26(self) -> i32
+
+trait T27 < T26:
+    fn m27(self) -> i32
+
+trait T28 < T27:
+    fn m28(self) -> i32
+
+trait T29 < T28:
+    fn m29(self) -> i32
+
+trait D0:
+    fn get(&self) -> i32
+
+trait D1 < D0:
+    fn d1(&self) -> i32
+
+trait D2 < D1:
+    fn d2(&self) -> i32
+
+trait D3 < D2:
+    fn d3(&self) -> i32
+
+trait D4 < D3:
+    fn d4(&self) -> i32
+
+trait D5 < D4:
+    fn d5(&self) -> i32
+
+trait D6 < D5:
+    fn d6(&self) -> i32
+
+trait D7 < D6:
+    fn d7(&self) -> i32
+
+trait D8 < D7:
+    fn d8(&self) -> i32
+
+trait D9 < D8:
+    fn d9(&self) -> i32
+
+trait D10 < D9:
+    fn d10(&self) -> i32
+
+trait D11 < D10:
+    fn d11(&self) -> i32
+
+trait D12 < D11:
+    fn d12(&self) -> i32
+
+trait D13 < D12:
+    fn d13(&self) -> i32
+
+trait D14 < D13:
+    fn d14(&self) -> i32
+
+trait D15 < D14:
+    fn d15(&self) -> i32
+
+trait D16 < D15:
+    fn d16(&self) -> i32
+
+trait D17 < D16:
+    fn d17(&self) -> i32
+
+trait D18 < D17:
+    fn d18(&self) -> i32
+
+trait D19 < D18:
+    fn d19(&self) -> i32
+
+trait D20 < D19:
+    fn d20(&self) -> i32
+
+trait D21 < D20:
+    fn d21(&self) -> i32
+
+trait D22 < D21:
+    fn d22(&self) -> i32
+
+trait D23 < D22:
+    fn d23(&self) -> i32
+
+trait D24 < D23:
+    fn d24(&self) -> i32
+
+trait D25 < D24:
+    fn d25(&self) -> i32
+
+trait D26 < D25:
+    fn d26(&self) -> i32
+
+trait D27 < D26:
+    fn d27(&self) -> i32
+
+trait D28 < D27:
+    fn d28(&self) -> i32
+
+trait D29 < D28:
+    fn d29(&self) -> i32
+
+struct S:
+    v: i32
+
+impl T0 for S:
+    type Item = i32
+    fn get(self) -> i32:
+        self.v
+
+impl T1 for S:
+    fn m1(self) -> i32:
+        1
+
+impl T2 for S:
+    fn m2(self) -> i32:
+        2
+
+impl T3 for S:
+    fn m3(self) -> i32:
+        3
+
+impl T4 for S:
+    fn m4(self) -> i32:
+        4
+
+impl T5 for S:
+    fn m5(self) -> i32:
+        5
+
+impl T6 for S:
+    fn m6(self) -> i32:
+        6
+
+impl T7 for S:
+    fn m7(self) -> i32:
+        7
+
+impl T8 for S:
+    fn m8(self) -> i32:
+        8
+
+impl T9 for S:
+    fn m9(self) -> i32:
+        9
+
+impl T10 for S:
+    fn m10(self) -> i32:
+        10
+
+impl T11 for S:
+    fn m11(self) -> i32:
+        11
+
+impl T12 for S:
+    fn m12(self) -> i32:
+        12
+
+impl T13 for S:
+    fn m13(self) -> i32:
+        13
+
+impl T14 for S:
+    fn m14(self) -> i32:
+        14
+
+impl T15 for S:
+    fn m15(self) -> i32:
+        15
+
+impl T16 for S:
+    fn m16(self) -> i32:
+        16
+
+impl T17 for S:
+    fn m17(self) -> i32:
+        17
+
+impl T18 for S:
+    fn m18(self) -> i32:
+        18
+
+impl T19 for S:
+    fn m19(self) -> i32:
+        19
+
+impl T20 for S:
+    fn m20(self) -> i32:
+        20
+
+impl T21 for S:
+    fn m21(self) -> i32:
+        21
+
+impl T22 for S:
+    fn m22(self) -> i32:
+        22
+
+impl T23 for S:
+    fn m23(self) -> i32:
+        23
+
+impl T24 for S:
+    fn m24(self) -> i32:
+        24
+
+impl T25 for S:
+    fn m25(self) -> i32:
+        25
+
+impl T26 for S:
+    fn m26(self) -> i32:
+        26
+
+impl T27 for S:
+    fn m27(self) -> i32:
+        27
+
+impl T28 for S:
+    fn m28(self) -> i32:
+        28
+
+impl T29 for S:
+    fn m29(self) -> i32:
+        29
+
+impl D0 for S:
+    fn get(&self) -> i32:
+        self.v
+
+impl D1 for S:
+    fn d1(&self) -> i32:
+        1
+
+impl D2 for S:
+    fn d2(&self) -> i32:
+        2
+
+impl D3 for S:
+    fn d3(&self) -> i32:
+        3
+
+impl D4 for S:
+    fn d4(&self) -> i32:
+        4
+
+impl D5 for S:
+    fn d5(&self) -> i32:
+        5
+
+impl D6 for S:
+    fn d6(&self) -> i32:
+        6
+
+impl D7 for S:
+    fn d7(&self) -> i32:
+        7
+
+impl D8 for S:
+    fn d8(&self) -> i32:
+        8
+
+impl D9 for S:
+    fn d9(&self) -> i32:
+        9
+
+impl D10 for S:
+    fn d10(&self) -> i32:
+        10
+
+impl D11 for S:
+    fn d11(&self) -> i32:
+        11
+
+impl D12 for S:
+    fn d12(&self) -> i32:
+        12
+
+impl D13 for S:
+    fn d13(&self) -> i32:
+        13
+
+impl D14 for S:
+    fn d14(&self) -> i32:
+        14
+
+impl D15 for S:
+    fn d15(&self) -> i32:
+        15
+
+impl D16 for S:
+    fn d16(&self) -> i32:
+        16
+
+impl D17 for S:
+    fn d17(&self) -> i32:
+        17
+
+impl D18 for S:
+    fn d18(&self) -> i32:
+        18
+
+impl D19 for S:
+    fn d19(&self) -> i32:
+        19
+
+impl D20 for S:
+    fn d20(&self) -> i32:
+        20
+
+impl D21 for S:
+    fn d21(&self) -> i32:
+        21
+
+impl D22 for S:
+    fn d22(&self) -> i32:
+        22
+
+impl D23 for S:
+    fn d23(&self) -> i32:
+        23
+
+impl D24 for S:
+    fn d24(&self) -> i32:
+        24
+
+impl D25 for S:
+    fn d25(&self) -> i32:
+        25
+
+impl D26 for S:
+    fn d26(&self) -> i32:
+        26
+
+impl D27 for S:
+    fn d27(&self) -> i32:
+        27
+
+impl D28 for S:
+    fn d28(&self) -> i32:
+        28
+
+impl D29 for S:
+    fn d29(&self) -> i32:
+        29
+
+fn read[X < T29](x: X) -> X::Item:
+    x.get()
+
+fn items[X < T29](x: X) -> List[X::Item]:
+    let mut out: List[X::Item] = []
+    out.push(x.get())
+    out
+
+fn widen(d: &dyn D29) -> &dyn D0:
+    d
+
+pub fn main!() -> void $ Console:
+    let s = S { v: 7 }
+    let d: &dyn D29 = &s
+    println("${read(s)} ${items(s)[0]} ${d.d4()} ${widen(d).get()}")

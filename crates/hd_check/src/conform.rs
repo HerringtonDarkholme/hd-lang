@@ -323,29 +323,20 @@ impl Ck<'_, '_> {
     /// Whether a sealed transitive supertrait of `trait_` declares a method
     /// named `name`.
     fn sealed_super_declares(&self, trait_: DefId, name: hd_base::Symbol) -> bool {
-        let pool = self.pool();
-        let mut visited = vec![trait_];
-        let mut todo = match self.cx.lookup.item(trait_).map(|t| &t.data) {
-            Some(ItemData::Trait(td)) => td.supers.clone(),
-            _ => Vec::new(),
-        };
-        while let Some(s) = todo.pop() {
-            let TyData::TraitValue { def, .. } = pool.get(s) else {
-                continue;
-            };
-            if visited.contains(&def) {
-                continue;
-            }
-            visited.push(def);
-            if let Some(ItemData::Trait(st)) = self.cx.lookup.item(def).map(|t| &t.data) {
-                if self.cx.names.known.is_sealed(def) && st.methods.iter().any(|(n, _)| *n == name)
-                {
-                    return true;
-                }
-                todo.extend(st.supers.iter().copied());
-            }
-        }
-        false
+        let known = &self.cx.names.known;
+        crate::body::walk_supertraits(
+            self.cx.lookup,
+            self.pool(),
+            (trait_, hd_types::TyList::EMPTY),
+            crate::body::Fill::No,
+            |def, _, st| {
+                (def != trait_
+                    && known.is_sealed(def)
+                    && st.methods.iter().any(|(n, _)| *n == name))
+                .then_some(())
+            },
+        )
+        .is_some()
     }
 
     fn sig_differs(

@@ -1,0 +1,33 @@
+# Spec 09 Traits: trait.super.acyclic, trait.super.cycle-report: a cycle is one error, and bounds and impls of its traits report nothing more.
+trait First < Third: # diagnostic: supertrait-cycle
+    fn first(self) -> i32
+
+trait Second < First:
+    fn second(self) -> i32
+
+trait Third < Second:
+    fn third(self) -> i32
+
+fn all[X < First](x: X) -> i32:
+    x.first() + x.second() + x.third()
+
+fn back[X < Third](x: X) -> i32:
+    x.third() + x.second() + x.first()
+
+struct S:
+    v: i32
+
+impl First for S:
+    fn first(self) -> i32:
+        self.v
+
+impl Second for S:
+    fn second(self) -> i32:
+        self.v
+
+impl Third for S:
+    fn third(self) -> i32:
+        self.v
+
+fn use_it() -> i32:
+    all(S { v: 1 }) + back(S { v: 2 })

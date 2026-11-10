@@ -2503,13 +2503,15 @@ fn trait_value_holds(
     self_ty: Ty,
     goal: TraitRef,
 ) -> Option<Vec<(InferVar, Ty)>> {
-    let mut stack = vec![(value, 0u32)];
-    let mut seen: Vec<(DefId, TyList)> = Vec::new();
-    while let Some(((def, args), depth)) = stack.pop() {
-        if depth > 16 || seen.contains(&(def, args)) {
+    // The supertrait graph is acyclic (`trait.super.acyclic`: the resolver
+    // cuts a reported cycle), so the walk ends without a depth limit; a
+    // trait reached again at the same arguments is skipped.
+    let mut stack = vec![value];
+    let mut seen: HashSet<(DefId, TyList)> = HashSet::default();
+    while let Some((def, args)) = stack.pop() {
+        if !seen.insert((def, args)) {
             continue;
         }
-        seen.push((def, args));
         if def == goal.trait_ {
             let m = match_list(pool, DefId::NONE, args, goal.args, &mut Vec::new());
             if m != M::No {
@@ -2545,7 +2547,7 @@ fn trait_value_holds(
                 def: d, args: a, ..
             } = pool.get(s)
             {
-                stack.push(((d, a), depth + 1));
+                stack.push((d, a));
             }
         }
     }

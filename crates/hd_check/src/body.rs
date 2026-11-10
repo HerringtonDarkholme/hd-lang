@@ -766,7 +766,7 @@ pub(crate) fn new_ck<'a, 'c>(
                             args,
                             bindings: vec![],
                         });
-                        ck.add_bound(*self_ty, tv, 0);
+                        ck.add_bound(*self_ty, tv);
                     }
                 }
                 ck.add_generics(*owner, 0, &o.generics);
@@ -807,7 +807,7 @@ pub(crate) fn new_ck<'a, 'c>(
                     args: pool.list(&own),
                     bindings: vec![],
                 });
-                ck.add_bound(p, tv, 0);
+                ck.add_bound(p, tv);
                 // The trait's own parameters, by name, with their bounds.
                 ck.add_generics(*owner, 1, &o.generics);
             }
@@ -826,76 +826,115 @@ pub(crate) fn new_ck<'a, 'c>(
     ck
 }
 
-/// Whether trait `a` has `b` among its supertraits.
+/// How [`walk_supertraits`] fills each supertrait's arguments.
+#[derive(Clone, Copy)]
+pub(crate) enum Fill {
+    /// Not at all: a visit that reads only the trait sees
+    /// `TyList::EMPTY`, and no step substitutes.
+    No,
+    /// From the child's arguments, each step's `Self` replaced by the
+    /// given type, or kept as the root's `Self` with `None`
+    /// (`trait.dyn.widen`).
+    Args(Option<Ty>),
+}
+
+/// Visits `root[args]` and its transitive supertraits depth first in
+/// declared order, as an environment is elaborated (`crates/hd_check/DESIGN.md`
+/// (trait solver) §4.2), each trait once, until `visit` returns a value.
+/// The resolver cuts every supertrait cycle (`trait.super.acyclic`), so the
+/// walk needs no depth limit; a trait reached again is skipped, as what a
+/// visit decides depends on the trait alone, which keeps a diamond linear.
+/// Cost: one visit and, with [`Fill::Args`], one substitution per
+/// supertrait edge of the reached traits.
+pub(crate) fn walk_supertraits<R>(
+    lookup: &Lookup<'_>,
+    pool: hd_types::Types<'_>,
+    (root, args): (DefId, TyList),
+    fill: Fill,
+    mut visit: impl FnMut(DefId, TyList, &hd_resolve::TraitData) -> Option<R>,
+) -> Option<R> {
+    let mut seen: HashSet<DefId> = HashSet::default();
+    let mut stack = vec![(root, args)];
+    while let Some((def, args)) = stack.pop() {
+        if !seen.insert(def) {
+            continue;
+        }
+        let Some(ItemData::Trait(t)) = lookup.item(def).map(|i| &i.data) else {
+            continue;
+        };
+        if let Some(r) = visit(def, args, t) {
+            return Some(r);
+        }
+        let known = pool.list_items(args);
+        for s in t.supers.iter().rev() {
+            let s = match fill {
+                Fill::No => *s,
+                Fill::Args(self_ty) => pool.subst(*s, &|p: ParamRef| {
+                    if p.owner != def {
+                        None
+                    } else if p.index == 0 {
+                        self_ty
+                    } else {
+                        known.get(usize::from(p.index) - 1).copied()
+                    }
+                }),
+            };
+            if let TyData::TraitValue {
+                def: d, args: a, ..
+            } = pool.get(s)
+                && !seen.contains(&d)
+            {
+                stack.push((
+                    d,
+                    if matches!(fill, Fill::No) {
+                        TyList::EMPTY
+                    } else {
+                        a
+                    },
+                ));
+            }
+        }
+    }
+    None
+}
+
+/// Whether trait `a` has `b` among its transitive supertraits.
 pub(crate) fn trait_extends(
     lookup: &Lookup<'_>,
     pool: hd_types::Types<'_>,
     a: DefId,
     b: DefId,
-    depth: u32,
 ) -> bool {
-    if depth > 16 {
-        return false;
-    }
-    let Some(ItemData::Trait(t)) = lookup.item(a).map(|i| &i.data) else {
-        return false;
-    };
-    t.supers.iter().any(|s| match pool.get(*s) {
-        TyData::TraitValue { def, .. } => {
-            def == b || trait_extends(lookup, pool, def, b, depth + 1)
-        }
-        _ => false,
-    })
+    a != b
+        && walk_supertraits(lookup, pool, (a, TyList::EMPTY), Fill::No, |d, _, _| {
+            (d == b).then_some(())
+        })
+        .is_some()
 }
 
-/// The arguments `from[from_args]` inherits for transitive supertrait
-/// `to`: each step's supertrait parameters filled from the child's
-/// arguments, as `fill_trait_args` fills them, but with no `Self` to
-/// fill (`trait.dyn.widen`). `None` when `to` is no supertrait of `from`.
+/// The arguments `self_ty`, a `trait_[args]` value, has for `target`: its
+/// own when `target` is `trait_`, else those of the first transitive
+/// supertrait `target` found depth first in declared order, each step's
+/// parameters filled from its child's. With `self_ty` `None` no `Self` is
+/// filled (`trait.dyn.widen`), as `fill_trait_args` fills them. `None` when
+/// `target` is neither.
 pub(crate) fn supertrait_args(
     lookup: &Lookup<'_>,
     pool: hd_types::Types<'_>,
-    from: DefId,
-    from_args: TyList,
-    to: DefId,
-    depth: u32,
+    (trait_, args): (DefId, TyList),
+    self_ty: Option<Ty>,
+    target: DefId,
 ) -> Option<TyList> {
-    if from == to {
-        return Some(from_args);
+    if trait_ == target {
+        return Some(args);
     }
-    if depth > 16 {
-        return None;
-    }
-    let Some(ItemData::Trait(t)) = lookup.item(from).map(|i| &i.data) else {
-        return None;
-    };
-    let known = pool.list_items(from_args);
-    for s in &t.supers {
-        let TyData::TraitValue { def, args, .. } = pool.get(*s) else {
-            continue;
-        };
-        let filled = pool.list(
-            &pool
-                .list_items(args)
-                .iter()
-                .map(|a| {
-                    pool.subst(*a, &|p: ParamRef| {
-                        if p.owner != from || p.index == 0 {
-                            return None;
-                        }
-                        known.get(usize::from(p.index) - 1).copied()
-                    })
-                })
-                .collect::<Vec<_>>(),
-        );
-        if def == to {
-            return Some(filled);
-        }
-        if let Some(found) = supertrait_args(lookup, pool, def, filled, to, depth + 1) {
-            return Some(found);
-        }
-    }
-    None
+    walk_supertraits(
+        lookup,
+        pool,
+        (trait_, args),
+        Fill::Args(self_ty),
+        |d, a, _| (d == target).then_some(a),
+    )
 }
 
 /// Whether `key` may not be a requirement key: `Inspectable` itself, or a
@@ -910,7 +949,7 @@ pub(crate) fn is_inspectable_key(
         return false;
     };
     inspectable != DefId::NONE
-        && (def == inspectable || trait_extends(lookup, pool, def, inspectable, 0))
+        && (def == inspectable || trait_extends(lookup, pool, def, inspectable))
 }
 
 /// Elaborates one declared bound into an environment (`crates/hd_check/DESIGN.md` (trait solver)
@@ -923,8 +962,28 @@ pub(crate) fn add_bound(
     lookup: &Lookup<'_>,
     pool: hd_types::Types<'_>,
     env: &mut ParamEnv,
+    clause: (Ty, Ty),
+    copy: DefId,
+) {
+    add_bound_at(lookup, pool, env, clause, 0, copy);
+}
+
+/// How many projections deep [`add_bound`] elaborates associated-type
+/// bounds: a bound may name its own trait again (`type Next < Walk`), and
+/// each step adds the projection one deeper (`I::Next::Next < Walk`), so
+/// eager elaboration stops here. A supertrait step does not count: the
+/// resolver leaves the supertrait graph acyclic and the clause check ends
+/// it. A goal deeper than this finds no clause for its projection.
+const PROJECTION_BOUND_DEPTH: u32 = 16;
+
+/// [`add_bound`] for a clause whose self type is `nest` projections below
+/// a declared bound's.
+fn add_bound_at(
+    lookup: &Lookup<'_>,
+    pool: hd_types::Types<'_>,
+    env: &mut ParamEnv,
     (self_ty, bound): (Ty, Ty),
-    depth: u32,
+    nest: u32,
     copy: DefId,
 ) {
     // A bound that names no trait, already reported, is a clause on no
@@ -960,13 +1019,9 @@ pub(crate) fn add_bound(
         Some(it) => hd_resolve::fill_trait_args(pool, def, &it.generics, args, Some(self_ty)),
         None => args,
     };
-    if depth > 16
-        || (0..env.clause_self.len()).any(|i| {
-            env.clause_self[i] == self_ty
-                && env.clause_trait[i] == def
-                && env.clause_args[i] == args
-        })
-    {
+    if (0..env.clause_self.len()).any(|i| {
+        env.clause_self[i] == self_ty && env.clause_trait[i] == def && env.clause_args[i] == args
+    }) {
         return;
     }
     env.clause_self.push(self_ty);
@@ -989,7 +1044,7 @@ pub(crate) fn add_bound(
                     known.get(p.index as usize - 1).copied()
                 }
             });
-            add_bound(lookup, pool, env, (self_ty, s), depth + 1, copy);
+            add_bound_at(lookup, pool, env, (self_ty, s), nest, copy);
         }
         if def != copy
             && lookup
@@ -1001,12 +1056,12 @@ pub(crate) fn add_bound(
                 args: hd_types::TyList::EMPTY,
                 bindings: vec![],
             });
-            add_bound(lookup, pool, env, (self_ty, c), depth + 1, copy);
+            add_bound_at(lookup, pool, env, (self_ty, c), nest, copy);
         }
         // Each associated type's declared bounds hold for its projection
         // (`trait.assoc.bound-use`): under `I < Iterable[T]`, the clause
         // `I::IntoIter < Iterator[T]`.
-        for &(_, a) in &t.assoc {
+        for &(_, a) in t.assoc.iter().take_while(|_| nest < PROJECTION_BOUND_DEPTH) {
             let Some(ItemData::AssocType { bounds, .. }) = lookup.item(a).map(|i| &i.data) else {
                 continue;
             };
@@ -1030,7 +1085,7 @@ pub(crate) fn add_bound(
                         known.get(p.index as usize - 1).copied()
                     }
                 });
-                add_bound(lookup, pool, env, (proj, b), depth + 1, copy);
+                add_bound_at(lookup, pool, env, (proj, b), nest + 1, copy);
             }
         }
     }
@@ -1597,7 +1652,7 @@ impl Ck<'_, '_> {
                     .push((g.name, hd_types::RowParamRef { owner, index }));
             }
             for b in &g.bounds {
-                self.add_bound(p, *b, 0);
+                self.add_bound(p, *b);
             }
         }
     }
@@ -1650,13 +1705,12 @@ impl Ck<'_, '_> {
     }
 
     /// Adds a bound and, transitively, its supertraits to the environment.
-    pub(crate) fn add_bound(&mut self, self_ty: Ty, bound: Ty, depth: u32) {
+    pub(crate) fn add_bound(&mut self, self_ty: Ty, bound: Ty) {
         add_bound(
             self.cx.lookup,
             self.pool(),
             &mut self.env,
             (self_ty, bound),
-            depth,
             self.cx.names.known.copy,
         );
     }

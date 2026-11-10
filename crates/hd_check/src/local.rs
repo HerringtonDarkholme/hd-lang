@@ -399,7 +399,7 @@ impl Ck<'_, '_> {
                         continue;
                     }
                     if matches!(pool.get(t), TyData::TraitValue { .. }) {
-                        self.add_bound(p, t, 0);
+                        self.add_bound(p, t);
                         bs.push(t);
                     }
                 }
@@ -410,7 +410,7 @@ impl Ck<'_, '_> {
                         args: hd_types::TyList::EMPTY,
                         bindings: vec![],
                     });
-                    self.add_bound(p, t, 0);
+                    self.add_bound(p, t);
                     bs.push(t);
                 }
             }
@@ -421,7 +421,7 @@ impl Ck<'_, '_> {
                     args: hd_types::TyList::EMPTY,
                     bindings: vec![],
                 });
-                self.add_bound(p, copy, 0);
+                self.add_bound(p, copy);
                 bs.push(copy);
             }
             generic.bounds = bs;
@@ -522,7 +522,7 @@ impl Ck<'_, '_> {
             bindings: vec![],
         }));
         for &b in &bounds {
-            self.add_bound(p, b, 0);
+            self.add_bound(p, b);
         }
         Ok(bounds)
     }

@@ -270,7 +270,7 @@ fn environment(cx: &HeaderCx<'_>, it: &Item) -> ParamEnv {
             let index = offset + u16::try_from(i).unwrap_or(u16::MAX);
             let p = pool.intern_ty(&TyData::Param(ParamRef { owner, index }));
             for b in &g.bounds {
-                add_bound(cx.lookup, pool, env, (p, *b), 0, cx.names.known.copy);
+                add_bound(cx.lookup, pool, env, (p, *b), cx.names.known.copy);
             }
         }
     };
@@ -301,7 +301,7 @@ fn environment(cx: &HeaderCx<'_>, it: &Item) -> ParamEnv {
                 args: pool.list(&args),
                 bindings: vec![],
             });
-            add_bound(cx.lookup, pool, env, (s, tv), 0, cx.names.known.copy);
+            add_bound(cx.lookup, pool, env, (s, tv), cx.names.known.copy);
             generics(owner, &o.generics, 1, env);
         } else {
             generics(owner, &o.generics, 0, env);
