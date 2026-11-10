@@ -1,0 +1,12 @@
+pub fn main() -> void:
+    pass
+
+tests:
+    fn helper() -> i32:
+        +1
+
+    struct helper:
+        value: i32
+
+    it("reads the helper"):
+        pass

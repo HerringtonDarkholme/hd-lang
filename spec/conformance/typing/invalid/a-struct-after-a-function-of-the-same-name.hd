@@ -1,0 +1,7 @@
+# Spec 03 Lookup Categories: names.module.unique; a struct after a
+# function of the same name is the later, duplicate declaration.
+fn helper() -> i32:
+    +1
+
+struct helper: # diagnostic: duplicate-module-name
+    value: i32

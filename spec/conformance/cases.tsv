@@ -6311,6 +6311,7 @@ typing/invalid/a-type-parameter-takes-no-type-arguments.hd	type	reject:argument-
 typing/invalid/self-takes-no-type-arguments.hd	type	reject:argument-count	lang/04-type-system.md#r-types.generic.too-long
 typing/invalid/a-body-annotation-on-void-takes-no-type-arguments.hd	type	reject:argument-count	lang/04-type-system.md#r-types.generic.too-long
 typing/invalid/a-body-annotation-on-a-type-parameter-takes-no-type-arguments.hd	type	reject:argument-count	lang/04-type-system.md#r-types.generic.too-long
+typing/invalid/a-struct-after-a-function-of-the-same-name.hd	type	reject:duplicate-module-name	lang/03-names-and-scopes.md#r-names.module.unique
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

@@ -1,0 +1,8 @@
+# names.tests.unique: a struct after a function of the same name in a
+# `tests:` block is the later, duplicate declaration, reported without
+# checking the function's body against the struct.
+run: hd check --tests --summary helpers.hd
+exit: 101
+stdout-json: []
+stderr: error: helpers.hd: duplicate-module-name: 1
+stderr: check result: FAILED. errors: 1; warnings: 0

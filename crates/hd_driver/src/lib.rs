@@ -6418,9 +6418,14 @@ impl Run<'_> {
                 continue;
             }
             // A method whose impl header was rejected has no item
-            // (`unknown-trait`): that error is the answer, there is no
+            // (`unknown-trait`), and a function whose name a later type or
+            // trait declares again holds that declaration's item
+            // (`duplicate-module-name`, which a `tests:` block reports in
+            // this body's `diags`): that error is the answer, there is no
             // signature to check the body against.
-            if lookup.item(def).is_none() && (prep.use_errors || self.file_has_errors(m)) {
+            if lookup.item(def).is_none_or(|i| i.sig().is_none())
+                && (prep.use_errors || diags.has_errors() || self.file_has_errors(m))
+            {
                 continue;
             }
             let profile = hd_resolve::lower::cfg_profile(&src, node);
