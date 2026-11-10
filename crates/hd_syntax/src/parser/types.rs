@@ -283,7 +283,6 @@ impl Parser<'_> {
         self.bump(); // (
         let mut rest_seen = false;
         while !self.at(TokenKind::RParen) && self.current().is_some() {
-            let before = self.pos();
             if rest_seen {
                 self.error(
                     Code::SyntaxError,
@@ -297,7 +296,7 @@ impl Parser<'_> {
                 self.complete(rest, SyntaxKind::RestType);
                 rest_seen = true;
             }
-            if !self.eat(TokenKind::Comma) || self.pos() == before {
+            if !self.eat(TokenKind::Comma) {
                 break;
             }
         }
@@ -311,7 +310,6 @@ impl Parser<'_> {
         self.bump(); // [
         let mut saw_binding = false;
         while !self.at(TokenKind::RBracket) && self.current().is_some() {
-            let before = self.pos();
             if matches!(self.current(), Some(TokenKind::Ident | TokenKind::RawIdent))
                 && self.nth(1) == Some(TokenKind::Eq)
             {
@@ -355,9 +353,6 @@ impl Parser<'_> {
                         continue;
                     }
                 }
-                break;
-            }
-            if self.pos() == before {
                 break;
             }
         }
@@ -507,7 +502,6 @@ impl Parser<'_> {
         let mut comma = false;
         let mut rest_seen = false;
         while !self.at(TokenKind::RParen) && self.current().is_some() {
-            let before = self.pos();
             if rest_seen {
                 // grammar.type.rest: a rest element is last.
                 self.error(
@@ -527,9 +521,6 @@ impl Parser<'_> {
                 break;
             }
             comma = true;
-            if self.pos() == before {
-                break;
-            }
         }
         if rest_seen && !comma {
             // `(T...)`: a rest element alone keeps the comma.
@@ -559,7 +550,6 @@ impl Parser<'_> {
         if self.expect(TokenKind::LParen, "'('") {
             let mut rest_seen = false;
             while !self.at(TokenKind::RParen) && self.current().is_some() {
-                let before = self.pos();
                 if rest_seen {
                     self.error(
                         Code::SyntaxError,
@@ -573,7 +563,7 @@ impl Parser<'_> {
                     self.complete(rest, SyntaxKind::RestType);
                     rest_seen = true;
                 }
-                if !self.eat(TokenKind::Comma) || self.pos() == before {
+                if !self.eat(TokenKind::Comma) {
                     break;
                 }
             }

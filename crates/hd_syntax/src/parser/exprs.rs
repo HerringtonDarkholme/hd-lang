@@ -560,9 +560,8 @@ impl Parser<'_> {
                 // At least one key (`context_use`).
                 if self.expect(TokenKind::LParen, "'('") {
                     loop {
-                        let before = self.pos();
                         self.ty_bound_trait(true);
-                        if !self.eat(TokenKind::Comma) || self.pos() == before || self.at(TokenKind::RParen) {
+                        if !self.eat(TokenKind::Comma) || self.at(TokenKind::RParen) {
                             break;
                         }
                     }
@@ -594,7 +593,6 @@ impl Parser<'_> {
         let list = self.start();
         self.bump(); // (
         while !self.at(TokenKind::RParen) && self.current().is_some() {
-            let before = self.pos();
             let entry = self.start();
             if self.key_entry_ahead() {
                 self.ty_bound_trait(true);
@@ -623,7 +621,7 @@ impl Parser<'_> {
                 }
             }
             self.complete(entry, SyntaxKind::ContextEntry);
-            if !self.eat(TokenKind::Comma) || self.pos() == before {
+            if !self.eat(TokenKind::Comma) {
                 break;
             }
         }
@@ -1062,7 +1060,6 @@ impl Parser<'_> {
         let marker = self.start();
         self.bump(); // [
         while !self.at(TokenKind::RBracket) && self.current().is_some() {
-            let before = self.pos();
             if self.at(TokenKind::Placeholder) {
                 self.token_node(SyntaxKind::InferType);
             } else if matches!(self.current(), Some(TokenKind::Ident | TokenKind::RawIdent))
@@ -1084,7 +1081,7 @@ impl Parser<'_> {
                 self.ty_argument();
                 self.infer_types = before;
             }
-            if !self.eat(TokenKind::Comma) || self.pos() == before {
+            if !self.eat(TokenKind::Comma) {
                 break;
             }
         }
@@ -1098,7 +1095,6 @@ impl Parser<'_> {
         self.bump(); // (
         let mut named = false;
         while !self.at(TokenKind::RParen) && self.current().is_some() {
-            let before = self.pos();
             if matches!(self.current(), Some(TokenKind::Ident | TokenKind::RawIdent))
                 && self.nth(1) == Some(TokenKind::Eq)
             {
@@ -1130,9 +1126,6 @@ impl Parser<'_> {
                         continue;
                     }
                 }
-                break;
-            }
-            if self.pos() == before {
                 break;
             }
         }
@@ -1390,9 +1383,6 @@ impl Parser<'_> {
                 break;
             }
             comma = true;
-            if self.pos() == before {
-                break;
-            }
         }
         if spread_seen && !comma {
             self.error(
@@ -1462,7 +1452,6 @@ impl Parser<'_> {
             return self.complete(marker, SyntaxKind::ComprehensionExpr);
         }
         while !self.at(TokenKind::RBracket) && self.current().is_some() {
-            let before = self.pos();
             self.element(Ctx::Expr);
             if !self.eat(TokenKind::Comma) {
                 if !self.at(TokenKind::RBracket) {
@@ -1472,9 +1461,6 @@ impl Parser<'_> {
                         continue;
                     }
                 }
-                break;
-            }
-            if self.pos() == before {
                 break;
             }
         }
@@ -1509,7 +1495,6 @@ impl Parser<'_> {
             return self.complete(marker, SyntaxKind::ComprehensionExpr);
         }
         while !self.at(TokenKind::RBrace) && self.current().is_some() {
-            let before = self.pos();
             let entry = self.start();
             self.expr(Ctx::Continued);
             if self.expect(TokenKind::Colon, "':'") {
@@ -1524,9 +1509,6 @@ impl Parser<'_> {
                         continue;
                     }
                 }
-                break;
-            }
-            if self.pos() == before {
                 break;
             }
         }
@@ -1581,7 +1563,6 @@ impl Parser<'_> {
         self.bump(); // {
         let mut first = true;
         while !self.at(TokenKind::RBrace) && self.current().is_some() {
-            let before = self.pos();
             if self.at(TokenKind::Ellipsis) {
                 if !first {
                     // grammar: the copy-update spread comes first.
@@ -1611,9 +1592,6 @@ impl Parser<'_> {
                         continue;
                     }
                 }
-                break;
-            }
-            if self.pos() == before {
                 break;
             }
         }

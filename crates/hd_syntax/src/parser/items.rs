@@ -104,6 +104,7 @@ impl Parser<'_> {
             if place == Place::Top {
                 self.tests_block();
             } else {
+                // grammar.tests.top-level: a `tests:` block inside another.
                 self.error(
                     Code::SyntaxError,
                     "a 'tests:' block may appear only at module top level",
@@ -354,7 +355,6 @@ impl Parser<'_> {
         let marker = self.start();
         self.bump(); // [
         while !self.at(TokenKind::RBracket) && self.current().is_some() {
-            let before = self.pos();
             let param = self.start();
             // grammar.generic.lifetime.alone: a lifetime takes no variance, bound
             // or default. `'static` is reserved (types.lifetime.static).
@@ -450,9 +450,6 @@ impl Parser<'_> {
                 }
                 break;
             }
-            if self.pos() == before {
-                break;
-            }
         }
         self.expect(TokenKind::RBracket, "']'");
         self.complete(marker, SyntaxKind::GenericParameterList);
@@ -519,7 +516,6 @@ impl Parser<'_> {
         self.bump(); // (
         let mut named_default = false;
         while !self.at(TokenKind::RParen) && self.current().is_some() {
-            let before = self.pos();
             self.parameter(mode, &mut named_default);
             if !self.eat(TokenKind::Comma) {
                 if !self.at(TokenKind::RParen) {
@@ -529,9 +525,6 @@ impl Parser<'_> {
                         continue;
                     }
                 }
-                break;
-            }
-            if self.pos() == before {
                 break;
             }
         }
@@ -1034,18 +1027,7 @@ impl Parser<'_> {
         let marker = self.start();
         self.bump(); // tests
         if self.expect(TokenKind::Colon, "':'") {
-            self.member_block(false, |p| {
-                if p.at(TokenKind::KwTests) {
-                    // grammar.tests.top-level
-                    p.error(
-                        Code::SyntaxError,
-                        "a 'tests:' block may appear only at module top level",
-                    );
-                    p.recover_line();
-                } else {
-                    p.item(Place::Tests);
-                }
-            });
+            self.member_block(false, |p| p.item(Place::Tests));
         }
         self.complete(marker, SyntaxKind::TestsBlock);
     }

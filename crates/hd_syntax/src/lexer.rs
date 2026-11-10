@@ -716,7 +716,7 @@ impl<'s> Lexer<'s> {
         let mut bad_separator = false;
         let mut previous_separator = false;
         while let Some(byte) = self.peek_byte(0) {
-            if digit_for_radix(byte, radix) {
+            if char::from(byte).is_digit(radix) {
                 previous_separator = false;
                 self.pos += 1;
             } else if byte == b'_' {
@@ -1255,16 +1255,6 @@ fn is_ident_start_byte(byte: u8, source: &str, pos: usize) -> bool {
         || (!byte.is_ascii() && source[pos..].chars().next().is_some_and(is_xid_start))
 }
 
-fn digit_for_radix(byte: u8, radix: u32) -> bool {
-    match radix {
-        2 => matches!(byte, b'0' | b'1'),
-        8 => matches!(byte, b'0'..=b'7'),
-        10 => byte.is_ascii_digit(),
-        16 => byte.is_ascii_hexdigit(),
-        _ => false,
-    }
-}
-
 fn valid_escape(source: &[u8], pos: usize) -> bool {
     match source.get(pos + 1).copied() {
         Some(b'\\' | b'"' | b'\'' | b'n' | b'r' | b't' | b'0' | b'$') => true,
@@ -1275,19 +1265,17 @@ fn valid_escape(source: &[u8], pos: usize) -> bool {
             }
             at += 1;
             let first = at;
-            while source.get(at).is_some_and(u8::is_ascii_hexdigit) && at - first < 6 {
+            // At most six hex digits, so the value fits a u32 as it grows.
+            let mut value = 0_u32;
+            while let Some(digit) = source
+                .get(at)
+                .and_then(|&byte| char::from(byte).to_digit(16))
+                .filter(|_| at - first < 6)
+            {
+                value = value * 16 + digit;
                 at += 1;
             }
-            if at == first || source.get(at) != Some(&b'}') {
-                return false;
-            }
-            let Ok(text) = core::str::from_utf8(&source[first..at]) else {
-                return false;
-            };
-            let Ok(value) = u32::from_str_radix(text, 16) else {
-                return false;
-            };
-            char::from_u32(value).is_some()
+            at > first && source.get(at) == Some(&b'}') && char::from_u32(value).is_some()
         }
         _ => false,
     }

@@ -237,7 +237,6 @@ impl Parser<'_> {
         self.bump(); // (
         let mut named = false;
         while !self.at(TokenKind::RParen) && self.current().is_some() {
-            let before = self.pos();
             if matches!(self.current(), Some(TokenKind::Ident | TokenKind::RawIdent))
                 && self.nth(1) == Some(TokenKind::Eq)
             {
@@ -275,9 +274,6 @@ impl Parser<'_> {
                 }
                 break;
             }
-            if self.pos() == before {
-                break;
-            }
         }
         self.expect(TokenKind::RParen, "')'");
         self.complete(marker, SyntaxKind::PatternArgumentList);
@@ -286,7 +282,6 @@ impl Parser<'_> {
     fn data_pattern_fields(&mut self, let_pattern: bool) {
         self.bump(); // {
         while !self.at(TokenKind::RBrace) && self.current().is_some() {
-            let before = self.pos();
             let field = self.start();
             if self.at(TokenKind::KwMut) {
                 if !let_pattern {
@@ -316,9 +311,6 @@ impl Parser<'_> {
                 }
                 break;
             }
-            if self.pos() == before {
-                break;
-            }
         }
         self.expect(TokenKind::RBrace, "'}'");
     }
@@ -331,7 +323,6 @@ impl Parser<'_> {
         let mut comma = false;
         let mut spread_seen = false;
         while !self.at(TokenKind::RParen) && self.current().is_some() {
-            let before = self.pos();
             if spread_seen {
                 // grammar.pattern.tuple-spread: a spread is last.
                 self.error(
@@ -346,9 +337,6 @@ impl Parser<'_> {
                 break;
             }
             comma = true;
-            if self.pos() == before {
-                break;
-            }
         }
         if count > 0 && !comma {
             // grammar.stmt.let-pattern.parenthesized, grammar.pattern.tuple-spread
