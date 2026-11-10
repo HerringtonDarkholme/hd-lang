@@ -145,6 +145,56 @@ test("a step initializes once, publishes wakes, and retains its terminal status"
   }
 });
 
+for (const mode of ["step", "async", "block"]) {
+  test(`overdue timers retain deadline order and coalesce ties (${mode})`, async (context) => {
+    let now = 100;
+    context.mock.method(performance, "now", () => now);
+    const host = createCoreHost({ out() {}, err() {} });
+    let handles: number[] | null = null;
+    const batches: number[][] = [];
+    const wake = (count: number) => {
+      const words = new DataView(guest.exports["hd.x"].buffer);
+      const batch = Array.from({ length: count }, (_, i) => words.getUint32(i * 4, true));
+      batches.push(batch);
+      for (const handle of batch) {
+        host.imports["hd:Clock"]["sleep.finish"](handle);
+      }
+    };
+    const guest = instance({
+      wake,
+      poll() {
+        if (handles === null) {
+          // Work is polled first, but its timer is later than the timeout.
+          handles = [20n, 1n, 1n].map((ms) => host.imports["hd:Clock"]["sleep.start"](ms)[1]);
+          // The driver thread resumes after all three deadlines, as under load.
+          now = 125;
+          if (mode === "block") {
+            wake(host.imports["hd:rt"].block());
+            wake(host.imports["hd:rt"].block());
+            return 0;
+          }
+          return -1;
+        }
+        return batches.length === 2 ? 0 : -1;
+      },
+    });
+    try {
+      if (mode === "step") {
+        const driver = host.createDriver(guest);
+        assert.deepEqual(driver.step(), { status: -1, wakes: 2 });
+        assert.deepEqual(driver.step(), { status: -1, wakes: 1 });
+        assert.deepEqual(driver.step(), { status: 0, wakes: 0 });
+      } else {
+        assert.equal((await host.run(guest, "hd.init", "hd.poll")).status, 0);
+      }
+      assert.ok(handles);
+      assert.deepEqual(batches, [[handles[1], handles[2]], [handles[0]]]);
+    } finally {
+      host.close();
+    }
+  });
+}
+
 test("idle turns retain pollable I/O without creating a timer or background driver", async () => {
   let ready = false,
     woken = false,

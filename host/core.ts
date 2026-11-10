@@ -1196,10 +1196,12 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
     }
     return value;
   };
-  // Completes every due operation and writes the handles to the buffer.
+  // Publish one completion turn, coalescing equal deadlines. A delayed
+  // host turn must not wake later work alongside an earlier timeout:
+  // race polls its work child first when both become ready in one batch.
   const complete = (): number => {
     const now = performance.now();
-    const due = [...st.ops]
+    const available = [...st.ops]
       .filter(([, options]) => !options.completed && (options.poll || options.at <= now))
       .sort((left, right) => left[1].at - right[1].at || left[0] - right[0])
       .filter(([, options]) => {
@@ -1209,6 +1211,7 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
         options.at = performance.now() + 1;
         return false;
       });
+    const due = available.filter(([, options]) => options.at === available[0][1].at);
     if (due.length * 4 > st.memory.buffer.byteLength) {
       st.memory.grow(Math.ceil((due.length * 4) / 65536));
     }
