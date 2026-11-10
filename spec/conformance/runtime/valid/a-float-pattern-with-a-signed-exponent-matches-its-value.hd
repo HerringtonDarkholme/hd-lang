@@ -1,0 +1,12 @@
+# test: a float pattern with a signed exponent matches its value
+# Spec 06 Match: flow.match.literal; Spec 01: lex.float.forms, a pattern
+# literal written with an exponent and its sign.
+# expect-stdout: 3
+fn size(v: f64) -> i32:
+    match v:
+        1e+3 => +1
+        2.5e-1 => +2
+        _ => +0
+
+pub fn main() -> void $ Console:
+    println(size(1000.0) + size(0.25) + size(3.0))
