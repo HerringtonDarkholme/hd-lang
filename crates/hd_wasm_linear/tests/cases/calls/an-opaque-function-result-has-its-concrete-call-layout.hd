@@ -1,0 +1,11 @@
+# @dump: wat
+# expected: the returned function's hidden result is an i64, including its indirect call and Display dispatch
+use std.function.Fn
+
+fn make() -> Fn[(), impl Display, $ ()]:
+    fn() -> i64: 7i64
+
+fn show() -> string:
+    call := make()
+    "${call()}"
+    #^^^^^^^^^^^

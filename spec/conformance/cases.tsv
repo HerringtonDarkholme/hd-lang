@@ -6266,6 +6266,9 @@ typing/valid/associated-enum-instance-recurses-through-reference.hd	type	accept	
 runtime/valid/boundary-rest-tuple-round-trip.hd	runtime	accept	lang/10-modules.md#r-module.boundary.allowed
 runtime/valid/boundary-counted-reference-round-trip.hd	runtime	accept	lang/10-modules.md#r-module.boundary.sharing
 runtime/valid/boundary-counted-reference-top-level.hd	runtime	accept	lang/10-modules.md#r-module.boundary.sharing
+runtime/valid/opaque-function-result-discard.hd	runtime	accept	lang/07-functions.md#r-fn.opaque.nested
+runtime/valid/opaque-function-result-call.hd	runtime	accept	lang/07-functions.md#r-fn.opaque.nested
+runtime/valid/opaque-function-input-discard.hd	runtime	accept	lang/07-functions.md#r-fn.opaque.nested
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

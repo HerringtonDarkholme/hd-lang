@@ -1,0 +1,13 @@
+# test: a hidden result inside a returned function keeps its layout even when the function is discarded
+# expect-stdout: done
+# Spec 07: fn.opaque.nested, fn.type.ctor.decl.contextual, fn.type.ctor.sugar; Spec 04: types.opaque.representation.
+use std.function.Fn
+
+fn make() -> Fn[(), impl Display, $ ()]:
+    fn value() -> i32:
+        +7
+    value
+
+pub fn main() -> void $ Console:
+    make()
+    println("done")

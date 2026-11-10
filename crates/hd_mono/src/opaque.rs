@@ -160,6 +160,21 @@ fn result_facts(pool: &InternPool, declared: Ty, hidden: Ty, syn: NodeIdx, out: 
             TyData::Ref { inner: hidden, .. },
         ) => result_facts(pool, declared, hidden, syn, out),
         (
+            TyData::Fn {
+                params: declared_params,
+                result: declared_result,
+                ..
+            },
+            TyData::Fn {
+                params: hidden_params,
+                result: hidden_result,
+                ..
+            },
+        ) => {
+            list(declared_params, hidden_params);
+            result_facts(pool, declared_result, hidden_result, syn, out);
+        }
+        (
             TyData::TraitValue {
                 def: a,
                 args: declared,

@@ -1,0 +1,19 @@
+# test: hidden results in plain and suspending function constructors retain their selected representations
+# expect-stdout: 7 captured 9
+# Spec 07: fn.opaque.nested, fn.type.ctor.decl.contextual, fn.type.ctor.sugar; Spec 04: types.opaque.representation.
+use std.function.{Fn, SuspendFn}
+
+fn plain() -> Fn[(), impl Display, $ ()]:
+    fn() -> i64: 7i64
+
+fn capture[T < Display & 'static](value: T) -> Fn[(), impl Display, $ ()]:
+    fn() -> T: value
+
+fn suspended() -> SuspendFn[(), impl Display, $ ()]:
+    fn!() -> i64: 9i64
+
+pub fn main!() -> void $ Console:
+    a := plain()
+    b := capture("captured")
+    c := suspended()
+    println("${a()} ${b()} ${c!()}")
