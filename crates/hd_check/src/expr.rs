@@ -2407,7 +2407,7 @@ impl Ck<'_, '_> {
     /// Whether `t` coerces into the trait value `target` because it
     /// implements the trait (`types.assign.trait-value.ref`), or the answer waits for
     /// inference; `false` when `target` is no trait value.
-    fn erases_into(&mut self, t: Ty, target: Ty) -> StageResult<bool> {
+    pub(crate) fn erases_into(&mut self, t: Ty, target: Ty) -> StageResult<bool> {
         let pool = self.pool();
         let TyData::TraitValue { def, args, .. } = pool.get(self.infer.resolve(pool, target))
         else {

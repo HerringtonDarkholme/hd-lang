@@ -1217,14 +1217,25 @@ impl Ck<'_, '_> {
         };
         let (ai, ci) = (self.resolved(ai), self.resolved(ci));
         let snap = self.infer.snapshot();
+        let (mut a, mut c) = (a, c);
         if self.infer.unify(pool, ai, ci).is_err() {
             self.infer.rollback(snap);
-            let msg = format!(
-                "`is` compares {} with {}, which refer to different types",
-                self.show(at),
-                self.show(ct)
-            );
-            self.err(Code::IncompatibleIdentityOperands, rn, &msg);
+            // `expr.is.compatible.trait-value`: a reference converts to a
+            // trait value reference of a trait its referent implements, and
+            // the conversion keeps its place (`expr.is.conversion`), so
+            // the converted operand is the one compared.
+            if self.erases_into(ai, ci)? {
+                a = self.coerce(a, at, ct, n, "`is` operand", ExpectPosition::General);
+            } else if self.erases_into(ci, ai)? {
+                c = self.coerce(c, ct, at, rn, "`is` operand", ExpectPosition::General);
+            } else {
+                let msg = format!(
+                    "`is` compares {} with {}, which refer to different types",
+                    self.show(at),
+                    self.show(ct)
+                );
+                self.err(Code::IncompatibleIdentityOperands, rn, &msg);
+            }
         }
         // The backend compares the identity fields of the two `Ref`s
         // (`crates/hd_wasm_linear/DESIGN.md` §15.2, "References"), so a generic

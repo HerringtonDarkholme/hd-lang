@@ -1,0 +1,23 @@
+# test: `is` compares a reference with a trait value reference: the reference converts to the trait value, keeping its place
+# Spec 05 Identity Operands: expr.is.compatible.trait-value; Allocation Identity: expr.is.conversion.
+# expect-stdout: true true
+# expect-stdout: false false
+trait Shape:
+    fn area(&self) -> f64
+
+struct Square:
+    side: f64
+
+impl Shape for Square:
+    fn area(&self) -> f64:
+        self.side * self.side
+
+fn same(sq: &Square, s: &dyn Shape) -> bool:
+    sq is s
+
+pub fn main() -> void $ Console:
+    let sq = Square { side: 2.0 }
+    let other = Square { side: 2.0 }
+    let s: &dyn Shape = &sq
+    println("${same(&sq, s)} ${s is &sq}")
+    println("${same(&other, s)} ${s is &other}")
