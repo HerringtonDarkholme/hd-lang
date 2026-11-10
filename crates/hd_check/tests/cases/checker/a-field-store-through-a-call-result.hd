@@ -1,0 +1,18 @@
+# @dump: tir
+# expr.place.value-forms, expr.place.deref: a field of a call result is
+# assignable only through a counted reference; a tuple value's element is
+# not writable, and an unknown field or element is `unknown-field`.
+struct P:
+    x: i32
+
+fn pair() -> (i32, i32):
+    (+1, +2)
+
+fn shared() -> *mut P:
+    box(P { x: +1 })
+
+fn run() -> void:
+    pair()._5 = +1
+    pair()._0 = +1
+    shared().nope = +1
+    shared().x += +2

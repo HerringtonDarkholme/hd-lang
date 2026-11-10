@@ -1,0 +1,17 @@
+# @dump: tir
+# grammar.type.row-argument.kind, types.generic.const.type-error: a body
+# annotation checks each generic argument's kind as a header does: a row
+# for a type parameter, a type for a row parameter, and a const parameter
+# of another type.
+struct Box[T]:
+    value: T
+
+struct Holder[$R]:
+    f: fn() -> void $ R
+
+struct Grid[N < const i32]: pass
+
+fn run[M < const u8]() -> void:
+    let a: Box[$ ()]? = .None
+    let b: Holder[i32]? = .None
+    let c: Grid[M]? = .None

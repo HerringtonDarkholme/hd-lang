@@ -1,0 +1,34 @@
+# @dump: tir
+# types.opaque.occurrence, types.opaque.distinct-position: each `impl
+# Trait` occurrence in a return annotation is an opaque type, inside a
+# list, a tuple, a tuple rest, an optional and a counted reference too.
+fn many() -> List[impl Display]:
+    [1, 2]
+
+fn pair() -> (impl Display, impl Display):
+    (1, "a")
+
+fn maybe(b: bool) -> (impl Display)?:
+    if b: .Some(1) else: .None
+
+fn rest() -> (i32, List[impl Display]...):
+    (1, 2, 3)
+
+fn maker() -> (fn() -> i32, impl Display):
+    (fn() -> i32: 1, 2)
+
+fn boxed() -> *impl Display:
+    box(1)
+
+fn count(n: i32) -> List[impl Display]:
+    if n == 0:
+        return [1]
+    count(n - 1)
+
+fn use_all() -> usize:
+    _ := pair()
+    _ := maybe(true)
+    _ := rest()
+    _ := maker()
+    _ := boxed()
+    many().len() + count(2).len()

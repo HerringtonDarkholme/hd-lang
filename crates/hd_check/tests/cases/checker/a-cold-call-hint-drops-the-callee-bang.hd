@@ -1,0 +1,17 @@
+# @dump: tir
+# req.suspend.cold, req.suspend.type.plain-call: where a cold
+# `Suspend[T]` is expected, an awaited bang call is a type mismatch whose
+# hint shows the call with only its callee's bang removed, type arguments
+# kept.
+fn work!() -> i32:
+    +1
+
+fn twice![T](x: T) -> T:
+    x
+
+fn take(s: Suspend[i32]) -> void:
+    pass
+
+fn run!() -> void:
+    take(work!())
+    take(twice!::[i32](+2))

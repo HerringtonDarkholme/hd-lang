@@ -1,0 +1,32 @@
+# @dump: tir
+# trait.assoc-call.type.traits: `X::make()` and `Y::build(..)` choose
+# through the type's trait part; a member two traits supply is
+# `ambiguous-method`.
+trait Make:
+    fn make() -> Self
+
+trait Build:
+    fn make() -> Self
+    fn build(&self) -> i32
+
+struct X:
+    v: i32
+
+struct Y:
+    v: i32
+
+impl Make for X:
+    fn make() -> X: X { v: +1 }
+
+impl Make for Y:
+    fn make() -> Y: Y { v: +1 }
+
+impl Build for Y:
+    fn make() -> Y: Y { v: +2 }
+    fn build(&self) -> i32: self.v
+
+fn run() -> i32:
+    x := X::make()
+    y := Y::make()
+    b := Y::build(&Y { v: +3 })
+    x.v + b

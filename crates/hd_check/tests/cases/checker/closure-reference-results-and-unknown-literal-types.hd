@@ -1,0 +1,12 @@
+# @dump: tir
+# ref.dep.elide: a closure literal whose reference
+# result has no reference parameter, or two, is reported at the closure;
+# a struct literal of an unknown type names the written path.
+struct P:
+    x: i32
+
+fn run() -> void:
+    a := fn() -> &i32: &+1
+    b := fn(x: &i32, y: &i32) -> &i32: x
+    c := Nope { x: +1 }
+    d := mod.Nope { x: +1 }

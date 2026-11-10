@@ -1,0 +1,22 @@
+# @dump: tir
+# expr.interp.no-display, expr.interp.collection-debug-fix,
+# expr.interp.collection-debug-fix.proof: a value without `Display` is an
+# error; a braced list or map name gets the exact `debug(name)` fix, and an
+# optional, a call or a field gets the advice only.
+@derive(Debug)
+struct P:
+    x: i32
+
+struct H:
+    xs: List[P]
+
+fn make() -> List[P]:
+    [P { x: 1 }]
+
+fn run(h: H, o: i32?, m: Map[i32, P]) -> void:
+    xs := make()
+    _ := "${xs}"
+    _ := "${m}"
+    _ := "${make()}"
+    _ := "${h.xs}"
+    _ := "${o}"

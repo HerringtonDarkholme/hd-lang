@@ -1,0 +1,21 @@
+# @dump: tir
+# expr.place.value-forms, expr.place.deref: a call result is no place;
+# through a counted reference it is the referent's field, which a write
+# and a reference reach, and a field of a plain value is read as a value.
+struct P:
+    x: i32
+
+fn make() -> P:
+    P { x: +1 }
+
+fn shared() -> *mut P:
+    box(P { x: +1 })
+
+fn read(r: &i32) -> i32:
+    *r
+
+fn run() -> i32:
+    shared().x = +5
+    a := read(&shared().x)
+    b := read(&make().x)
+    a + b
