@@ -1,0 +1,21 @@
+type Meters(i32)
+
+enum Shape:
+    Dot
+    Circle(i32)
+
+fn one(x: i32) -> i32:
+    x
+
+fn none() -> i32:
+    0
+
+fn two(x: i32, y: i32) -> i32:
+    x + y
+
+fn f() -> void:
+    m := Meters(1, 2)
+    a := one(1, 2)
+    b := none(1)
+    c := two(1, 2, 3)
+    d := Shape.Circle(1, 2)

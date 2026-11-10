@@ -349,6 +349,16 @@ fn fn_bound_want(ck: &Ck, bounds: &[Ty], inst: &dyn Fn(Ty) -> Ty) -> Option<FnWa
     })
 }
 
+/// The `argument-count` message for a callee of `count` parameters, as
+/// English for every count (`fn.call.arity`).
+pub(crate) fn takes_arguments(name: &str, count: usize) -> String {
+    match count {
+        0 => format!("`{name}` takes no arguments"),
+        1 => format!("`{name}` takes 1 argument"),
+        _ => format!("`{name}` takes {count} arguments"),
+    }
+}
+
 /// Records this argument's type for each inferred generic its formal names
 /// and reports whether it conflicts with an earlier one for the same
 /// generic (`types.generic.infer.join.other-conflict`).
@@ -1843,7 +1853,7 @@ impl Ck<'_, '_> {
             && (last_want.is_some() || self.trailing_takes(rest.last().map(|p| p.1)).is_some());
         let room = rest.len() - usize::from(takes);
         if !variadic && args.positional.len() > room {
-            let msg = format!("`{name}` takes {} arguments", rest.len());
+            let msg = takes_arguments(name, rest.len());
             self.err(Code::ArgumentCount, n, &msg);
         }
         // Bare variable parameters still open: several arguments solving
@@ -2177,7 +2187,7 @@ impl Ck<'_, '_> {
                 }
                 None => {
                     if !named_bad {
-                        let msg = format!("`{name}` takes {} arguments", rest.len());
+                        let msg = takes_arguments(name, rest.len());
                         self.err(Code::ArgumentCount, n, &msg);
                     }
                     break;

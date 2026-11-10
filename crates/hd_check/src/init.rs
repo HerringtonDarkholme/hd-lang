@@ -1006,7 +1006,7 @@ impl Ck<'_, '_> {
     ) -> StageResult<Vec<Ref>> {
         let mut slots: Vec<Option<Ref>> = vec![None; params.len()];
         if args.positional.len() > params.len() {
-            let msg = format!("`{ename}` takes {} arguments", params.len());
+            let msg = crate::call::takes_arguments(ename, params.len());
             self.err(Code::ArgumentCount, at, &msg);
         }
         for (i, e) in args.positional.iter().enumerate() {

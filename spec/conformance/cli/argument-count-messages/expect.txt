@@ -1,0 +1,4 @@
+# An argument-count error reads as English for every count: one parameter is "1 argument", none is "no arguments".
+run: hd check --format json counts.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"argument-count","message":"`Meters` takes 1 argument","line":17,"column":10,"file":"counts.hd"},{"kind":"diagnostic","code":"argument-count","message":"`one` takes 1 argument","line":18,"column":10,"file":"counts.hd"},{"kind":"diagnostic","code":"argument-count","message":"`none` takes no arguments","line":19,"column":10,"file":"counts.hd"},{"kind":"diagnostic","code":"argument-count","message":"`two` takes 2 arguments","line":20,"column":10,"file":"counts.hd"},{"kind":"diagnostic","code":"argument-count","message":"`Circle` takes 1 argument","line":21,"column":10,"file":"counts.hd"},{"kind":"summary","errors":5,"warnings":0,"status":101}]

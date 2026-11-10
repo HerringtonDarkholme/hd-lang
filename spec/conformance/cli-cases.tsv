@@ -339,4 +339,5 @@ check-header-colon-ends-the-file	cli.check.default,cli.exit.hd-failure
 tuple-vararg-arity-message	cli.check.default,cli.exit.hd-failure,cli.json.diagnostic.fields
 repl-package-lib-binding	cli.repl.package.lib,cli.repl.redeclare.binding
 tuple-arity-one-error	cli.check.default,cli.exit.hd-failure,cli.json.diagnostic.fields
+argument-count-messages	cli.check.default,cli.exit.hd-failure,cli.json.diagnostic.fields
 if-value-without-else-one-error	cli.check.default,cli.exit.hd-failure,cli.json.diagnostic.fields
