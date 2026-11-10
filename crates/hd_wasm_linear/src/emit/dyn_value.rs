@@ -1,11 +1,9 @@
-//! Trait values (`crates/hd_wasm_linear/DESIGN.md` §23.8, §23.19, job 11). A
-//! trait value is `(data, vtable)`. The data is the value itself when its
-//! layout is one counted address (a list, a map); any other
-//! value is boxed in a counted object of its layout, whose descriptor
-//! releases it. Either way the data is one counted address, so a trait
-//! value's release and trace are its data's, and the vtable is static: one
-//! function-table slot per method, then the addresses of its direct
-//! supertraits' vtables.
+//! Trait value references (`crates/hd_wasm_linear/DESIGN.md` §23.8,
+//! §23.19). Their `(data, vtable)` pair preserves the concrete referent's
+//! address and names a static dispatch table. Local references borrow the
+//! referent; counted references retain their owner. The vtable holds each
+//! declared method's adapter slot, then direct supertraits' table addresses.
+//! Adapters read the receiver through its address using the method's ABI.
 
 use crate::op::Op as I;
 use hd_base::StageResult;

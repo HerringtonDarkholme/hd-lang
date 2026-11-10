@@ -228,7 +228,7 @@ type in every position; aggregate values are inline in memory.
 | a compiler-supplied data type | the address of a counted object holding the fields | 4 bytes |
 | `List[T]`, `Map[K, V]` | the address of a counted buffer (§23.7) | 4 bytes |
 | closure | `(code, environment)`: a function-table index and the address of a counted environment, 0 when nothing is captured | 8 bytes |
-| `dyn Trait`, `Any` | `(data, vtable)`: the value's address and a static vtable's (§23.8) | 8 bytes |
+| trait value reference (`&dyn Tr`, `&mut dyn Tr`, `*dyn Tr`, `*mut dyn Tr`) | `(data, vtable)`: the referent's address and a static vtable's (§23.8) | 8 bytes |
 | suspension | the address of a counted frame owned by its task | 4 bytes |
 | `void`, `()`, `never` | none | 0 bytes |
 
@@ -1019,35 +1019,29 @@ Trait values and vtables use `emit/dyn_value.rs`; map cursor closures use
   reconstructed value. Thus value-only captures form no cell/environment
   back-link. A reassignable `let` keeps its shared cell, as does explicit
   address-taking of the binding, whose address must remain stable.
-- **Trait values.** `(data, vtable)`. The data is the value itself when
-  its layout is one counted address (a data value, a list, a map, a
-  reference), 0 when it has no Wasm values, and otherwise a new counted
-  box of the value's layout, whose descriptor releases its fields. So the
-  data is always one counted address, and copying or dropping a trait
-  value counts its data with no knowledge of the type; this is why a
-  vtable carries no release word. A vtable is static data: one
-  function-table slot per method of the trait, in declared order, each an
-  adapter that loads the payload from the box (or passes the data itself)
-  and calls the method's instance, then the addresses of the direct
-  supertraits' vtables. Widening to a supertrait loads those addresses
-  along the path; a supertrait's method dispatches the same way.
-- **Reference payloads.** A `&S` converted to a trait value
-  (`RefToTraitValue`) keeps the `Ref` object as its data. A slot whose
-  method takes the value reads it through the `Ref`'s `get` closure
-  (`SlotRecv::ReadThrough`); a `&self` or `&mut self` slot gets the `Ref`
-  itself. A trait value reference installed as a provider
-  (`RefAsProvider`) is the `Ref` with the vtable that its `get` returns,
-  and `$.use(K)` (`ProviderAsRef`) reads the `Ref` back, so two uses are
-  one reference (`req.ref.same-place`).
+- **Trait value references.** The four written forms above are `(data,
+  vtable)` pairs. Their data word refers to the concrete object; erasure
+  preserves its place (`trait.dyn.reference-contents`). Copying a counted
+  reference retains its owner; a local reference borrows it. The vtable
+  is static data: one function-table slot per declared method, then the
+  addresses of direct supertraits' vtables. Each slot adapts the address
+  to its method's receiver ABI and calls that instance. Widening loads
+  the supertrait table along its path and preserves the data address.
+- **Reference payloads.** `RefToTraitValue` preserves the source reference's
+  address as the data word. A value receiver reads its ABI parts through
+  that address (`SlotRecv::ReadThrough`); a reference receiver takes the
+  address itself. `RefAsProvider` and `ProviderAsRef` preserve the provider's
+  data/vtable pair, so repeated `$.use(K)` lookups identify the same
+  provider (`req.ref.same-place`).
 - **Inspection.** `TypeId` is a struct of two static strings, the key and
   the printable name, never counted. `TypeId::of`, a concrete value's
   `runtime_type` and the vtable's `runtime_type` slot answer them with no
-  allocation; a downcast compares the key the payload's vtable reports
-  with the target's and unboxes on a match.
-- **Identity.** `is` compares the first counted address: a data value's,
-  a list's or a map's header, a trait value's data; two references
-  compare their addresses (§23.20). A trait value that boxed a value
-  compares its boxes (`ref.identity.same-place`).
+  allocation. Recovery compares the recorded runtime identity with the
+  target's and returns a reference to the original place on a match
+  (`trait.downcast.reference-identity`).
+- **Identity.** `is` compares the places references identify (§23.20).
+  A trait value reference carries that address in its data word;
+  widening preserves it (`ref.identity.same-place`).
 - **Providers.** `$.with(K: v) body` makes `v` the provider of `K` in the
   body, borrowing `v`'s locals, whose count lasts to the function's
   exit. (`Guard`, a match guard's condition block and its two branches,
@@ -1064,8 +1058,8 @@ Trait values and vtables use `emit/dyn_value.rs`; map cursor closures use
   the buffer back.
 - **Bounded memory.** `crates/hd_driver/tests/std_rt/closure_tests.hd`
   calls function references and closures, shares a local between a scope
-  and its closures, dispatches through boxed and widened trait values,
-  and makes closures and trait values in a loop, checking that the heap
+  and its closures, dispatches through counted and widened trait references,
+  and makes closures and trait references in a loop, checking that the heap
   does not grow after a warm-up.
 
 ### 23.20 Reference Addresses
@@ -1891,7 +1885,7 @@ build (`rt.rs`'s `Helper::Collect`, `CycleTrace`, `CycleRelease`,
   counted references, a value that can hold the object again.
   `cycle::object` (a list's header and buffers, a map's table, a data
   object) and `cycle::holding` (a closure's
-  environment, a local's cell, a `dyn` or open value's box, an iterator's
+  environment, a local's cell, an open value's box, an iterator's
   environment, which only open values hold) walk the types that the
   object's contents hold, through tuples, options, structs, value enums,
   list and map elements, data fields and explicit enum reference links.
