@@ -1,0 +1,13 @@
+# @dump: own wat
+# @build: v8 release
+# #1303 acceptance probes: distinguish existing known-callback specialization
+# from captured callbacks and comparator forwarding through larger receivers.
+# expected: small known callback bodies inline; sorted has no indirect comparator call.
+fn literal(xs: List[i32]) -> bool:
+    xs.any(fn(value: &i32) -> bool: *value > +3)
+
+fn captured(xs: List[i32], cutoff: i32) -> bool:
+    xs.any(fn(value: &i32) -> bool: *value > cutoff)
+
+fn sorted(xs: List[i32]) -> List[i32]:
+    xs.sorted()
