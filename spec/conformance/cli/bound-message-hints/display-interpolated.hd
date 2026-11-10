@@ -1,0 +1,7 @@
+fn xs(a: i32) -> List[i32]:
+    [a]
+
+fn run() -> void $ Console:
+    println("${xs(1)}")
+    v := xs(3)
+    println("$v")

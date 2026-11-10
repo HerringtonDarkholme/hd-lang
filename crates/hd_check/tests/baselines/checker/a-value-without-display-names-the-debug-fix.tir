@@ -23,6 +23,6 @@ fn run(h: H, o: i32?, m: Map[i32, P]) -> void:
     _ := "${o}"
 > error: main.hd:455..457: unsatisfied-trait-bound: List[P] does not implement Display; use `debug(xs)`
 > error: main.hd:472..473: unsatisfied-trait-bound: Map[i32, P] does not implement Display; use `debug(m)`
-> error: main.hd:488..494: unsatisfied-trait-bound: List[P] does not implement Display; use `debug(...)`
-> error: main.hd:509..513: unsatisfied-trait-bound: List[P] does not implement Display; use `debug(...)`
+> error: main.hd:488..494: unsatisfied-trait-bound: List[P] does not implement Display; use `debug(make())`
+> error: main.hd:509..513: unsatisfied-trait-bound: List[P] does not implement Display; use `debug(h.xs)`
 > error: main.hd:528..529: unsatisfied-trait-bound: i32? does not implement Display; use `debug(o)` or `unwrap_or(...)`

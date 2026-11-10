@@ -2614,6 +2614,53 @@ impl Ck<'_, '_> {
         }
     }
 
+    /// Whether `e` is the value of a `${...}` interpolation: its parent,
+    /// the node just before it in preorder, is that `Interpolation`.
+    fn interpolated(&self, e: NodeRef<'_>) -> bool {
+        let Some(before) = e.index().raw().checked_sub(1) else {
+            return false;
+        };
+        let parent = self
+            .cx
+            .src
+            .parse
+            .tree
+            .node(hd_base::NodeIdx::from_raw(before));
+        parent.kind() == SyntaxKind::Interpolation
+            && parent.children().next().map(NodeRef::index) == Some(e.index())
+    }
+
+    /// The name of the one value of the string literal `e` when that value
+    /// is a `$name` piece, which has no node of its own; `None` for any
+    /// other node or a string with another value.
+    fn sole_name_piece(&self, e: NodeRef<'_>) -> Option<String> {
+        use hd_resolve::literal::{Piece, decode_piece, strip_piece};
+        if e.kind() != SyntaxKind::StringExpr || e.children().next().is_some() {
+            return None;
+        }
+        let mut names = Vec::new();
+        for t in e.direct_tokens() {
+            let Some(kind) = self.cx.src.tkind(t).filter(|k| {
+                matches!(
+                    k,
+                    TokenKind::String | TokenKind::StrHead | TokenKind::StrMid | TokenKind::StrTail
+                )
+            }) else {
+                continue;
+            };
+            let mut pieces = Vec::new();
+            decode_piece(strip_piece(self.cx.src.text(t), kind), &mut pieces);
+            names.extend(pieces.into_iter().filter_map(|p| match p {
+                Piece::Name(n) => Some(n),
+                Piece::Text(_) => None,
+            }));
+        }
+        match names.as_slice() {
+            [name] => Some(name.clone()),
+            _ => None,
+        }
+    }
+
     fn bound_message(&mut self, tref: TraitRef, origin: TraitRef, at: NodeRef<'_>) -> String {
         let pool = self.pool();
         if tref.trait_ == self.cx.names.known.static_bound {
@@ -2648,7 +2695,7 @@ impl Ck<'_, '_> {
         let collection = matches!(pool.get(ty), TyData::Adt { def, .. } if def == self.cx.names.known.list || def == self.cx.names.known.map)
             || matches!(pool.get(ty), TyData::Tuple { .. });
         if tref.trait_ == self.cx.names.known.display && (optional || collection) {
-            let value = if at.kind() == SyntaxKind::NameExpr {
+            let value = if at.kind() == SyntaxKind::NameExpr || self.interpolated(at) {
                 Some(at)
             } else if at.kind() == SyntaxKind::CallExpr {
                 Src::child(at, SyntaxKind::ArgumentList)
@@ -2661,6 +2708,8 @@ impl Ck<'_, '_> {
                 let span = self.cx.src.span(value);
                 let value = &self.cx.src.text[span.lo as usize..span.hi as usize];
                 let _ = write!(msg, "; use `debug({value})`");
+            } else if let Some(name) = self.sole_name_piece(at) {
+                let _ = write!(msg, "; use `debug({name})`");
             } else {
                 msg.push_str("; use `debug(...)`");
             }
