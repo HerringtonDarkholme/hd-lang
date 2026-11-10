@@ -2560,9 +2560,9 @@ impl Em<'_, '_, '_> {
         h
     }
 
-    /// `$.with(K: v, ...) body` (`req.with.*`): each pair's value is the
-    /// provider of its key inside the body. The provider borrows the
-    /// value's locals, whose count lasts to the function's exit.
+    /// `$.with(K=v, ...):` (`req.with.*`): each pair's evaluated value is
+    /// the nearest provider of its key inside the trailing block. The
+    /// enclosing bindings are restored after emitting that block.
     fn with(&mut self, i: u32, rec: u32, body: u32) -> StageResult<()> {
         let pairs = self.rec(rec);
         let mut pushed = 0;

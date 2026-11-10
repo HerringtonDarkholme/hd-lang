@@ -1042,10 +1042,10 @@ Trait values and vtables use `emit/dyn_value.rs`; map cursor closures use
 - **Identity.** `is` compares the places references identify (§23.20).
   A trait value reference carries that address in its data word;
   widening preserves it (`ref.identity.same-place`).
-- **Providers.** `$.with(K: v) body` makes `v` the provider of `K` in the
-  body, borrowing `v`'s locals, whose count lasts to the function's
-  exit. (`Guard`, a match guard's condition block and its two branches,
-  lowers here too.)
+- **Providers.** `$.with(K=v):` evaluates `v` before entering its trailing
+  block (`req.with.evaluated`). The block binds that provider to `K`;
+  calls receive the nearest binding (`req.with.nearest`). Leaving the
+  block restores the enclosing provider binding.
 - **Iterators.** A cursor iterates a snapshot
   (`flow.for.cursor.snapshot`): it holds a count of the collection's
   buffer, so a later change copies the buffer first. `List.iter()` uses
