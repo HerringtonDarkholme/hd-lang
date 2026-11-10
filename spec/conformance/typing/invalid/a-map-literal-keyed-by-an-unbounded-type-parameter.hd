@@ -1,0 +1,4 @@
+# test: a map literal keyed by a type parameter with no Eq and Hash bound fails the key bound
+# Spec 04 Map Key Types: types.map-key.declared-bound.
+fn make[K](key: K) -> void:
+    m := {key: 1}  # diagnostic: unsatisfied-trait-bound

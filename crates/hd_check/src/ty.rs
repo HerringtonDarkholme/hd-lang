@@ -888,7 +888,6 @@ impl Ck<'_, '_> {
     /// `Map[K < Eq & Hash, V]` (types.map-key.declared-bound): one error
     /// for a key type that misses either trait.
     pub(crate) fn check_map_key(&mut self, k: Ty, at: NodeRef<'_>) -> StageResult<()> {
-        let pool = self.pool();
         let before = self.diags.len();
         for tr in [self.cx.names.known.eq, self.cx.names.known.hash] {
             let tref = hd_types::solver::TraitRef {
@@ -896,9 +895,6 @@ impl Ck<'_, '_> {
                 self_ty: k,
                 args: hd_types::TyList::EMPTY,
             };
-            if matches!(pool.get(self.infer.resolve(pool, k)), TyData::Param(_)) {
-                return Ok(());
-            }
             self.require_ref(tref, at)?;
             if self.diags.len() != before {
                 break;

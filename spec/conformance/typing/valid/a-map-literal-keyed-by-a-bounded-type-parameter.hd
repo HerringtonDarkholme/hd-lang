@@ -1,0 +1,7 @@
+# test: a map literal keyed by a type parameter bounded by Eq and Hash meets the key bound
+# expect: accept
+# Spec 04 Map Key Types: types.map-key.declared-bound.
+use std.hash.Hash
+
+fn make[K < Eq & Hash](key: K) -> Map[K, i32]:
+    {key: 1}
