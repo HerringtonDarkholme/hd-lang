@@ -1,0 +1,11 @@
+# test: forwarding a list of suspensions keeps their held local origins
+# Spec 13 Dependent Results: ref.dep.suspension.local, ref.dep.suspension.store.
+fn hold!(value: &string) -> usize:
+    value.len()
+
+fn relay(tasks: List[Suspend[usize]]) -> List[Suspend[usize]]:
+    tasks
+
+fn bad() -> List[Suspend[usize]]:
+    local := "list"
+    relay([hold(&local)]) # diagnostic: local-reference-escapes
