@@ -1033,11 +1033,15 @@ Trait values and vtables use `emit/dyn_value.rs`; map cursor closures use
   address itself. `RefAsProvider` and `ProviderAsRef` preserve the provider's
   data/vtable pair, so repeated `$.use(K)` lookups identify the same
   provider (`req.ref.same-place`).
-- **Inspection.** `TypeId` is a struct of two static strings, the key and
-  the printable name, never counted. `TypeId::of`, a concrete value's
-  `runtime_type` and the vtable's `runtime_type` slot answer them with no
-  allocation. Recovery compares the recorded runtime identity with the
-  target's and returns a reference to the original place on a match
+- **Inspection.** `TypeId` holds one canonical descriptor address,
+  `Ptr[TypeInfo]`; the static descriptor contains the key and printable
+  name, with no owned string counts. `TypeId::of`, a concrete value's
+  `runtime_type` and the vtable's `runtime_type` slot return that address
+  without allocation. Equality and hashing use descriptor identity within
+  the compiled program; the address is not a cross-build identity.
+
+  Recovery compares the recorded descriptor with the target's and
+  returns a reference to the original place on a match
   (`trait.downcast.reference-identity`).
 - **Identity.** `is` compares the places references identify (§23.20).
   A trait value reference carries that address in its data word;
