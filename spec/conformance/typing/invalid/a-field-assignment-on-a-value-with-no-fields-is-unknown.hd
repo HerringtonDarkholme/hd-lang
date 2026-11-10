@@ -1,0 +1,5 @@
+# Spec 05 Member Access: expr.member.field-read; a field an assignment
+# names must exist, and an `i32` declares none.
+fn main() -> void:
+    let mut n = +5
+    n.y = +1 # diagnostic: unknown-field

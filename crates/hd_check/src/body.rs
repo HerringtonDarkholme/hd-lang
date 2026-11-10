@@ -4158,38 +4158,16 @@ impl Ck<'_, '_> {
                     self.err(Code::NotWritable, lhs, msg);
                     return Ok(());
                 }
-                let (pr, pt) = self.promote_base(br, bt, &fname, lhs);
-                let Some((idx, ft)) = self.field_of(pt, &fname) else {
-                    // Shared enum data is selected but never stored through
-                    // (`expr.place.enum-shared-field`).
-                    if self.is_read_only_member(bt, &fname) {
-                        let msg = format!("`{fname}` of {} cannot be assigned", self.show(bt));
-                        self.err(Code::InvalidAssignmentTarget, lhs, &msg);
-                        return Ok(());
-                    }
-                    let msg = format!("no field `{fname}` on {}", self.show(bt));
-                    self.err(Code::UnknownField, lhs, &msg);
+                // No other value has fields to store to, so no promoted
+                // ones either. Shared enum data is selected but never
+                // stored through (`expr.place.enum-shared-field`).
+                if self.is_read_only_member(bt, &fname) {
+                    let msg = format!("`{fname}` of {} cannot be assigned", self.show(bt));
+                    self.err(Code::InvalidAssignmentTarget, lhs, &msg);
                     return Ok(());
-                };
-                self.check_field_visible(pt, &fname, lhs);
-                self.check_store_target((br, bt), lhs);
-                let br = pr;
-                let v = match compound {
-                    None => {
-                        let (r, t) = self.stored_expr(rhs, Some(ft), "in this field")?;
-                        self.coerce(r, t, ft, rhs, "assignment", ExpectPosition::General)
-                    }
-                    Some(k) => {
-                        let cur = self.b.field(br, idx, ft, lhs.index());
-                        self.compound(k, cur, ft, rhs, s)?
-                    }
-                };
-                // A data value's field: `Store [*%o .k] v`.
-                let word = self.b.place(&hd_tir::ir::Place {
-                    root: hd_tir::ir::PlaceRoot::Value(br),
-                    proj: vec![hd_tir::ir::Proj::Deref, hd_tir::ir::Proj::Field(idx)],
-                });
-                self.b.emit(Tag::Store, word, v.0, Ty::VOID, s.index());
+                }
+                let msg = format!("no field `{fname}` on {}", self.show(bt));
+                self.err(Code::UnknownField, lhs, &msg);
             }
             SyntaxKind::IndexExpr => {
                 let [base, key] = lhs.parts();
