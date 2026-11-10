@@ -501,8 +501,8 @@ the baseline emission without any pass is defined there too.
 | bounded inlining: callees up to a size budget, and closures passed to a known callee, such as iterator adapters (budgets in §12.8) | no | yes | planned, not built (`inline_plan` is a declared stub) |
 | scalar replacement: a non-escaping closure, cell, box or data value after inlining becomes locals, mutable data included; an escape analysis in the analysis passes of §12.1, before emission | no | yes | planned, not built |
 | known-vtable devirtualization: a `CallDyn` on a value whose vtable is a constant global becomes a direct call | no | yes | planned, not built (vtables are not globals) |
-| known closure calls (A1, A2 of crates/hd_opt/DESIGN.md) | no | yes | yes |
-| closure specialization: inline, scalar-replace, devirtualize, repeated (below) | no | yes | not built yet; see #65 |
+| known closure calls: `devirt_known` (A1), `closure_spec` (A2; [details](../hd_opt/DESIGN.md#calling-known-closures-directly-53)) | no | yes | yes |
+| proposed iterator-chain schedule: inline, scalar-replace, devirtualize, repeated (below) | no | yes | unbuilt proposal, separate from A2 |
 | overflow and shift checks | by profile | by profile | yes |
 | hook points (§14.7) | dropped | dropped | yes; hook builds are planned |
 | debug-only checks: closed handles, deadlock reports with frame lists (§14.8) | by profile | by profile | planned, not built |
@@ -512,9 +512,21 @@ under the composed substitution. The inlined items' TIR hashes join the
 instance's code key (§13.8). Escape facts and inlining decisions are
 emission state, never written into TIR.
 
-**Closure specialization.** Not built yet; see #65. The design: an iterator adapter stores
-its closure in a field of a mutable `Iterator` struct, so inlining alone
-never reveals the `call_ref` target. Specialization is a schedule of the
+**Implemented closure copies.** A2 specializes a higher-order callee on
+known closure arguments, making calls of those parameters direct.
+Its measured defaults are `max_insts=64` and `max_depth=2`
+([optimizer budgets](../hd_opt/DESIGN.md#8-knob-measurements-job-e)).
+These bound callee instructions and specialized-instance nesting, not
+rounds of an iterator-chain schedule.
+
+**Closure specialization (proposed chain schedule).** The following
+unbuilt proposal is separate from A2. The closed
+[iterator-cost investigation #65](https://github.com/HerringtonDarkholme/hd-lang/issues/65)
+is not an implementation record for this schedule.
+
+An iterator adapter stores its closure in a field of a mutable `Iterator`
+struct. Inlining alone never reveals the `call_ref` target.
+Specialization is a schedule of the
 named single passes of
 [docs/compiler/lowering-catalog.md](../../docs/compiler/lowering-catalog.md#optimization-passes), one round
 per stage of a chain:
@@ -531,10 +543,12 @@ per stage of a chain:
 4. **`inline-bounded`** that body, then `scalar-replace` its environment
    and cells.
 
-Rounds repeat to a fixed point, at most 4 by default, and stop at the
-caller's size cap (§12.8). Without a closure literal or a known vtable
-the indirect call stays. `xs.iter().map(fn x: x + 1).sum()` then becomes
-a counted loop with no allocation. The budget is local to the caller:
+In this proposal, rounds would repeat to a fixed point, at most 4 by
+default, and stop at the caller's size cap (§12.8). Without a closure
+literal or a known vtable the indirect call stays.
+`xs.iter().map(fn x: x + 1).sum()` then becomes a counted loop with no allocation.
+
+The budget is local to the caller:
 callee size, the caller's size so far and nesting depth. A program-wide
 budget would make one function's bytes depend on others.
 
@@ -590,14 +604,17 @@ pipeline runs the passes (§12.6).
    pipeline. `dev-speed` (dev at most 4x optimized, geomean, no case over
    10x) guards how slow dev code may get.
 
-**Budgets.** Defaults for each pass's parameters. Only `closure_spec`'s
-are built (crates/hd_opt/DESIGN.md §8); the rest wait for their passes.
+**Budgets.** The implemented `closure_spec` pass uses the measured
+[optimizer defaults](../hd_opt/DESIGN.md#8-knob-measurements-job-e).
+The proposed iterator-chain budget below belongs to the separate schedule
+in §12.6; it does not configure A2.
 
 | Feature | Speed it buys | Size it costs | Budget, wherever the pass runs |
 | --- | --- | --- | --- |
 | trivial inlining | a call per small callee | none or negative | callee at most 8 TIR instructions, no loop |
 | bounded inlining | a call, plus later folding | callee size per site | callee at most 40 TIR instructions inside a loop, 15 outside; the caller grows at most 2x or 2 KB, whichever is smaller; an absolute caller cap set by S6 below the size where Cranelift's time per byte doubles |
-| closure specialization | 1 to 5 `call_ref`s per element on wasmtime | 50 to 150 bytes per stage | at most 4 rounds; at most 512 bytes of growth per chain site |
+| A2 closure copies (implemented) | direct calls of known closure parameters | specialized callee instances | `max_insts=64` TIR instructions, sub-bodies included; `max_depth=2` specialized-instance levels |
+| iterator-chain schedule (proposed) | 1 to 5 `call_ref`s per element on wasmtime | 50 to 150 bytes per stage | proposed: at most 4 rounds; at most 512 bytes of growth per chain site |
 | known-vtable devirtualization | one `call_ref` | none; enables inlining | always |
 | scalar replacement | an allocation | usually smaller | always, when the value does not escape |
 | A1, erased reference storage | a cast per element read lost | negative: one instance per class | always, unless E1 rejects it |
