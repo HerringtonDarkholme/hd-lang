@@ -2181,6 +2181,8 @@ typing/invalid/marker-template.hd	type	reject:marker-template	lang/14-annotation
 typing/invalid/duplicate-fact.hd	type	reject:duplicate-fact	lang/14-annotations.md#r-annot.line.duplicate
 typing/invalid/member-line-payload-member.hd	type	reject:unknown-annotation-member	lang/14-annotations.md#r-annot.line.enum
 typing/invalid/invalid-member-line.hd	type	reject:invalid-member-line	lang/14-annotations.md#r-annot.line.right.error
+typing/invalid/self-cannot-be-omitted-in-a-member-line.hd	type	reject:invalid-member-line	lang/14-annotations.md#r-annot.line.right.error
+typing/invalid/extending-a-member-line-cannot-take-pass.hd	type	reject:invalid-member-line	lang/14-annotations.md#r-annot.line.right.error
 typing/invalid/member-line-outside-block.hd	type	reject:misplaced-derivation	lang/14-annotations.md#r-annot.line.placement-blocks
 typing/invalid/omitted-member-without-default.hd	type	reject:omitted-member-without-default	lang/14-annotations.md#r-annot.omit.no-default
 runtime/valid/member-line-extend.hd	runtime	accept	lang/14-annotations.md#r-annot.line.extend
