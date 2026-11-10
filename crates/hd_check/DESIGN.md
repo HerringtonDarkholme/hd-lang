@@ -666,7 +666,7 @@ it (`sub_flags::GENERIC`).
 
 | Variable | Resolved | If still open |
 | --- | --- | --- |
-| literal (integer or float) | as soon as it meets a concrete numeric type; else at the end of its statement, by default; a held class at its join (section 3.6) | never open past its statement or its join |
+| literal (integer or float) | as soon as it meets a concrete numeric type; at a method call or requirement key on it, by default; else where its body settles, by default; a held class at its join (section 3.6) | never open past its body or its join |
 | use-site type argument | when unified; else at the end of the statement or body, after defaults | `cannot-infer-type` or `ambiguous-type` |
 | local binding's type | from its initializer, in its statement | an empty collection literal can leave its element open to the end of the body (section 2.8) |
 | closure parameter | from the expected function type or the annotation | `closure-parameter-needs-annotation` |

@@ -1002,7 +1002,7 @@ See also: [Inspectable Types](09-traits.md#inspectable-types).
 
 1. r[types.assign.no-subtyping] No inheritance or structural record subtyping exists.
 2. r[types.assign.binding-type] Assignment never changes the declared or inferred type of a binding.
-3. r[types.assign.let-declared] In particular, later assignment to a `let` binding must remain assignable to the type established at its declaration. A literal initializer's width is fixed there, by [`types.literal.local.statement`](#r-types.literal.local.statement).
+3. r[types.assign.let-declared] In particular, later assignment to a `let` binding must remain assignable to the type established at its declaration. A literal initializer's width is the type its class settles to, by [`types.literal.local.statement`](#r-types.literal.local.statement).
 
 ```hd
 fn demo() -> i32:
