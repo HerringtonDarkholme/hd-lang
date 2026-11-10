@@ -2286,9 +2286,6 @@ impl<'s, 'a> Search<'s, 'a> {
                 near: vec![],
             })),
         };
-        if !self.charge(key, 0, root) {
-            return (Outcome::leaf(Answer::OutOfFuel), 0);
-        }
         self.leaf(key, root, answer)
     }
 
