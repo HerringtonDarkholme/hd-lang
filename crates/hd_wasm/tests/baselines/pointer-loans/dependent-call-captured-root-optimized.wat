@@ -140,11 +140,6 @@
         end
       end
     ;; 14 |     d := name_of(ps[0])
-      block
-        block
-          br 0
-        end
-      end
       local.get $t1
       i32.load $heap
       i32.const 2097152

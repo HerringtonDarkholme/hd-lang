@@ -283,8 +283,6 @@
   )
   (func $kept#1 (param $env i32) (param $ctx i32) (result i32)
     ;; 8 |     let mut f = fn() -> i32: +0
-    block
-    end
     i32.const 0
   )
 )

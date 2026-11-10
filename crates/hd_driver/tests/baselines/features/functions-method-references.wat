@@ -240,16 +240,6 @@
       call $retain
     end
     block
-      block
-        block
-          block
-            block
-              br 0
-            end
-          end
-          br 0
-        end
-      end
       local.get $ctx
       local.tee $t0
       if

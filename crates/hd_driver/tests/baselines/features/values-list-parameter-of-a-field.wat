@@ -335,8 +335,6 @@
           local.get $t4
           local.get $t9
           local.get $i
-          i32.const 1
-          i32.mul
           i32.add
           local.get $t1
           call $write_signed_sized
@@ -361,8 +359,6 @@
           local.get $t5
           local.get $t9
           local.get $t8
-          i32.const 1
-          i32.mul
           i32.add
           local.get $t2
           call $write_signed_sized

@@ -3,18 +3,6 @@
   (func $entry (param $n i32) (result i32 i32) (local $t0 i32)
     ;; 62 |     if Outer::rank().is_ok(): "fast" else: slow(n)
     block
-      block
-        block
-          br 0
-        end
-      end
-      block
-        block
-          block
-          end
-          br 0
-        end
-      end
       i32.const 65 ;; &"fast"
       i32.const 4
       local.set $t0

@@ -34,8 +34,6 @@
           end
           local.get $t1
           local.get $t2
-          i32.const 1
-          i32.mul
           i32.add
           i32.const 1
           i32.store8 $heap offset=16

@@ -65,11 +65,6 @@
               br 0
             end
           end
-          block
-            block
-              br 0
-            end
-          end
           local.get $s
           local.get $b.1
           i32.add

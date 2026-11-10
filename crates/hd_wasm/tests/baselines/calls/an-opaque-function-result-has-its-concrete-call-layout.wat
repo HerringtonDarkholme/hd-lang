@@ -87,12 +87,6 @@
       call $"impl StringBuilder.build"
       local.set $t4
       ;; ...
-      block
-        block
-          br 0
-        end
-      end
-      ;; ...
     end
     ;; ...
   )

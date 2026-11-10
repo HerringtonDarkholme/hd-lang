@@ -1521,6 +1521,8 @@ fn forward(f: &mut Func, np: u32) -> bool {
 
 /// Rule 7: folds the constants of each window of instructions.
 fn fold(f: &mut Func) -> bool {
+    use wasm_encoder::BlockType;
+
     let mut origins = Remap::new(f.origins.as_deref());
     let b = std::mem::take(&mut f.body);
     let mut out: Vec<Ins> = Vec::with_capacity(b.len());
@@ -1567,6 +1569,30 @@ fn fold(f: &mut Func) -> bool {
             continue;
         }
         match (at(0), at(1), at(2), at(3)) {
+            // Multiplication by one leaves the existing i32 on the stack.
+            (Some(Ins::Op(I::I32Const(1))), Some(Ins::Op(I::I32Mul)), ..) => {
+                k += 2;
+                changed = true;
+            }
+            // A void block with no body, or only a branch to its own end,
+            // leaves the stack alone. Reduce inside out in the same walk.
+            (Some(Ins::Op(I::End)), ..)
+                if matches!(out.last(), Some(Ins::Op(I::Block(BlockType::Empty))))
+                    || matches!(
+                        out.as_slice(),
+                        [.., Ins::Op(I::Block(BlockType::Empty)), Ins::Op(I::Br(0))]
+                    ) =>
+            {
+                if matches!(out.last(), Some(Ins::Op(I::Br(0)))) {
+                    out.pop();
+                    origins.pop();
+                }
+                out.pop();
+                origins.pop();
+                k += 1;
+                changed = true;
+                continue;
+            }
             // Two constants joined by `+`, `-` or `*` are one constant
             // (`i32` wraps either way).
             (
@@ -3360,6 +3386,38 @@ mod origin_tests {
             },
         );
         assert_eq!(spans(&f), [12, 10, 14]);
+    }
+
+    #[test]
+    fn fold_clears_nested_empty_blocks_in_one_walk() {
+        let symbols = Symbols::default();
+        let op = Ins::Op;
+        let depth = 4096;
+        let mut body = vec![op(I::LocalGet(0)), op(I::I32Const(1)), op(I::I32Mul)];
+        body.extend(std::iter::repeat_n(op(I::Block(BlockType::Empty)), depth));
+        body.push(op(I::Br(0)));
+        body.extend(std::iter::repeat_n(op(I::End), depth));
+        // Keep a real branch to the enclosing block, and keep a loop's
+        // self-branch: it repeats instead of exiting.
+        body.extend([
+            op(I::Block(BlockType::Empty)),
+            op(I::Block(BlockType::Empty)),
+            op(I::Br(1)),
+            op(I::End),
+            op(I::End),
+            op(I::Loop(BlockType::Empty)),
+            op(I::Br(0)),
+            op(I::End),
+        ]);
+        let mut f = tracked(&symbols, 1, 0, body);
+        assert!(fold(&mut f));
+        assert_eq!(f.body.len(), 9);
+        assert!(matches!(f.body[0], Ins::Op(I::LocalGet(0))));
+        assert!(matches!(f.body[3], Ins::Op(I::Br(1))));
+        assert!(matches!(f.body[6], Ins::Op(I::Loop(BlockType::Empty))));
+        assert!(matches!(f.body[7], Ins::Op(I::Br(0))));
+        assert_eq!(spans(&f)[0], 10);
+        assert!(!fold(&mut f));
     }
 
     #[test]

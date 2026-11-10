@@ -390,8 +390,6 @@
           local.get $t3
           local.get $t7
           local.get $t6
-          i32.const 1
-          i32.mul
           i32.add
           local.get $log
           call $write_unsigned_sized

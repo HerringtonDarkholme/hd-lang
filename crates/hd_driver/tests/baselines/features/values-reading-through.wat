@@ -49,11 +49,6 @@
       drop
       block
         block
-          br 0
-        end
-      end
-      block
-        block
           local.get $copy.name.1
           local.set $copy.name.0
           br 0

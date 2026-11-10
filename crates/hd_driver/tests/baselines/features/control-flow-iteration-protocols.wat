@@ -125,11 +125,6 @@
         end
       end
     ;; 29 |     for x in xs.iter():
-      block
-        block
-          br 0
-        end
-      end
       local.get $t0
       i64.const 0
       i64.store $heap offset=16
