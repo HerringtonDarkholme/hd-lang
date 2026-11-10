@@ -1,0 +1,9 @@
+# test: an omitted result that borrows with no reference parameter has no source
+# Spec 13 Dependent Results: ref.dep.elide.none; a private function that
+# omits its result type infers a reference result with nothing to borrow
+# from.
+struct P:
+    x: i32
+
+fn make(p: P): # diagnostic: reference-result-without-source
+    &p

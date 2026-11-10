@@ -6420,6 +6420,8 @@ typing/invalid/a-row-argument-for-a-data-literals-type-parameter-is-one-error.hd
 typing/invalid/type-arguments-on-a-variant-name-are-too-many.hd	type	reject:argument-count	lang/07-functions.md#r-fn.generic.explicit.too-long-count
 typing/invalid/is-between-a-reference-and-an-anyref-parameter-is-incompatible.hd	type	reject:incompatible-identity-operands	lang/05-expressions.md#r-expr.is.incompatible.data
 runtime/valid/a-reference-to-a-promoted-or-shared-enum-field.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.promoted.path
+typing/invalid/an-omitted-result-that-borrows-from-two-parameters-is-ambiguous.hd	type	reject:ambiguous-reference-source	lang/13-values-and-references.md#r-ref.dep.elide.ambiguous
+typing/invalid/an-omitted-result-that-borrows-with-no-reference-parameter-has-no-source.hd	type	reject:reference-result-without-source	lang/13-values-and-references.md#r-ref.dep.elide.none
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

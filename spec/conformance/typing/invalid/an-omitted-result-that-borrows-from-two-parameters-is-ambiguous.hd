@@ -1,0 +1,6 @@
+# test: an omitted result that borrows from two reference parameters is ambiguous
+# Spec 13 Dependent Results: ref.dep.elide.ambiguous; a private function
+# that omits its result type infers one, and the reference it returns may
+# borrow from `a` or `b`.
+fn pick(a: &i32, b: &i32): # diagnostic: ambiguous-reference-source
+    a
