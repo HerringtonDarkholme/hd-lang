@@ -180,3 +180,44 @@ fn a_renamed_folder_is_read_under_its_new_paths() {
     let out = check(&sources);
     assert!(!out.diags.is_empty(), "the use of the moved module fails");
 }
+
+/// `cli.repl.package.lib`, `cli.repl.uses.other`: a REPL input's build
+/// leaves the modules it does not reach unread, and its record keeps no
+/// skim of their placeholder text. A later input that reaches one through
+/// `use self.util` sees its declarations (#1616). Stamps make this a
+/// last-run record test: a CLI case's files are too new to be stamped.
+#[test]
+fn a_module_an_earlier_repl_input_left_unread_is_read_when_a_later_one_reaches_it() {
+    let mut sources = Counted {
+        files: MemorySources::named("repl-unread"),
+        reads: AtomicUsize::new(0),
+    };
+    sources
+        .files
+        .insert("src/lib.hd", "fn bonus() -> i32:\n    +7\n");
+    sources
+        .files
+        .insert("src/util.hd", "pub fn double(x: i32) -> i32:\n    x * +2\n");
+    let input = |sources: &mut Counted, n: u32, text: &str| {
+        sources.files.insert(&hd_project::repl_file(n), text);
+        let session = hd_driver::Session::linked();
+        let store = crate::warm_store();
+        let host = Host {
+            render_tir: &[],
+            sources: &*sources,
+            store: &*store,
+            clock: &NoClock,
+            executor: Executor::Serial(SerialOrder::Priority),
+        };
+        let packages = Packages {
+            session: Some(&session),
+            inputs_from: Some(1),
+            ..Packages::default()
+        };
+        build_packages(&host, "app", &packages, &Goal::ReplInput { input: n })
+    };
+    let first = input(&mut sources, 1, "bonus()\n");
+    assert!(!first.diags.has_errors(), "{}", first.render());
+    let second = input(&mut sources, 2, "use self.util.{double}\ndouble(bonus())\n");
+    assert!(!second.diags.has_errors(), "{}", second.render());
+}

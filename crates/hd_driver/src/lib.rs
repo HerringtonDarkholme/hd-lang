@@ -2345,7 +2345,7 @@ fn build_packages_inner(
             reached: None,
         }
     });
-    let folder_cycles = recover_folder_cycles(&mut table, &texts, &files);
+    let folder_cycles = recover_folder_cycles(&mut table, &texts, &files, reached.as_deref());
     let n = table.modules.len();
     let nf = table.folders.len();
     let pipeline = pipeline::key(packages.target, packages.level);
@@ -2862,15 +2862,20 @@ struct FolderCycle {
 /// The folder cycles' diagnostics, recovering by merging as before: one
 /// error per cycle of the first graph, each with its shortest loop, its
 /// edges' uses, its tangle size and its fix
-/// (`module.cycle.diagnostic.*`).
+/// (`module.cycle.diagnostic.*`). A module a REPL input's build does
+/// not reach (`reached`, [`repl_texts`]) holds placeholder text and makes
+/// no edge. It is not skimmed: `files` would keep the placeholder's skim
+/// as the file's in its source set's record, and a later run that reaches
+/// the file would read it.
 fn recover_folder_cycles(
     table: &mut ModuleTable,
     texts: &Texts<'_>,
     files: &skims::FileSkims<'_>,
+    reached: Option<&[bool]>,
 ) -> Vec<FolderCycle> {
     let module_uses: Vec<Vec<(String, u32, u32)>> = (0..table.modules.len())
         .map(|m| {
-            if table.modules[m].package != 0 {
+            if table.modules[m].package != 0 || reached.is_some_and(|r| !r[m]) {
                 return Vec::new();
             }
             let roots = table.use_roots(ModuleId::from_raw(u32_of(m)));

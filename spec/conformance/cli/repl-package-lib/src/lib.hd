@@ -1,2 +1,4 @@
+let base: i32 = +2
+
 fn bonus() -> i32:
-    +7
+    base + 5
