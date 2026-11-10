@@ -1,6 +1,6 @@
 //! Resolves opaque results from body facts, outside head-only checking.
 
-use hd_base::{DefId, HashMap, NodeIdx};
+use hd_base::{DefId, HashMap, HashSet, NodeIdx};
 use hd_tir::ir::{Body, Tag};
 use hd_types::{InternPool, ParamRef, RowId, Ty, TyData, TyList};
 
@@ -106,95 +106,118 @@ pub fn result_at(pool: &InternPool, declared: Ty, result: Ty, site: u32) -> Opti
 }
 
 fn result_facts(pool: &InternPool, declared: Ty, hidden: Ty, syn: NodeIdx, out: &mut Vec<Fact>) {
-    if !pool.has_opaque(declared) {
-        return;
-    }
-    if let TyData::Opaque { site, .. } = pool.get(declared) {
-        out.push(Fact {
-            site,
-            opaque: declared,
-            hidden,
-            syn,
-        });
-        return;
-    }
-    let mut list = |declared, hidden| {
-        for (&declared, &hidden) in pool
-            .list_items(declared)
-            .iter()
-            .zip(pool.list_items(hidden))
-        {
-            result_facts(pool, declared, hidden, syn, out);
-        }
+    result_facts_walk(pool, declared, hidden, syn, out);
+}
+
+// Each declared subtree contributes its facts once. The checked body proves
+// fn.opaque.occurrence-same-type: repeated occurrences have the same hidden
+// concrete type. Memoize the declared graph, not its product with hidden
+// contexts, so shared subtrees cannot multiply traversal work.
+// Return popped steps so the width/depth test measures work rather than time.
+fn result_facts_walk(
+    pool: &InternPool,
+    declared: Ty,
+    hidden: Ty,
+    syn: NodeIdx,
+    out: &mut Vec<Fact>,
+) -> usize {
+    let mut work = vec![(declared, hidden)];
+    let mut seen = HashSet::default();
+    let mut popped = 0;
+    let list = |declared, hidden, work: &mut Vec<(Ty, Ty)>| {
+        work.extend(
+            pool.list_items(declared)
+                .iter()
+                .zip(pool.list_items(hidden))
+                .rev()
+                .map(|(&a, &b)| (a, b)),
+        );
     };
-    match (pool.get(declared), pool.get(hidden)) {
-        (
-            TyData::Adt {
-                def: a,
-                args: declared,
-            },
-            TyData::Adt {
-                def: b,
-                args: hidden,
-            },
-        ) if a == b => list(declared, hidden),
-        (
-            TyData::Tuple {
-                elems: declared,
-                rest: a,
-            },
-            TyData::Tuple {
-                elems: hidden,
-                rest: b,
-            },
-        ) => {
-            list(declared, hidden);
-            if let (Some(declared), Some(hidden)) = (a, b) {
-                result_facts(pool, declared, hidden, syn, out);
-            }
+    while let Some((declared, hidden)) = work.pop() {
+        popped += 1;
+        if !pool.has_opaque(declared) || !seen.insert(declared) {
+            continue;
         }
-        (
-            TyData::Ref {
-                inner: declared, ..
-            },
-            TyData::Ref { inner: hidden, .. },
-        ) => result_facts(pool, declared, hidden, syn, out),
-        (
-            TyData::Fn {
-                params: declared_params,
-                result: declared_result,
-                ..
-            },
-            TyData::Fn {
-                params: hidden_params,
-                result: hidden_result,
-                ..
-            },
-        ) => {
-            list(declared_params, hidden_params);
-            result_facts(pool, declared_result, hidden_result, syn, out);
+        if let TyData::Opaque { site, .. } = pool.get(declared) {
+            out.push(Fact {
+                site,
+                opaque: declared,
+                hidden,
+                syn,
+            });
+            continue;
         }
-        (
-            TyData::TraitValue {
-                def: a,
-                args: declared,
-                bindings: a_bindings,
-            },
-            TyData::TraitValue {
-                def: b,
-                args: hidden,
-                bindings: b_bindings,
-            },
-        ) if a == b => {
-            list(declared, hidden);
-            for ((a, declared), (b, hidden)) in a_bindings.into_iter().zip(b_bindings) {
-                if a == b {
-                    result_facts(pool, declared, hidden, syn, out);
+        match (pool.get(declared), pool.get(hidden)) {
+            (
+                TyData::Adt {
+                    def: a,
+                    args: declared,
+                },
+                TyData::Adt {
+                    def: b,
+                    args: hidden,
+                },
+            ) if a == b => list(declared, hidden, &mut work),
+            (
+                TyData::Tuple {
+                    elems: declared,
+                    rest: a,
+                },
+                TyData::Tuple {
+                    elems: hidden,
+                    rest: b,
+                },
+            ) => {
+                if let (Some(declared), Some(hidden)) = (a, b) {
+                    work.push((declared, hidden));
                 }
+                list(declared, hidden, &mut work);
             }
+            (
+                TyData::Ref {
+                    inner: declared, ..
+                },
+                TyData::Ref { inner: hidden, .. },
+            ) => work.push((declared, hidden)),
+            (
+                TyData::Fn {
+                    params: declared_params,
+                    result: declared_result,
+                    ..
+                },
+                TyData::Fn {
+                    params: hidden_params,
+                    result: hidden_result,
+                    ..
+                },
+            ) => {
+                work.push((declared_result, hidden_result));
+                list(declared_params, hidden_params, &mut work);
+            }
+            (
+                TyData::TraitValue {
+                    def: a,
+                    args: declared,
+                    bindings: a_bindings,
+                },
+                TyData::TraitValue {
+                    def: b,
+                    args: hidden,
+                    bindings: b_bindings,
+                },
+            ) if a == b => {
+                for ((a, declared), (b, hidden)) in a_bindings.into_iter().zip(b_bindings).rev() {
+                    if a == b {
+                        work.push((declared, hidden));
+                    }
+                }
+                list(declared, hidden, &mut work);
+            }
+            (TyData::Union(declared), TyData::Union(hidden)) => list(declared, hidden, &mut work),
+            _ => {}
         }
-        _ => {}
     }
+    popped
 }
 
 struct Reveal<'a> {
@@ -315,6 +338,7 @@ impl Reveal<'_> {
                 def,
                 args: self.list(args)?,
             },
+            TyData::Union(members) => TyData::Union(self.list(members)?),
             TyData::Tuple { elems, rest } => TyData::Tuple {
                 elems: self.list(elems)?,
                 rest: rest.map(|t| self.ty(t)).transpose()?,
@@ -379,6 +403,31 @@ mod tests {
     use super::{Error, reveal};
     use hd_base::DefId;
     use hd_types::{InternPool, ParamRef, Ty, TyData, TyList};
+
+    #[test]
+    fn union_facts_bound_shared_width_and_depth() {
+        let pool = InternPool::new();
+        let opaque = pool.intern_ty(&TyData::Opaque {
+            owner: DefId::from_raw(41),
+            site: 0,
+            borrows: false,
+            args: TyList::EMPTY,
+            bound: Ty::BOOL,
+        });
+        let mut declared = opaque;
+        let mut hidden = Ty::I32;
+        for _ in 0..20 {
+            declared = pool.intern_ty(&TyData::Union(pool.list(&vec![declared; 1000])));
+            hidden = pool.intern_ty(&TyData::Union(pool.list(&vec![hidden; 1000])));
+        }
+        let mut facts = Vec::new();
+        let steps =
+            super::result_facts_walk(&pool, declared, hidden, hd_base::NodeIdx::NONE, &mut facts);
+        assert_eq!(steps, 20_001);
+        assert_eq!(facts.len(), 1);
+        assert_eq!(facts[0].opaque, opaque);
+        assert_eq!(facts[0].hidden, Ty::I32);
+    }
 
     #[test]
     fn opaque_reveal_substitutes_parameters_and_detects_cycles() {

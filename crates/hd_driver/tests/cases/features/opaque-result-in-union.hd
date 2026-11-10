@@ -1,0 +1,11 @@
+# @dump: wat
+# expected: union member opaque result is revealed as i32 before collection.
+# fn.opaque.nested and types.opaque.occurrence: the opaque occurrence is
+# inside the named function's return annotation, under a union member.
+fn choose(flag: bool) -> (impl Display) | u32:
+    if flag: ._0(+7) else: ._1(9u32)
+
+pub fn main() -> void $ Console:
+    match choose(true):
+        ._0(value) => println(value)
+        ._1(value) => println(value)
