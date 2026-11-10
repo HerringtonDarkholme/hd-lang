@@ -1,0 +1,25 @@
+# @dump: wat
+# @build: release
+# fn.default.eval and expr.order.reorder:
+# pure defaults and boolean identities keep the same result after specialization.
+# expected: the public probe returns false, true, 20 and 20 for either input.
+fn and_false(value: bool) -> bool:
+    value && false
+
+fn or_true(value: bool) -> bool:
+    value || true
+
+fn choose_int(value: i32 = +2) -> usize:
+    match value:
+        1 => 10
+        2 => 20
+        _ => 30
+
+fn choose_char(value: char = 'β') -> usize:
+    match value:
+        'a' => 10
+        'β' => 20
+        _ => 30
+
+pub fn probe(value: bool) -> (bool, bool, usize, usize):
+    (and_false(value), or_true(value), choose_int(), choose_char())
