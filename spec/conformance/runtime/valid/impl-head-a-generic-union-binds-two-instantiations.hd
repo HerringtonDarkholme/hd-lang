@@ -1,0 +1,14 @@
+# test: a generic union head binds every member at two distinct instantiations
+# Rules: trait.target.union, trait.target.arguments, types.union.substitution.
+# expect-stdout: 2 2
+trait Width:
+    fn width(&self) -> usize
+
+impl[A, B] Width for (A | B):
+    fn width(&self) -> usize:
+        2
+
+pub fn main() -> void $ Console:
+    let first: i32 | string = ._1("kept")
+    let second: bool | u64 = ._0(true)
+    println("${first.width()} ${second.width()}")
