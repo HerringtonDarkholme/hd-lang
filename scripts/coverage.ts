@@ -8,7 +8,11 @@
 //   - the conformance suite in the three modes CI runs: default
 //     (`conformance`), checked (`conformance-checked`) and checked optimized
 //     (`conformance-checked-optimized`);
-//   - std's runtime modules on the checked runtime (`std-rt-checked`).
+//   - std's runtime modules on the checked runtime (`std-rt-checked`);
+//   - hd_cli's CLI conformance cases (`cli-conformance`), the snapshot tests
+//     that alone reach `hd fmt`, `hd doc` and `--tests`. They run the
+//     instrumented `hd` on Node; the wasmtime engine, and with it the REPL,
+//     is left out.
 //
 // Only lines under crates/<core>/src count. bench/coverage/rust-lines.ts lexes
 // each file: blank and comment lines and `#[cfg(test)]` code leave the report,
@@ -38,10 +42,10 @@
 // and by the time a run ends main has usually moved on, so the counts gate's
 // automatic refresh (which yields to a newer main) would rarely apply.
 //
-// The full conformance suite runs on CI only. Outside CI a conformance set
-// needs HD_CONFORMANCE_ONLY naming its cases, and `std-rt-checked` (which
-// HD_CONFORMANCE_ONLY doesn't narrow) is refused; a narrow local run is, for
-// example:
+// The full conformance suites run on CI only. Outside CI a conformance or
+// cli-conformance set needs HD_CONFORMANCE_ONLY naming its cases, and
+// `std-rt-checked` (which HD_CONFORMANCE_ONLY doesn't narrow) is refused; a
+// narrow local run is, for example:
 //   HD_CONFORMANCE_ONLY=a,b node scripts/coverage.ts --only hd_opt,conformance --jobs 2
 // On macOS, set LLVM_COV and LLVM_PROFDATA to `xcrun --find llvm-cov` and
 // `xcrun --find llvm-profdata`: Homebrew's LLVM can't read rustc's profiles.
@@ -87,6 +91,7 @@ const CRATE_FEATURES: Partial<Record<Crate, string>> = {
 const DRIVER = ["-p", "hd_driver", "--features", "analysis,checked-report"];
 const SUITE = "specification_conformance_passes_except_known_failures";
 const STD_RT = "std_runtime_modules_pass_their_hd_tests_on_the_linear_backend";
+const CLI_SUITE = "cli_conformance_passes_except_known_failures";
 const MODE_KEYS = ["HD_CONFORMANCE_CHECKED", "HD_CONFORMANCE_PIPELINE", "HD_CONFORMANCE_ENGINE"];
 
 type Run = {
@@ -113,6 +118,12 @@ const RUNS: Run[] = [
     HD_CONFORMANCE_PIPELINE: "optimized",
   }),
   conformance("std-rt-checked", STD_RT, { HD_CONFORMANCE_CHECKED: "1" }),
+  {
+    name: "cli-conformance",
+    args: ["-p", "hd_cli", "--test", "cli_conformance", "--", "--exact", CLI_SUITE],
+    env: {},
+    conformance: "filtered",
+  },
 ];
 const SET_NAMES = ["core", ...CORE, ...RUNS.map((run) => run.name)];
 

@@ -520,10 +520,10 @@ jobs:
         run: cargo test --release --workspace --all-features --test conformance -- --exact specification_conformance_passes_except_known_failures
 
   # Line coverage of the compiler core (#1442), merged from each core crate's
-  # tests, hd_driver's lib, stage and integration tests, and the conformance suite in the
+  # tests, hd_driver's lib, stage and integration tests, the conformance suite in the
   # default, checked and checked optimized modes plus std's checked runtime
-  # modules. It fails when a crate falls more than 0.05 points under
-  # bench/coverage/baseline.json (scripts/coverage.ts). Three instrumented
+  # modules, and hd_cli's CLI conformance cases. It fails when a crate falls
+  # more than 0.05 points under bench/coverage/baseline.json (scripts/coverage.ts). Three instrumented
   # conformance runs are too slow for every push, so it runs on Linux only, on
   # the twice-daily schedule above (on main) and by hand.
   coverage:
