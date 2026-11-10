@@ -1432,10 +1432,76 @@ pub fn boundary(
             });
         }
     };
+    // `module.host.package.one-instance`: the host binds one provider
+    // object, whose members are the trait's methods and its supertraits',
+    // by name, so one trait at two argument lists would need two members
+    // of one name. Reported at the trait's header.
+    //
+    // Cost: one visit per distinct supertrait of `def`, over a worklist.
+    let shape = |def: DefId, what: &str, out: &mut Vec<Finding>| {
+        let pool = cx.names.pool.types();
+        let self_ty = pool.intern_ty(&TyData::Param(ParamRef {
+            owner: def,
+            index: 0,
+        }));
+        let mut todo = vec![(def, TyList::EMPTY)];
+        let mut seen: hd_base::HashMap<DefId, TyList> = hd_base::HashMap::default();
+        while let Some((d, args)) = todo.pop() {
+            if let Some(&earlier) = seen.get(&d) {
+                if earlier != args {
+                    out.push(Finding {
+                        item: def,
+                        slot: 0,
+                        code: Code::BoundaryNotSafe,
+                        message: format!(
+                            "a {what} trait reaches each trait at one argument list at most, but this one reaches `{}` at two",
+                            cx.names.display_name(d)
+                        ),
+                        ref_fix: Vec::new(),
+                    });
+                    return;
+                }
+                continue;
+            }
+            seen.insert(d, args);
+            let Some(ItemData::Trait(t)) = cx.lookup.item(d).map(|i| &i.data) else {
+                continue;
+            };
+            let known = pool.list_items(args);
+            for sup in &t.supers {
+                let TyData::TraitValue {
+                    def: sd, args: sa, ..
+                } = pool.get(*sup)
+                else {
+                    continue;
+                };
+                // The supertrait's arguments over the root's `Self`, as
+                // `body::supertrait_args` fills them.
+                let filled: Vec<Ty> = pool
+                    .list_items(sa)
+                    .iter()
+                    .map(|a| {
+                        pool.subst(*a, &|p: ParamRef| {
+                            if p.owner != d {
+                                return None;
+                            }
+                            if p.index == 0 {
+                                Some(self_ty)
+                            } else {
+                                known.get(usize::from(p.index) - 1).copied()
+                            }
+                        })
+                    })
+                    .collect();
+                todo.push((sd, pool.list(&filled)));
+            }
+        }
+    };
     for &(def, package) in roots {
         if !package {
             generic(def, "host capability", &mut out);
         }
+        shape(def, "host capability", &mut out);
     }
     let mut bound = queued.clone();
     let mut next = 0;
@@ -1502,6 +1568,7 @@ pub fn boundary(
             }
             for h in found {
                 generic(h, "host handle", &mut out);
+                shape(h, "host handle", &mut out);
             }
         }
     }

@@ -1,0 +1,11 @@
+# test: a host capability trait may not reach one trait at two argument lists: its provider has one member per name
+# Spec Modules, Package Host Traits: module.host.package.one-instance (#1575).
+# fixture-runtime-profile: serde-vault
+pub trait Base[T]:
+    fn put(&self, x: T) -> i32
+
+pub trait Vault < Base[i32] & Base[string]: # diagnostic: boundary-not-safe
+    fn keep(self) -> i32
+
+pub fn main() -> void $ Vault:
+    _ := $.use(Vault).keep()

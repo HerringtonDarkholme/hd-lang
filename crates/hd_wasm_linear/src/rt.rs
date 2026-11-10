@@ -1221,7 +1221,7 @@ fn profile_tree(
             crate::boundary::add_package_method(
                 methods,
                 crate::boundary::package_method(input, method, target, def, at.arguments)?,
-            )?;
+            );
         }
     }
     let mut parents = Vec::new();

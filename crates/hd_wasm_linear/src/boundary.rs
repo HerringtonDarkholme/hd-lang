@@ -1399,7 +1399,7 @@ impl HandleTree<'_, '_> {
                     add_package_method(
                         methods,
                         package_method(input, method, self.target, owner, arguments)?,
-                    )?;
+                    );
                 }
             }
         }
@@ -1504,18 +1504,25 @@ impl HandleTree<'_, '_> {
     }
 }
 
+/// Adds `method` to a package host interface's `methods`, once: a trait
+/// that two supertrait paths reach gives its methods twice.
 pub fn add_package_method(
     methods: &mut Vec<hd_host_abi::schema::Method>,
     method: hd_host_abi::schema::Method,
-) -> StageResult<()> {
+) {
     if let Some(other) = methods.iter().find(|m| m.name == method.name) {
-        if other != &method {
-            return unsupported("conflicting inherited package host signatures");
-        }
+        // ruled out: module.host.package.one-instance (hd_check
+        // header::boundary) rejects a host or handle trait that reaches one
+        // trait at two argument lists, the one way two methods share a
+        // wire name (trait path and member) with different signatures.
+        debug_assert!(
+            other == &method,
+            "conflicting inherited package host signatures for `{}`",
+            method.name
+        );
     } else {
         methods.push(method);
     }
-    Ok(())
 }
 
 /// How a host call that never waits answers (§17.4, "Results"): nothing,
