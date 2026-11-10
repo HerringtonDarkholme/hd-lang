@@ -3629,7 +3629,9 @@ impl Ck<'_, '_> {
         // `flow.if.value.else`: an `if` used where a value is required
         // must have an `else`. A function-body tail is exempt: there the
         // fallthrough is `missing-return-value`.
-        if last_else.is_none() && want != Some(Ty::VOID) && self.fn_body_tail != Some(e.index()) {
+        let missing_else =
+            last_else.is_none() && want != Some(Ty::VOID) && self.fn_body_tail != Some(e.index());
+        if missing_else {
             self.err(
                 Code::TypeMismatch,
                 e,
@@ -3644,7 +3646,7 @@ impl Ck<'_, '_> {
             want
         };
         let last = branches.len() - 1;
-        self.join_site(want, |this, site| {
+        let out = self.join_site(want, |this, site| {
             struct Frame {
                 node: hd_base::NodeIdx,
                 c: Ref,
@@ -3723,7 +3725,13 @@ impl Ck<'_, '_> {
                 ety = t;
             }
             Ok(value)
-        })
+        })?;
+        // The missing `else` is the one report: the statement's `()` is no
+        // second mismatch against the wanted type.
+        if missing_else {
+            return Ok(self.poison_value(e));
+        }
+        Ok(out)
     }
 
     /// `while c: body` is `Loop { Block { if c { body } else { break } } }`.

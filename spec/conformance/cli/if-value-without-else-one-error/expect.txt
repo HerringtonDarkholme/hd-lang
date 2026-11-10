@@ -1,0 +1,4 @@
+# An `if` without `else` where a value is required is one error: the statement's `()` is no second mismatch against the binding's or the parameter's type.
+run: hd check --format json value.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"type-mismatch","message":"an `if` used as a value needs an `else`, for the value when the condition is false","line":5,"column":18,"file":"value.hd"},{"kind":"diagnostic","code":"type-mismatch","message":"an `if` used as a value needs an `else`, for the value when the condition is false","line":8,"column":9,"file":"value.hd"},{"kind":"summary","errors":2,"warnings":0,"status":101}]

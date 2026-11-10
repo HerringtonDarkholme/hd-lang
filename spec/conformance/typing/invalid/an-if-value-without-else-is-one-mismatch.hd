@@ -1,0 +1,5 @@
+# test: an `if` without `else` where a value is required is an error
+# Spec 06 Conditional Values: flow.if.value.else.
+fn pick(b: bool) -> void:
+    let x: i32 = if b: # diagnostic: type-mismatch
+        1
