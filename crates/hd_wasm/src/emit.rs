@@ -3117,19 +3117,26 @@ impl Em<'_, '_, '_> {
                 self.store_owned(i)
             }
             "weak_upgrade" | "weak_upgrade_mut" => {
-                let target = self.f.local(Val::I32);
+                // The entry holds a payload start or zero. Lower its
+                // stated result retain here to keep the known-address
+                // count, and let the adjacent statement observe it.
                 self.comp(args[0], 0)?;
                 self.f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
-                self.f.op(Instruction::LocalTee(target));
-                self.f
-                    .op(Instruction::If(BlockType::Result(Val::I32.wasm())));
-                self.f.get(target);
-                self.f.helper(Helper::RetainKnown);
-                self.f.get(target);
-                self.f.op(Instruction::Else);
-                self.f.i32(0);
-                self.f.op(Instruction::End);
-                self.store_owned(i)
+                self.store_owned(i)?;
+                if let Some(retain) =
+                    hd_tir::ir::count::following(self.b, &self.topo, i, Tag::Retain)
+                {
+                    let address = self.computed(i)[0];
+                    self.f.get(address);
+                    self.f.op(Instruction::If(BlockType::Empty));
+                    self.because(Reason::from_word(retain.reason), |em| {
+                        em.f.get(address);
+                        em.f.helper(Helper::RetainKnown);
+                    });
+                    self.f.op(Instruction::End);
+                    self.retained_before_result.insert(i);
+                }
+                Ok(())
             }
             "weak_weaken" => {
                 let moved = self.take(args[0]);
