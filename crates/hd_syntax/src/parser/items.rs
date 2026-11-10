@@ -627,14 +627,9 @@ impl Parser<'_> {
     // --------------------------------------------------------- data, enum
 
     fn data_decl(&mut self, marker: Marker) {
-        // `data` or `struct` (data.struct.decl): one member grammar.
-        let what = if self.at(TokenKind::KwStruct) {
-            "a struct name"
-        } else {
-            "a data type name"
-        };
+        // `struct` (data.struct.decl).
         self.bump();
-        self.expect_name(what);
+        self.expect_name("a struct name");
         if self.at(TokenKind::LBracket) {
             self.generic_params(Generics::Type);
         }
