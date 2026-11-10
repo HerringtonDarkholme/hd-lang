@@ -1,0 +1,22 @@
+# test: an inherited impl row forwards the enclosing generic context
+# expect-stdout: tick 1
+# Spec 11: req.row.param.data-substitute.
+struct Task[$ R]:
+    job: fn(i32) -> void $ R
+
+fn tick(n: i32) -> void $ Console:
+    println("tick $n")
+
+fn run[$ R](task: Task[$ R]) -> void $ R:
+    struct Holder:
+        job: fn(i32) -> void $ R
+
+    impl Holder:
+        fn call(&self, n: i32) -> void $ R:
+            (self.job)(n)
+
+    h := Holder { job: task.job }
+    h.call(1)
+
+pub fn main() -> void $ Console:
+    run(Task { job: tick })

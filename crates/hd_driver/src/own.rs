@@ -375,14 +375,13 @@ impl OwnCx for Env<'_> {
             }
             // Read the call's row arguments before node() makes them open.
             // An unresolved argument may acquire keys in its instance.
-            let parent = self.parent(self.generics_owner(def)).map_or(0, |p| p.1);
             let args = self.run.pool.list_items(args);
             return self
-                .generic_rows(def)
+                .generic_rows(self.generics_owner(def))
                 .into_iter()
                 .enumerate()
                 .any(|(j, row)| {
-                    row && args.get(parent + j).is_none_or(|&t| {
+                    row && args.get(j).is_none_or(|&t| {
                         let TyData::Row(r) = self.run.pool.get(t) else {
                             return true;
                         };

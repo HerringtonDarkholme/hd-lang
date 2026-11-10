@@ -12033,9 +12033,27 @@ impl ProgramEnv for Env<'_> {
             .map(|s| s.generics.iter().map(|g| g.bound.is_some()).collect())
     }
     fn generic_rows(&self, def: DefId) -> Vec<bool> {
-        self.sig(def)
-            .map(|s| s.generics.iter().map(|g| g.row).collect())
-            .unwrap_or_default()
+        let own = self
+            .sig(def)
+            .map(|s| &s.generics)
+            .or_else(|| self.p.items.get(def).map(|item| &item.generics));
+        let parent = self.parent(def);
+        let n = parent.map_or(0, |(_, n)| n);
+        let mut rows = Vec::with_capacity(n + own.map_or(0, Vec::len));
+        rows.resize(n, false);
+        if let Some((parent, n)) = parent
+            && let Some(item) = self.p.items.get(parent)
+        {
+            // A trait's implicit Self precedes its declared parameters.
+            let start = n.saturating_sub(item.generics.len());
+            for (index, generic) in item.generics.iter().enumerate() {
+                if let Some(slot) = rows.get_mut(start + index) {
+                    *slot = generic.row;
+                }
+            }
+        }
+        rows.extend(own.into_iter().flatten().map(|g| g.row));
+        rows
     }
     fn ret(&self, def: DefId) -> Option<Ty> {
         if let Some(&ty) = lock(&self.p.supplied_rets).get(&def) {

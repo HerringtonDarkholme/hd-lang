@@ -91,7 +91,8 @@ pub trait ProgramEnv: LayoutEnv {
     /// Per type parameter of the item itself: has a bound (A1, `crates/hd_mono/DESIGN.md`
     /// §13.2: exact).
     fn bounded(&self, def: DefId) -> Option<Vec<bool>>;
-    /// Per type parameter of the item itself: is a row parameter (`$R`).
+    /// Per instance argument: is a row parameter (`$R`), including owner
+    /// arguments. A trait owner's implicit `Self` is not a row parameter.
     fn generic_rows(&self, def: DefId) -> Vec<bool>;
     /// The declared result type.
     fn ret(&self, def: DefId) -> Option<Ty>;
