@@ -1,0 +1,28 @@
+# test: hidden generic siblings do not hide ancestor field loans from nested suspending closures
+# Rules: fn.local.declare, ref.excl.place.
+# expect-stdout: ok
+struct Box[T]:
+    item: T
+
+struct Cell:
+    value: string
+    other: string
+
+fn run!(action: fn!() -> void) -> void:
+    action!()
+
+pub fn main!() -> void $ Console:
+    fn make[N](value: N) -> Box[N]:
+        result := Box { item: value }
+        result
+    boxed := make(+7)
+    p := box(Cell { value: "a", other: "kept" })
+    r := &p.other
+    run!(fn!() -> void:
+        run!(fn!() -> void:
+            run!(fn!() -> void: p.value = "changed")
+        )
+    )
+    if boxed.item != +7 || *r != "kept" || p.value != "changed":
+        panic("the captured ancestor loan was lost")
+    println("ok")

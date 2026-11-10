@@ -426,6 +426,7 @@ pub(super) fn pointer_locals(
     env: &dyn ProgramEnv,
     b: &Body,
     sub: &dyn Fn(Ty) -> Ty,
+    stores: &[usize],
 ) -> hd_base::HashSet<usize> {
     let thin_local = |t: Ty| {
         matches!(
@@ -448,7 +449,7 @@ pub(super) fn pointer_locals(
         )
     };
     let mut ok: HashMap<usize, bool> = HashMap::default();
-    for i in 0..b.tags.len() {
+    for &i in stores {
         let Some((l, true)) = b.stored_local(i) else {
             continue;
         };
@@ -545,18 +546,31 @@ pub(super) fn pointer_lent(
 impl Em<'_, '_, '_> {
     /// Finds the body's holder bindings that take pointer loans, where the
     /// program lends any object.
-    pub(super) fn find_borrows(&mut self) {
+    pub(super) fn find_borrows(&mut self, closure: Option<usize>) {
         if self.m.lent.is_empty() {
             return;
         }
+        // collect_loans indexed every emitted instance's own sub-body.
+        let sites = std::sync::Arc::clone(&self.m.loan_stores[self.inst.idx()]);
         let sub = |t| self.sub(t);
-        let found = binds(self.pool(), self.env(), self.b, &sub, true);
+        let found = binds(self.pool(), self.env(), self.b, &sub, &sites, true);
         let mut st = Borrows {
             shared: super::closure::shared_locals(self.b),
             frames: frames_of(self.b),
-            pointers: pointer_locals(self.pool(), self.env(), self.b, &sub),
+            pointers: pointer_locals(self.pool(), self.env(), self.b, &sub, &sites),
             ..Borrows::default()
         };
+        // A closure inherits its creator's own-loan cells for captured
+        // pointers even when this sub-body takes no reference itself.
+        // Seed their keys directly from the capture list, rather than
+        // rediscovering them by laying out ancestor or sibling stores.
+        if let Some(ci) = closure {
+            st.keys.extend(
+                self.own_capture_ids(ci)
+                    .map(|l| ((PlaceRoot::Local(l), Vec::new(), ANY_FRAME), None)),
+            );
+        }
+
         for (i, held, bind, _) in found {
             if self.is_cell(held.local) {
                 continue;
@@ -740,19 +754,29 @@ impl Em<'_, '_, '_> {
     /// its creator holds through it, which a cell in its environment
     /// keeps, as the creator's own local does.
     pub(super) fn own_caps(&self, ci: usize) -> Vec<usize> {
-        if self.m.lent.is_empty() {
-            return Vec::new();
-        }
-        (super::closure::captures(self.b, ci).into_iter())
-            .map(|(l, _)| l)
-            .filter(|&l| {
-                matches!(self.kind(self.sub(self.b.local_ty[l])), Kind::Ref {
-                    target,
-                    fat: false,
-                    whole: true,
-                } if self.lent_of(target).is_some())
-            })
+        self.own_capture_ids(ci)
+            .map(hd_base::LocalId::idx)
             .collect()
+    }
+
+    /// Keeps the capture column's typed IDs through own-loan discovery.
+    fn own_capture_ids(&self, ci: usize) -> impl Iterator<Item = hd_base::LocalId> + '_ {
+        let rec = self.b.record(self.b.data[ci][1]);
+        let (start, len) = (rec[0] as usize, rec[1] as usize);
+        let captures = if self.m.lent.is_empty() {
+            &[][..]
+        } else {
+            &self.b.cap_local[start..start + len]
+        };
+        let own = self.b.closure_self(ci);
+        captures.iter().copied().filter(move |l| {
+            Some(*l) != own
+                && matches!(self.kind(self.sub(self.b.local_ty[l.idx()])), Kind::Ref {
+                target,
+                fat: false,
+                whole: true,
+            } if self.lent_of(target).is_some())
+        })
     }
 
     /// The index of pointer local `l`'s own key, when the body takes a

@@ -161,7 +161,7 @@ fn body_func<'a>(
     }
     em.own_consumers();
     if own.cold.is_none() {
-        em.find_borrows();
+        em.find_borrows(closure.map(|(ci, _, _)| ci));
     }
     let mut params = Vec::new();
     // A suspending body takes its frame first (`susp::FRAME`).

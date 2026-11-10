@@ -6460,6 +6460,9 @@ typing/invalid/a-call-through-a-type-with-open-arguments-that-pick-the-trait-can
 typing/invalid/a-call-through-a-parameter-whose-bounds-declare-no-such-method.hd	type	reject:unknown-method	lang/09-traits.md#r-trait.assoc-call.parameter.one
 typing/invalid/a-trait-qualified-call-on-a-trait-value-reaches-no-opaque-result-member.hd	type	reject:dyn-member-unavailable	lang/09-traits.md#r-trait.dyn.member.unavailable.error
 typing/invalid/a-trait-qualified-call-on-a-trait-value-reaches-no-generic-member.hd	type	reject:dyn-member-unavailable	lang/09-traits.md#r-trait.dyn.member.unavailable.error
+runtime/valid/generic-local-function-builds-and-returns-a-struct.hd	runtime	accept	lang/07-functions.md#r-fn.local.declare
+runtime/valid/generic-local-function-constructs-an-unused-struct.hd	runtime	accept	lang/07-functions.md#r-fn.local.declare
+runtime/valid/generic-local-functions-keep-captured-ancestor-field-loans.hd	runtime	accept	lang/07-functions.md#r-fn.local.declare
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

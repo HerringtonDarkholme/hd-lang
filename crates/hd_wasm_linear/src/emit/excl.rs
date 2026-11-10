@@ -15,6 +15,7 @@ use crate::layout::{
     variants,
 };
 use crate::module::Module;
+use std::sync::Arc;
 
 type Guard = (Ty, Vec<u32>);
 /// A loan place: the counted object, the field path in it, and each
@@ -683,7 +684,20 @@ fn value_binds_at(
     }
 }
 
-/// Each `Store` of a body into a local binding that registers one or more
+/// Whole-local stores grouped by their owning sub-body, in source order.
+/// Preparing this once per distinct checked body costs one topology pass
+/// and one instruction pass; instances then read only their own stores.
+pub(super) fn binding_stores(b: &Body) -> Vec<Arc<[usize]>> {
+    let mut stores = vec![Vec::new(); b.sub_root.len()];
+    for (i, sub) in b.inst_subs().into_iter().enumerate() {
+        if matches!(b.stored_local(i), Some((_, true))) {
+            stores[sub as usize].push(i);
+        }
+    }
+    stores.into_iter().map(Arc::from).collect()
+}
+
+/// Each `Store` of a sub-body into a local binding that registers one or more
 /// loans, by flattened holder slot: a loan-taking `Ref` nested in a value,
 /// a call's result that holds one ([`Body::held_args`]), or a copy or move
 /// of another holder. `sub` gives a local's or instruction's type at this
@@ -693,13 +707,14 @@ pub(super) fn binds(
     env: &dyn ProgramEnv,
     b: &Body,
     sub: &dyn Fn(Ty) -> Ty,
+    stores: &[usize],
     every_ref: bool,
 ) -> Vec<(usize, Held, Bind, Option<Loan>)> {
     let mut out: Vec<(usize, Held, Bind, Option<Loan>)> = Vec::new();
     let mut grew = true;
     while grew {
         grew = false;
-        for i in 0..b.tags.len() {
+        for &i in stores {
             let Some((l, true)) = b.stored_local(i) else {
                 continue;
             };
