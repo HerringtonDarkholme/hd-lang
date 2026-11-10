@@ -1,0 +1,19 @@
+# test: a tuple with a rest element and a union are inspectable, with their own runtime types
+# expect-stdout: true
+# expect-stdout: false
+# expect-stdout: true
+# Spec 09 Inspectable Types: trait.inspectable.collections, trait.inspectable.union.
+use std.inspect.{Inspectable, TypeId}
+
+type Choice = i32 | string
+
+fn same_type[T < Inspectable](value: T, id: TypeId) -> bool:
+    value.runtime_type() == id
+
+pub fn main() -> void $ Console:
+    let tail: List[i32] = [2, 3]
+    let values: (i32, List[i32]...) = (1, tail...)
+    println(same_type(values, TypeId::of::[(i32, List[i32]...)]()))
+    println(same_type(values, TypeId::of::[(i32, i32, i32)]()))
+    let either: Choice = ._0(4)
+    println(same_type(either, TypeId::of::[Choice]()))

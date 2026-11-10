@@ -1,0 +1,12 @@
+# test: a method whose returned function's row names Self is unavailable on a trait value
+# Spec 09 Trait Value Members: trait.dyn.member.self, trait.dyn.member.unavailable.error.
+use std.function.Fn
+
+trait Keep[T]:
+    fn keep(&self, value: T) -> void
+
+trait Saver:
+    fn saver(&self) -> Fn[(), i32, $ Keep[Self]]
+
+fn use_it(saver: &dyn Saver) -> void:
+    _ := saver.saver() # diagnostic: dyn-member-unavailable

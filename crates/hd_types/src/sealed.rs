@@ -247,12 +247,12 @@ pub(crate) fn row(
             },
         );
     }
-    match t {
-        TyData::Infer(v) => return Some(Row::Stalled(v)),
-        TyData::Param(_) | TyData::Opaque { .. } | TyData::Assoc { .. } => {
-            return Some(Row::Fails(FailReason::NoImpl));
-        }
-        _ => {}
+    // A variable stalled above, before the `'static` and `Copy` rows.
+    if matches!(
+        t,
+        TyData::Param(_) | TyData::Opaque { .. } | TyData::Assoc { .. }
+    ) {
+        return Some(Row::Fails(FailReason::NoImpl));
     }
     if trait_ == s.any_val || trait_ == s.any_ref {
         let (b, want_ref) = if trait_ == s.any_ref {

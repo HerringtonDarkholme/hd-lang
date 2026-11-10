@@ -1,0 +1,16 @@
+# test: a function with a final vararg implements Fn for its inputs tuple with a rest element
+# expect-stdout: 6
+# Spec 07: fn.trait.function-values-read-only, fn.trait.bound-tuple, fn.vararg.type.
+use std.function.Fn
+
+fn total(head: i32, tail...: List[i32]) -> i32:
+    let sum = head
+    for x in tail:
+        sum = sum + x
+    sum
+
+fn apply[F < Fn[(i32, List[i32]...), i32, $ ()]](f: F) -> i32:
+    f(1, 2, 3)
+
+pub fn main() -> void $ Console:
+    println("${apply(total)}")

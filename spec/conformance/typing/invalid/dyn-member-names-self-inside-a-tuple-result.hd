@@ -1,0 +1,8 @@
+# test: a method whose result names Self inside a tuple is unavailable on a trait value
+# Spec 09 Trait Value Members: trait.dyn.member.self, trait.dyn.member.unavailable.error.
+
+trait Twin:
+    fn pair(&self) -> (Self, i32)
+
+fn use_it(twin: &dyn Twin) -> void:
+    _ := twin.pair() # diagnostic: dyn-member-unavailable
