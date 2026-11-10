@@ -1,0 +1,19 @@
+# Spec 07 Opaque Results: fn.opaque.named-function; a function with a row
+# parameter returns an opaque type that the row argument fills.
+# expect-stdout: job
+# expect-stdout: p
+trait Show:
+    fn show(self) -> string
+
+struct P: pass
+
+impl Show for P:
+    fn show(self) -> string: "p"
+
+fn make[$R](job: fn() -> void $ R) -> impl Show $ R:
+    job()
+    P {}
+
+pub fn main() -> void $ Console:
+    let s = make(fn() -> void $ Console: println("job"))
+    println(s.show())

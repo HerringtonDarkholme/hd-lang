@@ -1052,6 +1052,8 @@ typing/invalid/row-extension-unsound.hd	type	reject:missing-requirement	lang/11-
 typing/valid/row-extension-entailment.hd	type	accept	lang/11-requirements-and-suspension.md#requirement-rows
 typing/invalid/bare-parameter-impl-target.hd	type	reject:bare-parameter-impl-target	lang/09-traits.md#implementation-targets
 typing/invalid/overlapping-impl-unifying-targets.hd	type	reject:overlapping-impl	lang/09-traits.md#overlap
+typing/invalid/a-concrete-row-impl-overlaps-a-later-generic-row-impl.hd	type	reject:overlapping-impl	lang/09-traits.md#r-trait.overlap.unify
+typing/invalid/a-generic-row-impl-overlaps-a-later-concrete-row-impl.hd	type	reject:overlapping-impl	lang/09-traits.md#r-trait.overlap.unify
 typing/invalid/overlapping-impl-despite-bounds.hd	type	reject:overlapping-impl	lang/09-traits.md#overlap
 typing/valid/impl-distinct-trait-arguments.hd	type	accept	lang/09-traits.md#overlap
 runtime/valid/user-iterable-for-loop.hd	runtime	accept	lang/06-control-flow.md#for-loops
@@ -6309,6 +6311,7 @@ typing/invalid/empty-list-behind-a-reference.hd	type	reject:cannot-infer-type	la
 typing/invalid/empty-list-closure-result.hd	type	reject:cannot-infer-type	lang/05-expressions.md#r-expr.collection.empty.error
 typing/invalid/opaque-result-bound-with-an-unsolved-argument.hd	type	reject:cannot-infer-type	lang/04-type-system.md#r-types.generic.default.unsolved
 runtime/valid/opaque-result-in-a-trait-value-argument.hd	runtime	accept	lang/07-functions.md#r-fn.opaque.nested
+runtime/valid/an-opaque-result-of-a-function-with-a-row-parameter.hd	runtime	accept	lang/07-functions.md#r-fn.opaque.named-function
 typing/invalid/separate-values-then-a-spread-duplicate-a-vararg.hd	type	reject:duplicate-argument	lang/05-expressions.md#r-expr.call.spread.vararg-duplicate
 typing/invalid/list-spread-after-a-tuple-vararg-without-rest.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.call.spread.tuple-vararg-tail
 typing/valid/const-bool-arguments-compare-operands-of-their-own-types.hd	type	accept	lang/04-type-system.md#r-types.generic.const.operator-set

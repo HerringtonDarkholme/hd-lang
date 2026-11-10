@@ -1,0 +1,16 @@
+# test: an implementation on a row parameter overlaps a later one on a concrete data row
+# Spec 09 Overlap: trait.overlap.unify; Spec 11: req.row.param.data-substitute.
+
+struct OnExit[$ R]:
+    run: fn() -> void $ R
+
+trait Describe:
+    fn describe(self) -> string
+
+impl[$R] Describe for OnExit[$ R]:
+    fn describe(self) -> string:
+        "any"
+
+impl Describe for OnExit[$ Console]:  # diagnostic: overlapping-impl
+    fn describe(self) -> string:
+        "console"
