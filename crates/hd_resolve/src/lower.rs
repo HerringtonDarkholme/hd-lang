@@ -1937,6 +1937,7 @@ impl Lower<'_, '_, '_> {
             if let Some((_, t, _)) = gn.tys.iter().rev().find(|(s, _, _)| *s == n) {
                 out.push(*t);
             } else {
+                // gap: #1632
                 self.gap("a local type that takes an enclosing type parameter, named where that parameter is not its own");
                 out.push(Ty::POISON);
             }
@@ -2849,6 +2850,7 @@ impl Lower<'_, '_, '_> {
             // a local trait, `Self`, a local function's parameter and a row
             // or const parameter are not taken yet.
             if segs.len() == 1 && self.outer.contains(&first) {
+                // gap: #1632
                 self.gap("a local trait, or a use of an enclosing `Self`, local function's, row or const parameter, in a local declaration");
                 return Ty::POISON;
             }
