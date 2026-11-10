@@ -22,6 +22,9 @@ compiler places, reads with a mode, and `Drop` and `IsUnique` statements.
 As a base for ownership it still lacks seven facts, so the passes guess or
 match patterns, and later layers patch what they missed.
 
+The table and count-layer inventory below record the 2026-11-04 audit,
+before #1448 deleted reference views on 2026-11-08.
+
 | Fact the passes need | What TIR v2 has instead | What the passes and later layers do |
 | --- | --- | --- |
 | whether a value counts | one generic body; a type parameter is `Tri::Maybe` (`OwnCx::counted`, `hd_tir/src/own.rs`) | keep a `Drop` for "maybe"; the emitter deletes count glue for scalar instances |
@@ -32,13 +35,12 @@ match patterns, and later layers patch what they missed.
 | where a loan ends | the holder's `Drop` | a reference that counts nothing keeps a release call, so its loan can end (#1360) |
 | what is live at a suspension point | nothing | `emit/susp.rs` saves every local at every point (#1393) |
 
-The result is six layers that each decide some counts: the inliner, the
-TIR passes, the release summaries, the emitter glue, the Wasm cleanup's
-count rules (`opt.rs`: `static_values`, `static_counts`) and
-a link-time fold of `rt:ref_is_view`. Insertion makes every read a copy.
-Five passes then weaken it, each under its own syntactic rule. The audit's
-classes are the shapes no rule matched, and nothing tells us when the
-last one is found.
+That audit counted six layers: inlining, TIR passes, release summaries,
+emitter glue, Wasm cleanup (`opt.rs`: `static_values`, `static_counts`),
+and the former `rt:ref_is_view` fold. Insertion made every read a copy.
+Five passes then weakened it, each under its own syntactic rule. The
+audit's classes were the shapes no rule matched, with no proof that the
+last one had been found.
 
 **What this design adds** is each missing fact, as TIR content written
 before counts are decided: concrete types per instance; values for
@@ -351,7 +353,9 @@ for a baseline; the verifier makes them checked.
   summaries, moved from `emit/elide.rs` into a TIR pass. Same-root
   conflicts stay compile errors in the checker.
 - **Views.** None remain: #1448 deleted representation views on
-  2026-11-08, so every reference is a plain address that owns nothing.
+  2026-11-08. A local reference is a plain address that keeps nothing
+  alive (`ref.count.local`); a counted reference keeps its object alive
+  (`ref.box.lifetime`).
 - **`Drop`, `Disposable` and `using`.** `std.rt.Drop` runs inside release
   glue ([Runtime Drop Hook](../../spec/lang/10-modules.md#runtime-drop-hook));
   the design moves no release later or earlier than today's last-use rule
@@ -423,6 +427,9 @@ memory exceeds 1.5 times its upper estimate stops and reports before
 merging, and so does any step that would leave under 5 KB of headroom.
 
 Status (2026-11-07): the old-pass names in this table are estimates from the design. Measured since: `known.rs` and `late.rs` stay, as every rule still changes output (#1399 12f). Drop flags as TIR locals (step 24) came out larger, so that patch isn't merged. Step 17's storage marks would move about 700 lines rather than remove them, and that's an open question for the owner.
+
+Update (2026-11-08): #1448 removed representation views, superseding step
+22's original per-value view fact and link-fold plan.
 
 Estimates: gzip at 11-14 B per Rust line; time in ms on the json release
 edit build (160 ms measured); memory as peak RSS. "−" deletes nothing.
@@ -498,7 +505,7 @@ model A's existing release summaries.
 | `bind_kept(xs: List[string], all: &mut List[List[string]])` pushes `ys := xs` | lent parameter consumed | dev: one "stored" retain (a cost, above); release: the summary makes `xs` owned, no count, as today |
 | closure stored in a struct field after one local call | storage chosen before the store is seen | storage runs after inlining on the whole instance; any store is an escape: heap environment |
 | a captured `let mut` shared by a closure that a suspension frame holds | a frame slot dies with the function | the frame escapes, so its closures escape, so the cell is a heap cell |
-| a `&dyn Codec` generic method returning a payload reference | a view released as a plain reference leaks | erased results are "maybe view": release with the view reason, guarded by `rt:ref_is_view` |
+| a `&dyn Codec` generic method returning a payload reference | releasing the receiver's root while its dependent result is live invalidates the result | the result carries its receiver's origins through its last use (`ref.dep.call`, `ref.dep.trait`); its root stays alive (`ref.box.root`) |
 | a polymorphic recursive generic | per-instance work explodes | passes run only on instances the emitter already emits; no new instance is made |
 | a suspension cancelled between two points | values live across it leak | the live set at that point is the unwind set: "cancelled" releases |
 | `Weak[T]` upgrade after the last strong use | an earlier release changes what `upgrade` sees | releases stay at today's last use (§23.20); none moves earlier |
@@ -561,6 +568,9 @@ body and leaves instances to LLVM [S6]; hd has no LLVM after it, which is
 why it decides per instance.
 
 ## Appendix C. Alternatives Considered
+
+These alternatives were compared against the 2026-11-04 baseline above.
+Reference views were removed separately by #1448 on 2026-11-08.
 
 - **Option 2, a low ownership IR after monomorphization.** It may end
   smaller, but needs a parallel backend: +234 to +430 KB of gzip while
