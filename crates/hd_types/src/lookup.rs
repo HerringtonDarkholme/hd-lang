@@ -286,14 +286,9 @@ impl<'a> ImplView<'a> {
     }
 }
 
-/// Where the solver reads impls.
+/// Where the solver reads impls: owner lookup in one context (§3.2).
 #[derive(Clone, Copy)]
 pub enum Impls<'a> {
-    /// Every table, scanned in order with no owner lookup: the tables of
-    /// the solver's unit tests. Every compiler run, codegen included,
-    /// reads through `Owned`.
-    All(&'a [(ModuleId, &'a ImplTable)]),
-    /// Owner lookup in one context (§3.2).
     Owned(&'a ImplView<'a>),
 }
 
@@ -308,45 +303,38 @@ impl<'a> Impls<'a> {
     /// The table an impl row lives in.
     #[must_use]
     pub fn table(self, m: ModuleId) -> Option<&'a ImplTable> {
-        match self {
-            Impls::All(tables) => tables.iter().find(|(x, _)| *x == m).map(|(_, t)| *t),
-            Impls::Owned(v) if m == OWN_TABLE => v.own,
-            Impls::Owned(v) => v
-                .folders
-                .get(m.raw() as usize)
-                .copied()
-                .flatten()
-                .map(|f| &f.table),
+        let Impls::Owned(v) = self;
+        if m == OWN_TABLE {
+            return v.own;
         }
+        v.folders
+            .get(m.raw() as usize)
+            .copied()
+            .flatten()
+            .map(|f| &f.table)
     }
 
     /// The member steps of a tuple template's plan (§3.9), when this
     /// context has them.
     #[must_use]
     pub fn tuple_plan(self, template: DefId) -> Option<std::sync::Arc<[MemberStep]>> {
-        match self {
-            Impls::All(_) => None,
-            Impls::Owned(v) => v.plans.and_then(|p| p.tuple_plan(template)),
-        }
+        let Impls::Owned(v) = self;
+        v.plans.and_then(|p| p.tuple_plan(template))
     }
 
     /// Whether `n` written arguments leave some of the trait's implicit.
     #[must_use]
     pub fn implicit_args(self, trait_: DefId, n: usize) -> bool {
-        match self {
-            Impls::All(_) => false,
-            Impls::Owned(v) => n < (v.arity)(trait_),
-        }
+        let Impls::Owned(v) = self;
+        n < (v.arity)(trait_)
     }
 
     /// Whether the universe's unowned rows answer a probe of
     /// `(trait_, key)`: then what the probe sees depends on the universe.
     #[must_use]
     pub fn unowned_at(self, trait_: DefId, key: HeadKey) -> bool {
-        match self {
-            Impls::All(_) => false,
-            Impls::Owned(v) => v.extra.unowned.has(trait_, key),
-        }
+        let Impls::Owned(v) = self;
+        v.extra.unowned.has(trait_, key)
     }
 
     /// The candidate rows of `self_ty: trait_[args]` in content order (§3.2,
@@ -364,20 +352,7 @@ impl<'a> Impls<'a> {
         seen: &mut UniverseReads,
     ) -> Vec<(ImplRef, &'a ImplTable)> {
         let key = HeadKey::of(pool, self_ty);
-        let v = match self {
-            Impls::All(tables) => {
-                return one_row_per_impl(
-                    tables
-                        .iter()
-                        .flat_map(|(m, t)| {
-                            t.candidates(trait_, key)
-                                .map(move |row| (ImplRef { module: *m, row }, *t))
-                        })
-                        .collect(),
-                );
-            }
-            Impls::Owned(v) => v,
-        };
+        let Impls::Owned(v) = self;
         let mut owners: Vec<FolderId> = Vec::with_capacity(2 + args.len());
         owners.extend(v.owners.owner(v.paths, trait_));
         owners.extend(v.owners.owner_of_ty(v.paths, pool, self_ty));

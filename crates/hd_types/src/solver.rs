@@ -1896,9 +1896,7 @@ impl<'s, 'a> Search<'s, 'a> {
     /// Whether this module's own table has no row for any of `reads`: then
     /// an entry with those probes is its answer too (lookup.rs `OWN_TABLE`).
     fn own_free(&self, reads: &[(DefId, HeadKey)]) -> bool {
-        let Impls::Owned(v) = self.cx.impls else {
-            return true;
-        };
+        let Impls::Owned(v) = self.cx.impls;
         let Some(own) = v.own.filter(|o| !o.def.is_empty()) else {
             return true;
         };
@@ -3087,6 +3085,60 @@ mod tests {
     use crate::unify::{InferTable, VarKind};
     use hd_base::{DefId, FolderId, Fuel, ModuleId};
 
+    /// Folder 0 holding a test's impl rows, and owning every test id: the
+    /// impls a module of that folder solves with, read by owner lookup.
+    struct TestFolder {
+        paths: hd_intern::PathTable,
+        owners: super::OwnerMap,
+        extra: super::UniverseImpls,
+        impls: super::FolderImpls,
+    }
+
+    fn no_arity(_: DefId) -> usize {
+        0
+    }
+
+    impl TestFolder {
+        fn new(p: Types<'_>, t: Option<&ImplTable>) -> Self {
+            // The test ids name top-level items, whose module is the root.
+            let paths = hd_intern::PathTable::new();
+            for i in 0..128 {
+                paths.intern(
+                    hd_base::PathId::NONE,
+                    hd_intern::PathKind::Item,
+                    &format!("t{i}"),
+                );
+            }
+            let mut owners = super::OwnerMap::default();
+            owners.insert(hd_base::PathId::NONE, FolderId::from_raw(0));
+            let table = t.cloned().unwrap_or_default();
+            let impls = super::FolderImpls::new(FolderId::from_raw(0), table, p, &paths, &owners);
+            TestFolder {
+                paths,
+                owners,
+                extra: super::UniverseImpls::default(),
+                impls,
+            }
+        }
+
+        fn view<'a>(
+            &'a self,
+            folders: &'a [Option<&'a super::FolderImpls>],
+        ) -> super::ImplView<'a> {
+            super::ImplView {
+                paths: &self.paths,
+                owners: &self.owners,
+                own: None,
+                folders,
+                universe: ImplUniverses::default().intern(&[]).0,
+                extra: &self.extra,
+                arity: &no_arity,
+                hidden: &[],
+                plans: None,
+            }
+        }
+    }
+
     /// The declarations a test's rows read: the sealed traits (none by
     /// default), declaration kinds (data by default) and supertraits.
     #[derive(Default)]
@@ -3233,17 +3285,17 @@ mod tests {
         t.rank.push(0);
         t.by_trait.insert(tr.raw(), (0, 1));
         t.index();
-        let m = ModuleId::from_raw(0);
-        let tables = [(m, &t)];
+        let folder = TestFolder::new(p, Some(&t));
+        let folders = [Some(&folder.impls)];
+        let view = folder.view(&folders);
         let env = ParamEnv::default();
         let global = GlobalMemo::default();
         let mut body = BodyMemo::default();
-        let (u, _) = ImplUniverses::default().intern(&[]);
         let mut cx = SolveCx {
             pool: p,
             env: &env,
-            universe: u,
-            impls: super::Impls::All(&tables),
+            universe: view.universe,
+            impls: super::Impls::Owned(&view),
             decls: &TestDecls::default(),
             body_memo: &mut body,
             global: &global,
@@ -3282,7 +3334,11 @@ mod tests {
             scoped: false,
         };
         let e2 = MemoEntry { children: 7, ..e };
-        assert_eq!(global.publish(again, e2, u), i, "first writer wins");
+        assert_eq!(
+            global.publish(again, e2, view.universe),
+            i,
+            "first writer wins"
+        );
         assert_eq!(global.entry(i).children, e.children);
     }
 
@@ -3740,25 +3796,20 @@ mod tests {
         assert!(err.bug, "{}", err.what);
     }
 
-    /// Solves `tref` over one table (module 0), with no environment.
+    /// Solves `tref` over the asking module's own table, with no
+    /// environment.
     fn solve_in(p: Types<'_>, t: &ImplTable, tref: TraitRef) -> super::Answer {
-        solve_over(p, &[(ModuleId::from_raw(0), t)], tref)
-    }
-
-    fn solve_over(
-        p: Types<'_>,
-        tables: &[(ModuleId, &ImplTable)],
-        tref: TraitRef,
-    ) -> super::Answer {
         let env = ParamEnv::default();
         let global = GlobalMemo::default();
         let mut body = BodyMemo::default();
-        let (universe, _) = ImplUniverses::default().intern(&[]);
+        let folder = TestFolder::new(p, Some(t));
+        let folders = [Some(&folder.impls)];
+        let view = folder.view(&folders);
         let mut cx = SolveCx {
             pool: p,
             env: &env,
-            universe,
-            impls: super::Impls::All(tables),
+            universe: view.universe,
+            impls: super::Impls::Owned(&view),
             decls: &TestDecls::default(),
             body_memo: &mut body,
             global: &global,
@@ -3771,41 +3822,6 @@ mod tests {
         TableSolver
             .solve(&mut cx, &goal, &mut Fuel::new(100))
             .expect("solves")
-    }
-
-    /// A module's own impls are rows of its own table and of its folder's
-    /// table: one impl, so one head, at its first place.
-    #[test]
-    fn one_impl_seen_in_two_tables_is_one_head() {
-        let gp = InternPool::new();
-        let local = LocalPool::new();
-        let p = Types::with_local(&gp, &local);
-        let [pick, money, imp] = [5, 6, 7].map(DefId::from_raw);
-        let v = InferTable::default().fresh(p, VarKind::General);
-        let money_ty = adt(p, money, &[]);
-        let mut t = ImplTable::default();
-        push_row(
-            &mut t,
-            p,
-            (pick, imp),
-            money_ty,
-            p.list(&[Ty::I32]),
-            (0, vec![]),
-        );
-        t.index();
-        let tref = TraitRef {
-            trait_: pick,
-            self_ty: money_ty,
-            args: p.list(&[v]),
-        };
-        let (own, folder) = (ModuleId::from_raw(0), ModuleId::from_raw(1));
-        match solve_over(p, &[(own, &t), (folder, &t)], tref) {
-            super::Answer::Holds {
-                evidence: super::Evidence::Impl { row, .. },
-                ..
-            } => assert_eq!(row.module, own),
-            other => panic!("one head commits: {other:?}"),
-        }
     }
 
     fn adt(p: Types<'_>, def: DefId, args: &[Ty]) -> Ty {
@@ -4132,13 +4148,14 @@ mod tests {
         let env = ParamEnv::default();
         let global = GlobalMemo::default();
         let mut body = BodyMemo::default();
-        let (universe, _) = ImplUniverses::default().intern(&[]);
-        let tables = [(ModuleId::from_raw(0), t)];
+        let folder = TestFolder::new(p, Some(t));
+        let folders = [Some(&folder.impls)];
+        let view = folder.view(&folders);
         let mut cx = SolveCx {
             pool: p,
             env: &env,
-            universe,
-            impls: super::Impls::All(&tables),
+            universe: view.universe,
+            impls: super::Impls::Owned(&view),
             decls: &TestDecls::default(),
             body_memo: &mut body,
             global: &global,
@@ -4257,21 +4274,23 @@ mod tests {
         assert_eq!(c.iter().map(|c| c.row.row).collect::<Vec<_>>(), [3, 0, 1]);
     }
 
-    /// One body of a memo test over every table: its pool, memo and fuel,
-    /// and the run's shared global memo.
+    /// One body of a memo test over the module's own table: its pool, memo
+    /// and fuel, and the run's shared global memo.
     fn solve_body(
         p: Types<'_>,
-        tables: &[(ModuleId, &ImplTable)],
+        t: &ImplTable,
         env: &ParamEnv,
         (global, body, fuel): (&GlobalMemo, &mut BodyMemo, &mut Fuel),
         goal: &Goal,
     ) -> super::Answer {
-        let (universe, _) = ImplUniverses::default().intern(&[]);
+        let folder = TestFolder::new(p, Some(t));
+        let folders = [Some(&folder.impls)];
+        let view = folder.view(&folders);
         let mut cx = SolveCx {
             pool: p,
             env,
-            universe,
-            impls: super::Impls::All(tables),
+            universe: view.universe,
+            impls: super::Impls::Owned(&view),
             decls: &TestDecls::default(),
             body_memo: body,
             global,
@@ -4328,7 +4347,6 @@ mod tests {
     /// checked against a fresh solve; returns the fuel it spent.
     fn memo_body(gp: &InternPool, t: &ImplTable, global: &GlobalMemo) -> u64 {
         let [show, pick, boxed, money] = [20, 21, 22, 23].map(DefId::from_raw);
-        let tables = [(ModuleId::from_raw(0), t)];
         let local = LocalPool::new();
         let p = Types::with_local(gp, &local);
         let mut infer = InferTable::default();
@@ -4356,8 +4374,8 @@ mod tests {
         let mut fuel = Fuel::new(1000);
         for g in goals {
             let cx = (global, &mut body, &mut fuel);
-            let a = solve_body(p, &tables, &env, cx, &implements(g));
-            assert_eq!(a, solve_over(p, &tables, g), "{g:?}");
+            let a = solve_body(p, t, &env, cx, &implements(g));
+            assert_eq!(a, solve_in(p, t, g), "{g:?}");
         }
         fuel.spent()
     }
@@ -4399,7 +4417,6 @@ mod tests {
         let gp = InternPool::new();
         let g = gp.types();
         let (t, [show, _, boxed, _]) = show_table(g);
-        let tables = [(ModuleId::from_raw(0), &t)];
         let tp = param(g, DefId::from_raw(40), 0);
         let mut bounded = ParamEnv::default();
         bounded.clause_self.push(tp);
@@ -4423,7 +4440,7 @@ mod tests {
             let mut fuel = Fuel::new(100);
             let mut one = |tref| {
                 let cx = (global, &mut body, &mut fuel);
-                solve_body(gp.types(), &tables, env, cx, &implements(tref))
+                solve_body(gp.types(), &t, env, cx, &implements(tref))
             };
             (one(on_param), one(ground))
         };
@@ -4480,7 +4497,6 @@ mod tests {
         let local = LocalPool::new();
         let p = Types::with_local(&gp, &local);
         let (t, [_, pick, _, money]) = show_table(gp.types());
-        let tables = [(ModuleId::from_raw(0), &t)];
         let (global, env) = (GlobalMemo::default(), ParamEnv::default());
         let mut body = BodyMemo::default();
         let mut fuel = Fuel::new(100);
@@ -4502,13 +4518,7 @@ mod tests {
         };
         let mark = infer.trial_mark();
         let v = infer.fresh(p, VarKind::General);
-        let a = solve_body(
-            p,
-            &tables,
-            &env,
-            (&global, &mut body, &mut fuel),
-            &pick_of(v),
-        );
+        let a = solve_body(p, &t, &env, (&global, &mut body, &mut fuel), &pick_of(v));
         assert_eq!(learned(a), [(var(v), Ty::I32)]);
         assert_eq!(body.len(), 1, "a goal with a variable is the body's");
         infer.rollback_trial(mark);
@@ -4520,13 +4530,7 @@ mod tests {
         );
         let w = infer.fresh(p, VarKind::General);
         let hits = global.stats().hits;
-        let b = solve_body(
-            p,
-            &tables,
-            &env,
-            (&global, &mut body, &mut fuel),
-            &pick_of(w),
-        );
+        let b = solve_body(p, &t, &env, (&global, &mut body, &mut fuel), &pick_of(w));
         assert_eq!(global.stats().hits, hits + 1);
         assert_eq!(learned(b), [(var(w), Ty::I32)]);
         assert_eq!(body.len(), 1);
@@ -4560,7 +4564,6 @@ mod tests {
         let (target, args) = (param(g, imp, 0), g.list(&[param(g, imp, 1)]));
         push_row(&mut t, g, (pair, imp), target, args, (2, vec![step]));
         t.index();
-        let tables = [(ModuleId::from_raw(0), &t)];
         let goal = |self_ty, a| TraitRef {
             trait_: pair,
             self_ty,
@@ -4570,7 +4573,7 @@ mod tests {
         let mut body = BodyMemo::default();
         let mut fuel = Fuel::new(1000);
         let first = implements(goal(Ty::I32, Ty::BOOL));
-        let a = solve_body(g, &tables, &env, (&global, &mut body, &mut fuel), &first);
+        let a = solve_body(g, &t, &env, (&global, &mut body, &mut fuel), &first);
         assert_eq!(a, Answer::Overflow);
         assert_eq!(
             fuel.spent(),
@@ -4587,9 +4590,9 @@ mod tests {
         let mut other = BodyMemo::default();
         let hits = global.stats().hits;
         let second = implements(goal(Ty::BOOL, Ty::I32));
-        let b = solve_body(g, &tables, &env, (&global, &mut other, &mut fuel), &second);
+        let b = solve_body(g, &t, &env, (&global, &mut other, &mut fuel), &second);
         assert_eq!((b, global.stats().hits), (Answer::Overflow, hits + 1));
-        let fresh = solve_over(g, &tables, goal(Ty::BOOL, Ty::I32));
+        let fresh = solve_in(g, &t, goal(Ty::BOOL, Ty::I32));
         assert_eq!(fresh, Answer::Overflow);
     }
 
@@ -4604,7 +4607,6 @@ mod tests {
         let gp = InternPool::new();
         let g = gp.types();
         let (t, [show, _, boxed, _]) = show_table(g);
-        let tables = [(ModuleId::from_raw(0), &t)];
         let show_of = |n| TraitRef {
             trait_: show,
             self_ty: boxes(g, boxed, n),
@@ -4615,7 +4617,7 @@ mod tests {
             .map(|n| {
                 let (global, mut body) = (GlobalMemo::default(), BodyMemo::default());
                 let cx = (&global, &mut body, &mut Fuel::new(10_000));
-                solve_body(g, &tables, &env, cx, &implements(show_of(n)))
+                solve_body(g, &t, &env, cx, &implements(show_of(n)))
             })
             .collect();
         assert!(matches!(fresh[63], Answer::Holds { .. }), "{:?}", fresh[63]);
@@ -4631,10 +4633,10 @@ mod tests {
                 let mut fuel = Fuel::new(10_000);
                 let goal = implements(show_of(n));
                 let cx = (&global, &mut shared, &mut fuel);
-                assert_eq!(solve_body(g, &tables, &env, cx, &goal), fresh[n], "n = {n}");
+                assert_eq!(solve_body(g, &t, &env, cx, &goal), fresh[n], "n = {n}");
                 let mut own = BodyMemo::default();
                 let cx = (&global, &mut own, &mut fuel);
-                let b = solve_body(g, &tables, &env, cx, &goal);
+                let b = solve_body(g, &t, &env, cx, &goal);
                 assert_eq!(b, fresh[n], "a new body, n = {n}");
             }
         }
@@ -4669,7 +4671,6 @@ mod tests {
         let plan = (2, vec![step(0), step(1)]);
         push_row(&mut t, g, (eq, imp), target, TyList::EMPTY, plan);
         t.index();
-        let tables = [(ModuleId::from_raw(0), &t)];
         let deep = (0..20).fold(Ty::I32, |x, _| adt(g, pair, &[x, x]));
         let goal = implements(TraitRef {
             trait_: eq,
@@ -4680,10 +4681,10 @@ mod tests {
         for _ in 0..2 {
             let mut body = BodyMemo::default();
             let mut fuel = Fuel::new(1000);
-            let a = solve_body(g, &tables, &env, (&global, &mut body, &mut fuel), &goal);
+            let a = solve_body(g, &t, &env, (&global, &mut body, &mut fuel), &goal);
             assert!(matches!(a, Answer::Holds { .. }), "{a:?}");
             assert_eq!(fuel.spent(), 42);
-            let _ = solve_body(g, &tables, &env, (&global, &mut body, &mut fuel), &goal);
+            let _ = solve_body(g, &t, &env, (&global, &mut body, &mut fuel), &goal);
             assert_eq!(fuel.spent(), 43);
         }
     }
@@ -4849,13 +4850,14 @@ mod tests {
         tref: TraitRef,
     ) -> super::Answer {
         let mut body = BodyMemo::default();
-        let (universe, _) = ImplUniverses::default().intern(&[]);
-        let tables: [(ModuleId, &ImplTable); 0] = [];
+        let folder = TestFolder::new(p, None);
+        let folders = [Some(&folder.impls)];
+        let view = folder.view(&folders);
         let mut cx = SolveCx {
             pool: p,
             env,
-            universe,
-            impls: super::Impls::All(&tables),
+            universe: view.universe,
+            impls: super::Impls::Owned(&view),
             decls,
             body_memo: &mut body,
             global,
@@ -5185,13 +5187,14 @@ mod tests {
         let env = ParamEnv::default();
         let global = GlobalMemo::default();
         let mut body = BodyMemo::default();
-        let (universe, _) = ImplUniverses::default().intern(&[]);
-        let tables: [(ModuleId, &ImplTable); 0] = [];
+        let folder = TestFolder::new(p, None);
+        let folders = [Some(&folder.impls)];
+        let view = folder.view(&folders);
         let mut cx = SolveCx {
             pool: p,
             env: &env,
-            universe,
-            impls: super::Impls::All(&tables),
+            universe: view.universe,
+            impls: super::Impls::Owned(&view),
             decls: &decls,
             body_memo: &mut body,
             global: &global,
