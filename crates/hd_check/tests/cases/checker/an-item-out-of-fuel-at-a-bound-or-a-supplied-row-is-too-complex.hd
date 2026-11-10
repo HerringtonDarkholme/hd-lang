@@ -3,7 +3,8 @@
 # fn.limit.complexity.error: an item whose checking runs out of steps is
 # one item-too-complex on that item. Two steps run out in `call` on the
 # `T < Named` bound its clause answers, and in `keep` on the `'static`
-# row `box` asks of a tuple.
+# row `box` asks of a tuple. `keep` runs out in its header and in its
+# body, and is still one error, on its header.
 trait Named:
     fn name(&self) -> string
 

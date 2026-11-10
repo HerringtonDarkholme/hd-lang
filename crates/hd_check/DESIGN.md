@@ -1479,7 +1479,7 @@ turns it into `item-too-complex` (`too_complex`) on its item:
 
 | Body | Entry | Reported on |
 | --- | --- | --- |
-| a function body, M1 included | `check_fn_body` | the function |
+| a function body, M1 included | `check_fn_body` | the function's header |
 | a default | `check_default` | the default expression |
 | a module's `Init` | `check_init` | the module; an unsettled or unreached top-level binding is poison |
 | a test case or registration | `check_tests` | its registration call; the error fails the test run |
@@ -1487,7 +1487,9 @@ turns it into `item-too-complex` (`too_complex`) on its item:
 
 A header goal (stage B, `header::ItemCheck::fails`) that runs out of
 its item's fuel is one `item-too-complex` on the item's header, and the
-item's later goals are not asked; never a proved goal. A local impl's
+item's later goals are not asked; never a proved goal. A function whose
+header and body both run out gets that diagnostic from both tasks, at
+one span; the driver drops the exact duplicate (`DiagBuf::dedup_exact`). A local impl's
 supertrait check runs out as part of its body.
 
 `BodyCx::fuel` is the budget, and `HeaderCx::fuel` the header's; a driver

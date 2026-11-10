@@ -142,7 +142,29 @@ pub(crate) fn too_complex(
     at: NodeRef<'_>,
     diags: &mut DiagBuf,
 ) -> StageResult<Body> {
-    diags.error(Code::ItemTooComplex, cx.src.span(at), TOO_COMPLEX);
+    poisoned((item, kind), at, cx.src.span(at), diags)
+}
+
+/// [`too_complex`] for a function body, reported on the function's
+/// header: where its header check reports a header goal that ran out
+/// (`header::ItemCheck`), so an item whose header and body both run out
+/// is one exact diagnostic, the duplicate dropped (§4.14).
+pub(crate) fn fn_too_complex(
+    cx: &BodyCx<'_>,
+    item: DefId,
+    at: NodeRef<'_>,
+    diags: &mut DiagBuf,
+) -> StageResult<Body> {
+    poisoned((item, BodyKind::Fn), at, cx.src.head_span(at), diags)
+}
+
+fn poisoned(
+    (item, kind): (DefId, BodyKind),
+    at: NodeRef<'_>,
+    span: Span,
+    diags: &mut DiagBuf,
+) -> StageResult<Body> {
+    diags.error(Code::ItemTooComplex, span, TOO_COMPLEX);
     let mut b = TirBuilder::new(item, kind);
     let blk = b.open_block();
     let p = b.emit(Tag::Poison, NONE, NONE, Ty::POISON, at.index());
@@ -1118,7 +1140,7 @@ fn check_fn_body_as(
     crate::work::item_body(cx, def, node.index());
     match fn_body_steps(cx, def, node, diags, hooks, infer, inferred) {
         Err(e) if is_out_of_fuel(&e) => {
-            let body = too_complex(cx, (def, BodyKind::Fn), node, diags)?;
+            let body = fn_too_complex(cx, def, node, diags)?;
             Ok((
                 body,
                 Ty::POISON,

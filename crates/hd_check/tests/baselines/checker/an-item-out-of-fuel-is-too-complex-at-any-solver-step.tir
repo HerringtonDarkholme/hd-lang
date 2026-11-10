@@ -21,6 +21,6 @@ impl Add[f64] for V:
 
 fn grow(v: V) -> V:
     v + 1 + 2 + 3 + 4 + 5.0
-> error: main.hd:404..458: item-too-complex: checking this item needs more steps than the compiler allows; split it into smaller items
-> error: main.hd:502..561: item-too-complex: checking this item needs more steps than the compiler allows; split it into smaller items
-> error: main.hd:563..610: item-too-complex: checking this item needs more steps than the compiler allows; split it into smaller items
+> error: main.hd:404..434: item-too-complex: checking this item needs more steps than the compiler allows; split it into smaller items
+> error: main.hd:502..532: item-too-complex: checking this item needs more steps than the compiler allows; split it into smaller items
+> error: main.hd:563..582: item-too-complex: checking this item needs more steps than the compiler allows; split it into smaller items

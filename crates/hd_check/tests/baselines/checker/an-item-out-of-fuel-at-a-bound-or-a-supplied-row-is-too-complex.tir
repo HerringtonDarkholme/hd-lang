@@ -4,7 +4,8 @@
 # fn.limit.complexity.error: an item whose checking runs out of steps is
 # one item-too-complex on that item. Two steps run out in `call` on the
 # `T < Named` bound its clause answers, and in `keep` on the `'static`
-# row `box` asks of a tuple.
+# row `box` asks of a tuple. `keep` runs out in its header and in its
+# body, and is still one error, on its header.
 trait Named:
     fn name(&self) -> string
 
@@ -16,7 +17,6 @@ fn call[T < Named](x: T) -> string:
 
 fn keep(t: (i32, string)) -> *mut (i32, string):
     box(t)
-> error: main.hd:312..362: item-too-complex: checking this item needs more steps than the compiler allows; split it into smaller items
-> error: main.hd:364..413: item-too-complex: checking this item needs more steps than the compiler allows; split it into smaller items
-> error: main.hd:415..474: item-too-complex: checking this item needs more steps than the compiler allows; split it into smaller items
-> error: main.hd:415..463: item-too-complex: checking this item needs more steps than the compiler allows; split it into smaller items
+> error: main.hd:400..437: item-too-complex: checking this item needs more steps than the compiler allows; split it into smaller items
+> error: main.hd:452..487: item-too-complex: checking this item needs more steps than the compiler allows; split it into smaller items
+> error: main.hd:503..551: item-too-complex: checking this item needs more steps than the compiler allows; split it into smaller items

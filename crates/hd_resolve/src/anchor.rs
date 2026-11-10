@@ -62,15 +62,13 @@ impl<'t> Ctx<'_, 't> {
             None => (base, member),
         };
         let lo = self.src.first(node);
-        let mut hi = self.src.last(node);
         self.src.tkind(lo)?;
-        self.src.tkind(hi)?;
-        if header && let Some(b) = Src::child(node, SyntaxKind::Block) {
-            let first = self.src.first(b).raw();
-            if first > lo.raw() {
-                hi = hd_base::TokenIdx::from_raw(first - 1);
-            }
-        }
+        self.src.tkind(self.src.last(node))?;
+        let hi = if header {
+            self.src.head_last(node)
+        } else {
+            self.src.last(node)
+        };
         let base_lo = self.src.first(base).raw();
         Some(Anchor {
             decl: self.decl,

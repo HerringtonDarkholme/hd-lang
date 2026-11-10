@@ -24,6 +24,32 @@ impl<'a> Src<'a> {
     pub fn last(&self, n: NodeRef<'_>) -> TokenIdx {
         self.parse.tree.span_tokens(n.index()).1
     }
+    /// The last token of `n`'s header: the one before its `Block` child,
+    /// or its last token when it has none. An item's header is its anchor
+    /// slot 0, where its item findings are reported.
+    #[must_use]
+    pub fn head_last(&self, n: NodeRef<'_>) -> TokenIdx {
+        let (lo, hi) = self.parse.tree.span_tokens(n.index());
+        match n.children().find(|c| c.kind() == SyntaxKind::Block) {
+            Some(b) if self.first(b).raw() > lo.raw() => {
+                TokenIdx::from_raw(self.first(b).raw() - 1)
+            }
+            _ => hi,
+        }
+    }
+    /// The span of `n`'s header ([`Self::head_last`]).
+    #[must_use]
+    pub fn head_span(&self, n: NodeRef<'_>) -> Span {
+        let whole = self.span(n);
+        let hi = self.head_last(n);
+        match self.tkind(hi) {
+            Some(_) if whole.hi > whole.lo => Span {
+                hi: self.parse.tokens.span(hi).1,
+                ..whole
+            },
+            _ => whole,
+        }
+    }
     #[must_use]
     pub fn tkind(&self, t: TokenIdx) -> Option<TokenKind> {
         (t.get().is_some() && t.idx() < self.parse.tokens.len()).then(|| self.parse.tokens.kind(t))

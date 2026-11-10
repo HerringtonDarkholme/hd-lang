@@ -184,40 +184,115 @@ impl DiagBuf {
     /// in their order.
     pub fn append_if(&mut self, other: &DiagBuf, keep: &dyn Fn(Code) -> bool) {
         for i in 0..other.len() {
-            if !keep(other.code[i]) {
-                continue;
-            }
-            if !self.push(
-                other.code[i],
-                other.severity[i],
-                other.primary[i],
-                other.get_text(other.message[i]),
-                other.root[i],
-            ) {
-                continue;
-            }
-            let labels = other.labels[i];
-            for label in labels.start..labels.start + labels.len {
-                let label = label as usize;
-                self.add_label(
-                    other.label_span[label],
-                    other.get_text(other.label_msg[label]),
-                );
-            }
-            let fixes = other.fixes[i];
-            for f in fixes.start..fixes.start + fixes.len {
-                let f = f as usize;
-                let edits: Vec<(Span, &str)> = other.edits[other.fix_edits[f].range()]
-                    .iter()
-                    .map(|e| (e.span, other.get_text(e.text)))
-                    .collect();
-                self.add_fix(
-                    other.get_text(other.fix_title[f]),
-                    other.fix_safety[f],
-                    &edits,
-                );
+            if keep(other.code[i]) {
+                self.append_row(other, i);
             }
         }
+    }
+
+    /// Appends row `i` of `other`, its labels and fix-its, unless its root
+    /// is reported already.
+    fn append_row(&mut self, other: &DiagBuf, i: usize) {
+        if !self.push(
+            other.code[i],
+            other.severity[i],
+            other.primary[i],
+            other.get_text(other.message[i]),
+            other.root[i],
+        ) {
+            return;
+        }
+        let labels = other.labels[i];
+        for label in labels.start..labels.start + labels.len {
+            let label = label as usize;
+            self.add_label(
+                other.label_span[label],
+                other.get_text(other.label_msg[label]),
+            );
+        }
+        let fixes = other.fixes[i];
+        for f in fixes.start..fixes.start + fixes.len {
+            let f = f as usize;
+            let edits: Vec<(Span, &str)> = other.edits[other.fix_edits[f].range()]
+                .iter()
+                .map(|e| (e.span, other.get_text(e.text)))
+                .collect();
+            self.add_fix(
+                other.get_text(other.fix_title[f]),
+                other.fix_safety[f],
+                &edits,
+            );
+        }
+    }
+
+    /// Drops each diagnostic that repeats an earlier one exactly: its
+    /// code, severity, span, message, labels and fix-its (`crates/hd_tir/DESIGN.md`
+    /// §4.14 "Order"). Two tasks that each report one fact of an item,
+    /// such as its header check and its body running out of fuel at its
+    /// header, report it once. One hash probe per row; only rows that
+    /// share a code, span and message are compared further.
+    pub fn dedup_exact(&mut self) {
+        let mut kept: hd_base::HashMap<(u16, u32, u32, u32, &str), Vec<usize>> =
+            hd_base::HashMap::default();
+        let mut dup = vec![false; self.len()];
+        let mut any = false;
+        for (i, d) in dup.iter_mut().enumerate() {
+            let p = self.primary[i];
+            let key = (
+                self.code[i] as u16,
+                p.file.raw(),
+                p.lo,
+                p.hi,
+                self.get_text(self.message[i]),
+            );
+            let rows = kept.entry(key).or_default();
+            if rows.iter().any(|&j| self.same_parts(i, j)) {
+                *d = true;
+                any = true;
+            } else {
+                rows.push(i);
+            }
+        }
+        if !any {
+            return;
+        }
+        let mut out = DiagBuf::default();
+        for (i, _) in dup.iter().enumerate().filter(|(_, d)| !**d) {
+            out.append_row(self, i);
+        }
+        *self = out;
+    }
+
+    /// Whether rows `i` and `j`, of one code, span and message, have the
+    /// same severity, labels and fix-its.
+    fn same_parts(&self, i: usize, j: usize) -> bool {
+        let labels = |r: usize| {
+            let l = self.labels[r];
+            (l.start..l.start + l.len).map(|k| {
+                (
+                    self.label_span[k as usize],
+                    self.get_text(self.label_msg[k as usize]),
+                )
+            })
+        };
+        let fixes = |r: usize| {
+            let f = self.fixes[r];
+            (f.start..f.start + f.len).map(|k| {
+                let k = k as usize;
+                (
+                    self.get_text(self.fix_title[k]),
+                    self.fix_safety[k],
+                    self.edits[self.fix_edits[k].range()]
+                        .iter()
+                        .map(|e| (e.span, self.get_text(e.text)))
+                        .collect::<Vec<_>>(),
+                )
+            })
+        };
+        self.severity[i] == self.severity[j]
+            && self.root[i] == self.root[j]
+            && labels(i).eq(labels(j))
+            && fixes(i).eq(fixes(j))
     }
 
     /// A rollback point: every column's length (`crates/hd_check/DESIGN.md` (type checking) §3.5).

@@ -2639,7 +2639,10 @@ fn build_packages_inner(
         .sum();
     counters.sort();
     let report = lock(&run.report).clone();
-    let diags = std::mem::take(&mut *lock(&run.diags));
+    let mut diags = std::mem::take(&mut *lock(&run.diags));
+    // Tasks report independently: one item's header check and body each
+    // report its fuel running out, on its header (`fn.limit.complexity.error`).
+    diags.dedup_exact();
     let wasm = if diags.has_errors() {
         None
     } else {
