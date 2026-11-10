@@ -129,21 +129,12 @@ pub fn assoc_faults(lookup: &Lookup<'_>, imp: DefId) -> AssocFaults {
     let Some(ItemData::Trait(td)) = lookup.item(*trait_).map(|t| &t.data) else {
         return AssocFaults::default();
     };
-    let has_default = |d: DefId| {
-        matches!(
-            lookup.item(d).map(|i| &i.data),
-            Some(ItemData::AssocType {
-                default: Some(_),
-                ..
-            })
-        )
-    };
     AssocFaults {
         omitted: td
             .assoc
             .iter()
             .map(|(_, d)| *d)
-            .filter(|d| !assoc.iter().any(|(b, _)| b == d) && !has_default(*d))
+            .filter(|d| !assoc.iter().any(|(b, _)| b == d))
             .collect(),
         extra: assoc
             .iter()

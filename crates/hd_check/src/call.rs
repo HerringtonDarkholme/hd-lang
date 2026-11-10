@@ -5614,20 +5614,6 @@ impl Ck<'_, '_> {
                 return self.normalized(x);
             }
         }
-        // A trait's default for the associated type, once the implementing
-        // type is known.
-        if pool.has_infer(st) {
-            return Ok(t);
-        }
-        if let Some(ItemData::AssocType {
-            default: Some(d), ..
-        }) = self.cx.lookup.item(assoc).map(|i| &i.data)
-        {
-            let x = pool.subst(*d, &|p: ParamRef| {
-                (p.owner == trait_ && p.index == 0).then_some(st)
-            });
-            return self.normalized(x);
-        }
         Ok(t)
     }
 }

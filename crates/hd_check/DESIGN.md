@@ -2267,7 +2267,7 @@ For `<S as Tr[A]>::Name`:
 | a parameter with a bound on `Tr` but no binding | the projection itself, as a rigid type, with the bound's arguments. It equals only itself |
 | a trait value that binds `Name` | the binding ([`trait.dyn.bound.reference-projection`](../../spec/lang/09-traits.md#r-trait.dyn.bound.reference-projection)) |
 | known, or open with one fitting impl | prove `Implements` first; on `Holds` with `Impl` evidence, read that impl's binding for `Name`, substitute the impl's arguments, and normalize the result again |
-| known, no impl binds it | the trait's default for the associated type, if any |
+| known, no impl binds it | the projection itself: a trait declares no default for an associated type |
 
 **Normalization proves applicability.** A head match alone does not make
 an impl apply: its bounds must hold too. So a source-level normalization

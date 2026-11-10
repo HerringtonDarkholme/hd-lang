@@ -161,7 +161,7 @@ fn std_interfaces_hold_no_poison_type() {
                         tys.push(*self_ty);
                         tys.extend(assoc.iter().map(|a| a.1));
                     }
-                    ItemData::AssocType { default, .. } => tys.extend(*default),
+                    ItemData::AssocType { .. } => {}
                     ItemData::Alias { body, .. } | ItemData::Newtype(body) => tys.push(*body),
                     ItemData::Builtin => {}
                 }

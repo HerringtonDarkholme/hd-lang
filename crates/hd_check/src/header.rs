@@ -689,12 +689,7 @@ impl<'a> ItemCheck<'_, 'a> {
         }
         match &it.data {
             ItemData::Trait(t) => tys.extend(t.supers.iter().copied()),
-            ItemData::AssocType {
-                bounds, default, ..
-            } => {
-                tys.extend(bounds.iter().copied());
-                tys.extend(*default);
-            }
+            ItemData::AssocType { bounds, .. } => tys.extend(bounds.iter().copied()),
             _ => {}
         }
         for t in tys {

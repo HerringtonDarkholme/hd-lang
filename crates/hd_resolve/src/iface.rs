@@ -600,7 +600,6 @@ pub enum ItemData {
     AssocType {
         owner: DefId,
         bounds: Vec<Ty>,
-        default: Option<Ty>,
     },
     Alias {
         body: Ty,
@@ -1428,24 +1427,6 @@ fn get_tys(r: &mut Reader<'_>, t: &Tables) -> Option<Vec<Ty>> {
     (0..r.count()).map(|_| t.ty(r.u32())).collect()
 }
 
-fn opt_ty(t: &mut TableWriter<'_>, x: Option<Ty>) -> StageResult<u32> {
-    match x {
-        Some(x) => t.ty(x),
-        None => Ok(u32::MAX),
-    }
-}
-
-/// An optional type row: `Ok(None)` for the absent marker, `Err(())` for
-/// a malformed row.
-fn get_opt_ty(r: &mut Reader<'_>, t: &Tables) -> Result<Option<Ty>, ()> {
-    let x = r.u32();
-    if x == u32::MAX {
-        Ok(None)
-    } else {
-        t.ty(x).map(Some).ok_or(())
-    }
-}
-
 fn put_item(w: &mut Writer, t: &mut TableWriter<'_>, it: &Item) -> StageResult<()> {
     w.u32(t.def(it.def));
     w.u32(t.sym(it.name));
@@ -1540,15 +1521,10 @@ fn put_item(w: &mut Writer, t: &mut TableWriter<'_>, it: &Item) -> StageResult<(
             }
             put_type_attrs(w, t, attrs)?;
         }
-        ItemData::AssocType {
-            owner,
-            bounds,
-            default,
-        } => {
+        ItemData::AssocType { owner, bounds } => {
             w.u8(6);
             w.u32(t.def(*owner));
             put_tys(w, t, bounds)?;
-            w.u32(opt_ty(t, *default)?);
         }
         ItemData::Alias { body, lifetimes } => {
             w.u8(7);
@@ -1666,11 +1642,7 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
         6 => {
             let owner = t.def(r.u32())?;
             let bounds = get_tys(r, t)?;
-            ItemData::AssocType {
-                owner,
-                bounds,
-                default: get_opt_ty(r, t).ok()?,
-            }
+            ItemData::AssocType { owner, bounds }
         }
         7 => {
             let body = t.ty(r.u32())?;
@@ -2249,12 +2221,7 @@ pub fn mentioned_defs<'a>(
                 tys.push(*self_ty);
                 tys.extend(assoc.iter().map(|a| a.1));
             }
-            ItemData::AssocType {
-                bounds, default, ..
-            } => {
-                tys.extend(bounds.iter().copied());
-                tys.extend(*default);
-            }
+            ItemData::AssocType { bounds, .. } => tys.extend(bounds.iter().copied()),
             ItemData::Alias { body, .. } | ItemData::Newtype(body) => tys.push(*body),
             ItemData::Builtin => {}
         }

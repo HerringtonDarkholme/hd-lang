@@ -6049,7 +6049,10 @@ impl Lower<'_, '_, '_> {
                 let (methods, assoc_decls) =
                     self.members(block, h.def, h.public, true, &mut gn, out);
                 let mut assoc = Vec::new();
-                for (name, def, ty, bounds) in assoc_decls {
+                // A trait's associated type takes no value
+                // (`grammar.trait.associated-type.bound`); the parser
+                // rejects one, so its type is not lowered.
+                for (name, def, _, bounds) in assoc_decls {
                     out.push(Item::new(
                         def,
                         name,
@@ -6057,7 +6060,6 @@ impl Lower<'_, '_, '_> {
                         ItemData::AssocType {
                             owner: h.def,
                             bounds,
-                            default: ty,
                         },
                     ));
                     assoc.push((name, def));
