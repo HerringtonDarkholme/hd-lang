@@ -1,0 +1,34 @@
+# test: a local type names an enclosing function's row parameter
+# Spec 11 Row Parameters: req.row.param.scopes; a local struct and a local
+# enum take `R` from around them (names.local-type.refs).
+# expect-stdout: tick 1
+# expect-stdout: tick 2
+# expect-stdout: kept
+struct Task[$ R]:
+    job: fn(i32) -> void $ R
+
+fn tick(n: i32) -> void $ Console:
+    println("tick $n")
+
+fn run[T, $ R](value: T, task: Task[$ R]) -> T $ R:
+    struct Holder:
+        job: fn(i32) -> void $ R
+        kept: T
+
+    enum Maybe:
+        Job(fn(i32) -> void $ R)
+        Nothing
+
+    fn fire(m: Maybe, n: i32) -> void $ R:
+        match m:
+            .Job(j) => j(n)
+            .Nothing => pass
+
+    h := Holder { job: task.job, kept: value }
+    (h.job)(1)
+    fire(Maybe.Job(task.job), 2)
+    fire(Maybe.Nothing, 3)
+    h.kept
+
+pub fn main() -> void $ Console:
+    println(run("kept", Task { job: tick }))

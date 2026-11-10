@@ -405,9 +405,9 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// `args` written for `item`, after the type parameters a local type
-    /// takes from around it, each the one of the same name in scope here
-    /// (`names.local-type.refs`).
+    /// `args` written for `item`, after the type, const and row parameters
+    /// a local type takes from around it, each the one of the same name in
+    /// scope here (`names.local-type.refs`, `req.row.param.scopes`).
     pub(crate) fn with_outer_args<'t>(
         &self,
         item: &hd_resolve::Item,
@@ -429,6 +429,19 @@ impl Ck<'_, '_> {
                         .map_or(Ty::POISON, |(_, p, _)| {
                             self.pool().intern_ty(&TyData::Param(*p))
                         });
+                }
+                if g.row {
+                    let pool = self.pool();
+                    return self.row_gens.iter().rev().find(|r| r.0 == g.name).map_or(
+                        Ty::POISON,
+                        |(_, p)| {
+                            let row = pool.row(&hd_types::RowData {
+                                keys: vec![],
+                                params: vec![*p],
+                            });
+                            pool.intern_ty(&TyData::Row(row))
+                        },
+                    );
                 }
                 self.type_param(self.cx.names.text(g.name))
                     .unwrap_or(Ty::POISON)

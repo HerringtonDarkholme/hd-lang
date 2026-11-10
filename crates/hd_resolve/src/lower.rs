@@ -1872,7 +1872,7 @@ impl Lower<'_, '_, '_> {
 
     /// Enters head `h`. The local declarations in scope are those visible
     /// where it is declared, itself included, and a local one sees the
-    /// type and const parameters of the declarations around it, local
+    /// type, const and row parameters of the declarations around it, local
     /// functions' included (`names.local-type.refs`). A local struct,
     /// enum, newtype or alias takes them as its leading parameters, as a
     /// local impl of one does ([`Self::outer_generics`]).
@@ -1888,15 +1888,8 @@ impl Lower<'_, '_, '_> {
         if lists.is_empty() {
             return;
         }
-        // A row parameter is not taken: naming one stays a gap
-        // (`Lower::named`). A const parameter has a type parameter's
-        // scopes (`types.generic.const.positions`).
-        let plain = lists.iter().all(|&gl| {
-            self.src.parse.tree.node(gl).children().all(|g| {
-                g.direct_token(&self.src.parse.tokens, TokenKind::Dollar)
-                    .is_none()
-            })
-        });
+        // A const or row parameter has a type parameter's scopes
+        // (`types.generic.const.positions`, `req.row.param.scopes`).
         let takes = match h.kind {
             HeadKind::Struct | HeadKind::Enum | HeadKind::Newtype | HeadKind::Alias => true,
             // An impl takes them when its target is a local type that
@@ -1926,7 +1919,7 @@ impl Lower<'_, '_, '_> {
             }
             HeadKind::Fn | HeadKind::Trait => false,
         };
-        if plain && takes {
+        if takes {
             self.outer_lists = lists;
         }
     }
@@ -1975,7 +1968,7 @@ impl Lower<'_, '_, '_> {
 
     /// A written use of `def` with its written arguments `args`, after
     /// the arguments of the parameters it takes from around it: each the
-    /// type parameter of the same name in scope here. `None` when it takes
+    /// type, const or row parameter of the same name in scope here. `None` when it takes
     /// none.
     fn with_outer_args(&mut self, def: DefId, gn: &Gen, args: &[Ty]) -> Option<Vec<Ty>> {
         let names: Vec<Symbol> = self.r.with_generics(def, |g| {
@@ -1990,6 +1983,13 @@ impl Lower<'_, '_, '_> {
                 out.push(*t);
             } else if let Some((_, slot, _, _)) = gn.consts.iter().rev().find(|c| c.0 == n) {
                 out.push(self.names.pool.intern_ty(&TyData::Param(*slot)));
+            } else if let Some((_, r)) = gn.rows.iter().rev().find(|(s, _)| *s == n) {
+                let pool = self.names.pool;
+                let row = pool.row(&hd_types::RowData {
+                    keys: vec![],
+                    params: vec![*r],
+                });
+                out.push(pool.intern_ty(&TyData::Row(row)));
             } else {
                 // gap: #1632
                 self.gap("a local type that takes an enclosing type parameter, named where that parameter is not its own");
@@ -2917,8 +2917,9 @@ impl Lower<'_, '_, '_> {
         }
         let Some((def, kind)) = self.resolve_path(&segs, span) else {
             // A local struct, enum, newtype, alias or impl of one takes the
-            // type and const parameters around it (`names.local-type.refs`,
-            // `enter`); a local trait and a row parameter are not taken yet.
+            // type, const and row parameters around it
+            // (`names.local-type.refs`, `enter`); a local trait does not
+            // take them yet.
             if segs.len() == 1 && self.outer.contains(&first) {
                 // gap: #1632
                 self.gap("a local trait that names an enclosing type parameter");

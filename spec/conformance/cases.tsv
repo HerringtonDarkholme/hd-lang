@@ -6469,6 +6469,7 @@ typing/valid/a-diverging-copy-update-source-checks.hd	type	accept	lang/04-type-s
 typing/invalid/a-negative-copy-implementation-outside-its-target-module.hd	type	reject:invalid-negative-impl	lang/13-values-and-references.md#r-ref.copy.opt-out.invalid
 runtime/valid/a-local-type-names-its-functions-type-parameter.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.local-type.refs
 runtime/valid/a-local-type-names-an-enclosing-const-parameter.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.local-type.refs
+runtime/valid/a-local-type-names-an-enclosing-row-parameter.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.row.param.scopes
 runtime/valid/a-local-type-in-a-method-names-the-impls-self.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.local-type.refs
 runtime/valid/a-local-type-names-a-local-functions-type-parameter.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.local-type.refs
 typing/invalid/a-field-assignment-on-a-value-with-no-fields-is-unknown.hd	type	reject:unknown-field	lang/05-expressions.md#r-expr.member.field-read

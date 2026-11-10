@@ -368,6 +368,7 @@ fn run_on_exit(exit: OnExit[$ Console]) -> void $ Console:
 10. r[req.row.param.data-infer] A constructor expression may infer a struct's, enum's, or newtype's row argument from its fields or payload.
 11. r[req.row.param.data-substitute] Instantiation substitutes a declaration's row argument through every type in that declaration.
 12. r[req.row.param.context] `$.Context[...]` takes only a concrete row, so a row parameter in its row is an error. Error: `row-parameter-in-context`.
+13. r[req.row.param.scopes] A row parameter has the scopes of a type parameter, as a const parameter does. So a [local type declaration](03-names-and-scopes.md#r-names.local-type.refs) may name an enclosing declaration's row parameter.
 
 ```text
 fn run[R](job: fn() -> void $ R) -> void $ R:  # error: generic-kind-mismatch
