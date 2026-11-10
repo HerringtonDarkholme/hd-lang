@@ -73,7 +73,7 @@ module through it:
 | `names`, `src` | interned names, paths, the pool; the module's syntax |
 | `scope`, `lookup`, `locals` | the module scope; items of the module and of every interface in its closure; block-local items |
 | `impls` (`ImplView`), `solver`, `global` | the solver's view of impls (trait solver §3.2), the solver, the run's global memo |
-| `methods` | the method index, built on first use |
+| `methods` | the method index, which the driver builds once per interface closure and module |
 | `init`, `results` | module initialization facts; M1's registry of omitted results and rows |
 | `tests`, `session` | the `tests:` block scope; REPL session nodes |
 | `fuel` | each body's fuel budget |

@@ -6,7 +6,7 @@
 //! ([`BodyCx::join`]) leaves the module's context as a serial check
 //! would.
 
-use std::cell::{OnceCell, RefCell};
+use std::cell::RefCell;
 use std::sync::Arc;
 
 use hd_base::{DefId, HashMap};
@@ -63,10 +63,7 @@ impl<'a> BodyCx<'a> {
     /// after M1, when no body waits on another.
     #[must_use]
     pub fn fork(&self) -> BodyFork<'a> {
-        let methods = self
-            .methods
-            .get_or_init(|| Arc::new(MethodIndex::build(self.lookup)))
-            .clone();
+        let methods = self.methods.clone();
         BodyFork {
             names: self.names,
             src: self.src,
@@ -135,7 +132,7 @@ impl<'a> BodyFork<'a> {
             impls: self.impls,
             global: self.global,
             solver: self.solver,
-            methods: OnceCell::from(self.methods.clone()),
+            methods: self.methods.clone(),
             init: RefCell::new(self.init.fork()),
             results: RefCell::new(self.results.fork()),
             dbg_refs: RefCell::default(),

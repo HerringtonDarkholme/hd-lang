@@ -49,19 +49,6 @@ fn name_distance(left: &str, right: &str) -> usize {
 }
 
 impl MethodIndex {
-    #[must_use]
-    pub fn build(lookup: &hd_resolve::Lookup<'_>) -> Self {
-        let mut ix = Self::default();
-        ix.extend(lookup.own.iter());
-        ix.extend(
-            lookup
-                .ifaces
-                .iter()
-                .flat_map(|f| f.items.impls().chain(f.items.traits())),
-        );
-        ix
-    }
-
     /// An interface closure has one index, independent of each module's private items.
     #[must_use]
     pub fn interfaces(lookup: &hd_resolve::Lookup<'_>) -> Self {
@@ -483,9 +470,7 @@ impl Ck<'_, '_> {
     }
 
     fn method_index(&self) -> &crate::MethodIndex {
-        self.cx
-            .methods
-            .get_or_init(|| std::sync::Arc::new(crate::MethodIndex::build(self.cx.lookup)))
+        &self.cx.methods
     }
 
     /// The traits declaring a method `sym`, with their method, in the

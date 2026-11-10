@@ -40,9 +40,9 @@ pub struct BodyCx<'a> {
     pub impls: &'a ImplView<'a>,
     pub global: &'a GlobalMemo,
     pub solver: &'a dyn Solver,
-    /// The methods of the closure by name, built on first use and shared
-    /// with the module's forked contexts ([`crate::fork`]).
-    pub methods: std::cell::OnceCell<std::sync::Arc<crate::MethodIndex>>,
+    /// The methods of the closure by name, shared with the module's forked
+    /// contexts ([`crate::fork`]).
+    pub methods: std::sync::Arc<crate::MethodIndex>,
     /// The module's top-level bindings and its bodies' init facts.
     pub init: std::cell::RefCell<crate::init::ModuleInit>,
     /// The module's private callables with omitted result types (M1).
