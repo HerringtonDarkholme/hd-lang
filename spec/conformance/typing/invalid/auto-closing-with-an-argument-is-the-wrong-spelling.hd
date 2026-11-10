@@ -1,0 +1,4 @@
+# test: `@auto_closing` with an argument is the wrong spelling
+# Spec 14 Auto-Closing: annot.auto-closing.target; the line is bare.
+@auto_closing(1) # diagnostic: decorator-target-kind
+fn open() -> i32: +1

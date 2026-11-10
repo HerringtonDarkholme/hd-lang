@@ -6423,6 +6423,9 @@ runtime/valid/a-reference-to-a-promoted-or-shared-enum-field.hd	runtime	accept	l
 typing/invalid/an-omitted-result-that-borrows-from-two-parameters-is-ambiguous.hd	type	reject:ambiguous-reference-source	lang/13-values-and-references.md#r-ref.dep.elide.ambiguous
 typing/invalid/an-omitted-result-that-borrows-with-no-reference-parameter-has-no-source.hd	type	reject:reference-result-without-source	lang/13-values-and-references.md#r-ref.dep.elide.none
 typing/invalid/is-in-a-const-argument-is-no-const-operation.hd	type	reject:nonconstant-generic-argument	lang/04-type-system.md#r-types.generic.const.nonconstant
+typing/invalid/auto-closing-before-a-struct-is-the-wrong-target.hd	type	reject:decorator-target-kind	lang/14-annotations.md#r-annot.auto-closing.target
+typing/invalid/auto-closing-with-an-argument-is-the-wrong-spelling.hd	type	reject:decorator-target-kind	lang/14-annotations.md#r-annot.auto-closing.target
+typing/invalid/a-second-auto-closing-line-is-a-duplicate.hd	type	reject:duplicate-fact	lang/14-annotations.md#r-annot.auto-closing.duplicate
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

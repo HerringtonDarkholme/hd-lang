@@ -1,0 +1,17 @@
+# test: a second `@auto_closing` line is a duplicate
+# Spec 14 Auto-Closing: annot.auto-closing.duplicate.
+use std.ops.{AutoClosing, Disposable}
+
+struct Guard:
+    pass
+
+impl Disposable for Guard:
+    fn dispose(&mut self) -> void:
+        pass
+
+impl AutoClosing for Guard:
+    pass
+
+@auto_closing
+@auto_closing # diagnostic: duplicate-fact
+fn open() -> Guard: Guard {}

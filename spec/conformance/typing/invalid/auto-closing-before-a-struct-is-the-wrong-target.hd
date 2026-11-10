@@ -1,0 +1,6 @@
+# test: `@auto_closing` before a struct is the wrong target
+# Spec 14 Auto-Closing: annot.auto-closing.target; it precedes only a
+# module-level function.
+@auto_closing # diagnostic: decorator-target-kind
+struct S:
+    x: i32
