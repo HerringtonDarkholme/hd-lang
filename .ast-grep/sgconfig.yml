@@ -2,3 +2,5 @@
 # one `ast-grep scan` over the repository with these rules.
 ruleDirs:
   - rules
+testConfigs:
+  - testDir: tests

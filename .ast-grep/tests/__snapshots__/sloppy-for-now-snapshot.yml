@@ -1,0 +1,52 @@
+id: sloppy-for-now
+snapshots:
+  "// FOR NOW the unsupported case is ignored.\nfn query() {}\n":
+    labels:
+      - source: // FOR NOW the unsupported case is ignored.
+        style: primary
+        start: 0
+        end: 43
+  "// This temporary hack skips verification.\nfn query() {}\n":
+    labels:
+      - source: // This temporary hack skips verification.
+        style: primary
+        start: 0
+        end: 42
+  "/// This temporary-solution bypasses layout checks.\nfn layout() {}\n":
+    labels:
+      - source: |
+          /// This temporary-solution bypasses layout checks.
+        style: primary
+        start: 0
+        end: 52
+  "/// WORKAROUND: assume every value has one field.\nfn layout() {}\n":
+    labels:
+      - source: |
+          /// WORKAROUND: assume every value has one field.
+        style: primary
+        start: 0
+        end: 50
+  "fn query() {\n    // A temporary fix until the actual analysis exists.\n}\n":
+    labels:
+      - source: // A temporary fix until the actual analysis exists.
+        style: primary
+        start: 17
+        end: 69
+  "fn query() {\n    // This workaround bypasses the normal ownership check.\n}\n":
+    labels:
+      - source: // This workaround bypasses the normal ownership check.
+        style: primary
+        start: 17
+        end: 72
+  "fn query() {\n    // for now, skip propagation.\n}\n":
+    labels:
+      - source: // for now, skip propagation.
+        style: primary
+        start: 17
+        end: 46
+  "mod production {\n    // A stopgap until the complete analysis is implemented.\n    fn query() {}\n}\n":
+    labels:
+      - source: // A stopgap until the complete analysis is implemented.
+        style: primary
+        start: 21
+        end: 77

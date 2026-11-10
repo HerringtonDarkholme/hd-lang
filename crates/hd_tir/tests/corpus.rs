@@ -43,6 +43,10 @@ impl VerifyCx for CorpusFacts {
 struct OwnershipFacts;
 
 impl hd_tir::own::OwnCx for OwnershipFacts {
+    fn temporary_owner_name(&self) -> hd_base::Symbol {
+        hd_base::Symbol::NONE
+    }
+
     fn is_map_probe(&self, callee: &Callee) -> bool {
         matches!(callee, Callee::Item { def, .. } if *def == DefId::from_raw(11))
     }

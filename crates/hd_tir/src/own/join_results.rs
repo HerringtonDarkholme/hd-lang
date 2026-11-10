@@ -34,6 +34,10 @@ mod tests {
 
     struct Facts;
     impl OwnCx for Facts {
+        fn temporary_owner_name(&self) -> hd_base::Symbol {
+            hd_base::Symbol::NONE
+        }
+
         fn counted(&self, ty: Ty) -> bool {
             matches!(ty, Ty(43 | 45 | 47)) || Cx.counted(ty)
         }

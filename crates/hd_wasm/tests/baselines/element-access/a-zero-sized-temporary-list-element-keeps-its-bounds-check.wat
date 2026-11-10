@@ -3,8 +3,8 @@
   (import "fixture" "source" (func $source (result i32)))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "accept" (func $accept (param i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $visit (param $index i32) (local $t0 i32)
     ;; 12 |     accept(&source()[index])
@@ -21,8 +21,13 @@
         unreachable
       end
       local.get $t0
-      i32.const 4
+      local.get $index
+      i32.const 0
+      i32.mul
       i32.add
+      i32.const 16
+      i32.add
+      call $accept
       local.get $t0
       if
         local.get $t0
@@ -34,7 +39,6 @@
           call $rt:release_ref
         end
       end
-      call $accept
     end
   )
 )

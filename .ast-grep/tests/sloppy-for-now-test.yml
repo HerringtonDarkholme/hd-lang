@@ -1,0 +1,58 @@
+id: sloppy-for-now
+valid:
+  - |
+    //! Temporary values borrowed by local references get explicit owner locals.
+    fn owner() {}
+  - |
+    fn project() {
+        // the actual temporary behind a projected field, never a copied header.
+    }
+  - |
+    /// The borrow keeps its temporary owner alive through the call.
+    fn borrow() {}
+  - |
+    /// Temporarily borrows storage without taking its count.
+    fn lend() {}
+  - |
+    const LABEL: &str = "workaround";
+  - |
+    #[test]
+    fn synthetic_case() {
+        // for now this fixture supplies a fake type table.
+    }
+  - |
+    #[cfg(test)]
+    mod tests {
+        // workaround used only by the synthetic fixture.
+        fn fake() {}
+    }
+invalid:
+  - |
+    fn query() {
+        // for now, skip propagation.
+    }
+  - |
+    // FOR NOW the unsupported case is ignored.
+    fn query() {}
+  - |
+    fn query() {
+        // This workaround bypasses the normal ownership check.
+    }
+  - |
+    /// WORKAROUND: assume every value has one field.
+    fn layout() {}
+  - |
+    mod production {
+        // A stopgap until the complete analysis is implemented.
+        fn query() {}
+    }
+  - |
+    // This temporary hack skips verification.
+    fn query() {}
+  - |
+    fn query() {
+        // A temporary fix until the actual analysis exists.
+    }
+  - |
+    /// This temporary-solution bypasses layout checks.
+    fn layout() {}

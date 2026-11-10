@@ -1,0 +1,15 @@
+# @dump: own counts
+# `ref.convert.lend` and `ref.dep.temporary`: lending a temporary pointer
+# keeps its owner until the local reference's last use.
+# expected: the pointer moves into an owner local and drops after `read`;
+# the lending read itself takes no count.
+fn read(value: &u32) -> u32:
+    replacement := box(99u32)
+    actual := *value
+    if *replacement != 99u32:
+        panic("replacement changed")
+    actual
+
+fn probe() -> u32:
+    # subject
+    read(box(37u32))

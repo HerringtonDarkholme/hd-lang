@@ -68,6 +68,10 @@ mod tests {
         declared: bool,
     }
     impl OwnCx for Facts {
+        fn temporary_owner_name(&self) -> hd_base::Symbol {
+            hd_base::Symbol::NONE
+        }
+
         fn parameter_count(&self, _: DefId) -> Option<usize> {
             self.declared.then_some(1)
         }

@@ -94,6 +94,10 @@ jobs:
           chmod +x "$bin"
           dirname "$bin" >> "$GITHUB_PATH"
 
+      - name: Ast-grep rule regressions
+        if: ${{ !cancelled() }}
+        run: ast-grep test --config .ast-grep/sgconfig.yml
+
       # Output-quality checks on the pushed change only (owner, 2026-11-08: "make it only
       # check the changed case, do not run full check"): no added `unsupported`, no
       # unreasoned shortcut, a stated cost, a test with each fix, a .wat for new programs.

@@ -42,6 +42,10 @@ mod tests {
 
     struct Facts(bool);
     impl OwnCx for Facts {
+        fn temporary_owner_name(&self) -> hd_base::Symbol {
+            hd_base::Symbol::NONE
+        }
+
         fn suspending(&self, _: DefId) -> bool {
             self.0
         }
