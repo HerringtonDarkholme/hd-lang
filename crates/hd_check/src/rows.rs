@@ -194,42 +194,8 @@ impl Ck<'_, '_> {
     }
 
     fn row_type_children(&self, t: Ty) -> Vec<Ty> {
-        let pool = self.pool();
         let mut children = Vec::new();
-        match pool.get(t) {
-            TyData::Adt { args, .. } | TyData::Union(args) => {
-                children.extend_from_slice(pool.list_items(args));
-            }
-            TyData::Tuple { elems, rest } => {
-                children.extend_from_slice(pool.list_items(elems));
-                children.extend(rest);
-            }
-            TyData::TraitValue { args, bindings, .. } => {
-                children.extend_from_slice(pool.list_items(args));
-                children.extend(bindings.into_iter().map(|(_, t)| t));
-            }
-            TyData::Opaque { args, bound, .. } => {
-                children.extend_from_slice(pool.list_items(args));
-                children.push(bound);
-            }
-            TyData::Ref { inner: i, .. } => children.push(i),
-            TyData::Fn {
-                params,
-                result,
-                row,
-                ..
-            } => {
-                children.extend_from_slice(pool.list_items(params));
-                children.push(result);
-                children.extend(pool.row_data(row).keys);
-            }
-            TyData::Row(row) | TyData::Context(row) => children.extend(pool.row_data(row).keys),
-            TyData::Assoc { self_ty, args, .. } => {
-                children.push(self_ty);
-                children.extend_from_slice(pool.list_items(args));
-            }
-            _ => {}
-        }
+        self.pool().children(t, &mut children);
         children
     }
 

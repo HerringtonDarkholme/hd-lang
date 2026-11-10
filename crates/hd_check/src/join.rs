@@ -919,63 +919,27 @@ impl Ck<'_, '_> {
     /// argument can solve one to a bare `dyn Tr` descriptor. Cost: one walk
     /// of the formal, only when it has a variable.
     pub(crate) fn open_referents(&self, formal: Ty) -> Vec<Ty> {
-        fn walk(ck: &Ck<'_, '_>, t: Ty, under_ref: bool, out: &mut Vec<Ty>) {
+        fn walk(ck: &Ck<'_, '_>, t: Ty, out: &mut Vec<Ty>) {
             let pool = ck.pool();
             if !pool.has_infer(t) {
                 return;
             }
             let t = ck.infer.shallow(pool, t);
-            match pool.get(t) {
-                TyData::Infer(_) if under_ref => out.push(t),
-                TyData::Ref { inner, .. } => walk(ck, inner, true, out),
-                TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => {
-                    for a in pool.list_items(args) {
-                        walk(ck, *a, false, out);
-                    }
+            if let TyData::Ref { inner, .. } = pool.get(t) {
+                let inner = ck.infer.shallow(pool, inner);
+                if matches!(pool.get(inner), TyData::Infer(_)) {
+                    out.push(inner);
+                    return;
                 }
-                TyData::Tuple { elems, rest } => {
-                    for a in pool.list_items(elems).iter().copied().chain(rest) {
-                        walk(ck, a, false, out);
-                    }
-                }
-                TyData::Union(members) => {
-                    for a in pool.list_items(members) {
-                        walk(ck, *a, false, out);
-                    }
-                }
-                TyData::Fn { params, result, .. } => {
-                    for a in pool.list_items(params).iter().copied().chain([result]) {
-                        walk(ck, a, false, out);
-                    }
-                }
-                TyData::Opaque { args, bound, .. } => {
-                    for a in pool.list_items(args).iter().copied().chain([bound]) {
-                        walk(ck, a, false, out);
-                    }
-                }
-                TyData::Assoc { self_ty, args, .. } => {
-                    for a in [self_ty]
-                        .into_iter()
-                        .chain(pool.list_items(args).iter().copied())
-                    {
-                        walk(ck, a, false, out);
-                    }
-                }
-                // A row's keys are trait values, which a reference never
-                // stands before; a bare variable is not behind one here.
-                TyData::Infer(_)
-                | TyData::Row(_)
-                | TyData::Context(_)
-                | TyData::Prim(_)
-                | TyData::Never
-                | TyData::Poison
-                | TyData::Param(_)
-                | TyData::Const(_)
-                | TyData::Canon(_) => {}
+            }
+            let mut children = Vec::new();
+            pool.children(t, &mut children);
+            for child in children {
+                walk(ck, child, out);
             }
         }
         let mut out = Vec::new();
-        walk(self, formal, false, &mut out);
+        walk(self, formal, &mut out);
         out
     }
 

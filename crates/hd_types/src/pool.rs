@@ -1586,6 +1586,52 @@ impl<'a> Types<'a> {
     }
     /// Whether a type names `Self` of `trait_` (parameter 0 of the trait),
     /// outside the base of an associated-type projection.
+    /// Appends `t`'s child types to `out` in written order, as
+    /// [`Self::map_children`] visits them, with a row's keys in the row's
+    /// place. A leaf appends nothing. Cost: one pass over the children.
+    pub fn children(self, t: Ty, out: &mut Vec<Ty>) {
+        match self.get(t) {
+            TyData::Adt { args, .. } | TyData::Union(args) => {
+                out.extend_from_slice(self.list_items(args));
+            }
+            TyData::Opaque { args, bound, .. } => {
+                out.extend_from_slice(self.list_items(args));
+                out.push(bound);
+            }
+            TyData::Tuple { elems, rest } => {
+                out.extend_from_slice(self.list_items(elems));
+                out.extend(rest);
+            }
+            TyData::Ref { inner, .. } => out.push(inner),
+            TyData::Fn {
+                params,
+                result,
+                row,
+                ..
+            } => {
+                out.extend_from_slice(self.list_items(params));
+                out.push(result);
+                out.extend(self.row_data(row).keys);
+            }
+            TyData::Row(row) | TyData::Context(row) => out.extend(self.row_data(row).keys),
+            TyData::TraitValue { args, bindings, .. } => {
+                out.extend_from_slice(self.list_items(args));
+                out.extend(bindings.into_iter().map(|(_, b)| b));
+            }
+            TyData::Assoc { self_ty, args, .. } => {
+                out.push(self_ty);
+                out.extend_from_slice(self.list_items(args));
+            }
+            TyData::Prim(_)
+            | TyData::Never
+            | TyData::Poison
+            | TyData::Param(_)
+            | TyData::Const(_)
+            | TyData::Infer(_)
+            | TyData::Canon(_) => {}
+        }
+    }
+
     /// Rebuilds `t` with each child type mapped by `m.ty` and each row by
     /// `m.row`, children in written order: arguments, elements then rest,
     /// members, a referent, parameters then result then row, a bound after
