@@ -255,18 +255,7 @@ impl Ck<'_, '_> {
             (SyntaxKind::VariantExpr, _) => {
                 self.variant_value(n, &crate::call::Args::empty(), want, None)?
             }
-            (
-                SyntaxKind::AdditiveExpr
-                | SyntaxKind::MultiplicativeExpr
-                | SyntaxKind::ComparisonExpr
-                | SyntaxKind::LogicalAndExpr
-                | SyntaxKind::LogicalOrExpr
-                | SyntaxKind::BitwiseAndExpr
-                | SyntaxKind::BitwiseOrExpr
-                | SyntaxKind::BitwiseXorExpr
-                | SyntaxKind::ShiftExpr,
-                &[l, r],
-            ) => self.binary(n, l, r)?,
+            (kind, &[l, r]) if Self::left_binary(kind) => self.binary(n, l, r)?,
             (SyntaxKind::PowerExpr, &[l, r]) => self.power(n, l, r)?,
             (SyntaxKind::FieldExpr, &[base, ..]) => self.field_expr(n, base, want)?,
             (SyntaxKind::IndexExpr, &[base, key]) => self.index_expr(n, base, key)?,
@@ -1205,12 +1194,80 @@ impl Ck<'_, '_> {
         }
     }
 
-    fn binary(&mut self, n: NodeRef<'_>, l: NodeRef<'_>, r: NodeRef<'_>) -> StageResult<(Ref, Ty)> {
+    fn left_binary(kind: SyntaxKind) -> bool {
+        matches!(
+            kind,
+            SyntaxKind::AdditiveExpr
+                | SyntaxKind::MultiplicativeExpr
+                | SyntaxKind::ComparisonExpr
+                | SyntaxKind::LogicalAndExpr
+                | SyntaxKind::LogicalOrExpr
+                | SyntaxKind::BitwiseAndExpr
+                | SyntaxKind::BitwiseOrExpr
+                | SyntaxKind::BitwiseXorExpr
+                | SyntaxKind::ShiftExpr
+        )
+    }
+
+    /// Walk a left spine before checking operands, just as recursive checking
+    /// charged the outer nodes before reaching the first operand. Unwind the
+    /// spine in evaluation order, checking each right operand in its own
+    /// context, including the conditional flow of a short-circuit operator.
+    ///
+    /// An inner binary is not a contextual variant, so its parent's left
+    /// expectation is either absent or `bool`. Neither can absorb an
+    /// inference error. The outer expression still goes through `expr`
+    /// with its caller's expectation, including a poisoned one.
+    fn binary<'n>(
+        &mut self,
+        mut n: NodeRef<'n>,
+        mut l: NodeRef<'n>,
+        mut r: NodeRef<'n>,
+    ) -> StageResult<(Ref, Ty)> {
+        let mut pending = Vec::new();
+        while Self::left_binary(l.kind())
+            && !self.pipe_arg.is_some_and(|(at, _)| at == l.index())
+            && !self.chain_recv.is_some_and(|(at, _)| at == l.index())
+        {
+            let mut children = l.children();
+            let (Some(left), Some(right), None) =
+                (children.next(), children.next(), children.next())
+            else {
+                break;
+            };
+            self.charge().map_err(|e| e.at(self.cx.src.span(l)))?;
+            pending.push((n, l, r));
+            (n, l, r) = (l, left, right);
+        }
+        let mut value = self
+            .binary_step(n, l, r, None)
+            .map_err(|e| e.at(self.cx.src.span(n)))?;
+        for (n, l, r) in pending.into_iter().rev() {
+            // This is the same normalization expr applies to the left
+            // operand's result before it is used by the next operator.
+            value.1 = self.norm_ty(value.1);
+            value = self
+                .binary_step(n, l, r, Some(value))
+                .map_err(|e| e.at(self.cx.src.span(n)))?;
+        }
+        Ok(value)
+    }
+
+    fn binary_step(
+        &mut self,
+        n: NodeRef<'_>,
+        l: NodeRef<'_>,
+        r: NodeRef<'_>,
+        checked_left: Option<(Ref, Ty)>,
+    ) -> StageResult<(Ref, Ty)> {
         // The parser builds a binary node as left operand, operator, right.
         let op_tok = hd_base::TokenIdx::from_raw(self.cx.src.last(l).raw() + 1);
         let op = self.cx.src.parse.tokens.kind(op_tok);
         if matches!(op, TokenKind::AndAnd | TokenKind::OrOr) {
-            let (a, at) = self.expr(l, Some(Ty::BOOL))?;
+            let (a, at) = match checked_left {
+                Some(value) => value,
+                None => self.expr(l, Some(Ty::BOOL))?,
+            };
             self.expect(at, Ty::BOOL, l, "operand", ExpectPosition::Operand);
             let m = self.b.open_block();
             let mut rhs = None;
@@ -1248,7 +1305,9 @@ impl Ck<'_, '_> {
         // `expr.eq.trait.ref`, `expr.ord.trait.ref`: `Eq.eq` and
         // `PartialOrd.partial_cmp` take both operands by reference, so an
         // operand that is a place passes its address.
-        let (a, at, la) = if left_want.is_none() && self.operand_place(op, l, None) {
+        let (a, at, la) = if let Some((a, at)) = checked_left {
+            self.ref_operand(op, (a, at, false), l)
+        } else if left_want.is_none() && self.operand_place(op, l, None) {
             let (a, at) = self.index_place_receiver(l)?;
             (a, at, true)
         } else {

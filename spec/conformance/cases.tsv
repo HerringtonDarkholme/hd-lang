@@ -6156,6 +6156,7 @@ typing/invalid/prelude-shadow-multiline-use.hd	type	reject:prelude-name-shadow	l
 typing/valid/empty-collection-joined-context.hd	type	accept	lang/05-expressions.md#r-expr.collection.expected
 runtime/valid/list-spread-inferred-optional.hd	runtime	accept	lang/05-expressions.md#r-expr.list.spread.convert
 typing/invalid/unknown-return-type-no-cascade.hd	type	reject:unknown-type	README.md#diagnostics
+typing/invalid/poisoned-binary-chain-expectation.hd	type	reject:unknown-type	README.md#diagnostics
 runtime/valid/compound-assignment-to-a-top-level-binding.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.exec.access
 typing/invalid/a-local-annotation-through-an-unknown-module-is-an-unknown-name.hd	type	reject:unknown-name	lang/03-names-and-scopes.md#r-names.module.other-module.value
 typing/invalid/a-local-annotation-through-a-module-that-lacks-the-type.hd	type	reject:unknown-import	lang/03-names-and-scopes.md#r-names.type.qualified

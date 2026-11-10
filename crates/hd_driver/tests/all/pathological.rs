@@ -322,7 +322,6 @@ fn parenthesized_expression_checker_fuel() {
     check_fuel(parens, 36, 144);
 }
 #[test]
-#[ignore = "#1678: compiler stack overflow on a flat addition chain"]
 fn left_associative_expression_checker_fuel() {
     check_fuel(sum, 2500, 10_000);
 }

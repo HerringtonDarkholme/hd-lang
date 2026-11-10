@@ -1,0 +1,5 @@
+# test: an unknown annotation gives one diagnostic for a binary chain
+# Spec README.md: Diagnostics (one failure, one diagnostic).
+
+fn run(value: i32) -> void:
+    let result: Missing = value + 2 * 3 + 4 # diagnostic: unknown-type
