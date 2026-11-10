@@ -130,15 +130,21 @@ be 0. Use `nice` and `-j 4`, with the dev profile.
 - `cargo fmt --check`, and `cargo clippy -p <touched crate> --all-targets
   -- -D warnings`.
 - The touched crates' tests (for `hd_driver`, name `--lib` and `--test`
-  targets), and focused driver conformance: `HD_CONFORMANCE_ONLY=<names>
-  cargo test -p hd_driver --test conformance`. Default conformance runs on
-  CI only.
+  targets).
+- Focused driver conformance, naming only the cases the change touches (a
+  few dozen, not hundreds), in dev mode and then in checked mode; both are
+  required (#1065, Checks Before A Push):
+  `HD_CONFORMANCE_ONLY=<names> cargo test -p hd_driver --test conformance
+  specification_conformance_passes_except_known_failures -- --exact`, then
+  the same with `HD_CONFORMANCE_CHECKED=1`. Add a third run with
+  `HD_CONFORMANCE_PIPELINE=optimized` when the change touches inlining or
+  the release pipeline. Unfocused conformance runs on CI only.
 - `bash spec/check.sh` only when spec files change; `cargo test -p
   hd_check --test stages` only when stage baselines can change.
 - Bench byte-identity only when codegen could change.
-- No workspace-wide `cargo test`, no `--all-features`, no optimized or
-  checked conformance modes, no `hd_cli`/web/UI runs unless the change
-  touches those paths.
+- No workspace-wide `cargo test`, no `--all-features`, no unfocused
+  conformance, no native release builds, and no `hd_cli`/web/UI runs
+  unless the change touches those paths.
 - A bless is a review. Read every changed line against the case's source and
   its `expected:` note, explain it from the code that caused it, and check the
   new output is right; "the code changed" is not a reason. Check every removed
