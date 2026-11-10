@@ -270,7 +270,7 @@ pub fn recursive_instance(
             }
             TyData::Union(members) => todo.extend_from_slice(pool.list_items(members)),
             TyData::Adt { def: d, args: a } => {
-                // Data and collections are held by reference.
+                // This enum-instance walk stops at non-enum ADTs.
                 if !env.is_enum(d) {
                     continue;
                 }
