@@ -98,6 +98,46 @@ test("an else block and a function body that only panic go with the panic", () =
   ]);
 });
 
+test("always-on assertions are invariant without hiding guards or surrounding code", () => {
+  for (const macro of ["assert", "assert_eq", "assert_ne"]) {
+    const args = macro === "assert" ? "ok" : "left, right";
+    const src = [
+      "fn f(ok: bool, left: u32, right: u32) {", // 1
+      `    std::${macro}!(`, // 2
+      `        ${args},`, // 3
+      "    );", // 4
+      "    match left {", // 5
+      `        0 if ok => { ${macro}!(${args}); }`, // 6
+      `        1 => { ${macro}!(${args}); }`, // 7
+      "        _ => run(),", // 8
+      "    }", // 9
+      `    let kept = { ${macro}!(${args}); right };`, // 10
+      "    assert_more!(left, right);", // 11
+      "    use_value(kept);", // 12
+      "}", // 13
+    ].join("\n");
+    assert.deepEqual(
+      kinds(src),
+      [
+        "1:code",
+        "2:invariant",
+        "3:invariant",
+        "4:invariant",
+        "5:code",
+        "6:code",
+        "7:invariant",
+        "8:code",
+        "9:code",
+        "10:code",
+        "11:code",
+        "12:code",
+        "13:code",
+      ],
+      macro,
+    );
+  }
+});
+
 test("verifier findings are invariant inside verifier code only", () => {
   const src = [
     "struct Walk { errs: Vec<VerifyError> }", // 1

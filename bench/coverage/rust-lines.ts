@@ -8,7 +8,7 @@
 //   Test code is not compiler code, and it leaves the report.
 // - "invariant": every token is part of a check that fails only when an
 //   internal invariant breaks (#1442). These are counted apart:
-//   - `unreachable!`, `panic!` and `debug_assert!` (`_eq`, `_ne`) invocations;
+//   - `unreachable!`, `panic!`, `assert!` and `debug_assert!` (`_eq`, `_ne`) invocations;
 //   - verifier findings: a `VerifyError { .. }` literal anywhere, and inside
 //     verifier code a call that reports a finding (`err(..)`, `self.err(..)`,
 //     `errs.push(..)`, `self.errs.push(..)`). Verifier code is a function
@@ -37,6 +37,9 @@ type Token = { text: string; line: number; end: number };
 const INVARIANT_MACROS = new Set([
   "unreachable",
   "panic",
+  "assert",
+  "assert_eq",
+  "assert_ne",
   "debug_assert",
   "debug_assert_eq",
   "debug_assert_ne",
