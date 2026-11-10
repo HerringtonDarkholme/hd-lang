@@ -289,7 +289,9 @@ impl<'a> ImplView<'a> {
 /// Where the solver reads impls.
 #[derive(Clone, Copy)]
 pub enum Impls<'a> {
-    /// Every table, in order: codegen's one program-wide table.
+    /// Every table, scanned in order with no owner lookup: the tables of
+    /// the solver's unit tests. Every compiler run, codegen included,
+    /// reads through `Owned`.
     All(&'a [(ModuleId, &'a ImplTable)]),
     /// Owner lookup in one context (§3.2).
     Owned(&'a ImplView<'a>),
