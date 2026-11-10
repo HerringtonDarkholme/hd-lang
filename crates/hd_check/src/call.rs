@@ -1175,16 +1175,11 @@ impl Ck<'_, '_> {
             return Ok((Ref(NONE), Ty::POISON));
         };
         let (r, t) = self.expr(e, None)?;
-        // A newtype converts to the type it wraps (`string(path)`).
+        // A newtype converts to the type it wraps (`string(path)`), and
+        // to no other: `f64(m)` of a newtype over `i32` is no cast
+        // (`types.cast.nonnumeric`).
         if let Some(v) = self.unwrap_newtype(r, t, to, e, n) {
             return Ok(v);
-        }
-        if let Some(inner) = self.newtype_base(t)
-            && self.cast_numeric(inner)
-            && self.cast_numeric(to)
-        {
-            let v = self.b.field(r, 0, inner, n.index());
-            return Ok((self.b.prim(PrimOp::Conv as u32, &[v], to, n.index()), to));
         }
         // Only a numeric-to-numeric call is a cast (`types.cast.nonnumeric`);
         // any other constructor-style call of a primitive type is a call of

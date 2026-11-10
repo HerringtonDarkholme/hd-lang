@@ -1,0 +1,6 @@
+# test: only the base type's constructor unwraps a newtype; another numeric type does not cast it
+# Spec 04 Numeric Casts: types.cast.nonnumeric. Spec 04 Newtypes: types.newtype.construct.
+type Meters(i32)
+
+fn wide(m: Meters) -> f64:
+    f64(m) # diagnostic: not-callable
