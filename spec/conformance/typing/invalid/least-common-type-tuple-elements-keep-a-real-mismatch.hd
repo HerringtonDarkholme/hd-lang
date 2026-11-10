@@ -1,0 +1,9 @@
+# test: tuples whose elements differ in more than a reference permission have no common type
+# Spec 04 Least Common Type: types.lct.tuple-elements. The reference elements
+# would weaken to `&Cell`, but `i32` and `string` meet by no conversion.
+
+struct Cell:
+    v: i32
+
+fn pick(flag: bool, k: i32, cell: &mut Cell, shared: &Cell) -> void:
+    _ := if flag: (k, cell) else: ("s", shared) # diagnostic: no-common-type

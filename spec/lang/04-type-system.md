@@ -2233,10 +2233,11 @@ r[types.lct.sites] Several constructs infer one type from several values when no
 4. r[types.lct.optional] Optional injection adds one layer, as [`types.assign.optional`](#r-types.assign.optional) states. So an `i32` and an `i32?` join to `i32?`, in a list literal, a value-producing `if` or `match`, and an inferred result type alike.
 5. r[types.lct.optional.one-layer] A `T` and a `T??` have no common type, because injection never adds two layers. Error: `no-common-type`.
 6. r[types.lct.no-combine] Least-common-type inference never combines permission weakening with a variance step for the same candidate conversion.
-7. r[types.lct.row-union-every-site] At every construct in the table, function values with different rows are first widened to the union of their rows ([Row Union In Literals](11-requirements-and-suspension.md#row-union-in-literals)).
-8. r[types.lct.never.dropped] The least common type first drops every value of type `never`, then joins the rest. So `if ok: 1 else: return .None` has type `i32`.
-9. r[types.lct.never.all] When every value has type `never`, the least common type is `never`.
-10. r[types.lct.never.infer] A type parameter that only values of type `never` meet is inferred as `never`, as for `id(panic("x"))` with `fn id[T](x: T) -> T`.
+7. r[types.lct.tuple-elements] Tuples of one arity meet element by element, so a reference element weakens as assignment allows. So `if flag: (cell, k) else: (shared, k)` with a `&mut Cell` and a `&Cell` has type `(&Cell, i32)`, while `(i32, &Cell)` and `(string, &Cell)` have no common type. Error: `no-common-type`.
+8. r[types.lct.row-union-every-site] At every construct in the table, function values with different rows are first widened to the union of their rows ([Row Union In Literals](11-requirements-and-suspension.md#row-union-in-literals)).
+9. r[types.lct.never.dropped] The least common type first drops every value of type `never`, then joins the rest. So `if ok: 1 else: return .None` has type `i32`.
+10. r[types.lct.never.all] When every value has type `never`, the least common type is `never`.
+11. r[types.lct.never.infer] A type parameter that only values of type `never` meet is inferred as `never`, as for `id(panic("x"))` with `fn id[T](x: T) -> T`.
 
 ```text
 fn first(values: List[i32]) -> i32?:

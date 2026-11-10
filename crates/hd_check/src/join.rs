@@ -524,19 +524,68 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// The types of the values joined so far at `var`'s site, resolved.
-    /// Reference permissions meet by weakening; ordinary unification
-    /// keeps them distinct. Only the invariant inner type unifies here.
+    /// Whether two values' types have the same shape for the join, binding
+    /// variables as unification does. Reference permissions meet by
+    /// weakening, and ordinary unification keeps them distinct, so a
+    /// reference's permissions are left to [`Self::lct_meet`] wherever an
+    /// assignment could weaken them: at the top, in each tuple element
+    /// (`types.lct.tuple-elements`), and in a variant type argument. A
+    /// reference's own referent, and an invariant argument, unify. Cost:
+    /// one walk of the shallower type, bounded by `DEPTH`.
     fn unify_join(&mut self, a: Ty, b: Ty) -> bool {
+        self.unify_join_at(a, b, 0)
+    }
+
+    fn unify_join_at(&mut self, a: Ty, b: Ty, depth: u32) -> bool {
         let pool = self.pool();
-        let (a, b) = match (
-            pool.get(self.infer.shallow(pool, a)),
-            pool.get(self.infer.shallow(pool, b)),
-        ) {
-            (TyData::Ref { inner: x, .. }, TyData::Ref { inner: y, .. }) => (x, y),
-            _ => (a, b),
-        };
-        self.infer.unify(pool, a, b).is_ok()
+        let (sa, sb) = (self.infer.shallow(pool, a), self.infer.shallow(pool, b));
+        if depth > DEPTH {
+            return self.infer.unify(pool, sa, sb).is_ok();
+        }
+        let d = depth + 1;
+        match (pool.get(sa), pool.get(sb)) {
+            (TyData::Ref { inner: x, .. }, TyData::Ref { inner: y, .. }) => {
+                self.infer.unify(pool, x, y).is_ok()
+            }
+            (
+                TyData::Tuple {
+                    elems: xs,
+                    rest: xr,
+                },
+                TyData::Tuple {
+                    elems: ys,
+                    rest: yr,
+                },
+            ) => {
+                let (xs, ys) = (pool.list_items(xs), pool.list_items(ys));
+                if xs.len() != ys.len() {
+                    return false;
+                }
+                let elems = xs
+                    .iter()
+                    .zip(ys.iter())
+                    .all(|(x, y)| self.unify_join_at(*x, *y, d));
+                elems
+                    && match (xr, yr) {
+                        (Some(x), Some(y)) => self.unify_join_at(x, y, d),
+                        (None, None) => true,
+                        _ => false,
+                    }
+            }
+            (TyData::Adt { def, args: xs }, TyData::Adt { def: d2, args: ys }) if def == d2 => {
+                let vs = self.declared_variances(def);
+                let (xs, ys) = (pool.list_items(xs), pool.list_items(ys));
+                xs.len() == ys.len()
+                    && xs.iter().zip(ys.iter()).enumerate().all(|(j, (x, y))| {
+                        if vs.get(j).copied().unwrap_or(0) == 0 {
+                            self.infer.unify(pool, *x, *y).is_ok()
+                        } else {
+                            self.unify_join_at(*x, *y, d)
+                        }
+                    })
+            }
+            _ => self.infer.unify(pool, sa, sb).is_ok(),
+        }
     }
 
     fn joined_types(&self, var: Ty) -> Vec<Ty> {

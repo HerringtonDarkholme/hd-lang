@@ -1,0 +1,12 @@
+# test: the least common type weakens a reference element of a tuple, as assignment does
+# Spec 04 Least Common Type: types.lct.tuple-elements (owner decision 2026-11-09).
+# `(&mut Cell, i32)` and `(&Cell, i32)` meet at `(&Cell, i32)`.
+
+struct Cell:
+    v: i32
+
+fn pick(flag: bool, cell: &mut Cell, shared: &Cell, k: i32) -> i32:
+    pair := if flag: (cell, k) else: (shared, k)
+    let read: (&Cell, i32) = pair
+    let (c, n) = read
+    c.v + n

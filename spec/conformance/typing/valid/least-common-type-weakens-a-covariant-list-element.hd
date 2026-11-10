@@ -1,0 +1,11 @@
+# test: the least common type weakens a counted reference inside a covariant list
+# Spec 04 Least Common Type: types.lct.conversions, types.variance.list.
+# `List[*mut Cell]` and `List[*Cell]` meet at `List[*Cell]` by declared variance.
+
+struct Cell:
+    v: i32
+
+fn first(flag: bool, owned: List[*mut Cell], shared: List[*Cell]) -> i32:
+    cells := if flag: owned else: shared
+    let read: List[*Cell] = cells
+    read[0].v

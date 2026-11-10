@@ -6295,6 +6295,9 @@ typing/invalid/list-plus-list-names-the-spread-concatenation.hd	type	reject:type
 typing/invalid/generic-inference-never-solves-a-bare-trait-descriptor.hd	type	reject:cannot-infer-type	lang/04-type-system.md#r-types.generic.infer.no-bare-dyn
 typing/invalid/generic-inference-never-solves-a-bare-trait-descriptor-pointer.hd	type	reject:cannot-infer-type	lang/04-type-system.md#r-types.generic.infer.no-bare-dyn
 typing/valid/generic-inference-explicit-trait-value-reference-argument.hd	type	accept	lang/04-type-system.md#r-types.generic.infer.no-bare-dyn
+typing/valid/least-common-type-weakens-a-reference-inside-a-tuple.hd	type	accept	lang/04-type-system.md#r-types.lct.tuple-elements
+typing/invalid/least-common-type-tuple-elements-keep-a-real-mismatch.hd	type	reject:no-common-type	lang/04-type-system.md#r-types.lct.tuple-elements
+typing/valid/least-common-type-weakens-a-covariant-list-element.hd	type	accept	lang/04-type-system.md#r-types.lct.conversions
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
