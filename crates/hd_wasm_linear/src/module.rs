@@ -1116,6 +1116,10 @@ pub struct Module {
     /// Each instance by its key, for a caller to read how its callee takes
     /// its parameters (`crates/hd_wasm_linear/DESIGN.md` §23.25).
     pub inst_of: hd_base::HashMap<Hash128, hd_base::InstId>,
+    /// The whole-local stores of each emitted instance's own sub-body.
+    /// Shared groups are prepared once per distinct checked body before
+    /// loan analysis; the stable instance number is the only lookup key.
+    pub(crate) loan_stores: Vec<std::sync::Arc<[usize]>>,
     /// Each suspending instance's frame payload size.
     pub frames: BTreeMap<Hash128, u32>,
     /// The top-level bindings some reference refers to, by path hash:

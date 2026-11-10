@@ -426,6 +426,7 @@ pub(super) fn pointer_locals(
     env: &dyn ProgramEnv,
     b: &Body,
     sub: &dyn Fn(Ty) -> Ty,
+    stores: &[usize],
 ) -> hd_base::HashSet<usize> {
     let thin_local = |t: Ty| {
         matches!(
@@ -448,7 +449,7 @@ pub(super) fn pointer_locals(
         )
     };
     let mut ok: HashMap<usize, bool> = HashMap::default();
-    for i in 0..b.tags.len() {
+    for &i in stores {
         let Some((l, true)) = b.stored_local(i) else {
             continue;
         };
@@ -549,12 +550,14 @@ impl Em<'_, '_, '_> {
         if self.m.lent.is_empty() {
             return;
         }
+        // collect_loans indexed every emitted instance's own sub-body.
+        let sites = std::sync::Arc::clone(&self.m.loan_stores[self.inst.idx()]);
         let sub = |t| self.sub(t);
-        let found = binds(self.pool(), self.env(), self.b, &sub, true);
+        let found = binds(self.pool(), self.env(), self.b, &sub, &sites, true);
         let mut st = Borrows {
             shared: super::closure::shared_locals(self.b),
             frames: frames_of(self.b),
-            pointers: pointer_locals(self.pool(), self.env(), self.b, &sub),
+            pointers: pointer_locals(self.pool(), self.env(), self.b, &sub, &sites),
             ..Borrows::default()
         };
         for (i, held, bind, _) in found {

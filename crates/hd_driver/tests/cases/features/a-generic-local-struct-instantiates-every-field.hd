@@ -1,0 +1,15 @@
+# @dump: wat
+# @build: program
+# fn.local.declare and fn.generic.call-list:
+# a generic local body's data fields use that code instance's type arguments.
+# expected: make[i32] constructs and returns Box[i32] as one i32;
+# the enclosing main never lays out make's uninstantiated local Box[N].
+struct Box[T]:
+    item: T
+
+pub fn main() -> void $ Console:
+    fn make[N](value: N) -> Box[N]:
+        result := Box { item: value }
+        result
+    number := make(+7)
+    println("${number.item}")

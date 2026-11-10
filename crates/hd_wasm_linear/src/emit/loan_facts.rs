@@ -6,6 +6,7 @@ use hd_mono::{Sub, Target, TargetKind, subst};
 use hd_tir::ir::{Body, Place, Proj, Tag};
 use hd_tir::own::pointer::{self, Binding, Call, Context, Conversion, Holder, Reference};
 use hd_types::{Ty, TyList};
+use std::sync::Arc;
 
 use super::borrow::{self, Roots};
 use super::excl::{self, Bind, Held};
@@ -26,17 +27,27 @@ struct Facts<'a, 'b> {
     bodies: Vec<Option<&'a Body>>,
 }
 
-pub(super) fn decide(input: &Input<'_>, module: &Module) -> pointer::Decisions {
+pub(super) fn decide(input: &Input<'_>, module: &mut Module) -> pointer::Decisions {
     let mut roots = HashMap::default();
     let mut bodies = vec![None; input.collected.table.item.len()];
+    // The retained body references keep these identities live throughout
+    // preparation; no pointer key survives in Module. A generic body's
+    // instruction groups are built once, shared by all its instances.
+    let mut grouped: HashMap<*const Body, Vec<Arc<[usize]>>> = HashMap::default();
+    let mut stores: Vec<Arc<[usize]>> = vec![Arc::from([]); input.collected.table.item.len()];
     for &id in input.order {
         let Some(b) = (input.body)(id) else {
             continue;
         };
         bodies[id.idx()] = Some(b);
-        if !matches!(input.collected.table.sub[id.idx()], Sub::Body(_)) {
+        let Sub::Body(scope) = input.collected.table.sub[id.idx()] else {
             continue;
-        }
+        };
+        let groups = grouped
+            .entry(std::ptr::from_ref(b))
+            .or_insert_with(|| excl::binding_stores(b));
+        let sites = Arc::clone(&groups[usize::from(scope)]);
+        stores[id.idx()] = Arc::clone(&sites);
         let t = &input.collected.table;
         let sub = |ty| {
             subst(
@@ -51,10 +62,11 @@ pub(super) fn decide(input: &Input<'_>, module: &Module) -> pointer::Decisions {
             id,
             LocalRoots {
                 shared: super::closure::shared_locals(b),
-                pointers: borrow::pointer_locals(input.pool, input.env, b, &sub),
+                pointers: borrow::pointer_locals(input.pool, input.env, b, &sub, &sites),
             },
         );
     }
+    module.loan_stores = stores;
     pointer::decide(&Facts {
         input,
         module,
@@ -201,6 +213,7 @@ impl Context for Facts<'_, '_> {
             self.input.env,
             b,
             &|ty| self.substitute(id, ty),
+            &self.module.loan_stores[id.idx()],
             true,
         )
         .into_iter()

@@ -1,0 +1,20 @@
+# test: a generic local function instantiates struct fields over its own and nested parameters
+# Rules: fn.local.declare, fn.generic.call-list.
+# expect-stdout: 7
+# expect-stdout: kept
+struct Box[T]:
+    item: T
+
+pub fn main() -> void $ Console:
+    fn earlier[T](value: T) -> T:
+        value
+    fn make[N](value: N) -> Box[N]:
+        fn wrap[M](item: M) -> Box[M]:
+            result := Box { item: item }
+            result
+        wrapped := wrap(value)
+        wrapped
+    number := make(earlier(+7))
+    text := make("kept")
+    println("${number.item}")
+    println(text.item)
