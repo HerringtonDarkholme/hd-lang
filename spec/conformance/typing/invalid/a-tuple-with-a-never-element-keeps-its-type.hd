@@ -1,0 +1,6 @@
+# test: a tuple with a never element has its own type, which converts only as that tuple type does
+# Spec 04 Type System: types.never.not-structural.
+
+fn pair() -> (i32, i32):
+    t := (panic("x"), +0)
+    t # diagnostic: type-mismatch

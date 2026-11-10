@@ -1,0 +1,9 @@
+# test: an expected tuple type reaches each element, so a never element fits it
+# Spec 04 Type System: types.never.not-structural.
+
+fn pair() -> (i32, i32):
+    let t: (i32, i32) = (panic("x"), +0)
+    t
+
+fn direct() -> (i32, i32):
+    (panic("x"), +0)

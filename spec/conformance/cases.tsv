@@ -910,6 +910,8 @@ typing/valid/never-assignable-to-every-type.hd	type	accept	lang/04-type-system.m
 typing/invalid/value-not-assignable-to-never.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.never.assignable
 typing/valid/never-abrupt-arm.hd	type	accept	lang/04-type-system.md#r-types.never.abrupt
 typing/valid/never-abrupt-forms.hd	type	accept	lang/04-type-system.md#r-types.never.abrupt-forms
+typing/invalid/a-tuple-with-a-never-element-keeps-its-type.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.never.not-structural
+typing/valid/an-expected-tuple-type-reaches-a-never-element.hd	type	accept	lang/04-type-system.md#r-types.never.not-structural
 typing/invalid/no-int-alias.hd	type	reject:unknown-type	lang/04-type-system.md#r-types.prim.no-aliases
 typing/valid/primitive-mut-self-call.hd	type	accept	lang/04-type-system.md#r-types.prim.no-mut.self-call
 runtime/valid/unit-value.hd	runtime	accept	lang/04-type-system.md#r-types.unit

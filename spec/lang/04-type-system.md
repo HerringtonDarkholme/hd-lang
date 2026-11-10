@@ -55,6 +55,7 @@ See also: [Requirements and Suspension](11-requirements-and-suspension.md).
 4. r[types.never.abrupt-forms] These expressions complete abruptly: an unconditional `return`, `break`, or `continue`, propagation that exits the current body, and a call to `panic`.
 5. r[types.never.forms] Exactly six forms have type `never`: `return`, `break`, `continue`, a call to `panic`, and any other call whose result type is `never`. The sixth is an [infinite loop](06-control-flow.md#r-flow.while.infinite) that no `break` targets.
 6. r[types.never.fits] Each of them therefore fits any expected type, as in a match arm `.None => continue` or a branch `else: break`.
+7. r[types.never.not-structural] Only a value of type `never` itself fits any type. A composite type with a `never` part, such as `(never, i32)`, converts only as its own type does: `t := (panic("x"), +0)` gives `t` the type `(never, i32)`, and returning `t` as an `(i32, i32)` is an error. An expected type still reaches each element, so `let t: (i32, i32) = (panic("x"), +0)` checks. Error: `type-mismatch`.
 
 ```text
 fn total(entries: List[i32?]) -> i32:
