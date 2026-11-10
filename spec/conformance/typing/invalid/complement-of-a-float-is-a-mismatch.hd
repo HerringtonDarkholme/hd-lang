@@ -1,0 +1,4 @@
+# test: bitwise complement applies to integers, so `~` on a float is an error
+# Spec 05 Precedence: expr.op.complement.
+fn flip(x: f64) -> f64:
+    ~x # diagnostic: type-mismatch

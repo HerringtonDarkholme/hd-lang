@@ -1,0 +1,7 @@
+# test: an integer literal is a number, which has no identity, so `is` with one is an error
+# Spec 05 Identity Operands: expr.is.value-operand.
+struct Point:
+    x: i32
+
+fn same(a: &Point) -> bool:
+    1 is a # diagnostic: identity-requires-references

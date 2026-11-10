@@ -1894,9 +1894,6 @@ impl Ck<'_, '_> {
         if tr != k.eq
             && let Some((v, _)) = self.literal_arg_choice(tr, method, (a, at), (&[rn], ct), n)?
         {
-            if prim == PrimOp::Ne {
-                return Ok(self.b.prim(PrimOp::Not as u32, &[v], Ty::BOOL, n.index()));
-            }
             return Ok(v);
         }
         if let Some(info) = self.op_failure(tr, at, Some(ct))? {

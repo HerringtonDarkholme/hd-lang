@@ -6387,6 +6387,15 @@ typing/invalid/a-numeric-cast-of-a-numeric-newtype-is-no-cast.hd	type	reject:not
 typing/invalid/a-tuple-vararg-given-fewer-values-than-its-arity.hd	type	reject:type-mismatch	lang/07-functions.md#r-fn.vararg.collect.tuple-expr
 typing/invalid/an-if-value-without-else-is-one-mismatch.hd	type	reject:type-mismatch	lang/06-control-flow.md#r-flow.if.value.else
 runtime/valid/is-compares-a-reference-with-a-trait-value-reference-to-it.hd	runtime	accept	lang/05-expressions.md#r-expr.is.compatible.trait-value
+runtime/valid/interp-builder-push-writes-field-and-grouped-values.hd	runtime	accept	lang/05-expressions.md#r-expr.interp.builder.push
+typing/invalid/complement-of-a-float-is-a-mismatch.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.op.complement
+typing/invalid/shift-count-negated-literal-is-a-mismatch.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.shift.count-invalid
+typing/valid/a-diverging-shift-count-or-power-base-checks.hd	type	accept	lang/04-type-system.md#r-types.never.fits
+typing/invalid/is-with-an-integer-literal-has-no-identity.hd	type	reject:identity-requires-references	lang/05-expressions.md#r-expr.is.value-operand
+typing/invalid/a-brace-literal-of-an-enum-is-no-data-literal.hd	type	reject:unknown-type	lang/08-data-and-enums.md#r-data.literal.form
+runtime/valid/a-comprehension-over-an-inclusive-range-of-parameters-yields-its-end.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.range.inclusive
+typing/invalid/is-on-two-unrelated-type-parameters-is-incompatible.hd	type	reject:incompatible-identity-operands	lang/05-expressions.md#r-expr.is.incompatible.data
+typing/valid/is-with-a-diverging-operand-checks.hd	type	accept	lang/04-type-system.md#r-types.never.fits
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

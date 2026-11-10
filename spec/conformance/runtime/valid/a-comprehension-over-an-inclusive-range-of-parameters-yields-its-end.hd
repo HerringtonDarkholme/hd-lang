@@ -1,0 +1,8 @@
+# test: a comprehension over an inclusive range whose bounds are parameters yields each value through the end, also for an empty range
+# Spec 06 Range Iteration: flow.for.range.inclusive, flow.for.comprehension.
+# expect-stdout: [2, 4, 6] []
+fn doubled(a: i32, b: i32) -> List[i32]:
+    [for i in a..=b => i * 2]
+
+pub fn main() -> void $ Console:
+    println("${debug(doubled(1, 3))} ${debug(doubled(3, 1))}")

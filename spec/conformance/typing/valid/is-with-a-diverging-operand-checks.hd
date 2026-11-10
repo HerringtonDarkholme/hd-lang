@@ -1,0 +1,4 @@
+# test: a `never` operand of `is` fits, as it fits any expected type
+# Spec 04 The `never` Type: types.never.fits.
+fn gone[T < AnyRef](a: T) -> bool:
+    a is panic("no operand")

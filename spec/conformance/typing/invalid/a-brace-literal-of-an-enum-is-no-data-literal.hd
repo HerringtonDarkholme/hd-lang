@@ -1,0 +1,8 @@
+# test: brace literals build struct values, so a brace literal of an enum type is an error
+# Spec 08 Data Literals: data.literal.form.
+enum Color:
+    Red
+    Blue
+
+fn make() -> void:
+    c := Color {} # diagnostic: unknown-type

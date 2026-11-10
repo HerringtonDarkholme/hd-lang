@@ -1,0 +1,20 @@
+# test: an interpolation of field paths and grouped names pushed onto a builder writes each value in order, with or without literal text
+# Spec 05 String Interpolation: expr.interp.builder.push, expr.interp.builder.sized.
+# expect-stdout: 1|2|2|2 and some longer literal text
+use std.text.StringBuilder
+
+struct Point:
+    x: i32
+
+fn write(sb: &mut StringBuilder, p: Point, n: i32) -> void:
+    sb.push("${p.x}")
+    sb.push("|")
+    sb.push("${(n)}")
+    sb.push("|")
+    sb.push("$n")
+    sb.push("|$n and some longer literal text")
+
+pub fn main() -> void $ Console:
+    b := StringBuilder::new()
+    write(b, Point { x: 1 }, 2)
+    println(b.build())

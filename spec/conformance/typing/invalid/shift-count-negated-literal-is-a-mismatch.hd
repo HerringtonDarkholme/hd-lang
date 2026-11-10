@@ -1,0 +1,4 @@
+# test: a shift count must be unsigned, so a negated literal count is an error
+# Spec 05 Shifts: expr.shift.count-invalid.
+fn down(x: u32) -> u32:
+    x >> -1 # diagnostic: type-mismatch

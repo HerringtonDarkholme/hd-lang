@@ -1,0 +1,7 @@
+# test: a `never` operand fits a shift count and a power base, as it fits any expected type
+# Spec 04 The `never` Type: types.never.fits.
+fn shifted(x: i32) -> i32:
+    x << panic("no count")
+
+fn powered() -> i32:
+    panic("no base") ** 2

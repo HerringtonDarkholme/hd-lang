@@ -1,0 +1,4 @@
+# test: two type parameters bounded by AnyRef have identity but are not compatible types, so `is` between them is an error
+# Spec 05 Identity Operands: expr.is.incompatible.data.
+fn same[T < AnyRef, U < AnyRef](a: T, b: U) -> bool:
+    a is b # diagnostic: incompatible-identity-operands
