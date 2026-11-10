@@ -1074,8 +1074,9 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   and each read, write and identity through one (a `Read` or `Store` of
   a place through it, `RefIdentity`), with no closure form (stage 1 of
   TIR v2 removed them).
-  Here `std.core.Ref[T]` and `std.core.Counted[T]` are one address
-  (`layout::Kind::Ref`, `emit/refs.rs`), the thin form of §23.5:
+  Local `&T` and `&mut T` and counted `*T` and `*mut T` use
+  `TyData::Ref`. Their thin layout is one address (`layout::Kind::Ref`,
+  `emit/refs.rs`), as in §23.5:
   - a local some reference refers to lives in a cell
     (`closure::cell_locals`), one per execution of its declaration, and
     the reference is the cell's payload address plus the field path's
