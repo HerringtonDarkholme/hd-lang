@@ -885,8 +885,8 @@ Collection never re-derives one.
 | `Variance` | `C[A]` → `C[B]` by declared variance | none, by [Representation-Preserving Variance](../../spec/lang/04-type-system.md#representation-preserving-variance) |
 | `WrapSome` | `T` → `T?` | build `.Some` |
 | `RowSubsume` | `fn ... $ R1` → `fn ... $ R2` | none: a context holding `R2`'s keys serves `R1` ([crates/hd_mono/DESIGN.md §12.4](../hd_mono/DESIGN.md#124-rows-and-providers)) |
-| `ToTraitValue`, `ToAny` | `S` → `Tr`, `S` → `Any` | box with its dispatch table; the impl choice is in the record |
-| `Supertrait` | child trait value → parent trait value | load the parent's vtable from the child's |
+| `ToTraitValue`, `ToAny` | none: the checker emits neither, since no value converts to a bare trait value ([`types.generic.infer.no-bare-dyn`](../../spec/lang/04-type-system.md#r-types.generic.infer.no-bare-dyn)) | |
+| `Supertrait` | child trait value → parent trait value, inside the `get` of a trait value reference that widens (`dynref.rs`) | load the parent's vtable from the child's |
 | `SuspendFnToCtor` | `fn!` type → constructor type | none, or a thin adapter |
 | `Identity` | `T` → `T` | none: a least-common-type slot whose value needed no conversion (section 4.3) |
 | `RefToTraitValue` | `&S` → `Tr`, inside the `get` of a trait value reference (`dynref.rs`) | box the reference itself; the vtable reads through it or passes it per slot |
@@ -2755,7 +2755,7 @@ nested proof only in the memo, for `FailInfo`.
 | Use | TIR | Evidence recorded |
 | --- | --- | --- |
 | a trait method call with a known self type or a bound | `Call` with a `TraitMethod` callee | the choice: `Impl`, `Bound`, `TraitValue` or `Builtin` (`ChoiceKind`) |
-| a conversion to a trait value | `Coerce` of kind `ToTraitValue` or `ToAny` | the concrete type, the trait reference and the `Impl` choice |
+| a conversion to a trait value reference | `Coerce` of kind `RefToTraitValue` (or `Supertrait` from a child trait value) inside the new reference's `get` (`dynref.rs`) | the source and trait value types; the record holds no evidence word |
 | a call through a trait value | `CallDyn` | none: its method-level bounds are proven at the call and reach the erased body through the type witness (section 9.2) |
 
 A tuple template instance is an `Impl` choice and needs none of its own.
