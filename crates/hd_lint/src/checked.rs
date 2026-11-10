@@ -1,10 +1,10 @@
-//! Narrow queries over the checker's completed facts, for optional analysis.
+//! Lint's view of the checker's completed facts (`hd_check::comparison`).
 //!
-//! Each query answers something only checking knows: the item a call
-//! selected, a binding's checked type, reads and mutability, a type's
-//! disposal protocol, and statement reachability. Names, spans and written
-//! forms are syntax; the consumer reads them from the tree. Raw compiler
-//! identifiers never leave the view.
+//! The checker records only what needs checker state: the item a call
+//! selected, a binding's reads and mutability, a type's disposal protocol,
+//! payload layouts and statement reachability. This view pairs each fact
+//! with the module's syntax; names, spans and written forms are read from
+//! the tree. Raw compiler identifiers never leave the view.
 
 use std::marker::PhantomData;
 
@@ -13,7 +13,7 @@ use hd_resolve::Src;
 use hd_syntax::NodeRef;
 use hd_types::Prim;
 
-use crate::comparison::{
+use hd_check::comparison::{
     Binding, Comparison, DiscardedExpression, Mutability, ParameterWrite, SourceFacts,
     VariantPattern,
 };
@@ -28,7 +28,7 @@ pub struct BodyRef<'v> {
 /// A selected declaration identity. Raw compiler IDs never leave the view.
 ///
 /// ```compile_fail
-/// use hd_check::analysis::{CallView, DeclRef};
+/// use hd_lint::checked::{CallView, DeclRef};
 /// fn escape<'v>(call: CallView<'v>) -> DeclRef<'static> {
 ///     call.selected_declaration().unwrap()
 /// }
@@ -265,9 +265,8 @@ pub struct CheckedView<'v> {
 }
 
 impl<'v> CheckedView<'v> {
-    #[doc(hidden)]
     #[must_use]
-    pub const fn new(src: Src<'v>, facts: Option<&'v SourceFacts>) -> Self {
+    pub(crate) const fn new(src: Src<'v>, facts: Option<&'v SourceFacts>) -> Self {
         Self { src, facts }
     }
 

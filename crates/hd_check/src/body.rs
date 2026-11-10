@@ -212,10 +212,9 @@ pub(crate) enum ExpectPosition {
 
 pub(crate) struct Ck<'a, 'c> {
     pub cx: &'c BodyCx<'a>,
-    /// Body-local append-only facts: failed trials truncate these before publication.
-    pub comparisons: Vec<crate::comparison::Comparison>,
-    pub unreachable: Vec<hd_base::NodeIdx>,
-    pub discarded: Vec<crate::comparison::DiscardedExpression>,
+    /// Body-local append-only facts for tooling, recorded only when a tool
+    /// asked: failed trials truncate them before publication.
+    pub tool_facts: crate::comparison::SourceFacts,
     /// The body's local pool: its types that hold inference variables.
     pub local: &'c hd_types::LocalPool,
     pub b: TirBuilder,
@@ -263,12 +262,9 @@ pub(crate) struct Ck<'a, 'c> {
     /// The `mut` parameters (and `mut self`) whose value is the callee's own
     /// copy, each with its `Parameter` node.
     pub mut_params: Vec<(LocalId, hd_base::NodeIdx)>,
-    /// Checked changes of those copies, published to optional analysis.
-    pub parameter_writes: Vec<crate::comparison::ParameterWrite>,
     /// Source-only mutable-address and written binding facts requested by tooling.
     pub ref_taken: Vec<LocalId>,
     pub mut_bindings: Vec<(LocalId, hd_base::NodeIdx, Option<LetMutKind>)>,
-    pub variant_patterns: Vec<crate::comparison::VariantPattern>,
     pub self_ty: Option<Ty>,
     /// The available keys: the body's row, then closures and `$.with`
     /// blocks, innermost last.
@@ -586,9 +582,7 @@ pub(crate) fn new_ck<'a, 'c>(
     let mut ck = Ck {
         cx,
         local,
-        comparisons: Vec::new(),
-        unreachable: Vec::new(),
-        discarded: Vec::new(),
+        tool_facts: crate::comparison::SourceFacts::default(),
         b: TirBuilder::new(item, kind),
         infer: InferTable::default(),
         scopes: vec![HashMap::default()],
@@ -612,10 +606,8 @@ pub(crate) fn new_ck<'a, 'c>(
         mut_locals: Vec::new(),
         changed_locals: Vec::new(),
         mut_params: Vec::new(),
-        parameter_writes: Vec::new(),
         ref_taken: Vec::new(),
         mut_bindings: Vec::new(),
-        variant_patterns: Vec::new(),
         self_ty: None,
         rows: vec![
             if kind == BodyKind::Init && !pool.row_data(row).params.is_empty() {
@@ -1390,8 +1382,7 @@ impl Ck<'_, '_> {
 
     /// Unread suspensions are errors even for underscore-prefixed names.
     /// Tooling may request neutral binding/read facts; advice lives outside checking.
-    fn finish_bindings(&mut self) -> StageResult<Vec<crate::comparison::Binding>> {
-        let mut bindings = Vec::new();
+    fn finish_bindings(&mut self) -> StageResult<()> {
         let mut mutability = std::mem::take(&mut self.mut_bindings);
         mutability.sort_stable_by(|a, b| a.0.raw().cmp(&b.0.raw()));
         for (l, named) in std::mem::take(&mut self.user_locals) {
@@ -1423,7 +1414,7 @@ impl Ck<'_, '_> {
             if self.cx.source_facts.is_some() {
                 let unbound_disposable =
                     !self.using_locals.contains(&l) && self.implements_disposal_protocol(lt)?;
-                bindings.push(crate::comparison::Binding {
+                self.tool_facts.bindings.push(crate::comparison::Binding {
                     body: item,
                     local: l,
                     node: at,
@@ -1440,7 +1431,7 @@ impl Ck<'_, '_> {
                 });
             }
         }
-        Ok(bindings)
+        Ok(())
     }
 
     /// `expr.arith.unary-minus`: `-` on an operand whose type turned out
@@ -1746,7 +1737,8 @@ impl Ck<'_, '_> {
             && let Some(body) = self.fn_body
             && let Some(&(_, parameter)) = self.mut_params.iter().find(|(p, _)| *p == l)
         {
-            self.parameter_writes
+            self.tool_facts
+                .parameter_writes
                 .push(crate::comparison::ParameterWrite {
                     body,
                     parameter,
@@ -3136,7 +3128,7 @@ impl Ck<'_, '_> {
             let last = i + 1 == stmts.len();
             self.move_to(self.cx.src.span(s).lo);
             if dead && self.cx.source_facts.is_some() {
-                self.unreachable.push(s.index());
+                self.tool_facts.unreachable.push(s.index());
             }
             if last && value && s.kind() == SyntaxKind::ExprStmt {
                 let [e] = s.parts();
@@ -3827,14 +3819,16 @@ impl Ck<'_, '_> {
                             .next()
                             .is_some_and(|callee| callee.kind() == SyntaxKind::NameExpr);
                     let at = self.cx.src.span(*e).lo;
-                    self.discarded.push(crate::comparison::DiscardedExpression {
-                        node: e.index(),
-                        selected,
-                        prelude_debug,
-                        unbound_disposable,
-                        standard_debug: bare_debug && self.standard_format_name("debug", at),
-                        standard_dbg: bare_debug && self.standard_format_name("dbg", at),
-                    });
+                    self.tool_facts
+                        .discarded
+                        .push(crate::comparison::DiscardedExpression {
+                            node: e.index(),
+                            selected,
+                            prelude_debug,
+                            unbound_disposable,
+                            standard_debug: bare_debug && self.standard_format_name("debug", at),
+                            standard_dbg: bare_debug && self.standard_format_name("dbg", at),
+                        });
                 }
                 return Ok(if t == Ty::NEVER { Ty::NEVER } else { Ty::VOID });
             }
@@ -4766,7 +4760,7 @@ impl Ck<'_, '_> {
         ret: Ty,
         fun: Option<NodeRef<'_>>,
     ) -> StageResult<(Body, Ty, crate::results::RowFacts)> {
-        let bindings = self.finish_bindings()?;
+        self.finish_bindings()?;
         self.report_conflicts();
         if self.module_init.is_none() {
             let item = self.b.body_mut().item;
@@ -5078,13 +5072,7 @@ impl Ck<'_, '_> {
         if !self.diags.has_errors()
             && let Some(sink) = &self.cx.source_facts
         {
-            let mut sink = sink.borrow_mut();
-            sink.comparisons.extend(self.comparisons);
-            sink.bindings.extend(bindings);
-            sink.patterns.extend(self.variant_patterns);
-            sink.unreachable.extend(self.unreachable);
-            sink.parameter_writes.extend(self.parameter_writes);
-            sink.discarded.extend(self.discarded);
+            sink.borrow_mut().extend(self.tool_facts);
         }
         Ok((body, ret, facts))
     }

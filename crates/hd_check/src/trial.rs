@@ -56,13 +56,9 @@ pub(crate) struct Checkpoint {
     infer: TrialMark,
     diags: DiagMark,
     pending: usize,
-    comparisons: usize,
-    unreachable: usize,
-    discarded: usize,
-    parameter_writes: usize,
+    tool_facts: crate::comparison::FactsMark,
     mut_bindings: usize,
     ref_taken: usize,
-    variant_patterns: usize,
     lit_nodes: usize,
     overflow_lits: usize,
     neg_nodes: usize,
@@ -244,13 +240,9 @@ impl Ck<'_, '_> {
             infer: self.infer.trial_mark(),
             diags: self.diags.mark(),
             pending: self.pending.len(),
-            comparisons: self.comparisons.len(),
-            unreachable: self.unreachable.len(),
-            discarded: self.discarded.len(),
-            parameter_writes: self.parameter_writes.len(),
+            tool_facts: self.tool_facts.mark(),
             mut_bindings: self.mut_bindings.len(),
             ref_taken: self.ref_taken.len(),
-            variant_patterns: self.variant_patterns.len(),
             lit_nodes: self.lit_nodes.len(),
             overflow_lits: self.overflow_lits.len(),
             neg_nodes: self.neg_nodes.len(),
@@ -306,13 +298,9 @@ impl Ck<'_, '_> {
             self.ref_captured.remove(&l);
         }
         self.b.rollback(c.tir);
-        self.comparisons.truncate(c.comparisons);
-        self.unreachable.truncate(c.unreachable);
-        self.discarded.truncate(c.discarded);
-        self.parameter_writes.truncate(c.parameter_writes);
+        self.tool_facts.truncate(c.tool_facts);
         self.mut_bindings.truncate(c.mut_bindings);
         self.ref_taken.truncate(c.ref_taken);
-        self.variant_patterns.truncate(c.variant_patterns);
         self.mut_locals.truncate(c.mut_locals);
         self.mut_params.truncate(c.mut_params);
         self.changed_locals.truncate(c.changed_locals);

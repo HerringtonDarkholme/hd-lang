@@ -124,59 +124,54 @@ impl AnalysisSink for TypedRecorder {
 
     fn module(&self, module: &Module<'_>, _: &mut DiagBuf) {
         let src = module.src;
-        let text = |node| &src.text[src.span(node).lo as usize..src.span(node).hi as usize];
-        let checked = module.checked;
+        let text = |node| {
+            let span = src.span(src.parse.tree.node(node));
+            &src.text[span.lo as usize..span.hi as usize]
+        };
+        let facts = module.facts.expect("the recorder requests checked facts");
         let mut events = self.events.lock().unwrap();
-        for comparison in checked.comparisons() {
+        for comparison in &facts.comparisons {
             events.push(format!(
                 "comparison:{}:{:?}:{:?}",
-                text(comparison.node()),
-                comparison.primitive(false),
-                comparison.primitive(true)
+                text(comparison.node),
+                comparison.left,
+                comparison.right
             ));
         }
-        for binding in checked.bindings() {
-            let mutability = binding.mutability();
+        for binding in &facts.bindings {
             events.push(format!(
                 "binding:{}:{}:{}",
-                text(binding.node()),
-                binding.is_read(),
-                mutability.is_some_and(|fact| {
-                    fact.is_primitive()
-                        && !fact.mutable_address_taken()
-                        && text(fact.pattern()).starts_with("mut ")
+                text(binding.node),
+                binding.read,
+                binding.mutability.as_ref().is_some_and(|fact| {
+                    fact.primitive && !fact.address_taken && text(fact.pattern).starts_with("mut ")
                 })
             ));
         }
-        for statement in checked.unreachable() {
+        for &statement in &facts.unreachable {
             events.push(format!("unreachable:{}", text(statement)));
         }
-        for write in checked.parameter_writes() {
+        for write in &facts.parameter_writes {
             events.push(format!(
                 "parameter-write:{}:{}",
-                text(write.parameter()),
-                text(write.write())
+                text(write.parameter),
+                text(write.write)
             ));
         }
-        for pattern in checked.patterns() {
-            let bindings: Vec<_> = pattern
-                .subpatterns()
-                .map(|sub| sub.map(text).unwrap())
-                .collect();
+        for pattern in &facts.patterns {
+            let bindings: Vec<_> = pattern.subs.iter().map(|sub| text(sub.unwrap())).collect();
             events.push(format!(
                 "pattern:{}:{:?}:{bindings:?}",
-                pattern.variant(),
-                pattern.fields()
+                pattern.variant, pattern.fields
             ));
         }
-        for call in checked.discarded() {
+        for call in &facts.discarded {
             events.push(format!(
                 "discard:{}:{}:{}:{}",
-                text(call.node()),
-                call.selected_declaration()
-                    .is_some_and(hd_check::analysis::DeclRef::is_prelude_debug),
-                call.standard_debug(),
-                call.standard_dbg()
+                text(call.node),
+                call.selected.is_some() && call.prelude_debug,
+                call.standard_debug,
+                call.standard_dbg
             ));
         }
     }

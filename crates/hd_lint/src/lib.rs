@@ -1,13 +1,14 @@
 #![forbid(unsafe_code)]
 //! Read-only advice over checked source facts. Normal compiler clients do not depend on this crate.
 
+pub mod checked;
 mod derivation;
 mod modules;
 mod syntax;
 mod walk;
 
+use checked::CheckedView;
 use hd_base::{SliceSort as _, Span};
-use hd_check::analysis::CheckedView;
 use hd_diag::{Code, DiagBuf, FixSafety, Severity};
 use hd_driver::Output;
 use hd_driver::analysis::{AnalysisSink, Module, Requests};
@@ -1000,7 +1001,7 @@ fn unused_debug(event: &Event<'_>, cx: &Cx<'_>, out: &mut DiagBuf) {
     };
     if !call
         .selected_declaration()
-        .is_some_and(hd_check::analysis::DeclRef::is_prelude_debug)
+        .is_some_and(checked::DeclRef::is_prelude_debug)
     {
         return;
     }

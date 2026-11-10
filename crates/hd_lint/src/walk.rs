@@ -6,10 +6,8 @@
 //! the first unread one per body line, and one stable sort of the events,
 //! O(n log n) in the events.
 
+use crate::checked::{BindingView, BodyRef, CallView, CheckedView, ComparisonView, PatternView};
 use hd_base::{HashMap, SliceSort as _, Span, TokenIdx};
-use hd_check::analysis::{
-    BindingView, BodyRef, CallView, CheckedView, ComparisonView, PatternView,
-};
 use hd_diag::DiagBuf;
 use hd_driver::analysis::{Module, Requests};
 use hd_project::MainSite;
@@ -177,7 +175,7 @@ pub fn walk<'v>(
     let src = module.src;
     let cx = Cx {
         src,
-        checked: module.checked,
+        checked: CheckedView::new(src, module.facts),
     };
     let at = |node: NodeRef<'_>| src.span(node).lo;
     let mut pending = Vec::new();
@@ -207,7 +205,7 @@ pub fn walk<'v>(
             event: Event::MainSite(site),
         });
     }
-    let checked = module.checked;
+    let checked = cx.checked;
     if interests.contains(Events::STATEMENT) {
         pending.extend(checked.unreachable().map(|node| Pending {
             at: at(node),

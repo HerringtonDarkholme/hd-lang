@@ -468,7 +468,8 @@ impl Ck<'_, '_> {
                 }
                 // Preserve resolved field positions for tooling.
                 if self.cx.source_facts.is_some() {
-                    self.variant_patterns
+                    self.tool_facts
+                        .patterns
                         .push(crate::comparison::VariantPattern {
                             node: p.index(),
                             variant: name.clone(),

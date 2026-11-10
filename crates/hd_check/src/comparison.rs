@@ -1,6 +1,6 @@
 //! Optional checked facts for tools: only what needs checker state. Names,
-//! spans and written forms are read from syntax by the consumer, and no
-//! diagnostic or policy lives here.
+//! spans and written forms are read from syntax by the consumer (`hd_lint`'s
+//! checked view), and no diagnostic or policy lives here.
 
 use hd_base::{DefId, LocalId, NodeIdx};
 use hd_types::Prim;
@@ -93,7 +93,32 @@ pub struct SourceFacts {
     pub discarded: Vec<DiscardedExpression>,
 }
 
+/// The lengths of each fact column at a trial's start.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct FactsMark([usize; 6]);
+
 impl SourceFacts {
+    pub(crate) const fn mark(&self) -> FactsMark {
+        FactsMark([
+            self.comparisons.len(),
+            self.bindings.len(),
+            self.patterns.len(),
+            self.unreachable.len(),
+            self.parameter_writes.len(),
+            self.discarded.len(),
+        ])
+    }
+
+    /// Drops the facts a failed trial recorded after `mark`.
+    pub(crate) fn truncate(&mut self, FactsMark(mark): FactsMark) {
+        self.comparisons.truncate(mark[0]);
+        self.bindings.truncate(mark[1]);
+        self.patterns.truncate(mark[2]);
+        self.unreachable.truncate(mark[3]);
+        self.parameter_writes.truncate(mark[4]);
+        self.discarded.truncate(mark[5]);
+    }
+
     pub fn extend(&mut self, other: Self) {
         self.comparisons.extend(other.comparisons);
         self.bindings.extend(other.bindings);

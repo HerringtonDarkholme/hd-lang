@@ -1484,7 +1484,7 @@ impl Ck<'_, '_> {
             left: primitive(at),
             right: primitive(ct),
         };
-        self.comparisons.push(fact);
+        self.tool_facts.comparisons.push(fact);
     }
 
     /// Applies a binary operator to two checked operands.

@@ -6,7 +6,6 @@
 //! interfaces and writes TIR; nothing downstream reads syntax.
 
 mod access;
-pub mod analysis;
 pub mod body;
 mod call;
 mod callable;

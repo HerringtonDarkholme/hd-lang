@@ -7,8 +7,8 @@ use std::sync::OnceLock;
 
 use hd_base::{FileId, Hash128, Span};
 use hd_cache::EntryKind;
-use hd_check::analysis::CheckedView;
 use hd_check::body::BodyCx;
+use hd_check::comparison::SourceFacts;
 use hd_diag::{Code, DiagBuf, FixSafety, Severity};
 use hd_project::MainSite;
 use hd_resolve::Src;
@@ -57,7 +57,8 @@ impl Requests {
 pub struct Module<'v> {
     pub src: Src<'v>,
     pub path: &'v str,
-    pub checked: CheckedView<'v>,
+    /// The checked body facts, when the consumer asked for them.
+    pub facts: Option<&'v SourceFacts>,
     pub derivations: Option<&'v DerivationFacts>,
     pub main_site: Option<MainSite>,
 }
@@ -160,7 +161,7 @@ impl Run<'_> {
             &Module {
                 src: cx.src,
                 path: &self.table.modules[m].path,
-                checked: CheckedView::new(cx.src, facts.as_deref()),
+                facts: facts.as_deref(),
                 derivations: self.collect_derivation_facts(m).then_some(derivations),
                 main_site: self.main_site(m),
             },
