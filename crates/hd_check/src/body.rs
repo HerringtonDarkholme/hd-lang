@@ -25,7 +25,7 @@ use hd_types::solver::{
     Answer, BodyMemo, BuiltinImpl, Evidence, GlobalMemo, Goal, ImplTable, ImplView, Impls,
     ParamEnv, SolveCx, Solver, TraitRef,
 };
-use hd_types::{InferTable, Inputs, ParamRef, Prim, RowId, Ty, TyData, TyList, VarKind};
+use hd_types::{InferTable, ParamRef, Prim, RowId, Ty, TyData, TyList, VarKind};
 
 use crate::expr::Indexed;
 
@@ -2125,23 +2125,7 @@ impl Ck<'_, '_> {
         else {
             return None;
         };
-        let ps = pool.list_items(params);
-        let input = match inputs {
-            Inputs::Fixed => pool.intern_ty(&TyData::Tuple {
-                elems: params,
-                rest: None,
-            }),
-            Inputs::Rest => {
-                let (rest, elems) = ps
-                    .split_last()
-                    .map_or((Ty::POISON, &[][..]), |(&rest, elems)| (rest, elems));
-                pool.intern_ty(&TyData::Tuple {
-                    elems: pool.list(elems),
-                    rest: Some(rest),
-                })
-            }
-            Inputs::Tuple => ps.first().copied().unwrap_or(Ty::POISON),
-        };
+        let input = pool.inputs_tuple(params, inputs);
         let output = if suspends {
             pool.intern_ty(&TyData::Adt {
                 def: self.cx.names.known.suspend,

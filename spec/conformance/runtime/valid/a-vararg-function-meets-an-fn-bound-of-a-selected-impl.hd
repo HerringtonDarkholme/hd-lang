@@ -1,0 +1,27 @@
+# test: an impl whose where-clause bounds its parameter by Fn with a rest tuple applies to a value of a vararg function
+# expect-stdout: 6 6
+# Spec 07: fn.trait.function-values-read-only, fn.trait.bound-tuple, fn.vararg.type.
+use std.function.Fn
+
+fn total(head: i32, tail...: List[i32]) -> i32:
+    let sum = head
+    for x in tail:
+        sum = sum + x
+    sum
+
+trait Runner:
+    fn run(self) -> i32
+
+struct Wrap[F]:
+    f: F
+
+impl[F < Fn[(i32, List[i32]...), i32, $ ()]] Runner for Wrap[F]:
+    fn run(self) -> i32:
+        (self.f)(1, 2, 3)
+
+fn go[R < Runner](r: R) -> i32:
+    r.run()
+
+pub fn main() -> void $ Console:
+    let typed: fn(i32, List[i32]...) -> i32 = total
+    println("${go(Wrap { f: total })} ${go(Wrap { f: typed })}")

@@ -6302,6 +6302,7 @@ typing/invalid/dyn-member-names-self-inside-a-tuple-result.hd	type	reject:dyn-me
 typing/invalid/dyn-member-names-self-in-a-context-result.hd	type	reject:dyn-member-unavailable	lang/09-traits.md#r-trait.dyn.member.self
 runtime/valid/a-vararg-function-meets-an-fn-bound-with-a-rest-tuple.hd	runtime	accept	lang/07-functions.md#r-fn.trait.function-values-read-only
 runtime/valid/a-rest-tuple-and-a-union-are-inspectable.hd	runtime	accept	lang/09-traits.md#r-trait.inspectable.collections
+runtime/valid/a-vararg-function-meets-an-fn-bound-of-a-selected-impl.hd	runtime	accept	lang/07-functions.md#r-fn.trait.bound-tuple
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

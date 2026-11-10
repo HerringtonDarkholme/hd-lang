@@ -2248,23 +2248,7 @@ impl<'s, 'a> Search<'s, 'a> {
                 inputs,
                 ..
             } => {
-                let ps = pool.list_items(params);
-                let input = match inputs {
-                    Inputs::Fixed => pool.intern_ty(&TyData::Tuple {
-                        elems: params,
-                        rest: None,
-                    }),
-                    Inputs::Rest => {
-                        let (rest, elems) = ps
-                            .split_last()
-                            .map_or((Ty::POISON, &[][..]), |(&rest, elems)| (rest, elems));
-                        pool.intern_ty(&TyData::Tuple {
-                            elems: pool.list(elems),
-                            rest: Some(rest),
-                        })
-                    }
-                    Inputs::Tuple => ps.first().copied().unwrap_or(Ty::POISON),
-                };
+                let input = pool.inputs_tuple(params, inputs);
                 let row = pool.intern_ty(&TyData::Row(row));
                 let expected = pool.list(&[input, result, row]);
                 match match_list(pool, DefId::NONE, expected, tref.args, &mut Vec::new()) {
