@@ -506,22 +506,18 @@ fn impl_segment(src: &Src<'_>, n: NodeRef<'_>) -> String {
     parts.join(" ")
 }
 
-/// The head kind of a declaration node and the keyword before its name.
-fn decl_kind(src: &Src<'_>, n: NodeRef<'_>) -> Option<(HeadKind, TokenKind)> {
+/// The head kind of a declaration node.
+fn decl_kind(src: &Src<'_>, n: NodeRef<'_>) -> Option<HeadKind> {
     Some(match n.kind() {
-        SyntaxKind::FnDecl => (HeadKind::Fn, TokenKind::KwFn),
-        SyntaxKind::StructDecl => (HeadKind::Struct, TokenKind::KwStruct),
-        SyntaxKind::EnumDecl => (HeadKind::Enum, TokenKind::KwEnum),
-        SyntaxKind::TraitDecl => (HeadKind::Trait, TokenKind::KwTrait),
-        SyntaxKind::TypeDecl => {
-            let k = if n.direct_token(&src.parse.tokens, TokenKind::Eq).is_some() {
-                HeadKind::Alias
-            } else {
-                HeadKind::Newtype
-            };
-            (k, TokenKind::KwType)
+        SyntaxKind::FnDecl => HeadKind::Fn,
+        SyntaxKind::StructDecl => HeadKind::Struct,
+        SyntaxKind::EnumDecl => HeadKind::Enum,
+        SyntaxKind::TraitDecl => HeadKind::Trait,
+        SyntaxKind::TypeDecl if n.direct_token(&src.parse.tokens, TokenKind::Eq).is_some() => {
+            HeadKind::Alias
         }
-        SyntaxKind::ImplDecl => (HeadKind::Impl, TokenKind::KwImpl),
+        SyntaxKind::TypeDecl => HeadKind::Newtype,
+        SyntaxKind::ImplDecl => HeadKind::Impl,
         _ => return None,
     })
 }
@@ -529,23 +525,15 @@ fn decl_kind(src: &Src<'_>, n: NodeRef<'_>) -> Option<(HeadKind, TokenKind)> {
 /// The span of a declaration's name, else of the whole declaration.
 #[must_use]
 pub fn head_name_span(src: &Src<'_>, h: &Head<'_>) -> Span {
-    decl_kind(src, h.node)
-        .and_then(|(_, kw)| {
-            h.node
-                .name(&src.parse.tokens)
-                .or_else(|| src.name_after(h.node, kw))
-        })
+    h.node
+        .name(&src.parse.tokens)
         .map_or_else(|| src.span(h.node), |t| src.token_span(t))
 }
 
 /// The name token of a member of a trait, an implementation or a block: a
 /// function or an associated type.
 fn member_name(src: &Src<'_>, f: NodeRef<'_>) -> Option<hd_base::TokenIdx> {
-    f.name(&src.parse.tokens).or_else(|| {
-        (f.kind() == SyntaxKind::FnDecl)
-            .then(|| src.name_after(f, TokenKind::KwFn))
-            .flatten()
-    })
+    f.name(&src.parse.tokens)
 }
 
 /// Heads of the module's own items: the top-level ones, each followed by
@@ -568,7 +556,7 @@ pub fn heads<'t>(names: &Names<'_>, src: &Src<'t>, module: &str, tests: bool) ->
                 .map(move |n| (n, Some(b)))
         });
     for (n, holder) in top.chain(in_tests) {
-        let Some((kind, kw)) = decl_kind(src, n) else {
+        let Some(kind) = decl_kind(src, n) else {
             // The tests block is visited through `in_tests`, so its module
             // declarations stay distinct from registration callbacks' locals.
             if n.kind() != SyntaxKind::TestsBlock {
@@ -606,9 +594,7 @@ pub fn heads<'t>(names: &Names<'_>, src: &Src<'t>, module: &str, tests: bool) ->
                 test: holder,
             }
         } else {
-            let Some(t) = n.name(&src.parse.tokens).or_else(|| src.name_after(n, kw)) else {
-                continue;
-            };
+            let t = n.name_part(&src.parse.tokens);
             let text = src.text(t);
             Head {
                 name: src.symbol(t, names.syms),
@@ -662,7 +648,7 @@ fn local_heads<'t>(
     let mut found = Vec::new();
     local_decls(f, &mut found);
     for (i, (n, suite)) in found.into_iter().enumerate() {
-        let Some((kind, kw)) = decl_kind(src, n) else {
+        let Some(kind) = decl_kind(src, n) else {
             continue;
         };
         // A local derivation block with no trait is an error of its own
@@ -689,9 +675,7 @@ fn local_heads<'t>(
                 names.member(scope, PathKind::Impl, &seg),
             )
         } else {
-            let Some(t) = n.name(&src.parse.tokens).or_else(|| src.name_after(n, kw)) else {
-                continue;
-            };
+            let t = n.name_part(&src.parse.tokens);
             let text = src.text(t);
             (
                 src.symbol(t, names.syms),
@@ -8364,9 +8348,7 @@ pub fn body_nodes<'t>(
                     .flat_map(|b| b.children())
                 {
                     if f.kind() == SyntaxKind::FnDecl
-                        && let Some(t) = f
-                            .name(&src.parse.tokens)
-                            .or_else(|| src.name_after(f, TokenKind::KwFn))
+                        && let Some(t) = f.name(&src.parse.tokens)
                     {
                         out.push((names.member(h.def, PathKind::Member, src.text(t)), f));
                     }
