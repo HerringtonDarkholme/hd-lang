@@ -4070,38 +4070,6 @@ impl Ck<'_, '_> {
         );
     }
 
-    fn append_fix(&mut self, receiver: (Ref, Ty), args: &Args<'_>, n: NodeRef<'_>) {
-        let (value, ty) = receiver;
-        if n.kind() != SyntaxKind::CallExpr
-            || args.positional.len() != 1
-            || args.spread.is_some()
-            || !args.after_spread.is_empty()
-            || !args.named.is_empty()
-            || args.trailing.is_some()
-            || self.builtin_method(ty, "push").is_none()
-            || !self.place_writable_quiet(value)
-        {
-            return;
-        }
-        let Some(field) = n
-            .children()
-            .next()
-            .filter(|head| head.kind() == SyntaxKind::FieldExpr)
-        else {
-            return;
-        };
-        let member = self.cx.src.last(field);
-        if self.cx.src.tkind(member) == Some(TokenKind::Ident)
-            && self.cx.src.text(member) == "append"
-        {
-            self.diags.add_fix(
-                "rename `append` to `push`",
-                hd_diag::FixSafety::Exact,
-                &[(self.cx.src.token_span(member), "push")],
-            );
-        }
-    }
-
     fn method_hint(&mut self, t: Ty, name: &str) -> String {
         let bare = self.resolved(self.infer.resolve(self.pool(), t));
         let data = self.pool().get(bare);
@@ -4112,9 +4080,6 @@ impl Ck<'_, '_> {
         }
         if name == "unwrap" && self.option_arg(bare).is_some() {
             return "; use `expect(message)` or `unwrap_or(fallback)`".to_owned();
-        }
-        if name == "append" && self.builtin_method(t, "push").is_some() {
-            return "; did you mean `push`?".to_owned();
         }
         let index = self.method_index();
         let mut names: Vec<String> = index
@@ -4944,9 +4909,7 @@ impl Ck<'_, '_> {
                     String::new()
                 };
                 let msg = format!("no method `{name}` on {}{advice}", self.show(rt));
-                if self.no_method(rt, name, n, &msg) && name == "append" {
-                    self.append_fix((recv, rt), args, n);
-                }
+                self.no_method(rt, name, n, &msg);
                 Ok((Ref(NONE), Ty::POISON))
             }
         }
