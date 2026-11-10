@@ -164,7 +164,7 @@ A REPL session case writes `# @repl: N` in its header: its own text is
 input `N` of a session, and each `# @input: K` after it starts earlier
 input `K`, numbered from 1, as `@file` starts a module. The harness
 builds the session through input `N` as one run, as a host rebuilds a
-session. Such a case shows only the `tir` view, of input `N`.
+session. Such a case supports `tir` and `wat` views of input `N`.
 
 The views keep their stage's evidence:
 
