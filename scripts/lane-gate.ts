@@ -19,17 +19,17 @@
 //                     dev-dependents of a touched crate. Crates outside the default
 //                     members (hd_run_wasmtime) are CI's.
 //   tests of a crate  hd_driver, hd_check, hd_wasm: `--lib --test stages`;
-//                     hd_cli: `--bins`, plus `--test all` for the test modules the
-//                     diff changes; every other touched crate: all its targets; a
-//                     selected crate that is only a dependent: `--lib` (each
-//                     integration-test binary links the whole compiler, and CI runs
-//                     them all). Never bare
+//                     hd_cli: `--bins` when touched, plus `--test all` for the test
+//                     modules the diff changes; every other touched crate: all its targets; a
+//                     selected crate that is only a dependent: clippy's type check
+//                     of all its targets, no test build (each test binary links the
+//                     whole compiler, and CI runs them all). Never bare
 //                     `-p hd_driver`, never `--test conformance` without
 //                     HD_CONFORMANCE_ONLY.
 //   golden std TIR    hd_check, hd_tir or lib/std touched.
 //   server SDK schema lib/std/{console,http,http_wire,time}.hd or packages/server-sdk.
-//   metrics fixtures  hd_check, hd_resolve, hd_syntax or hd_diag touched, or
-//                     bench/metrics fixtures changed.
+//   metrics fixtures  bench/metrics fixtures changed (CI runs them for every
+//                     diagnostic change).
 //   conformance       the named CASES plus runtime/typing fixtures the diff adds or
 //                     changes (dev, checked, optimized); changed spec/conformance/cli
 //                     case directories run through hd_cli's cli_conformance.
@@ -37,7 +37,7 @@
 //                     hd_wasm) or lib/std changed.
 //   spec-sync, cost   any file outside crates/*/src and crates/*/tests (spec-sync);
 //                     .rs, .ts, the cost allowlist or the ast-grep rules (cost).
-//   cargo fmt/clippy  .rs changed (clippy on the touched crates only).
+//   cargo fmt/clippy  .rs changed (clippy on the selected crates, all targets).
 //   oxlint, oxfmt     the changed .ts and .js files.
 // A docs-only diff therefore runs plancheck, spec-sync and nothing heavy.
 //
@@ -74,7 +74,6 @@ type Context = {
 type Rule = (ctx: Context) => Step[];
 
 const STAGE_CRATES = new Set(["hd_driver", "hd_check", "hd_wasm"]);
-const DIAGNOSTIC_CRATES = ["hd_check", "hd_resolve", "hd_syntax", "hd_diag"];
 const COMPILER_CRATES = ["hd_check", "hd_tir", "hd_mono", "hd_opt", "hd_wasm"];
 const SDK_STD = new Set(["console", "http", "http_wire", "time"]);
 const CONFORMANCE = "specification_conformance_passes_except_known_failures";
@@ -218,13 +217,16 @@ const lintRule: Rule = (ctx) => {
   if (!has(ctx, /\.rs$/) && !ctx.cargoRoot) {
     return [];
   }
-  const crates = [...ctx.touched].sort();
+  // Clippy checks every target of the touched crates and of every crate
+  // that depends on one: a dependent's API break shows here, type-checked
+  // without a debug build or link, and CI runs the dependents' tests.
+  const crates = [...ctx.selected].sort();
   return [
     step("fmt", ".rs files changed", ["cargo", "fmt", "--check"]),
     ...(crates.length === 0
       ? []
       : [
-          step("clippy", `touched: ${crates.join(" ")}`, [
+          step("clippy", `touched and their dependents: ${crates.join(" ")}`, [
             "cargo",
             "clippy",
             "-q",
@@ -244,24 +246,19 @@ const crateRule: Rule = (ctx) => {
     return [];
   }
   // A touched crate runs every test target. A crate selected only as a
-  // dependent runs its unit tests: its integration tests are one debug link
-  // of the whole compiler each (42 for an hd_syntax change), and CI runs them.
+  // dependent is type-checked by the clippy step: its tests are one debug
+  // link of the whole compiler each (42 for an hd_syntax change), and CI
+  // runs them.
   const touched = rest.filter((name) => ctx.touched.has(name)).sort();
-  const dependents = rest.filter((name) => !ctx.touched.has(name)).sort();
-  const pkgs = (names: string[]) => names.flatMap((name) => ["-p", name]);
+  if (touched.length === 0) {
+    return [];
+  }
   return [
-    ...(touched.length === 0
-      ? []
-      : [step("crates", `touched: ${touched.join(" ")}`, cargoTest(...pkgs(touched)))]),
-    ...(dependents.length === 0
-      ? []
-      : [
-          step(
-            "dependents",
-            `unit tests of dependents: ${dependents.join(" ")}`,
-            cargoTest("--lib", ...pkgs(dependents)),
-          ),
-        ]),
+    step(
+      "crates",
+      `touched: ${touched.join(" ")}`,
+      cargoTest(...touched.flatMap((name) => ["-p", name])),
+    ),
   ];
 };
 
@@ -349,21 +346,23 @@ const sdkRule: Rule = (ctx) => {
 };
 
 const cliRule: Rule = (ctx) => {
-  if (!ctx.selected.has("hd_cli")) {
-    return [];
+  // hd_cli's test binaries are debug links of the whole compiler. When hd_cli
+  // is only a dependent, clippy type-checks it and CI runs its tests; the gate
+  // runs them for a change to hd_cli itself, its test modules, or the metrics
+  // fixtures.
+  const steps: Step[] = [];
+  if (ctx.touched.has("hd_cli")) {
+    steps.push(step("cli_bins", "hd_cli touched", cargoTest("-p", "hd_cli", "--bins")));
   }
-  const steps = [step("cli_bins", "hd_cli selected", cargoTest("-p", "hd_cli", "--bins"))];
   const filters = captures(ctx, /^crates\/hd_cli\/tests\/all\/([^/.]+)(?:\.rs|\/)/).map(
     (name) => `${name}::`,
   );
-  const metrics =
-    anyOf(ctx.touched, DIAGNOSTIC_CRATES) ||
-    has(ctx, /^bench\/metrics\/(fixtures\/|check-fixtures\.ts)/);
+  const metrics = has(ctx, /^bench\/metrics\/(fixtures\/|check-fixtures\.ts)/);
   if (metrics) {
     filters.push("metrics_fixtures");
   }
   if (filters.length > 0) {
-    const why = metrics ? "diagnostics can change: metrics fixtures" : "changed test modules";
+    const why = metrics ? "metrics fixtures changed" : "changed test modules";
     steps.push(step("cli_all", why, cargoTest("-p", "hd_cli", "--test", "all", "--", ...filters)));
   }
   return steps;
