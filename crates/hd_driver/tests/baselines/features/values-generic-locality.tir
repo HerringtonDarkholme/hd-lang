@@ -67,7 +67,7 @@ fn later[T < 'static](value: T) -> fn() -> T:
 >   local $0 value: T [param read captured]
 >   %0 = Read [$0] : T
 >   %1 = Block %0 : T
->   %2 = Closure #1 [%0 %1] : fn() -> T
+>   %2 = Closure #1 : fn() -> T
 >   %3 = Block %2 : fn() -> T
 
 fn bounded(u: User) -> usize:

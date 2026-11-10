@@ -98,7 +98,7 @@ fn bound(u: User) -> usize:
 >   %13 = Scope %12 [] : usize
 >   %14 = Drop [$1] : ()
 >   %15 = Block %13 : usize
->   %16 = Closure #1 [%0 %1] : fn() -> usize
+>   %16 = Closure #1 : fn() -> usize
 >   %17 = Retain %16 Operation captures #0 : ()
 >   %18 = Store [$2] %16 : ()
 >   %25 = Block %24 : usize
@@ -136,7 +136,7 @@ fn bound_mut(u: *mut User, n: string) -> void:
 >   %7 = Call app/main/impl User.rename[] (%5, %6) : ()
 >   %8 = Drop [%5] : ()
 >   %9 = Block %7 : ()
->   %10 = Closure #1 [%0 %1] : fn(string) -> ()
+>   %10 = Closure #1 : fn(string) -> ()
 >   %11 = Retain %10 Operation captures #0 : ()
 >   %12 = Store [$4] %10 : ()
 >   %17 = Block - : ()
@@ -180,7 +180,7 @@ fn adapter(us: List[User]) -> usize:
 >   %11 = Scope %10 [] : usize
 >   %12 = Drop [$1] : ()
 >   %13 = Block %11 : usize
->   %14 = Closure #1 [%0 %0] : fn(User) -> usize
+>   %14 = Closure #1 : fn(User) -> usize
 >   %15 = Store [$2] %14 : ()
 >   %50 = Block %49 : usize
     let n: usize = 0

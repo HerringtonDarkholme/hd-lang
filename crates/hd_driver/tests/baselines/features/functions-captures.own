@@ -24,7 +24,7 @@ fn copied(s: string) -> usize:
 >   %6 = Scope %5 [] : usize
 >   %7 = Drop [$0] : ()
 >   %8 = Block %6 : usize
->   %9 = Closure #1 [%0 %1] : fn() -> usize
+>   %9 = Closure #1 : fn() -> usize
 >   %10 = Retain %9 Operation captures #0 : ()
 >   %11 = Store [$1] %9 : ()
 >   %22 = Block %21 : usize
@@ -64,7 +64,7 @@ fn shared_list(s: string) -> usize:
 >   %7 = Intrinsic ListPush [%6 %4] : ()
 >   %8 = Drop [$1] : ()
 >   %9 = Block - : ()
->   %10 = Closure #1 [%0 %2] : fn() -> ()
+>   %10 = Closure #1 : fn() -> ()
 >   %11 = Retain %10 Operation captures #0 : ()
 >   %12 = Store [$2] %10 : ()
 >   %10 finds [$1] full
@@ -113,7 +113,7 @@ fn copy_shares(s: string) -> usize:
 >   %12 = Release %11 Operation #3 : ()
 >   %13 = Drop [$1] : ()
 >   %14 = Block - : ()
->   %15 = Closure #1 [%0 %2] : fn() -> ()
+>   %15 = Closure #1 : fn() -> ()
 >   %16 = Retain %15 Operation captures #0 : ()
 >   %17 = Store [$2] %15 : ()
 >   %15 finds [$1] full
@@ -151,7 +151,7 @@ fn through_ptr(items: *mut List[string], s: string) -> fn() -> void:
 >   %6 = Intrinsic ListPush [%5 %3] : ()
 >   %7 = Drop [$0] : ()
 >   %8 = Block - : ()
->   %9 = Closure #1 [%0 %2] : fn() -> ()
+>   %9 = Closure #1 : fn() -> ()
 >   %10 = Retain %9 Operation captures #0 : ()
 >   %11 = Block %9 : fn() -> ()
 >   exit sub 0 drops [$0 $1]

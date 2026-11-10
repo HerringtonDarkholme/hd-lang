@@ -19,7 +19,7 @@ fn make(value: string) -> fn!(usize) -> string:
 >   %6 = Release %23 FrameDrop child #2 : ()
 >   %23 = Block %20 : string
 >   %24 = Store [$2] - : ()
->   %25 = Closure #1 [%0 %2] : fn!(usize) -> string
+>   %25 = Closure #1 : fn!(usize) -> string
 >   %26 = Retain %25 Operation captures #0 : ()
 >   %27 = Store [$2] %25 : ()
 >   %28 = Release %27 Operation #3 : ()
@@ -66,7 +66,7 @@ fn generic[T < 'static](value: T) -> fn!() -> T:
 >   %4 = Retain %7 Entry captures #0 : ()
 >   %6 = Read move [$0] : T
 >   %7 = Block %6 : T
->   %8 = Closure #1 [%0 %1] : fn!() -> T
+>   %8 = Closure #1 : fn!() -> T
 >   %9 = Retain %8 Operation captures #0 : ()
 >   %10 = Block %8 : fn!() -> T
 >   exit sub 0 drops [$0]

@@ -16,7 +16,7 @@ fn sum_to(limit: i32, seed: i32) -> i32:
 >   %0 = Retain %14 Entry captures #0 : ()
 >   %14 = Block %12 : i32
 >   %15 = Store [$3] - : ()
->   %16 = Closure #1 [%0 %2] : fn(i32) -> i32
+>   %16 = Closure #1 : fn(i32) -> i32
 >   %17 = Store [$3] %16 : ()
 >   %18 = Release %17 Operation #3 : ()
 >   %24 = Block %22 : i32

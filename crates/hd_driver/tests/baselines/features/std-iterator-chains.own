@@ -33,7 +33,7 @@ fn lens(xs: List[string]) -> List[usize]:
 >   %11 = Scope %10 [] : usize
 >   %12 = Drop [$1] : ()
 >   %13 = Block %11 : usize
->   %14 = Closure #1 [%0 %0] : fn(string) -> usize
+>   %14 = Closure #1 : fn(string) -> usize
 >   %15 = Store [$3] %5 : ()
 >   %16 = Store [$4] %14 : ()
 >   %17 = Read move [$3] : ListIter[string]
@@ -112,14 +112,14 @@ fn loud(xs: List[string]) -> List[string]:
 >   %13 = Drop [$1] : ()
 >   %14 = Prim Gt [%12 2:usize] : bool
 >   %15 = Block %14 : bool
->   %16 = Closure #1 [%0 %0] : fn(&string) -> bool
+>   %16 = Closure #1 : fn(&string) -> bool
         .map(fn(s: string) -> string: s + "!")
 >   %25 = Retain %29 Entry local $2 #0 : ()
 >   %26 = Read move [$2] : string
 >   %27 = Intrinsic StrConcat [%26 "!"] : string
 >   %28 = Drop [%26] : ()
 >   %29 = Block %27 : string
->   %30 = Closure #2 [%0 %0] : fn(string) -> string
+>   %30 = Closure #2 : fn(string) -> string
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$1]
 >   exit sub 2 drops [$2]

@@ -50,7 +50,7 @@ fn bound(u: User) -> usize:
 >   %2 = Read [$1] : User
 >   %3 = Call app/main/impl User.name_len[] (%2) : usize
 >   %4 = Block %3 : usize
->   %5 = Closure #1 [%0 %1] : fn() -> usize
+>   %5 = Closure #1 : fn() -> usize
 >   %6 = Store [$2] %5 : ()
 >   %12 = Block %11 : usize
     f() + f()
@@ -74,7 +74,7 @@ fn bound_mut(u: *mut User, n: string) -> void:
 >   %3 = Read [$3] : string
 >   %4 = Call app/main/impl User.rename[] (%2, %3) : ()
 >   %5 = Block %4 : ()
->   %6 = Closure #1 [%0 %1] : fn(string) -> ()
+>   %6 = Closure #1 : fn(string) -> ()
 >   %7 = Store [$4] %6 : ()
 >   %11 = Block - : ()
     f(n)
@@ -97,7 +97,7 @@ fn adapter(us: List[User]) -> usize:
 >   %0 = Read [$1] : User
 >   %1 = Call app/main/impl User.name_len[] (%0) : usize
 >   %2 = Block %1 : usize
->   %3 = Closure #1 [%0 %0] : fn(User) -> usize
+>   %3 = Closure #1 : fn(User) -> usize
 >   %4 = Store [$2] %3 : ()
 >   %40 = Block %39 : usize
     let n: usize = 0

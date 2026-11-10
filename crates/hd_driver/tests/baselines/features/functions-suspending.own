@@ -106,7 +106,7 @@ fn closure_bang!(key: string) -> usize:
 >   %11 = Release %10 Operation child #2 : ()
 >   %12 = Drop [%9] : ()
 >   %13 = Block %10 : string
->   %14 = Closure #1 [%0 %1] : fn!() -> string
+>   %14 = Closure #1 : fn!() -> string
 >   %15 = Retain %14 Operation captures #0 : ()
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
@@ -140,7 +140,7 @@ fn stored!(key: string) -> usize:
 >   %11 = Release %10 Operation child #2 : ()
 >   %12 = Drop [%9] : ()
 >   %13 = Block %10 : string
->   %14 = Closure #1 [%0 %0] : fn!(string) -> string
+>   %14 = Closure #1 : fn!(string) -> string
 >   %15 = Store [$2] %14 : ()
 >   %30 = Block %27 : usize
     loader!(key).len()

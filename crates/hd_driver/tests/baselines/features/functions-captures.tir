@@ -16,7 +16,7 @@ fn copied(s: string) -> usize:
 >   %0 = Ref local [$0] : &string
 >   %1 = Call std/text/impl string.len[] (%0) : usize
 >   %2 = Block %1 : usize
->   %3 = Closure #1 [%0 %1] : fn() -> usize
+>   %3 = Closure #1 : fn() -> usize
 >   %4 = Store [$1] %3 : ()
 >   %10 = Block %9 : usize
     f() + s.len()
@@ -40,7 +40,7 @@ fn shared_list(s: string) -> usize:
 >   %3 = Read [$0] : string
 >   %4 = Intrinsic ListPush [%2 %3] : ()
 >   %5 = Block - : ()
->   %6 = Closure #1 [%0 %2] : fn() -> ()
+>   %6 = Closure #1 : fn() -> ()
 >   %7 = Store [$2] %6 : ()
     add()
 >   %8 = Read [$2] : fn() -> ()
@@ -68,7 +68,7 @@ fn copy_shares(s: string) -> usize:
 >   %4 = Prim Add [%1 %3] : usize
 >   %5 = Store [$1] %4 : ()
 >   %6 = Block - : ()
->   %7 = Closure #1 [%0 %2] : fn() -> ()
+>   %7 = Closure #1 : fn() -> ()
 >   %8 = Store [$2] %7 : ()
     again := inc
 >   %9 = Read [$2] : fn() -> ()
@@ -90,5 +90,5 @@ fn through_ptr(items: *mut List[string], s: string) -> fn() -> void:
 >   %1 = Read [$1] : string
 >   %2 = Intrinsic ListPush [%0 %1] : ()
 >   %3 = Block - : ()
->   %4 = Closure #1 [%0 %2] : fn() -> ()
+>   %4 = Closure #1 : fn() -> ()
 >   %5 = Block %4 : fn() -> ()

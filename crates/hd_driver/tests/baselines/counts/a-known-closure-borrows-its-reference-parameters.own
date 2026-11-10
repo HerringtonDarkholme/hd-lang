@@ -25,7 +25,7 @@ fn total(left: &i32, right: &i32) -> i32:
 >   %6 = Drop [$3] : ()
 >   %7 = Coerce %4 [Identity -] : i32
 >   %8 = Block %7 : i32
->   %9 = Closure #1 [%0 %0] : fn(&i32, &i32) -> i32
+>   %9 = Closure #1 : fn(&i32, &i32) -> i32
 >   %10 = Store [$4] %9 : ()
 >   %16 = Block %14 : i32
     by(left, right)

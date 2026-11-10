@@ -22,7 +22,7 @@ fn kept(n: i32) -> i32:
 >   local $7 step: fn() -> i32 [:= read assigned] value
 >     uses $7: %33 -> %36 consume last
 >   %0 = Block 0:i32 : i32
->   %1 = Closure #1 [%0 %0] : fn() -> i32
+>   %1 = Closure #1 : fn() -> i32
 >   %2 = Store [$1] %1 : ()
 >   %51 = Block %49 : i32
     for i in +0..n:
@@ -55,7 +55,7 @@ fn kept(n: i32) -> i32:
         step := fn() -> i32:
 >   %22 = Retain %29 Entry captures #0 : ()
 >   %29 = Block %27 : i32
->   %30 = Closure #2 [%0 %1] : fn() -> i32
+>   %30 = Closure #2 : fn() -> i32
 >   %31 = Retain %30 Operation captures #0 : ()
 >   %32 = Drop [$6] : ()
 >   %33 = Store [$7] %30 : ()
@@ -139,7 +139,7 @@ fn fresh(n: i32) -> i32:
         step := fn() -> i32:
 >   %20 = Retain %27 Entry captures #0 : ()
 >   %27 = Block %25 : i32
->   %28 = Closure #1 [%0 %1] : fn() -> i32
+>   %28 = Closure #1 : fn() -> i32
 >   %29 = Retain %28 Operation captures #0 : ()
 >   %30 = Store [$7] %28 : ()
 >   %31 = Release %30 Operation #3 : ()

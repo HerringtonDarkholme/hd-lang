@@ -71,7 +71,7 @@ fn trailing(s: string) -> usize:
 >   %3 = Intrinsic StrConcat [%2 "!"] : string
 >   %4 = Drop [%2] : ()
 >   %5 = Block %3 : string
->   %6 = Closure #1 [%0 %1] : fn() -> string
+>   %6 = Closure #1 : fn() -> string
 >   %7 = Retain %6 Operation captures #0 : ()
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
@@ -121,7 +121,7 @@ fn no_args(s: string) -> usize:
 >   %6 = Scope %5 [] : usize
 >   %7 = Drop [$0] : ()
 >   %8 = Block %6 : usize
->   %9 = Closure #1 [%0 %1] : fn() -> usize
+>   %9 = Closure #1 : fn() -> usize
 >   %10 = Retain %9 Operation captures #0 : ()
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]

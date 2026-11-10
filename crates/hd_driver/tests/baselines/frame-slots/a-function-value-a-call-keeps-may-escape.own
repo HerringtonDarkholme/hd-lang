@@ -96,7 +96,7 @@ fn run(xs: List[string], g: fn(fn() -> void) -> void) -> usize:
 >   %15 = Release %14 Operation #3 : ()
 >   %16 = Drop [$2] : ()
 >   %17 = Block - : ()
->   %18 = Closure #1 [%0 %1] : fn(string) -> ()
+>   %18 = Closure #1 : fn(string) -> ()
 >   %19 = Retain %18 Operation captures #0 : ()
 >   %20 = Call app/main/each[] (%3, %18) : ()
 >   %21 = Retain %20 Operation operand 0 #0 : ()
@@ -110,7 +110,7 @@ fn run(xs: List[string], g: fn(fn() -> void) -> void) -> usize:
 >   %27 = Release %26 Operation #3 : ()
 >   %28 = Drop [$2] : ()
 >   %29 = Block - : ()
->   %30 = Closure #2 [%1 %1] : fn() -> ()
+>   %30 = Closure #2 : fn() -> ()
 >   %31 = Retain %30 Operation captures #0 : ()
 >   %32 = Call app/main/keep[] (%30) : fn() -> ()
 >   %32 keeps %30
@@ -129,7 +129,7 @@ fn run(xs: List[string], g: fn(fn() -> void) -> void) -> usize:
 >   %42 = Release %41 Operation #3 : ()
 >   %43 = Drop [$2] : ()
 >   %44 = Block - : ()
->   %45 = Closure #3 [%2 %1] : fn() -> ()
+>   %45 = Closure #3 : fn() -> ()
 >   %46 = Retain %45 Operation captures #0 : ()
 >   %47 = CallValue %37 [%45] : ()
 >   %47 keeps %45

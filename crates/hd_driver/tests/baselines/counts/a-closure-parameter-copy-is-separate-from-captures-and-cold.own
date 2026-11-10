@@ -17,7 +17,7 @@ fn plain(captured: string) -> (fn(string) -> (string, string)):
 >   %4 = Read move [$1] : string
 >   %5 = NewTuple - [%3 %4] : (string, string)
 >   %6 = Block %5 : (string, string)
->   %7 = Closure #1 [%0 %1] : fn(string) -> (string, string)
+>   %7 = Closure #1 : fn(string) -> (string, string)
 >   %8 = Retain %7 Operation captures #0 : ()
 >   %9 = Block %7 : fn(string) -> (string, string)
 >   exit sub 0 drops [$0]
@@ -42,7 +42,7 @@ fn cold_capture(captured: string) -> (fn!(string) -> (string, string)):
 >   %9 = Read move [$1] : string
 >   %10 = NewTuple - [%8 %9] : (string, string)
 >   %11 = Block %10 : (string, string)
->   %12 = Closure #1 [%0 %1] : fn!(string) -> (string, string)
+>   %12 = Closure #1 : fn!(string) -> (string, string)
 >   %13 = Retain %12 Operation captures #0 : ()
 >   %14 = Block %12 : fn!(string) -> (string, string)
 >   exit sub 0 drops [$0]
