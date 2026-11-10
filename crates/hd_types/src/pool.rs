@@ -962,6 +962,11 @@ impl InternPool {
     pub fn trait_value(&self, t: Ty) -> Option<(DefId, TyList)> {
         self.types().trait_value(t)
     }
+    /// [`Types::trait_value_parts`].
+    #[must_use]
+    pub fn trait_value_parts(&self, t: Ty) -> (DefId, TyList) {
+        self.types().trait_value_parts(t)
+    }
     /// [`Types::sole_arg`].
     #[must_use]
     pub fn sole_arg(&self, t: Ty, def: DefId) -> Option<Ty> {
@@ -1465,6 +1470,17 @@ impl<'a> Types<'a> {
         }
         let off = c.data[i];
         Some((DefId::from_raw(c.extra[off]), TyList(c.extra[off + 1])))
+    }
+
+    /// The trait and argument-list identity of a type its producer made a
+    /// trait value, as [`Types::adt_parts`] reads an ADT.
+    #[must_use]
+    pub fn trait_value_parts(self, t: Ty) -> (DefId, TyList) {
+        let (c, i) = self.at(t.0);
+        // ruled out: callers name the producer that makes `t` a trait value.
+        debug_assert_eq!(c.tag[i], PoolTag::TraitValue);
+        let off = c.data[i];
+        (DefId::from_raw(c.extra[off]), TyList(c.extra[off + 1]))
     }
 
     /// Decodes a type (§3.4 `TyView`).

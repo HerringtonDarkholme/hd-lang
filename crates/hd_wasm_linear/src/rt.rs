@@ -6,7 +6,7 @@
 
 use crate::op::Op as Instruction;
 use hd_base::{DefId, Hash128, StageResult};
-use hd_types::{Ty, TyData, TyList};
+use hd_types::{Ty, TyList};
 use wasm_encoder::BlockType;
 
 use crate::layout::{Addr, Is, Leaf, Walk};
@@ -15,7 +15,7 @@ use crate::module::{
     BUF, CYCLIC, DescriptorKey, EMPTY, Func, GLUE, Global, HEADER, HEAP, Import, Ins, LOAN_EXCL,
     LOAN_SHARED, LOAN_STATE, Module, Sym, Val, WEAK, WEAK_GLUE, mem,
 };
-use crate::{Entry, Input, unsupported};
+use crate::{Entry, Input};
 
 /// The canonical descriptor behind a `TypeId` (`emit/dyn_value.rs`):
 /// its identity key and printable name, both in static storage.
@@ -1077,9 +1077,11 @@ pub fn host_providers(f: &mut Func, providers: &[(usize, Option<Hash128>)]) {
 /// host leaf over the exchange buffer's codecs (`boundary.rs`), or a trap
 /// with no import for a method no reachable code calls.
 fn host_vtable(input: &Input<'_>, m: &mut Module, key: Ty) -> StageResult<usize> {
-    let TyData::TraitValue { def, args, .. } = input.pool.get(key) else {
-        return unsupported("a provider key that is not a trait");
-    };
+    // ruled out: a requirement row lists traits (`req.row.syntax.signature`;
+    // hd_resolve lowers each key with `Lower::trait_value`), an entry
+    // point's row is closed, and a bridged key's wire trait
+    // (`ProgramEnv::host_bridge`) is a trait value too.
+    let (def, args) = input.pool.trait_value_parts(key);
     // ruled out: module.host.package.not-generic. The `@host` marker check
     // (hd_resolve lower/decorators.rs) and hd_check header::boundary, for
     // a runtime profile's host trait, reject a host trait with type
@@ -1094,15 +1096,17 @@ fn host_vtable(input: &Input<'_>, m: &mut Module, key: Ty) -> StageResult<usize>
     };
     let mut slots = Vec::new();
     for method in hd_mono::slot_methods(input.env, def) {
-        // A method no reachable code calls links no host method.
-        if !input.collected.calls_dyn(method) {
-            slots.push(crate::boundary::uncalled_slot(input, method)?);
-            continue;
-        }
         let mp = (input.path)(method);
         let name = mp.rsplit(['.', '/']).next().unwrap_or("");
-        let Some(hm) = host.methods.iter().find(|x| x.name == name) else {
-            return unsupported(format!("the host method `{name}`"));
+        let hm = host.methods.iter().find(|x| x.name == name);
+        // ruled out: hd_host_abi's table_mirrors_std_capability_traits test
+        // checks that the ABI table has a row for each method a std host
+        // trait declares.
+        debug_assert!(hm.is_some(), "the std host method `{name}` has no ABI row");
+        // A method no reachable code calls links no host method.
+        let (true, Some(hm)) = (input.collected.calls_dyn(method), hm) else {
+            slots.push(crate::boundary::uncalled_slot(input, method)?);
+            continue;
         };
         let row = crate::boundary::Row::of(hm);
         slots.push(crate::boundary::host_slot(
@@ -1229,12 +1233,10 @@ fn profile_tree(
                 .arguments
                 .unwrap_or_else(|| input.pool.list(&[hd_mono::class_ref(input.pool)]));
             let sup = hd_mono::subst(input.pool, input.env, def, full, sup);
-            let TyData::TraitValue {
-                def: parent, args, ..
-            } = input.pool.get(sup)
-            else {
-                return unsupported("a host supertrait that is not a trait");
-            };
+            // ruled out: hd_resolve's supertrait lowering (`Lower::supers`,
+            // through `Lower::trait_value`) makes each supertrait a trait
+            // value over `Self`, and `subst` keeps the constructor.
+            let (parent, args) = input.pool.trait_value_parts(sup);
             let args = input.pool.list(
                 &std::iter::once(hd_mono::class_ref(input.pool))
                     .chain(input.pool.list_items(args).iter().copied())

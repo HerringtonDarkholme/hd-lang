@@ -726,6 +726,32 @@ mod tests {
                     m.name
                 );
             }
+            // And the other way: every method the std trait declares has
+            // its row, which rt::host_vtable and boundary::handle_slots
+            // read for each slot.
+            let body = text
+                .split_once(&format!("pub trait {name}"))
+                .map_or("", |(_, rest)| rest);
+            let declared = body
+                .lines()
+                .skip(1)
+                .take_while(|l| l.is_empty() || l.starts_with(' ') || l.starts_with('#'))
+                .filter_map(|l| l.strip_prefix("    fn "))
+                .map(|l| {
+                    l.split(['(', '['])
+                        .next()
+                        .unwrap_or(l)
+                        .trim_end_matches('!')
+                });
+            for method in declared {
+                assert!(
+                    t.methods
+                        .iter()
+                        .any(|m| m.name.rsplit('.').next() == Some(method)),
+                    "{}.{method} has no ABI row",
+                    t.std_path
+                );
+            }
         }
     }
 }
