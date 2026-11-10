@@ -2125,17 +2125,16 @@ impl<'s, 'a> Search<'s, 'a> {
             let a = match_ty(pool, owner, t.head_self[r], self_ty, &mut binds);
             // A bare variable among the goal's arguments learns the head's.
             let hs = pool.list_items(t.head_args[r]);
-            let b = if hs.len() == goal_args.len() {
-                hs.iter().zip(goal_args).fold(M::Yes, |acc, (h, g)| {
-                    if matches!(pool.get(*g), TyData::Infer(_)) {
-                        acc
-                    } else {
-                        both(acc, match_ty(pool, owner, *h, *g, &mut binds))
-                    }
-                })
-            } else {
-                M::No
-            };
+            // Resolution fills a bound's default arguments and rejects a
+            // wrong count, so a goal and a head of one trait have its arity.
+            debug_assert_eq!(hs.len(), goal_args.len(), "a trait's arity");
+            let b = hs.iter().zip(goal_args).fold(M::Yes, |acc, (h, g)| {
+                if matches!(pool.get(*g), TyData::Infer(_)) {
+                    acc
+                } else {
+                    both(acc, match_ty(pool, owner, *h, *g, &mut binds))
+                }
+            });
             match both(a, b) {
                 M::Yes => {
                     let n = usize::from(t.n_params[r]).max(binds.len());
