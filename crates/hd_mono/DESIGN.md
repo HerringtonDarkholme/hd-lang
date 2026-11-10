@@ -397,11 +397,13 @@ Requirement rows never become type arguments
   context, two arrays (`ctx_keys: array i64`, `ctx_provs: array
   eqref`), not a linked list. Every instance of an item takes the
   placeholder `Canon(0xF1)`, the open row, as the argument of each of
-  its own row parameters (`hd_mono::rowless`), so one instance serves
+  its own and inherited implementation row parameters
+  (`hd_mono::rowless`), so one instance serves
   every row (`req.poly.one-body`). The instance takes one provider per
   key its row lists itself (`declared_row_keys`), then the context
-  last. A row parameter of an implementation stays a key of its
-  instances.
+  last. Trait-owner arguments, including `Self`, stay in instance keys
+  because they select the implementation; inherited row arguments still
+  contribute providers to the context.
 - A caller passes, in the context, the keys of the row arguments that
   the callee's row has (`row_param_keys`). When an argument lists the
   caller's own open row, those keys go in front of the caller's

@@ -2,14 +2,14 @@
 //! row argument lists, and takes those keys' providers in a context
 //! (`req.poly.one-body`, `crates/hd_mono/DESIGN.md` §12.4).
 
-use hd_base::DefId;
+use hd_base::{DefId, HashSet};
 use hd_types::{InternPool, Ty, TyData, TyList};
 
 use crate::ProgramEnv;
 
-/// The open row: the one argument every instance takes for each of its
-/// item's own row parameters, so rows never become instance keys and a
-/// row-polymorphic body is compiled once. Its keys arrive in the context.
+/// The open row: each row-polymorphic instance uses it for its row
+/// parameters, including inherited impl parameters. Its keys
+/// arrive in the context rather than specializing the body.
 const ROW: u8 = 0xF1;
 
 /// The open row (see [`ROW`]).
@@ -32,11 +32,13 @@ pub fn arg_is_open(pool: &InternPool, t: Ty) -> bool {
     }
 }
 
-/// Whether an item declares a row parameter of its own (`$R`): it takes the
+/// Whether an item or its parent declares a row parameter (`$R`): it takes the
 /// context of those rows' keys.
 #[must_use]
 pub fn has_row_params(env: &dyn ProgramEnv, def: DefId) -> bool {
-    env.generic_rows(def).into_iter().any(|r| r)
+    env.generic_rows(env.generics_owner(def))
+        .into_iter()
+        .any(|r| r)
 }
 
 /// Whether a row lists the open row of a row-polymorphic instance, whose
@@ -49,33 +51,47 @@ pub fn row_is_open(pool: &InternPool, row: hd_types::RowId) -> bool {
         .any(|k| is_open_key(pool, *k))
 }
 
-/// An instance's arguments with each of its item's own row parameters'
-/// arguments the open row: the arguments it is keyed and compiled at.
+/// An instance's arguments with polymorphic row arguments made open.
+/// Trait-owner arguments stay concrete because they select an implementation.
 #[must_use]
 pub fn rowless(pool: &InternPool, env: &dyn ProgramEnv, def: DefId, args: TyList) -> TyList {
     if !has_row_params(env, def) {
         return args;
     }
-    let n = env.parent(env.generics_owner(def)).map_or(0, |p| p.1);
+    let owner = env.generics_owner(def);
+    let fixed = env.parent(owner).map_or(0, |(parent, n)| {
+        if env.impl_head(parent).is_none() {
+            n
+        } else {
+            0
+        }
+    });
     let open = open_row(pool);
     let mut all = pool.list_items(args).to_vec();
-    for (j, row) in env.generic_rows(def).into_iter().enumerate() {
-        if row && let Some(a) = all.get_mut(n + j) {
+    for (j, row) in env
+        .generic_rows(env.generics_owner(def))
+        .into_iter()
+        .enumerate()
+    {
+        if j >= fixed
+            && row
+            && let Some(a) = all.get_mut(j)
+        {
             *a = open;
         }
     }
     pool.list(&all)
 }
 
-/// Whether the argument of one of the item's own row parameters lists an
-/// open row: a call at it passes the caller's open context on.
+/// Whether any own or inherited row argument lists an open row: a call
+/// at it passes the caller's open context on.
 #[must_use]
 pub fn row_args_open(pool: &InternPool, env: &dyn ProgramEnv, def: DefId, args: TyList) -> bool {
     let (rows, _) = split_rows(pool, env, def, args);
     rows.into_iter().any(|r| arg_is_open(pool, r))
 }
 
-/// The arguments of an item's own row parameters among `args`, and
+/// The arguments of an item's own and inherited row parameters, and
 /// `args` with each of them the empty row.
 fn split_rows(
     pool: &InternPool,
@@ -83,12 +99,15 @@ fn split_rows(
     def: DefId,
     args: TyList,
 ) -> (Vec<Ty>, TyList) {
-    let n = env.parent(env.generics_owner(def)).map_or(0, |p| p.1);
     let empty = pool.intern_ty(&TyData::Row(hd_types::RowId::EMPTY));
     let mut rows = Vec::new();
     let mut emptied = pool.list_items(args).to_vec();
-    for (j, row) in env.generic_rows(def).into_iter().enumerate() {
-        if row && let Some(a) = emptied.get_mut(n + j) {
+    for (j, row) in env
+        .generic_rows(env.generics_owner(def))
+        .into_iter()
+        .enumerate()
+    {
+        if row && let Some(a) = emptied.get_mut(j) {
             rows.push(*a);
             *a = empty;
         }
@@ -97,9 +116,9 @@ fn split_rows(
 }
 
 /// The keys of an instance's row that come from the arguments of the
-/// item's own row parameters, in key order: their providers arrive in one
-/// context, not one parameter per key. A key the row also lists itself is
-/// one of them too.
+/// item's own and inherited row parameters, in key order: their providers
+/// arrive in one context, not one parameter per key. A key the row also
+/// lists itself is one of them too.
 #[must_use]
 pub fn row_param_keys(
     pool: &InternPool,
@@ -111,7 +130,7 @@ pub fn row_param_keys(
     if rows.is_empty() {
         return Vec::new();
     }
-    let mut from = Vec::new();
+    let mut from = HashSet::default();
     for r in rows {
         if let TyData::Row(r) = pool.get(r) {
             from.extend(pool.row_data(r).keys);
@@ -123,7 +142,7 @@ pub fn row_param_keys(
         .collect()
 }
 
-/// The keys an instance's row lists itself, with its own row parameters'
+/// The keys an instance's row lists itself, with own and inherited row
 /// arguments left out, in key order: the providers it takes one per key.
 #[must_use]
 pub fn declared_row_keys(

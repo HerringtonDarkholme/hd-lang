@@ -1,0 +1,24 @@
+# @dump: wat
+# @build: v8 release
+# An inherited impl row travels through the existing context argument.
+struct Task[$ R]:
+    job: fn(i32) -> void $ R
+
+fn tick(n: i32) -> void $ Console:
+    println("tick $n")
+
+struct Holder[$ R]:
+    job: fn(i32) -> void $ R
+
+impl[$ R] Holder[$ R]:
+    # subject
+    fn call(&self, n: i32) -> void $ R:
+        (self.job)(n)
+
+# subject
+fn run[$ R](task: Task[$ R]) -> void $ R:
+    h := Holder { job: task.job }
+    h.call(1)
+
+pub fn main() -> void $ Console:
+    run(Task { job: tick })

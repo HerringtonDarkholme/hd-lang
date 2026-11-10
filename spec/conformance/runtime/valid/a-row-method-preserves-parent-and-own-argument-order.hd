@@ -1,0 +1,29 @@
+# test: inherited type, const and row arguments precede a method's own row
+# expect-stdout: tick 2
+# expect-stdout: tick 3
+# expect-stdout: kept
+# expect-stdout: tick 3
+# expect-stdout: quiet
+# Spec 11: req.row.param.data-substitute, req.poly.one-body.
+struct Holder[T, N < const i32, $ R]:
+    job: fn(i32) -> void $ R
+    kept: T
+
+impl[T, N < const i32, $ R] Holder[T, N, $ R]:
+    fn call[$ S](&self, other: fn(i32) -> void $ S) -> T $ R + S:
+        (self.job)(2)
+        other(3)
+        self.kept
+
+fn tick(n: i32) -> void $ Console:
+    println("tick $n")
+
+fn quiet(n: i32) -> void:
+    pass
+
+fn run[T, N < const i32, $ R](h: Holder[T, N, $ R]) -> T $ R + Console:
+    h.call(tick)
+
+pub fn main() -> void $ Console:
+    println(run(Holder::[string, 2, $ Console] { job: tick, kept: "kept" }))
+    println(run(Holder::[string, 2, $ ()] { job: quiet, kept: "quiet" }))
