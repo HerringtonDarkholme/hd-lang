@@ -602,9 +602,8 @@ pub(crate) fn scoped_param(
             TyData::Fn { params, result, .. } => {
                 list(params, true) || hidden(pool, result, p, true, d)
             }
-            TyData::Opaque { args, bound, .. } => {
-                list(args, true) || hidden(pool, bound, p, true, d)
-            }
+            // No parameter names an opaque type (`grammar.fn.impl-type.positions`),
+            // and a result that does is answered below before this walk.
             _ => false,
         }
     }
