@@ -1884,12 +1884,14 @@ fn checked_runtime() -> bool {
     selection_env("HD_CONFORMANCE_CHECKED").is_some_and(|value| value == "1")
 }
 
-/// The std package's own hd tests of its runtime modules: only std may use
-/// a runtime module (`module.rt.std-only`), so no fixture can. Each file
+/// The std package's own hd tests of its private/runtime items: only std
+/// may use a runtime module (`module.rt.std-only`), and module-private
+/// items must be tested in their declaring module. Each file
 /// under `tests/std_rt/` joins std's sources at the path given here: a
 /// folder `rt_tests` above the root std folder, since the tests use root
 /// modules and the runtime folder is a leaf (`module.rt.leaf`).
 const STD_RT_TESTS: &[(&str, &str)] = &[
+    ("cmp.hd", include_str!("../../../lib/std/cmp.hd")),
     (
         "rt_tests/memory_tests.hd",
         include_str!("std_rt/memory_tests.hd"),
@@ -1965,6 +1967,13 @@ const STD_RT_CHECKED_TOO: &[&str] = &[
 #[test]
 fn std_runtime_modules_pass_their_hd_tests_on_the_linear_backend() {
     let store = MemoryStore::default();
+    let only = std::env::var("HD_CONFORMANCE_ONLY").ok();
+    let parts = only.as_ref().map(|only| {
+        only.split(',')
+            .filter(|part| !part.is_empty())
+            .collect::<Vec<_>>()
+    });
+    let mut selected = 0;
     let runs = STD_RT_TESTS
         .iter()
         .map(|file| {
@@ -1980,6 +1989,25 @@ fn std_runtime_modules_pass_their_hd_tests_on_the_linear_backend() {
                 .map(|file| (file, true)),
         );
     for (serial, ((path, text), checked)) in runs.enumerate() {
+        let case = Case {
+            path: format!("std/{path}"),
+            phase: Phase::Runtime,
+            expectation: "accept".to_owned(),
+            specification: if *path == "cmp.hd" {
+                "lang/03-names-and-scopes.md#r-names.category.value"
+            } else {
+                "lang/10-modules.md#memory-intrinsics"
+            }
+            .to_owned(),
+        };
+        if parts.as_ref().is_some_and(|parts| {
+            !parts
+                .iter()
+                .any(|part| case.path.contains(part) || case.specification.contains(part))
+        }) {
+            continue;
+        }
+        selected += 1;
         let mut sources = hd_driver::std_sources();
         sources.insert(path, text);
         let fixture = Fixture {
@@ -1990,12 +2018,6 @@ fn std_runtime_modules_pass_their_hd_tests_on_the_linear_backend() {
             deps: Vec::new(),
             checked,
             package: "std",
-        };
-        let case = Case {
-            path: format!("std/{path}"),
-            phase: Phase::Runtime,
-            expectation: "accept".to_owned(),
-            specification: "lang/10-modules.md#memory-intrinsics".to_owned(),
         };
         let goal = Goal::Tests {
             module: Some(hd_project::module_path("std", path)),
@@ -2019,6 +2041,7 @@ fn std_runtime_modules_pass_their_hd_tests_on_the_linear_backend() {
             built.out.tests.len()
         );
     }
+    assert!(selected > 0, "no std runtime cases matched the selection");
 }
 
 /// A single-file fixture with source `text`, for the runner's own tests.

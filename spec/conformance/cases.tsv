@@ -6211,6 +6211,10 @@ typing/valid/an-earlier-annotation-supplies-a-field-receivers-type.hd	type	accep
 runtime/panic/assert-equal-used-as-a-function-value-fails-on-unequal-arguments.hd	runtime	panic:assertion-failed	lang/03-names-and-scopes.md#r-names.category.value
 runtime/valid/assert-equal-used-as-a-function-value-compares-its-arguments.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.category.value
 runtime/valid/box-used-as-a-function-value-makes-a-new-object-per-call.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.category.value
+runtime/valid/intrinsic-function-values-infer-from-later-arguments.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.category.value
+runtime/valid/a-function-trait-method-value-infers-the-callback-row.hd	runtime	accept	lang/07-functions.md#r-fn.type.generic.argument.sources
+runtime/valid/a-private-row-infers-from-an-intrinsic-function-value.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.row.omitted.inferred-private
+typing/invalid/a-delayed-function-trait-value-keeps-the-callback-requirement.hd	type	reject:missing-requirement	lang/11-requirements-and-suspension.md#r-req.row.set.call
 runtime/valid/fn-call-used-as-a-function-value-calls-its-receiver.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.category.value
 typing/invalid/a-method-call-does-not-wait-for-a-later-receiver-argument.hd	type	reject:cannot-infer-type	lang/09-traits.md#r-trait.resolve.lookup.unknown-argument
 typing/invalid/a-method-reference-needs-the-receivers-trait-selecting-argument.hd	type	reject:cannot-infer-type	lang/07-functions.md#r-fn.ref.lookup

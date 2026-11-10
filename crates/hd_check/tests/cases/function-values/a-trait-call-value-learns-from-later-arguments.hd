@@ -1,0 +1,14 @@
+# @dump: tir
+# fn.type.generic.argument.sources: Fn::call's pending implementation
+# learns its result and row after the other arguments fix the function.
+use std.function.Fn
+
+fn invoke[F, T, R](call: fn(&F, (T,)) -> R, f: F, value: T) -> R:
+    call(&f, (value,))
+
+fn inc(value: i32) -> i32:
+    value + 1
+
+fn inferred() -> i32:
+    invoke(Fn::call, inc, +12)
+    #^^^^^^^^^^^^^^^^^^^^^^^^^^

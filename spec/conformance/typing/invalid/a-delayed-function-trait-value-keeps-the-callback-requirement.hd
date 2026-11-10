@@ -1,0 +1,13 @@
+# test: a delayed function trait value keeps the callback requirement
+# Spec lang/11-requirements-and-suspension.md: req.row.set.call.
+use std.function.Fn
+
+fn invoke[F, T, R, $ E](call: fn(&F, (T,)) -> R $ E, f: F, value: T) -> R $ E:
+    call(&f, (value,))
+
+fn logged(value: i32) -> i32 $ Console:
+    println("called")
+    value + 1
+
+fn invalid() -> i32 $ ():
+    invoke(Fn::call, logged, +15) # diagnostic: missing-requirement

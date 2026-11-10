@@ -1,0 +1,19 @@
+# @dump: wat
+# test: a private row infers from an intrinsic function value
+# Spec lang/07-functions.md: fn.type.generic.argument.sources.
+# Spec lang/11-requirements-and-suspension.md: req.row.omitted.inferred-private.
+use std.function.Fn
+
+fn invoke[F, T, R, $ E](call: fn(&F, (T,)) -> R $ E, f: F, value: T) -> R $ E:
+    call(&f, (value,))
+
+fn logged(value: i32) -> i32 $ Console:
+    println("called")
+    value + 1
+
+fn inferred() -> i32:
+    invoke(Fn::call, logged, +15)
+    #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+pub fn main() -> void $ Console:
+    println(inferred())
