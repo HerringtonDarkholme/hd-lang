@@ -1,0 +1,5 @@
+# Spec 13 Copy: ref.copy.opt-out.invalid; `impl !Copy` belongs in the
+# module that declares its target, and `StringBuilder` is std's.
+use std.text.StringBuilder
+
+impl !Copy for StringBuilder # diagnostic: invalid-negative-impl
