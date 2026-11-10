@@ -40,6 +40,9 @@ pub struct Program {
     /// The `@host` traits the case's package declares in its manifest's
     /// `[host]` (`# @host: main.Surface`), each package-relative.
     pub hosts: Vec<String>,
+    /// For a REPL session case (`# @repl: N`): the number of the input the
+    /// case's own text is. Its earlier inputs are the `@input` modules.
+    pub repl: Option<u32>,
     marked: bool,
 }
 
@@ -58,6 +61,7 @@ impl Program {
             profile: None,
             helpers: Vec::new(),
             hosts: Vec::new(),
+            repl: None,
             marked: span.is_some(),
         })
     }
@@ -72,9 +76,16 @@ impl Program {
         &self.text[self.subject.0..self.subject.1]
     }
 
+    /// The file that holds the case's own text: `main.hd`, or `repl#N`
+    /// for REPL input `N`.
+    fn main_file(&self) -> String {
+        self.repl
+            .map_or_else(|| "main.hd".to_owned(), hd_project::repl_file)
+    }
+
     fn sources(&self) -> hd_project::MemorySources {
         let mut sources = hd_project::MemorySources::default();
-        sources.insert("main.hd", &self.text);
+        sources.insert(&self.main_file(), &self.text);
         for (name, text) in &self.files {
             sources.insert(name, text);
         }
@@ -90,7 +101,9 @@ impl Program {
 /// (`module.host.package.marker`); `@helpers` names runtime helpers the
 /// `wat` view prints whole. `@file` begins a virtual module;
 /// subsequent lines belong to it until the next `@file`. Main defaults to
-/// `main.hd`.
+/// `main.hd`. `@repl: N` makes the case REPL input `N` of a session whose
+/// earlier inputs each begin at `@input: K`, numbered 1 up, as `@file`
+/// begins a module.
 ///
 /// # Errors
 /// Unknown directives/builds/views, `@dump` or `@build` after code,
@@ -99,6 +112,8 @@ pub fn parse(text: &str) -> Result<Case, String> {
     let mut dumps = Vec::new();
     let mut build = Build::default();
     let mut profile = None;
+    let mut repl = None;
+    let mut inputs = 0u32;
     let mut helpers = Vec::new();
     let mut hosts = Vec::new();
     let mut modules = BTreeMap::<String, String>::new();
@@ -114,7 +129,12 @@ pub fn parse(text: &str) -> Result<Case, String> {
                 .split_once(':')
                 .ok_or("a directive needs `:`")?;
             let value = value.trim();
-            if !header && matches!(name, "dump" | "build" | "profile" | "host" | "helpers") {
+            if !header
+                && matches!(
+                    name,
+                    "dump" | "build" | "profile" | "host" | "helpers" | "repl"
+                )
+            {
                 return Err(format!("`@{name}` after the header comments"));
             }
             match name {
@@ -144,6 +164,25 @@ pub fn parse(text: &str) -> Result<Case, String> {
                     );
                 }
                 "helpers" => helpers.extend(value.split_whitespace().map(str::to_owned)),
+                "repl" => {
+                    repl = Some(
+                        value
+                            .parse::<u32>()
+                            .ok()
+                            .filter(|n| *n > 1)
+                            .ok_or_else(|| format!("invalid REPL input `{value}`"))?,
+                    );
+                }
+                "input" => {
+                    let next = inputs + 1;
+                    if repl.is_none_or(|n| next >= n) || value != next.to_string() {
+                        return Err(format!(
+                            "`@input: {value}` needs `@repl` after it and inputs numbered 1 up"
+                        ));
+                    }
+                    inputs = next;
+                    current = hd_project::repl_file(next);
+                }
                 "host" => hosts.extend(value.split_whitespace().map(str::to_owned)),
                 "file" => {
                     let path = Path::new(value);
@@ -181,12 +220,16 @@ pub fn parse(text: &str) -> Result<Case, String> {
     if dumps.is_empty() {
         return Err("no `# @dump:` directive".to_owned());
     }
+    if repl.is_some() && dumps != ["tir"] {
+        return Err("a REPL session case shows only the `tir` view".to_owned());
+    }
     let main = modules.remove("main.hd").ok_or("no main.hd module")?;
     let mut program = Program::new(&main)?;
     program.files = modules.into_iter().collect();
     program.profile = profile;
     program.helpers = helpers;
     program.hosts = hosts;
+    program.repl = repl;
     Ok(Case {
         program,
         dumps,
@@ -416,7 +459,21 @@ pub fn tir(p: &Program) -> String {
         clock: &NoClock,
         executor: Executor::Serial(SerialOrder::Priority),
     };
-    let built = build(&host, "app", &Goal::Analyze);
+    let built = match p.repl {
+        // The session through input `n`, built as one run, as a host
+        // rebuilds a session (`Packages::inputs_from`).
+        Some(n) => {
+            let session = hd_driver::Session::linked();
+            let packages = hd_driver::Packages {
+                session: Some(&session),
+                inputs_from: Some(1),
+                ..hd_driver::Packages::default()
+            };
+            hd_driver::build_packages(&host, "app", &packages, &Goal::ReplInput { input: n })
+        }
+        None => build(&host, "app", &Goal::Analyze),
+    };
+    let main_file = p.main_file();
     let mut pool = PositionPool::default();
     let positions = built.positions(&mut pool);
     let mut out = Dump::new(p);
@@ -430,7 +487,7 @@ pub fn tir(p: &Program) -> String {
                 continue;
             };
             if let Some((file, lo, hi)) = positions.span(item, k)
-                && file == "main.hd"
+                && file == main_file
                 && p.inside(lo as usize, hi as usize)
             {
                 lines.push((lo as usize, line.trim()));

@@ -61,6 +61,8 @@ fn place(bodies: &mut List[Body], i: usize, x: f64) -> void:
     lines belong to it until the next `@file`. The first module defaults
     to `main.hd`; dumps and subject markers select that module only.
     The harness checks multi-module cases as virtual packages.
+  - `# @repl: N` makes the case REPL input `N`; each `# @input: K` after
+    its code starts earlier input `K` (1 up). The `tir` view only.
 - **The subject** (optional): a caret line `#^^^` under the code it marks,
   or a `# subject` line before a statement (it covers the lines indented
   deeper after it). Without a marker the whole file is dumped, each source

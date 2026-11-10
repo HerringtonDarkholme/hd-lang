@@ -241,7 +241,7 @@ pub fn check_duplicate_facts<'t>(
         let lines = fact_lines(cx, n);
         let Some(first) = lines.first() else { continue };
         let target = match typed.iter().find(|(e, ..)| e.index() == first.index()) {
-            Some((_, ty, _)) => FactTarget::Field(*ty),
+            Some((_, ty)) => FactTarget::Field(*ty),
             None if h.kind == HeadKind::Fn && n.index() == h.node.index() => FactTarget::Fn,
             None => FactTarget::Other,
         };

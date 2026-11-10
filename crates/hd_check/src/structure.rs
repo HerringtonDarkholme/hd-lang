@@ -187,60 +187,24 @@ fn member_sites<'t>(item: &Item, decl: NodeRef<'t>) -> MemberSites<'t> {
     }
 }
 
-/// The fact expressions of the declaration `node` of `owner` that attach
-/// to a member, with the member's declared type in `owner`'s scope: its
-/// decorators, for a struct or enum, and the elements of its member
-/// lines, for a derivation block (`annot.typed-fact.targets`,
-/// `annot.typed-fact.check`). Each is marked when it is one decorator's
-/// value rather than a list element.
+/// The decorator values that attach to a member of the struct or enum
+/// `owner`, declared at `node`, each with the member's declared type in
+/// `owner`'s scope (`annot.typed-fact.targets`, `annot.typed-fact.check`).
+/// The checker calls it for a struct or enum head only; a derivation
+/// block's member lines are typed by `derivation_repeats` instead.
 #[must_use]
 pub fn member_fact_sites<'t>(
     cx: &BodyCx<'t>,
     owner: DefId,
     node: NodeRef<'t>,
-) -> Vec<(NodeRef<'t>, Ty, bool)> {
-    let src = &cx.src;
+) -> Vec<(NodeRef<'t>, Ty)> {
     let Some(item) = cx.lookup.item(owner) else {
         return Vec::new();
     };
     let mut out = Vec::new();
-    if let ItemData::Impl {
-        by: Some(_),
-        self_ty,
-        ..
-    } = &item.data
-    {
-        let TyData::Adt { def: data, args } = cx.names.pool.get(*self_ty) else {
-            return out;
-        };
-        let Some(target) = cx.lookup.item(data) else {
-            return out;
-        };
-        let args = cx.names.pool.list_items(args).to_vec();
-        for line in crate::derive::member_lines(src, node) {
-            let Some(list) = line.list.filter(|l| l.kind() == SyntaxKind::ListExpr) else {
-                continue;
-            };
-            let Some(Slot::Member(v, m)) = line_slot(cx, target, line.name) else {
-                continue;
-            };
-            let ty = match &target.data {
-                ItemData::Struct(fields, _) if v == 0 => fields.get(m).map(|f| f.ty),
-                _ => None,
-            };
-            let Some(ty) = ty else { continue };
-            let ty = subst_owner(cx.names.pool.types(), data, &args, ty);
-            out.extend(
-                list.children()
-                    .filter(|e| e.kind() != SyntaxKind::SpreadExpr)
-                    .map(|e| (e, ty, false)),
-            );
-        }
-        return out;
-    }
     for (_, members) in member_sites(item, node) {
         for (n, ty) in members {
-            out.extend(fact_lines(cx, n).into_iter().map(|e| (e, ty, true)));
+            out.extend(fact_lines(cx, n).into_iter().map(|e| (e, ty)));
         }
     }
     out

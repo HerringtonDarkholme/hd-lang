@@ -160,6 +160,12 @@ Every compiler view receives all modules, but dumps and subject spans
 refer to `main.hd`. Such cases are compiled as virtual packages by the
 harness; their physical file remains plain hd with comment separators.
 
+A REPL session case writes `# @repl: N` in its header: its own text is
+input `N` of a session, and each `# @input: K` after it starts earlier
+input `K`, numbered from 1, as `@file` starts a module. The harness
+builds the session through input `N` as one run, as a host rebuilds a
+session. Such a case shows only the `tir` view, of input `N`.
+
 The views keep their stage's evidence:
 
 - `tokens`: each token's kind and text.
