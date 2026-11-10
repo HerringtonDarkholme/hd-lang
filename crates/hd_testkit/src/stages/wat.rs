@@ -59,10 +59,18 @@ pub fn wat_for(p: &Program, at: Build) -> String {
     if let Some(wasm) = &built.wasm {
         let module = Module::read(wasm);
         let mut storage = String::new();
+        let (stripped, shifts) = strip_custom(wasm);
+        // Printed offsets are the stripped module's; origins are the
+        // built module's, which may hold a custom section before its code
+        // (a package host's interface schema).
+        let original = |at: u64| {
+            let k = shifts.partition_point(|s| s.0 <= at);
+            at + k.checked_sub(1).map_or(0, |k| shifts[k].1)
+        };
         let lines: BTreeMap<u64, String> = wasmprinter::Config::new()
-            .offsets_and_lines(&strip_custom(wasm), &mut storage)
+            .offsets_and_lines(&stripped, &mut storage)
             .expect("the module prints")
-            .filter_map(|(at, line)| Some((at?, line.trim().to_owned())))
+            .filter_map(|(at, line)| Some((original(at?), line.trim().to_owned())))
             .collect();
         let mut pool = PositionPool::default();
         let positions = built.positions(&mut pool);
@@ -849,18 +857,25 @@ impl Module {
 
 /// `wasm` without its custom sections, which follow the code, so the
 /// printer writes every function, local and type by its index.
-fn strip_custom(wasm: &[u8]) -> Vec<u8> {
+/// `wasm` without its custom sections, and per kept section after a
+/// removed one, its start in the result and the bytes removed before it.
+fn strip_custom(wasm: &[u8]) -> (Vec<u8>, Vec<(u64, u64)>) {
     let mut out = wasm[..8].to_vec();
+    let mut shifts = Vec::new();
     let mut at = 8;
     while at < wasm.len() {
         let (size, n) = leb(&wasm[at + 1..]);
         let end = at + 1 + n + size;
         if wasm[at] != 0 {
+            let removed = at - out.len();
+            if removed > 0 {
+                shifts.push((out.len() as u64, removed as u64));
+            }
             out.extend_from_slice(&wasm[at..end]);
         }
         at = end;
     }
-    out
+    (out, shifts)
 }
 
 /// An unsigned LEB128 value and its length in bytes.

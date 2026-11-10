@@ -561,22 +561,23 @@ fn body_func<'a>(
 /// `&&` and `||` is their greatest fixpoint. Cost: a global read and two
 /// writes per call of such a method, none for any other.
 struct Reentry {
-    flag: Global,
+    /// The storage cell of the flag's one `i32` global.
+    cell: Hash128,
 }
 
 impl Reentry {
     fn new(key: Hash128) -> Self {
         let mut h = hd_base::StableHasher::new("coinductive-flag");
         h.hash(key);
-        Self {
-            flag: Global::Storage(h.finish(), 0, Val::I32),
-        }
+        Self { cell: h.finish() }
+    }
+
+    fn flag(&self) -> Global {
+        Global::Storage(self.cell, 0, Val::I32)
     }
 
     fn enter(&self, em: &mut Em<'_, '_, '_>, path: &dyn Fn(DefId) -> String, item: DefId) {
-        let Global::Storage(cell, ..) = self.flag else {
-            return;
-        };
+        let cell = self.cell;
         if em.input.runtime.and_then(|r| r.checked).is_some() {
             // Teardown zeros the flag between test cases, as a once-cell's.
             em.m.stored.insert(
@@ -592,19 +593,19 @@ impl Reentry {
             em.m.storage_names
                 .insert(cell, format!("{}#evaluating", path(item)));
         }
-        em.f.global_get(self.flag);
+        em.f.global_get(self.flag());
         em.f.op(I::If(BlockType::Empty));
         em.f.i32(1);
         em.f.op(I::Return);
         em.f.op(I::End);
         em.f.i32(1);
-        em.f.global_set(self.flag);
+        em.f.global_set(self.flag());
     }
 
     /// At the common exit, the result on the stack: the run is over.
     fn leave(&self, f: &mut Func) {
         f.i32(0);
-        f.global_set(self.flag);
+        f.global_set(self.flag());
     }
 }
 

@@ -81,45 +81,31 @@ pub trait InlineEnv: ProgramEnv {
     /// allowed), in every build (#1151, #1167). The environment also
     /// proves that the referent may be copied: its small layout alone
     /// does not prove that. `None` keeps a reader's reference instead.
-    fn lent_referent(&self, _t: Ty) -> Option<Ty> {
-        None
-    }
+    fn lent_referent(&self, t: Ty) -> Option<Ty>;
     /// The referent of a reference of type `t` that holds a value with a
     /// `std.rt.Drop` (`hd_wasm_linear::rooted_referent`): an inlined copy
     /// never takes it by value; it keeps the reference in release, and in
     /// dev the call stays a call.
-    fn rooted_referent(&self, _t: Ty) -> Option<Ty> {
-        None
-    }
+    fn rooted_referent(&self, t: Ty) -> Option<Ty>;
     /// Whether the referent of a reference of type `t`, one
     /// [`InlineEnv::lent_referent`] gives, holds a counted part.
-    fn counted_referent(&self, _t: Ty) -> bool {
-        false
-    }
+    fn counted_referent(&self, t: Ty) -> bool;
     /// Whether a call of `callee` may write memory its caller reaches, from
     /// the declarations alone: the compiler's code of an intrinsic that
     /// only reads its arguments does not (`OwnCx::may_write` without the
     /// release summaries, which the inliner may run before).
-    fn call_may_write(&self, _callee: &Callee) -> bool {
-        true
-    }
+    fn call_may_write(&self, callee: &Callee) -> bool;
     /// Whether the pipeline holds `const_fold` (#1518): a copy whose only
     /// effect is one known result is copied as that result
     /// (`hd_mono::defaults::collapse`), whatever its size.
-    fn const_fold(&self) -> bool {
-        false
-    }
+    fn const_fold(&self) -> bool;
     /// The release folds an instance's own body takes before the inliner
     /// (generated structure traversals, declaration facts), applied to a
     /// copy; returns its hash, the same one when nothing changed.
-    fn prepare_copy(&self, _body: &mut Body, hash: Hash128) -> Hash128 {
-        hash
-    }
+    fn prepare_copy(&self, body: &mut Body, hash: Hash128) -> Hash128;
     /// Whether `Call` or `Drop` `i` of `body` has no effect a caller sees
     /// (`hd_mono::defaults::collapse_quiet`).
-    fn quiet(&self, _body: &Body, _i: usize) -> bool {
-        false
-    }
+    fn quiet(&self, body: &Body, i: usize) -> bool;
 }
 
 /// A release build's inliner state for one run. Only looked up, never
@@ -794,10 +780,14 @@ impl dyn InlineEnv + '_ {
                     .and_then(seed)
                     .map(|v| hd_mono::defaults::Value::Scalar(u64::from(v)))
             };
-            match hd_mono::defaults::value_given(bodies[i].as_ref()?, &calls)? {
-                hd_mono::defaults::Value::Scalar(bits) => Some(bits != 0),
-                hd_mono::defaults::Value::Variant(_) => None,
-            }
+            let value = hd_mono::defaults::value_given(bodies[i].as_ref()?, &calls)?;
+            // ruled out: whole::is_flag_method admits only a `bool` result,
+            // and value_given makes a variant only of a `NewVariant`.
+            debug_assert!(
+                matches!(value, hd_mono::defaults::Value::Scalar(_)),
+                "a flag method's value is a variant"
+            );
+            Some(value != hd_mono::defaults::Value::Scalar(0))
         };
         let values = crate::whole::solve_flags(&from, &callees, &local, &mut eval, &mut 0);
         let mut flags = lock(&memo.flags);

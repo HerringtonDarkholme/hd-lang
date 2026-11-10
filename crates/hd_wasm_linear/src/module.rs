@@ -1334,9 +1334,10 @@ impl Module {
     /// [`Module::vtable_with`] with the drive slots `drives` after the
     /// parents (§23.39).
     ///
-    /// Cost: hashing the table, then at most one table comparison
-    /// ([`Module::vtable_at`]), so n requests do O(n) comparisons, as an
-    /// interner does; a scan of every earlier table made it O(n²) (#1553).
+    /// Cost: hashing the table and one index lookup
+    /// ([`Module::vtable_at`]), plus one table comparison in a debug build,
+    /// so n requests do O(n) work, as an interner does; a scan of every
+    /// earlier table made it O(n²) (#1553).
     pub fn vtable_full(&mut self, slots: Vec<Sym>, parents: Vec<usize>, drives: Vec<Sym>) -> usize {
         let v = (
             slots.into_iter().map(|s| self.symbols.intern(s)).collect(),
@@ -1349,12 +1350,11 @@ impl Module {
             {
                 self.vtable_compares += 1;
             }
-            // A 128-bit collision keeps its own table, unindexed.
-            if self.vtables[k] == v {
-                return k;
-            }
-            self.vtables.push(v);
-            return self.vtables.len() - 1;
+            // ruled out: vtable_hash is a 128-bit stable content hash, the
+            // identity this backend gives instances (`Hash128` keys) too, so
+            // an equal hash is an equal table.
+            debug_assert!(self.vtables[k] == v, "a vtable hash collision");
+            return k;
         }
         self.vtables.push(v);
         self.vtable_at.insert(hash, self.vtables.len() - 1);

@@ -1,0 +1,63 @@
+# @dump: wat
+# @build: v8 release
+# A static method with no parameters and a `Result` result, so not a
+# flag method, that runs a describer over a type's members (#1445): the
+# release copy of `Outer::rank` takes its instance's own structure
+# folds, its calls copied, and makes one constant, so `entry` keeps only
+# the fast arm.
+use std.structure.{Structure, Describer, Variant, Field}
+
+trait Fast:
+    fn regular() -> bool
+
+impl Fast for i32:
+    fn regular() -> bool:
+        true
+
+impl[T < Fast] Fast for List[T]:
+    fn regular() -> bool:
+        T::regular()
+
+struct Probe: pass
+
+impl[S < ?Copy] Describer[S] for Probe:
+    type Error = void
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, void]:
+        .Ok(())
+
+    fn member[F < ?Copy & Fast](&mut self, h: Field[S, F]) -> Result[void, void]:
+        if F::regular(): .Ok(()) else: .Err(())
+
+trait Rank:
+    fn rank() -> Result[void, void]
+
+impl[T < ?Copy] Rank for T by Structure:
+    fn rank() -> Result[void, void]:
+        let mut p = Probe {}
+        T::describe(&mut p)
+
+@derive(Rank)
+struct Inner:
+    x: i32
+    y: i32
+
+impl Fast for Inner:
+    fn regular() -> bool:
+        Inner::rank().is_ok()
+
+@derive(Rank)
+struct Outer:
+    a: Inner
+    xs: List[Inner]
+
+fn slow(n: i32) -> string:
+    let mut s = ""
+    for i in 0..n:
+        s = s + "$i,"
+    s
+
+# subject
+fn entry(n: i32) -> string:
+    if Outer::rank().is_ok(): "fast" else: slow(n)
+

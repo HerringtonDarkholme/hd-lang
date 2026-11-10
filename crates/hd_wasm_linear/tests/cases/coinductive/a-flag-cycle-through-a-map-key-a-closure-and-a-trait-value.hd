@@ -1,0 +1,52 @@
+# @dump: wat
+# @build: v8 release
+# A flag method on a call cycle whose code also indexes a map by a
+# derived key, calls a closure through a function that collection made
+# direct, and calls a trait value (annot.bound.recursive.flag): the map
+# key's `hash` and `eq`, the closure and every flag behind the
+# trait-value call are call-graph edges, so `Tree::regular` stays on its
+# cycle and guards its re-entry.
+use std.hash.Hash
+
+trait Fast:
+    fn regular() -> bool
+
+trait Size:
+    fn size(&self) -> i32
+
+@derive(Eq, Hash)
+struct Key:
+    id: i32
+
+struct Leaf:
+    x: i32
+
+impl Size for Leaf:
+    fn size(&self) -> i32: self.x
+
+struct Tree:
+    x: i32
+
+fn apply(f: fn(i32) -> i32, x: i32) -> i32:
+    f(x)
+
+fn sized() -> *dyn Size:
+    box(Leaf { x: +1 })
+
+impl Fast for Tree:
+    # subject
+    fn regular() -> bool:
+        let mut seen: Map[Key, i32] = {}
+        seen[Key { id: +1 }] = +2
+        step := i32(seen.len())
+        bump := fn(n: i32) -> i32:
+            let mut t = n
+            for i in 0..step:
+                t = t * 31 + i
+                if t > 1000:
+                    t = t % 997
+            for i in 0..step:
+                t = t * 17 + i
+            t
+        apply(bump, seen.get(Key { id: +1 }).unwrap_or(0)) + sized().size() > 0 && Tree::regular()
+

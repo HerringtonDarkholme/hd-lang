@@ -240,7 +240,9 @@ impl LTy {
     }
 
     /// Whether a host handle is in the value: it only crosses from the
-    /// host. Each named type's definition is visited once.
+    /// host. Each named type's definition is visited once. Only a debug
+    /// build's check of `module.boundary.not-safe.error` asks it.
+    #[cfg(debug_assertions)]
     #[must_use]
     pub fn holds_handle(&self, named: &Named) -> bool {
         let mut seen = hd_base::HashSet::default();
@@ -573,14 +575,10 @@ fn data_of(
         // A struct with no fields crosses as an empty record: no bytes
         // and no Wasm values.
         let mut out = Vec::new();
+        // A failed part fails the link, so its path needs no unwinding,
+        // as in `enum_of`.
         for f in env.data_fields(def).unwrap_or_default() {
-            match of_at(input, m, subst(pool, env, def, args, f), path, at) {
-                Ok(f) => out.push(f),
-                Err(e) => {
-                    path.pop();
-                    return Err(e);
-                }
-            }
+            out.push(of_at(input, m, subst(pool, env, def, args, f), path, at)?);
         }
         Ok(LTy::Record(out))
     };
@@ -765,7 +763,8 @@ pub fn host_slot(
             (Codec::Buffer(_), _) if row.params.len() == 1 && *pt == Ty::STRING => HostArg::Str,
             (Codec::Buffer(_), _) => {
                 let b = of(input, mm, *pt, at.map(|a| AtProfile { out: true, ..a }))?;
-                debug_assert!(
+                #[cfg(debug_assertions)]
+                assert!(
                     !b.holds_handle(&mm.named_codecs),
                     "ruled out: module.boundary.not-safe.error (hd_check header::boundary) \
                      rejects a host handle passed to the host; no std host method takes one"
@@ -1723,8 +1722,12 @@ pub fn enc(b: &LTy, m: &Module) -> Func {
 
 /// [`enc`]'s body for `b`; a named type's is its definition's.
 fn enc_body(f: &mut Func, b: &LTy, m: &Module) {
+    // ruled out: module.boundary.not-safe.error (hd_check header::boundary)
+    // rejects a trait value passed to the host, so no encoder meets a
+    // handle.
+    debug_assert!(!matches!(b, LTy::Handle(_)), "an encoder of a host handle");
     match b {
-        LTy::Void => {}
+        LTy::Void | LTy::Handle(_) => {}
         LTy::Int { bits, signed } => {
             let x = f.local(Val::I64);
             f.get(1);
@@ -1946,10 +1949,6 @@ fn enc_body(f: &mut Func, b: &LTy, m: &Module) {
             if o.tracked {
                 on_path(f, count, I::I32Sub);
             }
-        }
-        LTy::Handle(_) => {
-            f.op(I::Unreachable);
-            return;
         }
         LTy::Named(n) => return enc_body(f, m.named_codecs.def(n.id), m),
     }

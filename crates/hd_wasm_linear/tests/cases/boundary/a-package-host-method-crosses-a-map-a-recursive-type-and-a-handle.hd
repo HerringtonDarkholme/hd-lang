@@ -1,0 +1,27 @@
+# @dump: wat
+# @build: program
+# @host: main.Store
+# A package host trait (module.host.package.marker) whose methods cross a
+# map, a recursive enum and a returned handle: the JS glue's schema names
+# each (module.host.package.js-values), and the handle's trait gets its
+# own interface. A recursive type crossing twice one way has one codec.
+pub enum Tree:
+    Leaf(n: i32)
+    Node(kids: List[Tree])
+
+pub trait Cursor:
+    fn read(&self) -> i32
+
+@host
+pub trait Store:
+    fn tally(&self, counts: Map[string, i32]) -> i32
+    fn grow(&self, tree: Tree) -> Tree
+    fn pair(&self, a: Tree, b: Tree) -> i32
+    fn open(&self) -> *dyn Cursor
+
+pub fn main() -> void $ Store + Console:
+    store := $.use(Store)
+    println("${store.tally({"a": +1})}")
+    _ := store.grow(Tree.Node([Tree.Leaf(+1)]))
+    println("${store.pair(Tree.Leaf(+1), Tree.Leaf(+2))}")
+    println("${store.open().read()}")

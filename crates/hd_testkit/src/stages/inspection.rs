@@ -10,6 +10,7 @@ type Key = (
     String,
     Vec<(String, String)>,
     Option<Vec<String>>,
+    Vec<String>,
 );
 
 thread_local! {
@@ -20,7 +21,13 @@ thread_local! {
 /// The build the compiled views read: with instruction origins and the text
 /// of the case's own bodies, which add output and leave the module unchanged.
 pub(super) fn build(p: &super::Program, at: super::Build) -> Rc<Output> {
-    let key = (at, p.text.clone(), p.files.clone(), p.profile.clone());
+    let key = (
+        at,
+        p.text.clone(),
+        p.files.clone(),
+        p.profile.clone(),
+        p.hosts.clone(),
+    );
     if let Some(built) = LAST.with_borrow(|last| {
         last.as_ref()
             .filter(|(k, _)| *k == key)
@@ -56,10 +63,33 @@ fn fresh(p: &super::Program, at: super::Build) -> Output {
         clock: &NoClock,
         executor: Executor::Serial(SerialOrder::Priority),
     };
+    // The root package's manifest `[host]`, each trait bound to one
+    // provider file, as `hd build` reads it (`module.host.package.marker`).
+    let host_packages = if p.hosts.is_empty() {
+        Vec::new()
+    } else {
+        let manifest: String = std::iter::once("[host]\n".to_owned())
+            .chain(
+                p.hosts
+                    .iter()
+                    .map(|t| format!("\"{t}\" = \"provider.ts\"\n")),
+            )
+            .collect();
+        vec![hd_driver::HostPackage {
+            package: 0,
+            identity: package.to_owned(),
+            versioned_source: None,
+            declarations: hd_project::parse_manifest(&manifest)
+                .expect("a stage case's `@host` traits make a manifest")
+                .host,
+            manifest: "hd.toml".to_owned(),
+        }]
+    };
     build_packages(
         &host,
         package,
         &Packages {
+            host_packages,
             instruction_origins: true,
             target: at.target,
             level: if at.release {

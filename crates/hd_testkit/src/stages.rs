@@ -37,6 +37,9 @@ pub struct Program {
     /// The runtime helpers the `wat` view prints whole, by name without
     /// `rt:` and `#k` (`# @helpers: enc dec`).
     pub helpers: Vec<String>,
+    /// The `@host` traits the case's package declares in its manifest's
+    /// `[host]` (`# @host: main.Surface`), each package-relative.
+    pub hosts: Vec<String>,
     marked: bool,
 }
 
@@ -54,6 +57,7 @@ impl Program {
             files: Vec::new(),
             profile: None,
             helpers: Vec::new(),
+            hosts: Vec::new(),
             marked: span.is_some(),
         })
     }
@@ -78,10 +82,12 @@ impl Program {
     }
 }
 
-/// Parses directives. `@dump`, `@build`, `@profile` and `@helpers` belong
-/// in the header comments before the first line of code. `@profile` names
-/// a conformance runtime profile ([`crate::profile_traits`]) whose traits
-/// the case's main module declares; `@helpers` names runtime helpers the
+/// Parses directives. `@dump`, `@build`, `@profile`, `@host` and
+/// `@helpers` belong in the header comments before the first line of code.
+/// `@profile` names a conformance runtime profile
+/// ([`crate::profile_traits`]) whose traits the case's main module
+/// declares; `@host` lists the package host traits its manifest declares
+/// (`module.host.package.marker`); `@helpers` names runtime helpers the
 /// `wat` view prints whole. `@file` begins a virtual module;
 /// subsequent lines belong to it until the next `@file`. Main defaults to
 /// `main.hd`.
@@ -94,6 +100,7 @@ pub fn parse(text: &str) -> Result<Case, String> {
     let mut build = Build::default();
     let mut profile = None;
     let mut helpers = Vec::new();
+    let mut hosts = Vec::new();
     let mut modules = BTreeMap::<String, String>::new();
     let mut current = "main.hd".to_owned();
     let mut declared = Vec::new();
@@ -107,7 +114,7 @@ pub fn parse(text: &str) -> Result<Case, String> {
                 .split_once(':')
                 .ok_or("a directive needs `:`")?;
             let value = value.trim();
-            if !header && matches!(name, "dump" | "build" | "profile" | "helpers") {
+            if !header && matches!(name, "dump" | "build" | "profile" | "host" | "helpers") {
                 return Err(format!("`@{name}` after the header comments"));
             }
             match name {
@@ -137,6 +144,7 @@ pub fn parse(text: &str) -> Result<Case, String> {
                     );
                 }
                 "helpers" => helpers.extend(value.split_whitespace().map(str::to_owned)),
+                "host" => hosts.extend(value.split_whitespace().map(str::to_owned)),
                 "file" => {
                     let path = Path::new(value);
                     if value.is_empty()
@@ -178,6 +186,7 @@ pub fn parse(text: &str) -> Result<Case, String> {
     program.files = modules.into_iter().collect();
     program.profile = profile;
     program.helpers = helpers;
+    program.hosts = hosts;
     Ok(Case {
         program,
         dumps,
