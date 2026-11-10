@@ -1,0 +1,20 @@
+trait Named:
+    fn name(&self) -> string
+
+struct Parcel:
+    label: string
+    weight: i32
+
+impl Named for Parcel:
+    fn name(&self) -> string:
+        self.label
+
+pub fn main() -> void $ Console:
+    heavier := fn(parcel: &Parcel) -> Parcel: Parcel { label: parcel.label, weight: parcel.weight + 1 }
+    dbg(heavier)
+    parcel := Parcel { label: "mug", weight: 3 }
+    let named: &dyn Named = &parcel
+    dbg(named)
+    println("done")
+
+# Spec 10 Debug Values: module.dbg.value.function, module.dbg.value.trait-value.

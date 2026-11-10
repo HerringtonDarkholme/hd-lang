@@ -1,0 +1,6 @@
+# A closure prints as its signature, with each type named as source writes it,
+# and a trait value as the trait it implements.
+run: hd run
+stdout: done
+stderr: src/main.hd:14:5: heavier = <fn(&Parcel) -> Parcel>
+stderr: src/main.hd:17:5: named = <dyn Named>

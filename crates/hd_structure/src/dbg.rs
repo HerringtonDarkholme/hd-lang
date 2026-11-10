@@ -164,7 +164,14 @@ pub fn printer_body(cx: &Cx<'_, '_>, item: DefId, ty: Ty, debug: bool) -> StageR
     };
     let def = names.item(FORMAT, name);
     let value = if name == "dbg_opaque_printer" {
-        let text = g.b.const_str(&pool.display(ty));
+        // A trait value, printed behind its reference, shows the trait it
+        // implements and not its concrete type (`module.dbg.value.trait-value`).
+        let shown = hd_resolve::show_ty(names, ty);
+        let shown = match pool.get(ty) {
+            TyData::TraitValue { .. } => format!("dyn {shown}"),
+            _ => shown,
+        };
+        let text = g.b.const_str(&shown);
         g.b.call(
             &Callee::Item {
                 def,

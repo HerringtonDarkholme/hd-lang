@@ -934,6 +934,7 @@ fn demo(x: i32) -> i32:
 | r[module.dbg.value.newtype] Newtype | a [newtype](04-type-system.md#newtypes) | its name and its base value, as `Meters(1.5)` |
 | r[module.dbg.value.composite] Built-in composite | a list, map, tuple, `T?`, or `Result` | as its standard `Debug` implementation writes it, as `[1, 2]`, `{"a": 1}`, `(1, "a")`, `Option.Some(1)`, or `Result.Ok(1)` |
 | r[module.dbg.value.function] Function | a function or closure | `<fn name(i32) -> i32>` when the argument names a function, else `<fn(i32) -> i32>` |
+| r[module.dbg.value.trait-value] Trait value | a trait value, behind its reference | the trait it implements, as `<dyn Named>`; its concrete type is not shown |
 | r[module.dbg.value.handle] Handle | a live runtime handle, such as a suspension | `<handle>` |
 | r[module.dbg.value.reference] Reference | a `&T` or `&mut T` whose `T` does not implement `Debug` | the value it refers to, by these same rules, with no trace of the reference |
 

@@ -1,0 +1,5 @@
+[package]
+name = "dbg_closure_types"
+
+[capabilities]
+Console = true
