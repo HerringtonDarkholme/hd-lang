@@ -806,11 +806,9 @@ global root is no value.
 **Ownership** ([docs/compiler/tir-v2.md](../../docs/compiler/tir-v2.md#ownership-statements)).
 The ownership passes write these after decoding; the checker never does
 (invariant 22), and the wire refuses them. Each has a place in a and
-nothing in b but `IsUnique`, whose b is 0, `unique_word::HOISTED` (it
-stands before the loop that follows it, which runs it once under its
-entry test) or `unique_word::COVERED` (a hoisted one before an
-enclosing loop makes it unneeded; #1661 asks whether it can go); the
-type is `void`.
+nothing in b but `IsUnique`. Its b is 0 for a plain check,
+`unique_word::HOISTED` before a loop, or `FRESH` or `REPEAT` when an
+existing fact already proves uniqueness. The type is `void`.
 
 | Tag | Meaning |
 | --- | --- |
@@ -1266,9 +1264,9 @@ Those test-only queries do not require a second checker-facing fact API.
   behind an entry test whose prefix is pure, moves before the loop
   (marked hoisted) when nothing in the loop copies, references,
   replaces, pins or suspends over its place and no call may write unless
-  the place is a private local, every other `IsUnique` of the place in
-  the loop goes (or stays covered behind a dereference), and the loops'
-  stable list places are listed in `stable_lists`. Insertion
+  the place is a private local. Every other `IsUnique` of the place in
+  the loop goes, including through a dereference. The pass lists stable
+  list places in `stable_lists`. Insertion
   rebuilds the body once, and the other passes record their edits for
   one more rebuild at the end, renumbering it (`own/splice.rs`). They
   read the body and `OwnCx` (counted types, parameter modes, how a body

@@ -10,9 +10,9 @@
 //!
 //! 1. it runs on every iteration that is entered: it is a statement of the
 //!    loop's iteration block, the arm of the **entry test** (the loop
-//!    body's first `If`, one arm of which only breaks out of the loop) that
-//!    goes on, with no `If` or `Match` around it, or of the iteration block
-//!    of an inner loop that stands there in turn, at any depth, so it runs
+//!    body's first `If`, one arm of which exits the loop) that
+//!    goes on, through unconditional pattern bindings if present, or of the
+//!    iteration block of an inner loop that stands there in turn, at any depth, so it runs
 //!    whenever that inner loop is entered; and the statements before the
 //!    entry test are pure, so the backend can run them once more before
 //!    the loop as its guard. A loop with no entry test (`while true`)
@@ -88,8 +88,8 @@ use super::splice;
 use super::{Operand, OwnCx, Role, fill, operands};
 use crate::ir::{
     Body, BodyKind, Callee, DEREF, ELEM, IntrinsicOp, NONE, PlaceView, Proj, ReadMode, Ref, Root,
-    Tag, Topology, VARIANT, is_suspension, local_flags, place, ref_word, sub_flags, u32_of,
-    unique_word,
+    Tag, Topology, VARIANT, Word, is_suspension, local_flags, place, ref_word, slots, sub_flags,
+    u32_of, unique_word,
 };
 
 /// The longest chain of reads a place is resolved through.
@@ -99,8 +99,7 @@ const DEPTH: usize = 8;
 const MAX: usize = 64;
 
 /// A loop's entry test (`docs/compiler/tir-v2.md`, "Hoisting"): the first
-/// `If` of the loop's body block one arm of which only breaks out of the
-/// loop.
+/// `If` of the loop's body block with an exiting arm.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct EntryTest {
     /// The `If`.
@@ -117,8 +116,25 @@ pub struct EntryTest {
 /// The entry test of `Loop` `l`, if it has one: its [`loop_test`], with
 /// an arm that goes on.
 #[must_use]
-pub fn entry_test(b: &Body, l: u32) -> Option<EntryTest> {
-    let (test, prefix, [then, els]) = loop_test(b, l, false)?;
+pub fn entry_test(b: &Body, topo: &Topology, l: u32) -> Option<EntryTest> {
+    let (test, prefix, [then, els]) = loop_test_with(b, l, |exit| {
+        // The exit suite may do work before the final break. No edge
+        // may resume this loop or bypass the suite into its iteration.
+        let start = topo.first[exit as usize];
+        (start..exit).all(|i| {
+            let tag = b.tags[i as usize];
+            if !matches!(tag, Tag::Break | Tag::Continue) {
+                return true;
+            }
+            let label = b.data[i as usize][0];
+            b.label_inst.get(label as usize).is_some_and(|&target| {
+                (target != l || tag == Tag::Break)
+                    && (target < topo.first[l as usize]
+                        || target >= l
+                        || (start..=exit).contains(&target))
+            })
+        })
+    })?;
     let arms = b.record(b.data[test as usize][1]);
     let iteration = arms.get(usize::from(then)).copied().unwrap_or(NONE);
     (then != els && iteration != NONE).then_some(EntryTest {
@@ -141,9 +157,17 @@ pub fn loop_statements(b: &Body, l: u32) -> impl Iterator<Item = u32> + '_ {
 
 /// The test of `Loop` `l`: the first `If` among its statements, how many
 /// statements stand before it, and whether each of its arms (then, else)
-/// only breaks out of the loop. A break with a value counts when `valued`.
+/// only breaks out of the loop.
 #[must_use]
-pub fn loop_test(b: &Body, l: u32, valued: bool) -> Option<(u32, usize, [bool; 2])> {
+pub fn loop_test(b: &Body, l: u32) -> Option<(u32, usize, [bool; 2])> {
+    loop_test_with(b, l, |_| false)
+}
+
+fn loop_test_with(
+    b: &Body,
+    l: u32,
+    exit_prefix: impl Fn(u32) -> bool,
+) -> Option<(u32, usize, [bool; 2])> {
     if b.tags.get(l as usize) != Some(&Tag::Loop) {
         return None;
     }
@@ -162,15 +186,36 @@ pub fn loop_test(b: &Body, l: u32, valued: bool) -> Option<(u32, usize, [bool; 2
             .record(b.data[blk as usize][0])
             .iter()
             .filter(|&&x| b.tags[x as usize] != Tag::Block);
-        let (Some(&x), None) = (items.next(), items.next()) else {
+        let Some(&x) = items.next_back() else {
             return false;
         };
-        let [label, value] = b.data[x as usize];
+        let label = b.data[x as usize][0];
         b.tags[x as usize] == Tag::Break
-            && (valued || value == NONE)
             && b.label_inst.get(label as usize) == Some(&l)
+            && (items.next().is_none() || exit_prefix(blk))
     };
     Some((test, prefix, [breaks(0), breaks(1)]))
+}
+
+/// The arm of a match whose decision binds values and takes one edge.
+fn unconditional_arm(b: &Body, i: usize) -> Option<u32> {
+    let [decision, arm] = *b.record(b.data[i][1]) else {
+        return None;
+    };
+    let items = b.record(b.data[decision as usize][0]);
+    let (&last, prefix) = items.split_last()?;
+    if b.tags[last as usize] != Tag::ToArm || b.data[last as usize][0] != 0 {
+        return None;
+    }
+    let straight = prefix.iter().all(|&x| {
+        let mut branches = matches!(
+            b.tags[x as usize],
+            Tag::Break | Tag::Continue | Tag::Return | Tag::ToArm
+        );
+        slots(b, x as usize, |_, _, word| branches |= word == Word::Block);
+        !branches
+    });
+    straight.then_some(arm)
 }
 
 /// One place a loop may hoist or keep: a local root and its steps (`len`
@@ -1092,7 +1137,7 @@ fn hoist_loop(
     // Rule 1: the `IsUnique`s of the iteration block, behind a pure
     // prefix; a loop with no entry test runs its body block whenever it
     // is entered.
-    let mut blocks = match entry_test(b, l) {
+    let mut blocks = match entry_test(b, topo, l) {
         Some(e) => {
             let mut budget = b.len();
             let prefix_pure = loop_statements(b, l)
@@ -1113,7 +1158,14 @@ fn hoist_loop(
         for k in 0..b.record(b.data[blk as usize][0]).len() {
             let x = b.record(b.data[blk as usize][0])[k];
             if b.tags[x as usize] == Tag::Loop && !t.pending.dead[x as usize] {
-                blocks.push(entry_test(b, x).map_or(b.data[x as usize][0], |e| e.iteration));
+                blocks.push(entry_test(b, topo, x).map_or(b.data[x as usize][0], |e| e.iteration));
+                continue;
+            }
+            if b.tags[x as usize] == Tag::Match
+                && !t.pending.dead[x as usize]
+                && let Some(arm) = unconditional_arm(b, x as usize)
+            {
+                blocks.push(arm);
                 continue;
             }
             if b.tags[x as usize] != Tag::IsUnique

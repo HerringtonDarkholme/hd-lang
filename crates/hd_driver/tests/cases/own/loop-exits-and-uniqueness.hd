@@ -1,0 +1,36 @@
+# @dump: own counts wat
+# @build: v8 release
+# expected: guarded checks before while_else, for_range and for_list.
+# The continue edge keeps its check inside the loop.
+fn while_else(xs: &mut List[usize], n: usize) -> usize:
+    let i: usize = 0
+    while i < n:
+        xs.push(i)
+        i += 1
+    else:
+        i += 1
+        i
+
+fn for_range(xs: &mut List[usize], n: usize) -> void:
+    for i in 0..n:
+        xs.push(i)
+
+fn for_list(xs: &mut List[usize], source: List[usize]) -> void:
+    for i in source:
+        xs.push(i)
+
+# The apparent exit arm can continue this loop and enter it later.
+# Its first condition cannot guard a pre-loop uniqueness check.
+fn continues_from_exit_arm(xs: &mut List[usize], n: usize) -> void:
+    let i = n
+    let again = true
+    while true:
+        if i < n:
+            xs.push(i)
+            i += 1
+        else:
+            if again:
+                again = false
+                i = 0
+                continue
+            break
