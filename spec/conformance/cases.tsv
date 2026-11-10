@@ -6408,6 +6408,7 @@ typing/valid/a-diverging-copy-update-source-checks.hd	type	accept	lang/04-type-s
 typing/invalid/a-negative-copy-implementation-outside-its-target-module.hd	type	reject:invalid-negative-impl	lang/13-values-and-references.md#r-ref.copy.opt-out.invalid
 runtime/valid/a-local-type-names-its-functions-type-parameter.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.local-type.refs
 typing/invalid/a-field-assignment-on-a-value-with-no-fields-is-unknown.hd	type	reject:unknown-field	lang/05-expressions.md#r-expr.member.field-read
+runtime/valid/a-result-projection-waits-for-its-self-type.hd	runtime	accept	lang/09-traits.md#r-trait.assoc.projection
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

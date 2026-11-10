@@ -1,0 +1,39 @@
+# test: a call result projects from a type inference fixes later
+# Spec 09 Associated Types: trait.assoc.projection; `I::Item` in a result
+# whose `I` a later statement fixes, inside a list, a tuple and a
+# function type.
+# expect-stdout: 0
+# expect-stdout: 1
+trait Supplier:
+    type Item
+    fn get(self) -> Self::Item
+
+struct Box[T]:
+    v: T
+
+impl[T] Supplier for Box[T]:
+    type Item = T
+    fn get(self) -> T:
+        self.v
+
+fn all[I < Supplier](xs: List[I]) -> List[I::Item]:
+    let mut out = []
+    for x in xs:
+        out.push(x.get())
+    out
+
+fn pair[I < Supplier](xs: List[I]) -> (List[I::Item], usize):
+    (all(xs), xs.len())
+
+fn later[I < Supplier & 'static](xs: List[I]) -> fn() -> List[I::Item]:
+    fn():
+        all(xs)
+
+pub fn main() -> void $ Console:
+    let mut a = []
+    let xs = all(a)
+    let p = pair(a)
+    let f = later(a)
+    a.push(Box { v: +1 })
+    println(xs.len() + p._1 + f().len())
+    println(all(a).len())
