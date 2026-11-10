@@ -19,7 +19,6 @@ pub enum Layout {
     Newline,
     Indent,
     Dedent,
-    SuiteEnd,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -193,7 +192,7 @@ impl<'t> LayoutCursor<'t> {
     }
 
     /// After a match arm's `=>`: an indented body, or a statement on the
-    /// same line (no same-line suite, so no `SUITE_END`).
+    /// same line, which leaves no same-line suite open.
     pub fn open_arm(&mut self) -> SuiteKind {
         let kind = self.open_suite(false);
         if kind == SuiteKind::SameLine {

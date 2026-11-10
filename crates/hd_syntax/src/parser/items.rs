@@ -50,7 +50,7 @@ impl Parser<'_> {
         let root = self.start();
         loop {
             match self.layout() {
-                Some(Layout::Newline | Layout::Dedent | Layout::SuiteEnd) => {
+                Some(Layout::Newline | Layout::Dedent) => {
                     self.bump();
                     continue;
                 }

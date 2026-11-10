@@ -538,7 +538,6 @@ impl<'t> Parser<'t> {
                 Some(Layout::Newline) => return "a line ending".to_owned(),
                 Some(Layout::Indent) => return "an indented block".to_owned(),
                 Some(Layout::Dedent) => return "the end of an indented block".to_owned(),
-                Some(Layout::SuiteEnd) => return "the end of a same-line body".to_owned(),
                 None => {}
             }
         }

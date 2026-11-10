@@ -535,7 +535,7 @@ the tree holds them (§3.13).
 ### 3.12 Layout Cursor And Skim State
 
 The layout cursor turns tokens into tokens plus virtual layout tokens
-(`Newline | Indent | Dedent | SuiteEnd`) for the parser. It holds a
+(`Newline | Indent | Dedent`) for the parser. It holds a
 stack of open indented blocks (statement column, bracket depth, header
 column), the bracket depths of open same-line suites, and a queue of
 pending layout tokens. Its decisions are recorded as zero-width positions

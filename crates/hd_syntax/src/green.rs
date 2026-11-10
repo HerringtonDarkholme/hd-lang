@@ -589,9 +589,9 @@ pub(crate) fn build(events: &mut [Event]) -> GreenTree {
             }
         }
     }
-    while let Some(index) = stack.pop() {
-        tree.subtree_len[index] = as_u32(tree.kind.len() - index);
-    }
+    // `Parser::complete` opens a start and pushes its finish together, and
+    // a precede chain's parents are completed starts too.
+    debug_assert!(stack.is_empty(), "every opened node finishes");
     tree
 }
 

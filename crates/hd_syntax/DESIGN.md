@@ -70,7 +70,7 @@ opens a suite
 So the parser drives a layout cursor (`src/layout.rs`).
 
 ```rust
-pub enum Layout { Newline, Indent, Dedent, SuiteEnd }
+pub enum Layout { Newline, Indent, Dedent }
 pub enum TokenOrLayout { Token(TokenIdx), Layout { kind: Layout, at: TokenIdx }, Eof }
 pub enum SuiteKind { SameLine, Indented, Missing }
 
@@ -254,7 +254,7 @@ comments, doc comments and whitespace.
 statement from inside an `if` to after it changes no token kind or text,
 yet it changes control flow. So the hash reads the green tree's token
 sequence for each kept range: the real tokens and the virtual layout
-tokens (`Newline`, `Indent`, `Dedent`, `SuiteEnd`), in parse order. Since
+tokens (`Newline`, `Indent`, `Dedent`), in parse order. Since
 `Indent` and `Dedent` are relative, shifting a whole declaration changes
 nothing. The test `api_hash_includes_kept_layout` checks two template
 bodies with equal tokens and different block structure.
