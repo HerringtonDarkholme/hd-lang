@@ -145,12 +145,6 @@ pub struct DerivationFacts {
     pub decorators: Vec<BlockDecorator>,
 }
 
-impl DerivationFacts {
-    pub fn extend(&mut self, other: Self) {
-        self.decorators.extend(other.decorators);
-    }
-}
-
 /// One decorator's occurrence and surrounding derivation block.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BlockDecorator {

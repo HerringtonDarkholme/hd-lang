@@ -1013,18 +1013,6 @@ impl<'a> Lookup<'a> {
         }
         out
     }
-
-    /// Every trait impl visible here (templates excluded), own first, then
-    /// by folder.
-    #[must_use]
-    pub fn impls(&self) -> Vec<&'a Item> {
-        let is_impl = |i: &&Item| matches!(i.data, ItemData::Impl { trait_, kind, .. } if trait_ != DefId::NONE && kind.is_impl());
-        let mut out: Vec<&Item> = self.own.iter().filter(is_impl).collect();
-        for f in &self.ifaces {
-            out.extend(f.items.iter().filter(is_impl));
-        }
-        out
-    }
 }
 
 /// The declarations the solver's compiler-supplied rows and trait-value
