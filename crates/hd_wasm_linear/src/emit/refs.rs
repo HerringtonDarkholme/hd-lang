@@ -19,7 +19,7 @@ use hd_types::{Ty, TyData};
 
 use super::Em;
 use super::value::{Dst, Src};
-use crate::layout::{Kind, Leaf, Part, Walk, mem as mem_of, struct_mem, walk};
+use crate::layout::{Kind, Leaf, Part, Walk, mem as mem_of, payload_mem, walk};
 use crate::module::{EMPTY, HEAP, Val, mem};
 use crate::rt::{self, Helper, LIST_ELEMS, LIST_LEN, RefLayout};
 
@@ -203,7 +203,6 @@ impl Em<'_, '_, '_> {
                 },
             ));
         }
-        let (_, parts) = struct_mem(self.pool(), self.env(), t)?;
         let fields = if self.tuple(t) {
             crate::layout::tuple_members(
                 self.pool(),
@@ -212,6 +211,7 @@ impl Em<'_, '_, '_> {
         } else {
             self.struct_fields(t)
         };
+        let (_, parts) = payload_mem(self.pool(), self.env(), &fields)?;
         // Checking builds `.f` only for a field `t` declares.
         Ok((fields[f as usize], parts[f as usize]))
     }

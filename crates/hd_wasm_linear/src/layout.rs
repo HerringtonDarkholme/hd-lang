@@ -25,7 +25,6 @@ use hd_types::{InternPool, Prim, Ty, TyData, TyList};
 
 use crate::module::{HEAP, Val, mem as memarg};
 use crate::op::Op as I;
-use crate::unsupported;
 
 /// One Wasm value of a type, where it lies in memory: its offset in the
 /// value, its width in bytes and whether a narrow load sign-extends it.
@@ -601,8 +600,15 @@ fn mem_one(
         // An instance that collection shares among reference arguments
         // (A1, `crates/hd_mono/DESIGN.md` §13.2) holds one as an address:
         // Collection selects it with [`crate::shared_reference_layout`].
-        TyData::Canon(_) if hd_mono::is_class_ref(pool, t) => Mem::address(),
-        _ => return unsupported(format!("values of type `{}`", pool.display(t))),
+        other => {
+            // ruled out: checking finalizes value types before collection;
+            // mono::subst instantiates parameters/projections and reveals
+            // opaque results from their body facts (Fn fields: #1570).
+            // Rows and const arguments are metadata, never value layouts.
+            // The only remaining value form is Cx::classify's A1 reference.
+            assert!(matches!(other, TyData::Canon(_)) && hd_mono::is_class_ref(pool, t));
+            Mem::address()
+        }
     })
 }
 
@@ -1109,25 +1115,6 @@ fn univariant_biased(fields: &[Mem], prefix: u32, bias: Bias) -> (Mem, Vec<Part>
         size = offset + f.size;
     }
     place(fields, &offsets, prefix, bias)
-}
-
-/// A struct value's or a tuple's layout and its fields' places.
-pub fn struct_mem(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult<(Mem, Vec<Part>)> {
-    let t = strip(pool, env, t);
-    let fields = match pool.get(t) {
-        TyData::Tuple { .. } => tuple_members(pool, t),
-        TyData::Adt { def, args } if !env.is_enum(def) => env
-            .data_fields(def)
-            .unwrap_or_default()
-            .into_iter()
-            .map(|f| subst(pool, env, def, args, f))
-            .collect(),
-        // A reference holds no field of its own: its referent's are reached
-        // through it.
-        TyData::Ref { .. } => Vec::new(),
-        _ => return unsupported("a field of a value that is not a struct or a tuple"),
-    };
-    payload_mem(pool, env, &fields)
 }
 
 /// The layout of an object's payload of `fields`, or of a struct's fields.

@@ -12,7 +12,7 @@ use std::rc::Rc;
 
 use super::Em;
 use crate::layout::{
-    Discr, Flat, Is, Kind, Leaf, Mem, Part, Step, Test, Walk, kind, struct_mem, variant_steps,
+    Discr, Flat, Is, Kind, Leaf, Mem, Part, Step, Test, Walk, kind, payload_mem, variant_steps,
     variants, walk,
 };
 use crate::module::{HEAP, Sym, Val, mem};
@@ -327,7 +327,8 @@ impl Em<'_, '_, '_> {
                         TyData::Adt { def, .. } if !em.env().is_enum(def) => em.struct_fields(t),
                         _ => return,
                     };
-                    let Ok((_, parts)) = struct_mem(em.pool(), em.env(), t) else {
+                    // Reuse the fields already checked above.
+                    let Ok((_, parts)) = payload_mem(em.pool(), em.env(), &fields) else {
                         return;
                     };
                     (fields, parts)
@@ -618,8 +619,8 @@ impl Em<'_, '_, '_> {
             return self.store(i);
         }
         // A copy-update copies a struct, whose values are in locals.
-        let (_, parts) = struct_mem(self.pool(), self.env(), t)?;
         let tys = self.struct_fields(t);
+        let (_, parts) = payload_mem(self.pool(), self.env(), &tys)?;
         let copy = self.operation_count(
             i,
             hd_tir::ir::Tag::Retain,
@@ -668,7 +669,8 @@ impl Em<'_, '_, '_> {
         }
         // A field read of a value reads a struct's field; one through a
         // reference is a `DerefField` step.
-        let (_, parts) = struct_mem(self.pool(), self.env(), t)?;
+        let fields = self.struct_fields(t);
+        let (_, parts) = payload_mem(self.pool(), self.env(), &fields)?;
         let p = parts[idx as usize];
         for k in p.first..p.first + p.count {
             self.comp(a, k)?;
@@ -691,7 +693,11 @@ impl Em<'_, '_, '_> {
 
     /// A tuple element read: element `idx`'s values.
     pub(super) fn tuple_get(&mut self, i: u32, a: u32, idx: u32) -> StageResult<()> {
-        let (_, parts) = struct_mem(self.pool(), self.env(), self.ty_of(a))?;
+        let fields = crate::layout::tuple_members(
+            self.pool(),
+            crate::layout::strip(self.pool(), self.env(), self.ty_of(a)),
+        );
+        let (_, parts) = payload_mem(self.pool(), self.env(), &fields)?;
         let p = parts[idx as usize];
         for k in p.first..p.first + p.count {
             self.comp(a, k)?;

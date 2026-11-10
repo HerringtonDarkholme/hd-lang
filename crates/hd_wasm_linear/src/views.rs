@@ -113,9 +113,14 @@ pub fn inspect_layout(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> StageR
         if !env.is_struct(def) || env.std_kind(def) != hd_mono::layout::StdKind::Other {
             return Ok(Vec::new());
         }
-        let types = env.data_fields(def).unwrap_or_default();
+        let types: Vec<_> = env
+            .data_fields(def)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|field| subst(pool, env, def, args, field))
+            .collect();
         let names_here = env.data_field_names(def).unwrap_or_default();
-        let (_, parts) = layout::struct_mem(pool, env, ty)?;
+        let (_, parts) = layout::payload_mem(pool, env, &types)?;
         let mut out: Vec<_> = (types.into_iter().zip(parts).zip(names_here))
             .map(|((field, part), name)| {
                 let path = if prefix.is_empty() {
@@ -123,7 +128,7 @@ pub fn inspect_layout(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> StageR
                 } else {
                     format!("{prefix}.{name}")
                 };
-                (subst(pool, env, def, args, field), path, base + part.offset)
+                (field, path, base + part.offset)
             })
             .collect();
         out.reverse();
