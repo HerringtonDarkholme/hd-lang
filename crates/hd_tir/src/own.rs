@@ -94,6 +94,7 @@ mod self_store;
 pub mod short;
 pub(crate) mod splice;
 mod storage;
+mod temporaries;
 pub use storage::captures as closure_captures;
 pub mod values;
 
@@ -149,6 +150,9 @@ pub enum CallMemory {
 /// "What the passes read"): layout and signature facts, never another
 /// body's.
 pub trait OwnCx {
+    /// A resolvable internal name for an owner introduced after checking.
+    fn temporary_owner_name(&self) -> hd_base::Symbol;
+
     /// The declared parameter count, when a source signature is available.
     fn parameter_count(&self, item: hd_base::DefId) -> Option<usize> {
         let _ = item;
@@ -763,6 +767,7 @@ pub fn consumers(b: &Body, topo: &Topology, cx: &dyn OwnCx, out: &mut Vec<u32>) 
 /// the whole run (`docs/compiler/tir-v2.md`, "Data layout of the passes").
 #[derive(Default)]
 pub struct OwnScratch {
+    temporaries: temporaries::Tables,
     /// The block structure of the body the passes run over: before
     /// insertion's edits, then after them for the passes that follow.
     pub(crate) topo: Topology,
@@ -875,6 +880,13 @@ pub fn uncopied(b: &Body, cx: &dyn OwnCx, out: &mut Vec<Uncopied>) {
 /// refuse. A body the passes cannot handle is refused, with what stopped
 /// them.
 pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(), String> {
+    temporaries::run(
+        b,
+        cx,
+        &mut scratch.topo,
+        &mut scratch.temporaries,
+        &mut scratch.splice,
+    )?;
     values::aliases(
         b,
         cx,
@@ -1535,6 +1547,10 @@ pub(crate) mod tests {
     pub(crate) struct Cx;
 
     impl super::OwnCx for Cx {
+        fn temporary_owner_name(&self) -> hd_base::Symbol {
+            hd_base::Symbol::NONE
+        }
+
         // The default answers that a body suspends: these bodies have no
         // point, and run plain only as an entry root.
         fn entry_root(&self, _: DefId) -> bool {
@@ -1882,6 +1898,10 @@ pub(crate) mod tests {
         /// [`Cx`] whose strings hold no reference.
         struct NoRefs;
         impl super::OwnCx for NoRefs {
+            fn temporary_owner_name(&self) -> hd_base::Symbol {
+                hd_base::Symbol::NONE
+            }
+
             fn counted(&self, ty: Ty) -> bool {
                 Cx.counted(ty)
             }
@@ -2837,6 +2857,10 @@ pub(crate) mod tests {
     struct Flat;
 
     impl super::OwnCx for Flat {
+        fn temporary_owner_name(&self) -> hd_base::Symbol {
+            hd_base::Symbol::NONE
+        }
+
         fn counted(&self, ty: Ty) -> bool {
             Cx.counted(ty)
         }
@@ -2868,6 +2892,10 @@ pub(crate) mod tests {
     struct Memory;
 
     impl super::OwnCx for Memory {
+        fn temporary_owner_name(&self) -> hd_base::Symbol {
+            hd_base::Symbol::NONE
+        }
+
         fn counted(&self, ty: Ty) -> bool {
             Cx.counted(ty)
         }
@@ -2965,6 +2993,10 @@ pub(crate) mod tests {
     fn a_rejected_binding_borrow_restores_its_parameters_ownership() {
         struct Summarizing;
         impl super::OwnCx for Summarizing {
+            fn temporary_owner_name(&self) -> hd_base::Symbol {
+                hd_base::Symbol::NONE
+            }
+
             fn counted(&self, ty: Ty) -> bool {
                 Cx.counted(ty)
             }

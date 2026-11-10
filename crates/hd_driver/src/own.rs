@@ -328,6 +328,10 @@ impl Env<'_> {
 }
 
 impl OwnCx for Env<'_> {
+    fn temporary_owner_name(&self) -> hd_base::Symbol {
+        self.run.syms.intern("$temporary_owner")
+    }
+
     fn parameter_count(&self, item: DefId) -> Option<usize> {
         self.sig(item).map(|sig| sig.params.len())
     }

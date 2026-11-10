@@ -20,10 +20,6 @@ sloppy-expect	hd_syntax	69
 sloppy-expect	hd_tir	65
 sloppy-expect	hd_types	46
 sloppy-expect	hd_wasm	272
-sloppy-for-now	hd_check	16
-sloppy-for-now	hd_opt	1
-sloppy-for-now	hd_tir	19
-sloppy-for-now	hd_wasm	13
 sloppy-panic	hd_driver	1
 sloppy-panic	hd_opt	2
 sloppy-std-path	hd_check	30
