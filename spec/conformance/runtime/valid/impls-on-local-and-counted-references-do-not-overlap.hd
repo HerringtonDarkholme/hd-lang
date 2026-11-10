@@ -1,0 +1,39 @@
+# Spec 13 Reference Types: ref.type.kind-impl; implementations of one
+# trait for `&Point` and `*Point`, alone and inside tuples, do not overlap.
+# expect-stdout: local
+# expect-stdout: counted
+# expect-stdout: pair local
+# expect-stdout: pair counted
+trait Label:
+    fn label(self) -> string
+
+struct Point:
+    x: i32
+
+impl Label for &Point:
+    fn label(self) -> string:
+        "local"
+
+impl Label for *Point:
+    fn label(self) -> string:
+        "counted"
+
+impl Label for (i32, &Point):
+    fn label(self) -> string:
+        "pair local"
+
+impl Label for (i32, *Point):
+    fn label(self) -> string:
+        "pair counted"
+
+fn show[T < Label](value: T) -> string:
+    value.label()
+
+pub fn main() -> void $ Console:
+    p := Point { x: 1 }
+    let c: *Point = box(Point { x: 2 })
+    let n: i32 = 3
+    println(show(&p))
+    println(show(c))
+    println(show((n, &p)))
+    println(show((n, c)))

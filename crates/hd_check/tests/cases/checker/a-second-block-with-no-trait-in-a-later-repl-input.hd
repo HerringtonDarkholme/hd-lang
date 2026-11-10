@@ -1,0 +1,25 @@
+# @dump: tir
+# @repl: 3
+# An earlier REPL input gave `Point` its derivation block with no trait,
+# so one in a later input is a second one (annot.no-trait.unique,
+# cli.repl.redefine.impl). Its `use std.cmp`, which input 1 also writes,
+# is not recorded as this input's own use again.
+use std.structure.Structure
+use std.cmp
+
+impl Point by Structure:
+    x += [tag("again")]
+# @input: 1
+use std.cmp
+struct Tag:
+    text: string
+
+fn tag(text: string) -> Tag:
+    Tag { text: text }
+
+struct Point:
+    x: i64
+# @input: 2
+use std.structure.Structure
+impl Point by Structure:
+    x += [tag("first")]

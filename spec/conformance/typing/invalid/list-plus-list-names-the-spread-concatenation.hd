@@ -1,0 +1,4 @@
+# Spec 05 Operator Traits: expr.op.no-impl; `List` has no `Add`, so
+# `a + b` on two lists is an error whose message shows the spread form.
+fn join(a: List[i32], b: List[i32]) -> List[i32]:
+    a + b # diagnostic: type-mismatch

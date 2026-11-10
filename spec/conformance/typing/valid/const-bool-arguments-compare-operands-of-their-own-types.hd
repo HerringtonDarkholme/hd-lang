@@ -1,0 +1,26 @@
+# Spec 04 Const Generic Arguments: types.generic.const.operator-set,
+# types.generic.const.evaluate; a `bool` argument compares operands that
+# take their own types: sums, shifts, chars, strings, suffixed literals and
+# named constants.
+struct Gate[B < const bool]:
+    open: i32
+
+fn gate[B < const bool]() -> Gate[B]:
+    Gate { open: 0 }
+
+LIMIT := 3
+WIDE := LIMIT + 1
+
+pub fn main() -> void:
+    let sums: Gate[true] = gate::[1 + 2 < 4]()
+    let shifts: Gate[true] = gate::[(2 << 1) == 4]()
+    let negated: Gate[true] = gate::[!(1 > 2)]()
+    let chars: Gate[true] = gate::['a' == 'a']()
+    let strings: Gate[true] = gate::["x" + "y" == "xy"]()
+    let suffixed: Gate[true] = gate::[2i64 * 3 > 5]()
+    let named: Gate[true] = gate::[WIDE > LIMIT]()
+    let masked: Gate[false] = gate::[(LIMIT & 2) == 1 || false]()
+    let signed: Gate[true] = gate::[-(1) < 0]()
+    let powers: Gate[true] = gate::[2 ** 3 == 8]()
+    let mixed: Gate[true] = gate::[(1 | 2) ^ 3 == 0]()
+    _ := (sums, shifts, negated, chars, strings, suffixed, named, masked, signed, powers, mixed)

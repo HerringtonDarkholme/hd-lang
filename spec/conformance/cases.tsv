@@ -6285,6 +6285,9 @@ typing/invalid/opaque-result-bound-with-an-unsolved-argument.hd	type	reject:cann
 runtime/valid/opaque-result-in-a-trait-value-argument.hd	runtime	accept	lang/07-functions.md#r-fn.opaque.nested
 typing/invalid/separate-values-then-a-spread-duplicate-a-vararg.hd	type	reject:duplicate-argument	lang/05-expressions.md#r-expr.call.spread.vararg-duplicate
 typing/invalid/list-spread-after-a-tuple-vararg-without-rest.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.call.spread.tuple-vararg-tail
+typing/valid/const-bool-arguments-compare-operands-of-their-own-types.hd	type	accept	lang/04-type-system.md#r-types.generic.const.operator-set
+runtime/valid/impls-on-local-and-counted-references-do-not-overlap.hd	runtime	accept	lang/13-values-and-references.md#r-ref.type.kind-impl
+typing/invalid/list-plus-list-names-the-spread-concatenation.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.op.no-impl
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
