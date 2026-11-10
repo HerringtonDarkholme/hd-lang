@@ -756,6 +756,8 @@ mod tests {
                 .split('&')
                 .map(|s| s.split('[').next().unwrap_or(s).trim())
             {
+                // cost: one read of std's top-level files per supertrait
+                // of a handle trait, a handful in all.
                 let text = std::fs::read_dir(&std)
                     .expect("std dir")
                     .filter_map(|e| std::fs::read_to_string(e.ok()?.path()).ok())

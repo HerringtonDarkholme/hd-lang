@@ -1,0 +1,23 @@
+# @dump: wat
+# @build: program
+# @profile: serde-vault
+# @helpers: hd:Vault/open hd:Handle/close hd:Handle/read
+# A handle trait inherits `close` from `Closer` twice, through `Stream` and
+# directly. The inherited `close` imports from `hd:Handle`, the handle's
+# own module, once; `Closer`'s vtable is built once and shared by both
+# parents (boundary.rs `HandleTree`).
+pub trait Closer:
+    fn close(&mut self) -> i32
+
+pub trait Stream < Closer
+
+pub trait Handle < Stream & Closer:
+    fn read(&mut self) -> i32
+
+pub trait Vault:
+    fn open(self) -> *mut dyn Handle
+
+pub fn main() -> void $ Vault:
+    let h: &mut dyn Handle = $.use(Vault).open()
+    _ := h.read()
+    _ := h.close()
