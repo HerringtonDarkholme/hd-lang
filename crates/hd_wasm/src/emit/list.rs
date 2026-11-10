@@ -267,7 +267,7 @@ impl Em<'_, '_, '_> {
     /// prefix one of whose branches only breaks out of the loop, and
     /// whether that branch is the first.
     fn list_loop_guard(&self, l: u32) -> Option<(u32, bool)> {
-        let (test, prefix, [first, second]) = hd_tir::own::loop_test(self.b, l, true)?;
+        let (test, prefix, [first, second]) = hd_tir::own::loop_test(self.b, l)?;
         let mut budget = self.b.len();
         let scalar = hd_tir::own::loop_statements(self.b, l)
             .take(prefix)
@@ -838,7 +838,7 @@ impl Em<'_, '_, '_> {
         }
         let test = l
             .filter(|_| self.susp.is_none())
-            .and_then(|l| hd_tir::own::entry_test(self.b, l).map(|e| (l, e)));
+            .and_then(|l| hd_tir::own::entry_test(self.b, &self.topo, l).map(|e| (l, e)));
         if let Some((l, e)) = test {
             let prefix: Vec<u32> = hd_tir::own::loop_statements(self.b, l)
                 .take(e.prefix)

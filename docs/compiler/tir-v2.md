@@ -2007,11 +2007,12 @@ is worth deciding only if they are hot.
    **Hoisting as built** (`own/hoist.rs`), last in the pipeline, its
    edits joining the others' for the second and last rebuild
    (`splice::Pending`, as known-null reads it).
-   - **Rule 1** is a statement of the loop's **entry test**'s iteration
-     block: the loop body's first `If`, one arm of which only breaks out
-     of the loop (`own::entry_test`; a `while` and a `for` over a range
-     lower to it), or of the iteration block of an inner loop with an
-     entry test that is such a statement, at any depth. The statements
+   - **Rule 1** takes checks from the iteration arm of the loop body's
+     first `If` when the other arm ends in a break from that loop and
+     has no edge back to its iteration. The exit arm may run an `else`
+     suite first. The iteration arm may bind an irrefutable pattern
+     through a match that has one unconditional arm. The pass also
+     follows inner loops that stand in those iteration blocks. The statements
      before the test must be pure (copies of
      values with no counted leaf, borrows and their kept drops,
      primitives, lengths, `and` and `or` of these), since the guard runs
@@ -2041,22 +2042,20 @@ is worth deciding only if they are hot.
      gets one `IsUnique` before the loop (`unique_word::HOISTED` in its b
      word), and every `IsUnique` of it in the loop, at any depth, goes:
      the whole loop was checked, so an inner loop's or a branch's change
-     needs no check of its own. One behind a dereference stays, marked
-     `unique_word::COVERED`, and runs no check (#1661 asks whether it
-     can hoist now that references have no views).
+     needs no check of its own. The same rule removes checks through
+     physical dereferences.
    - **The stable-list table**, `Body::stable_lists`: rows of a loop and a
      place of the same form, read by an element read or store or a
      `ListLen` in the loop, that pass rules 2 and 3 with no `IsUnique` of
      them left in the loop and no push (a push may move the buffer). The
      `own` view prints them as `loop %n keeps [*$0]`.
-   - **`verify_owned`** (`hoisted`): an `IsUnique` is plain, hoisted or
-     covered; a hoisted one stands right before a loop (among other
+   - **`verify_owned`** (`hoisted`): an `IsUnique` is plain, hoisted,
+     fresh or repeated. A hoisted one stands right before a loop (among other
      hoisted ones), names such a place of an unaddressed local, and in
      that loop nothing copies (a read whose value a use keeps), moves,
      writes or references it, pins or suspends, and no call may write
-     unless it is a whole local no closure captures; a covered one names
-     the place a hoisted one before an enclosing loop names; the stable
-     rows name loops and such places, in order.
+     unless it is a whole local no closure captures. The stable rows
+     name loops and such places, in order.
    - **The backend** (`hd_wasm/DESIGN.md` §23.16): a hoisted
      `IsUnique` waits for its loop (`Em::hoisted`) and runs there under
      the entry test, the pure prefix emitted once more; unguarded in a
