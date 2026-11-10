@@ -233,6 +233,26 @@ test("synchronous waits accept ready work and reject a pending wait", () => {
   }
 });
 
+test("a pending synchronous wait without a JSPI stack reports a host contract", async () => {
+  const errors: string[] = [];
+  const host = createCoreHost({ out() {}, err: (text) => errors.push(text) });
+  try {
+    const guest = instance({
+      poll() {
+        host.imports["hd:Clock"]["sleep.start"](1000000n);
+        host.imports["hd:rt"].block();
+        return 0;
+      },
+    });
+    const result = await host.run(guest, "hd.init", "hd.poll");
+    assert.equal(result.status, 3);
+    assert.equal(result.panic?.category, "host-contract");
+    assert.match(errors.join(""), /a pending synchronous host wait requires WebAssembly JSPI/);
+  } finally {
+    host.close();
+  }
+});
+
 test("close cancels pending work once and forbids subsequent turns", () => {
   let cancelled = 0;
   const host = createCoreHost(

@@ -1,0 +1,16 @@
+# req.drive.block-on.completed, req.drive.block-on.inner-only: drive only this host future to completion.
+use std.task.block_on
+
+@host
+pub trait Service:
+    fn wait!(&self, kind: string) -> u32
+
+pub fn main() -> void $ Console + Service:
+    let service: &dyn Service = $.use(Service)
+    for kind in ["ready", "promise", "timer"]:
+        match block_on(service.wait(kind)):
+            .Completed(value) =>
+                if value != 7:
+                    panic("wrong host result")
+                println("$kind $value")
+            _ => panic("not completed")

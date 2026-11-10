@@ -1,0 +1,7 @@
+[package]
+name = "blockingpromises"
+[host]
+"main.Service" = "provider.ts"
+[capabilities]
+"pkg.main.Service" = true
+Console = true
