@@ -9,6 +9,7 @@ use hd_types::{ConstValue, ParamRef, Prim};
 
 use crate::Src;
 use crate::literal::{Piece, decode_piece, radix_digits, split_suffix, strip_piece};
+use hd_base::{HashMap, HashSet};
 
 /// What a name in a const argument denotes, as the caller's scope sees it.
 pub enum ConstName<'a> {
@@ -109,9 +110,6 @@ fn unary_mismatch(op: &str, found: Prim) -> Fail {
     })
 }
 
-/// Named constants nest at most this deep; a deeper chain is a cycle.
-const DEPTH: u32 = 64;
-
 /// The range of an integer type.
 fn range(p: Prim) -> (i128, i128) {
     match p {
@@ -189,7 +187,13 @@ pub fn const_argument<'a>(
     {
         return Ok(ConstArg::Param(p));
     }
-    let mut ev = Eval { lookup, depth: 0 };
+    let mut ev = Eval {
+        lookup,
+        active: HashSet::default(),
+        typing: HashSet::default(),
+        values: HashMap::default(),
+        naturals: HashMap::default(),
+    };
     let v = match ev.eval(src, arg, want) {
         Ok(v) => v,
         Err(Fail::Poison) => return Ok(ConstArg::Poison),
@@ -235,9 +239,25 @@ fn bare_name<'a>(src: &Src<'a>, n: NodeRef<'_>) -> Option<&'a str> {
     }
 }
 
+/// A named constant by its initializer: its file and node.
+type BindingKey = (hd_base::FileId, hd_base::NodeIdx);
+
+/// One argument's evaluation. Each named constant's initializer is read
+/// once per type its uses give it, and once for its natural type, so an
+/// argument costs time linear in the bindings it reaches, however long or
+/// shared the chain; only a binding read while its own initializer is
+/// being read is a cycle (`types.generic.const.evaluate`).
 struct Eval<'l, 'a> {
     lookup: &'l mut dyn FnMut(&str) -> ConstName<'a>,
-    depth: u32,
+    /// The bindings whose initializers are being evaluated.
+    active: HashSet<BindingKey>,
+    /// The bindings whose natural types are being read.
+    typing: HashSet<BindingKey>,
+    /// The value of each binding read so far, by the type its use gave
+    /// it. A failed read ends the evaluation, so only values are kept.
+    values: HashMap<(BindingKey, Option<Prim>), V>,
+    /// The natural type of each binding read so far.
+    naturals: HashMap<BindingKey, Option<Prim>>,
 }
 
 impl<'a> Eval<'_, 'a> {
@@ -281,12 +301,17 @@ impl<'a> Eval<'_, 'a> {
                 let name = bare_name(src, n)?;
                 match (self.lookup)(name) {
                     ConstName::Binding { src, init } => {
-                        if self.depth >= DEPTH {
+                        let key = (src.file, init.index());
+                        if let Some(t) = self.naturals.get(&key) {
+                            return *t;
+                        }
+                        // A cycle has no type; evaluating it reports it.
+                        if !self.typing.insert(key) {
                             return None;
                         }
-                        self.depth += 1;
                         let t = self.natural(&src, init);
-                        self.depth -= 1;
+                        self.typing.remove(&key);
+                        self.naturals.insert(key, t);
                         t
                     }
                     _ => None,
@@ -379,13 +404,18 @@ impl<'a> Eval<'_, 'a> {
             })),
             // The use's type types the initializer (`types.generic.const.evaluate`).
             ConstName::Binding { src: at, init } => {
-                if self.depth >= DEPTH {
+                let key = (at.file, init.index());
+                if let Some(v) = self.values.get(&(key, want)) {
+                    return Ok(v.clone());
+                }
+                if !self.active.insert(key) {
                     return Err(nonconstant(&format!("`{name}` refers to itself")));
                 }
-                self.depth += 1;
                 let v = self.eval(&at, init, want);
-                self.depth -= 1;
-                v
+                self.active.remove(&key);
+                let v = v?;
+                self.values.insert((key, want), v.clone());
+                Ok(v)
             }
         }
     }

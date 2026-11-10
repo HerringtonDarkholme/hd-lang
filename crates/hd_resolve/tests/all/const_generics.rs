@@ -1,6 +1,7 @@
 //! Const generic parameters and arguments reach interfaces: a bare
 //! parameter as itself, and a closed const expression as its value.
 
+use std::fmt::Write as _;
 use std::sync::Arc;
 
 use hd_base::{FileId, Stage};
@@ -341,4 +342,78 @@ fn const_arguments_display_as_canonical_literals() {
         ))),
         "\"say \\\"\\$x\\\"\\t\""
     );
+}
+
+/// A chain of named constants has no depth limit, and a binding read
+/// again while its own initializer is evaluated is the cycle, named by
+/// that binding (`types.generic.const.named-cycle`).
+#[test]
+fn a_named_constant_chain_evaluates_at_any_length_and_a_cycle_names_its_binding() {
+    let mut text = String::from("struct Fixed[N < const usize]: pass\nA0 := 1\n");
+    // Each binding reads the previous one three times: linear, not 3^n.
+    for i in 1..200 {
+        let p = i - 1;
+        writeln!(text, "A{i} := A{p} + A{p} - A{p} + 1").unwrap();
+    }
+    text.push_str("type Deep = Fixed[A199]\n");
+    text.push_str("FIRST := SECOND + 1\nSECOND := FIRST + 1\ntype Cycle = Fixed[FIRST]\n");
+    let (pool, paths, syms) = (
+        InternPool::new(),
+        PathTable::new(),
+        ShardedInterner::default(),
+    );
+    let known = KnownItems::new(&paths);
+    let names = Names {
+        pool: &pool,
+        paths: &paths,
+        syms: &syms,
+        known: &known,
+    };
+    let parsed = parse(text.as_bytes());
+    assert!(parsed.is_ok());
+    let cx = Cx {
+        names,
+        folder: 0,
+        world: &OneFolder,
+    };
+    let input = ModIn {
+        path: "app".to_owned(),
+        roots: UseRoots::default(),
+        src: Src {
+            parse: &parsed,
+            text: &text,
+            file: FileId::from_raw(0),
+        },
+        seeds: Vec::new(),
+        tests: false,
+        session: None,
+    };
+    let mut diags = DiagBuf::default();
+    let out = build_folder(&cx, &[input], None, Stage::FolderIface, &mut diags)
+        .unwrap_or_else(|gap| panic!("stopped at {}", gap.what));
+    let order = diags.content_order();
+    assert_eq!(
+        order
+            .iter()
+            .map(|index| diags.code[*index])
+            .collect::<Vec<_>>(),
+        [Code::NonconstantGenericArgument]
+    );
+    assert!(
+        diags
+            .get_text(diags.message[order[0]])
+            .ends_with("`FIRST` refers to itself"),
+        "{}",
+        diags.get_text(diags.message[order[0]])
+    );
+    let deep = out
+        .modules
+        .iter()
+        .flat_map(|m| &m.items)
+        .find(|i| names.text(i.name) == "Deep")
+        .expect("no item `Deep`");
+    let hd_resolve::ItemData::Alias { body, .. } = deep.data else {
+        panic!("`Deep` is not an alias");
+    };
+    assert_eq!(show_ty(&names, body), "Fixed[200]");
 }
