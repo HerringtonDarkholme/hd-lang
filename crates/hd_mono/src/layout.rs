@@ -652,15 +652,6 @@ impl Sub {
     }
 }
 
-impl std::fmt::Display for Sub {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Sub::Body(k) => write!(f, "{k}"),
-            Sub::Adapter => f.write_str("adapter"),
-        }
-    }
-}
-
 /// `instance_key = H("inst", item path, sub, [canon(arg) or class])` (§13.3).
 pub fn instance_key(
     pool: &InternPool,

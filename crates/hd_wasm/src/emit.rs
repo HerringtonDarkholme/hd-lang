@@ -234,7 +234,7 @@ fn body_func<'a>(
         fres.push(Val::I32);
     }
     em.f = em.m.func(
-        format!("{}#{}", (input.path)(item), own.sub),
+        format!("{}#{}", (input.path)(item), sub),
         params.clone(),
         fres,
     );
