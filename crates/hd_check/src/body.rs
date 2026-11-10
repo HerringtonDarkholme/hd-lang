@@ -495,8 +495,14 @@ pub(crate) struct Ck<'a, 'c> {
     /// type: the error that poisoned it is already reported, so the end of
     /// the body does not report their unsolved types again.
     pub absorbed: Vec<hd_base::Span>,
-    /// Nested projection normalizations, against binding cycles.
-    pub norm_depth: u32,
+    /// The projections being normalized, outermost first
+    /// (`Ck::normalized`): one met again is a cycle of bindings.
+    pub norm_stack: Vec<Ty>,
+    /// The projections whose cycle or depth limit this body reported.
+    pub norm_reported: HashSet<Ty>,
+    /// The stack depth a failed normalization poisons down to: each
+    /// frame at or above it returns poison.
+    pub norm_cut: Option<usize>,
     /// Arguments of an instantiation choice inferred once, before its
     /// trials (`crates/hd_check/DESIGN.md` (type checking) §2.5 "Trial cost"): node, value, type.
     pub pre_args: Vec<(NodeRefIdx, Ref, Ty)>,
@@ -710,7 +716,9 @@ pub(crate) fn new_ck<'a, 'c>(
         pattern_below_ref: None,
         ref_bound: HashMap::default(),
         user_locals: Vec::new(),
-        norm_depth: 0,
+        norm_stack: Vec::new(),
+        norm_reported: HashSet::default(),
+        norm_cut: None,
         pre_args: Vec::new(),
         open_params: Vec::new(),
         ref_params: Vec::new(),

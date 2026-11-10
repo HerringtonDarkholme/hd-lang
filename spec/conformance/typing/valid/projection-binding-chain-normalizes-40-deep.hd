@@ -1,0 +1,51 @@
+# test: a projection whose bindings chain 40 deep normalizes to the type at the end of the chain
+# Rule: trait.assoc.projection.depth.
+
+trait Walk:
+    type Out
+
+fn last[
+    T40 < Walk[Out = string],
+    T39 < Walk[Out = T40::Out],
+    T38 < Walk[Out = T39::Out],
+    T37 < Walk[Out = T38::Out],
+    T36 < Walk[Out = T37::Out],
+    T35 < Walk[Out = T36::Out],
+    T34 < Walk[Out = T35::Out],
+    T33 < Walk[Out = T34::Out],
+    T32 < Walk[Out = T33::Out],
+    T31 < Walk[Out = T32::Out],
+    T30 < Walk[Out = T31::Out],
+    T29 < Walk[Out = T30::Out],
+    T28 < Walk[Out = T29::Out],
+    T27 < Walk[Out = T28::Out],
+    T26 < Walk[Out = T27::Out],
+    T25 < Walk[Out = T26::Out],
+    T24 < Walk[Out = T25::Out],
+    T23 < Walk[Out = T24::Out],
+    T22 < Walk[Out = T23::Out],
+    T21 < Walk[Out = T22::Out],
+    T20 < Walk[Out = T21::Out],
+    T19 < Walk[Out = T20::Out],
+    T18 < Walk[Out = T19::Out],
+    T17 < Walk[Out = T18::Out],
+    T16 < Walk[Out = T17::Out],
+    T15 < Walk[Out = T16::Out],
+    T14 < Walk[Out = T15::Out],
+    T13 < Walk[Out = T14::Out],
+    T12 < Walk[Out = T13::Out],
+    T11 < Walk[Out = T12::Out],
+    T10 < Walk[Out = T11::Out],
+    T9 < Walk[Out = T10::Out],
+    T8 < Walk[Out = T9::Out],
+    T7 < Walk[Out = T8::Out],
+    T6 < Walk[Out = T7::Out],
+    T5 < Walk[Out = T6::Out],
+    T4 < Walk[Out = T5::Out],
+    T3 < Walk[Out = T4::Out],
+    T2 < Walk[Out = T3::Out],
+    T1 < Walk[Out = T2::Out],
+    T0 < Walk[Out = T1::Out],
+](value: T0, out: T0::Out) -> string:
+    let text: string = out
+    text

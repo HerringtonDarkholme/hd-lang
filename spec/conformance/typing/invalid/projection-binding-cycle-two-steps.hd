@@ -1,0 +1,13 @@
+# test: two supertrait bindings that need each other's projection are a cycle
+# Rule: trait.assoc.projection.cycle.
+
+trait Walk:
+    type Out
+
+trait Back < Walk[Out = Self::Ret]:
+    type Ret
+
+trait Loop < Back[Ret = Self::Out]
+
+fn open[T < Loop](value: T) -> void:
+    let out: T::Out = panic("unused") # diagnostic: trait-resolution-depth

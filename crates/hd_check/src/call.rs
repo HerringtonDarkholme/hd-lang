@@ -5394,21 +5394,73 @@ impl Ck<'_, '_> {
         )
     }
 
-    /// A projection's normal form, itself normalized once more; a cycle of
-    /// bindings stops at the depth limit.
-    fn normalized(&mut self, x: Ty) -> StageResult<Ty> {
+    /// The projection `of` normalizes to `x`, itself normalized once more
+    /// with `of` on the stack of active projections. A projection already
+    /// on it is a cycle of bindings (`trait.assoc.projection.cycle`) and a
+    /// stack of 64 is the depth limit (`trait.assoc.projection.depth`):
+    /// each reports `trait-resolution-depth` once and is poison after.
+    /// Cost: a scan of the active stack, at most 64 entries, per binding.
+    fn normalized(&mut self, of: Ty, x: Ty) -> StageResult<Ty> {
         // A binding in error (a header's unknown binding name) is poison:
         // its poison types come from that error, as a poisoned name's do.
         if self.pool().has_poison(x) {
             self.read_poison_name = true;
         }
-        if self.norm_depth > 32 {
-            return Ok(x);
+        // The whole failed chain is poison, from the projection it starts
+        // at outward, so no frame builds a type around the poison.
+        if let Some(head) = self.norm_stack.iter().position(|&p| p == of) {
+            self.projection_error(of, true);
+            self.norm_cut = Some(self.norm_cut.map_or(head, |c| c.min(head)));
+            return Ok(Ty::POISON);
         }
-        self.norm_depth += 1;
+        if self.norm_stack.len() >= PROJECTION_DEPTH_LIMIT {
+            self.projection_error(self.norm_stack[0], false);
+            self.norm_cut = Some(0);
+            return Ok(Ty::POISON);
+        }
+        self.norm_stack.push(of);
         let r = self.normalize_deep(x);
-        self.norm_depth -= 1;
-        r
+        self.norm_stack.pop();
+        match self.norm_cut {
+            Some(cut) if self.norm_stack.len() >= cut => {
+                if self.norm_stack.len() == cut {
+                    self.norm_cut = None;
+                }
+                r.map(|_| Ty::POISON)
+            }
+            _ => r,
+        }
+    }
+
+    /// Reports a projection that cannot normalize, once per body for the
+    /// projection the cycle or the chain starts at, at the statement
+    /// being checked.
+    fn projection_error(&mut self, head: Ty, cycle: bool) {
+        self.read_poison_name = true;
+        if !self.norm_reported.insert(head) {
+            return;
+        }
+        self.log_undo(crate::trial::BodyUndo::NormReported(head));
+        let shown = self.show(head);
+        let msg = if cycle {
+            format!(
+                "`{shown}` cannot normalize: its associated-type bindings form a cycle that needs `{shown}` again"
+            )
+        } else {
+            format!(
+                "normalizing `{shown}` needs more than {PROJECTION_DEPTH_LIMIT} nested associated-type bindings"
+            )
+        };
+        let node = self.cur_stmt.or(self.fn_body);
+        let span = match node {
+            Some(n) => self.cx.src.span(self.cx.src.parse.tree.node(n)),
+            None => hd_base::Span {
+                file: self.cx.src.file,
+                lo: self.at,
+                hi: self.at,
+            },
+        };
+        self.diags.error(Code::TraitResolutionDepth, span, &msg);
     }
 
     /// `t` with its projections normalized as far as inference allows;
@@ -5508,7 +5560,7 @@ impl Ck<'_, '_> {
                     unreachable!()
                 };
                 return match bound(&bindings, self) {
-                    Some(binding) => self.normalized(binding),
+                    Some(binding) => self.normalized(t, binding),
                     None => Ok(t),
                 };
             }
@@ -5519,7 +5571,7 @@ impl Ck<'_, '_> {
                     .filter(|&i| self.env.clause_self[i] == st)
                     .find_map(|i| bound(&self.env.clause_bindings[i], self));
                 if let Some(b) = found {
-                    return self.normalized(b);
+                    return self.normalized(t, b);
                 }
                 // Implicit trait arguments (`Self::Error` in a generic
                 // trait) are the bound's own, so the projection is the
@@ -5544,7 +5596,7 @@ impl Ck<'_, '_> {
             // `trait.dyn.bound.reference-projection`: the trait value's binding.
             TyData::TraitValue { bindings, .. } => {
                 return match bound(&bindings, self) {
-                    Some(b) => self.normalized(b),
+                    Some(b) => self.normalized(t, b),
                     None => Ok(t),
                 };
             }
@@ -5593,7 +5645,7 @@ impl Ck<'_, '_> {
             if let Some((_, b)) = table.assoc[r].iter().find(|(d, _)| *d == assoc) {
                 let ia = pool.list_items(impl_args);
                 let x = subst_owner(pool, impl_def, ia, *b);
-                return self.normalized(x);
+                return self.normalized(t, x);
             }
         }
         // An impl whose head alone fits, with bounds that wait on the self
@@ -5628,12 +5680,16 @@ impl Ck<'_, '_> {
                     .all(|i| !open(i) || !crate::trial::names_param(pool, *b, impl_def, i))
             {
                 let x = subst_owner(pool, impl_def, ia, *b);
-                return self.normalized(x);
+                return self.normalized(t, x);
             }
         }
         Ok(t)
     }
 }
+
+/// `trait.assoc.projection.depth`: the most associated-type bindings one
+/// normalization nests, as `trait.bound.depth.limit` bounds a proof.
+const PROJECTION_DEPTH_LIMIT: usize = 64;
 
 impl Ck<'_, '_> {
     /// Normalizes every projection inside a type.

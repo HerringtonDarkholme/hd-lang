@@ -44,6 +44,8 @@ pub(crate) enum BodyUndo {
     RefCaptured(LocalId),
     /// A bound receiver's escape first reported by this trial.
     BoundEscape(u32),
+    /// A projection's cycle or depth error first reported by this trial.
+    NormReported(Ty),
 }
 
 /// Everything a trial may change, as lengths and a mark in the undo log
@@ -183,6 +185,9 @@ impl Ck<'_, '_> {
                 }
                 BodyUndo::BoundEscape(lo) => {
                     self.bound_escapes.remove(&lo);
+                }
+                BodyUndo::NormReported(t) => {
+                    self.norm_reported.remove(&t);
                 }
                 BodyUndo::Call(d) => {
                     self.facts.calls.remove(&d);

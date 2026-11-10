@@ -204,6 +204,8 @@ impl Supplier for NameSupplier:
 7. r[trait.assoc.bound-decl] A trait's associated type may name bounds after `<`, joined by `&`, as in `type IntoIter < Iterator[T]`. A bound may use the trait's parameters and `Self`.
 8. r[trait.assoc.bound-impl] The type an implementation binds must implement each bound, with the trait's arguments and the implementing type substituted. A type that does not is an error. Error: `unsatisfied-trait-bound`.
 9. r[trait.assoc.bound-use] Under a bound `I < Tr[...]`, the projection `I::X` implements each bound that `Tr` declares on `X`. So its methods are callable, and it satisfies a bound that names one of them.
+10. r[trait.assoc.projection.cycle] A projection whose bindings, followed one after another, need that same projection again has no normal form. Using it is an error. Error: `trait-resolution-depth`.
+11. r[trait.assoc.projection.depth] A projection whose normal form needs more than 64 nested bindings is an error, whether or not a deeper chain would end. Error: `trait-resolution-depth`.
 
 ```text
 trait Named:
@@ -215,6 +217,19 @@ trait Keyed:
 fn pick[I < Named & Keyed](value: I) -> I::Item:  # error: ambiguous-associated-type
     panic("unreachable")
 ```
+
+```text
+trait Walk:
+    type Out
+
+trait Loop < Walk[Out = List[Self::Out]]
+
+fn open[T < Loop](value: T, out: T::Out) -> void:  # error: trait-resolution-depth
+    pass
+```
+
+> **Why.** The depth limit matches the limit on bound proofs, so the cost
+> of normalizing one projection stays bounded in every program.
 
 ```text
 trait Bag[T]:

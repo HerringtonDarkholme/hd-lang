@@ -1,0 +1,11 @@
+# test: a supertrait binding that needs its own projection is a cycle, reported once
+# Rule: trait.assoc.projection.cycle.
+
+trait Walk:
+    type Out
+
+trait Loop < Walk[Out = List[Self::Out]]
+
+fn open[T < Loop](value: T, out: T::Out) -> i32: # diagnostic: trait-resolution-depth
+    let first: i32 = out
+    first

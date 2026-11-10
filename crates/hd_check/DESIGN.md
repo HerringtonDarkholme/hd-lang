@@ -2285,8 +2285,12 @@ judged.
   are the same type, because normalization replaces the projection before
   any comparison
   ([`trait.binding.interchangeable`](../../spec/lang/09-traits.md#r-trait.binding.interchangeable)).
-- **Normalization cycles.** Nested normalizations are counted
-  (`norm_depth`), so an impl binding that names its own projection ends.
+- **Normalization cycles and depth.** `Ck::normalized` keeps a stack of
+  the projections being normalized. A projection met again on it is a
+  cycle (`trait.assoc.projection.cycle`); a stack of 64 is the depth limit
+  (`trait.assoc.projection.depth`). Both report `trait-resolution-depth`
+  once per body and make the failed chain poison. Cost: a scan of at most
+  64 entries per binding followed.
 - **Aliases** are expanded when headers are lowered, so a projection never
   meets an alias.
 
