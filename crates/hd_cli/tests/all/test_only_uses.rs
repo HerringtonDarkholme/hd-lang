@@ -158,10 +158,10 @@ fn an_edit_of_a_module_only_test_code_uses_reaches_every_test() {
     assert_eq!(
         argument_counts(&root, &cache),
         [
-            "error: src/ledger.hd:18:32: argument-count: `cents` takes 1 arguments",
-            "error: src/ledger.hd:8:1: argument-count: `cents` takes 1 arguments",
-            "error: src/ledger_test.hd:5:18: argument-count: `cents` takes 1 arguments",
-            "error: tests/bill.hd:5:18: argument-count: `cents` takes 1 arguments",
+            "error: src/ledger.hd:18:32: argument-count: `cents` takes 1 argument",
+            "error: src/ledger.hd:8:1: argument-count: `cents` takes 1 argument",
+            "error: src/ledger_test.hd:5:18: argument-count: `cents` takes 1 argument",
+            "error: tests/bill.hd:5:18: argument-count: `cents` takes 1 argument",
         ]
     );
 }
@@ -223,8 +223,8 @@ fn an_edit_of_a_dev_dependency_reaches_its_tests() {
     assert_eq!(
         argument_counts(&shop, &cache),
         [
-            "error: src/ledger.hd:9:32: argument-count: `sample` takes 1 arguments",
-            "error: tests/bill.hd:5:18: argument-count: `sample` takes 1 arguments",
+            "error: src/ledger.hd:9:32: argument-count: `sample` takes 1 argument",
+            "error: tests/bill.hd:5:18: argument-count: `sample` takes 1 argument",
         ]
     );
 }
