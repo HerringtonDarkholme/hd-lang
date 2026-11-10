@@ -1,0 +1,25 @@
+# @dump: wat
+# @build: program
+# trait.target.arguments, types.union.substitution, types.tuple.rest.same:
+# implementation arguments include union members and a tuple's rest list.
+# expected: Size.size[i32, string] for the union and Size.size[string]
+# for the rest tuple are collected; neither parameter needs a Bind step.
+struct Wrap[T]:
+    value: T
+
+trait Size:
+    fn size(&self) -> usize
+
+impl[A, B] Size for Wrap[A | B]:
+    fn size(&self) -> usize:
+        2
+
+impl[T] Size for (i32, List[T]...):
+    fn size(&self) -> usize:
+        1 + self._1.len()
+
+pub fn main() -> void $ Console:
+    let union: i32 | string = ._1("a")
+    let rest: (i32, List[string]...) = (+1, "a", "b")
+    wrapped := Wrap { value: union }
+    println("${wrapped.size()} ${rest.size()}")

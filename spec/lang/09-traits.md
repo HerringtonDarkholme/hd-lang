@@ -884,25 +884,29 @@ constructor.
 | r[trait.target.declaration] Declared | a struct, enum, or newtype declaration | `User`, `Box` |
 | r[trait.target.builtin] Built-in | a built-in type constructor | `i32`, `string`, `List`, `Map` |
 | r[trait.target.tuple] Tuple | a tuple constructor, one per arity | `(A, B)`, the two-element tuple constructor applied to `A` and `B` |
+| r[trait.target.union] Union | a union constructor, one per arity | `A \| B`, the two-member union constructor applied to `A` and `B` |
 | r[trait.target.function-type] Function | a function type constructor, `Fn` or `SuspendFn` | `fn(i32) -> i32`, which is `Fn[(i32,), i32, $()]`, and `SuspendFn[Args, O, $ R]` |
 
 1. r[trait.target.constructor] The target of every implementation, trait or inherent, starts with a type constructor from the table above.
 2. r[trait.target.tuple.valid] `impl Display for (i32, string)` is a valid target.
 3. r[trait.target.tuple.arity] Tuples of different arity never share a constructor.
-4. r[trait.target.option] An optional target is the prelude enum `Option` applied to its contained type. `impl Validate for string?` targets `Option[string]`, and by [Overlap](#overlap) it does not overlap an implementation for `i32?`.
-5. r[trait.target.arguments] The constructor's arguments may be any types, including implementation parameters, as in `impl[T < Display] Printable for Box[T]`.
-6. r[trait.target.bare-parameter] A target that is a bare type parameter, as in `impl[T] Describe for T`, is an error. Error: `bare-parameter-impl-target`.
-7. r[trait.target.numeric-family] The one exception is a standard-library implementation in which every type parameter is bounded by exactly one of `Num`, `Integer`, and `Float`, as in `impl[N < Num] Add for N`.
-8. r[trait.target.numeric-family.each] Such an implementation stands for one implementation per way of replacing each parameter with a type that [Sealed Traits](#sealed-traits) lists for its bound.
-9. r[trait.target.numeric-family.per-type] So `impl[N < Integer] Shl[u32] for N` stands for 9 implementations, one per integer type.
-10. r[trait.target.no-blanket] hd-lang has no blanket implementations over every type.
-11. r[trait.target.function-type.valid] A function type is an ordinary target under the ownership and overlap rules below, so `impl Marker for fn(i32) -> i32` is valid in the package that declares `Marker`.
-12. r[trait.target.row-argument] A row argument in an implementation head, such as a function type's row, is a row parameter or a concrete row.
-13. r[trait.target.row-argument.extension] A row argument that lists a row parameter beside other keys, as in `Fn[(), i32, $ R + Log]`, is an error in an implementation head. Error: `invalid-impl-target`.
-14. r[trait.target.trait-value] A trait value type is never an implementation target either: `Display` used as a type names a dynamic trait value, not a type constructor.
-15. r[trait.target.trait-value.error] `impl Marker for Display` and `impl Marker for Any` are errors. Error: `trait-value-impl-target`.
-16. r[trait.target.trait-value.argument.reference-values] A trait value type may still be a constructor's argument, as in `impl Marker for List[*dyn Display]`.
-17. r[trait.target.template] A derivation template, written `impl[T] Trait for T by Structure`, is not an implementation, so these target rules do not apply to it. Each derivation it produces is an ordinary implementation for a declared target, as [Templates](14-annotations.md#templates) defines.
+4. r[trait.target.union.valid] `impl Display for (i32 | string)` is a valid target.
+5. r[trait.target.union.arity] Unions of different arity never share a constructor.
+6. r[trait.target.union.nesting] A nested union keeps its own identity, so `(A | B) | C` and `A | B | C` are different targets.
+7. r[trait.target.option] An optional target is the prelude enum `Option` applied to its contained type. `impl Validate for string?` targets `Option[string]`, and by [Overlap](#overlap) it does not overlap an implementation for `i32?`.
+8. r[trait.target.arguments] The constructor's arguments may be any types, including implementation parameters, as in `impl[T < Display] Printable for Box[T]`.
+9. r[trait.target.bare-parameter] A target that is a bare type parameter, as in `impl[T] Describe for T`, is an error. Error: `bare-parameter-impl-target`.
+10. r[trait.target.numeric-family] The one exception is a standard-library implementation in which every type parameter is bounded by exactly one of `Num`, `Integer`, and `Float`, as in `impl[N < Num] Add for N`.
+11. r[trait.target.numeric-family.each] Such an implementation stands for one implementation per way of replacing each parameter with a type that [Sealed Traits](#sealed-traits) lists for its bound.
+12. r[trait.target.numeric-family.per-type] So `impl[N < Integer] Shl[u32] for N` stands for 9 implementations, one per integer type.
+13. r[trait.target.no-blanket] hd-lang has no blanket implementations over every type.
+14. r[trait.target.function-type.valid] A function type is an ordinary target under the ownership and overlap rules below, so `impl Marker for fn(i32) -> i32` is valid in the package that declares `Marker`.
+15. r[trait.target.row-argument] A row argument in an implementation head, such as a function type's row, is a row parameter or a concrete row.
+16. r[trait.target.row-argument.extension] A row argument that lists a row parameter beside other keys, as in `Fn[(), i32, $ R + Log]`, is an error in an implementation head. Error: `invalid-impl-target`.
+17. r[trait.target.trait-value] A trait value type is never an implementation target either: `Display` used as a type names a dynamic trait value, not a type constructor.
+18. r[trait.target.trait-value.error] `impl Marker for Display` and `impl Marker for Any` are errors. Error: `trait-value-impl-target`.
+19. r[trait.target.trait-value.argument.reference-values] A trait value type may still be a constructor's argument, as in `impl Marker for List[*dyn Display]`.
+20. r[trait.target.template] A derivation template, written `impl[T] Trait for T by Structure`, is not an implementation, so these target rules do not apply to it. Each derivation it produces is an ordinary implementation for a declared target, as [Templates](14-annotations.md#templates) defines.
 
 ```text
 trait Describe:

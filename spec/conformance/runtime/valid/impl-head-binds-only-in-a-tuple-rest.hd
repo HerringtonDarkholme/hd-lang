@@ -1,0 +1,13 @@
+# test: an implementation parameter can be fixed only by a tuple rest list
+# Rules: trait.target.tuple.valid, trait.target.arguments, types.tuple.rest.same.
+# expect-stdout: 3
+trait Size:
+    fn size(&self) -> usize
+
+impl[T] Size for (i32, List[T]...):
+    fn size(&self) -> usize:
+        1 + self._1.len()
+
+pub fn main() -> void $ Console:
+    let values: (i32, List[string]...) = (+1, "a", "b")
+    println("${values.size()}")

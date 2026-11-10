@@ -944,77 +944,109 @@ fn key_args(pool: &InternPool, args: TyList) -> Vec<KeyArg> {
 }
 
 /// Matches an impl head's `pattern` (over the parameters of `owner`)
-/// against a concrete type, filling `out`.
+/// against a concrete type, filling `out`. Selection has already checked
+/// that the head matches and repeated parameters agree; this extracts them.
 pub fn unify(pool: &InternPool, owner: DefId, pattern: Ty, t: Ty, out: &mut Vec<Option<Ty>>) {
-    let strip = |x: Ty| x;
-    let (pattern, t) = (strip(pattern), strip(t));
-    match (pool.get(pattern), pool.get(t)) {
-        (TyData::Param(p), _) if p.owner == owner => {
-            let i = p.index as usize;
-            if out.len() <= i {
-                out.resize(i + 1, None);
-            }
-            out[i].get_or_insert(t);
-        }
-        (TyData::Adt { args: a, .. }, TyData::Adt { args: b, .. })
-        | (TyData::TraitValue { args: a, .. }, TyData::TraitValue { args: b, .. })
-        | (TyData::Tuple { elems: a, .. }, TyData::Tuple { elems: b, .. }) => {
-            for (x, y) in pool
-                .list_items(a)
-                .iter()
-                .copied()
-                .zip(pool.list_items(b).iter().copied())
-            {
-                unify(pool, owner, x, y, out);
-            }
-        }
-        (
-            TyData::Fn {
-                params: a,
-                result: r,
-                row: ar,
-                inputs: ai,
-                ..
-            },
-            TyData::Fn {
-                params: b,
-                result: s,
-                row: br,
-                inputs: bi,
-                ..
-            },
-        ) => {
-            if ai == bi {
-                for (x, y) in pool
-                    .list_items(a)
-                    .iter()
-                    .copied()
-                    .zip(pool.list_items(b).iter().copied())
-                {
-                    unify(pool, owner, x, y, out);
-                }
-            } else {
-                // `Fn[Args, O, $ R]` against a concrete function type:
-                // `Args` is its whole inputs tuple (`fn.type.ctor.inputs`).
-                let p = pool.types();
-                unify(
-                    pool,
-                    owner,
-                    p.inputs_tuple(a, ai),
-                    p.inputs_tuple(b, bi),
-                    out,
-                );
-            }
-            unify(pool, owner, r, s, out);
-            unify_row(pool, owner, ar, br, out);
-        }
-        (TyData::Row(a), TyData::Row(b)) => unify_row(pool, owner, a, b, out),
-        (TyData::Ref { inner: a, .. }, TyData::Ref { inner: b, .. }) => {
-            unify(pool, owner, a, b, out);
-        }
-        _ => {}
-    }
+    unify_walk(pool, owner, pattern, t, out);
 }
+
+// Returns distinct formal types and all popped steps so the generated
+// width/depth test counts work, including memo hits, without another pass.
+fn unify_walk(
+    pool: &InternPool,
+    owner: DefId,
+    pattern: Ty,
+    t: Ty,
+    out: &mut Vec<Option<Ty>>,
+) -> (usize, usize) {
+    enum Step {
+        Types(Ty, Ty),
+        Rows(RowId, RowId),
+    }
+    let mut work = vec![Step::Types(pattern, t)];
+    let mut seen = HashSet::default();
+    let mut popped = 0;
+    let list = |a, b, work: &mut Vec<Step>| {
+        work.extend(
+            pool.list_items(a)
+                .iter()
+                .zip(pool.list_items(b))
+                .rev()
+                .map(|(&x, &y)| Step::Types(x, y)),
+        );
+    };
+    while let Some(step) = work.pop() {
+        popped += 1;
+        let (pattern, t) = match step {
+            Step::Types(pattern, t) => (pattern, t),
+            Step::Rows(a, b) => {
+                unify_row(pool, owner, a, b, out);
+                continue;
+            }
+        };
+        // Selection already proved that repeated occurrences bind the same
+        // arguments. Once this formal subtree has supplied its parameters,
+        // revisiting it cannot add one. Bound work by the formal head graph,
+        // even when the actual type graph shares it in different contexts.
+        if !seen.insert(pattern) {
+            continue;
+        }
+        match (pool.get(pattern), pool.get(t)) {
+            (TyData::Param(p), _) if p.owner == owner => {
+                let i = p.index as usize;
+                if out.len() <= i {
+                    out.resize(i + 1, None);
+                }
+                out[i].get_or_insert(t);
+            }
+            (TyData::Adt { args: a, .. }, TyData::Adt { args: b, .. })
+            | (TyData::TraitValue { args: a, .. }, TyData::TraitValue { args: b, .. })
+            | (TyData::Union(a), TyData::Union(b)) => list(a, b, &mut work),
+            (TyData::Tuple { elems: a, rest: ar }, TyData::Tuple { elems: b, rest: br }) => {
+                if let (Some(x), Some(y)) = (ar, br) {
+                    work.push(Step::Types(x, y));
+                }
+                list(a, b, &mut work);
+            }
+            (
+                TyData::Fn {
+                    params: a,
+                    result: r,
+                    row: ar,
+                    inputs: ai,
+                    ..
+                },
+                TyData::Fn {
+                    params: b,
+                    result: s,
+                    row: br,
+                    inputs: bi,
+                    ..
+                },
+            ) => {
+                work.push(Step::Rows(ar, br));
+                work.push(Step::Types(r, s));
+                if ai == bi {
+                    list(a, b, &mut work);
+                } else {
+                    // `Fn[Args, O, $ R]` against a concrete function type:
+                    // `Args` is its whole inputs tuple (`fn.type.ctor.inputs`).
+                    let p = pool.types();
+                    work.push(Step::Types(p.inputs_tuple(a, ai), p.inputs_tuple(b, bi)));
+                }
+            }
+            (TyData::Row(a), TyData::Row(b)) => unify_row(pool, owner, a, b, out),
+            (TyData::Ref { inner: a, .. }, TyData::Ref { inner: b, .. }) => {
+                work.push(Step::Types(a, b));
+            }
+            _ => {}
+        }
+    }
+    (seen.len(), popped)
+}
+
+#[cfg(test)]
+mod matching_tests;
 
 /// Matches an impl head's row parameters, filling their instance arguments
 /// with the concrete row as a `TyData::Row`, just as `unify` does for type
