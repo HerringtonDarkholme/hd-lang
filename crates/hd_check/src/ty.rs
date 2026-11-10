@@ -267,6 +267,7 @@ impl Ck<'_, '_> {
         let src = self.cx.src;
         let syms = self.cx.names.syms;
         let paths = self.cx.names.paths;
+        let tops = self.cx.init.borrow_mut().top_bindings(&src);
         let mut declared = None;
         let result = {
             // A named constant's initializer sees only the module's top
@@ -286,7 +287,7 @@ impl Ck<'_, '_> {
                 if !in_binding && self.find_local(sym).is_some() {
                     return ConstName::Runtime;
                 }
-                if let Some(b) = hd_resolve::lower::top_level_binding(&src, name) {
+                if let Some(b) = tops.get(&src, name) {
                     return b;
                 }
                 if Prim::ALL.iter().any(|p| p.name() == name) {

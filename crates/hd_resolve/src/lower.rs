@@ -936,6 +936,8 @@ struct Resolver<'a, 'b> {
     /// Re-export loops already reported, each as its cycle's sorted nodes,
     /// so a loop is one error (`module.pub-use.chain.loop`).
     loops_reported: RefCell<HashSet<Vec<(PathId, Symbol)>>>,
+    /// Each module's top-level bindings, by module, built on first use.
+    top_bindings: RefCell<HashMap<Box<str>, Arc<TopBindings>>>,
     /// Associated type names of this folder's traits, from their heads.
     trait_assoc: HashMap<DefId, Vec<Symbol>>,
     /// The declared variance markers of the folder's own declarations.
@@ -985,6 +987,19 @@ struct Resolver<'a, 'b> {
 }
 
 impl Resolver<'_, '_> {
+    /// The top-level bindings of `module`, whose source is `src`, indexed
+    /// on first use and shared by every header of the module (#1673).
+    fn top_bindings(&self, module: &str, src: &Src<'_>) -> Arc<TopBindings> {
+        if let Some(t) = self.top_bindings.borrow().get(module) {
+            return Arc::clone(t);
+        }
+        let t = Arc::new(TopBindings::of(src));
+        self.top_bindings
+            .borrow_mut()
+            .insert(module.into(), Arc::clone(&t));
+        t
+    }
+
     fn intern_module(&mut self, path: &str) -> PathId {
         if let Some(&module) = self.module_keys.get(path) {
             return module;
@@ -2493,6 +2508,7 @@ impl Lower<'_, '_, '_> {
         let src = self.src;
         let pool = self.names.pool;
         let mut declared = None;
+        let tops = self.r.top_bindings(self.module, &src);
         let result = {
             let syms = self.names.syms;
             // A named constant's initializer sees only the module's top
@@ -2508,7 +2524,7 @@ impl Lower<'_, '_, '_> {
                 if Prim::ALL.iter().any(|p| p.name() == name) {
                     return ConstName::Type;
                 }
-                if let Some(binding) = top_level_binding(&src, name) {
+                if let Some(binding) = tops.get(&src, name) {
                     return binding;
                 }
                 let kind = local_at(self.locals, sym, self.at)
@@ -7874,6 +7890,7 @@ fn resolver<'a, 'b>(
         memo: RefCell::new(HashMap::default()),
         visiting: RefCell::new(HashSet::default()),
         loops_reported: RefCell::new(HashSet::default()),
+        top_bindings: RefCell::new(HashMap::default()),
         trait_assoc: HashMap::default(),
         variances: HashMap::default(),
         row_params: HashMap::default(),
@@ -8016,33 +8033,72 @@ enum Slot {
     Const(Option<Prim>),
 }
 
-/// The top-level `:=` binding `name` of the module `src`, as a named
-/// constant candidate (`types.generic.const.named`). A top-level binding
-/// has no written type, so its use types its initializer.
-#[must_use]
-pub fn top_level_binding<'a>(src: &Src<'a>, name: &str) -> Option<ConstName<'a>> {
-    src.root().children().find_map(|stmt| {
-        let mut node = stmt
-            .children()
-            .next()
-            .filter(|b| stmt.kind() == SyntaxKind::ExprStmt && b.kind() == SyntaxKind::BindingExpr);
-        // A chain `a := b := e` binds each name to `e`.
-        let mut named = false;
-        while let Some(b) = node {
-            let (pattern, rhs) = (b.children().next()?, b.children().last()?);
-            let toks: Vec<_> = src.tokens(pattern).collect();
-            named |= pattern.kind() == SyntaxKind::BindingPattern
-                && matches!(toks.as_slice(), [t] if src.text(*t) == name);
-            if rhs.kind() != SyntaxKind::BindingExpr {
-                return named.then_some(ConstName::Binding {
-                    src: *src,
-                    init: rhs,
-                });
+/// A module's top-level bindings by name: each name a root statement
+/// `name := e` binds, a chain `a := b := e` binding each name to `e`, with
+/// its initializer. When two statements bind one name, the first one's.
+/// A named constant reads its initializer here (`types.generic.const.argument`).
+/// Built once per module, so a read is one hash lookup (#1673).
+/// Cost: one pass over the module's root statements.
+#[derive(Debug, Default)]
+pub struct TopBindings(HashMap<Box<str>, hd_base::NodeIdx>);
+
+impl TopBindings {
+    /// The index of `src`'s root statements.
+    #[must_use]
+    pub fn of(src: &Src<'_>) -> Self {
+        let mut by_name: HashMap<Box<str>, hd_base::NodeIdx> = HashMap::default();
+        let mut names = Vec::new();
+        for stmt in src.root().children() {
+            if stmt.kind() != SyntaxKind::ExprStmt {
+                continue;
             }
-            node = Some(rhs);
+            let mut node = stmt
+                .children()
+                .next()
+                .filter(|b| b.kind() == SyntaxKind::BindingExpr);
+            names.clear();
+            while let Some(b) = node {
+                let (Some(pattern), Some(rhs)) = (b.children().next(), b.children().last()) else {
+                    break;
+                };
+                if pattern.kind() == SyntaxKind::BindingPattern {
+                    let mut toks = src.tokens(pattern);
+                    if let (Some(t), None) = (toks.next(), toks.next()) {
+                        names.push(src.text(t));
+                    }
+                }
+                if rhs.kind() != SyntaxKind::BindingExpr {
+                    for name in names.drain(..) {
+                        by_name.entry(name.into()).or_insert(rhs.index());
+                    }
+                    break;
+                }
+                node = Some(rhs);
+            }
         }
-        None
-    })
+        Self(by_name)
+    }
+
+    /// The binding `name` reaches in `src`, the module this index is of.
+    #[must_use]
+    pub fn get<'a>(&self, src: &Src<'a>, name: &str) -> Option<ConstName<'a>> {
+        self.0.get(name).map(|&init| ConstName::Binding {
+            src: *src,
+            init: src.parse.tree.node(init),
+        })
+    }
+
+    /// How many names the module binds at its top level.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Whether the module binds no name at its top level.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
 }
 
 /// Resolves and lowers the modules of one folder (§4.10 steps 1 to 4).
@@ -8983,5 +9039,47 @@ fn with_held(
         let refs = tys.into_iter().map(|t| pool.ref_slots(t)).sum();
         lifetimes.resize(refs, 0);
         lifetimes.extend(held);
+    }
+}
+
+#[cfg(test)]
+mod top_binding_tests {
+    use super::{Src, TopBindings};
+    use crate::const_eval::ConstName;
+    use std::fmt::Write as _;
+
+    fn init_text<'a>(src: &Src<'a>, index: &TopBindings, name: &str) -> Option<&'a str> {
+        match index.get(src, name)? {
+            ConstName::Binding { src, init } => Some(src.text(src.first(init))),
+            _ => None,
+        }
+    }
+
+    /// #1673: the index is built once per module, and a read is one hash
+    /// lookup, at any position in a module of thousands of statements.
+    #[test]
+    fn a_module_of_thousands_of_bindings_is_indexed_once() {
+        let mut text = String::new();
+        for i in 0..4000 {
+            let _ = writeln!(text, "N{i} := {i}");
+        }
+        text.push_str("A := B := 7\nN0 := 9\nfn f() -> i32: +1\n");
+        let parsed = hd_syntax::parse(text.as_bytes());
+        assert!(parsed.is_ok(), "{:?}", parsed.diagnostics);
+        let src = Src {
+            parse: &parsed,
+            text: &text,
+            file: hd_base::FileId::from_raw(0),
+        };
+        let index = TopBindings::of(&src);
+        assert_eq!(index.len(), 4002);
+        assert_eq!(init_text(&src, &index, "N3999"), Some("3999"));
+        assert_eq!(init_text(&src, &index, "N2000"), Some("2000"));
+        // A chain binds each name to its last initializer; the first
+        // statement binding a name is the one read.
+        assert_eq!(init_text(&src, &index, "A"), Some("7"));
+        assert_eq!(init_text(&src, &index, "B"), Some("7"));
+        assert_eq!(init_text(&src, &index, "N0"), Some("0"));
+        assert!(index.get(&src, "f").is_none());
     }
 }

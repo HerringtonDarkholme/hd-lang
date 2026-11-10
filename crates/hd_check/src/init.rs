@@ -255,9 +255,23 @@ pub struct ModuleInit {
     /// The methods of the module's own trait impls, by trait; built on
     /// first use (`module.init.definite.dispatch`).
     impl_methods: Option<HashMap<DefId, Vec<(Symbol, DefId)>>>,
+    /// The module's top-level bindings by name, which a named constant
+    /// reads; built on first use (#1673).
+    top_bindings: Option<std::sync::Arc<hd_resolve::TopBindings>>,
 }
 
 impl ModuleInit {
+    /// The top-level bindings of the module whose source is `src`.
+    pub(crate) fn top_bindings(
+        &mut self,
+        src: &hd_resolve::Src<'_>,
+    ) -> std::sync::Arc<hd_resolve::TopBindings> {
+        std::sync::Arc::clone(
+            self.top_bindings
+                .get_or_insert_with(|| std::sync::Arc::new(hd_resolve::TopBindings::of(src))),
+        )
+    }
+
     /// A copy for a forked context ([`crate::fork`]): everything but the
     /// facts, which each body adds on its own.
     pub(crate) fn fork(&self) -> ModuleInit {
@@ -268,6 +282,7 @@ impl ModuleInit {
             facts: HashMap::default(),
             pending: self.pending.clone(),
             impl_methods: self.impl_methods.clone(),
+            top_bindings: self.top_bindings.clone(),
         }
     }
 
