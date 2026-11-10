@@ -6417,6 +6417,7 @@ typing/invalid/a-field-write-on-a-binding-an-error-left-unknown-is-one-error.hd	
 runtime/valid/a-float-pattern-with-a-signed-exponent-matches-its-value.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.literal
 parse/invalid/a-data-pattern-field-needs-a-comma-before-the-next.hd	parse	reject:syntax-error	lang/02-grammar.md#r-grammar.pattern.data-field.nested
 typing/invalid/a-row-argument-for-a-data-literals-type-parameter-is-one-error.hd	type	reject:generic-kind-mismatch	lang/11-requirements-and-suspension.md#r-req.row.slot.data
+typing/invalid/type-arguments-on-a-variant-name-are-too-many.hd	type	reject:argument-count	lang/07-functions.md#r-fn.generic.explicit.too-long-count
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

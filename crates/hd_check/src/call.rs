@@ -3605,6 +3605,17 @@ impl Ck<'_, '_> {
                             self.variant_fields(et, &name).is_some()
                         } =>
                     {
+                        // A variant has no type parameters of its own; the
+                        // enum's go before the `.`
+                        // (`fn.generic.explicit.too-long-count`).
+                        if !method_targs.is_empty() {
+                            let msg = format!(
+                                "{} type arguments are written, but the variant `{name}` takes 0; write the enum's before the `.`, as in `{}::[..].{name}`",
+                                method_targs.len(),
+                                self.cx.names.display_name(def)
+                            );
+                            self.err(Code::ArgumentCount, n, &msg);
+                        }
                         let t = self.ctor(def, &explicit, n);
                         let t = match want {
                             Some(w) if self.can_unify(w, t) => {

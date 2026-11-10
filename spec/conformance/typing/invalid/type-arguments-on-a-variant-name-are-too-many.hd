@@ -1,0 +1,10 @@
+# test: type arguments after a variant name are too many
+# Spec 07 Explicit Type Arguments: fn.generic.explicit.too-long-count; a
+# variant has no type parameters of its own, and the enum's go before
+# the `.`, as in `Opt::[string].Some`.
+enum Opt[T]:
+    Some(T)
+    Empty
+
+fn f() -> void:
+    let o = Opt.Some::[string]("s") # diagnostic: argument-count
