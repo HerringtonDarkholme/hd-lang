@@ -292,20 +292,24 @@ fn derived(
     start: usize,
 ) {
     let src = cx.src;
+    // `impls_for` yields implementation items only.
     for it in index.impls_for(items, h.def) {
-        let ItemData::Impl { kind, .. } = &it.data else {
-            continue;
-        };
-        if *kind != ImplKind::Derived {
+        if !matches!(
+            it.data,
+            ItemData::Impl {
+                kind: ImplKind::Derived,
+                ..
+            }
+        ) {
             continue;
         }
+        // Lowering names a derived implementation `derive Trait for Type`,
+        // with the trait as the `@derive` argument writes it.
         let seg = names.text(it.name);
-        let Some(tr) = seg
+        let tr = seg
             .strip_prefix("derive ")
             .and_then(|s| s.split(" for ").next())
-        else {
-            continue;
-        };
+            .unwrap_or_default();
         let node = h
             .node
             .children()
