@@ -16,6 +16,7 @@ pub mod rows;
 use hd_base::SliceSort as _;
 use hd_base::{HashMap, HashSet};
 use std::collections::BTreeSet;
+use std::fmt::Write as _;
 use std::sync::Arc;
 
 use hd_base::{
@@ -915,8 +916,15 @@ fn name_into(
         }
         // `types.generic.const.display`.
         TyData::Const(v) => out.push_str(&v.literal(|p| env.const_text(p))),
-        TyData::Poison | TyData::Param(_) | TyData::Infer(_) | TyData::Canon(_) => {
-            out.push_str(&pool.display(t));
+        TyData::Poison => out.push_str("{poison}"),
+        TyData::Param(p) => {
+            let _ = write!(out, "T{}@{}", p.index, p.owner.raw());
+        }
+        TyData::Infer(v) => {
+            let _ = write!(out, "?{}", v.raw());
+        }
+        TyData::Canon(i) => {
+            let _ = write!(out, "^{i}");
         }
     }
 }
