@@ -1,0 +1,8 @@
+# test: a local function default cannot use a provider
+# Spec 07 Default Values: fn.default.provider, for a local function.
+trait Db:
+    fn n(self) -> i32
+
+fn f() -> void:
+    fn g(a: i32 = $.use(Db).n()) -> void: # diagnostic: requirement-in-default
+        pass

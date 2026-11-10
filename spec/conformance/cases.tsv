@@ -1602,6 +1602,7 @@ runtime/valid/suspending-generic-method.hd	runtime	accept	lang/11-requirements-a
 runtime/valid/suspending-blanket-impls.hd	runtime	accept	lang/11-requirements-and-suspension.md#suspending-functions
 runtime/valid/named-local-suspending-function.hd	runtime	accept	lang/11-requirements-and-suspension.md#suspending-functions
 typing/invalid/parameter-default-requires-provider.hd	type	reject:requirement-in-default	lang/07-functions.md#default-values
+typing/invalid/a-local-function-default-uses-a-provider.hd	type	reject:requirement-in-default	lang/07-functions.md#r-fn.default.provider
 typing/invalid/data-default-requires-provider.hd	type	reject:requirement-in-default	lang/08-data-and-enums.md#field-defaults
 typing/invalid/enum-default-requires-provider.hd	type	reject:requirement-in-default	lang/08-data-and-enums.md#r-data.shared.module-init.empty-row
 typing/valid/default-calls-requirement-free-trait-method.hd	type	accept	lang/07-functions.md#default-values
@@ -1800,6 +1801,7 @@ typing/valid/duplicate-trait-bound.hd	type	accept	lang/09-traits.md#generic-boun
 typing/invalid/positional-spread-without-vararg.hd	type	reject:positional-spread-needs-vararg	lang/05-expressions.md#r-expr.call.spread.list-needs-vararg
 typing/invalid/positional-spread-duplicates-vararg.hd	type	reject:duplicate-argument	lang/05-expressions.md#r-expr.call.spread.vararg-duplicate
 typing/invalid/parameter-default-order.hd	type	reject:default-order	lang/07-functions.md#default-values
+typing/invalid/a-local-function-default-order.hd	type	reject:default-order	lang/07-functions.md#r-fn.default.order-final-function
 typing/invalid/variant-duplicate-argument.hd	type	reject:duplicate-argument	lang/08-data-and-enums.md#enum-declarations
 typing/invalid/duplicate-argument.hd	type	reject:duplicate-argument	lang/05-expressions.md#calls
 typing/invalid/unknown-named-argument.hd	type	reject:unknown-named-argument	lang/05-expressions.md#calls
@@ -3077,6 +3079,7 @@ typing/valid/range-pattern-coverage.hd	type	accept	lang/06-control-flow.md#range
 typing/invalid/range-pattern-non-integer.hd	type	reject:type-mismatch	lang/06-control-flow.md#r-flow.match.range.subject
 typing/invalid/range-pattern-bound-range.hd	type	reject:integer-literal-range	lang/06-control-flow.md#r-flow.match.range.bound-type
 typing/invalid/range-pattern-nonexhaustive.hd	type	reject:nonexhaustive-match	lang/06-control-flow.md#r-flow.match.cover.integer
+runtime/valid/i16-range-patterns-cover-the-type.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.range.cover
 typing/invalid/range-pattern-covered.hd	type	reject:unreachable-match-arm	lang/06-control-flow.md#r-flow.match.range.covered
 typing/invalid/range-pattern-empty.hd	type	reject:unreachable-match-arm	lang/06-control-flow.md#r-flow.match.range.empty
 runtime/valid/range-pattern-run.hd	runtime	accept	lang/06-control-flow.md#range-patterns

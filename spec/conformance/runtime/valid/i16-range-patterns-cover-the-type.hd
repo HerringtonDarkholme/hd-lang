@@ -1,0 +1,10 @@
+# test: i16 range patterns that cover the whole type make an exhaustive match
+# Spec 06 Range Patterns: flow.match.range.cover, at the i16 range.
+# expect-stdout: 1 2
+fn f(x: i16) -> i32:
+    match x:
+        -32768..=-1 => 1
+        0..=32767 => 2
+
+pub fn main() -> void $ Console:
+    println("${f(-5)} ${f(7)}")

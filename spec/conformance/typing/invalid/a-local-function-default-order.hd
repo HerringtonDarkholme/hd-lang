@@ -1,0 +1,5 @@
+# test: a local function parameter after one with a default needs a default
+# Spec 07 Default Values: fn.default.order-final-function, for a local function.
+fn f() -> void:
+    fn g(a: i32 = 1, b: i32) -> void: # diagnostic: default-order
+        pass
