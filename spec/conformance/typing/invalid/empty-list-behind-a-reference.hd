@@ -1,0 +1,5 @@
+# Spec 05 Element Types: expr.collection.empty.error; an empty list
+# behind a reference has no expected element type either.
+pub fn main() -> void:
+    items := &[] # diagnostic: cannot-infer-type
+    _ := items

@@ -1,0 +1,4 @@
+# Spec 07 Bodies And Control Paths: fn.body.value-less-fallthrough; a body
+# whose last statement is a binding falls through without a value.
+fn bound() -> i32:
+    let total = 1 # diagnostic: missing-return-value

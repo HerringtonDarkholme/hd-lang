@@ -1,0 +1,8 @@
+# Spec 06 Conditional Values: flow.if.value.branches; a branch whose last
+# statement is a binding gives no value where an `i32` is expected.
+fn branch(flag: bool) -> i32:
+    let value: i32 = if flag:
+        let unused = 1 # diagnostic: type-mismatch
+    else:
+        2
+    value

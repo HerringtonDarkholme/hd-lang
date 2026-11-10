@@ -1,0 +1,5 @@
+# Spec 05 Element Types: expr.collection.empty.error; a closure whose
+# result is an empty list has no expected element type.
+pub fn main() -> void:
+    make := fn(): [] # diagnostic: cannot-infer-type
+    _ := make
