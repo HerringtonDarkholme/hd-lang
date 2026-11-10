@@ -727,23 +727,9 @@ mod tests {
                 );
             }
             // And the other way: every method the std trait declares has
-            // its row, which rt::host_vtable and boundary::handle_slots
+            // its row, which rt::host_vtable and boundary's handle slots
             // read for each slot.
-            let body = text
-                .split_once(&format!("pub trait {name}"))
-                .map_or("", |(_, rest)| rest);
-            let declared = body
-                .lines()
-                .skip(1)
-                .take_while(|l| l.is_empty() || l.starts_with(' ') || l.starts_with('#'))
-                .filter_map(|l| l.strip_prefix("    fn "))
-                .map(|l| {
-                    l.split(['(', '['])
-                        .next()
-                        .unwrap_or(l)
-                        .trim_end_matches('!')
-                });
-            for method in declared {
+            for method in declared(&text, name) {
                 assert!(
                     t.methods
                         .iter()
@@ -753,5 +739,59 @@ mod tests {
                 );
             }
         }
+        // A handle's supertraits' methods are its host methods too, each a
+        // `<Trait>.<method>` row (boundary's `HandleTree::slots`).
+        for t in HANDLES {
+            let (module, name) = t.std_path.rsplit_once('.').expect("path");
+            let file = std.join(format!(
+                "{}.hd",
+                module.trim_start_matches("std.").replace('.', "/")
+            ));
+            let text = std::fs::read_to_string(&file).expect("std file");
+            let Some((_, supers)) = text.split_once(&format!("pub trait {name} <")) else {
+                continue;
+            };
+            let supers = supers.lines().next().unwrap_or("").trim_end_matches(':');
+            for sup in supers
+                .split('&')
+                .map(|s| s.split('[').next().unwrap_or(s).trim())
+            {
+                let text = std::fs::read_dir(&std)
+                    .expect("std dir")
+                    .filter_map(|e| std::fs::read_to_string(e.ok()?.path()).ok())
+                    .find(|text| {
+                        [":", "[", " <"]
+                            .iter()
+                            .any(|end| text.contains(&format!("pub trait {sup}{end}")))
+                    })
+                    .unwrap_or_else(|| panic!("the supertrait {sup} of {name} is not in std"));
+                for method in declared(&text, sup) {
+                    let row = format!("{name}.{method}");
+                    assert!(
+                        t.methods.iter().any(|m| m.name == row),
+                        "{}'s inherited {row} has no ABI row",
+                        t.std_path
+                    );
+                }
+            }
+        }
+    }
+
+    /// The methods trait `name` declares in std source `text`.
+    fn declared<'t>(text: &'t str, name: &str) -> impl Iterator<Item = &'t str> {
+        let body = [":", "[", " <"]
+            .iter()
+            .find_map(|end| text.split_once(&format!("pub trait {name}{end}")))
+            .map_or("", |(_, rest)| rest);
+        body.lines()
+            .skip(1)
+            .take_while(|l| l.is_empty() || l.starts_with(' ') || l.starts_with('#'))
+            .filter_map(|l| l.strip_prefix("    fn "))
+            .map(|l| {
+                l.split(['(', '['])
+                    .next()
+                    .unwrap_or(l)
+                    .trim_end_matches('!')
+            })
     }
 }

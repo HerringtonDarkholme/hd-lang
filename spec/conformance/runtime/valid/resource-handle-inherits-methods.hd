@@ -1,0 +1,31 @@
+# Spec 10 Closable Handles: module.resource.closed, module.resource.closed.after.
+# A profile's handle trait inherits methods through a chain of supertraits,
+# and reaches `Closer` twice: each inherited method is a host method of the
+# handle, imported under the handle's trait.
+# fixture-runtime-profile: disposed-file
+pub enum IoError:
+    Failed(message: string)
+    Closed
+
+pub trait Closer:
+    fn close(&mut self) -> Result[void, IoError]
+
+pub trait Stream < Closer
+
+pub trait FileHandle < Stream & Closer:
+    fn read!(&mut self) -> Result[string, IoError]
+
+pub trait Files:
+    fn open!(self) -> *mut dyn FileHandle
+
+pub fn main!() -> void $ Files:
+    let handle: &mut dyn FileHandle = $.use(Files).open!()
+    match handle.close():
+        .Ok(_) => pass
+        .Err(_) => panic("fixture host failed to close its handle")
+    match handle.read!():
+        .Err(IoError.Closed) => pass
+        _ => panic("operation after close did not report Closed")
+    match handle.close():
+        .Err(IoError.Closed) => pass
+        _ => panic("a second close did not report Closed")

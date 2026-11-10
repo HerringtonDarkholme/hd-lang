@@ -1155,7 +1155,7 @@ fn profile_vtable(
                 handle: false,
                 methods,
             },
-        )?;
+        );
     }
     Ok(vtable)
 }
@@ -1185,7 +1185,7 @@ fn profile_tree(
         let mp = (input.path)(method);
         let member = mp.rsplit(['.', '/']).next().unwrap_or("");
         let name = if at.package {
-            crate::boundary::package_wire_name(input, target, def, member)?
+            crate::boundary::package_wire_name(input, target, def, member)
         } else {
             member.to_owned()
         };

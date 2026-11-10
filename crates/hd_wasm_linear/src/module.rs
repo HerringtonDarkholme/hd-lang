@@ -1093,11 +1093,11 @@ pub struct Module {
     /// Vtables [`Module::vtable_reserve`] holds for a table whose slots
     /// are still being built: no other table deduplicates into one.
     reserved_vtables: hd_base::HashSet<usize>,
-    /// Host handle vtables by trait, package boundary and inherited
-    /// arguments (`boundary::handle_vtable`). Each is reserved before its
+    /// Host handle vtables by trait and package boundary
+    /// (`boundary::handle_vtable`). Each is reserved before its
     /// slots are built, so a handle method that returns its own trait
     /// names the table being built (#1551).
-    pub handle_vtables: hd_base::HashMap<(hd_base::DefId, bool, Option<hd_types::TyList>), usize>,
+    pub handle_vtables: hd_base::HashMap<(hd_base::DefId, bool), usize>,
     /// The recursive boundary types' codecs (`boundary::Named`, #1550).
     pub named_codecs: crate::boundary::Named,
     /// The bang methods that some call awaits at once through a trait

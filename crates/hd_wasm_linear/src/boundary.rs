@@ -310,8 +310,8 @@ pub struct AtProfile<'a> {
     pub arguments: Option<TyList>,
 }
 
-/// The boundary type of `t`, or `unsupported` for a type that does not
-/// cross (a function, another trait value).
+/// The boundary type of `t`, a type in a checked host signature
+/// (`module.boundary.not-safe.error` rejects one that cannot cross).
 pub fn of(input: &Input<'_>, m: &mut Module, t: Ty, at: Option<AtProfile<'_>>) -> StageResult<LTy> {
     of_at(input, m, t, &mut Vec::new(), at)
 }
@@ -343,11 +343,6 @@ fn of_at(
         return codec(input, t, s, at);
     }
     let int = |bits, signed| LTy::Int { bits, signed };
-    // A suspension is a live runtime handle, not boundary-safe
-    // (`module.boundary.not-safe`): `hd check` rejects one in a host
-    // signature (`module.boundary.not-safe.error`).
-    let suspension =
-        matches!(pool.get(s), TyData::Adt { def, .. } if env.std_kind(def) == StdKind::Suspend);
     Ok(match pool.get(s) {
         TyData::Prim(p) => match p {
             Prim::F32 => LTy::F32,
@@ -379,38 +374,46 @@ fn of_at(
                 LTy::Record(fields)
             }
         }
-        TyData::Ref { inner, counted, .. }
-            if !matches!(
-                pool.get(layout::strip(pool, env, inner)),
-                TyData::TraitValue { .. }
-            ) =>
-        {
-            // ruled out: module.boundary.not-safe.error (hd_check
-            // header::crossing_fault) rejects a local reference to data.
-            debug_assert!(counted, "a local reference to data at the host boundary");
-            return object_of(input, m, inner, path, at);
-        }
-        TyData::Ref { inner, .. } => {
+        TyData::Ref { inner, counted, .. } => {
+            let referent = layout::strip(pool, env, inner);
+            let TyData::TraitValue { def, args, .. } = pool.get(referent) else {
+                // ruled out: module.boundary.not-safe.error (hd_check
+                // header::crossing_fault) rejects a local reference to data.
+                debug_assert!(counted, "a local reference to data at the host boundary");
+                return object_of(input, m, inner, path, at);
+            };
             // A trait value reference to a host handle: the handle,
             // behind the reference the `host_provider` instance makes.
-            let inner = layout::strip(pool, env, inner);
+            // ruled out: hd_mono's note_boundary_value records that
+            // wrapper for each trait value reference a host result brings
+            // in, and module.boundary.not-safe.error (hd_check
+            // header::crossing_fault) rejects one passed to the host.
             let wrap = input.collected.boundary.get(&t).and_then(|c| c.handle_ref);
-            match (of_at(input, m, inner, path, at)?, wrap) {
-                (LTy::Handle(mut h), Some(wrap)) => {
-                    h.wrap = Some(wrap);
-                    LTy::Handle(h)
-                }
-                _ => return unsupported(what()),
-            }
+            debug_assert!(
+                wrap.is_some(),
+                "a host handle without its `host_provider` wrapper"
+            );
+            // ruled out: module.host.package.not-generic (hd_check
+            // header::boundary) rejects a returned handle trait with type
+            // parameters, and std's handle traits declare none.
+            debug_assert_eq!(args, TyList::EMPTY, "a generic host handle trait");
+            LTy::Handle(Box::new(LHandle {
+                wrap,
+                ..handle_of(input, m, def, at)?
+            }))
         }
-        TyData::Adt { def, args } if !suspension => match env.std_kind(def) {
+        TyData::Adt { def, args } => match env.std_kind(def) {
             hd_mono::layout::StdKind::List => {
                 let items = pool.list_items(args);
                 debug_assert_eq!(items.len(), 1, "ruled out: `List` has one element type");
                 let e = items[0];
-                if input.runtime.is_none() {
-                    return unsupported("lists without std's allocator");
-                }
+                // ruled out: std's `List` comes with `std.rt`, whose
+                // runtime items hd_driver roots whenever std has their
+                // bodies, so a program with a list links the allocator.
+                debug_assert!(
+                    input.runtime.is_some(),
+                    "a boundary list without std's allocator"
+                );
                 if matches!(
                     pool.get(layout::strip(pool, env, e)),
                     TyData::Prim(Prim::U8)
@@ -455,44 +458,103 @@ fn of_at(
                     val,
                 }))
             }
-            StdKind::Other | StdKind::Suspend => match layout::kind(pool, env, s) {
-                layout::Kind::Value => {
-                    return data_of(input, m, s, def, args, path, at);
-                }
-                _ => return unsupported(what()),
-            },
-        },
-        TyData::TraitValue { def, args, .. } if args == TyList::EMPTY => {
-            let path = (input.path)(def).replace('/', ".");
-            let vtable = if let Some(at) = at.filter(|a| a.package && !a.out) {
-                handle_vtable(input, m, def, None, Some(at))?
-            } else if let Some(host) = hd_host_abi::handle_trait(&path) {
-                handle_vtable(input, m, def, Some(host), None)?
-            } else {
-                // A value of a program's own trait that a profile's host
-                // method returns can only be a handle the profile made.
-                // A method of that trait may return it again: its vtable
-                // is reserved before its slots are built.
-                debug_assert!(
-                    at.is_some_and(|a| !a.out) && !path.starts_with("std."),
-                    "ruled out: module.boundary.not-safe.error (hd_check header::boundary) \
-                     rejects a trait value passed to the host and a returned one whose \
-                     trait is std's but not a host handle trait"
+            StdKind::Other | StdKind::Suspend => {
+                // ruled out: module.boundary.not-safe.error (hd_check
+                // header::crossing_fault) rejects a suspension, a live
+                // runtime handle (`module.boundary.not-safe`).
+                debug_assert_ne!(
+                    env.std_kind(def),
+                    StdKind::Suspend,
+                    "a suspension at the host boundary"
                 );
-                handle_vtable(input, m, def, None, at)?
-            };
-            let release = if at.is_some_and(|a| a.package && !a.out) {
-                (input.package_trait)(def).map(|i| package_module(&i, true))
-            } else {
-                None
-            };
-            LTy::Handle(Box::new(LHandle {
-                vtable,
-                wrap: None,
-                release,
+                // ruled out: data.enum.no-recursion (hd_check header) and
+                // its instance check through associated payloads (hd_check
+                // value.rs `ProjectionCycles`, #1554) reject every enum
+                // that holds itself by value, so none is boxed here.
+                debug_assert!(
+                    matches!(layout::kind(pool, env, s), layout::Kind::Value),
+                    "a boxed enum at the host boundary"
+                );
+                return data_of(input, m, s, def, args, path, at);
+            }
+        },
+        // ruled out: `never` crosses only as a host method's whole result,
+        // which `result_type` takes first, and module.boundary.not-safe.error
+        // (hd_check header::crossing_fault) rejects it anywhere else and a
+        // function; a bare trait value is no value type
+        // (grammar.type.dyn.reference-values); `signature` and `subst`
+        // leave no parameter, projection or opaque type in a checked host
+        // method's signature (`dyn-member-unavailable` rejects a method
+        // with its own type parameters or an `impl Trait` result); a row
+        // is no value type, and checking solves every inference variable.
+        TyData::Never
+        | TyData::Poison
+        | TyData::Fn { .. }
+        | TyData::TraitValue { .. }
+        | TyData::Opaque { .. }
+        | TyData::Param(_)
+        | TyData::Const(_)
+        | TyData::Assoc { .. }
+        | TyData::Row(_)
+        | TyData::Infer(_)
+        | TyData::Canon(_) => {
+            debug_assert!(false, "{} at the host boundary", pool.display(t));
+            LTy::Void
+        }
+        // gap: #1573 (a union) and #1574 (a provider context), the only
+        // kinds left here, wait on the owner's call.
+        _ => return unsupported(what()),
+    })
+}
+
+/// The host handle of trait `def`, returned by a host method at `at`
+/// ([`LHandle`]), before [`of_at`] gives it its `host_provider` wrapper.
+fn handle_of(
+    input: &Input<'_>,
+    m: &mut Module,
+    def: DefId,
+    at: Option<AtProfile<'_>>,
+) -> StageResult<LHandle> {
+    let path = (input.path)(def).replace('/', ".");
+    // ruled out: module.boundary.not-safe.error (hd_check
+    // header::crossing_fault) rejects a trait value passed to the host.
+    debug_assert!(
+        at.is_none_or(|a| !a.out),
+        "a host handle passed to the host"
+    );
+    let host = match (at, hd_host_abi::handle_trait(&path)) {
+        (Some(at), _) if at.package => HandleHost::Profile(at),
+        (_, Some(abi)) => HandleHost::Abi(abi),
+        (at, None) => {
+            // A value of a program's own trait that a profile's host
+            // method returns can only be a handle the profile made, whose
+            // methods it imports from `hd:<Trait>` as a profile does.
+            // ruled out: module.boundary.not-safe.error (hd_check
+            // header::boundary) rejects a returned trait value whose trait
+            // is std's but not a host handle trait, and std's own host
+            // methods return only `hd_host_abi::HANDLES` traits.
+            debug_assert!(
+                at.is_some() && !path.starts_with("std."),
+                "a returned trait value that is not a host handle"
+            );
+            HandleHost::Profile(at.unwrap_or(AtProfile {
+                codecs: &input.collected.boundary,
+                out: false,
+                package: false,
+                arguments: None,
             }))
         }
-        _ => return unsupported(what()),
+    };
+    let release = match host {
+        HandleHost::Profile(at) if at.package => {
+            (input.package_trait)(def).map(|i| package_module(&i, true))
+        }
+        HandleHost::Profile(_) | HandleHost::Abi(_) => None,
+    };
+    Ok(LHandle {
+        vtable: handle_vtable(input, m, def, host)?,
+        wrap: None,
+        release,
     })
 }
 
@@ -632,18 +694,17 @@ fn enum_of(
 fn codec(input: &Input<'_>, t: Ty, s: Ty, at: AtProfile<'_>) -> StageResult<LTy> {
     let (pool, env) = (input.pool, input.env);
     let codecs = at.codecs.get(&t).or_else(|| at.codecs.get(&s));
-    let codec = codecs.and_then(|c| match (at.out, at.package) {
-        (true, true) => c.package_encode,
-        (true, false) => c.encode,
-        (false, true) => c.package_decode,
-        (false, false) => c.decode,
-    });
-    let Some(codec) = codec else {
-        return unsupported(format!(
-            "`{}` at a profile's boundary without its host codec",
-            pool.display(s)
-        ));
-    };
+    let codec = codecs
+        .and_then(|c| match (at.out, at.package) {
+            (true, true) => c.package_encode,
+            (true, false) => c.encode,
+            (false, true) => c.package_decode,
+            (false, false) => c.decode,
+        })
+        .expect(
+            "ruled out: hd_mono's note_boundary_value collects the host codec of each \
+             private-field type a host signature reaches, in its direction and namespace",
+        );
     Ok(LTy::Codec(Box::new(LCodec {
         vals: layout::vals(pool, env, s)?,
         walk: match layout::pass(pool, env, input.runtime.is_some(), s) {
@@ -739,13 +800,26 @@ pub fn host_slot(
     handle: bool,
     at: Option<AtProfile<'_>>,
 ) -> StageResult<Helper> {
-    use hd_host_abi::{Codec, Wait};
+    use hd_host_abi::{Codec, Scalar, Wait};
     let (pool, env) = (input.pool, input.env);
-    let refused = || unsupported(format!("the host method `{key}.{}`", row.name));
+    // The row states each scalar's Wasm value.
+    let scalar = |s: Scalar| match s {
+        Scalar::I32 => Val::I32,
+        Scalar::I64 => Val::I64,
+        Scalar::F64 => Val::F64,
+    };
+    // ruled out, for each row check below: a std host method's row in
+    // `hd_host_abi::TABLE` or `HANDLES` mirrors its declaration in lib/std,
+    // which ships with it, and a profile's or package's row is built from
+    // the method's own signature (`rt::profile_tree`, `HandleTree::slots`,
+    // `result_codec`).
     let waits = row.wait == Wait::May;
-    if env.suspends(m) != waits {
-        return refused();
-    }
+    debug_assert_eq!(
+        env.suspends(m),
+        waits,
+        "the host method `{key}.{}` waits",
+        row.name
+    );
     let (params, ret) = signature(pool, env, m, at.and_then(|a| a.arguments));
     let mut args = Vec::new();
     let mut types = Vec::new();
@@ -756,17 +830,25 @@ pub fn host_slot(
     } else {
         row.params
     };
-    if params.len() != codecs.len() {
-        return refused();
-    }
+    debug_assert_eq!(
+        params.len(),
+        codecs.len(),
+        "the host method `{key}.{}`'s parameters",
+        row.name
+    );
     for (pt, c) in params.iter().zip(codecs) {
         let vals = layout::vals(pool, env, *pt)?;
-        args.push(match (c, vals.as_slice()) {
+        args.push(match *c {
+            // A parameter with no values passes nothing.
+            Codec::Void => {
+                debug_assert!(vals.is_empty(), "a `void` row parameter with values");
+                continue;
+            }
             // A lone string crosses as its bytes alone (§17.4).
             // A newtype of a string, as `Path`, is not one: it crosses with
             // its length.
-            (Codec::Buffer(_), _) if row.params.len() == 1 && *pt == Ty::STRING => HostArg::Str,
-            (Codec::Buffer(_), _) => {
+            Codec::Buffer(_) if row.params.len() == 1 && *pt == Ty::STRING => HostArg::Str,
+            Codec::Buffer(_) => {
                 let b = of(input, mm, *pt, at.map(|a| AtProfile { out: true, ..a }))?;
                 #[cfg(debug_assertions)]
                 assert!(
@@ -776,8 +858,11 @@ pub fn host_slot(
                 );
                 HostArg::Buf(b)
             }
-            (Codec::Scalar(_), [v @ (Val::I32 | Val::I64 | Val::F64)]) => HostArg::Scalar(*v),
-            _ => return refused(),
+            Codec::Scalar(s) => {
+                let v = scalar(s);
+                debug_assert_eq!(vals, [v], "a scalar row parameter of other values");
+                HostArg::Scalar(v)
+            }
         });
         types.push(*pt);
     }
@@ -785,11 +870,17 @@ pub fn host_slot(
     let module = format!("hd:{key}");
     let method = row.name.to_owned();
     if !waits {
-        let result = match (row.result, rvals.as_slice()) {
-            (Codec::Void, []) => CallRes::Void,
-            (Codec::Scalar(_), [v @ (Val::I32 | Val::I64 | Val::F64)]) => CallRes::Scalar(*v),
-            (Codec::Buffer(_), _) => CallRes::Buf(result_type(input, mm, m, ret, at)?),
-            _ => return refused(),
+        let result = match row.result {
+            Codec::Void => {
+                debug_assert!(rvals.is_empty(), "a `void` row result with values");
+                CallRes::Void
+            }
+            Codec::Scalar(s) => {
+                let v = scalar(s);
+                debug_assert_eq!(rvals, [v], "a scalar row result of other values");
+                CallRes::Scalar(v)
+            }
+            Codec::Buffer(_) => CallRes::Buf(result_type(input, mm, m, ret, at)?),
         };
         return Ok(Helper::HostCall {
             module,
@@ -798,9 +889,19 @@ pub fn host_slot(
             result,
         });
     }
-    let res = match (row.result, rvals.as_slice()) {
-        (Codec::Void, []) => HostRes::Void,
-        (Codec::Buffer(_), _) => {
+    let res = match row.result {
+        Codec::Void => {
+            debug_assert!(rvals.is_empty(), "a `void` row result with values");
+            HostRes::Void
+        }
+        // A call that may wait answers in the buffer: no row that waits
+        // states a scalar result.
+        Codec::Scalar(_) | Codec::Buffer(_) => {
+            debug_assert!(
+                matches!(row.result, Codec::Buffer(_)),
+                "a waiting host method `{key}.{}` with a scalar result",
+                row.name
+            );
             let b = result_type(input, mm, m, ret, at)?;
             if b.is_tags() && rvals == [Val::I32, Val::I32] {
                 HostRes::Tags
@@ -808,7 +909,6 @@ pub fn host_slot(
                 HostRes::Buf(b)
             }
         }
-        _ => return refused(),
     };
     Ok(Helper::HostCold {
         module,
@@ -1112,31 +1212,41 @@ fn args_area(input: &Input<'_>, types: &[Ty]) -> StageResult<Elem> {
     })
 }
 
+/// Where a host handle's methods come from.
+#[derive(Clone, Copy)]
+enum HandleHost<'a> {
+    /// A std handle trait's rows in `hd_host_abi::HANDLES`, each named
+    /// `<Trait>.<method>` in the capability's module.
+    Abi(&'static hd_host_abi::HostTrait),
+    /// A runtime profile's or a package's own trait: each method is
+    /// imported from `hd:<Trait>` by name, every argument and result in the
+    /// buffer, private-field types through the codecs at `AtProfile`.
+    Profile(AtProfile<'a>),
+}
+
 /// The vtable of host handle trait `trait_`: each slot a
 /// [`Helper::HandleSlot`] over its host call, then the vtables of its
 /// direct supertraits, whose methods are the handle trait's host methods
-/// too, as `TcpStream.dispose!` (flow.using.async-disposable.row). A trait in
-/// `hd_host_abi::HANDLES` names its methods `<Trait>.<method>` in the
-/// capability's module; a runtime profile's own trait imports them from
-/// `hd:<Trait>` by name, with every argument and result in the buffer.
+/// too, as `TcpStream.dispose!` (flow.using.async-disposable.row).
 fn handle_vtable(
     input: &Input<'_>,
     m: &mut Module,
     trait_: DefId,
-    host: Option<&hd_host_abi::HostTrait>,
-    at: Option<AtProfile<'_>>,
+    host: HandleHost<'_>,
 ) -> StageResult<usize> {
-    let package = at.is_some_and(|a| a.package);
+    let package = matches!(host, HandleHost::Profile(a) if a.package);
     // One vtable per handle trait and boundary, reserved before its slots
     // are built: a slot whose result is a handle of a trait being built,
-    // its own included, names the reserved table (#1551).
-    let memo = (trait_, package, at.and_then(|a| a.arguments));
+    // its own included, names the reserved table (#1551). A handle trait
+    // declares no type parameters (`module.host.package.not-generic`), so
+    // the trait and the boundary decide its slots.
+    let memo = (trait_, package);
     if let Some(&k) = m.handle_vtables.get(&memo) {
         return Ok(k);
     }
     let reserved = m.vtable_reserve();
     m.handle_vtables.insert(memo, reserved.index());
-    let built = handle_vtable_slots(input, m, trait_, host, at)?;
+    let built = handle_vtable_slots(input, m, trait_, host)?;
     Ok(reserved.fill(m, built))
 }
 
@@ -1146,12 +1256,11 @@ fn handle_vtable_slots(
     input: &Input<'_>,
     m: &mut Module,
     trait_: DefId,
-    host: Option<&hd_host_abi::HostTrait>,
-    at: Option<AtProfile<'_>>,
+    host: HandleHost<'_>,
 ) -> StageResult<usize> {
     let tp = (input.path)(trait_);
-    let package_at = at.filter(|a| a.package);
-    let identity = package_at.and_then(|_| (input.package_trait)(trait_));
+    let package = matches!(host, HandleHost::Profile(a) if a.package);
+    let identity = package.then(|| (input.package_trait)(trait_)).flatten();
     let module = identity.as_ref().map(|i| package_module(i, true));
     let tname = module
         .as_deref()
@@ -1169,128 +1278,228 @@ fn handle_vtable_slots(
     let bridge = input.env.host_bridge(key);
     // Constructing the ordinary adapter collects its vtable bodies even
     // when no public method is called. Those bodies alone must not grant
-    // an unused returned handle any wire methods.
-    let enabled = bridge.is_none()
+    // an unused returned package handle any wire methods.
+    let enabled = !package
+        || bridge.is_none()
         || input
             .env
             .trait_methods(trait_)
             .into_iter()
             .any(|method| input.collected.calls_dyn(method));
-    let trait_ = bridge
-        .and_then(|bridge| match input.pool.get(bridge.wire) {
-            TyData::TraitValue { def, .. } => Some(def),
-            _ => None,
-        })
-        .unwrap_or(trait_);
-    if let Some(package_at) = package_at {
-        let mut methods = Vec::new();
-        let key = tname.clone();
-        let vtable = package_handle_tree(
-            input,
+    // ruled out: a bridge's wire is a trait value (`ProgramEnv::host_bridge`).
+    let trait_ = bridge.map_or(trait_, |b| input.pool.trait_value_parts(b.wire).0);
+    let mut methods = Vec::new();
+    let tree = HandleTree {
+        input,
+        target: trait_,
+        key: &tname,
+        host,
+        enabled,
+    };
+    let vtable = tree.build(m, package.then_some(&mut methods))?;
+    if let (Some(identity), Some(module)) = (identity, module) {
+        record_package_interface(
             m,
-            trait_,
-            trait_,
-            &key,
-            enabled,
-            package_at,
-            &mut methods,
-            &mut Vec::new(),
-        )?;
-        if let (Some(identity), Some(module)) = (identity, module) {
-            record_package_interface(
-                m,
-                hd_host_abi::schema::Interface {
-                    identity,
-                    module,
-                    selectors: Vec::new(),
-                    handle: true,
-                    methods,
-                },
-            )?;
-        }
-        return Ok(vtable);
+            hd_host_abi::schema::Interface {
+                identity,
+                module,
+                selectors: Vec::new(),
+                handle: true,
+                methods,
+            },
+        );
     }
-    let supers: Vec<Ty> = input.env.decls().supertraits(trait_).to_vec();
-    if !supers.is_empty() && host.is_none() {
-        return unsupported(format!(
-            "the host handle trait `{tp}`, which has supertraits"
-        ));
-    }
-    let mut parents = Vec::new();
-    for s in supers {
-        let TyData::TraitValue { def, .. } = input.pool.get(s) else {
-            return unsupported("a supertrait that is not a trait");
-        };
-        if !input.env.decls().supertraits(def).is_empty() {
-            return unsupported(format!(
-                "the host handle trait `{tp}`, whose supertrait has supertraits"
-            ));
-        }
-        let slots = handle_slots(input, m, def, trait_, &tname, host, at, true)?;
-        parents.push(crate::drive::vtable(input, m, def, slots, Vec::new())?);
-    }
-    let slots = handle_slots(input, m, trait_, trait_, &tname, host, at, true)?;
-    crate::drive::vtable(input, m, trait_, slots, parents)
+    Ok(vtable)
 }
 
-fn package_handle_tree(
-    input: &Input<'_>,
-    m: &mut Module,
-    owner: DefId,
+/// The vtables of a host handle trait `target` and of every supertrait
+/// instance it reaches, all importing from `key` through `host`.
+struct HandleTree<'a, 'i> {
+    input: &'a Input<'i>,
     target: DefId,
-    key: &str,
+    key: &'a str,
+    host: HandleHost<'a>,
+    /// Whether called methods get host slots; otherwise every slot traps.
     enabled: bool,
-    at: AtProfile<'_>,
-    methods: &mut Vec<hd_host_abi::schema::Method>,
-    seen: &mut Vec<DefId>,
-) -> StageResult<usize> {
-    if seen.contains(&owner) {
-        return unsupported("cyclic package host handle supertraits");
+}
+
+/// A trait of a [`HandleTree`] whose vtable waits for its supertraits'.
+struct HandleFrame {
+    owner: DefId,
+    /// The trait's arguments, `Self` first; `None` for the target.
+    arguments: Option<TyList>,
+    slots: Vec<Helper>,
+    supers: Vec<(DefId, TyList)>,
+    parents: Vec<usize>,
+}
+
+impl HandleTree<'_, '_> {
+    /// The target's vtable. A package handle's called methods, the
+    /// inherited ones under their wire names, go to `methods`.
+    ///
+    /// Cost: one visit per distinct supertrait instance the target
+    /// reaches, each building its slots once; a diamond's shared ancestor
+    /// is built once and its vtable shared. The walk is post-order over an
+    /// explicit stack, as deep as the supertrait chain, so a deep chain
+    /// does not deepen the native stack. `trait.super.acyclic` (`hd_resolve`)
+    /// makes the walk finite.
+    fn build(
+        &self,
+        m: &mut Module,
+        mut methods: Option<&mut Vec<hd_host_abi::schema::Method>>,
+    ) -> StageResult<usize> {
+        let mut built: hd_base::HashMap<(DefId, TyList), usize> = hd_base::HashMap::default();
+        let mut stack = Vec::new();
+        let mut cur = self.frame(m, self.target, None, methods.as_deref_mut())?;
+        loop {
+            if let Some(&(def, args)) = cur.supers.get(cur.parents.len()) {
+                if let Some(&v) = built.get(&(def, args)) {
+                    cur.parents.push(v);
+                } else {
+                    let next = self.frame(m, def, Some(args), methods.as_deref_mut())?;
+                    stack.push(std::mem::replace(&mut cur, next));
+                }
+                continue;
+            }
+            let v = crate::drive::vtable(
+                self.input,
+                m,
+                cur.owner,
+                std::mem::take(&mut cur.slots),
+                std::mem::take(&mut cur.parents),
+            )?;
+            let Some(parent) = stack.pop() else {
+                return Ok(v);
+            };
+            if let Some(args) = cur.arguments {
+                built.insert((cur.owner, args), v);
+            }
+            cur = parent;
+            cur.parents.push(v);
+        }
     }
-    seen.push(owner);
-    let slots = handle_slots(input, m, owner, target, key, None, Some(at), enabled)?;
-    for method in input
-        .env
-        .trait_methods(owner)
-        .into_iter()
-        .filter(|d| enabled && input.collected.calls_dyn(*d))
-    {
-        add_package_method(
-            methods,
-            package_method(input, method, target, owner, at.arguments)?,
-        )?;
+
+    /// `owner`'s slots, its called methods' package schemas, and its
+    /// direct supertraits at `owner`'s `arguments`.
+    fn frame(
+        &self,
+        m: &mut Module,
+        owner: DefId,
+        arguments: Option<TyList>,
+        methods: Option<&mut Vec<hd_host_abi::schema::Method>>,
+    ) -> StageResult<HandleFrame> {
+        let input = self.input;
+        let pool = input.pool;
+        let slots = self.slots(m, owner, arguments)?;
+        if let Some(methods) = methods {
+            for method in input.env.trait_methods(owner) {
+                if self.enabled && input.collected.calls_dyn(method) {
+                    add_package_method(
+                        methods,
+                        package_method(input, method, self.target, owner, arguments)?,
+                    )?;
+                }
+            }
+        }
+        let full = arguments.unwrap_or_else(|| pool.list(&[hd_mono::class_ref(pool)]));
+        let supers = (input.env.decls().supertraits(owner).iter())
+            .map(|&sup| {
+                // ruled out: hd_resolve's supertrait lowering
+                // (`Lower::supers`, through `Lower::trait_value`) makes
+                // each supertrait a trait value over `Self`, and `subst`
+                // keeps the constructor.
+                let (def, args) = pool.trait_value_parts(subst(pool, input.env, owner, full, sup));
+                let args = pool.list(
+                    &std::iter::once(hd_mono::class_ref(pool))
+                        .chain(pool.list_items(args).iter().copied())
+                        .collect::<Vec<_>>(),
+                );
+                (def, args)
+            })
+            .collect();
+        Ok(HandleFrame {
+            owner,
+            arguments,
+            slots,
+            supers,
+            parents: Vec::new(),
+        })
     }
-    let mut parents = Vec::new();
-    for &sup in input.env.decls().supertraits(owner) {
-        let full = at
-            .arguments
-            .unwrap_or_else(|| input.pool.list(&[hd_mono::class_ref(input.pool)]));
-        let sup = subst(input.pool, input.env, owner, full, sup);
-        let TyData::TraitValue { def, args, .. } = input.pool.get(sup) else {
-            return unsupported("a host supertrait that is not a trait");
-        };
-        let args = input.pool.list(
-            &std::iter::once(hd_mono::class_ref(input.pool))
-                .chain(input.pool.list_items(args).iter().copied())
-                .collect::<Vec<_>>(),
-        );
-        parents.push(package_handle_tree(
-            input,
-            m,
-            def,
-            target,
-            key,
-            enabled,
-            AtProfile {
-                arguments: Some(args),
-                ..at
-            },
-            methods,
-            seen,
-        )?);
+
+    /// The slots of `owner`'s part of the handle's vtable, one per method.
+    fn slots(
+        &self,
+        m: &mut Module,
+        owner: DefId,
+        arguments: Option<TyList>,
+    ) -> StageResult<Vec<Helper>> {
+        use hd_host_abi::{Codec, Scalar, Wait};
+        let input = self.input;
+        let (pool, env) = (input.pool, input.env);
+        let mut slots = Vec::new();
+        for method in env.trait_methods(owner) {
+            let mp = (input.path)(method);
+            let member = mp.rsplit(['.', '/']).next().unwrap_or("");
+            let inner = match self.host {
+                _ if !self.enabled || !input.collected.calls_dyn(method) => None,
+                HandleHost::Abi(abi) => {
+                    let full = format!("{}.{member}", self.key);
+                    let hm = abi.methods.iter().find(|x| x.name == full);
+                    // ruled out: hd_host_abi's
+                    // table_mirrors_std_capability_traits test checks a
+                    // row for each method a std handle trait and its
+                    // supertraits declare.
+                    debug_assert!(hm.is_some(), "the std host method `{full}` has no ABI row");
+                    hm.map(|hm| host_slot(input, m, abi.key, &Row::of(hm), method, true, None))
+                        .transpose()?
+                }
+                HandleHost::Profile(at) => {
+                    let at = AtProfile { arguments, ..at };
+                    let name = if at.package {
+                        package_wire_name(input, self.target, owner, member)
+                    } else {
+                        member.to_owned()
+                    };
+                    let (params, ret) = signature(pool, env, method, arguments);
+                    let mut codecs = vec![Codec::Scalar(Scalar::I32)];
+                    codecs.extend(params.iter().map(|_| Codec::Buffer("")));
+                    let row = Row {
+                        name: &name,
+                        params: &codecs,
+                        result: result_codec(input, ret)?,
+                        wait: if env.suspends(method) {
+                            Wait::May
+                        } else {
+                            Wait::Never
+                        },
+                    };
+                    Some(host_slot(input, m, self.key, &row, method, true, Some(at))?)
+                }
+            };
+            // A method no reachable code calls links no host method.
+            let Some(inner) = inner else {
+                slots.push(uncalled_slot_at(input, method, arguments)?);
+                continue;
+            };
+            let (params, ret) = signature(pool, env, method, arguments);
+            let mut pv = Vec::new();
+            for p in &params {
+                pv.extend(layout::vals(pool, env, *p)?);
+            }
+            let results = if env.suspends(method) {
+                vec![Val::I32]
+            } else {
+                layout::vals(pool, env, ret)?
+            };
+            slots.push(Helper::HandleSlot {
+                inner: Box::new(inner),
+                params: pv,
+                ctx: crate::emit::slot_ctx(pool, env, method),
+                results,
+            });
+        }
+        Ok(slots)
     }
-    seen.pop();
-    crate::drive::vtable(input, m, owner, slots, parents)
 }
 
 pub fn add_package_method(
@@ -1305,85 +1514,6 @@ pub fn add_package_method(
         methods.push(method);
     }
     Ok(())
-}
-
-/// The slots of trait `trait_`'s vtable for a host handle of trait
-/// `tname` ([`handle_vtable`]).
-fn handle_slots(
-    input: &Input<'_>,
-    m: &mut Module,
-    trait_: DefId,
-    target: DefId,
-    tname: &str,
-    host: Option<&hd_host_abi::HostTrait>,
-    at: Option<AtProfile<'_>>,
-    enabled: bool,
-) -> StageResult<Vec<Helper>> {
-    use hd_host_abi::{Codec, Scalar, Wait};
-    let (pool, env) = (input.pool, input.env);
-    let mut slots = Vec::new();
-    for method in env.trait_methods(trait_) {
-        if !enabled || !input.collected.calls_dyn(method) {
-            slots.push(uncalled_slot_at(
-                input,
-                method,
-                at.and_then(|a| a.arguments),
-            )?);
-            continue;
-        }
-        let mp = (input.path)(method);
-        let name = mp.rsplit(['.', '/']).next().unwrap_or("");
-        let package_name;
-        let name = if at.is_some_and(|a| a.package) {
-            package_name = package_wire_name(input, target, trait_, name)?;
-            package_name.as_str()
-        } else {
-            name
-        };
-        let inner = match (host, at) {
-            (Some(host), _) => {
-                let full = format!("{tname}.{name}");
-                let Some(hm) = host.methods.iter().find(|x| x.name == full) else {
-                    return unsupported(format!("the host method `{full}`"));
-                };
-                host_slot(input, m, host.key, &Row::of(hm), method, true, None)?
-            }
-            (None, Some(at)) => {
-                let (params, ret) = signature(pool, env, method, at.arguments);
-                let mut codecs = vec![Codec::Scalar(Scalar::I32)];
-                codecs.extend(params.iter().map(|_| Codec::Buffer("")));
-                let row = Row {
-                    name,
-                    params: &codecs,
-                    result: result_codec(input, ret)?,
-                    wait: if env.suspends(method) {
-                        Wait::May
-                    } else {
-                        Wait::Never
-                    },
-                };
-                host_slot(input, m, tname, &row, method, true, Some(at))?
-            }
-            (None, None) => return unsupported(format!("the host handle trait `{tname}`")),
-        };
-        let (params, ret) = signature(pool, env, method, at.and_then(|a| a.arguments));
-        let mut pv = Vec::new();
-        for p in &params {
-            pv.extend(layout::vals(pool, env, *p)?);
-        }
-        let results = if env.suspends(method) {
-            vec![Val::I32]
-        } else {
-            layout::vals(pool, env, ret)?
-        };
-        slots.push(Helper::HandleSlot {
-            inner: Box::new(inner),
-            params: pv,
-            ctx: crate::emit::slot_ctx(pool, env, method),
-            results,
-        });
-    }
-    Ok(slots)
 }
 
 /// How a host call that never waits answers (§17.4, "Results"): nothing,
@@ -1423,6 +1553,9 @@ impl CallRes {
 pub fn push_args(f: &mut Func, args: &[HostArg], get: &dyn Fn(&mut Func, u32)) -> Vec<Val> {
     let len = f.local(Val::I32);
     let mut structured = false;
+    // Each scalar argument's first value index, for the import's
+    // parameters after the buffer is written.
+    let mut scalars = Vec::new();
     let mut k = 0;
     for a in args {
         let n = u32::try_from(a.vals().len()).expect("values");
@@ -1443,18 +1576,14 @@ pub fn push_args(f: &mut Func, args: &[HostArg], get: &dyn Fn(&mut Func, u32)) -
                 f.set(len);
                 structured = true;
             }
-            HostArg::Scalar(_) => {}
+            HostArg::Scalar(v) => scalars.push((k, *v)),
         }
         k += n;
     }
     let mut params = Vec::new();
-    let mut k = 0;
-    for a in args {
-        if let HostArg::Scalar(v) = a {
-            get(f, k);
-            params.push(*v);
-        }
-        k += u32::try_from(a.vals().len()).expect("values");
+    for (k, v) in scalars {
+        get(f, k);
+        params.push(v);
     }
     if structured {
         f.get(len);
@@ -2446,41 +2575,49 @@ pub fn package_module(identity: &hd_host_abi::schema::Identity, handle: bool) ->
     format!("hd:pkg:{:032x}", h.finish().0)
 }
 
-pub fn record_package_interface(
-    m: &mut Module,
-    interface: hd_host_abi::schema::Interface,
-) -> StageResult<()> {
+/// Records a package host interface once per module. Its module names its
+/// trait's identity and role (`package_module`), and the trait, its
+/// called methods and their signatures decide the rest, so a second record
+/// of one module is the same interface.
+pub fn record_package_interface(m: &mut Module, interface: hd_host_abi::schema::Interface) {
     if let Some(previous) = m
         .package_contract
         .interfaces
         .iter()
         .find(|i| i.module == interface.module)
     {
-        if previous != &interface {
-            return unsupported("conflicting package host interface identities or schemas");
-        }
+        // ruled out: rt::profile_vtable records a provider's interface
+        // once per key, and `handle_vtable` a handle's once per trait,
+        // each from the trait's own declaration.
+        debug_assert!(
+            previous == &interface,
+            "two package host interfaces for one module"
+        );
     } else {
         m.package_contract.interfaces.push(interface);
     }
-    Ok(())
 }
 
-pub fn package_wire_name(
-    input: &Input<'_>,
-    target: DefId,
-    owner: DefId,
-    name: &str,
-) -> StageResult<String> {
+/// The wire name of method `name` of `owner`, a supertrait of the package
+/// host trait `target` or `target` itself: its own name, or an inherited
+/// one qualified by its trait's package identity.
+pub fn package_wire_name(input: &Input<'_>, target: DefId, owner: DefId, name: &str) -> String {
     if target == owner {
-        return Ok(name.to_owned());
+        return name.to_owned();
     }
-    let Some(id) = (input.package_trait)(owner) else {
-        return unsupported("a supertrait without a package identity");
-    };
-    Ok(format!(
-        "{}@{}/{}::{name}",
-        id.package, id.version, id.trait_path
-    ))
+    let identity = (input.package_trait)(owner);
+    // ruled out: hd_cli's dependency resolution (disk.rs `dependencies`)
+    // gives each package of a build its `HostPackage`, and hd_driver's
+    // `package_trait_identity` gives std's traits the ABI identity, so a
+    // package host's supertrait has an identity.
+    debug_assert!(
+        identity.is_some(),
+        "a supertrait without a package identity"
+    );
+    match identity {
+        Some(id) => format!("{}@{}/{}::{name}", id.package, id.version, id.trait_path),
+        None => format!("{}::{name}", (input.path)(owner).replace('/', ".")),
+    }
 }
 
 pub fn package_method(
@@ -2498,7 +2635,7 @@ pub fn package_method(
             target,
             owner,
             path.rsplit(['.', '/']).next().unwrap_or(""),
-        )?,
+        ),
         member: path.rsplit(['.', '/']).next().unwrap_or("").to_owned(),
         params: params
             .into_iter()
@@ -2526,9 +2663,6 @@ fn package_value(
     let (pool, env) = (input.pool, input.env);
     let fail = || unsupported(format!("the generated JS codec for `{}`", pool.display(t)));
     let s = layout::strip(pool, env, t);
-    if let TyData::Ref { inner, .. } = pool.get(s) {
-        return package_value(input, inner, path);
-    }
     if let TyData::Adt { def, .. } = pool.get(s)
         && env.has_private_field(def)
     {
@@ -2596,7 +2730,7 @@ fn package_value(
                 return Ok(Value::Ref(id));
             }
             path.push((s, None));
-            let built = package_data(input, def, args, path, &fail);
+            let built = package_data(input, def, args, path);
             // The entry pushed above, with its number if a part reached it.
             let id = path.pop().and_then(|(_, id)| id);
             let built = built?;
@@ -2605,25 +2739,57 @@ fn package_value(
                 None => built,
             });
         }
-        TyData::TraitValue { def, args, .. } if args == TyList::EMPTY => {
+        // A reference crosses as its referent: a counted one as its tree
+        // (`module.boundary.tree`), a returned trait value reference as its
+        // handle.
+        TyData::Ref { inner, .. } => return package_value(input, inner, path),
+        TyData::TraitValue { def, args, .. } => {
+            // ruled out: module.host.package.not-generic (hd_check
+            // header::boundary) rejects a returned handle trait with type
+            // parameters.
+            debug_assert_eq!(args, TyList::EMPTY, "a generic package host handle trait");
             let identity = (input.package_trait)(def).expect(
                 "ruled out: module.boundary.not-safe.error (hd_check header::boundary) rejects \
                  a package host's returned trait value without a package identity",
             );
             Value::Handle(package_module(&identity, true))
         }
+
+        // ruled out: `package_method` takes a whole `never` result first,
+        // and module.boundary.not-safe.error (hd_check
+        // header::crossing_fault) rejects `never` anywhere else and a
+        // function; `signature` and `subst` leave no parameter, projection
+        // or opaque type in a checked host method's signature; a row is no
+        // value type, and checking solves every inference variable.
+        TyData::Never
+        | TyData::Poison
+        | TyData::Fn { .. }
+        | TyData::Opaque { .. }
+        | TyData::Param(_)
+        | TyData::Const(_)
+        | TyData::Assoc { .. }
+        | TyData::Row(_)
+        | TyData::Infer(_)
+        | TyData::Canon(_) => {
+            debug_assert!(false, "{} in a package host schema", pool.display(t));
+            Value::Void
+        }
+        // gap: #1573 (a union) and #1574 (a provider context).
         _ => return fail(),
     })
 }
 
-/// [`package_value`]'s struct or enum instance `def[args]`; `fail` is its
-/// refusal.
+/// [`package_value`]'s struct or enum instance `def[args]`.
+///
+/// ruled out, for each length check: `hd_driver`'s `enum_variants` and
+/// `enum_variant_names`, and its `data_fields` and `data_field_names`,
+/// read one declaration, so they agree. A newtype, the one data type with
+/// fields but no field names, is its base here (`layout::strip`).
 fn package_data(
     input: &Input<'_>,
     def: DefId,
     args: TyList,
     path: &mut Binders,
-    fail: &dyn Fn() -> StageResult<hd_host_abi::schema::Value>,
 ) -> StageResult<hd_host_abi::schema::Value> {
     use hd_host_abi::schema::{Field, Value, Variant};
     let (pool, env) = (input.pool, input.env);
@@ -2639,17 +2805,11 @@ fn package_data(
                         Box::new(package_value(input, variants[1][0], path)?),
                     )
                 } else {
-                    let Some(names) = env.enum_variant_names(def) else {
-                        return fail();
-                    };
-                    if names.len() != variants.len() {
-                        return fail();
-                    }
+                    let names = env.enum_variant_names(def).unwrap_or_default();
+                    debug_assert_eq!(names.len(), variants.len(), "an enum's variant names");
                     let mut out = Vec::new();
                     for ((name, fields), types) in names.into_iter().zip(variants) {
-                        if fields.len() != types.len() {
-                            return fail();
-                        }
+                        debug_assert_eq!(fields.len(), types.len(), "a variant's field names");
                         out.push(Variant {
                             name,
                             fields: fields
@@ -2667,15 +2827,9 @@ fn package_data(
                     Value::Enum(out)
                 }
             } else {
-                let Some(types) = env.data_fields(def) else {
-                    return fail();
-                };
-                let Some(names) = env.data_field_names(def) else {
-                    return fail();
-                };
-                if names.len() != types.len() {
-                    return fail();
-                }
+                let types = env.data_fields(def).unwrap_or_default();
+                let names = env.data_field_names(def).unwrap_or_default();
+                debug_assert_eq!(names.len(), types.len(), "a struct's field names");
                 Value::Record(
                     names
                         .into_iter()

@@ -1097,6 +1097,7 @@ runtime/valid/test-block-on.hd	runtime	accept	lang/11-requirements-and-suspensio
 runtime/panic/reentrant-cancel.hd	runtime	panic:suspension-reentrant-poll	lang/11-requirements-and-suspension.md#suspendt-protocol
 runtime/valid/construction-provider-capture.hd	runtime	accept	lang/11-requirements-and-suspension.md#construction-time-requirement-binding
 runtime/valid/resource-disposed-result.hd	runtime	accept	lang/10-modules.md#wasm-boundary
+runtime/valid/resource-handle-inherits-methods.hd	runtime	accept	lang/10-modules.md#wasm-boundary
 typing/valid/closable-handle-closed.hd	type	accept	lang/10-modules.md#closable-handles
 runtime/panic/competing-suspension-drivers.hd	runtime	panic:suspension-competing-driver	lang/11-requirements-and-suspension.md#suspendt-protocol
 runtime/panic/reentrant-suspension-poll.hd	runtime	panic:suspension-reentrant-poll	lang/11-requirements-and-suspension.md#suspendt-protocol
