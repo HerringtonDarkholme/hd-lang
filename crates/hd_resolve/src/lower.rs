@@ -2606,6 +2606,19 @@ impl Lower<'_, '_, '_> {
         self.diags.error(Code::ArgumentCount, span, &msg);
     }
 
+    /// Whether the named type `n`, `name`, which declares no generic
+    /// parameters, writes a type argument list, which is then too long
+    /// (`types.generic.too-long`).
+    fn type_arguments_written(&mut self, n: NodeRef<'_>, name: &str) -> bool {
+        if Src::child(n, SyntaxKind::TypeArgumentList).is_none() {
+            return false;
+        }
+        let msg = format!("`{name}` takes no type arguments");
+        self.diags
+            .error(Code::ArgumentCount, self.src.span(n), &msg);
+        true
+    }
+
     fn named(&mut self, n: NodeRef<'_>, gn: &Gen, referent: bool) -> Ty {
         let segs = self.segments(n);
         let span = self.src.span(n);
@@ -2621,6 +2634,9 @@ impl Lower<'_, '_, '_> {
                     self.diags.error(Code::UnknownType, span, msg);
                     return Ty::POISON;
                 };
+                if self.type_arguments_written(n, "Self") {
+                    return Ty::POISON;
+                }
                 if let Some(slots) = &mut self.slots
                     && gn.self_slots.len() == self.names.pool.types().ref_slots(self_ty)
                 {
@@ -2634,7 +2650,12 @@ impl Lower<'_, '_, '_> {
                 .rev()
                 .find(|(s, _, _)| self.names.text(*s) == first)
             {
-                return *t;
+                let t = *t;
+                return if self.type_arguments_written(n, &first) {
+                    Ty::POISON
+                } else {
+                    t
+                };
             }
             if gn.rows.iter().any(|(s, _)| self.names.text(*s) == first) {
                 let msg = format!(
@@ -2654,14 +2675,20 @@ impl Lower<'_, '_, '_> {
                 self.diags.error(Code::GenericKindMismatch, span, &msg);
                 return Ty::POISON;
             }
-            if first == "never" {
-                return Ty::NEVER;
-            }
-            if first == "void" {
-                return Ty::VOID;
-            }
-            if let Some(p) = Prim::ALL.iter().find(|p| p.name() == first) {
-                return Ty::prim(*p);
+            let builtin = match first.as_str() {
+                "never" => Some(Ty::NEVER),
+                "void" => Some(Ty::VOID),
+                _ => Prim::ALL
+                    .iter()
+                    .find(|p| p.name() == first)
+                    .map(|p| Ty::prim(*p)),
+            };
+            if let Some(t) = builtin {
+                return if self.type_arguments_written(n, &first) {
+                    Ty::POISON
+                } else {
+                    t
+                };
             }
         }
         if self.is_poisoned(self.sym_token(ft)) {

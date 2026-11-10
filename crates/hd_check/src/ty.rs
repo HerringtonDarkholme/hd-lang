@@ -285,6 +285,18 @@ impl Ck<'_, '_> {
         }
     }
 
+    /// `t`, named by `n` as `name`, which declares no generic parameters:
+    /// any written type argument list is too long
+    /// (`types.generic.too-long`), and the name is poisoned.
+    fn takes_no_arguments(&mut self, n: NodeRef<'_>, name: &str, t: Ty) -> Ty {
+        if Src::child(n, SyntaxKind::TypeArgumentList).is_none() {
+            return t;
+        }
+        let msg = format!("`{name}` takes no type arguments");
+        self.err(Code::ArgumentCount, n, &msg);
+        Ty::POISON
+    }
+
     /// A type parameter or `Self` in scope by name.
     pub(crate) fn type_param(&self, name: &str) -> Option<Ty> {
         if name == "Self" {
@@ -503,16 +515,18 @@ impl Ck<'_, '_> {
                     self.err(Code::GenericKindMismatch, n, &msg);
                     return Ok(Ty::POISON);
                 }
-                return Ok(t);
+                return Ok(self.takes_no_arguments(n, name, t));
             }
-            if name == "never" {
-                return Ok(Ty::NEVER);
-            }
-            if name == "void" {
-                return Ok(Ty::VOID);
-            }
-            if let Some(p) = Prim::ALL.iter().find(|p| p.name() == name) {
-                return Ok(Ty::prim(*p));
+            let builtin = match name {
+                "never" => Some(Ty::NEVER),
+                "void" => Some(Ty::VOID),
+                _ => Prim::ALL
+                    .iter()
+                    .find(|p| p.name() == name)
+                    .map(|p| Ty::prim(*p)),
+            };
+            if let Some(t) = builtin {
+                return Ok(self.takes_no_arguments(n, name, t));
             }
         }
         if self.is_poison_name(&segs[0]) {

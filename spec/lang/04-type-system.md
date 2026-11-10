@@ -1377,7 +1377,7 @@ See also: [Function And Closure Scopes](03-names-and-scopes.md#function-and-clos
 4. r[types.generic.placeholder-slot] In a generic function's or method's explicit list, `_` may occupy any slot and requests inference for that argument.
 5. r[types.generic.placeholder.not-type] `_` is not itself a type. Outside the positions of the next rule, its use in a type application is an error, and so is its use anywhere in a declaration: a parameter, a result, a field, a bound or an implementation header. Error: `syntax-error`.
 6. r[types.generic.placeholder.local] In a `let` annotation and in an expression's explicit type-argument list, `_` may stand for a type argument at any depth, as in `let names: List[_] = words.iter().collect()`. Each `_` is inferred from the initializer, the expected type and the bounds of the call: a type argument that the expected type leaves partly open takes the rest from a bound its trait satisfies in exactly one way, as a parameter named only in bounds does ([`types.generic.infer.bound`](#r-types.generic.infer.bound)). One left unsolved is an error. Error: `cannot-infer-type`.
-7. r[types.generic.too-long] A type-argument list with more positional arguments than its declaration has generic parameters is an error, in an expression and in a written type alike. Error: `argument-count`.
+7. r[types.generic.too-long] A type-argument list with more positional arguments than its declaration has generic parameters is an error, in an expression and in a written type alike. A primitive type, `never`, `void`, `Self` and a type parameter declare none, so any list after one is too long. Error: `argument-count`.
 
 ```text
 fn count(names: List[string, i32]) -> i32:  # error: argument-count

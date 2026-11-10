@@ -1,0 +1,4 @@
+# Spec 04 Generic Arguments: types.generic.too-long; `Self` names the
+# implementing type, which takes no type arguments where it is written.
+trait Copyable:
+    fn copied(self) -> Self[i32] # diagnostic: argument-count

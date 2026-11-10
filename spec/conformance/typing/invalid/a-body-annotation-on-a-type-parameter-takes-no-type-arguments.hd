@@ -1,0 +1,5 @@
+# Spec 04 Generic Arguments: types.generic.too-long; in a body annotation
+# too, a type parameter takes no type arguments.
+fn keep[T](value: T) -> T:
+    let held: T[u8] = value # diagnostic: argument-count
+    held

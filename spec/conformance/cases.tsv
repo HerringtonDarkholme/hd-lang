@@ -6306,6 +6306,11 @@ runtime/valid/a-vararg-function-meets-an-fn-bound-of-a-selected-impl.hd	runtime	
 runtime/valid/opaque-occurrences-keep-their-hidden-types-through-result-conversions.hd	runtime	accept	lang/07-functions.md#r-fn.opaque.nested
 runtime/valid/local-function-impl-parameters-are-anonymous-generics.hd	runtime	accept	lang/04-type-system.md#r-types.impl-parameter.anonymous
 typing/invalid/local-function-impl-parameter-explicit.hd	type	reject:argument-count	lang/04-type-system.md#r-types.impl-parameter.explicit
+typing/invalid/a-primitive-type-takes-no-type-arguments.hd	type	reject:argument-count	lang/04-type-system.md#r-types.generic.too-long
+typing/invalid/a-type-parameter-takes-no-type-arguments.hd	type	reject:argument-count	lang/04-type-system.md#r-types.generic.too-long
+typing/invalid/self-takes-no-type-arguments.hd	type	reject:argument-count	lang/04-type-system.md#r-types.generic.too-long
+typing/invalid/a-body-annotation-on-void-takes-no-type-arguments.hd	type	reject:argument-count	lang/04-type-system.md#r-types.generic.too-long
+typing/invalid/a-body-annotation-on-a-type-parameter-takes-no-type-arguments.hd	type	reject:argument-count	lang/04-type-system.md#r-types.generic.too-long
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

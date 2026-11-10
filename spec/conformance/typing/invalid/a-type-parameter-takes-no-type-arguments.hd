@@ -1,0 +1,4 @@
+# Spec 04 Generic Arguments: types.generic.too-long; a type parameter
+# declares no generic parameters of its own.
+fn keep[T](value: T) -> T[i32]: # diagnostic: argument-count
+    value
