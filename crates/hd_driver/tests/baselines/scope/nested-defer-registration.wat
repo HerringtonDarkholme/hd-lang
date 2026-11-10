@@ -3,7 +3,7 @@
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
-  (import "fixture" "impl[$ R, 'a, F < FnMut() -> void $ R & 'a] Disposable[$ R] for DeferGuard[F, $ R, 'a].dispose[$(), fn() -> ()]" (func $"impl[$ R, 'a, F < FnMut() -> void $ R & 'a] Disposable[$ R] for DeferGuard[F, $ R, 'a].dispose[$(), fn() -> ()]" (param i32)))
+  (import "fixture" "impl[$ R, 'a, F < FnMut() -> void $ R & 'a] Disposable[$ R] for DeferGuard[F, $ R, 'a].dispose[^241, fn() -> ()]" (func $"impl[$ R, 'a, F < FnMut() -> void $ R & 'a] Disposable[$ R] for DeferGuard[F, $ R, 'a].dispose[^241, fn() -> ()]" (param i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
@@ -238,7 +238,8 @@
               i32.store $heap offset=4
             end
             local.get $t4
-            call $"impl[$ R, 'a, F < FnMut() -> void $ R & 'a] Disposable[$ R] for DeferGuard[F, $ R, 'a].dispose[$(), fn() -> ()]"
+            i32.const 0
+            call $"impl[$ R, 'a, F < FnMut() -> void $ R & 'a] Disposable[$ R] for DeferGuard[F, $ R, 'a].dispose[^241, fn() -> ()]"
             global.get $forbid
             i32.const -1
             i32.add
@@ -281,7 +282,8 @@
           i32.store $heap offset=4
         end
         local.get $t2
-        call $"impl[$ R, 'a, F < FnMut() -> void $ R & 'a] Disposable[$ R] for DeferGuard[F, $ R, 'a].dispose[$(), fn() -> ()]"
+        i32.const 0
+        call $"impl[$ R, 'a, F < FnMut() -> void $ R & 'a] Disposable[$ R] for DeferGuard[F, $ R, 'a].dispose[^241, fn() -> ()]"
         global.get $forbid
         i32.const -1
         i32.add
