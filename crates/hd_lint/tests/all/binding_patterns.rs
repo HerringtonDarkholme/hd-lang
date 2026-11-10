@@ -47,7 +47,7 @@ const PAIR: &str = "enum Pair:\n    Values(left: i32, right: i32)\n";
 
 #[test]
 fn primitive_messages_and_fix_spans_are_preserved() {
-    let source = include_str!("../../../spec/conformance/cli/lint-binding-patterns/src/main.hd");
+    let source = include_str!("../../../../spec/conformance/cli/lint-binding-patterns/src/main.hd");
     let (out, findings) = lint(source, Policy::default());
     assert!(out.diags.is_empty(), "{}", out.render());
     assert_eq!(
@@ -107,7 +107,7 @@ fn correct_fresh_named_and_wildcard_payload_bindings_are_quiet() {
 
 #[test]
 fn policy_levels_are_independent_and_module_errors_cannot_be_suppressed() {
-    let source = include_str!("../../../spec/conformance/cli/lint-binding-patterns/src/main.hd");
+    let source = include_str!("../../../../spec/conformance/cli/lint-binding-patterns/src/main.hd");
     for (name, other) in [
         (REDUNDANT_MUT, VARIANT_BINDING),
         (VARIANT_BINDING, REDUNDANT_MUT),

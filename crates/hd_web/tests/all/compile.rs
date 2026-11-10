@@ -56,7 +56,7 @@ fn a_file_without_main_runs_as_a_script() {
     wasm(&r);
 }
 
-/// `hd check --format json crates/hd_web/tests/broken.hd` reports these
+/// `hd check --format json crates/hd_web/tests/all/broken.hd` reports these
 /// codes, lines and columns.
 #[test]
 fn a_broken_file_reports_what_hd_check_reports() {

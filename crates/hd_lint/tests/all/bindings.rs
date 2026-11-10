@@ -130,8 +130,9 @@ fn unused_policy_is_independent_and_never_suppresses_must_use_errors() {
 
 #[test]
 fn warm_checks_keep_facts_ephemeral_and_rejected_trials_unique() {
-    let source =
-        include_str!("../../../spec/conformance/typing/warnings/unused-after-rejected-trials.hd");
+    let source = include_str!(
+        "../../../../spec/conformance/typing/warnings/unused-after-rejected-trials.hd"
+    );
     let store = MemoryStore::default();
     let serial = Executor::Serial(SerialOrder::Priority);
     let normal = checked(source, &store, false, serial);
