@@ -227,6 +227,11 @@ pub struct Generic {
     /// inference like an ordinary type parameter but has no explicit type-
     /// argument slot.
     pub anonymous: bool,
+    /// A type parameter a local declaration takes from the declarations
+    /// around it (`names.local-type.refs`). It leads the list and has no
+    /// written argument slot: each use supplies the parameter of the same
+    /// name in scope there.
+    pub outer: bool,
 }
 
 impl Generic {
@@ -243,6 +248,7 @@ impl Generic {
             outlives: 0,
             const_type: None,
             anonymous: false,
+            outer: false,
         }
     }
 }
@@ -1237,7 +1243,8 @@ fn put_generics(w: &mut Writer, t: &mut TableWriter<'_>, gs: &[Generic]) -> Stag
         };
         let konst = u8::from(g.const_type.is_some()) << 5;
         let anonymous = u8::from(g.anonymous) << 6;
-        w.u8(u8::from(g.row) | variance | (u8::from(g.lifetime) << 4) | konst | anonymous);
+        let outer = u8::from(g.outer) << 7;
+        w.u8(u8::from(g.row) | variance | (u8::from(g.lifetime) << 4) | konst | anonymous | outer);
         w.u32(u32::from(g.outlives));
         if let Some(p) = g.const_type {
             w.u8(p as u8);
@@ -1280,6 +1287,7 @@ fn get_generics(r: &mut Reader<'_>, t: &Tables) -> Option<Vec<Generic>> {
             outlives,
             const_type,
             anonymous: flags & 0b100_0000 != 0,
+            outer: flags & 0b1000_0000 != 0,
         });
     }
     Some(out)

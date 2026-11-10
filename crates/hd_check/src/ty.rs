@@ -355,8 +355,32 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// The arguments of the selected declaration: those written, then
-    /// each omitted one's default or a fresh variable.
+    /// `args` written for `item`, after the type parameters a local type
+    /// takes from around it, each the one of the same name in scope here
+    /// (`names.local-type.refs`).
+    pub(crate) fn with_outer_args<'t>(
+        &self,
+        item: &hd_resolve::Item,
+        args: &'t [Ty],
+    ) -> std::borrow::Cow<'t, [Ty]> {
+        let taken = item.generics.iter().take_while(|g| g.outer).count();
+        if taken == 0 {
+            return std::borrow::Cow::Borrowed(args);
+        }
+        item.generics[..taken]
+            .iter()
+            .map(|g| {
+                self.type_param(self.cx.names.text(g.name))
+                    .unwrap_or(Ty::POISON)
+            })
+            .chain(args.iter().copied())
+            .collect()
+    }
+
+    /// The arguments of the selected declaration: for a local type, the
+    /// type parameters it takes from around it, each the one of the same
+    /// name in scope here (`names.local-type.refs`); then those written,
+    /// then each omitted one's default or a fresh variable.
     pub(crate) fn ctor_args(
         &mut self,
         item: &hd_resolve::Item,
@@ -365,6 +389,8 @@ impl Ck<'_, '_> {
     ) -> Vec<Ty> {
         let pool = self.pool();
         let def = item.def;
+        let with_outer = self.with_outer_args(item, args);
+        let args = with_outer.as_ref();
         // An omitted trailing argument takes its default with the earlier
         // arguments substituted (`types.generic.default.written`).
         let mut args = hd_resolve::fill_type_args(self.cx.names.pool, def, &item.generics, args);
@@ -594,7 +620,13 @@ impl Ck<'_, '_> {
         // `types.generic.too-long`: no more arguments than parameters, in a
         // type, an alias or a trait alike.
         if let Some(item) = self.cx.lookup.item(def) {
-            let max = item.generics.iter().filter(|g| !g.lifetime).count();
+            // The parameters a local type takes from around it have no
+            // written argument (`names.local-type.refs`).
+            let max = item
+                .generics
+                .iter()
+                .filter(|g| !g.lifetime && !g.outer)
+                .count();
             if args.len() > max {
                 let msg = format!(
                     "`{}` takes {max} type arguments, not {}",
@@ -604,14 +636,14 @@ impl Ck<'_, '_> {
                 self.err(Code::ArgumentCount, n, &msg);
                 return Ok(Ty::POISON);
             }
-            if let Some((i, g)) =
-                args.iter()
-                    .zip(&item.generics)
-                    .enumerate()
-                    .find_map(|(i, (a, g))| match pool.get(*a) {
-                        TyData::Poison | TyData::Infer(_) => None,
-                        data => (matches!(data, TyData::Row(_)) != g.row).then_some((i, g)),
-                    })
+            if let Some((i, g)) = args
+                .iter()
+                .zip(item.generics.iter().filter(|g| !g.outer))
+                .enumerate()
+                .find_map(|(i, (a, g))| match pool.get(*a) {
+                    TyData::Poison | TyData::Infer(_) => None,
+                    data => (matches!(data, TyData::Row(_)) != g.row).then_some((i, g)),
+                })
             {
                 let msg = if g.row {
                     format!(
@@ -694,7 +726,9 @@ impl Ck<'_, '_> {
         if !self.in_explicit_targs
             && let Some(item) = self.cx.lookup.item(def)
         {
-            let filled = hd_resolve::fill_type_args(self.cx.names.pool, def, &item.generics, &args);
+            let with_outer = self.with_outer_args(item, &args);
+            let filled =
+                hd_resolve::fill_type_args(self.cx.names.pool, def, &item.generics, &with_outer);
             if let Some(g) = item
                 .generics
                 .iter()

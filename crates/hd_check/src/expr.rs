@@ -3371,12 +3371,15 @@ impl Ck<'_, '_> {
             return Ok((Ref(NONE), Ty::NEVER));
         };
         self.check_literal_visible(def, n);
-        let mut targs = Vec::new();
+        // A local type's parameters from around it come first
+        // (`names.local-type.refs`); none is written.
+        let mut targs = self.with_outer_args(item, &[]).into_owned();
+        let taken = targs.len();
         for (i, t) in targ_nodes.iter().enumerate() {
-            targs.push(self.explicit_slot_arg(*t, item.generics.get(i), i)?);
+            targs.push(self.explicit_slot_arg(*t, item.generics.get(taken + i), i)?);
         }
         let generics = item.generics.clone();
-        self.check_data_targ_kinds(def, &generics, &targs, name_node);
+        self.check_data_targ_kinds(def, &generics[taken..], &targs[taken..], name_node);
         let explicit = targs.len();
         while let Some(g) = item.generics.get(targs.len()) {
             // `ref.lifetime.struct`: a lifetime has its one argument.

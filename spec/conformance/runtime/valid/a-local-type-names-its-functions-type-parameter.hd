@@ -1,0 +1,89 @@
+# test: a local type names the type parameters around it
+# Spec 03 Local Type Declarations: names.local-type.refs; each use inside
+# the function is the type at the function's own parameter.
+# expect-stdout: pair
+# expect-stdout: 3
+# expect-stdout: pair
+# expect-stdout: a
+# expect-stdout: true
+# expect-stdout: u
+# expect-stdout: 7
+# expect-stdout: 2
+# expect-stdout: 3
+fn wrap[T](x: T, y: T) -> T:
+    struct W:
+        v: T
+    enum Pick:
+        One(T)
+        Neither
+    struct Pair[U]:
+        a: T
+        b: U
+    struct Nest:
+        w: W
+    impl W:
+        fn get(&self) -> T:
+            self.v
+    let w: W = W { v: x }
+    let p = Pair { a: y, b: "pair" }
+    let n = Nest { w: W { v: w.get() } }
+    let none: Pick = Pick.Neither
+    let one = Pick.One(n.w.get())
+    match none:
+        Pick.One(_) => println("one")
+        Pick.Neither => println(p.b)
+    match one:
+        Pick.One(v) => v
+        Pick.Neither => p.a
+
+fn same[T < Eq](x: T) -> bool:
+    struct Box:
+        v: T
+    impl Box:
+        fn same(&self, o: &Box) -> bool:
+            self.v == o.v
+    Box { v: x }.same(&Box { v: x })
+
+struct Holder[T]:
+    item: T
+
+impl[T] Holder[T]:
+    fn pair[U](&self, u: U) -> U:
+        struct Both:
+            t: T
+            u: U
+        Both { t: self.item, u: u }.u
+
+    fn first(&self) -> T:
+        enum Slot:
+            Full(T)
+            Empty
+        match Slot.Full(self.item):
+            Slot.Full(v) => v
+            Slot.Empty => self.item
+
+fn twice[T](x: T) -> List[T]:
+    type Many = List[T]
+    let xs: Many = [x, x]
+    xs
+
+fn sized[T](x: T) -> i32:
+    trait Size:
+        fn size(&self) -> i32
+    struct W:
+        v: T
+    impl Size for W:
+        fn size(&self) -> i32: +1
+    impl Size for i32:
+        fn size(&self) -> i32: +2
+    W { v: x }.size() + (+5).size()
+
+pub fn main() -> void $ Console:
+    println(wrap(+3, +4))
+    println(wrap("a", "b"))
+    println(same(+1))
+    let h = Holder { item: +7 }
+    println(h.pair("u"))
+    println(h.first())
+    println(twice("z").len())
+    println(sized("s"))
