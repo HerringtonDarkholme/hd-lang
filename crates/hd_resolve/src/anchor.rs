@@ -195,11 +195,11 @@ pub(crate) fn collect(
         // holds it, whose text is in the API hash then (`skim`); an item
         // of a `tests:` block counts from the block.
         cx.top = h.local.map(|l| l.top).or(h.test);
+        // `lower::heads` takes every head from a root child: a top-level
+        // declaration, a `tests:` block's item (whose block is the root
+        // child), or a local declaration whose `top` is one of those two.
         let at = cx.top.unwrap_or(h.node);
-        let Some(&decl) = order.get(&at.index().idx()) else {
-            continue;
-        };
-        cx.decl = decl;
+        cx.decl = order.get(&at.index().idx()).copied().unwrap_or_default();
         let n = h.node;
         // This head's own rows start here.
         let start = cx.out.len();
