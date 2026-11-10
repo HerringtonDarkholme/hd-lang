@@ -1,0 +1,5 @@
+# test: a const generic parameter takes no variance marker
+# Spec 02 Const Generic Parameter Syntax: grammar.generic.const.declaration.
+
+struct Grid[+N < const usize]:  # diagnostic: syntax-error
+    cells: i32

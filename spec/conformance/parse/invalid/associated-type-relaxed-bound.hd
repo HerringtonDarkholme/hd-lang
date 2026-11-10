@@ -1,0 +1,5 @@
+# test: an associated type bound writes no relaxed bound
+# Spec 02 Generic Bounds: grammar.generic.bound.relaxed.
+
+trait Source:
+    type Item < ?Copy  # diagnostic: syntax-error

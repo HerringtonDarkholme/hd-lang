@@ -1,0 +1,8 @@
+# test: a ? after a function type with a requirement row needs parentheses
+# Spec 02 Optional Types: grammar.type.optional.function.
+
+trait Log:
+    fn line(self)
+
+struct Holder:
+    call: fn() -> i32 $ Log?  # diagnostic: syntax-error

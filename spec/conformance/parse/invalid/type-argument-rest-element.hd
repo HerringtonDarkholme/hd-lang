@@ -1,0 +1,5 @@
+# test: a rest element in a type argument list is a syntax error
+# Spec 02 Rest Elements: grammar.type.rest.elsewhere.
+
+struct Holder:
+    values: List[i32...]  # diagnostic: syntax-error

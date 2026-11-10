@@ -1,0 +1,4 @@
+# test: an unknown escape in a character literal is invalid-escape
+# Spec 01 Escapes: lex.escape.other.
+
+letter := '\q'  # diagnostic: invalid-escape

@@ -1,0 +1,5 @@
+# test: an associated type in a trait declares no value
+# Spec 02 Traits: grammar.trait.associated-type.
+
+trait Source:
+    type Item = i32  # diagnostic: syntax-error

@@ -1,0 +1,4 @@
+# test: a Unicode escape has at least one hexadecimal digit
+# Spec 01 Escapes: lex.escape.unicode.
+
+text := "\u{}"  # diagnostic: invalid-escape

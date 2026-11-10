@@ -1,0 +1,4 @@
+# test: a Unicode escape writes its digits in braces
+# Spec 01 Escapes: lex.escape.unicode.
+
+text := "\u0041"  # diagnostic: invalid-escape

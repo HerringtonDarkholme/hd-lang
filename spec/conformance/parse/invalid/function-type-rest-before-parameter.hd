@@ -1,0 +1,5 @@
+# test: a rest element before another parameter type of a function type is a syntax error
+# Spec 02 Rest Elements: grammar.type.rest.elsewhere.
+
+struct Holder:
+    call: fn(i32..., bool) -> i32  # diagnostic: syntax-error

@@ -1,0 +1,7 @@
+# test: a range pattern bound written with an exponent is no integer literal
+# Spec 02 Patterns: grammar.pattern.range.bound.
+
+fn grade(n: i32) -> i32:
+    match n:
+        1e3..=2000 => 1  # diagnostic: syntax-error
+        _ => 0

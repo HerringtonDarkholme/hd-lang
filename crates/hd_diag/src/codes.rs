@@ -923,7 +923,7 @@ impl Code {
             Self::MutOnPrimitive => Phase::Type,
             Self::MutableFieldModifier => Phase::Parse,
             Self::MutableUpgrade => Phase::Type,
-            Self::NestingTooDeep => Phase::Type,
+            Self::NestingTooDeep => Phase::Parse,
             Self::NewtypeDerivationSelf => Phase::Type,
             Self::NoCommonType => Phase::Type,
             Self::NoLeastCommonType => Phase::Type,

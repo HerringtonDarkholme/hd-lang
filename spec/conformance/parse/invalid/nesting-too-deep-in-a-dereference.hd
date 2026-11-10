@@ -1,0 +1,5 @@
+# test: dereferences nested past the parser limit are nesting-too-deep
+# Spec 02 Limits: grammar.limit.nesting.error.
+
+fn read(value: i32) -> i32:
+    * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * value  # diagnostic: nesting-too-deep

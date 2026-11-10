@@ -1,0 +1,4 @@
+# test: a backtick identifier must be written in Normalization Form C
+# Spec 01 Identifiers: lex.ident.non-nfc.
+
+`café` := 1  # diagnostic: invalid-token

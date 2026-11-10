@@ -1,0 +1,6 @@
+# test: a bare ..= with no end bound is a syntax error
+# Spec 02 Range Syntax: grammar.expr.range.inclusive-needs-end.
+
+fn ends() -> i32:
+    values := ..=  # diagnostic: syntax-error
+    0

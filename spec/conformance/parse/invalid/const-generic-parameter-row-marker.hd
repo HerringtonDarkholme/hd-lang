@@ -1,0 +1,4 @@
+# test: a const generic parameter takes no row marker
+# Spec 02 Const Generic Parameter Syntax: grammar.generic.const.declaration.
+
+fn width[$N < const usize]() -> i32: 1  # diagnostic: syntax-error

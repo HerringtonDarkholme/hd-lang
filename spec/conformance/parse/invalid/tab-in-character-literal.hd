@@ -1,0 +1,4 @@
+# test: a raw tab inside a character literal is tab-whitespace
+# Spec 01 Tabs: lex.tab.content.
+
+letter := '	'  # diagnostic: tab-whitespace

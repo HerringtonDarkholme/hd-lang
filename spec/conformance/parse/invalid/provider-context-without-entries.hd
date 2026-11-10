@@ -1,0 +1,6 @@
+# test: $.context takes its entries in parentheses
+# Spec 11 Context Grammar: req.context.grammar.categories.
+
+fn read() -> i32:
+    value := $.context + 1  # diagnostic: syntax-error
+    0

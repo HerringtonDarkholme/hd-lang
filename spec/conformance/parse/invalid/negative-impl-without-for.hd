@@ -1,0 +1,7 @@
+# test: a negative implementation names a trait and a target with for
+# Spec 02 Implementations: grammar.impl.negative.
+
+struct Token:
+    id: i32
+
+impl !Copy Token  # diagnostic: syntax-error

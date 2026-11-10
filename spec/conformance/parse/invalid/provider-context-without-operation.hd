@@ -1,0 +1,6 @@
+# test: a provider-context expression names its operation after $.
+# Spec 11 Context Grammar: req.context.grammar.categories.
+
+fn read() -> i32:
+    value := $.(1)  # diagnostic: syntax-error
+    0

@@ -1,0 +1,5 @@
+# test: a counted reference after & never directly precedes fn
+# Spec 13 Reference Types: ref.type.counted-no-function.
+
+struct Holder:
+    call: &*fn() -> i32  # diagnostic: syntax-error

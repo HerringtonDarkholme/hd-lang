@@ -1,0 +1,4 @@
+# test: a rest element before another input of an Fn bound is a syntax error
+# Spec 02 Rest Elements: grammar.type.rest.elsewhere.
+
+fn apply[F < Fn(i32..., bool) -> i32](f: F) -> i32: 0  # diagnostic: syntax-error
