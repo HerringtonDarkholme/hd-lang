@@ -2567,8 +2567,9 @@ impl Lower<'_, '_, '_> {
             return Ty::POISON;
         };
         for (a, row) in args.iter().zip(&rows) {
+            // A poisoned argument was reported where it was written.
             let is_row = matches!(pool.get(*a), TyData::Row(_));
-            if is_row != *row {
+            if is_row != *row && *a != Ty::POISON {
                 let name = self.names.display_name(def);
                 let msg = if *row {
                     format!("`{name}` takes a row here: write it after `$`, as in `{name}[$ Key]`")
