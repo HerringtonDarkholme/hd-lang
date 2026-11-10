@@ -6274,6 +6274,7 @@ typing/invalid/boundary-not-safe-provider-context-argument.hd	type	reject:bounda
 typing/invalid/host-trait-inherits-one-trait-at-two-argument-lists.hd	type	reject:boundary-not-safe	lang/10-modules.md#r-module.host.package.one-instance
 typing/invalid/host-trait-declares-an-associated-type.hd	type	reject:boundary-not-safe	lang/10-modules.md#r-module.host.package.no-assoc
 typing/invalid/host-handle-trait-supertrait-declares-an-associated-type.hd	type	reject:boundary-not-safe	lang/10-modules.md#r-module.host.package.no-assoc
+typing/invalid/boundary-not-safe-union-case.hd	type	reject:boundary-not-safe	lang/10-modules.md#r-module.boundary.not-safe.error
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

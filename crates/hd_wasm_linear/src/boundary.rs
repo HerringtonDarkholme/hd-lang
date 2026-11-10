@@ -26,11 +26,11 @@ use hd_tir::ir::{
 use hd_types::{InternPool, Prim, Ty, TyData, TyList};
 use wasm_encoder::BlockType;
 
+use crate::Input;
 use crate::layout::{self, Leaf, Walk};
 use crate::module::{BUF, EMPTY, Func, HEAP, Import, Ins, Module, Sym, Val, mem};
 use crate::rt::{Elem, Helper, LIST_ELEMS, LIST_LEN, own_arg};
 use crate::task::{HostArg, HostRes};
-use crate::{Input, unsupported};
 
 /// A boundary type on this backend: its structure, and what its codecs
 /// need of its linear layout.
@@ -333,7 +333,6 @@ fn of_at(
     at: Option<AtProfile<'_>>,
 ) -> StageResult<LTy> {
     let (pool, env) = (input.pool, input.env);
-    let what = || format!("`{}` at the host boundary", pool.display(t));
     let s = layout::strip(pool, env, t);
     // A data type with a field that is not `pub` crosses a profile's
     // boundary as the string of its std host codec.
@@ -478,18 +477,24 @@ fn of_at(
                 return data_of(input, m, s, def, args, path, at);
             }
         },
+        // A union crosses as the enum of its cases
+        // (`types.union.representation`, `module.boundary.allowed`): its
+        // tag, then that case's payload.
+        TyData::Union(members) => {
+            enum_of(input, m, &layout::union_variants(pool, members), path, at)?
+        }
         // ruled out: `never` crosses only as a host method's whole result,
         // which `result_type` takes first, and module.boundary.not-safe.error
         // (hd_check header::crossing_fault) rejects it anywhere else, a
         // function and a provider context (`module.boundary.rows`); a bare
-        // trait value is no value type
-        // (grammar.type.dyn.reference-values); `signature` and `subst`
-        // leave no parameter, projection or opaque type in a checked host
-        // method's signature (`dyn-member-unavailable` rejects a method
-        // with its own type parameters or an `impl Trait` result, and
-        // module.host.package.no-assoc (hd_check header::boundary) a host
-        // or handle trait with an associated type); a row is no value
-        // type, and checking solves every inference variable.
+        // trait value is no value type (grammar.type.dyn.reference-values);
+        // `signature` and `subst` leave no parameter, projection or opaque
+        // type in a checked host method's signature (`dyn-member-unavailable`
+        // rejects a method with its own type parameters or an `impl Trait`
+        // result, and module.host.package.no-assoc (hd_check
+        // header::boundary) a host or handle trait with an associated
+        // type); a row is no value type, and checking solves every
+        // inference variable.
         TyData::Never
         | TyData::Poison
         | TyData::Fn { .. }
@@ -505,9 +510,6 @@ fn of_at(
             debug_assert!(false, "{} at the host boundary", pool.display(t));
             LTy::Void
         }
-        // gap: #1573 (a union), the one kind left here, waits on its
-        // codec.
-        TyData::Union(_) => return unsupported(what()),
     })
 }
 
@@ -2672,7 +2674,6 @@ fn package_value(
 ) -> StageResult<hd_host_abi::schema::Value> {
     use hd_host_abi::schema::Value;
     let (pool, env) = (input.pool, input.env);
-    let fail = || unsupported(format!("the generated JS codec for `{}`", pool.display(t)));
     let s = layout::strip(pool, env, t);
     if let TyData::Adt { def, .. } = pool.get(s)
         && env.has_private_field(def)
@@ -2766,14 +2767,33 @@ fn package_value(
             Value::Handle(package_module(&identity, true))
         }
 
+        // A union crosses as the enum of its cases, `_0`, `_1`, ..., each
+        // with its one positional payload `0`, as a nominal enum with one
+        // single-payload variant per case would (`types.union.representation`).
+        TyData::Union(members) => Value::Enum(
+            pool.list_items(members)
+                .iter()
+                .enumerate()
+                .map(|(i, &case)| {
+                    Ok(hd_host_abi::schema::Variant {
+                        name: format!("_{i}"),
+                        fields: vec![hd_host_abi::schema::Field {
+                            name: "0".to_owned(),
+                            value: package_value(input, case, path)?,
+                        }],
+                    })
+                })
+                .collect::<StageResult<_>>()?,
+        ),
         // ruled out: `package_method` takes a whole `never` result first,
         // and module.boundary.not-safe.error (hd_check
         // header::crossing_fault) rejects `never` anywhere else, a
         // function and a provider context (`module.boundary.rows`);
         // `signature` and `subst` leave no parameter, projection or opaque
         // type in a checked host method's signature (module.host.package.no-assoc
-        // rejects a host trait's associated type); a row is no value type,
-        // and checking solves every inference variable.
+        // rejects a host trait's associated type); a bare trait value is no
+        // value type; a row is no value type, and checking solves every
+        // inference variable.
         TyData::Never
         | TyData::Poison
         | TyData::Fn { .. }
@@ -2788,8 +2808,6 @@ fn package_value(
             debug_assert!(false, "{} in a package host schema", pool.display(t));
             Value::Void
         }
-        // gap: #1573 (a union).
-        TyData::Union(_) => return fail(),
     })
 }
 

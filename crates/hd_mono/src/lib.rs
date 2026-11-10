@@ -2502,6 +2502,10 @@ impl Cx<'_> {
                     todo.extend(self.pool.list_items(elems).iter().copied());
                     todo.extend(rest);
                 }
+                // A union crosses as the enum of its cases.
+                TyData::Union(members) => {
+                    todo.extend(self.pool.list_items(members).iter().copied());
+                }
                 TyData::TraitValue { .. } => handles.push((ty, package)),
                 _ => {}
             }

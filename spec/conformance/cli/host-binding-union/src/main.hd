@@ -1,0 +1,27 @@
+# Spec Modules, Boundary-Safe Values: module.boundary.allowed; Type
+# System: types.union.representation (#1573). A union crosses a package
+# host both ways as the enum of its cases: its tag, then that case.
+pub struct Point:
+    pub x: i32
+    pub y: i32
+
+@host
+pub trait Surface:
+    fn get(&self, flip: bool) -> i32 | string
+    fn render(&self, value: i64 | Point | List[string]) -> string
+
+fn show(v: i32 | string) -> string:
+    match v:
+        ._0(n) => "int $n"
+        ._1(s) => "text $s"
+
+pub fn main() -> void $ Surface + Console:
+    s := $.use(Surface)
+    println(show(s.get(false)))
+    println(show(s.get(true)))
+    let a: i64 | Point | List[string] = ._0(7i64)
+    let b: i64 | Point | List[string] = ._1(Point { x: 1, y: 2 })
+    let c: i64 | Point | List[string] = ._2(["p", "q"])
+    println(s.render(a))
+    println(s.render(b))
+    println(s.render(c))

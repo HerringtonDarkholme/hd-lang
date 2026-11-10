@@ -1,0 +1,13 @@
+# @dump: wat
+# @build: program
+# @profile: serde-vault
+# @helpers: hd:Vault/keep enc dec
+# expected: a union crosses as the enum of its cases (#1573,
+# types.union.representation): its encoder writes the tag, then the one
+# payload of that case, a string or an i64; its decoder reads the tag and
+# builds that case.
+pub trait Vault:
+    fn keep(self, v: string | i64) -> string | i64
+
+pub fn main() -> void $ Vault:
+    _ := $.use(Vault).keep(._1(7i64))

@@ -2412,7 +2412,10 @@ Registered boundaries initially allow recursively structural values:
 - tuples;
 - `List[T]` and `Map[K, V]` whose contents are boundary-safe;
 - structs and enums whose complete fields and payloads are boundary-safe;
-- `T?` and `Result[T, E]` whose contained types are boundary-safe.
+- `T?` and `Result[T, E]` whose contained types are boundary-safe;
+- unions whose members are boundary-safe. A union crosses as the enum of its
+  cases ([`types.union.representation`](04-type-system.md#r-types.union.representation)):
+  its case's tag, then that case's payload.
 
 1. r[module.boundary.allowed] Registered boundaries initially allow the recursively structural values in the list above.
 2. r[module.boundary.never-result] A host capability method may also declare `never` as its whole result: its call never returns. If the host answers it anyway, the call panics with a message that names the trait and the method, as for a result that fails its check. Panic: `host-contract`. `never` crosses nowhere else, neither as an argument nor inside another type.
@@ -2504,7 +2507,7 @@ pub trait Vault:  # a host capability of the selected runtime profile
 6. r[module.boundary.public] A struct type whose fields are all `pub` crosses in either direction without either trait. An enum's payloads have no visibility, so they need neither trait.
 7. r[module.boundary.direction] A registered function's arguments cross into hd, and its result crosses out. A host capability method's arguments cross out of hd, and its result crosses in.
 8. r[module.boundary.error] A boundary signature whose type, or a type inside it, would cross without the trait its direction needs is an error, reported at that signature. Error: `boundary-private-field`.
-9. r[module.boundary.not-safe.error] A host capability method signature whose type, or a type inside it, is not boundary-safe is an error, reported at that signature. Such types are a function or closure type, a suspension, a provider context `$.Context[$ Row]` (its requirement bindings are no data, by [`module.boundary.rows`](#r-module.boundary.rows)), `never` anywhere but the method's whole result, and a local reference `&T` to anything but a host handle. So is any trait value an argument passes to the host, and a returned trait value of a std trait that is not a host handle trait. Error: `boundary-not-safe`.
+9. r[module.boundary.not-safe.error] A host capability method signature whose type, or a type inside it, is not boundary-safe is an error, reported at that signature. Such types are a function or closure type, a suspension, a provider context `$.Context[$ Row]` (its requirement bindings are no data, by [`module.boundary.rows`](#r-module.boundary.rows)), `never` anywhere but the method's whole result, and a local reference `&T` to anything but a host handle. A union is not boundary-safe when one of its members is not. So is any trait value an argument passes to the host, and a returned trait value of a std trait that is not a host handle trait. Error: `boundary-not-safe`.
 
 > **Why.** A host is one more format. A type's `serialize` decides what
 > leaves hd, and only its `deserialize` can rebuild private state on the

@@ -1,0 +1,6 @@
+run: hd run --engine node
+stdout: int 42
+stdout: text a
+stdout: i64 7
+stdout: point 1,2
+stdout: list p+q

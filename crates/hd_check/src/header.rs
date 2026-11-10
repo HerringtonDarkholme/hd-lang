@@ -1603,8 +1603,8 @@ impl ItemCheck<'_, '_> {
     /// `module.boundary.deserialize.exact`), so its fields do not cross. A
     /// struct whose fields are all `pub` crosses through its fields, an
     /// enum through its payloads (`module.boundary.public`), a newtype
-    /// through its base (`data.struct.contains`), and the other
-    /// types that may cross through their contents
+    /// through its base (`data.struct.contains`), a union through its
+    /// cases, and the other types that may cross through their contents
     /// (`module.boundary.allowed`). The program traits whose values a
     /// result returns as host handles go to `handles`.
     ///
@@ -1663,6 +1663,9 @@ impl ItemCheck<'_, '_> {
                 TyData::Tuple { elems, rest } => {
                     pool.list_items(elems).iter().copied().chain(rest).collect()
                 }
+                // A union crosses as the enum of its cases
+                // (`types.union.representation`), each case its payload.
+                TyData::Union(members) => pool.list_items(members).to_vec(),
                 // `module.boundary.rows`: a context bundles requirement
                 // bindings, which are no data.
                 TyData::Context(_) => {

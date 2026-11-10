@@ -1,0 +1,8 @@
+# test: a union crosses through its cases, so a closure case is not boundary-safe
+# Spec Modules, Boundary-Safe Values: module.boundary.allowed, module.boundary.not-safe.error (#1573).
+# fixture-runtime-profile: serde-vault
+pub trait Vault:
+    fn keep(self) -> i32 | fn() -> i32 # diagnostic: boundary-not-safe
+
+pub fn main() -> void $ Vault:
+    _ := $.use(Vault).keep()

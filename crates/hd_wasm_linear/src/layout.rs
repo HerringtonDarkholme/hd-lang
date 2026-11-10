@@ -299,7 +299,7 @@ pub fn tuple_members(pool: &InternPool, t: Ty) -> Vec<Ty> {
     }
 }
 
-fn union_variants(pool: &InternPool, members: TyList) -> Vec<Vec<Ty>> {
+pub(crate) fn union_variants(pool: &InternPool, members: TyList) -> Vec<Vec<Ty>> {
     pool.list_items(members)
         .iter()
         .map(|member| vec![*member])
