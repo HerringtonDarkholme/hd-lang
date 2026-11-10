@@ -709,10 +709,8 @@ impl Em<'_, '_, '_> {
     pub(super) fn is(&mut self, i: u32, a: u32, b: u32) -> StageResult<()> {
         // Each operand's first word is its identity
         // (`ref.identity.same-place`): a reference's is the address of the
-        // place it refers to, a counted object's its address, a trait
-        // value's its data, whose box a trait value that boxed a value
-        // compares. ruled out: any other operand. Checking types `is` only
-        // on references, counted objects and trait values
+        // place it refers to, a trait value reference's its data word.
+        // Checking validates the identity-bearing operand types
         // (`expr.is.value-operand`, `identity-requires-references`).
         self.comp(a, 0)?;
         self.comp(b, 0)?;
