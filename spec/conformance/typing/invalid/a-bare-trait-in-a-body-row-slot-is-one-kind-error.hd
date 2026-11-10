@@ -1,0 +1,8 @@
+# test: a bare trait in a row slot of a body type is one kind error
+# Spec 11 Row Slots: req.row.slot.bare, for a type written in a body.
+trait Db
+
+type Job[$R] = fn() -> void $ R
+
+fn schedule() -> void:
+    let job: Job[Db] = fn() -> void: pass  # diagnostic: generic-kind-mismatch

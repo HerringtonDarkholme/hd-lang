@@ -2450,6 +2450,7 @@ typing/invalid/row-alias-binding.hd	type	reject:generic-kind-mismatch	lang/11-re
 typing/valid/row-alias-bare-context.hd	type	accept	lang/11-requirements-and-suspension.md#r-req.context.dollar
 typing/invalid/type-alias-as-key.hd	type	reject:unknown-trait	lang/11-requirements-and-suspension.md#r-req.row.alias.type-alias.key
 typing/invalid/row-alias-generic-kind.hd	type	reject:generic-kind-mismatch	lang/11-requirements-and-suspension.md#r-req.row.alias.generic.kind
+typing/invalid/a-const-expression-in-a-row-alias-row-slot.hd	type	reject:generic-kind-mismatch	lang/11-requirements-and-suspension.md#r-req.row.alias.generic.kind
 runtime/valid/row-alias-dollar-forms.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.row.alias.dollar
 runtime/valid/row-alias-expand-before-solving.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.row.alias.expand.first
 typing/valid/row-alias-duplicate-key.hd	type	accept	lang/11-requirements-and-suspension.md#r-req.row.alias.duplicate
@@ -3139,10 +3140,13 @@ runtime/valid/row-parameter-data-owners.hd	runtime	accept	lang/11-requirements-a
 typing/invalid/row-parameter-data-impl-overlap.hd	type	reject:overlapping-impl	lang/09-traits.md#r-trait.overlap.unify
 typing/invalid/row-parameter-data-missing-requirement.hd	type	reject:missing-requirement	lang/11-requirements-and-suspension.md#r-req.row.param.data-substitute
 typing/invalid/row-parameter-data-slot-bare.hd	type	reject:generic-kind-mismatch	lang/11-requirements-and-suspension.md#r-req.row.slot.data
+typing/invalid/a-bare-trait-in-a-struct-row-slot-is-a-kind-error.hd	type	reject:generic-kind-mismatch	lang/11-requirements-and-suspension.md#r-req.row.slot.data
 typing/invalid/row-parameter-data-written-missing.hd	type	reject:partial-generic-arguments	lang/11-requirements-and-suspension.md#r-req.row.param.data-written
 parse/invalid/row-parameter-bound.hd	parse	reject:syntax-error	lang/02-grammar.md#r-grammar.generic.row-marker.no-bound
 typing/valid/row-slots.hd	type	accept	lang/11-requirements-and-suspension.md#r-req.row.slot.dollar
 typing/invalid/row-slot-bare-alias-argument.hd	type	reject:generic-kind-mismatch	lang/11-requirements-and-suspension.md#r-req.row.slot.bare
+typing/invalid/a-bare-trait-in-an-alias-row-slot-is-one-kind-error.hd	type	reject:generic-kind-mismatch	lang/11-requirements-and-suspension.md#r-req.row.slot.bare
+typing/invalid/a-bare-trait-in-a-body-row-slot-is-one-kind-error.hd	type	reject:generic-kind-mismatch	lang/11-requirements-and-suspension.md#r-req.row.slot.bare
 typing/valid/row-slot-positions.hd	type	accept	lang/11-requirements-and-suspension.md#r-req.row.slot
 runtime/valid/row-slot-empty.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.row.slot.empty
 typing/invalid/row-slot-bare-context.hd	type	reject:generic-kind-mismatch	lang/11-requirements-and-suspension.md#r-req.context.dollar

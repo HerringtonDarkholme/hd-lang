@@ -1,0 +1,9 @@
+# test: a bare trait for a struct's row parameter is a kind error, not a type
+# Spec 11 Row Slots: req.row.slot.data and req.row.slot.bare.
+trait Db
+
+struct Task[$R]:
+    run: fn() -> void $ R
+
+fn keep(task: Task[Db]) -> void:  # diagnostic: generic-kind-mismatch
+    pass

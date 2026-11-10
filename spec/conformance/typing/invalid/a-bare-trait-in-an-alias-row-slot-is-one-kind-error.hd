@@ -1,0 +1,9 @@
+# test: a bare trait for an alias's row parameter is one kind error, not a type
+# Spec 11 Row Slots: req.row.slot.bare; the name is not lowered as a type,
+# so no trait-used-as-type follows.
+trait Db
+
+type Job[$R] = fn() -> void $ R
+
+fn schedule(job: Job[Db]) -> void:  # diagnostic: generic-kind-mismatch
+    pass

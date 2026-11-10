@@ -215,6 +215,41 @@ impl Ck<'_, '_> {
             .map_or("type", Generic::kind_name)
     }
 
+    /// Whether the slot of `def` at `position` among its written
+    /// parameters takes a row (`req.row.slot.list`, `req.row.slot.data`).
+    fn row_slot(&self, def: DefId, position: usize) -> bool {
+        self.cx.lookup.item(def).is_some_and(|item| {
+            item.generics
+                .iter()
+                .filter(|g| !g.lifetime && !g.outer)
+                .nth(position)
+                .is_some_and(|g| g.row)
+        })
+    }
+
+    /// `a`, a type written without `$`, fills the row slot of `owner` at
+    /// `position` (`req.row.slot.bare`). A bare name, a key or a row alias,
+    /// gets the fix-it that writes `$` before it.
+    fn bare_in_row_slot(&mut self, a: NodeRef<'_>, owner: &str, position: usize) {
+        let msg = format!(
+            "argument {} of `{owner}` is a row parameter: write its row after `$`",
+            position + 1
+        );
+        self.err(Code::GenericKindMismatch, a, &msg);
+        if a.kind() == SyntaxKind::NamedType {
+            let span = self.cx.src.span(a);
+            let at = Span {
+                hi: span.lo,
+                ..span
+            };
+            self.diags.add_fix(
+                "write the row after `$`",
+                hd_diag::FixSafety::Exact,
+                &[(at, "$ ")],
+            );
+        }
+    }
+
     /// A const argument of declared type `want`: its evaluated value or a
     /// bare const parameter (`types.generic.const.argument`).
     fn const_arg(&mut self, a: NodeRef<'_>, want: Option<Prim>) -> Ty {
@@ -496,6 +531,14 @@ impl Ck<'_, '_> {
                         let name = self.cx.src.text(t).to_owned();
                         bound.push((name, self.ty_node(ty)?));
                     }
+                } else if a.kind().is_type() && ctor.is_some_and(|d| self.row_slot(d, position)) {
+                    // A row slot takes its row after `$` (`req.row.slot.bare`):
+                    // a bare name there is that one kind error, before it
+                    // can be lowered, and misread, as a type.
+                    self.bare_in_row_slot(a, &segs.join("."), position);
+                    args.push(Ty::POISON);
+                    arg_nodes.push(a);
+                    position += 1;
                 } else if a.kind().is_type() {
                     args.push(self.ty_node(a)?);
                     arg_nodes.push(a);

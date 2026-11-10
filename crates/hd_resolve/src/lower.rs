@@ -2161,6 +2161,14 @@ impl Lower<'_, '_, '_> {
                         }
                         position += 1;
                     }
+                    // A row slot takes its row after `$` (`req.row.slot.bare`):
+                    // a bare name there is that one kind error, before it can
+                    // be lowered, and misread, as a type.
+                    k if k.is_type() && self.row_slot(def, position) => {
+                        self.bare_in_row_slot(def, position, a);
+                        args.push(Ty::POISON);
+                        position += 1;
+                    }
                     k if k.is_type() => {
                         if let Slot::Const(want) = self.slot(def, position) {
                             args.push(self.lower_const_argument(a, gn, want));
@@ -2222,21 +2230,59 @@ impl Lower<'_, '_, '_> {
         }
     }
 
+    /// Whether the generic parameter of `def` at `position` among its
+    /// non-lifetime parameters is a row parameter, whose argument is a row
+    /// slot (`req.row.slot.list`, `req.row.slot.data`).
+    fn row_slot(&self, def: DefId, position: usize) -> bool {
+        self.param_is_row(def, position) == Some(true)
+    }
+
+    /// Whether the generic parameter of `def` at `position` among its
+    /// non-lifetime parameters is a row parameter; `None` past the last.
+    fn param_is_row(&self, def: DefId, position: usize) -> Option<bool> {
+        match self.r.row_params.get(&def) {
+            Some(rows) => rows.get(position).copied(),
+            None => self.r.item(def).and_then(|i| {
+                i.generics
+                    .iter()
+                    .filter(|g| !g.lifetime && !g.outer)
+                    .nth(position)
+                    .map(|g| g.row)
+            }),
+        }
+    }
+
+    /// `argument`, a type written without `$`, fills the row slot of `def`
+    /// at `position` (`req.row.slot.bare`). A bare name, a key or a row
+    /// alias, gets the fix-it that writes `$` before it.
+    fn bare_in_row_slot(&mut self, def: DefId, position: usize, argument: NodeRef<'_>) {
+        let span = self.src.span(argument);
+        let msg = format!(
+            "argument {} of `{}` is a row parameter: write its row after `$`",
+            position + 1,
+            self.names.display_name(def)
+        );
+        self.diags.error(Code::GenericKindMismatch, span, &msg);
+        if argument.kind() == SyntaxKind::NamedType {
+            let at = Span {
+                hi: span.lo,
+                ..span
+            };
+            self.diags.add_fix(
+                "write the row after `$`",
+                hd_diag::FixSafety::Exact,
+                &[(at, "$ ")],
+            );
+        }
+    }
+
     /// `argument`, a `found`, fills the slot of `def` at `position`, which
     /// takes another kind (`types.generic.const.argument.kind`).
     fn kind_mismatch(&mut self, def: DefId, position: usize, argument: NodeRef<'_>, found: &str) {
         let name = self.names.display_name(def);
-        let row = || {
-            self.r
-                .row_params
-                .get(&def)
-                .and_then(|slots| slots.get(position))
-                .copied()
-                .unwrap_or(false)
-        };
         let expected = if self.const_slot(def, position) {
             "const"
-        } else if row() {
+        } else if self.row_slot(def, position) {
             "row"
         } else {
             "type"
@@ -2422,28 +2468,7 @@ impl Lower<'_, '_, '_> {
             self.too_many_args(def, max, args.len(), span);
             return None;
         }
-        if let Some((i, row)) = args
-            .iter()
-            .zip(self.generic_rows(def))
-            .enumerate()
-            .find_map(|(i, (a, row))| match self.names.pool.get(*a) {
-                TyData::Poison => None,
-                data => (matches!(data, TyData::Row(_)) != row).then_some((i, row)),
-            })
-        {
-            let name = self.names.display_name(def);
-            let msg = if row {
-                format!(
-                    "argument {} of `{name}` is a row parameter: write it after `$`",
-                    i + 1
-                )
-            } else {
-                format!(
-                    "argument {} of `{name}` is a type parameter, not a row",
-                    i + 1
-                )
-            };
-            self.diags.error(Code::GenericKindMismatch, span, &msg);
+        if self.row_in_type_slot(def, &args, span) {
             return None;
         }
         let args = self
@@ -2624,18 +2649,18 @@ impl Lower<'_, '_, '_> {
             self.gap("an alias used before its declaration in the same folder");
             return Ty::POISON;
         };
-        for (a, row) in args.iter().zip(&rows) {
-            let is_row = matches!(pool.get(*a), TyData::Row(_));
-            if is_row != *row {
-                let name = self.names.display_name(def);
-                let msg = if *row {
-                    format!("`{name}` takes a row here: write it after `$`, as in `{name}[$ Key]`")
-                } else {
-                    format!("`{name}` takes a type here, not a row")
-                };
-                self.diags.error(Code::GenericKindMismatch, span, &msg);
-                return Ty::POISON;
-            }
+        // A row slot's argument is a row or, once reported where it is
+        // written, poison ([`Self::bare_in_row_slot`]); only a row in a
+        // type slot is left to report.
+        if args
+            .iter()
+            .zip(&rows)
+            .any(|(a, row)| !*row && matches!(pool.get(*a), TyData::Row(_)))
+        {
+            let name = self.names.display_name(def);
+            let msg = format!("`{name}` takes a type here, not a row");
+            self.diags.error(Code::GenericKindMismatch, span, &msg);
+            return Ty::POISON;
         }
         pool.subst(body, &|p: ParamRef| {
             (p.owner == def)
@@ -2731,28 +2756,7 @@ impl Lower<'_, '_, '_> {
             HeadKind::Struct | HeadKind::Enum | HeadKind::Newtype => {
                 // Each argument has the kind of its parameter
                 // (`grammar.type.row-argument.kind`).
-                if let Some((i, row)) = args
-                    .iter()
-                    .zip(self.generic_rows(def))
-                    .enumerate()
-                    .find_map(|(i, (a, row))| match pool.get(*a) {
-                        TyData::Poison => None,
-                        data => (matches!(data, TyData::Row(_)) != row).then_some((i, row)),
-                    })
-                {
-                    let name = self.names.display_name(def);
-                    let msg = if row {
-                        format!(
-                            "argument {} of `{name}` is a row parameter: write it after `$`",
-                            i + 1
-                        )
-                    } else {
-                        format!(
-                            "argument {} of `{name}` is a type parameter, not a row",
-                            i + 1
-                        )
-                    };
-                    self.diags.error(Code::GenericKindMismatch, span, &msg);
+                if self.row_in_type_slot(def, args, span) {
                     return Ty::POISON;
                 }
                 pool.intern_ty(&TyData::Adt {
@@ -4485,16 +4489,24 @@ impl Lower<'_, '_, '_> {
         out
     }
 
-    /// Whether each generic parameter of a declaration is a row parameter.
-    fn generic_rows(&self, def: DefId) -> Vec<bool> {
-        match self.r.row_params.get(&def) {
-            Some(rows) => rows.clone(),
-            None => self
-                .r
-                .item(def)
-                .map(|i| i.generics.iter().map(|g| g.row).collect())
-                .unwrap_or_default(),
-        }
+    /// `grammar.type.row-argument.kind`: reports a row among `args` that
+    /// fills a type parameter of `def`. The other way round, a type in a row
+    /// slot, is reported where it is written ([`Self::bare_in_row_slot`]),
+    /// and leaves poison here.
+    fn row_in_type_slot(&mut self, def: DefId, args: &[Ty], span: Span) -> bool {
+        let pool = self.names.pool;
+        let Some(i) = (0..args.len()).find(|&i| {
+            matches!(pool.get(args[i]), TyData::Row(_)) && self.param_is_row(def, i) == Some(false)
+        }) else {
+            return false;
+        };
+        let msg = format!(
+            "argument {} of `{}` is a type parameter, not a row",
+            i + 1,
+            self.names.display_name(def)
+        );
+        self.diags.error(Code::GenericKindMismatch, span, &msg);
+        true
     }
 
     /// The field nodes under `holder`, in the order [`Self::fields`] lowers
