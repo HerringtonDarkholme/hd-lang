@@ -1,8 +1,8 @@
 //! The pass manager (`docs/compiler/tiering.md` §6): pass declarations, pipelines as data,
 //! and the startup validator. Body-unit passes (`crates/hd_opt/DESIGN.md` (optimization pipelines) §2.1) run
 //! per generic body and feed collection through `crate::planner`.
-//! The other named passes are declared; their bodies report not
-//! implemented, except `liveness`, which suspension lowering owns.
+//! Instance-level names are declaration markers; the driver, backend and
+//! suspension lowering own their implementations outside the body planner.
 
 use hd_base::{
     DefId, EngineTarget, Fuel, Hash128, NotImplemented, OptLevel, StableHasher, Stage, StageResult,
@@ -76,11 +76,6 @@ pub struct Knob {
     pub pass: &'static str,
     pub name: &'static str,
     pub value: u32,
-}
-
-/// What a pass sees: one instance.
-pub struct InstanceCx {
-    pub gate: u8,
 }
 
 /// What a body-unit pass sees: one generic body, before and during
@@ -158,8 +153,8 @@ pub enum PassOutcome {
 pub enum Run {
     /// Per generic body, before and during collection.
     Body(fn(&BodyCx<'_>, &mut BodyFacts, &mut Fuel) -> StageResult<PassOutcome>),
-    /// Per instance, at emission.
-    Instance(fn(&mut InstanceCx, &mut Fuel) -> StageResult<PassOutcome>),
+    /// Per instance, outside the body-unit planner.
+    Instance,
 }
 
 pub struct PassSpec {
@@ -173,16 +168,6 @@ pub struct PassSpec {
     pub run: Run,
     /// The knobs the pass reads; a pipeline holding it gives each a value.
     pub params: &'static [Param],
-}
-
-/// A declared pass with no body yet changes nothing (`docs/compiler/tiering.md` §6): it
-/// reports `Skipped`, after the one fuel step every pass pays to run.
-fn not_yet(_: &mut InstanceCx, fuel: &mut Fuel) -> StageResult<PassOutcome> {
-    if fuel.charge(1) {
-        Ok(PassOutcome::Skipped)
-    } else {
-        Err(NotImplemented::new(Stage::Emit, "pass budget"))
-    }
 }
 
 /// One fuel step per instruction a body-unit pass walks.
@@ -306,19 +291,11 @@ fn closure_spec(
     Ok(PassOutcome::Done)
 }
 
-fn liveness(cx: &mut InstanceCx, _: &mut Fuel) -> StageResult<PassOutcome> {
-    if cx.gate & gate::HAS_SUSPEND == 0 {
-        Ok(PassOutcome::Skipped)
-    } else {
-        Err(NotImplemented::new(Stage::Emit, "suspension liveness"))
-    }
-}
-
 macro_rules! pass {
-    ($name:literal, $level:ident, [$($r:ident),*], [$($w:ident),*], $gate:expr, $req:ident, $unit:ident($run:expr)) => {
-        pass!($name, $level, [$($r),*], [$($w),*], $gate, $req, $unit($run), [])
+    ($name:literal, $level:ident, [$($r:ident),*], [$($w:ident),*], $gate:expr, $req:ident, $unit:ident $(($run:expr))?) => {
+        pass!($name, $level, [$($r),*], [$($w),*], $gate, $req, $unit $(($run))?, [])
     };
-    ($name:literal, $level:ident, [$($r:ident),*], [$($w:ident),*], $gate:expr, $req:ident, $unit:ident($run:expr), [$($p:ident: $min:literal..=$max:literal),*]) => {
+    ($name:literal, $level:ident, [$($r:ident),*], [$($w:ident),*], $gate:expr, $req:ident, $unit:ident $(($run:expr))?, [$($p:ident: $min:literal..=$max:literal),*]) => {
         PassSpec {
             name: $name,
             version: 1,
@@ -327,7 +304,7 @@ macro_rules! pass {
             writes: &[$(FactId::$w),*],
             gate: $gate,
             required_by: Requirement::$req,
-            run: Run::$unit($run),
+            run: Run::$unit $(($run))?,
             params: &[$(Param { name: stringify!($p), min: $min, max: $max }),*],
         }
     };
@@ -341,7 +318,7 @@ pub static PASSES: &[PassSpec] = &[
         [UseCounts],
         0,
         Optional,
-        Instance(not_yet)
+        Instance
     ),
     pass!(
         "inline_plan",
@@ -350,7 +327,7 @@ pub static PASSES: &[PassSpec] = &[
         [InlinePlan],
         gate::HAS_CALL,
         Optional,
-        Instance(not_yet)
+        Instance
     ),
     pass!(
         "value_flow",
@@ -373,7 +350,7 @@ pub static PASSES: &[PassSpec] = &[
         [],
         gate::HAS_CALL,
         Optional,
-        Instance(not_yet)
+        Instance
     ),
     pass!(
         "devirt_known",
@@ -397,15 +374,7 @@ pub static PASSES: &[PassSpec] = &[
     // The release summaries (`docs/future-work/RELEASE_INTERPROC.md`):
     // the driver owns bodies callees first and records what each body's
     // code says of its parameters when its pipeline holds this pass.
-    pass!(
-        "summaries",
-        TirAnalysis,
-        [],
-        [],
-        0,
-        Optional,
-        Instance(not_yet)
-    ),
+    pass!("summaries", TirAnalysis, [], [], 0, Optional, Instance),
     // Argument promotion (#1151, `hd_tir::own::promote`): collection
     // gives a direct call a copy of its callee that takes a small
     // read-only `&T` parameter by value, and emission passes the value.
@@ -416,7 +385,7 @@ pub static PASSES: &[PassSpec] = &[
         [],
         gate::HAS_CALL,
         Optional,
-        Instance(not_yet)
+        Instance
     ),
     pass!(
         "escape",
@@ -425,7 +394,7 @@ pub static PASSES: &[PassSpec] = &[
         [Escape],
         gate::HAS_ALLOC,
         Optional,
-        Instance(not_yet)
+        Instance
     ),
     pass!(
         "scalar_replace",
@@ -434,7 +403,7 @@ pub static PASSES: &[PassSpec] = &[
         [],
         gate::HAS_ALLOC,
         Optional,
-        Instance(not_yet)
+        Instance
     ),
     pass!(
         "liveness",
@@ -443,7 +412,7 @@ pub static PASSES: &[PassSpec] = &[
         [Liveness],
         gate::HAS_SUSPEND,
         WhenGate,
-        Instance(liveness)
+        Instance
     ),
 ];
 
@@ -658,10 +627,8 @@ pub fn validate(p: &Pipeline) -> Result<Hash128, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        DEV, InstanceCx, Knob, OPTIMIZED, PASSES, PassOutcome, Pipeline, Run, pipeline, validate,
-    };
-    use hd_base::{EngineTarget, Fuel, OptLevel};
+    use super::{DEV, Knob, OPTIMIZED, PASSES, Pipeline, Run, pipeline, validate};
+    use hd_base::{EngineTarget, OptLevel};
 
     /// `OPTIMIZED` with other knob values.
     fn optimized_with(knobs: &'static [Knob]) -> Pipeline {
@@ -670,18 +637,6 @@ mod tests {
             tir: OPTIMIZED.tir,
             link: OPTIMIZED.link,
             knobs,
-        }
-    }
-
-    #[test]
-    fn declared_passes_without_a_body_are_skipped_not_errors() {
-        for p in PASSES.iter().filter(|p| p.name != "liveness") {
-            let Run::Instance(run) = p.run else {
-                continue;
-            };
-            let mut cx = InstanceCx { gate: u8::MAX };
-            let out = run(&mut cx, &mut Fuel::new(8));
-            assert!(matches!(out, Ok(PassOutcome::Skipped)), "{}", p.name);
         }
     }
 
@@ -712,7 +667,7 @@ mod tests {
         for p in PASSES.iter().filter(|p| matches!(p.run, Run::Body(_))) {
             assert!(p.reads.iter().all(|f| f.is_body()), "{}", p.name);
         }
-        for p in PASSES.iter().filter(|p| matches!(p.run, Run::Instance(_))) {
+        for p in PASSES.iter().filter(|p| matches!(p.run, Run::Instance)) {
             assert!(p.writes.iter().all(|f| !f.is_body()), "{}", p.name);
         }
     }
