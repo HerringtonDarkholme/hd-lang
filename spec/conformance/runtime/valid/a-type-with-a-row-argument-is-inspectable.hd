@@ -1,0 +1,26 @@
+# test: a declared type applied to a row argument is inspectable, so it can derive an error
+# Spec 09 Inspectable: trait.inspectable.declared; a row argument is a
+# requirement row, not a type argument, and identity is the declaration
+# (trait.inspectable.fields). `@error` needs `Inspectable` of its type.
+# expect-stdout: job 7 failed
+# expect-stdout: 1 1
+use std.inspect.Inspectable
+
+@error("job $id failed")
+struct JobError[$ R]:
+    id: i64
+
+struct Tag[$ R]:
+    id: i64
+
+fn needs[T < Inspectable](t: T) -> i32:
+    1
+
+fn through[$ R](t: Tag[$ R]) -> i32:
+    needs(t)
+
+pub fn main() -> void $ Console:
+    let e: JobError[$ Console] = JobError { id: 7 }
+    println("${e}")
+    let t: Tag[$ Console] = Tag { id: 2 }
+    println("${needs(t)} ${through(t)}")

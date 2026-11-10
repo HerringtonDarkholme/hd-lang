@@ -313,11 +313,12 @@ pub(crate) fn row(
             // included (`trait.inspectable.declared`, `.option`), unless it
             // is local to a block suite (`trait.inspectable.not.local`).
             TyData::Adt { def, .. } if decls.is_local(def) => false,
-            // A const argument is part of the type's identity, not a type
-            // with a row of its own.
+            // Only type arguments count: a const argument is part of the
+            // type's identity, and a row argument (`req.row.param.data-owner`)
+            // is a requirement row, not a value type.
             TyData::Adt { def, args } => {
                 for (i, a) in pool.list_items(args).iter().enumerate() {
-                    if !decls.is_const_slot(def, i) {
+                    if !decls.is_const_slot(def, i) && !matches!(pool.get(*a), TyData::Row(_)) {
                         argument(pool, *a, &mut subs);
                     }
                 }
