@@ -25,7 +25,7 @@ fn program(n: usize) -> String {
 }
 
 /// The impl head pairs the coherence check unified for `program(n)`.
-fn pairs(n: usize) -> usize {
+pub(super) fn pairs(n: usize) -> usize {
     let mut src = MemorySources::default();
     let main = program(n);
     src.insert("main.hd", &main);
