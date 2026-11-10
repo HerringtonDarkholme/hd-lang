@@ -1,0 +1,32 @@
+# test: pure boolean identities and scalar default matches retain their values
+# Rules: fn.default.eval, expr.order.conditional, expr.order.reorder.
+# expect-stdout: false true 20 20
+fn and_false(value: bool) -> bool:
+    value && false
+
+fn or_true(value: bool) -> bool:
+    value || true
+
+fn choose_int(value: i32 = +2) -> usize:
+    match value:
+        1 => 10
+        2 => 20
+        _ => 30
+
+fn choose_char(value: char = 'β') -> usize:
+    match value:
+        'a' => 10
+        'β' => 20
+        _ => 30
+
+pub fn probe(value: bool) -> (bool, bool, usize, usize):
+    (and_false(value), or_true(value), choose_int(), choose_char())
+
+pub fn main() -> void $ Console:
+    yes := probe(true)
+    no := probe(false)
+    if yes._0 != false || yes._1 != true || yes._2 != 20 || yes._3 != 20:
+        panic("true input changed a pure decision")
+    if no._0 != false || no._1 != true || no._2 != 20 || no._3 != 20:
+        panic("false input changed a pure decision")
+    println("${yes._0} ${no._1} ${yes._2} ${no._3}")

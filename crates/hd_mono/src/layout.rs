@@ -99,15 +99,11 @@ pub trait LayoutEnv {
     /// address and a capacity, whose room holds values of its type
     /// argument (`module.rt.buffer.type`), so a type that holds one holds
     /// those values too.
-    fn raw_buffer(&self, _def: DefId) -> bool {
-        false
-    }
+    fn raw_buffer(&self, def: DefId) -> bool;
     /// Whether `def` implements `std.rt.Drop`, so that releasing one of
     /// its values has work even when it holds no counted reference
     /// (`module.rt.drop.glue`).
-    fn has_drop(&self, _def: DefId) -> bool {
-        false
-    }
+    fn has_drop(&self, def: DefId) -> bool;
     /// The base type a nominal newtype erases to at run time, over its
     /// own parameters (`types.newtype.construct-ref`,
     /// `types.newtype.construct-value`); `None` for any other item.
@@ -863,6 +859,12 @@ mod tests {
 
     struct Env;
     impl LayoutEnv for Env {
+        fn raw_buffer(&self, _def: DefId) -> bool {
+            false
+        }
+        fn has_drop(&self, _def: DefId) -> bool {
+            false
+        }
         fn enum_variants(&self, def: DefId, _: TyList) -> Option<Vec<Vec<Ty>>> {
             match def.raw() {
                 1 => Some(vec![vec![], vec![]]),
@@ -892,6 +894,12 @@ mod tests {
 
     struct Newtypes(Vec<(DefId, Ty)>);
     impl LayoutEnv for Newtypes {
+        fn raw_buffer(&self, _def: DefId) -> bool {
+            false
+        }
+        fn has_drop(&self, _def: DefId) -> bool {
+            false
+        }
         fn enum_variants(&self, _: DefId, _: TyList) -> Option<Vec<Vec<Ty>>> {
             None
         }
@@ -968,6 +976,12 @@ mod tests {
     /// Declared enums for `recursive_enums`, by raw id.
     struct Decls(Vec<(u32, Vec<Vec<Ty>>)>);
     impl LayoutEnv for Decls {
+        fn raw_buffer(&self, _def: DefId) -> bool {
+            false
+        }
+        fn has_drop(&self, _def: DefId) -> bool {
+            false
+        }
         fn enum_variants(&self, def: DefId, _: TyList) -> Option<Vec<Vec<Ty>>> {
             self.enum_declared(def)
         }
@@ -1047,6 +1061,12 @@ mod tests {
         expanded: std::cell::Cell<usize>,
     }
     impl LayoutEnv for Instances {
+        fn raw_buffer(&self, _def: DefId) -> bool {
+            false
+        }
+        fn has_drop(&self, _def: DefId) -> bool {
+            false
+        }
         fn enum_variants(&self, def: DefId, args: TyList) -> Option<Vec<Vec<Ty>>> {
             self.expanded.set(self.expanded.get() + 1);
             let found = self.payloads.iter().find(|(k, _)| *k == (def.raw(), args));

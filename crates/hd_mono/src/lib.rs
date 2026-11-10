@@ -362,14 +362,6 @@ pub struct VTable {
     pub parents: Vec<VTable>,
 }
 
-impl VTable {
-    /// Whether some slot of the tree reads through a reference payload.
-    #[must_use]
-    pub fn has_read(&self) -> bool {
-        self.recv.contains(&SlotRecv::ReadThrough) || self.parents.iter().any(VTable::has_read)
-    }
-}
-
 /// How a vtable slot's adapter passes the trait value's payload to the
 /// slot's target (`crates/hd_wasm/DESIGN.md` §15.2, "Trait value
 /// references").
@@ -519,13 +511,6 @@ pub use rows::{
 /// A `DefId` ordered by its stable path hash, never by run ID.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct DefIdOrd(pub Hash128, pub u32);
-
-impl DefIdOrd {
-    #[must_use]
-    pub fn def(self) -> DefId {
-        DefId::from_raw(self.1)
-    }
-}
 
 /// Substitutes an instance's arguments for its item's parameters: the
 /// owner's (impl or trait) first, then the item's own. A projection whose
