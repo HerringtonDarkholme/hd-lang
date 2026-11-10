@@ -416,7 +416,8 @@ impl Parser<'_> {
             // operand: a scalar starter is an expression, while `&` and `*`
             // start a reference or pointer member (`T | &U`).
             let before = std::mem::replace(&mut prev, kind);
-            let operand = before == TokenKind::Pipe && bracket_depth == 0;
+            let operand =
+                matches!(before, TokenKind::Pipe | TokenKind::LParen) && bracket_depth == 0;
             if operand && expression_starter(Some(kind)) {
                 return true;
             }
@@ -426,6 +427,7 @@ impl Parser<'_> {
                 // scalar const expressions have no tuple form.
                 TokenKind::Comma if bracket_depth == 0 => return false,
                 TokenKind::Amp | TokenKind::Star if operand => {}
+                TokenKind::KwFn | TokenKind::KwDyn if operand => return false,
                 // A `(` after a name is a call; any other opens a group,
                 // such as a tuple member or `fn (...)` type.
                 TokenKind::LParen
