@@ -4490,6 +4490,8 @@ parse/invalid/same-line-if-inside-same-line-if.hd	parse	reject:syntax-error	lang
 parse/invalid/same-line-if-as-function-body.hd	parse	reject:syntax-error	lang/06-control-flow.md#r-flow.if.same-line.error
 runtime/valid/for-string-explicit-views.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.string-explicit
 typing/invalid/for-over-integer.hd	type	reject:unsatisfied-trait-bound	lang/06-control-flow.md#r-flow.for.protocol-required
+typing/invalid/for-over-a-negative-integer-literal.hd	type	reject:unsatisfied-trait-bound	lang/06-control-flow.md#r-flow.for.protocol-required
+typing/invalid/for-over-a-float-literal.hd	type	reject:unsatisfied-trait-bound	lang/06-control-flow.md#r-flow.for.protocol-required
 typing/invalid/for-mut-root-readonly-element.hd	type	reject:not-writable	lang/06-control-flow.md#r-flow.for.list.no-root-grant
 runtime/valid/for-map-snapshot-grow.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.snapshot.change
 runtime/valid/map-value-replace-during-iteration.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.snapshot.change
@@ -5764,6 +5766,7 @@ typing/valid/union-construction-and-match.hd	type	accept	lang/04-type-system.md#
 typing/valid/union-map-err-constructor.hd	type	accept	std/result.md#r-std-result.map-err
 typing/invalid/union-constructor-without-result-context.hd	type	reject:cannot-infer-type	lang/04-type-system.md#r-types.union.constructor-context
 typing/invalid/union-constructor-unknown-case.hd	type	reject:unknown-variant	lang/04-type-system.md#r-types.union.case
+typing/invalid/a-union-case-past-its-arity-in-a-value-path.hd	type	reject:unknown-variant	lang/04-type-system.md#r-types.union.case
 typing/invalid/union-constructor-payload-mismatch.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.union.construct
 typing/invalid/union-match-nonexhaustive.hd	type	reject:nonexhaustive-match	lang/04-type-system.md#r-types.union.match
 runtime/panic/alias-write-under-call-result-loan-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.loan
@@ -6062,6 +6065,7 @@ runtime/panic/string-slice-at-continuation-byte.hd	runtime	panic:index-out-of-bo
 parse/valid/deref-assignment-target.hd	parse	accept	lang/13-values-and-references.md#r-ref.expr.deref.target
 parse/valid/fn-bound-sugar-forms.hd	parse	accept	lang/07-functions.md#r-fn.trait.bound-sugar
 typing/invalid/a-cast-with-two-arguments-is-an-argument-count-error.hd	type	reject:argument-count	lang/04-type-system.md#r-types.cast.syntax
+runtime/valid/a-numeric-alias-converts-as-its-type.hd	runtime	accept	lang/04-type-system.md#r-types.cast.syntax
 typing/invalid/a-cast-with-no-argument-is-an-argument-count-error.hd	type	reject:argument-count	lang/04-type-system.md#r-types.cast.syntax
 typing/invalid/a-trailing-block-for-a-cast-is-ineligible.hd	type	reject:trailing-block-ineligible	lang/02-grammar.md#r-grammar.call.trailing-block.eligible
 typing/invalid/a-newtype-constructor-with-two-arguments-is-an-argument-count-error.hd	type	reject:argument-count	lang/04-type-system.md#r-types.newtype.construct

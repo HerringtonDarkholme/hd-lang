@@ -1,0 +1,12 @@
+# test: an alias of a numeric type converts as that type does
+# Spec 04 Numeric Conversions: types.cast.syntax, through a transparent
+# alias (types.alias.same).
+# expect-stdout: 2
+# expect-stdout: 44
+type Whole = i32
+type Byte = u8
+
+pub fn main() -> void $ Console:
+    println("${Whole(2.5)}")
+    n := 300
+    println("${Byte(n)}")

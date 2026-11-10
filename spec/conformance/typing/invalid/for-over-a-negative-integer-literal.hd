@@ -1,0 +1,6 @@
+# test: a for over a negative integer literal is an error, at the literal's default type
+# Spec 06 Iteration Protocols: flow.for.protocol-required; the literal
+# takes its default type `i32`, which is not iterable.
+fn count() -> void:
+    for item in -3: # diagnostic: unsatisfied-trait-bound
+        pass

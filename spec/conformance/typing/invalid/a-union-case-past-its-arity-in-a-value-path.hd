@@ -1,0 +1,4 @@
+# test: a Union case past the expected union's arity, written without a call, is unknown-variant
+# Spec 04 Union Construction And Matching: types.union.case.
+fn f() -> void:
+    let x: i32 | string = Union._2 # diagnostic: unknown-variant
