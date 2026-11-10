@@ -1,13 +1,13 @@
 {
-  "commit": "e830515fadbb5f415789766b2ffa5b4c2268a8e6",
+  "commit": "c19d97f74a52a5686886492eedb6ff56a451c3de",
   "crates": {
-    "hd_syntax": 94.12,
-    "hd_resolve": 93.57,
-    "hd_types": 93.64,
-    "hd_check": 91.51,
-    "hd_tir": 96.95,
-    "hd_mono": 92.89,
-    "hd_opt": 94.3,
-    "hd_wasm_linear": 96.43
+    "hd_syntax": 98.73,
+    "hd_resolve": 96.09,
+    "hd_types": 95.34,
+    "hd_check": 94.7,
+    "hd_tir": 96.96,
+    "hd_mono": 94.2,
+    "hd_opt": 95.92,
+    "hd_wasm_linear": 97.35
   }
 }
