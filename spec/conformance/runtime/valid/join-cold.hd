@@ -1,0 +1,60 @@
+# test: plain tuple and list joins capture now and run their children when driven
+# Spec 11 Standard Combinators: req.combinator.join-cold-tuple,
+# req.combinator.join-cold-list, req.combinator.join-cold-arguments.
+use std.task.join
+use std.testing.assert_equal
+
+fn child!(log: *mut List[usize], value: usize) -> usize:
+    _ := log.push(value)
+    value
+
+fn captured(log: *mut List[usize], value: usize) -> Suspend[usize]:
+    _ := log.push(value + 10)
+    child(log, value)
+
+fn word!() -> string:
+    "word"
+
+fn borrowed!(value: &string) -> &string:
+    value
+
+fn generic_join[T](task: Suspend[T]) -> Suspend[(T,)]:
+    join(task)
+
+fn run!() -> void:
+    let log: *mut List[usize] = box([])
+    let tuple: Suspend[(usize, usize)] = join(captured(log, 1), captured(log, 2))
+    assert_equal(log.len(), 2)
+    assert_equal(log[0], 11)
+    assert_equal(log[1], 12)
+    tuple_result := tuple!()
+    assert_equal(tuple_result, (1, 2))
+    assert_equal(log.len(), 4)
+    let mut tasks: List[Suspend[usize]] = [captured(log, 3), captured(log, 4)]
+    let list: Suspend[List[usize]] = join(tasks...)
+    _ := tasks.push(child(log, 99))
+    assert_equal(log.len(), 6)
+    list_result := list!()
+    assert_equal(list_result, [3, 4])
+    assert_equal(log.len(), 8)
+    let mixed: Suspend[(usize, string)] = join(child(log, 5), word())
+    mixed_result := mixed!()
+    assert_equal(mixed_result, (5, "word"))
+    text := "borrowed"
+    let reference: Suspend[(&string,)] = join(borrowed(&text))
+    reference_result := reference!()
+    assert_equal(*reference_result._0, "borrowed")
+    generic_reference := generic_join(borrowed(&text))
+    generic_result := generic_reference!()
+    assert_equal(*generic_result._0, "borrowed")
+    let empty_tuple: Suspend[()] = join()
+    empty_tuple_result := empty_tuple!()
+    assert_equal(empty_tuple_result, ())
+    let empty_tasks: List[Suspend[usize]] = []
+    let empty_list: Suspend[List[usize]] = join(empty_tasks...)
+    empty_list_result := empty_list!()
+    assert_equal(empty_list_result.len(), 0)
+
+tests:
+    it("plain joins are stored cold suspensions"):
+        run!()

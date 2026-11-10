@@ -209,9 +209,12 @@ line, and no blank line may separate it from its declaration.
 
 ## Concurrent Work With A Timeout
 
-A dashboard needs three lookups, and a user will not wait forever. `all!`
+A dashboard needs three lookups, and a user will not wait forever. `join!`
 runs several suspending lookups together and returns their results in
-order; `race!` returns the first to finish and cancels the rest. Both take
+order; `race!` returns the first to finish and cancels the rest. A plain
+`join(...)` captures its children in a cold suspension that can be stored
+and driven later with `!()`. The tuple form returns `Suspend[(A, B, ...)]`;
+`join(tasks...)` returns `Suspend[List[T]]`. Both take
 cold suspensions — plain calls, not bang calls — so `race!(fetch_user(),
 slow())` starts two candidates and keeps one. A test binds a fake store
 and a manual clock, so the timeout never actually fires. The exact rules

@@ -1,0 +1,16 @@
+# test: copied cold joins share their one-shot state
+# Spec 11: req.combinator.join-cold-tuple, req.value.single, req.check.code.after-end.
+use std.task.join
+
+fn ready!() -> usize:
+    42
+
+fn run!() -> void:
+    pending := join(ready())
+    copy := pending
+    _ := pending!()
+    _ := copy!() # panic: suspension-invalid-state
+
+tests:
+    it("a copy cannot restart a completed join"):
+        run!()

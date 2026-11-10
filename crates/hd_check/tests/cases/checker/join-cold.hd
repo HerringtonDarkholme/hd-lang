@@ -1,0 +1,9 @@
+# @dump: tir wat
+use std.task.join
+
+fn ready!() -> usize:
+    42
+
+fn later() -> Suspend[(usize,)]:
+    # subject
+    join(ready())

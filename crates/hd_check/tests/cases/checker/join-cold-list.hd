@@ -1,0 +1,6 @@
+# @dump: tir wat
+use std.task.join
+
+fn later_list(tasks: List[Suspend[usize]]) -> Suspend[List[usize]]:
+    # subject
+    join(tasks...)

@@ -1,0 +1,11 @@
+# test: a cold join retains the local arguments held by its children
+# Spec 13 Dependent Results: ref.dep.suspension.local.
+use std.task.join
+
+fn hold!(value: &string) -> usize:
+    value.len()
+
+fn bad_list() -> Suspend[List[usize]]:
+    local := "list"
+    let tasks: List[Suspend[usize]] = [hold(&local)]
+    join(tasks...) # diagnostic: local-reference-escapes

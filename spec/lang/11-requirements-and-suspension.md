@@ -1864,10 +1864,13 @@ fn page!(id: i64) -> string:
 2. r[req.combinator.join-arity] A tuple-form `join!` call with more than 31 children is an error, reported on its 32nd child. Error: `argument-count`.
 3. r[req.combinator.all-argument] An argument of any other type is an error. Error: `type-mismatch`.
 4. r[req.combinator.all-direct] `join` must be the callee of a direct call. A named argument, an explicit type argument list such as `join!::[i32, string]`, or a use as a function value is an error. Error: `type-mismatch`.
-5. r[req.combinator.all-bang-child] A child written as a bang call, as in `join!(load_user!(id))`, is an ordinary bang call. The caller awaits it before `join!` starts, so its value is not a `Suspend`.
-6. r[req.combinator.join-list] `join!(tasks...)`, with one spread of a `List[Suspend[T]]` as its only argument, has type `List[T]`. The result holds each task's value at the task's index in `tasks`, whatever order they complete in.
-7. r[req.combinator.join-list.rules] The list form polls, completes, cancels, abandons, and disposes its children as the tuple form does, by the rules above and [`req.combinator.all-cancelled`](#r-req.combinator.all-cancelled).
-8. r[req.combinator.join-list.only] A spread with any other argument, positional or named, is an error. Error: `type-mismatch`.
+5. r[req.combinator.join-cold-tuple] A plain call `join(e_1, ..., e_n)`, with each `e_i: Suspend[X_i]`, has type `Suspend[(X_1, ..., X_n)]`.
+6. r[req.combinator.join-cold-list] A plain call `join(tasks...)`, with `tasks: List[Suspend[T]]`, has type `Suspend[List[T]]`.
+7. r[req.combinator.join-cold-arguments] Both plain forms follow the corresponding bang form's argument rules and capture their arguments without polling their children.
+8. r[req.combinator.all-bang-child] A child written as a bang call, as in `join!(load_user!(id))`, is an ordinary bang call. The caller awaits it before `join!` starts, so its value is not a `Suspend`.
+9. r[req.combinator.join-list] `join!(tasks...)`, with one spread of a `List[Suspend[T]]` as its only argument, has type `List[T]`. The result holds each task's value at the task's index in `tasks`, whatever order they complete in.
+10. r[req.combinator.join-list.rules] The list form polls, completes, cancels, abandons, and disposes its children as the tuple form does, by the rules above and [`req.combinator.all-cancelled`](#r-req.combinator.all-cancelled).
+11. r[req.combinator.join-list.only] A spread with any other argument, positional or named, is an error. Error: `type-mismatch`.
 
 ```text
 use std.task.join
