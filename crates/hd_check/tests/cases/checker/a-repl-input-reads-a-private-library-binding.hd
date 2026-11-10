@@ -1,0 +1,13 @@
+# @dump: tir
+# @repl: 2
+# A REPL input acts as code inside the package's src/lib.hd, so it reads
+# the library's private top-level bindings (cli.repl.package.lib).
+fn total() -> i32:
+    rate + helper()
+# @input: 1
+1 + 2
+# @file: src/lib.hd
+let rate: i32 = 3
+
+fn helper() -> i32:
+    2

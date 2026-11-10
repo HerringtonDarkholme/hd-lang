@@ -1,0 +1,11 @@
+hd> 1 + 2
+3 : usize
+hd> rate
+3 : i32
+hd> count = count + 5
+hd> bonus()
+8 : i32
+hd> limit
+10 : usize
+hd> rate := +4
+hd> fn limit() -> i32: +1

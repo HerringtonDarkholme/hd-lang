@@ -1,0 +1,7 @@
+1 + 2
+rate
+count = count + 5
+bonus()
+limit
+rate := +4
+fn limit() -> i32: +1

@@ -1,0 +1,3 @@
+# The session reads and assigns the private top-level bindings of src/lib.hd, and an input may not declare their names again. Standard output is the transcript.
+run: hd --repl session.in
+transcript: transcript.txt

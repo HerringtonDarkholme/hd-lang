@@ -3875,6 +3875,15 @@ impl Run<'_> {
         for pair in preps.windows(2) {
             sp.edge(pair[0], pair[1]);
         }
+        // Each input whose session holds `src/lib.hd` reads its bindings
+        // the same way (`cli.repl.package.lib`).
+        if let Some(lib) = self.lib_module().and_then(|l| prep_task[l]) {
+            for &(_, m) in &self.repl_inputs().sorted {
+                if let Some(prep) = prep_task[m].filter(|_| self.with_lib(m)) {
+                    sp.edge(lib, prep);
+                }
+            }
+        }
         for &(_, m) in &self.repl_inputs().sorted {
             if let Some(prep) = prep_task[m] {
                 sp.release(prep);
@@ -5985,12 +5994,14 @@ impl Run<'_> {
             blocks,
         }));
         let pr = self.graph.get().map(|g| g.package_result)?;
-        // A REPL input's bodies read the earlier inputs' bindings.
+        // A REPL input's bodies read the bindings of `src/lib.hd`, when its
+        // session holds it, and of the earlier inputs.
         let deps: Vec<TaskId> = std::iter::once(id)
             .chain(
-                self.earlier_inputs(mi)
-                    .iter()
-                    .filter_map(|&(_, k)| self.check_task[k].get().copied()),
+                self.session_lib(mi)
+                    .into_iter()
+                    .chain(self.earlier_inputs(mi).iter().map(|&(_, k)| k))
+                    .filter_map(|k| self.check_task[k].get().copied()),
             )
             .collect();
         let body = sp.add(TaskKind::Body(m), &deps);
@@ -6830,8 +6841,10 @@ impl Run<'_> {
         let same_folder = |d: DefId| self.item_folder(d) == Some(folder);
         let summary = hd_check::init::summary(&cx, init_facts, &same_folder);
         let dbg = cx.dbg_refs.take();
-        // A REPL input's interface carries its bindings for later inputs.
-        let bindings = if input {
+        // A REPL input's interface carries its bindings for later inputs,
+        // and `src/lib.hd`'s its private ones for the inputs whose session
+        // holds it (`cli.repl.package.lib`).
+        let bindings = if input || self.lib_module() == Some(m) {
             hd_check::init::input_bindings(&cx)
         } else {
             Vec::new()
@@ -6933,6 +6946,18 @@ impl Run<'_> {
             .session_scope(m)
             .map(|s| s.declared_by.clone())
             .unwrap_or_default();
+        for b in self
+            .session_lib(m)
+            .and_then(|l| self.input_bindings[l].get())
+            .into_iter()
+            .flatten()
+        {
+            let name = names
+                .paths
+                .segment(hd_base::PathId::from_raw(b.def.raw()))
+                .to_owned();
+            out.insert(names.syms.intern(&name), "src/lib.hd".to_owned());
+        }
         for &(number, k) in self.earlier_inputs(m) {
             for b in self.input_bindings[k].get().into_iter().flatten() {
                 let name = names
@@ -6945,13 +6970,16 @@ impl Run<'_> {
         out
     }
 
-    /// The top-level bindings of the inputs before REPL input `m`, by name,
-    /// from their input interfaces; a newer input's name wins. Empty for
-    /// any other module.
+    /// The top-level bindings REPL input `m` reads, by name: `src/lib.hd`'s,
+    /// private as they all are, when its session holds the library
+    /// (`cli.repl.package.lib`), then those of the inputs before it, from
+    /// their input interfaces; a newer input's name wins. Empty for any
+    /// other module.
     fn earlier_bindings(&self, m: usize) -> HashMap<hd_base::Symbol, InputBinding> {
         let names = self.names();
         let mut out = HashMap::default();
-        for &(_, k) in self.earlier_inputs(m) {
+        let earlier = self.earlier_inputs(m).iter().map(|&(_, k)| k);
+        for k in self.session_lib(m).into_iter().chain(earlier) {
             for b in self.input_bindings[k].get().into_iter().flatten() {
                 let name = names
                     .paths
@@ -8036,10 +8064,12 @@ impl Run<'_> {
             &generic_edges,
         ];
         // A REPL input's interface: its top-level bindings, which later
-        // inputs read and assign (`cli.repl.declarations.bindings`). A
-        // module with errors joins no session, so it binds nothing.
+        // inputs read and assign (`cli.repl.declarations.bindings`), and
+        // `src/lib.hd`'s, which every input whose session holds it reads
+        // (`cli.repl.package.lib`). A module with errors joins no session,
+        // so it binds nothing.
         let input_iface;
-        if self.repl_number(m).is_some() {
+        if self.repl_number(m).is_some() || self.lib_module() == Some(m) {
             let keep: &[InputBinding] = if diags.has_errors() { &[] } else { bindings };
             input_iface = match encode_bindings(keep, &names) {
                 Ok(x) => x,
