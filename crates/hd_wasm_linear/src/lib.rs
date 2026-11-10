@@ -787,20 +787,24 @@ pub fn build_with_origins(input: &Input<'_>) -> StageResult<MappedModule> {
 
 /// Builds a REPL base and records the symbols its later modules can import.
 /// The ordinary program entry points never expose this private ABI.
-pub fn build_session_base(input: &Input<'_>) -> StageResult<(Vec<u8>, Session)> {
+pub fn build_session_base(
+    input: &Input<'_>,
+    track_origins: bool,
+) -> StageResult<(MappedModule, Session)> {
     let mut session = Session::default();
-    let mapped = layout::cached(|| link(input, false, Some(&mut session), None))?;
-    Ok((mapped.wasm, session))
+    let mapped = layout::cached(|| link(input, track_origins, Some(&mut session), None))?;
+    Ok((mapped, session))
 }
 
 /// Builds an extension importing the previous modules' initialized storage.
 pub fn build_session_extension(
     input: &Input<'_>,
     previous: &Session,
-) -> StageResult<(Vec<u8>, Session)> {
+    track_origins: bool,
+) -> StageResult<(MappedModule, Session)> {
     let mut session = Session::default();
-    let mapped = layout::cached(|| link(input, false, Some(&mut session), Some(previous)))?;
-    Ok((mapped.wasm, session))
+    let mapped = layout::cached(|| link(input, track_origins, Some(&mut session), Some(previous)))?;
+    Ok((mapped, session))
 }
 
 /// Every entry point runs this link with the same layout cache.
@@ -985,6 +989,9 @@ fn address_globals(
             let h = input.env.path_hash(def);
             if m.addressed.contains_key(&h) {
                 continue;
+            }
+            if session && m.track_origins {
+                m.storage_names.insert(h, (input.path)(def));
             }
             // An object's slot follows a zero header (`ref.excl.alias.global`).
             // A session's bindings all have one, as a later input may write

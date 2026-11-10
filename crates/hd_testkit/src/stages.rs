@@ -103,7 +103,8 @@ impl Program {
 /// subsequent lines belong to it until the next `@file`. Main defaults to
 /// `main.hd`. `@repl: N` makes the case REPL input `N` of a session whose
 /// earlier inputs each begin at `@input: K`, numbered 1 up, as `@file`
-/// begins a module.
+/// begins a module. The `tir` view checks the joined session; `wat`
+/// builds the inputs in order and shows the final extension module.
 ///
 /// # Errors
 /// Unknown directives/builds/views, `@dump` or `@build` after code,
@@ -220,8 +221,12 @@ pub fn parse(text: &str) -> Result<Case, String> {
     if dumps.is_empty() {
         return Err("no `# @dump:` directive".to_owned());
     }
-    if repl.is_some() && dumps != ["tir"] {
-        return Err("a REPL session case shows only the `tir` view".to_owned());
+    if repl.is_some()
+        && dumps
+            .iter()
+            .any(|dump| !matches!(dump.as_str(), "tir" | "wat"))
+    {
+        return Err("a REPL session case shows only `tir` and `wat` views".to_owned());
     }
     let main = modules.remove("main.hd").ok_or("no main.hd module")?;
     let mut program = Program::new(&main)?;

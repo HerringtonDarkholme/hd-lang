@@ -1,0 +1,12 @@
+# @dump: wat
+# @repl: 2
+# cli.repl.declarations.bindings and cli.repl.checkpoint.initialized:
+# an extension imports the initialized counter instead of running input 1.
+# expected: the binding uses imported storage, new strings use relocated
+# extension data, and floating-point bindings have their concrete widths.
+counter = counter + 3
+let extra = "extension"
+let ratio: f32 = 1.5
+let precise: f64 = 2.5
+# @input: 1
+let counter = +4
