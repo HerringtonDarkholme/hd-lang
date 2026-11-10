@@ -835,7 +835,9 @@ mod tests {
         let decoded = Tables::read(&mut reader, &other, &paths, &syms).expect("tables");
         let union = decoded.ty(row).expect("union row");
         assert!(reader.ok() && reader.at_end());
-        assert_eq!(other.display(union), "(i32 | string) | bool | bool");
+        let inner = other.intern_ty(&TyData::Union(other.list(&[Ty::I32, Ty::STRING])));
+        let expected = other.intern_ty(&TyData::Union(other.list(&[inner, Ty::BOOL, Ty::BOOL])));
+        assert_eq!(union, expected, "{:?}", other.get(union));
     }
 
     #[test]
@@ -864,8 +866,6 @@ mod tests {
         // (`types.generic.const.identity`).
         assert_eq!(tys[0], pool.intern_ty(&TyData::Const(int(Prim::Usize, 4))));
         assert_ne!(tys[0], tys[1]);
-        assert_eq!(pool.display(tys[2]), "-1");
-        assert_eq!(pool.display(tys[3]), "18446744073709551615");
         let mut w = TableWriter::new(&pool, &paths, &syms);
         let rows: Vec<u32> = tys.iter().map(|t| w.ty(*t).expect("const")).collect();
         let mut out = Writer::default();

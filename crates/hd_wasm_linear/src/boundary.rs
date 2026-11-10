@@ -511,7 +511,7 @@ fn of_at(
         | TyData::Context(_)
         | TyData::Infer(_)
         | TyData::Canon(_) => {
-            debug_assert!(false, "{} at the host boundary", pool.display(t));
+            debug_assert!(false, "{:?} at the host boundary", pool.get(t));
             LTy::Void
         }
     })
@@ -2838,7 +2838,7 @@ fn package_value(
         | TyData::Context(_)
         | TyData::Infer(_)
         | TyData::Canon(_) => {
-            debug_assert!(false, "{} in a package host schema", pool.display(t));
+            debug_assert!(false, "{:?} in a package host schema", pool.get(t));
             Value::Void
         }
     })
