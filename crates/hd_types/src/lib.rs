@@ -14,7 +14,7 @@ pub mod wire;
 
 pub use pool::{
     ConstValue, FnDeps, Inputs, InternPool, LocalPool, ParamRef, Prim, RowData, RowId, RowParamRef,
-    Ty, TyData, TyList, Types, with_assoc_args,
+    Ty, TyData, TyList, TyMap, Types, with_assoc_args,
 };
 pub use sealed::CopyDecl;
 pub use unify::{InferTable, UnifyError, VarKind};

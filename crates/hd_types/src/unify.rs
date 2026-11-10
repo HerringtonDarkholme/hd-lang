@@ -235,89 +235,7 @@ impl InferTable {
         if !pool.has_infer(t) {
             return t;
         }
-        let r = |x: Ty| self.resolve(pool, x);
-        let rl = |l| {
-            pool.list(
-                &pool
-                    .list_items(l)
-                    .iter()
-                    .copied()
-                    .map(r)
-                    .collect::<Vec<_>>(),
-            )
-        };
-        let d = match pool.get(t) {
-            TyData::Adt { def, args } => TyData::Adt {
-                def,
-                args: rl(args),
-            },
-            TyData::Opaque {
-                owner,
-                site,
-                borrows,
-                args,
-                bound,
-            } => TyData::Opaque {
-                owner,
-                site,
-                borrows,
-                args: rl(args),
-                bound: r(bound),
-            },
-            TyData::Tuple { elems, rest } => TyData::Tuple {
-                elems: rl(elems),
-                rest: rest.map(r),
-            },
-            TyData::Union(members) => TyData::Union(rl(members)),
-            TyData::Ref {
-                inner,
-                mutable,
-                counted,
-            } => TyData::Ref {
-                inner: r(inner),
-                mutable,
-                counted,
-            },
-            TyData::Fn {
-                params,
-                result,
-                row,
-                suspends,
-                inputs,
-                deps,
-            } => TyData::Fn {
-                params: rl(params),
-                result: r(result),
-                row: self.resolve_row(pool, row),
-                suspends,
-                inputs,
-                deps,
-            },
-            TyData::Row(row) => TyData::Row(self.resolve_row(pool, row)),
-            TyData::Context(row) => TyData::Context(self.resolve_row(pool, row)),
-            TyData::TraitValue {
-                def,
-                args,
-                bindings,
-            } => TyData::TraitValue {
-                def,
-                args: rl(args),
-                bindings: bindings.into_iter().map(|(d, x)| (d, r(x))).collect(),
-            },
-            TyData::Assoc {
-                assoc,
-                trait_,
-                self_ty,
-                args,
-            } => TyData::Assoc {
-                assoc,
-                trait_,
-                self_ty: r(self_ty),
-                args: rl(args),
-            },
-            other => other,
-        };
-        pool.intern_ty(&d)
+        pool.map_children(t, &mut Resolve { table: self, pool })
     }
 
     /// Resolves a row's keys; a bound row variable's row joins the keys.
@@ -679,6 +597,21 @@ impl InferTable {
             self.unify(pool, s, t)?;
         }
         Ok(())
+    }
+}
+
+/// [`InferTable::resolve`] applied to each child of a type.
+struct Resolve<'t, 'p> {
+    table: &'t InferTable,
+    pool: Types<'p>,
+}
+
+impl crate::TyMap for Resolve<'_, '_> {
+    fn ty(&mut self, t: Ty) -> Ty {
+        self.table.resolve(self.pool, t)
+    }
+    fn row(&mut self, r: crate::RowId) -> crate::RowId {
+        self.table.resolve_row(self.pool, r)
     }
 }
 

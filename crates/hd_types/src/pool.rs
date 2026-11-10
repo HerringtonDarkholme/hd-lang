@@ -740,6 +740,12 @@ impl LocalPool {
     }
 }
 
+/// What [`Types::map_children`] does with each child of a type.
+pub trait TyMap {
+    fn ty(&mut self, t: Ty) -> Ty;
+    fn row(&mut self, r: RowId) -> RowId;
+}
+
 /// A view of the types one piece of code can see: the global pool and,
 /// while a body is checked, that body's local pool. Every read and build
 /// goes through it; an index with bit 31 set reads the local pool, and a
@@ -1580,6 +1586,114 @@ impl<'a> Types<'a> {
     }
     /// Whether a type names `Self` of `trait_` (parameter 0 of the trait),
     /// outside the base of an associated-type projection.
+    /// Rebuilds `t` with each child type mapped by `m.ty` and each row by
+    /// `m.row`, children in written order: arguments, elements then rest,
+    /// members, a referent, parameters then result then row, a bound after
+    /// its arguments, bindings after arguments, an associated type's base
+    /// before its arguments. A leaf comes back as it is. Every walk that
+    /// rebuilds a type shares this one map. Cost: one call per child and
+    /// one intern.
+    pub fn map_children(self, t: Ty, m: &mut dyn TyMap) -> Ty {
+        let list = |m: &mut dyn TyMap, l: TyList| {
+            let items: Vec<Ty> = self.list_items(l).iter().map(|&x| m.ty(x)).collect();
+            self.list(&items)
+        };
+        let data = match self.get(t) {
+            TyData::Adt { def, args } => TyData::Adt {
+                def,
+                args: list(m, args),
+            },
+            TyData::Opaque {
+                owner,
+                site,
+                borrows,
+                args,
+                bound,
+            } => {
+                let args = list(m, args);
+                TyData::Opaque {
+                    owner,
+                    site,
+                    borrows,
+                    args,
+                    bound: m.ty(bound),
+                }
+            }
+            TyData::Tuple { elems, rest } => {
+                let elems = list(m, elems);
+                TyData::Tuple {
+                    elems,
+                    rest: rest.map(|r| m.ty(r)),
+                }
+            }
+            TyData::Union(members) => TyData::Union(list(m, members)),
+            TyData::Ref {
+                inner,
+                mutable,
+                counted,
+            } => TyData::Ref {
+                inner: m.ty(inner),
+                mutable,
+                counted,
+            },
+            TyData::Fn {
+                params,
+                result,
+                row,
+                suspends,
+                inputs,
+                deps,
+            } => {
+                let params = list(m, params);
+                let result = m.ty(result);
+                TyData::Fn {
+                    params,
+                    result,
+                    row: m.row(row),
+                    suspends,
+                    inputs,
+                    deps,
+                }
+            }
+            TyData::Row(r) => TyData::Row(m.row(r)),
+            TyData::Context(r) => TyData::Context(m.row(r)),
+            TyData::TraitValue {
+                def,
+                args,
+                bindings,
+            } => {
+                let args = list(m, args);
+                TyData::TraitValue {
+                    def,
+                    args,
+                    bindings: bindings.into_iter().map(|(d, b)| (d, m.ty(b))).collect(),
+                }
+            }
+            TyData::Assoc {
+                assoc,
+                trait_,
+                self_ty,
+                args,
+            } => {
+                let self_ty = m.ty(self_ty);
+                TyData::Assoc {
+                    assoc,
+                    trait_,
+                    self_ty,
+                    args: list(m, args),
+                }
+            }
+            TyData::Prim(_)
+            | TyData::Never
+            | TyData::Poison
+            | TyData::Param(_)
+            | TyData::Const(_)
+            | TyData::Infer(_)
+            | TyData::Canon(_) => return t,
+        };
+        self.intern_ty(&data)
+    }
+
     #[must_use]
     pub fn names_trait_self(self, t: Ty, trait_: DefId) -> bool {
         if !self.has_param(t) {

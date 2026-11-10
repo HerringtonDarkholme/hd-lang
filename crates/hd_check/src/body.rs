@@ -4348,101 +4348,12 @@ impl Ck<'_, '_> {
                     None => Ty::POISON,
                 }
             }
-            TyData::Adt { def, args } => {
-                let a = self.zonk_list(args);
-                pool.intern_ty(&TyData::Adt { def, args: a })
-            }
-            TyData::Tuple { elems, rest } => {
-                let e = self.zonk_list(elems);
-                let rest = rest.map(|t| self.zonk(t));
-                pool.intern_ty(&TyData::Tuple { elems: e, rest })
-            }
-            TyData::Ref {
-                inner,
-                mutable,
-                counted,
-            } => {
-                let inner = self.zonk(inner);
-                pool.intern_ty(&TyData::Ref {
-                    inner,
-                    mutable,
-                    counted,
-                })
-            }
-            TyData::Fn {
-                params,
-                result,
-                row,
-                suspends,
-                inputs,
-                deps,
-            } => {
-                let p = self.zonk_list(params);
-                let r = self.zonk(result);
-                let row = self.zonk_row(row);
-                pool.intern_ty(&TyData::Fn {
-                    params: p,
-                    result: r,
-                    row,
-                    suspends,
-                    inputs,
-                    deps,
-                })
-            }
-            TyData::Row(row) => {
-                let row = self.zonk_row(row);
-                pool.intern_ty(&TyData::Row(row))
-            }
-            TyData::Opaque {
-                owner,
-                site,
-                borrows,
-                args,
-                bound,
-            } => {
-                let args = self.zonk_list(args);
-                let bound = self.zonk(bound);
-                pool.intern_ty(&TyData::Opaque {
-                    owner,
-                    site,
-                    borrows,
-                    args,
-                    bound,
-                })
-            }
-            TyData::TraitValue {
-                def,
-                args,
-                bindings,
-            } => {
-                let a = self.zonk_list(args);
-                let bindings = bindings
-                    .into_iter()
-                    .map(|(d, b)| (d, self.zonk(b)))
-                    .collect();
-                pool.intern_ty(&TyData::TraitValue {
-                    def,
-                    args: a,
-                    bindings,
-                })
-            }
-            TyData::Assoc {
-                assoc,
-                trait_,
-                self_ty,
-                args,
-            } => {
-                let s = self.zonk(self_ty);
-                let a = self.zonk_list(args);
-                let x = pool.intern_ty(&TyData::Assoc {
-                    assoc,
-                    trait_,
-                    self_ty: s,
-                    args: a,
-                });
+            // A projection whose base is solved now normalizes.
+            TyData::Assoc { .. } => {
+                let x = pool.map_children(r, &mut Zonk(self));
                 self.normalize(x).unwrap_or(x)
             }
-            _ => Ty::POISON,
+            _ => pool.map_children(r, &mut Zonk(self)),
         }
     }
 
@@ -5071,4 +4982,17 @@ fn float_text_f32(text: &str) -> Option<f32> {
     let start = text.find(|c: char| c.is_ascii_digit())?;
     let number = crate::literals::split_suffix(&text[start..]).0;
     number.replace('_', "").parse::<f32>().ok()
+}
+
+/// [`Ck::zonk`] applied to each child of a type, and [`Ck::zonk_row`] to
+/// each row.
+struct Zonk<'k, 'a, 'c>(&'k mut Ck<'a, 'c>);
+
+impl hd_types::TyMap for Zonk<'_, '_, '_> {
+    fn ty(&mut self, t: Ty) -> Ty {
+        self.0.zonk(t)
+    }
+    fn row(&mut self, r: RowId) -> RowId {
+        self.0.zonk_row(r)
+    }
 }

@@ -5,7 +5,7 @@ use crate::body::Ck;
 use hd_base::StageResult;
 use hd_resolve::view::Src;
 use hd_syntax::{NodeRef, SyntaxKind};
-use hd_types::{Ty, TyData, TyList, VarKind};
+use hd_types::{Ty, TyData, VarKind};
 
 #[derive(Clone, Copy)]
 enum Mode {
@@ -14,16 +14,6 @@ enum Mode {
 }
 
 impl Ck<'_, '_> {
-    fn opaque_return_args(&mut self, args: TyList, mode: Mode) -> TyList {
-        let pool = self.pool();
-        let args: Vec<_> = pool
-            .list_items(args)
-            .iter()
-            .map(|&ty| self.map_opaque_return(ty, mode))
-            .collect();
-        pool.list(&args)
-    }
-
     pub(crate) fn open_opaque_return(&mut self, ty: Ty) -> Ty {
         self.map_opaque_return(ty, Mode::Open)
     }
@@ -48,7 +38,7 @@ impl Ck<'_, '_> {
         if !pool.has_opaque(ty) {
             return ty;
         }
-        let data = match pool.get(ty) {
+        match pool.get(ty) {
             TyData::Opaque { .. } => {
                 if let Some(&(_, result)) = self.opaque_rets.iter().find(|&&(t, result)| {
                     t == ty && (matches!(mode, Mode::Open) || self.strict_rets.contains(&result))
@@ -64,68 +54,10 @@ impl Ck<'_, '_> {
                 let result = self.infer.fresh(pool, VarKind::General);
                 self.strict_rets.push(result);
                 self.opaque_rets.push((ty, result));
-                return result;
+                result
             }
-            TyData::Adt { def, args } => TyData::Adt {
-                def,
-                args: self.opaque_return_args(args, mode),
-            },
-            TyData::Tuple { elems, rest } => TyData::Tuple {
-                elems: self.opaque_return_args(elems, mode),
-                rest: rest.map(|ty| self.map_opaque_return(ty, mode)),
-            },
-            TyData::Ref {
-                inner,
-                mutable,
-                counted,
-            } => TyData::Ref {
-                inner: self.map_opaque_return(inner, mode),
-                mutable,
-                counted,
-            },
-            TyData::Fn {
-                params,
-                result,
-                row,
-                suspends,
-                inputs,
-                deps,
-            } => TyData::Fn {
-                params: self.opaque_return_args(params, mode),
-                result: self.map_opaque_return(result, mode),
-                row: self.opaque_return_row(row, mode),
-                suspends,
-                inputs,
-                deps,
-            },
-            TyData::TraitValue {
-                def,
-                args,
-                bindings,
-            } => TyData::TraitValue {
-                def,
-                args: self.opaque_return_args(args, mode),
-                bindings: bindings
-                    .into_iter()
-                    .map(|(def, ty)| (def, self.map_opaque_return(ty, mode)))
-                    .collect(),
-            },
-            TyData::Assoc {
-                assoc,
-                trait_,
-                self_ty,
-                args,
-            } => TyData::Assoc {
-                assoc,
-                trait_,
-                self_ty: self.map_opaque_return(self_ty, mode),
-                args: self.opaque_return_args(args, mode),
-            },
-            TyData::Row(row) => TyData::Row(self.opaque_return_row(row, mode)),
-            TyData::Context(row) => TyData::Context(self.opaque_return_row(row, mode)),
-            data => data,
-        };
-        pool.intern_ty(&data)
+            _ => pool.map_children(ty, &mut OpaqueMap { ck: self, mode }),
+        }
     }
     pub(crate) fn strict_opaque_slot(&self, ty: Ty) -> bool {
         if self.strict_rets.is_empty() {
@@ -347,5 +279,21 @@ impl Ck<'_, '_> {
             self.check_opaque_result(result, bound, node)?;
         }
         Ok(())
+    }
+}
+
+/// [`Ck::map_opaque_return`] applied to each child of a type, and to each
+/// row's keys.
+struct OpaqueMap<'k, 'a, 'c> {
+    ck: &'k mut Ck<'a, 'c>,
+    mode: Mode,
+}
+
+impl hd_types::TyMap for OpaqueMap<'_, '_, '_> {
+    fn ty(&mut self, t: Ty) -> Ty {
+        self.ck.map_opaque_return(t, self.mode)
+    }
+    fn row(&mut self, r: hd_types::RowId) -> hd_types::RowId {
+        self.ck.opaque_return_row(r, self.mode)
     }
 }
