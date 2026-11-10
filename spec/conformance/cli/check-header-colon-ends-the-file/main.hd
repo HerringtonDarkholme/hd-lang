@@ -1,0 +1,4 @@
+fn ok() -> i32:
+    1
+
+fn broken() -> i32:

@@ -333,3 +333,4 @@ host-supertrait-drive	cli.host.package.entry,cli.host.package.generated,cli.host
 host-supertrait-diamond	cli.host.package.entry,cli.host.package.generated,cli.host.package.contract,cli.profile.pipeline.unobservable
 host-supertrait-cycle	cli.check.default,cli.exit.hd-failure,cli.json.diagnostic.fields
 host-binding-block-on-promise	cli.host.package.completion-forms,cli.host.package.block-on-promise
+check-header-colon-ends-the-file	cli.check.default,cli.exit.hd-failure

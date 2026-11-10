@@ -1,0 +1,29 @@
+# @dump: tir
+# @repl: 2
+# A REPL input that names a top-level item of the package's src/lib.hd
+# builds with the library (cli.repl.package.lib); one that names none builds
+# without it. The library's names come from its tokens: past `pub` and
+# annotations, `let` and `name :=` bindings, and `use` imports.
+fn top() -> i32:
+    pick(Level.High)
+# @input: 1
+1 + 2
+# @file: src/lib.hd
+use std.ops.{Default}
+
+@derive(Eq)
+pub enum Level:
+    High
+    Low
+
+let rate: i32 = 3
+limit := 10
+
+impl Level:
+    fn weight(self) -> i32:
+        1
+
+pub fn pick(level: Level) -> i32:
+    match level:
+        .High => 1
+        .Low => 0

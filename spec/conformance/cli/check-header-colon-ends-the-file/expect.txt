@@ -1,0 +1,6 @@
+# A function header whose colon is the last byte of the file has no
+# indented suite (grammar.suite.indented); the error stands at its end.
+run: hd check main.hd
+exit: 101
+stderr: error: main.hd:4:20: syntax-error: expected an indented suite, found a line that is not indented deeper
+stderr: check result: FAILED. errors: 1; warnings: 0
