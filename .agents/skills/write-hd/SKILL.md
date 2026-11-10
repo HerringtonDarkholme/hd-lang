@@ -541,16 +541,17 @@ the code `hd check` reports today.
 
 ## Recovering An Erased Concrete Type
 
-Import `std.inspect.Inspectable`. Recovery needs a counted erased value:
-`*dyn Inspectable` or `*mut dyn Inspectable`, made from a box
-(`user := box(User { ... })`). `value.downcast_ref::[User]()` returns
-`(*User)?` and `value.downcast_mut::[User]()` returns `(*mut User)?`; a
-local `&dyn Inspectable` has no downcast (`local-reference-escapes`).
-The target names the referent: use `User` for an erased `*User`.
-If the referent itself is a reference value, its reference type is the
-target instead. The recovered reference keeps identity with the original reference. Copy its value with `*found`, or with
-`.map(fn(found): *found)`. A written bare `dyn Trait` type is an error;
-write local `&dyn Trait` or counted `*dyn Trait`, with `mut` when needed.
+Import `std.inspect.Inspectable`. A local `&dyn Inspectable` supports
+`value.downcast_ref::[T]()`, returning `(&T)?`; `&mut dyn Inspectable`
+supports `downcast_mut::[T]()`, returning `(&mut T)?`. Counted receivers
+lend themselves to the same methods; the result borrows its receiver and
+identifies the original place.
+
+The target names the concrete referent: use `User` for an erased
+reference to `User`. If the referent itself is a reference value, its
+reference type is the target instead. Copy through `*found` under the
+ordinary value-copy rules, or with `.map(fn(found): *found)`. Write local
+`&dyn Trait` or counted `*dyn Trait`, with `mut` when needed.
 
 ```hd
 use std.inspect.Inspectable
@@ -558,7 +559,7 @@ use std.inspect.Inspectable
 struct User:
     name: string
 
-fn user_name(value: *dyn Inspectable) -> string:
+fn user_name(value: &dyn Inspectable) -> string:
     match value.downcast_ref::[User]():
         .Some(found) => found.name
         .None => "unknown"
