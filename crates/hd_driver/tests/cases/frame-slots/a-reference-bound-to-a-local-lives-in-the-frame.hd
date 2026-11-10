@@ -2,7 +2,7 @@
 # @build: v8 release
 # `r` holds a local reference to `tally` past the statement that made it.
 # The ownership passes keep `tally` alive until `r`'s last use, so `tally`
-# lives in a slot of the function's frame (crates/hd_wasm_linear/DESIGN.md
+# lives in a slot of the function's frame (crates/hd_wasm/DESIGN.md
 # §23.38): no `rt:new` cell, and no count of the reference, in or out of
 # the loop. The one release is of the value in the slot.
 struct Tally:

@@ -1,5 +1,5 @@
 //! A `join!` polls only the children a wake names
-//! (`crates/hd_wasm_linear/DESIGN.md` §14.4 and §14.5): each child's host leaf
+//! (`crates/hd_wasm/DESIGN.md` §14.4 and §14.5): each child's host leaf
 //! registers under the `join!`'s waker node, a wake sets that child's bit,
 //! and later polls skip the children whose bit is clear. The count of
 //! child polls is the dev module's exported `hd.all_polls` global.

@@ -18,7 +18,7 @@
 //                     (normal and build edges, transitively), plus the direct
 //                     dev-dependents of a touched crate. Crates outside the default
 //                     members (hd_run_wasmtime) are CI's.
-//   tests of a crate  hd_driver, hd_check, hd_wasm_linear: `--lib --test stages`;
+//   tests of a crate  hd_driver, hd_check, hd_wasm: `--lib --test stages`;
 //                     hd_cli: `--bins`, plus `--test all` for the test modules the
 //                     diff changes; every other touched crate: all its targets; a
 //                     selected crate that is only a dependent: `--lib` (each
@@ -34,7 +34,7 @@
 //                     changes (dev, checked, optimized); changed spec/conformance/cli
 //                     case directories run through hd_cli's cli_conformance.
 //   std_rt            a compiler crate selected (hd_check, hd_tir, hd_mono, hd_opt,
-//                     hd_wasm_linear) or lib/std changed.
+//                     hd_wasm) or lib/std changed.
 //   spec-sync, cost   any file outside crates/*/src and crates/*/tests (spec-sync);
 //                     .rs, .ts, the cost allowlist or the ast-grep rules (cost).
 //   cargo fmt/clippy  .rs changed (clippy on the touched crates only).
@@ -73,9 +73,9 @@ type Context = {
 };
 type Rule = (ctx: Context) => Step[];
 
-const STAGE_CRATES = new Set(["hd_driver", "hd_check", "hd_wasm_linear"]);
+const STAGE_CRATES = new Set(["hd_driver", "hd_check", "hd_wasm"]);
 const DIAGNOSTIC_CRATES = ["hd_check", "hd_resolve", "hd_syntax", "hd_diag"];
-const COMPILER_CRATES = ["hd_check", "hd_tir", "hd_mono", "hd_opt", "hd_wasm_linear"];
+const COMPILER_CRATES = ["hd_check", "hd_tir", "hd_mono", "hd_opt", "hd_wasm"];
 const SDK_STD = new Set(["console", "http", "http_wire", "time"]);
 const CONFORMANCE = "specification_conformance_passes_except_known_failures";
 
@@ -275,7 +275,7 @@ const stageRule: Rule = (ctx) => {
     }
   };
   stages("hd_check", "check_stages");
-  stages("hd_wasm_linear", "wasm_stages");
+  stages("hd_wasm", "wasm_stages");
   return steps;
 };
 

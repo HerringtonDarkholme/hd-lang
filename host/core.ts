@@ -5,7 +5,7 @@
 // ABI model (gen/abi.ts, over wire.ts's encoding of §17.4); the providers
 // that need nothing from the platform (`Console`, `Clock`, `Random`,
 // `Args`, `rt`, `prim`, and the test and property runners' hooks); and the
-// entry driver of crates/hd_wasm_linear/DESIGN.md §14.4. It uses web-standard APIs
+// entry driver of crates/hd_wasm/DESIGN.md §14.4. It uses web-standard APIs
 // only. A platform layer (node.ts, web.ts) adds the providers that touch
 // the machine by passing `layer` to `createCoreHost`.
 //
@@ -234,7 +234,7 @@ Error.stackTraceLimit = Infinity;
 
 // The Wasm frames of a trap's stack, innermost first, as [function index,
 // module byte offset] pairs from V8's `wasm-function[i]:0xOFF`; the test
-// command maps them through the module's line table (crates/hd_wasm_linear/DESIGN.md §15.9).
+// command maps them through the module's line table (crates/hd_wasm/DESIGN.md §15.9).
 const wasmFrames = (error: Dynamic): [number, number][] =>
   Array.from(
     String(error.stack ?? "").matchAll(/wasm-function\[(\d+)\]:0x([0-9a-f]+)/g),

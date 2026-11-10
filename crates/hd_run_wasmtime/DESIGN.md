@@ -18,7 +18,7 @@ build.
 
 | Piece | Where | Notes |
 | --- | --- | --- |
-| `Set`, `Deque`, `Heap`, `ListView`, string operations, formatting, `Debug`, `Display`, JSON, iterators | hd in `lib/std` | over `Array[T]` and string intrinsics; `Deque` and `Heap` store `T?` in `List` slots, laid out as in crates/hd_wasm_linear/DESIGN.md §15.2 |
+| `Set`, `Deque`, `Heap`, `ListView`, string operations, formatting, `Debug`, `Display`, JSON, iterators | hd in `lib/std` | over `Array[T]` and string intrinsics; `Deque` and `Heap` store `T?` in `List` slots, laid out as in crates/hd_wasm/DESIGN.md §15.2 |
 | `Map` | hd in `lib/std`: a compact insertion-ordered table | Implementation differs: `Map`'s table is runtime helpers the emitter writes (`hd_wasm/src/map.rs`), which is worse: library code in the compiler. It stays in Rust for now (#180 closed 2026-10-26) |
 | `Choices`, shrink-free generators, structured assert diffs | hd in `lib/std` (`std.testing`) | the runner shrinks on the host side |
 | `block_on`, `join!`, `race!`'s frame, `Waker` | compiler intrinsics | the spec names them so ([Standard Combinators](../../spec/lang/11-requirements-and-suspension.md#standard-combinators)); `race!` itself is hd in `std.task` |
@@ -56,7 +56,7 @@ string key hashes with no allocation.
 ### 16.3 Allocation
 
 - Managed hd objects live in linear memory, with reference counts and
-  cycle collection (`crates/hd_wasm_linear/DESIGN.md` §23).
+  cycle collection (`crates/hd_wasm/DESIGN.md` §23).
 - The exchange buffer (§17.3) shares linear memory with the RC heap;
   boundary encoders and decoders copy values through that buffer.
 
@@ -255,7 +255,7 @@ Rust's own `{:e}` and `{:.N}` printing.
   memory copy. A
   string crosses with no conversion
   ([`types.string.host-bytes`](../../spec/lang/04-type-system.md#r-types.string.host-bytes)).
-  A string is a view (crates/hd_wasm_linear/DESIGN.md §15.2): Wasm to host
+  A string is a view (crates/hd_wasm/DESIGN.md §15.2): Wasm to host
   copies only the viewed range, so a slice crosses at its own size,
   never its source's. Host to Wasm builds one exact-size array, viewed
   from start 0. The host reads the bytes in one slice. The loop reads
@@ -263,7 +263,7 @@ Rust's own `{:e}` and `{:.N}` printing.
 
 Planned, not built: a string literal passed straight to a host call
 copied from the module's data segment into the buffer with
-`memory.init`, with no GC array (crates/hd_wasm_linear/DESIGN.md §15.4).
+`memory.init`, with no GC array (crates/hd_wasm/DESIGN.md §15.4).
 
 ### 17.4 Encoding Structured Values
 
@@ -327,7 +327,7 @@ the codecs generated from the ABI model (`host/gen/abi.ts`), built on
   and one decoder, each calling itself where the type recurs (#1550), so a
   value crosses at any depth. An hd value at the boundary has no cycle:
   boundary-safe types hold no reference, closure or trait value, and value
-  edges never close one (`crate::cycle` in `hd_wasm_linear`). A package
+  edges never close one (`crate::cycle` in `hd_wasm`). A package
   provider's JS value can; its generated codec tracks the values on its
   path and fails `boundary-cycle`
   ([`module.boundary.cycle.tracked`](../../spec/lang/10-modules.md#r-module.boundary.cycle.tracked)).

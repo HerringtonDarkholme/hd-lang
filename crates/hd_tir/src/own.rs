@@ -11,7 +11,7 @@
 //! operand reads the local, so the read is its last access; then
 //! **insertion** (`insert`), over places the checker roots at their local
 //! on this path (`crate::ir::root_places`), the naive,
-//! correct ownership of `crates/hd_wasm_linear/DESIGN.md` §23.16 with
+//! correct ownership of `crates/hd_wasm/DESIGN.md` §23.16 with
 //! releases at last use (§23.20), made explicit, with an `IsUnique` before each change of a
 //! collection place and the pins of element references; then the
 //! **derivation** (`derive`), which turns a `copy` whose value only lends and

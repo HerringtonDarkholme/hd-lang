@@ -14,7 +14,7 @@ the ownership passes and their `OwnCx` interface
 ([crates/hd_opt/DESIGN.md](../../crates/hd_opt/DESIGN.md) §3); the cache
 keys ([crates/hd_cache/DESIGN.md](../../crates/hd_cache/DESIGN.md) §5.3);
 the backend's calling convention
-([crates/hd_wasm_linear/DESIGN.md](../../crates/hd_wasm_linear/DESIGN.md)
+([crates/hd_wasm/DESIGN.md](../../crates/hd_wasm/DESIGN.md)
 §23.25 to §23.27); and the findings on
 [#681](https://github.com/HerringtonDarkholme/hd-lang/issues/681),
 [#165](https://github.com/HerringtonDarkholme/hd-lang/issues/165) and
@@ -698,10 +698,10 @@ have no body.
 | `writes` walk over the owned body | `own.rs` | 45 | 30 |
 | callee scan, iterative Tarjan, SCC marks, `Summaries` | `hd_driver/src/own.rs`, `lib.rs` | 140 | 50 |
 | `convention`, read by `pass`, `received`, `may_write` | `hd_driver/src/own.rs` | 30 | — |
-| conventions to the backend: `own_arg` callers, `callee_params`, the exit release | `hd_wasm_linear` `emit.rs`, `rt.rs`, `emit/count.rs` | 70 | — |
+| conventions to the backend: `own_arg` callers, `callee_params`, the exit release | `hd_wasm` `emit.rs`, `rt.rs`, `emit/count.rs` | 70 | — |
 | returned parameter: callee lending return, caller borrowed result, slot retain | `own/insert.rs`, `own/borrow.rs`, `emit/dyn_value.rs` | 120 | 40 |
 | trait method meets (slice 7) | `hd_driver/src/own.rs` | 90 | 30 |
-| escape: `*T` addresses to unkept parameters keep the frame slot (slice 8) | `hd_wasm_linear/src/emit.rs` root choice | 60 | 20 |
+| escape: `*T` addresses to unkept parameters keep the frame slot (slice 8) | `hd_wasm/src/emit.rs` root choice | 60 | 20 |
 | verifier clauses and the debug recompute | `hd_tir/src/ir.rs` | 50 | — |
 | pass declaration and the switch | `hd_opt/src/passes.rs`, `hd_driver` | 20 | 10 |
 | `own` view summary line | `hd_driver/src/lib.rs` | 15 | — |
@@ -922,7 +922,7 @@ gain). The slices follow Phasing in order.
   <https://www.microsoft.com/en-us/research/publication/perceus-garbage-free-reference-counting-with-reuse/>.
 - In this repository: docs/compiler/tir-v2.md, docs/compiler/tiering.md,
   crates/hd_opt/DESIGN.md, crates/hd_cache/DESIGN.md,
-  crates/hd_mono/DESIGN.md §11 and §13.11, crates/hd_wasm_linear/DESIGN.md
+  crates/hd_mono/DESIGN.md §11 and §13.11, crates/hd_wasm/DESIGN.md
   §23.8 and §23.25 to §23.27, docs/future-work/OBJECT_MODEL_TIER2.md (git history at 1586412c5) Part
   3, and issues #165, #667, #681 and #702.
 

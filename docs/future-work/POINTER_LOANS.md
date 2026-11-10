@@ -116,7 +116,7 @@ Only a second name for the same pointer (`alias := a`, a field, a call
 result, a parameter) reaches the run-time model.
 
 **A: state.** Descriptor bits 16 to 21 (§23.4 of
-`crates/hd_wasm_linear/DESIGN.md`): bit 21 exclusive, bits 16 to 20 the
+`crates/hd_wasm/DESIGN.md`): bit 21 exclusive, bits 16 to 20 the
 shared count. The release glue's slot keeps bits 0 to 15; the largest
 bench program, `json`, has 48 table entries.
 

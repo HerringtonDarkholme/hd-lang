@@ -24,7 +24,7 @@ spec = importlib.util.spec_from_file_location("ir_audit", path)
 audit = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(audit)
 
-DIRS = ["crates/hd_driver/tests/baselines", "crates/hd_wasm_linear/tests/baselines"]
+DIRS = ["crates/hd_driver/tests/baselines", "crates/hd_wasm/tests/baselines"]
 
 # name: (plant, every finding it must add)
 PLANTS = {

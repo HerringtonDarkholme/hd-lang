@@ -79,7 +79,7 @@ impl TestEngine {
             .total_core_instances(slots)
             // Exchange and heap, plus the optional wide-value shadow stack.
             .total_memories(memories)
-            // See `crates/hd_wasm_linear/DESIGN.md` §23.2.
+            // See `crates/hd_wasm/DESIGN.md` §23.2.
             .max_memories_per_module(3)
             .total_tables(slots);
         // These are virtual reservations, not eagerly committed 4 GiB heaps.

@@ -146,7 +146,7 @@ tests:
             text := p.read()
             assert(text.len() > 1, "each value reads back")
             n = n + 1
-        # The checked runtime never reuses a block (crates/hd_wasm_linear/DESIGN.md §23.24).
+        # The checked runtime never reuses a block (crates/hd_wasm/DESIGN.md §23.24).
         if released() == 0:
             assert(pages() <= start + 1, "each value read back is released")
 

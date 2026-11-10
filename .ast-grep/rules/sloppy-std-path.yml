@@ -14,7 +14,7 @@ files:
   - crates/hd_tir/src/**/*.rs
   - crates/hd_mono/src/**/*.rs
   - crates/hd_opt/src/**/*.rs
-  - crates/hd_wasm_linear/src/**/*.rs
+  - crates/hd_wasm/src/**/*.rs
   - crates/hd_structure/src/**/*.rs
   - crates/hd_driver/src/**/*.rs
 ignores:

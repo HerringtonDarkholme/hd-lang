@@ -1,5 +1,5 @@
 # std.rt.cycle: the cycle collector of the linear-memory runtime
-# (crates/hd_wasm_linear/DESIGN.md §23.28), hd over std.rt.memory and
+# (crates/hd_wasm/DESIGN.md §23.28), hd over std.rt.memory and
 # std.rt.alloc. A runtime module, so only std may use it
 # (spec/lang/10-modules.md#r-module.rt.std-only).
 #
@@ -21,7 +21,7 @@
 #    turn black and get their counts back; and frees what stays white.
 #
 # An object takes part when the backend decided at its allocation that its
-# type can be on a cycle (crates/hd_wasm_linear/DESIGN.md §23.28): its
+# type can be on a cycle (crates/hd_wasm/DESIGN.md §23.28): its
 # descriptor word (the header's second word) has the CYCLIC bit. The same
 # word holds the collector's state of the object: bits 22 and 23 are its
 # color (black, gray or white) and bit 24 marks a suspension frame. The

@@ -32,7 +32,7 @@ Design record: issues #657 and #675,
 | `crates/<crate>/tests/baselines/<topic>/<name>.<view>` | its generated output, one file per view |
 
 The crate is the stage whose view the case uses: `hd_syntax` (tokens,
-tree), `hd_check` (tir), `hd_wasm_linear` (wat), `hd_driver` (own,
+tree), `hd_check` (tir), `hd_wasm` (wat), `hd_driver` (own,
 counts, layout). The harness is `crates/hd_testkit/src/stages.rs`; every crate
 runs its cases with `cargo test -p <crate> --test stages` (`hd_syntax`:
 `cargo test -p hd_syntax --test all stages::`). Cases are discovered

@@ -1,7 +1,7 @@
 // Line coverage of the compiler core (#1442), per crate, with cargo-llvm-cov.
 //
 // The core is hd_syntax, hd_resolve, hd_types, hd_check, hd_tir, hd_mono,
-// hd_opt and hd_wasm_linear (owner, 2026-11-07). One instrumented release
+// hd_opt and hd_wasm (owner, 2026-11-07). One instrumented release
 // build runs, and its counts are merged into one report:
 //   - each core crate's own tests (`core`, or one crate by its name);
 //   - hd_driver's lib tests and stage tests (`driver`);
@@ -78,15 +78,15 @@ const CORE = [
   "hd_tir",
   "hd_mono",
   "hd_opt",
-  "hd_wasm_linear",
+  "hd_wasm",
 ] as const;
 type Crate = (typeof CORE)[number];
 
-// The features CI's conformance builds turn on in the core: hd_wasm_linear's
+// The features CI's conformance builds turn on in the core: hd_wasm's
 // checked report. wasmtime (the other engine) is left out; the default engine
 // is Node.
 const CRATE_FEATURES: Partial<Record<Crate, string>> = {
-  hd_wasm_linear: "hd_wasm_linear/checked-report",
+  hd_wasm: "hd_wasm/checked-report",
 };
 const DRIVER = ["-p", "hd_driver", "--features", "analysis,checked-report"];
 const SUITE = "specification_conformance_passes_except_known_failures";

@@ -765,7 +765,7 @@ dependencies = [
  "hd_testkit",
  "hd_tir",
  "hd_types",
- "hd_wasm_linear",
+ "hd_wasm",
  "wasmparser 0.261.0",
 ]
 
@@ -967,7 +967,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "hd_wasm_linear"
+name = "hd_wasm"
 version = "0.0.0"
 dependencies = [
  "hd_base",

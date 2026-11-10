@@ -1,5 +1,5 @@
 //! Insertion (`docs/compiler/tir-v2.md`, "Insertion"): the naive, correct
-//! ownership of `crates/hd_wasm_linear/DESIGN.md` §23.16 with releases at
+//! ownership of `crates/hd_wasm/DESIGN.md` §23.16 with releases at
 //! last use (§23.20), made explicit.
 //!
 //! 1. **Modes.** Every `use` read becomes `copy`, but a read through a

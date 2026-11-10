@@ -1,4 +1,4 @@
-//! Short loans (`crates/hd_wasm_linear/DESIGN.md` §23.20): a reference into
+//! Short loans (`crates/hd_wasm/DESIGN.md` §23.20): a reference into
 //! a collection whose every holder ends before anything could write or
 //! drop that collection lives on the collection's own count. It takes no
 //! count of the buffer, and a shared one makes the buffer neither unique

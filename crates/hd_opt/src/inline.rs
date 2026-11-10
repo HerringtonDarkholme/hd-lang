@@ -77,13 +77,13 @@ pub trait InlineEnv: ProgramEnv {
     /// implementation.
     fn select_impl(&self, trait_: DefId, self_ty: Ty, targs: TyList) -> Option<DefId>;
     /// The referent of a reference of type `t` that an inlined copy may
-    /// take by value (`hd_wasm_linear::lent_referent`, counted parts
+    /// take by value (`hd_wasm::lent_referent`, counted parts
     /// allowed), in every build (#1151, #1167). The environment also
     /// proves that the referent may be copied: its small layout alone
     /// does not prove that. `None` keeps a reader's reference instead.
     fn lent_referent(&self, t: Ty) -> Option<Ty>;
     /// The referent of a reference of type `t` that holds a value with a
-    /// `std.rt.Drop` (`hd_wasm_linear::rooted_referent`): an inlined copy
+    /// `std.rt.Drop` (`hd_wasm::rooted_referent`): an inlined copy
     /// never takes it by value; it keeps the reference in release, and in
     /// dev the call stays a call.
     fn rooted_referent(&self, t: Ty) -> Option<Ty>;
@@ -986,7 +986,7 @@ impl dyn InlineEnv + '_ {
     /// one reference parameter (`ref.dep.elide`): the call already keeps
     /// that local alive over the result's uses, so the copy's binding
     /// points into a frame slot with no count
-    /// (`crates/hd_wasm_linear/DESIGN.md` §23.38).
+    /// (`crates/hd_wasm/DESIGN.md` §23.38).
     fn takes_reference(&self, def: DefId, targs: TyList) -> bool {
         let Some(refs) = self.reference_params(def, targs, false) else {
             return true;
@@ -1003,7 +1003,7 @@ impl dyn InlineEnv + '_ {
     /// `copy` only reads through it
     /// (`hd_tir::own::promote::read_only_params`). The copy then binds the
     /// referent's value, not the address, and no cell follows
-    /// (`crates/hd_wasm_linear/DESIGN.md` §23.40). The binding is an
+    /// (`crates/hd_wasm/DESIGN.md` §23.40). The binding is an
     /// ordinary read of the caller's place, before the passes, so a
     /// counted referent's count is theirs to decide: a temporary's moves
     /// into the copy, and a local that stays unchanged lends it. So a dev

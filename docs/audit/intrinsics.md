@@ -27,7 +27,7 @@ wrapper in hd. The tables below retain the dated audit snapshot.
 | Kind | Count | keep | hd later | hd now | review |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | 1. `@intrinsic` functions (`hd_host_abi::INTRINSICS`) | 93 keys | 74 | 13 | 0 | 6 |
-| 2. Compiler-emitted runtime helpers (`hd_wasm_linear::rt::Helper`) | 145 | 110 | 33 | 2 | 0 |
+| 2. Compiler-emitted runtime helpers (`hd_wasm::rt::Helper`) | 145 | 110 | 33 | 2 | 0 |
 | 3. Built-in types | 34 forms | 32 | 2 | 0 | 0 |
 | 4. Built-in methods (spec ch. 10) | 17 | 6 | 11 | 0 | 0 |
 | 5. Known std items (`hd_resolve::KnownItems`) | 102 | 76 | 9 | 0 | 17 |
@@ -67,7 +67,7 @@ primitives in the last rows.
 
 ## 2. Runtime Helpers
 
-`hd_wasm_linear::rt::Helper` has 145 variants: functions the backend emits
+`hd_wasm::rt::Helper` has 145 variants: functions the backend emits
 into each module on demand.
 
 | Group | Helpers | Verdict |

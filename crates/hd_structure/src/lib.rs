@@ -882,7 +882,7 @@ impl<'a, 'n> Gen<'a, 'n> {
     }
 
     /// A reference of type `t` to `record`, held in a local's cell, which
-    /// a handle body places in static data (`hd_wasm_linear`), so the
+    /// a handle body places in static data (`hd_wasm`), so the
     /// reference is one address no count changes.
     fn static_ref(&mut self, record: Ref, t: Ty) -> Ref {
         let rt = self.b.ty_of(record);

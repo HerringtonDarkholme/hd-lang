@@ -1,5 +1,5 @@
 //! Symbolized panic frames in `hd test` text reports
-//! (`cli.test.report.panic`, `cli.test.report.frame`, `crates/hd_wasm_linear/DESIGN.md`
+//! (`cli.test.report.panic`, `cli.test.report.frame`, `crates/hd_wasm/DESIGN.md`
 //! §15.9): a `PANIC` block lists `FILE:LINE FUNCTION` lines after its
 //! `panic:` line, panic site first. An explicit panic starts at the call of
 //! `panic`, never inside the runtime's stub; a panic in std code starts in

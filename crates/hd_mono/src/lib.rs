@@ -157,13 +157,13 @@ pub trait ProgramEnv: LayoutEnv {
     fn data_fields(&self, def: DefId) -> Option<Vec<Ty>>;
     /// The names of `def`'s data fields, in [`ProgramEnv::data_fields`]'
     /// order, for development tools that name a value's parts
-    /// (`hd_wasm_linear::layout::value_paths`); `None` when unknown.
+    /// (`hd_wasm::layout::value_paths`); `None` when unknown.
     fn data_field_names(&self, _def: DefId) -> Option<Vec<String>>;
     /// Variant and payload field names in `LayoutEnv::enum_variants` order,
     /// for generated host interfaces. `None` when names are unavailable.
     fn enum_variant_names(&self, _def: DefId) -> Option<Vec<(String, Vec<String>)>>;
     /// Whether `def` is a `struct` declaration: a value whose copies copy
-    /// the collections it holds (`crates/hd_wasm_linear/DESIGN.md` §15.2,
+    /// the collections it holds (`crates/hd_wasm/DESIGN.md` §15.2,
     /// "Collection values").
     fn is_struct(&self, def: DefId) -> bool;
     /// Whether a data type has a field that is not `pub`: its value crosses
@@ -370,7 +370,7 @@ impl VTable {
 }
 
 /// How a vtable slot's adapter passes the trait value's payload to the
-/// slot's target (`crates/hd_wasm_linear/DESIGN.md` §15.2, "Trait value
+/// slot's target (`crates/hd_wasm/DESIGN.md` §15.2, "Trait value
 /// references").
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SlotRecv {
@@ -444,7 +444,7 @@ pub struct BoundaryCodecs {
     /// For a trait value reference `&mut dyn H` to a host handle entering
     /// hd, as `Net.connect!` returns (`std-net.handles.ref`): the
     /// `std.rt.host_provider` instance at `dyn H`, which puts the handle's
-    /// trait value behind a new object (`crates/hd_wasm_linear/DESIGN.md` §15.2).
+    /// trait value behind a new object (`crates/hd_wasm/DESIGN.md` §15.2).
     pub handle_ref: Option<Hash128>,
     /// For a `Map[K, V]` at the boundary: its key operations
     /// ([`Target::MapInline`] or [`Target::MapKey`]), which the map's
@@ -502,7 +502,7 @@ impl Collected {
 
     /// Whether the program may call trait method `method` through a trait
     /// value, so a host provider's slot for it needs its host call
-    /// (`crates/hd_wasm_linear/DESIGN.md`, host providers).
+    /// (`crates/hd_wasm/DESIGN.md`, host providers).
     #[must_use]
     pub fn calls_dyn(&self, method: DefId) -> bool {
         self.dyn_methods.contains(&method)
@@ -684,7 +684,7 @@ pub fn instruction_types(
 }
 
 /// Whether copying a value of type `t` copies collections
-/// (`crates/hd_wasm_linear/DESIGN.md` §15.2, "Collection values"): a `List` or a
+/// (`crates/hd_wasm/DESIGN.md` §15.2, "Collection values"): a `List` or a
 /// `Map` value, or a struct holding one in its fields, at any depth of
 /// struct fields. Generic code over such a type is laid out exactly, never
 /// as the A1 class `REF`, so a copy in it knows what it copies.

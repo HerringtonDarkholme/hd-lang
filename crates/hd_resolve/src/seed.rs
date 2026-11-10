@@ -263,7 +263,7 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
                 vec![],
                 ItemData::Struct(vec![], TypeAttrs::default()),
             );
-            // `join!` has no written signature (`crates/hd_wasm_linear/DESIGN.md` §14.5): its
+            // `join!` has no written signature (`crates/hd_wasm/DESIGN.md` §14.5): its
             // checker rule is the compiler's.
             let mut join = FnSig::simple(vec![], vec![], Ty::VOID);
             join.suspends = true;

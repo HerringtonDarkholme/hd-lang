@@ -16,7 +16,7 @@ Every build knows its target engine.
 | --- | --- | --- |
 | `hd_mono` | Collection: the worklist, instance keys (`known_key` included), selection, vtables, witnesses, `Collected`. `hd_mono::plan` holds what collection reads: `BodyPlan`, `Source` and the `Planner` trait (§2.2). Applying a plan is generic | Deciding *whether* to specialize or devirtualize; pass names; size or depth policy beyond its own instantiation limits |
 | `hd_opt` | The pass manager (`passes.rs`: `PassSpec`, `FactId`, gates, `DEV`, `OPTIMIZED`, `pipeline`, `validate`), the body passes, `ValueFlow` (`value_flow.rs`), `PipelinePlanner` (`planner.rs`), which implements `Planner`, the inliner (`inline.rs`), which reads the program through `InlineEnv`, and the mutation scan (`whole.rs`), which reads the backend's layout through `ObjectLayout` | Creating instances, emitting Wasm, choosing layouts |
-| `hd_wasm_linear` | Emission and link with shared scalar lowering (§4). It reads `Collected` targets (`KnownClosure` and the rest) | Reading pass names or the pipeline |
+| `hd_wasm` | Emission and link with shared scalar lowering (§4). It reads `Collected` targets (`KnownClosure` and the rest) | Reading pass names or the pipeline |
 | `hd_run_wasmtime` | Engine options per level: `EngineConfig::pipeline(level)` gives Cranelift `None` or `Speed` | Code keys |
 | `hd_driver` | Wiring: it picks (target, level), builds the planner, hashes pass content into the `pipeline` key part (`hd_driver::pipeline`), and passes the planner to collection | Policy |
 | `hd_base` | `EngineTarget { V8, Wasmtime, Browser }` and `OptLevel { Dev, Optimized }`, next to `BuildProfile` | Tables |
@@ -30,18 +30,18 @@ a target only tunes speed.
 ```text
 hd_base <- hd_tir <- hd_mono (collection + plan types)
                         ^   ^
-                        |   +-- hd_wasm_linear (emission)
+                        |   +-- hd_wasm (emission)
                         +------ hd_opt  (passes, pipelines; implements Planner)
-hd_driver -> hd_opt, hd_wasm_linear, hd_mono
+hd_driver -> hd_opt, hd_wasm, hd_mono
 ```
 
 `hd_opt` depends on `hd_mono`, not the reverse: collection defines the
-interface it consumes, and the driver hands it a `&dyn Planner`. `hd_wasm_linear`
+interface it consumes, and the driver hands it a `&dyn Planner`. `hd_wasm`
 and `hd_opt` never depend on each other. Module-level (link) passes work
-on `hd_wasm_linear`'s module form, so their bodies stay in `hd_wasm_linear` as link
+on `hd_wasm`'s module form, so their bodies stay in `hd_wasm` as link
 options, and the pipeline table only selects them.
 
-Implementation differs: `hd_wasm_linear::build` takes a `release` bool from the
+Implementation differs: `hd_wasm::build` takes a `release` bool from the
 build profile (`hd_driver` passes `build_profile == Release`), and the
 pipeline's link pass names are only hashed; not judged, since
 crates/hd_mono/DESIGN.md §13.10 ties the `hd.names` section to the profile.
@@ -56,9 +56,9 @@ collection (hd_mono): resolves each BodyPlan entry against the instance
                  being scanned → Target::KnownClosure, specialized
                  instances, carried known lists
                  ▼
-emission (hd_wasm_linear) reads Collected
+emission (hd_wasm) reads Collected
                  ▼
-link (hd_wasm_linear)
+link (hd_wasm)
 ```
 
 The **body unit** exists for decisions that change the instance set: such
@@ -159,7 +159,7 @@ decision.
 browser use the two rows below; wasmtime uses `DEV_WASMTIME` and
 `OPTIMIZED_WASMTIME`, the same rows with the link pass `inline_counts`
 added, which emits the count fast paths inline
-(`crates/hd_wasm_linear/DESIGN.md` §23.30, #644). Each column is data in
+(`crates/hd_wasm/DESIGN.md` §23.30, #644). Each column is data in
 the crate that reads it.
 
 | Level | Passes (`tir`) | Link passes (hashed only) | Knobs | Engine |
@@ -198,7 +198,7 @@ part of the program's cache key.
 ## 4. Shared Code Generation
 
 All engine targets use the same scalar functions, linear-memory layouts
-and function-table closure calls in `hd_wasm_linear`. There is no GC
+and function-table closure calls in `hd_wasm`. There is no GC
 lowering profile. Equal optimization passes and knobs share pipeline keys
 across engines; changing a pass or knob changes the key.
 

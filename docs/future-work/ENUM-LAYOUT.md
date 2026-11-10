@@ -1,6 +1,6 @@
 # Enum Layout
 
-Built and closed 2026-11-08 (#1422; views deleted by #1448); domain: compiler internals (`hd_wasm_linear`); owner
+Built and closed 2026-11-08 (#1422; views deleted by #1448); domain: compiler internals (`hd_wasm`); owner
 decided its five questions on 2026-11-08 (below). Issue #1422. Owner direction on record: "how rust is doing this,
 do no worse" and "i32?? should be 8, not 12. this is general".
 
@@ -346,7 +346,7 @@ local.get 0  i32.load 0  local.tee 1  br_if 0  local.get 0  i32.load 4 ...
 
 ## How It Lands
 
-| Today (`crates/hd_wasm_linear/src`) | Proposed |
+| Today (`crates/hd_wasm/src`) | Proposed |
 | --- | --- |
 | `layout.rs` `Mem { size, align, leaves }` | adds `niche`, `enc`, per-variant field offsets, `cells` |
 | `enum_mem_by`: tag, then slots grouped by value kind (`SLOT_ORDER`) | `layout_of_enum` from (a); slots and `Positions` are deleted |
@@ -514,7 +514,7 @@ no spec change is needed.
 
 ## Appendix E. Details
 
-- **Pipeline.** Layout stays in `hd_wasm_linear`, read through `layout::mem`.
+- **Pipeline.** Layout stays in `hd_wasm`, read through `layout::mem`.
   The checker and TIR do not change.
 - **Determinism.** Ties break as in Rust: the last largest variant, and the
   first or last niche by bias.

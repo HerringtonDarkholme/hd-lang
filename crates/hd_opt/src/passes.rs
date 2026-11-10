@@ -525,7 +525,7 @@ pub static OPTIMIZED: Pipeline = Pipeline {
 };
 
 /// [`DEV`] for wasmtime: the link also inlines the count fast paths
-/// (`inline_counts`, `crates/hd_wasm_linear/DESIGN.md` §23.30), which
+/// (`inline_counts`, `crates/hd_wasm/DESIGN.md` §23.30), which
 /// Cranelift does not inline on its own; V8 does, and runs the inline form
 /// slower (#644).
 pub static DEV_WASMTIME: Pipeline = Pipeline {

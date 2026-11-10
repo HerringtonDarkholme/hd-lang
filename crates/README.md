@@ -28,7 +28,7 @@ in each crate's `Cargo.toml`.
 | `hd_check` | Body checking, trait solving, exhaustiveness, facts, coherence, initialization | [Body checking](hd_tir/DESIGN.md#413-body-checking), [trait solving](hd_check/DESIGN.md#new-compiler-the-trait-solver) |
 | `hd_mono` | Reachable-instance collection and monomorphization | [Monomorphization and merging](hd_mono/DESIGN.md#13-monomorphization-and-merging) |
 | `hd_opt` | Pass manager and pipelines keyed by (engine target, level) | [Optimization pipelines](hd_opt/DESIGN.md) |
-| `hd_wasm_linear` | The linear-memory backend, the only one: reference-counted values in linear memory, one module per program | [Linear-memory layout](hd_wasm_linear/DESIGN.md#23-linear-memory-layout) |
+| `hd_wasm` | The linear-memory backend, the only one: reference-counted values in linear memory, one module per program | [Linear-memory layout](hd_wasm/DESIGN.md#23-linear-memory-layout) |
 | `hd_cache` | Cache keys, entry framing, memory and disk stores | [Cache](hd_cache/DESIGN.md#5-cache) |
 | `hd_deps` | Remote dependencies: version selection, `git` fetching, tree hashes, `hd.sum` | [Dependencies](../spec/cli/command-line.md#dependencies) |
 | `hd_run` | Engine-neutral program loading and run outcomes | [Runtime](hd_run_wasmtime/DESIGN.md#16-runtime), [execution engines](../docs/compiler/engines-and-test-runner.md#18-execution-engines-and-tiers) |
@@ -134,7 +134,7 @@ cargo run -p hd_syntax --example parse_check -- --tree examples/hello/hello.hd
 - Compiler output is tested with stage cases: a plain `.hd` file under
   `crates/<crate>/tests/cases/<topic>/` with its generated output under
   `tests/baselines/<topic>/`. `hd_syntax` (tokens, tree), `hd_check` (tir),
-  `hd_wasm_linear` (wat) and `hd_driver` (counts, layout) each run theirs
+  `hd_wasm` (wat) and `hd_driver` (counts, layout) each run theirs
   with `cargo test -p <crate> --test stages` (`hd_syntax`:
   `cargo test -p hd_syntax --test all stages::`). The harness is
   [`hd_testkit/src/stages.rs`](hd_testkit/src/stages.rs); the format, views

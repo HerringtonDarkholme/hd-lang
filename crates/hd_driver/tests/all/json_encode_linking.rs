@@ -5,7 +5,7 @@ use hd_cache::MemoryStore;
 use hd_driver::{BuildProfile, Executor, Goal, Host, NoClock, OptLevel, Packages, build_packages};
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
-use hd_wasm_linear::FunctionOrigins;
+use hd_wasm::FunctionOrigins;
 
 fn emitted_functions(source: &str) -> Vec<FunctionOrigins> {
     let mut sources = MemorySources::default();

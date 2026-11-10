@@ -579,7 +579,7 @@ pub fn view(name: &str, build: Build, p: &Program) -> Option<String> {
 /// `--release` builds). `std` builds the case as module `std.rt_tests.stage_case`
 /// of the standard library, which may use the runtime modules
 /// (`module.rt.std-only`); the semantic and Wasm views read it.
-/// `checked` links the checked runtime (`crates/hd_wasm_linear/DESIGN.md`
+/// `checked` links the checked runtime (`crates/hd_wasm/DESIGN.md`
 /// §23.24), whose walks mark buffers, as checked conformance runs do.
 /// `program` links from `pub fn main`, including runtime helpers; fixture
 /// builds otherwise assume physical references and omit runtime views.

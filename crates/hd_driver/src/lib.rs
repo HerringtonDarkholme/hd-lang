@@ -49,11 +49,9 @@ use hd_types::solver::{
     UniverseImpls, folder_table,
 };
 use hd_types::{InternPool, Ty, TyData, TyList};
-pub use hd_wasm_linear::Niche;
-pub use hd_wasm_linear::views::{
-    CountAction, CountOperation, CountedLeaf, FieldLayout, TypeLayout,
-};
-pub use hd_wasm_linear::{FunctionOrigins, InstructionOrigin, StaticData};
+pub use hd_wasm::Niche;
+pub use hd_wasm::views::{CountAction, CountOperation, CountedLeaf, FieldLayout, TypeLayout};
+pub use hd_wasm::{FunctionOrigins, InstructionOrigin, StaticData};
 
 // The web compiler builds without the analysis hook; `analysis_off.rs`
 // holds the no-op twin of each hook the run calls.
@@ -181,11 +179,11 @@ fn rt_roots(table: &ModuleTable, checked: bool) -> impl Iterator<Item = ModuleId
     // A checked build links the checked runtime, which has folders of its
     // own (`std.rt.checked`, and `std.rt.checked_report` with that feature).
     let checked_rt: &[&str] = if checked {
-        &["std.rt.checked", hd_wasm_linear::CHECKED_MODULE]
+        &["std.rt.checked", hd_wasm::CHECKED_MODULE]
     } else {
         &[]
     };
-    [ENTRY_MODULE, hd_wasm_linear::RUNTIME_MODULE]
+    [ENTRY_MODULE, hd_wasm::RUNTIME_MODULE]
         .into_iter()
         .chain(checked_rt.iter().copied())
         .filter_map(|path| table.module(path))
@@ -473,7 +471,7 @@ pub struct FixtureLayout {
     pub file: String,
     pub lo: u32,
     pub hi: u32,
-    pub layout: hd_wasm_linear::views::TypeLayout,
+    pub layout: hd_wasm::views::TypeLayout,
 }
 
 /// Generated host artifacts derived solely from the checked contract data.
@@ -654,7 +652,7 @@ impl Output {
     }
 
     /// What resolves the anchors of the built program's line table to
-    /// files and lines (`crates/hd_wasm_linear/DESIGN.md` §15.9), its modules kept in `pool`
+    /// files and lines (`crates/hd_wasm/DESIGN.md` §15.9), its modules kept in `pool`
     /// with those of the command's other programs.
     #[must_use]
     pub fn positions(&self, pool: &mut PositionPool) -> Positions {
@@ -2100,7 +2098,7 @@ pub struct Session {
     inputs: BTreeMap<u32, InputEntries>,
     /// Private linking ABI for initialized REPL modules; absent in what a
     /// build adds without linking.
-    linked: Option<hd_wasm_linear::Session>,
+    linked: Option<hd_wasm::Session>,
 }
 
 /// A validated cache payload that retains the store's backing allocation.
@@ -2167,7 +2165,7 @@ impl Session {
     #[must_use]
     pub fn linked() -> Session {
         Session {
-            linked: Some(hd_wasm_linear::Session::default()),
+            linked: Some(hd_wasm::Session::default()),
             ..Session::default()
         }
     }
@@ -2821,7 +2819,7 @@ fn build_packages_inner(
         // the metadata actually asks for a source line.
         let positions = std::cell::OnceCell::new();
         let label = own::count_report_label();
-        hd_wasm_linear::resolve_count_audit(&mut wasm, |item, inst| {
+        hd_wasm::resolve_count_audit(&mut wasm, |item, inst| {
             let positions =
                 positions.get_or_init(|| output.positions(&mut PositionPool::default()));
             positions
@@ -3538,7 +3536,7 @@ impl Run<'_> {
         self.glue_items.get_or_init(|| {
             let names = self.names();
             let host = self.host_items();
-            hd_wasm_linear::runtime_items(self.checked())
+            hd_wasm::runtime_items(self.checked())
                 .into_iter()
                 .chain(ENTRY_STATUS_FNS.map(|name| (ENTRY_MODULE, name)))
                 .map(|(module, name)| names.item(module, name))
@@ -9310,9 +9308,9 @@ impl Run<'_> {
         // A joined build's one root is its last input, whose init order
         // every input's inits are split from.
         let mut order: Vec<(DefId, &str)> = Vec::new();
-        // The linear backend's runtime (crates/hd_wasm_linear/DESIGN.md §23.16)
+        // The linear backend's runtime (crates/hd_wasm/DESIGN.md §23.16)
         // runs its module's inits first, in every root's group.
-        let runtime = hd_wasm_linear::runtime_module(self.checked());
+        let runtime = hd_wasm::runtime_module(self.checked());
         let runtime_inits: Vec<DefId> = match self.root_init_order(runtime, &init_of, &has_init) {
             Ok(o) => o.into_iter().map(|(d, _)| d).collect(),
             Err(e) => {
@@ -9418,17 +9416,14 @@ impl Run<'_> {
                 }
             }
         }
-        for (module, name) in hd_wasm_linear::runtime_items(self.checked()) {
+        for (module, name) in hd_wasm::runtime_items(self.checked()) {
             let r = (names.item(module, name), TyList::EMPTY);
             if self.body_of(p, r.0).is_some() && !extra.contains(&r) {
                 extra.push(r);
             }
         }
-        for name in hd_wasm_linear::FLOAT_FNS {
-            let r = (
-                names.item(hd_wasm_linear::FLOAT_MODULE, name),
-                TyList::EMPTY,
-            );
+        for name in hd_wasm::FLOAT_FNS {
+            let r = (names.item(hd_wasm::FLOAT_MODULE, name), TyList::EMPTY);
             if self.body_of(p, r.0).is_some() && !extra.contains(&r) {
                 extra.push(r);
             }
@@ -9591,7 +9586,7 @@ impl Run<'_> {
                 });
                 let Some(layout) = self.stage(
                     Stage::Collect,
-                    hd_wasm_linear::views::inspect_layout(&self.pool, &env, ty),
+                    hd_wasm::views::inspect_layout(&self.pool, &env, ty),
                 ) else {
                     return;
                 };
@@ -9638,14 +9633,14 @@ impl Run<'_> {
         // Code generation can introduce allocator/count calls even when the
         // source has none. Their bodies are collected but retained only when
         // the emitted fixture reaches them.
-        for (m, n) in hd_wasm_linear::runtime_items(self.checked()) {
+        for (m, n) in hd_wasm::runtime_items(self.checked()) {
             let d = names.item(m, n);
             if self.body_of(p, d).is_some() {
                 roots.push((d, TyList::EMPTY));
             }
         }
-        for name in hd_wasm_linear::FLOAT_FNS {
-            let d = names.item(hd_wasm_linear::FLOAT_MODULE, name);
+        for name in hd_wasm::FLOAT_FNS {
+            let d = names.item(hd_wasm::FLOAT_MODULE, name);
             if self.body_of(p, d).is_some() {
                 roots.push((d, TyList::EMPTY));
             }
@@ -9653,7 +9648,7 @@ impl Run<'_> {
         let init_of = |m: &str| hd_check::default_body_def(&names, names.item(m, "init"), "init");
         let has_init = |m: &str| self.entry_has_init(m) && self.body_of(p, init_of(m)).is_some();
         let mut inits = Vec::new();
-        for m in [hd_wasm_linear::runtime_module(self.checked()), module] {
+        for m in [hd_wasm::runtime_module(self.checked()), module] {
             let Some(order) =
                 self.stage(Stage::Collect, self.root_init_order(m, &init_of, &has_init))
             else {
@@ -10429,7 +10424,7 @@ impl Run<'_> {
         let inits = &c.collected.inits;
         let entry = match &c.roots {
             #[cfg(feature = "fixtures")]
-            Roots::Fixture(roots) => hd_wasm_linear::Entry::Fixture {
+            Roots::Fixture(roots) => hd_wasm::Entry::Fixture {
                 roots: roots.clone(),
             },
             Roots::Main {
@@ -10437,7 +10432,7 @@ impl Run<'_> {
                 key,
                 entry_inits,
                 report,
-            } => hd_wasm_linear::Entry::Main {
+            } => hd_wasm::Entry::Main {
                 main: *def,
                 key: *key,
                 inits: inits
@@ -10472,7 +10467,7 @@ impl Run<'_> {
                     report.is_none() || after.is_empty(),
                     "a script using `?` whose module cycle runs inits after it"
                 );
-                hd_wasm_linear::Entry::Script {
+                hd_wasm::Entry::Script {
                     init: *def,
                     key: *key,
                     before: before.map(|k| (*k, true)).collect(),
@@ -10502,7 +10497,7 @@ impl Run<'_> {
                         );
                         return;
                     };
-                    out.push(hd_wasm_linear::ReplInput {
+                    out.push(hd_wasm::ReplInput {
                         number: i.number,
                         init: i.def,
                         key: i.key,
@@ -10516,9 +10511,9 @@ impl Run<'_> {
                             .collect(),
                     });
                 }
-                hd_wasm_linear::Entry::Inputs(out)
+                hd_wasm::Entry::Inputs(out)
             }
-            Roots::Tests { cases, inits } => hd_wasm_linear::Entry::Tests {
+            Roots::Tests { cases, inits } => hd_wasm::Entry::Tests {
                 cases: cases.clone(),
                 inits: inits.clone(),
                 runtime_inits: {
@@ -10549,7 +10544,7 @@ impl Run<'_> {
                 entry_inits,
                 report,
                 cleanup,
-            } => hd_wasm_linear::Entry::Scenario {
+            } => hd_wasm::Entry::Scenario {
                 main: *def,
                 key: *key,
                 inits: inits
@@ -10561,7 +10556,7 @@ impl Run<'_> {
                 hold: self.scenario_hold(p),
             },
         };
-        let runtime_keys: Vec<Option<Hash128>> = hd_wasm_linear::runtime_items(self.checked())
+        let runtime_keys: Vec<Option<Hash128>> = hd_wasm::runtime_items(self.checked())
             .into_iter()
             .map(|(module, n)| {
                 let def = names.item(module, n);
@@ -10571,7 +10566,7 @@ impl Run<'_> {
                     .map(|id| table.key[id.idx()])
             })
             .collect();
-        let runtime = hd_wasm_linear::Runtime::from_keys(&runtime_keys);
+        let runtime = hd_wasm::Runtime::from_keys(&runtime_keys);
         // A checked build never falls back to unchecked counts.
         if self.checked() && runtime.is_none_or(|r| r.checked.is_none()) {
             self.stage::<()>(
@@ -10583,14 +10578,14 @@ impl Run<'_> {
             );
             return;
         }
-        let float_keys = hd_wasm_linear::FLOAT_FNS.map(|name| {
-            let def = names.item(hd_wasm_linear::FLOAT_MODULE, name);
+        let float_keys = hd_wasm::FLOAT_FNS.map(|name| {
+            let def = names.item(hd_wasm::FLOAT_MODULE, name);
             let table = &c.collected.table;
             table
                 .get(def, hd_mono::Sub::Body(0), TyList::EMPTY)
                 .map(|id| table.key[id.idx()])
         });
-        let Some(float_ops) = hd_wasm_linear::FloatOps::from_keys(float_keys) else {
+        let Some(float_ops) = hd_wasm::FloatOps::from_keys(float_keys) else {
             self.stage::<()>(
                 Stage::Link,
                 Err(NotImplemented::bug(
@@ -10614,7 +10609,7 @@ impl Run<'_> {
             || hd_opt::whole::mutation_targets(&self.pool, &env, &env, &instances);
         let coinductive_flags =
             hd_opt::whole::coinductive_flags(&env, &instances, &c.collected.calls);
-        let input = hd_wasm_linear::Input {
+        let input = hd_wasm::Input {
             pool: &self.pool,
             env: &env,
             path: &path,
@@ -10638,13 +10633,13 @@ impl Run<'_> {
         };
         // A session's build always links: a REPL input over earlier
         // modules imports them.
-        let base = hd_wasm_linear::Session::default();
+        let base = hd_wasm::Session::default();
         let linked = self.session.map(|s| s.linked.as_ref().unwrap_or(&base));
         let built = if let Some(previous) = linked {
             let built = if previous.is_empty() {
-                hd_wasm_linear::build_session_base(&input, self.map_instructions)
+                hd_wasm::build_session_base(&input, self.map_instructions)
             } else {
-                hd_wasm_linear::build_session_extension(&input, previous, self.map_instructions)
+                hd_wasm::build_session_extension(&input, previous, self.map_instructions)
             };
             built.map(|(mapped, linked)| {
                 let _ = self.session_added.set(Session {
@@ -10657,12 +10652,12 @@ impl Run<'_> {
                 mapped.wasm
             })
         } else if self.map_instructions {
-            hd_wasm_linear::build_with_origins(&input).map(|mapped| {
+            hd_wasm::build_with_origins(&input).map(|mapped| {
                 let _ = self.instruction_origins.set(mapped.functions);
                 mapped.wasm
             })
         } else {
-            hd_wasm_linear::build(&input)
+            hd_wasm::build(&input)
         };
         let Some(wasm) = self.stage(Stage::Link, built) else {
             return;
@@ -11752,7 +11747,7 @@ impl LayoutEnv for Env<'_> {
 /// The backend's layout as the mutation scan reads it (`hd_opt::whole`).
 impl hd_opt::whole::ObjectLayout for Env<'_> {
     fn strip(&self, t: Ty) -> Ty {
-        hd_wasm_linear::object_layout::strip(&self.run.pool, self, t)
+        hd_wasm::object_layout::strip(&self.run.pool, self, t)
     }
     fn mutable_counted_ref_target(&self, t: Ty) -> Option<Ty> {
         let TyData::Ref {
@@ -11763,7 +11758,7 @@ impl hd_opt::whole::ObjectLayout for Env<'_> {
         else {
             return None;
         };
-        Some(hd_wasm_linear::object_layout::strip(
+        Some(hd_wasm::object_layout::strip(
             &self.run.pool,
             self,
             self.low(inner),
@@ -11974,7 +11969,7 @@ impl ProgramEnv for Env<'_> {
         })
     }
     fn shared_reference_layout(&self, ty: Ty) -> bool {
-        hd_wasm_linear::shared_reference_layout(&self.run.pool, self, ty)
+        hd_wasm::shared_reference_layout(&self.run.pool, self, ty)
     }
 
     fn body(&self, def: DefId) -> Option<&Body> {

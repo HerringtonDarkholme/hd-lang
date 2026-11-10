@@ -364,7 +364,7 @@ pub enum TyData {
     /// tag, so the kinds stay distinct types (`ref.type.distinct`,
     /// `ref.type.kind-distinct`), through every stage to the backend. A
     /// counted reference refers to a whole object (`ref.box.object`), so its
-    /// address is a payload start (`crates/hd_wasm_linear/DESIGN.md` §23.30).
+    /// address is a payload start (`crates/hd_wasm/DESIGN.md` §23.30).
     Ref {
         inner: Ty,
         mutable: bool,

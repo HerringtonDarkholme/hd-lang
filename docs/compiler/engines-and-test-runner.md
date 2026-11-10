@@ -26,7 +26,7 @@ test profile's checks. `hd_run_wasmtime::wasmtime_config` and
 | multi-value, bulk memory, extended-const | on | on |
 | `wasm_gc`, tail calls | off | off |
 | compiler | Cranelift `OptLevel::None`, backtracking allocator | Cranelift `OptLevel::Speed`, backtracking allocator |
-| memory | linear memory, reference counts and the cycle collector of crates/hd_wasm_linear/DESIGN.md §23 | same |
+| memory | linear memory, reference counts and the cycle collector of crates/hd_wasm/DESIGN.md §23 | same |
 | `epoch_interruption` | on | on |
 | `consume_fuel` | off (fuel is for simulation, Later) | off |
 | `max_wasm_stack` | 4 MiB, on a thread with 8 MiB more native stack | same |
@@ -298,7 +298,7 @@ both, the earlier wins.
 - **Quiet passes.** Passing cases print nothing; a summary line ends the
   run. `--format json` writes one record per case.
 - **Each failure** prints its name, the panic category and message, the
-  frames from `hd.lines` (crates/hd_wasm_linear/DESIGN.md §15.9), and a **repro
+  frames from `hd.lines` (crates/hd_wasm/DESIGN.md §15.9), and a **repro
   command**: `hd test src/billing.hd --filter "sums prices"`. A property
   failure adds its seed; rerunning the repro replays the saved stream.
 - **Order.** Results are printed in content order by the release cursor,

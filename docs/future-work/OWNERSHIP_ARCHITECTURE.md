@@ -7,7 +7,7 @@ brainstorm, in this file's git history at d1e8f3bc5) on 2026-11-04. Nothing
 here is in the specification, and it changes no spec rule. It reviews
 `crates/hd_tir/src/own.rs` and `own/*`, `crates/hd_driver/src/own.rs`,
 `instance_body` in `crates/hd_driver/src/lib.rs`, the emitter's ownership
-code in `crates/hd_wasm_linear/src/emit/*` and `opt.rs`,
+code in `crates/hd_wasm/src/emit/*` and `opt.rs`,
 [TIR v2](../compiler/tir-v2.md#the-ownership-passes) and the
 [TIR v2 directions](../compiler/tir-v2-directions.md#fixed-constraints).
 The evidence is the static audit
@@ -352,7 +352,7 @@ for a baseline; the verifier makes them checked.
   summaries, moved from `emit/elide.rs` into a TIR pass. Same-root
   conflicts stay compile errors in the checker.
 - **Views.** A representation view is the one reference that owns an
-  object (`crates/hd_wasm_linear/DESIGN.md` §23.20). Being a view becomes a
+  object (`crates/hd_wasm/DESIGN.md` §23.20). Being a view becomes a
   per-value fact: only references to a payload field its enum's slots
   scatter may be views (#1421 removed erased calls; #1422 removed the rest, and
   #1448 deleted views on 2026-11-08). The module-wide `views_absent` and the link fold went with them.

@@ -1,6 +1,6 @@
 //! The wasmtime session: inputs the driver builds with `Goal::ReplInput`
 //! run one after another. Each input's build is one linear module of the
-//! session's inputs (`hd_wasm_linear::Entry::Inputs`), and the session
+//! session's inputs (`hd_wasm::Entry::Inputs`), and the session
 //! replays the earlier inputs from its journal before it runs the new one.
 //! A later input sees an earlier input's declarations and top-level
 //! bindings by name. An input that is one expression shows its value, and

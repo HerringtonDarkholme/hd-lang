@@ -109,7 +109,7 @@ fn modules() -> Vec<Module> {
     }
     // Stage cases of every crate.
     let mut cases = Vec::new();
-    for c in ["hd_syntax", "hd_check", "hd_wasm_linear", "hd_driver"] {
+    for c in ["hd_syntax", "hd_check", "hd_wasm", "hd_driver"] {
         walk(
             &r.join("crates").join(c).join("tests/cases"),
             "hd",

@@ -7,7 +7,7 @@ document stays as the record of the alternatives.
 Under review: TIR ([crates/hd_tir/src/ir.rs](../../crates/hd_tir/src/ir.rs),
 [crates/hd_tir/DESIGN.md](../../crates/hd_tir/DESIGN.md) §4.13.11), the
 linear backend's layouts, references and loans
-([crates/hd_wasm_linear/DESIGN.md](../../crates/hd_wasm_linear/DESIGN.md)
+([crates/hd_wasm/DESIGN.md](../../crates/hd_wasm/DESIGN.md)
 §23.3-23.7, §23.20, §23.27, §23.31, §23.36), the known-bad stage cases
 (`crates/hd_check/tests/cases/known-bad-tir/`) and #656's catalog.
 

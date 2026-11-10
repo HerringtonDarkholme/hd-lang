@@ -1,5 +1,5 @@
 //! A program none of whose objects can be on a reference cycle links no
-//! cycle collector (`crates/hd_wasm_linear/DESIGN.md` §23.28, #649); one
+//! cycle collector (`crates/hd_wasm/DESIGN.md` §23.28, #649); one
 //! that builds a ring of references does.
 
 use hd_driver::{Executor, Goal, Host, NoClock, Packages, build_packages};

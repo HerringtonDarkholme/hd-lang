@@ -1,6 +1,6 @@
 //! References that count nothing (#1360). A reference owns something only
 //! when it is a new object it made
-//! (`crates/hd_wasm_linear/DESIGN.md` §23.20), so a `Drop` of a value that
+//! (`crates/hd_wasm/DESIGN.md` §23.20), so a `Drop` of a value that
 //! holds only references of neither kind has no release to do; all it still
 //! does is end its holder's loans. This pass, the last, turns such a `Drop`
 //! into a `LoanEnd`.

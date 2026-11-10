@@ -47,7 +47,7 @@ immutability). This study measures each of those on proxies written in
 Rust and compiled to Wasm, then proposes the runtime.
 
 The linear-memory layout is in
-[crates/hd_wasm_linear/DESIGN.md](../../crates/hd_wasm_linear/DESIGN.md) §23.
+[crates/hd_wasm/DESIGN.md](../../crates/hd_wasm/DESIGN.md) §23.
 
 ## 2. The Runtime On One Page
 
@@ -346,7 +346,7 @@ Most hd values are never counted:
 - **Literals and constants are immortal.** A static object has count word 0
   and lives below the heap: `retain` and `release` skip addresses below the
   heap, `retain_known`/`release_known` skip a zero count, and a write copies
-  it first (crates/hd_wasm_linear/DESIGN.md §23.4), so it is never freed. A string literal is a view into the data segment, whose pages
+  it first (crates/hd_wasm/DESIGN.md §23.4), so it is never freed. A string literal is a view into the data segment, whose pages
   the page table marks static; a count update through a view reads the
   page entry anyway (section 5) and skips static pages.
 
@@ -746,7 +746,7 @@ Each job is about an hour and leaves `main` green. Jobs marked (2) are
 likely two jobs. Jobs 2 and 25 are dropped: there is no backend switch,
 because the linear backend is the only backend.
 
-1. Layout record: `crates/hd_wasm_linear/DESIGN.md` gains a linear-memory
+1. Layout record: `crates/hd_wasm/DESIGN.md` gains a linear-memory
    layout section from this study (docs only).
 2. (Dropped.)
 3. Module skeleton: memory, data segments, globals, entry wrapper;
@@ -829,4 +829,4 @@ because the linear backend is the only backend.
 - This repository: the Rust model study (`git show b3f5eed1a:docs/future-work/RUST_MODEL_STUDY.md`) section 8
   and its appendix (hd's Wasm GC numbers),
   [PARALLELISM_AND_LOCALITY.md](PARALLELISM_AND_LOCALITY.md),
-  [crates/hd_wasm_linear/DESIGN.md](../../crates/hd_wasm_linear/DESIGN.md) §14 and §15.
+  [crates/hd_wasm/DESIGN.md](../../crates/hd_wasm/DESIGN.md) §14 and §15.

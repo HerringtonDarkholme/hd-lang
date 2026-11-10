@@ -2,7 +2,7 @@
 # @build: v8 release
 # `tally` is declared outside the loop, and each iteration's `&mut tally`
 # is only `bump`'s argument, so `tally` lives in a slot of the frame
-# (crates/hd_wasm_linear/DESIGN.md §23.38), whose address no count changes:
+# (crates/hd_wasm/DESIGN.md §23.38), whose address no count changes:
 # the reference takes none.
 struct Tally:
     n: i64

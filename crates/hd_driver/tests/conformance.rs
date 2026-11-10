@@ -32,7 +32,7 @@
 //! timing, without applying the rule.
 //!
 //! Every case builds with the linear-memory backend, the default
-//! (`crates/hd_wasm_linear/DESIGN.md` §23).
+//! (`crates/hd_wasm/DESIGN.md` §23).
 //! `HD_CONFORMANCE_CHECKED=1` builds them in checked mode
 //! instead (§23.24), under the same rule: a
 //! leak, a double free or a count change on a freed block panics

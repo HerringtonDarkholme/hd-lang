@@ -1,4 +1,4 @@
-//! Frame locals (`crates/hd_wasm_linear/DESIGN.md` §23.38): locals that
+//! Frame locals (`crates/hd_wasm/DESIGN.md` §23.38): locals that
 //! local references point into, which the backend may keep in a slot of
 //! the function's frame rather than a counted cell. A slot holds no count,
 //! so every use of a value that may point into the local counts as a use

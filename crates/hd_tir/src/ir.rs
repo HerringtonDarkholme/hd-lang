@@ -343,12 +343,12 @@ pub enum Coercion {
     Identity,
     /// `&S` or `&mut S` to a trait value `Tr` where `S: Tr`: the payload is
     /// the reference itself, and the dispatch table reads or passes it per
-    /// method (`crates/hd_wasm_linear/DESIGN.md` §15.2, "Trait value references").
+    /// method (`crates/hd_wasm/DESIGN.md` §15.2, "Trait value references").
     RefToTraitValue,
     /// A trait value reference `&dyn K` or `&mut dyn K` installed as the
     /// provider of a key `K` whose trait has a `&self` or `&mut self`
     /// method: the provider is the trait value `K` whose payload is the
-    /// reference itself (`crates/hd_wasm_linear/DESIGN.md` §15.2, "Providers of
+    /// reference itself (`crates/hd_wasm/DESIGN.md` §15.2, "Providers of
     /// reference traits").
     RefAsProvider,
     /// The inverse of `RefAsProvider` at `$.use(K)`: the provider's payload
@@ -782,7 +782,7 @@ pub mod ref_word {
     /// Set by insertion: a `Ref` of the storage of a frame local, one that
     /// the passes keep alive over every use of a value that may point into
     /// it, so the backend may keep it in a slot of the function's frame
-    /// (`crates/hd_wasm_linear/DESIGN.md` §23.38). Its count is never
+    /// (`crates/hd_wasm/DESIGN.md` §23.38). Its count is never
     /// taken (`TAKES`). The checker never sets it (invariant 22).
     pub const FRAME: u32 = 16;
     /// Set by insertion: a `for x in &xs` loop's element reference into
@@ -976,7 +976,7 @@ pub struct Body {
     pub regions: Vec<(u32, u32)>,
     /// Per instruction of a body the ownership passes made, the checker's
     /// instruction it came from, which a call it writes names as its
-    /// anchor in the line table (`crates/hd_wasm_linear/DESIGN.md` §15.9),
+    /// anchor in the line table (`crates/hd_wasm/DESIGN.md` §15.9),
     /// since the anchor is resolved against the `check` entry's body; `NONE`
     /// for an instruction the passes added. Empty in the checker's TIR,
     /// where each instruction is its own ([`Body::anchor`]). The driver

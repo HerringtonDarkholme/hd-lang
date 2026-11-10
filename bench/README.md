@@ -90,7 +90,7 @@ Python program once, without a warm-up or any hd, Node or Go execution.
 measurements do not launch a reference to obtain its output.
 
 `--checked PATH` builds each program at a reduced input in checked mode
-(crates/hd_wasm_linear/DESIGN.md §23.24) and prints the retains, releases,
+(crates/hd_wasm/DESIGN.md §23.24) and prints the retains, releases,
 allocations and heap pages it ran. The CLI has no flag for checked mode,
 so PATH is an `hd` built with two local edits: `Program::packages` in
 `crates/hd_cli/src/disk.rs` sets `checked` when `HD_BENCH_CHECKED` is set,

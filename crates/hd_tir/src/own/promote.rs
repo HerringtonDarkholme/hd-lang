@@ -2,7 +2,7 @@
 //! through it takes its referent by value in a promoted copy of the body,
 //! and a direct call whose argument is the address of the caller's own
 //! local passes that local's value instead
-//! (`crates/hd_wasm_linear/DESIGN.md` §23.40). A promoted call is
+//! (`crates/hd_wasm/DESIGN.md` §23.40). A promoted call is
 //! release only; an inlined copy binds by value in every build. Whether `T` is small and
 //! holds no counted leaf is the backend's question; these are the TIR
 //! halves: which parameters the body only reads through

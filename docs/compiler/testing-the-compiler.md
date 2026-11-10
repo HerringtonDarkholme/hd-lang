@@ -117,7 +117,7 @@ its stage crate. Generated output lives separately at
 `tests/baselines/<topic>/<name>.<view>`. `hd_testkit::stages` discovers
 cases recursively; adding a file needs no registration. Syntax cases live
 in `hd_syntax`, checker cases in `hd_check`, WAT cases in
-`hd_wasm_linear`, and layout/count cases in `hd_driver`.
+`hd_wasm`, and layout/count cases in `hd_driver`.
 
 Header comments select the dumps and build:
 

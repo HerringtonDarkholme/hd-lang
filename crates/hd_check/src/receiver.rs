@@ -5,7 +5,7 @@
 //! A call on a place needs it writable for `&mut self`; either reference
 //! receiver on a temporary refers to a new object holding its value.
 //!
-//! The address is a reference value (`crates/hd_wasm_linear/DESIGN.md`
+//! The address is a reference value (`crates/hd_wasm/DESIGN.md`
 //! §15.2, "References"), built by `refs.rs`.
 
 use hd_base::{DefId, LocalId, NodeIdx, StageResult};

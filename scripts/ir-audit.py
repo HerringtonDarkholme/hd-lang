@@ -10,7 +10,7 @@ a static site, not a measured cost, and V8 may already remove it. Vet this scrip
 against measurements (scripts/ir-audit-verify.py checks it finds what it claims,
 not that what it finds matters).
 
-With no DIR it reads the stage baselines of hd_driver and hd_wasm_linear. It
+With no DIR it reads the stage baselines of hd_driver and hd_wasm. It
 simulates the Wasm stack inside each basic block, so a finding is a fact about
 that block. Elided code (`;; ...`) ends a block, and a function with elided code
 skips the whole-function checks.
@@ -25,7 +25,7 @@ import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DEFAULT = ["crates/hd_driver/tests/baselines", "crates/hd_wasm_linear/tests/baselines"]
+DEFAULT = ["crates/hd_driver/tests/baselines", "crates/hd_wasm/tests/baselines"]
 
 DESCRIBE = {
     # WAT

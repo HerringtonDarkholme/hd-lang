@@ -405,7 +405,7 @@ server SDK refreshes and cleanups left out):
 | `hd_resolve` (lifetime scopes, elision, slot tables) | 1,074 | 193 | 881 |
 | `hd_types` (`FnDeps`, `'static`, wire format) | 491 | 25 | 466 |
 | `hd_syntax` (lifetime tokens and parameters) | 345 | 22 | 323 |
-| backend (`hd_tir` frame slots, `hd_opt` inliner, `hd_wasm_linear`) | 751 | 210 | 541 |
+| backend (`hd_tir` frame slots, `hd_opt` inliner, `hd_wasm`) | 751 | 210 | 541 |
 | other crates (driver tests and baselines, lint, diagnostics) | 990 | 221 | 769 |
 | compiler crates in all | 9,052 | 2,104 | 6,948 |
 | `lib/std` | 515 | 410 | 105 |

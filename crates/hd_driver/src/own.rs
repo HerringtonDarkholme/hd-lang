@@ -254,7 +254,7 @@ const PURE_INTRINSICS: &[&str] = &[
 
 /// The intrinsics that own their value arguments, as a function's value
 /// parameters do: `string_from_bytes` takes over the list's buffer when its
-/// argument is the buffer's one holder (`crates/hd_wasm_linear/DESIGN.md`
+/// argument is the buffer's one holder (`crates/hd_wasm/DESIGN.md`
 /// §23.17), so the call consumes the list, moved in at its last use.
 const OWNING_INTRINSICS: &[&str] = &["string_from_bytes", "weak_weaken"];
 
@@ -335,7 +335,7 @@ impl OwnCx for Env<'_> {
     fn holds_drop(&self, ty: Ty) -> Tri {
         if self.is_open(ty) {
             Tri::Maybe
-        } else if hd_wasm_linear::holds_drop_type(&self.run.pool, self, ty) {
+        } else if hd_wasm::holds_drop_type(&self.run.pool, self, ty) {
             Tri::Yes
         } else {
             Tri::No
@@ -436,20 +436,20 @@ impl OwnCx for Env<'_> {
     }
 
     fn may_frame_referent(&self, ty: Ty) -> bool {
-        self.is_open(ty) || hd_wasm_linear::frame_referent_type(&self.run.pool, self, ty)
+        self.is_open(ty) || hd_wasm::frame_referent_type(&self.run.pool, self, ty)
     }
 
     fn single_counted_address(&self, ty: Ty) -> bool {
-        !self.is_open(ty) && hd_wasm_linear::single_counted_address_type(&self.run.pool, self, ty)
+        !self.is_open(ty) && hd_wasm::single_counted_address_type(&self.run.pool, self, ty)
     }
 
     fn thin_counted_reference(&self, ty: Ty) -> bool {
-        !self.is_open(ty) && hd_wasm_linear::thin_counted_reference_type(&self.run.pool, self, ty)
+        !self.is_open(ty) && hd_wasm::thin_counted_reference_type(&self.run.pool, self, ty)
     }
 
     fn reference_target(&self, ty: Ty) -> Option<Ty> {
         (!self.is_open(ty))
-            .then(|| hd_wasm_linear::reference_target_type(&self.run.pool, self, ty))
+            .then(|| hd_wasm::reference_target_type(&self.run.pool, self, ty))
             .flatten()
     }
 
@@ -460,7 +460,7 @@ impl OwnCx for Env<'_> {
     }
 
     fn plain_reference(&self, ty: Ty) -> bool {
-        !self.is_open(ty) && hd_wasm_linear::plain_reference_type(&self.run.pool, self, ty)
+        !self.is_open(ty) && hd_wasm::plain_reference_type(&self.run.pool, self, ty)
     }
 
     fn plain_result(&self, callee: &Callee) -> bool {
@@ -569,7 +569,7 @@ impl OwnCx for Env<'_> {
         let pool = &self.run.pool;
         let TyData::Fn {
             params, suspends, ..
-        } = pool.get(hd_wasm_linear::strip_type(pool, self, fn_ty))
+        } = pool.get(hd_wasm::strip_type(pool, self, fn_ty))
         else {
             return Pass::Lent;
         };
@@ -741,13 +741,13 @@ impl OwnCx for Env<'_> {
             && let TyData::Adt { def, .. } =
                 self.run
                     .pool
-                    .get(hd_wasm_linear::strip_type(&self.run.pool, self, ty))
+                    .get(hd_wasm::strip_type(&self.run.pool, self, ty))
             && self.has_drop(def)
         {
             out.clear();
             return false;
         }
-        hd_wasm_linear::in_place_parts(&self.run.pool, self, ty, variant, out)
+        hd_wasm::in_place_parts(&self.run.pool, self, ty, variant, out)
     }
 
     fn summarizes(&self) -> bool {
@@ -756,8 +756,7 @@ impl OwnCx for Env<'_> {
 
     fn holds_coll(&self, ty: Ty) -> bool {
         let pool = &self.run.pool;
-        self.is_open(ty)
-            || hd_mono::holds_coll(pool, self, hd_wasm_linear::strip_type(pool, self, ty))
+        self.is_open(ty) || hd_mono::holds_coll(pool, self, hd_wasm::strip_type(pool, self, ty))
     }
 
     fn holds_ref(&self, ty: Ty) -> bool {
@@ -771,7 +770,7 @@ impl OwnCx for Env<'_> {
     fn lends(&self, from: Ty, to: Ty) -> bool {
         !self.is_open(from)
             && !self.is_open(to)
-            && hd_wasm_linear::lending_types(&self.run.pool, self, from, to)
+            && hd_wasm::lending_types(&self.run.pool, self, from, to)
     }
 
     fn counted_refs_only(&self, ty: Ty) -> bool {
@@ -1068,7 +1067,7 @@ impl Env<'_> {
         self.sig(method).is_some_and(|sig| {
             let all = pool.list(&[&[self_value], items].concat());
             let t = hd_mono::subst(pool, self, method, all, self.low(sig.params[k].1));
-            t != Ty::POISON && !self.is_open(t) && !hd_wasm_linear::holds_drop_type(pool, self, t)
+            t != Ty::POISON && !self.is_open(t) && !hd_wasm::holds_drop_type(pool, self, t)
         })
     }
 
@@ -1094,7 +1093,7 @@ impl Env<'_> {
     /// Suspend[T] handles. Only an inline Drop value must transfer its
     /// ownership; an open value parameter may become one at instantiation.
     /// The walk follows the types `t` holds by value, as the backend lays
-    /// them out (`hd_wasm_linear::value_part_types`): tuple and union
+    /// them out (`hd_wasm::value_part_types`): tuple and union
     /// members, struct fields, and every value enum's payloads, `Option`'s
     /// as any other's. A self-recursive enum's cell, a list or a map is a
     /// counted object the frame retains by its count.
@@ -1105,11 +1104,11 @@ impl Env<'_> {
         let mut seen = hd_base::HashSet::default();
         let mut work = vec![t];
         while let Some(t) = work.pop() {
-            let t = hd_wasm_linear::strip_type(pool, self, t);
+            let t = hd_wasm::strip_type(pool, self, t);
             if !seen.insert(t) {
                 continue;
             }
-            if hd_wasm_linear::holds_drop_type(pool, self, t) {
+            if hd_wasm::holds_drop_type(pool, self, t) {
                 return true;
             }
             match pool.get(t) {
@@ -1117,7 +1116,7 @@ impl Env<'_> {
                 // Only a ?Copy parameter needs a possible ownership transfer.
                 TyData::Param(p) if !self.param_copies(p) => return true,
                 TyData::Assoc { .. } | TyData::Opaque { .. } => return true,
-                _ => work.extend(hd_wasm_linear::value_part_types(pool, self, t)),
+                _ => work.extend(hd_wasm::value_part_types(pool, self, t)),
             }
         }
         false
@@ -1132,8 +1131,8 @@ impl Env<'_> {
         }
         let pool = &self.run.pool;
         let facts = (
-            hd_wasm_linear::counted_type(pool, self, t),
-            hd_wasm_linear::reference_type(pool, self, t),
+            hd_wasm::counted_type(pool, self, t),
+            hd_wasm::reference_type(pool, self, t),
         );
         lock(&self.run.own_types).insert(t, facts);
         facts
@@ -1161,7 +1160,7 @@ impl Env<'_> {
             .then(|| hd_tir::own::returned_param(&body))
             .flatten();
         // Each type's layout once per body, not once per query of it.
-        let (refused, summary) = hd_wasm_linear::with_layout_cache(|| {
+        let (refused, summary) = hd_wasm::with_layout_cache(|| {
             let refused = hd_tir::own::run(&mut body, self, &mut scratch);
             let summary = (summarize && refused.is_ok())
                 .then(|| hd_tir::own::summary(&body, self, &scratch, returns))
@@ -1292,7 +1291,7 @@ impl InlineEnv for Env<'_> {
                     )
             ),
             hd_tir::Tag::Drop => body.local_in_place(body.data[i][0]).is_some_and(|l| {
-                !hd_wasm_linear::holds_drop_type(&self.run.pool, self, body.local_ty[l.idx()])
+                !hd_wasm::holds_drop_type(&self.run.pool, self, body.local_ty[l.idx()])
             }),
             _ => false,
         }
@@ -1383,7 +1382,7 @@ impl InlineEnv for Env<'_> {
         // argument reads that value out of the caller's place, and another
         // use of the place can make the ownership passes keep that read as
         // a copy. Keep such a reader's reference instead.
-        hd_wasm_linear::lent_referent(&self.run.pool, self, t)
+        hd_wasm::lent_referent(&self.run.pool, self, t)
             .filter(|&referent| self.copies(referent) == Tri::Yes)
     }
 
@@ -1391,15 +1390,14 @@ impl InlineEnv for Env<'_> {
     /// that is not `Copy`, whose by-value binding the passes could only
     /// keep by borrowing, which a later copy in the same body may refuse.
     fn rooted_referent(&self, t: Ty) -> Option<Ty> {
-        hd_wasm_linear::rooted_referent(&self.run.pool, self, t).or_else(|| {
-            hd_wasm_linear::lent_referent(&self.run.pool, self, t)
-                .filter(|&r| self.copies(r) == Tri::No)
+        hd_wasm::rooted_referent(&self.run.pool, self, t).or_else(|| {
+            hd_wasm::lent_referent(&self.run.pool, self, t).filter(|&r| self.copies(r) == Tri::No)
         })
     }
 
     fn counted_referent(&self, t: Ty) -> bool {
-        hd_wasm_linear::lent_referent(&self.run.pool, self, t).is_some()
-            && hd_wasm_linear::promotable_referent(&self.run.pool, self, t).is_none()
+        hd_wasm::lent_referent(&self.run.pool, self, t).is_some()
+            && hd_wasm::promotable_referent(&self.run.pool, self, t).is_none()
     }
 
     /// The item and type arguments a trait call chosen as an impl runs:
@@ -2120,7 +2118,7 @@ impl Env<'_> {
             body.anchors = (0..u32::try_from(body.len()).expect("insts")).collect();
         }
         self.root_across_pure_calls(&mut body);
-        let kept = hd_wasm_linear::with_layout_cache(|| {
+        let kept = hd_wasm::with_layout_cache(|| {
             hd_tir::own::run(&mut body, self, &mut scratch).ok()?;
             hd_tir::own::summary(&body, self, &scratch, None).map(|s| s.kept)
         });
@@ -2136,7 +2134,7 @@ impl Env<'_> {
 
     /// Release (#1151): `def`'s promoted copy at `args` and the parameters
     /// it takes by value: each `&T` parameter whose referent at `args`
-    /// is small (`hd_wasm_linear::lent_referent`; a counted one is lent
+    /// is small (`hd_wasm::lent_referent`; a counted one is lent
     /// with no count)
     /// and that the owned body only reads through
     /// (`hd_tir::own::promote::read_only_params`). With `exclusive`, the
@@ -2197,9 +2195,8 @@ impl Env<'_> {
             let t = hd_mono::subst(pool, self, def, args, b.local_ty[l as usize]);
             // A counted referent is lent with no count, which needs its
             // local alive over the call.
-            let counted = hd_wasm_linear::promotable_referent(pool, self, t).is_none();
-            if hd_wasm_linear::lent_referent(pool, self, t).is_some()
-                && (!counted || held & (1 << k) != 0)
+            let counted = hd_wasm::promotable_referent(pool, self, t).is_none();
+            if hd_wasm::lent_referent(pool, self, t).is_some() && (!counted || held & (1 << k) != 0)
             {
                 candidates |= 1 << k;
             }

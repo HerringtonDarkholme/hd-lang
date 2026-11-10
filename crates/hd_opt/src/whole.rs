@@ -1,7 +1,7 @@
 //! Whole-program scans of every instance's TIR before emission, whose
 //! results a release link's backend consumes: [`mutation_targets`], the
 //! concrete types whose existing heap objects the program can write
-//! (`crates/hd_wasm_linear/DESIGN.md` §23.28). The scan reads the
+//! (`crates/hd_wasm/DESIGN.md` §23.28). The scan reads the
 //! backend's layout through [`ObjectLayout`].
 
 use hd_base::{DefId, HashSet, InstId};

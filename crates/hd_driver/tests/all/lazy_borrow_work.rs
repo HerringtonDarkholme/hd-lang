@@ -43,7 +43,7 @@ fn work(n: usize) -> u64 {
     let goal = Goal::Program {
         entry: "main".into(),
     };
-    let (out, work) = hd_wasm_linear::work::count_use_facts(|| build(&host, "app", &goal));
+    let (out, work) = hd_wasm::work::count_use_facts(|| build(&host, "app", &goal));
     assert!(!out.diags.has_errors(), "{}", out.render());
     assert!(out.wasm.is_some(), "no wasm");
     work

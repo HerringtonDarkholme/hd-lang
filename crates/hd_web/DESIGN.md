@@ -94,7 +94,7 @@ interface CompileResult {
   loads the printer; Run, Check, Test and REPL do not. The WAT panel
   shows “Loading WAT printer…” during the first load. The printer uses
   the same folded `wasmprinter` configuration, with no default features.
-  Names come from the name section `hd_wasm_linear` writes.
+  Names come from the name section `hd_wasm` writes.
 - `hd_wat` owns its input and output buffers. `hd_input(len)` gives the
   input address; `hd_print()` returns 0 for success or 1 for an error.
   `hd_output()` and `hd_output_len()` describe UTF-8 WAT or error text.

@@ -1,5 +1,5 @@
 //! Instance keys, A1 classes and layout facts over the full type
-//! representation (`crates/hd_mono/DESIGN.md` §13.2, §13.3; `crates/hd_wasm_linear/DESIGN.md` §15.1, §15.2;
+//! representation (`crates/hd_mono/DESIGN.md` §13.2, §13.3; `crates/hd_wasm/DESIGN.md` §15.1, §15.2;
 //! `docs/compiler/data-structures.md` §3.22).
 
 use hd_base::SliceSort as _;
@@ -117,7 +117,7 @@ pub trait LayoutEnv {
 }
 
 /// The self-recursive enums among `enums`, the program's enum declarations
-/// (`crates/hd_wasm_linear/DESIGN.md` §15.2): those whose declaration reaches itself through
+/// (`crates/hd_wasm/DESIGN.md` §15.2): those whose declaration reaches itself through
 /// value positions. Value positions are enum payloads, tuple elements and
 /// `T?`, and another enum's argument when that enum holds the parameter
 /// in a value position. Data, collections, functions and trait values are

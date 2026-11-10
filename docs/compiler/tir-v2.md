@@ -19,7 +19,7 @@ Under review: TIR ([crates/hd_tir/src/ir.rs](../../crates/hd_tir/src/ir.rs),
 checker's TIR construction (`hd_check/src/refs.rs`, `value.rs`,
 `pins.rs`, `coll.rs`, the loop lowerings in `expr.rs`), collection
 (`hd_mono`), and the linear backend
-([crates/hd_wasm_linear/DESIGN.md](../../crates/hd_wasm_linear/DESIGN.md)
+([crates/hd_wasm/DESIGN.md](../../crates/hd_wasm/DESIGN.md)
 §23; `emit.rs`, `emit/count.rs`, `emit/live.rs`, `emit/refs.rs`,
 `emit/list.rs`, `emit/closure.rs`, `emit/susp.rs`).
 
@@ -802,7 +802,7 @@ release, made explicit.
    the innermost block holding all its accesses that holds the last one
    (today's `live::plan` rule). A frame local's accesses include each use
    of a value that may point into it (#1006,
-   `crates/hd_wasm_linear/DESIGN.md` §23.38), and so do a cell local's
+   `crates/hd_wasm/DESIGN.md` §23.38), and so do a cell local's
    (one a closure captures), since a reference into what the cell holds,
    as a `UniqList` element's, takes no count of the cell (#1299,
    `hd_tir::own::frame` rule 4). Parameters and captures live
@@ -1139,7 +1139,7 @@ must not change except where the plan below says it improves.
 | --- | --- | --- | --- |
 | `hd_tir` | 200 | 300 | closure-form stripping and reference schema out; place encoding, printer, parser and verifier in |
 | `hd_check` | 900 | 250 | `make_ref`'s closure form, identity and serials, the rebuild loops, `value.rs`'s instruction walk, the second `Place` |
-| `hd_wasm_linear` | 450 | 250 | `RefRead`/`RefWrite`/`FieldSet`/`ListSet`/`ListFieldSet` arms and their liveness cases; the resolver generalized |
+| `hd_wasm` | 450 | 250 | `RefRead`/`RefWrite`/`FieldSet`/`ListSet`/`ListFieldSet` arms and their liveness cases; the resolver generalized |
 | `hd_mono`, `hd_driver`, `hd_structure` | 60 | 40 | dead `For*` arms, the strip call |
 | total | 1,610 | 840 | net about -770 lines |
 
@@ -1170,7 +1170,7 @@ audit on the commits that touch the emitter).
 3. **The emitter's place resolver.** `emit/refs.rs`: `Read`, `Store`
    and `Ref` for every root and projection, beside the old tags;
    `live.rs` and `count.rs` treat them as described. Unit tests in
-   `hd_wasm_linear/src/tests.rs` build bodies with the new tags and
+   `hd_wasm/src/tests.rs` build bodies with the new tags and
    compare the module with the old-tag body's.
    As built: the resolver reads a place as a root, a head (none, a
    dereference, or an element) and a struct
@@ -1351,7 +1351,7 @@ audit on the commits that touch the emitter).
 10. **Delete and document.** Remove the tags and intrinsics with no
     producer, `strip_closure_forms`, `place_root`, `PlaceRec`, the old
     resolver entry points; update `hd_tir/DESIGN.md` §4.13.11,
-    `hd_wasm_linear/DESIGN.md` §23.20 and §23.32, and
+    `hd_wasm/DESIGN.md` §23.20 and §23.32, and
     `docs/compiler/lowering-catalog.md`.
     As built: `LocalSet`, `GlobalSet`, `FieldSet`, `RefPlace`,
     `RefRead` and `RefWrite` go, with `place_root`, `PlaceRec`,
@@ -1397,8 +1397,8 @@ except where noted; any other change is a regression.
 | Case (other crates) | Expected diff |
 | --- | --- |
 | `hd_check` `checker/a-compound-field-write-reads-the-field-first`, `a-struct-field-write-through-a-list-element`, `a-nested-field-write-through-a-list-element` | `Read`s and one `Store` with an element projection instead of getter calls and `ListFieldSet` |
-| `hd_wasm_linear` `emitter/a-local-struct-field-write` | wat: the rebuild's leftovers go (`local.get $b.x` then `drop`, and `local.get $b.vx` then `local.set $b.vx`); one `local.set $b.x` remains |
-| `hd_wasm_linear` `field-write/through-mutable-self`, `field-write/update-one-counted-field`, `emitter/a-field-write-through-a-list-element` | wat: identical (writes through references and element field writes already store one field) or fewer instructions |
+| `hd_wasm` `emitter/a-local-struct-field-write` | wat: the rebuild's leftovers go (`local.get $b.x` then `drop`, and `local.get $b.vx` then `local.set $b.vx`); one `local.set $b.x` remains |
+| `hd_wasm` `field-write/through-mutable-self`, `field-write/update-one-counted-field`, `emitter/a-field-write-through-a-list-element` | wat: identical (writes through references and element field writes already store one field) or fewer instructions |
 | `hd_driver` `counts/field-write-counted-struct` | identical: no count operations since #656 pattern 4 was fixed |
 | every other `wat`, `counts` and `layout` baseline | identical |
 
@@ -1485,7 +1485,7 @@ is worth deciding only if they are hot.
 | --- | --- | --- |
 | `hd_tir` | 100 | 1,650: six passes (about 1,300), `OwnCx`, invariant 4, the `own` printer |
 | `hd_check` | 650 | 100 |
-| `hd_wasm_linear` | 2,100 | 250 |
+| `hd_wasm` | 2,100 | 250 |
 | `hd_driver` | 0 | 120: `OwnCx`, the switch, the `own` fixture view |
 | total | 2,850 | 2,120 (net about -730) |
 
@@ -1660,7 +1660,7 @@ is worth deciding only if they are hot.
    payloads and dereferences stay as the checker writes them until
    commit 12 roots every place in the checker, which leaves this step
    nothing to fold, so it goes.
-   **The new path** (`hd_wasm_linear/DESIGN.md` §23.16, "Owned
+   **The new path** (`hd_wasm/DESIGN.md` §23.16, "Owned
    bodies") lowers the modes, the `Drop`s and the exit set, and moves a
    value into the consumer `own::consumers` names; it runs none of
    `live.rs`, the loans or the moves. Its own glue covers what a generic
@@ -2067,7 +2067,7 @@ is worth deciding only if they are hot.
      unless it is a whole local no closure captures; a covered one names
      the place a hoisted one before an enclosing loop names; the stable
      rows name loops and such places, in order.
-   - **The backend** (`hd_wasm_linear/DESIGN.md` §23.16): a hoisted
+   - **The backend** (`hd_wasm/DESIGN.md` §23.16): a hoisted
      `IsUnique` waits for its loop (`Em::hoisted`) and runs there under
      the entry test, the pure prefix emitted once more; unguarded in a
      suspending body or where a default argument's specialization folded
@@ -2192,7 +2192,7 @@ is worth deciding only if they are hot.
       an element access's list from the place's steps before its first
       element (`hoist::rooted_place`), as it took them from the header
       read a value root named.
-    - **The backend** (`hd_wasm_linear/DESIGN.md` §23.16, "Places rooted
+    - **The backend** (`hd_wasm/DESIGN.md` §23.16, "Places rooted
       at the local"): one walk (`Em::walk_place`) resolves a place from
       its local's value step by step, a view's getter included, and a
       read loads only the leaves the place names; a store stores them; a
@@ -2392,7 +2392,7 @@ is worth deciding only if they are hot.
       7. a loop's element binding a closure captures (`loop_binding_copy`).
       A value stored into an element, a field, a payload or a tuple member
       is copied by the emitter's store glue on both paths (`slot_src`,
-      `hd_wasm_linear/DESIGN.md` §23.17), not by the checker.
+      `hd_wasm/DESIGN.md` §23.17), not by the checker.
     - **Rule 7, as insertion states it.** The pass replaces the checker's
       syntax facts (`let mut`, `copy_locals`, the open loops and closures)
       by its own: a **changing** local is one whose header a change
@@ -2688,7 +2688,7 @@ is worth deciding only if they are hot.
     `capture_copies`, `loop_binding_copy`), `ListPin`, `ListUnpin`; the
     `ValueCopy` intrinsic stays as insertion's header copy (13a) until
     stage 3 makes a list's value its buffer; update
-    `hd_wasm_linear/DESIGN.md` §23.16, §23.20, §23.25, §23.31, §23.36.
+    `hd_wasm/DESIGN.md` §23.16, §23.20, §23.25, §23.31, §23.36.
 
     **14 as built, first part: `live.rs` and `count.rs`'s decisions
     (#799).** The emitter's moves, drops, loans of its own and their
@@ -2723,7 +2723,7 @@ is worth deciding only if they are hot.
     mode, and the lowering of `ListIndexMut`, `ListPin` and `ListUnpin`,
     which insertion refuses. `Em::list_caches` holds only hoisting's
     stable lists (`Em::own_list_caches`); the range-index proof
-    (`hd_wasm_linear/DESIGN.md` §23.37) stays. A function reference's
+    (`hd_wasm/DESIGN.md` §23.37) stays. A function reference's
     call body is built by collection (`hd_mono::adapter_call_body`),
     which hands it to the driver for the passes
     (`ProgramEnv::own_generated`) and stores it as the adapter's instance
@@ -2759,7 +2759,7 @@ is worth deciding only if they are hot.
     returned from the copies and pins before they did any work.
 
     The passes now run with the backend's layout cache in place
-    (`hd_wasm_linear::with_layout_cache`, a link's when they run inside
+    (`hd_wasm::with_layout_cache`, a link's when they run inside
     one): `OwnCx::counted` walked each new type's layout from scratch
     outside a link, so a chain of 1,500 types held by value cost its cube
     (`recursive_layouts::a_large_recursion_group_and_long_chains_of_types`,
@@ -3099,7 +3099,7 @@ Rust 1.97 `library/alloc`, cranelift-codegen 0.136.2 and hashbrown
   known type and the std-only check in `hd_check` (60); a place rooted
   at a pointer's target, with its operand words and verifier rule, in
   `hd_tir` (120); reads and writes through a pointer in the ownership
-  passes (120); lowering in `hd_wasm_linear` over the existing element
+  passes (120); lowering in `hd_wasm` over the existing element
   slot code (150), and the buffer object kind with its element glue
   (60). **Done** in two commits: 337 Rust code lines added and 77
   deleted (260 net) against the 510, and 27 std hd lines against the 70.
@@ -3429,7 +3429,7 @@ borrow pass makes them: it holds a borrow and leaves the exit set.
 
 The counted buffer is `std.rt.memory.Buffer[T]`, a struct of one private
 address that the backend knows as `StdKind::Buffer` and lays out as one
-counted address: the list buffer of `crates/hd_wasm_linear/DESIGN.md`
+counted address: the list buffer of `crates/hd_wasm/DESIGN.md`
 §23.7, made by `ListBuf` with the element glue `DropElems`, counted as
 any counted address is, and traced by the collector as a list's buffer
 is. So the 60 planned lines are plumbing: the kind, its known path, and
@@ -4663,7 +4663,7 @@ and load per list, and loops whose base a pass can hoist.
 | --- | --- | --- | --- |
 | `hd_tir` | +100 | +1,550 | −10: the inliner, pointer places and the fold, less `copies.rs` |
 | `hd_check` | -650 | -550 | −370 |
-| `hd_wasm_linear` | -200 | -1,850 | −1,630 |
+| `hd_wasm` | -200 | -1,850 | −1,630 |
 | `hd_mono`, `hd_driver`, `hd_structure`, `hd_host_abi` | -20 | +120 | +190, with `hd_run`'s inlined frames |
 | Rust, net | -770 | -730 | −1,820 code lines, tests apart |
 | `lib/std` (hd), net | 0 | 0 | +350 |

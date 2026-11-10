@@ -6,7 +6,7 @@
 //!
 //! A reference is a `Ref` of its place (`docs/compiler/tir-v2.md`,
 //! "`&` and `&mut`"), which the backend lowers to the place's address
-//! (`crates/hd_wasm_linear/DESIGN.md` §23.20); a read through one is a
+//! (`crates/hd_wasm/DESIGN.md` §23.20); a read through one is a
 //! `Read` of a place through it, `[*%r]` or with the struct fields it
 //! follows, `[*%r .x]`, a write a `Store` into such a place, and its
 //! identity `RefIdentity`. One builder, [`Ck::place_of`], gives the
@@ -1238,7 +1238,7 @@ impl Ck<'_, '_> {
             }
         }
         // The backend compares the identity fields of the two `Ref`s
-        // (`crates/hd_wasm_linear/DESIGN.md` §15.2, "References"), so a generic
+        // (`crates/hd_wasm/DESIGN.md` §15.2, "References"), so a generic
         // `is` over `T < AnyRef` compares places too.
         Ok(self.b.emit(Tag::Is, a.0, c.0, Ty::BOOL, syn))
     }

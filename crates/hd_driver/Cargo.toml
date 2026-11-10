@@ -21,7 +21,7 @@ host-artifacts = []
 # allocation/count-audit runtime and the ownership verifier. Browser clients
 # never request them and leave this off.
 checked-builds = []
-checked-report = ["checked-builds", "hd_wasm_linear/checked-report"]
+checked-report = ["checked-builds", "hd_wasm/checked-report"]
 # Lets a client attach one post-verification analysis consumer, with its
 # findings cache (`src/analysis.rs`). The web compiler keeps this feature off
 # and builds `src/analysis_off.rs`, whose hooks do nothing.
@@ -48,7 +48,7 @@ hd_structure = { path = "../hd_structure" }
 hd_syntax = { path = "../hd_syntax" }
 hd_tir = { path = "../hd_tir" }
 hd_types = { path = "../hd_types" }
-hd_wasm_linear = { path = "../hd_wasm_linear" }
+hd_wasm = { path = "../hd_wasm" }
 
 [build-dependencies]
 hd_base = { path = "../hd_base" }

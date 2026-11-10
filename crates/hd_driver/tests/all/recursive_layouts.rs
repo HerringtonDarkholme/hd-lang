@@ -1,4 +1,4 @@
-//! Recursive type layouts (#120; `crates/hd_wasm_linear/DESIGN.md` §15.2, §15.3): an
+//! Recursive type layouts (#120; `crates/hd_wasm/DESIGN.md` §15.2, §15.3): an
 //! enum recurs through `&` (`data.enum.recursive`), and data types and
 //! trait values that name themselves have finite RC layouts through counted pointers.
 //! Programs build through the driver and run on V8 (`host/run.ts`), as the
@@ -370,7 +370,7 @@ fn a_large_recursion_group_and_long_chains_of_types() {
     // encoding and link walk them with loops, so their depth is no native
     // stack depth. A chain value is thousands of Wasm values, more than an
     // engine takes as a function's parameters, so it passes through the shadow stack
-    // (`crates/hd_wasm_linear/DESIGN.md` §23.29).
+    // (`crates/hd_wasm/DESIGN.md` §23.29).
     const N: usize = 1500;
     let mut main = String::new();
     for i in 0..N {
