@@ -1,0 +1,20 @@
+# test: a union member may be Self in a trait signature, and a reference in a parameter type
+# Spec 04 Union Construction And Matching: types.union.construct, types.union.match.
+# expect-stdout: a
+# expect-stdout: 4
+trait Pick:
+    fn pick(self, n: i32) -> Self | i32
+
+impl Pick for string:
+    fn pick(self, n: i32) -> string | i32:
+        if n > 0: ._0(self) else: ._1(n)
+
+fn first(x: &i32 | i64, y: i32) -> i32:
+    y
+
+pub fn main() -> void $ Console:
+    match "a".pick(1):
+        ._0(s) => println(s)
+        ._1(n) => println("${n}")
+    let v: i32 = 3
+    println("${first(._0(&v), 4)}")
