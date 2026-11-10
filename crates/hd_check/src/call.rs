@@ -5768,8 +5768,8 @@ impl Ck<'_, '_> {
             }
             Some(Evidence::Bound { index, .. }) => (ChoiceKind::Bound, u32::from(*index)),
             Some(Evidence::TraitValue { trait_ }) => (ChoiceKind::TraitValue, trait_.raw()),
-            // The compiler-supplied implementation plus one, which the TIR
-            // verifier checks against the callee's trait (invariant 13).
+            // The compiler-supplied implementation plus one. The solver
+            // obtained this evidence for the callee's trait (invariant 13).
             Some(Evidence::Builtin(b)) => (ChoiceKind::Builtin, 1 + *b as u32),
             _ => (ChoiceKind::Builtin, 0),
         }

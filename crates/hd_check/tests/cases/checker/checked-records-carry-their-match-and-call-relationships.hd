@@ -1,0 +1,23 @@
+# @dump: tir
+# `flow.match.exhaustive`, `req.row.set.call` and `trait.bound.static`:
+# the checker settles match coverage, provider context and trait evidence
+# while constructing each record, before the structural TIR verifier runs.
+# expected: the exhaustive match has a default block; the provider call uses
+# its context and the generic call records its bound evidence.
+trait Source:
+    fn value(&self) -> usize
+
+enum Choice:
+    First
+    Other(usize)
+
+fn required() -> usize $ Source:
+    $.use(Source).value()
+
+fn selected(choice: Choice) -> usize $ Source:
+    match choice:
+        .First => required()
+        .Other(value) => value
+
+fn bounded[T < Source](source: T) -> usize:
+    source.value()

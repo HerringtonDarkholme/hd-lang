@@ -5,10 +5,14 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use hd_base::DefId;
-use hd_tir::ir::{
-    CHECKED_INVARIANTS, Callee, Tag, VerifyCx, parse, print, verify, verify_in, verify_owned,
-};
+use hd_tir::ir::{CHECKED_INVARIANTS, Callee, Tag, parse, print, verify, verify_owned};
 use hd_types::Ty;
+
+mod context {
+    use hd_tir::ir;
+    include!("support/context.rs");
+}
+use context::{VerifyCx, verify_in};
 
 /// The checker's facts the rejection cases assume: type 77 is an enum of
 /// three variants, builtin impl 3 answers trait 50, method 60 has two
