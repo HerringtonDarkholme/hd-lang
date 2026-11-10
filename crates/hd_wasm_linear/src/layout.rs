@@ -5,10 +5,12 @@
 //! One walk gives both: a type's [`Mem`] lists its values as leaves, in
 //! the order its locals hold them, each with its offset and width in
 //! memory. A struct or a tuple is its fields' leaves, in declaration
-//! order, each field at the offset rustc's `univariant` gives it. An enum
-//! is rustc's tagged layout ([`Flat`]): its tag, then each variant's
-//! payload as one struct at one offset; its values are one per distinct
-//! leaf of its variants, so loads and stores need no branch on the tag. A
+//! order, each field at the offset rustc's `univariant` gives it. An enum's
+//! [`Flat`] selects tagged or niche-filled layout as rustc does. Tagged
+//! layouts store a tag before the variant payloads; niche-filled layouts
+//! encode discriminants in unused payload values. One present variant
+//! needs no discriminant. Its Wasm values are one per distinct leaf, so
+//! whole-value loads and stores need no branch on the discriminant. A
 //! suspension is one address; recursive enum links are explicit references.
 //! A string is its address and byte
 //! length; a trait value its data address and its vtable's address; a
