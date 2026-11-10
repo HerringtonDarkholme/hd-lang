@@ -11,10 +11,10 @@ fn forward[$ R](callback: fn() -> i32 $ R) -> i32 $ R:
 fn later![$ R](callback: fn() -> i32 $ R) -> i32 $ R:
     callback()
 > app/main/later
->   release fn() -> i32 $ ^241 (by design)
+>   release fn() -> i32 $ {open row} (by design)
 >   release counted reference (last use)
 > app/main/later
->   retain fn() -> i32 $ ^241 (stored)
+>   retain fn() -> i32 $ {open row} (stored)
 >   retain counted reference (stored)
 
 fn ordinary(callback: fn() -> i32 $ Tag) -> i32 $ Tag:

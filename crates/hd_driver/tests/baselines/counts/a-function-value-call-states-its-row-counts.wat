@@ -50,7 +50,7 @@
     end
     local.get $callback.0
   )
-  (func $"forward[^241]" (param $callback.0 i32) (param $callback.1 i32) (param $ctx i32) (result i32)
+  (func $"forward[{open row}]" (param $callback.0 i32) (param $callback.1 i32) (param $ctx i32) (result i32)
     ;; 17 |     callback()
     block
       local.get $callback.1
@@ -118,7 +118,7 @@
         call $retain
       end
       local.get $callback.0
-      call $"forward[^241]"
+      call $"forward[{open row}]"
       local.get $callback.0
       local.tee $provider0
       if
@@ -135,7 +135,7 @@
       local.get $callback.0
       local.get $callback.1
       i32.const 0
-      call $"forward[^241]"
+      call $"forward[{open row}]"
       local.set $callback.0
     end
     local.get $callback.0

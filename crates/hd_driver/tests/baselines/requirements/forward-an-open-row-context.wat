@@ -4,7 +4,7 @@
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 8 funcref))
-  (func $"invoke[^241]" (param $callback.0 i32) (param $callback.1 i32) (param $ctx i32) (result i32)
+  (func $"invoke[{open row}]" (param $callback.0 i32) (param $callback.1 i32) (param $ctx i32) (result i32)
     ;; 6 |     callback()
     block
       local.get $callback.1
