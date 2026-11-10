@@ -1,0 +1,18 @@
+# test: widening a trait value reference across the edge a supertrait cycle cuts reports only the cycle
+# Spec 09 Traits: trait.super.cycle-report.
+trait First < Third: # diagnostic: supertrait-cycle
+    fn first(&self) -> i32
+
+trait Second < First:
+    fn second(&self) -> i32
+
+trait Third < Second:
+    fn third(&self) -> i32
+
+fn widen(x: &dyn First) -> i32:
+    let t: &dyn Third = x
+    t.third()
+
+fn widen_back(x: &dyn Third) -> i32:
+    let f: &dyn First = x
+    f.first()

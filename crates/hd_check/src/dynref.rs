@@ -77,8 +77,23 @@ impl Ck<'_, '_> {
                     if from == to {
                         return None;
                     }
-                    let widened =
-                        supertrait_args(self.cx.lookup, pool, (from, from_args), None, to)?;
+                    let Some(widened) =
+                        supertrait_args(self.cx.lookup, pool, (from, from_args), None, to)
+                    else {
+                        // An edge the resolver cut from a supertrait cycle,
+                        // reported there, is no second error
+                        // (`trait.super.cycle-report`).
+                        if self.crosses_cut_supertrait(from) {
+                            return Some(self.build_dyn_ref_kind(
+                                r,
+                                g,
+                                (tv, mutable, counted),
+                                Coercion::Supertrait,
+                                n,
+                            ));
+                        }
+                        return None;
+                    };
                     let widened = pool.intern_ty(&TyData::TraitValue {
                         def: to,
                         args: widened,
@@ -232,6 +247,21 @@ impl Ck<'_, '_> {
         );
     }
 
+    /// Whether a supertrait walk from `from` reaches a trait whose edge
+    /// back into a cycle the resolver cut and lowered as one poison bound
+    /// (`trait.super.acyclic`): the cycle is reported, so a widening that
+    /// may have needed the edge is not. Linear in the traits it reaches.
+    fn crosses_cut_supertrait(&self, from: DefId) -> bool {
+        crate::body::walk_supertraits(
+            self.cx.lookup,
+            self.pool(),
+            (from, hd_types::TyList::EMPTY),
+            crate::body::Fill::No,
+            |_, _, t| t.supers.contains(&Ty::POISON).then_some(()),
+        )
+        .is_some()
+    }
+
     /// Whether a reference to a value of type `s` converts to a reference to the trait value `tv`: `s` implements its
     /// trait (`trait.dyn.ref.convert.impl`), or is a trait value of it or
     /// of a subtrait (`trait.dyn.ref.widen`).
@@ -247,7 +277,8 @@ impl Ck<'_, '_> {
         } = pool.get(s)
         {
             return from == def
-                || supertrait_args(self.cx.lookup, pool, (from, from_args), None, def).is_some();
+                || supertrait_args(self.cx.lookup, pool, (from, from_args), None, def).is_some()
+                || self.crosses_cut_supertrait(from);
         }
         let tref = hd_types::solver::TraitRef {
             trait_: def,
