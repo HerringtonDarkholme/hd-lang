@@ -2616,14 +2616,27 @@ fn show_marked(
         TyData::Adt { def, args } | TyData::TraitValue { def, args, .. } => {
             format!("{}[{}]", seg(def), list(args))
         }
-        TyData::Tuple { elems, rest } => format!(
-            "({}{})",
-            list(elems),
-            rest.map_or(String::new(), |r| format!(
-                ", {}...",
-                show_marked(names, pool, r, (rows, qualified), marks)
-            ))
-        ),
+        // A one-element tuple keeps its trailing comma, a rest element
+        // alone included (`types.tuple.one-element`, `grammar.type.rest`):
+        // `(T)` is a grouped `T`.
+        TyData::Tuple { elems, rest } => {
+            let mut parts: Vec<String> = pool
+                .list_items(elems)
+                .iter()
+                .map(|x| show_marked(names, pool, *x, (rows, qualified), marks))
+                .collect();
+            parts.extend(rest.map(|r| {
+                format!(
+                    "{}...",
+                    show_marked(names, pool, r, (rows, qualified), marks)
+                )
+            }));
+            if parts.len() == 1 {
+                format!("({},)", parts[0])
+            } else {
+                format!("({})", parts.join(", "))
+            }
+        }
         TyData::Union(members) => pool
             .list_items(members)
             .iter()

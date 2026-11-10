@@ -19,7 +19,7 @@ fn explicit[F < Fn(i32) -> i32](f: F, value: i32) -> i32:
 >   local $1 value: i32 [param read]
 >   %0 = Ref local [$0] : &F
 >   %1 = Read [$1] : i32
->   %2 = NewTuple - [%1] : (i32)
+>   %2 = NewTuple - [%1] : (i32,)
 >   %3 = Read [*%0] : F
 >   %4 = CallValue %3 [%2] : i32
 >   %5 = Block %4 : i32
