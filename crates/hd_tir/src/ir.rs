@@ -3610,6 +3610,10 @@ mod tests {
     pub(crate) struct Counts;
 
     impl crate::own::OwnCx for Counts {
+        fn temporary_owner_name(&self) -> hd_base::Symbol {
+            hd_base::Symbol::NONE
+        }
+
         fn suspending(&self, _: DefId) -> bool {
             false
         }

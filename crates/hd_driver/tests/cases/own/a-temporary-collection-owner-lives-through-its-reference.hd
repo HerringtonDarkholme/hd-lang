@@ -1,0 +1,18 @@
+# @dump: own counts wat
+# `ref.elem.access.live` and `ref.elem.local-value`: the collection is an
+# owner until the last use of a local reference into its buffer.
+# expected: the temporary map's owner is dropped after `read` returns;
+# the local reference itself takes no count.
+fn source(value: u32) -> Map[string, u32]:
+    { "key": value }
+
+fn read(value: &u32) -> u32:
+    replacement := source(99)
+    actual := *value
+    if replacement["key"] != 99:
+        panic("replacement changed")
+    actual
+
+fn probe() -> u32:
+    # subject
+    read(&source(7)["key"])

@@ -6476,6 +6476,7 @@ runtime/valid/impl-head-a-concrete-union-is-a-target.hd	runtime	accept	lang/09-t
 runtime/valid/impl-head-a-generic-union-binds-two-instantiations.hd	runtime	accept	lang/09-traits.md#r-trait.target.union
 runtime/valid/impl-head-union-arity-and-nesting-are-distinct.hd	runtime	accept	lang/09-traits.md#r-trait.target.union.nesting
 runtime/valid/union-type-arguments-preserve-named-const-pipes.hd	runtime	accept	lang/04-type-system.md#r-types.generic.const.evaluate
+runtime/valid/temporary-map-reference-keeps-its-buffer-through-the-call.hd	runtime	accept	lang/13-values-and-references.md#r-ref.elem.access.live
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

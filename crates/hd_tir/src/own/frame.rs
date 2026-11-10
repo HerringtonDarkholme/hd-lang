@@ -75,6 +75,8 @@ pub(crate) struct Tables {
     cands: Vec<u32>,
     /// Per value and per local: the candidates it may point into.
     val: Vec<u64>,
+    /// Root-owner queries only: the local each Read chain takes storage from.
+    read_roots: Vec<u32>,
     held: Vec<u64>,
     /// Per value and per local: the candidates a value read through a
     /// reference lives on, as a borrow of it does (a superset of `val`'s
@@ -132,6 +134,17 @@ impl Tables {
             Root::Local(l) => (self.bit[l as usize], self.held[l as usize]),
             // A read of all of a local (`%h = Read [$xs]`) is that local's
             // storage, a borrow's, or a copy sharing its buffer.
+            Root::Value(v) if self.roots => {
+                let local = self.read_roots[v as usize];
+                (
+                    if local == NONE {
+                        0
+                    } else {
+                        self.bit[local as usize]
+                    },
+                    self.of(v),
+                )
+            }
             Root::Value(v) => match whole_local_read(b, v) {
                 Some(w) => (self.place(b, w).map_or(0, |(lies, _)| lies), self.of(v)),
                 None => (0, self.of(v)),
@@ -642,6 +655,47 @@ pub(crate) fn roots(b: &Body, cx: &dyn OwnCx, mut uses: impl FnMut(u32, u32)) {
     root_uses(b, cx, &mut each);
 }
 
+/// Storage roots, without flattening projected places or repeating shared
+/// Read chains. Each instruction enters and leaves the work path once.
+pub(super) fn read_roots(b: &Body, mut measure: impl FnMut(usize)) -> Vec<u32> {
+    let mut roots = vec![NONE; b.len()];
+    let mut state = vec![0u8; b.len()];
+    let mut path = Vec::new();
+    measure(2 * b.len());
+    for start in 0..b.len() {
+        measure(1);
+        if b.tags[start] != Tag::Read || state[start] != 0 {
+            continue;
+        }
+        let mut value = start;
+        let root = loop {
+            measure(1);
+            if state[value] != 0 {
+                break if state[value] == 2 {
+                    roots[value]
+                } else {
+                    NONE
+                };
+            }
+            state[value] = 1;
+            path.push(value);
+            match b.view(b.data[value][0]).root {
+                Root::Local(local) => break local,
+                Root::Value(parent) if b.tags[parent as usize] == Tag::Read => {
+                    value = parent as usize;
+                }
+                _ => break NONE,
+            }
+        };
+        while let Some(value) = path.pop() {
+            measure(1);
+            roots[value] = root;
+            state[value] = 2;
+        }
+    }
+    roots
+}
+
 /// Rule 5, roots (`ref.box.root`): a counted local whose value a place
 /// dereferences (`[*$p .items]`, a `*T`) or takes an element of
 /// (`[$xs [%i]]`, a list or a map) is the root of
@@ -650,6 +704,7 @@ pub(crate) fn roots(b: &Body, cx: &dyn OwnCx, mut uses: impl FnMut(u32, u32)) {
 /// the root, so its drop, or a move of it, follows the reference's last
 /// use, in a suspending body's frame too.
 fn root_uses(b: &Body, cx: &dyn OwnCx, uses: &mut impl FnMut(u32, u32, bool)) {
+    let read_roots = read_roots(b, |_| {});
     let mut locals = Vec::new();
     let mut lent_reads: Vec<u32> = Vec::new();
     let mut lent = Vec::new();
@@ -670,7 +725,14 @@ fn root_uses(b: &Body, cx: &dyn OwnCx, uses: &mut impl FnMut(u32, u32, bool)) {
             && p.whole()
             && (lent_reads.binary_search(&u32_of(i)).is_ok() || super::lending_read(b, cx, i));
         let root = match p.root {
-            Root::Value(v) => whole_local_read(b, v).map_or(p.root, |w| b.view(w).root),
+            Root::Value(v) => {
+                let local = read_roots[v as usize];
+                if local == NONE {
+                    p.root
+                } else {
+                    Root::Local(local)
+                }
+            }
             r => r,
         };
         if let Root::Local(l) = root
@@ -685,6 +747,7 @@ fn root_uses(b: &Body, cx: &dyn OwnCx, uses: &mut impl FnMut(u32, u32, bool)) {
     locals.dedup();
     let mut extra = Tables {
         roots: true,
+        read_roots,
         ..Tables::default()
     };
     for batch in locals.chunks(64) {

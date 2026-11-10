@@ -25,7 +25,8 @@ ignores:
   - crates/hd_testkit/**
 rule:
   kind: line_comment
-  regex: '(?i)(for now|temporar|workaround|stopgap)'
+  # Temporary storage and temporary borrows are compiler terms, not shortcut admissions.
+  regex: '(?i)(for now|workaround|stopgap|\btemporary[ -]+(hack|fix|solution)\b)'
   not:
     inside:
       stopBy: end

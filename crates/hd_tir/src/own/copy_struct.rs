@@ -47,6 +47,10 @@ mod tests {
 
     struct Facts;
     impl OwnCx for Facts {
+        fn temporary_owner_name(&self) -> hd_base::Symbol {
+            hd_base::Symbol::NONE
+        }
+
         fn struct_fields(&self, ty: Ty, out: &mut Vec<Ty>) -> bool {
             out.clear();
             out.extend(match ty {

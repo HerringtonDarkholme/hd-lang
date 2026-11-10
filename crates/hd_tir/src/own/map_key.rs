@@ -44,6 +44,10 @@ mod tests {
 
     struct Facts;
     impl OwnCx for Facts {
+        fn temporary_owner_name(&self) -> hd_base::Symbol {
+            hd_base::Symbol::NONE
+        }
+
         fn is_map_probe(&self, callee: &Callee) -> bool {
             matches!(callee, Callee::Item { def, .. } if *def == DefId::from_raw(7))
         }
