@@ -164,13 +164,9 @@ impl ImplUniverses {
             .or_insert_with(|| (next, Arc::new(UniverseImpls::new(&list))))
             .clone()
     }
-    #[must_use]
-    pub fn len(&self) -> usize {
+    #[cfg(test)]
+    pub(crate) fn len(&self) -> usize {
         self.by_list.lock().expect("universes").len()
-    }
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
     }
 }
 
@@ -880,13 +876,9 @@ pub struct BodyMemo {
 
 impl BodyMemo {
     /// The body's own entries (not the global ones it used).
-    #[must_use]
-    pub fn len(&self) -> usize {
+    #[cfg(test)]
+    pub(crate) fn len(&self) -> usize {
         self.entries.len()
-    }
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.entries.is_empty()
     }
     /// The body's own records.
     pub fn records(&self) -> impl Iterator<Item = &MemoRecord> {

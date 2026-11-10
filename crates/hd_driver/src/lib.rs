@@ -2797,7 +2797,7 @@ fn build_packages_inner(
         own_text: std::mem::take(&mut *lock(&run.own_text)),
         fixture_notes: run.fixture_notes.get().cloned().unwrap_or_default(),
         fixture_layouts: run.fixture_layouts.get().cloned().unwrap_or_default(),
-        pool_items: run.pool.len(),
+        pool_items: run.pool.item_count(),
         memo: run.memo.stats(),
         session_added,
         target: packages.target,

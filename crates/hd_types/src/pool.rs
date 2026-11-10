@@ -730,13 +730,9 @@ impl LocalPool {
     }
 
     /// Items in this pool.
-    #[must_use]
-    pub fn len(&self) -> u32 {
+    #[cfg(test)]
+    pub(crate) fn len(&self) -> u32 {
         self.cols.tag.len()
-    }
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.cols.tag.is_empty()
     }
 }
 
@@ -1013,13 +1009,10 @@ impl InternPool {
     pub fn erase_fn_deps_list(&self, l: TyList) -> TyList {
         self.types().erase_fn_deps_list(l)
     }
+    /// Items in this pool, as the run's metrics report them.
     #[must_use]
-    pub fn len(&self) -> u32 {
+    pub fn item_count(&self) -> u32 {
         self.cols.tag.len()
-    }
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.cols.tag.is_empty()
     }
 }
 
@@ -2826,7 +2819,7 @@ mod tests {
     #[test]
     fn variables_stay_body_local() {
         let g = InternPool::new();
-        let before = g.len();
+        let before = g.item_count();
         let local = LocalPool::new();
         let p = Types::with_local(&g, &local);
         let v = p.intern_ty(&TyData::Infer(hd_base::InferVar::from_raw(3)));
@@ -2839,7 +2832,11 @@ mod tests {
         assert!(p.has_infer(opt));
         let plain = p.intern_ty(&shared(Ty::I32));
         assert!(!plain.is_local());
-        assert_eq!(g.len(), before + 1, "only the variable-free type is global");
+        assert_eq!(
+            g.item_count(),
+            before + 1,
+            "only the variable-free type is global"
+        );
         assert_eq!(local.len(), 3);
     }
     #[test]
