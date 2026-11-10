@@ -1,0 +1,4 @@
+# test: an it call with a name and no body
+# Spec 10 Test Cases: module.testing.it.form, a call with no body is argument-count.
+tests:
+    it("no body") # diagnostic: argument-count

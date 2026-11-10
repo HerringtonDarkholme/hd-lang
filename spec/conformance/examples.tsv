@@ -719,7 +719,7 @@ lang/10-modules.md	47	fragment	typing/valid/derived-equality.hd|runtime/valid/pa
 lang/10-modules.md	48	mixed	typing/invalid/assert-equal-non-eq.hd
 lang/10-modules.md	49	complete	runtime/valid/test-case-options.hd
 lang/10-modules.md	50	type-fragment	-
-lang/10-modules.md	51	mixed	typing/invalid/tests-block-binding.hd|typing/invalid/duplicate-test-name.hd|typing/invalid/non-literal-test-name.hd|typing/invalid/unknown-panic-category.hd|typing/invalid/test-timeout-string.hd|typing/invalid/misplaced-test-case.hd|typing/invalid/test-case-as-value.hd
+lang/10-modules.md	51	mixed	typing/invalid/tests-block-binding.hd|typing/invalid/duplicate-test-name.hd|typing/invalid/non-literal-test-name.hd|typing/invalid/unknown-panic-category.hd|typing/invalid/test-timeout-string.hd|typing/invalid/misplaced-test-case.hd|typing/invalid/test-case-as-value.hd|typing/invalid/it-body-given-twice.hd|typing/invalid/it-without-body.hd
 lang/10-modules.md	52	type-fragment	-
 lang/10-modules.md	53	type-fragment	-
 lang/10-modules.md	54	mixed	typing/invalid/it-each-name-clash.hd|typing/invalid/it-each-non-literal-name.hd

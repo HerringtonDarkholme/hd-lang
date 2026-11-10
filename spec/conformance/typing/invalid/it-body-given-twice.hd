@@ -1,0 +1,8 @@
+# test: an it call that gives its body in position and as a trailing block
+# Spec 10 Test Cases: module.testing.it.form, a body given twice is duplicate-argument.
+fn body_fn() -> void:
+    pass
+
+tests:
+    it("two bodies", body_fn): # diagnostic: duplicate-argument
+        pass

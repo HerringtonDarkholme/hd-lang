@@ -1388,7 +1388,7 @@ pub fn it[T < Termination, $R](name: string, ignore: string? = .None, expect_pan
 ```
 
 1. r[module.testing.it-function] `it` is an ordinary function with the signature above, which `std.testing` declares and the prelude supplies. Each call in test position registers one **test case**.
-2. r[module.testing.it.form] A call passes the test name as its one positional argument, then optional named options, then the body as its final argument. The body is usually a trailing block.
+2. r[module.testing.it.form] A call passes the test name as its one positional argument, then optional named options, then the body as its final argument. The body is usually a trailing block. A call with a positional argument after the body, or with no body, is an error. Error: `argument-count`. A call that gives the body twice, in position, as `body=`, or as a trailing block, is an error. Error: `duplicate-argument`.
 3. r[module.testing.it.body] The body has type `fn!() -> T $ R` with `T < std.process.Termination`, so a trailing block body is a suspending closure.
 4. r[module.testing.it.name] The name must be a string literal without interpolation. Any other name is an error. Error: `non-literal-test-argument`.
 5. r[module.testing.it.options-strings] The named options are those of the signature above: `ignore`, `expect_panic`, and `timeout`. An `ignore` or `expect_panic` value must be a string literal without interpolation. Any other value for them is an error. Error: `non-literal-test-argument`.
@@ -1408,6 +1408,9 @@ pub fn it[T < Termination, $R](name: string, ignore: string? = .None, expect_pan
 ```text
 fn name_of() -> string: "computed"
 
+fn body_fn() -> void:
+    pass
+
 tests:
     let shared: i32 = 0  # error: invalid-test-statement
 
@@ -1425,6 +1428,11 @@ tests:
 
     it("waits", timeout="5s"):  # error: type-mismatch
         pass
+
+    it("two bodies", body_fn):  # error: duplicate-argument
+        pass
+
+    it("no body")  # error: argument-count
 
     fn helper() -> void:
         it("nested"):  # error: misplaced-test-case

@@ -2254,6 +2254,9 @@ typing/invalid/non-literal-test-name.hd	type	reject:non-literal-test-argument	la
 typing/invalid/misplaced-test-case.hd	type	reject:misplaced-test-case	lang/10-modules.md#r-module.testing.direct-call
 typing/invalid/test-option-not-literal.hd	type	reject:non-literal-test-argument	lang/10-modules.md#r-module.testing.it.options-strings
 typing/invalid/unknown-test-option.hd	type	reject:unknown-named-argument	lang/10-modules.md#r-module.testing.it.unknown-option
+typing/invalid/it-body-given-twice.hd	type	reject:duplicate-argument	lang/10-modules.md#r-module.testing.it.form
+typing/invalid/it-without-body.hd	type	reject:argument-count	lang/10-modules.md#r-module.testing.it.form
+typing/invalid/it-argument-after-body.hd	type	reject:argument-count	lang/10-modules.md#r-module.testing.it.form
 typing/invalid/it-shadowed.hd	type	reject:prelude-name-shadow	lang/10-modules.md#r-module.prelude.no-shadow
 runtime/valid/suspending-test-body.hd	runtime	accept	lang/10-modules.md#r-module.testing.it.body
 runtime/valid/test-body-return.hd	runtime	accept	lang/06-control-flow.md#r-flow.return.callback

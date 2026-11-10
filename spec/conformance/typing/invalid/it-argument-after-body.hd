@@ -1,0 +1,7 @@
+# test: an it call with a positional argument after its body
+# Spec 10 Test Cases: module.testing.it.form, an argument after the body is argument-count.
+fn body_fn() -> void:
+    pass
+
+tests:
+    it("extra", body_fn, "more") # diagnostic: argument-count
