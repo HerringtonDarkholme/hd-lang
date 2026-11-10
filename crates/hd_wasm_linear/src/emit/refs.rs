@@ -128,7 +128,7 @@ impl Em<'_, '_, '_> {
     /// pushed into fresh ones.
     pub(super) fn local_value_of(&mut self, r: u32) -> StageResult<Vec<u32>> {
         if r != NONE && Ref(r).as_inst().is_some() {
-            return self.computed(r);
+            return Ok(self.computed(r));
         }
         let vs = self.vals(self.ty_of(r))?;
         let ls: Vec<u32> = vs.into_iter().map(|v| self.f.local(v)).collect();
@@ -373,7 +373,7 @@ impl Em<'_, '_, '_> {
                 Ok(Some((self.at_root_ty(p.root), self.local(l.raw())?)))
             }
             PlaceRoot::Value(r) if r.as_inst().is_some() && !self.lazy.contains_key(&r.0) => {
-                Ok(Some((self.ty_of(r.0), self.computed(r.0)?)))
+                Ok(Some((self.ty_of(r.0), self.computed(r.0))))
             }
             _ => Ok(None),
         }

@@ -204,15 +204,15 @@ impl Em<'_, '_, '_> {
         }
         match e {
             Exit::Brk(t) => {
-                let d = self.depth(Ctl::Brk(t))?;
+                let d = self.depth(Ctl::Brk(t));
                 self.f.op(I::Br(d));
             }
             Exit::Cont(t) => {
-                let d = self.depth(Ctl::Cont(t))?;
+                let d = self.depth(Ctl::Cont(t));
                 self.f.op(I::Br(d));
             }
             Exit::Ret if self.counting => {
-                let d = self.depth(Ctl::Exit)?;
+                let d = self.depth(Ctl::Exit);
                 self.f.op(I::Br(d));
             }
             Exit::Ret => {

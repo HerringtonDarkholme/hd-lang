@@ -404,7 +404,7 @@ impl Em<'_, '_, '_> {
         let mut k = 0u32;
         for arm in &direct {
             if let (Some(arm), Some(m)) = (arm, m) {
-                label.push(self.depth(Ctl::Arm(m, *arm))?);
+                label.push(self.depth(Ctl::Arm(m, *arm)));
             } else {
                 label.push(k);
                 k += 1;

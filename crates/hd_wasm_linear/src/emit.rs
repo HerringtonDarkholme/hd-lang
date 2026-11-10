@@ -26,12 +26,12 @@ use hd_tir::own::Reason;
 use hd_types::{InternPool, Ty, TyData, TyList};
 use wasm_encoder::BlockType;
 
+use crate::Input;
 use crate::layout::{Enc, Is, Pass, Test, num, vals};
 use crate::module::{
     Func, GLUE, Global, HEAP, Import, Ins, Module, Part, Stored, Sym, Val, WEAK_GLUE, mem,
 };
 use crate::rt::Helper;
-use crate::{Input, unsupported};
 
 mod borrow;
 mod loan_facts;
@@ -408,20 +408,23 @@ fn body_func<'a>(
                         CountAt::Entry,
                         CountPart::Local(u32::try_from(*l).expect("local")),
                     );
+                    // ruled out: own::parameter_copy states each tracked
+                    // plain parameter's entry retain when its exit owns it.
+                    assert!(copy.is_some() || !em.tracked(t));
                     if let Some(reason) = copy {
                         em.because(reason, |em| em.count_locals(ls, t, true))?;
-                    } else if em.tracked(t) {
-                        return unsupported("an owned parameter without its stated entry copy");
                     }
                 }
             } else if em.borrowed.contains(l) || lent_caps.contains(l) {
                 em.borrowed.insert(*l);
-            } else if let Some(reason) =
-                em.stated_count(Tag::Retain, CountAt::Entry, CountPart::Captures)
-            {
-                em.because(reason, |em| em.count_local(*l, ls, true))?;
-            } else if em.is_cell(*l) || em.tracked(em.sub(b.local_ty[*l])) {
-                return unsupported("a loaded capture without its stated entry copy");
+            } else {
+                let copy = em.stated_count(Tag::Retain, CountAt::Entry, CountPart::Captures);
+                // ruled out: own::capture_entry states the shared/counted
+                // captures' entry retain. Read its actual reason below.
+                assert!(copy.is_some() || !(em.is_cell(*l) || em.tracked(em.sub(b.local_ty[*l]))));
+                if let Some(reason) = copy {
+                    em.because(reason, |em| em.count_local(*l, ls, true))?;
+                }
             }
         }
     }
@@ -1528,7 +1531,7 @@ impl Em<'_, '_, '_> {
         if Ref(r).as_inst().is_none() {
             return self.konst(r);
         }
-        for l in self.computed(r)? {
+        for l in self.computed(r) {
             self.f.get(l);
         }
         Ok(())
@@ -1536,11 +1539,12 @@ impl Em<'_, '_, '_> {
 
     /// The locals of instruction `r`'s values. Emission follows the body's
     /// order, in which TIR defines each value before its uses.
-    fn computed(&self, r: u32) -> StageResult<Vec<u32>> {
-        match self.vals.get(&r) {
-            Some(ls) => Ok(ls.clone()),
-            None => unsupported("a value its instruction did not compute"),
-        }
+    fn computed(&self, r: u32) -> Vec<u32> {
+        let ls = self.vals.get(&r);
+        // ruled out: TIR's definition-before-use order and slot/store put
+        // each live instruction's actual result locals in this table.
+        assert!(ls.is_some());
+        ls.as_slice()[0].clone()
     }
 
     /// Pushes value `k` of `r`.
@@ -1553,7 +1557,7 @@ impl Em<'_, '_, '_> {
             return Ok(());
         }
         // Callers name a component of the value's layout.
-        let l = self.computed(r)?[k];
+        let l = self.computed(r)[k];
         self.f.get(l);
         Ok(())
     }
@@ -1813,7 +1817,7 @@ impl Em<'_, '_, '_> {
         let mut label = Vec::with_capacity(blocks.len());
         for (j, arm) in direct.iter().enumerate() {
             label.push(match (arm, m) {
-                (Some(arm), Some(m)) => self.depth(Ctl::Arm(m, *arm))?,
+                (Some(arm), Some(m)) => self.depth(Ctl::Arm(m, *arm)),
                 _ => (0u32..)
                     .zip(&coded)
                     .find(|(_, c)| **c == j)
@@ -1910,19 +1914,20 @@ impl Em<'_, '_, '_> {
                 (arms[0], arms[1])
             }
         };
-        let dy = self.depth(Ctl::Arm(m, yes))?;
-        let dn = self.depth(Ctl::Arm(m, no))?;
+        let dy = self.depth(Ctl::Arm(m, yes));
+        let dn = self.depth(Ctl::Arm(m, no));
         self.f.op(Instruction::BrIf(dy));
         self.f.op(Instruction::Br(dn));
         Ok(true)
     }
 
     /// The branch depth of the open block `c`.
-    fn depth(&self, c: Ctl) -> StageResult<u32> {
-        match self.ctl.iter().rev().position(|x| *x == c) {
-            Some(d) => Ok(u32::try_from(d).expect("depth")),
-            None => unsupported("a branch to a block that is not open"),
-        }
+    fn depth(&self, c: Ctl) -> u32 {
+        let depth = self.ctl.iter().rev().position(|x| *x == c);
+        // ruled out: block_into, Match, Loop and the common exit open
+        // their control target before emitting its nested branches.
+        assert!(depth.is_some());
+        u32::try_from(depth.as_slice()[0]).expect("depth")
     }
 
     /// Emits block `blk`'s instructions and stores its tail as `dest`'s
@@ -1932,9 +1937,9 @@ impl Em<'_, '_, '_> {
         if blk == NONE {
             return Ok(());
         }
-        if self.b.tags[blk as usize] != Tag::Block {
-            return unsupported("a block operand that is not a block");
-        }
+        // ruled out: Builder::block and TIR verification restrict block
+        // operands to blocks; NONE was handled above.
+        assert_eq!(self.b.tags[blk as usize], Tag::Block);
         let [list, mut tail] = self.b.data[blk as usize];
         let labelled = self.topo.label_of[blk as usize] != NONE;
         if labelled {
@@ -2248,9 +2253,13 @@ impl Em<'_, '_, '_> {
                         self.trait_value(i, a)?;
                     }
                     k if k == Coercion::RefAsProvider as u32 => self.ref_as_provider(i, a)?,
-                    // The provider is the reference itself.
-                    k if k == Coercion::ProviderAsRef as u32 => self.same_value(i, a)?,
-                    _ => return unsupported("provider references and `Any` coercions"),
+                    k => {
+                        // ruled out: body::coerce and dynref emit only the
+                        // handled kinds; Any uses ToTraitValue, never ToAny.
+                        // ProviderAsRef reads back the provider reference.
+                        assert_eq!(k, Coercion::ProviderAsRef as u32);
+                        self.same_value(i, a)?;
+                    }
                 }
             }
             Tag::ProviderGet => {
@@ -2327,7 +2336,7 @@ impl Em<'_, '_, '_> {
                 for k in (0..n).rev() {
                     self.open(Ctl::Arm(i, k));
                 }
-                self.resume_arms(i, &blocks[1..])?;
+                self.resume_arms(i, &blocks[1..]);
                 self.deciding.push(i);
                 self.block_into(blocks[0], None)?;
                 self.deciding.pop();
@@ -2335,7 +2344,7 @@ impl Em<'_, '_, '_> {
                 for arm in &blocks[1..] {
                     self.close();
                     self.block_into(*arm, Some(i))?;
-                    let d = self.depth(Ctl::Brk(i))?;
+                    let d = self.depth(Ctl::Brk(i));
                     self.f.op(Instruction::Br(d));
                 }
                 self.close();
@@ -2343,7 +2352,7 @@ impl Em<'_, '_, '_> {
             Tag::ToArm => {
                 // A `ToArm` sits in its match's decision block.
                 let m = *self.deciding.last().expect("a match decision");
-                let d = self.depth(Ctl::Arm(m, a))?;
+                let d = self.depth(Ctl::Arm(m, a));
                 self.f.op(Instruction::Br(d));
             }
             Tag::SwitchTag if self.switch_to_arms(i, a)? => {}
@@ -2378,15 +2387,17 @@ impl Em<'_, '_, '_> {
                 self.new_variant(i, a, &payload)?;
             }
             Tag::Intrinsic => {
-                let op = hd_tir::ir::IntrinsicOp::from_u32(a);
+                let op = IntrinsicOp::from_u32(a);
+                // ruled out: ir::verify rejects an unknown kernel word.
+                assert!(op.is_some());
                 let args = self.rec(bw);
-                match op {
-                    Some(IntrinsicOp::ListLen) => self.list_len(i, args[0])?,
-                    Some(IntrinsicOp::ListPush) => self.list_push(&args)?,
-                    Some(IntrinsicOp::ListReserve) => self.list_reserve(&args)?,
-                    Some(hd_tir::ir::IntrinsicOp::StrConcat) => self.concat(i, &args)?,
-                    Some(hd_tir::ir::IntrinsicOp::StrIndex) => self.str_at(i, args[0], args[1])?,
-                    Some(hd_tir::ir::IntrinsicOp::StrEq) => {
+                match op.as_slice()[0] {
+                    IntrinsicOp::ListLen => self.list_len(i, args[0])?,
+                    IntrinsicOp::ListPush => self.list_push(&args)?,
+                    IntrinsicOp::ListReserve => self.list_reserve(&args)?,
+                    IntrinsicOp::StrConcat => self.concat(i, &args)?,
+                    IntrinsicOp::StrIndex => self.str_at(i, args[0], args[1])?,
+                    IntrinsicOp::StrEq => {
                         if self.string_slice_comparisons.get(&args[0]) == Some(&i)
                             || self.string_slice_comparisons.get(&args[1]) == Some(&i)
                         {
@@ -2398,19 +2409,21 @@ impl Em<'_, '_, '_> {
                             self.store(i)?;
                         }
                     }
-                    Some(IntrinsicOp::MapLen) => self.map_len(i, args[0])?,
-                    Some(
-                        op @ (IntrinsicOp::MapGet
-                        | IntrinsicOp::MapSet
-                        | IntrinsicOp::MapRemove
-                        | IntrinsicOp::MapEntry),
-                    ) => self.map_op(i, op, &args)?,
-                    Some(IntrinsicOp::MapSlots) => self.map_slots(i, args[0])?,
-                    Some(IntrinsicOp::MapSlotNext) => self.map_slot_next(i, &args)?,
-                    Some(IntrinsicOp::MapSlotEntry | IntrinsicOp::MapSlotEntryMut) => {
+                    IntrinsicOp::MapLen => self.map_len(i, args[0])?,
+                    op @ (IntrinsicOp::MapGet
+                    | IntrinsicOp::MapSet
+                    | IntrinsicOp::MapRemove
+                    | IntrinsicOp::MapEntry) => self.map_op(i, op, &args)?,
+                    IntrinsicOp::MapSlots => self.map_slots(i, args[0])?,
+                    IntrinsicOp::MapSlotNext => self.map_slot_next(i, &args)?,
+                    IntrinsicOp::MapSlotEntry | IntrinsicOp::MapSlotEntryMut => {
                         self.map_slot_entry(i, args[0], args[1])?;
                     }
-                    _ => return unsupported("an intrinsic operation without its kernel"),
+                    IntrinsicOp::Item => {
+                        // ruled out: call::emit_call emits Tag::Call
+                        // for named intrinsics, collected as call targets.
+                        assert_ne!(op, Some(IntrinsicOp::Item));
+                    }
                 }
             }
             Tag::Hook => {}
@@ -2478,7 +2491,14 @@ impl Em<'_, '_, '_> {
                 self.block_into(r[1], None)?;
                 self.close();
             }
-            tag => return unsupported(format!("`{}` (job 3, #540)", tag.name())),
+            tag => {
+                // ruled out: checked TIR has no Hole/Poison, CallDyn,
+                // CallHost, ContextFor, FlagSet/FlagClear or SwitchStr
+                // producer. items excludes structural Block instructions;
+                // lower a block through its owner even if passed directly.
+                assert_eq!(tag, Tag::Block);
+                self.block_into(i, None)?;
+            }
         }
         Ok(())
     }
@@ -2644,16 +2664,20 @@ impl Em<'_, '_, '_> {
         let mut at = 0;
         for (k, t) in params.iter().enumerate() {
             let vs = self.vals(*t)?;
-            let Some(part) = flat.get(at..at + vs.len()) else {
-                return unsupported("a call whose arguments do not fill its parameters");
-            };
+            let part = flat.get(at..at + vs.len());
+            // ruled out: call::check_args fills each concrete parameter;
+            // its tuple spread has that same flattened component layout.
+            assert!(part.is_some());
+            let part = part.as_slice()[0];
             if let Pass::Owned(walk) = self.pass_at(lends, k, *t) {
                 for &(r, k) in part {
                     self.comp(r, k)?;
                 }
-                let Some(copy) = copy else {
-                    return unsupported("spread arguments without their stated parameter copies");
-                };
+                // ruled out: own::arguments states CallValue's argument
+                // retain; call_value reads it into copy. Direct calls use
+                // inst's call reason. Use the supplied actual reason.
+                assert!(copy.is_some());
+                let copy = copy.as_slice()[0];
                 self.because(copy, |em| {
                     em.f.helper(Helper::Retain {
                         vals: vs.clone(),
@@ -2663,9 +2687,8 @@ impl Em<'_, '_, '_> {
             }
             at += vs.len();
         }
-        if at != flat.len() {
-            return unsupported("a call whose arguments do not fill its parameters");
-        }
+        // ruled out: check_args rejects surplus spread components.
+        assert_eq!(at, flat.len());
         for r in args {
             self.push(*r)?;
         }
@@ -2675,9 +2698,9 @@ impl Em<'_, '_, '_> {
     /// Stores a call's results as `i`'s, or ends the path when its result
     /// is `never`.
     fn call_results(&mut self, i: u32, ret: Ty) -> StageResult<()> {
-        if self.vals(ret)? != self.vals(self.ty(i))? {
-            return unsupported("a call whose result is erased");
-        }
+        // ruled out: mono::Cx::classify erases only representation-equal
+        // arguments; each call result retains its concrete ABI layout.
+        assert_eq!(self.vals(ret)?, self.vals(self.ty(i))?);
         if self.pool().get(self.ty(i)) == TyData::Never {
             self.f.op(Instruction::Unreachable);
             return Ok(());
@@ -2757,8 +2780,12 @@ impl Em<'_, '_, '_> {
                     self.builtin(i, &name, *self_ty, &args)
                 }
             },
-            Some(Target::Dyn) => self.call_dyn(i, a, &args),
-            _ => unsupported("a call without a direct target (job 11)"),
+            target => {
+                // ruled out: mono::Cx::scan records every direct/trait call
+                // as Call or Dyn (map specializations are handled above).
+                assert!(matches!(target, Some(Target::Dyn)));
+                self.call_dyn(i, a, &args)
+            }
         }
     }
 
@@ -2997,40 +3024,44 @@ impl Em<'_, '_, '_> {
     /// An omitted argument: its default body's instance, called with the
     /// earlier arguments, or a constant default inlined.
     fn default_call(&mut self, i: u32, bw: u32) -> StageResult<()> {
-        match self.calls.get(&i).cloned() {
-            // A default body that is one constant, as a literal's.
-            Some(Target::ConstDefault(bits)) => {
-                for op in self.scalar_ops(self.ty(i), bits)?.into_iter().flatten() {
-                    self.f.op(op);
-                }
-                self.store(i)
+        let target = self.calls.get(&i).cloned();
+        // A default body that is one constant, as a literal's.
+        if let Some(Target::ConstDefault(bits)) = target {
+            for op in self.scalar_ops(self.ty(i), bits)?.into_iter().flatten() {
+                self.f.op(op);
             }
+            return self.store(i);
+        }
+        let target = match target {
             Some(Target::Default {
                 call,
                 bracket,
                 owned,
-            }) => {
-                let args = self.rec(bw);
-                let params = self.param_tys(call.key, call.item, call.args);
-                let lends = self.env().lends(call.item, call.args);
-                self.push_args(i, &args, params.as_deref(), lends, self.f.reason)?;
-                let c = self.push_call_providers(i, call.item, call.args);
-                if bracket {
-                    self.forbid_by(1);
-                }
-                self.f.call(Sym::Inst(call.key));
-                if bracket {
-                    self.forbid_by(-1);
-                }
-                self.call_results(i, call.ret)?;
-                self.release_call_ctx(i, c);
-                if owned {
-                    self.owned_refs.insert(i);
-                }
-                Ok(())
-            }
-            _ => unsupported("a default argument without a target"),
+            }) => Some((call, bracket, owned)),
+            _ => None,
+        };
+        // ruled out: mono::Cx::scan records every DefaultCall as a scalar
+        // ConstDefault or its default body's actual instance and flags.
+        assert!(target.is_some());
+        let (call, bracket, owned) = target.as_slice()[0].clone();
+        let args = self.rec(bw);
+        let params = self.param_tys(call.key, call.item, call.args);
+        let lends = self.env().lends(call.item, call.args);
+        self.push_args(i, &args, params.as_deref(), lends, self.f.reason)?;
+        let c = self.push_call_providers(i, call.item, call.args);
+        if bracket {
+            self.forbid_by(1);
         }
+        self.f.call(Sym::Inst(call.key));
+        if bracket {
+            self.forbid_by(-1);
+        }
+        self.call_results(i, call.ret)?;
+        self.release_call_ctx(i, c);
+        if owned {
+            self.owned_refs.insert(i);
+        }
+        Ok(())
     }
 
     fn forbid_by(&mut self, by: i32) {
@@ -3844,19 +3875,21 @@ impl Em<'_, '_, '_> {
             });
             return self.store(i);
         }
-        match name {
-            "cmp" | "partial_cmp" if prim => self.ordering(i, args, name == "partial_cmp", float),
-            "copysign" if prim && float => {
-                self.comp(args[0], 0)?;
-                self.comp(args[1], 0)?;
-                self.f.op(if self.vals(t)? == [Val::F32] {
-                    I::F32Copysign
-                } else {
-                    I::F64Copysign
-                });
-                self.store(i)
-            }
-            _ => unsupported(format!("the built-in method `{name}`")),
+        // ruled out: mono::Cx::builtin_target and the body-less primitive
+        // std declarations select only operators, runtime_type, float
+        // unary methods, comparisons or copysign. Earlier cases returned.
+        assert!(prim && (matches!(name, "cmp" | "partial_cmp") || (float && name == "copysign")));
+        if name == "copysign" {
+            self.comp(args[0], 0)?;
+            self.comp(args[1], 0)?;
+            self.f.op(if self.vals(t)? == [Val::F32] {
+                I::F32Copysign
+            } else {
+                I::F64Copysign
+            });
+            self.store(i)
+        } else {
+            self.ordering(i, args, name == "partial_cmp", float)
         }
     }
 
@@ -3931,9 +3964,10 @@ impl Em<'_, '_, '_> {
         let t0 = ops.first().map_or(Ty::I32, |r| self.ty_of(*r));
         let (bits, signed, float) = self.num(t0);
         let v0 = self.vals(t0)?;
-        let [v] = v0[..] else {
-            return unsupported(format!("the operator {op:?} on this layout"));
-        };
+        // ruled out: expr::primitive_left and builtin_target restrict
+        // primitive operators to one scalar leaf (newtypes are stripped).
+        assert_eq!(v0.len(), 1);
+        let v = v0[0];
         let wide = v == Val::I64;
         if float && op != PrimOp::Conv {
             return self.float_value(op, ops, v);

@@ -44,7 +44,7 @@ impl Em<'_, '_, '_> {
         // Both callers test that `dyn_value_ty` strips references from
         // `value`'s type to a trait value.
         let target = self.dyn_value_ty(ty);
-        let mut ls = self.computed(value)?;
+        let mut ls = self.computed(value);
         let mut loaded = false;
         // Each thin reference is the address of the next one.
         while let Some((next_ty, false)) = self.ref_target(ty) {

@@ -245,18 +245,17 @@ impl Em<'_, '_, '_> {
 
     /// Branches from inside an open `Match` `i`'s arm blocks to the arm
     /// that holds the resumed state, before its decision runs.
-    pub(super) fn resume_arms(&mut self, i: u32, arms: &[u32]) -> StageResult<()> {
+    pub(super) fn resume_arms(&mut self, i: u32, arms: &[u32]) {
         if self.range(i).is_none() {
-            return Ok(());
+            return;
         }
         for (k, arm) in arms.iter().enumerate() {
             if let Some((lo, hi)) = self.range(*arm) {
                 self.in_range(lo, hi);
-                let d = self.depth(Ctl::Arm(i, u32::try_from(k).expect("arms")))?;
+                let d = self.depth(Ctl::Arm(i, u32::try_from(k).expect("arms")));
                 self.f.op(I::BrIf(d));
             }
         }
-        Ok(())
     }
 
     /// Statements `items` of a block that holds a state: one `br_table` on
@@ -1277,7 +1276,7 @@ impl Em<'_, '_, '_> {
             }
             self.f.i32(1);
             self.f.set(cancelled);
-            let d = self.depth(Ctl::Exit)?;
+            let d = self.depth(Ctl::Exit);
             self.f.op(I::Br(d));
             return Ok(());
         }

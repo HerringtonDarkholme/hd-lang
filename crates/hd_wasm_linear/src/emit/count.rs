@@ -473,7 +473,7 @@ impl Em<'_, '_, '_> {
         {
             return Ok(Src::Ref(r));
         }
-        let ls = self.computed(r)?;
+        let ls = self.computed(r);
         Ok(Src::Locals(self.copy_locals(&ls, self.ty_of(r))?))
     }
 
