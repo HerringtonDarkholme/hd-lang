@@ -427,26 +427,25 @@ struct Walk {
 
 fn static_row(pool: Types<'_>, self_ty: Ty) -> Row {
     let mut subs = Vec::new();
-    let strip = |t: Ty| t;
     match pool.get(self_ty) {
         TyData::Ref { counted: false, .. } => return Row::Fails(FailReason::NoImpl),
         // `box` made the object from a value that met `'static`.
         TyData::Ref { .. } => {}
         TyData::Tuple { elems, rest } => {
-            subs.extend(pool.list_items(elems).iter().map(|&e| strip(e)));
-            subs.extend(rest.map(strip));
+            subs.extend_from_slice(pool.list_items(elems));
+            subs.extend(rest);
         }
-        TyData::Adt { args, .. } => subs.extend(pool.list_items(args).iter().map(|&a| strip(a))),
+        TyData::Adt { args, .. } => subs.extend_from_slice(pool.list_items(args)),
         TyData::TraitValue { args, bindings, .. } => {
-            subs.extend(pool.list_items(args).iter().map(|&a| strip(a)));
-            subs.extend(bindings.iter().map(|&(_, b)| strip(b)));
+            subs.extend_from_slice(pool.list_items(args));
+            subs.extend(bindings.iter().map(|&(_, b)| b));
         }
         // A projection meets it when its parts do, as Rust's projection
         // rule has it (RFC 1214). An opaque type's hidden type is unknown
         // here, so it meets it only by an environment clause.
         TyData::Assoc { self_ty, args, .. } => {
-            subs.push(strip(self_ty));
-            subs.extend(pool.list_items(args).iter().map(|&a| strip(a)));
+            subs.push(self_ty);
+            subs.extend_from_slice(pool.list_items(args));
         }
         // An environment clause answers a parameter before this row.
         TyData::Param(_) | TyData::Opaque { .. } => return Row::Fails(FailReason::NoImpl),
