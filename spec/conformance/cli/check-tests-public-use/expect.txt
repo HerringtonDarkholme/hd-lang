@@ -1,0 +1,8 @@
+# names.tests.no-pub: a `pub use` inside a `tests:` block is a
+# public-test-item. A plain check skips the block, so only `--tests`
+# reports it.
+run: hd check --tests --summary helpers.hd
+exit: 101
+stdout-json: []
+stderr: error: helpers.hd: public-test-item: 1
+stderr: check result: FAILED. errors: 1; warnings: 0

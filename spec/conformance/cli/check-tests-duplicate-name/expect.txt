@@ -1,0 +1,8 @@
+# names.module.unique: two functions of one name inside a `tests:`
+# block are a duplicate-module-name. A plain check skips the block, so
+# only `--tests` reports it.
+run: hd check --tests --summary helpers.hd
+exit: 101
+stdout-json: []
+stderr: error: helpers.hd: duplicate-module-name: 1
+stderr: check result: FAILED. errors: 1; warnings: 0

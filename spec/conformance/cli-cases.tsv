@@ -178,6 +178,8 @@ check-tests-library-role	cli.check.tests,cli.check.default,cli.package.file,cli.
 check-tests-test-code-only	cli.check.tests,cli.check.default,cli.package.file,cli.exit.hd-failure,cli.exit.success
 check-tests-single-file	cli.check.tests,cli.check.default,cli.exit.hd-failure,cli.check.summary-mode
 check-tests-duplicate-function-and-type	cli.check.tests,cli.check.summary-mode
+check-tests-public-use	cli.check.tests,cli.check.summary-mode
+check-tests-duplicate-name	cli.check.tests,cli.check.summary-mode
 cap-path-missing-dot-dot	cli.cap.scope.path.resolved,cli.cap.scope.path.access,cli.engine.same-behavior,cli.cap.flag.commands,cli.cap.table
 run-type-error-no-output	cli.file.run,cli.exit.hd-failure
 check-numeric-widen-fix	cli.json.diagnostic.fixes,cli.exit.hd-failure

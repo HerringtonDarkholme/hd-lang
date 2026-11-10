@@ -1,0 +1,8 @@
+pub fn main() -> void:
+    pass
+
+tests:
+    pub use std.testing.{assert_equal}
+
+    it("compares"):
+        assert_equal(1, 1)
