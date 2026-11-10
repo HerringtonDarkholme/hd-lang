@@ -6369,6 +6369,15 @@ parse/invalid/character-literal-invalid-escape.hd	parse	reject:invalid-escape	la
 parse/invalid/unicode-escape-without-braces.hd	parse	reject:invalid-escape	lang/01-lexical-structure.md#r-lex.escape.unicode
 parse/invalid/unicode-escape-without-digits.hd	parse	reject:invalid-escape	lang/01-lexical-structure.md#r-lex.escape.unicode
 parse/invalid/non-nfc-raw-identifier.hd	parse	reject:invalid-token	lang/01-lexical-structure.md#r-lex.ident.non-nfc
+typing/invalid/unknown-print-hints-println.hd	type	reject:unknown-name	lang/03-names-and-scopes.md#r-names.module.other-module.value
+typing/invalid/join-list-spread-of-plain-values.hd	type	reject:type-mismatch	lang/11-requirements-and-suspension.md#r-req.combinator.all-argument
+typing/invalid/calling-a-trait-name.hd	type	reject:not-callable	lang/05-expressions.md#r-expr.call.apply.not-callable
+typing/invalid/union-constructor-with-a-non-union-result.hd	type	reject:cannot-infer-type	lang/04-type-system.md#r-types.union.constructor-context
+typing/invalid/union-constructor-call-under-an-unknown-annotation.hd	type	reject:unknown-type	lang/04-type-system.md#r-types.union.constructor-context
+typing/invalid/union-constructor-value-under-an-unknown-annotation.hd	type	reject:unknown-type	lang/04-type-system.md#r-types.union.constructor-context
+typing/invalid/qualified-value-missing-from-its-module.hd	type	reject:unknown-import	lang/05-expressions.md#r-expr.name.qualified.missing
+typing/invalid/trailing-block-supplies-a-named-parameter-twice.hd	type	reject:duplicate-argument	lang/07-functions.md#r-fn.arg.duplicate
+typing/invalid/spread-of-a-list-into-a-tuple-vararg-without-rest.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.call.spread.mismatch
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

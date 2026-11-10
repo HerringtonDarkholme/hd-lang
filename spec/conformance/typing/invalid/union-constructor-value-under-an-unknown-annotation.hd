@@ -1,0 +1,4 @@
+# test: an unknown annotation is the only error; a Union._k value reports no missing context under it
+# Spec 04 Union Construction And Matching: types.union.constructor-context.
+fn build() -> void:
+    let named: Nope = Union._0 # diagnostic: unknown-type

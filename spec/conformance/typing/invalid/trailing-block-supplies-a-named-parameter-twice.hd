@@ -1,0 +1,8 @@
+# test: a trailing block for a final parameter already passed by name supplies it twice
+# Spec 07 Arguments: fn.arg.duplicate.
+fn run(x: i32, body: fn() -> i32) -> i32:
+    x + body()
+
+fn twice() -> i32:
+    run(1, body=fn() -> i32: 2):
+        3 # diagnostic: duplicate-argument

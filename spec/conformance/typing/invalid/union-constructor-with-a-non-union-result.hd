@@ -1,0 +1,4 @@
+# test: an expected result that is not a union gives Union._k no union to build
+# Spec 04 Union Construction And Matching: types.union.constructor-context.
+fn build() -> void:
+    let x: i32 = Union._0(1) # diagnostic: cannot-infer-type

@@ -1,0 +1,6 @@
+# test: a module path to a value its module does not declare
+# Spec 05 Names: expr.name.qualified.missing.
+use std.task
+
+fn read() -> void:
+    _ := task.nope # diagnostic: unknown-import

@@ -1,0 +1,7 @@
+# test: a trait name is not callable
+# Spec 05 Calls: expr.call.apply.not-callable.
+trait Show:
+    fn show(self) -> string
+
+fn make() -> void:
+    _ := Show() # diagnostic: not-callable

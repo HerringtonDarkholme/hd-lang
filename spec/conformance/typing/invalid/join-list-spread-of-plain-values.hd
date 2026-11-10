@@ -1,0 +1,7 @@
+# test: the list form of join! takes a list of cold suspensions, not of values
+# Spec 11 Standard Combinators: req.combinator.all-argument.
+use std.task.join
+
+fn gather!() -> void:
+    let xs: List[i32] = [1]
+    _ := join!(xs...) # diagnostic: type-mismatch

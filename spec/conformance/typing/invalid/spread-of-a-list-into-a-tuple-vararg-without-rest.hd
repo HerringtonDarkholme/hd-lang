@@ -1,0 +1,7 @@
+# test: a list spread after separate values needs the tuple vararg to keep a rest element
+# Spec 05 Positional Spreads: expr.call.spread.mismatch.
+fn collect(values...: (i32, string)) -> void:
+    ()
+
+fn fill(nums: List[i32]) -> void:
+    collect(1, "a", nums...) # diagnostic: type-mismatch

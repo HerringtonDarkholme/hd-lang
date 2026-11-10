@@ -1,0 +1,4 @@
+# test: an unknown `print` is reported with a hint to `println`
+# Spec 03 Names And Scopes: names.module.other-module.value.
+fn main() -> void:
+    print("hi") # diagnostic: unknown-name
