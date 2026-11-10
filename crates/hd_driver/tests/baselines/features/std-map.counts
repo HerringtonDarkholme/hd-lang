@@ -23,7 +23,6 @@ fn group(m: &mut Map[string, List[string]], k: string, v: string) -> void:
 > app/main/group
 >   unique counted reference (may be shared)
 >   retain string (stored)
->   copy List[string] (stored)
 >   unique List[string] (may be shared)
 
 fn has(m: &Map[string, string], k: string) -> bool:

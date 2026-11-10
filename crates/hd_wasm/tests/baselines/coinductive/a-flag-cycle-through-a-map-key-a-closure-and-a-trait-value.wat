@@ -155,7 +155,7 @@
           i32.const 1
           i32.store $heap
           local.get $step
-          i32.const 468 ;; &vtable[func68]
+          i32.const 468 ;; &vtable[func67]
           local.set $bump.1
           local.set $step
           br 0

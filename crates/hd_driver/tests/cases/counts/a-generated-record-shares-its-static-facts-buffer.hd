@@ -1,0 +1,36 @@
+# @dump: wat
+# @build: v8 release
+# expected: the generated field handle keeps the empty facts buffer in two
+# persistent records without a collection copy. Both walks reuse the handle.
+use std.structure.{Field, Structure, Variant, Walker}
+
+struct Reader:
+    count: usize
+
+impl[S] Walker[S] for Reader:
+    type Error = never
+
+    fn variant(&mut self, variant: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F](&mut self, field: Field[S, F], value: &F) -> Result[void, never]:
+        self.count += field.info.facts.items.len()
+        .Ok(())
+
+trait Scan:
+    fn count_facts(self) -> usize
+
+impl[T] Scan for T by Structure:
+    fn count_facts(self) -> usize:
+        let mut reader = Reader { count: 0 }
+        _ := Structure::walk(&self, &mut reader)
+        reader.count
+
+@derive(Scan)
+struct Record:
+    value: i32
+
+fn inspect_twice() -> usize:
+    first := Record { value: 1 }.count_facts()
+    second := Record { value: 2 }.count_facts()
+    first + second

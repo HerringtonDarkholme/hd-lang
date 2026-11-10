@@ -123,3 +123,63 @@ pub fn main() -> void $ Console:
         template.counters.modules_checked
     );
 }
+
+/// The WAT fixture shows both source calls. Inspect the full module as
+/// well, since the synthesized handle's instructions have no source span.
+#[test]
+fn once_handles_share_static_facts_without_a_copy() -> Result<(), Box<dyn std::error::Error>> {
+    use wasmparser::{BinaryReader, Name, NameSectionReader, Operator, Parser, Payload, TypeRef};
+
+    let static_facts = concat!(
+        include_str!("../cases/counts/a-generated-record-shares-its-static-facts-buffer.hd"),
+        "\npub fn main() -> void $ Console:\n    println(inspect_twice())\n",
+    );
+    let out = build_with(&MemoryStore::default(), &[("main.hd", static_facts)]);
+    let wasm = out.wasm.as_deref().ok_or("fixture has no Wasm")?;
+    let mut imported = 0usize;
+    let mut bodies = Vec::new();
+    let mut handle = None;
+    let mut copy = None;
+    for payload in Parser::new(0).parse_all(wasm) {
+        match payload? {
+            Payload::ImportSection(imports) => {
+                for import in imports.into_imports() {
+                    imported += usize::from(matches!(import?.ty, TypeRef::Func(_)));
+                }
+            }
+            Payload::CodeSectionEntry(body) => bodies.push(body),
+            Payload::CustomSection(section) if section.name() == "name" => {
+                for name in
+                    NameSectionReader::new(BinaryReader::new(section.data(), section.data_offset()))
+                {
+                    if let Name::Function(map) = name? {
+                        for entry in map {
+                            let entry = entry?;
+                            if entry.name.ends_with("Record.structure handle 0 0#0") {
+                                handle = Some(entry.index as usize);
+                            }
+                            if entry.name == "rt:coll_copy" {
+                                copy = Some(entry.index);
+                            }
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    let index = handle.ok_or("fixture has no generated field handle")? - imported;
+    let mut ops = bodies[index].get_operators_reader()?;
+    let mut copies = 0;
+    while !ops.eof() {
+        if let Operator::Call { function_index } | Operator::ReturnCall { function_index } =
+            ops.read()?
+            && Some(function_index) == copy
+        {
+            copies += 1;
+        }
+    }
+    assert_eq!(copies, 0);
+    assert_eq!(run(&out, "static-facts"), "0\n");
+    Ok(())
+}

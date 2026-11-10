@@ -7,7 +7,6 @@
   (import "fixture" "rt:map_put'1" (func $rt:map_put'1 (param i32 i32 i32 i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:map_find'2" (func $rt:map_find'2 (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:map_unique'2" (func $rt:map_unique'2 (param i32) (result i32)))
-  (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
   (import "fixture" "rt:map_put'2" (func $rt:map_put'2 (param i32 i32 i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
@@ -103,9 +102,6 @@
           local.get $k.0
           call $retain
         end
-        local.get $t0
-        call $rt:coll_copy
-        local.set $t0
         local.get $t1
         local.get $t2
         local.get $t3

@@ -2553,31 +2553,33 @@ pub(crate) fn renumber(f: &mut Func) {
 /// from a constant push, possibly through tees, or from a local whose
 /// every write stores such a value: such a local holds only constants
 /// and its initial 0. A local proven from itself never qualifies, so a
-/// loop counter stays unproven. The call becomes a `drop` of each
-/// operand, which the local rules take back. Gives whether anything
-/// changed.
+/// loop counter stays unproven. A void call drops each operand; a
+/// collection copy leaves its input as its result. Gives whether
+/// anything changed.
 pub fn static_counts(f: &mut Func, retain: Hash128, arity: &Arity, static_params: &[bool]) -> bool {
-    let width = |ins: &Ins| -> Option<usize> {
+    let rewrite = |ins: &Ins| -> Option<(usize, usize)> {
         let Ins::Call(id) = ins else {
             return None;
         };
-        let counts = match &*f.symbols.get(*id) {
-            Sym::Inst(k) => *k == retain,
-            Sym::Helper(
-                Helper::ReleaseRef
-                | Helper::RetainKnown
-                | Helper::ReleaseKnown
-                | Helper::Retain { .. }
-                | Helper::Release { .. },
-            ) => true,
-            _ => false,
-        };
-        match (*arity.get(id.idx())?)? {
-            (n, 0) if counts => Some(n),
+        let (operands, results) = (*arity.get(id.idx())?)?;
+        match (&*f.symbols.get(*id), operands, results) {
+            (Sym::Helper(Helper::CollCopy), 1, 1) => Some((1, 0)),
+            (Sym::Inst(k), n, 0) if *k == retain => Some((n, n)),
+            (
+                Sym::Helper(
+                    Helper::ReleaseRef
+                    | Helper::RetainKnown
+                    | Helper::ReleaseKnown
+                    | Helper::Retain { .. }
+                    | Helper::Release { .. },
+                ),
+                n,
+                0,
+            ) => Some((n, n)),
             _ => None,
         }
     };
-    if !f.body.iter().any(|i| width(i).is_some()) {
+    if !f.body.iter().any(|i| rewrite(i).is_some()) {
         return false;
     }
     let joins = constant_joins(&f.body);
@@ -2587,10 +2589,10 @@ pub fn static_counts(f: &mut Func, retain: Hash128, arity: &Arity, static_params
         .iter()
         .enumerate()
         .filter_map(|(k, ins)| {
-            let n = width(ins)?;
-            (0..n)
+            let (operands, drops) = rewrite(ins)?;
+            (0..operands)
                 .all(|d| constant_before(f, k, d, &fixed, &[], arity, &joins))
-                .then_some((k, n))
+                .then_some((k, drops))
         })
         .collect();
     if gone.is_empty() {
