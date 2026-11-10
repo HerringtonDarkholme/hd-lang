@@ -40,7 +40,7 @@ fn append(value: &mut Option[UniqList[string]], item: string) -> usize:
 >   %7 = Store [$5] %6 : ()
 >   %8 = Ref local [*$3 .buffer] : &Buffer[string]
 >   %9 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].capacity[string] (%8) : usize
->   %10 = Drop [%8] : ()
+>   %10 = LoanEnd [%8] : ()
 >   %11 = Read copy [$5] : usize
 >   %12 = Prim Le [%9 %11] : bool
 >   %13 = Read borrow [$3] : &mut UniqList[string]
@@ -52,7 +52,7 @@ fn append(value: &mut Option[UniqList[string]], item: string) -> usize:
 >   %19 = Ref local [*$3 .buffer] : &Buffer[string]
 >   %20 = Read copy [$5] : usize
 >   %21 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].at[string] (%19, %20) : Ptr[string]
->   %22 = Drop [%19] : ()
+>   %22 = LoanEnd [%19] : ()
 >   %23 = Read move [$1] : string
 >   %24 = Store [ptr %21] %23 : ()
 >   %25 = Release %24 Operation #3 : ()

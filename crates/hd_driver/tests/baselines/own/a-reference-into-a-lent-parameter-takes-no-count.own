@@ -4,5 +4,5 @@ app/main/bump_inner
     uses $0: entry -> %0 lend last
   %0 = Ref mut local [*$0 .c] : &mut Counter
   %1 = Call app/main/bump[] (%0) : ()
-  %2 = Drop [%0] : ()
+  %2 = LoanEnd [%0] : ()
   %3 = Block - : ()

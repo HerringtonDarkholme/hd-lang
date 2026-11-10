@@ -383,21 +383,14 @@
     i32.add
     global.set $locals
   )
-  (func $set_first (param $xs i32) (param $v i64) (local $t0 i32) (local $t1 i32)
+  (func $set_first (param $xs i32) (param $v i64)
     ;; 18 |     xs[0] = v
     block
       local.get $xs
+      local.get $xs
       i32.load $heap
-      local.tee $t0
       call $rt:list_unique
-      local.tee $t1
-      local.get $t0
-      i32.ne
-      if
-        local.get $xs
-        local.get $t1
-        i32.store $heap
-      end
+      i32.store $heap
       local.get $xs
       i32.load $heap
       local.set $xs
@@ -414,7 +407,7 @@
       i64.store $heap offset=16
     end
   )
-  (func $record_step (param $steps i32) (param $slot i32) (param $step i64) (local $t0 i32) (local $t1 i32)
+  (func $record_step (param $steps i32) (param $slot i32) (param $step i64) (local $t0 i32)
     ;; 12 |     if slot < steps.len():
     block
       local.get $slot
@@ -424,17 +417,10 @@
       i32.lt_u
       if
         local.get $steps
+        local.get $steps
         i32.load $heap
-        local.tee $t0
         call $rt:list_unique
-        local.tee $t1
-        local.get $t0
-        i32.ne
-        if
-          local.get $steps
-          local.get $t1
-          i32.store $heap
-        end
+        i32.store $heap
     ;; 13 |         steps[slot] = step
         local.get $steps
         i32.load $heap
@@ -458,41 +444,36 @@
       else
         local.get $steps
         i32.load $heap
-        local.tee $slot
         call $rt:list_unique
-        local.tee $t0
+        local.set $slot
+        local.get $steps
         local.get $slot
-        i32.ne
-        if
-          local.get $steps
-          local.get $t0
-          i32.store $heap
-        end
-        local.get $t0
+        i32.store $heap
+        local.get $slot
     ;; 15 |         steps.push(step)
         i32.load $heap offset=4
-        local.tee $slot
-        local.get $t0
+        local.tee $t0
+        local.get $slot
         i32.load $heap
         i32.eq
         if
-          local.get $t0
+          local.get $slot
           i32.const 2
           call_indirect $table0 (param i32) (result i32)
-          local.set $t0
+          local.set $slot
           local.get $steps
-          local.get $t0
+          local.get $slot
           i32.store $heap
         end
-        local.get $t0
         local.get $slot
+        local.get $t0
         i32.const 8
         i32.mul
         i32.add
         local.get $step
         i64.store $heap offset=16
-        local.get $t0
         local.get $slot
+        local.get $t0
         i32.const 1
         i32.add
         i32.store $heap offset=4

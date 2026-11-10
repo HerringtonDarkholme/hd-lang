@@ -724,14 +724,6 @@ impl Walk {
         }
     }
 
-    /// Whether the walk is value 0 alone, as a plain count takes it: a
-    /// value that is one such address can stand for itself where a reference
-    /// view holds one counted address.
-    #[must_use]
-    pub fn plain_single(&self) -> bool {
-        matches!(self, Walk::Ref(0) | Walk::Known(0))
-    }
-
     /// How the walk's one counted address is counted, when it is one.
     #[must_use]
     pub fn addr(&self) -> Option<Addr> {
@@ -824,22 +816,6 @@ fn ref_walk(fat: bool, whole: bool, counting: bool) -> Option<Walk> {
         (false, true) => Some(Walk::Known(0)),
         (false, false) if counting => None,
         (false, false) | (true, _) => Some(Walk::Ref(0)),
-    }
-}
-
-/// Whether this representation's counted pointer is a payload start,
-/// never a string's interior bytes or an interior/erased reference: a
-/// reference is one when it is counted and thin (§23.30).
-pub fn block_start(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
-    let t = strip(pool, env, t);
-    match pool.get(t) {
-        TyData::Fn { .. } | TyData::Context(_) => true,
-        TyData::Adt { def, .. } if env.std_kind(def) != StdKind::Other => true,
-        _ => match kind(pool, env, t) {
-            Kind::Boxed => true,
-            Kind::Ref { fat, whole, .. } => whole && !fat,
-            Kind::Value => false,
-        },
     }
 }
 

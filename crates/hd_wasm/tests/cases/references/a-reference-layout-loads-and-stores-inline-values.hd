@@ -1,0 +1,13 @@
+# @dump: counts wat
+# expected: direct leaf loads/stores, collection copy and old-value release; no aggregate box
+struct Record:
+    label: string
+    tags: List[string]
+    id: i64
+    weight: f64
+
+fn copy(source: &Record) -> Record:
+    *source
+
+fn store(target: &mut Record, replacement: Record) -> void:
+    *target = replacement

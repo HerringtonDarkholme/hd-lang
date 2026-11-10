@@ -182,7 +182,7 @@ fn use_rets(r: Rec) -> usize:
 >   %32 = Block - : &string
 >   %33 = Scope %32 [] : &string
 >   %34 = Call std/text/impl string.len[] (%33) : usize
->   %35 = Drop [%33] : ()
+>   %35 = LoanEnd [%33] : ()
 >   %36 = LoanEnd [$3] : ()
 >   %37 = Drop [$0] : ()
 >   %38 = Prim Add [%27 %34] : usize

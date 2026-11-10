@@ -21,33 +21,28 @@
     block
       local.get $self
       i32.load $heap
-      local.tee $t0
       call $rt:list_unique'1
+      local.set $t0
+      local.get $self
+      local.get $t0
+      i32.store $heap
+      local.get $t0
+      i32.load $heap offset=4
       local.tee $t1
       local.get $t0
-      i32.ne
-      if
-        local.get $self
-        local.get $t1
-        i32.store $heap
-      end
-      local.get $t1
-      i32.load $heap offset=4
-      local.tee $t0
-      local.get $t1
       i32.load $heap
       i32.eq
       if
-        local.get $t1
+        local.get $t0
         i32.const 4
         call_indirect $table0 (param i32) (result i32)
-        local.set $t1
+        local.set $t0
         local.get $self
-        local.get $t1
+        local.get $t0
         i32.store $heap
       end
-      local.get $t1
       local.get $t0
+      local.get $t1
       i32.const 8
       i32.mul
       i32.add
@@ -57,8 +52,8 @@
       local.get $self
       local.get $value.1
       i32.store $heap offset=20
-      local.get $t1
       local.get $t0
+      local.get $t1
       i32.const 1
       i32.add
       i32.store $heap offset=4
@@ -83,17 +78,10 @@
       i32.lt_u
       if
         local.get $self
+        local.get $self
         i32.load $heap
-        local.tee $left
         call $rt:list_unique'2
-        local.tee $larger
-        local.get $left
-        i32.ne
-        if
-          local.get $self
-          local.get $larger
-          i32.store $heap
-        end
+        i32.store $heap
       end
       block
         loop
@@ -292,17 +280,10 @@
       end
     ;; 19 |         size := self.items.len()
       local.get $self
+      local.get $self
       i32.load $heap
-      local.tee $size
       call $rt:list_unique'2
-      local.tee $left
-      local.get $size
-      i32.ne
-      if
-        local.get $self
-        local.get $left
-        i32.store $heap
-      end
+      i32.store $heap
     ;; 33 |         self.items[parent] = value
       local.get $self
       i32.load $heap
@@ -513,7 +494,7 @@
     i32.add
     global.set $locals
   )
-  (func $"impl[T < Ord] Queue[T].settle[(i64, usize)]'1" (param $self i32) (param $start i32) (param $t1 i64) (param $size i32) (local $t0 i32) (local $value i32) (local $left i32) (local $larger i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32)
+  (func $"impl[T < Ord] Queue[T].settle[(i64, usize)]'1" (param $self i32) (param $start i32) (param $t1 i64) (param $size i32) (local $t0 i32) (local $value i32) (local $left i32) (local $larger i32) (local $t2 i32) (local $t3 i32)
     ;; 19 |         size := self.items.len()
     global.get $locals
     global.get $locals_base
@@ -588,17 +569,10 @@
           i32.lt_u
           if
             local.get $self
+            local.get $self
             i32.load $heap
-            local.tee $t2
             call $rt:list_unique'3
-            local.tee $t3
-            local.get $t2
-            i32.ne
-            if
-              local.get $self
-              local.get $t3
-              i32.store $heap
-            end
+            i32.store $heap
     ;; 25 |                 match self.items[left].cmp(&self.items[left + 1]):
             local.get $self
             i32.load $heap
@@ -618,30 +592,21 @@
             i32.add
             i32.const 16
             i32.add
-            local.set $t2
             local.get $left
             i32.const 1
             i32.add
-            local.set $t3
     ;; 24 |             if left + 1 < size:
             local.get $self
+            local.get $self
             i32.load $heap
-            local.tee $t4
             call $rt:list_unique'3
-            local.tee $t5
-            local.get $t4
-            i32.ne
-            if
-              local.get $self
-              local.get $t5
-              i32.store $heap
-            end
+            i32.store $heap
     ;; 25 |                 match self.items[left].cmp(&self.items[left + 1]):
             local.get $self
             i32.load $heap
-            local.set $t4
-            local.get $t3
-            local.get $t4
+            local.set $t2
+            local.tee $t3
+            local.get $t2
             i32.load $heap offset=4
             i32.ge_u
             if
@@ -649,7 +614,6 @@
               unreachable
             end
             local.get $t2
-            local.get $t4
             local.get $t3
             i32.const 16
             i32.mul
@@ -682,17 +646,10 @@
           end
     ;; 21 |         while parent < size / 2:
           local.get $self
+          local.get $self
           i32.load $heap
-          local.tee $left
           call $rt:list_unique'3
-          local.tee $t2
-          local.get $left
-          i32.ne
-          if
-            local.get $self
-            local.get $t2
-            i32.store $heap
-          end
+          i32.store $heap
     ;; 28 |             match value.cmp(&self.items[larger]):
           local.get $self
           i32.load $heap
@@ -757,17 +714,10 @@
           local.set $t1
     ;; 21 |         while parent < size / 2:
           local.get $self
+          local.get $self
           i32.load $heap
-          local.tee $t2
           call $rt:list_unique'3
-          local.tee $t3
-          local.get $t2
-          i32.ne
-          if
-            local.get $self
-            local.get $t3
-            i32.store $heap
-          end
+          i32.store $heap
     ;; 31 |             self.items[parent] = self.items[larger]
           local.get $self
           i32.load $heap
@@ -807,17 +757,10 @@
       local.set $t1
     ;; 19 |         size := self.items.len()
       local.get $self
+      local.get $self
       i32.load $heap
-      local.tee $value
       call $rt:list_unique'3
-      local.tee $left
-      local.get $value
-      i32.ne
-      if
-        local.get $self
-        local.get $left
-        i32.store $heap
-      end
+      i32.store $heap
     ;; 33 |         self.items[parent] = value
       local.get $self
       i32.load $heap
@@ -908,17 +851,10 @@
       i32.lt_u
       if
         local.get $self
+        local.get $self
         i32.load $heap
-        local.tee $left
         call $rt:list_unique'3
-        local.tee $larger
-        local.get $left
-        i32.ne
-        if
-          local.get $self
-          local.get $larger
-          i32.store $heap
-        end
+        i32.store $heap
       end
       block
         loop
@@ -1111,17 +1047,10 @@
       local.set $t1
     ;; 19 |         size := self.items.len()
       local.get $self
+      local.get $self
       i32.load $heap
-      local.tee $value
       call $rt:list_unique'3
-      local.tee $left
-      local.get $value
-      i32.ne
-      if
-        local.get $self
-        local.get $left
-        i32.store $heap
-      end
+      i32.store $heap
     ;; 33 |         self.items[parent] = value
       local.get $self
       i32.load $heap
@@ -1157,40 +1086,35 @@
     block
       local.get $self
       i32.load $heap
-      local.tee $t0
       call $rt:list_unique'2
+      local.set $t0
+      local.get $self
+      local.get $t0
+      i32.store $heap
+      local.get $t0
+      i32.load $heap offset=4
       local.tee $t1
       local.get $t0
-      i32.ne
-      if
-        local.get $self
-        local.get $t1
-        i32.store $heap
-      end
-      local.get $t1
-      i32.load $heap offset=4
-      local.tee $t0
-      local.get $t1
       i32.load $heap
       i32.eq
       if
-        local.get $t1
+        local.get $t0
         i32.const 10
         call_indirect $table0 (param i32) (result i32)
-        local.set $t1
+        local.set $t0
         local.get $self
-        local.get $t1
+        local.get $t0
         i32.store $heap
       end
-      local.get $t1
       local.get $t0
+      local.get $t1
       i32.const 8
       i32.mul
       i32.add
       local.get $value
       i64.store $heap offset=16
-      local.get $t1
       local.get $t0
+      local.get $t1
       i32.const 1
       i32.add
       i32.store $heap offset=4
@@ -1346,33 +1270,28 @@
     block
       local.get $self
       i32.load $heap
-      local.tee $t0
       call $rt:list_unique'3
+      local.set $t0
+      local.get $self
+      local.get $t0
+      i32.store $heap
+      local.get $t0
+      i32.load $heap offset=4
       local.tee $t1
       local.get $t0
-      i32.ne
-      if
-        local.get $self
-        local.get $t1
-        i32.store $heap
-      end
-      local.get $t1
-      i32.load $heap offset=4
-      local.tee $t0
-      local.get $t1
       i32.load $heap
       i32.eq
       if
-        local.get $t1
+        local.get $t0
         i32.const 11
         call_indirect $table0 (param i32) (result i32)
-        local.set $t1
+        local.set $t0
         local.get $self
-        local.get $t1
+        local.get $t0
         i32.store $heap
       end
-      local.get $t1
       local.get $t0
+      local.get $t1
       i32.const 16
       i32.mul
       i32.add
@@ -1382,8 +1301,8 @@
       local.get $self
       local.get $value.1
       i32.store $heap offset=24
-      local.get $t1
       local.get $t0
+      local.get $t1
       i32.const 1
       i32.add
       i32.store $heap offset=4
@@ -1552,17 +1471,10 @@
       i32.lt_u
       if
         local.get $self
+        local.get $self
         i32.load $heap
-        local.tee $left
         call $rt:list_unique'1
-        local.tee $larger
-        local.get $left
-        i32.ne
-        if
-          local.get $self
-          local.get $larger
-          i32.store $heap
-        end
+        i32.store $heap
       end
       block
         loop
@@ -1763,17 +1675,10 @@
       end
     ;; 19 |         size := self.items.len()
       local.get $self
+      local.get $self
       i32.load $heap
-      local.tee $size
       call $rt:list_unique'1
-      local.tee $left
-      local.get $size
-      i32.ne
-      if
-        local.get $self
-        local.get $left
-        i32.store $heap
-      end
+      i32.store $heap
     ;; 33 |         self.items[parent] = value
       local.get $self
       i32.load $heap

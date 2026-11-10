@@ -145,17 +145,10 @@
       i32.lt_u
       if
         local.get $bodies
+        local.get $bodies
         i32.load $heap
-        local.tee $t1
         call $rt:list_unique
-        local.tee $t2
-        local.get $t1
-        i32.ne
-        if
-          local.get $bodies
-          local.get $t2
-          i32.store $heap
-        end
+        i32.store $heap
       end
       local.get $bodies
       i32.load $heap
@@ -209,17 +202,10 @@
       i32.lt_u
       if
         local.get $bodies
+        local.get $bodies
         i32.load $heap
-        local.tee $t3
         call $rt:list_unique
-        local.tee $t0
-        local.get $t3
-        i32.ne
-        if
-          local.get $bodies
-          local.get $t0
-          i32.store $heap
-        end
+        i32.store $heap
       end
       local.get $bodies
       i32.load $heap

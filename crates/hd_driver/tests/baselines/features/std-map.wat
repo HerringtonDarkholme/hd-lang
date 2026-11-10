@@ -139,33 +139,28 @@
       end
       local.get $m
       i32.load $heap
-      local.tee $k.0
       call $rt:list_unique
+      local.set $k.0
+      local.get $m
+      local.get $k.0
+      i32.store $heap
+      local.get $k.0
+      i32.load $heap offset=4
       local.tee $k.1
       local.get $k.0
-      i32.ne
-      if
-        local.get $m
-        local.get $k.1
-        i32.store $heap
-      end
-      local.get $k.1
-      i32.load $heap offset=4
-      local.tee $k.0
-      local.get $k.1
       i32.load $heap
       i32.eq
       if
-        local.get $k.1
+        local.get $k.0
         i32.const 1
         call_indirect $table0 (param i32) (result i32)
-        local.set $k.1
+        local.set $k.0
         local.get $m
-        local.get $k.1
+        local.get $k.0
         i32.store $heap
       end
-      local.get $k.1
       local.get $k.0
+      local.get $k.1
       i32.const 8
       i32.mul
       i32.add
@@ -175,8 +170,8 @@
       local.get $m
       local.get $v.1
       i32.store $heap offset=20
-      local.get $k.1
       local.get $k.0
+      local.get $k.1
       i32.const 1
       i32.add
       i32.store $heap offset=4

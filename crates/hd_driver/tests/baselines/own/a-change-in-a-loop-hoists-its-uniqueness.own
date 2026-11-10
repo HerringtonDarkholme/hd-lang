@@ -5,9 +5,9 @@
 # backend runs under the loop's entry test. In `fill` the local list is
 # fresh and private, so the push's check hoists; it pushes, so it is no
 # stable list. In `shift` the list is behind a reference: the checks in
-# both loops hoist as `[*$0]` before the outer one, stay in the loops as
-# `covered`, which runs no check (#1661 asks whether they can go), and
-# both loops keep the list stable (`loop %n keeps`). `total` only
+# both loops hoist as `[*$0]` before the outer one, leaving no original
+# check or dependent repeat in the loops, and both loops keep the list
+# stable (`loop %n keeps`). `total` only
 # reads, so its loop keeps its list with no check at all.
 fn fill(n: usize) -> List[i32]:
     let mut items: List[i32] = []
@@ -47,55 +47,53 @@ fn shift(items: &mut List[i32]) -> void:
     let i: usize = 1
 > app/main/shift
 >   local $0 items: &mut List[i32] [param read] value
->     uses $0: entry -> %3 lend, %13 lend, %15 lend, %26 lend
+>     uses $0: entry -> %3 lend, %13 lend, %14 lend, %24 lend
 >   local $1 i: usize [read assigned mutated] place
 >   local $2 j: usize [read assigned mutated] place
 >   %0 = Store [$1] 1:usize : ()
->   %36 = Block - : ()
+>   %34 = Block - : ()
     while i < items.len():
 >   %1 = IsUnique hoisted [*$0] : ()
 >   %2 = Read copy [$1] : usize
 >   %3 = Read borrow [*$0] : List[i32]
 >   %4 = Intrinsic ListLen [%3] : usize
 >   %5 = Prim Lt [%2 %4] : bool
->   %31 = Break L0 - : never
+>   %29 = Break L0 - : never
+>   %30 = Block - : ()
+>   %31 = If %5 [%28 %30] : ()
 >   %32 = Block - : ()
->   %33 = If %5 [%30 %32] : ()
->   %34 = Block - : ()
->   %35 = Loop %34 - : ()
+>   %33 = Loop %32 - : ()
         let j: usize = i
 >   %6 = Read copy [$1] : usize
 >   %7 = Store [$2] %6 : ()
->   %30 = Block - : ()
+>   %28 = Block - : ()
         while j > 0:
 >   %8 = Read copy [$2] : usize
 >   %9 = Prim Gt [%8 0:usize] : bool
->   %20 = Break L1 - : never
->   %21 = Block - : ()
->   %22 = If %9 [%19 %21] : ()
->   %23 = Block - : ()
->   %24 = Loop %23 - : ()
+>   %19 = Break L1 - : never
+>   %20 = Block - : ()
+>   %21 = If %9 [%18 %20] : ()
+>   %22 = Block - : ()
+>   %23 = Loop %22 - : ()
             items[j] = items[j - 1]
 >   %10 = Read copy [$2] : usize
 >   %11 = Read copy [$2] : usize
 >   %12 = Prim Sub [%11 1:usize] : usize
 >   %13 = Read copy [*$0 [%12]] : i32
->   %14 = IsUnique covered [*$0] : ()
->   %15 = Store [*$0 [%10]] %13 : ()
->   %19 = Block - : ()
+>   %14 = Store [*$0 [%10]] %13 : ()
+>   %18 = Block - : ()
             j = j - 1
->   %16 = Read copy [$2] : usize
->   %17 = Prim Sub [%16 1:usize] : usize
->   %18 = Store [$2] %17 : ()
+>   %15 = Read copy [$2] : usize
+>   %16 = Prim Sub [%15 1:usize] : usize
+>   %17 = Store [$2] %16 : ()
         items[0] = +0
->   %25 = IsUnique covered [*$0] : ()
->   %26 = Store [*$0 [0:usize]] 0:i32 : ()
+>   %24 = Store [*$0 [0:usize]] 0:i32 : ()
         i = i + 1
->   %27 = Read copy [$1] : usize
->   %28 = Prim Add [%27 1:usize] : usize
->   %29 = Store [$1] %28 : ()
->   loop %24 keeps [*$0]
->   loop %35 keeps [*$0]
+>   %25 = Read copy [$1] : usize
+>   %26 = Prim Add [%25 1:usize] : usize
+>   %27 = Store [$1] %26 : ()
+>   loop %23 keeps [*$0]
+>   loop %33 keeps [*$0]
 
 fn total(items: &List[i32]) -> i32:
     let sum = +0

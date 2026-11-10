@@ -21,7 +21,7 @@ use super::Em;
 use super::value::{Dst, Src};
 use crate::layout::{Kind, Leaf, Part, Walk, mem as mem_of, payload_mem, walk};
 use crate::module::{EMPTY, HEAP, Val, mem};
-use crate::rt::{self, Helper, LIST_ELEMS, LIST_LEN, RefLayout};
+use crate::rt::{self, LIST_ELEMS, LIST_LEN, RefLayout};
 
 /// A value-backed root after globals and raw-pointer instructions split off.
 #[derive(Clone, Copy)]
@@ -109,7 +109,6 @@ impl Em<'_, '_, '_> {
         let m = mem_of(self.pool(), self.env(), ty)?;
         let walk = self.counted(ty);
         Ok(RefLayout {
-            known: crate::layout::block_start(self.pool(), self.env(), ty),
             size: m.size,
             leaves: m.leaves,
             walk,
@@ -498,52 +497,6 @@ impl Em<'_, '_, '_> {
             self.zero_part(t, &ls, &slots)?;
         }
         Ok(true)
-    }
-
-    /// A whole map behind a thin reference: uniqueness moves the value
-    /// out of the referent and stores it back, which keeps counts balanced
-    /// without copying its header before the check (#1661 asks whether
-    /// this move is still needed).
-    pub(super) fn unique_ref_header(&mut self, i: u32) -> StageResult<Option<u32>> {
-        if self.input.runtime.is_none() {
-            return Ok(None);
-        }
-        let p = self.place(self.b.data[i as usize][0]);
-        let Some((d, Some((target, false)))) = self.last_through(&p)? else {
-            return Ok(None);
-        };
-        if d + 1 != p.proj.len() || !self.is_map(target) {
-            return Ok(None);
-        }
-        let (at, _) = self.walk_place(i, &p, d, None)?;
-        let reference = self.at_i32(&at);
-        let helper = Helper::MapUnique {
-            entry: self.entry(target)?.2,
-        };
-        let unique = |me: &mut Self| {
-            let start = me.f.body.len();
-            me.f.helper(helper.clone());
-            if me.f.origins.is_some() {
-                let subject = crate::views::count_subject(me.pool(), me.env(), target);
-                me.f.note_count(
-                    start,
-                    u32::try_from(me.b.anchor_len()).expect("TIR instructions"),
-                    crate::views::CountAction::Unique,
-                    &subject,
-                    hd_tir::own::reason(me.b, i as usize),
-                );
-            }
-        };
-        let header = self.f.local(Val::I32);
-        // A map is one header word.
-        self.f.get(reference);
-        self.f.op(I::I32Load(mem(HEAP, 0, 2)));
-        unique(self);
-        self.f.set(header);
-        self.f.get(reference);
-        self.f.get(header);
-        self.f.op(I::I32Store(mem(HEAP, 0, 2)));
-        Ok(Some(header))
     }
 
     /// The list or map buffer at the place `word` of an `IsUnique` or a
@@ -1115,9 +1068,9 @@ impl Em<'_, '_, '_> {
                 return self.cell_set(i, *l, v);
             }
             Some((l, ls)) if !self.is_cell(*l) && self.loan_locals.contains_key(l) => {
-                // A projected reference can own a fresh runtime view even
-                // when the physical reference is a loan. Transfer that
-                // ownership with the binding, until the local's last use.
+                // Bind the borrowed address directly. Any object ownership
+                // recorded on its value moves with this binding until the
+                // local's last use.
                 self.take(v);
                 return self.write_new(Dst::Locals(ls), &Src::Ref(v));
             }

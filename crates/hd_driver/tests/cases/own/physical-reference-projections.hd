@@ -1,0 +1,75 @@
+# @dump: own counts
+# @build: v8 release program
+# expected: physical dereference/variant borrows end loans; new objects and
+# captured copies retain their owners until the last use.
+use std.annotation.inline
+
+struct Holder:
+    label: string
+
+struct Payload:
+    label: string
+
+impl !Copy for Payload
+
+enum Message:
+    Empty
+    Text(Payload)
+
+struct Probes: pass
+
+# subject
+impl Probes:
+    @inline(.Never)
+    fn same(a: &string, b: &string) -> bool:
+        a is b
+
+    @inline(.Never)
+    fn reborrow(value: &string) -> bool:
+        borrowed := &*value
+        Probes::same(borrowed, value)
+
+    @inline(.Never)
+    fn pointer(value: *mut Holder) -> usize:
+        borrowed := &value.label
+        borrowed.len()
+
+    @inline(.Never)
+    fn variant(value: &Message) -> usize:
+        match value:
+            .Empty => 0
+            .Text(text) =>
+                borrowed := &text.label
+                borrowed.len()
+
+    @inline(.Never)
+    fn new_object(value: string) -> usize:
+        borrowed := &(value + "!")
+        copy := borrowed
+        borrowed.len() + copy.len()
+
+    @inline(.Never)
+    fn captured_copy(value: string) -> (fn() -> usize):
+        fn() -> usize:
+            borrowed := &value
+            borrowed.len()
+
+pub fn main() -> void $ Console:
+    text := "stable"
+    println("${Probes::reborrow(&text)} ${Probes::pointer(box(Holder { label: "ptr" }))}")
+    message := Message.Text(Payload { label: "payload" })
+    println("${Probes::variant(&message)} ${Probes::new_object("new")}")
+    callback := Probes::captured_copy("capture")
+    println("${callback()}")
+
+tests:
+    it("physical projections keep their roots and new-object owners"):
+        text := "stable"
+        assert(Probes::reborrow(&text))
+        assert_equal(Probes::pointer(box(Holder { label: "ptr" })), 3)
+        message := Message.Text(Payload { label: "payload" })
+        assert_equal(Probes::variant(&message), 7)
+        assert_equal(Probes::new_object("new"), 8)
+        callback := Probes::captured_copy("capture")
+        assert_equal(callback(), 7)
+        assert_equal(callback(), 7)

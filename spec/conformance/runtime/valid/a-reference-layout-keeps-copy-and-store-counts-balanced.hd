@@ -1,0 +1,35 @@
+# test: copying and replacing an inline referenced value preserve its counted fields
+# Spec 13 Reading Through References: ref.read.type; Copy: ref.copy.structure.
+# expect-stdout: before:one:copy
+# expect-stdout: after:two:9:3.5
+# expect-stdout: before:one:7:2.5
+struct Record:
+    label: string
+    tags: List[string]
+    id: i64
+    weight: f64
+
+trait Caption:
+    fn caption(self) -> string
+
+impl Caption for Record:
+    fn caption(self) -> string:
+        "${self.label}:${self.tags[0]}:${self.id}:${self.weight}"
+
+fn copy(source: &Record) -> Record:
+    *source
+
+fn store(target: &mut Record, replacement: Record) -> void:
+    *target = replacement
+
+fn caption(source: &dyn Caption) -> string:
+    source.caption()
+
+pub fn main() -> void $ Console:
+    source := Record { label: "before", tags: ["one"], id: 7, weight: 2.5 }
+    let mut copied = copy(&source)
+    copied.tags[0] = "copy"
+    println("${source.label}:${source.tags[0]}:${copied.tags[0]}")
+    store(&mut copied, Record { label: "after", tags: ["two"], id: 9, weight: 3.5 })
+    println("${copied.label}:${copied.tags[0]}:${copied.id}:${copied.weight}")
+    println(caption(&source))

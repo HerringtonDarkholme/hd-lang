@@ -55,9 +55,9 @@
 //! which the hoisted check separates from `p`'s), no
 //! `borrow` of it lives across the loop's entry, and its type names no
 //! type parameter. When the loop hoists `p`, every other `IsUnique` of `p`
-//! in it, at any depth, goes too; one behind a dereference stays, marked
-//! `COVERED`, which runs no check: it is the earlier check of its block
-//! that a `REPEAT` after it names.
+//! in it, at any depth, goes too. The same-place proof covers physical
+//! dereferences as well. A same-place `REPEAT` whose in-block check goes
+//! also goes, so the verifier never needs a no-op predecessor marker.
 //! Loops are taken outermost first, so an outer loop's hoist covers the
 //! inner loops' `IsUnique`s.
 //!
@@ -245,7 +245,7 @@ pub(crate) struct Tables {
     /// The `borrow` reads of a local's own place (no element step), by
     /// local: (local, read).
     borrows: Vec<(u32, u32)>,
-    /// Per instruction: an `IsUnique` a hoist removed or covered.
+    /// Per instruction: an `IsUnique` already removed or proved unnecessary.
     gone: Vec<bool>,
     cands: Vec<Cand>,
     csteps: Vec<u32>,
@@ -372,8 +372,8 @@ fn pure(b: &Body, cx: &dyn OwnCx, x: u32, budget: &mut usize) -> bool {
     let scalar = !cx.counted(b.ty[i]);
     match b.tags[i] {
         Tag::Read => (w == ReadMode::Copy as u32 && scalar) || w == ReadMode::Borrow as u32,
-        // A borrow's kept drop, which releases what an instance's view
-        // made fresh.
+        // The matching end of a header borrow: it neither owns a copy
+        // nor replaces the header, so repeating this loan end is pure.
         Tag::Drop => unique_header(b, a).is_some_and(|v| b.is_borrow(v)),
         Tag::Prim => true,
         Tag::Coerce => scalar,
@@ -1205,7 +1205,6 @@ fn hoist_loop(
                 continue;
             }
         }
-        let deref = t.cand_steps(&c).first() == Some(&DEREF);
         let stable = c.used && !c.pushes && (c.hoist || !c.unique);
         if !c.hoist && !stable {
             continue;
@@ -1226,11 +1225,9 @@ fn hoist_loop(
                     continue;
                 }
                 t.gone[x as usize] = true;
-                if deref {
-                    b.data[x as usize][1] = unique_word::COVERED;
-                } else {
-                    edits.remove(x);
-                }
+                // The hoisted check proves this same place unique for
+                // every entered iteration; retain no no-op placeholder.
+                edits.remove(x);
             }
         }
         if stable {
@@ -1423,9 +1420,16 @@ fn check(b: &Body, cx: &dyn OwnCx, t: &mut Tables, x: u32, lp: u32) {
                         t.cands[k].lent |= lent && !temp;
                         temp || !(covers || below) || lent || (elem && elem_ref(t, x, w, lp))
                     }
-                    // A removed or covered `IsUnique` an outer loop hoisted
-                    // stands for nothing here.
-                    _ if t.gone[x as usize] => true,
+                    // A repeat has no run-time effect, but its verifier
+                    // requires the earlier in-block check. Track it in the
+                    // existing hit list so both go when this place hoists.
+                    // An outer loop's already removed check stays ignored.
+                    _ if t.gone[x as usize] => {
+                        if exact && w == unique_word::REPEAT {
+                            t.hits.push((u32_of(k), x));
+                        }
+                        true
+                    }
                     _ => {
                         if exact {
                             t.hits.push((u32_of(k), x));

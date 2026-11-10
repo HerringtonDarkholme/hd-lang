@@ -309,11 +309,10 @@ pub fn render(names: &Names<'_>, b: &Body, fields: &FieldNames<'_>) -> String {
         } else if matches!(tag, Tag::Read | Tag::Ref | Tag::IsUnique) {
             // `Ref mut [$0]`, `Read [*$0 .x]`; a read mode other than the
             // checker's `use` before the place, as `Read copy [$1]`; a
-            // hoisted or covered `IsUnique`, as `IsUnique hoisted [$1]`.
+            // hoisted `IsUnique`, as `IsUnique hoisted [$1]`.
             let mode = match tag {
                 Tag::IsUnique => match w {
                     hd_tir::ir::unique_word::HOISTED => Some("hoisted".to_owned()),
-                    hd_tir::ir::unique_word::COVERED => Some("covered".to_owned()),
                     hd_tir::ir::unique_word::FRESH => Some("fresh".to_owned()),
                     hd_tir::ir::unique_word::REPEAT => Some("repeat".to_owned()),
                     _ => None,

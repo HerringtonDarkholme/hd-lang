@@ -9,9 +9,10 @@
 //! counted references, a value that can hold the object again. A walk
 //! from the object's contents over the types they hold decides it:
 //!
-//! - A reference (`&T`, `&mut T`) ends the walk as capable: it may be a
-//!   view into any object with a place of its target's type, so the type
-//!   graph cannot say what it reaches.
+//! - A reference to a type whose existing objects may be written ends
+//!   the walk as capable: a write can add a back edge. Otherwise the
+//!   walk follows the referent's contents. Without the link's closed-world
+//!   mutation facts, every reference edge is conservatively capable.
 //! - So does an open value: a function value (a closure may capture
 //!   anything), a trait value, a context, a suspension, an erased body's
 //!   open type, and any type this walk does not know.

@@ -62,5 +62,5 @@ std/rt_tests.stage_case/sum
   %47 = If %17 [%44 %46] : ()
   %48 = Block - : ()
   %49 = Loop %48 - : ()
-  %50 = Drop [$2] : ()
+  %50 = LoanEnd [$2] : ()
   summary kept [] writes

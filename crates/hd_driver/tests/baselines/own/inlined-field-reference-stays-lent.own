@@ -35,7 +35,7 @@ fn forward(point: &mut Point) -> void:
 >   %5 = Break L0 - : never
 >   %6 = Block - : ()
 >   %7 = Scope %6 [] : ()
->   %8 = Drop [$1] : ()
+>   %8 = LoanEnd [$1] : ()
 >   %9 = Block - : ()
 >   summary kept [] writes
 
@@ -59,7 +59,7 @@ fn exercise(point: &mut Point) -> void:
 >   %7 = Break L0 - : never
 >   %8 = Block - : ()
 >   %9 = Scope %8 [] : ()
->   %10 = Drop [$2] : ()
+>   %10 = LoanEnd [$2] : ()
 >   %11 = Break L1 - : never
 >   %12 = Block - : ()
 >   %13 = Scope %12 [] : ()
@@ -127,7 +127,7 @@ fn recursive_owned(point: *Owner, depth: usize) -> usize:
     field.len() + below
 >   %14 = Read move [$2] : &string
 >   %15 = Call std/text/impl string.len[] (%14) : usize
->   %16 = Drop [%14] : ()
+>   %16 = LoanEnd [%14] : ()
 >   %17 = Read copy [$3] : usize
 >   %18 = Prim Add [%15 %17] : usize
 >   summary kept [] recursive
@@ -163,7 +163,7 @@ fn recursive_borrowed(point: &Owner, depth: usize) -> usize:
     field.len() + below
 >   %14 = Read move [$2] : &string
 >   %15 = Call std/text/impl string.len[] (%14) : usize
->   %16 = Drop [%14] : ()
+>   %16 = LoanEnd [%14] : ()
 >   %17 = Read copy [$3] : usize
 >   %18 = Prim Add [%15 %17] : usize
 >   summary kept [] recursive

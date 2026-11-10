@@ -4,21 +4,14 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:list_unique'2" (func $rt:list_unique'2 (param i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $write_nested (param $xs i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+  (func $write_nested (param $xs i32) (local $t0 i32)
     ;; 8 |     set(&mut xs[0][0], 9)
     block
       local.get $xs
+      local.get $xs
       i32.load $heap
-      local.tee $t0
       call $rt:list_unique'1
-      local.tee $t1
-      local.get $t0
-      i32.ne
-      if
-        local.get $xs
-        local.get $t1
-        i32.store $heap
-      end
+      i32.store $heap
       local.get $xs
       i32.load $heap
       local.set $t0
@@ -31,17 +24,10 @@
         unreachable
       end
       local.get $t0
+      local.get $t0
       i32.load $heap offset=16
-      local.tee $t1
       call $rt:list_unique'2
-      local.tee $t2
-      local.get $t1
-      i32.ne
-      if
-        local.get $t0
-        local.get $t2
-        i32.store $heap offset=16
-      end
+      i32.store $heap offset=16
       local.get $xs
       i32.load $heap
       local.set $xs

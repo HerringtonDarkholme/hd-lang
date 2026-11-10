@@ -117,7 +117,7 @@ app/main/replaced
   %84 = Store [$5] %83 : ()
   %85 = Read move [$4] : &string
   %86 = Call std/text/impl string.len[] (%85) : usize
-  %87 = Drop [%85] : ()
+  %87 = LoanEnd [%85] : ()
   %88 = Read borrow [$3 [0:usize] * .name] : string
   %89 = Store [$7] %88 : ()
   %90 = Read borrow [$7] : string

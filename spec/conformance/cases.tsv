@@ -4930,6 +4930,7 @@ runtime/valid/dyn-ref-list-written.hd	runtime	accept	lang/09-traits.md#r-trait.d
 runtime/valid/dyn-ref-mut-changes-caller.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.ref.write-ref-receiver
 runtime/valid/dyn-ref-receiver-forms.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.ref.member
 runtime/valid/dyn-ref-bridge.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.ref.share
+runtime/valid/a-reference-layout-keeps-copy-and-store-counts-balanced.hd	runtime	accept	lang/13-values-and-references.md#r-ref.read.type
 runtime/valid/dyn-ref-identity.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.ref.identity
 runtime/valid/dyn-ref-widen.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.ref.widen
 typing/invalid/dyn-ref-mut-method-through-shared.hd	type	reject:not-writable	lang/09-traits.md#r-trait.dyn.ref.member.mut

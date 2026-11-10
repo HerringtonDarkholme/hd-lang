@@ -1,0 +1,86 @@
+# @dump: own counts
+# @build: v8 release program
+# expected: physical reference loops hoist once; copies, alias replacement,
+# and a call that replaces an alias keep their required in-loop checks.
+use std.annotation.inline
+
+struct Probes: pass
+
+# subject
+impl Probes:
+    @inline(.Never)
+    fn step(n: usize) -> usize:
+        n + 1
+
+    @inline(.Never)
+    fn clean(items: &mut List[usize], n: usize) -> void:
+        let i: usize = 0
+        while i < n:
+            items[0] += Probes::step(i)
+            items[1] += 1
+            i += 1
+
+    @inline(.Never)
+    fn replace(target: &mut List[usize], source: List[usize]) -> void:
+        *target = source
+
+    @inline(.Never)
+    fn writing_call(items: *mut List[usize], alias: *mut List[usize], source: List[usize]) -> void:
+        let i: usize = 0
+        while i < 2:
+            Probes::replace(alias, source)
+            items[0] += 1
+            i += 1
+
+    @inline(.Never)
+    fn alias_write(items: *mut List[usize], alias: *mut List[usize], source: List[usize]) -> void:
+        let i: usize = 0
+        while i < 2:
+            *alias = source
+            items[0] += 1
+            i += 1
+
+    @inline(.Never)
+    fn header_copy(items: &mut List[usize]) -> usize:
+        let i: usize = 0
+        let total: usize = 0
+        while i < 2:
+            snapshot := *items
+            items[0] += 1
+            total += snapshot[0]
+            i += 1
+        total
+
+pub fn main() -> void $ Console:
+    let mut a: List[usize] = [1, 2]
+    Probes::clean(&mut a, 2)
+    println("${a[0]} ${a[1]}")
+    source := [7, 9]
+    let b: *mut List[usize] = box([0, 0])
+    alias := b
+    Probes::writing_call(b, alias, source)
+    println("${alias[0]} ${source[0]}")
+    Probes::alias_write(b, alias, source)
+    println("${alias[0]} ${source[0]}")
+    let mut c: List[usize] = [5, 0]
+    sum := Probes::header_copy(&mut c)
+    println("$sum ${c[0]}")
+
+tests:
+    it("uniqueness hoisting preserves aliases calls and copied snapshots"):
+        let mut a: List[usize] = [1, 2]
+        Probes::clean(&mut a, 2)
+        assert_equal(a, [4, 4])
+        source := [7, 9]
+        let b: *mut List[usize] = box([0, 0])
+        alias := b
+        Probes::writing_call(b, alias, source)
+        assert_equal(alias[0], 8)
+        assert_equal(source[0], 7)
+        Probes::alias_write(b, alias, source)
+        assert_equal(alias[0], 8)
+        assert_equal(source[0], 7)
+        let mut c: List[usize] = [5, 0]
+        sum := Probes::header_copy(&mut c)
+        assert_equal(sum, 11)
+        assert_equal(c[0], 7)

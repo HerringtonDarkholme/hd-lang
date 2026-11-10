@@ -118,12 +118,12 @@ fn over_mut(xs: &mut List[string]) -> void:
     for x in &mut *xs:
 > app/main/over_mut
 >   local $0 xs: &mut List[string] [param read] value
->     uses $0: entry -> %0 lend, %13 lend
+>     uses $0: entry -> %0 lend, %12 lend
 >   local $1 $len: usize [assigned] value
 >     uses $1: %2 -> %6 lend
 >   local $2 $pos: usize [assigned] place
 >   local $3 x: &mut string [read assigned] value
->     uses $3: %21 -> %15 lend, %17 lend last
+>     uses $3: %20 -> %14 lend, %16 lend last
 >   %0 = Read borrow [*$0] : List[string]
 >   %1 = Intrinsic ListLen [%0] : usize
 >   %2 = Store [$1] %1 : ()
@@ -136,28 +136,27 @@ fn over_mut(xs: &mut List[string]) -> void:
 >   %9 = Read copy [$2] : usize
 >   %10 = Prim Add [%9 1:usize] : usize
 >   %11 = Store [$2] %10 : ()
->   %12 = IsUnique covered [*$0] : ()
->   %13 = Read borrow [*$0] : List[string]
->   %14 = Ref mut local [%13 [%8]] : &mut string
->   %19 = Block - : ()
->   %20 = Read borrow [%14] : &mut string
->   %21 = Store [$3] %20 : ()
->   %22 = Release %21 Operation #3 : ()
->   %24 = Block - : never
->   %25 = Match %14 [%24 %19] : ()
->   %26 = LoanEnd [%14] : ()
->   %27 = Block - : ()
->   %28 = Break L0 - : never
->   %29 = Block - : ()
->   %30 = If %7 [%27 %29] : ()
->   %31 = Block - : ()
->   %32 = Loop %31 - : ()
->   %33 = Block - : ()
+>   %12 = Read borrow [*$0] : List[string]
+>   %13 = Ref mut local [%12 [%8]] : &mut string
+>   %18 = Block - : ()
+>   %19 = Read borrow [%13] : &mut string
+>   %20 = Store [$3] %19 : ()
+>   %21 = Release %20 Operation #3 : ()
+>   %23 = Block - : never
+>   %24 = Match %13 [%23 %18] : ()
+>   %25 = LoanEnd [%13] : ()
+>   %26 = Block - : ()
+>   %27 = Break L0 - : never
+>   %28 = Block - : ()
+>   %29 = If %7 [%26 %28] : ()
+>   %30 = Block - : ()
+>   %31 = Loop %30 - : ()
+>   %32 = Block - : ()
         *x += "!"
->   %15 = Read borrow [*$3] : string
->   %16 = Intrinsic StrConcat [%15 "!"] : string
->   %17 = Store [*$3] %16 : ()
->   %18 = Release %17 Operation #3 : ()
+>   %14 = Read borrow [*$3] : string
+>   %15 = Intrinsic StrConcat [%14 "!"] : string
+>   %16 = Store [*$3] %15 : ()
+>   %17 = Release %16 Operation #3 : ()
 >   summary kept [$0] writes
 
 fn keep_each(xs: List[string]) -> List[string]:

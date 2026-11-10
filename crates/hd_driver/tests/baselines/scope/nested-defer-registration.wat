@@ -19,40 +19,35 @@
     block
       local.get $env
       i32.load $heap
-      local.tee $ctx
       call $rt:list_unique
+      local.set $ctx
+      local.get $env
+      local.get $ctx
+      i32.store $heap
+      local.get $ctx
+      i32.load $heap offset=4
       local.tee $t0
       local.get $ctx
-      i32.ne
-      if
-        local.get $env
-        local.get $t0
-        i32.store $heap
-      end
-      local.get $t0
-      i32.load $heap offset=4
-      local.tee $ctx
-      local.get $t0
       i32.load $heap
       i32.eq
       if
-        local.get $t0
+        local.get $ctx
         i32.const 0
         call_indirect $table0 (param i32) (result i32)
-        local.set $t0
+        local.set $ctx
         local.get $env
-        local.get $t0
+        local.get $ctx
         i32.store $heap
       end
-      local.get $t0
       local.get $ctx
+      local.get $t0
       i32.const 4
       i32.mul
       i32.add
       i32.const 1
       i32.store $heap offset=16
-      local.get $t0
       local.get $ctx
+      local.get $t0
       i32.const 1
       i32.add
       i32.store $heap offset=4
@@ -66,40 +61,35 @@
     block
       local.get $env
       i32.load $heap
-      local.tee $ctx
       call $rt:list_unique
+      local.set $ctx
+      local.get $env
+      local.get $ctx
+      i32.store $heap
+      local.get $ctx
+      i32.load $heap offset=4
       local.tee $t0
       local.get $ctx
-      i32.ne
-      if
-        local.get $env
-        local.get $t0
-        i32.store $heap
-      end
-      local.get $t0
-      i32.load $heap offset=4
-      local.tee $ctx
-      local.get $t0
       i32.load $heap
       i32.eq
       if
-        local.get $t0
+        local.get $ctx
         i32.const 0
         call_indirect $table0 (param i32) (result i32)
-        local.set $t0
+        local.set $ctx
         local.get $env
-        local.get $t0
+        local.get $ctx
         i32.store $heap
       end
-      local.get $t0
       local.get $ctx
+      local.get $t0
       i32.const 4
       i32.mul
       i32.add
       i32.const 2
       i32.store $heap offset=16
-      local.get $t0
       local.get $ctx
+      local.get $t0
       i32.const 1
       i32.add
       i32.store $heap offset=4
