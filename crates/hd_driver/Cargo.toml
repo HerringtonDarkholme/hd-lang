@@ -10,11 +10,7 @@ description = "The one driver: the task graph of one compile run over the caller
 # Lets `Executor::Pool` run the graph on a rayon thread pool. Without it the
 # driver is serial only, which is what the browser build uses.
 threads = ["hd_sched/threads"]
-# `analysis` and `checked-report` are default too: hd_cli and hd_lint turn them
-# on, and a default without them made every native workspace command that
-# reached hd_cli compile hd_driver (and hd_wasm) a second time. The browser
-# build uses default-features = false and keeps both off.
-default = ["threads", "fixtures", "host-artifacts", "checked-builds", "checked-report", "analysis"]
+default = ["threads", "fixtures", "host-artifacts", "checked-builds"]
 # Stage fixtures render TIR, inspect layouts and root non-executable declarations.
 # Browser clients only build programs/tests/REPL inputs and leave this off.
 fixtures = []
