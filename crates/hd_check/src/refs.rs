@@ -905,7 +905,7 @@ impl Ck<'_, '_> {
             return;
         }
         let msg = format!(
-            "`*` reads through a reference, but this is a {}",
+            "`*` reads through a reference, but this value has type {}",
             self.show(t)
         );
         self.err(Code::TypeMismatch, n, &msg);
