@@ -12,7 +12,7 @@ mod wat;
 pub use wat::{wat, wat_for};
 
 use hd_base::SliceSort as _;
-use hd_driver::{Executor, Goal, Host, NoClock, PositionPool, build};
+use hd_driver::{Executor, Goal, Host, NoClock, PositionPool};
 use hd_sched::SerialOrder;
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
@@ -43,6 +43,11 @@ pub struct Program {
     /// For a REPL session case (`# @repl: N`): the number of the input the
     /// case's own text is. Its earlier inputs are the `@input` modules.
     pub repl: Option<u32>,
+    /// The fuel of each body and header goal of the case's package
+    /// (`# @fuel: N`), smaller than `Fuel::BODY_DEFAULT`, so a small case
+    /// reaches `item-too-complex` (`fn.limit.complexity.error`) at a chosen
+    /// step. The `tir` view builds with it (`Packages::body_fuel`).
+    pub fuel: Option<u64>,
     marked: bool,
 }
 
@@ -62,6 +67,7 @@ impl Program {
             helpers: Vec::new(),
             hosts: Vec::new(),
             repl: None,
+            fuel: None,
             marked: span.is_some(),
         })
     }
@@ -93,7 +99,7 @@ impl Program {
     }
 }
 
-/// Parses directives. `@dump`, `@build`, `@profile`, `@host` and
+/// Parses directives. `@dump`, `@build`, `@profile`, `@host`, `@fuel` and
 /// `@helpers` belong in the header comments before the first line of code.
 /// `@profile` names a conformance runtime profile
 /// ([`crate::profile_traits`]) whose traits the case's main module
@@ -105,6 +111,7 @@ impl Program {
 /// earlier inputs each begin at `@input: K`, numbered 1 up, as `@file`
 /// begins a module. The `tir` view checks the joined session; `wat`
 /// builds the inputs in order and shows the final extension module.
+/// `@fuel: N` gives the `tir` view's package `N` steps of fuel per item.
 ///
 /// # Errors
 /// Unknown directives/builds/views, `@dump` or `@build` after code,
@@ -114,6 +121,7 @@ pub fn parse(text: &str) -> Result<Case, String> {
     let mut build = Build::default();
     let mut profile = None;
     let mut repl = None;
+    let mut fuel = None;
     let mut inputs = 0u32;
     let mut helpers = Vec::new();
     let mut hosts = Vec::new();
@@ -133,7 +141,7 @@ pub fn parse(text: &str) -> Result<Case, String> {
             if !header
                 && matches!(
                     name,
-                    "dump" | "build" | "profile" | "host" | "helpers" | "repl"
+                    "dump" | "build" | "profile" | "host" | "helpers" | "repl" | "fuel"
                 )
             {
                 return Err(format!("`@{name}` after the header comments"));
@@ -172,6 +180,13 @@ pub fn parse(text: &str) -> Result<Case, String> {
                             .ok()
                             .filter(|n| *n > 1)
                             .ok_or_else(|| format!("invalid REPL input `{value}`"))?,
+                    );
+                }
+                "fuel" => {
+                    fuel = Some(
+                        value
+                            .parse::<u64>()
+                            .map_err(|_| format!("invalid fuel `{value}`"))?,
                     );
                 }
                 "input" => {
@@ -235,6 +250,10 @@ pub fn parse(text: &str) -> Result<Case, String> {
     program.helpers = helpers;
     program.hosts = hosts;
     program.repl = repl;
+    program.fuel = fuel;
+    if fuel.is_some() && (repl.is_some() || dumps.iter().any(|d| d != "tir")) {
+        return Err("a `@fuel` case shows only the `tir` view of a package".to_owned());
+    }
     Ok(Case {
         program,
         dumps,
@@ -476,7 +495,15 @@ pub fn tir(p: &Program) -> String {
             };
             hd_driver::build_packages(&host, "app", &packages, &Goal::ReplInput { input: n })
         }
-        None => build(&host, "app", &Goal::Analyze),
+        None => hd_driver::build_packages(
+            &host,
+            "app",
+            &hd_driver::Packages {
+                body_fuel: p.fuel,
+                ..hd_driver::Packages::default()
+            },
+            &Goal::Analyze,
+        ),
     };
     let main_file = p.main_file();
     let mut pool = PositionPool::default();

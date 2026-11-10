@@ -1,0 +1,17 @@
+# @dump: tir
+# @fuel: 2
+# fn.limit.complexity.error: an item whose checking runs out of steps is
+# one item-too-complex on that item. Two steps run out in `call` on the
+# `T < Named` bound its clause answers, and in `keep` on the `'static`
+# row `box` asks of a tuple.
+trait Named:
+    fn name(&self) -> string
+
+fn helper[U < Named](u: U) -> string:
+    u.name()
+
+fn call[T < Named](x: T) -> string:
+    helper(x)
+
+fn keep(t: (i32, string)) -> *mut (i32, string):
+    box(t)

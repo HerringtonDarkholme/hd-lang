@@ -1,0 +1,22 @@
+# @dump: tir
+# @fuel: 7
+# fn.limit.complexity.error: an item whose checking runs out of steps is
+# one item-too-complex on that item, whichever solver step spends the
+# last of its fuel. Seven steps run out in each `add` and in `grow`,
+# which spends its last on the literal operand's choice between the two
+# `Add` impls.
+use std.ops.Add
+
+struct V:
+    n: i64
+
+impl Add[i64] for V:
+    type Out = V
+    fn add(self, other: i64) -> V: V { n: self.n + other }
+
+impl Add[f64] for V:
+    type Out = V
+    fn add(self, other: f64) -> V: V { n: self.n + i64(other) }
+
+fn grow(v: V) -> V:
+    v + 1 + 2 + 3 + 4 + 5.0
