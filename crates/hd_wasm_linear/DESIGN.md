@@ -288,9 +288,12 @@ the slot's start:
   The allocator supplies the block size. An interior reference finds its
   block through the page table, then runs that block's glue. Types with
   identical layouts may share the descriptor and have no stored type name.
-- **Immortal objects.** A literal or constant object starts at count
-  2^31, and lives in a static page anyway; a program never releases more
-  references than it made, so it never reaches zero.
+- **Immortal objects.** A literal or constant object lives in static
+  data, below the heap, with a count word of 0. `retain` and `release`
+  (std.rt.alloc) leave an address below the heap alone, and
+  `retain_known` and `release_known` leave a zero count alone, so no count
+  ever changes it and it is never freed. As its count is never 1, a write
+  that needs the only reference copies it first.
 - **Release glue** is one function per type layout, shared by types with
   the same layout, iterative for a recursive type (REFCOUNT_RUNTIME.md
   §4.5); trace glue exists only for cycle-capable types.
