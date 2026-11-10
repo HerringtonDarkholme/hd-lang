@@ -1,0 +1,8 @@
+# test: a tuple in a const argument slot is not a const operation
+# Spec 04 Const Generic Arguments: types.generic.const.closed,
+# types.generic.const.nonconstant; a tuple is no scalar operator.
+struct Count[N < const i32]:
+    v: i32
+
+fn f() -> void:
+    c := Count::[(1, 2)] { v: +0 } # diagnostic: nonconstant-generic-argument

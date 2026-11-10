@@ -1,0 +1,23 @@
+# test: closed const arguments evaluate unary, comparison, shift, logic and string operators
+# Spec 04 Const Generic Arguments: types.generic.const.operator-set,
+# types.generic.const.identity; each argument equals the written literal.
+struct Count[N < const i32]:
+    v: i32
+
+struct Flag[X < const bool]:
+    v: i32
+
+struct Tag[T < const string]:
+    v: i32
+
+fn f() -> void:
+    let a: Flag[false] = Flag::[!true] { v: +0 }
+    let b: Flag[true] = Flag::[1 < 2] { v: +0 }
+    let c: Flag[true] = Flag::["a" == "a"] { v: +0 }
+    let d: Count[-2] = Count::[~1] { v: +0 }
+    let e: Count[4] = Count::[1 << 2u8] { v: +0 }
+    let g: Flag[true] = Flag::["a" < "b"] { v: +0 }
+    let h: Tag["ab"] = Tag::["a" + "b"] { v: +0 }
+    let i: Flag[true] = Flag::['a' < 'b'] { v: +0 }
+    let j: Flag[false] = Flag::[true && false] { v: +0 }
+    let k: Flag[true] = Flag::[1u8 >= 1u8] { v: +0 }

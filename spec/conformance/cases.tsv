@@ -590,6 +590,11 @@ typing/invalid/union-type-in-a-const-slot.hd	type	reject:generic-kind-mismatch	l
 typing/invalid/a-row-in-a-const-slot.hd	type	reject:generic-kind-mismatch	lang/04-type-system.md#r-types.generic.const.argument.kind
 typing/invalid/a-row-parameter-in-a-const-slot.hd	type	reject:generic-kind-mismatch	lang/04-type-system.md#r-types.generic.const.argument.kind
 typing/invalid/const-argument-or-of-named-constants-takes-the-parameter-type.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.generic.const.evaluate
+typing/invalid/const-argument-tuple-is-not-a-scalar.hd	type	reject:nonconstant-generic-argument	lang/04-type-system.md#r-types.generic.const.nonconstant
+typing/invalid/const-argument-shifts-by-a-bool.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.generic.const.operators
+typing/invalid/const-argument-negates-an-integer-for-a-bool.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.generic.const.evaluate
+typing/invalid/const-argument-suffixed-literal-of-another-type.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.generic.const.evaluate
+typing/valid/const-arguments-evaluate-each-operator-kind.hd	type	accept	lang/04-type-system.md#r-types.generic.const.operator-set
 runtime/valid/union-type-arguments-fill-type-parameters.hd	runtime	accept	lang/04-type-system.md#r-types.union.syntax
 typing/valid/checker-contextual-variants-with-an-expected-type-are-clean-240.hd	type	accept	lang/08-data-and-enums.md#matching-enums
 typing/valid/checker-contextual-variants-with-an-expected-type-are-clean-legal-forms-continued.hd	type	accept	lang/08-data-and-enums.md#matching-enums

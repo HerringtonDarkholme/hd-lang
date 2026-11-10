@@ -1,0 +1,8 @@
+# test: a const argument that shifts an integer by a bool has a count of another type
+# Spec 04 Const Generic Arguments: types.generic.const.operators; a shift
+# count is an integer, so a bool count is a type-mismatch.
+struct Count[N < const i32]:
+    v: i32
+
+fn f() -> void:
+    c := Count::[1 << true] { v: +0 } # diagnostic: type-mismatch

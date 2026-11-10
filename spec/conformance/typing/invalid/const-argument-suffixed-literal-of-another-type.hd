@@ -1,0 +1,8 @@
+# test: a suffixed literal const argument of another integer type than the parameter's
+# Spec 04 Const Generic Arguments: types.generic.const.evaluate, with the
+# parameter's declared type.
+struct Count[N < const i32]:
+    v: i32
+
+fn f() -> void:
+    c := Count::[1u8] { v: +0 } # diagnostic: type-mismatch

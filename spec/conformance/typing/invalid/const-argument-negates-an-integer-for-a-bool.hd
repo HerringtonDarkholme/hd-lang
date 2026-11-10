@@ -1,0 +1,8 @@
+# test: a const argument `!1` for a bool parameter evaluates to an integer
+# Spec 04 Const Generic Arguments: types.generic.const.evaluate, with the
+# parameter's declared type.
+struct Flag[X < const bool]:
+    v: i32
+
+fn f() -> void:
+    c := Flag::[!1] { v: +0 } # diagnostic: type-mismatch
