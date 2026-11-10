@@ -73,6 +73,8 @@ const SPEC_CONFLICTS: &[&str] = &[
     "cli/check-fix-parser-punctuation/src/lib.hd",
     "cli/check-fix-elif-continuations/src/lib.hd",
     "cli/check-fix-legacy-syntax/src/lib.hd",
+    // A check case whose last header ends the file at its colon.
+    "cli/check-header-colon-ends-the-file/main.hd",
     // A lint case whose identifier is deliberately not NFC, to show that
     // lint reports compiler errors first.
     "cli/lint-mixed-script-prerequisites/src/main.hd",
