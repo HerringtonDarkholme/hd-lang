@@ -576,13 +576,16 @@ impl Lower<'_, '_, '_> {
             .map_or(0, |(v, _)| v)
     }
 
-    /// Whether a module-level function carries the valid literal marker
-    /// `@auto_closing`. Target and result checks run separately.
+    /// Whether a module-level function carries an `@auto_closing` line.
+    /// A misspelled line still marks the function: its spelling error is the
+    /// one mistake, and the function's `AutoClosing` result and statement calls
+    /// are checked as the user meant them. Target and result checks run
+    /// separately.
     pub(super) fn auto_closing(&self, n: NodeRef<'_>) -> bool {
         n.children()
             .filter(|c| c.kind() == SyntaxKind::Decorator)
             .filter_map(|d| self.deco(d))
-            .any(|deco| deco.name == "auto_closing" && deco.bare && !deco.typed)
+            .any(|deco| deco.name == "auto_closing")
     }
 
     /// Checks that a function has at most one compiler-known
