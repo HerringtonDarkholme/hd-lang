@@ -382,19 +382,21 @@ impl Ck<'_, '_> {
                         return self.declare_poisoned(&subs, binds);
                     }
                     (None, None) => {
+                        // A tuple pattern needs a tuple of the same arity,
+                        // wherever it stands (`flow.match.tuple.arity`).
                         if elems.len() != subs.len() {
-                            // A `let` tuple pattern needs a tuple of the
-                            // same arity (`flow.let.tuple-arity`).
-                            if self.let_view.is_some() {
-                                let msg = format!(
-                                    "the pattern binds {} names but the tuple has {} elements",
-                                    subs.len(),
-                                    elems.len()
-                                );
-                                self.err(Code::TypeMismatch, p, &msg);
+                            let noun = if elems.len() == 1 {
+                                "element"
                             } else {
-                                self.err(Code::PatternArity, p, "the tuple has another size");
-                            }
+                                "elements"
+                            };
+                            let msg = format!(
+                                "{} has {} {noun}, but the pattern has {}",
+                                self.show(t),
+                                elems.len(),
+                                subs.len()
+                            );
+                            self.err(Code::TypeMismatch, p, &msg);
                             return self.declare_poisoned(&subs, binds);
                         }
                         for (s, et) in subs.iter().zip(elems) {

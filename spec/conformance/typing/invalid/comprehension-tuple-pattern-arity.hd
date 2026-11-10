@@ -1,0 +1,4 @@
+# test: a comprehension clause's tuple pattern needs a tuple of the same arity
+# Spec 06 Nested And Data Patterns: flow.match.tuple.arity, in a comprehension clause as in a let.
+fn run(pairs: List[(i32, i32)]) -> List[i32]:
+    [for (a,) in pairs => a] # diagnostic: type-mismatch

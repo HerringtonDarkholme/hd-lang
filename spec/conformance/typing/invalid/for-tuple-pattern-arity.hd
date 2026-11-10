@@ -1,0 +1,5 @@
+# test: a for loop's tuple pattern needs a tuple of the same arity
+# Spec 06 Nested And Data Patterns: flow.match.tuple.arity, in a for loop as in a let.
+fn run(pairs: List[(i32, i32)]) -> void:
+    for (a, b, c) in pairs: # diagnostic: type-mismatch
+        pass

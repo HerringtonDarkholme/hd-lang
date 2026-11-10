@@ -124,6 +124,6 @@ pub fn main() -> void $ Console:
     );
     let text = rejected(&arity);
     // A `let` tuple pattern against a tuple of another size is a type
-    // mismatch (`flow.let.tuple-arity`), not a pattern arity.
+    // mismatch (`flow.match.tuple.arity`).
     assert!(text.contains("type-mismatch"), "{text}");
 }

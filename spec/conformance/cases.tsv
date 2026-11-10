@@ -1739,7 +1739,7 @@ typing/valid/tuple-element-push.hd	type	accept	lang/05-expressions.md#r-expr.pla
 typing/invalid/enum-shared-field-compound-assignment.hd	type	reject:invalid-assignment-target	lang/05-expressions.md#r-expr.place.enum-shared-field
 runtime/valid/local-assignment-evaluates-only-value.hd	runtime	accept	lang/05-expressions.md#r-expr.assign.order.local
 runtime/valid/abrupt-index-stores-nothing.hd	runtime	accept	lang/05-expressions.md#r-expr.assign.abrupt
-runtime/valid/binding-expression-tuple-value.hd	runtime	accept	lang/06-control-flow.md#r-flow.let.tuple-arity
+runtime/valid/binding-expression-tuple-value.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.tuple.arity
 runtime/valid/method-receiver-before-arguments.hd	runtime	accept	lang/07-functions.md#methods-and-receivers
 runtime/valid/associated-function-qualified-call.hd	runtime	accept	lang/07-functions.md#methods-and-receivers
 runtime/valid/private-main-is-ordinary-function.hd	runtime	accept	lang/10-modules.md#entry-point
@@ -1822,8 +1822,12 @@ typing/invalid/missing-supertrait-implementation.hd	type	reject:missing-supertra
 typing/invalid/interpolation-without-display.hd	type	reject:unsatisfied-trait-bound	lang/05-expressions.md#literals
 typing/invalid/bang-call-non-suspending.hd	type	reject:not-suspending	lang/11-requirements-and-suspension.md#suspending-functions
 typing/invalid/incompatible-identity-operands.hd	type	reject:incompatible-identity-operands	lang/05-expressions.md#unary-and-binary-operators
-typing/invalid/tuple-binding-non-tuple.hd	type	reject:type-mismatch	lang/06-control-flow.md#r-flow.let.tuple-arity
-typing/invalid/tuple-binding-arity.hd	type	reject:type-mismatch	lang/06-control-flow.md#r-flow.let.tuple-arity
+typing/invalid/tuple-binding-non-tuple.hd	type	reject:type-mismatch	lang/06-control-flow.md#r-flow.match.tuple.arity
+typing/invalid/tuple-binding-arity.hd	type	reject:type-mismatch	lang/06-control-flow.md#r-flow.match.tuple.arity
+typing/invalid/match-tuple-pattern-arity.hd	type	reject:type-mismatch	lang/06-control-flow.md#r-flow.match.tuple.arity
+typing/invalid/for-tuple-pattern-arity.hd	type	reject:type-mismatch	lang/06-control-flow.md#r-flow.match.tuple.arity
+typing/invalid/comprehension-tuple-pattern-arity.hd	type	reject:type-mismatch	lang/06-control-flow.md#r-flow.match.tuple.arity
+typing/invalid/nested-tuple-pattern-arity.hd	type	reject:type-mismatch	lang/06-control-flow.md#r-flow.match.tuple.arity
 runtime/valid/println-console-stdout.hd	runtime	accept	lang/10-modules.md#prelude
 typing/valid/default-reads-top-level-binding.hd	type	accept	lang/07-functions.md#default-values
 runtime/valid/primitive-display-bound-and-trait-values.hd	runtime	accept	lang/09-traits.md#dynamic-trait-values

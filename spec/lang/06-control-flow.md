@@ -769,6 +769,7 @@ match value:
 12. r[flow.match.data.nominal] A named data pattern must match the subject's nominal type. It does not structurally match a different struct type with the same fields.
 13. r[flow.match.data.bind-primitive] Primitive fields bind by value.
 14. r[flow.match.data.generic] A generic field declared `field: P` binds as substituted `P`.
+15. r[flow.match.tuple.arity] A tuple pattern without a spread pattern needs a tuple of the same arity, in a `match` arm, a `let`, and a `for` loop or comprehension clause alike. Against any other value it is an error. Error: `type-mismatch`.
 
 ```text
 struct User:
@@ -960,7 +961,6 @@ fn read(id: i32) -> i32:
 8. r[flow.let.else.diverge.forms] A block diverges when its final statement has type `never`, such as `return`, `break`, `continue`, or a call to `panic`. It also diverges when the final statement is an `if` or `match` whose every branch diverges.
 9. r[flow.let.else.falls-through] An `else` block that may complete normally is an error. Error: `let-else-falls-through`.
 10. r[flow.let.else.unreachable] An `else` block after an irrefutable pattern could never run, so it is an error. Error: `unreachable-match-arm`.
-11. r[flow.let.tuple-arity] A tuple pattern needs a tuple of the same arity. Against any other value it is an error. Error: `type-mismatch`.
 
 ```text
 fn find(id: i32) -> i32?:

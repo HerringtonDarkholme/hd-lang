@@ -1,0 +1,5 @@
+# test: a match arm's tuple pattern needs a tuple of the same arity
+# Spec 06 Nested And Data Patterns: flow.match.tuple.arity, in a match arm as in a let.
+fn run(t: (i32, i32)) -> i32:
+    match t:
+        (a, b, c) => a # diagnostic: type-mismatch

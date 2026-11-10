@@ -1,5 +1,5 @@
 # test: a let tuple pattern destructures a tuple of the same arity
-# Spec 06 Let Patterns: flow.let.tuple-arity. Destructuring uses let
+# Spec 06 Let Patterns: flow.match.tuple.arity. Destructuring uses let
 # (owner decision LP1-one, batch 26, 2026-09-30), so the tuple is kept by binding it first.
 fn pair() -> (i32, string):
     (42, "answer")
