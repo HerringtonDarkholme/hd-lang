@@ -55,7 +55,7 @@ fn closure_bang!(key: string) -> usize:
 >   %0 = Read [$0] : string
 >   %1 = Await app/main/fetch[] (%0) : string
 >   %2 = Block %1 : string
->   %3 = Closure #1 [%0 %1] : fn!() -> string
+>   %3 = Closure #1 : fn!() -> string
 
 fn stored!(key: string) -> usize:
     loader := fn!(k: string) -> string: fetch!(k)
@@ -67,7 +67,7 @@ fn stored!(key: string) -> usize:
 >   %0 = Read [$1] : string
 >   %1 = Await app/main/fetch[] (%0) : string
 >   %2 = Block %1 : string
->   %3 = Closure #1 [%0 %0] : fn!(string) -> string
+>   %3 = Closure #1 : fn!(string) -> string
 >   %4 = Store [$2] %3 : ()
 >   %12 = Block %11 : usize
     loader!(key).len()

@@ -52,7 +52,7 @@ fn difference(reverse: bool, left: &i32, right: &i32) -> i32:
 >   %7 = Drop [$4] : ()
 >   %8 = Coerce %5 [Identity -] : i32
 >   %9 = Block %8 : i32
->   %10 = Closure #1 [%0 %0] : fn(&i32, &i32) -> i32
+>   %10 = Closure #1 : fn(&i32, &i32) -> i32
 >   %11 = Coerce %10 [Identity -] : fn(&i32, &i32) -> i32
 >   %12 = Block %11 : fn(&i32, &i32) -> i32
 >   %13 = Retain %20 Entry local $5 #0 : ()
@@ -63,7 +63,7 @@ fn difference(reverse: bool, left: &i32, right: &i32) -> i32:
 >   %18 = Drop [$5] : ()
 >   %19 = Drop [$6] : ()
 >   %20 = Block %17 : i32
->   %21 = Closure #2 [%0 %0] : fn(&i32, &i32) -> i32
+>   %21 = Closure #2 : fn(&i32, &i32) -> i32
 >   %22 = Block %21 : fn(&i32, &i32) -> i32
 >   %23 = If %0 [%12 %22] : fn(&i32, &i32) -> i32
 >   %24 = Store [$7] %23 : ()

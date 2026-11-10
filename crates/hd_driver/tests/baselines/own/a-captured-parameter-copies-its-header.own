@@ -7,7 +7,7 @@ app/main/later
   %3 = Intrinsic ListLen [%2] : usize
   %4 = Drop [%2] : ()
   %5 = Block %3 : usize
-  %6 = Closure #1 [%0 %1] : fn() -> usize
+  %6 = Closure #1 : fn() -> usize
   %7 = Retain %6 Operation captures #0 : ()
   %8 = Block %6 : fn() -> usize
   exit sub 0 drops [$0]

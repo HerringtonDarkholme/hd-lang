@@ -27,7 +27,7 @@ fn local_capture(prefix: string, xs: List[string]) -> usize:
 >   %1 = Retain %17 Entry captures #0 : ()
 >   %3 = Retain %17 Entry local $2 #0 : ()
 >   %17 = Block %16 : usize
->   %18 = Closure #1 [%0 %1] : fn(string) -> usize
+>   %18 = Closure #1 : fn(string) -> usize
 >   %19 = Retain %18 Operation captures #0 : ()
 >   %20 = Store [$3] %18 : ()
 >   %55 = Block %54 : usize
@@ -100,7 +100,7 @@ fn local_plain(xs: List[string]) -> usize:
     fn first_len(ys: List[string]) -> usize:
 >   %1 = Retain %16 Entry local $1 #0 : ()
 >   %16 = Block %14 : usize
->   %17 = Closure #1 [%0 %0] : fn(List[string]) -> usize
+>   %17 = Closure #1 : fn(List[string]) -> usize
 >   %18 = Store [$2] %17 : ()
 >   %23 = Block %21 : usize
         if ys.len() > 0: ys[0].len() else: 0

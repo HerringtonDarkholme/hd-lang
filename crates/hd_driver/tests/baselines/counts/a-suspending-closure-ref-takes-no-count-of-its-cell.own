@@ -51,7 +51,7 @@ fn local!() -> i64:
 >   %3 = Release %23 FrameDrop child #2 : ()
 >   %4 = Release %13 FrameDrop child #2 : ()
 >   %13 = Block %11 : i64
->   %14 = Closure #1 [%0 %0] : fn!() -> i64
+>   %14 = Closure #1 : fn!() -> i64
 >   %15 = Store [$0] %14 : ()
 >   %23 = Block %18 : i64
         let mut tally = Tally { n: 0 }
@@ -107,7 +107,7 @@ fn shared!() -> i64:
 >   %12 = Drop [%9] : ()
 >   %13 = Drop [$0] : ()
 >   %14 = Block - : ()
->   %15 = Closure #1 [%0 %1] : fn!() -> ()
+>   %15 = Closure #1 : fn!() -> ()
 >   %16 = Retain %15 Operation captures #0 : ()
 >   %17 = Store [$1] %15 : ()
 >   %15 finds [$0] full
@@ -154,7 +154,7 @@ fn copied!() -> i64:
 >   %10 = Drop [%7] : ()
 >   %11 = Drop [$0] : ()
 >   %12 = Block %8 : i64
->   %13 = Closure #1 [%0 %1] : fn!() -> i64
+>   %13 = Closure #1 : fn!() -> i64
 >   %14 = Drop [$0] : ()
 >   %15 = Store [$1] %13 : ()
 >   %13 finds [$0] full

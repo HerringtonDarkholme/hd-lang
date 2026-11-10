@@ -15,7 +15,7 @@ fn generic(captured: string) -> (fn(i32) -> (string, i32), fn(string) -> (string
 >   %0 = Retain %6 Entry captures #0 : ()
 >   %2 = Retain %6 Entry local $1 #0 : ()
 >   %6 = Block %5 : (string, T)
->   %7 = Closure #1 [%0 %1] : fn(T) -> (string, T)
+>   %7 = Closure #1 : fn(T) -> (string, T)
 >   %8 = Drop [%7] : ()
 >   %15 = Block %14 : (fn(i32) -> (string, i32), fn(string) -> (string, string))
         (captured, value)
@@ -23,9 +23,9 @@ fn generic(captured: string) -> (fn(i32) -> (string, i32), fn(string) -> (string
 >   %4 = Read move [$1] : T
 >   %5 = NewTuple - [%3 %4] : (string, T)
     (pair::[i32], pair::[string])
->   %9 = Closure #1 [%0 %1 %0 %3427] : fn(i32) -> (string, i32)
+>   %9 = Closure #1 : fn(i32) -> (string, i32)
 >   %10 = Retain %9 Operation captures #0 : ()
->   %11 = Closure #1 [%0 %1 %0 %40] : fn(string) -> (string, string)
+>   %11 = Closure #1 : fn(string) -> (string, string)
 >   %12 = Retain %11 Operation captures #0 : ()
 >   %13 = Drop [$0] : ()
 >   %14 = NewTuple - [%9 %11] : (fn(i32) -> (string, i32), fn(string) -> (string, string))
@@ -45,7 +45,7 @@ fn counter() -> (fn!() -> usize):
 >   %4 = Retain %12 Cold captures #0 : ()
 >   %5 = Retain %12 Entry captures #0 : ()
 >   %12 = Block %10 : usize
->   %13 = Closure #1 [%0 %1] : fn!() -> usize
+>   %13 = Closure #1 : fn!() -> usize
 >   %14 = Retain %13 Operation captures #0 : ()
 >   %15 = Drop [$0] : ()
 >   %13 finds [$0] full
@@ -75,7 +75,7 @@ fn framed() -> usize:
     next := fn() -> usize:
 >   %1 = Retain %8 Entry captures #0 : ()
 >   %8 = Block %6 : usize
->   %9 = Closure #1 [%0 %1] : fn() -> usize
+>   %9 = Closure #1 : fn() -> usize
 >   %10 = Retain %9 Operation captures #0 : ()
 >   %11 = Store [$1] %9 : ()
 >   %9 finds [$0] full

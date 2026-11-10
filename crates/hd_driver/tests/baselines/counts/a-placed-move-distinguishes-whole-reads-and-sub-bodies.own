@@ -81,7 +81,7 @@ fn nested() -> (fn(string) -> string):
 >   %0 = Retain %9 Entry local $0 #0 : ()
 >   %8 = Release %7 Operation local $0 #2 : ()
 >   %9 = Block %7 : string
->   %10 = Closure #1 [%0 %0] : fn(string) -> string
+>   %10 = Closure #1 : fn(string) -> string
 >   %11 = Block %10 : fn(string) -> string
         _ := same(&value, &value)
 >   %1 = Ref local [$0] : &string

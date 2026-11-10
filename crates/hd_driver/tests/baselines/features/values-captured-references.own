@@ -21,7 +21,7 @@ fn bump(p: *mut Point) -> fn() -> void:
 >   %4 = Store [*$0 .x] %3 : ()
 >   %5 = Drop [$0] : ()
 >   %6 = Block - : ()
->   %7 = Closure #1 [%0 %1] : fn() -> ()
+>   %7 = Closure #1 : fn() -> ()
 >   %8 = Retain %7 Operation captures #0 : ()
 >   %9 = Block %7 : fn() -> ()
 >   exit sub 0 drops [$0]
@@ -89,7 +89,7 @@ fn local(xs: &List[string]) -> usize:
 >   %4 = Intrinsic ListLen [%2] : usize
 >   %5 = Drop [%2] : ()
 >   %6 = Block %4 : usize
->   %7 = Closure #1 [%0 %1] : fn() -> usize
+>   %7 = Closure #1 : fn() -> usize
 >   %8 = Retain %7 Operation captures #0 : ()
 >   %9 = Store [$1] %7 : ()
 >   %10 = Read borrow [$1] : fn() -> usize

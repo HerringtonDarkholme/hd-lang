@@ -39,7 +39,7 @@ fn use(b: Box) -> usize:
 >   %2 = Read copy [$0 .n] : usize
 >   %3 = Drop [$0] : ()
 >   %4 = Block %2 : usize
->   %5 = Closure #1 [%0 %1] : fn() -> usize
+>   %5 = Closure #1 : fn() -> usize
 >   %6 = Retain %5 Operation captures #0 : ()
 >   %7 = Read borrow [$0 .items] : List[i32]
 >   %8 = Intrinsic ListLen [%7] : usize

@@ -113,7 +113,7 @@ fn keep[T < 'static](value: T) -> fn() -> T:
 >   %0 = Retain %3 Entry captures #0 : ()
 >   %2 = Read move [$0] : T
 >   %3 = Block %2 : T
->   %4 = Closure #1 [%0 %1] : fn() -> T
+>   %4 = Closure #1 : fn() -> T
 >   %5 = Retain %4 Operation captures #0 : ()
 >   %6 = Block %4 : fn() -> T
 >   exit sub 0 drops [$0]
@@ -135,7 +135,7 @@ fn lend(value: string) -> fn() -> usize:
 >   %6 = Scope %5 [] : usize
 >   %7 = Drop [$0] : ()
 >   %8 = Block %6 : usize
->   %9 = Closure #1 [%0 %1] : fn() -> usize
+>   %9 = Closure #1 : fn() -> usize
 >   %10 = Retain %9 Operation captures #0 : ()
 >   %11 = Block %9 : fn() -> usize
 >   exit sub 0 drops [$0]

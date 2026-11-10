@@ -33,7 +33,7 @@ fn demo(a: &User) -> usize:
 >   %2 = Call app/main/apply[] (%0, %1) : usize
 >   %3 = Ref local [*$1 .name] : &string
 >   %4 = Block %3 : &string
->   %5 = Closure #1 [%0 %0] : fn(&User) -> &string
+>   %5 = Closure #1 : fn(&User) -> &string
 >   %6 = Read [$0] : &User
 >   %7 = Call app/main/apply[] (%5, %6) : usize
 >   %8 = Prim Add [%2 %7] : usize

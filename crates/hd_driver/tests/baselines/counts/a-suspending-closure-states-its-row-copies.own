@@ -22,7 +22,7 @@ fn make() -> (fn!() -> void $ Clock):
 >   %10 = Await std/time/sleep[] (%9) : ()
 >   %11 = Release %10 Operation child #2 : ()
 >   %12 = Block - : ()
->   %13 = Closure #1 [%0 %0] : fn!() -> ()
+>   %13 = Closure #1 : fn!() -> ()
 >   %14 = Block %13 : fn!() -> ()
 >   summary kept [] writes
 >   live %10 [%9]

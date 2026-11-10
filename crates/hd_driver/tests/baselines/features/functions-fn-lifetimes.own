@@ -47,7 +47,7 @@ fn demo(a: &User) -> usize:
 >   %5 = Ref local [*$1 .name] : &string
 >   %6 = Drop [$1] : ()
 >   %7 = Block %5 : &string
->   %8 = Closure #1 [%0 %0] : fn(&User) -> &string
+>   %8 = Closure #1 : fn(&User) -> &string
 >   %9 = Read borrow [$0] : &User
 >   %10 = Call app/main/apply[] (%8, %9) : usize
 >   %11 = Drop [%8] : ()

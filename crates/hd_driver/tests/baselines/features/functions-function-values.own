@@ -131,7 +131,7 @@ fn variant_value(s: string) -> Event:
 >   %2 = Read move [$1] : string
 >   %3 = NewVariant #0 [%2] : Event
 >   %4 = Block %3 : Event
->   %5 = Closure #1 [%0 %0] : fn(string) -> Event
+>   %5 = Closure #1 : fn(string) -> Event
 >   %6 = Store [$3] %5 : ()
 >   %7 = Read borrow [$3] : fn(string) -> Event
 >   %8 = Read move [$0] : string

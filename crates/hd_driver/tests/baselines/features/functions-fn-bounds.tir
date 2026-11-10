@@ -38,7 +38,7 @@ fn static_bound(s: string) -> usize:
 >   %4 = Call std/text/impl string.len[] (%3) : usize
 >   %5 = Prim Add [%4 1:usize] : usize
 >   %6 = Block %5 : usize
->   %7 = Closure #1 [%0 %0] : fn(string) -> usize
+>   %7 = Closure #1 : fn(string) -> usize
 >   %8 = Read [$0] : string
 >   %9 = Call app/main/invoke[fn(string) -> usize] (%7, %8) : usize
 >   %10 = Prim Add [%2 %9] : usize
@@ -102,7 +102,7 @@ fn fn_mut(xs: List[string]) -> usize:
 >   %5 = Prim Add [%2 %4] : usize
 >   %6 = Store [$1] %5 : ()
 >   %7 = Block - : ()
->   %8 = Closure #1 [%0 %1] : fn(string) -> ()
+>   %8 = Closure #1 : fn(string) -> ()
 >   %9 = Call app/main/each[fn(string) -> ()] (%1, %8) : ()
     n
 >   %10 = Read [$1] : usize

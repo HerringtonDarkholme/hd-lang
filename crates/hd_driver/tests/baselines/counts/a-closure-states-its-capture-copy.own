@@ -11,7 +11,7 @@ fn make() -> (fn() -> usize):
     fn() -> usize:
 >   %1 = Retain %8 Entry captures #0 : ()
 >   %8 = Block %6 : usize
->   %9 = Closure #1 [%0 %1] : fn() -> usize
+>   %9 = Closure #1 : fn() -> usize
 >   %10 = Retain %9 Operation captures #0 : ()
 >   %11 = Drop [$0] : ()
 >   %9 finds [$0] full
@@ -34,6 +34,6 @@ fn plain() -> (fn() -> usize):
     fn() -> usize: 0
 > app/main/plain
 >   %0 = Block 0:usize : usize
->   %1 = Closure #1 [%0 %0] : fn() -> usize
+>   %1 = Closure #1 : fn() -> usize
 >   %2 = Block %1 : fn() -> usize
 >   summary kept []

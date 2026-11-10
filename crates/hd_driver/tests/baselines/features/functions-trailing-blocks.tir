@@ -31,7 +31,7 @@ fn trailing(s: string) -> usize:
 >   %0 = Read [$0] : string
 >   %1 = Intrinsic StrConcat [%0 "!"] : string
 >   %2 = Block %1 : string
->   %3 = Closure #1 [%0 %1] : fn() -> string
+>   %3 = Closure #1 : fn() -> string
 
 fn twice(body: fn() -> usize) -> usize:
     body() + body()
@@ -54,4 +54,4 @@ fn no_args(s: string) -> usize:
 >   %0 = Ref local [$0] : &string
 >   %1 = Call std/text/impl string.len[] (%0) : usize
 >   %2 = Block %1 : usize
->   %3 = Closure #1 [%0 %1] : fn() -> usize
+>   %3 = Closure #1 : fn() -> usize

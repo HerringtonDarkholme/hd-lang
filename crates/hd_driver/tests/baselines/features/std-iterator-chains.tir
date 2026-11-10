@@ -16,7 +16,7 @@ fn lens(xs: List[string]) -> List[usize]:
 >   %2 = Ref local [$1] : &string
 >   %3 = Call std/text/impl string.len[] (%2) : usize
 >   %4 = Block %3 : usize
->   %5 = Closure #1 [%0 %0] : fn(string) -> usize
+>   %5 = Closure #1 : fn(string) -> usize
 >   %6 = Call std/iter/Iterator.map for ListIter[string] [string, usize, fn(string) -> usize] via Impl (%1, %5) : MapIter[ListIter[string], string, usize, fn(string) -> usize]
 >   %7 = Call std/iter/Iterator.collect for MapIter[ListIter[string], string, usize, fn(string) -> usize] [usize, List[usize]] via Impl (%6) : List[usize]
 >   %8 = Block %7 : List[usize]
@@ -38,10 +38,10 @@ fn loud(xs: List[string]) -> List[string]:
 >   %3 = Call std/text/impl string.len[] (%2) : usize
 >   %4 = Prim Gt [%3 2:usize] : bool
 >   %5 = Block %4 : bool
->   %6 = Closure #1 [%0 %0] : fn(&string) -> bool
+>   %6 = Closure #1 : fn(&string) -> bool
         .map(fn(s: string) -> string: s + "!")
 >   %8 = Read [$2] : string
 >   %9 = Intrinsic StrConcat [%8 "!"] : string
 >   %10 = Block %9 : string
->   %11 = Closure #2 [%0 %0] : fn(string) -> string
+>   %11 = Closure #2 : fn(string) -> string
         .collect()

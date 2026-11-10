@@ -141,7 +141,7 @@ fn as_value(errors: List[FsError]) -> List[SyncError]:
 >   %3 = Read move [$1] : FsError
 >   %4 = NewVariant #0 [%3] : SyncError
 >   %5 = Block %4 : SyncError
->   %6 = Closure #1 [%0 %0] : fn(FsError) -> SyncError
+>   %6 = Closure #1 : fn(FsError) -> SyncError
 >   %7 = Call app/main/wrap_with[] (%1, %6) : List[SyncError]
 >   %8 = Retain %7 Operation operand 0 #0 : ()
 >   %9 = Drop [%6] : ()

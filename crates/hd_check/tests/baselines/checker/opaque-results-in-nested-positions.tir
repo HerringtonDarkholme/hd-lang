@@ -38,7 +38,7 @@ fn maker() -> (fn() -> i32, impl Display):
     (fn() -> i32: 1, 2)
 > app/main/maker
 >   %0 = Block 1:i32 : i32
->   %1 = Closure #1 [%0 %0] : fn() -> i32
+>   %1 = Closure #1 : fn() -> i32
 >   %2 = NewTuple - [%1 2:usize] : (fn() -> i32, usize)
 >   %3 = Block %2 : (fn() -> i32, usize)
 

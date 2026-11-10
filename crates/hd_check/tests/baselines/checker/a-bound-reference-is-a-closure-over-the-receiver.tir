@@ -9,5 +9,5 @@ app/main/bumper
   %3 = Read [$2] : i32
   %4 = Call app/main/impl Counter.bump[] (%2, %3) : ()
   %5 = Block %4 : ()
-  %6 = Closure #1 [%0 %1] : fn(i32) -> ()
+  %6 = Closure #1 : fn(i32) -> ()
   %7 = Block %6 : fn(i32) -> ()

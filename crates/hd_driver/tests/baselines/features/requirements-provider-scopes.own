@@ -213,7 +213,7 @@ fn lexical(s: string) -> usize:
 >   %30 = Scope %29 [] : usize
 >   %31 = Drop [$2] : ()
 >   %32 = Block %30 : usize
->   %33 = Closure #1 [%0 %1] : fn() -> usize
+>   %33 = Closure #1 : fn() -> usize
 >   %34 = Retain %33 Operation captures #0 : ()
 >   %35 = Store [$3] %33 : ()
 >   %36 = Read borrow [$3] : fn() -> usize

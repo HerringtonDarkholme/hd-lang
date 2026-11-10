@@ -30,7 +30,7 @@ fn captured(text: string, suffix: string) -> string:
 >   %12 = Release %11 Operation #3 : ()
 >   %13 = Drop [$2] : ()
 >   %14 = Block - : ()
->   %15 = Closure #1 [%0 %2] : fn() -> ()
+>   %15 = Closure #1 : fn() -> ()
 >   %16 = Retain %15 Operation captures #0 : ()
 >   %17 = Store [$3] %15 : ()
 >   %15 finds [$2] full
@@ -79,7 +79,7 @@ fn dynamic(text: string, suffix: string) -> string:
 >   %13 = Release %12 Operation #3 : ()
 >   %14 = Drop [$2] : ()
 >   %15 = Block - : ()
->   %16 = Closure #1 [%0 %1] : fn(string) -> ()
+>   %16 = Closure #1 : fn(string) -> ()
 >   %17 = Retain %16 Operation captures #0 : ()
 >   %18 = Store [$4] %16 : ()
 >   %16 finds [$2] full

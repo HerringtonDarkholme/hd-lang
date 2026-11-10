@@ -121,7 +121,7 @@ fn closure(s: string) -> usize:
 >   %12 = Scope %11 [] : usize
 >   %13 = Drop [$1] : ()
 >   %14 = Block %12 : usize
->   %15 = Closure #1 [%0 %0] : fn() -> usize
+>   %15 = Closure #1 : fn() -> usize
 >   %16 = Call app/main/with_tag[$()] (%1, %15) : usize
 >   %17 = Drop [%15] : ()
 >   %18 = Block %16 : usize

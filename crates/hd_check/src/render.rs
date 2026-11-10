@@ -241,8 +241,10 @@ pub fn render(names: &Names<'_>, b: &Body, fields: &FieldNames<'_>) -> String {
                 // A `defer`'s suite and a `Hook`'s observed instruction
                 // sit in meta words.
                 Op::Meta if matches!(b.tags[i], Tag::Defer | Tag::Hook) => vec![word],
-                // Count descriptors contain phases and indices, not values.
-                Op::Record if matches!(b.tags[i], Tag::Retain | Tag::Release) => Vec::new(),
+                // Count descriptors and closure records contain metadata, not values.
+                Op::Record if matches!(b.tags[i], Tag::Retain | Tag::Release | Tag::Closure) => {
+                    Vec::new()
+                }
                 Op::Values | Op::Blocks | Op::Record if word != NONE => b.record(word).to_vec(),
                 Op::Place => b.place_values(word),
                 _ => Vec::new(),
@@ -396,6 +398,9 @@ pub fn render(names: &Names<'_>, b: &Body, fields: &FieldNames<'_>) -> String {
                             ops.push(format!("[{}]", ks.join(" ")));
                         } else if tag == Tag::ProviderGet || tag == Tag::ItemRef {
                             ops.push("[..]".into());
+                        } else if tag == Tag::Closure {
+                            // The sub-body header already lists captures. The
+                            // closure record has no value operands to print.
                         } else if tag == Tag::Coerce {
                             ops.push(coercion(names, b, word));
                         } else if tag == Tag::DefaultCall && side == 0 {

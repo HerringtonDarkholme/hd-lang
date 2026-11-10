@@ -17,7 +17,7 @@ fn make() -> (fn!(string) -> usize $ Clock):
 >   %4 = Release %18 FrameDrop row #2 : ()
 >   %5 = Release %18 FrameDrop child #2 : ()
 >   %18 = Block %15 : usize
->   %19 = Closure #1 [%0 %0] : fn!(string) -> usize
+>   %19 = Closure #1 : fn!(string) -> usize
 >   %20 = Block %19 : fn!(string) -> usize
         sleep!(ms(1))
 >   %6 = Store [$1] 1:i64 : ()

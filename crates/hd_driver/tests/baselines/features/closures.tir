@@ -13,7 +13,7 @@ fn capture_call(s: string) -> usize:
 >   %0 = Ref local [$0] : &string
 >   %1 = Call std/text/impl string.len[] (%0) : usize
 >   %2 = Block %1 : usize
->   %3 = Closure #1 [%0 %1] : fn() -> usize
+>   %3 = Closure #1 : fn() -> usize
 >   %4 = Store [$1] %3 : ()
 >   %10 = Block %9 : usize
     f() + f()
@@ -30,7 +30,7 @@ fn escape(s: string) -> fn() -> usize:
 >   %0 = Ref local [$0] : &string
 >   %1 = Call std/text/impl string.len[] (%0) : usize
 >   %2 = Block %1 : usize
->   %3 = Closure #1 [%0 %1] : fn() -> usize
+>   %3 = Closure #1 : fn() -> usize
 >   %4 = Block %3 : fn() -> usize
 
 fn call_value(f: fn(string) -> usize, s: string) -> usize:
@@ -57,7 +57,7 @@ fn shared(s: string) -> string:
 >   %3 = Intrinsic StrConcat [%2 "x"] : string
 >   %4 = Store [$1] %3 : ()
 >   %5 = Block - : ()
->   %6 = Closure #1 [%0 %1] : fn() -> ()
+>   %6 = Closure #1 : fn() -> ()
 >   %7 = Store [$2] %6 : ()
     add()
 >   %8 = Read [$2] : fn() -> ()

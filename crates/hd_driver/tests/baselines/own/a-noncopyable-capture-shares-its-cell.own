@@ -7,7 +7,7 @@ std/rt_tests.stage_case/later
   %22 = Drop [%20] : ()
   %23 = Drop [$0] : ()
   %24 = Block %21 : usize
-  %25 = Closure #1 [%0 %1] : fn() -> usize
+  %25 = Closure #1 : fn() -> usize
   %26 = Retain %25 Operation captures #0 : ()
   %27 = Drop [$0] : ()
   %25 finds [$0] full
