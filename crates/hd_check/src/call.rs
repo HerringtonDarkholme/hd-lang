@@ -2791,26 +2791,30 @@ impl Ck<'_, '_> {
     /// When a cold suspension is expected, show the actual call with
     /// only its callee's bang removed, retaining bangs in its arguments.
     pub(crate) fn cold_call_hint(&self, want: Ty, n: NodeRef<'_>) -> String {
-        if !matches!(self.pool().get(self.resolved(want)), TyData::Adt { def, .. } if def == self.cx.names.known.suspend)
+        self.cold_call(want, n)
+            .map(|cold| format!("; pass the cold call `{cold}` without awaiting it first"))
+            .unwrap_or_default()
+    }
+
+    /// The text of bang call `n` with its callee's bang removed, when `want`
+    /// is a `Suspend` and `not-suspending` has not already reported `n`.
+    fn cold_call(&self, want: Ty, n: NodeRef<'_>) -> Option<String> {
+        let suspend = self.cx.names.known.suspend;
+        if !matches!(self.pool().get(self.resolved(want)), TyData::Adt { def, .. } if def == suspend)
             || n.kind() != SyntaxKind::CallExpr
         {
-            return String::new();
+            return None;
         }
-        let Some(mut callee) = n.children().next() else {
-            return String::new();
-        };
+        // A call's first child is its callee, `f!::[T]` holds `f!` first,
+        // and a `SuspendExpr` holds its bang.
+        let mut callee = n.children().next()?;
         if callee.kind() == SyntaxKind::TypeArgsExpr {
-            let Some(inner) = callee.children().next() else {
-                return String::new();
-            };
-            callee = inner;
+            callee = callee.children().next()?;
         }
         if callee.kind() != SyntaxKind::SuspendExpr {
-            return String::new();
+            return None;
         }
-        let Some(bang) = callee.direct_token(&self.cx.src.parse.tokens, TokenKind::Bang) else {
-            return String::new();
-        };
+        let bang = callee.direct_token(&self.cx.src.parse.tokens, TokenKind::Bang)?;
         let span = self.cx.src.span(n);
         if self
             .diags
@@ -2819,16 +2823,15 @@ impl Ck<'_, '_> {
             .zip(&self.diags.primary)
             .any(|(code, at)| *code == Code::NotSuspending && *at == span)
         {
-            return String::new();
+            return None;
         }
         let bang = self.cx.src.token_span(bang);
         let text = self.cx.src.text;
-        let cold = format!(
+        Some(format!(
             "{}{}",
             &text[span.lo as usize..bang.lo as usize],
             &text[bang.hi as usize..span.hi as usize]
-        );
-        format!("; pass the cold call `{cold}` without awaiting it first")
+        ))
     }
 
     /// A bang call needs a suspending callee (`not-suspending`) and a

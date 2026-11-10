@@ -1,0 +1,11 @@
+# test: the value fix-it of a counted-reference `==` parenthesizes a compound operand
+# Spec lang/13 Identity: ref.identity.no-equality.fix.
+
+struct Cell:
+    v: i32
+
+fn find(c: *Cell) -> Result[*Cell, string]:
+    .Ok(c)
+
+fn same(c: *Cell) -> Result[bool, string]:
+    .Ok(find(c)? == c) # diagnostic: reference-equality

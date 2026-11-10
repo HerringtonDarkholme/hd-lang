@@ -1,0 +1,8 @@
+# test: a plain call of a non-suspending function is its value, not a cold suspension
+# Spec lang/11 Suspending Function Types: req.suspend.type.plain-call.
+
+fn plain() -> i32:
+    +1
+
+fn run() -> Suspend[i32]:
+    plain() # diagnostic: type-mismatch

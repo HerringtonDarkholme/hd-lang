@@ -6196,6 +6196,8 @@ typing/invalid/a-type-parameter-in-a-body-const-slot-is-a-kind-error.hd	type	rej
 typing/invalid/a-const-expression-in-a-body-type-slot.hd	type	reject:generic-kind-mismatch	lang/02-grammar.md#r-grammar.generic.const.argument
 typing/invalid/a-const-expression-as-an-explicit-type-argument.hd	type	reject:generic-kind-mismatch	lang/02-grammar.md#r-grammar.generic.const.argument
 typing/invalid/a-const-expression-in-a-body-row-slot.hd	type	reject:generic-kind-mismatch	lang/04-type-system.md#r-types.generic.const.argument.kind
+typing/invalid/a-plain-call-of-a-non-suspending-function-is-no-cold-suspension.hd	type	reject:type-mismatch	lang/11-requirements-and-suspension.md#r-req.suspend.type.plain-call
+typing/invalid/reference-equality-wraps-a-compound-operand-in-its-value-fix.hd	type	reject:reference-equality	lang/13-values-and-references.md#r-ref.identity.no-equality.fix
 typing/invalid/a-const-parameter-as-a-body-type.hd	type	reject:generic-kind-mismatch	lang/04-type-system.md#r-types.generic.const.type-position
 typing/invalid/a-body-fn-type-constructor-takes-tuple-inputs.hd	type	reject:generic-kind-mismatch	lang/07-functions.md#r-fn.type.ctor.inputs-tuple
 typing/invalid/a-body-context-type-takes-a-row-after-dollar.hd	type	reject:generic-kind-mismatch	lang/11-requirements-and-suspension.md#r-req.context.dollar
