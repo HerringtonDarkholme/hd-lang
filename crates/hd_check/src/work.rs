@@ -13,6 +13,8 @@ pub struct BodyChecks {
     pub owner: String,
     pub at: NodeIdx,
     pub checks: usize,
+    /// Fuel charged to item checks, including speculative passes.
+    pub fuel_spent: u64,
     pub max_active_depth: usize,
 }
 
@@ -71,7 +73,13 @@ pub fn count_item_body_checks<R>(run: impl FnOnce() -> R) -> (R, Vec<BodyChecks>
     count(Kind::Item, run)
 }
 
-fn body(cx: &crate::body::BodyCx<'_>, owner: DefId, at: NodeIdx, kind: Kind) {
+fn body(
+    cx: &crate::body::BodyCx<'_>,
+    owner: DefId,
+    at: NodeIdx,
+    kind: Kind,
+    fuel_spent: impl FnOnce() -> u64,
+) {
     CHECKS.with(|sink| {
         if let Some(m) = &mut *sink.borrow_mut()
             && m.kind == kind
@@ -85,18 +93,25 @@ fn body(cx: &crate::body::BodyCx<'_>, owner: DefId, at: NodeIdx, kind: Kind) {
                 owner: cx.names.path(owner),
                 at,
                 checks: 0,
+                fuel_spent: 0,
                 max_active_depth: 0,
             });
             entry.checks += 1;
+            entry.fuel_spent += fuel_spent();
             entry.max_active_depth = entry.max_active_depth.max(depth);
         }
     });
 }
 
 pub(crate) fn local_body(ck: &crate::body::Ck<'_, '_>, at: NodeIdx) {
-    body(ck.cx, ck.gen_owner, at, Kind::Local);
+    body(ck.cx, ck.gen_owner, at, Kind::Local, || 0);
 }
 
-pub(crate) fn item_body(cx: &crate::body::BodyCx<'_>, owner: DefId, at: NodeIdx) {
-    body(cx, owner, at, Kind::Item);
+pub(crate) fn item_body(
+    cx: &crate::body::BodyCx<'_>,
+    owner: DefId,
+    at: NodeIdx,
+    fuel_spent: impl FnOnce() -> u64,
+) {
+    body(cx, owner, at, Kind::Item, fuel_spent);
 }
