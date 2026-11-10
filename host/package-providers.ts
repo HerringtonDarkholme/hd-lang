@@ -938,6 +938,7 @@ export function createPackageRuntime(
             );
             return io.pending({
               at: performance.now(),
+              promise: true,
               done: () => {
                 if (rejected) {
                   fail(`provider ${label} rejected: ${String(failure)}`);

@@ -1240,6 +1240,7 @@ fn ensure_worker(slot: &mut Option<EntryWorker>) -> std::io::Result<()> {
     }
     if slot.is_none() {
         let mut child = Command::new("node")
+            .arg("--experimental-wasm-jspi")
             .arg(worker_script())
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())

@@ -225,6 +225,7 @@ fn console_input_flushes_each_prompt_before_waiting_for_input() {
     let file = scratch.at("console-input.wasm");
     fs::write(&file, program()).unwrap();
     let mut node = Command::new("node");
+    node.arg("--experimental-wasm-jspi");
     node.arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.ts"))
         .arg(&file);
     check_child(node, "Node", false);
@@ -354,6 +355,7 @@ fn console_input_keeps_siblings_running_in_both_node_profiles() {
             )
             .unwrap();
             let mut node = Command::new("node");
+            node.arg("--experimental-wasm-jspi");
             node.arg(root.join("host/run.ts")).arg(&file).arg(config);
             check_sibling(
                 node,

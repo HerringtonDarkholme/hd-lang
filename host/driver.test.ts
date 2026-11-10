@@ -233,6 +233,26 @@ test("synchronous waits accept ready work and reject a pending wait", () => {
   }
 });
 
+test("an async driver retains synchronous probe waits without a JSPI stack", async () => {
+  const errors: string[] = [];
+  const host = createCoreHost({ out() {}, err: (text) => errors.push(text) });
+  try {
+    const guest = instance({
+      poll() {
+        host.imports["hd:Clock"]["sleep.start"](1n);
+        host.imports["hd:rt"].block();
+        return 0;
+      },
+    });
+    const result = await host.run(guest, "hd.init", "hd.poll");
+    assert.equal(result.status, 0);
+    assert.equal(result.panic, null);
+    assert.deepEqual(errors, []);
+  } finally {
+    host.close();
+  }
+});
+
 test("close cancels pending work once and forbids subsequent turns", () => {
   let cancelled = 0;
   const host = createCoreHost(

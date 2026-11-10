@@ -308,6 +308,52 @@ test("generated identity claims cannot substitute for the checked interface", ()
   assert.equal(calls, 0);
 });
 
+test("only Promise-backed package waits require a JSPI stack", async () => {
+  let readyPromise = true;
+  const operation = operationHost(() =>
+    readyPromise ? Promise.resolve("resolved") : new Promise(() => {}),
+  );
+  try {
+    const [, id] = operation.target["wait.start"]();
+    assert.equal(operation.host.core.st.promiseWaits.size, 1);
+    assert.throws(
+      () => operation.host.imports["hd:rt"].block(),
+      /a pending package host Promise requires WebAssembly JSPI/,
+    );
+    await Promise.resolve();
+    assert.equal(operation.host.imports["hd:rt"].block(), 1);
+    assert.equal(operation.host.core.st.promiseWaits.size, 0);
+    assert.equal(operation.finish(id), "resolved");
+    readyPromise = false;
+    for (let i = 0; i < 10; i++) {
+      operation.target["wait.start"]();
+    }
+    assert.equal(operation.host.core.st.promiseWaits.size, 10);
+    const first = operation.host.core.st.promiseWaits.values().next().value;
+    operation.host.imports["hd:rt"].abort(first);
+    assert.equal(operation.host.core.st.promiseWaits.size, 9);
+  } finally {
+    operation.host.close();
+  }
+  assert.equal(operation.host.core.st.promiseWaits.size, 0);
+
+  let probes = 0;
+  const polled = operationHost((context: Dynamic) =>
+    context.pending(
+      () => ++probes >= 2,
+      () => "probe",
+    ),
+  );
+  try {
+    const [, id] = polled.target["wait.start"]();
+    assert.equal(polled.host.core.st.promiseWaits.size, 0);
+    assert.equal(polled.host.imports["hd:rt"].block(), 1);
+    assert.equal(polled.finish(id), "probe");
+  } finally {
+    polled.host.close();
+  }
+});
+
 test("pollable package operations retain results until checked delivery", () => {
   let ready = false,
     computed = 0,

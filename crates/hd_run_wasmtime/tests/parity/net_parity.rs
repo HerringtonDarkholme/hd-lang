@@ -1318,6 +1318,7 @@ fn aborted_pending_connects_release_their_operations_before_a_ready_connect() {
 fn node_zero_bound_accept_observes_kernel_input_before_callback_dispatch() {
     let test = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/node.test.ts");
     let output = std::process::Command::new("node")
+            .arg("--experimental-wasm-jspi")
         .args([
             "--test",
             "--test-reporter=tap",
@@ -1453,6 +1454,7 @@ fn net_backpressured_write_keeps_a_sibling_running_on_both_engines() {
             let config = scratch.at("run.json");
             std::fs::write(&config, "{\"timeLimitMs\":20000}").unwrap();
             let mut node = Command::new("node")
+                .arg("--experimental-wasm-jspi")
                 .arg(root.join("host/run.ts"))
                 .arg(file)
                 .arg(config)

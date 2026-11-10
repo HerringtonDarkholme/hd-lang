@@ -575,6 +575,7 @@ impl NodeSession {
         use std::process::{Command, Stdio};
         let scratch = crate::node::Scratch::new(&[])?;
         let mut child = Command::new("node")
+            .arg("--experimental-wasm-jspi")
             .args(["--input-type=module", "--eval", "import { pathToFileURL } from 'node:url'; const { driveNodeSession } = await import(pathToFileURL(process.argv[1])); await driveNodeSession(); process.exit(0);"])
             .arg(scratch.0.join("node.ts"))
             .current_dir(cwd)

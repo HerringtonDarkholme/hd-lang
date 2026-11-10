@@ -1,0 +1,4 @@
+run: hd run --engine node --time-limit 2s
+stdout: ready 7
+stdout: promise 7
+stdout: timer 7

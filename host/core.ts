@@ -61,6 +61,23 @@ type Dynamic = ReturnType<typeof JSON.parse>;
 type DynamicRecord = Record<string, Dynamic>;
 type ProviderFunction = (...args: Dynamic[]) => Dynamic;
 
+interface StackSwitching {
+  Suspending: new (call: ProviderFunction) => unknown;
+  promising(call: ProviderFunction): ProviderFunction;
+}
+
+function blockingStack(module: WebAssembly.Module | undefined): StackSwitching | null {
+  const api = WebAssembly as typeof WebAssembly & Partial<StackSwitching>;
+  // Inspect this input module once; other programs keep the synchronous
+  // entry path, and no history or other module is searched.
+  return typeof api.Suspending === "function" &&
+    typeof api.promising === "function" &&
+    module instanceof WebAssembly.Module &&
+    WebAssembly.Module.imports(module).some((i) => i.module === "hd:rt" && i.name === "block")
+    ? (api as StackSwitching)
+    : null;
+}
+
 interface HostInstance {
   readonly exports: DynamicRecord;
 }
@@ -388,10 +405,59 @@ function rtImports({
   deadlock,
   until,
   overran,
-}: DynamicRecord): Record<string, ProviderFunction> {
+  stack,
+}: DynamicRecord): Record<string, unknown> {
   const sleep = sleeper();
+  const pause = (): number => {
+    if (st.readyOnly) {
+      throw new HostContract("a synchronous host wait is pending in a synchronous step driver");
+    }
+    const deadline = nextDeadline();
+    if (deadline === null) {
+      deadlock();
+    }
+    flush();
+    return Math.max(0, until(deadline) - performance.now());
+  };
+  // Keep the guest call synchronous while its stack is suspended: the JS
+  // event loop can publish Promise/timer completions, with one live wait.
+  const resumed = async (ms: number): Promise<number> => {
+    for (;;) {
+      await new Promise<void>((resolve) => setTimeout(resolve, ms));
+      if (overran()) {
+        throw new TimeLimit();
+      }
+      const completion = complete();
+      if (completion) {
+        return completion;
+      }
+      ms = pause();
+    }
+  };
+  const block = (): number | Promise<number> => {
+    for (;;) {
+      const completion = complete();
+      if (completion) {
+        return completion;
+      }
+      const ms = pause();
+      // Only a package Promise needs the JS event loop. Probe-backed I/O
+      // and timers can complete while this thread waits synchronously.
+      // The set tracks live unresolved Promises, so this check is O(1).
+      if (st.promiseWaits.size) {
+        if (!stack) {
+          throw new HostContract("a pending package host Promise requires WebAssembly JSPI");
+        }
+        return resumed(ms);
+      }
+      sleep(ms);
+      if (overran()) {
+        throw new TimeLimit();
+      }
+    }
+  };
   return {
-    stderr: (len) => {
+    stderr: (len: number) => {
       st.reported = true;
       flush();
       const text = decodeUtf8(view(len));
@@ -413,7 +479,7 @@ function rtImports({
     // A facts body starts, with its label in the buffer, or ends (-1). A
     // supervisor that reports a time limit for the instance hears of it
     // through `sink.fact`.
-    fact: (len) => {
+    fact: (len: number) => {
       if (len < 0) {
         st.facts.pop();
       } else {
@@ -421,30 +487,11 @@ function rtImports({
       }
       sink.fact?.(st.facts.at(-1) ?? null);
     },
-    block: () => {
-      for (;;) {
-        const completion = complete();
-        if (completion) {
-          return completion;
-        }
-        if (st.readyOnly) {
-          throw new HostContract("a synchronous host wait is pending in a synchronous step driver");
-        }
-        const deadline = nextDeadline();
-        if (deadline === null) {
-          deadlock();
-        }
-        flush();
-        sleep(Math.max(0, until(deadline) - performance.now()));
-        if (overran()) {
-          throw new TimeLimit();
-        }
-      }
-    },
-    stdout: (len) => {
+    block: stack ? new stack.Suspending(block) : block,
+    stdout: (len: number) => {
       st.out.push(decodeUtf8(view(len)));
     },
-    abort: (host) => abortOperation(st, host),
+    abort: (host: number) => abortOperation(st, host),
     // The run's map hash key: 64 random bits. The instance asks once and
     // keeps it in a runtime global; a session's journal records the call,
     // so a rebuild hashes with the same key.
@@ -527,6 +574,7 @@ export const pendingOperation = <ResultValue>(
 function abortOperation(st: DynamicRecord, handle: number): void {
   const operation = st.ops.get(handle);
   st.ops.delete(handle);
+  st.promiseWaits.delete(handle);
   operation?.abort?.();
 }
 export function clearOperations(st: DynamicRecord): void {
@@ -867,6 +915,7 @@ function initialState(env: CoreEnv, layer: Dynamic): DynamicRecord {
     nextHandle: 1,
     out: [],
     ops: new Map(),
+    promiseWaits: new Set<number>(),
     noticed: new Set(),
     payload: null,
     readyOnly: false,
@@ -979,6 +1028,7 @@ function buildCoreImports(options: Dynamic): Dynamic {
     deadlock,
     until,
     overran,
+    stack,
   } = options;
   const providers: Record<string, Record<string, ProviderFunction>> = {
     "hd:Console": consoleProvider({ st, sink, flush, grant }),
@@ -998,7 +1048,18 @@ function buildCoreImports(options: Dynamic): Dynamic {
     };
   }
   const imports: DynamicRecord = {
-    "hd:rt": rtImports({ sink, flush, view, st, complete, nextDeadline, deadlock, until, overran }),
+    "hd:rt": rtImports({
+      sink,
+      flush,
+      view,
+      st,
+      complete,
+      nextDeadline,
+      deadlock,
+      until,
+      overran,
+      stack,
+    }),
     "hd:prim": primImports({ put, text, env }),
   };
   const io: DynamicRecord = {
@@ -1038,6 +1099,7 @@ function buildCoreImports(options: Dynamic): Dynamic {
 /* oxlint-disable max-lines-per-function -- one host lifetime owns these closures. */
 export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = null): Host {
   const { args, program, grant, seed, st, module, reportsCycles } = coreState(env, layer);
+  const stack = blockingStack(module);
   const previousCountPairs = new WeakMap<WebAssembly.Instance, Map<string, bigint>>();
   // The instance's mutable state, shared with the provider functions
   // below: the exchange memory, trap reporting, the test timeout, case
@@ -1099,6 +1161,7 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
     poll = null,
     abort = null,
     finish = null,
+    promise = false,
   }: {
     at: number;
     done: (() => Dynamic) | null;
@@ -1106,6 +1169,7 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
     poll?: (() => boolean) | null;
     abort?: (() => void) | null;
     finish?: (() => Dynamic) | null;
+    promise?: boolean;
   }): [number, number] => {
     const handle = st.nextHandle++;
     st.ops.set(handle, {
@@ -1118,6 +1182,9 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
       completed: false,
       value: undefined,
     });
+    if (promise) {
+      st.promiseWaits.add(handle);
+    }
     return [1, handle];
   };
   const nextDeadline = (): number | null => {
@@ -1148,6 +1215,7 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
     const words = new DataView(st.memory.buffer);
     due.forEach(([handle, options], i) => {
       options.completed = true;
+      st.promiseWaits.delete(handle);
       if (options.done) {
         options.value = options.done();
       }
@@ -1174,6 +1242,7 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
   };
   const finish = (handle: number): void => {
     st.ops.delete(handle);
+    st.promiseWaits.delete(handle);
   };
   // The result of the completed operation `h` that `method` started, which
   // its `.finish` takes; any other handle is a broken contract (§17.2).
@@ -1216,6 +1285,7 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
     deadlock,
     until,
     overran,
+    stack,
   });
   // Invoker-selected package providers use signature-generated glue. A guest
   // descriptor is data only: it never selects or loads a JavaScript module.
@@ -1294,7 +1364,7 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
     let handled = 0;
     let cleanupBy: number | null = null;
     let abandoned = false;
-    const pollCancellation = (): boolean => {
+    const pollCancellation = async (): Promise<boolean> => {
       if (!cancel) {
         return false;
       }
@@ -1305,13 +1375,15 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
       if (asked && cleanupBy === null) {
         cleanupBy = performance.now() + cancel.boundMs;
         ex["hd.cancel"]();
-        status = ex[poll](0);
+        const next = ex[poll](0);
+        status = typeof next === "number" ? next : await next;
         return true;
       }
       if (cleanupBy !== null && !abandoned && (asked || performance.now() >= cleanupBy)) {
         abandoned = true;
         ex["hd.abandon"]();
-        status = ex[poll](0);
+        const next = ex[poll](0);
+        status = typeof next === "number" ? next : await next;
         return true;
       }
       return false;
@@ -1344,7 +1416,7 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
       return true;
     };
     const resumeAfterIdle = async (): Promise<boolean> => {
-      if (pollCancellation()) {
+      if (cancel && (await pollCancellation())) {
         return true;
       }
       return !(await waitForDeadline());
@@ -1367,7 +1439,8 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
         driver?.woke(count);
         ex["hd.wake"](count);
         driver?.poll();
-        status = ex[poll](0);
+        const next = ex[poll](0);
+        status = typeof next === "number" ? next : await next;
       }
     };
     const finishCancellation = (): void => {
@@ -1464,6 +1537,22 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
       return Promise.reject(error);
     }
     const ex: DynamicRecord = instance.exports;
+    if (stack) {
+      return (async () => {
+        let status = 0;
+        let firstError: unknown = null;
+        const exports = { ...ex };
+        try {
+          exports[poll] = stack.promising(ex[poll]);
+          await stack.promising(ex[init])();
+          driver?.poll();
+          status = await exports[poll](0);
+        } catch (error) {
+          firstError = error;
+        }
+        return continueRun({ instance, ex: exports, poll, status, driver, cancel, firstError });
+      })();
+    }
     let status: number;
     try {
       ex[init]();
