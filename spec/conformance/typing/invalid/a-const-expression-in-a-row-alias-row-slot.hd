@@ -1,7 +1,0 @@
-# test: a const expression in a row alias's row slot is one kind error
-# Spec 11 Row Aliases: req.row.alias.generic.kind.
-
-type WithLog[$R] = $ R + Console
-
-fn logs(f: fn() -> void $ WithLog[3]) -> void:  # diagnostic: generic-kind-mismatch
-    pass

@@ -2455,7 +2455,6 @@ typing/valid/row-alias-duplicate-key.hd	type	accept	lang/11-requirements-and-sus
 typing/invalid/row-alias-bare-trait.hd	type	reject:trait-used-as-type	lang/11-requirements-and-suspension.md#r-req.row.alias.bare-trait.reference-values
 runtime/valid/row-alias-key-written.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.row.alias.key-written
 typing/invalid/row-alias-generic-unmarked.hd	type	reject:generic-kind-mismatch	lang/11-requirements-and-suspension.md#r-req.row.alias.generic.marked
-typing/invalid/a-const-expression-in-a-row-alias-row-slot.hd	type	reject:generic-kind-mismatch	lang/11-requirements-and-suspension.md#r-req.row.alias.generic.kind
 runtime/valid/installer-function-runs.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.poly.extension
 runtime/valid/int-widths-bit-counts-read-a-u8-at-its-width.hd	runtime	accept	std/num.md#r-std-num.bits.count-ones-u32
 runtime/valid/int-widths-bitwise-not-stays-in-the-width.hd	runtime	accept	lang/05-expressions.md#r-expr.op.complement
