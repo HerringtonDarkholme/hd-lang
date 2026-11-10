@@ -1142,11 +1142,17 @@ impl Resolver<'_, '_> {
     /// The number of explicit type, row and const arguments a trait takes;
     /// its lifetime parameters take lifetime arguments instead.
     fn trait_arity(&self, tr: DefId) -> Option<usize> {
+        // The parameters a local trait takes from around it have no written
+        // argument (`names.local-type.refs`).
         if let Some(g) = self.own_traits.get(&tr) {
-            return Some(g.iter().filter(|g| !g.lifetime).count());
+            return Some(g.iter().filter(|g| !g.lifetime && !g.outer).count());
         }
-        self.item(tr)
-            .map(|item| item.generics.iter().filter(|g| !g.lifetime).count())
+        self.item(tr).map(|item| {
+            item.generics
+                .iter()
+                .filter(|g| !g.lifetime && !g.outer)
+                .count()
+        })
     }
 
     /// A written type constructor's arguments with the omitted trailing
@@ -1868,6 +1874,11 @@ struct Lower<'a, 'r, 'x> {
     /// whose `Self` it names when it has none of its own
     /// (`names.self-type.impl`, `names.local-type.refs`).
     outer_self: Option<hd_base::NodeIdx>,
+    /// For a local declaration that takes the parameters around it inside
+    /// a trait: it takes the trait's `Self` too, as a leading parameter
+    /// named `Self` (`names.local-type.refs`), since `Self` there is the
+    /// eventual implementing type.
+    outer_takes_self: bool,
 }
 
 impl Lower<'_, '_, '_> {
@@ -1890,7 +1901,12 @@ impl Lower<'_, '_, '_> {
         self.outer = outer;
         self.outer_self = self_owner;
         self.outer_lists = Vec::new();
-        if lists.is_empty() {
+        self.outer_takes_self = false;
+        // A local trait or impl has a `Self` of its own.
+        let trait_self = !matches!(h.kind, HeadKind::Trait | HeadKind::Impl)
+            && self_owner
+                .is_some_and(|o| self.src.parse.tree.node(o).kind() == SyntaxKind::TraitDecl);
+        if lists.is_empty() && !trait_self && h.kind != HeadKind::Impl {
             return;
         }
         // A const or row parameter has a type parameter's scopes
@@ -1919,14 +1935,60 @@ impl Lower<'_, '_, '_> {
                             })
                             .count()
                     })
-                    .sum();
-                self.impl_target_outer(h.node) == Some(around)
+                    .sum::<usize>()
+                    + usize::from(self_owner.is_some_and(|o| {
+                        self.src.parse.tree.node(o).kind() == SyntaxKind::TraitDecl
+                    }));
+                around > 0
+                    && (self.impl_target_outer(h.node) == Some(around)
+                        || self.impl_trait_outer(h.node) == Some(around))
             }
-            HeadKind::Fn | HeadKind::Trait => false,
+            // A local trait takes them after its `Self`, so its members
+            // name them as its own.
+            HeadKind::Trait => true,
+            HeadKind::Fn => false,
         };
         if takes {
             self.outer_lists = lists;
+            self.outer_takes_self = trait_self
+                || (h.kind == HeadKind::Impl
+                    && self_owner.is_some_and(|o| {
+                        self.src.parse.tree.node(o).kind() == SyntaxKind::TraitDecl
+                    }));
         }
+    }
+
+    /// The trait around a local declaration ([`Self::outer_self`]), when
+    /// the innermost impl or trait around it is a trait.
+    fn enclosing_trait(&self) -> Option<DefId> {
+        let owner = self.src.parse.tree.node(self.outer_self?);
+        if owner.kind() != SyntaxKind::TraitDecl {
+            return None;
+        }
+        let name = owner.name(&self.src.parse.tokens)?;
+        let sym = self.names.syms.intern(self.src.text(name));
+        if let Some(local) = local_at(self.locals, sym, self.src.span(owner).lo) {
+            return Some(local.def);
+        }
+        let b = self.scope.lookup(sym)?;
+        (b.kind == BindingKind::Item).then(|| DefId::from_raw(b.value))
+    }
+
+    /// How many parameters from around it the local trait an impl at `n`
+    /// implements takes.
+    fn impl_trait_outer(&self, n: NodeRef<'_>) -> Option<usize> {
+        let mut types = n.children().filter(|c| c.kind().is_type());
+        // `impl Trait for Target`: the trait is the first of two types.
+        let tr = types.next()?;
+        types.next()?;
+        let name = self.src.first_ident(tr)?;
+        let sym = self.names.syms.intern(self.src.text(name));
+        let local = local_at(self.locals, sym, self.at)?;
+        if self.kinds.get(&local.def) != Some(&HeadKind::Trait) {
+            return None;
+        }
+        self.r
+            .with_generics(local.def, |g| g.iter().take_while(|g| g.outer).count())
     }
 
     /// How many parameters from around it the local type an impl at `n`
@@ -1946,13 +2008,63 @@ impl Lower<'_, '_, '_> {
     /// name them as its own. Their diagnostics are the enclosing
     /// declarations', reported there.
     fn outer_generics(&mut self, def: DefId, gn: &mut Gen) -> Vec<Generic> {
+        self.outer_generics_at(def, 0, gn)
+    }
+
+    /// [`Self::outer_generics`] numbered from `base`: 1 for a trait, whose
+    /// parameter 0 is `Self`.
+    fn outer_generics_at(&mut self, def: DefId, base: u16, gn: &mut Gen) -> Vec<Generic> {
         let lists = std::mem::take(&mut self.outer_lists);
         let mark = self.diags.mark();
         let mut out: Vec<Generic> = Vec::new();
+        if self.outer_takes_self {
+            // The enclosing trait's `Self`, the eventual implementing type.
+            let name = self.sym("Self");
+            let index = base;
+            self.names
+                .paths
+                .set_param_name(hd_base::PathId::from_raw(def.raw()), index, "Self");
+            let t = self
+                .names
+                .pool
+                .intern_ty(&TyData::Param(ParamRef { owner: def, index }));
+            gn.tys.push((name, t, Vec::new()));
+            out.push(Generic::plain(name));
+        }
         for &gl in &lists {
             let gl = self.src.parse.tree.node(gl);
-            let offset = u16::try_from(out.len()).unwrap_or(u16::MAX);
+            let offset = base.saturating_add(u16::try_from(out.len()).unwrap_or(u16::MAX));
             out.extend(self.generics(Some(gl), def, offset, gn));
+        }
+        // The taken `Self` implements its trait, at the trait's parameters
+        // as taken here, so a local impl's body can call its methods.
+        if self.outer_takes_self
+            && let Some(tr) = self.enclosing_trait()
+            && let Some(names) = self
+                .r
+                .with_generics(tr, |g| g.iter().map(|g| g.name).collect::<Vec<_>>())
+        {
+            let args: Vec<Ty> = names
+                .iter()
+                .map(|n| {
+                    gn.tys
+                        .iter()
+                        .rev()
+                        .find(|(s, _, _)| s == n)
+                        .map_or(Ty::POISON, |t| t.1)
+                })
+                .collect();
+            let args = self.names.pool.list(&args);
+            let bound = self.names.pool.intern_ty(&TyData::TraitValue {
+                def: tr,
+                args,
+                bindings: vec![],
+            });
+            out[0].bound = Some(tr);
+            out[0].bounds = vec![bound];
+            if let Some(t) = gn.tys.iter_mut().rev().find(|t| t.0 == out[0].name) {
+                t.2.push((tr, args));
+            }
         }
         self.diags.truncate(mark);
         self.outer_lists = lists;
@@ -1983,9 +2095,15 @@ impl Lower<'_, '_, '_> {
             return None;
         }
         let mut out = Vec::with_capacity(names.len() + args.len());
+        let self_sym = self.names.syms.intern("Self");
         for n in names {
             if let Some((_, t, _)) = gn.tys.iter().rev().find(|(s, _, _)| *s == n) {
                 out.push(*t);
+            } else if n == self_sym
+                && let Some(t) = gn.self_ty
+            {
+                // The enclosing trait's `Self`, in its own body.
+                out.push(t);
             } else if let Some((_, slot, _, _)) = gn.consts.iter().rev().find(|c| c.0 == n) {
                 out.push(self.names.pool.intern_ty(&TyData::Param(*slot)));
             } else if let Some((_, r)) = gn.rows.iter().rev().find(|(s, _)| *s == n) {
@@ -2485,6 +2603,7 @@ impl Lower<'_, '_, '_> {
         if self.row_in_type_slot(def, &args, span) {
             return None;
         }
+        let args = self.with_outer_args(def, gn, &args).unwrap_or(args);
         let args = self
             .r
             .fill_trait_args(def, self.names.pool.list(&args), self_ty);
@@ -2818,15 +2937,16 @@ impl Lower<'_, '_, '_> {
     /// `Self` in a local declaration with none of its own: the target of
     /// the impl around it (`names.self-type.impl`), lowered here, where
     /// the impl's parameters are those the declaration takes from around
-    /// it (`names.local-type.refs`). `None` outside an impl. Inside a
-    /// trait, `Self` is the eventual implementing type, which a local
-    /// declaration does not take yet.
+    /// it (`names.local-type.refs`). `None` outside an impl or trait.
+    /// Inside a trait, `Self` is the eventual implementing type, which a
+    /// local declaration takes as a leading parameter named `Self`.
     fn outer_self_ty(&mut self, gn: &Gen) -> Option<Ty> {
         let owner = self.src.parse.tree.node(self.outer_self?);
         if owner.kind() == SyntaxKind::TraitDecl {
-            // gap: #1632
-            self.gap("a use of an enclosing trait's `Self` in a local declaration");
-            return Some(Ty::POISON);
+            // The leading parameter a local declaration takes for it
+            // (`outer_takes_self`).
+            let sym = self.names.syms.intern("Self");
+            return gn.tys.iter().rev().find(|(s, _, _)| *s == sym).map(|t| t.1);
         }
         let target = owner.children().filter(|c| c.kind().is_type()).last()?;
         Some(self.ty(Some(target), gn))
@@ -2921,13 +3041,15 @@ impl Lower<'_, '_, '_> {
             return Ty::POISON;
         }
         let Some((def, kind)) = self.resolve_path(&segs, span) else {
-            // A local struct, enum, newtype, alias or impl of one takes the
-            // type, const and row parameters around it
-            // (`names.local-type.refs`, `enter`); a local trait does not
-            // take them yet.
+            // A local struct, enum, newtype, alias or trait, or an impl of
+            // one, takes the type, const and row parameters around it
+            // (`names.local-type.refs`, `enter`); a local impl whose target
+            // and trait take none does not.
             if segs.len() == 1 && self.outer.contains(&first) {
                 // gap: #1632
-                self.gap("a local trait that names an enclosing type parameter");
+                self.gap(
+                    "a local impl whose target and trait take no enclosing parameter, naming one",
+                );
                 return Ty::POISON;
             }
             if segs.len() == 1 {
@@ -5946,7 +6068,11 @@ impl Lower<'_, '_, '_> {
             ..Gen::default()
         };
         let gl = Src::child(h.node, SyntaxKind::GenericParameterList);
-        let generics = self.generics(gl, h.def, 1, &mut gn);
+        // A local trait's parameters from around it lead its own
+        // (`names.local-type.refs`).
+        let mut generics = self.outer_generics_at(h.def, 1, &mut gn);
+        let offset = 1 + u16::try_from(generics.len()).unwrap_or(u16::MAX - 1);
+        generics.extend(self.generics(gl, h.def, offset, &mut gn));
         (self_ty, gn, generics)
     }
 
@@ -6458,6 +6584,7 @@ fn lower_aliases(
                 outer: Vec::new(),
                 outer_lists: Vec::new(),
                 outer_self: None,
+                outer_takes_self: false,
             };
             let scan = match h.kind {
                 HeadKind::Alias => Some(h.node),
@@ -6526,6 +6653,7 @@ fn lower_aliases(
                 outer: Vec::new(),
                 outer_lists: Vec::new(),
                 outer_self: None,
+                outer_takes_self: false,
             };
             if alias {
                 low.alias_item(h, cyclic, &mut out[mi]);
@@ -7958,6 +8086,7 @@ pub fn build_folder(
                     outer: Vec::new(),
                     outer_lists: Vec::new(),
                     outer_self: None,
+                    outer_takes_self: false,
                 };
                 // The aliases are lowered already (`lower_aliases`).
                 for h in hs
@@ -8086,6 +8215,7 @@ pub fn build_folder(
                 outer: Vec::new(),
                 outer_lists: Vec::new(),
                 outer_self: None,
+                outer_takes_self: false,
             };
             low.check_module_decorators(&items);
         }
@@ -8226,7 +8356,9 @@ fn own_trait_generics(
                 outer: Vec::new(),
                 outer_lists: Vec::new(),
                 outer_self: None,
+                outer_takes_self: false,
             };
+            low.enter(h);
             let (_, _, generics) = low.trait_generics(h);
             out.entry(h.def).or_insert(generics);
         }
@@ -8503,7 +8635,9 @@ fn own_trait_supers(
                 outer: Vec::new(),
                 outer_lists: Vec::new(),
                 outer_self: None,
+                outer_takes_self: false,
             };
+            low.enter(h);
             let (self_ty, gn, _) = low.trait_generics(h);
             let supers = low.supers(h.node, &gn, self_ty);
             out.entry(h.def).or_insert(supers);

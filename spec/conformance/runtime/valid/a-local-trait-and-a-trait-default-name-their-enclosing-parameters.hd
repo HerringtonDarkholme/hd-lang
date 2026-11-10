@@ -1,0 +1,62 @@
+# test: a local trait names its function's type parameter, and a local type in a trait's default method names the trait's `Self` and parameters
+# Spec 03 Local Type Declarations: names.local-type.refs; `Self` there is the eventual implementing type (names.self-type.trait).
+# expect-stdout: <x> 2x 42 2 2 a
+trait Named:
+    fn name(self) -> string
+    fn wrapped(self) -> string:
+        struct W:
+            b: Self
+            tag: string
+        impl W:
+            fn tagged(self) -> string:
+                self.tag + self.b.name()
+        W { b: self, tag: "<" }.tagged() + ">"
+
+    fn twice(self) -> string:
+        struct Count:
+            b: Self
+            n: i32
+        impl Count:
+            fn bump(self) -> Count:
+                Count { b: self.b, n: self.n + 1 }
+        c := Count { b: self, n: 0 }.bump().bump()
+        "${c.n}" + c.b.name()
+
+trait Pair[T]:
+    fn first(self) -> T
+    fn both(self) -> (T, i32):
+        struct Two:
+            item: Self
+            n: i32
+        t := Two { item: self, n: 2 }
+        (t.item.first(), t.n)
+
+struct P:
+    n: string
+
+impl Named for P:
+    fn name(self) -> string:
+        self.n
+
+impl Pair[i64] for P:
+    fn first(self) -> i64:
+        41
+
+fn local_trait[T](x: T, y: T) -> List[T]:
+    trait Source:
+        fn take(self) -> T
+    struct Hold:
+        v: T
+    impl Source for Hold:
+        fn take(self) -> T:
+            self.v
+    fn read[S < Source](s: S) -> T:
+        s.take()
+    [read(Hold { v: x }), Hold { v: y }.take()]
+
+pub fn main!() -> void $ Console:
+    p := P { n: "x" }
+    let (a, b) = p.both()
+    println(
+        "${p.wrapped()} ${p.twice()} ${a + 1} ${b} ${local_trait(1, 2)[1]} ${local_trait("a", "b")[0]}",
+    )

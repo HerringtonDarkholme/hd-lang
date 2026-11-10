@@ -443,7 +443,15 @@ impl Ck<'_, '_> {
                         },
                     );
                 }
-                self.type_param(self.cx.names.text(g.name))
+                // The enclosing trait's `Self` a local type takes is a
+                // parameter named `Self` in a local impl of that type, whose
+                // own `Self` is the local type.
+                let name = self.cx.names.text(g.name);
+                (name == "Self")
+                    .then(|| self.gens.iter().rev().find(|(s, _)| *s == g.name))
+                    .flatten()
+                    .map(|(_, t)| *t)
+                    .or_else(|| self.type_param(name))
                     .unwrap_or(Ty::POISON)
             })
             .chain(args.iter().copied())
@@ -787,8 +795,11 @@ impl Ck<'_, '_> {
             }
             // A written trait value omits its defaulted trailing arguments
             // (`types.generic.default.written`); no `Self` is known here.
+            // A local trait's parameters from around it come first, each the
+            // one of the same name in scope (`names.local-type.refs`).
             let args = match self.cx.lookup.item(def) {
                 Some(it) => {
+                    let args = self.with_outer_args(it, &args);
                     hd_resolve::fill_trait_args(pool, def, &it.generics, pool.list(&args), None)
                 }
                 None => pool.list(&args),
