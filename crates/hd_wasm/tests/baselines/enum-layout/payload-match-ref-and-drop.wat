@@ -5,8 +5,6 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $drop_res (param $r.0 i32) (param $r.1 i32) (param $r.2 i32)
     ;; 40 |     ()
-    block
-    end
     local.get $r.0
     local.get $r.1
     local.get $r.2

@@ -110,11 +110,6 @@
       end
       block
         block
-          block
-            block
-              br 0
-            end
-          end
           local.get $t1
           i32.const 1
           i32.add
@@ -267,8 +262,6 @@
           local.get $t2
           local.get $t4
           local.get $n
-          i32.const 1
-          i32.mul
           i32.add
           local.get $t1
           call $write_signed_sized
@@ -413,8 +406,6 @@
           local.get $t2
           local.get $t4
           local.get $n
-          i32.const 1
-          i32.mul
           i32.add
           local.get $t1
           call $write_signed_sized
@@ -550,11 +541,6 @@
     ;; 27 |     a + t.size()
       block
         block
-          block
-            block
-              br 0
-            end
-          end
           local.get $t.s.1
           i32.const 1
           i32.add

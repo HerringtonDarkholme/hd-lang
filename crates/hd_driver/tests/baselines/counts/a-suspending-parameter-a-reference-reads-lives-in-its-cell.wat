@@ -1133,8 +1133,6 @@
           local.get $t59
           local.get $provider1.vtable
           local.get $t58
-          i32.const 1
-          i32.mul
           i32.add
           local.get $provider1
           call $write_unsigned_sized

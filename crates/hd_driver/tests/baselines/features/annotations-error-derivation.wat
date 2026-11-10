@@ -275,8 +275,6 @@
           local.get $t0
           local.get $t3
           local.get $t2
-          i32.const 1
-          i32.mul
           i32.add
           local.get $self
           call $write_signed_sized
@@ -418,13 +416,6 @@
     ;; 33 |     @error("bad config")
           local.set $t3
         else
-    ;; 40 |         @from
-          block
-            block
-              br 0
-            end
-          end
-    ;; 33 |     @error("bad config")
           i32.const 0
         end
     ;; 27 |     @error("cannot read $path")

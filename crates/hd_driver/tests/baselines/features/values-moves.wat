@@ -200,11 +200,6 @@
   (func $export (param $photo.width i32) (param $photo.tags i32) (result i32 i32)
     ;; 24 |     keep(photo.width)
     block
-      block
-        block
-          br 0
-        end
-      end
     ;; 25 |     hold(photo)
       block
         block

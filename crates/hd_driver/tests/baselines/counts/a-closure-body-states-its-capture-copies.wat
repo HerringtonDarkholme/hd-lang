@@ -139,8 +139,6 @@
           local.get $t2
           local.get $t4
           local.get $i
-          i32.const 1
-          i32.mul
           i32.add
           local.get $t1
           call $write_signed_sized

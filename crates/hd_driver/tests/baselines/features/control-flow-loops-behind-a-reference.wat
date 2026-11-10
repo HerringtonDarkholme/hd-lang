@@ -404,8 +404,6 @@
           local.get $t7
           local.get $t3
           local.get $t1
-          i32.const 1
-          i32.mul
           i32.add
           local.get $p
           call $write_unsigned_sized

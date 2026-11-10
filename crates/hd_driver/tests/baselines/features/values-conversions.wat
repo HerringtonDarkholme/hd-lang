@@ -75,19 +75,8 @@
       i32.const 0
       i32.store $heap offset=8
       local.set $s.1
-      local.set $s.0
-      block
-        block
-          block
-            block
-              br 0
-            end
-          end
-          br 0
-        end
-      end
+      local.tee $s.0
     ;; 26 |     let mut origin = Point { name: s, n: 0 }
-      local.get $s.0
       if
         local.get $s.0
         call $rt:release_ref

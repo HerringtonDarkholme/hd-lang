@@ -261,8 +261,6 @@
           local.get $t3
           local.get $t5
           local.get $t1
-          i32.const 1
-          i32.mul
           i32.add
           local.get $rest
           call $write_unsigned_sized

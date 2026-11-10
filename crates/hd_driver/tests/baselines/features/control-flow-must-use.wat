@@ -191,9 +191,6 @@
         local.get $t0
         call $rt:release_ref
       end
-    ;; 15 |     let _ = save(s)
-      block
-      end
     ;; 16 |     s.len()
       block
         block

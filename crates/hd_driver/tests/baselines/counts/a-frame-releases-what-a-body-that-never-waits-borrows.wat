@@ -708,8 +708,6 @@
           local.get $t17
           local.get $t4
           local.get $t16
-          i32.const 1
-          i32.mul
           i32.add
           local.get $a
           call $write_unsigned_sized

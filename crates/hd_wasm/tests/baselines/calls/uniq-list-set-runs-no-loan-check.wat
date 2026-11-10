@@ -203,11 +203,6 @@
                 call_indirect $table0 (param i32 i32 i32 i32)
                 unreachable
               end
-              block
-                block
-                  br 0
-                end
-              end
               local.get $t1
               local.set $t3
               block

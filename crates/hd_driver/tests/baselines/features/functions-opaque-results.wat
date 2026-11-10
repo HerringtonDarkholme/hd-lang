@@ -58,16 +58,6 @@
     global.set $locals
     block
     ;; 11 |     for x in names(&xs):
-      block
-        block
-          block
-            block
-              br 0
-            end
-          end
-          br 0
-        end
-      end
       local.get $t0
       i64.const 0
       i64.store $heap

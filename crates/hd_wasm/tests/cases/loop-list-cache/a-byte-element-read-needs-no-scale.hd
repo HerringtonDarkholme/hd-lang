@@ -1,0 +1,6 @@
+# @dump: wat
+# @build: v8 release
+# expected: a byte index needs no multiplication and no empty block.
+fn byte_at(bytes: &List[u8], index: usize) -> u8:
+    # subject
+    bytes[index]

@@ -86,11 +86,6 @@
     ;; 25 |     (and_false(value), or_true(value), choose_int(), choose_char())
     block
       block
-        br 0
-      end
-    end
-    block
-      block
         i32.const 1
         local.set $value
         br 0

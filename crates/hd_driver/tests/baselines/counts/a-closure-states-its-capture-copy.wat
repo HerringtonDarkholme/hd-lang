@@ -16,8 +16,6 @@
   )
   (func $plain#1 (param $env i32) (param $ctx i32) (result i32)
     ;; 11 |     fn() -> usize: 0
-    block
-    end
     i32.const 0
   )
   (func $make (result i32 i32) (local $count i32) (local $t0 i32)

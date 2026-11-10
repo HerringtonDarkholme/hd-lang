@@ -30,21 +30,6 @@
   (func $temp_receiver (param $s.0 i32) (param $s.1 i32) (result i32)
     ;; 31 |     make(s).label_len()
     block
-      block
-        block
-          br 0
-        end
-      end
-      block
-        block
-          block
-            block
-              br 0
-            end
-          end
-          br 0
-        end
-      end
       local.get $s.0
       if
         local.get $s.0

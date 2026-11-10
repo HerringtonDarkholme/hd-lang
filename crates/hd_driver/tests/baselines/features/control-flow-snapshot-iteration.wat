@@ -145,11 +145,6 @@
     ;; 16 |     let mut cursor = items.iter()
       call $rt:coll_copy
       local.set $t1
-      block
-        block
-          br 0
-        end
-      end
       local.get $t0
       i64.const 0
       i64.store $heap
