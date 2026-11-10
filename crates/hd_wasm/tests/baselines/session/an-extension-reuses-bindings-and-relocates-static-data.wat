@@ -43,8 +43,7 @@
     end
     ;; 9 | let ratio: f32 = 1.5
     global.get $app/$repl2/ratio
-    f64.const 0x1.8p+0
-    f32.demote_f64
+    f32.const 0x1.8p+0
     f32.store $heap
     ;; 10 | let precise: f64 = 2.5
     global.get $app/$repl2/precise
