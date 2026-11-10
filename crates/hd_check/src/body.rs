@@ -894,7 +894,6 @@ pub(crate) fn is_inspectable_key(
 /// and header checks build their environments with it.
 pub(crate) fn add_bound(
     lookup: &Lookup<'_>,
-    global: &hd_types::InternPool,
     pool: hd_types::Types<'_>,
     env: &mut ParamEnv,
     (self_ty, bound): (Ty, Ty),
@@ -931,7 +930,7 @@ pub(crate) fn add_bound(
     // Headers carry their defaults filled; a bound the checker forms
     // itself is filled the same way, so the clause matches its goals.
     let args = match lookup.item(def) {
-        Some(it) => hd_resolve::fill_trait_args(global, def, &it.generics, args, Some(self_ty)),
+        Some(it) => hd_resolve::fill_trait_args(pool, def, &it.generics, args, Some(self_ty)),
         None => args,
     };
     if depth > 16
@@ -963,7 +962,7 @@ pub(crate) fn add_bound(
                     known.get(p.index as usize - 1).copied()
                 }
             });
-            add_bound(lookup, global, pool, env, (self_ty, s), depth + 1, copy);
+            add_bound(lookup, pool, env, (self_ty, s), depth + 1, copy);
         }
         if def != copy
             && lookup
@@ -975,7 +974,7 @@ pub(crate) fn add_bound(
                 args: hd_types::TyList::EMPTY,
                 bindings: vec![],
             });
-            add_bound(lookup, global, pool, env, (self_ty, c), depth + 1, copy);
+            add_bound(lookup, pool, env, (self_ty, c), depth + 1, copy);
         }
         // Each associated type's declared bounds hold for its projection
         // (`trait.assoc.bound-use`): under `I < Iterable[T]`, the clause
@@ -1004,7 +1003,7 @@ pub(crate) fn add_bound(
                         known.get(p.index as usize - 1).copied()
                     }
                 });
-                add_bound(lookup, global, pool, env, (proj, b), depth + 1, copy);
+                add_bound(lookup, pool, env, (proj, b), depth + 1, copy);
             }
         }
     }
@@ -1594,7 +1593,7 @@ impl Ck<'_, '_> {
         } = self.pool().get(bound)
         {
             let args = self.cx.lookup.item(def).map_or(args, |it| {
-                hd_resolve::fill_trait_args(self.cx.names.pool, def, &it.generics, args, Some(ret))
+                hd_resolve::fill_trait_args(pool, def, &it.generics, args, Some(ret))
             });
             let bound = pool.intern_ty(&TyData::TraitValue {
                 def,
@@ -1618,7 +1617,6 @@ impl Ck<'_, '_> {
     pub(crate) fn add_bound(&mut self, self_ty: Ty, bound: Ty, depth: u32) {
         add_bound(
             self.cx.lookup,
-            self.cx.names.pool,
             self.pool(),
             &mut self.env,
             (self_ty, bound),

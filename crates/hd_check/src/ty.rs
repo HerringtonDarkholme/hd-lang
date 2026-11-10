@@ -650,13 +650,9 @@ impl Ck<'_, '_> {
             // A written trait value omits its defaulted trailing arguments
             // (`types.generic.default.written`); no `Self` is known here.
             let args = match self.cx.lookup.item(def) {
-                Some(it) => hd_resolve::fill_trait_args(
-                    self.cx.names.pool,
-                    def,
-                    &it.generics,
-                    pool.list(&args),
-                    None,
-                ),
+                Some(it) => {
+                    hd_resolve::fill_trait_args(pool, def, &it.generics, pool.list(&args), None)
+                }
                 None => pool.list(&args),
             };
             // A binding names the associated type the trait declares or

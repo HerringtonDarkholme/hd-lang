@@ -1,0 +1,18 @@
+# Spec 04 Type-Argument Defaults: types.generic.default.unsolved; an opaque
+# result whose bound names the unsolved parameter reports it, as any other
+# unsolved parameter does.
+trait Source[Item]:
+    fn count(self) -> i32
+
+struct Batch[Item]:
+    items: List[Item]
+
+impl[Item] Source[Item] for Batch[Item]:
+    fn count(self) -> i32:
+        1
+
+fn batch[Item](items: List[Item]) -> impl Source[Item]:
+    Batch { items: items }
+
+pub fn main() -> void:
+    _ := batch([]) # diagnostic: cannot-infer-type

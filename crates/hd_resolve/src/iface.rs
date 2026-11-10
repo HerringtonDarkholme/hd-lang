@@ -290,10 +290,11 @@ pub fn is_lifetime_arg(pool: hd_types::Types<'_>, t: Ty) -> bool {
 ///
 /// The arguments stay as written when a missing slot has no default, when
 /// its default names `Self` and `self_ty` is `None`, or when its default
-/// is poisoned: those are errors reported elsewhere.
+/// is poisoned: those are errors reported elsewhere. `pool` may hold a
+/// body's local types, as a checked bound's arguments do.
 #[must_use]
 pub fn fill_trait_args(
-    pool: &InternPool,
+    pool: hd_types::Types<'_>,
     tr: DefId,
     generics: &[Generic],
     args: TyList,

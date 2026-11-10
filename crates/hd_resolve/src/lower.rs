@@ -1065,7 +1065,7 @@ impl Resolver<'_, '_> {
     /// Money` implements `Add[Money]` (`expr.op.trait.rhs-self`), and
     /// `T < Add` is `T < Add[T]`.
     fn fill_trait_args(&self, tr: DefId, args: TyList, self_ty: Option<Ty>) -> TyList {
-        let pool = self.cx.names.pool;
+        let pool = self.cx.names.pool.types();
         if let Some(g) = self.own_traits.get(&tr) {
             return fill_trait_args(pool, tr, g, args, self_ty);
         }
