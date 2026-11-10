@@ -1,11 +1,12 @@
 //! Which decorators of a function attach a value (annotations, "Function
 //! Facts"): every decorator line but the ones the compiler reads itself.
 
-use hd_base::{DefId, PathId, Span, Symbol};
+use hd_base::{DefId, FolderId, PathId, Span, Symbol};
 use hd_syntax::{NodeRef, SyntaxKind};
 
 use crate::view::Src;
-use crate::{BindingKind, ModuleScope, Names};
+use crate::{Binding, BindingKind, ImplKind, Item, ItemData, Lookup, ModuleScope, Names};
+use hd_types::TyData;
 
 /// The decorators that are not facts: each is read by the compiler.
 const COMPILER_DECORATORS: &[&str] = &[
@@ -142,15 +143,11 @@ pub fn never_a_list(kind: SyntaxKind) -> bool {
 #[derive(Clone, Debug, Default)]
 pub struct DerivationFacts {
     pub decorators: Vec<BlockDecorator>,
-    pub blocks: Vec<DerivationBlock>,
-    pub derived: Vec<Derived>,
 }
 
 impl DerivationFacts {
     pub fn extend(&mut self, other: Self) {
         self.decorators.extend(other.decorators);
-        self.blocks.extend(other.blocks);
-        self.derived.extend(other.derived);
     }
 }
 
@@ -164,24 +161,82 @@ pub struct BlockDecorator {
     pub valid: bool,
 }
 
-/// The nominal trait and target a `by` derivation block's single-segment
-/// names resolve to. `span` is the block's `impl` declaration; its written
-/// names and member lines are read from syntax by the consumer.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct DerivationBlock {
-    pub folder: u32,
-    pub target: DefId,
-    pub package: PathId,
-    pub trait_: DefId,
-    pub span: Span,
+/// The narrow resolution read-only tooling asks of a checked module: what
+/// one written name binds in the module's scope, and the module's own
+/// `@derive` implementations. Lowering collects nothing for it; the
+/// derivation lints read written names from syntax and resolve them here.
+#[derive(Clone, Copy)]
+pub struct DeclView<'v> {
+    names: Names<'v>,
+    folder: FolderId,
+    scope: &'v ModuleScope,
+    lookup: &'v Lookup<'v>,
 }
 
-/// An ordinary derive opt-in, independent of any advice about nearby blocks.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Derived {
-    pub folder: u32,
-    pub target: DefId,
-    pub package: PathId,
-    pub trait_: DefId,
-    pub name: String,
+impl<'v> DeclView<'v> {
+    #[must_use]
+    pub const fn new(
+        names: Names<'v>,
+        folder: FolderId,
+        scope: &'v ModuleScope,
+        lookup: &'v Lookup<'v>,
+    ) -> Self {
+        Self {
+            names,
+            folder,
+            scope,
+            lookup,
+        }
+    }
+
+    /// The item a single written name binds in the module's scope, as a
+    /// one-segment type name resolves.
+    #[must_use]
+    pub fn item_named(&self, name: &str) -> Option<(DefId, &'v Item)> {
+        let Some(Binding {
+            kind: BindingKind::Item,
+            value,
+        }) = self.scope.lookup(self.names.syms.intern(name))
+        else {
+            return None;
+        };
+        let def = DefId::from_raw(value);
+        Some((def, self.lookup.item(def)?))
+    }
+
+    /// The package node declaring `def`.
+    #[must_use]
+    pub fn package_of(&self, def: DefId) -> PathId {
+        self.names.package_node(def)
+    }
+
+    /// An item's declared name, as messages write it.
+    #[must_use]
+    pub fn display_name(&self, def: DefId) -> &str {
+        self.names.display_name(def)
+    }
+
+    /// The `@derive` implementations of nominal types that the module's
+    /// folder declares, as (target, trait) pairs: the module's own items,
+    /// then its folder's interface, which may repeat them. Cost: one pass
+    /// over the module's items and the folder's implementations.
+    pub fn derived(&self) -> impl Iterator<Item = (DefId, DefId)> + '_ {
+        let folder = self.lookup.folder(self.folder);
+        self.lookup
+            .own
+            .iter()
+            .chain(folder.into_iter().flat_map(|f| f.items.impls()))
+            .filter_map(|item| match &item.data {
+                ItemData::Impl {
+                    trait_,
+                    self_ty,
+                    kind: ImplKind::Derived,
+                    ..
+                } => match self.names.pool.get(*self_ty) {
+                    TyData::Adt { def, .. } => Some((def, *trait_)),
+                    _ => None,
+                },
+                _ => None,
+            })
+    }
 }

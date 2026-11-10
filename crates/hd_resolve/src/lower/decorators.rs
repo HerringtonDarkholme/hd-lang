@@ -7,13 +7,13 @@
 
 use hd_base::HashMap;
 
-use hd_base::{DefId, PathId, Span};
+use hd_base::{DefId, Span};
 use hd_diag::{Code, DiagMark};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_types::{Ty, TyData};
 
 use super::Lower;
-use crate::iface::{Field, HeadKind, ImplKind, Item, ItemData, TypeAttrs};
+use crate::iface::{Field, HeadKind, Item, ItemData, TypeAttrs};
 use crate::view::Src;
 use crate::{Binding, BindingKind};
 
@@ -751,53 +751,6 @@ impl Lower<'_, '_, '_> {
                 .any(|t| self.src.tkind(t) == Some(TokenKind::KwPass))
     }
 
-    /// The package node declaring `d`, without rendering its module.
-    fn package_of(&self, d: DefId) -> PathId {
-        self.names.package_node(d)
-    }
-
-    /// A `by` derivation block's resolved trait and target, for tooling
-    /// that compares the block's written member lines (`annot.line.drift`).
-    /// Only the name resolution lives here; the lines are syntax.
-    fn collect_drift_block(
-        &self,
-        n: NodeRef<'_>,
-        tys: &[NodeRef<'_>],
-        target: Option<(DefId, HeadKind)>,
-        items: &HashMap<DefId, &Item>,
-        out: &mut Vec<crate::facts::DerivationBlock>,
-    ) {
-        let Some((target_def, hk)) = target else {
-            return;
-        };
-        if !matches!(hk, HeadKind::Struct | HeadKind::Enum) {
-            return;
-        }
-        let [trait_ty, target_ty] = tys else {
-            return;
-        };
-        let trait_segs = self.segments(*trait_ty);
-        let [(trait_name, _)] = trait_segs.as_slice() else {
-            return;
-        };
-        if self.segments(*target_ty).len() != 1 {
-            return;
-        }
-        let Some((trait_def, item)) = self.scope_item(trait_name, items) else {
-            return;
-        };
-        if !matches!(item.data, ItemData::Trait(_)) {
-            return;
-        }
-        out.push(crate::facts::DerivationBlock {
-            folder: self.r.cx.folder,
-            target: target_def,
-            package: self.package_of(trait_def),
-            trait_: trait_def,
-            span: self.src.span(n),
-        });
-    }
-
     /// The form of a member line (`annot.line.right.error`,
     /// `annot.line.right.not-list`, `annot.no-trait.no-omit`): `pass` omits
     /// a member by `=` alone, and not in a block with no trait; `Self` and
@@ -957,7 +910,6 @@ impl Lower<'_, '_, '_> {
         blocks: &[hd_base::NodeIdx],
     ) {
         let src = self.src;
-        let mut drift_blocks = Vec::new();
         for n in src.root().children() {
             let top = |k: u16| Place {
                 kind: k,
@@ -1094,43 +1046,9 @@ impl Lower<'_, '_, '_> {
                             _ => {}
                         }
                     }
-                    if by && !traitless && self.derivation_facts.is_some() {
-                        self.collect_drift_block(n, &tys, target, items, &mut drift_blocks);
-                    }
                 }
                 _ => self.check_cfg(n, 0),
             }
-        }
-        let derived = if self.derivation_facts.is_some() {
-            items
-                .values()
-                .filter_map(|it| match &it.data {
-                    ItemData::Impl {
-                        trait_,
-                        self_ty,
-                        kind: ImplKind::Derived,
-                        ..
-                    } => {
-                        let TyData::Adt { def, .. } = self.names.pool.get(*self_ty) else {
-                            return None;
-                        };
-                        Some(crate::facts::Derived {
-                            folder: self.r.cx.folder,
-                            target: def,
-                            package: self.package_of(*trait_),
-                            trait_: *trait_,
-                            name: self.names.display_name(*trait_).to_owned(),
-                        })
-                    }
-                    _ => None,
-                })
-                .collect::<Vec<_>>()
-        } else {
-            Vec::new()
-        };
-        if let Some(facts) = self.derivation_facts.as_deref_mut() {
-            facts.blocks.extend(drift_blocks);
-            facts.derived.extend(derived);
         }
     }
 

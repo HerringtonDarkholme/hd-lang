@@ -973,6 +973,11 @@ impl<'a> Lookup<'a> {
             by_folder,
         }
     }
+    /// The interface of `folder`, when the closure holds it.
+    #[must_use]
+    pub fn folder(&self, folder: FolderId) -> Option<&'a FolderIface> {
+        self.by_folder.get(folder.idx()).copied().flatten()
+    }
     #[must_use]
     pub fn item(&self, d: DefId) -> Option<&'a Item> {
         if let Some(&i) = self.own_index.get(&d) {

@@ -12,7 +12,7 @@ use hd_check::comparison::SourceFacts;
 use hd_diag::{Code, DiagBuf, FixSafety, Severity};
 use hd_project::MainSite;
 use hd_resolve::Src;
-use hd_resolve::facts::DerivationFacts;
+use hd_resolve::facts::{DeclView, DerivationFacts};
 
 use crate::{Lines, Reader, Run, Writer, u32_of};
 
@@ -60,6 +60,9 @@ pub struct Module<'v> {
     /// The checked body facts, when the consumer asked for them.
     pub facts: Option<&'v SourceFacts>,
     pub derivations: Option<&'v DerivationFacts>,
+    /// The module's scope and items, for the written names the derivation
+    /// facts' consumer resolves; present exactly when `derivations` is.
+    pub decls: Option<DeclView<'v>>,
     pub main_site: Option<MainSite>,
 }
 
@@ -157,12 +160,17 @@ impl Run<'_> {
         };
         let mut findings = DiagBuf::default();
         let facts = cx.source_facts.as_ref().map(std::cell::RefCell::borrow);
+        let derives = self.collect_derivation_facts(m);
         lint.sink.module(
             &Module {
                 src: cx.src,
                 path: &self.table.modules[m].path,
                 facts: facts.as_deref(),
-                derivations: self.collect_derivation_facts(m).then_some(derivations),
+                derivations: derives.then_some(derivations),
+                decls: derives.then(|| {
+                    let folder = self.table.modules[m].folder;
+                    DeclView::new(cx.names, folder, cx.scope, cx.lookup)
+                }),
                 main_site: self.main_site(m),
             },
             &mut findings,

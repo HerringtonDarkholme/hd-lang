@@ -1,17 +1,17 @@
 //! Derivation advice over nominal, resolved declaration facts.
 
 use crate::{Cx, Event};
-use hd_base::{SliceSort as _, Span};
+use hd_base::{DefId, PathId, SliceSort as _, Span};
 use hd_diag::{Code, DiagBuf, FixSafety, Severity};
-use hd_resolve::Src;
-use hd_resolve::facts::{BlockDecorator, DerivationBlock, DerivationFacts, Derived};
+use hd_resolve::facts::{BlockDecorator, DerivationFacts};
+use hd_resolve::{HeadKind, ItemData, Src};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 
 pub(crate) fn unused(event: &Event<'_>, cx: &Cx<'_>, out: &mut DiagBuf) {
-    let Event::Derivations(facts) = event else {
+    let Event::Derivations(derivations) = event else {
         return;
     };
-    collect_unused(facts, cx.src.text, out);
+    collect_unused(derivations.facts, cx.src.text, out);
 }
 
 fn collect_unused(facts: &DerivationFacts, text: &str, out: &mut DiagBuf) {
@@ -34,38 +34,70 @@ fn collect_unused(facts: &DerivationFacts, text: &str, out: &mut DiagBuf) {
 }
 
 pub(crate) fn drift(event: &Event<'_>, cx: &Cx<'_>, out: &mut DiagBuf) {
-    let Event::Derivations(facts) = event else {
+    let Event::Derivations(derivations) = event else {
         return;
     };
-    if facts.blocks.is_empty() {
-        return;
-    }
-    let src = cx.src;
-    // One pass over the top-level declarations, in source order: a block's
-    // span is its `impl` declaration's, and a module's blocks are its own
-    // file's declarations.
-    let impls: Vec<_> = src
+    let (src, decls) = (cx.src, derivations.decls);
+    // One pass over the top-level declarations: each `by` block whose
+    // trait and struct or enum target are single written names, as the
+    // module's scope resolves them.
+    let blocks: Vec<_> = src
         .root()
         .children()
-        .filter(|n| n.kind() == SyntaxKind::ImplDecl)
-        .map(|n| (src.span(n), n))
-        .collect();
-    let blocks: Vec<_> = facts
-        .blocks
-        .iter()
-        .filter_map(|block| {
-            let at = impls
-                .binary_search_by_key(&(block.span.lo, block.span.hi), |(span, _)| {
-                    (span.lo, span.hi)
-                })
-                .ok()?;
-            (block.span.file == src.file)
-                .then(|| written(src, impls[at].1))
-                .flatten()
-                .map(|written| (block, written))
+        .filter(|n| {
+            n.kind() == SyntaxKind::ImplDecl && n.direct_tokens().any(|t| src.text(t) == "by")
+        })
+        .filter_map(|n| {
+            let written = written(src, n)?;
+            let (target, item) = decls.item_named(&written.target_name)?;
+            if !matches!(item.kind(), Some(HeadKind::Struct | HeadKind::Enum)) {
+                return None;
+            }
+            let (trait_, item) = decls.item_named(&written.trait_name)?;
+            if !matches!(item.data, ItemData::Trait(_)) {
+                return None;
+            }
+            let block = Block {
+                target,
+                package: decls.package_of(trait_),
+                trait_,
+                span: src.span(n),
+            };
+            Some((block, written))
         })
         .collect();
-    collect_drift(blocks, &facts.derived, out);
+    if blocks.is_empty() {
+        return;
+    }
+    let derived: Vec<_> = decls
+        .derived()
+        .map(|(target, trait_)| Derived {
+            target,
+            package: decls.package_of(trait_),
+            trait_,
+            name: decls.display_name(trait_).to_owned(),
+        })
+        .collect();
+    collect_drift(blocks, &derived, out);
+}
+
+/// The nominal trait and target a `by` derivation block's single written
+/// names resolve to; `span` is the block's `impl` declaration.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Block {
+    target: DefId,
+    package: PathId,
+    trait_: DefId,
+    span: Span,
+}
+
+/// An ordinary `@derive` opt-in of the module's folder.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Derived {
+    target: DefId,
+    package: PathId,
+    trait_: DefId,
+    name: String,
 }
 
 /// A derivation block's names and member lines as written.
@@ -137,11 +169,7 @@ const fn is_name(kind: Option<TokenKind>) -> bool {
     )
 }
 
-fn collect_drift(
-    mut blocks: Vec<(&DerivationBlock, Written)>,
-    derived: &[Derived],
-    out: &mut DiagBuf,
-) {
+fn collect_drift(mut blocks: Vec<(Block, Written)>, derived: &[Derived], out: &mut DiagBuf) {
     blocks.sort_stable_by_key(|(b, _)| (b.span.file.raw(), b.span.lo, b.span.hi));
     blocks.dedup();
     for (i, (block, written)) in blocks.iter().enumerate() {
@@ -165,8 +193,7 @@ fn collect_drift(
             let derived = derived
                 .iter()
                 .filter(|derived| {
-                    derived.folder == block.folder
-                        && derived.target == block.target
+                    derived.target == block.target
                         && derived.package == block.package
                         && derived.trait_ != block.trait_
                 })
@@ -241,9 +268,9 @@ fn move_fix_text(diags: &mut DiagBuf, fact: &BlockDecorator, text: &str) {
 mod tests {
     use hd_base::{DefId, FileId, PathId, Span};
     use hd_diag::{Code, DiagBuf};
-    use hd_resolve::facts::{BlockDecorator, DerivationBlock, DerivationFacts, Derived};
+    use hd_resolve::facts::{BlockDecorator, DerivationFacts};
 
-    use super::{Written, collect_drift, collect_unused};
+    use super::{Block, Derived, Written, collect_drift, collect_unused};
 
     fn span(lo: usize, hi: usize) -> Span {
         Span {
@@ -253,10 +280,9 @@ mod tests {
         }
     }
 
-    fn block(lo: u32, trait_: u32, name: &str, member: &str) -> (DerivationBlock, Written) {
+    fn block(lo: u32, trait_: u32, name: &str, member: &str) -> (Block, Written) {
         (
-            DerivationBlock {
-                folder: 0,
+            Block {
                 target: DefId::from_raw(1),
                 package: PathId::from_raw(2),
                 trait_: DefId::from_raw(trait_),
@@ -274,27 +300,18 @@ mod tests {
         )
     }
 
-    fn written(blocks: &[(DerivationBlock, Written)]) -> Vec<(&DerivationBlock, Written)> {
-        blocks
-            .iter()
-            .map(|(block, written)| (block, written.clone()))
-            .collect()
-    }
-
     #[test]
     fn drift_prefers_the_first_nominal_block_then_the_derive_fallback() {
         let first = block(1, 3, "Print", "cache");
         let second = block(2, 4, "Encode", "id");
         let derived = [
             Derived {
-                folder: 0,
                 target: first.0.target,
                 package: first.0.package,
                 trait_: DefId::from_raw(6),
                 name: "Zed".to_owned(),
             },
             Derived {
-                folder: 0,
                 target: first.0.target,
                 package: first.0.package,
                 trait_: DefId::from_raw(7),
@@ -303,7 +320,7 @@ mod tests {
         ];
         let blocks = [second, first];
         let mut findings = DiagBuf::default();
-        collect_drift(written(&blocks), &derived, &mut findings);
+        collect_drift(blocks.to_vec(), &derived, &mut findings);
         assert_eq!(findings.code, [Code::DerivationLineDrift; 2]);
         assert_eq!(
             findings.get_text(findings.message[0]),
@@ -334,7 +351,6 @@ mod tests {
         };
         let facts = DerivationFacts {
             decorators: vec![fact.clone(), fact],
-            ..DerivationFacts::default()
         };
         let mut findings = DiagBuf::default();
         collect_unused(&facts, &source, &mut findings);
@@ -367,7 +383,6 @@ mod tests {
                     ..occurrence
                 },
             ],
-            ..DerivationFacts::default()
         };
         let mut findings = DiagBuf::default();
         collect_unused(&facts, "x", &mut findings);
@@ -385,12 +400,12 @@ mod tests {
         other_package.0.package = PathId::from_raw(12);
         let mut blocks = vec![first, other_file.clone(), other_target, other_package];
         let mut findings = DiagBuf::default();
-        collect_drift(written(&blocks), &[], &mut findings);
+        collect_drift(blocks.clone(), &[], &mut findings);
         assert!(findings.is_empty());
 
         other_file.0.span.file = FileId::from_raw(0);
         blocks.push(other_file);
-        collect_drift(written(&blocks), &[], &mut findings);
+        collect_drift(blocks, &[], &mut findings);
         assert_eq!(findings.code, [Code::DerivationLineDrift]);
     }
 }

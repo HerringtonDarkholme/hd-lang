@@ -12,7 +12,7 @@ use hd_diag::DiagBuf;
 use hd_driver::analysis::{Module, Requests};
 use hd_project::MainSite;
 use hd_resolve::Src;
-use hd_resolve::facts::DerivationFacts;
+use hd_resolve::facts::{DeclView, DerivationFacts};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 
 /// Event families a rule reads.
@@ -88,6 +88,13 @@ pub struct BindingEvent<'v> {
     pub first_unread_on_line: bool,
 }
 
+/// A module's derivation facts, with the scope its written names resolve in.
+#[derive(Clone, Copy)]
+pub struct Derivations<'v> {
+    pub facts: &'v DerivationFacts,
+    pub decls: DeclView<'v>,
+}
+
 /// One event of a module walk.
 #[derive(Clone, Copy)]
 pub enum Event<'v> {
@@ -99,7 +106,7 @@ pub enum Event<'v> {
     ParameterWrite(crate::ParameterWriteEvent<'v>),
     Pattern(PatternView<'v>),
     Discard(CallView<'v>),
-    Derivations(&'v DerivationFacts),
+    Derivations(Derivations<'v>),
     MainSite(MainSite),
     /// The first cached `dbg` reference found in one fetched package.
     FetchedDebug {
@@ -271,7 +278,7 @@ pub fn walk<'v>(
         }));
     }
     if interests.contains(Events::DERIVATIONS)
-        && let Some(facts) = module.derivations
+        && let (Some(facts), Some(decls)) = (module.derivations, module.decls)
     {
         pending.push(Pending {
             // ruled out: source text is shorter than `u32::MAX` bytes, its
@@ -279,7 +286,7 @@ pub fn walk<'v>(
             at: u32::try_from(src.text.len()).expect("source length"),
             finish: true,
             family: 1,
-            event: Event::Derivations(facts),
+            event: Event::Derivations(Derivations { facts, decls }),
         });
     }
     pending.sort_stable_by_key(|p| (p.at, p.finish, p.family));
