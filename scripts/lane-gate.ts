@@ -20,7 +20,10 @@
 //                     members (hd_run_wasmtime) are CI's.
 //   tests of a crate  hd_driver, hd_check, hd_wasm_linear: `--lib --test stages`;
 //                     hd_cli: `--bins`, plus `--test all` for the test modules the
-//                     diff changes; every other crate: all its targets. Never bare
+//                     diff changes; every other touched crate: all its targets; a
+//                     selected crate that is only a dependent: `--lib` (each
+//                     integration-test binary links the whole compiler, and CI runs
+//                     them all). Never bare
 //                     `-p hd_driver`, never `--test conformance` without
 //                     HD_CONFORMANCE_ONLY.
 //   golden std TIR    hd_check, hd_tir or lib/std touched.
@@ -240,13 +243,25 @@ const crateRule: Rule = (ctx) => {
   if (rest.length === 0) {
     return [];
   }
-  const names = rest.sort();
+  // A touched crate runs every test target. A crate selected only as a
+  // dependent runs its unit tests: its integration tests are one debug link
+  // of the whole compiler each (42 for an hd_syntax change), and CI runs them.
+  const touched = rest.filter((name) => ctx.touched.has(name)).sort();
+  const dependents = rest.filter((name) => !ctx.touched.has(name)).sort();
+  const pkgs = (names: string[]) => names.flatMap((name) => ["-p", name]);
   return [
-    step(
-      "crates",
-      `selected: ${names.join(" ")}`,
-      cargoTest(...names.flatMap((name) => ["-p", name])),
-    ),
+    ...(touched.length === 0
+      ? []
+      : [step("crates", `touched: ${touched.join(" ")}`, cargoTest(...pkgs(touched)))]),
+    ...(dependents.length === 0
+      ? []
+      : [
+          step(
+            "dependents",
+            `unit tests of dependents: ${dependents.join(" ")}`,
+            cargoTest("--lib", ...pkgs(dependents)),
+          ),
+        ]),
   ];
 };
 
