@@ -2255,20 +2255,16 @@ impl Em<'_, '_, '_> {
                     k if k == Coercion::WrapSome as u32 => {
                         self.new_variant(i, 1, &[value::Src::Ref(a)])?;
                     }
-                    k if [
-                        Coercion::ToTraitValue,
-                        Coercion::Supertrait,
-                        Coercion::RefToTraitValue,
-                    ]
-                    .iter()
-                    .any(|c| *c as u32 == k) =>
+                    k if [Coercion::Supertrait, Coercion::RefToTraitValue]
+                        .iter()
+                        .any(|c| *c as u32 == k) =>
                     {
                         self.trait_value(i, a)?;
                     }
                     k if k == Coercion::RefAsProvider as u32 => self.ref_as_provider(i, a)?,
                     k => {
                         // ruled out: body::coerce and dynref emit only the
-                        // handled kinds; Any uses ToTraitValue, never ToAny.
+                        // handled kinds, including reference-based Any conversions.
                         // ProviderAsRef reads back the provider reference.
                         assert_eq!(k, Coercion::ProviderAsRef as u32);
                         self.same_value(i, a)?;

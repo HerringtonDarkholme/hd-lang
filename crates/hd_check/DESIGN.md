@@ -882,7 +882,6 @@ Collection never re-derives one.
 | `Variance` | `C[A]` → `C[B]` by declared variance | none, by [Representation-Preserving Variance](../../spec/lang/04-type-system.md#representation-preserving-variance) |
 | `WrapSome` | `T` → `T?` | build `.Some` |
 | `RowSubsume` | `fn ... $ R1` → `fn ... $ R2` | none: a context holding `R2`'s keys serves `R1` ([crates/hd_mono/DESIGN.md §12.4](../hd_mono/DESIGN.md#124-rows-and-providers)) |
-| `ToTraitValue`, `ToAny` | none: the checker emits neither, since no value converts to a bare trait value ([`types.generic.infer.no-bare-dyn`](../../spec/lang/04-type-system.md#r-types.generic.infer.no-bare-dyn)) | |
 | `Supertrait` | child trait value → parent trait value, inside the `get` of a trait value reference that widens (`dynref.rs`) | load the parent's vtable from the child's |
 | `SuspendFnToCtor` | `fn!` type → constructor type | none, or a thin adapter |
 | `Identity` | `T` → `T` | none: a least-common-type slot whose value needed no conversion (section 4.3) |

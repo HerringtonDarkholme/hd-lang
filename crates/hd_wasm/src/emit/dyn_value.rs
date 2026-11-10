@@ -73,8 +73,8 @@ impl Em<'_, '_, '_> {
         Ok((target, ls, loaded))
     }
 
-    /// `Coerce` of value `a` to the trait value `i` (`ToTraitValue`,
-    /// `Supertrait`, `RefToTraitValue`): a value takes the vtable
+    /// `Coerce` of value `a` to the trait value `i` (`Supertrait`,
+    /// `RefToTraitValue`): a value takes the vtable
     /// collection recorded at its type; a trait value, which collection
     /// gives none, widens.
     pub(super) fn trait_value(&mut self, i: u32, a: u32) -> StageResult<()> {
