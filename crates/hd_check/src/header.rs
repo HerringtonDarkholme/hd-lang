@@ -1432,10 +1432,11 @@ pub fn boundary(
             });
         }
     };
-    // `module.host.package.one-instance`: the host binds one provider
-    // object, whose members are the trait's methods and its supertraits',
-    // by name, so one trait at two argument lists would need two members
-    // of one name. Reported at the trait's header.
+    // `module.host.package.no-assoc` and `module.host.package.one-instance`:
+    // the host binds one provider object, whose members are the trait's
+    // methods and its supertraits', by name. An associated type would need
+    // a binding per row key, and one trait at two argument lists two
+    // members of one name. Reported at the trait's header.
     //
     // Cost: one visit per distinct supertrait of `def`, over a worklist.
     let shape = |def: DefId, what: &str, out: &mut Vec<Finding>| {
@@ -1467,6 +1468,24 @@ pub fn boundary(
             let Some(ItemData::Trait(t)) = cx.lookup.item(d).map(|i| &i.data) else {
                 continue;
             };
+            if !t.assoc.is_empty() {
+                let message = if d == def {
+                    format!("a {what} trait declares no associated types")
+                } else {
+                    format!(
+                        "a {what} trait declares no associated types, and its supertrait `{}` declares one",
+                        cx.names.display_name(d)
+                    )
+                };
+                out.push(Finding {
+                    item: def,
+                    slot: 0,
+                    code: Code::BoundaryNotSafe,
+                    message,
+                    ref_fix: Vec::new(),
+                });
+                return;
+            }
             let known = pool.list_items(args);
             for sup in &t.supers {
                 let TyData::TraitValue {

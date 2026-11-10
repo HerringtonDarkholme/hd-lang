@@ -2568,7 +2568,8 @@ pub trait Surface:
 10. r[module.host.package.js-private-serde] A private-field value crosses through its directional `Serialize` or `Deserialize` implementation, with Serde integers represented as `BigInt`.
 11. r[module.host.package.js-private-floats] A Serde float crosses as `Number` while retaining its numeric kind and finite IEEE 754 bits, including negative zero.
 12. r[module.host.package.not-generic] A host capability trait, whether `@host` or a runtime profile's, declares no type parameters, and neither does a program trait whose values a host method returns as host handles. The error is reported at the trait's type parameter list. Error: `boundary-not-safe`.
-13. r[module.host.package.one-instance] Such a trait's supertraits reach each trait at one argument list at most, as in `Base[i32]` but not also `Base[string]`: a provider has one member per method name. The error is reported at the trait. Error: `boundary-not-safe`.
+13. r[module.host.package.no-assoc] Such a trait declares no associated type, and neither does any of its supertraits: the host binds no projection. The error is reported at the trait. Error: `boundary-not-safe`.
+14. r[module.host.package.one-instance] Such a trait's supertraits reach each trait at one argument list at most, as in `Base[i32]` but not also `Base[string]`: a provider has one member per method name. The error is reported at the trait. Error: `boundary-not-safe`.
 
 > **Why.** The invoker binds one provider for a host trait, and one host
 > object behind a handle. No instance of a generic trait would choose it.

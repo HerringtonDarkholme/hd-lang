@@ -1,0 +1,9 @@
+# test: a host capability trait declares no associated type: its provider binds no projection
+# Spec Modules, Package Host Traits: module.host.package.no-assoc (#1576).
+# fixture-runtime-profile: serde-vault
+pub trait Vault: # diagnostic: boundary-not-safe
+    type Item
+    fn keep(self) -> Self::Item
+
+pub fn main() -> void $ Vault[Item = i32]:
+    _ := $.use(Vault[Item = i32]).keep()

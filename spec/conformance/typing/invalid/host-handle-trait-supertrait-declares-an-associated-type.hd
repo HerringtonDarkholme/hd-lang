@@ -1,0 +1,15 @@
+# test: a host handle trait's supertraits declare no associated type either
+# Spec Modules, Package Host Traits: module.host.package.no-assoc (#1576).
+# fixture-runtime-profile: serde-vault
+pub trait Source:
+    type Item
+    fn next(&self) -> i32
+
+pub trait Handle < Source[Item = i32]: # diagnostic: boundary-not-safe
+    fn close(&self) -> void
+
+pub trait Vault:
+    fn keep(self) -> *dyn Handle
+
+pub fn main() -> void $ Vault:
+    _ := $.use(Vault).keep()

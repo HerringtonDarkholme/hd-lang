@@ -486,8 +486,10 @@ fn of_at(
         // (grammar.type.dyn.reference-values); `signature` and `subst`
         // leave no parameter, projection or opaque type in a checked host
         // method's signature (`dyn-member-unavailable` rejects a method
-        // with its own type parameters or an `impl Trait` result); a row
-        // is no value type, and checking solves every inference variable.
+        // with its own type parameters or an `impl Trait` result, and
+        // module.host.package.no-assoc (hd_check header::boundary) a host
+        // or handle trait with an associated type); a row is no value
+        // type, and checking solves every inference variable.
         TyData::Never
         | TyData::Poison
         | TyData::Fn { .. }
@@ -2769,8 +2771,9 @@ fn package_value(
         // header::crossing_fault) rejects `never` anywhere else, a
         // function and a provider context (`module.boundary.rows`);
         // `signature` and `subst` leave no parameter, projection or opaque
-        // type in a checked host method's signature; a row is no value
-        // type, and checking solves every inference variable.
+        // type in a checked host method's signature (module.host.package.no-assoc
+        // rejects a host trait's associated type); a row is no value type,
+        // and checking solves every inference variable.
         TyData::Never
         | TyData::Poison
         | TyData::Fn { .. }
