@@ -5,12 +5,13 @@
 //! diagnostic, so `scripts/hd-conformance.sh` serves it as the `parse`
 //! action of the conformance command contract.
 
-use hd_base::SliceSort as _;
+use hd_base::{SliceSort as _, TokenIdx};
+use std::fmt::Write as _;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use hd_syntax::parse;
+use hd_syntax::{NodeRef, Parse, parse};
 
 fn files(root: &Path, output: &mut Vec<PathBuf>) {
     if root.is_file() {
@@ -27,6 +28,31 @@ fn files(root: &Path, output: &mut Vec<PathBuf>) {
         } else if path.extension().is_some_and(|extension| extension == "hd") {
             output.push(path);
         }
+    }
+}
+
+/// One line per node, indented by depth: its kind, its first and last
+/// token indices, and the first line of its text.
+fn debug_tree(parsed: &Parse, node: NodeRef<'_>, depth: usize, source: &str, out: &mut String) {
+    let tokens = &parsed.tokens;
+    let (first, last) = parsed.tree.span_tokens(node.index());
+    let text = if first.get().is_some() && last.get().is_some() {
+        let lo = tokens.start[first.idx()] as usize;
+        let hi = tokens.end[last.idx()] as usize;
+        source[lo..hi].lines().next().unwrap_or_default()
+    } else {
+        ""
+    };
+    let _ = writeln!(
+        out,
+        "{}{:?} {:?}..{:?} {text:?}",
+        "  ".repeat(depth),
+        node.kind(),
+        first.get().map(TokenIdx::raw),
+        last.get().map(TokenIdx::raw)
+    );
+    for child in node.children() {
+        debug_tree(parsed, child, depth + 1, source, out);
     }
 }
 
@@ -48,7 +74,11 @@ fn main() -> ExitCode {
         };
         let parsed = parse(source.as_bytes());
         if tree {
-            print!("{}", parsed.tree.debug_tree(&parsed.tokens, &source));
+            let mut out = String::new();
+            if !parsed.tree.is_empty() {
+                debug_tree(&parsed, parsed.tree.root(), 0, &source, &mut out);
+            }
+            print!("{out}");
         }
         if parsed.diagnostics.is_empty() {
             clean += 1;

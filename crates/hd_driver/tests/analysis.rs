@@ -50,7 +50,7 @@ impl AnalysisSink for Recorder {
             let Some(decl) = Decl::cast(node) else {
                 continue;
             };
-            if decl.is_pub(&src.parse.tokens)
+            if src.is_pub(node)
                 && let Some(name) = decl.name(&src.parse.tokens)
             {
                 let span = src.token_span(name);

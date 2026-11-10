@@ -1,9 +1,6 @@
-use std::fmt::Write;
-
 use hd_base::{NodeIdx, TokenIdx};
-use hd_diag::Code;
 
-use crate::{Layout, TokenBuf, TokenKind};
+use crate::{TokenBuf, TokenKind};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u16)]
@@ -148,10 +145,6 @@ pub struct GreenTree {
     first_token: Vec<TokenIdx>,
     last_token: Vec<TokenIdx>,
     subtree_len: Vec<u32>,
-    pub layout_at: Vec<TokenIdx>,
-    pub layout_kind: Vec<Layout>,
-    pub err_node: Vec<NodeIdx>,
-    pub err_code: Vec<Code>,
 }
 
 impl GreenTree {
@@ -198,69 +191,6 @@ impl GreenTree {
             }
         }
         parents
-    }
-
-    #[must_use]
-    pub fn debug_tree(&self, tokens: &TokenBuf, source: &str) -> String {
-        let mut output = String::new();
-        let parents = self.parent_links();
-        for index in 0..self.len() {
-            let mut depth = 0;
-            let mut at = parents[index];
-            while let Some(parent) = at.get() {
-                depth += 1;
-                at = parents[parent.idx()];
-            }
-            let node = NodeIdx::from_raw(as_u32(index));
-            let (first, last) = self.span_tokens(node);
-            let text = if first.get().is_some() && last.get().is_some() {
-                let lo = tokens.start[first.idx()] as usize;
-                let hi = tokens.end[last.idx()] as usize;
-                source[lo..hi].lines().next().unwrap_or_default()
-            } else {
-                ""
-            };
-            let _ = writeln!(
-                output,
-                "{}{:?} {:?}..{:?} {text:?}",
-                "  ".repeat(depth),
-                self.kind(node),
-                first.get().map(TokenIdx::raw),
-                last.get().map(TokenIdx::raw)
-            );
-        }
-        output
-    }
-
-    /// A snapshot form: one node per line, indented by depth, with the
-    /// node's own tokens (not its children's) after its kind.
-    #[must_use]
-    pub fn outline(&self, tokens: &TokenBuf, source: &str) -> String {
-        fn walk(
-            node: NodeRef<'_>,
-            depth: usize,
-            tokens: &TokenBuf,
-            source: &str,
-            out: &mut String,
-        ) {
-            let own: Vec<&str> = node
-                .direct_tokens()
-                .map(|token| tokens.text(token, source))
-                .collect();
-            let _ = write!(out, "{}{:?}", "  ".repeat(depth), node.kind());
-            if !own.is_empty() {
-                let _ = write!(out, " {}", own.join(" ").replace('\n', "\\n"));
-            }
-            out.push('\n');
-            for child in node.children() {
-                walk(child, depth + 1, tokens, source, out);
-            }
-        }
-        let mut out = String::new();
-        if !self.is_empty() {
-            walk(self.root(), 0, tokens, source, &mut out);
-        }
-        out
     }
 
     #[must_use]
@@ -543,12 +473,6 @@ impl<'t> Decl<'t> {
         self.0.name(tokens)
     }
 
-    /// `pub` stands before the declaration keyword.
-    #[must_use]
-    pub fn is_pub(self, tokens: &TokenBuf) -> bool {
-        self.0.direct_token(tokens, TokenKind::KwPub).is_some()
-    }
-
     /// The suite or member block.
     #[must_use]
     pub fn body(self) -> Option<Block<'t>> {
@@ -582,11 +506,7 @@ pub(crate) enum Event {
     Tombstone,
 }
 
-pub(crate) fn build(
-    events: &mut [Event],
-    layouts: &[(TokenIdx, Layout)],
-    errors: &[(NodeIdx, Code)],
-) -> GreenTree {
+pub(crate) fn build(events: &mut [Event]) -> GreenTree {
     let mut tree = GreenTree::default();
     let mut stack = Vec::<usize>::new();
     let mut parents = Vec::<SyntaxKind>::new();
@@ -647,14 +567,6 @@ pub(crate) fn build(
     }
     while let Some(index) = stack.pop() {
         tree.subtree_len[index] = as_u32(tree.kind.len() - index);
-    }
-    for &(at, kind) in layouts {
-        tree.layout_at.push(at);
-        tree.layout_kind.push(kind);
-    }
-    for &(node, code) in errors {
-        tree.err_node.push(node);
-        tree.err_code.push(code);
     }
     tree
 }

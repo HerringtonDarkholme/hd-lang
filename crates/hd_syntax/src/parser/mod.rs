@@ -81,7 +81,7 @@ pub fn parse(source: &[u8]) -> Parse {
     parser.source_file();
     let mut diagnostics = lexed.diagnostics.clone();
     diagnostics.extend(parser.finish_diagnostics());
-    let tree = build(&mut parser.events, &parser.layouts, &[]);
+    let tree = build(&mut parser.events);
     let (items, symbols) = build_item_index(&tree, &lexed.tokens, text);
     diagnostics.sort_stable_by_key(|diagnostic| (diagnostic.primary.lo, diagnostic.code as u16));
     diagnostics.dedup_by_key(|diagnostic| (diagnostic.primary.lo, diagnostic.code as u16));
@@ -163,7 +163,6 @@ pub(crate) struct Parser<'t> {
     toks: &'t TokenBuf,
     cur: LayoutCursor<'t>,
     events: Vec<Event>,
-    layouts: Vec<(TokenIdx, Layout)>,
     errors: Vec<Diagnostic>,
     /// Spans the lexer already reported: no second diagnostic there.
     lexed: Vec<(u32, u32)>,
@@ -209,7 +208,6 @@ impl<'t> Parser<'t> {
             toks,
             cur: LayoutCursor::new(toks, src),
             events: Vec::with_capacity(toks.len() * 3),
-            layouts: Vec::new(),
             errors: Vec::new(),
             lexed: spans,
             unclosed: unclosed_scopes(toks, lexed),
@@ -314,10 +312,7 @@ impl<'t> Parser<'t> {
                 self.suite_closed = false;
                 self.cur.bump();
             }
-            TokenOrLayout::Layout { kind, at } => {
-                self.layouts.push((at, kind));
-                self.cur.bump();
-            }
+            TokenOrLayout::Layout { .. } => self.cur.bump(),
             TokenOrLayout::Eof => {}
         }
     }
@@ -594,8 +589,6 @@ impl<'t> Parser<'t> {
             SuiteKind::SameLine => {
                 self.inline_statement(inline_ctx);
                 self.cur.close_inline();
-                let at = TokenIdx::from_raw(u32_of(self.pos()));
-                self.layouts.push((at, Layout::SuiteEnd));
                 self.suite_inline = true;
             }
             SuiteKind::Indented => {

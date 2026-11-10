@@ -100,14 +100,13 @@ open same-line suites.
    `Missing` otherwise. It records the references that the nested rules
    need ([Suites Inside Delimiters](../../spec/lang/01-lexical-structure.md#suites-inside-delimiters)).
 3. A same-line suite ends where the parser's inline statement ends. The
-   parser calls `close_inline` and records the `SuiteEnd` itself, since
-   it is the one that knows where the statement ended. An `else:` on the
+   parser calls `close_inline` there, since it is the one that knows
+   where the statement ended. An `else:` on the
    next line still attaches after a same-line body.
 4. A closer at a nested suite's depth ends the suite (`lex.nested.closer`).
-5. Layout tokens enter the green tree's `layout_at` and `layout_kind`
-   columns, not its real-token stream. They stay zero-width positions
-   between real tokens, so the formatter sees every decision, and
-   `TokenIdx` keeps indexing real tokens only.
+5. Layout tokens steer the parser and stay out of the green tree. They
+   are zero-width positions between real tokens, so `TokenIdx` indexes
+   real tokens only.
 6. **Recovery.** `invalid-dedent`: report, go on at the enclosing level.
    An indentation no suite opened: the cursor emits an `Indent` and the
    parser reports `unexpected-indentation`, then reads the lines as part
@@ -207,10 +206,6 @@ pub struct GreenTree {
     first_token: Vec<TokenIdx>,
     last_token: Vec<TokenIdx>,    // inclusive
     subtree_len: Vec<u32>,        // preorder: node i's subtree is i .. i + subtree_len[i]
-    pub layout_at: Vec<TokenIdx>, // zero-width layout positions, in order
-    pub layout_kind: Vec<Layout>,
-    pub err_node: Vec<NodeIdx>,
-    pub err_code: Vec<Code>,
 }
 pub struct NodeRef<'t> { tree: &'t GreenTree, index: NodeIdx }
 ```
