@@ -1,0 +1,13 @@
+# @dump: wat
+# ref.elem.place and expr.index.list.range:
+# a zero-sized element still requires an in-range slot when lent.
+# expected: check the index before lending the zero-sized slot.
+fn source() -> List[void]:
+    [(), ()]
+
+fn accept(value: &void) -> void:
+    pass
+
+fn visit(index: usize) -> void:
+    accept(&source()[index])
+    #^^^^^^^^^^^^^^^^^^^^^^^^

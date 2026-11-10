@@ -684,9 +684,8 @@ impl Em<'_, '_, '_> {
     /// `Ref` `i`: the address of its place, with a count of its own. The
     /// walk ([`Em::walk_place`]) goes from where [`Em::place_start`]
     /// starts it to the head, the place's last element or dereference: an
-    /// element's slot, bounds-checked where the walk takes the place
-    /// ([`Em::rooted_at`]), else at the buffer's address with no check, or
-    /// at a map entry's value; a reference's referent, or the trait value
+    /// element's bounds-checked slot ([`Em::rooted_at`]), or a map
+    /// entry's value; a reference's referent, or the trait value
     /// for a reference to one. A place with
     /// neither is in its root's storage. [`Em::ref_from`] addresses the
     /// struct field the fields after the head name.
@@ -727,6 +726,7 @@ impl Em<'_, '_, '_> {
                 (Proj::Elem(ix), _) => {
                     let (et, e) = self.elem(ty)?;
                     let b = self.at_i32(&at);
+                    let ix = self.index(b, ix.0)?;
                     let a = self.f.local(Val::I32);
                     self.f.get(b);
                     // An element of no bytes lies at no address of its own;
@@ -734,7 +734,7 @@ impl Em<'_, '_, '_> {
                     if e.size == 0 {
                         self.f.u32(u32::try_from(LIST_LEN).expect("offset"));
                     } else {
-                        self.comp(ix.0, 0)?;
+                        self.f.get(ix);
                         self.f.u32(e.size);
                         self.f.op(I::I32Mul);
                         self.f.op(I::I32Add);

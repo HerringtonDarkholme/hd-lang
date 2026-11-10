@@ -1,0 +1,18 @@
+# test: a zero-sized temporary list element checks an index evaluated once
+# ref.elem.index and expr.order.left-to-right
+use std.testing.assert_equal
+
+fn source() -> List[void]:
+    [(), ()]
+
+fn next(counter: &mut List[u32]) -> u64:
+    counter[0] += 1
+    1u64
+
+fn accept(value: &void) -> void:
+    pass
+
+pub fn main() -> void:
+    let mut counter: List[u32] = [0]
+    accept(&source()[next(&mut counter)])
+    assert_equal(counter[0], 1)
