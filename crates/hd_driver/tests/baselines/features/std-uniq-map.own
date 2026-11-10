@@ -22,7 +22,7 @@ fn put(m: &mut UniqMap[string, string], k: string, v: string) -> void:
 >   %2 = Read borrow [$0] : &mut UniqMap[string, string]
 >   %3 = Read move [$1] : string
 >   %4 = Read move [$2] : string
->   %5 = Call std/collections/impl [ K < Eq & Hash , V < ? Copy ] UniqMap [ K , V ].insert[string, string] (%2, %3, %4) : string?
+>   %5 = Call std/collections/impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].insert[string, string] (%2, %3, %4) : string?
 >   %6 = Drop [%5] : ()
 >   %7 = Block - : ()
 >   exit sub 0 drops [$1 $2]
@@ -40,7 +40,7 @@ fn lookup(m: &UniqMap[string, string], k: string) -> usize:
     match m.get_ref(k):
 >   %1 = Read borrow [$0] : &UniqMap[string, string]
 >   %2 = Read move [$1] : string
->   %3 = Call std/collections/impl [ K < Eq & Hash , V < ? Copy ] UniqMap [ K , V ].get_ref[string, string] (%1, %2) : &string?
+>   %3 = Call std/collections/impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].get_ref[string, string] (%1, %2) : &string?
 >   %19 = Block - : never
 >   %20 = Match %3 [%19 %6 %7] : usize
 >   %21 = Drop [%3] : ()
@@ -103,7 +103,7 @@ fn group(m: &mut UniqMap[string, UniqList[string]], k: string, v: string) -> voi
 >   %19 = Break L6 %18 : never
 >   %20 = Block - : UniqList[string]
 >   %21 = Scope %20 [] : UniqList[string]
->   %22 = Call std/collections/impl [ K < Eq & Hash , V < ? Copy ] UniqMap [ K , V ].get_or_insert[string, UniqList[string]] (%2, %3, %21) : &mut UniqList[string]
+>   %22 = Call std/collections/impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].get_or_insert[string, UniqList[string]] (%2, %3, %21) : &mut UniqList[string]
 >   %23 = Store [$3] %22 : ()
 >   %24 = Read borrow [$3] : &mut UniqList[string]
 >   %25 = Coerce %24 [Weaken -] : &UniqList[string]
@@ -123,7 +123,7 @@ fn group(m: &mut UniqMap[string, UniqList[string]], k: string, v: string) -> voi
 >   %39 = Read borrow [$3] : &mut UniqList[string]
 >   %40 = Read copy [$5] : usize
 >   %41 = Prim Add [%40 1:usize] : usize
->   %42 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].reserve_for[string] (%39, %41) : ()
+>   %42 = Call std/collections/impl[T < ?Copy] UniqList[T].reserve_for[string] (%39, %41) : ()
 >   %43 = Block - : ()
 >   %44 = If %38 [%43 -] : ()
 >   %45 = Ref local [*$3 .buffer] : &Buffer[string]
@@ -132,7 +132,7 @@ fn group(m: &mut UniqMap[string, UniqList[string]], k: string, v: string) -> voi
 >   %48 = Read copy [*%45 .address] : usize
 >   %49 = NewStruct [%48] : Ptr[string]
 >   %50 = Read copy [$7] : usize
->   %51 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].offset[string] (%49, %50) : Ptr[string]
+>   %51 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].offset[string] (%49, %50) : Ptr[string]
 >   %52 = Break L0 %51 : never
 >   %53 = Block - : Ptr[string]
 >   %54 = Scope %53 [] : Ptr[string]

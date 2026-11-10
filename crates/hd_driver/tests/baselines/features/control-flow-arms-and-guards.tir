@@ -84,7 +84,7 @@ fn whole(o: string?) -> usize:
 >   %23 = Store [$2] %0 : ()
             if other.is_some(): 1 else: 0
 >   %8 = Ref local [$2] : &string?
->   %9 = Call std/option/impl [ T < ? Copy ] T ?.is_some[string] (%8) : bool
+>   %9 = Call std/option/impl[T < ?Copy] T?.is_some[string] (%8) : bool
 >   %10 = Block 1:usize : usize
 >   %11 = Block 0:usize : usize
 >   %12 = If %9 [%10 %11] : usize

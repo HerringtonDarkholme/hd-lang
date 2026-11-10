@@ -17,7 +17,7 @@ fn put(m: &mut UniqMap[string, string], k: string, v: string) -> void:
 >   %0 = Read [$0] : &mut UniqMap[string, string]
 >   %1 = Read [$1] : string
 >   %2 = Read [$2] : string
->   %3 = Call std/collections/impl [ K < Eq & Hash , V < ? Copy ] UniqMap [ K , V ].insert[string, string] (%0, %1, %2) : string?
+>   %3 = Call std/collections/impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].insert[string, string] (%0, %1, %2) : string?
 >   %4 = Block - : ()
 
 fn lookup(m: &UniqMap[string, string], k: string) -> usize:
@@ -28,7 +28,7 @@ fn lookup(m: &UniqMap[string, string], k: string) -> usize:
 >   local $2 v: &string [read assigned]
 >   %0 = Read [$0] : &UniqMap[string, string]
 >   %1 = Read [$1] : string
->   %2 = Call std/collections/impl [ K < Eq & Hash , V < ? Copy ] UniqMap [ K , V ].get_ref[string, string] (%0, %1) : &string?
+>   %2 = Call std/collections/impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].get_ref[string, string] (%0, %1) : &string?
 >   %18 = Block - : never
 >   %19 = Match %2 [%18 %5 %6] : usize
 >   %20 = Block %19 : usize
@@ -55,8 +55,8 @@ fn group(m: &mut UniqMap[string, UniqList[string]], k: string, v: string) -> voi
 >   local $2 v: string [param read]
 >   %0 = Read [$0] : &mut UniqMap[string, UniqList[string]]
 >   %1 = Read [$1] : string
->   %2 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].new[string] () : UniqList[string]
->   %3 = Call std/collections/impl [ K < Eq & Hash , V < ? Copy ] UniqMap [ K , V ].get_or_insert[string, UniqList[string]] (%0, %1, %2) : &mut UniqList[string]
+>   %2 = Call std/collections/impl[T < ?Copy] UniqList[T].new[string] () : UniqList[string]
+>   %3 = Call std/collections/impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].get_or_insert[string, UniqList[string]] (%0, %1, %2) : &mut UniqList[string]
 >   %4 = Read [$2] : string
->   %5 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].push[string] (%3, %4) : ()
+>   %5 = Call std/collections/impl[T < ?Copy] UniqList[T].push[string] (%3, %4) : ()
 >   %6 = Block - : ()

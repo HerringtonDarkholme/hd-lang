@@ -107,7 +107,7 @@ app/main/replaced
   %74 = Read borrow [$8] : string
   %75 = Call std/rt.memory/string_bytes[] (%74) : Ptr[u8]
   %76 = Read copy [$9] : usize
-  %77 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].offset[u8] (%75, %76) : Ptr[u8]
+  %77 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].offset[u8] (%75, %76) : Ptr[u8]
   %78 = Read copy [$11] : usize
   %79 = Call std/rt.bytes/write_signed_sized[] (%73, %77, %78) : ()
   %80 = Break L2 - : never

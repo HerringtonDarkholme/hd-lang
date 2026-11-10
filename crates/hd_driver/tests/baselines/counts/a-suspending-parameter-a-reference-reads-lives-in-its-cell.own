@@ -26,7 +26,7 @@ fn sized!(u: UniqList[i32]) -> usize $ Clock:
 >   %16 = Block %13 : usize
     u.len()
 >   %12 = Ref local [$0] : &UniqList[i32]
->   %13 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].len[i32] (%12) : usize
+>   %13 = Call std/collections/impl[T < ?Copy] UniqList[T].len[i32] (%12) : usize
 >   %14 = LoanEnd [%12] : ()
 >   %15 = Drop [$0] : ()
 >   exit sub 0 drops [$0]
@@ -91,22 +91,22 @@ pub fn main!() -> void $ Console + Clock:
 >   %25 = Store [$9] 1:i32 : ()
 >   %26 = Read borrow [$8] : &mut UniqList[i32]
 >   %27 = Coerce %26 [Weaken -] : &UniqList[i32]
->   %28 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].len[i32] (%27) : usize
+>   %28 = Call std/collections/impl[T < ?Copy] UniqList[T].len[i32] (%27) : usize
 >   %29 = Store [$10] %28 : ()
 >   %30 = Ref local [*$8 .buffer] : &Buffer[i32]
->   %31 = Call std/rt.memory/impl [ T < ? Copy ] Buffer [ T ].capacity[i32] (%30) : usize
+>   %31 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].capacity[i32] (%30) : usize
 >   %32 = Drop [%30] : ()
 >   %33 = Read copy [$10] : usize
 >   %34 = Prim Le [%31 %33] : bool
 >   %35 = Read borrow [$8] : &mut UniqList[i32]
 >   %36 = Read copy [$10] : usize
 >   %37 = Prim Add [%36 1:usize] : usize
->   %38 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].reserve_for[i32] (%35, %37) : ()
+>   %38 = Call std/collections/impl[T < ?Copy] UniqList[T].reserve_for[i32] (%35, %37) : ()
 >   %39 = Block - : ()
 >   %40 = If %34 [%39 -] : ()
 >   %41 = Ref local [*$8 .buffer] : &Buffer[i32]
 >   %42 = Read copy [$10] : usize
->   %43 = Call std/rt.memory/impl [ T < ? Copy ] Buffer [ T ].at[i32] (%41, %42) : Ptr[i32]
+>   %43 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].at[i32] (%41, %42) : Ptr[i32]
 >   %44 = Drop [%41] : ()
 >   %45 = Read copy [$9] : i32
 >   %46 = Store [ptr %43] %45 : ()
@@ -152,7 +152,7 @@ pub fn main!() -> void $ Console + Clock:
 >   %83 = Read borrow [$2] : string
 >   %84 = Call std/rt.memory/string_bytes[] (%83) : Ptr[u8]
 >   %85 = Read copy [$3] : usize
->   %86 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].offset[u8] (%84, %85) : Ptr[u8]
+>   %86 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].offset[u8] (%84, %85) : Ptr[u8]
 >   %87 = Read copy [$5] : usize
 >   %88 = Call std/rt.bytes/write_unsigned_sized[] (%82, %86, %87) : ()
 >   %89 = Break L0 - : never

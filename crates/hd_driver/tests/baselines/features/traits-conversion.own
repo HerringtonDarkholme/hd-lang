@@ -11,7 +11,7 @@ struct Name:
 
 impl From[string] for Name:
     fn from(value: string) -> Name:
-> app/main/impl From [ string ] for Name.from
+> app/main/impl From[string] for Name.from
 >   local $0 value: string [param read] value
 >     uses $0: entry -> %1 consume last
 >   %0 = Retain %3 Entry local $0 #0 : ()

@@ -12,7 +12,7 @@ app/main/absent
   %7 = Coerce %4 [Identity -] : bool
   %8 = Block %7 : bool
   %9 = Closure #1 [%0 %0] : fn(Envelope) -> bool
-  %10 = Call std/result/impl [ T < ? Copy , E < ? Copy ] Result [ T , E ].map[Envelope, string, bool] (%1, %9) : Result[bool, string]
+  %10 = Call std/result/impl[T < ?Copy, E < ?Copy] Result[T, E].map[Envelope, string, bool] (%1, %9) : Result[bool, string]
   %10 keeps %9
   %11 = Block %10 : Result[bool, string]
   exit sub 0 drops [$0]

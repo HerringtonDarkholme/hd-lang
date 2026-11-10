@@ -75,5 +75,5 @@ fn tuple_key(m: Map[(string, i32), i32], s: string) -> i32:
 >   %1 = Read [$1] : string
 >   %2 = NewTuple - [%1 1:i32] : (string, i32)
 >   %3 = Intrinsic MapGet [%0 %2] : i32?
->   %4 = Call std/option/impl [ T < ? Copy ] T ?.unwrap_or[i32] (%3, 0:i32) : i32
+>   %4 = Call std/option/impl[T < ?Copy] T?.unwrap_or[i32] (%3, 0:i32) : i32
 >   %5 = Block %4 : i32

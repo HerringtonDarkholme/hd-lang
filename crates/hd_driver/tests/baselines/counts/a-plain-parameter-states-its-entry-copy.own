@@ -92,7 +92,7 @@ fn word(i: i32) -> string:
 >   %56 = Read borrow [$1] : string
 >   %57 = Call std/rt.memory/string_bytes[] (%56) : Ptr[u8]
 >   %58 = Read copy [$2] : usize
->   %59 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].offset[u8] (%57, %58) : Ptr[u8]
+>   %59 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].offset[u8] (%57, %58) : Ptr[u8]
 >   %60 = Read copy [$4] : usize
 >   %61 = Call std/rt.bytes/write_signed_sized[] (%55, %59, %60) : ()
 >   %62 = Break L0 - : never
@@ -305,7 +305,7 @@ pub fn main() -> void $ Console:
 >   %84 = Read borrow [$7] : &mut UniqList[i32]
 >   %85 = Read copy [$9] : usize
 >   %86 = Prim Add [%85 1:usize] : usize
->   %87 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].reserve_for[i32] (%84, %86) : ()
+>   %87 = Call std/collections/impl[T < ?Copy] UniqList[T].reserve_for[i32] (%84, %86) : ()
 >   %88 = Block - : ()
 >   %89 = If %83 [%88 -] : ()
 >   %90 = Ref local [*$7 .buffer] : &Buffer[i32]
@@ -314,7 +314,7 @@ pub fn main() -> void $ Console:
 >   %93 = Read copy [*%90 .address] : usize
 >   %94 = NewStruct [%93] : Ptr[i32]
 >   %95 = Read copy [$11] : usize
->   %96 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].offset[i32] (%94, %95) : Ptr[i32]
+>   %96 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].offset[i32] (%94, %95) : Ptr[i32]
 >   %97 = Break L1 %96 : never
 >   %98 = Block - : Ptr[i32]
 >   %99 = Scope %98 [] : Ptr[i32]

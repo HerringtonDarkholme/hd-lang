@@ -224,7 +224,7 @@ fn std_bodies_match_golden_tir() {
     let bodies = [
         ("std/console/println", "println"),
         ("std/text/simple_escape", "simple_escape"),
-        ("std/option/impl [ T < ? Copy ] T ?.map", "option_map"),
+        ("std/option/impl[T < ?Copy] T?.map", "option_map"),
         ("std/iter/Iterator.take", "iterator_take"),
     ];
     let paths: Vec<&str> = bodies.iter().map(|b| b.0).collect();

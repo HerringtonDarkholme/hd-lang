@@ -36,22 +36,22 @@ fn append(value: &mut Option[UniqList[string]], item: string) -> usize:
 >   %3 = Store [$3] %2 : ()
 >   %4 = Read borrow [$3] : &mut UniqList[string]
 >   %5 = Coerce %4 [Weaken -] : &UniqList[string]
->   %6 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].len[string] (%5) : usize
+>   %6 = Call std/collections/impl[T < ?Copy] UniqList[T].len[string] (%5) : usize
 >   %7 = Store [$5] %6 : ()
 >   %8 = Ref local [*$3 .buffer] : &Buffer[string]
->   %9 = Call std/rt.memory/impl [ T < ? Copy ] Buffer [ T ].capacity[string] (%8) : usize
+>   %9 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].capacity[string] (%8) : usize
 >   %10 = Drop [%8] : ()
 >   %11 = Read copy [$5] : usize
 >   %12 = Prim Le [%9 %11] : bool
 >   %13 = Read borrow [$3] : &mut UniqList[string]
 >   %14 = Read copy [$5] : usize
 >   %15 = Prim Add [%14 1:usize] : usize
->   %16 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].reserve_for[string] (%13, %15) : ()
+>   %16 = Call std/collections/impl[T < ?Copy] UniqList[T].reserve_for[string] (%13, %15) : ()
 >   %17 = Block - : ()
 >   %18 = If %12 [%17 -] : ()
 >   %19 = Ref local [*$3 .buffer] : &Buffer[string]
 >   %20 = Read copy [$5] : usize
->   %21 = Call std/rt.memory/impl [ T < ? Copy ] Buffer [ T ].at[string] (%19, %20) : Ptr[string]
+>   %21 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].at[string] (%19, %20) : Ptr[string]
 >   %22 = Drop [%19] : ()
 >   %23 = Read move [$1] : string
 >   %24 = Store [ptr %21] %23 : ()
@@ -66,7 +66,7 @@ fn append(value: &mut Option[UniqList[string]], item: string) -> usize:
             items.len()
 >   %32 = Read borrow [$2] : &mut UniqList[string]
 >   %33 = Coerce %32 [Weaken -] : &UniqList[string]
->   %34 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].len[string] (%33) : usize
+>   %34 = Call std/collections/impl[T < ?Copy] UniqList[T].len[string] (%33) : usize
         .None => 0
 >   %36 = Block 0:usize : usize
 >   %43 = Block - : never

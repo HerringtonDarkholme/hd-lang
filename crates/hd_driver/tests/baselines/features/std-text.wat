@@ -2,7 +2,7 @@
 (module
   (import "fixture" "impl string.split" (func $"impl string.split" (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "impl [ T < ? Copy ] UniqList [ T ].new[u8]" (func $"impl [ T < ? Copy ] UniqList [ T ].new[u8]" (result i32 i32 i32)))
+  (import "fixture" "impl[T < ?Copy] UniqList[T].new[u8]" (func $"impl[T < ?Copy] UniqList[T].new[u8]" (result i32 i32 i32)))
   (import "fixture" "rt:new/class-3" (func $rt:new/class-3 (param i32 i32) (result i32)))
   (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
   (import "fixture" "impl StringBuilder.push" (func $"impl StringBuilder.push" (param i32 i32 i32)))
@@ -89,7 +89,7 @@
     block
       block
         block
-          call $"impl [ T < ? Copy ] UniqList [ T ].new[u8]"
+          call $"impl[T < ?Copy] UniqList[T].new[u8]"
           local.set $p.0
           local.set $t0
           local.set $sb

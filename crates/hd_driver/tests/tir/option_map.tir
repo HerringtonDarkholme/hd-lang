@@ -1,4 +1,4 @@
-std/option/impl [ T < ? Copy ] T ?.map (Fn)
+std/option/impl[T < ?Copy] T?.map (Fn)
   local $0 self: T? [param read]
   local $1 transform: fn(T) -> U [param read]
   local $2 value: T [read assigned]

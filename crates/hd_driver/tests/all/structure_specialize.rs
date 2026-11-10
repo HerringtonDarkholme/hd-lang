@@ -201,11 +201,11 @@ fn a_closed_generated_walk_specializes_but_an_enum_get_keeps_its_check() {
     );
     let release_eq = own(&release, "derive Eq for Pair.eq");
     assert!(
-        !release_eq.contains("VariantRecord [ HdS ].holds"),
+        !release_eq.contains("VariantRecord[HdS].holds"),
         "{release_eq}"
     );
     assert!(
-        !release_eq.contains("FieldRecord [ HdS , HdF ].get"),
+        !release_eq.contains("FieldRecord[HdS, HdF].get"),
         "{release_eq}"
     );
     assert!(
@@ -214,7 +214,7 @@ fn a_closed_generated_walk_specializes_but_an_enum_get_keeps_its_check() {
     );
     let release_same = own(&release, "derive Same for Shape.same");
     assert!(
-        release_same.contains("FieldRecord [ HdS , HdF ].get"),
+        release_same.contains("FieldRecord[HdS, HdF].get"),
         "{release_same}"
     );
 

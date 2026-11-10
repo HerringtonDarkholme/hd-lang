@@ -119,10 +119,10 @@
       local.get $i
       local.get $s.0
       local.get $s.1
-      call $"impl IndexSet [ usize , string ] for Names.index_set"
+      call $"impl IndexSet[usize, string] for Names.index_set"
     end
   )
-  (func $"impl Index [ usize ] for Names.index" (param $self i32) (param $key i32) (result i32) (local $t0 i32) (local $t1 i32)
+  (func $"impl Index[usize] for Names.index" (param $self i32) (param $key i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 14 |         &self.items[key]
     block
       local.get $self
@@ -159,7 +159,7 @@
     end
     local.get $self
   )
-  (func $"impl IndexSet [ usize , string ] for Names.index_set" (param $self i32) (param $key i32) (param $value.0 i32) (param $value.1 i32) (local $t0 i32) (local $t1 i32)
+  (func $"impl IndexSet[usize, string] for Names.index_set" (param $self i32) (param $key i32) (param $value.0 i32) (param $value.1 i32) (local $t0 i32) (local $t1 i32)
     ;; 18 |         self.items[key] = value
     block
       local.get $self

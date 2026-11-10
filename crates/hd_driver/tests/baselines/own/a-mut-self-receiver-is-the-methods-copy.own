@@ -24,7 +24,7 @@ trait Bump:
 
 impl Bump for List[i64]:
     fn bump(mut self) -> usize:
-> app/main/impl Bump for List [ i64 ].bump
+> app/main/impl Bump for List[i64].bump
 >   local $0 self: List[i64] [param read] value
 >     uses $0: entry -> %2 lend, %4 lend last
 >   %0 = Retain %7 Entry local $0 #0 : ()

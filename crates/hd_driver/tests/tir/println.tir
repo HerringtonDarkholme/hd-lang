@@ -12,7 +12,7 @@ std/console/println (Fn)
   %6 = Call std/console/Console.write_sync for Console [] via TraitValue (%3, %5) : Result[(), ConsoleError]
   %7 = Store [$2] %6 : ()
   %8 = Ref local [$2] : &Result[(), ConsoleError]
-  %9 = Call std/result/impl [ T < ? Copy , E < ? Copy ] Result [ T , E ].is_err[(), ConsoleError] (%8) : bool
+  %9 = Call std/result/impl[T < ?Copy, E < ?Copy] Result[T, E].is_err[(), ConsoleError] (%8) : bool
   %10 = Call std/core/panic[] ("println: write_sync returned .Err(ConsoleError)") : never
   %11 = Block - : never
   %12 = If %9 [%11 -] : ()
@@ -20,7 +20,7 @@ std/console/println (Fn)
   %14 = Call std/console/Console.write_sync for Console [] via TraitValue (%13, "\n") : Result[(), ConsoleError]
   %15 = Store [$3] %14 : ()
   %16 = Ref local [$3] : &Result[(), ConsoleError]
-  %17 = Call std/result/impl [ T < ? Copy , E < ? Copy ] Result [ T , E ].is_err[(), ConsoleError] (%16) : bool
+  %17 = Call std/result/impl[T < ?Copy, E < ?Copy] Result[T, E].is_err[(), ConsoleError] (%16) : bool
   %18 = Call std/core/panic[] ("println: write_sync returned .Err(ConsoleError)") : never
   %19 = Block - : never
   %20 = If %17 [%19 -] : ()

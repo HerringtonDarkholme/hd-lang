@@ -208,7 +208,7 @@ fn greeting(input: string) -> string:
 >   %144 = Read borrow [$4] : string
 >   %145 = Call std/rt.memory/string_bytes[] (%144) : Ptr[u8]
 >   %146 = Read copy [$5] : usize
->   %147 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].offset[u8] (%145, %146) : Ptr[u8]
+>   %147 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].offset[u8] (%145, %146) : Ptr[u8]
 >   %148 = Read copy [$7] : usize
 >   %149 = Call std/rt.bytes/write_unsigned_sized[] (%143, %147, %148) : ()
 >   %150 = Break L0 - : never

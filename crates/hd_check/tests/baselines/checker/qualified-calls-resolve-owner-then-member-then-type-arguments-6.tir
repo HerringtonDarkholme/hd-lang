@@ -6,7 +6,7 @@ struct Box[T]:
 
 impl[T] Box[T]:
     fn make[V](value: V) -> Box[V]: Box { value: value }
-> app/main/impl [ T ] Box [ T ].make
+> app/main/impl[T] Box[T].make
 >   local $0 value: V [param read]
 >   %0 = Read [$0] : V
 >   %1 = NewStruct [%0] : Box[V]
@@ -15,5 +15,5 @@ impl[T] Box[T]:
 fn run() -> Box[i64]:
     Box::make::[i64](3)
 > app/main/run
->   %0 = Call app/main/impl [ T ] Box [ T ].make[_, i64] (3:i64) : Box[i64]
+>   %0 = Call app/main/impl[T] Box[T].make[_, i64] (3:i64) : Box[i64]
 >   %1 = Block %0 : Box[i64]

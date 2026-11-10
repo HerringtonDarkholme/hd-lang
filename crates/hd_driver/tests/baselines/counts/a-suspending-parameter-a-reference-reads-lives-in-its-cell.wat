@@ -2,11 +2,11 @@
 (module
   (import "fixture" "room" (func $room (param i32 i32) (result i32)))
   (import "fixture" "rt:new/class-3" (func $rt:new/class-3 (param i32 i32) (result i32)))
-  (import "fixture" "impl [ T < ? Copy ] UniqList [ T ].len[i32]" (func $"impl [ T < ? Copy ] UniqList [ T ].len[i32]" (param i32) (result i32)))
-  (import "fixture" "impl [ T < ? Copy ] Buffer [ T ].capacity[i32]" (func $"impl [ T < ? Copy ] Buffer [ T ].capacity[i32]" (param i32) (result i32)))
+  (import "fixture" "impl[T < ?Copy] UniqList[T].len[i32]" (func $"impl[T < ?Copy] UniqList[T].len[i32]" (param i32) (result i32)))
+  (import "fixture" "impl[T < ?Copy] Buffer[T].capacity[i32]" (func $"impl[T < ?Copy] Buffer[T].capacity[i32]" (param i32) (result i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
-  (import "fixture" "impl [ T < ? Copy ] UniqList [ T ].reserve_for[i32]" (func $"impl [ T < ? Copy ] UniqList [ T ].reserve_for[i32]" (param i32 i32)))
-  (import "fixture" "impl [ T < ? Copy ] Buffer [ T ].at[i32]" (func $"impl [ T < ? Copy ] Buffer [ T ].at[i32]" (param i32 i32) (result i32)))
+  (import "fixture" "impl[T < ?Copy] UniqList[T].reserve_for[i32]" (func $"impl[T < ?Copy] UniqList[T].reserve_for[i32]" (param i32 i32)))
+  (import "fixture" "impl[T < ?Copy] Buffer[T].at[i32]" (func $"impl[T < ?Copy] Buffer[T].at[i32]" (param i32 i32) (result i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:frame'1" (func $rt:frame'1 (result i32)))
   (import "fixture" "retain" (func $retain (param i32)))
@@ -378,10 +378,10 @@
         block
           block
             local.get $t55
-            call $"impl [ T < ? Copy ] UniqList [ T ].len[i32]"
+            call $"impl[T < ?Copy] UniqList[T].len[i32]"
             local.set $t45
             local.get $t55
-            call $"impl [ T < ? Copy ] Buffer [ T ].capacity[i32]"
+            call $"impl[T < ?Copy] Buffer[T].capacity[i32]"
             local.get $t45
             i32.le_u
             if
@@ -396,11 +396,11 @@
               local.get $t45
               i32.const 1
               i32.add
-              call $"impl [ T < ? Copy ] UniqList [ T ].reserve_for[i32]"
+              call $"impl[T < ?Copy] UniqList[T].reserve_for[i32]"
             end
             local.get $t55
             local.get $t45
-            call $"impl [ T < ? Copy ] Buffer [ T ].at[i32]"
+            call $"impl[T < ?Copy] Buffer[T].at[i32]"
             local.get $t56
             i32.store $heap
             local.get $t45
@@ -1617,7 +1617,7 @@
       end
     ;; 9 |     u.len()
       local.get $u
-      call $"impl [ T < ? Copy ] UniqList [ T ].len[i32]"
+      call $"impl[T < ?Copy] UniqList[T].len[i32]"
     ;; 8 |     sleep!(ms(1))
       local.get $u
       local.tee $provider0

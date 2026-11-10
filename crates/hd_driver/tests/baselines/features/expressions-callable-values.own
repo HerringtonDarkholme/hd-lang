@@ -25,7 +25,7 @@ impl Apply for Cell:
 
 impl Update[string] for Cell:
     fn update(&mut self, value: string) -> void:
-> app/main/impl Update [ string ] for Cell.update
+> app/main/impl Update[string] for Cell.update
 >   local $0 self: &mut Cell [param read] value
 >     uses $0: entry -> %2 lend last
 >   local $1 value: string [param read] value

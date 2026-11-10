@@ -6,7 +6,7 @@ struct Box[T]:
 
 impl[T] Box[T]:
     fn pick[V](value: V) -> V: value
-> app/main/impl [ T ] Box [ T ].pick
+> app/main/impl[T] Box[T].pick
 >   local $0 value: V [param read]
 >   %0 = Read [$0] : V
 >   %1 = Block %0 : V
@@ -14,5 +14,5 @@ impl[T] Box[T]:
 fn run() -> i32:
     Box::pick::[i32](3)
 > app/main/run
->   %0 = Call app/main/impl [ T ] Box [ T ].pick[_, i32] (3:i32) : i32
+>   %0 = Call app/main/impl[T] Box[T].pick[_, i32] (3:i32) : i32
 >   %1 = Block %0 : i32

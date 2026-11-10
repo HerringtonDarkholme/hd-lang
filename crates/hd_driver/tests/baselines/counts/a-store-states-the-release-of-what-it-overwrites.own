@@ -96,7 +96,7 @@ fn make(n: i32) -> string:
 >   %56 = Read borrow [$1] : string
 >   %57 = Call std/rt.memory/string_bytes[] (%56) : Ptr[u8]
 >   %58 = Read copy [$2] : usize
->   %59 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].offset[u8] (%57, %58) : Ptr[u8]
+>   %59 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].offset[u8] (%57, %58) : Ptr[u8]
 >   %60 = Read copy [$4] : usize
 >   %61 = Call std/rt.bytes/write_signed_sized[] (%55, %59, %60) : ()
 >   %62 = Break L0 - : never

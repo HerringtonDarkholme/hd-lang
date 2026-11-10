@@ -52,5 +52,5 @@ fn or_default(o: string?) -> string:
 > app/main/or_default
 >   local $0 o: string? [param read]
 >   %0 = Read [$0] : string?
->   %1 = Call std/option/impl [ T < ? Copy ] T ?.unwrap_or[string] (%0, "none") : string
+>   %1 = Call std/option/impl[T < ?Copy] T?.unwrap_or[string] (%0, "none") : string
 >   %2 = Block %1 : string

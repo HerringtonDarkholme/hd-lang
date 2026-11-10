@@ -16,7 +16,7 @@ impl Iterator[string] for Words:
             return .None
         self.at += 1
         .Some(self.items[self.at - 1])
-> app/main/impl Iterator [ string ] for Words.next
+> app/main/impl Iterator[string] for Words.next
 >   retain string (stored)
 
 fn user_cursor(words: Words) -> usize:

@@ -24,18 +24,18 @@ impl Bag:
 >   local $3 address: usize [:= read assigned] value
 >     uses $3: %12 -> %14 lend last
 >   %0 = Ref local [*$0 .buffer] : &Buffer[i32]
->   %1 = Call std/rt.memory/impl [ T < ? Copy ] Buffer [ T ].capacity[i32] (%0) : usize
+>   %1 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].capacity[i32] (%0) : usize
 >   %2 = Drop [%0] : ()
 >   %3 = Store [$2] %1 : ()
 >   %16 = Block %15 : usize
         self.buffer.grow(len)
 >   %4 = Ref mut local [*$0 .buffer] : &mut Buffer[i32]
 >   %5 = Read copy [$1] : usize
->   %6 = Call std/rt.memory/impl [ T < ? Copy ] Buffer [ T ].grow[i32] (%4, %5) : ()
+>   %6 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].grow[i32] (%4, %5) : ()
 >   %7 = Drop [%4] : ()
         address := self.buffer.at(0).address
 >   %8 = Ref local [*$0 .buffer] : &Buffer[i32]
->   %9 = Call std/rt.memory/impl [ T < ? Copy ] Buffer [ T ].at[i32] (%8, 0:usize) : Ptr[i32]
+>   %9 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].at[i32] (%8, 0:usize) : Ptr[i32]
 >   %10 = Drop [%8] : ()
 >   %11 = Read copy [%9 .address] : usize
 >   %12 = Store [$3] %11 : ()

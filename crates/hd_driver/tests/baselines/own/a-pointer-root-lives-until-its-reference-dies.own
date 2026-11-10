@@ -40,9 +40,9 @@ fn probe(items: UniqList[string]) -> string:
 >   %12 = Block %11 : &string?
 >   %13 = Ref local [*$5 .buffer] : &Buffer[string]
 >   %14 = Read copy [$6] : usize
->   %15 = Call std/rt.memory/impl [ T < ? Copy ] Buffer [ T ].at[string] (%13, %14) : Ptr[string]
+>   %15 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].at[string] (%13, %14) : Ptr[string]
 >   %16 = Drop [%13] : ()
->   %17 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].as_ref[string] (%15) : &string
+>   %17 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].as_ref[string] (%15) : &string
 >   %18 = NewVariant #1 [%17] : &string?
 >   %19 = Block %18 : &string?
 >   %20 = If %10 [%12 %19] : &string?
@@ -50,7 +50,7 @@ fn probe(items: UniqList[string]) -> string:
 >   %22 = Block - : &string?
 >   %23 = Scope %22 [] : &string?
 >   %24 = Drop [$5] : ()
->   %25 = Call std/option/impl [ T < ? Copy ] T ?.expect[&string] (%23, "slot") : &string
+>   %25 = Call std/option/impl[T < ?Copy] T?.expect[&string] (%23, "slot") : &string
 >   %26 = Store [$3] %25 : ()
     junk := "j".repeat(4)
 >   %27 = Call std/text/impl string.repeat[] ("j", 4:usize) : string

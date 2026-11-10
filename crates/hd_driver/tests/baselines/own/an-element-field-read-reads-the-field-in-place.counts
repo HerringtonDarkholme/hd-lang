@@ -19,18 +19,18 @@ struct Members[T]:
 impl[T] Members[T]:
     fn position_at(self, i: usize) -> usize:
         self.infos[i].position
-> app/main/impl [ T ] Members [ T ].position_at
+> app/main/impl[T] Members[T].position_at
 >   release app.main.Members[i32] [infos, points] (last use)
 
     fn name_at(self, i: usize) -> string:
         self.infos[i].name
-> app/main/impl [ T ] Members [ T ].name_at
+> app/main/impl[T] Members[T].name_at
 >   retain string (stored)
 >   release app.main.Members[i32] [infos, points] (last use)
 
     fn y_at(self, i: usize) -> i64:
         self.points[i].y
-> app/main/impl [ T ] Members [ T ].y_at
+> app/main/impl[T] Members[T].y_at
 >   release app.main.Members[i32] [infos, points] (last use)
 
 fn position_at(infos: List[Info], i: usize) -> usize:

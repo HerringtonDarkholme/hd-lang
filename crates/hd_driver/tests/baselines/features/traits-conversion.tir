@@ -12,7 +12,7 @@ struct Name:
 impl From[string] for Name:
     fn from(value: string) -> Name:
         Name { text: value }
-> app/main/impl From [ string ] for Name.from
+> app/main/impl From[string] for Name.from
 >   local $0 value: string [param read]
 >   %0 = Read [$0] : string
 >   %1 = NewStruct [%0] : Name

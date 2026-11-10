@@ -126,7 +126,7 @@ fn interp(a: string, n: i64) -> string:
 >   %85 = Read borrow [$2] : string
 >   %86 = Call std/rt.memory/string_bytes[] (%85) : Ptr[u8]
 >   %87 = Read copy [$3] : usize
->   %88 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].offset[u8] (%86, %87) : Ptr[u8]
+>   %88 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].offset[u8] (%86, %87) : Ptr[u8]
 >   %89 = Read copy [$5] : usize
 >   %90 = Call std/rt.bytes/write_signed_sized[] (%84, %88, %89) : ()
 >   %91 = Break L0 - : never

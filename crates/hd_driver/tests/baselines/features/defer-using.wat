@@ -6,7 +6,7 @@
   (import "fixture" "rt:new/class-2" (func $rt:new/class-2 (param i32 i32) (result i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
-  (import "fixture" "impl [ $ R , 'a , F < FnMut ( ) -> void $ R & 'a ] Disposable [ $ R ] for DeferGuard [ F , $ R , 'a ].dispose[$(), fn() -> ()]" (func $"impl [ $ R , 'a , F < FnMut ( ) -> void $ R & 'a ] Disposable [ $ R ] for DeferGuard [ F , $ R , 'a ].dispose[$(), fn() -> ()]" (param i32)))
+  (import "fixture" "impl[$ R, 'a, F < FnMut() -> void $ R & 'a] Disposable[$ R] for DeferGuard[F, $ R, 'a].dispose[$(), fn() -> ()]" (func $"impl[$ R, 'a, F < FnMut() -> void $ R & 'a] Disposable[$ R] for DeferGuard[F, $ R, 'a].dispose[$(), fn() -> ()]" (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "forbid" (global $forbid (mut i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
@@ -253,7 +253,7 @@
           i32.store $heap offset=4
         end
         local.get $t1
-        call $"impl [ $ R , 'a , F < FnMut ( ) -> void $ R & 'a ] Disposable [ $ R ] for DeferGuard [ F , $ R , 'a ].dispose[$(), fn() -> ()]"
+        call $"impl[$ R, 'a, F < FnMut() -> void $ R & 'a] Disposable[$ R] for DeferGuard[F, $ R, 'a].dispose[$(), fn() -> ()]"
         global.get $forbid
         i32.const -1
         i32.add

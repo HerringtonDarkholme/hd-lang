@@ -27,7 +27,7 @@ fn stop!(key: string) -> bool:
 >   %20 = Block %19 : bool
     end := job.cancel!()
 >   %3 = Read [$1] : Suspend[string]
->   %4 = Await std/task/impl [ T ] Suspend [ T ].cancel[string] (%3) : CleanupEnd
+>   %4 = Await std/task/impl[T] Suspend[T].cancel[string] (%3) : CleanupEnd
 >   %5 = Store [$2] %4 : ()
     match end:
 >   %6 = Read [$2] : CleanupEnd
@@ -55,4 +55,4 @@ fn drop_now(key: string) -> void:
 >   %5 = Block - : ()
     job.abandon()
 >   %3 = Read [$1] : Suspend[string]
->   %4 = Call std/task/impl [ T ] Suspend [ T ].abandon[string] (%3) : ()
+>   %4 = Call std/task/impl[T] Suspend[T].abandon[string] (%3) : ()

@@ -16,7 +16,7 @@ fn push_len['a](out: &mut List[&'a string], xs: &List[string]) -> usize:
 >   %0 = Read borrow [$0] : &mut List[&string]
 >   %1 = Read borrow [*$1] : List[string]
 >   %2 = Intrinsic ListLen [%1] : usize
->   %3 = Call std/collections/impl [ T ] List [ T ].reserve[&string] (%0, %2) : ()
+>   %3 = Call std/collections/impl[T] List[T].reserve[&string] (%0, %2) : ()
 >   %6 = Block %5 : usize
     xs.len()
 >   %4 = Read borrow [*$1] : List[string]

@@ -5,13 +5,6 @@
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $"impl From [ ReadError ] for AppError.from" (param $value.0 i32) (param $value.1 i32) (result i32 i32)
-    ;; 17 |         AppError.Read(value)
-    block
-    end
-    local.get $value.0
-    local.get $value.1
-  )
   (func $result_try (param $path.0 i32) (param $path.1 i32) (result i32 i32) (local $text.0 i32) (local $text.1 i32) (local $t0 i32)
     ;; 23 |     text := read(path)?
     block
@@ -248,5 +241,12 @@
     local.get $path.0
     local.get $path.1
     local.get $t0
+  )
+  (func $"impl From[ReadError] for AppError.from" (param $value.0 i32) (param $value.1 i32) (result i32 i32)
+    ;; 17 |         AppError.Read(value)
+    block
+    end
+    local.get $value.0
+    local.get $value.1
   )
 )

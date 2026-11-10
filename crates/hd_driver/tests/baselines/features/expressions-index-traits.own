@@ -13,7 +13,7 @@ impl Index[usize] for Names:
     type Out = string
     fn index(&self, key: usize) -> &string:
         &self.items[key]
-> app/main/impl Index [ usize ] for Names.index
+> app/main/impl Index[usize] for Names.index
 >   local $0 self: &Names [param read] value
 >     uses $0: entry -> %2 lend last
 >   local $1 key: usize [param read] value
@@ -26,7 +26,7 @@ impl Index[usize] for Names:
 
 impl IndexSet[usize, string] for Names:
     fn index_set(&mut self, key: usize, value: string) -> void:
-> app/main/impl IndexSet [ usize , string ] for Names.index_set
+> app/main/impl IndexSet[usize, string] for Names.index_set
 >   local $0 self: &mut Names [param read] value
 >     uses $0: entry -> %4 lend last
 >   local $1 key: usize [param read] value

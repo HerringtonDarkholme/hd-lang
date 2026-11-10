@@ -21,7 +21,7 @@ fn signed(value: i64, room: &mut Buffer[u8]) -> (usize, usize):
 >   %4 = Read copy [*%2 .address] : usize
 >   %5 = NewStruct [%4] : Ptr[u8]
 >   %6 = Read copy [$3] : usize
->   %7 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].offset[u8] (%5, %6) : Ptr[u8]
+>   %7 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].offset[u8] (%5, %6) : Ptr[u8]
 >   %8 = Break L0 %7 : never
 >   %9 = Block - : Ptr[u8]
 >   %10 = Scope %9 [] : Ptr[u8]
@@ -45,7 +45,7 @@ fn unsigned(value: u64, room: &mut Buffer[u8]) -> (usize, usize):
 >   %4 = Read copy [*%2 .address] : usize
 >   %5 = NewStruct [%4] : Ptr[u8]
 >   %6 = Read copy [$3] : usize
->   %7 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].offset[u8] (%5, %6) : Ptr[u8]
+>   %7 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].offset[u8] (%5, %6) : Ptr[u8]
 >   %8 = Break L0 %7 : never
 >   %9 = Block - : Ptr[u8]
 >   %10 = Scope %9 [] : Ptr[u8]

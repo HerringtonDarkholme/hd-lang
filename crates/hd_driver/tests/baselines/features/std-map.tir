@@ -53,7 +53,7 @@ fn group(m: &mut Map[string, List[string]], k: string, v: string) -> void:
 >   %0 = Read [$0] : &mut Map[string, List[string]]
 >   %1 = Read [$1] : string
 >   %2 = NewList - [] : List[string]
->   %3 = Call std/collections/impl [ K < Eq & Hash , V ] Map [ K , V ].get_or_insert[string, List[string]] (%0, %1, %2) : &mut List[string]
+>   %3 = Call std/collections/impl[K < Eq & Hash, V] Map[K, V].get_or_insert[string, List[string]] (%0, %1, %2) : &mut List[string]
 >   %4 = Read [*%3] : List[string]
 >   %5 = Read [$2] : string
 >   %6 = Intrinsic ListPush [%4 %5] : ()
@@ -66,5 +66,5 @@ fn has(m: &Map[string, string], k: string) -> bool:
 >   local $1 k: string [param read]
 >   %0 = Read [$0] : &Map[string, string]
 >   %1 = Read [$1] : string
->   %2 = Call std/collections/impl [ K < Eq & Hash , V ] Map [ K , V ].contains_key[string, string] (%0, %1) : bool
+>   %2 = Call std/collections/impl[K < Eq & Hash, V] Map[K, V].contains_key[string, string] (%0, %1) : bool
 >   %3 = Block %2 : bool

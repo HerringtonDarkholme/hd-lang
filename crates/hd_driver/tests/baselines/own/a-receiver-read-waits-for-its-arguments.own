@@ -49,7 +49,7 @@ impl Members:
 >   local $1 info: Info [read assigned] value
 >     uses $1: %7 -> %3 consume last
 >   %0 = Ref mut local [*$0 .infos] : &mut List[Info]
->   %1 = Call std/collections/impl [ T ] List [ T ].pop[Info] (%0) : Info?
+>   %1 = Call std/collections/impl[T] List[T].pop[Info] (%0) : Info?
 >   %2 = Drop [%0] : ()
 >   %17 = Block - : never
 >   %18 = Match %1 [%17 %4 %5] : usize

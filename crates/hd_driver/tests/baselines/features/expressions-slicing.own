@@ -49,7 +49,7 @@ fn list_slice(xs: List[string]) -> List[string]:
 >   %1 = Read borrow [$0] : List[string]
 >   %2 = Intrinsic ListLen [%1] : usize
 >   %3 = Ref local frame [$0] : &List[string]
->   %4 = Call std/collections/impl [ T ] List [ T ].slice[string] (%3, 1:usize, %2) : List[string]
+>   %4 = Call std/collections/impl[T] List[T].slice[string] (%3, 1:usize, %2) : List[string]
 >   %5 = LoanEnd [%3] : ()
 >   %6 = Drop [$0] : ()
 >   %7 = Block %4 : List[string]
@@ -65,7 +65,7 @@ fn list_full(xs: List[string]) -> List[string]:
 >   %1 = Read borrow [$0] : List[string]
 >   %2 = Intrinsic ListLen [%1] : usize
 >   %3 = Ref local frame [$0] : &List[string]
->   %4 = Call std/collections/impl [ T ] List [ T ].slice[string] (%3, 0:usize, %2) : List[string]
+>   %4 = Call std/collections/impl[T] List[T].slice[string] (%3, 0:usize, %2) : List[string]
 >   %5 = LoanEnd [%3] : ()
 >   %6 = Drop [$0] : ()
 >   %7 = Block %4 : List[string]
@@ -79,7 +79,7 @@ fn list_slice_len(xs: List[string]) -> usize:
 >   %0 = Retain %7 Entry local $0 #0 : ()
     xs.slice(0, 2).len()
 >   %1 = Ref local frame [$0] : &List[string]
->   %2 = Call std/collections/impl [ T ] List [ T ].slice[string] (%1, 0:usize, 2:usize) : List[string]
+>   %2 = Call std/collections/impl[T] List[T].slice[string] (%1, 0:usize, 2:usize) : List[string]
 >   %3 = LoanEnd [%1] : ()
 >   %4 = Drop [$0] : ()
 >   %5 = Intrinsic ListLen [%2] : usize

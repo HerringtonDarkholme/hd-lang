@@ -10,7 +10,7 @@ struct Sink:
 impl Update[string] for Sink:
     fn update(&mut self, value: string) -> void:
         self.text = value
-> app/main/impl Update [ string ] for Sink.update
+> app/main/impl Update[string] for Sink.update
 >   release counted reference (overwritten)
 
 fn helper!() -> string:

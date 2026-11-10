@@ -4,7 +4,7 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "impl [ T ] Iterator [ T ] for ListIter [ T ].next[string]" (func $"impl [ T ] Iterator [ T ] for ListIter [ T ].next[string]" (param i32) (result i32 i32)))
+  (import "fixture" "impl[T] Iterator[T] for ListIter[T].next[string]" (func $"impl[T] Iterator[T] for ListIter[T].next[string]" (param i32) (result i32 i32)))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
@@ -200,7 +200,7 @@
       i32.store $heap offset=4
     ;; 18 |     match cursor.next():
       local.get $t1
-      call $"impl [ T ] Iterator [ T ] for ListIter [ T ].next[string]"
+      call $"impl[T] Iterator[T] for ListIter[T].next[string]"
       local.set $s.1
       local.set $s.0
     ;; 15 |     let mut items = values

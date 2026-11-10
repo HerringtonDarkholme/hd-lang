@@ -61,7 +61,7 @@ fn mapped(error: string) -> Result[i32, Errors]:
 >   %3 = NewVariant #0 [%2] : string | bool
 >   %4 = Block %3 : string | bool
 >   %5 = Closure #1 [%0 %0] : fn(string) -> string | bool
->   %6 = Call std/result/impl [ T < ? Copy , E < ? Copy ] Result [ T , E ].map_err[i32, string, string | bool] (%1, %5) : Result[i32, string | bool]
+>   %6 = Call std/result/impl[T < ?Copy, E < ?Copy] Result[T, E].map_err[i32, string, string | bool] (%1, %5) : Result[i32, string | bool]
 >   %7 = Block %6 : Result[i32, string | bool]
 
 fn visit(value: i32 | string) -> void:

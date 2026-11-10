@@ -12,7 +12,7 @@
   (import "fixture" "rt:new/class-1'1" (func $rt:new/class-1'1 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "room" (func $room (param i32 i32) (result i32)))
-  (import "fixture" "impl [ T < ? Copy ] UniqList [ T ].reserve_for[i32]" (func $"impl [ T < ? Copy ] UniqList [ T ].reserve_for[i32]" (param i32 i32)))
+  (import "fixture" "impl[T < ?Copy] UniqList[T].reserve_for[i32]" (func $"impl[T < ?Copy] UniqList[T].reserve_for[i32]" (param i32 i32)))
   (import "fixture" "rt:drop" (func $rt:drop (param i32)))
   (import "fixture" "rt:drop_value" (func $rt:drop_value (param i32 i32 i32 i32 i32)))
   (import "fixture" "rt:new/class-1'2" (func $rt:new/class-1'2 (param i32 i32) (result i32)))
@@ -577,7 +577,7 @@
             local.get $t4
             i32.const 1
             i32.add
-            call $"impl [ T < ? Copy ] UniqList [ T ].reserve_for[i32]"
+            call $"impl[T < ?Copy] UniqList[T].reserve_for[i32]"
           end
           block
             block

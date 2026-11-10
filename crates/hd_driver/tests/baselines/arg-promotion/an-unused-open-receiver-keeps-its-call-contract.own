@@ -10,7 +10,7 @@ struct Room[T]:
 impl[T] Room[T]:
     fn count(&self) -> usize:
         2
-> app/main/impl [ T ] Room [ T ].count
+> app/main/impl[T] Room[T].count
 >   %0 = Block 2:usize : usize
 >   summary kept []
 
@@ -20,6 +20,6 @@ fn caller[T](room: &Room[T]) -> usize:
 >   local $0 room: &Room[T] [param read] value
 >     uses $0: entry -> %0 lend last
 >   %0 = Read borrow [$0] : &Room[T]
->   %1 = Call app/main/impl [ T ] Room [ T ].count[T] (%0) : usize
+>   %1 = Call app/main/impl[T] Room[T].count[T] (%0) : usize
 >   %2 = Block %1 : usize
 >   summary kept [] writes

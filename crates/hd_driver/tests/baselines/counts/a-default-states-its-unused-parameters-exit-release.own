@@ -219,7 +219,7 @@ fn join(
 >   %122 = Read borrow [$4] : string
 >   %123 = Call std/rt.memory/string_bytes[] (%122) : Ptr[u8]
 >   %124 = Read copy [$5] : usize
->   %125 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].offset[u8] (%123, %124) : Ptr[u8]
+>   %125 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].offset[u8] (%123, %124) : Ptr[u8]
 >   %126 = Read copy [$7] : usize
 >   %127 = Call std/rt.bytes/write_unsigned_sized[] (%121, %125, %126) : ()
 >   %128 = Break L0 - : never

@@ -107,7 +107,7 @@ pub fn main!() -> void $ Console:
 >   %47 = Read borrow [$3] : string
 >   %48 = Call std/rt.memory/string_bytes[] (%47) : Ptr[u8]
 >   %49 = Read copy [$4] : usize
->   %50 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].offset[u8] (%48, %49) : Ptr[u8]
+>   %50 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].offset[u8] (%48, %49) : Ptr[u8]
 >   %51 = Read copy [$6] : usize
 >   %52 = Call std/rt.bytes/write_unsigned_sized[] (%46, %50, %51) : ()
 >   %53 = Break L0 - : never

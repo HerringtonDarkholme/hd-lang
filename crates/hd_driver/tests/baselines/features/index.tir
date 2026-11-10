@@ -83,7 +83,7 @@ fn uniq_read(xs: &UniqList[string], i: usize) -> usize:
 >   local $2 s: &string [read assigned]
 >   %0 = Read [$0] : &UniqList[string]
 >   %1 = Read [$1] : usize
->   %2 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].get_ref[string] (%0, %1) : &string?
+>   %2 = Call std/collections/impl[T < ?Copy] UniqList[T].get_ref[string] (%0, %1) : &string?
 >   %18 = Block - : never
 >   %19 = Match %2 [%18 %5 %6] : usize
 >   %20 = Block %19 : usize
@@ -111,7 +111,7 @@ fn uniq_write(xs: &mut UniqList[string], i: usize, s: string) -> void:
 >   local $3 r: &mut string [read assigned]
 >   %0 = Read [$0] : &mut UniqList[string]
 >   %1 = Read [$1] : usize
->   %2 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].get_mut[string] (%0, %1) : &mut string?
+>   %2 = Call std/collections/impl[T < ?Copy] UniqList[T].get_mut[string] (%0, %1) : &mut string?
 >   %19 = Block - : never
 >   %20 = Match %2 [%19 %5 %7] : ()
 >   %21 = Block - : ()

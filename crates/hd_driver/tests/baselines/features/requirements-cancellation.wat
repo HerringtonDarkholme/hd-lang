@@ -10,7 +10,7 @@
   (import "fixture" "rt:frame'1" (func $rt:frame'1 (result i32)))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
-  (import "fixture" "impl [ T ] Suspend [ T ].cancel[string]" (func $"impl [ T ] Suspend [ T ].cancel[string]" (param i32 i32) (result i32 i32)))
+  (import "fixture" "impl[T] Suspend[T].cancel[string]" (func $"impl[T] Suspend[T].cancel[string]" (param i32 i32) (result i32 i32)))
   (import "fixture" "rt:frame'2" (func $rt:frame'2 (result i32)))
   (import "fixture" "aband" (global $aband (mut i32)))
   (import "fixture" "rewake" (global $rewake (mut i32)))
@@ -363,7 +363,7 @@
           end
           local.get $t5
           local.get $t2
-          call $"impl [ T ] Suspend [ T ].cancel[string]"
+          call $"impl[T] Suspend[T].cancel[string]"
           local.set $t4
           local.set $t3
           local.get $t4

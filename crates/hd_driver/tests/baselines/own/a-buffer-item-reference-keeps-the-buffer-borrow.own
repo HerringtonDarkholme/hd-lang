@@ -9,7 +9,7 @@ fn element['a, T < ?Copy](buffer: &'a Buffer[T]) -> &'a T:
 >   local $0 buffer: &Buffer[T] [param read] value
 >     uses $0: entry -> %0 lend last
 >   %0 = Read borrow [$0] : &Buffer[T]
->   %1 = Call std/rt.memory/impl [ T < ? Copy ] Buffer [ T ].at[T] (%0, 0:usize) : Ptr[T]
->   %2 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].as_ref[T] (%1) : &T
+>   %1 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].at[T] (%0, 0:usize) : Ptr[T]
+>   %2 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].as_ref[T] (%1) : &T
 >   %3 = Drop [%1] : ()
 >   %4 = Block %2 : &T

@@ -14,7 +14,7 @@ impl[T < ?Copy] !Copy for Room[T]
 impl[T < ?Copy] Room[T]:
     fn at(&self, index: usize) -> usize:
         self.address + index * 4
-> app/main/impl [ T < ? Copy ] Room [ T ].at
+> app/main/impl[T < ?Copy] Room[T].at
 >   local $0 self: &Room[T] [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 index: usize [param read] value

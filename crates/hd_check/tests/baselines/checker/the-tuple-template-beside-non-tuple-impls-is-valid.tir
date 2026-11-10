@@ -29,13 +29,13 @@ impl[S] Walker[S] for Encoder:
 
     fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
         .Ok(())
-> app/main/impl [ S ] Walker [ S ] for Encoder.variant
+> app/main/impl[S] Walker[S] for Encoder.variant
 >   %0 = NewVariant #0 [-] : Result[(), never]
 >   %1 = Block %0 : Result[(), never]
 
     fn member[F < Encode](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
         self.out = self.out + value.encode() + ";"
-> app/main/impl [ S ] Walker [ S ] for Encoder.member
+> app/main/impl[S] Walker[S] for Encoder.member
 >   %0 = Read [*$0 .out] : string
 >   %1 = Read [*$2] : F
 >   %2 = Call app/main/Encode.encode for F [] via Bound (%1) : string
@@ -49,7 +49,7 @@ impl[S] Walker[S] for Encoder:
 impl[T < Tuple] Encode for T by Structure:
     fn encode(self) -> string:
         let mut w = Encoder { out: "" }
-> app/main/impl [ T < Tuple ] Encode for T by Structure.encode
+> app/main/impl[T < Tuple] Encode for T by Structure.encode
 >   local $0 self: T [param read captured]
 >   local $1 w: Encoder [read assigned captured captured-assigned]
 >   %0 = NewStruct [""] : Encoder
@@ -74,5 +74,5 @@ impl Encode for Pair:
 impl Encode for List[i64]:
     fn encode(self) -> string:
         "list"
-> app/main/impl Encode for List [ i64 ].encode
+> app/main/impl Encode for List[i64].encode
 >   %0 = Block "list" : string

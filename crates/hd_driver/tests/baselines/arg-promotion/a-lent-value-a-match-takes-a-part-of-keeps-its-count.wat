@@ -14,7 +14,7 @@
       local.get $b.0
       local.get $b.1
       local.get $b.2
-      call $"impl [ T < Eq ] Same for Res [ T ].same[string]'1"
+      call $"impl[T < Eq] Same for Res[T].same[string]'1"
       local.get $a.0
       local.get $a.1
       local.get $a.2
@@ -41,7 +41,7 @@
     end
     local.get $x.0
   )
-  (func $"impl [ T < Eq ] Same for Res [ T ].same[string]'1" (param $self.0 i32) (param $self.1 i32) (param $self.2 i32) (param $other.0 i32) (param $other.1 i32) (param $other.2 i32) (result i32) (local $left.0'1 i32) (local $left.0'2 i32) (local $t1 i32) (local $right.0 i32) (local $t0 i32)
+  (func $"impl[T < Eq] Same for Res[T].same[string]'1" (param $self.0 i32) (param $self.1 i32) (param $self.2 i32) (param $other.0 i32) (param $other.1 i32) (param $other.2 i32) (result i32) (local $left.0'1 i32) (local $left.0'2 i32) (local $t1 i32) (local $right.0 i32) (local $t0 i32)
     ;; 19 |         match *self:
     block
       block
@@ -202,7 +202,7 @@
     end
     local.get $self.0
   )
-  (func $"impl [ T < Eq ] Same for Res [ T ].same[string]'2" (param $self i32) (param $other i32) (result i32) (local $right.1 i32) (local $left.1 i32) (local $left.0'1 i32) (local $left.0'2 i32) (local $t1 i32) (local $right.0 i32) (local $t0 i32)
+  (func $"impl[T < Eq] Same for Res[T].same[string]'2" (param $self i32) (param $other i32) (result i32) (local $right.1 i32) (local $left.1 i32) (local $left.0'1 i32) (local $left.0'2 i32) (local $t1 i32) (local $right.0 i32) (local $t0 i32)
     ;; 19 |         match *self:
     block
       local.get $self

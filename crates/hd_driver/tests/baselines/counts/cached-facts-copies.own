@@ -16,13 +16,13 @@ impl[S] Walker[S] for Reader[S]:
     type Error = never
     fn variant(&mut self, variant: Variant[S]) -> Result[void, never]:
         .Ok(())
-> app/main/impl [ S ] Walker [ S ] for Reader [ S ].variant
+> app/main/impl[S] Walker[S] for Reader[S].variant
 >   %0 = NewVariant #0 [-] : Result[(), never]
 >   %1 = Block %0 : Result[(), never]
 >   summary kept []
     fn member[F](&mut self, handle: Field[S, F], value: &F) -> Result[void, never]:
         self.found = !handle.info.facts.items.is_empty()
-> app/main/impl [ S ] Walker [ S ] for Reader [ S ].member
+> app/main/impl[S] Walker[S] for Reader[S].member
 >   local $0 self: &mut Reader[S] [param read] value
 >     uses $0: entry -> %9 lend last
 >   local $1 handle: *FieldRecord[S, F] [param read] value
@@ -57,7 +57,7 @@ impl[T] HasFacts for T by Structure:
 >   local $3 p: &mut Reader[Record] value
 >     uses $3: %6 -> %9 consume, %32 consume last
 >   %0 = Retain %72 Entry local $0 #0 : ()
-> app/main/impl [ T ] HasFacts for T by Structure.has_facts
+> app/main/impl[T] HasFacts for T by Structure.has_facts
 >   local $0 self: T [param read captured] place
 >   local $1 reader: Reader[T] [read assigned captured captured-assigned] place
 >   %0 = Retain %11 Entry local $0 #0 : ()

@@ -171,7 +171,7 @@ a scalar option passes its tag, payload and fallback to the selected method:
 local.get $found.0
 local.get $found.1
 i64.const 0
-call $"impl [ T < ? Copy ] T ?.unwrap_or[i64]"
+call $"impl[T < ?Copy] T?.unwrap_or[i64]"
 ```
 
 ### `Result`

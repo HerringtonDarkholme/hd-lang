@@ -1,0 +1,75 @@
+trait Show:
+    fn show(self) -> string
+
+struct Box[T]:
+    v: T
+
+struct OnExit[$ R]:
+    run: fn() -> void $ R
+
+impl[T] Show for Box[T]:
+    fn show(self) -> string:
+        "any box"
+
+impl Show for Box[i64]:
+    fn show(self) -> string:
+        "an i64 box"
+
+impl[T] Show for (T, bool):
+    fn show(self) -> string:
+        "any pair"
+
+impl Show for (i64, bool):
+    fn show(self) -> string:
+        "an i64 pair"
+
+impl[T < ?Copy] Show for *mut T:
+    fn show(self) -> string:
+        "any box reference"
+
+impl Show for *mut i64:
+    fn show(self) -> string:
+        "an i64 box reference"
+
+impl[$ R] Show for OnExit[$ R]:
+    fn show(self) -> string:
+        "any row"
+
+impl Show for OnExit[$ Console]:
+    fn show(self) -> string:
+        "a console row"
+
+impl[T] Show for fn(T) -> bool:
+    fn show(self) -> string:
+        "any predicate"
+
+impl Show for fn(i64) -> bool:
+    fn show(self) -> string:
+        "an i64 predicate"
+
+impl[T] Show for &T:
+    fn show(self) -> string:
+        "any reference"
+
+impl Show for &i64:
+    fn show(self) -> string:
+        "an i64 reference"
+
+impl[T] Show for T?:
+    fn show(self) -> string:
+        "any option"
+
+impl Show for i64?:
+    fn show(self) -> string:
+        "an i64 option"
+
+struct Fixed[N < const i64]:
+    pass
+
+impl[N < const i64] Show for Fixed[N]:
+    fn show(self) -> string:
+        "any size"
+
+impl Show for Fixed[-1]:
+    fn show(self) -> string:
+        "size minus one"

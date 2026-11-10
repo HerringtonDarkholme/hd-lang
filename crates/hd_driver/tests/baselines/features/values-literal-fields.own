@@ -259,7 +259,7 @@ pub fn main() -> void $ Console:
 >   %120 = Read borrow [$20] : string
 >   %121 = Call std/rt.memory/string_bytes[] (%120) : Ptr[u8]
 >   %122 = Read copy [$21] : usize
->   %123 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].offset[u8] (%121, %122) : Ptr[u8]
+>   %123 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].offset[u8] (%121, %122) : Ptr[u8]
 >   %124 = Read copy [$23] : usize
 >   %125 = Call std/rt.bytes/write_signed_sized[] (%119, %123, %124) : ()
 >   %126 = Break L5 - : never
@@ -293,7 +293,7 @@ pub fn main() -> void $ Console:
 >   %154 = Read borrow [$13] : string
 >   %155 = Call std/rt.memory/string_bytes[] (%154) : Ptr[u8]
 >   %156 = Read copy [$14] : usize
->   %157 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].offset[u8] (%155, %156) : Ptr[u8]
+>   %157 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].offset[u8] (%155, %156) : Ptr[u8]
 >   %158 = Read copy [$16] : usize
 >   %159 = Call std/rt.bytes/write_signed_sized[] (%153, %157, %158) : ()
 >   %160 = Break L3 - : never
@@ -327,7 +327,7 @@ pub fn main() -> void $ Console:
 >   %188 = Read borrow [$6] : string
 >   %189 = Call std/rt.memory/string_bytes[] (%188) : Ptr[u8]
 >   %190 = Read copy [$7] : usize
->   %191 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].offset[u8] (%189, %190) : Ptr[u8]
+>   %191 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].offset[u8] (%189, %190) : Ptr[u8]
 >   %192 = Read copy [$9] : usize
 >   %193 = Call std/rt.bytes/write_signed_sized[] (%187, %191, %192) : ()
 >   %194 = Break L1 - : never

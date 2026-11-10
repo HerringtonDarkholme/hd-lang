@@ -18,7 +18,7 @@ impl Apply for Cell:
 impl Update[string] for Cell:
     fn update(&mut self, value: string) -> void:
         self.value = value
-> app/main/impl Update [ string ] for Cell.update
+> app/main/impl Update[string] for Cell.update
 >   release counted reference (overwritten)
 
 struct Handler:

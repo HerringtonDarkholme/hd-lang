@@ -21,14 +21,14 @@ fn seen(s: &mut Set[string], a: string, b: string) -> bool:
     _ := s.insert(a)
 >   %2 = Read borrow [$0] : &mut Set[string]
 >   %3 = Read borrow [$1] : string
->   %4 = Call std/collections/impl [ T < Eq & Hash ] Set [ T ].insert[string] (%2, %3) : bool
+>   %4 = Call std/collections/impl[T < Eq & Hash] Set[T].insert[string] (%2, %3) : bool
 >   %5 = Retain %4 Operation operand 1 #0 : ()
 >   %11 = Block %9 : bool
     s.contains(b)
 >   %6 = Read borrow [$0] : &mut Set[string]
 >   %7 = Coerce %6 [Weaken -] : &Set[string]
 >   %8 = Read borrow [$2] : string
->   %9 = Call std/collections/impl [ T < Eq & Hash ] Set [ T ].contains[string] (%7, %8) : bool
+>   %9 = Call std/collections/impl[T < Eq & Hash] Set[T].contains[string] (%7, %8) : bool
 >   %10 = Retain %9 Operation operand 1 #0 : ()
 >   summary kept [] borrows [$1 $2] writes
 
@@ -44,11 +44,11 @@ fn queue(q: &mut Deque[string], a: string) -> usize:
     q.push_back(a)
 >   %1 = Read borrow [$0] : &mut Deque[string]
 >   %2 = Read move [$1] : string
->   %3 = Call std/collections/impl [ T ] Deque [ T ].push_back[string] (%1, %2) : ()
+>   %3 = Call std/collections/impl[T] Deque[T].push_back[string] (%1, %2) : ()
 >   %27 = Block %25 : usize
     match q.pop_front():
 >   %4 = Read borrow [$0] : &mut Deque[string]
->   %5 = Call std/collections/impl [ T ] Deque [ T ].pop_front[string] (%4) : string?
+>   %5 = Call std/collections/impl[T] Deque[T].pop_front[string] (%4) : string?
 >   %24 = Block - : never
 >   %25 = Match %5 [%24 %11 %12] : usize
 >   %26 = Drop [%5] : ()
@@ -84,11 +84,11 @@ fn top(h: &mut Heap[string], a: string) -> usize:
     h.push(a)
 >   %1 = Read borrow [$0] : &mut Heap[string]
 >   %2 = Read move [$1] : string
->   %3 = Call std/collections/impl [ T < Ord ] Heap [ T ].push[string] (%1, %2) : ()
+>   %3 = Call std/collections/impl[T < Ord] Heap[T].push[string] (%1, %2) : ()
 >   %27 = Block %25 : usize
     match h.pop():
 >   %4 = Read borrow [$0] : &mut Heap[string]
->   %5 = Call std/collections/impl [ T < Ord ] Heap [ T ].pop[string] (%4) : string?
+>   %5 = Call std/collections/impl[T < Ord] Heap[T].pop[string] (%4) : string?
 >   %24 = Block - : never
 >   %25 = Match %5 [%24 %11 %12] : usize
 >   %26 = Drop [%5] : ()

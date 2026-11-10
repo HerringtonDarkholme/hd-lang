@@ -58,7 +58,7 @@ fn uniq(xs: UniqList[string], s: string) -> UniqList[string]:
     ys.push(s)
 >   %2 = Ref mut local [$2] : &mut UniqList[string]
 >   %3 = Read [$1] : string
->   %4 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].push[string] (%2, %3) : ()
+>   %4 = Call std/collections/impl[T < ?Copy] UniqList[T].push[string] (%2, %3) : ()
     ys
 >   %5 = Read [$2] : UniqList[string]
 

@@ -15,7 +15,7 @@ enum AppError:
 
 impl From[ReadError] for AppError:
     fn from(value: ReadError) -> AppError:
-> app/main/impl From [ ReadError ] for AppError.from
+> app/main/impl From[ReadError] for AppError.from
 >   local $0 value: ReadError [param read] value
 >     uses $0: entry -> %1 consume last
 >   %0 = Retain %3 Entry local $0 #0 : ()

@@ -13,7 +13,9 @@ use hd_base::{HashMap, HashSet};
 use std::cell::RefCell;
 use std::sync::Arc;
 
-use hd_base::{BuildProfile, DefId, NotImplemented, PathId, Span, Stage, StageResult, Symbol};
+use hd_base::{
+    BuildProfile, DefId, NotImplemented, PathId, Span, Stage, StageResult, Symbol, TokenIdx,
+};
 use hd_diag::{Code, DiagBuf};
 
 use hd_intern::PathKind;
@@ -484,26 +486,85 @@ pub fn local_at(locals: &[LocalItem], name: Symbol, at: u32) -> Option<&LocalIte
         .max_by_key(|l| l.lo)
 }
 
-/// The stable segment of an impl: its header's tokens, `impl` to the colon.
+/// The stable segment of an impl: its header from `impl` to the colon,
+/// spelled as `hd fmt` writes it (`impl[T] Show for Box[T]`). A message
+/// that names the impl shows it as source does, and the segment does not
+/// change with the header's whitespace.
 fn impl_segment(src: &Src<'_>, n: NodeRef<'_>) -> String {
-    let stop = Src::child(n, SyntaxKind::Block).map(|b| src.first(b).raw());
-    let mut parts = Vec::new();
-    let mut started = false;
-    for t in src.tokens(n) {
-        if stop.is_some_and(|s| t.raw() >= s) {
-            break;
-        }
-        if src.tkind(t) == Some(TokenKind::KwImpl) {
-            started = true;
-        }
-        if started {
-            parts.push(src.text(t));
-        }
+    let block = Src::child(n, SyntaxKind::Block);
+    let stop = block.map(|b| src.first(b).raw());
+    // Each header token with the kind of the node that holds it, which
+    // tells a prefix `&` or `?` from a binary one.
+    let mut toks: Vec<(TokenIdx, SyntaxKind)> = std::iter::once(n)
+        .chain(n.descendants())
+        // The body follows the header in preorder; its nodes are never read.
+        .take_while(|d| block.is_none_or(|b| d.index().raw() < b.index().raw()))
+        .flat_map(|d| d.direct_tokens().map(move |t| (t, d.kind())))
+        .filter(|(t, _)| stop.is_none_or(|s| t.raw() < s))
+        .collect();
+    toks.sort_stable_by_key(|(t, _)| t.raw());
+    let start = toks
+        .iter()
+        .position(|(t, _)| src.tkind(*t) == Some(TokenKind::KwImpl))
+        .unwrap_or(toks.len());
+    let mut toks = &toks[start..];
+    while let [rest @ .., (t, _)] = toks
+        && src.tkind(*t) == Some(TokenKind::Colon)
+    {
+        toks = rest;
     }
-    while parts.last() == Some(&":") {
-        parts.pop();
+    let mut out = String::new();
+    let mut prev: Option<(TokenKind, SyntaxKind)> = None;
+    for &(t, holder) in toks {
+        let Some(kind) = src.tkind(t) else {
+            continue;
+        };
+        if prev.is_some_and(|p| spaced(p, (kind, holder))) {
+            out.push(' ');
+        }
+        out.push_str(src.text(t));
+        prev = Some((kind, holder));
     }
-    parts.join(" ")
+    out
+}
+
+/// Whether `hd fmt` puts a space between two header tokens of an impl,
+/// each given with the kind of the node that holds it.
+fn spaced(
+    (prev, prev_holder): (TokenKind, SyntaxKind),
+    (next, next_holder): (TokenKind, SyntaxKind),
+) -> bool {
+    use SyntaxKind as S;
+    use TokenKind as T;
+    if matches!(
+        next,
+        T::RParen | T::RBracket | T::Comma | T::Dot | T::ColonColon
+    ) || matches!(prev, T::LParen | T::LBracket | T::Dot | T::ColonColon)
+    {
+        return false;
+    }
+    // A postfix `?`: `T?`.
+    if next == T::Question && next_holder == S::OptionalType {
+        return false;
+    }
+    // A prefix: a reference's `&` or `*`, a `?Copy` bound, a variance
+    // mark, a negative impl's `!`, or a unary operator in a const
+    // argument. A row's `$` is spaced, as in `impl[$ R]`.
+    let prefix = match prev {
+        T::Amp | T::Star => prev_holder == S::RefType,
+        T::Question => prev_holder == S::BoundList,
+        T::Plus | T::Minus => matches!(prev_holder, S::GenericParameter | S::UnaryExpr),
+        T::Bang | T::Tilde => matches!(prev_holder, S::ImplDecl | S::UnaryExpr),
+        _ => false,
+    };
+    // An argument or parameter list after what it applies to: `Box[T]`,
+    // `impl[T]`, `fn(T)`, `Fn()`.
+    let applied = matches!(next, T::LBracket | T::LParen)
+        && matches!(
+            prev,
+            T::Ident | T::RawIdent | T::KwSelfType | T::KwImpl | T::KwFn
+        );
+    !prefix && !applied
 }
 
 /// The head kind of a declaration node.

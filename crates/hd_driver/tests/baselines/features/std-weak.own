@@ -31,7 +31,7 @@ fn name_len(w: Weak[Node]) -> usize:
 >   local $2 self: string [read] value
 >     uses $2: %3 -> %4 lend last
 >   %0 = Read borrow [$0] : Weak[Node]
->   %1 = Call std/weak/impl [ T ] Weak [ T ].upgrade[Node] (%0) : *Node?
+>   %1 = Call std/weak/impl[T] Weak[T].upgrade[Node] (%0) : *Node?
 >   %22 = Block - : never
 >   %23 = Match %1 [%22 %9 %10] : usize
 >   %24 = Drop [%1] : ()

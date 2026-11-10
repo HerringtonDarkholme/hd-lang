@@ -373,7 +373,7 @@ fn path_of(paths: &PathTable, d: DefId) -> String {
 /// Writes the frame names of a module's bodies, a section of its `check`
 /// entry: per body, its stable path and the segments of its name in the
 /// module (`["List", "remove_at"]`). An item's segment is its name, an
-/// impl's is the name of the type it is for (`impl [ T ] List [ T ]` is
+/// impl's is the name of the type it is for (`impl[T] List[T]` is
 /// `List`, as `impl_type` names it from the impl's item), and a hidden segment,
 /// such as a default argument's body or a block-local scope, is left out,
 /// so its frames name their declaration. The names come from the items the

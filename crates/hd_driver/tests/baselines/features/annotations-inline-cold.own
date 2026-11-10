@@ -77,7 +77,7 @@ fn unexpected(at: usize) -> string:
 >   %44 = Read borrow [$1] : string
 >   %45 = Call std/rt.memory/string_bytes[] (%44) : Ptr[u8]
 >   %46 = Read copy [$2] : usize
->   %47 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].offset[u8] (%45, %46) : Ptr[u8]
+>   %47 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].offset[u8] (%45, %46) : Ptr[u8]
 >   %48 = Read copy [$4] : usize
 >   %49 = Call std/rt.bytes/write_unsigned_sized[] (%43, %47, %48) : ()
 >   %50 = Break L0 - : never

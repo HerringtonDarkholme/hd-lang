@@ -40,7 +40,7 @@ fn stop!(key: string) -> bool:
 >   %26 = Block %25 : bool
     end := job.cancel!()
 >   %7 = Read move [$1] : Suspend[string]
->   %8 = Await std/task/impl [ T ] Suspend [ T ].cancel[string] (%7) : CleanupEnd
+>   %8 = Await std/task/impl[T] Suspend[T].cancel[string] (%7) : CleanupEnd
 >   %9 = Release %8 Operation child #2 : ()
 >   %10 = Drop [%7] : ()
 >   %11 = Store [$2] %8 : ()

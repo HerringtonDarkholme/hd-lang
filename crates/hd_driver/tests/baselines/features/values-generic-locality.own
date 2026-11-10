@@ -45,7 +45,7 @@ fn left_or_right(pair: &Pair, left: bool) -> &User:
     o.unwrap_or(&pair.right)
 >   %8 = Read move [$2] : &User?
 >   %9 = Ref local [*$0 .right] : &User
->   %10 = Call std/option/impl [ T < ? Copy ] T ?.unwrap_or[&User] (%8, %9) : &User
+>   %10 = Call std/option/impl[T < ?Copy] T?.unwrap_or[&User] (%8, %9) : &User
 >   %11 = Drop [%9] : ()
 >   %12 = Drop [%8] : ()
 >   summary kept []

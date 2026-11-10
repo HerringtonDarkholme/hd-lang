@@ -264,7 +264,7 @@ impl KnownItems {
             option: item("std.core", "Option"),
             result: item("std.core", "Result"),
             list: item("std.core", "List"),
-            list_is_empty: inherent_method("std.collections", "impl [ T ] List [ T ]", "is_empty"),
+            list_is_empty: inherent_method("std.collections", "impl[T] List[T]", "is_empty"),
             map: item("std.core", "Map"),
             buffer: item("std.rt.memory", "Buffer"),
             ptr: item("std.rt.memory", "Ptr"),
@@ -284,12 +284,12 @@ impl KnownItems {
             field: item("std.structure", "FieldRecord"),
             field_get: inherent_method(
                 "std.structure",
-                "impl [ HdS < ? Copy , HdF < ? Copy ] FieldRecord [ HdS , HdF ]",
+                "impl[HdS < ?Copy, HdF < ?Copy] FieldRecord[HdS, HdF]",
                 "get",
             ),
             variant_holds: inherent_method(
                 "std.structure",
-                "impl [ HdS < ? Copy ] VariantRecord [ HdS ]",
+                "impl[HdS < ?Copy] VariantRecord[HdS]",
                 "holds",
             ),
             walker,

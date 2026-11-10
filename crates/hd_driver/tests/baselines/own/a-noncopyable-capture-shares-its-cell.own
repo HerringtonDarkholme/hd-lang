@@ -3,7 +3,7 @@ std/rt_tests.stage_case/later
   local $0 items: UniqList[i64] [:= read assigned captured] place
   %19 = Retain %24 Entry captures #0 : ()
   %20 = Ref local [$0] : &UniqList[i64]
-  %21 = Call std/collections/impl [ T < ? Copy ] UniqList [ T ].len[i64] (%20) : usize
+  %21 = Call std/collections/impl[T < ?Copy] UniqList[T].len[i64] (%20) : usize
   %22 = Drop [%20] : ()
   %23 = Drop [$0] : ()
   %24 = Block %21 : usize

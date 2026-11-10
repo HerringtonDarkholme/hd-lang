@@ -37,12 +37,12 @@ fn set(xs: &mut UniqList[i32], i: usize, v: i32) -> void:
 >   %12 = Read copy [*%9 .address] : usize
 >   %13 = NewStruct [%12] : Ptr[i32]
 >   %14 = Read copy [$7] : usize
->   %15 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].offset[i32] (%13, %14) : Ptr[i32]
+>   %15 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].offset[i32] (%13, %14) : Ptr[i32]
 >   %16 = Break L0 %15 : never
 >   %17 = Block - : Ptr[i32]
 >   %18 = Scope %17 [] : Ptr[i32]
 >   %19 = Drop [%9] : ()
->   %20 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].as_mut[i32] (%18) : &mut i32
+>   %20 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].as_mut[i32] (%18) : &mut i32
 >   %21 = NewVariant #1 [%20] : &mut i32?
 >   %22 = Block %21 : &mut i32?
 >   %23 = If %6 [%8 %22] : &mut i32?

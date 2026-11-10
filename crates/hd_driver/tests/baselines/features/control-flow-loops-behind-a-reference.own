@@ -281,7 +281,7 @@ pub fn main() -> void $ Console:
 >   %71 = Read borrow [$12] : string
 >   %72 = Call std/rt.memory/string_bytes[] (%71) : Ptr[u8]
 >   %73 = Read copy [$13] : usize
->   %74 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].offset[u8] (%72, %73) : Ptr[u8]
+>   %74 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].offset[u8] (%72, %73) : Ptr[u8]
 >   %75 = Read copy [$15] : usize
 >   %76 = Call std/rt.bytes/write_unsigned_sized[] (%70, %74, %75) : ()
 >   %77 = Break L3 - : never
@@ -315,7 +315,7 @@ pub fn main() -> void $ Console:
 >   %105 = Read borrow [$5] : string
 >   %106 = Call std/rt.memory/string_bytes[] (%105) : Ptr[u8]
 >   %107 = Read copy [$6] : usize
->   %108 = Call std/rt.memory/impl [ T < ? Copy ] Ptr [ T ].offset[u8] (%106, %107) : Ptr[u8]
+>   %108 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].offset[u8] (%106, %107) : Ptr[u8]
 >   %109 = Read copy [$8] : usize
 >   %110 = Call std/rt.bytes/write_unsigned_sized[] (%104, %108, %109) : ()
 >   %111 = Break L1 - : never
