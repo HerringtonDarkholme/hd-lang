@@ -5701,6 +5701,7 @@ typing/valid/auto-closing-async-protocol.hd	type	accept	lang/06-control-flow.md#
 typing/invalid/auto-closing-call-as-value.hd	type	reject:unregistered-auto-closing	lang/06-control-flow.md#r-flow.auto-closing.call-value
 typing/invalid/auto-closing-plain-binding.hd	type	reject:unregistered-auto-closing	lang/06-control-flow.md#r-flow.auto-closing.binding
 typing/invalid/auto-closing-stored.hd	type	reject:unregistered-auto-closing	lang/06-control-flow.md#r-flow.auto-closing.storage
+typing/invalid/auto-closing-stored-through-a-shorthand-field.hd	type	reject:unregistered-auto-closing	lang/06-control-flow.md#r-flow.auto-closing.storage
 typing/invalid/auto-closing-undecorated-return.hd	type	reject:unregistered-auto-closing	lang/06-control-flow.md#r-flow.auto-closing.return
 typing/invalid/auto-closing-result-not-marker.hd	type	reject:unsatisfied-trait-bound	lang/14-annotations.md#r-annot.auto-closing.result
 typing/invalid/auto-closing-missing-disposal-protocol.hd	type	reject:missing-supertrait-implementation	lang/06-control-flow.md#r-flow.auto-closing.protocol
@@ -6196,6 +6197,8 @@ typing/invalid/a-body-fn-type-constructor-takes-tuple-inputs.hd	type	reject:gene
 typing/invalid/a-body-context-type-takes-a-row-after-dollar.hd	type	reject:generic-kind-mismatch	lang/11-requirements-and-suspension.md#r-req.context.dollar
 typing/invalid/a-body-context-type-takes-no-row-parameter.hd	type	reject:row-parameter-in-context	lang/11-requirements-and-suspension.md#r-req.row.param.context
 typing/invalid/a-body-fn-trait-has-no-dyn-form.hd	type	reject:trait-not-dynamically-safe	lang/13-values-and-references.md#r-ref.type.dyn.no-fn
+typing/valid/a-body-fn-type-constructor-takes-a-tuple-bounded-parameter.hd	type	accept	lang/07-functions.md#r-fn.type.ctor.inputs-tuple
+typing/invalid/a-lifetime-argument-in-a-body-type.hd	type	reject:references-not-yet-checked	lang/13-values-and-references.md#r-ref.lifetime.not-yet.body
 typing/invalid/a-const-slot-kind-check-keeps-default-visibility.hd	type	reject:binding-not-yet-visible	lang/04-type-system.md#r-types.generic.default.later
 typing/invalid/a-function-name-in-a-const-slot-remains-runtime-dependent.hd	type	reject:nonconstant-generic-argument	lang/04-type-system.md#r-types.generic.const.nonconstant
 runtime/valid/local-declarations-in-a-script-suite-are-registered.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.local-type.name

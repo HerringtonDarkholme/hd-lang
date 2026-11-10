@@ -1,0 +1,9 @@
+# test: a lifetime argument written in a body's type is not checked yet
+# Spec 13: ref.lifetime.not-yet.body.
+
+struct View['a]:
+    item: &'a i64
+
+fn read(v: View) -> i64:
+    let again: View['a] = v  # diagnostic: references-not-yet-checked
+    0

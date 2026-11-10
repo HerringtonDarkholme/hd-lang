@@ -1,0 +1,7 @@
+# test: a function type constructor written in a body takes a parameter bounded by `Tuple` as its inputs
+# Spec 07: fn.type.ctor.inputs-tuple.
+use std.function.{Fn, Tuple}
+
+fn keep[Args < Tuple, O](f: Fn[Args, O, $()]) -> Fn[Args, O, $()]:
+    let same: Fn[Args, O, $()] = f
+    same

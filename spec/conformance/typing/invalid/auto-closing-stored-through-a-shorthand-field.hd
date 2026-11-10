@@ -1,0 +1,19 @@
+# test: an AutoClosing value cannot be stored through a shorthand field
+# Spec lang/06 Auto-Closing Calls: flow.auto-closing.storage.
+use std.ops.{AutoClosing, Disposable}
+
+struct Guard:
+    pass
+
+impl Disposable for Guard:
+    fn dispose(&mut self) -> void:
+        pass
+
+impl AutoClosing for Guard:
+    pass
+
+struct Holder:
+    guard: Guard
+
+fn invalid(guard: Guard) -> void:
+    holder := Holder { guard }  # diagnostic: unregistered-auto-closing
