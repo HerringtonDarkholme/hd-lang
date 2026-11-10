@@ -553,8 +553,8 @@ offset.
 
 **Layout.** Node columns `kind` (`SyntaxKind`, 2 bytes), `first_token`,
 `last_token` (inclusive; first > last for an empty node) and
-`subtree_len`; layout columns `layout_at` and `layout_kind`; parse-error
-columns `err_node` and `err_code`.
+`subtree_len`. Nothing else is stored per node: layout tokens stay in the
+token columns, and parse errors go to the diagnostics.
 
 - **Preorder with subtree sizes.** The first child is `i + 1`, the next
   sibling `j + subtree_len[j]`. Skipping a subtree is one addition. A
