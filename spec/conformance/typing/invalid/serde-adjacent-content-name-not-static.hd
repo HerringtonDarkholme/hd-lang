@@ -1,0 +1,11 @@
+# test: an adjacent tagging content name must be a string literal
+# Spec std/serde Enum Names And Tagging: std-serde.enum-tagging.static-names.
+use std.serde.{Serialize, tag}
+
+fn name() -> string:
+    "payload"
+
+@derive(Serialize)
+@tag("kind", content=name()) # diagnostic: enum-tag-name-not-static
+enum Invalid:
+    Value(payload: i32)

@@ -3469,6 +3469,7 @@ typing/invalid/serde-internal-non-string-map.hd	type	reject:invalid-internal-tag
 typing/invalid/serde-internal-positional-tag-conflict.hd	type	reject:enum-tag-name-conflict	std/serde.md#r-std-serde.enum-tagging.internal-name-conflict
 typing/invalid/serde-internal-rename-all-conflict.hd	type	reject:enum-tag-name-conflict	std/serde.md#r-std-serde.enum-tagging.internal-name-conflict
 typing/invalid/serde-internal-rename-not-static.hd	type	reject:enum-tag-name-not-static	std/serde.md#r-std-serde.enum-tagging.static-names
+typing/invalid/serde-adjacent-content-name-not-static.hd	type	reject:enum-tag-name-not-static	std/serde.md#r-std-serde.enum-tagging.static-names
 typing/invalid/serde-internal-scalar-newtype.hd	type	reject:invalid-internal-tagged-variant	std/serde.md#r-std-serde.enum-tagging.internal-shapes
 typing/invalid/serde-internal-tag-member-conflict.hd	type	reject:enum-tag-name-conflict	std/serde.md#r-std-serde.enum-tagging.internal-name-conflict
 typing/invalid/serde-internal-tuple-newtype.hd	type	reject:invalid-internal-tagged-variant	std/serde.md#r-std-serde.enum-tagging.internal-shapes
