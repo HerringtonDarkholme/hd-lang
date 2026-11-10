@@ -6432,6 +6432,10 @@ typing/valid/one-opaque-call-site-is-one-type-across-inferred-arguments.hd	type	
 typing/valid/an-implementation-parameter-inside-a-trait-value-a-rest-tuple-or-a-union-argument-is-inferred.hd	type	accept	lang/09-traits.md#r-trait.target.arguments
 typing/valid/a-parameter-bound-by-two-instantiations-of-one-trait-meets-each.hd	type	accept	lang/02-grammar.md#r-grammar.generic.bound.and
 typing/invalid/a-relaxed-parameter-is-no-argument-for-a-copy-parameter.hd	type	reject:unsatisfied-trait-bound	lang/13-values-and-references.md#r-ref.copy.generic.argument
+runtime/valid/a-compiler-supplied-trait-method-is-called-through-a-type.hd	runtime	accept	lang/09-traits.md#r-trait.assoc-call.type.traits
+typing/invalid/a-call-through-a-type-with-open-arguments-that-pick-the-trait-cannot-infer.hd	type	reject:cannot-infer-type	lang/09-traits.md#r-trait.resolve.lookup.unknown-argument
+typing/invalid/a-call-through-a-parameter-whose-bounds-declare-no-such-method.hd	type	reject:unknown-method	lang/09-traits.md#r-trait.assoc-call.parameter.one
+typing/invalid/a-trait-qualified-call-on-a-trait-value-reaches-no-opaque-or-generic-member.hd	type	reject:dyn-member-unavailable	lang/09-traits.md#r-trait.dyn.member.unavailable.error
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

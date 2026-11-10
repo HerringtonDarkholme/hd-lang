@@ -3805,24 +3805,19 @@ impl Ck<'_, '_> {
         // through the bounds of `T`: exactly one trait among the bounds
         // and their supertraits may declare it
         // (`trait.assoc-call.parameter`, `trait.assoc-call.parameter.one`).
-        let mut bound_hits = Vec::new();
-        for (tr, m) in traits {
-            let tref = TraitRef {
-                trait_: tr,
-                self_ty: t,
-                args: TyList::EMPTY,
-            };
-            let holds = if is_param {
+        // Every call through a type returned above, so `T` is a parameter.
+        let bound_hits: Vec<(DefId, DefId)> = traits
+            .into_iter()
+            .filter(|&(tr, _)| {
                 (0..self.env.clause_self.len())
                     .any(|i| self.env.clause_self[i] == t && self.env.clause_trait[i] == tr)
-            } else {
-                matches!(self.solve(tref)?, hd_types::solver::Answer::Holds { .. })
-            };
-            if holds {
-                if is_param {
-                    bound_hits.push((tr, m));
-                    continue;
-                }
+            })
+            .collect();
+        match bound_hits.as_slice() {
+            // Exactly one bound declares the method: statically
+            // resolved through it (`trait.assoc-call.parameter`).
+            [(tr, m)] => {
+                let (tr, m) = (*tr, *m);
                 return self.trait_method_call(
                     TraitTarget {
                         trait_: tr,
@@ -3836,42 +3831,21 @@ impl Ck<'_, '_> {
                     (bang, want),
                 );
             }
-        }
-        if is_param {
-            match bound_hits.as_slice() {
-                // Exactly one bound declares the method: statically
-                // resolved through it (`trait.assoc-call.parameter`).
-                [(tr, m)] => {
-                    let (tr, m) = (*tr, *m);
-                    return self.trait_method_call(
-                        TraitTarget {
-                            trait_: tr,
-                            method: m,
-                            self_ty: t,
-                            args: vec![],
-                        },
-                        None,
-                        args,
-                        n,
-                        (bang, want),
-                    );
-                }
-                // Two or more do: an error (`trait.assoc-call.parameter.one`).
-                [_, _, ..] => {
-                    let names: Vec<String> = bound_hits
-                        .iter()
-                        .map(|(tr, _)| format!("`{}`", self.cx.names.display_name(*tr)))
-                        .collect();
-                    let msg = format!(
-                        "`{}::{name}` is ambiguous: the bounds {} each declare it; write one bound's trait explicitly",
-                        self.show(t),
-                        names.join(" and ")
-                    );
-                    self.err(Code::AmbiguousMethod, n, &msg);
-                    return Ok((Ref(NONE), Ty::POISON));
-                }
-                [] => {}
+            // Two or more do: an error (`trait.assoc-call.parameter.one`).
+            [_, _, ..] => {
+                let names: Vec<String> = bound_hits
+                    .iter()
+                    .map(|(tr, _)| format!("`{}`", self.cx.names.display_name(*tr)))
+                    .collect();
+                let msg = format!(
+                    "`{}::{name}` is ambiguous: the bounds {} each declare it; write one bound's trait explicitly",
+                    self.show(t),
+                    names.join(" and ")
+                );
+                self.err(Code::AmbiguousMethod, n, &msg);
+                return Ok((Ref(NONE), Ty::POISON));
             }
+            [] => {}
         }
         let msg = format!("no method `{name}` on {}", self.show(t));
         self.no_method(t, name, n, &msg);

@@ -1,0 +1,21 @@
+# test: a call through a generic type whose open arguments decide which trait supplies the method cannot infer them
+# Spec 09 Method Resolution: trait.resolve.lookup.unknown-argument; `Holder`
+# without arguments may be `Holder[i32]`, whose `name` is `A`'s, or
+# `Holder[string]`, whose `name` is `B`'s.
+trait A:
+    fn name(&self) -> string
+
+trait B:
+    fn name(&self) -> string
+
+struct Holder[X]:
+    x: X
+
+impl A for Holder[i32]:
+    fn name(&self) -> string: "a"
+
+impl B for Holder[string]:
+    fn name(&self) -> string: "b"
+
+fn f(h: Holder[i32]) -> string:
+    Holder::name(&h) # diagnostic: cannot-infer-type

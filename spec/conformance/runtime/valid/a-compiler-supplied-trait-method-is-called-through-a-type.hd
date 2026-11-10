@@ -1,0 +1,15 @@
+# test: a method of a compiler-supplied trait is called through a type, as `Point::runtime_type(&p)`
+# Spec 09 Calls Through a Type: trait.assoc-call.type.traits; `Point`
+# implements `Inspectable` without an impl of its own, and the call is
+# its trait method with `&p` as the receiver.
+use std.inspect.{Inspectable, TypeId}
+
+struct Point:
+    x: i32
+
+tests:
+    use std.testing.assert
+
+    it("the call through the type returns the receiver's type"):
+        let p = Point { x: 1 }
+        assert(Point::runtime_type(&p) == TypeId::of::[Point]())

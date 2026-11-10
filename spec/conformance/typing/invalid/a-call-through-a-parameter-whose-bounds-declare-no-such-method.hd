@@ -1,0 +1,8 @@
+# test: a call through a type parameter whose bounds declare no method of that name is an error
+# Spec 09 Calls Through a Type: trait.assoc-call.parameter.one; `Zero`
+# declares `zero`, but `T`'s one bound is `Eq`.
+trait Zero:
+    fn zero() -> Self
+
+fn f[T < Eq](x: T) -> T:
+    T::zero() # diagnostic: unknown-method
