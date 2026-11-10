@@ -1,0 +1,20 @@
+# test: ambiguous named pipe arguments are unions in type slots and bitwise OR in const slots
+# Rules: types.generic.const.named, types.generic.const.evaluate, types.union.substitution.
+# expect-stdout: ok
+LEFT := 1u32
+RIGHT := 4u32
+OTHER := 8u32
+
+struct Tag[N < const u32]:
+    pass
+
+fn tag[N < const u32]() -> Tag[N]:
+    Tag {}
+
+pub fn main() -> void $ Console:
+    let first: Tag[5u32] = tag::[LEFT | RIGHT]()
+    let flat: Tag[13u32] = tag::[LEFT | RIGHT | OTHER]()
+    let nested: Tag[13u32] = tag::[(LEFT | (RIGHT | OTHER))]()
+    let expression: Tag[7u32] = tag::[LEFT | (RIGHT + 2)]()
+    let scalar: Tag[1u32] = tag::[LEFT | (0u32)]()
+    println("ok")
