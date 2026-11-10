@@ -179,6 +179,7 @@ pub(crate) struct Tables {
     // What each instruction writes, in rows.
     write_start: Vec<u32>,
     writes: Vec<Write>,
+    capture_drops: super::capture_env::ReferenceDrops,
     wpaths: Vec<u32>,
     effects: Vec<Effect>,
     // Per `Scope` and `Defer`: the instructions of its suites, what it uses,
@@ -455,6 +456,7 @@ impl Tables {
     /// What instruction `x` may change, against every value `live`.
     fn change_at(&mut self, x: u32, tag: Tag, s: &BitArena, live: usize) {
         let i = x as usize;
+        let capture_drop = self.capture_drops.at(i);
         for k in self.write_start[i]..self.write_start[i + 1] {
             let w = self.writes[k as usize];
             let (lo, hi) = (
@@ -474,7 +476,11 @@ impl Tables {
                     || (overlap(below, path) && (w.cut == NONE || link.len > w.cut));
                 if hit && w.dropped == Dropped::Nothing {
                     put(&mut self.changed, bit);
-                } else if hit {
+                } else if hit
+                    && !(capture_drop
+                        && own.first() == Some(&DEREF)
+                        && matches!(w.dropped, Dropped::Local(_)))
+                {
                     self.crossed.push((
                         bit,
                         match w.dropped {
@@ -1254,6 +1260,7 @@ pub(crate) fn run(b: &mut Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables)
         t.root_uses = roots;
     }
     sources(b, cx, t);
+    t.capture_drops.build(b, cx, topo);
     index_writes(b, cx, t);
     let mut back = std::mem::take(&mut t.back);
     backward(b, topo, &mut back, t);

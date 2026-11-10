@@ -5959,6 +5959,7 @@ runtime/valid/a-trait-with-a-generic-method-runs-its-other-methods-on-dyn.hd	run
 runtime/valid/field-move-after-local-borrow.hd	runtime	accept	lang/13-values-and-references.md#r-ref.move.field
 runtime/valid/a-reader-of-a-non-copyable-value-beside-a-field-move-in-a-loop.hd	runtime	accept	lang/13-values-and-references.md#r-ref.move.field
 runtime/valid/uniq-list-field-move-after-local-borrow.hd	runtime	accept	std/collections.md#r-std-collections.uniq-list.type
+runtime/valid/captured-reference-list-reads.hd	runtime	accept	lang/13-values-and-references.md#r-ref.count.local
 runtime/valid/closure-parameter-field-borrow.hd	runtime	accept	lang/13-values-and-references.md#r-ref.count.local
 runtime/valid/frame-slot-header-starts-with-no-borrow-state.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.conflict
 runtime/valid/uniq-list-basic-api.hd	runtime	accept	std/collections.md#r-std-collections.uniq-list.drain

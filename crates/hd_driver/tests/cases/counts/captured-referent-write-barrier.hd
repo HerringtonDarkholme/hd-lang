@@ -1,0 +1,12 @@
+# @dump: own counts
+# @build: v8 release
+# A copied capture supplies the address. A write through that address
+# still separates a list snapshot from the current list.
+fn apply(f: fn() -> usize) -> usize:
+    f()
+
+fn snapshot(xs: &mut List[string]) -> usize:
+    apply:
+        before := *xs
+        xs.push("later")
+        before.len()
