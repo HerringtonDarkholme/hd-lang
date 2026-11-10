@@ -366,6 +366,11 @@ behind a trait value reference
 - `pending-tick` implements the same `Tick` as `tick` does, except that
   each `tick!` call is pending on its first poll and completes on its
   second.
+- `raw-character-host` implements the fixture's
+  `trait CharSource: fn character(self, bits: u64) -> char`. It returns the
+  argument's raw unsigned encoding as its result, so the guest adapter
+  checks whether those bits name a Unicode scalar value
+  ([Host Results](../lang/10-modules.md#host-results)).
 - `misbehaving-host` implements the fixture's
   `trait Gauge: fn level(self) -> u8` with a host that breaks its contract.
   Every call of `level` returns the integer 300, which no `u8` holds, so

@@ -1,0 +1,12 @@
+# @dump: wat
+# @build: program
+# @profile: serde-vault
+# @helpers: enc dec
+# module.profile.host-result.char and module.profile.host-result.contract-panic:
+# expected: the encoder keeps the scalar's unsigned bits; the decoder rejects
+# values above U+10FFFF and in U+D800..U+DFFF before narrowing to an i32.
+pub trait Vault:
+    fn keep(self, value: char) -> char
+
+pub fn main() -> void $ Vault:
+    _ := $.use(Vault).keep('A')

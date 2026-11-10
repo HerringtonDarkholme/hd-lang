@@ -29,6 +29,7 @@ pub fn profile_traits(name: &str, module: &str) -> Option<Vec<String>> {
         "disposed-file" => own(&["Files", "FileHandle"]),
         "pending-gate" => own(&["Gate"]),
         "misbehaving-host" => own(&["Gauge"]),
+        "raw-character-host" => own(&["CharSource"]),
         "special-float-host" => own(&["Sensor"]),
         "tick" | "pending-tick" => Some(vec![
             "std.console.Console".to_owned(),

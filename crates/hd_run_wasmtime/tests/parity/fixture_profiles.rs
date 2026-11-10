@@ -35,6 +35,7 @@ fn profile_names_are_explicit_and_unknown_profiles_are_errors() {
     for (name, expected) in [
         ("default", RuntimeProfile::Default),
         ("misbehaving-host", RuntimeProfile::MisbehavingHost),
+        ("raw-character-host", RuntimeProfile::RawCharacterHost),
         ("special-float-host", RuntimeProfile::SpecialFloatHost),
         ("serde-vault", RuntimeProfile::SerdeVault),
         ("tick", RuntimeProfile::Tick),
@@ -57,6 +58,7 @@ fn default_and_unrelated_profiles_reject_fixture_imports_at_load() {
     let engines = [
         RuntimeProfile::Default,
         RuntimeProfile::MisbehavingHost,
+        RuntimeProfile::RawCharacterHost,
         RuntimeProfile::SpecialFloatHost,
         RuntimeProfile::SerdeVault,
         RuntimeProfile::Tick,
@@ -72,6 +74,11 @@ fn default_and_unrelated_profiles_reject_fixture_imports_at_load() {
     });
     for (module, name, required) in [
         ("hd:Gauge", "level", RuntimeProfile::MisbehavingHost),
+        (
+            "hd:CharSource",
+            "character",
+            RuntimeProfile::RawCharacterHost,
+        ),
         ("hd:Sensor", "reading", RuntimeProfile::SpecialFloatHost),
         ("hd:Vault", "keep", RuntimeProfile::SerdeVault),
     ] {

@@ -1,0 +1,14 @@
+# test: host char results accept Unicode scalar boundaries
+# Spec Modules, Host Results: module.profile.host-result.char.
+# fixture-runtime-profile: raw-character-host
+use std.testing.assert_equal
+
+pub trait CharSource:
+    fn character(self, bits: u64) -> char
+
+pub fn main() -> void $ CharSource:
+    source := $.use(CharSource)
+    assert_equal(source.character(0), '\u{0}')
+    assert_equal(source.character(55295), '\u{d7ff}')
+    assert_equal(source.character(57344), '\u{e000}')
+    assert_equal(source.character(1114111), '\u{10ffff}')

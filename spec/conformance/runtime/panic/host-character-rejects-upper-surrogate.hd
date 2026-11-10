@@ -1,0 +1,9 @@
+# test: a host char result rejects upper surrogate
+# Spec Modules, Host Results: module.profile.host-result.char, module.profile.host-result.contract-panic.
+# fixture-runtime-profile: raw-character-host
+
+pub trait CharSource:
+    fn character(self, bits: u64) -> char
+
+pub fn main() -> void $ CharSource:
+    _ := $.use(CharSource).character(57343) # panic: host-contract

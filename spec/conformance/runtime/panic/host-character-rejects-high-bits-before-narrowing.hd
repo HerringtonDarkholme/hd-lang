@@ -1,0 +1,9 @@
+# test: a raw host char above u32::MAX cannot wrap to a valid scalar
+# Spec Modules, Host Results: module.profile.host-result.char, module.profile.host-result.no-coercion.
+# fixture-runtime-profile: raw-character-host
+
+pub trait CharSource:
+    fn character(self, bits: u64) -> char
+
+pub fn main() -> void $ CharSource:
+    _ := $.use(CharSource).character(4294967361) # panic: host-contract

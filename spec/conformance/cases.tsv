@@ -6344,6 +6344,11 @@ typing/invalid/const-evaluation-negates-no-unsigned-literal.hd	type	reject:type-
 typing/invalid/const-evaluation-takes-no-float-literal.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.generic.const.types
 typing/invalid/const-evaluation-takes-no-interpolation.hd	type	reject:nonconstant-generic-argument	lang/04-type-system.md#r-types.generic.const.nonconstant
 typing/invalid/const-evaluation-takes-no-function-suffix.hd	type	reject:nonconstant-generic-argument	lang/04-type-system.md#r-types.generic.const.nonconstant
+runtime/panic/host-character-rejects-lower-surrogate.hd	runtime	panic:host-contract	lang/10-modules.md#r-module.profile.host-result.char
+runtime/panic/host-character-rejects-upper-surrogate.hd	runtime	panic:host-contract	lang/10-modules.md#r-module.profile.host-result.char
+runtime/panic/host-character-rejects-above-unicode-maximum.hd	runtime	panic:host-contract	lang/10-modules.md#r-module.profile.host-result.char
+runtime/valid/host-character-accepts-unicode-scalar-boundaries.hd	runtime	accept	lang/10-modules.md#r-module.profile.host-result.char
+runtime/panic/host-character-rejects-high-bits-before-narrowing.hd	runtime	panic:host-contract	lang/10-modules.md#r-module.profile.host-result.char
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
