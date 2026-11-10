@@ -29,8 +29,8 @@ DEFAULT = ["crates/hd_driver/tests/baselines", "crates/hd_wasm_linear/tests/base
 
 DESCRIBE = {
     # WAT
-    "load-dropped": "a value loaded from memory and dropped unused",
-    "pure-dropped": "a pure value (const, local, arithmetic) computed and dropped",
+    "load-dropped": "a value loaded from memory and dropped unused: size only. Measured 2026-11-09 on json, dyn_iter and binary_trees: removing every dropped value (wasm-opt --vacuum -tnh) saved 59 to 159 B (0.2 to 0.8%) and no V8 time beyond noise",
+    "pure-dropped": "a pure value (const, local, arithmetic) computed and dropped: size only, measured with load-dropped (V8 folds it)",
     "repeat-load": "the same load twice in a block with no store or call between",
     "repeat-bounds": "the same bounds check twice in a block with nothing that could change the length",
     "count-pair": "a retain and a release of one value in a block with no other call between",
@@ -50,7 +50,7 @@ DESCRIBE = {
     "ir-conservative": "a count the compiler could not name a reason for",
     "ir-exit-unlowered": "a stated parameter exit release with no release in the function's counts: describes TIR text, emits nothing, so it predicts no time or size",
 }
-INFO_ONLY = {"set-then-get", "br-to-end", "empty-block", "empty-else", "ir-store-then-read", "ir-exit-unlowered", "ir-ref-drop"}
+INFO_ONLY = {"set-then-get", "br-to-end", "empty-block", "empty-else", "ir-store-then-read", "ir-exit-unlowered", "ir-ref-drop", "load-dropped", "pure-dropped"}
 
 COUNT_HELPERS = re.compile(r"^(retain|rt:retain|rt:release|rt:coll_copy|rt:drop)")
 RETAINS = re.compile(r"^(retain|rt:retain|rt:coll_copy)")
