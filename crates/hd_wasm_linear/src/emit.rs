@@ -2254,7 +2254,7 @@ impl Em<'_, '_, '_> {
             }
             Tag::ProviderGet => {
                 let key = self.sub(Ty(self.rec(a).first().copied().unwrap_or(NONE)));
-                let [d, v] = self.provider(key)?;
+                let [d, v] = self.provider(key);
                 self.f.get(d);
                 self.f.get(v);
                 self.store_owned(i)?;
@@ -2713,7 +2713,7 @@ impl Em<'_, '_, '_> {
                     let lends = self.env().lends(ct.item, ct.args)
                         | promote::promoted_params(self.input, self.m, ct.key);
                     self.push_args(i, &args, params.as_deref(), lends, self.f.reason)?;
-                    let c = self.push_call_providers(i, ct.item, ct.args)?;
+                    let c = self.push_call_providers(i, ct.item, ct.args);
                     self.f.call(Sym::Inst(ct.key));
                     // A suspending callee called cold returns its frame.
                     let ret = if self.env().suspends(ct.item) {
@@ -2722,7 +2722,7 @@ impl Em<'_, '_, '_> {
                         ct.ret
                     };
                     self.call_results(i, ret)?;
-                    self.release_call_ctx(i, c)?;
+                    self.release_call_ctx(i, c);
                     Ok(())
                 }
                 TargetKind::Intrinsic(key) if key == "type_id_of" => self.type_id_of(i, ct.args),
@@ -2838,13 +2838,13 @@ impl Em<'_, '_, '_> {
         self.f.origin_at = origin;
         self.f.i32(0);
         self.push_args(i, args, None, 0, self.f.reason)?;
-        let context = self.push_call_providers(i, target.item, target.args)?;
+        let context = self.push_call_providers(i, target.item, target.args);
         self.f.call(Sym::Part(target.key, Part::Body));
         self.f.set(frame);
         for value in values.iter().rev() {
             self.f.set(*value);
         }
-        self.release_call_ctx(i, context)?;
+        self.release_call_ctx(i, context);
         let complete = self
             .m
             .inst_of
@@ -2959,7 +2959,7 @@ impl Em<'_, '_, '_> {
         }
         let c = if takes_ctx {
             params.push(Val::I32);
-            self.push_dyn_ctx(i, method, targs)?
+            self.push_dyn_ctx(i, method, targs)
         } else {
             None
         };
@@ -2989,7 +2989,7 @@ impl Em<'_, '_, '_> {
             self.f.get(value[0]);
             self.f.helper(Helper::ReleaseRef);
         }
-        self.release_call_ctx(i, c)?;
+        self.release_call_ctx(i, c);
         Ok(())
     }
 
@@ -3013,7 +3013,7 @@ impl Em<'_, '_, '_> {
                 let params = self.param_tys(call.key, call.item, call.args);
                 let lends = self.env().lends(call.item, call.args);
                 self.push_args(i, &args, params.as_deref(), lends, self.f.reason)?;
-                let c = self.push_call_providers(i, call.item, call.args)?;
+                let c = self.push_call_providers(i, call.item, call.args);
                 if bracket {
                     self.forbid_by(1);
                 }
@@ -3022,7 +3022,7 @@ impl Em<'_, '_, '_> {
                     self.forbid_by(-1);
                 }
                 self.call_results(i, call.ret)?;
-                self.release_call_ctx(i, c)?;
+                self.release_call_ctx(i, c);
                 if owned {
                     self.owned_refs.insert(i);
                 }

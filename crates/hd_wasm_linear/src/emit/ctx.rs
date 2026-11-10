@@ -19,7 +19,6 @@ use super::Em;
 use crate::layout::strip;
 use crate::module::{Func, HEAP, Val, mem};
 use crate::rt::{CTX_DATA, CTX_ENTRY, CTX_VTABLE, Helper};
-use crate::unsupported;
 
 /// The id a context gives key `k`: the low bits of its content hash, so
 /// `Repo[User]` and `Repo[Post]` have two ids
@@ -96,21 +95,19 @@ impl Em<'_, '_, '_> {
     /// The locals of the innermost provider of the whole key `k`: one in
     /// scope, else one the open context holds. Checking covers every key,
     /// so a miss is internal.
-    pub(super) fn provider(&mut self, k: Ty) -> StageResult<[u32; 2]> {
+    pub(super) fn provider(&mut self, k: Ty) -> [u32; 2] {
         if let Some((_, ls)) = self.providers.iter().rev().find(|p| p.0 == k) {
-            return Ok(*ls);
+            return *ls;
         }
-        match self.open_ctx {
-            Some(c) => {
-                let id = key_id(self.input, k);
-                Ok(ctx_lookup(&mut self.f, c, id))
-            }
-            // ruled out: checking covers each key; body_func installs its parameter or open context.
-            None => unsupported(format!(
-                "a provider of `{}` this function does not take",
-                self.pool().display(k)
-            )),
-        }
+        let context = self.open_ctx;
+        // ruled out: checking covers each key; body_func installs its
+        // provider parameter or the open context that contains it.
+        assert!(
+            context.is_some(),
+            "a required provider must have its open context"
+        );
+        let id = key_id(self.input, k);
+        ctx_lookup(&mut self.f, context.as_slice()[0], id)
     }
 
     /// The keys of function type `t`'s row in key order, but its open
@@ -172,14 +169,14 @@ impl Em<'_, '_, '_> {
     /// when no key goes in front, 0 when there is neither. Returns the
     /// local of a context it built, which the caller releases once the
     /// call has returned; a callee that keeps it takes a count of its own.
-    fn push_ctx_of(&mut self, i: u32, keys: &[Ty], open: bool) -> StageResult<Option<u32>> {
+    fn push_ctx_of(&mut self, i: u32, keys: &[Ty], open: bool) -> Option<u32> {
         let base = if open { self.open_ctx } else { None };
         if keys.is_empty() {
             match base {
                 Some(c) => self.f.get(c),
                 None => self.f.i32(0),
             }
-            return Ok(None);
+            return None;
         }
         // ruled out: the driver roots std runtime items before collecting a program.
         debug_assert!(self.input.runtime.is_some());
@@ -191,7 +188,7 @@ impl Em<'_, '_, '_> {
         );
         let mut provs = Vec::new();
         for k in keys {
-            provs.push(self.provider(*k)?);
+            provs.push(self.provider(*k));
         }
         let c = self.f.local(Val::I32);
         self.f.u32(u32::try_from(keys.len()).expect("keys"));
@@ -208,7 +205,7 @@ impl Em<'_, '_, '_> {
             }
         }
         self.f.get(c);
-        Ok(Some(c))
+        Some(c)
     }
 
     /// Writes entry `j` of the new context in local `c`: key id `id` and
@@ -244,7 +241,7 @@ impl Em<'_, '_, '_> {
     /// Pushes the context a call of a function value of type `ft` passes:
     /// the providers of its row's keys, in front of the open context when
     /// the row lists the open row (§12.4, one callable ABI).
-    pub(super) fn push_fn_ctx(&mut self, i: u32, ft: Ty) -> StageResult<Option<u32>> {
+    pub(super) fn push_fn_ctx(&mut self, i: u32, ft: Ty) -> Option<u32> {
         let (mut keys, open) = self.fn_row(ft);
         if open {
             self.scope_keys(&mut keys);
@@ -254,15 +251,17 @@ impl Em<'_, '_, '_> {
 
     /// End only the temporary context this call constructed.
     /// A forwarded caller context remains borrowed and emits no release.
-    pub(super) fn release_call_ctx(&mut self, i: u32, c: Option<u32>) -> StageResult<()> {
+    pub(super) fn release_call_ctx(&mut self, i: u32, c: Option<u32>) {
         if c.is_some() {
-            // ruled out: own::call_row pairs each constructed context with its release packet.
-            let Some(end) = self.operation_count(i, Tag::Release, Part::Row) else {
-                return unsupported("a call context without its stated release");
-            };
-            self.because(end, |em| em.release_ctx(c));
+            let end = self.operation_count(i, Tag::Release, Part::Row);
+            // ruled out: own::call_row pairs each constructed context
+            // with its release packet; consume that packet's actual reason.
+            assert!(
+                end.is_some(),
+                "a constructed call context must state its release"
+            );
+            self.because(end.as_slice()[0], |em| em.release_ctx(c));
         }
-        Ok(())
     }
 
     /// Pushes the providers a call of `item` at `args` passes: one per key
@@ -275,15 +274,15 @@ impl Em<'_, '_, '_> {
         i: u32,
         item: hd_base::DefId,
         args: hd_types::TyList,
-    ) -> StageResult<Option<u32>> {
+    ) -> Option<u32> {
         let (pool, env) = (self.input.pool, self.input.env);
         for key in hd_mono::declared_row_keys(pool, env, item, args) {
-            let [d, v] = self.provider(key)?;
+            let [d, v] = self.provider(key);
             self.f.get(d);
             self.f.get(v);
         }
         if !hd_mono::has_row_params(env, item) {
-            return Ok(None);
+            return None;
         }
         let mut keys = hd_mono::row_param_keys(pool, env, item, args);
         let open = hd_mono::row_args_open(pool, env, item, args);
@@ -302,7 +301,7 @@ impl Em<'_, '_, '_> {
         i: u32,
         method: hd_base::DefId,
         targs: hd_types::TyList,
-    ) -> StageResult<Option<u32>> {
+    ) -> Option<u32> {
         let mut keys = self.env().row_keys(method, with_self(self.pool(), targs));
         let pool = self.pool();
         let open = (pool.list_items(targs).iter()).any(|t| hd_mono::arg_is_open(pool, *t));

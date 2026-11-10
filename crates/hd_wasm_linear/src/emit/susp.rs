@@ -607,13 +607,13 @@ impl Em<'_, '_, '_> {
         }
         self.f.get(ch);
         self.push_args(i, args, None, 0, self.f.reason)?;
-        let c = self.push_call_providers(i, item, targs)?;
+        let c = self.push_call_providers(i, item, targs);
         self.f.call(Sym::Part(key, Part::Body));
         self.f.set(nc);
         for l in tmp.iter().rev() {
             self.f.set(*l);
         }
-        self.release_call_ctx(i, c)?;
+        self.release_call_ctx(i, c);
         if shielded {
             self.shield_leave(i, nc, Some(ch));
         }
