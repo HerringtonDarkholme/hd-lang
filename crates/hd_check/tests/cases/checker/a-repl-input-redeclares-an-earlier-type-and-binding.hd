@@ -1,0 +1,23 @@
+# @dump: tir
+# @repl: 2
+# A later REPL input that declares a type or a top-level name again,
+# where an earlier input declared it, names that input
+# (cli.repl.redeclare.type, cli.repl.redeclare.binding). A function or a
+# type may not take the name of an earlier input's binding either.
+struct Point:
+    y: i32
+
+let rate = +4
+
+fn total() -> i32:
+    +2
+
+struct Shape:
+    sides: i32
+# @input: 1
+struct Point:
+    x: i32
+
+let rate = +3
+let total = +1
+let Shape = +5

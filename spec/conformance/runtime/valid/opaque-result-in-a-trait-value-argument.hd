@@ -1,0 +1,28 @@
+# Spec 07 Opaque Results: fn.opaque.nested; an opaque result in the type
+# argument of a returned trait value reference.
+# expect-stdout: pet 3
+trait Named:
+    fn name(self) -> string
+
+trait Source[Item]:
+    fn first(self) -> Item
+
+struct Pet:
+    n: i32
+
+impl Named for Pet:
+    fn name(self) -> string:
+        "pet ${self.n}"
+
+struct Kennel:
+    pet: Pet
+
+impl Source[Pet] for Kennel:
+    fn first(self) -> Pet:
+        self.pet
+
+fn kennel() -> *dyn Source[impl Named]:
+    box(Kennel { pet: Pet { n: 3 } })
+
+pub fn main() -> void $ Console:
+    println(kennel().first().name())

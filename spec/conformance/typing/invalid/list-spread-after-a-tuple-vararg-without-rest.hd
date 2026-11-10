@@ -1,0 +1,8 @@
+# Spec 05 Positional Spreads: expr.call.spread.tuple-vararg-tail,
+# expr.call.spread.mismatch; a tuple vararg with no rest element takes no
+# list spread after its separate values.
+fn pair(values...: (i32, i32)) -> i32:
+    values._0 + values._1
+
+fn spread(nums: List[i32]) -> i32:
+    pair(+1, +2, nums...) # diagnostic: type-mismatch

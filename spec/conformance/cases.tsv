@@ -6282,6 +6282,9 @@ typing/invalid/value-branch-ends-in-a-binding.hd	type	reject:type-mismatch	lang/
 typing/invalid/empty-list-behind-a-reference.hd	type	reject:cannot-infer-type	lang/05-expressions.md#r-expr.collection.empty.error
 typing/invalid/empty-list-closure-result.hd	type	reject:cannot-infer-type	lang/05-expressions.md#r-expr.collection.empty.error
 typing/invalid/opaque-result-bound-with-an-unsolved-argument.hd	type	reject:cannot-infer-type	lang/04-type-system.md#r-types.generic.default.unsolved
+runtime/valid/opaque-result-in-a-trait-value-argument.hd	runtime	accept	lang/07-functions.md#r-fn.opaque.nested
+typing/invalid/separate-values-then-a-spread-duplicate-a-vararg.hd	type	reject:duplicate-argument	lang/05-expressions.md#r-expr.call.spread.vararg-duplicate
+typing/invalid/list-spread-after-a-tuple-vararg-without-rest.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.call.spread.tuple-vararg-tail
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

@@ -1,0 +1,7 @@
+# Spec 05 Positional Spreads: expr.call.spread.vararg-duplicate; separate
+# values first, then a spread of the vararg's list.
+fn collect(values...: List[i32]) -> List[i32]:
+    values
+
+fn duplicate(nums: List[i32]) -> List[i32]:
+    collect(+4, nums...) # diagnostic: duplicate-argument
