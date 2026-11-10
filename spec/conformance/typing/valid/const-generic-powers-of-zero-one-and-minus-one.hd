@@ -1,0 +1,20 @@
+# test: a power of 0, 1 or -1 evaluates for any exponent
+# Spec 04 Const Generic Arguments: types.generic.const.operator-set,
+# types.generic.const.identity.
+
+struct Number[N < const i64]: pass
+
+fn zero(n: Number[0 ** 7u32]) -> Number[0]:
+    n
+
+fn zero_to_zero(n: Number[0 ** 0u32]) -> Number[1]:
+    n
+
+fn one(n: Number[1 ** 100u32]) -> Number[1]:
+    n
+
+fn minus_one_odd(n: Number[(-1) ** 3u32]) -> Number[-1]:
+    n
+
+fn minus_one_even(n: Number[(-1) ** 64u32]) -> Number[1]:
+    n

@@ -150,6 +150,8 @@ typing/invalid/const-generic-cast.hd	type	reject:nonconstant-generic-argument	la
 typing/invalid/const-generic-evaluation-division-by-zero.hd	type	reject:const-evaluation-failed	lang/04-type-system.md#r-types.generic.const.evaluate-failure
 typing/invalid/const-generic-evaluation-invalid-shift.hd	type	reject:const-evaluation-failed	lang/04-type-system.md#r-types.generic.const.evaluate-failure
 typing/invalid/const-generic-evaluation-overflow.hd	type	reject:const-evaluation-failed	lang/04-type-system.md#r-types.generic.const.evaluate-failure
+typing/invalid/const-generic-literal-beyond-every-integer.hd	type	reject:const-evaluation-failed	lang/04-type-system.md#r-types.generic.const.evaluate-failure
+typing/valid/const-generic-powers-of-zero-one-and-minus-one.hd	type	accept	lang/04-type-system.md#r-types.generic.const.operator-set
 typing/invalid/const-generic-identity-mismatch.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.generic.const.identity
 typing/invalid/const-generic-impl-value-mismatch.hd	type	reject:unsatisfied-trait-bound	lang/04-type-system.md#r-types.generic.const.impl-exact
 typing/invalid/const-generic-no-runtime-inference.hd	type	reject:cannot-infer-type	lang/04-type-system.md#r-types.generic.const.no-runtime-inference

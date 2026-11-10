@@ -1,0 +1,7 @@
+# test: an integer literal too large for any integer is a const evaluation failure
+# Spec 04 Const Generic Arguments: types.generic.const.evaluate-failure.
+
+struct Wide[N < const u64]: pass
+
+fn huge(value: Wide[1 + 340282366920938463463374607431768211456]) -> void:  # diagnostic: const-evaluation-failed
+    pass
