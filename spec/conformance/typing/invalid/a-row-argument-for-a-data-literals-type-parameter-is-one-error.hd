@@ -1,0 +1,8 @@
+# test: a row argument for a data literal's type parameter is one error
+# Spec 11 Row Slots: req.row.slot.data; a row is no type argument, and
+# the field it would type reports nothing more.
+struct Box[T]:
+    v: T
+
+fn f() -> void:
+    let b = Box::[$ Console] { v: +1 } # diagnostic: generic-kind-mismatch

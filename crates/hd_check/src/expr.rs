@@ -3379,7 +3379,7 @@ impl Ck<'_, '_> {
             targs.push(self.explicit_slot_arg(*t, item.generics.get(taken + i), i)?);
         }
         let generics = item.generics.clone();
-        self.check_data_targ_kinds(def, &generics[taken..], &targs[taken..], name_node);
+        self.check_data_targ_kinds(def, &generics, &mut targs[taken..], name_node);
         let explicit = targs.len();
         while let Some(g) = item.generics.get(targs.len()) {
             // `ref.lifetime.struct`: a lifetime has its one argument.

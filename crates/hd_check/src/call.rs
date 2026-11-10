@@ -2473,10 +2473,16 @@ impl Ck<'_, '_> {
                 "an `@auto_closing` function is called only as a statement, where its result is registered for cleanup",
             );
         }
-        if !matches!(&item.data, ItemData::Fn(_, _)) {
+        let checked: Vec<Ty>;
+        let explicit = if matches!(&item.data, ItemData::Fn(_, _)) {
+            explicit
+        } else {
             let generics = item.generics.clone();
-            self.check_data_targ_kinds(def, &generics, explicit, n);
-        }
+            let mut written = explicit.to_vec();
+            self.check_data_targ_kinds(def, &generics, &mut written, n);
+            checked = written;
+            &checked
+        };
         self.note_call(def);
         if def == self.cx.names.known.dbg {
             self.note_dbg(n, true);

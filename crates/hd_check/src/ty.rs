@@ -39,15 +39,19 @@ impl Ck<'_, '_> {
     /// newtype declaration (`req.row.param.data-owner`,
     /// `req.row.slot.data`). Constructor inference supplies omitted slots;
     /// every written slot still has the declaration's type or row kind.
+    /// A written argument of the wrong kind becomes poison, so nothing it
+    /// fills reports again. The parameters a local type takes from around
+    /// it have no written argument (`names.local-type.refs`).
     pub(crate) fn check_data_targ_kinds(
         &mut self,
         def: DefId,
         generics: &[Generic],
-        args: &[Ty],
+        args: &mut [Ty],
         n: NodeRef<'_>,
     ) {
         let pool = self.pool();
-        for (i, (arg, generic)) in args.iter().zip(generics).enumerate() {
+        let written = generics.iter().filter(|g| !g.outer);
+        for (i, (arg, generic)) in args.iter_mut().zip(written).enumerate() {
             let data = pool.get(*arg);
             if matches!(data, TyData::Poison | TyData::Infer(_)) {
                 continue;
@@ -69,6 +73,7 @@ impl Ck<'_, '_> {
                 )
             };
             self.err(Code::GenericKindMismatch, n, &msg);
+            *arg = Ty::POISON;
         }
     }
 
