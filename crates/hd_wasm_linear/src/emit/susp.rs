@@ -252,6 +252,8 @@ impl Em<'_, '_, '_> {
         for (k, arm) in arms.iter().enumerate() {
             if let Some((lo, hi)) = self.range(*arm) {
                 self.in_range(lo, hi);
+                // ruled out: the arm count is bounded by this body's
+                // u32 instruction identities, as each arm names a block.
                 let d = self.depth(Ctl::Arm(i, u32::try_from(k).expect("arms")));
                 self.f.op(I::BrIf(d));
             }
