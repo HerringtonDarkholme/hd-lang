@@ -1,0 +1,8 @@
+# test: `is` between a reference and an `AnyRef` parameter is incompatible
+# Spec 05 Identity Operands: expr.is.incompatible.data; `T < AnyRef` has
+# identity, but it is no reference whose referent equals `P`.
+struct P:
+    x: i32
+
+fn f[T < AnyRef](a: *P, t: T) -> bool:
+    a is t # diagnostic: incompatible-identity-operands

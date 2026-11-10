@@ -1,0 +1,32 @@
+# test: a reference to a promoted field or a shared enum field
+# Spec 03 Promoted Members: names.promoted.path; `&mut o.v` is a reference
+# to `o.Inner.v`. Spec 05 Places: expr.place.enum-shared-field; a
+# reference to a shared enum field holds a copy.
+# expect-stdout: 5
+# expect-stdout: 200
+# expect-stdout: 200
+struct Inner:
+    pub v: i32
+
+struct Outer:
+    Inner
+    w: i32
+
+enum HttpStatus(code: i32, phrase: string):
+    Ok -> HttpStatus(200, phrase="OK")
+
+fn status() -> HttpStatus:
+    HttpStatus.Ok
+
+fn code_ref(s: &HttpStatus) -> i32:
+    s.code
+
+pub fn main() -> void $ Console:
+    let mut o = Outer { Inner: Inner { v: +1 }, w: +2 }
+    let r = &mut o.v
+    *r = +5
+    println(o.v)
+    let c = &status().code
+    println(*c)
+    let s = status()
+    println(code_ref(&s))
