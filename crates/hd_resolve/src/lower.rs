@@ -18,7 +18,7 @@ use hd_diag::{Code, DiagBuf};
 
 use hd_intern::PathKind;
 use hd_project::{UseRootError, UseRoots};
-use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
+use hd_syntax::{NodeRef, SyntaxKind, TokenKind, TypeForm};
 use hd_types::{
     Inputs, InternPool, ParamRef, Prim, RowData, RowId, RowParamRef, Ty, TyData, TyList, Types,
 };
@@ -3314,24 +3314,34 @@ impl Lower<'_, '_, '_> {
     // `dyn Tr` describes a referent or an inherent implementation target;
     // it is never a sized value type in its own right.
     fn ty_at(&mut self, n: Option<NodeRef<'_>>, gn: &Gen, referent: bool) -> Ty {
-        let Some(n) = n else { return Ty::VOID };
-        let Some(before) = self.slots.as_ref().map(Vec::len) else {
-            return self.ty_form(n, gn, referent);
+        // A declaration never holds `_`: the parser reports it
+        // (`types.generic.placeholder.not-type`) and resolution never runs on
+        // a tree with syntax errors. Every owner of a requirement row reads
+        // the row apart from its types.
+        debug_assert!(
+            n.is_none_or(|n| n.kind().type_form().is_some()),
+            "not a declaration type"
+        );
+        let Some((n, form)) = n.and_then(|n| Some((n, n.kind().type_form()?))) else {
+            return Ty::VOID;
         };
-        let t = self.ty_form(n, gn, referent);
+        let Some(before) = self.slots.as_ref().map(Vec::len) else {
+            return self.ty_form(n, form, gn, referent);
+        };
+        let t = self.ty_form(n, form, gn, referent);
         self.place_slots(n, before, t, false);
         t
     }
 
-    fn ty_form(&mut self, n: NodeRef<'_>, gn: &Gen, referent: bool) -> Ty {
+    fn ty_form(&mut self, n: NodeRef<'_>, form: TypeForm, gn: &Gen, referent: bool) -> Ty {
         let pool = self.names.pool;
         let first_ty = |me: &mut Self, n: NodeRef<'_>| -> Ty {
             let c = n.children().find(|c| c.kind().is_type());
             me.ty(c, gn)
         };
-        match n.kind() {
-            SyntaxKind::NamedType => self.named(n, gn, referent),
-            SyntaxKind::ImplType => {
+        match form {
+            TypeForm::Named => self.named(n, gn, referent),
+            TypeForm::Impl => {
                 let Some((owner, site, borrows)) = self.opaque_result else {
                     self.diags.error(
                         Code::TypeMismatch,
@@ -3381,11 +3391,11 @@ impl Lower<'_, '_, '_> {
                     bound,
                 })
             }
-            SyntaxKind::OptionalType => {
+            TypeForm::Optional => {
                 let t = first_ty(self, n);
                 pool.applied(self.names.known.option, t)
             }
-            SyntaxKind::UnionType => {
+            TypeForm::Union => {
                 let members: Vec<Ty> = n
                     .children()
                     .filter(|c| c.kind().is_type())
@@ -3393,11 +3403,9 @@ impl Lower<'_, '_, '_> {
                     .collect();
                 pool.intern_ty(&TyData::Union(pool.list(&members)))
             }
-            SyntaxKind::ParenType => {
-                self.ty_at(n.children().find(|c| c.kind().is_type()), gn, referent)
-            }
-            SyntaxKind::RestType => first_ty(self, n),
-            SyntaxKind::TupleType => {
+            TypeForm::Paren => self.ty_at(n.children().find(|c| c.kind().is_type()), gn, referent),
+            TypeForm::Rest => first_ty(self, n),
+            TypeForm::Tuple => {
                 let mut elems = Vec::new();
                 let mut rest = None;
                 for c in n.children().filter(|c| c.kind().is_type()) {
@@ -3424,7 +3432,7 @@ impl Lower<'_, '_, '_> {
                     rest,
                 })
             }
-            SyntaxKind::DynType => {
+            TypeForm::Dyn => {
                 if !referent {
                     self.diags.error(
                         Code::TraitUsedAsType,
@@ -3453,7 +3461,7 @@ impl Lower<'_, '_, '_> {
                 self.require_complete(t, self.src.span(n));
                 t
             }
-            SyntaxKind::FunctionType => {
+            TypeForm::Function => {
                 let arrow = n
                     .direct_token(&self.src.parse.tokens, TokenKind::Arrow)
                     .map(hd_base::TokenIdx::raw);
@@ -3512,7 +3520,7 @@ impl Lower<'_, '_, '_> {
                     deps,
                 })
             }
-            SyntaxKind::ProjectionType => {
+            TypeForm::Projection => {
                 let base_node = n.children().find(|c| c.kind().is_type());
                 let base = self.ty(base_node, gn);
                 let Some(t) = n.name(&self.src.parse.tokens) else {
@@ -3583,13 +3591,8 @@ impl Lower<'_, '_, '_> {
                     args,
                 })
             }
-            SyntaxKind::InferType => Ty::POISON,
-            SyntaxKind::RequirementRow => {
-                self.gap("a requirement row in type position");
-                Ty::POISON
-            }
-            SyntaxKind::ContextType => self.context_ty(n, gn),
-            SyntaxKind::RefType => {
+            TypeForm::Context => self.context_ty(n, gn),
+            TypeForm::Ref => {
                 // `ref.type.forms`: the reference's own `mut` says whether it
                 // writes.
                 let mutable = n
@@ -3609,10 +3612,6 @@ impl Lower<'_, '_, '_> {
                     mutable,
                     counted,
                 })
-            }
-            _ => {
-                self.gap("this type form");
-                Ty::POISON
             }
         }
     }

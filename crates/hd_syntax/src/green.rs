@@ -416,27 +416,51 @@ impl<'t> NodeRef<'t> {
     }
 }
 
+/// A type a declaration writes: every kind of the `type` production but
+/// the inferred `_`, which only a body writes
+/// (`types.generic.placeholder.local`), and a requirement row, which
+/// only a type argument list, function type or declaration holds.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TypeForm {
+    Named,
+    Dyn,
+    Impl,
+    Ref,
+    Optional,
+    Union,
+    Tuple,
+    Paren,
+    Function,
+    Projection,
+    Context,
+    Rest,
+}
+
 impl SyntaxKind {
     /// The kinds of the `type` production.
     #[must_use]
     pub fn is_type(self) -> bool {
-        matches!(
-            self,
-            Self::NamedType
-                | Self::DynType
-                | Self::ImplType
-                | Self::RefType
-                | Self::OptionalType
-                | Self::UnionType
-                | Self::TupleType
-                | Self::ParenType
-                | Self::FunctionType
-                | Self::ProjectionType
-                | Self::ContextType
-                | Self::RestType
-                | Self::InferType
-                | Self::RequirementRow
-        )
+        self.type_form().is_some() || matches!(self, Self::InferType | Self::RequirementRow)
+    }
+
+    /// The declaration type this kind writes, if any.
+    #[must_use]
+    pub const fn type_form(self) -> Option<TypeForm> {
+        Some(match self {
+            Self::NamedType => TypeForm::Named,
+            Self::DynType => TypeForm::Dyn,
+            Self::ImplType => TypeForm::Impl,
+            Self::RefType => TypeForm::Ref,
+            Self::OptionalType => TypeForm::Optional,
+            Self::UnionType => TypeForm::Union,
+            Self::TupleType => TypeForm::Tuple,
+            Self::ParenType => TypeForm::Paren,
+            Self::FunctionType => TypeForm::Function,
+            Self::ProjectionType => TypeForm::Projection,
+            Self::ContextType => TypeForm::Context,
+            Self::RestType => TypeForm::Rest,
+            _ => return None,
+        })
     }
 }
 
