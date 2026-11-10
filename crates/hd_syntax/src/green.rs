@@ -687,96 +687,10 @@ impl<'t> Decl<'t> {
         self.0.direct_token(tokens, TokenKind::KwPub).is_some()
     }
 
-    pub fn decorators(self) -> impl Iterator<Item = Decorator<'t>> {
-        self.0.children().filter_map(Decorator::cast)
-    }
-
     /// The suite or member block.
     #[must_use]
     pub fn body(self) -> Option<Block<'t>> {
         self.0.children().find_map(Block::cast)
-    }
-}
-
-impl<'t> FnDecl<'t> {
-    #[must_use]
-    pub fn generics(self) -> Option<GenericParameterList<'t>> {
-        self.0.children().find_map(GenericParameterList::cast)
-    }
-
-    #[must_use]
-    pub fn params(self) -> Option<ParameterList<'t>> {
-        self.0.children().find_map(ParameterList::cast)
-    }
-
-    /// The written result type (after `->`).
-    #[must_use]
-    pub fn result(self) -> Option<NodeRef<'t>> {
-        self.0
-            .children()
-            .find(|child| child.kind().is_type() && child.kind() != SyntaxKind::RequirementRow)
-    }
-
-    #[must_use]
-    pub fn row(self) -> Option<RequirementRow<'t>> {
-        self.0.children().find_map(RequirementRow::cast)
-    }
-
-    #[must_use]
-    pub fn body(self) -> Option<Block<'t>> {
-        self.0.children().find_map(Block::cast)
-    }
-}
-
-impl<'t> Parameter<'t> {
-    /// The parameter's type.
-    #[must_use]
-    pub fn ty(self) -> Option<NodeRef<'t>> {
-        self.0.children().find(|child| child.kind().is_type())
-    }
-
-    #[must_use]
-    pub fn default(self) -> Option<DefaultValue<'t>> {
-        self.0.children().find_map(DefaultValue::cast)
-    }
-}
-
-impl<'t> GenericParameter<'t> {
-    #[must_use]
-    pub fn bounds(self) -> Option<BoundList<'t>> {
-        self.0.children().find_map(BoundList::cast)
-    }
-
-    #[must_use]
-    pub fn default(self) -> Option<TypeDefault<'t>> {
-        self.0.children().find_map(TypeDefault::cast)
-    }
-}
-
-impl<'t> BoundList<'t> {
-    pub fn traits(self) -> impl Iterator<Item = NamedType<'t>> {
-        self.0.children().filter_map(NamedType::cast)
-    }
-}
-
-impl<'t> DataField<'t> {
-    #[must_use]
-    pub fn ty(self) -> Option<NodeRef<'t>> {
-        self.0.children().find(|child| child.kind().is_type())
-    }
-}
-
-impl<'t> Block<'t> {
-    /// The block's statements and local declarations, in order.
-    pub fn items(self) -> impl Iterator<Item = NodeRef<'t>> {
-        self.0.children()
-    }
-}
-
-impl<'t> IfExpr<'t> {
-    #[must_use]
-    pub fn condition(self) -> Option<NodeRef<'t>> {
-        self.0.children().next()
     }
 }
 
