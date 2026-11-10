@@ -1,0 +1,4 @@
+# test: a body projection from a concrete type selects no associated type
+# Spec 09 Associated Types: trait.assoc.no-type.
+fn make() -> void:
+    let xs: List[i32::Item] = []  # diagnostic: unknown-associated-type

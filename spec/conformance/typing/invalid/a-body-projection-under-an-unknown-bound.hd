@@ -1,0 +1,4 @@
+# test: a body projection from a type parameter whose bound names no trait reports only the bound
+# Spec 09 Associated Types: trait.assoc.no-type.
+fn make[T < Missing](value: T) -> void:  # diagnostic: unknown-trait
+    let xs: List[T::Item] = []

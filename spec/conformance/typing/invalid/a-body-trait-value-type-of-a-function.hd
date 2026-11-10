@@ -1,0 +1,7 @@
+# test: a function's name after `dyn` in a body type is no trait
+# Spec 09 Trait Values: trait.dyn.reference-form.
+fn helper() -> void:
+    pass
+
+fn make() -> void:
+    let xs: List[&dyn helper] = []  # diagnostic: unknown-trait

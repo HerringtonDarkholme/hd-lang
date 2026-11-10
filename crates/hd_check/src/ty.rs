@@ -63,7 +63,7 @@ impl Ck<'_, '_> {
             let name = self.cx.names.display_name(def);
             let msg = if generic.row {
                 format!(
-                    "argument {} of `{name}` is a row parameter: write it after `$`",
+                    "argument {} of `{name}` is a row parameter: write its row after `$`",
                     i + 1
                 )
             } else {

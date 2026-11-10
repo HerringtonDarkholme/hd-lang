@@ -1,0 +1,10 @@
+# test: a type written in the row slot of a struct literal's explicit arguments is a kind error
+# Spec 11 Row Slots: req.row.slot.data.
+struct Job[$ R]:
+    run: fn() -> void $ R
+
+fn noop() -> void:
+    pass
+
+fn make() -> void:
+    job := Job::[i32] { run: noop }  # diagnostic: generic-kind-mismatch

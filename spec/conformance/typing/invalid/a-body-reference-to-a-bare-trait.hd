@@ -1,0 +1,6 @@
+# test: a reference to a bare trait name in a body type is a trait used as a type
+# Spec 04 Trait Values: types.trait.value.dyn-required.reference-values.
+trait Shape
+
+fn make() -> void:
+    let xs: List[&Shape] = []  # diagnostic: trait-used-as-type

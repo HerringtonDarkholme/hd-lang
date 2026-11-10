@@ -1,0 +1,7 @@
+# test: a map literal whose key type implements neither Eq nor Hash reports the key bound once
+# Spec 04 Map Key Types: types.map-key.declared-bound.
+struct Point:
+    x: i32
+
+fn make() -> void:
+    m := {Point { x: 1 }: 1}  # diagnostic: unsatisfied-trait-bound
