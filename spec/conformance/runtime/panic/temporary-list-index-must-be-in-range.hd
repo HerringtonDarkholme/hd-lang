@@ -1,0 +1,10 @@
+# test: taking a reference to a temporary list element checks its index
+# ref.elem.index and expr.index.list.range
+fn source() -> List[u32]:
+    [7, 8]
+
+fn accept(value: &u32) -> void:
+    pass
+
+pub fn main() -> void:
+    accept(&source()[2]) # panic: index-out-of-bounds

@@ -6462,6 +6462,9 @@ typing/invalid/a-trait-qualified-call-on-a-trait-value-reaches-no-generic-member
 runtime/valid/generic-local-function-builds-and-returns-a-struct.hd	runtime	accept	lang/07-functions.md#r-fn.local.declare
 runtime/valid/generic-local-function-constructs-an-unused-struct.hd	runtime	accept	lang/07-functions.md#r-fn.local.declare
 runtime/valid/generic-local-functions-keep-captured-ancestor-field-loans.hd	runtime	accept	lang/07-functions.md#r-fn.local.declare
+runtime/panic/zero-sized-temporary-list-index-must-be-in-range.hd	runtime	panic:index-out-of-bounds	lang/13-values-and-references.md#r-ref.elem.index
+runtime/panic/temporary-list-index-must-be-in-range.hd	runtime	panic:index-out-of-bounds	lang/13-values-and-references.md#r-ref.elem.index
+runtime/valid/zero-sized-temporary-list-reference-evaluates-its-index-once.hd	runtime	accept	lang/13-values-and-references.md#r-ref.elem.index
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
