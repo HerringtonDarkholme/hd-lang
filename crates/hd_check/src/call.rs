@@ -1967,7 +1967,10 @@ impl Ck<'_, '_> {
                     ) {
                         r
                     } else {
-                        self.coerce(r, t, w, *e, what, ExpectPosition::General)
+                        let referents = self.open_referents(w);
+                        let r = self.coerce(r, t, w, *e, what, ExpectPosition::General);
+                        self.reject_bare_dyn_solve(&referents, *e);
+                        r
                     }
                 }
                 None => r,

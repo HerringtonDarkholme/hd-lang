@@ -9,9 +9,9 @@ struct Point:
 impl Named for Point:
     fn name(&self) -> string:
         "point"
-fn tag_of[N < ?Copy & Named](value: &N) -> string:
+fn tag_of[N < Named](value: N) -> string:
     let tagged: fn(&N, i32) -> string = N::tagged
-    tagged(value, 3)
+    tagged(&value, 3)
 tests:
     use std.testing.assert_equal
     it("the default body runs at the trait value reference"):
@@ -22,4 +22,4 @@ tests:
             "point3",
             reason="the default body calls name through the table",
         )
-        assert_equal(tag_of(&point), "point3", reason="the concrete type runs the same default")
+        assert_equal(tag_of(point), "point3", reason="the concrete type runs the same default")

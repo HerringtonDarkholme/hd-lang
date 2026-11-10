@@ -1,0 +1,13 @@
+# test: a pointer argument never solves a type parameter to a bare trait descriptor
+# Spec 04 Inference From Several Arguments: types.generic.infer.no-bare-dyn. A
+# `*dyn Named` argument for `*T` would make `T` the bare `dyn Named`, so copying
+# the value out would build a bare trait value.
+
+trait Named:
+    fn name(&self) -> string
+
+fn copy_out[T](r: *T) -> T:
+    *r
+
+fn read(named: *dyn Named) -> void:
+    _ := copy_out(named) # diagnostic: cannot-infer-type

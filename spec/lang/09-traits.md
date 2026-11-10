@@ -2520,7 +2520,7 @@ A concrete reference converts to `&dyn Inspectable` by an expected type.
 6. r[trait.erase.built] A value built from `T`, such as a `Box[T]`, records `Box` applied to that type.
 7. r[trait.erase.bound-required.reference-values] Erasing a reference to a type parameter requires an `Inspectable` bound on its referent type. A reference without that evidence is not assignable to `&dyn Inspectable`. Error: `type-mismatch`.
 8. r[trait.erase.widen.reference-values] Widening a dynamic value of a trait that extends `Inspectable` to `Inspectable` is ordinary supertrait widening, by [`trait.dyn.ref.widen`](09-traits.md#r-trait.dyn.ref.widen).
-9. r[trait.erase.keeps] The widened value keeps its recorded concrete type. Nothing is wrapped twice, including when a type parameter is instantiated with such a trait value type.
+9. r[trait.erase.keeps] The widened value keeps its recorded concrete type. Nothing is wrapped twice.
 
 ```text
 use std.inspect.{Inspectable, TypeId}

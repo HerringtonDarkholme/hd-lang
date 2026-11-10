@@ -865,6 +865,73 @@ impl Ck<'_, '_> {
             .unwrap_or_default()
     }
 
+    /// The open variables of a call's formal type that stand directly
+    /// behind a reference or pointer, as `T` in `&T`: the only place an
+    /// argument can solve one to a bare `dyn Tr` descriptor. Cost: one walk
+    /// of the formal, only when it has a variable.
+    pub(crate) fn open_referents(&self, formal: Ty) -> Vec<Ty> {
+        fn walk(ck: &Ck<'_, '_>, t: Ty, under_ref: bool, out: &mut Vec<Ty>) {
+            let pool = ck.pool();
+            if !pool.has_infer(t) {
+                return;
+            }
+            let t = ck.infer.shallow(pool, t);
+            match pool.get(t) {
+                TyData::Infer(_) if under_ref => out.push(t),
+                TyData::Ref { inner, .. } => walk(ck, inner, true, out),
+                TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => {
+                    for a in pool.list_items(args) {
+                        walk(ck, *a, false, out);
+                    }
+                }
+                TyData::Tuple { elems, rest } => {
+                    for a in pool.list_items(elems).iter().copied().chain(rest) {
+                        walk(ck, a, false, out);
+                    }
+                }
+                TyData::Union(members) => {
+                    for a in pool.list_items(members) {
+                        walk(ck, *a, false, out);
+                    }
+                }
+                TyData::Fn { params, result, .. } => {
+                    for a in pool.list_items(params).iter().copied().chain([result]) {
+                        walk(ck, a, false, out);
+                    }
+                }
+                _ => {}
+            }
+        }
+        let mut out = Vec::new();
+        walk(self, formal, false, &mut out);
+        out
+    }
+
+    /// Call inference never solves a type parameter to a bare `dyn Tr`
+    /// (`types.generic.infer.no-bare-dyn`): an argument that would, as
+    /// `&dyn Tr` for `&T`, is `cannot-infer-type`. Each such variable is
+    /// rebound to poison, so the rest of the call reports nothing more
+    /// about it.
+    pub(crate) fn reject_bare_dyn_solve(&mut self, referents: &[Ty], n: NodeRef<'_>) {
+        let pool = self.pool();
+        let mut descriptor = None;
+        for v in referents {
+            let t = self.infer.resolve(pool, *v);
+            if matches!(pool.get(t), TyData::TraitValue { .. }) {
+                descriptor.get_or_insert(t);
+                self.infer.rebind(pool, *v, Ty::POISON);
+            }
+        }
+        let Some(descriptor) = descriptor else {
+            return;
+        };
+        let shown = self.show(descriptor);
+        let msg = format!(
+            "this argument would solve a type parameter to the bare trait descriptor `dyn {shown}`, which is never a type argument; pass a concrete type's reference, or write the type argument as a reference type, as in `f::[&dyn {shown}](...)`"
+        );
+        self.err(Code::CannotInferType, n, &msg);
+    }
+
     /// A generic call's argument of type `got` for a bare type parameter an
     /// earlier argument solved as `solved`. The two meet only by
     /// permission weakening (`types.generic.infer.join`): when they would

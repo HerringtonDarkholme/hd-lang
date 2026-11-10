@@ -1,4 +1,4 @@
-# test: generic erasure of an existing trait reference preserves its concrete referent
+# test: widening an existing trait reference to Inspectable preserves its concrete referent
 # Spec 09 Erasure To Inspectable: trait.erase.keeps; Trait Value References: trait.dyn.ref.identity.
 # expect-stdout: true
 # expect-stdout: 3
@@ -9,12 +9,9 @@ use std.inspect.{Inspectable, TypeId}
 struct UserError:
     count: i32
 
-fn erase[T < Inspectable](value: *T) -> *dyn Inspectable:
-    value
-
 pub fn main() -> void $ Console:
     let original: *dyn Error = box(UserError { count: 3 })
-    erased := erase(original)
+    let erased: *dyn Inspectable = original
     println(erased.runtime_type() == TypeId::of::[UserError]())
     match erased.downcast_ref::[UserError]():
         .Some(found) => println(found.count)

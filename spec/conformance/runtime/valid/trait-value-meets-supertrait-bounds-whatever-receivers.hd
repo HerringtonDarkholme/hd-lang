@@ -15,17 +15,17 @@ impl Display for Missing:
 
 impl Error for Missing
 
-fn show[T < Display](value: *T) -> string:
+fn show[T < Display](value: T) -> string:
     value.to_string()
 
-fn as_error[T < Error](value: *T) -> string:
+fn as_error[T < Error](value: T) -> string:
     value.to_string()
 
-fn erase[T < Inspectable](value: *T) -> *dyn Inspectable:
-    value
+fn type_of[T < Inspectable](value: T) -> TypeId:
+    value.runtime_type()
 
 pub fn main() -> void $ Console:
     let failure: *dyn Error = box(Missing { path: "a.txt" })
     println(show(failure))
     println(as_error(failure))
-    println("${erase(failure).runtime_type() == TypeId::of::[Missing]()}")
+    println("${type_of(failure) == TypeId::of::[Missing]()}")

@@ -1996,62 +1996,6 @@ impl Ck<'_, '_> {
             self.expect(got, inner, n, what, position);
             return self.b.coerce(Coercion::WrapSome, NONE, r, want, n.index());
         }
-        // Internal reference getters and identity metadata still use trait
-        // descriptors. Written value types cannot reach these conversions.
-        if let (
-            TyData::TraitValue { def: to, .. },
-            TyData::TraitValue {
-                def: from,
-                args: from_args,
-                ..
-            },
-        ) = (pool.get(ws), pool.get(gs))
-            && to != from
-            && let Some(widened) = supertrait_args(self.cx.lookup, pool, from, from_args, to, 0)
-        {
-            // The widening holds only when the inherited supertrait
-            // arguments fit the target's (`trait.dyn.widen`); otherwise
-            // the value reports below, as a mismatch.
-            let widened = pool.intern_ty(&TyData::TraitValue {
-                def: to,
-                args: widened,
-                bindings: vec![],
-            });
-            if self.can_unify(widened, ws) {
-                return self
-                    .b
-                    .coerce(Coercion::Supertrait, NONE, r, want, n.index());
-            }
-        }
-        if let TyData::TraitValue { def, args, .. } = pool.get(ws)
-            && !open
-            && !matches!(pool.get(gs), TyData::TraitValue { .. } | TyData::Poison)
-        {
-            // `types.literal.local.erased.reference-values`: a literal converted to a trait
-            // value has its class's default type.
-            let gs = match lit {
-                Some(d) => {
-                    let _ = self.infer.unify(pool, gs, d);
-                    d
-                }
-                None => gs,
-            };
-            let tref = TraitRef {
-                trait_: def,
-                self_ty: gs,
-                args,
-            };
-            // A value whose type lacks the impl does not convert: the
-            // binding's type does not fit (`trait.dyn.convert.reference-values`).
-            let before = self.diags.len();
-            let _ = self.require_ref_as(tref, n, Code::TypeMismatch);
-            if self.diags.len() == before {
-                self.check_value_bindings(gs, ws, n);
-            }
-            return self
-                .b
-                .coerce(Coercion::ToTraitValue, NONE, r, want, n.index());
-        }
         // A suspending function value weakens to its lowered constructor
         // type, which then meets `want` as any function value does
         // (`fn.type.suspend.weaken`); the reverse is not implicit. A
@@ -2398,18 +2342,13 @@ impl Ck<'_, '_> {
         let want = self.norm_ty(want);
         let want = self.resolved(self.infer.resolve(pool, want));
         // `from` meets `to` in a position: equal (`Some(false)`), or
-        // convertible only by a representation change (`Some(true)`).
-        // Child-to-supertrait widening rebuilds the trait value, as a
-        // trait-value construction does
+        // convertible only by a representation change (`Some(true)`)
         // (`types.variance.repr.excluded`).
         let pair = |this: &mut Self, from: Ty, to: Ty| -> Option<bool> {
             if this.can_unify(from, to) {
                 return Some(false);
             }
             if this.elem_converts(from, to) {
-                return Some(true);
-            }
-            if this.widens(from, to) {
                 return Some(true);
             }
             this.repr_change(from, to, depth + 1).then_some(true)
@@ -2488,40 +2427,6 @@ impl Ck<'_, '_> {
         let ok = self.infer.unify(self.pool(), a, b).is_ok();
         self.infer.rollback(snap);
         ok
-    }
-
-    /// Whether `from` widens to `to` through a supertrait, rebuilding
-    /// the trait value: the same inheritance the coercion applies
-    /// (`trait.dyn.widen`), so the error names the representation
-    /// change instead of a plain mismatch.
-    fn widens(&mut self, from: Ty, to: Ty) -> bool {
-        let pool = self.pool();
-        let from = self.resolved(self.infer.resolve(pool, from));
-        let to = self.resolved(self.infer.resolve(pool, to));
-        let (
-            TyData::TraitValue {
-                def: from_def,
-                args: from_args,
-                ..
-            },
-            TyData::TraitValue { def: to_def, .. },
-        ) = (pool.get(from), pool.get(to))
-        else {
-            return false;
-        };
-        if from_def == to_def {
-            return false;
-        }
-        let Some(widened) = supertrait_args(self.cx.lookup, pool, from_def, from_args, to_def, 0)
-        else {
-            return false;
-        };
-        let widened = pool.intern_ty(&TyData::TraitValue {
-            def: to_def,
-            args: widened,
-            bindings: vec![],
-        });
-        self.can_unify(widened, to)
     }
 
     /// A concrete value of type `got` converts to the trait value type

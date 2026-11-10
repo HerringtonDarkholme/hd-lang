@@ -850,10 +850,11 @@ in a fixed order, and at most one applies:
 6. `T` to `T?`, one layer: `WrapSome`
    ([`types.assign.optional`](../../spec/lang/04-type-system.md#r-types.assign.optional)).
 7. A function type whose row the target row entails: `RowSubsume`.
-8. `S` to a trait value `Tr` when `S: Tr` holds: `ToTraitValue`, or
-   `ToAny` for `Any`.
-9. A child trait value to a supertrait value: `Supertrait`. `&S` to a
-   trait value reference `&dyn Tr` when `S: Tr` holds: a new
+8. No value converts to a bare trait value: written value types never
+   name one, and call inference never solves a type parameter to one
+   ([`types.generic.infer.no-bare-dyn`](../../spec/lang/04-type-system.md#r-types.generic.infer.no-bare-dyn)).
+9. A child trait value reference to a supertrait reference: a `get`
+   applying `Supertrait`. `&S` to a trait value reference `&dyn Tr` when `S: Tr` holds: a new
    `Ref[dyn Tr]` whose `get` applies `RefToTraitValue` to the source
    reference (`dynref.rs`,
    [`types.assign.trait-value.ref`](../../spec/lang/04-type-system.md#r-types.assign.trait-value.ref)).

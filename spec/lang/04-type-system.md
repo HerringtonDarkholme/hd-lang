@@ -1463,6 +1463,7 @@ arguments' types may differ only in an outer `mut`:
 5. r[types.generic.infer.join.literal] An integer literal argument is not a conversion: it takes the type solved from the other arguments as its expected type, in any position. So `pick(1, large)` with an `i64` `large` solves `T = i64`.
 6. r[types.generic.infer.join.explicit.reference-values] An explicit type argument, as in `cmp::[*dyn Display](&user, label)`, is an expected type for each argument, which then converts by [Assignability And Coercion](#assignability-and-coercion), as [`types.lct.expected-trait.reference-values`](#r-types.lct.expected-trait.reference-values) allows.
 7. r[types.generic.infer.join.not-lct] This join is narrower than the [least common type](#least-common-type), and is not one of that section's constructs.
+8. r[types.generic.infer.no-bare-dyn] Call inference never solves a type parameter to a bare `dyn Tr` descriptor, so a `&dyn Tr` argument for a `&T` parameter, or a `*dyn Tr` argument for a `*T` parameter, is an error. A `T` parameter takes the trait value reference itself, as [`trait.dyn.bound.reference`](09-traits.md#r-trait.dyn.bound.reference) allows, and an explicit reference type argument, as in `pair::[&dyn Named](&named, &user)`, converts by the rule above. Error: `cannot-infer-type`.
 
 ```text
 struct User:

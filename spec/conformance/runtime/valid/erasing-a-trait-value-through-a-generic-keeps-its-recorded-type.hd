@@ -1,4 +1,4 @@
-# test: erasing a trait value through a generic keeps its recorded type
+# test: erasing a value through a generic, or widening a trait value, keeps its recorded type
 # Rules: trait.inspect.runtime-type, trait.downcast.shared-local-reference, trait.downcast.copy-through-reference.
 # expect-stdout: true
 # expect-stdout: true
@@ -27,7 +27,8 @@ fn describe[E < Error](error: E) -> string:
 
 pub fn main() -> void $ Console:
     let failure: *dyn Error = box(Missing { path: "a.txt" })
-    println(is_missing(erase(failure)))
+    let widened: *dyn Inspectable = failure
+    println(is_missing(widened))
     println(is_missing(erase(box(Missing { path: "b.txt" }))))
     println(is_missing(erase(box(3))))
     println(describe(failure))

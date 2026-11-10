@@ -1,0 +1,20 @@
+# test: call inference never solves a type parameter to a bare trait descriptor
+# Spec 04 Inference From Several Arguments: types.generic.infer.no-bare-dyn (owner
+# decision 2026-11-09). A `&dyn Named` argument for `&T` would make `T` the bare
+# `dyn Named`, and `v: T` a bare trait value.
+
+trait Named:
+    fn name(&self) -> string
+
+struct User:
+    name: string
+
+impl Named for User:
+    fn name(&self) -> string:
+        self.name
+
+fn pair[T](r: &T, v: T) -> T:
+    v
+
+fn same(named: &dyn Named, user: User) -> void:
+    _ := pair(named, user) # diagnostic: cannot-infer-type

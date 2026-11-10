@@ -1479,7 +1479,7 @@ runtime/valid/string-split.hd	runtime	accept	std/text.md#r-std-text.string.split
 runtime/valid/blanket-impl-for-list.hd	runtime	accept	lang/09-traits.md#trait-implementations
 typing/invalid/overlapping-generic-impl-heads.hd	type	reject:overlapping-impl	lang/09-traits.md#trait-implementations
 runtime/valid/trait-qualified-calls.hd	runtime	accept	lang/09-traits.md#method-resolution
-runtime/valid/generic-reference-erasure-keeps-type.hd	runtime	accept	lang/09-traits.md#r-trait.erase.keeps
+runtime/valid/trait-reference-widened-to-inspectable-keeps-type.hd	runtime	accept	lang/09-traits.md#r-trait.erase.keeps
 runtime/valid/generic-trait-qualified-calls.hd	runtime	accept	lang/09-traits.md#method-resolution
 runtime/valid/trait-associated-functions.hd	runtime	accept	lang/09-traits.md#trait-declarations
 runtime/valid/associated-type-projections.hd	runtime	accept	lang/09-traits.md#trait-declarations
@@ -6292,6 +6292,9 @@ typing/invalid/list-spread-after-a-tuple-vararg-without-rest.hd	type	reject:type
 typing/valid/const-bool-arguments-compare-operands-of-their-own-types.hd	type	accept	lang/04-type-system.md#r-types.generic.const.operator-set
 runtime/valid/impls-on-local-and-counted-references-do-not-overlap.hd	runtime	accept	lang/13-values-and-references.md#r-ref.type.kind-impl
 typing/invalid/list-plus-list-names-the-spread-concatenation.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.op.no-impl
+typing/invalid/generic-inference-never-solves-a-bare-trait-descriptor.hd	type	reject:cannot-infer-type	lang/04-type-system.md#r-types.generic.infer.no-bare-dyn
+typing/invalid/generic-inference-never-solves-a-bare-trait-descriptor-pointer.hd	type	reject:cannot-infer-type	lang/04-type-system.md#r-types.generic.infer.no-bare-dyn
+typing/valid/generic-inference-explicit-trait-value-reference-argument.hd	type	accept	lang/04-type-system.md#r-types.generic.infer.no-bare-dyn
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

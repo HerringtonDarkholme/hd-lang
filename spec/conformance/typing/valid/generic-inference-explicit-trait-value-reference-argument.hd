@@ -1,0 +1,20 @@
+# test: an explicit reference type argument names a trait value where inference may not
+# Spec 04 Inference From Several Arguments: types.generic.infer.no-bare-dyn,
+# types.generic.infer.join.explicit.reference-values. `T` is the trait value
+# reference `&dyn Named`, so `&user` converts to it.
+
+trait Named:
+    fn name(&self) -> string
+
+struct User:
+    name: string
+
+impl Named for User:
+    fn name(&self) -> string:
+        self.name
+
+fn pair[T](r: &T, v: T) -> T:
+    v
+
+fn second(named: &dyn Named, user: &User) -> string:
+    pair::[&dyn Named](&named, user).name()
