@@ -1,0 +1,13 @@
+# test: a newtype of a struct with a private field needs Deserialize to cross into hd, as its base does
+# Spec Modules, Private Fields At A Boundary: module.boundary.in, module.boundary.error; Data, data.struct.contains (#1572).
+# fixture-runtime-profile: serde-vault
+pub struct Token:
+    secret: string
+
+pub type Wrapped(Token)
+
+pub trait Vault:
+    fn keep(self) -> Wrapped # diagnostic: boundary-private-field
+
+pub fn main() -> void $ Vault:
+    _ := $.use(Vault).keep()

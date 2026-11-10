@@ -1,0 +1,10 @@
+# test: a newtype whose base is a closure cannot cross to the host: it contains its base
+# Spec Modules, Boundary-Safe Values: module.boundary.not-safe.error; Data, data.struct.contains (#1572).
+# fixture-runtime-profile: serde-vault
+pub type Act(fn() -> i32)
+
+pub trait Vault:
+    fn keep(self) -> Act # diagnostic: boundary-not-safe
+
+pub fn main() -> void $ Vault:
+    _ := $.use(Vault).keep()

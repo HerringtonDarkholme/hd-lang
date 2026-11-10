@@ -6077,6 +6077,8 @@ typing/invalid/host-never-nested-result.hd	type	reject:boundary-not-safe	lang/10
 typing/invalid/boundary-not-safe-handle-passed-back.hd	type	reject:boundary-not-safe	lang/10-modules.md#r-module.boundary.not-safe.error
 typing/invalid/boundary-not-safe-handle-method.hd	type	reject:boundary-not-safe	lang/10-modules.md#r-module.boundary.not-safe.error
 typing/invalid/boundary-not-safe-erased-error.hd	type	reject:boundary-not-safe	lang/10-modules.md#r-module.boundary.not-safe.error
+typing/invalid/boundary-not-safe-newtype-base.hd	type	reject:boundary-not-safe	lang/10-modules.md#r-module.boundary.not-safe.error
+typing/invalid/boundary-private-field-newtype-base.hd	type	reject:boundary-private-field	lang/10-modules.md#r-module.boundary.error
 typing/invalid/prelude-shadow-multiline-use.hd	type	reject:prelude-name-shadow	lang/10-modules.md#r-module.prelude.no-shadow
 typing/valid/empty-collection-joined-context.hd	type	accept	lang/05-expressions.md#r-expr.collection.expected
 runtime/valid/list-spread-inferred-optional.hd	runtime	accept	lang/05-expressions.md#r-expr.list.spread.convert

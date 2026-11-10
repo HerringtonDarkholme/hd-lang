@@ -1516,7 +1516,8 @@ impl ItemCheck<'_, '_> {
     /// builds it (`module.boundary.serialize.exact`,
     /// `module.boundary.deserialize.exact`), so its fields do not cross. A
     /// struct whose fields are all `pub` crosses through its fields, an
-    /// enum through its payloads (`module.boundary.public`), and the other
+    /// enum through its payloads (`module.boundary.public`), a newtype
+    /// through its base (`data.struct.contains`), and the other
     /// types that may cross through their contents
     /// (`module.boundary.allowed`). The program traits whose values a
     /// result returns as host handles go to `handles`.
@@ -1613,6 +1614,8 @@ impl ItemCheck<'_, '_> {
                             .chain(variants.iter().flat_map(|v| &v.fields))
                             .map(|f| sub(f.ty))
                             .collect(),
+                        // A newtype contains its base (`data.struct.contains`).
+                        Some(ItemData::Newtype(base)) => vec![sub(*base)],
                         _ => Vec::new(),
                     }
                 }
