@@ -1,0 +1,17 @@
+# test: local opaque results retain their own sub-body facts across siblings, nesting, and instantiation
+# Spec 7 Opaque Results: fn.opaque.named-function, fn.opaque.nested.
+# expect-stdout: 7 ok 9 11 generic
+pub fn main() -> void $ Console:
+    fn number() -> impl Display:
+        +7
+    fn text() -> impl Display:
+        "ok"
+    fn nested() -> impl Display:
+        fn inner() -> impl Display:
+            +9
+        inner()
+    fn echo[T < Display](value: T) -> impl Display:
+        value
+    generic_number := echo(+11)
+    generic_text := echo("generic")
+    println("${number()} ${text()} ${nested()} ${generic_number} ${generic_text}")

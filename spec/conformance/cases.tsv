@@ -6499,6 +6499,7 @@ runtime/panic/zero-sized-temporary-list-index-must-be-in-range.hd	runtime	panic:
 runtime/panic/temporary-list-index-must-be-in-range.hd	runtime	panic:index-out-of-bounds	lang/13-values-and-references.md#r-ref.elem.index
 runtime/valid/zero-sized-temporary-list-reference-evaluates-its-index-once.hd	runtime	accept	lang/13-values-and-references.md#r-ref.elem.index
 runtime/valid/opaque-result-in-union.hd	runtime	accept	lang/07-functions.md#r-fn.opaque.nested
+runtime/valid/local-opaque-results-use-their-own-subbody.hd	runtime	accept	lang/07-functions.md#r-fn.opaque.named-function
 runtime/valid/impl-head-binds-union-members.hd	runtime	accept	lang/04-type-system.md#r-types.union.substitution
 runtime/valid/impl-head-binds-only-in-a-tuple-rest.hd	runtime	accept	lang/04-type-system.md#r-types.tuple.rest.same
 runtime/valid/impl-head-a-concrete-union-is-a-target.hd	runtime	accept	lang/09-traits.md#r-trait.target.union.valid

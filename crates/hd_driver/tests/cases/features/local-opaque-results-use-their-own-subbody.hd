@@ -1,0 +1,23 @@
+# @dump: wat
+# expected: local opaque results resolve to the correct concrete return layouts
+pub fn number() -> impl Display:
+    fn local() -> impl Display:
+        +7
+    local()
+
+pub fn text() -> impl Display:
+    fn local() -> impl Display:
+        "ok"
+    local()
+
+pub fn nested() -> impl Display:
+    fn outer() -> impl Display:
+        fn inner() -> impl Display:
+            +9
+        inner()
+    outer()
+
+pub fn generic() -> impl Display:
+    fn echo[T < Display](value: T) -> impl Display:
+        value
+    echo(+11)

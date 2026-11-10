@@ -80,11 +80,8 @@ pub fn facts(pool: &InternPool, body: &Body, declared: Option<Ty>) -> Vec<Fact> 
         if !pool.has_opaque(declared) {
             continue;
         }
-        if let Some(&root) = body
-            .sub_root
-            .iter()
-            .find(|&&r| body.syn[r as usize] == body.syn[i])
-        {
+        // close_sub records the root at the Closure's sub-body index.
+        if let Some(&root) = body.sub_root.get(body.data[i][0] as usize) {
             result_facts(
                 pool,
                 declared,
