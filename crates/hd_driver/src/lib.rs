@@ -11777,6 +11777,18 @@ impl Env<'_> {
         self.run.pool.erase_fn_deps(t)
     }
 
+    /// Whether a declared trait method can use the receiver's dispatch table.
+    fn trait_method_dispatches(&self, trait_: DefId, method: DefId) -> bool {
+        self.p.items.get(method).is_none_or(|item| {
+            item.intrinsic().is_none()
+                && self.takes_self(item)
+                && !self.names_self(item, trait_)
+                && item
+                    .sig()
+                    .is_none_or(|sig| !self.run.pool.has_opaque(sig.ret))
+        })
+    }
+
     /// Whether a method has a `self` receiver; one without is an
     /// associated function.
     fn takes_self(&self, item: &Item) -> bool {
@@ -12209,14 +12221,7 @@ impl ProgramEnv for Env<'_> {
                 .methods
                 .iter()
                 .map(|m| m.1)
-                .filter(|m| {
-                    self.p.items.get(*m).is_none_or(|i| {
-                        i.intrinsic().is_none()
-                            && self.takes_self(i)
-                            && !self.names_self(i, trait_)
-                            && i.sig().is_none_or(|s| !self.run.pool.has_opaque(s.ret))
-                    })
-                })
+                .filter(|&method| self.trait_method_dispatches(trait_, method))
                 .collect(),
             _ => Vec::new(),
         }

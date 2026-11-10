@@ -97,15 +97,17 @@ fn write(n: &mut Names, i: usize, s: string) -> void:
 fn first[T, C < Index[usize, Out = T]](items: C) -> T:
 > app/main/first
 >   local $0 items: C [param read captured] place
->   %0 = Retain %7 Entry local $0 #0 : ()
+>   %0 = Retain %9 Entry local $0 #0 : ()
     items[0]
 >   %1 = Ref local frame [$0] : &C
 >   %2 = Call std/ops/Index.index for C [usize] via Bound (%1, 0:usize) : &T
->   %3 = Drop [%1] : ()
->   %4 = Read copy [*%2] : T
->   %5 = Drop [%2] : ()
->   %6 = Drop [$0] : ()
->   %7 = Block %4 : T
+>   %3 = Retain %2 Operation dynamic receiver #1 : ()
+>   %4 = Release %2 Operation dynamic receiver #2 : ()
+>   %5 = Drop [%1] : ()
+>   %6 = Read copy [*%2] : T
+>   %7 = Drop [%2] : ()
+>   %8 = Drop [$0] : ()
+>   %9 = Block %6 : T
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot
 >   summary kept [$0] writes

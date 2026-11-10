@@ -352,6 +352,7 @@ pub fn render(names: &Names<'_>, b: &Body, fields: &FieldNames<'_>) -> String {
                 Part::Captures => ops.push("captures".into()),
                 Part::Arguments => ops.push("arguments".into()),
                 Part::Results => ops.push("results".into()),
+                Part::DynamicReceiver => ops.push("dynamic receiver".into()),
                 Part::Row => ops.push("row".into()),
                 Part::Child => ops.push("child".into()),
                 Part::Waker => ops.push("waker".into()),

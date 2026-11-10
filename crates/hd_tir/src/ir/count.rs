@@ -32,6 +32,8 @@ pub enum Part {
     Arguments,
     /// Completed child results still held by a fixed-arity join point.
     Results,
+    /// A dynamic receiver loaded from reference storage for one call.
+    DynamicReceiver,
 }
 
 /// The record in a count action's second word. Its first word names
@@ -83,6 +85,7 @@ impl Info {
             (7, 0) => Part::Captures,
             (8, 0) => Part::Arguments,
             (9, 0) => Part::Results,
+            (10, 0) => Part::DynamicReceiver,
             _ => return None,
         };
         (reason < 9).then_some(Self { at, part, reason })
@@ -100,6 +103,7 @@ impl Info {
             Part::Captures => (7, 0),
             Part::Arguments => (8, 0),
             Part::Results => (9, 0),
+            Part::DynamicReceiver => (10, 0),
         };
         let record = u32::try_from(b.extra.len()).expect("count record");
         b.extra

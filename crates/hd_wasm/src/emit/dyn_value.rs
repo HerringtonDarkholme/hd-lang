@@ -30,14 +30,10 @@ impl Em<'_, '_, '_> {
 
     /// The trait value that `value`, a reference to one, perhaps through
     /// more references, refers to: its type, locals holding it, and
-    /// whether they own a count of it. A reference to a trait value is
+    /// whether they were loaded from storage. A reference to a trait value is
     /// that trait value (`refs.rs`), lent; one read through an address is
-    /// a copy with its own count.
-    pub(super) fn read_dyn_value(
-        &mut self,
-        result: Option<u32>,
-        value: u32,
-    ) -> StageResult<(Ty, Vec<u32>, bool)> {
+    /// a copy whose caller provides its count.
+    pub(super) fn read_dyn_value(&mut self, value: u32) -> StageResult<(Ty, Vec<u32>, bool)> {
         let mut ty = self.ty_of(value);
         // Both callers test that `dyn_value_ty` strips references from
         // `value`'s type to a trait value.
@@ -56,19 +52,6 @@ impl Em<'_, '_, '_> {
             ls = next;
             ty = next_ty;
             loaded = true;
-        }
-        if loaded {
-            if let Some(result) = result.filter(|&result| self.has_stated_retain(result)) {
-                // Lower the adjacent Retain at the original count
-                // point, before the supertrait vtable loads. Its
-                // statement later observes that it was lowered here.
-                self.because(hd_tir::own::Reason::Stored, |em| {
-                    em.retain_locals(&ls, target)
-                })?;
-                self.retained_before_result.insert(result);
-            } else {
-                self.retain_locals(&ls, target)?;
-            }
         }
         Ok((target, ls, loaded))
     }
@@ -398,8 +381,19 @@ impl Em<'_, '_, '_> {
         let read = if self.is_dyn(source) {
             None
         } else {
-            Some(self.read_dyn_value(Some(i), a)?)
+            Some(self.read_dyn_value(a)?)
         };
+        if let Some((target, ls, true)) = &read {
+            if self.has_stated_retain(i) {
+                // Lower the adjacent Retain before the supertrait vtable loads.
+                self.because(hd_tir::own::Reason::Stored, |em| {
+                    em.retain_locals(ls, *target)
+                })?;
+                self.retained_before_result.insert(i);
+            } else {
+                self.retain_locals(ls, *target)?;
+            }
+        }
         let from = read.as_ref().map_or(source, |v| v.0);
         let to = self.ty(i);
         let TyData::TraitValue { def, args, .. } = self.pool().get(to) else {

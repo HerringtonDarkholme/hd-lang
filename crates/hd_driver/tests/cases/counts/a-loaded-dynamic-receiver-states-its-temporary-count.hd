@@ -1,0 +1,9 @@
+# @dump: own counts wat
+# @build: v8 release
+use std.error.Error
+
+fn loaded(value: &(*dyn Error)) -> string:
+    value.to_string()
+
+fn direct(value: *dyn Error) -> string:
+    value.to_string()
