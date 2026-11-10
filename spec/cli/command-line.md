@@ -2269,38 +2269,39 @@ hd run --engine node
 13. r[cli.host.package.companion] A build requiring package host bindings writes generated `NAME.host.mjs` beside `NAME.wasm`.
 14. r[cli.host.package.no-companion] A build requiring no package host binding emits no companion glue file.
 15. r[cli.host.package.completion-forms] A suspending provider method may return a ready value, a Promise, or a pollable operation.
-16. r[cli.host.package.abort] Aborting a pending method signals cancellation and discards its undelivered result, including any later completion.
-17. r[cli.host.package.handle-release] Releasing the last HD reference to a returned handle drops its host binding without implicitly calling resource methods.
+16. r[cli.host.package.block-on-promise] A synchronous `block_on` whose drive waits on a Promise a package provider returned suspends the guest stack with JavaScript Promise Integration (JSPI) until the Promise settles, then resumes it. A host without JSPI fails that call with a message naming the trait and the method. Panic: `host-contract`. Waits on ready values, pollable operations and timers never need JSPI.
+17. r[cli.host.package.abort] Aborting a pending method signals cancellation and discards its undelivered result, including any later completion.
+18. r[cli.host.package.handle-release] Releasing the last HD reference to a returned handle drops its host binding without implicitly calling resource methods.
 
-18. r[cli.host.package.plain-provider] A provider module default-exports a plain JavaScript object with an own function property for each required method.
-19. r[cli.host.package.generated-wrapper] Generated glue wraps plain provider objects with the checked nominal identity and method schemas.
-20. r[cli.host.package.provider-containment] Loading refuses a missing provider file or a file whose canonical path leaves its declaring package.
-21. r[cli.host.package.prebuilt-manifest] A prebuilt Wasm run requiring package capabilities discovers its app manifest above the Wasm file.
-22. r[cli.host.package.prebuilt-no-manifest] A prebuilt Wasm run without that manifest refuses required package capabilities before loading any provider.
-23. r[cli.host.package.value-conversion] Generated bindings apply the JavaScript value conversions of [Package Host Traits](../lang/10-modules.md#package-host-traits).
-24. r[cli.host.package.context-pending] The method context's `pending(poll, done, abort, finish)` factory creates a pollable operation.
-25. r[cli.host.package.poll-nonblocking] A pollable operation's readiness probe must return a boolean without blocking.
-26. r[cli.host.package.poll-result] Its result callback runs once when readiness first succeeds.
-27. r[cli.host.package.poll-delivery] Its optional delivery hook runs only when the guest takes a valid finish.
-28. r[cli.host.package.poll-abort] Aborting an undelivered pollable operation invokes its cancellation hook at most once.
-29. r[cli.host.package.poll-abort-signal] Cancellation signals the pending call before invoking its cancellation hook.
-30. r[cli.host.package.poll-close] Closing the instance cancels its outstanding pollable operations.
-31. r[cli.host.package.synchronous-completion] A non-suspending provider method cannot return a Promise or a pollable operation. Boundary failure: `host-contract`.
-32. r[cli.host.package.poll-callback-failure] A pollable operation's callback failure is a host-contract failure. Boundary failure: `host-contract`.
-33. r[cli.host.package.context-http] A JavaScript package-provider context exposes a frozen `http` view of its core runtime's resolved Http policy.
-34. r[cli.host.package.context-http-coverage] Its `coversHost(host, port)` method tests only the Http capability's written host and port.
-35. r[cli.host.package.context-http-helpers] Its `isAsciiUrl(text)` and `writtenHost(text)` methods use the core runtime's URL-validation behavior.
-36. r[cli.host.package.context-http-readonly] A provider cannot replace the context's `http` view.
-37. r[cli.host.package.context-http-missing] Accessing `context.http` without runtime HTTP policy services fails. Boundary failure: `host-contract`.
-38. r[cli.host.package.context-console] A JavaScript package-provider context exposes a frozen `console` view of its core runtime's resolved Console authority.
-39. r[cli.host.package.context-console-allows] Its `allows()` method reports whether Console access is granted.
-40. r[cli.host.package.context-console-readonly] A provider cannot replace the context's `console` view.
-41. r[cli.host.package.context-console-missing] Accessing `context.console` without runtime Console policy services fails. Boundary failure: `host-contract`.
-42. r[cli.host.package.context-interface-identity] A JavaScript package-provider method context exposes a frozen `interfaceIdentity` with its checked nominal `package`, `version` and `trait_path` strings.
-43. r[cli.host.package.context-interface-identity-checked] This identity comes from the method's guest interface after provider identity and schema validation.
-44. r[cli.host.package.context-interface-identity-handle] A handle method's `interfaceIdentity` names its own declared handle interface.
-45. r[cli.host.package.context-interface-identity-readonly] A provider cannot replace or delete the context's `interfaceIdentity`.
-46. r[cli.host.package.context-interface-identity-binding] Changing generated descriptor metadata after binding preserves an existing method's identity and bound receiver.
+19. r[cli.host.package.plain-provider] A provider module default-exports a plain JavaScript object with an own function property for each required method.
+20. r[cli.host.package.generated-wrapper] Generated glue wraps plain provider objects with the checked nominal identity and method schemas.
+21. r[cli.host.package.provider-containment] Loading refuses a missing provider file or a file whose canonical path leaves its declaring package.
+22. r[cli.host.package.prebuilt-manifest] A prebuilt Wasm run requiring package capabilities discovers its app manifest above the Wasm file.
+23. r[cli.host.package.prebuilt-no-manifest] A prebuilt Wasm run without that manifest refuses required package capabilities before loading any provider.
+24. r[cli.host.package.value-conversion] Generated bindings apply the JavaScript value conversions of [Package Host Traits](../lang/10-modules.md#package-host-traits).
+25. r[cli.host.package.context-pending] The method context's `pending(poll, done, abort, finish)` factory creates a pollable operation.
+26. r[cli.host.package.poll-nonblocking] A pollable operation's readiness probe must return a boolean without blocking.
+27. r[cli.host.package.poll-result] Its result callback runs once when readiness first succeeds.
+28. r[cli.host.package.poll-delivery] Its optional delivery hook runs only when the guest takes a valid finish.
+29. r[cli.host.package.poll-abort] Aborting an undelivered pollable operation invokes its cancellation hook at most once.
+30. r[cli.host.package.poll-abort-signal] Cancellation signals the pending call before invoking its cancellation hook.
+31. r[cli.host.package.poll-close] Closing the instance cancels its outstanding pollable operations.
+32. r[cli.host.package.synchronous-completion] A non-suspending provider method cannot return a Promise or a pollable operation. Boundary failure: `host-contract`.
+33. r[cli.host.package.poll-callback-failure] A pollable operation's callback failure is a host-contract failure. Boundary failure: `host-contract`.
+34. r[cli.host.package.context-http] A JavaScript package-provider context exposes a frozen `http` view of its core runtime's resolved Http policy.
+35. r[cli.host.package.context-http-coverage] Its `coversHost(host, port)` method tests only the Http capability's written host and port.
+36. r[cli.host.package.context-http-helpers] Its `isAsciiUrl(text)` and `writtenHost(text)` methods use the core runtime's URL-validation behavior.
+37. r[cli.host.package.context-http-readonly] A provider cannot replace the context's `http` view.
+38. r[cli.host.package.context-http-missing] Accessing `context.http` without runtime HTTP policy services fails. Boundary failure: `host-contract`.
+39. r[cli.host.package.context-console] A JavaScript package-provider context exposes a frozen `console` view of its core runtime's resolved Console authority.
+40. r[cli.host.package.context-console-allows] Its `allows()` method reports whether Console access is granted.
+41. r[cli.host.package.context-console-readonly] A provider cannot replace the context's `console` view.
+42. r[cli.host.package.context-console-missing] Accessing `context.console` without runtime Console policy services fails. Boundary failure: `host-contract`.
+43. r[cli.host.package.context-interface-identity] A JavaScript package-provider method context exposes a frozen `interfaceIdentity` with its checked nominal `package`, `version` and `trait_path` strings.
+44. r[cli.host.package.context-interface-identity-checked] This identity comes from the method's guest interface after provider identity and schema validation.
+45. r[cli.host.package.context-interface-identity-handle] A handle method's `interfaceIdentity` names its own declared handle interface.
+46. r[cli.host.package.context-interface-identity-readonly] A provider cannot replace or delete the context's `interfaceIdentity`.
+47. r[cli.host.package.context-interface-identity-binding] Changing generated descriptor metadata after binding preserves an existing method's identity and bound receiver.
 
 
 > **Why.** Provider JavaScript has its host realm's authority; an HD grant cannot sandbox arbitrary JavaScript imports.

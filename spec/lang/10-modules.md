@@ -2413,6 +2413,8 @@ Registered boundaries initially allow recursively structural values:
 - `List[T]` and `Map[K, V]` whose contents are boundary-safe;
 - structs and enums whose complete fields and payloads are boundary-safe;
 - `T?` and `Result[T, E]` whose contained types are boundary-safe;
+- counted references `*T` and `*mut T` to boundary-safe values, which cross
+  as their referent's value tree ([`module.boundary.sharing`](#r-module.boundary.sharing));
 - unions whose members are boundary-safe. A union crosses as the enum of its
   cases ([`types.union.representation`](04-type-system.md#r-types.union.representation)):
   its case's tag, then that case's payload.

@@ -328,4 +328,4 @@ folder-cycle-no-fix-all-directories	cli.package.whole,cli.check.default,cli.json
 host-supertrait-drive	cli.host.package.entry,cli.host.package.generated,cli.host.package.completion-forms,cli.profile.pipeline.unobservable
 host-supertrait-diamond	cli.host.package.entry,cli.host.package.generated,cli.host.package.contract,cli.profile.pipeline.unobservable
 host-supertrait-cycle	cli.check.default,cli.exit.hd-failure,cli.json.diagnostic.fields
-host-binding-block-on-promise	cli.host.package.completion-forms
+host-binding-block-on-promise	cli.host.package.completion-forms,cli.host.package.block-on-promise
