@@ -59,6 +59,29 @@ fn expected(b: &Body, cx: &dyn OwnCx, topo: &Topology) -> Vec<(Tag, u32, Info)> 
     out.extend(child::counts(b, cx, topo));
     out.extend(waker::counts(b));
     for i in 0..b.len() {
+        if matches!(b.tags[i], Tag::Call | Tag::Await)
+            && let Some(callee) = crate::ir::Callee::from_words(b.record(b.data[i][0]))
+        {
+            if b.tags[i] == Tag::Call && cx.copies_map_snapshot(&callee) {
+                out.push((
+                    Tag::Retain,
+                    u32_of(i),
+                    Info::new(At::Operation, Part::Operand(0), 0),
+                ));
+            }
+            if let Some(&receiver) = b.record(b.data[i][1]).first()
+                && let Some(receiver) = crate::ir::Ref(receiver).as_inst()
+                && cx.dynamic_receiver_may_load(&callee, b.ty[receiver.0 as usize])
+            {
+                for (tag, reason) in [(Tag::Retain, 1), (Tag::Release, 2)] {
+                    out.push((
+                        tag,
+                        u32_of(i),
+                        Info::new(At::Operation, Part::DynamicReceiver, reason),
+                    ));
+                }
+            }
+        }
         for k in (1..3).filter(|&k| map_key::needed(b, cx, i, k as usize)) {
             let info = Info::new(At::Operation, Part::Operand(k), 0);
             out.push((Tag::Retain, u32_of(i), info));

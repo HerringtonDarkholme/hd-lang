@@ -27,13 +27,15 @@ impl Supplier for Constant:
 fn first[T < Supplier](source: T) -> T::Item:
 > app/main/first
 >   local $0 source: T [param read captured] place
->   %0 = Retain %5 Entry local $0 #0 : ()
+>   %0 = Retain %7 Entry local $0 #0 : ()
     source.get()
 >   %1 = Ref local frame [$0] : &T
 >   %2 = Call app/main/Supplier.get for T [] via Bound (%1) : T::Item
->   %3 = Drop [%1] : ()
->   %4 = Drop [$0] : ()
->   %5 = Block %2 : T::Item
+>   %3 = Retain %2 Operation dynamic receiver #1 : ()
+>   %4 = Release %2 Operation dynamic receiver #2 : ()
+>   %5 = Drop [%1] : ()
+>   %6 = Drop [$0] : ()
+>   %7 = Block %2 : T::Item
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot
 >   summary kept [$0] writes

@@ -1,4 +1,4 @@
-# @dump: wat
+# @dump: own counts wat
 # @build: v8 release
 # expected: one iterator environment with two i32 fields (map table, used
 # count), keeping the map snapshot alive. Key/value padding is in the table.

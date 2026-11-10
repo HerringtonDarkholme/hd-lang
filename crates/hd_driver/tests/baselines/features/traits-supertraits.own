@@ -86,34 +86,38 @@ fn loud[T < Dog](d: T) -> usize:
 > app/main/loud
 >   local $0 d: T [param read captured] place
 >   local $1 $ref: string [read assigned captured captured-assigned] value
->     uses $1: %4 -> %5 lend last
+>     uses $1: %6 -> %7 lend last
 >   local $2 $ref: string [read assigned captured captured-assigned] value
->     uses $2: %15 -> %16 lend last
->   %0 = Retain %23 Entry local $0 #0 : ()
+>     uses $2: %19 -> %20 lend last
+>   %0 = Retain %27 Entry local $0 #0 : ()
     d.name().len() + d.bark().len()
 >   %1 = Ref local frame [$0] : &T
 >   %2 = Call app/main/Animal.name for T [] via Bound (%1) : string
->   %3 = Drop [%1] : ()
->   %4 = Store [$1] %2 : ()
->   %5 = Read borrow [$1] : string
->   %6 = Call std/rt.bytes/bytes_len[] (%5) : usize
->   %7 = Break L1 %6 : never
->   %8 = Block - : usize
->   %9 = Scope %8 [] : usize
->   %10 = Drop [$1] : ()
->   %11 = Ref local frame [$0] : &T
->   %12 = Call app/main/Dog.bark for T [] via Bound (%11) : string
->   %13 = Drop [%11] : ()
->   %14 = Drop [$0] : ()
->   %15 = Store [$2] %12 : ()
->   %16 = Read borrow [$2] : string
->   %17 = Call std/rt.bytes/bytes_len[] (%16) : usize
->   %18 = Break L0 %17 : never
->   %19 = Block - : usize
->   %20 = Scope %19 [] : usize
->   %21 = Drop [$2] : ()
->   %22 = Prim Add [%9 %20] : usize
->   %23 = Block %22 : usize
+>   %3 = Retain %2 Operation dynamic receiver #1 : ()
+>   %4 = Release %2 Operation dynamic receiver #2 : ()
+>   %5 = Drop [%1] : ()
+>   %6 = Store [$1] %2 : ()
+>   %7 = Read borrow [$1] : string
+>   %8 = Call std/rt.bytes/bytes_len[] (%7) : usize
+>   %9 = Break L1 %8 : never
+>   %10 = Block - : usize
+>   %11 = Scope %10 [] : usize
+>   %12 = Drop [$1] : ()
+>   %13 = Ref local frame [$0] : &T
+>   %14 = Call app/main/Dog.bark for T [] via Bound (%13) : string
+>   %15 = Retain %14 Operation dynamic receiver #1 : ()
+>   %16 = Release %14 Operation dynamic receiver #2 : ()
+>   %17 = Drop [%13] : ()
+>   %18 = Drop [$0] : ()
+>   %19 = Store [$2] %14 : ()
+>   %20 = Read borrow [$2] : string
+>   %21 = Call std/rt.bytes/bytes_len[] (%20) : usize
+>   %22 = Break L0 %21 : never
+>   %23 = Block - : usize
+>   %24 = Scope %23 [] : usize
+>   %25 = Drop [$2] : ()
+>   %26 = Prim Add [%11 %24] : usize
+>   %27 = Block %26 : usize
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot
 >   summary kept [$0] writes

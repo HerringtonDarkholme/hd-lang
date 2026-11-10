@@ -183,6 +183,13 @@ pub trait OwnCx {
         let _ = ty;
         false
     }
+    /// Whether dispatch may load a temporary trait value through a thin
+    /// receiver reference. An open receiver may need the count in an instance.
+    fn dynamic_receiver_may_load(&self, callee: &Callee, receiver: Ty) -> bool {
+        let _ = (callee, receiver);
+        false
+    }
+
     /// Whether a call's ABI may construct a temporary row context: a
     /// direct target's row parameters, or a dynamic slot's requirement
     /// row. This reads the selected signature, not a body or its loans.
@@ -199,6 +206,11 @@ pub trait OwnCx {
     /// Whether this intrinsic returns borrowed bits for a counted result.
     /// Its own retain is stated separately after the call.
     fn retains_result(&self, callee: &Callee) -> bool {
+        let _ = callee;
+        false
+    }
+    /// Whether a cursor stores a copy of its map operand in its environment.
+    fn copies_map_snapshot(&self, callee: &Callee) -> bool {
         let _ = callee;
         false
     }

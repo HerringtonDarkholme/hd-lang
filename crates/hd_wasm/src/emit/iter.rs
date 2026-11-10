@@ -71,7 +71,19 @@ impl Em<'_, '_, '_> {
             Ok(())
         })?;
         let colls = self.part_colls(&tys, &parts);
-        self.retain_fields(env, &m, walk.as_ref(), &colls, colls.len());
+        let reason = self.operation_count(
+            i,
+            hd_tir::ir::Tag::Retain,
+            hd_tir::ir::count::Part::Operand(0),
+        );
+        // ruled out: own::counts states the stored map_steps snapshot.
+        assert!(
+            reason.is_some(),
+            "a map cursor must state its snapshot copy"
+        );
+        self.because(reason.as_slice()[0], |em| {
+            em.retain_fields(env, &m, walk.as_ref(), &colls, colls.len());
+        });
         self.f.table_slot(Sym::Helper(code));
         self.f.get(env);
         // The new environment arrives with its count.

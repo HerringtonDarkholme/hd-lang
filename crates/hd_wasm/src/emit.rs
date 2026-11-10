@@ -2980,8 +2980,15 @@ impl Em<'_, '_, '_> {
         let (payload, owned) = if value_ty == receiver_ty {
             (None, false)
         } else {
-            let (_, ls, owned) = self.read_dyn_value(None, recv)?;
-            (Some(ls), owned)
+            let (target, ls, loaded) = self.read_dyn_value(recv)?;
+            if loaded && self.input.runtime.is_some() {
+                let reason = self.operation_count(i, Tag::Retain, CountPart::DynamicReceiver);
+                // ruled out: ownership states the temporary count for a
+                // dynamic receiver loaded through a thin reference.
+                assert!(reason.is_some(), "a loaded receiver must state its retain");
+                self.because(reason.as_slice()[0], |em| em.retain_locals(&ls, target))?;
+            }
+            (Some(ls), loaded)
         };
         let mut params = vec![Val::I32];
         if let Some(value) = &payload {
@@ -3027,8 +3034,14 @@ impl Em<'_, '_, '_> {
             && owned
             && self.input.runtime.is_some()
         {
-            self.f.get(value[0]);
-            self.f.helper(Helper::ReleaseRef);
+            let reason = self.operation_count(i, Tag::Release, CountPart::DynamicReceiver);
+            // ruled out: ownership pairs the loaded receiver's retain with
+            // its last-use release at the same operation.
+            assert!(reason.is_some(), "a loaded receiver must state its release");
+            self.because(reason.as_slice()[0], |em| {
+                em.f.get(value[0]);
+                em.f.helper(Helper::ReleaseRef);
+            });
         }
         self.release_call_ctx(i, c);
         Ok(())

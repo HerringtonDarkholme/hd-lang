@@ -363,6 +363,29 @@ impl OwnCx for Env<'_> {
         !row.keys.is_empty() || !row.params.is_empty()
     }
 
+    fn dynamic_receiver_may_load(&self, callee: &Callee, receiver: Ty) -> bool {
+        let Callee::TraitMethod {
+            trait_,
+            method,
+            self_ty,
+            ..
+        } = *callee
+        else {
+            return false;
+        };
+        let pool = &self.run.pool;
+        let TyData::Ref { inner, .. } = pool.get(receiver) else {
+            return false;
+        };
+        if self.ref_target_or(inner) == inner && !self.is_open(inner) {
+            return false;
+        }
+        let value = self.ref_target_or(self_ty);
+        (hd_mono::is_trait_value(pool, value) || self.is_open(value))
+            && self.trait_method_dispatches(trait_, method)
+            && self.sig(method).is_none_or(|sig| sig.generics.is_empty())
+    }
+
     fn call_has_requirement_context(&self, callee: &Callee) -> bool {
         let chosen = self.chosen(callee);
         let instance = match chosen {
@@ -430,6 +453,10 @@ impl OwnCx for Env<'_> {
             self.intrinsic(*def).as_deref(),
             Some("bytes_slice" | "weak_upgrade" | "weak_upgrade_mut")
         ))
+    }
+
+    fn copies_map_snapshot(&self, callee: &Callee) -> bool {
+        matches!(callee, Callee::Item { def, .. } if self.intrinsic(*def).as_deref() == Some("map_steps"))
     }
 
     fn is_map_probe(&self, callee: &Callee) -> bool {
