@@ -274,7 +274,6 @@ pub struct TraitRef { pub trait_: DefId, pub self_ty: Ty, pub args: TyList }
 
 pub enum Goal {
     Implements { tref: TraitRef, bindings: Vec<(DefId, Ty)>, mut_: bool },
-    Project { assoc: DefId, tref: TraitRef },          // not answered: see below
     Instantiations { self_ty: Ty, trait_: DefId, mut_: bool },
     /// The trait part of method lookup: the available traits that declare
     /// `name`, from the module's method index, in content order.
@@ -283,7 +282,6 @@ pub enum Goal {
 
 pub enum Answer {
     Holds { evidence: Evidence, learned: Vec<(InferVar, Ty)> },
-    Normalized { ty: Ty },                 // reserved for Project
     Candidates(Vec<Candidate>),            // Instantiations, Methods
     Fails(Box<FailInfo>),
     Stalled { on: Vec<InferVar> },
@@ -328,8 +326,8 @@ pub trait Solver: Sync {
 - **Inherent methods are the checker's.** It finds them through the
   method index; `Methods` answers only the trait part. The checker also
   lists the unavailable traits that would match, for the `use` hint.
-- **Projections are the checker's.** `Project` answers "not implemented".
-  The checker normalizes (`Ck::normalize`): a parameter's projection
+- **Projections are the checker's.** No goal asks for one. The checker
+  normalizes it (`Ck::normalize`): a parameter's projection
   through an environment binding, a trait value's through its binding,
   and a known self type by solving `Implements` and reading the
   committed impl's binding, else the trait's default.
@@ -1697,12 +1695,11 @@ frozen interfaces. Section 7.1 shows how each is covered. The solver
 holds no mutable state except memo tables. It never reports a diagnostic,
 never sees a span, and never writes an inference variable.
 
-### 1.2 The Four Goals
+### 1.2 The Three Goals
 
 | Goal | Asked for | hd example | Typical answer |
 | --- | --- | --- | --- |
 | `Implements` | each bound of an instantiated callee; `==`, `<`, `?` conversions; trait-value conversions; header checks | `fn show[T < Display](v: T)` called with a `User` asks `User: Display` | `Holds { Impl(impl Display for User) }` |
-| `Project` | reserved; the checker normalizes (type checking §1.6) | | "not implemented" |
 | `Instantiations` | parameters named only in bounds; the instantiation choice of a method; `X::from(v)` | `AppError::from(code)` asks `Instantiations { AppError, From }` | `Candidates([From[i32], From[string]])` in content order |
 | `Methods` | the trait part of `value.name(...)` | `w.show()` on a `Wrapper` with an available `Show` | `Candidates([Show's candidate])`; inherent methods are the checker's |
 
@@ -1919,7 +1916,7 @@ folders the asking context sees. Two folders may both ask
   the folders its `tests:` block uses (crates/hd_sched/DESIGN.md §6.1).
 - **The id is part of the key of every goal that may read the
   directory** (`MemoKey::universe_for`): `Instantiations` and `Methods`
-  always, and an `Implements` or `Project` goal with an open argument.
+  always, and an `Implements` goal with an open argument.
 - **Scoped answers.** A memo record notes whether its subtree read the
   directory or unowned rows (`scoped`). A global entry that did is
   published under its key with the universe filled in.

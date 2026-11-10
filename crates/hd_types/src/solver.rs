@@ -39,17 +39,14 @@ pub struct TraitRef {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct ConcreteTraitRef(pub TraitRef);
 
-/// The four goals (§1.2).
+/// The three goals (§1.2). A projection is no goal: the checker
+/// normalizes it (`Ck::normalize`).
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Goal {
     Implements {
         tref: TraitRef,
         bindings: Vec<(DefId, Ty)>,
         mut_: bool,
-    },
-    Project {
-        assoc: DefId,
-        tref: TraitRef,
     },
     Instantiations {
         self_ty: Ty,
@@ -71,7 +68,6 @@ pub enum Goal {
 #[repr(u8)]
 pub enum GoalKind {
     Implements,
-    Project,
     Instantiations,
     Methods,
 }
@@ -655,7 +651,7 @@ impl MemoKey {
     ) -> Option<ImplUniverseId> {
         let reads = match kind {
             GoalKind::Instantiations | GoalKind::Methods => true,
-            GoalKind::Implements | GoalKind::Project => pool
+            GoalKind::Implements => pool
                 .list_items(args)
                 .iter()
                 .any(|a| open_arg(pool, *a) || pool.has_assoc(*a)),
@@ -989,9 +985,6 @@ pub enum Answer {
         evidence: Evidence,
         learned: Vec<(InferVar, Ty)>,
     },
-    Normalized {
-        ty: Ty,
-    },
     Candidates(Vec<Candidate>),
     Fails(Box<FailInfo>),
     Stalled {
@@ -1270,7 +1263,7 @@ fn canon_answer(pool: Types<'_>, a: &Answer, vars: &CanonVars) -> Option<CanonAn
             on: on.iter().map(|v| index(*v)).collect::<Option<_>>()?,
         },
         Answer::Overflow => CanonAnswer::Overflow,
-        Answer::Normalized { .. } | Answer::OutOfFuel => return None,
+        Answer::OutOfFuel => return None,
     })
 }
 
@@ -2921,10 +2914,6 @@ impl Solver for TableSolver {
             Goal::Methods {
                 receiver, traits, ..
             } => s.methods(*receiver, traits),
-            Goal::Project { .. } => Err(NotImplemented::new(
-                Stage::Body,
-                "the Project goal (the checker normalizes)",
-            )),
         }
     }
 
