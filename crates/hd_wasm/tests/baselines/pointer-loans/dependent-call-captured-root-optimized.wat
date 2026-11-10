@@ -242,28 +242,6 @@
         i32.const 0
         local.set $t1
       end
-      local.get $t1
-      if
-        local.get $t1
-        i32.load $heap
-        local.tee $change.1
-        i32.const 2031616
-        i32.and
-        i32.const 2031616
-        i32.eq
-        if
-          local.get $t1
-          call $rt:loan_unshare
-        else
-          local.get $t1
-          local.get $change.1
-          i32.const 65536
-          i32.sub
-          i32.store $heap
-        end
-        i32.const 0
-        local.set $t1
-      end
     end
     local.get $t1
     if

@@ -115,17 +115,6 @@
         i32.const 0
         local.set $t0
       end
-      local.get $t0
-      if
-        local.get $t0
-        local.get $t0
-        i32.load $heap
-        i32.const 2097152
-        i32.sub
-        i32.store $heap
-        i32.const 0
-        local.set $t0
-      end
     end
     local.get $t0
     if
@@ -331,28 +320,6 @@
         i32.const 0
         local.set $t0
       end
-      local.get $t0
-      if
-        local.get $t0
-        i32.load $heap
-        local.tee $t1
-        i32.const 2031616
-        i32.and
-        i32.const 2031616
-        i32.eq
-        if
-          local.get $t0
-          call $rt:loan_unshare
-        else
-          local.get $t0
-          local.get $t1
-          i32.const 65536
-          i32.sub
-          i32.store $heap
-        end
-        i32.const 0
-        local.set $t0
-      end
     end
     local.get $t0
     if
@@ -436,17 +403,6 @@
       i32.const 1
       i32.store $heap
     ;; 25 |     held := &mut t.lead.age
-      local.get $t0
-      if
-        local.get $t0
-        local.get $t0
-        i32.load $heap
-        i32.const 2097152
-        i32.sub
-        i32.store $heap
-        i32.const 0
-        local.set $t0
-      end
       local.get $t0
       if
         local.get $t0

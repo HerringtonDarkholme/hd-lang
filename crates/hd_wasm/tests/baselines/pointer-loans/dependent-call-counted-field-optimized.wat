@@ -142,28 +142,6 @@
         i32.const 0
         local.set $t0
       end
-      local.get $t0
-      if
-        local.get $t0
-        i32.load $heap
-        local.tee $d
-        i32.const 2031616
-        i32.and
-        i32.const 2031616
-        i32.eq
-        if
-          local.get $t0
-          call $rt:loan_unshare
-        else
-          local.get $t0
-          local.get $d
-          i32.const 65536
-          i32.sub
-          i32.store $heap
-        end
-        i32.const 0
-        local.set $t0
-      end
       local.get $h
       local.tee $t1
       if
@@ -309,28 +287,6 @@
       local.tee $next
       call $rt:retain
     ;; 25 |     d := name_mut(h.p)
-      local.get $t0
-      if
-        local.get $t0
-        i32.load $heap
-        local.tee $d
-        i32.const 2031616
-        i32.and
-        i32.const 2031616
-        i32.eq
-        if
-          local.get $t0
-          call $rt:loan_unshare
-        else
-          local.get $t0
-          local.get $d
-          i32.const 65536
-          i32.sub
-          i32.store $heap
-        end
-        i32.const 0
-        local.set $t0
-      end
       local.get $t0
       if
         local.get $t0

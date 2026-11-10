@@ -90,28 +90,6 @@
         i32.const 0
         local.set $t0
       end
-      local.get $t0
-      if
-        local.get $t0
-        i32.load $heap
-        local.tee $t1
-        i32.const 2031616
-        i32.and
-        i32.const 2031616
-        i32.eq
-        if
-          local.get $t0
-          call $rt:loan_unshare
-        else
-          local.get $t0
-          local.get $t1
-          i32.const 65536
-          i32.sub
-          i32.store $heap
-        end
-        i32.const 0
-        local.set $t0
-      end
     end
     local.get $t0
     if
@@ -248,28 +226,6 @@
         i32.const 0
         local.set $t2
       end
-      local.get $t2
-      if
-        local.get $t2
-        i32.load $heap
-        local.tee $alias
-        i32.const 2031616
-        i32.and
-        i32.const 2031616
-        i32.eq
-        if
-          local.get $t2
-          call $rt:loan_unshare
-        else
-          local.get $t2
-          local.get $alias
-          i32.const 65536
-          i32.sub
-          i32.store $heap
-        end
-        i32.const 0
-        local.set $t2
-      end
       local.get $t3
       local.set $alias
     end
@@ -378,28 +334,6 @@
       local.set $alias
       local.set $t
     ;; 18 |     held := (&t.lead.name, +1)
-      local.get $t0
-      if
-        local.get $t0
-        i32.load $heap
-        local.tee $t1
-        i32.const 2031616
-        i32.and
-        i32.const 2031616
-        i32.eq
-        if
-          local.get $t0
-          call $rt:loan_unshare
-        else
-          local.get $t0
-          local.get $t1
-          i32.const 65536
-          i32.sub
-          i32.store $heap
-        end
-        i32.const 0
-        local.set $t0
-      end
       local.get $t0
       if
         local.get $t0

@@ -44,7 +44,7 @@ fn replace(h: *mut H, alias: *mut H, next: *P) -> string:
 >   %9 = Release %8 Operation #3 : ()
     *d
 >   %10 = Read copy [*$3] : string
->   %11 = Drop [$3] : ()
+>   %11 = LoanEnd [$3] : ()
 >   %12 = Drop [$4] : ()
 >   summary kept [$0 $2] writes
 
@@ -87,6 +87,6 @@ fn replace_mut(h: *mut M, alias: *mut M, next: *mut P) -> string:
 >   %9 = Release %8 Operation #3 : ()
     *d
 >   %10 = Read copy [*$3] : string
->   %11 = Drop [$3] : ()
+>   %11 = LoanEnd [$3] : ()
 >   %12 = Drop [$4] : ()
 >   summary kept [$0 $2] writes

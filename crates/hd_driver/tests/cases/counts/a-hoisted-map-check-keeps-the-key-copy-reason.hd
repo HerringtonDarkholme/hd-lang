@@ -1,0 +1,13 @@
+# @dump: own counts wat
+# @build: v8 release
+# The hoisted uniqueness check has no in-loop placeholder. MapSet still
+# writes through memory while its copied key lives (#1661).
+struct Frame:
+    keys: List[string]
+    entries: Map[string, usize]
+
+fn fill(frame: &mut Frame) -> void:
+    let index: usize = 0
+    while index < frame.keys.len():
+        frame.entries[frame.keys[index]] = index
+        index += 1
