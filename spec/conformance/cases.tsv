@@ -6400,6 +6400,7 @@ typing/invalid/assigning-a-branch-binding-after-the-conditional-is-unknown.hd	ty
 typing/invalid/auto-closing-explicit-return-undecorated.hd	type	reject:unregistered-auto-closing	lang/06-control-flow.md#r-flow.auto-closing.return
 typing/invalid/assigning-an-unknown-field-of-a-returned-struct-is-unknown.hd	type	reject:unknown-field	lang/03-names-and-scopes.md#r-names.field-lookup.unknown
 typing/invalid/a-shorthand-field-of-a-wider-type-is-a-mismatch.hd	type	reject:type-mismatch	lang/08-data-and-enums.md#r-data.literal.shorthand.rules
+runtime/valid/a-const-char-argument-displays-as-an-escaped-literal.hd	runtime	accept	lang/04-type-system.md#r-types.generic.const.display
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

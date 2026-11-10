@@ -127,9 +127,7 @@ pub trait Declarations {
     fn copy_decl(&self, def: DefId) -> CopyDecl;
     /// Whether trait `trait_`'s `Self` is `Copy`: it is not declared
     /// `< ?Copy` (`ref.copy.trait.default`).
-    fn trait_requires_copy(&self, _trait_: DefId) -> bool {
-        false
-    }
+    fn trait_requires_copy(&self, trait_: DefId) -> bool;
 }
 
 /// A nominal type's part in the `Copy` row.

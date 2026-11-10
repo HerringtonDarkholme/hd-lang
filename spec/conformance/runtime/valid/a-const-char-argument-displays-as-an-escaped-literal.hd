@@ -1,0 +1,15 @@
+# test: a const char argument of a displayed type uses its escaped literal spelling: a backslash, a carriage return, a NUL and a newline
+# Spec 04 Const Generic Arguments: types.generic.const.display.
+use std.inspect.TypeId
+
+struct Tag[C < const char]:
+    pass
+
+tests:
+    use std.testing.assert
+
+    it("each escaped char argument prints as its literal"):
+        assert(TypeId::of::[Tag['\\']]().to_string().ends_with("Tag['\\\\']"))
+        assert(TypeId::of::[Tag['\r']]().to_string().ends_with("Tag['\\r']"))
+        assert(TypeId::of::[Tag['\0']]().to_string().ends_with("Tag['\\0']"))
+        assert(TypeId::of::[Tag['\n']]().to_string().ends_with("Tag['\\n']"))

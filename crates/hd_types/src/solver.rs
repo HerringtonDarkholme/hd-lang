@@ -3143,6 +3143,9 @@ mod tests {
         fn copy_decl(&self, _: DefId) -> super::CopyDecl {
             super::CopyDecl::Copies
         }
+        fn trait_requires_copy(&self, _: DefId) -> bool {
+            false
+        }
     }
 
     #[test]
