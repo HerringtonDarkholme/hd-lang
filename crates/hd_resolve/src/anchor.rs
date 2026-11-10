@@ -253,13 +253,15 @@ pub(crate) fn collect(
                     if f.kind() != SyntaxKind::FnDecl {
                         continue;
                     }
-                    let Some(t) = f
+                    // Every member `fn` has a name here: the parser reports
+                    // `expected a function name` for one without, and the
+                    // driver builds no folder interface, so lowers nothing,
+                    // for a folder with a module that fails to parse.
+                    let name = f
                         .name(&src.parse.tokens)
                         .or_else(|| src.name_after(f, TokenKind::KwFn))
-                    else {
-                        continue;
-                    };
-                    let def = names.member(h.def, PathKind::Member, src.text(t));
+                        .map_or("", |t| src.text(t));
+                    let def = names.member(h.def, PathKind::Member, name);
                     let member = u32::try_from(i + 1).unwrap_or(u32::MAX);
                     let a = cx.at(f, member, f, true);
                     cx.push(def, 0, a);
