@@ -1,8 +1,8 @@
 //! Structs, tuples and enums (`crates/hd_wasm_linear/DESIGN.md` §23.3,
-//! job 6). A struct, a tuple and a non-recursive enum are their values in
-//! locals ([`crate::layout::mem`]): construction pushes them, a field read
-//! picks some. A self-recursive enum is the address of a cell in the heap,
-//! which holds the enum's values at their offsets.
+//! job 6). A struct, tuple or enum is its values in locals
+//! ([`crate::layout::mem`]): construction pushes them, a field read picks
+//! some. Recursive enum links are explicit references; the enum's own
+//! fields remain inline.
 
 use crate::op::Op as I;
 use hd_base::StageResult;
@@ -124,8 +124,7 @@ impl Em<'_, '_, '_> {
         true
     }
 
-    /// The counted references of a boxed enum's cell: its value's, as the
-    /// enum lays it out unboxed.
+    /// The counted references of an enum cell, from its inline field layout.
     fn cell_walk(&self, t: Ty) -> Option<Walk> {
         self.input.runtime?;
         crate::layout::switch_walk(self.pool(), self.env(), t)
@@ -721,8 +720,8 @@ impl Em<'_, '_, '_> {
     }
 
     /// Pushes the cell that says enum value `a`'s variant, a tag or a
-    /// niche ([`Flat::cell`]): from its locals, from its cell when it is
-    /// boxed, or as a borrow through a reference read it in place
+    /// niche ([`Flat::cell`]): from its locals, or as a borrow through a
+    /// reference read it in place
     /// ([`Em::lazy_borrow`]). An enum of one variant has no cell; its
     /// tests need no read ([`Em::is_variant`]).
     pub(super) fn discr_cell(&mut self, a: u32, d: Discr) -> StageResult<()> {
@@ -834,7 +833,7 @@ impl Em<'_, '_, '_> {
     }
 
     /// Variant `v` of `i`'s enum with the payload `fs`, moved in if `moved`:
-    /// its cells ([`variant_steps`]), in a counted cell if boxed.
+    /// its cells ([`variant_steps`]).
     pub(super) fn variant(&mut self, i: u32, v: u32, fs: &[Src], moved: bool) -> StageResult<()> {
         let t = self.ty(i);
         // A variant's construction, of an enum or an optional.

@@ -45,8 +45,8 @@ pub use module::{Session, Sym};
 pub use origins::{FunctionOrigins, InstructionOrigin, MappedModule, StaticData};
 pub use rt::Helper;
 
-/// A1's shared reference-storage class on this backend: boxed enums are
-/// object addresses; inline values retain concrete type keys.
+/// A1's shared reference-storage class on this backend: thin references
+/// are object addresses; inline values retain concrete type keys.
 #[must_use]
 pub fn shared_reference_layout(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> bool {
     matches!(
@@ -57,8 +57,8 @@ pub fn shared_reference_layout(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) 
 
 /// The types a value of `ty` holds by value, `ty` stripped of newtypes
 /// first: a tuple's or a union's members, a value enum's payload fields,
-/// a struct's fields (`layout::value_parts`). A self-recursive enum, a
-/// collection, a reference or a scalar holds none in place.
+/// a struct's fields (`layout::value_parts`). A collection, a reference
+/// or a scalar holds none in place.
 #[must_use]
 pub fn value_part_types(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> Vec<Ty> {
     layout::value_parts(pool, env, layout::strip(pool, env, ty))

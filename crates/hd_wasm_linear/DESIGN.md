@@ -222,7 +222,6 @@ type in every position; aggregate values are inline in memory.
 | struct, tuple | its fields' values, flattened, in declaration order (Wasm multi-value) | its fields inline, ordered as rustc's `univariant` orders them (largest alignment group first), each at its alignment; the struct aligned to its widest field |
 | enum | one Wasm value per distinct leaf of its variants, shared where two variants have the same leaf at the same offset (`layout::Flat`) | rustc's `layout_of_enum`: each payload as one struct at one offset, and of two layouts the smaller (on a tie, the one with more free niche values, else the tagged one): the tagged one, whose tag is the smallest integer that counts the inhabited variants widened to the payloads' smallest first-field alignment, small fields after it; or the niche-filled one, where the largest variant has no tag and the others are values of its largest niche, each placed before or after that niche (`layout::Enc`) |
 | enum of one present variant | that variant's struct; an absent variant (uninhabited, all fields zero-sized) takes neither a discriminant nor space | that variant's struct |
-| self-recursive enum (today's language) | the address of a counted cell holding the enum value | the address |
 | `T?` | as an enum of `.None` and `.Some(T)`: of a reference `T` its address, null for `.None` | as an enum |
 | `string` | `(address, length)`: two `i32` | 8 bytes |
 | `&T`, `&mut T` | the address of the `T`, possibly inside an object (§23.5); of a trait value, that trait value (§23.20) | 4 bytes; 8 for a trait value |
@@ -232,6 +231,10 @@ type in every position; aggregate values are inline in memory.
 | `dyn Trait`, `Any` | `(data, vtable)`: the value's address and a static vtable's (§23.8) | 8 bytes |
 | suspension | the address of a counted frame owned by its task | 4 bytes |
 | `void`, `()`, `never` | none | 0 bytes |
+
+Recursive enums use the ordinary inline enum layout. Their recursive links are
+explicit references; no enum value is boxed implicitly (`data.enum.recursive`,
+`data.enum.no-recursion`, `data.enum.no-boxing`).
 
 - **Struct values inline.** A struct value is inline, so a field
   write is one store. A program declares no `data` type; only a
@@ -730,8 +733,8 @@ count glue, with release glue in `rt.rs`, and decides none itself.
   part takes the part laid out in its root's locals (`Em::part_slots`:
   struct, tuple and newtype fields and enum payload fields), whose locals
   a `Drop` of that part releases and zeroes too (`Em::own_drop_part`). A
-  part at no such place at this instance, a boxed enum's payload or an
-  open value's part, is read as a copy; the move pass then keeps the
+  part at no such place at this instance, such as an open value's part,
+  is read as a copy; the move pass then keeps the
   root's whole `Drop`, which releases it. A `Ref` that takes its local's
   count (move's rule 4) is the cell's address with that count, and zeroes
   the local; where the reference is no cell's address (a trait value's)
@@ -784,8 +787,8 @@ count glue, with release glue in `rt.rs`, and decides none itself.
   through fields, starting at the binding's static slot or at its Wasm
   globals read into locals; a store into or a reference to a binding's
   fields keeps the old lowering. A field picks its part (in
-  locals, or an offset in memory), a variant its payload field (in a
-  boxed enum's cell when the enum is boxed), a dereference of a data
+  locals, or an offset in memory), a variant its inline payload field,
+  a dereference of a data
   value the object's field, an element its slot in the buffer,
   bounds-checked. The first element of a local's list, or of the list
   the reference it holds refers to, takes the loop's cached header where
@@ -1887,11 +1890,12 @@ build (`rt.rs`'s `Helper::Collect`, `CycleTrace`, `CycleRelease`,
   An object can be on a cycle only if what it holds reaches, through
   counted references, a value that can hold the object again.
   `cycle::object` (a list's header and buffers, a map's table, a data
-  object, a self-recursive enum's cell) and `cycle::holding` (a closure's
+  object) and `cycle::holding` (a closure's
   environment, a local's cell, a `dyn` or open value's box, an iterator's
   environment, which only open values hold) walk the types that the
   object's contents hold, through tuples, options, structs, value enums,
-  list and map elements, data fields and boxed variants. The object takes
+  list and map elements, data fields and explicit enum reference links.
+  The object takes
   part when the walk meets a reference (`&T` or `&mut T`: it may point
   into any object with a place of its target's type, so the type graph
   cannot say what it reaches), an open value (a function value, a trait

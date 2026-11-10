@@ -9,8 +9,8 @@
 //! is rustc's tagged layout ([`Flat`]): its tag, then each variant's
 //! payload as one struct at one offset; its values are one per distinct
 //! leaf of its variants, so loads and stores need no branch on the tag. A
-//! self-recursive enum and a
-//! suspension are one address; a string is its address and byte
+//! suspension is one address; recursive enum links are explicit references.
+//! A string is its address and byte
 //! length; a trait value its data address and its vtable's address; a
 //! list or a map the address of its buffer (§23.7); a function value its
 //! code's table slot and its environment's address (§23.8). A reference
@@ -217,8 +217,7 @@ pub enum Kind {
     /// Its values are in locals: a scalar, a string, an enum, a struct or
     /// tuple, a trait value.
     Value,
-    /// A self-recursive enum: the address of a cell holding the enum's
-    /// value as a non-recursive enum lays it out.
+    /// The address of a counted cell containing an enum value.
     Boxed,
     /// A reference to a place of type `T` (`&T` or `&mut T`, or `*T` or
     /// `*mut T` when `whole`): the place's address, or, when
@@ -656,7 +655,8 @@ pub enum Walk {
     /// block through the page table (§23.5).
     Ref(u32),
     /// Value `k` is null, a static object's, or the payload start of a
-    /// counted object, eight bytes after its header: a boxed enum's cell, a collection's buffer, a closure's environment, a
+    /// counted object, eight bytes after its header: a collection's buffer,
+    /// a closure's environment, a
     /// thin counted reference ([`block_start`]); counting
     /// reads the header at `k - 8` (§23.30).
     Known(u32),

@@ -64,8 +64,7 @@ fn writable(pool: &InternPool, env: &dyn ProgramEnv, target: Ty) -> bool {
     })
 }
 
-/// Whether an object of type `t` takes part: a list's buffer,
-/// a map's table or a self-recursive enum's cell.
+/// Whether a counted object of type `t` can participate in a reference cycle.
 pub fn object(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
     let t = strip(pool, env, t);
     reaches(pool, env, &contents(pool, env, t))
@@ -110,7 +109,7 @@ pub fn holding(pool: &InternPool, env: &dyn ProgramEnv, parts: &[Ty]) -> bool {
 /// What a value of a stripped type holds, one rule for every type form:
 /// a tuple its members, a union its members, an enum or struct its
 /// payload fields (`Option` among them, as an ordinary enum), a list or
-/// map its items, a self-recursive enum's cell its variants.
+/// map its items; recursive links are explicit references.
 enum Holds {
     /// Values of these types, in place or in an object it owns.
     Parts(Vec<Ty>),
