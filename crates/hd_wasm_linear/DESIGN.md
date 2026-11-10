@@ -1489,24 +1489,38 @@ handles and runtime-profile traits, so programs that use `fs`, `process`,
   objects for its results, which means calling back into the module
   during an import (§17.3 forbids nested calls); it would also tie the
   host to this backend's layouts.
-- **Boundary types.** `boundary::of` describes a type as an `LTy` from
-  its linear layout: an integer (`bool` one bit, `char` 21), a float, a
-  string, `List[u8]`, any other list with its element's layout, a
-  struct or a tuple as a record of its fields' values, an enum or an
-  optional as its tag and shared slots (each payload field's value
-  indices from `layout::enum_mem`), a host handle with its vtable, and,
-  at a profile's boundary, a private-field type as the string of its
-  `std.host` codec, an ordinary call of the instance collection gathered
-  (`module.boundary.serialize.exact`). A
-  newtype is its field, so `Path` is its string with its length; only a
-  lone `string` argument crosses as its bytes alone. A map, a function, a
-  recursive enum or another trait value is refused at
-  Link, and nesting past 32 levels is too.
+- **Boundary types.** `boundary::of` describes a checked type as an
+  `LTy` from its linear layout: scalars, strings, byte lists, other lists,
+  records, enums and maps. Records cross as their fields in order; enums
+  cross as a variant index followed by that variant's payload fields.
+  The enum codec reads its tagged or niche-filled `layout::Flat`.
+  Maps cross as their live count, then keys and values in insertion order.
+
+  Recursive data types name one encoder and one decoder; recursive
+  occurrences call that same pair. Counted references `*T` and `*mut T`
+  cross as their referent's tree, with a new object for each decoded
+  occurrence (`module.boundary.tree`, `module.boundary.sharing`). An
+  encoder detects a counted-reference cycle on its current path and
+  reports `boundary-cycle` (`module.boundary.cycle`).
+
+  Public-field structs and enum payloads cross structurally
+  (`module.boundary.public`). At a profile boundary, private-field types
+  use the collected `std.serde.Serialize` instance when leaving hd and
+  `std.serde.Deserialize` when entering, crossing as that codec's string.
+  Newtypes use their field's representation; only a lone `string`
+  argument crosses as its bytes alone.
+
+  The checker rejects unsafe signatures with `boundary-not-safe`
+  (`module.boundary.not-safe.error`). Functions, suspensions, provider
+  contexts, local data references and non-handle trait values cannot
+  cross; `never` is allowed only as the whole method result. A host
+  handle crosses only from the host, with its method vtable.
 - **Encoders** are `rt:enc` helpers, `(off, values...) -> off'`, one per
   `LTy`, each growing the buffer (`rt:fit`) before it writes. A string
   and a byte list are one `memory.copy` from the heap to the buffer; a
   list's elements are loaded from its buffer at their offsets. A value
-  is borrowed: an encoder takes no count.
+  is borrowed during ordinary encoding; a private-field codec receives
+  an owned copy, retaining the value's counted references.
 - **Decoders** are `rt:dec` helpers, `(off) -> (values..., off')`. They
   check every LEB128 byte and length against the buffer's size, a
   variant index against the variant count, and a narrow integer against
