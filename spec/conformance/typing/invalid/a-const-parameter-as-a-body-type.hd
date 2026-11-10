@@ -1,0 +1,6 @@
+# test: a const parameter written as a type in a body is a kind error
+# Spec 04 Const Generic Parameters: types.generic.const.type-position.
+
+fn width[N < const i64](value: i64) -> i64:
+    let copy: N = value  # diagnostic: generic-kind-mismatch
+    value

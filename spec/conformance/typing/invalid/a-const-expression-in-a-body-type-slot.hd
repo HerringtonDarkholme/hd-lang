@@ -1,0 +1,9 @@
+# test: a const expression in a type parameter's slot of a body type is a kind error
+# Spec 02: grammar.generic.const.argument reads an argument as an
+# expression only for a const parameter.
+
+struct Holder[X]:
+    x: X
+
+fn build() -> void:
+    let h: Holder[1] = Holder { x: 1 }  # diagnostic: generic-kind-mismatch

@@ -1,0 +1,9 @@
+# test: a function trait in a body's trait value type has no `dyn` form
+# Spec 13: ref.type.dyn.no-fn.
+use std.function.Fn
+
+fn double(x: i64) -> i64:
+    x * 2
+
+fn use_it() -> void:
+    let f: &dyn Fn(i64) -> i64 = &double  # diagnostic: trait-not-dynamically-safe

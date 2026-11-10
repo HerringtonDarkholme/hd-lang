@@ -1,0 +1,8 @@
+# test: a body's context type takes its row after `$`
+# Spec 11: req.context.dollar.
+
+trait Clock:
+    fn now(self) -> i64
+
+fn take() -> void:
+    let c: $.Context[Clock] = $.context()  # diagnostic: generic-kind-mismatch

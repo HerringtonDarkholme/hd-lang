@@ -1,0 +1,9 @@
+# test: a const expression as an explicit argument for a type parameter is a kind error
+# Spec 02: grammar.generic.const.argument reads an argument as an
+# expression only for a const parameter.
+
+fn id[T](value: T) -> T:
+    value
+
+fn call() -> i64:
+    id::[1](2)  # diagnostic: generic-kind-mismatch

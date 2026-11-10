@@ -6189,6 +6189,13 @@ typing/invalid/an-imported-trait-in-a-header-const-slot-is-a-kind-error.hd	type	
 typing/invalid/an-imported-trait-in-a-body-const-slot-is-a-kind-error.hd	type	reject:generic-kind-mismatch	lang/04-type-system.md#r-types.generic.const.argument.kind
 typing/invalid/an-imported-type-in-a-const-slot-keeps-its-kind-error.hd	type	reject:generic-kind-mismatch	lang/04-type-system.md#r-types.generic.const.argument.kind
 typing/invalid/a-type-parameter-in-a-body-const-slot-is-a-kind-error.hd	type	reject:generic-kind-mismatch	lang/04-type-system.md#r-types.generic.const.argument.kind
+typing/invalid/a-const-expression-in-a-body-type-slot.hd	type	reject:generic-kind-mismatch	lang/02-grammar.md#r-grammar.generic.const.argument
+typing/invalid/a-const-expression-as-an-explicit-type-argument.hd	type	reject:generic-kind-mismatch	lang/02-grammar.md#r-grammar.generic.const.argument
+typing/invalid/a-const-parameter-as-a-body-type.hd	type	reject:generic-kind-mismatch	lang/04-type-system.md#r-types.generic.const.type-position
+typing/invalid/a-body-fn-type-constructor-takes-tuple-inputs.hd	type	reject:generic-kind-mismatch	lang/07-functions.md#r-fn.type.ctor.inputs-tuple
+typing/invalid/a-body-context-type-takes-a-row-after-dollar.hd	type	reject:generic-kind-mismatch	lang/11-requirements-and-suspension.md#r-req.context.dollar
+typing/invalid/a-body-context-type-takes-no-row-parameter.hd	type	reject:row-parameter-in-context	lang/11-requirements-and-suspension.md#r-req.row.param.context
+typing/invalid/a-body-fn-trait-has-no-dyn-form.hd	type	reject:trait-not-dynamically-safe	lang/13-values-and-references.md#r-ref.type.dyn.no-fn
 typing/invalid/a-const-slot-kind-check-keeps-default-visibility.hd	type	reject:binding-not-yet-visible	lang/04-type-system.md#r-types.generic.default.later
 typing/invalid/a-function-name-in-a-const-slot-remains-runtime-dependent.hd	type	reject:nonconstant-generic-argument	lang/04-type-system.md#r-types.generic.const.nonconstant
 runtime/valid/local-declarations-in-a-script-suite-are-registered.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.local-type.name

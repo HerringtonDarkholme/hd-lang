@@ -1,0 +1,5 @@
+# test: a body's context type takes only a concrete row
+# Spec 11: req.row.param.context.
+
+fn take[$R](job: fn() -> void $ R) -> void:
+    let c: $.Context[$ R] = $.context()  # diagnostic: row-parameter-in-context

@@ -1,0 +1,9 @@
+# test: a function type constructor in a body takes its inputs as a tuple
+# Spec 07: fn.type.ctor.inputs-tuple.
+use std.function.Fn
+
+fn double(x: i64) -> i64:
+    x * 2
+
+fn use_it() -> void:
+    let f: Fn[i64, i64, $()] = double  # diagnostic: generic-kind-mismatch
