@@ -19,6 +19,7 @@ pub enum RuntimeProfile {
     #[default]
     Default,
     MisbehavingHost,
+    RawCharacterHost,
     SpecialFloatHost,
     SerdeVault,
     Tick,
@@ -33,6 +34,7 @@ impl RuntimeProfile {
         match name {
             "default" => Ok(Self::Default),
             "misbehaving-host" => Ok(Self::MisbehavingHost),
+            "raw-character-host" => Ok(Self::RawCharacterHost),
             "special-float-host" => Ok(Self::SpecialFloatHost),
             "serde-vault" => Ok(Self::SerdeVault),
             "tick" => Ok(Self::Tick),
@@ -46,6 +48,7 @@ impl RuntimeProfile {
     pub(crate) fn method(self, module: &str, name: &str) -> Option<Method> {
         match (self, module, name) {
             (Self::MisbehavingHost, "hd:Gauge", "level") => Some(Method::GaugeLevel),
+            (Self::RawCharacterHost, "hd:CharSource", "character") => Some(Method::Character),
             (Self::SpecialFloatHost, "hd:Sensor", "reading") => Some(Method::SensorReading),
             (Self::SerdeVault, "hd:Vault", "keep") => Some(Method::VaultKeep),
             (Self::DisposedFile, "hd:FileHandle", "close") => Some(Method::FileHandleClose),
@@ -132,8 +135,8 @@ pub(crate) fn call(
         Method::GateWait => Ret::pair(1, caller.data_mut().reactor.gate()),
         Method::TickNow => Ret::pair(0, 0),
         Method::TickPending => Ret::pair(1, caller.data_mut().reactor.fixture_open()),
-        Method::GaugeLevel | Method::SensorReading | Method::VaultKeep => {
-            let length = if matches!(method, Method::VaultKeep) {
+        Method::GaugeLevel | Method::Character | Method::SensorReading | Method::VaultKeep => {
+            let length = if matches!(method, Method::VaultKeep | Method::Character) {
                 int_arg(params, 0)?
             } else {
                 0
@@ -149,6 +152,7 @@ pub(crate) fn call(
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Method {
     GaugeLevel,
+    Character,
     SensorReading,
     VaultKeep,
     FilesOpen,
@@ -166,6 +170,7 @@ impl Method {
         !matches!(
             self,
             Method::GaugeLevel
+                | Method::Character
                 | Method::SensorReading
                 | Method::VaultKeep
                 | Method::FileHandleClose
@@ -255,7 +260,7 @@ impl State {
             // Node returns len unchanged, even when it is negative or past
             // memory. The generated guest decoder enforces its boundary;
             // this deliberately transparent provider does not read or copy it.
-            Method::VaultKeep => return Reply::EchoLength(length),
+            Method::VaultKeep | Method::Character => return Reply::EchoLength(length),
             Method::FilesOpen
             | Method::FileHandleRead
             | Method::GateWait

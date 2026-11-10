@@ -38,12 +38,14 @@ use crate::task::{HostArg, HostRes};
 pub enum LTy {
     /// `void`: no bytes, no values.
     Void,
-    /// An integer, `bool` (one bit) or `char` (21 bits): LEB128, zigzag
+    /// An integer or `bool` (one bit): LEB128, zigzag
     /// when signed; an `i64` past 32 bits, else an `i32`.
     Int {
         bits: u8,
         signed: bool,
     },
+    /// A Unicode scalar value: unsigned LEB128, checked before narrowing.
+    Char,
     /// Raw IEEE 754 little-endian bytes.
     F32,
     F64,
@@ -220,6 +222,7 @@ impl LTy {
         match self {
             LTy::Void | LTy::Never(_) => vec![],
             LTy::Int { bits, .. } => vec![if *bits > 32 { Val::I64 } else { Val::I32 }],
+            LTy::Char => vec![Val::I32],
             LTy::F32 => vec![Val::F32],
             LTy::F64 => vec![Val::F64],
             LTy::Str | LTy::DiscardStr | LTy::Handle(_) => vec![Val::I32, Val::I32],
@@ -267,6 +270,7 @@ impl LTy {
                 LTy::Void
                 | LTy::Never(_)
                 | LTy::Int { .. }
+                | LTy::Char
                 | LTy::F32
                 | LTy::F64
                 | LTy::Str
@@ -355,7 +359,7 @@ fn of_at(
             Prim::U32 | Prim::Usize => int(32, false),
             Prim::U64 => int(64, false),
             Prim::Bool => int(1, false),
-            Prim::Char => int(21, false),
+            Prim::Char => LTy::Char,
             Prim::String => LTy::Str,
         },
         // A rest element is one more member, its `List[T]`
@@ -1921,6 +1925,10 @@ fn enc_body(f: &mut Func, b: &LTy, m: &Module) {
                 }
             });
         }
+        LTy::Char => put(f, 0, |f| {
+            f.get(1);
+            f.op(I::I64ExtendI32U);
+        }),
         LTy::F32 | LTy::F64 => {
             let n = if *b == LTy::F64 { 8 } else { 4 };
             f.get(0);
@@ -2205,6 +2213,31 @@ fn dec_body(f: &mut Func, b: &LTy, m: &mut Module) {
             if *bits <= 32 {
                 f.op(I::I32WrapI64);
             }
+        }
+        LTy::Char => {
+            let scalar = f.local(Val::I64);
+            f.get(0);
+            f.helper(Helper::LebGet);
+            f.set(0);
+            f.set(scalar);
+            // module.profile.host-result.char: reject values above Unicode's
+            // maximum or in its surrogate gap, before any i32 narrowing.
+            f.get(scalar);
+            f.op(I::I64Const(0x10_ffff));
+            f.op(I::I64GtU);
+            f.get(scalar);
+            f.op(I::I64Const(0xd800));
+            f.op(I::I64Sub);
+            f.op(I::I64Const(0x7ff));
+            f.op(I::I64LeU);
+            f.op(I::I32Or);
+            f.op(I::If(BlockType::Empty));
+            f.helper(Helper::Panic(
+                "host-contract: a host character result is not a Unicode scalar".into(),
+            ));
+            f.op(I::End);
+            f.get(scalar);
+            f.op(I::I32WrapI64);
         }
         LTy::F32 | LTy::F64 => {
             let n = if *b == LTy::F64 { 8 } else { 4 };

@@ -20,6 +20,10 @@ export function providers(name: string, io: DynamicRecord): DynamicRecord {
     // which no `u8` holds (module.profile.host-result.contract-panic).
     case "misbehaving-host":
       return { "hd:Gauge": { level: () => io.put(new io.Enc().leb(300)) } };
+    // Echo an encoded u64 as a raw char result, including invalid scalars.
+    // The generated guest boundary adapter must validate the result.
+    case "raw-character-host":
+      return { "hd:CharSource": { character: (len: number) => len } };
     // `trait Sensor: fn reading(mut self) -> f64`: a NaN, then positive
     // infinity, then `-0.0` on every later call, each as raw IEEE 754
     // bits (module.profile.host-result.float, module.profile.host-float.special).
