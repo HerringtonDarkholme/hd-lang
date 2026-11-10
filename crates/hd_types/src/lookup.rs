@@ -293,8 +293,8 @@ pub enum Impls<'a> {
 }
 
 /// A table's place in the candidate order: the asking module's own table,
-/// then folders in path order. Owner lookup keeps the order a scan of
-/// every table had.
+/// then folders in path order. Owner lookup reads only the owners' tables,
+/// and this order keeps their rows where reading every table puts them.
 fn position(m: ModuleId) -> u32 {
     if m == OWN_TABLE { 0 } else { m.raw() + 1 }
 }
