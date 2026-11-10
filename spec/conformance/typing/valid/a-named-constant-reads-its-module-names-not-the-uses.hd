@@ -1,0 +1,14 @@
+# test: a named constant's initializer reads the module's top-level names, even where the use has a const parameter or a local of the same name
+# Spec 04 Const Generic Parameters and Arguments: types.generic.const.named, types.generic.const.named-scope, types.generic.const.identity.
+struct Size[N < const usize]: pass
+
+M := 4
+K := M + 1
+
+fn shadowed[M < const usize](value: Size[K]) -> Size[5]:
+    value
+
+fn local(value: Size[5]) -> Size[5]:
+    M := 9
+    let same: Size[K] = value
+    same

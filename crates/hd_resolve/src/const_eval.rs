@@ -11,7 +11,9 @@ use crate::Src;
 use crate::literal::{Piece, decode_piece, radix_digits, split_suffix, strip_piece};
 use hd_base::{HashMap, HashSet};
 
-/// What a name in a const argument denotes, as the caller's scope sees it.
+/// What a name in a const argument denotes, as the scope it is read in sees
+/// it: the argument's, or a named constant's initializer's, which is the
+/// module's top level.
 pub enum ConstName<'a> {
     /// A const parameter in scope (`types.generic.const.type-position`).
     Param(ParamRef),
@@ -173,7 +175,7 @@ pub fn const_argument<'a>(
     arg: NodeRef<'a>,
     want: Option<Prim>,
     paths: &hd_intern::PathTable,
-    lookup: &mut dyn FnMut(&str) -> ConstName<'a>,
+    lookup: &mut dyn FnMut(&str, bool) -> ConstName<'a>,
 ) -> Result<ConstArg, ConstError> {
     let arg = match arg.kind() {
         SyntaxKind::ConstArgument => match arg.children().next() {
@@ -183,7 +185,7 @@ pub fn const_argument<'a>(
         _ => arg,
     };
     if let Some(name) = bare_name(src, arg)
-        && let ConstName::Param(p) = lookup(name)
+        && let ConstName::Param(p) = lookup(name, false)
     {
         return Ok(ConstArg::Param(p));
     }
@@ -248,7 +250,10 @@ type BindingKey = (hd_base::FileId, hd_base::NodeIdx);
 /// shared the chain; only a binding read while its own initializer is
 /// being read is a cycle (`types.generic.const.evaluate`).
 struct Eval<'l, 'a> {
-    lookup: &'l mut dyn FnMut(&str) -> ConstName<'a>,
+    /// Looks a name up where it is read: in the argument's own scope, or,
+    /// with `true`, in a named constant's initializer, where only the
+    /// module's top-level names are in scope.
+    lookup: &'l mut dyn FnMut(&str, bool) -> ConstName<'a>,
     /// The bindings whose initializers are being evaluated.
     active: HashSet<BindingKey>,
     /// The bindings whose natural types are being read.
@@ -299,7 +304,8 @@ impl<'a> Eval<'_, 'a> {
             }
             SyntaxKind::NameExpr | SyntaxKind::NamedType => {
                 let name = bare_name(src, n)?;
-                match (self.lookup)(name) {
+                let in_binding = !self.active.is_empty() || !self.typing.is_empty();
+                match (self.lookup)(name, in_binding) {
                     ConstName::Binding { src, init } => {
                         let key = (src.file, init.index());
                         if let Some(t) = self.naturals.get(&key) {
@@ -386,7 +392,7 @@ impl<'a> Eval<'_, 'a> {
                 "this operation is not available to const evaluation",
             ));
         };
-        match (self.lookup)(name) {
+        match (self.lookup)(name, !self.active.is_empty()) {
             ConstName::Param(_) => Err(nonconstant(&format!(
                 "`{name}` is a const parameter, and stage 1 has no symbolic const arithmetic"
             ))),

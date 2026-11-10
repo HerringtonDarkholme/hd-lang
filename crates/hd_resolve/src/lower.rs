@@ -2456,9 +2456,13 @@ impl Lower<'_, '_, '_> {
         let mut declared = None;
         let result = {
             let syms = self.names.syms;
-            let mut lookup = |name: &str| {
+            // A named constant's initializer sees only the module's top
+            // level: no parameter or local of the use (`in_binding`).
+            let mut lookup = |name: &str, in_binding: bool| {
                 let sym = syms.intern(name);
-                if let Some((_, slot, ty, _)) = gn.consts.iter().find(|(s, _, _, _)| *s == sym) {
+                if !in_binding
+                    && let Some((_, slot, ty, _)) = gn.consts.iter().find(|(s, _, _, _)| *s == sym)
+                {
                     declared = Some(*ty);
                     return ConstName::Param(*slot);
                 }
@@ -2469,6 +2473,7 @@ impl Lower<'_, '_, '_> {
                     return binding;
                 }
                 let kind = local_at(self.locals, sym, self.at)
+                    .filter(|_| !in_binding)
                     .map(|local| local.kind)
                     .or_else(|| {
                         let binding = self.scope.lookup(sym)?;

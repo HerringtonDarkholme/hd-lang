@@ -269,17 +269,21 @@ impl Ck<'_, '_> {
         let paths = self.cx.names.paths;
         let mut declared = None;
         let result = {
-            let mut lookup = |name: &str| {
+            // A named constant's initializer sees only the module's top
+            // level: no parameter or local of the use (`in_binding`).
+            let mut lookup = |name: &str, in_binding: bool| {
                 let sym = syms.intern(name);
-                if let Some((_, p, prim)) = self.const_gens.iter().rev().find(|(s, _, _)| *s == sym)
+                if !in_binding
+                    && let Some((_, p, prim)) =
+                        self.const_gens.iter().rev().find(|(s, _, _)| *s == sym)
                 {
                     declared = Some(*prim);
                     return ConstName::Param(*p);
                 }
-                if self.type_param(name).is_some() {
+                if !in_binding && self.type_param(name).is_some() {
                     return ConstName::Type;
                 }
-                if self.find_local(sym).is_some() {
+                if !in_binding && self.find_local(sym).is_some() {
                     return ConstName::Runtime;
                 }
                 if let Some(b) = hd_resolve::lower::top_level_binding(&src, name) {
