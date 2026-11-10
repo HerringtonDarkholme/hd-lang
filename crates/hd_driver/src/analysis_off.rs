@@ -5,10 +5,9 @@
 use std::convert::Infallible;
 use std::marker::PhantomData;
 
-use hd_base::Hash128;
+use hd_base::{Hash128, NodeIdx};
 use hd_check::body::BodyCx;
 use hd_diag::DiagBuf;
-use hd_resolve::facts::DerivationFacts;
 
 use crate::{Lines, Run};
 
@@ -37,11 +36,6 @@ impl Run<'_> {
         false
     }
 
-    pub(crate) fn collect_derivation_facts(&self, _: usize) -> bool {
-        self.no_lint();
-        false
-    }
-
     pub(crate) fn lint_runs(&self, _: usize) -> bool {
         self.no_lint();
         false
@@ -56,7 +50,7 @@ impl Run<'_> {
         self.no_lint();
     }
 
-    pub(crate) fn lint_module(&self, _: usize, _: &BodyCx<'_>, _: &DerivationFacts) {
+    pub(crate) fn lint_module(&self, _: usize, _: &BodyCx<'_>, _: &[NodeIdx]) {
         self.no_lint();
     }
 

@@ -3,34 +3,58 @@
 use crate::{Cx, Event};
 use hd_base::{DefId, PathId, SliceSort as _, Span};
 use hd_diag::{Code, DiagBuf, FixSafety, Severity};
-use hd_resolve::facts::{BlockDecorator, DerivationFacts};
+use hd_resolve::facts::is_marker;
 use hd_resolve::{HeadKind, ItemData, Src};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 
+/// Each decorator before a top-level derivation block attaches a value no
+/// derivation reads (`annot.fact.unused-block-decorator.lint`), unless the
+/// compiler consumes it as a marker. A decorator that is an error needs no
+/// test here: the hook runs only on a module without errors, and a build
+/// with errors shows no findings. Cost: one pass over the module's
+/// top-level declarations, then the decorators of its blocks.
 pub(crate) fn unused(event: &Event<'_>, cx: &Cx<'_>, out: &mut DiagBuf) {
     let Event::Derivations(derivations) = event else {
         return;
     };
-    collect_unused(derivations.facts, cx.src.text, out);
+    let src = cx.src;
+    for block in src.root().children().filter(|n| {
+        n.kind() == SyntaxKind::ImplDecl && derivations.decls.derivation_block(n.index())
+    }) {
+        let first = Src::child(block, SyntaxKind::Block)
+            .and_then(|b| b.children().next())
+            .map(|n| src.span(n));
+        for d in block
+            .children()
+            .filter(|c| c.kind() == SyntaxKind::Decorator && !is_marker(&src, *c))
+        {
+            let fact = Unused {
+                span: src.span(d),
+                value: d.children().next().map(|n| src.span(n)),
+                first,
+            };
+            push_unused(out, &fact, src.text);
+        }
+    }
 }
 
-fn collect_unused(facts: &DerivationFacts, text: &str, out: &mut DiagBuf) {
-    let mut decorators: Vec<_> = facts.decorators.iter().collect();
-    decorators.sort_stable_by_key(|d| (d.span.file.raw(), d.span.lo, d.span.hi));
-    decorators.dedup();
-    for decorator in decorators {
-        if decorator.marker || !decorator.valid {
-            continue;
-        }
-        out.push(
-            Code::UnusedDerivationFact,
-            Severity::Warning,
-            decorator.span,
-            "no derivation reads this value; write it in the block as `Self += [...]`",
-            None,
-        );
-        move_fix_text(out, decorator, text);
-    }
+/// A decorator before a derivation block that attaches an unread value:
+/// its span, its value's, and the span of the block's first member line.
+struct Unused {
+    span: Span,
+    value: Option<Span>,
+    first: Option<Span>,
+}
+
+fn push_unused(out: &mut DiagBuf, fact: &Unused, text: &str) {
+    out.push(
+        Code::UnusedDerivationFact,
+        Severity::Warning,
+        fact.span,
+        "no derivation reads this value; write it in the block as `Self += [...]`",
+        None,
+    );
+    move_fix_text(out, fact, text);
 }
 
 pub(crate) fn drift(event: &Event<'_>, cx: &Cx<'_>, out: &mut DiagBuf) {
@@ -216,7 +240,7 @@ fn collect_drift(mut blocks: Vec<(Block, Written)>, derived: &[Derived], out: &m
     }
 }
 
-fn move_fix_text(diags: &mut DiagBuf, fact: &BlockDecorator, text: &str) {
+fn move_fix_text(diags: &mut DiagBuf, fact: &Unused, text: &str) {
     let (Some(value), Some(first)) = (fact.value, fact.first) else {
         return;
     };
@@ -266,11 +290,9 @@ fn move_fix_text(diags: &mut DiagBuf, fact: &BlockDecorator, text: &str) {
 
 #[cfg(test)]
 mod tests {
+    use super::{Block, Derived, Unused, Written, collect_drift, push_unused};
     use hd_base::{DefId, FileId, PathId, Span};
     use hd_diag::{Code, DiagBuf};
-    use hd_resolve::facts::{BlockDecorator, DerivationFacts};
-
-    use super::{Block, Derived, Written, collect_drift, collect_unused};
 
     fn span(lo: usize, hi: usize) -> Span {
         Span {
@@ -342,51 +364,19 @@ mod tests {
         let value = start + 1;
         let end = value + "\"雪\"".len();
         let first = source.find("pass").unwrap();
-        let fact = BlockDecorator {
+        let fact = Unused {
             span: span(start, end),
             value: Some(span(value, end)),
             first: Some(span(first, first + 4)),
-            marker: false,
-            valid: true,
-        };
-        let facts = DerivationFacts {
-            decorators: vec![fact.clone(), fact],
         };
         let mut findings = DiagBuf::default();
-        collect_unused(&facts, &source, &mut findings);
+        push_unused(&mut findings, &fact, &source);
         assert_eq!(findings.code, [Code::UnusedDerivationFact]);
         assert_eq!(findings.edits.len(), 2);
         assert_eq!(
             findings.get_text(findings.edits[1].text),
             "    Self += [\"雪\"]  # note\r\n",
         );
-    }
-
-    #[test]
-    fn consumed_markers_and_invalid_occurrences_are_quiet() {
-        let occurrence = BlockDecorator {
-            span: span(0, 1),
-            value: None,
-            first: None,
-            marker: false,
-            valid: true,
-        };
-        let facts = DerivationFacts {
-            decorators: vec![
-                occurrence.clone(),
-                BlockDecorator {
-                    marker: true,
-                    ..occurrence.clone()
-                },
-                BlockDecorator {
-                    valid: false,
-                    ..occurrence
-                },
-            ],
-        };
-        let mut findings = DiagBuf::default();
-        collect_unused(&facts, "x", &mut findings);
-        assert_eq!(findings.code, [Code::UnusedDerivationFact]);
     }
 
     #[test]

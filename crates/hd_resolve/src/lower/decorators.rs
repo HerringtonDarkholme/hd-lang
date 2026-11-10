@@ -8,7 +8,7 @@
 use hd_base::HashMap;
 
 use hd_base::{DefId, Span};
-use hd_diag::{Code, DiagMark};
+use hd_diag::Code;
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_types::{Ty, TyData};
 
@@ -64,34 +64,20 @@ struct Place {
     members: usize,
     /// The member's resolved type, when it has one.
     ty: Option<Ty>,
-    /// The target is a derivation block (`annot.fact.unused-block-decorator`).
-    block: bool,
 }
 
 impl Lower<'_, '_, '_> {
     fn deco<'t>(&self, d: NodeRef<'t>) -> Option<Deco<'t>> {
-        let e = d.children().next()?;
-        let (mut callee, args) = match e.kind() {
-            SyntaxKind::CallExpr => (
-                e.children().next()?,
-                Src::child(e, SyntaxKind::ArgumentList),
-            ),
-            _ => (e, None),
-        };
-        let mut typed = false;
-        if callee.kind() == SyntaxKind::TypeArgsExpr {
-            typed = true;
-            callee = callee.children().next()?;
-        }
-        if callee.kind() != SyntaxKind::NameExpr {
-            return None;
-        }
-        let name = self.src.text(self.src.first_ident(callee)?).to_owned();
+        let parts = crate::facts::decorator_parts(d)?;
+        let name = self
+            .src
+            .text(self.src.first_ident(parts.callee)?)
+            .to_owned();
         Some(Deco {
             name,
-            bare: e.kind() != SyntaxKind::CallExpr,
-            typed,
-            args,
+            bare: parts.bare,
+            typed: parts.typed,
+            args: parts.args,
         })
     }
 
@@ -331,9 +317,7 @@ impl Lower<'_, '_, '_> {
         let mut cause = false;
         for d in n.children().filter(|c| c.kind() == SyntaxKind::Decorator) {
             let span = self.src.span(d);
-            let mark = self.diags.mark();
             let Some(deco) = self.deco(d) else {
-                self.record_block_decorator(place, None, n, d, mark);
                 continue;
             };
             let k = place.kind;
@@ -471,35 +455,8 @@ impl Lower<'_, '_, '_> {
                     }
                 }
             }
-            self.record_block_decorator(place, Some(deco.name.as_str()), n, d, mark);
         }
         cause
-    }
-
-    /// Records the resolved occurrence; tooling decides whether to advise on it.
-    fn record_block_decorator(
-        &mut self,
-        place: Place,
-        name: Option<&str>,
-        target: NodeRef<'_>,
-        decorator: NodeRef<'_>,
-        mark: DiagMark,
-    ) {
-        if !place.block {
-            return;
-        }
-        let Some(facts) = self.derivation_facts.as_deref_mut() else {
-            return;
-        };
-        facts.decorators.push(crate::facts::BlockDecorator {
-            span: self.src.span(decorator),
-            value: decorator.children().next().map(|n| self.src.span(n)),
-            first: Src::child(target, SyntaxKind::Block)
-                .and_then(|b| b.children().next())
-                .map(|n| self.src.span(n)),
-            marker: matches!(name, Some("intrinsic" | "from" | "source" | "auto_closing")),
-            valid: self.diags.errors_since(mark) == 0,
-        });
     }
 
     /// Reports a second cause member of one variant or struct
@@ -540,7 +497,6 @@ impl Lower<'_, '_, '_> {
                 error_type,
                 members: params.len(),
                 ty: fields.get(i).map(|f| f.ty),
-                ..Place::default()
             };
             let found = self.check_decorators(*p, place, items);
             self.check_cause(*p, found, &mut causes);
@@ -904,11 +860,7 @@ impl Lower<'_, '_, '_> {
 
     /// Checks every decorator of the module (`annot.decorator.*`,
     /// `annot.target.*`, `annot.error.form.misplaced`).
-    pub(super) fn check_module_decorators(
-        &mut self,
-        items: &HashMap<DefId, &Item>,
-        blocks: &[hd_base::NodeIdx],
-    ) {
+    pub(super) fn check_module_decorators(&mut self, items: &HashMap<DefId, &Item>) {
         let src = self.src;
         for n in src.root().children() {
             let top = |k: u16| Place {
@@ -953,7 +905,6 @@ impl Lower<'_, '_, '_> {
                             error_type,
                             members: fields.len(),
                             ty: types.get(i).map(|f| f.ty),
-                            ..Place::default()
                         };
                         let found = self.check_decorators(*f, place, items);
                         self.check_cause(*f, found, &mut causes);
@@ -1016,12 +967,7 @@ impl Lower<'_, '_, '_> {
                     }
                 }
                 SyntaxKind::ImplDecl => {
-                    let place = Place {
-                        kind: kind::IMPL,
-                        block: blocks.contains(&n.index()),
-                        ..Place::default()
-                    };
-                    self.check_decorators(n, place, items);
+                    self.check_decorators(n, top(kind::IMPL), items);
                     let tys: Vec<_> = n.children().filter(|c| c.kind().is_type()).collect();
                     let target = tys.last().and_then(|t| {
                         let segs = self.segments(*t);

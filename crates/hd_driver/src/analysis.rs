@@ -5,14 +5,14 @@
 use std::collections::BTreeSet;
 use std::sync::OnceLock;
 
-use hd_base::{FileId, Hash128, Span};
+use hd_base::{FileId, Hash128, NodeIdx, Span};
 use hd_cache::EntryKind;
 use hd_check::body::BodyCx;
 use hd_check::comparison::SourceFacts;
 use hd_diag::{Code, DiagBuf, FixSafety, Severity};
 use hd_project::MainSite;
 use hd_resolve::Src;
-use hd_resolve::facts::{DeclView, DerivationFacts};
+use hd_resolve::facts::DeclView;
 
 use crate::{Lines, Reader, Run, Writer, u32_of};
 
@@ -26,7 +26,7 @@ impl Requests {
     pub const MODULE: Self = Self(1 << 0);
     /// Record checked body facts, and call the module hook.
     pub const CHECKED: Self = Self(1 << 1);
-    /// Collect resolved derivation facts, and call the module hook.
+    /// Give the module hook the module's declarations, and call it.
     pub const DERIVATIONS: Self = Self(1 << 2);
     /// Find each root module's `main` site, and call the module hook.
     pub const MAIN_SITE: Self = Self(1 << 3);
@@ -59,9 +59,9 @@ pub struct Module<'v> {
     pub path: &'v str,
     /// The checked body facts, when the consumer asked for them.
     pub facts: Option<&'v SourceFacts>,
-    pub derivations: Option<&'v DerivationFacts>,
-    /// The module's scope and items, for the written names the derivation
-    /// facts' consumer resolves; present exactly when `derivations` is.
+    /// The module's scope, items and derivation blocks, for the written
+    /// names and decorators the derivation lints read, when the consumer
+    /// asked for them.
     pub decls: Option<DeclView<'v>>,
     pub main_site: Option<MainSite>,
 }
@@ -118,11 +118,6 @@ impl Run<'_> {
         self.lint_on(m, Requests::CHECKED).is_some()
     }
 
-    /// Whether root module `m`'s lowering records derivation facts.
-    pub(crate) fn collect_derivation_facts(&self, m: usize) -> bool {
-        self.lint_on(m, Requests::DERIVATIONS).is_some()
-    }
-
     /// Whether the module hook runs on root module `m`.
     pub(crate) fn lint_runs(&self, m: usize) -> bool {
         self.lint_on(m, Requests::NONE)
@@ -154,22 +149,21 @@ impl Run<'_> {
     }
 
     /// Runs the module hook on root module `m`, checked without errors.
-    pub(crate) fn lint_module(&self, m: usize, cx: &BodyCx<'_>, derivations: &DerivationFacts) {
+    pub(crate) fn lint_module(&self, m: usize, cx: &BodyCx<'_>, blocks: &[NodeIdx]) {
         let Some(lint) = self.lint.as_ref().filter(|_| self.lint_runs(m)) else {
             return;
         };
         let mut findings = DiagBuf::default();
         let facts = cx.source_facts.as_ref().map(std::cell::RefCell::borrow);
-        let derives = self.collect_derivation_facts(m);
+        let derives = self.lint_on(m, Requests::DERIVATIONS).is_some();
         lint.sink.module(
             &Module {
                 src: cx.src,
                 path: &self.table.modules[m].path,
                 facts: facts.as_deref(),
-                derivations: derives.then_some(derivations),
                 decls: derives.then(|| {
                     let folder = self.table.modules[m].folder;
-                    DeclView::new(cx.names, folder, cx.scope, cx.lookup)
+                    DeclView::new(cx.names, folder, cx.scope, cx.lookup, blocks)
                 }),
                 main_site: self.main_site(m),
             },

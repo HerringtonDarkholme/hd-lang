@@ -1,7 +1,7 @@
 //! Which decorators of a function attach a value (annotations, "Function
 //! Facts"): every decorator line but the ones the compiler reads itself.
 
-use hd_base::{DefId, FolderId, PathId, Span, Symbol};
+use hd_base::{DefId, FolderId, NodeIdx, PathId, Symbol};
 use hd_syntax::{NodeRef, SyntaxKind};
 
 use crate::view::Src;
@@ -33,6 +33,45 @@ fn callee(d: NodeRef<'_>) -> Option<NodeRef<'_>> {
     } else {
         Some(callee)
     }
+}
+
+/// A decorator line whose callee is a plain name: `@name`, `@name(...)` or
+/// `@name::[T](...)`.
+pub(crate) struct DecoParts<'t> {
+    pub callee: NodeRef<'t>,
+    pub args: Option<NodeRef<'t>>,
+    /// The callee carries type arguments.
+    pub typed: bool,
+    /// The line calls nothing: `@name`.
+    pub bare: bool,
+}
+
+pub(crate) fn decorator_parts(d: NodeRef<'_>) -> Option<DecoParts<'_>> {
+    let e = d.children().next()?;
+    let bare = e.kind() != SyntaxKind::CallExpr;
+    let written = if bare { e } else { e.children().next()? };
+    let callee = callee(d)?;
+    (callee.kind() == SyntaxKind::NameExpr).then(|| DecoParts {
+        callee,
+        args: if bare {
+            None
+        } else {
+            Src::child(e, SyntaxKind::ArgumentList)
+        },
+        typed: written.kind() == SyntaxKind::TypeArgsExpr,
+        bare,
+    })
+}
+
+/// Whether a decorator line is one the compiler consumes as a marker of
+/// its target (`@intrinsic`, `@from`, `@source`, `@auto_closing`) rather
+/// than a value it attaches.
+#[must_use]
+pub fn is_marker(src: &Src<'_>, d: NodeRef<'_>) -> bool {
+    matches!(
+        line(src, d),
+        Some((Some(name), _)) if matches!(name.as_str(), "intrinsic" | "from" | "source" | "auto_closing")
+    )
 }
 
 /// The name a decorator line writes, with its expression node.
@@ -139,32 +178,18 @@ pub fn never_a_list(kind: SyntaxKind) -> bool {
     )
 }
 
-/// Resolved declaration metadata requested by read-only tooling, never cached advice.
-#[derive(Clone, Debug, Default)]
-pub struct DerivationFacts {
-    pub decorators: Vec<BlockDecorator>,
-}
-
-/// One decorator's occurrence and surrounding derivation block.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct BlockDecorator {
-    pub span: Span,
-    pub value: Option<Span>,
-    pub first: Option<Span>,
-    pub marker: bool,
-    pub valid: bool,
-}
-
 /// The narrow resolution read-only tooling asks of a checked module: what
-/// one written name binds in the module's scope, and the module's own
-/// `@derive` implementations. Lowering collects nothing for it; the
-/// derivation lints read written names from syntax and resolve them here.
+/// one written name binds in the module's scope, which of its declarations
+/// are derivation blocks, and the module's own `@derive` implementations.
+/// Lowering collects nothing for it; the derivation lints read written
+/// names and decorators from syntax and resolve them here.
 #[derive(Clone, Copy)]
 pub struct DeclView<'v> {
     names: Names<'v>,
     folder: FolderId,
     scope: &'v ModuleScope,
     lookup: &'v Lookup<'v>,
+    blocks: &'v [NodeIdx],
 }
 
 impl<'v> DeclView<'v> {
@@ -174,13 +199,23 @@ impl<'v> DeclView<'v> {
         folder: FolderId,
         scope: &'v ModuleScope,
         lookup: &'v Lookup<'v>,
+        blocks: &'v [NodeIdx],
     ) -> Self {
         Self {
             names,
             folder,
             scope,
             lookup,
+            blocks,
         }
+    }
+
+    /// Whether the declaration at node `n` is a derivation block, as the
+    /// module's lowering resolved it (`annot.no-trait.form`). Cost: a scan
+    /// of the module's blocks, usually none or a few.
+    #[must_use]
+    pub fn derivation_block(&self, n: NodeIdx) -> bool {
+        self.blocks.contains(&n)
     }
 
     /// The item a single written name binds in the module's scope, as a

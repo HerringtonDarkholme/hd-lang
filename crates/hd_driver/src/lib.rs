@@ -743,8 +743,8 @@ struct PrepOut {
     /// may not be in the run's diagnostics yet when a body asks
     /// ([`Run::file_has_errors`]) or the module finishes.
     use_errors: bool,
-    /// Neutral resolver observations requested by the optional analysis sink.
-    derivations: hd_resolve::facts::DerivationFacts,
+    /// The syntax nodes of the module's derivation blocks.
+    blocks: Vec<hd_base::NodeIdx>,
 }
 
 /// A folder's stage-A diagnostics, with the module each belongs to, the
@@ -4871,16 +4871,6 @@ impl Run<'_> {
         stage: Stage,
         diags: &mut DiagBuf,
     ) -> StageResult<Option<ModOut>> {
-        self.lower_module_with_facts(m, stage, diags, None)
-    }
-
-    fn lower_module_with_facts(
-        &self,
-        m: usize,
-        stage: Stage,
-        diags: &mut DiagBuf,
-        facts: Option<&mut hd_resolve::facts::DerivationFacts>,
-    ) -> StageResult<Option<ModOut>> {
         let module = &self.table.modules[m];
         let Some(own) = self.iface_of(module.folder) else {
             return Ok(None);
@@ -4895,8 +4885,7 @@ impl Run<'_> {
             tests: self.role(m) == "test",
             ..self.mod_in(m)
         }];
-        let out =
-            hd_resolve::lower::build_folder_with_facts(&cx, &mods, Some(own), stage, diags, facts)?;
+        let out = hd_resolve::lower::build_folder(&cx, &mods, Some(own), stage, diags)?;
         Ok(out.modules.into_iter().next())
     }
 
@@ -5973,17 +5962,10 @@ impl Run<'_> {
             return None;
         }
         let mut scratch = DiagBuf::default();
-        let mut facts = hd_resolve::facts::DerivationFacts::default();
-        let collect = self.collect_derivation_facts(mi);
-        let items = self
-            .lower_module_with_facts(
-                mi,
-                Stage::ModulePrep,
-                &mut scratch,
-                collect.then_some(&mut facts),
-            )
-            .map(|o| o.map(|o| o.items));
-        let Some(Some(items)) = self.stage(Stage::ModulePrep, items) else {
+        let lowered = self
+            .lower_module(mi, Stage::ModulePrep, &mut scratch)
+            .map(|o| o.map(|o| (o.items, o.blocks)));
+        let Some(Some((items, blocks))) = self.stage(Stage::ModulePrep, lowered) else {
             self.blocked(Stage::Body);
             self.blocked(Stage::ModuleFinish);
             let _ = self.prep[mi].set(None);
@@ -6000,7 +5982,7 @@ impl Run<'_> {
             items,
             diags: DiagBuf::default(),
             use_errors,
-            derivations: facts,
+            blocks,
         }));
         let pr = self.graph.get().map(|g| g.package_result)?;
         // A REPL input's bodies read the earlier inputs' bindings.
@@ -6827,7 +6809,7 @@ impl Run<'_> {
             return;
         }
         if !diags.has_errors() {
-            self.lint_module(m, &cx, &prep.derivations);
+            self.lint_module(m, &cx, &prep.blocks);
         }
         lock(&self.report).body_ok += derived.bodies.len();
         for b in &derived.bodies {
