@@ -2116,6 +2116,9 @@ typing/invalid/partial-ord-requires-eq.hd	type	reject:missing-supertrait-impleme
 runtime/valid/float-eq-bound.hd	runtime	accept	lang/09-traits.md#r-trait.cmp.float-eq
 typing/invalid/enum-shared-field-assignment.hd	type	reject:invalid-assignment-target	lang/08-data-and-enums.md#r-data.shared.read-only
 typing/invalid/enum-shared-constructor-payload.hd	type	reject:unknown-name	lang/08-data-and-enums.md#r-data.shared.no-payload
+typing/invalid/a-shared-enum-constructor-names-no-parameter.hd	type	reject:unknown-named-argument	lang/07-functions.md#r-fn.arg.unknown-name
+typing/invalid/a-shared-enum-constructor-gives-a-parameter-twice.hd	type	reject:duplicate-argument	lang/07-functions.md#r-fn.arg.duplicate
+typing/invalid/a-shared-enum-constructor-spread-before-a-positional.hd	type	reject:nonfinal-positional-spread	lang/05-expressions.md#r-expr.call.spread.position
 typing/invalid/payload-free-enum-equality.hd	type	reject:type-mismatch	lang/09-traits.md#r-trait.hash.not-inferred
 runtime/valid/enum-shared-data-per-variant.hd	runtime	accept	lang/08-data-and-enums.md#r-data.shared.per-variant
 typing/valid/dynamic-trait-suspending-method.hd	type	accept	lang/09-traits.md#r-trait.dyn.safe.suspending

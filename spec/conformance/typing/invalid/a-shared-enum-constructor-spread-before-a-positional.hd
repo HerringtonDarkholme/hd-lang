@@ -1,0 +1,6 @@
+# test: a positional spread in a shared enum constructor must be the final positional argument
+# Spec 05 Calls: expr.call.spread.position, for a shared enum constructor
+# call (data.shared.arguments).
+enum Status(code: i32, phrase: string):
+    Ok -> Status(200, "ok")
+    Bad -> Status((400, "bad")..., 1) # diagnostic: nonfinal-positional-spread

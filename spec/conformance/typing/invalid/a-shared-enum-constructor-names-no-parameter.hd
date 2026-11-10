@@ -1,0 +1,6 @@
+# test: a shared enum constructor with an unknown named argument is an error
+# Spec 07 Arguments: fn.arg.unknown-name, for a shared enum constructor
+# call, which follows ordinary argument ordering (data.shared.arguments).
+enum Status(code: i32, phrase: string):
+    Ok -> Status(200, "ok")
+    Bad -> Status(code=400, phrase="bad", extra=1) # diagnostic: unknown-named-argument
