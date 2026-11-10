@@ -6428,6 +6428,10 @@ typing/invalid/is-in-a-const-argument-is-no-const-operation.hd	type	reject:nonco
 typing/invalid/auto-closing-before-a-struct-is-the-wrong-target.hd	type	reject:decorator-target-kind	lang/14-annotations.md#r-annot.auto-closing.target
 typing/invalid/auto-closing-with-an-argument-is-the-wrong-spelling.hd	type	reject:decorator-target-kind	lang/14-annotations.md#r-annot.auto-closing.target
 typing/invalid/a-second-auto-closing-line-is-a-duplicate.hd	type	reject:duplicate-fact	lang/14-annotations.md#r-annot.auto-closing.duplicate
+typing/valid/one-opaque-call-site-is-one-type-across-inferred-arguments.hd	type	accept	lang/04-type-system.md#r-types.opaque.identity-position
+typing/valid/an-implementation-parameter-inside-a-trait-value-a-rest-tuple-or-a-union-argument-is-inferred.hd	type	accept	lang/09-traits.md#r-trait.target.arguments
+typing/valid/a-parameter-bound-by-two-instantiations-of-one-trait-meets-each.hd	type	accept	lang/02-grammar.md#r-grammar.generic.bound.and
+typing/invalid/a-relaxed-parameter-is-no-argument-for-a-copy-parameter.hd	type	reject:unsatisfied-trait-bound	lang/13-values-and-references.md#r-ref.copy.generic.argument
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

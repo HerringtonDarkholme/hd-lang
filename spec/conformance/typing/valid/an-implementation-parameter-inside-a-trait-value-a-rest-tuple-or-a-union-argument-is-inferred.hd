@@ -1,0 +1,44 @@
+# test: an implementation parameter inside a trait value, a rest tuple or a union argument of the target is inferred from the receiver
+# Spec 09 Implementation Targets: trait.target.arguments; the head's
+# `dyn Bar[T]`, `(i32, List[T]...)` and `T | bool` each match the
+# receiver's argument member by member.
+trait Bar[T]:
+    fn get(&self) -> T
+
+trait Named:
+    fn name(&self) -> string
+
+struct ByTrait[X]:
+    x: X
+
+struct ByRest[X]:
+    x: X
+
+struct ByUnion[X]:
+    x: X
+
+type OrBool[T] = T | bool
+
+impl[T] Named for ByTrait[*dyn Bar[T]]:
+    fn name(&self) -> string: "trait value"
+
+impl[T] Named for ByRest[(i32, List[T]...)]:
+    fn name(&self) -> string: "rest tuple"
+
+# A fixed element that differs, or one more fixed element, rules these
+# heads out for `b`.
+impl[T] Named for ByRest[(bool, List[T]...)]:
+    fn name(&self) -> string: "bool rest tuple"
+
+impl[T] Named for ByRest[(i32, i32, List[T]...)]:
+    fn name(&self) -> string: "longer rest tuple"
+
+impl[T] Named for ByUnion[OrBool[T]]:
+    fn name(&self) -> string: "union"
+
+fn names(
+    a: ByTrait[*dyn Bar[i32]],
+    b: ByRest[(i32, List[string]...)],
+    c: ByUnion[OrBool[i64]],
+) -> string:
+    a.name() + b.name() + c.name()

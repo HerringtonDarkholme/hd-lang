@@ -353,9 +353,9 @@ impl InferTable {
                     }
                     _ => VarKind::IntLit,
                 };
-                if x == y {
-                    return Ok(());
-                }
+                // `shallow` returns one interned root per class, so equal
+                // roots were equal types and returned above.
+                debug_assert_ne!(x, y, "one class reached the join twice");
                 // Union by rank: the lower-ranked root joins the other; on
                 // a tie `x` joins `y` and `y`'s rank grows.
                 let (rx, ry) = (self.rank[x as usize], self.rank[y as usize]);

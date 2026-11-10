@@ -1,0 +1,10 @@
+# test: two calls of one generic function with an opaque result are one type when their inferred arguments agree
+# Spec 04 Opaque Result Types: types.opaque.identity-position; both
+# branches call `show` with an integer literal, so the arguments, and the
+# opaque types, unify.
+fn show[T < Display](x: T) -> impl Display:
+    x
+
+fn pick(c: bool) -> string:
+    let a = if c: show(1) else: show(2)
+    a.to_string()

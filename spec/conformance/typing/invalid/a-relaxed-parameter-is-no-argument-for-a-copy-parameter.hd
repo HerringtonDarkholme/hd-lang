@@ -1,0 +1,8 @@
+# test: a type parameter declared `?Copy` is no argument for a `Copy` parameter
+# Spec 13 Copy: ref.copy.generic.argument; `T` lifted the default bound, so
+# `need`'s inferred argument `T` is not `Copy`.
+fn need[T](x: T) -> T:
+    x
+
+fn pass_on[T < ?Copy](x: T) -> T:
+    need(x) # diagnostic: unsatisfied-trait-bound

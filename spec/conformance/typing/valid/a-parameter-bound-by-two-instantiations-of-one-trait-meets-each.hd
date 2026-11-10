@@ -1,0 +1,12 @@
+# test: a parameter bound by two instantiations of one generic trait meets a goal for either
+# Spec 02 Multiple Bounds: grammar.generic.bound.and; the goal
+# `T: Conv[string]` passes over the `Conv[i32]` clause to the one whose
+# argument matches.
+trait Conv[U]:
+    fn conv(&self) -> U
+
+fn need[T < Conv[string]](x: &T) -> string:
+    x.conv()
+
+fn both[T < Conv[i32] & Conv[string]](x: T) -> string:
+    need(&x)
