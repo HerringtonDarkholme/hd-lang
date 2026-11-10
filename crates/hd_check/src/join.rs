@@ -948,7 +948,30 @@ impl Ck<'_, '_> {
                         walk(ck, a, false, out);
                     }
                 }
-                _ => {}
+                TyData::Opaque { args, bound, .. } => {
+                    for a in pool.list_items(args).iter().copied().chain([bound]) {
+                        walk(ck, a, false, out);
+                    }
+                }
+                TyData::Assoc { self_ty, args, .. } => {
+                    for a in [self_ty]
+                        .into_iter()
+                        .chain(pool.list_items(args).iter().copied())
+                    {
+                        walk(ck, a, false, out);
+                    }
+                }
+                // A row's keys are trait values, which a reference never
+                // stands before; a bare variable is not behind one here.
+                TyData::Infer(_)
+                | TyData::Row(_)
+                | TyData::Context(_)
+                | TyData::Prim(_)
+                | TyData::Never
+                | TyData::Poison
+                | TyData::Param(_)
+                | TyData::Const(_)
+                | TyData::Canon(_) => {}
             }
         }
         let mut out = Vec::new();
