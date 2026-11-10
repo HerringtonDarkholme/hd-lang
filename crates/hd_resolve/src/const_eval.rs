@@ -303,10 +303,11 @@ impl<'a> Eval<'_, 'a> {
         match n.kind() {
             SyntaxKind::LiteralExpr => literal(src, n, want, false),
             SyntaxKind::StringExpr => string(src, n),
-            SyntaxKind::ParenExpr => match kids.as_slice() {
+            SyntaxKind::ParenExpr | SyntaxKind::ParenType => match kids.as_slice() {
                 [e] => self.eval(src, *e, want),
                 _ => Err(nonconstant("a tuple is not a scalar")),
             },
+            SyntaxKind::UnionType => self.union(src, &kids, want),
             SyntaxKind::NameExpr | SyntaxKind::NamedType => self.name(src, n, want),
             SyntaxKind::UnaryExpr => self.unary(src, n, &kids, want),
             SyntaxKind::LogicalAndExpr | SyntaxKind::LogicalOrExpr => {
@@ -456,6 +457,28 @@ impl<'a> Eval<'_, 'a> {
                 ));
             }
         }))
+    }
+
+    /// A `|` chain of names in a const slot: the parser cannot tell it
+    /// from a union type, so it keeps one flat node, which is a
+    /// left-to-right bitwise or (`grammar.generic.const.argument`).
+    fn union(
+        &mut self,
+        src: &Src<'a>,
+        kids: &[NodeRef<'a>],
+        want: Option<Prim>,
+    ) -> Result<V, Fail> {
+        let p = want
+            .or_else(|| kids.iter().find_map(|k| self.natural(src, *k)))
+            .unwrap_or(Prim::I32);
+        let mut acc = 0;
+        for k in kids {
+            match self.eval(src, *k, Some(p))? {
+                V::Int(x, q) if q == p => acc |= x,
+                v => return Err(mismatch(p, v.prim())),
+            }
+        }
+        Ok(V::Int(acc, p))
     }
 
     fn binary(

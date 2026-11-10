@@ -1,0 +1,7 @@
+# test: a union of types in a const parameter's slot is a kind error
+# Spec 04 Const Generic Arguments: types.generic.const.argument.kind.
+
+struct Fixed[N < const i64]: pass
+
+fn kinds(f: Fixed[i64 | bool]) -> void:  # diagnostic: generic-kind-mismatch
+    pass

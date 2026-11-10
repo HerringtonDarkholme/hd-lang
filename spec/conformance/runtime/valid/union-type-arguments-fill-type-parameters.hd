@@ -1,0 +1,60 @@
+# test: a `|` chain in a type parameter's slot is a union type, bare or parenthesized
+# expect: test
+# Spec 04 Union Type Syntax: types.union.syntax; Spec 02:
+# grammar.generic.const.argument reads an argument as an expression only for
+# a const parameter.
+
+struct Holder[X]:
+    x: X
+
+struct Pair[X, Y]:
+    x: X
+    y: Y
+
+fn label(value: i64 | bool) -> string:
+    match value:
+        ._0(n) => "n$n"
+        ._1(b) => "b$b"
+
+fn labels(values: List[i64 | bool]) -> string:
+    let text = ""
+    for value in values:
+        text = text + label(value) + ";"
+    text
+
+fn unwrap(h: Holder[(i64 | bool)]) -> i64 | bool:
+    h.x
+
+fn tuple_member(h: Holder[i64 | (i64, bool)]) -> string:
+    match h.x:
+        ._0(n) => "n$n"
+        ._1((n, b)) => "t$n,$b"
+
+fn function_member(h: Holder[i64 | fn(i64) -> bool]) -> string:
+    match h.x:
+        ._0(n) => "n$n"
+        ._1(f) => "f${f(2)}"
+
+fn is_even(n: i64) -> bool:
+    n % 2 == 0
+
+fn generic_member(p: Pair[string | List[i64], i64 | bool]) -> string:
+    let first = match p.x:
+        ._0(s) => s
+        ._1(l) => "list${l.len()}"
+    first + "/" + label(p.y)
+
+tests:
+    use std.testing.assert_equal
+
+    it("each union argument keeps its members in order"):
+        let values: List[i64 | bool] = [._0(1), ._1(true)]
+        assert_equal(labels(values), "n1;btrue;", reason="a bare union argument")
+        let held: Holder[(i64 | bool)] = Holder { x: ._1(false) }
+        assert_equal(label(unwrap(held)), "bfalse", reason="a parenthesized union argument")
+        let pair: Holder[i64 | (i64, bool)] = Holder { x: ._1((3, true)) }
+        assert_equal(tuple_member(pair), "t3,true", reason="a tuple member")
+        let even: Holder[i64 | fn(i64) -> bool] = Holder { x: ._1(is_even) }
+        assert_equal(function_member(even), "ftrue", reason="a function member")
+        let p: Pair[string | List[i64], i64 | bool] = Pair { x: ._1([1, 2]), y: ._0(7) }
+        assert_equal(generic_member(p), "list2/n7", reason="a union in each of two slots")

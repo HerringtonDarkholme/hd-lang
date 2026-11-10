@@ -1,0 +1,10 @@
+# test: a `|` chain of named constants is the value of their bitwise or
+# Spec 04 Const Generic Arguments: types.generic.const.identity.
+
+struct Fixed[N < const i64]: pass
+
+LOW := 1
+MID := 4
+
+fn sum_is_not_or(f: Fixed[LOW | MID]) -> Fixed[6]:
+    f  # diagnostic: type-mismatch

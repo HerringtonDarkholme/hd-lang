@@ -1,0 +1,25 @@
+# test: a `|` chain of named constants in a const slot is a bitwise or
+# Spec 02: grammar.generic.const.argument; Spec 04 Const Generic Arguments:
+# types.generic.const.operator-set, types.generic.const.identity.
+
+struct Fixed[N < const i64]:
+    v: i64
+
+LOW := 1
+MID := 4
+HIGH := 16
+
+fn bare(f: Fixed[LOW | MID]) -> Fixed[5]:
+    f
+
+fn parenthesized(f: Fixed[(LOW | MID)]) -> Fixed[5]:
+    f
+
+fn chained(f: Fixed[LOW | MID | HIGH]) -> Fixed[21]:
+    f
+
+fn nested(f: Fixed[(LOW | MID) | (HIGH)]) -> Fixed[21]:
+    f
+
+fn with_literal(f: Fixed[MID | 2]) -> Fixed[6]:
+    f

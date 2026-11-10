@@ -363,6 +363,9 @@ impl Parser<'_> {
     /// Whether the positional argument beginning here is unambiguously a
     /// const expression. A bare name remains a type-shaped node: resolution
     /// knows the declaration's parameter kinds and disambiguates it there.
+    /// So does a `|` chain of names, which is a union type or a bitwise or
+    /// (`grammar.generic.const.argument`): only an operand no type can be,
+    /// such as a literal, makes the chain an expression here.
     fn const_argument_ahead(&mut self) -> bool {
         let expression_starter = |kind| {
             matches!(
@@ -407,13 +410,30 @@ impl Parser<'_> {
         }
         let mut depth = leading_parens;
         let mut bracket_depth = 0_usize;
+        let mut prev = TokenKind::Ident;
         for &kind in &self.toks.kind[self.pos() + start + 1..] {
+            // A token after `|` starts a union member or a bitwise-or
+            // operand: a scalar starter is an expression, while `&` and `*`
+            // start a reference or pointer member (`T | &U`).
+            let before = std::mem::replace(&mut prev, kind);
+            let operand = before == TokenKind::Pipe && bracket_depth == 0;
+            if operand && expression_starter(Some(kind)) {
+                return true;
+            }
             match kind {
                 TokenKind::Comma | TokenKind::RBracket if depth == 0 => break,
                 // A comma inside the peeled parentheses makes a tuple type;
                 // scalar const expressions have no tuple form.
                 TokenKind::Comma if bracket_depth == 0 => return false,
-                TokenKind::LParen if bracket_depth == 0 => return true,
+                TokenKind::Amp | TokenKind::Star if operand => {}
+                // A `(` after a name is a call; any other opens a group,
+                // such as a tuple member or `fn (...)` type.
+                TokenKind::LParen
+                    if bracket_depth == 0
+                        && matches!(before, TokenKind::Ident | TokenKind::RawIdent) =>
+                {
+                    return true;
+                }
                 TokenKind::LBracket => {
                     depth += 1;
                     bracket_depth += 1;
@@ -439,7 +459,6 @@ impl Parser<'_> {
                 | TokenKind::GtEq
                 | TokenKind::KwIs
                 | TokenKind::PipeGt
-                | TokenKind::Pipe
                 | TokenKind::Caret
                 | TokenKind::Amp
                 | TokenKind::Shl
