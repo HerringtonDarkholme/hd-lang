@@ -1196,14 +1196,23 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
     }
     return value;
   };
-  // Completes every due operation and writes the handles to the buffer.
+  // Publish one completion turn, coalescing equal deadlines. A delayed
+  // host turn must not wake later work alongside an earlier timeout:
+  // race polls its work child first when both become ready in one batch.
   const complete = (): number => {
     const now = performance.now();
+    let readyAt: number | null = null;
     const due = [...st.ops]
       .filter(([, options]) => !options.completed && (options.poll || options.at <= now))
       .sort((left, right) => left[1].at - right[1].at || left[0] - right[0])
       .filter(([, options]) => {
+        // A successful probe can consume external readiness (connect_poll).
+        // Do not touch a later operation until its result can be delivered.
+        if (readyAt !== null && options.at !== readyAt) {
+          return false;
+        }
         if (!options.poll || options.poll()) {
+          readyAt = options.at;
           return true;
         }
         options.at = performance.now() + 1;

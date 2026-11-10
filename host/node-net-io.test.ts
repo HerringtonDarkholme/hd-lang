@@ -13,6 +13,15 @@ import { Ok } from "./wire.ts";
 
 type Dynamic = ReturnType<typeof JSON.parse>;
 
+// A block returns the handles delivered in that turn; an earlier I/O
+// completion may precede this clock even when both are ready.
+function finishClock(host: Dynamic, clock: number): void {
+  while (!host.core.st.ops.get(clock).completed) {
+    assert.ok(host.imports["hd:rt"].block() > 0);
+  }
+  host.imports["hd:Clock"]["sleep.finish"](clock);
+}
+
 // #814: a held resolver lives only in the test worker; the provider and
 // transport are unmodified production sources copied beside that wrapper.
 async function heldLookupHost(testContext: TestContext): Promise<Dynamic> {
@@ -70,8 +79,7 @@ for (const abort of [false, true]) {
     assert.ok(existsSync(entered));
     for (let tick = 0; tick < 3; tick++) {
       const [, clock] = host.imports["hd:Clock"]["sleep.start"](0n);
-      assert.ok(host.imports["hd:rt"].block() > 0);
-      host.imports["hd:Clock"]["sleep.finish"](clock);
+      finishClock(host, clock);
       assert.equal(host.core.st.ops.get(lookup.operation).completed, false);
     }
     if (abort) {
@@ -98,8 +106,7 @@ async function finishWrite(
   await testContext.waitFor(
     () => {
       const [, clock] = api.host.imports["hd:Clock"]["sleep.start"](0n);
-      api.host.imports["hd:rt"].block();
-      api.host.imports["hd:Clock"]["sleep.finish"](clock);
+      finishClock(api.host, clock);
       assert.equal(api.host.core.st.ops.get(started.operation).completed, true);
     },
     { timeout: 5000, interval: 1 },
@@ -124,8 +131,7 @@ for (const abort of [false, true]) {
       assert.equal(typeof started.operation, "number");
       for (let tick = 0; tick < 3; tick++) {
         const [, clock] = host.imports["hd:Clock"]["sleep.start"](0n);
-        host.imports["hd:rt"].block();
-        host.imports["hd:Clock"]["sleep.finish"](clock);
+        finishClock(host, clock);
         assert.equal(host.core.st.ops.get(started.operation).completed, false);
       }
       const chunks: Buffer[] = [];
