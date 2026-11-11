@@ -39,7 +39,7 @@ DESCRIBE = {
     "const-branch": "a branch on a constant",
     "dead-store": "a local set and never read in its function",
     "br-to-end": "`br 0` straight before the `end` it jumps to",
-    "empty-block": "a `block` with nothing in it",
+    "empty-block": "a `block` with nothing in it: size only. c40ea434b folded such blocks and saved 784 B (0.18%) on 32 release programs, with no time measured. Release cases still show them, because a pass after the fold empties the block (#1680)",
     "empty-else": "an `else` with nothing in it",
     "set-then-get": "`local.set $x` straight before `local.get $x` (a tee saves bytes)",
     # IR
