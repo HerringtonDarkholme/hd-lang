@@ -757,12 +757,12 @@ storage of a `List`, `Map` or enum payload keep it movable. (Reading
 only the body's own trait calls on `T` is not enough: `relay[T < Shape]`
 passes `T` on to `total[T < Shape]`, which needs an impl at the exact
 type.) When the parameter is not exact, the body
-only moves `T`, and collection replaces that type
-argument in the pushed instance by its **class**: `REF` for a layout of
-one non-null reference, `REF?` for one nullable reference, or the scalar
-or `void` class. `REF` and `REF?` stay apart because `T?` differs between
-them: a nullable reference for `REF`, a tag and a reference for `REF?`.
-So `List[Point].push` and `List[User].push` are one instance, emitted,
+only moves `T`, and collection may replace the type argument in the
+pushed instance with the `REF` class. The class has a boxed value's
+single-address layout and owned parameter convention. A thin reference
+passes as a loan, so its key keeps the concrete type. The ownership pass
+and the emitter then agree on how a parameter of that instance takes its
+argument. Move-only boxed types can still share one instance, emitted,
 cached and compiled once. A type argument whose copy copies a collection
 (a `List` or `Map` value, or a struct holding one, `hd_mono::holds_coll`)
 stays exact: a count of a `T` value in the body runs the copy glue of

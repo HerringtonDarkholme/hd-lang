@@ -45,14 +45,12 @@ pub use module::{Session, Sym};
 pub use origins::{FunctionOrigins, InstructionOrigin, MappedModule, StaticData};
 pub use rt::Helper;
 
-/// A1's shared reference-storage class on this backend: thin references
-/// are object addresses; inline values retain concrete type keys.
+/// A1's shared owned-address class on this backend. Boxed values have
+/// the class's owned parameter convention. References pass as loans and
+/// keep concrete keys, including when their Wasm layout is one address.
 #[must_use]
 pub fn shared_reference_layout(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> bool {
-    matches!(
-        layout::kind(pool, env, ty),
-        layout::Kind::Boxed | layout::Kind::Ref { fat: false, .. }
-    )
+    matches!(layout::kind(pool, env, ty), layout::Kind::Boxed)
 }
 
 /// The types a value of `ty` holds by value, `ty` stripped of newtypes
