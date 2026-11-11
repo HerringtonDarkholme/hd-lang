@@ -3908,6 +3908,7 @@ runtime/valid/pending-first-poll-void-return.hd	runtime	accept	lang/11-requireme
 parse/valid/module-documentation.hd	parse	accept	lang/01-lexical-structure.md#r-lex.doc.module
 parse/invalid/module-documentation-second-block.hd	parse	reject:doc-comment-without-target	lang/01-lexical-structure.md#r-lex.doc.module.once
 runtime/valid/derived-ordering-run.hd	runtime	accept	std/cmp.md#r-std-cmp.derive.ord.data
+runtime/valid/readonly-comparison-parameter-lifetimes.hd	runtime	accept	std/cmp.md#r-std-cmp.derive.ord.data
 runtime/valid/cmp-min-max-distinguishable-tie.hd	runtime	accept	std/cmp.md#r-std-cmp.min-max.tie
 runtime/valid/facts-of-literal-generic-none.hd	runtime	accept	lang/14-annotations.md#r-annot.facts-of.result.compiler-decorators.v2
 runtime/valid/sized-integer-arithmetic.hd	runtime	accept	lang/04-type-system.md#r-types.arith.checked

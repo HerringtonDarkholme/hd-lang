@@ -16,46 +16,40 @@ fn same(a: Key, b: Key) -> bool:
 > app/main/same
 >   local $0 a: Key [param read captured] place
 >   local $1 b: Key [param read captured] place
->   %0 = Retain %9 Entry local $0 #0 : ()
->   %1 = Retain %9 Entry local $1 #0 : ()
+>   %0 = Release %7 Exit local $0 #2 : ()
+>   %1 = Release %7 Exit local $1 #2 : ()
     a == b
 >   %2 = Ref local frame [$0] : &Key
 >   %3 = Ref local frame [$1] : &Key
 >   %4 = Call std/core/Eq.eq for Key [] via Impl (%2, %3) : bool
 >   %5 = LoanEnd [%3] : ()
 >   %6 = LoanEnd [%2] : ()
->   %7 = Drop [$0] : ()
->   %8 = Drop [$1] : ()
->   %9 = Block %4 : bool
->   exit sub 0 drops [$0 $1]
+>   %7 = Block %4 : bool
 >   storage sub 0: $0 slot, $1 slot
->   summary kept [$0 $1]
+>   summary kept [] borrows [$0 $1]
 
 fn before(a: Key, b: Key) -> bool:
 > app/main/before
 >   local $0 a: Key [param read captured] place
 >   local $1 b: Key [param read captured] place
->   %0 = Retain %16 Entry local $0 #0 : ()
->   %1 = Retain %16 Entry local $1 #0 : ()
+>   %0 = Release %14 Exit local $0 #2 : ()
+>   %1 = Release %14 Exit local $1 #2 : ()
     a < b
 >   %2 = Ref local frame [$0] : &Key
 >   %3 = Ref local frame [$1] : &Key
 >   %4 = Call std/cmp/PartialOrd.partial_cmp for Key [] via Impl (%2, %3) : Ordering?
 >   %5 = LoanEnd [%3] : ()
 >   %6 = LoanEnd [%2] : ()
->   %7 = Drop [$0] : ()
->   %8 = Drop [$1] : ()
->   %9 = Read copy [%4 as #1 .0] : Ordering
->   %10 = Block 1:bool : bool
->   %11 = Block 0:bool : bool
->   %12 = SwitchTag %9 [#0 %10 %11] : bool
->   %13 = Block %12 : bool
->   %14 = Block 0:bool : bool
->   %15 = SwitchTag %4 [#1 %13 %14] : bool
->   %16 = Block %15 : bool
->   exit sub 0 drops [$0 $1]
+>   %7 = Read copy [%4 as #1 .0] : Ordering
+>   %8 = Block 1:bool : bool
+>   %9 = Block 0:bool : bool
+>   %10 = SwitchTag %7 [#0 %8 %9] : bool
+>   %11 = Block %10 : bool
+>   %12 = Block 0:bool : bool
+>   %13 = SwitchTag %4 [#1 %11 %12] : bool
+>   %14 = Block %13 : bool
 >   storage sub 0: $0 slot, $1 slot
->   summary kept [$0 $1] writes
+>   summary kept [] borrows [$0 $1]
 
 fn lookup(m: Map[Key, string], k: Key) -> usize:
 > app/main/lookup

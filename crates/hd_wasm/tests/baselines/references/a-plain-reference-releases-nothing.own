@@ -98,5 +98,5 @@ fn slot() -> i32:
     r := &mut n
     *r = +2
 >   %1 = Coerce 2:i32 [Weaken -] : i32
->   summary kept [] writes
+>   summary kept []
     n

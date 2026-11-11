@@ -14,26 +14,37 @@
     local.get $b.1
     local.get $b.2
     call $"impl[T < Eq] Same for Res[T].same[string]'1"
-    local.get $a.0
-    local.get $a.1
-    local.get $a.2
-    call $rt:release
-    local.get $b.0
-    local.get $b.1
-    local.get $b.2
-    call $rt:release
     local.set $a.0
     local.get $a.0
   )
-  (func $use_check (param $x.0 i32) (param $x.1 i32) (param $y.0 i32) (param $y.1 i32) (result i32)
+  (func $use_check (param $x.0 i32) (param $x.1 i32) (param $y.0 i32) (param $y.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 34 |     check(Res.Good(x), Res.Good(y))
     i32.const 0
     local.get $x.0
     local.get $x.1
+    local.set $t0
+    local.set $x.1
+    local.tee $x.0
     i32.const 0
     local.get $y.0
     local.get $y.1
+    local.set $t1
+    local.set $y.1
+    local.set $y.0
+    local.get $x.1
+    local.get $t0
+    local.get $y.0
+    local.get $y.1
+    local.get $t1
     call $"check[Res[string]]"
+    local.get $y.0
+    local.get $y.1
+    local.get $t1
+    call $rt:release
+    local.get $x.0
+    local.get $x.1
+    local.get $t0
+    call $rt:release
     local.set $x.0
     local.get $x.0
   )

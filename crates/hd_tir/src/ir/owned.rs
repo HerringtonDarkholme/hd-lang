@@ -64,8 +64,8 @@
 //! maps.
 
 use super::{
-    Body, ELEM, INLINED, NONE, Op, Place, PlaceRoot, Proj, ReadMode, Ref, Root, Tag, Topology,
-    VerifyError, is_suspension, local_flags, place, u32_of, verify_structure,
+    Body, Callee, ELEM, INLINED, NONE, Op, Place, PlaceRoot, Proj, ReadMode, Ref, Root, Tag,
+    Topology, VerifyError, is_suspension, local_flags, place, ref_word, u32_of, verify_structure,
 };
 use crate::own::flow::{
     Backward, BitArena, Flow, Forward, Suites, backward, forward, get_bit, set_bit,
@@ -87,14 +87,15 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
             _ => None,
         })
         .collect();
-    let addressed = crate::own::derive::escaping(b, cx);
+    let reference_uses = crate::own::derive::reference_uses(b, cx);
     let reference_values = reference_values(b);
     let own = cx;
     let cx = Cx {
         b,
         topo: &topo,
         places: &places,
-        addressed: &addressed,
+        addressed: &reference_uses.escaping,
+        reference_calls: &reference_uses.calls,
         reference_values: &reference_values,
     };
     decided(b, &mut errs);
@@ -683,6 +684,7 @@ struct Cx<'a> {
     topo: &'a Topology,
     places: &'a [Option<Place>],
     addressed: &'a [bool],
+    reference_calls: &'a [u32],
     reference_values: &'a [u32],
 }
 
@@ -1046,8 +1048,9 @@ impl Forward for Empties<'_> {
 /// of it, so it holds borrowed values only: every store into it stores
 /// one, nothing moves out of it or addresses it, and nothing drops it nor
 /// is it in an exit set. A lent parameter: a counted parameter outside the exit set,
-/// which nothing stores into, drops, moves out of or addresses either,
-/// and nothing changes in place: an `IsUnique` or a `Pin` of it would give
+/// which nothing stores into, drops or moves out of. Its immutable frame
+/// address may lend to one read-only call with no dependent result;
+/// otherwise it is not addressed either. Nothing changes it in place: an `IsUnique` or a `Pin` of it would give
 /// up or keep a count that is its caller's.
 fn binding_locals(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
     let b = cx.b;
@@ -1090,6 +1093,12 @@ fn binding_locals(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
     if !any {
         return;
     }
+    let mut frame_parameters = vec![false; b.local_ty.len()];
+    for &(sub, l, storage) in &b.storage {
+        if sub.idx() == 0 && storage == super::Storage::Slot && lent[l.idx()] {
+            frame_parameters[l.idx()] = true;
+        }
+    }
     for i in 0..b.len() {
         // The local's own storage: a place through it, into what it refers
         // to, leaves it as it is.
@@ -1101,6 +1110,27 @@ fn binding_locals(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
         };
         let l = &l;
         if !binding[l.idx()] && !lent[l.idx()] {
+            continue;
+        }
+        // A borrowed parameter still has private frame storage for its
+        // descriptor. An immutable address that dies with one read-only
+        // call borrows that storage without giving it a count. Bindings,
+        // mutable/escaping references and absent frame slots stay rejected.
+        let call = cx.reference_calls[i];
+        if b.tags[i] == Tag::Ref
+            && frame_parameters[l.idx()]
+            && cx.topo.sub[i] == 0
+            && b.data[i][1] & (ref_word::LOCAL | ref_word::FRAME | ref_word::MUT)
+                == ref_word::LOCAL | ref_word::FRAME
+            && call != NONE
+            && b.data
+                .get(call as usize)
+                .and_then(|[at, _]| b.extra.get(*at as usize..))
+                .and_then(|words| words.split_first())
+                .and_then(|(&len, words)| words.get(..len as usize))
+                .and_then(Callee::from_words)
+                .is_some_and(|callee| !own.may_write(&callee))
+        {
             continue;
         }
         let what = match b.tags[i] {
