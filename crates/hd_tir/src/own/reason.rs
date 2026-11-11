@@ -7,7 +7,7 @@
 
 #[cfg(any(test, target_arch = "wasm32"))]
 use super::values::{Level, after, statement_chain};
-use super::{OwnCx, Role, consumes, operands};
+use super::{Operand, OwnCx, Role, consumes, operands};
 use crate::ir::{Body, NONE, Proj, ReadMode, Root, Tag, Topology, u32_of, unique_word};
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -177,6 +177,18 @@ pub fn copy_reasons(b: &Body, topo: &Topology, cx: &dyn OwnCx, out: &mut Vec<Opt
     }
 }
 
+/// A post-pass use that takes a count, including a lending coercion whose
+/// following `LoanEnd` records a handoff. The coercion has one operand.
+fn takes_count(b: &Body, topo: &Topology, cx: &dyn OwnCx, i: usize, op: &Operand) -> bool {
+    let owner = if op.role == Role::Tail && !topo.is_root[i] {
+        topo.owner[i]
+    } else {
+        NONE
+    };
+    consumes(b, cx, i, op, owner)
+        || (b.tags[i] == Tag::Coerce && super::retains::took_source(b, topo, i))
+}
+
 /// Per value of `b`: whether a use consumes it, its last use by index (a
 /// `Ref` of it lives to its `LoanEnd`), and how many uses it has besides drops.
 fn value_uses(b: &Body, topo: &Topology, cx: &dyn OwnCx) -> (Vec<bool>, Vec<u32>, Vec<u32>) {
@@ -192,9 +204,7 @@ fn value_uses(b: &Body, topo: &Topology, cx: &dyn OwnCx) -> (Vec<bool>, Vec<u32>
             let v = op.value as usize;
             last[v] = last[v].max(u32_of(i));
             count[v] += 1;
-            let tail = op.role == Role::Tail && !topo.is_root[i];
-            consumed[v] |= consumes(b, cx, i, op, if tail { topo.owner[i] } else { NONE })
-                || (b.tags[i] == Tag::Coerce && super::retains::took_source(b, topo, i));
+            consumed[v] |= takes_count(b, topo, cx, i, op);
         }
         if b.tags[i] == Tag::LoanEnd
             && let Root::Value(r) = b.view(b.data[i][0]).root
