@@ -6583,6 +6583,10 @@ typing/invalid/an-opaque-result-bound-argument-meets-its-bounds.hd	type	reject:u
 typing/invalid/an-associated-type-bound-argument-meets-its-bounds.hd	type	reject:unsatisfied-trait-bound	lang/09-traits.md#r-trait.bound.no-implied.positions
 typing/valid/a-generic-trait-associated-type-bound-holds-for-self.hd	type	accept	lang/09-traits.md#r-trait.assoc.bound-use
 runtime/valid/an-interpolated-open-literal-writes-at-its-settled-width.hd	runtime	accept	lang/04-type-system.md#r-types.literal.local.class.open
+typing/invalid/a-written-type-argument-meets-its-bound-bindings.hd	type	reject:unsatisfied-trait-bound	lang/09-traits.md#r-trait.binding.use-site.written
+typing/invalid/a-construction-meets-its-bound-bindings.hd	type	reject:unsatisfied-trait-bound	lang/09-traits.md#r-trait.binding.use-site.written
+typing/invalid/an-enclosing-parameter-gives-the-bound-binding.hd	type	reject:unsatisfied-trait-bound	lang/09-traits.md#r-trait.binding.use-site.written
+typing/valid/written-type-arguments-meet-bound-bindings.hd	type	accept	lang/09-traits.md#r-trait.binding.use-site.written
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

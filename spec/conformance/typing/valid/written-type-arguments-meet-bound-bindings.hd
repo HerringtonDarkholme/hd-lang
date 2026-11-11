@@ -1,0 +1,54 @@
+# test: written type arguments meet their parameters' bound bindings through a binding, a supertrait, an associated type bound and a parameter
+# Spec 09 Associated Type Bindings: trait.binding.use-site.written.
+
+trait Feed:
+    type Item
+    fn next(self) -> Self::Item
+
+trait Ints < Feed[Item = i32]:
+    fn zero(self) -> i32
+
+trait Walk:
+    type Next < Feed[Item = i32]
+    fn step(self) -> Self::Next
+
+struct Nums:
+    n: i32
+
+impl Feed for Nums:
+    type Item = i32
+    fn next(self) -> i32:
+        self.n
+
+struct Holder[F < Feed[Item = i32]]:
+    f: F
+
+struct Pair[F < Feed[Item = X], X]:
+    f: F
+
+struct Outer[G < Feed[Item = i32]]:
+    h: Holder[G]
+
+fn by_binding[G < Feed[Item = i32]](h: Holder[G]) -> i32:
+    h.f.next()
+
+fn by_supertrait[G < Ints](h: Holder[G]) -> i32:
+    h.f.next()
+
+fn by_projection[W < Walk](h: Holder[W::Next]) -> i32:
+    h.f.next()
+
+fn by_parameter[F < Feed[Item = T], T](p: Pair[F, T]) -> T:
+    p.f.next()
+
+impl[G < Feed[Item = i32]] Feed for Holder[G]:
+    type Item = i32
+    fn next(self) -> i32:
+        self.f.next()
+
+fn total() -> i32:
+    let h = Holder { f: Nums { n: 1 } }
+    let o = Outer { h: Holder { f: Nums { n: 2 } } }
+    let p: Pair[Nums, i32] = Pair { f: Nums { n: 3 } }
+    let hh: Holder[Holder[Nums]] = Holder { f: h }
+    by_binding(o.h) + by_parameter(p) + hh.f.next()

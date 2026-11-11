@@ -1691,10 +1691,11 @@ impl[T < Display, I < Supplier[Item = T]] Display for Feed[I]:
 4. r[trait.binding.inside] Inside the declaration, `I::Item` remains a valid projection and denotes the same type as `T`.
 5. r[trait.binding.interchangeable] The two spellings are interchangeable in parameter, result, and body types.
 6. r[trait.binding.use-site] At a use site, after substitution, the argument's implementation of the trait must bind the associated type to the bound type.
-7. r[trait.binding.inference] The constraint participates in generic argument inference, so `T` above is inferred from the `Supplier` implementation of the argument passed for `I`.
-8. r[trait.binding.mismatch] An argument whose implementation binds a different type is an error. Error: `unsatisfied-trait-bound`.
-9. r[trait.binding.reachable] A binding counts as a bound reachable from its parameter.
-10. r[trait.binding.reachable.example] In the implementation above, `T` is therefore constrained through `I`. The implementation satisfies the rule that every generic implementation parameter be constrained.
+7. r[trait.binding.use-site.written] A written type and a construction are use sites too. Under `struct Holder[F < Supplier[Item = i32]]`, both `Holder[Words]` and `Holder { f: words }` require `Words::Item` to be `i32`.
+8. r[trait.binding.inference] The constraint participates in generic argument inference, so `T` above is inferred from the `Supplier` implementation of the argument passed for `I`.
+9. r[trait.binding.mismatch] An argument whose implementation binds a different type is an error. Error: `unsatisfied-trait-bound`.
+10. r[trait.binding.reachable] A binding counts as a bound reachable from its parameter.
+11. r[trait.binding.reachable.example] In the implementation above, `T` is therefore constrained through `I`. The implementation satisfies the rule that every generic implementation parameter be constrained.
 
 #### Binding Names
 

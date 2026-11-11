@@ -911,7 +911,8 @@ impl Ck<'_, '_> {
     }
 
     /// A written type meets the declared bounds of its constructor's
-    /// parameters (`types.generic.bound`, `types.map-key.declared-bound`):
+    /// parameters, their bindings among them (`types.generic.bound`,
+    /// `types.map-key.declared-bound`, `trait.bound.no-implied.positions`):
     /// one error at the argument that misses a bound. An argument the
     /// written type did not fix waits for inference.
     fn check_written_bounds(
@@ -932,13 +933,16 @@ impl Ck<'_, '_> {
         };
         let args = pool.list_items(args);
         let mut missed = None;
-        for (i, _, tref) in crate::written_bounds::goals(pool, def, &item.generics, args) {
+        for (i, arg, tref, bound) in crate::written_bounds::goals(pool, def, &item.generics, args) {
             if missed == Some(i) {
                 continue;
             }
             let at = arg_nodes.get(i).copied().unwrap_or(whole);
             let before = self.diags.len();
             self.require_ref(tref, at)?;
+            if self.diags.len() == before {
+                self.check_bindings(arg, bound, at)?;
+            }
             if self.diags.len() != before {
                 missed = Some(i);
             }
@@ -978,9 +982,10 @@ impl Ck<'_, '_> {
     }
 
     /// The type arguments of a struct literal or variant construction of
-    /// `def` meet its parameters' declared bounds, as a written `def[..]`
-    /// does (`trait.bound.unsatisfied`), the default `Copy` bound among them
-    /// (`ref.copy.generic.default`): one error per argument, at the
+    /// `def` meet its parameters' declared bounds and their bindings, as a
+    /// written `def[..]` does (`trait.bound.unsatisfied`,
+    /// `trait.bound.no-implied.positions`), the default `Copy` bound among
+    /// them (`ref.copy.generic.default`): one error per argument, at the
     /// construction. An argument still open waits for inference.
     pub(crate) fn check_construct_bounds(
         &mut self,
@@ -993,12 +998,15 @@ impl Ck<'_, '_> {
             return Ok(());
         };
         let mut missed = None;
-        for (i, _, tref) in crate::written_bounds::goals(pool, def, &item.generics, args) {
+        for (i, arg, tref, bound) in crate::written_bounds::goals(pool, def, &item.generics, args) {
             if missed == Some(i) {
                 continue;
             }
             let before = self.diags.len();
             self.require_ref_as(tref, at, Code::UnsatisfiedTraitBound)?;
+            if self.diags.len() == before {
+                self.check_bindings(arg, bound, at)?;
+            }
             if self.diags.len() != before {
                 missed = Some(i);
             }

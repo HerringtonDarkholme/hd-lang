@@ -7,14 +7,16 @@ use hd_types::solver::TraitRef;
 use hd_types::{ParamRef, Ty, TyData, Types};
 
 /// The non-default arguments of `def`, paired with each substituted declared
-/// bound. Callers ask the goals in order and stop after the first miss for an
-/// argument (`types.generic.bound`, `types.generic.default.bound`).
+/// bound: its goal, and the bound itself, whose bindings the argument's
+/// projections must equal (`trait.bound.no-implied.positions`). Callers ask
+/// the goals in order and stop after the first miss for an argument
+/// (`types.generic.bound`, `types.generic.default.bound`).
 pub(crate) fn goals(
     pool: Types<'_>,
     def: DefId,
     generics: &[Generic],
     args: &[Ty],
-) -> Vec<(usize, Ty, TraitRef)> {
+) -> Vec<(usize, Ty, TraitRef, Ty)> {
     let subst = |t| {
         pool.subst(t, &|p: ParamRef| {
             (p.owner == def)
@@ -29,9 +31,10 @@ pub(crate) fn goals(
             continue;
         }
         for &bound in &g.bounds {
+            let bound = subst(bound);
             let TyData::TraitValue {
                 def: trait_, args, ..
-            } = pool.get(subst(bound))
+            } = pool.get(bound)
             else {
                 continue;
             };
@@ -43,6 +46,7 @@ pub(crate) fn goals(
                     self_ty: arg,
                     args,
                 },
+                bound,
             ));
         }
     }

@@ -1,0 +1,12 @@
+# test: a generic parameter bounded without the binding its written type's parameter requires
+# Spec 09 Associated Type Bindings: trait.binding.use-site.written.
+
+trait Feed:
+    type Item
+    fn next(self) -> Self::Item
+
+struct Holder[F < Feed[Item = i32]]:
+    f: F
+
+fn take[G < Feed](h: Holder[G]) -> void: # diagnostic: unsatisfied-trait-bound
+    pass

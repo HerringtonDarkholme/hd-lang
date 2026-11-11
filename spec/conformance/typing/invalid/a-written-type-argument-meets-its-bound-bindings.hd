@@ -1,0 +1,20 @@
+# test: a written type's argument whose projection differs from its parameter's bound binding
+# Spec 09 Associated Type Bindings: trait.binding.use-site.written.
+
+trait Feed:
+    type Item
+    fn next(self) -> Self::Item
+
+struct Words:
+    w: string
+
+impl Feed for Words:
+    type Item = string
+    fn next(self) -> string:
+        self.w
+
+struct Holder[F < Feed[Item = i32]]:
+    f: F
+
+fn take(h: Holder[Words]) -> void: # diagnostic: unsatisfied-trait-bound
+    pass

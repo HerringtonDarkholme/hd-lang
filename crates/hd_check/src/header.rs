@@ -861,13 +861,7 @@ impl<'a> ItemCheck<'_, 'a> {
     /// Each binding of an associated type's bound holds for the type an
     /// implementation binds (`trait.assoc.bound-impl`): under
     /// `type Next < Walk[Out = i32]`, `type Next = Leaf` needs `Leaf::Out`
-    /// to normalize to `i32` under the impl's environment. Both sides are
-    /// normalized, so a projection the impl's parameters fix compares as
-    /// its binding; a side that does not settle (a cycle, the depth limit,
-    /// a stalled goal) is left to the uses that normalize it.
-    ///
-    /// Cost: per binding, one normalization of each side, each projection
-    /// met once (one goal or one clause scan).
+    /// to normalize to `i32` under the impl's environment.
     fn assoc_bound_bindings(
         &mut self,
         self_ty: Ty,
@@ -875,29 +869,7 @@ impl<'a> ItemCheck<'_, 'a> {
         bound_to: Ty,
         b: Ty,
     ) -> StageResult<()> {
-        let pool = self.pool();
-        let TyData::TraitValue {
-            def,
-            args,
-            bindings,
-        } = pool.get(b)
-        else {
-            return Ok(());
-        };
-        for (assoc, want) in bindings {
-            let Some(proj) = self.binding_projection(def, args, bound_to, assoc) else {
-                continue;
-            };
-            let mut memo = hd_base::HashMap::default();
-            let Some(got) = self.normalize_here(proj, &mut Vec::new(), &mut memo)? else {
-                continue;
-            };
-            let Some(want_n) = self.normalize_here(want, &mut Vec::new(), &mut memo)? else {
-                continue;
-            };
-            if got == want_n || pool.has_poison(got) || pool.has_poison(want_n) {
-                continue;
-            }
+        for (assoc, got, want) in self.binding_misses(bound_to, b)? {
             let message = format!(
                 "{} binds `{}` to {}, whose `{}` is {}, but the bound on `{}` requires `{} = {}`",
                 self.show(self_ty),
@@ -907,11 +879,49 @@ impl<'a> ItemCheck<'_, 'a> {
                 self.show(got),
                 self.cx.names.display_name(a),
                 self.cx.names.display_name(assoc),
-                self.show(want_n)
+                self.show(want)
             );
             self.report(0, Code::UnsatisfiedTraitBound, message);
         }
         Ok(())
+    }
+
+    /// The bindings of the bound `b` that `t`, which implements its
+    /// trait, does not meet, as (associated type, `t`'s normalized
+    /// projection, normalized binding). Both sides are normalized under
+    /// the item's environment, so a projection the item's parameters fix
+    /// compares as its binding; a side that does not settle (a cycle, the
+    /// depth limit, a stalled goal) is left to the uses that normalize it.
+    ///
+    /// Cost: per binding, one normalization of each side, each projection
+    /// met once (one goal or one clause scan).
+    fn binding_misses(&mut self, t: Ty, b: Ty) -> StageResult<Vec<(DefId, Ty, Ty)>> {
+        let pool = self.pool();
+        let TyData::TraitValue {
+            def,
+            args,
+            bindings,
+        } = pool.get(b)
+        else {
+            return Ok(Vec::new());
+        };
+        let mut misses = Vec::new();
+        for (assoc, want) in bindings {
+            let Some(proj) = self.binding_projection(def, args, t, assoc) else {
+                continue;
+            };
+            let mut memo = hd_base::HashMap::default();
+            let Some(got) = self.normalize_here(proj, &mut Vec::new(), &mut memo)? else {
+                continue;
+            };
+            let Some(want) = self.normalize_here(want, &mut Vec::new(), &mut memo)? else {
+                continue;
+            };
+            if got != want && !pool.has_poison(got) && !pool.has_poison(want) {
+                misses.push((assoc, got, want));
+            }
+        }
+        Ok(misses)
     }
 
     /// The projection a binding of `assoc` in a bound on trait `def[args]`
@@ -1377,27 +1387,45 @@ impl<'a> ItemCheck<'_, 'a> {
                 let args_v = pool.list_items(args);
                 if let Some(target) = self.cx.lookup.item(def) {
                     let mut missed = None;
-                    for (i, a, tref) in
+                    for (i, a, tref, bound) in
                         crate::written_bounds::goals(pool, def, &target.generics, args_v)
                     {
                         if missed == Some(i) {
                             continue;
                         }
-                        if self.fails_ref(tref, slot)? {
-                            let b = pool.intern_ty(&TyData::TraitValue {
-                                def: tref.trait_,
-                                args: tref.args,
-                                bindings: vec![],
-                            });
-                            let message = format!(
-                                "{} does not implement {} in `{}`",
-                                self.show(a),
-                                self.show(b),
-                                self.cx.names.display_name(self.item)
-                            );
-                            self.report(slot, Code::UnsatisfiedTraitBound, message);
-                            missed = Some(i);
+                        if !self.fails_ref(tref, slot)? {
+                            // The bound's bindings hold too
+                            // (`trait.bound.no-implied.positions`).
+                            if let Some((assoc, got, want)) =
+                                self.binding_misses(a, bound)?.into_iter().next()
+                            {
+                                let message = format!(
+                                    "{} does not satisfy {} in `{}`: its `{}` is {}, not {}",
+                                    self.show(a),
+                                    self.cx.names.display_name(tref.trait_),
+                                    self.cx.names.display_name(self.item),
+                                    self.cx.names.display_name(assoc),
+                                    self.show(got),
+                                    self.show(want)
+                                );
+                                self.report(slot, Code::UnsatisfiedTraitBound, message);
+                                missed = Some(i);
+                            }
+                            continue;
                         }
+                        let b = pool.intern_ty(&TyData::TraitValue {
+                            def: tref.trait_,
+                            args: tref.args,
+                            bindings: vec![],
+                        });
+                        let message = format!(
+                            "{} does not implement {} in `{}`",
+                            self.show(a),
+                            self.show(b),
+                            self.cx.names.display_name(self.item)
+                        );
+                        self.report(slot, Code::UnsatisfiedTraitBound, message);
+                        missed = Some(i);
                     }
                 }
                 for &a in args_v {
