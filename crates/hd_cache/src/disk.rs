@@ -87,7 +87,7 @@ const USE_MARK_AGE: Duration = Duration::from_hours(1);
 
 const SHARDS: usize = 256;
 const STATS: &str = "stats";
-const STATS_MAGIC: &[u8; 8] = b"HDSTATS1";
+const STATS_MAGIC: &[u8; 8] = b"HDSTATS2";
 const STATS_LEN: usize = 16 + SHARDS * 8;
 /// A shard size the ledger does not know yet.
 const UNKNOWN: u64 = u64::MAX;
@@ -99,8 +99,6 @@ pub struct DiskStore {
     cap: u64,
     /// Automatic eviction's time budget; tests may force it to zero.
     evict_bound: Duration,
-    /// The bytes this store published, per shard, not yet in the ledger.
-    written: [AtomicU64; SHARDS],
     used: AtomicBool,
     /// Set by the first failed publish; the store writes nothing after it.
     write_failed: AtomicBool,
@@ -140,7 +138,6 @@ impl DiskStore {
             root,
             cap: DEFAULT_CAP,
             evict_bound: EVICT_BOUND,
-            written: std::array::from_fn(|_| AtomicU64::new(0)),
             used: AtomicBool::new(false),
             write_failed: AtomicBool::new(false),
             on_write_failure: None,
@@ -208,55 +205,46 @@ impl DiskStore {
 
     /// `hd cache gc` (`cli.cache.gc`): cleans every shard now, with no time
     /// bound, and writes the exact shard sizes to the ledger.
-    #[must_use]
-    pub fn collect(&self) -> Collected {
-        let snapshot = Ledger::update(&self.root, |_| {});
-        let loose = self.clean(&(0..=u8::MAX).collect::<Vec<_>>(), None, snapshot);
+    pub fn collect(&self) -> std::io::Result<Collected> {
+        let loose = self.clean(&(0..=u8::MAX).collect::<Vec<_>>(), None)?;
         let packed_before = self.packed.bytes();
-        match self
-            .packed
-            .maintain(self.cap.saturating_sub(loose.after), None)
-        {
-            Ok(packed) => Collected {
-                before: loose.before.saturating_add(packed.before),
-                after: loose.after.saturating_add(packed.after),
-            },
-            Err(error) => {
-                self.warn(&error);
-                Collected {
-                    before: loose.before.saturating_add(packed_before),
-                    after: loose.after.saturating_add(self.packed.bytes()),
+        Ok(
+            match self
+                .packed
+                .maintain(self.cap.saturating_sub(loose.after), None)
+            {
+                Ok(packed) => Collected {
+                    before: loose.before.saturating_add(packed.before),
+                    after: loose.after.saturating_add(packed.after),
+                },
+                Err(error) => {
+                    self.warn(&error);
+                    Collected {
+                        before: loose.before.saturating_add(packed_before),
+                        after: loose.after.saturating_add(self.packed.bytes()),
+                    }
                 }
-            }
-        }
+            },
+        )
     }
 
-    /// Records this store's published bytes and runs the bounded automatic
-    /// eviction. Called on drop; a store never used does nothing.
+    /// Runs bounded automatic eviction only for unknown or over-budget
+    /// shards. Called on drop; a store never used does nothing.
     fn settle(&self) {
         if !self.used.load(Ordering::Relaxed) {
             return;
         }
         let deadline = Instant::now() + self.evict_bound;
         let budget = self.budget();
-        let written: Vec<u64> = self
-            .written
-            .iter()
-            .map(|w| w.swap(0, Ordering::Relaxed))
-            .collect();
         let mut work = Vec::new();
         let snapshot = Ledger::update(&self.root, |l| {
-            for (size, add) in l.sizes.iter_mut().zip(&written) {
-                if *size != UNKNOWN {
-                    *size = size.saturating_add(*add);
-                }
+            // The first packed publication retires ordinary loose files,
+            // even when their previously recorded sizes fit the budget.
+            if !l.migrated && is_real_dir(&self.root.join("pack-v1")) {
+                l.migrated = true;
+                l.sizes.fill(UNKNOWN);
             }
-            // The drift rescan first, then the shards over budget, then
-            // the shards of unknown size.
-            let drift = u8::try_from(l.cursor % SHARDS as u64).expect("shard");
-            l.cursor = (l.cursor + 1) % SHARDS as u64;
-            work.push(drift);
-            let shards = || (0..=u8::MAX).zip(l.sizes).filter(|(s, _)| *s != drift);
+            let shards = || (0..=u8::MAX).zip(l.sizes);
             work.extend(
                 shards()
                     .filter(|(_, size)| *size != UNKNOWN && *size > budget)
@@ -269,51 +257,49 @@ impl DiskStore {
             );
         });
         if snapshot.is_some() {
-            let _ = self.clean(&work, Some(deadline), snapshot);
+            let _ = self.clean(&work, Some(deadline));
         }
     }
 
     /// Cleans `shards` in order, each down to 90% of its budget when it is
-    /// over it, and records each one's exact size in the ledger read as
-    /// `snapshot`. With a deadline, the shards after the first are left to
+    /// over it, recording each one's exact size under the publication lock.
+    /// With a deadline, the shards after the first are left to
     /// a later command once it has passed.
-    fn clean(
-        &self,
-        shards: &[u8],
-        deadline: Option<Instant>,
-        snapshot: Option<Ledger>,
-    ) -> Collected {
+    fn clean(&self, shards: &[u8], deadline: Option<Instant>) -> std::io::Result<Collected> {
         let budget = self.budget();
-        let kinds = self.kinds();
-        let mut done = Vec::new();
+        let kinds = EntryKind::ALL;
         let mut total = Collected {
             before: 0,
             after: 0,
         };
+        if !self.root.try_exists()? {
+            return Ok(total);
+        }
         for (i, &shard) in shards.iter().enumerate() {
             if i > 0 && deadline.is_some_and(|d| Instant::now() >= d) {
                 break;
             }
-            let (before, after) = self.clean_shard(&kinds, shard, budget);
-            total.before += before;
-            total.after += after;
-            done.push((shard as usize, after));
-        }
-        // Another process may have added bytes since the snapshot: keep
-        // them, and replace only what the snapshot said about the shard.
-        if let Some(snapshot) = snapshot {
-            let _ = Ledger::update(&self.root, |l| {
-                for &(shard, after) in &done {
-                    let (now, then) = (l.sizes[shard], snapshot.sizes[shard]);
-                    l.sizes[shard] = if now == UNKNOWN || then == UNKNOWN {
-                        after
-                    } else {
-                        now.saturating_sub(then).saturating_add(after)
-                    };
+            let result = Ledger::transaction(&self.root, |l| {
+                if !l.migrated && is_real_dir(&self.root.join("pack-v1")) {
+                    l.migrated = true;
+                    l.sizes.fill(UNKNOWN);
                 }
+                let result = self.clean_shard(&kinds, shard, budget);
+                l.sizes[shard as usize] = match &result {
+                    Ok((_, after)) => *after,
+                    // An incomplete inventory must never become a known
+                    // under-budget size: recovery retries this shard.
+                    Err(_) => UNKNOWN,
+                };
+                result
             });
+            let (_, result) =
+                result.ok_or_else(|| std::io::Error::other("cache ledger transaction failed"))?;
+            let (before, after) = result?;
+            total.before = total.before.saturating_add(before);
+            total.after = total.after.saturating_add(after);
         }
-        total
+        Ok(total)
     }
 
     /// The kinds whose directory exists and is no symbolic link.
@@ -326,24 +312,29 @@ impl DiskStore {
 
     /// The entries of one shard across the kind directories `kinds`, with
     /// their total size.
-    fn scan(&self, kinds: &[EntryKind], shard: u8) -> (u64, Vec<EntryStat>) {
+    fn scan(&self, kinds: &[EntryKind], shard: u8) -> std::io::Result<(u64, Vec<EntryStat>)> {
         let mut out = Vec::new();
         for &kind in kinds {
-            let dir = self.root.join(kind.as_str()).join(format!("{shard:02x}"));
-            if !is_real_dir(&dir) {
+            let kind_dir = self.root.join(kind.as_str());
+            if !managed_dir(&kind_dir)? {
                 continue;
             }
-            let Ok(list) = std::fs::read_dir(&dir) else {
+            let dir = kind_dir.join(format!("{shard:02x}"));
+            if !managed_dir(&dir)? {
                 continue;
-            };
+            }
+            // cost: only explicit GC, unknown recovery, or a recorded
+            // over-budget shard lists its entries; warm known shards do not.
+            let list = std::fs::read_dir(&dir)?;
             count!(dirs_listed, 1);
-            for e in list.flatten() {
+            for e in list {
+                let e = e?;
                 count!(entries_listed, 1);
                 let Some(key) = e.file_name().to_str().and_then(parse_key) else {
                     continue;
                 };
                 // `DirEntry::metadata` does not follow a symbolic link.
-                let Ok(meta) = e.metadata() else { continue };
+                let meta = e.metadata()?;
                 if shard_of(key) != shard || !meta.file_type().is_file() {
                     continue;
                 }
@@ -355,13 +346,18 @@ impl DiskStore {
                 });
             }
         }
-        (out.iter().map(|e| e.bytes).sum(), out)
+        Ok((out.iter().map(|e| e.bytes).sum(), out))
     }
 
     /// Scans one shard and evicts its oldest entries when it is over
     /// `budget`: its size before and after.
-    fn clean_shard(&self, kinds: &[EntryKind], shard: u8, budget: u64) -> (u64, u64) {
-        let (before, entries) = self.scan(kinds, shard);
+    fn clean_shard(
+        &self,
+        kinds: &[EntryKind],
+        shard: u8,
+        budget: u64,
+    ) -> std::io::Result<(u64, u64)> {
+        let (before, entries) = self.scan(kinds, shard)?;
         let mut after = before;
         let migrated = is_real_dir(&self.root.join("pack-v1"));
         let (obsolete, retained): (Vec<_>, Vec<_>) = entries
@@ -374,7 +370,7 @@ impl DiskStore {
                 after -= e.bytes;
             }
         }
-        (before, after)
+        Ok((before, after))
     }
 }
 
@@ -469,25 +465,40 @@ impl DiskStore {
                 let _ = std::fs::remove_file(&tmp);
                 return Err(e);
             }
-            std::fs::rename(&tmp, &path).or_else(|e| {
-                let _ = std::fs::remove_file(&tmp);
-                // Another writer of the same key published first: a lost
-                // race, not a failure.
-                if path.is_file() { Ok(()) } else { Err(e) }
-            })
+            let ledger = Ledger::transaction(&self.root, |l| {
+                let mut commit = || {
+                    let before = match std::fs::symlink_metadata(&path) {
+                        Ok(meta) if meta.file_type().is_file() => meta.len(),
+                        Ok(_) => 0,
+                        Err(error) if error.kind() == std::io::ErrorKind::NotFound => 0,
+                        Err(error) => return Err(error),
+                    };
+                    if let Err(error) = std::fs::rename(&tmp, &path) {
+                        // A lost publication race adds no bytes. On Windows
+                        // an open destination may prevent replacement.
+                        return if path.is_file() { Ok(()) } else { Err(error) };
+                    }
+                    let size = &mut l.sizes[shard_of(*key) as usize];
+                    if *size != UNKNOWN {
+                        *size = size
+                            .saturating_sub(before)
+                            .saturating_add(bytes.len() as u64);
+                    }
+                    Ok(())
+                };
+                commit()
+            });
+            let _ = std::fs::remove_file(&tmp);
+            match ledger {
+                Some((_, result)) => result,
+                None => Err(std::io::Error::other("cache ledger transaction failed")),
+            }
         };
-        match publish() {
-            Ok(()) => {
-                self.written[shard_of(*key) as usize]
-                    .fetch_add(bytes.len() as u64, Ordering::Relaxed);
-            }
-            Err(e) => {
-                if !self.write_failed.swap(true, Ordering::Relaxed)
-                    && let Some(warn) = self.on_write_failure
-                {
-                    warn(&self.root, &e);
-                }
-            }
+        if let Err(e) = publish()
+            && !self.write_failed.swap(true, Ordering::Relaxed)
+            && let Some(warn) = self.on_write_failure
+        {
+            warn(&self.root, &e);
         }
     }
 
@@ -625,6 +636,16 @@ fn is_real_dir(path: &Path) -> bool {
     std::fs::symlink_metadata(path).is_ok_and(|m| m.file_type().is_dir())
 }
 
+/// Missing and foreign entries are outside the managed namespace; an
+/// unreadable directory is an incomplete inventory, not an empty one.
+fn managed_dir(path: &Path) -> std::io::Result<bool> {
+    match std::fs::symlink_metadata(path) {
+        Ok(meta) => Ok(meta.file_type().is_dir()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error),
+    }
+}
+
 /// A file name of exactly 32 lowercase hex digits, as [`DiskStore::path`]
 /// writes it.
 fn parse_key(name: &str) -> Option<Hash128> {
@@ -633,24 +654,24 @@ fn parse_key(name: &str) -> Option<Hash128> {
         .flatten()
 }
 
-/// The shard-size ledger `<root>/stats`: a magic, the next shard to
-/// rescan, and 256 sizes, little-endian.
+/// The shard-size ledger `<root>/stats`: a magic, the packed-migration
+/// flag, and 256 sizes, little-endian. A prior version recovers as unknown.
 struct Ledger {
-    cursor: u64,
+    migrated: bool,
     sizes: [u64; SHARDS],
 }
 
 impl Ledger {
     fn decode(bytes: &[u8]) -> Ledger {
         let mut l = Ledger {
-            cursor: 0,
+            migrated: false,
             sizes: [UNKNOWN; SHARDS],
         };
         if bytes.len() == STATS_LEN && &bytes[..8] == STATS_MAGIC {
             let word = |i: usize| {
                 u64::from_le_bytes(bytes[8 + i * 8..16 + i * 8].try_into().expect("8 bytes"))
             };
-            l.cursor = word(0);
+            l.migrated = word(0) != 0;
             for (i, s) in l.sizes.iter_mut().enumerate() {
                 *s = word(i + 1);
             }
@@ -661,7 +682,7 @@ impl Ledger {
     fn encode(&self) -> Vec<u8> {
         let mut out = Vec::with_capacity(STATS_LEN);
         out.extend_from_slice(STATS_MAGIC);
-        out.extend_from_slice(&self.cursor.to_le_bytes());
+        out.extend_from_slice(&u64::from(self.migrated).to_le_bytes());
         for s in &self.sizes {
             out.extend_from_slice(&s.to_le_bytes());
         }
@@ -673,7 +694,16 @@ impl Ledger {
     /// every size unknown. `None` when `root` is no directory or the ledger
     /// cannot be locked; the command then leaves eviction to a later one.
     fn update(root: &Path, f: impl FnOnce(&mut Ledger)) -> Option<Ledger> {
-        if !is_real_dir(root) {
+        Self::transaction(root, f).map(|(ledger, ())| ledger)
+    }
+
+    /// File mutations and their accounting use one exclusive lock. The
+    /// fixed-size invalid header is the recovery intent, committed last.
+    fn transaction<R>(root: &Path, f: impl FnOnce(&mut Ledger) -> R) -> Option<(Ledger, R)> {
+        // The caller-selected root may alias its cache directory (the CLI
+        // shares object stores this way). Links below that root are still
+        // excluded by managed_dir and private-entry ownership checks.
+        if !root.is_dir() {
             return None;
         }
         let mut file = OpenOptions::new()
@@ -690,12 +720,19 @@ impl Ledger {
             .read_to_end(&mut bytes)
             .ok()?;
         let mut l = Ledger::decode(&bytes);
-        f(&mut l);
+        // Persist an invalid header before any file mutation. Process
+        // interruption leaves every shard unknown, rather than silently
+        // trusting a size recorded before a successful rename or removal.
+        file.seek(SeekFrom::Start(0)).ok()?;
+        file.write_all(&[0; 8]).ok()?;
+        let result = f(&mut l);
         let out = l.encode();
-        if file.seek(SeekFrom::Start(0)).is_ok() && file.write_all(&out).is_ok() {
-            let _ = file.set_len(out.len() as u64);
-        }
-        Some(l)
+        file.seek(SeekFrom::Start(8)).ok()?;
+        file.write_all(&out[8..]).ok()?;
+        file.set_len(out.len() as u64).ok()?;
+        file.seek(SeekFrom::Start(0)).ok()?;
+        file.write_all(STATS_MAGIC).ok()?;
+        Some((l, result))
     }
 }
 
@@ -3350,7 +3387,7 @@ mod packed {
         }
 
         #[test]
-        fn failed_collection_reports_the_data_it_could_not_remove() {
+        fn failed_collection_reports_the_data_it_could_not_remove() -> std::io::Result<()> {
             let root = scratch("gc-write-failure");
             let store = DiskStore::new(root.clone()).with_cap(0);
             store.put(EntryKind::Check, &Hash128(1), b"data");
@@ -3359,13 +3396,15 @@ mod packed {
             let lock = root.join("pack-v1/lock");
             std::fs::remove_file(&lock).unwrap();
             std::fs::create_dir(&lock).unwrap();
-            let collected = store.collect();
+            let collected = store.collect()?;
             assert_eq!(collected.before, before);
             assert_eq!(collected.after, before);
+            Ok(())
         }
 
         #[test]
-        fn collection_shares_the_cap_with_private_entries_and_retires_old_data() {
+        fn collection_shares_the_cap_with_private_entries_and_retires_old_data()
+        -> std::io::Result<()> {
             let root = scratch("legacy-cap");
             let store = DiskStore::new(root).with_cap(256 * 1000);
             store.put(EntryKind::Clpack, &Hash128(1), &[2; 800]);
@@ -3373,11 +3412,12 @@ mod packed {
                 File::create(path)
             });
             store.put_many(&[item(3, &vec![3; 128 * 1024]), item(4, &vec![4; 128 * 1024])]);
-            let result = store.collect();
+            let result = store.collect()?;
             assert!(result.after <= 256 * 1000);
             assert!(!store.path(EntryKind::Check, &Hash128(2)).exists());
             assert!(store.get(EntryKind::Clpack, &Hash128(1)).is_some());
             assert!(store.get(EntryKind::Check, &Hash128(4)).is_some());
+            Ok(())
         }
     }
 }
@@ -3417,11 +3457,201 @@ mod tests {
 
     fn total(store: &DiskStore) -> u64 {
         let kinds = store.kinds();
-        (0..=u8::MAX).map(|s| store.scan(&kinds, s).0).sum()
+        (0..=u8::MAX).fold(0_u64, |sum, shard| {
+            sum.saturating_add(store.scan(&kinds, shard).map_or(u64::MAX, |scan| scan.0))
+        })
+    }
+
+    fn ledger(root: &std::path::Path) -> std::io::Result<Ledger> {
+        Ok(Ledger::decode(&std::fs::read(root.join("stats"))?))
+    }
+
+    /// Warm work depends on the keys read, not the private store's size,
+    /// whether those entries occupy one shard or every shard.
+    #[cfg(unix)]
+    #[test]
+    fn private_warm_runs_list_nothing_at_ten_times_the_entries() -> std::io::Result<()> {
+        use crate::store::CacheStore as _;
+        use std::os::unix::fs::MetadataExt as _;
+        for spread in [false, true] {
+            for n in [1_000_u128, 10_000] {
+                let root = scratch(&format!("private-warm-{spread}-{n}"));
+                let read_key = key(0, 0);
+                let owner;
+                {
+                    let store = DiskStore::new(root.clone());
+                    for i in 0..n {
+                        let shard = if spread { i.to_le_bytes()[0] } else { 0 };
+                        store.put_private(EntryKind::Clpack, &key(shard, i), b"native code");
+                    }
+                    owner = std::fs::metadata(store.path(EntryKind::Clpack, &read_key))?.uid();
+                    store.put(EntryKind::Check, &key(0, 99), b"packed data");
+                    assert!(store.collect().is_ok());
+                }
+                for packed in [false, true] {
+                    super::cost::take();
+                    {
+                        let store = DiskStore::new(root.clone());
+                        if packed {
+                            assert!(store.get(EntryKind::Check, &key(0, 99)).is_some());
+                        } else {
+                            assert!(
+                                store
+                                    .get_private(EntryKind::Clpack, &read_key, owner)
+                                    .is_some()
+                            );
+                        }
+                    }
+                    let counts = super::cost::take();
+                    assert_eq!(
+                        (counts.dirs_listed, counts.entries_listed),
+                        (0, 0),
+                        "entries={n}, spread={spread}, packed={packed}: {counts:?}"
+                    );
+                }
+                std::fs::remove_dir_all(root)?;
+            }
+        }
+        Ok(())
     }
 
     #[test]
-    fn a_hit_marks_use_so_the_entry_survives_eviction() {
+    fn replacement_and_lost_publication_account_only_committed_bytes() -> std::io::Result<()> {
+        let root = scratch("replacement-ledger");
+        let store = DiskStore::new(root.clone());
+        assert!(store.collect().is_ok());
+        let k = key(5, 1);
+        for size in [100, 300, 40, 40] {
+            store.put_loose(EntryKind::Clpack, &k, &vec![0; size]);
+            assert_eq!(ledger(&root)?.sizes[5], size as u64);
+        }
+        // An open temporary can disappear while its bytes are written.
+        // The existing destination makes this a lost publication race.
+        store.publish(EntryKind::Clpack, &k, &[0; 800], |tmp| {
+            let file = std::fs::File::create(tmp)?;
+            std::fs::remove_file(tmp)?;
+            Ok(file)
+        });
+        assert_eq!(ledger(&root)?.sizes[5], 40);
+        assert_eq!(
+            std::fs::metadata(store.path(EntryKind::Clpack, &k))?.len(),
+            40
+        );
+        drop(store);
+        std::fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn private_publication_accounts_through_a_selected_root_alias() -> std::io::Result<()> {
+        use std::os::unix::fs::MetadataExt as _;
+        let base = scratch("selected-root-alias");
+        let root = base.join("objects");
+        let alias = base.join("alias");
+        std::fs::create_dir(&root)?;
+        std::os::unix::fs::symlink(&root, &alias)?;
+        let store = DiskStore::new(alias);
+        store.collect()?;
+        let k = key(5, 1);
+        store.put_private(EntryKind::Clpack, &k, b"native code");
+        assert!(
+            !store
+                .write_failed
+                .load(std::sync::atomic::Ordering::Relaxed)
+        );
+        assert_eq!(ledger(&root)?.sizes[5], 11);
+        let owner = std::fs::metadata(store.path(EntryKind::Clpack, &k))?.uid();
+        assert_eq!(
+            store.get_private(EntryKind::Clpack, &k, owner).as_deref(),
+            Some(&b"native code"[..])
+        );
+        super::cost::take();
+        drop(store);
+        let counts = super::cost::take();
+        assert_eq!((counts.dirs_listed, counts.entries_listed), (0, 0));
+        std::fs::remove_dir_all(base)?;
+        Ok(())
+    }
+
+    #[test]
+    fn interrupted_accounting_recovers_unknown_sizes_once() -> std::io::Result<()> {
+        let root = scratch("interrupted-ledger");
+        let store = DiskStore::new(root.clone());
+        assert!(store.collect().is_ok());
+        let path = store.path(EntryKind::Clpack, &key(0, 1));
+        std::fs::create_dir_all(
+            path.parent()
+                .ok_or_else(|| std::io::Error::other("missing shard"))?,
+        )?;
+        let interrupted = std::panic::catch_unwind(|| {
+            let _ = Ledger::update(&root, |_| {
+                assert!(std::fs::write(&path, b"published before interruption").is_ok());
+                assert!(
+                    !path.exists(),
+                    "simulate interruption before accounting commits"
+                );
+            });
+        });
+        assert!(interrupted.is_err());
+        assert!(ledger(&root)?.sizes.iter().all(|&size| size == UNKNOWN));
+        assert!(store.collect().is_ok());
+        assert_eq!(ledger(&root)?.sizes[0], 29);
+        super::cost::take();
+        store.touch_loose(EntryKind::Clpack, &key(0, 1));
+        drop(store);
+        let counts = super::cost::take();
+        assert_eq!((counts.dirs_listed, counts.entries_listed), (0, 0));
+        std::fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    #[test]
+    fn packed_migration_retires_previously_known_loose_entries() -> std::io::Result<()> {
+        use crate::store::CacheStore as _;
+        let root = scratch("known-loose-migration");
+        let store = DiskStore::new(root.clone());
+        let k = key(0, 1);
+        store.put_loose(EntryKind::Iface, &k, b"obsolete");
+        let other = key(5, 1);
+        store.put_loose(EntryKind::Iface, &other, b"also obsolete");
+        assert!(store.collect().is_ok());
+        assert!(!ledger(&root)?.migrated);
+        store.put(EntryKind::Check, &k, b"packed");
+        // Packed storage can appear between settle's work selection and
+        // a shard's inventory. Untouched known shards must recover too.
+        store.clean(&[0], None)?;
+        assert_eq!(ledger(&root)?.sizes[5], UNKNOWN);
+        assert!(store.collect().is_ok());
+        assert!(!store.path(EntryKind::Iface, &k).exists());
+        assert!(!store.path(EntryKind::Iface, &other).exists());
+        assert!(ledger(&root)?.migrated);
+        drop(store);
+        std::fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    #[test]
+    fn incomplete_loose_inventory_cannot_grant_packed_storage_a_fresh_cap() -> std::io::Result<()> {
+        use crate::store::CacheStore as _;
+        let root = scratch("incomplete-ledger");
+        let store = DiskStore::new(root.clone()).with_cap(0);
+        store.put(EntryKind::Check, &key(0, 1), b"retained packed entry");
+        store.put_loose(EntryKind::Clpack, &key(0, 2), b"retained private entry");
+        std::fs::remove_file(root.join("stats"))?;
+        std::fs::create_dir(root.join("stats"))?;
+        assert!(store.collect().is_err());
+        assert!(store.get(EntryKind::Check, &key(0, 1)).is_some());
+        assert!(store.path(EntryKind::Clpack, &key(0, 2)).is_file());
+        // Restore the ledger before Drop's independent automatic cleanup.
+        std::fs::remove_dir(root.join("stats"))?;
+        drop(store);
+        std::fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    #[test]
+    fn a_hit_marks_use_so_the_entry_survives_eviction() -> std::io::Result<()> {
         let root = scratch("lru");
         let store = DiskStore::new(root.clone()).with_cap(256 * 1000);
         let (a, b, c) = (key(7, 1), key(7, 2), key(7, 3));
@@ -3431,13 +3661,14 @@ mod tests {
         }
         // `a` is the oldest, but a hit makes it the newest.
         assert!(store.get_loose(EntryKind::Check, &a).is_some());
-        let got = store.collect();
+        let got = store.collect()?;
         assert_eq!((got.before, got.after), (1200, 800));
         assert!(store.path(EntryKind::Check, &a).exists());
         assert!(!store.path(EntryKind::Check, &b).exists());
         assert!(store.path(EntryKind::Check, &c).exists());
         drop(store);
         let _ = std::fs::remove_dir_all(root);
+        Ok(())
     }
 
     #[test]
@@ -3477,7 +3708,7 @@ mod tests {
     }
 
     #[test]
-    fn eviction_deletes_only_entry_files_of_the_obj_tree() {
+    fn eviction_deletes_only_entry_files_of_the_obj_tree() -> std::io::Result<()> {
         let base = scratch("scope");
         let root = base.join("obj");
         let pkg = base.join("pkg/github.com/acme/json@1.0.0");
@@ -3505,7 +3736,7 @@ mod tests {
             std::os::unix::fs::symlink(&target, link).expect("link");
             std::os::unix::fs::symlink(&pkg, root.join("check")).expect("dir link");
         }
-        let got = store.collect();
+        let got = store.collect()?;
         assert_eq!((got.before, got.after), (64, 0));
         assert!(!store.path(EntryKind::Codepack, &k).exists());
         assert_eq!(
@@ -3517,6 +3748,7 @@ mod tests {
         assert!(base.join("target-file").exists() || cfg!(not(unix)));
         drop(store);
         let _ = std::fs::remove_dir_all(base);
+        Ok(())
     }
 
     #[test]
@@ -3536,7 +3768,7 @@ mod tests {
         }
         assert_eq!(total(&store), 800);
         drop(store);
-        assert_eq!(read(&root).cursor, 1);
+        assert!(!read(&root).migrated);
         // A new ledger knows no shard's size, so each run scans unknown
         // shards within its time bound until every size is known.
         for _ in 0..SHARDS {
@@ -3569,7 +3801,7 @@ mod tests {
     }
 
     #[test]
-    fn the_ledger_keeps_bytes_another_process_added() {
+    fn the_ledger_keeps_bytes_another_process_added() -> std::io::Result<()> {
         let root = scratch("ledger");
         let store = DiskStore::new(root.clone())
             .with_cap(256 * 1000)
@@ -3577,7 +3809,7 @@ mod tests {
         let k = key(5, 1);
         // Start from exact sizes, so the bounded drops below need no
         // rescan: the test is about byte merging, not eviction timing.
-        assert_eq!(store.collect().after, 0);
+        assert_eq!(store.collect()?.after, 0);
         store.put_loose(EntryKind::Iface, &k, &[0; 300]);
         drop(store);
         let read = |r: &PathBuf| Ledger::decode(&std::fs::read(r.join("stats")).expect("ledger"));
@@ -3595,6 +3827,7 @@ mod tests {
         assert!(read(&root).sizes.iter().all(|s| *s == UNKNOWN));
         assert_eq!(SHARDS, 256);
         let _ = std::fs::remove_dir_all(root);
+        Ok(())
     }
 
     #[test]
@@ -3609,7 +3842,7 @@ mod tests {
                     for k in &keys {
                         store.put_loose(EntryKind::Clpack, k, &body);
                     }
-                    let _ = store.collect();
+                    assert!(store.collect().is_ok());
                 }
             });
             s.spawn(|| {
@@ -3636,9 +3869,10 @@ mod tests {
     }
 
     #[test]
-    fn threads_writing_one_key_publish_whole_entries() {
+    fn threads_writing_one_key_publish_whole_entries() -> std::io::Result<()> {
         let root = scratch("same-key");
         let store = DiskStore::new(root.clone());
+        assert!(store.collect().is_ok());
         let k = key(4, 1);
         let body: Vec<u8> = (0..64 * 1024_u32)
             .map(|i| u8::try_from(i % 251).expect("byte"))
@@ -3656,6 +3890,7 @@ mod tests {
             store.get_loose(EntryKind::Check, &k).as_deref(),
             Some(&body[..])
         );
+        assert_eq!(ledger(&root)?.sizes[4], body.len() as u64);
         let dir = store.path(EntryKind::Check, &k);
         let left = std::fs::read_dir(dir.parent().expect("shard"))
             .expect("shard")
@@ -3663,6 +3898,7 @@ mod tests {
         assert_eq!(left, 1, "no temporary file is left behind");
         drop(store);
         let _ = std::fs::remove_dir_all(root);
+        Ok(())
     }
 
     #[cfg(unix)]

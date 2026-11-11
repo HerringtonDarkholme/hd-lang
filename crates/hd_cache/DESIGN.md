@@ -849,12 +849,21 @@ least-recently-used entries (`cli.cache.obj.cap`, `cli.cache.obj.evict`).
   three per class plus the 8 MiB packs, which the cap bounds. 1,000
   publishing commands leave at most 14 packs. Packs an older hd wrote
   have no footer and are never merged; compaction still reclaims them.
-- **Private/legacy accounting.** `obj/stats` still tracks 256 approximate
-  shard sizes and a drift cursor. Its scans retire ordinary loose files;
-  Clpack entries retain their existing per-shard mtime LRU. Automatic
+- **Private/legacy accounting.** `obj/stats` tracks 256 shard sizes and the
+  packed-migration state. Publication and eviction serialize file changes
+  and their size updates with the ledger lock. Replacing a key subtracts
+  its previous size; a lost publication race adds nothing. The fixed-size
+  ledger header becomes invalid before file changes and valid only after
+  accounting commits. Process interruption or an older ledger makes sizes
+  unknown, recovered by bounded scans. An incomplete scan leaves its shard
+  unknown. The first packed publication invalidates known loose sizes once
+  so scans retire obsolete ordinary files. Known under-budget shards never
+  get listed automatically; Clpack keeps its per-shard mtime LRU. A selected
+  root may alias its directory; kind and shard links remain excluded. Automatic
   packed cleanup subtracts known legacy bytes from the shared cap. Explicit
   `hd cache gc` scans both namespaces and uses exact remaining legacy bytes
-  as the packed budget; the two stores do not each get a fresh 10 GiB.
+  as the packed budget; incomplete loose inventory returns an error before
+  packed reclamation. The two stores do not each get a fresh 10 GiB.
 - **Automatic eviction.** Drop shares one soft 20 ms budget between legacy
   scanning and packed cleanup. Packed cleanup reads the running total and,
   when it fits the cap, walks no directory: it only merges pending recency
