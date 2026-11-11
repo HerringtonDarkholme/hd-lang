@@ -126,7 +126,7 @@ function refusedPath(path: string, cwd = process.cwd()): string {
 const OS_NAMES: Record<string, string> = { darwin: "macos", win32: "windows" };
 const ARCH_NAMES: Record<string, string> = { x64: "x86_64", arm64: "aarch64", ia32: "x86" };
 
-// A client thread running `file` (`http.ts`, `net.ts`), started on its
+// A client thread running `file` (`./http.ts`, `./net.ts`), started on its
 // first call. `call(request, left)` posts the request and waits for the
 // thread's control reply synchronously. Pending providers use short
 // start/poll/finish/abort requests rather than waiting for their I/O here.
@@ -985,11 +985,11 @@ export const nodeLayer = {
   providers: ({ env, sink, st, grant, flush, left }: DynamicRecord) => {
     // `Net` and its socket handles (spec/std/net.md) on a client thread of
     // this instance's own, which holds its sockets; `close` stops it.
-    const net = syncClient("net.ts");
-    const http = syncClient("http.ts");
-    const child = syncClient("process.ts", "close");
-    const files = syncClient("fs.ts", "close");
-    const input = syncClient("input.ts");
+    const net = syncClient("./net.ts");
+    const http = syncClient("./http.ts");
+    const child = syncClient("./process.ts", "close");
+    const files = syncClient("./fs.ts", "close");
+    const input = syncClient("./input.ts");
     // The program's output reaches its stream before it waits on the host
     // (std-console.host.visible-text-sync): a run stopped in a wait loses none. Each
     // client call and child process asks `waiting()` first.

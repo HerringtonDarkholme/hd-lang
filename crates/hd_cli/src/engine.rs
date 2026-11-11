@@ -577,7 +577,7 @@ impl NodeSession {
         let mut child = Command::new("node")
             .arg("--experimental-wasm-jspi")
             .args(["--input-type=module", "--eval", "import { pathToFileURL } from 'node:url'; const { driveNodeSession } = await import(pathToFileURL(process.argv[1])); await driveNodeSession(); process.exit(0);"])
-            .arg(scratch.0.join("node.ts"))
+            .arg(scratch.0.join("node.js"))
             .current_dir(cwd)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
