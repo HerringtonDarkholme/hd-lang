@@ -2,8 +2,8 @@
 # @dump: tir own counts wat
 # @build: v8 release
 # Feature: `if` and `match` as values (#1364).
-# Each normal arm drops the unselected parameter before the join.
-# `pick_len` drops the selected value after reading its length.
+# expected: no count operation; `pick_len` borrows both parameters.
+# A by-value parameter that is only read borrows (#1365).
 fn pick(c: bool, a: string, b: string) -> string:
     if c: a else: b
 > app/main/pick
