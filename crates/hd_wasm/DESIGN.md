@@ -1133,8 +1133,14 @@ references preserve their owners and pins (the tier-1 design (`58c3d470f:docs/fu
   what it points into alive until its last use (`hd_tir/src/own/frame.rs`,
   rules 4 and 5). Its end is a `Drop` where the reference may own an
   object, and a `LoanEnd`, which only ends its loans, where its origin
-  rules that out (`hd_tir/src/own/plain.rs`). A `&dyn` reference's data address keeps its page-table
-  count. The table below, from #1320, says which references
+  rules that out (`hd_tir/src/own/plain.rs`). A `&dyn` reference counts
+  nothing either (#1354): the trait value it is made of borrows its
+  source, whether a local reference converts (`RefToTraitValue`), a
+  `&dyn` widens (`Supertrait`, whose read through the source borrows) or
+  `$.use` lends the caller-held provider (`hd_tir::own::dyn_view`,
+  `provider_view`). One that takes a count anyway, a `*dyn` call result or
+  a copy, owns that trait value and releases it at its end
+  (`Em::own_dyn_value`). The table below, from #1320, says which references
   took a count before this; their loans remain.
 - **What a reference's place crosses** (issue #1320,
   spec/lang/13-values-and-references.md `ref.count.pointer`,

@@ -814,13 +814,14 @@ fn walk_one(
 }
 
 /// A reference's walk: a thin counted one (`whole`) is a payload start, a
-/// fat one or a local one goes through the page table, and a thin local
-/// one counts nothing (`ref.count.local`) when `counting`.
+/// fat counted one (`*dyn Tr`) or a local one goes through the page table,
+/// and a local one, thin or fat (`&dyn Tr`), counts nothing
+/// (`ref.count.local`) when `counting`.
 fn ref_walk(fat: bool, whole: bool, counting: bool) -> Option<Walk> {
     match (fat, whole) {
         (false, true) => Some(Walk::Known(0)),
-        (false, false) if counting => None,
-        (false, false) | (true, _) => Some(Walk::Ref(0)),
+        (_, false) if counting => None,
+        (_, false) | (true, true) => Some(Walk::Ref(0)),
     }
 }
 
@@ -862,10 +863,11 @@ pub fn function_pass(pool: &InternPool, env: &dyn ProgramEnv, counts: bool, t: T
     }
 }
 
-/// The values of `t` that are thin local references held by value on
-/// every path (`ref.count.local`): the walk names them, the count walk
-/// does not. A thin local reference under an enum's discriminant is not
-/// held on every path and is left out.
+/// The values of `t` that are local references held by value on every
+/// path (`ref.count.local`), a thin one's address or a `&dyn`'s data
+/// address: the walk names them, the count walk does not. A local
+/// reference under an enum's discriminant is not held on every path and
+/// is left out.
 pub fn thin_local_ref_values(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<u32> {
     fn leaves(w: &Walk, out: &mut Vec<u32>) {
         match w {

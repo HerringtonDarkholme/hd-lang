@@ -163,14 +163,14 @@ pub fn run(root: *Node) -> i64:
 >   %3 = Read borrow [$0] : *Node
 >   %4 = Ref mut local frame [$1] : &mut Total
 >   %5 = Store [$2] %4 : ()
->   %6 = Read move [$2] : &mut Total
+>   %6 = Read copy [$2] : &mut Total
 >   %7 = Coerce %6 [RefToTraitValue -] : Sink
->   %8 = Retain %7 Value #0 : ()
->   %9 = LoanEnd [%6] : ()
->   %10 = Block %7 : Sink
->   %11 = RefDyn %10 : &mut dyn Sink
->   %12 = Call app/main/walk[] (%3, %11) : ()
->   %13 = Drop [%11] : ()
+>   %8 = LoanEnd [%6] : ()
+>   %9 = Block %7 : Sink
+>   %10 = RefDyn %9 : &mut dyn Sink
+>   %11 = Call app/main/walk[] (%3, %10) : ()
+>   %12 = Drop [%10] : ()
+>   %13 = LoanEnd [$2] : ()
 >   %4 finds [$1] full
     let mut keeper = Keeper { saved: [] }
 >   %14 = NewList - [] : List[*Node]

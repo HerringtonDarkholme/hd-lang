@@ -53,7 +53,7 @@ fn tagged!() -> usize $ Tag:
 >   %3 = ProviderGet #0 : Tag
 >   %4 = Coerce %3 [ProviderAsRef -] : &dyn Tag
 >   %5 = Read borrow [*%4] : Tag
->   %6 = LoanEnd [%4] : ()
+>   %6 = Drop [%4] : ()
 >   %7 = Call app/main/Tag.name for Tag [] via TraitValue (%5) : string
 >   %8 = Store [$1] %7 : ()
 >   %9 = Read borrow [$1] : string

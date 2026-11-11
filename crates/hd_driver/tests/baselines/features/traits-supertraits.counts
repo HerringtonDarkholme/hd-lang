@@ -4,7 +4,7 @@
 # Feature: Supertraits, Supertrait Member Names, Supertrait Widening,
 # Trait Values As Bounds (spec/lang/09-traits.md, #1364).
 # expected: widening `&dyn Dog` to `&dyn Animal` makes no object and
-# counts nothing beyond #1354; `both` calls each method through the
+# counts nothing; `both` calls each method through the
 # vtable; the static `loud` inlines both.
 trait Animal:
     fn name(&self) -> string
@@ -33,8 +33,6 @@ fn name_of(a: &dyn Animal) -> usize:
 fn widen(d: &dyn Dog) -> usize:
     name_of(d) + d.bark().len()
 > app/main/widen
->   retain app.main.Dog (stored)
->   release &app.main.Animal (by design)
 >   release string (last use)
 
 fn loud[T < Dog](d: T) -> usize:
@@ -44,6 +42,3 @@ fn loud[T < Dog](d: T) -> usize:
 
 fn use_pup(p: Pup) -> usize:
     widen(&p) + loud(p)
-> app/main/use_pup
->   retain app.main.Dog (stored)
->   release &app.main.Dog (by design)

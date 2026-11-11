@@ -1757,15 +1757,26 @@ impl Em<'_, '_, '_> {
             }
             return Ok(());
         }
+        // A `&dyn` counts nothing (`ref.count.local`): one that takes a
+        // `*dyn`'s count owns that trait value ([`Em::owned_refs`]).
+        let owns = self.fat_local_ref(self.ty(i))
+            && self.counted(self.ty_of(a)).is_some()
+            && !self.loans.contains(&a);
         if self.take(a)
             && self.susp.is_none()
             && !self.vals.contains_key(&i)
             && let Some(ls) = self.vals.remove(&a)
         {
             self.vals.insert(i, ls);
+            if owns {
+                self.owned_refs.insert(i);
+            }
             return Ok(());
         }
         let moved = self.moving.contains(&(i, a));
+        if owns && moved {
+            self.owned_refs.insert(i);
+        }
         self.push(a)?;
         self.store_as(i, moved)
     }
@@ -2296,7 +2307,12 @@ impl Em<'_, '_, '_> {
             Tag::Read => self.place_read(i)?,
             Tag::Store => self.place_store(i)?,
             // The address form is the trait value its block makes.
-            Tag::RefDyn => self.block_into(a, Some(i))?,
+            Tag::RefDyn => {
+                self.block_into(a, Some(i))?;
+                if a != NONE {
+                    self.own_dyn_value(i, self.b.data[a as usize][1], a);
+                }
+            }
             Tag::RefIdentity => self.ref_identity(i, a)?,
             Tag::Prim => self.prim(i, a, bw)?,
             Tag::And | Tag::Or => {
@@ -2364,6 +2380,7 @@ impl Em<'_, '_, '_> {
                         // ProviderAsRef reads back the provider reference.
                         assert_eq!(k, Coercion::ProviderAsRef as u32);
                         self.same_value(i, a)?;
+                        self.own_dyn_value(i, a, i);
                     }
                 }
             }
@@ -2372,6 +2389,15 @@ impl Em<'_, '_, '_> {
                 let [d, v] = self.provider(key);
                 self.f.get(d);
                 self.f.get(v);
+                // The `&dyn` a `$.use` makes of the caller-held provider
+                // borrows it.
+                if hd_tir::own::provider_view(self.b, i as usize, |t| {
+                    self.fat_local_ref(self.sub(t))
+                })
+                .is_some()
+                {
+                    self.loans.insert(i);
+                }
                 self.store_owned(i)?;
             }
             // A guard proven false runs no arm; its condition's operands
@@ -2943,9 +2969,11 @@ impl Em<'_, '_, '_> {
         }
         // A function returns its result with a count for the caller. One
         // the checker typed as a local reference (`ref.convert.lend`, as
-        // `let r: &mut T = make()`) owns the object that count keeps.
+        // `let r: &mut T = make()`) owns the object that count keeps; a
+        // `&dyn` owns the trait value.
         if matches!(self.counted(ret), Some(crate::layout::Walk::Known(_)))
             && self.local_ref(self.ty(i))
+            || self.counted(ret).is_some() && self.fat_local_ref(self.ty(i))
         {
             self.owned_refs.insert(i);
         }
@@ -3035,7 +3063,25 @@ impl Em<'_, '_, '_> {
             return self.call_drive(i, a, args, on);
         }
         self.push_dyn(i, a, args, Some(ty), None)?;
-        self.call_results(i, ty)
+        self.call_results(i, ty)?;
+        // A method that returns a `*dyn` gives its count to the caller; one
+        // the checker typed as a `&dyn` owns that trait value, as a direct
+        // call's does ([`Em::call_results`]).
+        if self.fat_local_ref(ty)
+            && let Some(Callee::TraitMethod { method, .. }) = Callee::from_words(self.b.record(a))
+            && let Some(ret) = self.env().ret(method)
+            && matches!(
+                self.kind(ret),
+                crate::layout::Kind::Ref {
+                    fat: true,
+                    whole: true,
+                    ..
+                }
+            )
+        {
+            self.owned_refs.insert(i);
+        }
+        Ok(())
     }
 
     /// The `block_on` that drives cold dynamic call `i` at once through

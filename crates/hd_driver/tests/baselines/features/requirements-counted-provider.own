@@ -42,7 +42,7 @@ fn fetch!() -> usize $ Store:
 >   %3 = ProviderGet #0 : Store
 >   %4 = Coerce %3 [ProviderAsRef -] : &dyn Store
 >   %5 = Read borrow [*%4] : Store
->   %6 = LoanEnd [%4] : ()
+>   %6 = Drop [%4] : ()
 >   %7 = Call app/main/Store.get for Store [] via TraitValue (%5) : string
 >   %8 = Store [$1] %7 : ()
 >   %9 = Read borrow [$1] : string

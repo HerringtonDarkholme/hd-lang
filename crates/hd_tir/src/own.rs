@@ -42,8 +42,8 @@
 use hd_types::Ty;
 
 use crate::ir::{
-    Body, Callee, CaptureMode, IntrinsicOp, NONE, ReadMode, Ref, Root, Tag, Topology, Word, inside,
-    slots, u32_of,
+    Body, Callee, CaptureMode, Coercion, IntrinsicOp, NONE, ReadMode, Ref, Root, Tag, Topology,
+    Word, inside, slots, u32_of,
 };
 
 pub use hoist::{EntryTest, entry_test, loop_statements, loop_test};
@@ -94,7 +94,7 @@ mod reason;
 mod ref_copy;
 pub(crate) mod referent;
 pub(crate) mod retains;
-pub use retains::took_source;
+pub use retains::{provider_view, took_source};
 mod live;
 mod self_store;
 pub mod short;
@@ -261,8 +261,8 @@ pub trait OwnCx {
         let _ = (from, to);
         false
     }
-    /// Whether every count `ty` holds is a thin local reference's, which
-    /// counts nothing (`own/plain.rs`). The default answers no.
+    /// Whether every count `ty` holds is a local reference's, thin or a
+    /// `&dyn`, which counts nothing (`own/plain.rs`). The default answers no.
     fn plain_reference(&self, ty: Ty) -> bool {
         let _ = ty;
         false
@@ -623,9 +623,33 @@ pub(crate) fn owned_value(b: &Body, i: usize) -> bool {
 /// Whether instruction `i` is a coercion that lends a counted reference
 /// as a local one ([`OwnCx::lends`]).
 pub(crate) fn lending_coercion(b: &Body, cx: &dyn OwnCx, i: usize) -> bool {
-    b.same_value_coercion(i)
-        && Ref(b.data[i][0]).as_inst().is_some()
-        && cx.lends(b.ty[b.data[i][0] as usize], b.ty[i])
+    Ref(b.data[i][0]).as_inst().is_some()
+        && ((b.same_value_coercion(i) && cx.lends(b.ty[b.data[i][0] as usize], b.ty[i]))
+            || dyn_view(b, cx, i).is_some())
+}
+
+/// The `RefDyn` of a `&dyn`, a local reference, whose trait value
+/// coercion `i` makes, widening one (`Supertrait`) or converting a local
+/// reference (`RefToTraitValue`): `i` is the tail of the `RefDyn`'s block,
+/// which the checker closes right after it (`hd_check`'s `dynref.rs`), with
+/// a few statements at most between. A `&dyn` counts nothing
+/// (`ref.count.local`), so `i` lends its operand, which lives until the
+/// `&dyn`'s last use (`frame`, rule 5).
+pub fn dyn_view(b: &Body, cx: &dyn OwnCx, i: usize) -> Option<usize> {
+    if b.tags.get(i) != Some(&Tag::Coerce)
+        || ![Coercion::Supertrait, Coercion::RefToTraitValue]
+            .iter()
+            .any(|&c| b.record(b.data[i][1]).first() == Some(&(c as u32)))
+    {
+        return None;
+    }
+    let block = (i + 1..b.len().min(i + 6))
+        .find(|&k| b.tags[k] == Tag::Block && b.data[k][1] == u32_of(i))?;
+    let owner = block + 1;
+    (b.tags.get(owner) == Some(&Tag::RefDyn)
+        && b.data[owner][0] == u32_of(block)
+        && cx.plain_reference(b.ty[owner]))
+    .then_some(owner)
 }
 
 /// Whether `Read` `i` reads all of a local holding a counted reference

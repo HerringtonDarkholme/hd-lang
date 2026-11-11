@@ -70,9 +70,9 @@ pub fn counted_type(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> bool {
     layout::holds_drop(pool, env, ty) || layout::walk(pool, env, ty).is_some()
 }
 
-/// Whether this concrete parameter type holds a thin local reference
-/// (`ref.count.local`) by value, itself or as a tuple member or a field,
-/// which counts nothing. Its cold frame holds a separate page-table count
+/// Whether this concrete parameter type holds a local reference
+/// (`ref.count.local`), thin or a `&dyn`, by value, itself or as a tuple
+/// member or a field, which counts nothing. Its cold frame holds a separate page-table count
 /// of each referenced object ([`frame_referent_values`]).
 #[must_use]
 pub fn frame_referent_type(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> bool {
@@ -80,7 +80,7 @@ pub fn frame_referent_type(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> b
 }
 
 /// The values of a parameter of type `ty` whose objects a cold frame
-/// counts: each thin local reference it holds by value on every path.
+/// counts: each local reference it holds by value on every path.
 #[must_use]
 pub fn frame_referent_values(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> Vec<u32> {
     layout::thin_local_ref_values(pool, env, ty)
@@ -116,8 +116,8 @@ pub fn reference_target_type(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) ->
 }
 
 /// Whether every counted value of `ty` the ownership passes track is a
-/// thin local reference's, which counts nothing, with no `std.rt.Drop` to
-/// run.
+/// local reference's, thin or a `&dyn`, which counts nothing, with no
+/// `std.rt.Drop` to run.
 #[must_use]
 pub fn plain_reference_type(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> bool {
     !layout::holds_drop(pool, env, ty)

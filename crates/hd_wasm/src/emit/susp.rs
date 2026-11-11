@@ -644,6 +644,17 @@ impl Em<'_, '_, '_> {
         for l in &tmp {
             self.f.get(*l);
         }
+        self.store_awaited(i)
+    }
+
+    /// Stores await `i`'s result, which arrives with its count. One the
+    /// checker typed as a `&dyn` (`ref.convert.lend`, as
+    /// `let r: &mut dyn T = make!()`) owns the trait value that count
+    /// keeps, as a call's does ([`Em::owned_refs`]).
+    fn store_awaited(&mut self, i: u32) -> StageResult<()> {
+        if self.fat_local_ref(self.ty(i)) {
+            self.owned_refs.insert(i);
+        }
         self.store_owned(i)
     }
 
@@ -780,7 +791,7 @@ impl Em<'_, '_, '_> {
         for l in &tmp {
             self.f.get(*l);
         }
-        self.store_owned(i)
+        self.store_awaited(i)
     }
 
     /// Whether a dynamic bang call of the callee record at `a` goes
@@ -856,7 +867,7 @@ impl Em<'_, '_, '_> {
         for l in &tmp {
             self.f.get(*l);
         }
-        self.store_owned(i)
+        self.store_awaited(i)
     }
 
     /// Ends one completed child result where its point's cleanup packet

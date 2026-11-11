@@ -2,8 +2,8 @@
 # @dump: tir own counts wat
 # @build: v8 release
 # Feature: `dyn` calls (#1364).
-# expected: the `&dyn` count of #1354 at most; the method returns a
-# copy of `self.n` with one retain.
+# expected: the `&dyn` counts nothing; the method returns a copy of
+# `self.n` with one retain.
 trait Named:
     fn name(&self) -> string
 

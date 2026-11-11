@@ -297,7 +297,7 @@ when a reason holds:
 | `Release v` | cancelled | a suspension point is cancelled while `v` is live across it |
 | `IsUnique b` | may be shared | `b` is not fresh, and since its last check a retain, a consuming use or a keeping call may have shared it |
 | `LoanBegin`, `LoanEnd` | pointer loan | a reference through a `*T` outlives its expression, and elision found a possible conflicting access |
-| any | by design | the `&dyn` data count (#1354), a suspension's counted reference (#1355) |
+| any | by design | a `*dyn`'s data count, a suspension's counted reference (#1355) |
 | any | conservative | a fact was not computed (a size cap); reported, and its budget may only fall |
 
 Read modes follow: a read is `move` at the place's last access, `borrow`
@@ -385,8 +385,10 @@ for a baseline; the verifier makes them checked.
   trap on a retained buffer (b8382fa46).
 - **`&dyn` and `&mut dyn`**
   ([Trait Values And `Any`](../../spec/lang/04-type-system.md#trait-values-and-any)).
-  A trait reference lends like any reference. Its data count stays, with
-  the reason "by design", until #1354 lands.
+  A trait reference lends like any reference and counts nothing (#1354).
+  One that takes the count of a value made for it, a `*dyn` call result
+  or a copy, owns that trait value, as a local reference owns the new
+  object it made.
 - **Tier 2 lifetimes.** The lifetime solver proves where each local
   reference points and that it stays in scope; a local reference keeps
   nothing alive ([Local References](../../spec/lang/13-values-and-references.md#local-references)).

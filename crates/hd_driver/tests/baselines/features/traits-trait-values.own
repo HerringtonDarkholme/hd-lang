@@ -108,7 +108,7 @@ fn local_mut(u: User, n: string) -> usize:
 >   local $0 u: User [param read] value
 >     uses $0: entry -> %2 consume last
 >   local $1 n: string [param read] value
->     uses $1: entry -> %12 lend last
+>     uses $1: entry -> %11 lend last
 >   local $2 v: User [read assigned captured captured-assigned] place
 >   local $3 $ref: &mut User [read assigned captured] value
 >     uses $3: %5 -> %6 lend last
@@ -117,20 +117,20 @@ fn local_mut(u: User, n: string) -> usize:
     let mut v = u
 >   %2 = Read move [$0] : User
 >   %3 = Store [$2] %2 : ()
->   %17 = Block %13 : usize
+>   %17 = Block %12 : usize
     through_mut(&mut v, n)
 >   %4 = Ref mut local frame [$2] : &mut User
 >   %5 = Store [$3] %4 : ()
->   %6 = Read move [$3] : &mut User
+>   %6 = Read copy [$3] : &mut User
 >   %7 = Coerce %6 [RefToTraitValue -] : Greet
->   %8 = Retain %7 Value #0 : ()
->   %9 = LoanEnd [%6] : ()
->   %10 = Block %7 : Greet
->   %11 = RefDyn %10 : &mut dyn Greet
->   %12 = Read borrow [$1] : string
->   %13 = Call app/main/through_mut[] (%11, %12) : usize
->   %14 = Retain %13 Operation operand 1 #0 : ()
->   %15 = Drop [%11] : ()
+>   %8 = LoanEnd [%6] : ()
+>   %9 = Block %7 : Greet
+>   %10 = RefDyn %9 : &mut dyn Greet
+>   %11 = Read borrow [$1] : string
+>   %12 = Call app/main/through_mut[] (%10, %11) : usize
+>   %13 = Retain %12 Operation operand 1 #0 : ()
+>   %14 = Drop [%10] : ()
+>   %15 = LoanEnd [$3] : ()
 >   %16 = Drop [$2] : ()
 >   %4 finds [$2] full
 >   exit sub 0 drops [$0]

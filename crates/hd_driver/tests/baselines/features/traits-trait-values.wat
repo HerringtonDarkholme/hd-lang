@@ -4,7 +4,6 @@
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
-  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
@@ -135,36 +134,23 @@
     local.get $t1
     local.tee $u.name.0
     ;; 35 |     through_mut(&mut v, n)
-    local.tee $u.name.1
-    local.tee $t1
-    if
-      local.get $t1
-      call $retain
-    end
-    local.get $u.name.1
     i32.const 160 ;; &vtable[func44, func45]
     local.get $n.0
     local.get $n.1
     call $through_mut
-    local.set $n.0
-    local.get $u.name.1
+    local.set $u.name.1
     ;; 34 |     let mut v = u
-    local.tee $t1
-    if
-      local.get $t1
-      call $rt:release_ref
-    end
     local.get $u.name.0
     if
       local.get $u.name.0
       i32.load $heap
-      local.tee $t1
+      local.tee $u.name.0
       if
-        local.get $t1
+        local.get $u.name.0
         call $rt:release_ref
       end
     end
-    local.get $n.0
+    local.get $u.name.1
     local.get $t0
     i32.const 16
     i32.add

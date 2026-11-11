@@ -1,0 +1,20 @@
+# @dump: own counts
+# @build: v8 dev
+# A `&dyn` argument borrows like any `&T`: the caller's root lives to the
+# call's end, so neither the caller nor the callee counts the object.
+trait Shape:
+    fn area(&self) -> i64
+
+struct Square:
+    side: i64
+
+impl Shape for Square:
+    fn area(&self) -> i64:
+        self.side * self.side
+
+fn measure(s: &dyn Shape) -> i64:
+    s.area()
+
+fn caller(n: i64) -> i64:
+    q := Square { side: n }
+    measure(&q)

@@ -81,9 +81,15 @@ impl Em<'_, '_, '_> {
     /// Read the explicit result count, without deciding one from its layout:
     /// a stated retain, or the source's count taken over.
     pub(super) fn has_stated_retain(&self, value: u32) -> bool {
+        self.has_result_retain(value)
+            || hd_tir::own::took_source(self.b, &self.topo, value as usize)
+    }
+
+    /// Whether the passes state a `Retain` of `value`'s result right after
+    /// it.
+    pub(super) fn has_result_retain(&self, value: u32) -> bool {
         hd_tir::ir::count::following(self.b, &self.topo, value, Tag::Retain)
             == Some(Info::new(At::Value, Part::Result, 0))
-            || hd_tir::own::took_source(self.b, &self.topo, value as usize)
     }
 
     /// Whether `Store` `i` releases what its place holds.
@@ -207,6 +213,32 @@ impl Em<'_, '_, '_> {
         )
     }
 
+    /// Whether `t` is a `&dyn` or `&mut dyn`: a fat local reference, which
+    /// counts nothing (`ref.count.local`), though one may own the trait
+    /// value it is ([`Em::owned_refs`]).
+    pub(super) fn fat_local_ref(&self, t: Ty) -> bool {
+        matches!(
+            self.kind(t),
+            crate::layout::Kind::Ref {
+                fat: true,
+                whole: false,
+                ..
+            }
+        )
+    }
+
+    /// Releases the object that local reference `t` in locals `ls` owns
+    /// ([`Em::owned_refs`]): a thin one's new object, or the data of the
+    /// trait value a `&dyn` is.
+    fn release_owned_ref(&mut self, ls: &[u32], t: Ty) -> StageResult<()> {
+        if let Some((target, true)) = self.ref_target(t) {
+            return self.release_locals(ls, target);
+        }
+        self.f.get(ls[0]);
+        self.f.helper(Helper::ReleaseKnown);
+        Ok(())
+    }
+
     /// Whether releasing a value has work: reference counts, a
     /// `std.rt.Drop` hook on an inline value, or one on an inline field.
     /// A thin local reference counts nothing, but its end ends its loans
@@ -252,7 +284,8 @@ impl Em<'_, '_, '_> {
     /// a value no count of its own keeps, which the count makes a copy.
     pub(super) fn count_locals(&mut self, ls: &[u32], t: Ty, retain: bool) -> StageResult<()> {
         let start = self.f.body.len();
-        // A `&dyn`'s data count stands by design (#1354).
+        // A `*dyn`'s data count, through the page table, stands by
+        // design; a `&dyn` counts nothing.
         let reason = if self.ref_target(t).is_some_and(|(_, fat)| fat) {
             Some(Reason::ByDesign)
         } else {
@@ -283,7 +316,7 @@ impl Em<'_, '_, '_> {
     /// value, from a fact of the code writing it: what `Overwritten`
     /// replaces has its store's `Release`, `Cancelled` and a frame's
     /// `ByDesign` only run where a suspending body ends, `ByDesign` otherwise
-    /// counts a `&dyn`'s data.
+    /// counts a `*dyn`'s data.
     fn assert_reason_fact(&self, t: Ty) {
         if cfg!(target_arch = "wasm32") || !self.f.names_counts {
             return;
@@ -575,8 +608,7 @@ impl Em<'_, '_, '_> {
             return Ok(());
         }
         if self.owned_refs.contains(&x) {
-            self.f.get(ls[0]);
-            self.f.helper(Helper::ReleaseKnown);
+            self.release_owned_ref(&ls, t)?;
         } else if !self.loans.contains(&x) {
             self.release_drop_place(&ls, t, &Self::value_place(x))?;
         }
@@ -610,6 +642,10 @@ impl Em<'_, '_, '_> {
     fn release_owned_local(&mut self, l: usize, ls: &[u32]) -> StageResult<()> {
         self.borrow_release(l);
         if self.owned_locals.contains(&l) {
+            let t = self.sub(self.b.local_ty[l]);
+            if self.fat_local_ref(t) {
+                return self.release_owned_ref(ls, t);
+            }
             self.f.get(ls[0]);
             self.f.op(crate::op::Op::If(wasm_encoder::BlockType::Empty));
             self.f.get(ls[0]);

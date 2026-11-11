@@ -3,8 +3,8 @@
 # @build: v8 release
 # Feature: `$.with` providers (#1364).
 # expected: installing the box takes no count beyond the provider slot's;
-# `$.use` reads the provider with no count (the `&dyn` class of #1354 at
-# most); `name` retains the string it returns.
+# `$.use` reads the provider with no count; `name` retains the string it
+# returns.
 trait Namer:
     fn name(&self) -> string
 

@@ -776,7 +776,7 @@ impl Em<'_, '_, '_> {
     ) -> StageResult<()> {
         let at = self.offset_local(at, off);
         if fat {
-            self.load_through(at, field);
+            self.fat_ref_through(i, at, field);
         } else {
             self.f.get(at);
         }
@@ -818,7 +818,7 @@ impl Em<'_, '_, '_> {
         match value {
             ValueAt::Mem(at, _) if fat => {
                 let value = self.ref_layout(ty)?;
-                self.load_through(at, &value);
+                self.fat_ref_through(i, at, &value);
                 self.store_owned(i)?;
                 return Ok(());
             }
@@ -1018,6 +1018,19 @@ impl Em<'_, '_, '_> {
             self.f.op(leaf.load(0));
         }
         self.store(dest)
+    }
+
+    /// Pushes fat `Ref` `i`, the trait value that the reference in local
+    /// `at` names: lent when `i` is a `&dyn`, a local reference, which
+    /// counts nothing (`ref.count.local`), else with counts of its own.
+    fn fat_ref_through(&mut self, i: u32, at: u32, value: &RefLayout) {
+        if self.counted(self.ty(i)).is_none() {
+            for l in rt::ref_lend(&mut self.f, at, value) {
+                self.f.get(l);
+            }
+        } else {
+            self.load_through(at, value);
+        }
     }
 
     /// Pushes the value that the reference in local `at` names, with

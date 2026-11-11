@@ -3,7 +3,7 @@
 # @build: v8 release
 # Feature: Allocation Identity: `is` after a `&mut dyn` conversion (spec/lang/05-expressions.md, #1364).
 # expected: the conversions allocate no wrapper, and `is` compares one
-# place; any count on the conversion is the `&dyn` design (#1354).
+# place; the conversions count nothing.
 trait Named:
     fn name(&self) -> string
 
@@ -18,10 +18,5 @@ impl Named for User:
 
 fn same_dyn(user: &mut User) -> bool:
     let first: &mut dyn Named = user
-> app/main/same_dyn
->   retain app.main.Named (stored)
->   release &mut app.main.Named (by design)
->   release &mut app.main.Named (by design)
     let second: &mut dyn Named = user
->   retain app.main.Named (stored)
     first is second

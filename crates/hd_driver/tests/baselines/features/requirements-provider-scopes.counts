@@ -5,7 +5,7 @@
 # Other Providers (spec/lang/11-requirements-and-suspension.md, #1364).
 # expected: `by_value` copies the `Named` value into one new object and
 # moves `s` into it; `nested` makes one object per scope; `$.use` and
-# `name` read the provider with the `&dyn` count of #1354 at most;
+# `name` read the provider with no count;
 # `lexical` captures the provider reference with no environment.
 trait Tag:
     fn name(self) -> string
@@ -43,10 +43,8 @@ fn apply(f: fn() -> usize) -> usize:
 fn lexical(s: string) -> usize:
     $.with(Tag=Named { label: s }):
 > app/main/lexical
->   release &app.main.Tag (by design)
 >   release app.main.Tag (last use)
         tag := $.use(Tag)
->   retain app.main.Tag (stored)
         apply(fn() -> usize: tag.name().len())
 >   release string (last use)
 

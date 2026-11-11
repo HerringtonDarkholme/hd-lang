@@ -82,7 +82,14 @@ impl Em<'_, '_, '_> {
             };
             let vt = self.vtable_of(&table, leaves, from)?;
             self.f.push(Ins::VTable(vt));
-            return self.store_as(i, self.has_stated_retain(i));
+            // A local reference counts nothing (`ref.count.local`): the
+            // trait value made from one borrows its referent too.
+            // A local reference has no count for the trait value to take.
+            let borrowed = !self.has_result_retain(i) && direct && self.counted(from).is_none();
+            if borrowed {
+                self.loans.insert(i);
+            }
+            return self.store_as(i, borrowed || self.has_stated_retain(i));
         }
         let src = Src::Ref(a);
         let m = mem_of(self.pool(), self.env(), from)?;
@@ -263,6 +270,25 @@ impl Em<'_, '_, '_> {
     /// (`refs.rs`), so the provider is `a` itself, which `ProviderAsRef`
     /// reads back. Checking coerces `a` to a reference to the key's trait
     /// value first.
+    /// `RefDyn` or provider coercion `i` of a `&dyn`, a local reference, which counts nothing
+    /// (`ref.count.local`), made from value `tail`, which it or `user`
+    /// consumes: one that holds a count, as a copy or a provider's, is a value the reference owns,
+    /// which its `Drop` releases ([`Em::owned_refs`]), as a thin local
+    /// reference owns the new object it made.
+    pub(super) fn own_dyn_value(&mut self, i: u32, tail: u32, user: u32) {
+        if self.fat_local_ref(self.ty(i))
+            && hd_tir::ir::Ref(tail).as_inst().is_some()
+            && self
+                .consumer
+                .get(tail as usize)
+                .is_some_and(|&c| c == user || c == i)
+            && !self.loans.contains(&tail)
+            && self.counted(self.ty_of(tail)).is_some()
+        {
+            self.owned_refs.insert(i);
+        }
+    }
+
     pub(super) fn ref_as_provider(&mut self, i: u32, a: u32) -> StageResult<()> {
         self.push(a)?;
         self.store_owned(i)
@@ -430,7 +456,17 @@ impl Em<'_, '_, '_> {
         for at in path {
             self.f.op(I::I32Load(mem(HEAP, u64::from(at), 2)));
         }
-        if read.as_ref().is_some_and(|r| r.2) {
+        // Widening a `&dyn`, a local reference, or a borrow of the trait
+        // value one refers to, borrows as it does.
+        let borrowed = !self.has_result_retain(i)
+            && match &read {
+                Some((_, _, loaded)) => !loaded && self.counted(source).is_none(),
+                None => self.loans.contains(&a),
+            };
+        if borrowed {
+            self.loans.insert(i);
+        }
+        if read.as_ref().is_some_and(|r| r.2) || borrowed {
             self.store_owned(i)
         } else {
             self.store_as(i, self.has_stated_retain(i))

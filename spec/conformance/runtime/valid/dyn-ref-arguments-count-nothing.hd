@@ -1,0 +1,57 @@
+# test: a trait value reference made from a local, a box, a temporary, an element or another trait value reference keeps its source alive for its uses and counts nothing
+# Rules: ref.count.local; Spec 09 Trait Value References: trait.dyn.ref.share, trait.dyn.ref.widen.
+# expect-stdout: 9 q 2
+# expect-stdout: 9
+# expect-stdout: 9
+# expect-stdout: 16
+# expect-stdout: 25
+# expect-stdout: 36 e
+trait Shape:
+    fn area(&self) -> i64
+
+trait Named < Shape:
+    fn name(&self) -> string
+
+struct Square:
+    side: i64
+    label: string
+
+impl Shape for Square:
+    fn area(&self) -> i64:
+        self.side * self.side
+
+impl Named for Square:
+    fn name(&self) -> string:
+        self.label
+
+fn measure(s: &dyn Shape) -> i64:
+    s.area()
+
+fn widen(n: &dyn Named) -> i64:
+    measure(n)
+
+struct Holder['a]:
+    item: &'a dyn Named
+
+fn through(h: &Holder) -> i64:
+    measure(h.item)
+
+fn from_box() -> i64:
+    b := box(Square { side: 4, label: "box" })
+    let s: &dyn Shape = b
+    s.area()
+
+fn temp() -> i64:
+    measure(&Square { side: 5, label: "temp ${1}" })
+
+pub fn main() -> void $ Console:
+    q := Square { side: 3, label: "q ${2}" }
+    println("${measure(&q)} ${q.label}")
+    println(widen(&q))
+    let n: &dyn Named = &q
+    h := Holder { item: n }
+    println(through(&h))
+    println(from_box())
+    println(temp())
+    l := [Square { side: 6, label: "e" }]
+    println("${measure(&l[0])} ${l[0].label}")

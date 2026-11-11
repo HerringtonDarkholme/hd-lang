@@ -5,7 +5,7 @@
 # Bound Associated Types (spec/lang/09-traits.md, #1364).
 # expected: `first` and `read` return the stored `string` with one
 # retain; `first_len` reads it with no count; `read` dispatches through
-# the vtable with the `&dyn` count of #1354 at most.
+# the vtable with no count.
 trait Supplier:
     type Item
     fn get(&self) -> Self::Item
@@ -36,6 +36,4 @@ fn read(source: &dyn Supplier[Item = string]) -> usize:
 fn read_const(c: Constant) -> usize:
     read(&c)
 > app/main/read_const
->   retain app.main.Supplier[Item = string] (stored)
->   release &app.main.Supplier[Item = string] (by design)
 >   release app.main.Constant [value.0] (last use)

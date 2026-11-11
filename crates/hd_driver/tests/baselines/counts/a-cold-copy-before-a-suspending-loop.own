@@ -10,7 +10,7 @@ app/main/run
   %6 = ProviderGet #0 : Wait
   %7 = Coerce %6 [ProviderAsRef -] : &mut dyn Wait
   %8 = Read copy [*%7] : Wait
-  %9 = LoanEnd [%7] : ()
+  %9 = Drop [%7] : ()
   %10 = Await app/main/Wait.wait for Wait [] via TraitValue (%8) : ()
   %11 = Release %10 Operation child #2 : ()
   %12 = Drop [%8] : ()

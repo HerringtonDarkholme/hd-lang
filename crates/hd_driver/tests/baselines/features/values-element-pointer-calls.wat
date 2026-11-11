@@ -3,9 +3,7 @@
   (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
-  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
-  (import "fixture" "retain" (func $retain (param i32)))
-  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
@@ -91,7 +89,7 @@
       i32.load $heap
       if
         local.get $t2
-        call $rt:release_ref'1
+        call $rt:release_ref
       end
     end
   )
@@ -135,24 +133,13 @@
     local.tee $t1
     i64.const 0
     i64.store $heap
-    local.get $t1
     ;; 40 |     walk(root, &mut total)
-    local.tee $t2
-    if
-      local.get $t2
-      call $retain
-    end
     local.get $root
-    local.get $t1
-    i32.const 288 ;; &vtable[func47]
-    call $walk
     ;; 39 |     let mut total = Total { sum: 0 }
     local.get $t1
-    local.tee $t2
-    if
-      local.get $t2
-      call $rt:release_ref'2
-    end
+    ;; 40 |     walk(root, &mut total)
+    i32.const 288 ;; &vtable[func43]
+    call $walk
     ;; 41 |     let mut keeper = Keeper { saved: [] }
     local.get $t0
     i64.const 0
@@ -183,15 +170,14 @@
     i32.load $heap offset=4
     ;; 39 |     let mut total = Total { sum: 0 }
     local.get $t1
-    local.tee $t2
     if
-      local.get $t2
+      local.get $t1
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t2
-        call $rt:release_ref'1
+        local.get $t1
+        call $rt:release_ref
       end
     end
     ;; 43 |     total.sum + i64(keeper.saved.len())
@@ -269,7 +255,7 @@
       i32.load $heap
       if
         local.get $node
-        call $rt:release_ref'1
+        call $rt:release_ref
       end
     end
   )

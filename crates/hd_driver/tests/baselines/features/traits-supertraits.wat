@@ -75,20 +75,8 @@
     local.get $t2
     i32.store $heap offset=4
     local.get $p
-    local.tee $t1
-    if
-      local.get $t1
-      call $retain
-    end
-    local.get $p
     i32.const 168 ;; &vtable[func24]
     call $widen
-    local.get $p
-    local.tee $t1
-    if
-      local.get $t1
-      call $rt:release_ref
-    end
     local.get $p
     i32.load $heap
     local.get $p
@@ -127,38 +115,24 @@
     i32.const 65 ;; &"woof"
     i32.const 4
   )
-  (func $widen (param $d.0 i32) (param $d.1 i32) (result i32) (local $t1 i32) (local $t0 i32)
+  (func $widen (param $d.0 i32) (param $d.1 i32) (result i32) (local $t0 i32)
     ;; 29 |     name_of(d) + d.bark().len()
-    local.get $d.0
-    local.tee $t0
-    if
-      local.get $t0
-      call $retain
-    end
     local.get $d.0
     local.get $d.1
     i32.load $heap offset=4
-    local.set $t1
-    local.tee $t0
-    local.get $t1
     call $name_of
-    local.set $t1
-    local.get $t0
-    if
-      local.get $t0
-      call $rt:release_ref
-    end
+    local.set $t0
     local.get $d.0
     local.get $d.1
     i32.load $heap
     call_indirect $table0 (param i32) (result i32 i32)
     local.set $d.0
-    local.tee $t0
+    local.tee $d.1
     if
-      local.get $t0
+      local.get $d.1
       call $rt:release_ref
     end
-    local.get $t1
+    local.get $t0
     local.get $d.0
     i32.add
   )

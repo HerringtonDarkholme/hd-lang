@@ -84,7 +84,7 @@ pub fn main!() -> void $ Console + Clock:
 >   %26 = ProviderGet #29 : Meter
 >   %27 = Coerce %26 [ProviderAsRef -] : &mut dyn Meter
 >   %28 = Read borrow [*%27] : Meter
->   %29 = LoanEnd [%27] : ()
+>   %29 = Drop [%27] : ()
 >   %30 = Call app/main/Meter.record for Meter [] via TraitValue (%28) : ()
     println("${counter.n}")
 >   %34 = Ref local [*$1 .n] : &i32

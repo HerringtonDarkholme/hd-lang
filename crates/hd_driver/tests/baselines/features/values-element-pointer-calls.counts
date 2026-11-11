@@ -48,10 +48,8 @@ fn save(node: &Node, k: &mut Keeper) -> void:
 pub fn run(root: *Node) -> i64:
     let mut total = Total { sum: 0 }
 > app/main/run
->   release &mut app.main.Sink (by design)
 >   release List[*app.main.Node] (last use)
     walk(root, &mut total)
->   retain app.main.Sink (stored)
     let mut keeper = Keeper { saved: [] }
     save(root, &mut keeper)
     total.sum + i64(keeper.saved.len())

@@ -604,6 +604,10 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                     t.v[v].stored = u32_of(i);
                     false
                 }
+                // A trait value a `&dyn` is made of lends what it reads: the
+                // `&dyn` counts nothing, and the checker keeps its referent
+                // unchanged while it lives (`ref.count.local`).
+                Role::Consume if tag == Tag::Coerce && super::dyn_view(b, cx, i).is_some() => false,
                 Role::Consume | Role::Tail => true,
                 Role::Arg(_) => consumes(b, cx, i, op, NONE),
                 Role::Dropped => false,
@@ -1211,6 +1215,21 @@ fn solve(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) {
             t.relies |= t.bits[bit].relied;
         }
     }
+    // The trait value a `&dyn` is made of, read through a reference, is
+    // that reference's referent, which the checker keeps unchanged while
+    // the `&dyn` lives and whose root lives as long (`frame`, rule 5): a
+    // borrow, as the `&dyn` counts nothing (`ref.count.local`).
+    for r in 0..b.len() {
+        let f = t.v[r];
+        if b.tags[r] == Tag::Read
+            && b.data[r][1] == ReadMode::Copy as u32
+            && f.uses == 1
+            && b.view(b.data[r][0]).first(b) == Some(Proj::Deref)
+            && super::dyn_view(b, cx, f.user as usize).is_some()
+        {
+            t.v[r].borrows = true;
+        }
+    }
     // A value no instance copies is never copied: a match decides through
     // its scrutinee by borrowing it. There is no count to end or drop.
     for r in 0..b.len() {
@@ -1299,7 +1318,8 @@ pub(crate) fn apply(b: &mut Body, topo: &Topology, t: &Tables, edits: &mut splic
                 && match p.root {
                     Root::Value(v) => {
                         let bit = t.v[v as usize].bit;
-                        bit != NONE && t.v[t.bits[bit as usize].read as usize].borrows
+                        t.v[v as usize].borrows
+                            || bit != NONE && t.v[t.bits[bit as usize].read as usize].borrows
                     }
                     Root::Local(l) => t.l[l as usize].unowned,
                     _ => false,

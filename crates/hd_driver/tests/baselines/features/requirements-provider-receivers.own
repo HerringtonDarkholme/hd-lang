@@ -71,7 +71,7 @@ fn count(n: i64) -> void $ Meter:
 >   %16 = ProviderGet #22 : Meter
 >   %17 = Coerce %16 [ProviderAsRef -] : &mut dyn Meter
 >   %18 = Read borrow [*%17] : Meter
->   %19 = LoanEnd [%17] : ()
+>   %19 = Drop [%17] : ()
 >   %20 = Read copy [$4] : i64
 >   %21 = Call app/main/Meter.record for Meter [] via TraitValue (%18, %20) : ()
 >   summary kept [] writes
@@ -124,7 +124,7 @@ fn count_later!(n: i64, wait: Suspend[void]) -> void $ Meter:
 >   %22 = ProviderGet #22 : Meter
 >   %23 = Coerce %22 [ProviderAsRef -] : &mut dyn Meter
 >   %24 = Read borrow [*%23] : Meter
->   %25 = LoanEnd [%23] : ()
+>   %25 = Drop [%23] : ()
 >   %26 = Read copy [$5] : i64
 >   %27 = Call app/main/Meter.record for Meter [] via TraitValue (%24, %26) : ()
         wait!()

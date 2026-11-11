@@ -36,21 +36,24 @@ fn cold(work: &dyn Work) -> Suspend[i32] $ Tag:
 fn awaited!(work: &dyn Work) -> i32 $ Tag:
 > app/main/awaited
 >   local $0 work: &dyn Work [param read] value
->     uses $0: entry -> %6 lend last
->   %0 = Retain %12 Cold local $0 #0 : ()
->   %1 = Retain %12 Entry local $0 #0 : ()
+>     uses $0: entry -> %9 lend last
+>   %0 = Retain %15 Cold local $0 #0 : ()
+>   %1 = Retain %15 Entry local $0 #0 : ()
+>   %5 = Retain %15 Cold referent $0 #8 : ()
+>   %6 = Release %15 FrameDrop referent $0 #2 : ()
+>   %7 = Release %15 Exit referent $0 #8 : ()
     work.later!()
->   %2 = Retain %12 Cold row #0 : ()
->   %3 = Retain %12 Materialize row #0 : ()
->   %4 = Release %12 FrameDrop row #2 : ()
->   %5 = Release %12 FrameDrop child #2 : ()
->   %6 = Read borrow [*$0] : Work
->   %7 = Await app/main/Work.later for Work [] via TraitValue (%6) : i32
->   %8 = Retain %7 Operation row #0 : ()
->   %9 = Release %7 Operation row #2 : ()
->   %10 = Release %7 Operation child #2 : ()
->   %11 = Drop [$0] : ()
->   %12 = Block %7 : i32
+>   %2 = Retain %15 Cold row #0 : ()
+>   %3 = Retain %15 Materialize row #0 : ()
+>   %4 = Release %15 FrameDrop row #2 : ()
+>   %8 = Release %15 FrameDrop child #2 : ()
+>   %9 = Read borrow [*$0] : Work
+>   %10 = Await app/main/Work.later for Work [] via TraitValue (%9) : i32
+>   %11 = Retain %10 Operation row #0 : ()
+>   %12 = Release %10 Operation row #2 : ()
+>   %13 = Release %10 Operation child #2 : ()
+>   %14 = Drop [$0] : ()
+>   %15 = Block %10 : i32
 >   exit sub 0 drops [$0]
 >   summary none
->   live %7 [%6 $0]
+>   live %10 [%9 $0]

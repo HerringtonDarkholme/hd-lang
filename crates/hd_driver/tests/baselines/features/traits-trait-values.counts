@@ -38,7 +38,5 @@ fn through_mut(g: &mut dyn Greet, n: string) -> usize:
 fn local_mut(u: User, n: string) -> usize:
     let mut v = u
 > app/main/local_mut
->   release &mut app.main.Greet (by design)
 >   release app.main.User [name.0] (last use)
     through_mut(&mut v, n)
->   retain app.main.Greet (stored)

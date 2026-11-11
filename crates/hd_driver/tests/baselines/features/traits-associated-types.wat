@@ -73,21 +73,9 @@
     local.get $t2
     i32.store $heap offset=4
     local.get $c
-    local.tee $t2
-    if
-      local.get $t2
-      call $retain
-    end
-    local.get $c
     i32.const 160 ;; &vtable[func21]
     call $read
     local.set $t1
-    local.get $c
-    local.tee $t2
-    if
-      local.get $t2
-      call $rt:release_ref
-    end
     local.get $c
     if
       local.get $c

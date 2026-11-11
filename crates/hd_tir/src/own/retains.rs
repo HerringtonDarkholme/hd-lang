@@ -267,6 +267,15 @@ pub(crate) fn results(b: &Body, cx: &dyn OwnCx, topo: &Topology) -> Vec<bool> {
     out
 }
 
+/// The `ProviderAsRef` coercion that makes `ProviderGet` `i` a `&dyn`, a
+/// local reference: the checker emits it right after the lookup
+/// (`hd_check`'s `provider_get`), and a few statements at most come between.
+/// `plain` says whether a type is a local reference.
+pub fn provider_view(b: &Body, i: usize, plain: impl Fn(Ty) -> bool) -> Option<usize> {
+    (i + 1..b.len().min(i + 5))
+        .find(|&c| b.provider_ref(c) && b.data[c][0] == u32_of(i) && plain(b.ty[c]))
+}
+
 pub(crate) fn result(b: &Body, cx: &dyn OwnCx, i: usize) -> bool {
     match b.tags.get(i) {
         Some(Tag::Call) => {
@@ -280,6 +289,7 @@ pub(crate) fn result(b: &Body, cx: &dyn OwnCx, i: usize) -> bool {
             if ![Coercion::Supertrait, Coercion::RefToTraitValue]
                 .iter()
                 .any(|c| kind == Some(*c as u32))
+                || super::dyn_view(b, cx, i).is_some()
             {
                 return false;
             }
@@ -308,8 +318,13 @@ pub(crate) fn result(b: &Body, cx: &dyn OwnCx, i: usize) -> bool {
             }
             cx.single_counted_address(source)
         }
-        // Lookup copies the caller-held provider into a result of its own.
-        Some(Tag::ProviderGet) => cx.counted(b.ty[i]),
+        // Lookup copies the caller-held provider into a result of its own,
+        // except for the `&dyn` a `$.use` makes of it: a local reference,
+        // which counts nothing (`ref.count.local`), while the caller holds
+        // the provider for the whole body.
+        Some(Tag::ProviderGet) => {
+            cx.counted(b.ty[i]) && provider_view(b, i, |t| cx.plain_reference(t)).is_none()
+        }
         _ => false,
     }
 }

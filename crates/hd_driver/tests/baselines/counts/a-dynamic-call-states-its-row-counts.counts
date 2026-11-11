@@ -24,7 +24,6 @@ fn cold(work: &dyn Work) -> Suspend[i32] $ Tag:
 fn awaited!(work: &dyn Work) -> i32 $ Tag:
     work.later!()
 > app/main/awaited
->   retain &app.main.Work (by design)
 >   retain counted reference (stored)
 >   release counted reference (last use)
 >   retain counted reference (stored)
@@ -32,12 +31,11 @@ fn awaited!(work: &dyn Work) -> i32 $ Tag:
 >   release counted reference (last use)
 >   retain counted reference (stored)
 >   release counted reference (last use)
->   release &app.main.Work (by design)
->   release &app.main.Work (by design)
+>   release counted reference (by design)
 > app/main/awaited
->   release &app.main.Work (by design)
+>   release counted reference (last use)
 >   release counted reference (last use)
 >   release counted reference (last use)
 > app/main/awaited
->   retain &app.main.Work (by design)
+>   retain counted reference (by design)
 >   retain counted reference (stored)

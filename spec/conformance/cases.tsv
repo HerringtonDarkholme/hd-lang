@@ -4946,6 +4946,7 @@ runtime/valid/dyn-ref-bridge.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.ref
 runtime/valid/a-reference-layout-keeps-copy-and-store-counts-balanced.hd	runtime	accept	lang/13-values-and-references.md#r-ref.read.type
 runtime/valid/dyn-ref-identity.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.ref.identity
 runtime/valid/dyn-ref-widen.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.ref.widen
+runtime/valid/dyn-ref-arguments-count-nothing.hd	runtime	accept	lang/13-values-and-references.md#r-ref.count.local
 typing/invalid/dyn-ref-mut-method-through-shared.hd	type	reject:not-writable	lang/09-traits.md#r-trait.dyn.ref.member.mut
 typing/invalid/dyn-ref-mut-self-through-shared.hd	type	reject:not-writable	lang/09-traits.md#r-trait.dyn.ref.member.mut
 typing/invalid/dyn-ref-mutable-upgrade.hd	type	reject:mutable-upgrade	lang/09-traits.md#r-trait.dyn.ref.no-upgrade
