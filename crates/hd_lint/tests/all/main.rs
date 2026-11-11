@@ -13,3 +13,4 @@ mod lifetime_order;
 mod lost_writes;
 mod modules;
 mod registry;
+mod warm;

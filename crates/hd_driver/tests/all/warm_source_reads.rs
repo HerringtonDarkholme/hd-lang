@@ -295,3 +295,145 @@ fn a_warm_no_change_check_does_the_same_lookups_at_ten_times_the_modules() {
     }
     assert_eq!(warm[0], warm[1], "100 and 1,000 modules");
 }
+
+/// `package`, with one diagnostic: `m1` returns a name it never binds.
+/// The checker reports no warning of its own (a lint run's findings are
+/// `hd_lint`'s tests'), so an error stands for any reported diagnostic.
+fn warned(name: &str, modules: usize) -> Counted {
+    let mut sources = package(name, modules);
+    sources
+        .files
+        .insert("m1.hd", "pub fn value1() -> i32: missing\n");
+    sources
+}
+
+/// A run of `goal` with `packages` through `store`: its lookups and bytes
+/// read, and its output.
+fn lookups_of(
+    sources: &Counted,
+    store: &CountedStore,
+    packages: &Packages<'_>,
+    goal: &Goal,
+) -> (usize, usize, Output) {
+    store.gets.store(0, Ordering::Relaxed);
+    store.bytes.store(0, Ordering::Relaxed);
+    sources.reads.store(0, Ordering::Relaxed);
+    let host = Host {
+        render_tir: &[],
+        sources,
+        store,
+        clock: &NoClock,
+        executor: Executor::Serial(SerialOrder::Priority),
+    };
+    let out = build_packages(&host, "app", packages, goal);
+    (
+        store.gets.load(Ordering::Relaxed),
+        store.bytes.load(Ordering::Relaxed),
+        out,
+    )
+}
+
+/// Cost Model (#1510): a warm check whose run reported a diagnostic
+/// replays the cold run's diagnostics, byte for byte, from the stored
+/// package result: as many lookups and entry bytes at 1,000 modules as at
+/// 100, and one source read, of the file the diagnostic is located in.
+#[test]
+fn a_warm_check_with_a_diagnostic_replays_it_with_the_same_lookups_at_ten_times_the_modules() {
+    let mut warm = Vec::new();
+    for modules in [100, 1_000] {
+        let store = CountedStore::default();
+        let sources = warned(&format!("warned-{modules}"), modules);
+        let (_, _, cold) = lookups(&sources, &store);
+        assert!(cold.render().contains("m1.hd"), "{}", cold.render());
+        let (gets, bytes, out) = lookups(&sources, &store);
+        assert_eq!(out.counters.hit("package"), 1, "{modules} modules");
+        // Only the file the diagnostic is located in.
+        assert_eq!(sources.reads.load(Ordering::Relaxed), 1);
+        assert_eq!(out.render(), cold.render());
+        assert_eq!(out.render_located(), cold.render_located());
+        assert_eq!(
+            hd_driver::diagnostics::from_output(&out, None),
+            hd_driver::diagnostics::from_output(&cold, None)
+        );
+        warm.push((gets, bytes));
+    }
+    assert_eq!(warm[0], warm[1], "100 and 1,000 modules");
+}
+
+/// An edit, an added file and a removed file each miss the stored result
+/// of a check that reported a diagnostic; the run after each takes the new
+/// one.
+#[test]
+fn an_edit_an_added_file_and_a_removed_file_each_miss_the_stored_result() {
+    let store = CountedStore::default();
+    let mut sources = warned("warned-changes", 20);
+    let check = |sources: &Counted| lookups(sources, &store).2;
+    let cold = check(&sources);
+    assert_eq!(check(&sources).counters.hit("package"), 1);
+    sources
+        .files
+        .insert("m0.hd", "pub fn value0() -> i32: no\n");
+    let edited = check(&sources);
+    assert_eq!(edited.counters.hit("package"), 0, "an edit misses");
+    assert!(edited.diags.has_errors(), "{}", edited.render());
+    let again = check(&sources);
+    assert_eq!(again.counters.hit("package"), 1);
+    assert_eq!(again.render(), edited.render());
+    sources.files.insert("m0.hd", &module(0, 0));
+    sources.files.insert("added/x.hd", "pub fn x() -> i32: y\n");
+    let added = check(&sources);
+    assert_eq!(added.counters.hit("package"), 0, "an added file misses");
+    assert!(added.render().contains("added/x.hd"), "{}", added.render());
+    assert_eq!(check(&sources).counters.hit("package"), 1);
+    // Back to the first listing: its stored result is the cold run's.
+    sources.files.remove("added/x.hd");
+    let back = check(&sources);
+    assert_eq!(back.counters.hit("package"), 1);
+    assert_eq!(back.render(), cold.render());
+    sources.files.remove("m1.hd");
+    let removed = check(&sources);
+    assert_eq!(removed.counters.hit("package"), 0, "a removed file misses");
+    assert!(!removed.diags.has_errors(), "{}", removed.render());
+    assert_eq!(check(&sources).counters.hit("package"), 1);
+}
+
+/// `hd check FILE` (check roots) and `hd check --tests` (`CheckTests`)
+/// take their own stored results, with as many lookups at 1,000 modules
+/// as at 100; a FILE run's `use` closure is replayed for its caller.
+#[test]
+fn a_warm_file_check_and_a_warm_test_check_take_their_stored_results() {
+    let file = Packages {
+        check_roots: Some(vec!["main.hd".to_owned()]),
+        ..Packages::default()
+    };
+    let plain = Packages::default();
+    let runs = [(&file, Goal::Analyze), (&plain, Goal::CheckTests)];
+    for (packages, goal) in runs {
+        let mut warm = Vec::new();
+        for modules in [100, 1_000] {
+            let store = CountedStore::default();
+            let mut sources = warned(&format!("roots-{goal:?}-{modules}"), modules);
+            sources.files.insert(
+                "main.hd",
+                "use pkg.m1.{value1}\n\nfn main() -> void:\n    let v: i32 = value1()\n",
+            );
+            let (_, _, cold) = lookups_of(&sources, &store, packages, &goal);
+            assert!(cold.render().contains("m1.hd"), "{}", cold.render());
+            let (gets, bytes, out) = lookups_of(&sources, &store, packages, &goal);
+            assert_eq!(
+                out.counters.hit("package"),
+                1,
+                "{goal:?}, {modules} modules"
+            );
+            assert_eq!(out.render(), cold.render());
+            if packages.check_roots.is_some() {
+                let main = out.files.iter().position(|f| f == "main.hd").unwrap();
+                let m1 = out.files.iter().position(|f| f == "m1.hd").unwrap();
+                assert_eq!(out.uses[main], cold.uses[main]);
+                assert!(out.uses[main].contains(&m1), "{:?}", out.uses[main]);
+            }
+            warm.push((gets, bytes));
+        }
+        assert_eq!(warm[0], warm[1], "{goal:?}: 100 and 1,000 modules");
+    }
+}

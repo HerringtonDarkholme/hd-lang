@@ -786,13 +786,17 @@ A warm run reads no source file it does not check, and hashes none
   A renamed folder is new paths. Directory modification times would
   spare the listing of an unchanged directory, but not the `stat` of
   each file that an edit needs, so the listing stays.
-- **The package result** (#1510, `hd_driver::package_result`). A
-  plain `hd check` (no lint pass, no FILE, no session) whose every
-  listed file has a stamp keys one `depfiles` entry by the toolchain,
-  the run's settings, each package's identity, and every listed path
-  and stamp. A clean run stores its entry rows there; a later run with
-  the same key takes them and returns at once, with no record decode
-  and no per-module lookup. A run with any diagnostic stores nothing.
+- **The package result** (#1510, `hd_driver::package_result`). An
+  `hd check` run (`Goal::Analyze` or `Goal::CheckTests`, with or
+  without check roots or an analysis consumer; no session, no doc
+  scopes) whose every listed file has a stamp keys one `depfiles` entry
+  by the toolchain, the run's settings, each package's identity, and
+  every listed path and stamp. The run stores its diagnostics, its
+  analysis findings, its entry rows and, with check roots, the `use`
+  edges of the files they reach; a later run with the same key replays
+  them and returns at once, with no record decode and no per-module
+  lookup. A run with an internal error stores nothing: it may come
+  from a damaged entry, not the sources.
 - **Fingerprints** of `hd test --affected` hold content hashes, never
   stamps: a source file's from the build's skims
   (`Output::source_hashes`), any other package file's from
@@ -806,8 +810,9 @@ less); one read of the record, O(n) skim bytes; O(n) key hashing over
 skims; the reads, skims and record rewrite of the k changed files (the
 rewrite is O(n) bytes, on a run that changed something); plus whatever
 those k changes make the checker redo. A no-change run reads no source
-file and writes nothing; a clean one also makes one cache lookup in all
-(the package result), and hashes each listed path and stamp once.
+file and writes nothing; an `hd check` run also makes one cache lookup
+in all (the package result), hashes each listed path and stamp once, and
+reads the files its replayed diagnostics are located in.
 
 ### 5.6 Verify Mode
 

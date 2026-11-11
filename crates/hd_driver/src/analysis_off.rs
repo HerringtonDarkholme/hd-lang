@@ -14,6 +14,16 @@ use crate::{Lines, Run};
 /// No consumer exists.
 pub(crate) struct Sink<'a>(Infallible, PhantomData<&'a ()>);
 
+/// No consumer adds to a package result's key.
+pub(crate) fn result_tag(sink: Option<&Sink<'_>>) -> u8 {
+    sink.map_or(0, |s| match s.0 {})
+}
+
+/// No consumer names a finding.
+pub(crate) fn code_of(sink: Option<&Sink<'_>>, _: &str) -> Option<hd_diag::Code> {
+    sink.and_then(|s| match s.0 {})
+}
+
 /// No lint run exists.
 pub(crate) struct Lint<'a>(Infallible, PhantomData<&'a ()>);
 

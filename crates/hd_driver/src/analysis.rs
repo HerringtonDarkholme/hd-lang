@@ -81,6 +81,17 @@ pub trait AnalysisSink: Sync {
 /// The consumer a run attaches.
 pub(crate) type Sink<'a> = &'a dyn AnalysisSink;
 
+/// What a run's consumer adds to its package result's key: none is 0,
+/// else its requests. The consumer's code is the toolchain's.
+pub(crate) fn result_tag(sink: Option<&Sink<'_>>) -> u8 {
+    sink.map_or(0, |s| 1 | (s.requests().0 << 1))
+}
+
+/// A stored finding's code, by the stable name the consumer gave it.
+pub(crate) fn code_of(sink: Option<&Sink<'_>>, name: &str) -> Option<Code> {
+    sink?.diagnostic_code(name)
+}
+
 /// The attached consumer, what it asked for, and each module's findings.
 pub(crate) struct Lint<'a> {
     sink: Sink<'a>,

@@ -2370,22 +2370,21 @@ fn build_packages_inner(
         package,
         packages,
         host,
-        analysis.is_some(),
+        analysis.as_ref(),
         &ins,
         &table,
         toolchain,
     );
     if let Some(key) = result_key
-        && let Some(entry_capabilities) = package_result::read(host.store, toolchain, key)
-    {
-        return stored_output(
-            &table,
-            &lazy,
-            entry_capabilities,
-            package,
-            packages,
+        && let Some(stored) = package_result::read(
+            host.store,
             toolchain,
-        );
+            key,
+            table.modules.len(),
+            analysis.as_ref(),
+        )
+    {
+        return stored_output(&table, &lazy, stored, package, packages, toolchain);
     }
     // Std's skims come from the toolchain's entry, unless std is the root
     // package, whose files are the user's.
@@ -2954,21 +2953,28 @@ fn build_packages_inner(
         output.wasm = Some(wasm);
     }
     if let Some(key) = result_key
-        && output.diags.is_empty()
-        && output.analysis_diags.is_empty()
+        && package_result::storable(&output.diags)
+        && package_result::storable(&output.analysis_diags)
     {
-        package_result::write(host.store, toolchain, key, &output.entry_capabilities);
+        package_result::write(
+            host.store,
+            toolchain,
+            key,
+            &output,
+            packages.check_roots.as_deref(),
+        );
     }
     output
 }
 
 /// The output of a run that took its stored package result
-/// ([`package_result`]): a clean check's, with the table's files and lazy
-/// texts, and no file skimmed, parsed or checked this run.
+/// ([`package_result`]): the stored check's diagnostics, findings, entry
+/// rows and FILE closure, with the table's files and lazy texts, and no
+/// file skimmed, parsed or checked this run.
 fn stored_output(
     table: &ModuleTable,
     texts: &Texts<'_>,
-    entry_capabilities: Vec<EntryCapability>,
+    stored: package_result::Stored,
     package: &str,
     packages: &Packages<'_>,
     toolchain: Hash128,
@@ -2976,16 +2982,33 @@ fn stored_output(
     let n = table.modules.len();
     let mut counters = Counters::default();
     counters.hits.insert("package", 1);
+    // The files the diagnostics are located in are read now, as the run
+    // that stored them read them: a set that cannot detach keeps only the
+    // texts read before the run returns. One read per such file; a clean
+    // run reads none.
+    let spans = [&stored.diags, &stored.analysis_diags]
+        .into_iter()
+        .flat_map(|d| {
+            d.primary
+                .iter()
+                .chain(&d.label_span)
+                .chain(d.edits.iter().map(|e| &e.span))
+        });
+    for span in spans {
+        if span.file.get().is_some() {
+            let _ = texts.get(span.file.idx());
+        }
+    }
     Output {
-        analysis_diags: DiagBuf::default(),
-        entry_capabilities,
+        analysis_diags: stored.analysis_diags,
+        entry_capabilities: stored.entry_capabilities,
         wasm: None,
         host_artifacts: None,
         instruction_origins: Vec::new(),
-        diags: DiagBuf::default(),
+        diags: stored.diags,
         files: table.files.clone(),
         texts: texts.detach(),
-        uses: vec![Vec::new(); n],
+        uses: stored.uses,
         source_hashes: vec![None; n],
         modules: table.modules.iter().map(|m| m.path.clone()).collect(),
         checks: vec![None; n],
