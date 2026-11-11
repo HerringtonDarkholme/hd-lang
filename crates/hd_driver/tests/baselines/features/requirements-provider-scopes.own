@@ -163,15 +163,14 @@ fn lexical(s: string) -> usize:
 > app/main/lexical
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %1 consume last
->   local $1 tag: &dyn Tag [:= read assigned captured] value
->     uses $1: %19 -> %21 lend, %33 consume last
->   local $2 $ref: string [read assigned captured captured-assigned] value
->     uses $2: %25 -> %26 lend last
->   local $3 f: fn() -> usize [read] value
->     uses $3: %35 -> %36 lend last
+>   local $1 tag: &dyn Tag [:= read assigned] value
+>     uses $1: %19 -> %22 consume last
 >   local $5 provider: Named [read] value
 >     uses $5: %3 -> %4 consume last
->   local $6 $ref: Named [read assigned captured captured-assigned] place
+>   local $6 $ref: Named [read assigned mutated] place
+>   local $7 tag: &dyn Tag [read assigned] place
+>   local $9 $ref: string [read assigned mutated] value
+>     uses $9: %26 -> %27 lend last
 >   %0 = Retain %45 Entry local $0 #0 : ()
     $.with(Tag=Named { label: s }):
 >   %1 = Read move [$0] : string
@@ -180,7 +179,7 @@ fn lexical(s: string) -> usize:
 >   %4 = Read move [$5] : Named
 >   %5 = Store [$6] %4 : ()
 >   %6 = Ref take mut [$6] : *mut Named
->   %7 = Break L2 %6 : never
+>   %7 = Break L1 %6 : never
 >   %8 = Block - : *mut Named
 >   %9 = Scope %8 [] : *mut Named
 >   %10 = Coerce %9 [RefToTraitValue -] : Tag
@@ -200,30 +199,88 @@ fn lexical(s: string) -> usize:
 >   %19 = Store [$1] %18 : ()
 >   %42 = Block %40 : usize
         apply(fn() -> usize: tag.name().len())
->   %20 = Retain %32 Entry captures #0 : ()
->   %21 = Read copy [*$1] : Tag
->   %22 = Drop [$1] : ()
->   %23 = Call app/main/Tag.name for Tag [] via TraitValue (%21) : string
->   %24 = Drop [%21] : ()
->   %25 = Store [$2] %23 : ()
->   %26 = Read borrow [$2] : string
->   %27 = Call std/rt.bytes/bytes_len[] (%26) : usize
->   %28 = Break L1 %27 : never
->   %29 = Block - : usize
->   %30 = Scope %29 [] : usize
->   %31 = Drop [$2] : ()
->   %32 = Block %30 : usize
->   %33 = Closure #1 : fn() -> usize
->   %34 = Retain %33 Operation captures #0 : ()
->   %35 = Store [$3] %33 : ()
->   %36 = Read borrow [$3] : fn() -> usize
->   %37 = CallValue %36 [] : usize
+>   %20 = Unreachable  : never
+>   %21 = Block %20 : never
+>   %22 = Read move [$1] : &dyn Tag
+>   %23 = Store [$7] %22 : ()
+>   %24 = Read borrow [*$7] : Tag
+>   %25 = Call app/main/Tag.name for Tag [] via TraitValue (%24) : string
+>   %26 = Store [$9] %25 : ()
+>   %27 = Read borrow [$9] : string
+>   %28 = Call std/rt.bytes/bytes_len[] (%27) : usize
+>   %29 = Break L2 %28 : never
+>   %30 = Block - : usize
+>   %31 = Scope %30 [] : usize
+>   %32 = Read borrow [$7] : &dyn Tag
+>   %33 = Block - : ()
+>   %34 = Drop [$9] : ()
+>   %35 = Break L3 %31 : never
+>   %36 = Block - : usize
+>   %37 = Scope %36 [%33] : usize
 >   %38 = Break L0 %37 : never
 >   %39 = Block - : usize
 >   %40 = Scope %39 [] : usize
->   %41 = Drop [$3] : ()
->   exit sub 0 drops [$0 $1]
->   exit sub 1 drops [$1]
+>   %41 = Drop [$7] : ()
+>   exit sub 0 drops [$0 $7]
+>   storage sub 0: $6 cell
+>   storage sub 1: $6 cell
+>   summary kept [$0] writes
+
+# An unrelated explicit provider map must not block a known literal call.
+fn unrelated_provider(s: string) -> usize:
+> app/main/unrelated_provider
+>   local $0 s: string [param read] value
+>     uses $0: entry -> %3 consume, %5 consume last
+>   local $2 s: string [read assigned] place
+>   local $4 self: string [read] value
+>     uses $4: %22 -> %23 lend last
+>   local $5 provider: Named [read] value
+>     uses $5: %7 -> %8 consume last
+>   local $6 $ref: Named [read assigned captured captured-assigned] place
+>   %0 = Retain %38 Entry local $0 #0 : ()
+    f := fn() -> usize: s.len()
+>   %1 = Unreachable  : never
+>   %2 = Block %1 : never
+>   %3 = Read copy [$0] : string
+>   %4 = Store [$2] %3 : ()
+>   %38 = Block %35 : usize
+    $.with(Tag=Named { label: s }):
+>   %5 = Read move [$0] : string
+>   %6 = NewStruct [%5] : Named
+>   %7 = Store [$5] %6 : ()
+>   %8 = Read move [$5] : Named
+>   %9 = Store [$6] %8 : ()
+>   %10 = Ref take mut [$6] : *mut Named
+>   %11 = Break L2 %10 : never
+>   %12 = Block - : *mut Named
+>   %13 = Scope %12 [] : *mut Named
+>   %14 = Coerce %13 [RefToTraitValue -] : Tag
+>   %15 = Block %14 : Tag
+>   %16 = RefDyn %15 : *dyn Tag
+>   %17 = LoanEnd [%13] : ()
+>   %18 = Coerce %16 [RefAsProvider -] : Tag
+>   %19 = LoanEnd [%16] : ()
+>   %35 = With [Tag %18] %34 : usize
+>   %36 = Drop [%18] : ()
+>   %37 = Drop [$2] : ()
+>   %10 finds [$6] full
+        read_tag() + f()
+>   %20 = Call app/main/read_tag[] () : usize
+>   %21 = Read borrow [$2] : string
+>   %22 = Store [$4] %21 : ()
+>   %23 = Read borrow [$4] : string
+>   %24 = Call std/rt.bytes/bytes_len[] (%23) : usize
+>   %25 = Break L1 %24 : never
+>   %26 = Block - : usize
+>   %27 = Scope %26 [] : usize
+>   %28 = Read borrow [$2] : string
+>   %29 = Block - : ()
+>   %30 = Break L0 %27 : never
+>   %31 = Block - : usize
+>   %32 = Scope %31 [%29] : usize
+>   %33 = Prim Add [%20 %32] : usize
+>   %34 = Block %33 : usize
+>   exit sub 0 drops [$0 $2]
 >   storage sub 0: $6 cell
 >   storage sub 1: $6 cell
 >   summary kept [$0] writes

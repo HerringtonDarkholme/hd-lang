@@ -105,6 +105,9 @@ pub(crate) fn run(b: &mut Body, topo: &Topology, cx: &dyn OwnCx, framed: bool) {
             cell[l] |= shared;
         }
     }
+    for &(_, capture) in &b.inlined_shared {
+        cell[b.cap_local[capture as usize].idx()] = true;
+    }
     let mut rows = Vec::new();
     if cell.iter().any(|&c| c) {
         let slot = if framed {

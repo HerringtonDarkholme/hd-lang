@@ -9,11 +9,9 @@ fn apply(f: fn() -> usize) -> usize:
 fn snapshot(xs: &mut List[string]) -> usize:
     apply:
 > app/main/snapshot
->   release fn() -> usize (last use)
-        before := *xs
-> app/main/snapshot
 >   copy counted reference (second owner)
 >   unique List[string] (may be shared)
 >   release List[string] (last use)
+        before := *xs
         xs.push("later")
         before.len()

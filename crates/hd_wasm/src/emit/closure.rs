@@ -68,6 +68,11 @@ pub(super) fn shared_locals(b: &Body) -> hd_base::HashSet<usize> {
         .filter(|&ci| b.tags[ci] == Tag::Closure)
         .flat_map(|ci| captures(b, ci))
         .filter_map(|(l, shared)| shared.then_some(l))
+        .chain(
+            b.inlined_shared
+                .iter()
+                .map(|&(_, c)| b.cap_local[c as usize].idx()),
+        )
         .collect()
 }
 

@@ -10,7 +10,7 @@
 //! driver's.
 
 use hd_base::SliceSort as _;
-use hd_base::{DefId, HashMap, NodeIdx};
+use hd_base::{DefId, HashMap, LocalId, NodeIdx, SubId};
 use hd_types::{Ty, TyList};
 
 use crate::ir::{
@@ -18,6 +18,9 @@ use crate::ir::{
     slots, u32_of,
 };
 use crate::own::splice::{permute_columns, renumber_through};
+
+mod closures;
+pub use closures::inline_local_closures;
 
 /// The statically known callee of call `i` when its requirement context
 /// needs no copying: a `Call` with no providers. Its argument record may
@@ -48,7 +51,7 @@ pub fn known_call(b: &Body, i: usize) -> Option<Callee> {
 #[must_use]
 pub fn arguments(b: &Body, i: usize) -> &[u32] {
     let r = b.record(b.data[i][1]);
-    if b.tags[i] == Tag::DefaultCall {
+    if matches!(b.tags[i], Tag::DefaultCall | Tag::CallValue) {
         r
     } else {
         &r[..r.len().saturating_sub(3)]
@@ -130,7 +133,9 @@ pub fn copyable(c: &Body) -> bool {
         && n >= 1
         && c.sub_root == [u32_of(n - 1)]
         && c.susp.is_empty()
-        && c.cap_local.is_empty()
+        // Only eliminated shared-cell facts remain, not a callee environment.
+        && c.cap_local.len() == c.inlined_shared.len()
+        && c.inlined_shared.iter().enumerate().all(|(i, &(_, c))| c as usize == i)
         && c.label.is_empty()
         && !(0..n).any(refused)
 }
@@ -206,6 +211,9 @@ struct Ready {
     refs: Vec<(u32, usize)>,
     outer: usize,
     base: u32,
+    /// The copy's free captured locals and their already evaluated caller locals.
+    environment: Vec<(u32, u32)>,
+    sub: SubId,
 }
 
 /// Replaces each site's `Call` of `b` by its copy, all in one rebuild:
@@ -226,6 +234,16 @@ struct Ready {
 /// If the renumbering refuses what that check let through, or a
 /// by-value argument is no `Ref`.
 pub fn inline_calls(b: &mut Body, sites: Vec<Site>) -> Result<Vec<bool>, String> {
+    inline_bound_calls(
+        b,
+        sites.into_iter().map(|site| (site, Vec::new())).collect(),
+    )
+}
+
+fn inline_bound_calls(
+    b: &mut Body,
+    sites: Vec<(Site, Vec<(u32, u32)>)>,
+) -> Result<Vec<bool>, String> {
     let mut copied = vec![false; sites.len()];
     let refused = |i: usize| {
         let kind = || b.record(b.data[i][1]).iter().rev().nth(2).copied();
@@ -243,11 +261,14 @@ pub fn inline_calls(b: &mut Body, sites: Vec<Site>) -> Result<Vec<bool>, String>
             }
         }
     }
+    let subs = b.inst_subs();
     let (mut ready, mut by_value_reads) = (Vec::new(), Vec::new());
-    for (s, mut site) in sites.into_iter().enumerate() {
+    for (s, (mut site, environment)) in sites.into_iter().enumerate() {
         let (c, by_value) = (site.call, site.by_value);
         result_views(&mut site.copy, b.ty[c])?;
-        if let Some(r) = prepare(b, site, &outer) {
+        if let Some(mut r) = prepare(b, site, &outer) {
+            r.environment = environment;
+            r.sub = SubId::from_raw(subs[c]);
             // A by-value parameter's argument reads its place, at the
             // type the copy's local has.
             let args = b.record(b.data[c][1]);
@@ -277,7 +298,11 @@ pub fn inline_calls(b: &mut Body, sites: Vec<Site>) -> Result<Vec<bool>, String>
         while s > 0 && ready[s - 1].c == i {
             s -= 1;
             ready[s].base = u32_of(i + shift);
-            shift += ready[s].params.len() + ready[s].k.len() + 1;
+            shift += ready[s].params.len()
+                + ready[s].k.len()
+                + 1
+                + ready[s].environment.len()
+                + usize::from(!ready[s].environment.is_empty());
         }
         fin.push(u32_of(i + shift));
     }
@@ -420,6 +445,8 @@ fn prepare(b: &Body, site: Site, outer: &[u32]) -> Option<Ready> {
         refs,
         outer: outer as usize,
         base: 0,
+        environment: Vec::new(),
+        sub: SubId::from_raw(0),
     })
 }
 
@@ -501,10 +528,13 @@ fn copy_in(out: &mut Body, r: Ready) -> Result<(usize, u32, Vec<u32>), String> {
         refs,
         outer,
         base,
+        environment,
+        sub,
     } = r;
     let (m, np) = (k.len(), params.len());
     let args = out.record(out.data[c][1]).to_vec();
-    let root_at = base + u32_of(np + m);
+    let keep = environment.len() + usize::from(!environment.is_empty());
+    let root_at = base + u32_of(np + m + keep);
     let mut new_of = Vec::with_capacity(m);
     for j in 0..m {
         new_of.push(if j + 1 == m {
@@ -521,7 +551,14 @@ fn copy_in(out: &mut Body, r: Ready) -> Result<(usize, u32, Vec<u32>), String> {
     substitute_refs(&mut k, &refs)?;
     let (xbase, lbase) = (u32_of(out.extra.len()), u32_of(out.local_ty.len()));
     let label = u32_of(out.label_inst.len() + k.label_inst.len());
-    relocate(&mut k, xbase, lbase, u32_of(out.label_inst.len()), label);
+    relocate(
+        &mut k,
+        xbase,
+        lbase,
+        u32_of(out.label_inst.len()),
+        label,
+        &environment,
+    );
     let syn = out.syn[c];
     let ty = out.ty[c];
     out.extra.append(&mut k.extra);
@@ -539,7 +576,24 @@ fn copy_in(out: &mut Body, r: Ready) -> Result<(usize, u32, Vec<u32>), String> {
     let mut list = out.record(members).to_vec();
     list.push(root_at - 1);
     let rec = push_record(out, &list);
-    let empty = push_record(out, &[]);
+    let cleanup_root = if environment.is_empty() {
+        root_at
+    } else {
+        root_at - 2
+    };
+    let cleanup_start = base + u32_of(np + m - 1);
+    let cleanup_members: Vec<u32> = (0..u32_of(environment.len()))
+        .map(|i| cleanup_start + i)
+        .collect();
+    let cleanup_record = push_record(out, &cleanup_members);
+    let cleanups = push_record(
+        out,
+        &if environment.is_empty() {
+            Vec::new()
+        } else {
+            vec![cleanup_root]
+        },
+    );
     // The copy's own instructions name the callee's as their anchors
     // ([`Body::inlined`]), so a panic in the copy reports the callee's
     // frame, then the call's; one without a position keeps none, as in
@@ -548,15 +602,48 @@ fn copy_in(out: &mut Body, r: Ready) -> Result<(usize, u32, Vec<u32>), String> {
     // rows after its own, each called at its anchor in the copy.
     let anchor = out.anchors[c];
     let first = out.inlined.last().map_or(0, |e| e[0] + e[1]);
-    let nested = first + u32_of(m);
+    // A sparse closure body retains enclosing-body source indices. Give
+    // every referenced source row a dense virtual ID, instead of reserving
+    // its entire enclosing body's address range for each call.
+    let mut source_rows: Vec<u32> = if k.anchors.is_empty() {
+        (0..u32_of(m)).collect()
+    } else {
+        k.anchors
+            .iter()
+            .copied()
+            .chain(k.inlined.iter().map(|f| f[3]))
+            .filter(|&a| a != NONE && a & INLINED == 0)
+            .collect()
+    };
+    source_rows.sort_stable();
+    source_rows.dedup();
+    if source_rows.is_empty() {
+        source_rows.push(0);
+    }
+    let nested = first + u32_of(source_rows.len());
+    let source_ids: HashMap<_, _> = source_rows
+        .iter()
+        .enumerate()
+        .map(|(i, &a)| (a, u32_of(i)))
+        .collect();
     let moved = |a: u32| match a {
         NONE => anchor,
         a if a & INLINED != 0 => INLINED | (nested + (a & !INLINED)),
-        a => INLINED | (first + a),
+        // Ruled out: the same anchor and call-site columns populated source_ids.
+        a => INLINED | (first + source_ids[&a]),
     };
-    out.inlined.push([first, u32_of(m), k.item.raw(), anchor]);
+    out.inlined
+        .push([first, u32_of(source_rows.len()), k.item.raw(), anchor]);
+    for (i, &source) in source_rows.iter().enumerate() {
+        if source != u32_of(i) {
+            out.inlined_origins.push([first + u32_of(i), source]);
+        }
+    }
     for &[f, len, callee, call] in &k.inlined {
         out.inlined.push([nested + f, len, callee, moved(call)]);
+    }
+    for &[at, source] in &k.inlined_origins {
+        out.inlined_origins.push([nested + at, source]);
     }
     let anchors: Vec<u32> = if k.anchors.is_empty() {
         (0..u32_of(m)).map(moved).collect()
@@ -586,10 +673,24 @@ fn copy_in(out: &mut Body, r: Ready) -> Result<(usize, u32, Vec<u32>), String> {
     for j in 0..m - 1 {
         put(k.tags[j], k.data[j], k.ty[j], Some(j));
     }
+    for &(local, parent) in &environment {
+        put(
+            Tag::Read,
+            [
+                place::BARE_LOCAL | parent,
+                crate::ir::ReadMode::Borrow as u32,
+            ],
+            k.local_ty[local as usize],
+            None,
+        );
+    }
+    if !environment.is_empty() {
+        put(Tag::Block, [cleanup_record, NONE], Ty::VOID, None);
+    }
     put(Tag::Break, [label, tail], Ty::NEVER, None);
     // The root takes the call's type, which its `Break`s carry.
     put(Tag::Block, [rec, NONE], ty, Some(m - 1));
-    put(Tag::Scope, [root_at, empty], ty, None);
+    put(Tag::Scope, [root_at, cleanups], ty, None);
     out.label_inst.extend_from_slice(&k.label_inst);
     out.label_inst.push(root_at);
     let sbase = out.strings.len() as u64;
@@ -606,9 +707,25 @@ fn copy_in(out: &mut Body, r: Ready) -> Result<(usize, u32, Vec<u32>), String> {
     out.strings.append(&mut k.strings);
     // The copy's fallback rows, sorted with the caller's once all are in.
     for &[i, l] in &k.fallback {
-        out.fallback.push([i, if l == 0 { 0 } else { l + lbase }]);
+        out.fallback.push([
+            i,
+            if l == 0 {
+                0
+            } else {
+                relocated_local(l - 1, lbase, &environment) + 1
+            },
+        ]);
     }
     out.held_args.append(&mut k.held_args);
+    let captures = u32_of(out.cap_local.len());
+    out.cap_local.extend(
+        k.cap_local
+            .iter()
+            .map(|l| LocalId::from_raw(relocated_local(l.raw(), lbase, &environment))),
+    );
+    out.cap_mode.append(&mut k.cap_mode);
+    out.inlined_shared
+        .extend(k.inlined_shared.iter().map(|&(_, c)| (sub, captures + c)));
     Ok((outer, scope, before))
 }
 
@@ -656,7 +773,20 @@ fn substitute_refs(body: &mut Body, refs: &[(u32, u32)]) -> Result<(), String> {
 
 /// Moves the copy's record words `xbase` on, its locals `lbase` on and
 /// its labels `lab` on, and turns each `Return` into a `Break` to `label`.
-fn relocate(k: &mut Body, xbase: u32, lbase: u32, lab: u32, label: u32) {
+fn relocated_local(local: u32, lbase: u32, environment: &[(u32, u32)]) -> u32 {
+    environment
+        .binary_search_by_key(&local, |&(copy, _)| copy)
+        .map_or(local + lbase, |i| environment[i].1)
+}
+
+fn relocate(
+    k: &mut Body,
+    xbase: u32,
+    lbase: u32,
+    lab: u32,
+    label: u32,
+    environment: &[(u32, u32)],
+) {
     let mut places = Vec::new();
     for i in 0..k.len() {
         let (oa, ob) = k.tags[i].operands();
@@ -664,7 +794,10 @@ fn relocate(k: &mut Body, xbase: u32, lbase: u32, lab: u32, label: u32) {
             let w = &mut k.data[i][x];
             match op {
                 Op::Values | Op::Blocks | Op::Record if *w != NONE => *w += xbase,
-                Op::Place if *w & place::BARE_LOCAL != 0 => *w += lbase,
+                Op::Place if *w & place::BARE_LOCAL != 0 => {
+                    *w = place::BARE_LOCAL
+                        | relocated_local(*w & !place::BARE_LOCAL, lbase, environment);
+                }
                 Op::Place => {
                     places.push(*w as usize);
                     *w += xbase;
@@ -684,7 +817,7 @@ fn relocate(k: &mut Body, xbase: u32, lbase: u32, lab: u32, label: u32) {
     places.dedup();
     for at in places {
         if k.extra[at + 1] == place::ROOT_LOCAL {
-            k.extra[at + 2] += lbase;
+            k.extra[at + 2] = relocated_local(k.extra[at + 2], lbase, environment);
         }
     }
 }

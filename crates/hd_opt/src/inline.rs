@@ -220,8 +220,31 @@ impl dyn InlineEnv + '_ {
         }
         let mut loops_only = false;
         for _ in 0..MAX_ROUNDS {
+            let literals = release
+                && hd_tir::inline::inline_local_closures(
+                    body,
+                    INLINE_LIMIT,
+                    &|caller, call, copy| {
+                        let references: Vec<_> = hd_tir::own::params(copy)
+                            .iter()
+                            .enumerate()
+                            .filter_map(|(k, &local)| {
+                                self.reference(copy.local_ty[local as usize])
+                                    .then_some((k, copy.local_ty[local as usize]))
+                            })
+                            .collect();
+                        if !references.is_empty()
+                            && !self.read_only_reference_inputs(&references, copy)
+                        {
+                            return false;
+                        }
+                        self.fits_call(caller, call, copy)
+                    },
+                )
+                .unwrap_or(false);
             let defaults = body.tags.contains(&Tag::DefaultCall);
             let (h, copied, writer) = self.inline_round(body, hash, stack, loops_only);
+            let copied = copied || literals;
             hash = h;
             if !(copied && release) {
                 break;
@@ -230,7 +253,7 @@ impl dyn InlineEnv + '_ {
             // A default exposes its enclosing call; a scalar writer may
             // expose the reader/constructor around its local state. Both
             // use the existing four-round budget.
-            loops_only = !(defaults || direct || writer);
+            loops_only = !(defaults || direct || writer || literals);
         }
         hash
     }
@@ -1095,13 +1118,17 @@ impl dyn InlineEnv + '_ {
     /// only reads through them. Unlike promotion, this preserves each
     /// address and its lifetime, including an open or uncopyable referent.
     fn read_only_refs(&self, def: DefId, targs: TyList, copy: &Body) -> bool {
+        let Some(refs) = self.reference_params(def, targs, true) else {
+            return false;
+        };
+        self.read_only_reference_inputs(&refs, copy)
+    }
+
+    fn read_only_reference_inputs(&self, refs: &[(usize, Ty)], copy: &Body) -> bool {
         let may_write = |callee: &Callee| self.call_may_write(callee);
         if hd_tir::own::writes_in(copy, 0..copy.len(), &may_write) {
             return false;
         }
-        let Some(refs) = self.reference_params(def, targs, true) else {
-            return false;
-        };
         let shared = |ty| matches!(self.pool().get(ty), TyData::Ref { mutable: false, .. });
         // A mutable-reference parameter establishes its call loan even
         // if this particular body only reads it. Keep that boundary.

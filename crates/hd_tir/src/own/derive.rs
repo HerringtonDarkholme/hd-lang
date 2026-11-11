@@ -527,6 +527,12 @@ impl Tables {
 fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
     let n = b.len();
     let mut ops = std::mem::take(&mut t.ops);
+    for &(_, capture) in &b.inlined_shared {
+        let local = &mut t.l[b.cap_local[capture as usize].idx()];
+        local.captured = true;
+        local.reached = true;
+        local.escapes = true;
+    }
     for i in 0..n {
         let [a, w] = b.data[i];
         let tag = b.tags[i];

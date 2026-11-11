@@ -5547,6 +5547,8 @@ runtime/valid/weak-reference-identity-lifecycle.hd	runtime	accept	std/weak.md#we
 runtime/valid/weak-reference-lifetime.hd	runtime	accept	std/weak.md#weak-types-and-construction
 runtime/valid/a-weakened-cold-call-releases-its-counted-reference-argument.hd	runtime	accept	std/weak.md#r-std-weak.release.target
 runtime/valid/function-reference-variance-wide-inputs.hd	runtime	accept	std/weak.md#r-std-weak.release.target
+runtime/panic/nonescaping-closure-keeps-captured-root-loan.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.shared-variable
+runtime/valid/nonescaping-closures-preserve-capture-lifetimes.hd	runtime	accept	std/weak.md#r-std-weak.release.target
 runtime/valid/weak-reference-module-initializer.hd	runtime	accept	std/weak.md#weak-types-and-construction
 runtime/valid/weak-reference-suspension.hd	runtime	accept	std/weak.md#upgrading
 runtime/valid/weak-reference-whole-object.hd	runtime	accept	std/weak.md#weak-types-and-construction
