@@ -473,15 +473,23 @@ pub(crate) fn fingerprint(
     id: &str,
     sources: &[Hash128],
     data: Hash128,
-    cases: &[&hd_driver::TestCase],
+    cases: Hash128,
 ) -> Hash128 {
-    let mut h = StableHasher::new("hd-test-fingerprint");
+    let mut h = StableHasher::new("hd-test-fingerprint-v2");
     h.hash(common);
     h.str(id);
     for s in sources {
         h.hash(*s);
     }
     h.hash(data);
+    h.hash(cases);
+    h.finish()
+}
+
+/// What a fingerprint holds of a program's test cases ([`fingerprint`]),
+/// which `hd test` stores with the program's build.
+pub(crate) fn cases(cases: &[&hd_driver::TestCase]) -> Hash128 {
+    let mut h = StableHasher::new("hd-test-cases");
     // What the source says of each case; never its export numbers, which
     // the other modules of the unit-test program shift.
     for c in cases {

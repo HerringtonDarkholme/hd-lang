@@ -610,6 +610,442 @@ fn test_one(
     if rep.diags(&program.problems) {
         return Err(rep.finish(HD_FAILURE));
     }
+    let store = hd_cache::DeferredStore::new(crate::disk_store());
+    // `cli.profile.pipeline.one`: `--release` selects the optimized
+    // pipeline; the profile stays checked. The programs are tuned for the
+    // engine the tests run on.
+    let pipeline = crate::Pipeline::of(o.engine, o.release);
+    // `cli.test.fingerprint`: what every program's fingerprint holds
+    // besides its own sources.
+    let common = affected::common(&affected::Settings {
+        root,
+        engine: o.engine,
+        release: o.release,
+        seed: o.seed,
+        update: o.update,
+        limits: o.limits,
+        caps: &o.caps,
+        program: &program,
+    });
+    let mut stamps = affected::Stamps::at(root, program.single_file);
+    let data = affected::data(root, &program.sources, program.single_file, &mut stamps);
+    // A warm run whose sources and build options are unchanged takes the
+    // build half a run of the same inputs stored (#1510): one lookup, no
+    // doc-test skim, no per-module entry. The outcomes are never stored:
+    // they depend on capabilities, not only on the sources.
+    let stored = stored_build(&program, (file, member, alone), o, &store);
+    let hit = stored.and_then(|(key, client)| decode_prepared(&key.read(&store, client)?, root));
+    let prep = if let Some(prep) = hit {
+        prep
+    } else {
+        let prep = prepare(&mut program, (root, file, member), o, &store, &mut stamps);
+        if let Some((key, client)) = stored
+            && !prep.diags.iter().any(report::Diag::is_error)
+            && let Some(bytes) = encode_prepared(&prep)
+        {
+            key.write(&store, client, &bytes);
+        }
+        prep
+    };
+    let Prepared {
+        built,
+        mut selected,
+        records: inputs,
+        diags,
+    } = prep;
+    // Warnings are shown; only errors stop the command.
+    if rep.diags(&diags) {
+        return Err(rep.finish(HD_FAILURE));
+    }
+    // Print, then publish (`crates/hd_cache/DESIGN.md` §5.4), before the
+    // tests run.
+    store.publish();
+    let mut environment = None;
+    let records: Vec<TestProgramRecord> = inputs
+        .iter()
+        .map(|r| {
+            let sources: Vec<hd_base::Hash128> = r
+                .sources
+                .iter()
+                .map(|s| {
+                    s.unwrap_or_else(|| *environment.get_or_insert_with(affected::environment))
+                })
+                .collect();
+            let data = if r.package_data {
+                data.package
+            } else {
+                data.unit
+            };
+            TestProgramRecord {
+                id: r.id.clone(),
+                fingerprint: affected::fingerprint(common, &r.id, &sources, data, r.cases),
+            }
+        })
+        .collect();
+    // A stored build's frames come from building it again, on the first
+    // panic that asks; a program whose module differs names none.
+    let rebuild = || -> Vec<Option<Frames>> {
+        let Ok(mut again) = disk::load_package(root, "main") else {
+            return Vec::new();
+        };
+        let mut stamps = affected::Stamps::at(root, again.single_file);
+        let fresh = prepare(&mut again, (root, file, member), o, &store, &mut stamps);
+        fresh
+            .built
+            .into_iter()
+            .zip(&built)
+            .map(|(b, s)| if b.wasm == s.wasm { b.frames } else { None })
+            .collect()
+    };
+    let lazy = LazyFrames {
+        cell: std::sync::OnceLock::new(),
+        rebuild: &rebuild,
+    };
+    if let Some(f) = &o.file
+        && selected.is_empty()
+    {
+        // cli.test.file-empty, cli.test.filter.none
+        return Err(rep.fail(&match &o.filter {
+            Some(p) => format!(
+                "no test case of `{}` has a name that contains `{p}`",
+                f.display()
+            ),
+            None => format!("`{}` registers no test case", f.display()),
+        }));
+    }
+    // `cli.test.affected.where`: the records live in a package's build
+    // directory; a FILE outside any package has none, so it records nothing
+    // and `--affected` runs all of it.
+    let kept = (!program.single_file).then(|| affected::Records::at(root));
+    stamps.save();
+    // `cli.test.affected`: a program whose fingerprint is the one recorded
+    // when it last passed in full is skipped.
+    let fresh: Vec<bool> = records
+        .iter()
+        .map(|r| {
+            o.affected
+                && kept
+                    .as_ref()
+                    .is_some_and(|k| k.passed(&r.id, r.fingerprint))
+        })
+        .collect();
+    report.skipped += records
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| fresh[*i] && selected.iter().any(|s| s.record == *i))
+        .count();
+    selected.retain(|s| !fresh[s.record]);
+    for s in &mut selected {
+        s.case.file = program.sources.display(&s.case.file);
+        if let Some(m) = member {
+            s.case.file = format!("{m}/{}", s.case.file);
+        }
+    }
+    // `cli.test.report.order`: file path, then line, then registration.
+    selected.sort_stable_by(|a, b| (&a.case.file, a.case.line).cmp(&(&b.case.file, b.case.line)));
+    let env = RunEnv {
+        root,
+        table: disk::test_capabilities(root).map_err(|e| report.rep.fail(&e))?,
+        flags: &o.caps,
+        seed: o.seed,
+        update: o.update,
+        filter: o.filter.as_deref(),
+        sources: &program.sources,
+        lazy: &lazy,
+    };
+    // `cli.test.builds-executables`: when an integration test or a doc
+    // test can start a program, the package's executables and tasks are
+    // built first, for the runner's `Process` provider.
+    let starts = built.iter().enumerate().any(|(i, b)| {
+        b.cwd.is_some()
+            && selected.iter().any(|s| s.program == i)
+            && b.wasm.as_deref().is_some_and(starts_programs)
+    });
+    let programs = if starts {
+        Some(build_programs(
+            root,
+            &program.package,
+            (o.engine, pipeline),
+            &mut report.rep,
+        )?)
+    } else {
+        None
+    };
+    let result = run(&selected, &built, &env, programs.as_ref(), o, report);
+    // `cli.test.affected.failed`: a program a case of which failed loses
+    // its record, even when the run stopped early.
+    let mut failed = vec![false; records.len()];
+    for i in std::mem::take(&mut report.failing) {
+        failed[selected[i].record] = true;
+    }
+    let mut unrun = vec![false; records.len()];
+    for i in std::mem::take(&mut report.unrun) {
+        unrun[selected[i].record] = true;
+    }
+    let Some(kept) = kept else {
+        return result;
+    };
+    for (r, _) in records.iter().zip(&failed).filter(|(_, f)| **f) {
+        if let Err(e) = kept.forget(&r.id) {
+            return Err(report.rep.fail(&e));
+        }
+    }
+    result?;
+    // `cli.test.affected.record`: a program whose every case ran and
+    // passed in an unfiltered run is recorded. An ignored case has its
+    // outcome from its source alone; a case that cannot run yet did not run.
+    if o.filter.is_none() {
+        for (i, r) in records.iter().enumerate() {
+            if !failed[i] && !unrun[i] && selected.iter().any(|s| s.record == i) {
+                kept.record(&r.id, r.fingerprint);
+            }
+        }
+    }
+    Ok(())
+}
+
+/// What `hd test` builds of one package before any case runs (#1510): each
+/// test program, its selected cases, what its fingerprint holds of its
+/// sources, and the diagnostics. A function of the package's sources, its
+/// manifest and the command's build options, so a warm run takes it from
+/// the store ([`stored_build`]).
+struct Prepared {
+    built: Vec<Built>,
+    selected: Vec<Selected>,
+    records: Vec<RecordInputs>,
+    diags: Vec<report::Diag>,
+}
+
+/// What a test program's fingerprint (`cli.test.fingerprint`) holds of its
+/// sources: its id, its own sources' hash, then the package's every
+/// source's and its doc test's, with `None` where the run's environment
+/// goes; which data it reads; and its cases ([`affected::cases`]).
+struct RecordInputs {
+    id: String,
+    sources: Vec<Option<hd_base::Hash128>>,
+    package_data: bool,
+    cases: hd_base::Hash128,
+}
+
+/// The frames of a stored build's programs: built again on the first
+/// panic that asks for them.
+struct LazyFrames<'a> {
+    cell: std::sync::OnceLock<Vec<Option<Frames>>>,
+    rebuild: &'a (dyn Fn() -> Vec<Option<Frames>> + Sync),
+}
+
+impl LazyFrames<'_> {
+    fn get(&self, program: usize) -> Option<&Frames> {
+        self.cell.get_or_init(self.rebuild).get(program)?.as_ref()
+    }
+}
+
+/// The key of a package's stored test build (#1510): the inputs of a test
+/// role check over its sources, and what the build reads besides them,
+/// the FILE, member and filter, the engine and pipeline, and the
+/// manifest's text (executables, `caps::required`). `None` for a
+/// single-file program, whose file has no stamp.
+fn stored_build(
+    program: &disk::Program,
+    (file, member, alone): (Option<&str>, Option<&str>, bool),
+    o: &Options,
+    store: &dyn hd_cache::CacheStore,
+) -> Option<(hd_driver::ResultKey, hd_base::Hash128)> {
+    if program.as_written.is_some() || program.single_file {
+        return None;
+    }
+    let clock = Wall(Instant::now());
+    let host = Host {
+        render_tir: &[],
+        sources: &program.sources,
+        store,
+        clock: &clock,
+        executor: crate::executor(),
+    };
+    let pipeline = crate::Pipeline::of(o.engine, o.release);
+    let packages = hd_driver::Packages {
+        target: pipeline.target,
+        level: pipeline.level,
+        ..program.packages()
+    };
+    let key = hd_driver::result_key(&host, &program.package, &packages, &Goal::CheckTests)?;
+    let mut client = hd_base::StableHasher::new("cli-test-build-v1");
+    for part in [file, member, o.filter.as_deref()] {
+        match part {
+            Some(text) => {
+                client.u8(1);
+                client.str(text);
+            }
+            None => client.u8(0),
+        }
+    }
+    client.u8(u8::from(alone));
+    client.str(&format!("{:?} {:?}", o.engine, pipeline));
+    match program.sources.read("hd.toml") {
+        Some(text) => client.hash(hd_base::hash128(&text)),
+        None => client.u8(0),
+    }
+    Some((key, client.finish()))
+}
+
+/// `prep` as stored bytes, without its frames; `None` when a known result
+/// is one no build makes.
+fn encode_prepared(prep: &Prepared) -> Option<Vec<u8>> {
+    use hd_base::wire::Writer;
+    let opt = |w: &mut Writer, s: Option<&str>| match s {
+        Some(s) => {
+            w.u8(1);
+            w.str(s);
+        }
+        None => w.u8(0),
+    };
+    let mut w = Writer::default();
+    w.blob(&hd_driver::diagnostics::encode(&prep.diags));
+    w.len_of(&prep.built);
+    for b in &prep.built {
+        match &b.wasm {
+            Some(wasm) => {
+                w.u8(1);
+                w.blob(wasm);
+            }
+            None => w.u8(0),
+        }
+        w.u8(u8::from(b.cwd.is_some()));
+        w.str(&b.program);
+    }
+    w.len_of(&prep.selected);
+    for s in &prep.selected {
+        w.u32(u32::try_from(s.program).ok()?);
+        let c = &s.case;
+        for text in [&c.module, &c.file, &c.name, &c.kind] {
+            w.str(text);
+        }
+        w.u32(c.line);
+        for text in [&c.ignore, &c.expect_panic, &c.unsupported] {
+            opt(&mut w, text.as_deref());
+        }
+        match c.run {
+            Some((test, init)) => {
+                w.u8(1);
+                w.u32(test);
+                w.u32(init);
+            }
+            None => w.u8(0),
+        }
+        match &s.fixed {
+            None => w.u8(0),
+            Some(CaseResult::Passed { us }) => {
+                w.u8(1);
+                w.u64(*us);
+            }
+            Some(CaseResult::Failed { message }) => {
+                w.u8(2);
+                w.str(message);
+            }
+            Some(_) => return None,
+        }
+        w.str(&s.snapshots);
+        w.u32(u32::try_from(s.record).ok()?);
+    }
+    w.len_of(&prep.records);
+    for r in &prep.records {
+        w.str(&r.id);
+        w.len_of(&r.sources);
+        for h in &r.sources {
+            match h {
+                Some(h) => {
+                    w.u8(1);
+                    w.hash(*h);
+                }
+                None => w.u8(0),
+            }
+        }
+        w.u8(u8::from(r.package_data));
+        w.hash(r.cases);
+    }
+    Some(w.bytes)
+}
+
+/// [`encode_prepared`]'s bytes, back; `None` when they do not decode.
+/// Each program's frames are left to [`LazyFrames`], and a working
+/// directory is the package's, `root`.
+fn decode_prepared(bytes: &[u8], root: &Path) -> Option<Prepared> {
+    let mut r = hd_base::wire::Reader::new(bytes);
+    let opt = |r: &mut hd_base::wire::Reader<'_>| (r.u8() == 1).then(|| r.str().to_owned());
+    let diags = hd_driver::diagnostics::decode(r.blob())?;
+    let built = (0..r.count())
+        .map(|_| Built {
+            wasm: (r.u8() == 1).then(|| r.blob().to_vec()),
+            cwd: (r.u8() == 1).then(|| root.to_path_buf()),
+            program: r.str().to_owned(),
+            frames: None,
+        })
+        .collect();
+    let mut selected = Vec::new();
+    for _ in 0..r.count() {
+        let program = r.u32() as usize;
+        let (module, file, name, kind) = (
+            r.str().to_owned(),
+            r.str().to_owned(),
+            r.str().to_owned(),
+            r.str().to_owned(),
+        );
+        let line = r.u32();
+        let (ignore, expect_panic, unsupported) = (opt(&mut r), opt(&mut r), opt(&mut r));
+        let run = (r.u8() == 1).then(|| (r.u32(), r.u32()));
+        let fixed = match r.u8() {
+            0 => None,
+            1 => Some(CaseResult::Passed { us: r.u64() }),
+            _ => Some(CaseResult::Failed {
+                message: r.str().to_owned(),
+            }),
+        };
+        selected.push(Selected {
+            program,
+            case: TestCase {
+                module,
+                file,
+                line,
+                name,
+                kind,
+                ignore,
+                expect_panic,
+                unsupported,
+                run,
+            },
+            fixed,
+            snapshots: r.str().to_owned(),
+            record: r.u32() as usize,
+        });
+    }
+    let records = (0..r.count())
+        .map(|_| RecordInputs {
+            id: r.str().to_owned(),
+            sources: (0..r.count())
+                .map(|_| (r.u8() == 1).then(|| r.hash()))
+                .collect(),
+            package_data: r.u8() == 1,
+            cases: r.hash(),
+        })
+        .collect();
+    (r.ok() && r.at_end()).then_some(Prepared {
+        built,
+        selected,
+        records,
+        diags,
+    })
+}
+
+/// [`Prepared`] of the package `program` at `root`: its test programs,
+/// built; `program`'s sources lose the untested entry modules and gain the
+/// doc tests.
+fn prepare(
+    program: &mut disk::Program,
+    (root, file, member): (&Path, Option<&str>, Option<&str>),
+    o: &Options,
+    store: &dyn hd_cache::CacheStore,
+    stamps: &mut affected::Stamps,
+) -> Prepared {
     // `cli.test.tasks.no-tests`: a task or an executable's entry module
     // without a `tests:` block gets no test build.
     let entries: Vec<String> = disk::executables(root, &program.package)
@@ -617,8 +1053,7 @@ fn test_one(
         .map(|e| e.file)
         .collect();
     // Each file's flags from its skim, read only for a changed file.
-    let store = hd_cache::DeferredStore::new(crate::disk_store());
-    let flags = hd_driver::source_flags(&program.package, &program.sources, &store);
+    let flags = hd_driver::source_flags(&program.package, &program.sources, store);
     let untested: Vec<String> = flags
         .iter()
         .filter(|f| {
@@ -650,7 +1085,7 @@ fn test_one(
         &program.sources,
         file,
         &|p| docs.iter().any(|d| d.path == p),
-        &store,
+        store,
     )
     .into_iter()
     .map(|t| {
@@ -664,9 +1099,6 @@ fn test_one(
     } else {
         Executor::Pool(o.jobs)
     };
-    // `cli.profile.pipeline.one`: `--release` selects the optimized
-    // pipeline; the profile stays checked. The programs are tuned for the
-    // engine the tests run on.
     let pipeline = crate::Pipeline::of(o.engine, o.release);
     let packages = hd_driver::Packages {
         target: pipeline.target,
@@ -674,22 +1106,8 @@ fn test_one(
         ..program.packages()
     };
     let package = &program.package;
-    // `cli.test.fingerprint`: what every program's fingerprint holds
-    // besides its own sources.
-    let common = affected::common(&affected::Settings {
-        root,
-        engine: o.engine,
-        release: o.release,
-        seed: o.seed,
-        update: o.update,
-        limits: o.limits,
-        caps: &o.caps,
-        program: &program,
-    });
-    let mut stamps = affected::Stamps::at(root, program.single_file);
-    let data = affected::data(root, &every, program.single_file, &mut stamps);
     let mut every_hash = None;
-    let mut records: Vec<TestProgramRecord> = Vec::new();
+    let mut records: Vec<RecordInputs> = Vec::new();
     let mut built: Vec<Built> = Vec::new();
     let mut selected: Vec<Selected> = Vec::new();
     // The programs' modules, each kept once for their panic frames.
@@ -702,7 +1120,7 @@ fn test_one(
         let host = Host {
             render_tir: &[],
             sources: &sources,
-            store: &store,
+            store,
             clock: &clock,
             executor,
         };
@@ -713,32 +1131,28 @@ fn test_one(
         let mut out = hd_driver::build_packages(&host, package, &packages, &goal);
         crate::note_built(&out);
         let mut found = report::from_output(&out, None);
-        found.extend(crate::caps::required(&program, &out));
+        found.extend(crate::caps::required(program, &out));
         // `cli.test.program`: the program of a doc test or an integration
         // test file, else one per module of the unit-test program.
         let (doc_record, case_records) = {
             let read = affected::Build::new(&out, &sources);
             let mut extra = Vec::new();
             if path.is_some() && out.wasm.as_deref().is_some_and(starts_programs) {
-                extra.push(
-                    *every_hash.get_or_insert_with(|| affected::all_sources(&every, &mut stamps)),
-                );
+                extra.push(Some(
+                    *every_hash.get_or_insert_with(|| affected::all_sources(&every, stamps)),
+                ));
             }
             // A program that can read environment variables
-            // (`std.host.Env`) depends on them.
+            // (`std.host.Env`) depends on them, which the run hashes.
             if path.is_some() && out.wasm.as_deref().is_some_and(|w| imports(w, "hd:Env")) {
-                extra.push(affected::environment());
+                extra.push(None);
             }
             if let Some(d) = doc {
                 let mut h = hd_base::StableHasher::new("hd-doc-test");
                 h.str(&format!("{:?}", d.test.compile_fail));
-                extra.push(h.finish());
+                extra.push(Some(h.finish()));
             }
-            let data = if path.is_some() {
-                data.package
-            } else {
-                data.unit
-            };
+            let package_data = path.is_some();
             // A program's record, made on its first case: its id, the files
             // it is built from beside std's and the dependencies', and the
             // cases it holds.
@@ -748,11 +1162,15 @@ fn test_one(
                 if let Some(i) = records.iter().position(|r| r.id == id) {
                     return i;
                 }
-                let mut sources = vec![own()];
+                let mut sources = vec![Some(own())];
                 sources.extend_from_slice(&extra);
                 let cases: Vec<&TestCase> = out.tests.iter().filter(|c| mine(c)).collect();
-                let fingerprint = affected::fingerprint(common, &id, &sources, data, &cases);
-                records.push(TestProgramRecord { id, fingerprint });
+                records.push(RecordInputs {
+                    id,
+                    sources,
+                    package_data,
+                    cases: affected::cases(&cases),
+                });
                 records.len() - 1
             };
             let program_id = match (path, doc) {
@@ -876,113 +1294,12 @@ fn test_one(
             }
         }
     }
-    // Warnings are shown; only errors stop the command.
-    if rep.diags(&diags) {
-        return Err(rep.finish(HD_FAILURE));
+    Prepared {
+        built,
+        selected,
+        records,
+        diags,
     }
-    // Print, then publish (`crates/hd_cache/DESIGN.md` §5.4), before the
-    // tests run.
-    store.publish();
-    if let Some(f) = &o.file
-        && selected.is_empty()
-    {
-        // cli.test.file-empty, cli.test.filter.none
-        return Err(rep.fail(&match &o.filter {
-            Some(p) => format!(
-                "no test case of `{}` has a name that contains `{p}`",
-                f.display()
-            ),
-            None => format!("`{}` registers no test case", f.display()),
-        }));
-    }
-    // `cli.test.affected.where`: the records live in a package's build
-    // directory; a FILE outside any package has none, so it records nothing
-    // and `--affected` runs all of it.
-    let kept = (!program.single_file).then(|| affected::Records::at(root));
-    stamps.save();
-    // `cli.test.affected`: a program whose fingerprint is the one recorded
-    // when it last passed in full is skipped.
-    let fresh: Vec<bool> = records
-        .iter()
-        .map(|r| {
-            o.affected
-                && kept
-                    .as_ref()
-                    .is_some_and(|k| k.passed(&r.id, r.fingerprint))
-        })
-        .collect();
-    report.skipped += records
-        .iter()
-        .enumerate()
-        .filter(|(i, _)| fresh[*i] && selected.iter().any(|s| s.record == *i))
-        .count();
-    selected.retain(|s| !fresh[s.record]);
-    for s in &mut selected {
-        s.case.file = program.sources.display(&s.case.file);
-        if let Some(m) = member {
-            s.case.file = format!("{m}/{}", s.case.file);
-        }
-    }
-    // `cli.test.report.order`: file path, then line, then registration.
-    selected.sort_stable_by(|a, b| (&a.case.file, a.case.line).cmp(&(&b.case.file, b.case.line)));
-    let env = RunEnv {
-        root,
-        table: disk::test_capabilities(root).map_err(|e| report.rep.fail(&e))?,
-        flags: &o.caps,
-        seed: o.seed,
-        update: o.update,
-        filter: o.filter.as_deref(),
-        sources: &program.sources,
-    };
-    // `cli.test.builds-executables`: when an integration test or a doc
-    // test can start a program, the package's executables and tasks are
-    // built first, for the runner's `Process` provider.
-    let starts = built.iter().enumerate().any(|(i, b)| {
-        b.cwd.is_some()
-            && selected.iter().any(|s| s.program == i)
-            && b.wasm.as_deref().is_some_and(starts_programs)
-    });
-    let programs = if starts {
-        Some(build_programs(
-            root,
-            &program.package,
-            (o.engine, pipeline),
-            &mut report.rep,
-        )?)
-    } else {
-        None
-    };
-    let result = run(&selected, &built, &env, programs.as_ref(), o, report);
-    // `cli.test.affected.failed`: a program a case of which failed loses
-    // its record, even when the run stopped early.
-    let mut failed = vec![false; records.len()];
-    for i in std::mem::take(&mut report.failing) {
-        failed[selected[i].record] = true;
-    }
-    let mut unrun = vec![false; records.len()];
-    for i in std::mem::take(&mut report.unrun) {
-        unrun[selected[i].record] = true;
-    }
-    let Some(kept) = kept else {
-        return result;
-    };
-    for (r, _) in records.iter().zip(&failed).filter(|(_, f)| **f) {
-        if let Err(e) = kept.forget(&r.id) {
-            return Err(report.rep.fail(&e));
-        }
-    }
-    result?;
-    // `cli.test.affected.record`: a program whose every case ran and
-    // passed in an unfiltered run is recorded. An ignored case has its
-    // outcome from its source alone; a case that cannot run yet did not run.
-    if o.filter.is_none() {
-        for (i, r) in records.iter().enumerate() {
-            if !failed[i] && !unrun[i] && selected.iter().any(|s| s.record == i) {
-                kept.record(&r.id, r.fingerprint);
-            }
-        }
-    }
-    Ok(())
 }
 
 /// Whether a test program can start the package's executables and tasks
@@ -1043,6 +1360,8 @@ struct RunEnv<'a> {
     /// The package's files, which name a panic frame's file as a case's
     /// file is named.
     sources: &'a disk::DiskSources,
+    /// The frames of a program built without them (a stored build's).
+    lazy: &'a LazyFrames<'a>,
 }
 
 /// Whether row `row` of the `it_each` case `name` is selected: its name
@@ -1230,10 +1549,12 @@ fn run(
         (session, prepared)
     };
     let mut updates = crate::snapshot_update::Updates::default();
-    for ((prog, running), prepared) in built.iter().zip(&running).zip(&prepared) {
+    for (p, ((prog, running), prepared)) in built.iter().zip(&running).zip(&prepared).enumerate() {
         if running.is_empty() {
             continue;
         }
+        // Read only when a case asks: a stored build's are built again.
+        let frames_of = || prog.frames.as_ref().or_else(|| env.lazy.get(p));
         let Some(prepared) = prepared else {
             return Err(report.rep.fail("internal: a test program was not prepared"));
         };
@@ -1338,10 +1659,10 @@ fn run(
                         // pass.
                         let mut lost = None;
                         for r in &c.snapshots {
-                            let site = match (&prog.frames, &prog.wasm) {
-                                (Some(f), Some(wasm)) => f.snapshot_site(wasm, &r.frames),
-                                _ => None,
-                            };
+                            let site = prog
+                                .wasm
+                                .as_ref()
+                                .and_then(|wasm| frames_of()?.snapshot_site(wasm, &r.frames));
                             let literal = crate::snapshot_update::debug_literal(&r.text);
                             match site {
                                 Some((file, line)) => updates.record(&file, line, &literal),
@@ -1350,10 +1671,10 @@ fn run(
                                 }
                             }
                         }
-                        let frames = match (&prog.frames, &prog.wasm) {
-                            (Some(f), Some(wasm)) if c.trapped => {
-                                f.lines(wasm, &c.frames, env.sources)
-                            }
+                        let frames = match (&prog.wasm, c.trapped) {
+                            (Some(wasm), true) => frames_of()
+                                .map(|f| f.lines(wasm, &c.frames, env.sources))
+                                .unwrap_or_default(),
                             _ => Vec::new(),
                         };
                         let mut r = judge(&cases[i], &c, frames);
@@ -1663,6 +1984,102 @@ fn shell_quoted(word: &str) -> String {
     }
     out.push('"');
     out
+}
+
+#[cfg(all(test, unix))]
+mod stored_build_tests {
+    use super::*;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use hd_base::Hash128;
+    use hd_cache::{CacheStore, EntryKind, MemoryStore};
+    use hd_testkit::Scratch;
+
+    /// A store that counts its lookups.
+    #[derive(Default)]
+    struct Counted {
+        store: MemoryStore,
+        gets: AtomicUsize,
+    }
+
+    impl CacheStore for Counted {
+        fn get(&self, kind: EntryKind, key: &Hash128) -> Option<Arc<[u8]>> {
+            self.gets.fetch_add(1, Ordering::Relaxed);
+            self.store.get(kind, key)
+        }
+        fn put(&self, kind: EntryKind, key: &Hash128, bytes: &[u8]) {
+            self.store.put(kind, key, bytes);
+        }
+        fn touch(&self, kind: EntryKind, key: &Hash128) {
+            self.store.touch(kind, key);
+        }
+    }
+
+    /// A package `shop` of `n` modules, each with a `tests:` block, and a
+    /// doc test in the first.
+    fn package(name: &str, n: usize) -> Scratch {
+        let dir = Scratch::new(
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/tmp"),
+            name,
+        );
+        std::fs::create_dir_all(dir.join("src")).expect("src");
+        std::fs::write(dir.join("hd.toml"), "[package]\nname = \"shop\"\n").expect("toml");
+        for i in 0..n {
+            let path = dir.join(format!("src/f{i}/m.hd"));
+            std::fs::create_dir_all(path.parent().expect("dir")).expect("dir");
+            let doc = if i == 0 {
+                "## ```hd\n## use pkg.f0.m.{v}\n## assert(v() == 0, \"zero\")\n## ```\n"
+            } else {
+                ""
+            };
+            std::fs::write(
+                path,
+                format!("{doc}pub fn v() -> i32: {i}\n\ntests:\n    it(\"v is {i}\"):\n        assert(v() == {i}, \"v\")\n"),
+            )
+            .expect("module");
+        }
+        std::thread::sleep(disk::SETTLE + std::time::Duration::from_millis(200));
+        dir
+    }
+
+    /// Cost Model (#1510): a warm `hd test` with nothing changed takes its
+    /// build half with one lookup, at 1 module as at 40: the programs, the
+    /// cases and the fingerprints' source parts, as the build made them.
+    #[test]
+    fn a_warm_test_build_is_one_lookup_at_any_size() {
+        let o = parse(&[]).expect("options");
+        for n in [1, 40] {
+            let dir = package(&format!("test-stored-build-{n}"), n);
+            let store = Counted::default();
+            let load = || disk::load_package(&dir, "main").expect("package");
+            let (key, client) =
+                stored_build(&load(), (None, None, false), &o, &store).expect("a key");
+            assert!(key.read(&store, client).is_none(), "{n}: cold");
+            let mut stamps = affected::Stamps::at(&dir, false);
+            let prep = prepare(&mut load(), (&dir, None, None), &o, &store, &mut stamps);
+            assert!(
+                store.gets.load(Ordering::Relaxed) > n,
+                "{n}: the build looks up"
+            );
+            assert_eq!(
+                prep.selected.len(),
+                n + 1,
+                "{n}: each case and the doc test"
+            );
+            assert!(prep.built.iter().all(|b| b.frames.is_some()));
+            let bytes = encode_prepared(&prep).expect("encodes");
+            key.write(&store, client, &bytes);
+            store.gets.store(0, Ordering::Relaxed);
+            let (key, client) =
+                stored_build(&load(), (None, None, false), &o, &store).expect("a key");
+            let warm =
+                decode_prepared(&key.read(&store, client).expect("stored"), &dir).expect("decodes");
+            assert_eq!(store.gets.load(Ordering::Relaxed), 1, "{n}: warm");
+            assert_eq!(encode_prepared(&warm), Some(bytes), "{n}");
+            assert!(warm.built.iter().all(|b| b.frames.is_none()));
+        }
+    }
 }
 
 #[cfg(test)]

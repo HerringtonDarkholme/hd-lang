@@ -626,3 +626,54 @@ fn a_built_module_prints_its_frames_without_the_cache() {
     );
     assert_eq!(ran.status.code(), Some(3));
 }
+
+/// Sets every file under `dir` an hour back, so the listing stamps it and
+/// a run may store what it builds (#1510).
+fn settle(dir: &Path) {
+    let past = std::time::SystemTime::now() - std::time::Duration::from_hours(1);
+    for entry in std::fs::read_dir(dir).expect("dir") {
+        let path = entry.expect("entry").path();
+        if path.is_dir() {
+            settle(&path);
+        } else {
+            std::fs::File::options()
+                .write(true)
+                .open(&path)
+                .and_then(|f| f.set_modified(past))
+                .expect("stamp");
+        }
+    }
+}
+
+/// Cost Model (#1510): a warm `hd test` or `hd run` with nothing changed
+/// takes what a run of the same sources stored, and its panics print the
+/// same frames as the run that built them: they are resolved again only
+/// when a panic asks.
+#[test]
+fn a_stored_build_prints_the_frames_of_its_panics() {
+    let root = package("hd-frames-stored", LIB);
+    std::fs::write(root.join("src/main.hd"), BUILT).expect("main");
+    settle(&root);
+    let runs: Vec<(String, String)> = (0..3)
+        .map(|_| {
+            let tested = hd(&root, &["test", "--filter", "runs out"]);
+            let ran = hd(&root, &["run"]);
+            (text(&tested.stdout), text(&ran.stderr))
+        })
+        .collect();
+    assert!(
+        runs[0]
+            .0
+            .contains("    src/lib.hd:11 shop.boom\n    src/lib.hd:24 test \"runs out\"\n"),
+        "{}",
+        runs[0].0
+    );
+    assert_eq!(
+        runs[0].1,
+        "panic: index-out-of-bounds: list index out of bounds\n    \
+         src/main.hd:2 shop.main.pick\n    \
+         src/main.hd:6 shop.main.main\n"
+    );
+    assert_eq!(runs[1], runs[0]);
+    assert_eq!(runs[2], runs[0]);
+}

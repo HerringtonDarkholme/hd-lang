@@ -807,8 +807,11 @@ A warm run reads no source file it does not check, and hashes none
   module's `check` entry, so a stored module's panic builds the program
   again, per module, and names its frames only when that build's module
   is the stored one. A run that does not panic resolves nothing.
-  `hd test` stays per-module: a test's outcome is not a function of its
-  sources.
+  `hd test` stores only its build half: each test program's module, its
+  selected cases, the source parts of its `--affected` fingerprint and
+  the build's warnings. Its outcomes are never stored, since they depend
+  on capabilities, not only on the sources; its frames come from building
+  again, as `hd run`'s do.
 - **Fingerprints** of `hd test --affected` hold content hashes, never
   stamps: a source file's from the build's skims
   (`Output::source_hashes`), any other package file's from
