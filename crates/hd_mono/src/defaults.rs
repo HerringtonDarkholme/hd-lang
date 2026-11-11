@@ -2,7 +2,7 @@
 //! The transformed TIR keeps instruction indices stable for source locations
 //! and call targets; code generation receives this same body.
 
-use hd_base::{Hash128, StableHasher};
+use hd_base::{Hash128, Range32, StableHasher};
 use hd_tir::ir::{Body, Coercion, NONE, Op, PrimOp, Ref, Tag, Word, local_flags, ref_word, slots};
 use hd_types::Ty;
 
@@ -816,14 +816,19 @@ pub fn constant_copy(body: &Body, value: Value) -> Option<Body> {
 fn collapsed(body: &Body, root: u32, value: Value) -> Option<Body> {
     let (ty, syn) = (body.ty[root as usize], body.syn[root as usize]);
     let mut out = Body::new(body.item, body.kind);
-    out.extra.clone_from(&body.extra);
-    out.consts.clone_from(&body.consts);
-    out.strings.clone_from(&body.strings);
-    out.local_ty.clone_from(&body.local_ty);
-    out.local_name.clone_from(&body.local_name);
-    out.local_syn.clone_from(&body.local_syn);
-    out.local_flags.clone_from(&body.local_flags);
-    out.sub_params.clone_from(&body.sub_params);
+    // A constant copy has no operands, labels or non-parameter locals.
+    // Keeping their dead tables makes a one-row result grow with every
+    // enclosing copy, defeating both folding and the inliner's metadata
+    // bound. Preserve only the argument contract; Values excludes string
+    // constants, so no literal table is referenced by the known value.
+    for local in hd_tir::own::params(body) {
+        let local = local as usize;
+        out.local_ty.push(body.local_ty[local]);
+        out.local_name.push(body.local_name[local]);
+        out.local_syn.push(body.local_syn[local]);
+        out.local_flags.push(body.local_flags[local]);
+    }
+    out.sub_params.push(Range32::default());
     out.sub_parent.clone_from(&body.sub_parent);
     out.sub_flags.clone_from(&body.sub_flags);
     out.label.clone_from(&body.label);
@@ -841,7 +846,7 @@ fn collapsed(body: &Body, root: u32, value: Value) -> Option<Body> {
         index(out.tags.len() - 1)
     };
     // Records: an empty one, then the root's list.
-    let empty = index(body.extra.len());
+    let empty = 0;
     let (members, tail) = match value {
         Value::Scalar(bits) => {
             let at = index(out.consts.len());
@@ -1353,6 +1358,45 @@ mod tests {
             let errors = hd_tir::ir::verify(&out);
             assert!(errors.is_empty(), "collapsed TIR: {errors:?}");
         }
+    }
+
+    #[test]
+    fn constant_copies_keep_parameters_without_dead_metadata() -> Result<(), String> {
+        for width in [1000, 10000] {
+            let mut b = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+            let root = b.open_block();
+            // A dead local before the parameter also checks its dense remap.
+            b.local(Ty::BOOL, Symbol::from_raw(0), 0, NodeIdx::NONE);
+            b.local(
+                Ty::I32,
+                Symbol::from_raw(1),
+                local_flags::PARAM,
+                NodeIdx::NONE,
+            );
+            for _ in 0..width {
+                b.local(Ty::BOOL, Symbol::from_raw(0), 0, NodeIdx::NONE);
+                b.words_record(&[1, 2, 3]);
+                b.const_str("dead literal");
+            }
+            let value = b.const_value(Ty::BOOL, 1);
+            let args = b.refs_record(&[value]);
+            let not = b.emit(Tag::Prim, PrimOp::Not as u32, args, Ty::BOOL, NodeIdx::NONE);
+            let args = b.refs_record(&[not]);
+            let value = b.emit(Tag::Prim, PrimOp::Not as u32, args, Ty::BOOL, NodeIdx::NONE);
+            let root = b.close_block(root, Some(value), Ty::BOOL, NodeIdx::NONE);
+            let body = b
+                .finish(root, &[])
+                .map_err(|errors| format!("{errors:?}"))?;
+            let out = collapse(&body).ok_or("pure boolean collapses")?;
+            assert_eq!(out.local_ty, [Ty::I32]);
+            assert_eq!(out.local_name, [Symbol::from_raw(1)]);
+            assert_eq!(hd_tir::own::params(&out), [0]);
+            assert_eq!(out.extra, [0, 0]);
+            assert_eq!(out.consts, [(Ty::BOOL, 1)]);
+            assert!(out.strings.is_empty());
+            assert_eq!(hd_tir::ir::verify(&out), []);
+        }
+        Ok(())
     }
 
     #[test]

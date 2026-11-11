@@ -14,7 +14,7 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 12 funcref))
   (func $ordinary (param $callback.0 i32) (param $callback.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32)
-    ;; 14 |     forward(callback)
+    ;; 17 |     forward(callback)
     local.get $callback.0
     local.get $callback.1
     i32.const 1
@@ -46,7 +46,7 @@
     local.get $callback.0
   )
   (func $"forward[{open row}]" (param $callback.0 i32) (param $callback.1 i32) (param $ctx i32) (result i32)
-    ;; 8 |     callback()
+    ;; 11 |     callback()
     local.get $callback.1
     local.get $ctx
     local.get $callback.0
@@ -55,7 +55,7 @@
     local.get $callback.0
   )
   (func $"later[{open row}]" (param $frame i32) (param $callback.0 i32) (param $callback.1 i32) (param $ctx i32) (result i32 i32) (local $t0 i32)
-    ;; 11 |     callback()
+    ;; 14 |     callback()
     local.get $frame
     if
       local.get $frame
@@ -112,7 +112,7 @@
     end
   )
   (func $later.poll (param $t0 i32) (result i32 i32) (local $t2 i32) (local $t1 i32)
-    ;; 11 |     callback()
+    ;; 14 |     callback()
     local.get $t0
     call $rt:poll_check
     if
@@ -157,7 +157,7 @@
     return
   )
   (func $later.cancel (param $t1 i32) (local $t0 i32) (local $t2 i32)
-    ;; 11 |     callback()
+    ;; 14 |     callback()
     call $rt:cancel_enter
     local.set $t0
     block
@@ -198,7 +198,7 @@
     call $rt:cancel_leave
   )
   (func $later.drop (param $t0 i32) (local $t1 i32)
-    ;; 11 |     callback()
+    ;; 14 |     callback()
     local.get $t0
     i32.load $heap offset=12
     i32.const 64
@@ -230,7 +230,7 @@
     end
   )
   (func $later (param $t1 i32) (param $t2 i32) (param $t3 i32) (result i32) (local $t0 i32)
-    ;; 11 |     callback()
+    ;; 14 |     callback()
     call $rt:frame'1
     local.tee $t0
     local.get $t1
@@ -249,7 +249,7 @@
     local.get $t0
   )
   (func $awaited'1 (param $frame i32) (param $callback.0 i32) (param $callback.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32) (local $t3 i32) (local $t9 i32) (local $t8 i32) (local $t1 i32) (local $t2 i32) (local $t4 i32) (local $t7 i32) (local $t5 i32) (local $t0 i32) (local $t6 i32)
-    ;; 20 |     later!(callback)
+    ;; 23 |     later!(callback)
     local.get $frame
     if
       local.get $frame
@@ -639,7 +639,7 @@
     end
   )
   (func $awaited.poll (param $t0 i32) (result i32 i32) (local $t2 i32) (local $t1 i32)
-    ;; 20 |     later!(callback)
+    ;; 23 |     later!(callback)
     local.get $t0
     call $rt:poll_check
     if
@@ -685,7 +685,7 @@
     return
   )
   (func $awaited.cancel (param $t1 i32) (local $t0 i32) (local $t2 i32)
-    ;; 20 |     later!(callback)
+    ;; 23 |     later!(callback)
     call $rt:cancel_enter
     local.set $t0
     block
@@ -727,7 +727,7 @@
     call $rt:cancel_leave
   )
   (func $awaited.drop (param $t0 i32) (local $t1 i32)
-    ;; 20 |     later!(callback)
+    ;; 23 |     later!(callback)
     local.get $t0
     i32.load $heap offset=12
     i32.const 64
@@ -770,7 +770,7 @@
     end
   )
   (func $awaited'2 (param $t1 i32) (param $t2 i32) (param $t3 i32) (param $t4 i32) (result i32) (local $t0 i32)
-    ;; 20 |     later!(callback)
+    ;; 23 |     later!(callback)
     call $rt:frame'2
     local.tee $t0
     local.get $t1
@@ -792,7 +792,7 @@
     local.get $t0
   )
   (func $cold (param $callback.0 i32) (param $callback.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32)
-    ;; 17 |     later(callback)
+    ;; 20 |     later(callback)
     local.get $callback.0
     local.get $callback.1
     i32.const 1
@@ -824,7 +824,7 @@
     local.get $callback.0
   )
   (func $empty (param $callback.0 i32) (param $callback.1 i32) (result i32)
-    ;; 23 |     forward(callback)
+    ;; 26 |     forward(callback)
     local.get $callback.0
     local.get $callback.1
     i32.const 0

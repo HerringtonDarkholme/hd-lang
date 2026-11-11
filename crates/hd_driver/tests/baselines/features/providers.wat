@@ -25,7 +25,7 @@
     local.set $provider0
     local.get $provider0
   )
-  (func $install (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
+  (func $install (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 21 |     f := box(Fixed { n: s })
     i32.const 8
     i32.const 3
@@ -42,15 +42,31 @@
     i32.const 160 ;; &vtable[func37]
     local.set $s.1
     ;; 23 |         ask()
-    local.get $s.0
-    local.get $s.1
-    call $ask
-    ;; 22 |     $.with(Namer=f):
-    local.set $s.0
+    block
+      local.get $s.0
+      local.get $s.1
+      i32.load $heap
+      call_indirect $table0 (param i32) (result i32 i32)
+      local.set $s.1
+      local.set $s.0
+      block
+        br 0
+      end
+      local.get $s.0
+      local.tee $t1
+      if
+        local.get $t1
+        call $rt:release_ref
+      end
+      local.get $s.1
+      local.set $s.0
+      br 0
+    end
     ;; 21 |     f := box(Fixed { n: s })
     local.get $t0
+    local.tee $t1
     if
-      local.get $t0
+      local.get $t1
       call $rt:release_ref
     end
     local.get $s.0

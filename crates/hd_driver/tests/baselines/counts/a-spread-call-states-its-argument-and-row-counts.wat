@@ -7,23 +7,6 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 8 funcref))
-  (func $"call[(string, List[i32]), usize, {open row}]" (param $f.0 i32) (param $f.1 i32) (param $args.0.0 i32) (param $args.0.1 i32) (param $args.1 i32) (param $ctx i32) (result i32)
-    ;; 10 |     f(args...)
-    local.get $f.1
-    local.get $args.0.0
-    local.get $args.0.1
-    call $rt:retain'1
-    local.get $args.1
-    call $rt:retain'2
-    local.get $args.0.0
-    local.get $args.0.1
-    local.get $args.1
-    local.get $ctx
-    local.get $f.0
-    call_indirect $table0 (param i32 i32 i32 i32 i32) (result i32)
-    local.set $f.0
-    local.get $f.0
-  )
   (func $one (param $f.0 i32) (param $f.1 i32) (param $value.0.0 i32) (param $value.0.1 i32) (param $value.1 i32) (result i32)
     ;; 19 |     f(value)
     local.get $f.1
@@ -38,59 +21,59 @@
   )
   (func $spread (param $f.0 i32) (param $f.1 i32) (param $values.0.0 i32) (param $values.0.1 i32) (param $values.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32)
     ;; 13 |     call(f, values)
-    local.get $f.0
-    local.get $f.1
-    local.get $values.0.0
-    local.get $values.0.1
-    local.get $values.1
-    i32.const 1
-    i32.const 0
-    call $rt:ctx_new
-    local.tee $f.0
-    i64.const -8941934570327064298
-    i64.store $heap offset=16
-    local.get $f.0
-    local.get $provider0
-    i32.store $heap offset=24
-    local.get $f.0
-    local.get $provider0.vtable
-    i32.store $heap offset=28
-    local.get $provider0
-    if
+    block
+      local.get $f.1
+      local.get $values.0.0
+      local.get $values.0.1
+      call $rt:retain'1
+      local.get $values.1
+      call $rt:retain'2
+      local.get $values.0.0
+      local.get $values.0.1
+      local.get $values.1
+      i32.const 1
+      i32.const 0
+      call $rt:ctx_new
+      local.tee $f.1
+      i64.const -8941934570327064298
+      i64.store $heap offset=16
+      local.get $f.1
       local.get $provider0
-      call $retain
-    end
-    local.get $f.0
-    call $"call[(string, List[i32]), usize, {open row}]"
-    local.get $f.0
-    local.tee $provider0
-    if
+      i32.store $heap offset=24
+      local.get $f.1
+      local.get $provider0.vtable
+      i32.store $heap offset=28
       local.get $provider0
-      call $rt:release_ref
+      if
+        local.get $provider0
+        call $retain
+      end
+      local.get $f.1
+      local.get $f.0
+      call_indirect $table0 (param i32 i32 i32 i32 i32) (result i32)
+      local.get $f.1
+      local.tee $provider0
+      if
+        local.get $provider0
+        call $rt:release_ref
+      end
+      local.set $f.0
+      br 0
     end
-    local.set $f.0
-    local.get $f.0
-  )
-  (func $"call[(i32, usize), i32, {open row}]" (param $f.0 i32) (param $f.1 i32) (param $args.0 i32) (param $args.1 i32) (param $ctx i32) (result i32)
-    ;; 10 |     f(args...)
-    local.get $f.1
-    local.get $args.0
-    local.get $args.1
-    local.get $ctx
-    local.get $f.0
-    call_indirect $table0 (param i32 i32 i32 i32) (result i32)
-    local.set $f.0
     local.get $f.0
   )
   (func $scalars (param $f.0 i32) (param $f.1 i32) (param $values.0 i32) (param $values.1 i32) (result i32)
     ;; 16 |     call(f, values)
-    local.get $f.0
-    local.get $f.1
-    local.get $values.0
-    local.get $values.1
-    i32.const 0
-    call $"call[(i32, usize), i32, {open row}]"
-    local.set $f.0
+    block
+      local.get $f.1
+      local.get $values.0
+      local.get $values.1
+      i32.const 0
+      local.get $f.0
+      call_indirect $table0 (param i32 i32 i32 i32) (result i32)
+      local.set $f.0
+      br 0
+    end
     local.get $f.0
   )
 )

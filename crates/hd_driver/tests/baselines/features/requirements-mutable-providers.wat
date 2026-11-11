@@ -60,19 +60,35 @@
     i32.const 240 ;; &vtable[func52, func51]
     local.set $t2
     ;; 30 |         _ := tick(a)
-    local.get $a.0
-    local.get $a.1
-    local.get $t1
-    local.get $t2
-    call $tick
-    drop
+    block
+      local.get $t1
+      local.get $a.0
+      local.get $a.1
+      local.get $t2
+      i32.load $heap
+      call_indirect $table0 (param i32 i32 i32)
+      local.get $t1
+      local.get $t2
+      i32.load $heap offset=4
+      call_indirect $table0 (param i32) (result i32)
+      drop
+      br 0
+    end
     ;; 31 |         _ := tick(b)
-    local.get $b.0
-    local.get $b.1
-    local.get $t1
-    local.get $t2
-    call $tick
-    drop
+    block
+      local.get $t1
+      local.get $b.0
+      local.get $b.1
+      local.get $t2
+      i32.load $heap
+      call_indirect $table0 (param i32 i32 i32)
+      local.get $t1
+      local.get $t2
+      i32.load $heap offset=4
+      call_indirect $table0 (param i32) (result i32)
+      drop
+      br 0
+    end
     ;; 28 |     tally := box(Log { lines: [] })
     local.get $t0
     local.tee $t1

@@ -3,11 +3,9 @@
 # @build: v8 release
 # Feature: Requirement Polymorphism, Row Parameters, Omitted Requirement
 # Clauses (spec/lang/11-requirements-and-suspension.md, #1364).
-# expected: `with_tag` installs one provider object and calls the
-# callback with no environment. The final call context takes the scope's
-# provider owner, with no provider retain or separate scope release;
-# `run` passes `read_tag` with no
-# allocation; `closure` captures nothing and allocates nothing.
+# expected: the small row wrapper and both known callbacks copy into their
+# callers. Provider lookups select the enclosing With's direct provider:
+# no rt:ctx_new or rt:ctx_find, and no per-row callable ABI or specialization.
 trait Tag:
     fn name(self) -> string
 
@@ -91,44 +89,111 @@ fn with_tag[$ R](s: string, callback: fn() -> usize $ R + Tag) -> usize $ R:
 fn run(s: string) -> usize:
 > app/main/run
 >   local $0 s: string [param read] value
->     uses $0: entry -> %1 consume last
->   %0 = Retain %6 Entry local $0 #0 : ()
+>     uses $0: entry -> %3 consume last
+>   local $2 callback: fn() -> usize [read] value
+>     uses $2: %2 -> %18 lend last
+>   local $3 $ref: string [read assigned captured captured-assigned] value
+>     uses $3: %24 -> %25 lend last
+>   local $5 provider: Named [read] value
+>     uses $5: %5 -> %6 consume last
+>   local $6 $ref: Named [read assigned captured captured-assigned] place
+>   %0 = Retain %41 Entry local $0 #0 : ()
     with_tag(s, read_tag)
->   %1 = Read move [$0] : string
->   %2 = ItemRef #0 [..] : fn() -> usize
->   %3 = Call app/main/with_tag[$()] (%1, %2) : usize
->   %4 = Retain %3 Operation operand 1 #0 : ()
->   %5 = Drop [%2] : ()
->   %6 = Block %3 : usize
+>   %1 = ItemRef #0 [..] : fn() -> usize
+>   %2 = Store [$2] %1 : ()
+>   %3 = Read move [$0] : string
+>   %4 = NewStruct [%3] : Named
+>   %5 = Store [$5] %4 : ()
+>   %6 = Read move [$5] : Named
+>   %7 = Store [$6] %6 : ()
+>   %8 = Ref take mut [$6] : *mut Named
+>   %9 = Break L3 %8 : never
+>   %10 = Block - : *mut Named
+>   %11 = Scope %10 [] : *mut Named
+>   %12 = Coerce %11 [RefToTraitValue -] : Tag
+>   %13 = Block %12 : Tag
+>   %14 = RefDyn %13 : *dyn Tag
+>   %15 = LoanEnd [%11] : ()
+>   %16 = Coerce %14 [RefAsProvider -] : Tag
+>   %17 = LoanEnd [%14] : ()
+>   %18 = Read borrow [$2] : fn() -> usize
+>   %19 = ProviderGet #80 : Tag
+>   %20 = Coerce %19 [ProviderAsRef -] : &dyn Tag
+>   %21 = Read borrow [*%20] : Tag
+>   %22 = LoanEnd [%20] : ()
+>   %23 = Call app/main/Tag.name for Tag [] via TraitValue (%21) : string
+>   %24 = Store [$3] %23 : ()
+>   %25 = Read borrow [$3] : string
+>   %26 = Call std/rt.bytes/bytes_len[] (%25) : usize
+>   %27 = Break L1 %26 : never
+>   %28 = Block - : usize
+>   %29 = Scope %28 [] : usize
+>   %30 = Drop [$3] : ()
+>   %31 = Break L2 %29 : never
+>   %32 = Block - : usize
+>   %33 = Scope %32 [] : usize
+>   %34 = Block %33 : usize
+>   %35 = With [Tag %16] %34 : usize
+>   %36 = Drop [%16] : ()
+>   %37 = Break L0 %35 : never
+>   %38 = Block - : usize
+>   %39 = Scope %38 [] : usize
+>   %40 = Drop [$2] : ()
+>   %41 = Block %39 : usize
+>   %8 finds [$6] full
 >   exit sub 0 drops [$0]
+>   storage sub 0: $6 cell
 >   summary kept [$0] writes
 
 fn closure(s: string) -> usize:
 > app/main/closure
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %1 consume last
->   local $1 $ref: string [read assigned captured captured-assigned] value
->     uses $1: %7 -> %8 lend last
->   %0 = Retain %19 Entry local $0 #0 : ()
+>   local $2 $ref: string [read assigned mutated] value
+>     uses $2: %21 -> %22 lend last
+>   local $4 provider: Named [read] value
+>     uses $4: %3 -> %4 consume last
+>   local $5 $ref: Named [read assigned captured captured-assigned] place
+>   %0 = Retain %37 Entry local $0 #0 : ()
     with_tag(s, fn() -> usize $ Tag: $.use(Tag).name().len())
 >   %1 = Read move [$0] : string
->   %2 = ProviderGet #1 : Tag
->   %3 = Coerce %2 [ProviderAsRef -] : &dyn Tag
->   %4 = Read borrow [*%3] : Tag
->   %5 = LoanEnd [%3] : ()
->   %6 = Call app/main/Tag.name for Tag [] via TraitValue (%4) : string
->   %7 = Store [$1] %6 : ()
->   %8 = Read borrow [$1] : string
->   %9 = Call std/rt.bytes/bytes_len[] (%8) : usize
->   %10 = Break L0 %9 : never
->   %11 = Block - : usize
->   %12 = Scope %11 [] : usize
->   %13 = Drop [$1] : ()
->   %14 = Block %12 : usize
->   %15 = Closure #1 : fn() -> usize
->   %16 = Call app/main/with_tag[$()] (%1, %15) : usize
->   %17 = Retain %16 Operation operand 1 #0 : ()
->   %18 = Drop [%15] : ()
->   %19 = Block %16 : usize
+>   %2 = NewStruct [%1] : Named
+>   %3 = Store [$4] %2 : ()
+>   %4 = Read move [$4] : Named
+>   %5 = Store [$5] %4 : ()
+>   %6 = Ref take mut [$5] : *mut Named
+>   %7 = Break L3 %6 : never
+>   %8 = Block - : *mut Named
+>   %9 = Scope %8 [] : *mut Named
+>   %10 = Coerce %9 [RefToTraitValue -] : Tag
+>   %11 = Block %10 : Tag
+>   %12 = RefDyn %11 : *dyn Tag
+>   %13 = LoanEnd [%9] : ()
+>   %14 = Coerce %12 [RefAsProvider -] : Tag
+>   %15 = LoanEnd [%12] : ()
+>   %16 = ProviderGet #19 : Tag
+>   %17 = Coerce %16 [ProviderAsRef -] : &dyn Tag
+>   %18 = Read borrow [*%17] : Tag
+>   %19 = LoanEnd [%17] : ()
+>   %20 = Call app/main/Tag.name for Tag [] via TraitValue (%18) : string
+>   %21 = Store [$2] %20 : ()
+>   %22 = Read borrow [$2] : string
+>   %23 = Call std/rt.bytes/bytes_len[] (%22) : usize
+>   %24 = Break L0 %23 : never
+>   %25 = Block - : usize
+>   %26 = Scope %25 [] : usize
+>   %27 = Drop [$2] : ()
+>   %28 = Break L1 %26 : never
+>   %29 = Block - : usize
+>   %30 = Scope %29 [] : usize
+>   %31 = Block %30 : usize
+>   %32 = With [Tag %14] %31 : usize
+>   %33 = Drop [%14] : ()
+>   %34 = Break L2 %32 : never
+>   %35 = Block - : usize
+>   %36 = Scope %35 [] : usize
+>   %37 = Block %36 : usize
+>   %6 finds [$5] full
 >   exit sub 0 drops [$0]
+>   storage sub 0: $5 cell
 >   summary kept [$0] writes

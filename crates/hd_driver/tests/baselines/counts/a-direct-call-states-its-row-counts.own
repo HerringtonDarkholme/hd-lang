@@ -2,14 +2,17 @@
 # @dump: own counts wat
 # @build: v8 release
 # expected: a direct row-polymorphic call or await states its temporary context's copy and release; an empty row forwards nothing.
+use std.annotation.inline
+
 trait Tag:
     fn value(self) -> i32
 
-fn forward[$ R](callback: fn() -> i32 $ R) -> i32 $ R:
+@inline(.Never)
 > app/main/forward
 >   local $0 callback: fn() -> i32 [param read] value
 >     uses $0: entry -> %1 lend last
 >   %0 = Release %5 Exit local $0 #2 : ()
+fn forward[$ R](callback: fn() -> i32 $ R) -> i32 $ R:
     callback()
 >   %1 = Read borrow [$0] : fn() -> i32
 >   %2 = CallValue %1 [] : i32

@@ -9,13 +9,12 @@ trait Tag:
 
 fn call[Args < Tuple, O, $ R](f: Fn[Args, O, $ R], args: Args) -> O $ R:
     f(args...)
-> app/main/call
->   retain counted reference (stored)
->   retain counted reference (stored)
 
 fn spread(f: fn(string, List[i32]) -> usize $ Tag, values: (string, List[i32])) -> usize $ Tag:
     call(f, values)
 > app/main/spread
+>   retain counted reference (stored)
+>   retain counted reference (stored)
 >   retain counted reference (stored)
 >   release counted reference (last use)
 

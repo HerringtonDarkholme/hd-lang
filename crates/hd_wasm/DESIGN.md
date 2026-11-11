@@ -1756,6 +1756,13 @@ whose row changes and `$.Context` values on the linear backend
   instruction. An empty row passes 0, and a row that is only the
   caller's open row passes the caller's context unchanged. The iterator
   step codes take the context too and ignore it.
+- **Known small row callbacks.** Before ownership, the existing inliner
+  may copy a row wrapper, its lexical `With` and a known callback into the
+  caller (#1394). Provider reads then use that scope's direct provider
+  locals, so no callable context is built or searched. This is ordinary
+  bounded inlining, without another entry shape or per-row specialization.
+  Copies that would construct contexts or suspend retain their ordinary
+  boundaries and context ownership.
 - **Row parameters.** An instance of an item with row parameters is
   compiled once with each row parameter the open row (`hd_mono::rowless`).
   It takes one provider per key its row lists itself, then the context

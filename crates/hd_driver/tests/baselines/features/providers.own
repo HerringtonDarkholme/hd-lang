@@ -50,14 +50,16 @@ fn install(s: string) -> usize:
 >     uses $2: %5 -> %6 consume last
 >   local $3 $ref: *Fixed [read assigned captured] value
 >     uses $3: %8 -> %9 lend last
->   %0 = Retain %20 Entry local $0 #0 : ()
+>   local $4 $ref: string [read assigned captured captured-assigned] value
+>     uses $4: %21 -> %22 lend last
+>   %0 = Retain %34 Entry local $0 #0 : ()
     f := box(Fixed { n: s })
 >   %1 = Read move [$0] : string
 >   %2 = NewStruct [%1] : Fixed
 >   %3 = Store [$1] %2 : ()
 >   %4 = Ref take mut [$1] : *mut Fixed
 >   %5 = Store [$2] %4 : ()
->   %20 = Block %18 : usize
+>   %34 = Block %32 : usize
 >   %4 finds [$1] full
     $.with(Namer=f):
 >   %6 = Read move [$2] : *mut Fixed
@@ -70,11 +72,25 @@ fn install(s: string) -> usize:
 >   %13 = RefDyn %12 : *dyn Namer
 >   %14 = Coerce %13 [RefAsProvider -] : Namer
 >   %15 = LoanEnd [%13] : ()
->   %18 = With [Namer %14] %17 : usize
->   %19 = Drop [%14] : ()
+>   %32 = With [Namer %14] %31 : usize
+>   %33 = Drop [%14] : ()
         ask()
->   %16 = Call app/main/ask[] () : usize
->   %17 = Block %16 : usize
+>   %16 = ProviderGet #41 : Namer
+>   %17 = Coerce %16 [ProviderAsRef -] : &dyn Namer
+>   %18 = Read borrow [*%17] : Namer
+>   %19 = LoanEnd [%17] : ()
+>   %20 = Call app/main/Namer.name for Namer [] via TraitValue (%18) : string
+>   %21 = Store [$4] %20 : ()
+>   %22 = Read borrow [$4] : string
+>   %23 = Call std/rt.bytes/bytes_len[] (%22) : usize
+>   %24 = Break L0 %23 : never
+>   %25 = Block - : usize
+>   %26 = Scope %25 [] : usize
+>   %27 = Drop [$4] : ()
+>   %28 = Break L1 %26 : never
+>   %29 = Block - : usize
+>   %30 = Scope %29 [] : usize
+>   %31 = Block %30 : usize
 >   exit sub 0 drops [$0]
 >   storage sub 0: $1 cell
 >   summary kept [$0] writes

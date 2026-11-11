@@ -14,11 +14,27 @@
     i32.load $heap offset=28
     local.set $ctx
     ;; 25 |         read_tag()
-    local.get $t0
-    local.get $ctx
-    call $read_tag
+    block
+      local.get $t0
+      local.get $ctx
+      i32.load $heap
+      call_indirect $table0 (param i32) (result i32 i32)
+      local.set $t0
+      local.set $ctx
+      block
+        br 0
+      end
+      local.get $ctx
+      local.tee $ctx
+      if
+        local.get $ctx
+        call $rt:release_ref
+      end
+      local.get $t0
+      local.set $ctx
+      br 0
+    end
     ;; 24 |     $.with(ctx...):
-    local.set $ctx
     local.get $ctx
   )
   (func $read_tag (param $provider0 i32) (param $provider0.vtable i32) (result i32)
