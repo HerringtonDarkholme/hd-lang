@@ -498,7 +498,8 @@ pub enum Ins {
     /// frame holds there, which the body's emission expands once its
     /// locals are known.
     Save(u32),
-    /// The loads of every local from the frame.
+    /// The frame loads for the current suspension state (or initial
+    /// constructor slots at state zero), expanded once locals are known.
     LoadAll,
     /// The TIR instruction that anchors the calls after it: a row of the
     /// `hd.lines` table at each call that starts a new anchor

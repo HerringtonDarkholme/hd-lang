@@ -1,6 +1,8 @@
 //! A suspending body resumes into a block list through one `br_table` on
 //! its state (`crates/hd_wasm/DESIGN.md` §14.2), not a guard per item.
+//! A separate table selects the live-slot reload row, including cold state zero.
 
+use hd_base::SliceSort as _;
 use hd_cache::MemoryStore;
 use hd_driver::{Executor, Goal, Host, NoClock, build};
 use hd_project::MemorySources;
@@ -19,7 +21,7 @@ pub fn main!() -> void $ Console + Clock:\n    \
         i += 1\n";
 
 #[test]
-fn a_loop_of_waits_resumes_through_one_br_table() {
+fn a_loop_of_waits_uses_resume_and_live_reload_tables() {
     let mut src = MemorySources::default();
     src.insert("main.hd", MAIN);
     let store = MemoryStore::default();
@@ -43,13 +45,13 @@ fn a_loop_of_waits_resumes_through_one_br_table() {
         match p.expect("valid module") {
             wasmparser::Payload::CodeSectionEntry(body) => {
                 let mut ops = body.get_operators_reader().expect("operators");
-                let mut n = 0;
+                let mut widths = Vec::new();
                 while !ops.eof() {
-                    if let wasmparser::Operator::BrTable { .. } = ops.read().expect("op") {
-                        n += 1;
+                    if let wasmparser::Operator::BrTable { targets } = ops.read().expect("op") {
+                        widths.push(targets.len());
                     }
                 }
-                tables.push(n);
+                tables.push(widths);
             }
             wasmparser::Payload::CustomSection(c) if c.name() == "name" => {
                 let r = wasmparser::NameSectionReader::new(wasmparser::BinaryReader::new(
@@ -70,10 +72,14 @@ fn a_loop_of_waits_resumes_through_one_br_table() {
     }
     // The dev `name` section names every function, imports first.
     let imports = names.len() - tables.len();
-    let in_main: usize = names
+    let mut in_main: Vec<u32> = names
         .iter()
         .filter(|(_, n)| n.starts_with("app/main/main"))
-        .map(|(i, _)| tables[i - imports])
-        .sum();
-    assert_eq!(in_main, 1, "{names:?}");
+        .flat_map(|(i, _)| tables[i - imports].iter().copied())
+        .collect();
+    in_main.sort_stable();
+    // Three execution resume targets, and four reload targets: cold
+    // construction plus the three suspended states. Neither dispatch
+    // grows into a sequential guard per body item or per saved local.
+    assert_eq!(in_main, [3, 4], "{names:?}");
 }

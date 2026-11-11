@@ -15,7 +15,7 @@
     local.set $value
     local.get $value
   )
-  (func $read'1 (param $frame i32) (param $value i32) (result i32 i32) (local $t1 i32) (local $t2 i32) (local $t0 i32)
+  (func $read'1 (param $frame i32) (param $value i32) (result i32 i32) (local $t1 i32) (local $t0 i32)
     ;; 5 |     *value
     local.get $frame
     if
@@ -37,19 +37,16 @@
       i32.load $heap offset=24
       local.set $value
       local.get $frame
-      i32.load $heap offset=28
+      i32.load $heap offset=32
       local.set $t1
-      local.get $frame
-      i32.load $heap offset=36
-      local.set $t2
     else
     end
     local.get $value
     i32.load $heap
     local.set $value
-    local.get $t2
+    local.get $t1
     if
-      local.get $t2
+      local.get $t1
       call $rt:release_ref
     end
     local.get $value
@@ -62,18 +59,7 @@
       i32.or
       i32.store $heap offset=12
     end
-    local.get $t1
-    if (result i32)
-      local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
-      i32.const -17
-      i32.and
-      i32.store $heap offset=12
-      local.get $frame
-    else
-      i32.const 0
-    end
+    i32.const 0
     local.get $frame
     if
       local.get $frame
@@ -177,7 +163,7 @@
     i32.eqz
     if
       local.get $t0
-      i32.load $heap offset=36
+      i32.load $heap offset=32
       local.tee $t0
       if
         local.get $t0
@@ -198,7 +184,7 @@
     end
     local.get $t0
     local.get $t1
-    i32.store $heap offset=36
+    i32.store $heap offset=32
     local.get $t0
   )
 )

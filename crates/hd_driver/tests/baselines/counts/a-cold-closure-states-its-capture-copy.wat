@@ -42,7 +42,7 @@
     local.get $value
     local.get $t0
   )
-  (func $number#1'1 (param $frame i32) (param $env i32) (param $ctx i32) (result i32 i32) (local $t1 i32) (local $value i32) (local $t0 i32)
+  (func $number#1'1 (param $frame i32) (param $env i32) (param $ctx i32) (result i32 i32) (local $value i32) (local $t0 i32)
     ;; 8 |     fn!() -> usize: value
     local.get $frame
     if
@@ -69,9 +69,6 @@
     if
       local.get $frame
       i32.load $heap offset=32
-      local.set $t1
-      local.get $frame
-      i32.load $heap offset=36
       local.set $value
     else
     end
@@ -85,18 +82,7 @@
       i32.or
       i32.store $heap offset=12
     end
-    local.get $t1
-    if (result i32)
-      local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
-      i32.const -17
-      i32.and
-      i32.store $heap offset=12
-      local.get $frame
-    else
-      i32.const 0
-    end
+    i32.const 0
     local.get $frame
     if
       local.get $frame
@@ -220,10 +206,10 @@
     local.get $t0
     local.get $t1
     i32.load $heap
-    i32.store $heap offset=36
+    i32.store $heap offset=32
     local.get $t0
   )
-  (func $text#1'1 (param $frame i32) (param $env i32) (param $ctx i32) (result i32 i32 i32) (local $t1 i32) (local $value.0 i32) (local $value.1 i32) (local $t0 i32)
+  (func $text#1'1 (param $frame i32) (param $env i32) (param $ctx i32) (result i32 i32 i32) (local $value.0 i32) (local $value.1 i32) (local $t0 i32)
     ;; 5 |     fn!() -> string: value
     local.get $frame
     if
@@ -253,12 +239,9 @@
     if
       local.get $frame
       i32.load $heap offset=32
-      local.set $t1
-      local.get $frame
-      i32.load $heap offset=36
       local.set $value.0
       local.get $frame
-      i32.load $heap offset=40
+      i32.load $heap offset=36
       local.set $value.1
     else
       local.get $value.0
@@ -278,18 +261,7 @@
       i32.or
       i32.store $heap offset=12
     end
-    local.get $t1
-    if (result i32)
-      local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
-      i32.const -17
-      i32.and
-      i32.store $heap offset=12
-      local.get $frame
-    else
-      i32.const 0
-    end
+    i32.const 0
     local.get $frame
     if
       local.get $frame
@@ -405,7 +377,7 @@
     i32.eqz
     if
       local.get $t0
-      i32.load $heap offset=36
+      i32.load $heap offset=32
       local.tee $t1
       if
         local.get $t1
@@ -448,10 +420,10 @@
     end
     local.get $t0
     local.get $t2
-    i32.store $heap offset=36
+    i32.store $heap offset=32
     local.get $t0
     local.get $t1
-    i32.store $heap offset=40
+    i32.store $heap offset=36
     local.get $t0
   )
 )
