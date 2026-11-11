@@ -1,8 +1,9 @@
-//! A constructed context keeps a copy of its row's provider data.
+//! A constructed context takes direct providers and copies spread entries.
 //!
 //! Its provider/spread pairs determine the row. The concrete row layout
-//! lowers the packet once per final key, so shadowed pairs and empty
-//! spreads add no count. This is separate from the new context's own count.
+//! lowers the copy packet once per final key. A selected direct entry
+//! transfers its count; a shadowed direct entry uses its operand-release
+//! packet. Spread contexts keep their owners. The new context has its own count.
 
 use crate::ir::{
     Body, Tag,
@@ -10,19 +11,32 @@ use crate::ir::{
     u32_of,
 };
 
-pub(super) fn counts(b: &Body) -> Vec<(Tag, u32, Info)> {
-    b.tags
-        .iter()
-        .enumerate()
-        .filter(|&(i, tag)| *tag == Tag::ContextNew && !b.record(b.data[i][0]).is_empty())
-        .map(|(i, _)| {
-            (
-                Tag::Retain,
-                u32_of(i),
-                Info::new(At::Operation, Part::Row, 0),
-            )
-        })
-        .collect()
+pub(super) fn counts(b: &Body, cx: &dyn super::OwnCx) -> Vec<(Tag, u32, Info)> {
+    let mut out = Vec::new();
+    for (i, tag) in b.tags.iter().enumerate() {
+        if *tag != Tag::ContextNew {
+            continue;
+        }
+        let pairs = b.record(b.data[i][0]);
+        if pairs.is_empty() {
+            continue;
+        }
+        out.push((
+            Tag::Retain,
+            u32_of(i),
+            Info::new(At::Operation, Part::Row, 0),
+        ));
+        for (k, pair) in pairs.chunks_exact(2).enumerate() {
+            if cx.trait_value(hd_types::Ty(pair[0])) {
+                out.push((
+                    Tag::Release,
+                    u32_of(i),
+                    Info::new(At::Operation, Part::Operand(u32_of(k)), 2),
+                ));
+            }
+        }
+    }
+    out
 }
 
 #[cfg(test)]
@@ -32,6 +46,95 @@ mod tests {
     use crate::own::{counts as statements, splice, tests::Cx};
     use hd_base::{DefId, NodeIdx};
     use hd_types::Ty;
+
+    struct Providers;
+    impl crate::own::OwnCx for Providers {
+        fn temporary_owner_name(&self) -> hd_base::Symbol {
+            hd_base::Symbol::NONE
+        }
+        fn trait_value(&self, ty: Ty) -> bool {
+            ty == Ty(43)
+        }
+        fn counted(&self, ty: Ty) -> bool {
+            Cx.counted(ty)
+        }
+        fn pass(&self, callee: &crate::ir::Callee, k: usize, n: usize) -> crate::own::Pass {
+            Cx.pass(callee, k, n)
+        }
+        fn pass_value(&self, ty: Ty, k: usize, n: usize) -> crate::own::Pass {
+            Cx.pass_value(ty, k, n)
+        }
+        fn may_write(&self, callee: &crate::ir::Callee) -> bool {
+            Cx.may_write(callee)
+        }
+        fn parts(&self, ty: Ty, variant: Option<u32>, out: &mut Vec<Ty>) -> bool {
+            Cx.parts(ty, variant, out)
+        }
+        fn received(&self, item: DefId, k: usize, n: usize) -> crate::own::Pass {
+            Cx.received(item, k, n)
+        }
+        fn holds_coll(&self, ty: Ty) -> bool {
+            Cx.holds_coll(ty)
+        }
+    }
+
+    #[test]
+    fn direct_entries_are_consumed_and_have_conditional_release_packets() {
+        let mut builder = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+        let block = builder.open_block();
+        let fields = builder.words_record(&[]);
+        let direct = builder.emit(
+            Tag::NewStruct,
+            crate::ir::NONE,
+            fields,
+            Ty(43),
+            NodeIdx::NONE,
+        );
+        let spread = builder.emit(
+            Tag::NewStruct,
+            crate::ir::NONE,
+            fields,
+            Ty(44),
+            NodeIdx::NONE,
+        );
+        let pairs = builder.words_record(&[Ty(43).0, direct.0, Ty(44).0, spread.0]);
+        let context = builder
+            .emit(Tag::ContextNew, pairs, 0, Ty(45), NodeIdx::NONE)
+            .0 as usize;
+        let root = builder.close_block(block, None, Ty::VOID, NodeIdx::NONE);
+        let mut b = builder.finish(root, &[]).unwrap();
+        let mut ops = Vec::new();
+        crate::own::operands(&b, context, &mut ops);
+        assert_eq!(ops.len(), 2);
+        assert!(crate::own::consumes(
+            &b,
+            &Providers,
+            context,
+            &ops[0],
+            crate::ir::NONE
+        ));
+        assert!(!crate::own::consumes(
+            &b,
+            &Providers,
+            context,
+            &ops[1],
+            crate::ir::NONE
+        ));
+        let topo = Topology::new(&b);
+        statements::run(&mut b, &Providers, &topo, &mut splice::Tables::default()).unwrap();
+        assert!(verify_owned(&b, &Providers).is_empty());
+        let end = b
+            .tags
+            .iter()
+            .enumerate()
+            .position(|(i, &tag)| {
+                tag == Tag::Release
+                    && Info::read(&b, i).is_some_and(|info| info.part == Part::Operand(0))
+            })
+            .unwrap();
+        b.tags[end] = Tag::Retain;
+        assert!(!verify_owned(&b, &Providers).is_empty());
+    }
 
     fn body(entries: usize) -> Body {
         let mut b = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
@@ -100,7 +203,11 @@ mod tests {
         let target = wrong.data[i][0] as usize;
         let record = wrong.data[target][0] as usize;
         wrong.extra[record] = 0;
-        assert!(!super::counts(&wrong).iter().any(|c| c.1 == u32_of(target)));
+        assert!(
+            !super::counts(&wrong, &Cx)
+                .iter()
+                .any(|c| c.1 == u32_of(target))
+        );
         assert!(!verify_owned(&wrong, &Cx).is_empty());
     }
 

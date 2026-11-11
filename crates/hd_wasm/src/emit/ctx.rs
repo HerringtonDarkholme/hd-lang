@@ -201,7 +201,7 @@ impl Em<'_, '_, '_> {
         if let Some(copy) = copy {
             for (j, (k, [d, v])) in keys.iter().zip(provs).enumerate() {
                 let id = key_id(self.input, *k);
-                self.because(copy, |em| em.fill_entry(c, j, id, d, v));
+                self.because(copy, |em| em.fill_entry(c, j, id, d, v, true));
             }
         }
         self.f.get(c);
@@ -209,8 +209,9 @@ impl Em<'_, '_, '_> {
     }
 
     /// Writes entry `j` of the new context in local `c`: key id `id` and
-    /// the provider in locals `d` and `v`, whose data takes a count for it.
-    fn fill_entry(&mut self, c: u32, j: usize, id: i64, d: u32, v: u32) {
+    /// the provider in locals `d` and `v`. A copied provider takes a
+    /// count; a transferred provider arrives with its entry's count.
+    fn fill_entry(&mut self, c: u32, j: usize, id: i64, d: u32, v: u32, copy: bool) {
         let off = u64::from(CTX_ENTRY) * u64::try_from(j).expect("entries");
         self.f.get(c);
         self.f.op(I::I64Const(id));
@@ -221,7 +222,7 @@ impl Em<'_, '_, '_> {
         self.f.get(c);
         self.f.get(v);
         self.f.op(I::I32Store(mem(HEAP, CTX_VTABLE + off, 2)));
-        if let Some(r) = self.input.runtime {
+        if copy && let Some(r) = self.input.runtime {
             self.f.get(d);
             self.f.count_call(
                 crate::module::Sym::Inst(r.retain),
@@ -320,39 +321,46 @@ impl Em<'_, '_, '_> {
         debug_assert!(self.input.runtime.is_some());
         let keys = self.context_keys(self.ty(i));
         let pairs = self.rec(rec);
-        let mut from = Vec::new();
-        for k in &keys {
-            let mut src = None;
-            for c in pairs.chunks(2).rev() {
-                let kt = self.sub(Ty(c[0]));
-                if kt == *k {
-                    src = Some((c[1], None));
-                    break;
+        // Visit each pair and each spread entry once. Later entries replace
+        // earlier ones, matching the context's nearest-provider rule.
+        let mut sources = hd_base::HashMap::default();
+        for (j, pair) in pairs.chunks_exact(2).enumerate() {
+            let key = self.sub(Ty(pair[0]));
+            if matches!(self.pool().get(key), TyData::Context(_)) {
+                for (at, key) in self.context_keys(key).into_iter().enumerate() {
+                    sources.insert(key, (j, Some(at)));
                 }
-                if matches!(self.pool().get(kt), TyData::Context(_))
-                    && let Some(at) = self.context_keys(kt).iter().position(|x| x == k)
-                {
-                    src = Some((c[1], Some(at)));
-                    break;
-                }
+            } else {
+                sources.insert(key, (j, None));
             }
-            // ruled out: check::context_new derives this row from these provider/spread pairs.
-            assert!(src.is_some(), "each context key must name its source entry");
-            from.push(src.as_slice()[0]);
         }
+        let mut used = vec![false; pairs.len() / 2];
         let mut provs = Vec::new();
-        for (v, at) in from {
+        for key in &keys {
+            let source = sources.get(key).copied();
+            // ruled out: check::context_new derives this row from these pairs.
+            assert!(
+                source.is_some(),
+                "each context key must name its source entry"
+            );
+            let (j, at) = source.as_slice()[0];
+            used[j] = true;
+            let value = pairs[2 * j + 1];
             let ls = [self.f.local(Val::I32), self.f.local(Val::I32)];
-            match at {
+            let take = match at {
                 None => {
-                    for (k, l) in ls.iter().enumerate() {
-                        self.comp(v, k)?;
-                        self.f.set(*l);
+                    for (k, local) in ls.iter().enumerate() {
+                        self.comp(value, k)?;
+                        self.f.set(*local);
                     }
+                    self.take(value)
                 }
-                Some(at) => self.context_entry(v, at, ls)?,
-            }
-            provs.push(ls);
+                Some(at) => {
+                    self.context_entry(value, at, ls)?;
+                    false
+                }
+            };
+            provs.push((ls, take));
         }
         let c = self.f.local(Val::I32);
         self.f.u32(u32::try_from(keys.len()).expect("keys"));
@@ -366,9 +374,26 @@ impl Em<'_, '_, '_> {
             "own::context must state Retain/Row when concrete context keys are copied"
         );
         if let Some(copy) = copy {
-            for (j, (k, [d, v])) in keys.iter().zip(provs).enumerate() {
-                let id = key_id(self.input, *k);
-                self.because(copy, |em| em.fill_entry(c, j, id, d, v));
+            for (j, (key, ([d, v], take))) in keys.iter().zip(provs).enumerate() {
+                let id = key_id(self.input, *key);
+                self.because(copy, |em| em.fill_entry(c, j, id, d, v, !take));
+            }
+        }
+        // ContextNew consumes direct entries even when a later entry
+        // shadows them. A spread stays borrowed from its source context.
+        for (pair, j) in pairs.chunks_exact(2).zip(0u32..) {
+            if !used[j as usize] && self.take(pair[1]) {
+                let end = self.operation_count(i, Tag::Release, Part::Operand(j));
+                // ruled out: own::context states each direct entry's conditional end.
+                assert!(
+                    end.is_some(),
+                    "a shadowed direct provider must state its release"
+                );
+                self.because(end.as_slice()[0], |em| {
+                    em.comp(pair[1], 0)?;
+                    em.f.helper(Helper::ReleaseRef);
+                    Ok::<(), hd_base::NotImplemented>(())
+                })?;
             }
         }
         self.f.get(c);

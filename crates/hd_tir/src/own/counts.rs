@@ -45,7 +45,7 @@ fn expected(b: &Body, cx: &dyn OwnCx, topo: &Topology) -> Vec<(Tag, u32, Info)> 
     out.extend(captures::counts(b, cx));
     out.extend(cold_captures::counts(b, cx));
     out.extend(capture_entry::counts(b, cx));
-    out.extend(context::counts(b));
+    out.extend(context::counts(b, cx));
     out.extend(call_row::counts(b, cx));
     out.extend(call_args::counts(b, cx, topo));
     out.extend(append_copy::counts(b, cx));

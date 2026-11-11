@@ -235,7 +235,11 @@ of a context type, else `type-mismatch`. Both forms record
 `(key, value)` pairs, where a spread's key word is the spread value's
 own context type. `ContextNew` has the type `$.Context[$ keys]` over
 every key the entries bind, duplicates merged
-(`req.context.one-per-key`). `With` pushes the same key set as its
+(`req.context.one-per-key`). The constructor consumes each direct provider
+operand and borrows each spread context. A selected direct entry transfers
+its count into the context, and a shadowed direct entry is released by
+its conditional operand packet. Spread entries take their own copies.
+`With` pushes the same key set as its
 lexical frame. An expected context type is matched by type equality, so
 `$.Context[$ Backup]` where `$.Context[$ Clock]` is expected is
 `type-mismatch`. The pairs keep source order, which is all that
