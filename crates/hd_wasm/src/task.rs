@@ -1179,7 +1179,12 @@ fn wake_take(m: &Module) -> Func {
 /// The release glue of a leaf frame whose arguments are laid out as
 /// `area`: one count less on each counted reference among them.
 fn leaf_drop(area: &Elem) -> Option<Sym> {
-    let walk = area.walk.as_ref()?;
+    Some(walk_drop(area, area.walk.as_ref()?))
+}
+
+/// The glue that releases what `walk` reads of a leaf frame laid out as
+/// `area`.
+fn walk_drop(area: &Elem, walk: &Walk) -> Sym {
     // Only the leaves the walk reads, so the glue loads nothing else.
     let mut used = Vec::new();
     walk_indices(walk, &mut used);
@@ -1198,11 +1203,11 @@ fn leaf_drop(area: &Elem) -> Option<Sym> {
     let walk = walk.remap(&|k| {
         u32::try_from(used.iter().position(|u| *u == k).expect("used")).expect("leaves")
     });
-    Some(Sym::Helper(Helper::DropFields {
+    Sym::Helper(Helper::DropFields {
         leaves,
         walk,
         drops: Vec::new(),
-    }))
+    })
 }
 
 /// Every value index a walk reads: its references and its tags.
@@ -1492,13 +1497,7 @@ fn host_drive(m: &Module, blocking: bool, leaf: &HostLeaf<'_>) -> Func {
         flags_or(&mut f, fr, HOST_BORROWED);
         f.get(fr);
         if let Some(owned) = owned {
-            let mut transferred = area.clone();
-            transferred.walk = Some(owned.clone());
-            if let Some(drop) = leaf_drop(&transferred) {
-                f.table_slot(drop);
-            } else {
-                f.i32(-1);
-            }
+            f.table_slot(walk_drop(area, owned));
         } else {
             f.i32(-1);
         }

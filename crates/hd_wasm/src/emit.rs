@@ -2684,16 +2684,11 @@ impl Em<'_, '_, '_> {
         child: Option<u32>,
     ) -> StageResult<()> {
         let params = self.env().params(item).unwrap_or_default();
-        if params.len() != args.len() {
-            // ruled out: direct check_args fills every declared parameter,
-            // including defaults and the separate fields of a tuple spread.
-            // Unknown tuple arity uses CallValue and its borrowed ABI.
-            assert!(!params.iter().any(|&t| {
-                self.env()
-                    .cold_transfers(item, subst(self.pool(), self.env(), item, targs, t))
-            }));
-            return self.push_args(i, args, None, Some(0), self.f.reason);
-        }
+        // ruled out: direct check_args fills every declared parameter,
+        // including defaults and the separate fields of a tuple spread,
+        // and a vararg collects into its one parameter. Unknown tuple
+        // arity uses CallValue and its borrowed ABI.
+        assert_eq!(params.len(), args.len(), "a direct cold call's arguments");
         for (operand, (&r, ty)) in (0_u32..).zip(args.iter().zip(params)) {
             let ty = subst(self.pool(), self.env(), item, targs, ty);
             let transfers = self.env().cold_transfers(item, ty);

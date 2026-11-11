@@ -3870,6 +3870,63 @@ mod origin_tests {
         }
     }
 
+    /// A body whose labels do not balance, or that branches past its
+    /// outermost label, keeps its blocks: Wasm validation reports it as
+    /// written.
+    #[test]
+    fn void_blocks_leave_an_invalid_body_as_written() {
+        let symbols = Symbols::default();
+        let op = Ins::Op;
+        for body in [
+            vec![
+                op(I::Block(BlockType::Empty)),
+                op(I::I32Const(1)),
+                op(I::Drop),
+            ],
+            vec![op(I::Block(BlockType::Empty)), op(I::Br(2)), op(I::End)],
+        ] {
+            let mut f = tracked(&symbols, 0, 0, body.clone());
+            assert!(!blocks(&mut f));
+            assert_eq!(format!("{:?}", f.body), format!("{body:?}"));
+            assert_eq!(spans(&f), (10..13).collect::<Vec<_>>());
+        }
+    }
+
+    /// A constant address addend folds into a store's offset only while
+    /// the offset fits 32 bits; past that the store keeps its `i32.add`.
+    #[test]
+    fn a_store_offset_folds_only_while_it_fits_32_bits() {
+        let symbols = Symbols::default();
+        let op = Ins::Op;
+        let f = run(
+            tracked(
+                &symbols,
+                1,
+                0,
+                vec![
+                    op(I::LocalGet(0)),
+                    op(I::I32Const(32)),
+                    op(I::I32Add),
+                    op(I::I32Const(9)),
+                    op(I::I32Store(mem(HEAP, 0xFFFF_FFF0, 2))),
+                    op(I::LocalGet(0)),
+                    op(I::I32Const(4)),
+                    op(I::I32Add),
+                    op(I::I32Const(9)),
+                    op(I::I32Store(mem(HEAP, 0, 2))),
+                ],
+            ),
+            |f| {
+                assert!(schedule(f, 1, &Arity::new()));
+            },
+        );
+        assert!(matches!(f.body[2], Ins::Op(I::I32Add)));
+        assert!(matches!(f.body[4], Ins::Op(I::I32Store(m)) if m.offset == 0xFFFF_FFF0));
+        assert!(matches!(f.body[7], Ins::Op(I::I32Store(m)) if m.offset == 4));
+        assert_eq!(f.body.len(), 8);
+        assert_eq!(spans(&f), [10, 11, 12, 13, 14, 15, 18, 16]);
+    }
+
     #[test]
     fn scheduling_visits_are_linear_at_width_and_depth() {
         let symbols = Symbols::default();

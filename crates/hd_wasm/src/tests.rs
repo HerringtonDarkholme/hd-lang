@@ -425,6 +425,40 @@ fn instruction_origins_do_not_change_bytes_and_offsets_match_operators() {
     }
 }
 
+/// Count code is labeled per source instruction: each instruction that
+/// came from TIR instruction `k` gets one token naming `k` and the site,
+/// and one emitted with no source position stays unlabeled rather than
+/// being charged to another statement.
+#[test]
+fn count_labels_skip_instructions_with_no_source() {
+    let m = Module::default();
+    let mut f = m.func("counted", vec![], vec![]);
+    f.origins = Some(Vec::new());
+    f.set_origin_source_len(5);
+    let start = f.body.len();
+    f.origin_at = Some(2);
+    f.i32(0);
+    f.origin_at = None;
+    f.i32(1);
+    f.origin_at = Some(2);
+    f.op(crate::op::Op::I32Add);
+    f.op(crate::op::Op::Drop);
+    f.note_count(
+        start,
+        5,
+        crate::views::CountAction::Retain,
+        "Node",
+        Some(hd_tir::own::Reason::Stored),
+    );
+    // The site's token is the first past the 5 source instructions.
+    assert_eq!(f.origins, Some(vec![Some(5), None, Some(5), Some(5)]));
+    assert_eq!(f.source_origin(Some(5)), Some(2));
+    assert_eq!(
+        f.count_origin(5).map(|n| (n.subject.as_str(), n.site)),
+        Some(("Node", 0))
+    );
+}
+
 /// The cold paths are calls through the table (`Func::cold_helper`): from
 /// a function that changes a list, pushes onto one and panics with a
 /// formatted message, direct calls reach none of the copy, growth and
