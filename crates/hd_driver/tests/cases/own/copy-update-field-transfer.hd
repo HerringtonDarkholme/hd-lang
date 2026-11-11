@@ -1,0 +1,18 @@
+# @dump: own counts wat
+# @build: v8 release
+# expected: a dead spread moves kept fields; a live source keeps its owner.
+# Only the replaced name is destroyed; the inherited list takes no count.
+# Rules: ref.move.field and expr.update.copy-time (#1367).
+struct Rec:
+    name: string
+    tags: List[string]
+
+fn update(r: Rec, name: string) -> Rec:
+    Rec { ...r, name }
+
+fn still_live(r: Rec, name: string) -> (Rec, Rec):
+    next := Rec { ...r, name }
+    (r, next)
+
+fn replace_all(r: Rec, name: string, tags: List[string]) -> Rec:
+    Rec { ...r, name, tags }

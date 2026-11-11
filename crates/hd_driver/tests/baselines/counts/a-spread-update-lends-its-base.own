@@ -12,7 +12,7 @@ app/main/touch
   %6 = Read copy [%4 .batches] : List[i64]
   %7 = Read copy [$3 .revision] : usize
   %8 = Prim Add [%7 1:usize] : usize
-  %9 = CopyStruct %4 [.sku = %5, .batches = %6, .revision = %8] : Item
+  %9 = NewStruct [%5 %6 %8] : Item
   %10 = IsUnique [*$1] : ()
   %11 = Store [*$1 [%3]] %9 : ()
   %12 = Release %11 Operation #3 : ()

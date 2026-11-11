@@ -914,6 +914,7 @@ pub fn uncopied(b: &Body, cx: &dyn OwnCx, out: &mut Vec<Uncopied>) {
 /// refuse. A body the passes cannot handle is refused, with what stopped
 /// them.
 pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(), String> {
+    copy_struct::expand(b, cx, &mut scratch.topo, &mut scratch.splice)?;
     temporaries::run(
         b,
         cx,

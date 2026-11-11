@@ -1,13 +1,108 @@
-//! An in-place struct copy-update copies only fields its record keeps.
+//! Expose in-place copy-update fields to the ordinary borrow/move passes.
+//! Residual operations state copies only for fields their records keep.
 //! Replacement values transfer through their own operand contracts. Open
 //! field types may count in an instance; a constant base has no count.
 
-use super::OwnCx;
+use super::{OwnCx, splice};
 use crate::ir::{
-    Body, Ref, Tag,
+    Body, NONE, ReadMode, Ref, Tag, Topology,
     count::{At, Info, Part},
-    u32_of,
+    place, u32_of,
 };
+
+/// Expose kept fields as ordinary reads before ownership is derived. A
+/// last-use field can then move, while a live source lends or copies by
+/// the same rules as an explicit field read. Earlier reads required by
+/// `expr.update.copy-time` already occur in the replacement record.
+/// Each field and replacement is visited a constant number of times;
+/// all edits splice once.
+/// Constants keep their compact form: they own no dynamic count to move.
+pub(super) fn expand(
+    b: &mut Body,
+    cx: &dyn OwnCx,
+    topo: &mut Topology,
+    edits: &mut splice::Tables,
+) -> Result<(), String> {
+    if !b.tags.contains(&Tag::CopyStruct) {
+        return Ok(());
+    }
+    topo.build(b);
+    edits.clear();
+    let n = b.len();
+    // A wide update of a deep place must not duplicate width * depth
+    // words. Keep excess projection prefixes within one body-sized
+    // budget; remaining reads share the existing aggregate SSA value.
+    let mut projection_budget = n;
+    let mut fields = Vec::new();
+    let mut values = Vec::new();
+    for i in 0..n {
+        if b.tags[i] != Tag::CopyStruct
+            || topo.blk[i] == NONE
+            || Ref(b.data[i][0]).as_inst().is_none()
+            || !cx.struct_fields(b.ty[i], &mut fields)
+        {
+            continue;
+        }
+        values.clear();
+        values.resize(fields.len(), NONE);
+        for pair in b.record(b.data[i][1]).chunks_exact(2) {
+            values[pair[0] as usize] = pair[1];
+        }
+        // Project a read's place at the spread evaluation, rather than
+        // copying its whole aggregate just to move one field out again.
+        // This also preserves the snapshot before replacement expressions.
+        let source = Ref(b.data[i][0]).as_inst().map(|v| v.0 as usize);
+        let source = source.filter(|&v| b.tags[v] == Tag::Read && topo.blk[v] == topo.blk[i]);
+        let source = source.filter(|&v| {
+            let word = b.data[v][0];
+            let prefix = if word & place::BARE_LOCAL != 0 {
+                2
+            } else {
+                b.record(word).len()
+            };
+            let kept = values.iter().filter(|&&v| v == NONE).count();
+            let cost = prefix.saturating_sub(2).saturating_mul(kept);
+            if cost > projection_budget {
+                return false;
+            }
+            projection_budget -= cost;
+            true
+        });
+        let position = source.map_or(topo.pos[i], |v| topo.pos[v] + 1);
+        for (f, &ty) in fields.iter().enumerate() {
+            if values[f] != NONE {
+                continue;
+            }
+            let word = if let Some(source) = source {
+                super::self_store::field_place(b, b.data[source][0], u32_of(f))
+            } else {
+                let word = u32_of(b.extra.len());
+                b.extra.extend([
+                    3,
+                    place::ROOT_VALUE,
+                    b.data[i][0],
+                    place::PROJ_FIELD | u32_of(f),
+                ]);
+                word
+            };
+            let edit = edits.insert(
+                topo.blk[i],
+                position,
+                Tag::Read,
+                [word, ReadMode::Use as u32],
+                ty,
+                b.syn[i],
+            );
+            values[f] = u32_of(n) + edit;
+        }
+        let record = u32_of(b.extra.len());
+        b.extra.push(u32_of(values.len()));
+        b.extra.extend_from_slice(&values);
+        b.tags[i] = Tag::NewStruct;
+        b.data[i] = [NONE, record];
+    }
+    splice::apply(b, topo, edits)
+}
 
 pub(super) fn counts(b: &Body, cx: &dyn OwnCx) -> Vec<(Tag, u32, Info)> {
     let mut out = Vec::new();
@@ -53,6 +148,10 @@ mod tests {
 
         fn struct_fields(&self, ty: Ty, out: &mut Vec<Ty>) -> bool {
             out.clear();
+            if ty.0 >= 100 {
+                out.push(if ty.0 == 100 { Ty(45) } else { Ty(ty.0 - 1) });
+                return true;
+            }
             out.extend(match ty {
                 Ty(43) => [Ty::STRING, Ty::I32].as_slice(),
                 Ty(44) => [Ty::I32, Ty::I32].as_slice(),
@@ -111,6 +210,112 @@ mod tests {
             }
         }
         b
+    }
+
+    #[test]
+    fn expansion_projects_only_kept_fields_and_is_idempotent() {
+        for replaced in [vec![], vec![0], vec![1], vec![0, 1]] {
+            let mut b = body(Ty(45), &replaced, false);
+            let mut topo = Topology::default();
+            let mut edits = splice::Tables::default();
+            assert_eq!(super::expand(&mut b, &Facts, &mut topo, &mut edits), Ok(()));
+            assert!(!b.tags.contains(&Tag::CopyStruct));
+            let constructors: Vec<_> = b
+                .tags
+                .iter()
+                .enumerate()
+                .filter_map(|(i, &tag)| (tag == Tag::NewStruct).then_some(i))
+                .collect();
+            assert_eq!(constructors.len(), 1);
+            let constructor = constructors[0];
+            let values = b.record(b.data[constructor][1]);
+            assert_eq!(values.len(), 2);
+            for (field, &value) in values.iter().enumerate() {
+                if replaced.contains(&u32_of(field)) {
+                    assert!(Ref(value).as_inst().is_none());
+                } else {
+                    let read = value as usize;
+                    assert_eq!(b.tags[read], Tag::Read);
+                    let place = b.view(b.data[read][0]);
+                    assert!(matches!(place.root, crate::ir::Root::Local(0)));
+                    assert_eq!(
+                        place.steps(&b).collect::<Vec<_>>(),
+                        [crate::ir::Proj::Field(u32_of(field))]
+                    );
+                    assert_eq!(b.data[read][1], ReadMode::Use as u32);
+                }
+            }
+            let once = crate::ir::print(&b);
+            assert_eq!(super::expand(&mut b, &Facts, &mut topo, &mut edits), Ok(()));
+            assert_eq!(crate::ir::print(&b), once);
+        }
+        let mut constant = body(Ty(45), &[0], true);
+        let before = crate::ir::print(&constant);
+        assert_eq!(
+            super::expand(
+                &mut constant,
+                &Facts,
+                &mut Topology::default(),
+                &mut splice::Tables::default(),
+            ),
+            Ok(())
+        );
+        assert_eq!(crate::ir::print(&constant), before);
+    }
+
+    #[test]
+    fn wide_updates_of_deep_places_copy_only_linear_projection_words() {
+        for (width, depth) in [(1, 1), (1000, 1), (1000, 20)] {
+            let mut builder = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+            let block = builder.open_block();
+            let local = builder.local(
+                Ty(99 + depth),
+                Symbol::NONE,
+                local_flags::PARAM,
+                NodeIdx::NONE,
+            );
+            let mut place = crate::ir::Place::local(local);
+            place.proj = vec![crate::ir::Proj::Field(0); depth as usize];
+            let word = builder.place(&place);
+            let source = builder.emit(Tag::Read, word, ReadMode::Use as u32, Ty(45), NodeIdx::NONE);
+            let text = builder.const_value(Ty::STRING, 0);
+            let replacements = builder.words_record(&[1, text.0]);
+            for _ in 0..width {
+                builder.emit(
+                    Tag::CopyStruct,
+                    source.0,
+                    replacements,
+                    Ty(45),
+                    NodeIdx::NONE,
+                );
+            }
+            let root = builder.close_block(block, None, Ty::VOID, NodeIdx::NONE);
+            let result = builder.finish(root, &[]);
+            assert!(result.is_ok());
+            let Ok(mut body) = result else {
+                return;
+            };
+            let (instructions, words) = (body.len(), body.extra.len());
+            assert_eq!(
+                super::expand(
+                    &mut body,
+                    &Facts,
+                    &mut Topology::default(),
+                    &mut splice::Tables::default()
+                ),
+                Ok(())
+            );
+            assert_eq!(body.len(), instructions + width);
+            let written = body.extra.len() - words;
+            // Four words per field read, three per construction, plus
+            // the one body-sized allowance for duplicated prefixes and
+            // one rebuilt block record with the added reads.
+            assert!(
+                written <= 8 * width + 2 * instructions + 1,
+                "{width}/{depth}: {written}"
+            );
+            println!("copy-update work width={width} depth={depth}: {written} written words");
+        }
     }
 
     fn state(b: &mut Body) {

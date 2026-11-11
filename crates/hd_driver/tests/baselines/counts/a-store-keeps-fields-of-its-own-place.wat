@@ -16,46 +16,39 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $used_after (param $items i32) (param $i i32) (result i32) (local $previous.batches i32) (local $previous.depots i32) (local $previous.r i32) (local $t0 i32) (local $t1 i32)
+  (func $used_after (param $items i32) (param $i i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 32 |     previous := items[i]
     block
       local.get $items
       i32.load $heap
-      local.set $previous.batches
+      local.set $t0
       local.get $i
-      local.get $previous.batches
+      local.get $t0
       i32.load $heap offset=4
       i32.ge_u
       if
         call $rt:panic
         unreachable
       end
-      local.get $previous.batches
+      local.get $t0
       local.get $i
       i32.const 12
       i32.mul
       i32.add
-      local.tee $previous.batches
+      local.tee $t0
       i32.load $heap offset=16
-      local.get $previous.batches
+      local.get $t0
       i32.load $heap offset=20
-      local.get $previous.batches
+      local.get $t0
       i32.load $heap offset=24
-      local.set $previous.depots
-      local.set $previous.batches
+      local.set $t1
+      local.set $t0
       call $rt:coll_copy
-      local.get $previous.batches
-      call $rt:coll_copy
-      local.get $previous.depots
-      local.set $previous.r
-      local.set $previous.depots
-      local.tee $previous.batches
-    ;; 33 |     items[i] = Item { ...previous, r: 1 }
-      call $rt:coll_copy
-      local.get $previous.depots
+      local.get $t0
       call $rt:coll_copy
       local.set $t0
-      local.set $t1
+    ;; 33 |     items[i] = Item { ...previous, r: 1 }
+      local.set $t2
     ;; 32 |     previous := items[i]
       local.get $items
       local.get $items
@@ -87,7 +80,7 @@
       i32.load $heap offset=24
       call $rt:release'1
       local.get $items
-      local.get $t1
+      local.get $t2
       i32.store $heap offset=16
       local.get $items
       local.get $t0
@@ -95,13 +88,8 @@
       local.get $items
       i32.const 1
       i32.store $heap offset=24
-    ;; 34 |     previous.r
-      local.get $previous.r
     ;; 32 |     previous := items[i]
-      local.get $previous.batches
-      local.get $previous.depots
-      local.get $previous.r
-      call $rt:release'1
+      local.get $t1
       local.set $items
     end
     local.get $items
@@ -393,7 +381,7 @@
       i32.store $heap offset=8
     end
   )
-  (func $call_between (param $items i32) (param $i i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32)
+  (func $call_between (param $items i32) (param $i i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 41 |     items[i] = Item { ...items[i], r: grow(items, i) }
     block
       local.get $items
@@ -416,28 +404,16 @@
       i32.load $heap offset=16
       local.get $t0
       i32.load $heap offset=20
+      local.set $t0
+      call $rt:coll_copy
       local.get $t0
-      i32.load $heap offset=24
-      local.set $t1
-      local.set $t2
       call $rt:coll_copy
-      local.tee $t0
-      local.get $t2
-      call $rt:coll_copy
-      local.set $t2
-      call $rt:coll_copy
-      local.get $t2
-      call $rt:coll_copy
-      local.set $t3
+      local.set $t0
       local.get $items
       local.get $i
       call $grow
-      local.set $t4
-      local.set $t5
-      local.get $t0
-      local.get $t2
-      local.get $t1
-      call $rt:release'1
+      local.set $t1
+      local.set $t2
       local.get $items
       local.get $items
       i32.load $heap
@@ -467,13 +443,13 @@
       i32.load $heap offset=24
       call $rt:release'1
       local.get $items
-      local.get $t5
+      local.get $t2
       i32.store $heap offset=16
       local.get $items
-      local.get $t3
+      local.get $t0
       i32.store $heap offset=20
       local.get $items
-      local.get $t4
+      local.get $t1
       i32.store $heap offset=24
     end
   )
