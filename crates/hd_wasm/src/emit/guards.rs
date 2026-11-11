@@ -160,7 +160,9 @@ impl Em<'_, '_, '_> {
     pub(super) fn header_facts(&self) -> HeaderFacts {
         let b = self.b;
         let mut facts = HeaderFacts::default();
-        if !b.tags.contains(&Tag::Loop) {
+        // Release only (owner, 2026-11-11): dev and checked builds keep every
+        // guard and header read as written.
+        if !self.input.optimized || !b.tags.contains(&Tag::Loop) {
             return facts;
         }
         let mut p = Proof {

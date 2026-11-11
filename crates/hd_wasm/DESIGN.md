@@ -2414,7 +2414,8 @@ those panics, an addressable induction variable, empty and
 nested loops, continue and full-width inclusive endpoints.
 
 Issue #1689 extends both shapes past the `List` intrinsic
-(`emit/guards.rs`). An inlined std `Index` or `IndexSet` body is a guard,
+(`emit/guards.rs`), in optimized (release) builds only: dev and checked builds
+keep every guard as written. An inlined std `Index` or `IndexSet` body is a guard,
 `if key >= len: panic`, over a header field read through a reference
 parameter. A body that calls only the pointer intrinsics and the panic,
 stores through no dereference or element, drops nothing, and writes
