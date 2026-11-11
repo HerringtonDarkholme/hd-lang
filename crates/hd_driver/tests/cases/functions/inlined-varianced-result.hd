@@ -1,0 +1,26 @@
+# @dump: own wat
+# @build: v8 release
+# expected: inlining preserves the declared function result view without a runtime wrapper.
+use std.annotation.cold
+
+@cold
+fn read(value: &i32) -> i32:
+    *value
+
+fn view() -> fn(*i32) -> i32:
+    read
+
+fn early_view(first: bool) -> fn(*i32) -> i32:
+    if first:
+        return read
+    read
+
+@cold
+fn control() -> fn(*i32) -> i32:
+    read
+
+fn use_view(value: *i32) -> i32:
+    view()(value) + control()(value)
+
+fn use_early_view(first: bool, value: *i32) -> i32:
+    early_view(first)(value)

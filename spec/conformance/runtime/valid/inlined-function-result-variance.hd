@@ -1,0 +1,31 @@
+# test: inlined factories preserve function result variance
+# Spec: fn.type.declared-variance; fn.type.variance-repr.
+# expect: test
+use std.annotation.cold
+
+@cold
+fn read(value: &i32) -> i32:
+    *value
+
+fn view() -> fn(*i32) -> i32:
+    read
+
+fn early_view(first: bool) -> fn(*i32) -> i32:
+    if first:
+        return read
+    read
+
+@cold
+fn control() -> fn(*i32) -> i32:
+    read
+
+tests:
+    use std.testing.assert_equal
+
+    it("calls the inlined and uninlined factory through the declared view"):
+        assert_equal(view()(box(+7)), +7, reason="inlined factory keeps its result view")
+        assert_equal(control()(box(+7)), +7, reason="uninlined control has the same result")
+
+    it("preserves both early and tail returns"):
+        assert_equal(early_view(true)(box(+7)), +7, reason="explicit return keeps its view")
+        assert_equal(early_view(false)(box(+7)), +7, reason="tail return keeps its view")
