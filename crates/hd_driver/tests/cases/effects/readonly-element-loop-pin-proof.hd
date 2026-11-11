@@ -1,0 +1,24 @@
+# @dump: own counts wat
+# @build: v8 release
+# expected: the shared pre-loop pin proof makes read_only non-writing with no uniqueness operation.
+# Mutable references, references outside a loop, and reads made inside the loop keep their old effects.
+fn read_only(values: &List[string]) -> usize:
+    let total = 0
+    for item in &values:
+        total += item.len()
+    total
+
+fn mutable(values: &mut List[string]) -> void:
+    for item in &mut values:
+        *item = "changed"
+
+fn not_a_loop(values: &List[string]) -> usize:
+    item := &values[0]
+    item.len()
+
+fn read_inside_loop(values: &List[string]) -> usize:
+    let total = 0
+    for _ in 0..values.len():
+        item := &values[0]
+        total += item.len()
+    total
