@@ -929,6 +929,7 @@ pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(),
     values::capture_moves(b, topo, cx, &mut scratch.values, edits);
     known::run(b, topo, cx, &mut scratch.known, edits);
     hoist::run(b, topo, cx, &mut scratch.hoist, edits);
+    known::place_arm_drops(b, &scratch.known, edits);
     splice::apply(b, topo, edits)?;
     if self_store::applies(b) {
         scratch.topo.build(b);
@@ -2458,11 +2459,10 @@ pub(crate) mod tests {
         );
     }
 
-    /// Known-null: a local moved on every branch of an `If` is empty after
-    /// it, so the drop move left there goes; a local moved on one branch
-    /// keeps it. Both are empty at the exit, so neither has an exit row.
+    /// A local moved on both arms needs no drop. A local moved on one
+    /// arm drops at the end of the other. Neither needs an exit row.
     #[test]
-    fn a_drop_after_branches_that_all_move_goes() {
+    fn branch_drops_follow_the_arm_that_keeps_the_value() {
         let n = NodeIdx::from_raw(1);
         let text = passes(
             |b| {
@@ -2494,8 +2494,8 @@ pub(crate) mod tests {
             "%0 Call\n%1 Store [$0] %0\n%2 Call\n%3 Store [$1] %2\n%4 Call\n\
              %5 Read move [$0]\n%6 Call %5\n%7 Read move [$1]\n%8 Call %7\n\
              %9 Block [%5 %6 %7 %8]\n%10 Read move [$0]\n%11 Call %10\n\
-             %12 Block [%10 %11]\n%13 If %4\n%14 Drop [$1]\n\
-             %15 Block [%0 %1 %2 %3 %4 %9 %12 %13 %14]\n"
+             %12 Drop [$1]\n%13 Block [%10 %11 %12]\n%14 If %4\n\
+             %15 Block [%0 %1 %2 %3 %4 %9 %13 %14]\n"
         );
     }
 

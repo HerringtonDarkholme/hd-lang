@@ -2,8 +2,8 @@
 # @dump: tir own counts wat
 # @build: v8 release
 # Feature: `if` and `match` as values (#1364).
-# expected: no count operation; the chosen parameter is returned, and
-# `pick_len` borrows both.
+# Each normal arm drops the unselected parameter before the join.
+# `pick_len` drops the selected value after reading its length.
 fn pick(c: bool, a: string, b: string) -> string:
     if c: a else: b
 > app/main/pick
@@ -25,3 +25,15 @@ fn pick_match(k: i64, a: string, b: string) -> string:
 >   release string (last use)
         0 => a
         _ => b
+
+fn pick_with_exit(k: i64, a: string, b: string) -> string:
+    match k:
+> app/main/pick_with_exit
+>   release string (last use)
+>   release string (last use)
+>   release string (last use)
+>   release string (last use)
+        0 => a
+        1 => b
+        2 => return "returned"
+        _ => panic("branch")

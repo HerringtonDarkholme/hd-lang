@@ -9,7 +9,6 @@ fn make(value: string) -> fn!(usize) -> string:
 > app/main/make
 >   retain string (stored)
 >   retain fn!(usize) -> string (stored)
->   release string (last use)
 >   release fn!(usize) -> string (last use)
 >   release string (last use)
 >   release fn!(usize) -> string (last use)
@@ -33,6 +32,7 @@ fn make(value: string) -> fn!(usize) -> string:
 >   release counted reference (last use)
 >   release Suspend[string] (cancelled)
 >   release Suspend[string] (last use)
+>   release string (last use)
     read
 >   retain fn!(usize) -> string (stored)
 

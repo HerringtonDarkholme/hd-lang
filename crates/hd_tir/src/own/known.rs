@@ -13,7 +13,8 @@
 //! - **Rule 1, drops.** A `Drop` whose place's root is empty on every
 //!   path that reaches it goes: a local moved, dropped or never stored, as
 //!   the drops after moved locals in branches and loops that the move pass
-//!   leaves (#677).
+//!   leaves (#677). An immediately following drop can instead move to
+//!   the single normal arm that can still hold its count.
 //! - **Rule 3, the exit set.** A local empty at every way out of its
 //!   sub-body leaves the exit set: each `Return`, the end of its root
 //!   block, and each suspension point, whose cancellation leaves through
@@ -62,12 +63,33 @@
 use super::flow::{BitArena, Flow, Forward, Suites, forward};
 use super::parts::{Slots, takes};
 use super::splice;
-use super::{Loc, Operand, OwnCx, Role, consumes, fill, operands, suite_touches, tracked};
+use super::{
+    Loc, Operand, OwnCx, Role, consumes, fill, lending_coercion, lending_read, operands,
+    owned_value, suite_touches, tracked,
+};
 use hd_base::SliceSort as _;
+use std::ops::Range;
 
 use crate::ir::{
     Body, NONE, ReadMode, Ref, Root, Tag, Topology, is_suspension, local_flags, ref_word, u32_of,
 };
+
+/// A whole-local drop after a branch and the normal arm that may need it.
+/// A second arm makes the drop stay at the join.
+struct ArmDrop {
+    inst: u32,
+    bit: u32,
+    arm: Option<u32>,
+    shared: bool,
+}
+
+/// A branch's candidates and whether more than one normal arm reached
+/// their join.
+struct ArmCleanup {
+    drops: Range<usize>,
+    first: Option<u32>,
+    multiple: bool,
+}
 
 /// Known-null's dense tables, reused across bodies.
 #[derive(Default)]
@@ -104,6 +126,10 @@ pub(crate) struct Tables {
     /// its place may hold a count.
     seen: Vec<bool>,
     needed: Vec<bool>,
+    /// The cleanup plan of each instruction with a branch, or `NONE`.
+    arm_plan: Vec<u32>,
+    arm_cleanup: Vec<ArmCleanup>,
+    arm_drops: Vec<ArmDrop>,
     /// Per instruction: its suspension state's offset in `susp`, or `NONE`;
     /// the suspension points reached.
     susp_at: Vec<u32>,
@@ -143,9 +169,12 @@ pub(crate) fn run(
     t.cells.clear();
     t.suites = 0;
     t.pending.build(n, edits);
+    t.arm_drops.clear();
+    t.arm_cleanup.clear();
     if !number(b, cx, t) {
         return;
     }
+    t.prepare_arm_drops(b, topo, cx);
     fill(&mut t.seen, n, false);
     fill(&mut t.needed, n, false);
     fill(&mut t.susp_at, n, NONE);
@@ -226,6 +255,147 @@ pub(crate) fn run(
         for bit in t.nl as usize..(t.nl + t.nv) as usize {
             if t.susp[at + bit / 64] & (1 << (bit % 64)) != 0 {
                 b.unwind_drops.push((x, t.vals[bit - t.nl as usize]));
+            }
+        }
+    }
+}
+
+/// Move the cleanup prefix in order. Leave the first shared drop and
+/// everything after it at the join, since moving later drops would change
+/// their order. Hoisting must see the original drops before this splice.
+pub(super) fn place_arm_drops(b: &Body, t: &Tables, edits: &mut splice::Tables) {
+    for plan in &t.arm_cleanup {
+        if !plan.multiple {
+            continue;
+        }
+        for drop in &t.arm_drops[plan.drops.clone()] {
+            let i = drop.inst as usize;
+            if !t.needed[i] {
+                continue;
+            }
+            let Some(arm) = drop.arm.filter(|_| !drop.shared) else {
+                break;
+            };
+            let end = b.record(b.data[arm as usize][0]).len();
+            edits.insert(arm, u32_of(end), Tag::Drop, b.data[i], b.ty[i], b.syn[i]);
+            edits.remove(drop.inst);
+        }
+    }
+}
+
+/// Explicit arms that can reach the join through their block ends.
+/// A jump to the branch or arm label could bypass the moved cleanup.
+fn arm_blocks(b: &Body, branch: usize) -> Option<impl Iterator<Item = u32> + '_> {
+    let tag = b.tags[branch];
+    let (start, step, with_default) = match tag {
+        Tag::If => (0, 1, false),
+        Tag::Match => (1, 1, false),
+        Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar | Tag::SwitchStr => (1, 2, true),
+        _ => return None,
+    };
+    let row = b.record(b.data[branch][1]);
+    let end = row.len().saturating_sub(usize::from(with_default));
+    let arms = row.get(start..end)?.iter().step_by(step).copied();
+    let default = with_default.then(|| row.last().copied()).flatten();
+    Some(arms.chain(default))
+}
+
+impl Tables {
+    fn prepare_arm_drops(&mut self, b: &Body, topo: &Topology, cx: &dyn OwnCx) {
+        let n = b.len();
+        fill(&mut self.arm_plan, n, NONE);
+        // Each admitted drop costs one bit test per arm per visit. Charge
+        // the arm/drop product to the body length, so a wide match followed
+        // by a long cleanup does not introduce a quadratic scan.
+        let mut budget = n;
+        for i in 0..n {
+            let parent = topo.blk[i];
+            if parent == NONE || topo.label_of[i] != NONE || self.pending.dead[i] {
+                continue;
+            }
+            let siblings = b.record(b.data[parent as usize][0]);
+            let following = &siblings[topo.pos[i] as usize + 1..];
+            if following
+                .first()
+                .is_none_or(|&x| b.tags[x as usize] != Tag::Drop)
+            {
+                continue;
+            }
+            let Some(arms) = arm_blocks(b, i) else {
+                continue;
+            };
+            let mut count = 0;
+            let explicit = arms.into_iter().all(|arm| {
+                count += 1;
+                let a = arm as usize;
+                if b.tags.get(a) != Some(&Tag::Block)
+                    || topo.owner[a] != u32_of(i)
+                    || topo.label_of[a] != NONE
+                {
+                    return false;
+                }
+                let tail = b.data[a][1];
+                // The tail must already own its result. A borrowed
+                // tail can still need its owner during the transfer.
+                Ref(tail).as_inst().is_none_or(|v| {
+                    let v = v.0 as usize;
+                    owned_value(b, v)
+                        && (!cx.holds_ref(b.ty[v]) || cx.counted_refs_only(b.ty[v]))
+                        && !lending_read(b, cx, v)
+                        && !lending_coercion(b, cx, v)
+                })
+            });
+            if !explicit || count < 2 || (b.tags[i] == Tag::If && count != 2) {
+                continue;
+            }
+            let start = self.arm_drops.len();
+            for &x in following {
+                let d = x as usize;
+                if budget < count || b.tags[d] != Tag::Drop {
+                    break;
+                }
+                if self.pending.dead[d] {
+                    continue;
+                }
+                let p = b.view(b.data[d][0]);
+                let Some(l) = p.local().filter(|_| p.whole()) else {
+                    break;
+                };
+                let bit = self.lbit[l as usize];
+                if bit == NONE || self.cbit[l as usize] != NONE {
+                    break;
+                }
+                self.arm_drops.push(ArmDrop {
+                    inst: x,
+                    bit,
+                    arm: None,
+                    shared: false,
+                });
+                budget -= count;
+            }
+            if start != self.arm_drops.len() {
+                self.arm_plan[i] = u32_of(self.arm_cleanup.len());
+                self.arm_cleanup.push(ArmCleanup {
+                    drops: start..self.arm_drops.len(),
+                    first: None,
+                    multiple: false,
+                });
+            }
+        }
+    }
+
+    fn observe_arm(&mut self, branch: u32, arm: u32, s: &BitArena, st: usize) {
+        let Some(&plan) = self.arm_plan.get(branch as usize) else {
+            return;
+        };
+        let Some(plan) = self.arm_cleanup.get_mut(plan as usize) else {
+            return;
+        };
+        plan.multiple |= *plan.first.get_or_insert(arm) != arm;
+        for drop in &mut self.arm_drops[plan.drops.clone()] {
+            if !drop.shared && s.get(st, drop.bit) {
+                let first = drop.arm.get_or_insert(arm);
+                drop.shared = *first != arm;
             }
         }
     }
@@ -641,17 +811,22 @@ impl Forward for Walk<'_> {
     /// Block `blk`'s tail, which its owner's value takes when the owner
     /// uses it.
     fn tail(&mut self, b: &Body, blk: u32, s: &mut BitArena, st: usize) {
-        let w = b.data[blk as usize][1];
-        if w == NONE || Ref(w).as_inst().is_none() || w as usize >= b.len() {
-            return;
-        }
-        let bit = self.t.vbit[w as usize];
         let topo = self.topo;
         let owner = if topo.is_root[blk as usize] {
             NONE
         } else {
             topo.owner[blk as usize]
         };
+        // An ordinary call with result type never has no normal edge,
+        // even though the shared walk visits its block's tail.
+        if self.t.suites == 0 && b.ty[blk as usize] != hd_types::Ty::NEVER {
+            self.t.observe_arm(owner, blk, s, st);
+        }
+        let w = b.data[blk as usize][1];
+        if w == NONE || Ref(w).as_inst().is_none() || w as usize >= b.len() {
+            return;
+        }
+        let bit = self.t.vbit[w as usize];
         let op = Operand {
             value: w,
             role: Role::Tail,

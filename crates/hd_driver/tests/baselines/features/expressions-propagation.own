@@ -29,7 +29,7 @@ impl From[ReadError] for AppError:
 fn read(path: string) -> Result[string, ReadError]:
 > app/main/read
 >   local $0 path: string [param read] value
->     uses $0: entry -> %1 lend, %7 lend last, %11 consume last
+>     uses $0: entry -> %1 lend, %7 lend last, %12 consume last
 >   %0 = Retain %17 Entry local $0 #0 : ()
     if path.len() > 0: .Ok(path + "/") else: .Err(ReadError.Missing(path))
 >   %1 = Read borrow [$0] : string
@@ -41,14 +41,14 @@ fn read(path: string) -> Result[string, ReadError]:
 >   %7 = Read borrow [$0] : string
 >   %8 = Intrinsic StrConcat [%7 "/"] : string
 >   %9 = NewVariant #0 [%8] : Result[string, ReadError]
->   %10 = Block %9 : Result[string, ReadError]
->   %11 = Read move [$0] : string
->   %12 = NewVariant #0 [%11] : ReadError
->   %13 = NewVariant #1 [%12] : Result[string, ReadError]
->   %14 = Block %13 : Result[string, ReadError]
->   %15 = If %6 [%10 %14] : Result[string, ReadError]
->   %16 = Drop [$0] : ()
->   %17 = Block %15 : Result[string, ReadError]
+>   %10 = Drop [$0] : ()
+>   %11 = Block %9 : Result[string, ReadError]
+>   %12 = Read move [$0] : string
+>   %13 = NewVariant #0 [%12] : ReadError
+>   %14 = NewVariant #1 [%13] : Result[string, ReadError]
+>   %15 = Block %14 : Result[string, ReadError]
+>   %16 = If %6 [%11 %15] : Result[string, ReadError]
+>   %17 = Block %16 : Result[string, ReadError]
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 

@@ -192,11 +192,35 @@
           local.tee $alias
           local.get $t
           i32.load $heap offset=4
-          local.tee $t3
+          local.tee $t
           call $rt:retain
           local.get $alias
-    ;; 25 |     match held:
+          local.get $t
+          local.set $t3
           local.set $t
+    ;; 25 |     match held:
+          local.get $t2
+          if
+            local.get $t2
+            i32.load $heap
+            local.tee $alias
+            i32.const 2031616
+            i32.and
+            i32.const 2031616
+            i32.eq
+            if
+              local.get $t2
+              call $rt:loan_unshare
+            else
+              local.get $t2
+              local.get $alias
+              i32.const 65536
+              i32.sub
+              i32.store $heap
+            end
+            i32.const 0
+            local.set $t2
+          end
           br 1
         end
         i32.const 16 ;; &"heap-exhausted"
@@ -204,28 +228,6 @@
         br 0
       end
     ;; 23 |     let held: Option[&string] = .Some(&t.lead.name)
-      local.get $t2
-      if
-        local.get $t2
-        i32.load $heap
-        local.tee $alias
-        i32.const 2031616
-        i32.and
-        i32.const 2031616
-        i32.eq
-        if
-          local.get $t2
-          call $rt:loan_unshare
-        else
-          local.get $t2
-          local.get $alias
-          i32.const 65536
-          i32.sub
-          i32.store $heap
-        end
-        i32.const 0
-        local.set $t2
-      end
       local.get $t3
       local.set $alias
     end

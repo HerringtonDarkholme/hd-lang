@@ -15,12 +15,12 @@ fn check_equal[T < Eq & Debug](actual: T, expected: T, reason: string) -> void:
 >   release string (last use)
 >   release string (last use)
 >   release string (last use)
->   release string (last use)
 >   release List[i32] (last use)
 >   release List[i32] (last use)
 >   release string (last use)
         details := "actual ${debug(actual)}, expected ${debug(expected)}"
         message := if reason == "": details else: "${reason}: ${details}"
+>   release string (last use)
         panic_with("assertion-failed", message)
 
 pub fn run_it() -> void:
