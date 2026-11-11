@@ -18,7 +18,10 @@
 //! lead on to what it holds. A read through a binding that owns its value has
 //! the binding as its source. A parameter its caller keeps stays unowned while
 //! no read of it keeps a count. A read whose reader needs a count, and that
-//! could move, moves rather than borrow: the count then costs nothing.
+//! could move, moves rather than borrow: the count then costs nothing. A part
+//! a reader needs out of the one whole read of a value parameter (a pattern's
+//! field) moves too: the body then owns the parameter, the part moves out and
+//! the rest drops, so a caller at its last use pays nothing (#1450).
 //!
 //! Nothing is spliced here: the `Drop`s that go are edits for the pipeline's one
 //! rebuild, and the move pass after this reads the body with them still in place.
@@ -1115,6 +1118,7 @@ fn solve(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) {
     // lose the value snapshot while another alias can change its storage.
     let no_external_write = t.effects.iter().all(|e| !e.may && !e.reach);
     let mut taken = vec![false; b.len()];
+    let sole = sole_param_reads(b, cx, &t.l, &list, suspends || !lendable);
     t.crossed.sort_stable();
     t.crossed.dedup();
     // Bindings settle first: a read through one depends on how it ended.
@@ -1188,7 +1192,19 @@ fn solve(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) {
                 bit = at.far;
                 at = t.bits[bit as usize];
             }
-            let moves = needed && root_owned && b.view(b.data[r][0]).in_place(b);
+            let in_place = b.view(b.data[r][0]).in_place(b);
+            // A part a consumer takes out of the one whole read of a value
+            // parameter its caller passes owned: that read moves instead, so
+            // the body owns the parameter, the part moves out of it and the
+            // rest drops (#1450).
+            if needed
+                && !root_owned
+                && in_place
+                && let Root::Value(v) = b.view(b.data[r][0]).root
+            {
+                changed |= own_sole_param(b, t, &sole, v);
+            }
+            let moves = needed && root_owned && in_place;
             if moves
                 || get(&t.changed, bit)
                 || !crossed_ok(b, t, bit)
@@ -1224,6 +1240,104 @@ fn solve(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) {
             t.v[r].borrows = true;
         }
     }
+}
+
+/// Follows the borrowing part reads from value `v` up to the one whole read
+/// of a value parameter in `sole`; when it gets there, each read on the way
+/// moves instead, so the part a consumer needs moves out of the parameter.
+/// Whether it changed a read. Cost: one step per part read on the way, at
+/// most `DEPTH`.
+fn own_sole_param(b: &Body, t: &mut Tables, sole: &[bool], v: u32) -> bool {
+    let start = u32_of(t.chain.len());
+    let mut at = v as usize;
+    let found = loop {
+        // The parameter's read may already move for another part.
+        if sole[at] {
+            t.chain.push(u32_of(at));
+            break true;
+        }
+        if !t.v[at].borrows || b.tags[at] != Tag::Read {
+            break false;
+        }
+        t.chain.push(u32_of(at));
+        let p = b.view(b.data[at][0]);
+        match p.root {
+            Root::Value(u) if p.in_place(b) && t.chain.len() - (start as usize) < DEPTH => {
+                at = u as usize;
+            }
+            _ => break false,
+        }
+    };
+    let mut changed = false;
+    if found {
+        for k in start as usize..t.chain.len() {
+            let r = t.chain[k] as usize;
+            changed |= t.v[r].borrows;
+            t.v[r].moves = true;
+            t.v[r].borrows = false;
+        }
+    }
+    t.chain.truncate(start as usize);
+    changed
+}
+
+/// Per value: whether it is the one whole read of a value parameter of `b`
+/// that its caller passes owned, the parameter's only use but its drops: one
+/// never stored, addressed, captured or checked. Empty when `none`.
+fn sole_param_reads(
+    b: &Body,
+    cx: &dyn OwnCx,
+    locals: &[Local],
+    params: &[u32],
+    none: bool,
+) -> Vec<bool> {
+    let mut sole = vec![false; b.len()];
+    if none {
+        return sole;
+    }
+    let n = params.len();
+    // Per parameter: its one use, or NONE before any, or `b.len()` past one.
+    let mut at = vec![NONE; n];
+    let many = u32_of(b.len());
+    for i in 0..b.len() {
+        if matches!(b.tags[i], Tag::Drop | Tag::LoanEnd) {
+            continue;
+        }
+        if let Some(p) = place_word(b, i).map(|w| b.view(w))
+            && let Root::Local(l) = p.root
+            && let Some(k) = params.iter().position(|&q| q == l)
+        {
+            at[k] = if at[k] == NONE && b.tags[i] == Tag::Read && p.whole() {
+                u32_of(i)
+            } else {
+                many
+            };
+        }
+    }
+    for (k, &i) in at.iter().enumerate() {
+        let f = locals[params[k] as usize];
+        if i != NONE
+            && i != many
+            && f.stores == 0
+            && !f.reached
+            && !f.captured
+            && !f.changed
+            && cx.counted(b.local_ty[params[k] as usize])
+            && cx.received(b.item, k, n) == Pass::Owned
+        {
+            sole[i as usize] = true;
+        }
+    }
+    sole
+}
+
+/// The place word of instruction `i`, for the tags that address a place.
+fn place_word(b: &Body, i: usize) -> Option<u32> {
+    matches!(
+        b.tags[i],
+        Tag::Read | Tag::Ref | Tag::Store | Tag::IsUnique | Tag::Drop | Tag::LoanEnd
+    )
+    .then_some(b.data[i][0])
 }
 
 /// The counted reads that may keep a count, into `t.takers`.

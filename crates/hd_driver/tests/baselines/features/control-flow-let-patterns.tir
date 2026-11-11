@@ -4,7 +4,8 @@
 # Feature: Let Patterns and let-else (spec/lang/06-control-flow.md, #1364).
 # expected: a data or tuple `let` pattern binds fields with no count when
 # they are only read; let-else on a `string?` reads the payload with no
-# count; `take_name` retains only the field it returns.
+# count; `take_name` owns `u`, its one read: the field it returns moves
+# out and the rest drops (#1450).
 struct User:
     name: string
     tags: List[string]

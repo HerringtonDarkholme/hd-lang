@@ -3,8 +3,8 @@
 # @build: v8 release
 # Feature: Spread Patterns (spec/lang/06-control-flow.md, #1364).
 # expected: a spread binding names the tuple's rest list in place: no
-# copy and no count when it is only read; `rest` returns the list with
-# one retain at most.
+# copy and no count when it is only read; `rest` owns `t`, its one read:
+# the list moves out and the rest drops (#1450).
 fn total(t: (string, List[string]...)) -> usize:
 > app/main/total
 >   local $0 t: (string, List[string]...) [param read] value
@@ -60,16 +60,18 @@ fn rest(t: (string, List[string]...)) -> List[string]:
 >   local $0 t: (string, List[string]...) [param read] value
 >     uses $0: entry -> %1 lend last
 >   local $1 xs: List[string] [read assigned] value
->     uses $1: %4 -> %8 consume last
->   %0 = Release %9 Exit local $0 #2 : ()
+>     uses $1: %4 -> %9 consume last
+>   %0 = Retain %10 Entry local $0 #0 : ()
     let (_, xs...) = t
->   %1 = Read borrow [$0] : (string, List[string]...)
+>   %1 = Read move [$0] : (string, List[string]...)
 >   %2 = Block - : ()
->   %3 = Read borrow [%1 .1] : List[string]
+>   %3 = Read move [%1 .1] : List[string]
 >   %4 = Store [$1] %3 : ()
 >   %6 = Block - : never
 >   %7 = Match %1 [%6 %2] : ()
->   %9 = Block %8 : List[string]
+>   %8 = Drop [%1] : ()
+>   %10 = Block %9 : List[string]
     xs
->   %8 = Read copy [$1] : List[string]
->   summary kept [] borrows [$0]
+>   %9 = Read move [$1] : List[string]
+>   exit sub 0 drops [$0]
+>   summary kept [$0]

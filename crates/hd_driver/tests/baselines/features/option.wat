@@ -4,7 +4,6 @@
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $question (param $o.0 i32) (param $o.1 i32) (result i32 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32)
     ;; 12 |     s := o?
@@ -99,12 +98,6 @@
               unreachable
             end
             unreachable
-          end
-          local.get $t1
-          local.tee $o.0
-          if
-            local.get $o.0
-            call $retain
           end
           br 1
         end

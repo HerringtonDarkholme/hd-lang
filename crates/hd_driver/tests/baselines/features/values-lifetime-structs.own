@@ -31,16 +31,16 @@ fn word['a](t: Token[string, 'a], fallback: &'a string) -> &'a string:
 >     uses $1: entry -> %4 consume last
 >   local $2 w: &string [read assigned] value
 >     uses $2: %7 -> %2 consume last
->   %0 = Release %19 Exit local $0 #2 : ()
+>   %0 = Retain %19 Entry local $0 #0 : ()
     match t:
->   %1 = Read borrow [$0] : Token[string]
+>   %1 = Read move [$0] : Token[string]
 >   %17 = Block - : never
 >   %18 = Match %1 [%17 %3 %5] : &string
 >   %19 = Block %18 : &string
         Token.Word(w) => w
->   %2 = Read copy [$2] : &string
+>   %2 = Read move [$2] : &string
 >   %3 = Block %2 : &string
->   %6 = Read borrow [%1 as #0 .0] : &string
+>   %6 = Read move [%1 as #0 .0] : &string
 >   %7 = Store [$2] %6 : ()
 >   %9 = Block - : never
 >   %15 = Block - : never
@@ -51,7 +51,8 @@ fn word['a](t: Token[string, 'a], fallback: &'a string) -> &'a string:
 >   %11 = Block - : never
 >   %13 = Block - : never
 >   %14 = SwitchTag %1 [#1 %11 %13] : never
->   summary kept [$1] borrows [$0]
+>   exit sub 0 drops [$0]
+>   summary kept [$0 $1]
 
 fn length(text: string) -> usize:
 > app/main/length
@@ -86,21 +87,19 @@ fn token(text: string, other: string) -> usize:
 > app/main/token
 >   local $0 text: string [param read captured] place
 >   local $1 other: string [param read captured] place
->   %0 = Retain %13 Entry local $0 #0 : ()
->   %1 = Retain %13 Entry local $1 #0 : ()
+>   %0 = Retain %11 Entry local $0 #0 : ()
+>   %1 = Retain %11 Entry local $1 #0 : ()
     word(Token.Word(&text), &other).len()
 >   %2 = Ref local frame [$0] : &string
 >   %3 = NewVariant #0 [%2] : Token[string]
 >   %4 = Ref local frame [$1] : &string
 >   %5 = Call app/main/word[] (%3, %4) : &string
->   %6 = Retain %5 Operation operand 0 #0 : ()
->   %7 = LoanEnd [%4] : ()
->   %8 = LoanEnd [%3] : ()
->   %9 = Call std/text/impl string.len[] (%5) : usize
->   %10 = Drop [%5] : ()
->   %11 = Drop [$0] : ()
->   %12 = Drop [$1] : ()
->   %13 = Block %9 : usize
+>   %6 = LoanEnd [%4] : ()
+>   %7 = Call std/text/impl string.len[] (%5) : usize
+>   %8 = Drop [%5] : ()
+>   %9 = Drop [$0] : ()
+>   %10 = Drop [$1] : ()
+>   %11 = Block %7 : usize
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $0 slot, $1 slot
 >   summary kept [$0 $1]

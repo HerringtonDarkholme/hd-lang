@@ -3,8 +3,10 @@
 # Release summaries, recursion: `walk` only reads its node and passes the
 # children on to itself, so the component's fixed point borrows `n`: no
 # count at either call and no release of `n` in the body. `leftmost`
-# returns `last`, so `last` stays kept through the recursion, while `n`
-# borrows.
+# returns `last`, so `last` stays kept through the recursion. Its one read
+# of `n` gives up `node`, so it owns `n` too (#1450): `node` moves out and
+# `node.left` takes the one retain per level that `node` took when `n`
+# was lent.
 struct Node:
     left: *Node?
     right: *Node?

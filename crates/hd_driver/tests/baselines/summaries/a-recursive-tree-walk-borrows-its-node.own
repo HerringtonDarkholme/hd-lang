@@ -4,8 +4,10 @@
 # Release summaries, recursion: `walk` only reads its node and passes the
 # children on to itself, so the component's fixed point borrows `n`: no
 # count at either call and no release of `n` in the body. `leftmost`
-# returns `last`, so `last` stays kept through the recursion, while `n`
-# borrows.
+# returns `last`, so `last` stays kept through the recursion. Its one read
+# of `n` gives up `node`, so it owns `n` too (#1450): `node` moves out and
+# `node.left` takes the one retain per level that `node` took when `n`
+# was lent.
 struct Node:
     left: *Node?
     right: *Node?
@@ -54,31 +56,30 @@ fn leftmost(n: *Node?, last: *Node) -> *Node:
 >   local $1 last: *Node [param read] value
 >     uses $1: entry -> %3 consume last
 >   local $2 node: *Node [read assigned] value
->     uses $2: %14 -> %5 lend, %6 consume last
->   %0 = Release %24 Exit local $0 #2 : ()
->   %1 = Retain %24 Entry local $1 #0 : ()
+>     uses $2: %12 -> %5 lend, %6 consume last
+>   %0 = Retain %23 Entry local $0 #0 : ()
+>   %1 = Retain %23 Entry local $1 #0 : ()
     match n:
->   %2 = Read borrow [$0] : *Node?
->   %9 = Drop [$1] : ()
->   %22 = Block - : never
->   %23 = Match %2 [%22 %4 %10] : *Node
->   %24 = Block %23 : *Node
+>   %2 = Read move [$0] : *Node?
+>   %20 = Block - : never
+>   %21 = Match %2 [%20 %4 %8] : *Node
+>   %22 = Drop [$1] : ()
+>   %23 = Block %21 : *Node
         .None => last
 >   %3 = Read move [$1] : *Node
 >   %4 = Block %3 : *Node
->   %12 = Block - : never
->   %20 = Block - : never
->   %21 = SwitchTag %2 [#0 %12 %20] : never
-        .Some(node) => leftmost(node.left, node)
->   %5 = Read borrow [*$2 .left] : *Node?
->   %6 = Read copy [$2] : *Node
->   %7 = Call app/main/leftmost[] (%5, %6) : *Node
->   %8 = Retain %7 Operation operand 0 #0 : ()
->   %10 = Block %7 : *Node
->   %13 = Read borrow [%2 as #1 .0] : *Node
->   %14 = Store [$2] %13 : ()
->   %16 = Block - : never
+>   %10 = Block - : never
 >   %18 = Block - : never
->   %19 = SwitchTag %2 [#1 %16 %18] : never
->   exit sub 0 drops [$1]
->   summary kept [$1] borrows [$0] recursive
+>   %19 = SwitchTag %2 [#0 %10 %18] : never
+        .Some(node) => leftmost(node.left, node)
+>   %5 = Read copy [*$2 .left] : *Node?
+>   %6 = Read move [$2] : *Node
+>   %7 = Call app/main/leftmost[] (%5, %6) : *Node
+>   %8 = Block %7 : *Node
+>   %11 = Read move [%2 as #1 .0] : *Node
+>   %12 = Store [$2] %11 : ()
+>   %14 = Block - : never
+>   %16 = Block - : never
+>   %17 = SwitchTag %2 [#1 %14 %16] : never
+>   exit sub 0 drops [$0 $1]
+>   summary kept [$0 $1] recursive

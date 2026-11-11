@@ -3,7 +3,7 @@
 # @build: v8 release
 # Feature: `match` and its payload bindings (#1364).
 # expected: `read_match` and `ref_match` take no count; `take_match`
-# retains only the payload it returns, since `s` is lent.
+# owns `s`, its one read: the payload it returns moves out (#1450).
 enum Shape:
     Named(string)
     Pair(string, string)
@@ -72,24 +72,25 @@ fn take_match(s: Shape) -> string:
 >     uses $1: %8 -> %2 consume last
 >   local $2 a: string [read assigned] value
 >     uses $2: %12 -> %4 consume last
->   %0 = Release %26 Exit local $0 #2 : ()
+>   %0 = Retain %27 Entry local $0 #0 : ()
     match s:
->   %1 = Read borrow [$0] : Shape
+>   %1 = Read move [$0] : Shape
 >   %24 = Block - : never
 >   %25 = Match %1 [%24 %3 %5 %6] : string
->   %26 = Block %25 : string
+>   %26 = Drop [%1] : ()
+>   %27 = Block %25 : string
         .Named(n) => n
->   %2 = Read copy [$1] : string
+>   %2 = Read move [$1] : string
 >   %3 = Block %2 : string
->   %7 = Read borrow [%1 as #0 .0] : string
+>   %7 = Read move [%1 as #0 .0] : string
 >   %8 = Store [$1] %7 : ()
 >   %10 = Block - : never
 >   %22 = Block - : never
 >   %23 = SwitchTag %1 [#0 %10 %22] : never
         .Pair(a, _) => a
->   %4 = Read copy [$2] : string
+>   %4 = Read move [$2] : string
 >   %5 = Block %4 : string
->   %11 = Read borrow [%1 as #1 .0] : string
+>   %11 = Read move [%1 as #1 .0] : string
 >   %12 = Store [$2] %11 : ()
 >   %14 = Block - : never
 >   %20 = Block - : never
@@ -99,7 +100,8 @@ fn take_match(s: Shape) -> string:
 >   %16 = Block - : never
 >   %18 = Block - : never
 >   %19 = SwitchTag %1 [#2 %16 %18] : never
->   summary kept [] borrows [$0]
+>   exit sub 0 drops [$0]
+>   summary kept [$0]
 
 fn ref_match(s: &Shape) -> usize:
     match s:

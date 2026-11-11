@@ -44,24 +44,27 @@ fn pick(u: User) -> string:
 >   local $0 u: User [param read] value
 >     uses $0: entry -> %1 lend last
 >   local $1 name: string [read assigned] value
->     uses $1: %11 -> %3 consume last
->   %0 = Release %17 Exit local $0 #2 : ()
+>     uses $1: %12 -> %3 consume last
+>   %0 = Retain %20 Entry local $0 #0 : ()
     match u:
->   %1 = Read borrow [$0] : User
->   %15 = Block - : never
->   %16 = Match %1 [%15 %2 %4] : string
->   %17 = Block %16 : string
+>   %1 = Read move [$0] : User
+>   %17 = Block - : never
+>   %18 = Match %1 [%17 %2 %4] : string
+>   %19 = Drop [%1] : ()
+>   %20 = Block %18 : string
         User { age: 0 } => "none"
 >   %2 = Block "none" : string
 >   %5 = Read copy [%1 .age] : i32
 >   %7 = Prim Eq [%5 0:i32] : bool
->   %9 = Block - : never
->   %13 = Block - : never
->   %14 = If %7 [%9 %13] : never
+>   %10 = Block - : never
+>   %14 = Block - : never
+>   %15 = If %7 [%10 %14] : never
+>   %16 = Drop [%6] : ()
         User { name } => name
->   %3 = Read copy [$1] : string
+>   %3 = Read move [$1] : string
 >   %4 = Block %3 : string
->   %6 = Read borrow [%1 .name] : string
->   %10 = Read borrow [%6] : string
->   %11 = Store [$1] %10 : ()
->   summary kept [] borrows [$0]
+>   %6 = Read move [%1 .name] : string
+>   %11 = Read move [%6] : string
+>   %12 = Store [$1] %11 : ()
+>   exit sub 0 drops [$0]
+>   summary kept [$0]

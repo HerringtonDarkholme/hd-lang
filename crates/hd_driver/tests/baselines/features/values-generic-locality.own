@@ -32,7 +32,7 @@ fn left_or_right(pair: &Pair, left: bool) -> &User:
 >   local $1 left: bool [param read] value
 >     uses $1: entry -> %0 lend last
 >   local $2 o: &User? [read assigned] value
->     uses $2: %7 -> %8 lend last
+>     uses $2: %7 -> %8 consume last
 >   %0 = Read copy [$1] : bool
 >   %1 = Ref local [*$0 .left] : &User
 >   %2 = NewVariant #1 [%1] : &User?
@@ -41,14 +41,12 @@ fn left_or_right(pair: &Pair, left: bool) -> &User:
 >   %5 = Block %4 : &User?
 >   %6 = If %0 [%3 %5] : &User?
 >   %7 = Store [$2] %6 : ()
->   %14 = Block %10 : &User
+>   %12 = Block %10 : &User
     o.unwrap_or(&pair.right)
 >   %8 = Read move [$2] : &User?
 >   %9 = Ref local [*$0 .right] : &User
 >   %10 = Call std/option/impl[T < ?Copy] T?.unwrap_or[&User] (%8, %9) : &User
->   %11 = Retain %10 Operation operand 0 #0 : ()
->   %12 = LoanEnd [%9] : ()
->   %13 = LoanEnd [%8] : ()
+>   %11 = LoanEnd [%9] : ()
 >   summary kept []
 
 fn demo(u: &User) -> usize:

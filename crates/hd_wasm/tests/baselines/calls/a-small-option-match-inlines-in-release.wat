@@ -346,7 +346,7 @@
           br 1
         end
     ;; 40 |         .None => panic("value")
-        i32.const 65 ;; &"value"
+        i32.const 104 ;; &"value"
         i32.const 5
         i32.const 0
         call_indirect $table0 (param i32 i32)
@@ -544,7 +544,7 @@
   (func $loan_value (param $value i32) (result i32)
     ;; 35 |     value.expect("value")
     local.get $value
-    i32.const 65 ;; &"value"
+    i32.const 104 ;; &"value"
     i32.const 5
     call $"impl[T < ?Copy] T?.expect[&string]"
     local.set $value

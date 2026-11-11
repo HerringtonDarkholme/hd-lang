@@ -1,0 +1,25 @@
+# @dump: own counts
+# @build: v8 release
+# Release summaries (#1450): `name_of` reads its parameter once, by a
+# pattern, and returns one field of it. Its summary keeps `u`, so the
+# field moves out and the rest drops: no retain in the body. `main` passes
+# `u` at its last use, so the call moves it. `tagged_name` reads `u`
+# again after the pattern, so it stays lent and copies the field.
+struct User:
+    name: string
+    tags: List[string]
+
+fn name_of(u: User) -> string:
+    let User { name } = u
+    name
+
+fn tagged_name(u: User) -> string:
+    let User { name } = u
+    if u.tags.len() == 0: "" else: name
+
+pub fn main() -> void $ Console:
+    u := User { name: "ada", tags: ["x"] }
+    v := User { name: "bob", tags: [] }
+    println(tagged_name(v))
+    println(v.name)
+    println(name_of(u))

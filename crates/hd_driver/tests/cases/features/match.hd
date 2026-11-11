@@ -2,7 +2,7 @@
 # @build: v8 release
 # Feature: `match` and its payload bindings (#1364).
 # expected: `read_match` and `ref_match` take no count; `take_match`
-# retains only the payload it returns, since `s` is lent.
+# owns `s`, its one read: the payload it returns moves out (#1450).
 enum Shape:
     Named(string)
     Pair(string, string)

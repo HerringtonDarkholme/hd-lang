@@ -2,8 +2,9 @@
 # @dump: tir own counts wat
 # @build: v8 release
 # Feature: Arms And Guards, Catch-All And Variant Patterns, Payload Patterns (spec/lang/06-control-flow.md, #1364).
-# expected: a guard reads the payload with no count; `pick` retains only
-# the payload it returns; a catch-all binding of the whole `string?` copies it,
+# expected: a guard reads the payload with no count; `pick` owns `t`, its
+# one read: the payload it returns moves out, and a failed guard releases
+# its bindings (#1450); a catch-all binding of the whole `string?` copies it,
 # since the two decision paths each store it and a binding has one store.
 enum Tag:
     Named(name: string)

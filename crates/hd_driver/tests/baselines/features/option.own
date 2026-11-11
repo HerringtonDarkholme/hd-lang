@@ -65,15 +65,15 @@ fn or_default(o: string?) -> string:
 >     uses $2: %1 -> %5 consume last
 >   local $3 value: string [read assigned] value
 >     uses $3: %8 -> %3 consume last
->   %0 = Release %24 Exit local $0 #2 : ()
+>   %0 = Retain %24 Entry local $0 #0 : ()
     o.unwrap_or("none")
 >   %1 = Store [$2] "none" : ()
->   %2 = Read borrow [$0] : string?
->   %3 = Read copy [$3] : string
+>   %2 = Read move [$0] : string?
+>   %3 = Read move [$3] : string
 >   %4 = Block %3 : string
 >   %5 = Read move [$2] : string
 >   %6 = Block %5 : string
->   %7 = Read borrow [%2 as #1 .0] : string
+>   %7 = Read move [%2 as #1 .0] : string
 >   %8 = Store [$3] %7 : ()
 >   %10 = Block - : never
 >   %12 = Block - : never
@@ -88,4 +88,5 @@ fn or_default(o: string?) -> string:
 >   %22 = Scope %21 [] : string
 >   %23 = Drop [$2] : ()
 >   %24 = Block %22 : string
->   summary kept [] borrows [$0]
+>   exit sub 0 drops [$0]
+>   summary kept [$0]

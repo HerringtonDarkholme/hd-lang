@@ -2,7 +2,8 @@
 # @build: v8 release
 # Feature: Nested And Data Patterns (spec/lang/06-control-flow.md, #1364).
 # expected: no count for fields only read through a nested or data
-# pattern; `owner` retains only the field it returns.
+# pattern; `owner` owns `s`, its one read: the field it returns moves
+# out and the rest drops (#1450).
 struct User:
     name: string
     age: i32

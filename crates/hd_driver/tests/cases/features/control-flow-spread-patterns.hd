@@ -2,8 +2,8 @@
 # @build: v8 release
 # Feature: Spread Patterns (spec/lang/06-control-flow.md, #1364).
 # expected: a spread binding names the tuple's rest list in place: no
-# copy and no count when it is only read; `rest` returns the list with
-# one retain at most.
+# copy and no count when it is only read; `rest` owns `t`, its one read:
+# the list moves out and the rest drops (#1450).
 fn total(t: (string, List[string]...)) -> usize:
     let (a, xs...) = t
     a.len() + xs.len()

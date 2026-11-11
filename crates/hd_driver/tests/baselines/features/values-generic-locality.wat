@@ -11,14 +11,15 @@
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 10 funcref))
-  (func $left_or_right (param $pair i32) (param $left i32) (result i32)
+  (func $left_or_right (param $pair i32) (param $left i32) (result i32) (local $t0 i32)
     ;; 19 |     let o: (&User)? = if left: .Some(&pair.left) else: .None
     local.get $left
-    if (result i32)
+    if
       local.get $pair
+      local.set $t0
     else
-      i32.const 0
     end
+    local.get $t0
     ;; 20 |     o.unwrap_or(&pair.right)
     local.get $pair
     i32.const 8

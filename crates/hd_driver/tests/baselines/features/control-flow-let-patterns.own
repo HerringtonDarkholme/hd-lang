@@ -4,7 +4,8 @@
 # Feature: Let Patterns and let-else (spec/lang/06-control-flow.md, #1364).
 # expected: a data or tuple `let` pattern binds fields with no count when
 # they are only read; let-else on a `string?` reads the payload with no
-# count; `take_name` retains only the field it returns.
+# count; `take_name` owns `u`, its one read: the field it returns moves
+# out and the rest drops (#1450).
 struct User:
     name: string
     tags: List[string]
@@ -44,19 +45,21 @@ fn take_name(u: User) -> string:
 >   local $0 u: User [param read] value
 >     uses $0: entry -> %1 lend last
 >   local $1 name: string [read assigned] value
->     uses $1: %4 -> %8 consume last
->   %0 = Release %9 Exit local $0 #2 : ()
+>     uses $1: %4 -> %9 consume last
+>   %0 = Retain %10 Entry local $0 #0 : ()
     let User { name } = u
->   %1 = Read borrow [$0] : User
+>   %1 = Read move [$0] : User
 >   %2 = Block - : ()
->   %3 = Read borrow [%1 .name] : string
+>   %3 = Read move [%1 .name] : string
 >   %4 = Store [$1] %3 : ()
 >   %6 = Block - : never
 >   %7 = Match %1 [%6 %2] : ()
->   %9 = Block %8 : string
+>   %8 = Drop [%1] : ()
+>   %10 = Block %9 : string
     name
->   %8 = Read copy [$1] : string
->   summary kept [] borrows [$0]
+>   %9 = Read move [$1] : string
+>   exit sub 0 drops [$0]
+>   summary kept [$0]
 
 fn pair(p: (string, string)) -> usize:
 > app/main/pair
