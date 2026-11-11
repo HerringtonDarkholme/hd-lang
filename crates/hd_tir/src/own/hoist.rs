@@ -1084,6 +1084,7 @@ fn facts(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
     t.steps = steps;
     t.raw = raw;
     t.refs.sort_stable();
+    t.borrows.sort_stable();
     // The capture flags also mark a local a reference was taken of (the
     // checker's former closure form of references); `cap_local` lists the
     // closures' captures. Without a `Ref` here, keep the flags' word.

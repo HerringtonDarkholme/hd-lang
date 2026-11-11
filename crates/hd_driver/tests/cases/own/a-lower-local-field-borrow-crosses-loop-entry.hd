@@ -1,0 +1,17 @@
+# @dump: own counts wat
+# expected: the lower-numbered bag's match scrutinee borrow crosses loop
+# entry after the higher-numbered other's borrow; the items check stays inside.
+struct Bag:
+    label: string
+    items: List[i32]
+
+fn fill(mut bag: Bag, other: Bag, n: usize) -> usize:
+    match other.label:
+        "first" => pass
+        _ => pass
+    match bag.label:
+        "keep" =>
+            for _ in 0..n:
+                bag.items.push(1)
+        _ => pass
+    bag.items.len()
