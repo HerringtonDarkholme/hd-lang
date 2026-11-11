@@ -106,7 +106,10 @@ pub fn walk(
                 go(k, 0, seen);
             }
         }
-        TyData::Context(row) => {
+        // A row is invariant wherever it occurs, as a function type's is
+        // (types.variance.function): a row argument's keys and a
+        // context's.
+        TyData::Row(row) | TyData::Context(row) => {
             for k in pool.row_data(row).keys {
                 go(k, 0, seen);
             }
@@ -125,15 +128,13 @@ pub fn walk(
                 go(a, 0, seen);
             }
         }
-        // No parameter of `owner` inside. A row argument's keys are not
-        // walked yet, unlike a context's.
+        // No parameter of `owner` inside.
         TyData::Param(_)
         | TyData::Prim(_)
         | TyData::Never
         | TyData::Poison
         | TyData::Const(_)
         | TyData::Infer(_)
-        | TyData::Canon(_)
-        | TyData::Row(_) => {}
+        | TyData::Canon(_) => {}
     }
 }

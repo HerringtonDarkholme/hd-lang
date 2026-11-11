@@ -1962,6 +1962,7 @@ See also: [Polarity](#polarity), [`types.option.invariant`](#r-types.option.inva
 3. r[types.variance.list] The built-in `List` declares a covariant element parameter.
 4. r[types.variance.map] `Map[K, V]` is invariant in `K` and covariant in `V`.
 5. r[types.variance.function] The function type constructors `Fn` and `SuspendFn` are contravariant in each input element, covariant in the output, and invariant in the requirement row.
+6. r[types.variance.row] A requirement row is invariant wherever it occurs, so a type parameter in one of its keys occurs invariantly. This holds for a function type's row, a row argument of a generic type, as in `OnExit[$ Store[T]]`, and a `$.Context` type.
 
 > **Why.** A writable reference may replace stored values. Map keys are both
 > accepted for lookup and exposed during traversal. Converting a function's

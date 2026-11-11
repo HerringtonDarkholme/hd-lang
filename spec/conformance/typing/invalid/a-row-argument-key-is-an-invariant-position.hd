@@ -1,0 +1,13 @@
+# test: a type parameter in a row argument's key occurs invariantly, as in a function type's row
+# Spec 04 Variance: types.variance.row, types.variance.covariant-check.
+trait Store[T]:
+    fn get(self) -> T
+
+struct OnExit[$ R]:
+    run: fn() -> void $ R
+
+struct Outer[+T]:
+    inner: OnExit[$ Store[T]] # diagnostic: invalid-variance
+
+pub fn main() -> void:
+    pass
