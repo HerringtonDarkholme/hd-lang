@@ -1,0 +1,37 @@
+# @dump: own counts wat
+# @build: v8 release
+# expected: chars.len borrows after whitespace ends its mutable loan (#1677).
+# A list read kept across a push remains an independent owner.
+use std.iter.{Iterable, Iterator}
+use std.annotation.inline
+
+struct Parser:
+    chars: List[char]
+    at: usize
+
+impl Parser:
+    fn whitespace(&mut self) -> void:
+        while self.at < self.chars.len() && self.chars[self.at].is_whitespace():
+            self.at += 1
+
+    @inline(.Never)
+    fn expression(&mut self) -> Result[*i32, string]:
+        self.whitespace()
+        if self.at < self.chars.len():
+            self.at += 1
+            return self.expression()
+        .Ok(box(+1))
+
+fn length_after_loan(text: string) -> Result[*i32, string]:
+    let mut parser = Parser { chars: text.chars().collect(), at: 0 }
+    root := parser.expression()?
+    parser.whitespace()
+    if parser.at != parser.chars.len():
+        return .Err("trailing input")
+    .Ok(root)
+
+fn length_across_write(text: string) -> usize:
+    let mut parser = Parser { chars: text.chars().collect(), at: 0 }
+    chars := parser.chars
+    parser.chars.push('x')
+    chars.len()
