@@ -73,6 +73,22 @@ pub(crate) fn required<T>(value: Option<T>, producer: &str) -> T {
     }
 }
 
+/// Share the whole-body proof between instances before emission.
+pub(crate) fn prepare_element_checks(input: &Input<'_>, module: &mut Module) {
+    use std::sync::Arc;
+    let mut grouped = HashMap::default();
+    module.element_checks = vec![None; input.collected.table.item.len()];
+    for &id in input.order {
+        let Some(body) = (input.body)(id) else {
+            continue;
+        };
+        let facts = grouped
+            .entry(std::ptr::from_ref(body))
+            .or_insert_with(|| Arc::new(hd_tir::own::ElementChecks::new(body)));
+        module.element_checks[id.idx()] = Some(Arc::clone(facts));
+    }
+}
+
 /// The function of instance `id`; the module assigns its final index.
 pub fn instance(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResult<Func> {
     let t = &input.collected.table;

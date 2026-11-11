@@ -131,3 +131,96 @@ fn a_view_iterator_keeps_its_snapshot_after_a_length_change() {
         "1\n2\n3\nfalse\n",
     );
 }
+
+#[test]
+fn a_copy_after_an_element_call_keeps_its_list_snapshot() {
+    let r = ran(
+        "element-call-copy",
+        "\
+fn bump(value: &mut i32) -> void:
+    *value += 1
+
+fn changed(values: List[i32], index: usize) -> (i32, i32):
+    let mut out = values
+    bump(&mut out[index])
+    snapshot := out
+    out[index] += 1
+    (snapshot[index], out[index])
+
+pub fn main() -> void $ Console:
+    let (before, after) = changed([10], 0)
+    println(\"$before $after\")
+",
+    );
+    assert!(r.status.success(), "{}", String::from_utf8_lossy(&r.stderr));
+    assert_eq!(String::from_utf8_lossy(&r.stdout), "11 12\n");
+}
+
+#[test]
+fn a_later_element_access_rechecks_when_its_inputs_can_change() {
+    let before = "\
+fn bump(value: &mut i32) -> void:
+    *value += 1
+
+fn empty(values: &mut List[i32]) -> void:
+    values.clear()
+
+fn changed(values: List[i32], first: usize, take: bool) -> void:
+    let mut out = values
+    let index = first
+";
+    for (name, first, barrier) in [
+        (
+            "index-write",
+            0,
+            "    bump(&mut out[index])\n    index = 1\n",
+        ),
+        (
+            "length-change",
+            0,
+            "    bump(&mut out[index])\n    _ := out.pop()\n",
+        ),
+        (
+            "whole-list-call",
+            0,
+            "    bump(&mut out[index])\n    empty(&mut out)\n",
+        ),
+        ("branch", 1, "    if take:\n        bump(&mut out[index])\n"),
+    ] {
+        let source = format!(
+            "{before}{barrier}    out[index] += 1\n\npub fn main() -> void:\n    changed([10], {first}, false)\n",
+        );
+        let r = ran(name, &source);
+        let diagnostic = String::from_utf8_lossy(&r.stderr);
+        assert!(!r.status.success(), "{name}: expected a bounds panic");
+        assert!(
+            diagnostic.contains("index-out-of-bounds"),
+            "{name}: {diagnostic}"
+        );
+    }
+}
+
+#[test]
+fn a_shared_element_loan_does_not_make_its_list_unique() {
+    let r = ran(
+        "shared-element-call-copy",
+        "\
+fn inspect(value: &i32) -> void:
+    if *value != 10:
+        panic(\"unexpected value\")
+
+fn changed(values: List[i32], index: usize) -> (i32, i32):
+    let mut out = values
+    snapshot := out
+    inspect(&out[index])
+    out[index] += 1
+    (snapshot[index], out[index])
+
+pub fn main() -> void $ Console:
+    let (before, after) = changed([10], 0)
+    println(\"$before $after\")
+",
+    );
+    assert!(r.status.success(), "{}", String::from_utf8_lossy(&r.stderr));
+    assert_eq!(String::from_utf8_lossy(&r.stdout), "10 11\n");
+}
