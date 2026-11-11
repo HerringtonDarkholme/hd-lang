@@ -253,11 +253,60 @@ enum Steps {
     Deref,
 }
 
+/// The existing one-call reference-use proof, indexed once for all sites
+/// in an immutable caller. `Drop`s and `LoanEnd`s do not add another use.
+pub(super) struct Census {
+    captured: Vec<bool>,
+    addresses: Vec<u32>,
+    counts: Vec<(u32, usize)>,
+}
+
+impl Census {
+    pub(super) fn new(b: &Body) -> Self {
+        let mut out = Self {
+            captured: vec![false; b.local_ty.len()],
+            addresses: vec![0; b.local_ty.len()],
+            counts: vec![(0, 0); b.len()],
+        };
+        for l in &b.cap_local {
+            #[cfg(test)]
+            super::effect_places::work(1);
+            out.captured[l.idx()] = true;
+        }
+        let mut ops = Vec::new();
+        for i in 0..b.len() {
+            #[cfg(test)]
+            super::effect_places::work(1);
+            if b.tags[i] == Tag::Ref
+                && let Root::Local(l) = b.view(b.data[i][0]).root
+            {
+                out.addresses[l as usize] += 1;
+            }
+            if matches!(b.tags[i], Tag::Drop | Tag::LoanEnd) {
+                continue;
+            }
+            super::operands(b, i, &mut ops);
+            for op in &ops {
+                #[cfg(test)]
+                super::effect_places::work(1);
+                let entry = &mut out.counts[op.value as usize];
+                entry.0 += 1;
+                entry.1 = i;
+            }
+        }
+        out
+    }
+}
+
 /// [`promotable_ref`]'s test, with how far the place goes; `None` when the
 /// `Ref` is no such reference. A place with an element or a dereference
 /// in it is one only an inlined copy may read by value
 /// ([`inline_args`]).
 fn lent_ref(b: &Body, i: usize, user: usize) -> Option<Steps> {
+    lent_ref_with(b, i, user, None)
+}
+
+fn lent_ref_with(b: &Body, i: usize, user: usize, facts: Option<&Census>) -> Option<Steps> {
     let flags = b.data[i][1];
     if b.tags[i] != Tag::Ref || flags & crate::ir::ref_word::MUT != 0 {
         return None;
@@ -266,7 +315,10 @@ fn lent_ref(b: &Body, i: usize, user: usize) -> Option<Steps> {
     let Root::Local(l) = p.root else {
         return None;
     };
-    if b.cap_local.iter().any(|c| c.raw() == l) {
+    if facts.map_or_else(
+        || b.cap_local.iter().any(|c| c.raw() == l),
+        |facts| facts.captured[l as usize],
+    ) {
         return None;
     }
     let steps = p.steps(b).fold(Steps::InPlace, |s, step| match step {
@@ -280,8 +332,16 @@ fn lent_ref(b: &Body, i: usize, user: usize) -> Option<Steps> {
             && b.tags[j] == Tag::Ref
             && matches!(b.view(b.data[j][0]).root, Root::Local(m) if m == l)
     };
-    if flags & crate::ir::ref_word::TAKES != 0 && (0..b.len()).any(addressed) {
+    if flags & crate::ir::ref_word::TAKES != 0
+        && facts.map_or_else(
+            || (0..b.len()).any(addressed),
+            |facts| facts.addresses[l as usize] > 1,
+        )
+    {
         return None;
+    }
+    if let Some(facts) = facts {
+        return (facts.counts[i] == (1, user)).then_some(steps);
     }
     let mut ops = Vec::new();
     let mut seen = 0;
@@ -319,28 +379,28 @@ fn lent_ref(b: &Body, i: usize, user: usize) -> Option<Steps> {
 /// false.
 #[must_use]
 pub fn inline_args(
-    b: &Body,
+    effects: &super::WriteEffects<'_>,
     call: usize,
     relaxed: u64,
     copy_writes: bool,
     may_write: &dyn Fn(&crate::ir::Callee) -> bool,
 ) -> u64 {
-    if b.tags[call] != Tag::Call || b.tags.iter().any(|&t| crate::ir::is_suspension(t)) {
+    let b = effects.body;
+    if b.tags[call] != Tag::Call || effects.suspends {
         return 0;
     }
     let words = b.record(b.data[call][1]);
     let args = &words[..words.len().saturating_sub(3)];
+    let facts = effects.promotion.get_or_init(|| Census::new(b));
     (args.iter().enumerate().take(64))
         .filter(|&(k, &v)| {
             Ref(v).as_inst().is_some_and(|i| {
                 let i = i.0 as usize;
-                match lent_ref(b, i, call) {
+                match lent_ref_with(b, i, call, Some(facts)) {
                     Some(Steps::InPlace) => true,
                     Some(_) if relaxed & 1 << k == 0 => false,
                     Some(Steps::Elements) => true,
-                    Some(Steps::Deref) => {
-                        !copy_writes && !super::writes_in(b, i + 1..call, may_write)
-                    }
+                    Some(Steps::Deref) => !copy_writes && !effects.in_range(i + 1..call, may_write),
                     None => false,
                 }
             })

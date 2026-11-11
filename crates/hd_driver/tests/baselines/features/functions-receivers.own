@@ -192,7 +192,7 @@ fn place_receiver(s: string) -> i64:
 >   %17 finds [$1] full
 >   exit sub 0 drops [$0]
 >   storage sub 0: $1 slot
->   summary kept [$0] writes
+>   summary kept [$0]
 
 fn mut_self(v: Vec2, n: string) -> usize:
 > app/main/mut_self

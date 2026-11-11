@@ -1,0 +1,52 @@
+# Read-only comparison parameters retain caller values and release fresh inputs.
+# std-cmp.derive.ord.data; std-cmp.derive.eq.eq; types.coll.value.
+use std.annotation.cold
+
+@derive(Eq, PartialOrd, Ord)
+struct Key:
+    name: string
+    number: i32
+
+@cold
+fn same(left: Key, right: Key) -> bool:
+    left == right
+
+@cold
+fn before(left: Key, right: Key) -> bool:
+    left < right
+
+@cold
+fn different(left: List[string], right: List[string]) -> bool:
+    left != right
+
+@cold
+fn word(number: usize) -> string:
+    "item-$number"
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("fresh counted inputs finish with their comparison call"):
+        assert(
+            same(Key { name: word(1), number: +3 }, Key { name: word(1), number: +3 }),
+            reason="fresh equal values",
+        )
+        assert(
+            before(Key { name: word(1), number: +2 }, Key { name: word(1), number: +3 }),
+            reason="fresh ordered values",
+        )
+        assert(different([word(1)], [word(2)]), reason="fresh different lists")
+
+    it("live owners and list snapshots survive repeated comparisons"):
+        low := Key { name: word(1), number: +2 }
+        high := Key { name: word(1), number: +3 }
+        assert(before(low, high), reason="first comparison")
+        assert(before(low, high), reason="second comparison")
+        assert(same(low, low), reason="the same owner can lend both operands")
+        assert_equal(low.name, word(1), reason="the caller still owns the string")
+        let mut values = [word(1), word(2)]
+        snapshot := values
+        assert(!different(values, snapshot), reason="aliased snapshots compare")
+        values.push(word(3))
+        assert_equal(snapshot.len(), 2, reason="later mutation preserves the snapshot")
+        assert_equal(snapshot[1], word(2), reason="the snapshot still owns its elements")

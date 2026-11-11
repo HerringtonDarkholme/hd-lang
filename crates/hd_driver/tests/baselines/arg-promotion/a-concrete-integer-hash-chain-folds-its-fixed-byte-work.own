@@ -132,4 +132,4 @@ fn digest(value: usize) -> u64:
 >   %92 = Block - : u64
 >   %93 = Scope %92 [] : u64
 >   %94 = Block %93 : u64
->   summary kept [] writes
+>   summary kept []

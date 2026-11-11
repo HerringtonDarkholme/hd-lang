@@ -204,4 +204,4 @@ fn digest(value: u32) -> u64:
 >   %58 = Scope %57 [] : ()
     state.value
 >   %59 = Read copy [$1 .value] : u64
->   summary kept [] writes
+>   summary kept []

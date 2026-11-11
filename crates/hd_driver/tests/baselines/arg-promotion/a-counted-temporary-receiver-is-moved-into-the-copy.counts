@@ -34,8 +34,6 @@ fn named(n: i32) -> usize:
 
 fn param(w: Wrap) -> usize:
     w.size()
-> app/main/param
->   release app.main.Wrap [name.0] (last use)
 
 struct Nums:
     xs: List[i64]

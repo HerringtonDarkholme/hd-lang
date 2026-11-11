@@ -20,6 +20,3 @@ fn tuple_gt(a: (string, i64), b: (string, i64)) -> bool:
 
 fn opt_ge(a: string?, b: string?) -> bool:
     a >= b
-> app/main/opt_ge
->   release string? (last use)
->   release string? (last use)

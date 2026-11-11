@@ -236,6 +236,15 @@
       "noOpsAndSkipped": "11"
     },
     {
+      "program": "bench/study/readonly-comparison.hd",
+      "retained": "6000003",
+      "released": "6000007",
+      "uniques": "0",
+      "total": "12000010",
+      "noOpsAndSkipped": "51000014",
+      "reason": "New nine-million-comparison benchmark for #1379, including fresh counted strings, list equality and derived ordering. Record its measured remaining comparison/structure ownership work; this adds a program rather than increasing existing program budgets."
+    },
+    {
       "program": "bench/study/sieve.hd",
       "retained": "0",
       "released": "2",

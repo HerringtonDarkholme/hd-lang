@@ -330,6 +330,7 @@ impl dyn InlineEnv + '_ {
         } else {
             Vec::new()
         };
+        let mut caller_effects = None;
         for c in (0..body.len()).rev() {
             let in_loop = loops[c] != hd_tir::ir::NONE;
             let Some((def, targs)) =
@@ -432,7 +433,9 @@ impl dyn InlineEnv + '_ {
                 let mask = mask & !kept;
                 let writes = hd_tir::own::writes_in(&copy, 0..copy.len(), &may_write);
                 let mut args = if promote.is_some() {
-                    hd_tir::own::promote::inline_args(body, c, counted, writes, &may_write)
+                    let effects =
+                        caller_effects.get_or_insert_with(|| hd_tir::own::WriteEffects::new(body));
+                    hd_tir::own::promote::inline_args(effects, c, counted, writes, &may_write)
                 } else if writer_refs.is_some() {
                     fresh_writer_args(body, c, &writer_uses)
                 } else {
