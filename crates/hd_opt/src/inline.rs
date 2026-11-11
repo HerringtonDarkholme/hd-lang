@@ -949,13 +949,16 @@ impl dyn InlineEnv + '_ {
             return None;
         }
         let (body, hash) = self.checked_body(def)?;
-        // Keep default evaluation's call guard and its owning-reference
-        // return boundary (`&mut []`). An ordinary copy has neither.
+        // Defaults that may call other code keep their runtime guard.
+        // A fresh whole-local reference can move into the caller: inline_calls
+        // relocates its local before frame planning, which still marks any
+        // reference escaping the caller as a heap owner.
         if body.kind == hd_tir::ir::BodyKind::Default
             && (hd_mono::default_needs_bracket(body)
-                || self
+                || (self
                     .result(def)
-                    .is_some_and(|t| holds_local(self.pool(), t, 0)))
+                    .is_some_and(|t| holds_local(self.pool(), t, 0))
+                    && !hd_mono::default_returns_new_object(body)))
         {
             return None;
         }

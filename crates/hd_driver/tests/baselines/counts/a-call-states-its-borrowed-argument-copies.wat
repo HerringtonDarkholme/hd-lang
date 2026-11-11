@@ -2,13 +2,12 @@
 (module
   (import "fixture" "rt:list_unique'1" (func $rt:list_unique'1 (param i32) (result i32)))
   (import "fixture" "rt:list_unique'2" (func $rt:list_unique'2 (param i32) (result i32)))
-  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "rt:list_unique'3" (func $rt:list_unique'3 (param i32) (result i32)))
-  (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
+  (import "fixture" "locals" (global $locals (mut i32)))
+  (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 16 funcref))
+  (import "fixture" "table0" (table $table0 15 funcref))
   (func $"store[i32]" (param $value i32) (param $into i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 8 |     into.push(value)
     block
@@ -101,139 +100,244 @@
     end
     local.get $value
   )
-  (func $pair (param $first.0 i32) (param $first.1 i32) (param $second.0 i32) (param $second.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
+  (func $pair (param $first.0 i32) (param $first.1 i32) (param $second.0 i32) (param $second.1 i32) (result i32) (local $t2 i32) (local $t1 i32) (local $t0 i32)
     ;; 27 |     store_pair(first, second)
-    block
-      local.get $first.0
-      local.get $first.1
-      local.get $second.0
-      local.get $second.1
-      call $store_pair.into
-      local.set $t0
-      local.get $first.0
-      local.tee $t1
+    global.get $locals
+    global.get $locals_base
+    i32.sub
+    i32.const 16
+    i32.lt_u
+    if
+      i32.const 1
+      memory.grow $heap
+      local.tee $t0
+      i32.const -1
+      i32.eq
       if
-        local.get $t1
-        call $retain
+        unreachable
       end
-      local.get $first.0
-      local.get $first.1
-      local.get $second.0
-      local.tee $t1
-      if
-        local.get $t1
-        call $retain
-      end
-      local.get $second.0
-      local.get $second.1
       local.get $t0
+      i32.const 16
+      i32.shl
+      local.tee $t0
+      global.set $locals_base
+      local.get $t0
+      i32.const 65536
+      i32.add
+      global.set $locals
+    end
+    global.get $locals
+    i32.const 16
+    i32.sub
+    local.tee $t0
+    global.set $locals
+    block
+      block
+        block
+          local.get $t0
+          i64.const 0
+          i64.store $heap
+          local.get $t0
+          i32.const 8
+          i32.add
+          local.tee $t1
+          i32.const 80 ;; &empty-buffer
+          i32.store $heap
+          local.get $t1
+          local.set $t2
+          br 0
+        end
+      end
+      local.get $first.0
+      local.get $first.1
+      local.get $second.0
+      local.get $second.1
+      local.get $t2
       i32.const 3
       call_indirect $table0 (param i32 i32 i32 i32 i32) (result i32)
-      local.get $t0
-      local.tee $t1
+      local.set $first.0
+      local.get $t1
       if
         local.get $t1
-        i32.const 8
-        i32.sub
         i32.load $heap
+        local.tee $first.1
         if
-          local.get $t1
-          call $rt:release_ref
+          local.get $first.1
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          if
+            local.get $first.1
+            call $rt:release_ref
+          end
         end
       end
-      local.set $first.0
     end
     local.get $first.0
+    local.get $t0
+    i32.const 16
+    i32.add
+    global.set $locals
   )
-  (func $scalar (param $value i32) (result i32) (local $t0 i32)
+  (func $scalar (param $value i32) (result i32) (local $t2 i32) (local $t1 i32) (local $t0 i32)
     ;; 30 |     store(value)
-    block
-      local.get $value
-      call $"store.into[i32]"
-      local.set $t0
-      local.get $value
+    global.get $locals
+    global.get $locals_base
+    i32.sub
+    i32.const 16
+    i32.lt_u
+    if
+      i32.const 1
+      memory.grow $heap
+      local.tee $t0
+      i32.const -1
+      i32.eq
+      if
+        unreachable
+      end
       local.get $t0
+      i32.const 16
+      i32.shl
+      local.tee $t0
+      global.set $locals_base
+      local.get $t0
+      i32.const 65536
+      i32.add
+      global.set $locals
+    end
+    global.get $locals
+    i32.const 16
+    i32.sub
+    local.tee $t0
+    global.set $locals
+    block
+      block
+        block
+          local.get $t0
+          i64.const 0
+          i64.store $heap
+          local.get $t0
+          i32.const 8
+          i32.add
+          local.tee $t1
+          i32.const 80 ;; &empty-buffer
+          i32.store $heap
+          local.get $t1
+          local.set $t2
+          br 0
+        end
+      end
+      local.get $value
+      local.get $t2
       i32.const 4
       call_indirect $table0 (param i32 i32) (result i32)
-      local.get $t0
+      local.set $value
+      local.get $t1
       if
-        local.get $t0
-        i32.const 8
-        i32.sub
+        local.get $t1
         i32.load $heap
+        local.tee $t2
         if
-          local.get $t0
-          call $rt:release_ref
+          local.get $t2
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          if
+            local.get $t2
+            call $rt:release_ref
+          end
         end
       end
-      local.set $value
     end
     local.get $value
+    local.get $t0
+    i32.const 16
+    i32.add
+    global.set $locals
   )
-  (func $text (param $value.0 i32) (param $value.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
+  (func $text (param $value.0 i32) (param $value.1 i32) (result i32) (local $t2 i32) (local $t1 i32) (local $t0 i32)
     ;; 18 |     store(value)
-    block
-      local.get $value.0
-      local.get $value.1
-      call $"store.into[string]"
-      local.set $t0
-      local.get $value.0
-      local.tee $t1
+    global.get $locals
+    global.get $locals_base
+    i32.sub
+    i32.const 16
+    i32.lt_u
+    if
+      i32.const 1
+      memory.grow $heap
+      local.tee $t0
+      i32.const -1
+      i32.eq
       if
-        local.get $t1
-        call $retain
+        unreachable
       end
-      local.get $value.0
-      local.get $value.1
       local.get $t0
-      i32.const 5
-      call_indirect $table0 (param i32 i32 i32) (result i32)
+      i32.const 16
+      i32.shl
+      local.tee $t0
+      global.set $locals_base
       local.get $t0
-      local.tee $t1
-      if
-        local.get $t1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
+      i32.const 65536
+      i32.add
+      global.set $locals
+    end
+    global.get $locals
+    i32.const 16
+    i32.sub
+    local.tee $t0
+    global.set $locals
+    block
+      block
+        block
+          local.get $t0
+          i64.const 0
+          i64.store $heap
+          local.get $t0
+          i32.const 8
+          i32.add
+          local.tee $t1
+          i32.const 80 ;; &empty-buffer
+          i32.store $heap
           local.get $t1
-          call $rt:release_ref
+          local.set $t2
+          br 0
         end
       end
+      local.get $value.0
+      local.get $value.1
+      local.get $t2
+      i32.const 5
+      call_indirect $table0 (param i32 i32 i32) (result i32)
       local.set $value.0
+      local.get $t1
+      if
+        local.get $t1
+        i32.load $heap
+        local.tee $value.1
+        if
+          local.get $value.1
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          if
+            local.get $value.1
+            call $rt:release_ref
+          end
+        end
+      end
     end
     local.get $value.0
-  )
-  (func $"store.into[i32]" (param $t0 i32) (result i32)
-    ;; 7 | fn store[T](value: T, into: &mut List[T] = &mut []) -> usize:
-    block
-      i32.const 4
-      i32.const 7
-      call $rt:new/class-1
-      local.tee $t0
-      i32.const 80 ;; &empty-buffer
-      i32.store $heap
-    end
     local.get $t0
-  )
-  (func $"store.into[string]" (param $t0 i32) (param $t1 i32) (result i32)
-    ;; 7 | fn store[T](value: T, into: &mut List[T] = &mut []) -> usize:
-    block
-      i32.const 4
-      i32.const 7
-      call $rt:new/class-1
-      local.tee $t0
-      i32.const 80 ;; &empty-buffer
-      i32.store $heap
-    end
-    local.get $t0
+    i32.const 16
+    i32.add
+    global.set $locals
   )
   (func $lent (param $value.0 i32) (param $value.1 i32) (result i32)
     ;; 37 |     length(value) + value.len()
     block
       local.get $value.0
       local.get $value.1
-      i32.const 7
+      i32.const 6
       call_indirect $table0 (param i32 i32) (result i32)
       local.set $value.0
       block
@@ -266,7 +370,7 @@
       i32.eq
       if
         local.get $t0
-        i32.const 8
+        i32.const 7
         call_indirect $table0 (param i32) (result i32)
         local.set $t0
         local.get $into
@@ -300,7 +404,7 @@
       i32.eq
       if
         local.get $first.0
-        i32.const 8
+        i32.const 7
         call_indirect $table0 (param i32) (result i32)
         local.set $first.0
         local.get $into
@@ -350,7 +454,7 @@
       i32.eq
       if
         local.get $t0
-        i32.const 8
+        i32.const 7
         call_indirect $table0 (param i32) (result i32)
         local.set $t0
         local.get $into
@@ -382,55 +486,81 @@
     end
     local.get $value.0
   )
-  (func $"store.into[List[string]]" (param $t0 i32) (result i32)
-    ;; 7 | fn store[T](value: T, into: &mut List[T] = &mut []) -> usize:
-    block
-      i32.const 4
-      i32.const 7
-      call $rt:new/class-1
-      local.tee $t0
-      i32.const 80 ;; &empty-buffer
-      i32.store $heap
-    end
-    local.get $t0
-  )
-  (func $store_pair.into (param $t0 i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (result i32)
-    ;; 12 | fn store_pair(first: string, second: string, into: &mut List[string] = &mut []) -> usize:
-    block
-      i32.const 4
-      i32.const 7
-      call $rt:new/class-1
-      local.tee $t0
-      i32.const 80 ;; &empty-buffer
-      i32.store $heap
-    end
-    local.get $t0
-  )
-  (func $collection (param $values i32) (result i32) (local $t0 i32)
+  (func $collection (param $values i32) (result i32) (local $t2 i32) (local $t1 i32) (local $t0 i32)
     ;; 21 |     store(values)
-    block
-      local.get $values
-      call $"store.into[List[string]]"
-      local.set $t0
-      local.get $values
-      call $rt:coll_copy
-      local.get $t0
-      i32.const 9
-      call_indirect $table0 (param i32 i32) (result i32)
-      local.get $t0
+    global.get $locals
+    global.get $locals_base
+    i32.sub
+    i32.const 16
+    i32.lt_u
+    if
+      i32.const 1
+      memory.grow $heap
+      local.tee $t0
+      i32.const -1
+      i32.eq
       if
-        local.get $t0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
+        unreachable
+      end
+      local.get $t0
+      i32.const 16
+      i32.shl
+      local.tee $t0
+      global.set $locals_base
+      local.get $t0
+      i32.const 65536
+      i32.add
+      global.set $locals
+    end
+    global.get $locals
+    i32.const 16
+    i32.sub
+    local.tee $t0
+    global.set $locals
+    block
+      block
+        block
           local.get $t0
-          call $rt:release_ref
+          i64.const 0
+          i64.store $heap
+          local.get $t0
+          i32.const 8
+          i32.add
+          local.tee $t1
+          i32.const 80 ;; &empty-buffer
+          i32.store $heap
+          local.get $t1
+          local.set $t2
+          br 0
         end
       end
+      local.get $values
+      local.get $t2
+      i32.const 8
+      call_indirect $table0 (param i32 i32) (result i32)
       local.set $values
+      local.get $t1
+      if
+        local.get $t1
+        i32.load $heap
+        local.tee $t2
+        if
+          local.get $t2
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          if
+            local.get $t2
+            call $rt:release_ref
+          end
+        end
+      end
     end
     local.get $values
+    local.get $t0
+    i32.const 16
+    i32.add
+    global.set $locals
   )
   (func $length (param $value.0 i32) (param $value.1 i32) (result i32)
     ;; 34 |     value.len()

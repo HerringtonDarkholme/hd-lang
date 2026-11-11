@@ -1,0 +1,17 @@
+# test: a fresh reference default keeps the forbidden-context guard around its initializer
+use std.task.block_on
+
+fn ready!() -> i32:
+    42
+
+fn wait_list() -> List[i32]:
+    let pending: Suspend[i32] = ready()
+    match block_on(pending): # panic: suspension-forbidden-context
+        .Completed(value) => [value]
+        _ => []
+
+fn invalid(into: &mut List[i32] = &mut wait_list()) -> usize:
+    into.len()
+
+pub fn main() -> void:
+    _ := invalid()

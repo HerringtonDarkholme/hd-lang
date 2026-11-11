@@ -2,7 +2,8 @@
 //! `Call` of a small body becomes a copy of that body, run before the
 //! ownership passes so they see the combined body. The copy's locals,
 //! labels, constants, strings and records move past the caller's; its
-//! parameters are bound by a `Store` of the call's argument; each `Return` is
+//! used parameters are bound by a `Store` of the call's argument (an
+//! unused earlier default argument needs no binding); each `Return` is
 //! a `Break` to its root block, which a `Scope` with no suites owns in the
 //! call's place. The caller substitutes the call's type arguments first
 //! ([`crate::ir::map_body_types`]); choosing what to inline is the
@@ -376,6 +377,23 @@ fn prepare(b: &Body, site: Site, outer: &[u32]) -> Option<Ready> {
         by_value,
     } = site;
     let args = arguments(b, c);
+    // Earlier default arguments are already evaluated for the enclosing
+    // call. Bind only the ones this copy actually reads or addresses.
+    // Inspect places instead of declaration flags, including raw TIR bodies.
+    let default_uses = (k.kind == BodyKind::Default).then(|| {
+        let mut used = vec![false; k.local_ty.len()];
+        for (i, tag) in k.tags.iter().enumerate() {
+            let (a, b) = tag.operands();
+            for (side, op) in [a, b].into_iter().enumerate() {
+                if op == Op::Place
+                    && let Some(local) = k.view(k.data[i][side]).local()
+                {
+                    used[local as usize] = true;
+                }
+            }
+        }
+        used
+    });
     let mut params = Vec::new();
     let mut refs = Vec::new();
     let mut count = 0;
@@ -383,10 +401,12 @@ fn prepare(b: &Body, site: Site, outer: &[u32]) -> Option<Ready> {
         if k.local_flags[l] & local_flags::PARAM == 0 {
             continue;
         }
-        if count < 64 && by_ref & (1 << count) != 0 {
-            refs.push((u32_of(l), count));
-        } else {
-            params.push((u32_of(l), count));
+        if default_uses.as_ref().is_none_or(|used| used[l]) {
+            if count < 64 && by_ref & (1 << count) != 0 {
+                refs.push((u32_of(l), count));
+            } else {
+                params.push((u32_of(l), count));
+            }
         }
         count += 1;
     }
@@ -1177,36 +1197,40 @@ mod tests {
     }
 
     #[test]
-    fn a_default_copy_binds_all_earlier_arguments_without_a_provider_trailer() {
-        let mut default = TirBuilder::new(DefId::from_raw(3), BodyKind::Default);
-        let block = default.open_block();
-        let mut last = None;
-        for k in 0..4 {
-            last = Some(default.local(Ty::STRING, Symbol::from_raw(k), local_flags::PARAM, N));
-        }
-        let tail = default.get(last.expect("four parameters"), Ty::STRING, N);
-        let root = default.close_block(block, Some(tail), Ty::STRING, N);
-        let copy = default.finish(root, &[]).expect("default verifies");
-        assert!(copyable(&copy));
+    fn a_default_copy_keeps_argument_evaluation_and_binds_only_used_parameters() {
+        for entries in [4u32, 65, 1000] {
+            let mut default = TirBuilder::new(DefId::from_raw(3), BodyKind::Default);
+            let block = default.open_block();
+            let mut last = None;
+            for k in 0..entries {
+                last = Some(default.local(Ty::STRING, Symbol::from_raw(k), local_flags::PARAM, N));
+            }
+            let tail = default.get(last.expect("at least four parameters"), Ty::STRING, N);
+            let root = default.close_block(block, Some(tail), Ty::STRING, N);
+            let copy = default.finish(root, &[]).expect("default verifies");
+            assert!(copyable(&copy));
 
-        let mut caller = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
-        let block = caller.open_block();
-        let text = caller.const_str("earlier");
-        let effect = caller.call(&item(7), &[], Providers::None, Ty::STRING, N);
-        let target = caller.refs_record(&[Ref(3), Ref(TyList::EMPTY.0)]);
-        let earlier = caller.refs_record(&[text, text, text, effect]);
-        let call = caller.emit(Tag::DefaultCall, target, earlier, Ty::STRING, N);
-        let root = caller.close_block(block, Some(call), Ty::STRING, N);
-        let mut body = caller.finish(root, &[]).expect("caller verifies");
-        assert_eq!(known_call(&body, call.0 as usize), Some(item(3)));
-        inline_call(&mut body, call.0 as usize, copy).expect("default inlines");
-        assert!(!body.tags.contains(&Tag::DefaultCall));
-        assert_eq!(
-            body.tags.iter().filter(|&&tag| tag == Tag::Store).count(),
-            4
-        );
-        assert_eq!(body.tags.iter().filter(|&&tag| tag == Tag::Call).count(), 1);
-        body.anchors.clear();
-        assert_eq!(verify(&body), []);
+            let mut caller = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
+            let block = caller.open_block();
+            let text = caller.const_str("earlier");
+            let effect = caller.call(&item(7), &[], Providers::None, Ty::STRING, N);
+            let target = caller.refs_record(&[Ref(3), Ref(TyList::EMPTY.0)]);
+            let mut args = vec![text; entries as usize];
+            *args.last_mut().expect("at least four arguments") = effect;
+            let earlier = caller.refs_record(&args);
+            let call = caller.emit(Tag::DefaultCall, target, earlier, Ty::STRING, N);
+            let root = caller.close_block(block, Some(call), Ty::STRING, N);
+            let mut body = caller.finish(root, &[]).expect("caller verifies");
+            assert_eq!(known_call(&body, call.0 as usize), Some(item(3)));
+            inline_call(&mut body, call.0 as usize, copy).expect("default inlines");
+            assert!(!body.tags.contains(&Tag::DefaultCall));
+            assert_eq!(
+                body.tags.iter().filter(|&&tag| tag == Tag::Store).count(),
+                1
+            );
+            assert_eq!(body.tags.iter().filter(|&&tag| tag == Tag::Call).count(), 1);
+            body.anchors.clear();
+            assert_eq!(verify(&body), []);
+        }
     }
 }

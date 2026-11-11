@@ -1164,6 +1164,7 @@ runtime/valid/scope-guard-row.hd	runtime	accept	std/ops.md#scope-guards
 runtime/valid/library-defer-lifo.hd	runtime	accept	std/ops.md#r-std-ops.defer.order
 runtime/panic/defer-block-on-indirect.hd	runtime	panic:suspension-forbidden-context	lang/11-requirements-and-suspension.md#r-req.drive.block-on.indirect
 runtime/panic/default-block-on-indirect.hd	runtime	panic:suspension-forbidden-context	lang/11-requirements-and-suspension.md#r-req.drive.block-on.indirect
+runtime/panic/default-reference-block-on-indirect.hd	runtime	panic:suspension-forbidden-context	lang/11-requirements-and-suspension.md#r-req.drive.block-on.indirect
 runtime/valid/defer-order.hd	runtime	accept	std/ops.md#r-std-ops.defer.order
 runtime/valid/cancellation-runs-defer.hd	runtime	accept	lang/11-requirements-and-suspension.md#cancellation
 runtime/valid/generic-data-embedding.hd	runtime	accept	lang/08-data-and-enums.md#data-embedding

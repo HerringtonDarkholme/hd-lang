@@ -26,14 +26,12 @@ fn store_pair(first: string, second: string, into: &mut List[string] = &mut []) 
 fn text(value: string) -> usize:
     store(value)
 > app/main/text
->   retain string (stored)
->   release counted reference (last use)
+>   release List[string] (last use)
 
 fn collection(values: List[string]) -> usize:
     store(values)
 > app/main/collection
->   copy List[string] (stored)
->   release counted reference (last use)
+>   release List[List[string]] (last use)
 
 fn generic[T](value: T) -> usize:
     store(value)
@@ -41,14 +39,12 @@ fn generic[T](value: T) -> usize:
 fn pair(first: string, second: string) -> usize:
     store_pair(first, second)
 > app/main/pair
->   retain string (stored)
->   retain string (stored)
->   release counted reference (last use)
+>   release List[string] (last use)
 
 fn scalar(value: i32) -> usize:
     store(value)
 > app/main/scalar
->   release counted reference (last use)
+>   release List[i32] (last use)
 
 @cold
 fn length(value: string) -> usize:
