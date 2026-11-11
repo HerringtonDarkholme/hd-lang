@@ -187,7 +187,7 @@ impl Em<'_, '_, '_> {
             return None;
         }
         // ruled out: the driver roots std runtime items before collecting a program.
-        debug_assert!(self.input.runtime.is_some());
+
         let copy = self.operation_count(i, Tag::Retain, Part::Row);
         // ruled out: own::call_row states nonempty contexts' provider-copy packet.
         assert!(
@@ -239,7 +239,8 @@ impl Em<'_, '_, '_> {
         self.f.get(c);
         self.f.get(v);
         self.f.op(I::I32Store(mem(HEAP, CTX_VTABLE + off, 2)));
-        if copy && let Some(r) = self.input.runtime {
+        if copy {
+            let r = self.input.runtime;
             self.f.get(d);
             self.f.count_call(
                 crate::module::Sym::Inst(r.retain),
@@ -335,7 +336,7 @@ impl Em<'_, '_, '_> {
     /// spread context.
     pub(super) fn context_new(&mut self, i: u32, rec: u32) -> StageResult<()> {
         // ruled out: the driver roots std runtime items before collecting a program.
-        debug_assert!(self.input.runtime.is_some());
+
         let keys = self.context_keys(self.ty(i));
         let pairs = self.rec(rec);
         // Visit each pair and each spread entry once. Later entries replace

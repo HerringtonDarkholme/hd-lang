@@ -376,9 +376,8 @@ pub struct Input<'a> {
     /// `crates/hd_wasm/DESIGN.md` §23.40): emission then reads a
     /// local's value for a primitive comparison's reference to it.
     pub promote_args: bool,
-    /// The instances of std's runtime that counting calls. Without them a
-    /// module counts nothing and allocates from a bump pointer.
-    pub runtime: Option<Runtime>,
+    /// The required std runtime instances used by allocation and counting.
+    pub runtime: Runtime,
     /// The `std.rt.host_provider` instance per entry row key whose host
     /// provider is installed behind a reference (`req.ref.host.reference-values`).
     /// Whether the count fast paths on known block starts are emitted
@@ -822,10 +821,10 @@ fn link(
         prepared
     });
     let input = prepared.as_ref().unwrap_or(input);
-    let mut m = module::Module::default();
+    let mut m = module::Module::new(&input.runtime);
     #[cfg(feature = "checked-report")]
     {
-        m.count_audit = input.runtime.is_some_and(|r| r.checked.is_some())
+        m.count_audit = input.runtime.checked.is_some()
             && !matches!(input.entry, Entry::Fixture { .. } | Entry::Inputs(_))
             && session.is_none()
             && previous.is_none();
@@ -860,7 +859,6 @@ fn link(
             }
         }
     }
-    m.runtime = input.runtime;
     m.release = input.release;
     m.inline_counts = input.inline_counts;
     for id in input.order {
@@ -878,7 +876,7 @@ fn link(
         }
     }
     let _acyclic = cycle::mutation_targets(
-        (input.release && input.optimized && !m.open_world && input.runtime.is_some())
+        (input.release && input.optimized && !m.open_world)
             .then(|| (input.mutation_targets)())
             .flatten(),
     );
@@ -892,7 +890,7 @@ fn link(
     }
     rt::entry(input, &mut m)?;
     #[cfg(feature = "checked-report")]
-    if let Some(c) = m.runtime.and_then(|r| r.checked)
+    if let Some(c) = m.runtime.checked
         && m.count_audit
     {
         let h = c.count_audit;

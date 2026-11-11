@@ -1,0 +1,41 @@
+# module.boundary.codec; fn.suspension.hold: the opaque payload moves into
+# the cold leaf before the caller changes its own list and suspends.
+use std.collections.UniqList
+use std.serde.{Serialize, Serializer}
+use std.task.block_on
+use std.testing.assert_equal
+
+pub struct Payload:
+    values: List[string]
+    owner: UniqList[usize]
+
+impl Serialize for Payload:
+    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
+        self.values.serialize(out)
+
+pub trait Parent:
+    fn parent!(&self, label: string, values: List[string]) -> u32
+
+@host
+pub trait Child < Parent:
+    fn child!(&self, label: string, values: Payload) -> u32
+
+fn values!() -> (u32, u32, u32) $ Child:
+    let child: &dyn Child = $.use(Child)
+    inherited := child.parent!("initial", ["one"])
+    let mut values = ["one"]
+    let mut owner = UniqList::new()
+    owner.push(9)
+    payload := Payload { values: values, owner: owner }
+    waiting := child.child("pending${inherited}", payload)
+    values.push("two")
+    own := waiting!()
+    assert_equal(values, ["one", "two"])
+    driven := match block_on(child.parent("driven${own}", ["one"])):
+        .Completed(value) => value
+        _ => panic("parent did not complete")
+    (inherited, own, driven)
+
+pub fn main!() -> void $ Console + Child:
+    result := values!()
+    println("${result._0} ${result._1} ${result._2}")

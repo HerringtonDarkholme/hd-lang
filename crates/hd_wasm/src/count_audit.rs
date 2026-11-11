@@ -39,7 +39,7 @@ pub(crate) fn instrument(
     for (position, ins) in body.into_iter().enumerate() {
         f.origin_at = origins.as_ref().and_then(|o| o[position]);
         let count = match ins {
-            Ins::Call(callee) => crate::views::count_action(&f.symbol(callee), Some(r)).is_some(),
+            Ins::Call(callee) => crate::views::count_action(&f.symbol(callee), r).is_some(),
             _ => false,
         };
         // Keep the source caller active across ordinary/indirect calls too:
