@@ -154,17 +154,19 @@ fn pause!() -> string $ Clock:
 fn holds!() -> usize $ Clock:
     total(text(1), pause!())
 > app/main/holds
->   %0 = Retain %10 Cold row #0 : ()
->   %1 = Retain %10 Materialize row #0 : ()
->   %2 = Release %10 FrameDrop row #2 : ()
->   %3 = Release %10 FrameDrop child #2 : ()
+>   %0 = Retain %12 Cold row #0 : ()
+>   %1 = Retain %12 Materialize row #0 : ()
+>   %2 = Release %12 FrameDrop row #2 : ()
+>   %3 = Release %12 FrameDrop child #2 : ()
 >   %4 = Call app/main/text[] (1:i32) : string
 >   %5 = Await app/main/pause[] () : string
 >   %6 = Release %5 Operation child #2 : ()
 >   %7 = Call app/main/total[] (%4, %5) : usize
->   %8 = Drop [%5] : ()
->   %9 = Drop [%4] : ()
->   %10 = Block %7 : usize
+>   %8 = Retain %7 Operation operand 0 #0 : ()
+>   %9 = Retain %7 Operation operand 1 #0 : ()
+>   %10 = Drop [%5] : ()
+>   %11 = Drop [%4] : ()
+>   %12 = Block %7 : usize
 >   summary none
 >   unwind %5 drops [%4]
 >   live %5 [%4]
