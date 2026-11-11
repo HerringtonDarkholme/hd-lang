@@ -1361,8 +1361,9 @@ impl Ck<'_, '_> {
     /// (`expr.eq.trait.ref`, `expr.ord.trait.ref`): a place outside any
     /// element whose value is no reference, with a type no built-in
     /// operator covers. A right operand's place must have the left's type
-    /// `left`.
-    fn operand_place(&self, op: TokenKind, e: NodeRef<'_>, left: Option<Ty>) -> bool {
+    /// `left`, or one that differs only in open literal classes, which the
+    /// comparison itself decides (`types.literal.local.class.open`).
+    fn operand_place(&mut self, op: TokenKind, e: NodeRef<'_>, left: Option<Ty>) -> bool {
         if !Self::by_ref_op(op) || Self::in_element(e) {
             return false;
         }
@@ -1373,7 +1374,23 @@ impl Ck<'_, '_> {
         let v = self.resolved(self.infer.resolve(pool, t));
         self.ref_of(v).is_none()
             && self.op_by_trait(op, v)
-            && left.is_none_or(|l| self.resolved(self.infer.resolve(pool, l)) == v)
+            && left.is_none_or(|l| {
+                let l = self.resolved(self.infer.resolve(pool, l));
+                l == v
+                    || (self.only_literals_open(l)
+                        && self.only_literals_open(v)
+                        && self.can_unify(l, v))
+            })
+    }
+
+    /// Whether every inference variable left in `t` is an open literal
+    /// class.
+    fn only_literals_open(&self, t: Ty) -> bool {
+        let pool = self.pool();
+        !pool.has_infer(hd_types::TyMap::ty(
+            &mut crate::body::LiteralDefaults(self),
+            t,
+        ))
     }
 
     /// The operand `(r, t, held)` of the operator `op`, with a local
@@ -1544,6 +1561,7 @@ impl Ck<'_, '_> {
             right: primitive(ct),
         };
         self.tool_facts.comparisons.push(fact);
+        self.comparison_tys.push((at, ct));
     }
 
     /// Applies a binary operator to two checked operands.

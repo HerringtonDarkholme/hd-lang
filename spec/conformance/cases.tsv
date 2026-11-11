@@ -982,7 +982,10 @@ runtime/valid/string-no-normalization.hd	runtime	accept	lang/04-type-system.md#r
 runtime/valid/string-encodings-distinct.hd	runtime	accept	lang/04-type-system.md#r-types.string.encodings
 runtime/valid/string-host-bytes.hd	runtime	accept	lang/04-type-system.md#r-types.string.host-bytes
 typing/invalid/negated-literal-below-minimum.hd	type	reject:integer-literal-range	lang/04-type-system.md#r-types.literal.negation.below-minimum
-typing/invalid/literal-class-defaults-at-statement-end.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.literal.local.class.open
+typing/valid/a-literal-binding-takes-the-type-a-later-statement-meets.hd	type	accept	lang/04-type-system.md#r-types.literal.local.statement
+typing/invalid/a-literal-binding-meets-two-types-in-later-statements.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.literal.local.class.once
+runtime/valid/a-trait-call-on-an-open-literal-waits-for-its-type.hd	runtime	accept	lang/04-type-system.md#r-types.literal.local.obligation
+typing/invalid/a-method-call-settles-an-open-literal-to-its-default.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.literal.local.method
 typing/valid/literal-branch-one-expression.hd	type	accept	lang/04-type-system.md#r-types.literal.local.block
 typing/valid/literal-closure-return-paths.hd	type	accept	lang/04-type-system.md#r-types.literal.local.form.closure-return
 typing/valid/literal-loop-else-value.hd	type	accept	lang/04-type-system.md#r-types.literal.local.form.loop-else
@@ -3692,7 +3695,6 @@ typing/invalid/literal-var-tuple-fallback.hd	type	reject:implicit-narrowing	lang
 typing/valid/literal-var-list-push.hd	type	accept	lang/04-type-system.md#r-types.literal.local.form.element
 typing/valid/literal-var-match-payload.hd	type	accept	lang/04-type-system.md#r-types.literal.local.form.arm
 typing/valid/literal-var-data-pattern.hd	type	accept	lang/04-type-system.md#r-types.literal.local.form.element
-typing/invalid/literal-var-structure-conflict.hd	type	reject:implicit-narrowing	lang/04-type-system.md#r-types.literal.local.statement
 typing/valid/literal-var-fallback.hd	type	accept	lang/04-type-system.md#r-types.literal.local.default
 typing/valid/literal-var-flow-types.hd	type	accept	lang/04-type-system.md#r-types.literal.local.form.element
 runtime/valid/literal-var-flow.hd	runtime	accept	lang/04-type-system.md#r-types.literal.local.class.meet
@@ -6031,6 +6033,7 @@ runtime/valid/unique-list-reference-outlives-its-pointer-local.hd	runtime	accept
 runtime/valid/interpolation-measured-values.hd	runtime	accept	lang/05-expressions.md#r-expr.interp.value-snapshot
 runtime/valid/display-write-noncopy.hd	runtime	accept	lang/09-traits.md#r-trait.read.noncopy
 runtime/valid/read-traits-noncopy.hd	runtime	accept	std/cmp.md#r-std-cmp.derive.eq.template
+runtime/valid/an-open-literal-in-a-tuple-compares-by-reference.hd	runtime	accept	lang/05-expressions.md#r-expr.eq.trait.ref
 runtime/valid/projected-view-binding-keeps-owner.hd	runtime	accept	lang/13-values-and-references.md#r-ref.match.borrow
 typing/invalid/map-loop-mutable-readonly-place.hd	type	reject:not-writable	lang/06-control-flow.md#r-flow.for.ref.map.writable
 runtime/panic/map-loop-mutable-box-alias.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#conflicts-through-aliases

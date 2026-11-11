@@ -237,6 +237,10 @@ pub(crate) struct Ck<'a, 'c> {
     /// Body-local append-only facts for tooling, recorded only when a tool
     /// asked: failed trials truncate them before publication.
     pub tool_facts: crate::comparison::SourceFacts,
+    /// The operand types of each comparison fact, by index: an open
+    /// literal class is decided only where the body settles, so the
+    /// operands' primitives are read then.
+    pub comparison_tys: Vec<(Ty, Ty)>,
     /// The body's local pool: its types that hold inference variables.
     pub local: &'c hd_types::LocalPool,
     pub b: TirBuilder,
@@ -569,7 +573,8 @@ pub(crate) type NodeRefIdx = hd_base::NodeIdx;
 /// solved again at the end of the body.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Defaults {
-    /// None: the statement's literal classes have their types already.
+    /// None: with the types inference knows so far; an open literal
+    /// class leaves the goal waiting (`types.literal.local.obligation`).
     None,
     /// The receiver's.
     Receiver,
@@ -615,6 +620,7 @@ pub(crate) fn new_ck<'a, 'c>(
         cx,
         local,
         tool_facts: crate::comparison::SourceFacts::default(),
+        comparison_tys: Vec::new(),
         b: TirBuilder::new(item, kind),
         infer: InferTable::default(),
         scopes: vec![HashMap::default()],
@@ -2034,6 +2040,19 @@ impl Ck<'_, '_> {
         if self.joins.is_site(target) {
             return self.join_value(r, got, target, n, what);
         }
+        // An open literal class inside a value meets the known type it
+        // goes into (`types.literal.local.class.meet`): the same type once
+        // the class is decided, with no conversion.
+        if pool.has_infer(g)
+            && !pool.has_infer(w)
+            && !pool.has_infer(hd_types::TyMap::ty(&mut LiteralDefaults(self), g))
+        {
+            let snapshot = self.infer.snapshot();
+            if self.infer.unify(pool, g, w).is_ok() {
+                return r;
+            }
+            self.infer.rollback(snapshot);
+        }
         // A readonly container reference may weaken reference permissions
         // in covariant container positions without changing their layout
         // (`ref.convert.readonly-covariant`). Keep unification itself
@@ -3394,28 +3413,16 @@ impl Ck<'_, '_> {
     /// One statement; its type is `never` when it cannot complete.
     pub(crate) fn stmt(&mut self, s: NodeRef<'_>, void_tail: bool) -> StageResult<Ty> {
         let span = self.cx.src.span(s);
-        let start = self.infer.var_count();
         let open = self.open_params.len();
         let refs = self.ref_params.len();
         let waiting = self.pending.len();
         let outer = self.cur_stmt.replace(s.index());
         let r = self.stmt_node(s, void_tail).map_err(|e| e.at(span));
         self.cur_stmt = outer;
-        // A `break` value joins with the loop's other values, so its class
-        // stays open until the join (`types.literal.local.form.join-open`).
-        if s.kind() != SyntaxKind::BreakStmt {
-            // A class that met the result of a call whose impl waits takes
-            // that result's type when the impl is chosen: the other
-            // classes take their defaults first, which may choose it.
-            let held = self.waiting_results(waiting);
-            if !held.is_empty() {
-                self.close_literals_but(start, &held);
-                if r.is_ok() {
-                    self.settle_waiting(waiting).map_err(|e| e.at(span))?;
-                }
-            }
-            self.close_literals(start);
-        }
+        // A literal class stays open across the statements of its body and
+        // takes its default type where the body settles
+        // (`types.literal.local.class.open`, `types.literal.local.statement`):
+        // a later statement that meets a type decides it.
         self.close_open_params(open);
         self.close_ref_params(refs);
         if r.is_ok() {
@@ -3597,10 +3604,23 @@ impl Ck<'_, '_> {
         out
     }
 
+    /// Where a body settles: a class that met the result of a call or
+    /// projection whose impl waits takes that result's type once the impl
+    /// is chosen, so the other classes take their defaults first, which
+    /// may choose it (`types.literal.local.obligation`).
+    fn settle_held_literals(&mut self) -> StageResult<()> {
+        let held = self.waiting_results(0);
+        if held.is_empty() {
+            return Ok(());
+        }
+        self.close_literals_but(0, &held);
+        self.settle_waiting(0)
+    }
+
     /// The call and projection goals that waited since `waiting`, solved
-    /// again now that the statement's literal classes have their types
-    /// (`types.literal.local.class.open`); one that still waits is solved
-    /// again at the end of the body.
+    /// again after their statement, which may have decided what they wait
+    /// on; one that still waits, as on an open literal class, is solved
+    /// again at the end of the body (`types.literal.local.obligation`).
     pub(crate) fn settle_waiting(&mut self, waiting: usize) -> StageResult<()> {
         if !self
             .pending
@@ -3742,14 +3762,12 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// `types.literal.local.class.open`: a literal class that met no type
-    /// by the end of its statement takes its default type. A class that
-    /// reached the result join of an open function or closure, or the
-    /// values of an enclosing loop, stays open until the join
-    /// (`types.literal.local.form.join-open`): its return paths and
-    /// `break` values join across statements
-    /// (`types.literal.local.form.function-return.statements`,
-    /// `types.literal.local.form.closure-return.statements`).
+    /// `types.literal.local.class.open`: a literal class of a top-level
+    /// statement, a body of its own, that met no type by its end takes its
+    /// default type. A function or closure body's classes take theirs where
+    /// the body settles. A class that reached a result join or the values
+    /// of an enclosing loop stays open until the join
+    /// (`types.literal.local.form.join-open`).
     pub(crate) fn close_literals(&mut self, start: usize) {
         self.close_literals_but(start, &[]);
     }
@@ -3774,6 +3792,23 @@ impl Ck<'_, '_> {
                 let _ = self.infer.unify(pool, t, d);
             }
         }
+    }
+
+    /// `t` with each open literal class inside it settled to its default
+    /// type, for a use that needs the type where it is written, as a
+    /// requirement key does (`types.literal.local.method`). Other
+    /// variables stay open.
+    pub(crate) fn settle_literals_in(&mut self, t: Ty) -> Ty {
+        let pool = self.pool();
+        let t = self.infer.resolve(pool, t);
+        if !pool.has_infer(t) {
+            return t;
+        }
+        let settled = hd_types::TyMap::ty(&mut LiteralDefaults(self), t);
+        if settled != t {
+            let _ = self.infer.unify(pool, t, settled);
+        }
+        settled
     }
 
     /// Notes that the unbound literal class of `t` is about to take its
@@ -4769,6 +4804,7 @@ impl Ck<'_, '_> {
             let facts = std::mem::take(&mut self.facts);
             self.cx.init.borrow_mut().facts.insert(item, facts);
         }
+        self.settle_held_literals()?;
         let pool = self.pool();
         // Literal defaults first, so `x := +0` then `x = y` resolves both.
         let n = self.b.body_mut().ty.len();
@@ -5052,6 +5088,22 @@ impl Ck<'_, '_> {
         // A poisoned name carries an earlier module diagnostic rather than
         // adding one to this body's buffer, but recovery may leave the same
         // mismatched store as a body-local type error.
+        // A comparison's operands, settled with the body.
+        if self.cx.source_facts.is_some() {
+            let pool = self.pool();
+            let primitive = |ck: &mut Self, ty: Ty| match pool.get(ck.zonk(ty)) {
+                TyData::Prim(p) => Some(p),
+                _ => None,
+            };
+            for i in 0..self.comparison_tys.len() {
+                let (l, r) = self.comparison_tys[i];
+                let (left, right) = (primitive(&mut self, l), primitive(&mut self, r));
+                if let Some(fact) = self.tool_facts.comparisons.get_mut(i) {
+                    fact.left = left;
+                    fact.right = right;
+                }
+            }
+        }
         let errors = self.diags.has_errors() || self.read_poison_name;
         let tolerated: &[u8] = if errors { &[4] } else { &[] };
         // The backend reads each reference's kind as written (`refs.rs`).
@@ -5100,7 +5152,7 @@ struct Zonk<'k, 'a, 'c>(&'k mut Ck<'a, 'c>);
 /// A resolved type's open literals replaced by their default types, for a
 /// message only: it binds nothing. Cost: one walk of the type's
 /// variable-holding part.
-struct LiteralDefaults<'k, 'a, 'c>(&'k Ck<'a, 'c>);
+pub(crate) struct LiteralDefaults<'k, 'a, 'c>(pub(crate) &'k Ck<'a, 'c>);
 
 impl hd_types::TyMap for LiteralDefaults<'_, '_, '_> {
     fn ty(&mut self, t: Ty) -> Ty {
