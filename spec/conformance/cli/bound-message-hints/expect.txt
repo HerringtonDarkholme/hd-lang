@@ -53,4 +53,4 @@ exit: 101
 stdout-json: [{"kind":"diagnostic","code":"unsatisfied-trait-bound","message":"string? does not implement Display; use `debug(value)` or `unwrap_or(...)`","line":2,"column":8,"fixes":[],"file":"optional.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
 run: hd check --format json probe-does-not-learn.hd
 exit: 101
-stdout-json: [{"kind":"diagnostic","code":"unsatisfied-trait-bound","message":"Wrapper[usize] does not implement Container[i32]; integer literals defaulted to `usize`","line":15,"column":5,"fixes":[],"file":"probe-does-not-learn.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+stdout-json: [{"kind":"diagnostic","code":"unsatisfied-trait-bound","message":"Wrapper[usize] does not implement Container[i32]; integer literals defaulted to `usize`","line":15,"column":5,"fixes":[],"file":"probe-does-not-learn.hd"},{"kind":"diagnostic","code":"type-mismatch","message":"in binding: expected Wrapper[i32], found Wrapper[usize]","line":16,"column":32,"fixes":[],"file":"probe-does-not-learn.hd"},{"kind":"summary","errors":2,"warnings":0,"status":101}]

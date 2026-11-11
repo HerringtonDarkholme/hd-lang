@@ -594,6 +594,7 @@ fn cross_statement_literals(n: usize) -> String {
 }
 
 #[test]
+#[ignore = "cross-statement literal inference awaits #1528"]
 fn cross_statement_literal_class_checker_fuel() {
     check_fuel(cross_statement_literals, 250, 1000);
 }

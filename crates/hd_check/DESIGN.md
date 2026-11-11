@@ -485,14 +485,12 @@ After inferring both operands, the checker:
 
 ### 2.3 Statements And Blocks
 
-1. Statements are checked in source order. A literal class stays open
-   across them and takes its default where the body settles
-   ([`types.literal.local.class.open`](../../spec/lang/04-type-system.md#r-types.literal.local.class.open)),
-   so a later statement decides it. A trait goal on an open class waits
-   and is solved then (section 3.6). A method receiver or requirement key
-   settles its class at the use
-   ([`types.literal.local.method`](../../spec/lang/04-type-system.md#r-types.literal.local.method)).
-   A top-level statement is a body of its own.
+1. Statements are checked in source order. Each statement is a **literal
+   scope**: open literal variables still unbound at its end take their
+   default ([`types.literal.local.statement`](../../spec/lang/04-type-system.md#r-types.literal.local.statement)).
+   The exceptions are a literal held by an open join (a class equal to an
+   open result variable, or a `break` value) and a class that met the
+   result of a call whose impl still waits (section 3.6).
 2. `let x = e`: infer `e`, then apply the binding rule
    (section 8.1). `let x: T = e`: check `e` against `T`.
 3. An expression statement whose value is discarded is checked for
@@ -666,7 +664,7 @@ it (`sub_flags::GENERIC`).
 
 | Variable | Resolved | If still open |
 | --- | --- | --- |
-| literal (integer or float) | as soon as it meets a concrete numeric type; at a method call or requirement key on it, by default; else where its body settles, by default; a held class at its join (section 3.6) | never open past its body or its join |
+| literal (integer or float) | as soon as it meets a concrete numeric type; else at the end of its statement, by default; a held class at its join (section 3.6) | never open past its statement or its join |
 | use-site type argument | when unified; else at the end of the statement or body, after defaults | `cannot-infer-type` or `ambiguous-type` |
 | local binding's type | from its initializer, in its statement | an empty collection literal can leave its element open to the end of the body (section 2.8) |
 | closure parameter | from the expected function type or the annotation | `closure-parameter-needs-annotation` |

@@ -13,3 +13,4 @@ fn describe[C < Container[i32]](value: C) -> void:
 fn run() -> void:
     wrapped := Wrapper { items: [4, 5] }
     describe(wrapped)
+    let _typed: Wrapper[i32] = wrapped

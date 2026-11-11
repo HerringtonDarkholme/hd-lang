@@ -4398,27 +4398,12 @@ impl Ck<'_, '_> {
             return self.resolve_method(rt, name);
         }
         // `trait.resolve.lookup.unknown-receiver`: an inherent method name
-        // does not choose an unknown receiver's type.
+        // does not choose an unknown receiver's type. Literal classes keep
+        // their specified width inference and defaulting below.
         if let TyData::Infer(v) = pool.get(t)
             && self.infer.kind_of(pool, t) == Some(VarKind::General)
         {
             return Ok(Some(Hit::UnknownReceiver(vec![v])));
-        }
-        // A method call on an open literal class settles it at the call,
-        // to its default type, before any lookup: no inherent method
-        // chooses its width (`types.literal.local.method`).
-        if matches!(pool.get(t), TyData::Infer(_))
-            && let Some(k @ (VarKind::IntLit | VarKind::SignedIntLit | VarKind::FloatLit)) =
-                self.infer.kind_of(pool, t)
-        {
-            let d = match k {
-                VarKind::SignedIntLit => Ty::I32,
-                VarKind::IntLit => Ty::prim(Prim::Usize),
-                _ => Ty::prim(Prim::F64),
-            };
-            self.note_fallback(t, k);
-            let _ = self.infer.unify(pool, t, d);
-            return self.resolve_method(d, name);
         }
         if let Some((method, impl_def, impl_args)) = self.find_inherent(t, name) {
             return Ok(Some(Hit::Inherent {
@@ -4469,6 +4454,19 @@ impl Ck<'_, '_> {
                 }
             }
             return Ok(None);
+        }
+        // A literal's type is its default once a member is asked of it.
+        if matches!(pool.get(t), TyData::Infer(_))
+            && let Some(k @ (VarKind::IntLit | VarKind::SignedIntLit | VarKind::FloatLit)) =
+                self.infer.kind_of(pool, t)
+        {
+            let d = match k {
+                VarKind::SignedIntLit => Ty::I32,
+                VarKind::IntLit => Ty::prim(Prim::Usize),
+                _ => Ty::prim(Prim::F64),
+            };
+            let _ = self.infer.unify(pool, t, d);
+            return self.resolve_method(d, name);
         }
         self.trait_part(t, sym, &self.available_traits(sym))
     }

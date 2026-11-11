@@ -299,12 +299,8 @@ impl Ck<'_, '_> {
     /// Whether a value type implements either protocol which requires an
     /// explicit cleanup binding. Analysis records only this neutral answer;
     /// `hd_lint` owns the `unbound-disposable` policy.
-    /// An open literal class answers as its default type would: every
-    /// type the class may still take is a number, and no number
-    /// implements either protocol (`types.literal.local.class.open`).
     pub(crate) fn implements_disposal_protocol(&mut self, t: Ty) -> StageResult<bool> {
-        let resolved = self.resolved(t);
-        let self_ty = hd_types::TyMap::ty(&mut crate::body::LiteralDefaults(self), resolved);
+        let self_ty = self.resolved(t);
         if self.pool().has_poison(self_ty) {
             return Ok(false);
         }

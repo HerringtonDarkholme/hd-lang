@@ -304,8 +304,6 @@ impl Ck<'_, '_> {
         }
         self.b.rollback(c.tir);
         self.tool_facts.truncate(c.tool_facts);
-        self.comparison_tys
-            .truncate(self.tool_facts.comparisons.len());
         self.mut_bindings.truncate(c.mut_bindings);
         self.ref_taken.truncate(c.ref_taken);
         self.mut_locals.truncate(c.mut_locals);
