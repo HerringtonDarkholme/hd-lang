@@ -4,6 +4,16 @@
 # expect-stdout: 1
 # expect-stdout: 1
 # expect-stdout: 2
+# expect-stdout: 1
+# expect-stdout: 1
+# expect-stdout: 1
+# expect-stdout: 23
+fn alias['a](source: &'a i32, other: &'a i32 = source) -> &'a i32:
+    other
+
+fn relay_alias(source: &i32) -> &i32:
+    alias(source)
+
 fn collect(item: i32, into: &mut List[i32] = &mut []) -> usize:
     into.push(item)
     into.len()
@@ -14,3 +24,7 @@ pub fn main() -> void $ Console:
     let mut shared: List[i32] = []
     println(collect(3, &mut shared))
     println(collect(4, &mut shared))
+    for item in 0..3:
+        println(collect(item))
+    fixed := +23
+    println(*relay_alias(&fixed))

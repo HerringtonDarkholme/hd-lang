@@ -3490,7 +3490,7 @@ impl Cx<'_> {
                         pool.list_items(TyList(l)).iter().copied().map(s).collect();
                     let t = self.target(def, pool.list(&targs), id)?;
                     let bracket = env.body(def).is_some_and(default_needs_bracket);
-                    let owned = env.body(def).is_some_and(returns_new_object);
+                    let owned = env.body(def).is_some_and(default_returns_new_object);
                     reps.u8(u8::from(bracket));
                     reps.u8(u8::from(owned));
                     self.hash_target(&t, &mut reps);
@@ -3801,8 +3801,10 @@ fn scalar_constant(body: &Body) -> Option<u64> {
 }
 
 /// Whether a default body's result is a reference to all of one of its
-/// own locals (`&mut []`): a new object that the reference takes.
-fn returns_new_object(body: &Body) -> bool {
+/// own locals: a new object that the reference takes. A caller-side copy
+/// relocates that local before ownership decides its storage and lifetime.
+#[must_use]
+pub fn default_returns_new_object(body: &Body) -> bool {
     let Some(&root) = body.sub_root.first() else {
         return false;
     };

@@ -2,8 +2,8 @@
 # @dump: tir own counts wat
 # @build: v8 release
 # Feature: Default Values, Requirement-Free Defaults (spec/lang/07-functions.md, #1364).
-# expected: `with_default` allocates one fresh list per call, retains
-# `s` once for the push, and frees the list after the call;
+# expected: `with_default` places the fresh list header in its caller
+# frame and drops its contents after the call, with no helper heap cell;
 # `with_given` allocates nothing; `use_label`'s `"!"` default is
 # static data with no count.
 fn collect(item: string, into: &mut List[string] = &mut []) -> usize:
@@ -55,3 +55,40 @@ fn use_label(s: string) -> string:
 >   %1 = DefaultCall [app/main/labeled.suffix []] [%0] : string
 >   %2 = Call app/main/labeled[] (%0, %1) : string
 >   %3 = Block %2 : string
+
+fn reference_default['a](
+    source: &'a mut List[string],
+    fresh: bool,
+    into: &'a mut List[string] = &mut [],
+) -> &'a mut List[string]:
+    if fresh: into else: source
+> app/main/reference_default
+>   local $0 source: &mut List[string] [param read]
+>   local $1 fresh: bool [param read]
+>   local $2 into: &mut List[string] [param read]
+>   %0 = Read [$1] : bool
+>   %1 = Read [$2] : &mut List[string]
+>   %2 = Block %1 : &mut List[string]
+>   %3 = Read [$0] : &mut List[string]
+>   %4 = Block %3 : &mut List[string]
+>   %5 = If %0 [%2 %4] : &mut List[string]
+>   %6 = Block %5 : &mut List[string]
+
+fn returned_default(source: &mut List[string], fresh: bool) -> usize:
+    into := reference_default(source, fresh)
+> app/main/returned_default
+>   local $0 source: &mut List[string] [param read]
+>   local $1 fresh: bool [param read]
+>   local $2 into: &mut List[string] [:= read assigned]
+>   %0 = Read [$0] : &mut List[string]
+>   %1 = Read [$1] : bool
+>   %2 = DefaultCall [app/main/reference_default.into []] [%0 %1] : &mut List[string]
+>   %3 = Call app/main/reference_default[] (%0, %1, %2) : &mut List[string]
+>   %4 = Store [$2] %3 : ()
+>   %9 = Block %8 : usize
+    into.push("held")
+>   %5 = Read [*$2] : List[string]
+>   %6 = Intrinsic ListPush [%5 "held"] : ()
+    into.len()
+>   %7 = Read [*$2] : List[string]
+>   %8 = Intrinsic ListLen [%7] : usize

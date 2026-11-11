@@ -1,8 +1,8 @@
 # @dump: tir own counts wat
 # @build: v8 release
 # Feature: Default Values, Requirement-Free Defaults (spec/lang/07-functions.md, #1364).
-# expected: `with_default` allocates one fresh list per call, retains
-# `s` once for the push, and frees the list after the call;
+# expected: `with_default` places the fresh list header in its caller
+# frame and drops its contents after the call, with no helper heap cell;
 # `with_given` allocates nothing; `use_label`'s `"!"` default is
 # static data with no count.
 fn collect(item: string, into: &mut List[string] = &mut []) -> usize:
@@ -20,3 +20,15 @@ fn labeled(name: string, suffix: string = "!") -> string:
 
 fn use_label(s: string) -> string:
     labeled(s)
+
+fn reference_default['a](
+    source: &'a mut List[string],
+    fresh: bool,
+    into: &'a mut List[string] = &mut [],
+) -> &'a mut List[string]:
+    if fresh: into else: source
+
+fn returned_default(source: &mut List[string], fresh: bool) -> usize:
+    into := reference_default(source, fresh)
+    into.push("held")
+    into.len()
