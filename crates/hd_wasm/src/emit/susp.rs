@@ -116,8 +116,9 @@ pub(super) struct Susp {
     pub ranges: HashMap<u32, (u32, u32)>,
     /// The `ctl` index of the current point's cancellation block.
     pub cancel_to: Option<usize>,
-    /// Set when the body leaves by its cancellation (`Exit::Cancel`), for
-    /// the counting exit.
+    /// Set when this invocation leaves by cancellation (`Exit::Cancel`),
+    /// for the counting exit. It starts at zero on every poll and never
+    /// belongs to the persistent frame.
     pub cancelled: u32,
     /// The data locals of the body's providers: a frame holds a count of
     /// each, since the scope that installed them may end first.
@@ -357,7 +358,7 @@ impl Em<'_, '_, '_> {
     }
 
     /// Pending at state `k`, waiting on the child in local `child`, whose
-    /// count the frame takes: saves every local and returns the frame.
+    /// count the frame takes: saves that state's live row and returns the frame.
     fn suspend(&mut self, k: u32, child: u32) {
         self.materialize();
         self.f.push(Ins::Save(k));
@@ -1093,8 +1094,7 @@ pub(super) fn push_zero(f: &mut crate::module::Func, v: Val) {
 }
 
 /// The save area of a body whose locals `0..n` are `vals`: each local's
-/// offset in the frame, but the frame's own and `pc`'s, and the frame's
-/// payload size.
+/// offset in the frame, excluding `skip`, and the frame's payload size.
 pub(super) fn save_area(vals: &[Val], skip: &[u32]) -> (Vec<(u32, u32, Val)>, u32) {
     let mut at = F_SAVED;
     let mut out = Vec::new();
@@ -1145,7 +1145,8 @@ pub(super) fn load_op(v: Val, at: u32) -> I {
 
 /// Replaces a body's [`Ins::Save`]s and [`Ins::LoadAll`] by the stores
 /// and loads of its save area `area`: a save at state `k` stores
-/// `held[k]` when there is one, else all of it.
+/// `held[k]` when there is one, else all of it. A resume reloads the same
+/// row; the constructor's state zero loads the initial argument slots.
 pub(super) fn expand(
     f: &mut crate::module::Func,
     area: &[(u32, u32, Val)],
@@ -1163,16 +1164,58 @@ pub(super) fn expand(
                 }
             }
             Ins::LoadAll => {
-                for &(l, at, v) in area {
-                    f.get(FRAME);
-                    f.op(load_op(v, at));
-                    f.set(l);
-                }
+                reload_state(f, area, held);
             }
             other => f.push(other),
         }
     }
     f.origin_at = outer;
+}
+
+/// Reload exactly the state's save row. Inactive join locals stay at
+/// their invocation's initial zero; restoring an earlier join's stale
+/// mask or result would resurrect an already-consumed value. State zero
+/// is the cold constructor, whose argument/capture slots use `area`.
+fn reload_state(
+    f: &mut crate::module::Func,
+    area: &[(u32, u32, Val)],
+    held: &HashMap<u32, Vec<(u32, u32, Val)>>,
+) {
+    let load = |f: &mut crate::module::Func, slots: &[(u32, u32, Val)]| {
+        for &(l, at, v) in slots {
+            f.get(FRAME);
+            f.op(load_op(v, at));
+            f.set(l);
+        }
+    };
+    let mut states: Vec<_> = held.keys().copied().collect();
+    states.sort_stable();
+    let Some(&last) = states.last() else {
+        load(f, area);
+        return;
+    };
+    // `plan` numbers points densely from one, so this table is bounded
+    // by the body's point count, even when a live row is missing.
+    let mut targets = vec![0; last as usize + 1];
+    let count = states.iter().fold(0u32, |count, _| count + 1);
+    for (&k, depth) in states.iter().zip(1..=count) {
+        targets[k as usize] = depth;
+    }
+    for _ in 0..states.len() + 2 {
+        f.op(I::Block(BlockType::Empty));
+    }
+    f.get(FRAME);
+    f.op(I::I32Load(mem(HEAP, F_STATE, 2)));
+    f.br_table(targets, 0);
+    f.op(I::End);
+    load(f, area);
+    f.op(I::Br(count));
+    for (i, k) in (0..count).zip(&states) {
+        f.op(I::End);
+        load(f, &held[k]);
+        f.op(I::Br(count - i - 1));
+    }
+    f.op(I::End);
 }
 
 /// Each Wasm local of the body `em` emits with the TIR locals and values
@@ -1195,32 +1238,92 @@ fn owners(em: &Em<'_, '_, '_>) -> HashMap<u32, Vec<u32>> {
 
 /// What the frame holds at each state of the body `em` emits, from the
 /// TIR's live rows (`Body::live`): of save area `area`, each Wasm local
-/// of a local or value live there, and every Wasm local that holds none,
-/// which is the emitter's own, but those in `free`. A point with no row
-/// holds all of it.
+/// of a local or value live there, the active join's partial results, and
+/// emitter locals not proved dead by `free`. Join bookkeeping belongs
+/// only to its own point. A point with no row holds all of it.
 fn held_at(
     em: &Em<'_, '_, '_>,
     area: &[(u32, u32, Val)],
     owners: &HashMap<u32, Vec<u32>>,
     free: &hd_base::HashSet<u32>,
 ) -> HashMap<u32, Vec<(u32, u32, Val)>> {
-    let mut out = HashMap::default();
     let Some(s) = em.susp.as_ref() else {
-        return out;
+        return HashMap::default();
     };
-    for (&p, &k) in &s.states {
-        let Ok(r) = em.b.live.binary_search_by_key(&p, |r| r.0) else {
-            continue;
-        };
-        let live = &em.b.live[r].1;
-        let kept = area
+    let mut points = HashMap::default();
+    for (&p, all) in &s.alls {
+        // These are partial results and bookkeeping of this join alone.
+        // Completion consumes the results and releases/clears its waker;
+        // neither a later point nor cold-frame release reads these locals.
+        for w in [all.done, all.node]
+            .into_iter()
+            .chain(all.parts.iter().flat_map(|(_, ls, _)| ls.iter().copied()))
+        {
+            points.insert(w, p);
+        }
+    }
+    let rows: Vec<_> =
+        em.b.live
             .iter()
-            .filter(|(w, _, _)| match owners.get(w) {
-                None => !free.contains(w),
-                Some(os) => os.iter().any(|o| live.binary_search(o).is_ok()),
-            })
-            .copied()
+            .filter_map(|(p, live)| s.states.get(p).map(|&k| (*p, k, live.as_slice())))
             .collect();
+    held_rows(area, owners, free, &points, &rows, || {})
+}
+
+/// Reverse the ownership relation once, then visit each live row and its
+/// output slots. Do not scan the whole save area for every suspension.
+fn held_rows(
+    area: &[(u32, u32, Val)],
+    owners: &HashMap<u32, Vec<u32>>,
+    free: &hd_base::HashSet<u32>,
+    points: &HashMap<u32, u32>,
+    rows: &[(u32, u32, &[u32])],
+    mut visit: impl FnMut(),
+) -> HashMap<u32, Vec<(u32, u32, Val)>> {
+    let mut by_owner: HashMap<u32, Vec<usize>> = HashMap::default();
+    let mut by_point: HashMap<u32, Vec<usize>> = HashMap::default();
+    let mut common = Vec::new();
+    for (i, &(w, _, _)) in area.iter().enumerate() {
+        visit();
+        if let Some(&p) = points.get(&w) {
+            by_point.entry(p).or_default().push(i);
+        } else if let Some(os) = owners.get(&w) {
+            for &o in os {
+                visit();
+                by_owner.entry(o).or_default().push(i);
+            }
+        } else if !free.contains(&w) {
+            common.push(i);
+        }
+    }
+    let mut out = HashMap::default();
+    let mut seen = vec![usize::MAX; area.len()];
+    for (stamp, &(p, k, live)) in rows.iter().enumerate() {
+        visit();
+        let mut kept = Vec::new();
+        let mut add = |i: usize| {
+            visit();
+            if seen[i] != stamp {
+                seen[i] = stamp;
+                kept.push(area[i]);
+            }
+        };
+        for &i in &common {
+            add(i);
+        }
+        if let Some(slots) = by_point.get(&p) {
+            for &i in slots {
+                add(i);
+            }
+        }
+        for owner in live {
+            if let Some(slots) = by_owner.get(owner) {
+                for &i in slots {
+                    add(i);
+                }
+            }
+        }
+        kept.sort_stable_by_key(|row| row.0);
         out.insert(k, kept);
     }
     out
@@ -1314,6 +1417,12 @@ pub(super) fn finish(
     vals_all.extend(em.f.locals.iter().copied());
     let local_frame = em.frame.filter(|(base, _)| *base != NONE);
     let mut skipped = vec![FRAME, pc];
+    if let Some(susp) = &em.susp {
+        // This invocation's exit discriminator is set only when taking
+        // its final cancellation exit. A Pending return never uses it;
+        // the next invocation starts with Wasm's zero-initialized local.
+        skipped.push(susp.cancelled);
+    }
     if let Some((base, _)) = local_frame {
         skipped.push(base);
     }
@@ -1835,6 +1944,64 @@ fn set_flags(f: &mut crate::module::Func, bits: i32, on: bool) {
 #[cfg(test)]
 mod origin_tests {
     use super::*;
+
+    #[test]
+    fn suspension_rows_keep_only_their_join_and_live_values() {
+        let area = [
+            (1, 24, Val::I32),
+            (2, 28, Val::I32),
+            (3, 32, Val::I32),
+            (4, 36, Val::I32),
+        ];
+        let owners = HashMap::from_iter([(3, vec![10, 11])]);
+        let points = HashMap::from_iter([(1, 100), (2, 200)]);
+        let free = hd_base::HashSet::from_iter([4]);
+        let rows = [(100, 1, &[10, 11][..]), (200, 2, &[][..])];
+        let saved = held_rows(&area, &owners, &free, &points, &rows, || {});
+        assert_eq!(saved[&1], [area[0], area[2]]);
+        assert_eq!(saved[&2], [area[1]]);
+        assert!(!saved.contains_key(&3));
+    }
+
+    #[test]
+    fn suspension_row_work_tracks_input_and_saved_slots() {
+        for (width, depth) in [(1000u32, 20u32), (10000, 20), (1000, 40)] {
+            let mut area = Vec::new();
+            let mut owners = HashMap::default();
+            let mut points = HashMap::default();
+            let mut live = Vec::new();
+            for p in 0..width {
+                let mut row = Vec::new();
+                for d in 0..depth {
+                    let w = p * (depth + 1) + d;
+                    area.push((w, 24 + 4 * w, Val::I32));
+                    owners.insert(w, vec![w]);
+                    row.push(w);
+                }
+                let w = p * (depth + 1) + depth;
+                area.push((w, 24 + 4 * w, Val::I32));
+                points.insert(w, p);
+                live.push((p, row));
+            }
+            let rows: Vec<_> = live
+                .iter()
+                .map(|(p, row)| (*p, *p, row.as_slice()))
+                .collect();
+            let mut visits = 0;
+            let saved = held_rows(
+                &area,
+                &owners,
+                &hd_base::HashSet::default(),
+                &points,
+                &rows,
+                || visits += 1,
+            );
+            assert_eq!(visits, width * (3 * depth + 3));
+            assert_eq!(saved.len(), width as usize);
+            assert!(saved.values().all(|row| row.len() == (depth + 1) as usize));
+        }
+    }
+
     #[test]
     fn frame_expansion_keeps_each_save_and_load_origin() {
         let m = crate::module::Module::default();

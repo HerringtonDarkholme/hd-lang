@@ -18,7 +18,7 @@
   (import "fixture" "rewake" (global $rewake (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 12 funcref))
-  (func $fetch'1 (param $frame i32) (param $key.0 i32) (param $key.1 i32) (result i32 i32 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t0 i32)
+  (func $fetch'1 (param $frame i32) (param $key.0 i32) (param $key.1 i32) (result i32 i32 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t0 i32)
     ;; 11 |     key + "?"
     local.get $frame
     if
@@ -42,29 +42,26 @@
       local.get $frame
       i32.load $heap offset=28
       local.set $key.1
-      local.get $frame
-      i32.load $heap offset=32
-      local.set $t1
     else
     end
     local.get $key.1
     i32.const 1
     i32.add
-    local.tee $t2
+    local.tee $t1
     call $rt:str
+    local.tee $t2
     local.tee $t3
-    local.tee $t4
     local.get $key.0
     local.get $key.1
     call $rt:memory_copy/0/0
-    local.get $t4
+    local.get $t3
     local.get $key.1
     i32.add
     i32.const 65 ;; &"?"
     i32.load8_u $heap
     i32.store8 $heap
-    local.get $t3
     local.get $t2
+    local.get $t1
     local.set $key.1
     local.set $key.0
     local.get $key.0
@@ -78,18 +75,7 @@
       i32.or
       i32.store $heap offset=12
     end
-    local.get $t1
-    if (result i32)
-      local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
-      i32.const -17
-      i32.and
-      i32.store $heap offset=12
-      local.get $frame
-    else
-      i32.const 0
-    end
+    i32.const 0
     local.get $frame
     if
       local.get $frame

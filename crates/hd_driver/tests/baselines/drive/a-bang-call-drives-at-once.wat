@@ -7,7 +7,7 @@
   (import "fixture" "rt:cancel_leave" (func $rt:cancel_leave (param i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 9 funcref))
-  (func $relay (param $frame i32) (param $text.0 i32) (param $text.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32) (local $t5 i32) (local $t8 i32) (local $t10 i32) (local $s.0 i32) (local $s.1 i32) (local $t1 i32) (local $t0 i32) (local $t4 i32) (local $t3 i32) (local $t6 i32) (local $t7 i32) (local $t11 i32) (local $t9 i32) (local $t2 i32)
+  (func $relay (param $frame i32) (param $text.0 i32) (param $text.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32) (local $t5 i32) (local $t10 i32) (local $t9 i32) (local $s.0 i32) (local $s.1 i32) (local $t1 i32) (local $t0 i32) (local $t4 i32) (local $t3 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t2 i32)
     ;; ...
     block
       ;; ...
@@ -136,26 +136,23 @@
             local.get $provider0.vtable
             i32.store $heap offset=36
             local.get $frame
-            local.get $t8
-            i32.store $heap offset=40
-            local.get $frame
             local.get $s.0
-            i32.store $heap offset=64
+            i32.store $heap offset=60
             local.get $frame
             local.get $s.1
-            i32.store $heap offset=68
+            i32.store $heap offset=64
             local.get $frame
             local.get $t1
-            i32.store $heap offset=72
+            i32.store $heap offset=68
             local.get $frame
             local.get $t0
-            i32.store $heap offset=76
+            i32.store $heap offset=72
             local.get $frame
             local.get $t4
-            i32.store $heap offset=80
+            i32.store $heap offset=76
             local.get $frame
             local.get $t3
-            i32.store $heap offset=84
+            i32.store $heap offset=80
             local.get $frame
             local.get $t5
             i32.store $heap offset=16
@@ -171,7 +168,7 @@
               i32.load $heap offset=12
               i32.const -129
               i32.and
-              local.get $t9
+              local.get $t8
               i32.or
               i32.store $heap offset=12
             end
@@ -193,7 +190,7 @@
             end
           end
           local.get $t7
-          local.set $t10
+          local.set $t9
           br 1
         end
         call $rt:cancel_enter
@@ -212,13 +209,13 @@
           i32.and
           if
             i32.const 1
-            local.set $t11
+            local.set $t10
           end
         end
         local.get $frame
         local.get $t6
         call $rt:cancel_leave
-        local.get $t11
+        local.get $t10
         if
           local.get $frame
           i32.eqz
@@ -250,26 +247,23 @@
           local.get $provider0.vtable
           i32.store $heap offset=36
           local.get $frame
-          local.get $t8
-          i32.store $heap offset=40
-          local.get $frame
           local.get $s.0
-          i32.store $heap offset=64
+          i32.store $heap offset=60
           local.get $frame
           local.get $s.1
-          i32.store $heap offset=68
+          i32.store $heap offset=64
           local.get $frame
           local.get $t1
-          i32.store $heap offset=72
+          i32.store $heap offset=68
           local.get $frame
           local.get $t0
-          i32.store $heap offset=76
+          i32.store $heap offset=72
           local.get $frame
           local.get $t4
-          i32.store $heap offset=80
+          i32.store $heap offset=76
           local.get $frame
           local.get $t3
-          i32.store $heap offset=84
+          i32.store $heap offset=80
           local.get $frame
           local.get $t5
           i32.store $heap offset=16
@@ -285,7 +279,7 @@
             i32.load $heap offset=12
             i32.const -129
             i32.and
-            local.get $t9
+            local.get $t8
             i32.or
             i32.store $heap offset=12
           end
@@ -310,7 +304,7 @@
           call $rt:release_ref
         end
         i32.const 1
-        local.set $t8
+        local.set $t10
         br 1
       end
       ;; ...

@@ -19,7 +19,7 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 15 funcref))
-  (func $counter#1'1 (param $frame i32) (param $env i32) (param $ctx i32) (result i32 i32) (local $t1 i32) (local $count i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t0 i32)
+  (func $counter#1'1 (param $frame i32) (param $env i32) (param $ctx i32) (result i32 i32) (local $count i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t0 i32)
     ;; 13 |     fn!() -> usize:
     local.get $frame
     if
@@ -46,19 +46,16 @@
     if
       local.get $frame
       i32.load $heap offset=32
-      local.set $t1
-      local.get $frame
-      i32.load $heap offset=36
       local.set $count
       local.get $frame
-      i32.load $heap offset=44
+      i32.load $heap offset=40
+      local.set $t1
+      local.get $frame
+      i32.load $heap offset=64
       local.set $t2
       local.get $frame
-      i32.load $heap offset=68
+      i32.load $heap offset=76
       local.set $t3
-      local.get $frame
-      i32.load $heap offset=80
-      local.set $t4
     else
       local.get $count
       if
@@ -80,7 +77,7 @@
       i32.const 0
       call $rt:new/class-1'1
       local.tee $count
-      local.get $t2
+      local.get $t1
       i32.store $heap
     end
     local.get $count
@@ -103,7 +100,7 @@
       i32.const 0
       call $rt:new/class-1'1
       local.tee $count
-      local.get $t3
+      local.get $t2
       i32.store $heap
     end
     local.get $count
@@ -117,7 +114,7 @@
       i32.const 0
       call $rt:new/class-1'1
       local.tee $count
-      local.get $t4
+      local.get $t3
       i32.store $heap
     end
     local.get $count
@@ -147,18 +144,7 @@
       i32.or
       i32.store $heap offset=12
     end
-    local.get $t1
-    if (result i32)
-      local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
-      i32.const -17
-      i32.and
-      i32.store $heap offset=12
-      local.get $frame
-    else
-      i32.const 0
-    end
+    i32.const 0
     local.get $frame
     if
       local.get $frame
@@ -264,7 +250,7 @@
     i32.eqz
     if
       local.get $t0
-      i32.load $heap offset=36
+      i32.load $heap offset=32
       local.tee $t1
       if
         local.get $t1
@@ -317,7 +303,7 @@
     end
     local.get $t0
     local.get $t1
-    i32.store $heap offset=36
+    i32.store $heap offset=32
     local.get $t0
   )
   (func $generic (param $captured.0 i32) (param $captured.1 i32) (result i32 i32 i32 i32) (local $t0 i32) (local $t1 i32)

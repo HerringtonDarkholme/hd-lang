@@ -1,0 +1,13 @@
+# @dump: own wat
+# @build: v8 release
+# expected: each join saves its own done mask, waker and partial results;
+# the other join's temporaries and the per-poll cancellation flag are not saved.
+use std.task.join
+
+fn ready!(value: string) -> string:
+    value
+
+fn sequential!(left: string, right: string) -> string:
+    let (a, b) = join!(ready(left), ready(right))
+    let (c, d) = join!(ready(a), ready(b))
+    a + c + d

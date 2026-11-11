@@ -108,7 +108,7 @@
     i32.add
     global.set $locals
   )
-  (func $helper'2 (param $frame i32) (result i32 i32 i32) (local $t1 i32) (local $sink i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t0 i32)
+  (func $helper'2 (param $frame i32) (result i32 i32 i32) (local $sink i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t0 i32)
     ;; 14 |     let mut sink = Sink { text: "" }
     local.get $frame
     if
@@ -127,20 +127,17 @@
     local.get $frame
     if
       local.get $frame
-      i32.load $heap offset=24
+      i32.load $heap offset=48
       local.set $t1
       local.get $frame
       i32.load $heap offset=52
       local.set $t2
       local.get $frame
-      i32.load $heap offset=56
+      i32.load $heap offset=64
       local.set $t3
       local.get $frame
       i32.load $heap offset=68
       local.set $t4
-      local.get $frame
-      i32.load $heap offset=72
-      local.set $t5
     else
     end
     i32.const 8
@@ -160,10 +157,10 @@
       i32.const 5
       call $rt:new/class-1
       local.tee $sink
-      local.get $t2
+      local.get $t1
       i32.store $heap
       local.get $sink
-      local.get $t3
+      local.get $t2
       i32.store $heap offset=4
     end
     local.get $sink
@@ -178,42 +175,42 @@
       i32.const 5
       call $rt:new/class-1
       local.tee $sink
-      local.get $t4
+      local.get $t3
       i32.store $heap
       local.get $sink
-      local.get $t5
+      local.get $t4
       i32.store $heap offset=4
     end
     local.get $sink
     i32.load $heap
     local.get $sink
     i32.load $heap offset=4
-    local.set $t2
+    local.set $t1
+    local.tee $t2
     local.tee $t3
-    local.tee $t4
     if
-      local.get $t4
+      local.get $t3
       call $retain
     end
     ;; 14 |     let mut sink = Sink { text: "" }
     local.get $sink
-    local.tee $t4
+    local.tee $t3
     if
-      local.get $t4
+      local.get $t3
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t4
+        local.get $t3
         call $rt:release_ref
       end
     end
-    local.get $t3
+    local.get $t2
     local.set $sink
     local.get $sink
-    local.get $t2
+    local.get $t1
     local.get $frame
     if
       local.get $frame
@@ -223,18 +220,7 @@
       i32.or
       i32.store $heap offset=12
     end
-    local.get $t1
-    if (result i32)
-      local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
-      i32.const -17
-      i32.and
-      i32.store $heap offset=12
-      local.get $frame
-    else
-      i32.const 0
-    end
+    i32.const 0
     local.get $frame
     if
       local.get $frame
