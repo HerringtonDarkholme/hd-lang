@@ -974,6 +974,17 @@ Why it is sound: a buffer made unique before the loop stays unique,
 since nothing in the loop can make a second owner (rule 2) and nothing
 outside can reach the place while the loop runs (rule 3).
 
+In one block, a direct call receiving only scalar values and local
+mutable element references preserves the uniqueness of a private collection
+local. Its root is neither captured nor addressed as a whole. Making
+the buffer unique separates earlier owners, and a reference into an
+element cannot give the call another owner of the header. The same
+block scan records that the element reference checked its index.
+Copies, header or index stores, unknown calls, and control-flow
+boundaries discard the facts. An element-reference drop ends its loan
+without changing the header. A shared short loan can omit its preceding
+uniqueness check, so it discards these facts.
+
 ### Why this order
 
 Insertion makes every count explicit. Borrow runs next, because each

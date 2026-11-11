@@ -71,6 +71,8 @@ pub(crate) mod frame;
 pub(crate) mod join_results;
 pub(crate) mod waker;
 pub use frame::store_finds_empty;
+mod element_checks;
+pub use element_checks::ElementChecks;
 pub(crate) mod hoist;
 mod insert;
 mod known;
