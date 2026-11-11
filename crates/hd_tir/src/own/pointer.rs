@@ -58,6 +58,8 @@ pub trait Context {
     fn place_crossings(&self, id: InstId, place: &Place) -> Option<Vec<(usize, Ty)>>;
     fn type_crossings(&self, root: Ty, steps: &[Proj]) -> Vec<(usize, Ty)>;
     fn call(&self, id: InstId, instruction: u32) -> Option<Call>;
+    /// Only a `Call` or `CallValue` has call-loan arguments. Its access
+    /// row contains only callee effects, never a direct place access.
     #[allow(clippy::option_option)]
     fn receiver(&self, id: InstId, instruction: usize) -> Option<Option<bool>>;
     fn params(&self, id: InstId, instruction: u32) -> Vec<Ty>;
@@ -107,6 +109,137 @@ impl Eff {
     /// Whether a loan on `t`, exclusive when `excl`, may meet an access.
     fn meets(&self, t: Ty, excl: bool) -> bool {
         self.any || self.w.contains(&t) || (excl && self.r.contains(&t))
+    }
+}
+
+/// Sorted positions for each direct effect and for infrequent callees.
+/// Frequent callees keep one shared summary and one list of call positions,
+/// so a wide summary is not copied into every call site.
+#[derive(Default)]
+struct EffectIndex<'a> {
+    writes: HashMap<Ty, Vec<u32>>,
+    reads: HashMap<Ty, Vec<u32>>,
+    unknown: Vec<u32>,
+    frequent: Vec<(&'a Eff, Vec<u32>)>,
+    #[cfg(test)]
+    indexed: usize,
+    #[cfg(test)]
+    probes: std::cell::Cell<usize>,
+}
+
+impl<'a> EffectIndex<'a> {
+    fn new(accesses: &HashMap<u32, Acc>, summaries: &'a HashMap<InstId, Eff>) -> Self {
+        let mut index = Self::default();
+        let mut calls: HashMap<InstId, Vec<u32>> = HashMap::default();
+        let mut positions: Vec<_> = accesses.keys().copied().collect();
+        positions.sort_stable();
+        for position in positions {
+            let acc = &accesses[&position];
+            #[cfg(test)]
+            {
+                index.indexed += 1 + acc.callees.len();
+            }
+            if acc.any
+                || acc
+                    .callees
+                    .iter()
+                    .any(|callee| summaries.get(callee).is_none_or(|effect| effect.any))
+            {
+                index.unknown.push(position);
+                continue;
+            }
+            for &ty in &acc.w {
+                index.writes.entry(ty).or_default().push(position);
+                #[cfg(test)]
+                {
+                    index.indexed += 1;
+                }
+            }
+            for &ty in &acc.r {
+                index.reads.entry(ty).or_default().push(position);
+                #[cfg(test)]
+                {
+                    index.indexed += 1;
+                }
+            }
+            for &callee in &acc.callees {
+                let sites = calls.entry(callee).or_default();
+                if sites.last() != Some(&position) {
+                    sites.push(position);
+                }
+            }
+        }
+        // At most sqrt(edges) distinct frequent callees per query. For
+        // the rest, each summary entry expands into at most sqrt(edges)
+        // positions, independent of how many loans are queried.
+        let limit = calls.values().map(Vec::len).sum::<usize>().isqrt();
+        for (callee, positions) in calls {
+            let effect = &summaries[&callee];
+            if positions.len() > limit {
+                index.frequent.push((effect, positions));
+                continue;
+            }
+            for &ty in &effect.w {
+                index.writes.entry(ty).or_default().extend(&positions);
+                #[cfg(test)]
+                {
+                    index.indexed += positions.len();
+                }
+            }
+            for &ty in &effect.r {
+                index.reads.entry(ty).or_default().extend(&positions);
+                #[cfg(test)]
+                {
+                    index.indexed += positions.len();
+                }
+            }
+        }
+        for positions in index.writes.values_mut().chain(index.reads.values_mut()) {
+            positions.sort_stable();
+            positions.dedup();
+        }
+        index
+    }
+
+    #[cfg_attr(
+        not(test),
+        allow(clippy::unused_self, reason = "counts position probes in tests")
+    )]
+    fn hits(&self, positions: &[u32], from: u32, to: u32, excluded: &[u32]) -> bool {
+        let start = positions.partition_point(|&position| {
+            #[cfg(test)]
+            self.probes.set(self.probes.get() + 1);
+            position < from
+        });
+        for &position in &positions[start..] {
+            #[cfg(test)]
+            self.probes.set(self.probes.get() + 1);
+            if position >= to {
+                return false;
+            }
+            if !excluded.contains(&position) {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn meets(&self, from: u32, to: u32, excluded: &[u32], ty: Ty, exclusive: bool) -> bool {
+        self.hits(&self.unknown, from, to, excluded)
+            || self
+                .writes
+                .get(&ty)
+                .is_some_and(|p| self.hits(p, from, to, excluded))
+            || exclusive
+                && self
+                    .reads
+                    .get(&ty)
+                    .is_some_and(|p| self.hits(p, from, to, excluded))
+            || self.frequent.iter().any(|(effect, positions)| {
+                #[cfg(test)]
+                self.probes.set(self.probes.get() + 1);
+                effect.meets(ty, exclusive) && self.hits(positions, from, to, excluded)
+            })
     }
 }
 
@@ -283,27 +416,6 @@ pub fn decide(cx: &impl Context) -> Decisions {
             break;
         }
     }
-    // The effects of the instructions of a range, the loan's own aside.
-    let range = |id: InstId, from: u32, to: u32, own: &[u32]| -> Eff {
-        let mut e = Eff::default();
-        for (&j, acc) in &accs[&id] {
-            if own.contains(&j) || j < from || j >= to {
-                continue;
-            }
-            e.w.extend(acc.w.iter().copied());
-            e.r.extend(acc.r.iter().copied());
-            e.any |= acc.any;
-            for c in &acc.callees {
-                match sums.get(c) {
-                    Some(ce) => {
-                        e.add(ce);
-                    }
-                    None => e.any = true,
-                }
-            }
-        }
-        e
-    };
     // Whether the program accesses `t` through a `*T` beyond `own`'s.
     let program = |t: Ty, excl: bool, own: Option<&Acc>| -> bool {
         let less = |list: Option<&Vec<Ty>>| usize::from(list.is_some_and(|l| l.contains(&t)));
@@ -316,8 +428,15 @@ pub fn decide(cx: &impl Context) -> Decisions {
         let b = cx.body(*id).expect("body");
         let sub = |ty| cx.substitute(*id, ty);
         let n = u32::try_from(b.tags.len()).expect("insts");
+        let effects = std::cell::OnceCell::new();
+        let meets = |from, to, excluded: &[u32], ty, exclusive| {
+            effects
+                .get_or_init(|| EffectIndex::new(&accs[id], &sums))
+                .meets(from, to, excluded, ty, exclusive)
+        };
+        let bindings = cx.bindings(*id);
         // A holder's loans: its whole function.
-        for (_, _, bind) in cx.bindings(*id) {
+        for &(_, _, bind) in &bindings {
             let Binding::Reference(a) = bind else {
                 continue;
             };
@@ -325,15 +444,14 @@ pub fn decide(cx: &impl Context) -> Decisions {
                 continue;
             };
             let vu = u32::try_from(v).expect("insts");
-            let e = range(*id, 0, n, &[vu]);
             ref_sites(cx, b, *id, vu, |site, object, excl| {
-                if program(object, excl, accs[id].get(&vu)) && e.meets(object, excl) {
+                if program(object, excl, accs[id].get(&vu)) && meets(0, n, &[vu], object, excl) {
                     kept.push((site, object, excl));
                 }
             });
         }
         // A call's result's loans: its whole function (phase 5).
-        for (i, held, bind) in cx.bindings(*id) {
+        for (i, held, bind) in bindings {
             let (a, parents) = match bind {
                 Binding::CallArgument(a) => (a, false),
                 Binding::CallParent(a) => (a, true),
@@ -402,11 +520,10 @@ pub fn decide(cx: &impl Context) -> Decisions {
                 _ => Vec::new(),
             };
             // The call and its argument make the loan; neither is in its range.
-            let e = range(*id, 0, n, &[vu, cu]);
             let last = heads.len() - 1;
             for (j, (k, t)) in heads.iter().enumerate() {
                 let x = !parents && excl && inner.is_empty() && j == last;
-                if program(*t, x, accs[id].get(&vu)) && e.meets(*t, x) {
+                if program(*t, x, accs[id].get(&vu)) && meets(0, n, &[vu, cu], *t, x) {
                     kept.push(((*id, iu, *k), *t, x));
                 }
             }
@@ -414,7 +531,7 @@ pub fn decide(cx: &impl Context) -> Decisions {
                 out.result_inner.insert((*id, iu));
                 if inner
                     .iter()
-                    .any(|t| program(*t, excl, None) && e.meets(*t, excl))
+                    .any(|t| program(*t, excl, None) && meets(0, n, &[vu, cu], *t, excl))
                 {
                     for t in &inner {
                         kept.push(((*id, iu, u32::MAX - 1), *t, excl));
@@ -429,27 +546,20 @@ pub fn decide(cx: &impl Context) -> Decisions {
                 continue;
             };
             let params = cx.params(*id, iu);
-            let mut callee = Eff::default();
-            for c in accs[id].get(&iu).map_or(&[][..], |a| &a.callees[..]) {
-                match sums.get(c) {
-                    Some(ce) => {
-                        callee.add(ce);
-                    }
-                    None => callee.any = true,
-                }
-            }
-            callee.any |= accs[id].get(&iu).is_some_and(|a| a.any);
+            // The call's own row has only callee effects. Include it in
+            // the indexed range instead of rebuilding the callee union.
+            let call_end = iu + 1;
             for (k, a) in call_args(b, i).into_iter().enumerate() {
                 let Some(v) = direct_value(b, a) else {
                     continue;
                 };
                 let vu = u32::try_from(v).expect("insts");
-                let mut e = range(*id, vu + 1, iu, &[vu]);
-                e.add(&callee);
                 match b.tags[v] {
                     Tag::Ref => {
                         ref_sites(cx, b, *id, vu, |site, object, excl| {
-                            if program(object, excl, accs[id].get(&vu)) && e.meets(object, excl) {
+                            if program(object, excl, accs[id].get(&vu))
+                                && meets((vu + 1).min(iu), call_end, &[], object, excl)
+                            {
                                 kept.push((site, object, excl));
                             }
                         });
@@ -459,7 +569,7 @@ pub fn decide(cx: &impl Context) -> Decisions {
                             lent_objects(cx, &out.dyn_types, *id, b, params.get(k), v, k, receiver);
                         for (mutable, target) in lent {
                             if program(target, mutable, accs[id].get(&vu))
-                                && e.meets(target, mutable)
+                                && meets((vu + 1).min(iu), call_end, &[], target, mutable)
                             {
                                 kept.push(((*id, vu, u32::MAX), target, mutable));
                             }
@@ -469,10 +579,9 @@ pub fn decide(cx: &impl Context) -> Decisions {
                         // A `Ref` the argument carries through calls'
                         // results: its loan runs from it to this call.
                         for r in cx.carried_refs(*id, v) {
-                            let mut e = range(*id, r + 1, iu, &[r]);
-                            e.add(&callee);
                             ref_sites(cx, b, *id, r, |site, object, excl| {
-                                if program(object, excl, accs[id].get(&r)) && e.meets(object, excl)
+                                if program(object, excl, accs[id].get(&r))
+                                    && meets((r + 1).min(iu), call_end, &[], object, excl)
                                 {
                                     kept.push((site, object, excl));
                                 }
@@ -638,4 +747,159 @@ fn call_args(b: &Body, i: usize) -> Vec<u32> {
         }
     });
     args
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn effect_index_matches_a_scan_with_excluded_sources() {
+        let repeated = InstId::from_raw(1);
+        let rare = InstId::from_raw(2);
+        let missing = InstId::from_raw(3);
+        let first = Ty::I32;
+        let second = Ty::BOOL;
+        let summaries: HashMap<_, _> = [
+            (
+                repeated,
+                Eff {
+                    w: [first].into_iter().collect(),
+                    ..Eff::default()
+                },
+            ),
+            (
+                rare,
+                Eff {
+                    r: [second].into_iter().collect(),
+                    ..Eff::default()
+                },
+            ),
+        ]
+        .into_iter()
+        .collect();
+        let accesses: HashMap<_, _> = [
+            (
+                0,
+                Acc {
+                    callees: vec![repeated],
+                    ..Acc::default()
+                },
+            ),
+            (
+                1,
+                Acc {
+                    r: vec![first],
+                    ..Acc::default()
+                },
+            ),
+            (
+                2,
+                Acc {
+                    callees: vec![rare],
+                    ..Acc::default()
+                },
+            ),
+            (
+                3,
+                Acc {
+                    callees: vec![repeated],
+                    ..Acc::default()
+                },
+            ),
+            (
+                4,
+                Acc {
+                    callees: vec![missing],
+                    ..Acc::default()
+                },
+            ),
+            (
+                5,
+                Acc {
+                    any: true,
+                    ..Acc::default()
+                },
+            ),
+            (
+                6,
+                Acc {
+                    callees: vec![repeated],
+                    w: vec![second],
+                    ..Acc::default()
+                },
+            ),
+        ]
+        .into_iter()
+        .collect();
+        let index = EffectIndex::new(&accesses, &summaries);
+        for from in 0..=7 {
+            for to in from..=7 {
+                for excluded in [vec![], vec![0], vec![3, 6], vec![4, 5]] {
+                    for ty in [first, second, Ty::STRING] {
+                        for exclusive in [false, true] {
+                            let expected = accesses.iter().any(|(&i, acc)| {
+                                (from..to).contains(&i)
+                                    && !excluded.contains(&i)
+                                    && (acc.any
+                                        || acc.w.contains(&ty)
+                                        || exclusive && acc.r.contains(&ty)
+                                        || acc.callees.iter().any(|callee| {
+                                            summaries
+                                                .get(callee)
+                                                .is_none_or(|effect| effect.meets(ty, exclusive))
+                                        }))
+                            });
+                            assert_eq!(index.meets(from, to, &excluded, ty, exclusive), expected);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn wide_calls_share_one_deep_effect_summary() {
+        let width = 1000u32;
+        let callee = InstId::from_raw(1);
+        let accesses: HashMap<_, _> = (0..width)
+            .map(|position| {
+                (
+                    position,
+                    Acc {
+                        callees: vec![callee],
+                        ..Acc::default()
+                    },
+                )
+            })
+            .collect();
+        for depth in [1, 20] {
+            let types = (100..100 + depth).map(Ty);
+            let mut summary = Eff::default();
+            for ty in types.clone() {
+                let mut combined = Eff {
+                    w: [ty].into_iter().collect(),
+                    ..Eff::default()
+                };
+                combined.add(&summary);
+                summary = combined;
+            }
+            let summaries = [(callee, summary)].into_iter().collect();
+            let index = EffectIndex::new(&accesses, &summaries);
+            assert_eq!(index.frequent.len(), 1);
+            assert!(index.writes.is_empty(), "do not expand a repeated summary");
+            for (i, ty) in (0..width).zip(types.cycle()) {
+                assert!(index.meets(i, i + 1, &[], ty, false));
+                assert!(!index.meets(i, i + 1, &[i], ty, true));
+            }
+            let probes = index.probes.get();
+            assert_eq!(index.indexed, 2 * width as usize);
+            let per_query = width.ilog2() as usize + 5;
+            assert!(probes <= 2 * width as usize * per_query);
+            eprintln!(
+                "width {width}, effect depth {depth}: {} indexing visits, {probes} probes",
+                index.indexed
+            );
+        }
+    }
 }
