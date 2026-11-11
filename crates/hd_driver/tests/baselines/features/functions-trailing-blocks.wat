@@ -7,80 +7,49 @@
   (import "fixture" "table0" (table $table0 2 funcref))
   (func $trailing (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 11 |     measure("t"):
-    i32.const 65 ;; &"t"
     i32.const 1
     local.set $t0
-    drop
-    block
-      block
-        br 0
-      end
-      block
-        local.get $s.1
-        i32.const 1
-        i32.add
-        local.tee $t1
-        call $rt:str
-        local.tee $t2
-        local.tee $t3
-        local.get $s.0
-        local.get $s.1
-        call $rt:memory_copy/0/0
-        local.get $t3
-        local.get $s.1
-        i32.add
-        i32.const 66 ;; &"!"
-        i32.load8_u $heap
-        i32.store8 $heap
-        local.get $t2
-        local.get $t1
-        local.set $s.1
-        local.set $s.0
-        br 0
-      end
-      block
-        br 0
-      end
-      local.get $s.0
-      local.tee $s.0
-      if
-        local.get $s.0
-        call $rt:release_ref
-      end
-      local.get $t0
-      local.get $s.1
-      i32.add
-      local.set $s.0
-      br 0
-    end
+    local.get $s.1
+    i32.const 1
+    i32.add
+    local.tee $t1
+    call $rt:str
+    local.tee $t2
+    local.tee $t3
     local.get $s.0
+    local.get $s.1
+    call $rt:memory_copy/0/0
+    local.get $t3
+    local.get $s.1
+    i32.add
+    i32.const 66 ;; &"!"
+    i32.load8_u $heap
+    i32.store8 $heap
+    local.get $t2
+    local.tee $s.0
+    if
+      local.get $s.0
+      call $rt:release_ref
+    end
+    local.get $t0
+    local.get $t1
+    i32.add
   )
   (func $measure (param $label.0 i32) (param $label.1 i32) (param $body.0 i32) (param $body.1 i32) (result i32)
     ;; 8 |     label.len() + body().len()
-    block
-      local.get $label.1
-      local.set $label.0
-      br 0
-    end
     local.get $body.1
     i32.const 0
     local.get $body.0
     call_indirect $table0 (param i32 i32) (result i32 i32)
-    local.set $body.0
-    local.set $label.1
-    block
-      br 0
-    end
-    local.get $label.1
+    local.set $label.0
+    local.tee $body.0
     if
-      local.get $label.1
+      local.get $body.0
       call $rt:release_ref
     end
+    local.get $label.1
     local.get $label.0
-    local.get $body.0
     i32.add
-    local.set $label.0
-    local.get $label.0
   )
   (func $twice (param $body.0 i32) (param $body.1 i32) (result i32)
     ;; 15 |     body() + body()
@@ -93,34 +62,11 @@
     local.get $body.0
     call_indirect $table0 (param i32 i32) (result i32)
     i32.add
-    local.set $body.0
-    local.get $body.0
   )
-  (func $no_args (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
+  (func $no_args (param $s.0 i32) (param $s.1 i32) (result i32)
     ;; 18 |     twice:
-    block
-      block
-        block
-          local.get $s.1
-          local.set $t0
-          br 0
-        end
-        br 0
-      end
-      block
-        block
-          local.get $s.1
-          local.set $s.0
-          br 0
-        end
-        br 0
-      end
-      local.get $t0
-      local.get $s.0
-      i32.add
-      local.set $s.0
-      br 0
-    end
-    local.get $s.0
+    local.get $s.1
+    local.get $s.1
+    i32.add
   )
 )

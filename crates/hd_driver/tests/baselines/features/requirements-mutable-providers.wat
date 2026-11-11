@@ -21,19 +21,14 @@
     local.get $provider0.vtable
     i32.load $heap offset=4
     call_indirect $table0 (param i32) (result i32)
-    ;; 23 |     rec := $.use(Recorder)
-    local.set $s.0
-    local.get $s.0
   )
   (func $"impl Recorder for Log.total" (param $self i32) (result i32)
     ;; 20 |         self.lines.len()
     local.get $self
     i32.load $heap
     i32.load $heap offset=4
-    local.set $self
-    local.get $self
   )
-  (func $demo (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $tally i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+  (func $demo (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $tally i32) (local $t0 i32) (local $t1 i32)
     ;; 28 |     tally := box(Log { lines: [] })
     i32.const 4
     i32.const 4
@@ -55,26 +50,25 @@
         call $rt:retain_known
       end
     end
-    local.get $t0
-    local.set $t1
     i32.const 240 ;; &vtable[func52, func51]
-    local.set $t2
+    local.set $t1
     ;; 30 |         _ := tick(a)
     local.get $a.0
     local.get $a.1
+    local.get $t0
     local.get $t1
-    local.get $t2
     call $tick
     drop
     ;; 31 |         _ := tick(b)
     local.get $b.0
     local.get $b.1
+    local.get $t0
     local.get $t1
-    local.get $t2
     call $tick
     drop
-    ;; 28 |     tally := box(Log { lines: [] })
+    ;; 29 |     $.with(Recorder=tally):
     local.get $t0
+    ;; 28 |     tally := box(Log { lines: [] })
     local.tee $t1
     if
       local.get $t1
@@ -97,8 +91,6 @@
         call $rt:release_ref'2
       end
     end
-    local.set $a.0
-    local.get $a.0
   )
   (func $"impl Recorder for Log.note" (param $self i32) (param $s.0 i32) (param $s.1 i32) (local $t0 i32) (local $t1 i32)
     ;; 17 |         self.lines.push(s)

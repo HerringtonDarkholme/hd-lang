@@ -38,7 +38,7 @@ DESCRIBE = {
     "empty-if": "an `if` with nothing in it",
     "const-branch": "a branch on a constant",
     "dead-store": "a local set and never read in its function",
-    "br-to-end": "`br 0` straight before the `end` it jumps to",
+    "br-to-end": "`br 0` straight before the `end` or `else` of the block or `if` it jumps to",
     "empty-block": "a `block` with nothing in it: size only. c40ea434b folded such blocks and saved 784 B (0.18%) on 32 release programs, with no time measured. Release cases still show them, because a pass after the fold empties the block (#1680)",
     "empty-else": "an `else` with nothing in it",
     "set-then-get": "`local.set $x` straight before `local.get $x` (a tee saves bytes)",
@@ -136,10 +136,17 @@ def audit_function(name, params, body, sigs, emit):
     code = unwrap_count_tests(code)
 
     ops = [c for c, e in code if not e]
+    # The kind of each open label: a loop's `br 0` is its back edge.
+    labels = []
     for a, b in zip(ops, ops[1:]):
+        head = a.split(" ")[0]
+        if head in ("block", "loop", "if"):
+            labels.append(head)
+        elif head == "end" and labels:
+            labels.pop()
         if a.startswith("if") and b == "end":
             hit("empty-if")
-        if a == "br 0" and b == "end":
+        if a == "br 0" and b in ("end", "else") and labels[-1:] != ["loop"]:
             hit("br-to-end")
         if a == "block" and b == "end":
             hit("empty-block")
@@ -428,6 +435,7 @@ def self_test():
         ("dead-store", "local.get $p\nlocal.set $q", True),
         ("dead-store", "local.get $p\nlocal.set $q\n;; ...", False),
         ("br-to-end", "block\nbr 0\nend", True),
+        ("br-to-end", "loop\nbr 0\nend", False),
         ("empty-block", "block\nend", True),
         ("set-then-get", "local.get $p\nlocal.set $q\nlocal.get $q\ndrop", True),
     ]

@@ -3,22 +3,18 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 10 funcref))
-  (func $nominal_view (result i32 i32) (local $t0 i32)
+  (func $nominal_view (result i32 i32)
     ;; 42 |     nominal_read
     i32.const 0
-    local.set $t0
-    local.get $t0
     i32.const 0
   )
   (func $nested_view (param $values i32) (result i32)
     ;; 26 |     values
     local.get $values
   )
-  (func $own_view (result i32 i32) (local $t0 i32)
+  (func $own_view (result i32 i32)
     ;; 23 |     keep
     i32.const 2
-    local.set $t0
-    local.get $t0
     i32.const 0
   )
   (func $keep (param $value i32) (result i32)
@@ -32,21 +28,15 @@
     i32.const 0
     local.get $call.0
     call_indirect $table0 (param i32 i32 i32) (result i32)
-    local.set $call.0
-    local.get $call.0
   )
   (func $read (param $value i32) (result i32)
     ;; 12 |     *value
     local.get $value
     i32.load $heap
-    local.set $value
-    local.get $value
   )
   (func $nominal_read (param $value i32) (result i32)
     ;; 39 |     7
     i32.const 7
-    local.set $value
-    local.get $value
   )
   (func $use_lent (param $value i32) (result i32) (local $t0 i32)
     ;; 33 |     invoke(lend_view(), value)
@@ -67,14 +57,10 @@
         call $rt:release_ref
       end
     end
-    local.set $value
-    local.get $value
   )
-  (func $lend_view (result i32 i32) (local $t0 i32)
+  (func $lend_view (result i32 i32)
     ;; 20 |     read
     i32.const 6
-    local.set $t0
-    local.get $t0
     i32.const 0
   )
 )

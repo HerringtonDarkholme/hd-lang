@@ -5,53 +5,48 @@
     ;; 21 |     match s:
     block
       block
-        block
-    ;; 22 |         .Dot(User { name }) => name
-          local.get $s.0
-          i32.eqz
-          if
-            local.get $s.1
-            local.get $s.2
-            local.set $s.1
-            local.set $s.0
-            br 1
-          else
-    ;; 23 |         .Line(start = _, end = User { name }) => name
-            local.get $s.0
-            if
-              local.get $s.3
-              local.get $s.4
-              local.set $s.1
-              local.set $s.0
-              br 3
-            else
-              unreachable
-            end
-    ;; 22 |         .Dot(User { name }) => name
-          end
-    ;; 21 |     match s:
-          unreachable
-        end
     ;; 22 |         .Dot(User { name }) => name
         local.get $s.0
-        local.tee $s.2
+        i32.eqz
         if
-          local.get $s.2
-          call $retain
+          br 1
+        else
+    ;; 23 |         .Line(start = _, end = User { name }) => name
+          local.get $s.0
+          if
+            local.get $s.3
+            local.get $s.4
+            local.set $s.1
+            local.set $s.0
+            br 3
+          else
+            unreachable
+          end
+    ;; 22 |         .Dot(User { name }) => name
         end
     ;; 21 |     match s:
-        br 1
+        unreachable
       end
-    ;; 23 |         .Line(start = _, end = User { name }) => name
-      local.get $s.0
-      local.tee $s.2
+    ;; 22 |         .Dot(User { name }) => name
+      local.get $s.1
+      local.tee $s.3
       if
-        local.get $s.2
+        local.get $s.3
         call $retain
       end
+      local.get $s.1
+      local.get $s.2
     ;; 21 |     match s:
-      br 0
+      return
     end
+    ;; 23 |         .Line(start = _, end = User { name }) => name
+    local.get $s.0
+    local.tee $s.3
+    if
+      local.get $s.3
+      call $retain
+    end
+    ;; 21 |     match s:
     local.get $s.0
     local.get $s.1
   )
@@ -60,66 +55,43 @@
     block
       block
         block
-          block
     ;; 16 |         .Dot(User { name, age: 0 }) => name.len()
-            local.get $s.0
+          local.get $s.0
+          i32.eqz
+          if
+            local.get $s.3
             i32.eqz
-            if
-              local.get $s.3
-              i32.eqz
-              i32.eqz
-              br_if 2
-              br 1
-            else
+            i32.eqz
+            br_if 2
+            br 1
+          else
     ;; 18 |         .Line(start = User { name: a }, end = User { name: b }) => a.len() + b.len()
-              local.get $s.0
-              br_if 3
-              unreachable
-    ;; 16 |         .Dot(User { name, age: 0 }) => name.len()
-            end
-    ;; 15 |     match s:
+            local.get $s.0
+            br_if 3
             unreachable
-          end
     ;; 16 |         .Dot(User { name, age: 0 }) => name.len()
-          block
-            local.get $s.2
-            local.set $s.0
-            br 0
           end
     ;; 15 |     match s:
-          br 2
+          unreachable
         end
-    ;; 17 |         .Dot(User { name: n }) => n.len() + 1
-        block
-          local.get $s.2
-          local.set $s.0
-          br 0
-        end
-        local.get $s.0
-        i32.const 1
-        i32.add
+    ;; 16 |         .Dot(User { name, age: 0 }) => name.len()
+        local.get $s.2
     ;; 15 |     match s:
-        local.set $s.0
-        br 1
+        return
       end
-    ;; 18 |         .Line(start = User { name: a }, end = User { name: b }) => a.len() + b.len()
-      block
-        local.get $s.1
-        local.set $s.0
-        br 0
-      end
-      block
-        local.get $s.4
-        local.set $s.1
-        br 0
-      end
-      local.get $s.0
-      local.get $s.1
+    ;; 17 |         .Dot(User { name: n }) => n.len() + 1
+      local.get $s.2
+      i32.const 1
       i32.add
     ;; 15 |     match s:
-      local.set $s.0
-      br 0
+      return
     end
+    ;; 18 |         .Line(start = User { name: a }, end = User { name: b }) => a.len() + b.len()
+    local.get $s.1
+    local.get $s.4
+    i32.add
+    ;; 15 |     match s:
+    local.set $s.0
     local.get $s.0
   )
 )

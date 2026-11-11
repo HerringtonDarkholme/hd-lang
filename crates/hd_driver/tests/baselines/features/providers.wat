@@ -11,18 +11,12 @@
     local.get $provider0.vtable
     i32.load $heap
     call_indirect $table0 (param i32) (result i32 i32)
-    local.set $provider0.vtable
     local.set $provider0
-    block
-      br 0
-    end
-    local.get $provider0
+    local.tee $provider0.vtable
     if
-      local.get $provider0
+      local.get $provider0.vtable
       call $rt:release_ref
     end
-    local.get $provider0.vtable
-    local.set $provider0
     local.get $provider0
   )
   (func $install (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
@@ -38,12 +32,8 @@
     i32.store $heap offset=4
     local.get $t0
     ;; 22 |     $.with(Namer=f):
-    local.set $s.0
     i32.const 160 ;; &vtable[func37]
-    local.set $s.1
     ;; 23 |         ask()
-    local.get $s.0
-    local.get $s.1
     call $ask
     ;; 22 |     $.with(Namer=f):
     local.set $s.0

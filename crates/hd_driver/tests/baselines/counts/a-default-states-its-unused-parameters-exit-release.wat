@@ -178,7 +178,7 @@
     local.get $text.0
     local.get $text.1
   )
-  (func $join (param $log i32) (param $first.0 i32) (param $first.1 i32) (param $second.0 i32) (param $second.1 i32) (param $t1 i32) (result i32 i32) (local $t0 i32) (local $limit i32) (local $t2 i32) (local $t3 i64) (local $t4 i64) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32)
+  (func $join (param $log i32) (param $first.0 i32) (param $first.1 i32) (param $second.0 i32) (param $second.1 i32) (param $t1 i32) (result i32 i32) (local $t0 i32) (local $limit i32) (local $t2 i64) (local $t3 i64) (local $t4 i32) (local $t5 i32) (local $t7 i32) (local $t6 i32)
     ;; 15 |     "$first $second $limit"
     global.get $locals
     global.get $locals_base
@@ -218,197 +218,146 @@
     local.tee $limit
     local.get $t1
     i32.store $heap
-    block
-      local.get $first.1
-      local.set $t1
-      br 0
-    end
-    block
-      local.get $second.1
-      local.set $t2
-      br 0
-    end
     local.get $limit
     i32.load $heap
     i64.extend_i32_u
-    local.tee $t3
-    local.set $t4
-    block
-      local.get $t4
-      call $unsigned_width
-      local.set $limit
-      br 0
-    end
-    local.get $t1
+    local.tee $t2
+    call $unsigned_width
+    local.set $t1
+    local.get $first.1
+    local.tee $limit
     i32.const -2
     i32.gt_u
     if
       call $rt:panic
       unreachable
     end
-    local.get $t1
+    local.get $limit
+    i32.const 1
+    i32.add
+    local.tee $limit
+    i64.extend_i32_u
+    local.get $second.1
+    i64.extend_i32_u
+    i64.add
+    local.tee $t3
+    i64.const 4294967295
+    i64.gt_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $t3
+    i32.wrap_i64
+    local.tee $t4
+    local.tee $t5
+    i32.const -2
+    i32.gt_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $t5
     i32.const 1
     i32.add
     local.tee $t5
     i64.extend_i32_u
-    local.get $t2
+    local.get $t1
     i64.extend_i32_u
     i64.add
-    local.tee $t4
+    local.tee $t3
     i64.const 4294967295
     i64.gt_u
     if
       call $rt:panic
       unreachable
     end
-    local.get $t4
+    local.get $t3
     i32.wrap_i64
-    local.tee $t2
     local.tee $t6
-    i32.const -2
-    i32.gt_u
+    i32.const 16
+    local.set $t7
+    if
+      local.get $t6
+      call $rt:str
+      local.set $t7
+    end
+    local.get $t7
+    i64.extend_i32_u
+    i32.const 0
+    i64.extend_i32_u
+    i64.add
+    local.tee $t3
+    i64.const 4294967295
+    i64.gt_u
     if
       call $rt:panic
       unreachable
     end
-    local.get $t6
-    i32.const 1
-    i32.add
-    local.tee $t6
+    local.get $t3
+    i32.wrap_i64
+    local.get $first.0
+    local.get $first.1
+    call $rt:memory_copy/0/0
+    local.get $t7
+    i64.extend_i32_u
+    local.get $first.1
+    i64.extend_i32_u
+    i64.add
+    local.tee $t3
+    i64.const 4294967295
+    i64.gt_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $t3
+    i32.wrap_i64
+    i32.const 163 ;; &" "
+    i32.load8_u $heap
+    i32.store8 $heap
+    local.get $t7
     i64.extend_i32_u
     local.get $limit
     i64.extend_i32_u
     i64.add
-    local.tee $t4
+    local.tee $t3
     i64.const 4294967295
     i64.gt_u
     if
       call $rt:panic
       unreachable
     end
-    local.get $t4
+    local.get $t3
     i32.wrap_i64
-    local.set $t7
-    block
-      local.get $t7
-      i32.const 16
-      local.set $t8
-      if
-        local.get $t7
-        call $rt:str
-        local.set $t8
-      end
-      local.get $t8
-      local.get $t7
-      local.set $t8
-      local.set $t7
-      br 0
-    end
-    local.get $first.0
-    local.get $first.1
-    local.set $t9
-    local.set $first.1
-    block
-      local.get $t7
-      i64.extend_i32_u
-      i32.const 0
-      i64.extend_i32_u
-      i64.add
-      local.tee $t4
-      i64.const 4294967295
-      i64.gt_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $t4
-      i32.wrap_i64
-      local.get $first.1
-      local.get $t9
-      call $rt:memory_copy/0/0
-      br 0
-    end
-    i32.const 163 ;; &" "
-    i32.const 1
-    local.set $t9
-    local.set $first.1
-    block
-      local.get $t7
-      i64.extend_i32_u
-      local.get $t1
-      i64.extend_i32_u
-      i64.add
-      local.tee $t4
-      i64.const 4294967295
-      i64.gt_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $t4
-      i32.wrap_i64
-      local.get $first.1
-      local.get $t9
-      call $rt:memory_copy/0/0
-      br 0
-    end
     local.get $second.0
-    local.set $first.1
-    block
-      local.get $t7
-      i64.extend_i32_u
-      local.get $t5
-      i64.extend_i32_u
-      i64.add
-      local.tee $t4
-      i64.const 4294967295
-      i64.gt_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $t4
-      i32.wrap_i64
-      local.get $first.1
-      local.get $second.1
-      call $rt:memory_copy/0/0
-      br 0
-    end
-    i32.const 163 ;; &" "
-    i32.const 1
-    local.set $second.1
-    local.set $first.1
-    block
-      local.get $t7
-      i64.extend_i32_u
-      local.get $t2
-      i64.extend_i32_u
-      i64.add
-      local.tee $t4
-      i64.const 4294967295
-      i64.gt_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $t4
-      i32.wrap_i64
-      local.get $first.1
-      local.get $second.1
-      call $rt:memory_copy/0/0
-      br 0
-    end
-    block
-      local.get $t3
-      local.get $t7
-      local.get $t6
-      i32.add
-      local.get $limit
-      call $write_unsigned_sized
-      br 0
-    end
+    local.get $second.1
+    call $rt:memory_copy/0/0
     local.get $t7
-    local.get $t8
+    i64.extend_i32_u
+    local.get $t4
+    i64.extend_i32_u
+    i64.add
+    local.tee $t3
+    i64.const 4294967295
+    i64.gt_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $t3
+    i32.wrap_i64
+    i32.const 163 ;; &" "
+    i32.load8_u $heap
+    i32.store8 $heap
+    local.get $t2
+    local.get $t7
+    local.get $t5
+    i32.add
+    local.get $t1
+    call $write_unsigned_sized
+    local.get $t7
+    local.get $t6
     local.set $second.1
     local.set $first.1
     local.get $log

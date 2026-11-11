@@ -64,7 +64,13 @@
 //! 18. `local.set r_k; ...; local.set r_1; br L`, where `L` is a block
 //!     whose `end` only `local.get r_1; ...; local.get r_k` follows to the
 //!     function's end, is `return`: the values the exit would read back
-//!     are on the stack already ([`exits`]).
+//!     are on the stack already ([`exits`]);
+//! 19. a `br 0` straight before the `end` or `else` of a block or an `if`
+//!     goes when the stack holds exactly the label's values there, or no
+//!     more of them in unreachable code: it jumps where falling through
+//!     goes.
+//!     An `else` straight before the `end` of a void `if` goes, and a void
+//!     block that loses its last branch this way goes too ([`blocks`]).
 //!
 //! Across functions, [`constants`] reads a top-level binding that only
 //! its init writes, with a constant, as that constant.
@@ -2447,11 +2453,145 @@ fn with_offset(i: &I, by: u32) -> Option<I> {
     })
 }
 
-/// Remove unused void labels after the passes that can empty their bodies.
-/// A direct stack-polymorphic instruction keeps its validation boundary.
-/// The two walks cost O(N + T) for N instructions and T branch-table targets.
-pub fn blocks(f: &mut Func) -> bool {
-    blocks_with(f, || {})
+/// Remove control instructions that only fall through (rule 19), then unused void
+/// labels, after the passes that can empty their bodies. A direct
+/// stack-polymorphic instruction keeps its validation boundary. The walks
+/// cost O(N + T) for N instructions and T branch-table targets.
+pub fn blocks(f: &mut Func, arity: &Arity) -> bool {
+    blocks_with(f, arity, || {})
+}
+
+/// One open label of [`no_op_controls`]: the operand height under it, the
+/// values its end leaves, what opened it, and whether the code after the
+/// last stack-polymorphic instruction in it is unreachable.
+struct HeightFrame {
+    base: usize,
+    results: usize,
+    opener: LabelKind,
+    unreachable: bool,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum LabelKind {
+    Block,
+    Loop,
+    If,
+}
+
+/// Rule 19: control instructions that only fall through.
+///
+/// A `br 0` straight before the `end` or `else` of a block or an `if`
+/// jumps where falling through goes. It goes when the stack holds no more
+/// than the label's values there: exactly them in reachable code, and in
+/// unreachable code the polymorphic stack supplies the rest. A `br 0` that
+/// discards values under them, and a loop's back edge, stay. An `else`
+/// straight before the `end` of a void `if` goes too.
+///
+/// One forward walk, O(N); a body with an instruction whose stack effect
+/// this table does not know keeps every instruction.
+fn no_op_controls(f: &Func, arity: &Arity, visit: &mut impl FnMut()) -> Vec<usize> {
+    let block_results = |t: &wasm_encoder::BlockType| match t {
+        wasm_encoder::BlockType::Empty => Some(0),
+        wasm_encoder::BlockType::Result(_) => Some(1),
+        wasm_encoder::BlockType::FunctionType(_) => None,
+    };
+    // Pops `n` operands; an unreachable label's stack is polymorphic.
+    let pop = |height: &mut usize, frame: &HeightFrame, n: usize| -> Option<()> {
+        match height.checked_sub(n).filter(|h| *h >= frame.base) {
+            Some(h) => *height = h,
+            None if frame.unreachable => *height = frame.base,
+            None => return None,
+        }
+        Some(())
+    };
+    let mut walk = || -> Option<Vec<usize>> {
+        // The function's own label: a `br 0` to it returns.
+        let mut frames = vec![HeightFrame {
+            base: 0,
+            results: f.results.len(),
+            opener: LabelKind::Loop,
+            unreachable: false,
+        }];
+        let mut height = 0usize;
+        let mut found = Vec::new();
+        for (at, ins) in f.body.iter().enumerate() {
+            visit();
+            let top = frames.last_mut()?;
+            let next_ends = matches!(f.body.get(at + 1), Some(Ins::Op(I::End)));
+            match ins {
+                Ins::Op(op @ (I::Block(t) | I::Loop(t) | I::If(t))) => {
+                    let opener = match op {
+                        I::Block(_) => LabelKind::Block,
+                        I::Loop(_) => LabelKind::Loop,
+                        _ => {
+                            pop(&mut height, top, 1)?;
+                            LabelKind::If
+                        }
+                    };
+                    frames.push(HeightFrame {
+                        base: height,
+                        results: block_results(t)?,
+                        opener,
+                        unreachable: false,
+                    });
+                }
+                Ins::Op(I::Else) => {
+                    if next_ends && top.opener == LabelKind::If && top.results == 0 {
+                        found.push(at);
+                    }
+                    height = top.base;
+                    top.unreachable = false;
+                }
+                Ins::Op(I::End) => {
+                    if frames.len() == 1 {
+                        return None;
+                    }
+                    let done = frames.pop()?;
+                    height = done.base + done.results;
+                }
+                Ins::Op(I::Br(depth)) => {
+                    let falls = *depth == 0
+                        && top.opener != LabelKind::Loop
+                        && matches!(f.body.get(at + 1), Some(Ins::Op(I::End | I::Else)))
+                        && height <= top.base + top.results;
+                    if falls {
+                        found.push(at);
+                    } else {
+                        height = top.base;
+                        top.unreachable = true;
+                    }
+                }
+                Ins::Op(I::BrIf(_)) => pop(&mut height, top, 1)?,
+                Ins::Op(I::BrTable(..) | I::Return | I::Unreachable) => {
+                    height = top.base;
+                    top.unreachable = true;
+                }
+                Ins::Static(_) | Ins::WeakType(_) | Ins::WeakTypeTable | Ins::WeakTypeCount => {
+                    height += 1;
+                }
+                Ins::DrainGlue(_) => {}
+                other => {
+                    let (pops, pushes) = match other {
+                        // A bulk helper ([`crate::bulk::helper`]) is
+                        // generated only after its last call is lowered.
+                        Ins::Call(id)
+                            if matches!(
+                                &*f.symbols.get(*id),
+                                Sym::Helper(Helper::MemoryCopy { .. } | Helper::MemoryFill(_))
+                            ) =>
+                        {
+                            (3, 0)
+                        }
+                        _ => effect(other, arity, &f.symbols)?,
+                    };
+                    pop(&mut height, top, pops)?;
+                    height += pushes;
+                }
+            }
+        }
+        (frames.len() == 1).then_some(found)
+    };
+    walk().unwrap_or_default()
 }
 
 struct BlockFrame {
@@ -2511,12 +2651,27 @@ fn block_frames(f: &Func, visit: &mut impl FnMut()) -> Option<(Vec<BlockFrame>, 
     (stack.len() == 1).then_some((frames, ids))
 }
 
-fn blocks_with(f: &mut Func, mut visit: impl FnMut()) -> bool {
+fn blocks_with(f: &mut Func, arity: &Arity, mut visit: impl FnMut()) -> bool {
+    let falls = no_op_controls(f, arity, &mut visit);
+    if !falls.is_empty() {
+        let mut origins = Remap::new(f.origins.as_deref());
+        let body = std::mem::take(&mut f.body);
+        let mut out = Vec::with_capacity(body.len() - falls.len());
+        let mut next = falls.iter().copied().peekable();
+        for (at, ins) in body.into_iter().enumerate() {
+            if next.next_if_eq(&at).is_none() {
+                out.push(ins);
+                origins.copy(at..at + 1);
+            }
+        }
+        f.body = out;
+        origins.finish(f);
+    }
     let Some((mut frames, ids)) = block_frames(f, &mut visit) else {
-        return false;
+        return !falls.is_empty();
     };
     if frames.iter().all(|frame| frame.keep) {
-        return false;
+        return !falls.is_empty();
     }
     let mut origins = Remap::new(f.origins.as_deref());
     let body = std::mem::take(&mut f.body);
@@ -3715,7 +3870,7 @@ mod origin_tests {
             ],
         );
         validate_void_block_fixture(&f);
-        assert!(blocks(&mut f));
+        assert!(blocks(&mut f, &vec![]));
         validate_void_block_fixture(&f);
         assert_eq!(spans(&f), [10, 12, 13, 15, 16, 19]);
         assert!(matches!(f.body[2], Ins::Op(I::BrIf(0))));
@@ -3735,7 +3890,7 @@ mod origin_tests {
             ],
         );
         validate_void_block_fixture(&f);
-        assert!(blocks(&mut f));
+        assert!(blocks(&mut f, &vec![]));
         validate_void_block_fixture(&f);
         assert!(matches!(
             f.body.as_slice(),
@@ -3757,7 +3912,7 @@ mod origin_tests {
             ],
         );
         validate_void_block_fixture(&f);
-        assert!(blocks(&mut f));
+        assert!(blocks(&mut f, &vec![]));
         validate_void_block_fixture(&f);
         assert!(matches!(f.body[2], Ins::Op(I::Br(1))));
 
@@ -3784,7 +3939,7 @@ mod origin_tests {
         let mut f = tracked(&symbols, 1, 0, body);
         f.labels.push(vec![1, 3]);
         validate_void_block_fixture(&f);
-        assert!(blocks(&mut f));
+        assert!(blocks(&mut f, &vec![]));
         validate_void_block_fixture(&f);
         assert_eq!(f.label_list(LabelListId(0)), [1, 3]);
         let tables: Vec<_> = f
@@ -3831,7 +3986,7 @@ mod origin_tests {
         );
         validate_void_block_fixture(&f);
         let f = run(f, |f| {
-            assert!(blocks(f));
+            assert!(blocks(f, &vec![]));
         });
         validate_void_block_fixture(&f);
         assert_eq!(
@@ -3859,14 +4014,157 @@ mod origin_tests {
             let mut f = tracked(&symbols, 1, 0, body);
             validate_void_block_fixture(&f);
             let mut visits = 0;
-            assert!(blocks_with(&mut f, || visits += 1));
+            assert!(blocks_with(&mut f, &vec![], || visits += 1));
             assert_eq!(f.body.len(), 2 * width);
-            assert_eq!(visits, 2 * n);
+            assert_eq!(visits, 3 * n);
             assert_eq!(f.origins.as_ref().map(Vec::len), Some(2 * width));
             validate_void_block_fixture(&f);
             eprintln!(
                 "void blocks width {width}, depth {depth}: {visits} visits for {n} instructions"
             );
+        }
+    }
+
+    /// Rule 19: a `br 0` that only falls through goes, and a void block it
+    /// alone targeted goes with it, as does a void `if`'s empty `else`; a
+    /// loop's back edge, a branch that leaves values under its label's,
+    /// and a typed block stay.
+    #[test]
+    fn a_branch_to_the_next_end_goes_when_falling_through_matches_it() {
+        use wasm_encoder::ValType;
+        let symbols = Symbols::default();
+        let op = Ins::Op;
+        let cases = [
+            (
+                // A void block's only branch, then the block.
+                vec![
+                    op(I::Block(BlockType::Empty)),
+                    op(I::LocalGet(0)),
+                    op(I::Drop),
+                    op(I::Br(0)),
+                    op(I::End),
+                ],
+                vec![op(I::LocalGet(0)), op(I::Drop)],
+            ),
+            (
+                // A typed block keeps its label; its value is the stack's.
+                vec![
+                    op(I::Block(BlockType::Result(ValType::I32))),
+                    op(I::I32Const(1)),
+                    op(I::Br(0)),
+                    op(I::End),
+                    op(I::Drop),
+                ],
+                vec![
+                    op(I::Block(BlockType::Result(ValType::I32))),
+                    op(I::I32Const(1)),
+                    op(I::End),
+                    op(I::Drop),
+                ],
+            ),
+            (
+                // The branch discards the 1 under its value; falling through cannot.
+                vec![
+                    op(I::Block(BlockType::Result(ValType::I32))),
+                    op(I::I32Const(1)),
+                    op(I::I32Const(2)),
+                    op(I::Br(0)),
+                    op(I::End),
+                    op(I::Drop),
+                ],
+                vec![],
+            ),
+            (
+                // A loop's `br 0` is its back edge.
+                vec![
+                    op(I::Block(BlockType::Empty)),
+                    op(I::Loop(BlockType::Empty)),
+                    op(I::LocalGet(0)),
+                    op(I::BrIf(1)),
+                    op(I::Br(0)),
+                    op(I::End),
+                    op(I::End),
+                ],
+                vec![],
+            ),
+            (
+                // A then arm's branch to its `if` before the `else`.
+                vec![
+                    op(I::LocalGet(0)),
+                    op(I::If(BlockType::Empty)),
+                    op(I::Br(0)),
+                    op(I::Else),
+                    op(I::LocalGet(0)),
+                    op(I::Drop),
+                    op(I::End),
+                ],
+                vec![
+                    op(I::LocalGet(0)),
+                    op(I::If(BlockType::Empty)),
+                    op(I::Else),
+                    op(I::LocalGet(0)),
+                    op(I::Drop),
+                    op(I::End),
+                ],
+            ),
+            (
+                // After `unreachable` the stack is polymorphic: the branch
+                // goes, and the block stays around the polymorphic boundary.
+                vec![
+                    op(I::Block(BlockType::Result(ValType::I32))),
+                    op(I::Unreachable),
+                    op(I::Br(0)),
+                    op(I::End),
+                    op(I::Drop),
+                ],
+                vec![
+                    op(I::Block(BlockType::Result(ValType::I32))),
+                    op(I::Unreachable),
+                    op(I::End),
+                    op(I::Drop),
+                ],
+            ),
+            (
+                // A void `if`'s empty `else`, after its then arm's branch.
+                vec![
+                    op(I::LocalGet(0)),
+                    op(I::If(BlockType::Empty)),
+                    op(I::LocalGet(0)),
+                    op(I::Drop),
+                    op(I::Br(0)),
+                    op(I::Else),
+                    op(I::End),
+                ],
+                vec![
+                    op(I::LocalGet(0)),
+                    op(I::If(BlockType::Empty)),
+                    op(I::LocalGet(0)),
+                    op(I::Drop),
+                    op(I::End),
+                ],
+            ),
+            (
+                // A value pushed after `unreachable` is still one too many
+                // for a void label to fall through with.
+                vec![
+                    op(I::Block(BlockType::Empty)),
+                    op(I::Unreachable),
+                    op(I::I32Const(1)),
+                    op(I::Br(0)),
+                    op(I::End),
+                ],
+                vec![],
+            ),
+        ];
+        for (body, want) in cases {
+            let f = tracked(&symbols, 1, 0, body.clone());
+            validate_void_block_fixture(&f);
+            let f = run(f, |f| {
+                blocks(f, &vec![]);
+            });
+            validate_void_block_fixture(&f);
+            let want = if want.is_empty() { body } else { want };
+            assert_eq!(format!("{:?}", f.body), format!("{want:?}"));
         }
     }
 
@@ -3886,7 +4184,7 @@ mod origin_tests {
             vec![op(I::Block(BlockType::Empty)), op(I::Br(2)), op(I::End)],
         ] {
             let mut f = tracked(&symbols, 0, 0, body.clone());
-            assert!(!blocks(&mut f));
+            assert!(!blocks(&mut f, &vec![]));
             assert_eq!(format!("{:?}", f.body), format!("{body:?}"));
             assert_eq!(spans(&f), (10..13).collect::<Vec<_>>());
         }

@@ -17,7 +17,5 @@
     end
     local.get $xs
     i32.load $heap offset=16
-    local.set $xs
-    local.get $xs
   )
 )

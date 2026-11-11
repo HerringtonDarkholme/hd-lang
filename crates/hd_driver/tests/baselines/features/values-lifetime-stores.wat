@@ -207,9 +207,6 @@
     i32.load $heap offset=4
     local.set $t1
     drop
-    block
-      br 0
-    end
     local.get $seen
     i32.load $heap
     local.set $t2
@@ -229,9 +226,6 @@
     i32.load $heap offset=4
     local.set $t2
     drop
-    block
-      br 0
-    end
     ;; 17 |     let mut seen: List[&User] = []
     local.get $seen
     if
@@ -299,8 +293,6 @@
     local.get $by
     i32.add
     ;; 17 |     let mut seen: List[&User] = []
-    local.set $b
-    local.get $b
     local.get $t0
     i32.const 64
     i32.add

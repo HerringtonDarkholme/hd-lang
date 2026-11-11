@@ -16,11 +16,9 @@
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 14 funcref))
-  (func $make (result i32 i32) (local $t0 i32)
+  (func $make (result i32 i32)
     ;; 7 |     fn!(text: string) -> usize $ Clock:
     i32.const 2
-    local.set $t0
-    local.get $t0
     i32.const 0
   )
   (func $make#1'1 (param $frame i32) (param $env i32) (param $t3 i32) (param $t4 i32) (param $ctx i32) (result i32 i32) (local $t2 i32) (local $t6 i32) (local $t7 i32) (local $t1 i64) (local $t5 i32) (local $t0 i32)
@@ -68,7 +66,6 @@
         local.get $frame
         i64.load $heap offset=64
         local.set $t1
-        br 0
       end
       local.get $frame
       i32.load $heap offset=8
@@ -99,13 +96,8 @@
       if
     ;; 8 |         sleep!(ms(1))
         i64.const 1
+        call $"impl Duration.milliseconds"
         local.set $t1
-        block
-          local.get $t1
-          call $"impl Duration.milliseconds"
-          local.set $t1
-          br 0
-        end
     ;; 7 |     fn!(text: string) -> usize $ Clock:
       end
     ;; 8 |         sleep!(ms(1))

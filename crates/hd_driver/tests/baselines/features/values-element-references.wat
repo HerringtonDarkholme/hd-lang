@@ -45,7 +45,7 @@
     i32.add
     i32.const 10
     call $reward
-    ;; 23 |     let mut out = m
+    ;; 25 |     out
     local.get $m
   )
   (func $reward (param $player i32) (param $points i32)
@@ -132,7 +132,7 @@
     i32.const 1
     i32.add
     i32.store $heap offset=4
-    ;; 16 |     let mut out = players
+    ;; 20 |     out
     local.get $players
   )
 )

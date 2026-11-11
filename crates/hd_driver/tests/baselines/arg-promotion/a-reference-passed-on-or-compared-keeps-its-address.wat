@@ -10,15 +10,11 @@
     local.get $a
     local.get $b
     i32.eq
-    local.set $a
-    local.get $a
   )
   (func $relay (param $p i32) (result i32)
     ;; 15 |     norm(p)
     local.get $p
     call $norm
-    local.set $p
-    local.get $p
   )
   (func $use_all (result i32) (local $p i32) (local $t0 i32) (local $n i32)
     ;; 21 |     let p = Point { x: +1, y: +2 }
@@ -83,8 +79,6 @@
     ;; 23 |     if same_place(&p, &p):
     end
     ;; 21 |     let p = Point { x: +1, y: +2 }
-    local.set $p
-    local.get $p
     local.get $t0
     i32.const 16
     i32.add
@@ -145,7 +139,5 @@
     end
     local.get $t0
     i32.wrap_i64
-    local.set $p
-    local.get $p
   )
 )

@@ -89,8 +89,6 @@
     i32.store $heap offset=24
     ;; 32 |     previous := items[i]
     local.get $t1
-    local.set $items
-    local.get $items
   )
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $items i32) (local $shared i32) (local $o i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t0 i32) (local $t4 i32) (local $t5 i32)
     ;; 44 |     let mut items = [Item { batches: [0], depots: { "a": 1 }, r: 0 }]
@@ -260,16 +258,12 @@
     local.get $t2
     local.tee $o
     ;; 49 |     field(&mut o)
-    local.set $t1
-    block
-      local.get $t1
-      local.get $t1
-      i32.load $heap offset=8
-      i32.const 1
-      i32.add
-      i32.store $heap offset=8
-      br 0
-    end
+    local.tee $t1
+    local.get $t1
+    i32.load $heap offset=8
+    i32.const 1
+    i32.add
+    i32.store $heap offset=8
     ;; 44 |     let mut items = [Item { batches: [0], depots: { "a": 1 }, r: 0 }]
     local.get $items
     local.get $items
@@ -529,8 +523,6 @@
     local.get $t0
     i32.store $heap offset=16
     i32.const 7
-    local.set $items
-    local.get $items
   )
   (func $element (param $items i32) (param $i i32) (local $previous.r i32)
     ;; 19 |     previous := items[i]

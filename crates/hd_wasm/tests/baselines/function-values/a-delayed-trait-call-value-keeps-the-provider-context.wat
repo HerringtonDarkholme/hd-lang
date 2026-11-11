@@ -83,8 +83,6 @@
         call $rt:release_ref'2
       end
     end
-    local.set $env
-    local.get $env
   )
   (func $inferred (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t0 i32)
     ;; 15 |     invoke(Fn::call, logged, +15)
@@ -118,7 +116,5 @@
       local.get $provider0
       call $rt:release_ref'1
     end
-    local.set $provider0
-    local.get $provider0
   )
 )

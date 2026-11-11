@@ -12,10 +12,6 @@
   )
   (func $and_false (param $value i32) (result i32)
     ;; 7 |     value && false
-    local.get $value
-    if
-    else
-    end
     i32.const 0
   )
   (func $choose_int (param $value i32) (result i32)
@@ -82,22 +78,17 @@
     end
     local.get $value
   )
-  (func $probe (param $value i32) (result i32 i32 i32 i32) (local $t0 i32) (local $t1 i32)
+  (func $probe (param $value i32) (result i32 i32 i32 i32) (local $t0 i32)
     ;; 25 |     (and_false(value), or_true(value), choose_int(), choose_char())
-    block
-      i32.const 1
-      local.set $value
-      br 0
-    end
     i32.const 2
     call $choose_int
-    local.set $t0
+    local.set $value
     i32.const 946
     call $choose_char
-    local.set $t1
+    local.set $t0
     i32.const 0
+    i32.const 1
     local.get $value
     local.get $t0
-    local.get $t1
   )
 )

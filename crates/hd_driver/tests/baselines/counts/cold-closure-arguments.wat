@@ -45,7 +45,6 @@
       local.get $frame
       i32.load $heap offset=28
       local.set $key.1
-    else
     end
     local.get $key.1
     i32.const 1
@@ -65,10 +64,6 @@
     i32.store8 $heap
     local.get $t2
     local.get $t1
-    local.set $key.1
-    local.set $key.0
-    local.get $key.0
-    local.get $key.1
     local.get $frame
     if
       local.get $frame
@@ -288,12 +283,10 @@
         local.get $frame
         i32.load $heap offset=104
         local.set $t4
-        br 0
       end
       local.get $frame
       i32.load $heap offset=8
       local.set $t5
-    else
     end
     block
       local.get $t5
@@ -906,12 +899,10 @@
         local.get $frame
         i32.load $heap offset=104
         local.set $t4
-        br 0
       end
       local.get $frame
       i32.load $heap offset=8
       local.set $t5
-    else
     end
     block
       local.get $t5
@@ -1512,12 +1503,10 @@
         local.get $frame
         i32.load $heap offset=76
         local.set $t3
-        br 0
       end
       local.get $frame
       i32.load $heap offset=8
       local.set $t4
-    else
     end
     block
       local.get $t4
@@ -2128,12 +2117,10 @@
         local.get $frame
         i32.load $heap offset=104
         local.set $t4
-        br 0
       end
       local.get $frame
       i32.load $heap offset=8
       local.set $t5
-    else
     end
     block
       local.get $t5
@@ -2728,7 +2715,6 @@
         local.get $frame
         i32.load $heap offset=80
         local.set $t3
-        br 0
       end
       local.get $frame
       i32.load $heap offset=8

@@ -4,38 +4,27 @@
   (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 3 funcref))
-  (func $slot (result i32) (local $t0 i32)
+  (func $slot (result i32)
     ;; 19 |     *r = +2
     i32.const 2
-    ;; 17 |     let mut n = +1
-    local.set $t0
-    local.get $t0
   )
   (func $set (param $xs i32) (param $i i32) (param $v i32)
     ;; 8 |     match xs.get_mut(i):
-    block
-      local.get $i
+    local.get $i
+    local.get $xs
+    i32.load $heap offset=8
+    i32.ge_u
+    if (result i32)
+      i32.const 0
+    else
       local.get $xs
-      i32.load $heap offset=8
-      i32.ge_u
-      if (result i32)
-        i32.const 0
-      else
-        block
-          local.get $xs
-          i32.load $heap
-          local.get $i
-          i32.const 4
-          i32.mul
-          i32.add
-          local.set $xs
-          br 0
-        end
-        local.get $xs
-      end
-      local.set $xs
-      br 0
+      i32.load $heap
+      local.get $i
+      i32.const 4
+      i32.mul
+      i32.add
     end
+    local.set $xs
     block
       block
         block
@@ -59,7 +48,7 @@
         local.get $v
         i32.store $heap
     ;; 8 |     match xs.get_mut(i):
-        br 1
+        return
       end
     ;; 10 |         .None => panic("index")
       i32.const 65 ;; &"index"
@@ -68,7 +57,6 @@
       call_indirect $table0 (param i32 i32)
       unreachable
     ;; 8 |     match xs.get_mut(i):
-      br 0
     end
   )
   (func $first (param $xs i32) (result i32)
@@ -89,8 +77,5 @@
     i32.add
     ;; 14 |     a.len()
     call $"impl string.len"
-    ;; 13 |     a := &xs[0]
-    local.set $xs
-    local.get $xs
   )
 )

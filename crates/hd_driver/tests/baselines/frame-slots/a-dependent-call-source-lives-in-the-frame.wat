@@ -6,7 +6,7 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $length (result i32) (local $t1 i32) (local $t0 i32) (local $user i32)
+  (func $length (result i32) (local $t0 i32) (local $t1 i32) (local $user i32)
     ;; 19 |     let mut seen = +0
     global.get $locals
     global.get $locals_base

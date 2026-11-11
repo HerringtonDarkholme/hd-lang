@@ -2,7 +2,7 @@
 (module
   (import "fixture" "impl Fast for Leaf.regular" (func $"impl Fast for Leaf.regular" (result i32)))
   (import "fixture" "impl Fast for Tree.regular#evaluating" (global $"impl Fast for Tree.regular#evaluating" (mut i32)))
-  (func $"impl Fast for Tree.regular" (result i32) (local $t0 i32)
+  (func $"impl Fast for Tree.regular" (result i32)
     ;; 22 |         Leaf::regular() && Tree::regular()
     global.get $"impl Fast for Tree.regular#evaluating"
     if
@@ -17,8 +17,6 @@
     else
       i32.const 0
     end
-    local.set $t0
-    local.get $t0
     i32.const 0
     global.set $"impl Fast for Tree.regular#evaluating"
   )

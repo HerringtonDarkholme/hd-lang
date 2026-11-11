@@ -19,75 +19,38 @@
       i32.const 0
       return
     ;; 24 |     let .Some(s) = o else:
-      br 0
     end
     ;; 26 |     s.len()
-    block
-      local.get $o.1
-      local.set $o.0
-      br 0
-    end
-    ;; 24 |     let .Some(s) = o else:
-    local.get $o.0
+    local.get $o.1
   )
   (func $read_user (param $u.name.0 i32) (param $u.name.1 i32) (param $u.tags i32) (result i32)
     ;; 12 |     let User { name, tags } = u
     block
-      block
-        br 0
-        unreachable
-      end
       br 0
+      unreachable
     end
     ;; 13 |     name.len() + tags.len()
-    block
-      local.get $u.name.1
-      local.set $u.name.0
-      br 0
-    end
-    local.get $u.name.0
+    local.get $u.name.1
     local.get $u.tags
     i32.load $heap offset=4
     i32.add
-    ;; 12 |     let User { name, tags } = u
-    local.set $u.name.0
-    local.get $u.name.0
   )
   (func $pair (param $p.0.0 i32) (param $p.0.1 i32) (param $p.1.0 i32) (param $p.1.1 i32) (result i32)
     ;; 20 |     let (a, b) = p
     block
-      block
-        br 0
-        unreachable
-      end
       br 0
+      unreachable
     end
     ;; 21 |     a.len() + b.len()
-    block
-      local.get $p.0.1
-      local.set $p.0.0
-      br 0
-    end
-    block
-      local.get $p.1.1
-      local.set $p.0.1
-      br 0
-    end
-    local.get $p.0.0
     local.get $p.0.1
+    local.get $p.1.1
     i32.add
-    ;; 20 |     let (a, b) = p
-    local.set $p.0.0
-    local.get $p.0.0
   )
   (func $take_name (param $u.name.0 i32) (param $u.name.1 i32) (param $u.tags i32) (result i32 i32)
     ;; 16 |     let User { name } = u
     block
-      block
-        br 0
-        unreachable
-      end
       br 0
+      unreachable
     end
     ;; 17 |     name
     local.get $u.name.0
@@ -96,7 +59,6 @@
       local.get $u.tags
       call $retain
     end
-    ;; 16 |     let User { name } = u
     local.get $u.name.0
     local.get $u.name.1
   )

@@ -26,54 +26,31 @@
     local.get $self
     i32.load $heap offset=4
     local.set $t0
-    local.set $self
-    block
-      local.get $self
-      local.tee $t1
-      if
-        local.get $t1
-        call $retain
-      end
-      br 0
+    local.tee $self
+    local.tee $t1
+    if
+      local.get $t1
+      call $retain
     end
     local.get $self
     local.get $t0
   )
   (func $delegated (param $s.Logger.name.0 i32) (param $s.Logger.name.1 i32) (param $s.port i32) (result i32)
     ;; 24 |     s.describe().len()
-    block
-      block
-        br 0
-      end
-      br 0
-    end
-    block
-      br 0
-    end
     local.get $s.Logger.name.0
     if
       local.get $s.Logger.name.0
       call $rt:release_ref
     end
     local.get $s.Logger.name.1
-    local.set $s.Logger.name.0
-    local.get $s.Logger.name.0
   )
   (func $explicit (param $s.Logger.name.0 i32) (param $s.Logger.name.1 i32) (param $s.port i32) (result i32)
     ;; 27 |     s.Logger.describe().len()
-    block
-      br 0
-    end
-    block
-      br 0
-    end
     local.get $s.Logger.name.0
     if
       local.get $s.Logger.name.0
       call $rt:release_ref
     end
     local.get $s.Logger.name.1
-    local.set $s.Logger.name.0
-    local.get $s.Logger.name.0
   )
 )

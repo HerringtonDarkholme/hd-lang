@@ -59,8 +59,5 @@
     end
     ;; 10 |     parent := box(Node { next: .Some(node) })
     local.get $t1
-    ;; 9 |     let node = box(Node { next: .None })
-    local.set $t0
-    local.get $t0
   )
 )

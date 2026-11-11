@@ -99,12 +99,10 @@
         local.get $frame
         i32.load $heap offset=56
         local.set $t3
-        br 0
       end
       local.get $frame
       i32.load $heap offset=8
       local.set $t4
-    else
     end
     block
       local.get $t4
@@ -880,12 +878,10 @@
         local.get $frame
         i64.load $heap offset=56
         local.set $t2
-        br 0
       end
       local.get $frame
       i32.load $heap offset=8
       local.set $t3
-    else
     end
     block
       local.get $t3
@@ -894,13 +890,8 @@
         i32.const 0
         local.set $self
         i64.const 1
+        call $"impl Duration.milliseconds"
         local.set $t2
-        block
-          local.get $t2
-          call $"impl Duration.milliseconds"
-          local.set $t2
-          br 0
-        end
       end
       block
         block
@@ -1440,12 +1431,10 @@
         local.get $frame
         i32.load $heap offset=52
         local.set $t3
-        br 0
       end
       local.get $frame
       i32.load $heap offset=8
       local.set $t4
-    else
     end
     block
       local.get $t4

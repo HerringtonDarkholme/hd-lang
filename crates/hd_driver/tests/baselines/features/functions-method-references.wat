@@ -2,36 +2,13 @@
 (module
   (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $bound (param $u.name.0 i32) (param $u.name.1 i32) (result i32) (local $t0 i32)
+  (func $bound (param $u.name.0 i32) (param $u.name.1 i32) (result i32)
     ;; 24 |     f() + f()
-    block
-      block
-        local.get $u.name.0
-        local.get $u.name.1
-        local.set $t0
-        drop
-        br 0
-      end
-      br 0
-    end
+    local.get $u.name.1
     ;; 23 |     f := u::name_len
-    block
-      block
-        block
-          local.get $u.name.1
-          local.set $u.name.0
-          br 0
-        end
-        br 0
-      end
-      br 0
-    end
+    local.get $u.name.1
     ;; (no span)
-    local.get $t0
-    local.get $u.name.0
     i32.add
-    local.set $u.name.0
-    local.get $u.name.0
   )
   (func $"impl User.rename" (param $self i32) (param $n.0 i32) (param $n.1 i32)
     ;; 16 |         self.name = n
@@ -75,58 +52,35 @@
         i32.add
         local.set $t1
         block
-          block
-            br 0
-            unreachable
-          end
-    ;; 34 |         n += g(u)
-          block
-            block
-              block
-                local.get $t3
-                local.set $t2
-                br 0
-              end
-              br 0
-            end
-            br 0
-          end
-          local.get $u
-          local.get $t2
-          i32.add
-          local.set $u
-    ;; 33 |     for u in us:
           br 0
+          unreachable
         end
+    ;; 34 |         n += g(u)
+        local.get $u
+        local.get $t3
+        i32.add
+        local.set $u
+    ;; 33 |     for u in us:
         br 0
       end
     end
     ;; 35 |     n
     local.get $u
-    ;; 31 |     g := fn(u: User) -> usize: u.name_len()
-    local.set $us
-    local.get $us
   )
   (func $"impl User.name_len" (param $self.name.0 i32) (param $self.name.1 i32) (result i32)
     ;; 13 |         self.name.len()
-    block
-      local.get $self.name.1
-      local.set $self.name.0
-      br 0
-    end
-    local.get $self.name.0
+    local.get $self.name.1
+  )
+  (func $bound_mut (param $u i32) (param $n.0 i32) (param $n.1 i32)
+    ;; 27 |     f := u::rename
+    local.get $u
+    ;; (no span)
+    local.get $n.0
+    local.get $n.1
+    call $"impl User.rename"
   )
   (func $unbound (param $u.name.0 i32) (param $u.name.1 i32) (result i32)
     ;; 20 |     f(u)
-    block
-      block
-        local.get $u.name.1
-        local.set $u.name.0
-        br 0
-      end
-      br 0
-    end
-    ;; 19 |     f := User::name_len
-    local.get $u.name.0
+    local.get $u.name.1
   )
 )

@@ -5,14 +5,10 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $"impl Joiner.join.sep" (param $t1 i32) (result i32 i32) (local $t0 i32)
+  (func $"impl Joiner.join.sep" (param $t0 i32) (result i32 i32)
     ;; 11 |     fn join(&self, sep: string = ", ") -> usize:
     i32.const 65 ;; &", "
     i32.const 2
-    local.set $t0
-    local.set $t1
-    local.get $t1
-    local.get $t0
   )
   (func $joined (param $t1 i32) (result i32) (local $t0 i32) (local $j i32) (local $t2 i32)
     ;; 18 |     j.join()
@@ -85,8 +81,6 @@
       end
     end
     local.get $t2
-    local.set $t1
-    local.get $t1
     local.get $t0
     i32.const 16
     i32.add
@@ -97,37 +91,16 @@
     local.get $self
     i32.load $heap
     i32.load $heap offset=4
-    local.set $self
-    block
-      local.get $sep.1
-      local.set $sep.0
-      br 0
-    end
-    local.get $self
-    local.get $sep.0
+    local.get $sep.1
     i32.mul
-    local.set $self
-    local.get $self
   )
   (func $generic_method (param $j i32) (param $s.0 i32) (param $s.1 i32) (result i32)
     ;; 21 |     j.tagged(s).len()
-    block
-      local.get $s.0
-      local.get $s.1
-      local.set $s.0
-      local.set $j
-      br 0
-    end
-    block
-      br 0
-    end
-    local.get $j
+    local.get $s.0
     if
-      local.get $j
+      local.get $s.0
       call $rt:release_ref'1
     end
-    local.get $s.0
-    local.set $j
-    local.get $j
+    local.get $s.1
   )
 )

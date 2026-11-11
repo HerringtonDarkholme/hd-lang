@@ -14,7 +14,7 @@
     i32.load $heap
     i32.load $heap offset=4
     local.set $t0
-    local.get $index
+    i32.const 0
     local.get $t0
     i32.lt_u
     if

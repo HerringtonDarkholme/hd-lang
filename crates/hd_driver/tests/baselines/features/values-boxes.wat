@@ -48,9 +48,6 @@
     i32.load $heap offset=4
     local.set $s.1
     drop
-    block
-      br 0
-    end
     ;; 15 |     let mut p = Point { name: s }
     local.get $copy
     local.tee $t0
@@ -65,13 +62,8 @@
       end
     end
     ;; 18 |     copy.name.len() + p.name.len()
-    block
-      local.get $t.1
-      local.set $t.0
-      br 0
-    end
-    ;; 15 |     let mut p = Point { name: s }
     local.get $s.0
+    ;; 15 |     let mut p = Point { name: s }
     local.tee $t0
     if
       local.get $t0
@@ -79,11 +71,8 @@
     end
     ;; 18 |     copy.name.len() + p.name.len()
     local.get $s.1
-    local.get $t.0
+    local.get $t.1
     i32.add
-    ;; 15 |     let mut p = Point { name: s }
-    local.set $s.0
-    local.get $s.0
   )
   (func $move_box (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
     ;; 22 |     box(p)
@@ -101,9 +90,6 @@
     ;; 22 |     box(p)
     i32.store $heap offset=4
     local.get $t0
-    ;; 21 |     p := Point { name: s }
-    local.set $s.0
-    local.get $s.0
   )
   (func $shared (param $s.0 i32) (param $s.1 i32) (param $t.0 i32) (param $t.1 i32) (result i32) (local $b i32) (local $t0 i32)
     ;; 25 |     b := box(Point { name: s })
@@ -162,9 +148,6 @@
     i32.load $heap offset=4
     local.set $s.1
     drop
-    block
-      br 0
-    end
     ;; 25 |     b := box(Point { name: s })
     local.get $s.0
     local.tee $t0
@@ -179,7 +162,5 @@
       end
     end
     local.get $s.1
-    local.set $s.0
-    local.get $s.0
   )
 )

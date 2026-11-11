@@ -61,67 +61,46 @@
     ;; 24 |     println("${store.tally({"a": +1})}")
     i64.extend_i32_s
     local.tee $t5
-    local.set $t6
-    block
-      block
-        local.get $t6
-        call $signed_magnitude
-        call $unsigned_width
-        local.set $t0
-        local.get $t6
-        i64.const 0
-        i64.lt_s
-        if
-          i32.const 1
-          local.set $t7
-        else
-        end
-        local.get $t0
-        i64.extend_i32_u
-        local.get $t7
-        i64.extend_i32_u
-        i64.add
-        local.tee $t6
-        i64.const 4294967295
-        i64.gt_u
-        if
-          call $rt:panic
-          unreachable
-        end
-        local.get $t6
-        i32.wrap_i64
-        local.set $t0
-        br 0
-      end
-      br 0
+    local.tee $t6
+    call $signed_magnitude
+    call $unsigned_width
+    local.set $t0
+    local.get $t6
+    i64.const 0
+    i64.lt_s
+    if
+      i32.const 1
+      local.set $t7
     end
-    block
-      local.get $t0
-      local.tee $t1
-      i32.const 16
-      local.set $t2
-      if
-        local.get $t1
-        call $rt:str
-        local.set $t2
-      end
-      local.get $t2
+    local.get $t0
+    i64.extend_i32_u
+    local.get $t7
+    i64.extend_i32_u
+    i64.add
+    local.tee $t6
+    i64.const 4294967295
+    i64.gt_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $t6
+    i32.wrap_i64
+    local.tee $t0
+    local.tee $t1
+    i32.const 16
+    local.set $t2
+    if
       local.get $t1
+      call $rt:str
       local.set $t2
-      local.set $t1
-      br 0
     end
-    block
-      local.get $t5
-      local.get $t1
-      local.get $t0
-      call $write_signed_sized
-      br 0
-    end
-    ;; 23 |     store := $.use(Store)
-    local.get $t1
+    local.get $t5
     local.get $t2
-    ;; 24 |     println("${store.tally({"a": +1})}")
+    local.get $t0
+    call $write_signed_sized
+    local.get $t2
+    local.get $t1
     local.get $provider1
     local.get $provider1.vtable
     call $"println[string]"
@@ -163,67 +142,46 @@
     call_indirect $table0 (param i32 i32 i32 i32 i32) (result i32)
     i64.extend_i32_s
     local.tee $t5
-    local.set $t6
-    block
-      block
-        local.get $t6
-        call $signed_magnitude
-        call $unsigned_width
-        local.set $t0
-        local.get $t6
-        i64.const 0
-        i64.lt_s
-        if
-          i32.const 1
-          local.set $t8
-        else
-        end
-        local.get $t0
-        i64.extend_i32_u
-        local.get $t8
-        i64.extend_i32_u
-        i64.add
-        local.tee $t6
-        i64.const 4294967295
-        i64.gt_u
-        if
-          call $rt:panic
-          unreachable
-        end
-        local.get $t6
-        i32.wrap_i64
-        local.set $t0
-        br 0
-      end
-      br 0
+    local.tee $t6
+    call $signed_magnitude
+    call $unsigned_width
+    local.set $t0
+    local.get $t6
+    i64.const 0
+    i64.lt_s
+    if
+      i32.const 1
+      local.set $t8
     end
-    block
-      local.get $t0
-      local.tee $t1
-      i32.const 16
-      local.set $t2
-      if
-        local.get $t1
-        call $rt:str
-        local.set $t2
-      end
-      local.get $t2
+    local.get $t0
+    i64.extend_i32_u
+    local.get $t8
+    i64.extend_i32_u
+    i64.add
+    local.tee $t6
+    i64.const 4294967295
+    i64.gt_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $t6
+    i32.wrap_i64
+    local.tee $t0
+    local.tee $t1
+    i32.const 16
+    local.set $t2
+    if
       local.get $t1
+      call $rt:str
       local.set $t2
-      local.set $t1
-      br 0
     end
-    block
-      local.get $t5
-      local.get $t1
-      local.get $t0
-      call $write_signed_sized
-      br 0
-    end
-    ;; 23 |     store := $.use(Store)
-    local.get $t1
+    local.get $t5
     local.get $t2
-    ;; 26 |     println("${store.pair(Tree.Leaf(+1), Tree.Leaf(+2))}")
+    local.get $t0
+    call $write_signed_sized
+    local.get $t2
+    local.get $t1
     local.get $provider1
     local.get $provider1.vtable
     call $"println[string]"
@@ -262,67 +220,46 @@
     ;; 27 |     println("${store.open().read()}")
     i64.extend_i32_s
     local.tee $t5
-    local.set $t6
-    block
-      block
-        local.get $t6
-        call $signed_magnitude
-        call $unsigned_width
-        local.set $provider0
-        local.get $t6
-        i64.const 0
-        i64.lt_s
-        if
-          i32.const 1
-          local.set $t9
-        else
-        end
-        local.get $provider0
-        i64.extend_i32_u
-        local.get $t9
-        i64.extend_i32_u
-        i64.add
-        local.tee $t6
-        i64.const 4294967295
-        i64.gt_u
-        if
-          call $rt:panic
-          unreachable
-        end
-        local.get $t6
-        i32.wrap_i64
-        local.set $provider0
-        br 0
-      end
-      br 0
+    local.tee $t6
+    call $signed_magnitude
+    call $unsigned_width
+    local.set $provider0
+    local.get $t6
+    i64.const 0
+    i64.lt_s
+    if
+      i32.const 1
+      local.set $t9
     end
-    block
-      local.get $provider0
-      local.tee $provider0.vtable
-      i32.const 16
-      local.set $t0
-      if
-        local.get $provider0.vtable
-        call $rt:str
-        local.set $t0
-      end
-      local.get $t0
+    local.get $provider0
+    i64.extend_i32_u
+    local.get $t9
+    i64.extend_i32_u
+    i64.add
+    local.tee $t6
+    i64.const 4294967295
+    i64.gt_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $t6
+    i32.wrap_i64
+    local.tee $provider0
+    local.tee $provider0.vtable
+    i32.const 16
+    local.set $t0
+    if
       local.get $provider0.vtable
+      call $rt:str
       local.set $t0
-      local.set $provider0.vtable
-      br 0
     end
-    block
-      local.get $t5
-      local.get $provider0.vtable
-      local.get $provider0
-      call $write_signed_sized
-      br 0
-    end
-    ;; 23 |     store := $.use(Store)
-    local.get $provider0.vtable
+    local.get $t5
     local.get $t0
-    ;; 27 |     println("${store.open().read()}")
+    local.get $provider0
+    call $write_signed_sized
+    local.get $t0
+    local.get $provider0.vtable
     local.get $provider1
     local.get $provider1.vtable
     call $"println[string]"

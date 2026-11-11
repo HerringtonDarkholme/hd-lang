@@ -26,7 +26,6 @@
         end
         br 1
       end
-      br 0
     end
     ;; 12 |     match bag.label:
     block
@@ -99,7 +98,6 @@
     ;; 12 |     match bag.label:
         br 1
       end
-      br 0
     end
     ;; 17 |     bag.items.len()
     local.get $bag.items
@@ -124,11 +122,9 @@
         call $rt:release_ref
       end
     end
-    local.set $bag.label.0
     local.get $other.label.0
     local.get $other.label.1
     local.get $other.items
     call $rt:release
-    local.get $bag.label.0
   )
 )

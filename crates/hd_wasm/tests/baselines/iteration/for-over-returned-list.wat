@@ -36,23 +36,15 @@
         i32.add
         local.set $t0
         block
-          block
-            br 0
-            unreachable
-          end
-    ;; 8 |         count = count + word.len()
-          block
-            local.get $word.1
-            local.set $t1
-            br 0
-          end
-          local.get $count
-          local.get $t1
-          i32.add
-          local.set $count
-    ;; 7 |     for word in text.split(" "):
           br 0
+          unreachable
         end
+    ;; 8 |         count = count + word.len()
+        local.get $count
+        local.get $word.1
+        i32.add
+        local.set $count
+    ;; 7 |     for word in text.split(" "):
         br 0
       end
     end
@@ -70,8 +62,5 @@
     end
     ;; 9 |     count
     local.get $count
-    ;; 6 |     let count: usize = 0
-    local.set $text.0
-    local.get $text.0
   )
 )

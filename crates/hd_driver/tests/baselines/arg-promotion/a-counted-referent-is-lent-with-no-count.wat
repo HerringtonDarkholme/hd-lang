@@ -6,23 +6,16 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $"shown[string]" (param $value.0 i32) (param $value.1 i32) (result i32 i32)
     ;; 31 |     value.show()
-    block
-      br 0
-    end
     local.get $value.0
     local.get $value.1
   )
-  (func $use_shown (result i32 i32) (local $t1 i32) (local $t0 i32)
+  (func $use_shown (result i32 i32)
     ;; 34 |     shown("abc")
     i32.const 65 ;; &"abc"
     i32.const 3
     call $"shown[string]"
-    local.set $t0
-    local.set $t1
-    local.get $t1
-    local.get $t0
   )
-  (func $label'1 (param $w i32) (result i32) (local $t0 i32) (local $t1 i32)
+  (func $label'1 (param $w i32) (result i32) (local $t0 i32)
     ;; 23 |     (w.name.len() + 1) * (w.name.len() + 2) * (w.name.len() + 3) / (w.name.len() + 4)
     local.get $w
     i32.load $heap
@@ -30,53 +23,35 @@
     i32.load $heap offset=4
     local.set $t0
     drop
-    block
-      br 0
-    end
     local.get $t0
     i32.const 1
     i32.add
-    local.set $t0
     local.get $w
     i32.load $heap
     local.get $w
     i32.load $heap offset=4
-    local.set $t1
+    local.set $t0
     drop
-    block
-      br 0
-    end
     local.get $t0
-    local.get $t1
     i32.const 2
     i32.add
     i32.mul
-    local.set $t0
     local.get $w
     i32.load $heap
     local.get $w
     i32.load $heap offset=4
-    local.set $t1
+    local.set $t0
     drop
-    block
-      br 0
-    end
     local.get $t0
-    local.get $t1
     i32.const 3
     i32.add
     i32.mul
-    local.set $t0
     local.get $w
     i32.load $heap
     local.get $w
     i32.load $heap offset=4
     local.set $w
     drop
-    block
-      br 0
-    end
-    local.get $t0
     local.get $w
     i32.const 4
     i32.add
@@ -88,8 +63,6 @@
     end
     local.get $w
     i32.div_u
-    local.set $w
-    local.get $w
   )
   (func $"impl Show for string.show" (param $self i32) (result i32 i32) (local $t0 i32)
     ;; 16 |         *self
@@ -102,51 +75,21 @@
     call $rt:retain
     local.get $t0
     local.get $self
-    local.set $t0
-    local.set $self
-    local.get $self
-    local.get $t0
   )
-  (func $label'2 (param $w.name.0 i32) (param $w.name.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
+  (func $label'2 (param $w.name.0 i32) (param $w.name.1 i32) (result i32)
     ;; 23 |     (w.name.len() + 1) * (w.name.len() + 2) * (w.name.len() + 3) / (w.name.len() + 4)
-    block
-      local.get $w.name.1
-      local.set $t0
-      br 0
-    end
-    local.get $t0
+    local.get $w.name.1
     i32.const 1
     i32.add
-    local.set $t0
-    block
-      local.get $w.name.1
-      local.set $t1
-      br 0
-    end
-    local.get $t0
-    local.get $t1
+    local.get $w.name.1
     i32.const 2
     i32.add
     i32.mul
-    local.set $t0
-    block
-      local.get $w.name.1
-      local.set $t1
-      br 0
-    end
-    local.get $t0
-    local.get $t1
+    local.get $w.name.1
     i32.const 3
     i32.add
     i32.mul
-    local.set $t0
-    block
-      local.get $w.name.1
-      local.set $w.name.0
-      br 0
-    end
-    local.get $t0
-    local.get $w.name.0
+    local.get $w.name.1
     i32.const 4
     i32.add
     local.tee $w.name.0
@@ -157,8 +100,6 @@
     end
     local.get $w.name.0
     i32.div_u
-    local.set $w.name.0
-    local.get $w.name.0
   )
   (func $use_label (param $name.0 i32) (param $name.1 i32) (result i32)
     ;; 26 |     let w = Wrap { name: name }
@@ -172,7 +113,5 @@
       local.get $name.0
       call $rt:release_ref
     end
-    local.set $name.0
-    local.get $name.0
   )
 )

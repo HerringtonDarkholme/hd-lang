@@ -4,54 +4,45 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $local_plain (param $xs i32) (result i32)
     ;; 18 |     first_len(xs)
-    block
+    local.get $xs
+    i32.load $heap offset=4
+    i32.const 0
+    i32.gt_u
+    if (result i32)
+      i32.const 0
       local.get $xs
       i32.load $heap offset=4
-      i32.const 0
-      i32.gt_u
-      if (result i32)
-        i32.const 0
-        local.get $xs
-        i32.load $heap offset=4
-        i32.ge_u
-        if
-          call $rt:panic
-          unreachable
-        end
-        local.get $xs
-        i32.load $heap offset=16
-        local.get $xs
-        i32.load $heap offset=20
-        local.set $xs
-        drop
-        block
-          br 0
-        end
-        local.get $xs
-      else
-        i32.const 0
+      i32.ge_u
+      if
+        call $rt:panic
+        unreachable
       end
+      local.get $xs
+      i32.load $heap offset=16
+      local.get $xs
+      i32.load $heap offset=20
       local.set $xs
-      br 0
+      drop
+      local.get $xs
+    else
+      i32.const 0
     end
-    ;; 16 |     fn first_len(ys: List[string]) -> usize:
-    local.get $xs
   )
-  (func $local_capture (param $prefix.0 i32) (param $prefix.1 i32) (param $xs i32) (result i32) (local $s i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
+  (func $local_capture (param $prefix.0 i32) (param $prefix.1 i32) (param $xs i32) (result i32) (local $s i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 11 |     for x in xs:
     local.get $xs
     i32.load $heap offset=4
-    local.set $t0
+    local.set $prefix.0
     ;; 8 |     fn width(s: string) -> usize:
     block
       loop
     ;; 11 |     for x in xs:
-        local.get $t1
         local.get $t0
+        local.get $prefix.0
         i32.lt_u
         i32.eqz
         br_if 1
-        local.get $t1
+        local.get $t0
         local.get $xs
         i32.load $heap offset=4
         i32.ge_u
@@ -60,54 +51,39 @@
           unreachable
         end
         local.get $xs
-        local.get $t1
+        local.get $t0
         i32.const 8
         i32.mul
         i32.add
-        local.tee $t2
+        local.tee $t1
         i32.load $heap offset=16
-        local.get $t2
-        i32.load $heap offset=20
-        local.set $t3
-        drop
         local.get $t1
+        i32.load $heap offset=20
+        local.set $t2
+        drop
+        local.get $t0
     ;; 12 |         total += width(x)
         i32.const 1
         i32.add
-        local.set $t1
+        local.set $t0
     ;; 11 |     for x in xs:
         block
-          block
-            br 0
-            unreachable
-          end
-    ;; 12 |         total += width(x)
-          block
-            block
-              local.get $prefix.1
-              local.set $t2
-              br 0
-            end
-            local.get $t2
-            local.get $t3
-            i32.add
-            local.set $t2
-            br 0
-          end
-    ;; 11 |     for x in xs:
-          local.get $s
-          local.get $t2
-          i32.add
-          local.set $s
           br 0
+          unreachable
         end
+    ;; 12 |         total += width(x)
+        local.get $s
+        local.get $prefix.1
+        local.get $t2
+        i32.add
+    ;; 11 |     for x in xs:
+        i32.add
+        local.set $s
     ;; 8 |     fn width(s: string) -> usize:
         br 0
       end
     end
     ;; (no span)
     local.get $s
-    local.set $prefix.0
-    local.get $prefix.0
   )
 )

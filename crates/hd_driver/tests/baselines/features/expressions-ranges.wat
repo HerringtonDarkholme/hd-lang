@@ -31,9 +31,6 @@
         i32.load $heap offset=20
         local.set $i
         drop
-        block
-          br 0
-        end
         local.get $n
         local.get $i
         i32.add
@@ -44,9 +41,6 @@
     end
     ;; 18 |     n
     local.get $n
-    ;; 15 |     let n: usize = 0
-    local.set $xs
-    local.get $xs
   )
   (func $make (param $n i32) (result i32 i32 i32)
     ;; 9 |     0..n

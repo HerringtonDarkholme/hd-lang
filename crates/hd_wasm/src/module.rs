@@ -1806,6 +1806,15 @@ impl Module {
             self.reach();
         }
         for f in self.funcs.iter_mut().flatten() {
+            // Branches and labels that only fall through split the
+            // straight-line runs the local rules read.
+            if crate::opt::blocks(f, &arity) {
+                crate::opt::locals(f, &arity);
+                // Forwarding can carry a constant into a branch test.
+                if crate::opt::fold_constant_branches(f) {
+                    crate::opt::locals(f, &arity);
+                }
+            }
             crate::opt::coalesce(f);
             if crate::opt::drops(f) {
                 crate::opt::locals(f, &arity);
@@ -1853,8 +1862,15 @@ impl Module {
             self.reach();
             self.import_session(previous)?;
         }
+        // Wide lowering can change signatures and add helpers: read the
+        // final ones for the stack heights of rule 19.
+        let arity: crate::opt::Arity = self
+            .funcs
+            .iter()
+            .map(|f| f.as_ref().map(|f| (f.params.len(), f.results.len())))
+            .collect();
         for f in self.funcs.iter_mut().flatten() {
-            crate::opt::blocks(f);
+            crate::opt::blocks(f, &arity);
         }
         // Wide lowering rebuilds each body's callees from its final code.
         // Calls removed by local/count optimization no longer keep helpers.

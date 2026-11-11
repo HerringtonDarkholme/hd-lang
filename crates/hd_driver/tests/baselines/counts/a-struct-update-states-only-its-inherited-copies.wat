@@ -3,16 +3,9 @@
   (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32 i32)))
   (func $scalar (param $base.kept i32) (param $base.name.0 i32) (param $base.name.1 i32) (param $base.n i32) (param $name.0 i32) (param $name.1 i32) (result i32 i32 i32 i32)
     ;; 17 |     update(base, name)
-    block
-      local.get $name.0
-      local.get $name.1
-      local.set $base.name.1
-      local.set $base.name.0
-      br 0
-    end
     local.get $base.kept
-    local.get $base.name.0
-    local.get $base.name.1
+    local.get $name.0
+    local.get $name.1
     local.get $base.n
   )
   (func $replaced (param $base.kept.0 i32) (param $base.kept.1 i32) (param $base.name.0 i32) (param $base.name.1 i32) (param $base.n i32) (param $text.0 i32) (param $text.1 i32) (result i32 i32 i32 i32 i32)
@@ -22,48 +15,17 @@
     i32.const 65 ;; &"new"
     i32.const 3
     i32.const 1
-    local.set $base.n
-    local.set $base.name.1
-    local.set $base.name.0
-    local.set $base.kept.1
-    local.set $base.kept.0
-    local.get $base.kept.0
-    local.get $base.kept.1
-    local.get $base.name.0
-    local.get $base.name.1
-    local.get $base.n
   )
-  (func $counted (param $base.kept i32) (param $base.name.0 i32) (param $base.name.1 i32) (param $base.n i32) (param $name.0 i32) (param $name.1 i32) (result i32 i32 i32 i32) (local $t1 i32) (local $t0 i32)
+  (func $counted (param $base.kept i32) (param $base.name.0 i32) (param $base.name.1 i32) (param $base.n i32) (param $name.0 i32) (param $name.1 i32) (result i32 i32 i32 i32)
     ;; 14 |     update(base, name)
-    block
-      local.get $base.kept
-      i32.const 0
-      local.set $base.kept
-      local.get $name.0
-      local.get $name.1
-      local.get $base.n
-      local.set $t0
-      local.set $t1
-      local.set $name.1
-      local.set $name.0
-      br 0
-    end
     local.get $base.kept
+    i32.const 0
     local.get $base.name.0
     local.get $base.name.1
     local.get $base.n
     call $rt:release
     local.get $name.0
     local.get $name.1
-    local.get $t1
-    local.get $t0
-    local.set $base.n
-    local.set $base.name.1
-    local.set $base.name.0
-    local.set $base.kept
-    local.get $base.kept
-    local.get $base.name.0
-    local.get $base.name.1
     local.get $base.n
   )
 )

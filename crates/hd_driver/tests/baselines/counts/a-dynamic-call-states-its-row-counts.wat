@@ -40,8 +40,6 @@
       local.get $provider0
       call $rt:release_ref
     end
-    local.set $work.0
-    local.get $work.0
   )
   (func $awaited'1 (param $frame i32) (param $work.0 i32) (param $work.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32) (local $t3 i32) (local $t8 i32) (local $t7 i32) (local $t1 i32) (local $t2 i32) (local $t5 i32) (local $t6 i32) (local $t0 i32) (local $t4 i32)
     ;; 18 |     work.later!()
@@ -106,7 +104,6 @@
         local.get $frame
         i32.load $heap offset=48
         local.set $t2
-        br 0
       end
       local.get $frame
       i32.load $heap offset=8
@@ -623,7 +620,5 @@
       local.get $provider0
       call $rt:release_ref
     end
-    local.set $work.0
-    local.get $work.0
   )
 )

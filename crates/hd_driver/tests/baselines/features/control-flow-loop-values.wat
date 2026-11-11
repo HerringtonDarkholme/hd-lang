@@ -5,7 +5,7 @@
   (import "fixture" "rt:str_append" (func $rt:str_append (param i32 i32 i32 i32) (result i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $first_long (param $xs i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $x.0 i32) (local $x.1 i32) (local $t2 i32)
+  (func $first_long (param $xs i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $x.0 i32) (local $x.1 i32)
     ;; 8 |     for x in xs:
     local.get $xs
     i32.load $heap offset=4
@@ -32,37 +32,27 @@
           i32.add
           local.set $t1
           block
-            block
-              br 0
-              unreachable
-            end
-    ;; 9 |         if x.len() > 3:
-            block
-              local.get $x.1
-              local.set $t2
-              br 0
-            end
-            local.get $t2
-            i32.const 3
-            i32.gt_u
-            if
-    ;; 10 |             break x
-              local.get $x.0
-              local.tee $xs
-              if
-                local.get $xs
-                call $retain
-              end
-              local.get $x.0
-              local.get $x.1
-              local.set $t0
-              local.set $xs
-              br 4
-    ;; 9 |         if x.len() > 3:
-            end
-    ;; 8 |     for x in xs:
             br 0
+            unreachable
           end
+    ;; 9 |         if x.len() > 3:
+          local.get $x.1
+          i32.const 3
+          i32.gt_u
+          if
+    ;; 10 |             break x
+            local.get $x.0
+            local.tee $xs
+            if
+              local.get $xs
+              call $retain
+            end
+            local.get $x.0
+            local.get $x.1
+            return
+    ;; 9 |         if x.len() > 3:
+          end
+    ;; 8 |     for x in xs:
         else
           i32.const 65 ;; &"none"
           i32.const 4
@@ -78,78 +68,66 @@
   )
   (func $first_index (param $xs i32) (result i32) (local $i i32) (local $t0 i32)
     ;; 16 |     while i < xs.len():
-    block
-      loop
+    loop
+      local.get $i
+      local.get $xs
+      i32.load $heap offset=4
+      i32.lt_u
+      if
+    ;; 17 |         if xs[i].len() > 3:
         local.get $i
         local.get $xs
         i32.load $heap offset=4
-        i32.lt_u
+        i32.ge_u
         if
-    ;; 17 |         if xs[i].len() > 3:
-          local.get $i
-          local.get $xs
-          i32.load $heap offset=4
-          i32.ge_u
-          if
-            call $rt:panic
-            unreachable
-          end
-          local.get $xs
-          local.get $i
-          i32.const 8
-          i32.mul
-          i32.add
-          local.tee $t0
-          i32.load $heap offset=16
-          local.get $t0
-          i32.load $heap offset=20
-          local.set $t0
-          drop
-          block
-            br 0
-          end
-          local.get $t0
-          i32.const 3
-          i32.gt_u
-          if
-    ;; 18 |             break i
-            local.get $i
-            local.set $xs
-            br 3
-    ;; 17 |         if xs[i].len() > 3:
-          end
-    ;; 19 |         i += 1
-          local.get $i
-          i32.const 1
-          i32.add
-          local.set $i
-    ;; 16 |     while i < xs.len():
-        else
-    ;; 21 |         xs.len()
-          local.get $xs
-          i32.load $heap offset=4
-    ;; 16 |     while i < xs.len():
-          local.set $xs
-          br 2
+          call $rt:panic
+          unreachable
         end
-        br 0
+        local.get $xs
+        local.get $i
+        i32.const 8
+        i32.mul
+        i32.add
+        local.tee $t0
+        i32.load $heap offset=16
+        local.get $t0
+        i32.load $heap offset=20
+        local.set $t0
+        drop
+        local.get $t0
+        i32.const 3
+        i32.gt_u
+        if
+    ;; 18 |             break i
+          local.get $i
+          return
+    ;; 17 |         if xs[i].len() > 3:
+        end
+    ;; 19 |         i += 1
+        local.get $i
+        i32.const 1
+        i32.add
+        local.set $i
+    ;; 16 |     while i < xs.len():
+      else
+    ;; 21 |         xs.len()
+        local.get $xs
+        i32.load $heap offset=4
+    ;; 16 |     while i < xs.len():
+        return
       end
+      br 0
     end
     ;; 15 |     let i: usize = 0
-    local.get $xs
+    i32.const 0
   )
-  (func $forever (param $s.0 i32) (param $s.1 i32) (result i32 i32) (local $t0 i32)
+  (func $forever (param $s.0 i32) (param $s.1 i32) (result i32 i32)
     ;; 24 |     let out = s
     block
     ;; 25 |     while true:
       loop
     ;; 26 |         if out.len() > 8:
-        block
-          local.get $s.1
-          local.set $t0
-          br 0
-        end
-        local.get $t0
+        local.get $s.1
         i32.const 8
         i32.gt_u
         if
@@ -178,7 +156,7 @@
       end
       unreachable
     end
-    local.get $s.0
-    local.get $s.0
+    i32.const 0
+    i32.const 0
   )
 )

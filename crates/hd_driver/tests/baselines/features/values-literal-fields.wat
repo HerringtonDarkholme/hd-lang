@@ -39,13 +39,11 @@
     i64.store $heap offset=24
     local.get $t0
   )
-  (func $shelf (result i32) (local $t0 i32)
+  (func $shelf (result i32)
     ;; 20 |     Shelf { items: START }
     i32.const 128
-    local.set $t0
-    local.get $t0
   )
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $h i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $i i32) (local $t3 i64) (local $t4 i64) (local $t5 i32) (local $t6 i64) (local $t7 i32) (local $t8 i64) (local $t9 i32) (local $t10 i32) (local $t11 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $h i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $i i32) (local $t3 i64) (local $t4 i64) (local $t5 i32) (local $t6 i64) (local $t7 i32) (local $t8 i64) (local $t9 i32) (local $t10 i32)
     ;; 31 |     let mut h = histogram()
     global.get $locals
     global.get $locals_base
@@ -76,32 +74,29 @@
     i32.sub
     local.tee $t0
     global.set $locals
-    block
-      i32.const 4
-      call $rt:list_buf
-      local.tee $h
-      i32.const 4
-      i32.store $heap offset=4
-      local.get $h
-      i64.const 0
-      i64.store $heap offset=16
-      local.get $h
-      i32.const 8
-      i32.add
-      local.tee $t1
-      i64.const 0
-      i64.store $heap offset=16
-      local.get $t1
-      i32.const 8
-      i32.add
-      local.tee $t1
-      i64.const 0
-      i64.store $heap offset=16
-      local.get $t1
-      i64.const 0
-      i64.store $heap offset=24
-      br 0
-    end
+    i32.const 4
+    call $rt:list_buf
+    local.tee $h
+    i32.const 4
+    i32.store $heap offset=4
+    local.get $h
+    i64.const 0
+    i64.store $heap offset=16
+    local.get $h
+    i32.const 8
+    i32.add
+    local.tee $t1
+    i64.const 0
+    i64.store $heap offset=16
+    local.get $t1
+    i32.const 8
+    i32.add
+    local.tee $t1
+    i64.const 0
+    i64.store $heap offset=16
+    local.get $t1
+    i64.const 0
+    i64.store $heap offset=24
     local.get $t0
     i64.const 0
     i64.store $heap
@@ -140,11 +135,8 @@
       end
     end
     ;; 34 |     let mut s = shelf()
-    block
-      i32.const 128
-      local.set $t1
-      br 0
-    end
+    i32.const 128
+    local.set $t1
     local.get $t0
     i64.const 0
     i64.store $heap offset=16
@@ -193,29 +185,21 @@
     end
     ;; 36 |     println("${h.buckets[1]} ${s.items[0]} ${START[0]}")
     local.get $t3
-    local.set $t4
-    block
-      block
-        local.get $t4
-        call $signed_magnitude
-        call $unsigned_width
-        local.set $h
-        local.get $t4
-        i64.const 0
-        i64.lt_s
-        if
-          i32.const 1
-          local.set $t5
-        else
-        end
-        local.get $h
-        local.get $t5
-        i32.add
-        local.set $h
-        br 0
-      end
-      br 0
+    local.tee $t4
+    call $signed_magnitude
+    call $unsigned_width
+    local.set $h
+    local.get $t4
+    i64.const 0
+    i64.lt_s
+    if
+      i32.const 1
+      local.set $t5
     end
+    local.get $h
+    local.get $t5
+    i32.add
+    local.set $h
     local.get $t1
     i32.load $heap
     local.set $t2
@@ -249,29 +233,21 @@
     end
     ;; 36 |     println("${h.buckets[1]} ${s.items[0]} ${START[0]}")
     local.get $t4
-    local.set $t6
-    block
-      block
-        local.get $t6
-        call $signed_magnitude
-        call $unsigned_width
-        local.set $t1
-        local.get $t6
-        i64.const 0
-        i64.lt_s
-        if
-          i32.const 1
-          local.set $t7
-        else
-        end
-        local.get $t1
-        local.get $t7
-        i32.add
-        local.set $t1
-        br 0
-      end
-      br 0
+    local.tee $t6
+    call $signed_magnitude
+    call $unsigned_width
+    local.set $t1
+    local.get $t6
+    i64.const 0
+    i64.lt_s
+    if
+      i32.const 1
+      local.set $t7
     end
+    local.get $t1
+    local.get $t7
+    i32.add
+    local.set $t1
     i32.const 128
     local.set $t2
     i32.const 0
@@ -285,29 +261,21 @@
     local.get $t2
     i64.load $heap offset=16
     local.tee $t6
-    local.set $t8
-    block
-      block
-        local.get $t8
-        call $signed_magnitude
-        call $unsigned_width
-        local.set $t2
-        local.get $t8
-        i64.const 0
-        i64.lt_s
-        if
-          i32.const 1
-          local.set $t9
-        else
-        end
-        local.get $t2
-        local.get $t9
-        i32.add
-        local.set $t2
-        br 0
-      end
-      br 0
+    local.tee $t8
+    call $signed_magnitude
+    call $unsigned_width
+    local.set $t2
+    local.get $t8
+    i64.const 0
+    i64.lt_s
+    if
+      i32.const 1
+      local.set $t9
     end
+    local.get $t2
+    local.get $t9
+    i32.add
+    local.set $t2
     local.get $h
     i32.const 1
     i32.add
@@ -320,75 +288,54 @@
     local.tee $t7
     local.get $t2
     i32.add
+    local.tee $t10
+    i32.const 16
     local.set $t9
-    block
-      local.get $t9
-      i32.const 16
-      local.set $t10
-      if
-        local.get $t9
-        call $rt:str
-        local.set $t10
-      end
+    if
       local.get $t10
-      local.get $t9
-      local.set $t10
+      call $rt:str
       local.set $t9
-      br 0
     end
+    local.get $t3
+    local.get $t9
     local.get $h
-    local.set $t11
-    block
-      local.get $t3
-      local.get $t9
-      local.get $t11
-      call $write_signed_sized
-      br 0
-    end
-    i32.const 113 ;; &" "
-    local.set $t11
-    block
-      local.get $t9
-      local.get $h
-      i32.add
-      local.get $t11
-      i32.load8_u $heap
-      i32.store8 $heap
-      br 0
-    end
-    block
-      local.get $t4
-      local.get $t9
-      local.get $i
-      i32.add
-      local.get $t1
-      call $write_signed_sized
-      br 0
-    end
-    i32.const 113 ;; &" "
-    local.set $h
-    block
-      local.get $t9
-      local.get $t5
-      i32.add
-      local.get $h
-      i32.load8_u $heap
-      i32.store8 $heap
-      br 0
-    end
-    block
-      local.get $t6
-      local.get $t9
-      local.get $t7
-      i32.add
-      local.get $t2
-      call $write_signed_sized
-      br 0
-    end
+    call $write_signed_sized
     ;; 31 |     let mut h = histogram()
     local.get $t9
-    local.get $t10
     ;; 36 |     println("${h.buckets[1]} ${s.items[0]} ${START[0]}")
+    local.get $h
+    i32.add
+    i32.const 113 ;; &" "
+    i32.load8_u $heap
+    i32.store8 $heap
+    local.get $t4
+    ;; 31 |     let mut h = histogram()
+    local.get $t9
+    ;; 36 |     println("${h.buckets[1]} ${s.items[0]} ${START[0]}")
+    local.get $i
+    i32.add
+    local.get $t1
+    call $write_signed_sized
+    ;; 31 |     let mut h = histogram()
+    local.get $t9
+    ;; 36 |     println("${h.buckets[1]} ${s.items[0]} ${START[0]}")
+    local.get $t5
+    i32.add
+    i32.const 113 ;; &" "
+    i32.load8_u $heap
+    i32.store8 $heap
+    local.get $t6
+    ;; 31 |     let mut h = histogram()
+    local.get $t9
+    ;; 36 |     println("${h.buckets[1]} ${s.items[0]} ${START[0]}")
+    local.get $t7
+    i32.add
+    local.get $t2
+    call $write_signed_sized
+    ;; 31 |     let mut h = histogram()
+    local.get $t9
+    ;; 36 |     println("${h.buckets[1]} ${s.items[0]} ${START[0]}")
+    local.get $t10
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"

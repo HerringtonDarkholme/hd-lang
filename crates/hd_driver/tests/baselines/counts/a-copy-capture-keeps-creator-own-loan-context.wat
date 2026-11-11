@@ -70,37 +70,33 @@
       i32.add
       local.set $t3
     end
+    ;; 13 |     p := box(Cell { value: "a", other: "o" })
+    local.get $p
     ;; 15 |     run_plain(fn() -> void: p.value = "b")
-    block
-      block
-        local.get $p
-        i32.const 4
-        i32.sub
-        i32.load $heap
-        i32.const 4128768
-        i32.and
-        local.get $t3
-        i32.ne
-        if
-          call $rt:panic
-          unreachable
-        end
-        local.get $p
-        local.tee $t1
-        i32.load $heap
-        local.get $t1
-        i32.load $heap offset=4
-        local.get $t1
-        i32.const 67 ;; &"b"
-        i32.store $heap
-        local.get $t1
-        i32.const 1
-        i32.store $heap offset=4
-        call $rt:release
-        br 0
-      end
-      br 0
+    i32.const 4
+    i32.sub
+    i32.load $heap
+    i32.const 4128768
+    i32.and
+    local.get $t3
+    i32.ne
+    if
+      call $rt:panic
+      unreachable
     end
+    ;; 13 |     p := box(Cell { value: "a", other: "o" })
+    local.get $p
+    ;; 15 |     run_plain(fn() -> void: p.value = "b")
+    i32.load $heap
+    local.get $p
+    i32.load $heap offset=4
+    local.get $p
+    i32.const 67 ;; &"b"
+    i32.store $heap
+    local.get $p
+    i32.const 1
+    i32.store $heap offset=4
+    call $rt:release
     ;; 16 |     (*r, p.value)
     local.get $r
     i32.load $heap

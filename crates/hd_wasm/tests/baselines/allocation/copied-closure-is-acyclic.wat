@@ -11,15 +11,11 @@
     local.tee $t0
     local.get $seed
     i32.store $heap
-    local.set $seed
-    local.get $seed
     local.get $t0
   )
   (func $copied#1 (param $env i32) (param $ctx i32) (result i32)
     ;; 5 |     fn() -> i32: seed
     local.get $env
     i32.load $heap
-    local.set $env
-    local.get $env
   )
 )

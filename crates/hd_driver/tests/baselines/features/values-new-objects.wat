@@ -73,19 +73,13 @@
     local.get $s.0
     i32.const 0
     i32.store $heap offset=4
-    local.set $s.1
     local.set $s.0
-    block
-      br 0
-    end
     ;; 23 |     let mut p = Named { name: s }
-    local.get $s.0
+    local.tee $s.1
     if
-      local.get $s.0
+      local.get $s.1
       call $rt:release_ref
     end
-    local.get $s.1
-    local.set $s.0
     local.get $s.0
     local.get $t0
     i32.const 16
@@ -157,9 +151,6 @@
     i32.load $heap offset=4
     local.set $s.1
     drop
-    block
-      br 0
-    end
     ;; 18 |     m := &mut Named { name: s }
     local.get $s.0
     if
@@ -172,8 +163,6 @@
       end
     end
     local.get $s.1
-    local.set $s.0
-    local.get $s.0
     local.get $t0
     i32.const 16
     i32.add
@@ -215,9 +204,6 @@
     i32.sub
     local.tee $t0
     global.set $locals
-    block
-      br 0
-    end
     local.get $t0
     i64.const 0
     i64.store $heap
@@ -239,9 +225,6 @@
     i32.load $heap offset=4
     local.set $s.1
     drop
-    block
-      br 0
-    end
     ;; 14 |     n := &make(s)
     local.get $s.0
     if
@@ -254,8 +237,6 @@
       end
     end
     local.get $s.1
-    local.set $s.0
-    local.get $s.0
     local.get $t0
     i32.const 16
     i32.add

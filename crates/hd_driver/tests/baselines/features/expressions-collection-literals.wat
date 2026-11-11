@@ -62,8 +62,6 @@
       end
     end
     local.get $t1
-    local.set $xs
-    local.get $xs
   )
   (func $list_spread_two (param $xs i32) (param $ys i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 15 |     [xs..., ys...]
@@ -145,8 +143,6 @@
       end
     end
     local.get $t1
-    local.set $xs
-    local.get $xs
   )
   (func $map_of (param $k.0 i32) (param $k.1 i32) (param $v.0 i32) (param $v.1 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 18 |     { k: v, "fixed": v }
@@ -197,8 +193,6 @@
     local.get $v.0
     local.get $v.1
     call $rt:map_put
-    local.set $k.0
-    local.get $k.0
   )
   (func $list_of (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 9 |     [a, b]
@@ -224,7 +218,5 @@
     local.get $b.1
     i32.store $heap offset=20
     local.get $t0
-    local.set $a.0
-    local.get $a.0
   )
 )

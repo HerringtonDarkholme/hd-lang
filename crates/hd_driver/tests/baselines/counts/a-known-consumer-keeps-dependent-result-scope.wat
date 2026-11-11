@@ -7,8 +7,6 @@
     i32.const 0
     i32.const 0
     call $"through[fn() -> ()]"
-    local.set $text
-    local.get $text
   )
   (func $"through[fn() -> ()]" (param $text i32) (param $f.0 i32) (param $f.1 i32) (result i32) (local $t0 i32)
     ;; 9 |     f()
@@ -37,7 +35,7 @@
         br 0
       end
     end
-    ;; 9 |     f()
+    ;; 13 |     picked
     local.get $text
   )
 )

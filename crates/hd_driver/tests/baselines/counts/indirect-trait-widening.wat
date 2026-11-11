@@ -45,10 +45,5 @@
         call $rt:release_ref
       end
     end
-    ;; 11 |     nested := box(dog)
-    local.set $dog.1
-    local.set $dog.0
-    local.get $dog.0
-    local.get $dog.1
   )
 )

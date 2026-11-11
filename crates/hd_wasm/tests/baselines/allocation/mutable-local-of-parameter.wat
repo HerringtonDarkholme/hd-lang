@@ -29,9 +29,6 @@
     i64.store $heap
     ;; 17 |         .Some(value)
     i32.const 1
-    ;; 13 |         if self.at >= self.end:
-    local.set $self
-    local.get $self
     local.get $value
   )
   (func $total (param $counter.at i64) (param $counter.end i64) (result i64) (local $cursor i32) (local $t0 i32) (local $sum i64) (local $t1 i32)
@@ -116,7 +113,6 @@
     ;; 25 |             .None => break
           br 2
     ;; 23 |         match cursor.next():
-          br 0
         end
     ;; 22 |     while true:
         br 0
@@ -125,8 +121,6 @@
     ;; 26 |     sum
     local.get $sum
     ;; 20 |     let mut cursor = counter
-    local.set $counter.at
-    local.get $counter.at
     local.get $t0
     i32.const 24
     i32.add

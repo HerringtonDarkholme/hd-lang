@@ -133,8 +133,6 @@
         call $rt:release_ref'1
       end
     end
-    local.set $env
-    local.get $env
     local.get $frame
     if
       local.get $frame
@@ -342,13 +340,6 @@
     ;; 9 |     (pair::[i32], pair::[string])
     local.get $t0
     local.get $captured.1
-    ;; 7 |     fn pair[T](value: T) -> (string, T):
-    local.set $t0
-    local.set $captured.1
-    local.set $captured.0
-    local.get $captured.0
-    local.get $captured.1
-    local.get $t0
     local.get $t1
   )
   (func $"generic#1[string]" (param $env i32) (param $value.0 i32) (param $value.1 i32) (param $ctx i32) (result i32 i32 i32 i32) (local $t0 i32)
@@ -364,6 +355,7 @@
       local.get $t0
       call $retain
     end
+    ;; 8 |         (captured, value)
     local.get $ctx
     local.get $env
     local.get $value.0
@@ -401,17 +393,15 @@
         call $rt:release_ref'1
       end
     end
-    local.set $count
-    local.get $count
+    ;; 13 |     fn!() -> usize:
     local.get $t0
   )
   (func $framed#1 (param $env i32) (param $ctx i32) (result i32)
     ;; 19 |     next := fn() -> usize:
     local.get $env
     i32.load $heap
-    local.set $env
+    local.tee $env
     ;; 20 |         count += 1
-    local.get $env
     i32.load $heap
     local.tee $ctx
     i32.const -2
@@ -428,11 +418,8 @@
     ;; 21 |         count
     local.get $env
     i32.load $heap
-    ;; 19 |     next := fn() -> usize:
-    local.set $env
-    local.get $env
   )
-  (func $framed (result i32) (local $t1 i32) (local $t0 i32) (local $t2 i32)
+  (func $framed (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 18 |     let count: usize = 0
     global.get $locals
     global.get $locals_base
@@ -504,8 +491,6 @@
         call $rt:release_ref'1
       end
     end
-    local.set $t1
-    local.get $t1
     local.get $t0
     i32.const 16
     i32.add
@@ -524,6 +509,7 @@
       local.get $t0
       call $retain
     end
+    ;; 8 |         (captured, value)
     local.get $ctx
     local.get $env
     local.get $value

@@ -208,12 +208,10 @@
         local.get $frame
         i32.load $heap offset=200
         local.set $t9
-        br 0
       end
       local.get $frame
       i32.load $heap offset=8
       local.set $t10
-    else
     end
     block
       block
@@ -1755,10 +1753,6 @@
       end
     end
     local.get $t0
-    local.set $value.1
-    local.set $value.0
-    local.get $value.0
-    local.get $value.1
   )
   (func $"generic[i32]" (param $value i32) (result i32 i32) (local $t0 i32)
     ;; 10 |     fn!() -> T: value
@@ -1769,8 +1763,6 @@
     local.tee $t0
     local.get $value
     i32.store $heap
-    local.set $value
-    local.get $value
     local.get $t0
   )
   (func $"generic[string]" (param $value.0 i32) (param $value.1 i32) (result i32 i32) (local $t0 i32)
@@ -1786,10 +1778,6 @@
     local.get $value.1
     i32.store $heap offset=4
     local.get $t0
-    local.set $value.1
-    local.set $value.0
-    local.get $value.0
-    local.get $value.1
   )
   (func $"generic#1[i32]" (param $frame i32) (param $env i32) (param $ctx i32) (result i32 i32) (local $value i32) (local $t0 i32)
     ;; 10 |     fn!() -> T: value
@@ -1819,7 +1807,6 @@
       local.get $frame
       i32.load $heap offset=32
       local.set $value
-    else
     end
     local.get $value
     local.get $frame
@@ -2044,7 +2031,6 @@
         local.get $frame
         i32.load $heap offset=100
         local.set $t2
-        br 0
       end
       local.get $frame
       i32.load $heap offset=8

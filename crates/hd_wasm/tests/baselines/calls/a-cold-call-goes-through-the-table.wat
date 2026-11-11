@@ -7,6 +7,5 @@
     local.get $at
     i32.const 1
     call_indirect $table0 (param i32) (result i32 i32)
-    ;; ...
   )
 )

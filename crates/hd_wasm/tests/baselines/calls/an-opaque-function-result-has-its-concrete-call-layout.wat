@@ -25,19 +25,10 @@
     local.tee $t1
     local.get $t2
     i64.store $heap
-    block
-      block
-        block
-          i32.const 0
-          i32.const 1
-          call $room
-          local.set $t0
-          br 0
-        end
-        br 0
-      end
-      br 0
-    end
+    i32.const 0
+    i32.const 1
+    call $room
+    local.set $t0
     local.get $t3
     i64.const 0
     i64.store $heap offset=16

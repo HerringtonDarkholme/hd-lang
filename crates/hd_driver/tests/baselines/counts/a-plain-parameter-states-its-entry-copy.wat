@@ -29,81 +29,51 @@
     ;; 23 |     fn() -> T: value
     local.get $env
     i32.load $heap
-    local.set $env
-    local.get $env
   )
-  (func $word (param $i i32) (result i32 i32) (local $t2 i32) (local $t0 i64) (local $t1 i64) (local $t3 i32) (local $t4 i32) (local $t5 i32)
+  (func $word (param $i i32) (result i32 i32) (local $t0 i64) (local $t1 i64) (local $t2 i32) (local $t4 i32) (local $t3 i32)
     ;; 15 |     "held$i"
     local.get $i
     i64.extend_i32_s
     local.tee $t0
-    local.set $t1
-    block
-      block
-        local.get $t1
-        call $signed_magnitude
-        call $unsigned_width
-        local.set $i
-        local.get $t1
-        i64.const 0
-        i64.lt_s
-        if
-          i32.const 1
-          local.set $t2
-        else
-        end
-        local.get $i
-        local.get $t2
-        i32.add
-        local.set $i
-        br 0
-      end
-      br 0
+    local.tee $t1
+    call $signed_magnitude
+    call $unsigned_width
+    local.set $i
+    local.get $t1
+    i64.const 0
+    i64.lt_s
+    if
+      i32.const 1
+      local.set $t2
     end
+    local.get $i
+    local.get $t2
+    i32.add
+    local.set $i
     i32.const 4
     local.tee $t2
     local.get $i
     i32.add
-    local.set $t3
-    block
+    local.tee $t3
+    i32.const 16
+    local.set $t4
+    if
       local.get $t3
-      i32.const 16
+      call $rt:str
       local.set $t4
-      if
-        local.get $t3
-        call $rt:str
-        local.set $t4
-      end
-      local.get $t4
-      local.get $t3
-      local.set $t4
-      local.set $t3
-      br 0
     end
-    i32.const 113 ;; &"held"
-    local.set $t5
-    block
-      local.get $t3
-      local.get $t5
-      i32.load $heap align=1
-      i32.store $heap align=1
-      br 0
-    end
-    block
-      local.get $t0
-      local.get $t3
-      local.get $t2
-      i32.add
-      local.get $i
-      call $write_signed_sized
-      br 0
-    end
-    local.get $t3
     local.get $t4
-    local.set $t2
-    local.set $i
-    local.get $i
+    i32.const 113 ;; &"held"
+    i32.load $heap align=1
+    i32.store $heap align=1
+    local.get $t0
+    local.get $t4
     local.get $t2
+    i32.add
+    local.get $i
+    call $write_signed_sized
+    local.get $t4
+    local.get $t3
   )
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $original.0 i32) (local $original.1 i32) (local $shared i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t0 i32) (local $t1 i32)
     ;; 38 |     original := word(7)
@@ -442,19 +412,10 @@
       end
     end
     ;; 50 |     let mut items = UniqList::[i32].new()
-    block
-      block
-        block
-          i32.const 0
-          i32.const 4
-          call $room
-          local.set $shared
-          br 0
-        end
-        br 0
-      end
-      br 0
-    end
+    i32.const 0
+    i32.const 4
+    call $room
+    local.set $shared
     local.get $t0
     i64.const 0
     i64.store $heap
@@ -488,52 +449,35 @@
     local.get $t2
     local.tee $shared
     ;; 51 |     items.push(7)
-    local.set $t2
+    local.tee $t2
     i32.const 7
     local.set $t3
-    block
-      block
-        local.get $t2
-        i32.load $heap offset=8
-        local.set $t4
-        br 0
-      end
-      block
-        local.get $t2
-        i32.load $heap offset=4
-        local.set $t1
-        br 0
-      end
-      local.get $t1
-      local.get $t4
-      i32.le_u
-      if
-        local.get $t2
-        local.get $t4
-        i32.const 1
-        i32.add
-        call $"impl[T < ?Copy] UniqList[T].reserve_for[i32]"
-      end
-      block
-        local.get $t2
-        i32.load $heap
-        local.get $t4
-        i32.const 4
-        i32.mul
-        i32.add
-        local.set $t1
-        br 0
-      end
-      local.get $t1
-      local.get $t3
-      i32.store $heap
+    i32.load $heap offset=8
+    local.set $t4
+    local.get $t2
+    i32.load $heap offset=4
+    local.get $t4
+    i32.le_u
+    if
       local.get $t2
       local.get $t4
       i32.const 1
       i32.add
-      i32.store $heap offset=8
-      br 0
+      call $"impl[T < ?Copy] UniqList[T].reserve_for[i32]"
     end
+    local.get $t2
+    i32.load $heap
+    local.get $t4
+    i32.const 4
+    i32.mul
+    i32.add
+    local.get $t3
+    i32.store $heap
+    local.get $t2
+    local.get $t4
+    i32.const 1
+    i32.add
+    i32.store $heap offset=8
     ;; 52 |     println(unique(items).len())
     local.get $shared
     i32.load $heap
@@ -587,13 +531,8 @@
     i32.store $heap offset=28
     local.get $t4
     local.tee $shared
+    i32.load $heap offset=8
     local.set $t2
-    block
-      local.get $t2
-      i32.load $heap offset=8
-      local.set $t2
-      br 0
-    end
     ;; 38 |     original := word(7)
     local.get $shared
     if
@@ -632,29 +571,17 @@
     i32.add
     global.set $locals
   )
-  (func $unique (param $value.buffer.address i32) (param $value.buffer.capacity i32) (param $value.len i32) (result i32 i32 i32) (local $t2 i32) (local $t1 i32) (local $t0 i32) (local $t3 i32)
+  (func $unique (param $value.buffer.address i32) (param $value.buffer.capacity i32) (param $value.len i32) (result i32 i32 i32)
     ;; 35 |     value
     local.get $value.buffer.address
-    local.get $value.buffer.capacity
-    local.get $value.len
     i32.const 0
-    local.set $value.buffer.address
     i32.const 0
-    local.set $value.buffer.capacity
     i32.const 0
-    local.set $value.len
-    local.set $t0
-    local.set $t1
-    local.set $t2
-    local.get $value.buffer.address
-    local.get $value.buffer.capacity
-    local.get $value.len
-    local.get $t3
-    local.get $t3
+    i32.const 0
+    i32.const 0
     call $rt:drop_value
-    local.get $t2
-    local.get $t1
-    local.get $t0
+    local.get $value.buffer.capacity
+    local.get $value.len
   )
   (func $"keep[*Named]" (param $value i32) (result i32 i32) (local $t0 i32)
     ;; 23 |     fn() -> T: value
@@ -665,8 +592,6 @@
     local.tee $t0
     local.get $value
     i32.store $heap
-    local.set $value
-    local.get $value
     local.get $t0
   )
   (func $"same[*Named]" (param $value i32) (result i32)
@@ -678,21 +603,14 @@
     local.get $value.0
     local.get $value.1
   )
-  (func $make (result i32 i32) (local $t0 i32)
+  (func $make (result i32 i32)
     ;; 27 |     fn(value: string) -> string: value
     i32.const 17
-    local.set $t0
-    local.get $t0
     i32.const 0
   )
   (func $read (param $value.0 i32) (param $value.1 i32) (result i32)
     ;; 31 |     value.len()
-    block
-      local.get $value.1
-      local.set $value.0
-      br 0
-    end
-    local.get $value.0
+    local.get $value.1
   )
   (func $"keep#1[*Named]" (param $env i32) (param $ctx i32) (result i32)
     ;; 23 |     fn() -> T: value
@@ -725,10 +643,6 @@
     local.get $value.1
     i32.store $heap offset=4
     local.get $t0
-    local.set $value.1
-    local.set $value.0
-    local.get $value.0
-    local.get $value.1
   )
   (func $"keep[i32]" (param $value i32) (result i32 i32) (local $t0 i32)
     ;; 23 |     fn() -> T: value
@@ -739,8 +653,6 @@
     local.tee $t0
     local.get $value
     i32.store $heap
-    local.set $value
-    local.get $value
     local.get $t0
   )
   (func $"keep#1[string]" (param $env i32) (param $ctx i32) (result i32 i32) (local $t0 i32)

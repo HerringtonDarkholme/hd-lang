@@ -34,25 +34,17 @@
         i32.load $heap offset=4
         local.set $t0
         drop
-        block
-          br 0
-        end
     ;; 17 |     match w.upgrade():
         br 1
       end
-      br 0
     end
     local.get $w
     call $rt:release
     local.get $t0
-    local.set $w
-    local.get $w
   )
   (func $make (param $node i32) (result i32)
     ;; 14 |     weak(node)
     local.get $node
     call $"weak[Node]"
-    local.set $node
-    local.get $node
   )
 )

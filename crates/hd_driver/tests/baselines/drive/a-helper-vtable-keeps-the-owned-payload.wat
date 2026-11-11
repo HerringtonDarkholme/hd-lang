@@ -12,9 +12,5 @@
     i32.store $heap
     local.get $t0
     i32.const 356 ;; &vtable[rt:dyn_slot, rt:block_drive]
-    local.set $t0
-    local.set $id
-    local.get $id
-    local.get $t0
   )
 )

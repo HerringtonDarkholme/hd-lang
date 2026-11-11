@@ -77,8 +77,6 @@
       call $rt:release
     end
     local.get $t2
-    local.set $t1
-    local.get $t1
     local.get $t0
     i32.const 32
     i32.add
@@ -89,8 +87,6 @@
     local.get $a
     local.get $b
     call $"impl[K < Eq & Hash, V < Eq] Eq for Map[K, V].eq[string, string]"
-    local.set $a
-    local.get $a
   )
   (func $list_ne (param $b i32) (param $t1 i32) (result i32) (local $t0 i32) (local $a i32)
     ;; 15 |     a != b
@@ -145,8 +141,6 @@
     local.get $b
     call $"impl[T < Eq] Eq for List[T].eq[string]"
     i32.eqz
-    local.set $b
-    local.get $b
     local.get $t0
     i32.const 32
     i32.add
@@ -159,8 +153,6 @@
     local.get $b.0
     local.get $b.1
     call $rt:str_eq
-    local.set $a.0
-    local.get $a.0
   )
   (func $rec_eq (param $b i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (param $t4 i32) (param $t5 i32) (result i32) (local $t0 i32) (local $a i32)
     ;; 18 |     a == b
@@ -226,8 +218,6 @@
     local.get $a
     local.get $b
     call $"derive Eq for Rec.eq"
-    local.set $b
-    local.get $b
     local.get $t0
     i32.const 48
     i32.add
@@ -289,7 +279,6 @@
         local.set $t3
         br 1
       end
-      br 0
     end
     local.get $o
     if
@@ -300,8 +289,6 @@
       call $rt:release
     end
     local.get $t3
-    local.set $t1
-    local.get $t1
     local.get $t0
     i32.const 16
     i32.add

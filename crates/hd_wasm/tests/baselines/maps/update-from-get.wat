@@ -81,7 +81,7 @@
     call $rt:map_put
     i32.store $heap
   )
-  (func $change (param $counts i32) (param $key.0 i32) (param $key.1 i32) (result i64) (local $t3 i64) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+  (func $change (param $counts i32) (param $key.0 i32) (param $key.1 i32) (result i64) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 25 |     counts[key] = 10
     local.get $counts
     i32.load $heap
@@ -114,8 +114,6 @@
     call $rt:map_put
     i32.store $heap
     i64.const 2
-    local.set $t3
-    local.get $t3
   )
   (func $append_existing (param $words i32) (param $key.0 i32) (param $key.1 i32) (param $suffix.0 i32) (param $suffix.1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32) (local $t1 i32)
     ;; 22 |     words[key] += suffix
@@ -258,30 +256,26 @@
     block
       block
         block
-          block
+          local.get $t0
+          i32.const 1
+          i32.eq
+          if
+            local.get $t2
+            local.set $t3
+            br 1
+          else
             local.get $t0
-            i32.const 1
-            i32.eq
-            if
-              local.get $t2
-              local.set $t3
-              br 1
-            else
-              local.get $t0
-              i32.eqz
-              br_if 2
-              unreachable
-            end
+            i32.eqz
+            br_if 2
             unreachable
           end
-          br 1
+          unreachable
         end
-        br 0
+        br 1
       end
-      local.get $t3
-      local.set $t2
-      br 0
     end
+    local.get $t3
+    local.set $t2
     local.get $counts
     i32.load $heap
     call $rt:map_unique'1
@@ -385,7 +379,6 @@
       i64.load $heap offset=8
       local.set $seen
       local.set $t3
-    else
     end
     block
       block
@@ -417,7 +410,6 @@
       end
       i64.const 1
       local.set $seen
-      br 0
     end
     local.get $counts
     i32.load $heap
@@ -536,31 +528,25 @@
     block
       block
         block
-          block
+          local.get $t0
+          i32.const 1
+          i32.eq
+          if
+            local.get $t3
+            local.set $t4
+            br 1
+          else
             local.get $t0
-            i32.const 1
-            i32.eq
-            if
-              local.get $t3
-              local.set $t4
-              br 1
-            else
-              local.get $t0
-              i32.eqz
-              br_if 2
-              unreachable
-            end
+            i32.eqz
+            br_if 2
             unreachable
           end
-          br 1
+          unreachable
         end
-        br 0
+        br 1
       end
-      local.get $t4
-      local.set $t3
-      br 0
     end
-    local.get $t3
+    local.get $t4
     i64.const 1
     i64.add
     local.set $t3

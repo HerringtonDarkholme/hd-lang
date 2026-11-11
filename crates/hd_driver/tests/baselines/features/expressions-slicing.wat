@@ -55,8 +55,6 @@
     i32.const 0
     local.get $t1
     call $"impl[T] List[T].slice[string]"
-    local.set $t1
-    local.get $t1
     local.get $t0
     i32.const 16
     i32.add
@@ -119,8 +117,6 @@
         call $rt:release_ref'1
       end
     end
-    local.set $t1
-    local.get $t1
     local.get $t0
     i32.const 16
     i32.add
@@ -133,10 +129,6 @@
     i32.const 1
     i32.const 3
     call $"impl string.slice"
-    local.set $s.1
-    local.set $s.0
-    local.get $s.0
-    local.get $s.1
   )
   (func $str_slice_len (param $s.0 i32) (param $s.1 i32) (param $n i32) (result i32)
     ;; 11 |     s.slice(0, n).len()
@@ -145,18 +137,12 @@
     i32.const 0
     local.get $n
     call $"impl string.slice"
-    local.set $s.1
     local.set $s.0
-    block
-      br 0
-    end
-    local.get $s.0
+    local.tee $s.1
     if
-      local.get $s.0
+      local.get $s.1
       call $rt:release_ref'2
     end
-    local.get $s.1
-    local.set $s.0
     local.get $s.0
   )
   (func $list_slice (param $t1 i32) (result i32) (local $t0 i32) (local $xs i32)
@@ -207,8 +193,6 @@
     i32.const 1
     local.get $t1
     call $"impl[T] List[T].slice[string]"
-    local.set $t1
-    local.get $t1
     local.get $t0
     i32.const 16
     i32.add

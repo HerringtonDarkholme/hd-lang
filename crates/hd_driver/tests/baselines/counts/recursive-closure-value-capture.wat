@@ -30,9 +30,6 @@
       i32.add
     ;; 7 |         if n == 0: seed
     end
-    ;; 6 |     sum := fn(n: i32) -> i32:
-    local.set $env
-    local.get $env
   )
   (func $sum_to (param $limit i32) (param $seed i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 6 |     sum := fn(n: i32) -> i32:
@@ -89,7 +86,5 @@
         call $rt:release_ref
       end
     end
-    local.set $limit
-    local.get $limit
   )
 )

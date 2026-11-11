@@ -41,23 +41,15 @@
         i32.add
         local.set $t0
         block
-          block
-            br 0
-            unreachable
-          end
-    ;; 19 |         n += f.len()
-          block
-            local.get $f.1
-            local.set $t1
-            br 0
-          end
-          local.get $n
-          local.get $t1
-          i32.add
-          local.set $n
-    ;; 18 |     for f in line.split(","):
           br 0
+          unreachable
         end
+    ;; 19 |         n += f.len()
+        local.get $n
+        local.get $f.1
+        i32.add
+        local.set $n
+    ;; 18 |     for f in line.split(","):
         br 0
       end
     end
@@ -75,51 +67,43 @@
     end
     ;; 20 |     n
     local.get $n
-    ;; 17 |     let mut n = 0
-    local.set $line.0
-    local.get $line.0
   )
-  (func $build (param $parts i32) (result i32 i32) (local $sb i32) (local $t0 i32) (local $p.0 i32) (local $p.1 i32) (local $t1 i32)
+  (func $build (param $parts i32) (result i32 i32) (local $t0 i32) (local $p.0 i32) (local $p.1 i32) (local $sb i32) (local $t1 i32)
     ;; 10 |     sb := StringBuilder::new()
-    block
-      call $"impl[T < ?Copy] UniqList[T].new[u8]"
-      local.set $p.0
-      local.set $t0
-      local.set $sb
-      i32.const 36
-      i32.const 3
-      call $rt:new/class-3
-      local.tee $p.1
-      local.get $sb
-      i32.store $heap
-      local.get $p.1
-      local.get $t0
-      i32.store $heap offset=4
-      local.get $p.1
-      local.get $p.0
-      i32.store $heap offset=8
-      local.get $p.1
-      i32.const 1
-      i32.store $heap offset=12
-      local.get $p.1
-      i32.const 1
-      i32.store $heap offset=16
-      local.get $p.1
-      i32.const 1
-      i32.store $heap offset=20
-      local.get $p.1
-      i32.const 1
-      i32.store $heap offset=24
-      local.get $p.1
-      i32.const 1
-      i32.store $heap offset=28
-      local.get $p.1
-      i32.const 1
-      i32.store $heap offset=32
-      local.get $p.1
-      local.set $sb
-      br 0
-    end
+    call $"impl[T < ?Copy] UniqList[T].new[u8]"
+    local.set $p.1
+    local.set $p.0
+    local.set $t0
+    i32.const 36
+    i32.const 3
+    call $rt:new/class-3
+    local.tee $sb
+    local.get $t0
+    i32.store $heap
+    local.get $sb
+    local.get $p.0
+    i32.store $heap offset=4
+    local.get $sb
+    local.get $p.1
+    i32.store $heap offset=8
+    local.get $sb
+    i32.const 1
+    i32.store $heap offset=12
+    local.get $sb
+    i32.const 1
+    i32.store $heap offset=16
+    local.get $sb
+    i32.const 1
+    i32.store $heap offset=20
+    local.get $sb
+    i32.const 1
+    i32.store $heap offset=24
+    local.get $sb
+    i32.const 1
+    i32.store $heap offset=28
+    local.get $sb
+    i32.const 1
+    i32.store $heap offset=32
     ;; 11 |     for p in parts:
     local.get $parts
     i32.load $heap
@@ -150,23 +134,20 @@
         i32.add
         local.set $t1
         block
-          block
-            br 0
-            unreachable
-          end
-    ;; 12 |         sb.push(p)
-          local.get $sb
-          local.get $p.0
-          local.get $p.1
-          call $"impl StringBuilder.push"
-    ;; 13 |         sb.push(",")
-          local.get $sb
-          i32.const 65 ;; &","
-          i32.const 1
-          call $"impl StringBuilder.push"
-    ;; 11 |     for p in parts:
           br 0
+          unreachable
         end
+    ;; 12 |         sb.push(p)
+        local.get $sb
+        local.get $p.0
+        local.get $p.1
+        call $"impl StringBuilder.push"
+    ;; 13 |         sb.push(",")
+        local.get $sb
+        i32.const 65 ;; &","
+        i32.const 1
+        call $"impl StringBuilder.push"
+    ;; 11 |     for p in parts:
         br 0
       end
     end
@@ -198,9 +179,5 @@
         call $rt:release_ref
       end
     end
-    local.set $sb
-    local.set $parts
-    local.get $parts
-    local.get $sb
   )
 )

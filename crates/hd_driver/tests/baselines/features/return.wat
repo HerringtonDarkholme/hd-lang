@@ -20,76 +20,48 @@
     local.get $s.0
     local.get $s.1
   )
-  (func $ret_new (param $n i64) (result i32 i32) (local $t1 i32) (local $t2 i32) (local $t0 i64) (local $t3 i32) (local $t4 i32) (local $t5 i32)
+  (func $ret_new (param $n i64) (result i32 i32) (local $t1 i32) (local $t0 i64) (local $t2 i32) (local $t4 i32) (local $t3 i32)
     ;; 16 |     "n=${n}"
     local.get $n
-    local.set $t0
-    block
-      block
-        local.get $t0
-        call $signed_magnitude
-        call $unsigned_width
-        local.set $t1
-        local.get $t0
-        i64.const 0
-        i64.lt_s
-        if
-          i32.const 1
-          local.set $t2
-        else
-        end
-        local.get $t1
-        local.get $t2
-        i32.add
-        local.set $t1
-        br 0
-      end
-      br 0
+    local.tee $t0
+    call $signed_magnitude
+    call $unsigned_width
+    local.set $t1
+    local.get $t0
+    i64.const 0
+    i64.lt_s
+    if
+      i32.const 1
+      local.set $t2
     end
+    local.get $t1
+    local.get $t2
+    i32.add
+    local.set $t1
     i32.const 2
     local.tee $t2
     local.get $t1
     i32.add
-    local.set $t3
-    block
+    local.tee $t3
+    i32.const 16
+    local.set $t4
+    if
       local.get $t3
-      i32.const 16
+      call $rt:str
       local.set $t4
-      if
-        local.get $t3
-        call $rt:str
-        local.set $t4
-      end
-      local.get $t4
-      local.get $t3
-      local.set $t4
-      local.set $t3
-      br 0
     end
-    i32.const 65 ;; &"n="
-    local.set $t5
-    block
-      local.get $t3
-      local.get $t5
-      i32.load16_u $heap align=1
-      i32.store16 $heap align=1
-      br 0
-    end
-    block
-      local.get $n
-      local.get $t3
-      local.get $t2
-      i32.add
-      local.get $t1
-      call $write_signed_sized
-      br 0
-    end
-    local.get $t3
     local.get $t4
-    local.set $t2
-    local.set $t1
-    local.get $t1
+    i32.const 65 ;; &"n="
+    i32.load16_u $heap align=1
+    i32.store16 $heap align=1
+    local.get $n
+    local.get $t4
     local.get $t2
+    i32.add
+    local.get $t1
+    call $write_signed_sized
+    local.get $t4
+    local.get $t3
   )
   (func $ret_ref_field (param $r i32) (result i32)
     ;; 19 |     &r.name
@@ -149,17 +121,7 @@
       local.get $t3
       call $retain
     end
-    block
-      local.get $t2
-      local.get $t1
-      local.set $t2
-      local.set $t1
-      br 0
-    end
-    block
-      br 0
-    end
-    local.get $t1
+    local.get $t2
     local.tee $t3
     if
       local.get $t3
@@ -169,39 +131,24 @@
     i32.load $heap
     local.get $r
     i32.load $heap offset=4
-    local.set $t1
+    local.set $t2
     local.tee $t4
     local.tee $t3
     if
       local.get $t3
       call $retain
     end
-    block
-      local.get $t4
-      local.get $t1
-      local.set $t4
-      local.set $t1
-      br 0
-    end
-    block
-      br 0
-    end
-    local.get $t1
+    local.get $t4
     local.tee $t3
     if
       local.get $t3
       call $rt:release_ref
     end
+    local.get $t1
     local.get $t2
-    local.get $t4
     i32.add
     local.set $t1
-    block
-      local.get $r
-      local.set $t2
-      br 0
-    end
-    local.get $t2
+    local.get $r
     call $"impl string.len"
     local.set $t2
     local.get $r
@@ -217,8 +164,6 @@
     local.get $t1
     local.get $t2
     i32.add
-    local.set $t1
-    local.get $t1
     local.get $t0
     i32.const 16
     i32.add

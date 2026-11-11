@@ -87,12 +87,10 @@
         local.get $frame
         i32.load $heap offset=36
         local.set $provider1.vtable
-        br 0
       end
       local.get $frame
       i32.load $heap offset=8
       local.set $t1
-    else
     end
     block
       block
@@ -780,16 +778,12 @@
     local.get $a
     local.get $b
     i32.eq
-    local.set $a
-    local.get $a
   )
   (func $"same[string]" (param $a i32) (param $b i32) (result i32)
     ;; 9 |     a is b
     local.get $a
     local.get $b
     i32.eq
-    local.set $a
-    local.get $a
   )
   (func $"direct[string]" (param $value.0 i32) (param $value.1 i32) (result i32 i32)
     ;; 23 |     value
@@ -859,7 +853,6 @@
         local.get $frame
         i32.load $heap offset=136
         local.set $t3
-        br 0
       end
       local.get $frame
       i32.load $heap offset=8
@@ -886,13 +879,8 @@
         drop
     ;; 13 |     sleep!(ms(1))
         i64.const 1
+        call $"impl Duration.milliseconds"
         local.set $t1
-        block
-          local.get $t1
-          call $"impl Duration.milliseconds"
-          local.set $t1
-          br 0
-        end
     ;; 12 |     _ := same(&value, &value)
       end
     ;; 13 |     sleep!(ms(1))
@@ -1430,10 +1418,6 @@
     i32.const 0
     i32.store $heap offset=4
     ;; 18 |     _ := same(&value, &value)
-    local.set $t2
-    local.set $t1
-    local.get $t1
-    local.get $t2
     local.get $t0
     i32.const 16
     i32.add
@@ -1490,7 +1474,6 @@
         local.get $frame
         i64.load $heap offset=64
         local.set $t1
-        br 0
       end
       local.get $frame
       i32.load $heap offset=8
@@ -1514,13 +1497,8 @@
         drop
     ;; 13 |     sleep!(ms(1))
         i64.const 1
+        call $"impl Duration.milliseconds"
         local.set $t1
-        block
-          local.get $t1
-          call $"impl Duration.milliseconds"
-          local.set $t1
-          br 0
-        end
     ;; 12 |     _ := same(&value, &value)
       end
     ;; 13 |     sleep!(ms(1))

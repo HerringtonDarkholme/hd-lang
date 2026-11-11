@@ -79,9 +79,5 @@
     i32.store $heap
     ;; 5 |     previous := values.get(key)
     local.get $t3
-    local.set $key.0
-    local.set $values
-    local.get $values
-    local.get $key.0
   )
 )

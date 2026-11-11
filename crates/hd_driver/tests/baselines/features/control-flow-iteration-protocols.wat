@@ -9,7 +9,7 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $twice (param $xs i32) (result i32) (local $n i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $x.1'2 i32) (local $x.1'1 i32) (local $t3 i32)
+  (func $twice (param $xs i32) (result i32) (local $n i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $x.1'2 i32) (local $x.1'1 i32)
     ;; 26 |     let n: usize = 0
     global.get $locals
     global.get $locals_base
@@ -41,12 +41,9 @@
     local.tee $t0
     global.set $locals
     ;; 27 |     for x in xs.iter():
-    block
-      local.get $xs
-      call $rt:coll_copy
-      local.set $t1
-      br 0
-    end
+    local.get $xs
+    call $rt:coll_copy
+    local.set $t1
     local.get $t0
     i64.const 0
     i64.store $heap
@@ -78,13 +75,8 @@
               unreachable
             end
     ;; 28 |         n += x.len()
-            block
-              local.get $x.1'1
-              local.set $t3
-              br 0
-            end
             local.get $n
-            local.get $t3
+            local.get $x.1'1
             i32.add
             local.set $n
     ;; 27 |     for x in xs.iter():
@@ -94,7 +86,6 @@
           local.get $x.1'1
           call $rt:release
           br 2
-          br 0
         end
         local.get $x.1'2
         local.get $x.1'1
@@ -151,13 +142,8 @@
               unreachable
             end
     ;; 30 |         n += x.len()
-            block
-              local.get $x.1'2
-              local.set $x.1'1
-              br 0
-            end
             local.get $n
-            local.get $x.1'1
+            local.get $x.1'2
             i32.add
             local.set $n
     ;; 29 |     for x in xs.iter():
@@ -167,7 +153,6 @@
           local.get $x.1'2
           call $rt:release
           br 2
-          br 0
         end
         local.get $t2
         local.get $x.1'2
@@ -195,14 +180,12 @@
     ;; 31 |     n
     local.get $n
     ;; 26 |     let n: usize = 0
-    local.set $xs
-    local.get $xs
     local.get $t0
     i32.const 32
     i32.add
     global.set $locals
   )
-  (func $user_cursor (param $words.items i32) (param $words.at i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $w.1 i32) (local $t2 i32)
+  (func $user_cursor (param $words.items i32) (param $words.at i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $w.1 i32)
     ;; 20 |     let n: usize = 0
     global.get $locals
     global.get $locals_base
@@ -265,13 +248,8 @@
               unreachable
             end
     ;; 22 |         n += w.len()
-            block
-              local.get $w.1
-              local.set $t2
-              br 0
-            end
             local.get $n
-            local.get $t2
+            local.get $w.1
             i32.add
             local.set $n
     ;; 21 |     for w in words:
@@ -281,7 +259,6 @@
           local.get $w.1
           call $rt:release
           br 2
-          br 0
         end
         local.get $t1
         local.get $w.1
@@ -309,8 +286,6 @@
     ;; 23 |     n
     local.get $n
     ;; 20 |     let n: usize = 0
-    local.set $words.items
-    local.get $words.items
     local.get $t0
     i32.const 16
     i32.add
@@ -370,7 +345,6 @@
       local.get $t1
       call $retain
     end
-    ;; 14 |         if self.at >= self.items.len():
     local.get $self
     local.get $t0
   )

@@ -11,10 +11,6 @@
     i32.load $heap offset=4
     i32.load $heap
     call_indirect $table0 (param i32) (result i32 i32)
-    local.set $value.1
-    local.set $value.0
-    local.get $value.0
-    local.get $value.1
   )
   (func $loaded (param $value i32) (result i32 i32) (local $t0 i32) (local $t1 i32)
     ;; 6 |     value.to_string()
@@ -40,9 +36,5 @@
       local.get $t1
       call $rt:release_ref
     end
-    local.set $t0
-    local.set $value
-    local.get $value
-    local.get $t0
   )
 )

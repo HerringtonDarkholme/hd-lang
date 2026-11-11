@@ -6,40 +6,37 @@
     ;; 15 |     match value:
     block
       block
-        block
-    ;; 16 |         .Some(Payload { text }) => *text = Text { value: "changed" }
-          local.get $value
-          i32.load $heap
-          local.tee $t0
-          if
-            br 1
-          else
-    ;; 17 |         .None => pass
-            local.get $t0
-            i32.eqz
-            br_if 2
-            unreachable
-    ;; 16 |         .Some(Payload { text }) => *text = Text { value: "changed" }
-          end
-    ;; 15 |     match value:
-          unreachable
-        end
     ;; 16 |         .Some(Payload { text }) => *text = Text { value: "changed" }
         local.get $value
         i32.load $heap
-        local.get $value
-        i32.load $heap offset=4
-        local.get $value
-        i32.const 65 ;; &"changed"
-        i32.store $heap
-        local.get $value
-        i32.const 7
-        i32.store $heap offset=4
-        call $rt:release
+        local.tee $t0
+        if
+          br 1
+        else
+    ;; 17 |         .None => pass
+          local.get $t0
+          i32.eqz
+          br_if 2
+          unreachable
+    ;; 16 |         .Some(Payload { text }) => *text = Text { value: "changed" }
+        end
     ;; 15 |     match value:
-        br 1
+        unreachable
       end
-      br 0
+    ;; 16 |         .Some(Payload { text }) => *text = Text { value: "changed" }
+      local.get $value
+      i32.load $heap
+      local.get $value
+      i32.load $heap offset=4
+      local.get $value
+      i32.const 65 ;; &"changed"
+      i32.store $heap
+      local.get $value
+      i32.const 7
+      i32.store $heap offset=4
+      call $rt:release
+    ;; 15 |     match value:
+      return
     end
   )
 )

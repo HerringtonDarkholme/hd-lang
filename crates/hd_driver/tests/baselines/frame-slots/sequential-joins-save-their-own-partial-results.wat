@@ -42,7 +42,6 @@
       local.get $frame
       i32.load $heap offset=28
       local.set $value.1
-    else
     end
     local.get $value.0
     local.get $value.1
@@ -400,12 +399,10 @@
         local.get $frame
         i32.load $heap offset=264
         local.set $t16
-        br 0
       end
       local.get $frame
       i32.load $heap offset=8
       local.set $d.0
-    else
     end
     block
       block
@@ -923,15 +920,12 @@
         i32.const 0
         local.set $t1
         block
-          block
-            local.get $t3
-            local.get $t19
-            local.set $a.1
-            local.set $a.0
-            br 0
-            unreachable
-          end
+          local.get $t3
+          local.get $t19
+          local.set $a.1
+          local.set $a.0
           br 0
+          unreachable
         end
     ;; 12 |     let (c, d) = join!(ready(a), ready(b))
         local.get $a.0
@@ -1437,11 +1431,8 @@
       end
     ;; 12 |     let (c, d) = join!(ready(a), ready(b))
       block
-        block
-          br 0
-          unreachable
-        end
         br 0
+        unreachable
       end
     ;; 13 |     a + c + d
       local.get $a.0

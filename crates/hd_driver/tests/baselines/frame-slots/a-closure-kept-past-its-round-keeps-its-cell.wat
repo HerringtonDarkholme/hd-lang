@@ -125,16 +125,13 @@
         call $rt:release_ref
       end
     end
-    local.set $n
-    local.get $n
   )
   (func $kept#2 (param $env i32) (param $ctx i32) (result i32)
     ;; 11 |         step := fn() -> i32:
     local.get $env
     i32.load $heap
-    local.set $env
+    local.tee $env
     ;; 12 |             total = total + 1
-    local.get $env
     local.get $env
     i32.load $heap
     i32.const 1
@@ -143,9 +140,6 @@
     ;; 13 |             total
     local.get $env
     i32.load $heap
-    ;; 11 |         step := fn() -> i32:
-    local.set $env
-    local.get $env
   )
   (func $fresh (param $n i32) (result i32) (local $out i32) (local $t1 i32) (local $i i32) (local $t0 i32) (local $t2 i32)
     ;; 19 |     let mut out = +0
@@ -203,22 +197,16 @@
         local.get $i
         i32.store $heap
         local.get $t2
-        local.set $i
+        local.tee $i
     ;; 25 |         out += step()
-        block
-          local.get $i
-          local.get $i
-          i32.load $heap
-          i32.const 1
-          i32.add
-          i32.store $heap
-          local.get $i
-          i32.load $heap
-          local.set $i
-          br 0
-        end
+        local.get $i
+        i32.load $heap
+        i32.const 1
+        i32.add
+        i32.store $heap
         local.get $out
         local.get $i
+        i32.load $heap
         i32.add
         local.set $out
     ;; 20 |     for i in +0..n:
@@ -228,8 +216,6 @@
     ;; 26 |     out
     local.get $out
     ;; 19 |     let mut out = +0
-    local.set $n
-    local.get $n
     local.get $t0
     i32.const 16
     i32.add

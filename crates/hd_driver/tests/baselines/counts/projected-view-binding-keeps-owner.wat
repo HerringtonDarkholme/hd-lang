@@ -3,18 +3,11 @@
   (import "fixture" "read#adapter" (func $read#adapter (param i32 i32 i32) (result i32)))
   (func $project (param $pair i32) (param $visit.0 i32) (param $visit.1 i32) (result i32)
     ;; 24 |     relay(&pair.id, visit)
+    local.get $visit.1
     local.get $pair
     i32.const 8
     i32.add
-    local.set $pair
-    block
-      local.get $visit.1
-      local.get $pair
-      i32.const 0
-      call $read#adapter
-      local.set $pair
-      br 0
-    end
-    local.get $pair
+    i32.const 0
+    call $read#adapter
   )
 )

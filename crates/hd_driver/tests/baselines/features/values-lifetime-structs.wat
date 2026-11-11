@@ -86,8 +86,6 @@
       end
     end
     local.get $t1
-    local.set $other
-    local.get $other
     local.get $t0
     i32.const 32
     i32.add
@@ -97,31 +95,27 @@
     ;; 19 |     match t:
     block
       block
-        block
     ;; 20 |         Token.Word(w) => w
+        local.get $t
+        if
+          br 1
+        else
+    ;; 21 |         Token.End => fallback
           local.get $t
-          if
-            br 1
-          else
-    ;; 21 |         Token.End => fallback
-            local.get $t
-            i32.eqz
-            br_if 2
-            unreachable
-    ;; 20 |         Token.Word(w) => w
-          end
-    ;; 19 |     match t:
+          i32.eqz
+          br_if 2
           unreachable
+    ;; 20 |         Token.Word(w) => w
         end
-        br 1
-      end
-    ;; 21 |         Token.End => fallback
-      local.get $fallback
     ;; 19 |     match t:
-      local.set $t
-      br 0
+        unreachable
+      end
+    ;; 20 |         Token.Word(w) => w
+      local.get $t
+    ;; 19 |     match t:
+      return
     end
-    local.get $t
+    local.get $fallback
   )
   (func $parser (param $src i32) (result i32 i32)
     ;; 16 |     Parser { src: src, pos: 0 }
@@ -171,12 +165,7 @@
     local.get $text
     local.get $t2
     i32.store $heap offset=4
-    block
-      local.get $text
-      local.set $t1
-      br 0
-    end
-    local.get $t1
+    local.get $text
     ;; 25 |     p.src.len() + p.pos
     call $"impl string.len"
     local.set $t1

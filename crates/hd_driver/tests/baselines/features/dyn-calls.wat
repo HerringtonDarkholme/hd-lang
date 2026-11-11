@@ -12,18 +12,12 @@
     local.get $x.1
     i32.load $heap
     call_indirect $table0 (param i32) (result i32 i32)
-    local.set $x.1
     local.set $x.0
-    block
-      br 0
-    end
-    local.get $x.0
+    local.tee $x.1
     if
-      local.get $x.0
+      local.get $x.1
       call $rt:release_ref
     end
-    local.get $x.1
-    local.set $x.0
     local.get $x.0
   )
   (func $make_dyn (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32) (local $d i32)

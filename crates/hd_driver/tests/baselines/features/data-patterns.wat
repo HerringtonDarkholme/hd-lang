@@ -33,7 +33,6 @@
         call $retain
       end
     ;; 16 |     match u:
-      br 0
     end
     local.get $u.name.0
     local.get $u.name.1
@@ -41,24 +40,13 @@
   (func $sizes (param $u.name.0 i32) (param $u.name.1 i32) (param $u.tags i32) (param $u.age i32) (result i32)
     ;; 12 |     match u:
     block
-      block
-        br 0
-        unreachable
-      end
-    ;; 13 |         User { name, tags } => name.len() + tags.len()
-      block
-        local.get $u.name.1
-        local.set $u.name.0
-        br 0
-      end
-      local.get $u.name.0
-      local.get $u.tags
-      i32.load $heap offset=4
-      i32.add
-    ;; 12 |     match u:
-      local.set $u.name.0
       br 0
+      unreachable
     end
-    local.get $u.name.0
+    ;; 13 |         User { name, tags } => name.len() + tags.len()
+    local.get $u.name.1
+    local.get $u.tags
+    i32.load $heap offset=4
+    i32.add
   )
 )

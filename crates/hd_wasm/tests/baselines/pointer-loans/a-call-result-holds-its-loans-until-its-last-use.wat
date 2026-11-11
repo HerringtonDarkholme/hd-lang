@@ -22,8 +22,6 @@
     end
     local.get $self
     i32.load $heap
-    local.set $self
-    local.get $self
   )
   (func $probe (param $p i32) (param $alias i32) (result i32 i32) (local $r i32) (local $t1 i32) (local $t0 i32)
     ;; 17 |     r := p.slot()

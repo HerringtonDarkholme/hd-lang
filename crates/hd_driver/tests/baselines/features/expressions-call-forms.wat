@@ -5,25 +5,11 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $join2 (param $first.0 i32) (param $first.1 i32) (param $second.0 i32) (param $second.1 i32) (result i32)
     ;; 8 |     first.len() * 3 + second.len()
-    block
-      local.get $first.1
-      local.set $first.0
-      br 0
-    end
-    local.get $first.0
+    local.get $first.1
     i32.const 3
     i32.mul
-    local.set $first.0
-    block
-      local.get $second.1
-      local.set $first.1
-      br 0
-    end
-    local.get $first.0
-    local.get $first.1
+    local.get $second.1
     i32.add
-    local.set $first.0
-    local.get $first.0
   )
   (func $named (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32)
     ;; 14 |     join2(second=a, first=b)
@@ -32,25 +18,16 @@
     local.get $a.0
     local.get $a.1
     call $join2
-    local.set $a.0
-    local.get $a.0
   )
   (func $count (param $values i32) (result i32)
     ;; 11 |     values.len()
     local.get $values
     i32.load $heap offset=4
-    local.set $values
-    local.get $values
   )
   (func $spread_list (param $xs i32) (result i32)
     ;; 23 |     count(xs...)
-    block
-      local.get $xs
-      i32.load $heap offset=4
-      local.set $xs
-      br 0
-    end
     local.get $xs
+    i32.load $heap offset=4
   )
   (func $collect (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 26 |     count(a, b)
@@ -75,12 +52,9 @@
     local.get $t1
     local.get $b.1
     i32.store $heap offset=20
-    block
-      local.get $t0
-      i32.load $heap offset=4
-      local.set $a.0
-      br 0
-    end
+    local.get $t0
+    i32.load $heap offset=4
+    local.set $a.0
     local.get $t0
     if
       local.get $t0
@@ -101,8 +75,6 @@
     local.get $pair.1.0
     local.get $pair.1.1
     call $join2
-    local.set $pair.0.0
-    local.get $pair.0.0
   )
   (func $positional (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32)
     ;; 17 |     join2(b, a)
@@ -111,7 +83,5 @@
     local.get $a.0
     local.get $a.1
     call $join2
-    local.set $a.0
-    local.get $a.0
   )
 )

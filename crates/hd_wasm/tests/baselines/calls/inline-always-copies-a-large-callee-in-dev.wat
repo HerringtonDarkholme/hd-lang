@@ -3,218 +3,213 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (func $apply (param $value i32) (result i32)
     ;; 29 |     mix(value)
-    block
-      local.get $value
-      i32.const 2147483646
-      i32.gt_s
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $value
-      i32.const 1
-      i32.add
-      local.tee $value
-      i32.const -715827882
-      i32.sub
-      i32.const 1431655764
-      i32.gt_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $value
-      i32.const 3
-      i32.mul
-      local.tee $value
-      i32.const 2147483642
-      i32.gt_s
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $value
-      i32.const 5
-      i32.add
-      local.tee $value
-      i32.const -306783378
-      i32.sub
-      i32.const 613566756
-      i32.gt_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $value
-      i32.const 7
-      i32.mul
-      local.tee $value
-      i32.const 2147483636
-      i32.gt_s
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $value
-      i32.const 11
-      i32.add
-      local.tee $value
-      i32.const -165191049
-      i32.sub
-      i32.const 330382098
-      i32.gt_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $value
-      i32.const 13
-      i32.mul
-      local.tee $value
-      i32.const 2147483630
-      i32.gt_s
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $value
-      i32.const 17
-      i32.add
-      local.tee $value
-      i32.const -113025455
-      i32.sub
-      i32.const 226050910
-      i32.gt_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $value
-      i32.const 19
-      i32.mul
-      local.tee $value
-      i32.const 2147483624
-      i32.gt_s
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $value
-      i32.const 23
-      i32.add
-      local.tee $value
-      i32.const -74051160
-      i32.sub
-      i32.const 148102320
-      i32.gt_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $value
-      i32.const 29
-      i32.mul
-      local.tee $value
-      i32.const 2147483616
-      i32.gt_s
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $value
-      i32.const 31
-      i32.add
-      local.tee $value
-      i32.const -58040098
-      i32.sub
-      i32.const 116080196
-      i32.gt_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $value
-      i32.const 37
-      i32.mul
-      local.tee $value
-      i32.const 2147483606
-      i32.gt_s
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $value
-      i32.const 41
-      i32.add
-      local.tee $value
-      i32.const -49941480
-      i32.sub
-      i32.const 99882960
-      i32.gt_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $value
-      i32.const 43
-      i32.mul
-      local.tee $value
-      i32.const 2147483600
-      i32.gt_s
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $value
-      i32.const 47
-      i32.add
-      local.tee $value
-      i32.const -40518559
-      i32.sub
-      i32.const 81037118
-      i32.gt_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $value
-      i32.const 53
-      i32.mul
-      local.tee $value
-      i32.const 2147483588
-      i32.gt_s
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $value
-      i32.const 59
-      i32.add
-      local.tee $value
-      i32.const -35204649
-      i32.sub
-      i32.const 70409298
-      i32.gt_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $value
-      i32.const 61
-      i32.mul
-      local.tee $value
-      i32.const 2147483580
-      i32.gt_s
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $value
-      i32.const 67
-      i32.add
-      local.set $value
-      br 0
+    local.get $value
+    i32.const 2147483646
+    i32.gt_s
+    if
+      call $rt:panic
+      unreachable
     end
     local.get $value
+    i32.const 1
+    i32.add
+    local.tee $value
+    i32.const -715827882
+    i32.sub
+    i32.const 1431655764
+    i32.gt_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $value
+    i32.const 3
+    i32.mul
+    local.tee $value
+    i32.const 2147483642
+    i32.gt_s
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $value
+    i32.const 5
+    i32.add
+    local.tee $value
+    i32.const -306783378
+    i32.sub
+    i32.const 613566756
+    i32.gt_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $value
+    i32.const 7
+    i32.mul
+    local.tee $value
+    i32.const 2147483636
+    i32.gt_s
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $value
+    i32.const 11
+    i32.add
+    local.tee $value
+    i32.const -165191049
+    i32.sub
+    i32.const 330382098
+    i32.gt_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $value
+    i32.const 13
+    i32.mul
+    local.tee $value
+    i32.const 2147483630
+    i32.gt_s
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $value
+    i32.const 17
+    i32.add
+    local.tee $value
+    i32.const -113025455
+    i32.sub
+    i32.const 226050910
+    i32.gt_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $value
+    i32.const 19
+    i32.mul
+    local.tee $value
+    i32.const 2147483624
+    i32.gt_s
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $value
+    i32.const 23
+    i32.add
+    local.tee $value
+    i32.const -74051160
+    i32.sub
+    i32.const 148102320
+    i32.gt_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $value
+    i32.const 29
+    i32.mul
+    local.tee $value
+    i32.const 2147483616
+    i32.gt_s
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $value
+    i32.const 31
+    i32.add
+    local.tee $value
+    i32.const -58040098
+    i32.sub
+    i32.const 116080196
+    i32.gt_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $value
+    i32.const 37
+    i32.mul
+    local.tee $value
+    i32.const 2147483606
+    i32.gt_s
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $value
+    i32.const 41
+    i32.add
+    local.tee $value
+    i32.const -49941480
+    i32.sub
+    i32.const 99882960
+    i32.gt_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $value
+    i32.const 43
+    i32.mul
+    local.tee $value
+    i32.const 2147483600
+    i32.gt_s
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $value
+    i32.const 47
+    i32.add
+    local.tee $value
+    i32.const -40518559
+    i32.sub
+    i32.const 81037118
+    i32.gt_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $value
+    i32.const 53
+    i32.mul
+    local.tee $value
+    i32.const 2147483588
+    i32.gt_s
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $value
+    i32.const 59
+    i32.add
+    local.tee $value
+    i32.const -35204649
+    i32.sub
+    i32.const 70409298
+    i32.gt_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $value
+    i32.const 61
+    i32.mul
+    local.tee $value
+    i32.const 2147483580
+    i32.gt_s
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $value
+    i32.const 67
+    i32.add
   )
 )

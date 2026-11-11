@@ -2,7 +2,7 @@
 (module
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "heap" (memory $heap 1))
-  (func $x_of (param $bodies i32) (param $i i32) (result f64) (local $t0 f64)
+  (func $x_of (param $bodies i32) (param $i i32) (result f64)
     ;; 7 |     bodies[i].x
     local.get $bodies
     i32.load $heap
@@ -21,7 +21,5 @@
     i32.mul
     i32.add
     f64.load $heap offset=16
-    local.set $t0
-    local.get $t0
   )
 )

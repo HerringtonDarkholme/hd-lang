@@ -22,47 +22,38 @@
     local.get $first
     i32.const 0
   )
-  (func $use_view (param $value i32) (result i32) (local $t0 i32) (local $t1 i32)
+  (func $use_view (param $value i32) (result i32) (local $t1 i32) (local $t0 i32)
     ;; 23 |     view()(value) + control()(value)
-    block
-      i32.const 0
-      local.set $t0
-      br 0
-    end
     i32.const 0
     local.get $value
     i32.const 0
-    local.get $t0
+    i32.const 0
     call_indirect $table0 (param i32 i32 i32) (result i32)
     i32.const 1
     call_indirect $table0 (result i32 i32)
-    local.set $t1
     local.set $t0
-    local.get $t1
+    local.set $t1
+    local.get $t0
     local.get $value
     i32.const 0
-    local.get $t0
-    call_indirect $table0 (param i32 i32 i32) (result i32)
     local.get $t1
+    call_indirect $table0 (param i32 i32 i32) (result i32)
+    local.get $t0
     if
-      local.get $t1
+      local.get $t0
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $t0
         call $rt:release_ref
       end
     end
     i32.add
-    local.set $value
-    local.get $value
   )
-  (func $view (result i32 i32) (local $t0 i32)
+  (func $view (result i32 i32)
     ;; 11 |     read
     i32.const 0
-    local.set $t0
-    local.get $t0
     i32.const 0
   )
   (func $use_early_view (param $first i32) (param $value i32) (result i32)
@@ -76,28 +67,21 @@
       end
       i32.const 0
       local.set $first
-      br 0
     end
     i32.const 0
     local.get $value
     i32.const 0
     local.get $first
     call_indirect $table0 (param i32 i32 i32) (result i32)
-    local.set $first
-    local.get $first
   )
-  (func $control (result i32 i32) (local $t0 i32)
+  (func $control (result i32 i32)
     ;; 20 |     read
     i32.const 0
-    local.set $t0
-    local.get $t0
     i32.const 0
   )
   (func $read (param $value i32) (result i32)
     ;; 8 |     *value
     local.get $value
     i32.load $heap
-    local.set $value
-    local.get $value
   )
 )

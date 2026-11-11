@@ -22,13 +22,13 @@
     i32.const 0
     i32.store $heap
   )
-  (func $held (result i32) (local $t0 i32) (local $t1 i32)
+  (func $held (result i32) (local $t1 i32) (local $t0 i32)
     ;; 20 |     r := &mut TOTAL.value
     i32.const 20
     i32.load $heap
     i32.const 2097152
     i32.and
-    local.get $t0
+    i32.const 0
     i32.const 2097152
     i32.and
     i32.ne
@@ -40,15 +40,13 @@
     i32.load $heap
     i32.const 4128768
     i32.and
-    local.get $t0
-    i32.ne
     if
       call $rt:panic'1
       unreachable
     end
     i32.const 20
-    local.tee $t1
-    local.get $t1
+    local.tee $t0
+    local.get $t0
     i32.load $heap
     i32.const 2097152
     i32.add
@@ -59,29 +57,29 @@
     i32.const 24 ;; &TOTAL
     ;; 22 |     *r
     i32.load $heap
-    local.set $t0
+    local.set $t1
     ;; 20 |     r := &mut TOTAL.value
-    local.get $t1
+    local.get $t0
     if
-      local.get $t1
-      local.get $t1
+      local.get $t0
+      local.get $t0
       i32.load $heap
       i32.const 2097152
       i32.sub
       i32.store $heap
       i32.const 0
-      local.set $t1
+      local.set $t0
     end
-    local.get $t1
+    local.get $t0
     if
-      local.get $t1
-      local.get $t1
+      local.get $t0
+      local.get $t0
       i32.load $heap
       i32.const 2097152
       i32.sub
       i32.store $heap
     end
-    local.get $t0
+    local.get $t1
   )
   (func $add (local $t0 i32)
     ;; 17 |     TOTAL.value = TOTAL.value + 1

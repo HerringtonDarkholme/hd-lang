@@ -11,8 +11,6 @@
     i32.const 0
     local.get $callback.0
     call_indirect $table0 (param i32 i32) (result i32)
-    local.set $callback.0
-    local.get $callback.0
   )
   (func $ordinary (param $callback.0 i32) (param $callback.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32)
     ;; 8 |     callback()
@@ -43,8 +41,6 @@
       local.get $provider0
       call $rt:release_ref
     end
-    local.set $callback.0
-    local.get $callback.0
   )
   (func $"forward[{open row}]" (param $callback.0 i32) (param $callback.1 i32) (param $ctx i32) (result i32)
     ;; 17 |     callback()
@@ -52,8 +48,6 @@
     local.get $ctx
     local.get $callback.0
     call_indirect $table0 (param i32 i32) (result i32)
-    local.set $callback.0
-    local.get $callback.0
   )
   (func $cold (param $callback.0 i32) (param $callback.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32)
     ;; 11 |     callback()
@@ -84,8 +78,6 @@
       local.get $provider0
       call $rt:release_ref
     end
-    local.set $callback.0
-    local.get $callback.0
   )
   (func $through_row (param $callback.0 i32) (param $callback.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32)
     ;; 20 |     forward(callback)
@@ -116,8 +108,6 @@
       local.get $provider0
       call $rt:release_ref
     end
-    local.set $callback.0
-    local.get $callback.0
   )
   (func $through_empty (param $callback.0 i32) (param $callback.1 i32) (result i32)
     ;; 23 |     forward(callback)
@@ -125,7 +115,5 @@
     local.get $callback.1
     i32.const 0
     call $"forward[{open row}]"
-    local.set $callback.0
-    local.get $callback.0
   )
 )

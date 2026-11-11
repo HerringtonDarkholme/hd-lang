@@ -5,32 +5,25 @@
     block
       block
         block
-          block
-            local.get $s
-            br_table 0 1 2
-          end
-          i32.const 65
-          i32.const 2
-          local.set $t0
-          local.set $s
-          br 2
+          local.get $s
+          br_table 0 1 2
         end
-        i32.const 67
-        i32.const 9
-        local.set $t0
-        local.set $s
-        br 1
+        i32.const 65
+        i32.const 2
+        return
       end
-      i32.const 76
-      i32.const 4
-      local.set $t0
-      local.set $s
-      br 0
+      i32.const 67
+      i32.const 9
+      return
     end
+    i32.const 76
+    i32.const 4
+    local.set $t0
+    local.set $s
     local.get $s
     local.get $t0
   )
-  (func $phrase_len (param $s i32) (result i32) (local $t0 i32)
+  (func $phrase_len (param $s i32) (result i32)
     ;; 13 |     s.phrase.len()
     block
       block
@@ -41,26 +34,20 @@
           end
           i32.const 65
           i32.const 2
-          local.set $t0
+          local.set $s
           drop
           br 2
         end
         i32.const 67
         i32.const 9
-        local.set $t0
+        local.set $s
         drop
         br 1
       end
       i32.const 76
       i32.const 4
-      local.set $t0
-      drop
-      br 0
-    end
-    block
-      local.get $t0
       local.set $s
-      br 0
+      drop
     end
     local.get $s
   )

@@ -53,16 +53,12 @@
     local.get $t1
     local.tee $s.0
     ;; 27 |     nudge(&mut origin)
-    local.set $s.1
-    block
-      local.get $s.1
-      local.get $s.1
-      i32.load $heap offset=8
-      i32.const 1
-      i32.add
-      i32.store $heap offset=8
-      br 0
-    end
+    local.tee $s.1
+    local.get $s.1
+    i32.load $heap offset=8
+    i32.const 1
+    i32.add
+    i32.store $heap offset=8
     ;; 28 |     let r: &mut Point = &mut origin
     local.get $s.0
     ;; 29 |     bump(r)
@@ -81,15 +77,13 @@
     local.get $s.0
     i32.const 0
     i32.store $heap offset=8
-    local.set $s.1
-    local.tee $s.0
+    local.set $s.0
     ;; 26 |     let mut origin = Point { name: s, n: 0 }
+    local.tee $s.1
     if
-      local.get $s.0
+      local.get $s.1
       call $rt:release_ref
     end
-    local.get $s.1
-    local.set $s.0
     local.get $s.0
     local.get $t0
     i32.const 24
@@ -104,9 +98,6 @@
     i32.load $heap offset=4
     local.set $p
     drop
-    block
-      br 0
-    end
     local.get $p
   )
   (func $nudge (param $p i32)
@@ -128,9 +119,6 @@
     ;; 23 |     view(h)
     local.get $h
     call $view
-    ;; 21 |     nudge(h)
-    local.set $h
-    local.get $h
   )
   (func $weaken (param $h i32) (result i32)
     ;; 33 |     h

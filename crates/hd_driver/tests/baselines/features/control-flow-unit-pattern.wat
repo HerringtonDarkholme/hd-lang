@@ -5,12 +5,7 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $save (param $s.0 i32) (param $s.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 7 |     if s.len() > 0:
-    block
-      local.get $s.1
-      local.set $t0
-      br 0
-    end
-    local.get $t0
+    local.get $s.1
     i32.const 0
     i32.gt_u
     if
@@ -39,21 +34,11 @@
     i32.store8 $heap
     local.get $t1
     local.get $t0
-    ;; 7 |     if s.len() > 0:
-    local.set $s.1
-    local.set $s.0
-    local.get $s.0
-    local.get $s.1
   )
-  (func $report (param $s.0 i32) (param $s.1 i32) (result i32 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
+  (func $report (param $s.0 i32) (param $s.1 i32) (result i32 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32)
     ;; 12 |     match save(s):
     block
-      block
-        local.get $s.1
-        local.set $t0
-        br 0
-      end
-      local.get $t0
+      local.get $s.1
       i32.const 0
       i32.gt_u
       if
@@ -62,23 +47,22 @@
       local.get $s.1
       i32.const 1
       i32.add
-      local.tee $t1
-      call $rt:str
-      local.tee $t2
       local.tee $t0
+      call $rt:str
+      local.tee $t1
+      local.tee $t2
       local.get $s.0
       local.get $s.1
       call $rt:memory_copy/0/0
-      local.get $t0
+      local.get $t2
       local.get $s.1
       i32.add
       i32.const 65 ;; &"?"
       i32.load8_u $heap
       i32.store8 $heap
-      br 0
     end
-    local.get $t2
     local.get $t1
+    local.get $t0
     local.set $s.1
     local.set $s.0
     block
@@ -104,7 +88,6 @@
         local.set $s.0
         br 1
       end
-      br 0
     end
     local.get $s.0
     local.get $s.1

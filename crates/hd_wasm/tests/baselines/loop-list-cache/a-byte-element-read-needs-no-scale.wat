@@ -19,7 +19,5 @@
     local.get $index
     i32.add
     i32.load8_u $heap offset=16
-    local.set $bytes
-    local.get $bytes
   )
 )

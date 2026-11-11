@@ -90,85 +90,64 @@
     i32.lt_s
     if
     ;; 20 |         panic("negative: $t")
-      block
-        local.get $t.1
-        local.set $s.0
-        br 0
-      end
       i32.const 10
-      local.tee $s.1
+      local.tee $s.0
+    ;; 19 |     if n < 0:
+      local.get $t.1
+    ;; 20 |         panic("negative: $t")
+      i32.add
+      local.tee $n
+      i32.const 16
+      local.set $s.1
+      if
+        local.get $n
+        call $rt:str
+        local.set $s.1
+      end
+      local.get $s.1
+      i32.const 66 ;; &"negative: "
+      local.set $t1
+      local.tee $t2
+      local.get $t1
+      i64.load $heap align=1
+      local.set $t3
+      local.get $t1
+      i32.load16_u $heap offset=8 align=1
+      i32.store16 $heap offset=8 align=1
+      local.get $t2
+      local.get $t3
+      i64.store $heap align=1
+    ;; 19 |     if n < 0:
+      local.get $s.1
+    ;; 20 |         panic("negative: $t")
       local.get $s.0
       i32.add
-      local.set $s.0
-      block
-        local.get $s.0
-        i32.const 16
-        local.set $n
-        if
-          local.get $s.0
-          call $rt:str
-          local.set $n
-        end
-        local.get $n
-        local.get $s.0
-        local.set $n
-        local.set $s.0
-        br 0
-      end
-      i32.const 66 ;; &"negative: "
-      local.set $t0
-      block
-        local.get $s.0
-        local.get $t0
-        local.set $t1
-        local.tee $t2
-        local.get $t1
-        i64.load $heap align=1
-        local.set $t3
-        local.get $t1
-        i32.load16_u $heap offset=8 align=1
-        i32.store16 $heap offset=8 align=1
-        local.get $t2
-        local.get $t3
-        i64.store $heap align=1
-        br 0
-      end
-      block
-        local.get $s.0
-        local.get $s.1
-        i32.add
-        local.get $t.0
-        local.get $t.1
-        call $rt:memory_copy/0/0
-        br 0
-      end
-      local.get $s.0
+    ;; 19 |     if n < 0:
+      local.get $t.0
+      local.get $t.1
+    ;; 20 |         panic("negative: $t")
+      call $rt:memory_copy/0/0
+      local.get $s.1
       local.get $n
       i32.const 2
       call_indirect $table0 (param i32 i32)
       unreachable
     ;; 19 |     if n < 0:
-      local.get $s.0
-      local.tee $s.1
+      local.get $s.1
+      local.tee $s.0
       if
-        local.get $s.1
+        local.get $s.0
         call $rt:release_ref
       end
     end
-    ;; 21 |     t.len()
-    block
-      local.get $t.1
-      local.set $s.0
-      br 0
-    end
     ;; 18 |     t := s + "!"
     local.get $t.0
-    local.tee $s.1
+    local.tee $s.0
     if
-      local.get $s.1
+      local.get $s.0
       call $rt:release_ref
     end
-    local.get $s.0
+    local.get $t.1
   )
   (func $guarded (param $log i32) (param $s.0 i32) (param $s.1 i32) (param $n i32) (result i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t0 i32)
     ;; 24 |     using r = Res { name: s + "?", log: log }
@@ -254,9 +233,6 @@
     i32.load $heap offset=4
     local.set $s.0
     drop
-    block
-      br 0
-    end
     ;; 24 |     using r = Res { name: s + "?", log: log }
     local.get $log
     if
@@ -301,8 +277,6 @@
       call $rt:release
     end
     local.get $s.0
-    local.set $log
-    local.get $log
     local.get $t0
     i32.const 24
     i32.add

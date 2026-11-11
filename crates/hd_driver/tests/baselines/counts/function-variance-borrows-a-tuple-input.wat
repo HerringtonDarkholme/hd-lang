@@ -40,8 +40,6 @@
         call $rt:release_ref'1
       end
     end
-    local.set $value
-    local.get $value
   )
   (func $read_cold'1 (param $value.0 i32) (param $value.1 i32) (result i32)
     ;; 16 |     *value._0 + value._1
@@ -49,8 +47,6 @@
     local.get $value.1
     i32.const 2
     call_indirect $table0 (param i32 i32) (result i32)
-    local.set $value.0
-    local.get $value.0
   )
   (func $read (param $value.0 i32) (param $value.1 i32) (result i32) (local $t0 i64)
     ;; 12 |     *value._0 + value._1
@@ -73,8 +69,6 @@
     end
     local.get $t0
     i32.wrap_i64
-    local.set $value.0
-    local.get $value.0
   )
   (func $invoke (param $call.0 i32) (param $call.1 i32) (param $value i32) (result i32)
     ;; 20 |     seen := weak(value)
@@ -177,13 +171,14 @@
     ;; 30 |     match invoke(read, box(+7)):
         local.get $seen
         call $rt:release
-        br 1
+    ;; 31 |         .Some(seen) => seen.upgrade().is_none()
+        local.get $t0
+    ;; 30 |     match invoke(read, box(+7)):
+        return
       end
       br 0
     end
-    local.get $t0
-    local.set $seen
-    local.get $seen
+    i32.const 0
   )
   (func $read_cold'2 (param $frame i32) (param $value.0 i32) (param $value.1 i32) (result i32 i32) (local $t1 i32) (local $t2 i64) (local $t0 i32)
     ;; 16 |     *value._0 + value._1
@@ -212,7 +207,6 @@
       local.get $frame
       i32.load $heap offset=36
       local.set $t1
-    else
     end
     local.get $value.0
     i32.load $heap

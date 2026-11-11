@@ -23,50 +23,41 @@
         i32.wrap_i64
         i32.const 255
         i32.and
-        local.set $value
-        local.set $t0
-        block
-          local.get $t0
-          local.get $value
-          i64.extend_i32_u
-          i64.xor
-          local.tee $t0
-          i64.const 4294967295
-          i64.and
-          i64.const 435
-          i64.mul
-          local.set $t1
-          local.get $t0
-          i64.const 4294967295
-          i64.and
-          i64.const 256
-          i64.mul
-          local.get $t0
-          i32.const 32
-          i64.extend_i32_u
-          i64.shr_u
-          i64.const 435
-          i64.mul
-          i64.add
-          local.get $t1
-          i32.const 32
-          i64.extend_i32_u
-          i64.shr_u
-          i64.add
-          i64.const 4294967295
-          i64.and
-          i32.const 32
-          i64.extend_i32_u
-          i64.shl
-          local.get $t1
-          i64.const 4294967295
-          i64.and
-          i64.or
-          local.set $t0
-          br 0
-        end
+        i64.extend_i32_u
+        i64.xor
+        local.tee $t0
+        i64.const 4294967295
+        i64.and
+        i64.const 435
+        i64.mul
+        local.set $t1
         local.get $state
         local.get $t0
+        i64.const 4294967295
+        i64.and
+        i64.const 256
+        i64.mul
+        local.get $t0
+        i32.const 32
+        i64.extend_i32_u
+        i64.shr_u
+        i64.const 435
+        i64.mul
+        i64.add
+        local.get $t1
+        i32.const 32
+        i64.extend_i32_u
+        i64.shr_u
+        i64.add
+        i64.const 4294967295
+        i64.and
+        i32.const 32
+        i64.extend_i32_u
+        i64.shl
+        local.get $t1
+        i64.const 4294967295
+        i64.and
+        i64.or
         i64.store $heap
     ;; 18 |         bits = bits >> 8
         local.get $bits
@@ -131,79 +122,71 @@
     i64.const -3750763034362895579
     local.set $state
     ;; 23 |     write(&mut state, value)
+    local.get $value
+    i64.extend_i32_u
+    local.set $t0
     block
-      local.get $value
-      i64.extend_i32_u
-      local.set $t0
-      block
-        loop
-          local.get $t1
-          i32.const 4
-          i32.lt_u
-          i32.eqz
-          br_if 1
-          local.get $t0
-          i64.const 255
-          i64.and
-          i32.wrap_i64
-          i32.const 255
-          i32.and
-          local.set $value
-          block
-            local.get $state
-            local.get $value
-            i64.extend_i32_u
-            i64.xor
-            local.tee $state
-            i64.const 4294967295
-            i64.and
-            i64.const 435
-            i64.mul
-            local.set $t2
-            local.get $state
-            i64.const 4294967295
-            i64.and
-            i64.const 256
-            i64.mul
-            local.get $state
-            i32.const 32
-            i64.extend_i32_u
-            i64.shr_u
-            i64.const 435
-            i64.mul
-            i64.add
-            local.get $t2
-            i32.const 32
-            i64.extend_i32_u
-            i64.shr_u
-            i64.add
-            i64.const 4294967295
-            i64.and
-            i32.const 32
-            i64.extend_i32_u
-            i64.shl
-            local.get $t2
-            i64.const 4294967295
-            i64.and
-            i64.or
-            local.set $state
-            br 0
-          end
-          local.get $t0
-          i32.const 8
-          i64.extend_i32_u
-          i64.shr_u
-          local.set $t0
-          local.get $t1
-          i32.const 1
-          i32.add
-          local.set $t1
-          br 0
-        end
+      loop
+        local.get $t1
+        i32.const 4
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $state
+        local.get $t0
+        i64.const 255
+        i64.and
+        i32.wrap_i64
+        i32.const 255
+        i32.and
+        i64.extend_i32_u
+        i64.xor
+        local.tee $state
+        i64.const 4294967295
+        i64.and
+        i64.const 435
+        i64.mul
+        local.set $t2
+        local.get $state
+        i64.const 4294967295
+        i64.and
+        i64.const 256
+        i64.mul
+        local.get $state
+        i32.const 32
+        i64.extend_i32_u
+        i64.shr_u
+        i64.const 435
+        i64.mul
+        i64.add
+        local.get $t2
+        i32.const 32
+        i64.extend_i32_u
+        i64.shr_u
+        i64.add
+        i64.const 4294967295
+        i64.and
+        i32.const 32
+        i64.extend_i32_u
+        i64.shl
+        local.get $t2
+        i64.const 4294967295
+        i64.and
+        i64.or
+        local.set $state
+        local.get $t0
+        i32.const 8
+        i64.extend_i32_u
+        i64.shr_u
+        local.set $t0
+        local.get $t1
+        i32.const 1
+        i32.add
+        local.set $t1
+        br 0
       end
-      br 0
     end
-    ;; 22 |     let mut state = State { value: 14695981039346656037 }
+    ;; 24 |     state.value
     local.get $state
   )
 )

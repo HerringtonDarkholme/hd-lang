@@ -9,10 +9,8 @@
     i32.const 4
     i32.add
     call $read
-    local.set $t
-    local.get $t
   )
-  (func $first_of_local (result i32) (local $t1 i32) (local $t0 i32)
+  (func $first_of_local (result i32) (local $t0 i32) (local $t1 i32)
     ;; 9 |     pair := (+3, +4)
     global.get $locals
     global.get $locals_base
@@ -59,8 +57,6 @@
     ;; 10 |     read(&pair._0)
     call $read
     ;; 9 |     pair := (+3, +4)
-    local.set $t1
-    local.get $t1
     local.get $t0
     i32.const 16
     i32.add
@@ -70,7 +66,5 @@
     ;; 3 |     *p
     local.get $p
     i32.load $heap
-    local.set $p
-    local.get $p
   )
 )

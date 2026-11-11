@@ -2,7 +2,7 @@
 (module
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32)))
-  (func $reuse (param $n.0 i32) (param $n.1 i32) (result i32 i32 i32 i32 i32 i32) (local $t0 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32)
+  (func $reuse (param $n.0 i32) (param $n.1 i32) (result i32 i32 i32 i32 i32 i32) (local $t0 i32)
     ;; 28 |     (Rec { name: n, tags: [] }, Rec { name: n, tags: [] })
     local.get $n.0
     local.tee $t0
@@ -16,18 +16,6 @@
     local.get $n.0
     local.get $n.1
     i32.const 24 ;; &empty-buffer
-    local.set $t1
-    local.set $t2
-    local.set $t3
-    local.set $t0
-    local.set $n.1
-    local.set $n.0
-    local.get $n.0
-    local.get $n.1
-    local.get $t0
-    local.get $t3
-    local.get $t2
-    local.get $t1
   )
   (func $make_tuple (param $n.0 i32) (param $n.1 i32) (param $t i32) (result i32 i32 i32)
     ;; 19 |     (n, t)

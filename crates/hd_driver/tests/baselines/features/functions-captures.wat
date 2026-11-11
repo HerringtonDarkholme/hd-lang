@@ -27,10 +27,6 @@
     local.get $s.1
     i32.store $heap offset=8
     local.get $t0
-    local.set $s.0
-    local.set $items
-    local.get $items
-    local.get $s.0
   )
   (func $through_ptr#1 (param $env i32) (param $ctx i32) (local $s.0 i32) (local $t0 i32) (local $t1 i32)
     ;; 30 |     fn() -> void: items.push(s)
@@ -88,29 +84,13 @@
     i32.store $heap offset=4
   )
   (func $copied (param $s.0 i32) (param $s.1 i32) (result i32)
-    ;; 12 |     f() + s.len()
-    block
-      local.get $s.0
-      local.get $s.1
-      local.set $s.0
-      drop
-      block
-        br 0
-      end
-      br 0
-    end
     ;; 11 |     f := fn() -> usize: s.len()
-    block
-      br 0
-    end
-    ;; (no span)
-    local.get $s.0
     local.get $s.1
+    local.get $s.1
+    ;; (no span)
     i32.add
-    local.set $s.0
-    local.get $s.0
   )
-  (func $copy_shares (param $s.0 i32) (param $s.1 i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+  (func $copy_shares (param $s.0 i32) (param $s.1 i32) (result i32) (local $n i32) (local $t0 i32)
     ;; (no span)
     global.get $locals
     global.get $locals_base
@@ -151,51 +131,29 @@
     local.tee $n
     i32.const 0
     i32.store $heap
+    local.get $n
     ;; 26 |     again()
-    block
-      local.get $n
-      i32.load $heap
-      local.set $t1
-      block
-        local.get $s.1
-        local.set $t2
-        br 0
-      end
-      local.get $n
-      local.get $t1
-      local.get $t2
-      i32.add
-      i32.store $heap
-      br 0
-    end
+    local.get $n
+    i32.load $heap
+    local.get $s.1
+    i32.add
+    i32.store $heap
     ;; 22 |     let n: usize = 0
-    block
-      local.get $n
-      i32.load $heap
-      local.set $t1
-      block
-        local.get $s.1
-        local.set $s.0
-        br 0
-      end
-      local.get $n
-      local.get $t1
-      local.get $s.0
-      i32.add
-      i32.store $heap
-      br 0
-    end
+    local.get $n
+    local.get $n
+    i32.load $heap
+    local.get $s.1
+    i32.add
+    i32.store $heap
     ;; (no span)
     local.get $n
     i32.load $heap
-    local.set $s.0
-    local.get $s.0
     local.get $t0
     i32.const 16
     i32.add
     global.set $locals
   )
-  (func $shared_list (param $s.0 i32) (param $s.1 i32) (result i32) (local $xs i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
+  (func $shared_list (param $s.0 i32) (param $s.1 i32) (result i32) (local $xs i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
     ;; (no span)
     global.get $locals
     global.get $locals_base
@@ -236,107 +194,103 @@
     local.tee $xs
     i32.const 80 ;; &empty-buffer
     i32.store $heap
-    ;; 18 |     add()
-    block
-      local.get $s.0
-      local.tee $t1
-      if
-        local.get $t1
-        call $retain
-      end
-      local.get $xs
-      local.get $xs
-      i32.load $heap
-      call $rt:list_unique
-      i32.store $heap
-      local.get $xs
-      i32.load $heap
-      local.tee $t1
-      i32.load $heap offset=4
-      local.tee $t2
-      local.get $t1
-      i32.load $heap
-      i32.eq
-      if
-        local.get $t1
-        i32.const 3
-        call_indirect $table0 (param i32) (result i32)
-        local.set $t1
-        local.get $xs
-        local.get $t1
-        i32.store $heap
-      end
-      local.get $t1
-      local.get $t2
-      i32.const 8
-      i32.mul
-      i32.add
-      local.tee $t3
-      local.get $s.0
-      i32.store $heap offset=16
-      local.get $t3
-      local.get $s.1
-      i32.store $heap offset=20
-      local.get $t1
-      local.get $t2
-      i32.const 1
-      i32.add
-      i32.store $heap offset=4
-      br 0
-    end
-    ;; 19 |     xs.len()
-    block
-      local.get $s.0
-      local.tee $t1
-      if
-        local.get $t1
-        call $retain
-      end
-      local.get $xs
-      local.get $xs
-      i32.load $heap
-      call $rt:list_unique
-      i32.store $heap
-      local.get $xs
-      i32.load $heap
-      local.tee $t1
-      i32.load $heap offset=4
-      local.tee $t2
-      local.get $t1
-      i32.load $heap
-      i32.eq
-      if
-        local.get $t1
-        i32.const 3
-        call_indirect $table0 (param i32) (result i32)
-        local.set $t1
-        local.get $xs
-        local.get $t1
-        i32.store $heap
-      end
-      local.get $t1
-      local.get $t2
-      i32.const 8
-      i32.mul
-      i32.add
-      local.tee $t3
-      local.get $s.0
-      i32.store $heap offset=16
-      local.get $t3
-      local.get $s.1
-      i32.store $heap offset=20
-      local.get $t1
-      local.get $t2
-      i32.const 1
-      i32.add
-      i32.store $heap offset=4
-      br 0
-    end
-    ;; (no span)
+    ;; 16 |     add := fn() -> void: xs.push(s)
     local.get $s.0
+    ;; 18 |     add()
     local.tee $t1
+    local.tee $t2
+    if
+      local.get $t2
+      call $retain
+    end
+    local.get $xs
+    local.get $xs
+    i32.load $heap
+    call $rt:list_unique
+    i32.store $heap
+    local.get $xs
+    i32.load $heap
+    local.tee $t2
+    i32.load $heap offset=4
+    local.tee $t3
+    local.get $t2
+    i32.load $heap
+    i32.eq
+    if
+      local.get $t2
+      i32.const 3
+      call_indirect $table0 (param i32) (result i32)
+      local.set $t2
+      local.get $xs
+      local.get $t2
+      i32.store $heap
+    end
+    local.get $t2
+    local.get $t3
+    i32.const 8
+    i32.mul
+    i32.add
+    local.tee $t4
+    local.get $t1
+    i32.store $heap offset=16
+    local.get $t4
+    local.get $s.1
+    i32.store $heap offset=20
+    local.get $t2
+    local.get $t3
+    i32.const 1
+    i32.add
+    i32.store $heap offset=4
+    ;; 19 |     xs.len()
+    local.get $s.0
+    local.tee $t2
+    if
+      local.get $t2
+      call $retain
+    end
+    local.get $xs
+    local.get $xs
+    i32.load $heap
+    call $rt:list_unique
+    i32.store $heap
+    local.get $xs
+    i32.load $heap
+    local.tee $t1
+    i32.load $heap offset=4
+    local.tee $t2
+    local.get $t1
+    i32.load $heap
+    i32.eq
     if
       local.get $t1
+      i32.const 3
+      call_indirect $table0 (param i32) (result i32)
+      local.set $t1
+      local.get $xs
+      local.get $t1
+      i32.store $heap
+    end
+    local.get $t1
+    local.get $t2
+    i32.const 8
+    i32.mul
+    i32.add
+    local.tee $t3
+    local.get $s.0
+    i32.store $heap offset=16
+    local.get $t3
+    local.get $s.1
+    i32.store $heap offset=20
+    local.get $t1
+    local.get $t2
+    i32.const 1
+    i32.add
+    i32.store $heap offset=4
+    ;; (no span)
+    local.get $s.0
+    local.tee $t2
+    if
+      local.get $t2
       call $rt:release_ref'1
     end
     ;; 15 |     let mut xs: List[string] = []
@@ -349,16 +303,16 @@
     if
       local.get $xs
       i32.load $heap
-      local.tee $t1
+      local.tee $t2
       if
-        local.get $t1
+        local.get $t2
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $t1
+          local.get $t2
           call $rt:release_ref'2
         end
       end
@@ -366,21 +320,19 @@
     local.get $s.0
     i32.load $heap offset=4
     local.get $s.0
-    local.tee $t1
+    local.tee $t2
     if
-      local.get $t1
+      local.get $t2
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t1
+        local.get $t2
         call $rt:release_ref'2
       end
     end
-    local.set $s.0
-    local.get $s.0
     local.get $t0
     i32.const 16
     i32.add

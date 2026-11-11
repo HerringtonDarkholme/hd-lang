@@ -57,31 +57,28 @@
         i32.add
         local.set $e
         block
-          block
-            br 0
-            unreachable
-          end
+          br 0
+          unreachable
+        end
     ;; 36 |         keep(*e, k)
-          local.get $e
+        local.get $e
+        i32.load $heap
+        local.tee $e
+        local.tee $t2
+        if
+          local.get $t2
+          i32.const 8
+          i32.sub
           i32.load $heap
-          local.tee $e
-          local.tee $t2
           if
             local.get $t2
-            i32.const 8
-            i32.sub
-            i32.load $heap
-            if
-              local.get $t2
-              call $rt:retain_known
-            end
+            call $rt:retain_known
           end
-          local.get $e
-          local.get $k
-          call $keep
-    ;; 35 |     for e in &node.children:
-          br 0
         end
+        local.get $e
+        local.get $k
+        call $keep
+    ;; 35 |     for e in &node.children:
         br 0
       end
     end
@@ -98,7 +95,7 @@
       end
     end
   )
-  (func $run (param $root i32) (result i64) (local $t3 i64) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+  (func $run (param $root i32) (result i64) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 39 |     let mut total = Total { sum: 0 }
     global.get $locals
     global.get $locals_base
@@ -201,8 +198,6 @@
     i64.extend_i32_u
     i64.add
     ;; 39 |     let mut total = Total { sum: 0 }
-    local.set $t3
-    local.get $t3
     local.get $t0
     i32.const 32
     i32.add
@@ -252,19 +247,16 @@
         i32.add
         local.set $child
         block
-          block
-            br 0
-            unreachable
-          end
-    ;; 19 |         walk(*child, sink)
-          local.get $child
-          i32.load $heap
-          local.get $sink.0
-          local.get $sink.1
-          call $walk
-    ;; 18 |     for child in &node.children:
           br 0
+          unreachable
         end
+    ;; 19 |         walk(*child, sink)
+        local.get $child
+        i32.load $heap
+        local.get $sink.0
+        local.get $sink.1
+        call $walk
+    ;; 18 |     for child in &node.children:
         br 0
       end
     end

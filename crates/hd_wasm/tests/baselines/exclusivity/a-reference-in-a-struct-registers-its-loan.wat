@@ -234,7 +234,6 @@
       end
       i32.const 16 ;; &"heap-exhausted"
       local.set $t
-      br 0
     end
     ;; 23 |     let held: Option[&string] = .Some(&t.lead.name)
     local.get $t3

@@ -31,17 +31,12 @@
     local.get $b.0
     local.get $b.1
     call $rt:memory_copy/0/0
-    block
-      local.get $t0
-      local.set $a.0
-      br 0
-    end
     local.get $t1
     if
       local.get $t1
       call $rt:release_ref
     end
-    local.get $a.0
+    local.get $t0
   )
   (func $concat (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 10 |     a + b
@@ -69,96 +64,57 @@
     call $rt:memory_copy/0/0
     local.get $t1
     local.get $t0
-    local.set $a.1
-    local.set $a.0
-    local.get $a.0
-    local.get $a.1
   )
-  (func $interp (param $a.0 i32) (param $a.1 i32) (param $n i64) (result i32 i32) (local $t0 i32) (local $t1 i64) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32)
+  (func $interp (param $a.0 i32) (param $a.1 i32) (param $n i64) (result i32 i32) (local $t1 i32) (local $t0 i64) (local $t2 i32) (local $t3 i32) (local $t5 i32) (local $t4 i32)
     ;; 7 |     "${a}:${n}"
-    block
-      local.get $a.1
-      local.set $t0
-      br 0
-    end
     local.get $n
+    local.tee $t0
+    call $signed_magnitude
+    call $unsigned_width
     local.set $t1
-    block
-      block
-        local.get $t1
-        call $signed_magnitude
-        call $unsigned_width
-        local.set $t2
-        local.get $t1
-        i64.const 0
-        i64.lt_s
-        if
-          i32.const 1
-          local.set $t3
-        else
-        end
-        local.get $t2
-        local.get $t3
-        i32.add
-        local.set $t2
-        br 0
-      end
-      br 0
-    end
     local.get $t0
+    i64.const 0
+    i64.lt_s
+    if
+      i32.const 1
+      local.set $t2
+    end
+    local.get $t1
+    local.get $t2
+    i32.add
+    local.set $t1
+    local.get $a.1
+    local.tee $t2
     i32.const 1
     i32.add
     local.tee $t3
-    local.get $t2
+    local.get $t1
     i32.add
-    local.set $t4
-    block
+    local.tee $t4
+    i32.const 16
+    local.set $t5
+    if
       local.get $t4
-      i32.const 16
+      call $rt:str
       local.set $t5
-      if
-        local.get $t4
-        call $rt:str
-        local.set $t5
-      end
-      local.get $t5
-      local.get $t4
-      local.set $t5
-      local.set $t4
-      br 0
     end
-    block
-      local.get $t4
-      local.get $a.0
-      local.get $a.1
-      call $rt:memory_copy/0/0
-      br 0
-    end
-    i32.const 65 ;; &":"
-    local.set $a.0
-    block
-      local.get $t4
-      local.get $t0
-      i32.add
-      local.get $a.0
-      i32.load8_u $heap
-      i32.store8 $heap
-      br 0
-    end
-    block
-      local.get $n
-      local.get $t4
-      local.get $t3
-      i32.add
-      local.get $t2
-      call $write_signed_sized
-      br 0
-    end
-    local.get $t4
     local.get $t5
-    local.set $a.1
-    local.set $a.0
     local.get $a.0
     local.get $a.1
+    call $rt:memory_copy/0/0
+    local.get $t5
+    local.get $t2
+    i32.add
+    i32.const 65 ;; &":"
+    i32.load8_u $heap
+    i32.store8 $heap
+    local.get $n
+    local.get $t5
+    local.get $t3
+    i32.add
+    local.get $t1
+    call $write_signed_sized
+    local.get $t5
+    local.get $t4
   )
 )

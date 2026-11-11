@@ -138,7 +138,6 @@
       local.get $frame
       i32.load $heap offset=68
       local.set $t4
-    else
     end
     i32.const 8
     i32.const 5
@@ -208,9 +207,9 @@
       end
     end
     local.get $t2
-    local.set $sink
-    local.get $sink
+    ;; 16 |     sink.text
     local.get $t1
+    ;; 14 |     let mut sink = Sink { text: "" }
     local.get $frame
     if
       local.get $frame

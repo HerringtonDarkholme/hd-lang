@@ -43,22 +43,19 @@
         i32.add
         local.set $t1
         block
-          block
-            br 0
-            unreachable
-          end
-    ;; 11 |         total += key + value
-          local.get $total
-          local.get $key
-          i32.load $heap
-          local.get $value
-          i32.load $heap
-          i32.add
-          i32.add
-          local.set $total
-    ;; 10 |     for (key, value) in items:
           br 0
+          unreachable
         end
+    ;; 11 |         total += key + value
+        local.get $total
+        local.get $key
+        i32.load $heap
+        local.get $value
+        i32.load $heap
+        i32.add
+        i32.add
+        local.set $total
+    ;; 10 |     for (key, value) in items:
         br 0
       end
     end

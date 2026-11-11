@@ -63,8 +63,6 @@
     ;; 31 | struct Record:
     i32.store $heap offset=20
     local.get $t1
-    local.set $t0
-    local.get $t0
     call $rt:coll_copy
     global.set $"impl HasFacts for Record by Structure.structure member facts 0 0#once"
     i32.const 1
@@ -75,14 +73,12 @@
     i32.const -1
     i32.add
     global.set $forbid
-    local.get $t0
+    local.get $t1
   )
-  (func $inspect_field (result i32) (local $t0 i32)
+  (func $inspect_field (result i32)
     ;; 38 |     Record { name: "name" }.has_facts()
     i32.const 189 ;; &"name"
     i32.const 4
     call $"impl HasFacts for Record by Structure.has_facts"
-    local.set $t0
-    local.get $t0
   )
 )

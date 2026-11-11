@@ -4,33 +4,19 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 1 funcref))
-  (func $visible (param $value i32) (result i32) (local $state.word i32) (local $state.salt i32)
+  (func $visible (param $value i32) (result i32)
     ;; 17 |     let mut state = State { word: +5, salt: +7 }
-    i32.const 5
-    i32.const 7
-    local.set $state.salt
-    local.set $state.word
+    i32.const 15
     ;; 20 |     mix(alias, value)
-    block
-      local.get $state.word
-      i32.const 3
-      i32.mul
-      local.get $value
-      i32.add
-      local.set $state.word
-      local.get $state.salt
-      local.get $value
-      i32.add
-      local.set $state.salt
-      br 0
-    end
-    ;; 21 |     state.word + state.salt
-    local.get $state.word
-    local.get $state.salt
+    local.get $value
     i32.add
     ;; 17 |     let mut state = State { word: +5, salt: +7 }
-    local.set $value
+    i32.const 7
+    ;; 20 |     mix(alias, value)
     local.get $value
+    i32.add
+    ;; 21 |     state.word + state.salt
+    i32.add
   )
   (func $observed (param $value i32) (result i32)
     ;; 28 |     let mut state = State { word: value, salt: +7 }
@@ -92,8 +78,6 @@
     ;; 35 |     first is second
     i32.eq
     ;; 32 |     let mut state = State { word: value, salt: +7 }
-    local.set $value
-    local.get $value
     local.get $t0
     i32.const 16
     i32.add
@@ -103,8 +87,6 @@
     ;; 25 |     state.word
     local.get $state
     i32.load $heap
-    local.set $state
-    local.get $state
   )
   (func $mix (param $state i32) (param $value i32)
     ;; 13 |     state.word = state.word * 3 + value

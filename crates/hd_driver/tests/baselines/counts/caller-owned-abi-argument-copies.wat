@@ -12,81 +12,72 @@
   (import "fixture" "impl[S] Source[S] for Seeds.member[(string, i32), string]" (func $"impl[S] Source[S] for Seeds.member[(string, i32), string]" (param i32 i32 i32 i32) (result i32 i32)))
   (import "fixture" "impl[S] Source[S] for Seeds.member[(string, i32), i32]" (func $"impl[S] Source[S] for Seeds.member[(string, i32), i32]" (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $"impl[S] Describer[S] for Layout.member[(string, i32), string]" (param $self i32) (param $h i32) (local $t6 i32) (local $t0 i32) (local $t3 i32) (local $t1 i64) (local $t2 i32) (local $t4 i32) (local $t5 i32)
+  (func $"impl[S] Describer[S] for Layout.member[(string, i32), string]" (param $self i32) (param $h i32) (local $t6 i32) (local $t0 i64) (local $t1 i32) (local $t3 i32) (local $t2 i32) (local $t4 i32) (local $t5 i32)
     ;; ...
     ;; 50 |         match s.member(h, .Some(F::seed(7))):
     i32.const 7
-    local.set $t0
-    block
-      local.get $t0
-      i64.extend_i32_u
-      local.tee $t1
-      call $"impl StringBuilder.unsigned_width"
-      local.set $t0
-      i32.const 1
-      local.get $t0
-      i32.add
-      call $"impl StringBuilder.value_new"
-      local.set $t2
-      local.tee $t3
-      local.get $t2
-      i32.const 0
-      i32.const 362 ;; &"s"
-      i32.const 1
-      call $"impl StringBuilder.value_text"
+    i64.extend_i32_u
+    local.tee $t0
+    call $"impl StringBuilder.unsigned_width"
+    local.set $t1
+    i32.const 1
+    local.get $t1
+    i32.add
+    call $"impl StringBuilder.value_new"
+    local.set $t2
+    local.tee $t3
+    local.get $t2
+    i32.const 0
+    i32.const 362 ;; &"s"
+    i32.const 1
+    call $"impl StringBuilder.value_text"
+    local.get $t3
+    local.get $t2
+    i32.const 1
+    local.get $t0
+    local.get $t1
+    call $"impl StringBuilder.value_unsigned"
+    local.get $t2
+    i32.const 1
+    i32.add
+    local.tee $t1
+    call $rt:str
+    local.tee $t4
+    local.tee $t5
+    local.get $t3
+    local.get $t2
+    call $rt:memory_copy/0/0
+    local.get $t5
+    local.get $t2
+    i32.add
+    i32.const 363 ;; &"!"
+    i32.load8_u $heap
+    i32.store8 $heap
+    local.get $t3
+    local.tee $t3
+    if
       local.get $t3
-      local.get $t2
-      i32.const 1
-      local.get $t1
-      local.get $t0
-      call $"impl StringBuilder.value_unsigned"
-      local.get $t2
-      i32.const 1
-      i32.add
-      local.tee $t0
-      call $rt:str
-      local.tee $t4
-      local.tee $t5
-      local.get $t3
-      local.get $t2
-      call $rt:memory_copy/0/0
-      local.get $t5
-      local.get $t2
-      i32.add
-      i32.const 363 ;; &"!"
-      i32.load8_u $heap
-      i32.store8 $heap
-      local.get $t3
-      local.tee $t2
-      if
-        local.get $t2
-        call $rt:release_ref
-      end
-      local.get $t4
-      local.get $t0
-      local.set $t3
-      local.set $t0
-      br 0
+      call $rt:release_ref
     end
     local.get $t6
     local.get $h
-    local.tee $t2
+    local.tee $t3
     if
-      local.get $t2
+      local.get $t3
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t2
+        local.get $t3
         call $rt:retain_known
       end
     end
     local.get $h
-    local.get $t0
-    local.get $t3
+    local.get $t4
+    local.get $t1
     call $rt:retain
-    local.get $t0
-    local.get $t3
+    local.get $t4
+    local.get $t1
     call $"impl[S] Source[S] for Seeds.member[(string, i32), string]"
     drop
     local.set $t6
@@ -97,10 +88,7 @@
     ;; 50 |         match s.member(h, .Some(F::seed(7))):
     i32.const 7
     local.set $t0
-    block
-      br 0
-    end
-    local.get $t1
+    ;; ...
     local.get $h
     local.tee $t1
     if

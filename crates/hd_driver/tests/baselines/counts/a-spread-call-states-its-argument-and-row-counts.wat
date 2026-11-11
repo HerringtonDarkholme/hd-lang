@@ -21,8 +21,6 @@
     local.get $ctx
     local.get $f.0
     call_indirect $table0 (param i32 i32 i32 i32 i32) (result i32)
-    local.set $f.0
-    local.get $f.0
   )
   (func $one (param $f.0 i32) (param $f.1 i32) (param $value.0.0 i32) (param $value.0.1 i32) (param $value.1 i32) (result i32)
     ;; 19 |     f(value)
@@ -33,8 +31,6 @@
     i32.const 0
     local.get $f.0
     call_indirect $table0 (param i32 i32 i32 i32 i32) (result i32)
-    local.set $f.0
-    local.get $f.0
   )
   (func $spread (param $f.0 i32) (param $f.1 i32) (param $values.0.0 i32) (param $values.0.1 i32) (param $values.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32)
     ;; 13 |     call(f, values)
@@ -68,8 +64,6 @@
       local.get $provider0
       call $rt:release_ref
     end
-    local.set $f.0
-    local.get $f.0
   )
   (func $"call[(i32, usize), i32, {open row}]" (param $f.0 i32) (param $f.1 i32) (param $args.0 i32) (param $args.1 i32) (param $ctx i32) (result i32)
     ;; 10 |     f(args...)
@@ -79,8 +73,6 @@
     local.get $ctx
     local.get $f.0
     call_indirect $table0 (param i32 i32 i32 i32) (result i32)
-    local.set $f.0
-    local.get $f.0
   )
   (func $scalars (param $f.0 i32) (param $f.1 i32) (param $values.0 i32) (param $values.1 i32) (result i32)
     ;; 16 |     call(f, values)
@@ -90,7 +82,5 @@
     local.get $values.1
     i32.const 0
     call $"call[(i32, usize), i32, {open row}]"
-    local.set $f.0
-    local.get $f.0
   )
 )

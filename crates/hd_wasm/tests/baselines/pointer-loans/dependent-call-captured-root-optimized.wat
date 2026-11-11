@@ -122,9 +122,6 @@
       end
     end
     ;; 14 |     d := name_of(ps[0])
-    block
-      br 0
-    end
     local.get $t1
     local.tee $t3
     i32.load $heap
@@ -156,72 +153,69 @@
       i32.store $heap
     end
     ;; 15 |     change()
-    block
+    i32.const 8
+    i32.const 2
+    call $rt:new/class-1
+    local.tee $t1
+    i32.const 66 ;; &"b"
+    i32.store $heap
+    local.get $t1
+    i32.const 1
+    i32.store $heap offset=4
+    local.get $ps
+    i32.const 4
+    i32.sub
+    i32.load $heap
+    i32.const 4128768
+    i32.and
+    if
+      call $rt:panic'3
+      unreachable
+    end
+    local.get $ps
+    local.get $ps
+    i32.load $heap
+    call $rt:list_unique
+    i32.store $heap
+    local.get $ps
+    i32.const 4
+    i32.sub
+    i32.load $heap
+    i32.const 4128768
+    i32.and
+    if
+      call $rt:panic'3
+      unreachable
+    end
+    local.get $ps
+    i32.load $heap
+    local.set $t4
+    i32.const 0
+    local.get $t4
+    i32.load $heap offset=4
+    i32.ge_u
+    if
+      call $rt:panic'1
+      unreachable
+    end
+    local.get $t4
+    i32.load $heap offset=16
+    local.tee $t2
+    if
+      local.get $t2
       i32.const 8
-      i32.const 2
-      call $rt:new/class-1
-      local.tee $t1
-      i32.const 66 ;; &"b"
-      i32.store $heap
-      local.get $t1
-      i32.const 1
-      i32.store $heap offset=4
-      local.get $ps
-      i32.const 4
       i32.sub
       i32.load $heap
-      i32.const 4128768
-      i32.and
-      if
-        call $rt:panic'3
-        unreachable
-      end
-      local.get $ps
-      local.get $ps
-      i32.load $heap
-      call $rt:list_unique
-      i32.store $heap
-      local.get $ps
-      i32.const 4
-      i32.sub
-      i32.load $heap
-      i32.const 4128768
-      i32.and
-      if
-        call $rt:panic'3
-        unreachable
-      end
-      local.get $ps
-      i32.load $heap
-      local.set $t4
-      i32.const 0
-      local.get $t4
-      i32.load $heap offset=4
-      i32.ge_u
-      if
-        call $rt:panic'1
-        unreachable
-      end
-      local.get $t4
-      i32.load $heap offset=16
-      local.tee $t2
+      global.get $tracing
+      i32.or
       if
         local.get $t2
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $t2
-          call $rt:release_ref
-        end
+        call $rt:release_ref
       end
-      local.get $t4
-      local.get $t1
-      i32.store $heap offset=16
-      br 0
     end
+    local.get $t4
+    local.get $t1
+    i32.store $heap offset=16
     ;; 16 |     *d
     local.get $d
     i32.load $heap

@@ -11,17 +11,10 @@
     ;; 7 |     xs.iter()
     local.get $xs
     i32.load $heap
-    local.set $xs
-    block
-      local.get $xs
-      call $rt:coll_copy
-      local.set $xs
-      br 0
-    end
-    local.get $xs
+    call $rt:coll_copy
     i32.const 0
   )
-  (func $count_long (param $xs i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $x.1 i32) (local $t3 i32)
+  (func $count_long (param $xs i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $x.1 i32)
     ;; 10 |     let n: usize = 0
     global.get $locals
     global.get $locals_base
@@ -84,13 +77,8 @@
               unreachable
             end
     ;; 12 |         n += x.len()
-            block
-              local.get $x.1
-              local.set $t3
-              br 0
-            end
             local.get $n
-            local.get $t3
+            local.get $x.1
             i32.add
             local.set $n
     ;; 11 |     for x in names(&xs):
@@ -100,7 +88,6 @@
           local.get $x.1
           call $rt:release
           br 2
-          br 0
         end
         local.get $t2
         local.get $x.1
@@ -128,8 +115,6 @@
     ;; 13 |     n
     local.get $n
     ;; 10 |     let n: usize = 0
-    local.set $xs
-    local.get $xs
     local.get $t0
     i32.const 16
     i32.add

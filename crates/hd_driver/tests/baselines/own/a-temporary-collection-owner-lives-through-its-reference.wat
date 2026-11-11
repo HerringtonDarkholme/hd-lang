@@ -54,7 +54,5 @@
         call $rt:release_ref
       end
     end
-    local.set $t0
-    local.get $t0
   )
 )

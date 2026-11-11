@@ -7,7 +7,7 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $run (param $steps i64) (result f64) (local $t3 f64) (local $bodies i32) (local $t1 i32) (local $t0 i32) (local $t2 i64)
+  (func $run (param $steps i64) (result f64) (local $bodies i32) (local $t1 i32) (local $t0 i32) (local $t2 i64) (local $t3 f64)
     ;; 19 |     let mut bodies = [Body { x: 0.0, v: 1.0 }, Body { x: 1.0, v: 0.5 }]
     global.get $locals
     global.get $locals_base
@@ -130,7 +130,7 @@
   )
   (func $advance (param $bodies i32) (param $dt f64) (local $n i32) (local $t3 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $i i32) (local $t4 f64) (local $t5 i32)
     ;; 13 |     for i in 0..n:
-    local.get $n
+    i32.const 0
     ;; 12 |     n := bodies.len()
     local.get $bodies
     i32.load $heap
@@ -193,7 +193,7 @@
       end
     end
     ;; 15 |     for i in 0..n:
-    local.get $t5
+    i32.const 0
     local.get $n
     i32.lt_u
     if

@@ -41,8 +41,6 @@
         call $rt:release_ref
       end
     end
-    local.set $self
-    local.get $self
   )
   (func $"impl Mapper.apply'2" (param $self.transform.0 i32) (param $self.transform.1 i32) (param $x i32) (result i32)
     ;; 18 |         (self.transform)(x)
@@ -51,8 +49,6 @@
     i32.const 0
     local.get $self.transform.0
     call_indirect $table0 (param i32 i32 i32) (result i32)
-    local.set $self.transform.0
-    local.get $self.transform.0
   )
   (func $run (param $m.transform.0 i32) (param $m.transform.1 i32) (param $x i32) (result i32)
     ;; 21 |     m.apply(x)
@@ -71,15 +67,11 @@
         call $rt:release_ref
       end
     end
-    local.set $m.transform.0
-    local.get $m.transform.0
   )
   (func $run_counted (param $m i32) (param $x i32) (result i32)
     ;; 24 |     m.apply(x)
     local.get $m
     local.get $x
     call $"impl Mapper.apply'1"
-    local.set $m
-    local.get $m
   )
 )

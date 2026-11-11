@@ -11,8 +11,6 @@
     i32.load $heap offset=4
     i32.load $heap
     call_indirect $table0 (param i32) (result i32)
-    local.set $value.0
-    local.get $value.0
   )
   (func $via_right (param $value.0 i32) (param $value.1 i32) (result i32) (local $t0 i32)
     ;; 27 |     right(value)
@@ -35,8 +33,6 @@
       local.get $t0
       call $rt:release_ref
     end
-    local.set $value.0
-    local.get $value.0
   )
   (func $via_left (param $value.0 i32) (param $value.1 i32) (result i32) (local $t0 i32)
     ;; 24 |     left(value)
@@ -59,8 +55,6 @@
       local.get $t0
       call $rt:release_ref
     end
-    local.set $value.0
-    local.get $value.0
   )
   (func $right (param $value.0 i32) (param $value.1 i32) (result i32)
     ;; 21 |     value.base()
@@ -69,7 +63,5 @@
     i32.load $heap offset=4
     i32.load $heap
     call_indirect $table0 (param i32) (result i32)
-    local.set $value.0
-    local.get $value.0
   )
 )

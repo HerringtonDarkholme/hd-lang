@@ -40,31 +40,25 @@
         i32.add
         local.set $p
         block
-          block
-            br 0
-            unreachable
-          end
-    ;; 11 |         n += p.len()
-          local.get $n
-          local.get $p
-          call $"impl string.len"
-          i32.add
-          local.set $n
-    ;; 10 |     for p in &xs:
           br 0
+          unreachable
         end
+    ;; 11 |         n += p.len()
+        local.get $n
+        local.get $p
+        call $"impl string.len"
+        i32.add
+        local.set $n
+    ;; 10 |     for p in &xs:
         br 0
       end
     end
     ;; 12 |     n
     local.get $n
-    ;; 9 |     let n: usize = 0
-    local.set $xs
-    local.get $xs
   )
   (func $shouted (param $prices i32) (result i32) (local $t0 i32) (local $t1 i32) (local $p i32) (local $t3 i32) (local $t2 i32)
     ;; 22 |     for p in &mut out:
-    local.get $t0
+    i32.const 0
     ;; 21 |     let mut out = prices
     local.get $prices
     ;; 22 |     for p in &mut out:
@@ -105,44 +99,41 @@
         i32.add
         local.set $p
         block
-          block
-            br 0
-            unreachable
-          end
-    ;; 23 |         *p = *p + "!"
-          local.get $p
-          i32.load $heap
-          local.get $p
-          i32.const 0
-          i32.store $heap
-          local.get $p
-          i32.load $heap offset=4
-          local.get $p
-          i32.const 0
-          i32.store $heap offset=4
-          i32.const 65 ;; &"!"
-          i32.const 1
-          call $rt:str_append
-          local.set $t2
-          local.set $t3
-          local.get $p
-          i32.load $heap
-          local.get $p
-          i32.load $heap offset=4
-          local.get $p
-          local.get $t3
-          i32.store $heap
-          local.get $p
-          local.get $t2
-          i32.store $heap offset=4
-          call $rt:release
-    ;; 22 |     for p in &mut out:
           br 0
+          unreachable
         end
+    ;; 23 |         *p = *p + "!"
+        local.get $p
+        i32.load $heap
+        local.get $p
+        i32.const 0
+        i32.store $heap
+        local.get $p
+        i32.load $heap offset=4
+        local.get $p
+        i32.const 0
+        i32.store $heap offset=4
+        i32.const 65 ;; &"!"
+        i32.const 1
+        call $rt:str_append
+        local.set $t2
+        local.set $t3
+        local.get $p
+        i32.load $heap
+        local.get $p
+        i32.load $heap offset=4
+        local.get $p
+        local.get $t3
+        i32.store $heap
+        local.get $p
+        local.get $t2
+        i32.store $heap offset=4
+        call $rt:release
+    ;; 22 |     for p in &mut out:
         br 0
       end
     end
-    ;; 21 |     let mut out = prices
+    ;; 24 |     out
     local.get $prices
   )
   (func $through_ref (param $r i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $p i32)
@@ -181,26 +172,20 @@
         i32.add
         local.set $p
         block
-          block
-            br 0
-            unreachable
-          end
-    ;; 17 |         n += p.len()
-          local.get $n
-          local.get $p
-          call $"impl string.len"
-          i32.add
-          local.set $n
-    ;; 16 |     for p in &r:
           br 0
+          unreachable
         end
+    ;; 17 |         n += p.len()
+        local.get $n
+        local.get $p
+        call $"impl string.len"
+        i32.add
+        local.set $n
+    ;; 16 |     for p in &r:
         br 0
       end
     end
     ;; 18 |     n
     local.get $n
-    ;; 15 |     let n: usize = 0
-    local.set $r
-    local.get $r
   )
 )

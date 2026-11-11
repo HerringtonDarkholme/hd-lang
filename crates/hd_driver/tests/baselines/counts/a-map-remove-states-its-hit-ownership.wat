@@ -89,11 +89,8 @@
       i32.const 1
       i32.sub
       i32.store $heap
-    else
     end
     local.get $t1
-    local.set $values
-    local.get $values
   )
   (func $unused (param $values i32) (param $key.0 i32) (param $key.1 i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32)
     ;; 20 |     _ := values.remove(key)
@@ -175,7 +172,6 @@
       i32.const 1
       i32.sub
       i32.store $heap
-    else
     end
     local.get $t1
     local.get $t3
@@ -187,8 +183,6 @@
     local.get $key.0
     local.get $key.1
     call $"remove_value[List[string]]"
-    local.set $values
-    local.get $values
   )
   (func $scalar (param $values i32) (param $key i32) (result i32 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
     ;; 14 |     values.remove(key)
@@ -244,14 +238,9 @@
       i32.const 1
       i32.sub
       i32.store $heap
-    else
     end
     local.get $t2
     local.get $t1
-    local.set $key
-    local.set $values
-    local.get $values
-    local.get $key
   )
   (func $text (param $values i32) (param $key.0 i32) (param $key.1 i32) (result i32 i32)
     ;; 8 |     remove_value(values, key)
@@ -259,10 +248,6 @@
     local.get $key.0
     local.get $key.1
     call $"remove_value[string]"
-    local.set $key.0
-    local.set $values
-    local.get $values
-    local.get $key.0
   )
   (func $"remove_value[string]" (param $values i32) (param $key.0 i32) (param $key.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32)
     ;; 5 |     values.remove(key)
@@ -344,14 +329,9 @@
       i32.const 1
       i32.sub
       i32.store $heap
-    else
     end
     local.get $t1
     local.get $t3
-    local.set $key.0
-    local.set $values
-    local.get $values
-    local.get $key.0
   )
   (func $constant_key (param $values i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 17 |     values.remove("fixed")
@@ -428,10 +408,7 @@
       i32.const 1
       i32.sub
       i32.store $heap
-    else
     end
     local.get $t3
-    local.set $values
-    local.get $values
   )
 )

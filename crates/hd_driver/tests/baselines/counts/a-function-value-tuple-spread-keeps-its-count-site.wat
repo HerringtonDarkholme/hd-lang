@@ -4,28 +4,25 @@
   (import "fixture" "rt:retain'2" (func $rt:retain'2 (param i32)))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32)))
   (import "fixture" "table0" (table $table0 2 funcref))
-  (func $through (param $f.0 i32) (param $f.1 i32) (param $text.0 i32) (param $text.1 i32) (param $values i32) (result i32)
+  (func $through (param $f.0 i32) (param $f.1 i32) (param $text.0 i32) (param $text.1 i32) (param $values i32) (result i32) (local $t0 i32)
     ;; 10 |     call(f, (text, values))
-    block
-      local.get $f.1
-      local.get $text.0
-      local.get $text.1
-      call $rt:retain'1
-      local.get $values
-      call $rt:retain'2
-      local.get $text.0
-      local.get $text.1
-      local.get $values
-      i32.const 0
-      local.get $f.0
-      call_indirect $table0 (param i32 i32 i32 i32 i32) (result i32)
-      local.set $f.0
-      br 0
-    end
+    local.get $text.0
+    local.set $t0
+    local.get $f.1
+    local.get $t0
+    local.get $text.1
+    call $rt:retain'1
+    local.get $values
+    call $rt:retain'2
+    local.get $t0
+    local.get $text.1
+    local.get $values
+    i32.const 0
+    local.get $f.0
+    call_indirect $table0 (param i32 i32 i32 i32 i32) (result i32)
     local.get $text.0
     local.get $text.1
     local.get $values
     call $rt:release
-    local.get $f.0
   )
 )

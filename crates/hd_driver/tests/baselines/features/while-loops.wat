@@ -35,9 +35,6 @@
         i32.load $heap offset=20
         local.set $t0
         drop
-        block
-          br 0
-        end
         local.get $n
         local.get $t0
         i32.add
@@ -53,9 +50,6 @@
     end
     ;; 12 |     n
     local.get $n
-    ;; 7 |     let i: usize = 0
-    local.set $xs
-    local.get $xs
   )
   (func $build_while (param $s.0 i32) (param $s.1 i32) (param $k i32) (result i32 i32) (local $out.0 i32) (local $out.1 i32) (local $i i32) (local $t0 i32)
     ;; 15 |     let out = s
@@ -104,10 +98,5 @@
     ;; 20 |     out
     local.get $out.0
     local.get $out.1
-    ;; 15 |     let out = s
-    local.set $s.1
-    local.set $s.0
-    local.get $s.0
-    local.get $s.1
   )
 )

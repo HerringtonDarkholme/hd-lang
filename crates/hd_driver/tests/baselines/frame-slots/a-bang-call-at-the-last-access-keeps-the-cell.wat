@@ -70,12 +70,10 @@
         local.get $frame
         i32.load $heap offset=60
         local.set $t2
-        br 0
       end
       local.get $frame
       i32.load $heap offset=8
       local.set $t3
-    else
     end
     block
       local.get $t3

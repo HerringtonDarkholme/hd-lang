@@ -9,28 +9,20 @@
     i32.const 0
     ;; 17 |         inner()
     call_indirect $table0 (param i32 i32) (result i32)
-    ;; 14 |     fn outer() -> impl Display:
-    local.set $env
-    local.get $env
   )
   (func $nested#2 (param $env i32) (param $ctx i32) (result i32)
     ;; 15 |         fn inner() -> impl Display:
     i32.const 9
-    local.set $env
-    local.get $env
   )
-  (func $generic (result i32) (local $t0 i32)
+  (func $generic (result i32)
     ;; 23 |     echo(+11)
     i32.const 0
     i32.const 11
     i32.const 0
     i32.const 1
     call_indirect $table0 (param i32 i32 i32) (result i32)
-    ;; 21 |     fn echo[T < Display](value: T) -> impl Display:
-    local.set $t0
-    local.get $t0
   )
-  (func $text (result i32 i32) (local $t1 i32) (local $t0 i32)
+  (func $text (result i32 i32)
     ;; 11 |     local()
     i32.const 0
     i32.const 0
@@ -38,13 +30,8 @@
     i32.const 2
     ;; 11 |     local()
     call_indirect $table0 (param i32 i32) (result i32 i32)
-    ;; 9 |     fn local() -> impl Display:
-    local.set $t0
-    local.set $t1
-    local.get $t1
-    local.get $t0
   )
-  (func $number (result i32) (local $t0 i32)
+  (func $number (result i32)
     ;; 6 |     local()
     i32.const 0
     i32.const 0
@@ -52,17 +39,12 @@
     i32.const 3
     ;; 6 |     local()
     call_indirect $table0 (param i32 i32) (result i32)
-    ;; 4 |     fn local() -> impl Display:
-    local.set $t0
-    local.get $t0
   )
   (func $number#1 (param $env i32) (param $ctx i32) (result i32)
     ;; 4 |     fn local() -> impl Display:
     i32.const 7
-    local.set $env
-    local.get $env
   )
-  (func $nested (result i32) (local $t0 i32)
+  (func $nested (result i32)
     ;; 18 |     outer()
     i32.const 0
     i32.const 0
@@ -70,21 +52,14 @@
     i32.const 4
     ;; 18 |     outer()
     call_indirect $table0 (param i32 i32) (result i32)
-    ;; 14 |     fn outer() -> impl Display:
-    local.set $t0
-    local.get $t0
   )
   (func $"generic#1[i32]" (param $env i32) (param $value i32) (param $ctx i32) (result i32)
-    ;; 21 |     fn echo[T < Display](value: T) -> impl Display:
+    ;; 22 |         value
     local.get $value
   )
   (func $text#1 (param $env i32) (param $ctx i32) (result i32 i32)
     ;; 9 |     fn local() -> impl Display:
     i32.const 65 ;; &"ok"
     i32.const 2
-    local.set $ctx
-    local.set $env
-    local.get $env
-    local.get $ctx
   )
 )

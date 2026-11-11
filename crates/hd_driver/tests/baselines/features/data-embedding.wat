@@ -18,35 +18,13 @@
     local.get $p
     local.get $t0
   )
-  (func $promoted (param $p.Stamp.by.0 i32) (param $p.Stamp.by.1 i32) (param $p.title.0 i32) (param $p.title.1 i32) (result i32) (local $t0 i32)
+  (func $promoted (param $p.Stamp.by.0 i32) (param $p.Stamp.by.1 i32) (param $p.title.0 i32) (param $p.title.1 i32) (result i32)
     ;; 23 |     p.by.len() + p.by_len() + p.title.len()
-    block
-      local.get $p.Stamp.by.1
-      local.set $t0
-      br 0
-    end
-    block
-      block
-        local.get $p.Stamp.by.1
-        local.set $p.Stamp.by.0
-        br 0
-      end
-      br 0
-    end
-    local.get $t0
-    local.get $p.Stamp.by.0
-    i32.add
-    local.set $p.Stamp.by.0
-    block
-      local.get $p.title.1
-      local.set $p.Stamp.by.1
-      br 0
-    end
-    local.get $p.Stamp.by.0
+    local.get $p.Stamp.by.1
     local.get $p.Stamp.by.1
     i32.add
-    local.set $p.Stamp.by.0
-    local.get $p.Stamp.by.0
+    local.get $p.title.1
+    i32.add
   )
   (func $"impl Stamp.by_len" (param $self i32) (result i32)
     ;; 13 |         self.by.len()
@@ -56,9 +34,6 @@
     i32.load $heap offset=4
     local.set $self
     drop
-    block
-      br 0
-    end
     local.get $self
   )
   (func $make (param $s.0 i32) (param $s.1 i32) (param $t.0 i32) (param $t.1 i32) (result i32 i32 i32 i32)

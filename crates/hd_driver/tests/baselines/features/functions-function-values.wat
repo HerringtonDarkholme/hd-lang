@@ -9,17 +9,9 @@
     i32.const 0
     local.get $f.0
     call_indirect $table0 (param i32 i32 i32 i32) (result i32)
-    local.set $f.0
-    local.get $f.0
   )
   (func $generic_value (param $s.0 i32) (param $s.1 i32) (result i32 i32)
     ;; 29 |     map_one(s, ident)
-    block
-      block
-        br 0
-      end
-      br 0
-    end
     local.get $s.0
     local.get $s.1
   )
@@ -30,44 +22,20 @@
   )
   (func $named_value (param $s.0 i32) (param $s.1 i32) (result i32)
     ;; 20 |     apply(width, s)
-    block
-      block
-        block
-          local.get $s.1
-          local.set $s.0
-          br 0
-        end
-        br 0
-      end
-      br 0
-    end
-    local.get $s.0
+    local.get $s.1
   )
   (func $variant_value (param $s.0 i32) (param $s.1 i32) (result i32 i32)
     ;; 32 |     map_one(s, Event.Named)
-    block
-      block
-        br 0
-      end
-      br 0
-    end
     local.get $s.0
     local.get $s.1
   )
   (func $width (param $s.0 i32) (param $s.1 i32) (result i32)
     ;; 14 |     s.len()
-    block
-      local.get $s.1
-      local.set $s.0
-      br 0
-    end
-    local.get $s.0
+    local.get $s.1
   )
-  (func $spelled (result i32 i32) (local $t0 i32)
+  (func $spelled (result i32 i32)
     ;; 35 |     width
     i32.const 0
-    local.set $t0
-    local.get $t0
     i32.const 0
   )
 )

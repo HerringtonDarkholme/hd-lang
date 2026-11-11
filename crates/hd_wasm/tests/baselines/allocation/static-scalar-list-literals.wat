@@ -4,7 +4,7 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $local (result f64) (local $t1 f64) (local $values i32) (local $t0 i32)
+  (func $local (result f64) (local $values i32) (local $t0 i32)
     ;; 10 |     values := [1.5, 2.5, 3.5]
     i32.const 3
     call $rt:list_buf
@@ -46,8 +46,6 @@
         call $rt:release_ref
       end
     end
-    local.set $t1
-    local.get $t1
   )
   (func $top (result f64) (local $t0 i32)
     ;; 7 |     top_values[1]

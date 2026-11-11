@@ -481,8 +481,6 @@
     ;; 16 |     *value
     local.get $value
     i32.load $heap
-    local.set $value
-    local.get $value
   )
   (func $bump (param $items i32) (param $key.0 i32) (param $key.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 8 |     *items.get_or_insert(key, +0) += 1

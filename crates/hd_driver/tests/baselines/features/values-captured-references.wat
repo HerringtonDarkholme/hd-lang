@@ -11,8 +11,7 @@
     ;; 12 |     fn() -> void: p.x = p.x + 1
     local.get $env
     i32.load $heap
-    local.set $env
-    local.get $env
+    local.tee $env
     local.get $env
     i32.load $heap offset=8
     i32.const 1
@@ -21,17 +20,9 @@
   )
   (func $local (param $xs i32) (result i32)
     ;; 25 |     apply(fn() -> usize: xs.len())
-    block
-      block
-        local.get $xs
-        i32.load $heap
-        i32.load $heap offset=4
-        local.set $xs
-        br 0
-      end
-      br 0
-    end
     local.get $xs
+    i32.load $heap
+    i32.load $heap offset=4
   )
   (func $apply (param $f.0 i32) (param $f.1 i32) (result i32)
     ;; 22 |     f()
@@ -39,8 +30,6 @@
     i32.const 0
     local.get $f.0
     call_indirect $table0 (param i32 i32) (result i32)
-    local.set $f.0
-    local.get $f.0
   )
   (func $demo (param $s.0 i32) (param $s.1 i32) (result i32) (local $origin i32) (local $t0 i32)
     ;; 15 |     origin := box(Point { name: s, x: 0 })
@@ -117,8 +106,6 @@
         call $rt:release_ref
       end
     end
-    local.set $s.0
-    local.get $s.0
   )
   (func $bump (param $p i32) (result i32 i32) (local $t0 i32)
     ;; 12 |     fn() -> void: p.x = p.x + 1
@@ -129,8 +116,6 @@
     local.tee $t0
     local.get $p
     i32.store $heap
-    local.set $p
-    local.get $p
     local.get $t0
   )
 )

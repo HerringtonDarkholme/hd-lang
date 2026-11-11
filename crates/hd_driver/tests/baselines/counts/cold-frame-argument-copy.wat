@@ -31,10 +31,6 @@
       local.get $frame
       i32.load $heap offset=28
       local.set $text.1
-    else
-    end
-    block
-      br 0
     end
     local.get $text.0
     if
@@ -42,8 +38,6 @@
       call $rt:release_ref
     end
     local.get $text.1
-    local.set $text.0
-    local.get $text.0
     local.get $frame
     if
       local.get $frame

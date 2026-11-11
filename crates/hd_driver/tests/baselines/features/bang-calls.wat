@@ -86,12 +86,10 @@
         local.get $frame
         i32.load $heap offset=92
         local.set $t4
-        br 0
       end
       local.get $frame
       i32.load $heap offset=8
       local.set $t5
-    else
     end
     block
       local.get $t5
@@ -596,12 +594,10 @@
         local.get $frame
         i32.load $heap offset=132
         local.set $t3
-        br 0
       end
       local.get $frame
       i32.load $heap offset=8
       local.set $t4
-    else
     end
     block
       local.get $t4
@@ -1211,12 +1207,10 @@
         local.get $frame
         i32.load $heap offset=200
         local.set $t13
-        br 0
       end
       local.get $frame
       i32.load $heap offset=8
       local.set $t14
-    else
     end
     block
       local.get $t14
@@ -1711,31 +1705,28 @@
         end
       end
       block
-        block
-          i32.const 8
-          i32.const 1
-          call $rt:new/class-1
-          local.tee $t1
-          local.get $a.1
-          i32.store $heap
-          local.get $t1
-          local.get $b.1
-          i32.store $heap offset=4
-          local.get $t1
-          local.set $a.1
-          i32.const 8
-          i32.const 1
-          call $rt:new/class-1
-          local.tee $b.1
-          local.get $t14
-          i32.store $heap
-          local.get $b.1
-          local.get $t18
-          i32.store $heap offset=4
-          br 0
-          unreachable
-        end
+        i32.const 8
+        i32.const 1
+        call $rt:new/class-1
+        local.tee $t1
+        local.get $a.1
+        i32.store $heap
+        local.get $t1
+        local.get $b.1
+        i32.store $heap offset=4
+        local.get $t1
+        local.set $a.1
+        i32.const 8
+        i32.const 1
+        call $rt:new/class-1
+        local.tee $b.1
+        local.get $t14
+        i32.store $heap
+        local.get $b.1
+        local.get $t18
+        i32.store $heap offset=4
         br 0
+        unreachable
       end
     ;; 16 |     x.len() + y.len()
       local.get $a.1
@@ -2007,7 +1998,6 @@
       local.get $frame
       i32.load $heap offset=28
       local.set $s.1
-    else
     end
     local.get $s.1
     i32.const 1
@@ -2027,10 +2017,6 @@
     i32.store8 $heap
     local.get $t2
     local.get $t1
-    local.set $s.1
-    local.set $s.0
-    local.get $s.0
-    local.get $s.1
     local.get $frame
     if
       local.get $frame

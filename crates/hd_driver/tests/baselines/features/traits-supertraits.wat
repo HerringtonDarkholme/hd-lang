@@ -12,44 +12,24 @@
     local.get $a.1
     i32.load $heap
     call_indirect $table0 (param i32) (result i32 i32)
-    local.set $a.1
     local.set $a.0
-    block
-      br 0
-    end
-    local.get $a.0
+    local.tee $a.1
     if
-      local.get $a.0
+      local.get $a.1
       call $rt:release_ref
     end
-    local.get $a.1
-    local.set $a.0
     local.get $a.0
   )
-  (func $"loud[Pup]" (param $d.name.0 i32) (param $d.name.1 i32) (result i32) (local $t0 i32)
+  (func $"loud[Pup]" (param $d.name.0 i32) (param $d.name.1 i32) (result i32)
     ;; 32 |     d.name().len() + d.bark().len()
     local.get $d.name.0
     if
       local.get $d.name.0
       call $rt:release_ref
     end
-    block
-      i32.const 65 ;; &"woof"
-      i32.const 4
-      local.set $t0
-      drop
-      br 0
-    end
-    block
-      local.get $t0
-      local.set $d.name.0
-      br 0
-    end
     local.get $d.name.1
-    local.get $d.name.0
+    i32.const 4
     i32.add
-    local.set $d.name.0
-    local.get $d.name.0
   )
   (func $use_pup (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32) (local $p i32)
     ;; 35 |     widen(&p) + loud(p)
@@ -121,8 +101,6 @@
     i32.store $heap offset=4
     call $"loud[Pup]"
     i32.add
-    local.set $t1
-    local.get $t1
     local.get $t0
     i32.const 16
     i32.add
@@ -144,14 +122,10 @@
     local.get $self
     local.get $t0
   )
-  (func $"impl Dog for Pup.bark" (param $self i32) (result i32 i32) (local $t0 i32)
+  (func $"impl Dog for Pup.bark" (param $self i32) (result i32 i32)
     ;; 23 |         "woof"
     i32.const 65 ;; &"woof"
     i32.const 4
-    local.set $t0
-    local.set $self
-    local.get $self
-    local.get $t0
   )
   (func $widen (param $d.0 i32) (param $d.1 i32) (result i32) (local $t1 i32) (local $t0 i32)
     ;; 29 |     name_of(d) + d.bark().len()
@@ -178,21 +152,14 @@
     local.get $d.1
     i32.load $heap
     call_indirect $table0 (param i32) (result i32 i32)
-    local.set $d.1
     local.set $d.0
-    block
-      br 0
-    end
-    local.get $d.0
     local.tee $t0
     if
       local.get $t0
       call $rt:release_ref
     end
     local.get $t1
-    local.get $d.1
-    i32.add
-    local.set $d.0
     local.get $d.0
+    i32.add
   )
 )

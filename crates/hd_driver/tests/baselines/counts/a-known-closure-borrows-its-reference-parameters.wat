@@ -3,16 +3,10 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $total (param $left i32) (param $right i32) (result i32)
     ;; 7 |     by(left, right)
-    block
-      local.get $left
-      i32.load $heap
-      local.get $right
-      i32.load $heap
-      i32.add
-      local.set $left
-      br 0
-    end
-    ;; 6 |     by := fn(a: &i32, b: &i32): *a + *b
     local.get $left
+    i32.load $heap
+    local.get $right
+    i32.load $heap
+    i32.add
   )
 )

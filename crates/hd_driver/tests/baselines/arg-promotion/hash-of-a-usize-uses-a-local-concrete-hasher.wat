@@ -4,7 +4,7 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $digest (param $value i32) (result i64) (local $t2 i64) (local $t0 i32) (local $t1 i32)
+  (func $digest (param $value i32) (result i64) (local $t0 i32) (local $t1 i32)
     ;; 9 |     hash_of(value)
     global.get $locals
     global.get $locals_base
@@ -44,35 +44,20 @@
     local.tee $t1
     local.get $value
     i32.store $heap
+    local.get $t0
+    i64.const 0
+    i64.store $heap offset=16
+    local.get $t0
+    i32.const 24
+    i32.add
+    local.tee $value
+    i64.const -3750763034362895579
+    i64.store $heap
     local.get $t1
-    local.set $value
-    block
-      block
-        i64.const -3750763034362895579
-        local.set $t2
-        br 0
-      end
-      local.get $t0
-      i64.const 0
-      i64.store $heap offset=16
-      local.get $t0
-      i32.const 24
-      i32.add
-      local.tee $t1
-      local.get $t2
-      i64.store $heap
-      local.get $value
-      local.get $t1
-      call $"impl Hash for usize.hash[std.hash.DefaultHasher]"
-      local.get $t1
-      i64.load $heap
-      local.set $t2
-      block
-        br 0
-      end
-      br 0
-    end
-    local.get $t2
+    local.get $value
+    call $"impl Hash for usize.hash[std.hash.DefaultHasher]"
+    local.get $value
+    i64.load $heap
     local.get $t0
     i32.const 32
     i32.add

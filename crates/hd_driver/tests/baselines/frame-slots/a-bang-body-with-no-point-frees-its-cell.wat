@@ -12,7 +12,7 @@
   (import "fixture" "rt:frame" (func $rt:frame (result i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $helper'1 (param $frame i32) (result i32 i32 i32) (local $sink i32) (local $t1 i32) (local $t2 i32) (local $t5 i32) (local $t3 i32) (local $t4 i32) (local $t0 i32)
+  (func $helper'1 (param $frame i32) (result i32 i32 i32) (local $sink i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t0 i32)
     ;; 15 |     let mut sink = Sink { text: "" }
     local.get $frame
     if
@@ -42,7 +42,6 @@
       local.get $frame
       i32.load $heap offset=104
       local.set $t4
-    else
     end
     i32.const 8
     i32.const 2
@@ -67,25 +66,17 @@
       local.get $t2
       i32.store $heap offset=4
     end
+    local.get $sink
+    i32.load $heap
+    local.get $sink
+    i32.load $heap offset=4
+    local.get $sink
     i32.const 65 ;; &"helper"
+    i32.store $heap
+    local.get $sink
     i32.const 6
-    local.set $t2
-    local.set $t1
-    block
-      local.get $sink
-      local.tee $t5
-      i32.load $heap
-      local.get $t5
-      i32.load $heap offset=4
-      local.get $t5
-      local.get $t1
-      i32.store $heap
-      local.get $t5
-      local.get $t2
-      i32.store $heap offset=4
-      call $rt:release
-      br 0
-    end
+    i32.store $heap offset=4
+    call $rt:release
     ;; 17 |     sink.text
     local.get $sink
     i32.eqz
@@ -106,30 +97,30 @@
     i32.load $heap offset=4
     local.set $t1
     local.tee $t2
-    local.tee $t5
+    local.tee $t3
     if
-      local.get $t5
+      local.get $t3
       call $retain
     end
     ;; 15 |     let mut sink = Sink { text: "" }
     local.get $sink
-    local.tee $t5
+    local.tee $t3
     if
-      local.get $t5
+      local.get $t3
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t5
+        local.get $t3
         call $rt:release_ref'1
       end
     end
     local.get $t2
-    local.set $sink
-    local.get $sink
+    ;; 17 |     sink.text
     local.get $t1
+    ;; 15 |     let mut sink = Sink { text: "" }
     local.get $frame
     if
       local.get $frame

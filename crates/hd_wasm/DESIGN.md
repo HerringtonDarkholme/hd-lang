@@ -1468,7 +1468,11 @@ REFCOUNT_RUNTIME.md (`opt.rs`, `lib/std/rt/alloc.hd`).
   - constants fold: a zero test of a nonzero constant, `== 0`, a
     power-of-two multiply, divide or remainder, and a constant added to
     a load or store address, which becomes its offset;
-  - unused locals are not declared.
+  - unused locals are not declared;
+  - a `br 0` straight before the `end` or `else` it would fall through
+    to, and a void `if`'s empty `else`, go, then any void block no
+    branch targets (`opt::blocks`, once before the last local cleanup
+    and once at the end).
   Across functions, `opt::constants` reads a top-level binding as its
   constant when an init stores that constant and nothing else writes
   it, as the allocator's `PAGE` and tag constants.

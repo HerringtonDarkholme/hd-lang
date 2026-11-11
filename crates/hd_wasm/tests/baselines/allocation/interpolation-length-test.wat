@@ -32,9 +32,5 @@
     call $rt:memory_copy/0/0
     local.get $t1
     local.get $t0
-    local.set $name.1
-    local.set $name.0
-    local.get $name.0
-    local.get $name.1
   )
 )

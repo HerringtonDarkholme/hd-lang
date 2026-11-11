@@ -69,16 +69,12 @@
     ;; 19 |         let r = &mut tally
         local.tee $r
     ;; 20 |         bump(r)
-        local.set $t2
-        block
-          local.get $t2
-          local.get $t2
-          i64.load $heap offset=8
-          i64.const 1
-          i64.add
-          i64.store $heap offset=8
-          br 0
-        end
+        local.tee $t2
+        local.get $t2
+        i64.load $heap offset=8
+        i64.const 1
+        i64.add
+        i64.store $heap offset=8
     ;; 21 |         sum = sum + r.n
         local.get $sum
         local.get $r
@@ -102,8 +98,6 @@
     ;; 22 |     sum
     local.get $sum
     ;; 16 |     let sum: i64 = 0
-    local.set $k
-    local.get $k
     local.get $t0
     i32.const 24
     i32.add

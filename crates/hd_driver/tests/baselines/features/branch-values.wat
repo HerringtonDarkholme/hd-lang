@@ -82,7 +82,6 @@
         call_indirect $table0 (param i32 i32)
         unreachable
     ;; 19 |     match k:
-        br 0
       end
     end
     local.get $a.0
@@ -104,46 +103,41 @@
     ;; 14 |     match k:
     block
       block
-        block
     ;; 15 |         0 => a
-          local.get $k
-          i64.const 0
-          i64.eq
-          i32.eqz
-          br_if 1
-          br 0
+        local.get $k
+        i64.const 0
+        i64.eq
+        i32.eqz
+        br_if 1
+        br 0
     ;; 14 |     match k:
-          unreachable
-        end
-    ;; 15 |         0 => a
-        local.get $a.0
-    ;; 14 |     match k:
-        local.get $b.0
-        local.tee $a.0
-        if
-          local.get $a.0
-          call $rt:release_ref
-        end
-        local.set $a.0
-        br 1
+        unreachable
       end
-    ;; 16 |         _ => b
-      local.get $b.0
-    ;; 14 |     match k:
+    ;; 15 |         0 => a
       local.get $a.0
+    ;; 14 |     match k:
+      local.get $b.0
+      local.tee $a.0
       if
         local.get $a.0
         call $rt:release_ref
       end
-    ;; 16 |         _ => b
-      local.get $b.1
+    ;; 15 |         0 => a
+      local.get $a.1
     ;; 14 |     match k:
-      local.set $a.1
-      local.set $a.0
-      br 0
+      return
     end
+    ;; 16 |         _ => b
+    local.get $b.0
+    ;; 14 |     match k:
     local.get $a.0
-    local.get $a.1
+    if
+      local.get $a.0
+      call $rt:release_ref
+    end
+    local.set $a.0
+    local.get $a.0
+    local.get $b.1
   )
   (func $pick (param $c i32) (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32 i32)
     ;; 7 |     if c: a else: b
@@ -156,8 +150,6 @@
         local.get $a.0
         call $rt:release_ref
       end
-      local.get $a.1
-      local.set $a.0
     else
       local.get $b.0
       local.get $a.0
@@ -166,11 +158,9 @@
         call $rt:release_ref
       end
       local.get $b.1
-      local.set $a.0
+      local.set $a.1
     end
-    local.set $c
-    local.get $c
-    local.get $a.0
+    local.get $a.1
   )
   (func $pick_len (param $c i32) (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32)
     ;; 10 |     s := if c: a else: b
@@ -178,37 +168,26 @@
     if (result i32)
       local.get $a.0
       local.get $b.0
-      local.tee $c
+      local.tee $a.0
       if
-        local.get $c
+        local.get $a.0
         call $rt:release_ref
       end
     else
       local.get $b.0
       local.get $a.0
-      local.tee $c
       if
-        local.get $c
+        local.get $a.0
         call $rt:release_ref
       end
       local.get $b.1
       local.set $a.1
     end
-    local.set $c
-    ;; 11 |     s.len()
-    block
-      local.get $a.1
-      local.set $a.0
-      br 0
-    end
-    ;; 10 |     s := if c: a else: b
-    local.get $c
+    local.tee $a.0
     if
-      local.get $c
+      local.get $a.0
       call $rt:release_ref
     end
-    local.get $a.0
-    local.set $c
-    local.get $c
+    local.get $a.1
   )
 )

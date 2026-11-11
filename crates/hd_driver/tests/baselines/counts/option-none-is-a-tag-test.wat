@@ -60,7 +60,6 @@
         local.set $t3
         br 1
       end
-      br 0
     end
     local.get $value
     if
@@ -71,8 +70,6 @@
       call $rt:release
     end
     local.get $t3
-    local.set $t1
-    local.get $t1
     local.get $t0
     i32.const 16
     i32.add
@@ -134,7 +131,6 @@
       end
       i32.const 1
       local.set $t3
-      br 0
     end
     local.get $value
     if
@@ -145,8 +141,6 @@
       call $rt:release
     end
     local.get $t3
-    local.set $t1
-    local.get $t1
     local.get $t0
     i32.const 16
     i32.add
@@ -156,28 +150,20 @@
     ;; 21 |     generic(value)
     local.get $value
     call $"generic[string]"
-    local.set $value
-    local.get $value
   )
-  (func $none_first (param $value.0 i32) (param $value.1 i32) (result i32) (local $t0 i32)
+  (func $none_first (param $value.0 i32) (param $value.1 i32) (result i32)
     ;; 12 |     .None == value
     block
       block
-        block
-          local.get $value.0
-          br_if 1
-          br 0
-          unreachable
-        end
-        i32.const 1
-        local.set $t0
-        br 1
+        local.get $value.0
+        br_if 1
+        br 0
+        unreachable
       end
-      br 0
+      i32.const 1
+      return
     end
-    local.get $t0
-    local.set $value.0
-    local.get $value.0
+    i32.const 0
   )
   (func $none_first_ne (param $value.0 i32) (param $value.1 i32) (result i32) (local $t0 i32)
     ;; 15 |     .None != value
@@ -193,31 +179,22 @@
       end
       i32.const 1
       local.set $t0
-      br 0
     end
     local.get $t0
-    local.set $value.0
-    local.get $value.0
   )
-  (func $"generic[string]" (param $value i32) (result i32) (local $t0 i32)
+  (func $"generic[string]" (param $value i32) (result i32)
     ;; 18 |     value == .None
     block
       block
-        block
-          local.get $value
-          i32.load $heap
-          br_if 1
-          br 0
-          unreachable
-        end
-        i32.const 1
-        local.set $t0
-        br 1
+        local.get $value
+        i32.load $heap
+        br_if 1
+        br 0
+        unreachable
       end
-      br 0
+      i32.const 1
+      return
     end
-    local.get $t0
-    local.set $value
-    local.get $value
+    i32.const 0
   )
 )

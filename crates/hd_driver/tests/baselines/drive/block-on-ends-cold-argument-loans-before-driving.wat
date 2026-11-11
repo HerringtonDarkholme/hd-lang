@@ -7,7 +7,7 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $drive (param $log i32) (result i32) (local $t1 i32) (local $t2 i32) (local $value i32) (local $t0 i32)
+  (func $drive (param $log i32) (result i32) (local $value i32) (local $t1 i32) (local $t0 i32)
     ;; 13 |     match block_on(append(log, log)):
     local.get $log
     local.tee $t0
@@ -24,27 +24,23 @@
     local.get $log
     i32.const 4
     i32.sub
-    local.tee $t1
+    local.tee $value
     i32.load $heap
     i32.const 4128768
     i32.and
-    local.get $t2
-    i32.ne
     if
       call $rt:panic
       unreachable
     end
-    local.get $t1
-    local.get $t1
+    local.get $value
+    local.get $value
     i32.load $heap
     i32.const 2097152
     i32.add
     i32.store $heap
-    local.get $t2
     i32.const 2097152
-    i32.add
-    local.get $t1
-    local.get $t1
+    local.get $value
+    local.get $value
     i32.load $heap
     i32.const 2097152
     i32.sub
@@ -55,8 +51,8 @@
     local.get $log
     local.get $log
     call $append
-    local.set $t2
     local.set $t1
+    local.set $value
     local.get $log
     local.tee $t0
     if
@@ -73,7 +69,7 @@
     end
     i32.const 0
     local.set $log
-    local.get $t2
+    local.get $t1
     local.tee $t0
     if
       local.get $t0
@@ -89,24 +85,20 @@
     end
     block
       block
-        block
     ;; 14 |         .Completed(value) => value
-          local.get $log
-          i32.eqz
-          i32.eqz
-          br_if 1
-          local.get $t1
-          local.set $value
-          br 0
+        local.get $log
+        i32.eqz
+        i32.eqz
+        br_if 1
+        br 0
     ;; 13 |     match block_on(append(log, log)):
-          unreachable
-        end
-        br 1
+        unreachable
       end
-      br 0
+    ;; 14 |         .Completed(value) => value
+      local.get $value
+    ;; 13 |     match block_on(append(log, log)):
+      return
     end
-    local.get $value
-    local.set $log
-    local.get $log
+    i32.const 0
   )
 )

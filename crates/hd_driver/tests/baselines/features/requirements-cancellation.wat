@@ -40,7 +40,6 @@
       local.get $frame
       i32.load $heap offset=28
       local.set $key.1
-    else
     end
     local.get $key.1
     i32.const 1
@@ -60,10 +59,6 @@
     i32.store8 $heap
     local.get $t2
     local.get $t1
-    local.set $key.1
-    local.set $key.0
-    local.get $key.0
-    local.get $key.1
     local.get $frame
     if
       local.get $frame
@@ -208,38 +203,35 @@
     i32.store $heap offset=28
     local.get $t0
   )
-  (func $drop_now (param $key.0 i32) (param $key.1 i32)
+  (func $drop_now (param $key.0 i32) (param $key.1 i32) (local $t0 i32)
     ;; 20 |     let mut job = fetch(key)
     local.get $key.0
     local.get $key.1
     call $fetch'2
-    local.set $key.0
+    local.tee $key.0
     ;; 21 |     job.abandon()
-    block
-      local.get $key.0
-      i32.load $heap offset=12
-      local.set $key.1
-      global.get $aband
+    local.tee $key.1
+    i32.load $heap offset=12
+    local.set $t0
+    global.get $aband
+    i32.const 1
+    i32.add
+    global.set $aband
+    local.get $key.1
+    local.get $key.1
+    i32.load $heap offset=4
+    call_indirect $table0 (param i32)
+    global.get $aband
+    i32.const -1
+    i32.add
+    global.set $aband
+    local.get $key.1
+    i32.load $heap offset=12
+    local.get $t0
+    i32.ne
+    if
       i32.const 1
-      i32.add
-      global.set $aband
-      local.get $key.0
-      local.get $key.0
-      i32.load $heap offset=4
-      call_indirect $table0 (param i32)
-      global.get $aband
-      i32.const -1
-      i32.add
-      global.set $aband
-      local.get $key.0
-      i32.load $heap offset=12
-      local.get $key.1
-      i32.ne
-      if
-        i32.const 1
-        global.set $rewake
-      end
-      br 0
+      global.set $rewake
     end
     ;; 20 |     let mut job = fetch(key)
     local.get $key.0
@@ -301,12 +293,10 @@
         local.get $frame
         i32.load $heap offset=52
         local.set $t1
-        br 0
       end
       local.get $frame
       i32.load $heap offset=8
       local.set $t2
-    else
     end
     block
       local.get $t2
@@ -532,7 +522,6 @@
           local.set $t6
           br 1
         end
-        br 0
       end
     ;; 13 |     let mut job = fetch(key)
     end

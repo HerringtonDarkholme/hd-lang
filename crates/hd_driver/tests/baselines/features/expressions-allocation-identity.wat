@@ -55,7 +55,5 @@
       local.get $t0
       call $rt:release_ref
     end
-    local.set $user
-    local.get $user
   )
 )

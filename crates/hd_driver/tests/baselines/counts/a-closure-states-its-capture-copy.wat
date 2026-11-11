@@ -5,11 +5,9 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $plain (result i32 i32) (local $t0 i32)
+  (func $plain (result i32 i32)
     ;; 11 |     fn() -> usize: 0
     i32.const 0
-    local.set $t0
-    local.get $t0
     i32.const 0
   )
   (func $plain#1 (param $env i32) (param $ctx i32) (result i32)
@@ -48,17 +46,15 @@
         call $rt:release_ref
       end
     end
-    local.set $count
-    local.get $count
+    ;; 6 |     fn() -> usize:
     local.get $t0
   )
   (func $make#1 (param $env i32) (param $ctx i32) (result i32)
     ;; 6 |     fn() -> usize:
     local.get $env
     i32.load $heap
-    local.set $env
+    local.tee $env
     ;; 7 |         count += 1
-    local.get $env
     local.get $env
     i32.load $heap
     i32.const 1
@@ -67,8 +63,5 @@
     ;; 8 |         count
     local.get $env
     i32.load $heap
-    ;; 6 |     fn() -> usize:
-    local.set $env
-    local.get $env
   )
 )

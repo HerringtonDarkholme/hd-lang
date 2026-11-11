@@ -44,11 +44,6 @@
         call $rt:release_ref'1
       end
     end
-    ;; 12 |     key.len()
-    block
-      br 0
-    end
-    ;; 11 |     _ := fetch(key)
     local.get $key.0
     local.tee $t0
     if
@@ -56,8 +51,6 @@
       call $rt:release_ref'2
     end
     local.get $key.1
-    local.set $key.0
-    local.get $key.0
   )
   (func $fetch'2 (param $frame i32) (param $key.0 i32) (param $key.1 i32) (result i32 i32 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t0 i32)
     ;; 8 |     key + "?"
@@ -83,7 +76,6 @@
       local.get $frame
       i32.load $heap offset=28
       local.set $key.1
-    else
     end
     local.get $key.1
     i32.const 1
@@ -103,10 +95,6 @@
     i32.store8 $heap
     local.get $t2
     local.get $t1
-    local.set $key.1
-    local.set $key.0
-    local.get $key.0
-    local.get $key.1
     local.get $frame
     if
       local.get $frame
@@ -318,7 +306,6 @@
         local.get $frame
         i32.load $heap offset=52
         local.set $t2
-        br 0
       end
       local.get $frame
       i32.load $heap offset=8
@@ -832,12 +819,10 @@
         local.get $frame
         i32.load $heap offset=44
         local.set $t2
-        br 0
       end
       local.get $frame
       i32.load $heap offset=8
       local.set $t3
-    else
     end
     block
       local.get $t3
@@ -1355,12 +1340,10 @@
         local.get $frame
         i32.load $heap offset=188
         local.set $t9
-        br 0
       end
       local.get $frame
       i32.load $heap offset=8
       local.set $t10
-    else
     end
     block
       block
@@ -2328,12 +2311,10 @@
         local.get $frame
         i32.load $heap offset=128
         local.set $t5
-        br 0
       end
       local.get $frame
       i32.load $heap offset=8
       local.set $t6
-    else
     end
     block
       local.get $t6
@@ -2918,12 +2899,10 @@
         local.get $frame
         i32.load $heap offset=52
         local.set $t2
-        br 0
       end
       local.get $frame
       i32.load $heap offset=8
       local.set $t3
-    else
     end
     block
       local.get $t3

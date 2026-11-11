@@ -84,12 +84,10 @@
         local.get $frame
         i64.load $heap offset=88
         local.set $t4
-        br 0
       end
       local.get $frame
       i32.load $heap offset=8
       local.set $t5
-    else
     end
     block
       local.get $t5
@@ -141,13 +139,8 @@
         local.set $t3
     ;; 28 |     sleep!(ms(1))
         i64.const 1
+        call $"impl Duration.milliseconds"
         local.set $t4
-        block
-          local.get $t4
-          call $"impl Duration.milliseconds"
-          local.set $t4
-          br 0
-        end
     ;; 27 |     n := text(1).len()
       end
     ;; 28 |     sleep!(ms(1))
@@ -582,25 +575,18 @@
         local.get $frame
         i64.load $heap offset=48
         local.set $t1
-        br 0
       end
       local.get $frame
       i32.load $heap offset=8
       local.set $t2
-    else
     end
     block
       local.get $t2
       i32.eqz
       if
         i64.const 1
+        call $"impl Duration.milliseconds"
         local.set $t1
-        block
-          local.get $t1
-          call $"impl Duration.milliseconds"
-          local.set $t1
-          br 0
-        end
       end
       block
         block
@@ -980,78 +966,50 @@
     end
     local.get $t0
   )
-  (func $text (param $n i32) (result i32 i32) (local $t2 i32) (local $t0 i64) (local $t1 i64) (local $t3 i32) (local $t4 i32) (local $t5 i32)
+  (func $text (param $n i32) (result i32 i32) (local $t0 i64) (local $t1 i64) (local $t2 i32) (local $t4 i32) (local $t3 i32)
     ;; 13 |     "t${n}"
     local.get $n
     i64.extend_i32_s
     local.tee $t0
-    local.set $t1
-    block
-      block
-        local.get $t1
-        call $signed_magnitude
-        call $unsigned_width
-        local.set $n
-        local.get $t1
-        i64.const 0
-        i64.lt_s
-        if
-          i32.const 1
-          local.set $t2
-        else
-        end
-        local.get $n
-        local.get $t2
-        i32.add
-        local.set $n
-        br 0
-      end
-      br 0
+    local.tee $t1
+    call $signed_magnitude
+    call $unsigned_width
+    local.set $n
+    local.get $t1
+    i64.const 0
+    i64.lt_s
+    if
+      i32.const 1
+      local.set $t2
     end
+    local.get $n
+    local.get $t2
+    i32.add
+    local.set $n
     i32.const 1
     local.tee $t2
     local.get $n
     i32.add
-    local.set $t3
-    block
+    local.tee $t3
+    i32.const 16
+    local.set $t4
+    if
       local.get $t3
-      i32.const 16
+      call $rt:str
       local.set $t4
-      if
-        local.get $t3
-        call $rt:str
-        local.set $t4
-      end
-      local.get $t4
-      local.get $t3
-      local.set $t4
-      local.set $t3
-      br 0
     end
-    i32.const 112 ;; &"t"
-    local.set $t5
-    block
-      local.get $t3
-      local.get $t5
-      i32.load8_u $heap
-      i32.store8 $heap
-      br 0
-    end
-    block
-      local.get $t0
-      local.get $t3
-      local.get $t2
-      i32.add
-      local.get $n
-      call $write_signed_sized
-      br 0
-    end
-    local.get $t3
     local.get $t4
-    local.set $t2
-    local.set $n
-    local.get $n
+    i32.const 112 ;; &"t"
+    i32.load8_u $heap
+    i32.store8 $heap
+    local.get $t0
+    local.get $t4
     local.get $t2
+    i32.add
+    local.get $n
+    call $write_signed_sized
+    local.get $t4
+    local.get $t3
   )
   (func $holds'1 (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32) (local $t3 i32) (local $t7 i32) (local $t8 i32) (local $t1 i32) (local $t2 i32) (local $t4 i32) (local $t6 i32) (local $t5 i32) (local $t0 i32)
     ;; 24 |     total(text(1), pause!())
@@ -1104,12 +1062,10 @@
         local.get $frame
         i32.load $heap offset=40
         local.set $t2
-        br 0
       end
       local.get $frame
       i32.load $heap offset=8
       local.set $t3
-    else
     end
     block
       local.get $t3
@@ -1518,20 +1474,8 @@
   )
   (func $total (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32)
     ;; 17 |     a.len() + b.len()
-    block
-      local.get $a.1
-      local.set $a.0
-      br 0
-    end
-    block
-      local.get $b.1
-      local.set $a.1
-      br 0
-    end
-    local.get $a.0
     local.get $a.1
+    local.get $b.1
     i32.add
-    local.set $a.0
-    local.get $a.0
   )
 )

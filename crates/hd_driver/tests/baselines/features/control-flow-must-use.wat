@@ -9,22 +9,11 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $unused (param $s.0 i32) (param $s.1 i32) (result i32)
     ;; 20 |     s.len()
-    block
-      local.get $s.1
-      local.set $s.0
-      br 0
-    end
-    ;; 19 |     _kept := s
-    local.get $s.0
+    local.get $s.1
   )
   (func $save (param $s.0 i32) (param $s.1 i32) (result i32 i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 11 |     if s.len() > 0: .Ok(s + "!") else: .Err(SaveError.Failed("empty"))
-    block
-      local.get $s.1
-      local.set $t0
-      br 0
-    end
-    local.get $t0
+    local.get $s.1
     i32.const 0
     i32.gt_u
     if (result i32)
@@ -46,18 +35,18 @@
       i32.store8 $heap
       i32.const 0
       local.get $t1
+      local.get $t0
       local.set $s.1
+      local.set $s.0
     else
       i32.const 1
       i32.const 66 ;; &"empty"
       i32.const 5
-      local.set $t0
       local.set $s.1
+      local.set $s.0
     end
-    local.set $s.0
     local.get $s.0
     local.get $s.1
-    local.get $t0
   )
   (func $discard (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 14 |     _ := save(s)
@@ -67,50 +56,41 @@
       local.get $t0
       call $retain
     end
-    block
-      local.get $s.0
+    local.get $s.0
+    local.get $s.1
+    call $"impl string.len"
+    i32.const 0
+    i32.gt_u
+    if (result i32)
       local.get $s.1
-      call $"impl string.len"
-      i32.const 0
-      i32.gt_u
-      if (result i32)
-        local.get $s.1
-        local.tee $t0
-        i32.const 1
-        i32.add
-        local.tee $t1
-        call $rt:str
-        local.tee $t2
-        local.tee $t3
-        local.get $s.0
-        local.get $t0
-        call $rt:memory_copy/0/0
-        local.get $t3
-        local.get $t0
-        i32.add
-        i32.const 65 ;; &"!"
-        i32.load8_u $heap
-        i32.store8 $heap
-        i32.const 0
-        local.get $t2
-        local.set $t0
-      else
-        i32.const 1
-        i32.const 66 ;; &"empty"
-        i32.const 5
-        local.set $t1
-        local.set $t0
-      end
+      local.tee $t0
+      i32.const 1
+      i32.add
+      local.tee $t1
+      call $rt:str
+      local.tee $t2
+      local.tee $t3
+      local.get $s.0
       local.get $t0
-      local.get $t1
-      local.set $t2
+      call $rt:memory_copy/0/0
+      local.get $t3
+      local.get $t0
+      i32.add
+      i32.const 65 ;; &"!"
+      i32.load8_u $heap
+      i32.store8 $heap
+      i32.const 0
+      local.get $t2
+      local.set $t0
+    else
+      i32.const 1
+      i32.const 66 ;; &"empty"
+      i32.const 5
       local.set $t1
       local.set $t0
-      br 0
     end
     local.get $t0
     local.get $t1
-    local.get $t2
     call $rt:release
     local.get $s.0
     local.tee $t0
@@ -125,51 +105,42 @@
       local.get $t0
       call $retain
     end
-    block
-      local.get $s.0
+    local.get $s.0
+    local.get $s.1
+    call $"impl string.len"
+    i32.const 0
+    i32.gt_u
+    if (result i32)
       local.get $s.1
-      call $"impl string.len"
-      i32.const 0
-      i32.gt_u
-      if (result i32)
-        local.get $s.1
-        local.tee $t0
-        i32.const 1
-        i32.add
-        local.tee $t1
-        call $rt:str
-        local.tee $t2
-        local.tee $t3
-        local.get $s.0
-        local.get $t0
-        call $rt:memory_copy/0/0
-        local.get $t3
-        local.get $t0
-        i32.add
-        i32.const 65 ;; &"!"
-        i32.load8_u $heap
-        i32.store8 $heap
-        i32.const 0
-        local.get $t2
-        local.set $t0
-      else
-        i32.const 1
-        i32.const 66 ;; &"empty"
-        i32.const 5
-        local.set $t1
-        local.set $t0
-      end
+      local.tee $t0
+      i32.const 1
+      i32.add
+      local.tee $t1
+      call $rt:str
+      local.tee $t2
+      local.tee $t3
+      local.get $s.0
       local.get $t0
-      local.get $t1
-      local.set $t2
+      call $rt:memory_copy/0/0
+      local.get $t3
+      local.get $t0
+      i32.add
+      i32.const 65 ;; &"!"
+      i32.load8_u $heap
+      i32.store8 $heap
+      i32.const 0
+      local.get $t2
+      local.set $t0
+    else
+      i32.const 1
+      i32.const 66 ;; &"empty"
+      i32.const 5
       local.set $t1
       local.set $t0
-      br 0
     end
-    ;; 14 |     _ := save(s)
     local.get $t0
     local.get $t1
-    local.get $t2
+    ;; 14 |     _ := save(s)
     call $rt:release
     local.get $s.0
     local.tee $t0
@@ -177,11 +148,6 @@
       local.get $t0
       call $rt:release_ref
     end
-    ;; 16 |     s.len()
-    block
-      br 0
-    end
-    ;; 14 |     _ := save(s)
     local.get $s.0
     local.tee $t0
     if
@@ -189,7 +155,5 @@
       call $rt:release_ref
     end
     local.get $s.1
-    local.set $s.0
-    local.get $s.0
   )
 )

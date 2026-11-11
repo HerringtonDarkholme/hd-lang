@@ -26,7 +26,5 @@
     local.get $left
     i32.lt_u
     i32.sub
-    local.set $env
-    local.get $env
   )
 )

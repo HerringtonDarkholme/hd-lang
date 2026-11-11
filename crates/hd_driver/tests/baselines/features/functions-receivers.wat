@@ -20,8 +20,6 @@
       call $rt:release_ref'1
     end
     local.get $s.1
-    local.set $s.0
-    local.get $s.0
   )
   (func $place_receiver (param $s.0 i32) (param $s.1 i32) (result i64) (local $t2 i64) (local $t0 i32) (local $t1 i32)
     ;; 40 |     let mut p = make(s)
@@ -54,9 +52,6 @@
     i32.sub
     local.tee $t0
     global.set $locals
-    block
-      br 0
-    end
     local.get $t0
     i64.const 0
     i64.store $heap
@@ -75,18 +70,12 @@
     local.get $t1
     local.tee $s.0
     ;; 41 |     p.shift(2)
-    local.set $s.1
+    local.tee $s.1
+    local.get $s.1
+    i64.load $heap offset=8
     i64.const 2
-    local.set $t2
-    block
-      local.get $s.1
-      local.get $s.1
-      i64.load $heap offset=8
-      local.get $t2
-      i64.add
-      i64.store $heap offset=8
-      br 0
-    end
+    i64.add
+    i64.store $heap offset=8
     ;; 42 |     p.x
     local.get $s.0
     i64.load $heap offset=8
@@ -117,9 +106,8 @@
       local.get $self.name.0
       call $rt:release_ref'1
     end
-    local.set $self.name.0
-    local.get $self.name.0
     local.get $n.1
+    ;; 22 |         self
     local.get $self.x
   )
   (func $make (param $s.0 i32) (param $s.1 i32) (result i32 i32 i64) (local $t0 i64)
@@ -156,18 +144,13 @@
         call $rt:release_ref'2
       end
     end
-    block
-      local.get $t1
-      local.set $b
-      br 0
-    end
     local.get $t0
     local.tee $t2
     if
       local.get $t2
       call $rt:release_ref'1
     end
-    local.get $b
+    local.get $t1
   )
   (func $mut_self (param $v.name.0 i32) (param $v.name.1 i32) (param $v.x i64) (param $n.0 i32) (param $n.1 i32) (result i32) (local $t0 i32)
     ;; 45 |     w := v.renamed(n)
@@ -177,34 +160,21 @@
       local.get $t0
       call $retain
     end
-    block
-      local.get $n.0
-      local.get $v.name.0
-      local.tee $t0
-      if
-        local.get $t0
-        call $rt:release_ref'1
-      end
-      local.set $n.0
-      br 0
-    end
-    ;; 46 |     w.name.len() + v.name.len()
-    block
-      br 0
-    end
-    ;; 45 |     w := v.renamed(n)
     local.get $n.0
+    local.get $v.name.0
+    local.tee $t0
+    if
+      local.get $t0
+      call $rt:release_ref'1
+    end
     local.tee $t0
     if
       local.get $t0
       call $rt:release_ref'1
     end
     ;; 46 |     w.name.len() + v.name.len()
-    block
-      br 0
-    end
-    ;; 45 |     w := v.renamed(n)
     local.get $v.name.0
+    ;; 45 |     w := v.renamed(n)
     local.tee $t0
     if
       local.get $t0
@@ -214,9 +184,6 @@
     local.get $n.1
     local.get $v.name.1
     i32.add
-    ;; 45 |     w := v.renamed(n)
-    local.set $v.name.0
-    local.get $v.name.0
   )
   (func $element_receiver (param $xs i32) (param $i i32)
     ;; 34 |     xs[i].shift(1)
@@ -265,16 +232,8 @@
     i32.load $heap offset=16
     local.get $xs
     i32.load $heap offset=20
-    local.set $i
+    local.set $xs
     drop
-    block
-      block
-        local.get $i
-        local.set $xs
-        br 0
-      end
-      br 0
-    end
     local.get $xs
   )
   (func $"impl Vec2.label_len" (param $self i32) (result i32)
@@ -285,9 +244,6 @@
     i32.load $heap offset=4
     local.set $self
     drop
-    block
-      br 0
-    end
     local.get $self
   )
   (func $"impl Vec2.shift" (param $self i32) (param $d i64)

@@ -81,7 +81,5 @@
     local.get $t0
     i32.store $heap offset=4
     local.get $t2
-    local.set $t0
-    local.get $t0
   )
 )

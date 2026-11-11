@@ -13,7 +13,7 @@
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 10 funcref))
-  (func $run (param $n i64) (result i64) (local $counters i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+  (func $run (param $n i64) (result i64) (local $counters i32) (local $t0 i32) (local $t1 i32)
     ;; 30 |     counters := box(Counters { calls: 0, total: 0 })
     i32.const 16
     i32.const 0
@@ -38,17 +38,16 @@
         call $rt:retain_known
       end
     end
-    local.get $t0
-    local.set $t1
-    i32.const 292 ;; &vtable[func68]
-    local.set $t2
     ;; 32 |         count(n)
     local.get $n
-    local.get $t1
-    local.get $t2
-    call $count
-    ;; 30 |     counters := box(Counters { calls: 0, total: 0 })
+    ;; 31 |     $.with(Meter=counters):
     local.get $t0
+    i32.const 292 ;; &vtable[func68]
+    ;; 32 |         count(n)
+    call $count
+    ;; 31 |     $.with(Meter=counters):
+    local.get $t0
+    ;; 30 |     counters := box(Counters { calls: 0, total: 0 })
     local.tee $t1
     if
       local.get $t1
@@ -72,8 +71,6 @@
         call $rt:release_ref'2
       end
     end
-    local.set $n
-    local.get $n
   )
   (func $count (param $n i64) (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i64) (local $i i64)
     ;; 21 |     for i in 0..n:
@@ -189,12 +186,10 @@
         local.get $frame
         i32.load $heap offset=208
         local.set $t4
-        br 0
       end
       local.get $frame
       i32.load $heap offset=8
       local.set $t5
-    else
     end
     block
       local.get $t5

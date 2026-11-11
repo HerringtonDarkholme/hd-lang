@@ -30,25 +30,21 @@
     block
       block
         block
-          block
-            local.get $t2
-            i32.load $heap
-            i32.const 3
-            i32.ne
-            br_if 0
-            br 1
-            unreachable
-          end
-          i32.const 1
-          local.set $t3
+          local.get $t2
+          i32.load $heap
+          i32.const 3
+          i32.ne
+          br_if 0
           br 1
+          unreachable
         end
-        br 0
+        i32.const 1
+        local.set $t3
+        br 1
       end
-      local.get $t3
-      local.set $t2
-      br 0
     end
+    local.get $t3
+    local.set $t2
     ;; ...
     local.get $t2
     if (result i64)

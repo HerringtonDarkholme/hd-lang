@@ -295,7 +295,7 @@
     ;; 11 |     change := fn() -> void:
     local.get $env
     i32.load $heap
-    local.set $env
+    local.tee $env
     ;; 12 |         ps[0] = box(P { name: "b" })
     i32.const 8
     i32.const 2
@@ -307,7 +307,6 @@
     i32.const 1
     i32.store $heap offset=4
     ;; 11 |     change := fn() -> void:
-    local.get $env
     i32.const 4
     i32.sub
     i32.load $heap

@@ -6,80 +6,27 @@
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $loud (param $xs i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
+  (func $loud (param $xs i32) (result i32)
     ;; 12 |     xs.iter()
-    block
-      br 0
-    end
+    local.get $xs
+    i32.const 0
     ;; 13 |         .filter(fn(s: &string) -> bool: s.len() > 2)
     i32.const 1
     ;; 12 |     xs.iter()
-    local.set $t0
-    block
-      local.get $xs
-      i32.const 0
-      local.get $t0
-      local.set $t1
-      local.set $t0
-      local.set $xs
-      br 0
-    end
+    i32.const 0
     ;; 14 |         .map(fn(s: string) -> string: s + "!")
     i32.const 2
     ;; 12 |     xs.iter()
-    local.set $t2
-    block
-      local.get $xs
-      local.get $t0
-      local.get $t1
-      i32.const 0
-      local.get $t2
-      local.set $t3
-      local.set $t2
-      local.set $t1
-      local.set $t0
-      local.set $xs
-      br 0
-    end
-    block
-      local.get $xs
-      local.get $t0
-      local.get $t1
-      local.get $t2
-      local.get $t3
-      i32.const 0
-      call $"impl[T] FromIterator[T] for List[T].from_iter[string, std.iter.MapIter[std.iter.Filter[std.iter.ListIter[string], string, fn(&string) -> bool], string, string, fn(string) -> string]]"
-      local.set $xs
-      br 0
-    end
-    local.get $xs
+    i32.const 0
+    call $"impl[T] FromIterator[T] for List[T].from_iter[string, std.iter.MapIter[std.iter.Filter[std.iter.ListIter[string], string, fn(&string) -> bool], string, string, fn(string) -> string]]"
   )
-  (func $lens (param $xs i32) (result i32) (local $t0 i32) (local $t1 i32)
+  (func $lens (param $xs i32) (result i32)
     ;; 9 |     xs.iter().map(fn(s: string) -> usize: s.len()).collect()
-    block
-      br 0
-    end
-    i32.const 4
-    local.set $t0
-    block
-      local.get $xs
-      i32.const 0
-      local.get $t0
-      local.set $t1
-      local.set $t0
-      local.set $xs
-      br 0
-    end
-    block
-      local.get $xs
-      local.get $t0
-      local.get $t1
-      i32.const 0
-      call $"impl[T] FromIterator[T] for List[T].from_iter[usize, std.iter.MapIter[std.iter.ListIter[string], string, usize, fn(string) -> usize]]"
-      local.set $xs
-      br 0
-    end
     local.get $xs
+    i32.const 0
+    i32.const 4
+    i32.const 0
+    call $"impl[T] FromIterator[T] for List[T].from_iter[usize, std.iter.MapIter[std.iter.ListIter[string], string, usize, fn(string) -> usize]]"
   )
   (func $loud#2 (param $env i32) (param $s.0 i32) (param $s.1 i32) (param $ctx i32) (result i32 i32) (local $t0 i32)
     ;; 14 |         .map(fn(s: string) -> string: s + "!")
@@ -106,37 +53,21 @@
     end
     local.get $ctx
     local.get $env
-    local.set $s.0
-    local.set $env
-    local.get $env
-    local.get $s.0
   )
   (func $lens#1 (param $env i32) (param $s.0 i32) (param $s.1 i32) (param $ctx i32) (result i32)
     ;; 9 |     xs.iter().map(fn(s: string) -> usize: s.len()).collect()
-    block
-      local.get $s.1
-      local.set $env
-      br 0
-    end
     local.get $s.0
     if
       local.get $s.0
       call $rt:release_ref
     end
-    local.get $env
+    local.get $s.1
   )
   (func $loud#1 (param $env i32) (param $s i32) (param $ctx i32) (result i32)
     ;; 13 |         .filter(fn(s: &string) -> bool: s.len() > 2)
-    block
-      local.get $s
-      i32.load $heap offset=4
-      local.set $env
-      br 0
-    end
-    local.get $env
+    local.get $s
+    i32.load $heap offset=4
     i32.const 2
     i32.gt_u
-    local.set $env
-    local.get $env
   )
 )

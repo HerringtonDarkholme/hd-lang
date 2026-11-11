@@ -57,12 +57,6 @@
     local.get $t0
     local.get $t1
     local.get $source
-    local.set $t1
-    local.set $t0
-    local.set $source
-    local.get $source
-    local.get $t0
-    local.get $t1
     local.get $t2
     local.get $t3
   )

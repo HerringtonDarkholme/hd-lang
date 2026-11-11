@@ -9,20 +9,12 @@
   (import "fixture" "table0" (table $table0 2 funcref))
   (func $read_cell (param $c.value.0 i32) (param $c.value.1 i32) (result i32)
     ;; 25 |     c().len()
-    block
-      br 0
-    end
-    block
-      br 0
-    end
     local.get $c.value.0
     if
       local.get $c.value.0
       call $rt:release_ref
     end
     local.get $c.value.1
-    local.set $c.value.0
-    local.get $c.value.0
   )
   (func $"impl Update[string] for Cell.update" (param $self i32) (param $value.0 i32) (param $value.1 i32)
     ;; 19 |         self.value = value
@@ -46,15 +38,11 @@
     local.get $t0
     i32.load $heap offset=4
     local.set $t1
-    local.set $t0
-    block
-      local.get $t0
-      local.tee $t2
-      if
-        local.get $t2
-        call $retain
-      end
-      br 0
+    local.tee $t0
+    local.tee $t2
+    if
+      local.get $t2
+      call $retain
     end
     local.get $t1
     i32.const 1
@@ -78,20 +66,17 @@
       local.get $t2
       call $rt:release_ref
     end
-    block
-      local.get $c
-      i32.load $heap
-      local.get $c
-      i32.load $heap offset=4
-      local.get $c
-      local.get $t4
-      i32.store $heap
-      local.get $c
-      local.get $t3
-      i32.store $heap offset=4
-      call $rt:release
-      br 0
-    end
+    local.get $c
+    i32.load $heap
+    local.get $c
+    i32.load $heap offset=4
+    local.get $c
+    local.get $t4
+    i32.store $heap
+    local.get $c
+    local.get $t3
+    i32.store $heap offset=4
+    call $rt:release
   )
   (func $"impl Apply for Cell.apply" (param $self.value.0 i32) (param $self.value.1 i32) (result i32 i32)
     ;; 15 |         self.value
@@ -100,20 +85,17 @@
   )
   (func $store_cell (param $c i32) (param $s.0 i32) (param $s.1 i32)
     ;; 28 |     c() = s
-    block
-      local.get $c
-      i32.load $heap
-      local.get $c
-      i32.load $heap offset=4
-      local.get $c
-      local.get $s.0
-      i32.store $heap
-      local.get $c
-      local.get $s.1
-      i32.store $heap offset=4
-      call $rt:release
-      br 0
-    end
+    local.get $c
+    i32.load $heap
+    local.get $c
+    i32.load $heap offset=4
+    local.get $c
+    local.get $s.0
+    i32.store $heap
+    local.get $c
+    local.get $s.1
+    i32.store $heap offset=4
+    call $rt:release
   )
   (func $stored_fn (param $h.callback.0 i32) (param $h.callback.1 i32) (param $s.0 i32) (param $s.1 i32) (result i32)
     ;; 34 |     (h.callback)(s)
@@ -123,7 +105,5 @@
     i32.const 0
     local.get $h.callback.0
     call_indirect $table0 (param i32 i32 i32 i32) (result i32)
-    local.set $h.callback.0
-    local.get $h.callback.0
   )
 )

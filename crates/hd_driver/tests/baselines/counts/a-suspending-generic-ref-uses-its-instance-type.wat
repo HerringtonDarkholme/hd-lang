@@ -54,7 +54,6 @@
         local.get $frame
         i32.load $heap offset=40
         local.set $t1
-        br 0
       end
       local.get $frame
       i32.load $heap offset=8
@@ -495,7 +494,6 @@
         local.get $frame
         i32.load $heap offset=36
         local.set $t1
-        br 0
       end
       local.get $frame
       i32.load $heap offset=8

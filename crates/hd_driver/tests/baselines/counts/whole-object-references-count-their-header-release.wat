@@ -17,8 +17,6 @@
       end
     end
     local.get $n
-    local.set $t0
     local.get $n
-    local.get $t0
   )
 )

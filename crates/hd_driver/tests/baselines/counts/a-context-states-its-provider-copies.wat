@@ -7,70 +7,55 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $replace (param $first.0 i32) (param $first.1 i32) (param $last.0 i32) (param $last.1 i32) (result i32) (local $t0 i32)
     ;; 30 |     $.context(Tag=Named { label: first }, Tag=Named { label: last })
-    block
-      i32.const 8
-      i32.const 3
-      call $rt:new/class-1
-      local.tee $t0
-      local.get $first.0
-      i32.store $heap
-      local.get $t0
-      local.get $first.1
-      i32.store $heap offset=4
-      local.get $t0
-      local.set $first.0
-      br 0
-    end
-    block
-      i32.const 8
-      i32.const 3
-      call $rt:new/class-1
-      local.tee $first.1
-      local.get $last.0
-      i32.store $heap
-      local.get $first.1
-      local.get $last.1
-      i32.store $heap offset=4
-      br 0
-    end
+    i32.const 8
+    i32.const 3
+    call $rt:new/class-1
+    local.tee $t0
+    local.get $first.0
+    i32.store $heap
+    local.get $t0
+    local.get $first.1
+    i32.store $heap offset=4
+    i32.const 8
+    i32.const 3
+    call $rt:new/class-1
+    local.tee $first.0
+    local.get $last.0
+    i32.store $heap
+    local.get $first.0
+    local.get $last.1
+    i32.store $heap offset=4
     i32.const 1
     i32.const 0
     call $rt:ctx_new
-    local.tee $last.0
+    local.tee $first.1
     i64.const -8941934570327064298
     i64.store $heap offset=16
-    local.get $last.0
     local.get $first.1
+    local.get $first.0
     i32.store $heap offset=24
-    local.get $last.0
+    local.get $first.1
     i32.const 204 ;; &vtable[func66]
     i32.store $heap offset=28
-    local.get $first.0
+    local.get $t0
     if
-      local.get $first.0
+      local.get $t0
       call $rt:release_ref
     end
-    local.get $last.0
-    local.set $first.0
-    local.get $first.0
+    local.get $first.1
   )
   (func $before_spread (param $ctx i32) (param $label.0 i32) (param $label.1 i32) (result i32) (local $t0 i32)
     ;; 27 |     $.context(Tag=Named { label: label }, ctx...)
-    block
-      i32.const 8
-      i32.const 3
-      call $rt:new/class-1
-      local.tee $t0
-      local.get $label.0
-      i32.store $heap
-      local.get $t0
-      local.get $label.1
-      i32.store $heap offset=4
-      local.get $t0
-      local.set $label.0
-      br 0
-    end
+    i32.const 8
+    i32.const 3
+    call $rt:new/class-1
+    local.tee $t0
     local.get $label.0
+    i32.store $heap
+    local.get $t0
+    local.get $label.1
+    i32.store $heap offset=4
+    local.get $t0
     local.get $ctx
     i32.load $heap offset=24
     local.set $label.0
@@ -100,8 +85,6 @@
       call $rt:release_ref
     end
     local.get $label.1
-    local.set $ctx
-    local.get $ctx
   )
   (func $"impl Tag for Named.name" (param $self.label.0 i32) (param $self.label.1 i32) (result i32 i32)
     ;; 12 |         self.label
@@ -134,55 +117,43 @@
       call $retain
     end
     local.get $t1
-    local.set $ctx
-    local.get $ctx
   )
   (func $make (param $label.0 i32) (param $label.1 i32) (result i32) (local $t0 i32)
     ;; 15 |     $.context(Tag=Named { label: label })
-    block
-      i32.const 8
-      i32.const 3
-      call $rt:new/class-1
-      local.tee $t0
-      local.get $label.0
-      i32.store $heap
-      local.get $t0
-      local.get $label.1
-      i32.store $heap offset=4
-      local.get $t0
-      local.set $label.0
-      br 0
-    end
+    i32.const 8
+    i32.const 3
+    call $rt:new/class-1
+    local.tee $t0
+    local.get $label.0
+    i32.store $heap
+    local.get $t0
+    local.get $label.1
+    i32.store $heap offset=4
     i32.const 1
     i32.const 0
     call $rt:ctx_new
-    local.tee $label.1
+    local.tee $label.0
     i64.const -8941934570327064298
     i64.store $heap offset=16
-    local.get $label.1
     local.get $label.0
+    local.get $t0
     i32.store $heap offset=24
-    local.get $label.1
+    local.get $label.0
     i32.const 204 ;; &vtable[func66]
     i32.store $heap offset=28
-    local.get $label.1
-    local.set $label.0
     local.get $label.0
   )
   (func $shadow (param $ctx i32) (param $label.0 i32) (param $label.1 i32) (result i32)
     ;; 21 |     $.context(ctx..., Tag=Named { label: label })
-    block
-      i32.const 8
-      i32.const 3
-      call $rt:new/class-1
-      local.tee $ctx
-      local.get $label.0
-      i32.store $heap
-      local.get $ctx
-      local.get $label.1
-      i32.store $heap offset=4
-      br 0
-    end
+    i32.const 8
+    i32.const 3
+    call $rt:new/class-1
+    local.tee $ctx
+    local.get $label.0
+    i32.store $heap
+    local.get $ctx
+    local.get $label.1
+    i32.store $heap offset=4
     i32.const 1
     i32.const 0
     call $rt:ctx_new
@@ -196,15 +167,11 @@
     i32.const 204 ;; &vtable[func66]
     i32.store $heap offset=28
     local.get $label.0
-    local.set $ctx
-    local.get $ctx
   )
-  (func $empty (result i32) (local $t0 i32)
+  (func $empty (result i32)
     ;; 24 |     $.context()
     i32.const 0
     i32.const 0
     call $rt:ctx_new
-    local.set $t0
-    local.get $t0
   )
 )

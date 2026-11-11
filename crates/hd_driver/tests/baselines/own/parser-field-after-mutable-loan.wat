@@ -9,7 +9,7 @@
   (import "fixture" "rt:new/class-1'2" (func $rt:new/class-1'2 (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 5 funcref))
-  (func $"impl Parser.expression" (param $self i32) (result i32 i32) (local $t0 i32)
+  (func $"impl Parser.expression" (param $self i32) (result i32 i32)
     ;; 19 |         self.whitespace()
     local.get $self
     call $"impl Parser.whitespace"
@@ -38,14 +38,11 @@
     i32.const 4
     i32.const 0
     call $rt:new/class-1'1
-    local.tee $t0
+    local.tee $self
     i32.const 1
     i32.store $heap
     i32.const 0
-    ;; 19 |         self.whitespace()
-    local.set $self
     local.get $self
-    local.get $t0
   )
   (func $"impl Parser.whitespace" (param $self i32) (local $t0 i32) (local $t1 i32)
     ;; 14 |         while self.at < self.chars.len() && self.chars[self.at].is_whitespace():
@@ -79,65 +76,42 @@
           i32.load $heap offset=16
           local.set $t0
           block
-            block
+            local.get $t0
+            i32.const 32
+            i32.le_s
+            if
               local.get $t0
               i32.const 32
-              i32.le_s
-              if
+              i32.eq
+              i32.eqz
+              if (result i32)
                 local.get $t0
-                i32.const 32
-                i32.eq
-                i32.eqz
+                i32.const 9
+                i32.ge_s
                 if (result i32)
                   local.get $t0
-                  i32.const 9
-                  i32.ge_s
-                  if (result i32)
-                    local.get $t0
-                    i32.const 13
-                    i32.le_s
-                  else
-                    i32.const 0
-                  end
+                  i32.const 13
+                  i32.le_s
                 else
-                  i32.const 1
+                  i32.const 0
                 end
-                local.set $t0
-                br 1
+              else
+                i32.const 1
               end
+              local.set $t0
+              br 1
+            end
+            local.get $t0
+            i32.const 8192
+            i32.lt_s
+            if
               local.get $t0
-              i32.const 8192
-              i32.lt_s
-              if
-                local.get $t0
-                i32.const 133
-                i32.eq
-                i32.eqz
-                if (result i32)
-                  local.get $t0
-                  i32.const 160
-                  i32.eq
-                else
-                  i32.const 1
-                end
-                i32.eqz
-                if (result i32)
-                  local.get $t0
-                  i32.const 5760
-                  i32.eq
-                else
-                  i32.const 1
-                end
-                local.set $t0
-                br 1
-              end
-              local.get $t0
-              i32.const 8202
-              i32.le_s
+              i32.const 133
+              i32.eq
               i32.eqz
               if (result i32)
                 local.get $t0
-                i32.const 8232
+                i32.const 160
                 i32.eq
               else
                 i32.const 1
@@ -145,39 +119,58 @@
               i32.eqz
               if (result i32)
                 local.get $t0
-                i32.const 8233
-                i32.eq
-              else
-                i32.const 1
-              end
-              i32.eqz
-              if (result i32)
-                local.get $t0
-                i32.const 8239
-                i32.eq
-              else
-                i32.const 1
-              end
-              i32.eqz
-              if (result i32)
-                local.get $t0
-                i32.const 8287
-                i32.eq
-              else
-                i32.const 1
-              end
-              i32.eqz
-              if (result i32)
-                local.get $t0
-                i32.const 12288
+                i32.const 5760
                 i32.eq
               else
                 i32.const 1
               end
               local.set $t0
-              br 0
+              br 1
             end
-            br 0
+            local.get $t0
+            i32.const 8202
+            i32.le_s
+            i32.eqz
+            if (result i32)
+              local.get $t0
+              i32.const 8232
+              i32.eq
+            else
+              i32.const 1
+            end
+            i32.eqz
+            if (result i32)
+              local.get $t0
+              i32.const 8233
+              i32.eq
+            else
+              i32.const 1
+            end
+            i32.eqz
+            if (result i32)
+              local.get $t0
+              i32.const 8239
+              i32.eq
+            else
+              i32.const 1
+            end
+            i32.eqz
+            if (result i32)
+              local.get $t0
+              i32.const 8287
+              i32.eq
+            else
+              i32.const 1
+            end
+            i32.eqz
+            if (result i32)
+              local.get $t0
+              i32.const 12288
+              i32.eq
+            else
+              i32.const 1
+            end
+            local.set $t0
           end
           local.get $t0
         else
@@ -199,18 +192,11 @@
   )
   (func $length_across_write (param $text.0 i32) (param $text.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 34 |     let mut parser = Parser { chars: text.chars().collect(), at: 0 }
-    block
-      br 0
-    end
-    block
-      local.get $text.0
-      local.get $text.1
-      i32.const 0
-      call $"impl[T] FromIterator[T] for List[T].from_iter[char, std.text.Chars]"
-      local.set $text.0
-      br 0
-    end
     local.get $text.0
+    local.get $text.1
+    i32.const 0
+    call $"impl[T] FromIterator[T] for List[T].from_iter[char, std.text.Chars]"
+    local.tee $text.0
     ;; 35 |     chars := parser.chars
     call $rt:coll_copy
     local.set $text.1
@@ -272,23 +258,15 @@
         call $rt:release_ref
       end
     end
-    local.set $text.0
-    local.get $text.0
   )
   (func $length_after_loan (param $text.0 i32) (param $text.1 i32) (result i32 i32) (local $parser i32) (local $root i32)
     ;; 26 |     let mut parser = Parser { chars: text.chars().collect(), at: 0 }
     block
-      block
-        br 0
-      end
-      block
-        local.get $text.0
-        local.get $text.1
-        i32.const 0
-        call $"impl[T] FromIterator[T] for List[T].from_iter[char, std.text.Chars]"
-        local.set $text.0
-        br 0
-      end
+      local.get $text.0
+      local.get $text.1
+      i32.const 0
+      call $"impl[T] FromIterator[T] for List[T].from_iter[char, std.text.Chars]"
+      local.set $text.0
       i32.const 8
       i32.const 3
       call $rt:new/class-1'2

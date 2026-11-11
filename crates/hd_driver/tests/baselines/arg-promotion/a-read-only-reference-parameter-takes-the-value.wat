@@ -134,8 +134,6 @@
     end
     local.get $t0
     i32.wrap_i64
-    local.set $self
-    local.get $self
   )
   (func $use_total (result i32)
     ;; 35 |     total(+3, +4)
@@ -255,7 +253,5 @@
     end
     local.get $t0
     i32.wrap_i64
-    local.set $p
-    local.get $p
   )
 )

@@ -24,9 +24,6 @@
     i32.const 8
     i32.add
     call $"impl[T < ?Copy] T?.unwrap_or[&User]"
-    ;; 19 |     let o: (&User)? = if left: .Some(&pair.left) else: .None
-    local.set $pair
-    local.get $pair
   )
   (func $"later#1[*User]" (param $env i32) (param $ctx i32) (result i32)
     ;; 30 |     fn() -> T: value
@@ -48,21 +45,16 @@
   )
   (func $bounded (param $u.name.0 i32) (param $u.name.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 33 |     kept := keep(u)
-    block
-      i32.const 8
-      i32.const 2
-      call $rt:new/class-1'1
-      local.tee $t0
-      local.get $u.name.0
-      i32.store $heap
-      local.get $t0
-      local.get $u.name.1
-      i32.store $heap offset=4
-      local.get $t0
-      local.set $u.name.0
-      br 0
-    end
+    i32.const 8
+    i32.const 2
+    call $rt:new/class-1'1
+    local.tee $t0
     local.get $u.name.0
+    i32.store $heap
+    local.get $t0
+    local.get $u.name.1
+    i32.store $heap offset=4
+    local.get $t0
     ;; 34 |     later(kept)().name.len()
     call $"later[*User]"
     local.set $u.name.1
@@ -115,19 +107,14 @@
       end
     end
     ;; 34 |     later(kept)().name.len()
-    block
-      local.get $t0
-      local.set $u.name.0
-      br 0
-    end
-    ;; 33 |     kept := keep(u)
     local.get $u.name.1
+    ;; 33 |     kept := keep(u)
     local.tee $t1
     if
       local.get $t1
       call $rt:release_ref'2
     end
-    local.get $u.name.0
+    local.get $t0
   )
   (func $"id[&string]" (param $value i32) (result i32)
     ;; 16 |     value
@@ -139,9 +126,6 @@
     call $"id[&string]"
     ;; 24 |     n.len()
     call $"impl string.len"
-    ;; 23 |     n := id(&u.name)
-    local.set $u
-    local.get $u
   )
   (func $"later[*User]" (param $value i32) (result i32 i32) (local $t0 i32)
     ;; 30 |     fn() -> T: value
@@ -152,8 +136,6 @@
     local.tee $t0
     local.get $value
     i32.store $heap
-    local.set $value
-    local.get $value
     local.get $t0
   )
 )

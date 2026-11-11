@@ -141,12 +141,9 @@
         end
         br 1
       end
-      br 0
     end
     ;; 11 |     let call: Suspend[i32] = s.put(text)
     local.get $n
-    local.set $s.0
-    local.get $s.0
     local.get $t0
     i32.const 56
     i32.add

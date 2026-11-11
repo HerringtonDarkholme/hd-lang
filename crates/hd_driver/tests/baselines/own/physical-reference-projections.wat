@@ -16,8 +16,6 @@
     local.get $a
     local.get $b
     i32.eq
-    local.set $a
-    local.get $a
   )
   (func $"impl Probes.variant" (param $value i32) (result i32) (local $t1 i32) (local $t0 i32)
     ;; 39 |         match value:
@@ -48,11 +46,8 @@
       call $"impl string.len"
     ;; 39 |         match value:
       local.set $t1
-      br 0
     end
     local.get $t1
-    local.set $value
-    local.get $value
   )
   (func $"impl Probes.captured_copy#1" (param $env i32) (param $ctx i32) (result i32) (local $t0 i32)
     ;; 53 |         fn() -> usize:
@@ -75,8 +70,6 @@
       local.get $t0
       call $rt:release_ref'1
     end
-    local.set $env
-    local.get $env
   )
   (func $"impl Probes.reborrow" (param $value i32) (result i32)
     ;; 29 |         borrowed := &*value
@@ -84,9 +77,6 @@
     ;; 30 |         Probes::same(borrowed, value)
     local.get $value
     call $"impl Probes.same"
-    ;; 29 |         borrowed := &*value
-    local.set $value
-    local.get $value
   )
   (func $"impl Probes.captured_copy" (param $t0 i32) (param $t1 i32) (result i32 i32) (local $value i32) (local $t2 i32)
     ;; 53 |         fn() -> usize:
@@ -129,10 +119,6 @@
       end
     end
     local.get $t2
-    local.set $t1
-    local.set $t0
-    local.get $t0
-    local.get $t1
   )
   (func $"impl Probes.new_object" (param $value.0 i32) (param $value.1 i32) (result i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t0 i32)
     ;; 47 |         borrowed := &(value + "!")
@@ -217,8 +203,6 @@
     local.get $t1
     i32.add
     ;; 47 |         borrowed := &(value + "!")
-    local.set $value.0
-    local.get $value.0
     local.get $t0
     i32.const 16
     i32.add
@@ -229,8 +213,5 @@
     local.get $value
     ;; 35 |         borrowed.len()
     call $"impl string.len"
-    ;; 34 |         borrowed := &value.label
-    local.set $value
-    local.get $value
   )
 )

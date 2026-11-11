@@ -44,36 +44,27 @@
     local.get $t1
     local.get $t0
   )
-  (func $unwrap (param $o.0 i32) (param $o.1 i32) (result i32) (local $t0 i32)
+  (func $unwrap (param $o.0 i32) (param $o.1 i32) (result i32)
     ;; 7 |     match o:
     block
       block
-        block
     ;; 8 |         .Some(s) => s.len()
-          local.get $o.0
-          br_if 0
+        local.get $o.0
+        br_if 0
     ;; 9 |         .None => 0
-          local.get $o.0
-          i32.eqz
-          br_if 1
-          unreachable
+        local.get $o.0
+        i32.eqz
+        br_if 1
+        unreachable
     ;; 7 |     match o:
-          unreachable
-        end
-    ;; 8 |         .Some(s) => s.len()
-        block
-          local.get $o.1
-          local.set $t0
-          br 0
-        end
-    ;; 7 |     match o:
-        br 1
+        unreachable
       end
-      br 0
+    ;; 8 |         .Some(s) => s.len()
+      local.get $o.1
+    ;; 7 |     match o:
+      return
     end
-    local.get $t0
-    local.set $o.0
-    local.get $o.0
+    i32.const 0
   )
   (func $or_default (param $o.0 i32) (param $o.1 i32) (result i32 i32) (local $t1 i32) (local $t0 i32)
     ;; 16 |     o.unwrap_or("none")
@@ -83,40 +74,28 @@
     local.set $t1
     block
       block
-        block
-          block
-            local.get $o.0
-            if
-              local.get $o.0
-              local.get $o.1
-              local.set $t0
-              local.set $t1
-              br 1
-            else
-              local.get $o.0
-              i32.eqz
-              br_if 2
-              unreachable
-            end
-            unreachable
-          end
-          local.get $t1
-          local.tee $o.0
-          if
-            local.get $o.0
-            call $retain
-          end
+        local.get $o.0
+        if
           br 1
+        else
+          local.get $o.0
+          i32.eqz
+          br_if 2
+          unreachable
         end
-        br 0
+        unreachable
       end
-      local.get $t1
-      local.get $t0
-      local.set $o.1
-      local.set $o.0
-      br 0
+      local.get $o.0
+      local.tee $t1
+      if
+        local.get $t1
+        call $retain
+      end
+      local.get $o.0
+      local.get $o.1
+      return
     end
-    local.get $o.0
-    local.get $o.1
+    local.get $t1
+    local.get $t0
   )
 )

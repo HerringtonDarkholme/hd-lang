@@ -19,9 +19,7 @@
       end
     end
     local.get $p
-    local.set $t0
     local.get $p
-    local.get $t0
   )
   (func $read_ptr (param $p i32) (result i32)
     ;; 15 |     p.name.len()
@@ -31,9 +29,6 @@
     i32.load $heap offset=4
     local.set $p
     drop
-    block
-      br 0
-    end
     local.get $p
   )
   (func $write_ptr (param $p i32) (param $n.0 i32) (param $n.1 i32)
@@ -65,7 +60,5 @@
     i32.const 0
     i32.store $heap offset=8
     local.get $t0
-    local.set $n.0
-    local.get $n.0
   )
 )

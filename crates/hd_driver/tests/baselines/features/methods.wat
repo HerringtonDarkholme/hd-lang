@@ -25,8 +25,6 @@
     i32.mul
     i32.const 7
     i32.div_u
-    local.set $self
-    local.get $self
   )
   (func $"impl Shelf.by_mut" (param $self i32) (param $b.0 i32) (param $b.1 i32) (local $t0 i32) (local $t1 i32)
     ;; 17 |         self.books.push(b)
@@ -90,8 +88,6 @@
     i32.mul
     i32.const 7
     i32.div_u
-    local.set $self
-    local.get $self
   )
   (func $"impl Shelf.consume" (param $self i32) (result i32)
     ;; 20 |         self.books
@@ -147,46 +143,40 @@
     local.get $b.1
     call $"impl Shelf.by_mut"
     ;; 25 |     s.by_self() + s.by_ref() + t.consume().len()
-    block
-      local.get $s
-      i32.load $heap offset=4
-      i32.const 1
-      i32.add
-      local.get $s
-      i32.load $heap offset=4
-      i32.const 2
-      i32.add
-      i32.mul
-      local.get $s
-      i32.load $heap offset=4
-      i32.const 3
-      i32.add
-      i32.mul
-      i32.const 7
-      i32.div_u
-      local.set $b.0
-      br 0
-    end
-    block
-      local.get $s
-      i32.load $heap offset=4
-      i32.const 1
-      i32.add
-      local.get $s
-      i32.load $heap offset=4
-      i32.const 2
-      i32.add
-      i32.mul
-      local.get $s
-      i32.load $heap offset=4
-      i32.const 3
-      i32.add
-      i32.mul
-      i32.const 7
-      i32.div_u
-      local.set $b.1
-      br 0
-    end
+    local.get $s
+    i32.load $heap offset=4
+    i32.const 1
+    i32.add
+    local.get $s
+    i32.load $heap offset=4
+    i32.const 2
+    i32.add
+    i32.mul
+    local.get $s
+    i32.load $heap offset=4
+    i32.const 3
+    i32.add
+    i32.mul
+    i32.const 7
+    i32.div_u
+    local.set $b.0
+    local.get $s
+    i32.load $heap offset=4
+    i32.const 1
+    i32.add
+    local.get $s
+    i32.load $heap offset=4
+    i32.const 2
+    i32.add
+    i32.mul
+    local.get $s
+    i32.load $heap offset=4
+    i32.const 3
+    i32.add
+    i32.mul
+    i32.const 7
+    i32.div_u
+    local.set $b.1
     ;; 23 |     let mut t = s
     local.get $s
     local.tee $t1
@@ -210,11 +200,7 @@
     local.get $t
     i32.const 0
     i32.store $heap
-    local.set $b.0
-    block
-      br 0
-    end
-    local.get $b.0
+    local.tee $b.0
     i32.load $heap offset=4
     local.set $b.1
     ;; 23 |     let mut t = s
@@ -235,8 +221,6 @@
     local.get $b.1
     i32.add
     ;; 23 |     let mut t = s
-    local.set $s
-    local.get $s
     local.get $t0
     i32.const 16
     i32.add

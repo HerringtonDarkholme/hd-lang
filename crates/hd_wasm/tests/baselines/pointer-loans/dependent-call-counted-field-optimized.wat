@@ -45,11 +45,8 @@
         call $rt:release_ref
       end
     end
-    block
-      local.get $t1
-      local.set $h
-      br 0
-    end
+    local.get $t1
+    local.set $h
     local.get $t0
     i32.load $heap
     i32.const 2097152
@@ -208,11 +205,8 @@
         call $rt:release_ref
       end
     end
-    block
-      local.get $t1
-      local.set $h
-      br 0
-    end
+    local.get $t1
+    local.set $h
     local.get $t0
     i32.load $heap
     i32.const 2097152

@@ -50,8 +50,5 @@
     end
     ;; 8 |     sum
     local.get $sum
-    ;; 5 |     let sum = +0
-    local.set $xs
-    local.get $xs
   )
 )

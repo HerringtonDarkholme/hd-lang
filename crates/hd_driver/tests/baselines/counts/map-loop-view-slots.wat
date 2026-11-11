@@ -51,27 +51,24 @@
         i32.add
         local.set $t1
         block
-          block
-            br 0
-            unreachable
-          end
-    ;; 12 |         *value += key
-          local.get $value
-          local.get $value
-          i32.load $heap
-          local.get $key
-          i32.load $heap
-          i32.add
-          i32.store $heap
-    ;; 13 |         total += *value
-          local.get $total
-          local.get $value
-          i32.load $heap
-          i32.add
-          local.set $total
-    ;; 11 |     for (key, value) in &mut items:
           br 0
+          unreachable
         end
+    ;; 12 |         *value += key
+        local.get $value
+        local.get $value
+        i32.load $heap
+        local.get $key
+        i32.load $heap
+        i32.add
+        i32.store $heap
+    ;; 13 |         total += *value
+        local.get $total
+        local.get $value
+        i32.load $heap
+        i32.add
+        local.set $total
+    ;; 11 |     for (key, value) in &mut items:
         br 0
       end
     end

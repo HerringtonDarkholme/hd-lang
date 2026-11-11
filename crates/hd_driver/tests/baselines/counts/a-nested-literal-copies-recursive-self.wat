@@ -23,26 +23,20 @@
     else
     ;; 9 |         else:
       local.get $n
-      local.set $seed
-    ;; 6 |     sum := fn(n: i32) -> i32:
-      block
-        local.get $env
-        local.get $n
-        i32.const 1
-        i32.sub
-        i32.const 0
-        local.get $ctx
-        call_indirect $table0 (param i32 i32 i32) (result i32)
-        local.set $env
-        br 0
-      end
-      local.get $seed
+    ;; 10 |             next := fn() -> i32: sum(n - 1)
       local.get $env
+    ;; 11 |             n + next()
+      local.get $n
+    ;; 6 |     sum := fn(n: i32) -> i32:
+      i32.const 1
+      i32.sub
+      i32.const 0
+    ;; 10 |             next := fn() -> i32: sum(n - 1)
+      local.get $ctx
+    ;; 6 |     sum := fn(n: i32) -> i32:
+      call_indirect $table0 (param i32 i32 i32) (result i32)
       i32.add
     end
-    ;; 12 |     sum(limit)
-    local.set $env
-    local.get $env
   )
   (func $nested_sum (param $seed i32) (param $limit i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 12 |     sum(limit)
@@ -98,7 +92,5 @@
         call $rt:release_ref
       end
     end
-    local.set $seed
-    local.get $seed
   )
 )

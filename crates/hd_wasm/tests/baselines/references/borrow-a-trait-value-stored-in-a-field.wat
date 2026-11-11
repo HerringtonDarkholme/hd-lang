@@ -9,8 +9,6 @@
     ;; 13 |         self.number
     local.get $self
     i32.load $heap
-    local.set $self
-    local.get $self
   )
   (func $read (param $holder i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 19 |     let borrowed: &dyn Reader = &*holder.value
@@ -49,7 +47,5 @@
       local.get $t1
       call $rt:release_ref
     end
-    local.set $holder
-    local.get $holder
   )
 )

@@ -140,7 +140,6 @@
         local.set $t5
         br 1
       end
-      br 0
     end
     ;; 9 |     let call: Suspend[Result[string, FsError]] = $.use(FsRead).read_text(path)
     local.get $path.0
@@ -148,8 +147,6 @@
     local.get $provider0
     call $rt:release
     local.get $t5
-    local.set $path.0
-    local.get $path.0
     local.get $t0
     i32.const 56
     i32.add

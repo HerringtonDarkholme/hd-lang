@@ -10,29 +10,15 @@
     i32.const 16 ;; &"x"
     i32.const 1
     call $rt:str_append
-    ;; 12 |     let s = a
-    local.set $a.1
-    local.set $a.0
-    local.get $a.0
-    local.get $a.1
   )
   (func $assign_list (param $xs i32) (param $ys i32) (result i32)
     ;; 18 |     zs = ys
     local.get $ys
     ;; 19 |     zs.len()
     i32.load $heap offset=4
-    ;; 17 |     let zs = xs
-    local.set $xs
-    local.get $xs
   )
   (func $assign (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32)
-    ;; 9 |     s.len()
-    block
-      local.get $b.1
-      local.set $a.0
-      br 0
-    end
-    ;; 7 |     let s = a
-    local.get $a.0
+    ;; 8 |     s = b
+    local.get $b.1
   )
 )

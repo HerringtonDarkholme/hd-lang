@@ -18,19 +18,16 @@
   )
   (func $relay (param $value i32) (param $state i32)
     ;; 13 |     write(value, state)
-    block
-      local.get $state
-      local.get $state
-      i32.load $heap offset=8
-      i32.const 1
-      i32.add
-      i32.store $heap offset=8
-      local.get $state
-      local.get $value
-      i32.load $heap
-      i64.extend_i32_u
-      i64.store $heap
-      br 0
-    end
+    local.get $state
+    local.get $state
+    i32.load $heap offset=8
+    i32.const 1
+    i32.add
+    i32.store $heap offset=8
+    local.get $state
+    local.get $value
+    i32.load $heap
+    i64.extend_i32_u
+    i64.store $heap
   )
 )

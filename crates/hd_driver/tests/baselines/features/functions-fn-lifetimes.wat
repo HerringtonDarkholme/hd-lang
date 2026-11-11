@@ -11,8 +11,6 @@
     local.get $f.0
     call_indirect $table0 (param i32 i32 i32) (result i32)
     call $"impl string.len"
-    local.set $f.0
-    local.get $f.0
   )
   (func $demo#1 (param $env i32) (param $u i32) (param $ctx i32) (result i32)
     ;; 16 |     apply(name_of, a) + apply(fn(u): &u.name, a)
@@ -29,8 +27,6 @@
     i32.const 0
     call $demo#1
     call $"impl string.len"
-    local.set $f.0
-    local.get $f.0
   )
   (func $apply'3 (param $f.0 i32) (param $f.1 i32) (param $u i32) (result i32)
     ;; 13 |     f(u).len()
@@ -39,8 +35,6 @@
     i32.const 0
     call $name_of#adapter
     call $"impl string.len"
-    local.set $f.0
-    local.get $f.0
   )
   (func $demo (param $a i32) (result i32)
     ;; 16 |     apply(name_of, a) + apply(fn(u): &u.name, a)
@@ -53,7 +47,5 @@
     local.get $a
     call $apply'2
     i32.add
-    local.set $a
-    local.get $a
   )
 )

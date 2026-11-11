@@ -15,12 +15,7 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $eat (param $s.0 i32) (param $s.1 i32) (result i32)
     ;; 20 |     s.len()
-    block
-      local.get $s.1
-      local.set $s.0
-      br 0
-    end
-    local.get $s.0
+    local.get $s.1
   )
   (func $local_over (param $k i32) (result i32) (local $s.0 i32) (local $s.1 i32)
     ;; 23 |     let mut s = make(k)
@@ -58,8 +53,6 @@
       local.get $s.0
       call $rt:release_ref
     end
-    local.set $k
-    local.get $k
   )
   (func $element_over (param $xs i32) (param $i i32) (param $k i32) (local $t0 i32)
     ;; 29 |     xs[i] = make(k)
@@ -120,97 +113,58 @@
     i32.store $heap offset=4
     call $rt:release
   )
-  (func $fresh (result i32 i32 i32) (local $t0 i32)
+  (func $fresh (result i32 i32 i32)
     ;; 36 |     UniqList::[i32].new()
-    block
-      block
-        block
-          i32.const 0
-          i32.const 4
-          call $room
-          local.set $t0
-          br 0
-        end
-        br 0
-      end
-      br 0
-    end
-    local.get $t0
+    i32.const 0
+    i32.const 4
+    call $room
     i32.const 0
     i32.const 0
   )
-  (func $make (param $n i32) (result i32 i32) (local $t2 i32) (local $t0 i64) (local $t1 i64) (local $t3 i32) (local $t4 i32) (local $t5 i32)
+  (func $make (param $n i32) (result i32 i32) (local $t0 i64) (local $t1 i64) (local $t2 i32) (local $t4 i32) (local $t3 i32)
     ;; 16 |     "s$n"
     local.get $n
     i64.extend_i32_s
     local.tee $t0
-    local.set $t1
-    block
-      block
-        local.get $t1
-        call $signed_magnitude
-        call $unsigned_width
-        local.set $n
-        local.get $t1
-        i64.const 0
-        i64.lt_s
-        if
-          i32.const 1
-          local.set $t2
-        else
-        end
-        local.get $n
-        local.get $t2
-        i32.add
-        local.set $n
-        br 0
-      end
-      br 0
+    local.tee $t1
+    call $signed_magnitude
+    call $unsigned_width
+    local.set $n
+    local.get $t1
+    i64.const 0
+    i64.lt_s
+    if
+      i32.const 1
+      local.set $t2
     end
+    local.get $n
+    local.get $t2
+    i32.add
+    local.set $n
     i32.const 1
     local.tee $t2
     local.get $n
     i32.add
-    local.set $t3
-    block
+    local.tee $t3
+    i32.const 16
+    local.set $t4
+    if
       local.get $t3
-      i32.const 16
+      call $rt:str
       local.set $t4
-      if
-        local.get $t3
-        call $rt:str
-        local.set $t4
-      end
-      local.get $t4
-      local.get $t3
-      local.set $t4
-      local.set $t3
-      br 0
     end
-    i32.const 65 ;; &"s"
-    local.set $t5
-    block
-      local.get $t3
-      local.get $t5
-      i32.load8_u $heap
-      i32.store8 $heap
-      br 0
-    end
-    block
-      local.get $t0
-      local.get $t3
-      local.get $t2
-      i32.add
-      local.get $n
-      call $write_signed_sized
-      br 0
-    end
-    local.get $t3
     local.get $t4
-    local.set $t2
-    local.set $n
-    local.get $n
+    i32.const 65 ;; &"s"
+    i32.load8_u $heap
+    i32.store8 $heap
+    local.get $t0
+    local.get $t4
     local.get $t2
+    i32.add
+    local.get $n
+    call $write_signed_sized
+    local.get $t4
+    local.get $t3
   )
   (func $declared (param $c i32) (result i32) (local $t4 i32) (local $u i32) (local $t2 i32) (local $t1 i32) (local $t0 i32) (local $t3 i32)
     ;; 39 |     u := fresh()
@@ -284,12 +238,9 @@
       local.get $c
       if
     ;; 41 |         return u.len()
-        block
-          local.get $u
-          i32.load $heap offset=8
-          local.set $t4
-          br 0
-        end
+        local.get $u
+        i32.load $heap offset=8
+        local.set $t4
         br 1
     ;; 40 |     if c:
       end

@@ -14,8 +14,6 @@
     local.get $b.1
     local.get $b.2
     call $"impl[T < Eq] Same for Res[T].same[string]'1"
-    local.set $a.0
-    local.get $a.0
   )
   (func $use_check (param $x.0 i32) (param $x.1 i32) (param $y.0 i32) (param $y.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 34 |     check(Res.Good(x), Res.Good(y))
@@ -45,8 +43,6 @@
     local.get $x.1
     local.get $t0
     call $rt:release
-    local.set $x.0
-    local.get $x.0
   )
   (func $"impl[T < Eq] Same for Res[T].same[string]'1" (param $self.0 i32) (param $self.1 i32) (param $self.2 i32) (param $other.0 i32) (param $other.1 i32) (param $other.2 i32) (result i32) (local $left.0'1 i32) (local $left.0'2 i32) (local $t1 i32) (local $right.0 i32) (local $t0 i32)
     ;; 19 |         match *self:
@@ -128,7 +124,6 @@
             local.set $t1
             br 1
           end
-          br 0
         end
     ;; 19 |         match *self:
         local.get $right.0
@@ -180,7 +175,6 @@
           local.set $t1
           br 1
         end
-        br 0
       end
     ;; 19 |         match *self:
       local.get $right.0
@@ -191,7 +185,6 @@
       end
       local.get $t1
       local.set $self.0
-      br 0
     end
     local.get $left.0'2
     local.tee $t0
@@ -305,7 +298,6 @@
             local.set $t1
             br 1
           end
-          br 0
         end
     ;; 19 |         match *self:
         local.get $right.0
@@ -366,7 +358,6 @@
           local.set $t1
           br 1
         end
-        br 0
       end
     ;; 19 |         match *self:
       local.get $right.0
@@ -377,7 +368,6 @@
       end
       local.get $t1
       local.set $self
-      br 0
     end
     local.get $left.0'2
     local.tee $t0

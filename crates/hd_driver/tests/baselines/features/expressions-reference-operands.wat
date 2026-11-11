@@ -13,16 +13,12 @@
     i32.const 16 ;; &"ada"
     i32.const 3
     call $rt:str_eq
-    local.set $name
-    local.get $name
   )
   (func $list_eq (param $a i32) (param $b i32) (result i32)
     ;; 21 |     a == b
     local.get $a
     local.get $b
     call $"impl[T < Eq] Eq for List[T].eq[string]"
-    local.set $a
-    local.get $a
   )
   (func $order_refs (param $a i32) (param $b i32) (result i32)
     ;; 18 |     a < b
@@ -35,8 +31,6 @@
     else
       i32.const 0
     end
-    local.set $a
-    local.get $a
   )
   (func $eq_refs (param $a i32) (param $b i32) (result i32)
     ;; 7 |     a == b
@@ -49,10 +43,8 @@
     local.get $b
     i32.load $heap offset=4
     call $rt:str_eq
-    local.set $a
-    local.get $a
   )
-  (func $arith (param $x i32) (param $y i32) (result i64) (local $t0 i64)
+  (func $arith (param $x i32) (param $y i32) (result i64)
     ;; 13 |     let total = x * 2 + 1
     local.get $x
     i64.load $heap
@@ -64,8 +56,5 @@
     local.get $y
     i64.load $heap
     i64.add
-    ;; 13 |     let total = x * 2 + 1
-    local.set $t0
-    local.get $t0
   )
 )

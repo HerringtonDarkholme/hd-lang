@@ -36,9 +36,6 @@
             i32.load $heap offset=4
             local.set $t0
             drop
-            block
-              br 0
-            end
             local.get $n
             local.get $t0
             i32.add
@@ -58,7 +55,6 @@
     ;; 22 |             .None => break
           br 2
     ;; 18 |         match cur:
-          br 0
         end
     ;; 17 |     while true:
         br 0
@@ -69,9 +65,6 @@
     call $rt:release
     ;; 23 |     n
     local.get $n
-    ;; 15 |     let n: usize = 0
-    local.set $head
-    local.get $head
   )
   (func $push_front (param $head i32) (param $name.0 i32) (param $name.1 i32) (result i32) (local $t0 i32)
     ;; 12 |     box(Chain { name: name, next: head })
@@ -88,7 +81,5 @@
     local.get $head
     i32.store $heap offset=8
     local.get $t0
-    local.set $head
-    local.get $head
   )
 )

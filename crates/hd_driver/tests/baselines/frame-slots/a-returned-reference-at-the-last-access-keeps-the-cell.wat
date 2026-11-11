@@ -4,7 +4,7 @@
   (import "fixture" "pass_on" (func $pass_on (param i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $returned (result i64) (local $t0 i64) (local $r i32)
+  (func $returned (result i64) (local $r i32)
     ;; 15 |     tally := box(Tally { n: 0 })
     i32.const 8
     i32.const 0
@@ -30,7 +30,5 @@
         call $rt:release_ref
       end
     end
-    local.set $t0
-    local.get $t0
   )
 )

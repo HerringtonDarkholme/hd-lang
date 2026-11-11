@@ -12,8 +12,6 @@
     ;; 8 |     *value
     local.get $value
     i32.load $heap
-    local.set $value
-    local.get $value
   )
   (func $read'1 (param $frame i32) (param $value i32) (result i32 i32) (local $t1 i32) (local $t0 i32)
     ;; 5 |     *value
@@ -39,7 +37,6 @@
       local.get $frame
       i32.load $heap offset=32
       local.set $t1
-    else
     end
     local.get $value
     i32.load $heap

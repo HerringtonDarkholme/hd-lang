@@ -7,7 +7,7 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $run (param $steps i64) (result f64) (local $t3 f64) (local $bodies i32) (local $t1 i32) (local $t0 i32) (local $t2 i64)
+  (func $run (param $steps i64) (result f64) (local $bodies i32) (local $t1 i32) (local $t0 i32) (local $t2 i64) (local $t3 f64)
     ;; 21 |     let mut bodies = [Body { x: 1.0, vx: 2.0 }, Body { x: 3.0, vx: 4.0 }]
     global.get $locals
     global.get $locals_base

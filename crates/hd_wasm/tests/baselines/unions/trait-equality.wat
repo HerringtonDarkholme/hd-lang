@@ -81,8 +81,6 @@
       call $rt:release
     end
     local.get $t1
-    local.set $right
-    local.get $right
     local.get $t0
     i32.const 32
     i32.add

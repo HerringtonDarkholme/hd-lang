@@ -20,8 +20,6 @@
     i32.load $heap
     i32.const 4128768
     i32.and
-    local.get $t1
-    i32.ne
     if
       call $rt:panic'1
       unreachable
@@ -276,7 +274,7 @@
     i32.load $heap
     i32.const 2097152
     i32.and
-    local.get $t0
+    i32.const 0
     i32.const 2097152
     i32.and
     i32.ne
@@ -292,7 +290,7 @@
     i32.load $heap
     i32.const 2097152
     i32.and
-    local.get $held
+    i32.const 0
     i32.const 2097152
     i32.and
     i32.ne
@@ -420,7 +418,7 @@
     local.get $t0
     local.get $held
   )
-  (func $lend_mut (param $t i32) (param $other i32) (local $t0 i32) (local $t1 i32)
+  (func $lend_mut (param $t i32) (param $other i32) (local $t0 i32)
     ;; 25 |     held := &mut t.lead.age
     local.get $t
     i32.const 4
@@ -428,7 +426,7 @@
     i32.load $heap
     i32.const 2097152
     i32.and
-    local.get $t0
+    i32.const 0
     i32.const 2097152
     i32.and
     i32.ne
@@ -444,8 +442,6 @@
     i32.load $heap
     i32.const 4128768
     i32.and
-    local.get $t1
-    i32.ne
     if
       call $rt:panic'2
       unreachable

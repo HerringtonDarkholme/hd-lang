@@ -42,8 +42,6 @@
       local.get $provider0
       call $rt:release_ref'1
     end
-    local.set $callback.0
-    local.get $callback.0
   )
   (func $"forward[{open row}]" (param $callback.0 i32) (param $callback.1 i32) (param $ctx i32) (result i32)
     ;; 8 |     callback()
@@ -51,8 +49,6 @@
     local.get $ctx
     local.get $callback.0
     call_indirect $table0 (param i32 i32) (result i32)
-    local.set $callback.0
-    local.get $callback.0
   )
   (func $"later[{open row}]" (param $frame i32) (param $callback.0 i32) (param $callback.1 i32) (param $ctx i32) (result i32 i32) (local $t0 i32)
     ;; 11 |     callback()
@@ -81,14 +77,11 @@
       local.get $frame
       i32.load $heap offset=32
       local.set $ctx
-    else
     end
     local.get $callback.1
     local.get $ctx
     local.get $callback.0
     call_indirect $table0 (param i32 i32) (result i32)
-    local.set $callback.0
-    local.get $callback.0
     local.get $frame
     if
       local.get $frame
@@ -311,12 +304,10 @@
         local.get $frame
         i32.load $heap offset=48
         local.set $t2
-        br 0
       end
       local.get $frame
       i32.load $heap offset=8
       local.set $t3
-    else
     end
     block
       local.get $t3
@@ -820,8 +811,6 @@
       local.get $provider0
       call $rt:release_ref'1
     end
-    local.set $callback.0
-    local.get $callback.0
   )
   (func $empty (param $callback.0 i32) (param $callback.1 i32) (result i32)
     ;; 23 |     forward(callback)
@@ -829,7 +818,5 @@
     local.get $callback.1
     i32.const 0
     call $"forward[{open row}]"
-    local.set $callback.0
-    local.get $callback.0
   )
 )

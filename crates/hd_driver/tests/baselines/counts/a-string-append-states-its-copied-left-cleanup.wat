@@ -83,68 +83,64 @@
     local.get $text.1
     i32.store $heap offset=4
     local.get $t1
-    local.set $text.0
+    local.tee $text.0
     ;; 13 |     append(suffix)
-    block
-      local.get $text.0
-      i32.load $heap
-      local.tee $text.1
-      local.tee $t1
-      if
-        local.get $t1
-        call $retain
-      end
-      local.get $text.0
-      i32.eqz
-      if
-        local.get $t0
-        i64.const 0
-        i64.store $heap
-        local.get $t0
-        i32.const 8
-        i32.add
-        local.tee $text.0
-        i32.const 0
-        i32.store $heap
-        local.get $text.0
-        i32.const 0
-        i32.store $heap offset=4
-      end
-      local.get $text.1
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref
-      end
-      local.get $text.0
-      i32.load $heap
-      local.get $text.0
+    i32.load $heap
+    local.tee $text.1
+    local.tee $t1
+    if
+      local.get $t1
+      call $retain
+    end
+    local.get $text.0
+    i32.eqz
+    if
+      local.get $t0
+      i64.const 0
+      i64.store $heap
+      local.get $t0
+      i32.const 8
+      i32.add
+      local.tee $text.0
       i32.const 0
       i32.store $heap
       local.get $text.0
-      i32.load $heap offset=4
-      local.get $text.0
       i32.const 0
       i32.store $heap offset=4
-      local.get $suffix.0
-      local.get $suffix.1
-      call $rt:str_append
-      local.set $suffix.0
-      local.set $text.1
-      local.get $text.0
-      i32.load $heap
-      local.get $text.0
-      local.get $text.1
-      i32.store $heap
-      local.get $text.0
-      local.get $suffix.0
-      i32.store $heap offset=4
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref
-      end
-      br 0
+    end
+    local.get $text.1
+    local.tee $t1
+    if
+      local.get $t1
+      call $rt:release_ref
+    end
+    local.get $text.0
+    i32.load $heap
+    local.get $text.0
+    i32.const 0
+    i32.store $heap
+    local.get $text.0
+    i32.load $heap offset=4
+    local.get $text.0
+    i32.const 0
+    i32.store $heap offset=4
+    local.get $suffix.0
+    local.get $suffix.1
+    call $rt:str_append
+    local.set $suffix.0
+    local.set $text.1
+    local.get $text.0
+    i32.load $heap
+    local.get $text.0
+    local.get $text.1
+    i32.store $heap
+    local.get $text.0
+    local.get $suffix.0
+    i32.store $heap offset=4
+    local.tee $t1
+    if
+      local.get $t1
+      call $rt:release_ref
     end
     ;; 14 |     current
     local.get $text.0
@@ -171,16 +167,12 @@
     end
     local.get $text.1
     local.get $suffix.0
-    local.set $text.1
-    local.set $text.0
-    local.get $text.0
-    local.get $text.1
     local.get $t0
     i32.const 16
     i32.add
     global.set $locals
   )
-  (func $replace (param $text i32) (result i32 i32) (local $t0 i32)
+  (func $replace (param $text i32) (result i32 i32)
     ;; 20 |     *text = "replacement"
     local.get $text
     i32.load $heap
@@ -195,10 +187,6 @@
     call $rt:release
     i32.const 76 ;; &"!"
     i32.const 1
-    local.set $t0
-    local.set $text
-    local.get $text
-    local.get $t0
   )
   (func $changed_rhs (param $text i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32)
     ;; 24 |     *text += replace(text)
@@ -303,67 +291,63 @@
     local.get $text.1
     i32.store $heap offset=4
     local.get $t1
-    local.set $text.0
-    block
-      local.get $text.0
-      i32.load $heap
-      local.tee $text.1
-      local.tee $t1
-      if
-        local.get $t1
-        call $retain
-      end
-      local.get $text.0
-      i32.eqz
-      if
-        local.get $t0
-        i64.const 0
-        i64.store $heap
-        local.get $t0
-        i32.const 8
-        i32.add
-        local.tee $text.0
-        i32.const 0
-        i32.store $heap
-        local.get $text.0
-        i32.const 0
-        i32.store $heap offset=4
-      end
-      local.get $text.1
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref
-      end
-      local.get $text.0
-      i32.load $heap
-      local.get $text.0
+    local.tee $text.0
+    i32.load $heap
+    local.tee $text.1
+    local.tee $t1
+    if
+      local.get $t1
+      call $retain
+    end
+    local.get $text.0
+    i32.eqz
+    if
+      local.get $t0
+      i64.const 0
+      i64.store $heap
+      local.get $t0
+      i32.const 8
+      i32.add
+      local.tee $text.0
       i32.const 0
       i32.store $heap
       local.get $text.0
-      i32.load $heap offset=4
-      local.get $text.0
       i32.const 0
       i32.store $heap offset=4
-      local.get $suffix.0
-      local.get $suffix.1
-      call $rt:str_append
-      local.set $suffix.0
-      local.set $text.1
-      local.get $text.0
-      i32.load $heap
-      local.get $text.0
-      local.get $text.1
-      i32.store $heap
-      local.get $text.0
-      local.get $suffix.0
-      i32.store $heap offset=4
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref
-      end
-      br 0
+    end
+    local.get $text.1
+    local.tee $t1
+    if
+      local.get $t1
+      call $rt:release_ref
+    end
+    local.get $text.0
+    i32.load $heap
+    local.get $text.0
+    i32.const 0
+    i32.store $heap
+    local.get $text.0
+    i32.load $heap offset=4
+    local.get $text.0
+    i32.const 0
+    i32.store $heap offset=4
+    local.get $suffix.0
+    local.get $suffix.1
+    call $rt:str_append
+    local.set $suffix.0
+    local.set $text.1
+    local.get $text.0
+    i32.load $heap
+    local.get $text.0
+    local.get $text.1
+    i32.store $heap
+    local.get $text.0
+    local.get $suffix.0
+    i32.store $heap offset=4
+    local.tee $t1
+    if
+      local.get $t1
+      call $rt:release_ref
     end
     ;; (no span)
     local.get $text.0
@@ -389,10 +373,6 @@
     end
     local.get $text.1
     local.get $suffix.0
-    local.set $text.1
-    local.set $text.0
-    local.get $text.0
-    local.get $text.1
     local.get $t0
     i32.const 16
     i32.add
@@ -424,9 +404,5 @@
     call $rt:memory_copy/0/0
     local.get $t1
     local.get $t0
-    local.set $left.1
-    local.set $left.0
-    local.get $left.0
-    local.get $left.1
   )
 )

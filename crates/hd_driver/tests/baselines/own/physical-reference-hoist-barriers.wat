@@ -171,7 +171,7 @@
   )
   (func $"impl Probes.clean" (param $items i32) (param $n i32) (local $i i32) (local $t0 i32) (local $t1 i32)
     ;; 18 |         while i < n:
-    local.get $i
+    i32.const 0
     local.get $n
     i32.lt_u
     if
@@ -349,9 +349,6 @@
     end
     ;; 52 |         total
     local.get $total
-    ;; 45 |         let i: usize = 0
-    local.set $items
-    local.get $items
   )
   (func $"impl Probes.replace" (param $target i32) (param $source i32)
     ;; 25 |         *target = source

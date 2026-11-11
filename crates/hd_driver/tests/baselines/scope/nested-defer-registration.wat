@@ -15,8 +15,7 @@
     ;; 8 |     defer(fn() -> void: log.push(+1))
     local.get $env
     i32.load $heap
-    local.set $env
-    local.get $env
+    local.tee $env
     i32.load $heap
     call $rt:list_unique
     local.set $ctx
@@ -55,8 +54,7 @@
     ;; 10 |         defer(fn() -> void: log.push(+2))
     local.get $env
     i32.load $heap
-    local.set $env
-    local.get $env
+    local.tee $env
     i32.load $heap
     call $rt:list_unique
     local.set $ctx
@@ -133,12 +131,7 @@
         i32.store $heap
         local.get $t1
         call $rt:retain_fields
-        local.get $t1
         local.set $t2
-        local.set $t1
-        block
-          br 0
-        end
         local.get $t0
         i64.const 0
         i64.store $heap
@@ -146,10 +139,10 @@
         i32.const 8
         i32.add
         local.tee $t3
-        local.get $t1
+        local.get $t2
         i32.store $heap
         local.get $t3
-        local.get $t2
+        local.get $t1
         i32.store $heap offset=4
         local.get $t3
         local.set $t2
@@ -169,12 +162,7 @@
             i32.store $heap
             local.get $early
             call $rt:retain_fields
-            local.get $early
             local.set $t4
-            local.set $early
-            block
-              br 0
-            end
             local.get $t0
             i64.const 0
             i64.store $heap offset=16
@@ -182,10 +170,10 @@
             i32.const 24
             i32.add
             local.tee $t5
-            local.get $early
+            local.get $t4
             i32.store $heap
             local.get $t5
-            local.get $t4
+            local.get $early
             i32.store $heap offset=4
             i32.const 1
             local.set $t3

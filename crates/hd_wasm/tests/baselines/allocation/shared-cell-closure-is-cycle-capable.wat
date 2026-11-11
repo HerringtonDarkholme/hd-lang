@@ -7,11 +7,7 @@
     ;; 8 |     read := fn() -> i32: count
     local.get $env
     i32.load $heap
-    local.set $env
-    local.get $env
     i32.load $heap
-    local.set $env
-    local.get $env
   )
   (func $shared (param $seed i32) (result i32 i32) (local $t0 i32)
     ;; ...
@@ -26,5 +22,6 @@
     local.get $t0
     call $rt:retain_fields
     ;; ...
+    local.get $t0
   )
 )

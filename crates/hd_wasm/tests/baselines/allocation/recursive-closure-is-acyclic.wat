@@ -51,8 +51,5 @@
       local.get $t0
       i32.wrap_i64
     end
-    ;; 6 |     sum := fn(n: i32) -> i32:
-    local.set $env
-    local.get $env
   )
 )

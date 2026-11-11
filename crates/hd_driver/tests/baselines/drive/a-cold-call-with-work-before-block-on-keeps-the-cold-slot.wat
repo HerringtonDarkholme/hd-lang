@@ -8,7 +8,7 @@
   (import "fixture" "rewake" (global $rewake (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 5 funcref))
-  (func $drive_put (param $s.0 i32) (param $s.1 i32) (param $text.0 i32) (param $text.1 i32) (param $log i32) (result i32) (local $t0 i32) (local $n i32)
+  (func $drive_put (param $s.0 i32) (param $s.1 i32) (param $text.0 i32) (param $text.1 i32) (param $log i32) (result i32) (local $t0 i32)
     ;; 10 |     let call: Suspend[i32] = s.put(text)
     local.get $s.0
     local.get $text.0
@@ -112,22 +112,20 @@
                 local.get $s.1
                 br_table 0 3 4 4
               end
-              local.get $text.0
-              local.set $n
               br 1
             end
     ;; 12 |     match block_on(call):
             unreachable
           end
-          br 2
+    ;; 13 |         .Completed(n) => n
+          local.get $text.0
+    ;; 12 |     match block_on(call):
+          return
         end
         br 1
       end
-      br 0
     end
     ;; 10 |     let call: Suspend[i32] = s.put(text)
-    local.get $n
-    local.set $s.0
-    local.get $s.0
+    i32.const 0
   )
 )

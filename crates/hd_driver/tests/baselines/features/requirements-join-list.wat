@@ -42,7 +42,6 @@
       local.get $frame
       i32.load $heap offset=28
       local.set $key.1
-    else
     end
     local.get $key.1
     i32.const 1
@@ -62,10 +61,6 @@
     i32.store8 $heap
     local.get $t2
     local.get $t1
-    local.set $key.1
-    local.set $key.0
-    local.get $key.0
-    local.get $key.1
     local.get $frame
     if
       local.get $frame
@@ -249,12 +244,10 @@
         local.get $frame
         i32.load $heap offset=188
         local.set $t1
-        br 0
       end
       local.get $frame
       i32.load $heap offset=8
       local.set $results
-    else
     end
     block
       local.get $results
@@ -306,48 +299,45 @@
             i32.add
             local.set $t4
             block
-              block
-                br 0
-                unreachable
-              end
-              local.get $k.0
-              local.tee $t5
-              if
-                local.get $t5
-                call $retain
-              end
-              local.get $k.0
-              local.get $k.1
-              call $fetch'2
-              local.set $k.0
-              local.get $t1
-              local.tee $k.1
-              i32.load $heap offset=4
-              local.tee $t5
-              local.get $k.1
-              i32.load $heap
-              i32.eq
-              if
-                local.get $k.1
-                i32.const 1
-                call_indirect $table0 (param i32) (result i32)
-                local.tee $k.1
-                local.set $t1
-              end
-              local.get $k.1
-              local.get $t5
-              i32.const 4
-              i32.mul
-              i32.add
-              local.get $k.0
-              i32.store $heap offset=16
-              local.get $k.1
-              local.get $t5
-              i32.const 1
-              i32.add
-              i32.store $heap offset=4
               br 0
+              unreachable
             end
+            local.get $k.0
+            local.tee $t5
+            if
+              local.get $t5
+              call $retain
+            end
+            local.get $k.0
+            local.get $k.1
+            call $fetch'2
+            local.set $k.0
+            local.get $t1
+            local.tee $k.1
+            i32.load $heap offset=4
+            local.tee $t5
+            local.get $k.1
+            i32.load $heap
+            i32.eq
+            if
+              local.get $k.1
+              i32.const 1
+              call_indirect $table0 (param i32) (result i32)
+              local.tee $k.1
+              local.set $t1
+            end
+            local.get $k.1
+            local.get $t5
+            i32.const 4
+            i32.mul
+            i32.add
+            local.get $k.0
+            i32.store $heap offset=16
+            local.get $k.1
+            local.get $t5
+            i32.const 1
+            i32.add
+            i32.store $heap offset=4
             br 0
           end
         end
@@ -587,19 +577,16 @@
           i32.add
           local.set $t3
           block
-            block
-              br 0
-              unreachable
-            end
-    ;; 18 |         n += r.len()
-            local.get $n
-            local.get $t3
-            call $"impl string.len"
-            i32.add
-            local.set $n
-    ;; 17 |     for r in &results:
             br 0
+            unreachable
           end
+    ;; 18 |         n += r.len()
+          local.get $n
+          local.get $t3
+          call $"impl string.len"
+          i32.add
+          local.set $n
+    ;; 17 |     for r in &results:
           br 0
         end
       end

@@ -40,8 +40,5 @@
     end
     ;; 10 |     sum
     local.get $sum
-    ;; 6 |     n := xs.len()
-    local.set $xs
-    local.get $xs
   )
 )

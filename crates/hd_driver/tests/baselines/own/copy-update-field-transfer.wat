@@ -7,9 +7,11 @@
     local.get $r.tags
     call $rt:coll_copy
     local.set $t0
+    ;; 15 |     (r, next)
     local.get $r.name.0
     local.get $r.name.1
     local.get $r.tags
+    ;; 14 |     next := Rec { ...r, name }
     local.get $name.0
     local.get $name.1
     local.get $t0

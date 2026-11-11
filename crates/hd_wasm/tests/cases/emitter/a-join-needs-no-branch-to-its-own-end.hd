@@ -1,0 +1,14 @@
+# @dump: wat
+# @build: v8 dev
+# expected: each arm reaches the join with no `br 0` straight before an
+# `end`, and no block is left that only such a branch targeted.
+enum Shape:
+    Dot
+    Box(width: usize, height: usize)
+
+fn area(s: Shape) -> usize:
+    # subject
+    match s:
+        Shape.Dot => 0
+        Shape.Box(width, height) =>
+            if width > height: width * 2 else: height * width

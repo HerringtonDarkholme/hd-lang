@@ -41,7 +41,6 @@
       local.get $frame
       i32.load $heap offset=24
       local.set $value
-    else
     end
     local.get $value
     local.get $frame
@@ -231,12 +230,10 @@
         local.get $frame
         i32.load $heap offset=100
         local.set $t7
-        br 0
       end
       local.get $frame
       i32.load $heap offset=8
       local.set $t8
-    else
     end
     block
       local.get $t8
@@ -843,12 +840,10 @@
         local.get $frame
         i32.load $heap offset=68
         local.set $t4
-        br 0
       end
       local.get $frame
       i32.load $heap offset=8
       local.set $t5
-    else
     end
     block
       local.get $t5
@@ -1352,7 +1347,6 @@
       local.get $frame
       i32.load $heap offset=28
       local.set $value.1
-    else
     end
     local.get $value.0
     local.get $value.1
@@ -1605,12 +1599,10 @@
         local.get $frame
         i32.load $heap offset=140
         local.set $t9
-        br 0
       end
       local.get $frame
       i32.load $heap offset=8
       local.set $t10
-    else
     end
     block
       local.get $t10
@@ -2477,12 +2469,10 @@
         local.get $frame
         i32.load $heap offset=256
         local.set $t18
-        br 0
       end
       local.get $frame
       i32.load $heap offset=8
       local.set $t19
-    else
     end
     block
       block

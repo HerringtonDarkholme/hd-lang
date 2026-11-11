@@ -7,7 +7,5 @@
     local.get $xs
     i32.load $heap
     call $rt:coll_copy
-    local.set $xs
-    local.get $xs
   )
 )

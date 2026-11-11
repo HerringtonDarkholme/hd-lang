@@ -6,44 +6,15 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $static_bound (param $s.0 i32) (param $s.1 i32) (result i32)
     ;; 17 |     invoke(width, s) + invoke(fn(x: string) -> usize: x.len() + 1, s)
-    block
-      block
-        block
-          local.get $s.1
-          local.set $s.0
-          br 0
-        end
-        br 0
-      end
-      br 0
-    end
-    block
-      block
-        block
-          br 0
-        end
-        local.get $s.1
-        i32.const 1
-        i32.add
-        local.set $s.1
-        br 0
-      end
-      br 0
-    end
-    local.get $s.0
     local.get $s.1
+    local.get $s.1
+    i32.const 1
     i32.add
-    local.set $s.0
-    local.get $s.0
+    i32.add
   )
   (func $width (param $s.0 i32) (param $s.1 i32) (result i32)
     ;; 11 |     s.len()
-    block
-      local.get $s.1
-      local.set $s.0
-      br 0
-    end
-    local.get $s.0
+    local.get $s.1
   )
   (func $fn_mut (param $xs i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
     ;; 24 |     let n: usize = 0
@@ -86,69 +57,56 @@
     i32.const 0
     i32.store $heap
     ;; 25 |     each(xs, fn(x: string) -> void: n += x.len())
+    local.get $xs
+    i32.load $heap offset=4
+    local.set $t1
     block
-      local.get $xs
-      i32.load $heap offset=4
-      local.set $t1
-      block
-        loop
-          local.get $t2
-          local.get $t1
-          i32.lt_u
-          i32.eqz
-          br_if 1
-          local.get $t2
-          local.get $xs
-          i32.load $heap offset=4
-          i32.ge_u
-          if
-            call $rt:panic
-            unreachable
-          end
-          local.get $xs
-          local.get $t2
-          i32.const 8
-          i32.mul
-          i32.add
-          local.tee $t3
-          i32.load $heap offset=16
-          local.get $t3
-          i32.load $heap offset=20
-          local.set $t4
-          drop
-          local.get $t2
-          i32.const 1
-          i32.add
-          local.set $t2
-          block
-            block
-              br 0
-              unreachable
-            end
-            block
-              local.get $n
-              i32.load $heap
-              local.set $t3
-              local.get $n
-              local.get $t3
-              local.get $t4
-              i32.add
-              i32.store $heap
-              br 0
-            end
-            br 0
-          end
-          br 0
+      loop
+        local.get $t2
+        local.get $t1
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $t2
+        local.get $xs
+        i32.load $heap offset=4
+        i32.ge_u
+        if
+          call $rt:panic
+          unreachable
         end
+        local.get $xs
+        local.get $t2
+        i32.const 8
+        i32.mul
+        i32.add
+        local.tee $t3
+        i32.load $heap offset=16
+        local.get $t3
+        i32.load $heap offset=20
+        local.set $t4
+        drop
+        local.get $t2
+        i32.const 1
+        i32.add
+        local.set $t2
+        block
+          br 0
+          unreachable
+        end
+        local.get $n
+        local.get $n
+        i32.load $heap
+        local.get $t4
+        i32.add
+        i32.store $heap
+        br 0
       end
-      br 0
     end
     ;; 26 |     n
     local.get $n
     i32.load $heap
     ;; 24 |     let n: usize = 0
-    local.set $xs
-    local.get $xs
     local.get $t0
     i32.const 16
     i32.add

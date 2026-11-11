@@ -6,21 +6,14 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $guard (param $s.0 i32) (param $s.1 i32) (result i32)
     ;; 7 |     if (n := s.len()) > 0: n else: 0
-    block
-      local.get $s.1
-      local.set $s.0
-      br 0
-    end
-    local.get $s.0
+    local.get $s.1
     i32.const 0
     i32.gt_u
     if (result i32)
-      local.get $s.0
+      local.get $s.1
     else
       i32.const 0
     end
-    local.set $s.0
-    local.get $s.0
   )
   (func $bind_param (param $xs i32) (result i32)
     ;; 13 |     if (ys := xs).len() > 0: ys.len() else: 0
@@ -34,8 +27,6 @@
     else
       i32.const 0
     end
-    local.set $xs
-    local.get $xs
   )
   (func $bind_counted (param $s.0 i32) (param $s.1 i32) (result i32) (local $t.1 i32) (local $t.0 i32) (local $t0 i32) (local $t1 i32)
     ;; 10 |     if (t := s + "!").len() > 3: t.len() else: 0
@@ -55,21 +46,12 @@
     i32.const 65 ;; &"!"
     i32.load8_u $heap
     i32.store8 $heap
-    block
-      local.get $t.1
-      local.set $s.0
-      br 0
-    end
-    local.get $s.0
+    local.get $t.1
     i32.const 3
     i32.gt_u
     if
-      block
-        local.get $t.1
-        local.set $t1
-        br 0
-      end
-    else
+      local.get $t.1
+      local.set $t1
     end
     local.get $t.0
     if
@@ -77,7 +59,5 @@
       call $rt:release_ref
     end
     local.get $t1
-    local.set $s.0
-    local.get $s.0
   )
 )

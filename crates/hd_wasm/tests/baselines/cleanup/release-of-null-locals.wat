@@ -43,7 +43,5 @@
       local.get $t1
     ;; 12 |     if depth == 0:
     end
-    local.set $depth
-    local.get $depth
   )
 )

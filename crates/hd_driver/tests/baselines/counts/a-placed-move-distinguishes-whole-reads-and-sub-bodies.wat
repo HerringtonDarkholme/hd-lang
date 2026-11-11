@@ -13,8 +13,6 @@
     local.get $a
     local.get $b
     i32.eq
-    local.set $a
-    local.get $a
   )
   (func $keep (param $value.0 i32) (param $value.1 i32) (result i32 i32)
     ;; 17 |     value
@@ -105,14 +103,10 @@
     local.get $a
     local.get $b
     i32.eq
-    local.set $a
-    local.get $a
   )
-  (func $nested (result i32 i32) (local $t0 i32)
+  (func $nested (result i32 i32)
     ;; 31 |     fn(value: string) -> string:
     i32.const 2
-    local.set $t0
-    local.get $t0
     i32.const 0
   )
   (func $nested#1 (param $env i32) (param $t0 i32) (param $t1 i32) (param $ctx i32) (result i32 i32)
@@ -155,13 +149,8 @@
         call $rt:release_ref'2
       end
     end
-    ;; 31 |     fn(value: string) -> string:
-    local.set $t0
-    local.set $env
-    local.get $env
-    local.get $t0
   )
-  (func $copied (param $t1 i32) (param $t2 i32) (result i32 i32 i32 i32) (local $value i32) (local $t3 i32) (local $t0 i32)
+  (func $copied (param $t1 i32) (param $t2 i32) (result i32 i32 i32 i32) (local $t0 i32) (local $value i32) (local $t3 i32)
     ;; 21 |     _ := same(&value, &value)
     global.get $locals
     global.get $locals_base
@@ -237,14 +226,6 @@
     i32.const 0
     i32.store $heap offset=4
     ;; 21 |     _ := same(&value, &value)
-    local.set $t3
-    local.set $value
-    local.set $t2
-    local.set $t1
-    local.get $t1
-    local.get $t2
-    local.get $value
-    local.get $t3
     local.get $t0
     i32.const 16
     i32.add

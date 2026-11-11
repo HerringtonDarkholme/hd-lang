@@ -57,8 +57,6 @@
     local.get $b
     i32.load $heap
     i32.eq
-    local.set $b
-    local.get $b
     local.get $t0
     i32.const 32
     i32.add

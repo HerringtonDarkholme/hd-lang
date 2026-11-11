@@ -16,8 +16,6 @@
     i32.load $heap offset=4
     i32.load $heap
     call_indirect $table0 (param i32) (result i32)
-    local.set $value.0
-    local.get $value.0
   )
   (func $blocking (param $value.0 i32) (param $value.1 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $n i32)
     ;; 15 |     match block_on(value.child()):
@@ -141,11 +139,8 @@
         end
         br 1
       end
-      br 0
     end
     local.get $n
-    local.set $value.0
-    local.get $value.0
     local.get $t0
     i32.const 40
     i32.add

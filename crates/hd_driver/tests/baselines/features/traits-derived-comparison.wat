@@ -80,8 +80,6 @@
     else
       i32.const 0
     end
-    local.set $b
-    local.get $b
     local.get $t0
     i32.const 48
     i32.add
@@ -151,14 +149,12 @@
     local.get $a
     local.get $b
     call $"derive Eq for Key.eq"
-    local.set $b
-    local.get $b
     local.get $t0
     i32.const 48
     i32.add
     global.set $locals
   )
-  (func $lookup (param $m i32) (param $k.name.0 i32) (param $k.name.1 i32) (param $k.n i32) (result i32) (local $t0 i32) (local $v.1 i32) (local $t1 i32)
+  (func $lookup (param $m i32) (param $k.name.0 i32) (param $k.name.1 i32) (param $k.n i32) (result i32) (local $t0 i32) (local $v.1 i32)
     ;; 21 |     match m.get(k):
     local.get $m
     local.get $k.name.0
@@ -191,38 +187,28 @@
       i32.load $heap offset=16
       local.set $v.1
       local.set $t0
-    else
     end
     block
       block
-        block
     ;; 22 |         .Some(v) => v.len()
-          local.get $t0
-          br_if 0
+        local.get $t0
+        br_if 0
     ;; 23 |         .None => 0
-          local.get $t0
-          i32.eqz
-          br_if 1
-          unreachable
+        local.get $t0
+        i32.eqz
+        br_if 1
+        unreachable
     ;; 21 |     match m.get(k):
-          unreachable
-        end
-    ;; 22 |         .Some(v) => v.len()
-        block
-          local.get $v.1
-          local.set $t1
-          br 0
-        end
-    ;; 21 |     match m.get(k):
-        br 1
+        unreachable
       end
-      br 0
+    ;; 22 |         .Some(v) => v.len()
+      local.get $v.1
+    ;; 21 |     match m.get(k):
+      return
     end
-    local.get $t1
-    local.set $m
-    local.get $m
+    i32.const 0
   )
-  (func $tuple_key (param $m i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t1 i32) (local $t0 i32) (local $t2 i32)
+  (func $tuple_key (param $m i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t1 i32) (local $t0 i32)
     ;; 26 |     m.get((s, 1)).unwrap_or(0)
     local.get $m
     local.get $s.0
@@ -253,7 +239,6 @@
       i32.load $heap offset=12
       local.set $t0
       local.set $t1
-    else
     end
     local.get $s.0
     if
@@ -262,31 +247,22 @@
     end
     block
       block
-        block
-          block
-            local.get $t1
-            i32.const 1
-            i32.eq
-            if
-              local.get $t0
-              local.set $t2
-              br 1
-            else
-              local.get $t1
-              i32.eqz
-              br_if 2
-              unreachable
-            end
-            unreachable
-          end
+        local.get $t1
+        i32.const 1
+        i32.eq
+        if
           br 1
+        else
+          local.get $t1
+          i32.eqz
+          br_if 2
+          unreachable
         end
-        br 0
+        unreachable
       end
-      local.get $t2
-      local.set $m
-      br 0
+      local.get $t0
+      return
     end
-    local.get $m
+    i32.const 0
   )
 )

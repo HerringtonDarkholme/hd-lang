@@ -34,8 +34,6 @@
     i32.add
     i32.const 16
     i32.add
-    local.set $self
-    local.get $self
   )
   (func $change_then_read (param $name.0 i32) (param $name.1 i32) (result i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i64)
     ;; 20 |     let mut b = Bag { label: name, items: [Item { qty: +1 }] }
@@ -94,33 +92,25 @@
     local.get $t2
     local.tee $name.0
     ;; 21 |     b.item_mut(0).qty = +7
+    local.tee $name.1
+    local.get $name.1
+    i32.load $heap offset=8
+    call $rt:list_unique
+    i32.store $heap offset=8
+    local.get $name.1
+    i32.load $heap offset=8
     local.set $name.1
-    block
-      local.get $name.1
-      local.get $name.1
-      i32.load $heap offset=8
-      call $rt:list_unique
-      i32.store $heap offset=8
-      local.get $name.1
-      i32.load $heap offset=8
-      local.set $name.1
-      i32.const 0
-      local.get $name.1
-      i32.load $heap offset=4
-      i32.ge_u
-      if
-        call $rt:panic'1
-        unreachable
-      end
-      local.get $name.1
-      i32.const 16
-      i32.add
-      local.set $name.1
-      br 0
+    i32.const 0
+    local.get $name.1
+    i32.load $heap offset=4
+    i32.ge_u
+    if
+      call $rt:panic'1
+      unreachable
     end
     local.get $name.1
     i32.const 7
-    i32.store $heap
+    i32.store $heap offset=16
     ;; 22 |     kept := b.label
     local.get $name.0
     i32.load $heap
@@ -129,9 +119,6 @@
     local.set $name.1
     drop
     ;; 23 |     kept.len() + b.items.len()
-    block
-      br 0
-    end
     local.get $name.0
     i32.load $heap offset=8
     local.set $t1
@@ -181,8 +168,6 @@
     local.get $t3
     i32.wrap_i64
     ;; 20 |     let mut b = Bag { label: name, items: [Item { qty: +1 }] }
-    local.set $name.0
-    local.get $name.0
     local.get $t0
     i32.const 24
     i32.add

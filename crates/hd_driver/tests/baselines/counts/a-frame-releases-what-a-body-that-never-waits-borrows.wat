@@ -125,12 +125,10 @@
         local.get $frame
         i32.load $heap offset=152
         local.set $t10
-        br 0
       end
       local.get $frame
       i32.load $heap offset=8
       local.set $a
-    else
     end
     block
       local.get $a
@@ -633,19 +631,16 @@
       end
     ;; 21 |     let (a, _) = join!(change(n), other())
       block
-        block
-          i32.const 4
-          i32.const 0
-          call $rt:new/class-1'2
-          local.tee $t4
-          local.get $a
-          i32.store $heap
-          local.get $t4
-          local.set $a
-          br 0
-          unreachable
-        end
+        i32.const 4
+        i32.const 0
+        call $rt:new/class-1'2
+        local.tee $t4
+        local.get $a
+        i32.store $heap
+        local.get $t4
+        local.set $a
         br 0
+        unreachable
       end
     ;; 22 |     println("$a")
       local.get $a
@@ -678,41 +673,23 @@
         end
       end
     ;; 22 |     println("$a")
-      block
-        local.get $t15
-        call $unsigned_width
-        local.set $a
-        br 0
-      end
-      block
-        local.get $a
-        local.tee $t4
-        i32.const 16
-        local.set $t1
-        if
-          local.get $t4
-          call $rt:str
-          local.set $t1
-        end
-        local.get $t1
+      local.get $t15
+      call $unsigned_width
+      local.tee $a
+      local.tee $t4
+      i32.const 16
+      local.set $t1
+      if
         local.get $t4
+        call $rt:str
         local.set $t1
-        local.set $t4
-        br 0
       end
-      block
-        local.get $t15
-        local.get $t4
-        local.get $t14
-        i32.add
-        local.get $a
-        call $write_unsigned_sized
-        br 0
-      end
-    ;; 20 |     n := box::[Note](Note { text: "n" })
-      local.get $t4
+      local.get $t15
       local.get $t1
-    ;; 22 |     println("$a")
+      local.get $a
+      call $write_unsigned_sized
+      local.get $t1
+      local.get $t4
       local.get $provider0
       local.get $provider0.vtable
       call $"println[string]"
@@ -873,7 +850,6 @@
       local.get $frame
       i32.load $heap offset=24
       local.set $n
-    else
     end
     local.get $n
     i32.load $heap
@@ -893,9 +869,6 @@
     i32.load $heap offset=4
     local.set $t1
     drop
-    block
-      br 0
-    end
     ;; 13 |     n.text = "m"
     local.get $n
     if
@@ -911,8 +884,6 @@
       end
     end
     local.get $t1
-    local.set $n
-    local.get $n
     local.get $frame
     if
       local.get $frame
@@ -1065,10 +1036,6 @@
       i32.const 128
       i32.or
       i32.store $heap offset=12
-    end
-    local.get $frame
-    if
-    else
     end
     i32.const 1
     local.get $frame

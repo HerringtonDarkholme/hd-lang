@@ -105,19 +105,12 @@
         call $rt:release_ref'2
       end
     end
-    local.set $first
-    local.get $first
   )
   (func $"impl Sink for Count.put" (param $self i32) (param $text.0 i32) (param $text.1 i32)
     ;; 14 |         self.n = self.n + text.len()
     local.get $self
-    i32.load $heap
-    local.set $text.0
-    block
-      br 0
-    end
     local.get $self
-    local.get $text.0
+    i32.load $heap
     local.get $text.1
     i32.add
     i32.store $heap

@@ -7,8 +7,6 @@
     local.get $items
     i32.load $heap
     i32.load $heap offset=4
-    local.set $items
-    local.get $items
   )
   (func $caller (param $items i32) (result i32)
     ;; 9 |     size(items, items.pop())
@@ -16,7 +14,5 @@
     local.get $items
     call $"impl[T] List[T].pop[i32]"
     call $size
-    local.set $items
-    local.get $items
   )
 )

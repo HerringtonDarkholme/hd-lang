@@ -34,10 +34,6 @@
     call $rt:memory_copy/0/0
     local.get $t1
     local.get $t0
-    local.set $name.1
-    local.set $name.0
-    local.get $name.0
-    local.get $name.1
   )
   (func $with_default (param $s.0 i32) (param $s.1 i32) (result i32) (local $t2 i32) (local $t1 i32) (local $t0 i32)
     ;; 13 |     collect(s)
@@ -70,20 +66,17 @@
     i32.sub
     local.tee $t0
     global.set $locals
-    block
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $t1
-      i32.const 80 ;; &empty-buffer
-      i32.store $heap
-      local.get $t1
-      local.set $t2
-      br 0
-    end
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $t1
+    i32.const 80 ;; &empty-buffer
+    i32.store $heap
+    local.get $t1
+    local.set $t2
     local.get $s.0
     local.get $s.1
     local.get $t2
@@ -119,8 +112,6 @@
     else
       local.get $source
     end
-    local.set $source
-    local.get $source
   )
   (func $with_given (param $s.0 i32) (param $s.1 i32) (param $out i32) (result i32)
     ;; 16 |     collect(s, out)
@@ -128,8 +119,6 @@
     local.get $s.1
     local.get $out
     call $collect
-    local.set $s.0
-    local.get $s.0
   )
   (func $collect (param $item.0 i32) (param $item.1 i32) (param $into i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 9 |     into.push(item)
@@ -175,9 +164,6 @@
     local.get $into
     i32.load $heap
     i32.load $heap offset=4
-    ;; 9 |     into.push(item)
-    local.set $item.0
-    local.get $item.0
   )
   (func $returned_default (param $source i32) (param $fresh i32) (result i32) (local $t2 i32) (local $t1 i32) (local $t0 i32) (local $t3 i32)
     ;; 32 |     into := reference_default(source, fresh)
@@ -210,20 +196,17 @@
     i32.sub
     local.tee $t0
     global.set $locals
-    block
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $t1
-      i32.const 80 ;; &empty-buffer
-      i32.store $heap
-      local.get $t1
-      local.set $t2
-      br 0
-    end
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $t1
+    i32.const 80 ;; &empty-buffer
+    i32.store $heap
+    local.get $t1
+    local.set $t2
     local.get $source
     local.get $fresh
     local.get $t2
@@ -297,43 +280,33 @@
   )
   (func $use_label (param $s.0 i32) (param $s.1 i32) (result i32 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
     ;; 22 |     labeled(s)
-    block
-      i32.const 108 ;; &"!"
-      i32.const 1
-      local.set $t0
-      local.set $t1
-      br 0
-    end
-    block
-      local.get $s.1
-      local.get $t0
-      i32.add
-      local.tee $t2
-      i32.eqz
-      if (result i32)
-        i32.const 16
-      else
-        local.get $t2
-        call $rt:str
-      end
-      local.tee $t3
-      local.tee $t4
-      local.get $s.0
-      local.get $s.1
-      call $rt:memory_copy/0/0
-      local.get $t4
-      local.get $s.1
-      i32.add
-      local.get $t1
-      local.get $t0
-      call $rt:memory_copy/0/0
-      local.get $t3
+    i32.const 108 ;; &"!"
+    i32.const 1
+    local.set $t0
+    local.set $t1
+    local.get $s.1
+    local.get $t0
+    i32.add
+    local.tee $t2
+    i32.eqz
+    if (result i32)
+      i32.const 16
+    else
       local.get $t2
-      local.set $s.1
-      local.set $s.0
-      br 0
+      call $rt:str
     end
+    local.tee $t3
+    local.tee $t4
     local.get $s.0
     local.get $s.1
+    call $rt:memory_copy/0/0
+    local.get $t4
+    local.get $s.1
+    i32.add
+    local.get $t1
+    local.get $t0
+    call $rt:memory_copy/0/0
+    local.get $t3
+    local.get $t2
   )
 )

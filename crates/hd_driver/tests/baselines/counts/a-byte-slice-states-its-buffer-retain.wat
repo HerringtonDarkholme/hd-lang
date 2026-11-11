@@ -17,11 +17,6 @@
     i32.const 0
     ;; 15 |     slice_fn(text, 0, 1)
     call_indirect $table0 (param i32 i32 i32 i32 i32 i32) (result i32 i32)
-    ;; 14 |     slice_fn := bytes_slice
-    local.set $text.1
-    local.set $text.0
-    local.get $text.0
-    local.get $text.1
   )
   (func $slice (param $text.0 i32) (param $text.1 i32) (param $start i32) (param $end i32) (result i32 i32)
     ;; 8 |     bytes_slice(text, start, end)

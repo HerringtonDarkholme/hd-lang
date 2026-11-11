@@ -66,7 +66,6 @@
         local.get $frame
         i64.load $heap offset=48
         local.set $t1
-        br 0
       end
       local.get $frame
       i32.load $heap offset=8
@@ -87,13 +86,8 @@
       i32.eqz
       if
         i64.const 1
+        call $"impl Duration.milliseconds"
         local.set $t1
-        block
-          local.get $t1
-          call $"impl Duration.milliseconds"
-          local.set $t1
-          br 0
-        end
       end
       block
         block

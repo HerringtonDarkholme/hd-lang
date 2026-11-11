@@ -5,23 +5,17 @@
     local.get $a
     local.get $b
     i32.eq
-    local.set $a
-    local.get $a
   )
   (func $mixed (param $a i32) (param $b i32) (result i32)
     ;; 15 |     a is b
     local.get $a
     local.get $b
     i32.eq
-    local.set $a
-    local.get $a
   )
   (func $same_box (param $a i32) (param $b i32) (result i32)
     ;; 12 |     a is b
     local.get $a
     local.get $b
     i32.eq
-    local.set $a
-    local.get $a
   )
 )

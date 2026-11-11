@@ -3,26 +3,15 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (func $name_len (param $s.0 i32) (param $s.1 i32) (result i32)
     ;; 19 |     Name::from(s).text.len()
-    block
-      br 0
-    end
-    block
-      br 0
-    end
     local.get $s.0
     if
       local.get $s.0
       call $rt:release_ref
     end
     local.get $s.1
-    local.set $s.0
-    local.get $s.0
   )
   (func $convert (param $s.0 i32) (param $s.1 i32) (result i32 i32)
     ;; 16 |     Name::from(s)
-    block
-      br 0
-    end
     local.get $s.0
     local.get $s.1
   )

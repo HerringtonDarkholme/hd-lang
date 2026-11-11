@@ -77,8 +77,6 @@
     else
       i32.const 1
     end
-    local.set $b
-    local.get $b
     local.get $t0
     i32.const 32
     i32.add
@@ -86,24 +84,17 @@
   )
   (func $str_lt (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32)
     ;; 6 |     a < b
-    block
-      local.get $a.0
-      local.get $a.1
-      local.get $b.0
-      local.get $b.1
-      call $string_order
-      local.set $a.0
-      br 0
-    end
     local.get $a.0
+    local.get $a.1
+    local.get $b.0
+    local.get $b.1
+    call $string_order
     i32.eqz
     if (result i32)
       i32.const 1
     else
       i32.const 0
     end
-    local.set $a.0
-    local.get $a.0
   )
   (func $tuple_gt (param $b i32) (param $t1 i32) (param $t2 i64) (param $t3 i32) (param $t4 i32) (param $t5 i64) (result i32) (local $t0 i32) (local $a i32)
     ;; 12 |     a > b
@@ -198,8 +189,6 @@
     else
       i32.const 0
     end
-    local.set $b
-    local.get $b
     local.get $t0
     i32.const 48
     i32.add
@@ -269,8 +258,6 @@
     else
       i32.const 1
     end
-    local.set $b
-    local.get $b
     local.get $t0
     i32.const 32
     i32.add

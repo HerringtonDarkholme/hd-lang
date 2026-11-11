@@ -1,0 +1,60 @@
+# test: if, match and loop joins keep their values and release what each path holds
+# Spec 06 If Expressions: flow.if.value.branches, flow.if.statement; spec 06 Blocks: flow.block.value.
+# expect: test
+enum Shape:
+    Dot
+    Named(label: string)
+    Box(width: usize, height: usize)
+
+fn area(s: Shape) -> usize:
+    match s:
+        Shape.Dot => 0
+        Shape.Named(label) => label.len()
+        Shape.Box(width, height) =>
+            if width > height: width * 2 else: height * width
+
+fn tally(xs: List[string], limit: usize) -> string:
+    let mut out = ""
+    for x in xs:
+        if x.len() > limit:
+            continue
+        if x == "stop":
+            break
+        out = out + x
+    out
+
+fn pick(flag: bool, a: string, b: string) -> string:
+    let mut kept = a
+    if flag:
+        kept = b
+    kept
+
+fn first_long(xs: List[string]) -> string?:
+    for x in xs:
+        if x.len() > 2:
+            return .Some(x)
+    .None
+
+tests:
+    use std.testing.assert_equal
+
+    it("a match arm's nested if leaves one value at the join"):
+        assert_equal(area(Shape.Dot), 0, reason="empty arm")
+        assert_equal(area(Shape.Named("four")), 4, reason="arm with a binding")
+        assert_equal(area(Shape.Box(5, 2)), 10, reason="then arm")
+        assert_equal(area(Shape.Box(2, 5)), 10, reason="else arm")
+
+    it("continue, break and fallthrough each keep the loop's string"):
+        assert_equal(
+            tally(["a", "toolong", "b", "stop", "c"], 4),
+            "ab",
+            reason="skips long, stops at stop",
+        )
+
+    it("an if with no else replaces a string on one path only"):
+        assert_equal(pick(true, "x", "y"), "y", reason="replaced")
+        assert_equal(pick(false, "x", "y"), "x", reason="kept")
+
+    it("a return from inside a loop and the loop's own end both reach the caller"):
+        assert_equal(first_long(["a", "abc"]), .Some("abc"), reason="returned from the loop")
+        assert_equal(first_long(["a", "b"]), .None, reason="fell out of the loop")

@@ -82,7 +82,7 @@
     ;; 25 |     change := fn() -> void: ps[0] = box(P { name: "b" })
     local.get $env
     i32.load $heap
-    local.set $env
+    local.tee $env
     i32.const 8
     i32.const 5
     call $rt:new/class-1'1
@@ -92,7 +92,6 @@
     local.get $ctx
     i32.const 1
     i32.store $heap offset=4
-    local.get $env
     i32.const 4
     i32.sub
     i32.load $heap
@@ -151,7 +150,7 @@
     ;; 32 |     change := fn() -> void: h.p = box(P { name: "f" })
     local.get $env
     i32.load $heap
-    local.set $env
+    local.tee $env
     i32.const 8
     i32.const 5
     call $rt:new/class-1'1
@@ -161,7 +160,6 @@
     local.get $ctx
     i32.const 1
     i32.store $heap offset=4
-    local.get $env
     i32.const 4
     i32.sub
     i32.load $heap

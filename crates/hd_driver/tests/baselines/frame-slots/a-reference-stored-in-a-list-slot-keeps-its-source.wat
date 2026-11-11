@@ -8,7 +8,6 @@
   (import "fixture" "signed_magnitude" (func $signed_magnitude (param i64) (result i64)))
   (import "fixture" "unsigned_width" (func $unsigned_width (param i64) (result i32)))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
-  (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "write_signed_sized" (func $write_signed_sized (param i64 i32 i32)))
   (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
@@ -16,7 +15,7 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $replaced (param $p i32) (result i32) (local $t0 i32) (local $k i32) (local $q i32) (local $ps i32) (local $d i32) (local $t1 i64) (local $t2 i64) (local $t3 i32) (local $t4 i32) (local $junk.1 i32) (local $t6 i32) (local $t5 i32)
+  (func $replaced (param $p i32) (result i32) (local $t0 i32) (local $k i32) (local $q i32) (local $ps i32) (local $d i32) (local $t1 i64) (local $t2 i64) (local $t3 i32) (local $junk.0 i32) (local $junk.1 i32)
     ;; 14 |     p := make(k)
     global.get $locals
     global.get $locals_base
@@ -151,40 +150,32 @@
     i32.load $heap
     i64.extend_i32_s
     local.tee $t1
-    local.set $t2
-    block
-      block
-        local.get $t2
-        call $signed_magnitude
-        call $unsigned_width
-        local.set $k
-        local.get $t2
-        i64.const 0
-        i64.lt_s
-        if
-          i32.const 1
-          local.set $t3
-        else
-        end
-        local.get $k
-        i64.extend_i32_u
-        local.get $t3
-        i64.extend_i32_u
-        i64.add
-        local.tee $t2
-        i64.const 4294967295
-        i64.gt_u
-        if
-          call $rt:panic'1
-          unreachable
-        end
-        local.get $t2
-        i32.wrap_i64
-        local.set $k
-        br 0
-      end
-      br 0
+    local.tee $t2
+    call $signed_magnitude
+    call $unsigned_width
+    local.set $k
+    local.get $t2
+    i64.const 0
+    i64.lt_s
+    if
+      i32.const 1
+      local.set $t3
     end
+    local.get $k
+    i64.extend_i32_u
+    local.get $t3
+    i64.extend_i32_u
+    i64.add
+    local.tee $t2
+    i64.const 4294967295
+    i64.gt_u
+    if
+      call $rt:panic'1
+      unreachable
+    end
+    local.get $t2
+    i32.wrap_i64
+    local.set $k
     i32.const 0
     i32.const -2
     i32.gt_u
@@ -207,55 +198,39 @@
     end
     local.get $t2
     i32.wrap_i64
-    local.set $t4
-    block
-      local.get $t4
-      i32.const 16
-      local.set $junk.1
-      if
-        local.get $t4
-        call $rt:str
-        local.set $junk.1
-      end
+    local.tee $junk.1
+    i32.const 16
+    local.set $junk.0
+    if
       local.get $junk.1
-      local.get $t4
-      local.set $junk.1
-      local.set $t4
-      br 0
+      call $rt:str
+      local.set $junk.0
     end
+    local.get $junk.0
+    i64.extend_i32_u
+    i32.const 0
+    i64.extend_i32_u
+    i64.add
+    local.tee $t2
+    i64.const 4294967295
+    i64.gt_u
+    if
+      call $rt:panic'1
+      unreachable
+    end
+    local.get $t2
+    i32.wrap_i64
     i32.const 65 ;; &"j"
-    i32.const 1
-    local.set $t5
-    local.set $t6
-    block
-      local.get $t4
-      i64.extend_i32_u
-      i32.const 0
-      i64.extend_i32_u
-      i64.add
-      local.tee $t2
-      i64.const 4294967295
-      i64.gt_u
-      if
-        call $rt:panic'1
-        unreachable
-      end
-      local.get $t2
-      i32.wrap_i64
-      local.get $t6
-      local.get $t5
-      call $rt:memory_copy/0/0
-      br 0
-    end
-    block
-      local.get $t1
-      local.get $t4
-      local.get $t3
-      i32.add
-      local.get $k
-      call $write_signed_sized
-      br 0
-    end
+    i32.load8_u $heap
+    i32.store8 $heap
+    local.get $t1
+    ;; 14 |     p := make(k)
+    local.get $junk.0
+    ;; 19 |     junk := "j${k}"
+    local.get $t3
+    i32.add
+    local.get $k
+    call $write_signed_sized
     ;; 20 |     d.len() + ps[0].name.len() + junk.len()
     local.get $d
     call $"impl string.len"
@@ -276,9 +251,6 @@
     i32.load $heap offset=4
     local.set $d
     drop
-    block
-      br 0
-    end
     ;; 14 |     p := make(k)
     local.get $ps
     if
@@ -327,13 +299,8 @@
     local.get $t1
     i32.wrap_i64
     local.set $p
-    block
-      local.get $junk.1
-      local.set $k
-      br 0
-    end
     ;; 14 |     p := make(k)
-    local.get $t4
+    local.get $junk.0
     local.tee $ps
     if
       local.get $ps
@@ -342,7 +309,7 @@
     ;; 20 |     d.len() + ps[0].name.len() + junk.len()
     local.get $p
     i64.extend_i32_u
-    local.get $k
+    local.get $junk.1
     i64.extend_i32_u
     i64.add
     local.tee $t1
@@ -355,8 +322,6 @@
     local.get $t1
     i32.wrap_i64
     ;; 14 |     p := make(k)
-    local.set $p
-    local.get $p
     local.get $t0
     i32.const 48
     i32.add

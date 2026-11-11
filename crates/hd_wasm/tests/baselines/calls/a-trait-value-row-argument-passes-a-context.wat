@@ -35,7 +35,5 @@
       local.get $provider0
       call $rt:release_ref
     end
-    local.set $r.0
-    local.get $r.0
   )
 )

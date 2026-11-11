@@ -9,15 +9,10 @@
     i32.load $heap offset=4
     local.set $t0
     drop
-    block
-      br 0
-    end
     local.get $t0
     local.get $room
     i32.load $heap offset=8
     i32.add
-    local.set $room
-    local.get $room
   )
   (func $total (param $owner i32) (param $depth i32) (result i32) (local $t0 i32)
     ;; 26 |     below := if depth == 0: 0 else: total(owner, depth - 1)
@@ -34,28 +29,17 @@
     end
     local.set $depth
     ;; 27 |     measure(field) + below
-    block
-      local.get $owner
-      i32.load $heap
-      local.get $owner
-      i32.load $heap offset=4
-      local.set $t0
-      drop
-      block
-        br 0
-      end
-      local.get $t0
-      local.get $owner
-      i32.load $heap offset=8
-      i32.add
-      local.set $owner
-      br 0
-    end
     local.get $owner
+    i32.load $heap
+    local.get $owner
+    i32.load $heap offset=4
+    local.set $t0
+    drop
+    local.get $t0
+    local.get $owner
+    i32.load $heap offset=8
+    i32.add
     local.get $depth
     i32.add
-    ;; 25 |     field := &owner.room
-    local.set $owner
-    local.get $owner
   )
 )

@@ -7,7 +7,7 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 3 funcref))
-  (func $"impl Step for Erased.step'1" (param $self i32) (result i32 i64) (local $t2 i64) (local $t0 i32) (local $t1 i32)
+  (func $"impl Step for Erased.step'1" (param $self i32) (result i32 i64) (local $t0 i32) (local $t1 i32)
     ;; 32 |         self.source.step()
     local.get $self
     i32.load $heap
@@ -30,10 +30,6 @@
       local.get $t1
       call $rt:release_ref
     end
-    local.set $t2
-    local.set $self
-    local.get $self
-    local.get $t2
   )
   (func $"impl Step for Counter.step" (param $self i32) (result i32 i64) (local $value i64)
     ;; 20 |         if self.at >= self.end:
@@ -61,12 +57,9 @@
     i64.store $heap
     ;; 24 |         .Some(value)
     i32.const 1
-    ;; 20 |         if self.at >= self.end:
-    local.set $self
-    local.get $self
     local.get $value
   )
-  (func $"impl Step for Erased.step'2" (param $self i32) (result i32 i64) (local $t0 i64)
+  (func $"impl Step for Erased.step'2" (param $self i32) (result i32 i64)
     ;; 32 |         self.source.step()
     local.get $self
     i32.load $heap
@@ -74,10 +67,6 @@
     i32.load $heap offset=4
     i32.load $heap
     call_indirect $table0 (param i32) (result i32 i64)
-    local.set $t0
-    local.set $self
-    local.get $self
-    local.get $t0
   )
   (func $count (param $n i64) (result i64) (local $t0 i32)
     ;; 44 |     total(Erased { source: box(Counter { at: 0, end: n }) })
@@ -93,10 +82,8 @@
     local.get $t0
     i32.const 160 ;; &vtable[func38]
     call $total
-    local.set $n
-    local.get $n
   )
-  (func $total (param $items.source.0 i32) (param $items.source.1 i32) (result i64) (local $sum i64) (local $t0 i32) (local $t1 i32) (local $x i64)
+  (func $total (param $items.source.0 i32) (param $items.source.1 i32) (result i64) (local $t0 i32) (local $t1 i32) (local $sum i64) (local $x i64)
     ;; 35 |     let mut cursor = items
     global.get $locals
     global.get $locals_base
@@ -180,7 +167,6 @@
     ;; 40 |             .None => break
           br 2
     ;; 38 |         match cursor.step():
-          br 0
         end
     ;; 37 |     while true:
         br 0
@@ -197,7 +183,9 @@
         call $rt:release_ref
       end
     end
+    ;; 41 |     sum
     local.get $sum
+    ;; 35 |     let mut cursor = items
     local.get $t0
     i32.const 16
     i32.add

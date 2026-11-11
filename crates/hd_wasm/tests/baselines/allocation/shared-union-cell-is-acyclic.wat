@@ -12,8 +12,7 @@
     ;; 10 |     read := fn() -> Choice: value
     local.get $env
     i32.load $heap
-    local.set $env
-    local.get $env
+    local.tee $env
     i32.load $heap
     local.get $env
     i32.load $heap offset=4
@@ -73,8 +72,7 @@
         call $rt:release_ref
       end
     end
-    local.set $seed
-    local.get $seed
+    ;; 10 |     read := fn() -> Choice: value
     local.get $t0
   )
 )

@@ -7,8 +7,6 @@
     ;; 18 |     total(xs...)
     local.get $xs
     call $total
-    local.set $xs
-    local.get $xs
   )
   (func $three (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (param $c.0 i32) (param $c.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 15 |     total(a, b, c)
@@ -55,8 +53,6 @@
         call $rt:release_ref
       end
     end
-    local.set $a.0
-    local.get $a.0
   )
   (func $through_value (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 25 |     f(a, b)
@@ -95,8 +91,6 @@
         call $rt:release_ref
       end
     end
-    local.set $a.0
-    local.get $a.0
   )
   (func $total (param $parts i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $p.1 i32)
     ;; 10 |     for p in parts:
@@ -126,37 +120,24 @@
         i32.add
         local.set $t1
         block
-          block
-            br 0
-            unreachable
-          end
-    ;; 11 |         n += p.len()
-          block
-            local.get $p.1
-            local.set $t2
-            br 0
-          end
-          local.get $n
-          local.get $t2
-          i32.add
-          local.set $n
-    ;; 10 |     for p in parts:
           br 0
+          unreachable
         end
+    ;; 11 |         n += p.len()
+        local.get $n
+        local.get $p.1
+        i32.add
+        local.set $n
+    ;; 10 |     for p in parts:
         br 0
       end
     end
     ;; 12 |     n
     local.get $n
-    ;; 9 |     let n: usize = 0
-    local.set $parts
-    local.get $parts
   )
-  (func $none (result i32) (local $t0 i32)
+  (func $none (result i32)
     ;; 21 |     total()
     i32.const 80 ;; &empty-buffer
     call $total
-    local.set $t0
-    local.get $t0
   )
 )

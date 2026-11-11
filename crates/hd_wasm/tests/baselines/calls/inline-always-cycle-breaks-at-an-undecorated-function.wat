@@ -14,10 +14,7 @@
       i32.sub
       call $ordinary
       local.set $t0
-      br 0
     end
     local.get $t0
-    local.set $n
-    local.get $n
   )
 )

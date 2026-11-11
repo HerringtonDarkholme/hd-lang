@@ -64,12 +64,10 @@
         local.get $frame
         i64.load $heap offset=88
         local.set $t3
-        br 0
       end
       local.get $frame
       i32.load $heap offset=8
       local.set $t4
-    else
     end
     block
       local.get $t4
@@ -492,7 +490,6 @@
       local.get $frame
       i32.load $heap offset=28
       local.set $t1
-    else
     end
     local.get $t
     local.get $t

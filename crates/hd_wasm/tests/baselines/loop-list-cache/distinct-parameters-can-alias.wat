@@ -6,7 +6,7 @@
   (import "fixture" "table0" (table $table0 4 funcref))
   (func $read_after_resize (param $read i32) (param $write i32) (result i32) (local $total i32) (local $t1 i32) (local $t0 i32) (local $i i32) (local $t2 i32) (local $t3 i32)
     ;; 7 |     for i in 0..3:
-    local.get $total
+    i32.const 0
     i32.const 3
     local.tee $t0
     i32.lt_u

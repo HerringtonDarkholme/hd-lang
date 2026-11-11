@@ -23,9 +23,6 @@
       i32.add
     ;; 6 |         if n == 0: 0
     end
-    ;; 5 |     sum := fn(n: i32) -> i32:
-    local.set $env
-    local.get $env
   )
   (func $sum_to (param $limit i32) (result i32)
     ;; 8 |     sum(limit)
@@ -36,8 +33,5 @@
     i32.const 0
     ;; 8 |     sum(limit)
     call_indirect $table0 (param i32 i32 i32) (result i32)
-    ;; 5 |     sum := fn(n: i32) -> i32:
-    local.set $limit
-    local.get $limit
   )
 )

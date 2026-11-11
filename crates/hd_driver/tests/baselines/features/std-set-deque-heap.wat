@@ -19,11 +19,8 @@
     local.get $b.0
     local.get $b.1
     call $"impl[T < Eq & Hash] Set[T].contains[string]"
-    ;; 11 |     _ := s.insert(a)
-    local.set $s
-    local.get $s
   )
-  (func $queue (param $q i32) (param $a.0 i32) (param $a.1 i32) (result i32) (local $t0 i32)
+  (func $queue (param $q i32) (param $a.0 i32) (param $a.1 i32) (result i32) (local $x.1 i32)
     ;; 15 |     q.push_back(a)
     local.get $q
     local.get $a.0
@@ -39,35 +36,33 @@
         block
     ;; 17 |         .Some(x) => x.len()
           local.get $q
-          br_if 0
+          if
+            local.get $q
+            local.get $a.0
+            local.set $x.1
+            drop
+            br 1
+          else
     ;; 18 |         .None => 0
-          local.get $q
-          i32.eqz
-          br_if 1
-          unreachable
-    ;; 16 |     match q.pop_front():
-          unreachable
-        end
+            local.get $q
+            i32.eqz
+            br_if 2
+            unreachable
     ;; 17 |         .Some(x) => x.len()
-        block
-          local.get $a.0
-          local.set $t0
-          br 0
-        end
+          end
     ;; 16 |     match q.pop_front():
+          unreachable
+        end
         br 1
       end
-      br 0
     end
     ;; 15 |     q.push_back(a)
     local.get $q
     local.get $a.0
     call $rt:release
-    local.get $t0
-    local.set $q
-    local.get $q
+    local.get $x.1
   )
-  (func $top (param $h i32) (param $a.0 i32) (param $a.1 i32) (result i32) (local $t0 i32)
+  (func $top (param $h i32) (param $a.0 i32) (param $a.1 i32) (result i32) (local $x.1 i32)
     ;; 21 |     h.push(a)
     local.get $h
     local.get $a.0
@@ -83,32 +78,30 @@
         block
     ;; 23 |         .Some(x) => x.len()
           local.get $h
-          br_if 0
+          if
+            local.get $h
+            local.get $a.0
+            local.set $x.1
+            drop
+            br 1
+          else
     ;; 24 |         .None => 0
-          local.get $h
-          i32.eqz
-          br_if 1
-          unreachable
-    ;; 22 |     match h.pop():
-          unreachable
-        end
+            local.get $h
+            i32.eqz
+            br_if 2
+            unreachable
     ;; 23 |         .Some(x) => x.len()
-        block
-          local.get $a.0
-          local.set $t0
-          br 0
-        end
+          end
     ;; 22 |     match h.pop():
+          unreachable
+        end
         br 1
       end
-      br 0
     end
     ;; 21 |     h.push(a)
     local.get $h
     local.get $a.0
     call $rt:release
-    local.get $t0
-    local.set $h
-    local.get $h
+    local.get $x.1
   )
 )

@@ -2,69 +2,65 @@
 (module
   (import "fixture" "impl Facts.find[std.serde.EnumTagging]" (func $"impl Facts.find[std.serde.EnumTagging]" (param i32) (result i32 i32 i32 i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $mutated (param $value i64) (result i64) (local $t0 i32) (local $t5 i32) (local $t6 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $t7 i32)
+  (func $mutated (param $value i64) (result i64) (local $facts i32) (local $t4 i32) (local $t5 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $t0 i32) (local $t6 i32)
     ;; ...
     ;; 17 |     if facts.find::[EnumTagging]().is_some():
-    local.get $t0
+    local.get $facts
     i32.load $heap
-    local.get $t0
+    local.get $facts
     i32.const 0
     i32.store $heap
-    local.tee $t0
+    local.tee $facts
     call $"impl Facts.find[std.serde.EnumTagging]"
+    local.set $t0
     local.set $t1
     local.set $t2
     local.set $t3
     local.set $t4
-    local.set $t5
     ;; ...
-    local.get $t6
+    local.get $t5
     i64.const 0
     i64.store $heap offset=16
-    local.get $t6
+    local.get $t5
     i32.const 24
     i32.add
-    local.tee $t0
-    local.get $t5
-    i32.store $heap
-    local.get $t0
+    local.tee $facts
     local.get $t4
-    i32.store $heap offset=4
-    local.get $t0
+    i32.store $heap
+    local.get $facts
     local.get $t3
-    i32.store $heap offset=8
-    local.get $t0
+    i32.store $heap offset=4
+    local.get $facts
     local.get $t2
-    i32.store $heap offset=12
-    local.get $t0
+    i32.store $heap offset=8
+    local.get $facts
     local.get $t1
-    i32.store $heap offset=16
+    i32.store $heap offset=12
+    local.get $facts
     local.get $t0
-    local.set $t5
+    i32.store $heap offset=16
+    local.get $facts
+    local.set $t4
     block
       block
         block
-          block
-            local.get $t5
-            i32.load $heap
-            i32.const 3
-            i32.ne
-            br_if 0
-            br 1
-            unreachable
-          end
-          i32.const 1
-          local.set $t7
+          local.get $t4
+          i32.load $heap
+          i32.const 3
+          i32.ne
+          br_if 0
           br 1
+          unreachable
         end
-        br 0
+        i32.const 1
+        local.set $t6
+        br 1
       end
-      local.get $t7
-      local.set $t5
-      br 0
     end
+    local.get $t6
+    local.set $t4
     ;; ...
-    local.get $t5
+    local.get $t4
     if (result i64)
     ;; 18 |         value + 1
       local.get $value

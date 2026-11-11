@@ -180,7 +180,6 @@
     ;; 25 |                 match self.items[left].cmp(&self.items[left + 1]):
               br 1
             end
-            br 0
           end
     ;; 24 |             if left + 1 < size:
         end
@@ -228,7 +227,6 @@
     ;; 30 |                 _ => break
           br 2
     ;; 28 |             match value.cmp(&self.items[larger]):
-          br 0
         end
     ;; 31 |             self.items[parent] = self.items[larger]
         local.get $self
@@ -331,22 +329,16 @@
     i32.sub
     local.tee $t0
     global.set $locals
-    block
-      i32.const 80 ;; &empty-buffer
-      local.set $q
-      br 0
-    end
     local.get $t0
     i64.const 0
     i64.store $heap
     local.get $t0
     i32.const 8
     i32.add
-    local.tee $t1
-    local.get $q
-    i32.store $heap
-    local.get $t1
     local.tee $q
+    i32.const 80 ;; &empty-buffer
+    i32.store $heap
+    local.get $q
     ;; 46 |     q.add(a)
     local.get $a.0
     local.get $a.1
@@ -408,11 +400,8 @@
       end
     end
     ;; 50 |     q.items[0].len() + saved.items[0].len()
-    block
-      br 0
-    end
-    ;; 45 |     let mut q = Queue::[string].new()
     local.get $a.1
+    ;; 45 |     let mut q = Queue::[string].new()
     local.tee $t1
     if
       local.get $t1
@@ -452,13 +441,8 @@
       end
     end
     ;; 50 |     q.items[0].len() + saved.items[0].len()
-    block
-      local.get $b.1
-      local.set $a.0
-      br 0
-    end
-    ;; 45 |     let mut q = Queue::[string].new()
     local.get $a.1
+    ;; 45 |     let mut q = Queue::[string].new()
     local.tee $t1
     if
       local.get $t1
@@ -466,11 +450,9 @@
     end
     ;; 50 |     q.items[0].len() + saved.items[0].len()
     local.get $b.0
-    local.get $a.0
+    local.get $b.1
     i32.add
     ;; 45 |     let mut q = Queue::[string].new()
-    local.set $a.0
-    local.get $a.0
     local.get $t0
     i32.const 16
     i32.add
@@ -621,7 +603,6 @@
     ;; 25 |                 match self.items[left].cmp(&self.items[left + 1]):
               br 1
             end
-            br 0
           end
     ;; 24 |             if left + 1 < size:
         end
@@ -668,7 +649,6 @@
     ;; 30 |                 _ => break
           br 2
     ;; 28 |             match value.cmp(&self.items[larger]):
-          br 0
         end
     ;; 31 |             self.items[parent] = self.items[larger]
         local.get $self
@@ -922,7 +902,6 @@
     ;; 25 |                 match self.items[left].cmp(&self.items[left + 1]):
               br 1
             end
-            br 0
           end
     ;; 24 |             if left + 1 < size:
         end
@@ -963,7 +942,6 @@
     ;; 30 |                 _ => break
           br 2
     ;; 28 |             match value.cmp(&self.items[larger]):
-          br 0
         end
     ;; 31 |             self.items[parent] = self.items[larger]
         local.get $self
@@ -1127,22 +1105,16 @@
     i32.sub
     local.tee $t0
     global.set $locals
-    block
-      i32.const 80 ;; &empty-buffer
-      local.set $q
-      br 0
-    end
     local.get $t0
     i64.const 0
     i64.store $heap
     local.get $t0
     i32.const 8
     i32.add
-    local.tee $saved
-    local.get $q
-    i32.store $heap
-    local.get $saved
     local.tee $q
+    i32.const 80 ;; &empty-buffer
+    i32.store $heap
+    local.get $q
     ;; 37 |     q.add(a)
     local.get $a
     call $"impl[T < Ord] Queue[T].add[i64]"
@@ -1226,8 +1198,6 @@
     local.get $b
     i64.add
     ;; 36 |     let mut q = Queue::[i64].new()
-    local.set $a
-    local.get $a
     local.get $t0
     i32.const 16
     i32.add
@@ -1305,22 +1275,16 @@
     i32.sub
     local.tee $t0
     global.set $locals
-    block
-      i32.const 80 ;; &empty-buffer
-      local.set $q
-      br 0
-    end
     local.get $t0
     i64.const 0
     i64.store $heap
     local.get $t0
     i32.const 8
     i32.add
-    local.tee $saved
-    local.get $q
-    i32.store $heap
-    local.get $saved
     local.tee $q
+    i32.const 80 ;; &empty-buffer
+    i32.store $heap
+    local.get $q
     ;; 54 |     q.add((a, 0))
     local.get $a
     i32.const 0
@@ -1403,8 +1367,6 @@
     local.get $b
     i64.add
     ;; 53 |     let mut q = Queue::[(i64, usize)].new()
-    local.set $a
-    local.get $a
     local.get $t0
     i32.const 16
     i32.add
@@ -1520,7 +1482,6 @@
     ;; 25 |                 match self.items[left].cmp(&self.items[left + 1]):
               br 1
             end
-            br 0
           end
     ;; 24 |             if left + 1 < size:
         end
@@ -1564,7 +1525,6 @@
     ;; 30 |                 _ => break
           br 2
     ;; 28 |             match value.cmp(&self.items[larger]):
-          br 0
         end
     ;; 31 |             self.items[parent] = self.items[larger]
         local.get $self

@@ -41,9 +41,6 @@
     end
     ;; 23 |     ys._0.len() + ys._1.len()
     i32.add
-    ;; 22 |     ys := (xs, xs)
-    local.set $xs
-    local.get $xs
   )
   (func $known (param $xs i32) (result i32)
     ;; 11 |     xs
@@ -85,58 +82,37 @@
       end
     end
     local.get $t1
-    ;; 29 |     let mut held = r
-    local.set $r
-    local.get $r
   )
-  (func $dropped (param $xs i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
+  (func $dropped (param $xs i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
     ;; 17 |     ys := known(xs)
-    block
-      br 0
-    end
-    ;; 18 |     t := other(s)
-    block
-      br 0
-    end
-    ;; 19 |     ys.len() + t.len()
     local.get $xs
+    ;; 19 |     ys.len() + t.len()
     i32.load $heap offset=4
     local.set $t0
-    local.get $xs
     ;; 17 |     ys := known(xs)
-    local.tee $t1
+    local.get $xs
     if
-      local.get $t1
+      local.get $xs
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t1
+        local.get $xs
         call $rt:release_ref'1
       end
     end
-    ;; 19 |     ys.len() + t.len()
-    block
-      local.get $s.1
-      local.set $xs
-      br 0
-    end
-    ;; 17 |     ys := known(xs)
     local.get $s.0
-    local.tee $t1
+    local.tee $xs
     if
-      local.get $t1
+      local.get $xs
       call $rt:release_ref'2
     end
     ;; 19 |     ys.len() + t.len()
     local.get $t0
-    local.get $xs
+    local.get $s.1
     i32.add
-    ;; 17 |     ys := known(xs)
-    local.set $xs
-    local.get $xs
   )
   (func $other (param $s.0 i32) (param $s.1 i32) (result i32 i32)
     ;; 14 |     s

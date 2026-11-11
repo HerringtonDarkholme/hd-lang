@@ -86,7 +86,6 @@
     ;; 25 |             .None => break
           br 2
     ;; 23 |         match cursor.next():
-          br 0
         end
     ;; 22 |     while true:
         br 0
@@ -95,8 +94,6 @@
     ;; 26 |     sum
     local.get $sum
     ;; 20 |     let mut cursor = items
-    local.set $items.at
-    local.get $items.at
     local.get $t0
     i32.const 24
     i32.add

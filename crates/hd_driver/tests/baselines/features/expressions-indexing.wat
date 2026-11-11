@@ -44,9 +44,6 @@
     i32.load $heap offset=4
     local.set $m
     drop
-    block
-      br 0
-    end
     local.get $m
   )
   (func $map_index_take (param $m i32) (param $k.0 i32) (param $k.1 i32) (result i32 i32) (local $t0 i32)
@@ -104,10 +101,6 @@
     end
     local.get $k.0
     local.get $k.1
-    local.set $k.0
-    local.set $m
-    local.get $m
-    local.get $k.0
   )
   (func $string_byte (param $s.0 i32) (param $s.1 i32) (param $i i32) (result i32)
     ;; 13 |     s[i]
@@ -122,8 +115,6 @@
     local.get $i
     i32.add
     i32.load8_u $heap
-    local.set $s.0
-    local.get $s.0
   )
   (func $ref_list_index (param $xs i32) (param $i i32) (result i32)
     ;; 16 |     xs[i].len()
@@ -149,9 +140,6 @@
     i32.load $heap offset=20
     local.set $xs
     drop
-    block
-      br 0
-    end
     local.get $xs
   )
 )

@@ -43,13 +43,7 @@
   )
   (func $bind (param $s.0 i32) (param $s.1 i32) (result i32)
     ;; 10 |     u.len()
-    block
-      local.get $s.1
-      local.set $s.0
-      br 0
-    end
-    ;; 8 |     t := s
-    local.get $s.0
+    local.get $s.1
   )
   (func $bind_twice (param $xs i32) (result i32)
     ;; 14 |     ys.len() + xs.len()
@@ -58,8 +52,5 @@
     local.get $xs
     i32.load $heap offset=4
     i32.add
-    ;; 13 |     ys := xs
-    local.set $xs
-    local.get $xs
   )
 )

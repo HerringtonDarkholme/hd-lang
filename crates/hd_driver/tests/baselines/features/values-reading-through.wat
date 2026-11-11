@@ -28,7 +28,7 @@
     i32.add
     i32.store $heap offset=8
   )
-  (func $read_copy (param $r i32) (result i32) (local $copy.name.0 i32) (local $copy.name.1 i32)
+  (func $read_copy (param $r i32) (result i32) (local $copy.name.1 i32)
     ;; 12 |     copy := *r
     local.get $r
     i32.load $heap
@@ -43,16 +43,8 @@
     i32.load $heap offset=4
     local.set $r
     drop
-    block
-      local.get $copy.name.1
-      local.set $copy.name.0
-      br 0
-    end
     local.get $r
-    local.get $copy.name.0
+    local.get $copy.name.1
     i32.add
-    ;; 12 |     copy := *r
-    local.set $r
-    local.get $r
   )
 )

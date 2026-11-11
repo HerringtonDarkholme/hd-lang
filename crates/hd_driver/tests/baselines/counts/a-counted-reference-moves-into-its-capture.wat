@@ -51,8 +51,6 @@
     ;; 42 |     value.x
     local.get $value
     i32.load $heap offset=8
-    local.set $value
-    local.get $value
   )
   (func $handle (param $value i32) (result i32 i32) (local $t0 i32)
     ;; 24 |     fn() -> Handle: value
@@ -63,35 +61,26 @@
     local.tee $t0
     local.get $value
     i32.store $heap
-    local.set $value
-    local.get $value
     local.get $t0
   )
-  (func $generic (param $value i32) (result i32 i32) (local $t0 i32)
+  (func $generic (param $value i32) (result i32 i32)
     ;; 48 |     later(value)
     local.get $value
     i32.const 3
     call_indirect $table0 (param i32) (result i32 i32)
-    local.set $t0
-    local.set $value
-    local.get $value
-    local.get $t0
   )
   (func $local_view (param $value i32) (result i32)
     ;; 45 |     loan(View(value))
     local.get $value
     i32.const 4
     call_indirect $table0 (param i32) (result i32)
-    local.set $value
-    local.get $value
   )
   (func $capture#1 (param $env i32) (param $ctx i32) (result i32)
     ;; 18 |     fn() -> i32:
     local.get $env
     i32.load $heap
-    local.set $env
+    local.tee $env
     ;; 19 |         value.x += 1
-    local.get $env
     local.get $env
     i32.load $heap offset=8
     i32.const 1
@@ -100,9 +89,6 @@
     ;; 20 |         value.x
     local.get $env
     i32.load $heap offset=8
-    ;; 18 |     fn() -> i32:
-    local.set $env
-    local.get $env
   )
   (func $fresh (param $name.0 i32) (param $name.1 i32) (result i32 i32) (local $t0 i32)
     ;; 35 |     capture(box(Point { name: name, x: 0 }))
@@ -121,10 +107,6 @@
     local.get $t0
     i32.const 6
     call_indirect $table0 (param i32) (result i32 i32)
-    local.set $name.1
-    local.set $name.0
-    local.get $name.0
-    local.get $name.1
   )
   (func $capture (param $value i32) (result i32 i32) (local $t0 i32)
     ;; 18 |     fn() -> i32:
@@ -135,8 +117,6 @@
     local.tee $t0
     local.get $value
     i32.store $heap
-    local.set $value
-    local.get $value
     local.get $t0
   )
   (func $live (param $value i32) (result i32) (local $t1 i32) (local $t0 i32)
@@ -196,8 +176,6 @@
         call $rt:release_ref
       end
     end
-    local.set $value
-    local.get $value
   )
   (func $"later[*Point]" (param $value i32) (result i32 i32) (local $t0 i32)
     ;; 28 |     fn() -> T: value
@@ -208,8 +186,6 @@
     local.tee $t0
     local.get $value
     i32.store $heap
-    local.set $value
-    local.get $value
     local.get $t0
   )
 )

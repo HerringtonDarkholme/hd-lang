@@ -33,14 +33,11 @@
       local.get $frame
       i32.load $heap offset=28
       local.set $provider0.vtable
-    else
     end
     local.get $provider0
     local.get $provider0.vtable
     i32.load $heap
     call_indirect $table0 (param i32) (result i32)
-    local.set $provider0
-    local.get $provider0
     local.get $frame
     if
       local.get $frame
