@@ -283,24 +283,36 @@ test("pending external I/O does not hide a ready clock", () => {
   assert.equal(aborted, 1);
 });
 
-test("an I/O retry delay cannot hide readiness when another operation wakes", () => {
+// The retry delay after a failed probe bounds idle waiting only. Delivery
+// is one group per turn ordered by the earliest time each result can be
+// ready (d87822a45), so a probe pending since before a timer started is
+// probed and delivered first, alone, on the next wake.
+test("an I/O retry delay cannot hide readiness when a later timer wakes", (context) => {
+  let now = 100;
+  context.mock.method(performance, "now", () => now);
   let ready = false;
-  const { host, start } = operationHost(
+  const { host, memory, start } = operationHost(
     () => ready,
     () => {},
     () => {},
   );
+  const delivered = () => new DataView(memory.buffer).getInt32(0, true);
   const [, pending] = start();
+  now = 101;
   const [, firstClock] = host.imports["hd:Clock"]["sleep.start"](0n);
   assert.equal(host.imports["hd:rt"].block(), 1);
+  assert.equal(delivered(), firstClock);
   host.imports["hd:Clock"]["sleep.finish"](firstClock);
-  // A retry deadline controls idle waiting, not whether the host probes
-  // I/O on another wake. Stretch it to make that distinction deterministic.
-  host.core.st.ops.get(pending).at = performance.now() + 60_000;
+  // Stretch the retry to make it decisive if it ordered delivery.
+  host.core.st.ops.get(pending).at = now + 60_000;
   ready = true;
+  now = 102;
   const [, clock] = host.imports["hd:Clock"]["sleep.start"](0n);
-  assert.equal(host.imports["hd:rt"].block(), 2);
+  assert.equal(host.imports["hd:rt"].block(), 1);
+  assert.equal(delivered(), pending);
   host.imports["hd:ConsoleInput"]["read_line.finish"](pending);
+  assert.equal(host.imports["hd:rt"].block(), 1);
+  assert.equal(delivered(), clock);
   host.imports["hd:Clock"]["sleep.finish"](clock);
   host.close();
 });

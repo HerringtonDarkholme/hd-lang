@@ -1154,6 +1154,9 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
   // Pending operations by handle: `at` is when it completes, `done()` what
   // it does then, its result kept as `value`, and `method` the import
   // module and method that started it, whose `.finish` alone takes it.
+  // `since` orders delivery: the earliest time its result can be ready.
+  // A timer's is `at`. A probed operation's is its start, then its last
+  // failed probe, while `at` becomes the next idle retry.
   const pending = ({
     at,
     done,
@@ -1174,6 +1177,7 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
     const handle = st.nextHandle++;
     st.ops.set(handle, {
       at,
+      since: at,
       done,
       method,
       poll,
@@ -1196,26 +1200,31 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
     }
     return value;
   };
-  // Publish one completion turn, coalescing equal deadlines. A delayed
-  // host turn must not wake later work alongside an earlier timeout:
-  // race polls its work child first when both become ready in one batch.
+  // Publish one completion turn: the earliest group of operations that can
+  // be ready, by `since`, coalescing equal times. A delayed host turn must
+  // not wake later work alongside an earlier timeout: race polls its work
+  // child first when both become ready in one batch. A probe's retry delay
+  // only bounds idle waiting; it never orders a ready probe after a timer
+  // started later, so readiness is not hidden while other work wakes.
   const complete = (): number => {
     const now = performance.now();
     let readyAt: number | null = null;
     const due = [...st.ops]
       .filter(([, options]) => !options.completed && (options.poll || options.at <= now))
-      .sort((left, right) => left[1].at - right[1].at || left[0] - right[0])
+      .sort((left, right) => left[1].since - right[1].since || left[0] - right[0])
       .filter(([, options]) => {
         // A successful probe can consume external readiness (connect_poll).
         // Do not touch a later operation until its result can be delivered.
-        if (readyAt !== null && options.at !== readyAt) {
+        if (readyAt !== null && options.since !== readyAt) {
           return false;
         }
         if (!options.poll || options.poll()) {
-          readyAt = options.at;
+          readyAt = options.since;
           return true;
         }
-        options.at = performance.now() + 1;
+        const probed = performance.now();
+        options.since = probed;
+        options.at = probed + 1;
         return false;
       });
     if (due.length * 4 > st.memory.buffer.byteLength) {
