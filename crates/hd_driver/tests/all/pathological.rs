@@ -369,7 +369,6 @@ fn statement_and_local_checker_fuel() {
     check_fuel(statements, 5000, 20_000);
 }
 #[test]
-#[ignore = "#1685: Wasm scheduling recounts the body for each edit"]
 fn interpolation_emitted_operators() -> Result<(), wasmparser::BinaryReaderError> {
     check_operators(interpolation, 1250, 5000, 0)?;
     Ok(())
