@@ -783,7 +783,7 @@ pub mod ref_word {
     /// taken (`TAKES`). The checker never sets it (invariant 22).
     pub const FRAME: u32 = 16;
     /// Set by insertion: a `for x in &xs` loop's element reference into
-    /// the list a read made before the loop (`own::insert::pins_once`,
+    /// the list a read made before the loop (`own::insert::pinned_elements`,
     /// #1399 9k). The read pins the buffer over the loop, by its count or,
     /// where it borrows, by its span, so the reference addresses no storage
     /// of the read's own and the loop runs no `IsUnique`. The checker
