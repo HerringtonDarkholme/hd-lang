@@ -1171,6 +1171,11 @@ impl<'a> ItemCheck<'_, 'a> {
                     self.check_ty(e, slot)?;
                 }
             }
+            TyData::Union(members) => {
+                for &m in pool.list_items(members) {
+                    self.check_ty(m, slot)?;
+                }
+            }
             TyData::Fn {
                 params,
                 result,

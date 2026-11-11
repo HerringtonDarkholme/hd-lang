@@ -1,0 +1,13 @@
+# test: a union member written in a signature must satisfy its type's declared bounds
+# Spec 09: trait.bound.unsatisfied, for a type argument inside a union member.
+trait Shown:
+    fn show(self) -> i32
+
+struct Need[T < Shown]:
+    item: T
+
+fn f(x: Need[bool] | i32) -> void: # diagnostic: unsatisfied-trait-bound
+    pass
+
+pub fn main() -> void:
+    pass
