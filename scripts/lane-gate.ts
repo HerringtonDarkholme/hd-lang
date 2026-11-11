@@ -23,7 +23,8 @@
 //                     modules the diff changes; every other touched crate: all its targets; a
 //                     selected crate that is only a dependent: clippy's type check
 //                     of all its targets, no test build (each test binary links the
-//                     whole compiler, and CI runs them all). Never bare
+//                     whole compiler, and CI runs them all), except hd_lint,
+//                     whose one test binary asserts on checker facts. Never bare
 //                     `-p hd_driver`, never `--test conformance` without
 //                     HD_CONFORMANCE_ONLY.
 //   golden std TIR    hd_check, hd_tir or lib/std touched.
@@ -74,6 +75,7 @@ type Context = {
 type Rule = (ctx: Context) => Step[];
 
 const STAGE_CRATES = new Set(["hd_driver", "hd_check", "hd_wasm"]);
+const OBSERVERS = new Set(["hd_lint"]);
 const COMPILER_CRATES = ["hd_check", "hd_tir", "hd_mono", "hd_opt", "hd_wasm"];
 const SDK_STD = new Set(["console", "http", "http_wire", "time"]);
 const CONFORMANCE = "specification_conformance_passes_except_known_failures";
@@ -250,16 +252,24 @@ const crateRule: Rule = (ctx) => {
   // link of the whole compiler each (42 for an hd_syntax change), and CI
   // runs them.
   const touched = rest.filter((name) => ctx.touched.has(name)).sort();
-  if (touched.length === 0) {
-    return [];
+  // hd_lint's tests assert on the checker's facts and run in one binary
+  // (about 18 s), so a dependent hd_lint runs them: type-checking it
+  // missed d8e7fd385's nine lint failures.
+  const observers = rest.filter((name) => !ctx.touched.has(name) && OBSERVERS.has(name)).sort();
+  const steps: Step[] = [];
+  if (touched.length > 0) {
+    steps.push(
+      step(
+        "crates",
+        `touched: ${touched.join(" ")}`,
+        cargoTest(...touched.flatMap((name) => ["-p", name])),
+      ),
+    );
   }
-  return [
-    step(
-      "crates",
-      `touched: ${touched.join(" ")}`,
-      cargoTest(...touched.flatMap((name) => ["-p", name])),
-    ),
-  ];
+  for (const name of observers) {
+    steps.push(step(name, "dependent whose tests observe checker output", cargoTest("-p", name, "--test", "all")));
+  }
+  return steps;
 };
 
 const stageRule: Rule = (ctx) => {
