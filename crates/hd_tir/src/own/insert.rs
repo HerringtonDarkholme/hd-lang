@@ -92,6 +92,8 @@ const LOCAL_BIT: u32 = 1 << 31;
 #[derive(Default)]
 pub(crate) struct Tables {
     tracked: Vec<bool>,
+    /// Immutable loop elements whose existing pre-loop read pins the buffer.
+    pinned: Vec<bool>,
     /// The uses of each tracked value, in compressed rows by value.
     pub(super) start: Vec<u32>,
     fill: Vec<u32>,
@@ -302,6 +304,7 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Res
     // Where each local lives, from the frame marks just set.
     let framed = super::frame::runs_framed(b, topo, cx);
     super::storage::run(b, topo, cx, framed);
+    pinned_elements(b, topo, &mut t.pinned);
     for i in 0..n {
         t.tracked[i] = tracked(b, cx, i);
     }
@@ -803,7 +806,7 @@ fn uniqueness(b: &mut Body, topo: &Topology, t: &mut Tables, edits: &mut splice:
         let a = b.data[i][0];
         let (blk, pos, syn) = (topo.blk[i], topo.pos[i], b.syn[i]);
         match b.tags[i] {
-            Tag::Ref if pins_once(b, topo, i) => b.data[i][1] |= crate::ir::ref_word::PINS,
+            Tag::Ref if t.pinned[i] => b.data[i][1] |= crate::ir::ref_word::PINS,
             Tag::Store | Tag::Ref => {
                 let pin = b.tags[i] == Tag::Ref;
                 let deref = path_lists(b, t, a);
@@ -858,58 +861,152 @@ fn uniqueness(b: &mut Body, topo: &Topology, t: &mut Tables, edits: &mut splice:
     }
 }
 
-/// Whether `Ref` `i` is a `for x in &xs` loop's element reference that
+/// Marks each `for x in &xs` loop's element reference that
 /// pins the list once (#1399 9k): a `&` of an element of a read made
 /// before the loop, of a place rooted at a local no closure shares, where
 /// nothing in the loop stores or takes a `&mut` through that local. The
-/// read keeps its `copy` (a `Ref` rooted at it never borrows): one count
-/// of the buffer from before the loop to after it, so any write to the
-/// list copies the buffer rather than change it, and the loop needs no
+/// read keeps the buffer live before the loop through its end. Where
+/// another alias may change it, ownership keeps a copy, so a write to the
+/// list copies the buffer rather than changing it, and the loop needs no
 /// `IsUnique` per round. A store through the loop's own place keeps the
 /// per-round check, so the loop sees what it stores.
-fn pins_once(b: &Body, topo: &Topology, i: usize) -> bool {
+pub(super) fn pinned_elements(b: &Body, topo: &Topology, out: &mut Vec<bool>) {
+    pinned_elements_with(b, topo, out, || {});
+}
+
+/// Batches the pin proof without scanning a loop for every reference.
+/// Loop enter/exit events give exact ancestry intervals. A second event
+/// walk compares each candidate's root-write counter at entry and exit:
+/// the difference includes precisely that loop and its nested loops.
+/// Each instruction, loop edge, write and candidate is visited a constant
+/// number of times; each shared projection record is walked once. Both
+/// event walks use explicit storage, never native recursion.
+fn pinned_elements_with(b: &Body, topo: &Topology, out: &mut Vec<bool>, mut work: impl FnMut()) {
     use crate::ir::ref_word;
-    let inside = |x: usize, l: u32| {
-        let mut m = topo.loop_of[x];
-        while m != NONE {
-            if m == l {
-                return true;
-            }
-            m = topo.loop_of[m as usize];
+    let n = b.len();
+    fill(out, n, false);
+    let mut loops = Vec::new();
+    for i in 0..n {
+        work();
+        if b.tags[i] == Tag::Loop {
+            loops.push(u32_of(i));
         }
-        false
-    };
-    let l = topo.loop_of[i];
-    let a = b.data[i][0];
-    let Some(v) = b.view(a).value() else {
-        return false;
-    };
-    let vi = v as usize;
-    if l == NONE
-        || b.data[i][1] & ref_word::MUT != 0
-        || b.tags[vi] != Tag::Read
-        || topo.blk[vi] == NONE
-        || inside(vi, l)
-        || !has_elem(b, a)
-        || b.view(a).kinds(b).0 != 0
-    {
-        return false;
     }
-    let Some(root) = root_local(b, b.data[vi][0]) else {
-        return false;
-    };
-    if b.local_flags[root as usize] & (local_flags::CAPTURED | local_flags::CAPTURED_ASSIGNED) != 0
-    {
-        return false;
+    if loops.is_empty() || !b.tags.contains(&Tag::Ref) {
+        return;
     }
-    !(0..b.len()).any(|j| {
-        let writes = match b.tags[j] {
-            Tag::Store => true,
-            Tag::Ref => b.data[j][1] & ref_word::MUT != 0,
-            _ => false,
+    let (mut child, mut next) = (vec![NONE; n], vec![NONE; n]);
+    let mut stack = Vec::new();
+    for &l in &loops {
+        work();
+        let parent = topo.loop_of[l as usize];
+        if parent == NONE {
+            stack.push((l, true));
+        } else {
+            next[l as usize] = child[parent as usize];
+            child[parent as usize] = l;
+        }
+    }
+    let (mut enter, mut exit) = (vec![0; n], vec![0; n]);
+    let (mut events, mut clock) = (Vec::new(), 0u32);
+    while let Some((l, entering)) = stack.pop() {
+        work();
+        events.push((l, entering));
+        if entering {
+            enter[l as usize] = clock;
+            clock += 1;
+            stack.push((l, false));
+            let mut c = child[l as usize];
+            while c != NONE {
+                work();
+                stack.push((c, true));
+                c = next[c as usize];
+            }
+        } else {
+            exit[l as usize] = clock;
+        }
+    }
+    let inside = |i: usize, l: u32| {
+        let inner = topo.loop_of[i];
+        inner != NONE
+            && enter[l as usize] <= enter[inner as usize]
+            && enter[inner as usize] < exit[l as usize]
+    };
+    let (mut first_query, mut first_write) = (vec![NONE; n], vec![NONE; n]);
+    // A place record can be shared by many references. Walk its projections
+    // once, so shared deep paths do not multiply work by reference count.
+    let mut paths = vec![0u8; b.extra.len()];
+    let mut queries = Vec::new();
+    let mut writes = Vec::new();
+    for i in 0..n {
+        work();
+        let l = topo.loop_of[i];
+        if l == NONE {
+            continue;
+        }
+        let [a, w] = b.data[i];
+        if (b.tags[i] == Tag::Store || b.tags[i] == Tag::Ref && w & ref_word::MUT != 0)
+            && let Some(root) = root_local(b, a)
+        {
+            writes.push((root, first_write[l as usize]));
+            first_write[l as usize] = u32_of(writes.len() - 1);
+        }
+        if b.tags[i] != Tag::Ref || w & ref_word::MUT != 0 {
+            continue;
+        }
+        let Some(v) = b.view(a).value() else {
+            continue;
         };
-        writes && inside(j, l) && root_local(b, b.data[j][0]) == Some(root)
-    })
+        let vi = v as usize;
+        if b.tags[vi] != Tag::Read || topo.blk[vi] == NONE || inside(vi, l) {
+            continue;
+        }
+        if paths[a as usize] == 0 {
+            work();
+            paths[a as usize] = if has_elem(b, a) && b.view(a).kinds(b).0 == 0 {
+                2
+            } else {
+                1
+            };
+        }
+        if paths[a as usize] != 2 {
+            continue;
+        }
+        let Some(root) = root_local(b, b.data[vi][0]) else {
+            continue;
+        };
+        if b.local_flags[root as usize] & (local_flags::CAPTURED | local_flags::CAPTURED_ASSIGNED)
+            != 0
+        {
+            continue;
+        }
+        queries.push((u32_of(i), root, 0, first_query[l as usize]));
+        first_query[l as usize] = u32_of(queries.len() - 1);
+    }
+    let mut counts = vec![0u32; b.local_ty.len()];
+    for (l, entering) in events {
+        work();
+        let mut q = first_query[l as usize];
+        while q != NONE {
+            work();
+            let (i, root, before, next) = &mut queries[q as usize];
+            if entering {
+                *before = counts[*root as usize];
+            } else {
+                out[*i as usize] = *before == counts[*root as usize];
+            }
+            q = *next;
+        }
+        if entering {
+            let mut w = first_write[l as usize];
+            while w != NONE {
+                work();
+                let (root, next) = writes[w as usize];
+                counts[root as usize] += 1;
+                w = next;
+            }
+        }
+    }
 }
 
 /// The local a place word's chain of reads starts at.
@@ -944,7 +1041,7 @@ fn changes(b: &Body, topo: &Topology, t: &mut Tables, i: usize) {
     // The read a store's or a reference's place is rooted at, which
     // [`uniqueness`] replaces with a new `borrow` read, no longer needs a
     // count at the change: it's dropped after its last other use.
-    if let Some(v) = rerooted_read(b, topo, i)
+    if let Some(v) = rerooted_read(b, topo, &t.pinned, i)
         && t.reread[v as usize] == NONE
     {
         t.reread[v as usize] = u32_of(i);
@@ -1019,8 +1116,8 @@ fn changes(b: &Body, topo: &Topology, t: &mut Tables, i: usize) {
 /// [`uniqueness`] roots the place at a new `borrow` read instead: the
 /// read's chain starts at a place ([`read_place`]), and the place has an
 /// element step, which gets an `IsUnique`.
-fn rerooted_read(b: &Body, topo: &Topology, i: usize) -> Option<u32> {
-    if !matches!(b.tags[i], Tag::Store | Tag::Ref) || pins_once(b, topo, i) {
+fn rerooted_read(b: &Body, topo: &Topology, pinned: &[bool], i: usize) -> Option<u32> {
+    if !matches!(b.tags[i], Tag::Store | Tag::Ref) || pinned[i] {
         return None;
     }
     let a = b.data[i][0];
@@ -1274,4 +1371,187 @@ fn prefix(b: &mut Body, word: u32, end: u32) -> u32 {
     b.extra.push(end - rec);
     b.extra.extend_from_within(rec as usize..end as usize);
     at
+}
+
+#[cfg(test)]
+mod pin_tests {
+    use super::*;
+    use crate::ir::{BodyKind, Place, PlaceRoot, Proj, TirBuilder, TirSink, ref_word};
+    use hd_base::{DefId, Symbol};
+
+    /// The previous insertion predicate, kept only as a differential oracle.
+    fn previous(b: &Body, topo: &Topology, i: usize) -> bool {
+        let inside = |i: usize, l: u32| {
+            let mut parent = topo.loop_of[i];
+            while parent != NONE {
+                if parent == l {
+                    return true;
+                }
+                parent = topo.loop_of[parent as usize];
+            }
+            false
+        };
+        let l = topo.loop_of[i];
+        let [a, flags] = b.data[i];
+        let Some(v) = b.view(a).value() else {
+            return false;
+        };
+        let vi = v as usize;
+        if l == NONE
+            || flags & ref_word::MUT != 0
+            || b.tags[vi] != Tag::Read
+            || topo.blk[vi] == NONE
+            || inside(vi, l)
+            || !has_elem(b, a)
+            || b.view(a).kinds(b).0 != 0
+        {
+            return false;
+        }
+        let Some(root) = root_local(b, b.data[vi][0]) else {
+            return false;
+        };
+        if b.local_flags[root as usize] & (local_flags::CAPTURED | local_flags::CAPTURED_ASSIGNED)
+            != 0
+        {
+            return false;
+        }
+        !(0..b.len()).any(|j| {
+            (b.tags[j] == Tag::Store || b.tags[j] == Tag::Ref && b.data[j][1] & ref_word::MUT != 0)
+                && inside(j, l)
+                && root_local(b, b.data[j][0]) == Some(root)
+        })
+    }
+
+    #[derive(Clone, Copy, Default)]
+    struct Case {
+        captured: u8,
+        mutable: bool,
+        deref: bool,
+        inside_read: bool,
+        write_depth: Option<usize>,
+        aliases: usize,
+    }
+
+    fn fixture(width: usize, depth: usize, case: Case) -> Result<Body, String> {
+        let mut b = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+        let syn = NodeIdx::NONE;
+        let root = b.open_block();
+        let local = b.local(
+            Ty::STRING,
+            Symbol::from_raw(1),
+            local_flags::PARAM | case.captured,
+            syn,
+        );
+        let mut base = b.get(local, Ty::STRING, syn);
+        for _ in 0..case.aliases {
+            let p = b.place(&Place {
+                root: PlaceRoot::Value(base),
+                proj: vec![],
+            });
+            base = b.emit(Tag::Read, p, ReadMode::Use as u32, Ty::STRING, syn);
+        }
+        let index = b.const_value(Ty::I32, 0);
+        // A writing tree followed by its clean sibling also checks that
+        // cumulative counters never attribute a sibling's writes to a loop.
+        for sibling in 0..2 {
+            let mut blocks = Vec::new();
+            for level in 0..depth {
+                let label = b.open_loop();
+                let block = b.open_block();
+                let read = if case.inside_read {
+                    b.get(local, Ty::STRING, syn)
+                } else {
+                    base
+                };
+                let mut path = Vec::new();
+                if case.deref {
+                    path.push(Proj::Deref);
+                }
+                path.push(Proj::Elem(index));
+                let p = b.place(&Place {
+                    root: PlaceRoot::Value(read),
+                    proj: path,
+                });
+                for _ in 0..width {
+                    let flags = ref_word::LOCAL | if case.mutable { ref_word::MUT } else { 0 };
+                    b.emit(Tag::Ref, p, flags, Ty::I32, syn);
+                }
+                if sibling == 0 && case.write_depth == Some(level) {
+                    b.set(local, base, syn);
+                }
+                blocks.push((label, block));
+            }
+            while let Some((label, block)) = blocks.pop() {
+                b.emit(Tag::Break, label.0.raw(), NONE, Ty::NEVER, syn);
+                let body = b.close_block(block, None, Ty::VOID, syn);
+                b.close_loop(label, body, Ty::VOID, syn);
+            }
+        }
+        let root = b.close_block(root, None, Ty::VOID, syn);
+        b.finish(root, &[]).map_err(|errors| format!("{errors:?}"))
+    }
+
+    #[test]
+    fn batched_pin_proof_matches_insertion_for_nested_and_sibling_loops() -> Result<(), String> {
+        for captured in [0, local_flags::CAPTURED, local_flags::CAPTURED_ASSIGNED] {
+            for mutable in [false, true] {
+                for deref in [false, true] {
+                    for inside_read in [false, true] {
+                        for write_depth in [None, Some(0), Some(2)] {
+                            for aliases in [0, 2, 64] {
+                                let b = fixture(
+                                    2,
+                                    3,
+                                    Case {
+                                        captured,
+                                        mutable,
+                                        deref,
+                                        inside_read,
+                                        write_depth,
+                                        aliases,
+                                    },
+                                )?;
+                                let topo = Topology::new(&b);
+                                let mut actual = Vec::new();
+                                pinned_elements(&b, &topo, &mut actual);
+                                for i in (0..b.len()).filter(|&i| b.tags[i] == Tag::Ref) {
+                                    assert_eq!(actual[i], previous(&b, &topo, i), "reference %{i}");
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn pin_proof_work_is_linear_in_width_and_depth() -> Result<(), String> {
+        for (width, depth) in [(1_000, 1), (1_000, 20), (20, 1_000)] {
+            let b = fixture(
+                width,
+                depth,
+                Case {
+                    write_depth: Some(depth - 1),
+                    ..Case::default()
+                },
+            )?;
+            let topo = Topology::new(&b);
+            let mut actual = Vec::new();
+            let mut work = 0;
+            pinned_elements_with(&b, &topo, &mut actual, || work += 1);
+            assert_eq!(actual.iter().filter(|&&x| x).count(), width * depth);
+            assert!(
+                work <= 8 * b.len(),
+                "{work} visits for {} instructions",
+                b.len()
+            );
+            println!(
+                "pin proof width={width} depth={depth}: {work} visits / {} instructions",
+                b.len()
+            );
+        }
+        Ok(())
+    }
 }

@@ -1,0 +1,25 @@
+# test: an immutable reference loop reads its snapshot across surrounding copy-on-write changes
+# Spec control flow: flow.for.ref; values: types.coll.value.
+use std.annotation.cold
+
+@cold
+fn count(values: &List[string]) -> usize:
+    let total = 0
+    for item in &values:
+        total += item.len()
+    total
+
+tests:
+    it("a pure reference loop does not change its caller or an alias"):
+        let mut values = ["a", "bc"]
+        alias := values
+        assert_equal(count(&values), 3)
+        values.push("def")
+        assert_equal(count(&values), 6)
+        assert_equal(count(&alias), 3)
+
+    it("a reference loop reads empty and repeated inputs"):
+        let empty: List[string] = []
+        assert_equal(count(&empty), 0)
+        let values = ["same", "same", "same"]
+        assert_equal(count(&values) + count(&values), 24)

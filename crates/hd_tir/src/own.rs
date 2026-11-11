@@ -1439,7 +1439,7 @@ impl<'a> AllocationOrigins<'a> {
 
 /// Whether `b` may write memory its caller can reach ([`Summary::writes`]):
 /// a store, uniqueness check, pin or move of a place that is not its own,
-/// a `&mut` or element reference of one (the passes pin its lists), an
+/// a `&mut` or element reference of one that may need uniqueness, an
 /// in-place change of a collection read from one, a call `cx` says may
 /// write, or a call it cannot name (a function value, a trait value, the
 /// host, a provider, a default, a suspension). A place is its own when it
@@ -1499,6 +1499,7 @@ fn writes_with(
             .filter(|i| b.tags[i.0 as usize] == Tag::Read)
     };
     let mut origins = cx.map(|cx| AllocationOrigins::new(b, cx));
+    let mut pinned = None;
     range.any(|i| {
         let [a, w] = b.data[i];
         match b.tags[i] {
@@ -1520,10 +1521,19 @@ fn writes_with(
                         .is_some_and(|origins| origins.owns_pointer_place(a, i))
             }
             Tag::Ref => {
-                matches!(place(a), (false, elem) if elem || w & crate::ir::ref_word::MUT != 0)
+                let writes = matches!(place(a), (false, elem) if elem || w & crate::ir::ref_word::MUT != 0)
                     && !origins
                         .as_mut()
-                        .is_some_and(|origins| origins.owns_pointer_place(a, i))
+                        .is_some_and(|origins| origins.owns_pointer_place(a, i));
+                if !writes || w & crate::ir::ref_word::MUT != 0 {
+                    return writes;
+                }
+                let pinned = pinned.get_or_insert_with(|| {
+                    let mut elements = Vec::new();
+                    insert::pinned_elements(b, &Topology::new(b), &mut elements);
+                    elements
+                });
+                !pinned[i]
             }
             Tag::Intrinsic => {
                 matches!(IntrinsicOp::from_u32(a), None | Some(IntrinsicOp::Item))

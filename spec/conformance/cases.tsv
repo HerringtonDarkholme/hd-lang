@@ -6604,6 +6604,7 @@ typing/invalid/move-field-out-of-counted-reference.hd	type	reject:move-out-of-pl
 typing/invalid/move-field-out-of-counted-mut-reference.hd	type	reject:move-out-of-place	lang/13-values-and-references.md#r-ref.move.out-of-place
 runtime/valid/a-counted-reference-field-is-copied-or-borrowed-not-moved.hd	runtime	accept	lang/13-values-and-references.md#r-ref.move.out-of-place
 runtime/valid/inlined-function-result-variance.hd	runtime	accept	lang/07-functions.md#r-fn.type.declared-variance
+runtime/valid/readonly-reference-loop-keeps-snapshots.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

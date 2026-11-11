@@ -102,7 +102,7 @@ fn through_ref(r: &List[string]) -> usize:
 >   %17 = Store [$1] %16 : ()
     n
 >   %32 = Read copy [$1] : usize
->   summary kept [] writes
+>   summary kept []
 
 fn shouted(prices: List[string]) -> List[string]:
 > app/main/shouted
