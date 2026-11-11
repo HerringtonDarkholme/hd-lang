@@ -173,6 +173,18 @@ fn gc_outside_a_package_prints_both_sizes_and_creates_nothing() {
 }
 
 #[test]
+fn gc_reports_an_unreadable_inventory_without_printing_partial_sizes() -> std::io::Result<()> {
+    let dir = scratch("gc-incomplete");
+    let cache = dir.join("cache");
+    std::fs::create_dir_all(cache.join("obj/stats"))?;
+    let r = hd(&dir, &cache, None, &["cache", "gc"]);
+    assert_eq!(r.code, Some(101), "{}", r.err);
+    assert!(r.out.is_empty(), "{}", r.out);
+    assert!(r.err.contains("cannot collect compiled cache"), "{}", r.err);
+    Ok(())
+}
+
+#[test]
 fn gc_rejects_an_invalid_cap_and_extra_words() {
     let dir = scratch("gc-usage");
     let cache = dir.join("cache");

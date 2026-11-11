@@ -1,5 +1,4 @@
 rule	path	issue	code
-cost-rust-read-dir	crates/hd_cache/src/disk.rs	#1508	let Ok(list) = std::fs::read_dir(&dir) else {
 cost-ts-spawn-in-loop	website/src/learn-check.ts	#1504	execFile(program!, argv, { cwd: tree ?? REPO_DIR }, (error, stdout, stderr) => {
 cost-ts-readdir	packages/server-sdk/packaging/output.ts	#1509	for (const name of (await readdir(join(directory, prefix))).sort()) {
 cost-ts-readdir	packages/server-sdk/packaging/output.ts	#1509	for (const name of await readdir(generations)) {
