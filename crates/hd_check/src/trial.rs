@@ -303,7 +303,17 @@ impl Ck<'_, '_> {
             self.ref_captured.remove(&l);
         }
         self.b.rollback(c.tir);
+        let kept = self
+            .open_integer_writes
+            .partition_point(|(_, r, _)| r.0 < c.tir.insts);
+        self.open_integer_writes.truncate(kept);
+        let kept = self
+            .open_coercions
+            .partition_point(|(r, _, _)| r.0 < c.tir.insts);
+        self.open_coercions.truncate(kept);
         self.tool_facts.truncate(c.tool_facts);
+        self.comparison_tys
+            .truncate(self.tool_facts.comparisons.len());
         self.mut_bindings.truncate(c.mut_bindings);
         self.ref_taken.truncate(c.ref_taken);
         self.mut_locals.truncate(c.mut_locals);

@@ -1,0 +1,24 @@
+# test: an integer literal class still open where it is interpolated is written at the type a later statement gives it
+# Spec 04 Type System: types.literal.local.class.open, with expr.interp.display.ref.
+
+tests:
+    use std.testing.assert_equal
+
+    it("a class that settles to u64 writes a value above the i64 range"):
+        big := 18446744073709551615
+        text := "max ${big}"
+        let wide: u64 = big
+        assert_equal(text, "max 18446744073709551615", reason="the class is u64, so the value is unsigned")
+        assert_equal("${wide}", "18446744073709551615", reason="the settled binding reads the same")
+
+    it("a class that settles to i8 keeps its sign"):
+        small := -128
+        text := "${small}!"
+        let narrow: i8 = small
+        assert_equal(text, "-128!", reason="the class is i8, so the value is negative")
+        assert_equal(narrow, -128, reason="the binding has the class's type")
+
+    it("a class that takes its default writes as i32 and usize"):
+        signed := -7
+        plain := 7
+        assert_equal("${signed} ${plain}", "-7 7", reason="the defaults are i32 and usize")

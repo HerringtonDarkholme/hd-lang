@@ -1,8 +1,0 @@
-# test: a list literal bound to a name keeps its default element type, so a later u8 use is a narrowing error
-# Spec 04 Open Literal Width: types.literal.local.statement.
-fn put(value: u8) -> u8:
-    value
-
-fn mixed() -> u8:
-    let xs = [1, 2]
-    put(xs[0]) # diagnostic: implicit-narrowing

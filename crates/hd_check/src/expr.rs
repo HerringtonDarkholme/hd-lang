@@ -64,7 +64,9 @@ enum InterpolationPiece {
     Text(Ref),
     Signed(Ref, Ref),
     Unsigned(Ref, Ref),
-    Integer(Ref, Ty, Ref),
+    /// An integer of a literal class open at the interpolation, widened
+    /// to `i64` until the class settles: the value, the class, the width.
+    OpenInteger(Ref, Ty, Ref),
     Char(Ref),
 }
 
@@ -498,14 +500,15 @@ impl Ck<'_, '_> {
                         n,
                     );
                 }
-                InterpolationPiece::Integer(value, ty, width) => {
-                    self.interpolation_typed(
-                        "value_integer",
+                InterpolationPiece::OpenInteger(value, ty, width) => {
+                    let write = self.interpolation_internal(
+                        "value_signed",
                         &[result, offset, value, width],
-                        &[ty],
                         Ty::VOID,
                         n,
                     );
+                    let unsigned = self.unsigned_form("value_unsigned");
+                    self.open_integer_writes.push((ty, write, Some(unsigned)));
                 }
                 InterpolationPiece::Char(value) => {
                     self.interpolation_internal(
@@ -800,6 +803,29 @@ impl Ck<'_, '_> {
         }
     }
 
+    /// The `StringBuilder` helper `name` that an open integer's signed
+    /// call turns into if its class settles unsigned. Its call is noted
+    /// now: the body's calls are recorded before it settles.
+    fn unsigned_form(&mut self, name: &str) -> DefId {
+        let def = self.string_builder_helper(name);
+        self.note_call(def);
+        def
+    }
+
+    /// The private `std.text.StringBuilder` helper `name`.
+    pub(crate) fn string_builder_helper(&mut self, name: &str) -> DefId {
+        let pool = self.pool();
+        let sb = pool.intern_ty(&TyData::Adt {
+            def: self.cx.names.item("std.text", "StringBuilder"),
+            args: pool.list(&[]),
+        });
+        // ruled out: std's `StringBuilder` declares every helper the
+        // lowering names, and std is checked with the compiler's own tests.
+        self.find_inherent_any(sb, name)
+            .expect("stdpack interpolation method")
+            .0
+    }
+
     /// A call to an ordinary private runtime helper, with no new intrinsic.
     fn interpolation_helper(&mut self, name: &str, args: &[Ref], n: NodeRef<'_>) -> Ref {
         self.interpolation_internal(name, args, Ty::prim(Prim::Usize), n)
@@ -809,29 +835,12 @@ impl Ck<'_, '_> {
     /// signatures. These desugaring helpers have fixed, compiler-owned call
     /// shapes; their bodies are still checked as ordinary std code.
     fn interpolation_internal(&mut self, name: &str, args: &[Ref], ret: Ty, n: NodeRef<'_>) -> Ref {
-        self.interpolation_typed(name, args, &[], ret, n)
-    }
-
-    fn interpolation_typed(
-        &mut self,
-        name: &str,
-        args: &[Ref],
-        targs: &[Ty],
-        ret: Ty,
-        n: NodeRef<'_>,
-    ) -> Ref {
         let pool = self.pool();
-        let sb = pool.intern_ty(&TyData::Adt {
-            def: self.cx.names.item("std.text", "StringBuilder"),
-            args: pool.list(&[]),
-        });
-        let (def, _, _) = self
-            .find_inherent_any(sb, name)
-            .expect("stdpack interpolation method");
+        let def = self.string_builder_helper(name);
         self.note_call(def);
         let callee = hd_tir::ir::Callee::Item {
             def,
-            targs: pool.list(targs),
+            targs: pool.list(&[]),
         };
         self.b
             .call(&callee, args, hd_tir::ir::Providers::None, ret, n.index())
@@ -848,34 +857,34 @@ impl Ck<'_, '_> {
     ) -> StageResult<()> {
         self.prepare_pending_text(out);
         let ty = self.resolved(self.infer.resolve(self.pool(), t));
-        // Integer literal classes admit only integer primitives. Keep their
-        // type open: a later map store may still select i32 rather than usize.
+        // An integer literal class still open here (`types.literal.local.
+        // class.open`) admits only integer primitives, and only its sign
+        // picks the lowering: it is measured and written as `i64` through
+        // the sized helpers, and where the body settles an unsigned class
+        // turns those instructions into their `u64` forms
+        // (`settle_open_integer_writes`). The class stays open: a later
+        // constraint may still pick `usize` or `i32`.
         if matches!(
             self.infer.kind_of(self.pool(), ty),
             Some(VarKind::IntLit | VarKind::SignedIntLit)
         ) {
-            self.require_ref(
-                TraitRef {
-                    trait_: self.cx.names.known.integer,
-                    self_ty: ty,
-                    args: self.pool().list(&[]),
-                },
-                n,
-            )?;
             let value = if held {
                 self.emit_deref(r, self.b.ty_of(r), n.index()).0
             } else {
                 r
             };
-            let width = self.interpolation_typed(
-                "integer_width",
+            let wide = self.b.prim(
+                PrimOp::Conv as u32,
                 &[value],
-                &[ty],
-                Ty::prim(Prim::Usize),
-                n,
+                Ty::prim(Prim::I64),
+                n.index(),
             );
+            let width = self.interpolation_helper("signed_width", &[wide], n);
+            let unsigned = self.unsigned_form("unsigned_width");
+            self.open_integer_writes.push((ty, wide, None));
+            self.open_integer_writes.push((ty, width, Some(unsigned)));
             out.pieces
-                .push((InterpolationPiece::Integer(value, ty, width), width));
+                .push((InterpolationPiece::OpenInteger(wide, ty, width), width));
             return Ok(());
         }
         let piece = match self.pool().get(ty) {
@@ -1361,8 +1370,9 @@ impl Ck<'_, '_> {
     /// (`expr.eq.trait.ref`, `expr.ord.trait.ref`): a place outside any
     /// element whose value is no reference, with a type no built-in
     /// operator covers. A right operand's place must have the left's type
-    /// `left`.
-    fn operand_place(&self, op: TokenKind, e: NodeRef<'_>, left: Option<Ty>) -> bool {
+    /// `left`, or one that differs only in open literal classes, which the
+    /// comparison itself decides (`types.literal.local.class.open`).
+    fn operand_place(&mut self, op: TokenKind, e: NodeRef<'_>, left: Option<Ty>) -> bool {
         if !Self::by_ref_op(op) || Self::in_element(e) {
             return false;
         }
@@ -1373,7 +1383,23 @@ impl Ck<'_, '_> {
         let v = self.resolved(self.infer.resolve(pool, t));
         self.ref_of(v).is_none()
             && self.op_by_trait(op, v)
-            && left.is_none_or(|l| self.resolved(self.infer.resolve(pool, l)) == v)
+            && left.is_none_or(|l| {
+                let l = self.resolved(self.infer.resolve(pool, l));
+                l == v
+                    || (self.only_literals_open(l)
+                        && self.only_literals_open(v)
+                        && self.can_unify(l, v))
+            })
+    }
+
+    /// Whether every inference variable left in `t` is an open literal
+    /// class.
+    fn only_literals_open(&self, t: Ty) -> bool {
+        let pool = self.pool();
+        !pool.has_infer(hd_types::TyMap::ty(
+            &mut crate::body::LiteralDefaults(self),
+            t,
+        ))
     }
 
     /// The operand `(r, t, held)` of the operator `op`, with a local
@@ -1544,6 +1570,7 @@ impl Ck<'_, '_> {
             right: primitive(ct),
         };
         self.tool_facts.comparisons.push(fact);
+        self.comparison_tys.push((at, ct));
     }
 
     /// Applies a binary operator to two checked operands.

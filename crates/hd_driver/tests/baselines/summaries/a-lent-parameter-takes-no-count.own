@@ -190,141 +190,137 @@ pub fn main() -> void $ Console:
     f := Field { name: "abc${1}", n: 2 }
 > app/main/main
 >   local $0 f: Field [:= read assigned] value
->     uses $0: %61 -> %62 lend, %69 consume, %73 consume, %87 lend last
+>     uses $0: %51 -> %52 lend, %59 consume, %63 consume, %77 lend last
 >   local $1 xs: List[i64] [read assigned] place
 >   local $2 g: fn(Field) -> i64 [read] value
->     uses $2: %85 -> %86 lend last
+>     uses $2: %75 -> %76 lend last
 >   local $5 all: List[Field] [read assigned captured captured-assigned] place
 >   local $6 result: string [read] value
->     uses $6: %39 -> %42 lend last
+>     uses $6: %35 -> %40 lend last
 >   local $7 offset: usize [read] value
->     uses $7: %40 -> %45 lend last
->   local $8 text: string [read] value
->     uses $8: %41 -> %47 lend, %50 lend last
->   local $9 size: usize [read] value
->     uses $9: %32 -> %33 lend last
->   local $10 value: usize [read] value
->     uses $10: %0 -> %1 lend, %6 lend last, %22 lend last
->   local $11 value: i64 [read] value
->     uses $11: %8 -> %9 lend, %12 lend last
->   %0 = Store [$10] 1:usize : ()
->   %1 = Read copy [$10] : usize
->   %2 = Break L7 0:usize : never
->   %3 = Block - : usize
->   %4 = Scope %3 [] : usize
->   %5 = Prim Lt [%1 %4] : bool
->   %6 = Read copy [$10] : usize
->   %7 = Prim Conv [%6] : i64
->   %8 = Store [$11] %7 : ()
->   %9 = Read copy [$11] : i64
->   %10 = Call std/rt.bytes/signed_magnitude[] (%9) : u64
->   %11 = Call std/rt.bytes/unsigned_width[] (%10) : usize
->   %12 = Read copy [$11] : i64
->   %13 = Prim Lt [%12 0:i64] : bool
->   %14 = Block 1:usize : usize
->   %15 = Block 0:usize : usize
->   %16 = If %13 [%14 %15] : usize
->   %17 = Prim Add [%11 %16] : usize
->   %18 = Break L6 %17 : never
->   %19 = Block - : usize
->   %20 = Scope %19 [] : usize
->   %21 = Block %20 : usize
->   %22 = Read copy [$10] : usize
->   %23 = Prim Conv [%22] : u64
->   %24 = Call std/rt.bytes/unsigned_width[] (%23) : usize
->   %25 = Block %24 : usize
->   %26 = If %5 [%21 %25] : usize
->   %27 = Break L5 %26 : never
->   %28 = Block - : usize
->   %29 = Scope %28 [] : usize
->   %30 = Prim Add [0:usize 3:usize] : usize
->   %31 = Prim Add [%30 %29] : usize
->   %32 = Store [$9] %31 : ()
->   %33 = Read copy [$9] : usize
->   %34 = Call std/rt.memory/new_string[] (%33) : string
->   %35 = Break L4 %34 : never
->   %36 = Block - : string
->   %37 = Scope %36 [] : string
->   %38 = Read borrow [%37] : string
->   %39 = Store [$6] %38 : ()
->   %40 = Store [$7] 0:usize : ()
->   %41 = Store [$8] "abc" : ()
->   %42 = Read borrow [$6] : string
->   %43 = Call std/rt.memory/string_bytes[] (%42) : Ptr[u8]
->   %44 = Read copy [%43 .address] : usize
->   %45 = Read copy [$7] : usize
->   %46 = Prim Add [%44 %45] : usize
->   %47 = Read borrow [$8] : string
->   %48 = Call std/rt.memory/string_bytes[] (%47) : Ptr[u8]
->   %49 = Read copy [%48 .address] : usize
->   %50 = Read borrow [$8] : string
->   %51 = Call std/rt.bytes/bytes_len[] (%50) : usize
->   %52 = Call std/rt.memory/copy[] (%46, %49, %51) : ()
->   %53 = Break L3 - : never
->   %54 = Block - : ()
->   %55 = Scope %54 [] : ()
->   %56 = Drop [$8] : ()
->   %57 = Call std/text/impl StringBuilder.value_integer[usize] (%37, %30, 1:usize, %29) : ()
->   %58 = Retain %57 Operation operand 0 #0 : ()
->   %59 = Read move [%37] : string
->   %60 = NewStruct [%59 2:i64] : Field
->   %61 = Store [$0] %60 : ()
->   %111 = Block - : ()
+>     uses $7: %36 -> %42 lend last
+>   local $8 value: u64 [read] value
+>     uses $8: %37 -> %39 lend last
+>   local $9 width: usize [read] value
+>     uses $9: %38 -> %44 lend last
+>   local $10 result: string [read] value
+>     uses $10: %16 -> %19 lend last
+>   local $11 offset: usize [read] value
+>     uses $11: %17 -> %22 lend last
+>   local $12 text: string [read] value
+>     uses $12: %18 -> %24 lend, %27 lend last
+>   local $13 size: usize [read] value
+>     uses $13: %9 -> %10 lend last
+>   local $14 value: u64 [read] value
+>     uses $14: %1 -> %2 lend last
+>   %0 = Prim Conv [1:usize] : u64
+>   %1 = Store [$14] %0 : ()
+>   %2 = Read copy [$14] : u64
+>   %3 = Call std/rt.bytes/unsigned_width[] (%2) : usize
+>   %4 = Break L6 %3 : never
+>   %5 = Block - : usize
+>   %6 = Scope %5 [] : usize
+>   %7 = Prim Add [0:usize 3:usize] : usize
+>   %8 = Prim Add [%7 %6] : usize
+>   %9 = Store [$13] %8 : ()
+>   %10 = Read copy [$13] : usize
+>   %11 = Call std/rt.memory/new_string[] (%10) : string
+>   %12 = Break L5 %11 : never
+>   %13 = Block - : string
+>   %14 = Scope %13 [] : string
+>   %15 = Read borrow [%14] : string
+>   %16 = Store [$10] %15 : ()
+>   %17 = Store [$11] 0:usize : ()
+>   %18 = Store [$12] "abc" : ()
+>   %19 = Read borrow [$10] : string
+>   %20 = Call std/rt.memory/string_bytes[] (%19) : Ptr[u8]
+>   %21 = Read copy [%20 .address] : usize
+>   %22 = Read copy [$11] : usize
+>   %23 = Prim Add [%21 %22] : usize
+>   %24 = Read borrow [$12] : string
+>   %25 = Call std/rt.memory/string_bytes[] (%24) : Ptr[u8]
+>   %26 = Read copy [%25 .address] : usize
+>   %27 = Read borrow [$12] : string
+>   %28 = Call std/rt.bytes/bytes_len[] (%27) : usize
+>   %29 = Call std/rt.memory/copy[] (%23, %26, %28) : ()
+>   %30 = Break L4 - : never
+>   %31 = Block - : ()
+>   %32 = Scope %31 [] : ()
+>   %33 = Read borrow [%14] : string
+>   %34 = Drop [$12] : ()
+>   %35 = Store [$6] %33 : ()
+>   %36 = Store [$7] %7 : ()
+>   %37 = Store [$8] %0 : ()
+>   %38 = Store [$9] %6 : ()
+>   %39 = Read copy [$8] : u64
+>   %40 = Read borrow [$6] : string
+>   %41 = Call std/rt.memory/string_bytes[] (%40) : Ptr[u8]
+>   %42 = Read copy [$7] : usize
+>   %43 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].offset[u8] (%41, %42) : Ptr[u8]
+>   %44 = Read copy [$9] : usize
+>   %45 = Call std/rt.bytes/write_unsigned_sized[] (%39, %43, %44) : ()
+>   %46 = Break L3 - : never
+>   %47 = Block - : ()
+>   %48 = Scope %47 [] : ()
+>   %49 = Read move [%14] : string
+>   %50 = NewStruct [%49 2:i64] : Field
+>   %51 = Store [$0] %50 : ()
+>   %101 = Block - : ()
     println(total(f, 3))
->   %62 = Read borrow [$0] : Field
->   %63 = Call app/main/total[] (%62, 3:i64) : i64
->   %64 = Retain %63 Operation operand 0 #0 : ()
->   %65 = Call std/console/println[i64] (%63) : ()
+>   %52 = Read borrow [$0] : Field
+>   %53 = Call app/main/total[] (%52, 3:i64) : i64
+>   %54 = Retain %53 Operation operand 0 #0 : ()
+>   %55 = Call std/console/println[i64] (%53) : ()
     println(collect(f))
->   %66 = NewList - [] : List[Field]
->   %67 = Store [$5] %66 : ()
->   %68 = Ref mut local frame [$5] : &mut List[Field]
->   %69 = Read copy [$0] : Field
->   %70 = Call app/main/remember[] (%68, %69) : ()
->   %71 = LoanEnd [%68] : ()
->   %72 = Ref mut local frame [$5] : &mut List[Field]
->   %73 = Read copy [$0] : Field
->   %74 = Call app/main/remember[] (%72, %73) : ()
->   %75 = LoanEnd [%72] : ()
->   %76 = Read move [$5] : List[Field]
->   %77 = Release %76 Operation local $5 #2 : ()
->   %78 = Intrinsic ListLen [%76] : usize
->   %79 = Drop [%76] : ()
->   %80 = Break L2 %78 : never
->   %81 = Block - : usize
->   %82 = Scope %81 [] : usize
->   %83 = Call std/console/println[usize] (%82) : ()
->   %68 finds [$5] full
->   %72 finds [$5] full
->   %76 finds [$5] full
+>   %56 = NewList - [] : List[Field]
+>   %57 = Store [$5] %56 : ()
+>   %58 = Ref mut local frame [$5] : &mut List[Field]
+>   %59 = Read copy [$0] : Field
+>   %60 = Call app/main/remember[] (%58, %59) : ()
+>   %61 = LoanEnd [%58] : ()
+>   %62 = Ref mut local frame [$5] : &mut List[Field]
+>   %63 = Read copy [$0] : Field
+>   %64 = Call app/main/remember[] (%62, %63) : ()
+>   %65 = LoanEnd [%62] : ()
+>   %66 = Read move [$5] : List[Field]
+>   %67 = Release %66 Operation local $5 #2 : ()
+>   %68 = Intrinsic ListLen [%66] : usize
+>   %69 = Drop [%66] : ()
+>   %70 = Break L2 %68 : never
+>   %71 = Block - : usize
+>   %72 = Scope %71 [] : usize
+>   %73 = Call std/console/println[usize] (%72) : ()
+>   %58 finds [$5] full
+>   %62 finds [$5] full
+>   %66 finds [$5] full
     println(apply(weight, f))
->   %84 = ItemRef #87 [..] : fn(Field) -> i64
->   %85 = Store [$2] %84 : ()
->   %86 = Read borrow [$2] : fn(Field) -> i64
->   %87 = Read borrow [$0] : Field
->   %88 = Call app/main/weight[] (%87) : i64
->   %89 = Retain %88 Operation operand 0 #0 : ()
->   %90 = Break L1 %88 : never
->   %91 = Block - : i64
->   %92 = Scope %91 [] : i64
->   %93 = Drop [$2] : ()
->   %94 = Drop [$0] : ()
->   %95 = Call std/console/println[i64] (%92) : ()
+>   %74 = ItemRef #89 [..] : fn(Field) -> i64
+>   %75 = Store [$2] %74 : ()
+>   %76 = Read borrow [$2] : fn(Field) -> i64
+>   %77 = Read borrow [$0] : Field
+>   %78 = Call app/main/weight[] (%77) : i64
+>   %79 = Retain %78 Operation operand 0 #0 : ()
+>   %80 = Break L1 %78 : never
+>   %81 = Block - : i64
+>   %82 = Scope %81 [] : i64
+>   %83 = Drop [$2] : ()
+>   %84 = Drop [$0] : ()
+>   %85 = Call std/console/println[i64] (%82) : ()
     println(pinned())
->   %96 = NewList - [1:i64 2:i64] : List[i64]
->   %97 = Store [$1] %96 : ()
->   %98 = IsUnique [$1] : ()
->   %99 = Store [$1 [1:usize]] 3:i64 : ()
->   %100 = IsUnique repeat [$1] : ()
->   %101 = Ref local [$1 [0:usize]] : &i64
->   %102 = Read borrow [$1] : List[i64]
->   %103 = Call app/main/set_first[] (%101, %102) : i64
->   %104 = Retain %103 Operation operand 1 #0 : ()
->   %105 = LoanEnd [%101] : ()
->   %106 = Drop [$1] : ()
->   %107 = Break L0 %103 : never
->   %108 = Block - : i64
->   %109 = Scope %108 [] : i64
->   %110 = Call std/console/println[i64] (%109) : ()
+>   %86 = NewList - [1:i64 2:i64] : List[i64]
+>   %87 = Store [$1] %86 : ()
+>   %88 = IsUnique [$1] : ()
+>   %89 = Store [$1 [1:usize]] 3:i64 : ()
+>   %90 = IsUnique repeat [$1] : ()
+>   %91 = Ref local [$1 [0:usize]] : &i64
+>   %92 = Read borrow [$1] : List[i64]
+>   %93 = Call app/main/set_first[] (%91, %92) : i64
+>   %94 = Retain %93 Operation operand 1 #0 : ()
+>   %95 = LoanEnd [%91] : ()
+>   %96 = Drop [$1] : ()
+>   %97 = Break L0 %93 : never
+>   %98 = Block - : i64
+>   %99 = Scope %98 [] : i64
+>   %100 = Call std/console/println[i64] (%99) : ()
 >   storage sub 0: $5 slot
 >   summary kept [] writes

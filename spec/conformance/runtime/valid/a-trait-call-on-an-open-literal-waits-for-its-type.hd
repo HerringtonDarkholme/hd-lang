@@ -1,0 +1,20 @@
+# test: a trait-bound call on an open literal class is checked once a later statement decides the class
+# Spec 04 Local Literal Types: types.literal.local.obligation.
+# expect-stdout: 5
+# expect-stdout: -3000000000
+# expect-stdout: 2
+
+fn show[T < Display](value: T) -> string:
+    "${value}"
+
+pub fn main() -> void $ Console:
+    x := 5
+    println(show(x))
+    let y: i64 = x
+    big := -3
+    let wide: i64 = big * 1000000000
+    println(show(wide))
+    n := 2
+    println(n)
+    let m: u8 = n
+    let _ = y + i64(m)

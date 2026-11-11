@@ -693,17 +693,6 @@ impl StringBuilder:
         char_width(value)
     fn text_width(value: string) -> usize:
         bytes_len(value)
-    # Keep an unresolved integer's type open for constraints later in the
-    # same statement/body. These ordinary generic helpers specialize once
-    # that type is known; measuring never defaults it early.
-    fn integer_width[N < Integer](value: N) -> usize:
-        if value < N::zero(): signed_width(i64(value)) else: unsigned_width(u64(value))
-
-    fn value_integer[N < Integer](result: string, offset: usize, value: N, width: usize) -> void:
-        if value < N::zero():
-            write_signed_sized(i64(value), string_bytes(result).offset(offset), width)
-        else:
-            write_unsigned_sized(u64(value), string_bytes(result).offset(offset), width)
 
     fn value_new(size: usize) -> string:
         new_string(size)

@@ -1,0 +1,8 @@
+# test: a method call on an open literal class settles it at the call, so a later use of another width is a mismatch
+# Spec 04 Local Literal Types: types.literal.local.method.
+
+fn run() -> i64:
+    x := -5
+    a := x.abs()
+    let y: i64 = x # diagnostic: type-mismatch
+    y + i64(a)

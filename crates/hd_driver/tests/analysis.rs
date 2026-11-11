@@ -247,7 +247,7 @@ fn checked_views_expose_completed_types_bindings_flow_patterns_and_callees() {
     assert!(
         events
             .iter()
-            .any(|event| event == "comparison:remaining < 0:Some(Usize):None"),
+            .any(|event| event == "comparison:remaining < 0:Some(Usize):Some(Usize)"),
         "{events:#?}"
     );
     assert!(
