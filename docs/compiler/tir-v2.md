@@ -2042,8 +2042,10 @@ is worth deciding only if they are hot.
      gets one `IsUnique` before the loop (`unique_word::HOISTED` in its b
      word), and every `IsUnique` of it in the loop, at any depth, goes:
      the whole loop was checked, so an inner loop's or a branch's change
-     needs no check of its own. The same rule removes checks through
-     physical dereferences.
+     needs no check of its own. A physical dereference can hoist only
+     through an unassigned local-reference parameter. A counted pointer,
+     including one bound to a local reference after inlining, can require
+     a runtime borrow check at the original write while a loan is live.
    - **The stable-list table**, `Body::stable_lists`: rows of a loop and a
      place of the same form, read by an element read or store or a
      `ListLen` in the loop, that pass rules 2 and 3 with no `IsUnique` of

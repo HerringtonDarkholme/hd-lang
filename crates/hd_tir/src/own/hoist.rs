@@ -1248,6 +1248,17 @@ fn hoist_loop(
         if !c.ok || (c.lent && !c.hoist) {
             continue;
         }
+        // The emitter checks a write through a counted pointer at the
+        // original IsUnique. A loan can start after the preheader, even
+        // through another root. A local reference bound inside the body
+        // can also carry a counted pointer (for example after inlining).
+        let local = c.local as usize;
+        if c.hoist
+            && t.cand_steps(&c).first() == Some(&DEREF)
+            && (!t.param[local] || t.stores[local] != 0 || !cx.plain_reference(b.local_ty[local]))
+        {
+            continue;
+        }
         if c.relied {
             if !c.hoist {
                 continue;

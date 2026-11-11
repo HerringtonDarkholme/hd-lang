@@ -1,0 +1,8 @@
+# @dump: own wat
+# Spec flow.for.ref.access and ref.elem.access.alias. The write check
+# stays after the shared element loan begins, inside the loop.
+fn alias_push() -> void:
+    a := box([+1, 2])
+    b := a
+    for c in &a:
+        b.push(*c) # panic: borrow-conflict
