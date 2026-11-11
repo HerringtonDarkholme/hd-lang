@@ -8,9 +8,11 @@ use hd_base::{BuildProfile, Hash128, StableHasher};
 
 #[cfg(feature = "disk")]
 pub mod disk;
+pub mod flight;
 pub mod store;
 #[cfg(feature = "disk")]
 pub use disk::{DiskStore, IndexedEntry};
+pub use flight::{FlightRun, SingleFlight};
 pub use store::{
     CacheStore, DeferredStore, EntryKind, MemoryStore, OverlayStore, decode_entry, encode_entry,
 };

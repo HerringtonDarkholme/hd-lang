@@ -896,6 +896,13 @@ pub struct OverlayStore<'a> { inner: &'a dyn CacheStore, memory: MemoryStore }  
 - `OverlayStore` reads its own memory first, then the inner store, and
   writes only to memory, so a REPL session's per-input entries never
   reach the disk store.
+- `SingleFlight` (`flight.rs`) wraps a store that concurrent builds
+  share, such as the conformance runner's. Each build reads through its
+  own `FlightRun`. The first build that misses a key of a chosen kind owns
+  it, and another build's read of that key waits until the owner writes
+  it, unless waiting would close a cycle. A dropped run lets go of the
+  keys it never wrote. A kind fits when a build writes its entry soon
+  after the miss, so `depfiles`, written when the build ends, stays out.
 
 Planned, not built: IndexedDB persistence. The JS host would load the
 entries into the `MemoryStore` once when the worker starts, then drain

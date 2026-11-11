@@ -60,7 +60,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
 use hd_base::Stage;
-use hd_cache::MemoryStore;
+use hd_cache::{EntryKind, FlightRun, MemoryStore, SingleFlight};
 use hd_diag::Severity;
 use hd_driver::{
     Dependency, EngineTarget, Executor, Goal, Host, NoClock, OptLevel, Output, Packages,
@@ -355,18 +355,34 @@ fn first_unsupported(report: &PipelineReport, back_half: bool) -> Option<String>
         })
 }
 
-fn build_fixture(fixture: &Fixture, store: &MemoryStore, goal: &Goal) -> Output {
+/// The suite's store. Its threads start together on a cold std, so their
+/// builds share their misses of the kinds a build writes soon after it
+/// misses them: one build computes such an entry while the others wait
+/// for it. A `depfiles` entry is written when its build ends, so it stays
+/// out.
+type Store = SingleFlight<MemoryStore>;
+
+fn new_store() -> Store {
+    SingleFlight::new(
+        MemoryStore::default(),
+        &[
+            EntryKind::Iface,
+            EntryKind::Check,
+            EntryKind::CheckTest,
+            EntryKind::Graph,
+            EntryKind::Parse,
+            EntryKind::Link,
+        ],
+    )
+}
+
+fn build_fixture(fixture: &Fixture, store: &Store, goal: &Goal) -> Output {
     build_sources(fixture, &fixture.sources, store, goal)
 }
 
 /// Builds `sources` as the fixture's package, with the fixture's
 /// dependencies, for the target of the engine that judges the case.
-fn build_sources(
-    fixture: &Fixture,
-    sources: &MemorySources,
-    store: &MemoryStore,
-    goal: &Goal,
-) -> Output {
+fn build_sources(fixture: &Fixture, sources: &MemorySources, store: &Store, goal: &Goal) -> Output {
     build_for(fixture, sources, store, goal, engine_mode().judged_target())
 }
 
@@ -398,7 +414,7 @@ impl Runnable {
 fn build_runnable(
     fixture: &Fixture,
     sources: &MemorySources,
-    store: &MemoryStore,
+    store: &Store,
     goal: &Goal,
 ) -> Runnable {
     let out = build_sources(fixture, sources, store, goal);
@@ -485,15 +501,16 @@ fn take_split() -> String {
 fn build_for(
     fixture: &Fixture,
     sources: &MemorySources,
-    store: &MemoryStore,
+    store: &Store,
     goal: &Goal,
     target: EngineTarget,
 ) -> Output {
     let wall = WallClock(Instant::now());
+    let run: FlightRun<'_, MemoryStore> = store.run();
     let host = Host {
         render_tir: &[],
         sources,
-        store,
+        store: &run,
         clock: if timings() { &wall } else { &NoClock },
         executor: Executor::Serial(SerialOrder::Priority),
     };
@@ -723,7 +740,7 @@ fn diagnostic_verdict(case: &Case, fixture: &Fixture, output: &Output) -> Option
 /// A package-tree fixture also checks the doc tests of its primary file,
 /// each as an integration-view module at `tests/$docN.hd`, but for the
 /// compile-fail ones, as `hd check --tests` does (README "Package Trees").
-fn check_fixture(fixture: &Fixture, store: &MemoryStore) -> Output {
+fn check_fixture(fixture: &Fixture, store: &Store) -> Output {
     if !fixture.tree {
         return build_fixture(fixture, store, &Goal::CheckTests);
     }
@@ -739,7 +756,7 @@ fn check_fixture(fixture: &Fixture, store: &MemoryStore) -> Output {
     build_sources(fixture, &sources, store, &Goal::CheckTests)
 }
 
-fn type_case(case: &Case, fixture: &Fixture, store: &MemoryStore) -> Verdict {
+fn type_case(case: &Case, fixture: &Fixture, store: &Store) -> Verdict {
     let output = check_fixture(fixture, store);
     if let Some(verdict) = diagnostic_verdict(case, fixture, &output) {
         return verdict;
@@ -985,7 +1002,7 @@ fn each_engine_runs_a_build_for_its_own_target() {
     let built = build_runnable(
         &fixture,
         &fixture.sources,
-        &MemoryStore::default(),
+        &new_store(),
         &Goal::Program {
             entry: "main".to_owned(),
         },
@@ -1678,7 +1695,7 @@ fn judge_tests(case: &Case, run: &TestRun) -> Verdict {
 
 /// `test FILE`: each case of the fixture's `tests:` block in its own
 /// instance (spec/conformance/README.md, Runtime Execution steps 2 and 3).
-fn tests_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: usize) -> Verdict {
+fn tests_case(case: &Case, fixture: &Fixture, store: &Store, serial: usize) -> Verdict {
     let built = build_runnable(
         fixture,
         &fixture.sources,
@@ -1702,7 +1719,7 @@ fn tests_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: usize
 /// (README "Package Trees"; `module.test.doc.program`). A compile-fail doc
 /// test never runs: it passes when its build reports its code
 /// (`module.test.doc.compile-fail`).
-fn tree_tests_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: usize) -> Verdict {
+fn tree_tests_case(case: &Case, fixture: &Fixture, store: &Store, serial: usize) -> Verdict {
     let mut run = TestRun::default();
     if fixture.text.lines().any(|line| line.starts_with("tests:"))
         || hd_project::role_of(&fixture.primary) == hd_project::Role::Test
@@ -1747,7 +1764,7 @@ fn tree_tests_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: 
     judge_tests(case, &run)
 }
 
-fn runtime_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: usize) -> Verdict {
+fn runtime_case(case: &Case, fixture: &Fixture, store: &Store, serial: usize) -> Verdict {
     let checked = check_fixture(fixture, store);
     if let Some(index) = check_errors(&checked).first() {
         return Verdict::Fail(checked.diags.code[*index].as_str().to_owned());
@@ -1835,7 +1852,7 @@ fn entry_verdict(
 /// A runtime scenario that replaces the execution steps: builds the
 /// entry with `Goal::Scenario` and drives the scenario's own steps on
 /// both engines, then judges the drive like an entry run.
-fn scenario_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: usize) -> Verdict {
+fn scenario_case(case: &Case, fixture: &Fixture, store: &Store, serial: usize) -> Verdict {
     let Some(scenario) = directive(&fixture.text, "fixture-runtime-scenario") else {
         return Verdict::Fail("missing-runtime-scenario".to_owned());
     };
@@ -1958,7 +1975,7 @@ fn judge_run(case: &Case, fixture: &Fixture, run: &Ran) -> Verdict {
     }
 }
 
-fn run_case(case: &Case, store: &MemoryStore, serial: usize) -> Verdict {
+fn run_case(case: &Case, store: &Store, serial: usize) -> Verdict {
     // A checked count report names each finding's case.
     hd_driver::copy_report_label(&case.path);
     let fixture = match fixture(case) {
@@ -2060,7 +2077,7 @@ const STD_RT_CHECKED_TOO: &[&str] = &[
 /// on the engines of the mode, as a `tests` case of the suite would.
 #[test]
 fn std_runtime_modules_pass_their_hd_tests_on_the_linear_backend() {
-    let store = MemoryStore::default();
+    let store = new_store();
     let only = std::env::var("HD_CONFORMANCE_ONLY").ok();
     let parts = only.as_ref().map(|only| {
         only.split(',')
@@ -2169,7 +2186,7 @@ fn unit_case(expectation: &str, serial: usize) -> Case {
 /// the suite's case indices, so its program files are its own.
 fn unit_runtime(text: &str, expectation: &str, serial: usize) -> Verdict {
     let case = unit_case(expectation, serial);
-    let store = MemoryStore::default();
+    let store = new_store();
     runtime_case(&case, &unit_fixture(text), &store, (1 << 40) + serial)
 }
 
@@ -2209,7 +2226,7 @@ pub fn main() -> void:
         let runnable = build_runnable(
             &fixture,
             &fixture.sources,
-            &MemoryStore::default(),
+            &new_store(),
             &Goal::Program {
                 entry: "main".to_owned(),
             },
@@ -2241,7 +2258,7 @@ pub fn main() -> void $ Console:
     count := allocated() - before
     println(count)
 ";
-    let store = MemoryStore::default();
+    let store = new_store();
     for (i, checked) in [false, true, false, true].into_iter().enumerate() {
         let mut sources = hd_driver::std_sources();
         let path = "rt_tests/room_cache.hd";
@@ -2307,7 +2324,7 @@ fn pending_first_poll_runs_the_entry_again_with_pending_ticks() {
     let built = build_runnable(
         &fixture,
         &fixture.sources,
-        &MemoryStore::default(),
+        &new_store(),
         &Goal::Program {
             entry: "main".to_owned(),
         },
@@ -2395,7 +2412,7 @@ fn a_package_tree_fixture_takes_its_place_in_the_tree() {
     assert_eq!(String::from_utf8_lossy(&primary), fixture.text);
     // Its harness is the tree: the primary file is an integration test.
     assert!(tree_tests_harness(&fixture));
-    let store = MemoryStore::default();
+    let store = new_store();
     assert_eq!(
         runtime_case(&case, &fixture, &store, (1 << 40) + 5),
         Verdict::Pass
@@ -2450,7 +2467,7 @@ fn filtered(cases: Vec<Case>) -> Option<Vec<Case>> {
     )
 }
 
-fn detail(case: &Case, store: &MemoryStore) -> String {
+fn detail(case: &Case, store: &Store) -> String {
     let Ok(fixture) = fixture(case) else {
         return String::new();
     };
@@ -2498,7 +2515,7 @@ fn detail(case: &Case, store: &MemoryStore) -> String {
     out
 }
 
-fn print_filtered(cases: &[Case], results: &[Verdict], store: &MemoryStore) {
+fn print_filtered(cases: &[Case], results: &[Verdict], store: &Store) {
     let mut chapters: BTreeMap<String, Counts> = BTreeMap::new();
     let mut buckets: BTreeMap<String, usize> = BTreeMap::new();
     for (case, verdict) in cases.iter().zip(results) {
@@ -2532,9 +2549,10 @@ fn print_filtered(cases: &[Case], results: &[Verdict], store: &MemoryStore) {
 
 /// Worker count:
 /// `HD_TEST_JOBS` if set to a positive integer, else
-/// `min(8, available_parallelism())`. The shared `MemoryStore` stays
-/// correct under concurrent use: both of its maps sit behind a `Mutex`
-/// (`CacheStore` is `Sync`), so workers share one store.
+/// `min(8, available_parallelism())`. Workers share one [`Store`]: the
+/// memory store's maps sit behind a `Mutex` (`CacheStore` is `Sync`), and
+/// a missing entry of a single-flight kind is built by one worker while
+/// the others wait for it.
 fn workers() -> usize {
     if let Ok(value) = std::env::var("HD_TEST_JOBS")
         && let Ok(n) = value.trim().parse::<usize>()
@@ -2556,7 +2574,7 @@ fn workers() -> usize {
 /// before the parse and type cases, and within each the largest fixture
 /// file first. A runtime case costs about 30 times a type case on
 /// average, and the widest fixtures take many seconds to compile.
-fn run_all(cases: &[Case], store: &MemoryStore) -> Vec<Verdict> {
+fn run_all(cases: &[Case], store: &Store) -> Vec<Verdict> {
     let timings = timings();
     let size =
         |case: &Case| std::fs::metadata(suite_root().join(&case.path)).map_or(0, |m| m.len());
@@ -2643,7 +2661,7 @@ fn specification_conformance_passes_except_known_failures() {
         );
         cases.retain(|case| case.phase == Phase::Runtime && tier(case) == name);
     }
-    let store = MemoryStore::default();
+    let store = new_store();
     let started = Instant::now();
     let results = {
         // Installed for the run; its drop publishes the cache's sizes.
@@ -2713,7 +2731,7 @@ fn specification_conformance_passes_except_known_failures() {
 
 #[test]
 fn formatter_preserves_every_parseable_conformance_check_verdict_and_code() {
-    let store = MemoryStore::default();
+    let store = new_store();
     for case in cases() {
         let fixture = fixture(&case)
             .unwrap_or_else(|reason| panic!("{} could not be loaded: {reason}", case.path));
@@ -2752,7 +2770,7 @@ fn no_typing_invalid_fixture_reaches_an_internal_error() {
         .filter(|case| case.phase == Phase::Type && case.path.starts_with("typing/invalid/"))
         .collect();
     assert!(!cases.is_empty(), "no typing/invalid cases");
-    let store = MemoryStore::default();
+    let store = new_store();
     let next = AtomicUsize::new(0);
     let found = Mutex::new(Vec::new());
     std::thread::scope(|scope| {

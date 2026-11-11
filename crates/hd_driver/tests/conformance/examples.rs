@@ -28,13 +28,12 @@ use std::path::Path;
 use std::time::Instant;
 
 use hd_base::SliceSort as _;
-use hd_cache::MemoryStore;
 use hd_driver::Output;
 use hd_syntax::parse;
 
 use super::{
-    Case, Fixture, Phase, Verdict, byte_line, caught, check_errors, check_fixture, load_tree, pool,
-    root, runtime_case, suite_root, type_case, unit_fixture,
+    Case, Fixture, Phase, Store, Verdict, byte_line, caught, check_errors, check_fixture,
+    load_tree, new_store, pool, root, runtime_case, suite_root, type_case, unit_fixture,
 };
 
 /// Clear of the suite's case indices and the runner's own tests, so an
@@ -418,7 +417,7 @@ fn mark_problems(fixture: &Fixture, output: &Output, marks: &[Mark]) -> Vec<Stri
 }
 
 /// The example's failure, or `None` when it holds to its classification.
-fn judge(example: &Example, serial: usize, store: &MemoryStore) -> Option<String> {
+fn judge(example: &Example, serial: usize, store: &Store) -> Option<String> {
     let fixture = unit_fixture(&example.text);
     let case = Case {
         path: example.place.clone(),
@@ -494,7 +493,7 @@ fn spec_and_doc_examples_check_as_printed() {
             std::cmp::Reverse(example.text.len()),
         )
     });
-    let store = MemoryStore::default();
+    let store = new_store();
     let started = Instant::now();
     let problems = pool(examples.len(), &order, |index| {
         judge(&examples[index], index, &store)

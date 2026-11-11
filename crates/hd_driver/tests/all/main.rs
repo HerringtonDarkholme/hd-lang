@@ -48,6 +48,7 @@ mod generics_determinism;
 mod header_copies_run;
 mod header_goals;
 mod host_drive_slots;
+mod iface_put_order;
 mod impl_targets;
 mod impl_universe;
 mod inferred_results_run;

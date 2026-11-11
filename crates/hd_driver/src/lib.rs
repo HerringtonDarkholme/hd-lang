@@ -4269,12 +4269,6 @@ impl Run<'_> {
         };
         let reads = self.read_list(fid, &world.reads());
         let key = key_of(&reads);
-        if !input {
-            let bytes = encode_reads(&reads);
-            if stored.as_deref() != Some(bytes.as_slice()) {
-                self.put(EntryKind::Iface, own, &[&bytes]);
-            }
-        }
         let mut anchored = Vec::new();
         for (mi, m) in out.modules.iter().enumerate() {
             for (def, slot, a) in &m.anchors {
@@ -4353,6 +4347,14 @@ impl Run<'_> {
                 &blob, &dsec, &asec, &psec, &lsec, &usec, &hsec, &msec, &docs,
             ],
         );
+        // The read list goes after the entry it keys: a concurrent build
+        // that reads the list finds the entry too.
+        if !input {
+            let bytes = encode_reads(&reads);
+            if stored.as_deref() != Some(bytes.as_slice()) {
+                self.put(EntryKind::Iface, own, &[&bytes]);
+            }
+        }
         self.keep_input(
             folder.modules[0].idx(),
             |e| &mut e.iface,
