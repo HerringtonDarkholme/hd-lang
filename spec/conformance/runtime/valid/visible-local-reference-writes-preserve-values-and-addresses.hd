@@ -1,0 +1,59 @@
+# test: visible scalar reference writes preserve aliases, fields and observed addresses
+# expect-stdout: 54 12
+# expect-stdout: 153 13
+# expect-stdout: true 23
+# expect-stdout: 17
+# expect-stdout: 20
+use std.annotation.{cold, inline}
+
+struct State:
+    word: i32
+    salt: i32
+
+struct Outer:
+    state: State
+    pad: i32
+
+@inline(.Always)
+fn mix(state: &mut State, value: i32) -> void:
+    state.word = state.word * 3 + value
+    state.salt += value
+
+@cold
+fn observe(state: &State) -> i32:
+    state.word
+
+fn visible(value: i32) -> (i32, i32):
+    let mut outer = Outer { state: State { word: +5, salt: +7 }, pad: +99 }
+    reference := &mut outer.state
+    alias := reference
+    mix(alias, value)
+    mix(alias, 3)
+    (outer.state.word, outer.state.salt)
+
+fn repeated() -> (i32, i32):
+    let mut state = State { word: +5, salt: +7 }
+    reference := &mut state
+    for value in [+1, +2, +3]:
+        mix(reference, value)
+    (state.word, state.salt)
+
+pub fn main() -> void $ Console:
+    let (word, salt) = visible(2)
+    println("$word $salt")
+    let (last, sum) = repeated()
+    println("$last $sum")
+    let mut state = State { word: +7, salt: +8 }
+    mix(&mut state, 2)
+    first := &state
+    second := &state
+    println("${first is second} ${observe(first)}")
+    boxed := box(State { word: +5, salt: +7 })
+    shared := boxed
+    pointer := &mut *boxed
+    mix(pointer, 2)
+    println(shared.word)
+    let mut values = [State { word: +6, salt: +7 }]
+    element := &mut values[0]
+    mix(element, 2)
+    println(values[0].word)

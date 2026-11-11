@@ -13,30 +13,30 @@ fn digest(value: usize) -> u64:
 >     uses $1: %1 -> %7 consume last
 >   local $2 hasher: DefaultHasher [read assigned captured captured-assigned] place
 >   local $3 self: usize [read] value
->     uses $3: %9 -> %12 consume last
+>     uses $3: %8 -> %9 consume last
 >   local $6 value: usize [read] value
->     uses $6: %13 -> %16 lend last
+>     uses $6: %10 -> %11 lend last
 >   local $8 value: u64 [read] value
->     uses $8: %18 -> %22 consume last
+>     uses $8: %13 -> %17 consume last
 >   local $9 width: usize [read] value
->     uses $9: %19 -> %26 lend
+>     uses $9: %14 -> %21 lend
 >   local $10 state: u64 [read assigned mutated] place
 >   local $11 rest: u64 [read assigned mutated] place
 >   local $12 index: usize [read assigned mutated] place
 >   local $13 state: u64 [read] value
->     uses $13: %32 -> %35 lend last
+>     uses $13: %27 -> %30 lend last
 >   local $14 byte: u8 [read] value
->     uses $14: %33 -> %36 lend last
+>     uses $14: %28 -> %31 lend last
 >   local $15 mask: u64 [read assigned] value
->     uses $15: %34 -> %41 lend, %56 lend, %60 lend last
+>     uses $15: %29 -> %36 lend, %51 lend, %55 lend last
 >   local $16 mixed: u64 [:= read assigned] value
->     uses $16: %39 -> %40 lend, %49 lend last
+>     uses $16: %34 -> %35 lend, %44 lend last
 >   local $17 low: u64 [:= read assigned] value
->     uses $17: %43 -> %44 lend, %47 lend last
+>     uses $17: %38 -> %39 lend, %42 lend last
 >   local $18 low_product: u64 [:= read assigned] value
->     uses $18: %46 -> %53 lend, %59 lend last
+>     uses $18: %41 -> %48 lend, %54 lend last
 >   local $20 self: DefaultHasher [read] value
->     uses $20: %93 -> %94 consume last
+>     uses $20: %86 -> %87 consume last
 >   %0 = Read copy [$0] : usize
 >   %1 = Store [$1] %0 : ()
 >   %2 = NewStruct [14695981039346656037:u64] : DefaultHasher
@@ -45,102 +45,91 @@ fn digest(value: usize) -> u64:
 >   %5 = Scope %4 [] : DefaultHasher
 >   %6 = Store [$2] %5 : ()
 >   %7 = Read copy [$1] : usize
->   %8 = Ref mut local frame [$2] : &mut DefaultHasher
->   %9 = Store [$3] %7 : ()
->   %10 = Read borrow [%8] : &mut DefaultHasher
->   %11 = Coerce %10 [Identity -] : &mut DefaultHasher
->   %12 = Read copy [$3] : usize
->   %13 = Store [$6] %12 : ()
->   %14 = Read borrow [%11] : &mut DefaultHasher
->   %15 = Coerce %14 [Identity -] : &mut DefaultHasher
->   %16 = Read copy [$6] : usize
->   %17 = Prim Conv [%16] : u64
->   %18 = Store [$8] %17 : ()
->   %19 = Store [$9] 4:usize : ()
->   %20 = Read copy [*%15 .state] : u64
->   %21 = Store [$10] %20 : ()
->   %22 = Read copy [$8] : u64
->   %23 = Store [$11] %22 : ()
->   %24 = Store [$12] 0:usize : ()
->   %25 = Read copy [$12] : usize
->   %26 = Read copy [$9] : usize
->   %27 = Prim Lt [%25 %26] : bool
->   %28 = Read copy [$10] : u64
->   %29 = Read copy [$11] : u64
->   %30 = Prim BitAnd [%29 255:u64] : u64
->   %31 = Prim Conv [%30] : u8
->   %32 = Store [$13] %28 : ()
->   %33 = Store [$14] %31 : ()
->   %34 = Store [$15] 4294967295:u64 : ()
->   %35 = Read copy [$13] : u64
->   %36 = Read copy [$14] : u8
->   %37 = Prim Conv [%36] : u64
->   %38 = Prim BitXor [%35 %37] : u64
->   %39 = Store [$16] %38 : ()
->   %40 = Read copy [$16] : u64
->   %41 = Read copy [$15] : u64
->   %42 = Prim BitAnd [%40 %41] : u64
->   %43 = Store [$17] %42 : ()
->   %44 = Read copy [$17] : u64
->   %45 = Prim Mul [%44 435:u64] : u64
->   %46 = Store [$18] %45 : ()
->   %47 = Read copy [$17] : u64
->   %48 = Prim Mul [%47 256:u64] : u64
->   %49 = Read copy [$16] : u64
->   %50 = Prim Shr [%49 32:u32] : u64
->   %51 = Prim Mul [%50 435:u64] : u64
->   %52 = Prim Add [%48 %51] : u64
->   %53 = Read copy [$18] : u64
->   %54 = Prim Shr [%53 32:u32] : u64
->   %55 = Prim Add [%52 %54] : u64
->   %56 = Read copy [$15] : u64
->   %57 = Prim BitAnd [%55 %56] : u64
->   %58 = Prim Shl [%57 32:u32] : u64
->   %59 = Read copy [$18] : u64
->   %60 = Read copy [$15] : u64
->   %61 = Prim BitAnd [%59 %60] : u64
->   %62 = Prim BitOr [%58 %61] : u64
->   %63 = Break L2 %62 : never
->   %64 = Block - : u64
->   %65 = Scope %64 [] : u64
->   %66 = Store [$10] %65 : ()
->   %67 = Read copy [$11] : u64
->   %68 = Prim Shr [%67 8:u32] : u64
->   %69 = Store [$11] %68 : ()
->   %70 = Read copy [$12] : usize
->   %71 = Prim Add [%70 1:usize] : usize
->   %72 = Store [$12] %71 : ()
->   %73 = Block - : ()
->   %74 = Break L1 - : never
->   %75 = Block - : ()
->   %76 = If %27 [%73 %75] : ()
+>   %8 = Store [$3] %7 : ()
+>   %9 = Read copy [$3] : usize
+>   %10 = Store [$6] %9 : ()
+>   %11 = Read copy [$6] : usize
+>   %12 = Prim Conv [%11] : u64
+>   %13 = Store [$8] %12 : ()
+>   %14 = Store [$9] 4:usize : ()
+>   %15 = Read copy [$2 .state] : u64
+>   %16 = Store [$10] %15 : ()
+>   %17 = Read copy [$8] : u64
+>   %18 = Store [$11] %17 : ()
+>   %19 = Store [$12] 0:usize : ()
+>   %20 = Read copy [$12] : usize
+>   %21 = Read copy [$9] : usize
+>   %22 = Prim Lt [%20 %21] : bool
+>   %23 = Read copy [$10] : u64
+>   %24 = Read copy [$11] : u64
+>   %25 = Prim BitAnd [%24 255:u64] : u64
+>   %26 = Prim Conv [%25] : u8
+>   %27 = Store [$13] %23 : ()
+>   %28 = Store [$14] %26 : ()
+>   %29 = Store [$15] 4294967295:u64 : ()
+>   %30 = Read copy [$13] : u64
+>   %31 = Read copy [$14] : u8
+>   %32 = Prim Conv [%31] : u64
+>   %33 = Prim BitXor [%30 %32] : u64
+>   %34 = Store [$16] %33 : ()
+>   %35 = Read copy [$16] : u64
+>   %36 = Read copy [$15] : u64
+>   %37 = Prim BitAnd [%35 %36] : u64
+>   %38 = Store [$17] %37 : ()
+>   %39 = Read copy [$17] : u64
+>   %40 = Prim Mul [%39 435:u64] : u64
+>   %41 = Store [$18] %40 : ()
+>   %42 = Read copy [$17] : u64
+>   %43 = Prim Mul [%42 256:u64] : u64
+>   %44 = Read copy [$16] : u64
+>   %45 = Prim Shr [%44 32:u32] : u64
+>   %46 = Prim Mul [%45 435:u64] : u64
+>   %47 = Prim Add [%43 %46] : u64
+>   %48 = Read copy [$18] : u64
+>   %49 = Prim Shr [%48 32:u32] : u64
+>   %50 = Prim Add [%47 %49] : u64
+>   %51 = Read copy [$15] : u64
+>   %52 = Prim BitAnd [%50 %51] : u64
+>   %53 = Prim Shl [%52 32:u32] : u64
+>   %54 = Read copy [$18] : u64
+>   %55 = Read copy [$15] : u64
+>   %56 = Prim BitAnd [%54 %55] : u64
+>   %57 = Prim BitOr [%53 %56] : u64
+>   %58 = Break L2 %57 : never
+>   %59 = Block - : u64
+>   %60 = Scope %59 [] : u64
+>   %61 = Store [$10] %60 : ()
+>   %62 = Read copy [$11] : u64
+>   %63 = Prim Shr [%62 8:u32] : u64
+>   %64 = Store [$11] %63 : ()
+>   %65 = Read copy [$12] : usize
+>   %66 = Prim Add [%65 1:usize] : usize
+>   %67 = Store [$12] %66 : ()
+>   %68 = Block - : ()
+>   %69 = Break L1 - : never
+>   %70 = Block - : ()
+>   %71 = If %22 [%68 %70] : ()
+>   %72 = Block - : ()
+>   %73 = Loop %72 - : ()
+>   %74 = Read copy [$10] : u64
+>   %75 = Store [$2 .state] %74 : ()
+>   %76 = Break L3 - : never
 >   %77 = Block - : ()
->   %78 = Loop %77 - : ()
->   %79 = Read copy [$10] : u64
->   %80 = Store [*%15 .state] %79 : ()
->   %81 = Break L3 - : never
->   %82 = Block - : ()
->   %83 = Scope %82 [] : ()
->   %84 = Break L4 - : never
->   %85 = Block - : ()
->   %86 = Scope %85 [] : ()
->   %87 = Break L5 - : never
->   %88 = Block - : ()
->   %89 = Scope %88 [] : ()
->   %90 = LoanEnd [%8] : ()
->   %91 = Read move [$2] : DefaultHasher
->   %92 = Release %91 Operation local $2 #2 : ()
->   %93 = Store [$20] %91 : ()
->   %94 = Read copy [$20 .state] : u64
->   %95 = Break L6 %94 : never
->   %96 = Block - : u64
->   %97 = Scope %96 [] : u64
->   %98 = Break L0 %97 : never
->   %99 = Block - : u64
->   %100 = Scope %99 [] : u64
->   %101 = Block %100 : u64
->   %8 finds [$2] full
->   %78 finds [$2] full
->   %91 finds [$2] full
->   storage sub 0: $2 slot
+>   %78 = Scope %77 [] : ()
+>   %79 = Break L4 - : never
+>   %80 = Block - : ()
+>   %81 = Scope %80 [] : ()
+>   %82 = Break L5 - : never
+>   %83 = Block - : ()
+>   %84 = Scope %83 [] : ()
+>   %85 = Read copy [$2] : DefaultHasher
+>   %86 = Store [$20] %85 : ()
+>   %87 = Read copy [$20 .state] : u64
+>   %88 = Break L6 %87 : never
+>   %89 = Block - : u64
+>   %90 = Scope %89 [] : u64
+>   %91 = Break L0 %90 : never
+>   %92 = Block - : u64
+>   %93 = Scope %92 [] : u64
+>   %94 = Block %93 : u64
 >   summary kept [] writes

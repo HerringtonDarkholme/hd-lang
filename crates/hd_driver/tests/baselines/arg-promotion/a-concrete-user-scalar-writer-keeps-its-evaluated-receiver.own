@@ -127,88 +127,81 @@ fn digest(value: u32) -> u64:
     let mut state = State { value: 14695981039346656037 }
 > app/main/digest
 >   local $0 value: u32 [param read] value
->     uses $0: entry -> %3 consume last
+>     uses $0: entry -> %2 consume last
 >   local $1 state: State [read assigned captured captured-assigned] place
 >   local $3 value: u32 [read] value
->     uses $3: %4 -> %5 lend last
+>     uses $3: %3 -> %4 lend last
 >   local $4 bits: u64 [read assigned mutated] place
 >   local $5 index: usize [read assigned mutated] place
 >   local $6 value: u64 [read] value
->     uses $6: %15 -> %17 lend last
+>     uses $6: %14 -> %16 lend last
 >   local $7 byte: u8 [read] value
->     uses $7: %16 -> %18 lend last
+>     uses $7: %15 -> %17 lend last
 >   local $8 a: u64 [:= read assigned] value
->     uses $8: %21 -> %22 lend, %26 lend, %29 lend last
+>     uses $8: %20 -> %21 lend, %25 lend, %28 lend last
 >   local $9 b: u64 [:= read assigned] value
->     uses $9: %25 -> %33 lend, %38 lend last
+>     uses $9: %24 -> %32 lend, %37 lend last
 >   %0 = NewStruct [14695981039346656037:u64] : State
 >   %1 = Store [$1] %0 : ()
->   %63 = Block %61 : u64
+>   %60 = Block %59 : u64
     write(&mut state, value)
->   %2 = Ref mut local frame [$1] : &mut State
->   %3 = Read copy [$0] : u32
->   %4 = Store [$3] %3 : ()
->   %5 = Read copy [$3] : u32
->   %6 = Prim Conv [%5] : u64
->   %7 = Store [$4] %6 : ()
->   %8 = Store [$5] 0:usize : ()
->   %9 = Read copy [$5] : usize
->   %10 = Prim Lt [%9 4:usize] : bool
->   %11 = Read copy [*%2 .value] : u64
->   %12 = Read copy [$4] : u64
->   %13 = Prim BitAnd [%12 255:u64] : u64
->   %14 = Prim Conv [%13] : u8
->   %15 = Store [$6] %11 : ()
->   %16 = Store [$7] %14 : ()
->   %17 = Read copy [$6] : u64
->   %18 = Read copy [$7] : u8
->   %19 = Prim Conv [%18] : u64
->   %20 = Prim BitXor [%17 %19] : u64
->   %21 = Store [$8] %20 : ()
->   %22 = Read copy [$8] : u64
->   %23 = Prim BitAnd [%22 4294967295:u64] : u64
->   %24 = Prim Mul [%23 435:u64] : u64
->   %25 = Store [$9] %24 : ()
->   %26 = Read copy [$8] : u64
->   %27 = Prim BitAnd [%26 4294967295:u64] : u64
->   %28 = Prim Mul [%27 256:u64] : u64
->   %29 = Read copy [$8] : u64
->   %30 = Prim Shr [%29 32:u32] : u64
->   %31 = Prim Mul [%30 435:u64] : u64
->   %32 = Prim Add [%28 %31] : u64
->   %33 = Read copy [$9] : u64
->   %34 = Prim Shr [%33 32:u32] : u64
->   %35 = Prim Add [%32 %34] : u64
->   %36 = Prim BitAnd [%35 4294967295:u64] : u64
->   %37 = Prim Shl [%36 32:u32] : u64
->   %38 = Read copy [$9] : u64
->   %39 = Prim BitAnd [%38 4294967295:u64] : u64
->   %40 = Prim BitOr [%37 %39] : u64
->   %41 = Break L1 %40 : never
->   %42 = Block - : u64
->   %43 = Scope %42 [] : u64
->   %44 = Store [*%2 .value] %43 : ()
->   %45 = Read copy [$4] : u64
->   %46 = Prim Shr [%45 8:u32] : u64
->   %47 = Store [$4] %46 : ()
->   %48 = Read copy [$5] : usize
->   %49 = Prim Add [%48 1:usize] : usize
->   %50 = Store [$5] %49 : ()
->   %51 = Block - : ()
->   %52 = Break L0 - : never
->   %53 = Block - : ()
->   %54 = If %10 [%51 %53] : ()
->   %55 = Block - : ()
->   %56 = Loop %55 - : ()
->   %57 = Break L2 - : never
->   %58 = Block - : ()
->   %59 = Scope %58 [] : ()
->   %60 = LoanEnd [%2] : ()
->   %2 finds [$1] full
->   %56 finds [$1] full
+>   %2 = Read copy [$0] : u32
+>   %3 = Store [$3] %2 : ()
+>   %4 = Read copy [$3] : u32
+>   %5 = Prim Conv [%4] : u64
+>   %6 = Store [$4] %5 : ()
+>   %7 = Store [$5] 0:usize : ()
+>   %8 = Read copy [$5] : usize
+>   %9 = Prim Lt [%8 4:usize] : bool
+>   %10 = Read copy [$1 .value] : u64
+>   %11 = Read copy [$4] : u64
+>   %12 = Prim BitAnd [%11 255:u64] : u64
+>   %13 = Prim Conv [%12] : u8
+>   %14 = Store [$6] %10 : ()
+>   %15 = Store [$7] %13 : ()
+>   %16 = Read copy [$6] : u64
+>   %17 = Read copy [$7] : u8
+>   %18 = Prim Conv [%17] : u64
+>   %19 = Prim BitXor [%16 %18] : u64
+>   %20 = Store [$8] %19 : ()
+>   %21 = Read copy [$8] : u64
+>   %22 = Prim BitAnd [%21 4294967295:u64] : u64
+>   %23 = Prim Mul [%22 435:u64] : u64
+>   %24 = Store [$9] %23 : ()
+>   %25 = Read copy [$8] : u64
+>   %26 = Prim BitAnd [%25 4294967295:u64] : u64
+>   %27 = Prim Mul [%26 256:u64] : u64
+>   %28 = Read copy [$8] : u64
+>   %29 = Prim Shr [%28 32:u32] : u64
+>   %30 = Prim Mul [%29 435:u64] : u64
+>   %31 = Prim Add [%27 %30] : u64
+>   %32 = Read copy [$9] : u64
+>   %33 = Prim Shr [%32 32:u32] : u64
+>   %34 = Prim Add [%31 %33] : u64
+>   %35 = Prim BitAnd [%34 4294967295:u64] : u64
+>   %36 = Prim Shl [%35 32:u32] : u64
+>   %37 = Read copy [$9] : u64
+>   %38 = Prim BitAnd [%37 4294967295:u64] : u64
+>   %39 = Prim BitOr [%36 %38] : u64
+>   %40 = Break L1 %39 : never
+>   %41 = Block - : u64
+>   %42 = Scope %41 [] : u64
+>   %43 = Store [$1 .value] %42 : ()
+>   %44 = Read copy [$4] : u64
+>   %45 = Prim Shr [%44 8:u32] : u64
+>   %46 = Store [$4] %45 : ()
+>   %47 = Read copy [$5] : usize
+>   %48 = Prim Add [%47 1:usize] : usize
+>   %49 = Store [$5] %48 : ()
+>   %50 = Block - : ()
+>   %51 = Break L0 - : never
+>   %52 = Block - : ()
+>   %53 = If %9 [%50 %52] : ()
+>   %54 = Block - : ()
+>   %55 = Loop %54 - : ()
+>   %56 = Break L2 - : never
+>   %57 = Block - : ()
+>   %58 = Scope %57 [] : ()
     state.value
->   %61 = Read copy [$1 .value] : u64
->   %62 = Drop [$1] : ()
->   %61 finds [$1] full
->   storage sub 0: $1 slot
+>   %59 = Read copy [$1 .value] : u64
 >   summary kept [] writes
