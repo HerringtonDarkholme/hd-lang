@@ -74,7 +74,6 @@ fn stored!(key: string) -> usize:
     loader := fn!(k: string) -> string: fetch!(k)
 > app/main/stored
 >   release Suspend[string] (last use)
->   release string (last use)
 >   release fn!(string) -> string (last use)
 >   release counted reference (last use)
 >   release string (last use)
@@ -82,7 +81,6 @@ fn stored!(key: string) -> usize:
 >   release string (cancelled)
 >   release counted reference (last use)
 > app/main/stored
->   retain string (stored)
 >   retain counted reference (stored)
 >   retain counted reference (stored)
 >   release counted reference (last use)
@@ -96,12 +94,10 @@ fn stored!(key: string) -> usize:
 >   release counted reference (last use)
 >   release counted reference (last use)
 > app/main/stored
->   retain string (stored)
 >   retain counted reference (stored)
     loader!(key).len()
 >   retain counted reference (stored)
 >   release counted reference (last use)
 >   release counted reference (last use)
 >   release fn!(string) -> string (cancelled)
->   release string (cancelled)
 >   release Suspend[string] (cancelled)

@@ -257,7 +257,7 @@ pub(crate) fn count_action(
 /// back to the original TIR instruction. Count labels never enter Wasm.
 #[derive(Clone, Debug)]
 pub(crate) struct CountOrigin {
-    pub origin: u32,
+    pub origin: Option<u32>,
     pub site: u32,
     pub action: CountAction,
     pub subject: String,

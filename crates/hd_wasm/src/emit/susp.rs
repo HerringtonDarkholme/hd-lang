@@ -607,7 +607,7 @@ impl Em<'_, '_, '_> {
             self.shield_enter(k, ch, &tmp, nc);
         }
         self.f.get(ch);
-        self.push_cold_args(i, args, item, Some(ch))?;
+        self.push_cold_args(i, args, item, targs, Some(ch))?;
         let c = self.push_call_providers(i, item, targs);
         self.f.call(Sym::Part(key, Part::Body));
         self.f.set(nc);
@@ -708,6 +708,7 @@ impl Em<'_, '_, '_> {
         self.f.op(I::Else);
         fresh(self)?;
         self.f.set(s);
+        self.settle(i);
         self.f.i32(0);
         self.f.set(held);
         self.close();
@@ -825,6 +826,7 @@ impl Em<'_, '_, '_> {
             self.f.set(*l);
         }
         self.f.set(s);
+        self.settle(i);
         self.f.i32(0);
         self.f.set(held);
         self.f.get(s);
@@ -1506,11 +1508,7 @@ pub(super) fn finish(
     em.f.set(fr);
     // Borrowed arguments take a count or collection copy before the
     // frame keeps them. Transferred arguments arrive with theirs.
-    let transferred = if closure.is_none() {
-        em.cold_transferred_locals(plocals)
-    } else {
-        hd_base::HashSet::default()
-    };
+    let transferred = em.cold_transferred_locals(plocals);
     if em.counting {
         for &l in plocals {
             let ls = arrived(&em, l);

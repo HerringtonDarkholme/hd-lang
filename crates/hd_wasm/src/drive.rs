@@ -364,6 +364,7 @@ fn slot(input: &Input<'_>, method: DefId, cold: &Helper, blocking: bool) -> Stag
             method,
             args,
             area,
+            counts,
             res,
         } => Helper::HostDrive {
             blocking,
@@ -371,6 +372,7 @@ fn slot(input: &Input<'_>, method: DefId, cold: &Helper, blocking: bool) -> Stag
             method: method.clone(),
             args: args.clone(),
             area: area.clone(),
+            counts: counts.clone(),
             res: res.clone(),
         },
         Helper::DynTrap { .. } => Helper::DynTrap {

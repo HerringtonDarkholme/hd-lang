@@ -1354,12 +1354,15 @@ counted frames in memory 0 (`emit/susp.rs`, `task.rs`).
   body is `(frame, args..., providers...) -> (results..., frame)`. A frame
   of 0 starts fresh, and the frame is made at the first Pending (§14.3).
   The cold constructor stores its arguments and providers in a fresh
-  frame at state 0. A free suspending function receives ownership of its by-value parameters whose pass mode is
-  stable across instances, including generic list and map headers.
-  Direct cold calls, fresh awaits and fused `block_on` use that same
-  convention. The caller supplies a copy if its argument cannot move.
-  A resumed await skips that copy and reloads the saved owner.
-  Method slots and suspending closures retain their borrowed convention.
+  frame at state 0. Named suspending functions and methods receive the
+  count of each by-value parameter their selected representation owns.
+  Thin references use the borrowed convention. Direct cold calls,
+  fresh awaits, vtable slots and fused `block_on` use the selected mode.
+  The caller supplies a copy if its argument cannot move. A resumed
+  await skips that copy and reloads the saved owner. Function-value
+  adapters forward the ownership their target needs. A dynamic slot
+  lends its erased receiver payload through its existing adapter.
+  Suspending closures retain their borrowed constructor convention.
   A frame retains its providers, since the scope that installed them
   may end before the frame does.
 - **The state machine.** States are numbered in structural order, so a

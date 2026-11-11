@@ -1,19 +1,29 @@
 # Package host values retain their supertrait vtables for awaited and driven calls.
 # Spec Traits: trait.dyn.supertrait-methods; Modules: module.host.package.marker.
-use std.task.block_on
+use std.task.{block_on, race}
+use std.testing.assert_equal
 
 pub trait Parent:
-    fn parent!(&self) -> u32
+    fn parent!(&self, label: string, values: List[string]) -> u32
 
 @host
 pub trait Child < Parent:
-    fn child!(&self) -> u32
+    fn child!(&self, label: string, values: List[string]) -> u32
+
+fn ready!() -> u32:
+    7
 
 fn values!() -> (u32, u32, u32) $ Child:
     let child: &dyn Child = $.use(Child)
-    inherited := child.parent!()
-    own := child.child!()
-    driven := match block_on(child.parent()):
+    let mut values = ["one"]
+    inherited := child.parent!("initial", values)
+    waiting := child.child("pending${inherited}", values)
+    values.push("two")
+    own := waiting!()
+    assert_equal(values, ["one", "two"])
+    cancelled := race!(child.child("pending${inherited}", ["one"]), ready())
+    assert_equal(cancelled, 7)
+    driven := match block_on(child.parent("driven${own}", values)):
         .Completed(value) => value
         _ => panic("parent did not complete")
     (inherited, own, driven)
