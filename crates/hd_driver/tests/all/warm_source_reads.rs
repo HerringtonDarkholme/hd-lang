@@ -221,3 +221,77 @@ fn a_module_an_earlier_repl_input_left_unread_is_read_when_a_later_one_reaches_i
     let second = input(&mut sources, 2, "use self.util.{double}\ndouble(bonus())\n");
     assert!(!second.diags.has_errors(), "{}", second.render());
 }
+
+/// A store that counts the lookups made through it and the bytes they
+/// returned.
+#[derive(Default)]
+struct CountedStore {
+    store: hd_cache::MemoryStore,
+    gets: AtomicUsize,
+    bytes: AtomicUsize,
+}
+
+impl hd_cache::CacheStore for CountedStore {
+    fn get(&self, kind: hd_cache::EntryKind, key: &Hash128) -> Option<Arc<[u8]>> {
+        let got = self.store.get(kind, key);
+        self.gets.fetch_add(1, Ordering::Relaxed);
+        self.bytes
+            .fetch_add(got.as_ref().map_or(0, |b| b.len()), Ordering::Relaxed);
+        got
+    }
+    fn put(&self, kind: hd_cache::EntryKind, key: &Hash128, bytes: &[u8]) {
+        self.store.put(kind, key, bytes);
+    }
+    fn touch(&self, kind: hd_cache::EntryKind, key: &Hash128) {
+        self.store.touch(kind, key);
+    }
+}
+
+/// The lookups and bytes read of a check of `sources` through `store`.
+fn lookups(sources: &Counted, store: &CountedStore) -> (usize, usize, Output) {
+    store.gets.store(0, Ordering::Relaxed);
+    store.bytes.store(0, Ordering::Relaxed);
+    sources.reads.store(0, Ordering::Relaxed);
+    let host = Host {
+        render_tir: &[],
+        sources,
+        store,
+        clock: &NoClock,
+        executor: Executor::Serial(SerialOrder::Priority),
+    };
+    let out = build_packages(&host, "app", &Packages::default(), &Goal::Analyze);
+    (
+        store.gets.load(Ordering::Relaxed),
+        store.bytes.load(Ordering::Relaxed),
+        out,
+    )
+}
+
+/// Cost Model (#1510): a warm `hd check` with nothing changed takes the
+/// stored package result, so it makes as many cache lookups and reads as
+/// many entry bytes at 1,000 modules as at 100; one edit takes the
+/// per-module path again.
+#[test]
+fn a_warm_no_change_check_does_the_same_lookups_at_ten_times_the_modules() {
+    let mut warm = Vec::new();
+    for modules in [100, 1_000] {
+        let store = CountedStore::default();
+        let mut sources = package(&format!("package-result-{modules}"), modules);
+        let (cold, _, out) = lookups(&sources, &store);
+        assert!(out.diags.is_empty(), "{}", out.render());
+        let (gets, bytes, out) = lookups(&sources, &store);
+        assert!(out.diags.is_empty(), "{}", out.render());
+        assert_eq!(out.counters.hit("package"), 1, "{modules} modules");
+        assert_eq!(sources.reads.load(Ordering::Relaxed), 0);
+        assert!(gets < cold, "{modules} modules: {gets} of {cold}");
+        warm.push((gets, bytes));
+        // An edit misses the stored result and is checked.
+        sources
+            .files
+            .insert("m0.hd", "pub fn value0() -> i32: no\n");
+        let (_, _, out) = lookups(&sources, &store);
+        assert!(out.diags.has_errors(), "the edit is checked");
+        assert_eq!(out.counters.hit("package"), 0);
+    }
+    assert_eq!(warm[0], warm[1], "100 and 1,000 modules");
+}

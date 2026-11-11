@@ -62,6 +62,7 @@ mod checked_rooms;
 mod dbg;
 pub mod diagnostics;
 mod own;
+mod package_result;
 pub use own::copy_report_label;
 mod pipeline;
 mod positions;
@@ -2361,6 +2362,31 @@ fn build_packages_inner(
         TARGET,
         &format!("a1=bounded;std={:032x}", std_hash.0),
     );
+    // A warm `hd check` whose every listed file kept its stamp takes the
+    // stored package result: no record decode and no per-module lookup
+    // (#1510).
+    let result_key = package_result::key(
+        goal,
+        package,
+        packages,
+        host,
+        analysis.is_some(),
+        &ins,
+        &table,
+        toolchain,
+    );
+    if let Some(key) = result_key
+        && let Some(entry_capabilities) = package_result::read(host.store, toolchain, key)
+    {
+        return stored_output(
+            &table,
+            &lazy,
+            entry_capabilities,
+            package,
+            packages,
+            toolchain,
+        );
+    }
     // Std's skims come from the toolchain's entry, unless std is the root
     // package, whose files are the user's.
     let identities: Vec<Option<(Hash128, bool)>> = sets
@@ -2927,7 +2953,72 @@ fn build_packages_inner(
         });
         output.wasm = Some(wasm);
     }
+    if let Some(key) = result_key
+        && output.diags.is_empty()
+        && output.analysis_diags.is_empty()
+    {
+        package_result::write(host.store, toolchain, key, &output.entry_capabilities);
+    }
     output
+}
+
+/// The output of a run that took its stored package result
+/// ([`package_result`]): a clean check's, with the table's files and lazy
+/// texts, and no file skimmed, parsed or checked this run.
+fn stored_output(
+    table: &ModuleTable,
+    texts: &Texts<'_>,
+    entry_capabilities: Vec<EntryCapability>,
+    package: &str,
+    packages: &Packages<'_>,
+    toolchain: Hash128,
+) -> Output {
+    let n = table.modules.len();
+    let mut counters = Counters::default();
+    counters.hits.insert("package", 1);
+    Output {
+        analysis_diags: DiagBuf::default(),
+        entry_capabilities,
+        wasm: None,
+        host_artifacts: None,
+        instruction_origins: Vec::new(),
+        diags: DiagBuf::default(),
+        files: table.files.clone(),
+        texts: texts.detach(),
+        uses: vec![Vec::new(); n],
+        source_hashes: vec![None; n],
+        modules: table.modules.iter().map(|m| m.path.clone()).collect(),
+        checks: vec![None; n],
+        // No parse is kept: a caller that needs one parses the text
+        // (`Output::source_parse`). The files share one empty input.
+        position_inputs: {
+            let empty = Arc::new(positions::ModuleInput::default());
+            vec![empty; n]
+        },
+        printed: Vec::new(),
+        test_bodies: Vec::new(),
+        renamed: table.renamed_roots(),
+        counters,
+        report: PipelineReport {
+            package: package.to_owned(),
+            ..PipelineReport::default()
+        },
+        ifaces: Vec::new(),
+        scopes: Vec::new(),
+        tir_text: std::collections::BTreeMap::new(),
+        own_text: std::collections::BTreeMap::new(),
+        fixture_notes: Vec::new(),
+        fixture_layouts: Vec::new(),
+        tests: Vec::new(),
+        pool_items: 0,
+        memo: hd_types::solver::MemoStats::default(),
+        session_added: None,
+        target: packages.target,
+        level: packages.level,
+        checked: packages.checked,
+        toolchain,
+        pipeline: pipeline::key(packages.target, packages.level),
+    }
 }
 
 /// Folder-cycle recovery (`crates/hd_resolve/DESIGN.md` §4.8 rule 5): the
