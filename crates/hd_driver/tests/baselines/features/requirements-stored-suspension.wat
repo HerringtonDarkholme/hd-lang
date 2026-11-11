@@ -118,7 +118,7 @@
         end
         local.get $t7
         local.set $t4
-        i32.const 356 ;; &vtable[func90]
+        i32.const 356 ;; &vtable[func89]
         local.set $t8
         block
     ;; 43 |         tagged()

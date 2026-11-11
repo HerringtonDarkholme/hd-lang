@@ -143,7 +143,7 @@ pub fn main() -> void $ Console:
 > app/main/main
 >   local $0 items: List[Item] [read assigned captured captured-assigned] place
 >   local $1 shared: List[Item] [:= read assigned] value
->     uses $1: %7 -> %37 lend last
+>     uses $1: %7 -> %43 lend last
 >   local $2 o: Outer [read assigned captured captured-assigned] place
 >   %0 = NewList - [0:i64] : List[i64]
 >   %1 = NewMap ["a" 1:i64] : Map[string, i64]
@@ -151,7 +151,7 @@ pub fn main() -> void $ Console:
 >   %3 = Coerce %2 [Identity -] : Item
 >   %4 = NewList - [%3] : List[Item]
 >   %5 = Store [$0] %4 : ()
->   %41 = Block - : ()
+>   %47 = Block - : ()
     shared := items
 >   %6 = Read copy [$0] : List[Item]
 >   %7 = Store [$1] %6 : ()
@@ -176,34 +176,40 @@ pub fn main() -> void $ Console:
 >   %19 = Store [$2] %18 : ()
     field(&mut o)
 >   %20 = Ref mut local frame [$2] : &mut Outer
->   %21 = Call app/main/field[] (%20) : ()
->   %22 = LoanEnd [%20] : ()
+>   %21 = Read borrow [*%20 .item] : Item
+>   %22 = Read copy [*%20 .item .r] : usize
+>   %23 = Prim Add [%22 1:usize] : usize
+>   %24 = Store [*%20 .item .r] %23 : ()
+>   %25 = Break L0 - : never
+>   %26 = Block - : ()
+>   %27 = Scope %26 [] : ()
+>   %28 = LoanEnd [%20] : ()
 >   %20 finds [$2] full
     replaced(&mut items[0])
->   %23 = IsUnique [$0] : ()
->   %24 = Ref mut local [$0 [0:usize]] : &mut Item
->   %25 = Call app/main/replaced[] (%24) : ()
->   %26 = LoanEnd [%24] : ()
->   %23 finds [$0] full
->   %24 finds [$0] full
-    call_between(&mut items, 0)
->   %27 = Ref mut local frame [$0] : &mut List[Item]
->   %28 = Call app/main/call_between[] (%27, 0:usize) : ()
->   %29 = LoanEnd [%27] : ()
->   %27 finds [$0] full
-    println(used_after(&mut items, 0) + o.item.r + shared[0].r)
->   %30 = Ref mut local frame [$0] : &mut List[Item]
->   %31 = Call app/main/used_after[] (%30, 0:usize) : usize
+>   %29 = IsUnique [$0] : ()
+>   %30 = Ref mut local [$0 [0:usize]] : &mut Item
+>   %31 = Call app/main/replaced[] (%30) : ()
 >   %32 = LoanEnd [%30] : ()
->   %33 = Drop [$0] : ()
->   %34 = Read copy [$2 .item .r] : usize
->   %35 = Drop [$2] : ()
->   %36 = Prim Add [%31 %34] : usize
->   %37 = Read copy [$1 [0:usize] .r] : usize
->   %38 = Drop [$1] : ()
->   %39 = Prim Add [%36 %37] : usize
->   %40 = Call std/console/println[usize] (%39) : ()
+>   %29 finds [$0] full
 >   %30 finds [$0] full
->   %34 finds [$2] full
+    call_between(&mut items, 0)
+>   %33 = Ref mut local frame [$0] : &mut List[Item]
+>   %34 = Call app/main/call_between[] (%33, 0:usize) : ()
+>   %35 = LoanEnd [%33] : ()
+>   %33 finds [$0] full
+    println(used_after(&mut items, 0) + o.item.r + shared[0].r)
+>   %36 = Ref mut local frame [$0] : &mut List[Item]
+>   %37 = Call app/main/used_after[] (%36, 0:usize) : usize
+>   %38 = LoanEnd [%36] : ()
+>   %39 = Drop [$0] : ()
+>   %40 = Read copy [$2 .item .r] : usize
+>   %41 = Drop [$2] : ()
+>   %42 = Prim Add [%37 %40] : usize
+>   %43 = Read copy [$1 [0:usize] .r] : usize
+>   %44 = Drop [$1] : ()
+>   %45 = Prim Add [%42 %43] : usize
+>   %46 = Call std/console/println[usize] (%45) : ()
+>   %36 finds [$0] full
+>   %40 finds [$2] full
 >   storage sub 0: $0 slot, $2 slot
 >   summary kept [] writes

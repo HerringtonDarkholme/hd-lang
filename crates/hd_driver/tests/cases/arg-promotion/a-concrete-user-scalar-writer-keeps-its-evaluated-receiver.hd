@@ -1,0 +1,24 @@
+# @dump: own wat
+# @build: v8 release
+# expected: the local scalar writer and its arithmetic helper inline, retaining writes to the caller's evaluated receiver.
+struct State:
+    value: u64
+
+fn mix(value: u64, byte: u8) -> u64:
+    a := value ^ u64(byte)
+    b := (a & 4294967295) * 435
+    c := ((a & 4294967295) * 256) + ((a >> 32) * 435) + (b >> 32)
+    ((c & 4294967295) << 32) | (b & 4294967295)
+
+fn write(state: &mut State, value: u32) -> void:
+    let bits = u64(value)
+    let index: usize = 0
+    while index < 4:
+        state.value = mix(state.value, u8(bits & 255))
+        bits = bits >> 8
+        index = index + 1
+
+fn digest(value: u32) -> u64:
+    let mut state = State { value: 14695981039346656037 }
+    write(&mut state, value)
+    state.value

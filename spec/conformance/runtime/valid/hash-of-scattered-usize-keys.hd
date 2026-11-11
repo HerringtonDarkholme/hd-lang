@@ -1,0 +1,41 @@
+# test: usize hashes preserve four little-endian bytes through the concrete hash chain
+# Spec std Hash: std-hash.bytes.integer, std-hash.default.algorithm, std-hash.hash-of-local.
+# Literal digests were calculated independently with arbitrary-precision FNV-1a,
+# reducing modulo 2^64 after each byte, rather than by this compiler.
+use std.hash.hash_of
+
+tests:
+    use std.testing.assert_equal
+
+    it("byte boundaries retain every bit"):
+        let cases: List[(usize, u64)] = [
+            (0, 5558979605539197941),
+            (1, 12478008331234465636),
+            (2, 10167666227858214167),
+            (254, 674348541249987339),
+            (255, 7593377266945255034),
+            (256, 4934814342159144266),
+            (257, 13102173594614519311),
+            (65535, 10992417411537582043),
+            (65536, 5558023030422843596),
+            (2147483647, 11047037850681434065),
+            (2147483648, 5558838868050786933),
+            (4294967294, 8093943181019293376),
+            (4294967295, 11047178588169845073),
+        ]
+        for item in cases:
+            assert_equal(hash_of(item._0), item._1, reason="four-byte FNV-1a digest")
+
+    it("scattered map keys preserve their fixed digest"):
+        let cases: List[(usize, u64)] = [
+            (3668339992, 9008200121163443478),
+            (2175735027, 11022741797804849858),
+            (2105892949, 1496494631404803030),
+            (1786506692, 7444702663588452635),
+            (4095266235, 18079543961535644889),
+            (1906191893, 13358135936863213287),
+            (3227337166, 15478405662138411445),
+            (1586805636, 3017112164848259182),
+        ]
+        for item in cases:
+            assert_equal(hash_of(item._0), item._1, reason="four-byte FNV-1a digest")

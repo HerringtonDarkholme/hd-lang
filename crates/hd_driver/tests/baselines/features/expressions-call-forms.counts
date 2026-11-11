@@ -13,21 +13,12 @@ fn count(values...: List[string]) -> usize:
 
 fn named(a: string, b: string) -> usize:
     join2(second=a, first=b)
-> app/main/named
->   release string (last use)
->   release string (last use)
 
 fn positional(a: string, b: string) -> usize:
     join2(b, a)
-> app/main/positional
->   release string (last use)
->   release string (last use)
 
 fn spread_tuple(pair: (string, string)) -> usize:
     join2(pair...)
-> app/main/spread_tuple
->   release string (last use)
->   release string (last use)
 
 fn spread_list(xs: List[string]) -> usize:
     count(xs...)

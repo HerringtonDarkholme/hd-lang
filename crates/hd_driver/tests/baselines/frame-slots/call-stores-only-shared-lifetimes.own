@@ -12,15 +12,24 @@ fn push_len['a](out: &mut List[&'a string], xs: &List[string]) -> usize:
 >   local $0 out: &mut List[&string] [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 xs: &List[string] [param read] value
->     uses $1: entry -> %1 lend, %4 lend last
+>     uses $1: entry -> %1 lend, %11 lend last
+>   local $3 additional: usize [read] value
+>     uses $3: %3 -> %6 lend last
 >   %0 = Read borrow [$0] : &mut List[&string]
 >   %1 = Read borrow [*$1] : List[string]
 >   %2 = Intrinsic ListLen [%1] : usize
->   %3 = Call std/collections/impl[T] List[T].reserve[&string] (%0, %2) : ()
->   %6 = Block %5 : usize
+>   %3 = Store [$3] %2 : ()
+>   %4 = Read borrow [%0] : &mut List[&string]
+>   %5 = Coerce %4 [Identity -] : &mut List[&string]
+>   %6 = Read copy [$3] : usize
+>   %7 = Call std/collections/list_reserve[&string] (%5, %6) : ()
+>   %8 = Break L0 - : never
+>   %9 = Block - : ()
+>   %10 = Scope %9 [] : ()
+>   %13 = Block %12 : usize
     xs.len()
->   %4 = Read borrow [*$1] : List[string]
->   %5 = Intrinsic ListLen [%4] : usize
+>   %11 = Read borrow [*$1] : List[string]
+>   %12 = Intrinsic ListLen [%11] : usize
 >   summary kept [] writes
 
 fn non_storing(xs: List[string]) -> usize:

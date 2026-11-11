@@ -1,0 +1,32 @@
+# test: a concrete scalar writer and its helper mutate the original local state, with the same bytes as integer hashing
+# Spec std Hash, Default Hasher: std-hash.default.algorithm, std-hash.bytes.integer.
+use std.hash.hash_of
+use std.testing.assert_equal
+
+struct State:
+    value: u64
+
+fn mix(value: u64, byte: u8) -> u64:
+    a := value ^ u64(byte)
+    b := (a & 4294967295) * 435
+    c := ((a & 4294967295) * 256) + ((a >> 32) * 435) + (b >> 32)
+    ((c & 4294967295) << 32) | (b & 4294967295)
+
+fn write(state: &mut State, value: u32) -> void:
+    let bits = u64(value)
+    let index: usize = 0
+    while index < 4:
+        state.value = mix(state.value, u8(bits & 255))
+        bits = bits >> 8
+        index = index + 1
+
+fn digest(value: u32) -> u64:
+    let mut state = State { value: 14695981039346656037 }
+    write(&mut state, value)
+    state.value
+
+tests:
+    it("the writer mutates the evaluated receiver"):
+        assert_equal(digest(0), hash_of(u32(0)), reason="zero bytes")
+        assert_equal(digest(305419896), hash_of(u32(305419896)), reason="four different bytes")
+        assert_equal(digest(4294967295), hash_of(u32(4294967295)), reason="four full bytes")

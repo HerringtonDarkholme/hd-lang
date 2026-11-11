@@ -1,0 +1,16 @@
+# test: a conditionally unused scalar receiver keeps its loan while a later argument mutates a shared variable
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.call-loan, ref.excl.alias.shared-variable.
+struct State:
+    value: i32
+
+fn write(state: &mut State, enabled: bool) -> void:
+    if enabled:
+        state.value = +1
+
+tests:
+    it("the later argument cannot write the shared variable"):
+        let mut held = State { value: +0 }
+        change := fn() -> bool:
+            held.value = +2 # panic: borrow-conflict
+            false
+        write(&mut held, change())

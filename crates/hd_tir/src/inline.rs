@@ -191,8 +191,9 @@ pub struct Site {
     pub call: usize,
     pub copy: Body,
     pub by_value: u64,
-    /// Read-through reference parameters substituted with their already
-    /// evaluated argument, without an intermediate owning binding.
+    /// Reference parameters substituted with their already evaluated
+    /// argument, without an intermediate owning binding. The caller proves
+    /// that removing the binding preserves the call-entry loan boundary.
     pub by_ref: u64,
 }
 

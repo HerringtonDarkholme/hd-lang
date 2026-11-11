@@ -161,24 +161,33 @@ fn place_receiver(s: string) -> i64:
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %1 consume last
 >   local $1 p: Vec2 [read assigned captured captured-assigned] place
->   %0 = Retain %12 Entry local $0 #0 : ()
+>   local $3 d: i64 [read] value
+>     uses $3: %8 -> %10 lend last
+>   %0 = Retain %19 Entry local $0 #0 : ()
     let mut p = make(s)
 >   %1 = Read move [$0] : string
 >   %2 = NewStruct [%1 0:i64] : Vec2
->   %3 = Break L0 %2 : never
+>   %3 = Break L1 %2 : never
 >   %4 = Block - : Vec2
 >   %5 = Scope %4 [] : Vec2
 >   %6 = Store [$1] %5 : ()
->   %12 = Block %10 : i64
+>   %19 = Block %17 : i64
     p.shift(2)
 >   %7 = Ref mut local frame [$1] : &mut Vec2
->   %8 = Call app/main/impl Vec2.shift[] (%7, 2:i64) : ()
->   %9 = LoanEnd [%7] : ()
+>   %8 = Store [$3] 2:i64 : ()
+>   %9 = Read copy [*%7 .x] : i64
+>   %10 = Read copy [$3] : i64
+>   %11 = Prim Add [%9 %10] : i64
+>   %12 = Store [*%7 .x] %11 : ()
+>   %13 = Break L0 - : never
+>   %14 = Block - : ()
+>   %15 = Scope %14 [] : ()
+>   %16 = LoanEnd [%7] : ()
 >   %7 finds [$1] full
     p.x
->   %10 = Read copy [$1 .x] : i64
->   %11 = Drop [$1] : ()
->   %10 finds [$1] full
+>   %17 = Read copy [$1 .x] : i64
+>   %18 = Drop [$1] : ()
+>   %17 finds [$1] full
 >   exit sub 0 drops [$0]
 >   storage sub 0: $1 slot
 >   summary kept [$0] writes

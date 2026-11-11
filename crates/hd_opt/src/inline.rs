@@ -221,14 +221,16 @@ impl dyn InlineEnv + '_ {
         let mut loops_only = false;
         for _ in 0..MAX_ROUNDS {
             let defaults = body.tags.contains(&Tag::DefaultCall);
-            let (h, copied) = self.inline_round(body, hash, stack, loops_only);
+            let (h, copied, writer) = self.inline_round(body, hash, stack, loops_only);
             hash = h;
             if !(copied && release) {
                 break;
             }
             let direct = self.direct_item_calls(body);
-            // Copying a default makes its enclosing call plain too.
-            loops_only = !(defaults || direct);
+            // A default exposes its enclosing call; a scalar writer may
+            // expose the reader/constructor around its local state. Both
+            // use the existing four-round budget.
+            loops_only = !(defaults || direct || writer);
         }
         hash
     }
@@ -312,17 +314,24 @@ impl dyn InlineEnv + '_ {
         hash: Hash128,
         stack: &mut Stack,
         loops_only: bool,
-    ) -> (Hash128, bool) {
+    ) -> (Hash128, bool, bool) {
         let pool = self.pool();
         let mut k = StableHasher::new("inline");
         k.hash(hash);
         let (mut sites, mut hashes) = (Vec::new(), Vec::new());
         let loops = hd_tir::ir::Topology::new(body).loop_of;
+        let writer_origins = if self.memo().is_some() {
+            writer_origins(body)
+        } else {
+            Vec::new()
+        };
+        let writer_uses = if self.memo().is_some() {
+            writer_uses(body)
+        } else {
+            Vec::new()
+        };
         for c in (0..body.len()).rev() {
             let in_loop = loops[c] != hd_tir::ir::NONE;
-            if loops_only && !in_loop {
-                continue;
-            }
             let Some((def, targs)) =
                 hd_tir::inline::known_call(body, c).and_then(|callee| match callee {
                     Callee::Item { def, targs } => Some((def, targs)),
@@ -331,6 +340,9 @@ impl dyn InlineEnv + '_ {
             else {
                 continue;
             };
+            if loops_only && !in_loop && !self.declares_local_reference(def) {
+                continue;
+            }
             if body.tags[c] == Tag::DefaultCall
                 && self
                     .checked_body(def)
@@ -383,11 +395,18 @@ impl dyn InlineEnv + '_ {
             if !self.fits_call(body, c, &mut copy) {
                 continue;
             }
+            let writer_refs = self
+                .scalar_writer_refs(&copy)
+                .filter(|&mask| writer_arguments(body, c, mask, &writer_origins));
+            if loops_only && !in_loop && writer_refs.is_none() {
+                continue;
+            }
             // Over the ordinary budget only by `fits`'s allowance for a callee
             // that takes local references and runs no call of its own.
             if self.inline_hint(def) == InlineHint::Default
                 && !self.fits_size(def, targs, &copy, INLINE_LIMIT)
                 && !in_loop
+                && writer_refs.is_none()
             {
                 continue;
             }
@@ -412,8 +431,13 @@ impl dyn InlineEnv + '_ {
                 let kept = mask & rooted;
                 let mask = mask & !kept;
                 let writes = hd_tir::own::writes_in(&copy, 0..copy.len(), &may_write);
-                let mut args =
-                    hd_tir::own::promote::inline_args(body, c, counted, writes, &may_write);
+                let mut args = if promote.is_some() {
+                    hd_tir::own::promote::inline_args(body, c, counted, writes, &may_write)
+                } else if writer_refs.is_some() {
+                    fresh_writer_args(body, c, &writer_uses)
+                } else {
+                    0
+                };
                 let (references, bindings) =
                     if self.memo().is_some() && self.read_only_refs(def, targs, &copy) {
                         args |= captured_read_args(body, c);
@@ -431,10 +455,19 @@ impl dyn InlineEnv + '_ {
                             .unwrap_or_default()
                             .iter()
                             .fold(0, |mask, (k, _)| mask | 1 << k);
+                        0
+                    } else if let Some(mask) = writer_refs {
+                        let values =
+                            self.writer_values(&copy, body, c, mask, &writer_origins) & args;
+                        by_ref = mask & !values;
+                        // A writer does not prevent an independent scalar
+                        // reader from keeping the call's by-value ABI.
+                        values
                     } else if !in_loop {
                         continue;
+                    } else {
+                        0
                     }
-                    0
                 } else if args & mask != mask || kept != 0 {
                     // A Drop owner keeps its address; other promotable
                     // referents retain the existing call-site checks.
@@ -466,12 +499,14 @@ impl dyn InlineEnv + '_ {
                 by_value,
                 by_ref,
             });
-            hashes.push(callee_hash);
+            hashes.push((callee_hash, writer_refs.is_some()));
         }
         // All of the body's copies in one rebuild.
         let copied = hd_tir::inline::inline_calls(body, sites).unwrap_or_default();
-        for (_, &h) in copied.iter().zip(&hashes).filter(|(c, _)| **c) {
+        let mut writer = false;
+        for (_, &(h, scalar_writer)) in copied.iter().zip(&hashes).filter(|(c, _)| **c) {
             k.hash(h);
+            writer |= scalar_writer;
         }
         if copied.contains(&true) {
             // A copy's types are its callee's with every opaque result
@@ -492,9 +527,9 @@ impl dyn InlineEnv + '_ {
                 )
             };
             hd_tir::ir::map_body_types(body, &ty, &list);
-            (k.finish(), true)
+            (k.finish(), true, writer)
         } else {
-            (hash, false)
+            (hash, false, false)
         }
     }
 
@@ -606,6 +641,18 @@ impl dyn InlineEnv + '_ {
                     Some((nested, h))
                 }
                 Some((nested, h)) if self.fits(def, targs, &nested) => Some((nested, h)),
+                // Charge a tiny one-call forwarding body as well as its
+                // scalar writer, rather than losing the known target at
+                // each forwarding layer. Memoized copies remain bounded
+                // by the sum of those two existing budgets.
+                Some((nested, h))
+                    if nested.len() <= AUTO_INLINE_LIMIT + INLINE_LIMIT
+                        && hd_tir::inline::inlinable(&copy, INLINE_LIMIT)
+                        && copy.tags.iter().filter(|&&tag| tag == Tag::Call).count() == 1
+                        && self.scalar_writer_refs(&nested).is_some() =>
+                {
+                    Some((nested, h))
+                }
                 _ => fits.then_some((copy, hash)),
             }
         });
@@ -903,6 +950,10 @@ impl dyn InlineEnv + '_ {
                         || self.by_value(def, targs, copy).is_some()
                         || (release && self.read_only_refs(def, targs, copy))))
                     || (release
+                        && !self.takes_reference(def, targs)
+                        && self.plain_memory(copy)
+                        && self.fits_size(def, targs, copy, AUTO_INLINE_LIMIT))
+                    || (release
                         && self.takes_reference(def, targs)
                         && self.only_local_references(def, targs)
                         && self.plain_memory(copy)
@@ -966,7 +1017,7 @@ impl dyn InlineEnv + '_ {
             InlineHint::Default => {
                 hd_tir::inline::inlinable(body, INLINE_LIMIT)
                     || (release
-                        && self.declares_local_reference(def)
+                        && (self.declares_local_reference(def) || body.len() <= AUTO_INLINE_LIMIT)
                         && hd_tir::inline::inlinable(body, AUTO_INLINE_LIMIT))
             }
             InlineHint::Auto => hd_tir::inline::inlinable(body, AUTO_INLINE_LIMIT),
@@ -1094,6 +1145,77 @@ impl dyn InlineEnv + '_ {
             && hd_tir::own::promote::read_only_params(copy, mask) == mask
     }
 
+    /// Promote an independent scalar reader even when another parameter
+    /// writes. Private local roots are distinct from other private roots
+    /// and from an enclosing reference parameter's external storage. Two
+    /// external parameters, or two parts of one local, keep their address.
+    fn writer_values(
+        &self,
+        copy: &Body,
+        caller: &Body,
+        call: usize,
+        mask: u64,
+        origins: &[Option<WriterOrigin>],
+    ) -> u64 {
+        let readonly = hd_tir::own::promote::read_only_params(copy, mask);
+        let mut candidates = 0;
+        let mut writable = mask & !readonly;
+        for (k, ty) in copy
+            .local_ty
+            .iter()
+            .zip(&copy.local_flags)
+            .filter_map(|(&ty, &flags)| (flags & local_flags::PARAM != 0).then_some(ty))
+            .take(64)
+            .enumerate()
+        {
+            if matches!(self.pool().get(ty), TyData::Ref { mutable: true, .. }) {
+                // An unused mutable argument still has its call loan.
+                writable |= 1 << k;
+            } else if readonly & (1 << k) != 0
+                && self.lent_referent(ty).is_some()
+                && !self.counted_referent(ty)
+            {
+                candidates |= 1 << k;
+            }
+        }
+        independent_writer_values(
+            hd_tir::inline::arguments(caller, call),
+            candidates,
+            writable,
+            origins,
+        )
+    }
+
+    /// The unchanged reference bindings of a scalar void writer. Direct
+    /// substitution preserves writes through them without an owning copy.
+    fn scalar_writer_refs(&self, copy: &Body) -> Option<u64> {
+        if self.memo().is_none()
+            || copy
+                .sub_root
+                .first()
+                .is_none_or(|&r| copy.ty[r as usize] != Ty::VOID)
+            || !self.plain_memory(copy)
+        {
+            return None;
+        }
+        let mut mask = 0;
+        for (param, (&ty, &flags)) in copy
+            .local_ty
+            .iter()
+            .zip(&copy.local_flags)
+            .filter(|(_, flags)| **flags & local_flags::PARAM != 0)
+            .enumerate()
+        {
+            if self.local_reference_type(ty) {
+                if param >= 64 || flags & (local_flags::ASSIGNED | local_flags::CAPTURED) != 0 {
+                    return None;
+                }
+                mask |= 1 << param;
+            }
+        }
+        (mask != 0).then_some(mask)
+    }
+
     /// Whether each reference parameter of `def` at `targs` is a declared
     /// local reference, `&T` or `&mut T`, whatever the body does through it.
     fn only_local_references(&self, def: DefId, targs: TyList) -> bool {
@@ -1112,13 +1234,11 @@ impl dyn InlineEnv + '_ {
             .is_some_and(|(params, _, _)| params.iter().any(|&t| self.local_reference_type(t)))
     }
 
-    /// Whether `copy` only moves scalars through plain memory: every call it
-    /// makes never returns, like a panic, or is the compiler's own code, and
-    /// it touches no collection or counted value. Its copy leaves no call on
-    /// a path that goes on and no count for the passes to place, whose rules
-    /// for a `&mut` parameter do not cover a copy's local holding it. It can
-    /// reach no alias either, so a binding's loan ending at its last use and
-    /// not at the return changes nothing (`ref.excl.alias.call-loan`).
+    /// The existing cost filter: local references and value-layout types,
+    /// no element places or lowered collection intrinsics, and no continuing
+    /// calls except compiler intrinsics. Value-layout aggregates may still
+    /// hold counted fields. Counts are placed after copying; a writer's
+    /// call site separately proves its storage origin and loan boundary.
     fn plain_memory(&self, copy: &Body) -> bool {
         let scalar = |t: Ty| {
             !self.is_open(t)
@@ -1228,9 +1348,6 @@ impl dyn InlineEnv + '_ {
     }
 }
 
-/// A read of an unchanged reference parameter retains a visible origin
-/// after substitution: the ownership walk follows the read back to that
-/// parameter. References held in fields or call results lack this proof.
 /// Appends a record of `words` to `body`'s `extra`; its offset.
 fn push_record(body: &mut Body, words: &[u32]) -> u32 {
     let at = u32::try_from(body.extra.len()).expect("extra");
@@ -1239,6 +1356,172 @@ fn push_record(body: &mut Body, words: &[u32]) -> u32 {
     at
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum WriterOrigin {
+    Local(u32),
+    Parameter(u32),
+}
+
+/// Plain local storage has no dynamic alias loan. An unchanged reference
+/// parameter already has the enclosing call's loan. Keep other arguments'
+/// call boundaries, including counted-pointer paths and shared variables.
+fn writer_origins(body: &Body) -> Vec<Option<WriterOrigin>> {
+    writer_origins_counted(body, || {})
+}
+
+/// Count each row and each distinct place's projection once. The call-site
+/// walk never follows a projection chain anew for each reference to it.
+fn writer_origins_counted(body: &Body, mut visit: impl FnMut()) -> Vec<Option<WriterOrigin>> {
+    let mut shared = vec![false; body.local_ty.len()];
+    for (&local, &mode) in body.cap_local.iter().zip(&body.cap_mode) {
+        visit();
+        shared[local.idx()] |= mode.shares();
+    }
+    let mut places = HashMap::default();
+    let mut origin = vec![None; body.len()];
+    for i in 0..body.len() {
+        visit();
+        origin[i] = match body.tags[i] {
+            Tag::Ref => *places.entry(body.data[i][0]).or_insert_with(|| {
+                let place = body.view(body.data[i][0]);
+                place
+                    .local()
+                    .filter(|&local| {
+                        !shared[local as usize]
+                            && place.steps(body).all(|step| {
+                                visit();
+                                matches!(step, Proj::Field(_) | Proj::Variant(_))
+                            })
+                    })
+                    .map(WriterOrigin::Local)
+            }),
+            Tag::Read => body
+                .local_read(i)
+                .filter(|local| {
+                    let flags = body.local_flags[local.idx()];
+                    flags & local_flags::PARAM != 0
+                        && flags & (local_flags::ASSIGNED | local_flags::CAPTURED) == 0
+                })
+                .map(|local| WriterOrigin::Parameter(local.raw())),
+            Tag::Coerce
+                if body.record(body.data[i][1]).first()
+                    == Some(&(hd_tir::ir::Coercion::Identity as u32)) =>
+            {
+                Ref(body.data[i][0])
+                    .as_inst()
+                    .and_then(|value| origin[value.0 as usize])
+            }
+            _ => None,
+        };
+    }
+    origin
+}
+
+/// One index of the call's at most 64 reference arguments, then one
+/// reader walk. No reader rescans the writers or follows a place chain.
+fn independent_writer_values(
+    args: &[u32],
+    candidates: u64,
+    writable: u64,
+    origins: &[Option<WriterOrigin>],
+) -> u64 {
+    let origin = |arg: u32| {
+        Ref(arg)
+            .as_inst()
+            .and_then(|i| origins.get(i.0 as usize))
+            .copied()
+            .flatten()
+    };
+    let mut locals = HashSet::default();
+    let mut external = false;
+    for (k, &arg) in args.iter().enumerate().take(64) {
+        if writable & (1 << k) == 0 {
+            continue;
+        }
+        match origin(arg) {
+            Some(WriterOrigin::Local(local)) => {
+                locals.insert(local);
+            }
+            Some(WriterOrigin::Parameter(_)) => external = true,
+            None => return 0,
+        }
+    }
+    args.iter()
+        .enumerate()
+        .take(64)
+        .filter(|&(k, &arg)| {
+            candidates & (1 << k) != 0
+                && origin(arg).is_some_and(|source| match source {
+                    WriterOrigin::Local(local) => !locals.contains(&local),
+                    WriterOrigin::Parameter(_) => !external,
+                })
+        })
+        .fold(0, |mask, (k, _)| mask | 1 << k)
+}
+
+/// Count uses once for the caller, rather than walking it separately for
+/// each writer's argument. Cleanup-only uses do not expose an address.
+fn writer_uses(body: &Body) -> Vec<u32> {
+    writer_uses_counted(body, || {})
+}
+
+fn writer_uses_counted(body: &Body, mut visit: impl FnMut()) -> Vec<u32> {
+    let mut uses = vec![0u32; body.len()];
+    for i in 0..body.len() {
+        visit();
+        if matches!(body.tags[i], Tag::Drop | Tag::LoanEnd) {
+            continue;
+        }
+        hd_tir::ir::slots(body, i, |_, value, word| {
+            if matches!(
+                word,
+                hd_tir::ir::Word::Value(_) | hd_tir::ir::Word::Provider
+            ) {
+                visit();
+                if let Some(inst) = Ref(value).as_inst()
+                    && let Some(count) = uses.get_mut(inst.0 as usize)
+                {
+                    *count = count.saturating_add(1);
+                }
+            }
+        });
+    }
+    uses
+}
+
+/// Only the call reads this evaluated shared address. Replacing it by a
+/// scalar read cannot change another use of the same reference value.
+fn fresh_writer_args(body: &Body, call: usize, uses: &[u32]) -> u64 {
+    hd_tir::inline::arguments(body, call)
+        .iter()
+        .enumerate()
+        .take(64)
+        .filter(|&(_, &arg)| {
+            Ref(arg).as_inst().is_some_and(|inst| {
+                let i = inst.0 as usize;
+                body.tags[i] == Tag::Ref && body.data[i][1] & ref_word::MUT == 0 && uses[i] == 1
+            })
+        })
+        .fold(0, |mask, (k, _)| mask | 1 << k)
+}
+
+fn writer_arguments(body: &Body, call: usize, mask: u64, origins: &[Option<WriterOrigin>]) -> bool {
+    hd_tir::inline::arguments(body, call)
+        .iter()
+        .enumerate()
+        .take(64)
+        .filter(|&(k, _)| mask & (1 << k) != 0)
+        .all(|(_, &arg)| {
+            let Some(i) = Ref(arg).as_inst().map(|v| v.0 as usize) else {
+                return false;
+            };
+            origins[i].is_some()
+        })
+}
+
+/// A read of an unchanged reference parameter retains a visible origin
+/// after substitution: the ownership walk follows the read back to that
+/// parameter. References held in fields or call results lack this proof.
 fn reference_read_args(body: &Body, call: usize) -> u64 {
     hd_tir::inline::arguments(body, call)
         .iter()
@@ -1521,6 +1804,80 @@ mod tests {
     use hd_types::{InternPool, Ty, TyData};
 
     use super::{bottom_up, keep_parameter_kind};
+
+    #[test]
+    fn scalar_writer_values_require_independent_storage() {
+        use super::WriterOrigin::{Local, Parameter};
+        let origins = [
+            Some(Local(0)),
+            Some(Local(1)),
+            Some(Parameter(2)),
+            Some(Parameter(3)),
+            None,
+        ];
+        for (args, expected) in [
+            ([0, 1], 1), // Different private locals.
+            ([0, 0], 0), // Two parts of one local may overlap.
+            ([0, 2], 1), // An external parameter cannot point at a private local.
+            ([2, 0], 1),
+            ([2, 3], 0), // Different parameters may point at the same storage.
+            ([0, 4], 0), // Unknown writer origin keeps every reader's address.
+        ] {
+            assert_eq!(
+                super::independent_writer_values(&args, 1, 2, &origins),
+                expected
+            );
+        }
+    }
+
+    /// Width does not multiply projection depth: references to one place
+    /// share its classification, including across identity SSA chains.
+    #[test]
+    fn scalar_writer_origins_share_deep_places_in_bounded_rounds() {
+        for (width, depth) in [(1000usize, 20usize), (10000, 20), (20, 1000)] {
+            let pool = InternPool::new();
+            let mut nested = Ty::I32;
+            for _ in 0..depth {
+                nested = pool.intern_ty(&TyData::Tuple {
+                    elems: pool.list(&[nested]),
+                    rest: None,
+                });
+            }
+            let reference = pool.intern_ty(&TyData::Ref {
+                inner: Ty::I32,
+                mutable: true,
+                counted: false,
+            });
+            let mut body = Body::new(DefId::from_raw(1), BodyKind::Fn);
+            body.local_ty = vec![nested];
+            body.local_flags = vec![0];
+            let mut words = vec![place::ROOT_LOCAL, 0];
+            words.extend(std::iter::repeat_n(place::PROJ_FIELD, depth));
+            body.extra.push(super::index_word(words.len()));
+            body.extra.extend(words);
+            let identity = super::push_record(&mut body, &[hd_tir::ir::Coercion::Identity as u32]);
+            for i in 0..width {
+                body.tags.push(Tag::Ref);
+                body.data.push([0, hd_tir::ir::ref_word::MUT]);
+                body.ty.push(reference);
+                body.tags.push(Tag::Coerce);
+                body.data.push([super::index_word(i * 2), identity]);
+                body.ty.push(reference);
+            }
+            let mut visits = 0;
+            for _ in 0..super::MAX_ROUNDS {
+                let origins = super::writer_origins_counted(&body, || visits += 1);
+                let uses = super::writer_uses_counted(&body, || visits += 1);
+                assert_eq!(uses.iter().sum::<u32>(), super::index_word(width));
+                assert!(
+                    origins
+                        .iter()
+                        .all(|&private| private == Some(super::WriterOrigin::Local(0)))
+                );
+            }
+            assert_eq!(visits, super::MAX_ROUNDS * (width * 5 + depth));
+        }
+    }
 
     /// A counted parameter flows through the unique binding local of an
     /// already-inlined method. A local with another write stays local:

@@ -2,22 +2,10 @@
 (module
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "retain" (func $retain (param i32)))
-  (import "fixture" "impl string.len" (func $"impl string.len" (param i32 i32) (result i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 4 funcref))
-  (func $"impl Dog for Pup.bark'1" (param $self.name.0 i32) (param $self.name.1 i32) (result i32 i32)
-    ;; 23 |         "woof"
-    block
-      i32.const 65 ;; &"woof"
-      i32.const 4
-      local.set $self.name.1
-      local.set $self.name.0
-    end
-    local.get $self.name.0
-    local.get $self.name.1
-  )
   (func $name_of (param $a.0 i32) (param $a.1 i32) (result i32)
     ;; 26 |     a.name().len()
     block
@@ -42,7 +30,38 @@
     end
     local.get $a.0
   )
-  (func $use_pup (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32) (local $p i32) (local $t3 i32) (local $t4 i32)
+  (func $"loud[Pup]" (param $d.name.0 i32) (param $d.name.1 i32) (result i32) (local $t0 i32)
+    ;; 32 |     d.name().len() + d.bark().len()
+    block
+      local.get $d.name.0
+      if
+        local.get $d.name.0
+        call $rt:release_ref
+      end
+      block
+        block
+          i32.const 65 ;; &"woof"
+          i32.const 4
+          local.set $t0
+          drop
+          br 0
+        end
+      end
+      block
+        block
+          local.get $t0
+          local.set $d.name.0
+          br 0
+        end
+      end
+      local.get $d.name.1
+      local.get $d.name.0
+      i32.add
+      local.set $d.name.0
+    end
+    local.get $d.name.0
+  )
+  (func $use_pup (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32) (local $p i32)
     ;; 35 |     widen(&p) + loud(p)
     global.get $locals
     global.get $locals_base
@@ -87,19 +106,18 @@
     i32.store $heap offset=4
     block
       local.get $p
-      local.tee $t3
+      local.tee $t1
       if
-        local.get $t3
+        local.get $t1
         call $retain
       end
       local.get $p
-      i32.const 168 ;; &vtable[func26]
+      i32.const 168 ;; &vtable[func24]
       call $widen
-      local.set $t1
       local.get $p
-      local.tee $t3
+      local.tee $t1
       if
-        local.get $t3
+        local.get $t1
         call $rt:release_ref
       end
       local.get $p
@@ -112,49 +130,7 @@
       local.get $p
       i32.const 0
       i32.store $heap offset=4
-      local.set $p
-      local.set $t2
-      block
-        block
-          local.get $t2
-          local.get $p
-          call $"impl Animal for Pup.name'1"
-          local.set $t4
-          local.tee $t3
-          local.get $t4
-          call $"impl string.len"
-          local.get $t3
-          local.tee $t3
-          if
-            local.get $t3
-            call $rt:release_ref
-          end
-          local.get $t2
-          local.get $p
-          call $"impl Dog for Pup.bark'1"
-          local.set $t3
-          local.tee $p
-          local.get $t3
-          call $"impl string.len"
-          local.get $p
-          local.tee $t3
-          if
-            local.get $t3
-            call $rt:release_ref
-          end
-          i32.add
-          local.set $p
-          br 0
-        end
-      end
-      local.get $t2
-      local.tee $t3
-      if
-        local.get $t3
-        call $rt:release_ref
-      end
-      local.get $t1
-      local.get $p
+      call $"loud[Pup]"
       i32.add
       local.set $t1
     end
@@ -164,7 +140,7 @@
     i32.add
     global.set $locals
   )
-  (func $"impl Animal for Pup.name'2" (param $self i32) (result i32 i32) (local $t0 i32) (local $t1 i32)
+  (func $"impl Animal for Pup.name" (param $self i32) (result i32 i32) (local $t0 i32) (local $t1 i32)
     ;; 19 |         self.name
     block
       local.get $self
@@ -182,20 +158,7 @@
     local.get $self
     local.get $t0
   )
-  (func $"impl Animal for Pup.name'1" (param $self.name.0 i32) (param $self.name.1 i32) (result i32 i32) (local $t0 i32)
-    ;; 19 |         self.name
-    block
-      local.get $self.name.0
-      local.tee $t0
-      if
-        local.get $t0
-        call $retain
-      end
-    end
-    local.get $self.name.0
-    local.get $self.name.1
-  )
-  (func $"impl Dog for Pup.bark'2" (param $self i32) (result i32 i32) (local $t0 i32)
+  (func $"impl Dog for Pup.bark" (param $self i32) (result i32 i32) (local $t0 i32)
     ;; 23 |         "woof"
     block
       i32.const 65 ;; &"woof"

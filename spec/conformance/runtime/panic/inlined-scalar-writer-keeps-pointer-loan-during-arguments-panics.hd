@@ -1,0 +1,18 @@
+# test: a conditionally unused scalar receiver keeps its loan while a later argument mutates a pointer alias
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.call-loan, ref.excl.alias.conflict.
+struct State:
+    value: i32
+
+fn write(state: &mut State, enabled: bool) -> void:
+    if enabled:
+        state.value = +1
+
+fn change(alias: *mut State) -> bool:
+    alias.value = +2 # panic: borrow-conflict
+    false
+
+tests:
+    it("the later argument cannot write the lent pointer"):
+        held := box(State { value: +0 })
+        alias := held
+        write(&mut *held, change(alias))

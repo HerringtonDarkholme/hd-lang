@@ -1,0 +1,13 @@
+# @dump: own wat
+# @build: v8 release
+# expected: two enclosing reference parameters have no proven disjoint storage, so the reader keeps its address.
+struct State:
+    input: u32
+    output: u64
+
+fn write(value: &u32, state: &mut State) -> void:
+    state.input = state.input + 1
+    state.output = u64(*value)
+
+fn relay(value: &u32, state: &mut State) -> void:
+    write(value, state)

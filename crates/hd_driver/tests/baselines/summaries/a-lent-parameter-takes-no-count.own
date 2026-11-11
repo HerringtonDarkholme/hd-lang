@@ -58,7 +58,7 @@ fn remember(all: &mut List[Field], f: Field) -> void:
 fn total(f: Field, times: i64) -> i64:
 > app/main/total
 >   local $0 f: Field [param read] value
->     uses $0: entry -> %18 lend
+>     uses $0: entry -> %18 lend, %20 lend, %23 lend, %26 lend, %29 lend, %32 lend
 >   local $1 times: i64 [param read] value
 >     uses $1: entry -> %2 consume last
 >   local $2 sum: i64 [read assigned mutated] place
@@ -67,10 +67,10 @@ fn total(f: Field, times: i64) -> i64:
 >     uses $4: %7 -> %11 lend
 >   local $5 $incl: bool [assigned] value
 >     uses $5: none
->   %0 = Release %30 Exit local $0 #2 : ()
+>   %0 = Release %47 Exit local $0 #2 : ()
     let sum: i64 = 0
 >   %1 = Store [$2] 0:i64 : ()
->   %30 = Block %29 : i64
+>   %47 = Block %46 : i64
     for _ in 0..times:
 >   %2 = Read copy [$1] : i64
 >   %3 = NewStruct [0:i64 %2 0:bool] : Range[i64]
@@ -87,21 +87,38 @@ fn total(f: Field, times: i64) -> i64:
 >   %14 = Read copy [$3] : i64
 >   %15 = Prim Add [%14 1:i64] : i64
 >   %16 = Store [$3] %15 : ()
->   %23 = Block - : ()
->   %24 = Break L0 - : never
->   %25 = Block - : ()
->   %26 = If %12 [%23 %25] : ()
->   %27 = Block - : ()
->   %28 = Loop %27 - : ()
+>   %40 = Block - : ()
+>   %41 = Break L0 - : never
+>   %42 = Block - : ()
+>   %43 = If %12 [%40 %42] : ()
+>   %44 = Block - : ()
+>   %45 = Loop %44 - : ()
         sum = sum + weight(f)
 >   %17 = Read copy [$2] : i64
->   %18 = Read borrow [$0] : Field
->   %19 = Call app/main/weight[] (%18) : i64
->   %20 = Retain %19 Operation operand 0 #0 : ()
->   %21 = Prim Add [%17 %19] : i64
->   %22 = Store [$2] %21 : ()
+>   %18 = Read copy [$0 .n] : i64
+>   %19 = Prim Add [%18 1:i64] : i64
+>   %20 = Read copy [$0 .n] : i64
+>   %21 = Prim Add [%20 2:i64] : i64
+>   %22 = Prim Mul [%19 %21] : i64
+>   %23 = Read copy [$0 .n] : i64
+>   %24 = Prim Add [%23 3:i64] : i64
+>   %25 = Prim Mul [%22 %24] : i64
+>   %26 = Read copy [$0 .n] : i64
+>   %27 = Prim Add [%26 4:i64] : i64
+>   %28 = Prim Mul [%25 %27] : i64
+>   %29 = Read copy [$0 .n] : i64
+>   %30 = Prim Add [%29 5:i64] : i64
+>   %31 = Prim Mul [%28 %30] : i64
+>   %32 = Read copy [$0 .n] : i64
+>   %33 = Prim Add [%32 6:i64] : i64
+>   %34 = Prim Div [%31 %33] : i64
+>   %35 = Break L1 %34 : never
+>   %36 = Block - : i64
+>   %37 = Scope %36 [] : i64
+>   %38 = Prim Add [%17 %37] : i64
+>   %39 = Store [$2] %38 : ()
     sum
->   %29 = Read copy [$2] : i64
+>   %46 = Read copy [$2] : i64
 >   summary kept [] borrows [$0]
 
 fn collect(f: Field) -> usize:
