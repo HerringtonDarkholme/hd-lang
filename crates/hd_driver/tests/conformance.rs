@@ -43,7 +43,9 @@
 //! a release-only pass that leaves a body broken, on either pipeline,
 //! fails its case as `unsupported:Collect` (#851).
 
-//! `HD_TEST_TIMINGS=1` logs per-case or per-command wall times for profiling.
+//! `HD_TEST_TIMINGS=1` logs each case's wall time for profiling, with its
+//! split: each build's wall time and stage times by task kind, and the
+//! time in the Node worker.
 
 use hd_base::SliceSort as _;
 use std::cell::RefCell;
@@ -430,6 +432,50 @@ impl<'a> Modules<'a> {
     }
 }
 
+/// Whether `HD_TEST_TIMINGS` is set: each case then logs its time split.
+fn timings() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var_os("HD_TEST_TIMINGS").is_some())
+}
+
+/// A wall clock for a build's stage times, under [`timings`] only.
+struct WallClock(Instant);
+
+impl hd_driver::Clock for WallClock {
+    fn now_ns(&self) -> u64 {
+        u64::try_from(self.0.elapsed().as_nanos()).unwrap_or(u64::MAX)
+    }
+}
+
+/// One case's time split under [`timings`]: each build's goal, wall time
+/// and stage times by task kind, and the time in the Node worker.
+#[derive(Default)]
+struct Split {
+    builds: Vec<(&'static str, Duration, BTreeMap<&'static str, u64>)>,
+    node: Duration,
+}
+
+thread_local! {
+    static SPLIT: RefCell<Split> = RefCell::new(Split::default());
+}
+
+/// The case's [`Split`] as one tab-separated line, reset for the next case.
+fn take_split() -> String {
+    let split = SPLIT.with(|s| std::mem::take(&mut *s.borrow_mut()));
+    let ms = |d: Duration| d.as_secs_f64() * 1e3;
+    let mut line = String::new();
+    for (goal, wall, stages) in &split.builds {
+        let _ = write!(line, "\t{goal} {:.1}", ms(*wall));
+        let mut stages: Vec<_> = stages.iter().filter(|(_, ns)| **ns >= 500_000).collect();
+        stages.sort_stable_by_key(|(_, ns)| std::cmp::Reverse(**ns));
+        for (kind, ns) in stages {
+            let _ = write!(line, " [{kind} {:.1}]", ms(Duration::from_nanos(*ns)));
+        }
+    }
+    let _ = write!(line, "\tnode {:.1}", ms(split.node));
+    line
+}
+
 /// [`build_sources`] for `target`.
 fn build_for(
     fixture: &Fixture,
@@ -438,11 +484,12 @@ fn build_for(
     goal: &Goal,
     target: EngineTarget,
 ) -> Output {
+    let wall = WallClock(Instant::now());
     let host = Host {
         render_tir: &[],
         sources,
         store,
-        clock: &NoClock,
+        clock: if timings() { &wall } else { &NoClock },
         executor: Executor::Serial(SerialOrder::Priority),
     };
     let packages = Packages {
@@ -489,7 +536,19 @@ fn build_for(
         std_leaf: (fixture.package == "std").then_some(fixture.primary.as_str()),
         ..Packages::default()
     };
-    build_packages(&host, fixture.package, &packages, goal)
+    let out = build_packages(&host, fixture.package, &packages, goal);
+    if timings() {
+        let name = match goal {
+            Goal::Program { .. } => "program",
+            Goal::Tests { .. } => "tests",
+            Goal::Scenario { .. } => "scenario",
+            Goal::CheckTests => "check",
+            _ => "other",
+        };
+        let stages = out.counters.stage_ns.clone();
+        SPLIT.with(|s| s.borrow_mut().builds.push((name, wall.0.elapsed(), stages)));
+    }
+    out
 }
 
 /// The host capability traits of the fixture's runtime profile, as the
@@ -1149,8 +1208,8 @@ fn report_runtime(cases: &[Case], results: &[Verdict], elapsed: Duration) {
 /// worker thread (`host/conformance-worker.ts`), started once.
 /// Each case gets a fresh host; the worker never reuses one. A case that
 /// kills its worker restarts it and reports a plain runtime failure, the
-/// same verdict a fresh process's non-zero exit gives. The test harness
-/// below still spawns a fresh process per program.
+/// same verdict a fresh process's non-zero exit gives. A test program runs
+/// in a fresh worker thread of that process (`host/test-run.ts`).
 fn run_wasm(wasm: &[u8], serial: usize, profile: Option<&str>) -> std::io::Result<Ran> {
     in_worker(wasm, serial, profile, None)
 }
@@ -1160,6 +1219,28 @@ fn run_wasm(wasm: &[u8], serial: usize, profile: Option<&str>) -> std::io::Resul
 /// `host/test.ts` runs them. A request that kills the worker is tried
 /// once more on a fresh one.
 fn in_worker(
+    wasm: &[u8],
+    serial: usize,
+    profile: Option<&str>,
+    tests: Option<&str>,
+) -> std::io::Result<Ran> {
+    let _timed = Timed(Instant::now());
+    in_worker_untimed(wasm, serial, profile, tests)
+}
+
+/// Adds the time since it started to the case's Node time when dropped.
+struct Timed(Instant);
+
+impl Drop for Timed {
+    fn drop(&mut self) {
+        if timings() {
+            SPLIT.with(|s| s.borrow_mut().node += self.0.elapsed());
+        }
+    }
+}
+
+/// [`in_worker`] without its time split.
+fn in_worker_untimed(
     wasm: &[u8],
     serial: usize,
     profile: Option<&str>,
@@ -1239,7 +1320,13 @@ fn ensure_worker(slot: &mut Option<EntryWorker>) -> std::io::Result<()> {
         *slot = None;
     }
     if slot.is_none() {
+        // V8's compile cache keeps the host's compiled modules across
+        // worker starts and runs: a start loads in about half the time.
         let mut child = Command::new("node")
+            .env(
+                "NODE_COMPILE_CACHE",
+                Path::new(env!("CARGO_TARGET_TMPDIR")).join("node-compile-cache"),
+            )
             .arg("--experimental-wasm-jspi")
             .arg(worker_script())
             .stdin(Stdio::piped())
@@ -1817,6 +1904,7 @@ fn scenario_run(
     } else {
         let started = Instant::now();
         let node_wasm = wasm.node()?;
+        let _timed = Timed(started);
         let ran = ENTRY_WORKER.with(|slot| {
             let mut slot = slot.borrow_mut();
             ensure_worker(&mut slot)?;
@@ -2461,7 +2549,7 @@ fn workers() -> usize {
 /// file first. A runtime case costs about 30 times a type case on
 /// average, and the widest fixtures take many seconds to compile.
 fn run_all(cases: &[Case], store: &MemoryStore) -> Vec<Verdict> {
-    let timings = std::env::var_os("HD_TEST_TIMINGS").is_some();
+    let timings = timings();
     let size =
         |case: &Case| std::fs::metadata(suite_root().join(&case.path)).map_or(0, |m| m.len());
     let mut order: Vec<usize> = (0..cases.len()).collect();
@@ -2471,13 +2559,21 @@ fn run_all(cases: &[Case], store: &MemoryStore) -> Vec<Verdict> {
     });
     pool(cases.len(), &order, |serial| {
         let case = &cases[serial];
+        // The thread's Node worker starts while the case builds, so the
+        // first run on each thread does not wait for Node to load.
+        if case.phase == Phase::Runtime && engine_mode() != EngineMode::WasmtimeOnly {
+            ENTRY_WORKER.with(|slot| {
+                let _ = ensure_worker(&mut slot.borrow_mut());
+            });
+        }
         let started = timings.then(Instant::now);
         let verdict = caught(|| run_case(case, store, serial));
         if let Some(started) = started {
             eprintln!(
-                "conformance-case\t{}\t{:.6}",
+                "conformance-case\t{}\t{:.6}{}",
                 case.path,
-                started.elapsed().as_secs_f64()
+                started.elapsed().as_secs_f64(),
+                take_split()
             );
         }
         verdict

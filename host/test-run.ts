@@ -50,6 +50,43 @@ export function configOf(spec: string): Dynamic {
   return spec.endsWith(".json") ? JSON.parse(readFileSync(spec, "utf8")) : plain(spec);
 }
 
+// A worker that has loaded this module and waits for the run it is posted
+// (`{ module, config, start }`), or null. A thread loads the host in about
+// 40-60 ms, so a caller starts one ahead (`prestart`) while it compiles the
+// program or builds the next one. It runs one program and is never reused,
+// so each program still gets a fresh thread. Unreferenced while it waits,
+// so it never keeps the process alive.
+let spare: { worker: WorkerType; exited: boolean } | null = null;
+
+function startWorker(): { worker: WorkerType; exited: boolean } {
+  const worker = new Worker(new URL(import.meta.url), { workerData: { hdTestRun: true } });
+  const started = { worker, exited: false };
+  worker.once("exit", () => {
+    started.exited = true;
+  });
+  return started;
+}
+
+// Starts the next run's worker now, unless one already waits.
+export function prestart(): void {
+  if (spare === null || spare.exited) {
+    spare = startWorker();
+    spare.worker.unref();
+    // A spare that fails to load is replaced when it is taken; the run's
+    // own worker reports a failure that happens again.
+    spare.worker.on("error", () => {});
+  }
+}
+
+// The waiting worker, or a new one, given its run.
+function takeWorker(run: DynamicRecord): WorkerType {
+  const taken = spare !== null && !spare.exited ? spare : startWorker();
+  spare = null;
+  taken.worker.ref();
+  taken.worker.postMessage(run);
+  return taken.worker;
+}
+
 // Runs the cases in a worker from `start` (a case index, and for a table
 // resumed after a stopped row, its next row and its row count), restarting
 // it after each run it stops for overrunning its timeout. Each result
@@ -63,9 +100,7 @@ export async function supervise(
   const stoppedWorkers: WorkerType[] = [];
   while (start.case < config.cases.length) {
     start = await new Promise((next, fail) => {
-      const worker = new Worker(new URL(import.meta.url), {
-        workerData: { hdTestRun: true, module, config, start },
-      });
+      const worker = takeWorker({ module, config, start });
       // What the worker runs: its case, the row of a table and its count,
       // and the current run's timeout.
       let at = { ci: start.case, row: start.row > 0 ? start.row : null, rows: start.rows || null };
@@ -181,12 +216,14 @@ export async function supervise(
 }
 
 if (workerData?.hdTestRun === true) {
+  // The run arrives once the supervisor takes this worker (`takeWorker`).
+  const run: Dynamic = await new Promise((resolve) => parentPort!.once("message", resolve));
   await runCases(
     {
-      module: workerData.module,
-      config: workerData.config,
+      module: run.module,
+      config: run.config,
       createHost: (sink, env) => {
-        env.module = workerData.module;
+        env.module = run.module;
         return createHost(sink, env);
       },
       files: nodeFiles,
@@ -194,6 +231,6 @@ if (workerData?.hdTestRun === true) {
       emit: (record) =>
         parentPort!.postMessage({ type: "line", text: JSON.stringify(record) + "\n" }),
     },
-    workerData.start,
+    run.start,
   );
 }

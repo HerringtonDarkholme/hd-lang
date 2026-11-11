@@ -33,7 +33,7 @@
 // One JSON line per result record (cases.ts) goes to standard output.
 import { readFileSync, writeSync } from "node:fs";
 import { exitPast } from "./node.ts";
-import { configOf, supervise } from "./test-run.ts";
+import { configOf, prestart, supervise } from "./test-run.ts";
 
 // Writes all of `text` to standard output. A pipe takes a long line, such
 // as one with many frames, in several writes, and refuses a write while
@@ -52,6 +52,8 @@ function writeOut(text: string): void {
   }
 }
 
+// The cases' worker loads the host while the program compiles.
+prestart();
 const compiled = await WebAssembly.compile(readFileSync(process.argv[2]));
 // Every result is written; `hd` reads the results, not the status.
 exitPast(await supervise(compiled, configOf(process.argv[3] ?? ""), writeOut));

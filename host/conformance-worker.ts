@@ -42,7 +42,7 @@ import { entryCancel } from "./core.ts";
 import { cycleReport } from "./checked-report.ts";
 import { createHost } from "./node.ts";
 import { providers } from "./profiles.ts";
-import { configOf, supervise } from "./test-run.ts";
+import { configOf, prestart, supervise } from "./test-run.ts";
 import type { Host } from "./core.ts";
 
 type Dynamic = ReturnType<typeof JSON.parse>;
@@ -283,6 +283,9 @@ async function runTests(header: Dynamic, wasm: BufferSource): Promise<Dynamic> {
   }
 }
 
+// A test program's worker thread loads while the driver builds the next
+// case, so a test case waits only for its own run.
+prestart();
 for (;;) {
   const msg = readFrame();
   if (msg === null) {
@@ -293,5 +296,6 @@ for (;;) {
     typeof header.tests === "string"
       ? await runTests(header, wasm)
       : await runEntry(header, wasm, stdinText);
+  prestart();
   writeFrame(header.id, status, Buffer.from(stdoutStr, "utf8"), Buffer.from(stderrStr, "utf8"));
 }
