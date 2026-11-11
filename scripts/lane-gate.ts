@@ -267,7 +267,13 @@ const crateRule: Rule = (ctx) => {
     );
   }
   for (const name of observers) {
-    steps.push(step(name, "dependent whose tests observe checker output", cargoTest("-p", name, "--test", "all")));
+    steps.push(
+      step(
+        name,
+        "dependent whose tests observe checker output",
+        cargoTest("-p", name, "--test", "all"),
+      ),
+    );
   }
   return steps;
 };
