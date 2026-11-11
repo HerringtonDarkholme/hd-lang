@@ -179,10 +179,10 @@
     },
     {
       "program": "bench/study/dyn_iter.hd",
-      "retained": "300003",
-      "released": "600030",
+      "retained": "0",
+      "released": "300027",
       "uniques": "0",
-      "total": "900033",
+      "total": "300027",
       "noOpsAndSkipped": "200800014"
     },
     {
