@@ -18,7 +18,9 @@
 //                     (normal and build edges, transitively), plus the direct
 //                     dev-dependents of a touched crate. Crates outside the default
 //                     members (hd_run_wasmtime) are CI's.
-//   tests of a crate  hd_driver, hd_check, hd_wasm: `--lib --test stages`;
+//   tests of a crate  hd_driver, hd_check, hd_wasm: `--lib --test stages`; hd_check's
+//                     also run when any compiler crate is selected, since its
+//                     stage baselines dump later stages through hd_testkit;
 //                     hd_cli: `--bins` when touched, plus `--test all` for the test
 //                     modules the diff changes; every other touched crate: all its targets; a
 //                     selected crate that is only a dependent: clippy's type check
@@ -280,15 +282,22 @@ const crateRule: Rule = (ctx) => {
 
 const stageRule: Rule = (ctx) => {
   const steps: Step[] = [];
-  const stages = (crate: string, name: string) => {
-    if (ctx.selected.has(crate) && !ctx.stagesDone) {
-      steps.push(
-        step(name, `${crate} selected`, cargoTest("-p", crate, "--lib", "--test", "stages")),
-      );
+  const stages = (crate: string, name: string, why = `${crate} selected`) => {
+    if (!ctx.stagesDone) {
+      steps.push(step(name, why, cargoTest("-p", crate, "--lib", "--test", "stages")));
     }
   };
-  stages("hd_check", "check_stages");
-  stages("hd_wasm", "wasm_stages");
+  // hd_check's stage cases dump own, counts and wat through hd_testkit, a
+  // dev-dependency, so a later stage's change reaches its baselines without
+  // selecting it.
+  if (ctx.selected.has("hd_check")) {
+    stages("hd_check", "check_stages");
+  } else if (anyOf(ctx.selected, COMPILER_CRATES)) {
+    stages("hd_check", "check_stages", "a compiler stage selected: hd_check's baselines dump it");
+  }
+  if (ctx.selected.has("hd_wasm")) {
+    stages("hd_wasm", "wasm_stages");
+  }
   return steps;
 };
 
