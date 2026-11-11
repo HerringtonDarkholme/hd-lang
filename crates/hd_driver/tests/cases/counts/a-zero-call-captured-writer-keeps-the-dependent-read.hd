@@ -1,5 +1,5 @@
 # @dump: own counts wat
-# @build: v8 dev program checked
+# @build: v8 dev program
 # A closure captures `ps` and `h` as cells, so their element and field
 # reads copy, and each copy drops right after the call that lends it.
 # The dependent result `d` points into what the root holds: `Drop [$ps]`

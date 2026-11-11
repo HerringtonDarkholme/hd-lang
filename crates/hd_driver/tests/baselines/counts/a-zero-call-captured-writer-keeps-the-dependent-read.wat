@@ -3,13 +3,13 @@
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
   (import "fixture" "rt:panic'1" (func $rt:panic'1))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "skipped_test" (func $skipped_test))
-  (import "fixture" "rt:new" (func $rt:new (param i32 i32) (result i32)))
+  (import "fixture" "rt:new/class-1'1" (func $rt:new/class-1'1 (param i32 i32) (result i32)))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:panic'3" (func $rt:panic'3))
   (import "fixture" "rt:panic'4" (func $rt:panic'4))
   (import "fixture" "rt:list_buf" (func $rt:list_buf (param i32) (result i32)))
+  (import "fixture" "rt:new/class-1'2" (func $rt:new/class-1'2 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "rt:panic'5" (func $rt:panic'5))
@@ -75,11 +75,7 @@
       if
         local.get $f.1
         call $rt:release_ref
-      else
-        call $skipped_test
       end
-    else
-      call $skipped_test
     end
   )
   (func $element#1 (param $env i32) (param $ctx i32) (local $t0 i32)
@@ -89,9 +85,9 @@
     local.set $env
     i32.const 8
     i32.const 5
-    call $rt:new
+    call $rt:new/class-1'1
     local.tee $ctx
-    i32.const 314 ;; &"b"
+    i32.const 113 ;; &"b"
     i32.store $heap
     local.get $ctx
     i32.const 1
@@ -145,11 +141,7 @@
       if
         local.get $t0
         call $rt:release_ref
-      else
-        call $skipped_test
       end
-    else
-      call $skipped_test
     end
     local.get $env
     local.get $ctx
@@ -162,9 +154,9 @@
     local.set $env
     i32.const 8
     i32.const 5
-    call $rt:new
+    call $rt:new/class-1'1
     local.tee $ctx
-    i32.const 455 ;; &"f"
+    i32.const 114 ;; &"f"
     i32.store $heap
     local.get $ctx
     i32.const 1
@@ -192,11 +184,7 @@
       if
         local.get $t0
         call $rt:release_ref
-      else
-        call $skipped_test
       end
-    else
-      call $skipped_test
     end
     local.get $env
     local.get $ctx
@@ -206,9 +194,9 @@
     ;; 24 |     let mut ps = [box(P { name: "a" })]
     i32.const 8
     i32.const 5
-    call $rt:new
+    call $rt:new/class-1'1
     local.tee $ps
-    i32.const 456 ;; &"a"
+    i32.const 115 ;; &"a"
     i32.store $heap
     local.get $ps
     i32.const 1
@@ -223,7 +211,7 @@
     i32.store $heap offset=16
     i32.const 4
     i32.const -2147483642
-    call $rt:new
+    call $rt:new/class-1'2
     local.tee $ps
     local.get $change.0
     i32.store $heap
@@ -231,7 +219,7 @@
     i32.const 6
     i32.const 4
     i32.const -2147483642
-    call $rt:new
+    call $rt:new/class-1'2
     local.tee $change.0
     local.get $ps
     i32.store $heap
@@ -267,11 +255,7 @@
       if
         local.get $t0
         call $rt:retain_known
-      else
-        call $skipped_test
       end
-    else
-      call $skipped_test
     end
     local.get $d
     call $name_of
@@ -288,11 +272,7 @@
       if
         local.get $t0
         call $rt:release_ref
-      else
-        call $skipped_test
       end
-    else
-      call $skipped_test
     end
     ;; 26 |     d := name_of(ps[0])
     local.set $d
@@ -395,11 +375,7 @@
       if
         local.get $t0
         call $rt:release_ref
-      else
-        call $skipped_test
       end
-    else
-      call $skipped_test
     end
     local.get $change.0
     local.get $change.1
@@ -432,16 +408,16 @@
     ;; 31 |     let mut h = Holder { p: box(P { name: "e" }) }
     i32.const 8
     i32.const 5
-    call $rt:new
+    call $rt:new/class-1'1
     local.tee $h
-    i32.const 457 ;; &"e"
+    i32.const 116 ;; &"e"
     i32.store $heap
     local.get $h
     i32.const 1
     i32.store $heap offset=4
     i32.const 4
     i32.const -2147483642
-    call $rt:new
+    call $rt:new/class-1'2
     local.tee $change.0
     local.get $h
     i32.store $heap
@@ -451,7 +427,7 @@
     i32.const 7
     i32.const 4
     i32.const -2147483642
-    call $rt:new
+    call $rt:new/class-1'2
     local.tee $change.0
     local.get $h
     i32.store $heap
@@ -476,11 +452,7 @@
       if
         local.get $t1
         call $rt:retain_known
-      else
-        call $skipped_test
       end
-    else
-      call $skipped_test
     end
     local.get $t0
     call $name_of
@@ -527,11 +499,7 @@
       if
         local.get $t1
         call $rt:release_ref
-      else
-        call $skipped_test
       end
-    else
-      call $skipped_test
     end
     ;; 34 |     repeat(0, change)
     i32.const 0
@@ -603,11 +571,7 @@
       if
         local.get $t1
         call $rt:release_ref
-      else
-        call $skipped_test
       end
-    else
-      call $skipped_test
     end
     local.get $change.0
     local.get $change.1
