@@ -6593,6 +6593,7 @@ runtime/valid/inlined-scalar-writer-mutates-its-local-receiver.hd	runtime	accept
 runtime/panic/inlined-scalar-writer-keeps-pointer-loan-during-arguments-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.conflict
 runtime/panic/inlined-scalar-writer-keeps-shared-loan-during-arguments-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.conflict
 runtime/valid/hash-of-scattered-usize-keys.hd	runtime	accept	std/hash.md#r-std-hash.hash-of-local
+runtime/valid/hash-of-usize-byte-oracle.hd	runtime	accept	std/hash.md#r-std-hash.default.algorithm
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
