@@ -1349,7 +1349,10 @@ pub(crate) fn local_lending_calls(
     counts: &[u32],
     last: &[u32],
 ) -> Vec<u32> {
-    local_lending_calls_with(b, cx, counts, last, || {})
+    local_lending_calls_with(b, cx, counts, last, || {
+        #[cfg(test)]
+        super::effect_places::work(1);
+    })
 }
 
 /// One shared def-use proof, not one bounded alias walk per reference.

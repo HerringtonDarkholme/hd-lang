@@ -8,11 +8,11 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "println[i32]" (func $"println[i32]" (param i32 i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "rt:map_unique'1" (func $rt:map_unique'1 (param i32) (result i32)))
   (import "fixture" "rt:map_table'2" (func $rt:map_table'2 (param i32) (result i32)))
   (import "fixture" "rt:map_hash'2" (func $rt:map_hash'2 (param i32) (result i32)))
   (import "fixture" "rt:map_find'2" (func $rt:map_find'2 (param i32 i32 i32) (result i32)))
   (import "fixture" "rt:map_put'2" (func $rt:map_put'2 (param i32 i32 i32 i32 i32) (result i32)))
+  (import "fixture" "rt:map_unique'1" (func $rt:map_unique'1 (param i32) (result i32)))
   (import "fixture" "rt:map_unique'2" (func $rt:map_unique'2 (param i32) (result i32)))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
@@ -226,13 +226,6 @@
       call $rt:panic
       unreachable
     end
-    ;; 19 |     let mut items = { "a": +1 }
-    local.get $items
-    local.get $items
-    i32.load $heap
-    call $rt:map_unique'1
-    i32.store $heap
-    ;; 26 |     println(read(&items["a"]))
     local.get $items
     i32.load $heap
     local.tee $t1
@@ -421,7 +414,7 @@
     i32.ne
     if
       local.get $t0
-      call $rt:map_unique'2
+      call $rt:map_unique'1
       local.set $t0
     end
     local.get $t2
@@ -512,7 +505,7 @@
     i32.ne
     if
       local.get $t0
-      call $rt:map_unique'1
+      call $rt:map_unique'2
       local.set $t0
     end
     local.get $t2

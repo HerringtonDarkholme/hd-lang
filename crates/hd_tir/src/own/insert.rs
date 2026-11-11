@@ -54,6 +54,10 @@
 //!    collection), the base's own lists are made unique again right before
 //!    the `Ref`, which reads the base again. The reference counts nothing
 //!    (#1336 phase 10): the list's holder lives until its last use.
+//!    A local immutable address used by one read-only direct call is exempt
+//!    when its result holds no local reference and no intervening operation
+//!    can change storage (`readonly_elements`). Pointer checks and call loans
+//!    remain: only the redundant copy-on-write split is omitted.
 //!
 //! Why it is sound: on every path an owned value is consumed by its one
 //! use or dropped once, after its last use or before a jump that leaves
@@ -94,6 +98,8 @@ pub(crate) struct Tables {
     tracked: Vec<bool>,
     /// Immutable loop elements whose existing pre-loop read pins the buffer.
     pinned: Vec<bool>,
+    /// Immutable local addresses lent only to a read-only direct call.
+    readonly_elements: Vec<bool>,
     /// The uses of each tracked value, in compressed rows by value.
     pub(super) start: Vec<u32>,
     fill: Vec<u32>,
@@ -305,6 +311,7 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Res
     let framed = super::frame::runs_framed(b, topo, cx);
     super::storage::run(b, topo, cx, framed);
     pinned_elements(b, topo, &mut t.pinned);
+    t.readonly_elements = super::readonly_elements::Calls::new(b).elements(b, cx);
     for i in 0..n {
         t.tracked[i] = tracked(b, cx, i);
     }
@@ -809,6 +816,7 @@ fn uniqueness(b: &mut Body, topo: &Topology, t: &mut Tables, edits: &mut splice:
             Tag::Ref if t.pinned[i] => b.data[i][1] |= crate::ir::ref_word::PINS,
             Tag::Store | Tag::Ref => {
                 let pin = b.tags[i] == Tag::Ref;
+                let readonly = pin && t.readonly_elements[i];
                 let deref = path_lists(b, t, a);
                 // A place rooted at a read of a local's or a binding's
                 // place, which folding kept (a reference of an open type):
@@ -820,7 +828,8 @@ fn uniqueness(b: &mut Body, topo: &Topology, t: &mut Tables, edits: &mut splice:
                 // ran since that read (an index call may copy the
                 // collection): each list on the base's own path is made
                 // unique again first, outermost first, as a push's is.
-                if let Some(w) = base
+                if !readonly
+                    && let Some(w) = base
                     && w & place::BARE_LOCAL == 0
                 {
                     let lists = std::mem::take(&mut t.elems);
@@ -831,13 +840,18 @@ fn uniqueness(b: &mut Body, topo: &Topology, t: &mut Tables, edits: &mut splice:
                         edits.insert(blk, pos, Tag::IsUnique, [word, 0], Ty::VOID, syn);
                     }
                 }
-                for k in 0..t.elems.len() {
-                    let word = match base {
-                        Some(w) => graft(b, w, a, t.elems[k]),
-                        None => prefix(b, a, t.elems[k]),
-                    };
-                    edits.insert(blk, pos, Tag::IsUnique, [word, 0], Ty::VOID, syn);
+                if !readonly {
+                    for k in 0..t.elems.len() {
+                        let word = match base {
+                            Some(w) => graft(b, w, a, t.elems[k]),
+                            None => prefix(b, a, t.elems[k]),
+                        };
+                        edits.insert(blk, pos, Tag::IsUnique, [word, 0], Ty::VOID, syn);
+                    }
                 }
+                // Keep the re-rooting that `changes` planned even without
+                // a buffer split: its original projected read may already
+                // have been dropped, while the temporary's local stays live.
                 if let (Some(w), Some(v), false) = (base, root, t.elems.is_empty()) {
                     let w = match w & place::BARE_LOCAL {
                         0 => prefix(b, w, w + 1 + b.extra[w as usize]),
@@ -849,7 +863,10 @@ fn uniqueness(b: &mut Body, topo: &Topology, t: &mut Tables, edits: &mut splice:
                 }
                 // A change through a dereference reaches the referent, not
                 // the reads the reference came from.
-                if !deref && let Some(root) = root {
+                if !readonly
+                    && !deref
+                    && let Some(root) = root
+                {
                     through(b, topo, t, edits, root, pin);
                 }
             }

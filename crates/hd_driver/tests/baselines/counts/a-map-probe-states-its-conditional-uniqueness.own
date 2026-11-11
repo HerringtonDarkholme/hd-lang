@@ -65,7 +65,7 @@ pub fn main() -> void $ Console:
 >   %1 = Coerce 1:i32 [Identity -] : i32
 >   %2 = NewMap [%0 %1] : Map[string, i32]
 >   %3 = Store [$0] %2 : ()
->   %50 = Block - : ()
+>   %49 = Block - : ()
     saved := items
 >   %4 = Read copy [$0] : Map[string, i32]
 >   %5 = Store [$1] %4 : ()
@@ -103,42 +103,40 @@ pub fn main() -> void $ Console:
     println(read(&items["a"]))
 >   %25 = Read borrow [$0] : Map[string, i32]
 >   %26 = Intrinsic MapEntry [%25 "a"] : usize
->   %27 = IsUnique [$0] : ()
->   %28 = Ref local [$0 [%26]] : &i32
->   %29 = Call app/main/read[] (%28) : i32
->   %30 = LoanEnd [%28] : ()
->   %31 = Drop [$0] : ()
->   %32 = Call std/console/println[i32] (%29) : ()
+>   %27 = Ref local [$0 [%26]] : &i32
+>   %28 = Call app/main/read[] (%27) : i32
+>   %29 = LoanEnd [%27] : ()
+>   %30 = Drop [$0] : ()
+>   %31 = Call std/console/println[i32] (%28) : ()
 >   %25 finds [$0] full
 >   %27 finds [$0] full
->   %28 finds [$0] full
     let mut numbers: Map[usize, i32] = { 1: +3 }
->   %33 = NewMap [1:usize 3:i32] : Map[usize, i32]
->   %34 = Store [$2] %33 : ()
+>   %32 = NewMap [1:usize 3:i32] : Map[usize, i32]
+>   %33 = Store [$2] %32 : ()
     scalar(&mut numbers, 1)
->   %35 = Ref mut local frame [$2] : &mut Map[usize, i32]
->   %36 = Call app/main/scalar[] (%35, 1:usize) : ()
->   %37 = LoanEnd [%35] : ()
->   %35 finds [$2] full
+>   %34 = Ref mut local frame [$2] : &mut Map[usize, i32]
+>   %35 = Call app/main/scalar[] (%34, 1:usize) : ()
+>   %36 = LoanEnd [%34] : ()
+>   %34 finds [$2] full
     scalar(&mut numbers, 2)
->   %38 = Ref mut local frame [$2] : &mut Map[usize, i32]
->   %39 = Call app/main/scalar[] (%38, 2:usize) : ()
->   %40 = LoanEnd [%38] : ()
->   %38 finds [$2] full
+>   %37 = Ref mut local frame [$2] : &mut Map[usize, i32]
+>   %38 = Call app/main/scalar[] (%37, 2:usize) : ()
+>   %39 = LoanEnd [%37] : ()
+>   %37 finds [$2] full
     println(numbers[1])
->   %41 = Read borrow [$2] : Map[usize, i32]
->   %42 = Intrinsic MapEntry [%41 1:usize] : usize
->   %43 = Read copy [$2 [%42]] : i32
->   %44 = Call std/console/println[i32] (%43) : ()
->   %41 finds [$2] full
->   %43 finds [$2] full
+>   %40 = Read borrow [$2] : Map[usize, i32]
+>   %41 = Intrinsic MapEntry [%40 1:usize] : usize
+>   %42 = Read copy [$2 [%41]] : i32
+>   %43 = Call std/console/println[i32] (%42) : ()
+>   %40 finds [$2] full
+>   %42 finds [$2] full
     println(numbers[2])
->   %45 = Read borrow [$2] : Map[usize, i32]
->   %46 = Intrinsic MapEntry [%45 2:usize] : usize
->   %47 = Read copy [$2 [%46]] : i32
->   %48 = Drop [$2] : ()
->   %49 = Call std/console/println[i32] (%47) : ()
->   %45 finds [$2] full
->   %47 finds [$2] full
+>   %44 = Read borrow [$2] : Map[usize, i32]
+>   %45 = Intrinsic MapEntry [%44 2:usize] : usize
+>   %46 = Read copy [$2 [%45]] : i32
+>   %47 = Drop [$2] : ()
+>   %48 = Call std/console/println[i32] (%46) : ()
+>   %44 finds [$2] full
+>   %46 finds [$2] full
 >   storage sub 0: $0 slot, $2 slot
 >   summary kept [] writes

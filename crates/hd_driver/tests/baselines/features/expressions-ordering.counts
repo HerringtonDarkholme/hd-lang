@@ -8,9 +8,6 @@ fn str_lt(a: string, b: string) -> bool:
 
 fn list_le(a: List[string], b: List[string]) -> bool:
     a <= b
-> app/main/list_le
->   release List[string] (last use)
->   release List[string] (last use)
 
 fn tuple_gt(a: (string, i64), b: (string, i64)) -> bool:
     a > b
