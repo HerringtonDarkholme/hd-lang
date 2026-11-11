@@ -17,7 +17,7 @@ use hd_tir::ir::{
 use hd_types::solver::{Answer, Candidate, Evidence, Goal, TraitRef};
 use hd_types::{Inputs, ParamRef, Prim, Ty, TyData, TyList, VarKind, with_assoc_args};
 
-use crate::body::{Ck, ExpectPosition};
+use crate::body::{Ck, ExpectPosition, ProjectSite};
 use crate::ty::Named;
 
 /// Own methods followed by the shared methods of the ordered visible interfaces.
@@ -1832,6 +1832,20 @@ impl Ck<'_, '_> {
         }
     }
 
+    /// The parameter type an argument meets: [`Self::argument_ty`], with
+    /// each projection whose self type is still open replaced by a
+    /// variable. The argument fixes the self type and the variable
+    /// together; a goal checks the projection once its self type is
+    /// known (`types.generic.infer.projection`). A closure keeps the
+    /// projection, which a later argument may fix first (§2.4 step 4).
+    fn argument_want(&mut self, ty: Ty, e: NodeRef<'_>) -> StageResult<Ty> {
+        let w = self.argument_ty(ty)?;
+        if e.kind() == SyntaxKind::ClosureExpr || self.strict_opaque_return(ty) {
+            return Ok(w);
+        }
+        Ok(self.open_projections(w, ProjectSite::Argument, e))
+    }
+
     /// Checks arguments against parameters (positional, then named by
     /// parameter name), skipping `skip` leading parameters already given.
     fn check_args(
@@ -1898,7 +1912,7 @@ impl Ck<'_, '_> {
                 continue;
             }
             let w = match rest.get(i) {
-                Some(p) => Some(self.argument_ty(p.1)?),
+                Some(p) => Some(self.argument_want(p.1, *e)?),
                 None => None,
             };
             // An earlier argument solved this bare parameter: the two join
@@ -2041,7 +2055,7 @@ impl Ck<'_, '_> {
                 named_bad = true;
                 continue;
             }
-            let w = self.argument_ty(rest[i].1)?;
+            let w = self.argument_want(rest[i].1, *e)?;
             let rejoin =
                 open[i] && !matches!(pool.get(self.infer.shallow(pool, w)), TyData::Infer(_));
             let mut bounded = None;
@@ -3209,7 +3223,7 @@ impl Ck<'_, '_> {
                 return (self.b.emit(tag, word, w, ty, n.index()), ty);
             }
         }
-        let ret = self.open_projections(ret, n);
+        let ret = self.open_projections(ret, ProjectSite::Result, n);
         if bang {
             self.check_bang(suspends, n);
         }
@@ -3233,8 +3247,9 @@ impl Ck<'_, '_> {
 
     /// `t` with each projection whose self type inference has not fixed
     /// replaced by a fresh variable: a pending goal fixes it once that
-    /// type is known, so the rest of the statement can use the result.
-    fn open_projections(&mut self, t: Ty, n: NodeRef<'_>) -> Ty {
+    /// type is known, so the rest of the statement can use the result,
+    /// and an argument can fix the self type and the projection together.
+    fn open_projections(&mut self, t: Ty, site: ProjectSite, n: NodeRef<'_>) -> Ty {
         let pool = self.pool();
         let t = self.infer.resolve(pool, t);
         if !pool.has_assoc(t) || !pool.has_infer(t) {
@@ -3244,7 +3259,7 @@ impl Ck<'_, '_> {
             let v: Vec<Ty> = pool
                 .list_items(l)
                 .iter()
-                .map(|x| me.open_projections(*x, n))
+                .map(|x| me.open_projections(*x, site, n))
                 .collect();
             pool.list(&v)
         };
@@ -3272,7 +3287,7 @@ impl Ck<'_, '_> {
                         args: pool.list(&av),
                     },
                     at: n.index(),
-                    kind: crate::body::Waiting::Project { assoc, var },
+                    kind: crate::body::Waiting::Project { assoc, var, site },
                 });
                 return var;
             }
@@ -3289,7 +3304,7 @@ impl Ck<'_, '_> {
                 mutable,
                 counted,
             } => TyData::Ref {
-                inner: self.open_projections(inner, n),
+                inner: self.open_projections(inner, site, n),
                 mutable,
                 counted,
             },
@@ -3302,7 +3317,7 @@ impl Ck<'_, '_> {
                 deps,
             } => TyData::Fn {
                 params: list(self, params),
-                result: self.open_projections(result, n),
+                result: self.open_projections(result, site, n),
                 row,
                 suspends,
                 inputs,

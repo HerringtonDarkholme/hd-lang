@@ -1667,6 +1667,45 @@ fn mixed(label: Label, both: Both) -> void:
 See also: [Explicit Type Arguments](07-functions.md#explicit-type-arguments),
 [Instantiations Of One Generic Trait](09-traits.md#instantiations-of-one-generic-trait).
 
+### Inference Through A Projection
+
+An argument solves a type parameter that its parameter type names beside a
+projection of that parameter, and the projection is then checked:
+
+```text
+trait Feed:
+    type Item
+    fn next(self) -> Self::Item
+
+struct Nums:
+    n: i32
+
+impl Feed for Nums:
+    type Item = i32
+    fn next(self) -> i32:
+        self.n
+
+struct Pair[F, X]:
+    f: F
+    x: X
+
+fn first[G < Feed](p: Pair[G, G::Item]) -> G::Item:
+    p.f.next()
+
+fn three(p: Pair[Nums, i32]) -> i32:
+    first(p)  # G is Nums, then Nums::Item is i32
+```
+
+1. r[types.generic.infer.projection] A projection of a type parameter in a parameter type, such as `G::Item`, waits until the call solves that parameter, from this argument or another.
+2. r[types.generic.infer.projection.check] The argument's type at the projection must then equal the projection's normal form. A different type is an error. Error: `type-mismatch`.
+
+```text
+fn same(p: Pair[Nums, string]) -> i32:
+    first(p)  # error: type-mismatch
+```
+
+See also: [Associated Type Bindings](09-traits.md#associated-type-bindings).
+
 ### Type-Argument Defaults
 
 A generic parameter may declare a **type-argument default**, written with

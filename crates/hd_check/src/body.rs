@@ -614,8 +614,23 @@ pub(crate) enum Waiting {
     /// it.
     Call { method: DefId },
     /// The projection `assoc` of the goal's trait, which `var` stands
-    /// for until then. A failure is the call's bound's to report.
-    Project { assoc: DefId, var: Ty },
+    /// for until then, at `site`. A failure is the call's bound's to
+    /// report.
+    Project {
+        assoc: DefId,
+        var: Ty,
+        site: ProjectSite,
+    },
+}
+
+/// Where an opened projection stands, which says how a mismatch between
+/// the type it names and the type its variable met is reported.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ProjectSite {
+    /// A call's result: the variable met the type the context expects.
+    Result,
+    /// Part of a parameter type: the variable met the argument's type.
+    Argument,
 }
 
 /// The checker of one body: the item whose parameters and bounds are in
@@ -3757,7 +3772,7 @@ impl Ck<'_, '_> {
                     let var = pool.intern_ty(&TyData::Infer(v));
                     let _ = self.infer.unify(pool, var, t);
                 }
-                if let Waiting::Project { assoc, var } = g.kind {
+                if let Waiting::Project { assoc, var, site } = g.kind {
                     let self_ty = self.infer.resolve(pool, tref.self_ty);
                     let args: Vec<Ty> = pool
                         .list_items(tref.args)
@@ -3775,11 +3790,19 @@ impl Ck<'_, '_> {
                         return Ok(false);
                     }
                     if self.infer.unify(pool, var, got).is_err() && report {
-                        let msg = format!(
-                            "in result: expected {}, found {}",
-                            self.show(var),
-                            self.show(got)
-                        );
+                        let msg = match site {
+                            ProjectSite::Result => format!(
+                                "in result: expected {}, found {}",
+                                self.show(var),
+                                self.show(got)
+                            ),
+                            ProjectSite::Argument => format!(
+                                "in argument: expected {} for {}, found {}",
+                                self.show(got),
+                                self.show(proj),
+                                self.show(var)
+                            ),
+                        };
                         self.err(Code::TypeMismatch, node, &msg);
                     }
                 }

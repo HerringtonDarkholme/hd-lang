@@ -1,0 +1,20 @@
+# test: an argument's type at a projection that differs from the projection's normal form, once a later argument solves the parameter
+# Spec 04 Type System: types.generic.infer.projection.check.
+
+trait Feed:
+    type Item
+    fn next(self) -> Self::Item
+
+struct Nums:
+    n: i32
+
+impl Feed for Nums:
+    type Item = i32
+    fn next(self) -> i32:
+        self.n
+
+fn before[G < Feed](x: G::Item, g: G) -> G::Item:
+    g.next()
+
+fn later(g: Nums) -> i32:
+    before("x", g) # diagnostic: type-mismatch

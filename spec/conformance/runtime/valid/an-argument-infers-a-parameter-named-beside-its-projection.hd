@@ -1,0 +1,64 @@
+# test: an argument solves a type parameter named beside its projection, then the projection is checked
+# Spec 04 Type System: types.generic.infer.projection.
+
+trait Feed:
+    type Item
+    fn next(self) -> Self::Item
+
+struct Nums:
+    n: i32
+
+impl Feed for Nums:
+    type Item = i32
+    fn next(self) -> i32:
+        self.n
+
+struct Words:
+    w: string
+
+impl Feed for Words:
+    type Item = string
+    fn next(self) -> string:
+        self.w
+
+struct Pair[F, X]:
+    f: F
+    x: X
+
+fn first[G < Feed](p: Pair[G, G::Item]) -> G::Item:
+    p.f.next()
+
+fn three(p: Pair[Nums, i32]) -> i32:
+    first(p)
+
+fn second[G < Feed](p: Pair[G, G::Item]) -> G::Item:
+    p.x
+
+fn before[G < Feed](x: G::Item, g: G) -> (G::Item, G::Item):
+    (x, g.next())
+
+fn through[G < Feed](p: &Pair[G, G::Item]) -> &G::Item:
+    &p.x
+
+tests:
+    use std.testing.assert_equal
+
+    it("solves the parameter from the same argument"):
+        let p: Pair[Nums, i32] = Pair { f: Nums { n: 3 }, x: 1 }
+        assert_equal(three(p), 3, reason="G is Nums, and Nums::Item is i32")
+
+    it("checks a projection whose argument is a literal"):
+        let p = Pair { f: Words { w: "a" }, x: "b" }
+        assert_equal(second(p), "b", reason="G is Words, and Words::Item is string")
+
+    it("solves the parameter from a later argument"):
+        let g = Nums { n: 5 }
+        assert_equal(before(4, g), (4, 5), reason="the projection waits for g")
+
+    it("solves the parameter by name"):
+        let g = Words { w: "w" }
+        assert_equal(before(g = g, x = "x"), ("x", "w"), reason="named arguments in any order")
+
+    it("solves the parameter through a reference"):
+        let p = Pair { f: Nums { n: 3 }, x: 9 }
+        assert_equal(*through(&p), 9, reason="the reference's referent fixes G")
