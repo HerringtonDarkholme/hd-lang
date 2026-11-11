@@ -9,7 +9,6 @@
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
-  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $opt_ge (param $b i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (result i32) (local $t0 i32) (local $a i32)
     ;; 15 |     a >= b
@@ -297,8 +296,6 @@
           i32.const 8
           i32.sub
           i32.load $heap
-          global.get $tracing
-          i32.or
           if
             local.get $a
             call $rt:release_ref'2
@@ -315,8 +312,6 @@
           i32.const 8
           i32.sub
           i32.load $heap
-          global.get $tracing
-          i32.or
           if
             local.get $a
             call $rt:release_ref'2

@@ -39,7 +39,7 @@
     block
     ;; 35 |     name = [Mark { label: "mark" }]
       i32.const 8
-      i32.const 3
+      i32.const 2
       call $rt:new/class-1
       local.tee $t0
       i32.const 27 ;; &"mark"
@@ -60,7 +60,7 @@
       i32.store $heap offset=16
       local.get $t1
     ;; 35 |     name = [Mark { label: "mark" }]
-      i32.const 580 ;; &vtable[func73]
+      i32.const 480 ;; &vtable[func72]
     ;; 31 | struct Record:
       i32.store $heap offset=20
       local.get $t1
