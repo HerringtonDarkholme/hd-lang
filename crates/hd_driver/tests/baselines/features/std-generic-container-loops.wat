@@ -13,9 +13,8 @@
   (import "fixture" "std/cmp/impl Ord for string.cmp'2" (func $"std/cmp/impl Ord for string.cmp'2" (param i32 i32 i32) (result i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
-  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 22 funcref))
+  (import "fixture" "table0" (table $table0 15 funcref))
   (func $"impl[T < Ord] Queue[T].add[string]" (param $self i32) (param $value.0 i32) (param $value.1 i32) (local $t0 i32) (local $t1 i32)
     ;; 16 |         self.items.push(value)
     block
@@ -34,7 +33,7 @@
       i32.eq
       if
         local.get $t0
-        i32.const 4
+        i32.const 3
         call_indirect $table0 (param i32) (result i32)
         local.set $t0
         local.get $self
@@ -373,7 +372,7 @@
     ;; 49 |     q.settle(0, "z")
       local.get $q
       i32.const 0
-      i32.const 244 ;; &"z"
+      i32.const 236 ;; &"z"
       i32.const 1
       call $"impl[T < Ord] Queue[T].settle[string]"
     ;; 50 |     q.items[0].len() + saved.items[0].len()
@@ -410,8 +409,6 @@
           i32.const 8
           i32.sub
           i32.load $heap
-          global.get $tracing
-          i32.or
           if
             local.get $t1
             call $rt:release_ref'1
@@ -459,8 +456,6 @@
         i32.const 8
         i32.sub
         i32.load $heap
-        global.get $tracing
-        i32.or
         if
           local.get $t1
           call $rt:release_ref'1
@@ -1099,7 +1094,7 @@
       i32.eq
       if
         local.get $t0
-        i32.const 10
+        i32.const 8
         call_indirect $table0 (param i32) (result i32)
         local.set $t0
         local.get $self
@@ -1217,8 +1212,6 @@
           i32.const 8
           i32.sub
           i32.load $heap
-          global.get $tracing
-          i32.or
           if
             local.get $q
             call $rt:release_ref'1
@@ -1245,8 +1238,6 @@
         i32.const 8
         i32.sub
         i32.load $heap
-        global.get $tracing
-        i32.or
         if
           local.get $q
           call $rt:release_ref'1
@@ -1283,7 +1274,7 @@
       i32.eq
       if
         local.get $t0
-        i32.const 11
+        i32.const 9
         call_indirect $table0 (param i32) (result i32)
         local.set $t0
         local.get $self
@@ -1404,8 +1395,6 @@
           i32.const 8
           i32.sub
           i32.load $heap
-          global.get $tracing
-          i32.or
           if
             local.get $q
             call $rt:release_ref'1
@@ -1432,8 +1421,6 @@
         i32.const 8
         i32.sub
         i32.load $heap
-        global.get $tracing
-        i32.or
         if
           local.get $q
           call $rt:release_ref'1

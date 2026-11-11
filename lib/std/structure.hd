@@ -117,8 +117,6 @@ pub enum SelfRef:
 ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
 pub type Field[HdS < ?Copy, HdF < ?Copy] = *FieldRecord[HdS, HdF]
 
-# `hd_witness` names the member's type, so that `fact` needs no
-# `Inspectable` bound on `HdF` (annot.handle.fact.key).
 ## What a member's handle refers to: its `Member` information plus the calls a template needs.
 ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
 pub struct FieldRecord[HdS < ?Copy, HdF < ?Copy]:
@@ -128,7 +126,6 @@ pub struct FieldRecord[HdS < ?Copy, HdF < ?Copy]:
     hd_get: fn(&HdS) -> &HdF
     hd_has_default: bool
     hd_default: fn() -> HdF?
-    hd_witness: *dyn Inspectable
 
 impl[HdS < ?Copy, HdF < ?Copy] FieldRecord[HdS, HdF]:
     ## Reads the member's value from `s`.
