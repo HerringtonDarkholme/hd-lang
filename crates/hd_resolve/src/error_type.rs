@@ -339,6 +339,7 @@ pub fn interpolated(src: &Src<'_>, msg: NodeRef<'_>) -> Vec<String> {
                     }
                     out.push(name);
                 }
+                // ruled out: a match on a character of the message; every other character is text.
                 _ => {}
             }
         }

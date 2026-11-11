@@ -348,6 +348,7 @@ fn use_decl(src: &Src<'_>, item: NodeRef<'_>, roots: &UseRoots, tests: bool) -> 
                     path.push(text.to_owned());
                 }
             }
+            // ruled out: a match on a token kind; punctuation and the other tokens of a `use` line add nothing to its path.
             _ => {}
         }
     }
@@ -2376,6 +2377,7 @@ impl Lower<'_, '_, '_> {
                         }
                         position += 1;
                     }
+                    // ruled out: a match on a syntax kind; a node of another kind is no type argument.
                     _ => {}
                 }
             }
@@ -3268,6 +3270,7 @@ impl Lower<'_, '_, '_> {
                         .unwrap_or(0),
                 );
             }
+            // ruled out: a visitor over every part; only a parameter and a local reference have slots.
             _ => {}
         });
         if out.len() != pool.ref_slots(expanded) {
@@ -3554,8 +3557,9 @@ impl Lower<'_, '_, '_> {
         if !(trailing && have < want) {
             self.unplaced_slots(n, before);
         }
-        let slots = self.slots.as_mut().expect("recording");
-        slots.resize(before + want, 0);
+        if let Some(slots) = &mut self.slots {
+            slots.resize(before + want, 0);
+        }
     }
 
     /// Drops the slots recorded since `before`; a written lifetime among
@@ -3998,9 +4002,10 @@ impl Lower<'_, '_, '_> {
             if const_parameter {
                 let slot = ParamRef { owner, index };
                 let declared = self.ty(Src::type_child(*g), gn);
-                match self.names.pool.get(declared) {
-                    TyData::Prim(p) if !p.is_float() => const_type = Some(p),
-                    _ => {}
+                if let TyData::Prim(p) = self.names.pool.get(declared)
+                    && !p.is_float()
+                {
+                    const_type = Some(p);
                 }
                 if const_type.is_none() && declared != Ty::POISON {
                     let msg = format!(
@@ -4370,6 +4375,7 @@ impl Lower<'_, '_, '_> {
             .names
             .pool
             .intern_ty(&TyData::Param(ParamRef { owner, index }));
+        let slot = gn.tys.len();
         gn.tys.push((name, ty, Vec::new()));
         gn.decls.push((name, self.src.span(n)));
 
@@ -4418,13 +4424,13 @@ impl Lower<'_, '_, '_> {
             .find(|bound| **bound != Ty::POISON)
             .and_then(|bound| self.trait_of(*bound))
             .filter(|def| *def != self.names.known.static_bound);
-        gn.tys
-            .last_mut()
-            .expect("anonymous parameter was just inserted")
-            .2 = bounds
-            .iter()
-            .filter_map(|bound| self.names.pool.trait_value(*bound))
-            .collect();
+        // This parameter's entry, at the index it was pushed at.
+        if let Some(entry) = gn.tys.get_mut(slot) {
+            entry.2 = bounds
+                .iter()
+                .filter_map(|bound| self.names.pool.trait_value(*bound))
+                .collect();
+        }
         if bounds.contains(&Ty::POISON) {
             gn.poisoned.push(ty);
         }
@@ -4526,14 +4532,11 @@ impl Lower<'_, '_, '_> {
                     }
                 }
                 let type_node = Src::type_child(p);
-                let ty = if type_node.is_some_and(|node| node.kind() == SyntaxKind::ImplType) {
+                let ty = if let Some(node) =
+                    type_node.filter(|node| node.kind() == SyntaxKind::ImplType)
+                {
                     let index = u16::try_from(generics.len()).unwrap_or(u16::MAX);
-                    let (ty, generic) = self.anonymous_parameter(
-                        type_node.expect("checked above"),
-                        owner,
-                        index,
-                        gn,
-                    );
+                    let (ty, generic) = self.anonymous_parameter(node, owner, index, gn);
                     generics.push(generic);
                     ty
                 } else {
@@ -5123,6 +5126,7 @@ impl Lower<'_, '_, '_> {
                     }
                     assoc.push((self.sym_token(t), def, ty, bounds));
                 }
+                // ruled out: a match on a syntax kind; the trait's other members are not methods or associated types.
                 _ => {}
             }
         }
@@ -6767,36 +6771,9 @@ fn ty_any(pool: &InternPool, t: Ty, pred: &mut dyn FnMut(TyData) -> bool) -> boo
     if pred(d.clone()) {
         return true;
     }
+    // Every part, an opaque type's arguments and bound included.
     let mut kids: Vec<Ty> = Vec::new();
-    match d {
-        TyData::Adt { args, .. } => kids.extend(pool.list_items(args)),
-        TyData::Tuple { elems, rest } => {
-            kids.extend(pool.list_items(elems));
-            kids.extend(rest);
-        }
-        TyData::Union(members) => kids.extend(pool.list_items(members)),
-        TyData::Ref { inner: i, .. } => kids.push(i),
-        TyData::Fn {
-            params,
-            result,
-            row,
-            ..
-        } => {
-            kids.extend(pool.list_items(params));
-            kids.push(result);
-            kids.extend(pool.row_data(row).keys.iter());
-        }
-        TyData::TraitValue { args, bindings, .. } => {
-            kids.extend(pool.list_items(args));
-            kids.extend(bindings.iter().map(|b| b.1));
-        }
-        TyData::Assoc { self_ty, args, .. } => {
-            kids.push(self_ty);
-            kids.extend(pool.list_items(args));
-        }
-        TyData::Row(r) | TyData::Context(r) => kids.extend(pool.row_data(r).keys.iter()),
-        _ => {}
-    }
+    pool.types().children(t, &mut kids);
     kids.into_iter().any(|k| ty_any(pool, k, pred))
 }
 
@@ -8808,7 +8785,8 @@ pub fn body_nodes<'t>(
                     }
                 }
             }
-            _ => {}
+            // A type declaration has no body.
+            HeadKind::Struct | HeadKind::Enum | HeadKind::Alias | HeadKind::Newtype => {}
         }
     }
     out

@@ -95,6 +95,7 @@ impl<'a> Src<'a> {
                     seen = true;
                 }
                 Some(TokenKind::Ident | TokenKind::RawIdent) if seen => return Some(t),
+                // ruled out: a match on a token kind; every other token comes before the keyword or is not a name.
                 _ => {}
             }
         }

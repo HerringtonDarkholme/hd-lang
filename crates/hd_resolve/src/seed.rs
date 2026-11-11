@@ -496,6 +496,7 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
                 ItemData::Fn(sig, FnAttrs::default()),
             );
         }
+        // ruled out: a match on a module path; the other modules have no seeded items.
         _ => {}
     }
     for (name, key) in [("it", "test_case"), ("assert_equal", "assert_equal")] {

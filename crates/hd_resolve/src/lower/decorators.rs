@@ -992,6 +992,7 @@ impl Lower<'_, '_, '_> {
                             SyntaxKind::Derivation if by => {
                                 self.check_member_line(m, target, traitless, items);
                             }
+                            // ruled out: a match on a syntax kind; the block's other members carry no decorator to check here.
                             _ => {}
                         }
                     }

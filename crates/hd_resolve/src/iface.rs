@@ -2311,7 +2311,14 @@ pub fn mentioned_defs<'a>(
                 stack.push(self_ty);
                 stack.extend(pool.list_items(args));
             }
-            _ => {}
+            // No declaration and no part.
+            TyData::Param(_)
+            | TyData::Prim(_)
+            | TyData::Never
+            | TyData::Poison
+            | TyData::Const(_)
+            | TyData::Infer(_)
+            | TyData::Canon(_) => {}
         }
     }
     out
