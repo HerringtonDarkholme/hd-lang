@@ -81,7 +81,13 @@ impl TestEngine {
             .total_memories(memories)
             // See `crates/hd_wasm/DESIGN.md` §23.2.
             .max_memories_per_module(3)
-            .total_tables(slots);
+            .total_tables(slots)
+            // The function table has no limit of its own (#1568, DESIGN.md
+            // §23.8); wasmtime's defaults (20,000 table elements, 1 MiB of
+            // instance metadata, about 32 bytes per function) refused a weak
+            // program with 32,786 functions. Both now allow 2^17 functions.
+            .table_elements(1 << 17)
+            .max_core_instance_size(1 << 22);
         // These are virtual reservations, not eagerly committed 4 GiB heaps.
         base.memory_reservation(1 << 32)
             .memory_reservation_for_growth(0)
