@@ -1,4 +1,4 @@
-# @dump: own counts wat
+# @dump: own counts
 # @build: v8 dev
 # `read` takes `(&i32, i32)` and serves as a `fn((*i32, i32)) -> i32`
 # with no wrapper (`types.variance.no-insertion`). A function value
