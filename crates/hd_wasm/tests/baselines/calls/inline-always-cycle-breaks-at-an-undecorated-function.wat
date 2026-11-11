@@ -4,22 +4,20 @@
   (func $run (param $n i32) (result i32) (local $t0 i32)
     ;; 19 |     always(n)
     block
-      block
-        local.get $n
-        i32.eqz
-        if
-          br 1
-        end
-        local.get $n
-        i32.const 1
-        i32.sub
-        call $ordinary
-        local.set $t0
-        br 0
+      local.get $n
+      i32.eqz
+      if
+        br 1
       end
-      local.get $t0
-      local.set $n
+      local.get $n
+      i32.const 1
+      i32.sub
+      call $ordinary
+      local.set $t0
+      br 0
     end
+    local.get $t0
+    local.set $n
     local.get $n
   )
 )

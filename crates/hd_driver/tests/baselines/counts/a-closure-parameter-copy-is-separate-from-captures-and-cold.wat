@@ -12,41 +12,37 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $plain (param $captured.0 i32) (param $captured.1 i32) (result i32 i32) (local $t0 i32)
     ;; 6 |     fn(value: string) -> (string, string): (captured, value)
-    block
-      i32.const 0
-      i32.const 8
-      i32.const 2
-      call $rt:new/class-1
-      local.tee $t0
-      local.get $captured.0
-      i32.store $heap
-      local.get $t0
-      local.get $captured.1
-      i32.store $heap offset=4
-      local.get $t0
-      local.set $captured.1
-      local.set $captured.0
-    end
+    i32.const 0
+    i32.const 8
+    i32.const 2
+    call $rt:new/class-1
+    local.tee $t0
+    local.get $captured.0
+    i32.store $heap
+    local.get $t0
+    local.get $captured.1
+    i32.store $heap offset=4
+    local.get $t0
+    local.set $captured.1
+    local.set $captured.0
     local.get $captured.0
     local.get $captured.1
   )
   (func $cold_capture (param $captured.0 i32) (param $captured.1 i32) (result i32 i32) (local $t0 i32)
     ;; 9 |     fn!(value: string) -> (string, string): (captured, value)
-    block
-      i32.const 3
-      i32.const 8
-      i32.const 2
-      call $rt:new/class-1
-      local.tee $t0
-      local.get $captured.0
-      i32.store $heap
-      local.get $t0
-      local.get $captured.1
-      i32.store $heap offset=4
-      local.get $t0
-      local.set $captured.1
-      local.set $captured.0
-    end
+    i32.const 3
+    i32.const 8
+    i32.const 2
+    call $rt:new/class-1
+    local.tee $t0
+    local.get $captured.0
+    i32.store $heap
+    local.get $t0
+    local.get $captured.1
+    i32.store $heap offset=4
+    local.get $t0
+    local.set $captured.1
+    local.set $captured.0
     local.get $captured.0
     local.get $captured.1
   )
@@ -62,8 +58,6 @@
     if
       local.get $t0
       call $retain
-    end
-    block
     end
     local.get $ctx
     local.get $env
@@ -126,8 +120,6 @@
         local.get $env
         call $retain
       end
-    end
-    block
     end
     local.get $captured.0
     local.get $captured.1

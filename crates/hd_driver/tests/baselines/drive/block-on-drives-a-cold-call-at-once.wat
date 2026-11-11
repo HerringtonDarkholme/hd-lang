@@ -41,114 +41,112 @@
     i32.sub
     local.tee $t0
     global.set $locals
-    block
-      call $rt:forbid_check
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.set $t1
-      local.get $s.0
-      local.get $text.0
-      local.get $text.1
-      local.get $t1
-      local.get $s.1
-      i32.load $heap offset=4
-      call_indirect $table0 (param i32 i32 i32 i32) (result i32 i32)
-      local.set $s.0
-      local.tee $s.1
+    call $rt:forbid_check
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.set $t1
+    local.get $s.0
+    local.get $text.0
+    local.get $text.1
+    local.get $t1
+    local.get $s.1
+    i32.load $heap offset=4
+    call_indirect $table0 (param i32 i32 i32 i32) (result i32 i32)
+    local.set $s.0
+    local.tee $s.1
     ;; 12 |     match block_on(call):
-      local.tee $text.1
-      i32.eqz
-      local.set $t2
-      block
-        loop
-          local.get $t2
-          br_if 1
-          global.get $rewake
-          if
-            i32.const 0
-            global.set $rewake
-          else
-            call $hd:rt/block
-            call $rt:wake_mark
-          end
-          i32.const 1
-          local.set $t3
-          local.get $text.1
-          local.get $text.1
-          i32.load $heap
-          call_indirect $table0 (param i32) (result i32 i32)
-          local.set $s.0
-          local.set $t2
-          br 0
+    local.tee $text.1
+    i32.eqz
+    local.set $t2
+    block
+      loop
+        local.get $t2
+        br_if 1
+        global.get $rewake
+        if
+          i32.const 0
+          global.set $rewake
+        else
+          call $hd:rt/block
+          call $rt:wake_mark
         end
+        i32.const 1
+        local.set $t3
+        local.get $text.1
+        local.get $text.1
+        i32.load $heap
+        call_indirect $table0 (param i32) (result i32 i32)
+        local.set $s.0
+        local.set $t2
+        br 0
       end
-      local.get $t3
-      global.get $rewake
-      i32.or
-      global.set $rewake
-      i32.const 0
-      local.get $s.0
-      local.set $t2
-      local.set $s.0
+    end
+    local.get $t3
+    global.get $rewake
+    i32.or
+    global.set $rewake
+    i32.const 0
+    local.get $s.0
+    local.set $t2
+    local.set $s.0
+    local.get $text.1
+    local.get $t1
+    i32.eq
+    if
       local.get $text.1
-      local.get $t1
-      i32.eq
+      i32.load $heap offset=20
+      local.tee $t1
+      i32.const 0
+      i32.ge_s
       if
         local.get $text.1
-        i32.load $heap offset=20
-        local.tee $t1
-        i32.const 0
-        i32.ge_s
-        if
-          local.get $text.1
-          i32.const -1
-          i32.store $heap offset=20
-          local.get $text.1
-          local.get $t1
-          call_indirect $table0 (param i32)
-        end
+        i32.const -1
+        i32.store $heap offset=20
+        local.get $text.1
+        local.get $t1
+        call_indirect $table0 (param i32)
       end
+    end
     ;; 11 |     let call: Suspend[i32] = s.put(text)
+    local.get $s.1
+    if
       local.get $s.1
+      i32.const 8
+      i32.sub
+      i32.load $heap
       if
         local.get $s.1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $s.1
-          call $rt:release_ref'1
-        end
+        call $rt:release_ref'1
       end
+    end
     ;; 12 |     match block_on(call):
+    block
       block
         block
           block
-            block
     ;; 13 |         .Completed(n) => n
+            block
               block
-                block
-                  local.get $s.0
-                  br_table 0 3 4 4
-                end
-                local.get $t2
-                local.set $n
-                br 1
+                local.get $s.0
+                br_table 0 3 4 4
               end
-    ;; 12 |     match block_on(call):
-              unreachable
+              local.get $t2
+              local.set $n
+              br 1
             end
-            br 2
+    ;; 12 |     match block_on(call):
+            unreachable
           end
-          br 1
+          br 2
         end
-        br 0
+        br 1
       end
-    ;; 11 |     let call: Suspend[i32] = s.put(text)
-      local.get $n
-      local.set $s.0
+      br 0
     end
+    ;; 11 |     let call: Suspend[i32] = s.put(text)
+    local.get $n
+    local.set $s.0
     local.get $text.0
     local.tee $s.1
     if

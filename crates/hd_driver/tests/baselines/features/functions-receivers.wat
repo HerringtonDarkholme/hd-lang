@@ -11,33 +11,29 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $"impl Vec2.keep" (param $self i32) (result i32) (local $t0 i32)
     ;; 25 |         self
-    block
-      local.get $self
-      local.tee $t0
+    local.get $self
+    local.tee $t0
+    if
+      local.get $t0
+      i32.const 8
+      i32.sub
+      i32.load $heap
       if
         local.get $t0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t0
-          call $rt:retain_known
-        end
+        call $rt:retain_known
       end
     end
     local.get $self
   )
   (func $temp_receiver (param $s.0 i32) (param $s.1 i32) (result i32)
     ;; 31 |     make(s).label_len()
-    block
+    local.get $s.0
+    if
       local.get $s.0
-      if
-        local.get $s.0
-        call $rt:release_ref'1
-      end
-      local.get $s.1
-      local.set $s.0
+      call $rt:release_ref'1
     end
+    local.get $s.1
+    local.set $s.0
     local.get $s.0
   )
   (func $place_receiver (param $s.0 i32) (param $s.1 i32) (result i64) (local $t2 i64) (local $t0 i32) (local $t1 i32)
@@ -72,57 +68,51 @@
     local.tee $t0
     global.set $locals
     block
-      block
-        block
-          br 0
-        end
-      end
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $t1
-      local.get $s.0
-      i32.store $heap
-      local.get $t1
-      local.get $s.1
-      i32.store $heap offset=4
-      local.get $t1
-      local.get $t2
-      i64.store $heap offset=8
-      local.get $t1
-      local.tee $s.0
+      br 0
+    end
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $t1
+    local.get $s.0
+    i32.store $heap
+    local.get $t1
+    local.get $s.1
+    i32.store $heap offset=4
+    local.get $t1
+    local.get $t2
+    i64.store $heap offset=8
+    local.get $t1
+    local.tee $s.0
     ;; 41 |     p.shift(2)
-      local.set $s.1
-      i64.const 2
-      local.set $t2
-      block
-        block
-          local.get $s.1
-          local.get $s.1
-          i64.load $heap offset=8
-          local.get $t2
-          i64.add
-          i64.store $heap offset=8
-          br 0
-        end
-      end
-    ;; 42 |     p.x
-      local.get $s.0
+    local.set $s.1
+    i64.const 2
+    local.set $t2
+    block
+      local.get $s.1
+      local.get $s.1
       i64.load $heap offset=8
-      local.set $t2
+      local.get $t2
+      i64.add
+      i64.store $heap offset=8
+      br 0
+    end
+    ;; 42 |     p.x
+    local.get $s.0
+    i64.load $heap offset=8
+    local.set $t2
     ;; 40 |     let mut p = make(s)
+    local.get $s.0
+    if
       local.get $s.0
+      i32.load $heap
+      local.tee $s.0
       if
         local.get $s.0
-        i32.load $heap
-        local.tee $s.0
-        if
-          local.get $s.0
-          call $rt:release_ref'1
-        end
+        call $rt:release_ref'1
       end
     end
     local.get $t2
@@ -133,223 +123,193 @@
   )
   (func $"impl Vec2.renamed" (param $self.name.0 i32) (param $self.name.1 i32) (param $self.x i64) (param $n.0 i32) (param $n.1 i32) (result i32 i32 i64)
     ;; 21 |         self.name = n
-    block
-      local.get $n.0
+    local.get $n.0
+    local.get $self.name.0
+    local.tee $self.name.0
+    if
       local.get $self.name.0
-      local.tee $self.name.0
-      if
-        local.get $self.name.0
-        call $rt:release_ref'1
-      end
-      local.set $self.name.0
+      call $rt:release_ref'1
     end
+    local.set $self.name.0
     local.get $self.name.0
     local.get $n.1
     local.get $self.x
   )
   (func $make (param $s.0 i32) (param $s.1 i32) (result i32 i32 i64) (local $t0 i64)
     ;; 28 |     Vec2 { name: s, x: 0 }
-    block
-    end
     local.get $s.0
     local.get $s.1
     local.get $t0
   )
   (func $counted (param $b i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 49 |     b.keep().name.len()
-    block
-      local.get $b
-      call $"impl Vec2.keep"
-      local.tee $b
-      local.tee $t0
+    local.get $b
+    call $"impl Vec2.keep"
+    local.tee $b
+    local.tee $t0
+    i32.load $heap
+    local.get $t0
+    i32.load $heap offset=4
+    local.set $t1
+    local.tee $t0
+    local.tee $t2
+    if
+      local.get $t2
+      call $retain
+    end
+    local.get $b
+    local.tee $t2
+    if
+      local.get $t2
+      i32.const 8
+      i32.sub
       i32.load $heap
-      local.get $t0
-      i32.load $heap offset=4
-      local.set $t1
-      local.tee $t0
-      local.tee $t2
       if
         local.get $t2
-        call $retain
+        call $rt:release_ref'2
       end
-      local.get $b
-      local.tee $t2
-      if
-        local.get $t2
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t2
-          call $rt:release_ref'2
-        end
-      end
-      block
-        block
-          local.get $t1
-          local.set $b
-          br 0
-        end
-      end
-      local.get $t0
-      local.tee $t2
-      if
-        local.get $t2
-        call $rt:release_ref'1
-      end
+    end
+    block
+      local.get $t1
+      local.set $b
+      br 0
+    end
+    local.get $t0
+    local.tee $t2
+    if
+      local.get $t2
+      call $rt:release_ref'1
     end
     local.get $b
   )
   (func $mut_self (param $v.name.0 i32) (param $v.name.1 i32) (param $v.x i64) (param $n.0 i32) (param $n.1 i32) (result i32) (local $t0 i32)
     ;; 45 |     w := v.renamed(n)
-    block
-      local.get $v.name.0
-      local.tee $t0
-      if
-        local.get $t0
-        call $retain
-      end
-      block
-        block
-          local.get $n.0
-          local.get $v.name.0
-          local.tee $t0
-          if
-            local.get $t0
-            call $rt:release_ref'1
-          end
-          local.set $n.0
-          br 0
-        end
-      end
-    ;; 46 |     w.name.len() + v.name.len()
-      block
-        block
-          br 0
-        end
-      end
-    ;; 45 |     w := v.renamed(n)
-      local.get $n.0
-      local.tee $t0
-      if
-        local.get $t0
-        call $rt:release_ref'1
-      end
-    ;; 46 |     w.name.len() + v.name.len()
-      block
-        block
-          br 0
-        end
-      end
-    ;; 45 |     w := v.renamed(n)
-      local.get $v.name.0
-      local.tee $t0
-      if
-        local.get $t0
-        call $rt:release_ref'1
-      end
-    ;; 46 |     w.name.len() + v.name.len()
-      local.get $n.1
-      local.get $v.name.1
-      i32.add
-    ;; 45 |     w := v.renamed(n)
-      local.set $v.name.0
+    local.get $v.name.0
+    local.tee $t0
+    if
+      local.get $t0
+      call $retain
     end
+    block
+      local.get $n.0
+      local.get $v.name.0
+      local.tee $t0
+      if
+        local.get $t0
+        call $rt:release_ref'1
+      end
+      local.set $n.0
+      br 0
+    end
+    ;; 46 |     w.name.len() + v.name.len()
+    block
+      br 0
+    end
+    ;; 45 |     w := v.renamed(n)
+    local.get $n.0
+    local.tee $t0
+    if
+      local.get $t0
+      call $rt:release_ref'1
+    end
+    ;; 46 |     w.name.len() + v.name.len()
+    block
+      br 0
+    end
+    ;; 45 |     w := v.renamed(n)
+    local.get $v.name.0
+    local.tee $t0
+    if
+      local.get $t0
+      call $rt:release_ref'1
+    end
+    ;; 46 |     w.name.len() + v.name.len()
+    local.get $n.1
+    local.get $v.name.1
+    i32.add
+    ;; 45 |     w := v.renamed(n)
+    local.set $v.name.0
     local.get $v.name.0
   )
   (func $element_receiver (param $xs i32) (param $i i32)
     ;; 34 |     xs[i].shift(1)
-    block
-      local.get $xs
-      local.get $xs
-      i32.load $heap
-      call $rt:list_unique
-      i32.store $heap
-      local.get $xs
-      i32.load $heap
-      local.set $xs
-      local.get $i
-      local.get $xs
-      i32.load $heap offset=4
-      i32.ge_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $xs
-      local.get $i
-      i32.const 16
-      i32.mul
-      i32.add
-      i32.const 16
-      i32.add
-      i64.const 1
-      call $"impl Vec2.shift"
+    local.get $xs
+    local.get $xs
+    i32.load $heap
+    call $rt:list_unique
+    i32.store $heap
+    local.get $xs
+    i32.load $heap
+    local.set $xs
+    local.get $i
+    local.get $xs
+    i32.load $heap offset=4
+    i32.ge_u
+    if
+      call $rt:panic
+      unreachable
     end
+    local.get $xs
+    local.get $i
+    i32.const 16
+    i32.mul
+    i32.add
+    i32.const 16
+    i32.add
+    i64.const 1
+    call $"impl Vec2.shift"
   )
   (func $element_read (param $xs i32) (param $i i32) (result i32)
     ;; 37 |     xs[i].label_len()
+    local.get $i
+    local.get $xs
+    i32.load $heap offset=4
+    i32.ge_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $xs
+    local.get $i
+    i32.const 16
+    i32.mul
+    i32.add
+    local.tee $xs
+    i32.load $heap offset=16
+    local.get $xs
+    i32.load $heap offset=20
+    local.set $i
+    drop
     block
-      local.get $i
-      local.get $xs
-      i32.load $heap offset=4
-      i32.ge_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $xs
-      local.get $i
-      i32.const 16
-      i32.mul
-      i32.add
-      local.tee $xs
-      i32.load $heap offset=16
-      local.get $xs
-      i32.load $heap offset=20
-      local.set $i
-      drop
       block
-        block
-          block
-            block
-              local.get $i
-              local.set $xs
-              br 0
-            end
-          end
-          br 0
-        end
+        local.get $i
+        local.set $xs
+        br 0
       end
+      br 0
     end
     local.get $xs
   )
   (func $"impl Vec2.label_len" (param $self i32) (result i32)
     ;; 15 |         self.name.len()
+    local.get $self
+    i32.load $heap
+    local.get $self
+    i32.load $heap offset=4
+    local.set $self
+    drop
     block
-      local.get $self
-      i32.load $heap
-      local.get $self
-      i32.load $heap offset=4
-      local.set $self
-      drop
-      block
-        block
-          br 0
-        end
-      end
+      br 0
     end
     local.get $self
   )
   (func $"impl Vec2.shift" (param $self i32) (param $d i64)
     ;; 18 |         self.x += d
-    block
-      local.get $self
-      local.get $self
-      i64.load $heap offset=8
-      local.get $d
-      i64.add
-      i64.store $heap offset=8
-    end
+    local.get $self
+    local.get $self
+    i64.load $heap offset=8
+    local.get $d
+    i64.add
+    i64.store $heap offset=8
   )
 )

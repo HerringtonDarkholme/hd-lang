@@ -3,45 +3,33 @@
   (import "fixture" "table0" (table $table0 3 funcref))
   (func $apply (param $f.0 i32) (param $f.1 i32) (param $s.0 i32) (param $s.1 i32) (result i32)
     ;; 17 |     f(s)
-    block
-      local.get $f.1
-      local.get $s.0
-      local.get $s.1
-      i32.const 0
-      local.get $f.0
-      call_indirect $table0 (param i32 i32 i32 i32) (result i32)
-      local.set $f.0
-    end
+    local.get $f.1
+    local.get $s.0
+    local.get $s.1
+    i32.const 0
+    local.get $f.0
+    call_indirect $table0 (param i32 i32 i32 i32) (result i32)
+    local.set $f.0
     local.get $f.0
   )
   (func $generic_value (param $s.0 i32) (param $s.1 i32) (result i32 i32)
     ;; 29 |     map_one(s, ident)
     block
       block
-        block
-          block
-            block
-              br 0
-            end
-          end
-          br 0
-        end
+        br 0
       end
+      br 0
     end
     local.get $s.0
     local.get $s.1
   )
   (func $"ident[string]" (param $x.0 i32) (param $x.1 i32) (result i32 i32)
     ;; 23 |     x
-    block
-    end
     local.get $x.0
     local.get $x.1
   )
   (func $variant_value#1 (param $env i32) (param $t0 i32) (param $t1 i32) (param $ctx i32) (result i32 i32)
     ;; 32 |     map_one(s, Event.Named)
-    block
-    end
     local.get $t0
     local.get $t1
   )
@@ -50,39 +38,27 @@
     block
       block
         block
-          block
-            block
-              block
-                block
-                  local.get $s.1
-                  local.set $s.0
-                  br 0
-                end
-              end
-              br 0
-            end
-          end
+          local.get $s.1
+          local.set $s.0
           br 0
         end
+        br 0
       end
+      br 0
     end
     local.get $s.0
   )
   (func $variant_value (param $s.0 i32) (param $s.1 i32) (result i32 i32)
     ;; 32 |     map_one(s, Event.Named)
     block
-      block
-        block
-          i32.const 0
-          local.get $s.0
-          local.get $s.1
-          i32.const 0
-          call $variant_value#1
-          local.set $s.1
-          local.set $s.0
-          br 0
-        end
-      end
+      i32.const 0
+      local.get $s.0
+      local.get $s.1
+      i32.const 0
+      call $variant_value#1
+      local.set $s.1
+      local.set $s.0
+      br 0
     end
     local.get $s.0
     local.get $s.1
@@ -90,22 +66,16 @@
   (func $width (param $s.0 i32) (param $s.1 i32) (result i32)
     ;; 14 |     s.len()
     block
-      block
-        block
-          local.get $s.1
-          local.set $s.0
-          br 0
-        end
-      end
+      local.get $s.1
+      local.set $s.0
+      br 0
     end
     local.get $s.0
   )
   (func $spelled (result i32 i32) (local $t0 i32)
     ;; 35 |     width
-    block
-      i32.const 0
-      local.set $t0
-    end
+    i32.const 0
+    local.set $t0
     local.get $t0
     i32.const 0
   )

@@ -4,62 +4,60 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $total (param $xs i32) (result i32) (local $sum i32) (local $t2 i32) (local $t0 i32) (local $t1 i32) (local $i i32)
     ;; 6 |     n := xs.len()
+    local.get $xs
+    i32.load $heap
+    i32.load $heap offset=4
+    ;; 8 |     for i in 0..n:
+    local.set $t0
+    local.get $xs
+    i32.load $heap
+    local.tee $xs
+    i32.load $heap offset=4
+    local.set $t1
     block
-      local.get $xs
-      i32.load $heap
-      i32.load $heap offset=4
-    ;; 8 |     for i in 0..n:
-      local.set $t0
-      local.get $xs
-      i32.load $heap
-      local.tee $xs
-      i32.load $heap offset=4
-      local.set $t1
-      block
-        loop
-          local.get $t2
-          local.get $t0
-          i32.lt_u
-          i32.eqz
-          br_if 1
-          local.get $t2
-          local.set $i
-          local.get $t2
-          i32.const 1
-          i32.add
-          local.set $t2
+      loop
+        local.get $t2
+        local.get $t0
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $t2
+        local.set $i
+        local.get $t2
+        i32.const 1
+        i32.add
+        local.set $t2
     ;; 9 |         sum += xs[xs[i]]
-          local.get $xs
-          local.get $i
-          i32.const 4
-          i32.mul
-          i32.add
-          i32.load $heap offset=16
-          local.tee $i
-          local.get $t1
-          i32.ge_u
-          if
-            call $rt:panic
-            unreachable
-          end
-          local.get $sum
-          local.get $xs
-          local.get $i
-          i32.const 4
-          i32.mul
-          i32.add
-          i32.load $heap offset=16
-          i32.add
-          local.set $sum
-    ;; 8 |     for i in 0..n:
-          br 0
+        local.get $xs
+        local.get $i
+        i32.const 4
+        i32.mul
+        i32.add
+        i32.load $heap offset=16
+        local.tee $i
+        local.get $t1
+        i32.ge_u
+        if
+          call $rt:panic
+          unreachable
         end
+        local.get $sum
+        local.get $xs
+        local.get $i
+        i32.const 4
+        i32.mul
+        i32.add
+        i32.load $heap offset=16
+        i32.add
+        local.set $sum
+    ;; 8 |     for i in 0..n:
+        br 0
       end
-    ;; 10 |     sum
-      local.get $sum
-    ;; 6 |     n := xs.len()
-      local.set $xs
     end
+    ;; 10 |     sum
+    local.get $sum
+    ;; 6 |     n := xs.len()
+    local.set $xs
     local.get $xs
   )
 )

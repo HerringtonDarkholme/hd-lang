@@ -4,14 +4,12 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (func $same (param $left.0 i32) (param $left.1 i32) (param $right.0 i32) (param $right.1 i32) (result i32)
     ;; 5 |     left == right
-    block
-      local.get $left.0
-      local.get $left.1
-      local.get $right.0
-      local.get $right.1
-      call $rt:str_eq
-      local.set $left.1
-    end
+    local.get $left.0
+    local.get $left.1
+    local.get $right.0
+    local.get $right.1
+    call $rt:str_eq
+    local.set $left.1
     local.get $left.0
     if
       local.get $left.0

@@ -4,24 +4,22 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $byte_at (param $bytes i32) (param $index i32) (result i32)
     ;; 6 |     bytes[index]
-    block
-      local.get $bytes
-      i32.load $heap
-      local.set $bytes
-      local.get $index
-      local.get $bytes
-      i32.load $heap offset=4
-      i32.ge_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $bytes
-      local.get $index
-      i32.add
-      i32.load8_u $heap offset=16
-      local.set $bytes
+    local.get $bytes
+    i32.load $heap
+    local.set $bytes
+    local.get $index
+    local.get $bytes
+    i32.load $heap offset=4
+    i32.ge_u
+    if
+      call $rt:panic
+      unreachable
     end
+    local.get $bytes
+    local.get $index
+    i32.add
+    i32.load8_u $heap offset=16
+    local.set $bytes
     local.get $bytes
   )
 )

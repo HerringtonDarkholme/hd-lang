@@ -45,28 +45,26 @@
       local.set $t1
     else
     end
-    block
-      local.get $key.1
-      i32.const 1
-      i32.add
-      local.tee $t2
-      call $rt:str
-      local.tee $t3
-      local.tee $t4
-      local.get $key.0
-      local.get $key.1
-      call $rt:memory_copy/0/0
-      local.get $t4
-      local.get $key.1
-      i32.add
-      i32.const 65 ;; &"?"
-      i32.load8_u $heap
-      i32.store8 $heap
-      local.get $t3
-      local.get $t2
-      local.set $key.1
-      local.set $key.0
-    end
+    local.get $key.1
+    i32.const 1
+    i32.add
+    local.tee $t2
+    call $rt:str
+    local.tee $t3
+    local.tee $t4
+    local.get $key.0
+    local.get $key.1
+    call $rt:memory_copy/0/0
+    local.get $t4
+    local.get $key.1
+    i32.add
+    i32.const 65 ;; &"?"
+    i32.load8_u $heap
+    i32.store8 $heap
+    local.get $t3
+    local.get $t2
+    local.set $key.1
+    local.set $key.0
     local.get $key.0
     local.get $key.1
     local.get $frame
@@ -226,53 +224,49 @@
   )
   (func $drop_now (param $key.0 i32) (param $key.1 i32)
     ;; 20 |     let mut job = fetch(key)
+    local.get $key.0
+    local.get $key.1
+    call $fetch'2
+    local.set $key.0
+    ;; 21 |     job.abandon()
     block
       local.get $key.0
-      local.get $key.1
-      call $fetch'2
-      local.set $key.0
-    ;; 21 |     job.abandon()
-      block
-        block
-          local.get $key.0
-          i32.load $heap offset=12
-          local.set $key.1
-          global.get $aband
-          i32.const 1
-          i32.add
-          global.set $aband
-          local.get $key.0
-          local.get $key.0
-          i32.load $heap offset=4
-          call_indirect $table0 (param i32)
-          global.get $aband
-          i32.const -1
-          i32.add
-          global.set $aband
-          local.get $key.0
-          i32.load $heap offset=12
-          local.get $key.1
-          i32.ne
-          if
-            i32.const 1
-            global.set $rewake
-          end
-          br 0
-        end
-      end
-    ;; 20 |     let mut job = fetch(key)
+      i32.load $heap offset=12
+      local.set $key.1
+      global.get $aband
+      i32.const 1
+      i32.add
+      global.set $aband
       local.get $key.0
+      local.get $key.0
+      i32.load $heap offset=4
+      call_indirect $table0 (param i32)
+      global.get $aband
+      i32.const -1
+      i32.add
+      global.set $aband
+      local.get $key.0
+      i32.load $heap offset=12
+      local.get $key.1
+      i32.ne
+      if
+        i32.const 1
+        global.set $rewake
+      end
+      br 0
+    end
+    ;; 20 |     let mut job = fetch(key)
+    local.get $key.0
+    if
+      local.get $key.0
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      global.get $tracing
+      i32.or
       if
         local.get $key.0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $key.0
-          call $rt:release_ref'2
-        end
+        call $rt:release_ref'2
       end
     end
   )

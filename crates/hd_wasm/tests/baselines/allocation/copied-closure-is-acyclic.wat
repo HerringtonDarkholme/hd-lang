@@ -4,16 +4,14 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $copied (param $seed i32) (result i32 i32) (local $t0 i32)
     ;; 5 |     fn() -> i32: seed
-    block
-      i32.const 1
-      i32.const 4
-      i32.const 0
-      call $rt:new/class-1
-      local.tee $t0
-      local.get $seed
-      i32.store $heap
-      local.set $seed
-    end
+    i32.const 1
+    i32.const 4
+    i32.const 0
+    call $rt:new/class-1
+    local.tee $t0
+    local.get $seed
+    i32.store $heap
+    local.set $seed
     local.get $seed
     local.get $t0
   )
@@ -22,8 +20,6 @@
     local.get $env
     i32.load $heap
     local.set $env
-    block
-    end
     local.get $env
   )
 )

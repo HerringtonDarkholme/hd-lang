@@ -227,82 +227,76 @@
         block
           block
             block
-              block
-                block
-                  block
-                    local.get $t55
-                    i32.const 4
-                    call $room
-                    local.set $t55
-                    i32.const 0
-                    local.set $t2
-                    i32.const 0
-                    local.set $t3
-                    i32.const 0
-                    local.set $t4
-                    br 0
-                  end
-                  i32.const 0
-                  local.set $t5
-                  i32.const 0
-                  local.set $t6
-                  i32.const 0
-                  local.set $t7
-                end
-                local.get $t55
-                i32.const 0
-                local.set $t8
-                i32.const 0
-                local.set $t9
-                i32.const 0
-                local.set $t10
-                local.set $t55
-                i32.const 0
-                local.set $t11
-                i32.const 0
-                local.set $t12
-                i32.const 0
-                local.set $t13
-                i32.const 0
-                local.set $t14
-                i32.const 0
-                local.set $t15
-                br 0
-              end
+              local.get $t55
+              i32.const 4
+              call $room
+              local.set $t55
               i32.const 0
-              local.set $t16
+              local.set $t2
               i32.const 0
-              local.set $t17
+              local.set $t3
               i32.const 0
-              local.set $t18
-              i32.const 0
-              local.set $t19
-              i32.const 0
-              local.set $t20
+              local.set $t4
+              br 0
             end
             i32.const 0
-            local.set $t21
+            local.set $t5
             i32.const 0
-            local.set $t22
+            local.set $t6
             i32.const 0
-            local.set $t23
+            local.set $t7
+            local.get $t55
             i32.const 0
-            local.set $t24
+            local.set $t8
             i32.const 0
-            local.set $t25
+            local.set $t9
+            i32.const 0
+            local.set $t10
+            local.set $t55
+            i32.const 0
+            local.set $t11
+            i32.const 0
+            local.set $t12
+            i32.const 0
+            local.set $t13
+            i32.const 0
+            local.set $t14
+            i32.const 0
+            local.set $t15
             br 0
           end
           i32.const 0
-          local.set $t26
+          local.set $t16
           i32.const 0
-          local.set $t27
+          local.set $t17
           i32.const 0
-          local.set $t28
+          local.set $t18
           i32.const 0
-          local.set $t29
+          local.set $t19
           i32.const 0
-          local.set $t30
+          local.set $t20
+          i32.const 0
+          local.set $t21
+          i32.const 0
+          local.set $t22
+          i32.const 0
+          local.set $t23
+          i32.const 0
+          local.set $t24
+          i32.const 0
+          local.set $t25
+          br 0
         end
+        i32.const 0
+        local.set $t26
+        i32.const 0
+        local.set $t27
+        i32.const 0
+        local.set $t28
+        i32.const 0
+        local.set $t29
+        i32.const 0
+        local.set $t30
         i32.const 32
         i32.const 2
         call $rt:new/class-3
@@ -376,33 +370,14 @@
         i32.const 1
         local.set $t56
         block
-          block
-            local.get $t55
-            call $"impl[T < ?Copy] UniqList[T].len[i32]"
-            local.set $t45
-            local.get $t55
-            call $"impl[T < ?Copy] Buffer[T].capacity[i32]"
-            local.get $t45
-            i32.le_u
-            if
-              local.get $t45
-              i32.const -2
-              i32.gt_u
-              if
-                call $rt:panic
-                unreachable
-              end
-              local.get $t55
-              local.get $t45
-              i32.const 1
-              i32.add
-              call $"impl[T < ?Copy] UniqList[T].reserve_for[i32]"
-            end
-            local.get $t55
-            local.get $t45
-            call $"impl[T < ?Copy] Buffer[T].at[i32]"
-            local.get $t56
-            i32.store $heap
+          local.get $t55
+          call $"impl[T < ?Copy] UniqList[T].len[i32]"
+          local.set $t45
+          local.get $t55
+          call $"impl[T < ?Copy] Buffer[T].capacity[i32]"
+          local.get $t45
+          i32.le_u
+          if
             local.get $t45
             i32.const -2
             i32.gt_u
@@ -414,9 +389,26 @@
             local.get $t45
             i32.const 1
             i32.add
-            i32.store $heap offset=8
-            br 0
+            call $"impl[T < ?Copy] UniqList[T].reserve_for[i32]"
           end
+          local.get $t55
+          local.get $t45
+          call $"impl[T < ?Copy] Buffer[T].at[i32]"
+          local.get $t56
+          i32.store $heap
+          local.get $t45
+          i32.const -2
+          i32.gt_u
+          if
+            call $rt:panic
+            unreachable
+          end
+          local.get $t55
+          local.get $t45
+          i32.const 1
+          i32.add
+          i32.store $heap offset=8
+          br 0
         end
     ;; 14 |     a := sized!(u)
         local.get $t55
@@ -1119,41 +1111,35 @@
       end
     ;; 15 |     println("$a")
       block
-        block
-          local.get $t59
-          call $unsigned_width
-          local.set $provider1
-          br 0
-        end
+        local.get $t59
+        call $unsigned_width
+        local.set $provider1
+        br 0
       end
       block
-        block
-          local.get $provider1
-          local.tee $provider1.vtable
-          i32.const 16
-          local.set $t54
-          if
-            local.get $provider1.vtable
-            call $rt:str
-            local.set $t54
-          end
-          local.get $t54
+        local.get $provider1
+        local.tee $provider1.vtable
+        i32.const 16
+        local.set $t54
+        if
           local.get $provider1.vtable
+          call $rt:str
           local.set $t54
-          local.set $provider1.vtable
-          br 0
         end
+        local.get $t54
+        local.get $provider1.vtable
+        local.set $t54
+        local.set $provider1.vtable
+        br 0
       end
       block
-        block
-          local.get $t59
-          local.get $provider1.vtable
-          local.get $t58
-          i32.add
-          local.get $provider1
-          call $write_unsigned_sized
-          br 0
-        end
+        local.get $t59
+        local.get $provider1.vtable
+        local.get $t58
+        i32.add
+        local.get $provider1
+        call $write_unsigned_sized
+        br 0
       end
     ;; 12 |     let mut u = UniqList::[i32].new()
       local.get $provider1.vtable
@@ -1404,12 +1390,10 @@
         i64.const 1
         local.set $t2
         block
-          block
-            local.get $t2
-            call $"impl Duration.milliseconds"
-            local.set $t2
-            br 0
-          end
+          local.get $t2
+          call $"impl Duration.milliseconds"
+          local.set $t2
+          br 0
         end
       end
       block

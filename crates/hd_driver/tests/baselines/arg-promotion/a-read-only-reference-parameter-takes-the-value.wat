@@ -81,62 +81,60 @@
   )
   (func $"impl Area for i32.area'2" (param $self i32) (result i32) (local $t0 i64)
     ;; 19 |         (*self + 1) * (*self + 2) * (*self + 3) * (*self + 4) * (*self + 5) / (*self + 6)
-    block
-      local.get $self
-      i32.load $heap
-      i32.const 1
-      i32.add
-      local.get $self
-      i32.load $heap
-      i32.const 2
-      i32.add
-      i32.mul
-      local.get $self
-      i32.load $heap
-      i32.const 3
-      i32.add
-      i32.mul
-      local.get $self
-      i32.load $heap
-      i32.const 4
-      i32.add
-      i32.mul
-      local.get $self
-      i32.load $heap
-      i32.const 5
-      i32.add
-      i32.mul
-      local.get $self
-      i32.load $heap
-      i32.const 6
-      i32.add
-      local.set $self
-      i64.extend_i32_s
-      local.get $self
-      i64.extend_i32_s
-      local.tee $t0
-      i64.eqz
-      if
-        call $rt:panic'1
-        unreachable
-      end
-      local.get $t0
-      i64.div_s
-      local.tee $t0
-      i64.const 2147483647
-      i64.gt_s
-      local.get $t0
-      i64.const -2147483648
-      i64.lt_s
-      i32.or
-      if
-        call $rt:panic'2
-        unreachable
-      end
-      local.get $t0
-      i32.wrap_i64
-      local.set $self
+    local.get $self
+    i32.load $heap
+    i32.const 1
+    i32.add
+    local.get $self
+    i32.load $heap
+    i32.const 2
+    i32.add
+    i32.mul
+    local.get $self
+    i32.load $heap
+    i32.const 3
+    i32.add
+    i32.mul
+    local.get $self
+    i32.load $heap
+    i32.const 4
+    i32.add
+    i32.mul
+    local.get $self
+    i32.load $heap
+    i32.const 5
+    i32.add
+    i32.mul
+    local.get $self
+    i32.load $heap
+    i32.const 6
+    i32.add
+    local.set $self
+    i64.extend_i32_s
+    local.get $self
+    i64.extend_i32_s
+    local.tee $t0
+    i64.eqz
+    if
+      call $rt:panic'1
+      unreachable
     end
+    local.get $t0
+    i64.div_s
+    local.tee $t0
+    i64.const 2147483647
+    i64.gt_s
+    local.get $t0
+    i64.const -2147483648
+    i64.lt_s
+    i32.or
+    if
+      call $rt:panic'2
+      unreachable
+    end
+    local.get $t0
+    i32.wrap_i64
+    local.set $self
     local.get $self
   )
   (func $use_total (result i32)
@@ -204,62 +202,60 @@
   )
   (func $norm'2 (param $p i32) (result i32) (local $t0 i64)
     ;; 22 |     (p.x + 1) * (p.y + 2) * (p.x + 3) * (p.y + 4) * (p.x + 5) / (p.y + 6)
-    block
-      local.get $p
-      i32.load $heap
-      i32.const 1
-      i32.add
-      local.get $p
-      i32.load $heap offset=4
-      i32.const 2
-      i32.add
-      i32.mul
-      local.get $p
-      i32.load $heap
-      i32.const 3
-      i32.add
-      i32.mul
-      local.get $p
-      i32.load $heap offset=4
-      i32.const 4
-      i32.add
-      i32.mul
-      local.get $p
-      i32.load $heap
-      i32.const 5
-      i32.add
-      i32.mul
-      local.get $p
-      i32.load $heap offset=4
-      i32.const 6
-      i32.add
-      local.set $p
-      i64.extend_i32_s
-      local.get $p
-      i64.extend_i32_s
-      local.tee $t0
-      i64.eqz
-      if
-        call $rt:panic'1
-        unreachable
-      end
-      local.get $t0
-      i64.div_s
-      local.tee $t0
-      i64.const 2147483647
-      i64.gt_s
-      local.get $t0
-      i64.const -2147483648
-      i64.lt_s
-      i32.or
-      if
-        call $rt:panic'2
-        unreachable
-      end
-      local.get $t0
-      i32.wrap_i64
-      local.set $p
+    local.get $p
+    i32.load $heap
+    i32.const 1
+    i32.add
+    local.get $p
+    i32.load $heap offset=4
+    i32.const 2
+    i32.add
+    i32.mul
+    local.get $p
+    i32.load $heap
+    i32.const 3
+    i32.add
+    i32.mul
+    local.get $p
+    i32.load $heap offset=4
+    i32.const 4
+    i32.add
+    i32.mul
+    local.get $p
+    i32.load $heap
+    i32.const 5
+    i32.add
+    i32.mul
+    local.get $p
+    i32.load $heap offset=4
+    i32.const 6
+    i32.add
+    local.set $p
+    i64.extend_i32_s
+    local.get $p
+    i64.extend_i32_s
+    local.tee $t0
+    i64.eqz
+    if
+      call $rt:panic'1
+      unreachable
     end
+    local.get $t0
+    i64.div_s
+    local.tee $t0
+    i64.const 2147483647
+    i64.gt_s
+    local.get $t0
+    i64.const -2147483648
+    i64.lt_s
+    i32.or
+    if
+      call $rt:panic'2
+      unreachable
+    end
+    local.get $t0
+    i32.wrap_i64
+    local.set $p
     local.get $p
   )
 )

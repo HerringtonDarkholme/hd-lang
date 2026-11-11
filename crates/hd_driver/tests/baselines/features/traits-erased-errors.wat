@@ -8,59 +8,57 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $"impl Display for FsError.to_string" (param $self i32) (result i32 i32) (local $path.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i64) (local $t6 i32)
     ;; 13 |         match *self:
+    local.get $self
+    i32.load $heap
+    local.get $self
+    i32.load $heap offset=4
+    local.set $path.1
+    local.set $self
     block
+      block
+    ;; 14 |             FsError.NotFound(path) => "not found: " + path
+        br 0
+    ;; 13 |         match *self:
+        unreachable
+      end
+    ;; 14 |             FsError.NotFound(path) => "not found: " + path
+      i32.const 11
+      local.get $path.1
+      i32.add
+      local.tee $t0
+      call $rt:str
+      local.tee $t1
+      local.tee $t2
+      i32.const 65 ;; &"not found: "
+      local.set $t3
+      local.tee $t4
+      local.get $t3
+      i64.load $heap align=1
+      local.set $t5
+      local.get $t3
+      i32.load16_u $heap offset=8 align=1
+      local.set $t6
+      local.get $t3
+      i32.load8_u $heap offset=10
+      i32.store8 $heap offset=10
+      local.get $t4
+      local.get $t6
+      i32.store16 $heap offset=8 align=1
+      local.get $t4
+      local.get $t5
+      i64.store $heap align=1
+      local.get $t2
+      i32.const 11
+      i32.add
       local.get $self
-      i32.load $heap
-      local.get $self
-      i32.load $heap offset=4
+      local.get $path.1
+      call $rt:memory_copy/0/0
+      local.get $t1
+      local.get $t0
+    ;; 13 |         match *self:
       local.set $path.1
       local.set $self
-      block
-        block
-    ;; 14 |             FsError.NotFound(path) => "not found: " + path
-          br 0
-    ;; 13 |         match *self:
-          unreachable
-        end
-    ;; 14 |             FsError.NotFound(path) => "not found: " + path
-        i32.const 11
-        local.get $path.1
-        i32.add
-        local.tee $t0
-        call $rt:str
-        local.tee $t1
-        local.tee $t2
-        i32.const 65 ;; &"not found: "
-        local.set $t3
-        local.tee $t4
-        local.get $t3
-        i64.load $heap align=1
-        local.set $t5
-        local.get $t3
-        i32.load16_u $heap offset=8 align=1
-        local.set $t6
-        local.get $t3
-        i32.load8_u $heap offset=10
-        i32.store8 $heap offset=10
-        local.get $t4
-        local.get $t6
-        i32.store16 $heap offset=8 align=1
-        local.get $t4
-        local.get $t5
-        i64.store $heap align=1
-        local.get $t2
-        i32.const 11
-        i32.add
-        local.get $self
-        local.get $path.1
-        call $rt:memory_copy/0/0
-        local.get $t1
-        local.get $t0
-    ;; 13 |         match *self:
-        local.set $path.1
-        local.set $self
-        br 0
-      end
+      br 0
     end
     local.get $self
     local.get $path.1
@@ -68,99 +66,9 @@
   (func $load (param $path.0 i32) (param $path.1 i32) (result i32 i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 22 |     text := read_config(path)?
     block
-      block
-        block
-          local.get $path.0
-          local.get $path.1
-          call $"impl string.len"
-          i32.const 0
-          i32.gt_u
-          if (result i32)
-            local.get $path.1
-            i32.const 1
-            i32.add
-            local.tee $t0
-            call $rt:str
-            local.tee $t1
-            local.tee $t2
-            local.get $path.0
-            local.get $path.1
-            call $rt:memory_copy/0/0
-            local.get $t2
-            local.get $path.1
-            i32.add
-            i32.const 76 ;; &"!"
-            i32.load8_u $heap
-            i32.store8 $heap
-            i32.const 0
-            local.get $t1
-            local.set $path.1
-          else
-            local.get $path.0
-            local.set $t0
-            i32.const 0
-            local.set $path.0
-            i32.const 1
-            local.get $t0
-            local.get $path.1
-            local.set $t0
-            local.set $path.1
-          end
-          local.get $path.1
-          local.get $t0
-          local.set $t1
-          local.set $t0
-          local.set $path.1
-          br 0
-        end
-      end
       local.get $path.0
-      if
-        local.get $path.0
-        call $rt:release_ref
-      end
       local.get $path.1
-      i32.eqz
-      if
-        local.get $t0
-        local.get $t1
-        local.set $t0
-        local.set $path.1
-      else
-        i32.const 8
-        i32.const 6
-        call $rt:new/class-1
-        local.tee $path.0
-        local.get $t0
-        i32.store $heap
-        local.get $path.0
-        local.get $t1
-        i32.store $heap offset=4
-        i32.const 1
-        local.get $path.0
-        i32.const 328 ;; &vtable[func50]
-        return
-      end
-    ;; 23 |     .Ok(text)
-      i32.const 0
-    ;; 22 |     text := read_config(path)?
-      local.set $path.0
-    end
-    local.get $path.0
-    local.get $path.1
-    local.get $t0
-  )
-  (func $read_config (param $path.0 i32) (param $path.1 i32) (result i32 i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
-    ;; 19 |     if path.len() > 0: .Ok(path + "!") else: .Err(FsError.NotFound(path))
-    block
-      block
-        block
-          local.get $path.1
-          local.set $t0
-          br 0
-        end
-      end
-      local.get $t0
+      call $"impl string.len"
       i32.const 0
       i32.gt_u
       if (result i32)
@@ -180,24 +88,106 @@
         i32.const 76 ;; &"!"
         i32.load8_u $heap
         i32.store8 $heap
-        local.get $path.0
-        local.tee $path.0
-        if
-          local.get $path.0
-          call $rt:release_ref
-        end
         i32.const 0
         local.get $t1
         local.set $path.1
       else
-        i32.const 1
         local.get $path.0
+        local.set $t0
+        i32.const 0
+        local.set $path.0
+        i32.const 1
+        local.get $t0
         local.get $path.1
         local.set $t0
         local.set $path.1
       end
-      local.set $path.0
+      local.get $path.1
+      local.get $t0
+      local.set $t1
+      local.set $t0
+      local.set $path.1
+      br 0
     end
+    local.get $path.0
+    if
+      local.get $path.0
+      call $rt:release_ref
+    end
+    local.get $path.1
+    i32.eqz
+    if
+      local.get $t0
+      local.get $t1
+      local.set $t0
+      local.set $path.1
+    else
+      i32.const 8
+      i32.const 6
+      call $rt:new/class-1
+      local.tee $path.0
+      local.get $t0
+      i32.store $heap
+      local.get $path.0
+      local.get $t1
+      i32.store $heap offset=4
+      i32.const 1
+      local.get $path.0
+      i32.const 328 ;; &vtable[func50]
+      return
+    end
+    ;; 23 |     .Ok(text)
+    i32.const 0
+    ;; 22 |     text := read_config(path)?
+    local.set $path.0
+    local.get $path.0
+    local.get $path.1
+    local.get $t0
+  )
+  (func $read_config (param $path.0 i32) (param $path.1 i32) (result i32 i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+    ;; 19 |     if path.len() > 0: .Ok(path + "!") else: .Err(FsError.NotFound(path))
+    block
+      local.get $path.1
+      local.set $t0
+      br 0
+    end
+    local.get $t0
+    i32.const 0
+    i32.gt_u
+    if (result i32)
+      local.get $path.1
+      i32.const 1
+      i32.add
+      local.tee $t0
+      call $rt:str
+      local.tee $t1
+      local.tee $t2
+      local.get $path.0
+      local.get $path.1
+      call $rt:memory_copy/0/0
+      local.get $t2
+      local.get $path.1
+      i32.add
+      i32.const 76 ;; &"!"
+      i32.load8_u $heap
+      i32.store8 $heap
+      local.get $path.0
+      local.tee $path.0
+      if
+        local.get $path.0
+        call $rt:release_ref
+      end
+      i32.const 0
+      local.get $t1
+      local.set $path.1
+    else
+      i32.const 1
+      local.get $path.0
+      local.get $path.1
+      local.set $t0
+      local.set $path.1
+    end
+    local.set $path.0
     local.get $path.0
     local.get $path.1
     local.get $t0

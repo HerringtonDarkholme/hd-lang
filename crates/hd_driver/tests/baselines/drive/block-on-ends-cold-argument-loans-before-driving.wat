@@ -8,79 +8,77 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $drive (param $log i32) (result i32) (local $t0 i32) (local $t1 i32) (local $value i32)
     ;; 13 |     match block_on(append(log, log)):
-    block
+    local.get $log
+    i32.const 4
+    i32.sub
+    local.tee $t0
+    i32.load $heap
+    i32.const 4128768
+    i32.and
+    local.get $t1
+    i32.ne
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $t0
+    local.get $t0
+    i32.load $heap
+    i32.const 2097152
+    i32.add
+    i32.store $heap
+    local.get $t1
+    i32.const 2097152
+    i32.add
+    local.get $t0
+    local.get $t0
+    i32.load $heap
+    i32.const 2097152
+    i32.sub
+    i32.store $heap
+    drop
+    call $rt:forbid_check
+    i32.const 0
+    i32.const 0
+    local.get $log
+    local.get $log
+    call $append
+    local.set $log
+    local.set $t1
+    local.set $t0
+    local.get $log
+    if
       local.get $log
-      i32.const 4
+      i32.const 8
       i32.sub
-      local.tee $t0
       i32.load $heap
-      i32.const 4128768
-      i32.and
-      local.get $t1
-      i32.ne
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $t0
-      local.get $t0
-      i32.load $heap
-      i32.const 2097152
-      i32.add
-      i32.store $heap
-      local.get $t1
-      i32.const 2097152
-      i32.add
-      local.get $t0
-      local.get $t0
-      i32.load $heap
-      i32.const 2097152
-      i32.sub
-      i32.store $heap
-      drop
-      call $rt:forbid_check
-      i32.const 0
-      i32.const 0
-      local.get $log
-      local.get $log
-      call $append
-      local.set $log
-      local.set $t1
-      local.set $t0
-      local.get $log
+      global.get $tracing
+      i32.or
       if
         local.get $log
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $log
-          call $rt:release_ref
-        end
+        call $rt:release_ref
       end
+    end
+    block
       block
         block
-          block
     ;; 14 |         .Completed(value) => value
-            local.get $t0
-            i32.eqz
-            i32.eqz
-            br_if 1
-            local.get $t1
-            local.set $value
-            br 0
+          local.get $t0
+          i32.eqz
+          i32.eqz
+          br_if 1
+          local.get $t1
+          local.set $value
+          br 0
     ;; 13 |     match block_on(append(log, log)):
-            unreachable
-          end
-          br 1
+          unreachable
         end
-        br 0
+        br 1
       end
-      local.get $value
-      local.set $log
+      br 0
     end
+    local.get $value
+    local.set $log
     local.get $log
   )
 )

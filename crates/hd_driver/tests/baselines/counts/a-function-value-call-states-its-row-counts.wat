@@ -7,137 +7,125 @@
   (import "fixture" "table0" (table $table0 8 funcref))
   (func $plain (param $callback.0 i32) (param $callback.1 i32) (result i32)
     ;; 14 |     callback()
-    block
-      local.get $callback.1
-      i32.const 0
-      local.get $callback.0
-      call_indirect $table0 (param i32 i32) (result i32)
-      local.set $callback.0
-    end
+    local.get $callback.1
+    i32.const 0
+    local.get $callback.0
+    call_indirect $table0 (param i32 i32) (result i32)
+    local.set $callback.0
     local.get $callback.0
   )
   (func $ordinary (param $callback.0 i32) (param $callback.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32)
     ;; 8 |     callback()
-    block
-      local.get $callback.1
-      i32.const 1
-      i32.const 0
-      call $rt:ctx_new
-      local.tee $callback.1
-      i64.const -8941934570327064298
-      i64.store $heap offset=16
-      local.get $callback.1
+    local.get $callback.1
+    i32.const 1
+    i32.const 0
+    call $rt:ctx_new
+    local.tee $callback.1
+    i64.const -8941934570327064298
+    i64.store $heap offset=16
+    local.get $callback.1
+    local.get $provider0
+    i32.store $heap offset=24
+    local.get $callback.1
+    local.get $provider0.vtable
+    i32.store $heap offset=28
+    local.get $provider0
+    if
       local.get $provider0
-      i32.store $heap offset=24
-      local.get $callback.1
-      local.get $provider0.vtable
-      i32.store $heap offset=28
-      local.get $provider0
-      if
-        local.get $provider0
-        call $retain
-      end
-      local.get $callback.1
-      local.get $callback.0
-      call_indirect $table0 (param i32 i32) (result i32)
-      local.get $callback.1
-      local.tee $provider0
-      if
-        local.get $provider0
-        call $rt:release_ref
-      end
-      local.set $callback.0
+      call $retain
     end
+    local.get $callback.1
+    local.get $callback.0
+    call_indirect $table0 (param i32 i32) (result i32)
+    local.get $callback.1
+    local.tee $provider0
+    if
+      local.get $provider0
+      call $rt:release_ref
+    end
+    local.set $callback.0
     local.get $callback.0
   )
   (func $"forward[{open row}]" (param $callback.0 i32) (param $callback.1 i32) (param $ctx i32) (result i32)
     ;; 17 |     callback()
-    block
-      local.get $callback.1
-      local.get $ctx
-      local.get $callback.0
-      call_indirect $table0 (param i32 i32) (result i32)
-      local.set $callback.0
-    end
+    local.get $callback.1
+    local.get $ctx
+    local.get $callback.0
+    call_indirect $table0 (param i32 i32) (result i32)
+    local.set $callback.0
     local.get $callback.0
   )
   (func $cold (param $callback.0 i32) (param $callback.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32)
     ;; 11 |     callback()
-    block
-      local.get $callback.1
-      i32.const 1
-      i32.const 0
-      call $rt:ctx_new
-      local.tee $callback.1
-      i64.const -8941934570327064298
-      i64.store $heap offset=16
-      local.get $callback.1
+    local.get $callback.1
+    i32.const 1
+    i32.const 0
+    call $rt:ctx_new
+    local.tee $callback.1
+    i64.const -8941934570327064298
+    i64.store $heap offset=16
+    local.get $callback.1
+    local.get $provider0
+    i32.store $heap offset=24
+    local.get $callback.1
+    local.get $provider0.vtable
+    i32.store $heap offset=28
+    local.get $provider0
+    if
       local.get $provider0
-      i32.store $heap offset=24
-      local.get $callback.1
-      local.get $provider0.vtable
-      i32.store $heap offset=28
-      local.get $provider0
-      if
-        local.get $provider0
-        call $retain
-      end
-      local.get $callback.1
-      local.get $callback.0
-      call_indirect $table0 (param i32 i32) (result i32)
-      local.get $callback.1
-      local.tee $provider0
-      if
-        local.get $provider0
-        call $rt:release_ref
-      end
-      local.set $callback.0
+      call $retain
     end
+    local.get $callback.1
+    local.get $callback.0
+    call_indirect $table0 (param i32 i32) (result i32)
+    local.get $callback.1
+    local.tee $provider0
+    if
+      local.get $provider0
+      call $rt:release_ref
+    end
+    local.set $callback.0
     local.get $callback.0
   )
   (func $through_row (param $callback.0 i32) (param $callback.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32)
     ;; 20 |     forward(callback)
-    block
-      local.get $callback.0
-      local.get $callback.1
-      i32.const 1
-      i32.const 0
-      call $rt:ctx_new
-      local.tee $callback.0
-      i64.const -8941934570327064298
-      i64.store $heap offset=16
-      local.get $callback.0
+    local.get $callback.0
+    local.get $callback.1
+    i32.const 1
+    i32.const 0
+    call $rt:ctx_new
+    local.tee $callback.0
+    i64.const -8941934570327064298
+    i64.store $heap offset=16
+    local.get $callback.0
+    local.get $provider0
+    i32.store $heap offset=24
+    local.get $callback.0
+    local.get $provider0.vtable
+    i32.store $heap offset=28
+    local.get $provider0
+    if
       local.get $provider0
-      i32.store $heap offset=24
-      local.get $callback.0
-      local.get $provider0.vtable
-      i32.store $heap offset=28
-      local.get $provider0
-      if
-        local.get $provider0
-        call $retain
-      end
-      local.get $callback.0
-      call $"forward[{open row}]"
-      local.get $callback.0
-      local.tee $provider0
-      if
-        local.get $provider0
-        call $rt:release_ref
-      end
-      local.set $callback.0
+      call $retain
     end
+    local.get $callback.0
+    call $"forward[{open row}]"
+    local.get $callback.0
+    local.tee $provider0
+    if
+      local.get $provider0
+      call $rt:release_ref
+    end
+    local.set $callback.0
     local.get $callback.0
   )
   (func $through_empty (param $callback.0 i32) (param $callback.1 i32) (result i32)
     ;; 23 |     forward(callback)
-    block
-      local.get $callback.0
-      local.get $callback.1
-      i32.const 0
-      call $"forward[{open row}]"
-      local.set $callback.0
-    end
+    local.get $callback.0
+    local.get $callback.1
+    i32.const 0
+    call $"forward[{open row}]"
+    local.set $callback.0
     local.get $callback.0
   )
 )

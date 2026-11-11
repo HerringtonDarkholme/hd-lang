@@ -20,29 +20,27 @@
   (import "fixture" "table0" (table $table0 16 funcref))
   (func $later (result i32) (local $t0 i32)
     ;; 9 |     join(ready())
-    block
-      call $ready
-      local.set $t0
-      i32.const 0
+    call $ready
+    local.set $t0
+    i32.const 0
+    local.get $t0
+    i32.const 0
+    i32.const 1
+    call_indirect $table0 (param i32 i32 i32) (result i32)
+    local.get $t0
+    if
       local.get $t0
-      i32.const 0
-      i32.const 1
-      call_indirect $table0 (param i32 i32 i32) (result i32)
-      local.get $t0
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      global.get $tracing
+      i32.or
       if
         local.get $t0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $t0
-          call $rt:release_ref'1
-        end
+        call $rt:release_ref'1
       end
-      local.set $t0
     end
+    local.set $t0
     local.get $t0
   )
   (func $later#1'1 (param $frame i32) (param $env i32) (param $t1 i32) (param $ctx i32) (result i32 i32) (local $t8 i32) (local $t2 i32) (local $t11 i32) (local $t3 i32) (local $t4 i32) (local $t10 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t12 i32) (local $t0 i32) (local $t9 i32)

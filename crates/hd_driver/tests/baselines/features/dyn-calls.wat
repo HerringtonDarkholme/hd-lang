@@ -8,26 +8,22 @@
   (import "fixture" "table0" (table $table0 3 funcref))
   (func $call_dyn (param $x.0 i32) (param $x.1 i32) (result i32)
     ;; 17 |     x.name().len()
+    local.get $x.0
+    local.get $x.1
+    i32.load $heap
+    call_indirect $table0 (param i32) (result i32 i32)
+    local.set $x.1
+    local.set $x.0
     block
-      local.get $x.0
-      local.get $x.1
-      i32.load $heap
-      call_indirect $table0 (param i32) (result i32 i32)
-      local.set $x.1
-      local.set $x.0
-      block
-        block
-          br 0
-        end
-      end
-      local.get $x.0
-      if
-        local.get $x.0
-        call $rt:release_ref
-      end
-      local.get $x.1
-      local.set $x.0
+      br 0
     end
+    local.get $x.0
+    if
+      local.get $x.0
+      call $rt:release_ref
+    end
+    local.get $x.1
+    local.set $x.0
     local.get $x.0
   )
   (func $make_dyn (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32) (local $d i32)
@@ -73,32 +69,30 @@
     local.get $d
     local.get $t2
     i32.store $heap offset=4
-    block
+    local.get $d
+    local.tee $t2
+    if
+      local.get $t2
+      call $retain
+    end
+    local.get $d
+    i32.const 160 ;; &vtable[func20]
+    call $call_dyn
+    local.set $t1
+    local.get $d
+    local.tee $t2
+    if
+      local.get $t2
+      call $rt:release_ref
+    end
+    local.get $d
+    if
       local.get $d
-      local.tee $t2
-      if
-        local.get $t2
-        call $retain
-      end
-      local.get $d
-      i32.const 160 ;; &vtable[func20]
-      call $call_dyn
-      local.set $t1
-      local.get $d
+      i32.load $heap
       local.tee $t2
       if
         local.get $t2
         call $rt:release_ref
-      end
-      local.get $d
-      if
-        local.get $d
-        i32.load $heap
-        local.tee $t2
-        if
-          local.get $t2
-          call $rt:release_ref
-        end
       end
     end
     local.get $t1
@@ -109,18 +103,16 @@
   )
   (func $"impl Named for Dog.name" (param $self i32) (result i32 i32) (local $t0 i32) (local $t1 i32)
     ;; 14 |         self.n
-    block
-      local.get $self
-      i32.load $heap
-      local.get $self
-      i32.load $heap offset=4
-      local.set $t0
-      local.tee $self
-      local.tee $t1
-      if
-        local.get $t1
-        call $retain
-      end
+    local.get $self
+    i32.load $heap
+    local.get $self
+    i32.load $heap offset=4
+    local.set $t0
+    local.tee $self
+    local.tee $t1
+    if
+      local.get $t1
+      call $retain
     end
     local.get $self
     local.get $t0

@@ -71,40 +71,38 @@
     local.get $b
     local.get $t5
     i32.store $heap offset=8
-    block
+    local.get $a
+    local.get $b
+    call $"derive PartialOrd for Key.partial_cmp"
+    local.set $t1
+    local.get $a
+    if
       local.get $a
-      local.get $b
-      call $"derive PartialOrd for Key.partial_cmp"
-      local.set $t1
-      local.get $a
+      i32.load $heap
+      local.tee $t2
       if
-        local.get $a
-        i32.load $heap
-        local.tee $t2
-        if
-          local.get $t2
-          call $rt:release_ref
-        end
+        local.get $t2
+        call $rt:release_ref
       end
-      local.get $b
-      if
-        local.get $b
-        i32.load $heap
-        local.tee $t2
-        if
-          local.get $t2
-          call $rt:release_ref
-        end
-      end
-      local.get $t1
-      i32.eqz
-      if (result i32)
-        i32.const 1
-      else
-        i32.const 0
-      end
-      local.set $b
     end
+    local.get $b
+    if
+      local.get $b
+      i32.load $heap
+      local.tee $t2
+      if
+        local.get $t2
+        call $rt:release_ref
+      end
+    end
+    local.get $t1
+    i32.eqz
+    if (result i32)
+      i32.const 1
+    else
+      i32.const 0
+    end
+    local.set $b
     local.get $b
     local.get $t0
     i32.const 48
@@ -172,34 +170,32 @@
     local.get $b
     local.get $t5
     i32.store $heap offset=8
-    block
+    local.get $a
+    local.get $b
+    call $"derive Eq for Key.eq"
+    local.set $t1
+    local.get $a
+    if
       local.get $a
-      local.get $b
-      call $"derive Eq for Key.eq"
-      local.set $t1
-      local.get $a
+      i32.load $heap
+      local.tee $t2
       if
-        local.get $a
-        i32.load $heap
-        local.tee $t2
-        if
-          local.get $t2
-          call $rt:release_ref
-        end
+        local.get $t2
+        call $rt:release_ref
       end
-      local.get $b
-      if
-        local.get $b
-        i32.load $heap
-        local.tee $t2
-        if
-          local.get $t2
-          call $rt:release_ref
-        end
-      end
-      local.get $t1
-      local.set $b
     end
+    local.get $b
+    if
+      local.get $b
+      i32.load $heap
+      local.tee $t2
+      if
+        local.get $t2
+        call $rt:release_ref
+      end
+    end
+    local.get $t1
+    local.set $b
     local.get $b
     local.get $t0
     i32.const 48
@@ -208,140 +204,132 @@
   )
   (func $lookup (param $m i32) (param $k.name.0 i32) (param $k.name.1 i32) (param $k.n i32) (result i32) (local $t0 i32) (local $v.1 i32) (local $t1 i32)
     ;; 21 |     match m.get(k):
-    block
+    local.get $m
+    local.get $k.name.0
+    local.get $k.name.1
+    local.get $k.n
+    call $rt:map_hash'1
+    local.get $k.name.0
+    local.get $k.name.1
+    local.get $k.n
+    call $rt:map_find'1
+    local.tee $k.name.0
+    i32.const 0
+    i32.ge_s
+    if
       local.get $m
+      local.get $m
+      i32.load $heap offset=12
+      i32.const 12
+      i32.mul
+      i32.add
+      i32.const 24
+      i32.add
       local.get $k.name.0
-      local.get $k.name.1
-      local.get $k.n
-      call $rt:map_hash'1
-      local.get $k.name.0
-      local.get $k.name.1
-      local.get $k.n
-      call $rt:map_find'1
-      local.tee $k.name.0
-      i32.const 0
-      i32.ge_s
-      if
-        local.get $m
-        local.get $m
-        i32.load $heap offset=12
-        i32.const 12
-        i32.mul
-        i32.add
-        i32.const 24
-        i32.add
-        local.get $k.name.0
-        i32.const 20
-        i32.mul
-        i32.add
-        local.tee $m
-        i32.load $heap offset=12
-        local.get $m
-        i32.load $heap offset=16
-        local.set $v.1
-        local.set $t0
-      else
-      end
+      i32.const 20
+      i32.mul
+      i32.add
+      local.tee $m
+      i32.load $heap offset=12
+      local.get $m
+      i32.load $heap offset=16
+      local.set $v.1
+      local.set $t0
+    else
+    end
+    block
       block
         block
-          block
     ;; 22 |         .Some(v) => v.len()
-            local.get $t0
-            br_if 0
+          local.get $t0
+          br_if 0
     ;; 23 |         .None => 0
-            local.get $t0
-            i32.eqz
-            br_if 1
-            unreachable
+          local.get $t0
+          i32.eqz
+          br_if 1
+          unreachable
     ;; 21 |     match m.get(k):
-            unreachable
-          end
-    ;; 22 |         .Some(v) => v.len()
-          block
-            block
-              local.get $v.1
-              local.set $t1
-              br 0
-            end
-          end
-    ;; 21 |     match m.get(k):
-          br 1
+          unreachable
         end
-        br 0
+    ;; 22 |         .Some(v) => v.len()
+        block
+          local.get $v.1
+          local.set $t1
+          br 0
+        end
+    ;; 21 |     match m.get(k):
+        br 1
       end
-      local.get $t1
-      local.set $m
+      br 0
     end
+    local.get $t1
+    local.set $m
     local.get $m
   )
   (func $tuple_key (param $m i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t1 i32) (local $t0 i32) (local $t2 i32)
     ;; 26 |     m.get((s, 1)).unwrap_or(0)
-    block
+    local.get $m
+    local.get $s.0
+    local.get $s.1
+    i32.const 1
+    call $rt:map_hash'2
+    local.get $s.0
+    local.get $s.1
+    i32.const 1
+    call $rt:map_find'2
+    local.tee $s.1
+    i32.const 0
+    i32.ge_s
+    if
+      i32.const 1
       local.get $m
-      local.get $s.0
+      local.get $m
+      i32.load $heap offset=12
+      i32.const 12
+      i32.mul
+      i32.add
+      i32.const 24
+      i32.add
       local.get $s.1
-      i32.const 1
-      call $rt:map_hash'2
+      i32.const 16
+      i32.mul
+      i32.add
+      i32.load $heap offset=12
+      local.set $t0
+      local.set $t1
+    else
+    end
+    local.get $s.0
+    if
       local.get $s.0
-      local.get $s.1
-      i32.const 1
-      call $rt:map_find'2
-      local.tee $s.1
-      i32.const 0
-      i32.ge_s
-      if
-        i32.const 1
-        local.get $m
-        local.get $m
-        i32.load $heap offset=12
-        i32.const 12
-        i32.mul
-        i32.add
-        i32.const 24
-        i32.add
-        local.get $s.1
-        i32.const 16
-        i32.mul
-        i32.add
-        i32.load $heap offset=12
-        local.set $t0
-        local.set $t1
-      else
-      end
-      local.get $s.0
-      if
-        local.get $s.0
-        call $rt:release_ref
-      end
+      call $rt:release_ref
+    end
+    block
       block
         block
           block
-            block
-              block
-                local.get $t1
-                i32.const 1
-                i32.eq
-                if
-                  local.get $t0
-                  local.set $t2
-                  br 1
-                else
-                  local.get $t1
-                  i32.eqz
-                  br_if 2
-                  unreachable
-                end
-                unreachable
-              end
+            local.get $t1
+            i32.const 1
+            i32.eq
+            if
+              local.get $t0
+              local.set $t2
               br 1
+            else
+              local.get $t1
+              i32.eqz
+              br_if 2
+              unreachable
             end
-            br 0
+            unreachable
           end
-          local.get $t2
-          local.set $m
-          br 0
+          br 1
         end
+        br 0
       end
+      local.get $t2
+      local.set $m
+      br 0
     end
     local.get $m
   )

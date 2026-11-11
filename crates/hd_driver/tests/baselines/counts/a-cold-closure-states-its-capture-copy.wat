@@ -13,36 +13,32 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $text (param $value.0 i32) (param $value.1 i32) (result i32 i32) (local $t0 i32)
     ;; 5 |     fn!() -> string: value
-    block
-      i32.const 1
-      i32.const 8
-      i32.const 3
-      call $rt:new/class-1'1
-      local.tee $t0
-      local.get $value.0
-      i32.store $heap
-      local.get $t0
-      local.get $value.1
-      i32.store $heap offset=4
-      local.get $t0
-      local.set $value.1
-      local.set $value.0
-    end
+    i32.const 1
+    i32.const 8
+    i32.const 3
+    call $rt:new/class-1'1
+    local.tee $t0
+    local.get $value.0
+    i32.store $heap
+    local.get $t0
+    local.get $value.1
+    i32.store $heap offset=4
+    local.get $t0
+    local.set $value.1
+    local.set $value.0
     local.get $value.0
     local.get $value.1
   )
   (func $number (param $value i32) (result i32 i32) (local $t0 i32)
     ;; 8 |     fn!() -> usize: value
-    block
-      i32.const 3
-      i32.const 4
-      i32.const 0
-      call $rt:new/class-1'2
-      local.tee $t0
-      local.get $value
-      i32.store $heap
-      local.set $value
-    end
+    i32.const 3
+    i32.const 4
+    i32.const 0
+    call $rt:new/class-1'2
+    local.tee $t0
+    local.get $value
+    i32.store $heap
+    local.set $value
     local.get $value
     local.get $t0
   )
@@ -78,8 +74,6 @@
       i32.load $heap offset=36
       local.set $value
     else
-    end
-    block
     end
     local.get $value
     local.get $frame
@@ -272,8 +266,6 @@
         local.get $value.0
         call $retain
       end
-    end
-    block
     end
     local.get $value.0
     local.get $value.1

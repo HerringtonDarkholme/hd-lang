@@ -6,88 +6,78 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $share (param $p i32) (result i32 i32) (local $t0 i32)
     ;; 21 |     (p, p)
-    block
-      local.get $p
-      local.tee $t0
+    local.get $p
+    local.tee $t0
+    if
+      local.get $t0
+      i32.const 8
+      i32.sub
+      i32.load $heap
       if
         local.get $t0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t0
-          call $rt:retain_known
-        end
+        call $rt:retain_known
       end
-      local.get $p
-      local.tee $t0
-      if
-        local.get $t0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t0
-          call $rt:retain_known
-        end
-      end
-      local.get $p
-      local.set $t0
     end
+    local.get $p
+    local.tee $t0
+    if
+      local.get $t0
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $t0
+        call $rt:retain_known
+      end
+    end
+    local.get $p
+    local.set $t0
     local.get $p
     local.get $t0
   )
   (func $read_ptr (param $p i32) (result i32)
     ;; 15 |     p.name.len()
+    local.get $p
+    i32.load $heap
+    local.get $p
+    i32.load $heap offset=4
+    local.set $p
+    drop
     block
-      local.get $p
-      i32.load $heap
-      local.get $p
-      i32.load $heap offset=4
-      local.set $p
-      drop
-      block
-        block
-          br 0
-        end
-      end
+      br 0
     end
     local.get $p
   )
   (func $write_ptr (param $p i32) (param $n.0 i32) (param $n.1 i32)
     ;; 18 |     p.name = n
-    block
-      local.get $p
-      i32.load $heap
-      local.get $p
-      i32.load $heap offset=4
-      local.get $p
-      local.get $n.0
-      i32.store $heap
-      local.get $p
-      local.get $n.1
-      i32.store $heap offset=4
-      call $rt:release
-    end
+    local.get $p
+    i32.load $heap
+    local.get $p
+    i32.load $heap offset=4
+    local.get $p
+    local.get $n.0
+    i32.store $heap
+    local.get $p
+    local.get $n.1
+    i32.store $heap offset=4
+    call $rt:release
   )
   (func $make (param $n.0 i32) (param $n.1 i32) (result i32) (local $t0 i32)
     ;; 12 |     box(Node { name: n, next: .None })
-    block
-      i32.const 12
-      i32.const -2147483646
-      call $rt:new/class-2
-      local.tee $t0
-      local.get $n.0
-      i32.store $heap
-      local.get $t0
-      local.get $n.1
-      i32.store $heap offset=4
-      local.get $t0
-      i32.const 0
-      i32.store $heap offset=8
-      local.get $t0
-      local.set $n.0
-    end
+    i32.const 12
+    i32.const -2147483646
+    call $rt:new/class-2
+    local.tee $t0
+    local.get $n.0
+    i32.store $heap
+    local.get $t0
+    local.get $n.1
+    i32.store $heap offset=4
+    local.get $t0
+    i32.const 0
+    i32.store $heap offset=8
+    local.get $t0
+    local.set $n.0
     local.get $n.0
   )
 )

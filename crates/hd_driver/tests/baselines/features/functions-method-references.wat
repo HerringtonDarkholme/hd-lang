@@ -11,48 +11,46 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $bound (param $u.name.0 i32) (param $u.name.1 i32) (result i32) (local $t0 i32)
     ;; 23 |     f := u::name_len
-    block
-      i32.const 0
-      i32.const 8
-      i32.const 2
-      call $rt:new/class-1'1
-      local.tee $t0
-      local.get $u.name.0
-      i32.store $heap
-      local.get $t0
-      local.get $u.name.1
-      i32.store $heap offset=4
-      local.get $t0
+    i32.const 0
+    i32.const 8
+    i32.const 2
+    call $rt:new/class-1'1
+    local.tee $t0
+    local.get $u.name.0
+    i32.store $heap
+    local.get $t0
+    local.get $u.name.1
+    i32.store $heap offset=4
+    local.get $t0
     ;; 24 |     f() + f()
-      i32.const 0
-      call $bound#1
-      local.set $u.name.0
-      drop
-      local.get $t0
-      i32.const 0
-      call $bound#1
-      local.set $u.name.1
+    i32.const 0
+    call $bound#1
+    local.set $u.name.0
+    drop
+    local.get $t0
+    i32.const 0
+    call $bound#1
+    local.set $u.name.1
     ;; 23 |     f := u::name_len
+    local.get $t0
+    if
       local.get $t0
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      global.get $tracing
+      i32.or
       if
         local.get $t0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $t0
-          call $rt:release_ref'1
-        end
+        call $rt:release_ref'1
       end
-    ;; 24 |     f() + f()
-      local.get $u.name.0
-      local.get $u.name.1
-      i32.add
-    ;; 23 |     f := u::name_len
-      local.set $u.name.0
     end
+    ;; 24 |     f() + f()
+    local.get $u.name.0
+    local.get $u.name.1
+    i32.add
+    ;; 23 |     f := u::name_len
+    local.set $u.name.0
     local.get $u.name.0
   )
   (func $bound_mut#1 (param $env i32) (param $t0 i32) (param $t1 i32) (param $ctx i32)
@@ -60,169 +58,150 @@
     local.get $env
     i32.load $heap
     local.set $env
-    block
-      local.get $env
-      local.get $t0
-      local.get $t1
-      call $"impl User.rename"
-    end
+    local.get $env
+    local.get $t0
+    local.get $t1
+    call $"impl User.rename"
   )
   (func $"impl User.rename" (param $self i32) (param $n.0 i32) (param $n.1 i32)
     ;; 16 |         self.name = n
-    block
-      local.get $self
-      i32.load $heap
-      local.get $self
-      i32.load $heap offset=4
-      local.get $self
-      local.get $n.0
-      i32.store $heap
-      local.get $self
-      local.get $n.1
-      i32.store $heap offset=4
-      call $rt:release
-    end
+    local.get $self
+    i32.load $heap
+    local.get $self
+    i32.load $heap offset=4
+    local.get $self
+    local.get $n.0
+    i32.store $heap
+    local.get $self
+    local.get $n.1
+    i32.store $heap offset=4
+    call $rt:release
   )
   (func $adapter#1 (param $env i32) (param $u.name.0 i32) (param $u.name.1 i32) (param $ctx i32) (result i32)
     ;; 31 |     g := fn(u: User) -> usize: u.name_len()
     block
       block
-        block
-          block
-            block
-              local.get $u.name.1
-              local.set $env
-              br 0
-            end
-          end
-          br 0
-        end
+        local.get $u.name.1
+        local.set $env
+        br 0
       end
+      br 0
+    end
+    local.get $u.name.0
+    if
       local.get $u.name.0
-      if
-        local.get $u.name.0
-        call $rt:release_ref'2
-      end
+      call $rt:release_ref'2
     end
     local.get $env
   )
   (func $adapter (param $us i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $u.name.0 i32) (local $u.name.1 i32) (local $t2 i32)
-    ;; 31 |     g := fn(u: User) -> usize: u.name_len()
+    ;; 33 |     for u in us:
+    local.get $us
+    i32.load $heap offset=4
+    local.set $t0
     block
-    ;; 33 |     for u in us:
-      local.get $us
-      i32.load $heap offset=4
-      local.set $t0
-      block
-        loop
-          local.get $t1
-          local.get $t0
-          i32.lt_u
-          i32.eqz
-          br_if 1
-          local.get $us
-          local.get $t1
-          i32.const 8
-          i32.mul
-          i32.add
-          local.tee $u.name.0
-          i32.load $heap offset=16
-          local.get $u.name.0
-          i32.load $heap offset=20
-          local.set $u.name.1
-          local.set $u.name.0
-          local.get $t1
-          i32.const 1
-          i32.add
-          local.set $t1
+      loop
+        local.get $t1
+        local.get $t0
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $us
+        local.get $t1
+        i32.const 8
+        i32.mul
+        i32.add
+        local.tee $u.name.0
+        i32.load $heap offset=16
+        local.get $u.name.0
+        i32.load $heap offset=20
+        local.set $u.name.1
+        local.set $u.name.0
+        local.get $t1
+        i32.const 1
+        i32.add
+        local.set $t1
+        block
           block
-            block
-              br 0
-              unreachable
-            end
-    ;; 34 |         n += g(u)
-            local.get $u.name.0
-            local.tee $t2
-            if
-              local.get $t2
-              call $retain
-            end
-            local.get $n
-            i32.const 0
-            local.get $u.name.0
-            local.get $u.name.1
-            i32.const 0
-            call $adapter#1
-            i32.add
-            local.set $n
-    ;; 33 |     for u in us:
             br 0
+            unreachable
           end
+    ;; 34 |         n += g(u)
+          local.get $u.name.0
+          local.tee $t2
+          if
+            local.get $t2
+            call $retain
+          end
+          local.get $n
+          i32.const 0
+          local.get $u.name.0
+          local.get $u.name.1
+          i32.const 0
+          call $adapter#1
+          i32.add
+          local.set $n
+    ;; 33 |     for u in us:
           br 0
         end
+        br 0
       end
-    ;; 35 |     n
-      local.get $n
-    ;; 31 |     g := fn(u: User) -> usize: u.name_len()
-      local.set $us
     end
+    ;; 35 |     n
+    local.get $n
+    ;; 31 |     g := fn(u: User) -> usize: u.name_len()
+    local.set $us
     local.get $us
   )
   (func $"impl User.name_len" (param $self.name.0 i32) (param $self.name.1 i32) (result i32)
     ;; 13 |         self.name.len()
     block
-      block
-        block
-          local.get $self.name.1
-          local.set $self.name.0
-          br 0
-        end
-      end
+      local.get $self.name.1
+      local.set $self.name.0
+      br 0
     end
     local.get $self.name.0
   )
   (func $bound_mut (param $u i32) (param $n.0 i32) (param $n.1 i32) (local $t0 i32)
     ;; 27 |     f := u::rename
-    block
-      local.get $u
-      local.tee $t0
+    local.get $u
+    local.tee $t0
+    if
+      local.get $t0
+      i32.const 8
+      i32.sub
+      i32.load $heap
       if
         local.get $t0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t0
-          call $rt:retain_known
-        end
+        call $rt:retain_known
       end
-      i32.const 3
-      i32.const 4
-      i32.const -2147483643
-      call $rt:new/class-1'2
-      local.tee $t0
-      local.get $u
-      i32.store $heap
+    end
+    i32.const 3
+    i32.const 4
+    i32.const -2147483643
+    call $rt:new/class-1'2
+    local.tee $t0
+    local.get $u
+    i32.store $heap
     ;; 28 |     f(n)
-      drop
-      local.get $t0
-      local.get $n.0
-      local.get $n.1
-      i32.const 0
-      call $bound_mut#1
+    drop
+    local.get $t0
+    local.get $n.0
+    local.get $n.1
+    i32.const 0
+    call $bound_mut#1
     ;; 27 |     f := u::rename
+    local.get $t0
+    if
       local.get $t0
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      global.get $tracing
+      i32.or
       if
         local.get $t0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $t0
-          call $rt:release_ref'1
-        end
+        call $rt:release_ref'1
       end
     end
   )
@@ -239,34 +218,25 @@
       local.get $t0
       call $retain
     end
-    block
-      local.get $ctx
-      local.tee $t0
-      if
-        local.get $t0
-        call $rt:release_ref'2
-      end
+    local.get $ctx
+    local.tee $t0
+    if
+      local.get $t0
+      call $rt:release_ref'2
     end
     local.get $env
   )
   (func $unbound (param $u.name.0 i32) (param $u.name.1 i32) (result i32)
-    ;; 19 |     f := User::name_len
-    block
     ;; 20 |     f(u)
+    block
       block
-        block
-          block
-            block
-              local.get $u.name.1
-              local.set $u.name.0
-              br 0
-            end
-          end
-          br 0
-        end
+        local.get $u.name.1
+        local.set $u.name.0
+        br 0
       end
-    ;; 19 |     f := User::name_len
+      br 0
     end
+    ;; 19 |     f := User::name_len
     local.get $u.name.0
   )
 )

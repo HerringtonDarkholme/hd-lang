@@ -18,10 +18,8 @@
   (import "fixture" "table0" (table $table0 14 funcref))
   (func $make (result i32 i32) (local $t0 i32)
     ;; 7 |     fn!(text: string) -> usize $ Clock:
-    block
-      i32.const 2
-      local.set $t0
-    end
+    i32.const 2
+    local.set $t0
     local.get $t0
     i32.const 0
   )
@@ -92,12 +90,10 @@
         i64.const 1
         local.set $t2
         block
-          block
-            local.get $t2
-            call $"impl Duration.milliseconds"
-            local.set $t2
-            br 0
-          end
+          local.get $t2
+          call $"impl Duration.milliseconds"
+          local.set $t2
+          br 0
         end
     ;; 7 |     fn!(text: string) -> usize $ Clock:
       end

@@ -5,172 +5,158 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $spread (param $xs i32) (result i32)
     ;; 18 |     total(xs...)
-    block
-      local.get $xs
-      call $total
-      local.set $xs
-    end
+    local.get $xs
+    call $total
+    local.set $xs
     local.get $xs
   )
   (func $three (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (param $c.0 i32) (param $c.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 15 |     total(a, b, c)
-    block
-      i32.const 3
-      call $rt:list_buf
-      local.tee $t0
-      i32.const 3
-      i32.store $heap offset=4
+    i32.const 3
+    call $rt:list_buf
+    local.tee $t0
+    i32.const 3
+    i32.store $heap offset=4
+    local.get $t0
+    local.tee $t1
+    local.get $a.0
+    i32.store $heap offset=16
+    local.get $t1
+    local.get $a.1
+    i32.store $heap offset=20
+    local.get $t1
+    i32.const 8
+    i32.add
+    local.tee $t1
+    local.get $b.0
+    i32.store $heap offset=16
+    local.get $t1
+    local.get $b.1
+    i32.store $heap offset=20
+    local.get $t1
+    i32.const 8
+    i32.add
+    local.tee $t1
+    local.get $c.0
+    i32.store $heap offset=16
+    local.get $t1
+    local.get $c.1
+    i32.store $heap offset=20
+    local.get $t0
+    call $total
+    local.get $t0
+    if
       local.get $t0
-      local.tee $t1
-      local.get $a.0
-      i32.store $heap offset=16
-      local.get $t1
-      local.get $a.1
-      i32.store $heap offset=20
-      local.get $t1
       i32.const 8
-      i32.add
-      local.tee $t1
-      local.get $b.0
-      i32.store $heap offset=16
-      local.get $t1
-      local.get $b.1
-      i32.store $heap offset=20
-      local.get $t1
-      i32.const 8
-      i32.add
-      local.tee $t1
-      local.get $c.0
-      i32.store $heap offset=16
-      local.get $t1
-      local.get $c.1
-      i32.store $heap offset=20
-      local.get $t0
-      call $total
-      local.get $t0
+      i32.sub
+      i32.load $heap
       if
         local.get $t0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t0
-          call $rt:release_ref
-        end
+        call $rt:release_ref
       end
-      local.set $a.0
     end
+    local.set $a.0
     local.get $a.0
   )
   (func $through_value (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
-    ;; 24 |     f := total
-    block
     ;; 25 |     f(a, b)
-      i32.const 2
-      call $rt:list_buf
-      local.tee $t0
-      i32.const 2
-      i32.store $heap offset=4
-      local.get $t0
-      local.tee $t1
-      local.get $a.0
-      i32.store $heap offset=16
-      local.get $t1
-      local.get $a.1
-      i32.store $heap offset=20
-      local.get $t1
-      i32.const 8
-      i32.add
-      local.tee $t1
-      local.get $b.0
-      i32.store $heap offset=16
-      local.get $t1
-      local.get $b.1
-      i32.store $heap offset=20
-      local.get $t0
-      call $total
-      local.get $t0
+    i32.const 2
+    call $rt:list_buf
+    local.tee $t0
+    i32.const 2
+    i32.store $heap offset=4
+    local.get $t0
+    local.tee $t1
+    local.get $a.0
+    i32.store $heap offset=16
+    local.get $t1
+    local.get $a.1
+    i32.store $heap offset=20
+    local.get $t1
+    i32.const 8
+    i32.add
+    local.tee $t1
+    local.get $b.0
+    i32.store $heap offset=16
+    local.get $t1
+    local.get $b.1
+    i32.store $heap offset=20
+    local.get $t0
+    call $total
+    local.get $t0
     ;; 24 |     f := total
+    if
+      local.get $t0
+      i32.const 8
+      i32.sub
+      i32.load $heap
       if
         local.get $t0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t0
-          call $rt:release_ref
-        end
+        call $rt:release_ref
       end
-      local.set $a.0
     end
+    local.set $a.0
     local.get $a.0
   )
   (func $total (param $parts i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $p.1 i32)
-    ;; 9 |     let n: usize = 0
+    ;; 10 |     for p in parts:
+    local.get $parts
+    i32.load $heap offset=4
+    local.set $t0
     block
-    ;; 10 |     for p in parts:
-      local.get $parts
-      i32.load $heap offset=4
-      local.set $t0
-      block
-        loop
-          local.get $t1
-          local.get $t0
-          i32.lt_u
-          i32.eqz
-          br_if 1
-          local.get $parts
-          local.get $t1
-          i32.const 8
-          i32.mul
-          i32.add
-          local.tee $t2
-          i32.load $heap offset=16
-          local.get $t2
-          i32.load $heap offset=20
-          local.set $p.1
-          drop
-          local.get $t1
-          i32.const 1
-          i32.add
-          local.set $t1
+      loop
+        local.get $t1
+        local.get $t0
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $parts
+        local.get $t1
+        i32.const 8
+        i32.mul
+        i32.add
+        local.tee $t2
+        i32.load $heap offset=16
+        local.get $t2
+        i32.load $heap offset=20
+        local.set $p.1
+        drop
+        local.get $t1
+        i32.const 1
+        i32.add
+        local.set $t1
+        block
           block
-            block
-              br 0
-              unreachable
-            end
+            br 0
+            unreachable
+          end
     ;; 11 |         n += p.len()
-            block
-              block
-                local.get $p.1
-                local.set $t2
-                br 0
-              end
-            end
-            local.get $n
-            local.get $t2
-            i32.add
-            local.set $n
-    ;; 10 |     for p in parts:
+          block
+            local.get $p.1
+            local.set $t2
             br 0
           end
+          local.get $n
+          local.get $t2
+          i32.add
+          local.set $n
+    ;; 10 |     for p in parts:
           br 0
         end
+        br 0
       end
-    ;; 12 |     n
-      local.get $n
-    ;; 9 |     let n: usize = 0
-      local.set $parts
     end
+    ;; 12 |     n
+    local.get $n
+    ;; 9 |     let n: usize = 0
+    local.set $parts
     local.get $parts
   )
   (func $none (result i32) (local $t0 i32)
     ;; 21 |     total()
-    block
-      i32.const 80 ;; &empty-buffer
-      call $total
-      local.set $t0
-    end
+    i32.const 80 ;; &empty-buffer
+    call $total
+    local.set $t0
     local.get $t0
   )
 )

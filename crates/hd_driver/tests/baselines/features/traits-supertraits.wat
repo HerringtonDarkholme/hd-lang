@@ -8,57 +8,47 @@
   (import "fixture" "table0" (table $table0 4 funcref))
   (func $name_of (param $a.0 i32) (param $a.1 i32) (result i32)
     ;; 26 |     a.name().len()
+    local.get $a.0
+    local.get $a.1
+    i32.load $heap
+    call_indirect $table0 (param i32) (result i32 i32)
+    local.set $a.1
+    local.set $a.0
     block
-      local.get $a.0
-      local.get $a.1
-      i32.load $heap
-      call_indirect $table0 (param i32) (result i32 i32)
-      local.set $a.1
-      local.set $a.0
-      block
-        block
-          br 0
-        end
-      end
-      local.get $a.0
-      if
-        local.get $a.0
-        call $rt:release_ref
-      end
-      local.get $a.1
-      local.set $a.0
+      br 0
     end
+    local.get $a.0
+    if
+      local.get $a.0
+      call $rt:release_ref
+    end
+    local.get $a.1
+    local.set $a.0
     local.get $a.0
   )
   (func $"loud[Pup]" (param $d.name.0 i32) (param $d.name.1 i32) (result i32) (local $t0 i32)
     ;; 32 |     d.name().len() + d.bark().len()
-    block
+    local.get $d.name.0
+    if
       local.get $d.name.0
-      if
-        local.get $d.name.0
-        call $rt:release_ref
-      end
-      block
-        block
-          i32.const 65 ;; &"woof"
-          i32.const 4
-          local.set $t0
-          drop
-          br 0
-        end
-      end
-      block
-        block
-          local.get $t0
-          local.set $d.name.0
-          br 0
-        end
-      end
-      local.get $d.name.1
-      local.get $d.name.0
-      i32.add
-      local.set $d.name.0
+      call $rt:release_ref
     end
+    block
+      i32.const 65 ;; &"woof"
+      i32.const 4
+      local.set $t0
+      drop
+      br 0
+    end
+    block
+      local.get $t0
+      local.set $d.name.0
+      br 0
+    end
+    local.get $d.name.1
+    local.get $d.name.0
+    i32.add
+    local.set $d.name.0
     local.get $d.name.0
   )
   (func $use_pup (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32) (local $p i32)
@@ -104,36 +94,34 @@
     local.get $p
     local.get $t2
     i32.store $heap offset=4
-    block
-      local.get $p
-      local.tee $t1
-      if
-        local.get $t1
-        call $retain
-      end
-      local.get $p
-      i32.const 168 ;; &vtable[func24]
-      call $widen
-      local.get $p
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref
-      end
-      local.get $p
-      i32.load $heap
-      local.get $p
-      i32.load $heap offset=4
-      local.get $p
-      i32.const 0
-      i32.store $heap
-      local.get $p
-      i32.const 0
-      i32.store $heap offset=4
-      call $"loud[Pup]"
-      i32.add
-      local.set $t1
+    local.get $p
+    local.tee $t1
+    if
+      local.get $t1
+      call $retain
     end
+    local.get $p
+    i32.const 168 ;; &vtable[func24]
+    call $widen
+    local.get $p
+    local.tee $t1
+    if
+      local.get $t1
+      call $rt:release_ref
+    end
+    local.get $p
+    i32.load $heap
+    local.get $p
+    i32.load $heap offset=4
+    local.get $p
+    i32.const 0
+    i32.store $heap
+    local.get $p
+    i32.const 0
+    i32.store $heap offset=4
+    call $"loud[Pup]"
+    i32.add
+    local.set $t1
     local.get $t1
     local.get $t0
     i32.const 16
@@ -142,77 +130,69 @@
   )
   (func $"impl Animal for Pup.name" (param $self i32) (result i32 i32) (local $t0 i32) (local $t1 i32)
     ;; 19 |         self.name
-    block
-      local.get $self
-      i32.load $heap
-      local.get $self
-      i32.load $heap offset=4
-      local.set $t0
-      local.tee $self
-      local.tee $t1
-      if
-        local.get $t1
-        call $retain
-      end
+    local.get $self
+    i32.load $heap
+    local.get $self
+    i32.load $heap offset=4
+    local.set $t0
+    local.tee $self
+    local.tee $t1
+    if
+      local.get $t1
+      call $retain
     end
     local.get $self
     local.get $t0
   )
   (func $"impl Dog for Pup.bark" (param $self i32) (result i32 i32) (local $t0 i32)
     ;; 23 |         "woof"
-    block
-      i32.const 65 ;; &"woof"
-      i32.const 4
-      local.set $t0
-      local.set $self
-    end
+    i32.const 65 ;; &"woof"
+    i32.const 4
+    local.set $t0
+    local.set $self
     local.get $self
     local.get $t0
   )
   (func $widen (param $d.0 i32) (param $d.1 i32) (result i32) (local $t1 i32) (local $t0 i32)
     ;; 29 |     name_of(d) + d.bark().len()
-    block
-      local.get $d.0
-      local.tee $t0
-      if
-        local.get $t0
-        call $retain
-      end
-      local.get $d.0
-      local.get $d.1
-      i32.load $heap offset=4
-      local.set $t1
-      local.tee $t0
-      local.get $t1
-      call $name_of
-      local.set $t1
+    local.get $d.0
+    local.tee $t0
+    if
       local.get $t0
-      if
-        local.get $t0
-        call $rt:release_ref
-      end
-      local.get $d.0
-      local.get $d.1
-      i32.load $heap
-      call_indirect $table0 (param i32) (result i32 i32)
-      local.set $d.1
-      local.set $d.0
-      block
-        block
-          br 0
-        end
-      end
-      local.get $d.0
-      local.tee $t0
-      if
-        local.get $t0
-        call $rt:release_ref
-      end
-      local.get $t1
-      local.get $d.1
-      i32.add
-      local.set $d.0
+      call $retain
     end
+    local.get $d.0
+    local.get $d.1
+    i32.load $heap offset=4
+    local.set $t1
+    local.tee $t0
+    local.get $t1
+    call $name_of
+    local.set $t1
+    local.get $t0
+    if
+      local.get $t0
+      call $rt:release_ref
+    end
+    local.get $d.0
+    local.get $d.1
+    i32.load $heap
+    call_indirect $table0 (param i32) (result i32 i32)
+    local.set $d.1
+    local.set $d.0
+    block
+      br 0
+    end
+    local.get $d.0
+    local.tee $t0
+    if
+      local.get $t0
+      call $rt:release_ref
+    end
+    local.get $t1
+    local.get $d.1
+    i32.add
+    local.set $d.0
     local.get $d.0
   )
 )

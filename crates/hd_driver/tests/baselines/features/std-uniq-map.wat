@@ -10,140 +10,120 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $put (param $m i32) (param $k.0 i32) (param $k.1 i32) (param $v.0 i32) (param $v.1 i32)
     ;; 11 |     _ := m.insert(k, v)
-    block
-      local.get $m
-      local.get $k.0
-      local.get $k.1
-      local.get $v.0
-      local.get $v.1
-      call $"impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].insert[string, string]"
-      call $rt:release
-    end
+    local.get $m
+    local.get $k.0
+    local.get $k.1
+    local.get $v.0
+    local.get $v.1
+    call $"impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].insert[string, string]"
+    call $rt:release
   )
   (func $group (param $m i32) (param $k.0 i32) (param $k.1 i32) (param $v.0 i32) (param $v.1 i32) (local $t0 i32)
     ;; 19 |     m.get_or_insert(k, UniqList::new()).push(v)
     block
       block
         block
-          block
-            block
-              block
-                block
-                  i32.const 0
-                  i32.const 8
-                  call $room
-                  local.set $t0
-                  br 0
-                end
-              end
-              br 0
-            end
-          end
+          i32.const 0
+          i32.const 8
+          call $room
+          local.set $t0
           br 0
         end
+        br 0
       end
+      br 0
+    end
+    local.get $m
+    local.get $k.0
+    local.get $k.1
+    local.get $t0
+    i32.const 0
+    i32.const 0
+    call $"impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].get_or_insert[string, std.collections.UniqList[string]]"
+    local.set $m
+    block
+      block
+        local.get $m
+        i32.load $heap offset=8
+        local.set $k.0
+        br 0
+      end
+      block
+        local.get $m
+        i32.load $heap offset=4
+        local.set $k.1
+        br 0
+      end
+      local.get $k.1
+      local.get $k.0
+      i32.le_u
+      if
+        local.get $m
+        local.get $k.0
+        i32.const 1
+        i32.add
+        call $"impl[T < ?Copy] UniqList[T].reserve_for[string]"
+      end
+      block
+        local.get $m
+        i32.load $heap
+        local.get $k.0
+        i32.const 8
+        i32.mul
+        i32.add
+        local.set $k.1
+        br 0
+      end
+      local.get $k.1
+      local.get $v.0
+      i32.store $heap
+      local.get $k.1
+      local.get $v.1
+      i32.store $heap offset=4
       local.get $m
       local.get $k.0
-      local.get $k.1
-      local.get $t0
-      i32.const 0
-      i32.const 0
-      call $"impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].get_or_insert[string, std.collections.UniqList[string]]"
-      local.set $m
-      block
-        block
-          block
-            block
-              local.get $m
-              i32.load $heap offset=8
-              local.set $k.0
-              br 0
-            end
-          end
-          block
-            block
-              local.get $m
-              i32.load $heap offset=4
-              local.set $k.1
-              br 0
-            end
-          end
-          local.get $k.1
-          local.get $k.0
-          i32.le_u
-          if
-            local.get $m
-            local.get $k.0
-            i32.const 1
-            i32.add
-            call $"impl[T < ?Copy] UniqList[T].reserve_for[string]"
-          end
-          block
-            block
-              local.get $m
-              i32.load $heap
-              local.get $k.0
-              i32.const 8
-              i32.mul
-              i32.add
-              local.set $k.1
-              br 0
-            end
-          end
-          local.get $k.1
-          local.get $v.0
-          i32.store $heap
-          local.get $k.1
-          local.get $v.1
-          i32.store $heap offset=4
-          local.get $m
-          local.get $k.0
-          i32.const 1
-          i32.add
-          i32.store $heap offset=8
-          br 0
-        end
-      end
+      i32.const 1
+      i32.add
+      i32.store $heap offset=8
+      br 0
     end
   )
   (func $lookup (param $m i32) (param $k.0 i32) (param $k.1 i32) (result i32) (local $t0 i32)
     ;; 14 |     match m.get_ref(k):
+    local.get $m
+    local.get $k.0
+    local.get $k.1
+    call $"impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].get_ref[string, string]"
+    local.set $m
     block
-      local.get $m
-      local.get $k.0
-      local.get $k.1
-      call $"impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].get_ref[string, string]"
-      local.set $m
       block
         block
-          block
-    ;; 15 |         .Some(v) => v.len()
-            local.get $m
-            if
-              br 1
-            else
-    ;; 16 |         .None => 0
-              local.get $m
-              i32.eqz
-              br_if 2
-              unreachable
-    ;; 15 |         .Some(v) => v.len()
-            end
-    ;; 14 |     match m.get_ref(k):
-            unreachable
-          end
     ;; 15 |         .Some(v) => v.len()
           local.get $m
-          call $"impl string.len"
+          if
+            br 1
+          else
+    ;; 16 |         .None => 0
+            local.get $m
+            i32.eqz
+            br_if 2
+            unreachable
+    ;; 15 |         .Some(v) => v.len()
+          end
     ;; 14 |     match m.get_ref(k):
-          local.set $t0
-          br 1
+          unreachable
         end
-        br 0
+    ;; 15 |         .Some(v) => v.len()
+        local.get $m
+        call $"impl string.len"
+    ;; 14 |     match m.get_ref(k):
+        local.set $t0
+        br 1
       end
-      local.get $t0
-      local.set $m
+      br 0
     end
+    local.get $t0
+    local.set $m
     local.get $m
   )
 )

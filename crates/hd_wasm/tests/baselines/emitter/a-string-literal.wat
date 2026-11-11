@@ -2,12 +2,10 @@
 (module
   (func $greet (result i32 i32) (local $t1 i32) (local $t0 i32)
     ;; 7 |     "hello"
-    block
-      i32.const 65 ;; &"hello"
-      i32.const 5
-      local.set $t0
-      local.set $t1
-    end
+    i32.const 65 ;; &"hello"
+    i32.const 5
+    local.set $t0
+    local.set $t1
     local.get $t1
     local.get $t0
   )

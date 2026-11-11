@@ -15,95 +15,91 @@
   (import "fixture" "table0" (table $table0 5 funcref))
   (func $index (param $by i32) (param $u i32) (local $t1 i32) (local $t0 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t2 i32)
     ;; 14 |     by[u.name] = u
-    block
-      local.get $u
-      i32.load $heap
-      local.get $u
-      i32.load $heap offset=4
-      local.set $t0
-      local.tee $t1
-      local.tee $t2
-      if
-        local.get $t2
-        call $retain
-      end
-      local.get $by
-      i32.load $heap
-      call $rt:map_unique
-      local.set $t3
-      local.get $by
-      local.get $t3
-      i32.store $heap
-      local.get $t3
-      local.get $t1
-      local.get $t0
-      call $rt:map_hash
-      local.tee $t4
-      local.get $t1
-      local.get $t0
-      call $rt:map_find
-      local.set $t5
-      local.get $t1
-      local.tee $t2
-      if
-        local.get $t2
-        call $retain
-      end
-      local.get $by
-      local.get $t3
-      local.get $t4
-      local.get $t5
-      local.get $t1
-      local.get $t0
-      local.get $u
-      call $rt:map_put
-      i32.store $heap
-      local.get $t1
-      local.tee $t2
-      if
-        local.get $t2
-        call $rt:release_ref'1
-      end
+    local.get $u
+    i32.load $heap
+    local.get $u
+    i32.load $heap offset=4
+    local.set $t0
+    local.tee $t1
+    local.tee $t2
+    if
+      local.get $t2
+      call $retain
+    end
+    local.get $by
+    i32.load $heap
+    call $rt:map_unique
+    local.set $t3
+    local.get $by
+    local.get $t3
+    i32.store $heap
+    local.get $t3
+    local.get $t1
+    local.get $t0
+    call $rt:map_hash
+    local.tee $t4
+    local.get $t1
+    local.get $t0
+    call $rt:map_find
+    local.set $t5
+    local.get $t1
+    local.tee $t2
+    if
+      local.get $t2
+      call $retain
+    end
+    local.get $by
+    local.get $t3
+    local.get $t4
+    local.get $t5
+    local.get $t1
+    local.get $t0
+    local.get $u
+    call $rt:map_put
+    i32.store $heap
+    local.get $t1
+    local.tee $t2
+    if
+      local.get $t2
+      call $rt:release_ref'1
     end
   )
   (func $remember (param $seen i32) (param $u i32) (local $t0 i32) (local $t1 i32)
     ;; 11 |     seen.push(u)
-    block
-      local.get $seen
-      i32.load $heap
-      call $rt:list_unique
+    local.get $seen
+    i32.load $heap
+    call $rt:list_unique
+    local.set $t0
+    local.get $seen
+    local.get $t0
+    i32.store $heap
+    local.get $t0
+    i32.load $heap offset=4
+    local.tee $t1
+    local.get $t0
+    i32.load $heap
+    i32.eq
+    if
+      local.get $t0
+      i32.const 1
+      call_indirect $table0 (param i32) (result i32)
       local.set $t0
       local.get $seen
       local.get $t0
       i32.store $heap
-      local.get $t0
-      i32.load $heap offset=4
-      local.tee $t1
-      local.get $t0
-      i32.load $heap
-      i32.eq
-      if
-        local.get $t0
-        i32.const 1
-        call_indirect $table0 (param i32) (result i32)
-        local.set $t0
-        local.get $seen
-        local.get $t0
-        i32.store $heap
-      end
-      local.get $t0
-      local.get $t1
-      i32.const 4
-      i32.mul
-      i32.add
-      local.get $u
-      i32.store $heap offset=16
-      local.get $t0
-      local.get $t1
-      i32.const 1
-      i32.add
-      i32.store $heap offset=4
     end
+    local.get $t0
+    local.get $t1
+    i32.const 4
+    i32.mul
+    i32.add
+    local.get $u
+    i32.store $heap offset=16
+    local.get $t0
+    local.get $t1
+    i32.const 1
+    i32.add
+    i32.store $heap offset=4
   )
   (func $total (param $b i32) (param $seen i32) (param $by i32) (param $t1 i32) (result i32) (local $t0 i32) (local $a i32) (local $t2 i32)
     ;; 17 |     let mut seen: List[&User] = []
@@ -160,129 +156,88 @@
     local.get $b
     local.get $t1
     i32.store $heap offset=4
-    block
-      local.get $t0
-      i64.const 0
-      i64.store $heap offset=32
-      local.get $t0
-      i32.const 40
-      i32.add
-      local.tee $seen
-      i32.const 80 ;; &empty-buffer
-      i32.store $heap
-      local.get $seen
+    local.get $t0
+    i64.const 0
+    i64.store $heap offset=32
+    local.get $t0
+    i32.const 40
+    i32.add
+    local.tee $seen
+    i32.const 80 ;; &empty-buffer
+    i32.store $heap
+    local.get $seen
     ;; 18 |     remember(&mut seen, &a)
-      local.get $a
-      call $remember
+    local.get $a
+    call $remember
     ;; 19 |     remember(&mut seen, &b)
-      local.get $seen
-      local.get $b
-      call $remember
+    local.get $seen
+    local.get $b
+    call $remember
     ;; 20 |     let mut by: Map[string, &User] = {}
-      local.get $t0
-      i64.const 0
-      i64.store $heap offset=48
-      local.get $t0
-      i32.const 56
-      i32.add
-      local.tee $by
-      i32.const 80 ;; &empty-buffer
-      i32.store $heap
-      local.get $by
+    local.get $t0
+    i64.const 0
+    i64.store $heap offset=48
+    local.get $t0
+    i32.const 56
+    i32.add
+    local.tee $by
+    i32.const 80 ;; &empty-buffer
+    i32.store $heap
+    local.get $by
     ;; 21 |     index(&mut by, &a)
-      local.get $a
-      call $index
+    local.get $a
+    call $index
     ;; 22 |     seen[0].name.len() + seen[1].name.len() + by.len()
-      local.get $seen
-      i32.load $heap
-      local.set $t1
-      i32.const 0
-      local.get $t1
-      i32.load $heap offset=4
-      i32.ge_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $t1
-      i32.load $heap offset=16
-      local.tee $t1
-      i32.load $heap
-      local.get $t1
-      i32.load $heap offset=4
-      local.set $t1
-      drop
-      block
-        block
-          br 0
-        end
-      end
-      local.get $seen
-      i32.load $heap
-      local.set $t2
-      i32.const 1
-      local.get $t2
-      i32.load $heap offset=4
-      i32.ge_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $t2
-      i32.load $heap offset=20
-      local.tee $t2
-      i32.load $heap
-      local.get $t2
-      i32.load $heap offset=4
-      local.set $t2
-      drop
-      block
-        block
-          br 0
-        end
-      end
+    local.get $seen
+    i32.load $heap
+    local.set $t1
+    i32.const 0
+    local.get $t1
+    i32.load $heap offset=4
+    i32.ge_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $t1
+    i32.load $heap offset=16
+    local.tee $t1
+    i32.load $heap
+    local.get $t1
+    i32.load $heap offset=4
+    local.set $t1
+    drop
+    block
+      br 0
+    end
+    local.get $seen
+    i32.load $heap
+    local.set $t2
+    i32.const 1
+    local.get $t2
+    i32.load $heap offset=4
+    i32.ge_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $t2
+    i32.load $heap offset=20
+    local.tee $t2
+    i32.load $heap
+    local.get $t2
+    i32.load $heap offset=4
+    local.set $t2
+    drop
+    block
+      br 0
+    end
     ;; 17 |     let mut seen: List[&User] = []
+    local.get $seen
+    if
       local.get $seen
-      if
-        local.get $seen
-        i32.load $heap
-        local.tee $seen
-        if
-          local.get $seen
-          i32.const 8
-          i32.sub
-          i32.load $heap
-          if
-            local.get $seen
-            call $rt:release_ref'2
-          end
-        end
-      end
-      local.get $b
-      if
-        local.get $b
-        i32.load $heap
-        local.tee $seen
-        if
-          local.get $seen
-          call $rt:release_ref'1
-        end
-      end
-    ;; 22 |     seen[0].name.len() + seen[1].name.len() + by.len()
-      local.get $t1
-      local.get $t2
-      i32.add
-      local.set $b
-      local.get $by
       i32.load $heap
-      local.get $by
-      i32.const 0
-      i32.store $heap
       local.tee $seen
-      i32.load $heap
-      local.set $by
-    ;; 17 |     let mut seen: List[&User] = []
-      local.get $seen
       if
         local.get $seen
         i32.const 8
@@ -293,23 +248,58 @@
           call $rt:release_ref'2
         end
       end
-      local.get $a
-      if
-        local.get $a
-        i32.load $heap
-        local.tee $seen
-        if
-          local.get $seen
-          call $rt:release_ref'1
-        end
-      end
-    ;; 22 |     seen[0].name.len() + seen[1].name.len() + by.len()
-      local.get $b
-      local.get $by
-      i32.add
-    ;; 17 |     let mut seen: List[&User] = []
-      local.set $b
     end
+    local.get $b
+    if
+      local.get $b
+      i32.load $heap
+      local.tee $seen
+      if
+        local.get $seen
+        call $rt:release_ref'1
+      end
+    end
+    ;; 22 |     seen[0].name.len() + seen[1].name.len() + by.len()
+    local.get $t1
+    local.get $t2
+    i32.add
+    local.set $b
+    local.get $by
+    i32.load $heap
+    local.get $by
+    i32.const 0
+    i32.store $heap
+    local.tee $seen
+    i32.load $heap
+    local.set $by
+    ;; 17 |     let mut seen: List[&User] = []
+    local.get $seen
+    if
+      local.get $seen
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $seen
+        call $rt:release_ref'2
+      end
+    end
+    local.get $a
+    if
+      local.get $a
+      i32.load $heap
+      local.tee $seen
+      if
+        local.get $seen
+        call $rt:release_ref'1
+      end
+    end
+    ;; 22 |     seen[0].name.len() + seen[1].name.len() + by.len()
+    local.get $b
+    local.get $by
+    i32.add
+    ;; 17 |     let mut seen: List[&User] = []
+    local.set $b
     local.get $b
     local.get $t0
     i32.const 64

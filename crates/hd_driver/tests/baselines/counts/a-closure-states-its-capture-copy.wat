@@ -7,10 +7,8 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $plain (result i32 i32) (local $t0 i32)
     ;; 11 |     fn() -> usize: 0
-    block
-      i32.const 0
-      local.set $t0
-    end
+    i32.const 0
+    local.set $t0
     local.get $t0
     i32.const 0
   )
@@ -20,39 +18,37 @@
   )
   (func $make (result i32 i32) (local $count i32) (local $t0 i32)
     ;; 5 |     let count: usize = 0
-    block
-      i32.const 4
-      i32.const 0
-      call $rt:new/class-1
-      local.tee $count
-      i32.const 0
-      i32.store $heap
+    i32.const 4
+    i32.const 0
+    call $rt:new/class-1
+    local.tee $count
+    i32.const 0
+    i32.store $heap
     ;; 6 |     fn() -> usize:
-      i32.const 2
-      i32.const 4
-      i32.const -2147483644
-      call $rt:new/class-1
-      local.tee $t0
-      local.get $count
-      i32.store $heap
-      local.get $t0
-      call $rt:retain_fields
+    i32.const 2
+    i32.const 4
+    i32.const -2147483644
+    call $rt:new/class-1
+    local.tee $t0
+    local.get $count
+    i32.store $heap
+    local.get $t0
+    call $rt:retain_fields
     ;; 5 |     let count: usize = 0
+    local.get $count
+    if
       local.get $count
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      global.get $tracing
+      i32.or
       if
         local.get $count
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $count
-          call $rt:release_ref
-        end
+        call $rt:release_ref
       end
-      local.set $count
     end
+    local.set $count
     local.get $count
     local.get $t0
   )
@@ -61,20 +57,18 @@
     local.get $env
     i32.load $heap
     local.set $env
-    block
     ;; 7 |         count += 1
-      local.get $env
-      local.get $env
-      i32.load $heap
-      i32.const 1
-      i32.add
-      i32.store $heap
+    local.get $env
+    local.get $env
+    i32.load $heap
+    i32.const 1
+    i32.add
+    i32.store $heap
     ;; 8 |         count
-      local.get $env
-      i32.load $heap
+    local.get $env
+    i32.load $heap
     ;; 6 |     fn() -> usize:
-      local.set $env
-    end
+    local.set $env
     local.get $env
   )
 )

@@ -1916,28 +1916,26 @@
       local.set $t1
     else
     end
-    block
-      local.get $s.1
-      i32.const 1
-      i32.add
-      local.tee $t2
-      call $rt:str
-      local.tee $t3
-      local.tee $t4
-      local.get $s.0
-      local.get $s.1
-      call $rt:memory_copy/0/0
-      local.get $t4
-      local.get $s.1
-      i32.add
-      i32.const 65 ;; &"!"
-      i32.load8_u $heap
-      i32.store8 $heap
-      local.get $t3
-      local.get $t2
-      local.set $s.1
-      local.set $s.0
-    end
+    local.get $s.1
+    i32.const 1
+    i32.add
+    local.tee $t2
+    call $rt:str
+    local.tee $t3
+    local.tee $t4
+    local.get $s.0
+    local.get $s.1
+    call $rt:memory_copy/0/0
+    local.get $t4
+    local.get $s.1
+    i32.add
+    i32.const 65 ;; &"!"
+    i32.load8_u $heap
+    i32.store8 $heap
+    local.get $t3
+    local.get $t2
+    local.set $s.1
+    local.set $s.0
     local.get $s.0
     local.get $s.1
     local.get $frame

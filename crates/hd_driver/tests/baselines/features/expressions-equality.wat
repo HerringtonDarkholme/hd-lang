@@ -54,42 +54,40 @@
     local.get $o
     local.get $t2
     i32.store $heap offset=4
-    block
-      local.get $t0
-      i64.const 0
-      i64.store $heap offset=16
-      local.get $t0
-      i32.const 24
-      i32.add
-      local.tee $t1
-      local.get $s.0
-      i32.store $heap
+    local.get $t0
+    i64.const 0
+    i64.store $heap offset=16
+    local.get $t0
+    i32.const 24
+    i32.add
+    local.tee $t1
+    local.get $s.0
+    i32.store $heap
+    local.get $t1
+    local.get $s.1
+    i32.store $heap offset=4
+    local.get $o
+    local.get $t1
+    call $"impl[T < ?Copy & Eq] Eq for T?.eq[string]"
+    local.set $t2
+    local.get $t1
+    if
       local.get $t1
-      local.get $s.1
-      i32.store $heap offset=4
-      local.get $o
+      i32.load $heap
       local.get $t1
-      call $"impl[T < ?Copy & Eq] Eq for T?.eq[string]"
-      local.set $t2
-      local.get $t1
-      if
-        local.get $t1
-        i32.load $heap
-        local.get $t1
-        i32.load $heap offset=4
-        call $rt:release'1
-      end
-      local.get $o
-      if
-        local.get $o
-        i32.load $heap
-        local.get $o
-        i32.load $heap offset=4
-        call $rt:release'1
-      end
-      local.get $t2
-      local.set $t1
+      i32.load $heap offset=4
+      call $rt:release'1
     end
+    local.get $o
+    if
+      local.get $o
+      i32.load $heap
+      local.get $o
+      i32.load $heap offset=4
+      call $rt:release'1
+    end
+    local.get $t2
+    local.set $t1
     local.get $t1
     local.get $t0
     i32.const 32
@@ -98,35 +96,33 @@
   )
   (func $map_eq (param $a i32) (param $b i32) (result i32)
     ;; 27 |     a == b
-    block
+    local.get $a
+    local.get $b
+    call $"impl[K < Eq & Hash, V < Eq] Eq for Map[K, V].eq[string, string]"
+    local.get $a
+    if
       local.get $a
-      local.get $b
-      call $"impl[K < Eq & Hash, V < Eq] Eq for Map[K, V].eq[string, string]"
-      local.get $a
+      i32.const 8
+      i32.sub
+      i32.load $heap
       if
         local.get $a
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $a
-          call $rt:release_ref
-        end
+        call $rt:release_ref
       end
-      local.get $b
-      local.tee $a
-      if
-        local.get $a
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $a
-          call $rt:release_ref
-        end
-      end
-      local.set $a
     end
+    local.get $b
+    local.tee $a
+    if
+      local.get $a
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $a
+        call $rt:release_ref
+      end
+    end
+    local.set $a
     local.get $a
   )
   (func $list_ne (param $b i32) (param $t1 i32) (result i32) (local $t0 i32) (local $a i32)
@@ -178,47 +174,45 @@
     local.tee $b
     local.get $t1
     i32.store $heap
-    block
+    local.get $a
+    local.get $b
+    call $"impl[T < Eq] Eq for List[T].eq[string]"
+    local.set $t1
+    local.get $a
+    if
       local.get $a
-      local.get $b
-      call $"impl[T < Eq] Eq for List[T].eq[string]"
-      local.set $t1
-      local.get $a
+      i32.load $heap
+      local.tee $a
       if
         local.get $a
+        i32.const 8
+        i32.sub
         i32.load $heap
-        local.tee $a
         if
           local.get $a
-          i32.const 8
-          i32.sub
-          i32.load $heap
-          if
-            local.get $a
-            call $rt:release_ref
-          end
+          call $rt:release_ref
         end
       end
-      local.get $b
-      if
-        local.get $b
-        i32.load $heap
-        local.tee $a
-        if
-          local.get $a
-          i32.const 8
-          i32.sub
-          i32.load $heap
-          if
-            local.get $a
-            call $rt:release_ref
-          end
-        end
-      end
-      local.get $t1
-      i32.eqz
-      local.set $b
     end
+    local.get $b
+    if
+      local.get $b
+      i32.load $heap
+      local.tee $a
+      if
+        local.get $a
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $a
+          call $rt:release_ref
+        end
+      end
+    end
+    local.get $t1
+    i32.eqz
+    local.set $b
     local.get $b
     local.get $t0
     i32.const 32
@@ -227,14 +221,12 @@
   )
   (func $str_eq (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32)
     ;; 12 |     a == b
-    block
-      local.get $a.0
-      local.get $a.1
-      local.get $b.0
-      local.get $b.1
-      call $rt:str_eq
-      local.set $a.0
-    end
+    local.get $a.0
+    local.get $a.1
+    local.get $b.0
+    local.get $b.1
+    call $rt:str_eq
+    local.set $a.0
     local.get $a.0
   )
   (func $rec_eq (param $b i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (param $t4 i32) (param $t5 i32) (result i32) (local $t0 i32) (local $a i32)
@@ -298,34 +290,32 @@
     local.get $b
     local.get $t5
     i32.store $heap offset=8
-    block
+    local.get $a
+    local.get $b
+    call $"derive Eq for Rec.eq"
+    local.set $t1
+    local.get $a
+    if
       local.get $a
-      local.get $b
-      call $"derive Eq for Rec.eq"
-      local.set $t1
+      i32.load $heap
       local.get $a
-      if
-        local.get $a
-        i32.load $heap
-        local.get $a
-        i32.load $heap offset=4
-        local.get $a
-        i32.load $heap offset=8
-        call $rt:release'2
-      end
-      local.get $b
-      if
-        local.get $b
-        i32.load $heap
-        local.get $b
-        i32.load $heap offset=4
-        local.get $b
-        i32.load $heap offset=8
-        call $rt:release'2
-      end
-      local.get $t1
-      local.set $b
+      i32.load $heap offset=4
+      local.get $a
+      i32.load $heap offset=8
+      call $rt:release'2
     end
+    local.get $b
+    if
+      local.get $b
+      i32.load $heap
+      local.get $b
+      i32.load $heap offset=4
+      local.get $b
+      i32.load $heap offset=8
+      call $rt:release'2
+    end
+    local.get $t1
+    local.set $b
     local.get $b
     local.get $t0
     i32.const 48
@@ -378,30 +368,28 @@
     block
       block
         block
-          block
-            local.get $o
-            i32.load $heap
-            br_if 1
-            br 0
-            unreachable
-          end
-          i32.const 1
-          local.set $t3
-          br 1
+          local.get $o
+          i32.load $heap
+          br_if 1
+          br 0
+          unreachable
         end
-        br 0
+        i32.const 1
+        local.set $t3
+        br 1
       end
-      local.get $o
-      if
-        local.get $o
-        i32.load $heap
-        local.get $o
-        i32.load $heap offset=4
-        call $rt:release'1
-      end
-      local.get $t3
-      local.set $t1
+      br 0
     end
+    local.get $o
+    if
+      local.get $o
+      i32.load $heap
+      local.get $o
+      i32.load $heap offset=4
+      call $rt:release'1
+    end
+    local.get $t3
+    local.set $t1
     local.get $t1
     local.get $t0
     i32.const 16

@@ -5,97 +5,90 @@
   (import "fixture" "rt:new/class-2" (func $rt:new/class-2 (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $total (param $head i32) (result i32) (local $n i32) (local $c i32) (local $t0 i32)
-    ;; 15 |     let n: usize = 0
-    block
     ;; 17 |     while true:
-      block
-        loop
+    block
+      loop
     ;; 18 |         match cur:
+        block
           block
             block
-              block
     ;; 19 |             .Some(c) =>
-                local.get $head
-                if
-                  local.get $head
-                  local.set $c
-                  br 1
-                else
-    ;; 22 |             .None => break
-                  local.get $head
-                  i32.eqz
-                  br_if 2
-                  unreachable
-    ;; 19 |             .Some(c) =>
-                end
-    ;; 18 |         match cur:
-                unreachable
-              end
-    ;; 20 |                 n += c.name.len()
-              local.get $c
-              i32.load $heap
-              local.get $c
-              i32.load $heap offset=4
-              local.set $t0
-              drop
-              block
-                block
-                  br 0
-                end
-              end
-              local.get $n
-              local.get $t0
-              i32.add
-              local.set $n
-    ;; 21 |                 cur = c.next
-              local.get $c
-              i32.load $heap offset=8
-              local.tee $c
-              call $rt:retain
               local.get $head
-              call $rt:release
-              local.get $c
-              local.set $head
-    ;; 18 |         match cur:
-              br 1
-            end
+              if
+                local.get $head
+                local.set $c
+                br 1
+              else
     ;; 22 |             .None => break
-            br 2
+                local.get $head
+                i32.eqz
+                br_if 2
+                unreachable
+    ;; 19 |             .Some(c) =>
+              end
     ;; 18 |         match cur:
-            br 0
+              unreachable
+            end
+    ;; 20 |                 n += c.name.len()
+            local.get $c
+            i32.load $heap
+            local.get $c
+            i32.load $heap offset=4
+            local.set $t0
+            drop
+            block
+              br 0
+            end
+            local.get $n
+            local.get $t0
+            i32.add
+            local.set $n
+    ;; 21 |                 cur = c.next
+            local.get $c
+            i32.load $heap offset=8
+            local.tee $c
+            call $rt:retain
+            local.get $head
+            call $rt:release
+            local.get $c
+            local.set $head
+    ;; 18 |         match cur:
+            br 1
           end
-    ;; 17 |     while true:
+    ;; 22 |             .None => break
+          br 2
+    ;; 18 |         match cur:
           br 0
         end
+    ;; 17 |     while true:
+        br 0
       end
-    ;; 15 |     let n: usize = 0
-      local.get $head
-      call $rt:release
-    ;; 23 |     n
-      local.get $n
-    ;; 15 |     let n: usize = 0
-      local.set $head
     end
+    ;; 15 |     let n: usize = 0
+    local.get $head
+    call $rt:release
+    ;; 23 |     n
+    local.get $n
+    ;; 15 |     let n: usize = 0
+    local.set $head
     local.get $head
   )
   (func $push_front (param $head i32) (param $name.0 i32) (param $name.1 i32) (result i32) (local $t0 i32)
     ;; 12 |     box(Chain { name: name, next: head })
-    block
-      i32.const 12
-      i32.const -2147483646
-      call $rt:new/class-2
-      local.tee $t0
-      local.get $name.0
-      i32.store $heap
-      local.get $t0
-      local.get $name.1
-      i32.store $heap offset=4
-      local.get $t0
-      local.get $head
-      i32.store $heap offset=8
-      local.get $t0
-      local.set $head
-    end
+    i32.const 12
+    i32.const -2147483646
+    call $rt:new/class-2
+    local.tee $t0
+    local.get $name.0
+    i32.store $heap
+    local.get $t0
+    local.get $name.1
+    i32.store $heap offset=4
+    local.get $t0
+    local.get $head
+    i32.store $heap offset=8
+    local.get $t0
+    local.set $head
     local.get $head
   )
 )

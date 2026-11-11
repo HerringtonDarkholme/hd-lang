@@ -7,230 +7,222 @@
   (import "fixture" "table0" (table $table0 4 funcref))
   (func $keys (param $m i32) (result i32) (local $out i32) (local $t0 i32) (local $t1 i32) (local $k i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32)
     ;; 19 |     let mut out: List[string] = []
-    block
-      i32.const 80 ;; &empty-buffer
-      local.set $out
+    i32.const 80 ;; &empty-buffer
+    local.set $out
     ;; 20 |     for (k, _) in m:
-      local.get $m
-      i32.load $heap offset=4
-      local.set $t0
-      block
-        loop
-          local.get $m
-          local.get $t1
-          local.get $t0
-          call $rt:map_slot_next
-          local.tee $t1
-          local.get $t0
-          i32.lt_u
-          i32.eqz
-          br_if 1
-          local.get $m
-          local.get $m
-          i32.load $heap offset=12
-          i32.const 12
+    local.get $m
+    i32.load $heap offset=4
+    local.set $t0
+    block
+      loop
+        local.get $m
+        local.get $t1
+        local.get $t0
+        call $rt:map_slot_next
+        local.tee $t1
+        local.get $t0
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $m
+        local.get $m
+        i32.load $heap offset=12
+        i32.const 12
+        i32.mul
+        i32.add
+        i32.const 24
+        i32.add
+        local.get $t1
+        i32.const 16
+        i32.mul
+        i32.add
+        local.set $k
+        local.get $t1
+        i32.const 1
+        i32.add
+        local.set $t1
+        block
+          block
+            br 0
+            unreachable
+          end
+    ;; 21 |         out.push(*k)
+          local.get $k
+          i32.load $heap
+          local.tee $t2
+          local.get $k
+          i32.load $heap offset=4
+          local.tee $k
+          call $rt:retain
+    ;; 20 |     for (k, _) in m:
+          local.get $out
+    ;; 21 |         out.push(*k)
+          local.tee $t3
+          i32.load $heap offset=4
+          local.tee $t4
+          local.get $t3
+          i32.load $heap
+          i32.eq
+          if
+            local.get $t3
+            i32.const 1
+            call_indirect $table0 (param i32) (result i32)
+            local.tee $t3
+            local.set $out
+          end
+          local.get $t3
+          local.get $t4
+          i32.const 8
           i32.mul
           i32.add
-          i32.const 24
-          i32.add
-          local.get $t1
-          i32.const 16
-          i32.mul
-          i32.add
-          local.set $k
-          local.get $t1
+          local.tee $t5
+          local.get $t2
+          i32.store $heap offset=16
+          local.get $t5
+          local.get $k
+          i32.store $heap offset=20
+          local.get $t3
+          local.get $t4
           i32.const 1
           i32.add
-          local.set $t1
-          block
-            block
-              br 0
-              unreachable
-            end
-    ;; 21 |         out.push(*k)
-            local.get $k
-            i32.load $heap
-            local.tee $t2
-            local.get $k
-            i32.load $heap offset=4
-            local.tee $k
-            call $rt:retain
+          i32.store $heap offset=4
     ;; 20 |     for (k, _) in m:
-            local.get $out
-    ;; 21 |         out.push(*k)
-            local.tee $t3
-            i32.load $heap offset=4
-            local.tee $t4
-            local.get $t3
-            i32.load $heap
-            i32.eq
-            if
-              local.get $t3
-              i32.const 1
-              call_indirect $table0 (param i32) (result i32)
-              local.tee $t3
-              local.set $out
-            end
-            local.get $t3
-            local.get $t4
-            i32.const 8
-            i32.mul
-            i32.add
-            local.tee $t5
-            local.get $t2
-            i32.store $heap offset=16
-            local.get $t5
-            local.get $k
-            i32.store $heap offset=20
-            local.get $t3
-            local.get $t4
-            i32.const 1
-            i32.add
-            i32.store $heap offset=4
-    ;; 20 |     for (k, _) in m:
-            br 0
-          end
           br 0
         end
+        br 0
       end
-    ;; 22 |     out
-      local.get $out
-    ;; 19 |     let mut out: List[string] = []
-      local.set $m
     end
+    ;; 22 |     out
+    local.get $out
+    ;; 19 |     let mut out: List[string] = []
+    local.set $m
     local.get $m
   )
   (func $by_ref (param $m i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $v i32)
-    ;; 13 |     let n: usize = 0
+    ;; 14 |     for (_, v) in m:
+    local.get $m
+    i32.load $heap
+    local.tee $m
+    i32.load $heap offset=4
+    local.set $t0
     block
-    ;; 14 |     for (_, v) in m:
-      local.get $m
-      i32.load $heap
-      local.tee $m
-      i32.load $heap offset=4
-      local.set $t0
-      block
-        loop
-          local.get $m
-          local.get $t1
-          local.get $t0
-          call $rt:map_slot_next
-          local.tee $t1
-          local.get $t0
-          i32.lt_u
-          i32.eqz
-          br_if 1
-          local.get $m
-          local.get $m
-          i32.load $heap offset=12
-          i32.const 12
-          i32.mul
-          i32.add
-          i32.const 24
-          i32.add
-          local.get $t1
-          i32.const 16
-          i32.mul
-          i32.add
-          local.tee $v
-          local.get $v
-          i32.const 8
-          i32.add
-          local.set $v
-          drop
-          local.get $t1
-          i32.const 1
-          i32.add
-          local.set $t1
+      loop
+        local.get $m
+        local.get $t1
+        local.get $t0
+        call $rt:map_slot_next
+        local.tee $t1
+        local.get $t0
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $m
+        local.get $m
+        i32.load $heap offset=12
+        i32.const 12
+        i32.mul
+        i32.add
+        i32.const 24
+        i32.add
+        local.get $t1
+        i32.const 16
+        i32.mul
+        i32.add
+        local.tee $v
+        local.get $v
+        i32.const 8
+        i32.add
+        local.set $v
+        drop
+        local.get $t1
+        i32.const 1
+        i32.add
+        local.set $t1
+        block
           block
-            block
-              br 0
-              unreachable
-            end
-    ;; 15 |         n += v.len()
-            local.get $n
-            local.get $v
-            call $"impl string.len"
-            i32.add
-            local.set $n
-    ;; 14 |     for (_, v) in m:
             br 0
+            unreachable
           end
+    ;; 15 |         n += v.len()
+          local.get $n
+          local.get $v
+          call $"impl string.len"
+          i32.add
+          local.set $n
+    ;; 14 |     for (_, v) in m:
           br 0
         end
+        br 0
       end
-    ;; 16 |     n
-      local.get $n
-    ;; 13 |     let n: usize = 0
-      local.set $m
     end
+    ;; 16 |     n
+    local.get $n
+    ;; 13 |     let n: usize = 0
+    local.set $m
     local.get $m
   )
   (func $by_value (param $m i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $k i32) (local $v i32)
-    ;; 7 |     let n: usize = 0
+    ;; 8 |     for (k, v) in m:
+    local.get $m
+    i32.load $heap offset=4
+    local.set $t0
     block
-    ;; 8 |     for (k, v) in m:
-      local.get $m
-      i32.load $heap offset=4
-      local.set $t0
-      block
-        loop
-          local.get $m
-          local.get $t1
-          local.get $t0
-          call $rt:map_slot_next
-          local.tee $t1
-          local.get $t0
-          i32.lt_u
-          i32.eqz
-          br_if 1
-          local.get $m
-          local.get $m
-          i32.load $heap offset=12
-          i32.const 12
-          i32.mul
-          i32.add
-          i32.const 24
-          i32.add
-          local.get $t1
-          i32.const 16
-          i32.mul
-          i32.add
-          local.tee $k
-          local.get $k
-          i32.const 8
-          i32.add
-          local.set $v
-          local.set $k
-          local.get $t1
-          i32.const 1
-          i32.add
-          local.set $t1
+      loop
+        local.get $m
+        local.get $t1
+        local.get $t0
+        call $rt:map_slot_next
+        local.tee $t1
+        local.get $t0
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $m
+        local.get $m
+        i32.load $heap offset=12
+        i32.const 12
+        i32.mul
+        i32.add
+        i32.const 24
+        i32.add
+        local.get $t1
+        i32.const 16
+        i32.mul
+        i32.add
+        local.tee $k
+        local.get $k
+        i32.const 8
+        i32.add
+        local.set $v
+        local.set $k
+        local.get $t1
+        i32.const 1
+        i32.add
+        local.set $t1
+        block
           block
-            block
-              br 0
-              unreachable
-            end
-    ;; 9 |         n += k.len() + v.len()
-            local.get $n
-            local.get $k
-            call $"impl string.len"
-            local.get $v
-            call $"impl string.len"
-            i32.add
-            i32.add
-            local.set $n
-    ;; 8 |     for (k, v) in m:
             br 0
+            unreachable
           end
+    ;; 9 |         n += k.len() + v.len()
+          local.get $n
+          local.get $k
+          call $"impl string.len"
+          local.get $v
+          call $"impl string.len"
+          i32.add
+          i32.add
+          local.set $n
+    ;; 8 |     for (k, v) in m:
           br 0
         end
+        br 0
       end
-    ;; 10 |     n
-      local.get $n
-    ;; 7 |     let n: usize = 0
-      local.set $m
     end
+    ;; 10 |     n
+    local.get $n
+    ;; 7 |     let n: usize = 0
+    local.set $m
     local.get $m
   )
 )

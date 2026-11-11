@@ -8,28 +8,23 @@
     local.get $env
     i32.load $heap
     local.set $env
-    block
-      local.get $env
-      i32.load $heap
-      local.set $env
-    end
+    local.get $env
+    i32.load $heap
+    local.set $env
     local.get $env
   )
   (func $shared (param $seed i32) (result i32 i32) (local $t0 i32)
-    block
-      ;; ...
+    ;; ...
     ;; 8 |     read := fn() -> i32: count
-      i32.const 1
-      i32.const 4
-      i32.const -2147483645
-      call $rt:new/class-1
-      local.tee $t0
-      local.get $seed
-      i32.store $heap
-      local.get $t0
-      call $rt:retain_fields
-      ;; ...
-    end
+    i32.const 1
+    i32.const 4
+    i32.const -2147483645
+    call $rt:new/class-1
+    local.tee $t0
+    local.get $seed
+    i32.store $heap
+    local.get $t0
+    call $rt:retain_fields
     ;; ...
   )
 )

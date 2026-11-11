@@ -2,55 +2,50 @@
 (module
   (import "fixture" "heap" (memory $heap 1))
   (func $lens (param $xs i32) (result i32) (local $n i32) (local $t1 i32) (local $t0 i32) (local $i i32)
-    ;; 15 |     let n: usize = 0
+    ;; 16 |     for i in 0..xs.len():
+    local.get $xs
+    i32.load $heap offset=4
+    local.set $t0
     block
-    ;; 16 |     for i in 0..xs.len():
-      local.get $xs
-      i32.load $heap offset=4
-      local.set $t0
-      block
-        loop
-          local.get $t1
-          local.get $t0
-          i32.lt_u
-          i32.eqz
-          br_if 1
-          local.get $t1
-          local.set $i
-          local.get $t1
-          i32.const 1
-          i32.add
-          local.set $t1
+      loop
+        local.get $t1
+        local.get $t0
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $t1
+        local.set $i
+        local.get $t1
+        i32.const 1
+        i32.add
+        local.set $t1
     ;; 17 |         n += xs[i].len()
-          local.get $xs
-          local.get $i
-          i32.const 8
-          i32.mul
-          i32.add
-          local.tee $i
-          i32.load $heap offset=16
-          local.get $i
-          i32.load $heap offset=20
-          local.set $i
-          drop
-          block
-            block
-              br 0
-            end
-          end
-          local.get $n
-          local.get $i
-          i32.add
-          local.set $n
-    ;; 16 |     for i in 0..xs.len():
+        local.get $xs
+        local.get $i
+        i32.const 8
+        i32.mul
+        i32.add
+        local.tee $i
+        i32.load $heap offset=16
+        local.get $i
+        i32.load $heap offset=20
+        local.set $i
+        drop
+        block
           br 0
         end
+        local.get $n
+        local.get $i
+        i32.add
+        local.set $n
+    ;; 16 |     for i in 0..xs.len():
+        br 0
       end
-    ;; 18 |     n
-      local.get $n
-    ;; 15 |     let n: usize = 0
-      local.set $xs
     end
+    ;; 18 |     n
+    local.get $n
+    ;; 15 |     let n: usize = 0
+    local.set $xs
     local.get $xs
   )
   (func $make (param $n i32) (result i32 i32 i32)

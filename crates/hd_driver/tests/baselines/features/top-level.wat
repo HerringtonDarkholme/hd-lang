@@ -11,217 +11,195 @@
   (import "fixture" "names" (global $names (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $init.init (local $t0 i64) (local $t1 i64) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32)
+    ;; 6 | greeting := "hello ${1}"
+    i32.const 1
+    i64.extend_i32_u
+    local.tee $t0
+    local.set $t1
     block
-    ;; 6 | greeting := "hello ${1}"
-      i32.const 1
-      i64.extend_i32_u
-      local.tee $t0
-      local.set $t1
-      block
-        block
-          local.get $t1
-          call $unsigned_width
-          local.set $t2
-          br 0
-        end
-      end
-      i32.const 6
-      local.tee $t3
-      local.get $t2
-      i32.add
-      local.set $t4
-      block
-        block
-          local.get $t4
-          i32.const 16
-          local.set $t5
-          if
-            local.get $t4
-            call $rt:str
-            local.set $t5
-          end
-          local.get $t5
-          local.get $t4
-          local.set $t5
-          local.set $t4
-          br 0
-        end
-      end
-      i32.const 81 ;; &"hello "
-      local.set $t6
-      block
-        block
-          local.get $t4
-          local.get $t6
-          local.set $t7
-          local.tee $t8
-          local.get $t7
-          i32.load $heap align=1
-          local.set $t9
-          local.get $t7
-          i32.load16_u $heap offset=4 align=1
-          i32.store16 $heap offset=4 align=1
-          local.get $t8
-          local.get $t9
-          i32.store $heap align=1
-          br 0
-        end
-      end
-      block
-        block
-          local.get $t0
-          local.get $t4
-          local.get $t3
-          i32.add
-          local.get $t2
-          call $write_unsigned_sized
-          br 0
-        end
-      end
-      i32.const 24 ;; &greeting
-      local.tee $t2
-      i32.load $heap
-      local.get $t2
-    ;; (no span)
+      local.get $t1
+      call $unsigned_width
+      local.set $t2
+      br 0
+    end
+    i32.const 6
+    local.tee $t3
+    local.get $t2
+    i32.add
+    local.set $t4
+    block
       local.get $t4
-    ;; 6 | greeting := "hello ${1}"
-      i32.store $heap
-      local.get $t2
-    ;; (no span)
-      local.get $t5
-    ;; 6 | greeting := "hello ${1}"
-      i32.store $heap offset=4
-      local.tee $t3
+      i32.const 16
+      local.set $t5
       if
-        local.get $t3
-        call $rt:release_ref'1
+        local.get $t4
+        call $rt:str
+        local.set $t5
       end
-    ;; 8 | names := ["a${1}", "b"]
-      i32.const 1
-      i64.extend_i32_u
-      local.tee $t0
-      local.set $t1
-      block
-        block
-          local.get $t1
-          call $unsigned_width
-          local.set $t2
-          br 0
-        end
-      end
-      i32.const 1
-      local.tee $t3
-      local.get $t2
-      i32.add
-      local.set $t4
-      block
-        block
-          local.get $t4
-          i32.const 16
-          local.set $t5
-          if
-            local.get $t4
-            call $rt:str
-            local.set $t5
-          end
-          local.get $t5
-          local.get $t4
-          local.set $t5
-          local.set $t4
-          br 0
-        end
-      end
-      i32.const 87 ;; &"a"
-      local.set $t6
-      block
-        block
-          local.get $t4
-          local.get $t6
-          i32.load8_u $heap
-          i32.store8 $heap
-          br 0
-        end
-      end
-      block
-        block
-          local.get $t0
-          local.get $t4
-          local.get $t3
-          i32.add
-          local.get $t2
-          call $write_unsigned_sized
-          br 0
-        end
-      end
-      i32.const 2
-      call $rt:list_buf
-      local.tee $t2
-      i32.const 2
-      i32.store $heap offset=4
-      local.get $t2
-      local.tee $t3
-    ;; (no span)
-      local.get $t4
-    ;; 8 | names := ["a${1}", "b"]
-      i32.store $heap offset=16
-      local.get $t3
-    ;; (no span)
       local.get $t5
+      local.get $t4
+      local.set $t5
+      local.set $t4
+      br 0
+    end
+    i32.const 81 ;; &"hello "
+    local.set $t6
+    block
+      local.get $t4
+      local.get $t6
+      local.set $t7
+      local.tee $t8
+      local.get $t7
+      i32.load $heap align=1
+      local.set $t9
+      local.get $t7
+      i32.load16_u $heap offset=4 align=1
+      i32.store16 $heap offset=4 align=1
+      local.get $t8
+      local.get $t9
+      i32.store $heap align=1
+      br 0
+    end
+    block
+      local.get $t0
+      local.get $t4
+      local.get $t3
+      i32.add
+      local.get $t2
+      call $write_unsigned_sized
+      br 0
+    end
+    i32.const 24 ;; &greeting
+    local.tee $t2
+    i32.load $heap
+    local.get $t2
+    ;; (no span)
+    local.get $t4
+    ;; 6 | greeting := "hello ${1}"
+    i32.store $heap
+    local.get $t2
+    ;; (no span)
+    local.get $t5
+    ;; 6 | greeting := "hello ${1}"
+    i32.store $heap offset=4
+    local.tee $t3
+    if
+      local.get $t3
+      call $rt:release_ref'1
+    end
     ;; 8 | names := ["a${1}", "b"]
-      i32.store $heap offset=20
+    i32.const 1
+    i64.extend_i32_u
+    local.tee $t0
+    local.set $t1
+    block
+      local.get $t1
+      call $unsigned_width
+      local.set $t2
+      br 0
+    end
+    i32.const 1
+    local.tee $t3
+    local.get $t2
+    i32.add
+    local.set $t4
+    block
+      local.get $t4
+      i32.const 16
+      local.set $t5
+      if
+        local.get $t4
+        call $rt:str
+        local.set $t5
+      end
+      local.get $t5
+      local.get $t4
+      local.set $t5
+      local.set $t4
+      br 0
+    end
+    i32.const 87 ;; &"a"
+    local.set $t6
+    block
+      local.get $t4
+      local.get $t6
+      i32.load8_u $heap
+      i32.store8 $heap
+      br 0
+    end
+    block
+      local.get $t0
+      local.get $t4
+      local.get $t3
+      i32.add
+      local.get $t2
+      call $write_unsigned_sized
+      br 0
+    end
+    i32.const 2
+    call $rt:list_buf
+    local.tee $t2
+    i32.const 2
+    i32.store $heap offset=4
+    local.get $t2
+    local.tee $t3
+    ;; (no span)
+    local.get $t4
+    ;; 8 | names := ["a${1}", "b"]
+    i32.store $heap offset=16
+    local.get $t3
+    ;; (no span)
+    local.get $t5
+    ;; 8 | names := ["a${1}", "b"]
+    i32.store $heap offset=20
+    local.get $t3
+    i32.const 8
+    i32.add
+    local.tee $t3
+    i32.const 88 ;; &"b"
+    i32.store $heap offset=16
+    local.get $t3
+    i32.const 1
+    i32.store $heap offset=20
+    global.get $names
+    local.tee $t3
+    if
       local.get $t3
       i32.const 8
-      i32.add
-      local.tee $t3
-      i32.const 88 ;; &"b"
-      i32.store $heap offset=16
-      local.get $t3
-      i32.const 1
-      i32.store $heap offset=20
-      global.get $names
-      local.tee $t3
+      i32.sub
+      i32.load $heap
       if
         local.get $t3
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t3
-          call $rt:release_ref'2
-        end
+        call $rt:release_ref'2
       end
-      local.get $t2
-      global.set $names
     end
+    local.get $t2
+    global.set $names
   )
   (func $copy_top (result i32 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32)
     ;; 14 |     greeting
-    block
-      i32.const 24 ;; &greeting
-      i32.load $heap
-      i32.const 24 ;; &greeting
-      i32.load $heap offset=4
-      local.set $t0
-      local.tee $t1
-      local.tee $t2
-      if
-        local.get $t2
-        call $retain
-      end
+    i32.const 24 ;; &greeting
+    i32.load $heap
+    i32.const 24 ;; &greeting
+    i32.load $heap offset=4
+    local.set $t0
+    local.tee $t1
+    local.tee $t2
+    if
+      local.get $t2
+      call $retain
     end
     local.get $t1
     local.get $t0
   )
   (func $read_top (result i32) (local $t0 i32)
     ;; 11 |     greeting.len() + names.len()
-    block
-      i32.const 24 ;; &greeting
-      call $"impl string.len"
-      global.get $names
-      i32.load $heap offset=4
-      i32.add
-      local.set $t0
-    end
+    i32.const 24 ;; &greeting
+    call $"impl string.len"
+    global.get $names
+    i32.load $heap offset=4
+    i32.add
+    local.set $t0
     local.get $t0
   )
 )

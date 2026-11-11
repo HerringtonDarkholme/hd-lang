@@ -521,12 +521,10 @@
       i64.const 1
       local.set $t2
       block
-        block
-          local.get $t2
-          call $"impl Duration.milliseconds"
-          local.set $t2
-          br 0
-        end
+        local.get $t2
+        call $"impl Duration.milliseconds"
+        local.set $t2
+        br 0
       end
     end
     block

@@ -4,14 +4,12 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $make (result i32) (local $t0 i32)
     ;; 10 |     box(Node { next: .None })
-    block
-      i32.const 4
-      i32.const -2147483646
-      call $rt:new/class-1
-      local.tee $t0
-      i32.const 0
-      i32.store $heap
-    end
+    i32.const 4
+    i32.const -2147483646
+    call $rt:new/class-1
+    local.tee $t0
+    i32.const 0
+    i32.store $heap
     local.get $t0
   )
 )

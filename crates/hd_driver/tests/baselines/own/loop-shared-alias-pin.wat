@@ -14,185 +14,183 @@
   (import "fixture" "table0" (table $table0 5 funcref))
   (func $alias_push (local $b i32) (local $a i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $c i32) (local $t4 i32) (local $t6 i32) (local $t5 i32)
     ;; 5 |     a := box([+1, 2])
-    block
-      i32.const 2
-      call $rt:list_buf
-      local.tee $b
-      i32.const 2
-      i32.store $heap offset=4
-      local.get $b
-      i32.const 1
-      i32.store $heap offset=16
-      local.get $b
-      i32.const 2
-      i32.store $heap offset=20
-      i32.const 4
-      i32.const 1
-      call $rt:new/class-1
-      local.tee $a
-      local.get $b
-      i32.store $heap
-      local.get $a
+    i32.const 2
+    call $rt:list_buf
+    local.tee $b
+    i32.const 2
+    i32.store $heap offset=4
+    local.get $b
+    i32.const 1
+    i32.store $heap offset=16
+    local.get $b
+    i32.const 2
+    i32.store $heap offset=20
+    i32.const 4
+    i32.const 1
+    call $rt:new/class-1
+    local.tee $a
+    local.get $b
+    i32.store $heap
+    local.get $a
     ;; 6 |     b := a
-      local.set $b
+    local.set $b
     ;; 7 |     for c in &a:
-      local.get $a
-      i32.load $heap
-      call $rt:coll_copy
-      local.tee $t0
-      i32.load $heap offset=4
-      local.set $t1
-      block
-        loop
-          local.get $t2
-          local.get $t1
-          i32.lt_u
-          i32.eqz
-          br_if 1
-          local.get $t2
-          local.get $t2
-          i32.const -2
-          i32.gt_u
-          if
-            call $rt:panic'1
+    local.get $a
+    i32.load $heap
+    call $rt:coll_copy
+    local.tee $t0
+    i32.load $heap offset=4
+    local.set $t1
+    block
+      loop
+        local.get $t2
+        local.get $t1
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $t2
+        local.get $t2
+        i32.const -2
+        i32.gt_u
+        if
+          call $rt:panic'1
+          unreachable
+        end
+        local.get $t2
+        i32.const 1
+        i32.add
+        local.set $t2
+        local.get $a
+        i32.const 4
+        i32.sub
+        local.set $t3
+        local.tee $c
+        local.get $t0
+        i32.load $heap offset=4
+        i32.ge_u
+        if
+          call $rt:panic'2
+          unreachable
+        end
+        local.get $t0
+        local.get $c
+        i32.const 4
+        i32.mul
+        i32.add
+        i32.const 16
+        i32.add
+        local.set $c
+        block
+          block
+            local.get $t3
+            i32.const 1
+            local.set $t4
+            i32.load $heap
+            local.tee $t5
+            i32.const 2031616
+            i32.and
+            i32.const 2031616
+            i32.eq
+            if
+              local.get $t3
+              call $rt:loan_share
+            else
+              local.get $t3
+              local.get $t5
+              i32.const 65536
+              i32.add
+              i32.store $heap
+            end
+            local.get $t4
+            i32.const 1
+            i32.eq
+            if
+              local.get $t6
+              i32.const 65536
+              i32.add
+              local.set $t6
+            end
+            br 0
             unreachable
           end
-          local.get $t2
-          i32.const 1
-          i32.add
-          local.set $t2
-          local.get $a
+    ;; 8 |         b.push(*c) # panic: borrow-conflict
+          local.get $c
+          i32.load $heap
+          local.set $c
+    ;; 7 |     for c in &a:
+          local.get $b
           i32.const 4
           i32.sub
-          local.set $t3
-          local.tee $c
-          local.get $t0
-          i32.load $heap offset=4
-          i32.ge_u
+          i32.load $heap
+          i32.const 4128768
+          i32.and
           if
-            call $rt:panic'2
+            call $rt:panic'3
             unreachable
           end
-          local.get $t0
-          local.get $c
-          i32.const 4
-          i32.mul
-          i32.add
-          i32.const 16
-          i32.add
-          local.set $c
-          block
-            block
-              local.get $t3
-              i32.const 1
-              local.set $t4
-              i32.load $heap
-              local.tee $t5
-              i32.const 2031616
-              i32.and
-              i32.const 2031616
-              i32.eq
-              if
-                local.get $t3
-                call $rt:loan_share
-              else
-                local.get $t3
-                local.get $t5
-                i32.const 65536
-                i32.add
-                i32.store $heap
-              end
-              local.get $t4
-              i32.const 1
-              i32.eq
-              if
-                local.get $t6
-                i32.const 65536
-                i32.add
-                local.set $t6
-              end
-              br 0
-              unreachable
-            end
+          local.get $b
+          i32.load $heap
+          call $rt:list_unique
+          local.set $t4
+          local.get $b
+          local.get $t4
+          i32.store $heap
+          local.get $t4
     ;; 8 |         b.push(*c) # panic: borrow-conflict
-            local.get $c
-            i32.load $heap
-            local.set $c
-    ;; 7 |     for c in &a:
-            local.get $b
-            i32.const 4
-            i32.sub
-            i32.load $heap
-            i32.const 4128768
-            i32.and
-            if
-              call $rt:panic'3
-              unreachable
-            end
-            local.get $b
-            i32.load $heap
-            call $rt:list_unique
+          i32.load $heap offset=4
+          local.tee $t5
+          local.get $t4
+          i32.load $heap
+          i32.eq
+          if
+            local.get $t4
+            i32.const 1
+            call_indirect $table0 (param i32) (result i32)
             local.set $t4
             local.get $b
             local.get $t4
             i32.store $heap
-            local.get $t4
-    ;; 8 |         b.push(*c) # panic: borrow-conflict
-            i32.load $heap offset=4
-            local.tee $t5
-            local.get $t4
-            i32.load $heap
-            i32.eq
-            if
-              local.get $t4
-              i32.const 1
-              call_indirect $table0 (param i32) (result i32)
-              local.set $t4
-              local.get $b
-              local.get $t4
-              i32.store $heap
-            end
-            local.get $t4
-            local.get $t5
-            i32.const 4
-            i32.mul
-            i32.add
-            local.get $c
-            i32.store $heap offset=16
-            local.get $t4
-            local.get $t5
-            i32.const 1
-            i32.add
-            i32.store $heap offset=4
-    ;; 7 |     for c in &a:
-            br 0
           end
+          local.get $t4
+          local.get $t5
+          i32.const 4
+          i32.mul
+          i32.add
+          local.get $c
+          i32.store $heap offset=16
+          local.get $t4
+          local.get $t5
+          i32.const 1
+          i32.add
+          i32.store $heap offset=4
+    ;; 7 |     for c in &a:
           br 0
         end
+        br 0
       end
+    end
     ;; 5 |     a := box([+1, 2])
+    local.get $t0
+    if
       local.get $t0
+      i32.const 8
+      i32.sub
+      i32.load $heap
       if
         local.get $t0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t0
-          call $rt:release_ref
-        end
+        call $rt:release_ref
       end
-      local.get $a
-      local.tee $t0
+    end
+    local.get $a
+    local.tee $t0
+    if
+      local.get $t0
+      i32.const 8
+      i32.sub
+      i32.load $heap
       if
         local.get $t0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t0
-          call $rt:release_ref
-        end
+        call $rt:release_ref
       end
     end
     local.get $t3

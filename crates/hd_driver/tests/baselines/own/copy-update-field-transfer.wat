@@ -4,11 +4,9 @@
   (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32)))
   (func $still_live (param $r.name.0 i32) (param $r.name.1 i32) (param $r.tags i32) (param $name.0 i32) (param $name.1 i32) (result i32 i32 i32 i32 i32 i32) (local $t0 i32)
     ;; 14 |     next := Rec { ...r, name }
-    block
-      local.get $r.tags
-      call $rt:coll_copy
-      local.set $t0
-    end
+    local.get $r.tags
+    call $rt:coll_copy
+    local.set $t0
     local.get $r.name.0
     local.get $r.name.1
     local.get $r.tags
@@ -18,20 +16,16 @@
   )
   (func $update (param $r.name.0 i32) (param $r.name.1 i32) (param $r.tags i32) (param $name.0 i32) (param $name.1 i32) (result i32 i32 i32)
     ;; 11 |     Rec { ...r, name }
-    block
-      local.get $r.name.0
-      local.get $r.name.1
-      i32.const 0
-      call $rt:release
-    end
+    local.get $r.name.0
+    local.get $r.name.1
+    i32.const 0
+    call $rt:release
     local.get $name.0
     local.get $name.1
     local.get $r.tags
   )
   (func $replace_all (param $r.name.0 i32) (param $r.name.1 i32) (param $r.tags i32) (param $name.0 i32) (param $name.1 i32) (param $tags i32) (result i32 i32 i32)
     ;; 18 |     Rec { ...r, name, tags }
-    block
-    end
     local.get $name.0
     local.get $name.1
     local.get $tags

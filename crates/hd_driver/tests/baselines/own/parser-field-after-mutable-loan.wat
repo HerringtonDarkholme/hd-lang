@@ -11,301 +11,283 @@
   (import "fixture" "table0" (table $table0 5 funcref))
   (func $"impl Parser.expression" (param $self i32) (result i32 i32) (local $t0 i32)
     ;; 19 |         self.whitespace()
-    block
-      local.get $self
-      call $"impl Parser.whitespace"
+    local.get $self
+    call $"impl Parser.whitespace"
     ;; 20 |         if self.at < self.chars.len():
-      local.get $self
-      i32.load $heap offset=4
-      local.get $self
-      i32.load $heap
-      i32.load $heap offset=4
-      i32.lt_u
-      if
+    local.get $self
+    i32.load $heap offset=4
+    local.get $self
+    i32.load $heap
+    i32.load $heap offset=4
+    i32.lt_u
+    if
     ;; 21 |             self.at += 1
-        local.get $self
-        local.get $self
-        i32.load $heap offset=4
-        i32.const 1
-        i32.add
-        i32.store $heap offset=4
-    ;; 22 |             return self.expression()
-        local.get $self
-        call $"impl Parser.expression"
-        return
-    ;; 20 |         if self.at < self.chars.len():
-      end
-    ;; 23 |         .Ok(box(+1))
-      i32.const 4
-      i32.const 0
-      call $rt:new/class-1'1
-      local.tee $t0
+      local.get $self
+      local.get $self
+      i32.load $heap offset=4
       i32.const 1
-      i32.store $heap
-      i32.const 0
-    ;; 19 |         self.whitespace()
-      local.set $self
+      i32.add
+      i32.store $heap offset=4
+    ;; 22 |             return self.expression()
+      local.get $self
+      call $"impl Parser.expression"
+      return
+    ;; 20 |         if self.at < self.chars.len():
     end
+    ;; 23 |         .Ok(box(+1))
+    i32.const 4
+    i32.const 0
+    call $rt:new/class-1'1
+    local.tee $t0
+    i32.const 1
+    i32.store $heap
+    i32.const 0
+    ;; 19 |         self.whitespace()
+    local.set $self
     local.get $self
     local.get $t0
   )
   (func $"impl Parser.whitespace" (param $self i32) (local $t0 i32) (local $t1 i32)
     ;; 14 |         while self.at < self.chars.len() && self.chars[self.at].is_whitespace():
     block
-      block
-        loop
+      loop
+        local.get $self
+        i32.load $heap offset=4
+        local.get $self
+        i32.load $heap
+        i32.load $heap offset=4
+        i32.lt_u
+        if (result i32)
           local.get $self
           i32.load $heap offset=4
           local.get $self
           i32.load $heap
+          local.set $t0
+          local.tee $t1
+          local.get $t0
           i32.load $heap offset=4
-          i32.lt_u
-          if (result i32)
-            local.get $self
-            i32.load $heap offset=4
-            local.get $self
-            i32.load $heap
-            local.set $t0
-            local.tee $t1
-            local.get $t0
-            i32.load $heap offset=4
-            i32.ge_u
-            if
-              call $rt:panic
-              unreachable
-            end
-            local.get $t0
-            local.get $t1
-            i32.const 4
-            i32.mul
-            i32.add
-            i32.load $heap offset=16
-            local.set $t0
-            block
-              block
-                block
-                  block
-                    local.get $t0
-                    i32.const 32
-                    i32.le_s
-                    if
-                      local.get $t0
-                      i32.const 32
-                      i32.eq
-                      i32.eqz
-                      if (result i32)
-                        local.get $t0
-                        i32.const 9
-                        i32.ge_s
-                        if (result i32)
-                          local.get $t0
-                          i32.const 13
-                          i32.le_s
-                        else
-                          i32.const 0
-                        end
-                      else
-                        i32.const 1
-                      end
-                      local.set $t0
-                      br 1
-                    end
-                    local.get $t0
-                    i32.const 8192
-                    i32.lt_s
-                    if
-                      local.get $t0
-                      i32.const 133
-                      i32.eq
-                      i32.eqz
-                      if (result i32)
-                        local.get $t0
-                        i32.const 160
-                        i32.eq
-                      else
-                        i32.const 1
-                      end
-                      i32.eqz
-                      if (result i32)
-                        local.get $t0
-                        i32.const 5760
-                        i32.eq
-                      else
-                        i32.const 1
-                      end
-                      local.set $t0
-                      br 1
-                    end
-                    local.get $t0
-                    i32.const 8202
-                    i32.le_s
-                    i32.eqz
-                    if (result i32)
-                      local.get $t0
-                      i32.const 8232
-                      i32.eq
-                    else
-                      i32.const 1
-                    end
-                    i32.eqz
-                    if (result i32)
-                      local.get $t0
-                      i32.const 8233
-                      i32.eq
-                    else
-                      i32.const 1
-                    end
-                    i32.eqz
-                    if (result i32)
-                      local.get $t0
-                      i32.const 8239
-                      i32.eq
-                    else
-                      i32.const 1
-                    end
-                    i32.eqz
-                    if (result i32)
-                      local.get $t0
-                      i32.const 8287
-                      i32.eq
-                    else
-                      i32.const 1
-                    end
-                    i32.eqz
-                    if (result i32)
-                      local.get $t0
-                      i32.const 12288
-                      i32.eq
-                    else
-                      i32.const 1
-                    end
-                    local.set $t0
-                    br 0
-                  end
-                end
-                br 0
-              end
-            end
-            local.get $t0
-          else
-            i32.const 0
+          i32.ge_u
+          if
+            call $rt:panic
+            unreachable
           end
-          i32.eqz
-          br_if 1
-    ;; 15 |             self.at += 1
-          local.get $self
-          local.get $self
-          i32.load $heap offset=4
-          i32.const 1
+          local.get $t0
+          local.get $t1
+          i32.const 4
+          i32.mul
           i32.add
-          i32.store $heap offset=4
-    ;; 14 |         while self.at < self.chars.len() && self.chars[self.at].is_whitespace():
-          br 0
+          i32.load $heap offset=16
+          local.set $t0
+          block
+            block
+              local.get $t0
+              i32.const 32
+              i32.le_s
+              if
+                local.get $t0
+                i32.const 32
+                i32.eq
+                i32.eqz
+                if (result i32)
+                  local.get $t0
+                  i32.const 9
+                  i32.ge_s
+                  if (result i32)
+                    local.get $t0
+                    i32.const 13
+                    i32.le_s
+                  else
+                    i32.const 0
+                  end
+                else
+                  i32.const 1
+                end
+                local.set $t0
+                br 1
+              end
+              local.get $t0
+              i32.const 8192
+              i32.lt_s
+              if
+                local.get $t0
+                i32.const 133
+                i32.eq
+                i32.eqz
+                if (result i32)
+                  local.get $t0
+                  i32.const 160
+                  i32.eq
+                else
+                  i32.const 1
+                end
+                i32.eqz
+                if (result i32)
+                  local.get $t0
+                  i32.const 5760
+                  i32.eq
+                else
+                  i32.const 1
+                end
+                local.set $t0
+                br 1
+              end
+              local.get $t0
+              i32.const 8202
+              i32.le_s
+              i32.eqz
+              if (result i32)
+                local.get $t0
+                i32.const 8232
+                i32.eq
+              else
+                i32.const 1
+              end
+              i32.eqz
+              if (result i32)
+                local.get $t0
+                i32.const 8233
+                i32.eq
+              else
+                i32.const 1
+              end
+              i32.eqz
+              if (result i32)
+                local.get $t0
+                i32.const 8239
+                i32.eq
+              else
+                i32.const 1
+              end
+              i32.eqz
+              if (result i32)
+                local.get $t0
+                i32.const 8287
+                i32.eq
+              else
+                i32.const 1
+              end
+              i32.eqz
+              if (result i32)
+                local.get $t0
+                i32.const 12288
+                i32.eq
+              else
+                i32.const 1
+              end
+              local.set $t0
+              br 0
+            end
+            br 0
+          end
+          local.get $t0
+        else
+          i32.const 0
         end
+        i32.eqz
+        br_if 1
+    ;; 15 |             self.at += 1
+        local.get $self
+        local.get $self
+        i32.load $heap offset=4
+        i32.const 1
+        i32.add
+        i32.store $heap offset=4
+    ;; 14 |         while self.at < self.chars.len() && self.chars[self.at].is_whitespace():
+        br 0
       end
     end
   )
   (func $length_across_write (param $text.0 i32) (param $text.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 34 |     let mut parser = Parser { chars: text.chars().collect(), at: 0 }
     block
-      block
-        block
-          br 0
-        end
-      end
-      block
-        block
-          local.get $text.0
-          local.get $text.1
-          i32.const 0
-          call $"impl[T] FromIterator[T] for List[T].from_iter[char, std.text.Chars]"
-          local.set $text.0
-          br 0
-        end
-      end
+      br 0
+    end
+    block
       local.get $text.0
+      local.get $text.1
+      i32.const 0
+      call $"impl[T] FromIterator[T] for List[T].from_iter[char, std.text.Chars]"
+      local.set $text.0
+      br 0
+    end
+    local.get $text.0
     ;; 35 |     chars := parser.chars
-      call $rt:coll_copy
-      local.set $text.1
+    call $rt:coll_copy
+    local.set $text.1
     ;; 34 |     let mut parser = Parser { chars: text.chars().collect(), at: 0 }
-      local.get $text.0
-      call $rt:list_unique
-      local.tee $text.0
+    local.get $text.0
+    call $rt:list_unique
+    local.tee $text.0
     ;; 36 |     parser.chars.push('x')
-      local.tee $t0
-      i32.load $heap offset=4
-      local.tee $t1
+    local.tee $t0
+    i32.load $heap offset=4
+    local.tee $t1
+    local.get $t0
+    i32.load $heap
+    i32.eq
+    if
       local.get $t0
-      i32.load $heap
-      i32.eq
-      if
-        local.get $t0
-        i32.const 1
-        call_indirect $table0 (param i32) (result i32)
-        local.tee $t0
-        local.set $text.0
-      end
-      local.get $t0
-      local.get $t1
-      i32.const 4
-      i32.mul
-      i32.add
-      i32.const 120
-      i32.store $heap offset=16
-      local.get $t0
-      local.get $t1
       i32.const 1
-      i32.add
-      i32.store $heap offset=4
-    ;; 34 |     let mut parser = Parser { chars: text.chars().collect(), at: 0 }
-      local.get $text.0
-      if
-        local.get $text.0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $text.0
-          call $rt:release_ref
-        end
-      end
-    ;; 37 |     chars.len()
-      local.get $text.1
-      i32.load $heap offset=4
-      local.get $text.1
-    ;; 34 |     let mut parser = Parser { chars: text.chars().collect(), at: 0 }
-      local.tee $text.0
-      if
-        local.get $text.0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $text.0
-          call $rt:release_ref
-        end
-      end
+      call_indirect $table0 (param i32) (result i32)
+      local.tee $t0
       local.set $text.0
     end
+    local.get $t0
+    local.get $t1
+    i32.const 4
+    i32.mul
+    i32.add
+    i32.const 120
+    i32.store $heap offset=16
+    local.get $t0
+    local.get $t1
+    i32.const 1
+    i32.add
+    i32.store $heap offset=4
+    ;; 34 |     let mut parser = Parser { chars: text.chars().collect(), at: 0 }
+    local.get $text.0
+    if
+      local.get $text.0
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $text.0
+        call $rt:release_ref
+      end
+    end
+    ;; 37 |     chars.len()
+    local.get $text.1
+    i32.load $heap offset=4
+    local.get $text.1
+    ;; 34 |     let mut parser = Parser { chars: text.chars().collect(), at: 0 }
+    local.tee $text.0
+    if
+      local.get $text.0
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $text.0
+        call $rt:release_ref
+      end
+    end
+    local.set $text.0
     local.get $text.0
   )
   (func $length_after_loan (param $text.0 i32) (param $text.1 i32) (result i32 i32) (local $parser i32) (local $root i32)
     ;; 26 |     let mut parser = Parser { chars: text.chars().collect(), at: 0 }
     block
       block
-        block
-          br 0
-        end
+        br 0
       end
       block
-        block
-          local.get $text.0
-          local.get $text.1
-          i32.const 0
-          call $"impl[T] FromIterator[T] for List[T].from_iter[char, std.text.Chars]"
-          local.set $text.0
-          br 0
-        end
+        local.get $text.0
+        local.get $text.1
+        i32.const 0
+        call $"impl[T] FromIterator[T] for List[T].from_iter[char, std.text.Chars]"
+        local.set $text.0
+        br 0
       end
       i32.const 8
       i32.const 3
