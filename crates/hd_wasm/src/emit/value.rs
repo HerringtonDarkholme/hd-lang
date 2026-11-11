@@ -126,7 +126,6 @@ impl Em<'_, '_, '_> {
 
     /// The counted references of an enum cell, from its inline field layout.
     fn cell_walk(&self, t: Ty) -> Option<Walk> {
-        self.input.runtime?;
         crate::layout::switch_walk(self.pool(), self.env(), t)
     }
 
@@ -237,7 +236,7 @@ impl Em<'_, '_, '_> {
         } else {
             crate::rt::push_desc_recursive(&mut self.f, glue, cyclic, recursive);
         }
-        if self.input.runtime.is_some_and(|r| r.checked.is_none())
+        if self.input.runtime.checked.is_none()
             && m.size
                 .checked_add(crate::module::HEADER)
                 .is_some_and(|n| n <= 2048)

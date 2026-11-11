@@ -301,7 +301,8 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             method,
             args,
             result,
-        } => crate::boundary::host_call(m, module, method, args, result),
+            owned,
+        } => crate::boundary::host_call(m, module, method, args, result, owned.as_ref()),
         Helper::EntryCancel { abandon } => {
             let mut f = m.func("rt:entry_cancel", vec![], vec![]);
             let root = f.local(Val::I32);
@@ -699,10 +700,7 @@ fn wake_slot(m: &Module) -> Func {
     f.get(cap);
     f.i32(WAKE_STRIDE);
     f.op(Instruction::I32Mul);
-    match m.runtime {
-        Some(r) => f.call(Sym::Inst(r.alloc)),
-        None => f.helper(Helper::Alloc),
-    }
+    f.call(Sym::Inst(m.runtime.alloc));
     f.set(fresh);
     f.get(fresh);
     f.i32(0);
@@ -718,7 +716,8 @@ fn wake_slot(m: &Module) -> Func {
     f.i32(WAKE_STRIDE);
     f.op(Instruction::I32Mul);
     f.push(crate::bulk::copy(HEAP, HEAP));
-    if let Some(r) = m.runtime {
+    {
+        let r = m.runtime;
         // A raw block: the free that skips the collector's candidate test.
         f.global_get(Global::WakeTab);
         f.call(Sym::Inst(r.acyclic.free));
@@ -1200,25 +1199,50 @@ fn walk_drop(area: &Elem, walk: &Walk) -> Sym {
             }
         })
         .collect();
-    let walk = walk.remap(&|k| {
-        u32::try_from(used.iter().position(|u| *u == k).expect("used")).expect("leaves")
-    });
+    let mut remap = vec![0; area.leaves.len()];
+    for (index, &leaf) in (0u32..).zip(&used) {
+        remap[leaf as usize] = index;
+    }
+    let walk = walk.remap(&|k| remap[k as usize]);
     Sym::Helper(Helper::DropFields {
         leaves,
         walk,
-        drops: Vec::new(),
+        drops: area
+            .drops
+            .iter()
+            .map(|drop| crate::rt::DropCall {
+                offset: drop.offset + LEAF_ARGS,
+                target: drop.target,
+                guards: drop
+                    .guards
+                    .iter()
+                    .map(|&(cell, is)| {
+                        (
+                            Leaf {
+                                offset: cell.offset + LEAF_ARGS,
+                                ..cell
+                            },
+                            is,
+                        )
+                    })
+                    .collect(),
+            })
+            .collect(),
     })
 }
 
 /// Every value index a walk reads: its references and its tags.
 fn walk_indices(w: &Walk, out: &mut Vec<u32>) {
-    match w {
-        Walk::Ref(k) | Walk::Known(k) => out.push(*k),
-        Walk::Glue => {}
-        Walk::Seq(ws) => ws.iter().for_each(|w| walk_indices(w, out)),
-        Walk::Switch(d, arms) => {
-            out.push(d.value);
-            arms.iter().flatten().for_each(|w| walk_indices(w, out));
+    let mut todo = vec![w];
+    while let Some(walk) = todo.pop() {
+        match walk {
+            Walk::Ref(k) | Walk::Known(k) => out.push(*k),
+            Walk::Glue => {}
+            Walk::Seq(ws) => todo.extend(ws),
+            Walk::Switch(d, arms) => {
+                out.push(d.value);
+                todo.extend(arms.iter().flatten());
+            }
         }
     }
 }
@@ -1284,23 +1308,11 @@ fn init_host_leaf(f: &mut Func, m: &Module, fr: u32, leaf: &HostLeaf<'_>, blocki
         f.get(u32::try_from(k + 1).expect("params"));
         f.op(l.store(LEAF_ARGS));
     }
-    // An owned leaf keeps borrowed arguments past its caller by copying
-    // them. Transferred arguments already supply their counts. A blocking
+    // An owned leaf keeps borrowed references past its caller by retaining
+    // them. Collection values transfer their existing counts. A blocking
     // leaf's borrowed fields remain live in the caller, and its transferred
     // fields are released by the shadow frame's terminal callback.
-    if !blocking && !counts.borrowed_colls.is_empty() {
-        f.get(fr);
-        f.u32(LEAF_ARGS);
-        f.op(Instruction::I32Add);
-        f.i32(1);
-        f.helper(Helper::CopyElems {
-            elem: Elem {
-                walk: counts.borrowed.clone(),
-                colls: counts.borrowed_colls.clone(),
-                ..area.clone()
-            },
-        });
-    } else if !blocking && let Some(w) = &counts.borrowed {
+    if !blocking && let Some(w) = &counts.borrowed {
         crate::rt::walk_code(f, w, &|f, k| f.get(k + 1), &|f, _| {
             f.call(Sym::Helper(Helper::RetainAny));
         });
@@ -1534,24 +1546,7 @@ fn host_drive(m: &Module, blocking: bool, leaf: &HostLeaf<'_>) -> Func {
     f.i32(0);
     host_result(&mut f, res, n);
     if let Some(owned) = owned {
-        let start = f.body.len();
-        for k in 1..nparams {
-            f.get(k);
-        }
-        // These parameters supplied their counts on entry. The Ready
-        // host call has finished using them, so this releases their last use.
-        f.helper(Helper::Release {
-            vals: area.leaves.iter().map(|leaf| leaf.val).collect(),
-            walk: owned.clone(),
-        });
-        if m.track_origins {
-            f.note_runtime_count(
-                start,
-                crate::views::CountAction::Release,
-                "host arguments",
-                hd_tir::own::Reason::LastUse,
-            );
-        }
+        crate::boundary::release_host_arguments(&mut f, m, area, owned);
     }
     f
 }
@@ -1595,7 +1590,7 @@ fn drive(m: &Module, blocking: bool, cold: &Helper, params: &[Val], results: &[V
         f.set(*l);
     }
     f.op(Instruction::If(BlockType::Empty));
-    if m.runtime.is_some() {
+    {
         f.get(fr);
         f.helper(Helper::ReleaseRef);
     }
@@ -3166,7 +3161,6 @@ mod tests {
                 },
                 counts: Box::new(super::HostCounts {
                     borrowed: None,
-                    borrowed_colls: vec![],
                     owned: None,
                 }),
                 res: super::HostRes::Void,
@@ -3226,7 +3220,6 @@ mod tests {
                         area: area.clone(),
                         counts: Box::new(super::HostCounts {
                             borrowed: area.walk.clone(),
-                            borrowed_colls: area.colls.clone(),
                             owned: None,
                         }),
                         res: super::HostRes::Void,
@@ -3384,7 +3377,6 @@ assert.deepEqual(finished, [h1, h3, h1 + 0x100000, h2 + 0x200000]);
                     area: &area,
                     counts: &super::HostCounts {
                         borrowed: area.walk.clone(),
-                        borrowed_colls: area.colls.clone(),
                         owned: None,
                     },
                     res: &super::HostRes::Void,
@@ -3427,7 +3419,6 @@ assert.deepEqual(finished, [h1, h3, h1 + 0x100000, h2 + 0x200000]);
                 area: &area,
                 counts: &super::HostCounts {
                     borrowed: area.walk.clone(),
-                    borrowed_colls: area.colls.clone(),
                     owned: None,
                 },
                 res: &super::HostRes::Void,

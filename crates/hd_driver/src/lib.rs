@@ -10827,9 +10827,18 @@ impl Run<'_> {
                     .map(|id| table.key[id.idx()])
             })
             .collect();
-        let runtime = hd_wasm::Runtime::from_keys(&runtime_keys);
+        let Some(runtime) = hd_wasm::Runtime::from_keys(&runtime_keys) else {
+            self.stage::<()>(
+                Stage::Link,
+                Err(NotImplemented::bug(
+                    Stage::Link,
+                    "a rooted std runtime item was not collected",
+                )),
+            );
+            return;
+        };
         // A checked build never falls back to unchecked counts.
-        if self.checked() && runtime.is_none_or(|r| r.checked.is_none()) {
+        if self.checked() && runtime.checked.is_none() {
             self.stage::<()>(
                 Stage::Link,
                 Err(NotImplemented::new(

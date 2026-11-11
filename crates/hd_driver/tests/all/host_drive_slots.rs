@@ -260,6 +260,15 @@ fn package_host_routes(
     source: &str,
     jspi: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    package_host_routes_with_provider(name, source, jspi, None)
+}
+
+fn package_host_routes_with_provider(
+    name: &str,
+    source: &str,
+    jspi: bool,
+    provider: Option<&str>,
+) -> Result<(), Box<dyn std::error::Error>> {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../..")
         .canonicalize()?;
@@ -268,10 +277,19 @@ fn package_host_routes(
     sources.insert("main.hd", source);
     let store = crate::warm_store();
     let scratch = hd_testkit::Scratch::new(env!("CARGO_TARGET_TMPDIR"), name);
-    for (profile, level) in [
-        (BuildProfile::Checked, OptLevel::Dev),
-        (BuildProfile::Checked, OptLevel::Optimized),
-        (BuildProfile::Release, OptLevel::Optimized),
+    let provider_path = if let Some(provider) = provider {
+        let path = scratch.join("provider.mjs");
+        std::fs::write(&path, provider)?;
+        path
+    } else {
+        fixture.join("provider.ts")
+    };
+    for (profile, level, checked) in [
+        (BuildProfile::Checked, OptLevel::Dev, false),
+        (BuildProfile::Checked, OptLevel::Dev, true),
+        (BuildProfile::Checked, OptLevel::Optimized, false),
+        (BuildProfile::Checked, OptLevel::Optimized, true),
+        (BuildProfile::Release, OptLevel::Optimized, false),
     ] {
         let out = hd_driver::build_packages(
             &Host {
@@ -285,7 +303,7 @@ fn package_host_routes(
             &Packages {
                 build_profile: profile,
                 level,
-                checked: profile == BuildProfile::Checked && level == OptLevel::Optimized,
+                checked,
                 verify_own: true,
                 instruction_origins: true,
                 host_packages: vec![hd_driver::HostPackage {
@@ -310,7 +328,7 @@ fn package_host_routes(
         );
         assert!(
             !out.diags.has_errors(),
-            "{profile:?}/{level:?}: {}",
+            "{profile:?}/{level:?}/audit={checked}: {}",
             out.render()
         );
         for function in &out.instruction_origins {
@@ -375,7 +393,7 @@ try {{
 }} finally {{ host.close(); }}
 ",
             root = root.to_string_lossy(),
-            provider_path = fixture.join("provider.ts").to_string_lossy(),
+            provider_path = provider_path.to_string_lossy(),
             glue_path = glue_path.to_string_lossy(),
             wasm_path = wasm_path.to_string_lossy(),
             module_name = interface.module
@@ -390,7 +408,7 @@ try {{
             .output()?;
         assert!(
             ran.status.success(),
-            "{profile:?}/{level:?}: {}",
+            "{profile:?}/{level:?}/audit={checked}: {}",
             String::from_utf8_lossy(&ran.stderr)
         );
         assert_eq!(
@@ -401,6 +419,196 @@ try {{
         assert!(
             ran.stderr.is_empty(),
             "{}",
+            String::from_utf8_lossy(&ran.stderr)
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn opaque_noncopy_host_argument_survives_pending() -> Result<(), Box<dyn std::error::Error>> {
+    package_host_routes_with_provider(
+        "host-borrowed-collection-noncopy-pending",
+        include_str!("cold_opaque_host_collection.hd"),
+        false,
+        Some(
+            r"
+export default {
+  parent(label, values) {
+    if (!label || values.join(',') !== 'one') throw Error('parent arguments lost');
+    return 35;
+  },
+  async child(label, values) {
+    await new Promise(resolve => setTimeout(resolve, 0));
+    if (label !== 'pending35' || values.join(',') !== 'one') {
+      throw Error('pending borrowed collection changed');
+    }
+    return 7;
+  },
+};
+",
+        ),
+    )
+}
+
+/// module.rt.drop.glue and fn.suspension.hold: a std-only Drop record
+/// transfers its inline payload to the host leaf, which runs its hooks.
+#[test]
+fn std_drop_host_arguments_cleanup_pending_ready_and_cancelled()
+-> Result<(), Box<dyn std::error::Error>> {
+    let mut sources = hd_driver::std_sources();
+    sources.insert(
+        "coverage/mod.hd",
+        include_str!("cold_drop_host_argument.hd"),
+    );
+    let store = crate::warm_store();
+    let core = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../host/core.ts")
+        .canonicalize()?;
+    let wire = core.with_file_name("wire.ts");
+    let scratch = hd_testkit::Scratch::new(env!("CARGO_TARGET_TMPDIR"), "host-drop-arguments");
+    let wasm_path = scratch.join("main.wasm");
+    for (profile, level, checked) in [
+        (BuildProfile::Checked, OptLevel::Dev, false),
+        (BuildProfile::Checked, OptLevel::Dev, true),
+        (BuildProfile::Checked, OptLevel::Optimized, false),
+        (BuildProfile::Checked, OptLevel::Optimized, true),
+        (BuildProfile::Release, OptLevel::Optimized, false),
+    ] {
+        let out = hd_driver::build_packages(
+            &Host {
+                render_tir: &[],
+                sources: &sources,
+                store: &store,
+                clock: &NoClock,
+                executor: Executor::Serial(SerialOrder::Priority),
+            },
+            "std",
+            &Packages {
+                profile: Some(vec!["std.coverage.Child".into()]),
+                build_profile: profile,
+                level,
+                checked,
+                verify_own: true,
+                instruction_origins: true,
+                ..Packages::default()
+            },
+            &Goal::Program {
+                entry: "coverage".into(),
+            },
+        );
+        assert!(
+            !out.diags.has_errors(),
+            "{profile:?}/{level:?}/audit={checked}: {}",
+            out.render()
+        );
+        let wasm = out.wasm.ok_or("missing Wasm")?;
+        if level == OptLevel::Dev {
+            let leaf = out
+                .instruction_origins
+                .iter()
+                .find(|function| {
+                    function.name.starts_with("rt:") && function.name.ends_with("/child")
+                })
+                .ok_or("missing cold child leaf")?;
+            let mut function_index = 0;
+            let mut copies_borrowed_collection = false;
+            for payload in wasmparser::Parser::new(0).parse_all(&wasm) {
+                match payload? {
+                    wasmparser::Payload::ImportSection(imports) => {
+                        for import in imports.into_imports() {
+                            function_index +=
+                                u32::from(matches!(import?.ty, wasmparser::TypeRef::Func(_)));
+                        }
+                    }
+                    wasmparser::Payload::CodeSectionEntry(body) => {
+                        if function_index == leaf.index {
+                            for op in body.get_operators_reader()? {
+                                if let wasmparser::Operator::Call { function_index } = op? {
+                                    copies_borrowed_collection |=
+                                        out.instruction_origins.iter().any(|called| {
+                                            called.index == function_index
+                                                && called.name.split('#').next()
+                                                    == Some("rt:copy_elems")
+                                        });
+                                }
+                            }
+                        }
+                        function_index += 1;
+                    }
+                    _ => {}
+                }
+            }
+            assert!(
+                !copies_borrowed_collection,
+                "the cold host leaf takes its moved collection without copying"
+            );
+        }
+        std::fs::write(&wasm_path, &wasm)?;
+        let script = format!(
+            r"
+import {{ readFileSync }} from 'node:fs';
+import {{ pathToFileURL }} from 'node:url';
+const {{ createCoreHost }} = await import(pathToFileURL({core:?}));
+const {{ Dec }} = await import(pathToFileURL({wire:?}));
+let instance;
+let calls = 0;
+let finishes = 0;
+let inspections = 0;
+const values = new Map();
+const host = createCoreHost({{out(){{}},err(text){{process.stderr.write(text)}}}}, {{
+  providers: ({{put,Enc,pending,finish}}) => ({{
+    'hd:Child': {{
+      inspect: len => {{
+        const value = new Dec(new Uint8Array(instance.exports['hd.x'].buffer, 0, len)).str();
+        if (JSON.parse(value).join(',') !== 'one') throw Error('synchronous argument changed');
+        inspections++;
+        return put(new Enc().leb(7));
+      }},
+      'child.start': len => {{
+        const value = new Dec(new Uint8Array(instance.exports['hd.x'].buffer, 0, len)).str();
+        const valuesSeen = JSON.parse(value).join(',');
+        if (valuesSeen !== 'one' && valuesSeen !== 'ready') throw Error('cold argument changed');
+        calls++;
+        if (valuesSeen === 'ready') return [0, put(new Enc().leb(7))];
+        const state = pending({{at: performance.now() + 1, done: null}});
+        values.set(state[1], value);
+        return state;
+      }},
+      'child.finish': handle => {{
+        finish(handle);
+        const value = values.get(handle);
+        values.delete(handle);
+        if (JSON.parse(value).join(',') !== 'one') throw Error('pending argument changed');
+        finishes++;
+        return put(new Enc().leb(7));
+      }},
+    }},
+  }}),
+}});
+try {{
+  instance = new WebAssembly.Instance(new WebAssembly.Module(readFileSync({wasm_path:?})), host.imports);
+  const result = await host.run(instance,'hd.init','hd.poll');
+  if (result.trapped || result.status !== 0) throw Error(JSON.stringify(result));
+  if (calls !== 4 || finishes !== 2 || inspections !== 1) throw Error('wrong host call totals');
+}} finally {{ host.close(); }}
+",
+            core = core.to_string_lossy(),
+            wire = wire.to_string_lossy(),
+            wasm_path = wasm_path.to_string_lossy()
+        );
+        // cost: one Node process per five fixed build modes, never accumulated state.
+        let ran = std::process::Command::new("node")
+            .args([
+                "--experimental-wasm-jspi",
+                "--input-type=module",
+                "-e",
+                &script,
+            ])
+            .output()?;
+        assert!(
+            ran.status.success(),
+            "{profile:?}/{level:?}/audit={checked}: {}",
             String::from_utf8_lossy(&ran.stderr)
         );
     }

@@ -131,7 +131,6 @@ fn static_bytes_and_vtables_are_shared_by_content() {
             area: string_area(),
             counts: Box::new(crate::rt::HostCounts {
                 borrowed: string_area().walk,
-                borrowed_colls: vec![],
                 owned: None,
             }),
             res: crate::task::HostRes::Tags,
@@ -225,7 +224,6 @@ fn every_runtime_helper_validates() {
         area: string_area(),
         counts: Box::new(crate::rt::HostCounts {
             borrowed: string_area().walk,
-            borrowed_colls: vec![],
             owned: None,
         }),
         res: crate::task::HostRes::Tags,
@@ -241,6 +239,7 @@ fn every_runtime_helper_validates() {
             crate::task::HostArg::Buf(every.clone()),
         ],
         result: crate::boundary::CallRes::Buf(every.clone()),
+        owned: None,
     };
     let mut params = vec![Val::I64];
     params.extend(every.vals());
@@ -261,7 +260,6 @@ fn every_runtime_helper_validates() {
         },
         counts: Box::new(crate::rt::HostCounts {
             borrowed: None,
-            borrowed_colls: vec![],
             owned: None,
         }),
         res: crate::task::HostRes::Buf(every.clone()),
@@ -704,7 +702,8 @@ fn session_base_does_not_assume_future_cancellation_is_absent() {
 /// temporary. Collected init roots need no entry helper to expose them;
 /// an open session must still read storage that future inputs can change.
 #[test]
-fn collected_init_constants_cross_temporaries_only_in_closed_programs() {
+fn collected_init_constants_cross_temporaries_only_in_closed_programs()
+-> Result<(), Box<dyn std::error::Error>> {
     for session in [false, true] {
         let mut m = Module::default();
         let init = Hash128(1388);
@@ -728,24 +727,47 @@ fn collected_init_constants_cross_temporaries_only_in_closed_programs() {
         m.define(Sym::Inst(Hash128(1390)), f);
         m.export("read", Sym::Inst(Hash128(1390)));
         let wasm = if session {
-            m.finish_session(true).expect("session").0.wasm
+            m.finish_session(true)?.0.wasm
         } else {
-            m.finish().expect("closed program")
+            m.finish()?
         };
         validate(&wasm);
         let mut sets = 0;
+        let mut function = 0;
+        let mut init_index = None;
         for payload in wasmparser::Parser::new(0).parse_all(&wasm) {
-            if let wasmparser::Payload::CodeSectionEntry(body) = payload.expect("payload") {
-                for op in body.get_operators_reader().expect("operators") {
-                    sets += usize::from(matches!(
-                        op.expect("operator"),
-                        wasmparser::Operator::GlobalSet { .. }
-                    ));
+            match payload? {
+                wasmparser::Payload::ImportSection(imports) => {
+                    for import in imports.into_imports() {
+                        function += u32::from(matches!(import?.ty, wasmparser::TypeRef::Func(_)));
+                    }
                 }
+                wasmparser::Payload::ExportSection(exports) => {
+                    for export in exports {
+                        let export = export?;
+                        if export.name == "init" {
+                            init_index = Some(export.index);
+                        }
+                    }
+                }
+                wasmparser::Payload::CodeSectionEntry(body) => {
+                    // Runtime helpers may write their own globals. This test
+                    // measures the collected initializer's storage writes.
+                    if Some(function) == init_index {
+                        for op in body.get_operators_reader()? {
+                            sets +=
+                                usize::from(matches!(op?, wasmparser::Operator::GlobalSet { .. }));
+                        }
+                    }
+                    function += 1;
+                }
+                _ => {}
             }
         }
+        assert!(init_index.is_some());
         assert_eq!(sets, 2 * usize::from(session));
     }
+    Ok(())
 }
 
 /// An open-world base gives every allocation an exact descriptor alias before
@@ -1327,4 +1349,60 @@ fn a_constant_operand_range_matches_the_exact_result() {
             assert_eq!((lo..=hi).contains(&x), (min..=max).contains(&-x));
         }
     }
+}
+
+/// Symbolic runtime identities for assembler-only tests. Program behaviour is
+/// exercised through driver builds with the actual std runtime definitions.
+pub(crate) fn runtime() -> crate::Runtime {
+    let keys: Vec<_> = crate::runtime_items(false)
+        .iter()
+        .enumerate()
+        .map(|(i, _)| Some(Hash128((1u128 << 127) + i as u128)))
+        .collect();
+    // ruled out: the test supplies one key for every runtime_items entry.
+    crate::emit::required(
+        crate::Runtime::from_keys(&keys),
+        "the assembler harness defines every runtime key",
+    )
+}
+
+/// Assembler harness definitions, not a runtime implementation: these tests
+/// validate linking and generated helper control flow, never ownership counts.
+/// Keep their historical bump allocation while making every runtime symbol
+/// explicit. Count/drop behaviour is covered by driver tests with std linked.
+pub(crate) fn define_runtime(module: &mut Module) {
+    let runtime = runtime();
+    let keys = crate::runtime_items(false);
+    for (i, (_, name)) in keys.into_iter().enumerate() {
+        let (args, result) = match name {
+            "collect" => (6, false),
+            "due" | "marking" | "metadata" => (0, true),
+            "alloc_class" | "lookup" | "type_of" => {
+                (if name == "alloc_class" { 2 } else { 1 }, true)
+            }
+            "alloc"
+            | "block_of"
+            | "block_bytes"
+            | "visit"
+            | "release"
+            | "release_known"
+            | "release_acyclic"
+            | "release_known_acyclic" => (1, true),
+            "bind" | "forget" | "type_bind" => (2, false),
+            _ => (1, false),
+        };
+        let mut f = module.func(
+            format!("test-runtime:{name}"),
+            vec![Val::I32; args],
+            if result { vec![Val::I32] } else { vec![] },
+        );
+        if name == "alloc" {
+            f.get(0);
+            f.helper(Helper::Alloc);
+        } else if result {
+            f.i32(0);
+        }
+        module.define(Sym::Inst(Hash128((1u128 << 127) + i as u128)), f);
+    }
+    assert_eq!(module.runtime, runtime);
 }

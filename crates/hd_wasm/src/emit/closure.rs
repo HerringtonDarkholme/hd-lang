@@ -226,7 +226,7 @@ impl Em<'_, '_, '_> {
             .chain(own)
             .collect();
         let (m, parts, walk) = env_mem(self.pool(), self.env(), &fields)?;
-        Ok((m, parts, walk.filter(|_| self.input.runtime.is_some())))
+        Ok((m, parts, walk.filter(|_| true)))
     }
 
     /// A new cell for local `l`, holding the values `src` pushes, which
@@ -427,9 +427,7 @@ impl Em<'_, '_, '_> {
         let drops = self.cell_drop_calls(ty);
         let at = self.object_drops(&m, walk.as_ref(), cyclic, recursive, Some(ty), drops);
         #[cfg(feature = "checked-report")]
-        if self.input.runtime.is_some_and(|r| r.checked.is_some())
-            && shared_locals(self.b).contains(&l)
-        {
+        if self.input.runtime.checked.is_some() && shared_locals(self.b).contains(&l) {
             crate::rt::checked_kind(&mut self.f, self.m, 2);
         }
         let part = Part {
@@ -593,11 +591,7 @@ impl Em<'_, '_, '_> {
 
     /// One count less on the cell address on the stack.
     pub(super) fn release_cell(&mut self) {
-        if self.input.runtime.is_some() {
-            self.f.helper(crate::rt::Helper::ReleaseKnown);
-        } else {
-            self.f.op(I::Drop);
-        }
+        self.f.helper(crate::rt::Helper::ReleaseKnown);
     }
 
     /// Moves parameter `l`, whose values are in `ls`, into a new cell, or

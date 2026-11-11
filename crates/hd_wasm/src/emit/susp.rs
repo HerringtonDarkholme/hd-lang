@@ -770,7 +770,7 @@ impl Em<'_, '_, '_> {
         self.f.get(held);
         self.f.op(I::If(BlockType::Empty));
         self.release_child(i, s);
-        if owned && self.input.runtime.is_some() {
+        if owned {
             self.f.op(I::Else);
             self.count_child(i, s, false);
         }
@@ -1058,9 +1058,7 @@ impl Em<'_, '_, '_> {
         crate::task::abandon_by(&mut self.f, 1);
         self.cancel_task(out, wait);
         crate::task::abandon_by(&mut self.f, -1);
-        if let Some(h) = fresh
-            && self.input.runtime.is_some()
-        {
+        if let Some(h) = fresh {
             self.f.get(h);
             self.f.op(I::I32Eqz);
             self.f.op(I::If(BlockType::Empty));
@@ -1075,7 +1073,8 @@ impl Em<'_, '_, '_> {
 
     /// One more count on the address in local `x`.
     fn ref_retain(&mut self, x: u32) {
-        if let Some(r) = self.input.runtime {
+        {
+            let r = self.input.runtime;
             self.f.get(x);
             self.f
                 .count_call(Sym::Inst(r.retain), crate::views::CountAction::Retain);
@@ -1241,15 +1240,12 @@ fn owners(em: &Em<'_, '_, '_>) -> HashMap<u32, Vec<u32>> {
 /// of a local or value live there, the active join's partial results, and
 /// emitter locals not proved dead by `free`. Join bookkeeping belongs
 /// only to its own point. A point with no row holds all of it.
-fn held_at(
-    em: &Em<'_, '_, '_>,
-    area: &[(u32, u32, Val)],
-    owners: &HashMap<u32, Vec<u32>>,
-    free: &hd_base::HashSet<u32>,
-) -> HashMap<u32, Vec<(u32, u32, Val)>> {
-    let Some(s) = em.susp.as_ref() else {
-        return HashMap::default();
-    };
+struct HeldAt<'a> {
+    points: HashMap<u32, u32>,
+    rows: Vec<(u32, u32, &'a [u32])>,
+}
+
+fn held_at<'a>(body: &'a hd_tir::Body, s: &Susp) -> HeldAt<'a> {
     let mut points = HashMap::default();
     for (&p, all) in &s.alls {
         // These are partial results and bookkeeping of this join alone.
@@ -1262,12 +1258,12 @@ fn held_at(
             points.insert(w, p);
         }
     }
-    let rows: Vec<_> =
-        em.b.live
-            .iter()
-            .filter_map(|(p, live)| s.states.get(p).map(|&k| (*p, k, live.as_slice())))
-            .collect();
-    held_rows(area, owners, free, &points, &rows, || {})
+    let rows: Vec<_> = body
+        .live
+        .iter()
+        .filter_map(|(p, live)| s.states.get(p).map(|&k| (*p, k, live.as_slice())))
+        .collect();
+    HeldAt { points, rows }
 }
 
 /// Reverse the ownership relation once, then visit each live row and its
@@ -1334,10 +1330,7 @@ impl Em<'_, '_, '_> {
     /// Ready, once it marked a frame it has `EXITED`; or, when it left by
     /// its cancellation through the counting exit, the frame, no longer
     /// unwinding.
-    pub(super) fn exit_frame(&mut self) {
-        let Some(cancelled) = self.susp.as_ref().map(|s| s.cancelled) else {
-            return;
-        };
+    pub(super) fn exit_frame(&mut self, cancelled: u32) {
         self.f.get(FRAME);
         self.f.op(I::If(BlockType::Empty));
         self.flags_or(FRAME, EXITED);
@@ -1405,6 +1398,7 @@ impl Em<'_, '_, '_> {
 /// the frame first; `plocals` the TIR locals of the others.
 pub(super) fn finish(
     mut em: Em<'_, '_, '_>,
+    suspension: Susp,
     key: Hash128,
     plocals: &[usize],
     params: &[Val],
@@ -1412,17 +1406,22 @@ pub(super) fn finish(
     closure: Option<usize>,
     held: Option<bool>,
 ) -> StageResult<crate::module::Func> {
-    let pc = em.susp.as_ref().map_or(0, |s| s.pc);
+    let pc = suspension.pc;
+    let cancelled = suspension.cancelled;
+    let saved_at = held_at(em.b, &suspension);
+    let row = suspension.provs.clone();
+    // Cleanup helpers still query suspension ranges and ownership facts.
+    // The required save view above moves their existing indexing work here;
+    // the suspension tables themselves are neither copied nor discarded.
+    em.susp = Some(suspension);
     let mut vals_all: Vec<Val> = em.f.params.clone();
     vals_all.extend(em.f.locals.iter().copied());
     let local_frame = em.frame.filter(|(base, _)| *base != NONE);
     let mut skipped = vec![FRAME, pc];
-    if let Some(susp) = &em.susp {
-        // This invocation's exit discriminator is set only when taking
-        // its final cancellation exit. A Pending return never uses it;
-        // the next invocation starts with Wasm's zero-initialized local.
-        skipped.push(susp.cancelled);
-    }
+    // This invocation's exit discriminator is set only when taking its
+    // final cancellation exit. Pending never uses it; a new invocation
+    // starts with Wasm's zero-initialized local.
+    skipped.push(cancelled);
     if let Some((base, _)) = local_frame {
         skipped.push(base);
     }
@@ -1463,146 +1462,140 @@ pub(super) fn finish(
     // it has left, then the child.
     em.f = em.m.func(format!("{name}.drop"), vec![Val::I32], vec![]);
     em.inherit_origin_source(Reason::Conservative("frame drop"));
-    em.counting = em.input.runtime.is_some();
-    if em.counting {
+    em.counting = true;
+    em.f.get(FRAME);
+    em.f.op(I::I32Load(mem(HEAP, F_FLAGS, 2)));
+    em.f.i32(EXITED);
+    em.f.op(I::I32And);
+    em.f.op(I::I32Eqz);
+    em.f.op(I::If(BlockType::Empty));
+    // Pins #1430: a started frame is only ever traced, never freed or
+    // collected as garbage, so this glue releases no value row.
+    if em.input.runtime.checked.is_some() {
+        let rt = em.input.runtime;
         em.f.get(FRAME);
-        em.f.op(I::I32Load(mem(HEAP, F_FLAGS, 2)));
-        em.f.i32(EXITED);
-        em.f.op(I::I32And);
+        em.f.op(I::I32Load(mem(HEAP, crate::task::F_STATE, 2)));
+        em.f.op(I::If(BlockType::Empty));
+        em.f.call(crate::module::Sym::Inst(rt.cycle.marking));
         em.f.op(I::I32Eqz);
         em.f.op(I::If(BlockType::Empty));
-        // Pins #1430: a started frame is only ever traced, never freed or
-        // collected as garbage, so this glue releases no value row.
-        if let Some(rt) = em.input.runtime.filter(|r| r.checked.is_some()) {
+        em.f.op(I::Unreachable);
+        em.f.op(I::End);
+        em.f.op(I::End);
+    }
+    em.reload_drop_flags(&area);
+    // What a cold frame holds of the exit set: its parameters and a
+    // closure's captures. The body's other locals are set only once it
+    // runs, and a started frame is never freed (pinned above).
+    let mut places: Vec<(usize, Vec<u32>)> = Vec::new();
+    let mut owned: Vec<usize> =
+        em.b.exit_drops
+            .iter()
+            .filter(|&&(sub, l)| {
+                sub.raw() == u32::from(em.sub_id)
+                    && (plocals.contains(&l.idx()) || em.b.cap_local.contains(&l))
+            })
+            .map(|&(_, l)| l.idx())
+            .collect();
+    owned.sort_stable();
+    owned.dedup();
+    for l in owned {
+        if !em.loan_locals.contains_key(&l)
+            && !em.borrowed.contains(&l)
+            && let Some(ls) = em.locals.get(&l)
+        {
+            places.push((l, ls.clone()));
+        }
+    }
+    // The pointer loans the waiting body holds end with it.
+    em.borrow_abandon(&at_of);
+    let load = |em: &mut Em<'_, '_, '_>, ls: &[u32]| {
+        let mut loaded = Vec::new();
+        for &l in ls {
+            let (at, v) = at_of(l)?;
+            let x = em.f.local(v);
             em.f.get(FRAME);
-            em.f.op(I::I32Load(mem(HEAP, crate::task::F_STATE, 2)));
-            em.f.op(I::If(BlockType::Empty));
-            em.f.call(crate::module::Sym::Inst(rt.cycle.marking));
-            em.f.op(I::I32Eqz);
-            em.f.op(I::If(BlockType::Empty));
-            em.f.op(I::Unreachable);
-            em.f.op(I::End);
-            em.f.op(I::End);
+            em.f.op(load_op(v, at));
+            em.f.set(x);
+            loaded.push(x);
         }
-        em.reload_drop_flags(&area);
-        // What a cold frame holds of the exit set: its parameters and a
-        // closure's captures. The body's other locals are set only once it
-        // runs, and a started frame is never freed (pinned above).
-        let mut places: Vec<(usize, Vec<u32>)> = Vec::new();
-        let mut owned: Vec<usize> =
-            em.b.exit_drops
-                .iter()
-                .filter(|&&(sub, l)| {
-                    sub.raw() == u32::from(em.sub_id)
-                        && (plocals.contains(&l.idx()) || em.b.cap_local.contains(&l))
-                })
-                .map(|&(_, l)| l.idx())
-                .collect();
-        owned.sort_stable();
-        owned.dedup();
-        for l in owned {
-            if !em.loan_locals.contains_key(&l)
-                && !em.borrowed.contains(&l)
-                && let Some(ls) = em.locals.get(&l)
-            {
-                places.push((l, ls.clone()));
+        Some(loaded)
+    };
+    for (l, ls) in places {
+        let Some(loaded) = load(&mut em, &ls) else {
+            continue;
+        };
+        em.borrow_release(l);
+        em.because(Reason::Cancelled, |em| {
+            if em.is_cell(l) {
+                em.count_local(l, &loaded, false)
+            } else {
+                em.release_drop_place(&loaded, em.sub(em.b.local_ty[l]), &Em::local_place(l))
             }
-        }
-        // The pointer loans the waiting body holds end with it.
-        em.borrow_abandon(&at_of);
-        let load = |em: &mut Em<'_, '_, '_>, ls: &[u32]| {
+        })?;
+    }
+    // Reference parameter slots precede all body-allocated waker nodes.
+    // These typed identities replace opaque temporary ownership inference.
+    for (l, _, held) in em.frame_refs.clone() {
+        let Some(loaded) = load(&mut em, &[held]) else {
+            continue;
+        };
+        // ruled out: own::referent states each saved parameter object's
+        // FrameDrop release, separately from its value count.
+        let reason = em.required_stated_count(
+            Tag::Release,
+            CountAt::FrameDrop,
+            CountPart::Referent(u32::try_from(l).expect("local")),
+        );
+        em.because(reason, |em| {
+            em.f.get(loaded[0]);
+            em.f.helper(Helper::ReleaseRef);
+        });
+    }
+    em.f.op(I::End);
+    // A parameter a body with no suspension point borrows from its
+    // frame (`Em::instance_loans`): the frame's count outlives the body.
+    for &l in plocals {
+        if em.borrowed.contains(&l)
+            && let Some(ls) = em.locals.get(&l).cloned()
+            && let Some(slots) = ls.iter().map(|x| at_of(*x)).collect::<Option<Vec<_>>>()
+        {
             let mut loaded = Vec::new();
-            for &l in ls {
-                let (at, v) = at_of(l)?;
+            for (at, v) in slots {
                 let x = em.f.local(v);
                 em.f.get(FRAME);
                 em.f.op(load_op(v, at));
                 em.f.set(x);
                 loaded.push(x);
             }
-            Some(loaded)
-        };
-        for (l, ls) in places {
-            let Some(loaded) = load(&mut em, &ls) else {
-                continue;
-            };
-            em.borrow_release(l);
-            em.because(Reason::Cancelled, |em| {
-                if em.is_cell(l) {
-                    em.count_local(l, &loaded, false)
-                } else {
-                    em.release_drop_place(&loaded, em.sub(em.b.local_ty[l]), &Em::local_place(l))
-                }
-            })?;
+            let t = em.sub(em.b.local_ty[l]);
+            em.because(Reason::ByDesign, |em| em.release_locals(&loaded, t))?;
         }
-        // Reference parameter slots precede all body-allocated waker nodes.
-        // These typed identities replace opaque temporary ownership inference.
-        for (l, _, held) in em.frame_refs.clone() {
-            let Some(loaded) = load(&mut em, &[held]) else {
-                continue;
-            };
-            // ruled out: own::referent states each saved parameter object's
-            // FrameDrop release, separately from its value count.
-            let reason = em.required_stated_count(
-                Tag::Release,
-                CountAt::FrameDrop,
-                CountPart::Referent(u32::try_from(l).expect("local")),
-            );
-            em.because(reason, |em| {
-                em.f.get(loaded[0]);
-                em.f.helper(Helper::ReleaseRef);
-            });
-        }
-        em.f.op(I::End);
-        // A parameter a body with no suspension point borrows from its
-        // frame (`Em::instance_loans`): the frame's count outlives the body.
-        for &l in plocals {
-            if em.borrowed.contains(&l)
-                && let Some(ls) = em.locals.get(&l).cloned()
-                && let Some(slots) = ls.iter().map(|x| at_of(*x)).collect::<Option<Vec<_>>>()
-            {
-                let mut loaded = Vec::new();
-                for (at, v) in slots {
-                    let x = em.f.local(v);
+    }
+    if !row.is_empty() {
+        // ruled out: counts::expected pairs cold_row::roots' copies with
+        // this distinct FrameDrop Row release.
+        let reason = em.required_stated_count(Tag::Release, CountAt::FrameDrop, CountPart::Row);
+        em.because(reason, |em| {
+            for d in row {
+                if let Some((at, v)) = at_of(d) {
                     em.f.get(FRAME);
                     em.f.op(load_op(v, at));
-                    em.f.set(x);
-                    loaded.push(x);
+                    em.f.helper(Helper::ReleaseRef);
                 }
-                let t = em.sub(em.b.local_ty[l]);
-                em.because(Reason::ByDesign, |em| em.release_locals(&loaded, t))?;
             }
-        }
-        let row = em
-            .susp
-            .as_ref()
-            .map(|s| s.provs.clone())
-            .unwrap_or_default();
-        if !row.is_empty() {
-            // ruled out: counts::expected pairs cold_row::roots' copies with
-            // this distinct FrameDrop Row release.
-            let reason = em.required_stated_count(Tag::Release, CountAt::FrameDrop, CountPart::Row);
-            em.because(reason, |em| {
-                for d in row {
-                    if let Some((at, v)) = at_of(d) {
-                        em.f.get(FRAME);
-                        em.f.op(load_op(v, at));
-                        em.f.helper(Helper::ReleaseRef);
-                    }
-                }
-            });
-        }
-        if let Some(reason) = em.stated_count(Tag::Release, CountAt::FrameDrop, CountPart::Child) {
-            em.because(reason, |em| {
-                em.f.get(FRAME);
-                em.f.op(I::I32Load(mem(HEAP, F_CHILD, 2)));
-                em.f.op(I::If(BlockType::Empty));
-                em.f.get(FRAME);
-                em.f.op(I::I32Load(mem(HEAP, F_CHILD, 2)));
-                em.f.helper(Helper::ReleaseRef);
-                em.f.op(I::End);
-            });
-        }
+        });
+    }
+    if let Some(reason) = em.stated_count(Tag::Release, CountAt::FrameDrop, CountPart::Child) {
+        em.because(reason, |em| {
+            em.f.get(FRAME);
+            em.f.op(I::I32Load(mem(HEAP, F_CHILD, 2)));
+            em.f.op(I::If(BlockType::Empty));
+            em.f.get(FRAME);
+            em.f.op(I::I32Load(mem(HEAP, F_CHILD, 2)));
+            em.f.helper(Helper::ReleaseRef);
+            em.f.op(I::End);
+        });
     }
     let drop = std::mem::take(&mut em.f);
     em.drop_states = body_drop_states;
@@ -1618,19 +1611,17 @@ pub(super) fn finish(
     // Borrowed arguments take a count or collection copy before the
     // frame keeps them. Transferred arguments arrive with theirs.
     let transferred = em.cold_transferred_locals(plocals);
-    if em.counting {
-        for &l in plocals {
-            let ls = arrived(&em, l);
-            let t = em.sub(em.b.local_ty[l]);
-            if let Some(reason) = em.stated_count(
-                Tag::Retain,
-                CountAt::Cold,
-                CountPart::Local(u32::try_from(l).expect("local")),
-            ) && !transferred.contains(&l)
-                && !crate::layout::holds_drop(em.pool(), em.env(), t)
-            {
-                em.because(reason, |em| em.retain_locals(&ls, t))?;
-            }
+    for &l in plocals {
+        let ls = arrived(&em, l);
+        let t = em.sub(em.b.local_ty[l]);
+        if let Some(reason) = em.stated_count(
+            Tag::Retain,
+            CountAt::Cold,
+            CountPart::Local(u32::try_from(l).expect("local")),
+        ) && !transferred.contains(&l)
+            && !crate::layout::holds_drop(em.pool(), em.env(), t)
+        {
+            em.because(reason, |em| em.retain_locals(&ls, t))?;
         }
     }
     for j in 0..cold_params.len() {
@@ -1657,33 +1648,30 @@ pub(super) fn finish(
     }
     // The frame's count of each reference parameter's object, in the
     // temporary its exit or release glue releases.
-    if let Some(r) = em.input.runtime.filter(|_| em.counting) {
-        for (l, k, held) in em.frame_refs.clone() {
-            let (Some(x), Some((at, v))) = (arrived(&em, l).get(k as usize).copied(), at_of(held))
-            else {
-                continue;
-            };
-            // ruled out: own::referent states Cold for every thin parameter
-            // referent whose object the concrete frame layout saves here.
-            let reason = em.required_stated_count(
-                Tag::Retain,
-                CountAt::Cold,
-                CountPart::Referent(u32::try_from(l).expect("local")),
-            );
-            em.f.get(x);
-            em.because(reason, |em| {
-                em.f.count_call(Sym::Inst(r.retain), crate::views::CountAction::Retain);
-            });
+    let r = em.input.runtime;
+    for (l, k, held) in em.frame_refs.clone() {
+        let (Some(x), Some((at, v))) = (arrived(&em, l).get(k as usize).copied(), at_of(held))
+        else {
+            continue;
+        };
+        // ruled out: own::referent states Cold for every thin parameter
+        // referent whose object the concrete frame layout saves here.
+        let reason = em.required_stated_count(
+            Tag::Retain,
+            CountAt::Cold,
+            CountPart::Referent(u32::try_from(l).expect("local")),
+        );
+        em.f.get(x);
+        em.because(reason, |em| {
+            em.f.count_call(Sym::Inst(r.retain), crate::views::CountAction::Retain);
+        });
 
-            em.f.get(fr);
-            em.f.get(x);
-            em.f.op(store_op(v, at));
-        }
+        em.f.get(fr);
+        em.f.get(x);
+        em.f.op(store_op(v, at));
     }
     em.save_initial_drop_flags(plocals, fr, &area);
-    if em.counting {
-        em.retain_row(CountAt::Cold, 1);
-    }
+    em.retain_row(CountAt::Cold, 1);
     // A closure's code reads its captures from its environment, its first
     // parameter, into the frame, with a count of each.
     if let Some(ci) = closure {
@@ -1704,12 +1692,10 @@ pub(super) fn finish(
                     em.f.op(store_op(v, at));
                 }
             }
-            if em.counting {
-                // ruled out: own::cold_captures states Captures whenever
-                // closure_self exists, even without other environment fields.
-                let reason = super::required(copy, "own::cold_captures must state self copy");
-                em.because(reason, |em| em.ref_retain(0));
-            }
+            // ruled out: own::cold_captures states Captures whenever
+            // closure_self exists, even without other environment fields.
+            let reason = super::required(copy, "own::cold_captures must state self copy");
+            em.because(reason, |em| em.ref_retain(0));
         }
         let caps = super::closure::captures(em.b, ci, &em.recursive_bindings);
         if !caps.is_empty() {
@@ -1726,9 +1712,7 @@ pub(super) fn finish(
                     em.f.set(y);
                     loaded.push(y);
                 }
-                if em.counting
-                    && let Some(reason) = copy
-                {
+                if let Some(reason) = copy {
                     em.because(reason, |em| em.count_local(*l, &loaded, true))?;
                 }
                 for (x, y) in ls.iter().zip(&loaded) {
@@ -1781,7 +1765,14 @@ pub(super) fn finish(
             }
         }
     }
-    let saved = held_at(&em, &area, &owners, &free);
+    let saved = held_rows(
+        &area,
+        &owners,
+        &free,
+        &saved_at.points,
+        &saved_at.rows,
+        || {},
+    );
     // The saves and the reload first, over the body's own local numbers.
     expand(&mut body, &area, &saved);
     crate::task::guard_frame(&mut body);
@@ -1868,9 +1859,7 @@ pub(super) fn finish(
     em.f.op(I::I32Eqz);
     em.f.op(I::If(BlockType::Empty));
     em.unwound();
-    if em.counting {
-        em.release_locals(&tmp, ret)?;
-    }
+    em.release_locals(&tmp, ret)?;
     em.f.op(I::End);
     em.f.op(I::End);
     em.f.get(FRAME);

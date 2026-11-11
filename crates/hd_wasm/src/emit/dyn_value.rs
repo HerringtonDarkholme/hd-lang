@@ -393,15 +393,17 @@ impl Em<'_, '_, '_> {
             Some(self.read_dyn_value(a)?)
         };
         if let Some((target, ls, true)) = &read {
-            if self.has_stated_retain(i) {
-                // Lower the adjacent Retain before the supertrait vtable loads.
-                self.because(hd_tir::own::Reason::Stored, |em| {
-                    em.retain_locals(ls, *target)
-                })?;
-                self.retained_before_result.insert(i);
-            } else {
-                self.retain_locals(ls, *target)?;
-            }
+            // ruled out: ownership states the result Retain when widening
+            // loads an owned dynamic receiver; emission never invents a count.
+            assert!(
+                self.has_stated_retain(i),
+                "loaded dyn widen has a stated Retain"
+            );
+            // Lower the adjacent Retain before the supertrait vtable loads.
+            self.because(hd_tir::own::Reason::Stored, |em| {
+                em.retain_locals(ls, *target)
+            })?;
+            self.retained_before_result.insert(i);
         }
         let from = read.as_ref().map_or(source, |v| v.0);
         let to = self.ty(i);
