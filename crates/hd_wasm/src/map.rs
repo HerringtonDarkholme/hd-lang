@@ -97,7 +97,7 @@ impl Entry {
     /// The entry of a `Map[kt, vt]` of type `t`, for a map operation or a
     /// boundary map's codec.
     pub(crate) fn of(input: &Input<'_>, t: Ty, kt: Ty, vt: Ty) -> StageResult<Self> {
-        let (pool, env, counts) = (input.pool, input.env, input.runtime.is_some());
+        let (pool, env, counts) = (input.pool, input.env, true);
         let (m, parts) = crate::layout::payload_mem(pool, env, &[kt, vt])?;
         let keys = parts[0].count;
         let shift = n32(keys);
@@ -134,7 +134,7 @@ impl KeyOps {
         let own = |t: &CallTarget, k: usize| -> Option<Walk> {
             let p = crate::emit::callee_params(input, m, t.key, t.item, t.args)[k];
             let lent = k < 64 && input.env.lends(t.item, t.args) & (1 << k) != 0;
-            match crate::layout::pass(input.pool, input.env, input.runtime.is_some(), p) {
+            match crate::layout::pass(input.pool, input.env, true, p) {
                 Pass::Owned(w) if !lent => Some(w),
                 _ => None,
             }

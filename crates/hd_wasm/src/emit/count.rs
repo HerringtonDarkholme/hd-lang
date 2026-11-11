@@ -182,7 +182,6 @@ impl Em<'_, '_, '_> {
 
     /// The counted references of a `t` value, when the program counts.
     pub(super) fn counted(&self, t: Ty) -> Option<Walk> {
-        self.input.runtime?;
         crate::layout::count_walk(self.pool(), self.env(), t)
     }
 
@@ -191,22 +190,21 @@ impl Em<'_, '_, '_> {
     /// reference, a thin local reference among them, though that counts
     /// nothing ([`Em::counted`]).
     pub(super) fn tracked(&self, t: Ty) -> bool {
-        self.input.runtime.is_some() && crate::layout::walk(self.pool(), self.env(), t).is_some()
+        crate::layout::walk(self.pool(), self.env(), t).is_some()
     }
 
     /// Whether `t` is a thin local reference (`ref.count.local`) in a
     /// program that counts: a plain address, which counts nothing, though
     /// one may own the object it names ([`Em::owned_refs`]).
     pub(super) fn local_ref(&self, t: Ty) -> bool {
-        self.input.runtime.is_some()
-            && matches!(
-                self.kind(t),
-                crate::layout::Kind::Ref {
-                    fat: false,
-                    whole: false,
-                    ..
-                }
-            )
+        matches!(
+            self.kind(t),
+            crate::layout::Kind::Ref {
+                fat: false,
+                whole: false,
+                ..
+            }
+        )
     }
 
     /// Whether releasing a value has work: reference counts, a
@@ -222,18 +220,18 @@ impl Em<'_, '_, '_> {
     /// list's or a map's) takes part in cycle collection
     /// (`crate::cycle`).
     pub(super) fn cyclic_object(&self, t: Ty) -> bool {
-        self.input.runtime.is_some() && crate::cycle::object(self.pool(), self.env(), t)
+        crate::cycle::object(self.pool(), self.env(), t)
     }
 
     /// Whether an object's release can reach the same release glue again.
     pub(super) fn recursive_object(&self, t: Ty) -> bool {
-        self.input.runtime.is_some() && crate::cycle::recursive_object(self.pool(), self.env(), t)
+        crate::cycle::recursive_object(self.pool(), self.env(), t)
     }
 
     /// Whether a new object holding values of `parts`, which only an open
     /// value can hold, takes part in cycle collection (`crate::cycle`).
     pub(super) fn cyclic_holding(&self, parts: &[Ty]) -> bool {
-        self.input.runtime.is_some() && crate::cycle::holding(self.pool(), self.env(), parts)
+        crate::cycle::holding(self.pool(), self.env(), parts)
     }
 
     /// The values of a `t` value that a count of it takes through the copy
@@ -398,7 +396,7 @@ impl Em<'_, '_, '_> {
         t: Ty,
         slot: Option<(crate::module::Address, Vec<crate::layout::Leaf>)>,
     ) -> StageResult<()> {
-        if self.input.runtime.and_then(|r| r.checked).is_none() {
+        if self.input.runtime.checked.is_none() {
             return Ok(());
         }
         let Some(walk) = self.counted(t) else {
@@ -413,13 +411,13 @@ impl Em<'_, '_, '_> {
 
     /// One count more or less on the address on the stack.
     fn ref_count(&mut self, retain: bool) {
-        match (retain, self.input.runtime) {
-            (true, Some(r)) => self.f.count_call(
-                crate::module::Sym::Inst(r.retain),
+        if retain {
+            self.f.count_call(
+                crate::module::Sym::Inst(self.input.runtime.retain),
                 crate::views::CountAction::Retain,
-            ),
-            (false, Some(_)) => self.f.helper(Helper::ReleaseRef),
-            (_, None) => self.f.op(crate::op::Op::Drop),
+            );
+        } else {
+            self.f.helper(Helper::ReleaseRef);
         }
     }
 
@@ -632,9 +630,6 @@ impl Em<'_, '_, '_> {
     /// parameter, a local or an instruction's value. Only then does it
     /// count, and its returns go through its exit.
     pub(super) fn counts_anything(&self) -> bool {
-        if self.input.runtime.is_none() {
-            return false;
-        }
         let b = self.b;
         self.borrow_needs_exit()
             || !self.cells.is_empty()
@@ -750,12 +745,7 @@ impl Em<'_, '_, '_> {
     /// over its operands: O(instructions + operands).
     pub(super) fn own_consumers(&mut self) {
         hd_tir::own::consumers(self.b, &self.topo, self.input.own_cx, &mut self.consumer);
-        let verify = cfg!(not(target_arch = "wasm32"))
-            && self
-                .input
-                .runtime
-                .and_then(|runtime| runtime.checked)
-                .is_some();
+        let verify = cfg!(not(target_arch = "wasm32")) && self.input.runtime.checked.is_some();
         if self.m.track_origins || verify {
             hd_tir::own::copy_reasons(
                 self.b,
@@ -1107,9 +1097,6 @@ impl Em<'_, '_, '_> {
     pub(super) fn unique_at(&mut self, i: u32) -> StageResult<u32> {
         let word = self.b.data[i as usize][0];
         let (h, t, at) = self.place_header(word)?;
-        if self.input.runtime.is_none() {
-            return Ok(h);
-        }
         self.f.get(h);
         let start = self.f.body.len();
         if self.is_map(t) {

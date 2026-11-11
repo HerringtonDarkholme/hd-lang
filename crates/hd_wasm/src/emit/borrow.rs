@@ -1730,10 +1730,8 @@ impl Em<'_, '_, '_> {
         } else {
             usize::from(inner)
         };
-        if inner
-            && self.m.kept.contains(&(self.inst, i, u32::MAX - 1))
-            && let Some(rt) = self.m.runtime
-        {
+        if inner && self.m.kept.contains(&(self.inst, i, u32::MAX - 1)) {
+            let rt = self.m.runtime;
             let Some(&r) = self
                 .locals
                 .get(&held.local)

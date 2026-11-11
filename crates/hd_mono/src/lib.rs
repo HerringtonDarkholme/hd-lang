@@ -429,7 +429,7 @@ pub struct HostBridge {
 }
 
 /// The std items a host boundary calls (`module.boundary.serialize.exact`,
-/// `.deserialize.exact`): `std.host`'s codecs, `T -> string` out of hd and
+/// `.deserialize.exact`): `std.host`'s codecs, `&T -> string` out of hd and
 /// `string -> T` into it, for a profile's own host and for a package host,
 /// and `std.rt.host_provider`, which puts a host handle that enters hd as a
 /// trait value reference behind a new object (`BoundaryCodecs::handle_ref`).
@@ -2529,6 +2529,9 @@ impl Cx<'_> {
                 TyData::Adt { def, args } => {
                     if self.env.has_private_field(def) {
                         self.note_private_boundary(ty, out, package)?;
+                        // The opaque codec defines the entire wire value. Its
+                        // representation fields need neither codecs nor handles.
+                        continue;
                     }
                     // A map's decoder rebuilds its table through the key's
                     // hash and equality (`module.boundary.map-decode`).
@@ -2571,7 +2574,21 @@ impl Cx<'_> {
             (false, true) => items.package_decode,
             (false, false) => items.decode,
         };
-        let key = Some(self.target(def, self.pool.list(&[ty]), InstId::NONE)?.key);
+        // Outbound codecs serialize a borrowed value. In particular, a
+        // non-Copy value must not acquire a second Drop owner while encoding.
+        let argument = if out {
+            self.pool.intern_ty(&TyData::Ref {
+                inner: ty,
+                mutable: false,
+                counted: false,
+            })
+        } else {
+            ty
+        };
+        let key = Some(
+            self.target(def, self.pool.list(&[argument]), InstId::NONE)?
+                .key,
+        );
         let entry = self.out.boundary.entry(ty).or_default();
         match (out, package) {
             (true, true) => entry.package_encode = key,
