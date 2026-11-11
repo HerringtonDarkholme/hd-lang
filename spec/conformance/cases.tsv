@@ -6589,6 +6589,8 @@ typing/invalid/an-enclosing-parameter-gives-the-bound-binding.hd	type	reject:uns
 typing/valid/written-type-arguments-meet-bound-bindings.hd	type	accept	lang/09-traits.md#r-trait.binding.use-site.written
 typing/invalid/move-tuple-element-out-of-reference.hd	type	reject:move-out-of-place	lang/13-values-and-references.md#r-ref.move.out-of-place
 runtime/valid/a-tuple-element-reads-through-a-reference.hd	runtime	accept	lang/13-values-and-references.md#r-ref.read.auto
+runtime/valid/hash-of-scattered-usize-keys.hd	runtime	accept	std/hash.md#r-std-hash.hash-of-local
+runtime/valid/hash-of-usize-byte-oracle.hd	runtime	accept	std/hash.md#r-std-hash.default.algorithm
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
