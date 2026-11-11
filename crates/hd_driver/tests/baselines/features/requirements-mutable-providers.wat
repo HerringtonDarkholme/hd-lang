@@ -9,147 +9,136 @@
   (import "fixture" "table0" (table $table0 8 funcref))
   (func $tick (param $s.0 i32) (param $s.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32)
     ;; 23 |     rec := $.use(Recorder)
-    block
-      local.get $provider0
+    local.get $provider0
     ;; 24 |     rec.note(s)
-      local.get $s.0
-      local.get $s.1
-      local.get $provider0.vtable
-      i32.load $heap
-      call_indirect $table0 (param i32 i32 i32)
+    local.get $s.0
+    local.get $s.1
+    local.get $provider0.vtable
+    i32.load $heap
+    call_indirect $table0 (param i32 i32 i32)
     ;; 25 |     rec.total()
-      local.get $provider0
-      local.get $provider0.vtable
-      i32.load $heap offset=4
-      call_indirect $table0 (param i32) (result i32)
+    local.get $provider0
+    local.get $provider0.vtable
+    i32.load $heap offset=4
+    call_indirect $table0 (param i32) (result i32)
     ;; 23 |     rec := $.use(Recorder)
-      local.set $s.0
-    end
+    local.set $s.0
     local.get $s.0
   )
   (func $"impl Recorder for Log.total" (param $self i32) (result i32)
     ;; 20 |         self.lines.len()
-    block
-      local.get $self
-      i32.load $heap
-      i32.load $heap offset=4
-      local.set $self
-    end
+    local.get $self
+    i32.load $heap
+    i32.load $heap offset=4
+    local.set $self
     local.get $self
   )
   (func $demo (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $tally i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 28 |     tally := box(Log { lines: [] })
-    block
-      i32.const 4
-      i32.const 4
-      call $rt:new/class-1
-      local.tee $tally
-      i32.const 80 ;; &empty-buffer
-      i32.store $heap
-      local.get $tally
+    i32.const 4
+    i32.const 4
+    call $rt:new/class-1
+    local.tee $tally
+    i32.const 80 ;; &empty-buffer
+    i32.store $heap
+    local.get $tally
     ;; 29 |     $.with(Recorder=tally):
-      local.tee $t0
-      local.tee $t1
-      if
-        local.get $t1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t1
-          call $rt:retain_known
-        end
-      end
-      local.get $t0
-      local.set $t1
-      i32.const 240 ;; &vtable[func52, func51]
-      local.set $t2
-      block
-    ;; 30 |         _ := tick(a)
-        local.get $a.0
-        local.get $a.1
-        local.get $t1
-        local.get $t2
-        call $tick
-        drop
-    ;; 31 |         _ := tick(b)
-        local.get $b.0
-        local.get $b.1
-        local.get $t1
-        local.get $t2
-        call $tick
-        drop
-    ;; 29 |     $.with(Recorder=tally):
-      end
-    ;; 28 |     tally := box(Log { lines: [] })
-      local.get $t0
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref'1
-      end
-    ;; 32 |     tally.lines.len()
-      local.get $tally
+    local.tee $t0
+    local.tee $t1
+    if
+      local.get $t1
+      i32.const 8
+      i32.sub
       i32.load $heap
-      i32.load $heap offset=4
-    ;; 28 |     tally := box(Log { lines: [] })
-      local.get $tally
-      local.tee $t1
       if
         local.get $t1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t1
-          call $rt:release_ref'2
-        end
+        call $rt:retain_known
       end
-      local.set $a.0
     end
+    local.get $t0
+    local.set $t1
+    i32.const 240 ;; &vtable[func52, func51]
+    local.set $t2
+    ;; 30 |         _ := tick(a)
+    local.get $a.0
+    local.get $a.1
+    local.get $t1
+    local.get $t2
+    call $tick
+    drop
+    ;; 31 |         _ := tick(b)
+    local.get $b.0
+    local.get $b.1
+    local.get $t1
+    local.get $t2
+    call $tick
+    drop
+    ;; 28 |     tally := box(Log { lines: [] })
+    local.get $t0
+    local.tee $t1
+    if
+      local.get $t1
+      call $rt:release_ref'1
+    end
+    ;; 32 |     tally.lines.len()
+    local.get $tally
+    i32.load $heap
+    i32.load $heap offset=4
+    ;; 28 |     tally := box(Log { lines: [] })
+    local.get $tally
+    local.tee $t1
+    if
+      local.get $t1
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $t1
+        call $rt:release_ref'2
+      end
+    end
+    local.set $a.0
     local.get $a.0
   )
   (func $"impl Recorder for Log.note" (param $self i32) (param $s.0 i32) (param $s.1 i32) (local $t0 i32) (local $t1 i32)
     ;; 17 |         self.lines.push(s)
-    block
-      local.get $self
-      i32.load $heap
-      call $rt:list_unique
+    local.get $self
+    i32.load $heap
+    call $rt:list_unique
+    local.set $t0
+    local.get $self
+    local.get $t0
+    i32.store $heap
+    local.get $t0
+    i32.load $heap offset=4
+    local.tee $t1
+    local.get $t0
+    i32.load $heap
+    i32.eq
+    if
+      local.get $t0
+      i32.const 4
+      call_indirect $table0 (param i32) (result i32)
       local.set $t0
       local.get $self
       local.get $t0
       i32.store $heap
-      local.get $t0
-      i32.load $heap offset=4
-      local.tee $t1
-      local.get $t0
-      i32.load $heap
-      i32.eq
-      if
-        local.get $t0
-        i32.const 4
-        call_indirect $table0 (param i32) (result i32)
-        local.set $t0
-        local.get $self
-        local.get $t0
-        i32.store $heap
-      end
-      local.get $t0
-      local.get $t1
-      i32.const 8
-      i32.mul
-      i32.add
-      local.tee $self
-      local.get $s.0
-      i32.store $heap offset=16
-      local.get $self
-      local.get $s.1
-      i32.store $heap offset=20
-      local.get $t0
-      local.get $t1
-      i32.const 1
-      i32.add
-      i32.store $heap offset=4
     end
+    local.get $t0
+    local.get $t1
+    i32.const 8
+    i32.mul
+    i32.add
+    local.tee $self
+    local.get $s.0
+    i32.store $heap offset=16
+    local.get $self
+    local.get $s.1
+    i32.store $heap offset=20
+    local.get $t0
+    local.get $t1
+    i32.const 1
+    i32.add
+    i32.store $heap offset=4
   )
 )

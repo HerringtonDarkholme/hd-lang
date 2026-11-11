@@ -9,99 +9,91 @@
   (import "fixture" "table0" (table $table0 3 funcref))
   (func $"impl Step for Erased.step'1" (param $self i32) (result i32 i64) (local $t2 i64) (local $t0 i32) (local $t1 i32)
     ;; 32 |         self.source.step()
-    block
-      local.get $self
-      i32.load $heap
-      local.get $self
-      i32.load $heap offset=4
-      local.set $t0
-      local.tee $self
-      local.tee $t1
-      if
-        local.get $t1
-        call $retain
-      end
-      local.get $self
-      local.get $t0
-      i32.load $heap
-      call_indirect $table0 (param i32) (result i32 i64)
-      local.get $self
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref
-      end
-      local.set $t2
-      local.set $self
+    local.get $self
+    i32.load $heap
+    local.get $self
+    i32.load $heap offset=4
+    local.set $t0
+    local.tee $self
+    local.tee $t1
+    if
+      local.get $t1
+      call $retain
     end
+    local.get $self
+    local.get $t0
+    i32.load $heap
+    call_indirect $table0 (param i32) (result i32 i64)
+    local.get $self
+    local.tee $t1
+    if
+      local.get $t1
+      call $rt:release_ref
+    end
+    local.set $t2
+    local.set $self
     local.get $self
     local.get $t2
   )
   (func $"impl Step for Counter.step" (param $self i32) (result i32 i64) (local $value i64)
     ;; 20 |         if self.at >= self.end:
-    block
-      local.get $self
-      i64.load $heap
-      local.get $self
-      i64.load $heap offset=8
-      i64.ge_s
-      if
+    local.get $self
+    i64.load $heap
+    local.get $self
+    i64.load $heap offset=8
+    i64.ge_s
+    if
     ;; 21 |             return .None
-        i32.const 0
-        i64.const 0
-        return
+      i32.const 0
+      i64.const 0
+      return
     ;; 20 |         if self.at >= self.end:
-      end
-    ;; 23 |         self.at = value + 1
-      local.get $self
-    ;; 22 |         value := self.at
-      local.get $self
-      i64.load $heap
-      local.tee $value
-    ;; 23 |         self.at = value + 1
-      i64.const 1
-      i64.add
-      i64.store $heap
-    ;; 24 |         .Some(value)
-      i32.const 1
-    ;; 20 |         if self.at >= self.end:
-      local.set $self
     end
+    ;; 23 |         self.at = value + 1
+    local.get $self
+    ;; 22 |         value := self.at
+    local.get $self
+    i64.load $heap
+    local.tee $value
+    ;; 23 |         self.at = value + 1
+    i64.const 1
+    i64.add
+    i64.store $heap
+    ;; 24 |         .Some(value)
+    i32.const 1
+    ;; 20 |         if self.at >= self.end:
+    local.set $self
     local.get $self
     local.get $value
   )
   (func $"impl Step for Erased.step'2" (param $self i32) (result i32 i64) (local $t0 i64)
     ;; 32 |         self.source.step()
-    block
-      local.get $self
-      i32.load $heap
-      local.get $self
-      i32.load $heap offset=4
-      i32.load $heap
-      call_indirect $table0 (param i32) (result i32 i64)
-      local.set $t0
-      local.set $self
-    end
+    local.get $self
+    i32.load $heap
+    local.get $self
+    i32.load $heap offset=4
+    i32.load $heap
+    call_indirect $table0 (param i32) (result i32 i64)
+    local.set $t0
+    local.set $self
     local.get $self
     local.get $t0
   )
   (func $count (param $n i64) (result i64) (local $t0 i32)
     ;; 44 |     total(Erased { source: box(Counter { at: 0, end: n }) })
-    block
-      i32.const 16
-      i32.const 0
-      call $rt:new/class-2
-      local.tee $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      local.get $n
-      i64.store $heap offset=8
-      local.get $t0
-      i32.const 160 ;; &vtable[func38]
-      call $total
-      local.set $n
-    end
+    i32.const 16
+    i32.const 0
+    call $rt:new/class-2
+    local.tee $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    local.get $n
+    i64.store $heap offset=8
+    local.get $t0
+    i32.const 160 ;; &vtable[func38]
+    call $total
+    local.set $n
     local.get $n
   )
   (func $total (param $items.source.0 i32) (param $items.source.1 i32) (result i64) (local $sum i64) (local $t0 i32) (local $t1 i32) (local $x i64)
@@ -135,76 +127,74 @@
     i32.sub
     local.tee $t0
     global.set $locals
-    block
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $t1
-      local.get $items.source.0
-      i32.store $heap
-      local.get $t1
-      local.get $items.source.1
-      i32.store $heap offset=4
-      local.get $t1
-      local.set $items.source.0
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $t1
+    local.get $items.source.0
+    i32.store $heap
+    local.get $t1
+    local.get $items.source.1
+    i32.store $heap offset=4
+    local.get $t1
+    local.set $items.source.0
     ;; 37 |     while true:
-      block
-        loop
+    block
+      loop
     ;; 38 |         match cursor.step():
-          local.get $items.source.0
-          call $"impl Step for Erased.step'2"
-          local.set $x
-          local.set $items.source.1
+        local.get $items.source.0
+        call $"impl Step for Erased.step'2"
+        local.set $x
+        local.set $items.source.1
+        block
           block
             block
-              block
     ;; 39 |             .Some(x) => sum = sum + x
+              local.get $items.source.1
+              i32.const 1
+              i32.eq
+              if
+                br 1
+              else
+    ;; 40 |             .None => break
                 local.get $items.source.1
-                i32.const 1
-                i32.eq
-                if
-                  br 1
-                else
-    ;; 40 |             .None => break
-                  local.get $items.source.1
-                  i32.eqz
-                  br_if 2
-                  unreachable
-    ;; 39 |             .Some(x) => sum = sum + x
-                end
-    ;; 38 |         match cursor.step():
+                i32.eqz
+                br_if 2
                 unreachable
-              end
     ;; 39 |             .Some(x) => sum = sum + x
-              local.get $sum
-              local.get $x
-              i64.add
-              local.set $sum
+              end
     ;; 38 |         match cursor.step():
-              br 1
+              unreachable
             end
-    ;; 40 |             .None => break
-            br 2
+    ;; 39 |             .Some(x) => sum = sum + x
+            local.get $sum
+            local.get $x
+            i64.add
+            local.set $sum
     ;; 38 |         match cursor.step():
-            br 0
+            br 1
           end
-    ;; 37 |     while true:
+    ;; 40 |             .None => break
+          br 2
+    ;; 38 |         match cursor.step():
           br 0
         end
+    ;; 37 |     while true:
+        br 0
       end
+    end
     ;; 35 |     let mut cursor = items
+    local.get $items.source.0
+    if
       local.get $items.source.0
+      i32.load $heap
+      local.tee $items.source.0
       if
         local.get $items.source.0
-        i32.load $heap
-        local.tee $items.source.0
-        if
-          local.get $items.source.0
-          call $rt:release_ref
-        end
+        call $rt:release_ref
       end
     end
     local.get $sum

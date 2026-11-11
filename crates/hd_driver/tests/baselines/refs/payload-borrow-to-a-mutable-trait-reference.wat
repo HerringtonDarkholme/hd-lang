@@ -9,51 +9,49 @@
     block
       block
         block
-          block
     ;; 14 |         .Full(value) => value.bump()
-            local.get $slot
-            i32.load $heap offset=4
-            local.tee $t0
-            if
-              br 1
-            else
-    ;; 15 |         .Empty => pass
-              local.get $t0
-              i32.eqz
-              br_if 2
-              unreachable
-    ;; 14 |         .Full(value) => value.bump()
-            end
-    ;; 13 |     match slot:
-            unreachable
-          end
-    ;; 14 |         .Full(value) => value.bump()
-          local.get $slot
-          i32.load $heap
           local.get $slot
           i32.load $heap offset=4
-          local.set $t0
-          local.tee $slot
-          local.tee $t1
+          local.tee $t0
           if
-            local.get $t1
-            call $retain
+            br 1
+          else
+    ;; 15 |         .Empty => pass
+            local.get $t0
+            i32.eqz
+            br_if 2
+            unreachable
+    ;; 14 |         .Full(value) => value.bump()
           end
-          local.get $slot
-          local.get $t0
-          i32.load $heap
-          call_indirect $table0 (param i32)
     ;; 13 |     match slot:
-          local.get $slot
-          local.tee $t1
-          if
-            local.get $t1
-            call $rt:release_ref
-          end
-          br 1
+          unreachable
         end
-        br 0
+    ;; 14 |         .Full(value) => value.bump()
+        local.get $slot
+        i32.load $heap
+        local.get $slot
+        i32.load $heap offset=4
+        local.set $t0
+        local.tee $slot
+        local.tee $t1
+        if
+          local.get $t1
+          call $retain
+        end
+        local.get $slot
+        local.get $t0
+        i32.load $heap
+        call_indirect $table0 (param i32)
+    ;; 13 |     match slot:
+        local.get $slot
+        local.tee $t1
+        if
+          local.get $t1
+          call $rt:release_ref
+        end
+        br 1
       end
+      br 0
     end
   )
 )

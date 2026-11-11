@@ -11,154 +11,148 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $name_mut (param $p i32) (result i32)
     ;; 22 |     &mut p.name
-    block
-    end
     local.get $p
   )
   (func $replace (param $h i32) (param $alias i32) (param $next i32) (result i32 i32) (local $t0 i32) (local $d i32) (local $t1 i32)
     ;; 14 |     d := name_of(h.p)
-    block
-      local.get $h
-      i32.const 4
+    local.get $h
+    i32.const 4
+    i32.sub
+    local.set $t0
+    local.get $h
+    i32.load $heap
+    local.tee $h
+    local.tee $t1
+    if
+      local.get $t1
+      i32.const 8
       i32.sub
-      local.set $t0
-      local.get $h
       i32.load $heap
-      local.tee $h
-      local.tee $t1
       if
         local.get $t1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t1
-          call $rt:retain_known
-        end
+        call $rt:retain_known
       end
-      block
-        block
-          local.get $h
-          local.set $d
-          br 0
-        end
-      end
+    end
+    block
+      local.get $h
+      local.set $d
+      br 0
+    end
+    local.get $t0
+    i32.load $heap
+    i32.const 2097152
+    i32.and
+    i32.const 0
+    i32.const 2097152
+    i32.and
+    i32.ne
+    if
+      call $rt:panic'1
+      unreachable
+    end
+    local.get $t0
+    i32.load $heap
+    local.tee $t1
+    i32.const 2031616
+    i32.and
+    i32.const 2031616
+    i32.eq
+    if
       local.get $t0
+      call $rt:loan_share
+    else
+      local.get $t0
+      local.get $t1
+      i32.const 65536
+      i32.add
+      i32.store $heap
+    end
+    ;; 15 |     alias.p = next
+    local.get $next
+    local.tee $t1
+    if
+      local.get $t1
+      i32.const 8
+      i32.sub
       i32.load $heap
-      i32.const 2097152
-      i32.and
-      i32.const 0
-      i32.const 2097152
-      i32.and
-      i32.ne
       if
-        call $rt:panic'1
-        unreachable
+        local.get $t1
+        call $rt:retain_known
       end
+    end
+    local.get $alias
+    i32.const 4
+    i32.sub
+    i32.load $heap
+    i32.const 4128768
+    i32.and
+    if
+      call $rt:panic'2
+      unreachable
+    end
+    local.get $alias
+    i32.load $heap
+    local.get $alias
+    local.get $next
+    i32.store $heap
+    local.tee $t1
+    if
+      local.get $t1
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $t1
+        call $rt:release_ref
+      end
+    end
+    ;; 16 |     *d
+    local.get $d
+    i32.load $heap
+    local.tee $alias
+    local.get $d
+    i32.load $heap offset=4
+    local.tee $next
+    call $rt:retain
+    ;; 14 |     d := name_of(h.p)
+    local.get $t0
+    if
       local.get $t0
       i32.load $heap
-      local.tee $t1
+      local.tee $d
       i32.const 2031616
       i32.and
       i32.const 2031616
       i32.eq
       if
         local.get $t0
-        call $rt:loan_share
+        call $rt:loan_unshare
       else
         local.get $t0
-        local.get $t1
+        local.get $d
         i32.const 65536
-        i32.add
+        i32.sub
         i32.store $heap
       end
-    ;; 15 |     alias.p = next
-      local.get $next
-      local.tee $t1
-      if
-        local.get $t1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t1
-          call $rt:retain_known
-        end
-      end
-      local.get $alias
-      i32.const 4
+      i32.const 0
+      local.set $t0
+    end
+    local.get $h
+    local.tee $t1
+    if
+      local.get $t1
+      i32.const 8
       i32.sub
       i32.load $heap
-      i32.const 4128768
-      i32.and
-      if
-        call $rt:panic'2
-        unreachable
-      end
-      local.get $alias
-      i32.load $heap
-      local.get $alias
-      local.get $next
-      i32.store $heap
-      local.tee $t1
       if
         local.get $t1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t1
-          call $rt:release_ref
-        end
+        call $rt:release_ref
       end
-    ;; 16 |     *d
-      local.get $d
-      i32.load $heap
-      local.tee $alias
-      local.get $d
-      i32.load $heap offset=4
-      local.tee $next
-      call $rt:retain
-    ;; 14 |     d := name_of(h.p)
-      local.get $t0
-      if
-        local.get $t0
-        i32.load $heap
-        local.tee $d
-        i32.const 2031616
-        i32.and
-        i32.const 2031616
-        i32.eq
-        if
-          local.get $t0
-          call $rt:loan_unshare
-        else
-          local.get $t0
-          local.get $d
-          i32.const 65536
-          i32.sub
-          i32.store $heap
-        end
-        i32.const 0
-        local.set $t0
-      end
-      local.get $h
-      local.tee $t1
-      if
-        local.get $t1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t1
-          call $rt:release_ref
-        end
-      end
-      local.get $alias
-      local.get $next
-      local.set $alias
-      local.set $h
     end
+    local.get $alias
+    local.get $next
+    local.set $alias
+    local.set $h
     local.get $t0
     if
       local.get $t0
@@ -184,148 +178,144 @@
   )
   (func $replace_mut (param $h i32) (param $alias i32) (param $next i32) (result i32 i32) (local $t0 i32) (local $d i32) (local $t1 i32)
     ;; 25 |     d := name_mut(h.p)
-    block
-      local.get $h
-      i32.const 4
+    local.get $h
+    i32.const 4
+    i32.sub
+    local.set $t0
+    local.get $h
+    i32.load $heap
+    local.tee $h
+    local.tee $t1
+    if
+      local.get $t1
+      i32.const 8
       i32.sub
-      local.set $t0
-      local.get $h
       i32.load $heap
-      local.tee $h
-      local.tee $t1
       if
         local.get $t1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t1
-          call $rt:retain_known
-        end
+        call $rt:retain_known
       end
-      block
-        block
-          local.get $h
-          local.set $d
-          br 0
-        end
-      end
+    end
+    block
+      local.get $h
+      local.set $d
+      br 0
+    end
+    local.get $t0
+    i32.load $heap
+    i32.const 2097152
+    i32.and
+    i32.const 0
+    i32.const 2097152
+    i32.and
+    i32.ne
+    if
+      call $rt:panic'1
+      unreachable
+    end
+    local.get $t0
+    i32.load $heap
+    local.tee $t1
+    i32.const 2031616
+    i32.and
+    i32.const 2031616
+    i32.eq
+    if
       local.get $t0
+      call $rt:loan_share
+    else
+      local.get $t0
+      local.get $t1
+      i32.const 65536
+      i32.add
+      i32.store $heap
+    end
+    ;; 26 |     alias.p = next
+    local.get $next
+    local.tee $t1
+    if
+      local.get $t1
+      i32.const 8
+      i32.sub
       i32.load $heap
-      i32.const 2097152
-      i32.and
-      i32.const 0
-      i32.const 2097152
-      i32.and
-      i32.ne
       if
-        call $rt:panic'1
-        unreachable
+        local.get $t1
+        call $rt:retain_known
       end
+    end
+    local.get $alias
+    i32.const 4
+    i32.sub
+    i32.load $heap
+    i32.const 4128768
+    i32.and
+    if
+      call $rt:panic'3
+      unreachable
+    end
+    local.get $alias
+    i32.load $heap
+    local.get $alias
+    local.get $next
+    i32.store $heap
+    local.tee $t1
+    if
+      local.get $t1
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $t1
+        call $rt:release_ref
+      end
+    end
+    ;; 27 |     *d
+    local.get $d
+    i32.load $heap
+    local.tee $alias
+    local.get $d
+    i32.load $heap offset=4
+    local.tee $next
+    call $rt:retain
+    ;; 25 |     d := name_mut(h.p)
+    local.get $t0
+    if
       local.get $t0
       i32.load $heap
-      local.tee $t1
+      local.tee $d
       i32.const 2031616
       i32.and
       i32.const 2031616
       i32.eq
       if
         local.get $t0
-        call $rt:loan_share
+        call $rt:loan_unshare
       else
         local.get $t0
-        local.get $t1
+        local.get $d
         i32.const 65536
-        i32.add
+        i32.sub
         i32.store $heap
       end
-    ;; 26 |     alias.p = next
-      local.get $next
-      local.tee $t1
-      if
-        local.get $t1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t1
-          call $rt:retain_known
-        end
-      end
-      local.get $alias
-      i32.const 4
+      i32.const 0
+      local.set $t0
+    end
+    local.get $h
+    local.tee $t1
+    if
+      local.get $t1
+      i32.const 8
       i32.sub
       i32.load $heap
-      i32.const 4128768
-      i32.and
-      if
-        call $rt:panic'3
-        unreachable
-      end
-      local.get $alias
-      i32.load $heap
-      local.get $alias
-      local.get $next
-      i32.store $heap
-      local.tee $t1
       if
         local.get $t1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t1
-          call $rt:release_ref
-        end
+        call $rt:release_ref
       end
-    ;; 27 |     *d
-      local.get $d
-      i32.load $heap
-      local.tee $alias
-      local.get $d
-      i32.load $heap offset=4
-      local.tee $next
-      call $rt:retain
-    ;; 25 |     d := name_mut(h.p)
-      local.get $t0
-      if
-        local.get $t0
-        i32.load $heap
-        local.tee $d
-        i32.const 2031616
-        i32.and
-        i32.const 2031616
-        i32.eq
-        if
-          local.get $t0
-          call $rt:loan_unshare
-        else
-          local.get $t0
-          local.get $d
-          i32.const 65536
-          i32.sub
-          i32.store $heap
-        end
-        i32.const 0
-        local.set $t0
-      end
-      local.get $h
-      local.tee $t1
-      if
-        local.get $t1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t1
-          call $rt:release_ref
-        end
-      end
-      local.get $alias
-      local.get $next
-      local.set $alias
-      local.set $h
     end
+    local.get $alias
+    local.get $next
+    local.set $alias
+    local.set $h
     local.get $t0
     if
       local.get $t0
@@ -351,8 +341,6 @@
   )
   (func $name_of (param $p i32) (result i32)
     ;; 11 |     &p.name
-    block
-    end
     local.get $p
   )
 )

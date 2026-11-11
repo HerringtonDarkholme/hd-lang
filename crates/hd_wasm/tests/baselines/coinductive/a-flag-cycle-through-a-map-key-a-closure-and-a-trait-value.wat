@@ -19,188 +19,180 @@
     end
     i32.const 1
     global.set $"impl Fast for Tree.regular#evaluating"
-    block
-      i32.const 24 ;; &empty-buffer
+    i32.const 24 ;; &empty-buffer
     ;; 40 |         seen[Key { id: +1 }] = +2
-      i32.const 1
-      local.tee $seen
-      call $rt:map_hash
-      local.tee $step
-      local.get $seen
-      call $rt:map_find
-      local.set $bump.1
+    i32.const 1
+    local.tee $seen
+    call $rt:map_hash
+    local.tee $step
+    local.get $seen
+    call $rt:map_find
+    local.set $bump.1
     ;; 39 |         let mut seen: Map[Key, i32] = {}
-      i32.const 24 ;; &empty-buffer
+    i32.const 24 ;; &empty-buffer
     ;; 40 |         seen[Key { id: +1 }] = +2
-      local.get $step
-      local.get $bump.1
-      local.get $seen
-      i32.const 2
-      call $rt:map_put
-      local.tee $seen
+    local.get $step
+    local.get $bump.1
+    local.get $seen
+    i32.const 2
+    call $rt:map_put
+    local.tee $seen
     ;; 41 |         step := i32(seen.len())
-      i32.load $heap
-      local.set $step
+    i32.load $heap
+    local.set $step
     ;; 42 |         bump := fn(n: i32) -> i32:
+    i32.const 1
+    i32.const 4
+    i32.const 0
+    call $rt:new/class-1
+    local.tee $bump.1
+    local.get $step
+    i32.store $heap
+    drop
+    ;; 51 |         apply(bump, seen.get(Key { id: +1 }).unwrap_or(0)) + sized().size() > 0 && Tree::regular()
+    local.get $seen
+    local.tee $step
+    i32.const 1
+    call $rt:map_hash
+    i32.const 1
+    call $rt:map_find
+    local.tee $t0
+    i32.const 0
+    i32.ge_s
+    if
       i32.const 1
-      i32.const 4
-      i32.const 0
-      call $rt:new/class-1
-      local.tee $bump.1
       local.get $step
-      i32.store $heap
-      drop
-    ;; 51 |         apply(bump, seen.get(Key { id: +1 }).unwrap_or(0)) + sized().size() > 0 && Tree::regular()
-      local.get $seen
-      local.tee $step
-      i32.const 1
-      call $rt:map_hash
-      i32.const 1
-      call $rt:map_find
-      local.tee $t0
-      i32.const 0
-      i32.ge_s
-      if
-        i32.const 1
-        local.get $step
-        local.get $step
-        i32.load $heap offset=12
-        i32.const 12
-        i32.mul
-        i32.add
-        i32.const 24 ;; &empty-buffer
-        i32.add
-        local.get $t0
-        i32.const 8
-        i32.mul
-        i32.add
-        i32.load $heap offset=4
-        local.set $t1
-        local.set $t2
-      else
-      end
+      local.get $step
+      i32.load $heap offset=12
+      i32.const 12
+      i32.mul
+      i32.add
+      i32.const 24 ;; &empty-buffer
+      i32.add
+      local.get $t0
+      i32.const 8
+      i32.mul
+      i32.add
+      i32.load $heap offset=4
+      local.set $t1
+      local.set $t2
+    else
+    end
     ;; 39 |         let mut seen: Map[Key, i32] = {}
-      local.get $seen
-      local.tee $t0
+    local.get $seen
+    local.tee $t0
+    if
+      local.get $t0
+      i32.const 8
+      i32.sub
+      i32.load $heap
       if
         local.get $t0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t0
-          call $rt:release_ref'1
-        end
+        call $rt:release_ref'1
       end
+    end
     ;; 51 |         apply(bump, seen.get(Key { id: +1 }).unwrap_or(0)) + sized().size() > 0 && Tree::regular()
+    block
       block
         block
           block
-            block
-              block
-                local.get $t2
-                i32.const 1
-                i32.eq
-                if
-                  local.get $t1
-                  local.set $t3
-                  br 1
-                else
-                  local.get $t2
-                  i32.eqz
-                  br_if 2
-                  unreachable
-                end
-                unreachable
-              end
+            local.get $t2
+            i32.const 1
+            i32.eq
+            if
+              local.get $t1
+              local.set $t3
               br 1
+            else
+              local.get $t2
+              i32.eqz
+              br_if 2
+              unreachable
             end
-            br 0
+            unreachable
           end
-          local.get $t3
-          local.set $seen
-          br 0
+          br 1
         end
+        br 0
       end
-      block
-        block
-          local.get $bump.1
-          local.get $seen
-          i32.const 0
-          call $"impl Fast for Tree.regular#1"
-          local.set $seen
-          br 0
-        end
-      end
-    ;; 39 |         let mut seen: Map[Key, i32] = {}
-      local.get $bump.1
-      local.tee $t0
-      if
-        local.get $t0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t0
-          call $rt:release_ref'1
-        end
-      end
-    ;; 51 |         apply(bump, seen.get(Key { id: +1 }).unwrap_or(0)) + sized().size() > 0 && Tree::regular()
-      block
-        block
-          i32.const 4
-          i32.const 0
-          call $rt:new/class-1
-          local.tee $step
-          i32.const 1
-          i32.store $heap
-          local.get $step
-          i32.const 368 ;; &vtable[func67]
-          local.set $bump.1
-          local.set $step
-          br 0
-        end
-      end
-      local.get $step
-      local.tee $t0
-      if
-        local.get $t0
-        call $retain
-      end
-    ;; 39 |         let mut seen: Map[Key, i32] = {}
-      local.get $step
-      local.tee $t0
-      if
-        local.get $t0
-        call $rt:release_ref'2
-      end
-    ;; 51 |         apply(bump, seen.get(Key { id: +1 }).unwrap_or(0)) + sized().size() > 0 && Tree::regular()
-      local.get $step
-      local.get $bump.1
-      i32.load $heap
-      call_indirect $table0 (param i32) (result i32)
-      local.set $bump.1
-    ;; 39 |         let mut seen: Map[Key, i32] = {}
-      local.get $step
-      local.tee $t0
-      if
-        local.get $t0
-        call $rt:release_ref'2
-      end
-    ;; 51 |         apply(bump, seen.get(Key { id: +1 }).unwrap_or(0)) + sized().size() > 0 && Tree::regular()
-      local.get $seen
-      local.get $bump.1
-      i32.add
-      i32.const 0
-      i32.gt_s
-      if (result i32)
-        call $"impl Fast for Tree.regular"
-      else
-        i32.const 0
-      end
-    ;; 39 |         let mut seen: Map[Key, i32] = {}
+      local.get $t3
       local.set $seen
+      br 0
     end
+    block
+      local.get $bump.1
+      local.get $seen
+      i32.const 0
+      call $"impl Fast for Tree.regular#1"
+      local.set $seen
+      br 0
+    end
+    ;; 39 |         let mut seen: Map[Key, i32] = {}
+    local.get $bump.1
+    local.tee $t0
+    if
+      local.get $t0
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $t0
+        call $rt:release_ref'1
+      end
+    end
+    ;; 51 |         apply(bump, seen.get(Key { id: +1 }).unwrap_or(0)) + sized().size() > 0 && Tree::regular()
+    block
+      i32.const 4
+      i32.const 0
+      call $rt:new/class-1
+      local.tee $step
+      i32.const 1
+      i32.store $heap
+      local.get $step
+      i32.const 368 ;; &vtable[func67]
+      local.set $bump.1
+      local.set $step
+      br 0
+    end
+    local.get $step
+    local.tee $t0
+    if
+      local.get $t0
+      call $retain
+    end
+    ;; 39 |         let mut seen: Map[Key, i32] = {}
+    local.get $step
+    local.tee $t0
+    if
+      local.get $t0
+      call $rt:release_ref'2
+    end
+    ;; 51 |         apply(bump, seen.get(Key { id: +1 }).unwrap_or(0)) + sized().size() > 0 && Tree::regular()
+    local.get $step
+    local.get $bump.1
+    i32.load $heap
+    call_indirect $table0 (param i32) (result i32)
+    local.set $bump.1
+    ;; 39 |         let mut seen: Map[Key, i32] = {}
+    local.get $step
+    local.tee $t0
+    if
+      local.get $t0
+      call $rt:release_ref'2
+    end
+    ;; 51 |         apply(bump, seen.get(Key { id: +1 }).unwrap_or(0)) + sized().size() > 0 && Tree::regular()
+    local.get $seen
+    local.get $bump.1
+    i32.add
+    i32.const 0
+    i32.gt_s
+    if (result i32)
+      call $"impl Fast for Tree.regular"
+    else
+      i32.const 0
+    end
+    ;; 39 |         let mut seen: Map[Key, i32] = {}
+    local.set $seen
     local.get $seen
     i32.const 0
     global.set $"impl Fast for Tree.regular#evaluating"
@@ -210,73 +202,71 @@
     local.get $env
     i32.load $heap
     local.set $env
+    ;; 44 |             for i in 0..step:
     block
-    ;; 44 |             for i in 0..step:
-      block
-        loop
-          local.get $t0
-          local.get $env
-          i32.lt_s
-          i32.eqz
-          br_if 1
-          local.get $t0
-          local.set $ctx
-          local.get $t0
-          i32.const 1
-          i32.add
-          local.set $t0
+      loop
+        local.get $t0
+        local.get $env
+        i32.lt_s
+        i32.eqz
+        br_if 1
+        local.get $t0
+        local.set $ctx
+        local.get $t0
+        i32.const 1
+        i32.add
+        local.set $t0
     ;; 45 |                 t = t * 31 + i
-          local.get $n
-          i32.const 31
-          i32.mul
-          local.get $ctx
-          i32.add
-          local.tee $n
+        local.get $n
+        i32.const 31
+        i32.mul
+        local.get $ctx
+        i32.add
+        local.tee $n
     ;; 46 |                 if t > 1000:
-          i32.const 1000
-          i32.gt_s
-          if
+        i32.const 1000
+        i32.gt_s
+        if
     ;; 47 |                     t = t % 997
-            local.get $n
-            i32.const 997
-            i32.rem_s
-            local.set $n
-    ;; 46 |                 if t > 1000:
-          end
-    ;; 44 |             for i in 0..step:
-          br 0
-        end
-      end
-    ;; 48 |             for i in 0..step:
-      block
-        loop
-          local.get $t1
-          local.get $env
-          i32.lt_s
-          i32.eqz
-          br_if 1
-          local.get $t1
-          local.set $ctx
-          local.get $t1
-          i32.const 1
-          i32.add
-          local.set $t1
-    ;; 49 |                 t = t * 17 + i
           local.get $n
-          i32.const 17
-          i32.mul
-          local.get $ctx
-          i32.add
+          i32.const 997
+          i32.rem_s
           local.set $n
-    ;; 48 |             for i in 0..step:
-          br 0
+    ;; 46 |                 if t > 1000:
         end
+    ;; 44 |             for i in 0..step:
+        br 0
       end
-    ;; 50 |             t
-      local.get $n
-    ;; 42 |         bump := fn(n: i32) -> i32:
-      local.set $env
     end
+    ;; 48 |             for i in 0..step:
+    block
+      loop
+        local.get $t1
+        local.get $env
+        i32.lt_s
+        i32.eqz
+        br_if 1
+        local.get $t1
+        local.set $ctx
+        local.get $t1
+        i32.const 1
+        i32.add
+        local.set $t1
+    ;; 49 |                 t = t * 17 + i
+        local.get $n
+        i32.const 17
+        i32.mul
+        local.get $ctx
+        i32.add
+        local.set $n
+    ;; 48 |             for i in 0..step:
+        br 0
+      end
+    end
+    ;; 50 |             t
+    local.get $n
+    ;; 42 |         bump := fn(n: i32) -> i32:
+    local.set $env
     local.get $env
   )
 )

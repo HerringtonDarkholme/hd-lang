@@ -22,45 +22,41 @@
   (import "fixture" "table0" (table $table0 22 funcref))
   (func $construct (param $key.0 i32) (param $key.1 i32) (result i32) (local $t0 i32)
     ;; 11 |     _ := fetch(key)
-    block
-      local.get $key.0
-      local.tee $t0
-      if
-        local.get $t0
-        call $retain
-      end
-      local.get $key.0
-      local.get $key.1
-      call $fetch'1
-      local.tee $t0
-      if
-        local.get $t0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $t0
-          call $rt:release_ref'1
-        end
-      end
-    ;; 12 |     key.len()
-      block
-        block
-          br 0
-        end
-      end
-    ;; 11 |     _ := fetch(key)
-      local.get $key.0
-      local.tee $t0
-      if
-        local.get $t0
-        call $rt:release_ref'2
-      end
-      local.get $key.1
-      local.set $key.0
+    local.get $key.0
+    local.tee $t0
+    if
+      local.get $t0
+      call $retain
     end
+    local.get $key.0
+    local.get $key.1
+    call $fetch'1
+    local.tee $t0
+    if
+      local.get $t0
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      global.get $tracing
+      i32.or
+      if
+        local.get $t0
+        call $rt:release_ref'1
+      end
+    end
+    ;; 12 |     key.len()
+    block
+      br 0
+    end
+    ;; 11 |     _ := fetch(key)
+    local.get $key.0
+    local.tee $t0
+    if
+      local.get $t0
+      call $rt:release_ref'2
+    end
+    local.get $key.1
+    local.set $key.0
     local.get $key.0
   )
   (func $fetch'2 (param $frame i32) (param $key.0 i32) (param $key.1 i32) (result i32 i32 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t0 i32)
@@ -92,28 +88,26 @@
       local.set $t1
     else
     end
-    block
-      local.get $key.1
-      i32.const 1
-      i32.add
-      local.tee $t2
-      call $rt:str
-      local.tee $t3
-      local.tee $t4
-      local.get $key.0
-      local.get $key.1
-      call $rt:memory_copy/0/0
-      local.get $t4
-      local.get $key.1
-      i32.add
-      i32.const 65 ;; &"?"
-      i32.load8_u $heap
-      i32.store8 $heap
-      local.get $t3
-      local.get $t2
-      local.set $key.1
-      local.set $key.0
-    end
+    local.get $key.1
+    i32.const 1
+    i32.add
+    local.tee $t2
+    call $rt:str
+    local.tee $t3
+    local.tee $t4
+    local.get $key.0
+    local.get $key.1
+    call $rt:memory_copy/0/0
+    local.get $t4
+    local.get $key.1
+    i32.add
+    i32.const 65 ;; &"?"
+    i32.load8_u $heap
+    i32.store8 $heap
+    local.get $t3
+    local.get $t2
+    local.set $key.1
+    local.set $key.0
     local.get $key.0
     local.get $key.1
     local.get $frame

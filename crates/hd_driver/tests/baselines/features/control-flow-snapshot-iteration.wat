@@ -12,99 +12,97 @@
   (import "fixture" "table0" (table $table0 5 funcref))
   (func $doubled (param $values i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $v.0 i32) (local $v.1 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32)
     ;; 9 |     let mut out = values
-    block
-      local.get $values
+    local.get $values
     ;; 10 |     for v in out:
-      call $rt:coll_copy
-      local.tee $t0
-      i32.load $heap offset=4
-      local.set $t1
-      block
-        loop
-          local.get $t2
-          local.get $t1
-          i32.lt_u
-          i32.eqz
-          br_if 1
-          local.get $t0
-          local.get $t2
+    call $rt:coll_copy
+    local.tee $t0
+    i32.load $heap offset=4
+    local.set $t1
+    block
+      loop
+        local.get $t2
+        local.get $t1
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $t0
+        local.get $t2
+        i32.const 8
+        i32.mul
+        i32.add
+        local.tee $v.0
+        i32.load $heap offset=16
+        local.get $v.0
+        i32.load $heap offset=20
+        local.set $v.1
+        local.set $v.0
+        local.get $t2
+        i32.const 1
+        i32.add
+        local.set $t2
+        block
+          block
+            br 0
+            unreachable
+          end
+    ;; 11 |         out.push(v)
+          local.get $v.0
+          local.tee $t3
+          if
+            local.get $t3
+            call $retain
+          end
+    ;; 10 |     for v in out:
+          local.get $values
+          call $rt:list_unique
+          local.tee $values
+    ;; 11 |         out.push(v)
+          local.tee $t3
+          i32.load $heap offset=4
+          local.tee $t4
+          local.get $t3
+          i32.load $heap
+          i32.eq
+          if
+            local.get $t3
+            i32.const 0
+            call_indirect $table0 (param i32) (result i32)
+            local.tee $t3
+            local.set $values
+          end
+          local.get $t3
+          local.get $t4
           i32.const 8
           i32.mul
           i32.add
-          local.tee $v.0
-          i32.load $heap offset=16
+          local.tee $t5
           local.get $v.0
-          i32.load $heap offset=20
-          local.set $v.1
-          local.set $v.0
-          local.get $t2
+          i32.store $heap offset=16
+          local.get $t5
+          local.get $v.1
+          i32.store $heap offset=20
+          local.get $t3
+          local.get $t4
           i32.const 1
           i32.add
-          local.set $t2
-          block
-            block
-              br 0
-              unreachable
-            end
-    ;; 11 |         out.push(v)
-            local.get $v.0
-            local.tee $t3
-            if
-              local.get $t3
-              call $retain
-            end
+          i32.store $heap offset=4
     ;; 10 |     for v in out:
-            local.get $values
-            call $rt:list_unique
-            local.tee $values
-    ;; 11 |         out.push(v)
-            local.tee $t3
-            i32.load $heap offset=4
-            local.tee $t4
-            local.get $t3
-            i32.load $heap
-            i32.eq
-            if
-              local.get $t3
-              i32.const 0
-              call_indirect $table0 (param i32) (result i32)
-              local.tee $t3
-              local.set $values
-            end
-            local.get $t3
-            local.get $t4
-            i32.const 8
-            i32.mul
-            i32.add
-            local.tee $t5
-            local.get $v.0
-            i32.store $heap offset=16
-            local.get $t5
-            local.get $v.1
-            i32.store $heap offset=20
-            local.get $t3
-            local.get $t4
-            i32.const 1
-            i32.add
-            i32.store $heap offset=4
-    ;; 10 |     for v in out:
-            br 0
-          end
           br 0
         end
+        br 0
       end
+    end
     ;; 9 |     let mut out = values
-      local.get $t0
-      local.tee $t3
+    local.get $t0
+    local.tee $t3
+    if
+      local.get $t3
+      i32.const 8
+      i32.sub
+      i32.load $heap
       if
         local.get $t3
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t3
-          call $rt:release_ref
-        end
+        call $rt:release_ref
       end
     end
     local.get $values
@@ -140,124 +138,68 @@
     i32.sub
     local.tee $t0
     global.set $locals
-    block
-      local.get $values
+    local.get $values
     ;; 16 |     let mut cursor = items.iter()
-      call $rt:coll_copy
-      local.set $t1
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $t2
-      local.get $t1
-      i32.store $heap
+    call $rt:coll_copy
+    local.set $t1
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $t2
+    local.get $t1
+    i32.store $heap
+    local.get $t2
+    i32.const 0
+    i32.store $heap offset=4
+    local.get $t2
+    local.set $t1
+    ;; 15 |     let mut items = values
+    local.get $values
+    call $rt:list_unique
+    local.tee $values
+    ;; 17 |     items.push(s)
+    local.tee $t2
+    i32.load $heap offset=4
+    local.tee $t3
+    local.get $t2
+    i32.load $heap
+    i32.eq
+    if
       local.get $t2
       i32.const 0
-      i32.store $heap offset=4
-      local.get $t2
-      local.set $t1
-    ;; 15 |     let mut items = values
-      local.get $values
-      call $rt:list_unique
-      local.tee $values
-    ;; 17 |     items.push(s)
+      call_indirect $table0 (param i32) (result i32)
       local.tee $t2
-      i32.load $heap offset=4
-      local.tee $t3
-      local.get $t2
+      local.set $values
+    end
+    local.get $t2
+    local.get $t3
+    i32.const 8
+    i32.mul
+    i32.add
+    local.tee $t4
+    local.get $s.0
+    i32.store $heap offset=16
+    local.get $t4
+    local.get $s.1
+    i32.store $heap offset=20
+    local.get $t2
+    local.get $t3
+    i32.const 1
+    i32.add
+    i32.store $heap offset=4
+    ;; 18 |     match cursor.next():
+    local.get $t1
+    call $"impl[T] Iterator[T] for ListIter[T].next[string]"
+    local.set $s.1
+    local.set $s.0
+    ;; 15 |     let mut items = values
+    local.get $t1
+    if
+      local.get $t1
       i32.load $heap
-      i32.eq
-      if
-        local.get $t2
-        i32.const 0
-        call_indirect $table0 (param i32) (result i32)
-        local.tee $t2
-        local.set $values
-      end
-      local.get $t2
-      local.get $t3
-      i32.const 8
-      i32.mul
-      i32.add
-      local.tee $t4
-      local.get $s.0
-      i32.store $heap offset=16
-      local.get $t4
-      local.get $s.1
-      i32.store $heap offset=20
-      local.get $t2
-      local.get $t3
-      i32.const 1
-      i32.add
-      i32.store $heap offset=4
-    ;; 18 |     match cursor.next():
-      local.get $t1
-      call $"impl[T] Iterator[T] for ListIter[T].next[string]"
-      local.set $s.1
-      local.set $s.0
-    ;; 15 |     let mut items = values
-      local.get $t1
-      if
-        local.get $t1
-        i32.load $heap
-        local.tee $t2
-        if
-          local.get $t2
-          i32.const 8
-          i32.sub
-          i32.load $heap
-          if
-            local.get $t2
-            call $rt:release_ref
-          end
-        end
-      end
-    ;; 18 |     match cursor.next():
-      block
-        block
-          block
-    ;; 19 |         .Some(first) => first.len() + items.len()
-            local.get $s.0
-            br_if 0
-    ;; 20 |         .None => items.len()
-            local.get $s.0
-            i32.eqz
-            br_if 1
-            unreachable
-    ;; 18 |     match cursor.next():
-            unreachable
-          end
-    ;; 19 |         .Some(first) => first.len() + items.len()
-          block
-            block
-              local.get $s.1
-              local.set $t1
-              br 0
-            end
-          end
-          local.get $t1
-          local.get $values
-          i32.load $heap offset=4
-          i32.add
-    ;; 18 |     match cursor.next():
-          local.set $t1
-          br 1
-        end
-    ;; 20 |         .None => items.len()
-        local.get $values
-        i32.load $heap offset=4
-    ;; 18 |     match cursor.next():
-        local.set $t1
-        br 0
-      end
-    ;; 15 |     let mut items = values
-      local.get $s.0
-      local.get $s.1
-      call $rt:release
-      local.get $values
       local.tee $t2
       if
         local.get $t2
@@ -269,9 +211,61 @@
           call $rt:release_ref
         end
       end
-      local.get $t1
-      local.set $values
     end
+    ;; 18 |     match cursor.next():
+    block
+      block
+        block
+    ;; 19 |         .Some(first) => first.len() + items.len()
+          local.get $s.0
+          br_if 0
+    ;; 20 |         .None => items.len()
+          local.get $s.0
+          i32.eqz
+          br_if 1
+          unreachable
+    ;; 18 |     match cursor.next():
+          unreachable
+        end
+    ;; 19 |         .Some(first) => first.len() + items.len()
+        block
+          local.get $s.1
+          local.set $t1
+          br 0
+        end
+        local.get $t1
+        local.get $values
+        i32.load $heap offset=4
+        i32.add
+    ;; 18 |     match cursor.next():
+        local.set $t1
+        br 1
+      end
+    ;; 20 |         .None => items.len()
+      local.get $values
+      i32.load $heap offset=4
+    ;; 18 |     match cursor.next():
+      local.set $t1
+      br 0
+    end
+    ;; 15 |     let mut items = values
+    local.get $s.0
+    local.get $s.1
+    call $rt:release
+    local.get $values
+    local.tee $t2
+    if
+      local.get $t2
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $t2
+        call $rt:release_ref
+      end
+    end
+    local.get $t1
+    local.set $values
     local.get $values
     local.get $t0
     i32.const 16

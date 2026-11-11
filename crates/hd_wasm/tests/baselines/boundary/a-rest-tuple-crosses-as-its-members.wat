@@ -16,62 +16,60 @@
   (import "fixture" "table0" (table $table0 4 funcref))
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $t1 i32)
     ;; 13 |     let t: (i32, List[string]...) = (+1, "a", "b")
-    block
-      i32.const 2
-      call $rt:list_buf
-      local.tee $t0
-      i32.const 2
-      i32.store $heap offset=4
-      local.get $t0
-      local.tee $t1
-      i32.const 65 ;; &"a"
-      i32.store $heap offset=16
-      local.get $t1
-      i32.const 1
-      i32.store $heap offset=20
-      local.get $t1
+    i32.const 2
+    call $rt:list_buf
+    local.tee $t0
+    i32.const 2
+    i32.store $heap offset=4
+    local.get $t0
+    local.tee $t1
+    i32.const 65 ;; &"a"
+    i32.store $heap offset=16
+    local.get $t1
+    i32.const 1
+    i32.store $heap offset=20
+    local.get $t1
+    i32.const 8
+    i32.add
+    local.tee $t1
+    i32.const 66 ;; &"b"
+    i32.store $heap offset=16
+    local.get $t1
+    i32.const 1
+    i32.store $heap offset=20
+    ;; 14 |     _ := $.use(Vault).keep(t)
+    local.get $provider0
+    ;; 13 |     let t: (i32, List[string]...) = (+1, "a", "b")
+    i32.const 1
+    ;; 14 |     _ := $.use(Vault).keep(t)
+    local.get $t0
+    local.get $provider0.vtable
+    i32.load $heap
+    call_indirect $table0 (param i32 i32 i32) (result i32 i32)
+    local.set $provider0
+    drop
+    ;; 13 |     let t: (i32, List[string]...) = (+1, "a", "b")
+    local.get $provider0
+    if
+      local.get $provider0
       i32.const 8
-      i32.add
-      local.tee $t1
-      i32.const 66 ;; &"b"
-      i32.store $heap offset=16
-      local.get $t1
-      i32.const 1
-      i32.store $heap offset=20
-    ;; 14 |     _ := $.use(Vault).keep(t)
-      local.get $provider0
-    ;; 13 |     let t: (i32, List[string]...) = (+1, "a", "b")
-      i32.const 1
-    ;; 14 |     _ := $.use(Vault).keep(t)
-      local.get $t0
-      local.get $provider0.vtable
+      i32.sub
       i32.load $heap
-      call_indirect $table0 (param i32 i32 i32) (result i32 i32)
-      local.set $provider0
-      drop
-    ;; 13 |     let t: (i32, List[string]...) = (+1, "a", "b")
-      local.get $provider0
       if
         local.get $provider0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $provider0
-          call $rt:release_ref
-        end
+        call $rt:release_ref
       end
-      local.get $t0
-      local.tee $provider0
+    end
+    local.get $t0
+    local.tee $provider0
+    if
+      local.get $provider0
+      i32.const 8
+      i32.sub
+      i32.load $heap
       if
         local.get $provider0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $provider0
-          call $rt:release_ref
-        end
+        call $rt:release_ref
       end
     end
   )

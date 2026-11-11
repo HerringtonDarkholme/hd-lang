@@ -5,38 +5,32 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $rename (param $p i32)
     ;; 17 |     p.set("b")
-    block
-      local.get $p
-      i32.const 65 ;; &"b"
-      i32.const 1
-      call $"impl Named.set"
-    end
+    local.get $p
+    i32.const 65 ;; &"b"
+    i32.const 1
+    call $"impl Named.set"
   )
   (func $greet (param $p i32) (result i32)
     ;; 13 |     n := &p.name
-    block
-      local.get $p
+    local.get $p
     ;; 14 |     n.len()
-      call $"impl string.len"
+    call $"impl string.len"
     ;; 13 |     n := &p.name
-      local.set $p
-    end
+    local.set $p
     local.get $p
   )
   (func $"impl Named.set" (param $self i32) (param $name.0 i32) (param $name.1 i32)
     ;; 10 |         self.name = name
-    block
-      local.get $self
-      i32.load $heap
-      local.get $self
-      i32.load $heap offset=4
-      local.get $self
-      local.get $name.0
-      i32.store $heap
-      local.get $self
-      local.get $name.1
-      i32.store $heap offset=4
-      call $rt:release
-    end
+    local.get $self
+    i32.load $heap
+    local.get $self
+    i32.load $heap offset=4
+    local.get $self
+    local.get $name.0
+    i32.store $heap
+    local.get $self
+    local.get $name.1
+    i32.store $heap offset=4
+    call $rt:release
   )
 )

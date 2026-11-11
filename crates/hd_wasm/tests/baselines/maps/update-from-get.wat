@@ -14,466 +14,229 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $changed_rhs (param $counts i32) (param $word.0 i32) (param $word.1 i32) (param $other.0 i32) (param $other.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i64)
     ;; 29 |     counts[word] += change(counts, other)
-    block
-      local.get $counts
-      i32.load $heap
-      local.tee $t0
-      local.get $word.0
-      local.tee $t1
-      local.get $word.1
-      call $rt:map_hash
-      local.get $t1
-      local.get $word.1
-      call $rt:map_find'1
-      local.tee $t1
-      i32.const 0
-      i32.lt_s
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $t0
-      local.get $t0
-      i32.load $heap offset=12
-      i32.const 12
-      i32.mul
-      i32.add
-      i32.const 24
-      i32.add
-      local.get $t1
-      i32.const 16
-      i32.mul
-      i32.add
-      i64.load $heap offset=8
-      local.get $counts
-      local.get $other.0
-      local.get $other.1
-      call $change
-      i64.add
-      local.set $t2
-      local.get $counts
-      i32.load $heap
-      call $rt:map_unique'1
-      local.set $other.0
-      local.get $counts
-      local.get $other.0
-      i32.store $heap
-      local.get $other.0
-      local.get $word.0
-      local.get $word.1
-      call $rt:map_hash
-      local.tee $other.1
-      local.get $word.0
-      local.get $word.1
-      call $rt:map_find'1
-      local.set $t0
-      local.get $word.0
-      if
-        local.get $word.0
-        call $retain
-      end
-      local.get $counts
-      local.get $other.0
-      local.get $other.1
-      local.get $t0
-      local.get $word.0
-      local.get $word.1
-      local.get $t2
-      call $rt:map_put
-      i32.store $heap
+    local.get $counts
+    i32.load $heap
+    local.tee $t0
+    local.get $word.0
+    local.tee $t1
+    local.get $word.1
+    call $rt:map_hash
+    local.get $t1
+    local.get $word.1
+    call $rt:map_find'1
+    local.tee $t1
+    i32.const 0
+    i32.lt_s
+    if
+      call $rt:panic
+      unreachable
     end
+    local.get $t0
+    local.get $t0
+    i32.load $heap offset=12
+    i32.const 12
+    i32.mul
+    i32.add
+    i32.const 24
+    i32.add
+    local.get $t1
+    i32.const 16
+    i32.mul
+    i32.add
+    i64.load $heap offset=8
+    local.get $counts
+    local.get $other.0
+    local.get $other.1
+    call $change
+    i64.add
+    local.set $t2
+    local.get $counts
+    i32.load $heap
+    call $rt:map_unique'1
+    local.set $other.0
+    local.get $counts
+    local.get $other.0
+    i32.store $heap
+    local.get $other.0
+    local.get $word.0
+    local.get $word.1
+    call $rt:map_hash
+    local.tee $other.1
+    local.get $word.0
+    local.get $word.1
+    call $rt:map_find'1
+    local.set $t0
+    local.get $word.0
+    if
+      local.get $word.0
+      call $retain
+    end
+    local.get $counts
+    local.get $other.0
+    local.get $other.1
+    local.get $t0
+    local.get $word.0
+    local.get $word.1
+    local.get $t2
+    call $rt:map_put
+    i32.store $heap
   )
   (func $change (param $counts i32) (param $key.0 i32) (param $key.1 i32) (result i64) (local $t3 i64) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 25 |     counts[key] = 10
-    block
-      local.get $counts
-      i32.load $heap
-      call $rt:map_unique'1
-      local.set $t0
-      local.get $counts
-      local.get $t0
-      i32.store $heap
-      local.get $t0
+    local.get $counts
+    i32.load $heap
+    call $rt:map_unique'1
+    local.set $t0
+    local.get $counts
+    local.get $t0
+    i32.store $heap
+    local.get $t0
+    local.get $key.0
+    local.get $key.1
+    call $rt:map_hash
+    local.tee $t1
+    local.get $key.0
+    local.get $key.1
+    call $rt:map_find'1
+    local.set $t2
+    local.get $key.0
+    if
       local.get $key.0
-      local.get $key.1
-      call $rt:map_hash
-      local.tee $t1
-      local.get $key.0
-      local.get $key.1
-      call $rt:map_find'1
-      local.set $t2
-      local.get $key.0
-      if
-        local.get $key.0
-        call $retain
-      end
-      local.get $counts
-      local.get $t0
-      local.get $t1
-      local.get $t2
-      local.get $key.0
-      local.get $key.1
-      i64.const 10
-      call $rt:map_put
-      i32.store $heap
-      i64.const 2
-      local.set $t3
+      call $retain
     end
+    local.get $counts
+    local.get $t0
+    local.get $t1
+    local.get $t2
+    local.get $key.0
+    local.get $key.1
+    i64.const 10
+    call $rt:map_put
+    i32.store $heap
+    i64.const 2
+    local.set $t3
     local.get $t3
   )
   (func $append_existing (param $words i32) (param $key.0 i32) (param $key.1 i32) (param $suffix.0 i32) (param $suffix.1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32) (local $t1 i32)
     ;; 22 |     words[key] += suffix
-    block
-      local.get $words
-      i32.load $heap
-      local.tee $t0
-      local.get $key.0
-      local.get $key.1
-      call $rt:map_hash
-      local.get $key.0
-      local.get $key.1
-      call $rt:map_find'2
-      local.tee $key.0
-      i32.const 0
-      i32.lt_s
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $t0
-      local.get $t0
-      i32.load $heap offset=12
-      i32.const 12
-      i32.mul
-      i32.add
-      i32.const 24
-      i32.add
-      local.get $key.0
-      i32.const 16
-      i32.mul
-      i32.add
-      i32.const 8
-      i32.add
-      local.tee $key.1
-      i32.load $heap
-      local.get $key.1
-      i32.load $heap offset=4
-      local.set $t0
-      local.tee $key.1
-      local.tee $t1
-      if
-        local.get $t1
-        call $retain
-      end
-      local.get $t0
-      local.get $suffix.1
-      i32.add
-      local.tee $t2
-      i32.eqz
-      if (result i32)
-        i32.const 16
-      else
-        local.get $t2
-        call $rt:str
-      end
-      local.tee $t3
-      local.tee $t1
-      local.get $key.1
-      local.get $t0
-      call $rt:memory_copy/0/0
-      local.get $t1
-      local.get $t0
-      i32.add
-      local.get $suffix.0
-      local.get $suffix.1
-      call $rt:memory_copy/0/0
-      local.get $key.1
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref
-      end
-      local.get $words
-      i32.load $heap
-      call $rt:map_unique'2
-      local.set $key.1
-      local.get $words
-      local.get $key.1
-      i32.store $heap
-      local.get $key.1
-      local.get $key.1
-      i32.load $heap offset=12
-      i32.const 12
-      i32.mul
-      i32.add
-      i32.const 24
-      i32.add
-      local.get $key.0
-      i32.const 16
-      i32.mul
-      i32.add
-      local.tee $words
-      i32.load $heap offset=8
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref
-      end
-      local.get $words
-      local.get $t3
-      i32.store $heap offset=8
-      local.get $words
-      local.get $t2
-      i32.store $heap offset=12
+    local.get $words
+    i32.load $heap
+    local.tee $t0
+    local.get $key.0
+    local.get $key.1
+    call $rt:map_hash
+    local.get $key.0
+    local.get $key.1
+    call $rt:map_find'2
+    local.tee $key.0
+    i32.const 0
+    i32.lt_s
+    if
+      call $rt:panic
+      unreachable
     end
+    local.get $t0
+    local.get $t0
+    i32.load $heap offset=12
+    i32.const 12
+    i32.mul
+    i32.add
+    i32.const 24
+    i32.add
+    local.get $key.0
+    i32.const 16
+    i32.mul
+    i32.add
+    i32.const 8
+    i32.add
+    local.tee $key.1
+    i32.load $heap
+    local.get $key.1
+    i32.load $heap offset=4
+    local.set $t0
+    local.tee $key.1
+    local.tee $t1
+    if
+      local.get $t1
+      call $retain
+    end
+    local.get $t0
+    local.get $suffix.1
+    i32.add
+    local.tee $t2
+    i32.eqz
+    if (result i32)
+      i32.const 16
+    else
+      local.get $t2
+      call $rt:str
+    end
+    local.tee $t3
+    local.tee $t1
+    local.get $key.1
+    local.get $t0
+    call $rt:memory_copy/0/0
+    local.get $t1
+    local.get $t0
+    i32.add
+    local.get $suffix.0
+    local.get $suffix.1
+    call $rt:memory_copy/0/0
+    local.get $key.1
+    local.tee $t1
+    if
+      local.get $t1
+      call $rt:release_ref
+    end
+    local.get $words
+    i32.load $heap
+    call $rt:map_unique'2
+    local.set $key.1
+    local.get $words
+    local.get $key.1
+    i32.store $heap
+    local.get $key.1
+    local.get $key.1
+    i32.load $heap offset=12
+    i32.const 12
+    i32.mul
+    i32.add
+    i32.const 24
+    i32.add
+    local.get $key.0
+    i32.const 16
+    i32.mul
+    i32.add
+    local.tee $words
+    i32.load $heap offset=8
+    local.tee $t1
+    if
+      local.get $t1
+      call $rt:release_ref
+    end
+    local.get $words
+    local.get $t3
+    i32.store $heap offset=8
+    local.get $words
+    local.get $t2
+    i32.store $heap offset=12
   )
   (func $changed_between (param $counts i32) (param $word.0 i32) (param $word.1 i32) (param $other.0 i32) (param $other.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i64) (local $t3 i64) (local $t4 i32) (local $t5 i32)
     ;; 17 |     seen := counts.get(word).unwrap_or(0)
-    block
-      local.get $counts
-      i32.load $heap
-      local.tee $t0
-      local.get $word.0
-      local.get $word.1
-      call $rt:map_hash
-      local.get $word.0
-      local.get $word.1
-      call $rt:map_find'1
-      local.tee $t1
-      i32.const 0
-      i32.ge_s
-      if (result i32)
-        i32.const 1
-        local.get $t0
-        local.get $t0
-        i32.load $heap offset=12
-        i32.const 12
-        i32.mul
-        i32.add
-        i32.const 24
-        i32.add
-        local.get $t1
-        i32.const 16
-        i32.mul
-        i32.add
-        i64.load $heap offset=8
-        local.set $t2
-      else
-        i32.const 0
-      end
-      local.set $t0
-      block
-        block
-          block
-            block
-              block
-                local.get $t0
-                i32.const 1
-                i32.eq
-                if
-                  local.get $t2
-                  local.set $t3
-                  br 1
-                else
-                  local.get $t0
-                  i32.eqz
-                  br_if 2
-                  unreachable
-                end
-                unreachable
-              end
-              br 1
-            end
-            br 0
-          end
-          local.get $t3
-          local.set $t2
-          br 0
-        end
-      end
-      local.get $counts
-      i32.load $heap
-      call $rt:map_unique'1
-      local.set $t0
-      local.get $counts
-      local.get $t0
-      i32.store $heap
-      local.get $t0
-    ;; 18 |     counts[other] = 0
-      local.get $other.0
-      local.get $other.1
-      call $rt:map_hash
-      local.tee $t1
-      local.get $other.0
-      local.get $other.1
-      call $rt:map_find'1
-      local.set $t4
-      local.get $other.0
-      local.tee $t5
-      if
-        local.get $t5
-        call $retain
-      end
-      local.get $counts
-    ;; 17 |     seen := counts.get(word).unwrap_or(0)
-      local.get $t0
-    ;; 18 |     counts[other] = 0
-      local.get $t1
-      local.get $t4
-      local.get $other.0
-      local.get $other.1
-      i64.const 0
-      call $rt:map_put
-      i32.store $heap
-    ;; 17 |     seen := counts.get(word).unwrap_or(0)
-      local.get $t2
-    ;; 19 |     counts[word] = seen + 1
-      i64.const 1
-      i64.add
-      local.set $t2
-    ;; 17 |     seen := counts.get(word).unwrap_or(0)
-      local.get $counts
-      i32.load $heap
-    ;; 19 |     counts[word] = seen + 1
-      local.tee $other.0
-      local.get $word.0
-      local.get $word.1
-      call $rt:map_hash
-      local.tee $other.1
-      local.get $word.0
-      local.get $word.1
-      call $rt:map_find'1
-      local.set $t0
-      local.get $word.0
-      local.tee $t5
-      if
-        local.get $t5
-        call $retain
-      end
-      local.get $other.0
-      local.get $other.1
-      local.get $t0
-      local.get $word.0
-      local.get $word.1
-      local.get $t2
-      call $rt:map_put
-      local.set $other.0
-      local.get $counts
-      local.get $other.0
-      i32.store $heap
-    ;; 17 |     seen := counts.get(word).unwrap_or(0)
-    end
-  )
-  (func $tally_match (param $counts i32) (param $word.0 i32) (param $word.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $seen i64)
-    ;; 9 |     counts[word] = match counts.get(word):
-    block
-      local.get $counts
-      i32.load $heap
-      local.tee $t0
-      local.get $word.0
-      local.get $word.1
-      call $rt:map_hash
-      local.tee $t1
-      local.get $word.0
-      local.get $word.1
-      call $rt:map_find'1
-      local.tee $t2
-      i32.const 0
-      i32.ge_s
-      if
-        i32.const 1
-        local.get $t0
-        local.get $t0
-        i32.load $heap offset=12
-        i32.const 12
-        i32.mul
-        i32.add
-        i32.const 24
-        i32.add
-        local.get $t2
-        i32.const 16
-        i32.mul
-        i32.add
-        i64.load $heap offset=8
-        local.set $seen
-        local.set $t3
-      else
-      end
-      block
-        block
-          block
-    ;; 10 |         .Some(seen) => seen + 1
-            local.get $t3
-            i32.const 1
-            i32.eq
-            if
-              br 1
-            else
-    ;; 11 |         .None => 1
-              local.get $t3
-              i32.eqz
-              br_if 2
-              unreachable
-    ;; 10 |         .Some(seen) => seen + 1
-            end
-    ;; 9 |     counts[word] = match counts.get(word):
-            unreachable
-          end
-    ;; 10 |         .Some(seen) => seen + 1
-          local.get $seen
-          i64.const 1
-          i64.add
-    ;; 9 |     counts[word] = match counts.get(word):
-          local.set $seen
-          br 1
-        end
-        i64.const 1
-        local.set $seen
-        br 0
-      end
-      local.get $counts
-      i32.load $heap
-      call $rt:map_unique'1
-      local.set $t0
-      local.get $counts
-      local.get $t0
-      i32.store $heap
-      local.get $word.0
-      local.tee $t3
-      if
-        local.get $t3
-        call $retain
-      end
-      local.get $counts
-      local.get $t0
-      local.get $t1
-      local.get $t2
-      local.get $word.0
-      local.get $word.1
-      local.get $seen
-      call $rt:map_put
-      i32.store $heap
-    end
-  )
-  (func $increment_existing (param $counts i32) (param $word.0 i32) (param $word.1 i32) (local $t0 i32) (local $t1 i64)
-    ;; 14 |     counts[word] += 1
-    block
-      local.get $counts
-      i32.load $heap
-      local.tee $t0
-      local.get $word.0
-      local.get $word.1
-      call $rt:map_hash
-      local.get $word.0
-      local.get $word.1
-      call $rt:map_find'1
-      local.tee $word.0
-      i32.const 0
-      i32.lt_s
-      if
-        call $rt:panic
-        unreachable
-      end
+    local.get $counts
+    i32.load $heap
+    local.tee $t0
+    local.get $word.0
+    local.get $word.1
+    call $rt:map_hash
+    local.get $word.0
+    local.get $word.1
+    call $rt:map_find'1
+    local.tee $t1
+    i32.const 0
+    i32.ge_s
+    if (result i32)
+      i32.const 1
       local.get $t0
       local.get $t0
       i32.load $heap offset=12
@@ -482,128 +245,346 @@
       i32.add
       i32.const 24
       i32.add
-      local.get $word.0
+      local.get $t1
       i32.const 16
       i32.mul
       i32.add
       i64.load $heap offset=8
-      i64.const 1
-      i64.add
-      local.set $t1
-      local.get $counts
-      i32.load $heap
-      call $rt:map_unique'1
-      local.set $word.1
-      local.get $counts
-      local.get $word.1
-      i32.store $heap
-      local.get $word.1
-      local.get $word.1
+      local.set $t2
+    else
+      i32.const 0
+    end
+    local.set $t0
+    block
+      block
+        block
+          block
+            local.get $t0
+            i32.const 1
+            i32.eq
+            if
+              local.get $t2
+              local.set $t3
+              br 1
+            else
+              local.get $t0
+              i32.eqz
+              br_if 2
+              unreachable
+            end
+            unreachable
+          end
+          br 1
+        end
+        br 0
+      end
+      local.get $t3
+      local.set $t2
+      br 0
+    end
+    local.get $counts
+    i32.load $heap
+    call $rt:map_unique'1
+    local.set $t0
+    local.get $counts
+    local.get $t0
+    i32.store $heap
+    local.get $t0
+    ;; 18 |     counts[other] = 0
+    local.get $other.0
+    local.get $other.1
+    call $rt:map_hash
+    local.tee $t1
+    local.get $other.0
+    local.get $other.1
+    call $rt:map_find'1
+    local.set $t4
+    local.get $other.0
+    local.tee $t5
+    if
+      local.get $t5
+      call $retain
+    end
+    local.get $counts
+    ;; 17 |     seen := counts.get(word).unwrap_or(0)
+    local.get $t0
+    ;; 18 |     counts[other] = 0
+    local.get $t1
+    local.get $t4
+    local.get $other.0
+    local.get $other.1
+    i64.const 0
+    call $rt:map_put
+    i32.store $heap
+    ;; 17 |     seen := counts.get(word).unwrap_or(0)
+    local.get $t2
+    ;; 19 |     counts[word] = seen + 1
+    i64.const 1
+    i64.add
+    local.set $t2
+    ;; 17 |     seen := counts.get(word).unwrap_or(0)
+    local.get $counts
+    i32.load $heap
+    ;; 19 |     counts[word] = seen + 1
+    local.tee $other.0
+    local.get $word.0
+    local.get $word.1
+    call $rt:map_hash
+    local.tee $other.1
+    local.get $word.0
+    local.get $word.1
+    call $rt:map_find'1
+    local.set $t0
+    local.get $word.0
+    local.tee $t5
+    if
+      local.get $t5
+      call $retain
+    end
+    local.get $other.0
+    local.get $other.1
+    local.get $t0
+    local.get $word.0
+    local.get $word.1
+    local.get $t2
+    call $rt:map_put
+    local.set $other.0
+    local.get $counts
+    local.get $other.0
+    i32.store $heap
+  )
+  (func $tally_match (param $counts i32) (param $word.0 i32) (param $word.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $seen i64)
+    ;; 9 |     counts[word] = match counts.get(word):
+    local.get $counts
+    i32.load $heap
+    local.tee $t0
+    local.get $word.0
+    local.get $word.1
+    call $rt:map_hash
+    local.tee $t1
+    local.get $word.0
+    local.get $word.1
+    call $rt:map_find'1
+    local.tee $t2
+    i32.const 0
+    i32.ge_s
+    if
+      i32.const 1
+      local.get $t0
+      local.get $t0
       i32.load $heap offset=12
       i32.const 12
       i32.mul
       i32.add
       i32.const 24
       i32.add
-      local.get $word.0
+      local.get $t2
       i32.const 16
       i32.mul
       i32.add
-      local.get $t1
-      i64.store $heap offset=8
+      i64.load $heap offset=8
+      local.set $seen
+      local.set $t3
+    else
     end
+    block
+      block
+        block
+    ;; 10 |         .Some(seen) => seen + 1
+          local.get $t3
+          i32.const 1
+          i32.eq
+          if
+            br 1
+          else
+    ;; 11 |         .None => 1
+            local.get $t3
+            i32.eqz
+            br_if 2
+            unreachable
+    ;; 10 |         .Some(seen) => seen + 1
+          end
+    ;; 9 |     counts[word] = match counts.get(word):
+          unreachable
+        end
+    ;; 10 |         .Some(seen) => seen + 1
+        local.get $seen
+        i64.const 1
+        i64.add
+    ;; 9 |     counts[word] = match counts.get(word):
+        local.set $seen
+        br 1
+      end
+      i64.const 1
+      local.set $seen
+      br 0
+    end
+    local.get $counts
+    i32.load $heap
+    call $rt:map_unique'1
+    local.set $t0
+    local.get $counts
+    local.get $t0
+    i32.store $heap
+    local.get $word.0
+    local.tee $t3
+    if
+      local.get $t3
+      call $retain
+    end
+    local.get $counts
+    local.get $t0
+    local.get $t1
+    local.get $t2
+    local.get $word.0
+    local.get $word.1
+    local.get $seen
+    call $rt:map_put
+    i32.store $heap
+  )
+  (func $increment_existing (param $counts i32) (param $word.0 i32) (param $word.1 i32) (local $t0 i32) (local $t1 i64)
+    ;; 14 |     counts[word] += 1
+    local.get $counts
+    i32.load $heap
+    local.tee $t0
+    local.get $word.0
+    local.get $word.1
+    call $rt:map_hash
+    local.get $word.0
+    local.get $word.1
+    call $rt:map_find'1
+    local.tee $word.0
+    i32.const 0
+    i32.lt_s
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $t0
+    local.get $t0
+    i32.load $heap offset=12
+    i32.const 12
+    i32.mul
+    i32.add
+    i32.const 24
+    i32.add
+    local.get $word.0
+    i32.const 16
+    i32.mul
+    i32.add
+    i64.load $heap offset=8
+    i64.const 1
+    i64.add
+    local.set $t1
+    local.get $counts
+    i32.load $heap
+    call $rt:map_unique'1
+    local.set $word.1
+    local.get $counts
+    local.get $word.1
+    i32.store $heap
+    local.get $word.1
+    local.get $word.1
+    i32.load $heap offset=12
+    i32.const 12
+    i32.mul
+    i32.add
+    i32.const 24
+    i32.add
+    local.get $word.0
+    i32.const 16
+    i32.mul
+    i32.add
+    local.get $t1
+    i64.store $heap offset=8
   )
   (func $tally (param $counts i32) (param $word.0 i32) (param $word.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i64) (local $t4 i64) (local $t5 i32)
     ;; 6 |     counts[word] = counts.get(word).unwrap_or(0) + 1
-    block
-      local.get $counts
-      i32.load $heap
-      local.tee $t0
-      local.get $word.0
-      local.get $word.1
-      call $rt:map_hash
-      local.tee $t1
-      local.get $word.0
-      local.get $word.1
-      call $rt:map_find'1
-      local.tee $t2
+    local.get $counts
+    i32.load $heap
+    local.tee $t0
+    local.get $word.0
+    local.get $word.1
+    call $rt:map_hash
+    local.tee $t1
+    local.get $word.0
+    local.get $word.1
+    call $rt:map_find'1
+    local.tee $t2
+    i32.const 0
+    i32.ge_s
+    if (result i32)
+      i32.const 1
+      local.get $t0
+      local.get $t0
+      i32.load $heap offset=12
+      i32.const 12
+      i32.mul
+      i32.add
+      i32.const 24
+      i32.add
+      local.get $t2
+      i32.const 16
+      i32.mul
+      i32.add
+      i64.load $heap offset=8
+      local.set $t3
+    else
       i32.const 0
-      i32.ge_s
-      if (result i32)
-        i32.const 1
-        local.get $t0
-        local.get $t0
-        i32.load $heap offset=12
-        i32.const 12
-        i32.mul
-        i32.add
-        i32.const 24
-        i32.add
-        local.get $t2
-        i32.const 16
-        i32.mul
-        i32.add
-        i64.load $heap offset=8
-        local.set $t3
-      else
-        i32.const 0
-      end
-      local.set $t0
+    end
+    local.set $t0
+    block
       block
         block
           block
-            block
-              block
-                local.get $t0
-                i32.const 1
-                i32.eq
-                if
-                  local.get $t3
-                  local.set $t4
-                  br 1
-                else
-                  local.get $t0
-                  i32.eqz
-                  br_if 2
-                  unreachable
-                end
-                unreachable
-              end
+            local.get $t0
+            i32.const 1
+            i32.eq
+            if
+              local.get $t3
+              local.set $t4
               br 1
+            else
+              local.get $t0
+              i32.eqz
+              br_if 2
+              unreachable
             end
-            br 0
+            unreachable
           end
-          local.get $t4
-          local.set $t3
-          br 0
+          br 1
         end
+        br 0
       end
-      local.get $t3
-      i64.const 1
-      i64.add
+      local.get $t4
       local.set $t3
-      local.get $counts
-      i32.load $heap
-      call $rt:map_unique'1
-      local.set $t0
-      local.get $counts
-      local.get $t0
-      i32.store $heap
-      local.get $word.0
-      local.tee $t5
-      if
-        local.get $t5
-        call $retain
-      end
-      local.get $counts
-      local.get $t0
-      local.get $t1
-      local.get $t2
-      local.get $word.0
-      local.get $word.1
-      local.get $t3
-      call $rt:map_put
-      i32.store $heap
+      br 0
     end
+    local.get $t3
+    i64.const 1
+    i64.add
+    local.set $t3
+    local.get $counts
+    i32.load $heap
+    call $rt:map_unique'1
+    local.set $t0
+    local.get $counts
+    local.get $t0
+    i32.store $heap
+    local.get $word.0
+    local.tee $t5
+    if
+      local.get $t5
+      call $retain
+    end
+    local.get $counts
+    local.get $t0
+    local.get $t1
+    local.get $t2
+    local.get $word.0
+    local.get $word.1
+    local.get $t3
+    call $rt:map_put
+    i32.store $heap
   )
 )

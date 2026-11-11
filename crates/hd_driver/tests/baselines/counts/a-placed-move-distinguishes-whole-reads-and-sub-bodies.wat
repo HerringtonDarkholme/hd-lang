@@ -10,18 +10,14 @@
   (import "fixture" "table0" (table $table0 7 funcref))
   (func $"same[std.rt_tests.stage_case.Item]" (param $a i32) (param $b i32) (result i32)
     ;; 13 |     a is b
-    block
-      local.get $a
-      local.get $b
-      i32.eq
-      local.set $a
-    end
+    local.get $a
+    local.get $b
+    i32.eq
+    local.set $a
     local.get $a
   )
   (func $keep (param $value.0 i32) (param $value.1 i32) (result i32 i32)
     ;; 17 |     value
-    block
-    end
     local.get $value.0
     local.get $value.1
   )
@@ -68,27 +64,25 @@
     local.get $value
     local.get $t2
     i32.store $heap offset=4
-    block
-      local.get $value
-      local.get $value
-      i32.const 1
-      call_indirect $table0 (param i32 i32) (result i32)
-      drop
+    local.get $value
+    local.get $value
+    i32.const 1
+    call_indirect $table0 (param i32 i32) (result i32)
+    drop
     ;; 28 |     value.text
-      local.get $value
-      i32.load $heap
-      local.get $value
-      i32.load $heap offset=4
-      local.get $value
-      i32.const 0
-      i32.store $heap
-      local.get $value
-      i32.const 0
-      i32.store $heap offset=4
+    local.get $value
+    i32.load $heap
+    local.get $value
+    i32.load $heap offset=4
+    local.get $value
+    i32.const 0
+    i32.store $heap
+    local.get $value
+    i32.const 0
+    i32.store $heap offset=4
     ;; 27 |     _ := same(&value, &value)
-      local.set $t2
-      local.set $t1
-    end
+    local.set $t2
+    local.set $t1
     local.get $value
     if
       local.get $value
@@ -108,20 +102,16 @@
   )
   (func $"same[string]" (param $a i32) (param $b i32) (result i32)
     ;; 13 |     a is b
-    block
-      local.get $a
-      local.get $b
-      i32.eq
-      local.set $a
-    end
+    local.get $a
+    local.get $b
+    i32.eq
+    local.set $a
     local.get $a
   )
   (func $nested (result i32 i32) (local $t0 i32)
     ;; 31 |     fn(value: string) -> string:
-    block
-      i32.const 2
-      local.set $t0
-    end
+    i32.const 2
+    local.set $t0
     local.get $t0
     i32.const 0
   )
@@ -136,40 +126,38 @@
     local.get $env
     local.get $t1
     i32.store $heap offset=4
-    block
     ;; 32 |         _ := same(&value, &value)
-      local.get $env
-      local.get $env
-      i32.const 4
-      call_indirect $table0 (param i32 i32) (result i32)
-      drop
+    local.get $env
+    local.get $env
+    i32.const 4
+    call_indirect $table0 (param i32 i32) (result i32)
+    drop
     ;; 33 |         value
+    local.get $env
+    i32.load $heap
+    local.get $env
+    i32.load $heap offset=4
+    local.get $env
+    i32.const 0
+    i32.store $heap
+    local.get $env
+    i32.const 0
+    i32.store $heap offset=4
+    local.get $env
+    local.tee $env
+    if
       local.get $env
+      i32.const 8
+      i32.sub
       i32.load $heap
-      local.get $env
-      i32.load $heap offset=4
-      local.get $env
-      i32.const 0
-      i32.store $heap
-      local.get $env
-      i32.const 0
-      i32.store $heap offset=4
-      local.get $env
-      local.tee $env
       if
         local.get $env
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $env
-          call $rt:release_ref'2
-        end
+        call $rt:release_ref'2
       end
-    ;; 31 |     fn(value: string) -> string:
-      local.set $t0
-      local.set $env
     end
+    ;; 31 |     fn(value: string) -> string:
+    local.set $t0
+    local.set $env
     local.get $env
     local.get $t0
   )
@@ -216,45 +204,43 @@
     local.get $value
     local.get $t2
     i32.store $heap offset=4
-    block
-      local.get $value
-      local.get $value
-      i32.const 4
-      call_indirect $table0 (param i32 i32) (result i32)
-      drop
+    local.get $value
+    local.get $value
+    i32.const 4
+    call_indirect $table0 (param i32 i32) (result i32)
+    drop
     ;; 22 |     first := keep(value)
-      local.get $value
-      i32.load $heap
-      local.get $value
-      i32.load $heap offset=4
-      local.set $t1
-      local.tee $t2
-      local.tee $t3
-      if
-        local.get $t3
-        call $retain
-      end
-      local.get $t2
-      local.get $t1
-      i32.const 5
-      call_indirect $table0 (param i32 i32) (result i32 i32)
-    ;; 23 |     (first, value)
-      local.get $value
-      i32.load $heap
-      local.get $value
-      i32.load $heap offset=4
-      local.get $value
-      i32.const 0
-      i32.store $heap
-      local.get $value
-      i32.const 0
-      i32.store $heap offset=4
-    ;; 21 |     _ := same(&value, &value)
-      local.set $t3
-      local.set $value
-      local.set $t2
-      local.set $t1
+    local.get $value
+    i32.load $heap
+    local.get $value
+    i32.load $heap offset=4
+    local.set $t1
+    local.tee $t2
+    local.tee $t3
+    if
+      local.get $t3
+      call $retain
     end
+    local.get $t2
+    local.get $t1
+    i32.const 5
+    call_indirect $table0 (param i32 i32) (result i32 i32)
+    ;; 23 |     (first, value)
+    local.get $value
+    i32.load $heap
+    local.get $value
+    i32.load $heap offset=4
+    local.get $value
+    i32.const 0
+    i32.store $heap
+    local.get $value
+    i32.const 0
+    i32.store $heap offset=4
+    ;; 21 |     _ := same(&value, &value)
+    local.set $t3
+    local.set $value
+    local.set $t2
+    local.set $t1
     local.get $t1
     local.get $t2
     local.get $value

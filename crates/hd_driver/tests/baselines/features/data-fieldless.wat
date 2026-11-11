@@ -2,8 +2,6 @@
 (module
   (func $wrap (param $name.0 i32) (param $name.1 i32) (result i32 i32)
     ;; 16 |     Tagged { unit: make(), name: name }
-    block
-    end
     local.get $name.0
     local.get $name.1
   )

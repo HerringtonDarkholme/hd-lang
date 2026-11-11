@@ -3,12 +3,10 @@
   (import "fixture" "encode[Node]" (func $"encode[Node]" (param i32) (result i32 i32)))
   (func $entry (param $n i32) (result i32 i32) (local $t0 i32)
     ;; 16 |     if Node::regular(): encode(n) else: to_json(n).pretty()
-    block
-      local.get $n
-      call $"encode[Node]"
-      local.set $t0
-      local.set $n
-    end
+    local.get $n
+    call $"encode[Node]"
+    local.set $t0
+    local.set $n
     local.get $n
     local.get $t0
   )

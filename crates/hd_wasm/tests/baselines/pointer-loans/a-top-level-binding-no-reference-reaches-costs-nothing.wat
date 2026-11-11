@@ -24,55 +24,53 @@
   )
   (func $held (result i32) (local $t0 i32) (local $t1 i32)
     ;; 20 |     r := &mut TOTAL.value
-    block
-      i32.const 20
-      i32.load $heap
-      i32.const 2097152
-      i32.and
-      local.get $t0
-      i32.const 2097152
-      i32.and
-      i32.ne
-      if
-        call $rt:panic'2
-        unreachable
-      end
-      i32.const 20
-      i32.load $heap
-      i32.const 4128768
-      i32.and
-      local.get $t0
-      i32.ne
-      if
-        call $rt:panic'1
-        unreachable
-      end
-      i32.const 20
-      local.tee $t1
-      local.get $t1
-      i32.load $heap
-      i32.const 2097152
-      i32.add
-      i32.store $heap
+    i32.const 20
+    i32.load $heap
+    i32.const 2097152
+    i32.and
+    local.get $t0
+    i32.const 2097152
+    i32.and
+    i32.ne
+    if
+      call $rt:panic'2
+      unreachable
+    end
+    i32.const 20
+    i32.load $heap
+    i32.const 4128768
+    i32.and
+    local.get $t0
+    i32.ne
+    if
+      call $rt:panic'1
+      unreachable
+    end
+    i32.const 20
+    local.tee $t1
+    local.get $t1
+    i32.load $heap
+    i32.const 2097152
+    i32.add
+    i32.store $heap
     ;; 21 |     add()
-      call $add
+    call $add
     ;; 20 |     r := &mut TOTAL.value
-      i32.const 24 ;; &TOTAL
+    i32.const 24 ;; &TOTAL
     ;; 22 |     *r
-      i32.load $heap
-      local.set $t0
+    i32.load $heap
+    local.set $t0
     ;; 20 |     r := &mut TOTAL.value
+    local.get $t1
+    if
       local.get $t1
-      if
-        local.get $t1
-        local.get $t1
-        i32.load $heap
-        i32.const 2097152
-        i32.sub
-        i32.store $heap
-        i32.const 0
-        local.set $t1
-      end
+      local.get $t1
+      i32.load $heap
+      i32.const 2097152
+      i32.sub
+      i32.store $heap
+      i32.const 0
+      local.set $t1
     end
     local.get $t1
     if

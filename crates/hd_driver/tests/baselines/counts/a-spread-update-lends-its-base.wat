@@ -5,55 +5,53 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $touch (param $items i32) (param $out i32) (param $index i32) (local $t0 i32) (local $t1 i32)
-    block
-      ;; ...
+    ;; ...
     ;; 14 |     out[index] = Item { ...previous, revision: previous.revision + 1 }
-      call $rt:coll_copy
-      local.set $t0
-      local.get $items
-      i32.const 1
-      i32.add
-      local.set $items
-      local.set $t1
-      ;; ...
-      local.get $out
+    call $rt:coll_copy
+    local.set $t0
+    local.get $items
+    i32.const 1
+    i32.add
+    local.set $items
+    local.set $t1
+    ;; ...
+    local.get $out
+    i32.load $heap
+    local.set $out
+    local.get $index
+    local.get $out
+    i32.load $heap offset=4
+    i32.ge_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $out
+    local.get $index
+    i32.const 12
+    i32.mul
+    i32.add
+    local.tee $out
+    i32.load $heap offset=16
+    local.tee $index
+    if
+      local.get $index
+      i32.const 8
+      i32.sub
       i32.load $heap
-      local.set $out
-      local.get $index
-      local.get $out
-      i32.load $heap offset=4
-      i32.ge_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $out
-      local.get $index
-      i32.const 12
-      i32.mul
-      i32.add
-      local.tee $out
-      i32.load $heap offset=16
-      local.tee $index
       if
         local.get $index
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $index
-          call $rt:release_ref
-        end
+        call $rt:release_ref
       end
-      local.get $out
-      local.get $t1
-      i32.store $heap offset=20
-      local.get $out
-      local.get $t0
-      i32.store $heap offset=16
-      local.get $out
-      local.get $items
-      i32.store $heap offset=24
     end
+    local.get $out
+    local.get $t1
+    i32.store $heap offset=20
+    local.get $out
+    local.get $t0
+    i32.store $heap offset=16
+    local.get $out
+    local.get $items
+    i32.store $heap offset=24
   )
 )

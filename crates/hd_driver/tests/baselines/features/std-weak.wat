@@ -6,59 +6,53 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $name_len (param $w i32) (result i32) (local $t0 i32)
     ;; 17 |     match w.upgrade():
+    local.get $w
+    call $"impl[T] Weak[T].upgrade[Node]"
+    local.set $w
     block
-      local.get $w
-      call $"impl[T] Weak[T].upgrade[Node]"
-      local.set $w
       block
         block
-          block
     ;; 18 |         .Some(n) => n.name.len()
-            local.get $w
-            if
-              br 1
-            else
+          local.get $w
+          if
+            br 1
+          else
     ;; 19 |         .None => 0
-              local.get $w
-              i32.eqz
-              br_if 2
-              unreachable
-    ;; 18 |         .Some(n) => n.name.len()
-            end
-    ;; 17 |     match w.upgrade():
+            local.get $w
+            i32.eqz
+            br_if 2
             unreachable
-          end
     ;; 18 |         .Some(n) => n.name.len()
-          local.get $w
-          i32.load $heap
-          local.get $w
-          i32.load $heap offset=4
-          local.set $t0
-          drop
-          block
-            block
-              br 0
-            end
           end
     ;; 17 |     match w.upgrade():
-          br 1
+          unreachable
         end
-        br 0
+    ;; 18 |         .Some(n) => n.name.len()
+        local.get $w
+        i32.load $heap
+        local.get $w
+        i32.load $heap offset=4
+        local.set $t0
+        drop
+        block
+          br 0
+        end
+    ;; 17 |     match w.upgrade():
+        br 1
       end
-      local.get $w
-      call $rt:release
-      local.get $t0
-      local.set $w
+      br 0
     end
+    local.get $w
+    call $rt:release
+    local.get $t0
+    local.set $w
     local.get $w
   )
   (func $make (param $node i32) (result i32)
     ;; 14 |     weak(node)
-    block
-      local.get $node
-      call $"weak[Node]"
-      local.set $node
-    end
+    local.get $node
+    call $"weak[Node]"
+    local.set $node
     local.get $node
   )
 )

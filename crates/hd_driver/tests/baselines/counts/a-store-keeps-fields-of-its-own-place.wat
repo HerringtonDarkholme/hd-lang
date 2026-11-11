@@ -18,80 +18,78 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $used_after (param $items i32) (param $i i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 32 |     previous := items[i]
-    block
-      local.get $items
-      i32.load $heap
-      local.set $t0
-      local.get $i
-      local.get $t0
-      i32.load $heap offset=4
-      i32.ge_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $t0
-      local.get $i
-      i32.const 12
-      i32.mul
-      i32.add
-      local.tee $t0
-      i32.load $heap offset=16
-      local.get $t0
-      i32.load $heap offset=20
-      local.get $t0
-      i32.load $heap offset=24
-      local.set $t1
-      local.set $t0
-      call $rt:coll_copy
-      local.get $t0
-      call $rt:coll_copy
-      local.set $t0
-    ;; 33 |     items[i] = Item { ...previous, r: 1 }
-      local.set $t2
-    ;; 32 |     previous := items[i]
-      local.get $items
-      local.get $items
-      i32.load $heap
-      call $rt:list_unique
-      i32.store $heap
-    ;; 33 |     items[i] = Item { ...previous, r: 1 }
-      local.get $items
-      i32.load $heap
-      local.set $items
-      local.get $i
-      local.get $items
-      i32.load $heap offset=4
-      i32.ge_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $items
-      local.get $i
-      i32.const 12
-      i32.mul
-      i32.add
-      local.tee $items
-      i32.load $heap offset=16
-      local.get $items
-      i32.load $heap offset=20
-      local.get $items
-      i32.load $heap offset=24
-      call $rt:release'1
-      local.get $items
-      local.get $t2
-      i32.store $heap offset=16
-      local.get $items
-      local.get $t0
-      i32.store $heap offset=20
-      local.get $items
-      i32.const 1
-      i32.store $heap offset=24
-    ;; 32 |     previous := items[i]
-      local.get $t1
-      local.set $items
+    local.get $items
+    i32.load $heap
+    local.set $t0
+    local.get $i
+    local.get $t0
+    i32.load $heap offset=4
+    i32.ge_u
+    if
+      call $rt:panic
+      unreachable
     end
+    local.get $t0
+    local.get $i
+    i32.const 12
+    i32.mul
+    i32.add
+    local.tee $t0
+    i32.load $heap offset=16
+    local.get $t0
+    i32.load $heap offset=20
+    local.get $t0
+    i32.load $heap offset=24
+    local.set $t1
+    local.set $t0
+    call $rt:coll_copy
+    local.get $t0
+    call $rt:coll_copy
+    local.set $t0
+    ;; 33 |     items[i] = Item { ...previous, r: 1 }
+    local.set $t2
+    ;; 32 |     previous := items[i]
+    local.get $items
+    local.get $items
+    i32.load $heap
+    call $rt:list_unique
+    i32.store $heap
+    ;; 33 |     items[i] = Item { ...previous, r: 1 }
+    local.get $items
+    i32.load $heap
+    local.set $items
+    local.get $i
+    local.get $items
+    i32.load $heap offset=4
+    i32.ge_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $items
+    local.get $i
+    i32.const 12
+    i32.mul
+    i32.add
+    local.tee $items
+    i32.load $heap offset=16
+    local.get $items
+    i32.load $heap offset=20
+    local.get $items
+    i32.load $heap offset=24
+    call $rt:release'1
+    local.get $items
+    local.get $t2
+    i32.store $heap offset=16
+    local.get $items
+    local.get $t0
+    i32.store $heap offset=20
+    local.get $items
+    i32.const 1
+    i32.store $heap offset=24
+    ;; 32 |     previous := items[i]
+    local.get $t1
+    local.set $items
     local.get $items
   )
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $items i32) (local $shared i32) (local $o i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t0 i32) (local $t4 i32) (local $t5 i32)
@@ -125,239 +123,189 @@
     i32.sub
     local.tee $t0
     global.set $locals
-    block
-      i32.const 1
-      call $rt:list_buf'1
-      local.tee $items
-      i32.const 1
-      i32.store $heap offset=4
-      local.get $items
-      i64.const 0
-      i64.store $heap offset=16
-      i32.const 4
-      call $rt:map_table
-      local.tee $shared
-      i32.const 65 ;; &"a"
-      local.tee $o
-      i32.const 1
-      local.tee $t1
-      call $rt:map_hash
-      local.tee $t2
-      local.get $o
-      local.get $t1
-      call $rt:map_find
-      local.set $t3
-      local.get $shared
-      local.get $t2
-      local.get $t3
-      local.get $o
-      local.get $t1
-      i64.const 1
-      call $rt:map_put
-      local.set $shared
-      i32.const 1
-      call $rt:list_buf'2
-      local.tee $o
-      i32.const 1
-      i32.store $heap offset=4
-      local.get $o
-      local.get $items
-      i32.store $heap offset=16
-      local.get $o
-      local.get $shared
-      i32.store $heap offset=20
-      local.get $o
-      i32.const 0
-      i32.store $heap offset=24
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $items
-      local.get $o
-      i32.store $heap
-      local.get $items
+    i32.const 1
+    call $rt:list_buf'1
+    local.tee $items
+    i32.const 1
+    i32.store $heap offset=4
+    local.get $items
+    i64.const 0
+    i64.store $heap offset=16
+    i32.const 4
+    call $rt:map_table
+    local.tee $shared
+    i32.const 65 ;; &"a"
+    local.tee $o
+    i32.const 1
+    local.tee $t1
+    call $rt:map_hash
+    local.tee $t2
+    local.get $o
+    local.get $t1
+    call $rt:map_find
+    local.set $t3
+    local.get $shared
+    local.get $t2
+    local.get $t3
+    local.get $o
+    local.get $t1
+    i64.const 1
+    call $rt:map_put
+    local.set $shared
+    i32.const 1
+    call $rt:list_buf'2
+    local.tee $o
+    i32.const 1
+    i32.store $heap offset=4
+    local.get $o
+    local.get $items
+    i32.store $heap offset=16
+    local.get $o
+    local.get $shared
+    i32.store $heap offset=20
+    local.get $o
+    i32.const 0
+    i32.store $heap offset=24
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $items
+    local.get $o
+    i32.store $heap
+    local.get $items
     ;; 45 |     shared := items
-      i32.load $heap
-      call $rt:coll_copy
-      local.set $shared
+    i32.load $heap
+    call $rt:coll_copy
+    local.set $shared
     ;; 46 |     element(&mut items, 0)
-      local.get $items
-      i32.const 0
-      call $element
+    local.get $items
+    i32.const 0
+    call $element
     ;; 44 |     let mut items = [Item { batches: [0], depots: { "a": 1 }, r: 0 }]
-      local.get $items
-      local.get $items
-      i32.load $heap
-      call $rt:list_unique
-      i32.store $heap
+    local.get $items
+    local.get $items
+    i32.load $heap
+    call $rt:list_unique
+    i32.store $heap
     ;; 47 |     through_reference(&mut items[0])
-      local.get $items
-      i32.load $heap
-      local.set $o
-      i32.const 0
-      local.get $o
-      i32.load $heap offset=4
-      i32.ge_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $o
-      i32.const 16
-      i32.add
-      call $through_reference
+    local.get $items
+    i32.load $heap
+    local.set $o
+    i32.const 0
+    local.get $o
+    i32.load $heap offset=4
+    i32.ge_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $o
+    i32.const 16
+    i32.add
+    call $through_reference
     ;; 48 |     let mut o = Outer { item: Item { batches: [0], depots: { "a": 1 }, r: 0 }, tag: "t" }
-      i32.const 1
-      call $rt:list_buf'1
-      local.tee $o
-      i32.const 1
-      i32.store $heap offset=4
-      local.get $o
-      i64.const 0
-      i64.store $heap offset=16
-      i32.const 4
-      call $rt:map_table
-      local.tee $t1
-      i32.const 65 ;; &"a"
-      local.tee $t2
-      i32.const 1
-      local.tee $t3
-      call $rt:map_hash
-      local.tee $t4
-      local.get $t2
-      local.get $t3
-      call $rt:map_find
-      local.set $t5
-      local.get $t1
-      local.get $t4
-      local.get $t5
-      local.get $t2
-      local.get $t3
-      i64.const 1
-      call $rt:map_put
-      local.set $t1
-      local.get $t0
-      i64.const 0
-      i64.store $heap offset=16
-      local.get $t0
-      i32.const 24
-      i32.add
-      local.tee $t2
-      local.get $o
-      i32.store $heap
-      local.get $t2
-      local.get $t1
-      i32.store $heap offset=4
-      local.get $t2
-      i32.const 0
-      i32.store $heap offset=8
-      local.get $t2
-      i32.const 66 ;; &"t"
-      i32.store $heap offset=12
-      local.get $t2
-      i32.const 1
-      i32.store $heap offset=16
-      local.get $t2
-      local.tee $o
+    i32.const 1
+    call $rt:list_buf'1
+    local.tee $o
+    i32.const 1
+    i32.store $heap offset=4
+    local.get $o
+    i64.const 0
+    i64.store $heap offset=16
+    i32.const 4
+    call $rt:map_table
+    local.tee $t1
+    i32.const 65 ;; &"a"
+    local.tee $t2
+    i32.const 1
+    local.tee $t3
+    call $rt:map_hash
+    local.tee $t4
+    local.get $t2
+    local.get $t3
+    call $rt:map_find
+    local.set $t5
+    local.get $t1
+    local.get $t4
+    local.get $t5
+    local.get $t2
+    local.get $t3
+    i64.const 1
+    call $rt:map_put
+    local.set $t1
+    local.get $t0
+    i64.const 0
+    i64.store $heap offset=16
+    local.get $t0
+    i32.const 24
+    i32.add
+    local.tee $t2
+    local.get $o
+    i32.store $heap
+    local.get $t2
+    local.get $t1
+    i32.store $heap offset=4
+    local.get $t2
+    i32.const 0
+    i32.store $heap offset=8
+    local.get $t2
+    i32.const 66 ;; &"t"
+    i32.store $heap offset=12
+    local.get $t2
+    i32.const 1
+    i32.store $heap offset=16
+    local.get $t2
+    local.tee $o
     ;; 49 |     field(&mut o)
-      local.set $t1
-      block
-        block
-          local.get $t1
-          local.get $t1
-          i32.load $heap offset=8
-          i32.const 1
-          i32.add
-          i32.store $heap offset=8
-          br 0
-        end
-      end
-    ;; 44 |     let mut items = [Item { batches: [0], depots: { "a": 1 }, r: 0 }]
-      local.get $items
-      local.get $items
-      i32.load $heap
-      call $rt:list_unique
-      i32.store $heap
-    ;; 50 |     replaced(&mut items[0])
-      local.get $items
-      i32.load $heap
-      local.set $t1
-      i32.const 0
+    local.set $t1
+    block
       local.get $t1
-      i32.load $heap offset=4
-      i32.ge_u
-      if
-        call $rt:panic
-        unreachable
-      end
       local.get $t1
-      i32.const 16
-      i32.add
-      call $replaced
-    ;; 51 |     call_between(&mut items, 0)
-      local.get $items
-      i32.const 0
-      call $call_between
-    ;; 52 |     println(used_after(&mut items, 0) + o.item.r + shared[0].r)
-      local.get $items
-      i32.const 0
-      call $used_after
-      local.set $t1
-    ;; 44 |     let mut items = [Item { batches: [0], depots: { "a": 1 }, r: 0 }]
-      local.get $items
-      if
-        local.get $items
-        i32.load $heap
-        local.tee $items
-        if
-          local.get $items
-          i32.const 8
-          i32.sub
-          i32.load $heap
-          if
-            local.get $items
-            call $rt:release_ref
-          end
-        end
-      end
-    ;; 52 |     println(used_after(&mut items, 0) + o.item.r + shared[0].r)
-      local.get $o
       i32.load $heap offset=8
-      local.set $items
-    ;; 44 |     let mut items = [Item { batches: [0], depots: { "a": 1 }, r: 0 }]
-      local.get $o
-      if
-        local.get $o
-        i32.load $heap
-        local.get $o
-        i32.load $heap offset=4
-        local.get $o
-        i32.load $heap offset=8
-        local.get $o
-        i32.load $heap offset=12
-        local.get $o
-        i32.load $heap offset=16
-        call $rt:release'2
-      end
-    ;; 52 |     println(used_after(&mut items, 0) + o.item.r + shared[0].r)
-      local.get $t1
-      local.get $items
+      i32.const 1
       i32.add
-      i32.const 0
-      local.get $shared
-      i32.load $heap offset=4
-      i32.ge_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $shared
-      i32.load $heap offset=24
+      i32.store $heap offset=8
+      br 0
+    end
     ;; 44 |     let mut items = [Item { batches: [0], depots: { "a": 1 }, r: 0 }]
-      local.get $shared
+    local.get $items
+    local.get $items
+    i32.load $heap
+    call $rt:list_unique
+    i32.store $heap
+    ;; 50 |     replaced(&mut items[0])
+    local.get $items
+    i32.load $heap
+    local.set $t1
+    i32.const 0
+    local.get $t1
+    i32.load $heap offset=4
+    i32.ge_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $t1
+    i32.const 16
+    i32.add
+    call $replaced
+    ;; 51 |     call_between(&mut items, 0)
+    local.get $items
+    i32.const 0
+    call $call_between
+    ;; 52 |     println(used_after(&mut items, 0) + o.item.r + shared[0].r)
+    local.get $items
+    i32.const 0
+    call $used_after
+    local.set $t1
+    ;; 44 |     let mut items = [Item { batches: [0], depots: { "a": 1 }, r: 0 }]
+    local.get $items
+    if
+      local.get $items
+      i32.load $heap
       local.tee $items
       if
         local.get $items
@@ -369,13 +317,59 @@
           call $rt:release_ref
         end
       end
-    ;; 52 |     println(used_after(&mut items, 0) + o.item.r + shared[0].r)
-      i32.add
-      local.get $provider0
-      local.get $provider0.vtable
-      call $"println[usize]"
-    ;; 44 |     let mut items = [Item { batches: [0], depots: { "a": 1 }, r: 0 }]
     end
+    ;; 52 |     println(used_after(&mut items, 0) + o.item.r + shared[0].r)
+    local.get $o
+    i32.load $heap offset=8
+    local.set $items
+    ;; 44 |     let mut items = [Item { batches: [0], depots: { "a": 1 }, r: 0 }]
+    local.get $o
+    if
+      local.get $o
+      i32.load $heap
+      local.get $o
+      i32.load $heap offset=4
+      local.get $o
+      i32.load $heap offset=8
+      local.get $o
+      i32.load $heap offset=12
+      local.get $o
+      i32.load $heap offset=16
+      call $rt:release'2
+    end
+    ;; 52 |     println(used_after(&mut items, 0) + o.item.r + shared[0].r)
+    local.get $t1
+    local.get $items
+    i32.add
+    i32.const 0
+    local.get $shared
+    i32.load $heap offset=4
+    i32.ge_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $shared
+    i32.load $heap offset=24
+    ;; 44 |     let mut items = [Item { batches: [0], depots: { "a": 1 }, r: 0 }]
+    local.get $shared
+    local.tee $items
+    if
+      local.get $items
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $items
+        call $rt:release_ref
+      end
+    end
+    ;; 52 |     println(used_after(&mut items, 0) + o.item.r + shared[0].r)
+    i32.add
+    local.get $provider0
+    local.get $provider0.vtable
+    call $"println[usize]"
+    ;; 44 |     let mut items = [Item { batches: [0], depots: { "a": 1 }, r: 0 }]
     local.get $t0
     i32.const 48
     i32.add
@@ -383,239 +377,226 @@
   )
   (func $through_reference (param $p i32)
     ;; 23 |     *p = Item { ...*p, r: p.r + 1 }
-    block
-      local.get $p
-      local.get $p
-      i32.load $heap offset=8
-      i32.const 1
-      i32.add
-      i32.store $heap offset=8
-    end
+    local.get $p
+    local.get $p
+    i32.load $heap offset=8
+    i32.const 1
+    i32.add
+    i32.store $heap offset=8
   )
   (func $call_between (param $items i32) (param $i i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 41 |     items[i] = Item { ...items[i], r: grow(items, i) }
-    block
-      local.get $items
-      i32.load $heap
-      local.set $t0
-      local.get $i
-      local.get $t0
-      i32.load $heap offset=4
-      i32.ge_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $t0
-      local.get $i
-      i32.const 12
-      i32.mul
-      i32.add
-      local.tee $t0
-      i32.load $heap offset=16
-      local.get $t0
-      i32.load $heap offset=20
-      local.set $t0
-      call $rt:coll_copy
-      local.get $t0
-      call $rt:coll_copy
-      local.set $t0
-      local.get $items
-      local.get $i
-      call $grow
-      local.set $t1
-      local.set $t2
-      local.get $items
-      local.get $items
-      i32.load $heap
-      call $rt:list_unique
-      i32.store $heap
-      local.get $items
-      i32.load $heap
-      local.set $items
-      local.get $i
-      local.get $items
-      i32.load $heap offset=4
-      i32.ge_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $items
-      local.get $i
-      i32.const 12
-      i32.mul
-      i32.add
-      local.tee $items
-      i32.load $heap offset=16
-      local.get $items
-      i32.load $heap offset=20
-      local.get $items
-      i32.load $heap offset=24
-      call $rt:release'1
-      local.get $items
-      local.get $t2
-      i32.store $heap offset=16
-      local.get $items
-      local.get $t0
-      i32.store $heap offset=20
-      local.get $items
-      local.get $t1
-      i32.store $heap offset=24
+    local.get $items
+    i32.load $heap
+    local.set $t0
+    local.get $i
+    local.get $t0
+    i32.load $heap offset=4
+    i32.ge_u
+    if
+      call $rt:panic
+      unreachable
     end
+    local.get $t0
+    local.get $i
+    i32.const 12
+    i32.mul
+    i32.add
+    local.tee $t0
+    i32.load $heap offset=16
+    local.get $t0
+    i32.load $heap offset=20
+    local.set $t0
+    call $rt:coll_copy
+    local.get $t0
+    call $rt:coll_copy
+    local.set $t0
+    local.get $items
+    local.get $i
+    call $grow
+    local.set $t1
+    local.set $t2
+    local.get $items
+    local.get $items
+    i32.load $heap
+    call $rt:list_unique
+    i32.store $heap
+    local.get $items
+    i32.load $heap
+    local.set $items
+    local.get $i
+    local.get $items
+    i32.load $heap offset=4
+    i32.ge_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $items
+    local.get $i
+    i32.const 12
+    i32.mul
+    i32.add
+    local.tee $items
+    i32.load $heap offset=16
+    local.get $items
+    i32.load $heap offset=20
+    local.get $items
+    i32.load $heap offset=24
+    call $rt:release'1
+    local.get $items
+    local.get $t2
+    i32.store $heap offset=16
+    local.get $items
+    local.get $t0
+    i32.store $heap offset=20
+    local.get $items
+    local.get $t1
+    i32.store $heap offset=24
   )
   (func $replaced (param $p i32) (local $t0 i32)
     ;; 29 |     *p = Item { ...*p, batches: [1] }
-    block
-      i32.const 1
-      call $rt:list_buf'1
-      local.tee $t0
-      i32.const 1
-      i32.store $heap offset=4
-      local.get $t0
-      i64.const 1
-      i64.store $heap offset=16
+    i32.const 1
+    call $rt:list_buf'1
+    local.tee $t0
+    i32.const 1
+    i32.store $heap offset=4
+    local.get $t0
+    i64.const 1
+    i64.store $heap offset=16
+    local.get $p
+    i32.load $heap
+    local.get $p
+    local.get $t0
+    i32.store $heap
+    local.tee $p
+    if
       local.get $p
+      i32.const 8
+      i32.sub
       i32.load $heap
-      local.get $p
-      local.get $t0
-      i32.store $heap
-      local.tee $p
       if
         local.get $p
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $p
-          call $rt:release_ref
-        end
+        call $rt:release_ref
       end
     end
   )
   (func $grow (param $items i32) (param $i i32) (result i32) (local $t0 i32)
     ;; 37 |     items[i].batches = [9]
-    block
-      i32.const 1
-      call $rt:list_buf'1
-      local.tee $t0
-      i32.const 1
-      i32.store $heap offset=4
-      local.get $t0
-      i64.const 9
-      i64.store $heap offset=16
-      local.get $items
-      local.get $items
-      i32.load $heap
-      call $rt:list_unique
-      i32.store $heap
-      local.get $items
-      i32.load $heap
-      local.set $items
+    i32.const 1
+    call $rt:list_buf'1
+    local.tee $t0
+    i32.const 1
+    i32.store $heap offset=4
+    local.get $t0
+    i64.const 9
+    i64.store $heap offset=16
+    local.get $items
+    local.get $items
+    i32.load $heap
+    call $rt:list_unique
+    i32.store $heap
+    local.get $items
+    i32.load $heap
+    local.set $items
+    local.get $i
+    local.get $items
+    i32.load $heap offset=4
+    i32.ge_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $items
+    local.get $i
+    i32.const 12
+    i32.mul
+    i32.add
+    local.tee $items
+    i32.load $heap offset=16
+    local.tee $i
+    if
       local.get $i
-      local.get $items
-      i32.load $heap offset=4
-      i32.ge_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $items
-      local.get $i
-      i32.const 12
-      i32.mul
-      i32.add
-      local.tee $items
-      i32.load $heap offset=16
-      local.tee $i
+      i32.const 8
+      i32.sub
+      i32.load $heap
       if
         local.get $i
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $i
-          call $rt:release_ref
-        end
+        call $rt:release_ref
       end
-      local.get $items
-      local.get $t0
-      i32.store $heap offset=16
-      i32.const 7
-      local.set $items
     end
+    local.get $items
+    local.get $t0
+    i32.store $heap offset=16
+    i32.const 7
+    local.set $items
     local.get $items
   )
   (func $element (param $items i32) (param $i i32) (local $previous.r i32)
     ;; 19 |     previous := items[i]
-    block
-      local.get $items
-      i32.load $heap
-      local.set $previous.r
-      local.get $i
-      local.get $previous.r
-      i32.load $heap offset=4
-      i32.ge_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $previous.r
-      local.get $i
-      i32.const 12
-      i32.mul
-      i32.add
-      local.tee $previous.r
-      i32.load $heap offset=16
-      local.get $previous.r
-      i32.load $heap offset=20
-      local.get $previous.r
-      i32.load $heap offset=24
-      local.set $previous.r
-      drop
-      drop
-    ;; 20 |     items[i] = Item { ...previous, r: previous.r + 1 }
-      local.get $previous.r
-      i32.const 1
-      i32.add
-      local.set $previous.r
-    ;; 19 |     previous := items[i]
-      local.get $items
-      local.get $items
-      i32.load $heap
-      call $rt:list_unique
-      i32.store $heap
-    ;; 20 |     items[i] = Item { ...previous, r: previous.r + 1 }
-      local.get $items
-      i32.load $heap
-      local.set $items
-      local.get $i
-      local.get $items
-      i32.load $heap offset=4
-      i32.ge_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $items
-      local.get $i
-      i32.const 12
-      i32.mul
-      i32.add
-      local.get $previous.r
-      i32.store $heap offset=24
-    ;; 19 |     previous := items[i]
+    local.get $items
+    i32.load $heap
+    local.set $previous.r
+    local.get $i
+    local.get $previous.r
+    i32.load $heap offset=4
+    i32.ge_u
+    if
+      call $rt:panic
+      unreachable
     end
+    local.get $previous.r
+    local.get $i
+    i32.const 12
+    i32.mul
+    i32.add
+    local.tee $previous.r
+    i32.load $heap offset=16
+    local.get $previous.r
+    i32.load $heap offset=20
+    local.get $previous.r
+    i32.load $heap offset=24
+    local.set $previous.r
+    drop
+    drop
+    ;; 20 |     items[i] = Item { ...previous, r: previous.r + 1 }
+    local.get $previous.r
+    i32.const 1
+    i32.add
+    local.set $previous.r
+    ;; 19 |     previous := items[i]
+    local.get $items
+    local.get $items
+    i32.load $heap
+    call $rt:list_unique
+    i32.store $heap
+    ;; 20 |     items[i] = Item { ...previous, r: previous.r + 1 }
+    local.get $items
+    i32.load $heap
+    local.set $items
+    local.get $i
+    local.get $items
+    i32.load $heap offset=4
+    i32.ge_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $items
+    local.get $i
+    i32.const 12
+    i32.mul
+    i32.add
+    local.get $previous.r
+    i32.store $heap offset=24
   )
   (func $field (param $o i32)
     ;; 26 |     o.item = Item { ...o.item, r: o.item.r + 1 }
-    block
-      local.get $o
-      local.get $o
-      i32.load $heap offset=8
-      i32.const 1
-      i32.add
-      i32.store $heap offset=8
-    end
+    local.get $o
+    local.get $o
+    i32.load $heap offset=8
+    i32.const 1
+    i32.add
+    i32.store $heap offset=8
   )
 )

@@ -1817,6 +1817,9 @@ impl Module {
             self.reach();
             self.import_session(previous)?;
         }
+        for f in self.funcs.iter_mut().flatten() {
+            crate::opt::blocks(f);
+        }
         // Wide lowering rebuilds each body's callees from its final code.
         // Calls removed by local/count optimization no longer keep helpers.
         self.reach();

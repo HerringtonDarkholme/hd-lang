@@ -18,15 +18,13 @@
         i64.store $heap
       end
       block
-        block
-          local.get $tally
-          local.get $tally
-          i64.load $heap
-          i64.const 1
-          i64.add
-          i64.store $heap
-          br 0
-        end
+        local.get $tally
+        local.get $tally
+        i64.load $heap
+        i64.const 1
+        i64.add
+        i64.store $heap
+        br 0
       end
       ;; ...
     end

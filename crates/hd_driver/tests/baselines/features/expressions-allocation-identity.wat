@@ -5,61 +5,57 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $"impl Named for User.name" (param $self i32) (result i32 i32) (local $t0 i32) (local $t1 i32)
     ;; 14 |         self.name
-    block
-      local.get $self
-      i32.load $heap
-      local.get $self
-      i32.load $heap offset=4
-      local.set $t0
-      local.tee $self
-      local.tee $t1
-      if
-        local.get $t1
-        call $retain
-      end
+    local.get $self
+    i32.load $heap
+    local.get $self
+    i32.load $heap offset=4
+    local.set $t0
+    local.tee $self
+    local.tee $t1
+    if
+      local.get $t1
+      call $retain
     end
     local.get $self
     local.get $t0
   )
   (func $same_dyn (param $user i32) (result i32) (local $t1 i32) (local $t0 i32)
     ;; 17 |     let first: &mut dyn Named = user
-    block
-      local.get $user
-      local.tee $t0
-      if
-        local.get $t0
-        call $retain
-      end
-      local.get $user
-    ;; 18 |     let second: &mut dyn Named = user
-      local.get $user
-      local.tee $t0
-      if
-        local.get $t0
-        call $retain
-      end
-    ;; 19 |     first is second
-      local.tee $t1
-    ;; 18 |     let second: &mut dyn Named = user
-      local.get $user
-    ;; 19 |     first is second
-      i32.eq
-    ;; 18 |     let second: &mut dyn Named = user
-      local.get $user
-    ;; 17 |     let first: &mut dyn Named = user
-      local.tee $t0
-      if
-        local.get $t0
-        call $rt:release_ref
-      end
-      local.get $t1
-      local.tee $t0
-      if
-        local.get $t0
-        call $rt:release_ref
-      end
-      local.set $user
+    local.get $user
+    local.tee $t0
+    if
+      local.get $t0
+      call $retain
     end
+    local.get $user
+    ;; 18 |     let second: &mut dyn Named = user
+    local.get $user
+    local.tee $t0
+    if
+      local.get $t0
+      call $retain
+    end
+    ;; 19 |     first is second
+    local.tee $t1
+    ;; 18 |     let second: &mut dyn Named = user
+    local.get $user
+    ;; 19 |     first is second
+    i32.eq
+    ;; 18 |     let second: &mut dyn Named = user
+    local.get $user
+    ;; 17 |     let first: &mut dyn Named = user
+    local.tee $t0
+    if
+      local.get $t0
+      call $rt:release_ref
+    end
+    local.get $t1
+    local.tee $t0
+    if
+      local.get $t0
+      call $rt:release_ref
+    end
+    local.set $user
     local.get $user
   )
 )

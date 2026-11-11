@@ -7,14 +7,12 @@
   (import "fixture" "table0" (table $table0 3 funcref))
   (func $main (param $provider0 i32) (param $provider0.vtable i32)
     ;; 12 |     _ := $.use(Vault).keep('A')
-    block
-      local.get $provider0
-      i32.const 65
-      local.get $provider0.vtable
-      i32.load $heap
-      call_indirect $table0 (param i32 i32) (result i32)
-      drop
-    end
+    local.get $provider0
+    i32.const 65
+    local.get $provider0.vtable
+    i32.load $heap
+    call_indirect $table0 (param i32 i32) (result i32)
+    drop
   )
   (func $rt:enc (param $t0 i32) (param $t1 i32) (result i32)
     ;; (no span)

@@ -36,131 +36,115 @@
     global.set $locals
     block
       block
+        i64.const -3750763034362895579
+        local.set $t1
+        br 0
+      end
+      local.get $t0
+      i64.const 0
+      i64.store $heap
+      local.get $t0
+      i32.const 8
+      i32.add
+      local.tee $t2
+      local.get $t1
+      i64.store $heap
+      local.get $t2
+      local.set $t3
+      block
         block
+          local.get $key
+          i64.extend_i32_u
+          local.set $t1
+          i32.const 4
+          local.set $key
           block
+            local.get $t3
+            i64.load $heap
+            local.set $t4
             block
-              i64.const -3750763034362895579
-              local.set $t1
-              br 0
-            end
-          end
-          local.get $t0
-          i64.const 0
-          i64.store $heap
-          local.get $t0
-          i32.const 8
-          i32.add
-          local.tee $t2
-          local.get $t1
-          i64.store $heap
-          local.get $t2
-          local.set $t3
-          block
-            block
-              block
+              loop
+                local.get $t5
+                local.get $key
+                i32.lt_u
+                i32.eqz
+                br_if 1
+                local.get $t1
+                i64.const 255
+                i64.and
+                i32.wrap_i64
+                i32.const 255
+                i32.and
+                local.set $t6
                 block
-                  local.get $key
+                  i64.const 4294967295
+                  local.set $t7
+                  local.get $t4
+                  local.get $t6
                   i64.extend_i32_u
-                  local.set $t1
-                  i32.const 4
-                  local.set $key
-                  block
-                    block
-                      local.get $t3
-                      i64.load $heap
-                      local.set $t4
-                      block
-                        loop
-                          local.get $t5
-                          local.get $key
-                          i32.lt_u
-                          i32.eqz
-                          br_if 1
-                          local.get $t1
-                          i64.const 255
-                          i64.and
-                          i32.wrap_i64
-                          i32.const 255
-                          i32.and
-                          local.set $t6
-                          block
-                            block
-                              i64.const 4294967295
-                              local.set $t7
-                              local.get $t4
-                              local.get $t6
-                              i64.extend_i32_u
-                              i64.xor
-                              local.tee $t4
-                              local.get $t7
-                              i64.and
-                              local.tee $t8
-                              i64.const 435
-                              i64.mul
-                              local.set $t9
-                              local.get $t8
-                              i64.const 256
-                              i64.mul
-                              local.get $t4
-                              i32.const 32
-                              i64.extend_i32_u
-                              i64.shr_u
-                              i64.const 435
-                              i64.mul
-                              i64.add
-                              local.get $t9
-                              i32.const 32
-                              i64.extend_i32_u
-                              i64.shr_u
-                              i64.add
-                              local.get $t7
-                              i64.and
-                              i32.const 32
-                              i64.extend_i32_u
-                              i64.shl
-                              local.get $t9
-                              local.get $t7
-                              i64.and
-                              i64.or
-                              local.set $t4
-                              br 0
-                            end
-                          end
-                          local.get $t1
-                          i32.const 8
-                          i64.extend_i32_u
-                          i64.shr_u
-                          local.set $t1
-                          local.get $t5
-                          i32.const 1
-                          i32.add
-                          local.set $t5
-                          br 0
-                        end
-                      end
-                      local.get $t3
-                      local.get $t4
-                      i64.store $heap
-                      br 0
-                    end
-                  end
+                  i64.xor
+                  local.tee $t4
+                  local.get $t7
+                  i64.and
+                  local.tee $t8
+                  i64.const 435
+                  i64.mul
+                  local.set $t9
+                  local.get $t8
+                  i64.const 256
+                  i64.mul
+                  local.get $t4
+                  i32.const 32
+                  i64.extend_i32_u
+                  i64.shr_u
+                  i64.const 435
+                  i64.mul
+                  i64.add
+                  local.get $t9
+                  i32.const 32
+                  i64.extend_i32_u
+                  i64.shr_u
+                  i64.add
+                  local.get $t7
+                  i64.and
+                  i32.const 32
+                  i64.extend_i32_u
+                  i64.shl
+                  local.get $t9
+                  local.get $t7
+                  i64.and
+                  i64.or
+                  local.set $t4
                   br 0
                 end
+                local.get $t1
+                i32.const 8
+                i64.extend_i32_u
+                i64.shr_u
+                local.set $t1
+                local.get $t5
+                i32.const 1
+                i32.add
+                local.set $t5
+                br 0
               end
-              br 0
             end
-          end
-          local.get $t2
-          i64.load $heap
-          local.set $t1
-          block
-            block
-              br 0
-            end
+            local.get $t3
+            local.get $t4
+            i64.store $heap
+            br 0
           end
           br 0
         end
+        br 0
       end
+      local.get $t2
+      i64.load $heap
+      local.set $t1
+      block
+        br 0
+      end
+      br 0
     end
     local.get $t1
     local.get $t0

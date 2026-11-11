@@ -3,13 +3,11 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $"impl Counter.bump" (param $self i32)
     ;; 14 |         self.at = self.at + 1
-    block
-      local.get $self
-      local.get $self
-      i64.load $heap
-      i64.const 1
-      i64.add
-      i64.store $heap
-    end
+    local.get $self
+    local.get $self
+    i64.load $heap
+    i64.const 1
+    i64.add
+    i64.store $heap
   )
 )

@@ -4,33 +4,29 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $reorder (param $values i32)
     ;; 13 |     values.sort_by(fn(left: &Entry, right: &Entry) -> Ordering: left.key.cmp(&right.key))
-    block
-      local.get $values
-      i32.const 1
-      i32.const 0
-      call $"impl[T < ?Copy] UniqList[T].sort_by[Entry]"
-    end
+    local.get $values
+    i32.const 1
+    i32.const 0
+    call $"impl[T < ?Copy] UniqList[T].sort_by[Entry]"
   )
   (func $reorder#1 (param $env i32) (param $left i32) (param $right i32) (param $ctx i32) (result i32)
     ;; 13 |     values.sort_by(fn(left: &Entry, right: &Entry) -> Ordering: left.key.cmp(&right.key))
-    block
-      local.get $left
-      i32.load $heap
-      local.set $env
-      local.get $right
-      i32.load $heap
-      local.set $left
-      i32.const 1
-      local.get $env
-      local.get $left
-      i32.gt_u
-      i32.add
-      local.get $env
-      local.get $left
-      i32.lt_u
-      i32.sub
-      local.set $env
-    end
+    local.get $left
+    i32.load $heap
+    local.set $env
+    local.get $right
+    i32.load $heap
+    local.set $left
+    i32.const 1
+    local.get $env
+    local.get $left
+    i32.gt_u
+    i32.add
+    local.get $env
+    local.get $left
+    i32.lt_u
+    i32.sub
+    local.set $env
     local.get $env
   )
 )

@@ -65,40 +65,38 @@
     local.get $b
     local.get $t3
     i32.store $heap offset=4
-    block
+    local.get $a
+    local.get $b
+    call $"impl[T < ?Copy & PartialOrd] PartialOrd for T?.partial_cmp[string]"
+    local.set $t1
+    local.get $a
+    if
       local.get $a
-      local.get $b
-      call $"impl[T < ?Copy & PartialOrd] PartialOrd for T?.partial_cmp[string]"
-      local.set $t1
+      i32.load $heap
       local.get $a
-      if
-        local.get $a
-        i32.load $heap
-        local.get $a
-        i32.load $heap offset=4
-        call $rt:release
-      end
-      local.get $b
-      if
-        local.get $b
-        i32.load $heap
-        local.get $b
-        i32.load $heap offset=4
-        call $rt:release
-      end
-      local.get $t1
-      i32.const 3
-      i32.eq
-      local.get $t1
-      i32.eqz
-      i32.or
-      if (result i32)
-        i32.const 0
-      else
-        i32.const 1
-      end
-      local.set $b
+      i32.load $heap offset=4
+      call $rt:release
     end
+    local.get $b
+    if
+      local.get $b
+      i32.load $heap
+      local.get $b
+      i32.load $heap offset=4
+      call $rt:release
+    end
+    local.get $t1
+    i32.const 3
+    i32.eq
+    local.get $t1
+    i32.eqz
+    i32.or
+    if (result i32)
+      i32.const 0
+    else
+      i32.const 1
+    end
+    local.set $b
     local.get $b
     local.get $t0
     i32.const 32
@@ -108,26 +106,22 @@
   (func $str_lt (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32)
     ;; 6 |     a < b
     block
-      block
-        block
-          local.get $a.0
-          local.get $a.1
-          local.get $b.0
-          local.get $b.1
-          call $string_order
-          local.set $a.0
-          br 0
-        end
-      end
       local.get $a.0
-      i32.eqz
-      if (result i32)
-        i32.const 1
-      else
-        i32.const 0
-      end
+      local.get $a.1
+      local.get $b.0
+      local.get $b.1
+      call $string_order
       local.set $a.0
+      br 0
     end
+    local.get $a.0
+    i32.eqz
+    if (result i32)
+      i32.const 1
+    else
+      i32.const 0
+    end
+    local.set $a.0
     local.get $a.0
   )
   (func $tuple_gt (param $b i32) (param $t1 i32) (param $t2 i64) (param $t3 i32) (param $t4 i32) (param $t5 i64) (result i32) (local $t0 i32) (local $a i32)
@@ -191,41 +185,39 @@
     local.get $b
     local.get $t5
     i64.store $heap offset=8
-    block
+    local.get $a
+    local.get $b
+    call $"impl[T < ?Copy & Tuple] PartialOrd for T by Structure.partial_cmp[(string, i64)]"
+    local.set $t1
+    local.get $a
+    if
       local.get $a
-      local.get $b
-      call $"impl[T < ?Copy & Tuple] PartialOrd for T by Structure.partial_cmp[(string, i64)]"
-      local.set $t1
-      local.get $a
+      i32.load $heap
+      local.tee $t3
       if
-        local.get $a
-        i32.load $heap
-        local.tee $t3
-        if
-          local.get $t3
-          call $rt:release_ref'1
-        end
+        local.get $t3
+        call $rt:release_ref'1
       end
-      local.get $b
-      if
-        local.get $b
-        i32.load $heap
-        local.tee $t3
-        if
-          local.get $t3
-          call $rt:release_ref'1
-        end
-      end
-      local.get $t1
-      i32.const 2
-      i32.eq
-      if (result i32)
-        i32.const 1
-      else
-        i32.const 0
-      end
-      local.set $b
     end
+    local.get $b
+    if
+      local.get $b
+      i32.load $heap
+      local.tee $t3
+      if
+        local.get $t3
+        call $rt:release_ref'1
+      end
+    end
+    local.get $t1
+    i32.const 2
+    i32.eq
+    if (result i32)
+      i32.const 1
+    else
+      i32.const 0
+    end
+    local.set $b
     local.get $b
     local.get $t0
     i32.const 48
@@ -281,57 +273,55 @@
     local.tee $b
     local.get $t1
     i32.store $heap
-    block
+    local.get $a
+    local.get $b
+    call $"impl[T < PartialOrd] PartialOrd for List[T].partial_cmp[string]"
+    local.set $t1
+    local.get $a
+    if
       local.get $a
-      local.get $b
-      call $"impl[T < PartialOrd] PartialOrd for List[T].partial_cmp[string]"
-      local.set $t1
-      local.get $a
+      i32.load $heap
+      local.tee $a
       if
         local.get $a
+        i32.const 8
+        i32.sub
         i32.load $heap
-        local.tee $a
         if
           local.get $a
-          i32.const 8
-          i32.sub
-          i32.load $heap
-          if
-            local.get $a
-            call $rt:release_ref'2
-          end
+          call $rt:release_ref'2
         end
       end
-      local.get $b
-      if
-        local.get $b
-        i32.load $heap
-        local.tee $a
-        if
-          local.get $a
-          i32.const 8
-          i32.sub
-          i32.load $heap
-          if
-            local.get $a
-            call $rt:release_ref'2
-          end
-        end
-      end
-      local.get $t1
-      i32.const 3
-      i32.eq
-      local.get $t1
-      i32.const 2
-      i32.eq
-      i32.or
-      if (result i32)
-        i32.const 0
-      else
-        i32.const 1
-      end
-      local.set $b
     end
+    local.get $b
+    if
+      local.get $b
+      i32.load $heap
+      local.tee $a
+      if
+        local.get $a
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $a
+          call $rt:release_ref'2
+        end
+      end
+    end
+    local.get $t1
+    i32.const 3
+    i32.eq
+    local.get $t1
+    i32.const 2
+    i32.eq
+    i32.or
+    if (result i32)
+      i32.const 0
+    else
+      i32.const 1
+    end
+    local.set $b
     local.get $b
     local.get $t0
     i32.const 32

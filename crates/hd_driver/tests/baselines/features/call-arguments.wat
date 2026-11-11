@@ -10,267 +10,231 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $by_mut (param $s i32) (local $t1 i32) (local $t0 i32)
     ;; 16 |     *s += "x"
-    block
-      local.get $s
-      i32.load $heap
-      local.get $s
-      i32.const 0
-      i32.store $heap
-      local.get $s
-      i32.load $heap offset=4
-      local.get $s
-      i32.const 0
-      i32.store $heap offset=4
-      i32.const 65 ;; &"x"
-      i32.const 1
-      call $rt:str_append
-      local.set $t0
-      local.set $t1
-      local.get $s
-      i32.load $heap
-      local.get $s
-      i32.load $heap offset=4
-      local.get $s
-      local.get $t1
-      i32.store $heap
-      local.get $s
-      local.get $t0
-      i32.store $heap offset=4
-      call $rt:release
-    end
+    local.get $s
+    i32.load $heap
+    local.get $s
+    i32.const 0
+    i32.store $heap
+    local.get $s
+    i32.load $heap offset=4
+    local.get $s
+    i32.const 0
+    i32.store $heap offset=4
+    i32.const 65 ;; &"x"
+    i32.const 1
+    call $rt:str_append
+    local.set $t0
+    local.set $t1
+    local.get $s
+    i32.load $heap
+    local.get $s
+    i32.load $heap offset=4
+    local.get $s
+    local.get $t1
+    i32.store $heap
+    local.get $s
+    local.get $t0
+    i32.store $heap offset=4
+    call $rt:release
   )
   (func $by_ref'1 (param $s i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 13 |     (s.len() + 1) * (s.len() + 2) * (s.len() + 3) * (s.len() + 4) / (s.len() + 5)
     block
-      block
-        block
-          local.get $s
-          i32.load $heap offset=4
-          local.set $t0
-          br 0
-        end
-      end
-      local.get $t0
-      i32.const 1
-      i32.add
-      local.set $t0
-      block
-        block
-          local.get $s
-          i32.load $heap offset=4
-          local.set $t1
-          br 0
-        end
-      end
-      local.get $t0
-      local.get $t1
-      i32.const 2
-      i32.add
-      i32.mul
-      local.set $t0
-      block
-        block
-          local.get $s
-          i32.load $heap offset=4
-          local.set $t1
-          br 0
-        end
-      end
-      local.get $t0
-      local.get $t1
-      i32.const 3
-      i32.add
-      i32.mul
-      local.set $t0
-      block
-        block
-          local.get $s
-          i32.load $heap offset=4
-          local.set $t1
-          br 0
-        end
-      end
-      local.get $t0
-      local.get $t1
-      i32.const 4
-      i32.add
-      i32.mul
-      local.set $t0
-      block
-        block
-          local.get $s
-          i32.load $heap offset=4
-          local.set $s
-          br 0
-        end
-      end
-      local.get $t0
       local.get $s
-      i32.const 5
-      i32.add
-      local.tee $s
-      i32.eqz
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $s
-      i32.div_u
-      local.set $s
+      i32.load $heap offset=4
+      local.set $t0
+      br 0
     end
+    local.get $t0
+    i32.const 1
+    i32.add
+    local.set $t0
+    block
+      local.get $s
+      i32.load $heap offset=4
+      local.set $t1
+      br 0
+    end
+    local.get $t0
+    local.get $t1
+    i32.const 2
+    i32.add
+    i32.mul
+    local.set $t0
+    block
+      local.get $s
+      i32.load $heap offset=4
+      local.set $t1
+      br 0
+    end
+    local.get $t0
+    local.get $t1
+    i32.const 3
+    i32.add
+    i32.mul
+    local.set $t0
+    block
+      local.get $s
+      i32.load $heap offset=4
+      local.set $t1
+      br 0
+    end
+    local.get $t0
+    local.get $t1
+    i32.const 4
+    i32.add
+    i32.mul
+    local.set $t0
+    block
+      local.get $s
+      i32.load $heap offset=4
+      local.set $s
+      br 0
+    end
+    local.get $t0
+    local.get $s
+    i32.const 5
+    i32.add
+    local.tee $s
+    i32.eqz
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $s
+    i32.div_u
+    local.set $s
     local.get $s
   )
   (func $by_value (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
     ;; 10 |     (s.len() + 1) * (s.len() + 2) * (s.len() + 3) * (s.len() + 4) / (s.len() + 5)
     block
-      block
-        block
-          local.get $s.1
-          local.set $s.0
-          br 0
-        end
-      end
-      local.get $s.0
-      i32.const 1
-      i32.add
-      local.set $s.0
-      block
-        block
-          local.get $s.1
-          local.set $t0
-          br 0
-        end
-      end
-      local.get $s.0
-      local.get $t0
-      i32.const 2
-      i32.add
-      i32.mul
-      local.set $s.0
-      block
-        block
-          local.get $s.1
-          local.set $t0
-          br 0
-        end
-      end
-      local.get $s.0
-      local.get $t0
-      i32.const 3
-      i32.add
-      i32.mul
-      local.set $s.0
-      block
-        block
-          local.get $s.1
-          local.set $t0
-          br 0
-        end
-      end
-      local.get $s.0
-      local.get $t0
-      i32.const 4
-      i32.add
-      i32.mul
-      local.set $s.0
-      block
-        block
-          br 0
-        end
-      end
-      local.get $s.0
       local.get $s.1
-      i32.const 5
-      i32.add
-      local.tee $s.0
-      i32.eqz
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $s.0
-      i32.div_u
       local.set $s.0
+      br 0
     end
+    local.get $s.0
+    i32.const 1
+    i32.add
+    local.set $s.0
+    block
+      local.get $s.1
+      local.set $t0
+      br 0
+    end
+    local.get $s.0
+    local.get $t0
+    i32.const 2
+    i32.add
+    i32.mul
+    local.set $s.0
+    block
+      local.get $s.1
+      local.set $t0
+      br 0
+    end
+    local.get $s.0
+    local.get $t0
+    i32.const 3
+    i32.add
+    i32.mul
+    local.set $s.0
+    block
+      local.get $s.1
+      local.set $t0
+      br 0
+    end
+    local.get $s.0
+    local.get $t0
+    i32.const 4
+    i32.add
+    i32.mul
+    local.set $s.0
+    block
+      br 0
+    end
+    local.get $s.0
+    local.get $s.1
+    i32.const 5
+    i32.add
+    local.tee $s.0
+    i32.eqz
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $s.0
+    i32.div_u
+    local.set $s.0
     local.get $s.0
   )
   (func $by_ptr (param $n i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 19 |     (n.name.len() + 1) * (n.name.len() + 2) * (n.name.len() + 3) / (n.name.len() + 5)
+    local.get $n
+    i32.load $heap
+    local.get $n
+    i32.load $heap offset=4
+    local.set $t0
+    drop
     block
-      local.get $n
-      i32.load $heap
-      local.get $n
-      i32.load $heap offset=4
-      local.set $t0
-      drop
-      block
-        block
-          br 0
-        end
-      end
-      local.get $t0
-      i32.const 1
-      i32.add
-      local.set $t0
-      local.get $n
-      i32.load $heap
-      local.get $n
-      i32.load $heap offset=4
-      local.set $t1
-      drop
-      block
-        block
-          br 0
-        end
-      end
-      local.get $t0
-      local.get $t1
-      i32.const 2
-      i32.add
-      i32.mul
-      local.set $t0
-      local.get $n
-      i32.load $heap
-      local.get $n
-      i32.load $heap offset=4
-      local.set $t1
-      drop
-      block
-        block
-          br 0
-        end
-      end
-      local.get $t0
-      local.get $t1
-      i32.const 3
-      i32.add
-      i32.mul
-      local.set $t0
-      local.get $n
-      i32.load $heap
-      local.get $n
-      i32.load $heap offset=4
-      local.set $n
-      drop
-      block
-        block
-          br 0
-        end
-      end
-      local.get $t0
-      local.get $n
-      i32.const 5
-      i32.add
-      local.tee $n
-      i32.eqz
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $n
-      i32.div_u
-      local.set $n
+      br 0
     end
+    local.get $t0
+    i32.const 1
+    i32.add
+    local.set $t0
+    local.get $n
+    i32.load $heap
+    local.get $n
+    i32.load $heap offset=4
+    local.set $t1
+    drop
+    block
+      br 0
+    end
+    local.get $t0
+    local.get $t1
+    i32.const 2
+    i32.add
+    i32.mul
+    local.set $t0
+    local.get $n
+    i32.load $heap
+    local.get $n
+    i32.load $heap offset=4
+    local.set $t1
+    drop
+    block
+      br 0
+    end
+    local.get $t0
+    local.get $t1
+    i32.const 3
+    i32.add
+    i32.mul
+    local.set $t0
+    local.get $n
+    i32.load $heap
+    local.get $n
+    i32.load $heap offset=4
+    local.set $n
+    drop
+    block
+      br 0
+    end
+    local.get $t0
+    local.get $n
+    i32.const 5
+    i32.add
+    local.tee $n
+    i32.eqz
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $n
+    i32.div_u
+    local.set $n
     local.get $n
   )
   (func $calls (param $s.0 i32) (param $s.1 i32) (param $n i32) (result i32) (local $t i32) (local $t0 i32) (local $t1 i32)
@@ -304,73 +268,71 @@
     i32.sub
     local.tee $t0
     global.set $locals
-    block
-      local.get $s.0
-      local.tee $t1
-      if
-        local.get $t1
-        call $retain
-      end
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $t
-      local.get $s.0
-      i32.store $heap
-      local.get $t
-      local.get $s.1
-      i32.store $heap offset=4
-      local.get $t
-    ;; 23 |     by_mut(&mut t)
-      call $by_mut
-    ;; 24 |     by_value(s) + by_ref(&s) + by_value(t) + by_ptr(n)
-      local.get $s.0
-      local.get $s.1
-      call $by_value
-      local.get $s.0
-      local.get $s.1
-      call $by_ref'2
-    ;; 22 |     let mut t = s
-      local.get $s.0
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref
-      end
-    ;; 24 |     by_value(s) + by_ref(&s) + by_value(t) + by_ptr(n)
-      i32.add
-      local.get $t
-      i32.load $heap
-      local.get $t
-      i32.load $heap offset=4
-      local.set $s.0
-      local.get $t
-      i32.const 0
-      i32.store $heap
-      local.get $t
-      i32.const 0
-      i32.store $heap offset=4
-      local.tee $s.1
-      local.get $s.0
-      call $by_value
-    ;; 22 |     let mut t = s
-      local.get $s.1
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref
-      end
-    ;; 24 |     by_value(s) + by_ref(&s) + by_value(t) + by_ptr(n)
-      i32.add
-      local.get $n
-      call $by_ptr
-      i32.add
-    ;; 22 |     let mut t = s
-      local.set $s.0
+    local.get $s.0
+    local.tee $t1
+    if
+      local.get $t1
+      call $retain
     end
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $t
+    local.get $s.0
+    i32.store $heap
+    local.get $t
+    local.get $s.1
+    i32.store $heap offset=4
+    local.get $t
+    ;; 23 |     by_mut(&mut t)
+    call $by_mut
+    ;; 24 |     by_value(s) + by_ref(&s) + by_value(t) + by_ptr(n)
+    local.get $s.0
+    local.get $s.1
+    call $by_value
+    local.get $s.0
+    local.get $s.1
+    call $by_ref'2
+    ;; 22 |     let mut t = s
+    local.get $s.0
+    local.tee $t1
+    if
+      local.get $t1
+      call $rt:release_ref
+    end
+    ;; 24 |     by_value(s) + by_ref(&s) + by_value(t) + by_ptr(n)
+    i32.add
+    local.get $t
+    i32.load $heap
+    local.get $t
+    i32.load $heap offset=4
+    local.set $s.0
+    local.get $t
+    i32.const 0
+    i32.store $heap
+    local.get $t
+    i32.const 0
+    i32.store $heap offset=4
+    local.tee $s.1
+    local.get $s.0
+    call $by_value
+    ;; 22 |     let mut t = s
+    local.get $s.1
+    local.tee $t1
+    if
+      local.get $t1
+      call $rt:release_ref
+    end
+    ;; 24 |     by_value(s) + by_ref(&s) + by_value(t) + by_ptr(n)
+    i32.add
+    local.get $n
+    call $by_ptr
+    i32.add
+    ;; 22 |     let mut t = s
+    local.set $s.0
     local.get $s.0
     local.get $t0
     i32.const 16
@@ -380,77 +342,65 @@
   (func $by_ref'2 (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 13 |     (s.len() + 1) * (s.len() + 2) * (s.len() + 3) * (s.len() + 4) / (s.len() + 5)
     block
-      block
-        block
-          local.get $s.1
-          local.set $t0
-          br 0
-        end
-      end
-      local.get $t0
-      i32.const 1
-      i32.add
+      local.get $s.1
       local.set $t0
-      block
-        block
-          local.get $s.1
-          local.set $t1
-          br 0
-        end
-      end
-      local.get $t0
-      local.get $t1
-      i32.const 2
-      i32.add
-      i32.mul
-      local.set $t0
-      block
-        block
-          local.get $s.1
-          local.set $t1
-          br 0
-        end
-      end
-      local.get $t0
-      local.get $t1
-      i32.const 3
-      i32.add
-      i32.mul
-      local.set $t0
-      block
-        block
-          local.get $s.1
-          local.set $t1
-          br 0
-        end
-      end
-      local.get $t0
-      local.get $t1
-      i32.const 4
-      i32.add
-      i32.mul
-      local.set $t0
-      block
-        block
-          local.get $s.1
-          local.set $s.0
-          br 0
-        end
-      end
-      local.get $t0
-      local.get $s.0
-      i32.const 5
-      i32.add
-      local.tee $s.0
-      i32.eqz
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $s.0
-      i32.div_u
-      local.set $s.0
+      br 0
     end
+    local.get $t0
+    i32.const 1
+    i32.add
+    local.set $t0
+    block
+      local.get $s.1
+      local.set $t1
+      br 0
+    end
+    local.get $t0
+    local.get $t1
+    i32.const 2
+    i32.add
+    i32.mul
+    local.set $t0
+    block
+      local.get $s.1
+      local.set $t1
+      br 0
+    end
+    local.get $t0
+    local.get $t1
+    i32.const 3
+    i32.add
+    i32.mul
+    local.set $t0
+    block
+      local.get $s.1
+      local.set $t1
+      br 0
+    end
+    local.get $t0
+    local.get $t1
+    i32.const 4
+    i32.add
+    i32.mul
+    local.set $t0
+    block
+      local.get $s.1
+      local.set $s.0
+      br 0
+    end
+    local.get $t0
+    local.get $s.0
+    i32.const 5
+    i32.add
+    local.tee $s.0
+    i32.eqz
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $s.0
+    i32.div_u
+    local.set $s.0
     local.get $s.0
   )
 )

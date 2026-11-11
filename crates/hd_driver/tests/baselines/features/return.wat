@@ -12,15 +12,11 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $ret_field (param $r.name.0 i32) (param $r.name.1 i32) (result i32 i32)
     ;; 13 |     r.name
-    block
-    end
     local.get $r.name.0
     local.get $r.name.1
   )
   (func $ret_param (param $s.0 i32) (param $s.1 i32) (result i32 i32)
     ;; 10 |     s
-    block
-    end
     local.get $s.0
     local.get $s.1
   )
@@ -64,86 +60,74 @@
     local.tee $n
     local.get $t1
     i64.store $heap
+    local.get $n
+    i64.load $heap
+    local.tee $t1
+    local.set $t2
     block
-      local.get $n
-      i64.load $heap
-      local.tee $t1
-      local.set $t2
       block
-        block
-          block
-            block
-              local.get $t2
-              call $signed_magnitude
-              call $unsigned_width
-              local.set $n
-              local.get $t2
-              i64.const 0
-              i64.lt_s
-              if
-                i32.const 1
-                local.set $t3
-              else
-              end
-              local.get $n
-              local.get $t3
-              i32.add
-              local.set $n
-              br 0
-            end
-          end
-          br 0
+        local.get $t2
+        call $signed_magnitude
+        call $unsigned_width
+        local.set $n
+        local.get $t2
+        i64.const 0
+        i64.lt_s
+        if
+          i32.const 1
+          local.set $t3
+        else
         end
+        local.get $n
+        local.get $t3
+        i32.add
+        local.set $n
+        br 0
       end
-      i32.const 2
-      local.tee $t3
-      local.get $n
-      i32.add
-      local.set $t4
-      block
-        block
-          local.get $t4
-          i32.const 16
-          local.set $t5
-          if
-            local.get $t4
-            call $rt:str
-            local.set $t5
-          end
-          local.get $t5
-          local.get $t4
-          local.set $t5
-          local.set $t4
-          br 0
-        end
-      end
-      i32.const 65 ;; &"n="
-      local.set $t6
-      block
-        block
-          local.get $t4
-          local.get $t6
-          i32.load16_u $heap align=1
-          i32.store16 $heap align=1
-          br 0
-        end
-      end
-      block
-        block
-          local.get $t1
-          local.get $t4
-          local.get $t3
-          i32.add
-          local.get $n
-          call $write_signed_sized
-          br 0
-        end
-      end
-      local.get $t4
-      local.get $t5
-      local.set $t3
-      local.set $n
+      br 0
     end
+    i32.const 2
+    local.tee $t3
+    local.get $n
+    i32.add
+    local.set $t4
+    block
+      local.get $t4
+      i32.const 16
+      local.set $t5
+      if
+        local.get $t4
+        call $rt:str
+        local.set $t5
+      end
+      local.get $t5
+      local.get $t4
+      local.set $t5
+      local.set $t4
+      br 0
+    end
+    i32.const 65 ;; &"n="
+    local.set $t6
+    block
+      local.get $t4
+      local.get $t6
+      i32.load16_u $heap align=1
+      i32.store16 $heap align=1
+      br 0
+    end
+    block
+      local.get $t1
+      local.get $t4
+      local.get $t3
+      i32.add
+      local.get $n
+      call $write_signed_sized
+      br 0
+    end
+    local.get $t4
+    local.get $t5
+    local.set $t3
+    local.set $n
     local.get $n
     local.get $t3
     local.get $t0
@@ -153,8 +137,6 @@
   )
   (func $ret_ref_field (param $r i32) (result i32)
     ;; 19 |     &r.name
-    block
-    end
     local.get $r
   )
   (func $use_rets (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32) (local $r i32) (local $t4 i32) (local $t3 i32)
@@ -200,98 +182,86 @@
     local.get $r
     local.get $t2
     i32.store $heap offset=4
+    local.get $r
+    i32.load $heap
+    local.get $r
+    i32.load $heap offset=4
+    local.set $t1
+    local.tee $t2
+    local.tee $t3
+    if
+      local.get $t3
+      call $retain
+    end
+    block
+      local.get $t2
+      local.get $t1
+      local.set $t2
+      local.set $t1
+      br 0
+    end
+    block
+      br 0
+    end
+    local.get $t1
+    local.tee $t3
+    if
+      local.get $t3
+      call $rt:release_ref
+    end
+    local.get $r
+    i32.load $heap
+    local.get $r
+    i32.load $heap offset=4
+    local.set $t1
+    local.tee $t4
+    local.tee $t3
+    if
+      local.get $t3
+      call $retain
+    end
+    block
+      local.get $t4
+      local.get $t1
+      local.set $t4
+      local.set $t1
+      br 0
+    end
+    block
+      br 0
+    end
+    local.get $t1
+    local.tee $t3
+    if
+      local.get $t3
+      call $rt:release_ref
+    end
+    local.get $t2
+    local.get $t4
+    i32.add
+    local.set $t1
     block
       local.get $r
-      i32.load $heap
-      local.get $r
-      i32.load $heap offset=4
-      local.set $t1
-      local.tee $t2
-      local.tee $t3
-      if
-        local.get $t3
-        call $retain
-      end
-      block
-        block
-          local.get $t2
-          local.get $t1
-          local.set $t2
-          local.set $t1
-          br 0
-        end
-      end
-      block
-        block
-          br 0
-        end
-      end
-      local.get $t1
-      local.tee $t3
-      if
-        local.get $t3
-        call $rt:release_ref
-      end
-      local.get $r
-      i32.load $heap
-      local.get $r
-      i32.load $heap offset=4
-      local.set $t1
-      local.tee $t4
-      local.tee $t3
-      if
-        local.get $t3
-        call $retain
-      end
-      block
-        block
-          local.get $t4
-          local.get $t1
-          local.set $t4
-          local.set $t1
-          br 0
-        end
-      end
-      block
-        block
-          br 0
-        end
-      end
-      local.get $t1
-      local.tee $t3
-      if
-        local.get $t3
-        call $rt:release_ref
-      end
-      local.get $t2
-      local.get $t4
-      i32.add
-      local.set $t1
-      block
-        block
-          local.get $r
-          local.set $t2
-          br 0
-        end
-      end
-      local.get $t2
-      call $"impl string.len"
       local.set $t2
-      local.get $r
-      if
-        local.get $r
-        i32.load $heap
-        local.tee $t3
-        if
-          local.get $t3
-          call $rt:release_ref
-        end
-      end
-      local.get $t1
-      local.get $t2
-      i32.add
-      local.set $t1
+      br 0
     end
+    local.get $t2
+    call $"impl string.len"
+    local.set $t2
+    local.get $r
+    if
+      local.get $r
+      i32.load $heap
+      local.tee $t3
+      if
+        local.get $t3
+        call $rt:release_ref
+      end
+    end
+    local.get $t1
+    local.get $t2
+    i32.add
+    local.set $t1
     local.get $t1
     local.get $t0
     i32.const 16

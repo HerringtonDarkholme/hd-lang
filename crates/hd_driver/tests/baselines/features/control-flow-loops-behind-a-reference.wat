@@ -15,182 +15,177 @@
   (import "fixture" "table0" (table $table0 5 funcref))
   (func $"impl Parser.snapshot" (param $self i32) (param $n i32) (result i32) (local $last i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 26 |         let mut last: List[usize] = []
+    i32.const 72 ;; &empty-buffer
+    local.set $last
+    ;; 27 |         for i in 0..n:
     block
-      i32.const 72 ;; &empty-buffer
-      local.set $last
-    ;; 27 |         for i in 0..n:
-      block
-        loop
-          local.get $t0
-          local.get $n
-          i32.lt_u
-          i32.eqz
-          br_if 1
-          local.get $t0
-          local.get $t0
-          i32.const 1
-          i32.add
-          local.set $t0
+      loop
+        local.get $t0
+        local.get $n
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $t0
+        local.get $t0
+        i32.const 1
+        i32.add
+        local.set $t0
     ;; 28 |             last = self.index
-          local.get $self
-          i32.load $heap
-          call $rt:coll_copy
-          local.get $last
-          local.tee $last
-          if
-            local.get $last
-            i32.const 8
-            i32.sub
-            i32.load $heap
-            if
-              local.get $last
-              call $rt:release_ref
-            end
-          end
-          local.set $last
-    ;; 29 |             self.index[i] = self.held
-          local.get $self
-          i32.load $heap offset=8
-          local.set $t1
-    ;; 27 |         for i in 0..n:
-          local.get $self
-          local.get $self
-          i32.load $heap
-          call $rt:list_unique
-          i32.store $heap
-    ;; 29 |             self.index[i] = self.held
-          local.get $self
-          i32.load $heap
-          local.set $t2
-          local.tee $t3
-          local.get $t2
-          i32.load $heap offset=4
-          i32.ge_u
-          if
-            call $rt:panic
-            unreachable
-          end
-          local.get $t2
-          local.get $t3
-          i32.const 4
-          i32.mul
-          i32.add
-          local.get $t1
-          i32.store $heap offset=16
-    ;; 27 |         for i in 0..n:
-          br 0
-        end
-      end
-    ;; 30 |         last.len()
-      local.get $last
-      i32.load $heap offset=4
-      local.get $last
-    ;; 26 |         let mut last: List[usize] = []
-      if
-        local.get $last
-        i32.const 8
-        i32.sub
+        local.get $self
         i32.load $heap
+        call $rt:coll_copy
+        local.get $last
+        local.tee $last
         if
           local.get $last
-          call $rt:release_ref
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          if
+            local.get $last
+            call $rt:release_ref
+          end
         end
-      end
-      local.set $self
-    end
-    local.get $self
-  )
-  (func $"impl Parser.drain_into" (param $self i32) (param $mark i32) (local $held i32) (local $word i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
-    ;; 14 |         held := self.held
-    block
-      local.get $self
-      i32.load $heap offset=8
-      local.set $held
-    ;; 15 |         let word = mark
-      local.get $mark
-      local.tee $word
-    ;; 16 |         while word < held:
-      local.get $held
-      i32.lt_u
-      if
+        local.set $last
+    ;; 29 |             self.index[i] = self.held
+        local.get $self
+        i32.load $heap offset=8
+        local.set $t1
+    ;; 27 |         for i in 0..n:
         local.get $self
         local.get $self
         i32.load $heap
         call $rt:list_unique
         i32.store $heap
-      end
-      block
-        loop
-          local.get $word
-          local.get $held
-          i32.lt_u
-          i32.eqz
-          br_if 1
-    ;; 17 |             self.index.push(self.pending[word])
-          local.get $self
-          i32.load $heap offset=4
-          local.set $t0
-          local.get $word
-          local.get $t0
-          i32.load $heap offset=4
-          i32.ge_u
-          if
-            call $rt:panic
-            unreachable
-          end
-          local.get $t0
-          local.get $word
-          i32.const 4
-          i32.mul
-          i32.add
-          i32.load $heap offset=16
-          local.set $t0
-    ;; 16 |         while word < held:
-          local.get $self
-          i32.load $heap
-    ;; 17 |             self.index.push(self.pending[word])
-          local.tee $t1
-          i32.load $heap offset=4
-          local.tee $t2
-          local.get $t1
-          i32.load $heap
-          i32.eq
-          if
-            local.get $t1
-            i32.const 1
-            call_indirect $table0 (param i32) (result i32)
-            local.set $t1
-            local.get $self
-            local.get $t1
-            i32.store $heap
-          end
-          local.get $t1
-          local.get $t2
-          i32.const 4
-          i32.mul
-          i32.add
-          local.get $t0
-          i32.store $heap offset=16
-          local.get $t1
-          local.get $t2
-          i32.const 1
-          i32.add
-          i32.store $heap offset=4
-    ;; 18 |             word = word + 1
-          local.get $word
-          i32.const 1
-          i32.add
-          local.set $word
-    ;; 16 |         while word < held:
-          br 0
+    ;; 29 |             self.index[i] = self.held
+        local.get $self
+        i32.load $heap
+        local.set $t2
+        local.tee $t3
+        local.get $t2
+        i32.load $heap offset=4
+        i32.ge_u
+        if
+          call $rt:panic
+          unreachable
         end
+        local.get $t2
+        local.get $t3
+        i32.const 4
+        i32.mul
+        i32.add
+        local.get $t1
+        i32.store $heap offset=16
+    ;; 27 |         for i in 0..n:
+        br 0
       end
-    ;; 19 |         self.held = mark
-      local.get $self
-      local.get $mark
-      i32.store $heap offset=8
-    ;; 14 |         held := self.held
     end
+    ;; 30 |         last.len()
+    local.get $last
+    i32.load $heap offset=4
+    local.get $last
+    ;; 26 |         let mut last: List[usize] = []
+    if
+      local.get $last
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $last
+        call $rt:release_ref
+      end
+    end
+    local.set $self
+    local.get $self
+  )
+  (func $"impl Parser.drain_into" (param $self i32) (param $mark i32) (local $held i32) (local $word i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+    ;; 14 |         held := self.held
+    local.get $self
+    i32.load $heap offset=8
+    local.set $held
+    ;; 15 |         let word = mark
+    local.get $mark
+    local.tee $word
+    ;; 16 |         while word < held:
+    local.get $held
+    i32.lt_u
+    if
+      local.get $self
+      local.get $self
+      i32.load $heap
+      call $rt:list_unique
+      i32.store $heap
+    end
+    block
+      loop
+        local.get $word
+        local.get $held
+        i32.lt_u
+        i32.eqz
+        br_if 1
+    ;; 17 |             self.index.push(self.pending[word])
+        local.get $self
+        i32.load $heap offset=4
+        local.set $t0
+        local.get $word
+        local.get $t0
+        i32.load $heap offset=4
+        i32.ge_u
+        if
+          call $rt:panic
+          unreachable
+        end
+        local.get $t0
+        local.get $word
+        i32.const 4
+        i32.mul
+        i32.add
+        i32.load $heap offset=16
+        local.set $t0
+    ;; 16 |         while word < held:
+        local.get $self
+        i32.load $heap
+    ;; 17 |             self.index.push(self.pending[word])
+        local.tee $t1
+        i32.load $heap offset=4
+        local.tee $t2
+        local.get $t1
+        i32.load $heap
+        i32.eq
+        if
+          local.get $t1
+          i32.const 1
+          call_indirect $table0 (param i32) (result i32)
+          local.set $t1
+          local.get $self
+          local.get $t1
+          i32.store $heap
+        end
+        local.get $t1
+        local.get $t2
+        i32.const 4
+        i32.mul
+        i32.add
+        local.get $t0
+        i32.store $heap offset=16
+        local.get $t1
+        local.get $t2
+        i32.const 1
+        i32.add
+        i32.store $heap offset=4
+    ;; 18 |             word = word + 1
+        local.get $word
+        i32.const 1
+        i32.add
+        local.set $word
+    ;; 16 |         while word < held:
+        br 0
+      end
+    end
+    ;; 19 |         self.held = mark
+    local.get $self
+    local.get $mark
+    i32.store $heap offset=8
   )
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $p i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i64) (local $t7 i64) (local $t8 i64)
     ;; 33 |     let mut p = Parser { index: [], pending: [], held: 0 }
@@ -223,202 +218,188 @@
     i32.sub
     local.tee $t0
     global.set $locals
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $p
+    i32.const 72 ;; &empty-buffer
+    i32.store $heap
+    local.get $p
+    i32.const 72 ;; &empty-buffer
+    i32.store $heap offset=4
+    local.get $p
+    i32.const 0
+    i32.store $heap offset=8
+    ;; 34 |     for i in 0..4:
+    i32.const 4
+    local.set $t1
     block
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $p
-      i32.const 72 ;; &empty-buffer
-      i32.store $heap
-      local.get $p
-      i32.const 72 ;; &empty-buffer
-      i32.store $heap offset=4
-      local.get $p
-      i32.const 0
-      i32.store $heap offset=8
-    ;; 34 |     for i in 0..4:
-      i32.const 4
-      local.set $t1
-      block
-        loop
-          local.get $t2
-          local.get $t1
-          i32.lt_u
-          i32.eqz
-          br_if 1
-          local.get $t2
-          local.get $t2
-          i32.const 1
-          i32.add
-          local.set $t2
+      loop
+        local.get $t2
+        local.get $t1
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $t2
+        local.get $t2
+        i32.const 1
+        i32.add
+        local.set $t2
     ;; 35 |         p.pending.push(i)
-          local.set $t3
+        local.set $t3
     ;; 34 |     for i in 0..4:
-          local.get $p
-          i32.load $heap offset=4
-          call $rt:list_unique
-          local.set $t4
-          local.get $p
-          local.get $t4
-          i32.store $heap offset=4
-          local.get $t4
-    ;; 35 |         p.pending.push(i)
-          i32.load $heap offset=4
-          local.tee $t5
-          local.get $t4
-          i32.load $heap
-          i32.eq
-          if
-            local.get $t4
-            i32.const 1
-            call_indirect $table0 (param i32) (result i32)
-            local.set $t4
-            local.get $p
-            local.get $t4
-            i32.store $heap offset=4
-          end
-          local.get $t4
-          local.get $t5
-          i32.const 4
-          i32.mul
-          i32.add
-          local.get $t3
-          i32.store $heap offset=16
-          local.get $t4
-          local.get $t5
-          i32.const 1
-          i32.add
-          i32.store $heap offset=4
-    ;; 34 |     for i in 0..4:
-          br 0
-        end
-      end
-    ;; 36 |     p.held = 4
-      local.get $p
-      i32.const 4
-      i32.store $heap offset=8
-    ;; 37 |     p.drain_into(0)
-      local.get $p
-      i32.const 0
-      call $"impl Parser.drain_into"
-    ;; 38 |     p.refill(2)
-      local.get $p
-      i32.const 2
-      call $"impl Parser.refill"
-    ;; 39 |     println("${p.index.len()} ${p.snapshot(2)}")
-      local.get $p
-      i32.load $heap
-      i32.load $heap offset=4
-      i64.extend_i32_u
-      local.tee $t6
-      local.set $t7
-      block
-        block
-          local.get $t7
-          call $unsigned_width
-          local.set $t2
-          br 0
-        end
-      end
-      local.get $p
-      i32.const 2
-      call $"impl Parser.snapshot"
-      local.set $t1
-    ;; 33 |     let mut p = Parser { index: [], pending: [], held: 0 }
-      local.get $p
-      if
-        local.get $p
-        i32.load $heap
         local.get $p
         i32.load $heap offset=4
+        call $rt:list_unique
+        local.set $t4
         local.get $p
-        i32.load $heap offset=8
-        call $rt:release
-      end
-    ;; 39 |     println("${p.index.len()} ${p.snapshot(2)}")
-      local.get $t1
-      i64.extend_i32_u
-      local.tee $t7
-      local.set $t8
-      block
-        block
-          local.get $t8
-          call $unsigned_width
-          local.set $p
-          br 0
-        end
-      end
-      local.get $t2
-      i32.const 1
-      i32.add
-      local.tee $t1
-      local.get $p
-      i32.add
-      local.set $t3
-      block
-        block
-          local.get $t3
-          i32.const 16
-          local.set $t4
-          if
-            local.get $t3
-            call $rt:str
-            local.set $t4
-          end
+        local.get $t4
+        i32.store $heap offset=4
+        local.get $t4
+    ;; 35 |         p.pending.push(i)
+        i32.load $heap offset=4
+        local.tee $t5
+        local.get $t4
+        i32.load $heap
+        i32.eq
+        if
           local.get $t4
-          local.get $t3
+          i32.const 1
+          call_indirect $table0 (param i32) (result i32)
           local.set $t4
-          local.set $t3
-          br 0
-        end
-      end
-      local.get $t2
-      local.set $t5
-      block
-        block
-          local.get $t6
-          local.get $t3
-          local.get $t5
-          call $write_unsigned_sized
-          br 0
-        end
-      end
-      i32.const 145 ;; &" "
-      local.set $t5
-      block
-        block
-          local.get $t3
-          local.get $t2
-          i32.add
-          local.get $t5
-          i32.load8_u $heap
-          i32.store8 $heap
-          br 0
-        end
-      end
-      block
-        block
-          local.get $t7
-          local.get $t3
-          local.get $t1
-          i32.add
           local.get $p
-          call $write_unsigned_sized
-          br 0
+          local.get $t4
+          i32.store $heap offset=4
         end
+        local.get $t4
+        local.get $t5
+        i32.const 4
+        i32.mul
+        i32.add
+        local.get $t3
+        i32.store $heap offset=16
+        local.get $t4
+        local.get $t5
+        i32.const 1
+        i32.add
+        i32.store $heap offset=4
+    ;; 34 |     for i in 0..4:
+        br 0
       end
-    ;; 33 |     let mut p = Parser { index: [], pending: [], held: 0 }
-      local.get $t3
-      local.get $t4
-    ;; 39 |     println("${p.index.len()} ${p.snapshot(2)}")
-      local.get $provider0
-      local.get $provider0.vtable
-      call $"println[string]"
-    ;; 33 |     let mut p = Parser { index: [], pending: [], held: 0 }
     end
+    ;; 36 |     p.held = 4
+    local.get $p
+    i32.const 4
+    i32.store $heap offset=8
+    ;; 37 |     p.drain_into(0)
+    local.get $p
+    i32.const 0
+    call $"impl Parser.drain_into"
+    ;; 38 |     p.refill(2)
+    local.get $p
+    i32.const 2
+    call $"impl Parser.refill"
+    ;; 39 |     println("${p.index.len()} ${p.snapshot(2)}")
+    local.get $p
+    i32.load $heap
+    i32.load $heap offset=4
+    i64.extend_i32_u
+    local.tee $t6
+    local.set $t7
+    block
+      local.get $t7
+      call $unsigned_width
+      local.set $t2
+      br 0
+    end
+    local.get $p
+    i32.const 2
+    call $"impl Parser.snapshot"
+    local.set $t1
+    ;; 33 |     let mut p = Parser { index: [], pending: [], held: 0 }
+    local.get $p
+    if
+      local.get $p
+      i32.load $heap
+      local.get $p
+      i32.load $heap offset=4
+      local.get $p
+      i32.load $heap offset=8
+      call $rt:release
+    end
+    ;; 39 |     println("${p.index.len()} ${p.snapshot(2)}")
+    local.get $t1
+    i64.extend_i32_u
+    local.tee $t7
+    local.set $t8
+    block
+      local.get $t8
+      call $unsigned_width
+      local.set $p
+      br 0
+    end
+    local.get $t2
+    i32.const 1
+    i32.add
+    local.tee $t1
+    local.get $p
+    i32.add
+    local.set $t3
+    block
+      local.get $t3
+      i32.const 16
+      local.set $t4
+      if
+        local.get $t3
+        call $rt:str
+        local.set $t4
+      end
+      local.get $t4
+      local.get $t3
+      local.set $t4
+      local.set $t3
+      br 0
+    end
+    local.get $t2
+    local.set $t5
+    block
+      local.get $t6
+      local.get $t3
+      local.get $t5
+      call $write_unsigned_sized
+      br 0
+    end
+    i32.const 145 ;; &" "
+    local.set $t5
+    block
+      local.get $t3
+      local.get $t2
+      i32.add
+      local.get $t5
+      i32.load8_u $heap
+      i32.store8 $heap
+      br 0
+    end
+    block
+      local.get $t7
+      local.get $t3
+      local.get $t1
+      i32.add
+      local.get $p
+      call $write_unsigned_sized
+      br 0
+    end
+    ;; 33 |     let mut p = Parser { index: [], pending: [], held: 0 }
+    local.get $t3
+    local.get $t4
+    ;; 39 |     println("${p.index.len()} ${p.snapshot(2)}")
+    local.get $provider0
+    local.get $provider0.vtable
+    call $"println[string]"
+    ;; 33 |     let mut p = Parser { index: [], pending: [], held: 0 }
     local.get $t0
     i32.const 24
     i32.add
@@ -426,54 +407,52 @@
   )
   (func $"impl Parser.refill" (param $self i32) (param $n i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 22 |         for i in 0..n:
+    local.get $t0
+    local.get $n
+    i32.lt_u
+    if
+      local.get $self
+      local.get $self
+      i32.load $heap
+      call $rt:list_unique
+      i32.store $heap
+    end
     block
-      local.get $t0
-      local.get $n
-      i32.lt_u
-      if
+      loop
+        local.get $t0
+        local.get $n
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $t0
+        local.get $t0
+        i32.const 1
+        i32.add
+        local.set $t0
+    ;; 23 |             self.index[i] = self.held
         local.get $self
+        i32.load $heap offset=8
+        local.set $t1
         local.get $self
         i32.load $heap
-        call $rt:list_unique
-        i32.store $heap
-      end
-      block
-        loop
-          local.get $t0
-          local.get $n
-          i32.lt_u
-          i32.eqz
-          br_if 1
-          local.get $t0
-          local.get $t0
-          i32.const 1
-          i32.add
-          local.set $t0
-    ;; 23 |             self.index[i] = self.held
-          local.get $self
-          i32.load $heap offset=8
-          local.set $t1
-          local.get $self
-          i32.load $heap
-          local.set $t2
-          local.tee $t3
-          local.get $t2
-          i32.load $heap offset=4
-          i32.ge_u
-          if
-            call $rt:panic
-            unreachable
-          end
-          local.get $t2
-          local.get $t3
-          i32.const 4
-          i32.mul
-          i32.add
-          local.get $t1
-          i32.store $heap offset=16
-    ;; 22 |         for i in 0..n:
-          br 0
+        local.set $t2
+        local.tee $t3
+        local.get $t2
+        i32.load $heap offset=4
+        i32.ge_u
+        if
+          call $rt:panic
+          unreachable
         end
+        local.get $t2
+        local.get $t3
+        i32.const 4
+        i32.mul
+        i32.add
+        local.get $t1
+        i32.store $heap offset=16
+    ;; 22 |         for i in 0..n:
+        br 0
       end
     end
   )

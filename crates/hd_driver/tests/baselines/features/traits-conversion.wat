@@ -4,42 +4,30 @@
   (func $name_len (param $s.0 i32) (param $s.1 i32) (result i32)
     ;; 19 |     Name::from(s).text.len()
     block
-      block
-        block
-          br 0
-        end
-      end
-      block
-        block
-          br 0
-        end
-      end
-      local.get $s.0
-      if
-        local.get $s.0
-        call $rt:release_ref
-      end
-      local.get $s.1
-      local.set $s.0
+      br 0
     end
+    block
+      br 0
+    end
+    local.get $s.0
+    if
+      local.get $s.0
+      call $rt:release_ref
+    end
+    local.get $s.1
+    local.set $s.0
     local.get $s.0
   )
   (func $convert (param $s.0 i32) (param $s.1 i32) (result i32 i32)
     ;; 16 |     Name::from(s)
     block
-      block
-        block
-          br 0
-        end
-      end
+      br 0
     end
     local.get $s.0
     local.get $s.1
   )
   (func $"impl From[string] for Name.from" (param $value.0 i32) (param $value.1 i32) (result i32 i32)
     ;; 13 |         Name { text: value }
-    block
-    end
     local.get $value.0
     local.get $value.1
   )

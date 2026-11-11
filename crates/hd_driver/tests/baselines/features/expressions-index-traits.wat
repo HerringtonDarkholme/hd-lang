@@ -50,52 +50,48 @@
     local.get $t1
     i32.store $heap
     block
-      block
-        block
-          local.get $n
-          local.get $n
-          i32.load $heap
-          call $rt:list_unique
-          i32.store $heap
-          local.get $n
-          i32.load $heap
-          local.set $t1
-          local.get $i
-          local.get $t1
-          i32.load $heap offset=4
-          i32.ge_u
-          if
-            call $rt:panic
-            unreachable
-          end
-          local.get $t1
-          local.get $i
-          i32.const 8
-          i32.mul
-          i32.add
-          i32.const 16
-          i32.add
-          local.set $t1
-          br 0
-        end
+      local.get $n
+      local.get $n
+      i32.load $heap
+      call $rt:list_unique
+      i32.store $heap
+      local.get $n
+      i32.load $heap
+      local.set $t1
+      local.get $i
+      local.get $t1
+      i32.load $heap offset=4
+      i32.ge_u
+      if
+        call $rt:panic
+        unreachable
       end
       local.get $t1
-      call $"impl string.len"
+      local.get $i
+      i32.const 8
+      i32.mul
+      i32.add
+      i32.const 16
+      i32.add
       local.set $t1
+      br 0
+    end
+    local.get $t1
+    call $"impl string.len"
+    local.set $t1
+    local.get $n
+    if
       local.get $n
+      i32.load $heap
+      local.tee $i
       if
-        local.get $n
+        local.get $i
+        i32.const 8
+        i32.sub
         i32.load $heap
-        local.tee $i
         if
           local.get $i
-          i32.const 8
-          i32.sub
-          i32.load $heap
-          if
-            local.get $i
-            call $rt:release_ref'1
-          end
+          call $rt:release_ref'1
         end
       end
     end
@@ -107,82 +103,76 @@
   )
   (func $write (param $n i32) (param $i i32) (param $s.0 i32) (param $s.1 i32)
     ;; 24 |     n[i] = s
-    block
-      local.get $n
-      local.get $i
-      local.get $s.0
-      local.get $s.1
-      call $"impl IndexSet[usize, string] for Names.index_set"
-    end
+    local.get $n
+    local.get $i
+    local.get $s.0
+    local.get $s.1
+    call $"impl IndexSet[usize, string] for Names.index_set"
   )
   (func $"impl Index[usize] for Names.index" (param $self i32) (param $key i32) (result i32)
     ;; 14 |         &self.items[key]
-    block
-      local.get $self
-      local.get $self
-      i32.load $heap
-      call $rt:list_unique
-      i32.store $heap
-      local.get $self
-      i32.load $heap
-      local.set $self
-      local.get $key
-      local.get $self
-      i32.load $heap offset=4
-      i32.ge_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $self
-      local.get $key
-      i32.const 8
-      i32.mul
-      i32.add
-      i32.const 16
-      i32.add
-      local.set $self
+    local.get $self
+    local.get $self
+    i32.load $heap
+    call $rt:list_unique
+    i32.store $heap
+    local.get $self
+    i32.load $heap
+    local.set $self
+    local.get $key
+    local.get $self
+    i32.load $heap offset=4
+    i32.ge_u
+    if
+      call $rt:panic
+      unreachable
     end
+    local.get $self
+    local.get $key
+    i32.const 8
+    i32.mul
+    i32.add
+    i32.const 16
+    i32.add
+    local.set $self
     local.get $self
   )
   (func $"impl IndexSet[usize, string] for Names.index_set" (param $self i32) (param $key i32) (param $value.0 i32) (param $value.1 i32)
     ;; 18 |         self.items[key] = value
-    block
-      local.get $self
-      local.get $self
-      i32.load $heap
-      call $rt:list_unique
-      i32.store $heap
-      local.get $self
-      i32.load $heap
-      local.set $self
-      local.get $key
-      local.get $self
-      i32.load $heap offset=4
-      i32.ge_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $self
-      local.get $key
-      i32.const 8
-      i32.mul
-      i32.add
-      local.tee $self
-      i32.load $heap offset=16
-      local.tee $key
-      if
-        local.get $key
-        call $rt:release_ref'2
-      end
-      local.get $self
-      local.get $value.0
-      i32.store $heap offset=16
-      local.get $self
-      local.get $value.1
-      i32.store $heap offset=20
+    local.get $self
+    local.get $self
+    i32.load $heap
+    call $rt:list_unique
+    i32.store $heap
+    local.get $self
+    i32.load $heap
+    local.set $self
+    local.get $key
+    local.get $self
+    i32.load $heap offset=4
+    i32.ge_u
+    if
+      call $rt:panic
+      unreachable
     end
+    local.get $self
+    local.get $key
+    i32.const 8
+    i32.mul
+    i32.add
+    local.tee $self
+    i32.load $heap offset=16
+    local.tee $key
+    if
+      local.get $key
+      call $rt:release_ref'2
+    end
+    local.get $self
+    local.get $value.0
+    i32.store $heap offset=16
+    local.get $self
+    local.get $value.1
+    i32.store $heap offset=20
   )
   (func $generic_first (param $xs i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 30 |     first(xs).len()
@@ -215,83 +205,75 @@
     i32.sub
     local.tee $t0
     global.set $locals
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $t1
+    local.get $xs
+    i32.store $heap
+    local.get $t1
+    local.set $xs
     block
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $t1
-      local.get $xs
-      i32.store $heap
-      local.get $t1
-      local.set $xs
       block
-        block
-          block
-            block
-              local.get $xs
-              i32.load $heap
-              local.set $t1
-              i32.const 0
-              local.get $t1
-              i32.load $heap offset=4
-              i32.ge_u
-              if
-                call $rt:panic
-                unreachable
-              end
-              local.get $t1
-              i32.const 16
-              i32.add
-              local.set $t1
-              br 0
-            end
-          end
-          local.get $t1
-          i32.load $heap
-          local.tee $t2
-          local.get $t1
-          i32.load $heap offset=4
-          local.tee $t1
-          call $rt:retain
-          local.get $t2
-          local.get $t1
-          local.set $t2
-          local.set $t1
-          br 0
-        end
-      end
-      local.get $xs
-      if
         local.get $xs
         i32.load $heap
-        local.tee $t3
+        local.set $t1
+        i32.const 0
+        local.get $t1
+        i32.load $heap offset=4
+        i32.ge_u
         if
-          local.get $t3
-          i32.const 8
-          i32.sub
-          i32.load $heap
-          if
-            local.get $t3
-            call $rt:release_ref'1
-          end
+          call $rt:panic
+          unreachable
         end
-      end
-      block
-        block
-          local.get $t2
-          local.set $xs
-          br 0
-        end
+        local.get $t1
+        i32.const 16
+        i32.add
+        local.set $t1
+        br 0
       end
       local.get $t1
+      i32.load $heap
+      local.tee $t2
+      local.get $t1
+      i32.load $heap offset=4
+      local.tee $t1
+      call $rt:retain
+      local.get $t2
+      local.get $t1
+      local.set $t2
+      local.set $t1
+      br 0
+    end
+    local.get $xs
+    if
+      local.get $xs
+      i32.load $heap
       local.tee $t3
       if
         local.get $t3
-        call $rt:release_ref'2
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t3
+          call $rt:release_ref'1
+        end
       end
+    end
+    block
+      local.get $t2
+      local.set $xs
+      br 0
+    end
+    local.get $t1
+    local.tee $t3
+    if
+      local.get $t3
+      call $rt:release_ref'2
     end
     local.get $xs
     local.get $t0

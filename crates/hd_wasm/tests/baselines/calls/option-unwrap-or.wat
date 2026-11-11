@@ -6,30 +6,28 @@
       block
         block
           block
-            block
+            local.get $found.0
+            i32.const 1
+            i32.eq
+            if
+              local.get $found.1
+              local.set $t0
+              br 1
+            else
               local.get $found.0
-              i32.const 1
-              i32.eq
-              if
-                local.get $found.1
-                local.set $t0
-                br 1
-              else
-                local.get $found.0
-                i32.eqz
-                br_if 2
-                unreachable
-              end
+              i32.eqz
+              br_if 2
               unreachable
             end
-            br 1
+            unreachable
           end
-          br 0
+          br 1
         end
-        local.get $t0
-        local.set $found.1
         br 0
       end
+      local.get $t0
+      local.set $found.1
+      br 0
     end
     local.get $found.1
   )

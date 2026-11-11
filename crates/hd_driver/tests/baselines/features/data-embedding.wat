@@ -4,18 +4,16 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $stamp_of (param $p i32) (result i32 i32) (local $t0 i32) (local $t1 i32)
     ;; 26 |     p.Stamp
-    block
-      local.get $p
-      i32.load $heap
-      local.get $p
-      i32.load $heap offset=4
-      local.set $t0
-      local.tee $p
-      local.tee $t1
-      if
-        local.get $t1
-        call $retain
-      end
+    local.get $p
+    i32.load $heap
+    local.get $p
+    i32.load $heap offset=4
+    local.set $t0
+    local.tee $p
+    local.tee $t1
+    if
+      local.get $t1
+      call $retain
     end
     local.get $p
     local.get $t0
@@ -23,64 +21,48 @@
   (func $promoted (param $p.Stamp.by.0 i32) (param $p.Stamp.by.1 i32) (param $p.title.0 i32) (param $p.title.1 i32) (result i32) (local $t0 i32)
     ;; 23 |     p.by.len() + p.by_len() + p.title.len()
     block
-      block
-        block
-          local.get $p.Stamp.by.1
-          local.set $t0
-          br 0
-        end
-      end
-      block
-        block
-          block
-            block
-              local.get $p.Stamp.by.1
-              local.set $p.Stamp.by.0
-              br 0
-            end
-          end
-          br 0
-        end
-      end
-      local.get $t0
-      local.get $p.Stamp.by.0
-      i32.add
-      local.set $p.Stamp.by.0
-      block
-        block
-          local.get $p.title.1
-          local.set $p.Stamp.by.1
-          br 0
-        end
-      end
-      local.get $p.Stamp.by.0
       local.get $p.Stamp.by.1
-      i32.add
-      local.set $p.Stamp.by.0
+      local.set $t0
+      br 0
     end
+    block
+      block
+        local.get $p.Stamp.by.1
+        local.set $p.Stamp.by.0
+        br 0
+      end
+      br 0
+    end
+    local.get $t0
+    local.get $p.Stamp.by.0
+    i32.add
+    local.set $p.Stamp.by.0
+    block
+      local.get $p.title.1
+      local.set $p.Stamp.by.1
+      br 0
+    end
+    local.get $p.Stamp.by.0
+    local.get $p.Stamp.by.1
+    i32.add
+    local.set $p.Stamp.by.0
     local.get $p.Stamp.by.0
   )
   (func $"impl Stamp.by_len" (param $self i32) (result i32)
     ;; 13 |         self.by.len()
+    local.get $self
+    i32.load $heap
+    local.get $self
+    i32.load $heap offset=4
+    local.set $self
+    drop
     block
-      local.get $self
-      i32.load $heap
-      local.get $self
-      i32.load $heap offset=4
-      local.set $self
-      drop
-      block
-        block
-          br 0
-        end
-      end
+      br 0
     end
     local.get $self
   )
   (func $make (param $s.0 i32) (param $s.1 i32) (param $t.0 i32) (param $t.1 i32) (result i32 i32 i32 i32)
     ;; 20 |     Post { Stamp: Stamp { by: s }, title: t }
-    block
-    end
     local.get $s.0
     local.get $s.1
     local.get $t.0

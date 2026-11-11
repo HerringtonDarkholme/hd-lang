@@ -4,26 +4,24 @@
   (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32)))
   (func $reuse (param $n.0 i32) (param $n.1 i32) (result i32 i32 i32 i32 i32 i32) (local $t0 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32)
     ;; 28 |     (Rec { name: n, tags: [] }, Rec { name: n, tags: [] })
-    block
-      local.get $n.0
-      local.tee $t0
-      if
-        local.get $t0
-        call $retain
-      end
-      local.get $n.0
-      local.get $n.1
-      i32.const 24 ;; &empty-buffer
-      local.get $n.0
-      local.get $n.1
-      i32.const 24 ;; &empty-buffer
-      local.set $t1
-      local.set $t2
-      local.set $t3
-      local.set $t0
-      local.set $n.1
-      local.set $n.0
+    local.get $n.0
+    local.tee $t0
+    if
+      local.get $t0
+      call $retain
     end
+    local.get $n.0
+    local.get $n.1
+    i32.const 24 ;; &empty-buffer
+    local.get $n.0
+    local.get $n.1
+    i32.const 24 ;; &empty-buffer
+    local.set $t1
+    local.set $t2
+    local.set $t3
+    local.set $t0
+    local.set $n.1
+    local.set $n.0
     local.get $n.0
     local.get $n.1
     local.get $t0
@@ -33,36 +31,28 @@
   )
   (func $make_tuple (param $n.0 i32) (param $n.1 i32) (param $t i32) (result i32 i32 i32)
     ;; 19 |     (n, t)
-    block
-    end
     local.get $n.0
     local.get $n.1
     local.get $t
   )
   (func $make_struct (param $n.0 i32) (param $n.1 i32) (param $t i32) (result i32 i32 i32)
     ;; 16 |     Rec { name: n, tags: t }
-    block
-    end
     local.get $n.0
     local.get $n.1
     local.get $t
   )
   (func $update (param $r.name.0 i32) (param $r.name.1 i32) (param $r.tags i32) (param $n.0 i32) (param $n.1 i32) (result i32 i32 i32)
     ;; 25 |     Rec { ...r, name: n }
-    block
-      local.get $r.name.0
-      local.get $r.name.1
-      i32.const 0
-      call $rt:release
-    end
+    local.get $r.name.0
+    local.get $r.name.1
+    i32.const 0
+    call $rt:release
     local.get $n.0
     local.get $n.1
     local.get $r.tags
   )
   (func $make_enum (param $n.0 i32) (param $n.1 i32) (result i32 i32)
     ;; 22 |     Shape.Named(n)
-    block
-    end
     local.get $n.0
     local.get $n.1
   )

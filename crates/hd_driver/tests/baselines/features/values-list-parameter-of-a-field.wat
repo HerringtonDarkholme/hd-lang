@@ -17,21 +17,18 @@
   (import "fixture" "table0" (table $table0 5 funcref))
   (func $"impl Trail.enter" (param $self i32) (param $step i64)
     ;; 22 |         record_step(&mut self.steps, self.depth, step)
-    block
-      local.get $self
-      local.get $self
-      i32.load $heap offset=4
-      local.get $step
-      call $record_step
+    local.get $self
+    local.get $self
+    i32.load $heap offset=4
+    local.get $step
+    call $record_step
     ;; 23 |         self.depth = self.depth + 1
-      local.get $self
-      local.get $self
-      i32.load $heap offset=4
-      i32.const 1
-      i32.add
-      i32.store $heap offset=4
-    ;; 22 |         record_step(&mut self.steps, self.depth, step)
-    end
+    local.get $self
+    local.get $self
+    i32.load $heap offset=4
+    i32.const 1
+    i32.add
+    i32.store $heap offset=4
   )
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $trail i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $i i32) (local $t3 i64) (local $t4 i64) (local $t5 i64) (local $t6 i32) (local $t7 i64) (local $t8 i32) (local $t9 i32) (local $t10 i32) (local $t11 i32)
     ;; 26 |     let mut trail = Trail { steps: [], depth: 0 }
@@ -64,118 +61,84 @@
     i32.sub
     local.tee $t0
     global.set $locals
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $trail
+    i32.const 128 ;; &empty-buffer
+    i32.store $heap
+    local.get $trail
+    i32.const 0
+    i32.store $heap offset=4
+    ;; 27 |     for i in 0..4:
+    i32.const 4
+    local.set $t1
     block
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $trail
-      i32.const 128 ;; &empty-buffer
-      i32.store $heap
-      local.get $trail
-      i32.const 0
-      i32.store $heap offset=4
-    ;; 27 |     for i in 0..4:
-      i32.const 4
-      local.set $t1
-      block
-        loop
-          local.get $t2
-          local.get $t1
-          i32.lt_u
-          i32.eqz
-          br_if 1
-          local.get $t2
-          local.set $i
-          local.get $t2
-          i32.const 1
-          i32.add
-          local.set $t2
+      loop
+        local.get $t2
+        local.get $t1
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $t2
+        local.set $i
+        local.get $t2
+        i32.const 1
+        i32.add
+        local.set $t2
     ;; 28 |         trail.enter(i64(i))
-          local.get $trail
-          local.get $i
-          i64.extend_i32_u
-          call $"impl Trail.enter"
-    ;; 27 |     for i in 0..4:
-          br 0
-        end
-      end
-    ;; 29 |     let mut local: List[i64] = [5, 6]
-      i32.const 2
-      call $rt:list_buf
-      local.tee $t2
-      i32.const 2
-      i32.store $heap offset=4
-      local.get $t2
-      i64.const 5
-      i64.store $heap offset=16
-      local.get $t2
-      i64.const 6
-      i64.store $heap offset=24
-      local.get $t0
-      i64.const 0
-      i64.store $heap offset=16
-      local.get $t0
-      i32.const 24
-      i32.add
-      local.tee $t1
-      local.get $t2
-      i32.store $heap
-      local.get $t1
-      local.tee $t2
-    ;; 30 |     saved := local
-      i32.load $heap
-      call $rt:coll_copy
-      local.set $t1
-    ;; 31 |     set_first(&mut local, 9)
-      local.get $t2
-      i64.const 9
-      call $set_first
-    ;; 32 |     println("${trail.depth} ${saved[0]} ${local[0]}")
-      local.get $trail
-      i32.load $heap offset=4
-      i64.extend_i32_u
-      local.set $t3
-    ;; 26 |     let mut trail = Trail { steps: [], depth: 0 }
-      local.get $trail
-      if
         local.get $trail
-        i32.load $heap
-        local.tee $i
-        if
-          local.get $i
-          i32.const 8
-          i32.sub
-          i32.load $heap
-          if
-            local.get $i
-            call $rt:release_ref
-          end
-        end
+        local.get $i
+        i64.extend_i32_u
+        call $"impl Trail.enter"
+    ;; 27 |     for i in 0..4:
+        br 0
       end
+    end
+    ;; 29 |     let mut local: List[i64] = [5, 6]
+    i32.const 2
+    call $rt:list_buf
+    local.tee $t2
+    i32.const 2
+    i32.store $heap offset=4
+    local.get $t2
+    i64.const 5
+    i64.store $heap offset=16
+    local.get $t2
+    i64.const 6
+    i64.store $heap offset=24
+    local.get $t0
+    i64.const 0
+    i64.store $heap offset=16
+    local.get $t0
+    i32.const 24
+    i32.add
+    local.tee $t1
+    local.get $t2
+    i32.store $heap
+    local.get $t1
+    local.tee $t2
+    ;; 30 |     saved := local
+    i32.load $heap
+    call $rt:coll_copy
+    local.set $t1
+    ;; 31 |     set_first(&mut local, 9)
+    local.get $t2
+    i64.const 9
+    call $set_first
     ;; 32 |     println("${trail.depth} ${saved[0]} ${local[0]}")
-      block
-        block
-          local.get $t3
-          call $unsigned_width
-          local.set $trail
-          br 0
-        end
-      end
-      i32.const 0
-      local.get $t1
-      i32.load $heap offset=4
-      i32.ge_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $t1
-      i64.load $heap offset=16
+    local.get $trail
+    i32.load $heap offset=4
+    i64.extend_i32_u
+    local.set $t3
     ;; 26 |     let mut trail = Trail { steps: [], depth: 0 }
-      local.get $t1
+    local.get $trail
+    if
+      local.get $trail
+      i32.load $heap
       local.tee $i
       if
         local.get $i
@@ -187,193 +150,203 @@
           call $rt:release_ref
         end
       end
+    end
     ;; 32 |     println("${trail.depth} ${saved[0]} ${local[0]}")
-      local.tee $t4
-      local.set $t5
-      block
-        block
-          block
-            block
-              local.get $t5
-              call $signed_magnitude
-              call $unsigned_width
-              local.set $t1
-              local.get $t5
-              i64.const 0
-              i64.lt_s
-              if
-                i32.const 1
-                local.set $t6
-              else
-              end
-              local.get $t1
-              local.get $t6
-              i32.add
-              local.set $t1
-              br 0
-            end
-          end
-          br 0
-        end
+    block
+      local.get $t3
+      call $unsigned_width
+      local.set $trail
+      br 0
+    end
+    i32.const 0
+    local.get $t1
+    i32.load $heap offset=4
+    i32.ge_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $t1
+    i64.load $heap offset=16
+    ;; 26 |     let mut trail = Trail { steps: [], depth: 0 }
+    local.get $t1
+    local.tee $i
+    if
+      local.get $i
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $i
+        call $rt:release_ref
       end
+    end
+    ;; 32 |     println("${trail.depth} ${saved[0]} ${local[0]}")
+    local.tee $t4
+    local.set $t5
+    block
+      block
+        local.get $t5
+        call $signed_magnitude
+        call $unsigned_width
+        local.set $t1
+        local.get $t5
+        i64.const 0
+        i64.lt_s
+        if
+          i32.const 1
+          local.set $t6
+        else
+        end
+        local.get $t1
+        local.get $t6
+        i32.add
+        local.set $t1
+        br 0
+      end
+      br 0
+    end
+    local.get $t2
+    i32.load $heap
+    local.set $i
+    i32.const 0
+    local.get $i
+    i32.load $heap offset=4
+    i32.ge_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $i
+    i64.load $heap offset=16
+    local.set $t5
+    ;; 26 |     let mut trail = Trail { steps: [], depth: 0 }
+    local.get $t2
+    if
       local.get $t2
       i32.load $heap
-      local.set $i
-      i32.const 0
-      local.get $i
-      i32.load $heap offset=4
-      i32.ge_u
+      local.tee $i
       if
-        call $rt:panic
-        unreachable
-      end
-      local.get $i
-      i64.load $heap offset=16
-      local.set $t5
-    ;; 26 |     let mut trail = Trail { steps: [], depth: 0 }
-      local.get $t2
-      if
-        local.get $t2
+        local.get $i
+        i32.const 8
+        i32.sub
         i32.load $heap
-        local.tee $i
         if
           local.get $i
-          i32.const 8
-          i32.sub
-          i32.load $heap
-          if
-            local.get $i
-            call $rt:release_ref
-          end
+          call $rt:release_ref
         end
       end
-    ;; 32 |     println("${trail.depth} ${saved[0]} ${local[0]}")
-      local.get $t5
-      local.set $t7
-      block
-        block
-          block
-            block
-              local.get $t7
-              call $signed_magnitude
-              call $unsigned_width
-              local.set $t2
-              local.get $t7
-              i64.const 0
-              i64.lt_s
-              if
-                i32.const 1
-                local.set $t8
-              else
-              end
-              local.get $t2
-              local.get $t8
-              i32.add
-              local.set $t2
-              br 0
-            end
-          end
-          br 0
-        end
-      end
-      local.get $trail
-      i32.const 1
-      i32.add
-      local.tee $i
-      local.get $t1
-      i32.add
-      local.tee $t6
-      i32.const 1
-      i32.add
-      local.tee $t8
-      local.get $t2
-      i32.add
-      local.set $t9
-      block
-        block
-          local.get $t9
-          i32.const 16
-          local.set $t10
-          if
-            local.get $t9
-            call $rt:str
-            local.set $t10
-          end
-          local.get $t10
-          local.get $t9
-          local.set $t10
-          local.set $t9
-          br 0
-        end
-      end
-      local.get $trail
-      local.set $t11
-      block
-        block
-          local.get $t3
-          local.get $t9
-          local.get $t11
-          call $write_unsigned_sized
-          br 0
-        end
-      end
-      i32.const 152 ;; &" "
-      local.set $t11
-      block
-        block
-          local.get $t9
-          local.get $trail
-          i32.add
-          local.get $t11
-          i32.load8_u $heap
-          i32.store8 $heap
-          br 0
-        end
-      end
-      block
-        block
-          local.get $t4
-          local.get $t9
-          local.get $i
-          i32.add
-          local.get $t1
-          call $write_signed_sized
-          br 0
-        end
-      end
-      i32.const 152 ;; &" "
-      local.set $trail
-      block
-        block
-          local.get $t9
-          local.get $t6
-          i32.add
-          local.get $trail
-          i32.load8_u $heap
-          i32.store8 $heap
-          br 0
-        end
-      end
-      block
-        block
-          local.get $t5
-          local.get $t9
-          local.get $t8
-          i32.add
-          local.get $t2
-          call $write_signed_sized
-          br 0
-        end
-      end
-    ;; 26 |     let mut trail = Trail { steps: [], depth: 0 }
-      local.get $t9
-      local.get $t10
-    ;; 32 |     println("${trail.depth} ${saved[0]} ${local[0]}")
-      local.get $provider0
-      local.get $provider0.vtable
-      call $"println[string]"
-    ;; 26 |     let mut trail = Trail { steps: [], depth: 0 }
     end
+    ;; 32 |     println("${trail.depth} ${saved[0]} ${local[0]}")
+    local.get $t5
+    local.set $t7
+    block
+      block
+        local.get $t7
+        call $signed_magnitude
+        call $unsigned_width
+        local.set $t2
+        local.get $t7
+        i64.const 0
+        i64.lt_s
+        if
+          i32.const 1
+          local.set $t8
+        else
+        end
+        local.get $t2
+        local.get $t8
+        i32.add
+        local.set $t2
+        br 0
+      end
+      br 0
+    end
+    local.get $trail
+    i32.const 1
+    i32.add
+    local.tee $i
+    local.get $t1
+    i32.add
+    local.tee $t6
+    i32.const 1
+    i32.add
+    local.tee $t8
+    local.get $t2
+    i32.add
+    local.set $t9
+    block
+      local.get $t9
+      i32.const 16
+      local.set $t10
+      if
+        local.get $t9
+        call $rt:str
+        local.set $t10
+      end
+      local.get $t10
+      local.get $t9
+      local.set $t10
+      local.set $t9
+      br 0
+    end
+    local.get $trail
+    local.set $t11
+    block
+      local.get $t3
+      local.get $t9
+      local.get $t11
+      call $write_unsigned_sized
+      br 0
+    end
+    i32.const 152 ;; &" "
+    local.set $t11
+    block
+      local.get $t9
+      local.get $trail
+      i32.add
+      local.get $t11
+      i32.load8_u $heap
+      i32.store8 $heap
+      br 0
+    end
+    block
+      local.get $t4
+      local.get $t9
+      local.get $i
+      i32.add
+      local.get $t1
+      call $write_signed_sized
+      br 0
+    end
+    i32.const 152 ;; &" "
+    local.set $trail
+    block
+      local.get $t9
+      local.get $t6
+      i32.add
+      local.get $trail
+      i32.load8_u $heap
+      i32.store8 $heap
+      br 0
+    end
+    block
+      local.get $t5
+      local.get $t9
+      local.get $t8
+      i32.add
+      local.get $t2
+      call $write_signed_sized
+      br 0
+    end
+    ;; 26 |     let mut trail = Trail { steps: [], depth: 0 }
+    local.get $t9
+    local.get $t10
+    ;; 32 |     println("${trail.depth} ${saved[0]} ${local[0]}")
+    local.get $provider0
+    local.get $provider0.vtable
+    call $"println[string]"
+    ;; 26 |     let mut trail = Trail { steps: [], depth: 0 }
     local.get $t0
     i32.const 32
     i32.add
@@ -381,100 +354,96 @@
   )
   (func $set_first (param $xs i32) (param $v i64)
     ;; 18 |     xs[0] = v
-    block
-      local.get $xs
-      local.get $xs
+    local.get $xs
+    local.get $xs
+    i32.load $heap
+    call $rt:list_unique
+    i32.store $heap
+    local.get $xs
+    i32.load $heap
+    local.set $xs
+    i32.const 0
+    local.get $xs
+    i32.load $heap offset=4
+    i32.ge_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $xs
+    local.get $v
+    i64.store $heap offset=16
+  )
+  (func $record_step (param $steps i32) (param $slot i32) (param $step i64) (local $t0 i32)
+    ;; 12 |     if slot < steps.len():
+    local.get $slot
+    local.get $steps
+    i32.load $heap
+    i32.load $heap offset=4
+    i32.lt_u
+    if
+      local.get $steps
+      local.get $steps
       i32.load $heap
       call $rt:list_unique
       i32.store $heap
-      local.get $xs
+    ;; 13 |         steps[slot] = step
+      local.get $steps
       i32.load $heap
-      local.set $xs
-      i32.const 0
-      local.get $xs
+      local.set $steps
+      local.get $slot
+      local.get $steps
       i32.load $heap offset=4
       i32.ge_u
       if
         call $rt:panic
         unreachable
       end
-      local.get $xs
-      local.get $v
-      i64.store $heap offset=16
-    end
-  )
-  (func $record_step (param $steps i32) (param $slot i32) (param $step i64) (local $t0 i32)
-    ;; 12 |     if slot < steps.len():
-    block
+      local.get $steps
       local.get $slot
+      i32.const 8
+      i32.mul
+      i32.add
+      local.get $step
+      i64.store $heap offset=16
+    ;; 12 |     if slot < steps.len():
+    else
       local.get $steps
       i32.load $heap
+      call $rt:list_unique
+      local.set $slot
+      local.get $steps
+      local.get $slot
+      i32.store $heap
+      local.get $slot
+    ;; 15 |         steps.push(step)
       i32.load $heap offset=4
-      i32.lt_u
+      local.tee $t0
+      local.get $slot
+      i32.load $heap
+      i32.eq
       if
-        local.get $steps
-        local.get $steps
-        i32.load $heap
-        call $rt:list_unique
-        i32.store $heap
-    ;; 13 |         steps[slot] = step
-        local.get $steps
-        i32.load $heap
-        local.set $steps
         local.get $slot
-        local.get $steps
-        i32.load $heap offset=4
-        i32.ge_u
-        if
-          call $rt:panic
-          unreachable
-        end
-        local.get $steps
-        local.get $slot
-        i32.const 8
-        i32.mul
-        i32.add
-        local.get $step
-        i64.store $heap offset=16
-    ;; 12 |     if slot < steps.len():
-      else
-        local.get $steps
-        i32.load $heap
-        call $rt:list_unique
+        i32.const 2
+        call_indirect $table0 (param i32) (result i32)
         local.set $slot
         local.get $steps
         local.get $slot
         i32.store $heap
-        local.get $slot
-    ;; 15 |         steps.push(step)
-        i32.load $heap offset=4
-        local.tee $t0
-        local.get $slot
-        i32.load $heap
-        i32.eq
-        if
-          local.get $slot
-          i32.const 2
-          call_indirect $table0 (param i32) (result i32)
-          local.set $slot
-          local.get $steps
-          local.get $slot
-          i32.store $heap
-        end
-        local.get $slot
-        local.get $t0
-        i32.const 8
-        i32.mul
-        i32.add
-        local.get $step
-        i64.store $heap offset=16
-        local.get $slot
-        local.get $t0
-        i32.const 1
-        i32.add
-        i32.store $heap offset=4
-    ;; 12 |     if slot < steps.len():
       end
+      local.get $slot
+      local.get $t0
+      i32.const 8
+      i32.mul
+      i32.add
+      local.get $step
+      i64.store $heap offset=16
+      local.get $slot
+      local.get $t0
+      i32.const 1
+      i32.add
+      i32.store $heap offset=4
+    ;; 12 |     if slot < steps.len():
     end
   )
 )

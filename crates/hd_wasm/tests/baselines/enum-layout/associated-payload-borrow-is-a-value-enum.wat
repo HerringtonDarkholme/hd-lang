@@ -6,39 +6,37 @@
     block
       block
         block
-          block
-    ;; 36 |         .Full(value) => *value = replacement
-            local.get $holder
-            i32.load $heap
-            local.tee $t0
-            i32.const 1
-            i32.eq
-            if
-              local.get $holder
-              i32.const 4
-              i32.add
-              local.set $holder
-              br 1
-            else
-    ;; 37 |         .Empty => pass
-              local.get $t0
-              i32.eqz
-              br_if 2
-              unreachable
-    ;; 36 |         .Full(value) => *value = replacement
-            end
-    ;; 35 |     match holder:
-            unreachable
-          end
     ;; 36 |         .Full(value) => *value = replacement
           local.get $holder
-          local.get $replacement
-          i32.store $heap
+          i32.load $heap
+          local.tee $t0
+          i32.const 1
+          i32.eq
+          if
+            local.get $holder
+            i32.const 4
+            i32.add
+            local.set $holder
+            br 1
+          else
+    ;; 37 |         .Empty => pass
+            local.get $t0
+            i32.eqz
+            br_if 2
+            unreachable
+    ;; 36 |         .Full(value) => *value = replacement
+          end
     ;; 35 |     match holder:
-          br 1
+          unreachable
         end
-        br 0
+    ;; 36 |         .Full(value) => *value = replacement
+        local.get $holder
+        local.get $replacement
+        i32.store $heap
+    ;; 35 |     match holder:
+        br 1
       end
+      br 0
     end
   )
   (func $rewrite (param $holder i32) (param $replacement i32) (local $t0 i32)
@@ -46,39 +44,37 @@
     block
       block
         block
-          block
-    ;; 31 |         .Full(value) => *value = replacement
-            local.get $holder
-            i32.load $heap
-            local.tee $t0
-            i32.const 1
-            i32.eq
-            if
-              local.get $holder
-              i32.const 4
-              i32.add
-              local.set $holder
-              br 1
-            else
-    ;; 32 |         .Empty => pass
-              local.get $t0
-              i32.eqz
-              br_if 2
-              unreachable
-    ;; 31 |         .Full(value) => *value = replacement
-            end
-    ;; 30 |     match holder:
-            unreachable
-          end
     ;; 31 |         .Full(value) => *value = replacement
           local.get $holder
-          local.get $replacement
-          i32.store $heap
+          i32.load $heap
+          local.tee $t0
+          i32.const 1
+          i32.eq
+          if
+            local.get $holder
+            i32.const 4
+            i32.add
+            local.set $holder
+            br 1
+          else
+    ;; 32 |         .Empty => pass
+            local.get $t0
+            i32.eqz
+            br_if 2
+            unreachable
+    ;; 31 |         .Full(value) => *value = replacement
+          end
     ;; 30 |     match holder:
-          br 1
+          unreachable
         end
-        br 0
+    ;; 31 |         .Full(value) => *value = replacement
+        local.get $holder
+        local.get $replacement
+        i32.store $heap
+    ;; 30 |     match holder:
+        br 1
       end
+      br 0
     end
   )
 )

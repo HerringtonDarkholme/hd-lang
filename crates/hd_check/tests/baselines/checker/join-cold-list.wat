@@ -6,14 +6,12 @@
   (import "fixture" "table0" (table $table0 16 funcref))
   (func $later_list (param $tasks i32) (result i32) (local $t0 i32)
     ;; 6 |     join(tasks...)
-    block
-      i32.const 0
-      local.get $tasks
-      i32.const 0
-      i32.const 1
-      call_indirect $table0 (param i32 i32 i32) (result i32)
-      local.set $t0
-    end
+    i32.const 0
+    local.get $tasks
+    i32.const 0
+    i32.const 1
+    call_indirect $table0 (param i32 i32 i32) (result i32)
+    local.set $t0
     local.get $tasks
     if
       local.get $tasks

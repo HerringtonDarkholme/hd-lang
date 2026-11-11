@@ -4,38 +4,36 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $pick (param $u.name.0 i32) (param $u.name.1 i32) (param $u.tags i32) (param $u.age i32) (result i32 i32)
     ;; 16 |     match u:
+    local.get $u.name.0
+    local.get $u.name.1
+    local.set $u.name.1
+    local.set $u.name.0
     block
-      local.get $u.name.0
-      local.get $u.name.1
-      local.set $u.name.1
-      local.set $u.name.0
       block
         block
-          block
     ;; 17 |         User { age: 0 } => "none"
-            local.get $u.age
-            i32.eqz
-            br_if 0
-            br 1
-    ;; 16 |     match u:
-            unreachable
-          end
-          i32.const 65 ;; &"none"
-          i32.const 4
-          local.set $u.name.1
-          local.set $u.name.0
+          local.get $u.age
+          i32.eqz
+          br_if 0
           br 1
-        end
-    ;; 18 |         User { name } => name
-        local.get $u.name.0
-        local.tee $u.tags
-        if
-          local.get $u.tags
-          call $retain
-        end
     ;; 16 |     match u:
-        br 0
+          unreachable
+        end
+        i32.const 65 ;; &"none"
+        i32.const 4
+        local.set $u.name.1
+        local.set $u.name.0
+        br 1
       end
+    ;; 18 |         User { name } => name
+      local.get $u.name.0
+      local.tee $u.tags
+      if
+        local.get $u.tags
+        call $retain
+      end
+    ;; 16 |     match u:
+      br 0
     end
     local.get $u.name.0
     local.get $u.name.1
@@ -44,26 +42,22 @@
     ;; 12 |     match u:
     block
       block
-        block
-          br 0
-          unreachable
-        end
+        br 0
+        unreachable
+      end
     ;; 13 |         User { name, tags } => name.len() + tags.len()
-        block
-          block
-            local.get $u.name.1
-            local.set $u.name.0
-            br 0
-          end
-        end
-        local.get $u.name.0
-        local.get $u.tags
-        i32.load $heap offset=4
-        i32.add
-    ;; 12 |     match u:
+      block
+        local.get $u.name.1
         local.set $u.name.0
         br 0
       end
+      local.get $u.name.0
+      local.get $u.tags
+      i32.load $heap offset=4
+      i32.add
+    ;; 12 |     match u:
+      local.set $u.name.0
+      br 0
     end
     local.get $u.name.0
   )

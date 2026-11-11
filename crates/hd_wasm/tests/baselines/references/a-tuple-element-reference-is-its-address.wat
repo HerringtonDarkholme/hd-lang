@@ -5,13 +5,11 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $second (param $t i32) (result i32)
     ;; 6 |     read(&t._1)
-    block
-      local.get $t
-      i32.const 4
-      i32.add
-      call $read
-      local.set $t
-    end
+    local.get $t
+    i32.const 4
+    i32.add
+    call $read
+    local.set $t
     local.get $t
   )
   (func $first_of_local (result i32) (local $t1 i32) (local $t0 i32)
@@ -45,25 +43,23 @@
     i32.sub
     local.tee $t0
     global.set $locals
-    block
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $t1
-      i32.const 3
-      i32.store $heap
-      local.get $t1
-      i32.const 4
-      i32.store $heap offset=4
-      local.get $t1
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $t1
+    i32.const 3
+    i32.store $heap
+    local.get $t1
+    i32.const 4
+    i32.store $heap offset=4
+    local.get $t1
     ;; 10 |     read(&pair._0)
-      call $read
+    call $read
     ;; 9 |     pair := (+3, +4)
-      local.set $t1
-    end
+    local.set $t1
     local.get $t1
     local.get $t0
     i32.const 16
@@ -72,11 +68,9 @@
   )
   (func $read (param $p i32) (result i32)
     ;; 3 |     *p
-    block
-      local.get $p
-      i32.load $heap
-      local.set $p
-    end
+    local.get $p
+    i32.load $heap
+    local.set $p
     local.get $p
   )
 )

@@ -10,11 +10,9 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $plain (param $value i32) (result i32)
     ;; 8 |     *value
-    block
-      local.get $value
-      i32.load $heap
-      local.set $value
-    end
+    local.get $value
+    i32.load $heap
+    local.set $value
     local.get $value
   )
   (func $read'1 (param $frame i32) (param $value i32) (result i32 i32) (local $t1 i32) (local $t2 i32) (local $t0 i32)
@@ -46,11 +44,9 @@
       local.set $t2
     else
     end
-    block
-      local.get $value
-      i32.load $heap
-      local.set $value
-    end
+    local.get $value
+    i32.load $heap
+    local.set $value
     local.get $t2
     if
       local.get $t2

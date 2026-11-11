@@ -35,69 +35,65 @@
     i32.sub
     local.tee $t0
     global.set $locals
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $user
+    i32.const 65 ;; &"ada"
+    i32.store $heap
+    local.get $user
+    i32.const 3
+    i32.store $heap offset=4
+    local.get $user
+    i64.const 36
+    i64.store $heap offset=8
+    ;; 20 |     for _ in 0..k:
     block
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $user
-      i32.const 65 ;; &"ada"
-      i32.store $heap
-      local.get $user
-      i32.const 3
-      i32.store $heap offset=4
-      local.get $user
-      i64.const 36
-      i64.store $heap offset=8
-    ;; 20 |     for _ in 0..k:
-      block
-        loop
-          local.get $t1
-          local.get $k
-          i64.lt_s
-          i32.eqz
-          br_if 1
-          local.get $t1
-          i64.const 1
-          i64.add
-          local.set $t1
+      loop
+        local.get $t1
+        local.get $k
+        i64.lt_s
+        i32.eqz
+        br_if 1
+        local.get $t1
+        i64.const 1
+        i64.add
+        local.set $t1
     ;; 21 |         sum = sum + *user.age()
-          block
-            block
-              local.get $user
-              i32.const 8
-              i32.add
-              local.set $t2
-              br 0
-            end
-          end
-          local.get $sum
-          local.get $t2
-          i64.load $heap
-          i64.add
-          local.set $sum
-    ;; 20 |     for _ in 0..k:
+        block
+          local.get $user
+          i32.const 8
+          i32.add
+          local.set $t2
           br 0
         end
+        local.get $sum
+        local.get $t2
+        i64.load $heap
+        i64.add
+        local.set $sum
+    ;; 20 |     for _ in 0..k:
+        br 0
       end
+    end
     ;; 18 |     user := User { name: "ada", age: 36 }
+    local.get $user
+    if
       local.get $user
+      i32.load $heap
+      local.tee $user
       if
         local.get $user
-        i32.load $heap
-        local.tee $user
-        if
-          local.get $user
-          call $rt:release_ref
-        end
+        call $rt:release_ref
       end
-    ;; 22 |     sum
-      local.get $sum
-    ;; 18 |     user := User { name: "ada", age: 36 }
-      local.set $k
     end
+    ;; 22 |     sum
+    local.get $sum
+    ;; 18 |     user := User { name: "ada", age: 36 }
+    local.set $k
     local.get $k
     local.get $t0
     i32.const 24

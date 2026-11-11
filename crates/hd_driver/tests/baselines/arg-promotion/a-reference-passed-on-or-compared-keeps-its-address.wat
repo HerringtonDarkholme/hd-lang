@@ -7,21 +7,17 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $same_place (param $a i32) (param $b i32) (result i32)
     ;; 18 |     a is b
-    block
-      local.get $a
-      local.get $b
-      i32.eq
-      local.set $a
-    end
+    local.get $a
+    local.get $b
+    i32.eq
+    local.set $a
     local.get $a
   )
   (func $relay (param $p i32) (result i32)
     ;; 15 |     norm(p)
-    block
-      local.get $p
-      call $norm
-      local.set $p
-    end
+    local.get $p
+    call $norm
+    local.set $p
     local.get $p
   )
   (func $use_all (result i32) (local $p i32) (local $t0 i32) (local $n i32)
@@ -55,41 +51,39 @@
     i32.sub
     local.tee $t0
     global.set $locals
-    block
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $p
-      i32.const 1
-      i32.store $heap
-      local.get $p
-      i32.const 2
-      i32.store $heap offset=4
-      local.get $p
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $p
+    i32.const 1
+    i32.store $heap
+    local.get $p
+    i32.const 2
+    i32.store $heap offset=4
+    local.get $p
     ;; 22 |     let n = +3
-      i32.const 3
-      local.set $n
+    i32.const 3
+    local.set $n
     ;; 23 |     if same_place(&p, &p):
-      local.get $p
-      call $same_place
-      if (result i32)
+    local.get $p
+    call $same_place
+    if (result i32)
     ;; 24 |         relay(&p) + n
-        local.get $p
-        call $relay
-        local.get $n
-        i32.add
+      local.get $p
+      call $relay
+      local.get $n
+      i32.add
     ;; 23 |     if same_place(&p, &p):
-      else
+    else
     ;; 26 |         n
-        local.get $n
+      local.get $n
     ;; 23 |     if same_place(&p, &p):
-      end
-    ;; 21 |     let p = Point { x: +1, y: +2 }
-      local.set $p
     end
+    ;; 21 |     let p = Point { x: +1, y: +2 }
+    local.set $p
     local.get $p
     local.get $t0
     i32.const 16
@@ -98,62 +92,60 @@
   )
   (func $norm (param $p i32) (result i32) (local $t0 i64)
     ;; 12 |     (p.x + 1) * (p.y + 2) * (p.x + 3) * (p.y + 4) * (p.x + 5) / (p.y + 6)
-    block
-      local.get $p
-      i32.load $heap
-      i32.const 1
-      i32.add
-      local.get $p
-      i32.load $heap offset=4
-      i32.const 2
-      i32.add
-      i32.mul
-      local.get $p
-      i32.load $heap
-      i32.const 3
-      i32.add
-      i32.mul
-      local.get $p
-      i32.load $heap offset=4
-      i32.const 4
-      i32.add
-      i32.mul
-      local.get $p
-      i32.load $heap
-      i32.const 5
-      i32.add
-      i32.mul
-      local.get $p
-      i32.load $heap offset=4
-      i32.const 6
-      i32.add
-      local.set $p
-      i64.extend_i32_s
-      local.get $p
-      i64.extend_i32_s
-      local.tee $t0
-      i64.eqz
-      if
-        call $rt:panic'1
-        unreachable
-      end
-      local.get $t0
-      i64.div_s
-      local.tee $t0
-      i64.const 2147483647
-      i64.gt_s
-      local.get $t0
-      i64.const -2147483648
-      i64.lt_s
-      i32.or
-      if
-        call $rt:panic'2
-        unreachable
-      end
-      local.get $t0
-      i32.wrap_i64
-      local.set $p
+    local.get $p
+    i32.load $heap
+    i32.const 1
+    i32.add
+    local.get $p
+    i32.load $heap offset=4
+    i32.const 2
+    i32.add
+    i32.mul
+    local.get $p
+    i32.load $heap
+    i32.const 3
+    i32.add
+    i32.mul
+    local.get $p
+    i32.load $heap offset=4
+    i32.const 4
+    i32.add
+    i32.mul
+    local.get $p
+    i32.load $heap
+    i32.const 5
+    i32.add
+    i32.mul
+    local.get $p
+    i32.load $heap offset=4
+    i32.const 6
+    i32.add
+    local.set $p
+    i64.extend_i32_s
+    local.get $p
+    i64.extend_i32_s
+    local.tee $t0
+    i64.eqz
+    if
+      call $rt:panic'1
+      unreachable
     end
+    local.get $t0
+    i64.div_s
+    local.tee $t0
+    i64.const 2147483647
+    i64.gt_s
+    local.get $t0
+    i64.const -2147483648
+    i64.lt_s
+    i32.or
+    if
+      call $rt:panic'2
+      unreachable
+    end
+    local.get $t0
+    i32.wrap_i64
+    local.set $p
     local.get $p
   )
 )

@@ -9,6 +9,97 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $unused (param $values i32) (param $key.0 i32) (param $key.1 i32)
     ;; 17 |     _ := values.get(key)
+    local.get $values
+    local.get $key.0
+    local.get $key.1
+    call $rt:map_hash
+    local.get $key.0
+    local.get $key.1
+    call $rt:map_find'1
+    i32.const 0
+    i32.ge_s
+    if
+    else
+    end
+  )
+  (func $lists (param $values i32) (param $key.0 i32) (param $key.1 i32) (result i32)
+    ;; 11 |     lookup(values, key)
+    block
+      local.get $values
+      local.get $key.0
+      local.get $key.1
+      call $rt:map_hash
+      local.get $key.0
+      local.get $key.1
+      call $rt:map_find'2
+      local.tee $key.0
+      i32.const 0
+      i32.ge_s
+      if (result i32)
+        local.get $values
+        local.get $values
+        i32.load $heap offset=12
+        i32.const 12
+        i32.mul
+        i32.add
+        i32.const 24
+        i32.add
+        local.get $key.0
+        i32.const 12
+        i32.mul
+        i32.add
+        i32.load $heap offset=8
+        call $rt:coll_copy
+      else
+        i32.const 0
+      end
+      local.set $values
+      br 0
+    end
+    local.get $values
+  )
+  (func $scalar (param $values i32) (param $key.0 i32) (param $key.1 i32) (result i32 i32) (local $t0 i32)
+    ;; 14 |     lookup(values, key)
+    block
+      local.get $values
+      local.get $key.0
+      local.get $key.1
+      call $rt:map_hash
+      local.get $key.0
+      local.get $key.1
+      call $rt:map_find'3
+      local.tee $key.0
+      i32.const 0
+      i32.ge_s
+      if (result i32)
+        i32.const 1
+        local.get $values
+        local.get $values
+        i32.load $heap offset=12
+        i32.const 12
+        i32.mul
+        i32.add
+        i32.const 24
+        i32.add
+        local.get $key.0
+        i32.const 12
+        i32.mul
+        i32.add
+        i32.load $heap offset=8
+        local.set $t0
+      else
+        i32.const 0
+      end
+      local.get $t0
+      local.set $key.0
+      local.set $values
+      br 0
+    end
+    local.get $values
+    local.get $key.0
+  )
+  (func $text (param $values i32) (param $key.0 i32) (param $key.1 i32) (result i32 i32) (local $t0 i32)
+    ;; 8 |     lookup(values, key)
     block
       local.get $values
       local.get $key.0
@@ -17,148 +108,43 @@
       local.get $key.0
       local.get $key.1
       call $rt:map_find'1
+      local.tee $key.0
       i32.const 0
       i32.ge_s
-      if
+      if (result i32)
+        local.get $values
+        local.get $values
+        i32.load $heap offset=12
+        i32.const 12
+        i32.mul
+        i32.add
+        i32.const 24
+        i32.add
+        local.get $key.0
+        i32.const 16
+        i32.mul
+        i32.add
+        local.tee $values
+        i32.load $heap offset=8
+        local.tee $key.0
+        local.get $values
+        i32.load $heap offset=12
+        local.set $values
+        local.tee $key.1
+        if
+          local.get $key.1
+          call $retain
+        end
+        local.get $key.0
+        local.get $values
+        local.set $t0
       else
+        i32.const 0
       end
-    end
-  )
-  (func $lists (param $values i32) (param $key.0 i32) (param $key.1 i32) (result i32)
-    ;; 11 |     lookup(values, key)
-    block
-      block
-        block
-          local.get $values
-          local.get $key.0
-          local.get $key.1
-          call $rt:map_hash
-          local.get $key.0
-          local.get $key.1
-          call $rt:map_find'2
-          local.tee $key.0
-          i32.const 0
-          i32.ge_s
-          if (result i32)
-            local.get $values
-            local.get $values
-            i32.load $heap offset=12
-            i32.const 12
-            i32.mul
-            i32.add
-            i32.const 24
-            i32.add
-            local.get $key.0
-            i32.const 12
-            i32.mul
-            i32.add
-            i32.load $heap offset=8
-            call $rt:coll_copy
-          else
-            i32.const 0
-          end
-          local.set $values
-          br 0
-        end
-      end
-    end
-    local.get $values
-  )
-  (func $scalar (param $values i32) (param $key.0 i32) (param $key.1 i32) (result i32 i32) (local $t0 i32)
-    ;; 14 |     lookup(values, key)
-    block
-      block
-        block
-          local.get $values
-          local.get $key.0
-          local.get $key.1
-          call $rt:map_hash
-          local.get $key.0
-          local.get $key.1
-          call $rt:map_find'3
-          local.tee $key.0
-          i32.const 0
-          i32.ge_s
-          if (result i32)
-            i32.const 1
-            local.get $values
-            local.get $values
-            i32.load $heap offset=12
-            i32.const 12
-            i32.mul
-            i32.add
-            i32.const 24
-            i32.add
-            local.get $key.0
-            i32.const 12
-            i32.mul
-            i32.add
-            i32.load $heap offset=8
-            local.set $t0
-          else
-            i32.const 0
-          end
-          local.get $t0
-          local.set $key.0
-          local.set $values
-          br 0
-        end
-      end
-    end
-    local.get $values
-    local.get $key.0
-  )
-  (func $text (param $values i32) (param $key.0 i32) (param $key.1 i32) (result i32 i32) (local $t0 i32)
-    ;; 8 |     lookup(values, key)
-    block
-      block
-        block
-          local.get $values
-          local.get $key.0
-          local.get $key.1
-          call $rt:map_hash
-          local.get $key.0
-          local.get $key.1
-          call $rt:map_find'1
-          local.tee $key.0
-          i32.const 0
-          i32.ge_s
-          if (result i32)
-            local.get $values
-            local.get $values
-            i32.load $heap offset=12
-            i32.const 12
-            i32.mul
-            i32.add
-            i32.const 24
-            i32.add
-            local.get $key.0
-            i32.const 16
-            i32.mul
-            i32.add
-            local.tee $values
-            i32.load $heap offset=8
-            local.tee $key.0
-            local.get $values
-            i32.load $heap offset=12
-            local.set $values
-            local.tee $key.1
-            if
-              local.get $key.1
-              call $retain
-            end
-            local.get $key.0
-            local.get $values
-            local.set $t0
-          else
-            i32.const 0
-          end
-          local.get $t0
-          local.set $key.0
-          local.set $values
-          br 0
-        end
-      end
+      local.get $t0
+      local.set $key.0
+      local.set $values
+      br 0
     end
     local.get $values
     local.get $key.0

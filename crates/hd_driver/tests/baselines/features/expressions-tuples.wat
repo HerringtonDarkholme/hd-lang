@@ -6,85 +6,71 @@
   (func $select (param $t.0.0 i32) (param $t.0.1 i32) (param $t.1 i32) (result i32)
     ;; 9 |     t._0.len() + t._1.len()
     block
-      block
-        block
-          local.get $t.0.1
-          local.set $t.0.0
-          br 0
-        end
-      end
-      local.get $t.0.0
-      local.get $t.1
-      i32.load $heap offset=4
-      i32.add
+      local.get $t.0.1
       local.set $t.0.0
+      br 0
     end
+    local.get $t.0.0
+    local.get $t.1
+    i32.load $heap offset=4
+    i32.add
+    local.set $t.0.0
     local.get $t.0.0
   )
   (func $rest_collect (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (param $c.0 i32) (param $c.1 i32) (result i32 i32 i32) (local $t0 i32)
     ;; 18 |     (a, b, c)
-    block
-      local.get $a.0
-      i32.const 2
-      call $rt:list_buf
-      local.tee $a.0
-      i32.const 2
-      i32.store $heap offset=4
-      local.get $a.0
-      local.tee $t0
-      local.get $b.0
-      i32.store $heap offset=16
-      local.get $t0
-      local.get $b.1
-      i32.store $heap offset=20
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $t0
-      local.get $c.0
-      i32.store $heap offset=16
-      local.get $t0
-      local.get $c.1
-      i32.store $heap offset=20
-      local.get $a.0
-      local.set $b.0
-      local.set $a.0
-    end
+    local.get $a.0
+    i32.const 2
+    call $rt:list_buf
+    local.tee $a.0
+    i32.const 2
+    i32.store $heap offset=4
+    local.get $a.0
+    local.tee $t0
+    local.get $b.0
+    i32.store $heap offset=16
+    local.get $t0
+    local.get $b.1
+    i32.store $heap offset=20
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $t0
+    local.get $c.0
+    i32.store $heap offset=16
+    local.get $t0
+    local.get $c.1
+    i32.store $heap offset=20
+    local.get $a.0
+    local.set $b.0
+    local.set $a.0
     local.get $a.0
     local.get $a.1
     local.get $b.0
   )
   (func $rest_spread (param $a.0 i32) (param $a.1 i32) (param $xs i32) (result i32 i32 i32)
     ;; 21 |     (a, xs...)
-    block
-    end
     local.get $a.0
     local.get $a.1
     local.get $xs
   )
   (func $take_first (param $t.0.0 i32) (param $t.0.1 i32) (param $t.1 i32) (result i32 i32)
     ;; 15 |     t._0
-    block
-      local.get $t.0.0
-      i32.const 0
-      i32.const 0
-      local.get $t.1
-      call $rt:release
-      local.set $t.0.0
-    end
+    local.get $t.0.0
+    i32.const 0
+    i32.const 0
+    local.get $t.1
+    call $rt:release
+    local.set $t.0.0
     local.get $t.0.0
     local.get $t.0.1
   )
   (func $nested (param $t.0.0.0 i32) (param $t.0.0.1 i32) (param $t.0.1.0 i32) (param $t.0.1.1 i32) (param $t.1.0 i32) (param $t.1.1 i32) (result i32)
     ;; 12 |     t._0._1.len()
     block
-      block
-        block
-          local.get $t.0.1.1
-          local.set $t.0.0.0
-          br 0
-        end
-      end
+      local.get $t.0.1.1
+      local.set $t.0.0.0
+      br 0
     end
     local.get $t.0.0.0
   )

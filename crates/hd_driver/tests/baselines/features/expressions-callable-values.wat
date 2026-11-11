@@ -10,142 +10,120 @@
   (func $read_cell (param $c.value.0 i32) (param $c.value.1 i32) (result i32)
     ;; 25 |     c().len()
     block
-      block
-        block
-          br 0
-        end
-      end
-      block
-        block
-          br 0
-        end
-      end
-      local.get $c.value.0
-      if
-        local.get $c.value.0
-        call $rt:release_ref
-      end
-      local.get $c.value.1
-      local.set $c.value.0
+      br 0
     end
+    block
+      br 0
+    end
+    local.get $c.value.0
+    if
+      local.get $c.value.0
+      call $rt:release_ref
+    end
+    local.get $c.value.1
+    local.set $c.value.0
     local.get $c.value.0
   )
   (func $"impl Update[string] for Cell.update" (param $self i32) (param $value.0 i32) (param $value.1 i32)
     ;; 19 |         self.value = value
-    block
-      local.get $self
-      i32.load $heap
-      local.get $self
-      i32.load $heap offset=4
-      local.get $self
-      local.get $value.0
-      i32.store $heap
-      local.get $self
-      local.get $value.1
-      i32.store $heap offset=4
-      call $rt:release
-    end
+    local.get $self
+    i32.load $heap
+    local.get $self
+    i32.load $heap offset=4
+    local.get $self
+    local.get $value.0
+    i32.store $heap
+    local.get $self
+    local.get $value.1
+    i32.store $heap offset=4
+    call $rt:release
   )
   (func $append_cell (param $c i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t4 i32) (local $t2 i32)
     ;; 31 |     c() += "!"
+    local.get $c
+    local.tee $t0
+    i32.load $heap
+    local.get $t0
+    i32.load $heap offset=4
+    local.set $t1
+    local.set $t0
     block
-      local.get $c
-      local.tee $t0
-      i32.load $heap
-      local.get $t0
-      i32.load $heap offset=4
-      local.set $t1
-      local.set $t0
-      block
-        block
-          local.get $t0
-          local.tee $t2
-          if
-            local.get $t2
-            call $retain
-          end
-          br 0
-        end
-      end
-      local.get $t1
-      i32.const 1
-      i32.add
-      local.tee $t3
-      call $rt:str
-      local.tee $t4
-      local.tee $t2
-      local.get $t0
-      local.get $t1
-      call $rt:memory_copy/0/0
-      local.get $t2
-      local.get $t1
-      i32.add
-      i32.const 65 ;; &"!"
-      i32.load8_u $heap
-      i32.store8 $heap
       local.get $t0
       local.tee $t2
       if
         local.get $t2
-        call $rt:release_ref
+        call $retain
       end
-      block
-        block
-          local.get $c
-          i32.load $heap
-          local.get $c
-          i32.load $heap offset=4
-          local.get $c
-          local.get $t4
-          i32.store $heap
-          local.get $c
-          local.get $t3
-          i32.store $heap offset=4
-          call $rt:release
-          br 0
-        end
-      end
+      br 0
+    end
+    local.get $t1
+    i32.const 1
+    i32.add
+    local.tee $t3
+    call $rt:str
+    local.tee $t4
+    local.tee $t2
+    local.get $t0
+    local.get $t1
+    call $rt:memory_copy/0/0
+    local.get $t2
+    local.get $t1
+    i32.add
+    i32.const 65 ;; &"!"
+    i32.load8_u $heap
+    i32.store8 $heap
+    local.get $t0
+    local.tee $t2
+    if
+      local.get $t2
+      call $rt:release_ref
+    end
+    block
+      local.get $c
+      i32.load $heap
+      local.get $c
+      i32.load $heap offset=4
+      local.get $c
+      local.get $t4
+      i32.store $heap
+      local.get $c
+      local.get $t3
+      i32.store $heap offset=4
+      call $rt:release
+      br 0
     end
   )
   (func $"impl Apply for Cell.apply" (param $self.value.0 i32) (param $self.value.1 i32) (result i32 i32)
     ;; 15 |         self.value
-    block
-    end
     local.get $self.value.0
     local.get $self.value.1
   )
   (func $store_cell (param $c i32) (param $s.0 i32) (param $s.1 i32)
     ;; 28 |     c() = s
     block
-      block
-        block
-          local.get $c
-          i32.load $heap
-          local.get $c
-          i32.load $heap offset=4
-          local.get $c
-          local.get $s.0
-          i32.store $heap
-          local.get $c
-          local.get $s.1
-          i32.store $heap offset=4
-          call $rt:release
-          br 0
-        end
-      end
+      local.get $c
+      i32.load $heap
+      local.get $c
+      i32.load $heap offset=4
+      local.get $c
+      local.get $s.0
+      i32.store $heap
+      local.get $c
+      local.get $s.1
+      i32.store $heap offset=4
+      call $rt:release
+      br 0
     end
   )
   (func $stored_fn (param $h.callback.0 i32) (param $h.callback.1 i32) (param $s.0 i32) (param $s.1 i32) (result i32)
     ;; 34 |     (h.callback)(s)
-    block
-      local.get $h.callback.1
-      local.get $s.0
-      local.get $s.1
-      i32.const 0
-      local.get $h.callback.0
-      call_indirect $table0 (param i32 i32 i32 i32) (result i32)
-      local.set $h.callback.0
-    end
+    local.get $h.callback.1
+    local.get $s.0
+    local.get $s.1
+    i32.const 0
+    local.get $h.callback.0
+    call_indirect $table0 (param i32 i32 i32 i32) (result i32)
+    local.set $h.callback.0
     local.get $h.callback.0
   )
 )

@@ -12,156 +12,142 @@
     local.get $env
     i32.load $heap
     local.set $env
-    block
-      local.get $env
-      local.get $env
-      i32.load $heap offset=8
-      i32.const 1
-      i32.add
-      i32.store $heap offset=8
-    end
+    local.get $env
+    local.get $env
+    i32.load $heap offset=8
+    i32.const 1
+    i32.add
+    i32.store $heap offset=8
   )
   (func $local#1 (param $env i32) (param $ctx i32) (result i32)
     ;; 25 |     apply(fn() -> usize: xs.len())
     local.get $env
     i32.load $heap
     local.set $env
-    block
-      local.get $env
-      i32.load $heap
-      i32.load $heap offset=4
-      local.set $env
-    end
+    local.get $env
+    i32.load $heap
+    i32.load $heap offset=4
+    local.set $env
     local.get $env
   )
   (func $local (param $xs i32) (result i32) (local $t0 i32)
     ;; 25 |     apply(fn() -> usize: xs.len())
+    i32.const 0
+    i32.const 4
+    i32.const 0
+    call $rt:new/class-1
+    local.tee $t0
+    local.get $xs
+    i32.store $heap
+    drop
     block
-      i32.const 0
-      i32.const 4
-      i32.const 0
-      call $rt:new/class-1
-      local.tee $t0
-      local.get $xs
-      i32.store $heap
-      drop
-      block
-        block
-          local.get $t0
-          i32.const 0
-          call $local#1
-          local.set $xs
-          br 0
-        end
-      end
       local.get $t0
+      i32.const 0
+      call $local#1
+      local.set $xs
+      br 0
+    end
+    local.get $t0
+    if
+      local.get $t0
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      global.get $tracing
+      i32.or
       if
         local.get $t0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $t0
-          call $rt:release_ref
-        end
+        call $rt:release_ref
       end
     end
     local.get $xs
   )
   (func $apply (param $f.0 i32) (param $f.1 i32) (result i32)
     ;; 22 |     f()
-    block
-      local.get $f.1
-      i32.const 0
-      local.get $f.0
-      call_indirect $table0 (param i32 i32) (result i32)
-      local.set $f.0
-    end
+    local.get $f.1
+    i32.const 0
+    local.get $f.0
+    call_indirect $table0 (param i32 i32) (result i32)
+    local.set $f.0
     local.get $f.0
   )
   (func $demo (param $s.0 i32) (param $s.1 i32) (result i32) (local $origin i32) (local $t0 i32)
     ;; 15 |     origin := box(Point { name: s, x: 0 })
-    block
-      i32.const 12
-      i32.const 3
-      call $rt:new/class-2
-      local.tee $origin
-      local.get $s.0
-      i32.store $heap
-      local.get $origin
-      local.get $s.1
-      i32.store $heap offset=4
-      local.get $origin
-      i32.const 0
-      i32.store $heap offset=8
-      local.get $origin
+    i32.const 12
+    i32.const 3
+    call $rt:new/class-2
+    local.tee $origin
+    local.get $s.0
+    i32.store $heap
+    local.get $origin
+    local.get $s.1
+    i32.store $heap offset=4
+    local.get $origin
+    i32.const 0
+    i32.store $heap offset=8
+    local.get $origin
     ;; 16 |     step := bump(origin)
-      call $bump
-      local.set $s.1
-      local.tee $s.0
+    call $bump
+    local.set $s.1
+    local.tee $s.0
     ;; 17 |     step()
-      local.set $t0
-      local.get $s.1
-      i32.const 0
-      local.get $t0
-      call_indirect $table0 (param i32 i32)
+    local.set $t0
+    local.get $s.1
+    i32.const 0
+    local.get $t0
+    call_indirect $table0 (param i32 i32)
     ;; 18 |     step()
-      local.get $s.1
-      i32.const 0
-      local.get $s.0
-      call_indirect $table0 (param i32 i32)
-      local.get $s.1
+    local.get $s.1
+    i32.const 0
+    local.get $s.0
+    call_indirect $table0 (param i32 i32)
+    local.get $s.1
     ;; 15 |     origin := box(Point { name: s, x: 0 })
+    if
+      local.get $s.1
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      global.get $tracing
+      i32.or
       if
         local.get $s.1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $s.1
-          call $rt:release_ref
-        end
+        call $rt:release_ref
       end
-    ;; 19 |     origin.x
-      local.get $origin
-      i32.load $heap offset=8
-    ;; 15 |     origin := box(Point { name: s, x: 0 })
-      local.get $origin
-      local.tee $s.1
-      if
-        local.get $s.1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $s.1
-          call $rt:release_ref
-        end
-      end
-      local.set $s.0
     end
+    ;; 19 |     origin.x
+    local.get $origin
+    i32.load $heap offset=8
+    ;; 15 |     origin := box(Point { name: s, x: 0 })
+    local.get $origin
+    local.tee $s.1
+    if
+      local.get $s.1
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      global.get $tracing
+      i32.or
+      if
+        local.get $s.1
+        call $rt:release_ref
+      end
+    end
+    local.set $s.0
     local.get $s.0
   )
   (func $bump (param $p i32) (result i32 i32) (local $t0 i32)
     ;; 12 |     fn() -> void: p.x = p.x + 1
-    block
-      i32.const 3
-      i32.const 4
-      i32.const -2147483643
-      call $rt:new/class-1
-      local.tee $t0
-      local.get $p
-      i32.store $heap
-      local.get $t0
-      call $rt:retain_fields
-      local.set $p
-    end
+    i32.const 3
+    i32.const 4
+    i32.const -2147483643
+    call $rt:new/class-1
+    local.tee $t0
+    local.get $p
+    i32.store $heap
+    local.get $t0
+    call $rt:retain_fields
+    local.set $p
     local.get $p
     local.get $t0
   )

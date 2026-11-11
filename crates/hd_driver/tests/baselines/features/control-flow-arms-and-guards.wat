@@ -10,76 +10,59 @@
         block
           block
             block
-              block
-    ;; 13 |         .Named(n) if n.len() > 3 => n
-                local.get $t.0
-                i32.eqz
-                if
-                  local.get $t.1
-                  local.get $t.2
-                  local.set $t.1
-                  local.set $t.0
-                  block
-                    block
-                      local.get $t.1
-                      local.set $t.2
-                      br 0
-                    end
-                  end
-                  local.get $t.2
-                  i32.const 3
-                  i32.gt_u
-                  i32.eqz
-                  br_if 4
-                  br 1
-                else
-    ;; 14 |         .Pair(right = r, left = l) if l.len() > r.len() => l
-                  local.get $t.0
-                  if
-                    block
-                      block
-                        local.get $t.1
-                        local.set $t0
-                        br 0
-                      end
-                    end
-                    block
-                      block
-                        local.get $t.3
-                        local.set $t1
-                        br 0
-                      end
-                    end
-                    local.get $t0
-                    local.get $t1
-                    i32.gt_u
-                    br_if 3
-                    local.get $t.2
-                    local.get $t.3
-    ;; 15 |         .Pair(left = _, right = r) => r
-                    local.set $t.1
-                    local.set $t.0
-    ;; 14 |         .Pair(right = r, left = l) if l.len() > r.len() => l
-                    br 4
-                  else
-                    unreachable
-                  end
-    ;; 13 |         .Named(n) if n.len() > 3 => n
-                end
-    ;; 12 |     match t:
-                unreachable
-              end
     ;; 13 |         .Named(n) if n.len() > 3 => n
               local.get $t.0
-              local.tee $t.2
+              i32.eqz
               if
+                local.get $t.1
                 local.get $t.2
-                call $retain
+                local.set $t.1
+                local.set $t.0
+                block
+                  local.get $t.1
+                  local.set $t.2
+                  br 0
+                end
+                local.get $t.2
+                i32.const 3
+                i32.gt_u
+                i32.eqz
+                br_if 4
+                br 1
+              else
+    ;; 14 |         .Pair(right = r, left = l) if l.len() > r.len() => l
+                local.get $t.0
+                if
+                  block
+                    local.get $t.1
+                    local.set $t0
+                    br 0
+                  end
+                  block
+                    local.get $t.3
+                    local.set $t1
+                    br 0
+                  end
+                  local.get $t0
+                  local.get $t1
+                  i32.gt_u
+                  br_if 3
+                  local.get $t.2
+                  local.get $t.3
+    ;; 15 |         .Pair(left = _, right = r) => r
+                  local.set $t.1
+                  local.set $t.0
+    ;; 14 |         .Pair(right = r, left = l) if l.len() > r.len() => l
+                  br 4
+                else
+                  unreachable
+                end
+    ;; 13 |         .Named(n) if n.len() > 3 => n
               end
     ;; 12 |     match t:
-              br 3
+              unreachable
             end
-    ;; 14 |         .Pair(right = r, left = l) if l.len() > r.len() => l
+    ;; 13 |         .Named(n) if n.len() > 3 => n
             local.get $t.0
             local.tee $t.2
             if
@@ -87,9 +70,9 @@
               call $retain
             end
     ;; 12 |     match t:
-            br 2
+            br 3
           end
-    ;; 15 |         .Pair(left = _, right = r) => r
+    ;; 14 |         .Pair(right = r, left = l) if l.len() > r.len() => l
           local.get $t.0
           local.tee $t.2
           if
@@ -97,14 +80,23 @@
             call $retain
           end
     ;; 12 |     match t:
-          br 1
+          br 2
         end
-        i32.const 65 ;; &"short"
-        i32.const 5
-        local.set $t.1
-        local.set $t.0
-        br 0
+    ;; 15 |         .Pair(left = _, right = r) => r
+        local.get $t.0
+        local.tee $t.2
+        if
+          local.get $t.2
+          call $retain
+        end
+    ;; 12 |     match t:
+        br 1
       end
+      i32.const 65 ;; &"short"
+      i32.const 5
+      local.set $t.1
+      local.set $t.0
+      br 0
     end
     local.get $t.0
     local.get $t.1
@@ -114,98 +106,90 @@
     block
       block
         block
-          block
     ;; 20 |         .Some(s) if s.len() > 0 => s.len()
-            local.get $o.0
-            if
-              block
-                block
-                  local.get $o.1
-                  local.set $other.0
-                  br 0
-                end
-              end
-              local.get $other.0
-              i32.const 0
-              i32.gt_u
-              br_if 1
-              local.get $o.0
-              local.get $o.1
-              call $rt:retain
-    ;; 21 |         other =>
-              local.get $o.0
-              local.get $o.1
-              local.set $other.1
-              local.set $other.0
-    ;; 20 |         .Some(s) if s.len() > 0 => s.len()
-              br 2
-            else
-              local.get $o.0
-              local.get $o.1
-              local.set $other.1
-              local.tee $other.0
-              local.get $other.1
-              call $rt:retain
-              br 2
-            end
-    ;; 19 |     match o:
-            unreachable
-          end
-    ;; 20 |         .Some(s) if s.len() > 0 => s.len()
-          block
+          local.get $o.0
+          if
             block
               local.get $o.1
               local.set $other.0
               br 0
             end
+            local.get $other.0
+            i32.const 0
+            i32.gt_u
+            br_if 1
+            local.get $o.0
+            local.get $o.1
+            call $rt:retain
+    ;; 21 |         other =>
+            local.get $o.0
+            local.get $o.1
+            local.set $other.1
+            local.set $other.0
+    ;; 20 |         .Some(s) if s.len() > 0 => s.len()
+            br 2
+          else
+            local.get $o.0
+            local.get $o.1
+            local.set $other.1
+            local.tee $other.0
+            local.get $other.1
+            call $rt:retain
+            br 2
           end
     ;; 19 |     match o:
-          br 1
+          unreachable
         end
+    ;; 20 |         .Some(s) if s.len() > 0 => s.len()
+        block
+          local.get $o.1
+          local.set $other.0
+          br 0
+        end
+    ;; 19 |     match o:
+        br 1
+      end
     ;; 22 |             if other.is_some(): 1 else: 0
+      block
+        local.get $other.0
+        local.set $t0
         block
           block
-            local.get $other.0
-            local.set $t0
             block
-              block
-                block
-                  local.get $t0
-                  br_if 0
-                  br 1
-                  unreachable
-                end
-                i32.const 1
-                local.set $t1
-                br 1
-              end
-              br 0
+              local.get $t0
+              br_if 0
+              br 1
+              unreachable
             end
-            local.get $t1
-            local.set $t0
-            br 0
+            i32.const 1
+            local.set $t1
+            br 1
           end
+          br 0
         end
-        local.get $t0
-        if
-          i32.const 1
-          local.set $t2
-        else
-        end
-    ;; 19 |     match o:
-        local.get $other.0
-        local.get $other.1
-        call $rt:release
-        local.get $t2
-        local.set $other.0
+        local.get $t1
+        local.set $t0
         br 0
       end
-      local.get $o.0
-      local.get $o.1
-      call $rt:release
+      local.get $t0
+      if
+        i32.const 1
+        local.set $t2
+      else
+      end
+    ;; 19 |     match o:
       local.get $other.0
-      local.set $o.0
+      local.get $other.1
+      call $rt:release
+      local.get $t2
+      local.set $other.0
+      br 0
     end
+    local.get $o.0
+    local.get $o.1
+    call $rt:release
+    local.get $other.0
+    local.set $o.0
     local.get $o.0
   )
 )

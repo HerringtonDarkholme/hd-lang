@@ -4,35 +4,31 @@
   (import "fixture" "table0" (table $table0 0 funcref))
   (func $temp (param $x.0 i32) (param $x.1 i32) (result i32) (local $t0 i32)
     ;; 20 |     x.w().is_a()
+    local.get $x.0
+    local.get $x.1
+    i32.load $heap
+    call_indirect $table0 (param i32) (result i32 i32 i64)
+    drop
+    drop
+    local.set $x.0
     block
-      local.get $x.0
-      local.get $x.1
-      i32.load $heap
-      call_indirect $table0 (param i32) (result i32 i32 i64)
-      drop
-      drop
-      local.set $x.0
       block
         block
           block
-            block
-              block
-                local.get $x.0
-                br_if 1
-                br 0
-                unreachable
-              end
-              i32.const 1
-              local.set $t0
-              br 1
-            end
+            local.get $x.0
+            br_if 1
             br 0
+            unreachable
           end
-          local.get $t0
-          local.set $x.0
-          br 0
+          i32.const 1
+          local.set $t0
+          br 1
         end
+        br 0
       end
+      local.get $t0
+      local.set $x.0
+      br 0
     end
     local.get $x.0
   )

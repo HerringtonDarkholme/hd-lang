@@ -50,30 +50,28 @@
     block
       block
         block
-          block
-            local.get $value
-            i32.load $heap
-            br_if 1
-            br 0
-            unreachable
-          end
-          i32.const 1
-          local.set $t3
-          br 1
+          local.get $value
+          i32.load $heap
+          br_if 1
+          br 0
+          unreachable
         end
-        br 0
+        i32.const 1
+        local.set $t3
+        br 1
       end
-      local.get $value
-      if
-        local.get $value
-        i32.load $heap
-        local.get $value
-        i32.load $heap offset=4
-        call $rt:release
-      end
-      local.get $t3
-      local.set $t1
+      br 0
     end
+    local.get $value
+    if
+      local.get $value
+      i32.load $heap
+      local.get $value
+      i32.load $heap offset=4
+      call $rt:release
+    end
+    local.get $t3
+    local.set $t1
     local.get $t1
     local.get $t0
     i32.const 16
@@ -126,30 +124,28 @@
     block
       block
         block
-          block
-            local.get $value
-            i32.load $heap
-            br_if 1
-            br 0
-            unreachable
-          end
-          br 1
+          local.get $value
+          i32.load $heap
+          br_if 1
+          br 0
+          unreachable
         end
-        i32.const 1
-        local.set $t3
-        br 0
+        br 1
       end
-      local.get $value
-      if
-        local.get $value
-        i32.load $heap
-        local.get $value
-        i32.load $heap offset=4
-        call $rt:release
-      end
-      local.get $t3
-      local.set $t1
+      i32.const 1
+      local.set $t3
+      br 0
     end
+    local.get $value
+    if
+      local.get $value
+      i32.load $heap
+      local.get $value
+      i32.load $heap offset=4
+      call $rt:release
+    end
+    local.get $t3
+    local.set $t1
     local.get $t1
     local.get $t0
     i32.const 16
@@ -158,11 +154,9 @@
   )
   (func $borrowed (param $value i32) (result i32)
     ;; 21 |     generic(value)
-    block
-      local.get $value
-      call $"generic[string]"
-      local.set $value
-    end
+    local.get $value
+    call $"generic[string]"
+    local.set $value
     local.get $value
   )
   (func $none_first (param $value.0 i32) (param $value.1 i32) (result i32) (local $t0 i32)
@@ -170,21 +164,19 @@
     block
       block
         block
-          block
-            local.get $value.0
-            br_if 1
-            br 0
-            unreachable
-          end
-          i32.const 1
-          local.set $t0
-          br 1
+          local.get $value.0
+          br_if 1
+          br 0
+          unreachable
         end
-        br 0
+        i32.const 1
+        local.set $t0
+        br 1
       end
-      local.get $t0
-      local.set $value.0
+      br 0
     end
+    local.get $t0
+    local.set $value.0
     local.get $value.0
   )
   (func $none_first_ne (param $value.0 i32) (param $value.1 i32) (result i32) (local $t0 i32)
@@ -192,21 +184,19 @@
     block
       block
         block
-          block
-            local.get $value.0
-            br_if 1
-            br 0
-            unreachable
-          end
-          br 1
+          local.get $value.0
+          br_if 1
+          br 0
+          unreachable
         end
-        i32.const 1
-        local.set $t0
-        br 0
+        br 1
       end
-      local.get $t0
-      local.set $value.0
+      i32.const 1
+      local.set $t0
+      br 0
     end
+    local.get $t0
+    local.set $value.0
     local.get $value.0
   )
   (func $"generic[string]" (param $value i32) (result i32) (local $t0 i32)
@@ -214,22 +204,20 @@
     block
       block
         block
-          block
-            local.get $value
-            i32.load $heap
-            br_if 1
-            br 0
-            unreachable
-          end
-          i32.const 1
-          local.set $t0
-          br 1
+          local.get $value
+          i32.load $heap
+          br_if 1
+          br 0
+          unreachable
         end
-        br 0
+        i32.const 1
+        local.set $t0
+        br 1
       end
-      local.get $t0
-      local.set $value
+      br 0
     end
+    local.get $t0
+    local.set $value
     local.get $value
   )
 )
