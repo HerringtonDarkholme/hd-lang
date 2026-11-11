@@ -41,13 +41,14 @@ fn left_or_right(pair: &Pair, left: bool) -> &User:
 >   %5 = Block %4 : &User?
 >   %6 = If %0 [%3 %5] : &User?
 >   %7 = Store [$2] %6 : ()
->   %13 = Block %10 : &User
+>   %14 = Block %10 : &User
     o.unwrap_or(&pair.right)
 >   %8 = Read move [$2] : &User?
 >   %9 = Ref local [*$0 .right] : &User
 >   %10 = Call std/option/impl[T < ?Copy] T?.unwrap_or[&User] (%8, %9) : &User
->   %11 = LoanEnd [%9] : ()
->   %12 = LoanEnd [%8] : ()
+>   %11 = Retain %10 Operation operand 0 #0 : ()
+>   %12 = LoanEnd [%9] : ()
+>   %13 = LoanEnd [%8] : ()
 >   summary kept []
 
 fn demo(u: &User) -> usize:

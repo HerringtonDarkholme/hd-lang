@@ -67,13 +67,14 @@ fn difference(reverse: bool, left: &i32, right: &i32) -> i32:
 >   %22 = Block %21 : fn(&i32, &i32) -> i32
 >   %23 = If %0 [%12 %22] : fn(&i32, &i32) -> i32
 >   %24 = Store [$7] %23 : ()
->   %30 = Block %28 : i32
+>   %31 = Block %28 : i32
     apply(by, left, right)
 >   %25 = Read move [$7] : fn(&i32, &i32) -> i32
 >   %26 = Read borrow [$1] : &i32
 >   %27 = Read borrow [$2] : &i32
 >   %28 = Call app/main/apply[] (%25, %26, %27) : i32
->   %29 = Drop [%25] : ()
+>   %29 = Retain %28 Operation operand 0 #0 : ()
+>   %30 = Drop [%25] : ()
 >   exit sub 1 drops [$3 $4]
 >   exit sub 2 drops [$5 $6]
 >   summary kept [] writes

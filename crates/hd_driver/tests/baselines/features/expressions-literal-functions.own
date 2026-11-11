@@ -154,14 +154,16 @@ fn suffixed() -> Label:
 >   %7 = Prim Add [%6 %5] : usize
 >   %8 = Call std/text/impl StringBuilder.value_new[] (%7) : string
 >   %9 = Call std/text/impl StringBuilder.value_text[] (%8, 0:usize, "#") : ()
->   %10 = Call std/text/impl StringBuilder.value_signed[] (%8, %6, %4, %5) : ()
->   %11 = Read move [%8] : string
->   %12 = NewStruct [%11] : Label
->   %13 = Break L0 %12 : never
->   %14 = Block - : Label
->   %15 = Scope %14 [] : Label
->   %16 = Drop [$0] : ()
->   %17 = Block %15 : Label
+>   %10 = Retain %9 Operation operand 0 #0 : ()
+>   %11 = Call std/text/impl StringBuilder.value_signed[] (%8, %6, %4, %5) : ()
+>   %12 = Retain %11 Operation operand 0 #0 : ()
+>   %13 = Read move [%8] : string
+>   %14 = NewStruct [%13] : Label
+>   %15 = Break L0 %14 : never
+>   %16 = Block - : Label
+>   %17 = Scope %16 [] : Label
+>   %18 = Drop [$0] : ()
+>   %19 = Block %17 : Label
 >   %1 finds [$0] full
 >   storage sub 0: $0 slot
 >   summary kept [] writes

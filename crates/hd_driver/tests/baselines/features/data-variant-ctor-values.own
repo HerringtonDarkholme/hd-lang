@@ -134,7 +134,7 @@ fn as_value(errors: List[FsError]) -> List[SyncError]:
 >     uses $0: entry -> %1 lend last
 >   local $1 $0: FsError [param] value
 >     uses $1: entry -> %3 consume last
->   %0 = Release %10 Exit local $0 #2 : ()
+>   %0 = Release %11 Exit local $0 #2 : ()
     wrap_with(errors, SyncError.Fs)
 >   %1 = Read borrow [$0] : List[FsError]
 >   %2 = Retain %5 Entry local $1 #0 : ()
@@ -144,8 +144,9 @@ fn as_value(errors: List[FsError]) -> List[SyncError]:
 >   %6 = Closure #1 : fn(FsError) -> SyncError
 >   %7 = Call app/main/wrap_with[] (%1, %6) : List[SyncError]
 >   %8 = Retain %7 Operation operand 0 #0 : ()
->   %9 = Drop [%6] : ()
->   %10 = Block %7 : List[SyncError]
+>   %9 = Retain %7 Operation operand 1 #0 : ()
+>   %10 = Drop [%6] : ()
+>   %11 = Block %7 : List[SyncError]
 >   exit sub 1 drops [$1]
 >   summary kept [] borrows [$0] writes
 

@@ -253,7 +253,7 @@ fn bare(raw: string) -> string:
 > app/main/bare
 >   local $0 raw: string [param read] value
 >     uses $0: entry -> %1 lend last
->   %0 = Release %17 Exit local $0 #2 : ()
+>   %0 = Release %20 Exit local $0 #2 : ()
     raw |> clean
 >   %1 = Read borrow [$0] : string
 >   %2 = Call std/text/impl StringBuilder.text_width[] (%1) : usize
@@ -263,15 +263,18 @@ fn bare(raw: string) -> string:
 >   %6 = Prim Add [%5 1:usize] : usize
 >   %7 = Call std/text/impl StringBuilder.value_new[] (%6) : string
 >   %8 = Call std/text/impl StringBuilder.value_text[] (%7, 0:usize, "[") : ()
->   %9 = Call std/text/impl StringBuilder.value_text[] (%7, %4, %1) : ()
->   %10 = Retain %9 Operation operand 2 #0 : ()
->   %11 = Call std/text/impl StringBuilder.value_text[] (%7, %5, "]") : ()
->   %12 = Read move [%7] : string
->   %13 = Break L0 %12 : never
->   %14 = Drop [%7] : ()
->   %15 = Block - : string
->   %16 = Scope %15 [] : string
->   %17 = Block %16 : string
+>   %9 = Retain %8 Operation operand 0 #0 : ()
+>   %10 = Call std/text/impl StringBuilder.value_text[] (%7, %4, %1) : ()
+>   %11 = Retain %10 Operation operand 0 #0 : ()
+>   %12 = Retain %10 Operation operand 2 #0 : ()
+>   %13 = Call std/text/impl StringBuilder.value_text[] (%7, %5, "]") : ()
+>   %14 = Retain %13 Operation operand 0 #0 : ()
+>   %15 = Read move [%7] : string
+>   %16 = Break L0 %15 : never
+>   %17 = Drop [%7] : ()
+>   %18 = Block - : string
+>   %19 = Scope %18 [] : string
+>   %20 = Block %19 : string
 >   summary kept [] borrows [$0] writes
 
 fn chain(raw: string) -> string:
@@ -279,9 +282,9 @@ fn chain(raw: string) -> string:
 >   local $0 raw: string [param read] value
 >     uses $0: entry -> %1 lend last
 >   local $1 label: string [read] value
->     uses $1: %17 -> %19 lend last
+>     uses $1: %20 -> %22 lend last
 >   local $2 level: i64 [read captured] place
->   %0 = Release %42 Exit local $0 #2 : ()
+>   %0 = Release %48 Exit local $0 #2 : ()
     raw |> clean |> tag(_, 2)
 >   %1 = Read borrow [$0] : string
 >   %2 = Call std/text/impl StringBuilder.text_width[] (%1) : usize
@@ -291,41 +294,47 @@ fn chain(raw: string) -> string:
 >   %6 = Prim Add [%5 1:usize] : usize
 >   %7 = Call std/text/impl StringBuilder.value_new[] (%6) : string
 >   %8 = Call std/text/impl StringBuilder.value_text[] (%7, 0:usize, "[") : ()
->   %9 = Call std/text/impl StringBuilder.value_text[] (%7, %4, %1) : ()
->   %10 = Retain %9 Operation operand 2 #0 : ()
->   %11 = Call std/text/impl StringBuilder.value_text[] (%7, %5, "]") : ()
->   %12 = Read move [%7] : string
->   %13 = Break L1 %12 : never
->   %14 = Drop [%7] : ()
->   %15 = Block - : string
->   %16 = Scope %15 [] : string
->   %17 = Store [$1] %16 : ()
->   %18 = Store [$2] 2:i64 : ()
->   %19 = Read borrow [$1] : string
->   %20 = Call std/text/impl StringBuilder.text_width[] (%19) : usize
->   %21 = Retain %20 Operation operand 0 #0 : ()
->   %22 = Ref local frame [$2] : &i64
->   %23 = Read copy [*%22] : i64
->   %24 = LoanEnd [%22] : ()
->   %25 = Prim Conv [%23] : i64
->   %26 = Call std/text/impl StringBuilder.signed_width[] (%25) : usize
->   %27 = Prim Add [0:usize %20] : usize
->   %28 = Prim Add [%27 1:usize] : usize
->   %29 = Prim Add [%28 %26] : usize
->   %30 = Call std/text/impl StringBuilder.value_new[] (%29) : string
->   %31 = Call std/text/impl StringBuilder.value_text[] (%30, 0:usize, %19) : ()
->   %32 = Retain %31 Operation operand 2 #0 : ()
->   %33 = Call std/text/impl StringBuilder.value_text[] (%30, %27, ":") : ()
->   %34 = Call std/text/impl StringBuilder.value_signed[] (%30, %28, %25, %26) : ()
->   %35 = Read move [%30] : string
->   %36 = Break L0 %35 : never
->   %37 = Drop [%30] : ()
->   %38 = Block - : string
->   %39 = Scope %38 [] : string
->   %40 = Drop [$2] : ()
->   %41 = Drop [$1] : ()
->   %42 = Block %39 : string
->   %22 finds [$2] full
+>   %9 = Retain %8 Operation operand 0 #0 : ()
+>   %10 = Call std/text/impl StringBuilder.value_text[] (%7, %4, %1) : ()
+>   %11 = Retain %10 Operation operand 0 #0 : ()
+>   %12 = Retain %10 Operation operand 2 #0 : ()
+>   %13 = Call std/text/impl StringBuilder.value_text[] (%7, %5, "]") : ()
+>   %14 = Retain %13 Operation operand 0 #0 : ()
+>   %15 = Read move [%7] : string
+>   %16 = Break L1 %15 : never
+>   %17 = Drop [%7] : ()
+>   %18 = Block - : string
+>   %19 = Scope %18 [] : string
+>   %20 = Store [$1] %19 : ()
+>   %21 = Store [$2] 2:i64 : ()
+>   %22 = Read borrow [$1] : string
+>   %23 = Call std/text/impl StringBuilder.text_width[] (%22) : usize
+>   %24 = Retain %23 Operation operand 0 #0 : ()
+>   %25 = Ref local frame [$2] : &i64
+>   %26 = Read copy [*%25] : i64
+>   %27 = LoanEnd [%25] : ()
+>   %28 = Prim Conv [%26] : i64
+>   %29 = Call std/text/impl StringBuilder.signed_width[] (%28) : usize
+>   %30 = Prim Add [0:usize %23] : usize
+>   %31 = Prim Add [%30 1:usize] : usize
+>   %32 = Prim Add [%31 %29] : usize
+>   %33 = Call std/text/impl StringBuilder.value_new[] (%32) : string
+>   %34 = Call std/text/impl StringBuilder.value_text[] (%33, 0:usize, %22) : ()
+>   %35 = Retain %34 Operation operand 0 #0 : ()
+>   %36 = Retain %34 Operation operand 2 #0 : ()
+>   %37 = Call std/text/impl StringBuilder.value_text[] (%33, %30, ":") : ()
+>   %38 = Retain %37 Operation operand 0 #0 : ()
+>   %39 = Call std/text/impl StringBuilder.value_signed[] (%33, %31, %28, %29) : ()
+>   %40 = Retain %39 Operation operand 0 #0 : ()
+>   %41 = Read move [%33] : string
+>   %42 = Break L0 %41 : never
+>   %43 = Drop [%33] : ()
+>   %44 = Block - : string
+>   %45 = Scope %44 [] : string
+>   %46 = Drop [$2] : ()
+>   %47 = Drop [$1] : ()
+>   %48 = Block %45 : string
+>   %25 finds [$2] full
 >   storage sub 0: $2 slot
 >   summary kept [] borrows [$0] writes
 
@@ -334,9 +343,9 @@ fn direct(raw: string) -> string:
 >   local $0 raw: string [param read] value
 >     uses $0: entry -> %1 lend last
 >   local $1 label: string [read] value
->     uses $1: %17 -> %19 lend last
+>     uses $1: %20 -> %22 lend last
 >   local $2 level: i64 [read captured] place
->   %0 = Release %42 Exit local $0 #2 : ()
+>   %0 = Release %48 Exit local $0 #2 : ()
     tag(clean(raw), 2)
 >   %1 = Read borrow [$0] : string
 >   %2 = Call std/text/impl StringBuilder.text_width[] (%1) : usize
@@ -346,41 +355,47 @@ fn direct(raw: string) -> string:
 >   %6 = Prim Add [%5 1:usize] : usize
 >   %7 = Call std/text/impl StringBuilder.value_new[] (%6) : string
 >   %8 = Call std/text/impl StringBuilder.value_text[] (%7, 0:usize, "[") : ()
->   %9 = Call std/text/impl StringBuilder.value_text[] (%7, %4, %1) : ()
->   %10 = Retain %9 Operation operand 2 #0 : ()
->   %11 = Call std/text/impl StringBuilder.value_text[] (%7, %5, "]") : ()
->   %12 = Read move [%7] : string
->   %13 = Break L1 %12 : never
->   %14 = Drop [%7] : ()
->   %15 = Block - : string
->   %16 = Scope %15 [] : string
->   %17 = Store [$1] %16 : ()
->   %18 = Store [$2] 2:i64 : ()
->   %19 = Read borrow [$1] : string
->   %20 = Call std/text/impl StringBuilder.text_width[] (%19) : usize
->   %21 = Retain %20 Operation operand 0 #0 : ()
->   %22 = Ref local frame [$2] : &i64
->   %23 = Read copy [*%22] : i64
->   %24 = LoanEnd [%22] : ()
->   %25 = Prim Conv [%23] : i64
->   %26 = Call std/text/impl StringBuilder.signed_width[] (%25) : usize
->   %27 = Prim Add [0:usize %20] : usize
->   %28 = Prim Add [%27 1:usize] : usize
->   %29 = Prim Add [%28 %26] : usize
->   %30 = Call std/text/impl StringBuilder.value_new[] (%29) : string
->   %31 = Call std/text/impl StringBuilder.value_text[] (%30, 0:usize, %19) : ()
->   %32 = Retain %31 Operation operand 2 #0 : ()
->   %33 = Call std/text/impl StringBuilder.value_text[] (%30, %27, ":") : ()
->   %34 = Call std/text/impl StringBuilder.value_signed[] (%30, %28, %25, %26) : ()
->   %35 = Read move [%30] : string
->   %36 = Break L0 %35 : never
->   %37 = Drop [%30] : ()
->   %38 = Block - : string
->   %39 = Scope %38 [] : string
->   %40 = Drop [$2] : ()
->   %41 = Drop [$1] : ()
->   %42 = Block %39 : string
->   %22 finds [$2] full
+>   %9 = Retain %8 Operation operand 0 #0 : ()
+>   %10 = Call std/text/impl StringBuilder.value_text[] (%7, %4, %1) : ()
+>   %11 = Retain %10 Operation operand 0 #0 : ()
+>   %12 = Retain %10 Operation operand 2 #0 : ()
+>   %13 = Call std/text/impl StringBuilder.value_text[] (%7, %5, "]") : ()
+>   %14 = Retain %13 Operation operand 0 #0 : ()
+>   %15 = Read move [%7] : string
+>   %16 = Break L1 %15 : never
+>   %17 = Drop [%7] : ()
+>   %18 = Block - : string
+>   %19 = Scope %18 [] : string
+>   %20 = Store [$1] %19 : ()
+>   %21 = Store [$2] 2:i64 : ()
+>   %22 = Read borrow [$1] : string
+>   %23 = Call std/text/impl StringBuilder.text_width[] (%22) : usize
+>   %24 = Retain %23 Operation operand 0 #0 : ()
+>   %25 = Ref local frame [$2] : &i64
+>   %26 = Read copy [*%25] : i64
+>   %27 = LoanEnd [%25] : ()
+>   %28 = Prim Conv [%26] : i64
+>   %29 = Call std/text/impl StringBuilder.signed_width[] (%28) : usize
+>   %30 = Prim Add [0:usize %23] : usize
+>   %31 = Prim Add [%30 1:usize] : usize
+>   %32 = Prim Add [%31 %29] : usize
+>   %33 = Call std/text/impl StringBuilder.value_new[] (%32) : string
+>   %34 = Call std/text/impl StringBuilder.value_text[] (%33, 0:usize, %22) : ()
+>   %35 = Retain %34 Operation operand 0 #0 : ()
+>   %36 = Retain %34 Operation operand 2 #0 : ()
+>   %37 = Call std/text/impl StringBuilder.value_text[] (%33, %30, ":") : ()
+>   %38 = Retain %37 Operation operand 0 #0 : ()
+>   %39 = Call std/text/impl StringBuilder.value_signed[] (%33, %31, %28, %29) : ()
+>   %40 = Retain %39 Operation operand 0 #0 : ()
+>   %41 = Read move [%33] : string
+>   %42 = Break L0 %41 : never
+>   %43 = Drop [%33] : ()
+>   %44 = Block - : string
+>   %45 = Scope %44 [] : string
+>   %46 = Drop [$2] : ()
+>   %47 = Drop [$1] : ()
+>   %48 = Block %45 : string
+>   %25 finds [$2] full
 >   storage sub 0: $2 slot
 >   summary kept [] borrows [$0] writes
 

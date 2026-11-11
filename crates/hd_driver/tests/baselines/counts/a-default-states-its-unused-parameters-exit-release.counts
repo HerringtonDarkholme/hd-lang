@@ -29,4 +29,4 @@ pub fn main() -> void $ Console:
 >   release string (last use)
 >   release *mut List[string] (last use)
     println(join(log, "first"))
->   retain string (conservative: Call)
+>   retain string (stored)

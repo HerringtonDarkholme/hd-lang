@@ -240,14 +240,15 @@ pub fn main() -> void $ Console:
 >   %1 = Store [$0] %0 : ()
 >   %2 = Ref take mut [$0] : *mut List[string]
 >   %3 = Store [$1] %2 : ()
->   %11 = Block - : ()
+>   %12 = Block - : ()
 >   %2 finds [$0] full
     println(join(log, "first"))
 >   %4 = Read move [$1] : *mut List[string]
 >   %5 = DefaultCall [app/main/join.second []] [%4 "first"] : string
 >   %6 = DefaultCall [app/main/join.limit []] [%4 "first" %5] : usize
 >   %7 = Call app/main/join[] (%4, "first", %5, %6) : string
->   %8 = Drop [%5] : ()
->   %9 = Drop [%4] : ()
->   %10 = Call std/console/println[string] (%7) : ()
+>   %8 = Retain %7 Operation operand 2 #0 : ()
+>   %9 = Drop [%5] : ()
+>   %10 = Drop [%4] : ()
+>   %11 = Call std/console/println[string] (%7) : ()
 >   storage sub 0: $0 cell
