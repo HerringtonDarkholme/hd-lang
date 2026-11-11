@@ -1,0 +1,11 @@
+# test: function variance converts no reference inside an optional input
+# Spec 04 Option: types.option.invariant; Spec 07: fn.type.declared-variance.
+# The tuple form `fn((&i32, i32))` as `fn((*i32, i32))` is accepted; an
+# optional input is invariant, so its reference keeps its kind.
+fn read(value: (&i32)?) -> i32:
+    match value:
+        .Some(r) => *r
+        .None => 0
+
+fn adapt() -> fn((*i32)?) -> i32:
+    read  # diagnostic: type-mismatch

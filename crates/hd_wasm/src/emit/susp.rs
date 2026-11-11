@@ -1537,7 +1537,7 @@ pub(super) fn finish(
         }
         // Reference parameter slots precede all body-allocated waker nodes.
         // These typed identities replace opaque temporary ownership inference.
-        for (l, held) in em.frame_refs.clone() {
+        for (l, _, held) in em.frame_refs.clone() {
             let Some(loaded) = load(&mut em, &[held]) else {
                 continue;
             };
@@ -1658,8 +1658,9 @@ pub(super) fn finish(
     // The frame's count of each reference parameter's object, in the
     // temporary its exit or release glue releases.
     if let Some(r) = em.input.runtime.filter(|_| em.counting) {
-        for (l, held) in em.frame_refs.clone() {
-            let (Some(x), Some((at, v))) = (arrived(&em, l).first().copied(), at_of(held)) else {
+        for (l, k, held) in em.frame_refs.clone() {
+            let (Some(x), Some((at, v))) = (arrived(&em, l).get(k as usize).copied(), at_of(held))
+            else {
                 continue;
             };
             // ruled out: own::referent states Cold for every thin parameter

@@ -70,19 +70,20 @@ pub fn counted_type(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> bool {
     layout::holds_drop(pool, env, ty) || layout::walk(pool, env, ty).is_some()
 }
 
-/// Whether this concrete parameter type is one thin local reference
-/// (`ref.count.local`), which counts nothing. Its cold frame holds a
-/// separate page-table count of the referenced object.
+/// Whether this concrete parameter type holds a thin local reference
+/// (`ref.count.local`) by value, itself or as a tuple member or a field,
+/// which counts nothing. Its cold frame holds a separate page-table count
+/// of each referenced object ([`frame_referent_values`]).
 #[must_use]
 pub fn frame_referent_type(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> bool {
-    matches!(
-        layout::kind(pool, env, ty),
-        layout::Kind::Ref {
-            fat: false,
-            whole: false,
-            ..
-        }
-    )
+    !frame_referent_values(pool, env, ty).is_empty()
+}
+
+/// The values of a parameter of type `ty` whose objects a cold frame
+/// counts: each thin local reference it holds by value on every path.
+#[must_use]
+pub fn frame_referent_values(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> Vec<u32> {
+    layout::thin_local_ref_values(pool, env, ty)
 }
 
 /// Whether the value's representation is one counted address at word zero.
@@ -122,6 +123,16 @@ pub fn plain_reference_type(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> 
     !layout::holds_drop(pool, env, ty)
         && layout::walk(pool, env, ty).is_some()
         && layout::count_walk(pool, env, ty).is_none()
+}
+
+/// Whether a function value borrows an input of type `t` that a plain
+/// function's parameter would own: one that holds a thin reference by
+/// value, which variance may turn from counted to local in place
+/// ([`layout::function_pass`]). The ownership passes' function-value
+/// convention reads it, so callers and closure bodies agree.
+#[must_use]
+pub fn function_input_borrows(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
+    layout::holds_thin_ref(pool, env, t)
 }
 
 /// Whether ownership must transfer an inline runtime Drop value rather

@@ -1366,7 +1366,12 @@ counted frames in memory 0 (`emit/susp.rs`, `task.rs`).
   Function values borrow every reference input, including counted references,
   for both plain code and cold constructors/fresh entries. This common
   convention preserves input variance through nested containers without
-  wrapping their elements. Non-reference values keep type-selected ownership.
+  wrapping their elements. An input that holds a thin reference by value,
+  a tuple, struct or optional member, is borrowed whole, since variance
+  may make that member counted on one side and local on the other
+  (`layout::function_pass`, #1693). Other non-reference values keep
+  type-selected ownership. A cold frame counts the object of each thin
+  local reference its parameters hold by value, a tuple member's too.
   A frame retains its providers, since the scope that installed them
   may end before the frame does.
 - **The state machine.** States are numbered in structural order, so a

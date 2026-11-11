@@ -483,8 +483,10 @@ fn body_func<'a>(
         // A frame owns its reference parameters (POINTER_LOANS.md E.2): a
         // local reference counts nothing, so the cold constructor takes a
         // page-table count of each one's object into a temporary that the
-        // frame's exit or release glue releases (`susp::finish`).
-        if em.counting {
+        // frame's exit or release glue releases (`susp::finish`). A tuple
+        // or struct parameter holds its thin local references by value,
+        // and the frame counts each one's object the same way.
+        if em.counting && em.input.runtime.is_some() {
             for &l in &plocals {
                 let t = em.sub(b.local_ty[l]);
                 if em
@@ -493,11 +495,13 @@ fn body_func<'a>(
                         CountAt::Cold,
                         CountPart::Referent(u32::try_from(l).expect("local")),
                     )
-                    .is_some()
-                    && em.local_ref(t)
+                    .is_none()
                 {
+                    continue;
+                }
+                for k in crate::frame_referent_values(em.pool(), em.env(), t) {
                     let held = em.f.local(Val::I32);
-                    em.frame_refs.push((l, held));
+                    em.frame_refs.push((l, k, held));
                 }
             }
         }
@@ -1199,9 +1203,10 @@ struct Em<'i, 'a, 'm> {
     retained_before_result: hd_base::HashSet<u32>,
     /// The locals such a value moves into, whose release releases it.
     owned_locals: hd_base::HashSet<usize>,
-    /// A suspending body's reference parameters, each with the temporary
-    /// holding the page-table count its frame keeps of the object.
-    frame_refs: Vec<(usize, u32)>,
+    /// A suspending body's reference parameters: the local, the value of
+    /// it that is a thin local reference, and the temporary holding the
+    /// page-table count its frame keeps of that reference's object.
+    frame_refs: Vec<(usize, u32, u32)>,
     /// A top-level binding's initializer: its key, for a cell that the
     /// binding's reference keeps for the whole program (a static cell).
     init_key: Option<Hash128>,

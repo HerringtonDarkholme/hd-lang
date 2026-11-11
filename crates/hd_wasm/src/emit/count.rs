@@ -719,7 +719,7 @@ impl Em<'_, '_, '_> {
             }
         }
         // Saved reference-object slots have their own normal-exit contract.
-        for (l, held) in self.frame_refs.clone() {
+        for (l, _, held) in self.frame_refs.clone() {
             let local = super::required(
                 u32::try_from(l).ok(),
                 "frame_refs must contain u32 TIR parameter IDs from own::referent",

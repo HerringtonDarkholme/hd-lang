@@ -476,6 +476,7 @@ thread_local! {
     static WALKS: Memo<Option<Walk>> = const { std::cell::RefCell::new(None) };
     static COUNT_WALKS: Memo<Option<Walk>> = const { std::cell::RefCell::new(None) };
     static DROPS: Memo<bool> = const { std::cell::RefCell::new(None) };
+    static THIN_REFS: Memo<bool> = const { std::cell::RefCell::new(None) };
     static FLATS: Memo<StageResult<std::rc::Rc<Flat>>> = const { std::cell::RefCell::new(None) };
 }
 
@@ -488,6 +489,7 @@ pub fn cached<R>(link: impl FnOnce() -> R) -> R {
         walks: Option<hd_base::HashMap<Ty, Option<Walk>>>,
         count_walks: Option<hd_base::HashMap<Ty, Option<Walk>>>,
         drops: Option<hd_base::HashMap<Ty, bool>>,
+        thin_refs: Option<hd_base::HashMap<Ty, bool>>,
         flats: Option<hd_base::HashMap<Ty, StageResult<std::rc::Rc<Flat>>>>,
     }
     impl Drop for Reset {
@@ -496,6 +498,7 @@ pub fn cached<R>(link: impl FnOnce() -> R) -> R {
             WALKS.set(self.walks.take());
             COUNT_WALKS.set(self.count_walks.take());
             DROPS.set(self.drops.take());
+            THIN_REFS.set(self.thin_refs.take());
             FLATS.set(self.flats.take());
         }
     }
@@ -505,12 +508,14 @@ pub fn cached<R>(link: impl FnOnce() -> R) -> R {
         walks: WALKS.take(),
         count_walks: COUNT_WALKS.take(),
         drops: DROPS.take(),
+        thin_refs: THIN_REFS.take(),
         flats: FLATS.take(),
     };
     MEMS.set(Some(hd_base::HashMap::default()));
     WALKS.set(Some(hd_base::HashMap::default()));
     COUNT_WALKS.set(Some(hd_base::HashMap::default()));
     DROPS.set(Some(hd_base::HashMap::default()));
+    THIN_REFS.set(Some(hd_base::HashMap::default()));
     FLATS.set(Some(hd_base::HashMap::default()));
     link()
 }
@@ -845,9 +850,55 @@ pub fn pass(pool: &InternPool, env: &dyn ProgramEnv, counts: bool, t: Ty) -> Pas
 
 /// Function values borrow every reference input. Variance may turn a
 /// counted reference input into a local loan without changing the code
-/// pointer, including for function values inside containers.
+/// pointer (`fn.type.variance-repr`), including for function values inside
+/// containers, and inside a tuple, struct or enum the input holds by value:
+/// a `fn((&i32, i32))` serves as a `fn((*i32, i32))` with no wrapper
+/// (`types.variance.no-insertion`). Such an input is borrowed whole, so
+/// its caller releases what it counts, as it does a lone `*T`.
 pub fn function_pass(pool: &InternPool, env: &dyn ProgramEnv, counts: bool, t: Ty) -> Pass {
-    parameter_pass(pool, env, counts, t, false)
+    match parameter_pass(pool, env, counts, t, false) {
+        Pass::Owned(_) if holds_thin_ref(pool, env, t) => Pass::Borrowed,
+        p => p,
+    }
+}
+
+/// The values of `t` that are thin local references held by value on
+/// every path (`ref.count.local`): the walk names them, the count walk
+/// does not. A thin local reference under an enum's discriminant is not
+/// held on every path and is left out.
+pub fn thin_local_ref_values(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<u32> {
+    fn leaves(w: &Walk, out: &mut Vec<u32>) {
+        match w {
+            Walk::Ref(k) | Walk::Known(k) => out.push(*k),
+            Walk::Seq(ws) => ws.iter().for_each(|w| leaves(w, out)),
+            Walk::Glue | Walk::Switch(..) => {}
+        }
+    }
+    let (mut all, mut counted) = (Vec::new(), Vec::new());
+    if let Some(w) = walk(pool, env, t) {
+        leaves(&w, &mut all);
+    }
+    if let Some(w) = count_walk(pool, env, t) {
+        leaves(&w, &mut counted);
+    }
+    all.retain(|k| !counted.contains(k));
+    all
+}
+
+/// Whether a value of `t` holds a thin reference by value: a `*T` or a
+/// `&T` whose target is no trait value, in itself or in a tuple member,
+/// a struct field or a value enum's payload. Variance turns one kind into
+/// the other in place, so the answer is the same for both, and for every
+/// type a representation-preserving conversion relates to `t`. A fat
+/// reference counts either way, and a collection's elements or a boxed
+/// enum's payload are not held by value.
+pub fn holds_thin_ref(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
+    memoized(&THIN_REFS, pool, env, t, &|t, part| {
+        if let Kind::Ref { fat, .. } = kind(pool, env, t) {
+            return !fat;
+        }
+        value_parts(pool, env, t).into_iter().any(part)
+    })
 }
 
 fn parameter_pass(

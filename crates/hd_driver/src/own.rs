@@ -1166,11 +1166,20 @@ impl Env<'_> {
     }
 
     /// Function variance may lend a counted reference as a local reference,
-    /// including inside containers. All function-value reference inputs
-    /// therefore share the borrowed convention; declaration adapters bridge
-    /// to named targets that receive an owner.
+    /// including inside containers and inside a value that holds one in
+    /// place (`(*T, i32)` as `(&T, i32)`). All such function-value inputs
+    /// therefore share the borrowed convention
+    /// (`hd_wasm::function_input_borrows`); declaration adapters bridge to
+    /// named targets that receive an owner.
     pub(super) fn function_parameter(&self, t: Ty) -> Pass {
-        self.parameter(t, false)
+        match self.parameter(t, false) {
+            Pass::Owned
+                if !self.is_open(t) && hd_wasm::function_input_borrows(&self.run.pool, self, t) =>
+            {
+                Pass::Lent
+            }
+            p => p,
+        }
     }
 
     fn parameter(&self, t: Ty, counted_owned: bool) -> Pass {
