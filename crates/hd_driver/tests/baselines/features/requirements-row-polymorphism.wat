@@ -7,7 +7,7 @@
   (func $closure (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
     ;; 29 |     with_tag(s, fn() -> usize $ Tag: $.use(Tag).name().len())
     i32.const 8
-    i32.const 2
+    i32.const 1
     call $rt:new/class-1
     local.tee $t0
     local.get $s.0
@@ -36,7 +36,7 @@
   (func $run (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
     ;; 26 |     with_tag(s, read_tag)
     i32.const 8
-    i32.const 2
+    i32.const 1
     call $rt:new/class-1
     local.tee $t0
     local.get $s.0

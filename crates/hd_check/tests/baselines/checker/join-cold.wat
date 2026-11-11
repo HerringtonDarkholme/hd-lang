@@ -22,7 +22,7 @@
     i32.const 0
     call $ready
     i32.const 0
-    i32.const 1
+    i32.const 5
     call_indirect $table0 (param i32 i32 i32) (result i32)
   )
   (func $later#1'1 (param $frame i32) (param $env i32) (param $t1 i32) (param $ctx i32) (result i32 i32) (local $t7 i32) (local $t10 i32) (local $t9 i32) (local $t2 i32) (local $t3 i32) (local $t8 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t0 i32)

@@ -306,9 +306,9 @@
   )
   (func $generic (param $captured.0 i32) (param $captured.1 i32) (result i32 i32 i32 i32) (local $t0 i32) (local $t1 i32)
     ;; 9 |     (pair::[i32], pair::[string])
-    i32.const 1
+    i32.const 4
     i32.const 8
-    i32.const 3
+    i32.const 1
     call $rt:new/class-1'2
     local.tee $t0
     local.get $captured.0
@@ -318,9 +318,9 @@
     i32.store $heap offset=4
     local.get $t0
     call $rt:retain_fields'1
-    i32.const 3
+    i32.const 5
     i32.const 8
-    i32.const 3
+    i32.const 1
     call $rt:new/class-1'2
     local.tee $t1
     local.get $captured.0
@@ -370,9 +370,9 @@
     i32.const 0
     i32.store $heap
     ;; 13 |     fn!() -> usize:
+    i32.const 6
     i32.const 4
-    i32.const 4
-    i32.const -2147483642
+    i32.const -2147483646
     call $rt:new/class-1'1
     local.tee $t0
     local.get $count
@@ -460,9 +460,9 @@
     i32.const 0
     i32.store $heap
     ;; 19 |     next := fn() -> usize:
-    i32.const 6
+    i32.const 7
     i32.const 4
-    i32.const -2147483642
+    i32.const -2147483646
     call $rt:new/class-1'1
     local.tee $t2
     ;; 18 |     let count: usize = 0

@@ -19,7 +19,7 @@
   (func $node (result i32) (local $t0 i32)
     ;; 15 |     box(Node { next: .None })
     i32.const 4
-    i32.const -2147483645
+    i32.const -2147483646
     call $rt:new/class-1'2
     local.tee $t0
     i32.const 0

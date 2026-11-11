@@ -31,7 +31,7 @@
   (func $demo (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $tally i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32)
     ;; 28 |     tally := box(Log { lines: [] })
     i32.const 4
-    i32.const 4
+    i32.const 1
     call $rt:new/class-1
     local.tee $tally
     i32.const 80 ;; &empty-buffer
@@ -122,7 +122,7 @@
     i32.eq
     if
       local.get $t0
-      i32.const 4
+      i32.const 5
       call_indirect $table0 (param i32) (result i32)
       local.set $t0
       local.get $self

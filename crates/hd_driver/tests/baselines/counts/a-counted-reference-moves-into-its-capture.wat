@@ -54,9 +54,9 @@
   )
   (func $handle (param $value i32) (result i32 i32) (local $t0 i32)
     ;; 24 |     fn() -> Handle: value
-    i32.const 1
+    i32.const 3
     i32.const 4
-    i32.const -2147483645
+    i32.const -2147483647
     call $rt:new/class-1
     local.tee $t0
     local.get $value
@@ -66,13 +66,13 @@
   (func $generic (param $value i32) (result i32 i32)
     ;; 48 |     later(value)
     local.get $value
-    i32.const 3
+    i32.const 4
     call_indirect $table0 (param i32) (result i32 i32)
   )
   (func $local_view (param $value i32) (result i32)
     ;; 45 |     loan(View(value))
     local.get $value
-    i32.const 4
+    i32.const 5
     call_indirect $table0 (param i32) (result i32)
   )
   (func $capture#1 (param $env i32) (param $ctx i32) (result i32)
@@ -93,7 +93,7 @@
   (func $fresh (param $name.0 i32) (param $name.1 i32) (result i32 i32) (local $t0 i32)
     ;; 35 |     capture(box(Point { name: name, x: 0 }))
     i32.const 12
-    i32.const 6
+    i32.const 2
     call $rt:new/class-2
     local.tee $t0
     local.get $name.0
@@ -112,7 +112,7 @@
     ;; 18 |     fn() -> i32:
     i32.const 7
     i32.const 4
-    i32.const -2147483645
+    i32.const -2147483647
     call $rt:new/class-1
     local.tee $t0
     local.get $value
@@ -181,7 +181,7 @@
     ;; 28 |     fn() -> T: value
     i32.const 8
     i32.const 4
-    i32.const -2147483645
+    i32.const -2147483647
     call $rt:new/class-1
     local.tee $t0
     local.get $value

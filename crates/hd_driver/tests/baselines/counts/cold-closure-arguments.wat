@@ -550,7 +550,7 @@
         br 1
       end
       i32.const 8
-      i32.const 2
+      i32.const 1
       call $rt:new/class-1
       local.tee $ctx
       local.get $env
@@ -563,7 +563,7 @@
       i32.eqz
       if
         i32.const 8
-        i32.const 2
+        i32.const 1
         call $rt:new/class-1
         local.tee $env
         local.get $t3
@@ -1166,7 +1166,7 @@
         br 1
       end
       i32.const 8
-      i32.const 2
+      i32.const 1
       call $rt:new/class-1
       local.tee $ctx
       local.get $env
@@ -1179,7 +1179,7 @@
       i32.eqz
       if
         i32.const 8
-        i32.const 2
+        i32.const 1
         call $rt:new/class-1
         local.tee $env
         local.get $t3
@@ -1517,7 +1517,7 @@
       local.get $t4
       i32.eqz
       if
-        i32.const 2
+        i32.const 8
         i32.const 0
     ;; 9 |     loader!(key, keys)
         local.set $t2
@@ -2384,7 +2384,7 @@
         br 1
       end
       i32.const 8
-      i32.const 2
+      i32.const 1
       call $rt:new/class-1
       local.tee $ctx
       local.get $env
@@ -2397,7 +2397,7 @@
       i32.eqz
       if
         i32.const 8
-        i32.const 2
+        i32.const 1
         call $rt:new/class-1
         local.tee $env
         local.get $t3
@@ -2726,7 +2726,7 @@
       local.set $t4
     else
       i32.const 8
-      i32.const 2
+      i32.const 1
       call $rt:new/class-1
       local.tee $key
       local.get $t5
@@ -2739,7 +2739,7 @@
       local.get $t4
       i32.eqz
       if
-        i32.const 3
+        i32.const 9
         i32.const 0
     ;; 17 |     size := loader!(key, keys)
         local.set $t2
@@ -3304,7 +3304,7 @@
     local.get $t1
     i32.store $heap offset=24
     i32.const 8
-    i32.const 2
+    i32.const 1
     call $rt:new/class-1
     local.tee $t1
     local.get $t2

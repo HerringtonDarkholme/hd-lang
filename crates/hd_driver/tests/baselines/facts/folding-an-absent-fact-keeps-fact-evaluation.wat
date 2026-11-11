@@ -8,7 +8,7 @@
     block
       i32.const 19 ;; &"fact body ran"
       i32.const 13
-      i32.const 1
+      i32.const 2
       call_indirect $table0 (param i32 i32)
       unreachable
     end

@@ -22,7 +22,7 @@
   (func $install (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
     ;; 21 |     f := box(Fixed { n: s })
     i32.const 8
-    i32.const 3
+    i32.const 1
     call $rt:new/class-1
     local.tee $t0
     local.get $s.0

@@ -10,7 +10,7 @@
   (import "fixture" "table0" (table $table0 10 funcref))
   (func $kept (param $n i32) (result i32) (local $f.0 i32) (local $f.1 i32) (local $t0 i32) (local $i i32) (local $total i32) (local $step.1 i32)
     ;; 8 |     let mut f = fn() -> i32: +0
-    i32.const 1
+    i32.const 2
     local.set $f.0
     ;; 9 |     for i in +0..n:
     block
@@ -34,9 +34,9 @@
         local.get $i
         i32.store $heap
     ;; 11 |         step := fn() -> i32:
-        i32.const 2
+        i32.const 3
         i32.const 4
-        i32.const -2147483644
+        i32.const -2147483647
         call $rt:new/class-1
         local.tee $step.1
         local.get $total

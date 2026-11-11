@@ -17,7 +17,7 @@
       call $retain
     end
     i32.const 8
-    i32.const 2
+    i32.const 1
     call $rt:new/class-1
     local.tee $copy
     ;; 15 |     let mut p = Point { name: s }
@@ -77,7 +77,7 @@
   (func $move_box (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
     ;; 22 |     box(p)
     i32.const 8
-    i32.const 2
+    i32.const 1
     call $rt:new/class-1
     local.tee $t0
     ;; 21 |     p := Point { name: s }
@@ -94,7 +94,7 @@
   (func $shared (param $s.0 i32) (param $s.1 i32) (param $t.0 i32) (param $t.1 i32) (result i32) (local $b i32) (local $t0 i32)
     ;; 25 |     b := box(Point { name: s })
     i32.const 8
-    i32.const 2
+    i32.const 1
     call $rt:new/class-1
     local.tee $b
     local.get $s.0

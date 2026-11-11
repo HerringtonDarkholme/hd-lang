@@ -5551,6 +5551,7 @@ runtime/valid/weak-reference-acyclic-tree.hd	runtime	accept	std/weak.md#collecti
 runtime/valid/weak-reference-cycle-collector.hd	runtime	accept	std/weak.md#collection-and-release
 runtime/valid/weak-reference-generic-exact-targets.hd	runtime	accept	std/weak.md#weak-types-and-construction
 runtime/valid/weak-reference-identity-lifecycle.hd	runtime	accept	std/weak.md#weakening-and-identity
+runtime/valid/weak-reference-large-function-table.hd	runtime	accept	std/weak.md#weak-types-and-construction
 runtime/valid/weak-reference-lifetime.hd	runtime	accept	std/weak.md#weak-types-and-construction
 runtime/valid/a-weakened-cold-call-releases-its-counted-reference-argument.hd	runtime	accept	std/weak.md#r-std-weak.release.target
 runtime/valid/cold-frame-keeps-conditional-reference-objects.hd	runtime	accept	std/weak.md#r-std-weak.release.target

@@ -20,7 +20,7 @@
   (func $probe (result i32 i32 i32 i32) (local $p i32) (local $r i32) (local $t1 i32) (local $t3 i32) (local $t0 i32) (local $t2 i32) (local $t4 i32)
     ;; 13 |     p := box(Cell { value: "a", other: "o" })
     i32.const 16
-    i32.const 2
+    i32.const 1
     call $rt:new/class-2
     local.tee $p
     i32.const 65 ;; &"a"

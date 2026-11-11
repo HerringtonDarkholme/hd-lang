@@ -26,7 +26,7 @@
   (func $shared (param $seed i32) (result i32 i32) (local $t0 i32)
     ;; 9 |     let value: Choice = ._0(seed)
     i32.const 8
-    i32.const 2
+    i32.const 1
     call $rt:new/class-1'1
     local.tee $t0
     i32.const 0
@@ -37,9 +37,9 @@
     local.get $t0
     local.set $seed
     ;; 10 |     read := fn() -> Choice: value
-    i32.const 2
+    i32.const 3
     i32.const 4
-    i32.const -2147483644
+    i32.const -2147483646
     call $rt:new/class-1'2
     local.tee $t0
     local.get $seed

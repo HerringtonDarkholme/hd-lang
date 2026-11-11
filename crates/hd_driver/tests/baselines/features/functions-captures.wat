@@ -13,9 +13,9 @@
   (import "fixture" "table0" (table $table0 12 funcref))
   (func $through_ptr (param $items i32) (param $s.0 i32) (param $s.1 i32) (result i32 i32) (local $t0 i32)
     ;; 30 |     fn() -> void: items.push(s)
-    i32.const 0
+    i32.const 2
     i32.const 12
-    i32.const -2147483646
+    i32.const -2147483647
     call $rt:new/class-2
     local.tee $t0
     local.get $items
@@ -59,7 +59,7 @@
     i32.eq
     if
       local.get $t0
-      i32.const 3
+      i32.const 4
       call_indirect $table0 (param i32) (result i32)
       local.set $t0
       local.get $ctx
@@ -218,7 +218,7 @@
     i32.eq
     if
       local.get $t2
-      i32.const 3
+      i32.const 4
       call_indirect $table0 (param i32) (result i32)
       local.set $t2
       local.get $xs
@@ -263,7 +263,7 @@
     i32.eq
     if
       local.get $t1
-      i32.const 3
+      i32.const 4
       call_indirect $table0 (param i32) (result i32)
       local.set $t1
       local.get $xs

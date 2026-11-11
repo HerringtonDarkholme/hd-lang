@@ -128,9 +128,9 @@
         local.set $t2
     ;; 14 |         each(xs, fn(x: string) -> void: total += x.len())
         local.get $xs
-        i32.const 1
+        i32.const 3
         i32.const 4
-        i32.const -2147483645
+        i32.const -2147483647
         call $rt:new/class-1
         local.tee $t3
         local.get $total

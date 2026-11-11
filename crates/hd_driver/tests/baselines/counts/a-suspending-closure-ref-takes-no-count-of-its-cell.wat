@@ -581,7 +581,7 @@
       local.get $t4
       i32.eqz
       if
-        i32.const 0
+        i32.const 9
         i32.const 0
     ;; 18 |     run!()
         local.set $t2
@@ -1063,7 +1063,7 @@
         i64.const 0
         i64.store $heap
     ;; 28 |     run := fn!() -> i64: read!(&tally)
-        i32.const 2
+        i32.const 11
         local.get $tally
         i32.eqz
         if
@@ -2973,7 +2973,7 @@
         i64.const 0
         i64.store $heap
     ;; 22 |     run := fn!() -> void: bump!(&mut tally)
-        i32.const 3
+        i32.const 12
         local.get $tally
         i32.eqz
         if
@@ -2985,7 +2985,7 @@
           i64.store $heap
         end
         i32.const 4
-        i32.const -2147483643
+        i32.const -2147483647
         call $rt:new/class-1'2
         local.tee $t2
         local.get $tally

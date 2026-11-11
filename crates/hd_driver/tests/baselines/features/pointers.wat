@@ -48,7 +48,7 @@
   (func $make (param $n.0 i32) (param $n.1 i32) (result i32) (local $t0 i32)
     ;; 12 |     box(Node { name: n, next: .None })
     i32.const 12
-    i32.const -2147483646
+    i32.const -2147483647
     call $rt:new/class-2
     local.tee $t0
     local.get $n.0

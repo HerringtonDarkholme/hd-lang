@@ -33,7 +33,7 @@ pub mod work;
 pub use layout::Niche;
 mod wide;
 
-use hd_base::{DefId, Hash128, InstId, NotImplemented, Stage, StageResult};
+use hd_base::{DefId, Hash128, InstId, StageResult};
 use hd_mono::layout::{CanonMemo, canon};
 use hd_mono::{Collected, ProgramEnv, Target, TargetKind};
 use hd_tir::ir::Body;
@@ -1047,13 +1047,6 @@ fn referenced_global(
         hd_tir::ir::PlaceRoot::Global(def, ty) => Some((def, ty)),
         _ => emit::global_root(b, &p).filter(|(def, _)| written.contains(&env.path_hash(*def))),
     }
-}
-
-pub(crate) fn unsupported<T>(what: impl Into<String>) -> StageResult<T> {
-    Err(NotImplemented::new(
-        Stage::Link,
-        format!("{} in the linear backend", what.into()),
-    ))
 }
 
 #[cfg(test)]

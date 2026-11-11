@@ -5,7 +5,7 @@
   (func $make (result i32) (local $t0 i32)
     ;; 14 |     box(Deep { w: Wrap.Empty })
     i32.const 12
-    i32.const 2
+    i32.const 1
     call $rt:new/class-2
     local.tee $t0
     i32.const 4

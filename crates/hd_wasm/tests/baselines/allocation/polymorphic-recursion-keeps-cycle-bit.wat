@@ -5,7 +5,7 @@
   (func $make (result i32) (local $t0 i32)
     ;; 12 |     box(Edge.Done)
     i32.const 12
-    i32.const -2147483646
+    i32.const -2147483647
     call $rt:new/class-2
     local.tee $t0
     i32.const 0

@@ -90,13 +90,13 @@
     local.get $items
     i32.const 65 ;; &"a"
     i32.const 1
-    i32.const 3
+    i32.const 4
     call_indirect $table0 (param i32 i32 i32)
     ;; 22 |     bump(&mut items, "b")
     local.get $items
     i32.const 66 ;; &"b"
     i32.const 1
-    i32.const 3
+    i32.const 4
     call_indirect $table0 (param i32 i32 i32)
     ;; 23 |     println(items["a"])
     local.get $items
@@ -242,7 +242,7 @@
     i32.add
     i32.const 8
     i32.add
-    i32.const 4
+    i32.const 5
     call_indirect $table0 (param i32) (result i32)
     local.set $saved
     ;; 19 |     let mut items = { "a": +1 }
@@ -298,12 +298,12 @@
     local.tee $items
     ;; 28 |     scalar(&mut numbers, 1)
     i32.const 1
-    i32.const 5
+    i32.const 6
     call_indirect $table0 (param i32 i32)
     ;; 29 |     scalar(&mut numbers, 2)
     local.get $items
     i32.const 2
-    i32.const 5
+    i32.const 6
     call_indirect $table0 (param i32 i32)
     ;; 30 |     println(numbers[1])
     local.get $items

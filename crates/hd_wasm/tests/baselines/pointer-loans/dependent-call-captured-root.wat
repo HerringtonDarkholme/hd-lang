@@ -54,7 +54,7 @@
     local.tee $t0
     global.set $locals
     i32.const 8
-    i32.const 2
+    i32.const 1
     call $rt:new/class-1'1
     local.tee $ps
     i32.const 65 ;; &"a"
@@ -80,9 +80,9 @@
     local.get $change.0
     i32.store $heap
     ;; 11 |     change := fn() -> void:
-    i32.const 2
     i32.const 4
-    i32.const -2147483644
+    i32.const 4
+    i32.const -2147483646
     call $rt:new/class-1'2
     local.tee $change.0
     local.get $ps
@@ -298,7 +298,7 @@
     local.tee $env
     ;; 12 |         ps[0] = box(P { name: "b" })
     i32.const 8
-    i32.const 2
+    i32.const 1
     call $rt:new/class-1'1
     local.tee $ctx
     i32.const 66 ;; &"b"

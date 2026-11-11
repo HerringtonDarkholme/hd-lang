@@ -281,9 +281,13 @@ the slot's start:
   its fields read at constant offsets with no lookup; the header is at
   `address - 8`.
 - **The descriptor word** identifies shared release glue, not a nominal
-  type record. Its low 16 bits are the glue's table slot plus one, so a
-  module's function table has fewer than 65,535 slots (32,767 when weak
-  references are linked); six bits are the borrow state, three the
+  type record. Its low 16 bits are the glue's table slot plus one.
+  Release glues take the function table's first slots (§23.8), so the
+  field bounds only the count of distinct glues and their weak and checked
+  aliases: at most 65,535, or 32,767 when weak references are linked or
+  the world is open, which the link asserts. A session
+  extension's glues follow the table it inherits, so there the inherited
+  length counts too. Six bits are the borrow state, three the
   collector's state, five carry an allocator class, and the top two are
   collector flags. Every update of one field is a read-modify-write that
   keeps the others. Every block is header plus payload, so a
@@ -405,7 +409,10 @@ of a pinned list copies it at once.
 - **The function table.** Every function called indirectly (a vtable
   slot, a closure's code, release and trace glue) has an entry in one
   Wasm table, filled by an active element segment; a call is
-  `call_indirect` through the entry's index.
+  `call_indirect` through the entry's index. Release glues come first,
+  in the order the bodies name them, so the descriptor word's 16-bit glue
+  field (§23.4) holds any glue's slot; vtables, closures and cold helpers
+  follow, with no limit but Wasm's.
 - **A closure** is `(code, environment)`. The environment is a counted
   object holding the captures inline, absent (0) when nothing is captured;
   each closure literal's environment layout has its own descriptor, whose

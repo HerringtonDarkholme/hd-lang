@@ -100,7 +100,7 @@
     if
     else
       i32.const 8
-      i32.const 6
+      i32.const 1
       call $rt:new/class-1
       local.tee $path.0
       local.get $t1

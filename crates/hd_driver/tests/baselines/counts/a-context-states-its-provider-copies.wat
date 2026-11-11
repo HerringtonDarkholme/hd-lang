@@ -8,7 +8,7 @@
   (func $replace (param $first.0 i32) (param $first.1 i32) (param $last.0 i32) (param $last.1 i32) (result i32) (local $t0 i32)
     ;; 30 |     $.context(Tag=Named { label: first }, Tag=Named { label: last })
     i32.const 8
-    i32.const 3
+    i32.const 1
     call $rt:new/class-1
     local.tee $t0
     local.get $first.0
@@ -17,7 +17,7 @@
     local.get $first.1
     i32.store $heap offset=4
     i32.const 8
-    i32.const 3
+    i32.const 1
     call $rt:new/class-1
     local.tee $first.0
     local.get $last.0
@@ -47,7 +47,7 @@
   (func $before_spread (param $ctx i32) (param $label.0 i32) (param $label.1 i32) (result i32) (local $t0 i32)
     ;; 27 |     $.context(Tag=Named { label: label }, ctx...)
     i32.const 8
-    i32.const 3
+    i32.const 1
     call $rt:new/class-1
     local.tee $t0
     local.get $label.0
@@ -121,7 +121,7 @@
   (func $make (param $label.0 i32) (param $label.1 i32) (result i32) (local $t0 i32)
     ;; 15 |     $.context(Tag=Named { label: label })
     i32.const 8
-    i32.const 3
+    i32.const 1
     call $rt:new/class-1
     local.tee $t0
     local.get $label.0
@@ -146,7 +146,7 @@
   (func $shadow (param $ctx i32) (param $label.0 i32) (param $label.1 i32) (result i32)
     ;; 21 |     $.context(ctx..., Tag=Named { label: label })
     i32.const 8
-    i32.const 3
+    i32.const 1
     call $rt:new/class-1
     local.tee $ctx
     local.get $label.0

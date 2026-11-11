@@ -7,7 +7,7 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $plain (result i32 i32)
     ;; 11 |     fn() -> usize: 0
-    i32.const 0
+    i32.const 1
     i32.const 0
   )
   (func $plain#1 (param $env i32) (param $ctx i32) (result i32)
@@ -23,9 +23,9 @@
     i32.const 0
     i32.store $heap
     ;; 6 |     fn() -> usize:
-    i32.const 2
+    i32.const 3
     i32.const 4
-    i32.const -2147483644
+    i32.const -2147483647
     call $rt:new/class-1
     local.tee $t0
     local.get $count

@@ -135,7 +135,7 @@
       i32.eqz
       if
         i32.const 8
-        i32.const 2
+        i32.const 1
         call $rt:new/class-1'1
         local.tee $t4
         i32.const 64 ;; &"n"
@@ -147,7 +147,7 @@
         i32.eqz
         if
           i32.const 8
-          i32.const 2
+          i32.const 1
           call $rt:new/class-1'1
           local.tee $t4
           local.get $t1

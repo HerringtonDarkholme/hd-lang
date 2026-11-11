@@ -2515,7 +2515,7 @@ pub(crate) fn push_desc(f: &mut Func, glue: Option<Sym>, cyclic: bool) {
 pub(crate) fn push_desc_recursive(f: &mut Func, glue: Option<Sym>, cyclic: bool, recursive: bool) {
     match glue {
         Some(g) => {
-            f.table_slot(g.clone());
+            f.glue(g.clone());
             f.u32(if cyclic { CYCLIC + 1 } else { 1 });
             f.op(Instruction::I32Add);
             if cyclic || recursive {
@@ -4190,9 +4190,9 @@ pub(crate) fn checked_kind(f: &mut Func, m: &Module, kind: u8) {
     if m.runtime.checked.is_none() {
         return;
     }
-    if let Some(i) = f.body.windows(3).rposition(|w| matches!(w, [Ins::TableSlot(_) | Ins::Descriptor(_, _), Ins::Op(Instruction::I32Const(c)), Ins::Op(Instruction::I32Add)] if c.cast_unsigned() == 1 || c.cast_unsigned() == CYCLIC + 1)) {
+    if let Some(i) = f.body.windows(3).rposition(|w| matches!(w, [Ins::Glue(_) | Ins::Descriptor(_, _), Ins::Op(Instruction::I32Const(c)), Ins::Op(Instruction::I32Add)] if c.cast_unsigned() == 1 || c.cast_unsigned() == CYCLIC + 1)) {
         match f.body[i] {
-            Ins::TableSlot(s) => {
+            Ins::Glue(s) => {
                 f.body[i] = Ins::Descriptor(s, DescriptorKey::checked(kind));
             }
             Ins::Descriptor(s, mut key) => {

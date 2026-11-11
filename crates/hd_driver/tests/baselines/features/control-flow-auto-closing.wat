@@ -46,7 +46,7 @@
     i32.eq
     if
       local.get $t3
-      i32.const 1
+      i32.const 2
       call_indirect $table0 (param i32) (result i32)
       local.set $t3
       local.get $self
@@ -156,7 +156,7 @@
     i32.eq
     if
       local.get $t1
-      i32.const 1
+      i32.const 2
       call_indirect $table0 (param i32) (result i32)
       local.set $t1
       local.get $log

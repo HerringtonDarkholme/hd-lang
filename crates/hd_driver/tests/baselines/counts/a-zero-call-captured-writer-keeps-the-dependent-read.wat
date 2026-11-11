@@ -84,7 +84,7 @@
     i32.load $heap
     local.tee $env
     i32.const 8
-    i32.const 5
+    i32.const 1
     call $rt:new/class-1'1
     local.tee $ctx
     i32.const 113 ;; &"b"
@@ -152,7 +152,7 @@
     i32.load $heap
     local.tee $env
     i32.const 8
-    i32.const 5
+    i32.const 1
     call $rt:new/class-1'1
     local.tee $ctx
     i32.const 114 ;; &"f"
@@ -191,7 +191,7 @@
   (func $element (result i32 i32) (local $ps i32) (local $change.0 i32) (local $change.1 i32) (local $d i32) (local $t1 i32) (local $t0 i32)
     ;; 24 |     let mut ps = [box(P { name: "a" })]
     i32.const 8
-    i32.const 5
+    i32.const 1
     call $rt:new/class-1'1
     local.tee $ps
     i32.const 115 ;; &"a"
@@ -208,15 +208,15 @@
     local.get $ps
     i32.store $heap offset=16
     i32.const 4
-    i32.const -2147483642
+    i32.const -2147483646
     call $rt:new/class-1'2
     local.tee $ps
     local.get $change.0
     i32.store $heap
     ;; 25 |     change := fn() -> void: ps[0] = box(P { name: "b" })
-    i32.const 6
+    i32.const 7
     i32.const 4
-    i32.const -2147483642
+    i32.const -2147483646
     call $rt:new/class-1'2
     local.tee $change.0
     local.get $ps
@@ -405,7 +405,7 @@
   (func $field (result i32 i32) (local $h i32) (local $change.0 i32) (local $change.1 i32) (local $t0 i32) (local $d i32) (local $t2 i32) (local $t1 i32)
     ;; 31 |     let mut h = Holder { p: box(P { name: "e" }) }
     i32.const 8
-    i32.const 5
+    i32.const 1
     call $rt:new/class-1'1
     local.tee $h
     i32.const 116 ;; &"e"
@@ -414,7 +414,7 @@
     i32.const 1
     i32.store $heap offset=4
     i32.const 4
-    i32.const -2147483642
+    i32.const -2147483646
     call $rt:new/class-1'2
     local.tee $change.0
     local.get $h
@@ -422,9 +422,9 @@
     local.get $change.0
     local.set $h
     ;; 32 |     change := fn() -> void: h.p = box(P { name: "f" })
-    i32.const 7
+    i32.const 8
     i32.const 4
-    i32.const -2147483642
+    i32.const -2147483646
     call $rt:new/class-1'2
     local.tee $change.0
     local.get $h

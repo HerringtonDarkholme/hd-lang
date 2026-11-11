@@ -76,7 +76,7 @@
       local.set $t3
     else
       i32.const 8
-      i32.const 2
+      i32.const 1
       call $rt:new/class-1
       local.tee $text
       local.get $t4
@@ -560,7 +560,7 @@
     local.get $t2
     i32.store $heap offset=28
     i32.const 8
-    i32.const 2
+    i32.const 1
     call $rt:new/class-1
     local.tee $t2
     local.get $t3

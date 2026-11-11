@@ -86,9 +86,9 @@
   )
   (func $inferred (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t0 i32)
     ;; 15 |     invoke(Fn::call, logged, +15)
-    i32.const 2
-    i32.const 0
     i32.const 3
+    i32.const 0
+    i32.const 4
     i32.const 0
     i32.const 15
     i32.const 1

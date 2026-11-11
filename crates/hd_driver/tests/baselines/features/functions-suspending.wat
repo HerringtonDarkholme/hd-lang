@@ -834,9 +834,9 @@
       i32.eqz
       if
     ;; 19 |         fetch!(key)
-        i32.const 1
         i32.const 8
-        i32.const 3
+        i32.const 8
+        i32.const 1
         call $rt:new/class-1
         local.tee $t1
         local.get $key.0
@@ -1653,7 +1653,7 @@
         i32.const 0
         local.set $t1
         i32.const 8
-        i32.const 3
+        i32.const 1
         call $rt:new/class-1
         local.tee $t12
         local.get $t11
@@ -1666,7 +1666,7 @@
         i32.eqz
         if
           i32.const 8
-          i32.const 3
+          i32.const 1
           call $rt:new/class-1
           local.tee $t11
           local.get $t2
@@ -2024,7 +2024,7 @@
         end
       end
       i32.const 8
-      i32.const 3
+      i32.const 1
       call $rt:new/class-1
       local.tee $t16
       local.get $body.0
@@ -2037,7 +2037,7 @@
       i32.eqz
       if
         i32.const 8
-        i32.const 3
+        i32.const 1
         call $rt:new/class-1
         local.tee $body.0
         local.get $t8
@@ -2325,7 +2325,7 @@
       local.get $t6
       i32.eqz
       if
-        i32.const 3
+        i32.const 9
         i32.const 0
     ;; 23 |     loader!(key).len()
         local.set $t2
@@ -2643,7 +2643,7 @@
       end
     ;; 23 |     loader!(key).len()
       i32.const 8
-      i32.const 3
+      i32.const 1
       call $rt:new/class-1
       local.tee $t11
       local.get $key.1
@@ -2656,7 +2656,7 @@
       i32.eqz
       if
         i32.const 8
-        i32.const 3
+        i32.const 1
         call $rt:new/class-1
         local.tee $key.1
         local.get $t4

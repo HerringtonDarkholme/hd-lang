@@ -326,7 +326,7 @@
             i32.eq
             if
               local.get $k.1
-              i32.const 1
+              i32.const 9
               call_indirect $table0 (param i32) (result i32)
               local.tee $k.1
               local.set $t1

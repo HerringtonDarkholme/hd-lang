@@ -81,7 +81,7 @@
   (func $"impl Probes.captured_copy" (param $t0 i32) (param $t1 i32) (result i32 i32) (local $value i32) (local $t2 i32)
     ;; 53 |         fn() -> usize:
     i32.const 8
-    i32.const 5
+    i32.const 1
     call $rt:new/class-1
     local.tee $value
     local.get $t0
@@ -97,7 +97,7 @@
     i32.load $heap offset=4
     local.set $t1
     i32.const 8
-    i32.const 5
+    i32.const 1
     call $rt:new/class-1
     local.tee $t2
     local.get $t0

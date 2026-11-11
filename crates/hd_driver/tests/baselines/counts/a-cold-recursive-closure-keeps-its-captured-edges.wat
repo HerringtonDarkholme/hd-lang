@@ -1714,9 +1714,9 @@
   )
   (func $make (param $value.0 i32) (param $value.1 i32) (result i32 i32) (local $t0 i32)
     ;; 5 |     read := fn!(n: usize) -> string:
-    i32.const 4
+    i32.const 9
     i32.const 8
-    i32.const 6
+    i32.const 1
     call $rt:new/class-1'1
     local.tee $t0
     local.get $value.0
@@ -1756,7 +1756,7 @@
   )
   (func $"generic[i32]" (param $value i32) (result i32 i32) (local $t0 i32)
     ;; 10 |     fn!() -> T: value
-    i32.const 6
+    i32.const 10
     i32.const 4
     i32.const 0
     call $rt:new/class-1'2
@@ -1767,9 +1767,9 @@
   )
   (func $"generic[string]" (param $value.0 i32) (param $value.1 i32) (result i32 i32) (local $t0 i32)
     ;; 10 |     fn!() -> T: value
-    i32.const 7
+    i32.const 11
     i32.const 8
-    i32.const 6
+    i32.const 1
     call $rt:new/class-1'1
     local.tee $t0
     local.get $value.0
@@ -1964,7 +1964,7 @@
     local.get $frame
     i32.eqz
     if
-      i32.const 4
+      i32.const 9
       local.set $read.0
       local.get $env
       local.set $read.1
@@ -2622,7 +2622,7 @@
       call $retain
     end
     local.get $t0
-    i32.const 4
+    i32.const 9
     i32.store $heap offset=36
     local.get $t0
     local.get $t1

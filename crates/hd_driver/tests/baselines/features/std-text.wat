@@ -75,7 +75,7 @@
     local.set $p.0
     local.set $t0
     i32.const 36
-    i32.const 3
+    i32.const 1
     call $rt:new/class-3
     local.tee $sb
     local.get $t0

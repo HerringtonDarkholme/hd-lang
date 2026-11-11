@@ -12,9 +12,9 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $plain (param $captured.0 i32) (param $captured.1 i32) (result i32 i32) (local $t0 i32)
     ;; 6 |     fn(value: string) -> (string, string): (captured, value)
-    i32.const 0
-    i32.const 8
     i32.const 2
+    i32.const 8
+    i32.const 1
     call $rt:new/class-1
     local.tee $t0
     local.get $captured.0
@@ -26,9 +26,9 @@
   )
   (func $cold_capture (param $captured.0 i32) (param $captured.1 i32) (result i32 i32) (local $t0 i32)
     ;; 9 |     fn!(value: string) -> (string, string): (captured, value)
-    i32.const 3
+    i32.const 4
     i32.const 8
-    i32.const 2
+    i32.const 1
     call $rt:new/class-1
     local.tee $t0
     local.get $captured.0

@@ -43,7 +43,7 @@
     i32.eq
     if
       local.get $t3
-      i32.const 1
+      i32.const 4
       call_indirect $table0 (param i32) (result i32)
       local.set $t3
       local.get $self
@@ -71,7 +71,7 @@
   (func $with_using (param $log i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $r i32)
     ;; 23 |     using r = box(Res { name: s, log: log })
     i32.const 12
-    i32.const -2147483645
+    i32.const -2147483647
     call $rt:new/class-2
     local.tee $r
     local.get $s.0
@@ -147,9 +147,9 @@
     i32.sub
     local.tee $t0
     global.set $locals
-    i32.const 3
+    i32.const 5
     i32.const 12
-    i32.const -2147483643
+    i32.const -2147483646
     call $rt:new/class-2
     local.tee $t1
     local.get $log
@@ -278,7 +278,7 @@
     i32.eq
     if
       local.get $t0
-      i32.const 1
+      i32.const 4
       call_indirect $table0 (param i32) (result i32)
       local.set $t0
       local.get $ctx

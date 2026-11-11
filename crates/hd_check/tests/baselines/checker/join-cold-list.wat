@@ -6,7 +6,7 @@
     i32.const 0
     local.get $tasks
     i32.const 0
-    i32.const 1
+    i32.const 5
     call_indirect $table0 (param i32 i32 i32) (result i32)
   )
 )

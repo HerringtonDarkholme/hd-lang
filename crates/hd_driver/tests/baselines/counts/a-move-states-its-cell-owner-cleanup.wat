@@ -590,7 +590,7 @@
     ;; 28 |     println(stack("stack"))
       i32.const 68 ;; &"stack"
       i32.const 5
-      i32.const 1
+      i32.const 6
       call_indirect $table0 (param i32 i32) (result i32 i32)
       local.get $provider0
       local.get $provider0.vtable
@@ -598,7 +598,7 @@
     ;; 29 |     println(direct("direct"))
       i32.const 73 ;; &"direct"
       i32.const 6
-      i32.const 2
+      i32.const 7
       call_indirect $table0 (param i32 i32) (result i32 i32)
       local.get $provider0
       local.get $provider0.vtable
@@ -859,7 +859,7 @@
       local.set $t4
     else
       i32.const 8
-      i32.const 5
+      i32.const 1
       call $rt:new/class-1'1
       local.tee $value
       local.get $t5
@@ -874,7 +874,7 @@
       if
         local.get $value
         local.get $value
-        i32.const 5
+        i32.const 9
         call_indirect $table0 (param i32 i32) (result i32)
         drop
     ;; 13 |     sleep!(ms(1))
@@ -1340,7 +1340,7 @@
     local.get $t2
     i32.store $heap offset=28
     i32.const 8
-    i32.const 5
+    i32.const 1
     call $rt:new/class-1'1
     local.tee $t2
     local.get $t3
@@ -1403,7 +1403,7 @@
     i32.store $heap offset=4
     local.get $value
     local.get $value
-    i32.const 5
+    i32.const 9
     call_indirect $table0 (param i32 i32) (result i32)
     drop
     ;; 19 |     value
@@ -1492,7 +1492,7 @@
       if
         local.get $value
         local.get $value
-        i32.const 6
+        i32.const 10
         call_indirect $table0 (param i32 i32) (result i32)
         drop
     ;; 13 |     sleep!(ms(1))

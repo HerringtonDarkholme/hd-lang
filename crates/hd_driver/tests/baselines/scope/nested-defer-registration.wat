@@ -30,7 +30,7 @@
     i32.eq
     if
       local.get $ctx
-      i32.const 0
+      i32.const 1
       call_indirect $table0 (param i32) (result i32)
       local.set $ctx
       local.get $env
@@ -69,7 +69,7 @@
     i32.eq
     if
       local.get $ctx
-      i32.const 0
+      i32.const 1
       call_indirect $table0 (param i32) (result i32)
       local.set $ctx
       local.get $env
@@ -122,9 +122,9 @@
     global.set $locals
     block
       block
-        i32.const 2
+        i32.const 3
         i32.const 4
-        i32.const -2147483644
+        i32.const -2147483647
         call $rt:new/class-1
         local.tee $t1
         local.get $log
@@ -155,7 +155,7 @@
           block
             i32.const 4
             i32.const 4
-            i32.const -2147483644
+            i32.const -2147483647
             call $rt:new/class-1
             local.tee $early
             local.get $log

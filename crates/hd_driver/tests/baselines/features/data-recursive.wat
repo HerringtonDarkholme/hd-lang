@@ -69,7 +69,7 @@
   (func $push_front (param $head i32) (param $name.0 i32) (param $name.1 i32) (result i32) (local $t0 i32)
     ;; 12 |     box(Chain { name: name, next: head })
     i32.const 12
-    i32.const -2147483646
+    i32.const -2147483647
     call $rt:new/class-2
     local.tee $t0
     local.get $name.0

@@ -201,7 +201,7 @@ pub fn static_values(
     }
     for f in funcs.iter().flatten() {
         for ins in &f.body {
-            if let Ins::TableSlot(id) = ins {
+            if let Ins::TableSlot(id) | Ins::Glue(id) = ins {
                 unknown[id.idx()] = true;
             }
         }
@@ -1475,6 +1475,7 @@ fn forward(f: &mut Func, np: u32) -> bool {
                 I::LocalGet(_) | I::I32Const(_) | I::I64Const(_) | I::F32Const(_) | I::F64Const(_)
             ) | Ins::GlobalGet(_)
                 | Ins::TableSlot(_)
+                | Ins::Glue(_)
                 | Ins::VTable(_)
         );
         #[cfg(feature = "checked-report")]
@@ -1746,7 +1747,11 @@ pub(crate) fn drops(f: &mut Func) -> bool {
                     Some(m) => m,
                     None => break,
                 },
-                Ins::Static(_) | Ins::GlobalGet(_) | Ins::TableSlot(_) | Ins::VTable(_) => 0,
+                Ins::Static(_)
+                | Ins::GlobalGet(_)
+                | Ins::TableSlot(_)
+                | Ins::Glue(_)
+                | Ins::VTable(_) => 0,
                 _ => break,
             };
             out.pop();
@@ -2155,7 +2160,7 @@ fn schedule_stores(f: &mut Func, arity: &Arity, visit: &mut impl FnMut()) -> boo
 /// and for anything this table does not know.
 fn effect(i: &Ins, arity: &Arity, symbols: &Symbols) -> Option<(usize, usize)> {
     Some(match i {
-        Ins::GlobalGet(_) | Ins::TableSlot(_) | Ins::VTable(_) => (0, 1),
+        Ins::GlobalGet(_) | Ins::TableSlot(_) | Ins::Glue(_) | Ins::VTable(_) => (0, 1),
         // Weak descriptor constants also exist without count reporting.
         Ins::Descriptor(..) => (0, 1),
         Ins::Anchor(_) => (0, 0),
@@ -3073,6 +3078,7 @@ fn constant_at(ins: &Ins, result: usize, fixed: &[bool], results: &[Vec<bool>]) 
         Ins::Op(I::I32Const(_) | I::I64Const(_) | I::F32Const(_) | I::F64Const(_))
         | Ins::Static(_)
         | Ins::TableSlot(_)
+        | Ins::Glue(_)
         | Ins::VTable(_) => result == 0,
         Ins::Op(I::LocalGet(l)) => result == 0 && fixed[*l as usize],
         Ins::Call(id) => results

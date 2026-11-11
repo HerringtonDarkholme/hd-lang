@@ -231,7 +231,7 @@
     ;; 35 |         .None => panic("index")
       i32.const 65 ;; &"index"
       i32.const 5
-      i32.const 1
+      i32.const 3
       call_indirect $table0 (param i32 i32)
       unreachable
     ;; 33 |     match xs.get_mut(i):

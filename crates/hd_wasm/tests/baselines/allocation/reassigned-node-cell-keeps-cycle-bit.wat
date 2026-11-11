@@ -8,14 +8,14 @@
   (func $make_cycle (result i32) (local $t0 i32) (local $t1 i32)
     ;; 9 |     let node = box(Node { next: .None })
     i32.const 4
-    i32.const -2147483646
+    i32.const -2147483647
     call $rt:new/class-1
     local.tee $t0
     i32.const 0
     i32.store $heap
     ;; 10 |     parent := box(Node { next: .Some(node) })
     i32.const 4
-    i32.const -2147483646
+    i32.const -2147483647
     call $rt:new/class-1
     local.tee $t1
     ;; 9 |     let node = box(Node { next: .None })
@@ -36,7 +36,7 @@
       end
     end
     i32.const 4
-    i32.const -2147483646
+    i32.const -2147483647
     call $rt:new/class-1
     local.tee $t0
     ;; 10 |     parent := box(Node { next: .Some(node) })

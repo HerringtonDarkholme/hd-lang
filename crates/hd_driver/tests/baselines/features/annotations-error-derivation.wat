@@ -269,7 +269,7 @@
       local.get $t1
       call $rt:retain
       i32.const 8
-      i32.const 10
+      i32.const 1
       call $rt:new/class-1
       local.tee $self
       local.get $t2

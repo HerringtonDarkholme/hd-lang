@@ -8,7 +8,7 @@
   (func $widened (param $dog.0 i32) (param $dog.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32)
     ;; 11 |     nested := box(dog)
     i32.const 8
-    i32.const -2147483646
+    i32.const -2147483647
     call $rt:new/class-1
     local.tee $t0
     local.get $dog.0

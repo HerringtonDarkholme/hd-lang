@@ -213,7 +213,7 @@
     i32.eq
     if
       local.get $t0
-      i32.const 1
+      i32.const 2
       call_indirect $table0 (param i32) (result i32)
       local.tee $t0
       local.set $text.0
@@ -268,7 +268,7 @@
       call $"impl[T] FromIterator[T] for List[T].from_iter[char, std.text.Chars]"
       local.set $text.0
       i32.const 8
-      i32.const 3
+      i32.const 1
       call $rt:new/class-1'2
       local.tee $parser
       local.get $text.0

@@ -12,9 +12,9 @@
   (func $shared (param $seed i32) (result i32 i32) (local $t0 i32)
     ;; ...
     ;; 8 |     read := fn() -> i32: count
-    i32.const 1
+    i32.const 2
     i32.const 4
-    i32.const -2147483645
+    i32.const -2147483647
     call $rt:new/class-1
     local.tee $t0
     local.get $seed

@@ -11,11 +11,11 @@
     local.get $xs
     i32.const 0
     ;; 13 |         .filter(fn(s: &string) -> bool: s.len() > 2)
-    i32.const 1
+    i32.const 2
     ;; 12 |     xs.iter()
     i32.const 0
     ;; 14 |         .map(fn(s: string) -> string: s + "!")
-    i32.const 2
+    i32.const 3
     ;; 12 |     xs.iter()
     i32.const 0
     call $"impl[T] FromIterator[T] for List[T].from_iter[string, std.iter.MapIter[std.iter.Filter[std.iter.ListIter[string], string, fn(&string) -> bool], string, string, fn(string) -> string]]"
@@ -24,7 +24,7 @@
     ;; 9 |     xs.iter().map(fn(s: string) -> usize: s.len()).collect()
     local.get $xs
     i32.const 0
-    i32.const 4
+    i32.const 5
     i32.const 0
     call $"impl[T] FromIterator[T] for List[T].from_iter[usize, std.iter.MapIter[std.iter.ListIter[string], string, usize, fn(string) -> usize]]"
   )

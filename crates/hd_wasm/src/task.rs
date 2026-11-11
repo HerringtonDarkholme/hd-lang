@@ -932,18 +932,20 @@ fn wake_link(m: &Module) -> Func {
     f.op(Instruction::Return);
     f.op(Instruction::End);
     f.i32(16);
-    f.table_slot(Sym::Helper(Helper::DropFields {
-        leaves: vec![Leaf {
-            offset: 8,
-            val: Val::I32,
-            bytes: 4,
-            signed: false,
-        }],
-        walk: Walk::Ref(0),
-        drops: Vec::new(),
-    }));
-    f.i32(1);
-    f.op(Instruction::I32Add);
+    crate::rt::push_desc(
+        &mut f,
+        Some(Sym::Helper(Helper::DropFields {
+            leaves: vec![Leaf {
+                offset: 8,
+                val: Val::I32,
+                bytes: 4,
+                signed: false,
+            }],
+            walk: Walk::Ref(0),
+            drops: Vec::new(),
+        })),
+        false,
+    );
     f.helper(Helper::New);
     f.set(edge);
     #[cfg(feature = "checked-report")]

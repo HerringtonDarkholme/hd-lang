@@ -1,0 +1,201 @@
+# @dump: wat
+# A weak-linked program with 32,768 method slots, past the 32,767 a
+# descriptor word's glue field holds. Release glues take the function
+# table's first slots, so `box(Leaf ...)` writes a small descriptor (glue
+# slot plus one, plus the cycle bit when set), while the closure's code
+# takes a slot past the field's limit.
+use std.annotation.inline
+use std.weak.weak
+
+struct Leaf:
+    value: i32
+
+trait Get:
+    fn g0(&self) -> i32:
+        +0
+    fn g1(&self) -> i32:
+        +1
+    fn g2(&self) -> i32:
+        +2
+    fn g3(&self) -> i32:
+        +3
+    fn g4(&self) -> i32:
+        +4
+    fn g5(&self) -> i32:
+        +5
+    fn g6(&self) -> i32:
+        +6
+    fn g7(&self) -> i32:
+        +7
+    fn g8(&self) -> i32:
+        +8
+    fn g9(&self) -> i32:
+        +9
+    fn g10(&self) -> i32:
+        +10
+    fn g11(&self) -> i32:
+        +11
+    fn g12(&self) -> i32:
+        +12
+    fn g13(&self) -> i32:
+        +13
+    fn g14(&self) -> i32:
+        +14
+    fn g15(&self) -> i32:
+        +15
+    fn g16(&self) -> i32:
+        +16
+    fn g17(&self) -> i32:
+        +17
+    fn g18(&self) -> i32:
+        +18
+    fn g19(&self) -> i32:
+        +19
+    fn g20(&self) -> i32:
+        +20
+    fn g21(&self) -> i32:
+        +21
+    fn g22(&self) -> i32:
+        +22
+    fn g23(&self) -> i32:
+        +23
+    fn g24(&self) -> i32:
+        +24
+    fn g25(&self) -> i32:
+        +25
+    fn g26(&self) -> i32:
+        +26
+    fn g27(&self) -> i32:
+        +27
+    fn g28(&self) -> i32:
+        +28
+    fn g29(&self) -> i32:
+        +29
+    fn g30(&self) -> i32:
+        +30
+    fn g31(&self) -> i32:
+        +31
+    fn g32(&self) -> i32:
+        +32
+    fn g33(&self) -> i32:
+        +33
+    fn g34(&self) -> i32:
+        +34
+    fn g35(&self) -> i32:
+        +35
+    fn g36(&self) -> i32:
+        +36
+    fn g37(&self) -> i32:
+        +37
+    fn g38(&self) -> i32:
+        +38
+    fn g39(&self) -> i32:
+        +39
+    fn g40(&self) -> i32:
+        +40
+    fn g41(&self) -> i32:
+        +41
+    fn g42(&self) -> i32:
+        +42
+    fn g43(&self) -> i32:
+        +43
+    fn g44(&self) -> i32:
+        +44
+    fn g45(&self) -> i32:
+        +45
+    fn g46(&self) -> i32:
+        +46
+    fn g47(&self) -> i32:
+        +47
+    fn g48(&self) -> i32:
+        +48
+    fn g49(&self) -> i32:
+        +49
+    fn g50(&self) -> i32:
+        +50
+    fn g51(&self) -> i32:
+        +51
+    fn g52(&self) -> i32:
+        +52
+    fn g53(&self) -> i32:
+        +53
+    fn g54(&self) -> i32:
+        +54
+    fn g55(&self) -> i32:
+        +55
+    fn g56(&self) -> i32:
+        +56
+    fn g57(&self) -> i32:
+        +57
+    fn g58(&self) -> i32:
+        +58
+    fn g59(&self) -> i32:
+        +59
+    fn g60(&self) -> i32:
+        +60
+    fn g61(&self) -> i32:
+        +61
+    fn g62(&self) -> i32:
+        +62
+    fn g63(&self) -> i32:
+        +63
+
+struct W[A]:
+    a: A
+
+impl[A] Get for W[A]:
+    pass
+
+fn l0[A < 'static](a: A, out: &mut List[*dyn Get]) -> void:
+    l1((a, +0), out)
+    l1((a, 0u8), out)
+
+fn l1[A < 'static](a: A, out: &mut List[*dyn Get]) -> void:
+    l2((a, +0), out)
+    l2((a, 0u8), out)
+
+fn l2[A < 'static](a: A, out: &mut List[*dyn Get]) -> void:
+    l3((a, +0), out)
+    l3((a, 0u8), out)
+
+fn l3[A < 'static](a: A, out: &mut List[*dyn Get]) -> void:
+    l4((a, +0), out)
+    l4((a, 0u8), out)
+
+fn l4[A < 'static](a: A, out: &mut List[*dyn Get]) -> void:
+    l5((a, +0), out)
+    l5((a, 0u8), out)
+
+fn l5[A < 'static](a: A, out: &mut List[*dyn Get]) -> void:
+    l6((a, +0), out)
+    l6((a, 0u8), out)
+
+fn l6[A < 'static](a: A, out: &mut List[*dyn Get]) -> void:
+    l7((a, +0), out)
+    l7((a, 0u8), out)
+
+fn l7[A < 'static](a: A, out: &mut List[*dyn Get]) -> void:
+    l8((a, +0), out)
+    l8((a, 0u8), out)
+
+fn l8[A < 'static](a: A, out: &mut List[*dyn Get]) -> void:
+    l9((a, +0), out)
+    l9((a, 0u8), out)
+
+fn l9[A < 'static](a: A, out: &mut List[*dyn Get]) -> void:
+    out.push(box(W { a: a }))
+
+@inline(.Never)
+fn apply(f: fn(i32) -> i32, x: i32) -> i32:
+    f(x)
+
+pub fn main() -> void $ Console:
+    let mut out: List[*dyn Get] = []
+    l0(+0, &mut out)
+    let sum = +0
+    for g in out:
+        sum = sum + g.g63()
+    # subject
+    if sum > 0:
+        target := box(Leaf { value: apply(fn(x: i32) -> i32: x + sum, +1) })
+        println("$sum ${weak(target).is_some()}")

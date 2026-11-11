@@ -96,7 +96,7 @@
         local.set $text
         local.set $n
         i32.const 8
-        i32.const 3
+        i32.const 1
         call $rt:new/class-1
         local.tee $t3
         local.get $n
@@ -110,7 +110,7 @@
         i32.eqz
         if
           i32.const 8
-          i32.const 3
+          i32.const 1
           call $rt:new/class-1
           local.tee $text
           local.get $t1

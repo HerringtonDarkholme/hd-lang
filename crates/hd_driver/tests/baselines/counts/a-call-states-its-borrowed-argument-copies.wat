@@ -25,7 +25,7 @@
     i32.eq
     if
       local.get $t0
-      i32.const 0
+      i32.const 2
       call_indirect $table0 (param i32) (result i32)
       local.set $t0
       local.get $into
@@ -66,7 +66,7 @@
     i32.eq
     if
       local.get $t0
-      i32.const 2
+      i32.const 4
       call_indirect $table0 (param i32) (result i32)
       local.set $t0
       local.get $into
@@ -137,7 +137,7 @@
     local.get $second.0
     local.get $second.1
     local.get $t2
-    i32.const 3
+    i32.const 5
     call_indirect $table0 (param i32 i32 i32 i32 i32) (result i32)
     local.set $first.0
     local.get $t1
@@ -205,7 +205,7 @@
     local.get $value
     local.get $t1
     local.tee $value
-    i32.const 4
+    i32.const 6
     call_indirect $table0 (param i32 i32) (result i32)
     local.set $t1
     local.get $value
@@ -275,7 +275,7 @@
     local.get $value.0
     local.get $value.1
     local.get $t2
-    i32.const 5
+    i32.const 7
     call_indirect $table0 (param i32 i32 i32) (result i32)
     local.set $value.0
     local.get $t1
@@ -304,7 +304,7 @@
     ;; 37 |     length(value) + value.len()
     local.get $value.0
     local.get $value.1
-    i32.const 6
+    i32.const 8
     call_indirect $table0 (param i32 i32) (result i32)
     local.get $value.1
     i32.add
@@ -326,7 +326,7 @@
     i32.eq
     if
       local.get $t0
-      i32.const 7
+      i32.const 9
       call_indirect $table0 (param i32) (result i32)
       local.set $t0
       local.get $into
@@ -360,7 +360,7 @@
     i32.eq
     if
       local.get $first.0
-      i32.const 7
+      i32.const 9
       call_indirect $table0 (param i32) (result i32)
       local.set $first.0
       local.get $into
@@ -405,7 +405,7 @@
     i32.eq
     if
       local.get $t0
-      i32.const 7
+      i32.const 9
       call_indirect $table0 (param i32) (result i32)
       local.set $t0
       local.get $into
@@ -476,7 +476,7 @@
     local.get $values
     local.get $t1
     local.tee $values
-    i32.const 8
+    i32.const 10
     call_indirect $table0 (param i32 i32) (result i32)
     local.set $t1
     local.get $values

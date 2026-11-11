@@ -51,7 +51,7 @@
     local.tee $t0
     global.set $locals
     i32.const 8
-    i32.const 2
+    i32.const 1
     call $rt:new/class-1
     local.tee $ps
     i32.const 65 ;; &"a"
@@ -154,7 +154,7 @@
     end
     ;; 15 |     change()
     i32.const 8
-    i32.const 2
+    i32.const 1
     call $rt:new/class-1
     local.tee $t1
     i32.const 66 ;; &"b"

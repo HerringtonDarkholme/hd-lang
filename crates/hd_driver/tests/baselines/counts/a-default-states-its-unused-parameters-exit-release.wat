@@ -20,7 +20,7 @@
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32)
     ;; 18 |     log := box::[List[string]]([])
     i32.const 4
-    i32.const 3
+    i32.const 1
     call $rt:new/class-1
     local.tee $t0
     i32.const 128 ;; &empty-buffer
@@ -140,7 +140,7 @@
     i32.eq
     if
       local.get $t0
-      i32.const 3
+      i32.const 4
       call_indirect $table0 (param i32) (result i32)
       local.set $t0
       local.get $log

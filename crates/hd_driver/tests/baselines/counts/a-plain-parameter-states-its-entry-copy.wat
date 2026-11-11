@@ -107,7 +107,7 @@
     local.tee $t0
     global.set $locals
     i32.const 7
-    i32.const 4
+    i32.const 6
     call_indirect $table0 (param i32) (result i32 i32)
     local.set $original.1
     local.tee $original.0
@@ -120,14 +120,14 @@
     end
     local.get $shared
     local.get $original.1
-    i32.const 5
+    i32.const 7
     call_indirect $table0 (param i32 i32) (result i32 i32)
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
     ;; 40 |     println(same(+7))
     i32.const 7
-    i32.const 6
+    i32.const 8
     call_indirect $table0 (param i32) (result i32)
     local.get $provider0
     local.get $provider0.vtable
@@ -141,7 +141,7 @@
     end
     local.get $original.0
     local.get $original.1
-    i32.const 7
+    i32.const 9
     call_indirect $table0 (param i32 i32) (result i32 i32)
     local.set $t2
     local.set $shared
@@ -169,7 +169,7 @@
     local.get $provider0.vtable
     call $"println[string]"
     ;; 42 |     call := make()
-    i32.const 8
+    i32.const 10
     call_indirect $table0 (result i32 i32)
     ;; 43 |     println(call(original))
     local.set $t2
@@ -208,7 +208,7 @@
     ;; 44 |     println(read(&original))
     local.get $original.0
     local.get $original.1
-    i32.const 9
+    i32.const 11
     call_indirect $table0 (param i32 i32) (result i32)
     local.get $provider0
     local.get $provider0.vtable
@@ -221,7 +221,7 @@
       call $retain
     end
     i32.const 8
-    i32.const 11
+    i32.const 1
     call $rt:new/class-1'1
     local.tee $shared
     local.get $original.0
@@ -244,7 +244,7 @@
       end
     end
     local.get $t2
-    i32.const 11
+    i32.const 12
     call_indirect $table0 (param i32) (result i32)
     local.tee $t2
     local.tee $t3
@@ -293,7 +293,7 @@
       end
     end
     local.get $shared
-    i32.const 12
+    i32.const 13
     call_indirect $table0 (param i32) (result i32 i32)
     local.set $t3
     local.set $t2
@@ -352,7 +352,7 @@
     call $"println[string]"
     ;; 48 |     println(keep(+7)())
     i32.const 7
-    i32.const 13
+    i32.const 14
     call_indirect $table0 (param i32) (result i32 i32)
     local.set $t3
     local.set $t2
@@ -494,7 +494,7 @@
     local.get $shared
     i32.const 0
     i32.store $heap offset=8
-    i32.const 14
+    i32.const 15
     call_indirect $table0 (param i32 i32 i32) (result i32 i32 i32)
     local.set $t3
     local.set $t2
@@ -585,9 +585,9 @@
   )
   (func $"keep[*Named]" (param $value i32) (result i32 i32) (local $t0 i32)
     ;; 23 |     fn() -> T: value
-    i32.const 15
+    i32.const 16
     i32.const 4
-    i32.const -2147483631
+    i32.const -2147483646
     call $rt:new/class-1'2
     local.tee $t0
     local.get $value
@@ -634,7 +634,7 @@
     ;; 23 |     fn() -> T: value
     i32.const 18
     i32.const 8
-    i32.const 11
+    i32.const 1
     call $rt:new/class-1'1
     local.tee $t0
     local.get $value.0

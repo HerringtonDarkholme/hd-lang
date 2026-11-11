@@ -46,7 +46,7 @@
   (func $bounded (param $u.name.0 i32) (param $u.name.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 33 |     kept := keep(u)
     i32.const 8
-    i32.const 2
+    i32.const 1
     call $rt:new/class-1'1
     local.tee $t0
     local.get $u.name.0
@@ -129,9 +129,9 @@
   )
   (func $"later[*User]" (param $value i32) (result i32 i32) (local $t0 i32)
     ;; 30 |     fn() -> T: value
-    i32.const 2
+    i32.const 3
     i32.const 4
-    i32.const -2147483644
+    i32.const -2147483646
     call $rt:new/class-1'2
     local.tee $t0
     local.get $value

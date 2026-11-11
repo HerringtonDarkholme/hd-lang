@@ -14,7 +14,7 @@
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 18 |     _ := $.use(Vault).keep(box(Expr.Add(box(Expr.Num(+1)), box(Expr.Num(+2)))))
     i32.const 8
-    i32.const -2147483645
+    i32.const -2147483647
     call $rt:new/class-1
     local.tee $t0
     i32.const 0
@@ -23,7 +23,7 @@
     i32.const 1
     i32.store $heap offset=4
     i32.const 8
-    i32.const -2147483645
+    i32.const -2147483647
     call $rt:new/class-1
     local.tee $t1
     i32.const 0
@@ -32,7 +32,7 @@
     i32.const 2
     i32.store $heap offset=4
     i32.const 8
-    i32.const -2147483645
+    i32.const -2147483647
     call $rt:new/class-1
     local.tee $t2
     local.get $t0
@@ -234,7 +234,7 @@
     local.set $t1
     local.set $t2
     i32.const 8
-    i32.const -2147483645
+    i32.const -2147483647
     call $rt:new/class-1
     local.tee $t3
     local.get $t2

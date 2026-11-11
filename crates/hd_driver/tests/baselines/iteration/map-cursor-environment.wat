@@ -6,7 +6,7 @@
   (func $cursor (param $values i32) (result i32 i32 i32) (local $t0 i32)
     ;; 8 |     values.iter()
     i32.const 8
-    i32.const 2
+    i32.const 1
     call $rt:new/class-1
     local.tee $t0
     local.get $values

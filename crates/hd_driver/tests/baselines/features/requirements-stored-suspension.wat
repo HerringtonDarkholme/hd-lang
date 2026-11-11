@@ -96,7 +96,7 @@
         local.set $t3
         local.set $t5
         i32.const 8
-        i32.const 2
+        i32.const 1
         call $rt:new/class-1
         local.tee $t6
         local.get $t5
@@ -109,7 +109,7 @@
         i32.eqz
         if
           i32.const 8
-          i32.const 2
+          i32.const 1
           call $rt:new/class-1
           local.tee $t5
           local.get $t1
@@ -1099,7 +1099,7 @@
       end
     ;; 30 |     pending!().len()
       i32.const 8
-      i32.const 2
+      i32.const 1
       call $rt:new/class-1
       local.tee $t9
       local.get $key.1
@@ -1112,7 +1112,7 @@
       i32.eqz
       if
         i32.const 8
-        i32.const 2
+        i32.const 1
         call $rt:new/class-1
         local.tee $key.1
         local.get $t2

@@ -18,7 +18,7 @@
   (import "fixture" "table0" (table $table0 14 funcref))
   (func $make (result i32 i32)
     ;; 7 |     fn!(text: string) -> usize $ Clock:
-    i32.const 2
+    i32.const 5
     i32.const 0
   )
   (func $make#1'1 (param $frame i32) (param $env i32) (param $t3 i32) (param $t4 i32) (param $ctx i32) (result i32 i32) (local $t2 i32) (local $t6 i32) (local $t7 i32) (local $t1 i64) (local $t5 i32) (local $t0 i32)
@@ -72,7 +72,7 @@
       local.set $t2
     else
       i32.const 8
-      i32.const 4
+      i32.const 1
       call $rt:new/class-1
       local.tee $env
       local.get $t3
@@ -517,7 +517,7 @@
     local.get $t2
     i32.store $heap offset=28
     i32.const 8
-    i32.const 4
+    i32.const 1
     call $rt:new/class-1
     local.tee $t1
     local.get $t3

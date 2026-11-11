@@ -64,7 +64,7 @@
     i32.store $heap offset=4
     local.get $value
     local.get $value
-    i32.const 1
+    i32.const 2
     call_indirect $table0 (param i32 i32) (result i32)
     drop
     ;; 28 |     value.text
@@ -106,13 +106,13 @@
   )
   (func $nested (result i32 i32)
     ;; 31 |     fn(value: string) -> string:
-    i32.const 2
+    i32.const 3
     i32.const 0
   )
   (func $nested#1 (param $env i32) (param $t0 i32) (param $t1 i32) (param $ctx i32) (result i32 i32)
     ;; 31 |     fn(value: string) -> string:
     i32.const 8
-    i32.const 4
+    i32.const 1
     call $rt:new/class-1
     local.tee $env
     local.get $t0

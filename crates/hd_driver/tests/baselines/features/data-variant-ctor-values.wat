@@ -65,7 +65,7 @@
         i32.eq
         if
           local.get $t4
-          i32.const 0
+          i32.const 1
           call_indirect $table0 (param i32) (result i32)
           local.tee $t4
           local.set $t0
@@ -158,7 +158,7 @@
         i32.eq
         if
           local.get $t4
-          i32.const 0
+          i32.const 1
           call_indirect $table0 (param i32) (result i32)
           local.tee $t4
           local.set $t0
@@ -254,7 +254,7 @@
         i32.eq
         if
           local.get $t6
-          i32.const 0
+          i32.const 1
           call_indirect $table0 (param i32) (result i32)
           local.tee $t6
           local.set $t0

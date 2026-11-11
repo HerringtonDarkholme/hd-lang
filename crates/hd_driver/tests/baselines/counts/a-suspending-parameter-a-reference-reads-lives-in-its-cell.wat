@@ -461,7 +461,7 @@
         i32.const 0
         local.set $t29
         i32.const 32
-        i32.const 2
+        i32.const 1
         call $rt:new/class-3
         local.tee $u
         local.get $t30
@@ -502,7 +502,7 @@
         i32.eqz
         if
           i32.const 32
-          i32.const 2
+          i32.const 1
           call $rt:new/class-3
           local.tee $u
           local.get $t35
@@ -574,7 +574,7 @@
         i32.eqz
         if
           i32.const 32
-          i32.const 2
+          i32.const 1
           call $rt:new/class-3
           local.tee $u
           local.get $t38
@@ -1510,7 +1510,7 @@
       local.set $t2
     else
       i32.const 32
-      i32.const 2
+      i32.const 1
       call $rt:new/class-3
       local.tee $u
       local.get $t3
@@ -1969,7 +1969,7 @@
     local.get $t2
     i32.store $heap offset=28
     i32.const 32
-    i32.const 2
+    i32.const 1
     call $rt:new/class-3
     local.tee $t2
     local.get $t3

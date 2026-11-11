@@ -72,7 +72,7 @@
     call $rt:map_put'2
     local.set $t0
     i32.const 8
-    i32.const 2
+    i32.const 1
     call $rt:new/class-1
     local.tee $t2
     local.get $t1

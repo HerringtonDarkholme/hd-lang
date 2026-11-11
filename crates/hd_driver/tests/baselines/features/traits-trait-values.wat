@@ -77,7 +77,7 @@
   (func $boxed (param $u.name.0 i32) (param $u.name.1 i32) (result i32 i32) (local $t0 i32)
     ;; 27 |     box(u)
     i32.const 8
-    i32.const 4
+    i32.const 1
     call $rt:new/class-1
     local.tee $t0
     local.get $u.name.0

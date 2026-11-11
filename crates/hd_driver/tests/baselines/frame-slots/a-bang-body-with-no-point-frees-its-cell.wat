@@ -44,7 +44,7 @@
       local.set $t4
     end
     i32.const 8
-    i32.const 2
+    i32.const 1
     call $rt:new/class-1
     local.tee $sink
     i32.const 16 ;; &"heap-exhausted"
@@ -57,7 +57,7 @@
     i32.eqz
     if
       i32.const 8
-      i32.const 2
+      i32.const 1
       call $rt:new/class-1
       local.tee $sink
       local.get $t1
@@ -82,7 +82,7 @@
     i32.eqz
     if
       i32.const 8
-      i32.const 2
+      i32.const 1
       call $rt:new/class-1
       local.tee $sink
       local.get $t3

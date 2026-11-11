@@ -282,7 +282,7 @@
     i32.eq
     if
       local.get $key.1
-      i32.const 1
+      i32.const 3
       call_indirect $table0 (param i32) (result i32)
       local.set $key.1
       local.get $log

@@ -21,7 +21,7 @@
     local.get $values
     i32.const 0
     ;; 7 |     let show: fn((List[string]...,)) -> void = dbg
-    i32.const 4
+    i32.const 5
     ;; 8 |     show(values)
     call_indirect $table0 (param i32 i32 i32)
   )

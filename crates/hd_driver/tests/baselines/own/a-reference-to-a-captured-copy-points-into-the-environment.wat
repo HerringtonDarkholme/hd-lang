@@ -17,7 +17,7 @@
   (func $make (param $t0 i32) (param $t1 i32) (param $t2 i32) (result i32 i32) (local $p i32) (local $t3 i32)
     ;; 18 |     fn() -> string: "${peek(&p)} ${first(&p.name)}"
     i32.const 12
-    i32.const 2
+    i32.const 1
     call $rt:new/class-2
     local.tee $p
     local.get $t0
@@ -39,7 +39,7 @@
     i32.load $heap offset=4
     local.set $t2
     i32.const 12
-    i32.const 2
+    i32.const 1
     call $rt:new/class-2
     local.tee $t3
     local.get $t0

@@ -145,7 +145,7 @@
     i32.eq
     if
       local.get $k.0
-      i32.const 1
+      i32.const 4
       call_indirect $table0 (param i32) (result i32)
       local.set $k.0
       local.get $m

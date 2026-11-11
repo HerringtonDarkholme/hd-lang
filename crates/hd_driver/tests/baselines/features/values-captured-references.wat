@@ -34,7 +34,7 @@
   (func $demo (param $s.0 i32) (param $s.1 i32) (result i32) (local $origin i32) (local $t0 i32)
     ;; 15 |     origin := box(Point { name: s, x: 0 })
     i32.const 12
-    i32.const 2
+    i32.const 1
     call $rt:new/class-2
     local.tee $origin
     local.get $s.0
@@ -109,9 +109,9 @@
   )
   (func $bump (param $p i32) (result i32 i32) (local $t0 i32)
     ;; 12 |     fn() -> void: p.x = p.x + 1
-    i32.const 2
+    i32.const 3
     i32.const 4
-    i32.const -2147483644
+    i32.const -2147483646
     call $rt:new/class-1
     local.tee $t0
     local.get $p

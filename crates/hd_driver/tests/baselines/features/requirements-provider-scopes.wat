@@ -8,7 +8,7 @@
   (func $lexical (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
     ;; 36 |     $.with(Tag=Named { label: s }):
     i32.const 8
-    i32.const 2
+    i32.const 1
     call $rt:new/class-1
     local.tee $t0
     local.get $s.0
@@ -60,7 +60,7 @@
   (func $by_value (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
     ;; 23 |     $.with(Tag=Named { label: s }):
     i32.const 8
-    i32.const 2
+    i32.const 1
     call $rt:new/class-1
     local.tee $t0
     local.get $s.0
@@ -103,7 +103,7 @@
     end
     ;; 43 |     $.with(Tag=Named { label: s }):
     i32.const 8
-    i32.const 2
+    i32.const 1
     call $rt:new/class-1
     local.tee $t1
     local.get $s.0
@@ -145,7 +145,7 @@
   (func $nested (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 27 |     $.with(Tag=Named { label: a }):
     i32.const 8
-    i32.const 2
+    i32.const 1
     call $rt:new/class-1
     local.tee $t0
     local.get $a.0
@@ -166,7 +166,7 @@
     end
     ;; 29 |         $.with(Tag=Named { label: b }):
     i32.const 8
-    i32.const 2
+    i32.const 1
     call $rt:new/class-1
     local.tee $a.1
     local.get $b.0

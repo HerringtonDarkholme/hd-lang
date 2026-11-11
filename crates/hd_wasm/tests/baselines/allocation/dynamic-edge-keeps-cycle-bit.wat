@@ -5,7 +5,7 @@
   (func $make (result i32 i32) (local $t0 i32)
     ;; 15 |     box(DynNode { next: .None })
     i32.const 8
-    i32.const -2147483645
+    i32.const -2147483647
     call $rt:new/class-1
     local.tee $t0
     i32.const 0

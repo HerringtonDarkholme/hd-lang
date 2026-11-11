@@ -41,7 +41,7 @@
     i32.eq
     if
       local.get $t3
-      i32.const 1
+      i32.const 2
       call_indirect $table0 (param i32) (result i32)
       local.set $t3
       local.get $self
@@ -129,7 +129,7 @@
       call $rt:memory_copy/0/0
       local.get $s.1
       local.get $n
-      i32.const 2
+      i32.const 3
       call_indirect $table0 (param i32 i32)
       unreachable
     ;; 19 |     if n < 0:
@@ -221,7 +221,7 @@
     ;; 26 |         panic("negative")
       i32.const 77 ;; &"negative"
       i32.const 8
-      i32.const 2
+      i32.const 3
       call_indirect $table0 (param i32 i32)
       unreachable
     ;; 25 |     if n < 0:
