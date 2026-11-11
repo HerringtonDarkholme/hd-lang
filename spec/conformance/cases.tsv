@@ -6327,6 +6327,7 @@ runtime/valid/dbg-tuple-rest-arguments.hd	runtime	accept	lang/10-modules.md#r-mo
 runtime/valid/defer-flags-follow-nested-exits.hd	runtime	accept	std/ops.md#r-std-ops.defer.cleanup
 runtime/valid/dynamic-bang-slots-keep-reference-and-value-receivers.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.ref.member
 runtime/valid/row-contexts-preserve-nearest-providers-and-empty-rows.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.with.nearest.row-parameter
+runtime/valid/a-last-scoped-provider-owner-transfers-to-its-call-context.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.with.nearest.row-parameter
 runtime/valid/function-values-preserve-wide-arguments-and-local-references.hd	runtime	accept	lang/07-functions.md#r-fn.type.ctor.no-flatten
 runtime/valid/associated-enum-payload-references-read-and-write.hd	runtime	accept	lang/13-values-and-references.md#r-ref.match.borrow
 typing/valid/associated-enum-payload-field-write.hd	type	accept	lang/13-values-and-references.md#r-ref.write.field

@@ -434,6 +434,14 @@ pub trait OwnCx {
     }
 }
 
+/// Structural candidate (scope, provider operand, final context call) triples.
+/// Lowering must also match the selected canonical provider and the scope's
+/// Release/Operand packet; a shadowed provider keeps its ordinary Drop.
+#[must_use]
+pub fn scoped_provider_transfers(b: &Body, topo: &Topology) -> Vec<(u32, u32, u32)> {
+    call_row::transfers(b, topo)
+}
+
 pub use crate::ir::{Loc, Role};
 
 /// One value operand of an instruction.

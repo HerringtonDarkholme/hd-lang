@@ -1,0 +1,107 @@
+# test: a scoped provider's final context keeps escaping children and earlier contexts alive
+# expect-stdout: first first
+# expect-stdout: shared shared
+# expect-stdout: cleanup 1
+# expect-stdout: inner
+# expect-stdout: stopped
+# expect-stdout: shared/shared
+# expect-stdout: external
+use std.annotation.cold
+use std.ops.defer
+
+trait Tag:
+    fn name(self) -> string
+
+trait Other:
+    fn other(self) -> string
+
+struct Named:
+    label: string
+
+impl Tag for Named:
+    fn name(self) -> string:
+        self.label
+
+impl Other for Named:
+    fn other(self) -> string:
+        self.label
+
+fn read_both() -> string $ Tag + Other:
+    $.use(Tag).name() + "/" + $.use(Other).other()
+
+fn read_other() -> string $ Other:
+    $.use(Other).other()
+
+@cold
+fn two_keys[$ R](provider: *Named, callback: fn() -> string $ R + Tag + Other) -> string $ R:
+    $.with(Tag=provider, Other=provider):
+        callback()
+
+@cold
+fn unselected(callback: fn() -> string $ Other) -> string $ Other:
+    $.with(Tag=Named { label: "unused" }):
+        callback()
+
+fn read() -> string $ Tag:
+    $.use(Tag).name()
+
+fn later!() -> string $ Tag:
+    read()
+
+@cold
+fn earlier[$ R](
+    text: string,
+    saved: &mut List[Suspend[string]],
+    callback: fn!() -> string $ R + Tag,
+) -> Suspend[string] $ R:
+    $.with(Tag=Named { label: text }):
+        saved.push(callback())
+        callback()
+
+@cold
+fn shared[$ R](provider: *Named, callback: fn() -> string $ R + Tag) -> string $ R:
+    $.with(Tag=provider):
+        callback()
+
+@cold
+fn cleanup[$ R](
+    text: string,
+    log: &mut List[string],
+    callback: fn() -> string $ R + Tag,
+) -> string $ R:
+    $.with(Tag=Named { label: text }):
+        defer(fn() -> void: log.push("closed"))
+        callback()
+
+@cold
+fn shadowed[$ R](callback: fn() -> string $ R + Tag) -> string $ R:
+    $.with(Tag=Named { label: "outer" }):
+        $.with(Tag=Named { label: "inner" }):
+            callback()
+
+@cold
+fn returning[$ R](stop: bool, callback: fn() -> string $ R + Tag) -> string $ R:
+    $.with(Tag=Named { label: "unused" }):
+        if stop:
+            return "stopped"
+        callback()
+
+pub fn main!() -> void $ Console:
+    let mut saved: List[Suspend[string]] = []
+    last := earlier("first", &mut saved, later)
+    last_value := last!()
+    first := saved[0]
+    println("${first!()} $last_value")
+    cancelled := earlier("cancelled", &mut saved, later)
+    _ := cancelled.cancel!()
+    provider := box(Named { label: "shared" })
+    seen := shared(provider, read)
+    println("$seen ${provider.label}")
+    let mut log: List[string] = []
+    cleaned := cleanup("cleanup", &mut log, read)
+    println("$cleaned ${log.len()}")
+    println(shadowed(read))
+    println(returning(true, read))
+    println(two_keys(provider, read_both))
+    $.with(Other=Named { label: "external" }):
+        println(unselected(read_other))

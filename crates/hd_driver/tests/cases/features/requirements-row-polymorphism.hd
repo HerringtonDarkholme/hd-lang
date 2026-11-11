@@ -3,7 +3,9 @@
 # Feature: Requirement Polymorphism, Row Parameters, Omitted Requirement
 # Clauses (spec/lang/11-requirements-and-suspension.md, #1364).
 # expected: `with_tag` installs one provider object and calls the
-# callback with no environment; `run` passes `read_tag` with no
+# callback with no environment. The final call context takes the scope's
+# provider owner, with no provider retain or separate scope release;
+# `run` passes `read_tag` with no
 # allocation; `closure` captures nothing and allocates nothing.
 trait Tag:
     fn name(self) -> string

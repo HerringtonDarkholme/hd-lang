@@ -92,6 +92,14 @@ pub(crate) fn ctx_lookup(f: &mut Func, c: u32, id: i64) -> [u32; 2] {
 }
 
 impl Em<'_, '_, '_> {
+    /// Only the exact final value Drop covered by a consumed scope packet
+    /// is replaced by the selected context entry's owner.
+    pub(super) fn provider_transferred_drop(&self, i: u32) -> bool {
+        let place = self.b.view(self.b.data[i as usize][0]);
+        place.whole()
+            && matches!(place.root, hd_tir::ir::Root::Value(value) if self.transferred_providers.contains(&value))
+    }
+
     /// The locals of the innermost provider of the whole key `k`: one in
     /// scope, else one the open context holds. Checking covers every key,
     /// so a miss is internal.
@@ -201,7 +209,16 @@ impl Em<'_, '_, '_> {
         if let Some(copy) = copy {
             for (j, (k, [d, v])) in keys.iter().zip(provs).enumerate() {
                 let id = key_id(self.input, *k);
-                self.because(copy, |em| em.fill_entry(c, j, id, d, v, true));
+                let transfer = self
+                    .provider_owners
+                    .get(&[d, v])
+                    .copied()
+                    .filter(|&(_, call)| call == i);
+                if let Some((owner, _)) = transfer {
+                    self.provider_owners.remove(&[d, v]);
+                    self.transferred_providers.insert(owner);
+                }
+                self.because(copy, |em| em.fill_entry(c, j, id, d, v, transfer.is_none()));
             }
         }
         self.f.get(c);

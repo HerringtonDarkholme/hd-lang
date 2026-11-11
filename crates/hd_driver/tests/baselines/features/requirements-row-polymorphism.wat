@@ -2,14 +2,13 @@
 (module
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "rt:ctx_new" (func $rt:ctx_new (param i32 i32) (result i32)))
-  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "read_tag#adapter" (func $read_tag#adapter (param i32 i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:ctx_find" (func $rt:ctx_find (param i32 i64) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 12 funcref))
   (func $closure (param $s.0 i32) (param $s.1 i32) (result i32)
-    ;; 29 |     with_tag(s, fn() -> usize $ Tag: $.use(Tag).name().len())
+    ;; 31 |     with_tag(s, fn() -> usize $ Tag: $.use(Tag).name().len())
     block
       local.get $s.0
       local.get $s.1
@@ -22,7 +21,7 @@
     local.get $s.0
   )
   (func $"with_tag[{open row}]'2" (param $s.0 i32) (param $s.1 i32) (param $callback.0 i32) (param $callback.1 i32) (param $ctx i32) (result i32)
-    ;; 22 |     $.with(Tag=Named { label: s }):
+    ;; 24 |     $.with(Tag=Named { label: s }):
     block
       block
         block
@@ -40,55 +39,38 @@
           br 0
         end
       end
-      local.get $s.0
-      local.set $s.1
       i32.const 204 ;; &vtable[func69]
-      local.set $callback.0
+      local.set $s.1
       block
-    ;; 23 |         callback()
+    ;; 25 |         callback()
         local.get $callback.1
         i32.const 1
         local.get $ctx
         call $rt:ctx_new
-        local.tee $callback.1
+        local.tee $callback.0
         i64.const -8941934570327064298
         i64.store $heap offset=16
-        local.get $callback.1
-        local.get $s.1
-        i32.store $heap offset=24
-        local.get $callback.1
         local.get $callback.0
-        i32.store $heap offset=28
+        local.get $s.0
+        i32.store $heap offset=24
+        local.get $callback.0
         local.get $s.1
-        local.tee $callback.0
-        if
-          local.get $callback.0
-          call $retain
-        end
-        local.get $callback.1
+        i32.store $heap offset=28
+        local.get $callback.0
         call $read_tag#adapter
-        local.get $callback.1
-        local.tee $callback.0
+        local.get $callback.0
         if
           local.get $callback.0
           call $rt:release_ref
         end
-    ;; 22 |     $.with(Tag=Named { label: s }):
-        local.set $s.1
+    ;; 24 |     $.with(Tag=Named { label: s }):
+        local.set $s.0
       end
-      local.get $s.0
-      local.tee $callback.0
-      if
-        local.get $callback.0
-        call $rt:release_ref
-      end
-      local.get $s.1
-      local.set $s.0
     end
     local.get $s.0
   )
   (func $closure#1 (param $env i32) (param $ctx i32) (result i32)
-    ;; 29 |     with_tag(s, fn() -> usize $ Tag: $.use(Tag).name().len())
+    ;; 31 |     with_tag(s, fn() -> usize $ Tag: $.use(Tag).name().len())
     local.get $ctx
     i64.const -8941934570327064298
     call $rt:ctx_find
@@ -121,7 +103,7 @@
     local.get $env
   )
   (func $run (param $s.0 i32) (param $s.1 i32) (result i32)
-    ;; 26 |     with_tag(s, read_tag)
+    ;; 28 |     with_tag(s, read_tag)
     block
       local.get $s.0
       local.get $s.1
@@ -134,7 +116,7 @@
     local.get $s.0
   )
   (func $read_tag (param $provider0 i32) (param $provider0.vtable i32) (result i32)
-    ;; 19 |     $.use(Tag).name().len()
+    ;; 21 |     $.use(Tag).name().len()
     block
       local.get $provider0
       local.get $provider0.vtable
@@ -158,7 +140,7 @@
     local.get $provider0
   )
   (func $"with_tag[{open row}]'1" (param $s.0 i32) (param $s.1 i32) (param $callback.0 i32) (param $callback.1 i32) (param $ctx i32) (result i32)
-    ;; 22 |     $.with(Tag=Named { label: s }):
+    ;; 24 |     $.with(Tag=Named { label: s }):
     block
       block
         block
@@ -176,55 +158,38 @@
           br 0
         end
       end
-      local.get $s.0
-      local.set $s.1
       i32.const 204 ;; &vtable[func69]
-      local.set $callback.0
+      local.set $s.1
       block
-    ;; 23 |         callback()
+    ;; 25 |         callback()
         local.get $callback.1
         i32.const 1
         local.get $ctx
         call $rt:ctx_new
-        local.tee $callback.1
+        local.tee $callback.0
         i64.const -8941934570327064298
         i64.store $heap offset=16
-        local.get $callback.1
-        local.get $s.1
-        i32.store $heap offset=24
-        local.get $callback.1
         local.get $callback.0
-        i32.store $heap offset=28
+        local.get $s.0
+        i32.store $heap offset=24
+        local.get $callback.0
         local.get $s.1
-        local.tee $callback.0
-        if
-          local.get $callback.0
-          call $retain
-        end
-        local.get $callback.1
+        i32.store $heap offset=28
+        local.get $callback.0
         call $closure#1
-        local.get $callback.1
-        local.tee $callback.0
+        local.get $callback.0
         if
           local.get $callback.0
           call $rt:release_ref
         end
-    ;; 22 |     $.with(Tag=Named { label: s }):
-        local.set $s.1
+    ;; 24 |     $.with(Tag=Named { label: s }):
+        local.set $s.0
       end
-      local.get $s.0
-      local.tee $callback.0
-      if
-        local.get $callback.0
-        call $rt:release_ref
-      end
-      local.get $s.1
-      local.set $s.0
     end
     local.get $s.0
   )
   (func $"impl Tag for Named.name" (param $self.label.0 i32) (param $self.label.1 i32) (result i32 i32)
-    ;; 16 |         self.label
+    ;; 18 |         self.label
     block
     end
     local.get $self.label.0

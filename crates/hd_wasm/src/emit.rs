@@ -1113,6 +1113,12 @@ struct Em<'i, 'a, 'm> {
     locals: HashMap<usize, Vec<u32>>,
     /// The providers in scope: each key's data and vtable locals.
     providers: Vec<(Ty, [u32; 2])>,
+    /// Scoped provider locals whose final owner may move to a tail context.
+    provider_owners: HashMap<[u32; 2], (u32, u32)>,
+    /// Exact tail call for each verified scoped provider candidate.
+    provider_transfer_calls: HashMap<(u32, u32), u32>,
+    /// Original scope drops replaced by a selected context entry's owner.
+    transferred_providers: hd_base::HashSet<u32>,
     /// The local of the context this body takes, when its row lists an
     /// open row (`ctx.rs`): a key no provider in scope covers is read
     /// from it.
@@ -1360,6 +1366,9 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             short_holders: hd_base::HashSet::default(),
             locals: HashMap::default(),
             providers: Vec::new(),
+            provider_owners: HashMap::default(),
+            provider_transfer_calls: HashMap::default(),
+            transferred_providers: hd_base::HashSet::default(),
             open_ctx: None,
             open_base: 0,
             ctl: Vec::new(),
@@ -1415,6 +1424,10 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             walked: None,
             driven: HashMap::default(),
         };
+        em.provider_transfer_calls = hd_tir::own::scoped_provider_transfers(b, &em.topo)
+            .into_iter()
+            .map(|(scope, operand, call)| ((scope, operand), call))
+            .collect();
         em.projs = (0..b.len()).map(|i| em.projected(i)).collect();
         em
     }
@@ -2217,7 +2230,7 @@ impl Em<'_, '_, '_> {
             }
             Tag::Drop => {
                 self.borrow_drop(i);
-                if !self.drop_map_probe_ref(i) {
+                if !self.provider_transferred_drop(i) && !self.drop_map_probe_ref(i) {
                     self.own_drop(i)?;
                 }
             }
@@ -2590,7 +2603,7 @@ impl Em<'_, '_, '_> {
     fn with(&mut self, i: u32, rec: u32, body: u32) -> StageResult<()> {
         let pairs = self.rec(rec);
         let mut pushed = 0;
-        for c in pairs.chunks(2) {
+        for (operand, c) in (0_u32..).zip(pairs.chunks(2)) {
             let key = self.sub(Ty(c[0]));
             // A spread context's providers, key by key.
             if matches!(self.pool().get(key), TyData::Context(_)) {
@@ -2602,6 +2615,13 @@ impl Em<'_, '_, '_> {
             for (k, l) in ls.iter().enumerate() {
                 self.comp(c[1], k)?;
                 self.f.set(*l);
+            }
+            if self
+                .operation_count(i, Tag::Release, CountPart::Operand(operand))
+                .is_some()
+                && let Some(&call) = self.provider_transfer_calls.get(&(i, operand))
+            {
+                self.provider_owners.insert(ls, (c[1], call));
             }
             self.providers.push((key, ls));
             pushed += 1;

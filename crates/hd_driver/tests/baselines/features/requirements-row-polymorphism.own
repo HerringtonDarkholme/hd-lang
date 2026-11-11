@@ -4,7 +4,9 @@
 # Feature: Requirement Polymorphism, Row Parameters, Omitted Requirement
 # Clauses (spec/lang/11-requirements-and-suspension.md, #1364).
 # expected: `with_tag` installs one provider object and calls the
-# callback with no environment; `run` passes `read_tag` with no
+# callback with no environment. The final call context takes the scope's
+# provider owner, with no provider retain or separate scope release;
+# `run` passes `read_tag` with no
 # allocation; `closure` captures nothing and allocates nothing.
 trait Tag:
     fn name(self) -> string
@@ -53,8 +55,8 @@ fn with_tag[$ R](s: string, callback: fn() -> usize $ R + Tag) -> usize $ R:
 >   local $2 provider: Named [read] value
 >     uses $2: %4 -> %5 consume last
 >   local $3 $ref: Named [read assigned captured captured-assigned] place
->   %0 = Release %24 Exit local $1 #2 : ()
->   %1 = Retain %24 Entry local $0 #0 : ()
+>   %0 = Release %25 Exit local $1 #2 : ()
+>   %1 = Retain %25 Entry local $0 #0 : ()
     $.with(Tag=Named { label: s }):
 >   %2 = Read move [$0] : string
 >   %3 = NewStruct [%2] : Named
@@ -72,8 +74,9 @@ fn with_tag[$ R](s: string, callback: fn() -> usize $ R + Tag) -> usize $ R:
 >   %15 = Coerce %13 [RefAsProvider -] : Tag
 >   %16 = LoanEnd [%13] : ()
 >   %22 = With [Tag %15] %21 : usize
->   %23 = Drop [%15] : ()
->   %24 = Block %22 : usize
+>   %23 = Release %22 Operation operand 0 #2 : ()
+>   %24 = Drop [%15] : ()
+>   %25 = Block %22 : usize
 >   %7 finds [$3] full
         callback()
 >   %17 = Read borrow [$1] : fn() -> usize
