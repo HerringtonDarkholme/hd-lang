@@ -64,10 +64,16 @@ pub(super) fn cell_locals(b: &Body, stored: &[usize]) -> HashMap<usize, u32> {
 /// object a closure reaches as a `*mut` does its pointee, so a reference
 /// into the variable takes a loan on it (`POINTER_LOANS.md`, question 6).
 pub(super) fn shared_locals(b: &Body) -> hd_base::HashSet<usize> {
+    let recursive = hd_tir::own::RecursiveBindings::new(b);
     (0..b.len())
         .filter(|&ci| b.tags[ci] == Tag::Closure)
-        .flat_map(|ci| captures(b, ci))
+        .flat_map(|ci| hd_tir::own::closure_captures(b, ci, &recursive))
         .filter_map(|(l, shared)| shared.then_some(l))
+        .chain(
+            b.inlined_shared
+                .iter()
+                .map(|&(_, c)| b.cap_local[c as usize].idx()),
+        )
         .collect()
 }
 
@@ -147,14 +153,18 @@ pub(super) fn closure_of(
 /// The immutable name introduced by this closure itself. Its declaration
 /// and closure share a syntax node; other captures do not. Address-taking
 /// keeps the independently addressable cell and its existing ownership.
-pub(super) fn self_local(b: &Body, ci: usize) -> Option<usize> {
-    b.closure_self(ci).map(hd_base::LocalId::idx)
+pub(super) fn self_local(recursive: &hd_tir::own::RecursiveBindings, ci: usize) -> Option<usize> {
+    recursive.self_local(ci).map(hd_base::LocalId::idx)
 }
 
 /// The captures of closure instruction `ci`: each local, and whether it
 /// is shared through a cell (`hd_tir::own::closure_captures`).
-pub(super) fn captures(b: &Body, ci: usize) -> Vec<(usize, bool)> {
-    hd_tir::own::closure_captures(b, ci).collect()
+pub(super) fn captures(
+    b: &Body,
+    ci: usize,
+    recursive: &hd_tir::own::RecursiveBindings,
+) -> Vec<(usize, bool)> {
+    hd_tir::own::closure_captures(b, ci, recursive).collect()
 }
 
 /// Whether walk `w` runs drop glue anywhere.
@@ -170,10 +180,10 @@ fn has_glue(w: &Walk) -> bool {
 /// Whether each capture [`captures`] lists for closure `ci` moves into
 /// the environment (`CaptureMode::Move`, the move pass's rule 5): the
 /// environment takes the local's count, so the closure retains nothing.
-fn moved_captures(b: &Body, ci: usize) -> Vec<bool> {
+fn moved_captures(b: &Body, ci: usize, recursive: &hd_tir::own::RecursiveBindings) -> Vec<bool> {
     let rec = b.record(b.data[ci][1]);
     let (start, n) = (rec[0] as usize, rec[1] as usize);
-    let own = self_local(b, ci);
+    let own = self_local(recursive, ci);
     (start..start + n)
         .filter(|&c| Some(b.cap_local[c].idx()) != own)
         .map(|c| b.cap_mode.get(c) == Some(&CaptureMode::Move))
@@ -615,10 +625,10 @@ impl Em<'_, '_, '_> {
         let Some(Target::Closure(key)) = self.calls.get(&i).cloned() else {
             unreachable!("collection selects every emitted closure's code instance");
         };
-        let caps = captures(self.b, i as usize);
+        let caps = captures(self.b, i as usize, &self.recursive_bindings);
         // A lent parameter holds no count to move: the environment
         // counts its own copy.
-        let moved: Vec<bool> = moved_captures(self.b, i as usize)
+        let moved: Vec<bool> = moved_captures(self.b, i as usize, &self.recursive_bindings)
             .into_iter()
             .zip(&caps)
             .map(|(mv, (l, _))| mv && !self.borrowed.contains(l))
@@ -710,7 +720,7 @@ impl Em<'_, '_, '_> {
     /// from the environment, parameter `env`, into its local, as a value or
     /// a cell's address.
     pub(super) fn load_captures(&mut self, ci: usize, env: u32, key: Hash128) -> StageResult<()> {
-        if let Some(l) = self_local(self.b, ci) {
+        if let Some(l) = self_local(&self.recursive_bindings, ci) {
             let ls = self.local(u32::try_from(l).expect("locals"))?;
             self.f.table_slot(Sym::Inst(key));
             self.f.set(ls[0]);
@@ -721,7 +731,7 @@ impl Em<'_, '_, '_> {
                 self.borrowed.insert(l);
             }
         }
-        let caps = captures(self.b, ci);
+        let caps = captures(self.b, ci, &self.recursive_bindings);
         if caps.is_empty() {
             return Ok(());
         }

@@ -75,151 +75,148 @@ fn bound(u: User) -> usize:
 > app/main/bound
 >   local $0 u: User [param read] value
 >     uses $0: entry -> %1 consume last
->   local $1 $receiver: User [read assigned captured] value
->     uses $1: %2 -> %4 consume, %16 consume last
->   local $2 f: fn() -> usize [:= read assigned] value
->     uses $2: %18 -> %19 lend, %21 lend last
+>   local $2 $receiver: User [read assigned] place
+>   local $3 self: User [read] value
+>     uses $3: %21 -> %22 consume last
 >   local $4 self: string [read] value
->     uses $4: %5 -> %6 lend last
->   %0 = Retain %25 Entry local $0 #0 : ()
+>     uses $4: %23 -> %24 lend last
+>   local $5 self: User [read] value
+>     uses $5: %4 -> %5 consume last
+>   local $6 self: string [read] value
+>     uses $6: %6 -> %7 lend last
+>   %0 = Release %38 Exit local $0 #2 : ()
     f := u::name_len
->   %1 = Read move [$0] : User
->   %2 = Store [$1] %1 : ()
->   %3 = Retain %15 Entry captures #0 : ()
->   %4 = Read borrow [$1 .name] : string
->   %5 = Store [$4] %4 : ()
->   %6 = Read borrow [$4] : string
->   %7 = Call std/rt.bytes/bytes_len[] (%6) : usize
->   %8 = Break L0 %7 : never
->   %9 = Block - : usize
->   %10 = Scope %9 [] : usize
->   %11 = Break L1 %10 : never
->   %12 = Block - : usize
->   %13 = Scope %12 [] : usize
->   %14 = Drop [$1] : ()
->   %15 = Block %13 : usize
->   %16 = Closure #1 : fn() -> usize
->   %17 = Retain %16 Operation captures #0 : ()
->   %18 = Store [$2] %16 : ()
->   %25 = Block %24 : usize
+>   %1 = Read borrow [$0] : User
+>   %2 = Store [$2] %1 : ()
+>   %38 = Block %37 : usize
     f() + f()
->   %19 = Read borrow [$2] : fn() -> usize
->   %20 = CallValue %19 [] : usize
->   %21 = Read move [$2] : fn() -> usize
->   %22 = CallValue %21 [] : usize
->   %23 = Drop [%21] : ()
->   %24 = Prim Add [%20 %22] : usize
->   exit sub 0 drops [$0 $1]
->   exit sub 1 drops [$1]
->   summary kept [$0] writes
+>   %3 = Read borrow [$2] : User
+>   %4 = Store [$5] %3 : ()
+>   %5 = Read borrow [$5 .name] : string
+>   %6 = Store [$6] %5 : ()
+>   %7 = Read borrow [$6] : string
+>   %8 = Call std/rt.bytes/bytes_len[] (%7) : usize
+>   %9 = Break L4 %8 : never
+>   %10 = Block - : usize
+>   %11 = Scope %10 [] : usize
+>   %12 = Break L5 %11 : never
+>   %13 = Block - : usize
+>   %14 = Scope %13 [] : usize
+>   %15 = Read borrow [$2] : User
+>   %16 = Block - : ()
+>   %17 = Break L0 %14 : never
+>   %18 = Block - : usize
+>   %19 = Scope %18 [%16] : usize
+>   %20 = Read borrow [$2] : User
+>   %21 = Store [$3] %20 : ()
+>   %22 = Read borrow [$3 .name] : string
+>   %23 = Store [$4] %22 : ()
+>   %24 = Read borrow [$4] : string
+>   %25 = Call std/rt.bytes/bytes_len[] (%24) : usize
+>   %26 = Break L2 %25 : never
+>   %27 = Block - : usize
+>   %28 = Scope %27 [] : usize
+>   %29 = Break L3 %28 : never
+>   %30 = Block - : usize
+>   %31 = Scope %30 [] : usize
+>   %32 = Read borrow [$2] : User
+>   %33 = Block - : ()
+>   %34 = Break L1 %31 : never
+>   %35 = Block - : usize
+>   %36 = Scope %35 [%33] : usize
+>   %37 = Prim Add [%19 %36] : usize
+>   summary kept [] borrows [$0]
 
 fn bound_mut(u: *mut User, n: string) -> void:
 > app/main/bound_mut
 >   local $0 u: *mut User [param read] value
 >     uses $0: entry -> %2 consume last
 >   local $1 n: string [param read] value
->     uses $1: entry -> %15 consume last
->   local $2 $receiver: *mut User [read assigned captured] value
->     uses $2: %3 -> %6 lend, %11 consume last
->   local $3 $0: string [param] value
->     uses $3: entry -> %7 consume last
->   local $4 f: fn(string) -> () [:= read assigned] value
->     uses $4: %13 -> %14 lend last
->   %0 = Retain %18 Entry local $0 #0 : ()
->   %1 = Retain %18 Entry local $1 #0 : ()
+>     uses $1: entry -> %7 consume last
+>   local $2 $receiver: *mut User [read assigned] value
+>     uses $2: %3 -> %4 consume last
+>   local $3 $receiver: *mut User [read assigned] place
+>   %0 = Release %14 Exit local $0 #2 : ()
+>   %1 = Retain %14 Entry local $1 #0 : ()
     f := u::rename
->   %2 = Read move [$0] : *mut User
+>   %2 = Read borrow [$0] : *mut User
 >   %3 = Store [$2] %2 : ()
->   %4 = Retain %10 Entry captures #0 : ()
->   %5 = Retain %10 Entry local $3 #0 : ()
->   %6 = Read move [$2] : *mut User
->   %7 = Read move [$3] : string
->   %8 = Call app/main/impl User.rename[] (%6, %7) : ()
->   %9 = Drop [%6] : ()
->   %10 = Block %8 : ()
->   %11 = Closure #1 : fn(string) -> ()
->   %12 = Retain %11 Operation captures #0 : ()
->   %13 = Store [$4] %11 : ()
->   %18 = Block - : ()
+>   %4 = Read borrow [$2] : *mut User
+>   %5 = Store [$3] %4 : ()
+>   %14 = Block - : ()
     f(n)
->   %14 = Read move [$4] : fn(string) -> ()
->   %15 = Read move [$1] : string
->   %16 = CallValue %14 [%15] : ()
->   %17 = Drop [%14] : ()
->   exit sub 0 drops [$0 $1 $2]
->   exit sub 1 drops [$2 $3]
->   summary kept [$0 $1] writes
+>   %6 = Read borrow [$3] : *mut User
+>   %7 = Read move [$1] : string
+>   %8 = Call app/main/impl User.rename[] (%6, %7) : ()
+>   %9 = Read borrow [$3] : *mut User
+>   %10 = Block - : ()
+>   %11 = Break L0 %8 : never
+>   %12 = Block - : ()
+>   %13 = Scope %12 [%10] : ()
+>   exit sub 0 drops [$1]
+>   summary kept [$1] borrows [$0] writes
 
 fn adapter(us: List[User]) -> usize:
 > app/main/adapter
 >   local $0 us: List[User] [param read] value
->     uses $0: entry -> %17 lend, %25 lend
->   local $1 u: User [param read] value
->     uses $1: entry -> %2 consume last
->   local $2 g: fn(User) -> usize [:= read assigned] value
->     uses $2: %15 -> %30 lend
->   local $3 n: usize [read assigned mutated] place
->   local $6 $pos: usize [assigned] place
->   local $7 $end: usize [assigned] value
->     uses $7: %19 -> %22 lend
->   local $8 u: User [read assigned] value
->     uses $8: %37 -> %31 consume last
->   local $10 self: string [read] value
->     uses $10: %3 -> %4 lend last
->   %0 = Release %50 Exit local $0 #2 : ()
+>     uses $0: entry -> %2 lend, %10 lend
+>   local $1 n: usize [read assigned mutated] place
+>   local $4 $pos: usize [assigned] place
+>   local $5 $end: usize [assigned] value
+>     uses $5: %4 -> %7 lend
+>   local $6 u: User [read assigned] value
+>     uses $6: %33 -> %15 consume last
+>   local $9 self: string [read] value
+>     uses $9: %16 -> %18 lend last
+>   %0 = Release %45 Exit local $0 #2 : ()
     g := fn(u: User) -> usize: u.name_len()
->   %1 = Retain %13 Entry local $1 #0 : ()
->   %2 = Read borrow [$1 .name] : string
->   %3 = Store [$10] %2 : ()
->   %4 = Read borrow [$10] : string
->   %5 = Call std/rt.bytes/bytes_len[] (%4) : usize
->   %6 = Break L1 %5 : never
->   %7 = Block - : usize
->   %8 = Scope %7 [] : usize
->   %9 = Break L2 %8 : never
->   %10 = Block - : usize
->   %11 = Scope %10 [] : usize
->   %12 = Drop [$1] : ()
->   %13 = Block %11 : usize
->   %14 = Closure #1 : fn(User) -> usize
->   %15 = Store [$2] %14 : ()
->   %50 = Block %49 : usize
+>   %45 = Block %44 : usize
     let n: usize = 0
->   %16 = Store [$3] 0:usize : ()
+>   %1 = Store [$1] 0:usize : ()
     for u in us:
->   %17 = Read borrow [$0] : List[User]
->   %18 = Intrinsic ListLen [%17] : usize
->   %19 = Store [$7] %18 : ()
->   %20 = Store [$6] 0:usize : ()
->   %21 = Read copy [$6] : usize
->   %22 = Read copy [$7] : usize
->   %23 = Prim Lt [%21 %22] : bool
->   %24 = Read copy [$6] : usize
->   %25 = Read borrow [$0 [%24]] : User
->   %26 = Read copy [$6] : usize
->   %27 = Prim Add [%26 1:usize] : usize
->   %28 = Store [$6] %27 : ()
->   %35 = Block - : ()
->   %36 = Read borrow [%25] : User
->   %37 = Store [$8] %36 : ()
->   %38 = Release %37 Operation #3 : ()
->   %40 = Block - : never
->   %41 = Match %25 [%40 %35] : ()
+>   %2 = Read borrow [$0] : List[User]
+>   %3 = Intrinsic ListLen [%2] : usize
+>   %4 = Store [$5] %3 : ()
+>   %5 = Store [$4] 0:usize : ()
+>   %6 = Read copy [$4] : usize
+>   %7 = Read copy [$5] : usize
+>   %8 = Prim Lt [%6 %7] : bool
+>   %9 = Read copy [$4] : usize
+>   %10 = Read borrow [$0 [%9]] : User
+>   %11 = Read copy [$4] : usize
+>   %12 = Prim Add [%11 1:usize] : usize
+>   %13 = Store [$4] %12 : ()
+>   %31 = Block - : ()
+>   %32 = Read borrow [%10] : User
+>   %33 = Store [$6] %32 : ()
+>   %34 = Release %33 Operation #3 : ()
+>   %36 = Block - : never
+>   %37 = Match %10 [%36 %31] : ()
+>   %38 = Block - : ()
+>   %39 = Break L1 - : never
+>   %40 = Block - : ()
+>   %41 = If %8 [%38 %40] : ()
 >   %42 = Block - : ()
->   %43 = Break L0 - : never
->   %44 = Block - : ()
->   %45 = If %23 [%42 %44] : ()
->   %46 = Block - : ()
->   %47 = Loop %46 - : ()
->   %48 = Drop [$2] : ()
+>   %43 = Loop %42 - : ()
         n += g(u)
->   %29 = Read copy [$3] : usize
->   %30 = Read borrow [$2] : fn(User) -> usize
->   %31 = Read copy [$8] : User
->   %32 = CallValue %30 [%31] : usize
->   %33 = Prim Add [%29 %32] : usize
->   %34 = Store [$3] %33 : ()
+>   %14 = Read copy [$1] : usize
+>   %15 = Read borrow [$6 .name] : string
+>   %16 = Store [$9] %15 : ()
+>   %17 = Release %16 Operation #3 : ()
+>   %18 = Read borrow [$9] : string
+>   %19 = Call std/rt.bytes/bytes_len[] (%18) : usize
+>   %20 = Break L2 %19 : never
+>   %21 = Block - : usize
+>   %22 = Scope %21 [] : usize
+>   %23 = Break L3 %22 : never
+>   %24 = Block - : usize
+>   %25 = Scope %24 [] : usize
+>   %26 = Break L0 %25 : never
+>   %27 = Block - : usize
+>   %28 = Scope %27 [] : usize
+>   %29 = Prim Add [%14 %28] : usize
+>   %30 = Store [$1] %29 : ()
     n
->   %49 = Read copy [$3] : usize
->   exit sub 1 drops [$1]
->   summary kept [] borrows [$0] writes
+>   %44 = Read copy [$1] : usize
+>   summary kept [] borrows [$0]
+>   loop %43 keeps [$0]

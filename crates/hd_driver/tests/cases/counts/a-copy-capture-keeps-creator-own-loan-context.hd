@@ -1,0 +1,16 @@
+# @dump: own counts wat
+# @build: v8 release
+# expected: the literal environment is gone; the captured pointer checks
+# against its creator's own loan state. An ordinary alias gains no exemption.
+struct Cell:
+    value: string
+    other: string
+
+fn run_plain(f: fn() -> void) -> void:
+    f()
+
+fn probe() -> (string, string):
+    p := box(Cell { value: "a", other: "o" })
+    r := &p.other
+    run_plain(fn() -> void: p.value = "b")
+    (*r, p.value)

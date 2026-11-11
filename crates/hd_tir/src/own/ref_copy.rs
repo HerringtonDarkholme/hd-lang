@@ -3,7 +3,7 @@
 //! a counted reference to one allocates an owned object instead.
 
 use super::{OwnCx, cold};
-use crate::ir::{Body, Tag, Topology, local_flags, ref_word};
+use crate::ir::{Body, Tag, Topology, ref_word};
 use hd_base::SliceSort as _;
 
 pub(super) fn results(b: &Body, cx: &dyn OwnCx, topo: &Topology) -> Vec<bool> {
@@ -11,29 +11,18 @@ pub(super) fn results(b: &Body, cx: &dyn OwnCx, topo: &Topology) -> Vec<bool> {
     for sub in cold::sub_bodies(b, cx) {
         suspends[sub as usize] = true;
     }
-    // Match the raw capture representation: immutable recursive bindings
-    // are copied as function values even when the capture mode is shared.
-    let mut recursive = vec![false; b.local_ty.len()];
-    for i in 0..b.len() {
-        if b.tags[i] == Tag::Closure
-            && let Some(l) = b.closure_self(i)
-            && b.local_flags[l.idx()] & local_flags::SHORT != 0
-            && b.syn[i] == b.local_syn[l.idx()]
-        {
-            recursive[l.idx()] = true;
-        }
-    }
+    let recursive = super::RecursiveBindings::new(b);
     let mut copied = Vec::new();
     for i in 0..b.len() {
         if b.tags[i] != Tag::Closure || b.is_instantiation(i) {
             continue;
         }
-        let own = b.closure_self(i);
+        let own = recursive.self_local(i);
         let record = b.record(b.data[i][1]);
         for c in record[0]..record[0] + record[1] {
             let c = c as usize;
             let l = b.cap_local[c];
-            if !b.cap_mode[c].shares() || recursive[l.idx()] || own == Some(l) {
+            if !recursive.capture_mode(l, b.cap_mode[c]).shares() || own == Some(l) {
                 copied.push((b.data[i][0], l.raw()));
             }
         }
@@ -62,7 +51,7 @@ mod tests {
     use crate::ir::{
         BodyKind, Callee, CaptureMode, Place, PlaceRoot, Proj, TirBuilder, TirSink,
         count::{At, Info, Part},
-        verify_owned,
+        local_flags, verify_owned,
     };
     use crate::own::{Pass, retains, splice};
     use hd_base::{DefId, NodeIdx, Symbol};

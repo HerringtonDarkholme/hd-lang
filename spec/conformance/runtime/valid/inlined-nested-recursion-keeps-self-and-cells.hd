@@ -1,0 +1,30 @@
+# #1383: an eliminated nested closure keeps recursive self and shared cells.
+# fn.recursion.closure.ordinary-binding; fn.capture.cell; fn.capture.copies;
+# fn.capture.storage.lifetime.
+fn make_sum(seed: i32) -> fn(i32) -> i32:
+    let calls = +0
+    sum := fn(n: i32) -> i32:
+        calls += 1
+        if n == 0:
+            seed + calls
+        else:
+            next := fn() -> i32: sum(n - 1)
+            n + next()
+    sum
+
+tests:
+    use std.testing.assert_equal
+
+    it("nested recursion and closure copies share the escaped cell"):
+        sum := make_sum(7)
+        alias := sum
+        assert_equal(sum(4), 22, reason="five calls share the original environment")
+        assert_equal(alias(2), 18, reason="the copied function shares eight total calls")
+        assert_equal(sum(0), 16, reason="the original still sees the shared counter")
+
+    it("separate factory calls retain independent cells"):
+        first := make_sum(10)
+        second := make_sum(20)
+        assert_equal(first(1), 13)
+        assert_equal(second(1), 23)
+        assert_equal(first(0), 13)

@@ -12,16 +12,12 @@ fn through_reference(text: &mut string, suffix: string) -> void:
 fn through_cell(text: string) -> string:
     let mut current = text
 > app/main/through_cell
->   release fn(string) -> () (last use)
 >   release string (last use)
     append := fn(suffix: string) -> void: current += suffix
-> app/main/through_cell
+    append("!")
 >   retain string (conservative: copy read)
 >   release string (last use)
->   release string (last use)
 >   release string (overwritten)
->   retain counted reference (stored)
-    append("!")
     current
 >   retain string (stored)
 

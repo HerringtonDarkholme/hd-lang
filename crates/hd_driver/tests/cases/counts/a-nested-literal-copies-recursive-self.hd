@@ -1,0 +1,12 @@
+# @dump: own counts wat
+# @build: v8 release
+# expected: next is inlined; immutable recursive sum remains a reconstructed
+# two-word function value, not a cell address. No next environment is built.
+fn nested_sum(seed: i32, limit: i32) -> i32:
+    sum := fn(n: i32) -> i32:
+        if n == 0:
+            seed
+        else:
+            next := fn() -> i32: sum(n - 1)
+            n + next()
+    sum(limit)

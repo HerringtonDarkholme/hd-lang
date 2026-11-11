@@ -120,30 +120,20 @@ fn generic_value(s: string) -> string:
 fn variant_value(s: string) -> Event:
 > app/main/variant_value
 >   local $0 s: string [param read] value
->     uses $0: entry -> %8 consume last
->   local $1 $0: string [param] value
->     uses $1: entry -> %2 consume last
->   local $3 f: fn(string) -> Event [read] value
->     uses $3: %6 -> %7 lend last
->   %0 = Retain %14 Entry local $0 #0 : ()
+>     uses $0: entry -> %1 consume last
+>   %0 = Retain %9 Entry local $0 #0 : ()
     map_one(s, Event.Named)
->   %1 = Retain %4 Entry local $1 #0 : ()
->   %2 = Read move [$1] : string
->   %3 = NewVariant #0 [%2] : Event
->   %4 = Block %3 : Event
->   %5 = Closure #1 : fn(string) -> Event
->   %6 = Store [$3] %5 : ()
->   %7 = Read borrow [$3] : fn(string) -> Event
->   %8 = Read move [$0] : string
->   %9 = CallValue %7 [%8] : Event
->   %10 = Break L0 %9 : never
->   %11 = Block - : Event
->   %12 = Scope %11 [] : Event
->   %13 = Drop [$3] : ()
->   %14 = Block %12 : Event
+>   %1 = Read move [$0] : string
+>   %2 = NewVariant #0 [%1] : Event
+>   %3 = Break L0 %2 : never
+>   %4 = Block - : Event
+>   %5 = Scope %4 [] : Event
+>   %6 = Break L1 %5 : never
+>   %7 = Block - : Event
+>   %8 = Scope %7 [] : Event
+>   %9 = Block %8 : Event
 >   exit sub 0 drops [$0]
->   exit sub 1 drops [$1]
->   summary kept [$0] writes
+>   summary kept [$0]
 
 fn spelled() -> Fn[(string,), usize, $ ()]:
     width

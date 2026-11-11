@@ -1,0 +1,88 @@
+# test: literal-call elimination preserves capture snapshots and target lifetime
+# Spec std/weak: std-weak.release.target; fn.capture.copy.using-split and fn.capture.cell.writes.
+use std.annotation.cold
+use std.testing.assert
+use std.weak.{Weak, weak}
+
+@cold
+fn expired(link: Weak[i32]?) -> bool:
+    match link:
+        .Some(seen) => seen.upgrade().is_none()
+        .None => false
+
+fn copied_window() -> bool:
+    value := box(+7)
+    seen := weak(value)
+    f := fn() -> bool:
+        if false:
+            _ := value
+        !expired(seen)
+    during := f()
+    during && expired(seen)
+
+fn copied_live() -> bool:
+    value := box(+7)
+    seen := weak(value)
+    f := fn() -> bool:
+        if false:
+            _ := value
+        !expired(seen)
+    during := f()
+    alive := !expired(seen)
+    during && alive && *value == 7
+
+# A function-valued capture also keeps that function's capture owners alive.
+fn nested_window() -> bool:
+    value := box(+7)
+    seen := weak(value)
+    f := fn() -> bool:
+        if false:
+            _ := value
+        true
+    g := fn() -> bool:
+        used := f()
+        used && !expired(seen)
+    during := g()
+    during && expired(seen)
+
+fn aliases() -> usize:
+    let n: usize = 0
+    f := fn() -> void: n += 1
+    alias := f
+    f()
+    alias()
+    n
+
+struct Number:
+    value: i32
+
+impl Number:
+    fn get(self) -> i32:
+        self.value
+
+fn bound_snapshot() -> bool:
+    let mut value = Number { value: +7 }
+    f := value::get
+    value = Number { value: +9 }
+    f() == 7 && value.value == 9
+
+@cold
+fn escaping() -> (fn() -> bool, Weak[i32]?):
+    value := box(+7)
+    seen := weak(value)
+    f := fn() -> bool:
+        if false:
+            _ := value
+        !expired(seen)
+    (f, seen)
+
+pub fn main() -> void:
+    assert(copied_window())
+    assert(copied_live())
+    assert(nested_window())
+    assert(aliases() == 2)
+    assert(bound_snapshot())
+    let (f, seen) = escaping()
+    assert(!expired(seen))
+    assert(f())
+    assert(expired(seen))

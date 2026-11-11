@@ -5,14 +5,10 @@
   (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
-  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "retain" (func $retain (param i32)))
-  (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
-  (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
-  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
-  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $through_reference (param $text i32) (param $suffix.0 i32) (param $suffix.1 i32)
     ;; 7 |     *text += suffix
@@ -81,13 +77,13 @@
     local.get $t3
     if
       local.get $t3
-      call $rt:release_ref'1
+      call $rt:release_ref
     end
     local.get $t0
     local.tee $t3
     if
       local.get $t3
-      call $rt:release_ref'1
+      call $rt:release_ref
     end
     local.get $text
     i32.load $heap
@@ -121,61 +117,7 @@
     local.get $text
     local.get $t0
   )
-  (func $through_cell#1 (param $env i32) (param $suffix.0 i32) (param $suffix.1 i32) (param $ctx i32) (local $t0 i32)
-    ;; 11 |     append := fn(suffix: string) -> void: current += suffix
-    local.get $env
-    i32.load $heap
-    local.set $env
-    local.get $env
-    i32.load $heap
-    local.tee $ctx
-    local.tee $t0
-    if
-      local.get $t0
-      call $retain
-    end
-    local.get $ctx
-    local.tee $t0
-    if
-      local.get $t0
-      call $rt:release_ref'1
-    end
-    local.get $env
-    i32.load $heap
-    local.get $env
-    i32.const 0
-    i32.store $heap
-    local.get $env
-    i32.load $heap offset=4
-    local.get $env
-    i32.const 0
-    i32.store $heap offset=4
-    local.get $suffix.0
-    local.get $suffix.1
-    call $rt:str_append
-    local.set $ctx
-    local.set $suffix.1
-    local.get $suffix.0
-    local.tee $t0
-    if
-      local.get $t0
-      call $rt:release_ref'1
-    end
-    local.get $env
-    i32.load $heap
-    local.get $env
-    local.get $suffix.1
-    i32.store $heap
-    local.get $env
-    local.get $ctx
-    i32.store $heap offset=4
-    local.tee $t0
-    if
-      local.get $t0
-      call $rt:release_ref'1
-    end
-  )
-  (func $through_cell (param $text.0 i32) (param $text.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+  (func $through_cell (param $text.0 i32) (param $text.1 i32) (result i32 i32) (local $t0 i32) (local $suffix.1 i32) (local $t1 i32) (local $t2 i32)
     ;; 10 |     let mut current = text
     global.get $locals
     global.get $locals_base
@@ -212,52 +154,86 @@
     local.get $t0
     i32.const 8
     i32.add
-    local.tee $t1
+    local.tee $suffix.1
     local.get $text.0
     i32.store $heap
-    local.get $t1
+    local.get $suffix.1
     local.get $text.1
     i32.store $heap offset=4
-    local.get $t1
+    local.get $suffix.1
     local.set $text.0
-    ;; 11 |     append := fn(suffix: string) -> void: current += suffix
-    i32.const 1
-    i32.const 4
-    i32.const -2147483645
-    call $rt:new/class-1
-    local.tee $text.1
-    local.get $text.0
-    i32.store $heap
-    local.get $text.1
-    call $rt:retain_fields
     ;; 12 |     append("!")
-    drop
-    local.get $text.1
     i32.const 76 ;; &"!"
     i32.const 1
-    i32.const 0
-    call $through_cell#1
-    ;; 10 |     let mut current = text
-    local.get $text.1
-    local.tee $t2
-    if
-      local.get $t2
-      i32.const 8
-      i32.sub
+    local.set $suffix.1
+    local.set $text.1
+    block
+      local.get $text.0
       i32.load $heap
-      global.get $tracing
-      i32.or
+      local.tee $t1
+      local.tee $t2
       if
         local.get $t2
-        call $rt:release_ref'2
+        call $retain
       end
+      local.get $text.0
+      i32.eqz
+      if
+        local.get $t0
+        i64.const 0
+        i64.store $heap
+        local.get $t0
+        i32.const 8
+        i32.add
+        local.tee $text.0
+        i32.const 0
+        i32.store $heap
+        local.get $text.0
+        i32.const 0
+        i32.store $heap offset=4
+      end
+      local.get $t1
+      local.tee $t2
+      if
+        local.get $t2
+        call $rt:release_ref
+      end
+      local.get $text.0
+      i32.load $heap
+      local.get $text.0
+      i32.const 0
+      i32.store $heap
+      local.get $text.0
+      i32.load $heap offset=4
+      local.get $text.0
+      i32.const 0
+      i32.store $heap offset=4
+      local.get $text.1
+      local.get $suffix.1
+      call $rt:str_append
+      local.set $suffix.1
+      local.set $text.1
+      local.get $text.0
+      i32.load $heap
+      local.get $text.0
+      local.get $text.1
+      i32.store $heap
+      local.get $text.0
+      local.get $suffix.1
+      i32.store $heap offset=4
+      local.tee $t2
+      if
+        local.get $t2
+        call $rt:release_ref
+      end
+      br 0
     end
     ;; 13 |     current
     local.get $text.0
     i32.load $heap
     local.get $text.0
     i32.load $heap offset=4
-    local.set $t1
+    local.set $suffix.1
     local.tee $text.1
     local.tee $t2
     if
@@ -272,11 +248,11 @@
       local.tee $t2
       if
         local.get $t2
-        call $rt:release_ref'1
+        call $rt:release_ref
       end
     end
     local.get $text.1
-    local.get $t1
+    local.get $suffix.1
     local.set $text.1
     local.set $text.0
     local.get $text.0

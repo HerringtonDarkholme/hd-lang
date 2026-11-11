@@ -5,31 +5,24 @@
 fn captured(text: string, suffix: string) -> string:
     let current = text
 > app/main/captured
->   release fn() -> () (last use)
->   release string (last use)
-    append := fn() -> void: current += suffix
->   retain counted reference (stored)
-> app/main/captured
 >   retain string (conservative: copy read)
 >   release string (last use)
 >   release string (overwritten)
+>   (no span) retain string (stored)
+>   (no span) release string (last use)
+    append := fn() -> void: current += suffix
     append()
     current
->   retain string (stored)
 
 fn dynamic(text: string, suffix: string) -> string:
     let current = text
 > app/main/dynamic
->   release fn(string) -> () (last use)
 >   release string (last use)
     append := fn(suffix: string) -> void: current += suffix
-> app/main/dynamic
+    append(suffix)
 >   retain string (conservative: copy read)
 >   release string (last use)
->   release string (last use)
 >   release string (overwritten)
->   retain counted reference (stored)
-    append(suffix)
     current
 >   retain string (stored)
 

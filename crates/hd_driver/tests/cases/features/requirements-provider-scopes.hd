@@ -36,3 +36,9 @@ fn lexical(s: string) -> usize:
     $.with(Tag=Named { label: s }):
         tag := $.use(Tag)
         apply(fn() -> usize: tag.name().len())
+
+# An unrelated explicit provider map must not block a known literal call.
+fn unrelated_provider(s: string) -> usize:
+    f := fn() -> usize: s.len()
+    $.with(Tag=Named { label: s }):
+        read_tag() + f()

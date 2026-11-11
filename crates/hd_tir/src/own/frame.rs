@@ -462,12 +462,24 @@ fn plan_cells(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) -> u64 
             _ => {}
         }
     }
+    for &(sub, capture) in &b.inlined_shared {
+        if sub.raw() != 0 {
+            t.bad[b.cap_local[capture as usize].idx()] = true;
+        }
+    }
     for i in (0..n).filter(|&i| b.tags[i] == Tag::Closure && topo.sub[i] == 0) {
         for (l, _) in closure_caps(b, i) {
             if !t.bad[l.idx()] && t.bit[l.idx()] == 0 && t.cands.len() < 64 {
                 t.bit[l.idx()] = 1 << t.cands.len();
                 t.cands.push(l.raw());
             }
+        }
+    }
+    for &(sub, capture) in &b.inlined_shared {
+        let l = b.cap_local[capture as usize];
+        if sub.raw() == 0 && !t.bad[l.idx()] && t.bit[l.idx()] == 0 && t.cands.len() < 64 {
+            t.bit[l.idx()] = 1 << t.cands.len();
+            t.cands.push(l.raw());
         }
     }
     if t.cands.is_empty() {
@@ -528,6 +540,12 @@ fn cell_uses(b: &mut Body, topo: &Topology, cx: &dyn OwnCx, uses: &mut impl FnMu
                     b.cap_mode[c] = crate::ir::CaptureMode::Frame;
                 }
             }
+        }
+    }
+    for &(_, capture) in &b.inlined_shared {
+        let c = capture as usize;
+        if t.bit[b.cap_local[c].idx()] & frame != 0 {
+            b.cap_mode[c] = crate::ir::CaptureMode::Frame;
         }
     }
 }

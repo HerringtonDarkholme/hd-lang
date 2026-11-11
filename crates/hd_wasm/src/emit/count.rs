@@ -939,7 +939,7 @@ impl Em<'_, '_, '_> {
                 _ => None,
             })
             .collect();
-        for (l, shared) in super::closure::captures(b, ci) {
+        for (l, shared) in super::closure::captures(b, ci, &self.recursive_bindings) {
             let t = self.sub(b.local_ty[l]);
             if shared || self.is_cell(l) || !self.copied(t).is_empty() {
                 continue;

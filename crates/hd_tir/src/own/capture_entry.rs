@@ -10,6 +10,7 @@ use crate::ir::{
 };
 
 pub(super) fn counts(b: &Body, cx: &dyn OwnCx) -> Vec<(Tag, u32, Info)> {
+    let recursive = super::RecursiveBindings::new(b);
     let mut seen = vec![false; b.sub_root.len()];
     let mut out = Vec::new();
     for (i, &tag) in b.tags.iter().enumerate() {
@@ -21,7 +22,7 @@ pub(super) fn counts(b: &Body, cx: &dyn OwnCx) -> Vec<(Tag, u32, Info)> {
             continue;
         }
         let record = b.record(b.data[i][1]);
-        let own = b.closure_self(i);
+        let own = recursive.self_local(i);
         let copied = own.is_some()
             || (record[0]..record[0] + record[1]).any(|c| {
                 let c = c as usize;
