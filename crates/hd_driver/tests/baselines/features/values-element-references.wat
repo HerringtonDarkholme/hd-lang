@@ -86,14 +86,6 @@
       i32.const 10
       call $reward
     ;; 18 |     out[best].score += 1
-      local.get $best
-      local.get $players
-      i32.load $heap offset=4
-      i32.ge_u
-      if
-        call $rt:panic'2
-        unreachable
-      end
       local.get $players
       local.get $best
       i32.const 12
@@ -103,19 +95,6 @@
       i32.const 1
       i32.add
       local.set $t0
-    ;; 16 |     let mut out = players
-      local.get $players
-      call $rt:list_unique
-      local.set $players
-    ;; 18 |     out[best].score += 1
-      local.get $best
-      local.get $players
-      i32.load $heap offset=4
-      i32.ge_u
-      if
-        call $rt:panic'2
-        unreachable
-      end
       local.get $players
       local.get $best
       i32.const 12

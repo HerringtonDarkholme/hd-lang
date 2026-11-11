@@ -478,6 +478,7 @@ pub(crate) fn run(
     t.relies = 0;
     let n = b.len();
     let fresh = fresh_locals(b);
+    let element_checks = super::ElementChecks::new(b);
     let mut marked = Vec::new();
     for i in 0..n {
         if b.tags[i] == Tag::IsUnique && b.data[i][1] == 0 && fresh_unique(b, &fresh, i) {
@@ -490,7 +491,7 @@ pub(crate) fn run(
         if b.tags[i] == Tag::IsUnique
             && b.data[i][1] == 0
             && (topo.loop_of[i] == NONE || param_place(b, b.data[i][0], &mut Vec::new()).is_some())
-            && repeats(b, topo, i)
+            && (element_checks.repeats_unique(i) || repeats(b, topo, i))
         {
             b.data[i][1] = unique_word::REPEAT;
             marked.push(i);
