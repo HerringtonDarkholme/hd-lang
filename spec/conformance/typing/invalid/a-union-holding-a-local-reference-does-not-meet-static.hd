@@ -4,6 +4,6 @@ fn keep[T < 'static](value: T) -> void:
     pass
 
 pub fn main() -> void:
-    local := 5
+    local := +5
     let value: &i32 | i32 = ._0(&local)
     keep(value) # diagnostic: local-reference-escapes
