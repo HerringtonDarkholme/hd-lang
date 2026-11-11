@@ -1,0 +1,19 @@
+# @dump: own counts wat
+# @build: v8 release
+# #1383: a loop-site profitability decision cannot poison a root-site memo.
+# fn.capture.cell; fn.capture.cell.fresh; fn.trait.mut.call.
+use std.function.FnMut
+
+fn each[F < FnMut(string) -> void](xs: List[string], mut f: F) -> void:
+    for x in xs:
+        f(x)
+
+fn mixed(xs: List[string]) -> usize:
+    let total: usize = 0
+    for _ in 0..3:
+        each(xs, fn(x: string) -> void: total += x.len())
+    each(xs, fn(x: string) -> void: total += x.len())
+    total
+
+pub fn main() -> void $ Console:
+    println(mixed(["a", "bb"])) # prints: 12

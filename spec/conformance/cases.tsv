@@ -6614,6 +6614,9 @@ runtime/valid/inlined-function-result-variance.hd	runtime	accept	lang/07-functio
 runtime/valid/sequential-join-frames-preserve-live-results.hd	runtime	accept	std/task.md#r-std-task.channel.make
 runtime/valid/readonly-reference-loop-keeps-snapshots.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
 runtime/valid/readonly-element-calls-preserve-cow-snapshots.hd	runtime	accept	lang/05-expressions.md#r-expr.ord.std.sequences
+runtime/valid/known-closure-consumers-preserve-captures.hd	runtime	accept	lang/07-functions.md#r-fn.capture.copy.value
+runtime/panic/known-closure-consumer-keeps-captured-root-loan.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.shared-variable
+runtime/valid/known-consumer-mixed-loop-contexts.hd	runtime	accept	lang/07-functions.md#r-fn.trait.mut.call
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

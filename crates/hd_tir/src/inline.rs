@@ -20,7 +20,7 @@ use crate::ir::{
 use crate::own::splice::{permute_columns, renumber_through};
 
 mod closures;
-pub use closures::inline_local_closures;
+pub use closures::{called_parameters, inline_local_closures, literal_arguments};
 
 /// The statically known callee of call `i` when its requirement context
 /// needs no copying: a `Call` with no providers. Its argument record may

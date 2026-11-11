@@ -21,11 +21,11 @@ fn wrap_with(errors: List[FsError], wrap: fn(FsError) -> SyncError) -> List[Sync
     [for e in errors => wrap(e)]
 > app/main/wrap_with
 >   retain app.main.FsError (stored)
-> app/main/wrap_with
->   retain app.main.FsError (stored)
 
 fn as_value(errors: List[FsError]) -> List[SyncError]:
     wrap_with(errors, SyncError.Fs)
+> app/main/as_value
+>   retain app.main.FsError (stored)
 
 fn named(p: string) -> SyncError:
     SyncError.Retry(error=FsError.NotFound(p), attempt=1)
