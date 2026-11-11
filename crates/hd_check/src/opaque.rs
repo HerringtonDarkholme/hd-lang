@@ -39,8 +39,8 @@ impl Ck<'_, '_> {
             return ty;
         }
         match pool.get(ty) {
-            TyData::Opaque { .. } => {
-                if let Some(&(_, result)) = self.opaque_rets.iter().find(|&&(t, result)| {
+            TyData::Opaque { bound, .. } => {
+                if let Some(&(_, _, result)) = self.opaque_rets.iter().find(|&&(t, _, result)| {
                     t == ty && (matches!(mode, Mode::Open) || self.strict_rets.contains(&result))
                 }) {
                     if matches!(mode, Mode::Recursive) {
@@ -53,7 +53,7 @@ impl Ck<'_, '_> {
                 }
                 let result = self.infer.fresh(pool, VarKind::General);
                 self.strict_rets.push(result);
-                self.opaque_rets.push((ty, result));
+                self.opaque_rets.push((ty, bound, result));
                 result
             }
             _ => pool.map_children(ty, &mut OpaqueMap { ck: self, mode }),
@@ -272,10 +272,7 @@ impl Ck<'_, '_> {
         node: NodeRef<'_>,
     ) -> StageResult<()> {
         for index in range {
-            let (opaque, result) = self.opaque_rets[index];
-            let TyData::Opaque { bound, .. } = self.pool().get(opaque) else {
-                unreachable!()
-            };
+            let (_, bound, result) = self.opaque_rets[index];
             self.check_opaque_result(result, bound, node)?;
         }
         Ok(())

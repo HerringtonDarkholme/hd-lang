@@ -1047,7 +1047,7 @@ impl Ck<'_, '_> {
         if !self.can_unify(inner, to) {
             return None;
         }
-        self.expect(inner, to, arg, "conversion", ExpectPosition::General);
+        self.expect_ty(inner, to, arg, "conversion", ExpectPosition::General);
         Some((self.b.field(r, 0, to, n.index()), to))
     }
 
@@ -1199,7 +1199,7 @@ impl Ck<'_, '_> {
             )
             && self.can_unify(t, to)
         {
-            self.expect(t, to, e, "conversion", ExpectPosition::General);
+            self.expect_ty(t, to, e, "conversion", ExpectPosition::General);
             return Ok((r, to));
         }
         Ok((self.b.prim(PrimOp::Conv as u32, &[r], to, n.index()), to))
@@ -2265,7 +2265,7 @@ impl Ck<'_, '_> {
             elems: pool.list(&tys),
             rest: None,
         });
-        self.expect(tt, lt, n, "argument", ExpectPosition::General);
+        self.expect_ty(tt, lt, n, "argument", ExpectPosition::General);
         let rec = self.b.refs_record(&refs);
         Ok(self.b.emit(Tag::NewTuple, NONE, rec, tt, n.index()))
     }
@@ -3717,7 +3717,7 @@ impl Ck<'_, '_> {
                         let t = self.ctor(def, &explicit, n);
                         let t = match want {
                             Some(w) if self.can_unify(w, t) => {
-                                self.expect(t, w, n, "variant", ExpectPosition::General);
+                                self.expect_ty(t, w, n, "variant", ExpectPosition::General);
                                 t
                             }
                             _ => t,
@@ -5482,37 +5482,13 @@ impl Ck<'_, '_> {
                 continue;
             }
             seen.push(t);
-            match pool.get(t) {
-                TyData::Opaque { bound, args, .. } => {
-                    self.add_bound(t, bound);
-                    todo.extend_from_slice(pool.list_items(args));
-                }
-                TyData::Adt { args, .. } => todo.extend_from_slice(pool.list_items(args)),
-                TyData::Tuple { elems, rest } => {
-                    todo.extend_from_slice(pool.list_items(elems));
-                    todo.extend(rest);
-                }
-                TyData::Ref { inner: i, .. } => todo.push(i),
-                TyData::Fn {
-                    params,
-                    result,
-                    row,
-                    ..
-                } => {
-                    todo.extend_from_slice(pool.list_items(params));
-                    todo.push(result);
-                    todo.extend(pool.row_data(row).keys);
-                }
-                TyData::TraitValue { args, bindings, .. } => {
-                    todo.extend_from_slice(pool.list_items(args));
-                    todo.extend(bindings.into_iter().map(|(_, t)| t));
-                }
-                TyData::Assoc { self_ty, args, .. } => {
-                    todo.push(self_ty);
-                    todo.extend_from_slice(pool.list_items(args));
-                }
-                TyData::Row(r) | TyData::Context(r) => todo.extend(pool.row_data(r).keys),
-                _ => {}
+            // An opaque type's arguments, not its bound, may hold another;
+            // every other type holds them in its children.
+            if let TyData::Opaque { bound, args, .. } = pool.get(t) {
+                self.add_bound(t, bound);
+                todo.extend_from_slice(pool.list_items(args));
+            } else {
+                pool.children(t, &mut todo);
             }
         }
         if self.env.len() != before {
@@ -5556,56 +5532,49 @@ impl Ck<'_, '_> {
                 .find(|(d, _)| me.assoc_name(*d) == name)
                 .map(|(_, b)| *b)
         };
-        match pool.get(st) {
-            TyData::Ref { inner, .. } if matches!(pool.get(inner), TyData::TraitValue { .. }) => {
-                let TyData::TraitValue { bindings, .. } = pool.get(inner) else {
-                    unreachable!()
-                };
-                return match bound(&bindings, self) {
-                    Some(binding) => self.normalized(t, binding),
-                    None => Ok(t),
-                };
+        // A trait value's binding, behind a reference or not
+        // (`trait.dyn.bound.reference-projection`).
+        let value = match pool.get(st) {
+            TyData::Ref { inner, .. } => inner,
+            _ => st,
+        };
+        if let TyData::TraitValue { bindings, .. } = pool.get(value) {
+            return match bound(&bindings, self) {
+                Some(binding) => self.normalized(t, binding),
+                None => Ok(t),
+            };
+        }
+        if matches!(pool.get(st), TyData::Param(_) | TyData::Opaque { .. }) {
+            // A binding on the parameter's bound or on a supertrait
+            // clause it reaches (`trait.binding.inside`).
+            let found = self
+                .env
+                .clauses_of(st)
+                .iter()
+                .find_map(|&i| bound(&self.env.clause_bindings()[i as usize], self));
+            if let Some(b) = found {
+                return self.normalized(t, b);
             }
-            TyData::Param(_) | TyData::Opaque { .. } => {
-                // A binding on the parameter's bound or on a supertrait
-                // clause it reaches (`trait.binding.inside`).
-                let found = self
-                    .env
-                    .clauses_of(st)
+            // Implicit trait arguments (`Self::Error` in a generic
+            // trait) are the bound's own, so the projection is the
+            // one a call of a sibling method returns.
+            let n_trait = self.cx.lookup.item(trait_).map_or(0, |i| i.generics.len());
+            let args = if pool.list_items(args).len() < n_trait {
+                let env = &self.env;
+                env.clauses_of(st)
                     .iter()
-                    .find_map(|&i| bound(&self.env.clause_bindings()[i as usize], self));
-                if let Some(b) = found {
-                    return self.normalized(t, b);
-                }
-                // Implicit trait arguments (`Self::Error` in a generic
-                // trait) are the bound's own, so the projection is the
-                // one a call of a sibling method returns.
-                let n_trait = self.cx.lookup.item(trait_).map_or(0, |i| i.generics.len());
-                let args = if pool.list_items(args).len() < n_trait {
-                    let env = &self.env;
-                    env.clauses_of(st)
-                        .iter()
-                        .map(|&i| i as usize)
-                        .find(|&i| env.clause_trait()[i] == trait_)
-                        .map_or(args, |i| env.clause_args()[i])
-                } else {
-                    args
-                };
-                return Ok(pool.intern_ty(&TyData::Assoc {
-                    assoc,
-                    trait_,
-                    self_ty: st,
-                    args,
-                }));
-            }
-            // `trait.dyn.bound.reference-projection`: the trait value's binding.
-            TyData::TraitValue { bindings, .. } => {
-                return match bound(&bindings, self) {
-                    Some(b) => self.normalized(t, b),
-                    None => Ok(t),
-                };
-            }
-            _ => {}
+                    .map(|&i| i as usize)
+                    .find(|&i| env.clause_trait()[i] == trait_)
+                    .map_or(args, |i| env.clause_args()[i])
+            } else {
+                args
+            };
+            return Ok(pool.intern_ty(&TyData::Assoc {
+                assoc,
+                trait_,
+                self_ty: st,
+                args,
+            }));
         }
         // A self type that inference has not finished still normalizes
         // when exactly one impl fits whatever its variables become.

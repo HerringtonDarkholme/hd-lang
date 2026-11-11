@@ -377,7 +377,7 @@ impl Ck<'_, '_> {
         let (r, mut t) = self.literal_at(first, strip, n);
         self.row_argument_vars(DefId::NONE, &[t], n);
         if let Some(fixed) = primitive {
-            self.expect(t, fixed, n, "literal", ExpectPosition::General);
+            self.expect_ty(t, fixed, n, "literal", ExpectPosition::General);
             t = fixed;
         }
         if self.b.const_of(r).is_some() {
@@ -1166,7 +1166,7 @@ impl Ck<'_, '_> {
             // `!` or `~`: the parser builds `UnaryExpr` for these four.
             _ => {
                 if op == Some(TokenKind::Bang) {
-                    self.expect(t, Ty::BOOL, e, "operand", ExpectPosition::Operand);
+                    self.expect_ty(t, Ty::BOOL, e, "operand", ExpectPosition::Operand);
                 }
                 (self.b.prim(PrimOp::Not as u32, &[r], t, n.index()), t)
             }
@@ -1268,12 +1268,12 @@ impl Ck<'_, '_> {
                 Some(value) => value,
                 None => self.expr(l, Some(Ty::BOOL))?,
             };
-            self.expect(at, Ty::BOOL, l, "operand", ExpectPosition::Operand);
+            self.expect_ty(at, Ty::BOOL, l, "operand", ExpectPosition::Operand);
             let m = self.b.open_block();
             let mut rhs = None;
             self.short_circuit(n, (l, r), op == TokenKind::AndAnd, |ck| {
                 let (c, ct) = ck.expr(r, Some(Ty::BOOL))?;
-                ck.expect(ct, Ty::BOOL, r, "operand", ExpectPosition::Operand);
+                ck.expect_ty(ct, Ty::BOOL, r, "operand", ExpectPosition::Operand);
                 rhs = Some(c);
                 Ok(())
             })?;
@@ -1330,7 +1330,7 @@ impl Ck<'_, '_> {
             // as it is must refer to the left operand's type.
             if lc
                 && self.op_by_trait(op, at)
-                && self.expect(ct, at, r, "operand", ExpectPosition::Operand)
+                && self.expect_ty(ct, at, r, "operand", ExpectPosition::Operand)
             {
                 let v = self.b.emit(Tag::Poison, NONE, NONE, Ty::BOOL, n.index());
                 return Ok((v, Ty::BOOL));
@@ -1673,7 +1673,7 @@ impl Ck<'_, '_> {
                 && me.infer.kind_of(pool, x) == Some(VarKind::General)
         };
         if general(self, at) && self.numeric(ct) && !shift {
-            self.expect(at, ct, n, "operand", ExpectPosition::Operand);
+            self.expect_ty(at, ct, n, "operand", ExpectPosition::Operand);
         }
         // `expr.op.primitive.types`: a primitive left operand with a
         // non-primitive right operand is the operator trait's call, so
@@ -1691,7 +1691,7 @@ impl Ck<'_, '_> {
             if shift {
                 let _ = self.unsigned_count(ct, rn, "a shift count", true);
             } else {
-                mixed = self.expect(ct, at, rn, "operand", ExpectPosition::Operand);
+                mixed = self.expect_ty(ct, at, rn, "operand", ExpectPosition::Operand);
             }
             // `expr.bit.non-integer-no-impl`: bitwise operators and shifts
             // take integers.
@@ -1712,7 +1712,7 @@ impl Ck<'_, '_> {
         }
         // Strings: `+` and `==` are built in; others go through traits.
         if ats == Ty::STRING && matches!(prim, PrimOp::Add | PrimOp::Eq | PrimOp::Ne) {
-            self.expect(ct, Ty::STRING, rn, "operand", ExpectPosition::Operand);
+            self.expect_ty(ct, Ty::STRING, rn, "operand", ExpectPosition::Operand);
             let (iop, t) = if prim == PrimOp::Add {
                 (IntrinsicOp::StrConcat, Ty::STRING)
             } else {
@@ -2206,7 +2206,7 @@ impl Ck<'_, '_> {
         let rejected = match base {
             PowerBase::Int => !self.unsigned_count(ct, r, "an exponent", false),
             PowerBase::Float => {
-                self.expect(ct, at, r, "operand", ExpectPosition::Operand);
+                self.expect_ty(ct, at, r, "operand", ExpectPosition::Operand);
                 false
             }
             PowerBase::Poison => false,
@@ -3707,7 +3707,7 @@ impl Ck<'_, '_> {
             }
         }
         let (c, ct) = self.expr(cond, Some(Ty::BOOL))?;
-        self.expect(ct, Ty::BOOL, cond, "condition", ExpectPosition::General);
+        self.expect_ty(ct, Ty::BOOL, cond, "condition", ExpectPosition::General);
         let first_flow = self.take_cond_flow(cond);
         // `flow.if.value.else`: an `if` used where a value is required
         // must have an `else`. A function-body tail is exempt: there the
@@ -3747,7 +3747,7 @@ impl Ck<'_, '_> {
                     first
                 } else {
                     let (c, ct) = this.expr(cond, Some(Ty::BOOL))?;
-                    this.expect(ct, Ty::BOOL, cond, "condition", ExpectPosition::General);
+                    this.expect_ty(ct, Ty::BOOL, cond, "condition", ExpectPosition::General);
                     (c, this.take_cond_flow(cond))
                 };
                 // Each branch starts from the condition's `when_true` or
@@ -3844,7 +3844,7 @@ impl Ck<'_, '_> {
         let lp = self.b.open_loop();
         let lb = self.b.open_block();
         let (c, ct) = self.expr(cond, Some(Ty::BOOL))?;
-        self.expect(ct, Ty::BOOL, cond, "condition", ExpectPosition::General);
+        self.expect_ty(ct, Ty::BOOL, cond, "condition", ExpectPosition::General);
         let (when_true, when_false) = self.take_cond_flow(cond);
         self.loops.push((lp, result));
         let tb = self.b.open_block();
@@ -4825,7 +4825,7 @@ impl Ck<'_, '_> {
             // A `ComprehensionIf`, the parser's one other clause.
             let [cond] = c.parts();
             let (cr, ct) = self.expr(cond, Some(Ty::BOOL))?;
-            self.expect(ct, Ty::BOOL, cond, "condition", ExpectPosition::General);
+            self.expect_ty(ct, Ty::BOOL, cond, "condition", ExpectPosition::General);
             let tb = self.b.open_block();
             self.clauses(rest, last, acc, args, n)?;
             let then = self.b.close_block(tb, None, Ty::VOID, c.index());
@@ -5468,7 +5468,7 @@ impl Ck<'_, '_> {
                 let err_b = self.b.open_block();
                 let ev = self.b.payload(r, 1, 0, et, n.index());
                 let ev = if self.can_unify(et, ret_e) {
-                    self.expect(et, ret_e, e, "error", ExpectPosition::General);
+                    self.expect_ty(et, ret_e, e, "error", ExpectPosition::General);
                     ev
                 } else if let Some((tv, mutable)) = self.dyn_ref_of(ret_e)
                     && self.dyn_fits(self.ref_of(et).map_or(et, |(inner, _)| inner), tv)
@@ -5584,7 +5584,7 @@ impl Ck<'_, '_> {
                 .kind_of(pool, e)
                 .is_some_and(|k| k.literal_default().is_some())
         {
-            self.expect(e, bw, kids[0], "range bound", ExpectPosition::Operand);
+            self.expect_ty(e, bw, kids[0], "range bound", ExpectPosition::Operand);
         }
         // `expr.range.bound.numeric`: the element type is an integer or a
         // floating-point type. The one error lands on the first bound that

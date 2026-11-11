@@ -274,7 +274,7 @@ impl Ck<'_, '_> {
             }
             SyntaxKind::LiteralPattern => {
                 let (r, lt) = self.pattern_literal(p, Some(t))?;
-                self.expect(lt, t, p, "pattern", ExpectPosition::General);
+                self.expect_ty(lt, t, p, "pattern", ExpectPosition::General);
                 // `types.literal.int-range`.
                 if self.b.const_of(r).is_some() && p.children().next().is_none() {
                     let neg = self.cx.src.tkind(self.cx.src.first(p)) == Some(TokenKind::Minus);
@@ -286,7 +286,7 @@ impl Ck<'_, '_> {
                 for b in [bounds.lo, bounds.hi].into_iter().flatten() {
                     let before = self.diags.len();
                     let (r, lt) = self.bound_literal(b, t, p);
-                    self.expect(lt, t, p, "pattern", ExpectPosition::General);
+                    self.expect_ty(lt, t, p, "pattern", ExpectPosition::General);
                     if self.diags.len() != before {
                         // One `type-mismatch` per pattern.
                         break;
@@ -298,7 +298,7 @@ impl Ck<'_, '_> {
                 }
             }
             SyntaxKind::TuplePattern if p.children().next().is_none() => {
-                self.expect(t, Ty::VOID, p, "pattern", ExpectPosition::General);
+                self.expect_ty(t, Ty::VOID, p, "pattern", ExpectPosition::General);
             }
             SyntaxKind::TuplePattern => {
                 let subs: Vec<NodeRef<'_>> = p.children().collect();
@@ -331,7 +331,7 @@ impl Ck<'_, '_> {
                             elems: pool.list(&vs),
                             rest,
                         });
-                        self.expect(tt, t, p, "pattern", ExpectPosition::General);
+                        self.expect_ty(tt, t, p, "pattern", ExpectPosition::General);
                         (vs, rest)
                     }
                     _ => {
@@ -1048,7 +1048,7 @@ impl Ck<'_, '_> {
                     let [ge] = second.parts();
                     let gb = this.b.open_block();
                     let (gr, gt) = this.expr(ge, Some(Ty::BOOL))?;
-                    this.expect(gt, Ty::BOOL, ge, "guard", ExpectPosition::General);
+                    this.expect_ty(gt, Ty::BOOL, ge, "guard", ExpectPosition::General);
                     Some(this.b.close_block(gb, Some(gr), Ty::BOOL, second.index()))
                 } else {
                     None

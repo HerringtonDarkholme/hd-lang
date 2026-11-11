@@ -256,7 +256,9 @@ pub(crate) struct Ck<'a, 'c> {
     pub rets: Vec<Ty>,
     /// Opaque result inference is invariant; it never joins or inserts coercions.
     pub strict_rets: Vec<Ty>,
-    pub opaque_rets: Vec<(Ty, Ty)>,
+    /// Each opaque result type met, with its bound and the variable
+    /// that stands for its hidden type.
+    pub opaque_rets: Vec<(Ty, Ty, Ty)>,
     pub opaque_annotation: Option<(u32, bool)>,
     pub recursive_returns: Vec<Ty>,
     /// Type parameters by name: the impl's, then the function's.
@@ -2007,7 +2009,7 @@ impl Ck<'_, '_> {
             if self
                 .opaque_rets
                 .iter()
-                .any(|&(opaque, result)| opaque == got && result == target)
+                .any(|&(opaque, _, result)| opaque == got && result == target)
             {
                 self.recursive_returns.push(target);
                 return r;
@@ -2136,7 +2138,7 @@ impl Ck<'_, '_> {
                 let r = self.coerce(r, got, inner, n, what, position);
                 return self.b.coerce(Coercion::WrapSome, NONE, r, want, n.index());
             }
-            self.expect(got, inner, n, what, position);
+            self.expect_ty(got, inner, n, what, position);
             return self.b.coerce(Coercion::WrapSome, NONE, r, want, n.index());
         }
         // A suspending function value weakens to its lowered constructor
@@ -2167,7 +2169,7 @@ impl Ck<'_, '_> {
         }
         let before = self.diags.len();
         if !variance_view {
-            self.expect(got, want, n, what, position);
+            self.expect_ty(got, want, n, what, position);
         }
         // A row parameter inside a type argument takes its solution from
         // the argument's nested row, exactly (`types.variance.function`).
@@ -2286,7 +2288,7 @@ impl Ck<'_, '_> {
     /// range bound reports mixed integer signedness instead of a plain
     /// mismatch, and never implicit narrowing. It is a separate
     /// parameter so renaming a message label cannot change the code.
-    pub(crate) fn expect(
+    pub(crate) fn expect_ty(
         &mut self,
         got: Ty,
         want: Ty,

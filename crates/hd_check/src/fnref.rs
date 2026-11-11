@@ -409,7 +409,7 @@ impl Ck<'_, '_> {
             {
                 *self_ty = tv;
                 for (arg, actual) in args.iter().zip(pool.list_items(inherited)) {
-                    self.expect(
+                    self.expect_ty(
                         *actual,
                         *arg,
                         n,
