@@ -1184,10 +1184,10 @@ impl Ck<'_, '_> {
                 .infer
                 .kind_of(pool, t)
                 .is_some_and(|k| k != VarKind::General),
-            TyData::Param(_) => (0..self.env.clause_self.len()).any(|i| {
+            TyData::Param(_) => self.env.clauses_of(t).iter().any(|&i| {
                 let known = self.cx.names.known;
-                self.env.clause_self[i] == t
-                    && [known.num, known.integer, known.float].contains(&self.env.clause_trait[i])
+                [known.num, known.integer, known.float]
+                    .contains(&self.env.clause_trait()[i as usize])
             }),
             TyData::Never | TyData::Poison => true,
             _ => false,
@@ -2071,10 +2071,11 @@ impl Ck<'_, '_> {
         match pool.get(t) {
             TyData::Prim(p) => p.is_integer(),
             TyData::Infer(_) => !matches!(self.infer.kind_of(pool, t), Some(VarKind::FloatLit)),
-            TyData::Param(_) => (0..self.env.clause_self.len()).any(|i| {
-                self.env.clause_self[i] == t
-                    && self.env.clause_trait[i] == self.cx.names.known.integer
-            }),
+            TyData::Param(_) => self
+                .env
+                .clauses_of(t)
+                .iter()
+                .any(|&i| self.env.clause_trait()[i as usize] == self.cx.names.known.integer),
             TyData::Never | TyData::Poison => true,
             _ => false,
         }
@@ -2088,10 +2089,11 @@ impl Ck<'_, '_> {
         self.integer_like(t)
             || self.float_like(t)
             || matches!(pool.get(t), TyData::Param(_))
-                && (0..self.env.clause_self.len()).any(|i| {
-                    self.env.clause_self[i] == t
-                        && self.env.clause_trait[i] == self.cx.names.known.float
-                })
+                && self
+                    .env
+                    .clauses_of(t)
+                    .iter()
+                    .any(|&i| self.env.clause_trait()[i as usize] == self.cx.names.known.float)
     }
 
     /// Whether a type is floating-point, or a floating literal's variable.
@@ -2147,8 +2149,10 @@ impl Ck<'_, '_> {
             TyData::Param(_) => {
                 let known = self.cx.names.known;
                 let bound = |tr: DefId| {
-                    (0..self.env.clause_self.len())
-                        .any(|i| self.env.clause_self[i] == t && self.env.clause_trait[i] == tr)
+                    self.env
+                        .clauses_of(t)
+                        .iter()
+                        .any(|&i| self.env.clause_trait()[i as usize] == tr)
                 };
                 if bound(known.integer) {
                     PowerBase::Int

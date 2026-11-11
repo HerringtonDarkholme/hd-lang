@@ -177,6 +177,41 @@ fn check_fuel(generate: fn(usize) -> String, small: usize, large: usize) {
     );
 }
 
+/// A function with `n` parameters, each bounded by a trait whose
+/// associated type has the trait as its bound again.
+fn self_recursive_bounds(n: usize) -> String {
+    let mut s = String::from(
+        "trait Walk:\n    type Next < Walk\n    fn step(self) -> Self::Next\n\nfn run[",
+    );
+    for i in 0..n {
+        let _ = write!(s, "{}T{i} < Walk", if i == 0 { "" } else { ", " });
+    }
+    s.push_str("](value: T0) -> T0::Next:\n    value.step()\n");
+    s
+}
+
+/// `trait.assoc.bound-use` is elaborated per projection a body names, so
+/// building the environments costs their declared bounds: four clauses
+/// per bound today (the bound and `Copy`, in the header and the body),
+/// never one per projection depth (eager elaboration to depth 16 made 64).
+#[test]
+fn self_recursive_bound_environment_clauses() {
+    let work = |n| {
+        let (out, clauses) = hd_check::work::count_env_clauses(|| {
+            compile(&self_recursive_bounds(n), &Goal::Analyze)
+        });
+        assert!(!out.diags.has_errors(), "size {n}: {}", out.render());
+        clauses
+    };
+    // The first build also checks the standard library's items.
+    work(1);
+    let (small, large) = (work(50), work(200));
+    assert!(
+        large > small && large - small <= 8 * 150,
+        "environment clauses for 50 and 200 bounds: {small} and {large}",
+    );
+}
+
 fn nested_if(n: usize) -> String {
     let mut s = String::from("fn run(value: i32) -> i32:\n    let total = value\n");
     for i in 0..n {

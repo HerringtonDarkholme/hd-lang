@@ -275,7 +275,7 @@ impl Ck<'_, '_> {
             opaque_rets: self.opaque_rets.len(),
             strict_rets: self.strict_rets.len(),
             recursive_returns: self.recursive_returns.len(),
-            clauses: self.env.clause_self.len(),
+            clauses: self.env.len(),
             excl: [
                 self.excl.len(),
                 self.excl_frames.len(),
@@ -340,13 +340,8 @@ impl Ck<'_, '_> {
         self.opaque_rets.truncate(c.opaque_rets);
         self.strict_rets.truncate(c.strict_rets);
         self.recursive_returns.truncate(c.recursive_returns);
-        let clauses_added = self.env.clause_self.len() > c.clauses;
-        self.env.clause_self.truncate(c.clauses);
-        self.env.clause_trait.truncate(c.clauses);
-        self.env.clause_args.truncate(c.clauses);
-        self.env.clause_bindings.truncate(c.clauses);
-        self.env.clause_mut.truncate(c.clauses);
-        self.env.clause_origin.truncate(c.clauses);
+        let clauses_added = self.env.len() > c.clauses;
+        self.env.truncate(c.clauses);
         if clauses_added {
             self.env.key = Some(self.cx.global.env_key(&self.env));
         }
@@ -978,9 +973,12 @@ impl Ck<'_, '_> {
         match pool.get(s) {
             TyData::Param(_) => {
                 return Ok(Some(
-                    (0..self.env.clause_self.len())
-                        .filter(|&c| self.env.clause_self[c] == s && self.env.clause_trait[c] == tr)
-                        .map(|c| pool.list_items(self.env.clause_args[c]).to_vec())
+                    self.env
+                        .clauses_of(s)
+                        .iter()
+                        .map(|&c| c as usize)
+                        .filter(|&c| self.env.clause_trait()[c] == tr)
+                        .map(|c| pool.list_items(self.env.clause_args()[c]).to_vec())
                         .collect(),
                 ));
             }

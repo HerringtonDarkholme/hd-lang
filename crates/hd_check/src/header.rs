@@ -334,6 +334,21 @@ struct ItemCheck<'c, 'a> {
 }
 
 impl<'c, 'a> ItemCheck<'c, 'a> {
+    /// The clauses the associated-type bounds give each projection inside
+    /// `t` (`trait.assoc.bound-use`), added once per projection; the
+    /// environment's key is renewed when one is new.
+    fn add_projection_clauses(&mut self, pool: Types<'_>, t: Ty) {
+        if crate::body::add_projection_bounds(
+            self.cx.lookup,
+            pool,
+            &mut self.env,
+            t,
+            self.cx.names.known.copy,
+        ) {
+            self.env.key = Some(self.cx.global.env_key(&self.env));
+        }
+    }
+
     /// The goals of `it`, under its environment, with a fresh memo and
     /// `cx.fuel`; findings go to `out`.
     fn new(cx: &'c HeaderCx<'a>, it: &Item, out: &'c mut Vec<Finding>) -> Self {
@@ -945,6 +960,10 @@ impl<'a> ItemCheck<'_, 'a> {
                 learned: Vec::new(),
             });
         }
+        self.add_projection_clauses(pool, tref.self_ty);
+        for &a in pool.list_items(tref.args) {
+            self.add_projection_clauses(pool, a);
+        }
         let goal = Goal::Implements {
             tref,
             bindings: vec![],
@@ -988,6 +1007,9 @@ impl<'a> ItemCheck<'_, 'a> {
         if self.too_complex {
             return Ok(false);
         }
+        // The self type is the header's, so its projections' clauses are
+        // interned in the shared pool, never in this probe's local one.
+        self.add_projection_clauses(self.cx.names.pool.types(), self_ty);
         let local = hd_types::LocalPool::new();
         let pool = Types::with_local(self.cx.names.pool, &local);
         let row = pool.intern_ty(&TyData::Infer(InferVar::from_raw(0)));

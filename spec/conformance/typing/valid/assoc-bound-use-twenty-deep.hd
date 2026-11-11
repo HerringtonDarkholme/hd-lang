@@ -1,0 +1,16 @@
+# test: a projection 20 deep of a self-recursive associated-type bound has the bound: its method is callable and it meets a bound naming the trait
+# Rule: trait.assoc.bound-use.
+
+trait Walk:
+    type Next < Walk
+    fn step(self) -> Self::Next
+    fn name(self) -> string
+
+fn deep[I < Walk](walker: I) -> string:
+    walker.step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().name()
+
+fn named[W < Walk](walker: W) -> string:
+    walker.name()
+
+fn passed[I < Walk](walker: I) -> string:
+    named(walker.step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step())

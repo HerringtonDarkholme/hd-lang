@@ -377,8 +377,10 @@ impl Ck<'_, '_> {
             TyData::Tuple { .. } | TyData::Poison | TyData::Infer(_) => true,
             TyData::Param(_) => {
                 let tuple = self.cx.names.known.tuple;
-                (0..self.env.clause_self.len())
-                    .any(|i| self.env.clause_self[i] == t && self.env.clause_trait[i] == tuple)
+                let env = &self.env;
+                env.clauses_of(t)
+                    .iter()
+                    .any(|&i| env.clause_trait()[i as usize] == tuple)
             }
             _ => false,
         }
@@ -1456,6 +1458,7 @@ impl Ck<'_, '_> {
             }
             SyntaxKind::ProjectionType => {
                 let base = first(self, n)?;
+                self.add_projection_clauses(base);
                 let t = n.name_part(&self.cx.src.parse.tokens);
                 let name = self.cx.src.text(t).to_owned();
                 let Some((trait_, args)) = self.assoc_owner(base, &name) else {
@@ -1466,9 +1469,9 @@ impl Ck<'_, '_> {
                     // A bound that names no trait was reported, and
                     // left a clause on no trait.
                     let env = &self.env;
-                    let clauses =
-                        || (0..env.clause_self.len()).filter(|&i| env.clause_self[i] == base);
-                    if base == Ty::POISON || clauses().any(|i| env.clause_trait[i] == DefId::NONE) {
+                    let clauses = || env.clauses_of(base).iter().map(|&i| i as usize);
+                    if base == Ty::POISON || clauses().any(|i| env.clause_trait()[i] == DefId::NONE)
+                    {
                         return Ok(Ty::POISON);
                     }
                     let bounded = clauses().next().is_some();

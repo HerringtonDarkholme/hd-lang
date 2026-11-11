@@ -965,51 +965,28 @@ pub(crate) fn is_inspectable_key(
 /// in, then its supertraits, depth first in declared order, each trait
 /// reference once. A bound on a trait that is not declared `< ?Copy`
 /// also adds `Copy` (`ref.copy.trait.default`), the trait `copy`. Bodies
-/// and header checks build their environments with it.
+/// and header checks build their environments with it. The bounds of
+/// the trait's associated types wait for a use of their projection
+/// ([`add_projection_bounds`]). Cost: one hash probe per clause, and a
+/// clause per trait the bound reaches.
 pub(crate) fn add_bound(
     lookup: &Lookup<'_>,
     pool: hd_types::Types<'_>,
     env: &mut ParamEnv,
-    clause: (Ty, Ty),
-    copy: DefId,
-) {
-    add_bound_at(lookup, pool, env, clause, 0, copy);
-}
-
-/// How many projections deep [`add_bound`] elaborates associated-type
-/// bounds: a bound may name its own trait again (`type Next < Walk`), and
-/// each step adds the projection one deeper (`I::Next::Next < Walk`), so
-/// eager elaboration stops here. A supertrait step does not count: the
-/// resolver leaves the supertrait graph acyclic and the clause check ends
-/// it. A goal deeper than this finds no clause for its projection.
-const PROJECTION_BOUND_DEPTH: u32 = 16;
-
-/// [`add_bound`] for a clause whose self type is `nest` projections below
-/// a declared bound's.
-fn add_bound_at(
-    lookup: &Lookup<'_>,
-    pool: hd_types::Types<'_>,
-    env: &mut ParamEnv,
     (self_ty, bound): (Ty, Ty),
-    nest: u32,
     copy: DefId,
 ) {
     // A bound that names no trait, already reported, is a clause on no
     // trait: the parameter satisfies every trait (`implements`).
     if bound == Ty::POISON {
-        if !env
-            .clause_self
-            .iter()
-            .zip(&env.clause_trait)
-            .any(|(s, t)| *s == self_ty && *t == DefId::NONE)
-        {
-            env.clause_self.push(self_ty);
-            env.clause_trait.push(DefId::NONE);
-            env.clause_args.push(hd_types::TyList::EMPTY);
-            env.clause_bindings.push(Vec::new());
-            env.clause_mut.push(false);
-            env.clause_origin
-                .push(u16::try_from(env.clause_origin.len()).unwrap_or(u16::MAX));
+        if env.push(
+            self_ty,
+            DefId::NONE,
+            hd_types::TyList::EMPTY,
+            Vec::new(),
+            false,
+        ) {
+            crate::work::env_clause();
         }
         return;
     }
@@ -1027,18 +1004,10 @@ fn add_bound_at(
         Some(it) => hd_resolve::fill_trait_args(pool, def, &it.generics, args, Some(self_ty)),
         None => args,
     };
-    if (0..env.clause_self.len()).any(|i| {
-        env.clause_self[i] == self_ty && env.clause_trait[i] == def && env.clause_args[i] == args
-    }) {
+    if !env.push(self_ty, def, args, bindings, false) {
         return;
     }
-    env.clause_self.push(self_ty);
-    env.clause_trait.push(def);
-    env.clause_args.push(args);
-    env.clause_bindings.push(bindings);
-    env.clause_mut.push(false);
-    env.clause_origin
-        .push(u16::try_from(env.clause_origin.len()).unwrap_or(u16::MAX));
+    crate::work::env_clause();
     if let Some(ItemData::Trait(t)) = lookup.item(def).map(|i| &i.data) {
         let known = pool.list_items(args);
         for s in &t.supers {
@@ -1052,7 +1021,7 @@ fn add_bound_at(
                     known.get(p.index as usize - 1).copied()
                 }
             });
-            add_bound_at(lookup, pool, env, (self_ty, s), nest, copy);
+            add_bound(lookup, pool, env, (self_ty, s), copy);
         }
         if def != copy
             && lookup
@@ -1064,39 +1033,87 @@ fn add_bound_at(
                 args: hd_types::TyList::EMPTY,
                 bindings: vec![],
             });
-            add_bound_at(lookup, pool, env, (self_ty, c), nest, copy);
-        }
-        // Each associated type's declared bounds hold for its projection
-        // (`trait.assoc.bound-use`): under `I < Iterable[T]`, the clause
-        // `I::IntoIter < Iterator[T]`.
-        for &(_, a) in t.assoc.iter().take_while(|_| nest < PROJECTION_BOUND_DEPTH) {
-            let Some(ItemData::AssocType { bounds, .. }) = lookup.item(a).map(|i| &i.data) else {
-                continue;
-            };
-            if bounds.is_empty() {
-                continue;
-            }
-            let proj = pool.intern_ty(&TyData::Assoc {
-                assoc: a,
-                trait_: def,
-                self_ty,
-                args,
-            });
-            for b in bounds {
-                let b = pool.subst(*b, &|p: ParamRef| {
-                    if p.owner != def {
-                        return None;
-                    }
-                    if p.index == 0 {
-                        Some(self_ty)
-                    } else {
-                        known.get(p.index as usize - 1).copied()
-                    }
-                });
-                add_bound_at(lookup, pool, env, (proj, b), nest + 1, copy);
-            }
+            add_bound(lookup, pool, env, (self_ty, c), copy);
         }
     }
+}
+
+/// Each associated type's declared bounds hold for its projection
+/// (`trait.assoc.bound-use`): under `I < Iterable[T]`, the clause
+/// `I::IntoIter < Iterator[T]`. Added on demand for every projection
+/// inside `t`, its self type first, so `I::Next::Next < Walk` follows
+/// from `type Next < Walk` at any depth. Each projection is elaborated
+/// once per environment. Whether a clause was added.
+///
+/// Cost: a walk of `t`'s nodes that hold a projection, one hash probe
+/// per projection met, and the clauses of a projection's bounds the first
+/// time it is met.
+pub(crate) fn add_projection_bounds(
+    lookup: &Lookup<'_>,
+    pool: hd_types::Types<'_>,
+    env: &mut ParamEnv,
+    t: Ty,
+    copy: DefId,
+) -> bool {
+    if !pool.has_assoc(t) {
+        return false;
+    }
+    let before = env.len();
+    projection_bounds_in(lookup, pool, env, t, copy);
+    env.len() != before
+}
+
+fn projection_bounds_in(
+    lookup: &Lookup<'_>,
+    pool: hd_types::Types<'_>,
+    env: &mut ParamEnv,
+    t: Ty,
+    copy: DefId,
+) {
+    if !pool.has_assoc(t) {
+        return;
+    }
+    let mut kids = Vec::new();
+    pool.children(t, &mut kids);
+    for k in kids {
+        projection_bounds_in(lookup, pool, env, k, copy);
+    }
+    let TyData::Assoc {
+        assoc,
+        trait_,
+        self_ty,
+        args,
+    } = pool.get(t)
+    else {
+        return;
+    };
+    if env.elaborated(t) {
+        return;
+    }
+    // The clause the projection names its trait through: a declared
+    // bound, a supertrait it reaches, or a projection's own bound,
+    // elaborated just above as one of its children. Without it nothing
+    // is recorded, so an opaque type's bounds added later still count.
+    if !env.contains(self_ty, trait_, args) {
+        return;
+    }
+    if let Some(ItemData::AssocType { bounds, .. }) = lookup.item(assoc).map(|i| &i.data) {
+        let known = pool.list_items(args);
+        for b in bounds {
+            let b = pool.subst(*b, &|p: ParamRef| {
+                if p.owner != trait_ {
+                    return None;
+                }
+                if p.index == 0 {
+                    Some(self_ty)
+                } else {
+                    known.get(p.index as usize - 1).copied()
+                }
+            });
+            add_bound(lookup, pool, env, (t, b), copy);
+        }
+    }
+    env.mark_elaborated(t);
 }
 
 /// Checks one function body and returns its TIR.
@@ -3066,6 +3083,23 @@ impl Ck<'_, '_> {
         None
     }
 
+    /// The clauses the associated-type bounds give each projection inside
+    /// `t` ([`add_projection_bounds`]), added once per projection; the
+    /// environment's key is renewed when one is new.
+    pub(crate) fn add_projection_clauses(&mut self, t: Ty) {
+        let pool = self.pool();
+        let t = self.infer.resolve(pool, t);
+        if add_projection_bounds(
+            self.cx.lookup,
+            pool,
+            &mut self.env,
+            t,
+            self.cx.names.known.copy,
+        ) {
+            self.env.key = Some(self.cx.global.env_key(&self.env));
+        }
+    }
+
     /// Moves the checker to byte `at` of the module: the local declarations
     /// in scope, and the local impls it sees, are those whose extent holds
     /// it (`names.local-type.name`, `trait.impl.local.lookup`). Answers
@@ -3089,6 +3123,16 @@ impl Ck<'_, '_> {
     /// out of fuel stops the check (`out_of_fuel`), so no caller takes
     /// `OutOfFuel` for an answer.
     pub(crate) fn solve_goal(&mut self, goal: &Goal) -> StageResult<Answer> {
+        match goal {
+            Goal::Implements { tref, .. } => {
+                self.add_projection_clauses(tref.self_ty);
+                for &a in self.pool().list_items(tref.args) {
+                    self.add_projection_clauses(a);
+                }
+            }
+            Goal::Instantiations { self_ty, .. } => self.add_projection_clauses(*self_ty),
+            Goal::Methods { receiver, .. } => self.add_projection_clauses(*receiver),
+        }
         let decls = self.cx.decls();
         let view = self.cx.impls.hiding(&self.hidden);
         let mut scx = SolveCx {

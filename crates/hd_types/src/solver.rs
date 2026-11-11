@@ -118,16 +118,148 @@ pub struct DeclaredBound {
     pub mut_: bool,
 }
 
-/// The elaborated parameter environment, as columns, frozen per item (§2.3).
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+/// The elaborated parameter environment, as columns (§2.3). Clauses are
+/// added only through [`ParamEnv::push`], which keeps two indexes: the
+/// clauses on each self type, and the (self, trait, arguments) triples
+/// present. A lookup and a duplicate check are each one hash probe.
+///
+/// The clauses an associated type's bounds give a projection
+/// (`trait.assoc.bound-use`) are added on demand, once per projection a
+/// body or header names; [`ParamEnv::elaborated`] records which.
+#[derive(Clone, Debug, Default)]
 pub struct ParamEnv {
     pub key: Option<EnvKey>,
-    pub clause_self: Vec<Ty>,
-    pub clause_trait: Vec<DefId>,
-    pub clause_args: Vec<TyList>,
-    pub clause_bindings: Vec<Vec<(DefId, Ty)>>,
-    pub clause_mut: Vec<bool>,
-    pub clause_origin: Vec<u16>,
+    clause_self: Vec<Ty>,
+    clause_trait: Vec<DefId>,
+    clause_args: Vec<TyList>,
+    clause_bindings: Vec<Vec<(DefId, Ty)>>,
+    clause_mut: Vec<bool>,
+    clause_origin: Vec<u16>,
+    by_self: HashMap<Ty, Vec<u32>>,
+    present: HashSet<(Ty, DefId, TyList)>,
+    /// The projections whose bounds are elaborated, in order, each with
+    /// the clause count once it was: truncating below that count drops
+    /// the record with the clauses.
+    elaborated: Vec<(Ty, u32)>,
+    elaborated_set: HashSet<Ty>,
+}
+
+impl ParamEnv {
+    /// How many clauses the environment holds.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.clause_self.len()
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.clause_self.is_empty()
+    }
+
+    /// Appends a clause unless the same self type, trait and arguments
+    /// are already present: whether it was appended. Its origin is its
+    /// index.
+    pub fn push(
+        &mut self,
+        self_ty: Ty,
+        trait_: DefId,
+        args: TyList,
+        bindings: Vec<(DefId, Ty)>,
+        mut_: bool,
+    ) -> bool {
+        if !self.present.insert((self_ty, trait_, args)) {
+            return false;
+        }
+        let i = self.clause_self.len();
+        self.by_self
+            .entry(self_ty)
+            .or_default()
+            .push(u32::try_from(i).unwrap_or(u32::MAX));
+        self.clause_self.push(self_ty);
+        self.clause_trait.push(trait_);
+        self.clause_args.push(args);
+        self.clause_bindings.push(bindings);
+        self.clause_mut.push(mut_);
+        self.clause_origin
+            .push(u16::try_from(i).unwrap_or(u16::MAX));
+        true
+    }
+
+    /// Whether a clause on `self_ty`, `trait_` and `args` is present.
+    #[must_use]
+    pub fn contains(&self, self_ty: Ty, trait_: DefId, args: TyList) -> bool {
+        self.present.contains(&(self_ty, trait_, args))
+    }
+
+    /// The indices of the clauses on `self_ty`, in order.
+    #[must_use]
+    pub fn clauses_of(&self, self_ty: Ty) -> &[u32] {
+        self.by_self.get(&self_ty).map_or(&[], Vec::as_slice)
+    }
+
+    /// Drops the clauses from index `n` on, and the record of each
+    /// projection elaborated into them.
+    pub fn truncate(&mut self, n: usize) {
+        while self.clause_self.len() > n {
+            let (Some(s), Some(t), Some(a)) = (
+                self.clause_self.pop(),
+                self.clause_trait.pop(),
+                self.clause_args.pop(),
+            ) else {
+                break;
+            };
+            self.present.remove(&(s, t, a));
+            if let Some(list) = self.by_self.get_mut(&s) {
+                list.pop();
+                if list.is_empty() {
+                    self.by_self.remove(&s);
+                }
+            }
+        }
+        self.clause_bindings.truncate(n);
+        self.clause_mut.truncate(n);
+        self.clause_origin.truncate(n);
+        while let Some(&(p, end)) = self.elaborated.last()
+            && end as usize > n
+        {
+            self.elaborated.pop();
+            self.elaborated_set.remove(&p);
+        }
+    }
+
+    /// Whether the bounds of projection `p` are already elaborated.
+    #[must_use]
+    pub fn elaborated(&self, p: Ty) -> bool {
+        self.elaborated_set.contains(&p)
+    }
+
+    /// Records that the bounds of projection `p` are now elaborated.
+    pub fn mark_elaborated(&mut self, p: Ty) {
+        if self.elaborated_set.insert(p) {
+            let end = u32::try_from(self.clause_self.len()).unwrap_or(u32::MAX);
+            self.elaborated.push((p, end));
+        }
+    }
+
+    #[must_use]
+    pub fn clause_self(&self) -> &[Ty] {
+        &self.clause_self
+    }
+
+    #[must_use]
+    pub fn clause_trait(&self) -> &[DefId] {
+        &self.clause_trait
+    }
+
+    #[must_use]
+    pub fn clause_args(&self) -> &[TyList] {
+        &self.clause_args
+    }
+
+    #[must_use]
+    pub fn clause_bindings(&self) -> &[Vec<(DefId, Ty)>] {
+        &self.clause_bindings
+    }
 }
 
 pub type ParamEnvBuilder = ParamEnv;
@@ -2016,7 +2148,7 @@ impl<'s, 'a> Search<'s, 'a> {
         // its associated type.
         if let Some(param) = clause_param(pool, self_ty) {
             let env = self.cx.env;
-            for i in 0..env.clause_self.len() {
+            for i in env.clauses_of(self_ty).iter().map(|&i| i as usize) {
                 // A bound that names no trait, already reported, holds
                 // every trait for its parameter.
                 if env.clause_self[i] == self_ty && env.clause_trait[i] == DefId::NONE {
@@ -4420,12 +4552,7 @@ mod tests {
         let (t, [show, _, boxed, _]) = show_table(g);
         let tp = param(g, DefId::from_raw(40), 0);
         let mut bounded = ParamEnv::default();
-        bounded.clause_self.push(tp);
-        bounded.clause_trait.push(show);
-        bounded.clause_args.push(TyList::EMPTY);
-        bounded.clause_bindings.push(vec![]);
-        bounded.clause_mut.push(false);
-        bounded.clause_origin.push(0);
+        bounded.push(tp, show, TyList::EMPTY, vec![], false);
         let plain = ParamEnv::default();
         let show_of = |self_ty| TraitRef {
             trait_: show,
@@ -4977,12 +5104,7 @@ mod tests {
         let global = GlobalMemo::default();
         let tp = param(p, DefId::from_raw(40), 0);
         let mut bounded = ParamEnv::default();
-        bounded.clause_self.push(tp);
-        bounded.clause_trait.push(DefId::from_raw(3));
-        bounded.clause_args.push(TyList::EMPTY);
-        bounded.clause_bindings.push(vec![]);
-        bounded.clause_mut.push(false);
-        bounded.clause_origin.push(0);
+        bounded.push(tp, DefId::from_raw(3), TyList::EMPTY, vec![], false);
         let plain = ParamEnv::default();
         let a = ask_row(p, &decls, &bounded, &global, on(3, tp));
         assert!(
@@ -5508,12 +5630,7 @@ mod tests {
             args: TyList::EMPTY,
         });
         let mut bounded = ParamEnv::default();
-        bounded.clause_self.push(tp);
-        bounded.clause_trait.push(hash);
-        bounded.clause_args.push(TyList::EMPTY);
-        bounded.clause_bindings.push(vec![]);
-        bounded.clause_mut.push(false);
-        bounded.clause_origin.push(0);
+        bounded.push(tp, hash, TyList::EMPTY, vec![], false);
         assert!(matches!(
             tuple_ask(p, &w, (true, true), &bounded, &goal),
             Answer::Holds { .. }

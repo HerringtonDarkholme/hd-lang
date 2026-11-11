@@ -2,7 +2,7 @@
 //! checks do not allocate a table. A serial driver run stays on the
 //! calling thread, so each test can measure independently.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 
 use hd_base::{DefId, HashMap, NodeIdx};
 
@@ -114,4 +114,27 @@ pub(crate) fn item_body(
     fuel_spent: impl FnOnce() -> u64,
 ) {
     body(cx, owner, at, Kind::Item, fuel_spent);
+}
+
+thread_local! {
+    static CLAUSES: Cell<Option<u64>> = const { Cell::new(None) };
+}
+
+/// Count the clauses `run` adds to parameter environments on this thread,
+/// the bounds' own and those their projections add on demand. Use the
+/// driver's serial executor to measure a whole build.
+pub fn count_env_clauses<R>(run: impl FnOnce() -> R) -> (R, u64) {
+    let previous = CLAUSES.with(|c| c.replace(Some(0)));
+    let result = run();
+    let n = CLAUSES.with(|c| c.replace(previous)).unwrap_or(0);
+    (result, n)
+}
+
+/// One clause added to a parameter environment.
+pub(crate) fn env_clause() {
+    CLAUSES.with(|c| {
+        if let Some(n) = c.get() {
+            c.set(Some(n + 1));
+        }
+    });
 }

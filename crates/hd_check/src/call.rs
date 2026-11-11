@@ -3907,8 +3907,10 @@ impl Ck<'_, '_> {
         let bound_hits: Vec<(DefId, DefId)> = traits
             .into_iter()
             .filter(|&(tr, _)| {
-                (0..self.env.clause_self.len())
-                    .any(|i| self.env.clause_self[i] == t && self.env.clause_trait[i] == tr)
+                let env = &self.env;
+                env.clauses_of(t)
+                    .iter()
+                    .any(|&i| env.clause_trait()[i as usize] == tr)
             })
             .collect();
         match bound_hits.as_slice() {
@@ -4077,10 +4079,7 @@ impl Ck<'_, '_> {
         let bare = self.resolved(t);
         if self
             .env
-            .clause_self
-            .iter()
-            .zip(&self.env.clause_trait)
-            .any(|(s, tr)| *s == bare && *tr == DefId::NONE)
+            .contains(bare, DefId::NONE, hd_types::TyList::EMPTY)
         {
             return false;
         }
@@ -4425,16 +4424,14 @@ impl Ck<'_, '_> {
             pool.get(t),
             TyData::Param(_) | TyData::Opaque { .. } | TyData::Assoc { .. }
         ) {
-            for i in 0..self.env.clause_self.len() {
-                if self.env.clause_self[i] != t {
-                    continue;
-                }
-                let tr = self.env.clause_trait[i];
+            self.add_projection_clauses(t);
+            for i in self.env.clauses_of(t).iter().map(|&i| i as usize) {
+                let tr = self.env.clause_trait()[i];
                 if let Some(&(_, m)) = traits.iter().find(|(x, _)| *x == tr) {
                     return Ok(Some(Hit::Trait {
                         trait_: tr,
                         method: m,
-                        args: pool.list_items(self.env.clause_args[i]).to_vec(),
+                        args: pool.list_items(self.env.clause_args()[i]).to_vec(),
                         choice: (ChoiceKind::Bound, u32::try_from(i).unwrap_or(0)),
                     }));
                 }
@@ -5294,9 +5291,12 @@ impl Ck<'_, '_> {
             Some(ItemData::Trait(t)) => t.assoc.iter().any(|(s, _)| *s == sym),
             _ => false,
         };
-        (0..self.env.clause_self.len())
-            .find(|&i| self.env.clause_self[i] == base && has(self.env.clause_trait[i]))
-            .map(|i| (self.env.clause_trait[i], self.env.clause_args[i]))
+        let env = &self.env;
+        env.clauses_of(base)
+            .iter()
+            .map(|&i| i as usize)
+            .find(|&i| has(env.clause_trait()[i]))
+            .map(|i| (env.clause_trait()[i], env.clause_args()[i]))
     }
 
     /// A bound's associated-type bindings at a use site
@@ -5472,7 +5472,7 @@ impl Ck<'_, '_> {
         if !pool.has_opaque(t) {
             return;
         }
-        let before = self.env.clause_self.len();
+        let before = self.env.len();
         let mut todo = vec![t];
         let mut seen = Vec::new();
         while let Some(t) = todo.pop() {
@@ -5513,7 +5513,7 @@ impl Ck<'_, '_> {
                 _ => {}
             }
         }
-        if self.env.clause_self.len() != before {
+        if self.env.len() != before {
             self.env.key = Some(self.cx.global.env_key(&self.env));
         }
     }
@@ -5567,9 +5567,11 @@ impl Ck<'_, '_> {
             TyData::Param(_) | TyData::Opaque { .. } => {
                 // A binding on the parameter's bound or on a supertrait
                 // clause it reaches (`trait.binding.inside`).
-                let found = (0..self.env.clause_self.len())
-                    .filter(|&i| self.env.clause_self[i] == st)
-                    .find_map(|i| bound(&self.env.clause_bindings[i], self));
+                let found = self
+                    .env
+                    .clauses_of(st)
+                    .iter()
+                    .find_map(|&i| bound(&self.env.clause_bindings()[i as usize], self));
                 if let Some(b) = found {
                     return self.normalized(t, b);
                 }
@@ -5578,11 +5580,12 @@ impl Ck<'_, '_> {
                 // one a call of a sibling method returns.
                 let n_trait = self.cx.lookup.item(trait_).map_or(0, |i| i.generics.len());
                 let args = if pool.list_items(args).len() < n_trait {
-                    (0..self.env.clause_self.len())
-                        .find(|&i| {
-                            self.env.clause_self[i] == st && self.env.clause_trait[i] == trait_
-                        })
-                        .map_or(args, |i| self.env.clause_args[i])
+                    let env = &self.env;
+                    env.clauses_of(st)
+                        .iter()
+                        .map(|&i| i as usize)
+                        .find(|&i| env.clause_trait()[i] == trait_)
+                        .map_or(args, |i| env.clause_args()[i])
                 } else {
                     args
                 };

@@ -1815,21 +1815,36 @@ stays valid after a rollback because it names no particular variable.
 ### 2.3 The Parameter Environment
 
 ```rust
-pub struct ParamEnv {            // columns, built once per item
+pub struct ParamEnv {            // columns, appended only through `push`
     pub key: Option<EnvKey>,     // interned by the run memo: equal environments, equal keys
-    pub clause_self: Vec<Ty>,    // a Param
-    pub clause_trait: Vec<DefId>,
-    pub clause_args: Vec<TyList>,
-    pub clause_bindings: Vec<Vec<(DefId, Ty)>>,
-    pub clause_mut: Vec<bool>,
-    pub clause_origin: Vec<u16>,
+    clause_self: Vec<Ty>,        // a Param, an opaque type, or a projection of one
+    clause_trait: Vec<DefId>,
+    clause_args: Vec<TyList>,
+    clause_bindings: Vec<Vec<(DefId, Ty)>>,
+    clause_mut: Vec<bool>,
+    clause_origin: Vec<u16>,
+    by_self: HashMap<Ty, Vec<u32>>,         // the clauses on each self type
+    present: HashSet<(Ty, DefId, TyList)>,  // the duplicate check
+    elaborated: Vec<(Ty, u32)>,             // projections elaborated, with the clause count after
+    elaborated_set: HashSet<Ty>,
 }
 ```
 
 A clause's index is its position in the elaborated list. TIR's
 `Bound { param, index }` choice uses it. The order is deterministic:
 declared bounds in source order, each followed by its supertraits, depth
-first, in declared order, each trait reference once.
+first, in declared order, each trait reference once. A lookup by self
+type and the duplicate check are each one hash probe.
+
+An associated type's declared bounds (`trait.assoc.bound-use`) are not
+elaborated with the bound. A goal, a method lookup or a written
+projection that names `P::A` first adds the clauses of each projection
+inside it, its self type first (`add_projection_bounds`), once per
+projection per environment, and renews the key. So `I::Next::Next < Walk`
+holds at any depth under `type Next < Walk`, and building an environment
+costs its declared bounds and their supertraits only. A trial that rolls
+back drops the clauses it added and the records of their projections
+(`ParamEnv::truncate`).
 
 ## 3. Impl Selection
 
