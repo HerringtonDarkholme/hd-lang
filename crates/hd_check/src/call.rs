@@ -5544,6 +5544,21 @@ impl Ck<'_, '_> {
                 None => Ok(t),
             };
         }
+        // A rigid projection's binding, from its associated type's bound
+        // (`trait.assoc.bound-use`): under `type Next < Walk[Out = i32]`,
+        // `I::Next::Out` is `i32`. Without one, the impl search below
+        // still runs, as the projection's self type may be open.
+        if let TyData::Assoc { .. } = pool.get(st) {
+            self.add_projection_clauses(st);
+            let found = self
+                .env
+                .clauses_of(st)
+                .iter()
+                .find_map(|&i| bound(&self.env.clause_bindings()[i as usize], self));
+            if let Some(b) = found {
+                return self.normalized(t, b);
+            }
+        }
         if matches!(pool.get(st), TyData::Param(_) | TyData::Opaque { .. }) {
             // A binding on the parameter's bound or on a supertrait
             // clause it reaches (`trait.binding.inside`).

@@ -1,0 +1,19 @@
+# test: an implementation binds a bounded associated type to a type whose projection differs from the bound's binding
+# Spec 09 Associated Types: trait.assoc.bound-impl.
+
+trait Walk:
+    type Out
+    type Next < Walk[Out = i32]
+    fn step(self) -> Self::Next
+    fn out(self) -> Self::Out
+
+struct Leaf:
+    text: string
+
+impl Walk for Leaf: # diagnostic: unsatisfied-trait-bound
+    type Out = string
+    type Next = Leaf
+    fn step(self) -> Leaf:
+        self
+    fn out(self) -> string:
+        self.text

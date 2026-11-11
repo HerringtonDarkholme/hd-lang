@@ -1,0 +1,45 @@
+# test: a binding in an associated type's bound fixes the projection on that associated type, one level and two levels deep
+# Spec 09 Associated Types: trait.assoc.bound-use; Binding Positions: trait.binding.positions-key.
+trait Walk:
+    type Out
+    type Next < Walk[Out = i32]
+    fn step(self) -> Self::Next
+    fn out(self) -> Self::Out
+
+struct Count:
+    at: i32
+
+impl Walk for Count:
+    type Out = i32
+    type Next = Count
+    fn step(self) -> Count:
+        Count { at: self.at + 1 }
+    fn out(self) -> i32:
+        self.at
+
+struct Label:
+    inner: Count
+
+impl Walk for Label:
+    type Out = string
+    type Next = Count
+    fn step(self) -> Count:
+        self.inner
+    fn out(self) -> string:
+        "label"
+
+fn first[I < Walk](walker: I) -> i32:
+    walker.step().out()
+
+fn second[I < Walk](walker: I) -> i32:
+    let total: i32 = walker.step().step().out()
+    total
+
+tests:
+    use std.testing.assert_equal
+
+    it("I::Next::Out is i32 through the bound on Next"):
+        assert_equal(first(Label { inner: Count { at: 4 } }), 4, reason="Label's own Out is string")
+
+    it("I::Next::Next::Out is i32 one level deeper"):
+        assert_equal(second(Label { inner: Count { at: 4 } }), 5, reason="the step of Count adds one")

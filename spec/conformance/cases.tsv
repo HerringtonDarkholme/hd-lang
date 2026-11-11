@@ -4128,6 +4128,7 @@ runtime/valid/trait-qualified-associated-and-named-calls.hd	runtime	accept	lang/
 typing/invalid/duplicate-associated-binding-two-bounds.hd	type	reject:duplicate-associated-binding	lang/09-traits.md#r-trait.binding.once.error
 parse/invalid/impl-header-associated-binding.hd	parse	reject:syntax-error	lang/09-traits.md#r-trait.binding.rejected-trait-type
 runtime/valid/associated-binding-positions.hd	runtime	accept	lang/09-traits.md#r-trait.binding.positions-key
+runtime/valid/associated-type-bound-binding.hd	runtime	accept	lang/09-traits.md#r-trait.assoc.bound-use
 typing/invalid/dyn-self-parameter-unavailable.hd	type	reject:dyn-member-unavailable	lang/09-traits.md#r-trait.dyn.member.self
 runtime/valid/unsafe-trait-static-bound.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.member.self
 runtime/valid/trait-value-binding-identity.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.binding.identity
@@ -5133,6 +5134,8 @@ runtime/valid/dropped-suspension-cycles.hd	runtime	accept	lang/08-data-and-enums
 typing/valid/associated-type-bound.hd	type	accept	lang/09-traits.md#r-trait.assoc.bound-use
 typing/valid/assoc-bound-use-twenty-deep.hd	type	accept	lang/09-traits.md#r-trait.assoc.bound-use
 typing/invalid/associated-type-bound-unsatisfied.hd	type	reject:unsatisfied-trait-bound	lang/09-traits.md#r-trait.assoc.bound-impl
+typing/invalid/associated-type-bound-binding-unmet.hd	type	reject:unsatisfied-trait-bound	lang/09-traits.md#r-trait.assoc.bound-impl
+typing/invalid/associated-type-bound-binding-unmet-through-a-parameter.hd	type	reject:unsatisfied-trait-bound	lang/09-traits.md#r-trait.assoc.bound-impl
 parse/invalid/associated-type-bound-in-impl.hd	parse	reject:syntax-error	lang/02-grammar.md#r-grammar.trait.associated-type.bound
 runtime/valid/iterable-cursor-types.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.iterable.noncopy-cursor
 runtime/valid/collection-cursor-types.hd	runtime	accept	std/collections.md#r-std-collections.deque.cursor

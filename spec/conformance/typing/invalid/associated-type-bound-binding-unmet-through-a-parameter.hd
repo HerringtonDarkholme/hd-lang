@@ -1,0 +1,19 @@
+# test: an implementation binds a bounded associated type to an impl parameter whose projection the impl's bounds leave unbound
+# Spec 09 Associated Types: trait.assoc.bound-impl.
+
+trait Walk:
+    type Out
+    type Next < Walk[Out = i32]
+    fn step(self) -> Self::Next
+    fn out(self) -> Self::Out
+
+struct Wrap[T]:
+    inner: T
+
+impl[T < Walk] Walk for Wrap[T]: # diagnostic: unsatisfied-trait-bound
+    type Out = i32
+    type Next = T
+    fn step(self) -> T:
+        self.inner
+    fn out(self) -> i32:
+        0

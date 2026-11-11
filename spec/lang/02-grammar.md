@@ -783,7 +783,7 @@ fn label[T < Named & Tagged](value: T) -> string:
 
 1. r[grammar.generic.binding] A trait in a generic parameter bound may end its bracketed arguments with associated type bindings. So `I < Supplier[Item = T]` requires `I` to implement `Supplier` with `I::Item` equal to `T`.
 2. r[grammar.generic.binding.order] Bindings follow every positional type argument.
-3. r[grammar.generic.binding.positions-key.reference-values] Bindings are valid in `trait_bounds`, and in `supertrait_bounds` as in `trait Summable < Add[Out = Self]`. They are also valid in a `dyn_type`, as in the trait value type `&dyn Supplier[Item = i32]`, and in a `requirement_key`, as in `$ Store[Item = User]`.
+3. r[grammar.generic.binding.positions-key.reference-values] Bindings are valid in `trait_bounds`, in `supertrait_bounds` as in the associated type bound `type Next < Walk[Out = i32]`, and in `trait_supertrait_bounds` as in the trait list `trait Summable < Add[Out = Self]`. They are also valid in a `dyn_type`, as in the trait value type `&dyn Supplier[Item = i32]`, and in a `requirement_key`, as in `$ Store[Item = User]`.
 4. r[grammar.generic.binding.trait-type-only] The trait of an implementation header is a `trait_type`, and the qualifier of a trait-qualified call or a method reference is an `expression_trait_type`. Neither takes a binding in its arguments. A binding there is an error. Error: `syntax-error`.
 5. r[grammar.generic.binding.named-type] A binding in a `named_type` has no meaning; [Binding Positions](09-traits.md#binding-positions) rejects it, and a trait value type writes its bindings after `dyn`.
 

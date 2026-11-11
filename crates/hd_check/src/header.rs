@@ -792,7 +792,11 @@ impl<'a> ItemCheck<'_, 'a> {
                         }
                     })?
                 });
-                if pool.has_poison(*bound_to) || !self.fails(*bound_to, b, 0)? {
+                if pool.has_poison(*bound_to) {
+                    continue;
+                }
+                if !self.fails(*bound_to, b, 0)? {
+                    self.assoc_bound_bindings(*self_ty, *a, *bound_to, b)?;
                     continue;
                 }
                 let message = format!(
@@ -806,6 +810,212 @@ impl<'a> ItemCheck<'_, 'a> {
             }
         }
         Ok(())
+    }
+
+    /// Each binding of an associated type's bound holds for the type an
+    /// implementation binds (`trait.assoc.bound-impl`): under
+    /// `type Next < Walk[Out = i32]`, `type Next = Leaf` needs `Leaf::Out`
+    /// to normalize to `i32` under the impl's environment. Both sides are
+    /// normalized, so a projection the impl's parameters fix compares as
+    /// its binding; a side that does not settle (a cycle, the depth limit,
+    /// a stalled goal) is left to the uses that normalize it.
+    ///
+    /// Cost: per binding, one normalization of each side, each projection
+    /// met once (one goal or one clause scan).
+    fn assoc_bound_bindings(
+        &mut self,
+        self_ty: Ty,
+        a: DefId,
+        bound_to: Ty,
+        b: Ty,
+    ) -> StageResult<()> {
+        let pool = self.pool();
+        let TyData::TraitValue {
+            def,
+            args,
+            bindings,
+        } = pool.get(b)
+        else {
+            return Ok(());
+        };
+        for (assoc, want) in bindings {
+            let Some(proj) = self.binding_projection(def, args, bound_to, assoc) else {
+                continue;
+            };
+            let mut memo = hd_base::HashMap::default();
+            let Some(got) = self.normalize_here(proj, &mut Vec::new(), &mut memo)? else {
+                continue;
+            };
+            let Some(want_n) = self.normalize_here(want, &mut Vec::new(), &mut memo)? else {
+                continue;
+            };
+            if got == want_n || pool.has_poison(got) || pool.has_poison(want_n) {
+                continue;
+            }
+            let message = format!(
+                "{} binds `{}` to {}, whose `{}` is {}, but the bound on `{}` requires `{} = {}`",
+                self.show(self_ty),
+                self.cx.names.display_name(a),
+                self.show(bound_to),
+                self.cx.names.display_name(assoc),
+                self.show(got),
+                self.cx.names.display_name(a),
+                self.cx.names.display_name(assoc),
+                self.show(want_n)
+            );
+            self.report(0, Code::UnsatisfiedTraitBound, message);
+        }
+        Ok(())
+    }
+
+    /// The projection a binding of `assoc` in a bound on trait `def[args]`
+    /// names for `self_ty`: through the trait that declares `assoc`, the
+    /// bound's trait or one of its supertraits (`trait.binding.inside`).
+    fn binding_projection(
+        &self,
+        def: DefId,
+        args: TyList,
+        self_ty: Ty,
+        assoc: DefId,
+    ) -> Option<Ty> {
+        let pool = self.pool();
+        let ItemData::AssocType { owner, .. } = self.cx.lookup.item(assoc).map(|i| &i.data)? else {
+            return None;
+        };
+        let owner = *owner;
+        let args = crate::body::walk_supertraits(
+            self.cx.lookup,
+            pool,
+            (def, args),
+            crate::body::Fill::Args(Some(self_ty)),
+            |d, args, _| (d == owner).then_some(args),
+        )?;
+        Some(pool.intern_ty(&TyData::Assoc {
+            assoc,
+            trait_: owner,
+            self_ty,
+            args,
+        }))
+    }
+
+    /// `t` with its projections normalized under the item's environment,
+    /// as a body's checker does (`trait.assoc.bound-use`,
+    /// `trait.binding.inside`): a trait value's binding, a binding on a
+    /// clause of a parameter or a rigid projection, or the binding of the
+    /// one impl that holds. `None` when a projection does not settle: it
+    /// needs itself again, its chain is deeper than 64, or its goal
+    /// stalls or overflows.
+    ///
+    /// Cost: each distinct projection once per `memo`, one goal or one
+    /// clause scan each.
+    fn normalize_here(
+        &mut self,
+        t: Ty,
+        stack: &mut Vec<Ty>,
+        memo: &mut hd_base::HashMap<Ty, Ty>,
+    ) -> StageResult<Option<Ty>> {
+        let pool = self.pool();
+        if !pool.has_assoc(t) {
+            return Ok(Some(t));
+        }
+        if let Some(&r) = memo.get(&t) {
+            return Ok(Some(r));
+        }
+        if stack.contains(&t) || stack.len() >= HEADER_PROJECTION_DEPTH {
+            return Ok(None);
+        }
+        stack.push(t);
+        let r = self.normalize_node(t, stack, memo);
+        stack.pop();
+        if let Ok(Some(r)) = r {
+            memo.insert(t, r);
+        }
+        r
+    }
+
+    fn normalize_node(
+        &mut self,
+        t: Ty,
+        stack: &mut Vec<Ty>,
+        memo: &mut hd_base::HashMap<Ty, Ty>,
+    ) -> StageResult<Option<Ty>> {
+        let pool = self.pool();
+        let mut kids = Vec::new();
+        pool.children(t, &mut kids);
+        let mut done = hd_base::HashMap::default();
+        for k in kids {
+            let Some(n) = self.normalize_here(k, stack, memo)? else {
+                return Ok(None);
+            };
+            done.insert(k, n);
+        }
+        let t = pool.map_children(t, &mut Settled(&done));
+        let TyData::Assoc {
+            assoc,
+            trait_,
+            self_ty,
+            args,
+        } = pool.get(t)
+        else {
+            return Ok(Some(t));
+        };
+        let name = self.cx.names.display_name(assoc);
+        let by_name = |bs: &[(DefId, Ty)], me: &Self| {
+            bs.iter()
+                .find(|(d, _)| me.cx.names.display_name(*d) == name)
+                .map(|(_, b)| *b)
+        };
+        let value = match pool.get(self_ty) {
+            TyData::Ref { inner, .. } => inner,
+            _ => self_ty,
+        };
+        if let TyData::TraitValue { bindings, .. } = pool.get(value) {
+            return match by_name(&bindings, self) {
+                Some(x) => self.normalize_here(x, stack, memo),
+                None => Ok(Some(t)),
+            };
+        }
+        // A parameter's or a rigid projection's clauses: without a binding
+        // the projection is rigid and equals only itself.
+        if matches!(pool.get(self_ty), TyData::Param(_) | TyData::Assoc { .. }) {
+            self.add_projection_clauses(pool, self_ty);
+            let found = self
+                .env
+                .clauses_of(self_ty)
+                .iter()
+                .find_map(|&i| by_name(&self.env.clause_bindings()[i as usize], self));
+            return match found {
+                Some(x) => self.normalize_here(x, stack, memo),
+                None => Ok(Some(t)),
+            };
+        }
+        if !matches!(pool.get(self_ty), TyData::Opaque { .. }) {
+            let tref = TraitRef {
+                trait_,
+                self_ty,
+                args,
+            };
+            // Only a written impl's binding settles the projection; any
+            // other answer leaves it to the uses.
+            if let Answer::Holds {
+                evidence: hd_types::solver::Evidence::Impl { row, args: ia },
+                ..
+            } = self.answer_ref(tref, 0)?
+                && let Some(table) = Impls::Owned(self.cx.impls).table(row.module)
+                && let Some((_, b)) = table.assoc[row.row as usize]
+                    .iter()
+                    .find(|(d, _)| *d == assoc)
+            {
+                let x = crate::call::subst_owner(
+                    pool,
+                    table.def[row.row as usize],
+                    pool.list_items(ia),
+                    *b,
+                );
+                return self.normalize_here(x, stack, memo);
+            }
+        }
+        Ok(None)
     }
 
     /// The target's implementation of the supertrait `s` binds each
@@ -1748,5 +1958,21 @@ impl ItemCheck<'_, '_> {
             todo.extend(parts.into_iter().rev());
         }
         Ok(None)
+    }
+}
+
+/// The most nested bindings a header normalization follows, as
+/// `trait.assoc.projection.depth` bounds a body's.
+const HEADER_PROJECTION_DEPTH: usize = 64;
+
+/// Rebuilds a type from children already normalized.
+struct Settled<'m>(&'m hd_base::HashMap<Ty, Ty>);
+
+impl hd_types::TyMap for Settled<'_> {
+    fn ty(&mut self, t: Ty) -> Ty {
+        self.0.get(&t).copied().unwrap_or(t)
+    }
+    fn row(&mut self, r: RowId) -> RowId {
+        r
     }
 }

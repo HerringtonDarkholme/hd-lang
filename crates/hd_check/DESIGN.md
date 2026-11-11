@@ -2285,6 +2285,7 @@ For `<S as Tr[A]>::Name`:
 | --- | --- |
 | a parameter with an environment binding for `Name` | the bound type: `I::Item` is `T` under `I < Supplier[Item = T]` |
 | a parameter with a bound on `Tr` but no binding | the projection itself, as a rigid type, with the bound's arguments. It equals only itself |
+| a rigid projection whose associated type's bound binds `Name` | the bound type: `I::Next::Out` is `i32` under `I < Walk` and `type Next < Walk[Out = i32]`, read from the clause the projection's bounds add ([`trait.assoc.bound-use`](../../spec/lang/09-traits.md#r-trait.assoc.bound-use)) |
 | a trait value that binds `Name` | the binding ([`trait.dyn.bound.reference-projection`](../../spec/lang/09-traits.md#r-trait.dyn.bound.reference-projection)) |
 | known, or open with one fitting impl | prove `Implements` first; on `Holds` with `Impl` evidence, read that impl's binding for `Name`, substitute the impl's arguments, and normalize the result again |
 | known, no impl binds it | the projection itself: a trait declares no default for an associated type |
@@ -2315,6 +2316,13 @@ judged.
   64 entries per binding followed.
 - **Aliases** are expanded when headers are lowered, so a projection never
   meets an alias.
+- **Bound bindings at the impl.** An implementation that binds an
+  associated type with a bound that binds, as `type Next = Leaf` under
+  `type Next < Walk[Out = i32]`, is checked in the header stage
+  (`ItemCheck::assoc_bound_bindings`): `Leaf::Out` is normalized under the
+  impl's environment by the same table and compared with `i32`
+  ([`trait.assoc.bound-impl`](../../spec/lang/09-traits.md#r-trait.assoc.bound-impl)).
+  A side that does not settle is left to the uses that normalize it.
 
 ### 4.4 Projections In Impl Heads
 

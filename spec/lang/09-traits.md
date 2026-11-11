@@ -202,8 +202,8 @@ impl Supplier for NameSupplier:
 5. r[trait.assoc.no-type] A projection whose bounds select no associated type declaration is an error. Error: `unknown-associated-type`.
 6. r[trait.assoc.bound] A bound may also fix a projection to a type.
 7. r[trait.assoc.bound-decl] A trait's associated type may name bounds after `<`, joined by `&`, as in `type IntoIter < Iterator[T]`. A bound may use the trait's parameters and `Self`.
-8. r[trait.assoc.bound-impl] The type an implementation binds must implement each bound, with the trait's arguments and the implementing type substituted. A type that does not is an error. Error: `unsatisfied-trait-bound`.
-9. r[trait.assoc.bound-use] Under a bound `I < Tr[...]`, the projection `I::X` implements each bound that `Tr` declares on `X`. So its methods are callable, and it satisfies a bound that names one of them.
+8. r[trait.assoc.bound-impl] The type an implementation binds must implement each bound, with the trait's arguments and the implementing type substituted. Where the bound binds an associated type, the bound type's projection must normalize to the binding, under the implementation's own bounds. A type that does not meet a bound is an error. Error: `unsatisfied-trait-bound`.
+9. r[trait.assoc.bound-use] Under a bound `I < Tr[...]`, the projection `I::X` implements each bound that `Tr` declares on `X`. So its methods are callable, and it satisfies a bound that names one of them. A binding in that bound fixes the projection: under `type Next < Walk[Out = i32]`, `I::Next::Out` is `i32`.
 10. r[trait.assoc.projection.cycle] A projection whose bindings, followed one after another, need that same projection again has no normal form. Using it is an error. Error: `trait-resolution-depth`.
 11. r[trait.assoc.projection.depth] A projection whose normal form needs more than 64 nested bindings is an error, whether or not a deeper chain would end. Error: `trait-resolution-depth`.
 
@@ -1749,7 +1749,7 @@ fn third[T, R < Record[Item = T]](record: R) -> T:  # error: ambiguous-associate
 
 #### Binding Positions
 
-1. r[trait.binding.positions-key] Bindings appear in generic parameter bounds, in supertrait lists, in [trait value types](#bound-associated-types), and in [requirement keys](11-requirements-and-suspension.md#r-req.key.binding).
+1. r[trait.binding.positions-key] Bindings appear in generic parameter bounds, in supertrait lists, in [associated type bounds](#associated-types), in [trait value types](#bound-associated-types), and in [requirement keys](11-requirements-and-suspension.md#r-req.key.binding).
 2. r[trait.binding.rejected-trait-type] The trait of an `impl` header, a trait-qualified call, and a method reference do not accept them. The grammar reports an error there. Error: `syntax-error`.
 3. r[trait.binding.non-trait] A binding in the arguments of a named type that is not a trait, as in `List[i32, Item = i32]`, is an error. Error: `unknown-associated-type`.
 4. r[trait.binding.ambiguous-projection] A binding does not make an ambiguous projection unambiguous. When two bounds on `I` both declare `Item`, `I::Item` is still ambiguous even if one of them binds it. Error: `ambiguous-associated-type`.
@@ -1761,6 +1761,15 @@ trait Source:
 
 fn demo[S < Source[Item = i32]](s: S) -> i32:
     s.get()
+
+trait Walk:
+    type Out
+    type Next < Walk[Out = i32]
+    fn step(self) -> Self::Next
+    fn out(self) -> Self::Out
+
+fn deep[I < Walk](walker: I) -> i32:
+    walker.step().out()
 ```
 
 #### Supertrait Bindings
