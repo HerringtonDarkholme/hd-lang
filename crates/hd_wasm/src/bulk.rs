@@ -1,5 +1,6 @@
 //! One lowering path for bulk copies and fills, including generated runtime
-//! code. Constants use exact-width operations; dynamic sizes share a helper
+//! code. Constants up to 31 bytes use scalar operations, exact widths up to
+//! 16 and the helper's `[16, 32)` class above; dynamic sizes share a helper
 //! per memory pair (Wasm memory indices are instruction immediates).
 
 use wasm_encoder::BlockType;
@@ -8,7 +9,10 @@ use crate::module::{Func, Ins, Module, Val, mem};
 use crate::op::Op as I;
 use crate::rt::Helper;
 
-const SMALL: i32 = 16;
+/// The longest constant length lowered to scalar operations: the dynamic
+/// helper's longest class, so a known length is never slower than the same
+/// length through the helper (#1696).
+const SMALL: i32 = (1 << CLASSES) - 1;
 
 pub fn copy(src_mem: u32, dst_mem: u32) -> Ins {
     Ins::Op(I::MemoryCopy { src_mem, dst_mem })
@@ -114,6 +118,16 @@ impl Width {
     const fn bytes(self) -> u32 {
         self as u32
     }
+}
+
+/// `n` bytes from 17 to 31 as the helper's class `[16, 32)`: the first 16
+/// and the last 16, each two `i64`s, overlapping by `32 - n` bytes. Four
+/// pieces in place of up to eight exact widths; every load still precedes
+/// every store, and the piece ending at `n` is stored first.
+fn halves(n: u32) -> Vec<(u32, Width)> {
+    [0, 8, n - 16, n - 8]
+        .map(|offset| (offset, Width::W8))
+        .to_vec()
 }
 
 /// `n` bytes as scalar chunks, widest first, with their offsets.
@@ -223,19 +237,26 @@ fn inline(f: &mut Func, scratch: &mut Scratch, n: u32, source: u32, dest: u32, c
         store(f, dest, 0, width);
         return;
     }
-    let chunks = widths(n);
+    let chunks = if n > 1 << (CLASSES - 1) {
+        halves(n)
+    } else {
+        widths(n)
+    };
     let to = scratch.local(f, 4, 1);
     if copying {
         let from = scratch.local(f, 4, 0);
         f.set(from);
         f.op(I::LocalTee(to));
         let mut parts = Vec::new();
-        let mut word = 2;
+        let (mut word, mut long) = (2, 0);
         for &(offset, width) in &chunks[..chunks.len() - 1] {
-            let value = scratch.local(f, width.bytes(), if width == Width::W8 { 0 } else { word });
-            if width != Width::W8 {
-                word += 1;
-            }
+            let slot = if width == Width::W8 {
+                &mut long
+            } else {
+                &mut word
+            };
+            let value = scratch.local(f, width.bytes(), *slot);
+            *slot += 1;
             f.get(from);
             load(f, source, offset, width);
             f.set(value);
@@ -279,7 +300,8 @@ fn inline(f: &mut Func, scratch: &mut Scratch, n: u32, source: u32, dest: u32, c
 
 /// The dynamic helper serves lengths 1 to `2^CLASSES - 1`: 1 to 3 as three
 /// bytes, and `[w, 2w)` for `w` of 4, 8 and 16 as the first `w` bytes plus
-/// the last `w`. Lengths 0 and 32 or more use the bulk instruction. A class
+/// the last `w`. Lengths 0 and 32 or more use the bulk instruction, and a
+/// constant length of 17 to 31 takes the last class's pieces inline. A class
 /// of 32 to 63 bytes, 4 more `i64` pairs, grew every module by 266 bytes
 /// and won nothing on the bench programs (#1359).
 const CLASSES: u32 = 5;

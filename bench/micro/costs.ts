@@ -1,4 +1,4 @@
-// One-operation string and collection costs for issues #1208 and #1244.
+// One-operation string and collection costs for issues #1208, #1244 and #1696.
 //
 // Usage:
 //   node --experimental-strip-types bench/micro/costs.ts [CASE...]
@@ -27,6 +27,7 @@ const HD = join(ROOT, "target", "release", "hd");
 const ALL_CASES = [
   "string-add-build",
   "string-add-assign-build",
+  "string-concat-literal",
   "string-builder-push",
   "string-slice",
   "string-slice-compare",

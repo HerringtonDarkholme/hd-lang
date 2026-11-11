@@ -3,42 +3,93 @@
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "rt:memory_fill/0/0" (func $rt:memory_fill/0/0 (param i32 i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
+  (func $fill_seventeen (param $to i32) (param $byte i32) (local $t1 i32) (local $t0 i64)
+    ;; 22 |     fill(to, byte, 17)
+    local.get $to
+    local.get $byte
+    i32.const 255
+    i32.and
+    i64.extend_i32_u
+    i64.const 72340172838076673
+    i64.mul
+    local.set $t0
+    local.tee $t1
+    local.get $t0
+    i64.store $heap offset=9 align=1
+    local.get $t1
+    local.get $t0
+    i64.store $heap offset=1 align=1
+    local.get $t1
+    local.get $t0
+    i64.store $heap offset=8 align=1
+    local.get $t1
+    local.get $t0
+    i64.store $heap align=1
+  )
   (func $copy_dynamic (param $to i32) (param $from i32) (param $count i32)
-    ;; 17 |     copy(to, from, count)
+    ;; 25 |     copy(to, from, count)
     local.get $to
     local.get $from
     local.get $count
     call $rt:memory_copy/0/0
   )
   (func $fill_four (param $to i32)
-    ;; 11 |     fill(to, 0xab, 4)
+    ;; 13 |     fill(to, 0xab, 4)
     local.get $to
     i32.const -1414812757
     i32.store $heap align=1
   )
+  (func $copy_twenty_seven (param $to i32) (param $from i32) (local $t0 i32) (local $t1 i32) (local $t2 i64) (local $t3 i64) (local $t4 i64)
+    ;; 19 |     copy(to, from, 27)
+    local.get $to
+    local.get $from
+    local.set $t0
+    local.tee $t1
+    local.get $t0
+    i64.load $heap align=1
+    local.set $t2
+    local.get $t0
+    i64.load $heap offset=8 align=1
+    local.set $t3
+    local.get $t0
+    i64.load $heap offset=11 align=1
+    local.set $t4
+    local.get $t0
+    i64.load $heap offset=19 align=1
+    i64.store $heap offset=19 align=1
+    local.get $t1
+    local.get $t4
+    i64.store $heap offset=11 align=1
+    local.get $t1
+    local.get $t3
+    i64.store $heap offset=8 align=1
+    local.get $t1
+    local.get $t2
+    i64.store $heap align=1
+  )
   (func $copy_eight (param $to i32) (param $from i32)
-    ;; 8 |     copy(to, from, 8)
+    ;; 10 |     copy(to, from, 8)
     local.get $to
     local.get $from
     i64.load $heap align=1
     i64.store $heap align=1
   )
   (func $copy_thirty_two (param $to i32) (param $from i32)
-    ;; 23 |     copy(to, from, 32)
+    ;; 31 |     copy(to, from, 32)
     local.get $to
     local.get $from
     i32.const 32
     memory.copy $heap $heap
   )
   (func $fill_dynamic (param $to i32) (param $byte i32) (param $count i32)
-    ;; 20 |     fill(to, byte, count)
+    ;; 28 |     fill(to, byte, count)
     local.get $to
     local.get $byte
     local.get $count
     call $rt:memory_fill/0/0
   )
   (func $copy_fifteen (param $to i32) (param $from i32) (local $t0 i32) (local $t1 i32) (local $t2 i64) (local $t3 i32) (local $t4 i32)
-    ;; 14 |     copy(to, from, 15)
+    ;; 16 |     copy(to, from, 15)
     local.get $to
     local.get $from
     local.set $t0

@@ -1,0 +1,8 @@
+# @dump: own counts wat
+# @build: v8 release
+# The literal piece is 27 bytes, a constant length in the dynamic helper's
+# last class `[16, 32)`: it copies as that class's first and last 16 bytes,
+# four `i64` loads before four stores, with no `memory.copy` (#1696). The
+# name's length is known only at run time and calls `rt:memory_copy`.
+fn owner(name: string) -> string:
+    "the account owner is named " + name

@@ -1,0 +1,23 @@
+# @dump: counts
+# @build: release
+# Each message copies a literal piece of 24 to 31 bytes into a new string.
+
+fn mix(total: usize, message: string, name: string) -> usize:
+    let next = (total * 31 + message.len()) % 1000003
+    if message.ends_with(name):
+        next += 1
+    next
+
+pub fn main() -> void:
+    names := ["ada", "grace", "edsger", "barbara", "donald", "frances"]
+    let total: usize = 0
+    let i: usize = 0
+    while i < 5000000:
+        name := names[i % names.len()]
+        # subject
+        total = mix(total, "the account owner is named " + name, name)
+        total = mix(total, "$name has no pending invoices", name)
+        total = mix(total, "access was denied for the user $name", name)
+        i += 1
+    if total != 378395:
+        panic("bad checksum")

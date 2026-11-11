@@ -24,7 +24,7 @@ baseline report (deleted 2026-10-15; `git show 44890c30:audit/compiler/baseline-
 
 ## String and collection cost audit
 
-The one-operation programs for #1208 and #1244 are separate from the five routine
+The one-operation programs for #1208, #1244 and #1696 are separate from the five routine
 microbenchmarks above, so they do not expand the metrics manifest or CI. Run all of them, or
 name a subset:
 

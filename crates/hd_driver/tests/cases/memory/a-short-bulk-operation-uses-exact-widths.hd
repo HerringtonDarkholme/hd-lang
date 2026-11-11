@@ -1,7 +1,9 @@
 # @dump: wat
 # @build: std release
-# Constant copies and fills become exact-width operations; dynamic lengths
-# call one shared helper. Loads precede stores even when ranges overlap.
+# Constant copies and fills up to 16 bytes become exact-width operations,
+# and 17 to 31 bytes the first and last 16 as overlapping `i64` pairs, the
+# dynamic helper's last class; 32 stays `memory.copy`. Dynamic lengths call
+# one shared helper. Loads precede stores even when ranges overlap.
 use std.rt.memory.{copy, fill}
 
 fn copy_eight(to: usize, from: usize) -> void:
@@ -12,6 +14,12 @@ fn fill_four(to: usize) -> void:
 
 fn copy_fifteen(to: usize, from: usize) -> void:
     copy(to, from, 15)
+
+fn copy_twenty_seven(to: usize, from: usize) -> void:
+    copy(to, from, 27)
+
+fn fill_seventeen(to: usize, byte: u8) -> void:
+    fill(to, byte, 17)
 
 fn copy_dynamic(to: usize, from: usize, count: usize) -> void:
     copy(to, from, count)

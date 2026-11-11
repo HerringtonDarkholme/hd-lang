@@ -204,7 +204,7 @@
     ;; 22 |     if xs.len() == 0:
     local.get $xs
   )
-  (func $unexpected (param $at i32) (result i32 i32) (local $t2 i32) (local $t0 i64) (local $t1 i64) (local $t3 i32) (local $t4 i32) (local $t5 i32)
+  (func $unexpected (param $at i32) (result i32 i32) (local $t2 i32) (local $t0 i64) (local $t1 i64) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i64) (local $t9 i64) (local $t10 i64)
     ;; 11 |     "unexpected byte at $at"
     local.get $at
     i64.extend_i32_u
@@ -241,8 +241,29 @@
     block
       local.get $t3
       local.get $t5
-      i32.const 19
-      memory.copy $heap $heap
+      local.set $t6
+      local.tee $t7
+      local.get $t6
+      i64.load $heap align=1
+      local.set $t8
+      local.get $t6
+      i64.load $heap offset=8 align=1
+      local.set $t9
+      local.get $t6
+      i64.load $heap offset=3 align=1
+      local.set $t10
+      local.get $t6
+      i64.load $heap offset=11 align=1
+      i64.store $heap offset=11 align=1
+      local.get $t7
+      local.get $t10
+      i64.store $heap offset=3 align=1
+      local.get $t7
+      local.get $t9
+      i64.store $heap offset=8 align=1
+      local.get $t7
+      local.get $t8
+      i64.store $heap align=1
       br 0
     end
     block

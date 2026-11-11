@@ -190,7 +190,7 @@
     local.get $self
     local.get $t3
   )
-  (func $"impl Display for YamlError.to_string" (param $self i32) (result i32 i32) (local $t2 i32) (local $t0 i64) (local $t1 i64) (local $t3 i32) (local $t4 i32) (local $t5 i32)
+  (func $"impl Display for YamlError.to_string" (param $self i32) (result i32 i32) (local $t2 i32) (local $t0 i64) (local $t1 i64) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i64) (local $t9 i64) (local $t10 i64)
     ;; 15 |         "bad yaml at line ${self.line}"
     local.get $self
     i64.load $heap
@@ -243,8 +243,29 @@
     block
       local.get $t3
       local.get $t5
-      i32.const 17
-      memory.copy $heap $heap
+      local.set $t6
+      local.tee $t7
+      local.get $t6
+      i64.load $heap align=1
+      local.set $t8
+      local.get $t6
+      i64.load $heap offset=8 align=1
+      local.set $t9
+      local.get $t6
+      i64.load $heap offset=1 align=1
+      local.set $t10
+      local.get $t6
+      i64.load $heap offset=9 align=1
+      i64.store $heap offset=9 align=1
+      local.get $t7
+      local.get $t10
+      i64.store $heap offset=1 align=1
+      local.get $t7
+      local.get $t9
+      i64.store $heap offset=8 align=1
+      local.get $t7
+      local.get $t8
+      i64.store $heap align=1
       br 0
     end
     block
