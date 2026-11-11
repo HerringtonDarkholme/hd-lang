@@ -11,6 +11,8 @@ fn forward[$ R](callback: fn() -> i32 $ R) -> i32 $ R:
 fn later![$ R](callback: fn() -> i32 $ R) -> i32 $ R:
     callback()
 > app/main/later
+>   release fn() -> i32 $ {open row} (last use)
+> app/main/later
 >   release fn() -> i32 $ {open row} (cancelled)
 >   release counted reference (last use)
 > app/main/later

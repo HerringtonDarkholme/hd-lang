@@ -1158,6 +1158,9 @@ pub struct Module {
     /// Straight-line element checks, indexed by instance. An owned body
     /// contributes one proof, shared by its sub-bodies and instances.
     pub(crate) element_checks: Vec<Option<std::sync::Arc<hd_tir::own::ElementChecks>>>,
+    /// All count boundaries of an immutable body, shared by its instances
+    /// and sub-bodies rather than rescanned for each parameter or closure.
+    pub(crate) boundary_counts: Vec<Option<crate::emit::BoundaryCell>>,
     /// Each suspending instance's frame payload size.
     pub frames: BTreeMap<Hash128, u32>,
     /// The top-level bindings some reference refers to, by path hash:
@@ -1263,6 +1266,7 @@ impl Module {
             inst_of: hd_base::HashMap::default(),
             loan_stores: Vec::default(),
             element_checks: Vec::default(),
+            boundary_counts: Vec::default(),
             frames: BTreeMap::default(),
             addressed: BTreeMap::default(),
             objects: hd_base::HashSet::default(),

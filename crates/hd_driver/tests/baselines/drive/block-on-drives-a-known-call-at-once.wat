@@ -2,10 +2,10 @@
 (module
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
+  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:poll_check" (func $rt:poll_check (param i32) (result i32)))
   (import "fixture" "rt:cancel_enter" (func $rt:cancel_enter (result i32)))
   (import "fixture" "rt:cancel_check" (func $rt:cancel_check (param i32) (result i32)))
-  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:cancel_leave" (func $rt:cancel_leave (param i32 i32)))
   (import "fixture" "rt:frame" (func $rt:frame (result i32)))
   (import "fixture" "rt:forbid_check" (func $rt:forbid_check))
@@ -59,6 +59,11 @@
     i32.const 65 ;; &"?"
     i32.load8_u $heap
     i32.store8 $heap
+    local.get $key.0
+    if
+      local.get $key.0
+      call $rt:release_ref'1
+    end
     local.get $t2
     local.get $t1
     local.get $frame

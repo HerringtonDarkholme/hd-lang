@@ -53,6 +53,7 @@ mod loan;
 mod map;
 mod promote;
 pub use promote::{lent_referent, promotable_referent, rooted_referent};
+mod parameter_uses;
 mod refs;
 mod scope;
 mod shape;
@@ -60,6 +61,26 @@ mod susp;
 mod switch;
 mod text;
 mod value;
+
+pub(crate) use count::BoundaryCell;
+
+/// Share the immutable count census across every instance/sub-body that
+/// reads the same stable Input body. Pointer identities live only during
+/// this prepass; the module retains facts by stable instance ID.
+pub(crate) fn prepare_boundary_counts(input: &Input<'_>, module: &mut Module) {
+    use std::sync::Arc;
+    let mut grouped = HashMap::default();
+    module.boundary_counts = vec![None; input.collected.table.item.len()];
+    for &id in input.order {
+        let Some(body) = (input.body)(id) else {
+            continue;
+        };
+        let facts = grouped
+            .entry(std::ptr::from_ref(body))
+            .or_insert_with(BoundaryCell::default);
+        module.boundary_counts[id.idx()] = Some(Arc::clone(facts));
+    }
+}
 
 /// Read a fact guaranteed by the named checked/collected producer.
 /// Typed accessors keep the producer proof beside the lookup; sharing this
@@ -162,13 +183,12 @@ fn body_func<'a>(
     // Where each local lives (`Body::storage`).
     let (stored, slots) = closure::stored_locals(input, b, (item, args), sub, &promoted);
     let cells = closure::cell_locals(b, &stored);
-    let inst = (m.inst_of.get(&own.key).copied()).unwrap_or(InstId::from_raw(u32::MAX));
-    let mut em = Em::new(input, m, b, (item, args), targets, cells);
-    em.inst = inst;
+    let inst = m.inst_of.get(&own.key).copied();
+    let mut em = Em::new(input, m, b, (item, args), targets, cells, (sub, inst));
+    em.inst = inst.unwrap_or(InstId::from_raw(u32::MAX));
     em.type_promoted(promoted);
     em.plan_slots(&slots)?;
     em.origin_root = b.anchor(b.sub_root[sub as usize]);
-    em.sub_id = sub;
     if sub == 0 {
         em.lends = own.lends;
     }
@@ -200,6 +220,11 @@ fn body_func<'a>(
             None,
         )
     };
+    em.parameter_positions = plocals
+        .iter()
+        .enumerate()
+        .map(|(k, &local)| (local, k))
+        .collect();
     // Plain functions use `layout::Pass` (§23.25). Cold and fresh
     // suspending entries use the selected cold argument convention.
     let by_type = own.cold.is_some() || !suspending && (sub != 0 || !input.env.suspends(item));
@@ -352,7 +377,14 @@ fn body_func<'a>(
     }
     // Once-cells also need the common exit when their result is uncounted:
     // every return must publish the cached value and end fact evaluation.
-    em.counting = em.counts_anything() || once.is_some() || reentry.is_some();
+    // A frame can own referenced objects even when all parameter values
+    // count nothing (for example Option[&i32]). It still needs its normal
+    // counting exit so completion releases those saved owners.
+    let frame_counts = suspending
+        && plocals.iter().any(|&local| {
+            crate::frame_referent_type(em.pool(), em.env(), em.sub(b.local_ty[local]))
+        });
+    em.counting = em.counts_anything() || frame_counts || once.is_some() || reentry.is_some();
     let mut held: Vec<(usize, Vec<u32>)> = em.locals.iter().map(|(k, v)| (*k, v.clone())).collect();
     held.sort_stable();
     if em.counting {
@@ -390,13 +422,13 @@ fn body_func<'a>(
         Some(ci) if em.counting && !suspending => em.capture_loans(ci),
         _ => hd_base::HashSet::default(),
     };
-    let lent_here = if em.counting && (by_type || unsuspended) {
-        em.instance_loans(&plocals, unsuspended)
+    let transferred = if suspending {
+        em.cold_transferred_locals(&plocals)
     } else {
         hd_base::HashSet::default()
     };
-    let transferred = if suspending {
-        em.cold_transferred_locals(&plocals)
+    let lent_here = if em.counting && (by_type || unsuspended) {
+        em.instance_loans(&plocals, unsuspended, &transferred)
     } else {
         hd_base::HashSet::default()
     };
@@ -404,18 +436,13 @@ fn body_func<'a>(
         for (l, ls) in &held {
             // A parameter still holds its value until it moves into its
             // cell below.
-            if plocals.contains(l) {
+            if let Some(k) = em.parameter_positions.get(l).copied() {
                 let t = em.sub(b.local_ty[*l]);
                 // A lent parameter the passes leave unowned is outside the
                 // exit set: the body takes no count of it, and an instance
                 // that owns it releases it by the stated exit `Release`.
-                let unowned = by_type
-                    && !b
-                        .exit_drops
-                        .iter()
-                        .any(|&(s, x)| u32::from(sub) == s.raw() && x.idx() == *l);
+                let unowned = by_type && !em.owns_at_exit(*l);
                 if by_type {
-                    let k = plocals.iter().position(|p| p == l).expect("parameter");
                     match em.parameter_pass(k, t) {
                         Pass::Borrowed if unowned || lent_here.contains(l) => {
                             em.borrowed.insert(*l);
@@ -461,11 +488,11 @@ fn body_func<'a>(
     // A parameter a closure shares, or a reference refers to, moves into
     // its cell or its frame slot, which takes over its count.
     for (l, ls) in &held {
-        if plocals.contains(l) && em.is_cell(*l) {
+        if em.parameter_positions.contains_key(l) && em.is_cell(*l) {
             em.param_cell(*l, ls)?;
             // Only a store can follow what empties a parameter's cell, and
             // that store finds no cell (`Em::cell_of`).
-            if !(0..b.len()).any(|i| shape::local_store(b, i).is_some_and(|(s, _)| s == *l)) {
+            if !em.whole_local_stored(*l) {
                 em.entry_cells.insert(*l);
             }
         }
@@ -496,9 +523,9 @@ fn body_func<'a>(
                 {
                     continue;
                 }
-                for k in crate::frame_referent_values(em.pool(), em.env(), t) {
-                    let held = em.f.local(Val::I32);
-                    em.frame_refs.push((l, k, held));
+                let plan = crate::frame_referents::for_type(em.pool(), em.env(), t);
+                if !plan.refs.is_empty() {
+                    em.frame_refs.push(FrameRefs::new(l, plan, &mut em.f));
                 }
             }
         }
@@ -1094,10 +1121,54 @@ struct MapProbe {
     entry: u32,
 }
 
+#[derive(Clone)]
+struct FrameRefs {
+    local: usize,
+    plan: crate::frame_referents::Plan,
+    /// One saved pointer per physical reference slot; zero means it was inactive
+    /// when constructed, independent of later parameter-tag mutations.
+    held: Vec<u32>,
+    conditional: Vec<bool>,
+    /// Layout gives simultaneously live fields distinct physical indices;
+    /// logical leaves in disjoint enum arms can share one physical value.
+    /// They share its saved owner slot, keeping frame size proportional to
+    /// the parameter's physical representation, not its variant count.
+    slots: Vec<usize>,
+}
+
+impl FrameRefs {
+    fn new(local: usize, plan: crate::frame_referents::Plan, f: &mut Func) -> Self {
+        let mut index = HashMap::default();
+        let mut held = Vec::new();
+        let mut conditional = Vec::new();
+        let mut slots = Vec::with_capacity(plan.refs.len());
+        for leaf in &plan.refs {
+            let slot = *index.entry(leaf.value).or_insert_with(|| {
+                let slot = held.len();
+                held.push(f.local(Val::I32));
+                conditional.push(false);
+                slot
+            });
+            conditional[slot] |= leaf.guard.is_some();
+            slots.push(slot);
+        }
+        Self {
+            local,
+            plan,
+            held,
+            conditional,
+            slots,
+        }
+    }
+}
+
 struct Em<'i, 'a, 'm> {
     input: &'i Input<'a>,
     m: &'m mut Module,
     b: &'a Body,
+    boundary_counts: BoundaryCell,
+    parameter_positions: HashMap<usize, usize>,
+    argument_loans: std::cell::RefCell<HashMap<u32, hd_base::HashSet<u32>>>,
     recursive_bindings: hd_tir::own::RecursiveBindings,
     /// This final body's instruction types at the instance's arguments.
     inst_ty: Vec<Ty>,
@@ -1200,10 +1271,9 @@ struct Em<'i, 'a, 'm> {
     retained_before_result: hd_base::HashSet<u32>,
     /// The locals such a value moves into, whose release releases it.
     owned_locals: hd_base::HashSet<usize>,
-    /// A suspending body's reference parameters: the local, the value of
-    /// it that is a thin local reference, and the temporary holding the
-    /// page-table count its frame keeps of that reference's object.
-    frame_refs: Vec<(usize, u32, u32)>,
+    /// Page-table owners saved by each reference-holding parameter, with
+    /// a shared predicate plan for conditional enum payloads.
+    frame_refs: Vec<FrameRefs>,
     /// A top-level binding's initializer: its key, for a cell that the
     /// binding's reference keeps for the whole program (a static cell).
     init_key: Option<Hash128>,
@@ -1365,12 +1435,20 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
         (item, args): (DefId, TyList),
         calls: &'i HashMap<u32, Target>,
         shared: HashMap<usize, u32>,
+        (sub, inst): (u16, Option<InstId>),
     ) -> Self {
+        let boundary_counts = inst
+            .and_then(|id| m.boundary_counts.get(id.idx()))
+            .and_then(Clone::clone)
+            .unwrap_or_default();
         let f = m.func("", vec![], vec![]);
         let mut em = Em {
             input,
             m,
             b,
+            boundary_counts,
+            parameter_positions: HashMap::default(),
+            argument_loans: std::cell::RefCell::new(HashMap::default()),
             recursive_bindings: hd_tir::own::RecursiveBindings::new(b),
             inst_ty: hd_mono::instruction_types(input.pool, input.env, item, args, b),
             item,
@@ -1434,7 +1512,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             static_cells: None,
             frame: None,
             drive_buffer: None,
-            sub_id: 0,
+            sub_id: sub,
             consumer: Vec::new(),
             copy_reasons: Vec::new(),
             used: Vec::new(),
@@ -5127,4 +5205,44 @@ fn float_unary(name: &str) -> Option<[I; 2]> {
         "sqrt" => [I::F32Sqrt, I::F64Sqrt],
         _ => return None,
     })
+}
+
+#[cfg(test)]
+mod frame_ref_tests {
+    use super::*;
+    use crate::layout::{Discr, Leaf, Walk};
+
+    #[test]
+    fn disjoint_variants_share_one_saved_owner_per_physical_value() {
+        let discr = Discr {
+            value: 0,
+            leaf: Leaf {
+                offset: 0,
+                val: Val::I32,
+                bytes: 4,
+                signed: false,
+            },
+            enc: Enc::Direct,
+        };
+        let walk = Walk::Switch(Box::new(discr), vec![Some(Walk::Ref(1)); 1_000]);
+        let plan = crate::frame_referents::plan(Some(walk), None);
+        let mut f = Func::default();
+        let saved = FrameRefs::new(0, plan, &mut f);
+        assert_eq!(saved.plan.refs.len(), 1_000);
+        assert_eq!(saved.held.len(), 1);
+        assert_eq!(f.locals, [Val::I32]);
+        assert_eq!(saved.conditional, [true]);
+        assert!(saved.slots.iter().all(|&slot| slot == 0));
+    }
+
+    #[test]
+    fn simultaneous_fields_keep_distinct_owners() {
+        let plan =
+            crate::frame_referents::plan(Some(Walk::Seq(vec![Walk::Ref(0), Walk::Ref(1)])), None);
+        let mut f = Func::default();
+        let saved = FrameRefs::new(0, plan, &mut f);
+        assert_eq!(saved.held.len(), 2);
+        assert_eq!(saved.slots, [0, 1]);
+        assert_eq!(saved.conditional, [false, false]);
+    }
 }

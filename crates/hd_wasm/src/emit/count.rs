@@ -31,13 +31,140 @@ use super::refs::bare_local;
 use super::value::Src;
 use crate::layout::{Pass, Walk, coll_kind, coll_leaves};
 use crate::module::Val;
+use crate::op::Op as I;
 use crate::rt::Helper;
+use wasm_encoder::BlockType;
+
+/// One immutable function-boundary census. Queries retain no Body to
+/// rescan: wide parameter lists must not multiply a full-body search.
+/// O(N + P + C + E log E) once per body for instructions, distinct place
+/// projections, captures and sorted exit rows; queries use indexed facts.
+pub(crate) struct Boundaries {
+    counts: hd_base::HashMap<(u32, Tag, At, Part), Reason>,
+    owned: hd_base::HashSet<(u32, usize)>,
+    exits: hd_base::HashMap<u32, Vec<usize>>,
+    stored: hd_base::HashSet<usize>,
+    captures: hd_base::HashSet<usize>,
+    shared_captures: hd_base::HashSet<usize>,
+    parameter_uses: super::parameter_uses::ParameterUses,
+}
+
+pub(crate) type BoundaryCell = std::sync::Arc<std::sync::OnceLock<Box<Boundaries>>>;
+
+impl Boundaries {
+    pub(super) fn new(body: &hd_tir::ir::Body) -> Self {
+        Self::counted(body, &mut || {})
+    }
+
+    fn counted(body: &hd_tir::ir::Body, visit: &mut impl FnMut()) -> Self {
+        let mut counts = hd_base::HashMap::default();
+        let mut stored = hd_base::HashSet::default();
+        let mut parameter_uses = super::parameter_uses::ParameterUses::default();
+        for (i, &tag) in body.tags.iter().enumerate() {
+            parameter_uses.observe(body, i, visit);
+            if tag == Tag::Store {
+                let place = body.view(body.data[i][0]);
+                // A whole local has no projection steps to inspect.
+                if place.whole()
+                    && let Some(local) = place.local()
+                {
+                    stored.insert(local as usize);
+                }
+            }
+            if let Some(info) = Info::read(body, i) {
+                // Keep find's first-record behavior; owned verification
+                // separately rejects conflicting/repeated declarations.
+                counts
+                    .entry((body.data[i][0], tag, info.at, info.part))
+                    .or_insert_with(|| Reason::from_word(info.reason));
+            }
+        }
+        let mut owned = hd_base::HashSet::default();
+        let mut exits: hd_base::HashMap<u32, Vec<usize>> = hd_base::HashMap::default();
+        for &(sub, local) in &body.exit_drops {
+            visit();
+            owned.insert((sub.raw(), local.idx()));
+            exits.entry(sub.raw()).or_default().push(local.idx());
+        }
+        for locals in exits.values_mut() {
+            locals.sort_stable_by(|a, b| {
+                visit();
+                a.cmp(b)
+            });
+            locals.dedup_by(|a, b| {
+                visit();
+                a == b
+            });
+        }
+        let mut captures = hd_base::HashSet::default();
+        let mut shared_captures = hd_base::HashSet::default();
+        for (i, local) in body.cap_local.iter().enumerate() {
+            visit();
+            captures.insert(local.idx());
+            if body.cap_mode.get(i).is_some_and(|mode| mode.shares()) {
+                shared_captures.insert(local.idx());
+            }
+        }
+        Self {
+            counts,
+            owned,
+            exits,
+            stored,
+            captures,
+            shared_captures,
+            parameter_uses,
+        }
+    }
+
+    fn get(&self, target: u32, tag: Tag, at: At, part: Part) -> Option<Reason> {
+        self.counts.get(&(target, tag, at, part)).copied()
+    }
+}
 
 impl Em<'_, '_, '_> {
+    pub(super) fn boundary_facts(&self) -> &Boundaries {
+        self.boundary_counts
+            .get_or_init(|| Box::new(Boundaries::new(self.b)))
+    }
+
+    pub(super) fn owns_at_exit(&self, local: usize) -> bool {
+        self.boundary_facts()
+            .owned
+            .contains(&(u32::from(self.sub_id), local))
+    }
+
+    pub(super) fn whole_local_stored(&self, local: usize) -> bool {
+        self.boundary_facts().stored.contains(&local)
+    }
+
+    pub(super) fn exit_owners(&self) -> &[usize] {
+        self.boundary_facts()
+            .exits
+            .get(&u32::from(self.sub_id))
+            .map_or(&[], Vec::as_slice)
+    }
+
+    pub(super) fn captured_local(&self, local: usize) -> bool {
+        self.boundary_facts().captures.contains(&local)
+    }
+    /// A conditional saved owner remembers its original presence as a
+    /// nonzero pointer. Do not re-read a parameter's potentially changed tag.
+    pub(super) fn release_frame_referent(&mut self, held: u32, conditional: bool) {
+        if conditional {
+            self.f.get(held);
+            self.f.op(I::If(BlockType::Empty));
+        }
+        self.f.get(held);
+        self.f.helper(Helper::ReleaseRef);
+        if conditional {
+            self.f.op(I::End);
+        }
+    }
+
     /// Reads the shared count descriptor for the current function boundary.
     pub(super) fn stated_count(&self, tag: Tag, at: At, part: Part) -> Option<Reason> {
-        hd_tir::ir::count::find(self.b, tag, self.b.sub_root[self.sub_id as usize], at, part)
-            .map(|c| Reason::from_word(c.reason))
+        self.boundary_facts()
+            .get(self.b.sub_root[self.sub_id as usize], tag, at, part)
     }
 
     /// Reads a statement in the target's adjacent operation-count bundle.
@@ -714,16 +841,17 @@ impl Em<'_, '_, '_> {
             }
         }
         // Saved reference-object slots have their own normal-exit contract.
-        for (l, _, held) in self.frame_refs.clone() {
+        for saved in self.frame_refs.clone() {
             let local = super::required(
-                u32::try_from(l).ok(),
+                u32::try_from(saved.local).ok(),
                 "frame_refs must contain u32 TIR parameter IDs from own::referent",
             );
             // ruled out: own::referent states this saved reference's Exit release.
             let reason = self.required_stated_count(Tag::Release, At::Exit, Part::Referent(local));
             self.because(reason, |em| {
-                em.f.get(held);
-                em.f.helper(Helper::ReleaseRef);
+                for (conditional, held) in saved.conditional.iter().copied().zip(saved.held) {
+                    em.release_frame_referent(held, conditional);
+                }
             });
         }
         let nodes = self
@@ -812,35 +940,30 @@ impl Em<'_, '_, '_> {
     /// unowned is borrowed here already, and its other reads copy as they
     /// say. A read a move takes a part of (`Read move [%r as .v .k]`, as a
     /// `match` binds a payload) keeps its count, which the move takes. The
-    /// reads join [`Em::loans`]. With `framed`, every parameter is taken
-    /// as borrowed: a suspending body with no suspension point runs while
-    /// its frame holds a count of each. A framed parameter lends only when
-    /// every read of it reads all of it.
+    /// reads join [`Em::loans`]. With `framed`, an untransferred parameter
+    /// can borrow the count its frame holds. A framed parameter lends only
+    /// when every read of it reads all of it.
     pub(super) fn instance_loans(
         &mut self,
         plocals: &[usize],
         framed: bool,
+        transferred: &hd_base::HashSet<usize>,
     ) -> hd_base::HashSet<usize> {
-        use hd_tir::ir::place;
         let b = self.b;
         let mut out = hd_base::HashSet::default();
-        // The values a move takes a part of, or all of.
-        let moved: hd_base::HashSet<u32> = (0..b.len())
-            .filter(|&i| {
-                b.tags[i] == Tag::Read && b.data[i][1] == hd_tir::ir::ReadMode::Move as u32
-            })
-            .filter_map(|i| match b.view(b.data[i][0]).root {
-                hd_tir::ir::Root::Value(v) => Some(v),
-                _ => None,
-            })
-            .collect();
+        let shared = std::sync::Arc::clone(&self.boundary_counts);
+        let facts = shared.get_or_init(|| Box::new(Boundaries::new(b)));
+        let uses = &facts.parameter_uses;
         for (k, &l) in plocals.iter().enumerate() {
             let t = self.sub(b.local_ty[l]);
             // A framed parameter (a suspending body's with no suspension
             // point) is held by the frame, as a borrowed one by its caller;
             // one holding a collection is not: the frame holds a copy of
             // it, which the body releases.
-            if framed && !self.copied(t).is_empty() {
+            // An owned transfer follows the body's stated moves/drops.
+            // The same body can run fused with FRAME=0, so there need not
+            // be a frame left to release a borrowed original at completion.
+            if framed && (transferred.contains(&l) || !self.copied(t).is_empty()) {
                 continue;
             }
             if !(framed
@@ -852,46 +975,17 @@ impl Em<'_, '_, '_> {
                 // A closure copying the parameter into its environment
                 // counts its own copy (`Em::closure`), as one moving a lent
                 // parameter in does; a shared one moves it into its cell.
-                || b
-                    .cap_local
-                    .iter()
-                    .zip(&b.cap_mode)
-                    .any(|(c, m)| c.idx() == l && m.shares())
+                || facts.shared_captures.contains(&l)
             {
                 continue;
             }
-            let owned = b
-                .exit_drops
-                .iter()
-                .any(|&(s, x)| s.raw() == u32::from(self.sub_id) && x.idx() == l);
-            let mut fits = true;
+            let owned = facts.owned.contains(&(u32::from(self.sub_id), l));
+            let mut fits = !uses.rejects(l, framed);
             let mut loans = Vec::new();
-            for i in 0..b.len() {
-                let tag = b.tags[i];
-                if !matches!(tag, Tag::Read | Tag::Store | Tag::Ref) {
-                    continue;
-                }
-                let w = b.data[i][0];
-                if w & place::BARE_LOCAL == 0 {
-                    // A framed parameter lends only through whole reads,
-                    // the reads this walk follows.
-                    if (tag != Tag::Read || framed)
-                        && b.local_in_place(w).is_some_and(|x| x.idx() == l)
-                    {
-                        fits = false;
-                    }
-                    continue;
-                }
-                if bare_local(b, w) != l {
-                    continue;
-                }
-                if tag != Tag::Read {
-                    fits = false;
-                    continue;
-                }
+            for &i in uses.reads(l) {
                 let x = u32::try_from(i).expect("insts");
-                let user = self.consumer.get(i).copied().unwrap_or(NONE);
-                if !moved.contains(&x) && (user == NONE || self.borrowed_arg(user, x)) {
+                let consumer = self.consumer.get(i).copied().unwrap_or(NONE);
+                if !uses.moved(x) && (consumer == NONE || self.borrowed_arg(consumer, x)) {
                     loans.push(x);
                 } else {
                     fits = false;
@@ -984,35 +1078,57 @@ impl Em<'_, '_, '_> {
     /// Whether call `c` passes value `r` as an argument its callee borrows
     /// at this instance (`layout::Pass::Borrowed`).
     fn borrowed_arg(&self, c: u32, r: u32) -> bool {
+        if let Some(loans) = self.argument_loans.borrow().get(&c) {
+            return loans.contains(&r);
+        }
+        let loans = self.borrowed_arguments(c);
+        let borrowed = loans.contains(&r);
+        self.argument_loans.borrow_mut().insert(c, loans);
+        borrowed
+    }
+
+    fn borrowed_arguments(&self, c: u32) -> hd_base::HashSet<u32> {
         if self.b.tags.get(c as usize) != Some(&Tag::Call) {
-            return false;
+            return hd_base::HashSet::default();
         }
         let mut args = self.rec(self.b.data[c as usize][1]);
         args.truncate(args.len().saturating_sub(3));
-        if matches!(self.calls.get(&c), Some(hd_mono::Target::Dyn)) {
-            // A dynamic call lends every argument to its slot. The slot
-            // takes any count its concrete target owns, and a blocking
-            // drive keeps the caller live until it returns.
-            return args.iter().filter(|&&a| a == r).count() == 1;
-        }
-        let Some(hd_mono::Target::Call(ct)) = self.calls.get(&c) else {
-            return false;
+        let passes: Vec<bool> = if matches!(self.calls.get(&c), Some(hd_mono::Target::Dyn)) {
+            // A dynamic slot acquires any owner its concrete target needs;
+            // the caller stays live through a blocking drive.
+            vec![true; args.len()]
+        } else {
+            let Some(hd_mono::Target::Call(ct)) = self.calls.get(&c) else {
+                return hd_base::HashSet::default();
+            };
+            if !matches!(ct.kind, hd_mono::TargetKind::Instance) {
+                return hd_base::HashSet::default();
+            }
+            let Some(params) = self.param_tys(ct.key, ct.item, ct.args) else {
+                return hd_base::HashSet::default();
+            };
+            if params.len() != args.len() {
+                return hd_base::HashSet::default();
+            }
+            let lends = self.env().lends(ct.item, ct.args);
+            params
+                .iter()
+                .enumerate()
+                .map(|(k, &t)| matches!(self.pass_at(lends, k, t), crate::layout::Pass::Borrowed))
+                .collect()
         };
-        if !matches!(ct.kind, hd_mono::TargetKind::Instance) {
-            return false;
+        let mut seen = hd_base::HashSet::default();
+        let mut loans = hd_base::HashSet::default();
+        for (argument, borrowed) in args.into_iter().zip(passes) {
+            if !seen.insert(argument) {
+                // Even a third occurrence must stay rejected; inserting only
+                // at the first occurrence makes this equivalent to count==1.
+                loans.remove(&argument);
+            } else if borrowed {
+                loans.insert(argument);
+            }
         }
-        let Some(params) = self.param_tys(ct.key, ct.item, ct.args) else {
-            return false;
-        };
-        if params.len() != args.len() || args.iter().filter(|&&a| a == r).count() != 1 {
-            return false;
-        }
-        let k = args.iter().position(|&a| a == r).expect("argument");
-        let lends = self.env().lends(ct.item, ct.args);
-        matches!(
-            self.pass_at(lends, k, params[k]),
-            crate::layout::Pass::Borrowed
-        )
+        loans
     }
 
     /// In an owned body: whether value `r`, which `user` consumes, moves
@@ -1226,5 +1342,93 @@ impl Em<'_, '_, '_> {
         self.because(Reason::Cancelled, |em| {
             vals.into_iter().try_for_each(|v| em.release_value(v))
         })
+    }
+}
+
+#[cfg(test)]
+mod boundary_tests {
+    use super::*;
+    use hd_base::{DefId, LocalId, NodeIdx, SubId, Symbol};
+    use hd_tir::ir::{BodyKind, TirBuilder, TirSink, local_flags};
+
+    #[test]
+    fn wide_and_deep_boundaries_are_indexed_once_and_queries_have_no_body_to_rescan()
+    -> Result<(), String> {
+        for (width, depth) in [(100, 20), (1_000, 20), (20, 1_000)] {
+            let mut b = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+            let outer = b.open_block();
+            for _ in 0..width {
+                b.local(Ty::I32, Symbol::NONE, local_flags::PARAM, NodeIdx::NONE);
+            }
+            let nested: Vec<_> = (0..depth).map(|_| b.open_block()).collect();
+            let mut statements = Vec::new();
+            for local in 0..width {
+                for (tag, at, reason) in [
+                    (Tag::Retain, At::Cold, 8),
+                    (Tag::Release, At::Exit, 8),
+                    (Tag::Release, At::FrameDrop, 2),
+                ] {
+                    let record = Info::new(at, Part::Referent(local), reason).write(b.body_mut());
+                    statements.push(b.emit(tag, 0, record, Ty::VOID, NodeIdx::NONE));
+                }
+            }
+            for mark in nested.into_iter().rev() {
+                b.close_block(mark, None, Ty::VOID, NodeIdx::NONE);
+            }
+            let root = b.close_block(outer, None, Ty::VOID, NodeIdx::NONE);
+            for statement in statements {
+                b.body_mut().data[statement.0 as usize][0] = root.0;
+            }
+            // Construct already-owned records; tolerate only the checked-IR
+            // phase gate, retaining the builder's structural verification.
+            let mut body = b
+                .finish_tolerating(root, &[], &[22])
+                .map_err(|errors| format!("{errors:?}"))?;
+            body.exit_drops.extend(
+                (0..width)
+                    .rev()
+                    .map(|local| (SubId::from_raw(0), LocalId::from_raw(local))),
+            );
+            let mut scans = 0;
+            let shared = BoundaryCell::default();
+            let mut first_work = None;
+            for local in 0..width {
+                // Model sibling emitters: each owns a cell handle, and
+                // every first query supplies its immutable source body.
+                let sibling = std::sync::Arc::clone(&shared);
+                let counts = sibling
+                    .get_or_init(|| Box::new(Boundaries::counted(&body, &mut || scans += 1)));
+                assert_eq!(
+                    *first_work.get_or_insert(scans),
+                    scans,
+                    "sibling queries share the census"
+                );
+                assert!(counts.owned.contains(&(0, local as usize)));
+                assert_eq!(
+                    counts.get(root.0, Tag::Retain, At::Cold, Part::Referent(local)),
+                    Some(Reason::ByDesign)
+                );
+                assert_eq!(
+                    counts.get(root.0, Tag::Release, At::Exit, Part::Referent(local)),
+                    Some(Reason::ByDesign)
+                );
+                assert_eq!(
+                    counts.get(root.0, Tag::Release, At::FrameDrop, Part::Referent(local)),
+                    Some(Reason::LastUse)
+                );
+                assert_eq!(
+                    counts.get(root.0, Tag::Retain, At::Cold, Part::Local(local)),
+                    None
+                );
+            }
+            let facts = shared.get().ok_or("census initialized")?;
+            assert_eq!(
+                facts.exits.get(&0),
+                Some(&(0..width as usize).collect::<Vec<_>>())
+            );
+            let sorting = width as usize * (width.ilog2() as usize + 1);
+            assert!(scans <= 8 * (body.len() + sorting + width as usize));
+        }
+        Ok(())
     }
 }

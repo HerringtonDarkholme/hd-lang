@@ -2015,6 +2015,11 @@
     i32.const 65 ;; &"!"
     i32.load8_u $heap
     i32.store8 $heap
+    local.get $s.0
+    if
+      local.get $s.0
+      call $rt:release_ref'1
+    end
     local.get $t2
     local.get $t1
     local.get $frame
