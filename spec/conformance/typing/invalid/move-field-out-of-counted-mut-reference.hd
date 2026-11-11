@@ -1,0 +1,13 @@
+# test: a field that is not copied does not move out through a counted `*mut T` reference
+# Spec 13 Moves: ref.move.out-of-place.
+
+struct Photo:
+    width: u32
+
+impl !Copy for Photo
+
+struct Pair:
+    a: Photo
+
+fn mutable(r: *mut Pair) -> Photo:
+    r.a # diagnostic: move-out-of-place

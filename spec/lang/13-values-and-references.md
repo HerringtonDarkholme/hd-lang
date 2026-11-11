@@ -1868,7 +1868,7 @@ fn demo(c: &mut Counter) -> void:
 3. r[ref.move.sites] A read of a whole binding that is not copied moves its value at each site in the table below. No `&mut` type is expected at these sites.
 4. r[ref.move.field] A read of a field of a binding, where the field's type is not copied, moves the field out at each site in the table below. The binding is then partly moved. A site that expects a `&mut` type reborrows the field instead, as for a binding. A field of a field moves the same way.
 5. r[ref.move.pattern] A `match` arm or `let` pattern that binds a value whose type is not copied moves that value out of the matched value. When the matched value is a binding, or a field of one, a bound payload or field moves out as a field does. The binding is then partly moved. A `_` pattern moves nothing, and neither does binding only copied parts. A pattern matched through a reference binds as [Matching Through A Reference](#matching-through-a-reference) states.
-6. r[ref.move.out-of-place] A read of a value that is not copied, from a place behind a `&T` or `&mut T`, is an error at each site in the table below. Such a place is `*r`, or a field reached through `r`, such as `r.target`. A site that expects a `&mut` type reborrows instead. Error: `move-out-of-place`.
+6. r[ref.move.out-of-place] A read of a value that is not copied, from a place behind a `&T`, `&mut T`, `*T` or `*mut T`, is an error at each site in the table below. Such a place is `*r`, or a field reached through `r`, such as `r.target`. A site that expects a `&mut` type reborrows instead. Error: `move-out-of-place`.
 7. r[ref.move.out-of-place.capture] A read of a value that is not copied, from a binding the enclosing closure captures or a field of it, is an error at each site in the table below, since the closure may be called any number of times ([`fn.capture.call.any`](07-functions.md#r-fn.capture.call.any)). Borrowing the binding and calling a `&self` method on it read nothing out. Error: `move-out-of-place`.
 8. r[ref.move.reborrow] An argument whose parameter is declared `&mut T` reborrows the binding for the call and does not move it. A `&mut self` receiver is such an argument.
 9. r[ref.move.reborrow.explicit] `&mut *r` reborrows `r` explicitly. It makes a new `&mut` to the place `r` refers to, and `r` stays usable.
@@ -1993,10 +1993,31 @@ fn field(r: &mut Holder) -> void:
     let u: &mut i32 = r.target  # a reborrow
 ```
 
+```text
+struct Photo:
+    width: u32
+
+impl !Copy for Photo
+
+struct Pair:
+    a: Photo
+
+fn shared(r: *Pair) -> Photo:
+    r.a  # error: move-out-of-place
+
+fn mutable(r: *mut Pair) -> Photo:
+    r.a  # error: move-out-of-place
+
+fn copied(r: *Pair) -> Photo:
+    Photo { width: r.a.width }  # a new value from copied fields
+```
+
 > **Why.** A reference lends a place but does not own the value there.
 > Moving a value that holds a `&mut` out of it would leave two values
 > that write one place. Rust reports the same read as "cannot move out of
 > `*r`" (E0507). Borrow the place with `&*r` or `&mut *r`, or pass `r` on.
+> A counted reference shares its object, so the other references to it
+> still read the field. Rust's `Rc` refuses the same move (E0507).
 
 > **Why.** This is Rust's rule (E0382) for `&mut`. Two copies of one
 > `&mut` would both write the same place, which the exclusivity rules

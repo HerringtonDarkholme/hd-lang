@@ -1,0 +1,41 @@
+# test: a field behind a counted reference is borrowed, or rebuilt from its copied fields, and the object keeps it
+# Spec 13 Moves: ref.move.out-of-place.
+
+struct Photo:
+    width: u32
+
+impl !Copy for Photo
+
+struct Pair:
+    a: Photo
+
+fn copied(r: *Pair) -> Photo:
+    Photo { width: r.a.width }
+
+fn borrowed(r: *Pair) -> u32:
+    let photo = &r.a
+    photo.width
+
+fn replaced(r: *mut Pair, width: u32) -> Photo:
+    let old = Photo { width: r.a.width }
+    r.a = Photo { width: width }
+    old
+
+tests:
+    use std.testing.assert_equal
+
+    it("rebuilds a field from its copied fields"):
+        let r = box(Pair { a: Photo { width: 3 } })
+        let photo = copied(r)
+        assert_equal(photo.width, 3, reason="the copy's width")
+        assert_equal(r.a.width, 3, reason="the object keeps its field")
+
+    it("borrows a field"):
+        let r = box(Pair { a: Photo { width: 4 } })
+        assert_equal(borrowed(r), 4, reason="the borrowed field's width")
+
+    it("replaces a field through a mutable counted reference"):
+        let r = box(Pair { a: Photo { width: 5 } })
+        let old = replaced(r, 6)
+        assert_equal(old.width, 5, reason="the old field's copy")
+        assert_equal(r.a.width, 6, reason="the object holds the new field")

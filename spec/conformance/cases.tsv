@@ -6597,6 +6597,9 @@ runtime/valid/hash-of-usize-byte-oracle.hd	runtime	accept	std/hash.md#r-std-hash
 runtime/valid/an-argument-infers-a-parameter-named-beside-its-projection.hd	runtime	accept	lang/04-type-system.md#r-types.generic.infer.projection
 typing/invalid/an-argument-differs-from-its-parameter-projection.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.generic.infer.projection.check
 typing/invalid/a-later-argument-solves-a-parameter-its-projection-argument-differs-from.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.generic.infer.projection.check
+typing/invalid/move-field-out-of-counted-reference.hd	type	reject:move-out-of-place	lang/13-values-and-references.md#r-ref.move.out-of-place
+typing/invalid/move-field-out-of-counted-mut-reference.hd	type	reject:move-out-of-place	lang/13-values-and-references.md#r-ref.move.out-of-place
+runtime/valid/a-counted-reference-field-is-copied-or-borrowed-not-moved.hd	runtime	accept	lang/13-values-and-references.md#r-ref.move.out-of-place
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

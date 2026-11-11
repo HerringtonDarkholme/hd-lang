@@ -74,10 +74,30 @@ fn root_of(b: &Body, root: PlaceRoot) -> Root {
 /// Where a read that must not move reads from.
 #[derive(Clone, Copy)]
 enum From {
-    /// A place behind a reference, and whether it is `&mut`.
-    Reference(bool),
+    /// A place behind a reference of this kind.
+    Reference(RefKind),
     /// A binding the read's closure captures.
     Capture,
+}
+
+/// The reference a place is behind: `&T`, `&mut T`, or a counted `*T`
+/// or `*mut T`.
+#[derive(Clone, Copy)]
+struct RefKind {
+    mutable: bool,
+    counted: bool,
+}
+
+impl RefKind {
+    /// The reference as written: `&`, `&mut`, `*` or `*mut`.
+    fn spelling(self) -> &'static str {
+        match (self.counted, self.mutable) {
+            (false, false) => "&",
+            (false, true) => "&mut",
+            (true, false) => "*",
+            (true, true) => "*mut",
+        }
+    }
 }
 
 /// Each closure's captures, as (sub-body, local), sorted.
@@ -140,7 +160,7 @@ impl Ck<'_, '_> {
                 let p = b.decode_place(b.data[i][0])?;
                 let root = root_of(b, p.root);
                 let from = match self.behind_ref(b, &p) {
-                    Some(mutable) => From::Reference(mutable),
+                    Some(kind) => From::Reference(kind),
                     None if captured(&captures, topo.sub[i], root, &p) => From::Capture,
                     None => return None,
                 };
@@ -178,8 +198,15 @@ impl Ck<'_, '_> {
             }
             let why = self.why_not_copied(self.b.body().ty[i as usize]);
             let msg = match from {
-                From::Reference(mutable) => {
-                    let r = if mutable { "&mut" } else { "&" };
+                From::Reference(kind) if kind.counted => {
+                    let r = kind.spelling();
+                    let borrow = if kind.mutable { "&mut" } else { "&" };
+                    format!(
+                        "this moves a value out of an object behind a `{r}` reference, which other references to the object still read; {why}. Borrow it with `{borrow}`, or build a copy"
+                    )
+                }
+                From::Reference(kind) => {
+                    let r = kind.spelling();
                     format!(
                         "this moves a value out of a place behind a `{r}` reference, which does not own it; {why}. Borrow it with `{r}`, or pass the reference on"
                     )
@@ -193,10 +220,10 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// Whether place `p` reaches its value through a `&T` or `&mut T`, and
-    /// then whether the first such reference is `&mut`. An element is left
-    /// to the element rules.
-    fn behind_ref(&self, b: &Body, p: &Place) -> Option<bool> {
+    /// The first reference place `p` reaches its value through, if any:
+    /// a `&T`, `&mut T`, `*T` or `*mut T`. An element is left to the
+    /// element rules.
+    fn behind_ref(&self, b: &Body, p: &Place) -> Option<RefKind> {
         self.behind_ref_at(b, p, 0)
     }
 
@@ -212,7 +239,7 @@ impl Ck<'_, '_> {
     /// [`Self::behind_ref`]. A place rooted at a value that reads a place
     /// behind a reference is behind it too: a pattern on `*r` reads its
     /// payload out of that read (`ref.move.pattern`).
-    fn behind_ref_at(&self, b: &Body, p: &Place, depth: u32) -> Option<bool> {
+    fn behind_ref_at(&self, b: &Body, p: &Place, depth: u32) -> Option<RefKind> {
         let pool = self.pool();
         if let PlaceRoot::Value(r) = p.root
             && depth < 16
@@ -221,9 +248,9 @@ impl Ck<'_, '_> {
             && !p.proj.is_empty()
             && self.written_deref(b, r.0 as usize)
             && let Some(inner) = b.decode_place(b.data[r.0 as usize][0])
-            && let Some(mutable) = self.behind_ref_at(b, &inner, depth + 1)
+            && let Some(kind) = self.behind_ref_at(b, &inner, depth + 1)
         {
-            return Some(mutable);
+            return Some(kind);
         }
         let mut t = match p.root {
             PlaceRoot::Local(l) => b.local_ty[l.idx()],
@@ -236,9 +263,9 @@ impl Ck<'_, '_> {
         let mut variant = None;
         for proj in &p.proj {
             match *proj {
-                // The first dereference decides. A counted reference's
-                // object, `*T` or `*mut T`, has no rule here: the spec
-                // names only `&T` and `&mut T`.
+                // The first dereference decides, for a counted reference
+                // as for a plain one: other references to a counted
+                // object still read the field.
                 // ruled out: a dereference of a value that is no
                 // reference; the checker builds `*` only on a value whose
                 // type `ref_of` reads as a reference, since 064bf1dc7
@@ -251,7 +278,7 @@ impl Ck<'_, '_> {
                     else {
                         return None;
                     };
-                    return (!counted).then_some(mutable);
+                    return Some(RefKind { mutable, counted });
                 }
                 Proj::Variant(x) => variant = Some(x),
                 Proj::Field(j) => {
