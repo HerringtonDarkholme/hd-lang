@@ -244,8 +244,9 @@ pub fn inline_calls(b: &mut Body, sites: Vec<Site>) -> Result<Vec<bool>, String>
         }
     }
     let (mut ready, mut by_value_reads) = (Vec::new(), Vec::new());
-    for (s, site) in sites.into_iter().enumerate() {
+    for (s, mut site) in sites.into_iter().enumerate() {
         let (c, by_value) = (site.call, site.by_value);
+        result_views(&mut site.copy, b.ty[c])?;
         if let Some(r) = prepare(b, site, &outer) {
             // A by-value parameter's argument reads its place, at the
             // type the copy's local has.
@@ -420,6 +421,72 @@ fn prepare(b: &Body, site: Site, outer: &[u32]) -> Option<Ready> {
         outer: outer as usize,
         base: 0,
     })
+}
+
+/// A checked function may return a representation-preserving type view:
+/// its root's tail (or an explicit return) still names the original value.
+/// Inlining turns these exits into labelled breaks, which require an
+/// explicitly typed value. Materialize the view before copying, using one
+/// splice for all exits; variance coercions have no runtime representation.
+fn result_views(body: &mut Body, want: Ty) -> Result<(), String> {
+    use crate::ir::{Coercion, Loc, Ref, Topology};
+    use crate::own::splice::{Tables, apply};
+
+    let Some(&root) = body.sub_root.first() else {
+        return Ok(());
+    };
+    // Instance copies have opened opaque results before the caller does.
+    // Use that declared view, rather than inserting a temporary coercion
+    // back to the caller's still-opaque spelling.
+    let want = if body.ty[root as usize] == Ty::NEVER {
+        want
+    } else {
+        body.ty[root as usize]
+    };
+    let mut returns = Vec::new();
+    for i in 0..body.len() {
+        let side = if body.tags[i] == Tag::Return {
+            0
+        } else if i == root as usize {
+            1
+        } else {
+            continue;
+        };
+        let value = body.data[i][usize::from(side)];
+        let ty = if let Some(value) = Ref(value).as_inst() {
+            body.ty[value.0 as usize]
+        } else if value != NONE {
+            body.consts[(value & !Ref::CONST_BIT) as usize].0
+        } else {
+            Ty::VOID
+        };
+        if value != NONE && ty != want && ty != Ty::NEVER {
+            returns.push((u32_of(i), side, value));
+        }
+    }
+    if returns.is_empty() {
+        return Ok(());
+    }
+    let topo = Topology::new(body);
+    let view = push_record(body, &[Coercion::Variance as u32, NONE]);
+    let mut edits = Tables::default();
+    for (inst, side, value) in returns {
+        let (block, pos) = if inst == root {
+            (root, u32_of(body.record(body.data[root as usize][0]).len()))
+        } else {
+            (topo.blk[inst as usize], topo.pos[inst as usize])
+        };
+        let edit = edits.insert(
+            block,
+            pos,
+            Tag::Coerce,
+            [value, view],
+            want,
+            body.syn[inst as usize],
+        );
+        edits.rewrite(inst, Loc::Data(side), edit);
+    }
+    apply(body, &topo, &mut edits)
 }
 
 /// Appends site `r`'s rows to the renumbered caller, numbered as they will
