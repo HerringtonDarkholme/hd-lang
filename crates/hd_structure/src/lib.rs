@@ -33,8 +33,8 @@
 //!   ([`tuple_target`], `annot.tuple.*`). The body is the trait method's
 //!   instance at the tuple, keyed by the tuple type like any instance. A
 //!   tuple uses supplied hidden factories keyed by the exact tuple type,
-//!   shared by every traversal. Their `Handle` bodies cache the handles,
-//!   witnesses and metadata directories just like named derivations.
+//!   shared by every traversal. Their `Handle` bodies cache the handles
+//!   and metadata directories just like named derivations.
 //!
 //! The handles and information values are values of `std.structure`'s
 //! declarations (`lib/std/structure.hd`), built field by field; their
@@ -42,9 +42,8 @@
 //! target. A member's handle `Field[S, F]` is a reference to its
 //! `FieldRecord`, held in a local's cell that a handle body keeps in static
 //! data; `Variant[S]`, `Members[S]` and each `Key[S]` are references to
-//! records held the same way. The witness field, which no std body reads,
-//! holds the member's information as a `dyn Inspectable`. A variant's
-//! shared constructor data is read from the globals that hold it.
+//! records held the same way. A variant's shared constructor data is
+//! read from the globals that hold it.
 //! Declaration documentation comes from the resolver's auxiliary item
 //! docs, outside semantic hashes.
 
@@ -1399,12 +1398,6 @@ impl<'a, 'n> Gen<'a, 'n> {
             let rec = g.b.refs_record(&[d]);
             Ok(g.b.emit(Tag::NewVariant, 1, rec, opt, SYN))
         })?;
-        let inspectable = self.names.pool.intern_ty(&TyData::TraitValue {
-            def: self.names.known.inspectable,
-            args: TyList::EMPTY,
-            bindings: vec![],
-        });
-        let witness = self.erase_value_reference(info, self.b.ty_of(info), inspectable);
         let field = self.names.known.field;
         let record = self.new_data(
             field,
@@ -1414,7 +1407,6 @@ impl<'a, 'n> Gen<'a, 'n> {
                 ("hd_get", get),
                 ("hd_has_default", has_default),
                 ("hd_default", default),
-                ("hd_witness", witness),
             ],
         );
         Ok(self.static_ref(record, self.handle_ty(f)))

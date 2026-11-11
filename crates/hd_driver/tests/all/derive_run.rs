@@ -124,17 +124,10 @@ pub fn main() -> void $ Console:
     );
 }
 
-/// The WAT fixture shows both source calls. Inspect the full module as
-/// well, since the synthesized handle's instructions have no source span.
-#[test]
-fn once_handles_share_static_facts_without_a_copy() -> Result<(), Box<dyn std::error::Error>> {
+/// The synthesized initializer has no source span in the WAT view.
+fn handle_copies(out: &Output, suffix: &str) -> Result<usize, Box<dyn std::error::Error>> {
     use wasmparser::{BinaryReader, Name, NameSectionReader, Operator, Parser, Payload, TypeRef};
 
-    let static_facts = concat!(
-        include_str!("../cases/counts/a-generated-record-shares-its-static-facts-buffer.hd"),
-        "\npub fn main() -> void $ Console:\n    println(inspect_twice())\n",
-    );
-    let out = build_with(&MemoryStore::default(), &[("main.hd", static_facts)]);
     let wasm = out.wasm.as_deref().ok_or("fixture has no Wasm")?;
     let mut imported = 0usize;
     let mut bodies = Vec::new();
@@ -155,7 +148,7 @@ fn once_handles_share_static_facts_without_a_copy() -> Result<(), Box<dyn std::e
                     if let Name::Function(map) = name? {
                         for entry in map {
                             let entry = entry?;
-                            if entry.name.ends_with("Record.structure handle 0 0#0") {
+                            if entry.name.ends_with(suffix) {
                                 handle = Some(entry.index as usize);
                             }
                             if entry.name == "rt:coll_copy" {
@@ -179,7 +172,35 @@ fn once_handles_share_static_facts_without_a_copy() -> Result<(), Box<dyn std::e
             copies += 1;
         }
     }
-    assert_eq!(copies, 0);
-    assert_eq!(run(&out, "static-facts"), "0\n");
+    Ok(copies)
+}
+
+#[test]
+fn once_handles_keep_a_single_facts_owner() -> Result<(), Box<dyn std::error::Error>> {
+    let static_facts = concat!(
+        include_str!("../cases/counts/a-generated-record-shares-its-static-facts-buffer.hd"),
+        "\npub fn main() -> void $ Console:\n    println(inspect_twice())\n",
+    );
+    let heap_facts = include_str!(
+        "../../../../spec/conformance/runtime/valid/cached-facts-own-each-returned-copy.hd"
+    );
+    for (name, source, suffix, expected) in [
+        (
+            "static-facts",
+            static_facts,
+            "Record.structure handle 0 0#0",
+            "0\n",
+        ),
+        (
+            "heap-facts",
+            heap_facts,
+            "Record by Structure.structure handle 0 0#0",
+            "true true\n",
+        ),
+    ] {
+        let out = build_with(&MemoryStore::default(), &[("main.hd", source)]);
+        assert_eq!(handle_copies(&out, suffix)?, 0, "{name}");
+        assert_eq!(run(&out, name), expected);
+    }
     Ok(())
 }

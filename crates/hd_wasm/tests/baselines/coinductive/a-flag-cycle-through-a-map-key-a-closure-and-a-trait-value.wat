@@ -9,7 +9,7 @@
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "impl Fast for Tree.regular#evaluating" (global $"impl Fast for Tree.regular#evaluating" (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 8 funcref))
+  (import "fixture" "table0" (table $table0 7 funcref))
   (func $"impl Fast for Tree.regular" (result i32) (local $seen i32) (local $step i32) (local $bump.1 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32)
     ;; 39 |         let mut seen: Map[Key, i32] = {}
     global.get $"impl Fast for Tree.regular#evaluating"
@@ -42,7 +42,7 @@
       i32.load $heap
       local.set $step
     ;; 42 |         bump := fn(n: i32) -> i32:
-      i32.const 2
+      i32.const 1
       i32.const 4
       i32.const 0
       call $rt:new/class-1
@@ -155,7 +155,7 @@
           i32.const 1
           i32.store $heap
           local.get $step
-          i32.const 468 ;; &vtable[func67]
+          i32.const 368 ;; &vtable[func67]
           local.set $bump.1
           local.set $step
           br 0
