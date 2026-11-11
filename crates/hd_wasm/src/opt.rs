@@ -2156,7 +2156,7 @@ fn schedule_stores(f: &mut Func, arity: &Arity, visit: &mut impl FnMut()) -> boo
 fn effect(i: &Ins, arity: &Arity, symbols: &Symbols) -> Option<(usize, usize)> {
     Some(match i {
         Ins::GlobalGet(_) | Ins::TableSlot(_) | Ins::VTable(_) => (0, 1),
-        #[cfg(feature = "checked-report")]
+        // Weak descriptor constants also exist without count reporting.
         Ins::Descriptor(..) => (0, 1),
         Ins::Anchor(_) => (0, 0),
         Ins::GlobalSet(_) => (1, 0),
@@ -2571,19 +2571,7 @@ fn no_op_controls(f: &Func, arity: &Arity, visit: &mut impl FnMut()) -> Vec<usiz
                 }
                 Ins::DrainGlue(_) => {}
                 other => {
-                    let (pops, pushes) = match other {
-                        // A bulk helper ([`crate::bulk::helper`]) is
-                        // generated only after its last call is lowered.
-                        Ins::Call(id)
-                            if matches!(
-                                &*f.symbols.get(*id),
-                                Sym::Helper(Helper::MemoryCopy { .. } | Helper::MemoryFill(_))
-                            ) =>
-                        {
-                            (3, 0)
-                        }
-                        _ => effect(other, arity, &f.symbols)?,
-                    };
+                    let (pops, pushes) = effect(other, arity, &f.symbols)?;
                     pop(&mut height, top, pops)?;
                     height += pushes;
                 }
@@ -3542,6 +3530,47 @@ mod origin_tests {
     use super::*;
     use crate::module::{HEAP, Val, mem};
     use wasm_encoder::BlockType;
+
+    #[test]
+    fn an_ungenerated_helper_has_enough_shape_to_remove_fallthrough_controls() {
+        let symbols = Symbols::default();
+        let target = symbols.intern(Sym::Helper(Helper::NewFixed { size: 4 }));
+        let descriptor = symbols.intern(Sym::Helper(Helper::WeakNoopDrop));
+        let mut function = Func::default();
+        function.symbols = symbols.clone();
+        function.body = vec![
+            Ins::Op(I::Block(BlockType::Empty)),
+            Ins::Op(I::I32Const(4)),
+            Ins::Descriptor(descriptor, crate::module::DescriptorKey::default()),
+            Ins::Call(target),
+            Ins::Op(I::Drop),
+            Ins::Op(I::Br(0)),
+            Ins::Op(I::End),
+        ];
+        let mut unknown = function.clone();
+        blocks(&mut unknown, &vec![]);
+        assert!(
+            unknown
+                .body
+                .iter()
+                .any(|instruction| matches!(instruction, Ins::Op(I::Br(0))))
+        );
+        let arities = symbols.call_arities(&[]);
+        assert_eq!(arities[target.idx()], Some((2, 1)));
+        assert!(blocks(&mut function, &arities));
+        assert!(
+            function
+                .body
+                .iter()
+                .any(|instruction| matches!(instruction, Ins::Call(id) if *id == target))
+        );
+        assert!(
+            !function
+                .body
+                .iter()
+                .any(|instruction| matches!(instruction, Ins::Op(I::Br(_) | I::Block(_) | I::End)))
+        );
+    }
 
     fn call(symbols: &Symbols, symbol: Sym) -> Ins {
         Ins::Call(symbols.intern(symbol))

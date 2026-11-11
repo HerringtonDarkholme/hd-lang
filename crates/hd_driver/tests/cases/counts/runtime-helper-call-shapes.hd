@@ -1,0 +1,12 @@
+# @dump: wat counts
+# @build: v8 dev
+# expected: allocation and release helper calls keep their stack shapes before their bodies are generated; no fallthrough branch remains in main_like.
+use std.annotation.inline
+
+@inline(.Never)
+fn read(value: &i32) -> i32:
+    *value
+
+fn main_like(value: i32) -> i32:
+    let saved = box(value)
+    read(saved)

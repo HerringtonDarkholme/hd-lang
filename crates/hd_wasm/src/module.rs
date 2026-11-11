@@ -223,6 +223,28 @@ impl Symbols {
     pub fn signature(&self, id: SigId) -> Ref<'_, (Vec<Val>, Vec<Val>)> {
         Ref::map(self.0.borrow(), |data| &data.signatures[id.0 as usize])
     }
+
+    /// Actual emitted signatures take precedence after wide lowering. A
+    /// newly referenced helper still has its declared logical signature.
+    pub(crate) fn call_arities(&self, functions: &[Option<Func>]) -> crate::opt::Arity {
+        self.0
+            .borrow()
+            .names
+            .iter()
+            .enumerate()
+            .map(|(index, symbol)| {
+                functions
+                    .get(index)
+                    .and_then(Option::as_ref)
+                    .map(|function| (function.params.len(), function.results.len()))
+                    .or_else(|| match symbol {
+                        Sym::Helper(helper) => Some(crate::rt::arity(helper)),
+                        Sym::Import(import) => Some((import.params.len(), import.results.len())),
+                        Sym::Inst(_) | Sym::Part(..) => None,
+                    })
+            })
+            .collect()
+    }
 }
 
 /// Membership in a reachability walk, one bit per symbol.
@@ -1930,11 +1952,7 @@ impl Module {
         }
         // Wide lowering can change signatures and add helpers: read the
         // final ones for the stack heights of rule 19.
-        let arity: crate::opt::Arity = self
-            .funcs
-            .iter()
-            .map(|f| f.as_ref().map(|f| (f.params.len(), f.results.len())))
-            .collect();
+        let arity = self.symbols.call_arities(&self.funcs);
         for f in self.funcs.iter_mut().flatten() {
             crate::opt::blocks(f, &arity);
         }
@@ -3265,6 +3283,27 @@ mod checked_descriptor_tests {
 
 #[cfg(test)]
 mod dense_symbol_tests {
+    #[test]
+    fn emitted_wide_signature_wins_over_logical_helper_metadata() {
+        let symbols = super::Symbols::default();
+        let target = symbols.intern(super::Sym::Helper(crate::rt::Helper::DynTrap {
+            params: vec![super::Val::I32; 64],
+            results: vec![super::Val::I32; 65],
+        }));
+        assert_eq!(symbols.call_arities(&[])[target.idx()], Some((64, 65)));
+        let physical = super::Func {
+            params: vec![super::Val::I32; 65],
+            ..super::Func::default()
+        };
+        let functions = vec![Some(physical)];
+        // Wide results add one frame address even when the parameter
+        // count was exactly the threshold; do not lower it a second time.
+        assert_eq!(
+            symbols.call_arities(&functions)[target.idx()],
+            Some((65, 0))
+        );
+    }
+
     use super::*;
 
     fn encoded(reverse_interning: bool) -> Vec<u8> {
