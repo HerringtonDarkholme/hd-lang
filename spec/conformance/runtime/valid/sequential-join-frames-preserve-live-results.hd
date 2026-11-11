@@ -1,0 +1,41 @@
+# test: sequential joins preserve live results and cancel only the active join
+# Spec: std-task.channel.make; req.lowering.frame; req.cancel.sync-cleanup.
+# fixture-runtime-profile: pending-gate
+# expect-empty-stdout: true
+use std.task.{channel, join, race}
+use std.testing.assert_equal
+
+pub trait Gate:
+    fn wait!(self) -> void
+
+fn ready!(value: string) -> string:
+    value
+
+fn pending!() -> string $ Gate:
+    $.use(Gate).wait!()
+    "unreachable"
+
+fn sequential!() -> string:
+    let (a, b) = join!(ready("one"), ready("two"))
+    let (c, d) = join!(ready(a), ready(b))
+    a + c + d
+
+fn partial!() -> string $ Gate:
+    let (a, b) = join!(ready("one"), ready("two"))
+    let (c, d) = join!(ready(a), pending())
+    b + c + d
+
+fn queued!() -> string:
+    let (sender, receiver) = channel::[string](capacity=1)
+    let (a, _) = join!(receiver.recv(), sender.send("one"))
+    let (b, _) = join!(receiver.recv(), sender.send("two"))
+    a.unwrap_or("") + b.unwrap_or("")
+
+pub fn main!() -> void $ Gate:
+    assert_equal(sequential!(), "oneonetwo", reason="a live result survives the second join")
+    assert_equal(queued!(), "onetwo", reason="a live string survives two Pending/resume cycles")
+    assert_equal(
+        race!(partial(), ready("winner")),
+        "winner",
+        reason="cancellation releases the active join and the earlier live result",
+    )

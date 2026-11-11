@@ -6602,6 +6602,7 @@ typing/invalid/a-later-argument-solves-a-parameter-its-projection-argument-diffe
 typing/invalid/move-field-out-of-counted-reference.hd	type	reject:move-out-of-place	lang/13-values-and-references.md#r-ref.move.out-of-place
 typing/invalid/move-field-out-of-counted-mut-reference.hd	type	reject:move-out-of-place	lang/13-values-and-references.md#r-ref.move.out-of-place
 runtime/valid/a-counted-reference-field-is-copied-or-borrowed-not-moved.hd	runtime	accept	lang/13-values-and-references.md#r-ref.move.out-of-place
+runtime/valid/sequential-join-frames-preserve-live-results.hd	runtime	accept	std/task.md#r-std-task.channel.make
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

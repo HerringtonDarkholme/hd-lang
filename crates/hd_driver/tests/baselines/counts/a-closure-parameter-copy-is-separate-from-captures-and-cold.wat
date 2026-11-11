@@ -64,7 +64,7 @@
     local.get $value.0
     local.get $value.1
   )
-  (func $cold_capture#1'1 (param $frame i32) (param $env i32) (param $value.0 i32) (param $value.1 i32) (param $ctx i32) (result i32 i32 i32 i32 i32) (local $t1 i32) (local $captured.0 i32) (local $captured.1 i32) (local $t0 i32)
+  (func $cold_capture#1'1 (param $frame i32) (param $env i32) (param $value.0 i32) (param $value.1 i32) (param $ctx i32) (result i32 i32 i32 i32 i32) (local $captured.0 i32) (local $captured.1 i32) (local $t0 i32)
     ;; 9 |     fn!(value: string) -> (string, string): (captured, value)
     local.get $frame
     if
@@ -100,12 +100,9 @@
       local.set $value.1
       local.get $frame
       i32.load $heap offset=40
-      local.set $t1
-      local.get $frame
-      i32.load $heap offset=44
       local.set $captured.0
       local.get $frame
-      i32.load $heap offset=48
+      i32.load $heap offset=44
       local.set $captured.1
     else
       local.get $captured.0
@@ -127,18 +124,7 @@
       i32.or
       i32.store $heap offset=12
     end
-    local.get $t1
-    if (result i32)
-      local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
-      i32.const -17
-      i32.and
-      i32.store $heap offset=12
-      local.get $frame
-    else
-      i32.const 0
-    end
+    i32.const 0
     local.get $frame
     if
       local.get $frame
@@ -268,7 +254,7 @@
     i32.eqz
     if
       local.get $t0
-      i32.load $heap offset=44
+      i32.load $heap offset=40
       local.tee $t1
       if
         local.get $t1
@@ -323,10 +309,10 @@
     end
     local.get $t0
     local.get $t2
-    i32.store $heap offset=44
+    i32.store $heap offset=40
     local.get $t0
     local.get $t1
-    i32.store $heap offset=48
+    i32.store $heap offset=44
     local.get $t0
   )
 )
