@@ -248,15 +248,17 @@ fn rewrite(b: &Body, cx: &dyn OwnCx, topo: &Topology, f: &Facts, s: usize) -> Op
 }
 
 /// A record for place `word` with one more field step.
-fn field_place(b: &mut Body, word: u32, field: u32) -> u32 {
-    let words: Vec<u32> = if word & place::BARE_LOCAL != 0 {
-        vec![place::ROOT_LOCAL, word & !place::BARE_LOCAL]
-    } else {
-        b.record(word).to_vec()
-    };
+pub(super) fn field_place(b: &mut Body, word: u32, field: u32) -> u32 {
     let at = u32_of(b.extra.len());
-    b.extra.push(u32_of(words.len() + 1));
-    b.extra.extend(words);
+    if word & place::BARE_LOCAL != 0 {
+        b.extra
+            .extend([3, place::ROOT_LOCAL, word & !place::BARE_LOCAL]);
+    } else {
+        let start = word as usize + 1;
+        let len = b.extra[word as usize] as usize;
+        b.extra.push(u32_of(len + 1));
+        b.extra.extend_from_within(start..start + len);
+    }
     b.extra.push(place::PROJ_FIELD | field);
     at
 }

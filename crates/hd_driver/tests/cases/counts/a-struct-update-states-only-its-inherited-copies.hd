@@ -1,6 +1,7 @@
 # @dump: own counts wat
 # @build: v8 release
-# expected: an inherited counted field has a base-copy packet; replaced fields and scalar-only inherited fields have none, including generic instances.
+# expected: dead inherited fields move, including generic instances;
+# only replaced fields need destruction, and scalar fields need no count.
 struct Record[T]:
     kept: T
     name: string

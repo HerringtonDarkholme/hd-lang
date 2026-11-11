@@ -38,10 +38,7 @@ fn used_after(items: &mut List[Item], i: usize) -> usize:
 > app/main/used_after
 >   copy app.main.Item [batches, depots] (stored)
 >   unique List[app.main.Item] (may be shared)
->   release app.main.Item [batches, depots] (last use)
     items[i] = Item { ...previous, r: 1 }
->   copy List[i64] (stored)
->   copy Map[string, i64] (stored)
 >   release app.main.Item [batches, depots] (overwritten)
     previous.r
 
@@ -55,10 +52,8 @@ fn grow(items: &mut List[Item], i: usize) -> usize:
 fn call_between(items: &mut List[Item], i: usize) -> void:
     items[i] = Item { ...items[i], r: grow(items, i) }
 > app/main/call_between
->   copy app.main.Item [batches, depots] (second owner)
 >   copy List[i64] (stored)
 >   copy Map[string, i64] (stored)
->   release app.main.Item [batches, depots] (last use)
 >   unique List[app.main.Item] (may be shared)
 >   release app.main.Item [batches, depots] (overwritten)
 
