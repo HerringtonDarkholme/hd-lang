@@ -574,8 +574,7 @@ pub enum PlaceRoot {
 pub enum Proj {
     /// A struct field or tuple element, by declaration index: `.k`.
     Field(u32),
-    /// The place a reference value refers to, or the payload of a
-    /// compiler-supplied data object: `*`.
+    /// The place a reference value refers to: `*`.
     Deref,
     /// A slot of a list's buffer at an index value, bounds-checked: `[%n]`.
     /// In stages 1 and 2 the projected value is the list header.
@@ -757,8 +756,7 @@ impl std::str::FromStr for Place {
 pub enum Step {
     /// `[%v .k]`: field or element `k` of the value.
     Field(u32),
-    /// `[*%v .k]`: field `k` of what the value names: a data object's
-    /// payload, or a reference's referent.
+    /// `[*%v .k]`: field `k` of a reference's referent.
     DerefField(u32),
     /// `[%v as .V .k]`: field `k` of variant `V`'s payload.
     Variant(u32, u32),
@@ -1348,8 +1346,8 @@ impl Body {
     /// The value projection read `i` projects from and its one step: a
     /// `Read` of a value root followed by one field, a dereference and one
     /// field, or a variant and one of its fields. These are the reads of a
-    /// struct field or tuple element (`[%v .k]`), of a data object's field
-    /// or a referent's (`[*%v .k]`), and of a payload (`[%v as .V .k]`).
+    /// struct field or tuple element (`[%v .k]`), of a referent's field
+    /// (`[*%v .k]`), and of a payload (`[%v as .V .k]`).
     /// It decodes the record in place. `None` for any other instruction or
     /// place.
     #[must_use]
