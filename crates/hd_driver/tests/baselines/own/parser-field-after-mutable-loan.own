@@ -43,7 +43,7 @@ impl Parser:
 >   %20 = And %16 %19 : bool
 >   %21 = Block %20 : bool
 >   %22 = Or %14 %21 : bool
->   %23 = Break L2 %22 : never
+>   %23 = Break L1 %22 : never
 >   %24 = Block - : never
 >   %25 = If %12 [%24 -] : ()
 >   %26 = Read copy [$2] : i32
@@ -58,7 +58,7 @@ impl Parser:
 >   %35 = Prim Eq [%34 5760:i32] : bool
 >   %36 = Block %35 : bool
 >   %37 = Or %33 %36 : bool
->   %38 = Break L2 %37 : never
+>   %38 = Break L1 %37 : never
 >   %39 = Block - : never
 >   %40 = If %27 [%39 -] : ()
 >   %41 = Read copy [$2] : i32
@@ -83,10 +83,10 @@ impl Parser:
 >   %60 = Prim Eq [%59 12288:i32] : bool
 >   %61 = Block %60 : bool
 >   %62 = Or %58 %61 : bool
->   %63 = Break L2 %62 : never
+>   %63 = Break L1 %62 : never
 >   %64 = Block - : bool
 >   %65 = Scope %64 [] : bool
->   %66 = Break L1 %65 : never
+>   %66 = Break L2 %65 : never
 >   %67 = Block - : bool
 >   %68 = Scope %67 [] : bool
 >   %69 = Block %68 : bool

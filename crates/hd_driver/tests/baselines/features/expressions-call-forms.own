@@ -43,104 +43,50 @@ fn count(values...: List[string]) -> usize:
 fn named(a: string, b: string) -> usize:
 > app/main/named
 >   local $0 a: string [param read] value
->     uses $0: entry -> %2 consume last
+>     uses $0: entry -> %2 lend last
 >   local $1 b: string [param read] value
->     uses $1: entry -> %3 consume last
->   local $2 first: string [read captured] place
->   local $3 second: string [read captured] place
->   %0 = Retain %19 Entry local $0 #0 : ()
->   %1 = Retain %19 Entry local $1 #0 : ()
+>     uses $1: entry -> %3 lend last
+>   %0 = Release %7 Exit local $0 #2 : ()
+>   %1 = Release %7 Exit local $1 #2 : ()
     join2(second=a, first=b)
->   %2 = Read move [$0] : string
->   %3 = Read move [$1] : string
->   %4 = Store [$2] %3 : ()
->   %5 = Store [$3] %2 : ()
->   %6 = Ref local frame [$2] : &string
->   %7 = Call std/text/impl string.len[] (%6) : usize
->   %8 = LoanEnd [%6] : ()
->   %9 = Prim Mul [%7 3:usize] : usize
->   %10 = Ref local frame [$3] : &string
->   %11 = Call std/text/impl string.len[] (%10) : usize
->   %12 = LoanEnd [%10] : ()
->   %13 = Prim Add [%9 %11] : usize
->   %14 = Break L0 %13 : never
->   %15 = Block - : usize
->   %16 = Scope %15 [] : usize
->   %17 = Drop [$3] : ()
->   %18 = Drop [$2] : ()
->   %19 = Block %16 : usize
->   %6 finds [$2] full
->   %10 finds [$3] full
->   exit sub 0 drops [$0 $1]
->   storage sub 0: $2 slot, $3 slot
->   summary kept [$0 $1]
+>   %2 = Read borrow [$0] : string
+>   %3 = Read borrow [$1] : string
+>   %4 = Call app/main/join2[] (%3, %2) : usize
+>   %5 = Retain %4 Operation operand 0 #0 : ()
+>   %6 = Retain %4 Operation operand 1 #0 : ()
+>   %7 = Block %4 : usize
+>   summary kept [] borrows [$0 $1]
 
 fn positional(a: string, b: string) -> usize:
 > app/main/positional
 >   local $0 a: string [param read] value
->     uses $0: entry -> %3 consume last
+>     uses $0: entry -> %3 lend last
 >   local $1 b: string [param read] value
->     uses $1: entry -> %2 consume last
->   local $2 first: string [read captured] place
->   local $3 second: string [read captured] place
->   %0 = Retain %19 Entry local $0 #0 : ()
->   %1 = Retain %19 Entry local $1 #0 : ()
+>     uses $1: entry -> %2 lend last
+>   %0 = Release %7 Exit local $0 #2 : ()
+>   %1 = Release %7 Exit local $1 #2 : ()
     join2(b, a)
->   %2 = Read move [$1] : string
->   %3 = Read move [$0] : string
->   %4 = Store [$2] %2 : ()
->   %5 = Store [$3] %3 : ()
->   %6 = Ref local frame [$2] : &string
->   %7 = Call std/text/impl string.len[] (%6) : usize
->   %8 = LoanEnd [%6] : ()
->   %9 = Prim Mul [%7 3:usize] : usize
->   %10 = Ref local frame [$3] : &string
->   %11 = Call std/text/impl string.len[] (%10) : usize
->   %12 = LoanEnd [%10] : ()
->   %13 = Prim Add [%9 %11] : usize
->   %14 = Break L0 %13 : never
->   %15 = Block - : usize
->   %16 = Scope %15 [] : usize
->   %17 = Drop [$3] : ()
->   %18 = Drop [$2] : ()
->   %19 = Block %16 : usize
->   %6 finds [$2] full
->   %10 finds [$3] full
->   exit sub 0 drops [$0 $1]
->   storage sub 0: $2 slot, $3 slot
->   summary kept [$0 $1]
+>   %2 = Read borrow [$1] : string
+>   %3 = Read borrow [$0] : string
+>   %4 = Call app/main/join2[] (%2, %3) : usize
+>   %5 = Retain %4 Operation operand 0 #0 : ()
+>   %6 = Retain %4 Operation operand 1 #0 : ()
+>   %7 = Block %4 : usize
+>   summary kept [] borrows [$0 $1]
 
 fn spread_tuple(pair: (string, string)) -> usize:
 > app/main/spread_tuple
 >   local $0 pair: (string, string) [param read] value
->     uses $0: entry -> %1 consume, %2 consume last
->   local $1 first: string [read captured] place
->   local $2 second: string [read captured] place
->   %0 = Retain %18 Entry local $0 #0 : ()
+>     uses $0: entry -> %1 lend, %2 lend last
+>   %0 = Release %6 Exit local $0 #2 : ()
     join2(pair...)
->   %1 = Read move [$0 .0] : string
->   %2 = Read move [$0 .1] : string
->   %3 = Store [$1] %1 : ()
->   %4 = Store [$2] %2 : ()
->   %5 = Ref local frame [$1] : &string
->   %6 = Call std/text/impl string.len[] (%5) : usize
->   %7 = LoanEnd [%5] : ()
->   %8 = Prim Mul [%6 3:usize] : usize
->   %9 = Ref local frame [$2] : &string
->   %10 = Call std/text/impl string.len[] (%9) : usize
->   %11 = LoanEnd [%9] : ()
->   %12 = Prim Add [%8 %10] : usize
->   %13 = Break L0 %12 : never
->   %14 = Block - : usize
->   %15 = Scope %14 [] : usize
->   %16 = Drop [$2] : ()
->   %17 = Drop [$1] : ()
->   %18 = Block %15 : usize
->   %5 finds [$1] full
->   %9 finds [$2] full
->   exit sub 0 drops [$0]
->   storage sub 0: $1 slot, $2 slot
->   summary kept [$0]
+>   %1 = Read borrow [$0 .0] : string
+>   %2 = Read borrow [$0 .1] : string
+>   %3 = Call app/main/join2[] (%1, %2) : usize
+>   %4 = Retain %3 Operation operand 0 #0 : ()
+>   %5 = Retain %3 Operation operand 1 #0 : ()
+>   %6 = Block %3 : usize
+>   summary kept [] borrows [$0]
 
 fn spread_list(xs: List[string]) -> usize:
 > app/main/spread_list

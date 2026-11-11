@@ -263,7 +263,18 @@
       local.get $t2
       local.tee $o
     ;; 49 |     field(&mut o)
-      call $field
+      local.set $t1
+      block
+        block
+          local.get $t1
+          local.get $t1
+          i32.load $heap offset=8
+          i32.const 1
+          i32.add
+          i32.store $heap offset=8
+          br 0
+        end
+      end
     ;; 44 |     let mut items = [Item { batches: [0], depots: { "a": 1 }, r: 0 }]
       local.get $items
       local.get $items

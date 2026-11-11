@@ -127,10 +127,7 @@ fn use_pup(p: Pup) -> usize:
 >   local $0 p: Pup [param read captured] place
 >   local $1 $ref: &Pup [read assigned captured] value
 >     uses $1: %2 -> %3 lend last
->   local $2 d: Pup [read captured] place
->   local $3 $ref: string [read assigned captured captured-assigned] place
->   local $4 $ref: string [read assigned captured captured-assigned] place
->   %0 = Retain %36 Entry local $0 #0 : ()
+>   %0 = Retain %15 Entry local $0 #0 : ()
 >   %12 = Release %11 Operation local $0 #2 : ()
     widen(&p) + loud(p)
 >   %1 = Ref local frame [$0] : &Pup
@@ -144,34 +141,9 @@ fn use_pup(p: Pup) -> usize:
 >   %9 = Call app/main/widen[] (%8) : usize
 >   %10 = Drop [%8] : ()
 >   %11 = Read move [$0] : Pup
->   %13 = Store [$2] %11 : ()
->   %14 = Ref local frame [$2] : &Pup
->   %15 = Call app/main/Animal.name for Pup [] via Impl (%14) : string
->   %16 = LoanEnd [%14] : ()
->   %17 = Store [$3] %15 : ()
->   %18 = Ref local frame [$3] : &string
->   %19 = Call std/text/impl string.len[] (%18) : usize
->   %20 = LoanEnd [%18] : ()
->   %21 = Drop [$3] : ()
->   %22 = Ref local frame [$2] : &Pup
->   %23 = Call app/main/Dog.bark for Pup [] via Impl (%22) : string
->   %24 = LoanEnd [%22] : ()
->   %25 = Store [$4] %23 : ()
->   %26 = Ref local frame [$4] : &string
->   %27 = Call std/text/impl string.len[] (%26) : usize
->   %28 = LoanEnd [%26] : ()
->   %29 = Drop [$4] : ()
->   %30 = Prim Add [%19 %27] : usize
->   %31 = Break L0 %30 : never
->   %32 = Block - : usize
->   %33 = Scope %32 [] : usize
->   %34 = Drop [$2] : ()
->   %35 = Prim Add [%9 %33] : usize
->   %36 = Block %35 : usize
->   %14 finds [$2] full
->   %18 finds [$3] full
->   %22 finds [$2] full
->   %26 finds [$4] full
+>   %13 = Call app/main/loud[Pup] (%11) : usize
+>   %14 = Prim Add [%9 %13] : usize
+>   %15 = Block %14 : usize
 >   exit sub 0 drops [$0]
->   storage sub 0: $0 slot, $2 slot, $3 slot, $4 slot
+>   storage sub 0: $0 slot
 >   summary kept [$0] writes

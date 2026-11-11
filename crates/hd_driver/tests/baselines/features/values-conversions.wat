@@ -55,7 +55,18 @@
       local.get $t1
       local.tee $s.0
     ;; 27 |     nudge(&mut origin)
-      call $nudge
+      local.set $s.1
+      block
+        block
+          local.get $s.1
+          local.get $s.1
+          i32.load $heap offset=8
+          i32.const 1
+          i32.add
+          i32.store $heap offset=8
+          br 0
+        end
+      end
     ;; 28 |     let r: &mut Point = &mut origin
       local.get $s.0
     ;; 29 |     bump(r)

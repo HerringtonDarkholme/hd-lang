@@ -28,7 +28,7 @@
       end
       local.get $s.0
       local.set $s.1
-      i32.const 160 ;; &vtable[func63]
+      i32.const 160 ;; &vtable[func62]
       local.set $t0
       block
     ;; 37 |         tag := $.use(Tag)
@@ -189,7 +189,7 @@
       end
       local.get $s.0
       local.set $s.1
-      i32.const 160 ;; &vtable[func63]
+      i32.const 160 ;; &vtable[func62]
       local.set $t0
       block
     ;; 24 |         read_tag()
@@ -237,7 +237,7 @@
       end
       local.get $a.0
       local.set $a.1
-      i32.const 160 ;; &vtable[func63]
+      i32.const 160 ;; &vtable[func62]
       local.set $t0
       block
     ;; 28 |         outer := read_tag()
@@ -264,7 +264,7 @@
         end
         local.get $b.0
         local.set $b.1
-        i32.const 160 ;; &vtable[func63]
+        i32.const 160 ;; &vtable[func62]
         local.set $t0
         block
     ;; 30 |             outer + read_tag()

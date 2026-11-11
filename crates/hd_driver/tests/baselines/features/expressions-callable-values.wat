@@ -89,10 +89,22 @@
         local.get $t2
         call $rt:release_ref
       end
-      local.get $c
-      local.get $t4
-      local.get $t3
-      call $"impl Update[string] for Cell.update"
+      block
+        block
+          local.get $c
+          i32.load $heap
+          local.get $c
+          i32.load $heap offset=4
+          local.get $c
+          local.get $t4
+          i32.store $heap
+          local.get $c
+          local.get $t3
+          i32.store $heap offset=4
+          call $rt:release
+          br 0
+        end
+      end
     end
   )
   (func $"impl Apply for Cell.apply" (param $self.value.0 i32) (param $self.value.1 i32) (result i32 i32)
@@ -105,10 +117,22 @@
   (func $store_cell (param $c i32) (param $s.0 i32) (param $s.1 i32)
     ;; 28 |     c() = s
     block
-      local.get $c
-      local.get $s.0
-      local.get $s.1
-      call $"impl Update[string] for Cell.update"
+      block
+        block
+          local.get $c
+          i32.load $heap
+          local.get $c
+          i32.load $heap offset=4
+          local.get $c
+          local.get $s.0
+          i32.store $heap
+          local.get $c
+          local.get $s.1
+          i32.store $heap offset=4
+          call $rt:release
+          br 0
+        end
+      end
     end
   )
   (func $stored_fn (param $h.callback.0 i32) (param $h.callback.1 i32) (param $s.0 i32) (param $s.1 i32) (result i32)

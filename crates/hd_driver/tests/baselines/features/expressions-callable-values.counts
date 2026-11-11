@@ -31,12 +31,15 @@ fn read_cell(c: Cell) -> usize:
 
 fn store_cell(c: &mut Cell, s: string) -> void:
     c() = s
+> app/main/store_cell
+>   release counted reference (overwritten)
 
 fn append_cell(c: &mut Cell) -> void:
     c() += "!"
 > app/main/append_cell
 >   retain string (stored)
 >   release string (last use)
+>   release counted reference (overwritten)
 
 fn stored_fn(h: Handler, s: string) -> usize:
     (h.callback)(s)

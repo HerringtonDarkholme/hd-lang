@@ -20,8 +20,6 @@ impl Animal for Pup:
         self.name
 > app/main/impl Animal for Pup.name
 >   retain string (stored)
-> app/main/impl Animal for Pup.name
->   retain string (stored)
 
 impl Dog for Pup:
     fn bark(&self) -> string:
@@ -41,12 +39,11 @@ fn widen(d: &dyn Dog) -> usize:
 
 fn loud[T < Dog](d: T) -> usize:
     d.name().len() + d.bark().len()
+> app/main/loud
+>   release string (last use)
 
 fn use_pup(p: Pup) -> usize:
     widen(&p) + loud(p)
 > app/main/use_pup
 >   retain app.main.Dog (stored)
 >   release &app.main.Dog (by design)
->   release string (last use)
->   release string (last use)
->   release app.main.Pup [name.0] (last use)

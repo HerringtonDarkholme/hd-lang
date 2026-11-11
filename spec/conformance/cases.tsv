@@ -6578,6 +6578,10 @@ typing/invalid/a-union-member-in-a-signature-meets-its-bounds.hd	type	reject:uns
 typing/invalid/a-struct-holding-itself-through-a-union-is-recursive.hd	type	reject:recursive-value-type	lang/08-data-and-enums.md#r-data.struct.contains
 typing/invalid/an-opaque-result-bound-argument-meets-its-bounds.hd	type	reject:unsatisfied-trait-bound	lang/09-traits.md#r-trait.bound.unsatisfied
 runtime/valid/an-interpolated-open-literal-writes-at-its-settled-width.hd	runtime	accept	lang/04-type-system.md#r-types.literal.local.class.open
+runtime/valid/inlined-scalar-writer-mutates-its-local-receiver.hd	runtime	accept	std/hash.md#r-std-hash.bytes.integer
+runtime/panic/inlined-scalar-writer-keeps-pointer-loan-during-arguments-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.conflict
+runtime/panic/inlined-scalar-writer-keeps-shared-loan-during-arguments-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.conflict
+runtime/valid/hash-of-scattered-usize-keys.hd	runtime	accept	std/hash.md#r-std-hash.hash-of-local
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases

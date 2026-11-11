@@ -39,7 +39,7 @@
           br 0
         end
       end
-      i32.const 204 ;; &vtable[func69]
+      i32.const 204 ;; &vtable[func68]
       local.set $s.1
       block
     ;; 25 |         callback()
@@ -158,7 +158,7 @@
           br 0
         end
       end
-      i32.const 204 ;; &vtable[func69]
+      i32.const 204 ;; &vtable[func68]
       local.set $s.1
       block
     ;; 25 |         callback()

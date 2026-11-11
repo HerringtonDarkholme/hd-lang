@@ -85,7 +85,7 @@
       local.get $s.0
       i32.store $heap offset=24
       local.get $s.1
-      i32.const 204 ;; &vtable[func64]
+      i32.const 204 ;; &vtable[func63]
       i32.store $heap offset=28
       local.get $s.1
       local.set $s.0

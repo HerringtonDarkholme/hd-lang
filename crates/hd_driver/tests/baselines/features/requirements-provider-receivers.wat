@@ -41,7 +41,7 @@
       end
       local.get $t0
       local.set $t1
-      i32.const 292 ;; &vtable[func69]
+      i32.const 292 ;; &vtable[func68]
       local.set $t2
       block
     ;; 32 |         count(n)

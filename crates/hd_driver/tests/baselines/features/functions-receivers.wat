@@ -95,8 +95,20 @@
       local.get $t1
       local.tee $s.0
     ;; 41 |     p.shift(2)
+      local.set $s.1
       i64.const 2
-      call $"impl Vec2.shift"
+      local.set $t2
+      block
+        block
+          local.get $s.1
+          local.get $s.1
+          i64.load $heap offset=8
+          local.get $t2
+          i64.add
+          i64.store $heap offset=8
+          br 0
+        end
+      end
     ;; 42 |     p.x
       local.get $s.0
       i64.load $heap offset=8
