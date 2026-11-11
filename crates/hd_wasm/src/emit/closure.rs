@@ -123,6 +123,31 @@ pub(super) fn stored_locals(
     (cells, slots)
 }
 
+/// Keeps the `slots` of a suspending root (`storage::awaited_slots`)
+/// that only awaits of a known body take a reference to: that body keeps
+/// the reference uncounted in its own frame, which ends before the
+/// caller's. An await of a trait value's method builds a cold frame that
+/// counts the reference, which would count the caller's own frame, so its
+/// locals keep their cells. One scan of the body.
+pub(super) fn keep_awaited_slots(b: &Body, targets: &HashMap<u32, Target>, slots: &mut Vec<usize>) {
+    if slots.is_empty() {
+        return;
+    }
+    let mut ops = Vec::new();
+    for (at, _) in (0u32..).zip(&b.tags).filter(|(_, t)| **t == Tag::Await) {
+        if matches!(targets.get(&at), Some(Target::Call(t)) if t.kind == hd_mono::TargetKind::Instance)
+        {
+            continue;
+        }
+        hd_tir::own::operands(b, at as usize, &mut ops);
+        for op in &ops {
+            if let Some(l) = super::shape::ref_local(b, op.value as usize) {
+                slots.retain(|&s| s != l);
+            }
+        }
+    }
+}
+
 /// The defining `Closure` of sub-body `sub`, not an instantiation of a
 /// generic local function, at type arguments `args`: the instruction,
 /// whether its function suspends, and its result type. A sub-body past
@@ -295,18 +320,24 @@ impl Em<'_, '_, '_> {
     /// frame on the local stack (§23.38): a zero count word, as a static
     /// object's, then the value in its cell's layout, so a count update
     /// through the slot's address does nothing.
-    pub(super) fn plan_slots(&mut self, slots: &[usize]) -> StageResult<()> {
+    /// With `framed`, the slots are a suspending root's, in its frame
+    /// object from `F_SAVED` on, before its save area (#1707).
+    pub(super) fn plan_slots(&mut self, slots: &[usize], framed: bool) -> StageResult<()> {
         let mut ls = slots.to_vec();
         if ls.is_empty() {
             return Ok(());
         }
         ls.sort_stable();
-        let mut size = 0;
+        let mut size = if framed { crate::task::F_SAVED } else { 0 };
         for l in ls {
             let (m, _) = self.cell_mem(l)?;
             let at = size + crate::module::HEADER;
             size = (at + m.size).next_multiple_of(8);
             self.slots.insert(l, at);
+        }
+        if framed {
+            self.susp_slots = size;
+            return Ok(());
         }
         // The frame's local is made at its first use, after the
         // parameters' ([`Em::frame_base`]).
@@ -316,6 +347,10 @@ impl Em<'_, '_, '_> {
 
     /// The local holding the address of the function's frame of slots.
     fn frame_base(&mut self) -> Option<u32> {
+        if self.susp_slots != 0 {
+            self.own_frame();
+            return Some(super::susp::FRAME);
+        }
         let (base, size) = self.frame?;
         if base != NONE {
             return Some(base);

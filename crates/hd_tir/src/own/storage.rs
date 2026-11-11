@@ -2,13 +2,17 @@
 //! step 17): per sub-body, a frame slot or a cell for a local whose
 //! address a thin reference takes or a closure shares, and Wasm locals
 //! for every other (no row). Written right after `frame::run`, whose
-//! `ref_word::FRAME` marks the slot rule reads.
+//! `ref_word::FRAME` marks the slot rule reads. In a root that runs over
+//! a suspension frame, a slot is a slot of that frame (#1707,
+//! [`awaited_slots`]).
 //!
-//! Two inputs arrive after the passes, so the emitter applies them where
+//! Three inputs arrive after the passes, so the emitter applies them where
 //! it reads the rows: a promoted argument (`emit/promote.rs`) reads its
 //! local's value, so a local only promoted references reach keeps Wasm
-//! locals unless a closure shares it; and a build with no runtime, or a
-//! cold constructor, has no slots, so a slot row is a cell there.
+//! locals unless a closure shares it; a build with no runtime, or a
+//! cold constructor, has no slots, so a slot row is a cell there; and a
+//! suspension frame slot whose `Await` calls no known body (a trait
+//! value's method) is a cell, as that await counts its arguments.
 
 use super::OwnCx;
 use crate::ir::{Body, CaptureMode, Proj, Root, Storage, Tag, Topology, ref_word};
@@ -190,6 +194,78 @@ fn slots(b: &Body, topo: &Topology, roots: &[bool]) -> Vec<bool> {
     (0..n).map(|l| out[l] || cell[l]).collect()
 }
 
+/// The locals of `roots` that live in a slot of a suspending root's
+/// frame object (#1707): locals of the root, not parameters, that no
+/// closure captures, and whose every `Ref` of their storage is a local
+/// reference in the root that one `Await` takes as an argument and that
+/// is otherwise only dropped. The await calls its callee's body directly,
+/// which keeps the reference uncounted in its own frame, and the caller's
+/// frame, which holds the slot, outlives that frame: the caller tears the
+/// child down before its own locals' ends, on cancellation too. One scan
+/// of the body after a scan of its locals, and none when no local is a
+/// candidate.
+fn awaited_slots(b: &Body, topo: &Topology, roots: &[bool]) -> Vec<bool> {
+    use crate::ir::local_flags;
+    // Each `Ref` of a candidate's storage: unseen, then awaited once, or
+    // used otherwise (any other use or a second one).
+    const UNTRACKED: u8 = 0;
+    const UNSEEN: u8 = 1;
+    const AWAITED: u8 = 2;
+    const OTHER: u8 = 3;
+    let mut out: Vec<bool> = (0..b.local_ty.len())
+        .map(|l| roots[l] && b.local_flags[l] & local_flags::PARAM == 0)
+        .collect();
+    for c in &b.cap_local {
+        out[c.idx()] = false;
+    }
+    if !out.iter().any(|&o| o) {
+        return out;
+    }
+    let mut state = vec![UNTRACKED; b.len()];
+    for (i, st) in state.iter_mut().enumerate() {
+        if b.tags[i] != Tag::Ref {
+            continue;
+        }
+        let Some(l) = b.local_in_place(b.data[i][0]).map(LocalId::idx) else {
+            continue;
+        };
+        if b.data[i][1] & ref_word::LOCAL == 0 || topo.sub[i] != 0 {
+            out[l] = false;
+        } else if out[l] {
+            *st = UNSEEN;
+        }
+    }
+    let mut ops = Vec::new();
+    for j in 0..b.len() {
+        if matches!(b.tags[j], Tag::Drop | Tag::LoanEnd) {
+            continue;
+        }
+        super::operands(b, j, &mut ops);
+        for op in &ops {
+            let st = &mut state[op.value as usize];
+            if *st == UNTRACKED {
+                continue;
+            }
+            let awaits = b.tags[j] == Tag::Await
+                && topo.sub[j] == 0
+                && matches!(op.role, crate::ir::Role::Arg(_));
+            *st = if awaits && *st == UNSEEN {
+                AWAITED
+            } else {
+                OTHER
+            };
+        }
+    }
+    for (i, &st) in state.iter().enumerate() {
+        if matches!(st, UNSEEN | OTHER)
+            && let Some(l) = b.local_in_place(b.data[i][0]).map(LocalId::idx)
+        {
+            out[l] = false;
+        }
+    }
+    out
+}
+
 /// Writes `b.storage`.
 pub(crate) fn run(b: &mut Body, topo: &Topology, cx: &dyn OwnCx, framed: bool) {
     let n = b.local_ty.len();
@@ -212,7 +288,7 @@ pub(crate) fn run(b: &mut Body, topo: &Topology, cx: &dyn OwnCx, framed: bool) {
     let mut rows = Vec::new();
     if cell.iter().any(|&c| c) {
         let slot = if framed {
-            vec![false; n]
+            awaited_slots(b, topo, &roots)
         } else {
             slots(b, topo, &roots)
         };

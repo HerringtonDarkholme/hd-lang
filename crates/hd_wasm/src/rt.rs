@@ -194,6 +194,11 @@ pub enum Helper {
     FreeClass,
     /// Free an object using its already loaded descriptor and decoded class.
     FreeClassLoaded,
+    /// `(frame)`: frees the frame at payload start `frame`, which its
+    /// invocation made and still holds alone, at a Ready exit (#1707): one
+    /// count, never shared, never a cycle candidate, and its release glue
+    /// would release nothing, so it takes no count, no drain and no glue.
+    FreeFrame,
     /// `(len) -> address`: a new string buffer (§23.7) of `len` bytes, a
     /// counted object with nothing to release in it.
     Str,
@@ -1419,6 +1424,7 @@ pub(crate) fn arity(helper: &Helper) -> (usize, usize) {
         | H::LoanShare
         | H::LoanUnshare
         | H::FreeClass
+        | H::FreeFrame
         | H::ReleaseRef
         | H::ReleaseDrain
         | H::RetainKnown
@@ -1856,6 +1862,23 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::AllocClass { class, bytes } => alloc_class(m, *class, *bytes),
         Helper::FreeClass => free_class(m),
         Helper::FreeClassLoaded => free_class_loaded(m),
+        Helper::FreeFrame => {
+            let mut f = m.func("rt:free_frame", vec![Val::I32], vec![]);
+            let block = f.local(Val::I32);
+            f.get(0);
+            f.u32(HEADER);
+            f.op(Instruction::I32Sub);
+            f.set(block);
+            // A frame is never a weak target, so its free clears no side
+            // entry ([`free_object`]).
+            f.get(block);
+            if m.fixed_allocations && m.runtime.checked.is_none() {
+                f.helper(Helper::FreeClass);
+            } else {
+                f.call(Sym::Inst(m.runtime.free));
+            }
+            f
+        }
         Helper::Str => {
             let mut f = m.func("rt:str", vec![Val::I32], vec![Val::I32]);
             f.get(0);

@@ -11,7 +11,7 @@ use wasm_encoder::BlockType;
 
 use crate::boundary::LTy;
 use crate::layout::{Leaf, Walk};
-use crate::module::{BUF, Func, Global, HEAP, Import, Ins, Module, Part, Sym, Val, mem};
+use crate::module::{BUF, Func, Global, HEADER, HEAP, Import, Ins, Module, Part, Sym, Val, mem};
 use crate::rt::Helper;
 use crate::rt::{Elem, HostCounts};
 
@@ -177,11 +177,17 @@ fn flags_any(f: &mut Func, t: u32, bits: i32) {
 /// collector ([`Helper::Opaque`]), which enters it only while its saved
 /// slots are stable.
 fn new_zeroed(f: &mut Func, size: u32, drop: Option<Sym>, cyclic: bool) -> u32 {
+    new_zeroed_with(f, size, drop, cyclic, Helper::New)
+}
+
+/// [`new_zeroed`] through allocation helper `new`, [`Helper::New`] or
+/// [`Helper::NewFixed`] of `size`.
+fn new_zeroed_with(f: &mut Func, size: u32, drop: Option<Sym>, cyclic: bool, new: Helper) -> u32 {
     let at = f.local(Val::I32);
     f.u32(size);
     let tagged = drop.is_some() && cyclic;
     crate::rt::push_desc(f, drop, cyclic);
-    f.helper(Helper::New);
+    f.helper(new);
     f.set(at);
     if tagged {
         f.get(at);
@@ -448,7 +454,16 @@ fn frame(key: Hash128, m: &Module) -> Func {
     let mut f = m.func("rt:frame", vec![], vec![Val::I32]);
     // What a suspending body's frame saves is not known here, so it takes
     // part in cycle collection (§23.28).
-    let at = new_zeroed(&mut f, size, Some(Sym::Part(key, Part::Drop)), true);
+    // Its size is known here, so it takes its size class's allocation
+    // directly, as a value of known size does: every suspending call that
+    // makes a frame, and every awaiter whose slots make one (#1707), pays
+    // the class's free-list pop, not the generic allocator's size search.
+    let new = if m.runtime.checked.is_none() && size + HEADER <= 2048 {
+        Helper::NewFixed { size }
+    } else {
+        Helper::New
+    };
+    let at = new_zeroed_with(&mut f, size, Some(Sym::Part(key, Part::Drop)), true, new);
     f.get(at);
     f.table_slot(Sym::Part(key, Part::Poll));
     f.op(Instruction::I32Store(mem(HEAP, F_POLL, 2)));

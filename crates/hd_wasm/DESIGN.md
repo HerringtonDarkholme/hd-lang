@@ -2475,7 +2475,8 @@ frame on the **local stack** instead.
   taken (`ref_word::TAKES`). Its `Ref`s carry `ref_word::FRAME`, and a
   local all of whose `Ref`s do lives in a slot (`closure::slot_locals`).
   Every other local keeps its cell: a closure's capture, a
-  local of a closure's body or a suspending one, one a
+  local of a closure's body or a suspending one (but see suspending
+  roots below), one a
   counted `*T` refers to, and one an escaping value may point into.
 - **The slot** is the cell's layout with a zero count word before it, as
   a static object has, so `retain_known` and `release_known` do
@@ -2500,6 +2501,27 @@ frame on the **local stack** instead.
   one. Each frame gives back its own top, so segments need no links. The
   stack is never shrunk: its size is the deepest chain of such frames.
   A module with no slot has none of it.
+- **Suspending roots** (issue #1707). A root with a suspension point
+  keeps its locals in its frame object, which outlives each await, so a
+  local whose every `Ref` is a local reference that one `Await` takes as
+  an argument lives in a slot of that object (`storage::awaited_slots`),
+  between the frame's header and its save area. The await calls a known
+  body directly, which saves the reference uncounted in its own frame;
+  the caller drops that child before its own locals' ends, on
+  cancellation too. An await of a trait value's method builds a cold
+  frame that counts the reference, which would count the caller's frame
+  through the page table, so its locals keep their cells
+  (`closure::keep_awaited_slots`). A body called directly runs with no
+  frame until it suspends, so its first slot store makes the frame
+  (`Em::own_frame`). The invocation owns that frame until a suspension or
+  a cancellation hands it out, when the frame takes its count of the
+  providers. A Ready exit hands the frame straight back to the allocator
+  (`rt:free_frame`): nothing else counted it and its glue would release
+  nothing, so the free takes no count, no drain and no glue. A frame's
+  size is known when its constructor helper is built, so it takes its
+  size class's allocation (`Helper::NewFixed`). Per run, that is one
+  class allocation, which a first suspension makes anyway, in place of
+  one cell per local.
 
 ### 23.39 Drive Slots
 
