@@ -429,20 +429,32 @@ fn hoisted(b: &Body, topo: &Topology, cx: &dyn OwnCx, errs: &mut Vec<VerifyError
     }
     let element_checks = crate::own::ElementChecks::new(b);
     let (blk, pos, first) = (&topo.blk, &topo.pos, &topo.first);
+    // Per local: a `Ref` of it, and one that may outlive its uses.
     let mut addressed = vec![false; b.local_ty.len()];
+    let mut held = vec![false; b.local_ty.len()];
     let mut captured = vec![false; b.local_ty.len()];
+    let ref_local = |v: usize| {
+        (b.tags[v] == Tag::Ref)
+            .then(|| b.local_in_place(b.data[v][0]))
+            .flatten()
+    };
+    let mut refs = Vec::new();
     for i in 0..n {
-        if b.tags[i] == Tag::Ref
-            && let Some(l) = b.local_in_place(b.data[i][0])
-        {
+        if let Some(l) = ref_local(i) {
             addressed[l.idx()] = true;
+            held[l.idx()] |= !hoist::spent_ref(b.data[i][1]);
+            refs.push((l.idx(), u32_of(i)));
         }
     }
+    refs.sort_stable();
     for l in &b.cap_local {
         captured[l.idx()] = true;
     }
+    // The flags also mark a local a reference was taken of.
     for (l, f) in b.local_flags.iter().enumerate() {
-        if f & (super::local_flags::CAPTURED | super::local_flags::CAPTURED_ASSIGNED) != 0 {
+        if f & (super::local_flags::CAPTURED | super::local_flags::CAPTURED_ASSIGNED) != 0
+            && !addressed[l]
+        {
             captured[l] = true;
         }
     }
@@ -455,9 +467,24 @@ fn hoisted(b: &Body, topo: &Topology, cx: &dyn OwnCx, errs: &mut Vec<VerifyError
             if hoist::keeps(b, u32_of(i), op.role) {
                 kept[op.value as usize] = true;
             }
+            if let Some(l) = ref_local(op.value as usize)
+                && hoist::holds_use(b, cx, u32_of(i), op.role)
+            {
+                held[l.idx()] = true;
+            }
             last[op.value as usize] = u32_of(i);
         }
     }
+    // Whether a reference may reach local `local` while loop `lp` runs.
+    let reached = |local: usize, lp: u32| {
+        let from = refs.partition_point(|&(l, _)| l < local);
+        addressed[local]
+            && (held[local]
+                || refs[from..]
+                    .iter()
+                    .take_while(|&&(l, _)| l == local)
+                    .any(|&(_, r)| hoist::ref_in_loop(r, last[r as usize], first[lp as usize], lp)))
+    };
     let (mut steps, mut raw, mut other) = (Vec::new(), Vec::new(), Vec::new());
     for i in 0..n {
         if b.tags[i] != Tag::IsUnique {
@@ -506,11 +533,11 @@ fn hoisted(b: &Body, topo: &Topology, cx: &dyn OwnCx, errs: &mut Vec<VerifyError
             continue;
         };
         let (local, _) = hoist::resolve(b, b.data[i][0], &mut steps, &mut raw);
-        if local == NONE || !hoist::hoistable(&steps) || addressed[local as usize] {
+        if local == NONE || !hoist::hoistable(&steps) || reached(local as usize, l) {
             err(
                 errs,
                 u32_of(i),
-                "a hoisted `IsUnique` of a place that is no unaddressed local's own".into(),
+                "a hoisted `IsUnique` of a place that a reference may reach in its loop".into(),
             );
             continue;
         }

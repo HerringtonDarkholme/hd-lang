@@ -34,8 +34,9 @@
 //!    to reach `p` during the call (`own::exclusive_call`), and a call that
 //!    received the reference is a read this section already refuses, so a
 //!    call in the loop cannot; a plain body reports the parameter in
-//!    `relies` and keeps its checks. Or `p`'s root is a local that is
-//!    never addressed or captured, whose every stored value is fresh (a
+//!    `relies` and keeps its checks. Or `p`'s root is a local that no
+//!    reference reaches in the loop and no closure captures, whose every
+//!    stored value is fresh (a
 //!    call's or a new collection's, or moved out of a local whose own
 //!    values are fresh and that nothing else reaches), and `p` is that
 //!    whole local, and not a parameter's. Any other
@@ -47,8 +48,11 @@
 //!    change, copy or pin another collection.
 //!
 //! `p` is the place the `IsUnique`'s header read reads (`%h = Read
-//! [*$0]` makes `IsUnique [%h]` one of `[*$0]`), rooted at a local that is
-//! never addressed or captured, with one leading dereference at most and
+//! [*$0]` makes `IsUnique [%h]` one of `[*$0]`), rooted at a local that
+//! no closure captures and no reference reaches while the loop runs (a
+//! local reference taken and used up before or after the loop reaches
+//! nothing in it, even if the local lives in a frame slot), with one
+//! leading dereference at most and
 //! fields; its header is read nowhere in the body with a use that keeps
 //! that very header (a store, an owned argument, a block's value, a
 //! coercion, a pin; a copy outside the loop has a header of its own,
@@ -257,6 +261,14 @@ pub(crate) struct Tables {
     /// anywhere in the body).
     addressed: Vec<bool>,
     captured: Vec<bool>,
+    /// Per local: a `Ref` of it may outlive its uses' span (it is no local
+    /// reference, or a use keeps it or makes a value that may hold it).
+    held: Vec<bool>,
+    /// The `Ref`s of a local's storage, by local: (local, ref). Each one
+    /// that is not `held` reaches the local from itself to its last use.
+    refs: Vec<(u32, u32)>,
+    /// The loop being checked: its first instruction and itself.
+    span: (u32, u32),
     param: Vec<bool>,
     fresh: Vec<bool>,
     escapes: Vec<bool>,
@@ -313,6 +325,26 @@ impl Tables {
                 let e = &self.kept_steps[start as usize..(start + len) as usize];
                 k == l && (prefix(e, &self.steps) || prefix(&self.steps, e))
             })
+    }
+
+    /// Whether a reference may reach local `l` while the loop in `span`
+    /// runs: one taken in it, or one that lives across its entry. A local
+    /// reference taken and used up before the loop, or after it, reaches
+    /// nothing there, so a frame-slot local is then as private as a Wasm
+    /// local in it (#1353).
+    fn reached_in_loop(&self, l: u32) -> bool {
+        if !self.addressed[l as usize] {
+            return false;
+        }
+        if self.held[l as usize] {
+            return true;
+        }
+        let (lo, lp) = self.span;
+        let from = self.refs.partition_point(|&(x, _)| x < l);
+        self.refs[from..]
+            .iter()
+            .take_while(|&&(x, _)| x == l)
+            .any(|&(_, r)| ref_in_loop(r, self.last_use[r as usize], lo, lp))
     }
 }
 
@@ -464,6 +496,30 @@ pub(crate) fn keeps(b: &Body, user: u32, role: Role) -> bool {
         || b.tags[user as usize] == Tag::Coerce
         || (b.tags[user as usize] == Tag::Intrinsic
             && IntrinsicOp::from_u32(b.data[user as usize][0]) == Some(IntrinsicOp::Item))
+}
+
+/// Whether a `Ref` with data word `w` makes a local reference, which never
+/// outlives its uses unless one of them holds it ([`holds_use`]).
+pub(crate) fn spent_ref(w: u32) -> bool {
+    w & ref_word::LOCAL != 0 && w & ref_word::TAKES == 0
+}
+
+/// Whether a use of a reference by `user` in role `role` may hold it past
+/// the use: it stores it, yields it from a block, coerces it, or makes a
+/// value that may hold a reference (one derived from it, or a call's
+/// result).
+pub(crate) fn holds_use(b: &Body, cx: &dyn OwnCx, user: u32, role: Role) -> bool {
+    matches!(role, Role::Consume | Role::Tail)
+        || b.tags[user as usize] == Tag::Coerce
+        || cx.holds_ref(b.ty[user as usize])
+}
+
+/// Whether a local reference from `Ref` `r`, used last at `last`, may reach
+/// its local while loop `lp`, whose first instruction is `lo`, runs: it is
+/// taken in the loop, or lives across its entry. One taken and used up
+/// before the loop, or after it, reaches nothing there.
+pub(crate) fn ref_in_loop(r: u32, last: u32, lo: u32, lp: u32) -> bool {
+    (lo..=lp).contains(&r) || (r < lo && last >= lo)
 }
 
 /// Runs hoisting over `b`, as the pending edits leave it, adding its own.
@@ -871,6 +927,8 @@ fn facts(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
     let locals = b.local_ty.len();
     fill(&mut t.addressed, locals, false);
     fill(&mut t.captured, locals, false);
+    fill(&mut t.held, locals, false);
+    t.refs.clear();
     fill(&mut t.param, locals, false);
     fill(&mut t.fresh, locals, true);
     fill(&mut t.escapes, locals, false);
@@ -881,7 +939,6 @@ fn facts(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
     t.moves.clear();
     for (l, flags) in b.local_flags.iter().enumerate() {
         t.param[l] = flags & local_flags::PARAM != 0;
-        t.captured[l] = flags & (local_flags::CAPTURED | local_flags::CAPTURED_ASSIGNED) != 0;
     }
     for r in &b.sub_params {
         for k in 0..r.len {
@@ -942,6 +999,14 @@ fn facts(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
             Tag::Ref => {
                 if let Some(l) = b.local_in_place(a) {
                     t.addressed[l.idx()] = true;
+                    t.refs.push((u32_of(l.idx()), u32_of(i)));
+                    if !spent_ref(w)
+                        || t.uses(u32_of(i))
+                            .iter()
+                            .any(|&(u, role)| holds_use(b, cx, u, role))
+                    {
+                        t.held[l.idx()] = true;
+                    }
                 }
             }
             Tag::Store => {
@@ -1018,6 +1083,16 @@ fn facts(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
     }
     t.steps = steps;
     t.raw = raw;
+    t.refs.sort_stable();
+    // The capture flags also mark a local a reference was taken of (the
+    // checker's former closure form of references); `cap_local` lists the
+    // closures' captures. Without a `Ref` here, keep the flags' word.
+    for (l, flags) in b.local_flags.iter().enumerate() {
+        if flags & (local_flags::CAPTURED | local_flags::CAPTURED_ASSIGNED) != 0 && !t.addressed[l]
+        {
+            t.captured[l] = true;
+        }
+    }
     // A local moved from another is fresh when that one is fresh and no
     // reference, capture or kept read reaches its value: the move hands
     // over the only holder. Down to the greatest fixed point.
@@ -1080,8 +1155,7 @@ fn header_place(b: &Body, cx: &dyn OwnCx, t: &mut Tables, header: u32) -> Option
     if l == NONE || !hoistable(&t.steps) {
         return None;
     }
-    let li = l as usize;
-    if t.addressed[li] || t.captured[li] || t.kept_through(l) {
+    if t.reached_in_loop(l) || t.captured[l as usize] || t.kept_through(l) {
         return None;
     }
     Some(l)
@@ -1108,8 +1182,7 @@ fn rooted_place(b: &Body, t: &mut Tables, word: u32, elem: bool) -> Option<u32> 
     if !hoistable(&t.steps) {
         return None;
     }
-    let li = l as usize;
-    if t.addressed[li] || t.captured[li] || t.kept_through(l) {
+    if t.reached_in_loop(l) || t.captured[l as usize] || t.kept_through(l) {
         return None;
     }
     Some(l)
@@ -1132,6 +1205,7 @@ fn hoist_loop(
     l: u32,
 ) {
     let lo = topo.first[l as usize];
+    t.span = (lo, l);
     t.cands.clear();
     t.csteps.clear();
     t.hits.clear();

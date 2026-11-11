@@ -187,7 +187,7 @@
     local.get $mark
     i32.store $heap offset=8
   )
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $p i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i64) (local $t7 i64) (local $t8 i64)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $p i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i64) (local $t7 i64) (local $t8 i64)
     ;; 33 |     let mut p = Parser { index: [], pending: [], held: 0 }
     global.get $locals
     global.get $locals_base
@@ -234,32 +234,36 @@
     i32.const 0
     i32.store $heap offset=8
     ;; 34 |     for i in 0..4:
+    local.get $t1
     i32.const 4
-    local.set $t1
+    local.tee $t2
+    i32.lt_u
+    if
+      local.get $p
+      local.get $p
+      i32.load $heap offset=4
+      call $rt:list_unique
+      i32.store $heap offset=4
+    end
     block
       loop
-        local.get $t2
         local.get $t1
+        local.get $t2
         i32.lt_u
         i32.eqz
         br_if 1
-        local.get $t2
-        local.get $t2
+        local.get $t1
+        local.get $t1
         i32.const 1
         i32.add
-        local.set $t2
+        local.set $t1
     ;; 35 |         p.pending.push(i)
         local.set $t3
     ;; 34 |     for i in 0..4:
         local.get $p
         i32.load $heap offset=4
-        call $rt:list_unique
-        local.set $t4
-        local.get $p
-        local.get $t4
-        i32.store $heap offset=4
-        local.get $t4
     ;; 35 |         p.pending.push(i)
+        local.tee $t4
         i32.load $heap offset=4
         local.tee $t5
         local.get $t4
@@ -312,13 +316,13 @@
     block
       local.get $t7
       call $unsigned_width
-      local.set $t2
+      local.set $t1
       br 0
     end
     local.get $p
     i32.const 2
     call $"impl Parser.snapshot"
-    local.set $t1
+    local.set $t2
     ;; 33 |     let mut p = Parser { index: [], pending: [], held: 0 }
     local.get $p
     if
@@ -331,7 +335,7 @@
       call $rt:release
     end
     ;; 39 |     println("${p.index.len()} ${p.snapshot(2)}")
-    local.get $t1
+    local.get $t2
     i64.extend_i32_u
     local.tee $t7
     local.set $t8
@@ -341,10 +345,10 @@
       local.set $p
       br 0
     end
-    local.get $t2
+    local.get $t1
     i32.const 1
     i32.add
-    local.tee $t1
+    local.tee $t2
     local.get $p
     i32.add
     local.set $t3
@@ -363,7 +367,7 @@
       local.set $t3
       br 0
     end
-    local.get $t2
+    local.get $t1
     local.set $t5
     block
       local.get $t6
@@ -376,7 +380,7 @@
     local.set $t5
     block
       local.get $t3
-      local.get $t2
+      local.get $t1
       i32.add
       local.get $t5
       i32.load8_u $heap
@@ -386,7 +390,7 @@
     block
       local.get $t7
       local.get $t3
-      local.get $t1
+      local.get $t2
       i32.add
       local.get $p
       call $write_unsigned_sized

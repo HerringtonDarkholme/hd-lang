@@ -1,0 +1,29 @@
+# @dump: own counts
+# @build: v8 release
+# Hoisting (#1353): `xs` lives in a frame slot because a later `&mut xs`
+# addresses it, but no reference to it lives while the loop runs. The
+# push's uniqueness check hoists before the loop, as for a list in a
+# Wasm local, and the loop runs no check (`IsUnique hoisted`; the counts
+# view names the loop's line either way). In `touch_each` the reference
+# is taken in the loop, so the push keeps its check there.
+use std.annotation.inline
+
+@inline(.Never)
+fn touch(xs: &mut List[u32]) -> void:
+    xs.push(0)
+
+fn fill(n: usize) -> u64:
+    let mut xs: List[u32] = []
+    let state = u32(0xC0FFEE)
+    for _ in 0..n:
+        state = state * 1664525 + 1013904223
+        xs.push(state)
+    touch(&mut xs)
+    u64(xs.len()) + u64(xs[n / 2])
+
+fn touch_each(n: usize) -> usize:
+    let mut xs: List[u32] = []
+    for i in 0..n:
+        xs.push(u32(i))
+        touch(&mut xs)
+    xs.len()

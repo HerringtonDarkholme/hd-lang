@@ -958,8 +958,8 @@ loop's entry test so an empty loop copies nothing, when:
    nothing, so it is allowed; a shared one only when a change's own check
    hoists `p`, since short loans already drop a check that serves a shared
    reference alone;
-3. no call in the loop may write, unless `p`'s root is a local that is
-   never addressed or captured, or the body is an exclusive copy and `p`
+3. no call in the loop may write, unless `p`'s root is a local that no
+   closure captures and no reference reaches while the loop runs, or the body is an exclusive copy and `p`
    is behind a reference parameter the loop hands to nothing: its callers
    leave nothing else able to reach `p` during the call.
 
@@ -2032,7 +2032,12 @@ is worth deciding only if they are hot.
      resolved through value roots (`IsUnique [%h]` with
      `%h = Read [*%r]`, `%r = Read [$0]` is one of `[*$0]`): a local's,
      with one leading dereference at most and fields, whose type names no
-     type parameter. Its local is never addressed or captured; no read of
+     type parameter. No closure captures its local, and no reference
+     reaches it while the loop runs: every `Ref` of it is a local
+     reference (`ref_word::LOCAL`) that no use holds (a store, a block's
+     value, a coercion, a value that may hold a reference), taken and used
+     up before the loop or after it, so a frame-slot local hoists like a
+     Wasm local (#1353); no read of
      its header anywhere in the body has a use that keeps that very header
      (a store, an owned argument, a block's value, a coercion, a pin); and
      no `borrow` of it lives across the loop's entry, where the hoisted
@@ -2064,7 +2069,8 @@ is worth deciding only if they are hot.
      `own` view prints them as `loop %n keeps [*$0]`.
    - **`verify_owned`** (`hoisted`): an `IsUnique` is plain, hoisted,
      fresh or repeated. A hoisted one stands right before a loop (among other
-     hoisted ones), names such a place of an unaddressed local, and in
+     hoisted ones), names such a place of a local no reference reaches in
+     that loop, and in
      that loop nothing copies (a read whose value a use keeps), moves,
      writes or references it, pins or suspends, and no call may write
      unless it is a whole local no closure captures. The stable rows

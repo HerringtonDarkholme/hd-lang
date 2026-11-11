@@ -159,11 +159,11 @@ pub fn main() -> void $ Console:
 >   local $0 p: Parser [read assigned mutated captured captured-assigned] place
 >   local $1 $cur: usize [assigned] place
 >   local $2 $end: usize [assigned] value
->     uses $2: %8 -> %12 lend
+>     uses $2: %8 -> %13 lend
 >   local $3 $incl: bool [assigned] value
 >     uses $3: none
 >   local $4 i: usize [read assigned] value
->     uses $4: %15 -> %19 consume last
+>     uses $4: %16 -> %20 consume last
 >   local $5 result: string [read] value
 >     uses $5: %100 -> %105 lend last
 >   local $6 offset: usize [read] value
@@ -205,27 +205,26 @@ pub fn main() -> void $ Console:
 >   %8 = Store [$2] %7 : ()
 >   %9 = Read copy [%4 .inclusive] : bool
 >   %10 = Store [$3] %9 : ()
->   %11 = Read copy [$1] : usize
->   %12 = Read copy [$2] : usize
->   %13 = Prim Lt [%11 %12] : bool
->   %14 = Read copy [$1] : usize
->   %15 = Store [$4] %14 : ()
->   %16 = Read copy [$1] : usize
->   %17 = Prim Add [%16 1:usize] : usize
->   %18 = Store [$1] %17 : ()
+>   %11 = IsUnique hoisted [$0 .pending] : ()
+>   %12 = Read copy [$1] : usize
+>   %13 = Read copy [$2] : usize
+>   %14 = Prim Lt [%12 %13] : bool
+>   %15 = Read copy [$1] : usize
+>   %16 = Store [$4] %15 : ()
+>   %17 = Read copy [$1] : usize
+>   %18 = Prim Add [%17 1:usize] : usize
+>   %19 = Store [$1] %18 : ()
 >   %23 = Block - : ()
 >   %24 = Break L0 - : never
 >   %25 = Block - : ()
->   %26 = If %13 [%23 %25] : ()
+>   %26 = If %14 [%23 %25] : ()
 >   %27 = Block - : ()
 >   %28 = Loop %27 - : ()
 >   %28 finds [$0] full
         p.pending.push(i)
->   %19 = Read copy [$4] : usize
->   %20 = IsUnique [$0 .pending] : ()
+>   %20 = Read copy [$4] : usize
 >   %21 = Read borrow [$0 .pending] : List[usize]
->   %22 = Intrinsic ListPush [%21 %19] : ()
->   %20 finds [$0] full
+>   %22 = Intrinsic ListPush [%21 %20] : ()
 >   %21 finds [$0] full
     p.held = 4
 >   %29 = Store [$0 .held] 4:usize : ()
