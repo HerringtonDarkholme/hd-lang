@@ -21,6 +21,6 @@ app/main/run
   %25 = Store [$6] %21 : ()
   %20 finds [$5] full
   exit sub 0 drops [$0 $1 $3 $5]
-  storage sub 0: $3 cell, $5 cell
+  storage sub 0: $3 cell, $5 slot
   unwind %21 drops [%20]
   live %21 [%20 $0 $1 $3 $4 $5]

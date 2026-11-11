@@ -1,7 +1,8 @@
 # @dump: wat
 # @build: v8 release
-# `&mut tally` is an argument of a bang call, whose suspension the
-# reference spans, so `tally` keeps its counted cell.
+# `&mut tally` is only an argument of a bang call, whose suspension the
+# reference spans, so `tally` lives in a slot of the frame object, made
+# at its declaration when the body runs without one (#1707): no cell.
 use std.time.{Clock, ms, sleep}
 
 struct Tally:

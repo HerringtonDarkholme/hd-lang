@@ -126,6 +126,11 @@ pub(super) struct Susp {
     /// Each `join!` point's done mask and, per child, its instruction, the
     /// locals that keep its result, and the result's type.
     pub alls: HashMap<u32, AllPoint>,
+    /// With slots in the frame object (#1707): set while this invocation
+    /// owns a frame it made for them ([`Em::own_frame`]), until a
+    /// suspension or a cancellation hands the frame out. Like
+    /// `cancelled`, it starts at zero on every poll and is never saved.
+    pub own: Option<u32>,
 }
 
 impl Susp {
@@ -329,8 +334,59 @@ impl Em<'_, '_, '_> {
             self.f.set(FRAME);
             self.flags_or(FRAME, RUNNING);
             self.retain_row(CountAt::Materialize, 0);
+            // A frame this invocation made for its slots takes the row's
+            // count only now, as it is handed out.
+            if let Some(own) = self.susp.as_ref().and_then(|s| s.own) {
+                self.f.op(I::Else);
+                self.f.get(own);
+                self.f.op(I::If(BlockType::Empty));
+                self.retain_row(CountAt::Materialize, 0);
+                self.f.i32(0);
+                self.f.set(own);
+                self.f.op(I::End);
+            }
             self.f.op(I::End);
         }
+    }
+
+    /// The frame of a body whose slots live in it (#1707), made at the
+    /// first store into one when the body runs without a frame yet: an
+    /// awaiter that called the body directly holds none until it
+    /// suspends. The invocation owns the frame ([`Susp::own`]): it holds
+    /// no provider count, and a Ready exit frees it
+    /// ([`Self::free_own_frame`]). Per run: one allocation, made by a
+    /// first suspension anyway, in place of one cell per slot local.
+    pub(super) fn own_frame(&mut self) {
+        let Some((key, own)) = self.susp.as_ref().and_then(|s| Some((s.key, s.own?))) else {
+            return;
+        };
+        self.f.get(FRAME);
+        self.f.op(I::I32Eqz);
+        self.f.op(I::If(BlockType::Empty));
+        self.f.helper(Helper::Frame(key));
+        self.f.set(FRAME);
+        self.flags_or(FRAME, RUNNING);
+        self.f.i32(1);
+        self.f.set(own);
+        self.f.op(I::End);
+    }
+
+    /// At a Ready exit, after the frame is marked `EXITED`: frees the frame
+    /// this invocation made for its slots and still owns, whose drop glue
+    /// then releases nothing, and leaves no frame for the exit to touch.
+    pub(super) fn free_own_frame(&mut self, own: Option<u32>) {
+        let Some(own) = own else {
+            return;
+        };
+        self.f.get(own);
+        self.f.op(I::If(BlockType::Empty));
+        self.because(Reason::LastUse, |em| {
+            em.f.get(FRAME);
+            em.f.helper(Helper::ReleaseKnown);
+        });
+        self.f.i32(0);
+        self.f.set(FRAME);
+        self.f.op(I::End);
     }
 
     /// Copies provider data and the open context in this physical row ABI.
@@ -1103,10 +1159,11 @@ pub(super) fn push_zero(f: &mut crate::module::Func, v: Val) {
     });
 }
 
-/// The save area of a body whose locals `0..n` are `vals`: each local's
-/// offset in the frame, excluding `skip`, and the frame's payload size.
-pub(super) fn save_area(vals: &[Val], skip: &[u32]) -> (Vec<(u32, u32, Val)>, u32) {
-    let mut at = F_SAVED;
+/// The save area of a body whose locals `0..n` are `vals`, from offset
+/// `start` on, past the frame's slots (#1707): each local's offset in the
+/// frame, excluding `skip`, and the frame's payload size.
+pub(super) fn save_area(vals: &[Val], skip: &[u32], start: u32) -> (Vec<(u32, u32, Val)>, u32) {
+    let mut at = start;
     let mut out = Vec::new();
     for (l, v) in vals.iter().enumerate() {
         let l = u32::try_from(l).expect("locals");
@@ -1340,8 +1397,8 @@ impl Em<'_, '_, '_> {
     /// Pushes the body's frame result after its results at its end: 0,
     /// Ready, once it marked a frame it has `EXITED`; or, when it left by
     /// its cancellation through the counting exit, the frame, no longer
-    /// unwinding.
-    pub(super) fn exit_frame(&mut self, cancelled: u32) {
+    /// unwinding. `own` is [`Susp::own`].
+    pub(super) fn exit_frame(&mut self, cancelled: u32, own: Option<u32>) {
         self.f.get(FRAME);
         self.f.op(I::If(BlockType::Empty));
         self.flags_or(FRAME, EXITED);
@@ -1352,6 +1409,7 @@ impl Em<'_, '_, '_> {
         self.unwound();
         self.f.get(FRAME);
         self.f.op(I::Else);
+        self.free_own_frame(own);
         self.f.i32(0);
         self.f.op(I::End);
     }
@@ -1433,6 +1491,7 @@ pub(super) fn finish(
     // final cancellation exit. Pending never uses it; a new invocation
     // starts with Wasm's zero-initialized local.
     skipped.push(cancelled);
+    skipped.extend(em.susp.as_ref().and_then(|s| s.own));
     if let Some((base, _)) = local_frame {
         skipped.push(base);
     }
@@ -1447,7 +1506,12 @@ pub(super) fn finish(
             .collect()
     };
     skipped.extend(em.param_vals.values().flatten().copied());
-    let (area, size) = save_area(&vals_all, &skipped);
+    let start = if em.susp_slots == 0 {
+        F_SAVED
+    } else {
+        em.susp_slots
+    };
+    let (area, size) = save_area(&vals_all, &skipped, start);
     let owners = owners(&em);
     // The emitter's own locals that need no save: the resume reloads the
     // frame and runs from there, and no run from there reads one before

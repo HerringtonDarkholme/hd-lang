@@ -288,6 +288,7 @@ impl Em<'_, '_, '_> {
             2,
         )));
         self.f.op(I::End);
+        self.free_own_frame(self.susp.as_ref().and_then(|s| s.own));
         self.f.i32(0);
     }
 }

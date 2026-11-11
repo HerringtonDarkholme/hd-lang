@@ -1,0 +1,64 @@
+# expect-stdout: quick 5
+# expect-stdout: caller 6
+# expect-stdout: bumped 3 t
+# expect-stdout: joined 4 8
+# expect-stdout: hold ends 4
+# expect-stdout: race 2
+# expect-stdout: done
+# test: a local that only awaited calls borrow lives in its caller's frame: a callee that ends at once in a caller that then ends, one that suspends, a loop, a join, and a race! loser cancelled during the await, whose callee still reads the local as it unwinds
+# Spec std/time Clock: std-time.clock.sleep; lang/11 Requirements and Suspension: req.suspend.bang, req.suspend.bang.point (issue #1707).
+use std.ops.defer
+use std.task.{join, race}
+use std.time.{Clock, ms, sleep}
+
+struct Tally:
+    n: i64
+    name: string
+
+fn quick!(text: &string) -> usize:
+    text.len()
+
+fn size!(text: &string) -> usize $ Clock:
+    sleep!(ms(1))
+    text.len()
+
+fn bump!(t: &mut Tally) -> void $ Clock:
+    sleep!(ms(1))
+    t.n = t.n + 1
+
+fn only_quick!(n: usize) -> usize:
+    let text = "q".repeat(n)
+    quick!(&text)
+
+fn caller!(n: usize) -> usize $ Clock:
+    let text = "x".repeat(n)
+    let a = quick!(&text)
+    let b = size!(&text)
+    a + b
+
+fn bumped!() -> string $ Clock:
+    let mut t = Tally { n: 0, name: "t" }
+    let mut i = 0
+    while i < 3:
+        bump!(&mut t)
+        i += 1
+    "${t.n} ${t.name}"
+
+fn hold!(text: &string) -> usize $ Clock + Console:
+    defer(fn() -> void: println("hold ends ${text.len()}"))
+    sleep!(ms(60000))
+    text.len()
+
+fn holder!(n: usize) -> usize $ Clock + Console:
+    let text = "z".repeat(n)
+    hold!(&text)
+
+pub fn main!() -> void $ Console + Clock:
+    println("quick ${only_quick!(5)}")
+    println("caller ${caller!(3)}")
+    println("bumped ${bumped!()}")
+    let (a, b) = join!(caller(2), caller(4))
+    println("joined $a $b")
+    winner := race!(holder(4), caller(1))
+    println("race $winner")
+    println("done")

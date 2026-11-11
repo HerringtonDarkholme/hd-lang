@@ -1,8 +1,8 @@
 # @dump: own
 # Move's rule 4 stops at a suspension point: in `run`, which awaits, the
-# `Ref` of `c` at its last access counts the cell (no `take`) and `c`'s
-# own `Drop` stays, since the frame saves the cell's local at the `Await`
-# and a resume enters the body in the middle. `fresh`, which does not
+# `Ref` of `c` at its last access takes nothing (no `take`) and `c`'s
+# own `Drop` stays, since a resume enters the body in the middle; `c`
+# lives in a slot of the frame object (#1707). `fresh`, which does not
 # suspend, takes the cell's count and drops nothing.
 struct Counter:
     hits: i32

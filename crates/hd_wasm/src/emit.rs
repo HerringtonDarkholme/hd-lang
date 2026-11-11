@@ -160,13 +160,23 @@ fn body_func<'a>(
     let pick = input.promote_args && sub == 0 && !suspending && own.cold.is_none();
     let promoted = promote::promoted_refs(input, m, b, (item, args), targets, pick);
     // Where each local lives (`Body::storage`).
-    let (stored, slots) = closure::stored_locals(input, b, (item, args), sub, &promoted);
+    let (stored, mut slots) = closure::stored_locals(input, b, (item, args), sub, &promoted);
+    // A root with a suspension point keeps its slots in its frame object
+    // (#1707): none in the plain function that only makes its cold call,
+    // and none for a local an await of no known body takes, which counts
+    // it.
+    let framed_slots = suspending && sub == 0 && !plan.0.is_empty();
+    if own.cold.is_some() {
+        slots.clear();
+    } else if framed_slots {
+        closure::keep_awaited_slots(b, targets, &mut slots);
+    }
     let cells = closure::cell_locals(b, &stored);
     let inst = (m.inst_of.get(&own.key).copied()).unwrap_or(InstId::from_raw(u32::MAX));
     let mut em = Em::new(input, m, b, (item, args), targets, cells);
     em.inst = inst;
     em.type_promoted(promoted);
-    em.plan_slots(&slots)?;
+    em.plan_slots(&slots, framed_slots)?;
     em.origin_root = b.anchor(b.sub_root[sub as usize]);
     em.sub_id = sub;
     if sub == 0 {
@@ -317,6 +327,8 @@ fn body_func<'a>(
         // A frame holds a count of each provider's data, and of the
         // context, which holds the closure's own.
         let provs = em.providers.iter().map(|p| p.1[0]).chain(ctx).collect();
+        // A frame its slots made, still this invocation's (#1707).
+        let own = (em.susp_slots != 0).then(|| em.f.local(Val::I32));
         em.susp = Some(susp::Susp {
             key,
             pc,
@@ -326,6 +338,7 @@ fn body_func<'a>(
             cancelled,
             provs,
             alls: HashMap::default(),
+            own,
         });
     }
     // A function that holds a counted reference ends at one exit, which
@@ -580,7 +593,7 @@ fn body_func<'a>(
         }
         return Ok(em.f);
     };
-    em.exit_frame(suspension.cancelled);
+    em.exit_frame(suspension.cancelled, suspension.own);
     let held = if sub == 0 {
         input.entry.held(item)
     } else {
@@ -1262,6 +1275,9 @@ struct Em<'i, 'a, 'm> {
     /// With slots: the local holding the frame's address, and the
     /// frame's size.
     frame: Option<(u32, u32)>,
+    /// In a suspending body with slots, which live in its frame object:
+    /// the end of their area, where the save area starts; else 0.
+    susp_slots: u32,
     /// One reusable caller-local host leaf, after ordinary addressable locals.
     drive_buffer: Option<(u32, u32)>,
     sub_id: u16,
@@ -1433,6 +1449,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             promoted: hd_base::HashSet::default(),
             static_cells: None,
             frame: None,
+            susp_slots: 0,
             drive_buffer: None,
             sub_id: 0,
             consumer: Vec::new(),
