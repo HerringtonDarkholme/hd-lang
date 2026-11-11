@@ -13,41 +13,39 @@
   (import "fixture" "table0" (table $table0 4 funcref))
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $t1 i32)
     ;; 14 |     _ := $.use(Vault).root().next()
-    block
-      local.get $provider0
-      local.get $provider0.vtable
-      i32.load $heap
-      call_indirect $table0 (param i32) (result i32 i32)
-      local.set $provider0.vtable
-      local.tee $provider0
-      local.tee $t0
-      local.tee $t1
-      if
-        local.get $t1
-        call $retain
-      end
-      local.get $provider0
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref
-      end
-      local.get $t0
-      local.get $provider0.vtable
-      i32.load $heap
-      call_indirect $table0 (param i32) (result i32 i32)
-      drop
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref
-      end
-      local.get $t0
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref
-      end
+    local.get $provider0
+    local.get $provider0.vtable
+    i32.load $heap
+    call_indirect $table0 (param i32) (result i32 i32)
+    local.set $provider0.vtable
+    local.tee $provider0
+    local.tee $t0
+    local.tee $t1
+    if
+      local.get $t1
+      call $retain
+    end
+    local.get $provider0
+    local.tee $t1
+    if
+      local.get $t1
+      call $rt:release_ref
+    end
+    local.get $t0
+    local.get $provider0.vtable
+    i32.load $heap
+    call_indirect $table0 (param i32) (result i32 i32)
+    drop
+    local.tee $t1
+    if
+      local.get $t1
+      call $rt:release_ref
+    end
+    local.get $t0
+    local.tee $t1
+    if
+      local.get $t1
+      call $rt:release_ref
     end
   )
   (func $rt:hd:Node/next (param $t1 i32) (param $t0 i32) (result i32 i32)

@@ -6,60 +6,55 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "table0" (table $table0 3 funcref))
   (func $through_function (param $text.0 i32) (param $text.1 i32) (result i32 i32)
-    ;; 14 |     slice_fn := bytes_slice
-    block
     ;; 15 |     slice_fn(text, 0, 1)
-      i32.const 0
-      local.get $text.0
-      local.get $text.1
-      i32.const 0
-      i32.const 1
-      i32.const 0
+    i32.const 0
+    local.get $text.0
+    local.get $text.1
+    i32.const 0
+    i32.const 1
+    i32.const 0
     ;; 14 |     slice_fn := bytes_slice
-      i32.const 0
+    i32.const 0
     ;; 15 |     slice_fn(text, 0, 1)
-      call_indirect $table0 (param i32 i32 i32 i32 i32 i32) (result i32 i32)
+    call_indirect $table0 (param i32 i32 i32 i32 i32 i32) (result i32 i32)
     ;; 14 |     slice_fn := bytes_slice
-      local.set $text.1
-      local.set $text.0
-    end
+    local.set $text.1
+    local.set $text.0
     local.get $text.0
     local.get $text.1
   )
   (func $slice (param $text.0 i32) (param $text.1 i32) (param $start i32) (param $end i32) (result i32 i32)
     ;; 8 |     bytes_slice(text, start, end)
-    block
-      local.get $start
+    local.get $start
+    local.get $end
+    i32.gt_u
+    local.get $end
+    local.get $text.1
+    i32.gt_u
+    i32.or
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $text.0
+    local.get $start
+    i32.add
+    i32.const 16
+    local.get $start
+    local.get $end
+    i32.ne
+    select
+    local.get $end
+    local.get $start
+    i32.sub
+    local.set $start
+    local.tee $text.1
+    local.tee $end
+    if
       local.get $end
-      i32.gt_u
-      local.get $end
-      local.get $text.1
-      i32.gt_u
-      i32.or
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $text.0
-      local.get $start
-      i32.add
-      i32.const 16
-      local.get $start
-      local.get $end
-      i32.ne
-      select
-      local.get $end
-      local.get $start
-      i32.sub
-      local.set $start
-      local.tee $text.1
-      local.tee $end
-      if
-        local.get $end
-        call $retain
-      else
-        call $skipped_test
-      end
+      call $retain
+    else
+      call $skipped_test
     end
     local.get $text.0
     local.tee $end
@@ -74,18 +69,16 @@
   )
   (func $discard_empty (param $text.0 i32) (param $text.1 i32)
     ;; 11 |     _ := bytes_slice(text, 0, 0)
-    block
-      i32.const 0
-      i32.const 0
-      i32.gt_u
-      i32.const 0
-      local.get $text.1
-      i32.gt_u
-      i32.or
-      if
-        call $rt:panic
-        unreachable
-      end
+    i32.const 0
+    i32.const 0
+    i32.gt_u
+    i32.const 0
+    local.get $text.1
+    i32.gt_u
+    i32.or
+    if
+      call $rt:panic
+      unreachable
     end
     local.get $text.0
     if

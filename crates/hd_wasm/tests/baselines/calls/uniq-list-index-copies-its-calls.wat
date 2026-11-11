@@ -3,75 +3,66 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 2 funcref))
   (func $sum (param $xs i32) (param $n i32) (result f64) (local $total f64) (local $t0 i32) (local $t1 i32) (local $t2 i32)
-    ;; 7 |     let total: f64 = 0.0
+    ;; 8 |     for i in 0..n:
     block
-    ;; 8 |     for i in 0..n:
-      block
-        loop
-          local.get $t0
-          local.get $n
-          i32.lt_u
-          i32.eqz
-          br_if 1
-          local.get $t0
-          local.get $t0
-          i32.const 1
-          i32.add
-          local.set $t0
+      loop
+        local.get $t0
+        local.get $n
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $t0
+        local.get $t0
+        i32.const 1
+        i32.add
+        local.set $t0
     ;; 9 |         total = total + xs[i]
-          local.set $t1
+        local.set $t1
+        block
+          local.get $xs
+          local.set $t2
           block
-            block
-              local.get $xs
-              local.set $t2
-              block
-                block
-                  local.get $t2
-                  i32.load $heap offset=8
-                  local.set $t2
-                  br 0
-                end
-              end
-              local.get $t1
-              local.get $t2
-              i32.ge_u
-              if
-                i32.const 65 ;; &"index-out-of-bounds"
-                i32.const 19
-                i32.const 84 ;; &"uniq list index out of bounds"
-                i32.const 29
-                i32.const 0
-                call_indirect $table0 (param i32 i32 i32 i32)
-                unreachable
-              end
-              local.get $xs
-              local.set $t2
-              block
-                block
-                  local.get $t2
-                  i32.load $heap
-                  local.get $t1
-                  i32.const 8
-                  i32.mul
-                  i32.add
-                  local.set $t1
-                  br 0
-                end
-              end
-              br 0
-            end
+            local.get $t2
+            i32.load $heap offset=8
+            local.set $t2
+            br 0
           end
-          local.get $total
           local.get $t1
-          f64.load $heap
-          f64.add
-          local.set $total
-    ;; 8 |     for i in 0..n:
+          local.get $t2
+          i32.ge_u
+          if
+            i32.const 65 ;; &"index-out-of-bounds"
+            i32.const 19
+            i32.const 84 ;; &"uniq list index out of bounds"
+            i32.const 29
+            i32.const 0
+            call_indirect $table0 (param i32 i32 i32 i32)
+            unreachable
+          end
+          local.get $xs
+          local.set $t2
+          block
+            local.get $t2
+            i32.load $heap
+            local.get $t1
+            i32.const 8
+            i32.mul
+            i32.add
+            local.set $t1
+            br 0
+          end
           br 0
         end
+        local.get $total
+        local.get $t1
+        f64.load $heap
+        f64.add
+        local.set $total
+    ;; 8 |     for i in 0..n:
+        br 0
       end
-    ;; 7 |     let total: f64 = 0.0
     end
+    ;; 7 |     let total: f64 = 0.0
     local.get $total
   )
 )

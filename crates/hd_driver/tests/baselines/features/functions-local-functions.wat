@@ -7,151 +7,141 @@
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $local_plain#1 (param $env i32) (param $ys i32) (param $ctx i32) (result i32) (local $t0 i32)
-    ;; 16 |     fn first_len(ys: List[string]) -> usize:
-    block
     ;; 17 |         if ys.len() > 0: ys[0].len() else: 0
+    local.get $ys
+    i32.load $heap offset=4
+    i32.const 0
+    i32.gt_u
+    if
+      i32.const 0
       local.get $ys
       i32.load $heap offset=4
-      i32.const 0
-      i32.gt_u
+      i32.ge_u
       if
-        i32.const 0
-        local.get $ys
-        i32.load $heap offset=4
-        i32.ge_u
-        if
-          call $rt:panic
-          unreachable
-        end
-        local.get $ys
-        i32.load $heap offset=16
-        local.get $ys
-        i32.load $heap offset=20
-        local.set $env
-        drop
-        block
-          block
-            local.get $env
-            local.set $t0
-            br 0
-          end
-        end
-      else
+        call $rt:panic
+        unreachable
       end
-    ;; 16 |     fn first_len(ys: List[string]) -> usize:
       local.get $ys
+      i32.load $heap offset=16
+      local.get $ys
+      i32.load $heap offset=20
+      local.set $env
+      drop
+      block
+        local.get $env
+        local.set $t0
+        br 0
+      end
+    else
+    end
+    ;; 16 |     fn first_len(ys: List[string]) -> usize:
+    local.get $ys
+    if
+      local.get $ys
+      i32.const 8
+      i32.sub
+      i32.load $heap
       if
         local.get $ys
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $ys
-          call $rt:release_ref'1
-        end
+        call $rt:release_ref'1
       end
-      local.get $t0
-      local.set $env
     end
+    local.get $t0
+    local.set $env
     local.get $env
   )
   (func $local_plain (param $xs i32) (result i32)
-    ;; 16 |     fn first_len(ys: List[string]) -> usize:
-    block
     ;; 18 |     first_len(xs)
-      i32.const 0
-      local.get $xs
-      i32.const 0
-      call $local_plain#1
+    i32.const 0
+    local.get $xs
+    i32.const 0
+    call $local_plain#1
     ;; 16 |     fn first_len(ys: List[string]) -> usize:
-      local.set $xs
-    end
+    local.set $xs
     local.get $xs
   )
   (func $local_capture (param $prefix.0 i32) (param $prefix.1 i32) (param $xs i32) (result i32) (local $width.1 i32) (local $total i32) (local $t0 i32) (local $x.1 i32) (local $t1 i32)
     ;; 8 |     fn width(s: string) -> usize:
+    i32.const 1
+    i32.const 8
+    i32.const 3
+    call $rt:new/class-1
+    local.tee $width.1
+    local.get $prefix.0
+    i32.store $heap
+    local.get $width.1
+    local.get $prefix.1
+    i32.store $heap offset=4
+    drop
+    ;; 11 |     for x in xs:
+    local.get $xs
+    i32.load $heap offset=4
+    local.set $prefix.0
     block
-      i32.const 1
-      i32.const 8
-      i32.const 3
-      call $rt:new/class-1
-      local.tee $width.1
-      local.get $prefix.0
-      i32.store $heap
-      local.get $width.1
-      local.get $prefix.1
-      i32.store $heap offset=4
-      drop
-    ;; 11 |     for x in xs:
-      local.get $xs
-      i32.load $heap offset=4
-      local.set $prefix.0
-      block
-        loop
-          local.get $t0
-          local.get $prefix.0
-          i32.lt_u
-          i32.eqz
-          br_if 1
-          local.get $xs
-          local.get $t0
-          i32.const 8
-          i32.mul
-          i32.add
-          local.tee $prefix.1
-          i32.load $heap offset=16
-          local.get $prefix.1
-          i32.load $heap offset=20
-          local.set $x.1
-          local.set $prefix.1
-          local.get $t0
-          i32.const 1
-          i32.add
-          local.set $t0
+      loop
+        local.get $t0
+        local.get $prefix.0
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $xs
+        local.get $t0
+        i32.const 8
+        i32.mul
+        i32.add
+        local.tee $prefix.1
+        i32.load $heap offset=16
+        local.get $prefix.1
+        i32.load $heap offset=20
+        local.set $x.1
+        local.set $prefix.1
+        local.get $t0
+        i32.const 1
+        i32.add
+        local.set $t0
+        block
           block
-            block
-              br 0
-              unreachable
-            end
-    ;; 12 |         total += width(x)
-            local.get $prefix.1
-            local.tee $t1
-            if
-              local.get $t1
-              call $retain
-            end
-            local.get $total
-            local.get $width.1
-            local.get $prefix.1
-            local.get $x.1
-            i32.const 0
-            call $local_capture#1
-            i32.add
-            local.set $total
-    ;; 11 |     for x in xs:
             br 0
+            unreachable
           end
+    ;; 12 |         total += width(x)
+          local.get $prefix.1
+          local.tee $t1
+          if
+            local.get $t1
+            call $retain
+          end
+          local.get $total
+          local.get $width.1
+          local.get $prefix.1
+          local.get $x.1
+          i32.const 0
+          call $local_capture#1
+          i32.add
+          local.set $total
+    ;; 11 |     for x in xs:
           br 0
         end
+        br 0
       end
+    end
     ;; 8 |     fn width(s: string) -> usize:
-      local.get $width.1
-      local.tee $t1
+    local.get $width.1
+    local.tee $t1
+    if
+      local.get $t1
+      i32.const 8
+      i32.sub
+      i32.load $heap
       if
         local.get $t1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t1
-          call $rt:release_ref'1
-        end
+        call $rt:release_ref'1
       end
-    ;; 13 |     total
-      local.get $total
-    ;; 8 |     fn width(s: string) -> usize:
-      local.set $prefix.0
     end
+    ;; 13 |     total
+    local.get $total
+    ;; 8 |     fn width(s: string) -> usize:
+    local.set $prefix.0
     local.get $prefix.0
   )
   (func $local_capture#1 (param $env i32) (param $s.0 i32) (param $s.1 i32) (param $ctx i32) (result i32)
@@ -159,31 +149,25 @@
     local.get $env
     i32.load $heap offset=4
     local.set $env
+    ;; 9 |         prefix.len() + s.len()
     block
-    ;; 9 |         prefix.len() + s.len()
-      block
-        block
-          br 0
-        end
-      end
-      block
-        block
-          br 0
-        end
-      end
-    ;; 8 |     fn width(s: string) -> usize:
-      local.get $s.0
-      if
-        local.get $s.0
-        call $rt:release_ref'2
-      end
-    ;; 9 |         prefix.len() + s.len()
-      local.get $env
-      local.get $s.1
-      i32.add
-    ;; 8 |     fn width(s: string) -> usize:
-      local.set $env
+      br 0
     end
+    block
+      br 0
+    end
+    ;; 8 |     fn width(s: string) -> usize:
+    local.get $s.0
+    if
+      local.get $s.0
+      call $rt:release_ref'2
+    end
+    ;; 9 |         prefix.len() + s.len()
+    local.get $env
+    local.get $s.1
+    i32.add
+    ;; 8 |     fn width(s: string) -> usize:
+    local.set $env
     local.get $env
   )
 )

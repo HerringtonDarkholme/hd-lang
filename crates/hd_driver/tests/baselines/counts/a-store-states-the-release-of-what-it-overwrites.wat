@@ -16,142 +16,124 @@
   (func $eat (param $s.0 i32) (param $s.1 i32) (result i32)
     ;; 20 |     s.len()
     block
-      block
-        block
-          local.get $s.1
-          local.set $s.0
-          br 0
-        end
-      end
+      local.get $s.1
+      local.set $s.0
+      br 0
     end
     local.get $s.0
   )
   (func $local_over (param $k i32) (result i32) (local $s.0 i32) (local $s.1 i32)
     ;; 23 |     let mut s = make(k)
-    block
-      local.get $k
-      call $make
-      local.set $s.1
-      local.set $s.0
+    local.get $k
+    call $make
+    local.set $s.1
+    local.set $s.0
     ;; 24 |     if k > 0:
-      local.get $k
-      i32.const 0
-      i32.gt_s
-      if
+    local.get $k
+    i32.const 0
+    i32.gt_s
+    if
     ;; 25 |         s = make(k + 1)
-        local.get $k
-        i32.const 1
-        i32.add
-        call $make
-        local.get $s.0
-        local.tee $s.0
-        if
-          local.get $s.0
-          call $rt:release_ref
-        end
-        local.set $s.1
-        local.set $s.0
-    ;; 24 |     if k > 0:
-      end
-    ;; 26 |     eat(s)
+      local.get $k
+      i32.const 1
+      i32.add
+      call $make
       local.get $s.0
-      local.get $s.1
-      call $eat
-      local.get $s.0
-    ;; 23 |     let mut s = make(k)
+      local.tee $s.0
       if
         local.get $s.0
         call $rt:release_ref
       end
-      local.set $k
+      local.set $s.1
+      local.set $s.0
+    ;; 24 |     if k > 0:
     end
+    ;; 26 |     eat(s)
+    local.get $s.0
+    local.get $s.1
+    call $eat
+    local.get $s.0
+    ;; 23 |     let mut s = make(k)
+    if
+      local.get $s.0
+      call $rt:release_ref
+    end
+    local.set $k
     local.get $k
   )
   (func $element_over (param $xs i32) (param $i i32) (param $k i32) (local $t0 i32)
     ;; 29 |     xs[i] = make(k)
-    block
-      local.get $k
-      call $make
-      local.set $t0
-      local.set $k
-      local.get $xs
-      local.get $xs
-      i32.load $heap
-      call $rt:list_unique
-      i32.store $heap
-      local.get $xs
-      i32.load $heap
-      local.set $xs
-      local.get $i
-      local.get $xs
-      i32.load $heap offset=4
-      i32.ge_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $xs
-      local.get $i
-      i32.const 8
-      i32.mul
-      i32.add
-      local.tee $xs
-      i32.load $heap offset=16
-      local.tee $i
-      if
-        local.get $i
-        call $rt:release_ref
-      end
-      local.get $xs
-      local.get $k
-      i32.store $heap offset=16
-      local.get $xs
-      local.get $t0
-      i32.store $heap offset=20
+    local.get $k
+    call $make
+    local.set $t0
+    local.set $k
+    local.get $xs
+    local.get $xs
+    i32.load $heap
+    call $rt:list_unique
+    i32.store $heap
+    local.get $xs
+    i32.load $heap
+    local.set $xs
+    local.get $i
+    local.get $xs
+    i32.load $heap offset=4
+    i32.ge_u
+    if
+      call $rt:panic
+      unreachable
     end
+    local.get $xs
+    local.get $i
+    i32.const 8
+    i32.mul
+    i32.add
+    local.tee $xs
+    i32.load $heap offset=16
+    local.tee $i
+    if
+      local.get $i
+      call $rt:release_ref
+    end
+    local.get $xs
+    local.get $k
+    i32.store $heap offset=16
+    local.get $xs
+    local.get $t0
+    i32.store $heap offset=20
   )
   (func $field_over (param $r i32) (param $k i32) (local $t0 i32)
     ;; 32 |     r.name = make(k)
-    block
-      local.get $k
-      call $make
-      local.set $t0
-      local.set $k
-      local.get $r
-      i32.load $heap
-      local.get $r
-      i32.load $heap offset=4
-      local.get $r
-      local.get $k
-      i32.store $heap
-      local.get $r
-      local.get $t0
-      i32.store $heap offset=4
-      call $rt:release
-    end
+    local.get $k
+    call $make
+    local.set $t0
+    local.set $k
+    local.get $r
+    i32.load $heap
+    local.get $r
+    i32.load $heap offset=4
+    local.get $r
+    local.get $k
+    i32.store $heap
+    local.get $r
+    local.get $t0
+    i32.store $heap offset=4
+    call $rt:release
   )
   (func $fresh (result i32 i32 i32) (local $t0 i32)
     ;; 36 |     UniqList::[i32].new()
     block
       block
         block
-          block
-            block
-              block
-                block
-                  i32.const 0
-                  i32.const 4
-                  call $room
-                  local.set $t0
-                  br 0
-                end
-              end
-              br 0
-            end
-          end
+          i32.const 0
+          i32.const 4
+          call $room
+          local.set $t0
           br 0
         end
+        br 0
       end
+      br 0
     end
     local.get $t0
     i32.const 0
@@ -197,87 +179,75 @@
     local.tee $n
     local.get $t1
     i32.store $heap
+    local.get $n
+    i32.load $heap
+    i64.extend_i32_s
+    local.tee $t2
+    local.set $t3
     block
-      local.get $n
-      i32.load $heap
-      i64.extend_i32_s
-      local.tee $t2
-      local.set $t3
       block
-        block
-          block
-            block
-              local.get $t3
-              call $signed_magnitude
-              call $unsigned_width
-              local.set $t1
-              local.get $t3
-              i64.const 0
-              i64.lt_s
-              if
-                i32.const 1
-                local.set $t4
-              else
-              end
-              local.get $t1
-              local.get $t4
-              i32.add
-              local.set $t1
-              br 0
-            end
-          end
-          br 0
-        end
-      end
-      i32.const 1
-      local.tee $n
-      local.get $t1
-      i32.add
-      local.set $t4
-      block
-        block
-          local.get $t4
-          i32.const 16
-          local.set $t5
-          if
-            local.get $t4
-            call $rt:str
-            local.set $t5
-          end
-          local.get $t5
-          local.get $t4
-          local.set $t5
+        local.get $t3
+        call $signed_magnitude
+        call $unsigned_width
+        local.set $t1
+        local.get $t3
+        i64.const 0
+        i64.lt_s
+        if
+          i32.const 1
           local.set $t4
-          br 0
+        else
         end
+        local.get $t1
+        local.get $t4
+        i32.add
+        local.set $t1
+        br 0
       end
-      i32.const 65 ;; &"s"
-      local.set $t6
-      block
-        block
-          local.get $t4
-          local.get $t6
-          i32.load8_u $heap
-          i32.store8 $heap
-          br 0
-        end
-      end
-      block
-        block
-          local.get $t2
-          local.get $t4
-          local.get $n
-          i32.add
-          local.get $t1
-          call $write_signed_sized
-          br 0
-        end
-      end
-      local.get $t4
-      local.get $t5
-      local.set $n
-      local.set $t1
+      br 0
     end
+    i32.const 1
+    local.tee $n
+    local.get $t1
+    i32.add
+    local.set $t4
+    block
+      local.get $t4
+      i32.const 16
+      local.set $t5
+      if
+        local.get $t4
+        call $rt:str
+        local.set $t5
+      end
+      local.get $t5
+      local.get $t4
+      local.set $t5
+      local.set $t4
+      br 0
+    end
+    i32.const 65 ;; &"s"
+    local.set $t6
+    block
+      local.get $t4
+      local.get $t6
+      i32.load8_u $heap
+      i32.store8 $heap
+      br 0
+    end
+    block
+      local.get $t2
+      local.get $t4
+      local.get $n
+      i32.add
+      local.get $t1
+      call $write_signed_sized
+      br 0
+    end
+    local.get $t4
+    local.get $t5
+    local.set $n
+    local.set $t1
     local.get $t1
     local.get $n
     local.get $t0
@@ -358,12 +328,10 @@
       if
     ;; 41 |         return u.len()
         block
-          block
-            local.get $u
-            i32.load $heap offset=8
-            local.set $t4
-            br 0
-          end
+          local.get $u
+          i32.load $heap offset=8
+          local.set $t4
+          br 0
         end
         br 1
     ;; 40 |     if c:

@@ -13,27 +13,23 @@
   (import "fixture" "table0" (table $table0 10 funcref))
   (func $"id[^240]" (param $value i32) (result i32)
     ;; 16 |     value
-    block
-    end
     local.get $value
   )
   (func $left_or_right (param $pair i32) (param $left i32) (result i32)
     ;; 19 |     let o: (&User)? = if left: .Some(&pair.left) else: .None
-    block
-      local.get $left
-      if (result i32)
-        local.get $pair
-      else
-        i32.const 0
-      end
-    ;; 20 |     o.unwrap_or(&pair.right)
+    local.get $left
+    if (result i32)
       local.get $pair
-      i32.const 8
-      i32.add
-      call $"impl[T < ?Copy] T?.unwrap_or[&User]"
-    ;; 19 |     let o: (&User)? = if left: .Some(&pair.left) else: .None
-      local.set $pair
+    else
+      i32.const 0
     end
+    ;; 20 |     o.unwrap_or(&pair.right)
+    local.get $pair
+    i32.const 8
+    i32.add
+    call $"impl[T < ?Copy] T?.unwrap_or[&User]"
+    ;; 19 |     let o: (&User)? = if left: .Some(&pair.left) else: .None
+    local.set $pair
     local.get $pair
   )
   (func $"later#1[*User]" (param $env i32) (param $ctx i32) (result i32)
@@ -52,125 +48,115 @@
         call $rt:retain_known
       end
     end
-    block
-    end
     local.get $env
   )
   (func $bounded (param $u.name.0 i32) (param $u.name.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 33 |     kept := keep(u)
     block
-      block
-        block
-          i32.const 8
-          i32.const 2
-          call $rt:new/class-1'1
-          local.tee $t0
-          local.get $u.name.0
-          i32.store $heap
-          local.get $t0
-          local.get $u.name.1
-          i32.store $heap offset=4
-          local.get $t0
-          local.set $u.name.0
-          br 0
-        end
-      end
+      i32.const 8
+      i32.const 2
+      call $rt:new/class-1'1
+      local.tee $t0
       local.get $u.name.0
-    ;; 34 |     later(kept)().name.len()
-      call $"later[*User]"
-      local.set $t0
-      local.set $u.name.1
+      i32.store $heap
       local.get $t0
-      i32.const 0
       local.get $u.name.1
-      call_indirect $table0 (param i32 i32) (result i32)
-      local.tee $u.name.1
-    ;; 33 |     kept := keep(u)
+      i32.store $heap offset=4
       local.get $t0
-      local.tee $t1
-      if
-        local.get $t1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $t1
-          call $rt:release_ref'1
-        end
-      end
-      local.get $u.name.0
-      local.tee $t1
-      if
-        local.get $t1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $t1
-          call $rt:release_ref'1
-        end
-      end
-    ;; 34 |     later(kept)().name.len()
-      local.tee $u.name.0
-      i32.load $heap
-      local.get $u.name.0
-      i32.load $heap offset=4
-      local.set $t0
-      local.tee $u.name.0
-      local.tee $t1
-      if
-        local.get $t1
-        call $retain
-      end
-    ;; 33 |     kept := keep(u)
-      local.get $u.name.1
-      local.tee $t1
-      if
-        local.get $t1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $t1
-          call $rt:release_ref'1
-        end
-      end
-    ;; 34 |     later(kept)().name.len()
-      block
-        block
-          local.get $t0
-          local.set $u.name.1
-          br 0
-        end
-      end
-    ;; 33 |     kept := keep(u)
-      local.get $u.name.0
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref'2
-      end
-      local.get $u.name.1
       local.set $u.name.0
+      br 0
     end
+    local.get $u.name.0
+    ;; 34 |     later(kept)().name.len()
+    call $"later[*User]"
+    local.set $t0
+    local.set $u.name.1
+    local.get $t0
+    i32.const 0
+    local.get $u.name.1
+    call_indirect $table0 (param i32 i32) (result i32)
+    local.tee $u.name.1
+    ;; 33 |     kept := keep(u)
+    local.get $t0
+    local.tee $t1
+    if
+      local.get $t1
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      global.get $tracing
+      i32.or
+      if
+        local.get $t1
+        call $rt:release_ref'1
+      end
+    end
+    local.get $u.name.0
+    local.tee $t1
+    if
+      local.get $t1
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      global.get $tracing
+      i32.or
+      if
+        local.get $t1
+        call $rt:release_ref'1
+      end
+    end
+    ;; 34 |     later(kept)().name.len()
+    local.tee $u.name.0
+    i32.load $heap
+    local.get $u.name.0
+    i32.load $heap offset=4
+    local.set $t0
+    local.tee $u.name.0
+    local.tee $t1
+    if
+      local.get $t1
+      call $retain
+    end
+    ;; 33 |     kept := keep(u)
+    local.get $u.name.1
+    local.tee $t1
+    if
+      local.get $t1
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      global.get $tracing
+      i32.or
+      if
+        local.get $t1
+        call $rt:release_ref'1
+      end
+    end
+    ;; 34 |     later(kept)().name.len()
+    block
+      local.get $t0
+      local.set $u.name.1
+      br 0
+    end
+    ;; 33 |     kept := keep(u)
+    local.get $u.name.0
+    local.tee $t1
+    if
+      local.get $t1
+      call $rt:release_ref'2
+    end
+    local.get $u.name.1
+    local.set $u.name.0
     local.get $u.name.0
   )
   (func $demo (param $u i32) (result i32)
     ;; 23 |     n := id(&u.name)
-    block
-      local.get $u
-      call $"id[^240]"
+    local.get $u
+    call $"id[^240]"
     ;; 24 |     n.len()
-      call $"impl string.len"
+    call $"impl string.len"
     ;; 23 |     n := id(&u.name)
-      local.set $u
-    end
+    local.set $u
     local.get $u
   )
   (func $"later[*User]" (param $value i32) (result i32 i32) (local $t0 i32)
@@ -186,16 +172,14 @@
         call $rt:retain_known
       end
     end
-    block
-      i32.const 2
-      i32.const 4
-      i32.const -2147483644
-      call $rt:new/class-1'2
-      local.tee $t0
-      local.get $value
-      i32.store $heap
-      local.set $value
-    end
+    i32.const 2
+    i32.const 4
+    i32.const -2147483644
+    call $rt:new/class-1'2
+    local.tee $t0
+    local.get $value
+    i32.store $heap
+    local.set $value
     local.get $value
     local.get $t0
   )

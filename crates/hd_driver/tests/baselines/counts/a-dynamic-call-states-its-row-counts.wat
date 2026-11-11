@@ -12,37 +12,35 @@
   (import "fixture" "table0" (table $table0 10 funcref))
   (func $ordinary (param $work.0 i32) (param $work.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32)
     ;; 12 |     work.run()
-    block
-      local.get $work.0
-      i32.const 1
-      i32.const 0
-      call $rt:ctx_new
-      local.tee $work.0
-      i64.const -8941934570327064298
-      i64.store $heap offset=16
-      local.get $work.0
+    local.get $work.0
+    i32.const 1
+    i32.const 0
+    call $rt:ctx_new
+    local.tee $work.0
+    i64.const -8941934570327064298
+    i64.store $heap offset=16
+    local.get $work.0
+    local.get $provider0
+    i32.store $heap offset=24
+    local.get $work.0
+    local.get $provider0.vtable
+    i32.store $heap offset=28
+    local.get $provider0
+    if
       local.get $provider0
-      i32.store $heap offset=24
-      local.get $work.0
-      local.get $provider0.vtable
-      i32.store $heap offset=28
-      local.get $provider0
-      if
-        local.get $provider0
-        call $retain
-      end
-      local.get $work.0
-      local.get $work.1
-      i32.load $heap
-      call_indirect $table0 (param i32 i32) (result i32)
-      local.get $work.0
-      local.tee $provider0
-      if
-        local.get $provider0
-        call $rt:release_ref
-      end
-      local.set $work.0
+      call $retain
     end
+    local.get $work.0
+    local.get $work.1
+    i32.load $heap
+    call_indirect $table0 (param i32 i32) (result i32)
+    local.get $work.0
+    local.tee $provider0
+    if
+      local.get $provider0
+      call $rt:release_ref
+    end
+    local.set $work.0
     local.get $work.0
   )
   (func $awaited'1 (param $frame i32) (param $work.0 i32) (param $work.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32) (local $t4 i32) (local $t1 i32) (local $t8 i32) (local $t2 i32) (local $t3 i32) (local $t6 i32) (local $t7 i32) (local $t9 i32) (local $t0 i32) (local $t5 i32)
@@ -577,37 +575,35 @@
   )
   (func $cold (param $work.0 i32) (param $work.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32)
     ;; 15 |     work.later()
-    block
-      local.get $work.0
-      i32.const 1
-      i32.const 0
-      call $rt:ctx_new
-      local.tee $work.0
-      i64.const -8941934570327064298
-      i64.store $heap offset=16
-      local.get $work.0
+    local.get $work.0
+    i32.const 1
+    i32.const 0
+    call $rt:ctx_new
+    local.tee $work.0
+    i64.const -8941934570327064298
+    i64.store $heap offset=16
+    local.get $work.0
+    local.get $provider0
+    i32.store $heap offset=24
+    local.get $work.0
+    local.get $provider0.vtable
+    i32.store $heap offset=28
+    local.get $provider0
+    if
       local.get $provider0
-      i32.store $heap offset=24
-      local.get $work.0
-      local.get $provider0.vtable
-      i32.store $heap offset=28
-      local.get $provider0
-      if
-        local.get $provider0
-        call $retain
-      end
-      local.get $work.0
-      local.get $work.1
-      i32.load $heap offset=4
-      call_indirect $table0 (param i32 i32) (result i32)
-      local.get $work.0
-      local.tee $provider0
-      if
-        local.get $provider0
-        call $rt:release_ref
-      end
-      local.set $work.0
+      call $retain
     end
+    local.get $work.0
+    local.get $work.1
+    i32.load $heap offset=4
+    call_indirect $table0 (param i32 i32) (result i32)
+    local.get $work.0
+    local.tee $provider0
+    if
+      local.get $provider0
+      call $rt:release_ref
+    end
+    local.set $work.0
     local.get $work.0
   )
 )

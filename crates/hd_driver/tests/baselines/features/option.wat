@@ -49,80 +49,72 @@
     block
       block
         block
-          block
     ;; 8 |         .Some(s) => s.len()
-            local.get $o.0
-            br_if 0
+          local.get $o.0
+          br_if 0
     ;; 9 |         .None => 0
-            local.get $o.0
-            i32.eqz
-            br_if 1
-            unreachable
+          local.get $o.0
+          i32.eqz
+          br_if 1
+          unreachable
     ;; 7 |     match o:
-            unreachable
-          end
-    ;; 8 |         .Some(s) => s.len()
-          block
-            block
-              local.get $o.1
-              local.set $t0
-              br 0
-            end
-          end
-    ;; 7 |     match o:
-          br 1
+          unreachable
         end
-        br 0
+    ;; 8 |         .Some(s) => s.len()
+        block
+          local.get $o.1
+          local.set $t0
+          br 0
+        end
+    ;; 7 |     match o:
+        br 1
       end
-      local.get $t0
-      local.set $o.0
+      br 0
     end
+    local.get $t0
+    local.set $o.0
     local.get $o.0
   )
   (func $or_default (param $o.0 i32) (param $o.1 i32) (result i32 i32) (local $t1 i32) (local $t0 i32)
     ;; 16 |     o.unwrap_or("none")
+    i32.const 105 ;; &"none"
+    i32.const 4
+    local.set $t0
+    local.set $t1
     block
-      i32.const 105 ;; &"none"
-      i32.const 4
-      local.set $t0
-      local.set $t1
       block
         block
           block
-            block
-              block
-                local.get $o.0
-                if
-                  local.get $o.0
-                  local.get $o.1
-                  local.set $t0
-                  local.set $t1
-                  br 1
-                else
-                  local.get $o.0
-                  i32.eqz
-                  br_if 2
-                  unreachable
-                end
-                unreachable
-              end
-              local.get $t1
-              local.tee $o.0
-              if
-                local.get $o.0
-                call $retain
-              end
+            local.get $o.0
+            if
+              local.get $o.0
+              local.get $o.1
+              local.set $t0
+              local.set $t1
               br 1
+            else
+              local.get $o.0
+              i32.eqz
+              br_if 2
+              unreachable
             end
-            br 0
+            unreachable
           end
           local.get $t1
-          local.get $t0
-          local.set $o.1
-          local.set $o.0
-          br 0
+          local.tee $o.0
+          if
+            local.get $o.0
+            call $retain
+          end
+          br 1
         end
+        br 0
       end
+      local.get $t1
+      local.get $t0
+      local.set $o.1
+      local.set $o.0
+      br 0
     end
     local.get $o.0
     local.get $o.1

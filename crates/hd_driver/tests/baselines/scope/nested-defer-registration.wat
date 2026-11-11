@@ -16,84 +16,80 @@
     local.get $env
     i32.load $heap
     local.set $env
-    block
-      local.get $env
-      i32.load $heap
-      call $rt:list_unique
+    local.get $env
+    i32.load $heap
+    call $rt:list_unique
+    local.set $ctx
+    local.get $env
+    local.get $ctx
+    i32.store $heap
+    local.get $ctx
+    i32.load $heap offset=4
+    local.tee $t0
+    local.get $ctx
+    i32.load $heap
+    i32.eq
+    if
+      local.get $ctx
+      i32.const 0
+      call_indirect $table0 (param i32) (result i32)
       local.set $ctx
       local.get $env
       local.get $ctx
       i32.store $heap
-      local.get $ctx
-      i32.load $heap offset=4
-      local.tee $t0
-      local.get $ctx
-      i32.load $heap
-      i32.eq
-      if
-        local.get $ctx
-        i32.const 0
-        call_indirect $table0 (param i32) (result i32)
-        local.set $ctx
-        local.get $env
-        local.get $ctx
-        i32.store $heap
-      end
-      local.get $ctx
-      local.get $t0
-      i32.const 4
-      i32.mul
-      i32.add
-      i32.const 1
-      i32.store $heap offset=16
-      local.get $ctx
-      local.get $t0
-      i32.const 1
-      i32.add
-      i32.store $heap offset=4
     end
+    local.get $ctx
+    local.get $t0
+    i32.const 4
+    i32.mul
+    i32.add
+    i32.const 1
+    i32.store $heap offset=16
+    local.get $ctx
+    local.get $t0
+    i32.const 1
+    i32.add
+    i32.store $heap offset=4
   )
   (func $nested#2 (param $env i32) (param $ctx i32) (local $t0 i32)
     ;; 10 |         defer(fn() -> void: log.push(+2))
     local.get $env
     i32.load $heap
     local.set $env
-    block
-      local.get $env
-      i32.load $heap
-      call $rt:list_unique
+    local.get $env
+    i32.load $heap
+    call $rt:list_unique
+    local.set $ctx
+    local.get $env
+    local.get $ctx
+    i32.store $heap
+    local.get $ctx
+    i32.load $heap offset=4
+    local.tee $t0
+    local.get $ctx
+    i32.load $heap
+    i32.eq
+    if
+      local.get $ctx
+      i32.const 0
+      call_indirect $table0 (param i32) (result i32)
       local.set $ctx
       local.get $env
       local.get $ctx
       i32.store $heap
-      local.get $ctx
-      i32.load $heap offset=4
-      local.tee $t0
-      local.get $ctx
-      i32.load $heap
-      i32.eq
-      if
-        local.get $ctx
-        i32.const 0
-        call_indirect $table0 (param i32) (result i32)
-        local.set $ctx
-        local.get $env
-        local.get $ctx
-        i32.store $heap
-      end
-      local.get $ctx
-      local.get $t0
-      i32.const 4
-      i32.mul
-      i32.add
-      i32.const 2
-      i32.store $heap offset=16
-      local.get $ctx
-      local.get $t0
-      i32.const 1
-      i32.add
-      i32.store $heap offset=4
     end
+    local.get $ctx
+    local.get $t0
+    i32.const 4
+    i32.mul
+    i32.add
+    i32.const 2
+    i32.store $heap offset=16
+    local.get $ctx
+    local.get $t0
+    i32.const 1
+    i32.add
+    i32.store $heap offset=4
   )
   (func $nested (param $log i32) (param $early i32) (result i32) (local $t5 i32) (local $t6 i32) (local $t1 i32) (local $t7 i32) (local $t2 i32) (local $t0 i32) (local $t3 i32) (local $t4 i32)
     ;; 8 |     defer(fn() -> void: log.push(+1))
@@ -141,9 +137,7 @@
         local.set $t2
         local.set $t1
         block
-          block
-            br 0
-          end
+          br 0
         end
         local.get $t0
         i64.const 0
@@ -177,9 +171,7 @@
             call $rt:retain_fields
             local.set $log
             block
-              block
-                br 0
-              end
+              br 0
             end
             local.get $t0
             i64.const 0

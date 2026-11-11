@@ -5,42 +5,36 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $"impl Describe for Logger.describe" (param $self i32) (result i32 i32) (local $t0 i32) (local $t1 i32)
     ;; 15 |         self.name
-    block
-      local.get $self
-      i32.load $heap
-      local.get $self
-      i32.load $heap offset=4
-      local.set $t0
-      local.tee $self
-      local.tee $t1
-      if
-        local.get $t1
-        call $retain
-      end
+    local.get $self
+    i32.load $heap
+    local.get $self
+    i32.load $heap offset=4
+    local.set $t0
+    local.tee $self
+    local.tee $t1
+    if
+      local.get $t1
+      call $retain
     end
     local.get $self
     local.get $t0
   )
   (func $"impl Describe for Service by Logger.describe" (param $self i32) (result i32 i32) (local $t0 i32) (local $t1 i32)
     ;; 21 | impl Describe for Service by Logger
+    local.get $self
+    i32.load $heap
+    local.get $self
+    i32.load $heap offset=4
+    local.set $t0
+    local.set $self
     block
       local.get $self
-      i32.load $heap
-      local.get $self
-      i32.load $heap offset=4
-      local.set $t0
-      local.set $self
-      block
-        block
-          local.get $self
-          local.tee $t1
-          if
-            local.get $t1
-            call $retain
-          end
-          br 0
-        end
+      local.tee $t1
+      if
+        local.get $t1
+        call $retain
       end
+      br 0
     end
     local.get $self
     local.get $t0
@@ -49,51 +43,37 @@
     ;; 24 |     s.describe().len()
     block
       block
-        block
-          block
-            block
-              br 0
-            end
-          end
-          br 0
-        end
+        br 0
       end
-      block
-        block
-          br 0
-        end
-      end
-      local.get $s.Logger.name.0
-      if
-        local.get $s.Logger.name.0
-        call $rt:release_ref
-      end
-      local.get $s.Logger.name.1
-      local.set $s.Logger.name.0
+      br 0
     end
+    block
+      br 0
+    end
+    local.get $s.Logger.name.0
+    if
+      local.get $s.Logger.name.0
+      call $rt:release_ref
+    end
+    local.get $s.Logger.name.1
+    local.set $s.Logger.name.0
     local.get $s.Logger.name.0
   )
   (func $explicit (param $s.Logger.name.0 i32) (param $s.Logger.name.1 i32) (param $s.port i32) (result i32)
     ;; 27 |     s.Logger.describe().len()
     block
-      block
-        block
-          br 0
-        end
-      end
-      block
-        block
-          br 0
-        end
-      end
-      local.get $s.Logger.name.0
-      if
-        local.get $s.Logger.name.0
-        call $rt:release_ref
-      end
-      local.get $s.Logger.name.1
-      local.set $s.Logger.name.0
+      br 0
     end
+    block
+      br 0
+    end
+    local.get $s.Logger.name.0
+    if
+      local.get $s.Logger.name.0
+      call $rt:release_ref
+    end
+    local.get $s.Logger.name.1
+    local.set $s.Logger.name.0
     local.get $s.Logger.name.0
   )
 )

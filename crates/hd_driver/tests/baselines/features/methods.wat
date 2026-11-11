@@ -9,100 +9,92 @@
   (import "fixture" "table0" (table $table0 5 funcref))
   (func $"impl Shelf.by_self" (param $self i32) (result i32)
     ;; 11 |         (self.books.len() + 1) * (self.books.len() + 2) * (self.books.len() + 3) / 7
-    block
-      local.get $self
-      i32.load $heap offset=4
-      i32.const 1
-      i32.add
-      local.get $self
-      i32.load $heap offset=4
-      i32.const 2
-      i32.add
-      i32.mul
-      local.get $self
-      i32.load $heap offset=4
-      i32.const 3
-      i32.add
-      i32.mul
-      i32.const 7
-      i32.div_u
-      local.set $self
-    end
+    local.get $self
+    i32.load $heap offset=4
+    i32.const 1
+    i32.add
+    local.get $self
+    i32.load $heap offset=4
+    i32.const 2
+    i32.add
+    i32.mul
+    local.get $self
+    i32.load $heap offset=4
+    i32.const 3
+    i32.add
+    i32.mul
+    i32.const 7
+    i32.div_u
+    local.set $self
     local.get $self
   )
   (func $"impl Shelf.by_mut" (param $self i32) (param $b.0 i32) (param $b.1 i32) (local $t0 i32) (local $t1 i32)
     ;; 17 |         self.books.push(b)
-    block
-      local.get $self
-      i32.load $heap
-      call $rt:list_unique
+    local.get $self
+    i32.load $heap
+    call $rt:list_unique
+    local.set $t0
+    local.get $self
+    local.get $t0
+    i32.store $heap
+    local.get $t0
+    i32.load $heap offset=4
+    local.tee $t1
+    local.get $t0
+    i32.load $heap
+    i32.eq
+    if
+      local.get $t0
+      i32.const 1
+      call_indirect $table0 (param i32) (result i32)
       local.set $t0
       local.get $self
       local.get $t0
       i32.store $heap
-      local.get $t0
-      i32.load $heap offset=4
-      local.tee $t1
-      local.get $t0
-      i32.load $heap
-      i32.eq
-      if
-        local.get $t0
-        i32.const 1
-        call_indirect $table0 (param i32) (result i32)
-        local.set $t0
-        local.get $self
-        local.get $t0
-        i32.store $heap
-      end
-      local.get $t0
-      local.get $t1
-      i32.const 8
-      i32.mul
-      i32.add
-      local.tee $self
-      local.get $b.0
-      i32.store $heap offset=16
-      local.get $self
-      local.get $b.1
-      i32.store $heap offset=20
-      local.get $t0
-      local.get $t1
-      i32.const 1
-      i32.add
-      i32.store $heap offset=4
     end
+    local.get $t0
+    local.get $t1
+    i32.const 8
+    i32.mul
+    i32.add
+    local.tee $self
+    local.get $b.0
+    i32.store $heap offset=16
+    local.get $self
+    local.get $b.1
+    i32.store $heap offset=20
+    local.get $t0
+    local.get $t1
+    i32.const 1
+    i32.add
+    i32.store $heap offset=4
   )
   (func $"impl Shelf.by_ref" (param $self i32) (result i32)
     ;; 14 |         (self.books.len() + 1) * (self.books.len() + 2) * (self.books.len() + 3) / 7
-    block
-      local.get $self
-      i32.load $heap
-      i32.load $heap offset=4
-      i32.const 1
-      i32.add
-      local.get $self
-      i32.load $heap
-      i32.load $heap offset=4
-      i32.const 2
-      i32.add
-      i32.mul
-      local.get $self
-      i32.load $heap
-      i32.load $heap offset=4
-      i32.const 3
-      i32.add
-      i32.mul
-      i32.const 7
-      i32.div_u
-      local.set $self
-    end
+    local.get $self
+    i32.load $heap
+    i32.load $heap offset=4
+    i32.const 1
+    i32.add
+    local.get $self
+    i32.load $heap
+    i32.load $heap offset=4
+    i32.const 2
+    i32.add
+    i32.mul
+    local.get $self
+    i32.load $heap
+    i32.load $heap offset=4
+    i32.const 3
+    i32.add
+    i32.mul
+    i32.const 7
+    i32.div_u
+    local.set $self
     local.get $self
   )
   (func $"impl Shelf.consume" (param $self i32) (result i32)
     ;; 20 |         self.books
-    block
-    end
     local.get $self
   )
   (func $use_methods (param $s i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $t i32) (local $t0 i32) (local $t1 i32)
@@ -136,122 +128,114 @@
     i32.sub
     local.tee $t0
     global.set $locals
+    local.get $s
+    call $rt:coll_copy
+    local.set $t
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $t1
+    local.get $t
+    i32.store $heap
+    local.get $t1
+    local.tee $t
+    ;; 24 |     t.by_mut(b)
+    local.get $b.0
+    local.get $b.1
+    call $"impl Shelf.by_mut"
+    ;; 25 |     s.by_self() + s.by_ref() + t.consume().len()
     block
       local.get $s
-      call $rt:coll_copy
-      local.set $t
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $t1
-      local.get $t
-      i32.store $heap
-      local.get $t1
-      local.tee $t
-    ;; 24 |     t.by_mut(b)
-      local.get $b.0
-      local.get $b.1
-      call $"impl Shelf.by_mut"
-    ;; 25 |     s.by_self() + s.by_ref() + t.consume().len()
-      block
-        block
-          local.get $s
-          i32.load $heap offset=4
-          i32.const 1
-          i32.add
-          local.get $s
-          i32.load $heap offset=4
-          i32.const 2
-          i32.add
-          i32.mul
-          local.get $s
-          i32.load $heap offset=4
-          i32.const 3
-          i32.add
-          i32.mul
-          i32.const 7
-          i32.div_u
-          local.set $b.0
-          br 0
-        end
-      end
-      block
-        block
-          local.get $s
-          i32.load $heap offset=4
-          i32.const 1
-          i32.add
-          local.get $s
-          i32.load $heap offset=4
-          i32.const 2
-          i32.add
-          i32.mul
-          local.get $s
-          i32.load $heap offset=4
-          i32.const 3
-          i32.add
-          i32.mul
-          i32.const 7
-          i32.div_u
-          local.set $b.1
-          br 0
-        end
-      end
-    ;; 23 |     let mut t = s
-      local.get $s
-      local.tee $t1
-      if
-        local.get $t1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t1
-          call $rt:release_ref
-        end
-      end
-    ;; 25 |     s.by_self() + s.by_ref() + t.consume().len()
-      local.get $b.0
-      local.get $b.1
-      i32.add
-      local.set $s
-      local.get $t
-      i32.load $heap
-      local.get $t
-      i32.const 0
-      i32.store $heap
-      local.set $b.0
-      block
-        block
-          br 0
-        end
-      end
-      local.get $b.0
       i32.load $heap offset=4
+      i32.const 1
+      i32.add
+      local.get $s
+      i32.load $heap offset=4
+      i32.const 2
+      i32.add
+      i32.mul
+      local.get $s
+      i32.load $heap offset=4
+      i32.const 3
+      i32.add
+      i32.mul
+      i32.const 7
+      i32.div_u
+      local.set $b.0
+      br 0
+    end
+    block
+      local.get $s
+      i32.load $heap offset=4
+      i32.const 1
+      i32.add
+      local.get $s
+      i32.load $heap offset=4
+      i32.const 2
+      i32.add
+      i32.mul
+      local.get $s
+      i32.load $heap offset=4
+      i32.const 3
+      i32.add
+      i32.mul
+      i32.const 7
+      i32.div_u
       local.set $b.1
+      br 0
+    end
     ;; 23 |     let mut t = s
-      local.get $b.0
-      local.tee $t1
+    local.get $s
+    local.tee $t1
+    if
+      local.get $t1
+      i32.const 8
+      i32.sub
+      i32.load $heap
       if
         local.get $t1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t1
-          call $rt:release_ref
-        end
+        call $rt:release_ref
       end
-    ;; 25 |     s.by_self() + s.by_ref() + t.consume().len()
-      local.get $s
-      local.get $b.1
-      i32.add
-    ;; 23 |     let mut t = s
-      local.set $s
     end
+    ;; 25 |     s.by_self() + s.by_ref() + t.consume().len()
+    local.get $b.0
+    local.get $b.1
+    i32.add
+    local.set $s
+    local.get $t
+    i32.load $heap
+    local.get $t
+    i32.const 0
+    i32.store $heap
+    local.set $b.0
+    block
+      br 0
+    end
+    local.get $b.0
+    i32.load $heap offset=4
+    local.set $b.1
+    ;; 23 |     let mut t = s
+    local.get $b.0
+    local.tee $t1
+    if
+      local.get $t1
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $t1
+        call $rt:release_ref
+      end
+    end
+    ;; 25 |     s.by_self() + s.by_ref() + t.consume().len()
+    local.get $s
+    local.get $b.1
+    i32.add
+    ;; 23 |     let mut t = s
+    local.set $s
     local.get $s
     local.get $t0
     i32.const 16

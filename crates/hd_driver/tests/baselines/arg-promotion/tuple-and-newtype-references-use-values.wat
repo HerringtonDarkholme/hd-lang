@@ -3,26 +3,22 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $meters'1 (param $value i32) (result i64) (local $t0 i64)
     ;; 11 |     i64(*value) + 1
-    block
-      local.get $value
-      i64.load $heap
-      i64.const 1
-      i64.add
-      local.set $t0
-    end
+    local.get $value
+    i64.load $heap
+    i64.const 1
+    i64.add
+    local.set $t0
     local.get $t0
   )
   (func $sum'1 (param $value i32) (result i64) (local $t0 i64)
     ;; 15 |     i64(value._0) + value._1
-    block
-      local.get $value
-      i32.load $heap offset=8
-      i64.extend_i32_s
-      local.get $value
-      i64.load $heap
-      i64.add
-      local.set $t0
-    end
+    local.get $value
+    i32.load $heap offset=8
+    i64.extend_i32_s
+    local.get $value
+    i64.load $heap
+    i64.add
+    local.set $t0
     local.get $t0
   )
   (func $sum'2 (param $value.0 i32) (param $value.1 i64) (result i64)

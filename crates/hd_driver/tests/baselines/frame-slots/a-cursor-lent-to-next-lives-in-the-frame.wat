@@ -35,69 +35,67 @@
     i32.sub
     local.tee $t0
     global.set $locals
-    block
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $cursor
-      local.get $items.at
-      i64.store $heap
-      local.get $cursor
-      local.get $items.end
-      i64.store $heap offset=8
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $cursor
+    local.get $items.at
+    i64.store $heap
+    local.get $cursor
+    local.get $items.end
+    i64.store $heap offset=8
     ;; 22 |     while true:
-      block
-        loop
+    block
+      loop
     ;; 23 |         match cursor.next():
-          local.get $cursor
-          call $"impl Iterator[i64] for Upto.next"
-          local.set $items.at
-          local.set $t1
+        local.get $cursor
+        call $"impl Iterator[i64] for Upto.next"
+        local.set $items.at
+        local.set $t1
+        block
           block
             block
-              block
     ;; 24 |             .Some(item) => sum = sum + item
+              local.get $t1
+              i32.const 1
+              i32.eq
+              if
+                br 1
+              else
+    ;; 25 |             .None => break
                 local.get $t1
-                i32.const 1
-                i32.eq
-                if
-                  br 1
-                else
-    ;; 25 |             .None => break
-                  local.get $t1
-                  i32.eqz
-                  br_if 2
-                  unreachable
-    ;; 24 |             .Some(item) => sum = sum + item
-                end
-    ;; 23 |         match cursor.next():
+                i32.eqz
+                br_if 2
                 unreachable
-              end
     ;; 24 |             .Some(item) => sum = sum + item
-              local.get $sum
-              local.get $items.at
-              i64.add
-              local.set $sum
+              end
     ;; 23 |         match cursor.next():
-              br 1
+              unreachable
             end
-    ;; 25 |             .None => break
-            br 2
+    ;; 24 |             .Some(item) => sum = sum + item
+            local.get $sum
+            local.get $items.at
+            i64.add
+            local.set $sum
     ;; 23 |         match cursor.next():
-            br 0
+            br 1
           end
-    ;; 22 |     while true:
+    ;; 25 |             .None => break
+          br 2
+    ;; 23 |         match cursor.next():
           br 0
         end
+    ;; 22 |     while true:
+        br 0
       end
-    ;; 26 |     sum
-      local.get $sum
-    ;; 20 |     let mut cursor = items
-      local.set $items.at
     end
+    ;; 26 |     sum
+    local.get $sum
+    ;; 20 |     let mut cursor = items
+    local.set $items.at
     local.get $items.at
     local.get $t0
     i32.const 24

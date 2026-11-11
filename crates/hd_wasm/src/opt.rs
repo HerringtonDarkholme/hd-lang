@@ -2295,6 +2295,129 @@ fn with_offset(i: &I, by: u32) -> Option<I> {
     })
 }
 
+/// Remove unused void labels after the passes that can empty their bodies.
+/// A direct stack-polymorphic instruction keeps its validation boundary.
+/// The two walks cost O(N + T) for N instructions and T branch-table targets.
+pub fn blocks(f: &mut Func) -> bool {
+    blocks_with(f, || {})
+}
+
+struct BlockFrame {
+    keep: bool,
+    kept_depth: u32,
+}
+
+fn branch_frame(stack: &[usize], depth: u32) -> Option<usize> {
+    let offset = (depth as usize).checked_add(1)?;
+    stack.get(stack.len().checked_sub(offset)?).copied()
+}
+
+/// Collect labels before editing, including the implicit function label.
+/// Invalid control depths leave the body for ordinary Wasm validation.
+fn block_frames(f: &Func, visit: &mut impl FnMut()) -> Option<(Vec<BlockFrame>, Vec<usize>)> {
+    let mut frames = vec![BlockFrame {
+        keep: true,
+        kept_depth: 1,
+    }];
+    let mut ids = vec![0; f.body.len()];
+    let mut stack = vec![0];
+    for (i, ins) in f.body.iter().enumerate() {
+        visit();
+        let barrier = match ins {
+            Ins::Op(I::Block(_) | I::Loop(_) | I::If(_)) => {
+                let id = frames.len();
+                ids[i] = id;
+                frames.push(BlockFrame {
+                    keep: !matches!(ins, Ins::Op(I::Block(wasm_encoder::BlockType::Empty))),
+                    kept_depth: 0,
+                });
+                stack.push(id);
+                false
+            }
+            Ins::Op(I::End) if stack.len() > 1 => {
+                ids[i] = stack.pop()?;
+                false
+            }
+            Ins::Op(I::Br(depth) | I::BrIf(depth)) => {
+                frames[branch_frame(&stack, *depth)?].keep = true;
+                matches!(ins, Ins::Op(I::Br(_)))
+            }
+            Ins::Op(I::BrTable(table, default)) => {
+                for &depth in f.label_list(*table).iter().chain(std::iter::once(default)) {
+                    visit();
+                    frames[branch_frame(&stack, depth)?].keep = true;
+                }
+                true
+            }
+            Ins::Op(I::Return | I::Unreachable) => true,
+            _ => false,
+        };
+        if barrier {
+            frames[*stack.last()?].keep = true;
+        }
+    }
+    (stack.len() == 1).then_some((frames, ids))
+}
+
+fn blocks_with(f: &mut Func, mut visit: impl FnMut()) -> bool {
+    let Some((mut frames, ids)) = block_frames(f, &mut visit) else {
+        return false;
+    };
+    if frames.iter().all(|frame| frame.keep) {
+        return false;
+    }
+    let mut origins = Remap::new(f.origins.as_deref());
+    let body = std::mem::take(&mut f.body);
+    let mut out = Vec::with_capacity(body.len());
+    let mut stack = vec![0];
+    let mut kept = 1;
+    for (i, ins) in body.into_iter().enumerate() {
+        visit();
+        // The first walk validated every depth and kept every target.
+        let depth = |d: u32, frames: &[BlockFrame]| {
+            let target = stack[stack.len() - 1 - d as usize];
+            kept - frames[target].kept_depth
+        };
+        let rewritten = match ins {
+            Ins::Op(I::Block(_) | I::Loop(_) | I::If(_)) => {
+                let id = ids[i];
+                stack.push(id);
+                kept += u32::from(frames[id].keep);
+                frames[id].kept_depth = kept;
+                frames[id].keep.then_some(ins)
+            }
+            Ins::Op(I::End) if stack.len() > 1 => {
+                let id = ids[i];
+                stack.pop();
+                kept -= u32::from(frames[id].keep);
+                frames[id].keep.then_some(ins)
+            }
+            Ins::Op(I::Br(d)) => Some(Ins::Op(I::Br(depth(d, &frames)))),
+            Ins::Op(I::BrIf(d)) => Some(Ins::Op(I::BrIf(depth(d, &frames)))),
+            Ins::Op(I::BrTable(table, default)) => {
+                let targets = f
+                    .label_list(table)
+                    .iter()
+                    .map(|&d| {
+                        visit();
+                        depth(d, &frames)
+                    })
+                    .collect();
+                let default = depth(default, &frames);
+                Some(Ins::Op(I::BrTable(f.intern_labels(targets), default)))
+            }
+            _ => Some(ins),
+        };
+        if let Some(ins) = rewritten {
+            out.push(ins);
+            origins.copy(i..i + 1);
+        }
+    }
+    f.body = out;
+    origins.finish(f);
+    true
+}
+
 /// Rules 5 and 6: rewrites each `if` of those shapes.
 fn shapes(f: &mut Func, np: u32) -> bool {
     let mut changed = false;
@@ -3388,6 +3511,206 @@ mod origin_tests {
             },
         );
         assert_eq!(spans(&f), [12, 10, 14]);
+    }
+
+    fn validate_void_block_fixture(f: &Func) {
+        use wasm_encoder::{CodeSection, Function, FunctionSection, Module, TypeSection, ValType};
+        let mut types = TypeSection::new();
+        types.ty().function(vec![ValType::I32; f.params.len()], []);
+        types.ty().function([ValType::I32], [ValType::I32]);
+        let mut functions = FunctionSection::new();
+        functions.function(0);
+        let mut code =
+            Function::new_with_locals_types(std::iter::repeat_n(ValType::I32, f.locals.len()));
+        for ins in &f.body {
+            if let Ins::Op(op) = ins {
+                code.instruction(&op.to_wasm(&f.labels));
+            }
+        }
+        code.instruction(&wasm_encoder::Instruction::End);
+        let mut codes = CodeSection::new();
+        codes.function(&code);
+        let mut module = Module::new();
+        module.section(&types).section(&functions).section(&codes);
+        let validation = wasmparser::Validator::new().validate_all(&module.finish());
+        assert!(validation.is_ok(), "{:?}", validation.err());
+    }
+
+    #[test]
+    fn void_blocks_rewrite_nested_branches_and_shared_tables() {
+        let symbols = Symbols::default();
+        let op = Ins::Op;
+        let mut f = tracked(
+            &symbols,
+            1,
+            0,
+            vec![
+                op(I::Block(BlockType::Empty)),
+                op(I::Block(BlockType::Empty)),
+                op(I::LocalGet(0)),
+                op(I::BrIf(1)),
+                op(I::Block(BlockType::Empty)),
+                op(I::LocalGet(0)),
+                op(I::BrIf(2)),
+                op(I::End),
+                op(I::End),
+                op(I::End),
+            ],
+        );
+        validate_void_block_fixture(&f);
+        assert!(blocks(&mut f));
+        validate_void_block_fixture(&f);
+        assert_eq!(spans(&f), [10, 12, 13, 15, 16, 19]);
+        assert!(matches!(f.body[2], Ins::Op(I::BrIf(0))));
+        assert!(matches!(f.body[4], Ins::Op(I::BrIf(0))));
+
+        let mut f = tracked(
+            &symbols,
+            1,
+            0,
+            vec![
+                op(I::Block(BlockType::Empty)),
+                op(I::Block(BlockType::Empty)),
+                op(I::LocalGet(0)),
+                op(I::BrIf(2)),
+                op(I::End),
+                op(I::End),
+            ],
+        );
+        validate_void_block_fixture(&f);
+        assert!(blocks(&mut f));
+        validate_void_block_fixture(&f);
+        assert!(matches!(
+            f.body.as_slice(),
+            [Ins::Op(I::LocalGet(0)), Ins::Op(I::BrIf(0))]
+        ));
+
+        let mut f = tracked(
+            &symbols,
+            0,
+            0,
+            vec![
+                op(I::Block(BlockType::Empty)),
+                op(I::Block(BlockType::Empty)),
+                op(I::Block(BlockType::Empty)),
+                op(I::Br(2)),
+                op(I::End),
+                op(I::End),
+                op(I::End),
+            ],
+        );
+        validate_void_block_fixture(&f);
+        assert!(blocks(&mut f));
+        validate_void_block_fixture(&f);
+        assert!(matches!(f.body[2], Ins::Op(I::Br(1))));
+
+        let mut body = Vec::new();
+        for keep_middle in [false, true] {
+            body.extend([
+                op(I::Block(BlockType::Empty)),
+                op(I::Block(BlockType::Empty)),
+            ]);
+            if keep_middle {
+                body.extend([op(I::LocalGet(0)), op(I::BrIf(0))]);
+            }
+            body.extend([
+                op(I::Loop(BlockType::Empty)),
+                op(I::Block(BlockType::Empty)),
+                op(I::LocalGet(0)),
+                op(I::BrTable(LabelListId(0), 3)),
+                op(I::End),
+                op(I::End),
+                op(I::End),
+                op(I::End),
+            ]);
+        }
+        let mut f = tracked(&symbols, 1, 0, body);
+        f.labels.push(vec![1, 3]);
+        validate_void_block_fixture(&f);
+        assert!(blocks(&mut f));
+        validate_void_block_fixture(&f);
+        assert_eq!(f.label_list(LabelListId(0)), [1, 3]);
+        let tables: Vec<_> = f
+            .body
+            .iter()
+            .filter_map(|ins| match ins {
+                Ins::Op(I::BrTable(table, default)) => Some((f.label_list(*table), *default)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            tables,
+            [(vec![1, 2].as_slice(), 2), (vec![1, 3].as_slice(), 3)]
+        );
+    }
+
+    #[test]
+    fn void_blocks_keep_typed_parameters_and_polymorphic_boundaries() {
+        let symbols = Symbols::default();
+        let op = Ins::Op;
+        let f = tracked(
+            &symbols,
+            0,
+            0,
+            vec![
+                op(I::Block(BlockType::Result(wasm_encoder::ValType::I32))),
+                op(I::I32Const(1)),
+                op(I::End),
+                op(I::Drop),
+                op(I::I32Const(1)),
+                op(I::Block(BlockType::FunctionType(1))),
+                op(I::I32Const(2)),
+                op(I::I32Add),
+                op(I::End),
+                op(I::Drop),
+                op(I::Block(BlockType::Empty)),
+                op(I::Unreachable),
+                op(I::End),
+                op(I::Block(BlockType::Empty)),
+                op(I::I32Const(3)),
+                op(I::Drop),
+                op(I::End),
+            ],
+        );
+        validate_void_block_fixture(&f);
+        let f = run(f, |f| {
+            assert!(blocks(f));
+        });
+        validate_void_block_fixture(&f);
+        assert_eq!(
+            f.body
+                .iter()
+                .filter(|ins| matches!(ins, Ins::Op(I::Block(_))))
+                .count(),
+            3
+        );
+        assert_eq!(spans(&f), (10..23).chain(24..26).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn void_blocks_have_linear_work_at_width_and_depth() {
+        let symbols = Symbols::default();
+        let op = Ins::Op;
+        for (width, depth) in [(1000, 1), (1000, 20), (1, 10_000)] {
+            let mut body = Vec::new();
+            for _ in 0..width {
+                body.extend(std::iter::repeat_n(op(I::Block(BlockType::Empty)), depth));
+                body.extend([op(I::LocalGet(0)), op(I::Drop)]);
+                body.extend(std::iter::repeat_n(op(I::End), depth));
+            }
+            let n = body.len();
+            let mut f = tracked(&symbols, 1, 0, body);
+            validate_void_block_fixture(&f);
+            let mut visits = 0;
+            assert!(blocks_with(&mut f, || visits += 1));
+            assert_eq!(f.body.len(), 2 * width);
+            assert_eq!(visits, 2 * n);
+            assert_eq!(f.origins.as_ref().map(Vec::len), Some(2 * width));
+            validate_void_block_fixture(&f);
+            eprintln!(
+                "void blocks width {width}, depth {depth}: {visits} visits for {n} instructions"
+            );
+        }
     }
 
     #[test]

@@ -3,19 +3,17 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 2 funcref))
   (func $walk (param $node i32) (param $score.0 i32) (param $score.1 i32) (param $sink.0 i32) (param $sink.1 i32)
-    block
     ;; 18 |     sink.emit(score.value(node.value))
-      local.get $sink.0
-      local.get $score.0
-      local.get $node
-      i64.load $heap
-      local.get $score.1
-      i32.load $heap
-      call_indirect $table0 (param i32 i64) (result i64)
-      local.get $sink.1
-      i32.load $heap
-      call_indirect $table0 (param i32 i64)
-      ;; ...
-    end
+    local.get $sink.0
+    local.get $score.0
+    local.get $node
+    i64.load $heap
+    local.get $score.1
+    i32.load $heap
+    call_indirect $table0 (param i32 i64) (result i64)
+    local.get $sink.1
+    i32.load $heap
+    call_indirect $table0 (param i32 i64)
+    ;; ...
   )
 )

@@ -7,209 +7,200 @@
   (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $total_len (param $xs i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $p i32)
-    ;; 9 |     let n: usize = 0
-    block
     ;; 10 |     for p in &xs:
-      local.get $xs
-      i32.load $heap offset=4
-      local.set $t0
-      block
-        loop
-          local.get $t1
-          local.get $t0
-          i32.lt_u
-          i32.eqz
-          br_if 1
-          local.get $t1
-          local.get $t1
-          i32.const 1
-          i32.add
-          local.set $t1
-          local.tee $p
-          local.get $xs
-          i32.load $heap offset=4
-          i32.ge_u
-          if
-            call $rt:panic
+    local.get $xs
+    i32.load $heap offset=4
+    local.set $t0
+    block
+      loop
+        local.get $t1
+        local.get $t0
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $t1
+        local.get $t1
+        i32.const 1
+        i32.add
+        local.set $t1
+        local.tee $p
+        local.get $xs
+        i32.load $heap offset=4
+        i32.ge_u
+        if
+          call $rt:panic
+          unreachable
+        end
+        local.get $xs
+        local.get $p
+        i32.const 8
+        i32.mul
+        i32.add
+        i32.const 16
+        i32.add
+        local.set $p
+        block
+          block
+            br 0
             unreachable
           end
-          local.get $xs
-          local.get $p
-          i32.const 8
-          i32.mul
-          i32.add
-          i32.const 16
-          i32.add
-          local.set $p
-          block
-            block
-              br 0
-              unreachable
-            end
     ;; 11 |         n += p.len()
-            local.get $n
-            local.get $p
-            call $"impl string.len"
-            i32.add
-            local.set $n
+          local.get $n
+          local.get $p
+          call $"impl string.len"
+          i32.add
+          local.set $n
     ;; 10 |     for p in &xs:
-            br 0
-          end
           br 0
         end
+        br 0
       end
-    ;; 12 |     n
-      local.get $n
-    ;; 9 |     let n: usize = 0
-      local.set $xs
     end
+    ;; 12 |     n
+    local.get $n
+    ;; 9 |     let n: usize = 0
+    local.set $xs
     local.get $xs
   )
   (func $shouted (param $prices i32) (result i32) (local $t0 i32) (local $t1 i32) (local $p i32) (local $t3 i32) (local $t2 i32)
-    ;; 21 |     let mut out = prices
-    block
     ;; 22 |     for p in &mut out:
-      local.get $t0
+    local.get $t0
     ;; 21 |     let mut out = prices
+    local.get $prices
+    ;; 22 |     for p in &mut out:
+    i32.load $heap offset=4
+    local.tee $t0
+    i32.lt_u
+    if
       local.get $prices
-    ;; 22 |     for p in &mut out:
-      i32.load $heap offset=4
-      local.tee $t0
-      i32.lt_u
-      if
+      call $rt:list_unique
+      local.set $prices
+    end
+    block
+      loop
+        local.get $t1
+        local.get $t0
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $t1
+        local.get $t1
+        i32.const 1
+        i32.add
+        local.set $t1
+        local.tee $p
         local.get $prices
-        call $rt:list_unique
-        local.set $prices
-      end
-      block
-        loop
-          local.get $t1
-          local.get $t0
-          i32.lt_u
-          i32.eqz
-          br_if 1
-          local.get $t1
-          local.get $t1
-          i32.const 1
-          i32.add
-          local.set $t1
-          local.tee $p
-          local.get $prices
-          i32.load $heap offset=4
-          i32.ge_u
-          if
-            call $rt:panic
+        i32.load $heap offset=4
+        i32.ge_u
+        if
+          call $rt:panic
+          unreachable
+        end
+        local.get $prices
+        local.get $p
+        i32.const 8
+        i32.mul
+        i32.add
+        i32.const 16
+        i32.add
+        local.set $p
+        block
+          block
+            br 0
             unreachable
           end
-          local.get $prices
-          local.get $p
-          i32.const 8
-          i32.mul
-          i32.add
-          i32.const 16
-          i32.add
-          local.set $p
-          block
-            block
-              br 0
-              unreachable
-            end
     ;; 23 |         *p = *p + "!"
-            local.get $p
-            i32.load $heap
-            local.get $p
-            i32.const 0
-            i32.store $heap
-            local.get $p
-            i32.load $heap offset=4
-            local.get $p
-            i32.const 0
-            i32.store $heap offset=4
-            i32.const 65 ;; &"!"
-            i32.const 1
-            call $rt:str_append
-            local.set $t2
-            local.set $t3
-            local.get $p
-            i32.load $heap
-            local.get $p
-            i32.load $heap offset=4
-            local.get $p
-            local.get $t3
-            i32.store $heap
-            local.get $p
-            local.get $t2
-            i32.store $heap offset=4
-            call $rt:release
+          local.get $p
+          i32.load $heap
+          local.get $p
+          i32.const 0
+          i32.store $heap
+          local.get $p
+          i32.load $heap offset=4
+          local.get $p
+          i32.const 0
+          i32.store $heap offset=4
+          i32.const 65 ;; &"!"
+          i32.const 1
+          call $rt:str_append
+          local.set $t2
+          local.set $t3
+          local.get $p
+          i32.load $heap
+          local.get $p
+          i32.load $heap offset=4
+          local.get $p
+          local.get $t3
+          i32.store $heap
+          local.get $p
+          local.get $t2
+          i32.store $heap offset=4
+          call $rt:release
     ;; 22 |     for p in &mut out:
-            br 0
-          end
           br 0
         end
+        br 0
       end
-    ;; 21 |     let mut out = prices
     end
+    ;; 21 |     let mut out = prices
     local.get $prices
   )
   (func $through_ref (param $r i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $p i32)
-    ;; 15 |     let n: usize = 0
-    block
     ;; 16 |     for p in &r:
-      local.get $r
-      i32.load $heap
-      local.tee $r
-      i32.load $heap offset=4
-      local.set $t0
-      block
-        loop
-          local.get $t1
-          local.get $t0
-          i32.lt_u
-          i32.eqz
-          br_if 1
-          local.get $t1
-          local.get $t1
-          i32.const 1
-          i32.add
-          local.set $t1
-          local.tee $p
-          local.get $r
-          i32.load $heap offset=4
-          i32.ge_u
-          if
-            call $rt:panic
+    local.get $r
+    i32.load $heap
+    local.tee $r
+    i32.load $heap offset=4
+    local.set $t0
+    block
+      loop
+        local.get $t1
+        local.get $t0
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $t1
+        local.get $t1
+        i32.const 1
+        i32.add
+        local.set $t1
+        local.tee $p
+        local.get $r
+        i32.load $heap offset=4
+        i32.ge_u
+        if
+          call $rt:panic
+          unreachable
+        end
+        local.get $r
+        local.get $p
+        i32.const 8
+        i32.mul
+        i32.add
+        i32.const 16
+        i32.add
+        local.set $p
+        block
+          block
+            br 0
             unreachable
           end
-          local.get $r
-          local.get $p
-          i32.const 8
-          i32.mul
-          i32.add
-          i32.const 16
-          i32.add
-          local.set $p
-          block
-            block
-              br 0
-              unreachable
-            end
     ;; 17 |         n += p.len()
-            local.get $n
-            local.get $p
-            call $"impl string.len"
-            i32.add
-            local.set $n
+          local.get $n
+          local.get $p
+          call $"impl string.len"
+          i32.add
+          local.set $n
     ;; 16 |     for p in &r:
-            br 0
-          end
           br 0
         end
+        br 0
       end
-    ;; 18 |     n
-      local.get $n
-    ;; 15 |     let n: usize = 0
-      local.set $r
     end
+    ;; 18 |     n
+    local.get $n
+    ;; 15 |     let n: usize = 0
+    local.set $r
     local.get $r
   )
 )

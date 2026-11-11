@@ -5,72 +5,61 @@
   (import "fixture" "table0" (table $table0 5 funcref))
   (func $bind_kept (param $xs i32) (param $all i32) (local $t0 i32) (local $t1 i32)
     ;; 17 |     ys := xs
-    block
-      local.get $all
-      i32.load $heap
-      call $rt:list_unique
+    local.get $all
+    i32.load $heap
+    call $rt:list_unique
+    local.set $t0
+    local.get $all
+    local.get $t0
+    i32.store $heap
+    local.get $t0
+    ;; 18 |     all.push(ys)
+    i32.load $heap offset=4
+    local.tee $t1
+    local.get $t0
+    i32.load $heap
+    i32.eq
+    if
+      local.get $t0
+      i32.const 1
+      call_indirect $table0 (param i32) (result i32)
       local.set $t0
       local.get $all
       local.get $t0
       i32.store $heap
-      local.get $t0
-    ;; 18 |     all.push(ys)
-      i32.load $heap offset=4
-      local.tee $t1
-      local.get $t0
-      i32.load $heap
-      i32.eq
-      if
-        local.get $t0
-        i32.const 1
-        call_indirect $table0 (param i32) (result i32)
-        local.set $t0
-        local.get $all
-        local.get $t0
-        i32.store $heap
-      end
-      local.get $t0
-      local.get $t1
-      i32.const 4
-      i32.mul
-      i32.add
-      local.get $xs
-      i32.store $heap offset=16
-      local.get $t0
-      local.get $t1
-      i32.const 1
-      i32.add
-      i32.store $heap offset=4
-    ;; 17 |     ys := xs
     end
+    local.get $t0
+    local.get $t1
+    i32.const 4
+    i32.mul
+    i32.add
+    local.get $xs
+    i32.store $heap offset=16
+    local.get $t0
+    local.get $t1
+    i32.const 1
+    i32.add
+    i32.store $heap offset=4
   )
   (func $bind (param $s.0 i32) (param $s.1 i32) (result i32)
-    ;; 8 |     t := s
-    block
     ;; 10 |     u.len()
-      block
-        block
-          local.get $s.1
-          local.set $s.0
-          br 0
-        end
-      end
-    ;; 8 |     t := s
+    block
+      local.get $s.1
+      local.set $s.0
+      br 0
     end
+    ;; 8 |     t := s
     local.get $s.0
   )
   (func $bind_twice (param $xs i32) (result i32)
-    ;; 13 |     ys := xs
-    block
     ;; 14 |     ys.len() + xs.len()
-      local.get $xs
-      i32.load $heap offset=4
-      local.get $xs
-      i32.load $heap offset=4
-      i32.add
+    local.get $xs
+    i32.load $heap offset=4
+    local.get $xs
+    i32.load $heap offset=4
+    i32.add
     ;; 13 |     ys := xs
-      local.set $xs
-    end
+    local.set $xs
     local.get $xs
   )
 )

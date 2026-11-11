@@ -46,68 +46,58 @@
     local.tee $n
     local.get $t1
     i64.store $heap
+    local.get $n
+    i64.load $heap
+    local.tee $t1
+    local.set $t2
     block
-      local.get $n
-      i64.load $heap
-      local.tee $t1
-      local.set $t2
-      block
-        block
-          local.get $t2
-          call $unsigned_width
-          local.set $n
-          br 0
-        end
-      end
-      i32.const 1
-      local.tee $t3
-      local.get $n
-      i32.add
-      local.set $t4
-      block
-        block
-          local.get $t4
-          i32.const 16
-          local.set $t5
-          if
-            local.get $t4
-            call $rt:str
-            local.set $t5
-          end
-          local.get $t5
-          local.get $t4
-          local.set $t5
-          local.set $t4
-          br 0
-        end
-      end
-      i32.const 65 ;; &"w"
-      local.set $t6
-      block
-        block
-          local.get $t4
-          local.get $t6
-          i32.load8_u $heap
-          i32.store8 $heap
-          br 0
-        end
-      end
-      block
-        block
-          local.get $t1
-          local.get $t4
-          local.get $t3
-          i32.add
-          local.get $n
-          call $write_unsigned_sized
-          br 0
-        end
-      end
-      local.get $t4
-      local.get $t5
-      local.set $t3
+      local.get $t2
+      call $unsigned_width
       local.set $n
+      br 0
     end
+    i32.const 1
+    local.tee $t3
+    local.get $n
+    i32.add
+    local.set $t4
+    block
+      local.get $t4
+      i32.const 16
+      local.set $t5
+      if
+        local.get $t4
+        call $rt:str
+        local.set $t5
+      end
+      local.get $t5
+      local.get $t4
+      local.set $t5
+      local.set $t4
+      br 0
+    end
+    i32.const 65 ;; &"w"
+    local.set $t6
+    block
+      local.get $t4
+      local.get $t6
+      i32.load8_u $heap
+      i32.store8 $heap
+      br 0
+    end
+    block
+      local.get $t1
+      local.get $t4
+      local.get $t3
+      i32.add
+      local.get $n
+      call $write_unsigned_sized
+      br 0
+    end
+    local.get $t4
+    local.get $t5
+    local.set $t3
+    local.set $n
     local.get $n
     local.get $t3
     local.get $t0

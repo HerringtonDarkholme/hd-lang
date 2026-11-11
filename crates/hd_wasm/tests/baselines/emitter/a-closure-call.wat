@@ -5,14 +5,12 @@
   (import "fixture" "table0" (table $table0 2 funcref))
   (func $apply (param $f.0 i32) (param $f.1 i32) (param $x i32) (result i32)
     ;; 7 |     f(x)
-    block
-      local.get $f.1
-      local.get $x
-      i32.const 0
-      local.get $f.0
-      call_indirect $table0 (param i32 i32 i32) (result i32)
-      local.set $f.0
-    end
+    local.get $f.1
+    local.get $x
+    i32.const 0
+    local.get $f.0
+    call_indirect $table0 (param i32 i32 i32) (result i32)
+    local.set $f.0
     local.get $f.1
     if
       local.get $f.1

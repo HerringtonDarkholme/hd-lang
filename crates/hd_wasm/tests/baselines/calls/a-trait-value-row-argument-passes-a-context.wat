@@ -7,37 +7,35 @@
   (import "fixture" "table0" (table $table0 9 funcref))
   (func $call (param $r.0 i32) (param $r.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32)
     ;; 15 |     r.run()
-    block
-      local.get $r.0
-      i32.const 1
-      i32.const 0
-      call $rt:ctx_new
-      local.tee $r.0
-      i64.const 6502919983801278103
-      i64.store $heap offset=16
-      local.get $r.0
+    local.get $r.0
+    i32.const 1
+    i32.const 0
+    call $rt:ctx_new
+    local.tee $r.0
+    i64.const 6502919983801278103
+    i64.store $heap offset=16
+    local.get $r.0
+    local.get $provider0
+    i32.store $heap offset=24
+    local.get $r.0
+    local.get $provider0.vtable
+    i32.store $heap offset=28
+    local.get $provider0
+    if
       local.get $provider0
-      i32.store $heap offset=24
-      local.get $r.0
-      local.get $provider0.vtable
-      i32.store $heap offset=28
-      local.get $provider0
-      if
-        local.get $provider0
-        call $retain
-      end
-      local.get $r.0
-      local.get $r.1
-      i32.load $heap
-      call_indirect $table0 (param i32 i32) (result i32)
-      local.get $r.0
-      local.tee $provider0
-      if
-        local.get $provider0
-        call $rt:release_ref
-      end
-      local.set $r.0
+      call $retain
     end
+    local.get $r.0
+    local.get $r.1
+    i32.load $heap
+    call_indirect $table0 (param i32 i32) (result i32)
+    local.get $r.0
+    local.tee $provider0
+    if
+      local.get $provider0
+      call $rt:release_ref
+    end
+    local.set $r.0
     local.get $r.0
   )
 )

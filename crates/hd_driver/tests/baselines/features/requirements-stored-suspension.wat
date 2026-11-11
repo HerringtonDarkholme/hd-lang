@@ -75,59 +75,55 @@
         local.set $t6
         local.set $t7
         block
-          block
+          i32.const 8
+          i32.const 2
+          call $rt:new/class-1
+          local.tee $t4
+          local.get $t7
+          i32.store $heap
+          local.get $t4
+          local.get $t6
+          i32.store $heap offset=4
+          local.get $t4
+          local.tee $t6
+          i32.eqz
+          if
             i32.const 8
             i32.const 2
             call $rt:new/class-1
-            local.tee $t4
-            local.get $t7
-            i32.store $heap
-            local.get $t4
-            local.get $t6
-            i32.store $heap offset=4
-            local.get $t4
             local.tee $t6
-            i32.eqz
-            if
-              i32.const 8
-              i32.const 2
-              call $rt:new/class-1
-              local.tee $t6
-              local.get $t2
-              i32.store $heap
-              local.get $t6
-              local.get $t3
-              i32.store $heap offset=4
-            end
+            local.get $t2
+            i32.store $heap
             local.get $t6
-            local.tee $t8
+            local.get $t3
+            i32.store $heap offset=4
+          end
+          local.get $t6
+          local.tee $t8
+          if
+            local.get $t8
+            i32.const 8
+            i32.sub
+            i32.load $heap
             if
               local.get $t8
-              i32.const 8
-              i32.sub
-              i32.load $heap
-              if
-                local.get $t8
-                call $rt:retain_known
-              end
+              call $rt:retain_known
             end
-            local.get $t6
-            local.set $t7
-            br 0
           end
+          local.get $t6
+          local.set $t7
+          br 0
         end
         local.get $t7
         local.set $t4
         i32.const 356 ;; &vtable[func90]
         local.set $t8
-        block
     ;; 43 |         tagged()
-          local.get $t4
-          local.get $t8
-          call $tagged'1
+        local.get $t4
+        local.get $t8
+        call $tagged'1
     ;; 42 |     let mut pending: Suspend[usize] = $.with(Tag=Named { label: s }):
-          local.set $t4
-        end
+        local.set $t4
         local.get $t7
         local.tee $t8
         if
@@ -600,28 +596,26 @@
       local.set $t1
     else
     end
-    block
-      local.get $key.1
-      i32.const 1
-      i32.add
-      local.tee $t2
-      call $rt:str
-      local.tee $t3
-      local.tee $t4
-      local.get $key.0
-      local.get $key.1
-      call $rt:memory_copy/0/0
-      local.get $t4
-      local.get $key.1
-      i32.add
-      i32.const 65 ;; &"?"
-      i32.load8_u $heap
-      i32.store8 $heap
-      local.get $t3
-      local.get $t2
-      local.set $key.1
-      local.set $key.0
-    end
+    local.get $key.1
+    i32.const 1
+    i32.add
+    local.tee $t2
+    call $rt:str
+    local.tee $t3
+    local.tee $t4
+    local.get $key.0
+    local.get $key.1
+    call $rt:memory_copy/0/0
+    local.get $t4
+    local.get $key.1
+    i32.add
+    i32.const 65 ;; &"?"
+    i32.load8_u $heap
+    i32.store8 $heap
+    local.get $t3
+    local.get $t2
+    local.set $key.1
+    local.set $key.0
     local.get $key.0
     local.get $key.1
     local.get $frame
@@ -1331,26 +1325,22 @@
       local.set $t1
     else
     end
+    local.get $provider0
+    local.get $provider0.vtable
+    i32.load $heap
+    call_indirect $table0 (param i32) (result i32 i32)
+    local.set $provider0.vtable
+    local.set $provider0
     block
-      local.get $provider0
-      local.get $provider0.vtable
-      i32.load $heap
-      call_indirect $table0 (param i32) (result i32 i32)
-      local.set $provider0.vtable
-      local.set $provider0
-      block
-        block
-          br 0
-        end
-      end
-      local.get $provider0
-      if
-        local.get $provider0
-        call $rt:release_ref'1
-      end
-      local.get $provider0.vtable
-      local.set $provider0
+      br 0
     end
+    local.get $provider0
+    if
+      local.get $provider0
+      call $rt:release_ref'1
+    end
+    local.get $provider0.vtable
+    local.set $provider0
     local.get $provider0
     local.get $frame
     if
@@ -1497,91 +1487,83 @@
   )
   (func $"impl Tag for Named.name" (param $self.label.0 i32) (param $self.label.1 i32) (result i32 i32)
     ;; 20 |         self.label
-    block
-    end
     local.get $self.label.0
     local.get $self.label.1
   )
   (func $discard (param $key.0 i32) (param $key.1 i32) (result i32)
     ;; 38 |     _ := fetch(key)
-    block
+    local.get $key.0
+    local.get $key.1
+    call $fetch'2
+    local.tee $key.0
+    if
       local.get $key.0
-      local.get $key.1
-      call $fetch'2
-      local.tee $key.0
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      global.get $tracing
+      i32.or
       if
         local.get $key.0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $key.0
-          call $rt:release_ref'2
-        end
+        call $rt:release_ref'2
       end
     end
     i32.const 0
   )
   (func $blocking (param $key.0 i32) (param $key.1 i32) (result i32) (local $t0 i32) (local $v.1 i32) (local $t1 i32)
     ;; 33 |     match block_on(fetch(key)):
-    block
-      call $rt:forbid_check
-      i32.const 0
-      i32.const 0
+    call $rt:forbid_check
+    i32.const 0
+    i32.const 0
+    local.get $key.0
+    local.get $key.1
+    call $fetch'1
+    local.set $key.0
+    local.set $v.1
+    local.set $t0
+    local.set $key.1
+    local.get $key.0
+    if
       local.get $key.0
-      local.get $key.1
-      call $fetch'1
-      local.set $key.0
-      local.set $v.1
-      local.set $t0
-      local.set $key.1
-      local.get $key.0
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      global.get $tracing
+      i32.or
       if
         local.get $key.0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $key.0
-          call $rt:release_ref'2
-        end
+        call $rt:release_ref'2
       end
+    end
+    block
       block
         block
-          block
     ;; 34 |         .Completed(v) => v.len()
-            local.get $key.1
-            i32.eqz
-            i32.eqz
-            br_if 1
-            br 0
+          local.get $key.1
+          i32.eqz
+          i32.eqz
+          br_if 1
+          br 0
     ;; 33 |     match block_on(fetch(key)):
-            unreachable
-          end
-    ;; 34 |         .Completed(v) => v.len()
-          block
-            block
-              local.get $v.1
-              local.set $t1
-              br 0
-            end
-          end
-    ;; 33 |     match block_on(fetch(key)):
-          br 1
+          unreachable
         end
-        br 0
+    ;; 34 |         .Completed(v) => v.len()
+        block
+          local.get $v.1
+          local.set $t1
+          br 0
+        end
+    ;; 33 |     match block_on(fetch(key)):
+        br 1
       end
-      local.get $key.1
-      local.get $t0
-      local.get $v.1
-      call $rt:release
-      local.get $t1
-      local.set $key.0
+      br 0
     end
+    local.get $key.1
+    local.get $t0
+    local.get $v.1
+    call $rt:release
+    local.get $t1
+    local.set $key.0
     local.get $key.0
   )
 )

@@ -6,20 +6,18 @@
     i32.const 1
     local.set $t0
     block
-      block
-        local.get $t0
-        i32.const 2147483646
-        i32.gt_s
-        if
-          call $rt:panic
-          unreachable
-        end
-        local.get $t0
-        i32.const 1
-        i32.add
-        local.set $t0
-        br 0
+      local.get $t0
+      i32.const 2147483646
+      i32.gt_s
+      if
+        call $rt:panic
+        unreachable
       end
+      local.get $t0
+      i32.const 1
+      i32.add
+      local.set $t0
+      br 0
     end
     local.get $t0
   )

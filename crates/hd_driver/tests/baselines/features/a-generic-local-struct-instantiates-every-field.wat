@@ -9,80 +9,70 @@
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
   (import "fixture" "table0" (table $table0 6 funcref))
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
-    ;; 11 |     fn make[N](value: N) -> Box[N]:
-    block
     ;; 14 |     number := make(+7)
-      i32.const 0
-      i32.const 7
-      i32.const 0
-      i32.const 4
-      call_indirect $table0 (param i32 i32 i32) (result i32)
+    i32.const 0
+    i32.const 7
+    i32.const 0
+    i32.const 4
+    call_indirect $table0 (param i32 i32 i32) (result i32)
     ;; 15 |     println("${number.item}")
-      local.tee $t0
+    local.tee $t0
+    local.set $t1
+    block
+      local.get $t1
+      call $"impl Num for i32.zero"
+      i32.lt_s
+      if (result i32)
+        local.get $t1
+        i64.extend_i32_s
+        call $signed_width
+      else
+        local.get $t1
+        i64.extend_i32_s
+        call $unsigned_width
+      end
       local.set $t1
-      block
-        block
-          local.get $t1
-          call $"impl Num for i32.zero"
-          i32.lt_s
-          if (result i32)
-            local.get $t1
-            i64.extend_i32_s
-            call $signed_width
-          else
-            local.get $t1
-            i64.extend_i32_s
-            call $unsigned_width
-          end
-          local.set $t1
-          br 0
-        end
-      end
-      block
-        block
-          local.get $t1
-          local.tee $t2
-          i32.const 16
-          local.set $t3
-          if
-            local.get $t2
-            call $rt:str
-            local.set $t3
-          end
-          local.get $t3
-          local.get $t2
-          local.set $t3
-          local.set $t2
-          br 0
-        end
-      end
-    ;; 11 |     fn make[N](value: N) -> Box[N]:
-      local.get $t2
+      br 0
+    end
+    block
+      local.get $t1
+      local.tee $t2
+      i32.const 16
+      local.set $t3
       if
         local.get $t2
-        call $retain
+        call $rt:str
+        local.set $t3
       end
-      local.get $t2
       local.get $t3
-    ;; 15 |     println("${number.item}")
-      i32.const 0
-      local.get $t0
-      local.get $t1
-      call $"impl StringBuilder.value_integer[i32]"
-    ;; 11 |     fn make[N](value: N) -> Box[N]:
       local.get $t2
-      local.get $t3
-    ;; 15 |     println("${number.item}")
-      local.get $provider0
-      local.get $provider0.vtable
-      call $"println[string]"
-    ;; 11 |     fn make[N](value: N) -> Box[N]:
+      local.set $t3
+      local.set $t2
+      br 0
     end
+    ;; 11 |     fn make[N](value: N) -> Box[N]:
+    local.get $t2
+    if
+      local.get $t2
+      call $retain
+    end
+    local.get $t2
+    local.get $t3
+    ;; 15 |     println("${number.item}")
+    i32.const 0
+    local.get $t0
+    local.get $t1
+    call $"impl StringBuilder.value_integer[i32]"
+    ;; 11 |     fn make[N](value: N) -> Box[N]:
+    local.get $t2
+    local.get $t3
+    ;; 15 |     println("${number.item}")
+    local.get $provider0
+    local.get $provider0.vtable
+    call $"println[string]"
   )
   (func $"main#1[i32]" (param $env i32) (param $value i32) (param $ctx i32) (result i32)
     ;; 11 |     fn make[N](value: N) -> Box[N]:
-    block
-    end
     local.get $value
   )
 )

@@ -11,13 +11,11 @@
   (import "fixture" "table0" (table $table0 9 funcref))
   (func $holder (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32) (local $t0 i32)
     ;; 18 |     Holder { store: $.use(Store) }
-    block
-      local.get $provider0
-      local.tee $t0
-      if
-        local.get $t0
-        call $retain
-      end
+    local.get $provider0
+    local.tee $t0
+    if
+      local.get $t0
+      call $retain
     end
     local.get $provider0
     local.get $provider0.vtable
@@ -51,26 +49,22 @@
       local.set $t1
     else
     end
+    local.get $provider0
+    local.get $provider0.vtable
+    i32.load $heap
+    call_indirect $table0 (param i32) (result i32 i32)
+    local.set $provider0.vtable
+    local.set $provider0
     block
-      local.get $provider0
-      local.get $provider0.vtable
-      i32.load $heap
-      call_indirect $table0 (param i32) (result i32 i32)
-      local.set $provider0.vtable
-      local.set $provider0
-      block
-        block
-          br 0
-        end
-      end
-      local.get $provider0
-      if
-        local.get $provider0
-        call $rt:release_ref
-      end
-      local.get $provider0.vtable
-      local.set $provider0
+      br 0
     end
+    local.get $provider0
+    if
+      local.get $provider0
+      call $rt:release_ref
+    end
+    local.get $provider0.vtable
+    local.set $provider0
     local.get $provider0
     local.get $frame
     if
@@ -217,13 +211,11 @@
   )
   (func $keep (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32) (local $t0 i32)
     ;; 15 |     $.use(Store)
-    block
-      local.get $provider0
-      local.tee $t0
-      if
-        local.get $t0
-        call $retain
-      end
+    local.get $provider0
+    local.tee $t0
+    if
+      local.get $t0
+      call $retain
     end
     local.get $provider0
     local.get $provider0.vtable

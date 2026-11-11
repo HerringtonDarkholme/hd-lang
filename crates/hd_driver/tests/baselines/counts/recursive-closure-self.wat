@@ -5,44 +5,39 @@
     ;; 5 |     sum := fn(n: i32) -> i32:
     i32.const 0
     local.set $ctx
-    block
     ;; 6 |         if n == 0: 0
-      local.get $n
-      i32.eqz
-      if (result i32)
-        i32.const 0
-      else
+    local.get $n
+    i32.eqz
+    if (result i32)
+      i32.const 0
+    else
     ;; 7 |         else: n + sum(n - 1)
-        local.get $n
-        local.get $env
-        local.get $n
-        i32.const 1
-        i32.sub
-        i32.const 0
-        local.get $ctx
-        call_indirect $table0 (param i32 i32 i32) (result i32)
-        i32.add
+      local.get $n
+      local.get $env
+      local.get $n
+      i32.const 1
+      i32.sub
+      i32.const 0
+      local.get $ctx
+      call_indirect $table0 (param i32 i32 i32) (result i32)
+      i32.add
     ;; 6 |         if n == 0: 0
-      end
-    ;; 5 |     sum := fn(n: i32) -> i32:
-      local.set $env
     end
+    ;; 5 |     sum := fn(n: i32) -> i32:
+    local.set $env
     local.get $env
   )
   (func $sum_to (param $limit i32) (result i32)
-    ;; 5 |     sum := fn(n: i32) -> i32:
-    block
     ;; 8 |     sum(limit)
-      i32.const 0
-      local.get $limit
-      i32.const 0
+    i32.const 0
+    local.get $limit
+    i32.const 0
     ;; 5 |     sum := fn(n: i32) -> i32:
-      i32.const 0
+    i32.const 0
     ;; 8 |     sum(limit)
-      call_indirect $table0 (param i32 i32 i32) (result i32)
+    call_indirect $table0 (param i32 i32 i32) (result i32)
     ;; 5 |     sum := fn(n: i32) -> i32:
-      local.set $limit
-    end
+    local.set $limit
     local.get $limit
   )
 )

@@ -5,131 +5,122 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $until_long (param $xs i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $x.0 i32) (local $x.1 i32) (local $t.1 i32) (local $t.0 i32) (local $t2 i32)
-    ;; 8 |     let n: usize = 0
-    block
     ;; 9 |     for x in xs:
-      local.get $xs
-      i32.load $heap offset=4
-      local.set $t0
-      block
-        loop
-          local.get $t1
-          local.get $t0
-          i32.lt_u
-          i32.eqz
-          br_if 1
-          local.get $xs
-          local.get $t1
-          i32.const 8
-          i32.mul
-          i32.add
-          local.tee $x.0
-          i32.load $heap offset=16
-          local.get $x.0
-          i32.load $heap offset=20
-          local.set $x.1
-          local.set $x.0
-          local.get $t1
+    local.get $xs
+    i32.load $heap offset=4
+    local.set $t0
+    block
+      loop
+        local.get $t1
+        local.get $t0
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $xs
+        local.get $t1
+        i32.const 8
+        i32.mul
+        i32.add
+        local.tee $x.0
+        i32.load $heap offset=16
+        local.get $x.0
+        i32.load $heap offset=20
+        local.set $x.1
+        local.set $x.0
+        local.get $t1
+        i32.const 1
+        i32.add
+        local.set $t1
+        block
+          block
+            br 0
+            unreachable
+          end
+    ;; 10 |         t := x + "!"
+          local.get $x.1
           i32.const 1
           i32.add
-          local.set $t1
+          local.tee $t.1
+          call $rt:str
+          local.tee $t.0
+          local.tee $t2
+          local.get $x.0
+          local.get $x.1
+          call $rt:memory_copy/0/0
+          local.get $t2
+          local.get $x.1
+          i32.add
+          i32.const 65 ;; &"!"
+          i32.load8_u $heap
+          i32.store8 $heap
+    ;; 11 |         if t.len() < 3:
           block
-            block
-              br 0
-              unreachable
-            end
-    ;; 10 |         t := x + "!"
-            local.get $x.1
-            i32.const 1
-            i32.add
-            local.tee $t.1
-            call $rt:str
-            local.tee $t.0
-            local.tee $t2
-            local.get $x.0
-            local.get $x.1
-            call $rt:memory_copy/0/0
-            local.get $t2
-            local.get $x.1
-            i32.add
-            i32.const 65 ;; &"!"
-            i32.load8_u $heap
-            i32.store8 $heap
-    ;; 11 |         if t.len() < 3:
-            block
-              block
-                local.get $t.1
-                local.set $x.0
-                br 0
-              end
-            end
-            local.get $x.0
-            i32.const 3
-            i32.lt_u
-            if
-              local.get $t.0
-              local.tee $x.1
-              if
-                local.get $x.1
-                call $rt:release_ref
-              end
-    ;; 12 |             continue
-              br 2
-    ;; 11 |         if t.len() < 3:
-            end
-    ;; 13 |         if t.len() > 9:
-            block
-              block
-                local.get $t.1
-                local.set $x.0
-                br 0
-              end
-            end
-            local.get $x.0
-            i32.const 9
-            i32.gt_u
-            if
-              local.get $t.0
-              local.tee $x.1
-              if
-                local.get $x.1
-                call $rt:release_ref
-              end
-    ;; 14 |             break
-              br 3
-    ;; 13 |         if t.len() > 9:
-            end
-    ;; 15 |         n += t.len()
-            block
-              block
-                local.get $t.1
-                local.set $x.0
-                br 0
-              end
-            end
-    ;; 9 |     for x in xs:
+            local.get $t.1
+            local.set $x.0
+            br 0
+          end
+          local.get $x.0
+          i32.const 3
+          i32.lt_u
+          if
             local.get $t.0
             local.tee $x.1
             if
               local.get $x.1
               call $rt:release_ref
             end
-    ;; 15 |         n += t.len()
-            local.get $n
-            local.get $x.0
-            i32.add
-            local.set $n
-    ;; 9 |     for x in xs:
+    ;; 12 |             continue
+            br 2
+    ;; 11 |         if t.len() < 3:
+          end
+    ;; 13 |         if t.len() > 9:
+          block
+            local.get $t.1
+            local.set $x.0
             br 0
           end
+          local.get $x.0
+          i32.const 9
+          i32.gt_u
+          if
+            local.get $t.0
+            local.tee $x.1
+            if
+              local.get $x.1
+              call $rt:release_ref
+            end
+    ;; 14 |             break
+            br 3
+    ;; 13 |         if t.len() > 9:
+          end
+    ;; 15 |         n += t.len()
+          block
+            local.get $t.1
+            local.set $x.0
+            br 0
+          end
+    ;; 9 |     for x in xs:
+          local.get $t.0
+          local.tee $x.1
+          if
+            local.get $x.1
+            call $rt:release_ref
+          end
+    ;; 15 |         n += t.len()
+          local.get $n
+          local.get $x.0
+          i32.add
+          local.set $n
+    ;; 9 |     for x in xs:
           br 0
         end
+        br 0
       end
-    ;; 16 |     n
-      local.get $n
-    ;; 8 |     let n: usize = 0
-      local.set $xs
     end
+    ;; 16 |     n
+    local.get $n
+    ;; 8 |     let n: usize = 0
+    local.set $xs
     local.get $xs
   )
 )

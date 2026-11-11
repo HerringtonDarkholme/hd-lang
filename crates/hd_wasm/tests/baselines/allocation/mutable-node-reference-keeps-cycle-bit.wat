@@ -5,32 +5,28 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $keep_mutable (param $node i32) (result i32) (local $t0 i32)
     ;; 9 |     node
-    block
-      local.get $node
-      local.tee $t0
+    local.get $node
+    local.tee $t0
+    if
+      local.get $t0
+      i32.const 8
+      i32.sub
+      i32.load $heap
       if
         local.get $t0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t0
-          call $rt:retain_known
-        end
+        call $rt:retain_known
       end
     end
     local.get $node
   )
   (func $make (result i32) (local $t0 i32)
     ;; 12 |     box(Node { next: .None })
-    block
-      i32.const 4
-      i32.const -2147483646
-      call $rt:new/class-1
-      local.tee $t0
-      i32.const 0
-      i32.store $heap
-    end
+    i32.const 4
+    i32.const -2147483646
+    call $rt:new/class-1
+    local.tee $t0
+    i32.const 0
+    i32.store $heap
     local.get $t0
   )
 )

@@ -37,50 +37,48 @@
     i32.sub
     local.tee $t0
     global.set $locals
-    block
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $t1
-      i32.const 0
-      i32.store $heap
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $t1
+    i32.const 0
+    i32.store $heap
     ;; 20 |     user := User { name: "ada", age: 36 }
-      local.get $t0
-      i64.const 0
-      i64.store $heap offset=16
-      local.get $t0
-      i32.const 24
-      i32.add
-      local.tee $user
-      i32.const 65 ;; &"ada"
-      i32.store $heap
-      local.get $user
-      i32.const 3
-      i32.store $heap offset=4
-      local.get $user
-      i32.const 36
-      i32.store $heap offset=8
-      local.get $user
+    local.get $t0
+    i64.const 0
+    i64.store $heap offset=16
+    local.get $t0
+    i32.const 24
+    i32.add
+    local.tee $user
+    i32.const 65 ;; &"ada"
+    i32.store $heap
+    local.get $user
+    i32.const 3
+    i32.store $heap offset=4
+    local.get $user
+    i32.const 36
+    i32.store $heap offset=8
+    local.get $user
     ;; 19 |     let mut seen = +0
-      local.get $t1
+    local.get $t1
     ;; 21 |     n := user.name(&mut seen)
-      call $"impl User.name"
+    call $"impl User.name"
     ;; 22 |     n.len()
-      call $"impl string.len"
-      local.set $t1
+    call $"impl string.len"
+    local.set $t1
     ;; 19 |     let mut seen = +0
+    local.get $user
+    if
       local.get $user
+      i32.load $heap
+      local.tee $user
       if
         local.get $user
-        i32.load $heap
-        local.tee $user
-        if
-          local.get $user
-          call $rt:release_ref
-        end
+        call $rt:release_ref
       end
     end
     local.get $t1

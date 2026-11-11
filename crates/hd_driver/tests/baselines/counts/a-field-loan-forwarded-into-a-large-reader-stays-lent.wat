@@ -3,70 +3,59 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $measure (param $room i32) (result i32) (local $t0 i32)
     ;; 21 |     room.text.len() + room.offset
+    local.get $room
+    i32.load $heap
+    local.get $room
+    i32.load $heap offset=4
+    local.set $t0
+    drop
     block
-      local.get $room
+      br 0
+    end
+    local.get $t0
+    local.get $room
+    i32.load $heap offset=8
+    i32.add
+    local.set $room
+    local.get $room
+  )
+  (func $total (param $owner i32) (param $depth i32) (result i32) (local $t0 i32)
+    ;; 26 |     below := if depth == 0: 0 else: total(owner, depth - 1)
+    local.get $depth
+    i32.eqz
+    if (result i32)
+      i32.const 0
+    else
+      local.get $owner
+      local.get $depth
+      i32.const 1
+      i32.sub
+      call $total
+    end
+    local.set $depth
+    ;; 27 |     measure(field) + below
+    block
+      local.get $owner
       i32.load $heap
-      local.get $room
+      local.get $owner
       i32.load $heap offset=4
       local.set $t0
       drop
       block
-        block
-          br 0
-        end
+        br 0
       end
       local.get $t0
-      local.get $room
+      local.get $owner
       i32.load $heap offset=8
       i32.add
-      local.set $room
-    end
-    local.get $room
-  )
-  (func $total (param $owner i32) (param $depth i32) (result i32) (local $t0 i32)
-    ;; 25 |     field := &owner.room
-    block
-    ;; 26 |     below := if depth == 0: 0 else: total(owner, depth - 1)
-      local.get $depth
-      i32.eqz
-      if (result i32)
-        i32.const 0
-      else
-        local.get $owner
-        local.get $depth
-        i32.const 1
-        i32.sub
-        call $total
-      end
-      local.set $depth
-    ;; 27 |     measure(field) + below
-      block
-        block
-          local.get $owner
-          i32.load $heap
-          local.get $owner
-          i32.load $heap offset=4
-          local.set $t0
-          drop
-          block
-            block
-              br 0
-            end
-          end
-          local.get $t0
-          local.get $owner
-          i32.load $heap offset=8
-          i32.add
-          local.set $owner
-          br 0
-        end
-      end
-      local.get $owner
-      local.get $depth
-      i32.add
-    ;; 25 |     field := &owner.room
       local.set $owner
+      br 0
     end
+    local.get $owner
+    local.get $depth
+    i32.add
+    ;; 25 |     field := &owner.room
+    local.set $owner
     local.get $owner
   )
 )

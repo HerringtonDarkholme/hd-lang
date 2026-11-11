@@ -3,13 +3,11 @@
   (func $equal (param $left i32) (param $right i32) (result i32)
     ;; 8 |     left == right
     block
-      block
-        local.get $left
-        local.get $right
-        i32.eq
-        local.set $left
-        br 0
-      end
+      local.get $left
+      local.get $right
+      i32.eq
+      local.set $left
+      br 0
     end
     local.get $left
   )

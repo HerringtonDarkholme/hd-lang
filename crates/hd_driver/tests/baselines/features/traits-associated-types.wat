@@ -10,52 +10,40 @@
     ;; 24 |     first(c).len()
     block
       block
-        block
-          block
-            block
-              br 0
-            end
-          end
-          br 0
-        end
+        br 0
       end
-      block
-        block
-          br 0
-        end
-      end
-      local.get $c.value.0
-      if
-        local.get $c.value.0
-        call $rt:release_ref
-      end
-      local.get $c.value.1
-      local.set $c.value.0
+      br 0
     end
+    block
+      br 0
+    end
+    local.get $c.value.0
+    if
+      local.get $c.value.0
+      call $rt:release_ref
+    end
+    local.get $c.value.1
+    local.set $c.value.0
     local.get $c.value.0
   )
   (func $read (param $source.0 i32) (param $source.1 i32) (result i32)
     ;; 27 |     source.get().len()
+    local.get $source.0
+    local.get $source.1
+    i32.load $heap
+    call_indirect $table0 (param i32) (result i32 i32)
+    local.set $source.1
+    local.set $source.0
     block
-      local.get $source.0
-      local.get $source.1
-      i32.load $heap
-      call_indirect $table0 (param i32) (result i32 i32)
-      local.set $source.1
-      local.set $source.0
-      block
-        block
-          br 0
-        end
-      end
-      local.get $source.0
-      if
-        local.get $source.0
-        call $rt:release_ref
-      end
-      local.get $source.1
-      local.set $source.0
+      br 0
     end
+    local.get $source.0
+    if
+      local.get $source.0
+      call $rt:release_ref
+    end
+    local.get $source.1
+    local.set $source.0
     local.get $source.0
   )
   (func $read_const (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32) (local $c i32)
@@ -101,32 +89,30 @@
     local.get $c
     local.get $t2
     i32.store $heap offset=4
-    block
+    local.get $c
+    local.tee $t2
+    if
+      local.get $t2
+      call $retain
+    end
+    local.get $c
+    i32.const 160 ;; &vtable[func21]
+    call $read
+    local.set $t1
+    local.get $c
+    local.tee $t2
+    if
+      local.get $t2
+      call $rt:release_ref
+    end
+    local.get $c
+    if
       local.get $c
-      local.tee $t2
-      if
-        local.get $t2
-        call $retain
-      end
-      local.get $c
-      i32.const 160 ;; &vtable[func21]
-      call $read
-      local.set $t1
-      local.get $c
+      i32.load $heap
       local.tee $t2
       if
         local.get $t2
         call $rt:release_ref
-      end
-      local.get $c
-      if
-        local.get $c
-        i32.load $heap
-        local.tee $t2
-        if
-          local.get $t2
-          call $rt:release_ref
-        end
       end
     end
     local.get $t1
@@ -137,18 +123,16 @@
   )
   (func $"impl Supplier for Constant.get" (param $self i32) (result i32 i32) (local $t0 i32) (local $t1 i32)
     ;; 18 |         self.value
-    block
-      local.get $self
-      i32.load $heap
-      local.get $self
-      i32.load $heap offset=4
-      local.set $t0
-      local.tee $self
-      local.tee $t1
-      if
-        local.get $t1
-        call $retain
-      end
+    local.get $self
+    i32.load $heap
+    local.get $self
+    i32.load $heap offset=4
+    local.set $t0
+    local.tee $self
+    local.tee $t1
+    if
+      local.get $t1
+      call $retain
     end
     local.get $self
     local.get $t0

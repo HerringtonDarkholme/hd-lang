@@ -3,14 +3,12 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $"impl Twice for i64.twice" (param $self i32) (result i64) (local $t0 i64)
     ;; 13 |         *self + *self
-    block
-      local.get $self
-      i64.load $heap
-      local.get $self
-      i64.load $heap
-      i64.add
-      local.set $t0
-    end
+    local.get $self
+    i64.load $heap
+    local.get $self
+    i64.load $heap
+    i64.add
+    local.set $t0
     local.get $t0
   )
   (func $use_twice (param $x i64) (param $n i64) (result i64)
@@ -21,13 +19,11 @@
     if (result i64)
     ;; 17 |         x.twice()
       block
-        block
-          local.get $x
-          local.get $x
-          i64.add
-          local.set $x
-          br 0
-        end
+        local.get $x
+        local.get $x
+        i64.add
+        local.set $x
+        br 0
       end
     ;; 16 |     if x < n:
       local.get $x
@@ -40,17 +36,13 @@
   (func $keep (param $r i32) (result i64) (local $t0 i64)
     ;; 22 |     r.twice()
     block
-      block
-        block
-          local.get $r
-          i64.load $heap
-          local.get $r
-          i64.load $heap
-          i64.add
-          local.set $t0
-          br 0
-        end
-      end
+      local.get $r
+      i64.load $heap
+      local.get $r
+      i64.load $heap
+      i64.add
+      local.set $t0
+      br 0
     end
     local.get $t0
   )

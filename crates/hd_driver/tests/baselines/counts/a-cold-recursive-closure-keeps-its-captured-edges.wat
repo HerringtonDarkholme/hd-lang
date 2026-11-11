@@ -1428,8 +1428,6 @@
         call $retain
       end
     end
-    block
-    end
     local.get $value.0
     local.get $value.1
     local.get $frame
@@ -1619,84 +1617,78 @@
   )
   (func $make (param $value.0 i32) (param $value.1 i32) (result i32 i32) (local $t0 i32)
     ;; 5 |     read := fn!(n: usize) -> string:
-    block
-      i32.const 4
-      i32.const 8
-      i32.const 6
-      call $rt:new/class-1'1
-      local.tee $t0
-      local.get $value.0
-      i32.store $heap
-      local.get $t0
-      local.get $value.1
-      i32.store $heap offset=4
-      local.get $t0
+    i32.const 4
+    i32.const 8
+    i32.const 6
+    call $rt:new/class-1'1
+    local.tee $t0
+    local.get $value.0
+    i32.store $heap
+    local.get $t0
+    local.get $value.1
+    i32.store $heap offset=4
+    local.get $t0
     ;; 7 |     read
-      local.tee $value.0
+    local.tee $value.0
+    if
+      local.get $value.0
+      i32.const 8
+      i32.sub
+      i32.load $heap
       if
         local.get $value.0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $value.0
-          call $rt:retain_known
-        end
+        call $rt:retain_known
       end
-    ;; 5 |     read := fn!(n: usize) -> string:
-      local.get $t0
-      local.tee $value.0
-      if
-        local.get $value.0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $value.0
-          call $rt:release_ref'2
-        end
-      end
-      local.get $t0
-      local.set $value.1
-      local.set $value.0
     end
+    ;; 5 |     read := fn!(n: usize) -> string:
+    local.get $t0
+    local.tee $value.0
+    if
+      local.get $value.0
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      global.get $tracing
+      i32.or
+      if
+        local.get $value.0
+        call $rt:release_ref'2
+      end
+    end
+    local.get $t0
+    local.set $value.1
+    local.set $value.0
     local.get $value.0
     local.get $value.1
   )
   (func $"generic[i32]" (param $value i32) (result i32 i32) (local $t0 i32)
     ;; 10 |     fn!() -> T: value
-    block
-      i32.const 6
-      i32.const 4
-      i32.const 0
-      call $rt:new/class-1'2
-      local.tee $t0
-      local.get $value
-      i32.store $heap
-      local.set $value
-    end
+    i32.const 6
+    i32.const 4
+    i32.const 0
+    call $rt:new/class-1'2
+    local.tee $t0
+    local.get $value
+    i32.store $heap
+    local.set $value
     local.get $value
     local.get $t0
   )
   (func $"generic[string]" (param $value.0 i32) (param $value.1 i32) (result i32 i32) (local $t0 i32)
     ;; 10 |     fn!() -> T: value
-    block
-      i32.const 7
-      i32.const 8
-      i32.const 6
-      call $rt:new/class-1'1
-      local.tee $t0
-      local.get $value.0
-      i32.store $heap
-      local.get $t0
-      local.get $value.1
-      i32.store $heap offset=4
-      local.get $t0
-      local.set $value.1
-      local.set $value.0
-    end
+    i32.const 7
+    i32.const 8
+    i32.const 6
+    call $rt:new/class-1'1
+    local.tee $t0
+    local.get $value.0
+    i32.store $heap
+    local.get $t0
+    local.get $value.1
+    i32.store $heap offset=4
+    local.get $t0
+    local.set $value.1
+    local.set $value.0
     local.get $value.0
     local.get $value.1
   )
@@ -1732,8 +1724,6 @@
       i32.load $heap offset=36
       local.set $value
     else
-    end
-    block
     end
     local.get $value
     local.get $frame

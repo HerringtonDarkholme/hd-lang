@@ -4,20 +4,18 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $make (result i32) (local $t0 i32)
     ;; 12 |     box(Edge.Done)
-    block
-      i32.const 12
-      i32.const -2147483646
-      call $rt:new/class-2
-      local.tee $t0
-      i32.const 0
-      i32.store $heap
-      local.get $t0
-      i32.const 0
-      i32.store $heap offset=4
-      local.get $t0
-      i32.const 0
-      i32.store $heap offset=8
-    end
+    i32.const 12
+    i32.const -2147483646
+    call $rt:new/class-2
+    local.tee $t0
+    i32.const 0
+    i32.store $heap
+    local.get $t0
+    i32.const 0
+    i32.store $heap offset=4
+    local.get $t0
+    i32.const 0
+    i32.store $heap offset=8
     local.get $t0
   )
 )

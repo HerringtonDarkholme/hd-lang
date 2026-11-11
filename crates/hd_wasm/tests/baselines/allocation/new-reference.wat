@@ -4,17 +4,15 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $leaf (result i32) (local $t0 i32)
     ;; 14 |     box(Node { left: .None, right: .None })
-    block
-      i32.const 8
-      i32.const -2147483646
-      call $rt:new/class-1
-      local.tee $t0
-      i32.const 0
-      i32.store $heap
-      local.get $t0
-      i32.const 0
-      i32.store $heap offset=4
-    end
+    i32.const 8
+    i32.const -2147483646
+    call $rt:new/class-1
+    local.tee $t0
+    i32.const 0
+    i32.store $heap
+    local.get $t0
+    i32.const 0
+    i32.store $heap offset=4
     local.get $t0
   )
 )

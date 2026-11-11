@@ -11,127 +11,125 @@
   (import "fixture" "table0" (table $table0 5 funcref))
   (func $drive_put (param $s.0 i32) (param $s.1 i32) (param $text.0 i32) (param $text.1 i32) (param $log i32) (result i32) (local $t0 i32) (local $n i32)
     ;; 10 |     let call: Suspend[i32] = s.put(text)
-    block
-      local.get $s.0
-      local.get $text.0
-      local.get $text.1
+    local.get $s.0
+    local.get $text.0
+    local.get $text.1
+    local.get $s.1
+    i32.load $heap
+    call_indirect $table0 (param i32 i32 i32) (result i32)
+    local.set $s.0
+    local.get $log
+    i32.load $heap
+    call $rt:list_unique
+    local.set $s.1
+    local.get $log
+    local.get $s.1
+    i32.store $heap
+    ;; 11 |     log.push("started")
+    local.get $s.1
+    i32.load $heap offset=4
+    local.tee $text.1
+    local.get $s.1
+    i32.load $heap
+    i32.eq
+    if
       local.get $s.1
-      i32.load $heap
-      call_indirect $table0 (param i32 i32 i32) (result i32)
-      local.set $s.0
-      local.get $log
-      i32.load $heap
-      call $rt:list_unique
+      i32.const 1
+      call_indirect $table0 (param i32) (result i32)
       local.set $s.1
       local.get $log
       local.get $s.1
       i32.store $heap
-    ;; 11 |     log.push("started")
-      local.get $s.1
-      i32.load $heap offset=4
-      local.tee $text.1
-      local.get $s.1
-      i32.load $heap
-      i32.eq
-      if
-        local.get $s.1
-        i32.const 1
-        call_indirect $table0 (param i32) (result i32)
-        local.set $s.1
-        local.get $log
-        local.get $s.1
-        i32.store $heap
-      end
-      local.get $s.1
-      local.get $text.1
-      i32.const 8
-      i32.mul
-      i32.add
-      local.tee $log
-      i32.const 65 ;; &"started"
-      i32.store $heap offset=16
-      local.get $log
-      i32.const 7
-      i32.store $heap offset=20
-      local.get $s.1
-      local.get $text.1
-      i32.const 1
-      i32.add
-      i32.store $heap offset=4
+    end
+    local.get $s.1
+    local.get $text.1
+    i32.const 8
+    i32.mul
+    i32.add
+    local.tee $log
+    i32.const 65 ;; &"started"
+    i32.store $heap offset=16
+    local.get $log
+    i32.const 7
+    i32.store $heap offset=20
+    local.get $s.1
+    local.get $text.1
+    i32.const 1
+    i32.add
+    i32.store $heap offset=4
     ;; 12 |     match block_on(call):
-      call $rt:forbid_check
-      block
-        loop
-          local.get $s.0
-          local.get $s.0
-          i32.load $heap
-          call_indirect $table0 (param i32) (result i32 i32)
-          local.set $s.1
-          br_if 1
-          global.get $rewake
-          if
-            i32.const 0
-            global.set $rewake
-            i32.const 1
-            local.set $t0
-            br 1
-          end
-          call $hd:rt/block
-          call $rt:wake_mark
+    call $rt:forbid_check
+    block
+      loop
+        local.get $s.0
+        local.get $s.0
+        i32.load $heap
+        call_indirect $table0 (param i32) (result i32 i32)
+        local.set $s.1
+        br_if 1
+        global.get $rewake
+        if
+          i32.const 0
+          global.set $rewake
           i32.const 1
           local.set $t0
-          br 0
+          br 1
         end
+        call $hd:rt/block
+        call $rt:wake_mark
+        i32.const 1
+        local.set $t0
+        br 0
       end
-      local.get $t0
-      global.get $rewake
-      i32.or
-      global.set $rewake
-      i32.const 0
-      local.get $s.1
-      local.set $text.1
-      local.set $s.1
+    end
+    local.get $t0
+    global.get $rewake
+    i32.or
+    global.set $rewake
+    i32.const 0
+    local.get $s.1
+    local.set $text.1
+    local.set $s.1
     ;; 10 |     let call: Suspend[i32] = s.put(text)
-      local.get $s.0
-      local.tee $log
+    local.get $s.0
+    local.tee $log
+    if
+      local.get $log
+      i32.const 8
+      i32.sub
+      i32.load $heap
       if
         local.get $log
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $log
-          call $rt:release_ref'1
-        end
+        call $rt:release_ref'1
       end
+    end
     ;; 12 |     match block_on(call):
+    block
       block
         block
           block
-            block
     ;; 13 |         .Completed(n) => n
+            block
               block
-                block
-                  local.get $s.1
-                  br_table 0 3 4 4
-                end
-                local.get $text.1
-                local.set $n
-                br 1
+                local.get $s.1
+                br_table 0 3 4 4
               end
-    ;; 12 |     match block_on(call):
-              unreachable
+              local.get $text.1
+              local.set $n
+              br 1
             end
-            br 2
+    ;; 12 |     match block_on(call):
+            unreachable
           end
-          br 1
+          br 2
         end
-        br 0
+        br 1
       end
-    ;; 10 |     let call: Suspend[i32] = s.put(text)
-      local.get $n
-      local.set $s.0
+      br 0
     end
+    ;; 10 |     let call: Suspend[i32] = s.put(text)
+    local.get $n
+    local.set $s.0
     local.get $text.0
     local.tee $log
     if

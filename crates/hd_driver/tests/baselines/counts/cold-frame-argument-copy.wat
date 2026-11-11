@@ -37,19 +37,15 @@
     else
     end
     block
-      block
-        block
-          br 0
-        end
-      end
-      local.get $text.0
-      if
-        local.get $text.0
-        call $rt:release_ref
-      end
-      local.get $text.1
-      local.set $text.0
+      br 0
     end
+    local.get $text.0
+    if
+      local.get $text.0
+      call $rt:release_ref
+    end
+    local.get $text.1
+    local.set $text.0
     local.get $text.0
     local.get $frame
     if

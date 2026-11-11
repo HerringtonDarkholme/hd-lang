@@ -6,76 +6,66 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $eq_lit (param $name i32) (result i32)
     ;; 10 |     name == "ada"
-    block
-      local.get $name
-      i32.load $heap
-      local.get $name
-      i32.load $heap offset=4
-      i32.const 16 ;; &"ada"
-      i32.const 3
-      call $rt:str_eq
-      local.set $name
-    end
+    local.get $name
+    i32.load $heap
+    local.get $name
+    i32.load $heap offset=4
+    i32.const 16 ;; &"ada"
+    i32.const 3
+    call $rt:str_eq
+    local.set $name
     local.get $name
   )
   (func $list_eq (param $a i32) (param $b i32) (result i32)
     ;; 21 |     a == b
-    block
-      local.get $a
-      local.get $b
-      call $"impl[T < Eq] Eq for List[T].eq[string]"
-      local.set $a
-    end
+    local.get $a
+    local.get $b
+    call $"impl[T < Eq] Eq for List[T].eq[string]"
+    local.set $a
     local.get $a
   )
   (func $order_refs (param $a i32) (param $b i32) (result i32)
     ;; 18 |     a < b
-    block
-      local.get $a
-      local.get $b
-      call $"impl PartialOrd for string.partial_cmp"
-      i32.eqz
-      if (result i32)
-        i32.const 1
-      else
-        i32.const 0
-      end
-      local.set $a
+    local.get $a
+    local.get $b
+    call $"impl PartialOrd for string.partial_cmp"
+    i32.eqz
+    if (result i32)
+      i32.const 1
+    else
+      i32.const 0
     end
+    local.set $a
     local.get $a
   )
   (func $eq_refs (param $a i32) (param $b i32) (result i32)
     ;; 7 |     a == b
-    block
-      local.get $a
-      i32.load $heap
-      local.get $a
-      i32.load $heap offset=4
-      local.get $b
-      i32.load $heap
-      local.get $b
-      i32.load $heap offset=4
-      call $rt:str_eq
-      local.set $a
-    end
+    local.get $a
+    i32.load $heap
+    local.get $a
+    i32.load $heap offset=4
+    local.get $b
+    i32.load $heap
+    local.get $b
+    i32.load $heap offset=4
+    call $rt:str_eq
+    local.set $a
     local.get $a
   )
   (func $arith (param $x i32) (param $y i32) (result i64) (local $t0 i64)
     ;; 13 |     let total = x * 2 + 1
-    block
-      local.get $x
-      i64.load $heap
-      i64.const 2
-      i64.mul
-      i64.const 1
-      i64.add
+    local.get $x
+    i64.load $heap
+    i64.const 2
+    i64.mul
+    i64.const 1
+    i64.add
     ;; 14 |     total += y
-      local.get $y
-      i64.load $heap
-      i64.add
+    local.get $y
+    i64.load $heap
+    i64.add
     ;; 13 |     let total = x * 2 + 1
-      local.set $t0
-    end
+    local.set $t0
     local.get $t0
   )
 )

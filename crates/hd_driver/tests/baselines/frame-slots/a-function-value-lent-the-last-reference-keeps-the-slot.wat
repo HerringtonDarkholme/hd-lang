@@ -35,26 +35,24 @@
     i32.sub
     local.tee $t0
     global.set $locals
-    block
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $t1
-      i64.const 0
-      i64.store $heap
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $t1
+    i64.const 0
+    i64.store $heap
     ;; 13 |     f(&mut tally)
-      local.get $f.1
+    local.get $f.1
     ;; 12 |     let mut tally = Tally { n: 0 }
-      local.get $t1
+    local.get $t1
     ;; 13 |     f(&mut tally)
-      i32.const 0
-      local.get $f.0
-      call_indirect $table0 (param i32 i32 i32)
+    i32.const 0
+    local.get $f.0
+    call_indirect $table0 (param i32 i32 i32)
     ;; 12 |     let mut tally = Tally { n: 0 }
-    end
     local.get $t0
     i32.const 16
     i32.add

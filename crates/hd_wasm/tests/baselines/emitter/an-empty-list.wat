@@ -2,10 +2,8 @@
 (module
   (func $none (result i32) (local $t0 i32)
     ;; 7 |     []
-    block
-      i32.const 80 ;; &empty-buffer
-      local.set $t0
-    end
+    i32.const 80 ;; &empty-buffer
+    local.set $t0
     local.get $t0
   )
 )

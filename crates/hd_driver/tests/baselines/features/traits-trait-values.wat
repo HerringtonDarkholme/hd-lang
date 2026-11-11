@@ -12,107 +12,97 @@
   (import "fixture" "table0" (table $table0 5 funcref))
   (func $through_mut (param $g.0 i32) (param $g.1 i32) (param $n.0 i32) (param $n.1 i32) (result i32)
     ;; 30 |     g.rename(n)
-    block
-      local.get $g.0
-      local.get $n.0
-      local.get $n.1
-      local.get $g.1
-      i32.load $heap offset=4
-      call_indirect $table0 (param i32 i32 i32)
+    local.get $g.0
+    local.get $n.0
+    local.get $n.1
+    local.get $g.1
+    i32.load $heap offset=4
+    call_indirect $table0 (param i32 i32 i32)
     ;; 31 |     g.twice()
-      local.get $g.0
-      local.get $g.1
-      call $"impl dyn Greet.twice"
+    local.get $g.0
+    local.get $g.1
+    call $"impl dyn Greet.twice"
     ;; 30 |     g.rename(n)
-      local.set $g.0
-    end
+    local.set $g.0
     local.get $g.0
   )
   (func $"impl Greet for User.greet" (param $self i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32)
     ;; 21 |         "hi " + self.name
-    block
-      local.get $self
-      i32.load $heap
-      local.get $self
-      i32.load $heap offset=4
-      local.set $t0
-      local.set $self
-      i32.const 3
-      local.get $t0
-      i32.add
-      local.tee $t1
-      call $rt:str
-      local.tee $t2
-      local.tee $t3
-      i32.const 65 ;; &"hi "
-      local.set $t4
-      local.tee $t5
-      local.get $t4
-      i32.load16_u $heap align=1
-      local.set $t6
-      local.get $t4
-      i32.load8_u $heap offset=2
-      i32.store8 $heap offset=2
-      local.get $t5
-      local.get $t6
-      i32.store16 $heap align=1
-      local.get $t3
-      i32.const 3
-      i32.add
-      local.get $self
-      local.get $t0
-      call $rt:memory_copy/0/0
-      local.get $t2
-      local.get $t1
-      local.set $t0
-      local.set $self
-    end
+    local.get $self
+    i32.load $heap
+    local.get $self
+    i32.load $heap offset=4
+    local.set $t0
+    local.set $self
+    i32.const 3
+    local.get $t0
+    i32.add
+    local.tee $t1
+    call $rt:str
+    local.tee $t2
+    local.tee $t3
+    i32.const 65 ;; &"hi "
+    local.set $t4
+    local.tee $t5
+    local.get $t4
+    i32.load16_u $heap align=1
+    local.set $t6
+    local.get $t4
+    i32.load8_u $heap offset=2
+    i32.store8 $heap offset=2
+    local.get $t5
+    local.get $t6
+    i32.store16 $heap align=1
+    local.get $t3
+    i32.const 3
+    i32.add
+    local.get $self
+    local.get $t0
+    call $rt:memory_copy/0/0
+    local.get $t2
+    local.get $t1
+    local.set $t0
+    local.set $self
     local.get $self
     local.get $t0
   )
   (func $"impl dyn Greet.twice" (param $self.0 i32) (param $self.1 i32) (result i32)
     ;; 14 |         self.greet().len() * 2
+    local.get $self.0
+    local.get $self.1
+    i32.load $heap
+    call_indirect $table0 (param i32) (result i32 i32)
+    local.set $self.1
+    local.set $self.0
     block
-      local.get $self.0
-      local.get $self.1
-      i32.load $heap
-      call_indirect $table0 (param i32) (result i32 i32)
-      local.set $self.1
-      local.set $self.0
-      block
-        block
-          br 0
-        end
-      end
-      local.get $self.0
-      if
-        local.get $self.0
-        call $rt:release_ref
-      end
-      local.get $self.1
-      i32.const 2
-      i32.mul
-      local.set $self.0
+      br 0
     end
+    local.get $self.0
+    if
+      local.get $self.0
+      call $rt:release_ref
+    end
+    local.get $self.1
+    i32.const 2
+    i32.mul
+    local.set $self.0
     local.get $self.0
   )
   (func $boxed (param $u.name.0 i32) (param $u.name.1 i32) (result i32 i32) (local $t0 i32)
     ;; 27 |     box(u)
-    block
-      i32.const 8
-      i32.const 4
-      call $rt:new/class-1
-      local.tee $t0
-      local.get $u.name.0
-      i32.store $heap
-      local.get $t0
-      local.get $u.name.1
-      i32.store $heap offset=4
-      local.get $t0
-      i32.const 160 ;; &vtable[func44, func45]
-      local.set $u.name.1
-      local.set $u.name.0
-    end
+    i32.const 8
+    i32.const 4
+    call $rt:new/class-1
+    local.tee $t0
+    local.get $u.name.0
+    i32.store $heap
+    local.get $t0
+    local.get $u.name.1
+    i32.store $heap offset=4
+    local.get $t0
+    i32.const 160 ;; &vtable[func44, func45]
+    local.set $u.name.1
+    local.set $u.name.0
     local.get $u.name.0
     local.get $u.name.1
   )
@@ -147,54 +137,52 @@
     i32.sub
     local.tee $t0
     global.set $locals
-    block
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $t1
-      local.get $u.name.0
-      i32.store $heap
-      local.get $t1
-      local.get $u.name.1
-      i32.store $heap offset=4
-      local.get $t1
-      local.tee $u.name.0
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $t1
+    local.get $u.name.0
+    i32.store $heap
+    local.get $t1
+    local.get $u.name.1
+    i32.store $heap offset=4
+    local.get $t1
+    local.tee $u.name.0
     ;; 35 |     through_mut(&mut v, n)
-      local.tee $u.name.1
-      local.tee $t1
-      if
-        local.get $t1
-        call $retain
-      end
-      local.get $u.name.1
-      i32.const 160 ;; &vtable[func44, func45]
-      local.get $n.0
-      local.get $n.1
-      call $through_mut
-      local.set $n.0
-      local.get $u.name.1
+    local.tee $u.name.1
+    local.tee $t1
+    if
+      local.get $t1
+      call $retain
+    end
+    local.get $u.name.1
+    i32.const 160 ;; &vtable[func44, func45]
+    local.get $n.0
+    local.get $n.1
+    call $through_mut
+    local.set $n.0
+    local.get $u.name.1
     ;; 34 |     let mut v = u
+    local.tee $t1
+    if
+      local.get $t1
+      call $rt:release_ref
+    end
+    local.get $u.name.0
+    if
+      local.get $u.name.0
+      i32.load $heap
       local.tee $t1
       if
         local.get $t1
         call $rt:release_ref
       end
-      local.get $u.name.0
-      if
-        local.get $u.name.0
-        i32.load $heap
-        local.tee $t1
-        if
-          local.get $t1
-          call $rt:release_ref
-        end
-      end
-      local.get $n.0
-      local.set $u.name.0
     end
+    local.get $n.0
+    local.set $u.name.0
     local.get $u.name.0
     local.get $t0
     i32.const 16
@@ -203,18 +191,16 @@
   )
   (func $"impl Greet for User.rename" (param $self i32) (param $n.0 i32) (param $n.1 i32)
     ;; 24 |         self.name = n
-    block
-      local.get $self
-      i32.load $heap
-      local.get $self
-      i32.load $heap offset=4
-      local.get $self
-      local.get $n.0
-      i32.store $heap
-      local.get $self
-      local.get $n.1
-      i32.store $heap offset=4
-      call $rt:release
-    end
+    local.get $self
+    i32.load $heap
+    local.get $self
+    i32.load $heap offset=4
+    local.get $self
+    local.get $n.0
+    i32.store $heap
+    local.get $self
+    local.get $n.1
+    i32.store $heap offset=4
+    call $rt:release
   )
 )

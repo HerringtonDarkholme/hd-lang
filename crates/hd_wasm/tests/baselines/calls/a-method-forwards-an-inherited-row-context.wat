@@ -7,43 +7,41 @@
   (import "fixture" "table0" (table $table0 10 funcref))
   (func $"impl[$ R] Holder[$ R].call[{open row}]" (param $self i32) (param $n i32) (param $ctx i32) (local $t0 i32) (local $t1 i32)
     ;; 16 |         (self.job)(n)
-    block
-      local.get $self
+    local.get $self
+    i32.load $heap
+    local.get $self
+    i32.load $heap offset=4
+    local.set $t0
+    local.set $self
+    local.get $t0
+    local.tee $t1
+    if
+      local.get $t1
+      i32.const 8
+      i32.sub
       i32.load $heap
-      local.get $self
-      i32.load $heap offset=4
-      local.set $t0
-      local.set $self
-      local.get $t0
-      local.tee $t1
       if
         local.get $t1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t1
-          call $rt:retain_known
-        end
+        call $rt:retain_known
       end
-      local.get $t0
-      local.get $n
-      local.get $ctx
-      local.get $self
-      call_indirect $table0 (param i32 i32 i32)
-      local.get $t0
-      local.tee $t1
+    end
+    local.get $t0
+    local.get $n
+    local.get $ctx
+    local.get $self
+    call_indirect $table0 (param i32 i32 i32)
+    local.get $t0
+    local.tee $t1
+    if
+      local.get $t1
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      global.get $tracing
+      i32.or
       if
         local.get $t1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $t1
-          call $rt:release_ref
-        end
+        call $rt:release_ref
       end
     end
   )

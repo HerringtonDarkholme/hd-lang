@@ -9,24 +9,19 @@
   (import "fixture" "table0" (table $table0 5 funcref))
   (func $reborrow (param $c i32) (param $s.0 i32) (param $s.1 i32) (param $t.0 i32) (param $t.1 i32)
     ;; 39 |     grow(c, s)
-    block
-      local.get $c
-      local.get $s.0
-      local.get $s.1
-      call $grow
+    local.get $c
+    local.get $s.0
+    local.get $s.1
+    call $grow
     ;; 40 |     d := c
-      local.get $c
+    local.get $c
     ;; 41 |     grow(d, t)
-      local.get $t.0
-      local.get $t.1
-      call $grow
-    ;; 39 |     grow(c, s)
-    end
+    local.get $t.0
+    local.get $t.1
+    call $grow
   )
   (func $into_field (param $photo.width i32) (param $photo.tags i32) (result i32 i32)
     ;; 28 |     Album { cover: photo }
-    block
-    end
     local.get $photo.width
     local.get $photo.tags
   )
@@ -61,128 +56,118 @@
     i32.sub
     local.tee $t0
     global.set $locals
+    local.get $xs.buffer.address
+    local.get $xs.buffer.capacity
+    local.get $xs.len
+    local.set $t1
+    local.set $t2
+    local.set $ys
+    i32.const 0
+    local.set $xs.buffer.address
+    i32.const 0
+    local.set $xs.buffer.capacity
+    i32.const 0
+    local.set $xs.len
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $t3
+    local.get $ys
+    i32.store $heap
+    local.get $t3
+    local.get $t2
+    i32.store $heap offset=4
+    local.get $t3
+    local.get $t1
+    i32.store $heap offset=8
+    local.get $t3
+    i32.const 1
+    i32.store $heap offset=12
+    local.get $t3
+    i32.const 1
+    i32.store $heap offset=16
+    local.get $t3
+    i32.const 1
+    i32.store $heap offset=20
+    local.get $t3
+    i32.const 1
+    i32.store $heap offset=24
+    local.get $t3
+    i32.const 1
+    i32.store $heap offset=28
+    local.get $t3
+    local.tee $ys
+    ;; 32 |     ys.push(s)
+    local.set $t2
     block
-      local.get $xs.buffer.address
-      local.get $xs.buffer.capacity
-      local.get $xs.len
-      local.set $t1
-      local.set $t2
-      local.set $ys
-      i32.const 0
-      local.set $xs.buffer.address
-      i32.const 0
-      local.set $xs.buffer.capacity
-      i32.const 0
-      local.set $xs.len
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $t3
-      local.get $ys
-      i32.store $heap
-      local.get $t3
-      local.get $t2
-      i32.store $heap offset=4
+      block
+        local.get $t2
+        i32.load $heap offset=8
+        local.set $t1
+        br 0
+      end
+      block
+        local.get $t2
+        i32.load $heap offset=4
+        local.set $t3
+        br 0
+      end
       local.get $t3
       local.get $t1
-      i32.store $heap offset=8
-      local.get $t3
-      i32.const 1
-      i32.store $heap offset=12
-      local.get $t3
-      i32.const 1
-      i32.store $heap offset=16
-      local.get $t3
-      i32.const 1
-      i32.store $heap offset=20
-      local.get $t3
-      i32.const 1
-      i32.store $heap offset=24
-      local.get $t3
-      i32.const 1
-      i32.store $heap offset=28
-      local.get $t3
-      local.tee $ys
-    ;; 32 |     ys.push(s)
-      local.set $t2
-      block
-        block
-          block
-            block
-              local.get $t2
-              i32.load $heap offset=8
-              local.set $t1
-              br 0
-            end
-          end
-          block
-            block
-              local.get $t2
-              i32.load $heap offset=4
-              local.set $t3
-              br 0
-            end
-          end
-          local.get $t3
-          local.get $t1
-          i32.le_u
-          if
-            local.get $t2
-            local.get $t1
-            i32.const 1
-            i32.add
-            call $"impl[T < ?Copy] UniqList[T].reserve_for[string]"
-          end
-          block
-            block
-              local.get $t2
-              i32.load $heap
-              local.get $t1
-              i32.const 8
-              i32.mul
-              i32.add
-              local.set $t3
-              br 0
-            end
-          end
-          local.get $t3
-          local.get $s.0
-          i32.store $heap
-          local.get $t3
-          local.get $s.1
-          i32.store $heap offset=4
-          local.get $t2
-          local.get $t1
-          i32.const 1
-          i32.add
-          i32.store $heap offset=8
-          br 0
-        end
+      i32.le_u
+      if
+        local.get $t2
+        local.get $t1
+        i32.const 1
+        i32.add
+        call $"impl[T < ?Copy] UniqList[T].reserve_for[string]"
       end
-    ;; 33 |     ys
-      local.get $ys
-      i32.load $heap
-      local.get $ys
-      i32.load $heap offset=4
-      local.get $ys
-      i32.load $heap offset=8
-      local.get $ys
-      i32.const 0
+      block
+        local.get $t2
+        i32.load $heap
+        local.get $t1
+        i32.const 8
+        i32.mul
+        i32.add
+        local.set $t3
+        br 0
+      end
+      local.get $t3
+      local.get $s.0
       i32.store $heap
-      local.get $ys
-      i32.const 0
+      local.get $t3
+      local.get $s.1
       i32.store $heap offset=4
-      local.get $ys
-      i32.const 0
+      local.get $t2
+      local.get $t1
+      i32.const 1
+      i32.add
       i32.store $heap offset=8
-    ;; 31 |     let mut ys = xs
-      local.set $ys
-      local.set $s.1
-      local.set $s.0
+      br 0
     end
+    ;; 33 |     ys
+    local.get $ys
+    i32.load $heap
+    local.get $ys
+    i32.load $heap offset=4
+    local.get $ys
+    i32.load $heap offset=8
+    local.get $ys
+    i32.const 0
+    i32.store $heap
+    local.get $ys
+    i32.const 0
+    i32.store $heap offset=4
+    local.get $ys
+    i32.const 0
+    i32.store $heap offset=8
+    ;; 31 |     let mut ys = xs
+    local.set $ys
+    local.set $s.1
+    local.set $s.0
     local.get $xs.buffer.address
     local.get $xs.buffer.capacity
     local.get $xs.len
@@ -198,60 +183,53 @@
     global.set $locals
   )
   (func $export (param $photo.width i32) (param $photo.tags i32) (result i32 i32)
-    ;; 24 |     keep(photo.width)
-    block
     ;; 25 |     hold(photo)
-      block
-        block
-          br 0
-        end
-      end
-    ;; 24 |     keep(photo.width)
+    block
+      br 0
     end
+    ;; 24 |     keep(photo.width)
     local.get $photo.width
     local.get $photo.tags
   )
   (func $grow (param $c i32) (param $s.0 i32) (param $s.1 i32) (local $t0 i32) (local $t1 i32)
     ;; 36 |     c.tags.push(s)
-    block
-      local.get $c
-      i32.load $heap
-      call $rt:list_unique
+    local.get $c
+    i32.load $heap
+    call $rt:list_unique
+    local.set $t0
+    local.get $c
+    local.get $t0
+    i32.store $heap
+    local.get $t0
+    i32.load $heap offset=4
+    local.tee $t1
+    local.get $t0
+    i32.load $heap
+    i32.eq
+    if
+      local.get $t0
+      i32.const 1
+      call_indirect $table0 (param i32) (result i32)
       local.set $t0
       local.get $c
       local.get $t0
       i32.store $heap
-      local.get $t0
-      i32.load $heap offset=4
-      local.tee $t1
-      local.get $t0
-      i32.load $heap
-      i32.eq
-      if
-        local.get $t0
-        i32.const 1
-        call_indirect $table0 (param i32) (result i32)
-        local.set $t0
-        local.get $c
-        local.get $t0
-        i32.store $heap
-      end
-      local.get $t0
-      local.get $t1
-      i32.const 8
-      i32.mul
-      i32.add
-      local.tee $c
-      local.get $s.0
-      i32.store $heap offset=16
-      local.get $c
-      local.get $s.1
-      i32.store $heap offset=20
-      local.get $t0
-      local.get $t1
-      i32.const 1
-      i32.add
-      i32.store $heap offset=4
     end
+    local.get $t0
+    local.get $t1
+    i32.const 8
+    i32.mul
+    i32.add
+    local.tee $c
+    local.get $s.0
+    i32.store $heap offset=16
+    local.get $c
+    local.get $s.1
+    i32.store $heap offset=20
+    local.get $t0
+    local.get $t1
+    i32.const 1
+    i32.add
+    i32.store $heap offset=4
   )
 )

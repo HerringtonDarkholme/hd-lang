@@ -4,79 +4,76 @@
   (import "fixture" "rt:map_unique" (func $rt:map_unique (param i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $sum (param $items i32) (result i32) (local $total i32) (local $t0 i32) (local $t1 i32) (local $key i32) (local $value i32)
+    ;; 10 |     for (key, value) in &mut items:
+    local.get $items
+    i32.load $heap
+    i32.load $heap offset=4
+    local.set $t0
     block
-    ;; 10 |     for (key, value) in &mut items:
-      local.get $items
-      i32.load $heap
-      i32.load $heap offset=4
-      local.set $t0
-      block
-        loop
-          local.get $items
-          i32.load $heap
-          local.get $t1
-          local.get $t0
-          call $rt:map_slot_next
-          local.tee $t1
-          local.get $t0
-          i32.lt_u
-          i32.eqz
-          br_if 1
-          local.get $items
-          i32.load $heap
-          call $rt:map_unique
-          local.set $key
-          local.get $items
-          local.get $key
-          i32.store $heap
-          local.get $key
-          local.get $key
-          i32.load $heap offset=12
-          i32.const 12
-          i32.mul
-          i32.add
-          i32.const 24
-          i32.add
-          local.get $t1
-          i32.const 8
-          i32.mul
-          i32.add
-          local.tee $key
-          local.get $key
-          i32.const 4
-          i32.add
-          local.set $value
-          local.set $key
-          local.get $t1
-          i32.const 1
-          i32.add
-          local.set $t1
+      loop
+        local.get $items
+        i32.load $heap
+        local.get $t1
+        local.get $t0
+        call $rt:map_slot_next
+        local.tee $t1
+        local.get $t0
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $items
+        i32.load $heap
+        call $rt:map_unique
+        local.set $key
+        local.get $items
+        local.get $key
+        i32.store $heap
+        local.get $key
+        local.get $key
+        i32.load $heap offset=12
+        i32.const 12
+        i32.mul
+        i32.add
+        i32.const 24
+        i32.add
+        local.get $t1
+        i32.const 8
+        i32.mul
+        i32.add
+        local.tee $key
+        local.get $key
+        i32.const 4
+        i32.add
+        local.set $value
+        local.set $key
+        local.get $t1
+        i32.const 1
+        i32.add
+        local.set $t1
+        block
           block
-            block
-              br 0
-              unreachable
-            end
-    ;; 11 |         *value += key
-            local.get $value
-            local.get $value
-            i32.load $heap
-            local.get $key
-            i32.load $heap
-            i32.add
-            i32.store $heap
-    ;; 12 |         total += *value
-            local.get $total
-            local.get $value
-            i32.load $heap
-            i32.add
-            local.set $total
-    ;; 10 |     for (key, value) in &mut items:
             br 0
+            unreachable
           end
+    ;; 11 |         *value += key
+          local.get $value
+          local.get $value
+          i32.load $heap
+          local.get $key
+          i32.load $heap
+          i32.add
+          i32.store $heap
+    ;; 12 |         total += *value
+          local.get $total
+          local.get $value
+          i32.load $heap
+          i32.add
+          local.set $total
+    ;; 10 |     for (key, value) in &mut items:
           br 0
         end
+        br 0
       end
-      ;; ...
     end
     ;; ...
   )

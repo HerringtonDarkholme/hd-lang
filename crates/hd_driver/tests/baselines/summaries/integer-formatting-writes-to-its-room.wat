@@ -6,40 +6,32 @@
   (func $signed (param $value i64) (param $room i32) (result i32 i32) (local $t0 i32)
     ;; 8 |     format_signed(value, room.at(0))
     block
-      block
-        block
-          local.get $room
-          i32.load $heap
-          local.set $room
-          br 0
-        end
-      end
-      local.get $value
       local.get $room
-      call $rt:fmt_i64
-      local.set $t0
+      i32.load $heap
       local.set $room
+      br 0
     end
+    local.get $value
+    local.get $room
+    call $rt:fmt_i64
+    local.set $t0
+    local.set $room
     local.get $room
     local.get $t0
   )
   (func $unsigned (param $value i64) (param $room i32) (result i32 i32) (local $t0 i32)
     ;; 11 |     format_unsigned(value, room.at(0))
     block
-      block
-        block
-          local.get $room
-          i32.load $heap
-          local.set $room
-          br 0
-        end
-      end
-      local.get $value
       local.get $room
-      call $rt:fmt_u64
-      local.set $t0
+      i32.load $heap
       local.set $room
+      br 0
     end
+    local.get $value
+    local.get $room
+    call $rt:fmt_u64
+    local.set $t0
+    local.set $room
     local.get $room
     local.get $t0
   )

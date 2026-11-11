@@ -10,186 +10,170 @@
   (import "fixture" "table0" (table $table0 6 funcref))
   (func $labeled (param $name.0 i32) (param $name.1 i32) (param $suffix.0 i32) (param $suffix.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 19 |     name + suffix
-    block
-      local.get $name.1
-      local.get $suffix.1
-      i32.add
-      local.tee $t0
-      i32.eqz
-      if (result i32)
-        i32.const 16
-      else
-        local.get $t0
-        call $rt:str
-      end
-      local.tee $t1
-      local.tee $t2
-      local.get $name.0
-      local.get $name.1
-      call $rt:memory_copy/0/0
-      local.get $t2
-      local.get $name.1
-      i32.add
-      local.get $suffix.0
-      local.get $suffix.1
-      call $rt:memory_copy/0/0
-      local.get $t1
+    local.get $name.1
+    local.get $suffix.1
+    i32.add
+    local.tee $t0
+    i32.eqz
+    if (result i32)
+      i32.const 16
+    else
       local.get $t0
-      local.set $name.1
-      local.set $name.0
+      call $rt:str
     end
+    local.tee $t1
+    local.tee $t2
+    local.get $name.0
+    local.get $name.1
+    call $rt:memory_copy/0/0
+    local.get $t2
+    local.get $name.1
+    i32.add
+    local.get $suffix.0
+    local.get $suffix.1
+    call $rt:memory_copy/0/0
+    local.get $t1
+    local.get $t0
+    local.set $name.1
+    local.set $name.0
     local.get $name.0
     local.get $name.1
   )
   (func $with_default (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 13 |     collect(s)
-    block
-      local.get $s.0
-      local.get $s.1
-      call $collect.into
-      local.set $t0
-      local.get $s.0
-      local.tee $t1
-      if
-        local.get $t1
-        call $retain
-      end
-      local.get $s.0
-      local.get $s.1
-      local.get $t0
-      call $collect
-      local.get $t0
-      local.tee $t1
-      if
-        local.get $t1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t1
-          call $rt:release_ref
-        end
-      end
-      local.set $s.0
+    local.get $s.0
+    local.get $s.1
+    call $collect.into
+    local.set $t0
+    local.get $s.0
+    local.tee $t1
+    if
+      local.get $t1
+      call $retain
     end
+    local.get $s.0
+    local.get $s.1
+    local.get $t0
+    call $collect
+    local.get $t0
+    local.tee $t1
+    if
+      local.get $t1
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $t1
+        call $rt:release_ref
+      end
+    end
+    local.set $s.0
     local.get $s.0
   )
   (func $with_given (param $s.0 i32) (param $s.1 i32) (param $out i32) (result i32)
     ;; 16 |     collect(s, out)
-    block
-      local.get $s.0
-      local.get $s.1
-      local.get $out
-      call $collect
-      local.set $s.0
-    end
+    local.get $s.0
+    local.get $s.1
+    local.get $out
+    call $collect
+    local.set $s.0
     local.get $s.0
   )
   (func $collect.into (param $t0 i32) (param $t1 i32) (result i32)
     ;; 8 | fn collect(item: string, into: &mut List[string] = &mut []) -> usize:
-    block
-      i32.const 4
-      i32.const 2
-      call $rt:new/class-1
-      local.tee $t0
-      i32.const 80 ;; &empty-buffer
-      i32.store $heap
-    end
+    i32.const 4
+    i32.const 2
+    call $rt:new/class-1
+    local.tee $t0
+    i32.const 80 ;; &empty-buffer
+    i32.store $heap
     local.get $t0
   )
   (func $collect (param $item.0 i32) (param $item.1 i32) (param $into i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 9 |     into.push(item)
-    block
-      local.get $into
-      i32.load $heap
-      call $rt:list_unique
+    local.get $into
+    i32.load $heap
+    call $rt:list_unique
+    local.set $t0
+    local.get $into
+    local.get $t0
+    i32.store $heap
+    local.get $t0
+    i32.load $heap offset=4
+    local.tee $t1
+    local.get $t0
+    i32.load $heap
+    i32.eq
+    if
+      local.get $t0
+      i32.const 2
+      call_indirect $table0 (param i32) (result i32)
       local.set $t0
       local.get $into
       local.get $t0
       i32.store $heap
-      local.get $t0
-      i32.load $heap offset=4
-      local.tee $t1
-      local.get $t0
-      i32.load $heap
-      i32.eq
-      if
-        local.get $t0
-        i32.const 2
-        call_indirect $table0 (param i32) (result i32)
-        local.set $t0
-        local.get $into
-        local.get $t0
-        i32.store $heap
-      end
-      local.get $t0
-      local.get $t1
-      i32.const 8
-      i32.mul
-      i32.add
-      local.tee $t2
-      local.get $item.0
-      i32.store $heap offset=16
-      local.get $t2
-      local.get $item.1
-      i32.store $heap offset=20
-      local.get $t0
-      local.get $t1
-      i32.const 1
-      i32.add
-      i32.store $heap offset=4
-    ;; 10 |     into.len()
-      local.get $into
-      i32.load $heap
-      i32.load $heap offset=4
-    ;; 9 |     into.push(item)
-      local.set $item.0
     end
+    local.get $t0
+    local.get $t1
+    i32.const 8
+    i32.mul
+    i32.add
+    local.tee $t2
+    local.get $item.0
+    i32.store $heap offset=16
+    local.get $t2
+    local.get $item.1
+    i32.store $heap offset=20
+    local.get $t0
+    local.get $t1
+    i32.const 1
+    i32.add
+    i32.store $heap offset=4
+    ;; 10 |     into.len()
+    local.get $into
+    i32.load $heap
+    i32.load $heap offset=4
+    ;; 9 |     into.push(item)
+    local.set $item.0
     local.get $item.0
   )
   (func $use_label (param $s.0 i32) (param $s.1 i32) (result i32 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
     ;; 22 |     labeled(s)
     block
-      block
-        block
-          i32.const 104 ;; &"!"
-          i32.const 1
-          local.set $t0
-          local.set $t1
-          br 0
-        end
+      i32.const 104 ;; &"!"
+      i32.const 1
+      local.set $t0
+      local.set $t1
+      br 0
+    end
+    block
+      local.get $s.1
+      local.get $t0
+      i32.add
+      local.tee $t2
+      i32.eqz
+      if (result i32)
+        i32.const 16
+      else
+        local.get $t2
+        call $rt:str
       end
-      block
-        block
-          local.get $s.1
-          local.get $t0
-          i32.add
-          local.tee $t2
-          i32.eqz
-          if (result i32)
-            i32.const 16
-          else
-            local.get $t2
-            call $rt:str
-          end
-          local.tee $t3
-          local.tee $t4
-          local.get $s.0
-          local.get $s.1
-          call $rt:memory_copy/0/0
-          local.get $t4
-          local.get $s.1
-          i32.add
-          local.get $t1
-          local.get $t0
-          call $rt:memory_copy/0/0
-          local.get $t3
-          local.get $t2
-          local.set $s.1
-          local.set $s.0
-          br 0
-        end
-      end
+      local.tee $t3
+      local.tee $t4
+      local.get $s.0
+      local.get $s.1
+      call $rt:memory_copy/0/0
+      local.get $t4
+      local.get $s.1
+      i32.add
+      local.get $t1
+      local.get $t0
+      call $rt:memory_copy/0/0
+      local.get $t3
+      local.get $t2
+      local.set $s.1
+      local.set $s.0
+      br 0
     end
     local.get $s.0
     local.get $s.1

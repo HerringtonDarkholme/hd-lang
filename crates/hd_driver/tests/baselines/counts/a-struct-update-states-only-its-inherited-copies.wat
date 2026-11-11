@@ -4,15 +4,11 @@
   (func $scalar (param $base.kept i32) (param $base.name.0 i32) (param $base.name.1 i32) (param $base.n i32) (param $name.0 i32) (param $name.1 i32) (result i32 i32 i32 i32)
     ;; 16 |     update(base, name)
     block
-      block
-        block
-          local.get $name.0
-          local.get $name.1
-          local.set $base.name.1
-          local.set $base.name.0
-          br 0
-        end
-      end
+      local.get $name.0
+      local.get $name.1
+      local.set $base.name.1
+      local.set $base.name.0
+      br 0
     end
     local.get $base.kept
     local.get $base.name.0
@@ -21,18 +17,16 @@
   )
   (func $replaced (param $base.kept.0 i32) (param $base.kept.1 i32) (param $base.name.0 i32) (param $base.name.1 i32) (param $base.n i32) (param $text.0 i32) (param $text.1 i32) (result i32 i32 i32 i32 i32)
     ;; 19 |     Record::[string] { ...base, kept: text, name: "new", n: 1 }
-    block
-      local.get $text.0
-      local.get $text.1
-      i32.const 65 ;; &"new"
-      i32.const 3
-      i32.const 1
-      local.set $base.n
-      local.set $base.name.1
-      local.set $base.name.0
-      local.set $base.kept.1
-      local.set $base.kept.0
-    end
+    local.get $text.0
+    local.get $text.1
+    i32.const 65 ;; &"new"
+    i32.const 3
+    i32.const 1
+    local.set $base.n
+    local.set $base.name.1
+    local.set $base.name.0
+    local.set $base.kept.1
+    local.set $base.kept.0
     local.get $base.kept.0
     local.get $base.kept.1
     local.get $base.name.0
@@ -42,18 +36,14 @@
   (func $counted (param $base.kept i32) (param $base.name.0 i32) (param $base.name.1 i32) (param $base.n i32) (param $name.0 i32) (param $name.1 i32) (result i32 i32 i32 i32)
     ;; 13 |     update(base, name)
     block
-      block
-        block
-          local.get $base.kept
-          call $rt:coll_copy
-          local.get $name.0
-          local.get $name.1
-          local.set $base.name.1
-          local.set $base.name.0
-          local.set $base.kept
-          br 0
-        end
-      end
+      local.get $base.kept
+      call $rt:coll_copy
+      local.get $name.0
+      local.get $name.1
+      local.set $base.name.1
+      local.set $base.name.0
+      local.set $base.kept
+      br 0
     end
     local.get $base.kept
     local.get $base.name.0
