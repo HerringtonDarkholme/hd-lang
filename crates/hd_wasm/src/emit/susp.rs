@@ -1508,11 +1508,7 @@ pub(super) fn finish(
     em.f.set(fr);
     // Borrowed arguments take a count or collection copy before the
     // frame keeps them. Transferred arguments arrive with theirs.
-    let transferred = if closure.is_none() {
-        em.cold_transferred_locals(plocals)
-    } else {
-        hd_base::HashSet::default()
-    };
+    let transferred = em.cold_transferred_locals(plocals);
     if em.counting {
         for &l in plocals {
             let ls = arrived(&em, l);

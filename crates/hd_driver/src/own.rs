@@ -358,7 +358,7 @@ impl OwnCx for Env<'_> {
     }
 
     fn function_spreads_arguments(&self, ty: Ty, args: usize) -> bool {
-        matches!(self.run.pool.get(ty), TyData::Fn { params, inputs, suspends: false, .. }
+        matches!(self.run.pool.get(ty), TyData::Fn { params, inputs, .. }
             if inputs == hd_types::Inputs::Tuple || self.run.pool.list_items(params).len() != args)
     }
 
@@ -628,7 +628,10 @@ impl OwnCx for Env<'_> {
         if params.len() != n {
             return Pass::Lent;
         }
-        if suspends && !self.cold_moves(params[k]) {
+        if suspends
+            && !ProgramEnv::cold_value_transfers(self, params[k])
+            && !self.cold_moves(params[k])
+        {
             return Pass::Lent;
         }
         self.value_parameter(params[k])
@@ -1158,7 +1161,7 @@ impl Env<'_> {
     /// a reference or holds nothing counted. A direct call whose instance
     /// makes an owned parameter a reference lends it ([`Env::instance_pass`]);
     /// one that makes it hold nothing counted counts nothing.
-    fn value_parameter(&self, t: Ty) -> Pass {
+    pub(super) fn value_parameter(&self, t: Ty) -> Pass {
         let pool = &self.run.pool;
         match pool.get(t) {
             TyData::Ref { .. } => Pass::Lent,

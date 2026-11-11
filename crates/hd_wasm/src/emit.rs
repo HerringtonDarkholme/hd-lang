@@ -205,7 +205,7 @@ fn body_func<'a>(
     };
     // Plain functions use `layout::Pass` (§23.25). Cold and fresh
     // suspending entries use the selected cold argument convention.
-    let by_type = !suspending && (sub != 0 || !input.env.suspends(item));
+    let by_type = own.cold.is_some() || !suspending && (sub != 0 || !input.env.suspends(item));
     for &l in &plocals {
         let ty = em.sub(b.local_ty[l]);
         let vs = em.vals(ty)?;
@@ -398,7 +398,7 @@ fn body_func<'a>(
     } else {
         hd_base::HashSet::default()
     };
-    let transferred = if suspending && closure.is_none() {
+    let transferred = if suspending {
         em.cold_transferred_locals(&plocals)
     } else {
         hd_base::HashSet::default()
@@ -2615,6 +2615,16 @@ impl Em<'_, '_, '_> {
     }
 
     fn cold_transferred_locals(&self, locals: &[usize]) -> hd_base::HashSet<usize> {
+        if self.sub_id != 0 {
+            return locals
+                .iter()
+                .copied()
+                .filter(|&l| {
+                    self.env()
+                        .cold_value_transfers(self.sub(self.b.local_ty[l]))
+                })
+                .collect();
+        }
         self.env()
             .params(self.item)
             .unwrap_or_default()

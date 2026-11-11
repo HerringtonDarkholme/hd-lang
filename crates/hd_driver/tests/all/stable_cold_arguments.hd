@@ -1,4 +1,5 @@
 # req.suspend.cold: an owned list survives direct, stored and function-value calls.
+use std.function.{SuspendFn, Tuple}
 use std.ops.Disposable
 use std.task.{BlockOn, block_on, race}
 use std.testing.assert_equal
@@ -137,10 +138,65 @@ fn methods!() -> void $ Clock:
     assert_equal(*cold_reference!(), +19)
     assert_equal(*reference, +19)
 
+fn generic_value![T](value: T) -> T $ Clock:
+    loader := fn!(item: T) -> T $ Clock:
+        sleep!(ms(1))
+        item
+    loader!(value)
+
+fn generic_loader![T](values: List[T]) -> usize $ Clock:
+    loader := fn!(words: List[T]) -> usize $ Clock:
+        sleep!(ms(1))
+        words.len()
+    loader!(values)
+
+fn spread_loader![Args < Tuple, O, $ R](loader: SuspendFn[Args, O, $ R], args: Args) -> O $ R:
+    loader!(args...)
+
+fn run_loader!(loader: fn!(List[string]) -> usize $ Clock, values: List[string]) -> usize $ Clock:
+    loader!(values)
+
+fn anonymous!() -> void $ Clock:
+    prefix := "prefix-" + "value"
+    loader := fn!(words: List[string]) -> usize $ Clock:
+        sleep!(ms(1))
+        words.len() + prefix.len()
+    let mut values = ["first"]
+    cold := loader(values)
+    values.push("second")
+    assert_equal(cold!(), 13)
+    assert_equal(values.len(), 2)
+    assert_equal(loader!(values), 14)
+    assert_equal(values.len(), 2)
+    assert_equal(run_loader!(loader, values), 14)
+    assert_equal(values.len(), 2)
+    assert_equal(generic_value!("generic-" + "string"), "generic-string")
+    assert_equal(generic_value!(values), values)
+    pointer := box(+17)
+    assert_equal(*generic_value!(pointer), +17)
+    assert_equal(*pointer, +17)
+    assert_equal(generic_loader!(values), 2)
+    assert_equal(generic_loader!([box(+7)]), 1)
+    assert_equal(spread_loader!(loader, (values,)), 14)
+    assert_equal(values.len(), 2)
+    _ := loader(["cancelled before entry"])
+    events := box::[List[usize]]([])
+    cancelled := fn!(words: List[string]) -> usize $ Clock:
+        using mark = Marker { events: events }
+        events.push(1)
+        sleep!(ms(50))
+        words.len()
+    assert_equal(race!(cancelled(values), quick()), 7)
+    assert_equal(*events, [1, 2])
+    assert_equal(values.len(), 2)
+
 pub fn main() -> void $ Clock:
     match block_on(size(["a", "b", "c"])):
         .Completed(n) => assert_equal(n, 3)
         _ => panic("fused call did not complete")
+    match block_on(anonymous()):
+        .Completed(()) => ()
+        _ => panic("anonymous routes did not complete")
     match block_on(methods()):
         .Completed(()) => ()
         _ => panic("method routes did not complete")

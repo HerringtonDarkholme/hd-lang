@@ -12105,6 +12105,9 @@ impl ProgramEnv for Env<'_> {
     fn cold_transfers(&self, def: DefId, ty: Ty) -> bool {
         self.cold_transfers_declared(def, ty)
     }
+    fn cold_value_transfers(&self, ty: Ty) -> bool {
+        self.value_parameter(ty) == hd_tir::own::Pass::Owned
+    }
 
     fn suspends(&self, def: DefId) -> bool {
         match self.sig(def) {
