@@ -287,8 +287,9 @@ code_key      = H("code", pipeline, profile, instance key, item TIR hash,
   profile's traits) only; not judged, since dependency folders already
   enter keys through their deep hashes.
 
-A warm `hd check` or `hd lint` with no edit reads one entry: its
-stored package result or the CLI's stored report (§5.5, #1510).
+A warm `hd check`, `hd lint` or `hd build` with no edit reads one
+entry: its stored package result, or the CLI's stored report or
+artifact (§5.5, #1510).
 
 #### 5.3.1 Early Cutoff By Recorded Reads
 
@@ -800,7 +801,10 @@ A warm run reads no source file it does not check, and hashes none
   derives from such a run under the same key and a hash of its own
   further inputs (`hd_driver::result_key`): the CLI stores a whole
   `hd check` or `hd lint` report there, lint source allows, rendered
-  doc links and doc tests included.
+  doc links and doc tests included, and `hd build`'s artifact with its
+  positions section, for a build that reported nothing. `hd run` and
+  `hd test` stay per-module: their panic frames need each module's
+  `check` entry, and a test's outcome is not a function of its sources.
 - **Fingerprints** of `hd test --affected` hold content hashes, never
   stamps: a source file's from the build's skims
   (`Output::source_hashes`), any other package file's from

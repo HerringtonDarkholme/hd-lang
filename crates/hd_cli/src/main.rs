@@ -544,6 +544,27 @@ fn compile_standalone(
     (profile, pipeline): (BuildProfile, Pipeline),
     rep: &mut Reporter,
 ) -> Result<Vec<u8>, ExitCode> {
+    let store = hd_cache::DeferredStore::new(disk_store());
+    compile_standalone_in(program, (profile, pipeline), rep, &store)
+}
+
+/// [`compile_standalone`], its artifact stored in and replayed from `store`.
+fn compile_standalone_in(
+    program: &disk::Program,
+    (profile, pipeline): (BuildProfile, Pipeline),
+    rep: &mut Reporter,
+    store: &dyn hd_cache::CacheStore,
+) -> Result<Vec<u8>, ExitCode> {
+    // A warm build with nothing changed writes the artifact a build of the
+    // same inputs stored (#1510): one lookup, no per-module entry.
+    let stored = stored_artifact(program, (profile, pipeline), store);
+    if let Some(wasm) = stored.and_then(|(key, client)| key.read(store, client)) {
+        if rep.diags(&program.problems) {
+            return Err(rep.finish(HD_FAILURE));
+        }
+        return Ok(wasm);
+    }
+    let reported = (rep.errors, rep.warnings);
     let built = compile_traced(program, (profile, pipeline), rep)?;
     let mut wasm = built.wasm;
     if let Some((frames, sources)) = &built.frames {
@@ -552,7 +573,51 @@ fn compile_standalone(
         hd_run::frames::cut_names(&mut wasm);
         wasm.extend(section);
     }
+    // Only a build that reported nothing: a hit reports nothing either.
+    if let Some((key, client)) = stored
+        && (rep.errors, rep.warnings) == reported
+    {
+        key.write(store, client, &wasm);
+    }
     Ok(wasm)
+}
+
+/// The key of `program`'s stored `hd build` artifact (#1510): the inputs of
+/// its program build, and what the CLI reads besides them, the manifest's
+/// text (`caps::required`). The artifact is a function of these: the
+/// positions written into it come from the same sources.
+fn stored_artifact(
+    program: &disk::Program,
+    (profile, pipeline): (BuildProfile, Pipeline),
+    store: &dyn hd_cache::CacheStore,
+) -> Option<(hd_driver::ResultKey, hd_base::Hash128)> {
+    if program.as_written.is_some() {
+        return None;
+    }
+    let clock = Wall(Instant::now());
+    let host = Host {
+        render_tir: &[],
+        sources: &program.sources,
+        store,
+        clock: &clock,
+        executor: executor(),
+    };
+    let packages = hd_driver::Packages {
+        build_profile: profile,
+        target: pipeline.target,
+        level: pipeline.level,
+        ..program.packages()
+    };
+    let goal = Goal::Program {
+        entry: program.entry.clone(),
+    };
+    let key = hd_driver::result_key(&host, &program.package, &packages, &goal)?;
+    let mut client = hd_base::StableHasher::new("cli-build-artifact-v1");
+    match hd_project::SourceSet::read(&program.sources, "hd.toml") {
+        Some(text) => client.hash(hd_base::hash128(&text)),
+        None => client.u8(0),
+    }
+    Some((key, client.finish()))
 }
 
 /// Compiles a program to Wasm bytes in `profile` through `pipeline`,
@@ -1371,6 +1436,86 @@ fn build_file(
         .map(|s| s.to_string_lossy().into_owned())
         .unwrap_or_default();
     write_module(&root, release, true, &stem, &wasm).map_err(|e| rep.fail(&e))
+}
+
+#[cfg(all(test, unix))]
+mod stored_artifact_tests {
+    use super::*;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use hd_base::Hash128;
+    use hd_cache::{CacheStore, EntryKind, MemoryStore};
+    use hd_testkit::Scratch;
+
+    /// A store that counts the lookups that found an entry.
+    #[derive(Default)]
+    struct Counted {
+        store: MemoryStore,
+        found: AtomicUsize,
+    }
+
+    impl CacheStore for Counted {
+        fn get(&self, kind: EntryKind, key: &Hash128) -> Option<Arc<[u8]>> {
+            let got = self.store.get(kind, key);
+            self.found
+                .fetch_add(usize::from(got.is_some()), Ordering::Relaxed);
+            got
+        }
+        fn put(&self, kind: EntryKind, key: &Hash128, bytes: &[u8]) {
+            self.store.put(kind, key, bytes);
+        }
+        fn touch(&self, kind: EntryKind, key: &Hash128) {
+            self.store.touch(kind, key);
+        }
+    }
+
+    /// `hd build`'s artifact of the package at `root`, listed now, and
+    /// whether it was the stored one.
+    fn build(root: &Path, store: &Counted) -> (Vec<u8>, bool) {
+        let mut program = disk::load_package(root, "main").expect("package");
+        program.only_program("main");
+        let pipeline = Pipeline::of(engine::EngineKind::default(), false);
+        store.found.store(0, Ordering::Relaxed);
+        let mut rep = Reporter::stdout(false);
+        let wasm = compile_standalone_in(&program, (profile_of(false), pipeline), &mut rep, store)
+            .expect("built");
+        (wasm, store.found.load(Ordering::Relaxed) == 1)
+    }
+
+    /// Cost Model (#1510): a warm `hd build` with nothing changed writes
+    /// the stored artifact, byte for byte the one built; a settled edit
+    /// builds again.
+    #[test]
+    fn a_warm_build_writes_the_stored_artifact_and_an_edit_builds_again() {
+        let dir = Scratch::new(
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/tmp"),
+            "build-stored-artifact",
+        );
+        let root = dir.join("p");
+        std::fs::create_dir_all(root.join("src")).expect("src");
+        std::fs::write(
+            root.join("hd.toml"),
+            "[package]\nname = \"shop\"\n\n[capabilities]\nConsole = true\n",
+        )
+        .expect("toml");
+        let main =
+            |n: i32| format!("pub fn main() -> void $ Console:\n    println(\"{{{n} + 1}}\")\n");
+        std::fs::write(root.join("src/main.hd"), main(1)).expect("main");
+        std::thread::sleep(disk::SETTLE + std::time::Duration::from_millis(200));
+        let store = Counted::default();
+        let (cold, hit) = build(&root, &store);
+        assert!(!hit, "cold");
+        let (warm, hit) = build(&root, &store);
+        assert!(hit, "warm");
+        assert_eq!(warm, cold);
+        std::fs::write(root.join("src/main.hd"), main(2)).expect("edit");
+        std::thread::sleep(disk::SETTLE + std::time::Duration::from_millis(200));
+        let (edited, hit) = build(&root, &store);
+        assert!(!hit, "an edit builds again");
+        assert_ne!(edited, cold);
+        assert_eq!(build(&root, &store), (edited, true));
+    }
 }
 
 #[cfg(test)]
