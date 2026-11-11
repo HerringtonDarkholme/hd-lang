@@ -1,0 +1,56 @@
+# test: a captured writer that a zero-iteration loop never calls keeps the dependent read
+# Spec 06 For Loops: flow.for.range.half-open.
+# Spec 07 Captures: fn.capture.cell.
+# Spec 13 References: ref.dep.call, ref.box.root.
+# expect-stdout: a
+# expect-stdout: c
+# expect-stdout: e
+# expect-stdout: g
+use std.function.FnMut
+
+struct P:
+    name: string
+
+struct Holder:
+    p: *P
+
+fn name_of(p: &P) -> &string:
+    &p.name
+
+fn repeat[F < FnMut() -> void](n: usize, mut f: F) -> void:
+    for _ in 0..n:
+        f()
+
+fn unchanged() -> string:
+    let mut ps = [box(P { name: "a" })]
+    change := fn() -> void: ps[0] = box(P { name: "b" })
+    d := name_of(ps[0])
+    repeat(0, change)
+    *d
+
+fn unchanged_pointer() -> string:
+    let mut p = box(P { name: "c" })
+    change := fn() -> void: p = box(P { name: "d" })
+    d := name_of(p)
+    repeat(0, change)
+    *d
+
+fn unchanged_field() -> string:
+    let mut h = Holder { p: box(P { name: "e" }) }
+    change := fn() -> void: h.p = box(P { name: "f" })
+    d := name_of(h.p)
+    repeat(0, change)
+    *d
+
+fn unchanged_map() -> string:
+    let mut m: Map[string, *P] = { "k": box(P { name: "g" }) }
+    change := fn() -> void: m["k"] = box(P { name: "h" })
+    d := name_of(m["k"])
+    repeat(0, change)
+    *d
+
+pub fn main() -> void $ Console:
+    println(unchanged()) # prints: a
+    println(unchanged_pointer()) # prints: c
+    println(unchanged_field()) # prints: e
+    println(unchanged_map()) # prints: g

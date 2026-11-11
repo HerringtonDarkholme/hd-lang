@@ -1,0 +1,39 @@
+# @dump: own counts wat
+# @build: v8 dev program checked
+# A closure captures `ps` and `h` as cells, so their element and field
+# reads copy, and each copy drops right after the call that lends it.
+# The dependent result `d` points into what the root holds: `Drop [$ps]`
+# and `Drop [$h]` follow `*d`, not the read, so a writer the loop never
+# calls leaves the root alive (#1700, `ref.box.root`).
+use std.function.FnMut
+
+struct P:
+    name: string
+
+struct Holder:
+    p: *P
+
+fn name_of(p: &P) -> &string:
+    &p.name
+
+fn repeat[F < FnMut() -> void](n: usize, mut f: F) -> void:
+    for _ in 0..n:
+        f()
+
+fn element() -> string:
+    let mut ps = [box(P { name: "a" })]
+    change := fn() -> void: ps[0] = box(P { name: "b" })
+    d := name_of(ps[0])
+    repeat(0, change)
+    *d
+
+fn field() -> string:
+    let mut h = Holder { p: box(P { name: "e" }) }
+    change := fn() -> void: h.p = box(P { name: "f" })
+    d := name_of(h.p)
+    repeat(0, change)
+    *d
+
+pub fn main() -> void $ Console:
+    println(element())
+    println(field())

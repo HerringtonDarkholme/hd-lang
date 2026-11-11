@@ -36,10 +36,13 @@
 //!    what a cell holds (an element of a list in it) takes no count of the
 //!    cell, so the local's own count keeps the cell alive until then.
 //! 5. **Roots.** A counted local a place dereferences (`[*$p .items]`) or
-//!    takes an element of (`[$xs [%i]]`), or whose whole value a coercion
-//!    lends as a local reference (`ref.convert.lend`, [`OwnCx::lends`]),
-//!    is tracked the same way
-//!    (`ref.box.root`), in a body with no frame candidate too: what a
+//!    takes an element of (`[$xs [%i]]`), or whose value, or a part of it
+//!    held in place (`[$h .p]`), a coercion or a call lends as a local
+//!    reference (`ref.convert.lend`, [`OwnCx::lends`]), is tracked the
+//!    same way (`ref.box.root`), a captured one too (`fn.capture.cell`:
+//!    a read of it copies, the copy drops after the call that lends it,
+//!    and no `Ref` makes it a cell local of rule 4), in a body with no
+//!    frame candidate too: what a
 //!    reference or a borrowed read through it points into holds no count
 //!    of its object or buffer, so the uses of what may point there are the
 //!    local's uses too, and its drop or a move of it waits for them (the
@@ -714,9 +717,10 @@ pub(super) fn read_roots(b: &Body, mut measure: impl FnMut(usize)) -> Vec<u32> {
     roots
 }
 
-/// Rule 5, roots (`ref.box.root`): a counted local whose value a place
-/// dereferences (`[*$p .items]`, a `*T`) or takes an element of
-/// (`[$xs [%i]]`, a list or a map) is the root of
+/// Rule 5, roots (`ref.box.root`): a counted local, captured or not,
+/// whose value a place dereferences (`[*$p .items]`, a `*T`) or takes an
+/// element of (`[$xs [%i]]`, a list or a map), or whose value or in-place
+/// part a coercion or a call lends (`[$h .p]`), is the root of
 /// what a reference or a borrowed read through it points into, which
 /// holds no count of that object. Each use of such a value is a use of
 /// the root, so its drop, or a move of it, follows the reference's last
@@ -737,10 +741,10 @@ fn root_uses(b: &Body, cx: &dyn OwnCx, uses: &mut impl FnMut(u32, u32, bool)) {
             continue;
         }
         let p = b.view(b.data[i][0]);
-        // A read of all of a counted local that a coercion lends as a
-        // local reference roots the reference there too.
+        // A read of a counted local, or of a counted part it holds in
+        // place, that a coercion or a call lends as a local reference
+        // roots the reference there too.
         let lent = b.tags[i] == Tag::Read
-            && p.whole()
             && (lent_reads.binary_search(&u32_of(i)).is_ok() || super::lending_read(b, cx, i));
         let root = match p.root {
             Root::Value(v) => {
@@ -756,7 +760,6 @@ fn root_uses(b: &Body, cx: &dyn OwnCx, uses: &mut impl FnMut(u32, u32, bool)) {
         if let Root::Local(l) = root
             && (lent || p.steps(b).any(|s| matches!(s, Proj::Deref | Proj::Elem(_))))
             && cx.counted(b.local_ty[l as usize])
-            && !b.cap_local.iter().any(|c| c.raw() == l)
         {
             locals.push(l);
         }

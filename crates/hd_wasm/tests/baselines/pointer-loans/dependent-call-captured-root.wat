@@ -189,6 +189,59 @@
         call $rt:release_ref
       end
     end
+    ;; 15 |     *d
+    local.get $d
+    i32.load $heap
+    local.tee $change.0
+    local.get $d
+    i32.load $heap offset=4
+    local.tee $change.1
+    call $rt:retain
+    ;; 10 |     let mut ps = [box(P { name: "a" })]
+    local.get $t2
+    if
+      local.get $t2
+      i32.load $heap
+      local.tee $d
+      i32.const 2031616
+      i32.and
+      i32.const 2031616
+      i32.eq
+      if
+        local.get $t2
+        call $rt:loan_unshare
+      else
+        local.get $t2
+        local.get $d
+        i32.const 65536
+        i32.sub
+        i32.store $heap
+      end
+      i32.const 0
+      local.set $t2
+    end
+    local.get $t2
+    if
+      local.get $t2
+      i32.load $heap
+      local.tee $d
+      i32.const 2031616
+      i32.and
+      i32.const 2031616
+      i32.eq
+      if
+        local.get $t2
+        call $rt:loan_unshare
+      else
+        local.get $t2
+        local.get $d
+        i32.const 65536
+        i32.sub
+        i32.store $heap
+      end
+      i32.const 0
+      local.set $t2
+    end
     local.get $ps
     if
       local.get $ps
@@ -207,59 +260,10 @@
         end
       end
     end
-    ;; 15 |     *d
-    local.get $d
-    i32.load $heap
-    local.tee $ps
-    local.get $d
-    i32.load $heap offset=4
-    local.tee $change.0
-    call $rt:retain
-    ;; 10 |     let mut ps = [box(P { name: "a" })]
-    local.get $t2
-    if
-      local.get $t2
-      i32.load $heap
-      local.tee $change.1
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $t2
-        call $rt:loan_unshare
-      else
-        local.get $t2
-        local.get $change.1
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-      i32.const 0
-      local.set $t2
-    end
-    local.get $t2
-    if
-      local.get $t2
-      i32.load $heap
-      local.tee $change.1
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $t2
-        call $rt:loan_unshare
-      else
-        local.get $t2
-        local.get $change.1
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-      i32.const 0
-      local.set $t2
-    end
+    local.get $change.0
+    local.get $change.1
+    local.set $change.0
+    local.set $ps
     local.get $t2
     if
       local.get $t2

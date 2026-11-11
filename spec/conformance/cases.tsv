@@ -6617,6 +6617,7 @@ runtime/valid/readonly-element-calls-preserve-cow-snapshots.hd	runtime	accept	la
 runtime/valid/known-closure-consumers-preserve-captures.hd	runtime	accept	lang/07-functions.md#r-fn.capture.copy.value
 runtime/panic/known-closure-consumer-keeps-captured-root-loan.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.shared-variable
 runtime/valid/known-consumer-mixed-loop-contexts.hd	runtime	accept	lang/07-functions.md#r-fn.trait.mut.call
+runtime/valid/zero-iteration-callback-preserves-dependent-read.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.range.half-open
 runtime/valid/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
 runtime/valid/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#conflicts-through-aliases
