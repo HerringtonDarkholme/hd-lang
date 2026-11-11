@@ -17,6 +17,7 @@ mod count_tests;
 mod cycle;
 mod drive;
 mod emit;
+mod frame_referents;
 mod layout;
 mod map;
 mod module;
@@ -70,20 +71,13 @@ pub fn counted_type(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> bool {
     layout::holds_drop(pool, env, ty) || layout::walk(pool, env, ty).is_some()
 }
 
-/// Whether this concrete parameter type holds a local reference
-/// (`ref.count.local`), thin or a `&dyn`, by value, itself or as a tuple
-/// member or a field, which counts nothing. Its cold frame holds a separate page-table count
-/// of each referenced object ([`frame_referent_values`]).
+/// Whether this concrete parameter type holds a local reference, thin or `&dyn`,
+/// (`ref.count.local`) by value, itself or as a tuple member or a field,
+/// which counts nothing. Its cold frame holds a separate page-table count
+/// of each referenced object, including an active enum payload's references.
 #[must_use]
 pub fn frame_referent_type(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> bool {
-    !frame_referent_values(pool, env, ty).is_empty()
-}
-
-/// The values of a parameter of type `ty` whose objects a cold frame
-/// counts: each local reference it holds by value on every path.
-#[must_use]
-pub fn frame_referent_values(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> Vec<u32> {
-    layout::thin_local_ref_values(pool, env, ty)
+    layout::holds_local_ref(pool, env, ty)
 }
 
 /// Whether the value's representation is one counted address at word zero.
@@ -895,6 +889,7 @@ fn link(
     drive::collect(input, &mut m);
     emit::collect_loans(input, &mut m);
     emit::prepare_element_checks(input, &mut m);
+    emit::prepare_boundary_counts(input, &mut m);
     for id in input.order {
         let f = emit::instance(input, &mut m, *id)?;
         m.define(Sym::Inst(input.collected.table.key[id.idx()]), f);

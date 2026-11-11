@@ -1,0 +1,207 @@
+# test: a cold frame owns only the active local-reference payload until completion or cancellation
+# Spec std/weak: std-weak.release.target.
+use std.annotation.cold
+use std.testing.assert_equal
+use std.weak.{Weak, weak}
+
+enum Input[T]:
+    Missing(text: string)
+    Present(value: T)
+
+@cold
+fn optional!(value: (&i32)?) -> i32:
+    match value:
+        .Some(item) => *item
+        .None => -1
+
+@cold
+fn tagged!(value: Input[(&i32, i32)]) -> i32:
+    match value:
+        .Present(pair) => *pair._0 + pair._1
+        .Missing(text) => i32(text.len())
+
+@cold
+fn nested!(value: Input[Input[(&i32, &i32)]]) -> i32:
+    match value:
+        .Present(inner) =>
+            match inner:
+                .Present(pair) => *pair._0 + *pair._1
+                .Missing(text) => i32(text.len())
+        .Missing(text) => i32(text.len())
+
+fn alive(seen: Weak[i32]?) -> bool:
+    match seen:
+        .Some(link) => link.upgrade().is_some()
+        .None => false
+
+@cold
+fn start_optional(owner: *i32, present: bool) -> Suspend[i32]:
+    let call: fn((&i32)?) -> Suspend[i32] = optional
+    let value: &i32 = owner
+    let pending = if present: call(.Some(value)) else: call(.None)
+    assert_equal(*owner, 7, reason="the caller retains its own live argument")
+    pending
+
+@cold
+fn start_tagged(owner: *i32, present: bool) -> Suspend[i32]:
+    let call: fn(Input[(&i32, i32)]) -> Suspend[i32] = tagged
+    let value: &i32 = owner
+    let pending = if present: call(.Present((value, +3))) else: call(.Missing("inactive $owner"))
+    assert_equal(*owner, 7, reason="the caller retains its own live argument")
+    pending
+
+@cold
+fn make(call: fn(*i32, bool) -> Suspend[i32], present: bool) -> (Weak[i32]?, Suspend[i32]):
+    owner := box(+7)
+    seen := weak(owner)
+    (seen, call(owner, present))
+
+@cold
+fn start_nested(owner: *i32, mode: i32) -> Suspend[i32]:
+    let call: fn(Input[Input[(&i32, &i32)]]) -> Suspend[i32] = nested
+    let value: &i32 = owner
+    let pending = match mode:
+        0 => call(.Missing("outer $owner"))
+        1 => call(.Present(.Missing("inner $owner")))
+        _ => call(.Present(.Present((value, value))))
+    assert_equal(*owner, 7, reason="the caller retains its own live argument")
+    pending
+
+@cold
+fn make_nested(mode: i32) -> (Weak[i32]?, Suspend[i32]):
+    owner := box(+7)
+    seen := weak(owner)
+    (seen, start_nested(owner, mode))
+
+fn settle_nested!(mode: i32, cancel: bool) -> void:
+    let (seen, pending) = make_nested(mode)
+    assert_equal(alive(seen), mode == 2, reason="only a nested active payload owns its objects")
+    if cancel:
+        _ := pending.cancel!()
+    else:
+        let expected = if mode == 2: +14 else: +7
+        assert_equal(pending!(), expected, reason="nested guards select their active payload")
+    assert_equal(alive(seen), false, reason="each saved reference releases its own count")
+
+fn settle!(tagged_input: bool, present: bool, cancel: bool) -> void:
+    let call: fn(*i32, bool) -> Suspend[i32] = if tagged_input: start_tagged else: start_optional
+    let (seen, pending) = make(call, present)
+    assert_equal(alive(seen), present, reason="only an active reference keeps its object alive")
+    if cancel:
+        _ := pending.cancel!()
+    else:
+        let expected = -1
+        if present:
+            expected = +7
+        if tagged_input:
+            expected = +10
+        assert_equal(pending!(), expected, reason="the escaped frame reads its active payload")
+    assert_equal(alive(seen), false, reason="completion or cancellation releases the frame owners")
+
+trait Read:
+    fn read(self) -> i32
+
+impl Read for i32:
+    fn read(self) -> i32:
+        self
+
+@cold
+fn optional_dyn!(value: (&dyn Read)?) -> i32:
+    match value:
+        .Some(item) => item.read()
+        .None => -1
+
+@cold
+fn tagged_dyn!(value: Input[(&dyn Read, &i32)]) -> i32:
+    match value:
+        .Present(pair) => pair._0.read() + *pair._1
+        .Missing(text) => i32(text.len())
+
+@cold
+fn start_dyn(owner: *i32, present: bool, tagged_input: bool) -> Suspend[i32]:
+    let dynamic: &dyn Read = owner
+    let scalar: &i32 = owner
+    let pending = if tagged_input:
+        let call: fn(Input[(&dyn Read, &i32)]) -> Suspend[i32] = tagged_dyn
+        if present: call(.Present((dynamic, scalar))) else: call(.Missing("inactive $owner"))
+    else:
+        let call: fn((&dyn Read)?) -> Suspend[i32] = optional_dyn
+        if present: call(.Some(dynamic)) else: call(.None)
+    assert_equal(*owner, 7, reason="the caller retains its original counted object")
+    pending
+
+@cold
+fn make_dyn(present: bool, tagged_input: bool) -> (Weak[i32]?, Suspend[i32]):
+    owner := box(+7)
+    seen := weak(owner)
+    (seen, start_dyn(owner, present, tagged_input))
+
+fn settle_dyn!(tagged_input: bool, present: bool, cancel: bool) -> void:
+    let (seen, pending) = make_dyn(present, tagged_input)
+    assert_equal(
+        alive(seen),
+        present,
+        reason="only the active dynamic payload holds its data object",
+    )
+    if cancel:
+        _ := pending.cancel!()
+    else:
+        let expected = if tagged_input: (if present: +14 else: +10) else: (if present: +7 else: -1)
+        assert_equal(pending!(), expected, reason="the saved data pointer and vtable remain usable")
+    assert_equal(alive(seen), false, reason="dynamic and scalar saved owners each release once")
+
+@cold
+fn make_text(number: i32) -> string:
+    "owned $number"
+
+tests:
+    it("direct cold calls balance the ordinary owned payload"):
+        text := make_text(+7)
+        let first: Input[(&i32, i32)] = .Missing(text)
+        assert_equal(tagged!(first), 7)
+        let second: Input[Input[(&i32, &i32)]] = .Present(.Missing(text))
+        assert_equal(nested!(second), 7)
+    it("optional absent completed"):
+        settle!(false, false, false)
+    it("optional absent cancelled"):
+        settle!(false, false, true)
+    it("optional present completed"):
+        settle!(false, true, false)
+    it("optional present cancelled"):
+        settle!(false, true, true)
+    it("tagged absent completed"):
+        settle!(true, false, false)
+    it("tagged absent cancelled"):
+        settle!(true, false, true)
+    it("tagged present completed"):
+        settle!(true, true, false)
+    it("tagged present cancelled"):
+        settle!(true, true, true)
+    it("nested mode 0 cancelled false"):
+        settle_nested!(0, false)
+    it("nested mode 0 cancelled true"):
+        settle_nested!(0, true)
+    it("nested mode 1 cancelled false"):
+        settle_nested!(1, false)
+    it("nested mode 1 cancelled true"):
+        settle_nested!(1, true)
+    it("nested mode 2 cancelled false"):
+        settle_nested!(2, false)
+    it("nested mode 2 cancelled true"):
+        settle_nested!(2, true)
+    it("dynamic tagged False present False cancel False"):
+        settle_dyn!(false, false, false)
+    it("dynamic tagged False present False cancel True"):
+        settle_dyn!(false, false, true)
+    it("dynamic tagged False present True cancel False"):
+        settle_dyn!(false, true, false)
+    it("dynamic tagged False present True cancel True"):
+        settle_dyn!(false, true, true)
+    it("dynamic tagged True present False cancel False"):
+        settle_dyn!(true, false, false)
+    it("dynamic tagged True present False cancel True"):
+        settle_dyn!(true, false, true)
+    it("dynamic tagged True present True cancel False"):
+        settle_dyn!(true, true, false)
+    it("dynamic tagged True present True cancel True"):
+        settle_dyn!(true, true, true)

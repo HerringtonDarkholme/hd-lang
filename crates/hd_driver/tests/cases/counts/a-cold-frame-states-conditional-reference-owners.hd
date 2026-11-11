@@ -1,0 +1,16 @@
+# @dump: own counts wat
+# @build: v8 release
+# expected: cold frames retain only the active local-reference objects and release saved owners once.
+enum Input[T]:
+    Missing(text: string)
+    Present(value: T)
+
+fn optional!(value: (&i32)?) -> i32:
+    match value:
+        .Some(item) => *item
+        .None => -1
+
+fn tagged!(value: Input[(&i32, i32)]) -> i32:
+    match value:
+        .Present(pair) => *pair._0 + pair._1
+        .Missing(text) => i32(text.len())

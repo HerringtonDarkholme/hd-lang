@@ -1,6 +1,6 @@
-//! A cold frame's saved count of a thin reference parameter's object.
-//! A generic body's conditional contract lowers only for a thin local
-//! reference's layout.
+//! A cold frame's saved counts of local-reference objects held by a parameter.
+//! A generic body's conditional contract lowers for each active by-value
+//! reference leaf, including enum payloads selected by their discriminants.
 //! Normal exit releases the live slot; teardown releases it if not EXITED.
 
 use super::{OwnCx, cold};

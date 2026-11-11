@@ -1463,7 +1463,13 @@ pub(super) fn finish(
             None => hd_base::HashSet::default(),
         };
     em.m.frames.insert(key, size);
-    let at_of = |l: u32| area.iter().find(|x| x.0 == l).map(|x| (x.1, x.2));
+    // One dense lookup table for all saved virtual locals. A wide
+    // reference parameter must not search the whole frame per owner.
+    let mut positions = vec![None; vals_all.len()];
+    for &(local, at, value) in &area {
+        positions[local as usize] = Some((at, value));
+    }
+    let at_of = |local: u32| positions.get(local as usize).copied().flatten();
     let results = em.results.clone();
     let name = em.f.name.clone();
     let mut body = std::mem::take(&mut em.f);
@@ -1499,17 +1505,12 @@ pub(super) fn finish(
     // closure's captures. The body's other locals are set only once it
     // runs, and a started frame is never freed (pinned above).
     let mut places: Vec<(usize, Vec<u32>)> = Vec::new();
-    let mut owned: Vec<usize> =
-        em.b.exit_drops
-            .iter()
-            .filter(|&&(sub, l)| {
-                sub.raw() == u32::from(em.sub_id)
-                    && (plocals.contains(&l.idx()) || em.b.cap_local.contains(&l))
-            })
-            .map(|&(_, l)| l.idx())
-            .collect();
-    owned.sort_stable();
-    owned.dedup();
+    let owned: Vec<usize> = em
+        .exit_owners()
+        .iter()
+        .copied()
+        .filter(|local| em.parameter_positions.contains_key(local) || em.captured_local(*local))
+        .collect();
     for l in owned {
         if !em.loan_locals.contains_key(&l)
             && !em.borrowed.contains(&l)
@@ -1547,20 +1548,25 @@ pub(super) fn finish(
     }
     // Reference parameter slots precede all body-allocated waker nodes.
     // These typed identities replace opaque temporary ownership inference.
-    for (l, _, held) in em.frame_refs.clone() {
-        let Some(loaded) = load(&mut em, &[held]) else {
-            continue;
-        };
+    for saved in em.frame_refs.clone() {
+        let loaded = super::required(
+            load(&mut em, &saved.held),
+            "saved referent owners are live through the frame's exit and have frame slots",
+        );
         // ruled out: own::referent states each saved parameter object's
         // FrameDrop release, separately from its value count.
         let reason = em.required_stated_count(
             Tag::Release,
             CountAt::FrameDrop,
-            CountPart::Referent(u32::try_from(l).expect("local")),
+            CountPart::Referent(super::required(
+                u32::try_from(saved.local).ok(),
+                "TIR parameter IDs fit u32",
+            )),
         );
         em.because(reason, |em| {
-            em.f.get(loaded[0]);
-            em.f.helper(Helper::ReleaseRef);
+            for (conditional, held) in saved.conditional.iter().copied().zip(loaded) {
+                em.release_frame_referent(held, conditional);
+            }
         });
     }
     em.f.op(I::End);
@@ -1660,26 +1666,72 @@ pub(super) fn finish(
     // The frame's count of each reference parameter's object, in the
     // temporary its exit or release glue releases.
     let r = em.input.runtime;
-    for (l, k, held) in em.frame_refs.clone() {
-        let (Some(x), Some((at, v))) = (arrived(&em, l).get(k as usize).copied(), at_of(held))
-        else {
-            continue;
-        };
+    for saved in em.frame_refs.clone() {
+        let values = arrived(&em, saved.local);
+        let mut active = Vec::with_capacity(saved.plan.guards.len());
+        // Each shared predicate is evaluated once. Nested tests stay
+        // under their parent's test; raw inactive payloads are never read.
+        for guard in &saved.plan.guards {
+            if let Some(parent) = guard.parent {
+                em.f.get(active[parent]);
+                em.f.op(I::If(BlockType::Result(wasm_encoder::ValType::I32)));
+            }
+            em.f.get(values[guard.discr.value as usize]);
+            let variant = super::required(
+                u32::try_from(guard.variant).ok(),
+                "enum layout variants fit u32",
+            );
+            for op in guard.discr.enc.is(variant).ops() {
+                em.f.op(op);
+            }
+            if guard.parent.is_some() {
+                em.f.op(I::Else);
+                em.f.i32(0);
+                em.f.op(I::End);
+            }
+            let held = em.f.local(Val::I32);
+            em.f.set(held);
+            active.push(held);
+        }
         // ruled out: own::referent states Cold for every thin parameter
         // referent whose object the concrete frame layout saves here.
         let reason = em.required_stated_count(
             Tag::Retain,
             CountAt::Cold,
-            CountPart::Referent(u32::try_from(l).expect("local")),
+            CountPart::Referent(super::required(
+                u32::try_from(saved.local).ok(),
+                "TIR parameter IDs fit u32",
+            )),
         );
-        em.f.get(x);
-        em.because(reason, |em| {
-            em.f.count_call(Sym::Inst(r.retain), crate::views::CountAction::Retain);
-        });
-
-        em.f.get(fr);
-        em.f.get(x);
-        em.f.op(store_op(v, at));
+        for (conditional, held) in saved.conditional.iter().copied().zip(&saved.held) {
+            if conditional {
+                let (at, value) =
+                    super::required(at_of(*held), "saved referent owners have frame slots");
+                em.f.get(fr);
+                em.f.i32(0);
+                em.f.op(store_op(value, at));
+            }
+        }
+        for (leaf, slot) in saved.plan.refs.iter().zip(saved.slots) {
+            let held = saved.held[slot];
+            let (at, value) =
+                super::required(at_of(held), "saved referent owners have frame slots");
+            if let Some(guard) = leaf.guard {
+                em.f.get(active[guard]);
+                em.f.op(I::If(BlockType::Empty));
+            }
+            let source = values[leaf.value as usize];
+            em.f.get(source);
+            em.because(reason, |em| {
+                em.f.count_call(Sym::Inst(r.retain), crate::views::CountAction::Retain);
+            });
+            em.f.get(fr);
+            em.f.get(source);
+            em.f.op(store_op(value, at));
+            if leaf.guard.is_some() {
+                em.f.op(I::End);
+            }
+        }
     }
     em.save_initial_drop_flags(plocals, fr, &area);
     em.retain_row(CountAt::Cold, 1);
