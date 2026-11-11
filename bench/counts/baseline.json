@@ -115,11 +115,10 @@
     {
       "program": "bench/runtime/progs/route-search.hd",
       "retained": "0",
-      "released": "614483",
+      "released": "614481",
       "uniques": "2768400",
-      "total": "3382883",
-      "noOpsAndSkipped": "37995616",
-      "reason": "The one-owner field rule is deleted (owner decision 2026-11-07, #1399): it caused five silent wrong answers in release builds (#1439, #1440 and three found with them), because it treated as unshared any field whose sharing it did not recognise. Every collection field and &mut entry now keeps its uniqueness test. Measured with the rule off: +2,486 B across 11 of 32 modules; V8 default tier task-pipeline +2.2%, json +1.9%, route-search -6.6%."
+      "total": "3382881",
+      "noOpsAndSkipped": "37995612"
     },
     {
       "program": "bench/runtime/progs/string-build.hd",
@@ -139,10 +138,10 @@
     },
     {
       "program": "bench/runtime/progs/task-pipeline.hd",
-      "retained": "4106256",
-      "released": "4612527",
+      "retained": "4106252",
+      "released": "4612523",
       "uniques": "3600000",
-      "total": "12318783",
+      "total": "12318775",
       "noOpsAndSkipped": "3937516"
     },
     {
@@ -200,7 +199,7 @@
       "released": "3400100",
       "uniques": "12240015",
       "total": "18020117",
-      "noOpsAndSkipped": "22610155"
+      "noOpsAndSkipped": "22610135"
     },
     {
       "program": "bench/study/mandelbrot.hd",
@@ -262,12 +261,11 @@
     },
     {
       "program": "bench/study/structure_walk.hd",
-      "retained": "3150044",
-      "released": "3500064",
+      "retained": "3150040",
+      "released": "3500060",
       "uniques": "0",
-      "total": "6650108",
-      "noOpsAndSkipped": "13125189",
-      "reason": "15f (#1399): a constant list literal is static data only as a top-level binding; main's local `controls != [0, 5, 3, 1]` literal is now a real buffer whose release is counted (owner decision 2026-11-06)"
+      "total": "6650100",
+      "noOpsAndSkipped": "13125181"
     }
   ]
 }
