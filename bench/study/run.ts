@@ -204,6 +204,18 @@ function parseArgs(argv: string[]): Dynamic {
   return opts;
 }
 
+/**
+ * host/run.ts is TypeScript, and Node strips its types with a Wasm module of
+ * its own, which costs every fresh process about 50 ms at the default tier
+ * and 350 ms with `--no-liftoff` (#1694). Node's compile cache keeps the
+ * stripped sources, so after the discarded preflight a measured hd run holds
+ * the program and the host's work only. References run without it.
+ */
+const hostEnv = (work: string): NodeJS.ProcessEnv => ({
+  ...process.env,
+  NODE_COMPILE_CACHE: join(work, "node-cache"),
+});
+
 /** Runs argv under /usr/bin/time -l: wall ms, peak RSS MB, stdout, status. */
 function timed(argv: string[], env: NodeJS.ProcessEnv = process.env): Dynamic {
   const start = performance.now();
@@ -233,8 +245,13 @@ const median = (samples: number[]): number => {
  * over 20 s counts as measured, and one over 60 s is the only run.
  * Python-only mode disables the discarded preflight and requests exactly one run.
  */
-export function measure(argv: string[], runs: number, expect?: string, preflight = true): Dynamic {
-  const first = timed(argv);
+export function measure(
+  argv: string[],
+  runs: number,
+  expect?: string,
+  { preflight = true, env = process.env }: { preflight?: boolean; env?: NodeJS.ProcessEnv } = {},
+): Dynamic {
+  const first = timed(argv, env);
   const expected = expect ?? first.out;
   const failure = validate(first, expected);
   if (failure) {
@@ -243,7 +260,7 @@ export function measure(argv: string[], runs: number, expect?: string, preflight
   const samples = !preflight || first.ms > 20_000 ? [first] : [];
   const want = first.ms > 60_000 ? 1 : runs;
   while (samples.length < want) {
-    const sample = timed(argv);
+    const sample = timed(argv, env);
     const failure = validate(sample, expected);
     if (failure) {
       return { error: failure };
@@ -438,7 +455,9 @@ function measureReferences({ row, c, opts, python, expect }: Dynamic): void {
     row.go = measure([bin], opts.runs, expect);
   }
   if (python && c.py) {
-    row.py = measure(["python3", c.py], opts.pythonOnly ? 1 : opts.runs, expect, !opts.pythonOnly);
+    row.py = measure(["python3", c.py], opts.pythonOnly ? 1 : opts.runs, expect, {
+      preflight: !opts.pythonOnly,
+    });
   }
 }
 
@@ -456,7 +475,7 @@ async function measureEngines({ row, c, opts, expect }: Dynamic): Promise<void> 
     row[`${engine}Bytes`] = statSync(wasm).size;
     const argv =
       engine === "node" ? ["node", RUNNER, wasm] : [opts.hd, wasm, "--engine", "wasmtime"];
-    row[engine] = measure(argv, opts.runs, expect);
+    row[engine] = measure(argv, opts.runs, expect, { env: hostEnv(opts.work) });
     if (engine === "node" && opts.warmModule && !row.node.error) {
       const module = await WebAssembly.compile(readFileSync(wasm));
       row.warmModule = await measureWarmModule(module, opts.runs, expect ?? row.node.out);

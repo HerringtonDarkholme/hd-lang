@@ -82,7 +82,13 @@ Each hd program is built with `hd build --release --engine E` and run on
 Node through `host/run.ts` and on wasmtime as `hd FILE.wasm --engine
 wasmtime`, which includes Cranelift's compile. Every process output, including the discarded preflight, is checked
 against the expected stdout and must exit successfully. Times are process wall time, so start-up is
-in them: see the empty program's row. Python references use plain CPython
+in them: see the empty program's row. `host/run.ts` is TypeScript, and
+Node strips its types with a Wasm module of its own: about 50 ms of every
+fresh process at the default tier and 350 ms with `--no-liftoff`, which
+compiles that module with TurboFan. Both runners give the hd runs a Node
+compile cache (`NODE_COMPILE_CACHE`) that the discarded run fills, so the
+hd times leave the stripping out (#1694). Set it yourself for a manual
+`node --no-liftoff host/run.ts` timing, and run once before timing. Python references use plain CPython
 (`python3`), with no NumPy; a missing interpreter prints a skip note.
 `--python-only` checks the study's fixed expected stdout and measures each
 Python program once, without a warm-up or any hd, Node or Go execution.
@@ -208,7 +214,8 @@ Wasm to switch the running call to it. Its default-tier time matches
 change elsewhere that changes another body's size can move it by 5-9%
 either way with `sort` byte-identical (#1434). Node 24.19, 15
 alternating fresh processes each, with and without the call-site count
-test (`main`'s Liftoff code 608 against 552 bytes):
+test (`main`'s Liftoff code 608 against 552 bytes), with no compile
+cache, so each time holds Node's type stripping of `host/run.ts`:
 
 | Tier | with test | without |
 | --- | ---: | ---: |
@@ -218,6 +225,21 @@ test (`main`'s Liftoff code 608 against 552 bytes):
 
 Treat a list-sort change under about 10% from a body other than `sort` as
 layout until a `--no-liftoff` run agrees.
+
+The `--no-liftoff` column is not `sort`'s TurboFan code (#1694). Since
+`d1d0b97ac` (2026-10-30), the first host module in TypeScript, every run
+of `host/run.ts` strips types with Node's own Wasm module, which
+`--no-liftoff` compiles with TurboFan. The same release Wasm at
+`f8580944e`, 7 fresh processes each, load 12-17, Node 24.19:
+
+| Tier | no cache | `NODE_COMPILE_CACHE` | `abb3d0cd4`'s `.mjs` host |
+| --- | ---: | ---: | ---: |
+| default | 366 | 342 | 340 |
+| `--no-liftoff` | 459 | 127 | 128 |
+| `--liftoff-only` | 393 | 354 | 354 |
+
+Built at seven commits from `abb3d0cd4` to `f8580944e` and run on
+`abb3d0cd4`'s host, list-sort's `--no-liftoff` median stays 131-140 ms.
 
 ### Returned Iterator Cost, 2026-10-22
 

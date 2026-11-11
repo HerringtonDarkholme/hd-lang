@@ -1,0 +1,14 @@
+# @dump: own counts
+# progs/list-sort's `sort`, as the bench runs it (#1694): the writes'
+# uniqueness check hoists before the outer loop, both loops keep the list
+# stable, and neither loop retains or releases.
+fn sort(items: &mut List[i32]) -> void:
+    for i in 1..items.len():
+        key := items[i]
+        let j: usize = i
+        while j > 0:
+            if items[j - 1] <= key:
+                break
+            items[j] = items[j - 1]
+            j = j - 1
+        items[j] = key

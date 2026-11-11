@@ -47,6 +47,12 @@ for (let i = 0; i < args.length; i++) {
 }
 const workDirectory = workRoot ?? join(tmpdir(), `hd-runtime-${process.pid}`);
 const profile = release ? "release" : "debug";
+// host/run.ts is TypeScript, and Node strips its types with a Wasm module
+// of its own, which costs every fresh process about 50 ms at the default
+// tier and 350 ms with `--no-liftoff` (#1694). Node's compile cache keeps
+// the stripped sources, so after the warm-up run the hd timings hold the
+// program and the host's work only. The JS references are plain .js.
+const hostEnv = { ...process.env, NODE_COMPILE_CACHE: join(workDirectory, "node-cache") };
 
 interface CommandResult {
   ms: number;
@@ -161,14 +167,14 @@ function main() {
       continue;
     }
     const wasm = join(dir, "build", profile, `${name}.wasm`);
-    const hd = sh("node", [RUNNER, wasm]);
+    const hd = sh("node", [RUNNER, wasm], { env: hostEnv });
     const js = sh("node", [join(HERE, "progs", `${name}.js`)]);
     if (hd.out !== js.out) {
       console.log(`| ${name} | OUTPUT MISMATCH: hd=${hd.out.trim()} js=${js.out.trim()} |`);
       process.exitCode = 1;
       continue;
     }
-    const hdT = measure(() => sh("node", [RUNNER, wasm]));
+    const hdT = measure(() => sh("node", [RUNNER, wasm], { env: hostEnv }));
     const jsT = measure(() => sh("node", [join(HERE, "progs", `${name}.js`)]));
     const ratio = hdT.p50 / jsT.p50;
     logRatioSum += Math.log(ratio);
