@@ -133,8 +133,9 @@ impl Em<'_, '_, '_> {
         for ((m, t), recv) in methods.iter().zip(&table.slots).zip(&table.recv) {
             let env = self.env();
             let mut params = Vec::new();
-            // What the target owns of the lent receiver and arguments;
-            // open values and inline Drop values arrive owned.
+            // Counts the target needs from the slot's lent receiver
+            // and borrowed arguments. Owned cold parameters and inline
+            // Drop values arrive with their counts.
             let mut own = Vec::new();
             // Value arguments the call hands in but its target only
             // borrows, released once it has returned, with Drop hooks.
@@ -153,9 +154,16 @@ impl Em<'_, '_, '_> {
                         _ => from,
                     };
                 }
-                let w = match self.pass_at(env.lends(t.item, t.args), k, pt) {
+                let cold = env.cold_transfers(t.item, pt);
+                let target_pass = if cold {
+                    self.pass(pt)
+                } else {
+                    self.pass_at(env.lends(t.item, t.args), k, pt)
+                };
+                let w = match target_pass {
                     crate::layout::Pass::Owned(w)
                         if !env.suspends(t.item)
+                            || cold
                             || crate::layout::holds_drop(self.pool(), env, pt) =>
                     {
                         Some(w)
@@ -169,7 +177,8 @@ impl Em<'_, '_, '_> {
                 let vs = self.vals(pt)?;
                 let n = u32::try_from(vs.len()).expect("values");
                 if matches!(self.pass(pt), crate::layout::Pass::Owned(_))
-                    && crate::layout::holds_drop(self.pool(), env, pt)
+                    && (env.cold_transfers(*m, pt)
+                        || crate::layout::holds_drop(self.pool(), env, pt))
                 {
                     if w.is_none() {
                         given.push((u32::try_from(k).expect("params"), self.ref_layout(pt)?));

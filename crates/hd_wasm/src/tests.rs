@@ -129,6 +129,11 @@ fn static_bytes_and_vtables_are_shared_by_content() {
             method: "write_line".into(),
             args: vec![crate::task::HostArg::Str],
             area: string_area(),
+            counts: Box::new(crate::rt::HostCounts {
+                borrowed: string_area().walk,
+                borrowed_colls: vec![],
+                owned: None,
+            }),
             res: crate::task::HostRes::Tags,
         })
     };
@@ -218,6 +223,11 @@ fn every_runtime_helper_validates() {
         method: "write_line".into(),
         args: vec![crate::task::HostArg::Str],
         area: string_area(),
+        counts: Box::new(crate::rt::HostCounts {
+            borrowed: string_area().walk,
+            borrowed_colls: vec![],
+            owned: None,
+        }),
         res: crate::task::HostRes::Tags,
     })]);
     // A host call of every boundary type, in both directions, and a
@@ -249,6 +259,11 @@ fn every_runtime_helper_validates() {
             drops: vec![],
             cyclic: false,
         },
+        counts: Box::new(crate::rt::HostCounts {
+            borrowed: None,
+            borrowed_colls: vec![],
+            owned: None,
+        }),
         res: crate::task::HostRes::Buf(every.clone()),
     };
     let probe = m.vtable(vec![

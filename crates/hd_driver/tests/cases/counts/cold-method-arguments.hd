@@ -1,0 +1,27 @@
+# @dump: counts own wat
+# @build: v8 release
+# expected: the direct and dynamic cold entries receive the values owner without an entry copy
+use std.task.block_on
+use std.time.{Clock, ms, sleep}
+
+pub trait Measure:
+    fn measure!(&self, values: List[string]) -> usize $ Clock
+
+pub struct Reader:
+    padding: usize
+
+impl Measure for Reader:
+    fn measure!(&self, values: List[string]) -> usize $ Clock:
+        sleep!(ms(1))
+        values.len()
+
+pub fn known!(reader: &Reader, values: List[string]) -> usize $ Clock:
+    reader.measure!(values)
+
+pub fn dynamic!(reader: *dyn Measure, values: List[string]) -> usize $ Clock:
+    reader.measure!(values)
+
+pub fn main() -> void $ Clock:
+    reader := Reader { padding: 0 }
+    _ := block_on(known(&reader, ["known"]))
+    _ := block_on(dynamic(box(reader), ["dynamic"]))

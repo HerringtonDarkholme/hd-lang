@@ -273,7 +273,7 @@ fn a_test_run_keeps_the_test_profile() {
 }
 
 /// req.suspend.cold: exercise the owned direct and fused entry, borrowed
-/// function-value bridge, a caller-used argument on resume, and cancellation.
+/// function-value convention, a caller-used argument on resume, and cancellation.
 #[test]
 fn stable_cold_arguments_transfer_across_call_routes() {
     use hd_driver::OptLevel;

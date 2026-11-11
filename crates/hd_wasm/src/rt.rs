@@ -479,6 +479,7 @@ pub enum Helper {
         method: String,
         args: Vec<crate::task::HostArg>,
         area: Elem,
+        counts: Box<HostCounts>,
         res: crate::task::HostRes,
     },
     /// `(frame) -> (ready, results)`: the leaf's `.start`, then its
@@ -497,13 +498,14 @@ pub enum Helper {
     /// `(data, arguments) -> (frame, results)`. It calls `.start` at once;
     /// only a call the host left pending gets a leaf frame and zero results.
     /// A blocking slot takes a final caller-local buffer instead of allocating
-    /// a frame; the caller explicitly drops that buffer's retained arguments.
+    /// a frame; its terminal callback releases transferred argument counts.
     HostDrive {
         blocking: bool,
         module: String,
         method: String,
         args: Vec<crate::task::HostArg>,
         area: Elem,
+        counts: Box<HostCounts>,
         res: crate::task::HostRes,
     },
     /// The drive slot beside cold slot `cold` (§23.39): `(params) ->
@@ -655,6 +657,15 @@ pub struct Elem {
     pub drops: Vec<DropCall>,
     pub colls: Vec<u32>,
     pub cyclic: bool,
+}
+
+/// Count ownership of a host slot's argument record. Value indices refer
+/// to the shared area layout, so the slot stores that layout only once.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct HostCounts {
+    pub borrowed: Option<Walk>,
+    pub borrowed_colls: Vec<u32>,
+    pub owned: Option<Walk>,
 }
 
 impl Elem {

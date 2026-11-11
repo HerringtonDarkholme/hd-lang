@@ -100,12 +100,16 @@ pub trait ProgramEnv: LayoutEnv {
     fn params(&self, def: DefId) -> Option<Vec<Ty>>;
     /// Whether the function suspends (`fn f!`).
     fn suspends(&self, def: DefId) -> bool;
-    /// Whether a representation-stable parameter uses the owned cold ABI.
+    /// Whether the selected parameter representation uses the owned cold ABI.
     fn cold_transfers(&self, _def: DefId, _ty: Ty) -> bool {
         false
     }
-    /// Whether a function-reference adapter needs to bridge a lent
-    /// function-value call to its target's owned cold convention.
+    /// Whether a function-value cold parameter receives its owner.
+    fn cold_value_transfers(&self, _ty: Ty) -> bool {
+        false
+    }
+    /// Whether a function reference uses an owned call-body adapter for
+    /// its target's selected cold convention.
     fn cold_transfer_adapter(&self, def: DefId) -> bool {
         self.suspends(def)
             && self

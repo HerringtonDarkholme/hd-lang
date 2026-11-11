@@ -1,6 +1,6 @@
 # @dump: own counts wat
 # @build: v8 release
-# expected: the closure's Cold and Entry copies belong to its text parameter, not its creator.
+# expected: the closure receives its text parameter's owner in both Cold and Entry paths.
 use std.time.{Clock, ms, sleep}
 
 fn make() -> (fn!(string) -> usize $ Clock):

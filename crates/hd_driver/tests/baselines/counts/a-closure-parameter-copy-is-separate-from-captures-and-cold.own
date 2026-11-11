@@ -2,7 +2,7 @@
 # @dump: own counts wat
 # expected: a plain closure's explicit value parameter has an Entry local copy;
 # its captured value belongs to Entry captures. A cold closure's explicit
-# parameter uses its Cold/Entry boundary packet, without a plain-entry copy.
+# parameter receives its owner at the Cold/Entry boundary without another copy.
 fn plain(captured: string) -> (fn(string) -> (string, string)):
 > app/main/plain
 >   local $0 captured: string [param read captured] value

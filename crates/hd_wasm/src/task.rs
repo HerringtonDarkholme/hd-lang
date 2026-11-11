@@ -12,8 +12,8 @@ use wasm_encoder::BlockType;
 use crate::boundary::LTy;
 use crate::layout::{Leaf, Walk};
 use crate::module::{BUF, Func, Global, HEAP, Import, Ins, Module, Part, Sym, Val, mem};
-use crate::rt::Elem;
 use crate::rt::Helper;
+use crate::rt::{Elem, HostCounts};
 
 /// A frame's task prefix: its poll function's table slot.
 pub const F_POLL: u64 = 0;
@@ -248,8 +248,19 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             method,
             args,
             area,
+            counts,
             res,
-        } => host_cold(m, module, method, args, area, res),
+        } => host_cold(
+            m,
+            &HostLeaf {
+                module,
+                method,
+                args,
+                area,
+                counts,
+                res,
+            },
+        ),
         Helper::HostPoll {
             blocking,
             module,
@@ -265,8 +276,20 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             method,
             args,
             area,
+            counts,
             res,
-        } => host_drive(m, *blocking, module, method, args, area, res),
+        } => host_drive(
+            m,
+            *blocking,
+            &HostLeaf {
+                module,
+                method,
+                args,
+                area,
+                counts,
+                res,
+            },
+        ),
         Helper::Drive {
             blocking,
             cold,
@@ -1197,34 +1220,22 @@ fn walk_indices(w: &Walk, out: &mut Vec<u32>) {
 
 /// [`Helper::HostCold`]: `(data, arguments) -> frame`, a host method
 /// that may wait, called cold: a leaf frame holding the arguments, laid
-/// out as `area`, each with a count of its own (a collection as its
-/// copy), and no handle yet (-1).
-fn host_cold(
-    m: &Module,
-    module: &str,
-    method: &str,
-    args: &[HostArg],
-    area: &Elem,
-    res: &HostRes,
-) -> Func {
+/// out as `area`, taking transferred counts and copying borrowed
+/// arguments as declared by the slot. No handle exists yet (-1).
+fn host_cold(m: &Module, leaf: &HostLeaf<'_>) -> Func {
+    let HostLeaf {
+        module,
+        method,
+        args,
+        area,
+        ..
+    } = *leaf;
     let mut params = vec![Val::I32];
     params.extend(args.iter().flat_map(HostArg::vals));
     let mut f = m.func(format!("rt:{module}/{method}"), params, vec![Val::I32]);
     // A leaf frame takes part as its arguments' types say.
     let fr = new_zeroed(&mut f, LEAF_ARGS + area.size, leaf_drop(area), area.cyclic);
-    init_host_leaf(
-        &mut f,
-        m,
-        fr,
-        &HostLeaf {
-            module,
-            method,
-            args,
-            area,
-            res,
-        },
-        false,
-    );
+    init_host_leaf(&mut f, m, fr, leaf, false);
     f.get(fr);
     f
 }
@@ -1234,6 +1245,7 @@ struct HostLeaf<'a> {
     method: &'a str,
     args: &'a [HostArg],
     area: &'a Elem,
+    counts: &'a HostCounts,
     res: &'a HostRes,
 }
 
@@ -1243,7 +1255,9 @@ fn init_host_leaf(f: &mut Func, m: &Module, fr: u32, leaf: &HostLeaf<'_>, blocki
         method,
         args,
         area,
+        counts,
         res,
+        ..
     } = *leaf;
     let poll = Sym::Helper(Helper::HostPoll {
         blocking,
@@ -1265,17 +1279,23 @@ fn init_host_leaf(f: &mut Func, m: &Module, fr: u32, leaf: &HostLeaf<'_>, blocki
         f.get(u32::try_from(k + 1).expect("params"));
         f.op(l.store(LEAF_ARGS));
     }
-    // An owned leaf keeps its arguments past its caller. A blocking leaf
-    // lives in caller-local shadow storage only until the synchronous
-    // drive returns, while the caller still owns every argument, so its
-    // fields are borrowed and need neither counts nor drop glue.
-    if !blocking && !area.colls.is_empty() {
+    // An owned leaf keeps borrowed arguments past its caller by copying
+    // them. Transferred arguments already supply their counts. A blocking
+    // leaf's borrowed fields remain live in the caller, and its transferred
+    // fields are released by the shadow frame's terminal callback.
+    if !blocking && !counts.borrowed_colls.is_empty() {
         f.get(fr);
         f.u32(LEAF_ARGS);
         f.op(Instruction::I32Add);
         f.i32(1);
-        f.helper(Helper::CopyElems { elem: area.clone() });
-    } else if !blocking && let Some(w) = &area.walk {
+        f.helper(Helper::CopyElems {
+            elem: Elem {
+                walk: counts.borrowed.clone(),
+                colls: counts.borrowed_colls.clone(),
+                ..area.clone()
+            },
+        });
+    } else if !blocking && let Some(w) = &counts.borrowed {
         crate::rt::walk_code(f, w, &|f, k| f.get(k + 1), &|f, _| {
             f.call(Sym::Helper(Helper::RetainAny));
         });
@@ -1420,18 +1440,20 @@ fn host_result(f: &mut Func, res: &HostRes, n: u32) {
 /// finished at once answers frame 0 and its results, with no frame made.
 /// An async Pending call gets the owned leaf that [`Helper::HostCold`] makes.
 /// A blocking slot receives caller-local storage as its final parameter;
-/// Pending initializes the same prefix with borrowed arguments there instead.
-/// Both register the handle with the current waker. The blocking caller
-/// keeps those arguments live until its drive ends.
-fn host_drive(
-    m: &Module,
-    blocking: bool,
-    module: &str,
-    method: &str,
-    args: &[HostArg],
-    area: &Elem,
-    res: &HostRes,
-) -> Func {
+/// Pending initializes the same prefix there, with a terminal callback
+/// for transferred argument counts. Both register the handle with the
+/// current waker. The blocking caller keeps borrowed arguments live
+/// until its drive ends.
+fn host_drive(m: &Module, blocking: bool, leaf: &HostLeaf<'_>) -> Func {
+    let HostLeaf {
+        module,
+        method,
+        args,
+        area,
+        counts,
+        res,
+    } = *leaf;
+    let owned = counts.owned.as_ref();
     let rvals = res.vals();
     let mut params = vec![Val::I32];
     params.extend(args.iter().flat_map(HostArg::vals));
@@ -1466,22 +1488,20 @@ fn host_drive(
         f.i32(0);
         f.u32(crate::module::HEADER + LEAF_ARGS + area.size);
         f.push(crate::bulk::fill(HEAP));
-        init_host_leaf(
-            &mut f,
-            m,
-            fr,
-            &HostLeaf {
-                module,
-                method,
-                args,
-                area,
-                res,
-            },
-            true,
-        );
+        init_host_leaf(&mut f, m, fr, leaf, true);
         flags_or(&mut f, fr, HOST_BORROWED);
         f.get(fr);
-        f.i32(-1);
+        if let Some(owned) = owned {
+            let mut transferred = area.clone();
+            transferred.walk = Some(owned.clone());
+            if let Some(drop) = leaf_drop(&transferred) {
+                f.table_slot(drop);
+            } else {
+                f.i32(-1);
+            }
+        } else {
+            f.i32(-1);
+        }
         f.op(Instruction::I32Store(mem(HEAP, BORROWED_DROP, 2)));
     } else {
         for k in 0..nparams {
@@ -1492,6 +1512,7 @@ fn host_drive(
             method: method.to_owned(),
             args: args.to_vec(),
             area: area.clone(),
+            counts: Box::new(counts.clone()),
             res: res.clone(),
         });
         f.set(fr);
@@ -1513,6 +1534,26 @@ fn host_drive(
     f.op(Instruction::End);
     f.i32(0);
     host_result(&mut f, res, n);
+    if let Some(owned) = owned {
+        let start = f.body.len();
+        for k in 1..nparams {
+            f.get(k);
+        }
+        // These parameters supplied their counts on entry. The Ready
+        // host call has finished using them, so this releases their last use.
+        f.helper(Helper::Release {
+            vals: area.leaves.iter().map(|leaf| leaf.val).collect(),
+            walk: owned.clone(),
+        });
+        if m.track_origins {
+            f.note_runtime_count(
+                start,
+                crate::views::CountAction::Release,
+                "host arguments",
+                hd_tir::own::Reason::LastUse,
+            );
+        }
+    }
     f
 }
 
@@ -3124,6 +3165,11 @@ mod tests {
                     drops: vec![],
                     cyclic: false,
                 },
+                counts: Box::new(super::HostCounts {
+                    borrowed: None,
+                    borrowed_colls: vec![],
+                    owned: None,
+                }),
                 res: super::HostRes::Void,
             },
         ];
@@ -3179,6 +3225,11 @@ mod tests {
                         method: "write".into(),
                         args: vec![],
                         area: area.clone(),
+                        counts: Box::new(super::HostCounts {
+                            borrowed: area.walk.clone(),
+                            borrowed_colls: area.colls.clone(),
+                            owned: None,
+                        }),
                         res: super::HostRes::Void,
                     },
                 ),
@@ -3327,11 +3378,18 @@ assert.deepEqual(finished, [h1, h3, h1 + 0x100000, h2 + 0x200000]);
             let f = super::host_drive(
                 &m,
                 blocking,
-                "test:writer",
-                "write",
-                &[super::HostArg::Str],
-                &area,
-                &super::HostRes::Void,
+                &super::HostLeaf {
+                    module: "test:writer",
+                    method: "write",
+                    args: &[super::HostArg::Str],
+                    area: &area,
+                    counts: &super::HostCounts {
+                        borrowed: area.walk.clone(),
+                        borrowed_colls: area.colls.clone(),
+                        owned: None,
+                    },
+                    res: &super::HostRes::Void,
+                },
             );
             let heap = f.body.iter().any(|ins| {
                 matches!(ins, Ins::Call(id)
@@ -3363,11 +3421,18 @@ assert.deepEqual(finished, [h1, h3, h1 + 0x100000, h2 + 0x200000]);
         }
         let cold = super::host_cold(
             &m,
-            "test:writer",
-            "write",
-            &[super::HostArg::Str],
-            &area,
-            &super::HostRes::Void,
+            &super::HostLeaf {
+                module: "test:writer",
+                method: "write",
+                args: &[super::HostArg::Str],
+                area: &area,
+                counts: &super::HostCounts {
+                    borrowed: area.walk.clone(),
+                    borrowed_colls: area.colls.clone(),
+                    owned: None,
+                },
+                res: &super::HostRes::Void,
+            },
         );
         assert!(!cold.body.iter().any(|ins| matches!(ins,
             Ins::Op(super::Instruction::I32Store(arg)) if arg.offset == super::BORROWED_DROP)));

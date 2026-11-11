@@ -238,17 +238,36 @@ pub fn main!() -> void $ Clock:
 #[test]
 fn package_host_supertraits_keep_async_and_blocking_drive_slots()
 -> Result<(), Box<dyn std::error::Error>> {
+    let source = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../spec/conformance/cli/host-supertrait-drive/src/main.hd"),
+    )?;
+    package_host_routes("host-supertraits-async-and-blocking", &source, false)
+}
+
+#[test]
+fn transferred_host_arguments_survive_a_blocking_pending_call()
+-> Result<(), Box<dyn std::error::Error>> {
+    package_host_routes(
+        "host-transferred-arguments-blocking-pending",
+        include_str!("cold_blocking_host_arguments.hd"),
+        true,
+    )
+}
+
+fn package_host_routes(
+    name: &str,
+    source: &str,
+    jspi: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../..")
         .canonicalize()?;
     let fixture = root.join("spec/conformance/cli/host-supertrait-drive");
     let mut sources = MemorySources::default();
-    sources.insert(
-        "main.hd",
-        &std::fs::read_to_string(fixture.join("src/main.hd"))?,
-    );
+    sources.insert("main.hd", source);
     let store = crate::warm_store();
-    let scratch = hd_testkit::Scratch::new(env!("CARGO_TARGET_TMPDIR"), "host-supertrait-drive");
+    let scratch = hd_testkit::Scratch::new(env!("CARGO_TARGET_TMPDIR"), name);
     for (profile, level) in [
         (BuildProfile::Checked, OptLevel::Dev),
         (BuildProfile::Checked, OptLevel::Optimized),
@@ -268,6 +287,7 @@ fn package_host_supertraits_keep_async_and_blocking_drive_slots()
                 level,
                 checked: profile == BuildProfile::Checked && level == OptLevel::Optimized,
                 verify_own: true,
+                instruction_origins: true,
                 host_packages: vec![hd_driver::HostPackage {
                     package: 0,
                     identity: fixture.to_string_lossy().into_owned(),
@@ -293,6 +313,31 @@ fn package_host_supertraits_keep_async_and_blocking_drive_slots()
             "{profile:?}/{level:?}: {}",
             out.render()
         );
+        for function in &out.instruction_origins {
+            if function
+                .name
+                .rsplit('.')
+                .next()
+                .is_some_and(|mode| matches!(mode, "drive" | "block_drive"))
+            {
+                for count in &function.counts {
+                    if count.subject == "host arguments" {
+                        assert!(
+                            count.origin.is_none(),
+                            "a runtime site has no TIR instruction"
+                        );
+                    }
+                    assert!(
+                        !count.reason.to_string().starts_with("conservative:"),
+                        "{}: {} {} ({})",
+                        function.name,
+                        count.action.name(),
+                        count.subject,
+                        count.reason,
+                    );
+                }
+            }
+        }
         let wasm = out.wasm.ok_or("missing Wasm")?;
         wasmparser::Validator::new_with_features(wasmparser::WasmFeatures::all())
             .validate_all(&wasm)?;
@@ -330,11 +375,17 @@ try {{
 }} finally {{ host.close(); }}
 ",
             root = root.to_string_lossy(),
-            provider_path = fixture.join("provider.ts"),
+            provider_path = fixture.join("provider.ts").to_string_lossy(),
+            glue_path = glue_path.to_string_lossy(),
+            wasm_path = wasm_path.to_string_lossy(),
             module_name = interface.module
         );
         // cost: one Node process per fixed build mode, never per accumulated entry.
-        let ran = std::process::Command::new("node")
+        let mut command = std::process::Command::new("node");
+        if jspi {
+            command.arg("--experimental-wasm-jspi");
+        }
+        let ran = command
             .args(["--input-type=module", "-e", &script])
             .output()?;
         assert!(
