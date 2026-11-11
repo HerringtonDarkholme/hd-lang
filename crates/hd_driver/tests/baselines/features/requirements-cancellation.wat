@@ -8,7 +8,6 @@
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:cancel_leave" (func $rt:cancel_leave (param i32 i32)))
   (import "fixture" "rt:frame'1" (func $rt:frame'1 (result i32)))
-  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "impl[T] Suspend[T].cancel[string]" (func $"impl[T] Suspend[T].cancel[string]" (param i32 i32) (result i32 i32)))
   (import "fixture" "rt:frame'2" (func $rt:frame'2 (result i32)))
@@ -200,22 +199,24 @@
   (func $fetch.drop (param $t0 i32)
     ;; 10 |     key + "?"
     local.get $t0
-    i32.load $heap offset=24
-    local.tee $t0
+    i32.load $heap offset=12
+    i32.const 64
+    i32.and
+    i32.eqz
     if
       local.get $t0
-      call $rt:release_ref'1
+      i32.load $heap offset=24
+      local.tee $t0
+      if
+        local.get $t0
+        call $rt:release_ref'1
+      end
     end
   )
   (func $fetch'2 (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32)
     ;; 10 |     key + "?"
     call $rt:frame'1
     local.tee $t0
-    local.get $t1
-    if
-      local.get $t1
-      call $retain
-    end
     local.get $t1
     i32.store $heap offset=24
     local.get $t0
@@ -309,12 +310,6 @@
       i32.load $heap offset=8
       local.set $t3
     else
-      local.get $key.0
-      local.tee $t4
-      if
-        local.get $t4
-        call $retain
-      end
     end
     block
       local.get $t3
@@ -322,20 +317,11 @@
       if
         local.get $key.0
         local.get $key.1
-        local.set $t4
-        local.tee $t2
         i32.const 0
         local.set $key.0
         i32.const 0
         local.set $key.1
-        local.get $t4
         call $fetch'2
-        local.get $t2
-        local.tee $t4
-        if
-          local.get $t4
-          call $rt:release_ref'1
-        end
     ;; 14 |     end := job.cancel!()
         local.set $t2
     ;; 13 |     let mut job = fetch(key)
@@ -359,16 +345,16 @@
           if
             local.get $frame
             i32.load $heap offset=16
-            local.set $t5
+            local.set $t4
           end
-          local.get $t5
+          local.get $t4
           local.get $t2
           call $"impl[T] Suspend[T].cancel[string]"
-          local.set $t4
+          local.set $t5
           local.set $t3
-          local.get $t4
+          local.get $t5
           if
-            local.get $t4
+            local.get $t5
             i32.load $heap offset=12
             i32.const 8
             i32.and
@@ -385,7 +371,7 @@
                 i32.store $heap offset=12
               end
               local.get $frame
-              local.get $t4
+              local.get $t5
               i32.store $heap offset=16
               local.get $frame
               local.get $frame
@@ -419,7 +405,7 @@
             local.get $t2
             i32.store $heap offset=56
             local.get $frame
-            local.get $t4
+            local.get $t5
             i32.store $heap offset=16
             local.get $frame
             i32.const 1
@@ -439,13 +425,12 @@
             end
             return
           end
-          local.get $t5
+          local.get $t4
           if
             local.get $frame
             i32.const 0
             i32.store $heap offset=16
-            local.get $t5
-            local.tee $t4
+            local.get $t4
             if
               local.get $t4
               call $rt:release_ref'1
@@ -743,11 +728,6 @@
     ;; 13 |     let mut job = fetch(key)
     call $rt:frame'2
     local.tee $t0
-    local.get $t1
-    if
-      local.get $t1
-      call $retain
-    end
     local.get $t1
     i32.store $heap offset=24
     local.get $t0

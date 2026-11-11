@@ -1,6 +1,6 @@
 # @dump: own counts wat
 # @build: v8 release
-# expected: Cold and Entry each declare the string copy they need; resuming reloads the saved count.
+# expected: fresh entry takes the incoming count and a resume reloads the saved count.
 use std.time.{Clock, ms, sleep}
 
 fn after!(text: string) -> usize $ Clock:

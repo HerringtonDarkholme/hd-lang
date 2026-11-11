@@ -11,43 +11,30 @@ fn label!(s: string) -> string:
 > app/main/label
 >   release string (cancelled)
 > app/main/label
->   release string (by design)
-> app/main/label
->   retain string (stored)
+>   release string (cancelled)
 
 fn one!(s: string) -> usize:
     label!(s).len()
 > app/main/one
->   retain string (stored)
 >   release counted reference (last use)
 >   release counted reference (last use)
->   release string (cancelled)
->   release string (last use)
 >   release counted reference (last use)
 >   release string (last use)
 > app/main/one
 >   release string (cancelled)
 >   release counted reference (last use)
-> app/main/one
->   retain string (stored)
 
 fn both!(a: string, b: string) -> usize:
     let (x, y) = join!(label(a), label(b))
 > app/main/both
->   retain string (stored)
->   retain string (stored)
 >   release counted reference (last use)
 >   release string (last use)
 >   release string (last use)
 >   release counted reference (last use)
->   release string (cancelled)
 >   release Suspend[string] (cancelled)
->   release string (cancelled)
 >   release Suspend[string] (cancelled)
 >   release Suspend[string] (last use)
->   release string (last use)
 >   release Suspend[string] (last use)
->   release string (last use)
 >   release counted reference (last use)
 >   release counted reference (last use)
 >   release string (last use)
@@ -55,22 +42,13 @@ fn both!(a: string, b: string) -> usize:
 > app/main/both
 >   release string (cancelled)
 >   release string (cancelled)
-> app/main/both
->   retain string (stored)
->   retain string (stored)
     x.len() + y.len()
 
 fn either!(a: string, b: string) -> usize:
     race!(label(a), label(b)).len()
 > app/main/either
->   retain string (stored)
->   retain string (stored)
->   release string (last use)
->   release string (last use)
 >   release counted reference (last use)
 >   release counted reference (last use)
->   release List[Suspend[string]] (cancelled)
->   release List[Suspend[string]] (last use)
 >   release counted reference (last use)
 >   release string (last use)
 >   release string (last use)
@@ -78,6 +56,3 @@ fn either!(a: string, b: string) -> usize:
 >   release string (cancelled)
 >   release string (cancelled)
 >   release counted reference (last use)
-> app/main/either
->   retain string (stored)
->   retain string (stored)

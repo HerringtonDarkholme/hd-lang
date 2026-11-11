@@ -1,0 +1,64 @@
+# req.suspend.cold: an owned list survives direct, stored and function-value calls.
+use std.ops.Disposable
+use std.task.{BlockOn, block_on, race}
+use std.testing.assert_equal
+use std.time.{Clock, ms, sleep}
+
+fn size![T](values: List[T]) -> usize:
+    values.len()
+
+fn delayed![T](values: List[T], before: usize = values.len()) -> usize $ Clock:
+    sleep!(ms(1))
+    before + values.len()
+
+struct Marker:
+    events: *mut List[usize]
+
+impl Disposable for Marker:
+    fn dispose(&mut self) -> void:
+        self.events.push(2)
+
+fn prepare!() -> usize $ Clock:
+    sleep!(ms(2))
+    0
+
+fn slow![T](values: List[T], n: usize, events: *mut List[usize]) -> usize $ Clock:
+    events.push(1)
+    sleep!(ms(50))
+    values.len() + n
+
+fn pending![T](values: List[T], events: *mut List[usize]) -> usize $ Clock:
+    using mark = Marker { events: events }
+    slow!(values, prepare!(), events)
+
+fn quick!() -> usize $ Clock:
+    sleep!(ms(10))
+    7
+
+fn check!(values: List[string], refs: List[*i32]) -> void $ Clock:
+    let mut current = values
+    cold := delayed(current)
+    current.push("new")
+    assert_equal(cold!(), 2)
+    assert_equal(delayed!(current), 4)
+    assert_equal(current.len(), 2)
+
+    f := delayed::[string]
+    from_ref := f(current, current.len())
+    current.push("newer")
+    assert_equal(from_ref!(), 4)
+    assert_equal(current.len(), 3)
+
+    assert_equal(delayed!(refs), 2)
+    assert_equal(*refs[0], +7)
+    events := box::[List[usize]]([])
+    assert_equal(race!(pending(current, events), quick()), 7)
+    assert_equal(*events, [1, 2])
+
+pub fn main() -> void $ Clock:
+    match block_on(size(["a", "b", "c"])):
+        .Completed(n) => assert_equal(n, 3)
+        _ => panic("fused call did not complete")
+    match block_on(check(["start"], [box(+7)])):
+        .Completed(()) => ()
+        _ => panic("resumed calls did not complete")

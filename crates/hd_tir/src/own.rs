@@ -275,6 +275,11 @@ pub trait OwnCx {
     /// an instance borrows is released after it (`layout::Pass` in the
     /// backend).
     fn pass(&self, callee: &Callee, k: usize, n: usize) -> Pass;
+    /// Whether a direct suspending argument uses the owned cold ABI.
+    fn cold_argument_transfers(&self, _: &Callee, _: usize, _: usize) -> bool {
+        false
+    }
+
     /// Whether an aligned ordinary source call's parameter may receive an
     /// owned count. This reads its selected signature, independently of
     /// `pass`'s logical summary. The concrete ABI's lends mask may still
@@ -684,6 +689,17 @@ pub(crate) fn keeps_arg(b: &Body, cx: &dyn OwnCx, i: usize, k: u32) -> bool {
 }
 
 pub(crate) fn consumes(b: &Body, cx: &dyn OwnCx, i: usize, op: &Operand, owner: u32) -> bool {
+    consumes_operand(b, cx, i, op, owner, true)
+}
+
+fn consumes_operand(
+    b: &Body,
+    cx: &dyn OwnCx,
+    i: usize,
+    op: &Operand,
+    owner: u32,
+    check_defaults: bool,
+) -> bool {
     match op.role {
         Role::Consume => !lending_coercion(b, cx, i),
         Role::Lend | Role::Dropped => false,
@@ -700,11 +716,12 @@ pub(crate) fn consumes(b: &Body, cx: &dyn OwnCx, i: usize, op: &Operand, owner: 
                     // A default argument's body reads the earlier arguments
                     // themselves (invariant 15), so the call lends those.
                     let args = &b.record(w)[..n.saturating_sub(3)];
-                    let read_by_default = args.iter().any(|&d| {
-                        Ref(d).as_inst().is_some()
-                            && b.tags.get(d as usize) == Some(&Tag::DefaultCall)
-                            && b.record(b.data[d as usize][1]).contains(&op.value)
-                    });
+                    let read_by_default = check_defaults
+                        && args.iter().any(|&d| {
+                            Ref(d).as_inst().is_some()
+                                && b.tags.get(d as usize) == Some(&Tag::DefaultCall)
+                                && b.record(b.data[d as usize][1]).contains(&op.value)
+                        });
                     !read_by_default
                         && cx.pass(&callee, k as usize, n.saturating_sub(3)) == Pass::Owned
                 }
@@ -772,7 +789,9 @@ pub fn consumers(b: &Body, topo: &Topology, cx: &dyn OwnCx, out: &mut Vec<u32>) 
         } else {
             (blk[u as usize] == blk[v], NONE)
         };
-        if direct && consumes(b, cx, u as usize, &op, tail_owner) {
+        // A default argument's reads are operands of its DefaultCall.
+        // The one-use test above already rules them out here.
+        if direct && consumes_operand(b, cx, u as usize, &op, tail_owner, false) {
             out[v] = u;
         }
     }

@@ -7,8 +7,6 @@ use std.task.join
 fn both!(a: Suspend[i32], b: Suspend[i32]) -> (i32, i32):
     join!(a, b)
 > app/main/both
->   retain Suspend[i32] (stored)
->   retain Suspend[i32] (stored)
 >   release counted reference (last use)
 >   release counted reference (last use)
 >   release Suspend[i32] (cancelled)
@@ -20,6 +18,3 @@ fn both!(a: Suspend[i32], b: Suspend[i32]) -> (i32, i32):
 > app/main/both
 >   release Suspend[i32] (cancelled)
 >   release Suspend[i32] (cancelled)
-> app/main/both
->   retain Suspend[i32] (stored)
->   retain Suspend[i32] (stored)

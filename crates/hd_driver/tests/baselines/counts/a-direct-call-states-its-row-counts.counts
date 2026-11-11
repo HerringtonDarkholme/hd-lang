@@ -11,10 +11,9 @@ fn forward[$ R](callback: fn() -> i32 $ R) -> i32 $ R:
 fn later![$ R](callback: fn() -> i32 $ R) -> i32 $ R:
     callback()
 > app/main/later
->   release fn() -> i32 $ {open row} (by design)
+>   release fn() -> i32 $ {open row} (cancelled)
 >   release counted reference (last use)
 > app/main/later
->   retain fn() -> i32 $ {open row} (stored)
 >   retain counted reference (stored)
 
 fn ordinary(callback: fn() -> i32 $ Tag) -> i32 $ Tag:
@@ -32,7 +31,6 @@ fn cold(callback: fn() -> i32 $ Tag) -> Suspend[i32] $ Tag:
 fn awaited!(callback: fn() -> i32 $ Tag) -> i32 $ Tag:
     later!(callback)
 > app/main/awaited
->   retain fn() -> i32 $ app.main.Tag (stored)
 >   retain counted reference (stored)
 >   release counted reference (last use)
 >   retain counted reference (stored)
@@ -40,15 +38,12 @@ fn awaited!(callback: fn() -> i32 $ Tag) -> i32 $ Tag:
 >   release counted reference (last use)
 >   retain counted reference (stored)
 >   release counted reference (last use)
->   release fn() -> i32 $ app.main.Tag (cancelled)
->   release fn() -> i32 $ app.main.Tag (last use)
 >   release fn() -> i32 $ app.main.Tag (last use)
 > app/main/awaited
 >   release fn() -> i32 $ app.main.Tag (cancelled)
 >   release counted reference (last use)
 >   release counted reference (last use)
 > app/main/awaited
->   retain fn() -> i32 $ app.main.Tag (stored)
 >   retain counted reference (stored)
 
 fn empty(callback: fn() -> i32) -> i32:

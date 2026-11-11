@@ -25,9 +25,7 @@ fn fetch!(key: string) -> string:
 > app/main/fetch
 >   release string (cancelled)
 > app/main/fetch
->   release string (by design)
-> app/main/fetch
->   retain string (stored)
+>   release string (cancelled)
 
 fn tagged!() -> usize $ Tag:
     $.use(Tag).name().len()
@@ -41,16 +39,12 @@ fn tagged!() -> usize $ Tag:
 fn later!(key: string) -> usize:
     let mut pending = fetch(key)
 > app/main/later
->   retain string (stored)
->   release string (last use)
 >   release Suspend[string] (last use)
 >   release counted reference (last use)
 >   release string (last use)
 > app/main/later
 >   release string (cancelled)
 >   release counted reference (last use)
-> app/main/later
->   retain string (stored)
     pending!().len()
 >   retain counted reference (stored)
 >   release counted reference (last use)
@@ -74,7 +68,6 @@ fn discard(key: string) -> usize:
 fn bound!(s: string) -> usize:
     let mut pending: Suspend[usize] = $.with(Tag=Named { label: s }):
 > app/main/bound
->   retain string (stored)
 >   retain *mut app.main.Named (stored)
 >   release app.main.Tag (last use)
 >   release counted reference (last use)
@@ -83,8 +76,6 @@ fn bound!(s: string) -> usize:
 > app/main/bound
 >   release string (cancelled)
 >   release counted reference (last use)
-> app/main/bound
->   retain string (stored)
         tagged()
     pending!()
 >   retain counted reference (stored)

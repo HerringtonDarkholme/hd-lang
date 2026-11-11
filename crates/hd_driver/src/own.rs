@@ -573,6 +573,16 @@ impl OwnCx for Env<'_> {
         p
     }
 
+    fn cold_argument_transfers(&self, callee: &Callee, k: usize, n: usize) -> bool {
+        let Callee::Item { def, .. } = *callee else {
+            return false;
+        };
+        self.sig(def)
+            .filter(|sig| sig.suspends && sig.params.len() == n)
+            .and_then(|sig| sig.params.get(k))
+            .is_some_and(|p| self.cold_transfers_declared(def, self.low(p.1)))
+    }
+
     fn call_argument_may_own(&self, callee: &Callee, k: usize, n: usize) -> bool {
         let chosen = self.chosen(callee);
         let target = match chosen {
@@ -998,17 +1008,20 @@ impl Env<'_> {
         let Some(sig) = self.sig(def) else {
             return Pass::Lent;
         };
-        // A cold constructor retains counted arguments, but takes Drop
-        // values by ownership. An open parameter may become such a value.
-        // A call of an
+        // Cold calls transfer Drop values and parameters with the
+        // selected owned convention. An open parameter may become a
+        // Drop value. A call of an
         // `@intrinsic` function, which the backend lowers in place and
         // which counts whatever it keeps itself (`Em::intrinsic`), unless
         // it takes over its argument ([`OWNING_INTRINSICS`]).
         if sig.params.len() != n {
             return Pass::Lent;
         }
-        if sig.suspends && !self.cold_moves(self.low(sig.params[k].1)) {
-            return Pass::Lent;
+        if sig.suspends {
+            let ty = self.low(sig.params[k].1);
+            if !self.cold_moves(ty) && !self.cold_transfers_declared(def, ty) {
+                return Pass::Lent;
+            }
         }
         if let Some(key) = self.intrinsic(def)
             && !OWNING_INTRINSICS.contains(&key.as_str())
@@ -1122,9 +1135,34 @@ impl Env<'_> {
         }
     }
 
-    /// A cold frame can retain reference-counted values, including open
-    /// Suspend[T] handles. Only an inline Drop value must transfer its
-    /// ownership; an open value parameter may become one at instantiation.
+    /// A named function's stable value parameters use the same cold
+    /// ownership convention at its constructor and its fresh body.
+    /// Method slots keep their existing borrowed convention.
+    pub(super) fn cold_transfers_declared(&self, def: DefId, ty: Ty) -> bool {
+        if !ProgramEnv::suspends(self, def)
+            || ProgramEnv::parent(self, def).is_some()
+            || !ProgramEnv::has_body(self, def)
+            || self.intrinsic(def).is_some()
+        {
+            return false;
+        }
+        let pool = &self.run.pool;
+        let ty = hd_wasm::strip_type(pool, self, ty);
+        // These layouts are counted values independently of their
+        // arguments. Open parameters with a variable representation
+        // stay on the existing convention.
+        let stable = match pool.get(ty) {
+            TyData::Adt { def, .. } => self.std_kind(def) != hd_mono::layout::StdKind::Other,
+            TyData::Fn { .. } | TyData::TraitValue { .. } => true,
+            _ => false,
+        };
+        (stable || !self.is_open(ty))
+            && self.value_parameter(ty) == Pass::Owned
+            && !hd_wasm::holds_drop_type(pool, self, ty)
+    }
+
+    /// The borrowed cold convention still transfers inline Drop
+    /// values. An open value parameter may become one at instantiation.
     /// The walk follows the types `t` holds by value, as the backend lays
     /// them out (`hd_wasm::value_part_types`): tuple and union
     /// members, struct fields, and every value enum's payloads, `Option`'s

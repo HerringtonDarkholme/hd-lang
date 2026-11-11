@@ -1353,11 +1353,15 @@ counted frames in memory 0 (`emit/susp.rs`, `task.rs`).
   holds, the results a `join!` kept, the providers and the child. The
   body is `(frame, args..., providers...) -> (results..., frame)`. A frame
   of 0 starts fresh, and the frame is made at the first Pending (§14.3).
-  The cold constructor stores the arguments and providers in a fresh
-  frame at state 0, with a count of each. A reloaded local holds the
-  count its frame saved, so only a fresh start takes counts of its
-  parameters. A frame retains its providers, since the scope that
-  installed them may end before the frame does.
+  The cold constructor stores its arguments and providers in a fresh
+  frame at state 0. A free suspending function receives ownership of its by-value parameters whose pass mode is
+  stable across instances, including generic list and map headers.
+  Direct cold calls, fresh awaits and fused `block_on` use that same
+  convention. The caller supplies a copy if its argument cannot move.
+  A resumed await skips that copy and reloads the saved owner.
+  Method slots and suspending closures retain their borrowed convention.
+  A frame retains its providers, since the scope that installed them
+  may end before the frame does.
 - **The state machine.** States are numbered in structural order, so a
   subtree's states are contiguous (`susp::plan`). A block whose
   statements hold states is entered by one `br_table` on `pc`. An `if`,
@@ -1370,7 +1374,9 @@ counted frames in memory 0 (`emit/susp.rs`, `task.rs`).
   function reference's adapter are cold constructors. They return the
   frame that the call's `Suspend[T]` holds. The constructor copies
   the captures from the environment into the frame, with a count of
-  each. The body runs only over that frame. A call whose callee's row
+  each. A function reference to an owning cold entry uses an adapter
+  body to copy its lent arguments before forwarding ownership. The
+  body runs over the resulting frame. A call whose callee's row
   parameter carries a key is still refused (the context value of
   crates/hd_mono/DESIGN.md §12.4). The old check let one through when its
   keys were also declared, and then lost the closure's providers.

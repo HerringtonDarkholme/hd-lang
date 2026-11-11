@@ -1,7 +1,9 @@
-//! Explicit value parameters copied into a cold frame and its fresh body.
+//! Copies for value parameters that a cold frame or its fresh body
+//! receives lent.
 //!
-//! A concrete `Drop` argument arrives owned instead; its physical ABI
-//! transfers that count and the declaration lowers no copy.
+//! The selected ABI can instead supply the count, as it does for
+//! concrete `Drop` values and stable by-value parameters of named
+//! suspending functions. In that case the declaration lowers no copy.
 
 use super::{OwnCx, Tri, params};
 use crate::ir::{Body, Tag};
