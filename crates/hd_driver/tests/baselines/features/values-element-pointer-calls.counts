@@ -35,7 +35,6 @@ pub struct Keeper:
 fn keep(n: *Node, k: &mut Keeper) -> void:
     k.saved.push(n)
 > app/main/keep
->   retain *app.main.Node (stored)
 >   unique List[*app.main.Node] (may be shared)
 
 fn save(node: &Node, k: &mut Keeper) -> void:
@@ -44,6 +43,7 @@ fn save(node: &Node, k: &mut Keeper) -> void:
 >   copy List[*app.main.Node] (second owner)
 >   release List[*app.main.Node] (last use)
         keep(*e, k)
+>   retain counted reference (stored)
 
 pub fn run(root: *Node) -> i64:
     let mut total = Total { sum: 0 }

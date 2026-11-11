@@ -3,7 +3,7 @@
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:new/class-2" (func $rt:new/class-2 (param i32 i32) (result i32)))
-  (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
+  (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 11 funcref))
@@ -87,6 +87,19 @@
     i32.store $heap offset=8
     local.get $origin
     ;; 16 |     step := bump(origin)
+    local.tee $s.0
+    local.tee $s.1
+    if
+      local.get $s.1
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $s.1
+        call $rt:retain_known
+      end
+    end
+    local.get $s.0
     call $bump
     local.set $s.1
     local.tee $s.0
@@ -145,8 +158,6 @@
     local.tee $t0
     local.get $p
     i32.store $heap
-    local.get $t0
-    call $rt:retain_fields
     local.set $p
     local.get $p
     local.get $t0

@@ -12,47 +12,50 @@ struct Node:
     name: string
 
 fn make(node: *Node) -> Weak[Node]?:
-    weak(node)
 > app/main/make
 >   local $0 node: *Node [param read] value
->     uses $0: entry -> %0 lend last
->   %0 = Read borrow [$0] : *Node
->   %1 = Call std/weak/weak[Node] (%0) : Weak[Node]?
->   %2 = Block %1 : Weak[Node]?
->   summary kept [] writes
+>     uses $0: entry -> %1 lend last
+>   %0 = Release %3 Exit local $0 #2 : ()
+    weak(node)
+>   %1 = Read borrow [$0] : *Node
+>   %2 = Call std/weak/weak[Node] (%1) : Weak[Node]?
+>   %3 = Block %2 : Weak[Node]?
+>   summary kept [] borrows [$0] writes
 
 fn name_len(w: Weak[Node]) -> usize:
-    match w.upgrade():
 > app/main/name_len
 >   local $0 w: Weak[Node] [param read] value
->     uses $0: entry -> %0 lend last
+>     uses $0: entry -> %1 lend last
 >   local $1 n: *Node [read assigned] value
->     uses $1: %12 -> %2 lend last
+>     uses $1: %14 -> %4 lend last
 >   local $2 self: string [read] value
->     uses $2: %3 -> %4 lend last
->   %0 = Read borrow [$0] : Weak[Node]
->   %1 = Call std/weak/impl[T] Weak[T].upgrade[Node] (%0) : *Node?
->   %22 = Block - : never
->   %23 = Match %1 [%22 %9 %10] : usize
->   %24 = Drop [%1] : ()
->   %25 = Block %23 : usize
+>     uses $2: %5 -> %6 lend last
+>   %0 = Release %27 Exit local $0 #2 : ()
+    match w.upgrade():
+>   %1 = Read borrow [$0] : Weak[Node]
+>   %2 = Call std/weak/impl[T] Weak[T].upgrade[Node] (%1) : *Node?
+>   %3 = Retain %2 Operation operand 0 #0 : ()
+>   %24 = Block - : never
+>   %25 = Match %2 [%24 %11 %12] : usize
+>   %26 = Drop [%2] : ()
+>   %27 = Block %25 : usize
         .Some(n) => n.name.len()
->   %2 = Read borrow [*$1 .name] : string
->   %3 = Store [$2] %2 : ()
->   %4 = Read borrow [$2] : string
->   %5 = Call std/rt.bytes/bytes_len[] (%4) : usize
->   %6 = Break L0 %5 : never
->   %7 = Block - : usize
->   %8 = Scope %7 [] : usize
->   %9 = Block %8 : usize
->   %11 = Read borrow [%1 as #1 .0] : *Node
->   %12 = Store [$1] %11 : ()
->   %14 = Block - : never
->   %20 = Block - : never
->   %21 = SwitchTag %1 [#1 %14 %20] : never
-        .None => 0
->   %10 = Block 0:usize : usize
+>   %4 = Read borrow [*$1 .name] : string
+>   %5 = Store [$2] %4 : ()
+>   %6 = Read borrow [$2] : string
+>   %7 = Call std/rt.bytes/bytes_len[] (%6) : usize
+>   %8 = Break L0 %7 : never
+>   %9 = Block - : usize
+>   %10 = Scope %9 [] : usize
+>   %11 = Block %10 : usize
+>   %13 = Read borrow [%2 as #1 .0] : *Node
+>   %14 = Store [$1] %13 : ()
 >   %16 = Block - : never
+>   %22 = Block - : never
+>   %23 = SwitchTag %2 [#1 %16 %22] : never
+        .None => 0
+>   %12 = Block 0:usize : usize
 >   %18 = Block - : never
->   %19 = SwitchTag %1 [#0 %16 %18] : never
->   summary kept [] writes
+>   %20 = Block - : never
+>   %21 = SwitchTag %2 [#0 %18 %20] : never
+>   summary kept [] borrows [$0] writes

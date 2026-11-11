@@ -149,7 +149,7 @@ pub fn main() -> void $ Console:
 >     uses $0: %1 -> %2 consume, %11 consume, %16 consume, %28 consume, %45 consume last
 >   local $1 $ref: Named [read assigned captured captured-assigned] place
 >   local $2 shared: *mut Named [:= read assigned] value
->     uses $2: %20 -> %21 lend, %42 lend last
+>     uses $2: %20 -> %21 consume, %42 lend last
 >   local $3 items: List[string] [:= read assigned] value
 >     uses $3: %31 -> %32 consume, %39 lend last
 >   %0 = Call app/main/word[] (7:i32) : string
@@ -180,7 +180,7 @@ pub fn main() -> void $ Console:
 >   %20 = Store [$2] %19 : ()
 >   %19 finds [$1] full
     println(keep(shared)().text)
->   %21 = Read borrow [$2] : *mut Named
+>   %21 = Read copy [$2] : *mut Named
 >   %22 = Call app/main/keep[*mut Named] (%21) : fn() -> *mut Named
 >   %23 = CallValue %22 [] : *mut Named
 >   %24 = Drop [%22] : ()

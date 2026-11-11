@@ -34,7 +34,7 @@ fn demo(s: string) -> i32:
 >     uses $0: entry -> %1 consume last
 >   local $1 $ref: Point [read assigned captured captured-assigned] place
 >   local $2 origin: *mut Point [:= read assigned] value
->     uses $2: %5 -> %6 lend, %14 lend last
+>     uses $2: %5 -> %6 consume, %14 lend last
 >   local $3 step: fn() -> () [:= read assigned] value
 >     uses $3: %8 -> %9 lend, %11 lend last
 >   %0 = Retain %16 Entry local $0 #0 : ()
@@ -47,7 +47,7 @@ fn demo(s: string) -> i32:
 >   %16 = Block %14 : i32
 >   %4 finds [$1] full
     step := bump(origin)
->   %6 = Read borrow [$2] : *mut Point
+>   %6 = Read copy [$2] : *mut Point
 >   %7 = Call app/main/bump[] (%6) : fn() -> ()
 >   %8 = Store [$3] %7 : ()
     step()

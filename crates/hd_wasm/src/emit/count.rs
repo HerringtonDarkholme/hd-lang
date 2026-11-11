@@ -698,7 +698,7 @@ impl Em<'_, '_, '_> {
                     && self.topo.sub[i] == u32::from(self.sub_id)
                     && (params.iter().position(|&p| p == local as usize)).is_some_and(|k| {
                         let ty = self.sub(self.b.local_ty[local as usize]);
-                        matches!(self.pass_at(self.lends, k, ty), Pass::Owned(_))
+                        matches!(self.parameter_pass(k, ty), Pass::Owned(_))
                     }))
                 .then_some((local as usize, Reason::from_word(c.reason)))
             })
@@ -855,7 +855,7 @@ impl Em<'_, '_, '_> {
             }
             if !(framed
                 || matches!(
-                    self.pass_at(self.lends, k, t),
+                    self.parameter_pass(k, t),
                     crate::layout::Pass::Borrowed
                 ))
                 || self.is_cell(l)

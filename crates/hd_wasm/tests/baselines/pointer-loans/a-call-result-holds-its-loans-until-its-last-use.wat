@@ -5,6 +5,7 @@
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
   (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $"impl Outer.slot" (param $self i32) (result i32)
     ;; 14 |         &mut self.next.value
@@ -24,11 +25,11 @@
     local.set $self
     local.get $self
   )
-  (func $probe (param $p i32) (param $alias i32) (result i32 i32) (local $t0 i32)
+  (func $probe (param $p i32) (param $alias i32) (result i32 i32) (local $r i32) (local $t1 i32) (local $t0 i32)
     ;; 17 |     r := p.slot()
     local.get $p
     call $"impl Outer.slot"
-    local.tee $p
+    local.tee $r
     call $block_of
     local.tee $t0
     if
@@ -73,17 +74,17 @@
     i32.store $heap offset=4
     call $rt:release
     ;; 19 |     *r
-    local.get $p
+    local.get $r
     i32.load $heap
-    local.tee $alias
-    local.get $p
+    local.tee $t1
+    local.get $r
     i32.load $heap offset=4
-    local.tee $p
+    local.tee $r
     call $rt:retain
-    local.get $alias
-    local.get $p
-    local.set $alias
-    local.set $p
+    local.get $t1
+    local.get $r
+    local.set $t1
+    local.set $r
     ;; 17 |     r := p.slot()
     local.get $t0
     if
@@ -117,6 +118,29 @@
       i32.store $heap
     end
     local.get $p
+    if
+      local.get $p
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $p
+        call $rt:release_ref
+      end
+    end
     local.get $alias
+    local.tee $p
+    if
+      local.get $p
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $p
+        call $rt:release_ref
+      end
+    end
+    local.get $r
+    local.get $t1
   )
 )

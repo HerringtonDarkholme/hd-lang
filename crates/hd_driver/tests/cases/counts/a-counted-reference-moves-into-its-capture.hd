@@ -1,0 +1,48 @@
+# @dump: own counts wat
+# @build: v8 release
+# expected: capture and handle donate their incoming counted reference to
+# the environment; fresh donates the box. A live caller copies once.
+# Local references and their newtype wrappers remain borrowed.
+use std.annotation.cold
+
+struct Point:
+    name: string
+    x: i32
+
+type Handle(*mut Point)
+
+type View[T](T)
+
+@cold
+fn capture(value: *mut Point) -> fn() -> i32:
+    fn() -> i32:
+        value.x += 1
+        value.x
+
+@cold
+fn handle(value: Handle) -> fn() -> Handle:
+    fn() -> Handle: value
+
+@cold
+fn later[T < 'static](value: T) -> fn() -> T:
+    fn() -> T: value
+
+@cold
+fn loan(value: View[&Point]) -> View[&Point]:
+    value
+
+fn fresh(name: string) -> fn() -> i32:
+    capture(box(Point { name: name, x: 0 }))
+
+fn live(value: *mut Point) -> i32:
+    step := capture(value)
+    step() + value.x
+
+fn borrowed(value: &Point) -> i32:
+    value.x
+
+fn local_view(value: &Point) -> View[&Point]:
+    loan(View(value))
+
+fn generic(value: *mut Point) -> fn() -> *mut Point:
+    later(value)

@@ -46,8 +46,9 @@ pub use origins::{FunctionOrigins, InstructionOrigin, MappedModule, StaticData};
 pub use rt::Helper;
 
 /// A1's shared owned-address class on this backend. Boxed values have
-/// the class's owned parameter convention. References pass as loans and
-/// keep concrete keys, including when their Wasm layout is one address.
+/// the class's owned parameter convention. References keep concrete keys,
+/// including when their layout is one address: local references borrow,
+/// while counted references carry an owner.
 #[must_use]
 pub fn shared_reference_layout(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> bool {
     matches!(layout::kind(pool, env, ty), layout::Kind::Boxed)
@@ -144,11 +145,14 @@ pub mod object_layout {
     pub use crate::layout::strip;
 }
 
-/// Whether `ty` is a reference (`&T`, `&mut T`, a trait value
-/// reference), which a parameter borrows (`layout::Pass::Borrowed`).
+/// A reference's ownership from one normalized layout query: None for a
+/// non-reference, false for a local loan, true for a counted owner.
 #[must_use]
-pub fn reference_type(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> bool {
-    matches!(layout::kind(pool, env, ty), layout::Kind::Ref { .. })
+pub fn reference_ownership(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> Option<bool> {
+    match layout::kind(pool, env, ty) {
+        layout::Kind::Ref { whole, .. } => Some(whole),
+        _ => None,
+    }
 }
 
 /// Whether a same-value coercion from `from` to `to` lends a thin counted

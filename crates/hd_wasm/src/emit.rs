@@ -419,7 +419,7 @@ fn body_func<'a>(
                         .any(|&(s, x)| u32::from(sub) == s.raw() && x.idx() == *l);
                 if by_type {
                     let k = plocals.iter().position(|p| p == l).expect("parameter");
-                    match em.pass_at(em.lends, k, t) {
+                    match em.parameter_pass(k, t) {
                         Pass::Borrowed if unowned || lent_here.contains(l) => {
                             em.borrowed.insert(*l);
                             continue;
@@ -931,6 +931,7 @@ fn forward(
     let (pool, env) = (input.pool, input.env);
     let mut params = vec![Val::I32];
     let mut lent = Vec::new();
+    let mut copied = Vec::new();
     for (k, p) in env
         .params(callee)
         .unwrap_or_default()
@@ -939,11 +940,17 @@ fn forward(
     {
         let t = subst(pool, env, callee, cargs, p);
         let vs = vals(pool, env, t)?;
-        if k < 64
-            && lends & (1 << k) != 0
-            && let Pass::Owned(w) = crate::layout::pass(pool, env, m.runtime.is_some(), t)
-        {
-            lent.push((u32::try_from(params.len()).expect("params"), vs.clone(), w));
+        let target_lends = k < 64 && lends & (1 << k) != 0;
+        if let Pass::Owned(w) = crate::layout::pass(pool, env, m.runtime.is_some(), t) {
+            let value_pass = crate::layout::function_pass(pool, env, m.runtime.is_some(), t);
+            // ruled out: collected function signatures use Wasm's u32
+            // parameter indices, as the existing signature encoding does.
+            let at = u32::try_from(params.len()).expect("params");
+            if matches!(value_pass, Pass::Borrowed) && !target_lends {
+                copied.push((at, vs.clone(), w));
+            } else if matches!(value_pass, Pass::Owned(_)) && target_lends {
+                lent.push((at, vs.clone(), w));
+            }
         }
         params.extend(vs);
     }
@@ -965,6 +972,14 @@ fn forward(
     let mut provs = Vec::new();
     for k in hd_mono::declared_row_keys(pool, env, callee, cargs) {
         provs.push(ctx::ctx_lookup(&mut f, c, ctx::key_id(input, k)));
+    }
+    // The common function-value ABI lends references. A declaration
+    // adapter creates the owner only when its target consumes one.
+    for (at, vals, walk) in copied {
+        for (offset, _) in (0_u32..).zip(&vals) {
+            f.get(at + offset);
+        }
+        f.helper(Helper::Retain { vals, walk });
     }
     for k in 1..c {
         f.get(k);
@@ -2677,7 +2692,7 @@ impl Em<'_, '_, '_> {
                 self.env()
                     .cold_transfers(item, subst(self.pool(), self.env(), item, targs, t))
             }));
-            return self.push_args(i, args, None, 0, self.f.reason);
+            return self.push_args(i, args, None, Some(0), self.f.reason);
         }
         for (operand, (&r, ty)) in (0_u32..).zip(args.iter().zip(params)) {
             let ty = subst(self.pool(), self.env(), item, targs, ty);
@@ -2769,6 +2784,30 @@ impl Em<'_, '_, '_> {
         }
     }
 
+    /// The body's own input convention, distinct from a callee's. Lifted
+    /// closure code uses the common function-value reference convention.
+    pub(super) fn parameter_pass(&self, k: usize, t: Ty) -> Pass {
+        if self.sub_id != 0 {
+            self.argument_pass(None, k, t)
+        } else {
+            self.pass_at(self.lends, k, t)
+        }
+    }
+
+    /// None selects a function-value input; Some selects a declaration
+    /// and its release-summary lending mask.
+    fn argument_pass(&self, lends: Option<u64>, k: usize, t: Ty) -> Pass {
+        match lends {
+            Some(lends) => self.pass_at(lends, k, t),
+            None => crate::layout::function_pass(
+                self.pool(),
+                self.env(),
+                self.input.runtime.is_some(),
+                t,
+            ),
+        }
+    }
+
     /// Pushes a call's arguments `args` for a callee with parameters of
     /// types `params` (`None`: the borrowed cold convention, with
     /// existing Drop transfers). Each argument the callee owns
@@ -2781,7 +2820,7 @@ impl Em<'_, '_, '_> {
         i: u32,
         args: &[u32],
         params: Option<&[Ty]>,
-        lends: u64,
+        lends: Option<u64>,
         copy: Option<Reason>,
     ) -> StageResult<()> {
         let Some(params) = params else {
@@ -2797,7 +2836,7 @@ impl Em<'_, '_, '_> {
         };
         if params.len() == args.len() {
             for (k, (r, t)) in args.iter().zip(params).enumerate() {
-                if matches!(self.pass_at(lends, k, *t), Pass::Owned(_)) {
+                if matches!(self.argument_pass(lends, k, *t), Pass::Owned(_)) {
                     let s = if let Some(reason) = self.operation_count(
                         i,
                         Tag::Retain,
@@ -2831,7 +2870,7 @@ impl Em<'_, '_, '_> {
             // its tuple spread has that same flattened component layout.
             assert!(part.is_some());
             let part = part.as_slice()[0];
-            if let Pass::Owned(walk) = self.pass_at(lends, k, *t) {
+            if let Pass::Owned(walk) = self.argument_pass(lends, k, *t) {
                 for &(r, k) in part {
                     self.comp(r, k)?;
                 }
@@ -2902,7 +2941,7 @@ impl Em<'_, '_, '_> {
                         let params = self.param_tys(ct.key, ct.item, ct.args);
                         let lends = self.env().lends(ct.item, ct.args)
                             | promote::promoted_params(self.input, self.m, ct.key);
-                        self.push_args(i, &args, params.as_deref(), lends, self.f.reason)?;
+                        self.push_args(i, &args, params.as_deref(), Some(lends), self.f.reason)?;
                     }
                     let c = self.push_call_providers(i, ct.item, ct.args);
                     self.f.call(Sym::Inst(ct.key));
@@ -3227,7 +3266,7 @@ impl Em<'_, '_, '_> {
         let args = self.rec(bw);
         let params = self.param_tys(call.key, call.item, call.args);
         let lends = self.env().lends(call.item, call.args);
-        self.push_args(i, &args, params.as_deref(), lends, self.f.reason)?;
+        self.push_args(i, &args, params.as_deref(), Some(lends), self.f.reason)?;
         let c = self.push_call_providers(i, call.item, call.args);
         if bracket {
             self.forbid_by(1);

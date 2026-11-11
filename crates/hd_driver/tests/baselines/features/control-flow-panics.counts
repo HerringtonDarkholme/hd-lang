@@ -30,7 +30,6 @@ fn must(s: string, n: i32) -> usize:
 fn guarded(log: *mut List[string], s: string, n: i32) -> usize:
     using r = Res { name: s + "?", log: log }
 > app/main/guarded
->   retain *mut List[string] (stored)
 >   release app.main.Res [name.0, log] (last use)
     if n < 0:
         panic("negative")

@@ -1356,13 +1356,17 @@ counted frames in memory 0 (`emit/susp.rs`, `task.rs`).
   The cold constructor stores its arguments and providers in a fresh
   frame at state 0. Named suspending functions and methods receive the
   count of each by-value parameter their selected representation owns.
-  Thin references use the borrowed convention. Direct cold calls,
+  Local reference parameters (`&T` and `&mut T`) borrow; counted reference
+  parameters (`*T` and `*mut T`) receive their reference owner. Direct cold calls,
   fresh awaits, vtable slots and fused `block_on` use the selected mode.
   The caller supplies a copy if its argument cannot move. A resumed
   await skips that copy and reloads the saved owner. Function-value
   adapters forward the ownership their target needs. A dynamic slot
   lends its erased receiver payload through its existing adapter.
-  Suspending closures retain their borrowed constructor convention.
+  Function values borrow every reference input, including counted references,
+  for both plain code and cold constructors/fresh entries. This common
+  convention preserves input variance through nested containers without
+  wrapping their elements. Non-reference values keep type-selected ownership.
   A frame retains its providers, since the scope that installed them
   may end before the frame does.
 - **The state machine.** States are numbered in structural order, so a
@@ -1377,12 +1381,16 @@ counted frames in memory 0 (`emit/susp.rs`, `task.rs`).
   function reference's adapter are cold constructors. They return the
   frame that the call's `Suspend[T]` holds. The constructor copies
   the captures from the environment into the frame, with a count of
-  each. A function reference to an owning cold entry uses an adapter
-  body to copy its lent arguments before forwarding ownership. The
-  body runs over the resulting frame. A call whose callee's row
-  parameter carries a key is still refused (the context value of
-  crates/hd_mono/DESIGN.md §12.4). The old check let one through when its
-  keys were also declared, and then lost the closure's providers.
+  each. A function-reference adapter bridges the function value's selected
+  argument convention to the target declaration's convention: it copies a
+  borrowed reference when the target consumes its owner, and releases an
+  owned value after calling a target that lends it. A generic declaration
+  may lend an open parameter even when the value takes an owning argument. Weakening a suspending function
+  value to an ordinary constructor preserves its argument convention. The
+  body runs over the resulting frame. Function-value calls pass the
+  context selected from the callee type's row (`ctx::push_fn_ctx`). An
+  open row forwards the caller's context with nearer `$.with` providers
+  in front, as crates/hd_mono/DESIGN.md §12.4 describes.
 - **Cancellation.** Each point's cancellation branch cancels the child,
   waits while the child unwinds, then leaves through the cleanup scopes'
   exit ladders by `Exit::Cancel` (§23.20). A counting body takes its one

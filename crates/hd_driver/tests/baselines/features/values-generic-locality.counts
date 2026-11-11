@@ -31,14 +31,11 @@ fn later[T < 'static](value: T) -> fn() -> T:
     fn() -> T: value
 > app/main/later
 >   retain *app.main.User (stored)
-> app/main/later
->   retain *app.main.User (stored)
 
 fn bounded(u: User) -> usize:
     kept := keep(u)
 > app/main/bounded
 >   release fn() -> *mut app.main.User (last use)
->   release *mut app.main.User (last use)
 >   release *mut app.main.User (last use)
 >   release string (last use)
     later(kept)().name.len()

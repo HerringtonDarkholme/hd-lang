@@ -1,6 +1,9 @@
 # @dump: own counts wat
 # @build: std
-# expected: `change` has no suspension point, so its body borrows `n` from the frame and releases nothing. `change.drop` releases `n` outside its test of the exited flag; the cold constructor's `rt:retain_known` is the count it releases.
+# expected: `change` takes the counted owner of `n`, even without a wait.
+# Its body releases that owner; cold cancellation releases the saved owner.
+# `change.drop` tests the exited flag so completed frames do not release twice.
+# The constructor stores the transferred argument without retaining it.
 use std.task.join
 
 struct Note:

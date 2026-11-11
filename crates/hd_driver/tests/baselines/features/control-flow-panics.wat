@@ -5,7 +5,6 @@
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
@@ -218,18 +217,6 @@
     i32.const 76 ;; &"?"
     i32.load8_u $heap
     i32.store8 $heap
-    local.get $log
-    local.tee $s.0
-    if
-      local.get $s.0
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $s.0
-        call $rt:retain_known
-      end
-    end
     local.get $t0
     i64.const 0
     i64.store $heap

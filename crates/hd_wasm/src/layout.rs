@@ -840,10 +840,27 @@ pub enum Pass {
 /// How a plain function takes a parameter of type `t`; `counts` is whether
 /// the program counts at all.
 pub fn pass(pool: &InternPool, env: &dyn ProgramEnv, counts: bool, t: Ty) -> Pass {
+    parameter_pass(pool, env, counts, t, true)
+}
+
+/// Function values borrow every reference input. Variance may turn a
+/// counted reference input into a local loan without changing the code
+/// pointer, including for function values inside containers.
+pub fn function_pass(pool: &InternPool, env: &dyn ProgramEnv, counts: bool, t: Ty) -> Pass {
+    parameter_pass(pool, env, counts, t, false)
+}
+
+fn parameter_pass(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    counts: bool,
+    t: Ty,
+    counted_owned: bool,
+) -> Pass {
     if !counts {
         return Pass::Uncounted;
     }
-    if matches!(kind(pool, env, t), Kind::Ref { .. }) {
+    if matches!(kind(pool, env, t), Kind::Ref { whole, .. } if !whole || !counted_owned) {
         return Pass::Borrowed;
     }
     count_walk(pool, env, t).map_or(Pass::Uncounted, Pass::Owned)

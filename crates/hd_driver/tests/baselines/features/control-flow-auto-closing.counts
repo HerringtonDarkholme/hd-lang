@@ -23,12 +23,12 @@ impl AutoClosing for Guard:
 @auto_closing
 fn guard(log: *mut List[string], label: string) -> Guard:
     Guard { log: log, label: label }
-> app/main/guard
->   retain *mut List[string] (stored)
 
 fn work(log: *mut List[string], label: string) -> void:
     guard(log, label)
 > app/main/work
+>   retain *mut List[string] (stored)
 >   unique List[string] (may be shared)
 >   release app.main.Guard [log, label.0] (last use)
+>   release *mut List[string] (last use)
     log.push("work")

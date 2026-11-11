@@ -16,11 +16,12 @@ fn loaded(value: &(*dyn Error)) -> string:
 >   summary kept [] writes
 
 fn direct(value: *dyn Error) -> string:
-    value.to_string()
 > app/main/direct
 >   local $0 value: *dyn Error [param read] value
->     uses $0: entry -> %0 lend last
->   %0 = Read borrow [*$0] : Error
->   %1 = Call std/format/Display.to_string for Error [] via TraitValue (%0) : string
->   %2 = Block %1 : string
->   summary kept [] writes
+>     uses $0: entry -> %1 lend last
+>   %0 = Release %3 Exit local $0 #2 : ()
+    value.to_string()
+>   %1 = Read borrow [*$0] : Error
+>   %2 = Call std/format/Display.to_string for Error [] via TraitValue (%1) : string
+>   %3 = Block %2 : string
+>   summary kept [] borrows [$0] writes

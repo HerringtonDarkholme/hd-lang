@@ -26,16 +26,16 @@ fn two(log: *mut List[string], a: string, b: string) -> usize:
 >   release app.main.Res [name.0, log] (last use)
 >   release app.main.Res [name.0, log] (last use)
     using second = Res { name: b, log: log }
->   retain *mut List[string] (stored)
     first.name.len() + second.name.len()
 
 fn per_round(log: *mut List[string], xs: List[string]) -> void:
     for x in xs:
 > app/main/per_round
 >   release app.main.Res [name.0, log] (last use)
+>   release *mut List[string] (last use)
         using r = Res { name: x, log: log }
 >   retain string (stored)
->   retain *mut List[string] (stored)
+>   retain *mut List[string] (conservative: copy read)
         pass
 
 fn by_ref(r: &mut Res) -> usize:
