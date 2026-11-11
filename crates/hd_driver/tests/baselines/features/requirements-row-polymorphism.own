@@ -89,13 +89,14 @@ fn run(s: string) -> usize:
 > app/main/run
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %1 consume last
->   %0 = Retain %5 Entry local $0 #0 : ()
+>   %0 = Retain %6 Entry local $0 #0 : ()
     with_tag(s, read_tag)
 >   %1 = Read move [$0] : string
 >   %2 = ItemRef #0 [..] : fn() -> usize
 >   %3 = Call app/main/with_tag[$()] (%1, %2) : usize
->   %4 = Drop [%2] : ()
->   %5 = Block %3 : usize
+>   %4 = Retain %3 Operation operand 1 #0 : ()
+>   %5 = Drop [%2] : ()
+>   %6 = Block %3 : usize
 >   exit sub 0 drops [$0]
 >   summary kept [$0] writes
 
@@ -105,7 +106,7 @@ fn closure(s: string) -> usize:
 >     uses $0: entry -> %1 consume last
 >   local $1 $ref: string [read assigned captured captured-assigned] value
 >     uses $1: %7 -> %8 lend last
->   %0 = Retain %18 Entry local $0 #0 : ()
+>   %0 = Retain %19 Entry local $0 #0 : ()
     with_tag(s, fn() -> usize $ Tag: $.use(Tag).name().len())
 >   %1 = Read move [$0] : string
 >   %2 = ProviderGet #1 : Tag
@@ -123,7 +124,8 @@ fn closure(s: string) -> usize:
 >   %14 = Block %12 : usize
 >   %15 = Closure #1 : fn() -> usize
 >   %16 = Call app/main/with_tag[$()] (%1, %15) : usize
->   %17 = Drop [%15] : ()
->   %18 = Block %16 : usize
+>   %17 = Retain %16 Operation operand 1 #0 : ()
+>   %18 = Drop [%15] : ()
+>   %19 = Block %16 : usize
 >   exit sub 0 drops [$0]
 >   summary kept [$0] writes

@@ -132,7 +132,7 @@ fn local_over(k: i32) -> usize:
 >   %0 = Read copy [$0] : i32
 >   %1 = Call app/main/make[] (%0) : string
 >   %2 = Store [$1] %1 : ()
->   %15 = Block %13 : usize
+>   %16 = Block %13 : usize
     if k > 0:
 >   %3 = Read copy [$0] : i32
 >   %4 = Prim Gt [%3 0:i32] : bool
@@ -147,7 +147,8 @@ fn local_over(k: i32) -> usize:
     eat(s)
 >   %12 = Read move [$1] : string
 >   %13 = Call app/main/eat[] (%12) : usize
->   %14 = Drop [%12] : ()
+>   %14 = Retain %13 Operation operand 0 #0 : ()
+>   %15 = Drop [%12] : ()
 >   summary kept [] writes
 
 fn element_over(xs: &mut List[string], i: usize, k: i32) -> void:

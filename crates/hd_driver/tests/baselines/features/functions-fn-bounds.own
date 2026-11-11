@@ -142,10 +142,10 @@ fn fn_mut(xs: List[string]) -> usize:
 >     frame cell [$1]
 >   local $2 x: string [param read] value
 >     uses $2: entry -> %6 lend last
->   %0 = Release %24 Exit local $0 #2 : ()
+>   %0 = Release %25 Exit local $0 #2 : ()
     let n: usize = 0
 >   %1 = Store [$1] 0:usize : ()
->   %24 = Block %22 : usize
+>   %25 = Block %23 : usize
     each(xs, fn(x: string) -> void: n += x.len())
 >   %2 = Read borrow [$0] : List[string]
 >   %3 = Retain %16 Entry captures #0 : ()
@@ -166,12 +166,13 @@ fn fn_mut(xs: List[string]) -> usize:
 >   %18 = Retain %17 Operation captures #0 : ()
 >   %19 = Call app/main/each[fn(string) -> ()] (%2, %17) : ()
 >   %20 = Retain %19 Operation operand 0 #0 : ()
->   %21 = Drop [%17] : ()
+>   %21 = Retain %19 Operation operand 1 #0 : ()
+>   %22 = Drop [%17] : ()
 >   %17 finds [$1] full
     n
->   %22 = Read copy [$1] : usize
->   %23 = Drop [$1] : ()
->   %22 finds [$1] full
+>   %23 = Read copy [$1] : usize
+>   %24 = Drop [$1] : ()
+>   %23 finds [$1] full
 >   exit sub 0 drops [$1]
 >   exit sub 1 drops [$1 $2]
 >   storage sub 0: $1 slot

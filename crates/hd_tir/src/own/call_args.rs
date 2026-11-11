@@ -1,5 +1,5 @@
-//! A borrowed read owns no count to give an ordinary callee's parameter.
-//! State its copy separately from the logical argument pass: a summary
+//! An ABI-owned argument needs a copy when the caller keeps its value.
+//! State that copy separately from the logical argument pass: a summary
 //! may lend the value even when the selected ABI receives it owned.
 //! The instance's parameter type and lends mask condition the lowering.
 //! An owned cold parameter also needs a copy when the caller's value
@@ -16,7 +16,9 @@ pub(super) fn counts(b: &Body, cx: &dyn OwnCx, topo: &Topology) -> Vec<(Tag, u32
     let mut out = Vec::new();
     let mut consumers = None::<Vec<u32>>;
     for (i, &tag) in b.tags.iter().enumerate() {
-        if !matches!(tag, Tag::Call | Tag::Await) {
+        // Split module initializers retain the other steps' instruction
+        // columns. Only operations in this body's block tree execute here.
+        if topo.blk[i] == crate::ir::NONE || !matches!(tag, Tag::Call | Tag::Await) {
             continue;
         }
         let Some(callee) = Callee::from_words(b.record(b.data[i][0])) else {
@@ -25,27 +27,22 @@ pub(super) fn counts(b: &Body, cx: &dyn OwnCx, topo: &Topology) -> Vec<(Tag, u32
         let record = b.record(b.data[i][1]);
         let args = &record[..record.len().saturating_sub(3)];
         for (k, &arg) in args.iter().enumerate() {
-            let Some(v) = Ref(arg).as_inst() else {
+            let Some(value) = Ref(arg).as_inst() else {
                 continue;
             };
-            let v = v.0 as usize;
-            let cold = cx.cold_argument_transfers(&callee, k, args.len());
-            if !(cold || tag == Tag::Call && b.is_borrow(arg)) || !cx.counted(b.ty[v]) {
+            if !cx.counted(b.ty[value.0 as usize]) {
                 continue;
             }
-            let copy = if cold {
-                // A default argument or a second use can leave the value
-                // owned by the caller. The cold callee then takes a copy.
-                let consumers = consumers.get_or_insert_with(|| {
-                    let mut rows = Vec::new();
-                    super::consumers(b, topo, cx, &mut rows);
-                    rows
-                });
-                consumers[v] != u32_of(i)
-            } else {
-                cx.call_argument_may_own(&callee, k, args.len())
-            };
-            if copy {
+            let cold = cx.cold_argument_transfers(&callee, k, args.len());
+            if !(cold || tag == Tag::Call && cx.call_argument_may_own(&callee, k, args.len())) {
+                continue;
+            }
+            let consumers = consumers.get_or_insert_with(|| {
+                let mut rows = Vec::new();
+                super::consumers(b, topo, cx, &mut rows);
+                rows
+            });
+            if consumers[value.0 as usize] != u32_of(i) {
                 out.push((
                     Tag::Retain,
                     u32_of(i),
@@ -140,11 +137,11 @@ mod tests {
     }
 
     #[test]
-    fn only_borrowed_counted_reads_to_possibly_owned_parameters_state_copies() {
+    fn caller_owned_counted_arguments_to_possibly_owned_parameters_state_copies() {
         for mode in [ReadMode::Borrow, ReadMode::Copy, ReadMode::Move] {
             let b = body(mode);
             let copies = counts(&b, &Facts, &Topology::new(&b));
-            assert_eq!(copies.len(), if mode == ReadMode::Borrow { 2 } else { 0 });
+            assert_eq!(copies.len(), 2);
             for (k, (tag, target, info)) in copies.iter().enumerate() {
                 assert_eq!(*tag, Tag::Retain);
                 assert_eq!(b.tags[*target as usize], Tag::Call);
