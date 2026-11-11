@@ -104,8 +104,12 @@ pub trait ProgramEnv: LayoutEnv {
     fn cold_transfers(&self, _def: DefId, _ty: Ty) -> bool {
         false
     }
-    /// Whether a function-reference adapter needs to bridge a lent
-    /// function-value call to its target's owned cold convention.
+    /// Whether a function-value cold parameter receives its owner.
+    fn cold_value_transfers(&self, _ty: Ty) -> bool {
+        false
+    }
+    /// Whether a function reference uses an owned call-body adapter for
+    /// its target's selected cold convention.
     fn cold_transfer_adapter(&self, def: DefId) -> bool {
         self.suspends(def)
             && self

@@ -242,16 +242,24 @@ fn package_host_supertraits_keep_async_and_blocking_drive_slots()
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../spec/conformance/cli/host-supertrait-drive/src/main.hd"),
     )?;
-    package_host_routes(&source, false)
+    package_host_routes("host-supertraits-async-and-blocking", &source, false)
 }
 
 #[test]
 fn transferred_host_arguments_survive_a_blocking_pending_call()
 -> Result<(), Box<dyn std::error::Error>> {
-    package_host_routes(include_str!("cold_blocking_host_arguments.hd"), true)
+    package_host_routes(
+        "host-transferred-arguments-blocking-pending",
+        include_str!("cold_blocking_host_arguments.hd"),
+        true,
+    )
 }
 
-fn package_host_routes(source: &str, jspi: bool) -> Result<(), Box<dyn std::error::Error>> {
+fn package_host_routes(
+    name: &str,
+    source: &str,
+    jspi: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../..")
         .canonicalize()?;
@@ -259,7 +267,7 @@ fn package_host_routes(source: &str, jspi: bool) -> Result<(), Box<dyn std::erro
     let mut sources = MemorySources::default();
     sources.insert("main.hd", source);
     let store = crate::warm_store();
-    let scratch = hd_testkit::Scratch::new(env!("CARGO_TARGET_TMPDIR"), "host-supertrait-drive");
+    let scratch = hd_testkit::Scratch::new(env!("CARGO_TARGET_TMPDIR"), name);
     for (profile, level) in [
         (BuildProfile::Checked, OptLevel::Dev),
         (BuildProfile::Checked, OptLevel::Optimized),
