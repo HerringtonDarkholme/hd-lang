@@ -14,23 +14,19 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $"impl Text.size" (param $self i32) (result i32)
     ;; 19 |         self.s.len() + 1
+    local.get $self
+    i32.load $heap
+    local.get $self
+    i32.load $heap offset=4
+    local.set $self
+    drop
     block
-      local.get $self
-      i32.load $heap
-      local.get $self
-      i32.load $heap offset=4
-      local.set $self
-      drop
-      block
-        block
-          br 0
-        end
-      end
-      local.get $self
-      i32.const 1
-      i32.add
-      local.set $self
+      br 0
     end
+    local.get $self
+    i32.const 1
+    i32.add
+    local.set $self
     local.get $self
   )
   (func $temp (param $n i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i64) (local $t3 i32)
@@ -64,67 +60,61 @@
     i32.sub
     local.tee $t0
     global.set $locals
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $t1
+    local.get $n
+    i32.store $heap
+    local.get $t1
+    local.set $n
     block
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
+      local.get $n
+      i32.load $heap
+      i64.extend_i32_s
+      local.tee $t2
+      call $"impl StringBuilder.signed_width"
+      local.set $n
+      i32.const 1
+      local.get $n
       i32.add
+      call $"impl StringBuilder.value_new"
+      local.set $t3
       local.tee $t1
-      local.get $n
-      i32.store $heap
+      local.get $t3
+      i32.const 0
+      i32.const 65 ;; &"x"
+      i32.const 1
+      call $"impl StringBuilder.value_text"
       local.get $t1
-      local.set $n
-      block
-        block
-          local.get $n
-          i32.load $heap
-          i64.extend_i32_s
-          local.tee $t2
-          call $"impl StringBuilder.signed_width"
-          local.set $n
-          i32.const 1
-          local.get $n
-          i32.add
-          call $"impl StringBuilder.value_new"
-          local.set $t3
-          local.tee $t1
-          local.get $t3
-          i32.const 0
-          i32.const 65 ;; &"x"
-          i32.const 1
-          call $"impl StringBuilder.value_text"
-          local.get $t1
-          local.get $t3
-          i32.const 1
-          local.get $t2
-          local.get $n
-          call $"impl StringBuilder.value_signed"
-          local.get $t1
-          local.get $t3
-          local.set $t1
-          local.set $n
-          br 0
-        end
-      end
-      block
-        block
-          local.get $t1
-          i32.const 1
-          i32.add
-          local.set $t1
-          br 0
-        end
-      end
+      local.get $t3
+      i32.const 1
+      local.get $t2
       local.get $n
-      if
-        local.get $n
-        call $rt:release_ref
-      end
+      call $"impl StringBuilder.value_signed"
       local.get $t1
+      local.get $t3
+      local.set $t1
       local.set $n
+      br 0
     end
+    block
+      local.get $t1
+      i32.const 1
+      i32.add
+      local.set $t1
+      br 0
+    end
+    local.get $n
+    if
+      local.get $n
+      call $rt:release_ref
+    end
+    local.get $t1
+    local.set $n
     local.get $n
     local.get $t0
     i32.const 16
@@ -133,23 +123,19 @@
   )
   (func $"impl Name.width" (param $self i32) (result i32)
     ;; 36 |         string(*self).len() + 1
+    local.get $self
+    i32.load $heap
+    local.get $self
+    i32.load $heap offset=4
+    local.set $self
+    drop
     block
-      local.get $self
-      i32.load $heap
-      local.get $self
-      i32.load $heap offset=4
-      local.set $self
-      drop
-      block
-        block
-          br 0
-        end
-      end
-      local.get $self
-      i32.const 1
-      i32.add
-      local.set $self
+      br 0
     end
+    local.get $self
+    i32.const 1
+    i32.add
+    local.set $self
     local.get $self
   )
   (func $named (param $t1 i32) (result i32) (local $t0 i32) (local $n i32) (local $t2 i64) (local $t3 i64) (local $t4 i32) (local $t5 i32) (local $t6 i32)
@@ -192,103 +178,87 @@
     local.tee $n
     local.get $t1
     i32.store $heap
+    local.get $n
+    i32.load $heap
+    i64.extend_i32_s
+    local.tee $t2
+    local.set $t3
     block
-      local.get $n
-      i32.load $heap
-      i64.extend_i32_s
-      local.tee $t2
-      local.set $t3
       block
-        block
-          block
-            block
-              local.get $t3
-              call $signed_magnitude
-              call $unsigned_width
-              local.set $t1
-              local.get $t3
-              i64.const 0
-              i64.lt_s
-              if
-                i32.const 1
-                local.set $t4
-              else
-              end
-              local.get $t1
-              local.get $t4
-              i32.add
-              local.set $t1
-              br 0
-            end
-          end
-          br 0
-        end
-      end
-      i32.const 1
-      local.tee $n
-      local.get $t1
-      i32.add
-      local.set $t4
-      block
-        block
-          local.get $t4
-          i32.const 16
-          local.set $t5
-          if
-            local.get $t4
-            call $rt:str
-            local.set $t5
-          end
-          local.get $t5
-          local.get $t4
-          local.set $t5
-          local.set $t4
-          br 0
-        end
-      end
-      i32.const 66 ;; &"n"
-      local.set $t6
-      block
-        block
-          local.get $t4
-          local.get $t6
-          i32.load8_u $heap
-          i32.store8 $heap
-          br 0
-        end
-      end
-      block
-        block
-          local.get $t2
-          local.get $t4
-          local.get $n
-          i32.add
-          local.get $t1
-          call $write_signed_sized
-          br 0
-        end
-      end
-      block
-        block
-          block
-            block
-              local.get $t5
-              local.set $t1
-              br 0
-            end
-          end
-          local.get $t1
+        local.get $t3
+        call $signed_magnitude
+        call $unsigned_width
+        local.set $t1
+        local.get $t3
+        i64.const 0
+        i64.lt_s
+        if
           i32.const 1
-          i32.add
-          local.set $t1
-          br 0
+          local.set $t4
+        else
         end
+        local.get $t1
+        local.get $t4
+        i32.add
+        local.set $t1
+        br 0
       end
+      br 0
+    end
+    i32.const 1
+    local.tee $n
+    local.get $t1
+    i32.add
+    local.set $t4
+    block
       local.get $t4
+      i32.const 16
+      local.set $t5
       if
         local.get $t4
-        call $rt:release_ref
+        call $rt:str
+        local.set $t5
       end
+      local.get $t5
+      local.get $t4
+      local.set $t5
+      local.set $t4
+      br 0
+    end
+    i32.const 66 ;; &"n"
+    local.set $t6
+    block
+      local.get $t4
+      local.get $t6
+      i32.load8_u $heap
+      i32.store8 $heap
+      br 0
+    end
+    block
+      local.get $t2
+      local.get $t4
+      local.get $n
+      i32.add
+      local.get $t1
+      call $write_signed_sized
+      br 0
+    end
+    block
+      block
+        local.get $t5
+        local.set $t1
+        br 0
+      end
+      local.get $t1
+      i32.const 1
+      i32.add
+      local.set $t1
+      br 0
+    end
+    local.get $t4
+    if
+      local.get $t4
+      call $rt:release_ref
     end
     local.get $t1
     local.get $t0
@@ -336,87 +306,75 @@
     local.tee $n
     local.get $t1
     i32.store $heap
+    local.get $n
+    i32.load $heap
+    i64.extend_i32_s
+    local.tee $t2
+    local.set $t3
     block
-      local.get $n
-      i32.load $heap
-      i64.extend_i32_s
-      local.tee $t2
-      local.set $t3
       block
-        block
-          block
-            block
-              local.get $t3
-              call $signed_magnitude
-              call $unsigned_width
-              local.set $t1
-              local.get $t3
-              i64.const 0
-              i64.lt_s
-              if
-                i32.const 1
-                local.set $t4
-              else
-              end
-              local.get $t1
-              local.get $t4
-              i32.add
-              local.set $t1
-              br 0
-            end
-          end
-          br 0
-        end
-      end
-      i32.const 1
-      local.tee $n
-      local.get $t1
-      i32.add
-      local.set $t4
-      block
-        block
-          local.get $t4
-          i32.const 16
-          local.set $t5
-          if
-            local.get $t4
-            call $rt:str
-            local.set $t5
-          end
-          local.get $t5
-          local.get $t4
-          local.set $t5
+        local.get $t3
+        call $signed_magnitude
+        call $unsigned_width
+        local.set $t1
+        local.get $t3
+        i64.const 0
+        i64.lt_s
+        if
+          i32.const 1
           local.set $t4
-          br 0
+        else
         end
+        local.get $t1
+        local.get $t4
+        i32.add
+        local.set $t1
+        br 0
       end
-      i32.const 65 ;; &"x"
-      local.set $t6
-      block
-        block
-          local.get $t4
-          local.get $t6
-          i32.load8_u $heap
-          i32.store8 $heap
-          br 0
-        end
-      end
-      block
-        block
-          local.get $t2
-          local.get $t4
-          local.get $n
-          i32.add
-          local.get $t1
-          call $write_signed_sized
-          br 0
-        end
-      end
-      local.get $t4
-      local.get $t5
-      local.set $n
-      local.set $t1
+      br 0
     end
+    i32.const 1
+    local.tee $n
+    local.get $t1
+    i32.add
+    local.set $t4
+    block
+      local.get $t4
+      i32.const 16
+      local.set $t5
+      if
+        local.get $t4
+        call $rt:str
+        local.set $t5
+      end
+      local.get $t5
+      local.get $t4
+      local.set $t5
+      local.set $t4
+      br 0
+    end
+    i32.const 65 ;; &"x"
+    local.set $t6
+    block
+      local.get $t4
+      local.get $t6
+      i32.load8_u $heap
+      i32.store8 $heap
+      br 0
+    end
+    block
+      local.get $t2
+      local.get $t4
+      local.get $n
+      i32.add
+      local.get $t1
+      call $write_signed_sized
+      br 0
+    end
+    local.get $t4
+    local.get $t5
+    local.set $n
+    local.set $t1
     local.get $t1
     local.get $n
     local.get $t0
@@ -428,21 +386,15 @@
     ;; 30 |     t.size()
     block
       block
-        block
-          block
-            block
-              local.get $t.s.1
-              local.set $t.s.0
-              br 0
-            end
-          end
-          local.get $t.s.0
-          i32.const 1
-          i32.add
-          local.set $t.s.0
-          br 0
-        end
+        local.get $t.s.1
+        local.set $t.s.0
+        br 0
       end
+      local.get $t.s.0
+      i32.const 1
+      i32.add
+      local.set $t.s.0
+      br 0
     end
     local.get $t.s.0
   )
@@ -477,90 +429,80 @@
     i32.sub
     local.tee $t0
     global.set $locals
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $t.s.1
+    local.get $n
+    i32.store $heap
+    local.get $t.s.1
+    local.set $n
     block
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
+      local.get $n
+      i32.load $heap
+      i64.extend_i32_s
+      local.tee $t1
+      call $"impl StringBuilder.signed_width"
+      local.set $n
+      i32.const 1
+      local.get $n
       i32.add
+      call $"impl StringBuilder.value_new"
+      local.set $t2
       local.tee $t.s.1
-      local.get $n
-      i32.store $heap
-      local.get $t.s.1
-      local.set $n
-      block
-        block
-          local.get $n
-          i32.load $heap
-          i64.extend_i32_s
-          local.tee $t1
-          call $"impl StringBuilder.signed_width"
-          local.set $n
-          i32.const 1
-          local.get $n
-          i32.add
-          call $"impl StringBuilder.value_new"
-          local.set $t2
-          local.tee $t.s.1
-          local.get $t2
-          i32.const 0
-          i32.const 65 ;; &"x"
-          i32.const 1
-          call $"impl StringBuilder.value_text"
-          local.get $t.s.1
-          local.get $t2
-          i32.const 1
-          local.get $t1
-          local.get $n
-          call $"impl StringBuilder.value_signed"
-          local.get $t.s.1
-          local.get $t2
-          local.set $t.s.1
-          local.set $n
-          br 0
-        end
-      end
-    ;; 26 |     let a = t.size()
-      block
-        block
-          block
-            block
-              local.get $t.s.1
-              local.set $t2
-              br 0
-            end
-          end
-          local.get $t2
-          i32.const 1
-          i32.add
-          local.set $t2
-          br 0
-        end
-      end
-    ;; 27 |     a + t.size()
-      block
-        block
-          local.get $t.s.1
-          i32.const 1
-          i32.add
-          local.set $t.s.1
-          br 0
-        end
-      end
-    ;; 25 |     let t = make(n)
-      local.get $n
-      if
-        local.get $n
-        call $rt:release_ref
-      end
-    ;; 27 |     a + t.size()
       local.get $t2
+      i32.const 0
+      i32.const 65 ;; &"x"
+      i32.const 1
+      call $"impl StringBuilder.value_text"
       local.get $t.s.1
-      i32.add
-    ;; 25 |     let t = make(n)
+      local.get $t2
+      i32.const 1
+      local.get $t1
+      local.get $n
+      call $"impl StringBuilder.value_signed"
+      local.get $t.s.1
+      local.get $t2
+      local.set $t.s.1
       local.set $n
+      br 0
     end
+    ;; 26 |     let a = t.size()
+    block
+      block
+        local.get $t.s.1
+        local.set $t2
+        br 0
+      end
+      local.get $t2
+      i32.const 1
+      i32.add
+      local.set $t2
+      br 0
+    end
+    ;; 27 |     a + t.size()
+    block
+      local.get $t.s.1
+      i32.const 1
+      i32.add
+      local.set $t.s.1
+      br 0
+    end
+    ;; 25 |     let t = make(n)
+    local.get $n
+    if
+      local.get $n
+      call $rt:release_ref
+    end
+    ;; 27 |     a + t.size()
+    local.get $t2
+    local.get $t.s.1
+    i32.add
+    ;; 25 |     let t = make(n)
+    local.set $n
     local.get $n
     local.get $t0
     i32.const 16

@@ -50,152 +50,213 @@
     i32.sub
     local.tee $t0
     global.set $locals
-    block
-      i32.const 4
-      call $rt:map_table'1
-      local.tee $items
-      i32.const 65 ;; &"a"
-      local.tee $saved
-      i32.const 1
-      local.tee $t1
-      call $rt:map_hash'1
-      local.tee $t2
-      local.get $saved
-      local.get $t1
-      call $rt:map_find'1
-      local.set $t3
-      local.get $items
-      local.get $t2
-      local.get $t3
-      local.get $saved
-      local.get $t1
-      i32.const 1
-      call $rt:map_put'1
-      local.set $items
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $saved
-      local.get $items
-      i32.store $heap
-      local.get $saved
-      local.tee $items
+    i32.const 4
+    call $rt:map_table'1
+    local.tee $items
+    i32.const 65 ;; &"a"
+    local.tee $saved
+    i32.const 1
+    local.tee $t1
+    call $rt:map_hash'1
+    local.tee $t2
+    local.get $saved
+    local.get $t1
+    call $rt:map_find'1
+    local.set $t3
+    local.get $items
+    local.get $t2
+    local.get $t3
+    local.get $saved
+    local.get $t1
+    i32.const 1
+    call $rt:map_put'1
+    local.set $items
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $saved
+    local.get $items
+    i32.store $heap
+    local.get $saved
+    local.tee $items
     ;; 20 |     saved := items
-      i32.load $heap
-      call $rt:coll_copy
-      local.tee $saved
+    i32.load $heap
+    call $rt:coll_copy
+    local.tee $saved
     ;; 21 |     bump(&mut items, "a")
-      local.get $items
-      i32.const 65 ;; &"a"
-      i32.const 1
-      i32.const 3
-      call_indirect $table0 (param i32 i32 i32)
+    local.get $items
+    i32.const 65 ;; &"a"
+    i32.const 1
+    i32.const 3
+    call_indirect $table0 (param i32 i32 i32)
     ;; 22 |     bump(&mut items, "b")
-      local.get $items
-      i32.const 66 ;; &"b"
-      i32.const 1
-      i32.const 3
-      call_indirect $table0 (param i32 i32 i32)
+    local.get $items
+    i32.const 66 ;; &"b"
+    i32.const 1
+    i32.const 3
+    call_indirect $table0 (param i32 i32 i32)
     ;; 23 |     println(items["a"])
-      local.get $items
-      i32.load $heap
-      i32.const 65 ;; &"a"
-      i32.const 1
-      call $rt:map_hash'1
-      i32.const 65 ;; &"a"
-      i32.const 1
-      call $rt:map_find'1
-      local.tee $t1
-      i32.const 0
-      i32.lt_s
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $items
-      i32.load $heap
-      local.tee $t2
-      local.get $t2
-      i32.load $heap offset=12
-      i32.const 12
-      i32.mul
-      i32.add
-      i32.const 24
-      i32.add
-      local.get $t1
-      i32.const 12
-      i32.mul
-      i32.add
-      i32.load $heap offset=8
-      local.get $provider0
-      local.get $provider0.vtable
-      call $"println[i32]"
+    local.get $items
+    i32.load $heap
+    i32.const 65 ;; &"a"
+    i32.const 1
+    call $rt:map_hash'1
+    i32.const 65 ;; &"a"
+    i32.const 1
+    call $rt:map_find'1
+    local.tee $t1
+    i32.const 0
+    i32.lt_s
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $items
+    i32.load $heap
+    local.tee $t2
+    local.get $t2
+    i32.load $heap offset=12
+    i32.const 12
+    i32.mul
+    i32.add
+    i32.const 24
+    i32.add
+    local.get $t1
+    i32.const 12
+    i32.mul
+    i32.add
+    i32.load $heap offset=8
+    local.get $provider0
+    local.get $provider0.vtable
+    call $"println[i32]"
     ;; 24 |     println(items["b"])
-      local.get $items
-      i32.load $heap
-      i32.const 66 ;; &"b"
-      i32.const 1
-      call $rt:map_hash'1
-      i32.const 66 ;; &"b"
-      i32.const 1
-      call $rt:map_find'1
-      local.tee $t1
-      i32.const 0
-      i32.lt_s
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $items
-      i32.load $heap
-      local.tee $t2
-      local.get $t2
-      i32.load $heap offset=12
-      i32.const 12
-      i32.mul
-      i32.add
-      i32.const 24
-      i32.add
-      local.get $t1
-      i32.const 12
-      i32.mul
-      i32.add
-      i32.load $heap offset=8
-      local.get $provider0
-      local.get $provider0.vtable
-      call $"println[i32]"
+    local.get $items
+    i32.load $heap
+    i32.const 66 ;; &"b"
+    i32.const 1
+    call $rt:map_hash'1
+    i32.const 66 ;; &"b"
+    i32.const 1
+    call $rt:map_find'1
+    local.tee $t1
+    i32.const 0
+    i32.lt_s
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $items
+    i32.load $heap
+    local.tee $t2
+    local.get $t2
+    i32.load $heap offset=12
+    i32.const 12
+    i32.mul
+    i32.add
+    i32.const 24
+    i32.add
+    local.get $t1
+    i32.const 12
+    i32.mul
+    i32.add
+    i32.load $heap offset=8
+    local.get $provider0
+    local.get $provider0.vtable
+    call $"println[i32]"
     ;; 25 |     println(saved["a"])
-      i32.const 65 ;; &"a"
-      i32.const 1
-      call $rt:map_hash'1
-      i32.const 65 ;; &"a"
-      i32.const 1
-      call $rt:map_find'1
-      local.tee $t1
-      i32.const 0
-      i32.lt_s
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $saved
-      local.get $saved
-      i32.load $heap offset=12
-      i32.const 12
-      i32.mul
-      i32.add
-      i32.const 24
-      i32.add
-      local.get $t1
-      i32.const 12
-      i32.mul
-      i32.add
-      i32.load $heap offset=8
+    i32.const 65 ;; &"a"
+    i32.const 1
+    call $rt:map_hash'1
+    i32.const 65 ;; &"a"
+    i32.const 1
+    call $rt:map_find'1
+    local.tee $t1
+    i32.const 0
+    i32.lt_s
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $saved
+    local.get $saved
+    i32.load $heap offset=12
+    i32.const 12
+    i32.mul
+    i32.add
+    i32.const 24
+    i32.add
+    local.get $t1
+    i32.const 12
+    i32.mul
+    i32.add
+    i32.load $heap offset=8
     ;; 19 |     let mut items = { "a": +1 }
-      local.get $saved
+    local.get $saved
+    local.tee $t1
+    if
+      local.get $t1
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $t1
+        call $rt:release_ref
+      end
+    end
+    ;; 25 |     println(saved["a"])
+    local.get $provider0
+    local.get $provider0.vtable
+    call $"println[i32]"
+    ;; 26 |     println(read(&items["a"]))
+    local.get $items
+    i32.load $heap
+    i32.const 65 ;; &"a"
+    i32.const 1
+    call $rt:map_hash'1
+    i32.const 65 ;; &"a"
+    i32.const 1
+    call $rt:map_find'1
+    local.tee $saved
+    i32.const 0
+    i32.lt_s
+    if
+      call $rt:panic
+      unreachable
+    end
+    ;; 19 |     let mut items = { "a": +1 }
+    local.get $items
+    local.get $items
+    i32.load $heap
+    call $rt:map_unique'1
+    i32.store $heap
+    ;; 26 |     println(read(&items["a"]))
+    local.get $items
+    i32.load $heap
+    local.tee $t1
+    local.get $t1
+    i32.load $heap offset=12
+    i32.const 12
+    i32.mul
+    i32.add
+    i32.const 24
+    i32.add
+    local.get $saved
+    i32.const 12
+    i32.mul
+    i32.add
+    i32.const 8
+    i32.add
+    i32.const 4
+    call_indirect $table0 (param i32) (result i32)
+    local.set $saved
+    ;; 19 |     let mut items = { "a": +1 }
+    local.get $items
+    if
+      local.get $items
+      i32.load $heap
       local.tee $t1
       if
         local.get $t1
@@ -207,198 +268,135 @@
           call $rt:release_ref
         end
       end
-    ;; 25 |     println(saved["a"])
-      local.get $provider0
-      local.get $provider0.vtable
-      call $"println[i32]"
-    ;; 26 |     println(read(&items["a"]))
-      local.get $items
-      i32.load $heap
-      i32.const 65 ;; &"a"
-      i32.const 1
-      call $rt:map_hash'1
-      i32.const 65 ;; &"a"
-      i32.const 1
-      call $rt:map_find'1
-      local.tee $saved
-      i32.const 0
-      i32.lt_s
-      if
-        call $rt:panic
-        unreachable
-      end
-    ;; 19 |     let mut items = { "a": +1 }
-      local.get $items
-      local.get $items
-      i32.load $heap
-      call $rt:map_unique'1
-      i32.store $heap
-    ;; 26 |     println(read(&items["a"]))
-      local.get $items
-      i32.load $heap
-      local.tee $t1
-      local.get $t1
-      i32.load $heap offset=12
-      i32.const 12
-      i32.mul
-      i32.add
-      i32.const 24
-      i32.add
-      local.get $saved
-      i32.const 12
-      i32.mul
-      i32.add
-      i32.const 8
-      i32.add
-      i32.const 4
-      call_indirect $table0 (param i32) (result i32)
-      local.set $saved
-    ;; 19 |     let mut items = { "a": +1 }
-      local.get $items
-      if
-        local.get $items
-        i32.load $heap
-        local.tee $t1
-        if
-          local.get $t1
-          i32.const 8
-          i32.sub
-          i32.load $heap
-          if
-            local.get $t1
-            call $rt:release_ref
-          end
-        end
-      end
-    ;; 26 |     println(read(&items["a"]))
-      local.get $saved
-      local.get $provider0
-      local.get $provider0.vtable
-      call $"println[i32]"
-    ;; 27 |     let mut numbers: Map[usize, i32] = { 1: +3 }
-      i32.const 4
-      call $rt:map_table'2
-      local.tee $items
-      i32.const 1
-      local.tee $saved
-      call $rt:map_hash'2
-      local.tee $t1
-      local.get $saved
-      call $rt:map_find'2
-      local.set $t2
-      local.get $items
-      local.get $t1
-      local.get $t2
-      local.get $saved
-      i32.const 3
-      call $rt:map_put'2
-      local.set $items
-      local.get $t0
-      i64.const 0
-      i64.store $heap offset=16
-      local.get $t0
-      i32.const 24
-      i32.add
-      local.tee $saved
-      local.get $items
-      i32.store $heap
-      local.get $saved
-      local.tee $items
-    ;; 28 |     scalar(&mut numbers, 1)
-      i32.const 1
-      i32.const 5
-      call_indirect $table0 (param i32 i32)
-    ;; 29 |     scalar(&mut numbers, 2)
-      local.get $items
-      i32.const 2
-      i32.const 5
-      call_indirect $table0 (param i32 i32)
-    ;; 30 |     println(numbers[1])
-      local.get $items
-      i32.load $heap
-      i32.const 1
-      call $rt:map_hash'2
-      i32.const 1
-      call $rt:map_find'2
-      local.tee $saved
-      i32.const 0
-      i32.lt_s
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $items
-      i32.load $heap
-      local.tee $t1
-      local.get $t1
-      i32.load $heap offset=12
-      i32.const 12
-      i32.mul
-      i32.add
-      i32.const 24
-      i32.add
-      local.get $saved
-      i32.const 8
-      i32.mul
-      i32.add
-      i32.load $heap offset=4
-      local.get $provider0
-      local.get $provider0.vtable
-      call $"println[i32]"
-    ;; 31 |     println(numbers[2])
-      local.get $items
-      i32.load $heap
-      i32.const 2
-      call $rt:map_hash'2
-      i32.const 2
-      call $rt:map_find'2
-      local.tee $saved
-      i32.const 0
-      i32.lt_s
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $items
-      i32.load $heap
-      local.tee $t1
-      local.get $t1
-      i32.load $heap offset=12
-      i32.const 12
-      i32.mul
-      i32.add
-      i32.const 24
-      i32.add
-      local.get $saved
-      i32.const 8
-      i32.mul
-      i32.add
-      i32.load $heap offset=4
-      local.set $saved
-    ;; 19 |     let mut items = { "a": +1 }
-      local.get $items
-      if
-        local.get $items
-        i32.load $heap
-        local.tee $t1
-        if
-          local.get $t1
-          i32.const 8
-          i32.sub
-          i32.load $heap
-          if
-            local.get $t1
-            call $rt:release_ref
-          end
-        end
-      end
-    ;; 31 |     println(numbers[2])
-      local.get $saved
-      local.get $provider0
-      local.get $provider0.vtable
-      call $"println[i32]"
-    ;; 19 |     let mut items = { "a": +1 }
     end
+    ;; 26 |     println(read(&items["a"]))
+    local.get $saved
+    local.get $provider0
+    local.get $provider0.vtable
+    call $"println[i32]"
+    ;; 27 |     let mut numbers: Map[usize, i32] = { 1: +3 }
+    i32.const 4
+    call $rt:map_table'2
+    local.tee $items
+    i32.const 1
+    local.tee $saved
+    call $rt:map_hash'2
+    local.tee $t1
+    local.get $saved
+    call $rt:map_find'2
+    local.set $t2
+    local.get $items
+    local.get $t1
+    local.get $t2
+    local.get $saved
+    i32.const 3
+    call $rt:map_put'2
+    local.set $items
+    local.get $t0
+    i64.const 0
+    i64.store $heap offset=16
+    local.get $t0
+    i32.const 24
+    i32.add
+    local.tee $saved
+    local.get $items
+    i32.store $heap
+    local.get $saved
+    local.tee $items
+    ;; 28 |     scalar(&mut numbers, 1)
+    i32.const 1
+    i32.const 5
+    call_indirect $table0 (param i32 i32)
+    ;; 29 |     scalar(&mut numbers, 2)
+    local.get $items
+    i32.const 2
+    i32.const 5
+    call_indirect $table0 (param i32 i32)
+    ;; 30 |     println(numbers[1])
+    local.get $items
+    i32.load $heap
+    i32.const 1
+    call $rt:map_hash'2
+    i32.const 1
+    call $rt:map_find'2
+    local.tee $saved
+    i32.const 0
+    i32.lt_s
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $items
+    i32.load $heap
+    local.tee $t1
+    local.get $t1
+    i32.load $heap offset=12
+    i32.const 12
+    i32.mul
+    i32.add
+    i32.const 24
+    i32.add
+    local.get $saved
+    i32.const 8
+    i32.mul
+    i32.add
+    i32.load $heap offset=4
+    local.get $provider0
+    local.get $provider0.vtable
+    call $"println[i32]"
+    ;; 31 |     println(numbers[2])
+    local.get $items
+    i32.load $heap
+    i32.const 2
+    call $rt:map_hash'2
+    i32.const 2
+    call $rt:map_find'2
+    local.tee $saved
+    i32.const 0
+    i32.lt_s
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $items
+    i32.load $heap
+    local.tee $t1
+    local.get $t1
+    i32.load $heap offset=12
+    i32.const 12
+    i32.mul
+    i32.add
+    i32.const 24
+    i32.add
+    local.get $saved
+    i32.const 8
+    i32.mul
+    i32.add
+    i32.load $heap offset=4
+    local.set $saved
+    ;; 19 |     let mut items = { "a": +1 }
+    local.get $items
+    if
+      local.get $items
+      i32.load $heap
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t1
+          call $rt:release_ref
+        end
+      end
+    end
+    ;; 31 |     println(numbers[2])
+    local.get $saved
+    local.get $provider0
+    local.get $provider0.vtable
+    call $"println[i32]"
+    ;; 19 |     let mut items = { "a": +1 }
     local.get $t0
     i32.const 32
     i32.add
@@ -406,187 +404,181 @@
   )
   (func $scalar (param $items i32) (param $key i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 12 |     *items.get_or_insert(key, +0) += 1
-    block
-      local.get $items
-      i32.load $heap
-      local.tee $t0
-      local.get $key
-      call $rt:map_hash'2
-      local.tee $t1
-      local.get $key
-      call $rt:map_find'2
-      local.set $t2
+    local.get $items
+    i32.load $heap
+    local.tee $t0
+    local.get $key
+    call $rt:map_hash'2
+    local.tee $t1
+    local.get $key
+    call $rt:map_find'2
+    local.set $t2
+    local.get $t0
+    i32.const 8
+    i32.sub
+    i32.load $heap
+    i32.const 1
+    i32.ne
+    if
       local.get $t0
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      i32.const 1
-      i32.ne
-      if
-        local.get $t0
-        call $rt:map_unique'2
-        local.set $t0
-      end
-      local.get $t2
-      i32.const 0
-      i32.ge_s
-      if
-        local.get $items
-        local.get $t0
-        i32.store $heap
-        local.get $t0
-        local.get $t0
-        i32.load $heap offset=12
-        i32.const 12
-        i32.mul
-        i32.add
-        i32.const 24
-        i32.add
-        local.get $t2
-        i32.const 8
-        i32.mul
-        i32.add
-        i32.const 4
-        i32.add
-        local.set $items
-      else
-        local.get $t0
-        local.get $t1
-        local.get $t2
-        local.get $key
-        i32.const 0
-        call $rt:map_put'2
-        local.tee $t0
-        i32.load $heap offset=4
-        i32.const 1
-        i32.sub
-        local.set $key
-        local.get $items
-        local.get $t0
-        i32.store $heap
-        local.get $t0
-        local.get $t0
-        i32.load $heap offset=12
-        i32.const 12
-        i32.mul
-        i32.add
-        i32.const 24
-        i32.add
-        local.get $key
-        i32.const 8
-        i32.mul
-        i32.add
-        i32.const 4
-        i32.add
-        local.set $items
-      end
-      local.get $items
-      local.get $items
-      i32.load $heap
-      i32.const 1
-      i32.add
-      i32.store $heap
+      call $rt:map_unique'2
+      local.set $t0
     end
+    local.get $t2
+    i32.const 0
+    i32.ge_s
+    if
+      local.get $items
+      local.get $t0
+      i32.store $heap
+      local.get $t0
+      local.get $t0
+      i32.load $heap offset=12
+      i32.const 12
+      i32.mul
+      i32.add
+      i32.const 24
+      i32.add
+      local.get $t2
+      i32.const 8
+      i32.mul
+      i32.add
+      i32.const 4
+      i32.add
+      local.set $items
+    else
+      local.get $t0
+      local.get $t1
+      local.get $t2
+      local.get $key
+      i32.const 0
+      call $rt:map_put'2
+      local.tee $t0
+      i32.load $heap offset=4
+      i32.const 1
+      i32.sub
+      local.set $key
+      local.get $items
+      local.get $t0
+      i32.store $heap
+      local.get $t0
+      local.get $t0
+      i32.load $heap offset=12
+      i32.const 12
+      i32.mul
+      i32.add
+      i32.const 24
+      i32.add
+      local.get $key
+      i32.const 8
+      i32.mul
+      i32.add
+      i32.const 4
+      i32.add
+      local.set $items
+    end
+    local.get $items
+    local.get $items
+    i32.load $heap
+    i32.const 1
+    i32.add
+    i32.store $heap
   )
   (func $read (param $value i32) (result i32)
     ;; 16 |     *value
-    block
-      local.get $value
-      i32.load $heap
-      local.set $value
-    end
+    local.get $value
+    i32.load $heap
+    local.set $value
     local.get $value
   )
   (func $bump (param $items i32) (param $key.0 i32) (param $key.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 8 |     *items.get_or_insert(key, +0) += 1
-    block
-      local.get $items
-      i32.load $heap
-      local.tee $t0
-      local.get $key.0
-      local.get $key.1
-      call $rt:map_hash'1
-      local.tee $t1
-      local.get $key.0
-      local.get $key.1
-      call $rt:map_find'1
-      local.set $t2
+    local.get $items
+    i32.load $heap
+    local.tee $t0
+    local.get $key.0
+    local.get $key.1
+    call $rt:map_hash'1
+    local.tee $t1
+    local.get $key.0
+    local.get $key.1
+    call $rt:map_find'1
+    local.set $t2
+    local.get $t0
+    i32.const 8
+    i32.sub
+    i32.load $heap
+    i32.const 1
+    i32.ne
+    if
       local.get $t0
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      i32.const 1
-      i32.ne
-      if
-        local.get $t0
-        call $rt:map_unique'1
-        local.set $t0
-      end
-      local.get $t2
-      i32.const 0
-      i32.ge_s
-      if
-        local.get $items
-        local.get $t0
-        i32.store $heap
-        local.get $t0
-        local.get $t0
-        i32.load $heap offset=12
-        i32.const 12
-        i32.mul
-        i32.add
-        i32.const 24
-        i32.add
-        local.get $t2
-        i32.const 12
-        i32.mul
-        i32.add
-        i32.const 8
-        i32.add
-        local.set $items
-      else
-        local.get $key.0
-        if
-          local.get $key.0
-          call $retain
-        end
-        local.get $t0
-        local.get $t1
-        local.get $t2
-        local.get $key.0
-        local.get $key.1
-        i32.const 0
-        call $rt:map_put'1
-        local.tee $t0
-        i32.load $heap offset=4
-        i32.const 1
-        i32.sub
-        local.set $key.0
-        local.get $items
-        local.get $t0
-        i32.store $heap
-        local.get $t0
-        local.get $t0
-        i32.load $heap offset=12
-        i32.const 12
-        i32.mul
-        i32.add
-        i32.const 24
-        i32.add
-        local.get $key.0
-        i32.const 12
-        i32.mul
-        i32.add
-        i32.const 8
-        i32.add
-        local.set $items
-      end
-      local.get $items
-      local.get $items
-      i32.load $heap
-      i32.const 1
-      i32.add
-      i32.store $heap
+      call $rt:map_unique'1
+      local.set $t0
     end
+    local.get $t2
+    i32.const 0
+    i32.ge_s
+    if
+      local.get $items
+      local.get $t0
+      i32.store $heap
+      local.get $t0
+      local.get $t0
+      i32.load $heap offset=12
+      i32.const 12
+      i32.mul
+      i32.add
+      i32.const 24
+      i32.add
+      local.get $t2
+      i32.const 12
+      i32.mul
+      i32.add
+      i32.const 8
+      i32.add
+      local.set $items
+    else
+      local.get $key.0
+      if
+        local.get $key.0
+        call $retain
+      end
+      local.get $t0
+      local.get $t1
+      local.get $t2
+      local.get $key.0
+      local.get $key.1
+      i32.const 0
+      call $rt:map_put'1
+      local.tee $t0
+      i32.load $heap offset=4
+      i32.const 1
+      i32.sub
+      local.set $key.0
+      local.get $items
+      local.get $t0
+      i32.store $heap
+      local.get $t0
+      local.get $t0
+      i32.load $heap offset=12
+      i32.const 12
+      i32.mul
+      i32.add
+      i32.const 24
+      i32.add
+      local.get $key.0
+      i32.const 12
+      i32.mul
+      i32.add
+      i32.const 8
+      i32.add
+      local.set $items
+    end
+    local.get $items
+    local.get $items
+    i32.load $heap
+    i32.const 1
+    i32.add
+    i32.store $heap
   )
 )

@@ -5,19 +5,17 @@
   (import "fixture" "table0" (table $table0 2 funcref))
   (func $invoke (param $callback.0 i32) (param $callback.1 i32) (param $pair.0 i64) (param $pair.1 i32) (param $weight.0 i32) (param $weight.1 i32) (param $weight.2 i64) (param $value i32) (result i64)
     ;; 14 |     callback(pair, weight, value)
-    block
-      local.get $callback.1
-      local.get $pair.0
-      local.get $pair.1
-      local.get $weight.0
-      local.get $weight.1
-      local.get $weight.2
-      local.get $value
-      i32.const 0
-      local.get $callback.0
-      call_indirect $table0 (param i32 i64 i32 i32 i32 i64 i32 i32) (result i64)
-      local.set $pair.0
-    end
+    local.get $callback.1
+    local.get $pair.0
+    local.get $pair.1
+    local.get $weight.0
+    local.get $weight.1
+    local.get $weight.2
+    local.get $value
+    i32.const 0
+    local.get $callback.0
+    call_indirect $table0 (param i32 i64 i32 i32 i32 i64 i32 i32) (result i64)
+    local.set $pair.0
     local.get $callback.1
     if
       local.get $callback.1

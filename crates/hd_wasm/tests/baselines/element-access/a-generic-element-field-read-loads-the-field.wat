@@ -4,48 +4,42 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $position_at (param $infos i32) (param $i i32) (result i32)
     ;; 20 |     infos[i].position
+    local.get $i
+    local.get $infos
+    i32.load $heap offset=4
+    i32.ge_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $infos
+    local.get $i
+    i32.const 12
+    i32.mul
+    i32.add
+    i32.load $heap offset=24
+    local.set $infos
+    local.get $infos
+  )
+  (func $use_generic (param $m.infos i32) (param $m.tag i32) (param $i i32) (result i32)
+    ;; 23 |     m.position_at(i)
     block
       local.get $i
-      local.get $infos
+      local.get $m.infos
       i32.load $heap offset=4
       i32.ge_u
       if
         call $rt:panic
         unreachable
       end
-      local.get $infos
+      local.get $m.infos
       local.get $i
       i32.const 12
       i32.mul
       i32.add
       i32.load $heap offset=24
-      local.set $infos
-    end
-    local.get $infos
-  )
-  (func $use_generic (param $m.infos i32) (param $m.tag i32) (param $i i32) (result i32)
-    ;; 23 |     m.position_at(i)
-    block
-      block
-        block
-          local.get $i
-          local.get $m.infos
-          i32.load $heap offset=4
-          i32.ge_u
-          if
-            call $rt:panic
-            unreachable
-          end
-          local.get $m.infos
-          local.get $i
-          i32.const 12
-          i32.mul
-          i32.add
-          i32.load $heap offset=24
-          local.set $m.infos
-          br 0
-        end
-      end
+      local.set $m.infos
+      br 0
     end
     local.get $m.infos
   )

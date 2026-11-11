@@ -5,30 +5,24 @@
   (import "fixture" "table0" (table $table0 14 funcref))
   (func $direct (param $values i32) (local $t1 i32) (local $t0 i32)
     ;; 4 |     dbg(values...)
-    block
-      call $"dbg_printer[string]"
-      local.set $t0
-      local.set $t1
-      i32.const 115 ;; &"main.hd:4:5: "
-      i32.const 13
-      local.get $values
-      local.get $t1
-      local.get $t0
-      call $"dbg_bare_rest[string]"
-    end
+    call $"dbg_printer[string]"
+    local.set $t0
+    local.set $t1
+    i32.const 115 ;; &"main.hd:4:5: "
+    i32.const 13
+    local.get $values
+    local.get $t1
+    local.get $t0
+    call $"dbg_bare_rest[string]"
   )
   (func $function_value (param $values i32)
-    ;; 7 |     let show: fn((List[string]...,)) -> void = dbg
-    block
     ;; 8 |     show(values)
-      i32.const 0
-      local.get $values
-      i32.const 0
+    i32.const 0
+    local.get $values
+    i32.const 0
     ;; 7 |     let show: fn((List[string]...,)) -> void = dbg
-      i32.const 4
+    i32.const 4
     ;; 8 |     show(values)
-      call_indirect $table0 (param i32 i32 i32)
-    ;; 7 |     let show: fn((List[string]...,)) -> void = dbg
-    end
+    call_indirect $table0 (param i32 i32 i32)
   )
 )

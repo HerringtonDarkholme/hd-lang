@@ -16,8 +16,6 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $sql (param $t.raw_parts i32) (param $t.values i32) (result i32 i32)
     ;; 22 |     Query { text: t.raw_parts, params: t.values }
-    block
-    end
     local.get $t.raw_parts
     local.get $t.values
   )
@@ -52,47 +50,43 @@
     i32.sub
     local.tee $t0
     global.set $locals
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $t1
+    i64.const 12
+    i64.store $heap
     block
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
+      local.get $t1
+      i64.load $heap
+      local.tee $t2
+      call $"impl StringBuilder.signed_width"
+      local.set $t1
+      i32.const 1
+      local.get $t1
       i32.add
-      local.tee $t1
-      i64.const 12
-      i64.store $heap
-      block
-        block
-          local.get $t1
-          i64.load $heap
-          local.tee $t2
-          call $"impl StringBuilder.signed_width"
-          local.set $t1
-          i32.const 1
-          local.get $t1
-          i32.add
-          call $"impl StringBuilder.value_new"
-          local.set $t3
-          local.tee $t4
-          local.get $t3
-          i32.const 0
-          i32.const 65 ;; &"#"
-          i32.const 1
-          call $"impl StringBuilder.value_text"
-          local.get $t4
-          local.get $t3
-          i32.const 1
-          local.get $t2
-          local.get $t1
-          call $"impl StringBuilder.value_signed"
-          local.get $t4
-          local.get $t3
-          local.set $t4
-          local.set $t1
-          br 0
-        end
-      end
+      call $"impl StringBuilder.value_new"
+      local.set $t3
+      local.tee $t4
+      local.get $t3
+      i32.const 0
+      i32.const 65 ;; &"#"
+      i32.const 1
+      call $"impl StringBuilder.value_text"
+      local.get $t4
+      local.get $t3
+      i32.const 1
+      local.get $t2
+      local.get $t1
+      call $"impl StringBuilder.value_signed"
+      local.get $t4
+      local.get $t3
+      local.set $t4
+      local.set $t1
+      br 0
     end
     local.get $t1
     local.get $t4
@@ -103,105 +97,95 @@
   )
   (func $tag (param $t.raw_parts i32) (param $t.values i32) (result i32)
     ;; 26 |     t.raw_parts.len() + t.values.len()
-    block
-      local.get $t.raw_parts
-      i32.load $heap offset=4
-      local.get $t.values
-      i32.load $heap offset=4
-      i32.add
-      local.set $t.raw_parts
-    end
+    local.get $t.raw_parts
+    i32.load $heap offset=4
+    local.get $t.values
+    i32.load $heap offset=4
+    i32.add
+    local.set $t.raw_parts
     local.get $t.raw_parts
   )
   (func $tagged (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 35 |     tag"<$s>"
+    i32.const 2
+    call $rt:list_buf'1
+    local.tee $t0
+    i32.const 2
+    i32.store $heap offset=4
+    local.get $t0
+    local.tee $t1
+    i32.const 66 ;; &"<"
+    i32.store $heap offset=16
+    local.get $t1
+    i32.const 1
+    i32.store $heap offset=20
+    local.get $t1
+    i32.const 8
+    i32.add
+    local.tee $t1
+    i32.const 67 ;; &">"
+    i32.store $heap offset=16
+    local.get $t1
+    i32.const 1
+    i32.store $heap offset=20
+    i32.const 1
+    call $rt:list_buf'1
+    local.tee $t1
+    i32.const 1
+    i32.store $heap offset=4
+    local.get $t1
+    local.get $s.0
+    i32.store $heap offset=16
+    local.get $t1
+    local.get $s.1
+    i32.store $heap offset=20
     block
-      i32.const 2
-      call $rt:list_buf'1
-      local.tee $t0
-      i32.const 2
-      i32.store $heap offset=4
       local.get $t0
-      local.tee $t1
-      i32.const 66 ;; &"<"
-      i32.store $heap offset=16
+      i32.load $heap offset=4
       local.get $t1
-      i32.const 1
-      i32.store $heap offset=20
-      local.get $t1
-      i32.const 8
+      i32.load $heap offset=4
       i32.add
-      local.tee $t1
-      i32.const 67 ;; &">"
-      i32.store $heap offset=16
-      local.get $t1
-      i32.const 1
-      i32.store $heap offset=20
-      i32.const 1
-      call $rt:list_buf'1
-      local.tee $t1
-      i32.const 1
-      i32.store $heap offset=4
-      local.get $t1
-      local.get $s.0
-      i32.store $heap offset=16
-      local.get $t1
-      local.get $s.1
-      i32.store $heap offset=20
-      block
-        block
-          local.get $t0
-          i32.load $heap offset=4
-          local.get $t1
-          i32.load $heap offset=4
-          i32.add
-          local.set $s.0
-          br 0
-        end
-      end
-      local.get $t0
-      local.get $t1
-      call $rt:release
+      local.set $s.0
+      br 0
     end
+    local.get $t0
+    local.get $t1
+    call $rt:release
     local.get $s.0
   )
   (func $prefixed (param $id i64) (result i32 i32) (local $t0 i32) (local $t1 i32)
     ;; 32 |     sql"select * from users where id = $id"
+    i32.const 2
+    call $rt:list_buf'1
+    local.tee $t0
+    i32.const 2
+    i32.store $heap offset=4
+    local.get $t0
+    local.tee $t1
+    i32.const 68 ;; &"select * from users where id = "
+    i32.store $heap offset=16
+    local.get $t1
+    i32.const 31
+    i32.store $heap offset=20
+    local.get $t1
+    i32.const 8
+    i32.add
+    local.tee $t1
+    i32.const 16 ;; &"heap-exhausted"
+    i32.store $heap offset=16
+    local.get $t1
+    i32.const 0
+    i32.store $heap offset=20
+    i32.const 1
+    call $rt:list_buf'2
+    local.tee $t1
+    i32.const 1
+    i32.store $heap offset=4
+    local.get $t1
+    local.get $id
+    i64.store $heap offset=16
     block
-      i32.const 2
-      call $rt:list_buf'1
-      local.tee $t0
-      i32.const 2
-      i32.store $heap offset=4
-      local.get $t0
-      local.tee $t1
-      i32.const 68 ;; &"select * from users where id = "
-      i32.store $heap offset=16
-      local.get $t1
-      i32.const 31
-      i32.store $heap offset=20
-      local.get $t1
-      i32.const 8
-      i32.add
-      local.tee $t1
-      i32.const 16 ;; &"heap-exhausted"
-      i32.store $heap offset=16
-      local.get $t1
-      i32.const 0
-      i32.store $heap offset=20
-      i32.const 1
-      call $rt:list_buf'2
-      local.tee $t1
-      i32.const 1
-      i32.store $heap offset=4
-      local.get $t1
-      local.get $id
-      i64.store $heap offset=16
-      block
-        block
-          br 0
-        end
-      end
+      br 0
     end
     local.get $t0
     local.get $t1
@@ -246,86 +230,74 @@
     local.tee $n
     local.get $t1
     i64.store $heap
+    local.get $n
+    i64.load $heap
+    local.tee $t1
+    local.set $t2
     block
-      local.get $n
-      i64.load $heap
-      local.tee $t1
-      local.set $t2
       block
-        block
-          block
-            block
-              local.get $t2
-              call $signed_magnitude
-              call $unsigned_width
-              local.set $n
-              local.get $t2
-              i64.const 0
-              i64.lt_s
-              if
-                i32.const 1
-                local.set $t3
-              else
-              end
-              local.get $n
-              local.get $t3
-              i32.add
-              local.set $n
-              br 0
-            end
-          end
-          br 0
+        local.get $t2
+        call $signed_magnitude
+        call $unsigned_width
+        local.set $n
+        local.get $t2
+        i64.const 0
+        i64.lt_s
+        if
+          i32.const 1
+          local.set $t3
+        else
         end
+        local.get $n
+        local.get $t3
+        i32.add
+        local.set $n
+        br 0
       end
-      i32.const 1
-      local.tee $t3
-      local.get $n
-      i32.add
-      local.set $t4
-      block
-        block
-          local.get $t4
-          i32.const 16
-          local.set $t5
-          if
-            local.get $t4
-            call $rt:str
-            local.set $t5
-          end
-          local.get $t5
-          local.get $t4
-          local.set $t5
-          local.set $t4
-          br 0
-        end
-      end
-      i32.const 65 ;; &"#"
-      local.set $t6
-      block
-        block
-          local.get $t4
-          local.get $t6
-          i32.load8_u $heap
-          i32.store8 $heap
-          br 0
-        end
-      end
-      block
-        block
-          local.get $t1
-          local.get $t4
-          local.get $t3
-          i32.add
-          local.get $n
-          call $write_signed_sized
-          br 0
-        end
-      end
-      local.get $t4
-      local.get $t5
-      local.set $t3
-      local.set $n
+      br 0
     end
+    i32.const 1
+    local.tee $t3
+    local.get $n
+    i32.add
+    local.set $t4
+    block
+      local.get $t4
+      i32.const 16
+      local.set $t5
+      if
+        local.get $t4
+        call $rt:str
+        local.set $t5
+      end
+      local.get $t5
+      local.get $t4
+      local.set $t5
+      local.set $t4
+      br 0
+    end
+    i32.const 65 ;; &"#"
+    local.set $t6
+    block
+      local.get $t4
+      local.get $t6
+      i32.load8_u $heap
+      i32.store8 $heap
+      br 0
+    end
+    block
+      local.get $t1
+      local.get $t4
+      local.get $t3
+      i32.add
+      local.get $n
+      call $write_signed_sized
+      br 0
+    end
+    local.get $t4
+    local.get $t5
+    local.set $t3
+    local.set $n
     local.get $n
     local.get $t3
     local.get $t0

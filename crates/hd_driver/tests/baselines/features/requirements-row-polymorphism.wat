@@ -10,81 +10,73 @@
   (import "fixture" "table0" (table $table0 12 funcref))
   (func $closure (param $s.0 i32) (param $s.1 i32) (result i32)
     ;; 29 |     with_tag(s, fn() -> usize $ Tag: $.use(Tag).name().len())
-    block
-      local.get $s.0
-      local.get $s.1
-      i32.const 1
-      i32.const 0
-      i32.const 0
-      call $"with_tag[{open row}]'1"
-      local.set $s.0
-    end
+    local.get $s.0
+    local.get $s.1
+    i32.const 1
+    i32.const 0
+    i32.const 0
+    call $"with_tag[{open row}]'1"
+    local.set $s.0
     local.get $s.0
   )
   (func $"with_tag[{open row}]'2" (param $s.0 i32) (param $s.1 i32) (param $callback.0 i32) (param $callback.1 i32) (param $ctx i32) (result i32)
     ;; 22 |     $.with(Tag=Named { label: s }):
     block
-      block
-        block
-          i32.const 8
-          i32.const 4
-          call $rt:new/class-1
-          local.tee $callback.0
-          local.get $s.0
-          i32.store $heap
-          local.get $callback.0
-          local.get $s.1
-          i32.store $heap offset=4
-          local.get $callback.0
-          local.set $s.0
-          br 0
-        end
-      end
-      local.get $s.0
-      local.set $s.1
-      i32.const 204 ;; &vtable[func69]
-      local.set $callback.0
-      block
-    ;; 23 |         callback()
-        local.get $callback.1
-        i32.const 1
-        local.get $ctx
-        call $rt:ctx_new
-        local.tee $callback.1
-        i64.const -8941934570327064298
-        i64.store $heap offset=16
-        local.get $callback.1
-        local.get $s.1
-        i32.store $heap offset=24
-        local.get $callback.1
-        local.get $callback.0
-        i32.store $heap offset=28
-        local.get $s.1
-        local.tee $callback.0
-        if
-          local.get $callback.0
-          call $retain
-        end
-        local.get $callback.1
-        call $read_tag#adapter
-        local.get $callback.1
-        local.tee $callback.0
-        if
-          local.get $callback.0
-          call $rt:release_ref
-        end
-    ;; 22 |     $.with(Tag=Named { label: s }):
-        local.set $s.1
-      end
-      local.get $s.0
+      i32.const 8
+      i32.const 4
+      call $rt:new/class-1
       local.tee $callback.0
-      if
-        local.get $callback.0
-        call $rt:release_ref
-      end
+      local.get $s.0
+      i32.store $heap
+      local.get $callback.0
       local.get $s.1
+      i32.store $heap offset=4
+      local.get $callback.0
       local.set $s.0
+      br 0
     end
+    local.get $s.0
+    local.set $s.1
+    i32.const 204 ;; &vtable[func69]
+    local.set $callback.0
+    ;; 23 |         callback()
+    local.get $callback.1
+    i32.const 1
+    local.get $ctx
+    call $rt:ctx_new
+    local.tee $callback.1
+    i64.const -8941934570327064298
+    i64.store $heap offset=16
+    local.get $callback.1
+    local.get $s.1
+    i32.store $heap offset=24
+    local.get $callback.1
+    local.get $callback.0
+    i32.store $heap offset=28
+    local.get $s.1
+    local.tee $callback.0
+    if
+      local.get $callback.0
+      call $retain
+    end
+    local.get $callback.1
+    call $read_tag#adapter
+    local.get $callback.1
+    local.tee $callback.0
+    if
+      local.get $callback.0
+      call $rt:release_ref
+    end
+    ;; 22 |     $.with(Tag=Named { label: s }):
+    local.set $s.1
+    local.get $s.0
+    local.tee $callback.0
+    if
+      local.get $callback.0
+      call $rt:release_ref
+    end
+    local.get $s.1
+    local.set $s.0
     local.get $s.0
   )
   (func $closure#1 (param $env i32) (param $ctx i32) (result i32)
@@ -98,135 +90,117 @@
     local.get $env
     i32.load $heap offset=28
     local.set $env
+    local.get $ctx
+    local.get $env
+    i32.load $heap
+    call_indirect $table0 (param i32) (result i32 i32)
+    local.set $ctx
+    local.set $env
     block
-      local.get $ctx
-      local.get $env
-      i32.load $heap
-      call_indirect $table0 (param i32) (result i32 i32)
-      local.set $ctx
-      local.set $env
-      block
-        block
-          br 0
-        end
-      end
-      local.get $env
-      if
-        local.get $env
-        call $rt:release_ref
-      end
-      local.get $ctx
-      local.set $env
+      br 0
     end
+    local.get $env
+    if
+      local.get $env
+      call $rt:release_ref
+    end
+    local.get $ctx
+    local.set $env
     local.get $env
   )
   (func $run (param $s.0 i32) (param $s.1 i32) (result i32)
     ;; 26 |     with_tag(s, read_tag)
-    block
-      local.get $s.0
-      local.get $s.1
-      i32.const 4
-      i32.const 0
-      i32.const 0
-      call $"with_tag[{open row}]'2"
-      local.set $s.0
-    end
+    local.get $s.0
+    local.get $s.1
+    i32.const 4
+    i32.const 0
+    i32.const 0
+    call $"with_tag[{open row}]'2"
+    local.set $s.0
     local.get $s.0
   )
   (func $read_tag (param $provider0 i32) (param $provider0.vtable i32) (result i32)
     ;; 19 |     $.use(Tag).name().len()
+    local.get $provider0
+    local.get $provider0.vtable
+    i32.load $heap
+    call_indirect $table0 (param i32) (result i32 i32)
+    local.set $provider0.vtable
+    local.set $provider0
     block
-      local.get $provider0
-      local.get $provider0.vtable
-      i32.load $heap
-      call_indirect $table0 (param i32) (result i32 i32)
-      local.set $provider0.vtable
-      local.set $provider0
-      block
-        block
-          br 0
-        end
-      end
-      local.get $provider0
-      if
-        local.get $provider0
-        call $rt:release_ref
-      end
-      local.get $provider0.vtable
-      local.set $provider0
+      br 0
     end
+    local.get $provider0
+    if
+      local.get $provider0
+      call $rt:release_ref
+    end
+    local.get $provider0.vtable
+    local.set $provider0
     local.get $provider0
   )
   (func $"with_tag[{open row}]'1" (param $s.0 i32) (param $s.1 i32) (param $callback.0 i32) (param $callback.1 i32) (param $ctx i32) (result i32)
     ;; 22 |     $.with(Tag=Named { label: s }):
     block
-      block
-        block
-          i32.const 8
-          i32.const 4
-          call $rt:new/class-1
-          local.tee $callback.0
-          local.get $s.0
-          i32.store $heap
-          local.get $callback.0
-          local.get $s.1
-          i32.store $heap offset=4
-          local.get $callback.0
-          local.set $s.0
-          br 0
-        end
-      end
-      local.get $s.0
-      local.set $s.1
-      i32.const 204 ;; &vtable[func69]
-      local.set $callback.0
-      block
-    ;; 23 |         callback()
-        local.get $callback.1
-        i32.const 1
-        local.get $ctx
-        call $rt:ctx_new
-        local.tee $callback.1
-        i64.const -8941934570327064298
-        i64.store $heap offset=16
-        local.get $callback.1
-        local.get $s.1
-        i32.store $heap offset=24
-        local.get $callback.1
-        local.get $callback.0
-        i32.store $heap offset=28
-        local.get $s.1
-        local.tee $callback.0
-        if
-          local.get $callback.0
-          call $retain
-        end
-        local.get $callback.1
-        call $closure#1
-        local.get $callback.1
-        local.tee $callback.0
-        if
-          local.get $callback.0
-          call $rt:release_ref
-        end
-    ;; 22 |     $.with(Tag=Named { label: s }):
-        local.set $s.1
-      end
-      local.get $s.0
+      i32.const 8
+      i32.const 4
+      call $rt:new/class-1
       local.tee $callback.0
-      if
-        local.get $callback.0
-        call $rt:release_ref
-      end
+      local.get $s.0
+      i32.store $heap
+      local.get $callback.0
       local.get $s.1
+      i32.store $heap offset=4
+      local.get $callback.0
       local.set $s.0
+      br 0
     end
+    local.get $s.0
+    local.set $s.1
+    i32.const 204 ;; &vtable[func69]
+    local.set $callback.0
+    ;; 23 |         callback()
+    local.get $callback.1
+    i32.const 1
+    local.get $ctx
+    call $rt:ctx_new
+    local.tee $callback.1
+    i64.const -8941934570327064298
+    i64.store $heap offset=16
+    local.get $callback.1
+    local.get $s.1
+    i32.store $heap offset=24
+    local.get $callback.1
+    local.get $callback.0
+    i32.store $heap offset=28
+    local.get $s.1
+    local.tee $callback.0
+    if
+      local.get $callback.0
+      call $retain
+    end
+    local.get $callback.1
+    call $closure#1
+    local.get $callback.1
+    local.tee $callback.0
+    if
+      local.get $callback.0
+      call $rt:release_ref
+    end
+    ;; 22 |     $.with(Tag=Named { label: s }):
+    local.set $s.1
+    local.get $s.0
+    local.tee $callback.0
+    if
+      local.get $callback.0
+      call $rt:release_ref
+    end
+    local.get $s.1
+    local.set $s.0
     local.get $s.0
   )
   (func $"impl Tag for Named.name" (param $self.label.0 i32) (param $self.label.1 i32) (result i32 i32)
     ;; 16 |         self.label
-    block
-    end
     local.get $self.label.0
     local.get $self.label.1
   )

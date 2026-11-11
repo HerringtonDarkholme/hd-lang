@@ -8,101 +8,87 @@
   (import "fixture" "table0" (table $table0 10 funcref))
   (func $run (param $ctx i32) (result i32) (local $t0 i32)
     ;; 24 |     $.with(ctx...):
-    block
-      local.get $ctx
-      i32.load $heap offset=24
-      local.set $t0
-      local.get $ctx
-      i32.load $heap offset=28
-      local.set $ctx
-      block
+    local.get $ctx
+    i32.load $heap offset=24
+    local.set $t0
+    local.get $ctx
+    i32.load $heap offset=28
+    local.set $ctx
     ;; 25 |         read_tag()
-        local.get $t0
-        local.get $ctx
-        call $read_tag
+    local.get $t0
+    local.get $ctx
+    call $read_tag
     ;; 24 |     $.with(ctx...):
-        local.set $ctx
-      end
-    end
+    local.set $ctx
     local.get $ctx
   )
   (func $read_tag (param $provider0 i32) (param $provider0.vtable i32) (result i32)
     ;; 18 |     $.use(Tag).name().len()
+    local.get $provider0
+    local.get $provider0.vtable
+    i32.load $heap
+    call_indirect $table0 (param i32) (result i32 i32)
+    local.set $provider0.vtable
+    local.set $provider0
     block
-      local.get $provider0
-      local.get $provider0.vtable
-      i32.load $heap
-      call_indirect $table0 (param i32) (result i32 i32)
-      local.set $provider0.vtable
-      local.set $provider0
-      block
-        block
-          br 0
-        end
-      end
-      local.get $provider0
-      if
-        local.get $provider0
-        call $rt:release_ref
-      end
-      local.get $provider0.vtable
-      local.set $provider0
+      br 0
     end
+    local.get $provider0
+    if
+      local.get $provider0
+      call $rt:release_ref
+    end
+    local.get $provider0.vtable
+    local.set $provider0
     local.get $provider0
   )
   (func $"impl Tag for Named.name" (param $self.label.0 i32) (param $self.label.1 i32) (result i32 i32)
     ;; 15 |         self.label
-    block
-    end
     local.get $self.label.0
     local.get $self.label.1
   )
   (func $make (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
     ;; 21 |     $.context(Tag=Named { label: s })
     block
-      block
-        block
-          i32.const 8
-          i32.const 3
-          call $rt:new/class-1
-          local.tee $t0
-          local.get $s.0
-          i32.store $heap
-          local.get $t0
-          local.get $s.1
-          i32.store $heap offset=4
-          local.get $t0
-          local.set $s.0
-          br 0
-        end
-      end
-      i32.const 1
-      i32.const 0
-      call $rt:ctx_new
-      local.tee $s.1
-      i64.const -8941934570327064298
-      i64.store $heap offset=16
-      local.get $s.1
-      local.get $s.0
-      i32.store $heap offset=24
-      local.get $s.1
-      i32.const 204 ;; &vtable[func64]
-      i32.store $heap offset=28
-      local.get $s.0
+      i32.const 8
+      i32.const 3
+      call $rt:new/class-1
       local.tee $t0
-      if
-        local.get $t0
-        call $retain
-      end
       local.get $s.0
-      local.tee $t0
-      if
-        local.get $t0
-        call $rt:release_ref
-      end
+      i32.store $heap
+      local.get $t0
       local.get $s.1
+      i32.store $heap offset=4
+      local.get $t0
       local.set $s.0
+      br 0
     end
+    i32.const 1
+    i32.const 0
+    call $rt:ctx_new
+    local.tee $s.1
+    i64.const -8941934570327064298
+    i64.store $heap offset=16
+    local.get $s.1
+    local.get $s.0
+    i32.store $heap offset=24
+    local.get $s.1
+    i32.const 204 ;; &vtable[func64]
+    i32.store $heap offset=28
+    local.get $s.0
+    local.tee $t0
+    if
+      local.get $t0
+      call $retain
+    end
+    local.get $s.0
+    local.tee $t0
+    if
+      local.get $t0
+      call $rt:release_ref
+    end
+    local.get $s.1
+    local.set $s.0
     local.get $s.0
   )
 )

@@ -754,28 +754,22 @@
   )
   (func $"same[i32]" (param $a i32) (param $b i32) (result i32)
     ;; 9 |     a is b
-    block
-      local.get $a
-      local.get $b
-      i32.eq
-      local.set $a
-    end
+    local.get $a
+    local.get $b
+    i32.eq
+    local.set $a
     local.get $a
   )
   (func $"same[string]" (param $a i32) (param $b i32) (result i32)
     ;; 9 |     a is b
-    block
-      local.get $a
-      local.get $b
-      i32.eq
-      local.set $a
-    end
+    local.get $a
+    local.get $b
+    i32.eq
+    local.set $a
     local.get $a
   )
   (func $"direct[string]" (param $value.0 i32) (param $value.1 i32) (result i32 i32)
     ;; 23 |     value
-    block
-    end
     local.get $value.0
     local.get $value.1
   )
@@ -851,12 +845,10 @@
         i64.const 1
         local.set $t2
         block
-          block
-            local.get $t2
-            call $"impl Duration.milliseconds"
-            local.set $t2
-            br 0
-          end
+          local.get $t2
+          call $"impl Duration.milliseconds"
+          local.set $t2
+          br 0
         end
     ;; 12 |     _ := same(&value, &value)
       end
@@ -1393,27 +1385,25 @@
     local.get $value
     local.get $t2
     i32.store $heap offset=4
-    block
-      local.get $value
-      local.get $value
-      i32.const 5
-      call_indirect $table0 (param i32 i32) (result i32)
-      drop
+    local.get $value
+    local.get $value
+    i32.const 5
+    call_indirect $table0 (param i32 i32) (result i32)
+    drop
     ;; 19 |     value
-      local.get $value
-      i32.load $heap
-      local.get $value
-      i32.load $heap offset=4
-      local.get $value
-      i32.const 0
-      i32.store $heap
-      local.get $value
-      i32.const 0
-      i32.store $heap offset=4
+    local.get $value
+    i32.load $heap
+    local.get $value
+    i32.load $heap offset=4
+    local.get $value
+    i32.const 0
+    i32.store $heap
+    local.get $value
+    i32.const 0
+    i32.store $heap offset=4
     ;; 18 |     _ := same(&value, &value)
-      local.set $t2
-      local.set $t1
-    end
+    local.set $t2
+    local.set $t1
     local.get $t1
     local.get $t2
     local.get $t0
@@ -1478,12 +1468,10 @@
         i64.const 1
         local.set $t2
         block
-          block
-            local.get $t2
-            call $"impl Duration.milliseconds"
-            local.set $t2
-            br 0
-          end
+          local.get $t2
+          call $"impl Duration.milliseconds"
+          local.set $t2
+          br 0
         end
     ;; 12 |     _ := same(&value, &value)
       end

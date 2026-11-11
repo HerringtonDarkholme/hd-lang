@@ -3,50 +3,47 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 3 funcref))
   (func $fill (param $n i32) (result i32) (local $flags i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+    ;; ...
+    ;; 6 |     for _ in 0..n:
     block
-      ;; ...
-    ;; 6 |     for _ in 0..n:
-      block
-        loop
-          local.get $t0
-          local.get $n
-          i32.lt_u
-          i32.eqz
-          br_if 1
-          local.get $t0
-          i32.const 1
-          i32.add
-          local.set $t0
+      loop
+        local.get $t0
+        local.get $n
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $t0
+        i32.const 1
+        i32.add
+        local.set $t0
     ;; 7 |         flags.push(true)
-          local.get $flags
+        local.get $flags
+        local.tee $t1
+        i32.load $heap offset=4
+        local.tee $t2
+        local.get $t1
+        i32.load $heap
+        i32.eq
+        if
+          local.get $t1
+          i32.const 1
+          call_indirect $table0 (param i32) (result i32)
           local.tee $t1
-          i32.load $heap offset=4
-          local.tee $t2
-          local.get $t1
-          i32.load $heap
-          i32.eq
-          if
-            local.get $t1
-            i32.const 1
-            call_indirect $table0 (param i32) (result i32)
-            local.tee $t1
-            local.set $flags
-          end
-          local.get $t1
-          local.get $t2
-          i32.add
-          i32.const 1
-          i32.store8 $heap offset=16
-          local.get $t1
-          local.get $t2
-          i32.const 1
-          i32.add
-          i32.store $heap offset=4
-    ;; 6 |     for _ in 0..n:
-          br 0
+          local.set $flags
         end
+        local.get $t1
+        local.get $t2
+        i32.add
+        i32.const 1
+        i32.store8 $heap offset=16
+        local.get $t1
+        local.get $t2
+        i32.const 1
+        i32.add
+        i32.store $heap offset=4
+    ;; 6 |     for _ in 0..n:
+        br 0
       end
-      ;; ...
     end
     ;; ...
   )

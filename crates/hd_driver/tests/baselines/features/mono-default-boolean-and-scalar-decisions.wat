@@ -85,11 +85,9 @@
   (func $probe (param $value i32) (result i32 i32 i32 i32) (local $t0 i32) (local $t1 i32)
     ;; 25 |     (and_false(value), or_true(value), choose_int(), choose_char())
     block
-      block
-        i32.const 1
-        local.set $value
-        br 0
-      end
+      i32.const 1
+      local.set $value
+      br 0
     end
     i32.const 2
     call $choose_int

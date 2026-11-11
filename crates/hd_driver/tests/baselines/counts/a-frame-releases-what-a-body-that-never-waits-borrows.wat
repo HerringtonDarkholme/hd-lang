@@ -678,41 +678,35 @@
       end
     ;; 19 |     println("$a")
       block
-        block
-          local.get $t17
-          call $unsigned_width
-          local.set $a
-          br 0
-        end
+        local.get $t17
+        call $unsigned_width
+        local.set $a
+        br 0
       end
       block
-        block
-          local.get $a
-          local.tee $t4
-          i32.const 16
-          local.set $t2
-          if
-            local.get $t4
-            call $rt:str
-            local.set $t2
-          end
-          local.get $t2
+        local.get $a
+        local.tee $t4
+        i32.const 16
+        local.set $t2
+        if
           local.get $t4
+          call $rt:str
           local.set $t2
-          local.set $t4
-          br 0
         end
+        local.get $t2
+        local.get $t4
+        local.set $t2
+        local.set $t4
+        br 0
       end
       block
-        block
-          local.get $t17
-          local.get $t4
-          local.get $t16
-          i32.add
-          local.get $a
-          call $write_unsigned_sized
-          br 0
-        end
+        local.get $t17
+        local.get $t4
+        local.get $t16
+        i32.add
+        local.get $a
+        call $write_unsigned_sized
+        br 0
       end
     ;; 17 |     n := box::[Note](Note { text: "n" })
       local.get $t4
@@ -883,32 +877,28 @@
       local.set $t1
     else
     end
-    block
-      local.get $n
-      i32.load $heap
-      local.get $n
-      i32.load $heap offset=4
-      local.get $n
-      i32.const 114 ;; &"m"
-      i32.store $heap
-      local.get $n
-      i32.const 1
-      i32.store $heap offset=4
-      call $rt:release
+    local.get $n
+    i32.load $heap
+    local.get $n
+    i32.load $heap offset=4
+    local.get $n
+    i32.const 114 ;; &"m"
+    i32.store $heap
+    local.get $n
+    i32.const 1
+    i32.store $heap offset=4
+    call $rt:release
     ;; 11 |     n.text.len()
-      local.get $n
-      i32.load $heap
-      local.get $n
-      i32.load $heap offset=4
-      local.set $n
-      drop
-      block
-        block
-          br 0
-        end
-      end
-    ;; 10 |     n.text = "m"
+    local.get $n
+    i32.load $heap
+    local.get $n
+    i32.load $heap offset=4
+    local.set $n
+    drop
+    block
+      br 0
     end
+    ;; 10 |     n.text = "m"
     local.get $n
     local.get $frame
     if

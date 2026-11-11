@@ -36,60 +36,56 @@
     i32.sub
     local.tee $t0
     global.set $locals
-    block
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $t1
-      local.get $s.0
-      i32.store $heap
-      local.get $t1
-      local.get $s.1
-      i32.store $heap offset=4
-      local.get $t1
-      local.tee $s.0
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $t1
+    local.get $s.0
+    i32.store $heap
+    local.get $t1
+    local.get $s.1
+    i32.store $heap offset=4
+    local.get $t1
+    local.tee $s.0
     ;; 25 |     *q = t
-      local.tee $s.1
-      i32.load $heap
-      local.get $s.1
-      i32.load $heap offset=4
-      local.get $s.1
-      local.get $t.0
-      i32.store $heap
-      local.get $s.1
-      local.get $t.1
-      i32.store $heap offset=4
-      call $rt:release
+    local.tee $s.1
+    i32.load $heap
+    local.get $s.1
+    i32.load $heap offset=4
+    local.get $s.1
+    local.get $t.0
+    i32.store $heap
+    local.get $s.1
+    local.get $t.1
+    i32.store $heap offset=4
+    call $rt:release
     ;; 26 |     p.name.len()
-      local.get $s.0
-      i32.load $heap
-      local.get $s.0
-      i32.load $heap offset=4
-      local.get $s.0
-      i32.const 0
-      i32.store $heap
-      local.get $s.0
-      i32.const 0
-      i32.store $heap offset=4
-      local.set $s.1
-      local.set $s.0
-      block
-        block
-          br 0
-        end
-      end
-    ;; 23 |     let mut p = Named { name: s }
-      local.get $s.0
-      if
-        local.get $s.0
-        call $rt:release_ref
-      end
-      local.get $s.1
-      local.set $s.0
+    local.get $s.0
+    i32.load $heap
+    local.get $s.0
+    i32.load $heap offset=4
+    local.get $s.0
+    i32.const 0
+    i32.store $heap
+    local.get $s.0
+    i32.const 0
+    i32.store $heap offset=4
+    local.set $s.1
+    local.set $s.0
+    block
+      br 0
     end
+    ;; 23 |     let mut p = Named { name: s }
+    local.get $s.0
+    if
+      local.get $s.0
+      call $rt:release_ref
+    end
+    local.get $s.1
+    local.set $s.0
     local.get $s.0
     local.get $t0
     i32.const 16
@@ -127,60 +123,56 @@
     i32.sub
     local.tee $t0
     global.set $locals
-    block
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $t1
-      local.get $s.0
-      i32.store $heap
-      local.get $t1
-      local.get $s.1
-      i32.store $heap offset=4
-      local.get $t1
-      local.tee $s.0
-      local.tee $s.1
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $t1
+    local.get $s.0
+    i32.store $heap
+    local.get $t1
+    local.get $s.1
+    i32.store $heap offset=4
+    local.get $t1
+    local.tee $s.0
+    local.tee $s.1
     ;; 19 |     m.name = t
-      local.tee $t1
-      i32.load $heap
-      local.get $t1
-      i32.load $heap offset=4
-      local.get $t1
-      local.get $t.0
-      i32.store $heap
-      local.get $t1
-      local.get $t.1
-      i32.store $heap offset=4
-      call $rt:release
+    local.tee $t1
+    i32.load $heap
+    local.get $t1
+    i32.load $heap offset=4
+    local.get $t1
+    local.get $t.0
+    i32.store $heap
+    local.get $t1
+    local.get $t.1
+    i32.store $heap offset=4
+    call $rt:release
     ;; 20 |     m.name.len()
-      local.get $s.1
-      i32.load $heap
-      local.get $s.1
-      i32.load $heap offset=4
-      local.set $s.1
-      drop
-      block
-        block
-          br 0
-        end
-      end
+    local.get $s.1
+    i32.load $heap
+    local.get $s.1
+    i32.load $heap offset=4
+    local.set $s.1
+    drop
+    block
+      br 0
+    end
     ;; 18 |     m := &mut Named { name: s }
+    local.get $s.0
+    if
       local.get $s.0
+      i32.load $heap
+      local.tee $s.0
       if
         local.get $s.0
-        i32.load $heap
-        local.tee $s.0
-        if
-          local.get $s.0
-          call $rt:release_ref
-        end
+        call $rt:release_ref
       end
-      local.get $s.1
-      local.set $s.0
     end
+    local.get $s.1
+    local.set $s.0
     local.get $s.0
     local.get $t0
     i32.const 16
@@ -189,8 +181,6 @@
   )
   (func $make (param $s.0 i32) (param $s.1 i32) (result i32 i32)
     ;; 11 |     Named { name: s }
-    block
-    end
     local.get $s.0
     local.get $s.1
   )
@@ -226,51 +216,45 @@
     local.tee $t0
     global.set $locals
     block
-      block
-        block
-          br 0
-        end
-      end
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $t1
-      local.get $s.0
-      i32.store $heap
-      local.get $t1
-      local.get $s.1
-      i32.store $heap offset=4
-      local.get $t1
-      local.tee $s.0
+      br 0
+    end
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $t1
+    local.get $s.0
+    i32.store $heap
+    local.get $t1
+    local.get $s.1
+    i32.store $heap offset=4
+    local.get $t1
+    local.tee $s.0
     ;; 15 |     n.name.len()
-      local.tee $s.1
-      i32.load $heap
-      local.get $s.1
-      i32.load $heap offset=4
-      local.set $s.1
-      drop
-      block
-        block
-          br 0
-        end
-      end
+    local.tee $s.1
+    i32.load $heap
+    local.get $s.1
+    i32.load $heap offset=4
+    local.set $s.1
+    drop
+    block
+      br 0
+    end
     ;; 14 |     n := &make(s)
+    local.get $s.0
+    if
       local.get $s.0
+      i32.load $heap
+      local.tee $s.0
       if
         local.get $s.0
-        i32.load $heap
-        local.tee $s.0
-        if
-          local.get $s.0
-          call $rt:release_ref
-        end
+        call $rt:release_ref
       end
-      local.get $s.1
-      local.set $s.0
     end
+    local.get $s.1
+    local.set $s.0
     local.get $s.0
     local.get $t0
     i32.const 16

@@ -7,48 +7,46 @@
   (func $write (param $xs i32) (param $n i32) (local $t0 i32) (local $i i32) (local $t1 i32)
     ;; 9 |     for i in 0..n:
     block
-      block
-        loop
-          local.get $t0
-          local.get $n
-          i32.lt_u
-          i32.eqz
-          br_if 1
-          local.get $t0
-          local.tee $i
-          local.get $t0
-          i32.const 1
-          i32.add
-          local.set $t0
+      loop
+        local.get $t0
+        local.get $n
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $t0
+        local.tee $i
+        local.get $t0
+        i32.const 1
+        i32.add
+        local.set $t0
     ;; 10 |         grow(xs)
-          local.get $xs
-          call $grow
+        local.get $xs
+        call $grow
     ;; 9 |     for i in 0..n:
-          local.get $xs
-          local.get $xs
-          i32.load $heap
-          call $rt:list_unique
-          i32.store $heap
+        local.get $xs
+        local.get $xs
+        i32.load $heap
+        call $rt:list_unique
+        i32.store $heap
     ;; 11 |         xs[i] = i
-          local.get $xs
-          i32.load $heap
-          local.tee $t1
-          i32.load $heap offset=4
-          i32.ge_u
-          if
-            call $rt:panic
-            unreachable
-          end
-          local.get $t1
-          local.get $i
-          i32.const 4
-          i32.mul
-          i32.add
-          local.get $i
-          i32.store $heap offset=16
-    ;; 9 |     for i in 0..n:
-          br 0
+        local.get $xs
+        i32.load $heap
+        local.tee $t1
+        i32.load $heap offset=4
+        i32.ge_u
+        if
+          call $rt:panic
+          unreachable
         end
+        local.get $t1
+        local.get $i
+        i32.const 4
+        i32.mul
+        i32.add
+        local.get $i
+        i32.store $heap offset=16
+    ;; 9 |     for i in 0..n:
+        br 0
       end
     end
   )

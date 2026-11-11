@@ -5,34 +5,32 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $"impl Counter.next" (param $self i32) (result i32 i64) (local $value i64)
     ;; 13 |         if self.at >= self.end:
-    block
-      local.get $self
-      i64.load $heap
-      local.get $self
-      i64.load $heap offset=8
-      i64.ge_s
-      if
+    local.get $self
+    i64.load $heap
+    local.get $self
+    i64.load $heap offset=8
+    i64.ge_s
+    if
     ;; 14 |             return .None
-        i32.const 0
-        i64.const 0
-        return
+      i32.const 0
+      i64.const 0
+      return
     ;; 13 |         if self.at >= self.end:
-      end
-    ;; 16 |         self.at = value + 1
-      local.get $self
-    ;; 15 |         value := self.at
-      local.get $self
-      i64.load $heap
-      local.tee $value
-    ;; 16 |         self.at = value + 1
-      i64.const 1
-      i64.add
-      i64.store $heap
-    ;; 17 |         .Some(value)
-      i32.const 1
-    ;; 13 |         if self.at >= self.end:
-      local.set $self
     end
+    ;; 16 |         self.at = value + 1
+    local.get $self
+    ;; 15 |         value := self.at
+    local.get $self
+    i64.load $heap
+    local.tee $value
+    ;; 16 |         self.at = value + 1
+    i64.const 1
+    i64.add
+    i64.store $heap
+    ;; 17 |         .Some(value)
+    i32.const 1
+    ;; 13 |         if self.at >= self.end:
+    local.set $self
     local.get $self
     local.get $value
   )
@@ -67,69 +65,67 @@
     i32.sub
     local.tee $t0
     global.set $locals
-    block
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $cursor
-      local.get $counter.at
-      i64.store $heap
-      local.get $cursor
-      local.get $counter.end
-      i64.store $heap offset=8
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $cursor
+    local.get $counter.at
+    i64.store $heap
+    local.get $cursor
+    local.get $counter.end
+    i64.store $heap offset=8
     ;; 22 |     while true:
-      block
-        loop
+    block
+      loop
     ;; 23 |         match cursor.next():
-          local.get $cursor
-          call $"impl Counter.next"
-          local.set $counter.at
-          local.set $t1
+        local.get $cursor
+        call $"impl Counter.next"
+        local.set $counter.at
+        local.set $t1
+        block
           block
             block
-              block
     ;; 24 |             .Some(value) => sum = sum + value
+              local.get $t1
+              i32.const 1
+              i32.eq
+              if
+                br 1
+              else
+    ;; 25 |             .None => break
                 local.get $t1
-                i32.const 1
-                i32.eq
-                if
-                  br 1
-                else
-    ;; 25 |             .None => break
-                  local.get $t1
-                  i32.eqz
-                  br_if 2
-                  unreachable
-    ;; 24 |             .Some(value) => sum = sum + value
-                end
-    ;; 23 |         match cursor.next():
+                i32.eqz
+                br_if 2
                 unreachable
-              end
     ;; 24 |             .Some(value) => sum = sum + value
-              local.get $sum
-              local.get $counter.at
-              i64.add
-              local.set $sum
+              end
     ;; 23 |         match cursor.next():
-              br 1
+              unreachable
             end
-    ;; 25 |             .None => break
-            br 2
+    ;; 24 |             .Some(value) => sum = sum + value
+            local.get $sum
+            local.get $counter.at
+            i64.add
+            local.set $sum
     ;; 23 |         match cursor.next():
-            br 0
+            br 1
           end
-    ;; 22 |     while true:
+    ;; 25 |             .None => break
+          br 2
+    ;; 23 |         match cursor.next():
           br 0
         end
+    ;; 22 |     while true:
+        br 0
       end
-    ;; 26 |     sum
-      local.get $sum
-    ;; 20 |     let mut cursor = counter
-      local.set $counter.at
     end
+    ;; 26 |     sum
+    local.get $sum
+    ;; 20 |     let mut cursor = counter
+    local.set $counter.at
     local.get $counter.at
     local.get $t0
     i32.const 24

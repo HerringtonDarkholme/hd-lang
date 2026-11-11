@@ -4,30 +4,26 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $make (result i32 i32) (local $t0 i32) (local $t1 i32)
     ;; 15 |     box(DynNode { next: .None })
-    block
-      i32.const 8
-      i32.const -2147483645
-      call $rt:new/class-1
-      local.tee $t0
-      i32.const 0
-      i32.store $heap
-      local.get $t0
-      i32.const 0
-      i32.store $heap offset=4
-      local.get $t0
-      i32.const 160 ;; &vtable[func54]
-      local.set $t1
-      local.set $t0
-    end
+    i32.const 8
+    i32.const -2147483645
+    call $rt:new/class-1
+    local.tee $t0
+    i32.const 0
+    i32.store $heap
+    local.get $t0
+    i32.const 0
+    i32.store $heap offset=4
+    local.get $t0
+    i32.const 160 ;; &vtable[func54]
+    local.set $t1
+    local.set $t0
     local.get $t0
     local.get $t1
   )
   (func $"impl Value for DynNode.value" (param $self i32) (result i32)
     ;; 12 |     fn value(&self) -> i32: +1
-    block
-      i32.const 1
-      local.set $self
-    end
+    i32.const 1
+    local.set $self
     local.get $self
   )
 )

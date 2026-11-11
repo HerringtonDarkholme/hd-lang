@@ -50,210 +50,194 @@
     local.get $t1
     i32.store $heap
     block
+      local.get $s.0
+      local.tee $t2
+      if
+        local.get $t2
+        call $retain
+      end
+      local.get $s.0
+      local.get $s.1
+      local.set $t3
+      local.set $t1
+      br 0
+    end
+    block
+      br 0
+    end
+    local.get $t1
+    local.tee $t2
+    if
+      local.get $t2
+      call $rt:release_ref'1
+    end
+    block
+      local.get $xs
+      i32.load $heap
+      i32.load $heap offset=4
+      local.set $t1
+      br 0
+    end
+    local.get $t3
+    local.get $t1
+    i32.add
+    local.set $t1
+    local.get $xs
+    i32.load $heap
+    local.get $xs
+    i32.const 0
+    i32.store $heap
+    local.set $xs
+    block
+      local.get $xs
+      i32.load $heap offset=4
+      i32.const 0
+      i32.gt_u
+      if (result i32)
+        i32.const 0
+        local.get $xs
+        i32.load $heap offset=4
+        i32.ge_u
+        if
+          call $rt:panic
+          unreachable
+        end
+        local.get $xs
+        i32.load $heap offset=16
+        local.get $xs
+        i32.load $heap offset=20
+        local.set $t4
+        local.tee $t3
+        local.tee $t2
+        if
+          local.get $t2
+          call $retain
+        end
+        local.get $t3
+      else
+        i32.const 0
+      end
+      local.set $t3
+      br 0
+    end
+    local.get $xs
+    local.tee $t2
+    if
+      local.get $t2
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $t2
+        call $rt:release_ref'2
+      end
+    end
+    i32.const 16 ;; &"heap-exhausted"
+    local.set $xs
+    block
       block
         block
-          local.get $s.0
+          block
+            local.get $t3
+            if
+              local.get $t3
+              local.get $t4
+              local.set $t5
+              local.set $xs
+              br 1
+            else
+              local.get $t3
+              i32.eqz
+              br_if 2
+              unreachable
+            end
+            unreachable
+          end
+          local.get $xs
           local.tee $t2
           if
             local.get $t2
             call $retain
           end
-          local.get $s.0
-          local.get $s.1
-          local.set $t3
-          local.set $t1
-          br 0
+          br 1
         end
+        br 0
       end
-      block
-        block
-          br 0
-        end
-      end
-      local.get $t1
-      local.tee $t2
-      if
-        local.get $t2
-        call $rt:release_ref'1
-      end
-      block
-        block
-          local.get $xs
-          i32.load $heap
-          i32.load $heap offset=4
-          local.set $t1
-          br 0
-        end
-      end
+      br 0
+    end
+    local.get $t3
+    local.get $t4
+    call $rt:release
+    block
+      local.get $t5
+      local.set $t3
+      br 0
+    end
+    local.get $xs
+    local.tee $t2
+    if
+      local.get $t2
+      call $rt:release_ref'1
+    end
+    local.get $t1
+    local.get $t3
+    i32.add
+    local.set $t1
+    block
+      i32.const 80 ;; &empty-buffer
+      local.tee $xs
+      local.tee $t3
+      i32.load $heap offset=4
+      local.tee $t4
       local.get $t3
-      local.get $t1
-      i32.add
-      local.set $t1
-      local.get $xs
       i32.load $heap
-      local.get $xs
-      i32.const 0
-      i32.store $heap
-      local.set $xs
-      block
-        block
-          local.get $xs
-          i32.load $heap offset=4
-          i32.const 0
-          i32.gt_u
-          if (result i32)
-            i32.const 0
-            local.get $xs
-            i32.load $heap offset=4
-            i32.ge_u
-            if
-              call $rt:panic
-              unreachable
-            end
-            local.get $xs
-            i32.load $heap offset=16
-            local.get $xs
-            i32.load $heap offset=20
-            local.set $t4
-            local.tee $t3
-            local.tee $t2
-            if
-              local.get $t2
-              call $retain
-            end
-            local.get $t3
-          else
-            i32.const 0
-          end
-          local.set $t3
-          br 0
-        end
-      end
-      local.get $xs
-      local.tee $t2
+      i32.eq
       if
-        local.get $t2
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t2
-          call $rt:release_ref'2
-        end
-      end
-      i32.const 16 ;; &"heap-exhausted"
-      local.set $xs
-      block
-        block
-          block
-            block
-              block
-                local.get $t3
-                if
-                  local.get $t3
-                  local.get $t4
-                  local.set $t5
-                  local.set $xs
-                  br 1
-                else
-                  local.get $t3
-                  i32.eqz
-                  br_if 2
-                  unreachable
-                end
-                unreachable
-              end
-              local.get $xs
-              local.tee $t2
-              if
-                local.get $t2
-                call $retain
-              end
-              br 1
-            end
-            br 0
-          end
-          br 0
-        end
+        local.get $t3
+        i32.const 1
+        call_indirect $table0 (param i32) (result i32)
+        local.tee $t3
+        local.set $xs
       end
       local.get $t3
       local.get $t4
-      call $rt:release
-      block
-        block
-          local.get $t5
-          local.set $t3
-          br 0
-        end
-      end
-      local.get $xs
-      local.tee $t2
-      if
-        local.get $t2
-        call $rt:release_ref'1
-      end
-      local.get $t1
-      local.get $t3
+      i32.const 8
+      i32.mul
       i32.add
-      local.set $t1
-      block
-        block
-          i32.const 80 ;; &empty-buffer
-          local.tee $xs
-          local.tee $t3
-          i32.load $heap offset=4
-          local.tee $t4
-          local.get $t3
-          i32.load $heap
-          i32.eq
-          if
-            local.get $t3
-            i32.const 1
-            call_indirect $table0 (param i32) (result i32)
-            local.tee $t3
-            local.set $xs
-          end
-          local.get $t3
-          local.get $t4
-          i32.const 8
-          i32.mul
-          i32.add
-          local.tee $t5
-          local.get $s.0
-          i32.store $heap offset=16
-          local.get $t5
-          local.get $s.1
-          i32.store $heap offset=20
-          local.get $t3
-          local.get $t4
-          i32.const 1
-          i32.add
-          i32.store $heap offset=4
-          local.get $xs
-          local.set $s.0
-          br 0
-        end
-      end
+      local.tee $t5
       local.get $s.0
-      i32.load $heap offset=4
-      local.set $s.1
-      local.get $s.0
-      local.tee $t2
-      if
-        local.get $t2
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t2
-          call $rt:release_ref'2
-        end
-      end
-      local.get $t1
+      i32.store $heap offset=16
+      local.get $t5
       local.get $s.1
+      i32.store $heap offset=20
+      local.get $t3
+      local.get $t4
+      i32.const 1
       i32.add
+      i32.store $heap offset=4
+      local.get $xs
       local.set $s.0
+      br 0
     end
+    local.get $s.0
+    i32.load $heap offset=4
+    local.set $s.1
+    local.get $s.0
+    local.tee $t2
+    if
+      local.get $t2
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $t2
+        call $rt:release_ref'2
+      end
+    end
+    local.get $t1
+    local.get $s.1
+    i32.add
+    local.set $s.0
     local.get $s.0
     local.get $t0
     i32.const 16 ;; &"heap-exhausted"

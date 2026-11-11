@@ -1344,8 +1344,6 @@
         call $retain
       end
     end
-    block
-    end
     local.get $value.0
     local.get $value.1
     local.get $frame

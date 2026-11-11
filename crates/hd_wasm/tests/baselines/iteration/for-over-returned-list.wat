@@ -4,79 +4,74 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $words (param $text.0 i32) (param $text.1 i32) (result i32) (local $count i32) (local $t0 i32) (local $t1 i32) (local $word.1 i32)
-    ;; 6 |     let count: usize = 0
+    ;; 7 |     for word in text.split(" "):
+    local.get $text.0
+    local.get $text.1
+    i32.const 104 ;; &" "
+    i32.const 1
+    call $"impl string.split"
+    local.tee $text.0
+    i32.load $heap offset=4
+    local.set $text.1
     block
-    ;; 7 |     for word in text.split(" "):
-      local.get $text.0
-      local.get $text.1
-      i32.const 104 ;; &" "
-      i32.const 1
-      call $"impl string.split"
-      local.tee $text.0
-      i32.load $heap offset=4
-      local.set $text.1
-      block
-        loop
-          local.get $t0
-          local.get $text.1
-          i32.lt_u
-          i32.eqz
-          br_if 1
-          local.get $text.0
-          local.get $t0
-          i32.const 8
-          i32.mul
-          i32.add
-          local.tee $t1
-          i32.load $heap offset=16
-          local.get $t1
-          i32.load $heap offset=20
-          local.set $word.1
-          drop
-          local.get $t0
-          i32.const 1
-          i32.add
-          local.set $t0
+      loop
+        local.get $t0
+        local.get $text.1
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $text.0
+        local.get $t0
+        i32.const 8
+        i32.mul
+        i32.add
+        local.tee $t1
+        i32.load $heap offset=16
+        local.get $t1
+        i32.load $heap offset=20
+        local.set $word.1
+        drop
+        local.get $t0
+        i32.const 1
+        i32.add
+        local.set $t0
+        block
           block
-            block
-              br 0
-              unreachable
-            end
+            br 0
+            unreachable
+          end
     ;; 8 |         count = count + word.len()
-            block
-              block
-                local.get $word.1
-                local.set $t1
-                br 0
-              end
-            end
-            local.get $count
-            local.get $t1
-            i32.add
-            local.set $count
-    ;; 7 |     for word in text.split(" "):
+          block
+            local.get $word.1
+            local.set $t1
             br 0
           end
+          local.get $count
+          local.get $t1
+          i32.add
+          local.set $count
+    ;; 7 |     for word in text.split(" "):
           br 0
         end
+        br 0
       end
+    end
     ;; 6 |     let count: usize = 0
+    local.get $text.0
+    if
       local.get $text.0
+      i32.const 8
+      i32.sub
+      i32.load $heap
       if
         local.get $text.0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $text.0
-          call $rt:release_ref
-        end
+        call $rt:release_ref
       end
-    ;; 9 |     count
-      local.get $count
-    ;; 6 |     let count: usize = 0
-      local.set $text.0
     end
+    ;; 9 |     count
+    local.get $count
+    ;; 6 |     let count: usize = 0
+    local.set $text.0
     local.get $text.0
   )
 )

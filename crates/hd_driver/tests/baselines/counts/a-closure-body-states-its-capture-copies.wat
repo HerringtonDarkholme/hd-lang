@@ -25,8 +25,6 @@
     local.get $env
     i32.load $heap
     local.set $env
-    block
-    end
     local.get $env
   )
   (func $word (param $t1 i32) (result i32 i32) (local $i i32) (local $t0 i32) (local $t2 i64) (local $t3 i64) (local $t4 i32) (local $t5 i32) (local $t6 i32)
@@ -69,87 +67,75 @@
     local.tee $i
     local.get $t1
     i32.store $heap
+    local.get $i
+    i32.load $heap
+    i64.extend_i32_s
+    local.tee $t2
+    local.set $t3
     block
-      local.get $i
-      i32.load $heap
-      i64.extend_i32_s
-      local.tee $t2
-      local.set $t3
       block
-        block
-          block
-            block
-              local.get $t3
-              call $signed_magnitude
-              call $unsigned_width
-              local.set $t1
-              local.get $t3
-              i64.const 0
-              i64.lt_s
-              if
-                i32.const 1
-                local.set $t4
-              else
-              end
-              local.get $t1
-              local.get $t4
-              i32.add
-              local.set $t1
-              br 0
-            end
-          end
-          br 0
-        end
-      end
-      i32.const 4
-      local.tee $i
-      local.get $t1
-      i32.add
-      local.set $t4
-      block
-        block
-          local.get $t4
-          i32.const 16
-          local.set $t5
-          if
-            local.get $t4
-            call $rt:str
-            local.set $t5
-          end
-          local.get $t5
-          local.get $t4
-          local.set $t5
+        local.get $t3
+        call $signed_magnitude
+        call $unsigned_width
+        local.set $t1
+        local.get $t3
+        i64.const 0
+        i64.lt_s
+        if
+          i32.const 1
           local.set $t4
-          br 0
+        else
         end
+        local.get $t1
+        local.get $t4
+        i32.add
+        local.set $t1
+        br 0
       end
-      i32.const 113 ;; &"held"
-      local.set $t6
-      block
-        block
-          local.get $t4
-          local.get $t6
-          i32.load $heap align=1
-          i32.store $heap align=1
-          br 0
-        end
-      end
-      block
-        block
-          local.get $t2
-          local.get $t4
-          local.get $i
-          i32.add
-          local.get $t1
-          call $write_signed_sized
-          br 0
-        end
-      end
-      local.get $t4
-      local.get $t5
-      local.set $i
-      local.set $t1
+      br 0
     end
+    i32.const 4
+    local.tee $i
+    local.get $t1
+    i32.add
+    local.set $t4
+    block
+      local.get $t4
+      i32.const 16
+      local.set $t5
+      if
+        local.get $t4
+        call $rt:str
+        local.set $t5
+      end
+      local.get $t5
+      local.get $t4
+      local.set $t5
+      local.set $t4
+      br 0
+    end
+    i32.const 113 ;; &"held"
+    local.set $t6
+    block
+      local.get $t4
+      local.get $t6
+      i32.load $heap align=1
+      i32.store $heap align=1
+      br 0
+    end
+    block
+      local.get $t2
+      local.get $t4
+      local.get $i
+      i32.add
+      local.get $t1
+      call $write_signed_sized
+      br 0
+    end
+    local.get $t4
+    local.get $t5
+    local.set $i
+    local.set $t1
     local.get $t1
     local.get $i
     local.get $t0
@@ -159,335 +145,332 @@
   )
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $original.0 i32) (local $original.1 i32) (local $shared i32) (local $items i32) (local $t1 i32) (local $t2 i32) (local $t0 i32)
     ;; 22 |     original := word(7)
-    block
-      i32.const 7
-      i32.const 4
-      call_indirect $table0 (param i32) (result i32 i32)
-      local.set $original.1
-      local.tee $original.0
+    i32.const 7
+    i32.const 4
+    call_indirect $table0 (param i32) (result i32 i32)
+    local.set $original.1
+    local.tee $original.0
     ;; 23 |     println(keep(original)())
-      local.tee $shared
-      local.tee $t0
-      if
-        local.get $t0
-        call $retain
-      end
-      local.get $shared
-      local.get $original.1
-      i32.const 5
-      call_indirect $table0 (param i32 i32) (result i32 i32)
-      local.set $items
-      local.set $shared
-      local.get $items
-      i32.const 0
-      local.get $shared
-      call_indirect $table0 (param i32 i32) (result i32 i32)
-    ;; 22 |     original := word(7)
-      local.get $items
-      local.tee $t0
-      if
-        local.get $t0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $t0
-          call $rt:release_ref
-        end
-      end
-    ;; 23 |     println(keep(original)())
-      local.get $provider0
-      local.get $provider0.vtable
-      call $"println[string]"
-    ;; 24 |     println(keep(+7)())
-      i32.const 7
-      i32.const 6
-      call_indirect $table0 (param i32) (result i32 i32)
-      local.set $items
-      local.set $shared
-      local.get $items
-      i32.const 0
-      local.get $shared
-      call_indirect $table0 (param i32 i32) (result i32)
-    ;; 22 |     original := word(7)
-      local.get $items
-      local.tee $t0
-      if
-        local.get $t0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $t0
-          call $rt:release_ref
-        end
-      end
-    ;; 24 |     println(keep(+7)())
-      local.get $provider0
-      local.get $provider0.vtable
-      call $"println[i32]"
-    ;; 25 |     println(lend(original)())
-      local.get $original.0
-      local.tee $t0
-      if
-        local.get $t0
-        call $retain
-      end
-      local.get $original.0
-      local.get $original.1
-      i32.const 7
-      call_indirect $table0 (param i32 i32) (result i32 i32)
-      local.set $items
-      local.set $shared
-      local.get $items
-      i32.const 0
-      local.get $shared
-      call_indirect $table0 (param i32 i32) (result i32)
-    ;; 22 |     original := word(7)
-      local.get $items
-      local.tee $t0
-      if
-        local.get $t0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $t0
-          call $rt:release_ref
-        end
-      end
-    ;; 25 |     println(lend(original)())
-      local.get $provider0
-      local.get $provider0.vtable
-      call $"println[usize]"
-    ;; 26 |     shared := box(Named { text: original })
-      local.get $original.0
-      local.tee $t0
-      if
-        local.get $t0
-        call $retain
-      end
-      i32.const 8
-      i32.const 9
-      call $rt:new/class-1'1
-      local.tee $shared
-      local.get $original.0
-      i32.store $heap
-      local.get $shared
-      local.get $original.1
-      i32.store $heap offset=4
-      local.get $shared
-    ;; 27 |     println(keep(shared)().text)
-      i32.const 9
-      call_indirect $table0 (param i32) (result i32 i32)
-      local.set $t1
-      local.set $items
-      local.get $t1
-      i32.const 0
-      local.get $items
-      call_indirect $table0 (param i32 i32) (result i32)
-      local.tee $items
-    ;; 22 |     original := word(7)
-      local.get $t1
-      local.tee $t0
-      if
-        local.get $t0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $t0
-          call $rt:release_ref
-        end
-      end
-    ;; 27 |     println(keep(shared)().text)
-      local.tee $t1
-      i32.load $heap
-      local.get $t1
-      i32.load $heap offset=4
-      local.set $t2
-      local.tee $t1
-      local.tee $t0
-      if
-        local.get $t0
-        call $retain
-      end
-    ;; 22 |     original := word(7)
-      local.get $items
-      local.tee $t0
-      if
-        local.get $t0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $t0
-          call $rt:release_ref
-        end
-      end
-    ;; 27 |     println(keep(shared)().text)
-      local.get $t1
-      local.get $t2
-      local.get $provider0
-      local.get $provider0.vtable
-      call $"println[string]"
-    ;; 28 |     items := [original]
-      local.get $original.0
-      local.tee $t0
-      if
-        local.get $t0
-        call $retain
-      end
-      i32.const 1
-      call $rt:list_buf
-      local.tee $items
-      i32.const 1
-      i32.store $heap offset=4
-      local.get $items
-      local.get $original.0
-      i32.store $heap offset=16
-      local.get $items
-      local.get $original.1
-      i32.store $heap offset=20
-      local.get $items
-    ;; 29 |     println(keep(items)().len())
-      call $rt:coll_copy
-      i32.const 10
-      call_indirect $table0 (param i32) (result i32 i32)
-      local.set $t2
-      local.set $t1
-      local.get $t2
-      i32.const 0
-      local.get $t1
-      call_indirect $table0 (param i32 i32) (result i32)
-      local.tee $t1
-    ;; 22 |     original := word(7)
-      local.get $t2
-      local.tee $t0
-      if
-        local.get $t0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $t0
-          call $rt:release_ref
-        end
-      end
-    ;; 29 |     println(keep(items)().len())
-      i32.load $heap offset=4
-    ;; 22 |     original := word(7)
-      local.get $t1
-      local.tee $t0
-      if
-        local.get $t0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $t0
-          call $rt:release_ref
-        end
-      end
-    ;; 29 |     println(keep(items)().len())
-      local.get $provider0
-      local.get $provider0.vtable
-      call $"println[usize]"
-    ;; 30 |     println(items[0])
-      i32.const 0
-      local.get $items
-      i32.load $heap offset=4
-      i32.ge_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $items
-      i32.load $heap offset=16
-      local.get $items
-      i32.load $heap offset=20
-      local.set $t2
-      local.tee $t1
-      local.tee $t0
-      if
-        local.get $t0
-        call $retain
-      end
-    ;; 22 |     original := word(7)
-      local.get $items
-      local.tee $t0
-      if
-        local.get $t0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $t0
-          call $rt:release_ref
-        end
-      end
-    ;; 30 |     println(items[0])
-      local.get $t1
-      local.get $t2
-      local.get $provider0
-      local.get $provider0.vtable
-      call $"println[string]"
-    ;; 31 |     println(shared.text)
-      local.get $shared
-      i32.load $heap
-      local.get $shared
-      i32.load $heap offset=4
-      local.set $t1
-      local.tee $items
-      local.tee $t0
-      if
-        local.get $t0
-        call $retain
-      end
-      local.get $items
-      local.get $t1
-      local.get $provider0
-      local.get $provider0.vtable
-      call $"println[string]"
-    ;; 22 |     original := word(7)
-      local.get $shared
-      local.tee $t0
-      if
-        local.get $t0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $t0
-          call $rt:release_ref
-        end
-      end
-    ;; 32 |     println(original)
-      local.get $original.0
-      local.get $original.1
-      local.get $provider0
-      local.get $provider0.vtable
-      call $"println[string]"
-    ;; 22 |     original := word(7)
+    local.tee $shared
+    local.tee $t0
+    if
+      local.get $t0
+      call $retain
     end
+    local.get $shared
+    local.get $original.1
+    i32.const 5
+    call_indirect $table0 (param i32 i32) (result i32 i32)
+    local.set $items
+    local.set $shared
+    local.get $items
+    i32.const 0
+    local.get $shared
+    call_indirect $table0 (param i32 i32) (result i32 i32)
+    ;; 22 |     original := word(7)
+    local.get $items
+    local.tee $t0
+    if
+      local.get $t0
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      global.get $tracing
+      i32.or
+      if
+        local.get $t0
+        call $rt:release_ref
+      end
+    end
+    ;; 23 |     println(keep(original)())
+    local.get $provider0
+    local.get $provider0.vtable
+    call $"println[string]"
+    ;; 24 |     println(keep(+7)())
+    i32.const 7
+    i32.const 6
+    call_indirect $table0 (param i32) (result i32 i32)
+    local.set $items
+    local.set $shared
+    local.get $items
+    i32.const 0
+    local.get $shared
+    call_indirect $table0 (param i32 i32) (result i32)
+    ;; 22 |     original := word(7)
+    local.get $items
+    local.tee $t0
+    if
+      local.get $t0
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      global.get $tracing
+      i32.or
+      if
+        local.get $t0
+        call $rt:release_ref
+      end
+    end
+    ;; 24 |     println(keep(+7)())
+    local.get $provider0
+    local.get $provider0.vtable
+    call $"println[i32]"
+    ;; 25 |     println(lend(original)())
+    local.get $original.0
+    local.tee $t0
+    if
+      local.get $t0
+      call $retain
+    end
+    local.get $original.0
+    local.get $original.1
+    i32.const 7
+    call_indirect $table0 (param i32 i32) (result i32 i32)
+    local.set $items
+    local.set $shared
+    local.get $items
+    i32.const 0
+    local.get $shared
+    call_indirect $table0 (param i32 i32) (result i32)
+    ;; 22 |     original := word(7)
+    local.get $items
+    local.tee $t0
+    if
+      local.get $t0
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      global.get $tracing
+      i32.or
+      if
+        local.get $t0
+        call $rt:release_ref
+      end
+    end
+    ;; 25 |     println(lend(original)())
+    local.get $provider0
+    local.get $provider0.vtable
+    call $"println[usize]"
+    ;; 26 |     shared := box(Named { text: original })
+    local.get $original.0
+    local.tee $t0
+    if
+      local.get $t0
+      call $retain
+    end
+    i32.const 8
+    i32.const 9
+    call $rt:new/class-1'1
+    local.tee $shared
+    local.get $original.0
+    i32.store $heap
+    local.get $shared
+    local.get $original.1
+    i32.store $heap offset=4
+    local.get $shared
+    ;; 27 |     println(keep(shared)().text)
+    i32.const 9
+    call_indirect $table0 (param i32) (result i32 i32)
+    local.set $t1
+    local.set $items
+    local.get $t1
+    i32.const 0
+    local.get $items
+    call_indirect $table0 (param i32 i32) (result i32)
+    local.tee $items
+    ;; 22 |     original := word(7)
+    local.get $t1
+    local.tee $t0
+    if
+      local.get $t0
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      global.get $tracing
+      i32.or
+      if
+        local.get $t0
+        call $rt:release_ref
+      end
+    end
+    ;; 27 |     println(keep(shared)().text)
+    local.tee $t1
+    i32.load $heap
+    local.get $t1
+    i32.load $heap offset=4
+    local.set $t2
+    local.tee $t1
+    local.tee $t0
+    if
+      local.get $t0
+      call $retain
+    end
+    ;; 22 |     original := word(7)
+    local.get $items
+    local.tee $t0
+    if
+      local.get $t0
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      global.get $tracing
+      i32.or
+      if
+        local.get $t0
+        call $rt:release_ref
+      end
+    end
+    ;; 27 |     println(keep(shared)().text)
+    local.get $t1
+    local.get $t2
+    local.get $provider0
+    local.get $provider0.vtable
+    call $"println[string]"
+    ;; 28 |     items := [original]
+    local.get $original.0
+    local.tee $t0
+    if
+      local.get $t0
+      call $retain
+    end
+    i32.const 1
+    call $rt:list_buf
+    local.tee $items
+    i32.const 1
+    i32.store $heap offset=4
+    local.get $items
+    local.get $original.0
+    i32.store $heap offset=16
+    local.get $items
+    local.get $original.1
+    i32.store $heap offset=20
+    local.get $items
+    ;; 29 |     println(keep(items)().len())
+    call $rt:coll_copy
+    i32.const 10
+    call_indirect $table0 (param i32) (result i32 i32)
+    local.set $t2
+    local.set $t1
+    local.get $t2
+    i32.const 0
+    local.get $t1
+    call_indirect $table0 (param i32 i32) (result i32)
+    local.tee $t1
+    ;; 22 |     original := word(7)
+    local.get $t2
+    local.tee $t0
+    if
+      local.get $t0
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      global.get $tracing
+      i32.or
+      if
+        local.get $t0
+        call $rt:release_ref
+      end
+    end
+    ;; 29 |     println(keep(items)().len())
+    i32.load $heap offset=4
+    ;; 22 |     original := word(7)
+    local.get $t1
+    local.tee $t0
+    if
+      local.get $t0
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      global.get $tracing
+      i32.or
+      if
+        local.get $t0
+        call $rt:release_ref
+      end
+    end
+    ;; 29 |     println(keep(items)().len())
+    local.get $provider0
+    local.get $provider0.vtable
+    call $"println[usize]"
+    ;; 30 |     println(items[0])
+    i32.const 0
+    local.get $items
+    i32.load $heap offset=4
+    i32.ge_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $items
+    i32.load $heap offset=16
+    local.get $items
+    i32.load $heap offset=20
+    local.set $t2
+    local.tee $t1
+    local.tee $t0
+    if
+      local.get $t0
+      call $retain
+    end
+    ;; 22 |     original := word(7)
+    local.get $items
+    local.tee $t0
+    if
+      local.get $t0
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      global.get $tracing
+      i32.or
+      if
+        local.get $t0
+        call $rt:release_ref
+      end
+    end
+    ;; 30 |     println(items[0])
+    local.get $t1
+    local.get $t2
+    local.get $provider0
+    local.get $provider0.vtable
+    call $"println[string]"
+    ;; 31 |     println(shared.text)
+    local.get $shared
+    i32.load $heap
+    local.get $shared
+    i32.load $heap offset=4
+    local.set $t1
+    local.tee $items
+    local.tee $t0
+    if
+      local.get $t0
+      call $retain
+    end
+    local.get $items
+    local.get $t1
+    local.get $provider0
+    local.get $provider0.vtable
+    call $"println[string]"
+    ;; 22 |     original := word(7)
+    local.get $shared
+    local.tee $t0
+    if
+      local.get $t0
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      global.get $tracing
+      i32.or
+      if
+        local.get $t0
+        call $rt:release_ref
+      end
+    end
+    ;; 32 |     println(original)
+    local.get $original.0
+    local.get $original.1
+    local.get $provider0
+    local.get $provider0.vtable
+    call $"println[string]"
   )
   (func $lend#1 (param $env i32) (param $ctx i32) (result i32)
     ;; 19 |     fn() -> usize: value.len()
@@ -495,11 +478,7 @@
     i32.load $heap offset=4
     local.set $env
     block
-      block
-        block
-          br 0
-        end
-      end
+      br 0
     end
     local.get $env
   )
@@ -516,16 +495,14 @@
         call $rt:retain_known
       end
     end
-    block
-      i32.const 11
-      i32.const 4
-      i32.const -2147483635
-      call $rt:new/class-1'2
-      local.tee $t0
-      local.get $value
-      i32.store $heap
-      local.set $value
-    end
+    i32.const 11
+    i32.const 4
+    i32.const -2147483635
+    call $rt:new/class-1'2
+    local.tee $t0
+    local.get $value
+    i32.store $heap
+    local.set $value
     local.get $value
     local.get $t0
   )
@@ -535,42 +512,36 @@
     i32.load $heap
     call $rt:coll_copy
     local.set $env
-    block
-    end
     local.get $env
   )
   (func $"keep[List[string]]" (param $value i32) (result i32 i32) (local $t0 i32)
     ;; 15 |     fn() -> T: value
-    block
-      i32.const 13
-      i32.const 4
-      i32.const 13
-      call $rt:new/class-1'2
-      local.tee $t0
-      local.get $value
-      i32.store $heap
-      local.set $value
-    end
+    i32.const 13
+    i32.const 4
+    i32.const 13
+    call $rt:new/class-1'2
+    local.tee $t0
+    local.get $value
+    i32.store $heap
+    local.set $value
     local.get $value
     local.get $t0
   )
   (func $lend (param $value.0 i32) (param $value.1 i32) (result i32 i32) (local $t0 i32)
     ;; 19 |     fn() -> usize: value.len()
-    block
-      i32.const 14
-      i32.const 8
-      i32.const 9
-      call $rt:new/class-1'1
-      local.tee $t0
-      local.get $value.0
-      i32.store $heap
-      local.get $t0
-      local.get $value.1
-      i32.store $heap offset=4
-      local.get $t0
-      local.set $value.1
-      local.set $value.0
-    end
+    i32.const 14
+    i32.const 8
+    i32.const 9
+    call $rt:new/class-1'1
+    local.tee $t0
+    local.get $value.0
+    i32.store $heap
+    local.get $t0
+    local.get $value.1
+    i32.store $heap offset=4
+    local.get $t0
+    local.set $value.1
+    local.set $value.0
     local.get $value.0
     local.get $value.1
   )
@@ -590,42 +561,36 @@
         call $rt:retain_known
       end
     end
-    block
-    end
     local.get $env
   )
   (func $"keep[string]" (param $value.0 i32) (param $value.1 i32) (result i32 i32) (local $t0 i32)
     ;; 15 |     fn() -> T: value
-    block
-      i32.const 15
-      i32.const 8
-      i32.const 9
-      call $rt:new/class-1'1
-      local.tee $t0
-      local.get $value.0
-      i32.store $heap
-      local.get $t0
-      local.get $value.1
-      i32.store $heap offset=4
-      local.get $t0
-      local.set $value.1
-      local.set $value.0
-    end
+    i32.const 15
+    i32.const 8
+    i32.const 9
+    call $rt:new/class-1'1
+    local.tee $t0
+    local.get $value.0
+    i32.store $heap
+    local.get $t0
+    local.get $value.1
+    i32.store $heap offset=4
+    local.get $t0
+    local.set $value.1
+    local.set $value.0
     local.get $value.0
     local.get $value.1
   )
   (func $"keep[i32]" (param $value i32) (result i32 i32) (local $t0 i32)
     ;; 15 |     fn() -> T: value
-    block
-      i32.const 16
-      i32.const 4
-      i32.const 0
-      call $rt:new/class-1'2
-      local.tee $t0
-      local.get $value
-      i32.store $heap
-      local.set $value
-    end
+    i32.const 16
+    i32.const 4
+    i32.const 0
+    call $rt:new/class-1'2
+    local.tee $t0
+    local.get $value
+    i32.store $heap
+    local.set $value
     local.get $value
     local.get $t0
   )
@@ -641,8 +606,6 @@
     if
       local.get $t0
       call $retain
-    end
-    block
     end
     local.get $ctx
     local.get $env

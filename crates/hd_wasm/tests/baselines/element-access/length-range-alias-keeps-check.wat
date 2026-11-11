@@ -5,59 +5,57 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $total (param $xs i32) (param $other i32) (result i32) (local $sum i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32)
     ;; 5 |     n := xs.len()
+    local.get $xs
+    i32.load $heap
+    i32.load $heap offset=4
+    ;; 7 |     for i in 0..n:
+    local.set $t0
     block
-      local.get $xs
-      i32.load $heap
-      i32.load $heap offset=4
-    ;; 7 |     for i in 0..n:
-      local.set $t0
-      block
-        loop
-          local.get $t1
-          local.get $t0
-          i32.lt_u
-          i32.eqz
-          br_if 1
-          local.get $t1
-          local.get $t1
-          i32.const 1
-          i32.add
-          local.set $t1
+      loop
+        local.get $t1
+        local.get $t0
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $t1
+        local.get $t1
+        i32.const 1
+        i32.add
+        local.set $t1
     ;; 8 |         _ := other.pop()
-          local.get $other
-          call $"impl[T] List[T].pop[i32]"
-          drop
-          drop
+        local.get $other
+        call $"impl[T] List[T].pop[i32]"
+        drop
+        drop
     ;; 9 |         sum += xs[i]
-          local.get $xs
-          i32.load $heap
-          local.set $t2
-          local.tee $t3
-          local.get $t2
-          i32.load $heap offset=4
-          i32.ge_u
-          if
-            call $rt:panic
-            unreachable
-          end
-          local.get $sum
-          local.get $t2
-          local.get $t3
-          i32.const 4
-          i32.mul
-          i32.add
-          i32.load $heap offset=16
-          i32.add
-          local.set $sum
-    ;; 7 |     for i in 0..n:
-          br 0
+        local.get $xs
+        i32.load $heap
+        local.set $t2
+        local.tee $t3
+        local.get $t2
+        i32.load $heap offset=4
+        i32.ge_u
+        if
+          call $rt:panic
+          unreachable
         end
+        local.get $sum
+        local.get $t2
+        local.get $t3
+        i32.const 4
+        i32.mul
+        i32.add
+        i32.load $heap offset=16
+        i32.add
+        local.set $sum
+    ;; 7 |     for i in 0..n:
+        br 0
       end
-    ;; 10 |     sum
-      local.get $sum
-    ;; 5 |     n := xs.len()
-      local.set $xs
     end
+    ;; 10 |     sum
+    local.get $sum
+    ;; 5 |     n := xs.len()
+    local.set $xs
     local.get $xs
   )
 )

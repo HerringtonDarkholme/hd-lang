@@ -9,116 +9,106 @@
   (import "fixture" "impl[T < Ord] Heap[T].pop[string]" (func $"impl[T < Ord] Heap[T].pop[string]" (param i32) (result i32 i32)))
   (func $seen (param $s i32) (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32)
     ;; 11 |     _ := s.insert(a)
-    block
-      local.get $s
-      local.get $a.0
-      local.get $a.1
-      call $"impl[T < Eq & Hash] Set[T].insert[string]"
-      drop
+    local.get $s
+    local.get $a.0
+    local.get $a.1
+    call $"impl[T < Eq & Hash] Set[T].insert[string]"
+    drop
     ;; 12 |     s.contains(b)
-      local.get $s
-      local.get $b.0
-      local.get $b.1
-      call $"impl[T < Eq & Hash] Set[T].contains[string]"
+    local.get $s
+    local.get $b.0
+    local.get $b.1
+    call $"impl[T < Eq & Hash] Set[T].contains[string]"
     ;; 11 |     _ := s.insert(a)
-      local.set $s
-    end
+    local.set $s
     local.get $s
   )
   (func $queue (param $q i32) (param $a.0 i32) (param $a.1 i32) (result i32) (local $t0 i32)
     ;; 15 |     q.push_back(a)
-    block
-      local.get $q
-      local.get $a.0
-      local.get $a.1
-      call $"impl[T] Deque[T].push_back[string]"
+    local.get $q
+    local.get $a.0
+    local.get $a.1
+    call $"impl[T] Deque[T].push_back[string]"
     ;; 16 |     match q.pop_front():
-      local.get $q
-      call $"impl[T] Deque[T].pop_front[string]"
-      local.set $a.0
-      local.set $q
+    local.get $q
+    call $"impl[T] Deque[T].pop_front[string]"
+    local.set $a.0
+    local.set $q
+    block
       block
         block
-          block
     ;; 17 |         .Some(x) => x.len()
-            local.get $q
-            br_if 0
+          local.get $q
+          br_if 0
     ;; 18 |         .None => 0
-            local.get $q
-            i32.eqz
-            br_if 1
-            unreachable
+          local.get $q
+          i32.eqz
+          br_if 1
+          unreachable
     ;; 16 |     match q.pop_front():
-            unreachable
-          end
-    ;; 17 |         .Some(x) => x.len()
-          block
-            block
-              local.get $a.0
-              local.set $t0
-              br 0
-            end
-          end
-    ;; 16 |     match q.pop_front():
-          br 1
+          unreachable
         end
-        br 0
+    ;; 17 |         .Some(x) => x.len()
+        block
+          local.get $a.0
+          local.set $t0
+          br 0
+        end
+    ;; 16 |     match q.pop_front():
+        br 1
       end
-    ;; 15 |     q.push_back(a)
-      local.get $q
-      local.get $a.0
-      call $rt:release
-      local.get $t0
-      local.set $q
+      br 0
     end
+    ;; 15 |     q.push_back(a)
+    local.get $q
+    local.get $a.0
+    call $rt:release
+    local.get $t0
+    local.set $q
     local.get $q
   )
   (func $top (param $h i32) (param $a.0 i32) (param $a.1 i32) (result i32) (local $t0 i32)
     ;; 21 |     h.push(a)
-    block
-      local.get $h
-      local.get $a.0
-      local.get $a.1
-      call $"impl[T < Ord] Heap[T].push[string]"
+    local.get $h
+    local.get $a.0
+    local.get $a.1
+    call $"impl[T < Ord] Heap[T].push[string]"
     ;; 22 |     match h.pop():
-      local.get $h
-      call $"impl[T < Ord] Heap[T].pop[string]"
-      local.set $a.0
-      local.set $h
+    local.get $h
+    call $"impl[T < Ord] Heap[T].pop[string]"
+    local.set $a.0
+    local.set $h
+    block
       block
         block
-          block
     ;; 23 |         .Some(x) => x.len()
-            local.get $h
-            br_if 0
+          local.get $h
+          br_if 0
     ;; 24 |         .None => 0
-            local.get $h
-            i32.eqz
-            br_if 1
-            unreachable
+          local.get $h
+          i32.eqz
+          br_if 1
+          unreachable
     ;; 22 |     match h.pop():
-            unreachable
-          end
-    ;; 23 |         .Some(x) => x.len()
-          block
-            block
-              local.get $a.0
-              local.set $t0
-              br 0
-            end
-          end
-    ;; 22 |     match h.pop():
-          br 1
+          unreachable
         end
-        br 0
+    ;; 23 |         .Some(x) => x.len()
+        block
+          local.get $a.0
+          local.set $t0
+          br 0
+        end
+    ;; 22 |     match h.pop():
+        br 1
       end
-    ;; 21 |     h.push(a)
-      local.get $h
-      local.get $a.0
-      call $rt:release
-      local.get $t0
-      local.set $h
+      br 0
     end
+    ;; 21 |     h.push(a)
+    local.get $h
+    local.get $a.0
+    call $rt:release
+    local.get $t0
+    local.set $h
     local.get $h
   )
 )

@@ -3,71 +3,67 @@
   (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32 i32)))
   (func $nested_length (param $value.0 i32) (param $value.1 i32) (param $value.2 i32) (param $value.3 i32) (result i32) (local $inner.0 i32) (local $inner.1 i32) (local $t0 i32)
     ;; 8 |     match value:
+    local.get $value.0
+    local.set $inner.0
     block
-      local.get $value.0
-      local.set $inner.0
       block
         block
-          block
     ;; 9 |         ._0(inner) =>
-            local.get $inner.0
-            i32.eqz
-            if
-              local.get $value.2
-              local.get $value.3
-              local.set $inner.1
-              local.set $inner.0
-              br 1
-            else
+          local.get $inner.0
+          i32.eqz
+          if
+            local.get $value.2
+            local.get $value.3
+            local.set $inner.1
+            local.set $inner.0
+            br 1
+          else
     ;; 13 |         ._1(_) => 0
-              local.get $inner.0
-              i32.const 1
-              i32.eq
-              br_if 2
-              unreachable
-    ;; 9 |         ._0(inner) =>
-            end
-    ;; 8 |     match value:
+            local.get $inner.0
+            i32.const 1
+            i32.eq
+            br_if 2
             unreachable
+    ;; 9 |         ._0(inner) =>
           end
+    ;; 8 |     match value:
+          unreachable
+        end
     ;; 10 |             match inner:
+        block
           block
             block
-              block
     ;; 11 |                 ._0(_) => 0
-                local.get $inner.0
-                i32.eqz
-                br_if 0
+              local.get $inner.0
+              i32.eqz
+              br_if 0
     ;; 12 |                 ._1(text) => text.len()
-                local.get $inner.0
-                br_if 1
-                unreachable
+              local.get $inner.0
+              br_if 1
+              unreachable
     ;; 10 |             match inner:
-                unreachable
-              end
-              br 1
+              unreachable
             end
+            br 1
+          end
     ;; 12 |                 ._1(text) => text.len()
-            block
-              block
-                local.get $inner.1
-                local.set $t0
-                br 0
-              end
-            end
-    ;; 10 |             match inner:
+          block
+            local.get $inner.1
+            local.set $t0
             br 0
           end
-    ;; 8 |     match value:
-          local.get $t0
-          local.set $inner.1
-          br 1
+    ;; 10 |             match inner:
+          br 0
         end
-        br 0
+    ;; 8 |     match value:
+        local.get $t0
+        local.set $inner.1
+        br 1
       end
-      local.get $inner.1
-      local.set $inner.0
+      br 0
     end
+    local.get $inner.1
+    local.set $inner.0
     local.get $value.0
     local.get $value.1
     local.get $value.2

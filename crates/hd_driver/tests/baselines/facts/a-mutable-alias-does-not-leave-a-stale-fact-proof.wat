@@ -4,85 +4,79 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $mutated (param $value i64) (result i64) (local $t0 i32) (local $t5 i32) (local $t6 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $t7 i32)
     ;; ...
-    block
-      ;; ...
     ;; 17 |     if facts.find::[EnumTagging]().is_some():
-      local.get $t0
-      i32.load $heap
-      local.get $t0
-      i32.const 0
-      i32.store $heap
-      local.tee $t0
-      call $"impl Facts.find[std.serde.EnumTagging]"
-      local.set $t1
-      local.set $t2
-      local.set $t3
-      local.set $t4
-      local.set $t5
-      ;; ...
-      local.get $t6
-      i64.const 0
-      i64.store $heap offset=16
-      local.get $t6
-      i32.const 24
-      i32.add
-      local.tee $t0
-      local.get $t5
-      i32.store $heap
-      local.get $t0
-      local.get $t4
-      i32.store $heap offset=4
-      local.get $t0
-      local.get $t3
-      i32.store $heap offset=8
-      local.get $t0
-      local.get $t2
-      i32.store $heap offset=12
-      local.get $t0
-      local.get $t1
-      i32.store $heap offset=16
-      local.get $t0
-      local.set $t5
+    local.get $t0
+    i32.load $heap
+    local.get $t0
+    i32.const 0
+    i32.store $heap
+    local.tee $t0
+    call $"impl Facts.find[std.serde.EnumTagging]"
+    local.set $t1
+    local.set $t2
+    local.set $t3
+    local.set $t4
+    local.set $t5
+    ;; ...
+    local.get $t6
+    i64.const 0
+    i64.store $heap offset=16
+    local.get $t6
+    i32.const 24
+    i32.add
+    local.tee $t0
+    local.get $t5
+    i32.store $heap
+    local.get $t0
+    local.get $t4
+    i32.store $heap offset=4
+    local.get $t0
+    local.get $t3
+    i32.store $heap offset=8
+    local.get $t0
+    local.get $t2
+    i32.store $heap offset=12
+    local.get $t0
+    local.get $t1
+    i32.store $heap offset=16
+    local.get $t0
+    local.set $t5
+    block
       block
         block
           block
-            block
-              block
-                local.get $t5
-                i32.load $heap
-                i32.const 3
-                i32.ne
-                br_if 0
-                br 1
-                unreachable
-              end
-              i32.const 1
-              local.set $t7
-              br 1
-            end
-            br 0
+            local.get $t5
+            i32.load $heap
+            i32.const 3
+            i32.ne
+            br_if 0
+            br 1
+            unreachable
           end
-          local.get $t7
-          local.set $t5
-          br 0
+          i32.const 1
+          local.set $t7
+          br 1
         end
+        br 0
       end
-      ;; ...
-      local.get $t5
-      if (result i64)
+      local.get $t7
+      local.set $t5
+      br 0
+    end
+    ;; ...
+    local.get $t5
+    if (result i64)
     ;; 18 |         value + 1
-        local.get $value
-        i64.const 1
-        i64.add
+      local.get $value
+      i64.const 1
+      i64.add
     ;; 17 |     if facts.find::[EnumTagging]().is_some():
-      else
+    else
     ;; 20 |         value + 2
-        local.get $value
-        i64.const 2
-        i64.add
+      local.get $value
+      i64.const 2
+      i64.add
     ;; 17 |     if facts.find::[EnumTagging]().is_some():
-      end
-      ;; ...
     end
     ;; ...
   )

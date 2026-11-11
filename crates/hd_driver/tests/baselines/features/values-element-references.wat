@@ -10,135 +10,129 @@
   (import "fixture" "table0" (table $table0 6 funcref))
   (func $by_key (param $m i32) (param $k.0 i32) (param $k.1 i32) (result i32)
     ;; 23 |     let mut out = m
-    block
-      local.get $m
+    local.get $m
     ;; 24 |     reward(&mut out[k], 10)
-      local.get $k.0
-      local.get $k.1
-      call $rt:map_hash
-      local.get $k.0
-      local.get $k.1
-      call $rt:map_find
-      local.tee $k.0
-      i32.const 0
-      i32.lt_s
-      if
-        call $rt:panic'1
-        unreachable
-      end
-    ;; 23 |     let mut out = m
-      local.get $m
-      call $rt:map_unique
-      local.tee $m
-    ;; 24 |     reward(&mut out[k], 10)
-      local.get $m
-      i32.load $heap offset=12
-      i32.const 12
-      i32.mul
-      i32.add
-      i32.const 24
-      i32.add
-      local.get $k.0
-      i32.const 20
-      i32.mul
-      i32.add
-      i32.const 8
-      i32.add
-      i32.const 10
-      call $reward
-    ;; 23 |     let mut out = m
+    local.get $k.0
+    local.get $k.1
+    call $rt:map_hash
+    local.get $k.0
+    local.get $k.1
+    call $rt:map_find
+    local.tee $k.0
+    i32.const 0
+    i32.lt_s
+    if
+      call $rt:panic'1
+      unreachable
     end
+    ;; 23 |     let mut out = m
+    local.get $m
+    call $rt:map_unique
+    local.tee $m
+    ;; 24 |     reward(&mut out[k], 10)
+    local.get $m
+    i32.load $heap offset=12
+    i32.const 12
+    i32.mul
+    i32.add
+    i32.const 24
+    i32.add
+    local.get $k.0
+    i32.const 20
+    i32.mul
+    i32.add
+    i32.const 8
+    i32.add
+    i32.const 10
+    call $reward
+    ;; 23 |     let mut out = m
     local.get $m
   )
   (func $reward (param $player i32) (param $points i32)
     ;; 13 |     player.score += points
-    block
-      local.get $player
-      local.get $player
-      i32.load $heap offset=8
-      local.get $points
-      i32.add
-      i32.store $heap offset=8
-    end
+    local.get $player
+    local.get $player
+    i32.load $heap offset=8
+    local.get $points
+    i32.add
+    i32.store $heap offset=8
   )
   (func $rewarded (param $players i32) (param $best i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 16 |     let mut out = players
-    block
-      local.get $players
-      call $rt:list_unique
-      local.set $players
+    local.get $players
+    call $rt:list_unique
+    local.set $players
     ;; 17 |     reward(&mut out[best], 10)
-      local.get $best
-      local.get $players
-      i32.load $heap offset=4
-      i32.ge_u
-      if
-        call $rt:panic'2
-        unreachable
-      end
-      local.get $players
-      local.get $best
-      i32.const 12
-      i32.mul
-      i32.add
-      i32.const 16
-      i32.add
-      i32.const 10
-      call $reward
-    ;; 18 |     out[best].score += 1
-      local.get $players
-      local.get $best
-      i32.const 12
-      i32.mul
-      i32.add
-      i32.load $heap offset=24
-      i32.const 1
-      i32.add
-      local.set $t0
-      local.get $players
-      local.get $best
-      i32.const 12
-      i32.mul
-      i32.add
-      local.get $t0
-      i32.store $heap offset=24
-    ;; 16 |     let mut out = players
-      local.get $players
-    ;; 19 |     out.push(Player { name: s, score: 0 })
-      local.tee $best
-      i32.load $heap offset=4
-      local.tee $t0
-      local.get $best
-      i32.load $heap
-      i32.eq
-      if
-        local.get $best
-        i32.const 1
-        call_indirect $table0 (param i32) (result i32)
-        local.tee $best
-        local.set $players
-      end
-      local.get $best
-      local.get $t0
-      i32.const 12
-      i32.mul
-      i32.add
-      local.tee $t1
-      local.get $s.0
-      i32.store $heap offset=16
-      local.get $t1
-      local.get $s.1
-      i32.store $heap offset=20
-      local.get $t1
-      i32.const 0
-      i32.store $heap offset=24
-      local.get $best
-      local.get $t0
-      i32.const 1
-      i32.add
-      i32.store $heap offset=4
-    ;; 16 |     let mut out = players
+    local.get $best
+    local.get $players
+    i32.load $heap offset=4
+    i32.ge_u
+    if
+      call $rt:panic'2
+      unreachable
     end
+    local.get $players
+    local.get $best
+    i32.const 12
+    i32.mul
+    i32.add
+    i32.const 16
+    i32.add
+    i32.const 10
+    call $reward
+    ;; 18 |     out[best].score += 1
+    local.get $players
+    local.get $best
+    i32.const 12
+    i32.mul
+    i32.add
+    i32.load $heap offset=24
+    i32.const 1
+    i32.add
+    local.set $t0
+    local.get $players
+    local.get $best
+    i32.const 12
+    i32.mul
+    i32.add
+    local.get $t0
+    i32.store $heap offset=24
+    ;; 16 |     let mut out = players
+    local.get $players
+    ;; 19 |     out.push(Player { name: s, score: 0 })
+    local.tee $best
+    i32.load $heap offset=4
+    local.tee $t0
+    local.get $best
+    i32.load $heap
+    i32.eq
+    if
+      local.get $best
+      i32.const 1
+      call_indirect $table0 (param i32) (result i32)
+      local.tee $best
+      local.set $players
+    end
+    local.get $best
+    local.get $t0
+    i32.const 12
+    i32.mul
+    i32.add
+    local.tee $t1
+    local.get $s.0
+    i32.store $heap offset=16
+    local.get $t1
+    local.get $s.1
+    i32.store $heap offset=20
+    local.get $t1
+    i32.const 0
+    i32.store $heap offset=24
+    local.get $best
+    local.get $t0
+    i32.const 1
+    i32.add
+    i32.store $heap offset=4
+    ;; 16 |     let mut out = players
     local.get $players
   )
 )

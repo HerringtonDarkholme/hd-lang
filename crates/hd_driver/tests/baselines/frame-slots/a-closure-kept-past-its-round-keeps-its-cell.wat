@@ -13,142 +13,138 @@
     local.get $env
     i32.load $heap
     local.set $env
-    block
     ;; 23 |             total = total + 1
-      local.get $env
-      local.get $env
-      i32.load $heap
-      i32.const 1
-      i32.add
-      i32.store $heap
+    local.get $env
+    local.get $env
+    i32.load $heap
+    i32.const 1
+    i32.add
+    i32.store $heap
     ;; 24 |             total
-      local.get $env
-      i32.load $heap
+    local.get $env
+    i32.load $heap
     ;; 22 |         step := fn() -> i32:
-      local.set $env
-    end
+    local.set $env
     local.get $env
   )
   (func $kept (param $n i32) (result i32) (local $f.0 i32) (local $f.1 i32) (local $t0 i32) (local $i i32) (local $total i32) (local $step.1 i32)
     ;; 8 |     let mut f = fn() -> i32: +0
+    i32.const 1
+    local.set $f.0
+    ;; 9 |     for i in +0..n:
     block
-      i32.const 1
-      local.set $f.0
-    ;; 9 |     for i in +0..n:
-      block
-        loop
-          local.get $t0
-          local.get $n
-          i32.lt_s
-          i32.eqz
-          br_if 1
-          local.get $t0
-          local.set $i
-          local.get $t0
-          i32.const 1
-          i32.add
-          local.set $t0
+      loop
+        local.get $t0
+        local.get $n
+        i32.lt_s
+        i32.eqz
+        br_if 1
+        local.get $t0
+        local.set $i
+        local.get $t0
+        i32.const 1
+        i32.add
+        local.set $t0
     ;; 10 |         let total = i
-          i32.const 4
-          i32.const 0
-          call $rt:new/class-1
-          local.tee $total
-          local.get $i
-          i32.store $heap
+        i32.const 4
+        i32.const 0
+        call $rt:new/class-1
+        local.tee $total
+        local.get $i
+        i32.store $heap
     ;; 11 |         step := fn() -> i32:
-          i32.const 2
-          i32.const 4
-          i32.const -2147483644
-          call $rt:new/class-1
-          local.tee $step.1
-          local.get $total
-          i32.store $heap
-          local.get $step.1
-          call $rt:retain_fields
-    ;; 9 |     for i in +0..n:
-          local.get $total
-          local.tee $total
-          if
-            local.get $total
-            i32.const 8
-            i32.sub
-            i32.load $heap
-            global.get $tracing
-            i32.or
-            if
-              local.get $total
-              call $rt:release_ref
-            end
-          end
-    ;; 11 |         step := fn() -> i32:
-          local.set $total
-    ;; 14 |         if i == 0:
-          local.get $i
-          i32.eqz
-          if
-    ;; 15 |             f = step
-            local.get $total
-            local.get $step.1
-            i32.const 0
-            local.set $step.1
-            local.get $f.1
-            local.tee $total
-            if
-              local.get $total
-              i32.const 8
-              i32.sub
-              i32.load $heap
-              global.get $tracing
-              i32.or
-              if
-                local.get $total
-                call $rt:release_ref
-              end
-            end
-            local.set $f.1
-            local.set $f.0
-    ;; 14 |         if i == 0:
-          end
-    ;; 9 |     for i in +0..n:
-          local.get $step.1
-          local.tee $total
-          if
-            local.get $total
-            i32.const 8
-            i32.sub
-            i32.load $heap
-            global.get $tracing
-            i32.or
-            if
-              local.get $total
-              call $rt:release_ref
-            end
-          end
-          br 0
-        end
-      end
-    ;; 16 |     f()
-      local.get $f.1
-      i32.const 0
-      local.get $f.0
-      call_indirect $table0 (param i32 i32) (result i32)
-      local.get $f.1
-    ;; 8 |     let mut f = fn() -> i32: +0
-      local.tee $total
-      if
+        i32.const 2
+        i32.const 4
+        i32.const -2147483644
+        call $rt:new/class-1
+        local.tee $step.1
         local.get $total
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
+        i32.store $heap
+        local.get $step.1
+        call $rt:retain_fields
+    ;; 9 |     for i in +0..n:
+        local.get $total
+        local.tee $total
         if
           local.get $total
-          call $rt:release_ref
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          global.get $tracing
+          i32.or
+          if
+            local.get $total
+            call $rt:release_ref
+          end
         end
+    ;; 11 |         step := fn() -> i32:
+        local.set $total
+    ;; 14 |         if i == 0:
+        local.get $i
+        i32.eqz
+        if
+    ;; 15 |             f = step
+          local.get $total
+          local.get $step.1
+          i32.const 0
+          local.set $step.1
+          local.get $f.1
+          local.tee $total
+          if
+            local.get $total
+            i32.const 8
+            i32.sub
+            i32.load $heap
+            global.get $tracing
+            i32.or
+            if
+              local.get $total
+              call $rt:release_ref
+            end
+          end
+          local.set $f.1
+          local.set $f.0
+    ;; 14 |         if i == 0:
+        end
+    ;; 9 |     for i in +0..n:
+        local.get $step.1
+        local.tee $total
+        if
+          local.get $total
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          global.get $tracing
+          i32.or
+          if
+            local.get $total
+            call $rt:release_ref
+          end
+        end
+        br 0
       end
-      local.set $n
     end
+    ;; 16 |     f()
+    local.get $f.1
+    i32.const 0
+    local.get $f.0
+    call_indirect $table0 (param i32 i32) (result i32)
+    local.get $f.1
+    ;; 8 |     let mut f = fn() -> i32: +0
+    local.tee $total
+    if
+      local.get $total
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      global.get $tracing
+      i32.or
+      if
+        local.get $total
+        call $rt:release_ref
+      end
+    end
+    local.set $n
     local.get $n
   )
   (func $kept#2 (param $env i32) (param $ctx i32) (result i32)
@@ -156,20 +152,18 @@
     local.get $env
     i32.load $heap
     local.set $env
-    block
     ;; 12 |             total = total + 1
-      local.get $env
-      local.get $env
-      i32.load $heap
-      i32.const 1
-      i32.add
-      i32.store $heap
+    local.get $env
+    local.get $env
+    i32.load $heap
+    i32.const 1
+    i32.add
+    i32.store $heap
     ;; 13 |             total
-      local.get $env
-      i32.load $heap
+    local.get $env
+    i32.load $heap
     ;; 11 |         step := fn() -> i32:
-      local.set $env
-    end
+    local.set $env
     local.get $env
   )
   (func $fresh (param $n i32) (result i32) (local $out i32) (local $t1 i32) (local $i i32) (local $t0 i32) (local $t2 i32)
@@ -203,78 +197,76 @@
     i32.sub
     local.tee $t0
     global.set $locals
+    ;; 20 |     for i in +0..n:
     block
-    ;; 20 |     for i in +0..n:
-      block
-        loop
-          local.get $t1
-          local.get $n
-          i32.lt_s
-          i32.eqz
-          br_if 1
-          local.get $t1
-          local.set $i
-          local.get $t1
-          i32.const 1
-          i32.add
-          local.set $t1
+      loop
+        local.get $t1
+        local.get $n
+        i32.lt_s
+        i32.eqz
+        br_if 1
+        local.get $t1
+        local.set $i
+        local.get $t1
+        i32.const 1
+        i32.add
+        local.set $t1
     ;; 21 |         let total = i
-          local.get $t0
-          i64.const 0
-          i64.store $heap
-          local.get $t0
-          i32.const 8
-          i32.add
-          local.tee $t2
-          local.get $i
-          i32.store $heap
+        local.get $t0
+        i64.const 0
+        i64.store $heap
+        local.get $t0
+        i32.const 8
+        i32.add
+        local.tee $t2
+        local.get $i
+        i32.store $heap
     ;; 22 |         step := fn() -> i32:
-          i32.const 4
-          i32.const 4
-          i32.const -2147483644
-          call $rt:new/class-1
-          local.tee $i
+        i32.const 4
+        i32.const 4
+        i32.const -2147483644
+        call $rt:new/class-1
+        local.tee $i
     ;; 21 |         let total = i
-          local.get $t2
+        local.get $t2
     ;; 22 |         step := fn() -> i32:
-          i32.store $heap
-          local.get $i
-          call $rt:retain_fields
+        i32.store $heap
+        local.get $i
+        call $rt:retain_fields
     ;; 25 |         out += step()
-          drop
-          local.get $i
-          i32.const 0
-          call $fresh#1
-          local.set $t2
+        drop
+        local.get $i
+        i32.const 0
+        call $fresh#1
+        local.set $t2
     ;; 20 |     for i in +0..n:
+        local.get $i
+        local.tee $i
+        if
           local.get $i
-          local.tee $i
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          global.get $tracing
+          i32.or
           if
             local.get $i
-            i32.const 8
-            i32.sub
-            i32.load $heap
-            global.get $tracing
-            i32.or
-            if
-              local.get $i
-              call $rt:release_ref
-            end
+            call $rt:release_ref
           end
-    ;; 25 |         out += step()
-          local.get $out
-          local.get $t2
-          i32.add
-          local.set $out
-    ;; 20 |     for i in +0..n:
-          br 0
         end
+    ;; 25 |         out += step()
+        local.get $out
+        local.get $t2
+        i32.add
+        local.set $out
+    ;; 20 |     for i in +0..n:
+        br 0
       end
-    ;; 26 |     out
-      local.get $out
-    ;; 19 |     let mut out = +0
-      local.set $n
     end
+    ;; 26 |     out
+    local.get $out
+    ;; 19 |     let mut out = +0
+    local.set $n
     local.get $n
     local.get $t0
     i32.const 16

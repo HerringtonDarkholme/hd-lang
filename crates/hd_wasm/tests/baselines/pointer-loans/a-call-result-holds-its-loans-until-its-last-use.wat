@@ -8,108 +8,104 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $"impl Outer.slot" (param $self i32) (result i32)
     ;; 14 |         &mut self.next.value
-    block
-      local.get $self
-      i32.load $heap
-      i32.const 4
-      i32.sub
-      i32.load $heap
-      i32.const 4128768
-      i32.and
-      if
-        call $rt:panic'1
-        unreachable
-      end
-      local.get $self
-      i32.load $heap
-      local.set $self
+    local.get $self
+    i32.load $heap
+    i32.const 4
+    i32.sub
+    i32.load $heap
+    i32.const 4128768
+    i32.and
+    if
+      call $rt:panic'1
+      unreachable
     end
+    local.get $self
+    i32.load $heap
+    local.set $self
     local.get $self
   )
   (func $probe (param $p i32) (param $alias i32) (result i32 i32) (local $t0 i32)
     ;; 17 |     r := p.slot()
-    block
-      local.get $p
-      call $"impl Outer.slot"
-      local.tee $p
-      call $block_of
-      local.tee $t0
-      if
-        local.get $t0
-        i32.const 4
-        i32.add
-        local.tee $t0
-        i32.load $heap
-        i32.const 4128768
-        i32.and
-        if
-          call $rt:panic'2
-          unreachable
-        end
-        local.get $t0
-        local.get $t0
-        i32.load $heap
-        i32.const 2097152
-        i32.add
-        i32.store $heap
-      end
-    ;; 18 |     alias.value = "b"
-      local.get $alias
+    local.get $p
+    call $"impl Outer.slot"
+    local.tee $p
+    call $block_of
+    local.tee $t0
+    if
+      local.get $t0
       i32.const 4
-      i32.sub
+      i32.add
+      local.tee $t0
       i32.load $heap
       i32.const 4128768
       i32.and
       if
-        call $rt:panic'1
+        call $rt:panic'2
         unreachable
       end
-      local.get $alias
+      local.get $t0
+      local.get $t0
       i32.load $heap
-      local.get $alias
-      i32.load $heap offset=4
-      local.get $alias
-      i32.const 65 ;; &"b"
+      i32.const 2097152
+      i32.add
       i32.store $heap
-      local.get $alias
-      i32.const 1
-      i32.store $heap offset=4
-      call $rt:release
+    end
+    ;; 18 |     alias.value = "b"
+    local.get $alias
+    i32.const 4
+    i32.sub
+    i32.load $heap
+    i32.const 4128768
+    i32.and
+    if
+      call $rt:panic'1
+      unreachable
+    end
+    local.get $alias
+    i32.load $heap
+    local.get $alias
+    i32.load $heap offset=4
+    local.get $alias
+    i32.const 65 ;; &"b"
+    i32.store $heap
+    local.get $alias
+    i32.const 1
+    i32.store $heap offset=4
+    call $rt:release
     ;; 19 |     *r
-      local.get $p
-      i32.load $heap
-      local.tee $alias
-      local.get $p
-      i32.load $heap offset=4
-      local.tee $p
-      call $rt:retain
-      local.get $alias
-      local.get $p
-      local.set $alias
-      local.set $p
+    local.get $p
+    i32.load $heap
+    local.tee $alias
+    local.get $p
+    i32.load $heap offset=4
+    local.tee $p
+    call $rt:retain
+    local.get $alias
+    local.get $p
+    local.set $alias
+    local.set $p
     ;; 17 |     r := p.slot()
+    local.get $t0
+    if
       local.get $t0
-      if
-        local.get $t0
-        local.get $t0
-        i32.load $heap
-        i32.const 2097152
-        i32.sub
-        i32.store $heap
-        i32.const 0
-        local.set $t0
-      end
       local.get $t0
-      if
-        local.get $t0
-        local.get $t0
-        i32.load $heap
-        i32.const 2097152
-        i32.sub
-        i32.store $heap
-        i32.const 0
-        local.set $t0
-      end
+      i32.load $heap
+      i32.const 2097152
+      i32.sub
+      i32.store $heap
+      i32.const 0
+      local.set $t0
+    end
+    local.get $t0
+    if
+      local.get $t0
+      local.get $t0
+      i32.load $heap
+      i32.const 2097152
+      i32.sub
+      i32.store $heap
+      i32.const 0
+      local.set $t0
     end
     local.get $t0
     if

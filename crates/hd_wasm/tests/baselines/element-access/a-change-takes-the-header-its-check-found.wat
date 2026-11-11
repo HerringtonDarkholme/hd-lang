@@ -5,45 +5,43 @@
   (import "fixture" "table0" (table $table0 5 funcref))
   (func $push (param $b i32) (param $text.0 i32) (param $text.1 i32) (local $t0 i32) (local $t1 i32)
     ;; 10 |     b.parts.push(text)
-    block
-      local.get $b
-      i32.load $heap
-      call $rt:list_unique
+    local.get $b
+    i32.load $heap
+    call $rt:list_unique
+    local.set $t0
+    local.get $b
+    local.get $t0
+    i32.store $heap
+    local.get $t0
+    i32.load $heap offset=4
+    local.tee $t1
+    local.get $t0
+    i32.load $heap
+    i32.eq
+    if
+      local.get $t0
+      i32.const 1
+      call_indirect $table0 (param i32) (result i32)
       local.set $t0
       local.get $b
       local.get $t0
       i32.store $heap
-      local.get $t0
-      i32.load $heap offset=4
-      local.tee $t1
-      local.get $t0
-      i32.load $heap
-      i32.eq
-      if
-        local.get $t0
-        i32.const 1
-        call_indirect $table0 (param i32) (result i32)
-        local.set $t0
-        local.get $b
-        local.get $t0
-        i32.store $heap
-      end
-      local.get $t0
-      local.get $t1
-      i32.const 8
-      i32.mul
-      i32.add
-      local.tee $b
-      local.get $text.0
-      i32.store $heap offset=16
-      local.get $b
-      local.get $text.1
-      i32.store $heap offset=20
-      local.get $t0
-      local.get $t1
-      i32.const 1
-      i32.add
-      i32.store $heap offset=4
     end
+    local.get $t0
+    local.get $t1
+    i32.const 8
+    i32.mul
+    i32.add
+    local.tee $b
+    local.get $text.0
+    i32.store $heap offset=16
+    local.get $b
+    local.get $text.1
+    i32.store $heap offset=20
+    local.get $t0
+    local.get $t1
+    i32.const 1
+    i32.add
+    i32.store $heap offset=4
   )
 )

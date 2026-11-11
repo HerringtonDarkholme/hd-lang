@@ -4,23 +4,19 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $size (param $items i32) (param $removed.0 i32) (param $removed.1 i32) (result i32)
     ;; 6 |     items.len()
-    block
-      local.get $items
-      i32.load $heap
-      i32.load $heap offset=4
-      local.set $items
-    end
+    local.get $items
+    i32.load $heap
+    i32.load $heap offset=4
+    local.set $items
     local.get $items
   )
   (func $caller (param $items i32) (result i32)
     ;; 9 |     size(items, items.pop())
-    block
-      local.get $items
-      local.get $items
-      call $"impl[T] List[T].pop[i32]"
-      call $size
-      local.set $items
-    end
+    local.get $items
+    local.get $items
+    call $"impl[T] List[T].pop[i32]"
+    call $size
+    local.set $items
     local.get $items
   )
 )

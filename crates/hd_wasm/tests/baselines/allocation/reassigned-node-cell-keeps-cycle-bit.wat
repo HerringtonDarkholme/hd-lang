@@ -7,62 +7,60 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $make_cycle (result i32) (local $t0 i32) (local $t1 i32)
     ;; 9 |     let node = box(Node { next: .None })
-    block
-      i32.const 4
-      i32.const -2147483646
-      call $rt:new/class-1
-      local.tee $t0
-      i32.const 0
-      i32.store $heap
+    i32.const 4
+    i32.const -2147483646
+    call $rt:new/class-1
+    local.tee $t0
+    i32.const 0
+    i32.store $heap
     ;; 10 |     parent := box(Node { next: .Some(node) })
-      i32.const 4
-      i32.const -2147483646
-      call $rt:new/class-1
-      local.tee $t1
+    i32.const 4
+    i32.const -2147483646
+    call $rt:new/class-1
+    local.tee $t1
     ;; 9 |     let node = box(Node { next: .None })
-      local.get $t0
+    local.get $t0
     ;; 10 |     parent := box(Node { next: .Some(node) })
-      i32.store $heap
-      local.get $t1
+    i32.store $heap
+    local.get $t1
     ;; 11 |     node = box(Node { next: .Some(parent) })
-      local.tee $t0
+    local.tee $t0
+    if
+      local.get $t0
+      i32.const 8
+      i32.sub
+      i32.load $heap
       if
         local.get $t0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t0
-          call $rt:retain_known
-        end
+        call $rt:retain_known
       end
-      i32.const 4
-      i32.const -2147483646
-      call $rt:new/class-1
-      local.tee $t0
-    ;; 10 |     parent := box(Node { next: .Some(node) })
-      local.get $t1
-    ;; 11 |     node = box(Node { next: .Some(parent) })
-      i32.store $heap
-      local.get $t0
-    ;; 9 |     let node = box(Node { next: .None })
-      if
-        local.get $t0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $t0
-          call $rt:release_ref
-        end
-      end
-    ;; 10 |     parent := box(Node { next: .Some(node) })
-      local.get $t1
-    ;; 9 |     let node = box(Node { next: .None })
-      local.set $t0
     end
+    i32.const 4
+    i32.const -2147483646
+    call $rt:new/class-1
+    local.tee $t0
+    ;; 10 |     parent := box(Node { next: .Some(node) })
+    local.get $t1
+    ;; 11 |     node = box(Node { next: .Some(parent) })
+    i32.store $heap
+    local.get $t0
+    ;; 9 |     let node = box(Node { next: .None })
+    if
+      local.get $t0
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      global.get $tracing
+      i32.or
+      if
+        local.get $t0
+        call $rt:release_ref
+      end
+    end
+    ;; 10 |     parent := box(Node { next: .Some(node) })
+    local.get $t1
+    ;; 9 |     let node = box(Node { next: .None })
+    local.set $t0
     local.get $t0
   )
 )

@@ -47,30 +47,28 @@
     local.tee $xs
     local.get $t1
     i32.store $heap
-    block
+    local.get $xs
+    i32.load $heap
+    i32.load $heap offset=4
+    local.set $t1
+    local.get $xs
+    i32.const 0
+    local.get $t1
+    call $"impl[T] List[T].slice[string]"
+    local.set $t1
+    local.get $xs
+    if
       local.get $xs
       i32.load $heap
-      i32.load $heap offset=4
-      local.set $t1
-      local.get $xs
-      i32.const 0
-      local.get $t1
-      call $"impl[T] List[T].slice[string]"
-      local.set $t1
-      local.get $xs
+      local.tee $xs
       if
         local.get $xs
+        i32.const 8
+        i32.sub
         i32.load $heap
-        local.tee $xs
         if
           local.get $xs
-          i32.const 8
-          i32.sub
-          i32.load $heap
-          if
-            local.get $xs
-            call $rt:release_ref'1
-          end
+          call $rt:release_ref'1
         end
       end
     end
@@ -120,31 +118,15 @@
     local.tee $xs
     local.get $t1
     i32.store $heap
-    block
+    local.get $xs
+    i32.const 0
+    i32.const 2
+    call $"impl[T] List[T].slice[string]"
+    local.set $t1
+    local.get $xs
+    if
       local.get $xs
-      i32.const 0
-      i32.const 2
-      call $"impl[T] List[T].slice[string]"
-      local.set $t1
-      local.get $xs
-      if
-        local.get $xs
-        i32.load $heap
-        local.tee $xs
-        if
-          local.get $xs
-          i32.const 8
-          i32.sub
-          i32.load $heap
-          if
-            local.get $xs
-            call $rt:release_ref'1
-          end
-        end
-      end
-      local.get $t1
-      i32.load $heap offset=4
-      local.get $t1
+      i32.load $heap
       local.tee $xs
       if
         local.get $xs
@@ -156,8 +138,22 @@
           call $rt:release_ref'1
         end
       end
-      local.set $t1
     end
+    local.get $t1
+    i32.load $heap offset=4
+    local.get $t1
+    local.tee $xs
+    if
+      local.get $xs
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $xs
+        call $rt:release_ref'1
+      end
+    end
+    local.set $t1
     local.get $t1
     local.get $t0
     i32.const 16
@@ -166,41 +162,35 @@
   )
   (func $str_slice (param $s.0 i32) (param $s.1 i32) (result i32 i32)
     ;; 8 |     s.slice(1, 3)
-    block
-      local.get $s.0
-      local.get $s.1
-      i32.const 1
-      i32.const 3
-      call $"impl string.slice"
-      local.set $s.1
-      local.set $s.0
-    end
+    local.get $s.0
+    local.get $s.1
+    i32.const 1
+    i32.const 3
+    call $"impl string.slice"
+    local.set $s.1
+    local.set $s.0
     local.get $s.0
     local.get $s.1
   )
   (func $str_slice_len (param $s.0 i32) (param $s.1 i32) (param $n i32) (result i32)
     ;; 11 |     s.slice(0, n).len()
+    local.get $s.0
+    local.get $s.1
+    i32.const 0
+    local.get $n
+    call $"impl string.slice"
+    local.set $s.1
+    local.set $s.0
     block
-      local.get $s.0
-      local.get $s.1
-      i32.const 0
-      local.get $n
-      call $"impl string.slice"
-      local.set $s.1
-      local.set $s.0
-      block
-        block
-          br 0
-        end
-      end
-      local.get $s.0
-      if
-        local.get $s.0
-        call $rt:release_ref'2
-      end
-      local.get $s.1
-      local.set $s.0
+      br 0
     end
+    local.get $s.0
+    if
+      local.get $s.0
+      call $rt:release_ref'2
+    end
+    local.get $s.1
+    local.set $s.0
     local.get $s.0
   )
   (func $list_slice (param $t1 i32) (result i32) (local $t0 i32) (local $xs i32)
@@ -243,30 +233,28 @@
     local.tee $xs
     local.get $t1
     i32.store $heap
-    block
+    local.get $xs
+    i32.load $heap
+    i32.load $heap offset=4
+    local.set $t1
+    local.get $xs
+    i32.const 1
+    local.get $t1
+    call $"impl[T] List[T].slice[string]"
+    local.set $t1
+    local.get $xs
+    if
       local.get $xs
       i32.load $heap
-      i32.load $heap offset=4
-      local.set $t1
-      local.get $xs
-      i32.const 1
-      local.get $t1
-      call $"impl[T] List[T].slice[string]"
-      local.set $t1
-      local.get $xs
+      local.tee $xs
       if
         local.get $xs
+        i32.const 8
+        i32.sub
         i32.load $heap
-        local.tee $xs
         if
           local.get $xs
-          i32.const 8
-          i32.sub
-          i32.load $heap
-          if
-            local.get $xs
-            call $rt:release_ref'1
-          end
+          call $rt:release_ref'1
         end
       end
     end

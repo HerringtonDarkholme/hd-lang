@@ -13,71 +13,67 @@
     local.get $env
     i32.load $heap
     local.set $env
-    block
-      local.get $env
-      i32.load $heap
-      local.get $env
-      i32.load $heap offset=4
-      local.set $ctx
-      local.tee $env
-      local.get $ctx
-      call $rt:retain
-    end
+    local.get $env
+    i32.load $heap
+    local.get $env
+    i32.load $heap offset=4
+    local.set $ctx
+    local.tee $env
+    local.get $ctx
+    call $rt:retain
     local.get $env
     local.get $ctx
   )
   (func $shared (param $seed i32) (result i32 i32) (local $t0 i32)
     ;; 9 |     let value: Choice = ._0(seed)
-    block
-      i32.const 8
-      i32.const 2
-      call $rt:new/class-1'1
-      local.tee $t0
-      i32.const 0
-      i32.store $heap
-      local.get $t0
-      local.get $seed
-      i32.store $heap offset=4
-      local.get $t0
-      local.set $seed
+    i32.const 8
+    i32.const 2
+    call $rt:new/class-1'1
+    local.tee $t0
+    i32.const 0
+    i32.store $heap
+    local.get $t0
+    local.get $seed
+    i32.store $heap offset=4
+    local.get $t0
+    local.set $seed
     ;; 10 |     read := fn() -> Choice: value
-      i32.const 2
-      i32.const 4
-      i32.const -2147483644
-      call $rt:new/class-1'2
-      local.tee $t0
-      local.get $seed
-      i32.store $heap
-      local.get $t0
-      call $rt:retain_fields
+    i32.const 2
+    i32.const 4
+    i32.const -2147483644
+    call $rt:new/class-1'2
+    local.tee $t0
+    local.get $seed
+    i32.store $heap
+    local.get $t0
+    call $rt:retain_fields
     ;; 11 |     value = ._1("changed")
-      local.get $seed
-      i32.load $heap
-      local.get $seed
-      i32.load $heap offset=4
-      local.get $seed
-      i32.const 65 ;; &"changed"
-      i32.store $heap
-      local.get $seed
-      i32.const 7
-      i32.store $heap offset=4
-      call $rt:release
+    local.get $seed
+    i32.load $heap
+    local.get $seed
+    i32.load $heap offset=4
+    local.get $seed
+    i32.const 65 ;; &"changed"
+    i32.store $heap
+    local.get $seed
+    i32.const 7
+    i32.store $heap offset=4
+    call $rt:release
     ;; 9 |     let value: Choice = ._0(seed)
+    local.get $seed
+    if
       local.get $seed
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      global.get $tracing
+      i32.or
       if
         local.get $seed
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $seed
-          call $rt:release_ref
-        end
+        call $rt:release_ref
       end
-      local.set $seed
     end
+    local.set $seed
     local.get $seed
     local.get $t0
   )

@@ -8,81 +8,79 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $replace (param $values i32) (param $key.0 i32) (param $key.1 i32) (param $value.0 i32) (param $value.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
     ;; 5 |     previous := values.get(key)
-    block
-      local.get $values
-      i32.load $heap
-      local.tee $t0
-      local.get $key.0
-      local.get $key.1
-      call $rt:map_hash
-      local.tee $t1
-      local.get $key.0
-      local.get $key.1
-      call $rt:map_find
-      local.tee $t2
-      i32.const 0
-      i32.ge_s
-      if (result i32)
-        local.get $t0
-        local.get $t0
-        i32.load $heap offset=12
-        i32.const 12
-        i32.mul
-        i32.add
-        i32.const 24
-        i32.add
-        local.get $t2
-        i32.const 16
-        i32.mul
-        i32.add
-        local.tee $t0
-        i32.load $heap offset=8
-        local.tee $t3
-        local.get $t0
-        i32.load $heap offset=12
-        local.set $t0
-        local.tee $t4
-        if
-          local.get $t4
-          call $retain
-        end
-        local.get $t3
-        local.get $t0
-        local.set $t3
-      else
-        i32.const 0
-      end
-      local.get $values
-      i32.load $heap
-      call $rt:map_unique
-      local.set $t0
-      local.get $values
+    local.get $values
+    i32.load $heap
+    local.tee $t0
+    local.get $key.0
+    local.get $key.1
+    call $rt:map_hash
+    local.tee $t1
+    local.get $key.0
+    local.get $key.1
+    call $rt:map_find
+    local.tee $t2
+    i32.const 0
+    i32.ge_s
+    if (result i32)
       local.get $t0
-      i32.store $heap
-    ;; 6 |     values[key] = value
-      local.get $key.0
+      local.get $t0
+      i32.load $heap offset=12
+      i32.const 12
+      i32.mul
+      i32.add
+      i32.const 24
+      i32.add
+      local.get $t2
+      i32.const 16
+      i32.mul
+      i32.add
+      local.tee $t0
+      i32.load $heap offset=8
+      local.tee $t3
+      local.get $t0
+      i32.load $heap offset=12
+      local.set $t0
       local.tee $t4
       if
         local.get $t4
         call $retain
       end
-      local.get $values
-    ;; 5 |     previous := values.get(key)
-      local.get $t0
-    ;; 6 |     values[key] = value
-      local.get $t1
-      local.get $t2
-      local.get $key.0
-      local.get $key.1
-      local.get $value.0
-      local.get $value.1
-      call $rt:map_put
-      i32.store $heap
-    ;; 5 |     previous := values.get(key)
       local.get $t3
-      local.set $key.0
-      local.set $values
+      local.get $t0
+      local.set $t3
+    else
+      i32.const 0
     end
+    local.get $values
+    i32.load $heap
+    call $rt:map_unique
+    local.set $t0
+    local.get $values
+    local.get $t0
+    i32.store $heap
+    ;; 6 |     values[key] = value
+    local.get $key.0
+    local.tee $t4
+    if
+      local.get $t4
+      call $retain
+    end
+    local.get $values
+    ;; 5 |     previous := values.get(key)
+    local.get $t0
+    ;; 6 |     values[key] = value
+    local.get $t1
+    local.get $t2
+    local.get $key.0
+    local.get $key.1
+    local.get $value.0
+    local.get $value.1
+    call $rt:map_put
+    i32.store $heap
+    ;; 5 |     previous := values.get(key)
+    local.get $t3
+    local.set $key.0
+    local.set $values
     local.get $values
     local.get $key.0
   )

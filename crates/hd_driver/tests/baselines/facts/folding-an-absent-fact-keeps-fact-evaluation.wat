@@ -4,27 +4,22 @@
   (import "fixture" "table0" (table $table0 13 funcref))
   (func $"Row.structure type facts" (result i32) (local $t0 i32)
     ;; ...
-    block
     ;; 34 | @fail()
-      block
-        block
-          i32.const 19 ;; &"fact body ran"
-          i32.const 13
-          i32.const 1
-          call_indirect $table0 (param i32 i32)
-          unreachable
-        end
-      end
-      i32.const 0
-      i32.const 0
-      call $rt:new/class-1
-      local.set $t0
-      ;; ...
-      local.get $t0
-      ;; ...
-      i32.const 500 ;; &vtable[func75]
-      ;; ...
+    block
+      i32.const 19 ;; &"fact body ran"
+      i32.const 13
+      i32.const 1
+      call_indirect $table0 (param i32 i32)
+      unreachable
     end
+    i32.const 0
+    i32.const 0
+    call $rt:new/class-1
+    local.set $t0
+    ;; ...
+    local.get $t0
+    ;; ...
+    i32.const 500 ;; &vtable[func75]
     ;; ...
   )
 )

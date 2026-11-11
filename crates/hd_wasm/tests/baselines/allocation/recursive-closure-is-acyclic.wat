@@ -3,61 +3,56 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "table0" (table $table0 3 funcref))
   (func $recursive (result i32 i32)
-    block
     ;; 6 |     sum := fn(n: i32) -> i32:
-      i32.const 0
-      ;; ...
-    end
+    i32.const 0
     ;; ...
   )
   (func $recursive#1 (param $env i32) (param $n i32) (param $ctx i32) (result i32) (local $t0 i64)
     ;; 6 |     sum := fn(n: i32) -> i32:
     i32.const 0
     local.set $ctx
-    block
     ;; 7 |         if n == 0: 0 else: n + sum(n - 1)
+    local.get $n
+    i32.eqz
+    if (result i32)
+      i32.const 0
+    else
       local.get $n
-      i32.eqz
-      if (result i32)
-        i32.const 0
-      else
-        local.get $n
-        i32.const -2147483647
-        i32.lt_s
-        if
-          call $rt:panic
-          unreachable
-        end
-        local.get $env
-        local.get $n
-        i32.const 1
-        i32.sub
-        i32.const 0
-        local.get $ctx
-        call_indirect $table0 (param i32 i32 i32) (result i32)
-        local.set $env
-        local.get $n
-        i64.extend_i32_s
-        local.get $env
-        i64.extend_i32_s
-        i64.add
-        local.tee $t0
-        i64.const 2147483647
-        i64.gt_s
-        local.get $t0
-        i64.const -2147483648
-        i64.lt_s
-        i32.or
-        if
-          call $rt:panic
-          unreachable
-        end
-        local.get $t0
-        i32.wrap_i64
+      i32.const -2147483647
+      i32.lt_s
+      if
+        call $rt:panic
+        unreachable
       end
-    ;; 6 |     sum := fn(n: i32) -> i32:
+      local.get $env
+      local.get $n
+      i32.const 1
+      i32.sub
+      i32.const 0
+      local.get $ctx
+      call_indirect $table0 (param i32 i32 i32) (result i32)
       local.set $env
+      local.get $n
+      i64.extend_i32_s
+      local.get $env
+      i64.extend_i32_s
+      i64.add
+      local.tee $t0
+      i64.const 2147483647
+      i64.gt_s
+      local.get $t0
+      i64.const -2147483648
+      i64.lt_s
+      i32.or
+      if
+        call $rt:panic
+        unreachable
+      end
+      local.get $t0
+      i32.wrap_i64
     end
+    ;; 6 |     sum := fn(n: i32) -> i32:
+    local.set $env
     local.get $env
   )
 )

@@ -17,293 +17,288 @@
   (import "fixture" "table0" (table $table0 15 funcref))
   (func $"impl[T < Ord] Queue[T].add[string]" (param $self i32) (param $value.0 i32) (param $value.1 i32) (local $t0 i32) (local $t1 i32)
     ;; 16 |         self.items.push(value)
-    block
-      local.get $self
-      i32.load $heap
-      call $rt:list_unique'1
+    local.get $self
+    i32.load $heap
+    call $rt:list_unique'1
+    local.set $t0
+    local.get $self
+    local.get $t0
+    i32.store $heap
+    local.get $t0
+    i32.load $heap offset=4
+    local.tee $t1
+    local.get $t0
+    i32.load $heap
+    i32.eq
+    if
+      local.get $t0
+      i32.const 3
+      call_indirect $table0 (param i32) (result i32)
       local.set $t0
       local.get $self
       local.get $t0
       i32.store $heap
-      local.get $t0
-      i32.load $heap offset=4
-      local.tee $t1
-      local.get $t0
-      i32.load $heap
-      i32.eq
-      if
-        local.get $t0
-        i32.const 3
-        call_indirect $table0 (param i32) (result i32)
-        local.set $t0
-        local.get $self
-        local.get $t0
-        i32.store $heap
-      end
-      local.get $t0
-      local.get $t1
-      i32.const 8
-      i32.mul
-      i32.add
-      local.tee $self
-      local.get $value.0
-      i32.store $heap offset=16
-      local.get $self
-      local.get $value.1
-      i32.store $heap offset=20
-      local.get $t0
-      local.get $t1
-      i32.const 1
-      i32.add
-      i32.store $heap offset=4
     end
+    local.get $t0
+    local.get $t1
+    i32.const 8
+    i32.mul
+    i32.add
+    local.tee $self
+    local.get $value.0
+    i32.store $heap offset=16
+    local.get $self
+    local.get $value.1
+    i32.store $heap offset=20
+    local.get $t0
+    local.get $t1
+    i32.const 1
+    i32.add
+    i32.store $heap offset=4
   )
   (func $"impl[T < Ord] Queue[T].settle[i64]" (param $self i32) (param $start i32) (param $value i64) (local $size i32) (local $left i32) (local $larger i32) (local $t0 i32) (local $t1 i32) (local $t2 i64) (local $t3 i64)
     ;; 19 |         size := self.items.len()
-    block
-      local.get $self
-      i32.load $heap
-      i32.load $heap offset=4
-      local.tee $size
+    local.get $self
+    i32.load $heap
+    i32.load $heap offset=4
+    local.tee $size
     ;; 20 |         let parent = start
-      local.get $start
+    local.get $start
     ;; 21 |         while parent < size / 2:
-      local.set $left
-      i32.const 1
-      i32.shr_u
-      local.set $larger
-      local.get $left
-      local.get $larger
-      i32.lt_u
-      if
-        local.get $self
-        local.get $self
-        i32.load $heap
-        call $rt:list_unique'2
-        i32.store $heap
-      end
-      block
-        loop
-          local.get $size
-          i32.const 1
-          i32.shr_u
-          local.set $larger
-          local.get $start
-          local.get $larger
-          i32.lt_u
-          i32.eqz
-          br_if 1
-    ;; 22 |             left := 2 * parent + 1
-          i32.const 2
-          local.get $start
-          i32.mul
-          i32.const 1
-          i32.add
-          local.tee $left
-    ;; 23 |             let larger = left
-          local.set $larger
-    ;; 24 |             if left + 1 < size:
-          local.get $left
-          i32.const 1
-          i32.add
-          local.get $size
-          i32.lt_u
-          if
-    ;; 25 |                 match self.items[left].cmp(&self.items[left + 1]):
-            local.get $self
-            i32.load $heap
-            local.set $t0
-            local.get $left
-            local.get $t0
-            i32.load $heap offset=4
-            i32.ge_u
-            if
-              call $rt:panic
-              unreachable
-            end
-            local.get $t0
-            local.get $left
-            i32.const 8
-            i32.mul
-            i32.add
-            i32.const 16
-            i32.add
-            local.get $left
-            i32.const 1
-            i32.add
-            local.get $self
-            i32.load $heap
-            local.set $t0
-            local.tee $t1
-            local.get $t0
-            i32.load $heap offset=4
-            i32.ge_u
-            if
-              call $rt:panic
-              unreachable
-            end
-            local.get $t0
-            local.get $t1
-            i32.const 8
-            i32.mul
-            i32.add
-            i32.const 16
-            i32.add
-            local.set $t0
-            i64.load $heap
-            local.set $t2
-            local.get $t0
-            i64.load $heap
-            local.set $t3
-            i32.const 1
-            local.get $t2
-            local.get $t3
-            i64.gt_s
-            i32.add
-            local.get $t2
-            local.get $t3
-            i64.lt_s
-            i32.sub
-            local.set $t0
-            block
-              block
-                block
-    ;; 26 |                     .Less => larger = left + 1
-                  local.get $t0
-                  br_if 1
-                  br 0
-    ;; 25 |                 match self.items[left].cmp(&self.items[left + 1]):
-                  unreachable
-                end
-    ;; 26 |                     .Less => larger = left + 1
-                local.get $left
-                i32.const 1
-                i32.add
-                local.set $larger
-    ;; 25 |                 match self.items[left].cmp(&self.items[left + 1]):
-                br 1
-              end
-              br 0
-            end
-    ;; 24 |             if left + 1 < size:
-          end
-    ;; 28 |             match value.cmp(&self.items[larger]):
-          local.get $self
-          i32.load $heap
-          local.set $left
-          local.get $larger
-          local.get $left
-          i32.load $heap offset=4
-          i32.ge_u
-          if
-            call $rt:panic
-            unreachable
-          end
-          local.get $left
-          local.get $larger
-          i32.const 8
-          i32.mul
-          i32.add
-          i64.load $heap offset=16
-          local.set $t2
-          i32.const 1
-          local.get $value
-          local.get $t2
-          i64.gt_s
-          i32.add
-          local.get $value
-          local.get $t2
-          i64.lt_s
-          i32.sub
-          local.set $left
-          block
-            block
-              block
-    ;; 29 |                 .Less => pass
-                local.get $left
-                br_if 1
-                br 0
-    ;; 28 |             match value.cmp(&self.items[larger]):
-                unreachable
-              end
-              br 1
-            end
-    ;; 30 |                 _ => break
-            br 2
-    ;; 28 |             match value.cmp(&self.items[larger]):
-            br 0
-          end
-    ;; 31 |             self.items[parent] = self.items[larger]
-          local.get $self
-          i32.load $heap
-          local.set $left
-          local.get $larger
-          local.get $left
-          i32.load $heap offset=4
-          i32.ge_u
-          if
-            call $rt:panic
-            unreachable
-          end
-          local.get $left
-          local.get $larger
-          i32.const 8
-          i32.mul
-          i32.add
-          i64.load $heap offset=16
-          local.set $t2
-          local.get $self
-          i32.load $heap
-          local.set $left
-          local.get $start
-          local.get $left
-          i32.load $heap offset=4
-          i32.ge_u
-          if
-            call $rt:panic
-            unreachable
-          end
-          local.get $left
-          local.get $start
-          i32.const 8
-          i32.mul
-          i32.add
-          local.get $t2
-          i64.store $heap offset=16
-    ;; 32 |             parent = larger
-          local.get $larger
-          local.set $start
-    ;; 21 |         while parent < size / 2:
-          br 0
-        end
-      end
-    ;; 19 |         size := self.items.len()
+    local.set $left
+    i32.const 1
+    i32.shr_u
+    local.set $larger
+    local.get $left
+    local.get $larger
+    i32.lt_u
+    if
       local.get $self
       local.get $self
       i32.load $heap
       call $rt:list_unique'2
       i32.store $heap
-    ;; 33 |         self.items[parent] = value
-      local.get $self
-      i32.load $heap
-      local.set $self
-      local.get $start
-      local.get $self
-      i32.load $heap offset=4
-      i32.ge_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $self
-      local.get $start
-      i32.const 8
-      i32.mul
-      i32.add
-      local.get $value
-      i64.store $heap offset=16
-    ;; 19 |         size := self.items.len()
     end
+    block
+      loop
+        local.get $size
+        i32.const 1
+        i32.shr_u
+        local.set $larger
+        local.get $start
+        local.get $larger
+        i32.lt_u
+        i32.eqz
+        br_if 1
+    ;; 22 |             left := 2 * parent + 1
+        i32.const 2
+        local.get $start
+        i32.mul
+        i32.const 1
+        i32.add
+        local.tee $left
+    ;; 23 |             let larger = left
+        local.set $larger
+    ;; 24 |             if left + 1 < size:
+        local.get $left
+        i32.const 1
+        i32.add
+        local.get $size
+        i32.lt_u
+        if
+    ;; 25 |                 match self.items[left].cmp(&self.items[left + 1]):
+          local.get $self
+          i32.load $heap
+          local.set $t0
+          local.get $left
+          local.get $t0
+          i32.load $heap offset=4
+          i32.ge_u
+          if
+            call $rt:panic
+            unreachable
+          end
+          local.get $t0
+          local.get $left
+          i32.const 8
+          i32.mul
+          i32.add
+          i32.const 16
+          i32.add
+          local.get $left
+          i32.const 1
+          i32.add
+          local.get $self
+          i32.load $heap
+          local.set $t0
+          local.tee $t1
+          local.get $t0
+          i32.load $heap offset=4
+          i32.ge_u
+          if
+            call $rt:panic
+            unreachable
+          end
+          local.get $t0
+          local.get $t1
+          i32.const 8
+          i32.mul
+          i32.add
+          i32.const 16
+          i32.add
+          local.set $t0
+          i64.load $heap
+          local.set $t2
+          local.get $t0
+          i64.load $heap
+          local.set $t3
+          i32.const 1
+          local.get $t2
+          local.get $t3
+          i64.gt_s
+          i32.add
+          local.get $t2
+          local.get $t3
+          i64.lt_s
+          i32.sub
+          local.set $t0
+          block
+            block
+              block
+    ;; 26 |                     .Less => larger = left + 1
+                local.get $t0
+                br_if 1
+                br 0
+    ;; 25 |                 match self.items[left].cmp(&self.items[left + 1]):
+                unreachable
+              end
+    ;; 26 |                     .Less => larger = left + 1
+              local.get $left
+              i32.const 1
+              i32.add
+              local.set $larger
+    ;; 25 |                 match self.items[left].cmp(&self.items[left + 1]):
+              br 1
+            end
+            br 0
+          end
+    ;; 24 |             if left + 1 < size:
+        end
+    ;; 28 |             match value.cmp(&self.items[larger]):
+        local.get $self
+        i32.load $heap
+        local.set $left
+        local.get $larger
+        local.get $left
+        i32.load $heap offset=4
+        i32.ge_u
+        if
+          call $rt:panic
+          unreachable
+        end
+        local.get $left
+        local.get $larger
+        i32.const 8
+        i32.mul
+        i32.add
+        i64.load $heap offset=16
+        local.set $t2
+        i32.const 1
+        local.get $value
+        local.get $t2
+        i64.gt_s
+        i32.add
+        local.get $value
+        local.get $t2
+        i64.lt_s
+        i32.sub
+        local.set $left
+        block
+          block
+            block
+    ;; 29 |                 .Less => pass
+              local.get $left
+              br_if 1
+              br 0
+    ;; 28 |             match value.cmp(&self.items[larger]):
+              unreachable
+            end
+            br 1
+          end
+    ;; 30 |                 _ => break
+          br 2
+    ;; 28 |             match value.cmp(&self.items[larger]):
+          br 0
+        end
+    ;; 31 |             self.items[parent] = self.items[larger]
+        local.get $self
+        i32.load $heap
+        local.set $left
+        local.get $larger
+        local.get $left
+        i32.load $heap offset=4
+        i32.ge_u
+        if
+          call $rt:panic
+          unreachable
+        end
+        local.get $left
+        local.get $larger
+        i32.const 8
+        i32.mul
+        i32.add
+        i64.load $heap offset=16
+        local.set $t2
+        local.get $self
+        i32.load $heap
+        local.set $left
+        local.get $start
+        local.get $left
+        i32.load $heap offset=4
+        i32.ge_u
+        if
+          call $rt:panic
+          unreachable
+        end
+        local.get $left
+        local.get $start
+        i32.const 8
+        i32.mul
+        i32.add
+        local.get $t2
+        i64.store $heap offset=16
+    ;; 32 |             parent = larger
+        local.get $larger
+        local.set $start
+    ;; 21 |         while parent < size / 2:
+        br 0
+      end
+    end
+    ;; 19 |         size := self.items.len()
+    local.get $self
+    local.get $self
+    i32.load $heap
+    call $rt:list_unique'2
+    i32.store $heap
+    ;; 33 |         self.items[parent] = value
+    local.get $self
+    i32.load $heap
+    local.set $self
+    local.get $start
+    local.get $self
+    i32.load $heap offset=4
+    i32.ge_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $self
+    local.get $start
+    i32.const 8
+    i32.mul
+    i32.add
+    local.get $value
+    i64.store $heap offset=16
   )
   (func $names (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $q i32) (local $t0 i32) (local $t1 i32)
     ;; 45 |     let mut q = Queue::[string].new()
@@ -337,119 +332,69 @@
     local.tee $t0
     global.set $locals
     block
-      block
-        block
-          i32.const 80 ;; &empty-buffer
-          local.set $q
-          br 0
-        end
-      end
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $t1
-      local.get $q
-      i32.store $heap
-      local.get $t1
-      local.tee $q
+      i32.const 80 ;; &empty-buffer
+      local.set $q
+      br 0
+    end
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $t1
+    local.get $q
+    i32.store $heap
+    local.get $t1
+    local.tee $q
     ;; 46 |     q.add(a)
-      local.get $a.0
-      local.get $a.1
-      call $"impl[T < Ord] Queue[T].add[string]"
+    local.get $a.0
+    local.get $a.1
+    call $"impl[T < Ord] Queue[T].add[string]"
     ;; 47 |     q.add(b)
-      local.get $q
-      local.get $b.0
-      local.get $b.1
-      call $"impl[T < Ord] Queue[T].add[string]"
+    local.get $q
+    local.get $b.0
+    local.get $b.1
+    call $"impl[T < Ord] Queue[T].add[string]"
     ;; 48 |     saved := q
-      local.get $q
-      i32.load $heap
-      call $rt:coll_copy
-      local.set $a.0
+    local.get $q
+    i32.load $heap
+    call $rt:coll_copy
+    local.set $a.0
     ;; 49 |     q.settle(0, "z")
-      local.get $q
-      i32.const 0
-      i32.const 236 ;; &"z"
-      i32.const 1
-      call $"impl[T < Ord] Queue[T].settle[string]"
+    local.get $q
+    i32.const 0
+    i32.const 236 ;; &"z"
+    i32.const 1
+    call $"impl[T < Ord] Queue[T].settle[string]"
     ;; 50 |     q.items[0].len() + saved.items[0].len()
+    local.get $q
+    i32.load $heap
+    local.set $a.1
+    i32.const 0
+    local.get $a.1
+    i32.load $heap offset=4
+    i32.ge_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $a.1
+    i32.load $heap offset=16
+    local.get $a.1
+    i32.load $heap offset=20
+    local.set $b.0
+    local.tee $a.1
+    local.tee $t1
+    if
+      local.get $t1
+      call $retain
+    end
+    ;; 45 |     let mut q = Queue::[string].new()
+    local.get $q
+    if
       local.get $q
       i32.load $heap
-      local.set $a.1
-      i32.const 0
-      local.get $a.1
-      i32.load $heap offset=4
-      i32.ge_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $a.1
-      i32.load $heap offset=16
-      local.get $a.1
-      i32.load $heap offset=20
-      local.set $b.0
-      local.tee $a.1
-      local.tee $t1
-      if
-        local.get $t1
-        call $retain
-      end
-    ;; 45 |     let mut q = Queue::[string].new()
-      local.get $q
-      if
-        local.get $q
-        i32.load $heap
-        local.tee $t1
-        if
-          local.get $t1
-          i32.const 8
-          i32.sub
-          i32.load $heap
-          if
-            local.get $t1
-            call $rt:release_ref'1
-          end
-        end
-      end
-    ;; 50 |     q.items[0].len() + saved.items[0].len()
-      block
-        block
-          br 0
-        end
-      end
-    ;; 45 |     let mut q = Queue::[string].new()
-      local.get $a.1
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref'2
-      end
-    ;; 50 |     q.items[0].len() + saved.items[0].len()
-      i32.const 0
-      local.get $a.0
-      i32.load $heap offset=4
-      i32.ge_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $a.0
-      i32.load $heap offset=16
-      local.get $a.0
-      i32.load $heap offset=20
-      local.set $b.1
-      local.tee $a.1
-      local.tee $t1
-      if
-        local.get $t1
-        call $retain
-      end
-    ;; 45 |     let mut q = Queue::[string].new()
-      local.get $a.0
       local.tee $t1
       if
         local.get $t1
@@ -461,28 +406,70 @@
           call $rt:release_ref'1
         end
       end
+    end
     ;; 50 |     q.items[0].len() + saved.items[0].len()
-      block
-        block
-          local.get $b.1
-          local.set $a.0
-          br 0
-        end
-      end
+    block
+      br 0
+    end
     ;; 45 |     let mut q = Queue::[string].new()
-      local.get $a.1
-      local.tee $t1
+    local.get $a.1
+    local.tee $t1
+    if
+      local.get $t1
+      call $rt:release_ref'2
+    end
+    ;; 50 |     q.items[0].len() + saved.items[0].len()
+    i32.const 0
+    local.get $a.0
+    i32.load $heap offset=4
+    i32.ge_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $a.0
+    i32.load $heap offset=16
+    local.get $a.0
+    i32.load $heap offset=20
+    local.set $b.1
+    local.tee $a.1
+    local.tee $t1
+    if
+      local.get $t1
+      call $retain
+    end
+    ;; 45 |     let mut q = Queue::[string].new()
+    local.get $a.0
+    local.tee $t1
+    if
+      local.get $t1
+      i32.const 8
+      i32.sub
+      i32.load $heap
       if
         local.get $t1
-        call $rt:release_ref'2
+        call $rt:release_ref'1
       end
-    ;; 50 |     q.items[0].len() + saved.items[0].len()
-      local.get $b.0
-      local.get $a.0
-      i32.add
-    ;; 45 |     let mut q = Queue::[string].new()
-      local.set $a.0
     end
+    ;; 50 |     q.items[0].len() + saved.items[0].len()
+    block
+      local.get $b.1
+      local.set $a.0
+      br 0
+    end
+    ;; 45 |     let mut q = Queue::[string].new()
+    local.get $a.1
+    local.tee $t1
+    if
+      local.get $t1
+      call $rt:release_ref'2
+    end
+    ;; 50 |     q.items[0].len() + saved.items[0].len()
+    local.get $b.0
+    local.get $a.0
+    i32.add
+    ;; 45 |     let mut q = Queue::[string].new()
+    local.set $a.0
     local.get $a.0
     local.get $t0
     i32.const 16
@@ -532,255 +519,253 @@
     local.get $value
     local.get $size
     i32.store $heap offset=8
+    local.get $self
+    i32.load $heap
+    i32.load $heap offset=4
+    local.set $size
+    ;; 21 |         while parent < size / 2:
     block
-      local.get $self
-      i32.load $heap
-      i32.load $heap offset=4
-      local.set $size
-    ;; 21 |         while parent < size / 2:
-      block
-        loop
-          local.get $start
-          local.get $size
-          i32.const 1
-          i32.shr_u
-          i32.lt_u
-          i32.eqz
-          br_if 1
+      loop
+        local.get $start
+        local.get $size
+        i32.const 1
+        i32.shr_u
+        i32.lt_u
+        i32.eqz
+        br_if 1
     ;; 22 |             left := 2 * parent + 1
-          i32.const 2
-          local.get $start
-          i32.mul
-          i32.const 1
-          i32.add
-          local.tee $left
+        i32.const 2
+        local.get $start
+        i32.mul
+        i32.const 1
+        i32.add
+        local.tee $left
     ;; 23 |             let larger = left
-          local.set $larger
+        local.set $larger
     ;; 24 |             if left + 1 < size:
-          local.get $left
-          i32.const 1
-          i32.add
-          local.get $size
-          i32.lt_u
-          if
-            local.get $self
-            local.get $self
-            i32.load $heap
-            call $rt:list_unique'3
-            i32.store $heap
-    ;; 25 |                 match self.items[left].cmp(&self.items[left + 1]):
-            local.get $self
-            i32.load $heap
-            local.set $t2
-            local.get $left
-            local.get $t2
-            i32.load $heap offset=4
-            i32.ge_u
-            if
-              call $rt:panic
-              unreachable
-            end
-            local.get $t2
-            local.get $left
-            i32.const 16
-            i32.mul
-            i32.add
-            i32.const 16
-            i32.add
-            local.get $left
-            i32.const 1
-            i32.add
-    ;; 24 |             if left + 1 < size:
-            local.get $self
-            local.get $self
-            i32.load $heap
-            call $rt:list_unique'3
-            i32.store $heap
-    ;; 25 |                 match self.items[left].cmp(&self.items[left + 1]):
-            local.get $self
-            i32.load $heap
-            local.set $t2
-            local.tee $t3
-            local.get $t2
-            i32.load $heap offset=4
-            i32.ge_u
-            if
-              call $rt:panic
-              unreachable
-            end
-            local.get $t2
-            local.get $t3
-            i32.const 16
-            i32.mul
-            i32.add
-            i32.const 16
-            i32.add
-            call $"impl[T < ?Copy & Tuple] Ord for T by Structure.cmp[(i64, usize)]"
-            local.set $t2
-            block
-              block
-                block
-    ;; 26 |                     .Less => larger = left + 1
-                  local.get $t2
-                  br_if 1
-                  br 0
-    ;; 25 |                 match self.items[left].cmp(&self.items[left + 1]):
-                  unreachable
-                end
-    ;; 26 |                     .Less => larger = left + 1
-                local.get $left
-                i32.const 1
-                i32.add
-                local.set $larger
-    ;; 25 |                 match self.items[left].cmp(&self.items[left + 1]):
-                br 1
-              end
-              br 0
-            end
-    ;; 24 |             if left + 1 < size:
-          end
-    ;; 21 |         while parent < size / 2:
+        local.get $left
+        i32.const 1
+        i32.add
+        local.get $size
+        i32.lt_u
+        if
           local.get $self
           local.get $self
           i32.load $heap
           call $rt:list_unique'3
           i32.store $heap
-    ;; 28 |             match value.cmp(&self.items[larger]):
+    ;; 25 |                 match self.items[left].cmp(&self.items[left + 1]):
           local.get $self
           i32.load $heap
-          local.set $left
-          local.get $larger
+          local.set $t2
           local.get $left
+          local.get $t2
           i32.load $heap offset=4
           i32.ge_u
           if
             call $rt:panic
             unreachable
           end
-          local.get $value
+          local.get $t2
           local.get $left
-          local.get $larger
+          i32.const 16
+          i32.mul
+          i32.add
+          i32.const 16
+          i32.add
+          local.get $left
+          i32.const 1
+          i32.add
+    ;; 24 |             if left + 1 < size:
+          local.get $self
+          local.get $self
+          i32.load $heap
+          call $rt:list_unique'3
+          i32.store $heap
+    ;; 25 |                 match self.items[left].cmp(&self.items[left + 1]):
+          local.get $self
+          i32.load $heap
+          local.set $t2
+          local.tee $t3
+          local.get $t2
+          i32.load $heap offset=4
+          i32.ge_u
+          if
+            call $rt:panic
+            unreachable
+          end
+          local.get $t2
+          local.get $t3
           i32.const 16
           i32.mul
           i32.add
           i32.const 16
           i32.add
           call $"impl[T < ?Copy & Tuple] Ord for T by Structure.cmp[(i64, usize)]"
-          local.set $left
+          local.set $t2
           block
             block
               block
-    ;; 29 |                 .Less => pass
-                local.get $left
+    ;; 26 |                     .Less => larger = left + 1
+                local.get $t2
                 br_if 1
                 br 0
-    ;; 28 |             match value.cmp(&self.items[larger]):
+    ;; 25 |                 match self.items[left].cmp(&self.items[left + 1]):
                 unreachable
               end
+    ;; 26 |                     .Less => larger = left + 1
+              local.get $left
+              i32.const 1
+              i32.add
+              local.set $larger
+    ;; 25 |                 match self.items[left].cmp(&self.items[left + 1]):
               br 1
             end
-    ;; 30 |                 _ => break
-            br 2
-    ;; 28 |             match value.cmp(&self.items[larger]):
             br 0
           end
-    ;; 31 |             self.items[parent] = self.items[larger]
-          local.get $self
-          i32.load $heap
-          local.set $left
-          local.get $larger
-          local.get $left
-          i32.load $heap offset=4
-          i32.ge_u
-          if
-            call $rt:panic
-            unreachable
-          end
-          local.get $left
-          local.get $larger
-          i32.const 16
-          i32.mul
-          i32.add
-          local.tee $left
-          i64.load $heap offset=16
-          local.get $left
-          i32.load $heap offset=24
-          local.set $left
-          local.set $t1
+    ;; 24 |             if left + 1 < size:
+        end
     ;; 21 |         while parent < size / 2:
-          local.get $self
-          local.get $self
-          i32.load $heap
-          call $rt:list_unique'3
-          i32.store $heap
-    ;; 31 |             self.items[parent] = self.items[larger]
-          local.get $self
-          i32.load $heap
-          local.set $t2
-          local.get $start
-          local.get $t2
-          i32.load $heap offset=4
-          i32.ge_u
-          if
-            call $rt:panic
-            unreachable
+        local.get $self
+        local.get $self
+        i32.load $heap
+        call $rt:list_unique'3
+        i32.store $heap
+    ;; 28 |             match value.cmp(&self.items[larger]):
+        local.get $self
+        i32.load $heap
+        local.set $left
+        local.get $larger
+        local.get $left
+        i32.load $heap offset=4
+        i32.ge_u
+        if
+          call $rt:panic
+          unreachable
+        end
+        local.get $value
+        local.get $left
+        local.get $larger
+        i32.const 16
+        i32.mul
+        i32.add
+        i32.const 16
+        i32.add
+        call $"impl[T < ?Copy & Tuple] Ord for T by Structure.cmp[(i64, usize)]"
+        local.set $left
+        block
+          block
+            block
+    ;; 29 |                 .Less => pass
+              local.get $left
+              br_if 1
+              br 0
+    ;; 28 |             match value.cmp(&self.items[larger]):
+              unreachable
+            end
+            br 1
           end
-          local.get $t2
-          local.get $start
-          i32.const 16
-          i32.mul
-          i32.add
-          local.tee $start
-          local.get $t1
-          i64.store $heap offset=16
-          local.get $start
-          local.get $left
-          i32.store $heap offset=24
-    ;; 32 |             parent = larger
-          local.get $larger
-          local.set $start
-    ;; 21 |         while parent < size / 2:
+    ;; 30 |                 _ => break
+          br 2
+    ;; 28 |             match value.cmp(&self.items[larger]):
           br 0
         end
+    ;; 31 |             self.items[parent] = self.items[larger]
+        local.get $self
+        i32.load $heap
+        local.set $left
+        local.get $larger
+        local.get $left
+        i32.load $heap offset=4
+        i32.ge_u
+        if
+          call $rt:panic
+          unreachable
+        end
+        local.get $left
+        local.get $larger
+        i32.const 16
+        i32.mul
+        i32.add
+        local.tee $left
+        i64.load $heap offset=16
+        local.get $left
+        i32.load $heap offset=24
+        local.set $left
+        local.set $t1
+    ;; 21 |         while parent < size / 2:
+        local.get $self
+        local.get $self
+        i32.load $heap
+        call $rt:list_unique'3
+        i32.store $heap
+    ;; 31 |             self.items[parent] = self.items[larger]
+        local.get $self
+        i32.load $heap
+        local.set $t2
+        local.get $start
+        local.get $t2
+        i32.load $heap offset=4
+        i32.ge_u
+        if
+          call $rt:panic
+          unreachable
+        end
+        local.get $t2
+        local.get $start
+        i32.const 16
+        i32.mul
+        i32.add
+        local.tee $start
+        local.get $t1
+        i64.store $heap offset=16
+        local.get $start
+        local.get $left
+        i32.store $heap offset=24
+    ;; 32 |             parent = larger
+        local.get $larger
+        local.set $start
+    ;; 21 |         while parent < size / 2:
+        br 0
       end
-    ;; 33 |         self.items[parent] = value
-      local.get $value
-      i64.load $heap
-      local.get $value
-      i32.load $heap offset=8
-      local.set $size
-      local.set $t1
-    ;; 19 |         size := self.items.len()
-      local.get $self
-      local.get $self
-      i32.load $heap
-      call $rt:list_unique'3
-      i32.store $heap
-    ;; 33 |         self.items[parent] = value
-      local.get $self
-      i32.load $heap
-      local.set $self
-      local.get $start
-      local.get $self
-      i32.load $heap offset=4
-      i32.ge_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $self
-      local.get $start
-      i32.const 16
-      i32.mul
-      i32.add
-      local.tee $self
-      local.get $t1
-      i64.store $heap offset=16
-      local.get $self
-      local.get $size
-      i32.store $heap offset=24
-    ;; 19 |         size := self.items.len()
     end
+    ;; 33 |         self.items[parent] = value
+    local.get $value
+    i64.load $heap
+    local.get $value
+    i32.load $heap offset=8
+    local.set $size
+    local.set $t1
+    ;; 19 |         size := self.items.len()
+    local.get $self
+    local.get $self
+    i32.load $heap
+    call $rt:list_unique'3
+    i32.store $heap
+    ;; 33 |         self.items[parent] = value
+    local.get $self
+    i32.load $heap
+    local.set $self
+    local.get $start
+    local.get $self
+    i32.load $heap offset=4
+    i32.ge_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $self
+    local.get $start
+    i32.const 16
+    i32.mul
+    i32.add
+    local.tee $self
+    local.get $t1
+    i64.store $heap offset=16
+    local.get $self
+    local.get $size
+    i32.store $heap offset=24
+    ;; 19 |         size := self.items.len()
     local.get $t0
     i32.const 24
     i32.add
@@ -829,248 +814,246 @@
     local.get $value
     local.get $size
     i32.store $heap offset=8
-    block
+    local.get $self
+    i32.load $heap
+    i32.load $heap offset=4
+    local.tee $size
+    ;; 20 |         let parent = start
+    local.get $start
+    ;; 21 |         while parent < size / 2:
+    local.set $left
+    i32.const 1
+    i32.shr_u
+    local.set $larger
+    local.get $left
+    local.get $larger
+    i32.lt_u
+    if
+      local.get $self
       local.get $self
       i32.load $heap
-      i32.load $heap offset=4
-      local.tee $size
-    ;; 20 |         let parent = start
-      local.get $start
-    ;; 21 |         while parent < size / 2:
-      local.set $left
-      i32.const 1
-      i32.shr_u
-      local.set $larger
-      local.get $left
-      local.get $larger
-      i32.lt_u
-      if
-        local.get $self
-        local.get $self
-        i32.load $heap
-        call $rt:list_unique'3
-        i32.store $heap
-      end
-      block
-        loop
-          local.get $size
-          i32.const 1
-          i32.shr_u
-          local.set $larger
-          local.get $start
-          local.get $larger
-          i32.lt_u
-          i32.eqz
-          br_if 1
+      call $rt:list_unique'3
+      i32.store $heap
+    end
+    block
+      loop
+        local.get $size
+        i32.const 1
+        i32.shr_u
+        local.set $larger
+        local.get $start
+        local.get $larger
+        i32.lt_u
+        i32.eqz
+        br_if 1
     ;; 22 |             left := 2 * parent + 1
-          i32.const 2
-          local.get $start
-          i32.mul
-          i32.const 1
-          i32.add
-          local.tee $left
+        i32.const 2
+        local.get $start
+        i32.mul
+        i32.const 1
+        i32.add
+        local.tee $left
     ;; 23 |             let larger = left
-          local.set $larger
+        local.set $larger
     ;; 24 |             if left + 1 < size:
-          local.get $left
-          i32.const 1
-          i32.add
-          local.get $size
-          i32.lt_u
-          if
+        local.get $left
+        i32.const 1
+        i32.add
+        local.get $size
+        i32.lt_u
+        if
     ;; 25 |                 match self.items[left].cmp(&self.items[left + 1]):
-            local.get $self
-            i32.load $heap
-            local.set $t2
-            local.get $left
-            local.get $t2
-            i32.load $heap offset=4
-            i32.ge_u
-            if
-              call $rt:panic
-              unreachable
-            end
-            local.get $t2
-            local.get $left
-            i32.const 16
-            i32.mul
-            i32.add
-            i32.const 16
-            i32.add
-            local.get $left
-            i32.const 1
-            i32.add
-            local.get $self
-            i32.load $heap
-            local.set $t2
-            local.tee $t3
-            local.get $t2
-            i32.load $heap offset=4
-            i32.ge_u
-            if
-              call $rt:panic
-              unreachable
-            end
-            local.get $t2
-            local.get $t3
-            i32.const 16
-            i32.mul
-            i32.add
-            i32.const 16
-            i32.add
-            call $"impl[T < ?Copy & Tuple] Ord for T by Structure.cmp[(i64, usize)]"
-            local.set $t2
-            block
-              block
-                block
-    ;; 26 |                     .Less => larger = left + 1
-                  local.get $t2
-                  br_if 1
-                  br 0
-    ;; 25 |                 match self.items[left].cmp(&self.items[left + 1]):
-                  unreachable
-                end
-    ;; 26 |                     .Less => larger = left + 1
-                local.get $left
-                i32.const 1
-                i32.add
-                local.set $larger
-    ;; 25 |                 match self.items[left].cmp(&self.items[left + 1]):
-                br 1
-              end
-              br 0
-            end
-    ;; 24 |             if left + 1 < size:
-          end
-    ;; 28 |             match value.cmp(&self.items[larger]):
           local.get $self
           i32.load $heap
-          local.set $left
-          local.get $larger
+          local.set $t2
           local.get $left
+          local.get $t2
           i32.load $heap offset=4
           i32.ge_u
           if
             call $rt:panic
             unreachable
           end
-          local.get $value
+          local.get $t2
           local.get $left
-          local.get $larger
+          i32.const 16
+          i32.mul
+          i32.add
+          i32.const 16
+          i32.add
+          local.get $left
+          i32.const 1
+          i32.add
+          local.get $self
+          i32.load $heap
+          local.set $t2
+          local.tee $t3
+          local.get $t2
+          i32.load $heap offset=4
+          i32.ge_u
+          if
+            call $rt:panic
+            unreachable
+          end
+          local.get $t2
+          local.get $t3
           i32.const 16
           i32.mul
           i32.add
           i32.const 16
           i32.add
           call $"impl[T < ?Copy & Tuple] Ord for T by Structure.cmp[(i64, usize)]"
-          local.set $left
+          local.set $t2
           block
             block
               block
-    ;; 29 |                 .Less => pass
-                local.get $left
+    ;; 26 |                     .Less => larger = left + 1
+                local.get $t2
                 br_if 1
                 br 0
-    ;; 28 |             match value.cmp(&self.items[larger]):
+    ;; 25 |                 match self.items[left].cmp(&self.items[left + 1]):
                 unreachable
               end
+    ;; 26 |                     .Less => larger = left + 1
+              local.get $left
+              i32.const 1
+              i32.add
+              local.set $larger
+    ;; 25 |                 match self.items[left].cmp(&self.items[left + 1]):
               br 1
             end
-    ;; 30 |                 _ => break
-            br 2
-    ;; 28 |             match value.cmp(&self.items[larger]):
             br 0
           end
-    ;; 31 |             self.items[parent] = self.items[larger]
-          local.get $self
-          i32.load $heap
-          local.set $left
-          local.get $larger
-          local.get $left
-          i32.load $heap offset=4
-          i32.ge_u
-          if
-            call $rt:panic
-            unreachable
+    ;; 24 |             if left + 1 < size:
+        end
+    ;; 28 |             match value.cmp(&self.items[larger]):
+        local.get $self
+        i32.load $heap
+        local.set $left
+        local.get $larger
+        local.get $left
+        i32.load $heap offset=4
+        i32.ge_u
+        if
+          call $rt:panic
+          unreachable
+        end
+        local.get $value
+        local.get $left
+        local.get $larger
+        i32.const 16
+        i32.mul
+        i32.add
+        i32.const 16
+        i32.add
+        call $"impl[T < ?Copy & Tuple] Ord for T by Structure.cmp[(i64, usize)]"
+        local.set $left
+        block
+          block
+            block
+    ;; 29 |                 .Less => pass
+              local.get $left
+              br_if 1
+              br 0
+    ;; 28 |             match value.cmp(&self.items[larger]):
+              unreachable
+            end
+            br 1
           end
-          local.get $left
-          local.get $larger
-          i32.const 16
-          i32.mul
-          i32.add
-          local.tee $left
-          i64.load $heap offset=16
-          local.get $left
-          i32.load $heap offset=24
-          local.set $left
-          local.set $t1
-          local.get $self
-          i32.load $heap
-          local.set $t2
-          local.get $start
-          local.get $t2
-          i32.load $heap offset=4
-          i32.ge_u
-          if
-            call $rt:panic
-            unreachable
-          end
-          local.get $t2
-          local.get $start
-          i32.const 16
-          i32.mul
-          i32.add
-          local.tee $start
-          local.get $t1
-          i64.store $heap offset=16
-          local.get $start
-          local.get $left
-          i32.store $heap offset=24
-    ;; 32 |             parent = larger
-          local.get $larger
-          local.set $start
-    ;; 21 |         while parent < size / 2:
+    ;; 30 |                 _ => break
+          br 2
+    ;; 28 |             match value.cmp(&self.items[larger]):
           br 0
         end
+    ;; 31 |             self.items[parent] = self.items[larger]
+        local.get $self
+        i32.load $heap
+        local.set $left
+        local.get $larger
+        local.get $left
+        i32.load $heap offset=4
+        i32.ge_u
+        if
+          call $rt:panic
+          unreachable
+        end
+        local.get $left
+        local.get $larger
+        i32.const 16
+        i32.mul
+        i32.add
+        local.tee $left
+        i64.load $heap offset=16
+        local.get $left
+        i32.load $heap offset=24
+        local.set $left
+        local.set $t1
+        local.get $self
+        i32.load $heap
+        local.set $t2
+        local.get $start
+        local.get $t2
+        i32.load $heap offset=4
+        i32.ge_u
+        if
+          call $rt:panic
+          unreachable
+        end
+        local.get $t2
+        local.get $start
+        i32.const 16
+        i32.mul
+        i32.add
+        local.tee $start
+        local.get $t1
+        i64.store $heap offset=16
+        local.get $start
+        local.get $left
+        i32.store $heap offset=24
+    ;; 32 |             parent = larger
+        local.get $larger
+        local.set $start
+    ;; 21 |         while parent < size / 2:
+        br 0
       end
-    ;; 33 |         self.items[parent] = value
-      local.get $value
-      i64.load $heap
-      local.get $value
-      i32.load $heap offset=8
-      local.set $size
-      local.set $t1
-    ;; 19 |         size := self.items.len()
-      local.get $self
-      local.get $self
-      i32.load $heap
-      call $rt:list_unique'3
-      i32.store $heap
-    ;; 33 |         self.items[parent] = value
-      local.get $self
-      i32.load $heap
-      local.set $self
-      local.get $start
-      local.get $self
-      i32.load $heap offset=4
-      i32.ge_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $self
-      local.get $start
-      i32.const 16
-      i32.mul
-      i32.add
-      local.tee $self
-      local.get $t1
-      i64.store $heap offset=16
-      local.get $self
-      local.get $size
-      i32.store $heap offset=24
-    ;; 19 |         size := self.items.len()
     end
+    ;; 33 |         self.items[parent] = value
+    local.get $value
+    i64.load $heap
+    local.get $value
+    i32.load $heap offset=8
+    local.set $size
+    local.set $t1
+    ;; 19 |         size := self.items.len()
+    local.get $self
+    local.get $self
+    i32.load $heap
+    call $rt:list_unique'3
+    i32.store $heap
+    ;; 33 |         self.items[parent] = value
+    local.get $self
+    i32.load $heap
+    local.set $self
+    local.get $start
+    local.get $self
+    i32.load $heap offset=4
+    i32.ge_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $self
+    local.get $start
+    i32.const 16
+    i32.mul
+    i32.add
+    local.tee $self
+    local.get $t1
+    i64.store $heap offset=16
+    local.get $self
+    local.get $size
+    i32.store $heap offset=24
+    ;; 19 |         size := self.items.len()
     local.get $t0
     i32.const 24
     i32.add
@@ -1078,42 +1061,40 @@
   )
   (func $"impl[T < Ord] Queue[T].add[i64]" (param $self i32) (param $value i64) (local $t0 i32) (local $t1 i32)
     ;; 16 |         self.items.push(value)
-    block
-      local.get $self
-      i32.load $heap
-      call $rt:list_unique'2
+    local.get $self
+    i32.load $heap
+    call $rt:list_unique'2
+    local.set $t0
+    local.get $self
+    local.get $t0
+    i32.store $heap
+    local.get $t0
+    i32.load $heap offset=4
+    local.tee $t1
+    local.get $t0
+    i32.load $heap
+    i32.eq
+    if
+      local.get $t0
+      i32.const 8
+      call_indirect $table0 (param i32) (result i32)
       local.set $t0
       local.get $self
       local.get $t0
       i32.store $heap
-      local.get $t0
-      i32.load $heap offset=4
-      local.tee $t1
-      local.get $t0
-      i32.load $heap
-      i32.eq
-      if
-        local.get $t0
-        i32.const 8
-        call_indirect $table0 (param i32) (result i32)
-        local.set $t0
-        local.get $self
-        local.get $t0
-        i32.store $heap
-      end
-      local.get $t0
-      local.get $t1
-      i32.const 8
-      i32.mul
-      i32.add
-      local.get $value
-      i64.store $heap offset=16
-      local.get $t0
-      local.get $t1
-      i32.const 1
-      i32.add
-      i32.store $heap offset=4
     end
+    local.get $t0
+    local.get $t1
+    i32.const 8
+    i32.mul
+    i32.add
+    local.get $value
+    i64.store $heap offset=16
+    local.get $t0
+    local.get $t1
+    i32.const 1
+    i32.add
+    i32.store $heap offset=4
   )
   (func $numbers (param $a i64) (param $b i64) (param $c i64) (result i64) (local $q i32) (local $t0 i32) (local $saved i32) (local $t1 i32)
     ;; 36 |     let mut q = Queue::[i64].new()
@@ -1147,91 +1128,62 @@
     local.tee $t0
     global.set $locals
     block
-      block
-        block
-          i32.const 80 ;; &empty-buffer
-          local.set $q
-          br 0
-        end
-      end
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $saved
-      local.get $q
-      i32.store $heap
-      local.get $saved
-      local.tee $q
+      i32.const 80 ;; &empty-buffer
+      local.set $q
+      br 0
+    end
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $saved
+    local.get $q
+    i32.store $heap
+    local.get $saved
+    local.tee $q
     ;; 37 |     q.add(a)
-      local.get $a
-      call $"impl[T < Ord] Queue[T].add[i64]"
+    local.get $a
+    call $"impl[T < Ord] Queue[T].add[i64]"
     ;; 38 |     q.add(b)
-      local.get $q
-      local.get $b
-      call $"impl[T < Ord] Queue[T].add[i64]"
+    local.get $q
+    local.get $b
+    call $"impl[T < Ord] Queue[T].add[i64]"
     ;; 39 |     q.add(c)
-      local.get $q
-      local.get $c
-      call $"impl[T < Ord] Queue[T].add[i64]"
+    local.get $q
+    local.get $c
+    call $"impl[T < Ord] Queue[T].add[i64]"
     ;; 40 |     saved := q
-      local.get $q
-      i32.load $heap
-      call $rt:coll_copy
-      local.set $saved
+    local.get $q
+    i32.load $heap
+    call $rt:coll_copy
+    local.set $saved
     ;; 41 |     q.settle(0, c)
-      local.get $q
-      i32.const 0
-      local.get $c
-      call $"impl[T < Ord] Queue[T].settle[i64]"
+    local.get $q
+    i32.const 0
+    local.get $c
+    call $"impl[T < Ord] Queue[T].settle[i64]"
     ;; 42 |     q.items[0] + saved.items[0]
+    local.get $q
+    i32.load $heap
+    local.set $t1
+    i32.const 0
+    local.get $t1
+    i32.load $heap offset=4
+    i32.ge_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $t1
+    i64.load $heap offset=16
+    local.set $a
+    ;; 36 |     let mut q = Queue::[i64].new()
+    local.get $q
+    if
       local.get $q
       i32.load $heap
-      local.set $t1
-      i32.const 0
-      local.get $t1
-      i32.load $heap offset=4
-      i32.ge_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $t1
-      i64.load $heap offset=16
-      local.set $a
-    ;; 36 |     let mut q = Queue::[i64].new()
-      local.get $q
-      if
-        local.get $q
-        i32.load $heap
-        local.tee $q
-        if
-          local.get $q
-          i32.const 8
-          i32.sub
-          i32.load $heap
-          if
-            local.get $q
-            call $rt:release_ref'1
-          end
-        end
-      end
-    ;; 42 |     q.items[0] + saved.items[0]
-      i32.const 0
-      local.get $saved
-      i32.load $heap offset=4
-      i32.ge_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $saved
-      i64.load $heap offset=16
-      local.set $b
-    ;; 36 |     let mut q = Queue::[i64].new()
-      local.get $saved
       local.tee $q
       if
         local.get $q
@@ -1243,13 +1195,38 @@
           call $rt:release_ref'1
         end
       end
-    ;; 42 |     q.items[0] + saved.items[0]
-      local.get $a
-      local.get $b
-      i64.add
-    ;; 36 |     let mut q = Queue::[i64].new()
-      local.set $a
     end
+    ;; 42 |     q.items[0] + saved.items[0]
+    i32.const 0
+    local.get $saved
+    i32.load $heap offset=4
+    i32.ge_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $saved
+    i64.load $heap offset=16
+    local.set $b
+    ;; 36 |     let mut q = Queue::[i64].new()
+    local.get $saved
+    local.tee $q
+    if
+      local.get $q
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $q
+        call $rt:release_ref'1
+      end
+    end
+    ;; 42 |     q.items[0] + saved.items[0]
+    local.get $a
+    local.get $b
+    i64.add
+    ;; 36 |     let mut q = Queue::[i64].new()
+    local.set $a
     local.get $a
     local.get $t0
     i32.const 16
@@ -1258,46 +1235,44 @@
   )
   (func $"impl[T < Ord] Queue[T].add[(i64, usize)]" (param $self i32) (param $value.0 i64) (param $value.1 i32) (local $t0 i32) (local $t1 i32)
     ;; 16 |         self.items.push(value)
-    block
-      local.get $self
-      i32.load $heap
-      call $rt:list_unique'3
+    local.get $self
+    i32.load $heap
+    call $rt:list_unique'3
+    local.set $t0
+    local.get $self
+    local.get $t0
+    i32.store $heap
+    local.get $t0
+    i32.load $heap offset=4
+    local.tee $t1
+    local.get $t0
+    i32.load $heap
+    i32.eq
+    if
+      local.get $t0
+      i32.const 9
+      call_indirect $table0 (param i32) (result i32)
       local.set $t0
       local.get $self
       local.get $t0
       i32.store $heap
-      local.get $t0
-      i32.load $heap offset=4
-      local.tee $t1
-      local.get $t0
-      i32.load $heap
-      i32.eq
-      if
-        local.get $t0
-        i32.const 9
-        call_indirect $table0 (param i32) (result i32)
-        local.set $t0
-        local.get $self
-        local.get $t0
-        i32.store $heap
-      end
-      local.get $t0
-      local.get $t1
-      i32.const 16
-      i32.mul
-      i32.add
-      local.tee $self
-      local.get $value.0
-      i64.store $heap offset=16
-      local.get $self
-      local.get $value.1
-      i32.store $heap offset=24
-      local.get $t0
-      local.get $t1
-      i32.const 1
-      i32.add
-      i32.store $heap offset=4
     end
+    local.get $t0
+    local.get $t1
+    i32.const 16
+    i32.mul
+    i32.add
+    local.tee $self
+    local.get $value.0
+    i64.store $heap offset=16
+    local.get $self
+    local.get $value.1
+    i32.store $heap offset=24
+    local.get $t0
+    local.get $t1
+    i32.const 1
+    i32.add
+    i32.store $heap offset=4
   )
   (func $pairs (param $a i64) (param $b i64) (result i64) (local $q i32) (local $t0 i32) (local $saved i32) (local $t1 i32)
     ;; 53 |     let mut q = Queue::[(i64, usize)].new()
@@ -1331,90 +1306,61 @@
     local.tee $t0
     global.set $locals
     block
-      block
-        block
-          i32.const 80 ;; &empty-buffer
-          local.set $q
-          br 0
-        end
-      end
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $saved
-      local.get $q
-      i32.store $heap
-      local.get $saved
-      local.tee $q
+      i32.const 80 ;; &empty-buffer
+      local.set $q
+      br 0
+    end
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $saved
+    local.get $q
+    i32.store $heap
+    local.get $saved
+    local.tee $q
     ;; 54 |     q.add((a, 0))
-      local.get $a
-      i32.const 0
-      call $"impl[T < Ord] Queue[T].add[(i64, usize)]"
+    local.get $a
+    i32.const 0
+    call $"impl[T < Ord] Queue[T].add[(i64, usize)]"
     ;; 55 |     q.add((b, 1))
-      local.get $q
-      local.get $b
-      i32.const 1
-      call $"impl[T < Ord] Queue[T].add[(i64, usize)]"
+    local.get $q
+    local.get $b
+    i32.const 1
+    call $"impl[T < Ord] Queue[T].add[(i64, usize)]"
     ;; 56 |     saved := q
-      local.get $q
-      i32.load $heap
-      call $rt:coll_copy
-      local.set $saved
+    local.get $q
+    i32.load $heap
+    call $rt:coll_copy
+    local.set $saved
     ;; 57 |     q.settle(0, (a, 2))
-      local.get $q
-      i32.const 0
-      local.get $a
-      i32.const 2
-      call $"impl[T < Ord] Queue[T].settle[(i64, usize)]'2"
+    local.get $q
+    i32.const 0
+    local.get $a
+    i32.const 2
+    call $"impl[T < Ord] Queue[T].settle[(i64, usize)]'2"
     ;; 58 |     q.items[0]._0 + saved.items[0]._0
+    local.get $q
+    i32.load $heap
+    local.set $t1
+    i32.const 0
+    local.get $t1
+    i32.load $heap offset=4
+    i32.ge_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $t1
+    i64.load $heap offset=16
+    local.set $a
+    ;; 53 |     let mut q = Queue::[(i64, usize)].new()
+    local.get $q
+    if
       local.get $q
       i32.load $heap
-      local.set $t1
-      i32.const 0
-      local.get $t1
-      i32.load $heap offset=4
-      i32.ge_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $t1
-      i64.load $heap offset=16
-      local.set $a
-    ;; 53 |     let mut q = Queue::[(i64, usize)].new()
-      local.get $q
-      if
-        local.get $q
-        i32.load $heap
-        local.tee $q
-        if
-          local.get $q
-          i32.const 8
-          i32.sub
-          i32.load $heap
-          if
-            local.get $q
-            call $rt:release_ref'1
-          end
-        end
-      end
-    ;; 58 |     q.items[0]._0 + saved.items[0]._0
-      i32.const 0
-      local.get $saved
-      i32.load $heap offset=4
-      i32.ge_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $saved
-      i64.load $heap offset=16
-      local.set $b
-    ;; 53 |     let mut q = Queue::[(i64, usize)].new()
-      local.get $saved
       local.tee $q
       if
         local.get $q
@@ -1426,13 +1372,38 @@
           call $rt:release_ref'1
         end
       end
-    ;; 58 |     q.items[0]._0 + saved.items[0]._0
-      local.get $a
-      local.get $b
-      i64.add
-    ;; 53 |     let mut q = Queue::[(i64, usize)].new()
-      local.set $a
     end
+    ;; 58 |     q.items[0]._0 + saved.items[0]._0
+    i32.const 0
+    local.get $saved
+    i32.load $heap offset=4
+    i32.ge_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $saved
+    i64.load $heap offset=16
+    local.set $b
+    ;; 53 |     let mut q = Queue::[(i64, usize)].new()
+    local.get $saved
+    local.tee $q
+    if
+      local.get $q
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $q
+        call $rt:release_ref'1
+      end
+    end
+    ;; 58 |     q.items[0]._0 + saved.items[0]._0
+    local.get $a
+    local.get $b
+    i64.add
+    ;; 53 |     let mut q = Queue::[(i64, usize)].new()
+    local.set $a
     local.get $a
     local.get $t0
     i32.const 16
@@ -1441,262 +1412,259 @@
   )
   (func $"impl[T < Ord] Queue[T].settle[string]" (param $self i32) (param $start i32) (param $value.0 i32) (param $value.1 i32) (local $size i32) (local $left i32) (local $larger i32) (local $t0 i32) (local $t1 i32)
     ;; 19 |         size := self.items.len()
-    block
-      local.get $self
-      i32.load $heap
-      i32.load $heap offset=4
-      local.tee $size
+    local.get $self
+    i32.load $heap
+    i32.load $heap offset=4
+    local.tee $size
     ;; 20 |         let parent = start
-      local.get $start
+    local.get $start
     ;; 21 |         while parent < size / 2:
-      local.set $left
-      i32.const 1
-      i32.shr_u
-      local.set $larger
-      local.get $left
-      local.get $larger
-      i32.lt_u
-      if
-        local.get $self
-        local.get $self
-        i32.load $heap
-        call $rt:list_unique'1
-        i32.store $heap
-      end
-      block
-        loop
-          local.get $size
-          i32.const 1
-          i32.shr_u
-          local.set $larger
-          local.get $start
-          local.get $larger
-          i32.lt_u
-          i32.eqz
-          br_if 1
-    ;; 22 |             left := 2 * parent + 1
-          i32.const 2
-          local.get $start
-          i32.mul
-          i32.const 1
-          i32.add
-          local.tee $left
-    ;; 23 |             let larger = left
-          local.set $larger
-    ;; 24 |             if left + 1 < size:
-          local.get $left
-          i32.const 1
-          i32.add
-          local.get $size
-          i32.lt_u
-          if
-    ;; 25 |                 match self.items[left].cmp(&self.items[left + 1]):
-            local.get $self
-            i32.load $heap
-            local.set $t0
-            local.get $left
-            local.get $t0
-            i32.load $heap offset=4
-            i32.ge_u
-            if
-              call $rt:panic
-              unreachable
-            end
-            local.get $t0
-            local.get $left
-            i32.const 8
-            i32.mul
-            i32.add
-            i32.const 16
-            i32.add
-            local.get $left
-            i32.const 1
-            i32.add
-            local.get $self
-            i32.load $heap
-            local.set $t0
-            local.tee $t1
-            local.get $t0
-            i32.load $heap offset=4
-            i32.ge_u
-            if
-              call $rt:panic
-              unreachable
-            end
-            local.get $t0
-            local.get $t1
-            i32.const 8
-            i32.mul
-            i32.add
-            i32.const 16
-            i32.add
-            call $"std/cmp/impl Ord for string.cmp'1"
-            local.set $t0
-            block
-              block
-                block
-    ;; 26 |                     .Less => larger = left + 1
-                  local.get $t0
-                  br_if 1
-                  br 0
-    ;; 25 |                 match self.items[left].cmp(&self.items[left + 1]):
-                  unreachable
-                end
-    ;; 26 |                     .Less => larger = left + 1
-                local.get $left
-                i32.const 1
-                i32.add
-                local.set $larger
-    ;; 25 |                 match self.items[left].cmp(&self.items[left + 1]):
-                br 1
-              end
-              br 0
-            end
-    ;; 24 |             if left + 1 < size:
-          end
-    ;; 28 |             match value.cmp(&self.items[larger]):
-          local.get $self
-          i32.load $heap
-          local.set $left
-          local.get $larger
-          local.get $left
-          i32.load $heap offset=4
-          i32.ge_u
-          if
-            call $rt:panic
-            unreachable
-          end
-          local.get $left
-          local.get $larger
-          i32.const 8
-          i32.mul
-          i32.add
-          i32.const 16
-          i32.add
-          local.set $left
-          local.get $value.0
-          local.get $value.1
-          local.get $left
-          call $"std/cmp/impl Ord for string.cmp'2"
-          local.set $left
-          block
-            block
-              block
-    ;; 29 |                 .Less => pass
-                local.get $left
-                br_if 1
-                br 0
-    ;; 28 |             match value.cmp(&self.items[larger]):
-                unreachable
-              end
-              br 1
-            end
-    ;; 30 |                 _ => break
-            br 2
-    ;; 28 |             match value.cmp(&self.items[larger]):
-            br 0
-          end
-    ;; 31 |             self.items[parent] = self.items[larger]
-          local.get $self
-          i32.load $heap
-          local.set $left
-          local.get $larger
-          local.get $left
-          i32.load $heap offset=4
-          i32.ge_u
-          if
-            call $rt:panic
-            unreachable
-          end
-          local.get $left
-          local.get $larger
-          i32.const 8
-          i32.mul
-          i32.add
-          local.tee $left
-          i32.load $heap offset=16
-          local.get $left
-          i32.load $heap offset=20
-          local.set $t0
-          local.tee $left
-          local.tee $t1
-          if
-            local.get $t1
-            call $retain
-          end
-          local.get $self
-          i32.load $heap
-          local.set $t1
-          local.get $start
-          local.get $t1
-          i32.load $heap offset=4
-          i32.ge_u
-          if
-            call $rt:panic
-            unreachable
-          end
-          local.get $t1
-          local.get $start
-          i32.const 8
-          i32.mul
-          i32.add
-          local.tee $start
-          i32.load $heap offset=16
-          local.tee $t1
-          if
-            local.get $t1
-            call $rt:release_ref'2
-          end
-          local.get $start
-          local.get $left
-          i32.store $heap offset=16
-          local.get $start
-          local.get $t0
-          i32.store $heap offset=20
-    ;; 32 |             parent = larger
-          local.get $larger
-          local.set $start
-    ;; 21 |         while parent < size / 2:
-          br 0
-        end
-      end
-    ;; 19 |         size := self.items.len()
+    local.set $left
+    i32.const 1
+    i32.shr_u
+    local.set $larger
+    local.get $left
+    local.get $larger
+    i32.lt_u
+    if
       local.get $self
       local.get $self
       i32.load $heap
       call $rt:list_unique'1
       i32.store $heap
-    ;; 33 |         self.items[parent] = value
-      local.get $self
-      i32.load $heap
-      local.set $self
-      local.get $start
-      local.get $self
-      i32.load $heap offset=4
-      i32.ge_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $self
-      local.get $start
-      i32.const 8
-      i32.mul
-      i32.add
-      local.tee $self
-      i32.load $heap offset=16
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref'2
-      end
-      local.get $self
-      local.get $value.0
-      i32.store $heap offset=16
-      local.get $self
-      local.get $value.1
-      i32.store $heap offset=20
-    ;; 19 |         size := self.items.len()
     end
+    block
+      loop
+        local.get $size
+        i32.const 1
+        i32.shr_u
+        local.set $larger
+        local.get $start
+        local.get $larger
+        i32.lt_u
+        i32.eqz
+        br_if 1
+    ;; 22 |             left := 2 * parent + 1
+        i32.const 2
+        local.get $start
+        i32.mul
+        i32.const 1
+        i32.add
+        local.tee $left
+    ;; 23 |             let larger = left
+        local.set $larger
+    ;; 24 |             if left + 1 < size:
+        local.get $left
+        i32.const 1
+        i32.add
+        local.get $size
+        i32.lt_u
+        if
+    ;; 25 |                 match self.items[left].cmp(&self.items[left + 1]):
+          local.get $self
+          i32.load $heap
+          local.set $t0
+          local.get $left
+          local.get $t0
+          i32.load $heap offset=4
+          i32.ge_u
+          if
+            call $rt:panic
+            unreachable
+          end
+          local.get $t0
+          local.get $left
+          i32.const 8
+          i32.mul
+          i32.add
+          i32.const 16
+          i32.add
+          local.get $left
+          i32.const 1
+          i32.add
+          local.get $self
+          i32.load $heap
+          local.set $t0
+          local.tee $t1
+          local.get $t0
+          i32.load $heap offset=4
+          i32.ge_u
+          if
+            call $rt:panic
+            unreachable
+          end
+          local.get $t0
+          local.get $t1
+          i32.const 8
+          i32.mul
+          i32.add
+          i32.const 16
+          i32.add
+          call $"std/cmp/impl Ord for string.cmp'1"
+          local.set $t0
+          block
+            block
+              block
+    ;; 26 |                     .Less => larger = left + 1
+                local.get $t0
+                br_if 1
+                br 0
+    ;; 25 |                 match self.items[left].cmp(&self.items[left + 1]):
+                unreachable
+              end
+    ;; 26 |                     .Less => larger = left + 1
+              local.get $left
+              i32.const 1
+              i32.add
+              local.set $larger
+    ;; 25 |                 match self.items[left].cmp(&self.items[left + 1]):
+              br 1
+            end
+            br 0
+          end
+    ;; 24 |             if left + 1 < size:
+        end
+    ;; 28 |             match value.cmp(&self.items[larger]):
+        local.get $self
+        i32.load $heap
+        local.set $left
+        local.get $larger
+        local.get $left
+        i32.load $heap offset=4
+        i32.ge_u
+        if
+          call $rt:panic
+          unreachable
+        end
+        local.get $left
+        local.get $larger
+        i32.const 8
+        i32.mul
+        i32.add
+        i32.const 16
+        i32.add
+        local.set $left
+        local.get $value.0
+        local.get $value.1
+        local.get $left
+        call $"std/cmp/impl Ord for string.cmp'2"
+        local.set $left
+        block
+          block
+            block
+    ;; 29 |                 .Less => pass
+              local.get $left
+              br_if 1
+              br 0
+    ;; 28 |             match value.cmp(&self.items[larger]):
+              unreachable
+            end
+            br 1
+          end
+    ;; 30 |                 _ => break
+          br 2
+    ;; 28 |             match value.cmp(&self.items[larger]):
+          br 0
+        end
+    ;; 31 |             self.items[parent] = self.items[larger]
+        local.get $self
+        i32.load $heap
+        local.set $left
+        local.get $larger
+        local.get $left
+        i32.load $heap offset=4
+        i32.ge_u
+        if
+          call $rt:panic
+          unreachable
+        end
+        local.get $left
+        local.get $larger
+        i32.const 8
+        i32.mul
+        i32.add
+        local.tee $left
+        i32.load $heap offset=16
+        local.get $left
+        i32.load $heap offset=20
+        local.set $t0
+        local.tee $left
+        local.tee $t1
+        if
+          local.get $t1
+          call $retain
+        end
+        local.get $self
+        i32.load $heap
+        local.set $t1
+        local.get $start
+        local.get $t1
+        i32.load $heap offset=4
+        i32.ge_u
+        if
+          call $rt:panic
+          unreachable
+        end
+        local.get $t1
+        local.get $start
+        i32.const 8
+        i32.mul
+        i32.add
+        local.tee $start
+        i32.load $heap offset=16
+        local.tee $t1
+        if
+          local.get $t1
+          call $rt:release_ref'2
+        end
+        local.get $start
+        local.get $left
+        i32.store $heap offset=16
+        local.get $start
+        local.get $t0
+        i32.store $heap offset=20
+    ;; 32 |             parent = larger
+        local.get $larger
+        local.set $start
+    ;; 21 |         while parent < size / 2:
+        br 0
+      end
+    end
+    ;; 19 |         size := self.items.len()
+    local.get $self
+    local.get $self
+    i32.load $heap
+    call $rt:list_unique'1
+    i32.store $heap
+    ;; 33 |         self.items[parent] = value
+    local.get $self
+    i32.load $heap
+    local.set $self
+    local.get $start
+    local.get $self
+    i32.load $heap offset=4
+    i32.ge_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $self
+    local.get $start
+    i32.const 8
+    i32.mul
+    i32.add
+    local.tee $self
+    i32.load $heap offset=16
+    local.tee $t1
+    if
+      local.get $t1
+      call $rt:release_ref'2
+    end
+    local.get $self
+    local.get $value.0
+    i32.store $heap offset=16
+    local.get $self
+    local.get $value.1
+    i32.store $heap offset=20
   )
 )

@@ -35,50 +35,42 @@
     i32.sub
     local.tee $t0
     global.set $locals
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $t1
+    local.get $value
+    i32.store $heap
+    local.get $t1
+    local.set $value
     block
+      block
+        i64.const -3750763034362895579
+        local.set $t2
+        br 0
+      end
       local.get $t0
       i64.const 0
-      i64.store $heap
+      i64.store $heap offset=16
       local.get $t0
-      i32.const 8
+      i32.const 24
       i32.add
       local.tee $t1
+      local.get $t2
+      i64.store $heap
       local.get $value
-      i32.store $heap
       local.get $t1
-      local.set $value
+      call $"impl Hash for usize.hash[std.hash.DefaultHasher]"
+      local.get $t1
+      i64.load $heap
+      local.set $t2
       block
-        block
-          block
-            block
-              i64.const -3750763034362895579
-              local.set $t2
-              br 0
-            end
-          end
-          local.get $t0
-          i64.const 0
-          i64.store $heap offset=16
-          local.get $t0
-          i32.const 24
-          i32.add
-          local.tee $t1
-          local.get $t2
-          i64.store $heap
-          local.get $value
-          local.get $t1
-          call $"impl Hash for usize.hash[std.hash.DefaultHasher]"
-          local.get $t1
-          i64.load $heap
-          local.set $t2
-          block
-            block
-              br 0
-            end
-          end
-          br 0
-        end
+        br 0
       end
+      br 0
     end
     local.get $t2
     local.get $t0

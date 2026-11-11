@@ -11,21 +11,15 @@
   (func $through_ptr (param $u i32) (result i32)
     ;; 22 |     name_of(u).len()
     block
-      block
-        block
-          br 0
-        end
-      end
-      local.get $u
-      call $"impl string.len"
-      local.set $u
+      br 0
     end
+    local.get $u
+    call $"impl string.len"
+    local.set $u
     local.get $u
   )
   (func $name_of (param $u i32) (result i32)
     ;; 10 |     &u.name
-    block
-    end
     local.get $u
   )
   (func $read (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32) (local $u i32)
@@ -72,25 +66,21 @@
     local.get $t2
     i32.store $heap offset=4
     block
-      block
-        block
-          local.get $u
-          local.set $t1
-          br 0
-        end
-      end
-      local.get $t1
-      call $"impl string.len"
-      local.set $t1
       local.get $u
+      local.set $t1
+      br 0
+    end
+    local.get $t1
+    call $"impl string.len"
+    local.set $t1
+    local.get $u
+    if
+      local.get $u
+      i32.load $heap
+      local.tee $t2
       if
-        local.get $u
-        i32.load $heap
-        local.tee $t2
-        if
-          local.get $t2
-          call $rt:release_ref'1
-        end
+        local.get $t2
+        call $rt:release_ref'1
       end
     end
     local.get $t1
@@ -140,48 +130,44 @@
     local.get $t1
     i32.store $heap
     block
-      block
-        block
-          local.get $us
-          local.get $us
-          i32.load $heap
-          call $rt:list_unique
-          i32.store $heap
-          local.get $us
-          i32.load $heap
-          local.set $t1
-          i32.const 0
-          local.get $t1
-          i32.load $heap offset=4
-          i32.ge_u
-          if
-            call $rt:panic
-            unreachable
-          end
-          local.get $t1
-          i32.const 16
-          i32.add
-          local.set $t1
-          br 0
-        end
+      local.get $us
+      local.get $us
+      i32.load $heap
+      call $rt:list_unique
+      i32.store $heap
+      local.get $us
+      i32.load $heap
+      local.set $t1
+      i32.const 0
+      local.get $t1
+      i32.load $heap offset=4
+      i32.ge_u
+      if
+        call $rt:panic
+        unreachable
       end
       local.get $t1
-      call $"impl string.len"
+      i32.const 16
+      i32.add
       local.set $t1
+      br 0
+    end
+    local.get $t1
+    call $"impl string.len"
+    local.set $t1
+    local.get $us
+    if
       local.get $us
+      i32.load $heap
+      local.tee $us
       if
         local.get $us
+        i32.const 8
+        i32.sub
         i32.load $heap
-        local.tee $us
         if
           local.get $us
-          i32.const 8
-          i32.sub
-          i32.load $heap
-          if
-            local.get $us
-            call $rt:release_ref'2
-          end
+          call $rt:release_ref'2
         end
       end
     end
@@ -193,28 +179,26 @@
   )
   (func $first_name (param $us i32) (result i32)
     ;; 13 |     &us[0].name
-    block
-      local.get $us
-      local.get $us
-      i32.load $heap
-      call $rt:list_unique
-      i32.store $heap
-      local.get $us
-      i32.load $heap
-      local.set $us
-      i32.const 0
-      local.get $us
-      i32.load $heap offset=4
-      i32.ge_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $us
-      i32.const 16
-      i32.add
-      local.set $us
+    local.get $us
+    local.get $us
+    i32.load $heap
+    call $rt:list_unique
+    i32.store $heap
+    local.get $us
+    i32.load $heap
+    local.set $us
+    i32.const 0
+    local.get $us
+    i32.load $heap offset=4
+    i32.ge_u
+    if
+      call $rt:panic
+      unreachable
     end
+    local.get $us
+    i32.const 16
+    i32.add
+    local.set $us
     local.get $us
   )
 )

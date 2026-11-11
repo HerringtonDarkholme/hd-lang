@@ -5,22 +5,16 @@
     ;; 21 |     address(room, index)
     block
       block
-        block
-          block
-            block
-              local.get $room
-              i32.load $heap
-              local.get $index
-              i32.const 4
-              i32.mul
-              i32.add
-              local.set $room
-              br 0
-            end
-          end
-          br 0
-        end
+        local.get $room
+        i32.load $heap
+        local.get $index
+        i32.const 4
+        i32.mul
+        i32.add
+        local.set $room
+        br 0
       end
+      br 0
     end
     local.get $room
   )

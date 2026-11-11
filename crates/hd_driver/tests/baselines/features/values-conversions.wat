@@ -36,54 +36,52 @@
     i32.sub
     local.tee $t0
     global.set $locals
-    block
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $t1
-      local.get $s.0
-      i32.store $heap
-      local.get $t1
-      local.get $s.1
-      i32.store $heap offset=4
-      local.get $t1
-      i32.const 0
-      i32.store $heap offset=8
-      local.get $t1
-      local.tee $s.0
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $t1
+    local.get $s.0
+    i32.store $heap
+    local.get $t1
+    local.get $s.1
+    i32.store $heap offset=4
+    local.get $t1
+    i32.const 0
+    i32.store $heap offset=8
+    local.get $t1
+    local.tee $s.0
     ;; 27 |     nudge(&mut origin)
-      call $nudge
+    call $nudge
     ;; 28 |     let r: &mut Point = &mut origin
-      local.get $s.0
+    local.get $s.0
     ;; 29 |     bump(r)
-      call $bump
+    call $bump
     ;; 30 |     view(&origin)
-      local.get $s.0
-      i32.load $heap
-      local.get $s.0
-      i32.load $heap offset=4
-      local.get $s.0
-      i32.const 0
-      i32.store $heap
-      local.get $s.0
-      i32.const 0
-      i32.store $heap offset=4
-      local.get $s.0
-      i32.const 0
-      i32.store $heap offset=8
-      local.set $s.1
-      local.tee $s.0
+    local.get $s.0
+    i32.load $heap
+    local.get $s.0
+    i32.load $heap offset=4
+    local.get $s.0
+    i32.const 0
+    i32.store $heap
+    local.get $s.0
+    i32.const 0
+    i32.store $heap offset=4
+    local.get $s.0
+    i32.const 0
+    i32.store $heap offset=8
+    local.set $s.1
+    local.tee $s.0
     ;; 26 |     let mut origin = Point { name: s, n: 0 }
-      if
-        local.get $s.0
-        call $rt:release_ref
-      end
-      local.get $s.1
-      local.set $s.0
+    if
+      local.get $s.0
+      call $rt:release_ref
     end
+    local.get $s.1
+    local.set $s.0
     local.get $s.0
     local.get $t0
     i32.const 24
@@ -92,73 +90,60 @@
   )
   (func $view (param $p i32) (result i32)
     ;; 14 |     p.name.len()
+    local.get $p
+    i32.load $heap
+    local.get $p
+    i32.load $heap offset=4
+    local.set $p
+    drop
     block
-      local.get $p
-      i32.load $heap
-      local.get $p
-      i32.load $heap offset=4
-      local.set $p
-      drop
-      block
-        block
-          br 0
-        end
-      end
+      br 0
     end
     local.get $p
   )
   (func $nudge (param $p i32)
     ;; 11 |     p.n += 1
-    block
-      local.get $p
-      local.get $p
-      i32.load $heap offset=8
-      i32.const 1
-      i32.add
-      i32.store $heap offset=8
-    end
+    local.get $p
+    local.get $p
+    i32.load $heap offset=8
+    i32.const 1
+    i32.add
+    i32.store $heap offset=8
   )
   (func $lend (param $h i32) (result i32)
     ;; 21 |     nudge(h)
-    block
-      local.get $h
-      call $nudge
+    local.get $h
+    call $nudge
     ;; 22 |     bump(h)
-      local.get $h
-      call $bump
+    local.get $h
+    call $bump
     ;; 23 |     view(h)
-      local.get $h
-      call $view
+    local.get $h
+    call $view
     ;; 21 |     nudge(h)
-      local.set $h
-    end
+    local.set $h
     local.get $h
   )
   (func $weaken (param $h i32) (result i32) (local $t0 i32)
     ;; 33 |     h
-    block
-      local.get $h
-      local.tee $t0
+    local.get $h
+    local.tee $t0
+    if
+      local.get $t0
+      i32.const 8
+      i32.sub
+      i32.load $heap
       if
         local.get $t0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t0
-          call $rt:retain_known
-        end
+        call $rt:retain_known
       end
     end
     local.get $h
   )
   (func $bump (param $p i32)
     ;; 17 |     q := p
-    block
-      local.get $p
+    local.get $p
     ;; 18 |     nudge(q)
-      call $nudge
-    ;; 17 |     q := p
-    end
+    call $nudge
   )
 )

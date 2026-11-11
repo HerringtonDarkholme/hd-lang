@@ -9,59 +9,54 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 5 funcref))
   (func $trailing (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
-    ;; 11 |     measure("t"):
-    block
     ;; 12 |         s + "!"
-      i32.const 1
-      i32.const 8
-      i32.const 3
-      call $rt:new/class-1
-      local.tee $t0
-      local.get $s.0
-      i32.store $heap
-      local.get $t0
-      local.get $s.1
-      i32.store $heap offset=4
+    i32.const 1
+    i32.const 8
+    i32.const 3
+    call $rt:new/class-1
+    local.tee $t0
+    local.get $s.0
+    i32.store $heap
+    local.get $t0
+    local.get $s.1
+    i32.store $heap offset=4
     ;; 11 |     measure("t"):
-      i32.const 65 ;; &"t"
-      i32.const 1
-      local.set $s.1
-      local.set $s.0
-      drop
-      block
-        block
-          local.get $s.0
-          local.get $s.1
-          call $"impl string.len"
-          local.get $t0
-          i32.const 0
-          call $trailing#1
-          local.set $s.1
-          local.tee $s.0
-          local.get $s.1
-          call $"impl string.len"
-          local.get $s.0
-          local.tee $s.1
-          if
-            local.get $s.1
-            call $rt:release_ref'1
-          end
-          i32.add
-          local.set $s.0
-          br 0
-        end
-      end
+    i32.const 65 ;; &"t"
+    i32.const 1
+    local.set $s.1
+    local.set $s.0
+    drop
+    block
+      local.get $s.0
+      local.get $s.1
+      call $"impl string.len"
       local.get $t0
+      i32.const 0
+      call $trailing#1
+      local.set $s.1
+      local.tee $s.0
+      local.get $s.1
+      call $"impl string.len"
+      local.get $s.0
       local.tee $s.1
       if
         local.get $s.1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $s.1
-          call $rt:release_ref'2
-        end
+        call $rt:release_ref'1
+      end
+      i32.add
+      local.set $s.0
+      br 0
+    end
+    local.get $t0
+    local.tee $s.1
+    if
+      local.get $s.1
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $s.1
+        call $rt:release_ref'2
       end
     end
     local.get $s.0
@@ -69,34 +64,28 @@
   (func $measure (param $label.0 i32) (param $label.1 i32) (param $body.0 i32) (param $body.1 i32) (result i32)
     ;; 8 |     label.len() + body().len()
     block
-      block
-        block
-          local.get $label.1
-          local.set $label.0
-          br 0
-        end
-      end
-      local.get $body.1
-      i32.const 0
-      local.get $body.0
-      call_indirect $table0 (param i32 i32) (result i32 i32)
-      local.set $body.0
-      local.set $label.1
-      block
-        block
-          br 0
-        end
-      end
       local.get $label.1
-      if
-        local.get $label.1
-        call $rt:release_ref'1
-      end
-      local.get $label.0
-      local.get $body.0
-      i32.add
       local.set $label.0
+      br 0
     end
+    local.get $body.1
+    i32.const 0
+    local.get $body.0
+    call_indirect $table0 (param i32 i32) (result i32 i32)
+    local.set $body.0
+    local.set $label.1
+    block
+      br 0
+    end
+    local.get $label.1
+    if
+      local.get $label.1
+      call $rt:release_ref'1
+    end
+    local.get $label.0
+    local.get $body.0
+    i32.add
+    local.set $label.0
     local.get $label.0
   )
   (func $no_args#1 (param $env i32) (param $ctx i32) (result i32)
@@ -105,28 +94,22 @@
     i32.load $heap offset=4
     local.set $env
     block
-      block
-        block
-          br 0
-        end
-      end
+      br 0
     end
     local.get $env
   )
   (func $twice (param $body.0 i32) (param $body.1 i32) (result i32)
     ;; 15 |     body() + body()
-    block
-      local.get $body.1
-      i32.const 0
-      local.get $body.0
-      call_indirect $table0 (param i32 i32) (result i32)
-      local.get $body.1
-      i32.const 0
-      local.get $body.0
-      call_indirect $table0 (param i32 i32) (result i32)
-      i32.add
-      local.set $body.0
-    end
+    local.get $body.1
+    i32.const 0
+    local.get $body.0
+    call_indirect $table0 (param i32 i32) (result i32)
+    local.get $body.1
+    i32.const 0
+    local.get $body.0
+    call_indirect $table0 (param i32 i32) (result i32)
+    i32.add
+    local.set $body.0
     local.get $body.0
   )
   (func $trailing#1 (param $env i32) (param $ctx i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
@@ -137,70 +120,63 @@
     local.get $env
     i32.load $heap offset=4
     local.set $env
-    block
-      local.get $env
-      i32.const 1
-      i32.add
-      local.tee $t0
-      call $rt:str
-      local.tee $t1
-      local.tee $t2
-      local.get $ctx
-      local.get $env
-      call $rt:memory_copy/0/0
-      local.get $t2
-      local.get $env
-      i32.add
-      i32.const 66 ;; &"!"
-      i32.load8_u $heap
-      i32.store8 $heap
-      local.get $t1
-      local.get $t0
-      local.set $ctx
-      local.set $env
-    end
+    local.get $env
+    i32.const 1
+    i32.add
+    local.tee $t0
+    call $rt:str
+    local.tee $t1
+    local.tee $t2
+    local.get $ctx
+    local.get $env
+    call $rt:memory_copy/0/0
+    local.get $t2
+    local.get $env
+    i32.add
+    i32.const 66 ;; &"!"
+    i32.load8_u $heap
+    i32.store8 $heap
+    local.get $t1
+    local.get $t0
+    local.set $ctx
+    local.set $env
     local.get $env
     local.get $ctx
   )
   (func $no_args (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
-    ;; 18 |     twice:
-    block
     ;; 19 |         s.len()
-      i32.const 3
-      i32.const 8
-      i32.const 3
-      call $rt:new/class-1
-      local.tee $t0
-      local.get $s.0
-      i32.store $heap
-      local.get $t0
-      local.get $s.1
-      i32.store $heap offset=4
+    i32.const 3
+    i32.const 8
+    i32.const 3
+    call $rt:new/class-1
+    local.tee $t0
+    local.get $s.0
+    i32.store $heap
+    local.get $t0
+    local.get $s.1
+    i32.store $heap offset=4
     ;; 18 |     twice:
-      drop
-      block
-        block
-          local.get $t0
-          i32.const 0
-          call $no_args#1
-          local.get $t0
-          i32.const 0
-          call $no_args#1
-          i32.add
-          local.set $s.0
-          br 0
-        end
-      end
+    drop
+    block
       local.get $t0
+      i32.const 0
+      call $no_args#1
+      local.get $t0
+      i32.const 0
+      call $no_args#1
+      i32.add
+      local.set $s.0
+      br 0
+    end
+    local.get $t0
+    if
+      local.get $t0
+      i32.const 8
+      i32.sub
+      i32.load $heap
       if
         local.get $t0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t0
-          call $rt:release_ref'2
-        end
+        call $rt:release_ref'2
       end
     end
     local.get $s.0

@@ -6,63 +6,59 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $write_nested (param $xs i32) (local $t0 i32)
     ;; 8 |     set(&mut xs[0][0], 9)
-    block
-      local.get $xs
-      local.get $xs
-      i32.load $heap
-      call $rt:list_unique'1
-      i32.store $heap
-      local.get $xs
-      i32.load $heap
-      local.set $t0
-      i32.const 0
-      local.get $t0
-      i32.load $heap offset=4
-      i32.ge_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $t0
-      local.get $t0
-      i32.load $heap offset=16
-      call $rt:list_unique'2
-      i32.store $heap offset=16
-      local.get $xs
-      i32.load $heap
-      local.set $xs
-      i32.const 0
-      local.get $xs
-      i32.load $heap offset=4
-      i32.ge_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $xs
-      i32.load $heap offset=16
-      local.set $xs
-      i32.const 0
-      local.get $xs
-      i32.load $heap offset=4
-      i32.ge_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $xs
-      i32.const 16
-      i32.add
-      i32.const 9
-      call $set
+    local.get $xs
+    local.get $xs
+    i32.load $heap
+    call $rt:list_unique'1
+    i32.store $heap
+    local.get $xs
+    i32.load $heap
+    local.set $t0
+    i32.const 0
+    local.get $t0
+    i32.load $heap offset=4
+    i32.ge_u
+    if
+      call $rt:panic
+      unreachable
     end
+    local.get $t0
+    local.get $t0
+    i32.load $heap offset=16
+    call $rt:list_unique'2
+    i32.store $heap offset=16
+    local.get $xs
+    i32.load $heap
+    local.set $xs
+    i32.const 0
+    local.get $xs
+    i32.load $heap offset=4
+    i32.ge_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $xs
+    i32.load $heap offset=16
+    local.set $xs
+    i32.const 0
+    local.get $xs
+    i32.load $heap offset=4
+    i32.ge_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $xs
+    i32.const 16
+    i32.add
+    i32.const 9
+    call $set
   )
   (func $set (param $p i32) (param $v i32)
     ;; 5 |     *p = v
-    block
-      local.get $p
-      local.get $v
-      i32.store $heap
-    end
+    local.get $p
+    local.get $v
+    i32.store $heap
   )
 )

@@ -52,14 +52,12 @@
     local.tee $b
     local.get $t1
     i32.store $heap
-    block
-      local.get $a
-      i32.load $heap
-      local.get $b
-      i32.load $heap
-      i32.eq
-      local.set $b
-    end
+    local.get $a
+    i32.load $heap
+    local.get $b
+    i32.load $heap
+    i32.eq
+    local.set $b
     local.get $b
     local.get $t0
     i32.const 32
