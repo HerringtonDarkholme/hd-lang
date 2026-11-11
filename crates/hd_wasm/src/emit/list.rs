@@ -266,7 +266,7 @@ impl Em<'_, '_, '_> {
     /// A canonical loop test, before its body: the `If` after a scalar
     /// prefix one of whose branches only breaks out of the loop, and
     /// whether that branch is the first.
-    fn list_loop_guard(&self, l: u32) -> Option<(u32, bool)> {
+    pub(super) fn list_loop_guard(&self, l: u32) -> Option<(u32, bool)> {
         let (test, prefix, [first, second]) = hd_tir::own::loop_test(self.b, l)?;
         let mut budget = self.b.len();
         let scalar = hd_tir::own::loop_statements(self.b, l)
@@ -459,7 +459,7 @@ impl Em<'_, '_, '_> {
 
     /// Every store into each local or a field of it, with the value of a
     /// store into all of it (`NONE` for a field's).
-    fn local_sets(&self) -> Vec<Vec<(u32, u32)>> {
+    pub(super) fn local_sets(&self) -> Vec<Vec<(u32, u32)>> {
         let mut sets = vec![Vec::new(); self.b.local_ty.len()];
         for i in 0..self.b.len() {
             if let Some((local, whole)) = self.b.stored_local(i) {
@@ -532,7 +532,7 @@ impl Em<'_, '_, '_> {
     /// Whether instruction `x` runs only once loop test `test`, an `If`
     /// whose second arm leaves the loop ([`Em::list_loop_guard`]), went
     /// on: in its first arm or after it.
-    fn after_test(&self, test: u32, x: u32) -> bool {
+    pub(super) fn after_test(&self, test: u32, x: u32) -> bool {
         let go_on = self
             .b
             .record(self.b.data[test as usize][1])

@@ -1,0 +1,791 @@
+//! Index guards proven false (#1689). An inlined std `Index` or `IndexSet`
+//! body checks its key against the header's length,
+//! `if key >= self.len: panic_with(...)`, and that `If` survives inlining.
+//! Where the body's loops prove `key < len`, the guard's condition is
+//! false and emission leaves the `If` out; the condition's operands are
+//! pure reads, which the Wasm cleanup then drops.
+//!
+//! The proof is over values, not over the `List` intrinsic:
+//!
+//! 1. **An unchanged header.** A field read `[*p .f]` through a reference
+//!    parameter `p` reads the same value everywhere in the body when the
+//!    body cannot write `p`'s referent: it makes no call but the pointer
+//!    intrinsics (`ptr_offset`, `ptr_ref`, `ptr_mut`, `ptr_size_of`) and
+//!    `panic`, stores through no dereference or element, and writes
+//!    through a `Ptr` only into the room of a buffer that lies inline in
+//!    `p`'s referent. That room is a block of its own, which the header
+//!    is never in (`module.rt.ptr.holds`, `module.rt.buffer.type`), and
+//!    with no call nothing else runs while the body does.
+//! 2. **Values by their source.** A read of a local with one dominating
+//!    store is the stored value; an identity or weakening coercion, and a
+//!    block whose one break carries a value, are that value.
+//! 3. **Facts.** `x < len` holds for the guard's key `x` when:
+//!    - `x` is read from a loop's counter after the loop's test
+//!      `cur < end`, before the counter's one step in the loop, and `end`
+//!      is the same header field;
+//!    - `x` is a falling index `v`, or `v - 1` read after a test `v > 0`,
+//!      where `v` is set once before its loop and changes only by one
+//!      `v = v - 1` after that test, and the value it was set to is below
+//!      the length by these facts;
+//!    - a guard of the same key and length that runs first panicked
+//!      otherwise.
+//! 4. **Header reads.** A copy read of an unchanged header field that an
+//!    earlier read of the same field always runs before takes that read's
+//!    value, kept in a local: a loop's `len` and buffer address load once,
+//!    where the first access before it loaded them, as Rust's `noalias`
+//!    on `&mut` lets LLVM do.
+//!
+//! "Runs first" is [`Em::dominates`], or a statement of an inlined call's
+//! block that no earlier statement of the block can leave (`clear`), whose
+//! block in turn runs first.
+//!
+//! Cost per body: one pass over the instructions for the stores, breaks
+//! and the header check, and one walk up from each break for `clear`;
+//! each value's source is memoized, so resolving is
+//! linear in instructions times a depth bound of [`DEPTH`]; each guard
+//! looks up the facts of one local, and a falling fact recurses at most
+//! [`DEPTH`] times; a read or guard is compared with at most [`READS`]
+//! earlier ones of its field. Dominance walks the block path, which is
+//! the nesting depth. No fixpoint.
+
+use hd_base::HashMap;
+use hd_mono::{Target, TargetKind};
+use hd_tir::ir::{NONE, PrimOp, Proj, ReadMode, Ref, Root, Tag, local_flags};
+use hd_types::Ty;
+
+use super::Em;
+
+/// The longest chain of local stores, coercions and breaks a value is
+/// followed through, and the deepest chain of falling facts.
+const DEPTH: u32 = 16;
+
+/// The most earlier reads or guards of one field a read or guard is
+/// compared with.
+const READS: usize = 8;
+
+/// What the unchanged headers of a body's reference parameters prove.
+#[derive(Default)]
+pub(super) struct HeaderFacts {
+    /// Index guards `if key >= len: panic` whose condition is false.
+    pub(super) proven_guards: hd_base::HashSet<u32>,
+    /// Copy reads of a header field, each with the earlier read of the
+    /// same field that dominates it and so read the same value.
+    pub(super) same_reads: HashMap<u32, u32>,
+    /// The reads `same_reads` names as earlier ones.
+    pub(super) leaders: hd_base::HashSet<u32>,
+    /// Each emitted leader's value, in a local of its own.
+    pub(super) kept: HashMap<u32, u32>,
+}
+
+/// A value by its source.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+enum Key {
+    /// An instruction's own value or a constant.
+    Val(u32),
+    /// The reference that parameter local `p` holds.
+    Param(u32),
+    /// A field, at any depth of inline structs, of the referent of
+    /// parameter `p`, which the body never writes.
+    Field(u32, Path),
+    /// A reference to such a field.
+    FieldRef(u32, Path),
+}
+
+/// A path of up to three field indices below 1,023, one per 10 bits,
+/// each stored plus one; 0 is the empty path.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+struct Path(u32);
+
+impl Path {
+    fn push(self, k: u32) -> Option<Path> {
+        let used = (32 - self.0.leading_zeros()).div_ceil(10);
+        (k < 1023 && used < 3).then(|| Path(self.0 | ((k + 1) << (10 * used))))
+    }
+}
+
+/// Where a value points: the parameter whose referent's inline storage
+/// it was read from or refers to, or the room of a buffer stored there.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Origin {
+    Other,
+    /// A reference into the inline storage of `p`'s referent.
+    InlineRef(u32),
+    /// A value read from the inline storage of `p`'s referent.
+    Inline(u32),
+    /// A `Ptr` into the room of a buffer inline in `p`'s referent.
+    PtrInto(u32),
+}
+
+/// A loop test `cur < end` that goes on when it holds.
+struct Rising {
+    test: u32,
+    cond: u32,
+    loop_inst: u32,
+    end: Key,
+}
+
+/// A falling index: set once at `init` before its loop, then changed only
+/// by `dec` after the loop's test `v > 0`.
+struct Falling {
+    test: u32,
+    loop_inst: u32,
+    init: u32,
+    value: u32,
+    dec: u32,
+}
+
+struct Proof<'e, 'x, 'a, 'm> {
+    em: &'e Em<'x, 'a, 'm>,
+    /// Each local's stores and the value of a whole one.
+    sets: Vec<Vec<(u32, u32)>>,
+    /// Locals whose value a reference may change: cells, captured ones,
+    /// and those a `Ref` names.
+    addressed: Vec<bool>,
+    /// The value of the one break that leaves each labelled instruction.
+    breaks: HashMap<u32, Option<u32>>,
+    /// Reference parameters whose referent the body never writes.
+    unchanged: Vec<bool>,
+    keys: HashMap<u32, Key>,
+    /// Statements that run whenever their block runs to them: no earlier
+    /// statement of the block can leave it and go on elsewhere.
+    clear: Vec<bool>,
+    rising: HashMap<usize, Vec<Rising>>,
+    falling: HashMap<usize, Falling>,
+}
+
+impl Em<'_, '_, '_> {
+    /// The guards and header reads the body's unchanged headers prove
+    /// ([`HeaderFacts`]). Only a body with a loop is asked: elsewhere each
+    /// access runs once.
+    pub(super) fn header_facts(&self) -> HeaderFacts {
+        let b = self.b;
+        let mut facts = HeaderFacts::default();
+        if !b.tags.contains(&Tag::Loop) {
+            return facts;
+        }
+        let mut p = Proof {
+            em: self,
+            sets: self.local_sets(),
+            addressed: vec![false; b.local_ty.len()],
+            breaks: HashMap::default(),
+            unchanged: vec![false; b.local_ty.len()],
+            keys: HashMap::default(),
+            clear: Vec::new(),
+            rising: HashMap::default(),
+            falling: HashMap::default(),
+        };
+        if !p.collect() {
+            return facts;
+        }
+        let mut guards: HashMap<(Key, Key), Vec<u32>> = HashMap::default();
+        let mut reads: HashMap<Key, Vec<u32>> = HashMap::default();
+        for (i, x) in (0..b.len()).zip(0u32..) {
+            // A copy read of an unchanged header field that an earlier
+            // one of the same field dominates.
+            if b.tags[i] == Tag::Read
+                && b.data[i][1] == ReadMode::Copy as u32
+                && let key @ Key::Field(..) = p.key(x, 0)
+            {
+                let before = reads.entry(key).or_default();
+                if let Some(&j) = before.iter().find(|&&j| p.runs_before(j, x)) {
+                    facts.same_reads.insert(x, j);
+                    facts.leaders.insert(j);
+                } else if before.len() < READS {
+                    before.push(x);
+                }
+            }
+            let Some((index, len)) = p.guard(x) else {
+                continue;
+            };
+            let (ik, lk) = (p.key(index, 0), p.key(len, 0));
+            if !matches!(lk, Key::Field(..)) {
+                continue;
+            }
+            let before = guards.entry((ik, lk)).or_default();
+            if before.iter().any(|&g| p.runs_before(g, x)) || p.below(index, lk, 0) {
+                facts.proven_guards.insert(x);
+            }
+            if p.panics(x) && before.len() < READS {
+                before.push(x);
+            }
+        }
+        facts
+    }
+}
+
+impl Proof<'_, '_, '_, '_> {
+    /// The body's breaks, addressed locals and unchanged parameters, and
+    /// its loop facts. False when the body may write a parameter's
+    /// referent some other way than these facts allow.
+    fn collect(&mut self) -> bool {
+        let b = self.em.b;
+        for l in 0..b.local_ty.len() {
+            self.addressed[l] = self.em.is_cell(l)
+                || b.local_flags[l] & (local_flags::CAPTURED | local_flags::CAPTURED_ASSIGNED) != 0;
+        }
+        for local in &b.cap_local {
+            self.addressed[local.idx()] = true;
+        }
+        for i in 0..b.len() {
+            if let Some(l) = super::shape::ref_local(b, i) {
+                self.addressed[l] = true;
+            }
+            if b.tags[i] == Tag::Break {
+                let target = b.label_inst[b.data[i][0] as usize];
+                let value = (b.data[i][1] != NONE).then_some(b.data[i][1]);
+                self.breaks
+                    .entry(target)
+                    .and_modify(|v| *v = None)
+                    .or_insert(value);
+            }
+        }
+        for l in 0..b.local_ty.len() {
+            self.unchanged[l] = b.local_flags[l] & local_flags::PARAM != 0
+                && !self.addressed[l]
+                && self.sets[l].is_empty();
+        }
+        // Every write the body makes, and every call.
+        let mut ptr_stores = Vec::new();
+        for (i, x) in (0..b.len()).zip(0u32..) {
+            if self.may_write_header(i, x, &mut ptr_stores) {
+                return false;
+            }
+        }
+        // A `Ptr` write keeps the referent of the parameter whose buffer
+        // room it writes, and no other.
+        for r in ptr_stores {
+            match self.origin(r, 0) {
+                Origin::PtrInto(p) => {
+                    for l in 0..self.unchanged.len() {
+                        if l != p as usize {
+                            self.unchanged[l] = false;
+                        }
+                    }
+                }
+                _ => self.unchanged.fill(false),
+            }
+        }
+        if !self.unchanged.contains(&true) {
+            return false;
+        }
+        self.clear = self.clear_statements();
+        // Keys found before a parameter turned out changed are stale.
+        self.keys.clear();
+        for (i, x) in (0..b.len()).zip(0u32..) {
+            if b.tags[i] == Tag::Loop {
+                self.loop_facts(x);
+            }
+        }
+        true
+    }
+
+    /// Whether instruction `i` may write a referent other than as
+    /// [`Proof`] allows: a call other than [`Proof::pure_call`], a store
+    /// through a dereference or an element, a drop, a uniqueness check or
+    /// a count of a value that may own drop code. A `Ptr` store goes to
+    /// `ptr_stores`, whose room [`Proof::collect`] checks.
+    fn may_write_header(&mut self, i: usize, x: u32, ptr_stores: &mut Vec<u32>) -> bool {
+        let b = self.em.b;
+        match b.tags[i] {
+            Tag::Call => !self.pure_call(x),
+            Tag::Store => {
+                let v = b.view(b.data[i][0]);
+                match v.root {
+                    Root::Ptr(r) => {
+                        ptr_stores.push(r);
+                        false
+                    }
+                    Root::Local(_) | Root::Value(_) => !v
+                        .steps(b)
+                        .all(|s| matches!(s, Proj::Field(_) | Proj::Variant(_))),
+                    Root::Const(_) | Root::Global(..) | Root::Other => true,
+                }
+            }
+            // A count that reaches zero runs drop code, which may write
+            // anywhere. A value that counts nothing runs none, nor does a
+            // local reference a parameter lent, which owns nothing.
+            Tag::Release | Tag::Retain => {
+                let t = b.data[i][0] as usize;
+                let v = if b.tags.get(t) == Some(&Tag::Store) {
+                    b.data[t][1]
+                } else {
+                    b.data[i][0]
+                };
+                if Ref(v).as_inst().is_none() {
+                    return true;
+                }
+                let ty = self.em.ty_of(v);
+                self.em.tracked(ty)
+                    && !(self.em.local_ref(ty) && matches!(self.key(v, 0), Key::Param(_)))
+            }
+            Tag::CallValue
+            | Tag::CallDyn
+            | Tag::CallHost
+            | Tag::DefaultCall
+            | Tag::Intrinsic
+            | Tag::Await
+            | Tag::AwaitValue
+            | Tag::AwaitAll
+            | Tag::AwaitRace
+            | Tag::Closure
+            | Tag::With
+            | Tag::Hook
+            | Tag::Drop
+            | Tag::IsUnique
+            | Tag::MakeUnique
+            | Tag::FlagSet
+            | Tag::FlagClear => true,
+            _ => false,
+        }
+    }
+
+    /// [`Proof::clear`]: one walk up from each break and continue marks
+    /// the statements it leaves, then one pass over each block's list.
+    fn clear_statements(&self) -> Vec<bool> {
+        let b = self.em.b;
+        let t = &self.em.topo;
+        let n = b.len();
+        let inside = |x: usize, s: usize| (t.first[s] as usize) <= x && x <= s;
+        let mut leaves = vec![false; n];
+        for i in 0..n {
+            if !matches!(b.tags[i], Tag::Break | Tag::Continue) {
+                continue;
+            }
+            let target = b.label_inst[b.data[i][0] as usize] as usize;
+            let mut s = i;
+            while !inside(target, s) {
+                leaves[s] = true;
+                if b.tags[s] == Tag::Block && t.owner[s] != NONE {
+                    leaves[t.owner[s] as usize] = true;
+                }
+                let blk = t.blk[s];
+                if blk == NONE {
+                    break;
+                }
+                s = blk as usize;
+            }
+        }
+        let mut clear = vec![false; n];
+        for blk in 0..n {
+            if b.tags[blk] != Tag::Block {
+                continue;
+            }
+            for &s in b.record(b.data[blk][0]) {
+                clear[s as usize] = true;
+                if leaves[s as usize] {
+                    break;
+                }
+            }
+        }
+        clear
+    }
+
+    /// Whether instruction `d` runs before `j` on every path that reaches
+    /// `j`: `d`, or an inlined call's block that runs `d` whenever it
+    /// runs, dominates `j` ([`Em::dominates`]).
+    fn runs_before(&self, d: u32, j: u32) -> bool {
+        let b = self.em.b;
+        let t = &self.em.topo;
+        let mut x = d;
+        for _ in 0..DEPTH {
+            if self.em.dominates(x, j) {
+                return true;
+            }
+            let blk = t.blk[x as usize];
+            if !self.clear.get(x as usize).copied().unwrap_or(false) || blk == NONE {
+                return false;
+            }
+            let owner = t.owner[blk as usize];
+            if owner == NONE
+                || b.tags[owner as usize] != Tag::Scope
+                || b.data[owner as usize][0] != blk
+                || !b.record(b.data[owner as usize][1]).is_empty()
+            {
+                return false;
+            }
+            x = owner;
+        }
+        false
+    }
+
+    /// Whether call `x` is a pointer intrinsic, which writes nothing, or
+    /// the panic, which never returns.
+    fn pure_call(&self, x: u32) -> bool {
+        matches!(
+            self.em.calls.get(&x),
+            Some(Target::Call(call)) if matches!(
+                &call.kind,
+                TargetKind::Intrinsic(key) if matches!(
+                    key.as_str(),
+                    "ptr_offset" | "ptr_ref" | "ptr_mut" | "ptr_size_of" | "panic"
+                )
+            )
+        )
+    }
+
+    /// The first argument of call `x`.
+    fn first_arg(&self, x: u32) -> Option<u32> {
+        let b = self.em.b;
+        b.record(b.data[x as usize][1]).first().copied()
+    }
+
+    /// The value one dominating store gave local `l` where `at` reads it.
+    fn single_store(&self, l: usize, at: u32) -> Option<u32> {
+        if self.addressed[l] {
+            return None;
+        }
+        match self.sets[l].as_slice() {
+            [(set, value)] if *value != NONE && self.em.dominates(*set, at) => Some(*value),
+            _ => None,
+        }
+    }
+
+    /// The value `r` stands for: through a local's one store, an identity
+    /// or weakening coercion, or a block's one break.
+    fn follow(&self, r: u32) -> Option<u32> {
+        let b = self.em.b;
+        let i = Ref(r).as_inst()?.0 as usize;
+        let [a, w] = b.data[i];
+        match b.tags[i] {
+            // A field of a struct built here, as a range's bounds are.
+            Tag::Read if let Some((v, hd_tir::ir::Step::Field(k))) = b.read_step(i) => {
+                let v = Ref(v).as_inst()?.0 as usize;
+                (b.tags[v] == Tag::NewStruct)
+                    .then(|| b.record(b.data[v][1]).get(k as usize).copied())
+                    .flatten()
+            }
+            Tag::Read => self.single_store(b.local_read(i)?.idx(), r),
+            Tag::Coerce if b.same_value_coercion(i) => Some(a),
+            Tag::Scope if b.record(w).is_empty() && b.data[a as usize][1] == NONE => self
+                .breaks
+                .get(&r)
+                .or_else(|| self.breaks.get(&a))
+                .copied()
+                .flatten(),
+            Tag::Block if w == NONE => self.breaks.get(&r).copied().flatten(),
+            _ => None,
+        }
+    }
+
+    /// The source of value `r` ([`Key`]).
+    fn key(&mut self, r: u32, depth: u32) -> Key {
+        if let Some(&k) = self.keys.get(&r) {
+            return k;
+        }
+        let k = self.key_uncached(r, depth);
+        self.keys.insert(r, k);
+        k
+    }
+
+    fn key_uncached(&mut self, r: u32, depth: u32) -> Key {
+        let b = self.em.b;
+        if depth > DEPTH || Ref(r).as_inst().is_none() {
+            return Key::Val(r);
+        }
+        let i = r as usize;
+        if let Some(l) = b.local_read(i)
+            && self.unchanged[l.idx()]
+        {
+            return Key::Param(l.raw());
+        }
+        if let Some(next) = self.follow(r) {
+            return self.key(next, depth + 1);
+        }
+        if matches!(b.tags[i], Tag::Read | Tag::Ref) {
+            let v = b.view(b.data[i][0]);
+            let mut steps = v.steps(b);
+            if steps.next() != Some(Proj::Deref) {
+                return Key::Val(r);
+            }
+            let root = match v.root {
+                Root::Value(x) => self.key(x, depth + 1),
+                Root::Local(l) if self.unchanged[l as usize] => Key::Param(l),
+                Root::Local(l) => match self.single_store(l as usize, r) {
+                    Some(x) => self.key(x, depth + 1),
+                    None => return Key::Val(r),
+                },
+                _ => return Key::Val(r),
+            };
+            let (p, mut path) = match root {
+                Key::Param(p) => (p, Path::default()),
+                Key::FieldRef(p, path) => (p, path),
+                _ => return Key::Val(r),
+            };
+            for step in steps {
+                let Proj::Field(k) = step else {
+                    return Key::Val(r);
+                };
+                let Some(longer) = path.push(k) else {
+                    return Key::Val(r);
+                };
+                path = longer;
+            }
+            if path == Path::default() {
+                return Key::Val(r);
+            }
+            return if b.tags[i] == Tag::Ref {
+                Key::FieldRef(p, path)
+            } else {
+                Key::Field(p, path)
+            };
+        }
+        Key::Val(r)
+    }
+
+    /// Where value `r` points ([`Origin`]).
+    fn origin(&mut self, r: u32, depth: u32) -> Origin {
+        let b = self.em.b;
+        if depth > DEPTH || Ref(r).as_inst().is_none() {
+            return Origin::Other;
+        }
+        if let Some(next) = self.follow(r) {
+            return self.origin(next, depth + 1);
+        }
+        let i = r as usize;
+        match b.tags[i] {
+            Tag::Read | Tag::Ref => {
+                let v = b.view(b.data[i][0]);
+                let mut steps = v.steps(b);
+                if steps.next() != Some(Proj::Deref) || !steps.all(|s| matches!(s, Proj::Field(_)))
+                {
+                    return Origin::Other;
+                }
+                let root = match v.root {
+                    Root::Value(x) => match self.key(x, depth + 1) {
+                        Key::Param(p) => Some(p),
+                        _ => match self.origin(x, depth + 1) {
+                            Origin::InlineRef(p) => Some(p),
+                            _ => None,
+                        },
+                    },
+                    Root::Local(l) if self.unchanged[l as usize] => Some(l),
+                    Root::Local(l) => match self.single_store(l as usize, r) {
+                        Some(x) => match self.key(x, depth + 1) {
+                            Key::Param(p) => Some(p),
+                            _ => None,
+                        },
+                        None => None,
+                    },
+                    _ => None,
+                };
+                match (root, b.tags[i]) {
+                    (Some(p), Tag::Ref) => Origin::InlineRef(p),
+                    (Some(p), _) => Origin::Inline(p),
+                    (None, _) => Origin::Other,
+                }
+            }
+            Tag::NewStruct => match b.record(b.data[i][1]) {
+                [address] => match self.origin(*address, depth + 1) {
+                    Origin::Inline(p) => Origin::PtrInto(p),
+                    _ => Origin::Other,
+                },
+                _ => Origin::Other,
+            },
+            Tag::Call
+                if matches!(
+                    self.em.calls.get(&r),
+                    Some(Target::Call(call))
+                        if matches!(&call.kind, TargetKind::Intrinsic(key) if key == "ptr_offset")
+                ) =>
+            {
+                match self.first_arg(r).map(|a| self.origin(a, depth + 1)) {
+                    Some(Origin::PtrInto(p)) => Origin::PtrInto(p),
+                    _ => Origin::Other,
+                }
+            }
+            _ => Origin::Other,
+        }
+    }
+
+    /// The local a value reads, through the values it stands for.
+    fn read_of(&mut self, r: u32) -> Option<(usize, u32)> {
+        let Key::Val(x) = self.key(r, 0) else {
+            return None;
+        };
+        let l = super::shape::read_local(self.em.b, x)?;
+        (!self.addressed[l]).then_some((l, x))
+    }
+
+    /// The loop facts of loop `l`: a rising test `cur < end`, or a falling
+    /// index `v > 0` with its one decrement.
+    fn loop_facts(&mut self, l: u32) {
+        let em = self.em;
+        let b = em.b;
+        let Some((test, false)) = em.list_loop_guard(l) else {
+            return;
+        };
+        let cond = b.data[test as usize][0];
+        if Ref(cond).as_inst().is_none() || b.tags[cond as usize] != Tag::Prim {
+            return;
+        }
+        let op = b.data[cond as usize][0];
+        let [lhs, rhs] = *b.record(b.data[cond as usize][1]) else {
+            return;
+        };
+        let usize_ty = Ty::prim(hd_types::Prim::Usize);
+        if em.ty_of(lhs) != usize_ty {
+            return;
+        }
+        let Some(cur) = super::shape::read_local(b, lhs).filter(|&c| !self.addressed[c]) else {
+            return;
+        };
+        if op == PrimOp::Lt as u32 {
+            let end = self.key(rhs, 0);
+            self.rising.entry(cur).or_default().push(Rising {
+                test,
+                cond,
+                loop_inst: l,
+                end,
+            });
+        } else if (op == PrimOp::Gt as u32 || op == PrimOp::Ne as u32)
+            && em.const_u32(rhs) == Some(0)
+        {
+            let [a, c] = self.sets[cur].as_slice() else {
+                return;
+            };
+            let (init, dec) = if em.in_loop(a.0, l) {
+                (*c, *a)
+            } else {
+                (*a, *c)
+            };
+            if em.in_loop(init.0, l)
+                || !em.dominates(init.0, l)
+                || init.1 == NONE
+                || em.topo.loop_of[dec.0 as usize] != l
+                || !self.decrement(dec.1, cur, test)
+            {
+                return;
+            }
+            self.falling.insert(
+                cur,
+                Falling {
+                    test,
+                    loop_inst: l,
+                    init: init.0,
+                    value: init.1,
+                    dec: dec.0,
+                },
+            );
+        }
+    }
+
+    /// Whether `value` is `v - 1`, reading `v` after test `test` went on.
+    fn decrement(&mut self, value: u32, v: usize, test: u32) -> bool {
+        let Some(read) = self.minus_one(value) else {
+            return false;
+        };
+        super::shape::read_local(self.em.b, read) == Some(v) && self.em.after_test(test, read)
+    }
+
+    /// The `x` of a value `x - 1`.
+    fn minus_one(&mut self, value: u32) -> Option<u32> {
+        let b = self.em.b;
+        let Key::Val(x) = self.key(value, 0) else {
+            return None;
+        };
+        if Ref(x).as_inst().is_none()
+            || b.tags[x as usize] != Tag::Prim
+            || b.data[x as usize][0] != PrimOp::Sub as u32
+        {
+            return None;
+        }
+        let [r, one] = *b.record(b.data[x as usize][1]) else {
+            return None;
+        };
+        (self.em.const_u32(one) == Some(1)).then_some(r)
+    }
+
+    /// The key and length of guard `x`: an `If` with no else arm whose
+    /// condition is `key >= len` on `usize`.
+    fn guard(&self, x: u32) -> Option<(u32, u32)> {
+        let b = self.em.b;
+        if b.tags[x as usize] != Tag::If {
+            return None;
+        }
+        let [cond, arms] = b.data[x as usize];
+        if !matches!(b.record(arms), [_] | [_, NONE]) {
+            return None;
+        }
+        let c = Ref(cond).as_inst()?.0 as usize;
+        if b.tags[c] != Tag::Prim || b.data[c][0] != PrimOp::Ge as u32 {
+            return None;
+        }
+        let [index, len] = *b.record(b.data[c][1]) else {
+            return None;
+        };
+        (self.em.ty_of(index) == Ty::prim(hd_types::Prim::Usize)).then_some((index, len))
+    }
+
+    /// Whether guard `x`'s arm never falls through: it calls the panic.
+    fn panics(&self, x: u32) -> bool {
+        let b = self.em.b;
+        let arm = b.record(b.data[x as usize][1])[0];
+        b.record(b.data[arm as usize][0]).iter().any(|&s| {
+            b.tags[s as usize] == Tag::Unreachable
+                || (b.tags[s as usize] == Tag::Call
+                    && matches!(
+                        self.em.calls.get(&s),
+                        Some(Target::Call(call))
+                            if matches!(&call.kind, TargetKind::Intrinsic(key) if key == "panic")
+                    ))
+        })
+    }
+
+    /// Whether value `index` is below header field `len` wherever it is
+    /// read ([`Proof`]'s facts).
+    fn below(&mut self, index: u32, len: Key, depth: u32) -> bool {
+        if depth > DEPTH {
+            return false;
+        }
+        let em = self.em;
+        if let Some((v, read)) = self.read_of(index) {
+            // A rising counter, read after its test and before its step.
+            let rising = self.rising.get(&v).is_some_and(|facts| {
+                facts.iter().any(|f| {
+                    let [a, c] = self.sets[v].as_slice() else {
+                        return false;
+                    };
+                    let (init, step) = if em.in_loop(a.0, f.loop_inst) {
+                        (c, a)
+                    } else {
+                        (a, c)
+                    };
+                    f.end == len
+                        && !em.in_loop(init.0, f.loop_inst)
+                        && em.topo.loop_of[step.0 as usize] == f.loop_inst
+                        && em.topo.loop_of[read as usize] == f.loop_inst
+                        && em.dominates(f.cond, read)
+                        && em.after_test(f.test, read)
+                        && em.dominates(read, step.0)
+                })
+            });
+            if rising {
+                return true;
+            }
+            // A falling index, at most its value when set.
+            if let Some(&Falling { init, value, .. }) = self.falling.get(&v)
+                && em.dominates(init, read)
+            {
+                return self.below(value, len, depth + 1);
+            }
+            return false;
+        }
+        // `v - 1` after the test `v > 0`, before `v`'s decrement.
+        if let Some(r) = self.minus_one(index)
+            && let Some((v, read)) = self.read_of(r)
+            && let Some(&Falling {
+                test,
+                loop_inst,
+                value,
+                dec,
+                ..
+            }) = self.falling.get(&v)
+            && em.topo.loop_of[read as usize] == loop_inst
+            && em.after_test(test, read)
+            && em.dominates(read, dec)
+        {
+            return self.below(value, len, depth + 1);
+        }
+        false
+    }
+}

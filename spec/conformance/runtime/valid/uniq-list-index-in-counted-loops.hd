@@ -1,0 +1,33 @@
+# test: UniqList indexing in loops whose counters stay below the length sorts in place and reads every element
+# Spec std/collections UniqList: std-collections.uniq-list.index-places.
+# expect-stdout: 1 2 3 5 8 9
+# expect-stdout: 28
+use std.collections.UniqList
+
+fn sort(items: &mut UniqList[i32]) -> void:
+    for i in 1..items.len():
+        key := items[i]
+        let j: usize = i
+        while j > 0:
+            if items[j - 1] <= key:
+                break
+            items[j] = items[j - 1]
+            j = j - 1
+        items[j] = key
+
+fn total(items: &UniqList[i32]) -> i32:
+    let sum = +0
+    for i in 0..items.len():
+        sum += items[i]
+    sum
+
+pub fn main() -> void $ Console:
+    let mut items = UniqList::[i32].new()
+    for value in [+5, 3, 9, 1, 8, 2]:
+        items.push(value)
+    sort(&mut items)
+    let text = ""
+    for i in 0..items.len():
+        text = if i == 0: "${items[i]}" else: "$text ${items[i]}"
+    println(text)
+    println(total(&items))

@@ -1,0 +1,13 @@
+# @dump: wat
+# @build: v8 release
+# A call that may write the list keeps every guard and header load: the
+# proof of #1689 holds only in a body that writes no header.
+use std.collections.UniqList
+
+fn sum(items: &mut UniqList[i32]) -> i32:
+    let total = +0
+    # subject
+    for i in 0..items.len():
+        items.push(0)
+        total += items[i]
+    total

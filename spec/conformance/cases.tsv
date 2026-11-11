@@ -5996,6 +5996,8 @@ typing/invalid/uniq-map-drain-keeps-mutable-borrow.hd	type	reject:conflicting-ac
 runtime/panic/uniq-list-reserve-while-pinned.hd	runtime	panic:borrow-conflict	std/collections.md#r-std-collections.uniq-list.type
 runtime/panic/uniq-list-drain-while-pinned.hd	runtime	panic:borrow-conflict	std/collections.md#r-std-collections.uniq-list.type
 runtime/panic/uniq-list-append-source-while-pinned.hd	runtime	panic:borrow-conflict	std/collections.md#r-std-collections.uniq-list.type
+runtime/valid/uniq-list-index-in-counted-loops.hd	runtime	accept	std/collections.md#r-std-collections.uniq-list.index-places
+runtime/panic/uniq-list-index-past-loop-counter.hd	runtime	panic:index-out-of-bounds	std/collections.md#r-std-collections.uniq-list.index-places
 runtime/panic/uniq-map-reserve-while-pinned.hd	runtime	panic:borrow-conflict	std/collections.md#r-std-collections.uniq-map.type
 runtime/panic/uniq-map-drain-while-pinned.hd	runtime	panic:borrow-conflict	std/collections.md#r-std-collections.uniq-map.type
 runtime/panic/uniq-map-retain-while-pinned.hd	runtime	panic:borrow-conflict	std/collections.md#r-std-collections.uniq-map.type

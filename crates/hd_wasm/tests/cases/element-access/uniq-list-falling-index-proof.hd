@@ -1,0 +1,20 @@
+# @dump: wat
+# @build: v8 release
+# The inlined `Index` and `IndexSet` guards of a `UniqList` go where the
+# loops prove the index below the length (#1689): `i` from the range test,
+# `j` and `j - 1` from `j > 0` and `j`'s start at `i`. The header is
+# unchanged, so the inner loop loads neither `len` nor the buffer address:
+# the access before the loop loaded the address once.
+use std.collections.UniqList
+
+fn sort(items: &mut UniqList[i32]) -> void:
+    for i in 1..items.len():
+        key := items[i]
+        let j: usize = i
+        # subject
+        while j > 0:
+            if items[j - 1] <= key:
+                break
+            items[j] = items[j - 1]
+            j = j - 1
+        items[j] = key

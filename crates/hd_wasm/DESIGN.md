@@ -2413,6 +2413,19 @@ one changed after its check, a pop in the loop and an aliased pop. Checked runti
 those panics, an addressable induction variable, empty and
 nested loops, continue and full-width inclusive endpoints.
 
+Issue #1689 extends both shapes past the `List` intrinsic
+(`emit/guards.rs`). An inlined std `Index` or `IndexSet` body is a guard,
+`if key >= len: panic`, over a header field read through a reference
+parameter. A body that calls only the pointer intrinsics and the panic,
+stores through no dereference or element, drops nothing, and writes
+through a `Ptr` only into the room of a buffer inline in that referent
+never changes the header. Its field reads then have one value each, so a
+guard whose key the loop facts bound (a rising counter, a falling index
+or `v - 1`, or a guard of the same key that ran first) is not emitted,
+and a header read that an earlier read of the same field runs before
+takes that read's value. The kernel of #1689 keeps no guard and no header
+load in its inner loop.
+
 ### 23.38 Locals In The Frame
 
 Issue #702. A local that a reference refers to lives in memory, since

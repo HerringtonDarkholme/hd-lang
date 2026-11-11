@@ -46,6 +46,7 @@ pub(crate) use ctx::slot_ctx;
 mod dyn_value;
 mod excl;
 pub(crate) use excl::collect_loans;
+mod guards;
 mod iter;
 mod list;
 mod loan;
@@ -1216,6 +1217,9 @@ struct Em<'i, 'a, 'm> {
     cached_buffers: Vec<(u32, u32)>,
     /// Exact range-index reads proven in bounds in this body's loops.
     proven_list_indices: Vec<u32>,
+    /// What the unchanged headers of the body's reference parameters
+    /// prove (`guards.rs`).
+    headers: guards::HeaderFacts,
     /// The parameters borrowed from the caller, which the body never
     /// counts ([`crate::layout::Pass::Borrowed`]).
     borrowed: hd_base::HashSet<usize>,
@@ -1418,6 +1422,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             list_caches: Vec::new(),
             cached_buffers: Vec::new(),
             proven_list_indices: Vec::new(),
+            headers: guards::HeaderFacts::default(),
             borrowed: hd_base::HashSet::default(),
             lends: 0,
             emitting: Vec::new(),
@@ -1451,6 +1456,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             .map(|(scope, operand, call)| ((scope, operand), call))
             .collect();
         em.projs = (0..b.len()).map(|i| em.projected(i)).collect();
+        em.headers = em.header_facts();
         em
     }
 }
@@ -2181,7 +2187,28 @@ impl Em<'_, '_, '_> {
         self.borrow_before_store(i);
         self.inst_tag(i, a, bw)?;
         self.borrow_after_store(i);
+        self.keep_header_read(i);
         Ok(())
+    }
+
+    /// Keeps the value of header read `i`, which later reads of the same
+    /// field take (`guards.rs`), in a local of its own: a consumer may
+    /// take `i`'s locals.
+    fn keep_header_read(&mut self, i: u32) {
+        if self.headers.leaders.contains(&i)
+            && let Some(&[l]) = self.vals.get(&i).map(Vec::as_slice)
+        {
+            let np = self.f.params.len();
+            let ty = if (l as usize) < np {
+                self.f.params[l as usize]
+            } else {
+                self.f.locals[l as usize - np]
+            };
+            let kept = self.f.local(ty);
+            self.f.get(l);
+            self.f.set(kept);
+            self.headers.kept.insert(i, kept);
+        }
     }
 
     /// Emits an instruction that may be an ordinary call while keeping
@@ -2200,6 +2227,17 @@ impl Em<'_, '_, '_> {
         match self.b.tags[i as usize] {
             Tag::Read | Tag::Store if let Some(p) = self.b.ptr_target(i as usize) => {
                 self.ptr_place(i, p)?;
+            }
+            // A read of an unchanged header field that an earlier read
+            // of it dominates: that read's value (`guards.rs`).
+            Tag::Read
+                if self.susp.is_none()
+                    && let Some(j) = self.headers.same_reads.get(&i)
+                    && let Some(&kept) = self.headers.kept.get(j)
+                    && !self.tracked(self.ty(i)) =>
+            {
+                self.f.get(kept);
+                self.store(i)?;
             }
             // A plain local read, `Read [$l]`.
             Tag::Read if let Some(l) = self.b.local_read(i as usize) => {
@@ -2340,6 +2378,11 @@ impl Em<'_, '_, '_> {
                 self.f.get(d);
                 self.f.get(v);
                 self.store_owned(i)?;
+            }
+            // A guard proven false runs no arm; its condition's operands
+            // are pure reads, which the Wasm cleanup drops.
+            Tag::If if self.susp.is_none() && self.headers.proven_guards.contains(&i) => {
+                self.slot(i)?;
             }
             Tag::If => {
                 let r = self.rec(bw);

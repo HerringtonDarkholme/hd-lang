@@ -1,0 +1,12 @@
+# @dump: wat
+# @build: v8 release
+# `i + 1` may reach the length, so its guard stays. `len` loads once,
+# before the loop, and the buffer address once per iteration (#1689).
+use std.collections.UniqList
+
+fn pairs(items: &UniqList[i32]) -> i32:
+    let total = +0
+    # subject
+    for i in 0..items.len():
+        total += items[i] + items[i + 1]
+    total

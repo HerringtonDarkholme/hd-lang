@@ -1,0 +1,15 @@
+# test: a UniqList index one past a loop counter that stays below the length still panics
+# Spec std/collections UniqList: std-collections.uniq-list.index-places.
+use std.collections.UniqList
+
+fn pairs(items: &UniqList[i32]) -> i32:
+    let sum = +0
+    for i in 0..items.len():
+        sum += items[i + 1] # panic: index-out-of-bounds
+    sum
+
+pub fn main() -> void:
+    let mut items = UniqList::[i32].new()
+    items.push(1)
+    items.push(2)
+    _ := pairs(&items)

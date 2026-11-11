@@ -209,7 +209,7 @@
     local.get $value
     call $explicit_loan
   )
-  (func $std_sum (param $xs i32) (result f64) (local $total f64) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 f64) (local $t4 f64)
+  (func $std_sum (param $xs i32) (result f64) (local $total f64) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 f64) (local $t4 f64)
     ;; 19 |     for i in 0..xs.len():
     local.get $xs
     i32.load $heap offset=8
@@ -228,8 +228,7 @@
         local.set $t1
     ;; 20 |         total += xs.get(i).unwrap_or(0.0)
         local.tee $t2
-        local.get $xs
-        i32.load $heap offset=8
+        local.get $t0
         i32.ge_u
         if (result i32)
           i32.const 0
@@ -352,7 +351,7 @@
     end
     local.get $value.1
   )
-  (func $user_sum (param $xs i32) (result f64) (local $total f64) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 f64) (local $t4 f64)
+  (func $user_sum (param $xs i32) (result f64) (local $total f64) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 f64) (local $t4 f64)
     ;; 13 |     for i in 0..xs.len():
     local.get $xs
     i32.load $heap offset=8
@@ -371,8 +370,7 @@
         local.set $t1
     ;; 14 |         total += pick(xs.get(i), 0.0)
         local.tee $t2
-        local.get $xs
-        i32.load $heap offset=8
+        local.get $t0
         i32.ge_u
         if (result i32)
           i32.const 0
