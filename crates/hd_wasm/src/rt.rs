@@ -246,13 +246,13 @@ pub enum Helper {
     /// `(payload)`: a type-keyed descriptor alias for a weak-target type
     /// whose payload has no counted fields.
     WeakNoopDrop,
-    /// `(serial: i64, expected_descriptor: i32) -> entry`: creates or reuses
+    /// `(serial: i64, type_id, aliases, alias_count: i32) -> entry`: creates or reuses
     /// a side entry when the reference names an exact whole allocation.
     WeakNew,
     /// `(entry)`: removes the raw side-table row and clears the target's
     /// descriptor bit when the last weak value releases its entry.
     WeakEntryDrop,
-    /// `()`: registers this module's descriptor aliases with the shared weak
+    /// `(aliases, alias_count)`: registers this module's descriptor aliases with the shared weak
     /// runtime before any user initializer runs.
     WeakTypeInit,
     /// `(payload)`: one more count on each counted reference in a new
@@ -1344,6 +1344,194 @@ fn write_str(f: &mut Func, s: u32) {
     f.call(rt_import("stderr", &[Val::I32], &[]));
 }
 
+/// Logical call shape, available before a helper's body is reached.
+/// Fixed/value-vector shapes are O(1); structured host arguments visit
+/// their inline record metadata once, without generating code or codecs.
+pub(crate) fn arity(helper: &Helper) -> (usize, usize) {
+    use Helper as H;
+    let arguments = |args: &[crate::task::HostArg]| {
+        args.iter()
+            .map(|arg| match arg {
+                crate::task::HostArg::Str => 2,
+                crate::task::HostArg::Scalar(_) => 1,
+                crate::task::HostArg::Buf(ty) => ty.value_count(),
+            })
+            .sum::<usize>()
+    };
+    let host_result = |result: &crate::task::HostRes| match result {
+        crate::task::HostRes::Void => 0,
+        crate::task::HostRes::Tags => 2,
+        crate::task::HostRes::Buf(ty) => ty.value_count(),
+    };
+    match helper {
+        H::MemoryCopy { .. }
+        | H::MemoryFill(_)
+        | H::CycleTrace
+        | H::CycleRelease
+        | H::CycleFree
+        | H::FreeClassLoaded
+        | H::WakeLink => (3, 0),
+        H::CanCancel
+        | H::EntryCall { .. }
+        | H::AllocClass { .. }
+        | H::Frame(_)
+        | H::CancelEnter
+        | H::PendingCold { .. }
+        | H::WaitCell
+        | H::TypeIdOf(_)
+        | H::TypeInfo(_) => (0, 1),
+        H::CancellationRoot
+        | H::EntryInit { .. }
+        | H::EntryReset
+        | H::Teardown
+        | H::Collect
+        | H::Panic(_)
+        | H::ForbidCheck
+        | H::EntryCancel { .. } => (0, 0),
+        H::EntryPoll { .. }
+        | H::CheckedPoll { .. }
+        | H::CollectPoll { .. }
+        | H::Alloc
+        | H::Str
+        | H::TakeBox
+        | H::CollCopy
+        | H::ListBuf { .. }
+        | H::ListUnique { .. }
+        | H::ListCopy { .. }
+        | H::ListGrow { .. }
+        | H::MapTable { .. }
+        | H::MapGrow { .. }
+        | H::MapUnique { .. }
+        | H::Utf8ValidLen
+        | H::PollCheck
+        | H::CancelCheck
+        | H::WakeTake
+        | H::WakeSlot
+        | H::WakerNew
+        | H::WakerSlot
+        | H::CleanupCold
+        | H::WaitCold
+        | H::WaitPoll
+        | H::RuntimeType(_)
+        | H::Race { part: 0, .. }
+        | H::All { part: 0, .. } => (1, 1),
+        H::Opaque
+        | H::LoanShare
+        | H::LoanUnshare
+        | H::FreeClass
+        | H::ReleaseRef
+        | H::ReleaseDrain
+        | H::RetainKnown
+        | H::ReleaseKnown
+        | H::DropFields { .. }
+        | H::WeakNoopDrop
+        | H::WeakEntryDrop
+        | H::RetainFields { .. }
+        | H::DropElems { .. }
+        | H::DropEntries { .. }
+        | H::PackageHandleRelease { .. }
+        | H::Fit
+        | H::WakeMark
+        | H::WakeRegister
+        | H::WakeRemove
+        | H::WakerParent
+        | H::WakerDrop
+        | H::WakeNotify
+        | H::HostCancel
+        | H::ChildDrop
+        | H::CleanupCancel
+        | H::PendingCancel
+        | H::WaitSignal
+        | H::RetainAny
+        | H::RaceDrop { .. } => (1, 0),
+        H::PanicStr
+        | H::WeakTypeInit
+        | H::CopyElems { .. }
+        | H::CancelLeave
+        | H::WakeSignal
+        | H::All { part: 4, .. } => (2, 0),
+        H::PanicWith => (4, 0),
+        H::ToBuf
+        | H::New
+        | H::NewFixed { .. }
+        | H::CtxFind
+        | H::CtxNew
+        | H::ListTruncate { .. }
+        | H::ListReserve { .. }
+        | H::ListExtend { .. }
+        | H::StrToBytes { .. }
+        | H::LebPut
+        | H::WakerLive => (2, 1),
+        H::Retain { vals, .. } | H::Release { vals, .. } => (vals.len(), 0),
+        H::DropValue { leaves, .. } => (leaves.len(), 0),
+        H::MapHash { key, .. } => (key.len(), 1),
+        H::MapFind { entry, .. } => (2 + entry.keys, 1),
+        H::MapPut { entry, .. } => (3 + entry.leaves.len(), 1),
+        H::MapSlotNext => (3, 1),
+        H::DynSlot {
+            params, results, ..
+        }
+        | H::DynRead {
+            params, results, ..
+        } => (1 + params.len(), results.len()),
+        H::MapStep { item, .. } => (3, item.mem.leaves.len()),
+        H::DynTrap { params, results } => (params.len(), results.len()),
+        H::StrFromBytes | H::LebGet | H::CleanupPoll | H::All { part: 1, .. } => (1, 2),
+        H::StrAppend => (4, 2),
+        H::FmtInt { .. } => (2, 2),
+        H::StrEq | H::BytesIndex | H::BytesMismatch | H::WeakNew => (4, 1),
+        H::BytesIndexSet(set) => (if set.is_some() { 3 } else { 7 }, 1),
+        H::BytesIndexPair => (6, 1),
+        H::HostPrim { args, result, .. } => (
+            args.iter()
+                .map(|arg| match arg {
+                    PrimArg::Str => 2,
+                    PrimArg::Scalar(_) => 1,
+                })
+                .sum(),
+            if result.is_some() { 1 } else { 2 },
+        ),
+        H::HostCold { args, .. } => (1 + arguments(args), 1),
+        H::HostPoll { res, .. } => (1, 1 + host_result(res)),
+        H::HostDrive {
+            blocking,
+            args,
+            res,
+            ..
+        } => (
+            1 + arguments(args) + usize::from(*blocking),
+            1 + host_result(res),
+        ),
+        H::Drive {
+            blocking,
+            params,
+            results,
+            ..
+        } => (params.len() + usize::from(*blocking), 1 + results.len()),
+        H::HostCall { args, result, .. } => (
+            1 + arguments(args),
+            match result {
+                crate::boundary::CallRes::Void => 0,
+                crate::boundary::CallRes::Scalar(_) => 1,
+                crate::boundary::CallRes::Buf(ty) => ty.value_count(),
+            },
+        ),
+        H::HandleSlot {
+            params,
+            ctx,
+            results,
+            ..
+        } => (1 + params.len() + usize::from(*ctx), results.len()),
+        H::Enc(ty) => (1 + ty.value_count(), 1),
+        H::Dec(ty) => (1, 1 + ty.value_count()),
+        H::PendingPoll { results } => (1, 1 + results.len()),
+        H::Race {
+            part: 1, results, ..
+        } => (1, 1 + results.len()),
+        H::Race { .. } | H::All { .. } => (1, 0),
+    }
+}
+
 /// Builds helper `h`; it may ask `m` for more helpers and static data.
 pub fn helper(h: &Helper, m: &mut Module) -> Func {
     #[cfg_attr(not(feature = "checked-report"), allow(unused_mut))]
@@ -1860,6 +2048,15 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         }
         _ => {}
     }
+    // The declaration must track its body constructor before wide lowering.
+    // This verifies metadata consistency rather than inferring a signature
+    // by generating a helper during stack analysis.
+    debug_assert_eq!(
+        arity(h),
+        (f.params.len(), f.results.len()),
+        "helper signature {}",
+        f.name
+    );
     f
 }
 

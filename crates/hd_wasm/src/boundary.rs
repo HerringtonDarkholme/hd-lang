@@ -217,6 +217,40 @@ pub struct LCodec {
 }
 
 impl LTy {
+    /// Flattened signature width, without allocating values or descending
+    /// through recursive codecs. Record nesting uses an explicit worklist.
+    pub(crate) fn value_count(&self) -> usize {
+        self.value_count_with(&mut || {})
+    }
+
+    fn value_count_with(&self, visit: &mut impl FnMut()) -> usize {
+        let mut work = vec![self];
+        let mut count = 0;
+        while let Some(ty) = work.pop() {
+            visit();
+            count += match ty {
+                LTy::Void | LTy::Never(_) => 0,
+                LTy::Int { .. }
+                | LTy::Char
+                | LTy::F32
+                | LTy::F64
+                | LTy::Bytes
+                | LTy::List(_)
+                | LTy::Map(_)
+                | LTy::Object(_) => 1,
+                LTy::Str | LTy::DiscardStr | LTy::Handle(_) => 2,
+                LTy::Record(fields) => {
+                    work.extend(fields);
+                    0
+                }
+                LTy::Enum(enumeration) => enumeration.layout.mem.leaves.len(),
+                LTy::Codec(codec) => codec.vals.len(),
+                LTy::Named(named) => named.vals.len(),
+            };
+        }
+        count
+    }
+
     /// The type's Wasm values (`layout::vals`).
     #[must_use]
     pub fn vals(&self) -> Vec<Val> {
@@ -3091,6 +3125,26 @@ mod discarded_tests {
     use super::*;
     use hd_base::{NodeIdx, Symbol};
     use hd_tir::ir::{BodyKind, Place};
+
+    #[test]
+    fn signature_width_visits_wide_deep_records_once() {
+        for (width, depth) in [(100, 20), (1_000, 20), (20, 1_000)] {
+            let mut ty = LTy::Record((0..width).map(|_| LTy::Str).collect());
+            for _ in 0..depth {
+                ty = LTy::Record(vec![ty]);
+            }
+            let mut visits = 0;
+            assert_eq!(ty.value_count_with(&mut || visits += 1), width * 2);
+            assert_eq!(visits, width + depth + 1);
+            // Drain the test's owned tree iteratively as well.
+            let mut work = vec![ty];
+            while let Some(ty) = work.pop() {
+                if let LTy::Record(fields) = ty {
+                    work.extend(fields);
+                }
+            }
+        }
+    }
 
     fn record(b: &mut Body, words: &[u32]) -> u32 {
         let at = u32::try_from(b.extra.len()).expect("record");
