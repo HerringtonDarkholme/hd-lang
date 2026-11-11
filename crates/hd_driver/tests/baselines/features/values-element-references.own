@@ -49,7 +49,7 @@ fn rewarded(players: List[Player], best: usize, s: string) -> List[Player]:
 >   %9 = Read copy [$1] : usize
 >   %10 = Read copy [$3 [%9] .score] : i32
 >   %11 = Prim Add [%10 1:i32] : i32
->   %12 = IsUnique [$3] : ()
+>   %12 = IsUnique repeat [$3] : ()
 >   %13 = Store [$3 [%9] .score] %11 : ()
     out.push(Player { name: s, score: 0 })
 >   %14 = Read move [$2] : string

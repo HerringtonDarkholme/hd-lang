@@ -2344,6 +2344,12 @@ between the length observation and loop entry. Thus a pop in that
 prelude invalidates the fact too. Unknown calls and possibly aliased
 mutations keep the normal check.
 
+For straight-line accesses, ownership and emission share
+`hd_tir::own::ElementChecks`. A direct call receiving a mutable local
+element reference proves that index for a later read or store in the same
+block when neither the list header and length nor the index can
+change. A deferred read cannot establish this fact.
+
 An element read in the body is no alias of its list, whether it reads a
 list value (`[%xs [%i]]`) or a place rooted at a local (`[*$xs [%i]]`), so
 using an element's value does not void the proof.

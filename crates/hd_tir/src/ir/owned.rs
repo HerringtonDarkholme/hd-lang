@@ -425,6 +425,7 @@ fn hoisted(b: &Body, topo: &Topology, cx: &dyn OwnCx, errs: &mut Vec<VerifyError
     if !any && b.stable_lists.is_empty() {
         return;
     }
+    let element_checks = crate::own::ElementChecks::new(b);
     let (blk, pos, first) = (&topo.blk, &topo.pos, &topo.first);
     let mut addressed = vec![false; b.local_ty.len()];
     let mut captured = vec![false; b.local_ty.len()];
@@ -461,7 +462,7 @@ fn hoisted(b: &Body, topo: &Topology, cx: &dyn OwnCx, errs: &mut Vec<VerifyError
             continue;
         }
         let w = b.data[i][1];
-        if w == REPEAT && !hoist::repeats(b, topo, i) {
+        if w == REPEAT && !element_checks.repeats_unique(i) && !hoist::repeats(b, topo, i) {
             err(
                 errs,
                 u32_of(i),
