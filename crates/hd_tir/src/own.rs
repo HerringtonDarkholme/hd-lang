@@ -1553,6 +1553,7 @@ pub(crate) mod tests {
     const OPEN: Ty = Ty(1_000_002);
     /// A non-copyable value with no counted fields or drop hook.
     const UNCOUNTED: Ty = Ty(1_000_003);
+    const LOCAL_REF: Ty = Ty(1_000_004);
 
     /// `string` and `LIST` are counted; callee 9 takes its argument as a value
     /// parameter, callee 8 by reference.
@@ -1570,6 +1571,9 @@ pub(crate) mod tests {
         }
         fn counted(&self, ty: Ty) -> bool {
             ty == Ty::STRING || ty == LIST || ty == UNIQ || ty == OPEN
+        }
+        fn plain_reference(&self, ty: Ty) -> bool {
+            ty == LOCAL_REF
         }
         fn pass(&self, callee: &Callee, _: usize, _: usize) -> Pass {
             match callee {
@@ -2821,11 +2825,11 @@ pub(crate) mod tests {
         let us = Ty::prim(hd_types::Prim::Usize);
         let text = passes(
             |b| {
-                let r = b.local(us, Symbol::from_raw(0), local_flags::PARAM, n);
+                let r = b.local(LOCAL_REF, Symbol::from_raw(0), local_flags::PARAM, n);
                 loop_body(
                     b,
                     &|b| {
-                        let rv = b.get(r, us, n);
+                        let rv = b.get(r, LOCAL_REF, n);
                         let word = b.place(&format!("[*%{}]", rv.0).parse().expect("place"));
                         b.emit(Tag::Read, word, ReadMode::Use as u32, Ty::STRING, n)
                     },

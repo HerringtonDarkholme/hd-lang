@@ -142,7 +142,7 @@ impl[T < Ord] Queue[T]:
 >   %80 = Release %79 Operation #3 : ()
 >   exit sub 0 drops [$2]
 >   storage sub 0: $2 slot
->   summary kept [$0 $2] writes relies [$0]
+>   summary kept [$0 $2] writes
 
 pub fn numbers(a: i64, b: i64, c: i64) -> i64:
     let mut q = Queue::[i64].new()
