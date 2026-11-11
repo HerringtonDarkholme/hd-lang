@@ -1,0 +1,33 @@
+# @dump: wat
+# @build: program release
+# @host: main.Sink
+# @helpers: enc
+# expected: the opaque encoder borrows a local-stack payload; no copied
+# Drop owner is made. The cold leaf takes the collection's existing count.
+use std.annotation.inline
+use std.collections.UniqList
+use std.serde.{Serialize, Serializer}
+
+pub struct Payload:
+    values: List[string]
+    owner: UniqList[usize]
+
+impl Serialize for Payload:
+    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
+        self.values.serialize(out)
+
+@host
+pub trait Sink:
+    fn keep!(&self, value: Payload) -> usize
+
+@inline(.Never)
+fn begin(sink: &dyn Sink, value: Payload) -> Suspend[usize]:
+    sink.keep(value)
+    #^^^^^^^^^^^^^^^
+
+pub fn main!() -> void $ Sink:
+    sink := $.use(Sink)
+    let mut owner = UniqList::new()
+    owner.push(9)
+    pending := begin(sink, Payload { values: ["one"], owner: owner })
+    _ := pending!()
