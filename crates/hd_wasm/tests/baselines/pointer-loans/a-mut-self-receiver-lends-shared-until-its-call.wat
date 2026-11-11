@@ -3,6 +3,7 @@
   (import "fixture" "rt:panic'1" (func $rt:panic'1))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "rt:panic'3" (func $rt:panic'3))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:loan_share" (func $rt:loan_share (param i32)))
   (import "fixture" "rt:panic'4" (func $rt:panic'4))
   (import "fixture" "rt:loan_unshare" (func $rt:loan_unshare (param i32)))
@@ -67,6 +68,18 @@
     local.get $other
     local.get $self
     i32.store $heap
+    ;; 12 |         self.n += k
+    local.get $other
+    if
+      local.get $other
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $other
+        call $rt:release_ref
+      end
+    end
   )
   (func $bump (param $p i32) (param $other i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 16 |     p.add(p.n, other)
@@ -172,5 +185,16 @@
     i32.sub
     i32.store $heap
     drop
+    local.get $p
+    if
+      local.get $p
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $p
+        call $rt:release_ref
+      end
+    end
   )
 )

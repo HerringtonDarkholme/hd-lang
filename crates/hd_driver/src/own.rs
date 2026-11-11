@@ -634,7 +634,7 @@ impl OwnCx for Env<'_> {
         {
             return Pass::Lent;
         }
-        self.value_parameter(params[k])
+        self.function_parameter(params[k])
     }
 
     fn keeps(&self, callee: &Callee, k: usize, _: usize) -> bool {
@@ -1158,23 +1158,43 @@ impl Env<'_> {
     /// How a parameter of declared type `t` takes its argument: owned when
     /// it is a value, or may be one in an instance (a type parameter, an
     /// associated type, a newtype over a type parameter); lent when it is
-    /// a reference or holds nothing counted. A direct call whose instance
-    /// makes an owned parameter a reference lends it ([`Env::instance_pass`]);
-    /// one that makes it hold nothing counted counts nothing.
+    /// a local reference or holds nothing counted. Counted `*` references
+    /// are owned values too. Instance substitution preserves borrowing for
+    /// local `&` references and counting nothing for uncounted values.
     pub(super) fn value_parameter(&self, t: Ty) -> Pass {
+        self.parameter(t, true)
+    }
+
+    /// Function variance may lend a counted reference as a local reference,
+    /// including inside containers. All function-value reference inputs
+    /// therefore share the borrowed convention; declaration adapters bridge
+    /// to named targets that receive an owner.
+    pub(super) fn function_parameter(&self, t: Ty) -> Pass {
+        self.parameter(t, false)
+    }
+
+    fn parameter(&self, t: Ty, counted_owned: bool) -> Pass {
         let pool = &self.run.pool;
         match pool.get(t) {
-            TyData::Ref { .. } => Pass::Lent,
+            TyData::Ref { counted: false, .. } => Pass::Lent,
+            TyData::Ref { counted: true, .. } => {
+                if counted_owned {
+                    Pass::Owned
+                } else {
+                    Pass::Lent
+                }
+            }
             _ if self.is_open(t) => Pass::Owned,
             _ => match self.layout_facts(t) {
-                (true, false) => Pass::Owned,
+                (true, None) => Pass::Owned,
+                (true, Some(true)) if counted_owned => Pass::Owned,
                 _ => Pass::Lent,
             },
         }
     }
 
     /// The selected parameter representation decides the cold entry mode.
-    /// Thin references retain their borrowed convention. Counted values
+    /// Local references retain their borrowed convention. Counted values
     /// arrive owned at the constructor and at a fused fresh entry.
     pub(super) fn cold_transfers_declared(&self, def: DefId, ty: Ty) -> bool {
         if !ProgramEnv::suspends(self, def) || self.intrinsic(def).is_some() {
@@ -1283,16 +1303,17 @@ impl Env<'_> {
     }
 
     /// Whether a value of type `t`, which names no parameter, holds a
-    /// counted leaf, and whether it is a reference: the backend's layout
-    /// facts, once per run (a layout walk allocates as it goes).
-    fn layout_facts(&self, t: Ty) -> (bool, bool) {
+    /// counted leaf, and its reference ownership (None for a value, false
+    /// for a local loan, true for a counted reference): one normalized kind
+    /// query per distinct type, with constant-time warm lookup.
+    fn layout_facts(&self, t: Ty) -> (bool, Option<bool>) {
         if let Some(&facts) = lock(&self.run.own_types).get(&t) {
             return facts;
         }
         let pool = &self.run.pool;
         let facts = (
             hd_wasm::counted_type(pool, self, t),
-            hd_wasm::reference_type(pool, self, t),
+            hd_wasm::reference_ownership(pool, self, t),
         );
         lock(&self.run.own_types).insert(t, facts);
         facts
@@ -1534,7 +1555,7 @@ impl InlineEnv for Env<'_> {
     }
 
     fn reference(&self, t: Ty) -> bool {
-        self.layout_facts(t).1
+        self.layout_facts(t).1.is_some()
     }
 
     fn lent_referent(&self, t: Ty) -> Option<Ty> {

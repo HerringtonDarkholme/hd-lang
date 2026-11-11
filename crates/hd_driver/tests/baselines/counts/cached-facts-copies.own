@@ -15,34 +15,38 @@ struct Reader[S]:
 impl[S] Walker[S] for Reader[S]:
     type Error = never
     fn variant(&mut self, variant: Variant[S]) -> Result[void, never]:
-        .Ok(())
 > app/main/impl[S] Walker[S] for Reader[S].variant
->   %0 = NewVariant #0 [-] : Result[(), never]
->   %1 = Block %0 : Result[(), never]
->   summary kept []
+>   local $1 variant: *VariantRecord[S] [param] value
+>     uses $1: none
+>   %0 = Release %2 Exit local $1 #2 : ()
+        .Ok(())
+>   %1 = NewVariant #0 [-] : Result[(), never]
+>   %2 = Block %1 : Result[(), never]
+>   summary kept [] borrows [$1]
     fn member[F](&mut self, handle: Field[S, F], value: &F) -> Result[void, never]:
-        self.found = !handle.info.facts.items.is_empty()
 > app/main/impl[S] Walker[S] for Reader[S].member
 >   local $0 self: &mut Reader[S] [param read] value
->     uses $0: entry -> %9 lend last
+>     uses $0: entry -> %10 lend last
 >   local $1 handle: *FieldRecord[S, F] [param read] value
->     uses $1: entry -> %0 lend last
+>     uses $1: entry -> %1 lend last
 >   local $3 self: List[*dyn Inspectable] [read] value
->     uses $3: %1 -> %2 lend last
->   %0 = Read borrow [*$1 .info .facts .items] : List[*dyn Inspectable]
->   %1 = Store [$3] %0 : ()
->   %2 = Read borrow [$3] : List[*dyn Inspectable]
->   %3 = Intrinsic ListLen [%2] : usize
->   %4 = Prim Eq [%3 0:usize] : bool
->   %5 = Break L0 %4 : never
->   %6 = Block - : bool
->   %7 = Scope %6 [] : bool
->   %8 = Prim Not [%7] : bool
->   %9 = Store [*$0 .found] %8 : ()
->   %11 = Block %10 : Result[(), never]
+>     uses $3: %2 -> %3 lend last
+>   %0 = Release %12 Exit local $1 #2 : ()
+        self.found = !handle.info.facts.items.is_empty()
+>   %1 = Read borrow [*$1 .info .facts .items] : List[*dyn Inspectable]
+>   %2 = Store [$3] %1 : ()
+>   %3 = Read borrow [$3] : List[*dyn Inspectable]
+>   %4 = Intrinsic ListLen [%3] : usize
+>   %5 = Prim Eq [%4 0:usize] : bool
+>   %6 = Break L0 %5 : never
+>   %7 = Block - : bool
+>   %8 = Scope %7 [] : bool
+>   %9 = Prim Not [%8] : bool
+>   %10 = Store [*$0 .found] %9 : ()
+>   %12 = Block %11 : Result[(), never]
         .Ok(())
->   %10 = NewVariant #0 [-] : Result[(), never]
->   summary kept [] writes
+>   %11 = NewVariant #0 [-] : Result[(), never]
+>   summary kept [] borrows [$1] writes
 
 trait HasFacts:
     fn has_facts(self) -> bool

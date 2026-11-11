@@ -1,0 +1,151 @@
+# trait.dyn.value-methods, fn.capture.locals and std-weak.release.target.
+use std.annotation.cold
+use std.testing.{assert, assert_equal}
+use std.weak.{Weak, weak}
+
+struct Held[T]:
+    value: T
+
+trait Escape:
+    fn capture(&self, value: *i32) -> fn() -> *i32
+    fn hold(&self, value: *i32) -> Held[*i32]
+    fn text(&self, value: string) -> Held[string]
+
+struct Store:
+    tag: usize
+
+impl Escape for Store:
+    @cold
+    fn capture(&self, value: *i32) -> fn() -> *i32:
+        fn() -> *i32: value
+
+    @cold
+    fn hold(&self, value: *i32) -> Held[*i32]:
+        Held { value: value }
+
+    @cold
+    fn text(&self, value: string) -> Held[string]:
+        Held { value: value }
+
+@cold
+fn named_capture(value: *i32) -> fn() -> *i32:
+    fn() -> *i32: value
+
+@cold
+fn named_hold(value: *i32) -> Held[*i32]:
+    Held { value: value }
+
+@cold
+fn named_text(value: string) -> Held[string]:
+    Held { value: value }
+
+@cold
+fn bound_capture[S < Escape](store: &S, value: *i32) -> fn() -> *i32:
+    store.capture(value)
+
+@cold
+fn bound_hold[S < Escape](store: &S, value: *i32) -> Held[*i32]:
+    store.hold(value)
+
+@cold
+fn bound_text[S < Escape](store: &S, value: string) -> Held[string]:
+    store.text(value)
+
+@cold
+fn capture(route: usize, dynamic: &dyn Escape, store: &Store, value: *i32) -> fn() -> *i32:
+    if route == 0:
+        return named_capture(value)
+    if route == 1:
+        return dynamic.capture(value)
+    bound_capture(store, value)
+
+@cold
+fn hold(route: usize, dynamic: &dyn Escape, store: &Store, value: *i32) -> Held[*i32]:
+    if route == 0:
+        return named_hold(value)
+    if route == 1:
+        return dynamic.hold(value)
+    bound_hold(store, value)
+
+@cold
+fn text(route: usize, dynamic: &dyn Escape, store: &Store, value: string) -> Held[string]:
+    if route == 0:
+        return named_text(value)
+    if route == 1:
+        return dynamic.text(value)
+    bound_text(store, value)
+
+fn expired(seen: Weak[i32]?) -> bool:
+    match seen:
+        .Some(link) => link.upgrade().is_none()
+        .None => false
+
+fn alive(seen: Weak[i32]?) -> bool:
+    match seen:
+        .Some(link) => link.upgrade().is_some()
+        .None => false
+
+@cold
+fn fresh_target(seen: &mut (Weak[i32]?)) -> *i32:
+    value := box(+11)
+    *seen = weak(value)
+    value
+
+@cold
+fn closure_fresh(route: usize, dynamic: &dyn Escape, store: &Store) -> Weak[i32]?:
+    let mut seen: Weak[i32]? = .None
+    saved := capture(route, dynamic, store, fresh_target(&mut seen))
+    assert(alive(seen), reason="the returned closure owns the fresh target")
+    assert_equal(*saved(), 11)
+    assert_equal(*saved(), 11)
+    seen
+
+@cold
+fn closure_live(route: usize, dynamic: &dyn Escape, store: &Store) -> Weak[i32]?:
+    value := box(+11)
+    seen := weak(value)
+    saved := capture(route, dynamic, store, value)
+    assert_equal(*value, 11)
+    assert(alive(seen), reason="the caller and closure both keep the target")
+    assert_equal(*saved(), 11)
+    assert_equal(*saved(), 11)
+    assert_equal(*value, 11)
+    seen
+
+@cold
+fn holder_fresh(route: usize, dynamic: &dyn Escape, store: &Store) -> Weak[i32]?:
+    let mut seen: Weak[i32]? = .None
+    saved := hold(route, dynamic, store, fresh_target(&mut seen))
+    assert(alive(seen), reason="the returned holder owns the fresh target")
+    assert_equal(*saved.value, 11)
+    assert_equal(*saved.value, 11)
+    seen
+
+@cold
+fn holder_live(route: usize, dynamic: &dyn Escape, store: &Store) -> Weak[i32]?:
+    value := box(+11)
+    seen := weak(value)
+    saved := hold(route, dynamic, store, value)
+    assert_equal(*value, 11)
+    assert(alive(seen), reason="the caller and holder both keep the target")
+    assert_equal(*saved.value, 11)
+    assert_equal(*saved.value, 11)
+    assert_equal(*value, 11)
+    seen
+
+@cold
+fn text_control(route: usize, dynamic: &dyn Escape, store: &Store) -> void:
+    value := "slot-$route"
+    saved := text(route, dynamic, store, value)
+    assert_equal(saved.value, value)
+    assert_equal(value, "slot-$route")
+
+pub fn main() -> void:
+    store := Store { tag: 0 }
+    let dynamic: *dyn Escape = box(Store { tag: 1 })
+    for route in 0..3:
+        assert(expired(closure_fresh(route, dynamic, &store)), reason="the last closure owner ends")
+        assert(expired(closure_live(route, dynamic, &store)), reason="both closure owners end")
+        assert(expired(holder_fresh(route, dynamic, &store)), reason="the last holder owner ends")
+        assert(expired(holder_live(route, dynamic, &store)), reason="both holder owners end")
+        text_control(route, dynamic, &store)

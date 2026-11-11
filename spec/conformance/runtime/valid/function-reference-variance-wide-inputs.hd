@@ -1,0 +1,425 @@
+# test: function variance borrows a reference at input index 64 for plain and cold calls
+# Spec functions: fn.type.declared-variance, fn.type.variance-repr; weak: std-weak.release.target.
+use std.annotation.cold
+use std.testing.{assert, assert_equal}
+use std.weak.{Weak, weak}
+
+@cold
+fn read(
+    p0: i32,
+    p1: i32,
+    p2: i32,
+    p3: i32,
+    p4: i32,
+    p5: i32,
+    p6: i32,
+    p7: i32,
+    p8: i32,
+    p9: i32,
+    p10: i32,
+    p11: i32,
+    p12: i32,
+    p13: i32,
+    p14: i32,
+    p15: i32,
+    p16: i32,
+    p17: i32,
+    p18: i32,
+    p19: i32,
+    p20: i32,
+    p21: i32,
+    p22: i32,
+    p23: i32,
+    p24: i32,
+    p25: i32,
+    p26: i32,
+    p27: i32,
+    p28: i32,
+    p29: i32,
+    p30: i32,
+    p31: i32,
+    p32: i32,
+    p33: i32,
+    p34: i32,
+    p35: i32,
+    p36: i32,
+    p37: i32,
+    p38: i32,
+    p39: i32,
+    p40: i32,
+    p41: i32,
+    p42: i32,
+    p43: i32,
+    p44: i32,
+    p45: i32,
+    p46: i32,
+    p47: i32,
+    p48: i32,
+    p49: i32,
+    p50: i32,
+    p51: i32,
+    p52: i32,
+    p53: i32,
+    p54: i32,
+    p55: i32,
+    p56: i32,
+    p57: i32,
+    p58: i32,
+    p59: i32,
+    p60: i32,
+    p61: i32,
+    p62: i32,
+    p63: i32,
+    value: &i32,
+) -> i32:
+    *value
+
+@cold
+fn read_cold!(
+    p0: i32,
+    p1: i32,
+    p2: i32,
+    p3: i32,
+    p4: i32,
+    p5: i32,
+    p6: i32,
+    p7: i32,
+    p8: i32,
+    p9: i32,
+    p10: i32,
+    p11: i32,
+    p12: i32,
+    p13: i32,
+    p14: i32,
+    p15: i32,
+    p16: i32,
+    p17: i32,
+    p18: i32,
+    p19: i32,
+    p20: i32,
+    p21: i32,
+    p22: i32,
+    p23: i32,
+    p24: i32,
+    p25: i32,
+    p26: i32,
+    p27: i32,
+    p28: i32,
+    p29: i32,
+    p30: i32,
+    p31: i32,
+    p32: i32,
+    p33: i32,
+    p34: i32,
+    p35: i32,
+    p36: i32,
+    p37: i32,
+    p38: i32,
+    p39: i32,
+    p40: i32,
+    p41: i32,
+    p42: i32,
+    p43: i32,
+    p44: i32,
+    p45: i32,
+    p46: i32,
+    p47: i32,
+    p48: i32,
+    p49: i32,
+    p50: i32,
+    p51: i32,
+    p52: i32,
+    p53: i32,
+    p54: i32,
+    p55: i32,
+    p56: i32,
+    p57: i32,
+    p58: i32,
+    p59: i32,
+    p60: i32,
+    p61: i32,
+    p62: i32,
+    p63: i32,
+    value: &i32,
+) -> i32:
+    *value
+
+fn alive(link: Weak[i32]?) -> bool:
+    match link:
+        .Some(seen) => seen.upgrade().is_some()
+        .None => false
+
+fn expired(link: Weak[i32]?) -> bool:
+    match link:
+        .Some(seen) => seen.upgrade().is_none()
+        .None => false
+
+fn plain(live: bool) -> Weak[i32]?:
+    value := box(+7)
+    seen := weak(value)
+    let call: fn(i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, *i32) -> i32 = read
+    assert_equal(
+        call(
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            value,
+        ),
+        7,
+        reason="input 64 is read through the adapted function",
+    )
+    if live:
+        assert(alive(seen), reason="the caller still owns input 64")
+        assert_equal(*value, 7, reason="a final caller use follows the plain call")
+    seen
+
+fn cold_lifetime!(live: bool) -> Weak[i32]?:
+    value := box(+7)
+    seen := weak(value)
+    let call: fn!(i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, *i32) -> i32 = read_cold
+    assert_equal(
+        call!(
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            value,
+        ),
+        7,
+        reason="input 64 is read through the adapted cold function",
+    )
+    if live:
+        assert(alive(seen), reason="the caller still owns input 64")
+        assert_equal(*value, 7, reason="a final caller use follows the cold call")
+    seen
+
+@cold
+fn escaped() -> (Weak[i32]?, Suspend[i32]):
+    value := box(+7)
+    seen := weak(value)
+    let adapted: fn!(i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, *i32) -> i32 = read_cold
+    let call: fn(i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, *i32) -> Suspend[
+        i32,
+    ] = adapted
+    (
+        seen,
+        call(
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            +0,
+            value,
+        ),
+    )
+
+fn settle!(cancel: bool) -> Weak[i32]?:
+    let (seen, pending) = escaped()
+    assert(alive(seen), reason="the escaped cold frame keeps input 64 before polling")
+    if cancel:
+        _ := pending.cancel!()
+    else:
+        assert_equal(pending!(), 7, reason="the retained input is read after its caller exits")
+    assert(expired(seen), reason="completion or cancellation releases the frame's input 64")
+    seen
+
+tests:
+    it("plain input 64 is borrowed for final and live caller uses"):
+        assert(expired(plain(false)), reason="the final-use caller releases its owner")
+        assert(expired(plain(true)), reason="the live caller releases its owner on exit")
+
+    it("cold input 64 is borrowed for final and live caller uses"):
+        assert(
+            expired(cold_lifetime!(false)),
+            reason="the final-use cold caller releases its owner",
+        )
+        assert(
+            expired(cold_lifetime!(true)),
+            reason="the live cold caller releases its owner on exit",
+        )
+
+    it("an escaped cold frame retains input 64 until completion"):
+        assert(expired(settle!(false)), reason="completion leaves no strong owner")
+
+    it("an escaped cold frame retains input 64 until cancellation"):
+        assert(expired(settle!(true)), reason="cancellation leaves no strong owner")

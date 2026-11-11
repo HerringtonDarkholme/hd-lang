@@ -12,7 +12,5 @@
     i64.store $heap
     local.get $h
     ;; ...
-    local.get $h
-    ;; ...
   )
 )

@@ -8,6 +8,7 @@ fn note(log: *mut List[string], text: string) -> string:
 > app/main/note
 >   retain string (stored)
 >   unique List[string] (may be shared)
+>   release *mut List[string] (last use)
     text
 
 fn join(
@@ -20,6 +21,7 @@ fn join(
 ) -> string:
     "$first $second $limit"
 > app/main/join
+>   release *mut List[string] (last use)
 >   release string (last use)
 >   release string (last use)
 
@@ -29,4 +31,6 @@ pub fn main() -> void $ Console:
 >   release string (last use)
 >   release *mut List[string] (last use)
     println(join(log, "first"))
+>   retain *mut List[string] (conservative: DefaultCall)
+>   retain *mut List[string] (stored)
 >   retain string (stored)

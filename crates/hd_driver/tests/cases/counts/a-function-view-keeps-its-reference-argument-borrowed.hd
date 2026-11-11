@@ -1,0 +1,42 @@
+# @dump: own counts wat
+# @build: v8 release
+# expected: a reference input borrows through every function-value view.
+# read's adapter adds no count. keep's adapter copies the borrowed input
+# for its owned declaration; keep itself returns its incoming owner.
+# Nested variance changes no function code or element representation.
+# Cold helpers keep the callable ABI visible; #1692 tracks return-view inlining.
+use std.annotation.cold
+
+@cold
+fn read(value: &i32) -> i32:
+    *value
+
+@cold
+fn keep(value: *i32) -> *i32:
+    value
+
+@cold
+fn lend_view() -> fn(*i32) -> i32:
+    read
+
+fn own_view() -> fn(*i32) -> *i32:
+    keep
+
+fn nested_view(values: List[fn(&i32) -> i32]) -> List[fn(*i32) -> i32]:
+    values
+
+@cold
+fn invoke[T](call: fn(T) -> i32, value: T) -> i32:
+    call(value)
+
+fn use_lent(value: *i32) -> i32:
+    invoke(lend_view(), value)
+
+type View[+T](T)
+
+@cold
+fn nominal_read(value: View[&i32]) -> i32:
+    7
+
+fn nominal_view() -> fn(View[*i32]) -> i32:
+    nominal_read

@@ -46,7 +46,5 @@ fn copy_shares(s: string) -> usize:
 fn through_ptr(items: *mut List[string], s: string) -> fn() -> void:
     fn() -> void: items.push(s)
 > app/main/through_ptr
->   retain counted reference (stored)
-> app/main/through_ptr
 >   retain string (stored)
 >   unique List[string] (may be shared)

@@ -272,7 +272,7 @@ fn a_test_run_keeps_the_test_profile() {
     assert_eq!(release.wasm, checked.wasm);
 }
 
-/// req.suspend.cold: exercise the owned direct and fused entry, borrowed
+/// req.suspend.cold: exercise the owned direct and fused entry, type-selected
 /// function-value convention, a caller-used argument on resume, and cancellation.
 #[test]
 fn stable_cold_arguments_transfer_across_call_routes() {
@@ -320,5 +320,107 @@ fn stable_cold_arguments_transfer_across_call_routes() {
         assert!(out.diags.is_empty(), "{name}: {}", out.render());
         let run = run_wasm(name, &out.wasm.expect("the program links"));
         assert!(stdout(name, &run).is_empty());
+    }
+}
+
+/// Whole-container function variance preserves reference argument ownership.
+#[test]
+fn nested_function_variance_preserves_counted_reference_lifetimes() {
+    use hd_driver::OptLevel;
+
+    let sources = one_file(include_str!("counted_reference_nested_variance.hd"));
+    let store = crate::warm_store();
+    let host = Host {
+        render_tir: &[],
+        sources: &sources,
+        store: &store,
+        clock: &NoClock,
+        executor: Executor::Serial(SerialOrder::Priority),
+    };
+    for (name, build_profile, level, checked) in [
+        ("dev", BuildProfile::Checked, OptLevel::Dev, false),
+        ("checked", BuildProfile::Checked, OptLevel::Dev, true),
+        (
+            "optimized",
+            BuildProfile::Release,
+            OptLevel::Optimized,
+            false,
+        ),
+        (
+            "optimized-checked",
+            BuildProfile::Release,
+            OptLevel::Optimized,
+            true,
+        ),
+    ] {
+        let out = build_packages(
+            &host,
+            "app",
+            &Packages {
+                build_profile,
+                level,
+                checked,
+                verify_own: true,
+                ..Packages::default()
+            },
+            &Goal::Program {
+                entry: "main".into(),
+            },
+        );
+        assert!(out.diags.is_empty(), "{name}: {}", out.render());
+        let run_name = format!("nested-function-variance-{name}");
+        let run = run_wasm(&run_name, &out.wasm.expect("the program links"));
+        assert!(stdout(&run_name, &run).is_empty());
+    }
+}
+
+/// Named, dynamic and bound calls preserve owners escaping into returned values.
+#[test]
+fn ordinary_trait_slots_preserve_escaping_counted_arguments() {
+    use hd_driver::OptLevel;
+
+    let sources = one_file(include_str!("counted_reference_slot_escape.hd"));
+    let store = crate::warm_store();
+    let host = Host {
+        render_tir: &[],
+        sources: &sources,
+        store: &store,
+        clock: &NoClock,
+        executor: Executor::Serial(SerialOrder::Priority),
+    };
+    for (name, build_profile, level, checked) in [
+        ("dev", BuildProfile::Checked, OptLevel::Dev, false),
+        ("checked", BuildProfile::Checked, OptLevel::Dev, true),
+        (
+            "optimized",
+            BuildProfile::Release,
+            OptLevel::Optimized,
+            false,
+        ),
+        (
+            "optimized-checked",
+            BuildProfile::Release,
+            OptLevel::Optimized,
+            true,
+        ),
+    ] {
+        let out = build_packages(
+            &host,
+            "app",
+            &Packages {
+                build_profile,
+                level,
+                checked,
+                verify_own: true,
+                ..Packages::default()
+            },
+            &Goal::Program {
+                entry: "main".into(),
+            },
+        );
+        assert!(out.diags.is_empty(), "{name}: {}", out.render());
+        let run_name = format!("slot-escape-{name}");
+        let run = run_wasm(&run_name, &out.wasm.expect("the program links"));
+        assert!(stdout(&run_name, &run).is_empty());
     }
 }

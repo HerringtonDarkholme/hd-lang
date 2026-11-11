@@ -785,10 +785,10 @@ impl Em<'_, '_, '_> {
         // ruled out: check_args/tuple_inputs_args already coerced each TIR
         // argument to its parameter type, so their flattened ABIs agree.
         self.comp(callee, 1)?;
-        // Function values use their parameter types to select ownership,
-        // including a suspending value's cold constructor.
+        // Function values borrow reference inputs across variance views;
+        // non-reference values keep their type-selected ownership.
         let copy = self.operation_count(i, Tag::Retain, hd_tir::ir::count::Part::Arguments);
-        self.push_args(i, args, Some(&tys), 0, copy)?;
+        self.push_args(i, args, Some(&tys), None, copy)?;
         let c = self.push_fn_ctx(i, ft);
         ps.push(Val::I32);
         let results = self.vals(self.ty(i))?;

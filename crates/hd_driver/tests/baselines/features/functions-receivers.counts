@@ -26,8 +26,6 @@ impl Vec2:
 
     fn keep(*self) -> *Vec2:
         self
-> app/main/impl Vec2.keep
->   retain *app.main.Vec2 (stored)
 
 fn make(s: string) -> Vec2:
     Vec2 { name: s, x: 0 }

@@ -116,7 +116,7 @@ pub fn main() -> void $ Clock:
 >   %0 = NewStruct [0:usize] : Reader
 >   %1 = Store [$0] %0 : ()
 >   %9 = Release %8 Operation local $0 #2 : ()
->   %24 = Block - : ()
+>   %23 = Block - : ()
     _ := block_on(known(&reader, ["known"]))
 >   %2 = Ref local frame [$0] : &Reader
 >   %3 = NewList - ["known"] : List[string]
@@ -138,9 +138,8 @@ pub fn main() -> void $ Clock:
 >   %18 = RefDyn %17 : *dyn Measure
 >   %19 = NewList - ["dynamic"] : List[string]
 >   %20 = Call app/main/dynamic[] (%18, %19) : Suspend[usize]
->   %21 = Drop [%18] : ()
->   %22 = Call std/task/block_on[usize] (%20) : BlockOn[usize]
->   %23 = Drop [%20] : ()
+>   %21 = Call std/task/block_on[usize] (%20) : BlockOn[usize]
+>   %22 = Drop [%20] : ()
 >   %8 finds [$0] full
 >   %11 finds [$1] full
 >   storage sub 0: $0 slot, $1 cell

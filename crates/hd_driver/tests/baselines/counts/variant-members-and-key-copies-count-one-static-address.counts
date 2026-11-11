@@ -14,7 +14,6 @@ struct Point:
 fn keep(vs: &mut List[Variant[Point]], v: Variant[Point], ks: &mut List[Key[Point]], members: Members[Point]) -> void:
     vs.push(v)
 > app/main/keep
->   retain *std.structure.VariantRecord[app.main.Point] (stored)
 >   unique List[*std.structure.VariantRecord[app.main.Point]] (may be shared)
     match members.at(0):
 >   unique List[*std.structure.KeyRecord[app.main.Point]] (may be shared)

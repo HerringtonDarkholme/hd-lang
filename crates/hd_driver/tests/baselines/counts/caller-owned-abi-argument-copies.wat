@@ -7,6 +7,7 @@
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
+  (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
   (import "fixture" "impl[S] Source[S] for Seeds.member[(string, i32), string]" (func $"impl[S] Source[S] for Seeds.member[(string, i32), string]" (param i32 i32 i32 i32) (result i32 i32)))
   (import "fixture" "impl[S] Source[S] for Seeds.member[(string, i32), i32]" (func $"impl[S] Source[S] for Seeds.member[(string, i32), i32]" (param i32 i32 i32 i32) (result i32)))
@@ -64,9 +65,9 @@
       i32.load8_u $heap
       i32.store8 $heap
       local.get $t4
-      local.tee $t4
+      local.tee $t3
       if
-        local.get $t4
+        local.get $t3
         call $rt:release_ref
       end
       local.get $t5
@@ -77,6 +78,18 @@
     end
     local.get $t7
     local.get $h
+    local.tee $t3
+    if
+      local.get $t3
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $t3
+        call $rt:retain_known
+      end
+    end
+    local.get $h
     local.get $t1
     local.get $t4
     call $rt:retain
@@ -84,7 +97,7 @@
     local.get $t4
     call $"impl[S] Source[S] for Seeds.member[(string, i32), string]"
     drop
-    local.set $h
+    local.set $t7
     ;; ...
   )
   (func $"impl[S] Describer[S] for Layout.member[(string, i32), i32]" (param $self i32) (param $h i32) (local $t1 i32) (local $t0 i32)
@@ -96,6 +109,18 @@
       br 0
     end
     local.get $t1
+    local.get $h
+    local.tee $t1
+    if
+      local.get $t1
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $t1
+        call $rt:retain_known
+      end
+    end
     local.get $h
     i32.const 1
     local.get $t0

@@ -15,8 +15,6 @@ fn word(i: i32) -> string:
 fn keep[T < 'static](value: T) -> fn() -> T:
     fn() -> T: value
 > app/main/keep
->   retain *app.main.Named (stored)
-> app/main/keep
 >   copy List[string] (stored)
 > app/main/keep
 >   retain *app.main.Named (stored)
@@ -47,6 +45,7 @@ pub fn main() -> void $ Console:
     shared := box(Named { text: original })
 >   retain string (stored)
     println(keep(shared)().text)
+>   retain *mut app.main.Named (stored)
 >   retain string (stored)
     items := [original]
 >   retain string (stored)

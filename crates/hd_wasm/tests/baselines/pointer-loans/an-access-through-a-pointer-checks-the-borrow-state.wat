@@ -61,14 +61,14 @@
     local.get $other
     local.get $t1
     i32.store $heap
-    local.tee $other
+    local.tee $t1
     if
-      local.get $other
+      local.get $t1
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $other
+        local.get $t1
         call $rt:release_ref
       end
     end
@@ -76,29 +76,29 @@
     i32.const 12
     i32.const 1
     call $rt:new/class-2
-    local.tee $other
+    local.tee $t1
     i32.const 17 ;; &"c"
     i32.store $heap
-    local.get $other
+    local.get $t1
     i32.const 1
     i32.store $heap offset=4
-    local.get $other
+    local.get $t1
     i32.const 0
     i32.store $heap offset=8
     i32.load $heap
     ;; 30 |     held := &mut t.lead
     local.get $t
     ;; 32 |     *held = box(User { name: "c", age: +0 })
-    local.get $other
+    local.get $t1
     i32.store $heap
-    local.tee $other
+    local.tee $t1
     if
-      local.get $other
+      local.get $t1
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $other
+        local.get $t1
         call $rt:release_ref
       end
     end
@@ -123,6 +123,30 @@
       i32.sub
       i32.store $heap
     end
+    local.get $t
+    local.tee $t1
+    if
+      local.get $t1
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $t1
+        call $rt:release_ref
+      end
+    end
+    local.get $other
+    local.tee $t1
+    if
+      local.get $t1
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $t1
+        call $rt:release_ref
+      end
+    end
   )
   (func $plain (param $p i32)
     ;; 47 |     p.name = "b"
@@ -137,6 +161,17 @@
     i32.const 1
     i32.store $heap offset=4
     call $rt:release
+    local.get $p
+    if
+      local.get $p
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $p
+        call $rt:release_ref
+      end
+    end
   )
   (func $write (param $u i32)
     ;; 35 |     u.age = +2
@@ -153,6 +188,17 @@
     local.get $u
     i32.const 2
     i32.store $heap offset=8
+    local.get $u
+    if
+      local.get $u
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $u
+        call $rt:release_ref
+      end
+    end
   )
   (func $mutate (param $u i32)
     ;; 41 |     set(&mut u.age)
@@ -170,8 +216,19 @@
     i32.const 8
     i32.add
     call $set
+    local.get $u
+    if
+      local.get $u
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $u
+        call $rt:release_ref
+      end
+    end
   )
-  (func $read (param $t i32) (result i32)
+  (func $read (param $t i32) (result i32) (local $t0 i32)
     ;; 38 |     t.lead.age
     local.get $t
     i32.const 4
@@ -197,10 +254,21 @@
     local.get $t
     i32.load $heap
     i32.load $heap offset=8
-    local.set $t
+    local.set $t0
     local.get $t
+    if
+      local.get $t
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $t
+        call $rt:release_ref
+      end
+    end
+    local.get $t0
   )
-  (func $lend (param $t i32) (param $other i32) (result i32 i32) (local $t0 i32) (local $t1 i32)
+  (func $lend (param $t i32) (param $other i32) (result i32 i32) (local $t0 i32) (local $held i32) (local $t1 i32) (local $t2 i32)
     ;; 20 |     held := &t.lead.name
     local.get $t
     i32.const 4
@@ -224,7 +292,7 @@
     i32.load $heap
     i32.const 2097152
     i32.and
-    local.get $t1
+    local.get $held
     i32.const 2097152
     i32.and
     i32.ne
@@ -234,20 +302,21 @@
     end
     local.get $t
     i32.load $heap
-    local.set $t
+    local.set $held
     local.get $t0
-    i32.load $heap
     local.tee $t1
+    i32.load $heap
+    local.tee $t0
     i32.const 2031616
     i32.and
     i32.const 2031616
     i32.eq
     if
-      local.get $t0
+      local.get $t1
       call $rt:loan_share
     else
-      local.get $t0
       local.get $t1
+      local.get $t0
       i32.const 65536
       i32.add
       i32.store $heap
@@ -275,62 +344,81 @@
     i32.store $heap offset=4
     call $rt:release
     ;; 22 |     *held
-    local.get $t
+    local.get $held
     i32.load $heap
-    local.tee $other
-    local.get $t
+    local.tee $t0
+    local.get $held
     i32.load $heap offset=4
-    local.tee $t
+    local.tee $held
     call $rt:retain
-    local.get $other
-    local.get $t
-    local.set $other
-    local.set $t
     ;; 20 |     held := &t.lead.name
-    local.get $t0
+    local.get $t1
     if
-      local.get $t0
+      local.get $t1
       i32.load $heap
-      local.tee $t1
+      local.tee $t2
       i32.const 2031616
       i32.and
       i32.const 2031616
       i32.eq
       if
-        local.get $t0
+        local.get $t1
         call $rt:loan_unshare
       else
-        local.get $t0
         local.get $t1
+        local.get $t2
         i32.const 65536
         i32.sub
         i32.store $heap
       end
       i32.const 0
-      local.set $t0
+      local.set $t1
     end
-    local.get $t0
+    local.get $t1
     if
-      local.get $t0
+      local.get $t1
       i32.load $heap
-      local.tee $t1
+      local.tee $t2
       i32.const 2031616
       i32.and
       i32.const 2031616
       i32.eq
       if
-        local.get $t0
+        local.get $t1
         call $rt:loan_unshare
       else
-        local.get $t0
         local.get $t1
+        local.get $t2
         i32.const 65536
         i32.sub
         i32.store $heap
       end
     end
     local.get $t
+    if
+      local.get $t
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $t
+        call $rt:release_ref
+      end
+    end
     local.get $other
+    local.tee $t
+    if
+      local.get $t
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $t
+        call $rt:release_ref
+      end
+    end
+    local.get $t0
+    local.get $held
   )
   (func $lend_mut (param $t i32) (param $other i32) (local $t0 i32) (local $t1 i32)
     ;; 25 |     held := &mut t.lead.age
@@ -409,6 +497,29 @@
       i32.const 2097152
       i32.sub
       i32.store $heap
+    end
+    local.get $t
+    if
+      local.get $t
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $t
+        call $rt:release_ref
+      end
+    end
+    local.get $other
+    local.tee $t
+    if
+      local.get $t
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $t
+        call $rt:release_ref
+      end
     end
   )
   (func $set (param $slot i32)

@@ -4,7 +4,7 @@
 # Feature: `box`, `*T` and `*mut T` (#1364).
 # expected: `make` allocates once and moves `n` in; a read through `*T`
 # takes no count; a write releases the old field; `share` retains `p`
-# once per stored copy of a lent pointer.
+# once for the second returned owner; the first receives the incoming owner.
 struct Node:
     name: string
     next: *Node?
@@ -23,5 +23,4 @@ fn write_ptr(p: *mut Node, n: string) -> void:
 fn share(p: *Node) -> (*Node, *Node):
     (p, p)
 > app/main/share
->   retain *app.main.Node (stored)
 >   retain *app.main.Node (stored)

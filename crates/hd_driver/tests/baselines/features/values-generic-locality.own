@@ -106,11 +106,11 @@ fn bounded(u: User) -> usize:
 >   local $0 u: User [param read] value
 >     uses $0: entry -> %1 consume last
 >   local $1 kept: *mut User [:= read assigned] value
->     uses $1: %7 -> %8 lend last
+>     uses $1: %7 -> %8 consume last
 >   local $2 $ref: string [read assigned captured captured-assigned] value
->     uses $2: %15 -> %16 lend last
+>     uses $2: %14 -> %15 lend last
 >   local $5 $ref: User [read assigned captured captured-assigned] place
->   %0 = Retain %22 Entry local $0 #0 : ()
+>   %0 = Retain %21 Entry local $0 #0 : ()
     kept := keep(u)
 >   %1 = Read move [$0] : User
 >   %2 = Store [$5] %1 : ()
@@ -119,23 +119,22 @@ fn bounded(u: User) -> usize:
 >   %5 = Block - : *mut User
 >   %6 = Scope %5 [] : *mut User
 >   %7 = Store [$1] %6 : ()
->   %22 = Block %20 : usize
+>   %21 = Block %19 : usize
 >   %3 finds [$5] full
     later(kept)().name.len()
->   %8 = Read borrow [$1] : *mut User
+>   %8 = Read move [$1] : *mut User
 >   %9 = Call app/main/later[*mut User] (%8) : fn() -> *mut User
 >   %10 = CallValue %9 [] : *mut User
 >   %11 = Drop [%9] : ()
->   %12 = Drop [$1] : ()
->   %13 = Read copy [*%10 .name] : string
->   %14 = Drop [%10] : ()
->   %15 = Store [$2] %13 : ()
->   %16 = Read borrow [$2] : string
->   %17 = Call std/rt.bytes/bytes_len[] (%16) : usize
->   %18 = Break L0 %17 : never
->   %19 = Block - : usize
->   %20 = Scope %19 [] : usize
->   %21 = Drop [$2] : ()
+>   %12 = Read copy [*%10 .name] : string
+>   %13 = Drop [%10] : ()
+>   %14 = Store [$2] %12 : ()
+>   %15 = Read borrow [$2] : string
+>   %16 = Call std/rt.bytes/bytes_len[] (%15) : usize
+>   %17 = Break L0 %16 : never
+>   %18 = Block - : usize
+>   %19 = Scope %18 [] : usize
+>   %20 = Drop [$2] : ()
 >   exit sub 0 drops [$0]
 >   storage sub 0: $5 cell
 >   summary kept [$0] writes
