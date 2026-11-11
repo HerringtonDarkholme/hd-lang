@@ -77,11 +77,14 @@ impl MethodIndex {
                 continue;
             }
             match &it.data {
+                // A trait impl's methods are found through its trait.
                 ItemData::Impl {
                     trait_, methods, ..
-                } if *trait_ == DefId::NONE => {
-                    for (n, m) in methods {
-                        self.inherent.entry(*n).or_default().push((it.def, *m));
+                } => {
+                    if *trait_ == DefId::NONE {
+                        for (n, m) in methods {
+                            self.inherent.entry(*n).or_default().push((it.def, *m));
+                        }
                     }
                 }
                 ItemData::Trait(t) => {
@@ -89,7 +92,15 @@ impl MethodIndex {
                         self.traits.entry(*n).or_default().push((it.def, *m));
                     }
                 }
-                _ => {}
+                // No methods of their own: a method item is its owner's.
+                ItemData::Fn(..)
+                | ItemData::Struct(..)
+                | ItemData::Enum { .. }
+                | ItemData::Method { .. }
+                | ItemData::AssocType { .. }
+                | ItemData::Alias { .. }
+                | ItemData::Newtype(_)
+                | ItemData::Builtin => {}
             }
         }
     }
@@ -3728,12 +3739,16 @@ impl Ck<'_, '_> {
                         self.method_targs = method_targs;
                         return self.trait_static(def, explicit, &name, args, n, bang);
                     }
-                    Some(k) if k.is_type() => {
+                    Some(
+                        HeadKind::Struct | HeadKind::Enum | HeadKind::Alias | HeadKind::Newtype,
+                    ) => {
                         let t = self.ctor(def, &explicit, n);
                         self.method_targs = method_targs;
                         return self.static_on_type(t, &name, args, (n, bang), false, want);
                     }
-                    _ => {}
+                    // A function's, and a name with no item kind, is a
+                    // value: its method call is checked below.
+                    Some(HeadKind::Fn | HeadKind::Impl) | None => {}
                 },
                 None => {}
             }

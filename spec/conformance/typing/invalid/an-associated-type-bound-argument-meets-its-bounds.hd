@@ -1,0 +1,17 @@
+# test: a type argument inside an associated type's bound must satisfy its type's declared bounds
+# Spec 09: trait.bound.no-implied.positions, trait.bound.unsatisfied, for a type argument inside an associated type's bound.
+trait Shown:
+    fn show(self) -> i32
+
+struct Need[T < Shown]:
+    item: T
+
+trait Source[T]:
+    fn get(self) -> T
+
+trait Walk: # diagnostic: unsatisfied-trait-bound
+    type Next < Source[Need[bool]]
+    fn step(self) -> Self::Next
+
+pub fn main() -> void:
+    pass

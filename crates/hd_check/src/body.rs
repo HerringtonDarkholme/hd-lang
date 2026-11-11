@@ -841,7 +841,16 @@ pub(crate) fn new_ck<'a, 'c>(
                 // The trait's own parameters, by name, with their bounds.
                 ck.add_generics(*owner, 1, &o.generics);
             }
-            _ => {}
+            // ruled out: hd_resolve gives a method an impl or a trait as
+            // its owner (`ItemData::Method::owner`).
+            ItemData::Fn(..)
+            | ItemData::Struct(..)
+            | ItemData::Enum { .. }
+            | ItemData::Method { .. }
+            | ItemData::AssocType { .. }
+            | ItemData::Alias { .. }
+            | ItemData::Newtype(_)
+            | ItemData::Builtin => {}
         }
     }
     let gs = match it.sig() {
@@ -1116,9 +1125,24 @@ fn projection_bounds_in(
     // bound, a supertrait it reaches, or a projection's own bound,
     // elaborated just above as one of its children. Without it nothing
     // is recorded, so an opaque type's bounds added later still count.
-    if !env.contains(self_ty, trait_, args) {
+    // `Self::D` in a generic trait leaves the trait's arguments implicit:
+    // they are its clause's, as `Ck::normalize` reads them.
+    let n_trait = lookup.item(trait_).map_or(0, |i| i.generics.len());
+    let args = if pool.list_items(args).len() < n_trait {
+        match env
+            .clauses_of(self_ty)
+            .iter()
+            .map(|&i| i as usize)
+            .find(|&i| env.clause_trait()[i] == trait_)
+        {
+            Some(i) => env.clause_args()[i],
+            None => return,
+        }
+    } else if env.contains(self_ty, trait_, args) {
+        args
+    } else {
         return;
-    }
+    };
     if let Some(ItemData::AssocType { bounds, .. }) = lookup.item(assoc).map(|i| &i.data) {
         let known = pool.list_items(args);
         for b in bounds {
@@ -2115,7 +2139,9 @@ impl Ck<'_, '_> {
                     self.err(Code::MutableUpgrade, n, &msg);
                     return r;
                 }
-                _ => {}
+                // The same mutability, or a target that is no reference:
+                // the general coercion below decides.
+                (true, Some(true) | None) | (false, Some(false) | None) => {}
             }
         }
         // A conversion to a trait value reference (`trait.dyn.ref.convert`).

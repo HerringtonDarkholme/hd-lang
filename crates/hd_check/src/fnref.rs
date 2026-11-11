@@ -169,11 +169,15 @@ impl Ck<'_, '_> {
                     Some(HeadKind::Trait) => {
                         return self.trait_ref(def, explicit, &name, method_targs, want, n);
                     }
-                    Some(k) if k.is_type() => {
+                    Some(
+                        HeadKind::Struct | HeadKind::Enum | HeadKind::Alias | HeadKind::Newtype,
+                    ) => {
                         let t = self.ctor(def, &explicit, n);
                         return self.type_ref(t, &name, method_targs, want, n);
                     }
-                    _ => {}
+                    // A function's, and a name with no item kind, is a
+                    // value: its field is read below.
+                    Some(HeadKind::Fn | HeadKind::Impl) | None => {}
                 },
                 None => {}
             }

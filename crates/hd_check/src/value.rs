@@ -533,7 +533,17 @@ fn walk_values(
                 );
             }
             hd_resolve::ItemData::Newtype(base) => tys.push(sub(*base)),
-            _ => {}
+            // `List` and `Map` hold their elements in heap storage and
+            // `Suspend` its result in its task (hd_resolve seed.rs); an
+            // alias is expanded when it is lowered, and the rest name no
+            // type.
+            hd_resolve::ItemData::Builtin
+            | hd_resolve::ItemData::Alias { .. }
+            | hd_resolve::ItemData::Fn(..)
+            | hd_resolve::ItemData::Trait(_)
+            | hd_resolve::ItemData::Impl { .. }
+            | hd_resolve::ItemData::Method { .. }
+            | hd_resolve::ItemData::AssocType { .. } => {}
         }
     };
     let mut inner = Vec::new();

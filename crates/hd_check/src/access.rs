@@ -237,7 +237,23 @@ impl Ck<'_, '_> {
                     "`let mut` on a primitive top-level binding; a plain `let` is already reassignable",
                 );
             }
-            _ => {}
+            // Not a primitive: `let mut` is the binding's own mode.
+            TyData::Never
+            | TyData::Poison
+            | TyData::Adt { .. }
+            | TyData::Tuple { .. }
+            | TyData::Union(_)
+            | TyData::Fn { .. }
+            | TyData::TraitValue { .. }
+            | TyData::Opaque { .. }
+            | TyData::Param(_)
+            | TyData::Const(_)
+            | TyData::Assoc { .. }
+            | TyData::Ref { .. }
+            | TyData::Infer(_)
+            | TyData::Canon(_)
+            | TyData::Row(_)
+            | TyData::Context(_) => {}
         }
         None
     }

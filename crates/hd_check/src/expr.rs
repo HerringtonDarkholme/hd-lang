@@ -1907,7 +1907,23 @@ impl Ck<'_, '_> {
                     self.open_tuple_literals(e, out);
                 }
             }
-            _ => {}
+            // A tuple literal's open literals are its elements; no other
+            // type is a tuple literal's.
+            TyData::Prim(_)
+            | TyData::Never
+            | TyData::Poison
+            | TyData::Adt { .. }
+            | TyData::Union(_)
+            | TyData::Fn { .. }
+            | TyData::TraitValue { .. }
+            | TyData::Opaque { .. }
+            | TyData::Param(_)
+            | TyData::Const(_)
+            | TyData::Assoc { .. }
+            | TyData::Ref { .. }
+            | TyData::Canon(_)
+            | TyData::Row(_)
+            | TyData::Context(_) => {}
         }
     }
 

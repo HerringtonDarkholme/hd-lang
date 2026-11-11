@@ -1,0 +1,16 @@
+# test: in a generic trait, `Self::D` has the bounds its trait declares on `D`, in a method signature and in another associated type's bound
+# Rule: trait.assoc.bound-use.
+trait Shown:
+    fn show(self) -> i32
+
+struct Need[T < Shown]:
+    item: T
+
+trait Source[T]:
+    fn get(self) -> T
+
+trait Bag[T < Shown]:
+    type D < Shown
+    type E < Source[Need[Self::D]]
+    fn d(self) -> Need[Self::D]
+    fn t(self) -> Need[T]

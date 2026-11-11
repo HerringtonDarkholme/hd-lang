@@ -314,7 +314,13 @@ fn environment(cx: &HeaderCx<'_>, it: &Item) -> ParamEnv {
         }
         ItemData::Fn(sig, _) => generics(it.def, &sig.generics, 0, &mut env),
         ItemData::Trait(_) => owner(it.def, &mut env),
-        _ => generics(it.def, &it.generics, 0, &mut env),
+        ItemData::AssocType { .. }
+        | ItemData::Struct(..)
+        | ItemData::Enum { .. }
+        | ItemData::Impl { .. }
+        | ItemData::Alias { .. }
+        | ItemData::Newtype(_)
+        | ItemData::Builtin => generics(it.def, &it.generics, 0, &mut env),
     }
     env
 }
@@ -507,13 +513,36 @@ impl<'a> ItemCheck<'_, 'a> {
                 for s in &t.supers {
                     self.check_bound(*s)?;
                 }
+                // `type Next < Src[Need[bool]]`: an associated type's
+                // bounds are written types (`trait.bound.no-implied.positions`),
+                // checked under the trait's environment and reported at
+                // the trait.
+                for &(_, a) in &t.assoc {
+                    let Some(ItemData::AssocType { bounds, .. }) =
+                        self.cx.lookup.item(a).map(|i| &i.data)
+                    else {
+                        continue;
+                    };
+                    for b in bounds {
+                        self.check_bound(*b)?;
+                    }
+                }
             }
             ItemData::Impl { trait_args, .. } => {
                 for a in self.pool().list_items(*trait_args) {
                     self.check_ty(*a, 0)?;
                 }
             }
-            _ => {}
+            // Their written types are the signature's and fields' above;
+            // an associated type's bounds are its trait's.
+            ItemData::AssocType { .. }
+            | ItemData::Fn(..)
+            | ItemData::Method { .. }
+            | ItemData::Struct(..)
+            | ItemData::Enum { .. }
+            | ItemData::Alias { .. }
+            | ItemData::Newtype(_)
+            | ItemData::Builtin => {}
         }
         let ItemData::Impl {
             trait_,
@@ -700,12 +729,29 @@ impl<'a> ItemCheck<'_, 'a> {
         gens(&it.generics);
         match &it.data {
             ItemData::Fn(s, _) | ItemData::Method { sig: s, .. } => gens(&s.generics),
-            _ => {}
+            // Their parameters are `it.generics`, read above.
+            ItemData::Struct(..)
+            | ItemData::Enum { .. }
+            | ItemData::Trait(_)
+            | ItemData::Impl { .. }
+            | ItemData::AssocType { .. }
+            | ItemData::Alias { .. }
+            | ItemData::Newtype(_)
+            | ItemData::Builtin => {}
         }
         match &it.data {
             ItemData::Trait(t) => tys.extend(t.supers.iter().copied()),
             ItemData::AssocType { bounds, .. } => tys.extend(bounds.iter().copied()),
-            _ => {}
+            // No supertraits or bounds of their own; their signature,
+            // field and body types are the positions `item` checks.
+            ItemData::Fn(..)
+            | ItemData::Method { .. }
+            | ItemData::Struct(..)
+            | ItemData::Enum { .. }
+            | ItemData::Impl { .. }
+            | ItemData::Alias { .. }
+            | ItemData::Newtype(_)
+            | ItemData::Builtin => {}
         }
         for t in tys {
             self.leak(t, 0);
