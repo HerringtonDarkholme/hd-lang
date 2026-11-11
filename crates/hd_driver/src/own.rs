@@ -961,7 +961,7 @@ fn refs_kinds(
             *counted = true;
             true
         }
-        TyData::Ref { .. } | TyData::TraitValue { .. } => false,
+        TyData::Ref { .. } | TyData::TraitValue { .. } | TyData::Fn { .. } => false,
         TyData::Adt { def, args } => def != ptr && all(args, counted),
         TyData::Tuple { elems, rest } => {
             all(elems, counted) && rest.is_none_or(|r| refs_kinds(pool, ptr, r, depth + 1, counted))
@@ -970,6 +970,33 @@ fn refs_kinds(
         TyData::Param(..) => false,
         _ => true,
     }
+}
+
+#[test]
+fn a_function_beside_a_counted_reference_may_hold_a_local_reference() {
+    let pool = hd_types::InternPool::new();
+    let ptr = DefId::from_raw(1);
+    let boxed = pool.intern_ty(&TyData::Ref {
+        inner: Ty::I32,
+        counted: true,
+        mutable: false,
+    });
+    let callback = pool.intern_ty(&TyData::Fn {
+        params: TyList::EMPTY,
+        result: Ty::I32,
+        row: hd_types::RowId::EMPTY,
+        suspends: false,
+        inputs: hd_types::Inputs::Fixed,
+        deps: hd_types::FnDeps::NONE,
+    });
+    let pair = |right| {
+        pool.intern_ty(&TyData::Tuple {
+            elems: pool.list(&[boxed, right]),
+            rest: None,
+        })
+    };
+    assert!(refs_kinds(&pool, ptr, pair(Ty::STRING), 0, &mut false));
+    assert!(!refs_kinds(&pool, ptr, pair(callback), 0, &mut false));
 }
 
 fn holds_ref(pool: &hd_types::InternPool, ptr: DefId, t: Ty, depth: u32) -> bool {

@@ -1333,7 +1333,8 @@ pub(crate) fn kept(b: &Body, cx: &dyn OwnCx, t: &Tables) -> Option<(u64, u64)> {
 
 /// Whether `Ref` `i` of a part of a local is a local reference
 /// (`ref_word::LOCAL`) that one call takes, through coercions that keep
-/// its value, and that the call's result does not hold: it is dead once
+/// its value, and that the call's result cannot hold as a local reference:
+/// counted references own their referents. It is dead once
 /// the call returns, and every other use is a `Drop`. Only that call and
 /// the `Ref` reach the local through it, and [`index_writes`] records a
 /// mutable one as a write at both.
@@ -1351,7 +1352,7 @@ pub(super) fn lends_once(b: &Body, cx: &dyn OwnCx, counts: &[u32], last: &[u32],
             v = u;
             continue;
         }
-        return b.tags[u] == Tag::Call && !cx.holds_ref(b.ty[u]);
+        return b.tags[u] == Tag::Call && (!cx.holds_ref(b.ty[u]) || cx.counted_refs_only(b.ty[u]));
     }
     false
 }
