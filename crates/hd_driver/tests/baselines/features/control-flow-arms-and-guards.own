@@ -79,18 +79,18 @@ fn whole(o: string?) -> usize:
 >   local $0 o: string? [param read] value
 >     uses $0: entry -> %1 lend last
 >   local $1 s: string [read assigned] value
->     uses $1: %40 -> %2 lend last, %9 lend last
+>     uses $1: %41 -> %2 lend last, %9 lend last
 >   local $2 other: string? [read assigned] place
 >   local $3 self: string? [read] value
 >     uses $3: %16 -> %17 lend last
 >   %0 = Retain %59 Entry local $0 #0 : ()
     match o:
 >   %1 = Read move [$0] : string?
->   %55 = Block - : never
->   %56 = Match %1 [%55 %14 %38] : usize
->   %57 = Drop [$2] : ()
+>   %38 = Drop [$2] : ()
+>   %56 = Block - : never
+>   %57 = Match %1 [%56 %14 %39] : usize
 >   %58 = Drop [%1] : ()
->   %59 = Block %56 : usize
+>   %59 = Block %57 : usize
         .Some(s) if s.len() > 0 => s.len()
 >   %2 = Read borrow [$1] : string
 >   %3 = Call std/rt.bytes/bytes_len[] (%2) : usize
@@ -105,17 +105,17 @@ fn whole(o: string?) -> usize:
 >   %12 = Block - : usize
 >   %13 = Scope %12 [] : usize
 >   %14 = Block %13 : usize
->   %39 = Read borrow [%1 as #1 .0] : string
->   %40 = Store [$1] %39 : ()
->   %48 = Block - : never
->   %53 = Block - : never
->   %54 = SwitchTag %1 [#1 %48 %53] : never
+>   %40 = Read borrow [%1 as #1 .0] : string
+>   %41 = Store [$1] %40 : ()
+>   %49 = Block - : never
+>   %54 = Block - : never
+>   %55 = SwitchTag %1 [#1 %49 %54] : never
         other =>
->   %43 = Read copy [%1] : string?
->   %44 = Store [$2] %43 : ()
->   %49 = Read copy [%1] : string?
->   %50 = Store [$2] %49 : ()
->   %51 = Release %50 Operation #3 : ()
+>   %44 = Read copy [%1] : string?
+>   %45 = Store [$2] %44 : ()
+>   %50 = Read copy [%1] : string?
+>   %51 = Store [$2] %50 : ()
+>   %52 = Release %51 Operation #3 : ()
             if other.is_some(): 1 else: 0
 >   %15 = Read borrow [$2] : string?
 >   %16 = Store [$3] %15 : ()
@@ -137,6 +137,6 @@ fn whole(o: string?) -> usize:
 >   %35 = Block 1:usize : usize
 >   %36 = Block 0:usize : usize
 >   %37 = If %34 [%35 %36] : usize
->   %38 = Block %37 : usize
+>   %39 = Block %37 : usize
 >   exit sub 0 drops [$0]
 >   summary kept [$0]

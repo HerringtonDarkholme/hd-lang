@@ -109,7 +109,7 @@
     local.get $t.0
     local.get $t.1
   )
-  (func $whole (param $o.0 i32) (param $o.1 i32) (result i32) (local $t0 i32) (local $other.0 i32) (local $other.1 i32) (local $t1 i32)
+  (func $whole (param $o.0 i32) (param $o.1 i32) (result i32) (local $other.0 i32) (local $other.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 19 |     match o:
     block
       block
@@ -121,11 +121,11 @@
               block
                 block
                   local.get $o.1
-                  local.set $t0
+                  local.set $other.0
                   br 0
                 end
               end
-              local.get $t0
+              local.get $other.0
               i32.const 0
               i32.gt_u
               br_if 1
@@ -155,7 +155,7 @@
           block
             block
               local.get $o.1
-              local.set $t0
+              local.set $other.0
               br 0
             end
           end
@@ -187,22 +187,23 @@
           end
         end
         local.get $t0
-        if (result i32)
+        if
           i32.const 1
+          local.set $t2
         else
-          i32.const 0
         end
     ;; 19 |     match o:
-        local.set $t0
+        local.get $other.0
+        local.get $other.1
+        call $rt:release
+        local.get $t2
+        local.set $other.0
         br 0
       end
-      local.get $other.0
-      local.get $other.1
-      call $rt:release
       local.get $o.0
       local.get $o.1
       call $rt:release
-      local.get $t0
+      local.get $other.0
       local.set $o.0
     end
     local.get $o.0

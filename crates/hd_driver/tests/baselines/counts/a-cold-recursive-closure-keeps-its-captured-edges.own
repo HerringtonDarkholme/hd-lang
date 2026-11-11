@@ -17,7 +17,7 @@ fn make(value: string) -> fn!(usize) -> string:
 >   %3 = Retain %23 Cold captures #0 : ()
 >   %4 = Retain %23 Entry captures #0 : ()
 >   %6 = Release %23 FrameDrop child #2 : ()
->   %23 = Block %20 : string
+>   %23 = Block %21 : string
 >   %24 = Store [$2] - : ()
 >   %25 = Closure #1 : fn!(usize) -> string
 >   %26 = Retain %25 Operation captures #0 : ()
@@ -39,9 +39,9 @@ fn make(value: string) -> fn!(usize) -> string:
 >   %16 = Release %15 Operation child #2 : ()
 >   %17 = Retain %15 Operation child #0 : ()
 >   %18 = Drop [%14] : ()
->   %19 = Block %15 : string
->   %20 = If %8 [%10 %19] : string
->   %21 = Drop [$0] : ()
+>   %19 = Drop [$0] : ()
+>   %20 = Block %15 : string
+>   %21 = If %8 [%10 %20] : string
 >   %22 = Drop [$2] : ()
     read
 >   %29 = Read copy [$2] : fn!(usize) -> string

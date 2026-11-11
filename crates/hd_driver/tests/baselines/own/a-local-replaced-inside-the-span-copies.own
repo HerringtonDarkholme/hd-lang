@@ -11,7 +11,7 @@ app/main/reassigned
   %7 = Store [$3] %6 : ()
   %8 = Release %7 Operation #3 : ()
   %9 = Block 0:usize : usize
-  %10 = Block 1:usize : usize
-  %11 = If %5 [%9 %10] : usize
-  %12 = Drop [$1] : ()
+  %10 = Drop [$1] : ()
+  %11 = Block 1:usize : usize
+  %12 = If %5 [%9 %11] : usize
   exit sub 0 drops [$0 $1]

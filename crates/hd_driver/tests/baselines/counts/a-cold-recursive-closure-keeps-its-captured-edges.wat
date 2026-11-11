@@ -2292,16 +2292,16 @@
             call $rt:release_ref'2
           end
         end
+        local.get $value.0
+        local.tee $t5
+        if
+          local.get $t5
+          call $rt:release_ref'1
+        end
+        i32.const 0
+        local.set $value.0
       end
     ;; 5 |     read := fn!(n: usize) -> string:
-      local.get $value.0
-      local.tee $t5
-      if
-        local.get $t5
-        call $rt:release_ref'1
-      end
-      i32.const 0
-      local.set $value.0
       local.get $read.1
       local.tee $t5
       if

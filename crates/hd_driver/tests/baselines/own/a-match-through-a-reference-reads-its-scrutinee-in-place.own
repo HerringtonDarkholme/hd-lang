@@ -7,11 +7,11 @@ use std.collections.UniqList
 fn append(value: &mut Option[UniqList[string]], item: string) -> usize:
 > app/main/append
 >   local $0 value: &mut UniqList[string]? [param read] value
->     uses $0: entry -> %1 lend, %37 lend last
+>     uses $0: entry -> %1 lend, %39 lend last
 >   local $1 item: string [param read] value
 >     uses $1: entry -> %23 consume last
 >   local $2 items: &mut UniqList[string] [read assigned] value
->     uses $2: %39 -> %2 consume, %32 consume last
+>     uses $2: %41 -> %2 consume, %32 consume last
 >   local $3 self: &mut UniqList[string] [read] value
 >     uses $3: %3 -> %4 consume, %8 lend, %13 lend, %19 lend, %28 lend last
 >   local $5 size: usize [:= read assigned] value
@@ -19,18 +19,18 @@ fn append(value: &mut Option[UniqList[string]], item: string) -> usize:
 >   %0 = Retain %53 Entry local $1 #0 : ()
     match value:
 >   %1 = Read borrow [$0] : &mut UniqList[string]?
->   %49 = Block - : never
->   %50 = Match %1 [%49 %35 %36] : usize
->   %51 = Drop [$2] : ()
->   %52 = Drop [$1] : ()
->   %53 = Block %50 : usize
+>   %35 = Drop [$2] : ()
+>   %37 = Drop [$1] : ()
+>   %51 = Block - : never
+>   %52 = Match %1 [%51 %36 %38] : usize
+>   %53 = Block %52 : usize
         .Some(items) =>
->   %37 = Read borrow [*$0] : UniqList[string]?
->   %38 = Ref mut local [*%1 as #1 .0] : &mut UniqList[string]
->   %39 = Store [$2] %38 : ()
->   %41 = Block - : never
->   %47 = Block - : never
->   %48 = SwitchTag %37 [#1 %41 %47] : never
+>   %39 = Read borrow [*$0] : UniqList[string]?
+>   %40 = Ref mut local [*%1 as #1 .0] : &mut UniqList[string]
+>   %41 = Store [$2] %40 : ()
+>   %43 = Block - : never
+>   %49 = Block - : never
+>   %50 = SwitchTag %39 [#1 %43 %49] : never
             items.push(item)
 >   %2 = Read borrow [$2] : &mut UniqList[string]
 >   %3 = Store [$3] %2 : ()
@@ -62,14 +62,14 @@ fn append(value: &mut Option[UniqList[string]], item: string) -> usize:
 >   %29 = Break L0 - : never
 >   %30 = Block - : ()
 >   %31 = Scope %30 [] : ()
->   %35 = Block %34 : usize
+>   %36 = Block %34 : usize
             items.len()
 >   %32 = Read borrow [$2] : &mut UniqList[string]
 >   %33 = Coerce %32 [Weaken -] : &UniqList[string]
 >   %34 = Call std/collections/impl[T < ?Copy] UniqList[T].len[string] (%33) : usize
         .None => 0
->   %36 = Block 0:usize : usize
->   %43 = Block - : never
+>   %38 = Block 0:usize : usize
 >   %45 = Block - : never
->   %46 = SwitchTag %37 [#0 %43 %45] : never
+>   %47 = Block - : never
+>   %48 = SwitchTag %39 [#0 %45 %47] : never
 >   exit sub 0 drops [$1]

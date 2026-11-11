@@ -2,3 +2,4 @@
 app/main/reassigned
   copy List[usize] (second owner)
   release List[usize] (overwritten)
+  release List[usize] (last use)

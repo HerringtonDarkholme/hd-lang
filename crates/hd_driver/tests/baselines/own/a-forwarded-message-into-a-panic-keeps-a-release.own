@@ -286,12 +286,12 @@ fn check_equal[T < Eq & Debug](actual: T, expected: T, reason: string) -> void:
 >   %204 = Block - : ()
 >   %205 = Scope %204 [] : ()
 >   %206 = Read move [%148] : string
->   %207 = Block %206 : string
->   %208 = If %120 [%123 %207] : string
->   %209 = Drop [$3] : ()
+>   %207 = Drop [$3] : ()
+>   %208 = Block %206 : string
+>   %209 = If %120 [%123 %208] : string
         panic_with("assertion-failed", message)
->   %210 = Call std/rt.bytes/panic_with[] ("assertion-failed", %208) : ()
->   %211 = Drop [%208] : ()
+>   %210 = Call std/rt.bytes/panic_with[] ("assertion-failed", %209) : ()
+>   %211 = Drop [%209] : ()
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $0 slot, $1 slot
 

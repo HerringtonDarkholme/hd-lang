@@ -37,7 +37,7 @@ impl Error for FsError
 fn read_config(path: string) -> Result[string, FsError]:
 > app/main/read_config
 >   local $0 path: string [param read] value
->     uses $0: entry -> %1 lend, %7 lend last, %11 consume last
+>     uses $0: entry -> %1 lend, %7 lend last, %12 consume last
 >   %0 = Retain %17 Entry local $0 #0 : ()
     if path.len() > 0: .Ok(path + "!") else: .Err(FsError.NotFound(path))
 >   %1 = Read borrow [$0] : string
@@ -49,14 +49,14 @@ fn read_config(path: string) -> Result[string, FsError]:
 >   %7 = Read borrow [$0] : string
 >   %8 = Intrinsic StrConcat [%7 "!"] : string
 >   %9 = NewVariant #0 [%8] : Result[string, FsError]
->   %10 = Block %9 : Result[string, FsError]
->   %11 = Read move [$0] : string
->   %12 = NewVariant #0 [%11] : FsError
->   %13 = NewVariant #1 [%12] : Result[string, FsError]
->   %14 = Block %13 : Result[string, FsError]
->   %15 = If %6 [%10 %14] : Result[string, FsError]
->   %16 = Drop [$0] : ()
->   %17 = Block %15 : Result[string, FsError]
+>   %10 = Drop [$0] : ()
+>   %11 = Block %9 : Result[string, FsError]
+>   %12 = Read move [$0] : string
+>   %13 = NewVariant #0 [%12] : FsError
+>   %14 = NewVariant #1 [%13] : Result[string, FsError]
+>   %15 = Block %14 : Result[string, FsError]
+>   %16 = If %6 [%11 %15] : Result[string, FsError]
+>   %17 = Block %16 : Result[string, FsError]
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 

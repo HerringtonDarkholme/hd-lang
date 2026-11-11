@@ -163,13 +163,13 @@
       local.get $t0
       i32.const 0
       i32.gt_u
-      if
+      if (result i32)
         local.get $path.1
         i32.const 1
         i32.add
-        local.tee $t1
-        call $rt:str
         local.tee $t0
+        call $rt:str
+        local.tee $t1
         local.tee $t2
         local.get $path.0
         local.get $path.1
@@ -180,28 +180,22 @@
         i32.const 76 ;; &"!"
         i32.load8_u $heap
         i32.store8 $heap
+        local.get $path.0
+        local.tee $path.0
+        if
+          local.get $path.0
+          call $rt:release_ref
+        end
         i32.const 0
+        local.get $t1
         local.set $path.1
       else
-        local.get $path.0
-        local.set $t0
-        i32.const 0
-        local.set $path.0
         i32.const 1
+        local.get $path.0
         local.get $path.1
-        local.set $t1
+        local.set $t0
         local.set $path.1
       end
-      local.get $path.0
-      if
-        local.get $path.0
-        call $rt:release_ref
-      end
-      local.get $path.1
-      local.get $t0
-      local.get $t1
-      local.set $t0
-      local.set $path.1
       local.set $path.0
     end
     local.get $path.0
