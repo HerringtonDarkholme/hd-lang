@@ -559,6 +559,28 @@
       end
     end
   )
+  (func $awaited.lent (param $t1 i32) (param $t2 i32) (param $t3 i32) (param $t4 i32) (result i32) (local $t0 i32)
+    ;; 18 |     work.later!()
+    call $rt:frame
+    local.tee $t0
+    local.get $t1
+    i32.store $heap offset=24
+    local.get $t0
+    local.get $t2
+    i32.store $heap offset=28
+    local.get $t0
+    local.get $t3
+    i32.store $heap offset=32
+    local.get $t0
+    local.get $t4
+    i32.store $heap offset=36
+    local.get $t3
+    if
+      local.get $t3
+      call $retain
+    end
+    local.get $t0
+  )
   (func $awaited'2 (param $t1 i32) (param $t2 i32) (param $t3 i32) (param $t4 i32) (result i32) (local $t0 i32)
     ;; 18 |     work.later!()
     call $rt:frame

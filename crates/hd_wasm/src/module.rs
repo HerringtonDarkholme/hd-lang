@@ -321,6 +321,12 @@ pub enum Part {
     Cancel,
     /// `(payload)`: the frame's release glue.
     Drop,
+    /// `(arguments, providers) -> frame`: the cold constructor without the
+    /// frame's counts of its reference parameters' objects (#1355), for a
+    /// caller whose frame value only awaits in its body, so its locals
+    /// outlive the frame (`ref_word::LENT`). Defined only for an instance
+    /// whose frame counts such objects.
+    Lent,
 }
 
 /// A host import (`crates/hd_run_wasmtime/DESIGN.md` §17.2): its module,

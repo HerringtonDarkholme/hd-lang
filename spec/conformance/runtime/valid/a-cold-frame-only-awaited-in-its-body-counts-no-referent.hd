@@ -1,0 +1,79 @@
+# expect-stdout: later 3
+# expect-stdout: both 4
+# expect-stdout: looped 6
+# expect-stdout: unawaited 0 1
+# expect-stdout: hold ends 3
+# expect-stdout: first 3
+# expect-stdout: hold ends 4
+# expect-stdout: race later 1
+# expect-stdout: hold ends 5
+# expect-stdout: race join 2
+# expect-stdout: done
+# test: a cold frame that only an await in its body takes counts no referent, and its locals outlive it: awaited later, joined, in a loop, dropped unawaited, a race! loser that keeps its count, and a caller cancelled during the await and during the join, whose callee still reads the local as it unwinds
+# Spec std/time Clock: std-time.clock.sleep; lang/11 Requirements and Suspension: req.suspend.cold (issue #1355).
+use std.ops.defer
+use std.task.{join, race}
+use std.time.{Clock, ms, sleep}
+
+fn size!(text: &string) -> usize $ Clock:
+    sleep!(ms(1))
+    text.len()
+
+fn hold!(text: &string) -> usize $ Clock + Console:
+    defer(fn() -> void: println("hold ends ${text.len()}"))
+    sleep!(ms(60000))
+    text.len()
+
+fn later!(n: usize) -> usize $ Clock:
+    let text = "x".repeat(n)
+    f := size(&text)
+    f!()
+
+fn both!(n: usize) -> usize $ Clock:
+    let a = "a".repeat(n)
+    let b = "b".repeat(n)
+    let (x, y) = join!(size(&a), size(&b))
+    x + y
+
+fn looped!(n: usize) -> usize $ Clock:
+    let mut total = 0
+    for i in 0..n:
+        let text = "l".repeat(i)
+        f := size(&text)
+        total += f!()
+    total
+
+fn unawaited!(n: usize) -> usize $ Clock:
+    let text = "u".repeat(n)
+    f := size(&text)
+    if n > 2:
+        return 0
+    f!()
+
+fn first!(n: usize) -> usize $ Clock + Console:
+    let a = "a".repeat(n)
+    let b = "b".repeat(n)
+    race!(size(&a), hold(&b))
+
+fn held_later!(n: usize) -> usize $ Clock + Console:
+    let text = "h".repeat(n)
+    f := hold(&text)
+    f!()
+
+fn held_join!(n: usize) -> usize $ Clock + Console:
+    let a = "j".repeat(n)
+    let b = "k".repeat(n)
+    let (x, y) = join!(hold(&a), size(&b))
+    x + y
+
+pub fn main!() -> void $ Console + Clock:
+    println("later ${later!(3)}")
+    println("both ${both!(2)}")
+    println("looped ${looped!(4)}")
+    println("unawaited ${unawaited!(3)} ${unawaited!(1)}")
+    println("first ${first!(3)}")
+    r := race!(held_later(4), later(1))
+    println("race later $r")
+    s := race!(held_join(5), later(2))
+    println("race join $s")
+    println("done")

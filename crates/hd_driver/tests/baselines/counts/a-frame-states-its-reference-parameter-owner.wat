@@ -168,6 +168,14 @@
       end
     end
   )
+  (func $read.lent (param $t1 i32) (result i32) (local $t0 i32)
+    ;; 5 |     *value
+    call $rt:frame
+    local.tee $t0
+    local.get $t1
+    i32.store $heap offset=24
+    local.get $t0
+  )
   (func $read'2 (param $t1 i32) (result i32) (local $t0 i32)
     ;; 5 |     *value
     call $rt:frame

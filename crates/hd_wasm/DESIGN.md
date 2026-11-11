@@ -1380,6 +1380,18 @@ counted frames in memory 0 (`emit/susp.rs`, `task.rs`).
   local reference its parameters hold by value, a tuple member's too.
   A frame retains its providers, since the scope that installed them
   may end before the frame does.
+- **Lent frames** (issue #1355). When the frame counts such objects, the
+  instance has a second constructor, `Part::Lent` (`NAME.lent`), built by
+  the same code without those counts. A cold call whose frame only an
+  `AwaitValue` or `AwaitAll` of the caller's root takes, and whose every
+  reference-holding argument is a `Ref` of a root local, calls it
+  (`own::lent`, `ref_word::LENT`). Insertion counts each such await as an
+  access of the local, so the local drops after it. A cancellation at the
+  await cancels and drops the child in the point's unwind, before the
+  exit drops the local. A frame dropped unawaited never ran, and its glue
+  reads no referent. A frame in a list (`race!`), one stored elsewhere,
+  returned or passed on, keeps the counting constructor. Unreferenced,
+  the part is dropped with the other unreachable code.
 - **The state machine.** States are numbered in structural order, so a
   subtree's states are contiguous (`susp::plan`). A block whose
   statements hold states is entered by one `br_table` on `pc`. An `if`,

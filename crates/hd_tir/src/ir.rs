@@ -789,6 +789,13 @@ pub mod ref_word {
     /// of the read's own and the loop runs no `IsUnique`. The checker
     /// never sets it (invariant 22).
     pub const PINS: u32 = 32;
+    /// Set by insertion: a `LOCAL` argument of a suspending call made cold
+    /// whose frame only awaits in the caller's root
+    /// (`own::lent`, #1355). The passes keep its local alive over those
+    /// awaits, so the backend builds that frame with no count of the
+    /// local's object (`Part::Lent`). The checker never sets it
+    /// (invariant 22).
+    pub const LENT: u32 = 64;
 }
 
 /// An `IsUnique`'s data word b (`docs/compiler/tir-v2.md`, "Hoisting"): 0
@@ -2162,6 +2169,7 @@ fn no_ownership(b: &Body, errs: &mut Vec<VerifyError>) {
             }
             Tag::Ref if w & ref_word::FRAME != 0 => "a frame `Ref` before the passes".to_owned(),
             Tag::Ref if w & ref_word::PINS != 0 => "a pinning `Ref` before the passes".to_owned(),
+            Tag::Ref if w & ref_word::LENT != 0 => "a lent `Ref` before the passes".to_owned(),
             _ => continue,
         };
         errs.push(VerifyError {

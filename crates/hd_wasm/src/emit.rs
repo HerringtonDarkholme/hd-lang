@@ -3102,7 +3102,19 @@ impl Em<'_, '_, '_> {
                         self.push_args(i, &args, params.as_deref(), Some(lends), self.f.reason)?;
                     }
                     let c = self.push_call_providers(i, ct.item, ct.args);
-                    self.f.call(Sym::Inst(ct.key));
+                    // A frame that only awaits in this body, whose
+                    // reference arguments' locals outlive it, takes no
+                    // count of their objects (#1355).
+                    let lent = suspends
+                        && args.iter().any(|&v| {
+                            self.b.tags.get(v as usize) == Some(&Tag::Ref)
+                                && self.b.data[v as usize][1] & hd_tir::ir::ref_word::LENT != 0
+                        });
+                    self.f.call(if lent {
+                        Sym::Part(ct.key, Part::Lent)
+                    } else {
+                        Sym::Inst(ct.key)
+                    });
                     // A suspending callee called cold returns its frame.
                     let ret = if suspends { self.ty(i) } else { ct.ret };
                     self.call_results(i, ret)?;

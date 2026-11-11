@@ -29,6 +29,8 @@ impl Measure for Reader:
 >   release counted reference (last use)
 >   release counted reference (last use)
 > app/main/impl Measure for Reader.measure
+>   retain counted reference (stored)
+> app/main/impl Measure for Reader.measure
 >   retain counted reference (by design)
 >   retain counted reference (stored)
         values.len()
@@ -48,6 +50,8 @@ pub fn known!(reader: &Reader, values: List[string]) -> usize $ Clock:
 >   release counted reference (last use)
 >   release counted reference (last use)
 >   release counted reference (last use)
+> app/main/known
+>   retain counted reference (stored)
 > app/main/known
 >   retain counted reference (by design)
 >   retain counted reference (stored)

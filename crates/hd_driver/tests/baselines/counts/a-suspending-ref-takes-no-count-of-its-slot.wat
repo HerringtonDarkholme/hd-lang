@@ -643,6 +643,14 @@
       end
     end
   )
+  (func $bump.lent (param $t1 i32) (result i32) (local $t0 i32)
+    ;; 9 |     t.n += 1
+    call $rt:frame'2
+    local.tee $t0
+    local.get $t1
+    i32.store $heap offset=24
+    local.get $t0
+  )
   (func $bump'2 (param $t1 i32) (result i32) (local $t0 i32)
     ;; 9 |     t.n += 1
     call $rt:frame'2

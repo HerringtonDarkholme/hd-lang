@@ -1,0 +1,30 @@
+# @dump: own counts
+# @build: v8 release
+# `size(&text)` and `size(&a)`, `size(&b)` make cold frames that only an
+# await in the same body takes, `f!()` or `join!`, so the locals they
+# refer to outlive them (#1355): the `Ref`s are `lent`, each local drops
+# after the await, and the call builds the frame through `size.lent`,
+# which takes no count of the referent. The frames `race!` takes go into
+# a list and keep the counting constructor.
+use std.task.{join, race}
+use std.time.{Clock, ms, sleep}
+
+fn size!(text: &string) -> usize $ Clock:
+    sleep!(ms(1))
+    text.len()
+
+fn later!(n: usize) -> usize $ Clock:
+    let text = "x".repeat(n)
+    f := size(&text)
+    f!()
+
+fn both!(n: usize) -> usize $ Clock:
+    let a = "a".repeat(n)
+    let b = "b".repeat(n)
+    let (x, y) = join!(size(&a), size(&b))
+    x + y
+
+fn first!(n: usize) -> usize $ Clock:
+    let a = "a".repeat(n)
+    let b = "b".repeat(n)
+    race!(size(&a), size(&b))

@@ -757,7 +757,7 @@
     call $rt:forbid_check
     i32.const 0
     local.get $t1
-    i32.const 508 ;; &vtable[func100, func102]
+    i32.const 508 ;; &vtable[func102, func104]
     local.get $reader
     local.get $provider0
     local.get $provider0.vtable
@@ -1331,6 +1331,28 @@
       end
     end
   )
+  (func $"impl Measure for Reader.measure.lent" (param $t1 i32) (param $t2 i32) (param $t3 i32) (param $t4 i32) (result i32) (local $t0 i32)
+    ;; 15 |         sleep!(ms(1))
+    call $rt:frame'2
+    local.tee $t0
+    local.get $t1
+    i32.store $heap offset=24
+    local.get $t0
+    local.get $t2
+    i32.store $heap offset=28
+    local.get $t0
+    local.get $t3
+    i32.store $heap offset=32
+    local.get $t0
+    local.get $t4
+    i32.store $heap offset=36
+    local.get $t3
+    if
+      local.get $t3
+      call $retain
+    end
+    local.get $t0
+  )
   (func $"impl Measure for Reader.measure'2" (param $t1 i32) (param $t2 i32) (param $t3 i32) (param $t4 i32) (result i32) (local $t0 i32)
     ;; 15 |         sleep!(ms(1))
     call $rt:frame'2
@@ -1877,6 +1899,28 @@
         call $rt:release_ref'1
       end
     end
+  )
+  (func $known.lent (param $t1 i32) (param $t2 i32) (param $t3 i32) (param $t4 i32) (result i32) (local $t0 i32)
+    ;; 19 |     reader.measure!(values)
+    call $rt:frame'3
+    local.tee $t0
+    local.get $t1
+    i32.store $heap offset=24
+    local.get $t0
+    local.get $t2
+    i32.store $heap offset=28
+    local.get $t0
+    local.get $t3
+    i32.store $heap offset=32
+    local.get $t0
+    local.get $t4
+    i32.store $heap offset=36
+    local.get $t3
+    if
+      local.get $t3
+      call $retain
+    end
+    local.get $t0
   )
   (func $known'2 (param $t1 i32) (param $t2 i32) (param $t3 i32) (param $t4 i32) (result i32) (local $t0 i32)
     ;; 19 |     reader.measure!(values)

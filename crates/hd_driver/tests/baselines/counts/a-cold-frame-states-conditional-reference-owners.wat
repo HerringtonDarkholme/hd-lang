@@ -228,6 +228,20 @@
       end
     end
   )
+  (func $tagged.lent (param $t1 i32) (param $t2 i32) (param $t3 i32) (result i32) (local $t0 i32)
+    ;; 14 |     match value:
+    call $rt:frame'1
+    local.tee $t0
+    local.get $t1
+    i32.store $heap offset=24
+    local.get $t0
+    local.get $t2
+    i32.store $heap offset=28
+    local.get $t0
+    local.get $t3
+    i32.store $heap offset=32
+    local.get $t0
+  )
   (func $tagged'2 (param $t1 i32) (param $t2 i32) (param $t3 i32) (result i32) (local $t0 i32)
     ;; 14 |     match value:
     call $rt:frame'1
@@ -443,6 +457,14 @@
         end
       end
     end
+  )
+  (func $optional.lent (param $t1 i32) (result i32) (local $t0 i32)
+    ;; 9 |     match value:
+    call $rt:frame'2
+    local.tee $t0
+    local.get $t1
+    i32.store $heap offset=24
+    local.get $t0
   )
   (func $optional'2 (param $t1 i32) (result i32) (local $t0 i32)
     ;; 9 |     match value:

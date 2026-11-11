@@ -2698,6 +2698,14 @@
       end
     end
   )
+  (func $read.lent (param $t1 i32) (result i32) (local $t0 i32)
+    ;; 11 |     t.n
+    call $rt:frame'6
+    local.tee $t0
+    local.get $t1
+    i32.store $heap offset=24
+    local.get $t0
+  )
   (func $read'2 (param $t1 i32) (result i32) (local $t0 i32)
     ;; 11 |     t.n
     call $rt:frame'6
@@ -2861,6 +2869,14 @@
         call $rt:release_ref'1
       end
     end
+  )
+  (func $bump.lent (param $t1 i32) (result i32) (local $t0 i32)
+    ;; 8 |     t.n += 1
+    call $rt:frame'7
+    local.tee $t0
+    local.get $t1
+    i32.store $heap offset=24
+    local.get $t0
   )
   (func $bump'2 (param $t1 i32) (result i32) (local $t0 i32)
     ;; 8 |     t.n += 1

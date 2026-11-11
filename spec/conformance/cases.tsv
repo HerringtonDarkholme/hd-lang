@@ -1399,6 +1399,7 @@ runtime/valid/a-suspending-call-keeps-its-arguments-by-every-route.hd	runtime	ac
 runtime/valid/a-unique-list-a-suspending-function-reads-is-freed-once.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.suspend.cold
 runtime/valid/a-let-mut-unique-list-moves-into-a-suspending-call.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.suspend.cold
 runtime/valid/a-cold-frame-keeps-the-count-of-what-its-body-borrows.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.suspend.cold
+runtime/valid/a-cold-frame-only-awaited-in-its-body-counts-no-referent.hd	runtime	accept	std/time.md#r-std-time.clock.sleep
 runtime/valid/a-join-reads-a-field-while-another-task-writes-through-the-pointer.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.suspend.cold
 runtime/valid/a-moved-parameter-can-be-stored-again.hd	runtime	accept	lang/13-values-and-references.md#r-ref.move.sites
 runtime/valid/a-closure-kept-past-its-loop-round-keeps-its-own-variable.hd	runtime	accept	lang/07-functions.md#r-fn.capture.cell.fresh

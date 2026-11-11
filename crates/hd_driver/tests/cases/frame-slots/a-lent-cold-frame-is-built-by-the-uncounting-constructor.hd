@@ -1,0 +1,16 @@
+# @dump: wat
+# @build: v8 release
+# `f := size(&text)` is only awaited by `f!()` in `later`, so the call
+# builds the frame through `size.lent` (#1355), which takes no count of
+# `text`'s cell, and `text` drops after the await.
+use std.time.{Clock, ms, sleep}
+
+fn size!(text: &string) -> usize $ Clock:
+    sleep!(ms(1))
+    text.len()
+
+# subject
+fn later!(n: usize) -> usize $ Clock:
+    let text = "x".repeat(n)
+    f := size(&text)
+    f!()

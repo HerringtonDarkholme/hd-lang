@@ -37,5 +37,7 @@ fn awaited!(work: &dyn Work) -> i32 $ Tag:
 >   release counted reference (last use)
 >   release counted reference (last use)
 > app/main/awaited
+>   retain counted reference (stored)
+> app/main/awaited
 >   retain counted reference (by design)
 >   retain counted reference (stored)

@@ -1682,205 +1682,230 @@ pub(super) fn finish(
     em.drop_states = body_drop_states;
 
     // The cold constructor: a frame in state 0 holding the arguments and
-    // the providers, with a count of each counted argument.
+    // the providers, with a count of each counted argument. Built once as the instance's own function, and once more, when the
+    // frame counts reference parameters' objects, as `Part::Lent` (#1355),
+    // which skips those counts: a caller whose frame value only awaits in
+    // its body (`ref_word::LENT`) calls that one. One closure builds both,
+    // so they cannot drift.
     let cold_params: Vec<Val> = params[1..].to_vec();
-    em.f = em.m.func(name.clone(), cold_params.clone(), vec![Val::I32]);
-    em.inherit_origin_source(Reason::Conservative("cold constructor"));
-    let fr = em.f.local(Val::I32);
-    em.f.helper(Helper::Frame(key));
-    em.f.set(fr);
-    // Borrowed arguments take a count or collection copy before the
-    // frame keeps them. Transferred arguments arrive with theirs.
-    let transferred = em.cold_transferred_locals(plocals);
-    for &l in plocals {
-        let ls = arrived(&em, l);
-        let t = em.sub(em.b.local_ty[l]);
-        if let Some(reason) = em.stated_count(
-            Tag::Retain,
-            CountAt::Cold,
-            CountPart::Local(u32::try_from(l).expect("local")),
-        ) && !transferred.contains(&l)
-            && !crate::layout::holds_drop(em.pool(), em.env(), t)
-        {
-            em.because(reason, |em| em.retain_locals(&ls, t))?;
+    let constructor = |em: &mut Em<'_, '_, '_>, lent: bool| -> StageResult<crate::module::Func> {
+        let cname = if lent {
+            format!("{name}.lent")
+        } else {
+            name.clone()
+        };
+        em.f = em.m.func(cname, cold_params.clone(), vec![Val::I32]);
+        em.inherit_origin_source(Reason::Conservative("cold constructor"));
+        let fr = em.f.local(Val::I32);
+        em.f.helper(Helper::Frame(key));
+        em.f.set(fr);
+        // Borrowed arguments take a count or collection copy before the
+        // frame keeps them. Transferred arguments arrive with theirs.
+        let transferred = em.cold_transferred_locals(plocals);
+        for &l in plocals {
+            let ls = arrived(em, l);
+            let t = em.sub(em.b.local_ty[l]);
+            // ruled out: TIR local ids are u32 (`LocalId::raw`).
+            let local = u32::try_from(l).expect("local");
+            if let Some(reason) =
+                em.stated_count(Tag::Retain, CountAt::Cold, CountPart::Local(local))
+                && !transferred.contains(&l)
+                && !crate::layout::holds_drop(em.pool(), em.env(), t)
+            {
+                em.because(reason, |em| em.retain_locals(&ls, t))?;
+            }
         }
-    }
-    for j in 0..cold_params.len() {
-        let l = u32::try_from(j + 1).expect("params");
-        if let Some((at, v)) = at_of(l) {
-            em.f.get(fr);
-            em.f.get(l - 1);
-            em.f.op(store_op(v, at));
-        }
-    }
-    // A parameter a reference refers to or a closure shares is in its cell
-    // from the start, so the release glue of a frame that never ran finds
-    // it where it does later.
-    for &l in plocals {
-        if em.param_vals.contains_key(&l) {
-            let ls = arrived(&em, l);
-            let cell = em.new_cell(l, &super::value::Src::Locals(ls))?;
-            if let Some((at, v)) = at_of(em.locals[&l][0]) {
+        for j in 0..cold_params.len() {
+            // ruled out: a Wasm function's parameter count fits u32.
+            let l = u32::try_from(j + 1).expect("params");
+            if let Some((at, v)) = at_of(l) {
                 em.f.get(fr);
-                em.f.get(cell);
+                em.f.get(l - 1);
                 em.f.op(store_op(v, at));
             }
         }
-    }
-    // The frame's count of each reference parameter's object, in the
-    // temporary its exit or release glue releases.
-    let r = em.input.runtime;
-    for saved in em.frame_refs.clone() {
-        let values = arrived(&em, saved.local);
-        let mut active = Vec::with_capacity(saved.plan.guards.len());
-        // Each shared predicate is evaluated once. Nested tests stay
-        // under their parent's test; raw inactive payloads are never read.
-        for guard in &saved.plan.guards {
-            if let Some(parent) = guard.parent {
-                em.f.get(active[parent]);
-                em.f.op(I::If(BlockType::Result(wasm_encoder::ValType::I32)));
-            }
-            em.f.get(values[guard.discr.value as usize]);
-            let variant = super::required(
-                u32::try_from(guard.variant).ok(),
-                "enum layout variants fit u32",
-            );
-            for op in guard.discr.enc.is(variant).ops() {
-                em.f.op(op);
-            }
-            if guard.parent.is_some() {
-                em.f.op(I::Else);
-                em.f.i32(0);
-                em.f.op(I::End);
-            }
-            let held = em.f.local(Val::I32);
-            em.f.set(held);
-            active.push(held);
-        }
-        // ruled out: own::referent states Cold for every thin parameter
-        // referent whose object the concrete frame layout saves here.
-        let reason = em.required_stated_count(
-            Tag::Retain,
-            CountAt::Cold,
-            CountPart::Referent(super::required(
-                u32::try_from(saved.local).ok(),
-                "TIR parameter IDs fit u32",
-            )),
-        );
-        for (conditional, held) in saved.conditional.iter().copied().zip(&saved.held) {
-            if conditional {
-                let (at, value) =
-                    super::required(at_of(*held), "saved referent owners have frame slots");
-                em.f.get(fr);
-                em.f.i32(0);
-                em.f.op(store_op(value, at));
-            }
-        }
-        for (leaf, slot) in saved.plan.refs.iter().zip(saved.slots) {
-            let held = saved.held[slot];
-            let (at, value) =
-                super::required(at_of(held), "saved referent owners have frame slots");
-            if let Some(guard) = leaf.guard {
-                em.f.get(active[guard]);
-                em.f.op(I::If(BlockType::Empty));
-            }
-            let source = values[leaf.value as usize];
-            em.f.get(source);
-            em.because(reason, |em| {
-                em.f.count_call(Sym::Inst(r.retain), crate::views::CountAction::Retain);
-            });
-            em.f.get(fr);
-            em.f.get(source);
-            em.f.op(store_op(value, at));
-            if leaf.guard.is_some() {
-                em.f.op(I::End);
-            }
-        }
-    }
-    em.save_initial_drop_flags(plocals, fr, &area);
-    em.retain_row(CountAt::Cold, 1);
-    // A closure's code reads its captures from its environment, its first
-    // parameter, into the frame, with a count of each.
-    if let Some(ci) = closure {
-        let copy = em.stated_count(Tag::Retain, CountAt::Cold, CountPart::Captures);
-        if let Some(l) = super::closure::self_local(&em.recursive_bindings, ci) {
-            // The executing closure's value is not an environment field.
-            // Save it directly in the fresh frame, with the same ownership
-            // as a capture loaded from that environment.
-            let ls = em.locals[&l].clone();
-            for (j, x) in ls.iter().enumerate() {
-                if let Some((at, v)) = at_of(*x) {
+        // A parameter a reference refers to or a closure shares is in its cell
+        // from the start, so the release glue of a frame that never ran finds
+        // it where it does later.
+        for &l in plocals {
+            if em.param_vals.contains_key(&l) {
+                let ls = arrived(em, l);
+                let cell = em.new_cell(l, &super::value::Src::Locals(ls))?;
+                if let Some((at, v)) = at_of(em.locals[&l][0]) {
                     em.f.get(fr);
-                    if j == 0 {
-                        em.f.table_slot(Sym::Inst(key));
-                    } else {
-                        em.f.get(0);
-                    }
+                    em.f.get(cell);
                     em.f.op(store_op(v, at));
                 }
             }
-            // ruled out: own::cold_captures states Captures whenever
-            // closure_self exists, even without other environment fields.
-            let reason = super::required(copy, "own::cold_captures must state self copy");
-            em.because(reason, |em| em.ref_retain(0));
         }
-        let caps = super::closure::captures(em.b, ci, &em.recursive_bindings);
-        if !caps.is_empty() {
-            let (m, parts, _) = em.env_layout(ci, &caps)?;
-            for ((l, _), p) in caps.iter().zip(&parts) {
-                let Some(ls) = em.locals.get(l).cloned() else {
-                    continue;
-                };
-                let mut loaded = Vec::new();
-                for leaf in &m.leaves[p.first..p.first + p.count] {
-                    let y = em.f.local(leaf.val);
-                    em.f.get(0);
-                    em.f.op(leaf.load(0));
-                    em.f.set(y);
-                    loaded.push(y);
+        // The frame's count of each reference parameter's object, in the
+        // temporary its exit or release glue releases.
+        // A lent frame (`Part::Lent`, #1355) takes none: its caller's locals
+        // outlive it.
+        let r = em.input.runtime;
+        let counted = if lent {
+            Vec::new()
+        } else {
+            em.frame_refs.clone()
+        };
+        for saved in counted {
+            let values = arrived(em, saved.local);
+            let mut active = Vec::with_capacity(saved.plan.guards.len());
+            // Each shared predicate is evaluated once. Nested tests stay
+            // under their parent's test; raw inactive payloads are never read.
+            for guard in &saved.plan.guards {
+                if let Some(parent) = guard.parent {
+                    em.f.get(active[parent]);
+                    em.f.op(I::If(BlockType::Result(wasm_encoder::ValType::I32)));
                 }
-                if let Some(reason) = copy {
-                    em.because(reason, |em| em.count_local(*l, &loaded, true))?;
+                em.f.get(values[guard.discr.value as usize]);
+                let variant = super::required(
+                    u32::try_from(guard.variant).ok(),
+                    "enum layout variants fit u32",
+                );
+                for op in guard.discr.enc.is(variant).ops() {
+                    em.f.op(op);
                 }
-                for (x, y) in ls.iter().zip(&loaded) {
-                    if let Some((at, v)) = at_of(*x) {
-                        em.f.get(fr);
-                        em.f.get(*y);
-                        em.f.op(store_op(v, at));
-                    }
+                if guard.parent.is_some() {
+                    em.f.op(I::Else);
+                    em.f.i32(0);
+                    em.f.op(I::End);
+                }
+                let held = em.f.local(Val::I32);
+                em.f.set(held);
+                active.push(held);
+            }
+            // ruled out: own::referent states Cold for every thin parameter
+            // referent whose object the concrete frame layout saves here.
+            let reason = em.required_stated_count(
+                Tag::Retain,
+                CountAt::Cold,
+                CountPart::Referent(super::required(
+                    u32::try_from(saved.local).ok(),
+                    "TIR parameter IDs fit u32",
+                )),
+            );
+            for (conditional, held) in saved.conditional.iter().copied().zip(&saved.held) {
+                if conditional {
+                    let (at, value) =
+                        super::required(at_of(*held), "saved referent owners have frame slots");
+                    em.f.get(fr);
+                    em.f.i32(0);
+                    em.f.op(store_op(value, at));
                 }
             }
-            // The cells of the creator's own loans (E.2), each with a count
-            // the frame holds, and the body's own loans as they stand.
-            let own = em.own_caps(ci);
-            for (l, p) in own.into_iter().zip(&parts[caps.len()..]) {
-                let y = em.f.local(Val::I32);
-                em.f.get(0);
-                em.f.op(m.leaves[p.first].load(0));
-                em.f.set(y);
-                // ruled out: own::cold_captures includes the counted/shared
-                // pointer captures whose creator loan cells own_caps copies.
-                let reason = super::required(copy, "own::cold_captures must state loan copy");
+            for (leaf, slot) in saved.plan.refs.iter().zip(saved.slots) {
+                let held = saved.held[slot];
+                let (at, value) =
+                    super::required(at_of(held), "saved referent owners have frame slots");
+                if let Some(guard) = leaf.guard {
+                    em.f.get(active[guard]);
+                    em.f.op(I::If(BlockType::Empty));
+                }
+                let source = values[leaf.value as usize];
+                em.f.get(source);
                 em.because(reason, |em| {
-                    em.f.get(y);
-                    em.f.helper(Helper::RetainKnown);
+                    em.f.count_call(Sym::Inst(r.retain), crate::views::CountAction::Retain);
                 });
-
-                for (x, cell) in em.own_frame_locals(l) {
-                    if let Some((at, v)) = at_of(x) {
+                em.f.get(fr);
+                em.f.get(source);
+                em.f.op(store_op(value, at));
+                if leaf.guard.is_some() {
+                    em.f.op(I::End);
+                }
+            }
+        }
+        em.save_initial_drop_flags(plocals, fr, &area);
+        em.retain_row(CountAt::Cold, 1);
+        // A closure's code reads its captures from its environment, its first
+        // parameter, into the frame, with a count of each.
+        if let Some(ci) = closure {
+            let copy = em.stated_count(Tag::Retain, CountAt::Cold, CountPart::Captures);
+            if let Some(l) = super::closure::self_local(&em.recursive_bindings, ci) {
+                // The executing closure's value is not an environment field.
+                // Save it directly in the fresh frame, with the same ownership
+                // as a capture loaded from that environment.
+                let ls = em.locals[&l].clone();
+                for (j, x) in ls.iter().enumerate() {
+                    if let Some((at, v)) = at_of(*x) {
                         em.f.get(fr);
-                        em.f.get(y);
-                        if !cell {
-                            em.f.op(I::I32Load(crate::module::mem(crate::module::HEAP, 0, 2)));
+                        if j == 0 {
+                            em.f.table_slot(Sym::Inst(key));
+                        } else {
+                            em.f.get(0);
                         }
                         em.f.op(store_op(v, at));
                     }
                 }
+                // ruled out: own::cold_captures states Captures whenever
+                // closure_self exists, even without other environment fields.
+                let reason = super::required(copy, "own::cold_captures must state self copy");
+                em.because(reason, |em| em.ref_retain(0));
+            }
+            let caps = super::closure::captures(em.b, ci, &em.recursive_bindings);
+            if !caps.is_empty() {
+                let (m, parts, _) = em.env_layout(ci, &caps)?;
+                for ((l, _), p) in caps.iter().zip(&parts) {
+                    let Some(ls) = em.locals.get(l).cloned() else {
+                        continue;
+                    };
+                    let mut loaded = Vec::new();
+                    for leaf in &m.leaves[p.first..p.first + p.count] {
+                        let y = em.f.local(leaf.val);
+                        em.f.get(0);
+                        em.f.op(leaf.load(0));
+                        em.f.set(y);
+                        loaded.push(y);
+                    }
+                    if let Some(reason) = copy {
+                        em.because(reason, |em| em.count_local(*l, &loaded, true))?;
+                    }
+                    for (x, y) in ls.iter().zip(&loaded) {
+                        if let Some((at, v)) = at_of(*x) {
+                            em.f.get(fr);
+                            em.f.get(*y);
+                            em.f.op(store_op(v, at));
+                        }
+                    }
+                }
+                // The cells of the creator's own loans (E.2), each with a count
+                // the frame holds, and the body's own loans as they stand.
+                let own = em.own_caps(ci);
+                for (l, p) in own.into_iter().zip(&parts[caps.len()..]) {
+                    let y = em.f.local(Val::I32);
+                    em.f.get(0);
+                    em.f.op(m.leaves[p.first].load(0));
+                    em.f.set(y);
+                    // ruled out: own::cold_captures includes the counted/shared
+                    // pointer captures whose creator loan cells own_caps copies.
+                    let reason = super::required(copy, "own::cold_captures must state loan copy");
+                    em.because(reason, |em| {
+                        em.f.get(y);
+                        em.f.helper(Helper::RetainKnown);
+                    });
+
+                    for (x, cell) in em.own_frame_locals(l) {
+                        if let Some((at, v)) = at_of(x) {
+                            em.f.get(fr);
+                            em.f.get(y);
+                            if !cell {
+                                em.f.op(I::I32Load(crate::module::mem(crate::module::HEAP, 0, 2)));
+                            }
+                            em.f.op(store_op(v, at));
+                        }
+                    }
+                }
             }
         }
-    }
-    em.f.get(fr);
-    let cold = std::mem::take(&mut em.f);
+        em.f.get(fr);
+        Ok(std::mem::take(&mut em.f))
+    };
+    let cold = constructor(&mut em, false)?;
+    let lent = if em.frame_refs.is_empty() {
+        None
+    } else {
+        Some(constructor(&mut em, true)?)
+    };
     // The release glue may trace a started frame: what it loads, such as
     // a drop flag, stays saved.
     for ins in &drop.body {
@@ -2040,6 +2065,9 @@ pub(super) fn finish(
     em.m.define(Sym::Part(key, Part::Poll), poll);
     em.m.define(Sym::Part(key, Part::Cancel), cancel);
     em.m.define(Sym::Part(key, Part::Drop), drop);
+    if let Some(lent) = lent {
+        em.m.define(Sym::Part(key, Part::Lent), lent);
+    }
     Ok(cold)
 }
 
