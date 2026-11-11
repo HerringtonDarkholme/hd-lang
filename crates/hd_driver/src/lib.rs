@@ -1588,8 +1588,8 @@ struct Run<'a> {
     verify_own: bool,
     /// The layout facts the ownership passes ask of a type, computed once
     /// per run (`own.rs`): whether it holds a counted leaf, and whether it
-    /// is a reference.
-    own_types: Mutex<HashMap<Ty, (bool, bool)>>,
+    /// is a local reference or a counted owning reference.
+    own_types: Mutex<HashMap<Ty, (bool, Option<bool>)>>,
     /// Whether a value of a type may be copied, per run (`own.rs`,
     /// `OwnCx::copies`).
     copy_types: Mutex<HashMap<Ty, hd_tir::own::Tri>>,

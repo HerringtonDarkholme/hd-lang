@@ -70,18 +70,6 @@
       end
       local.get $r
     ;; 30 |     held = box(Ring { next: .Some(r) })
-      local.get $r
-      local.tee $t0
-      if
-        local.get $t0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t0
-          call $rt:retain_known
-        end
-      end
       i32.const 4
       i32.const -2147483646
       call $rt:new/class-1

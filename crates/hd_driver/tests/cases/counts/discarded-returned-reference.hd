@@ -1,8 +1,8 @@
 # @dump: counts
 # @build: v8 release
-# expected: no count operations; a chaining method's `&mut` result that
-# the caller drops needs no retain in the callee and no release in the caller
-# (StringBuilder.push in map_count and string_build).
+# expected: `add` transfers its incoming counted `*mut` owner to its result
+# without retaining. `fill` copies its still-live receiver for each call and
+# releases the returned owner; its final exit releases its own receiver.
 struct Tally:
     count: usize
 

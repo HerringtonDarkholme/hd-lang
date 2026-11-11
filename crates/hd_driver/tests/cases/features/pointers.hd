@@ -3,7 +3,7 @@
 # Feature: `box`, `*T` and `*mut T` (#1364).
 # expected: `make` allocates once and moves `n` in; a read through `*T`
 # takes no count; a write releases the old field; `share` retains `p`
-# once per stored copy of a lent pointer.
+# once for the second returned owner; the first receives the incoming owner.
 struct Node:
     name: string
     next: *Node?

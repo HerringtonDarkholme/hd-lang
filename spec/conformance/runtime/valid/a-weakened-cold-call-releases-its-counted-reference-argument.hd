@@ -1,0 +1,100 @@
+# test: weakened cold function values release their counted reference argument exactly once
+# Spec std/weak: std-weak.release.target; functions: fn.type.suspend.weaken and fn.type.suspend.ctor.
+use std.annotation.cold
+use std.testing.assert_equal
+use std.weak.{Weak, weak}
+
+@cold
+fn echo!(value: *i32) -> *i32:
+    value
+
+@cold
+fn generic_echo![T](value: T) -> T:
+    value
+
+fn link(value: &i32) -> Weak[i32]?:
+    weak(value)
+
+fn expired(link: Weak[i32]?) -> bool:
+    match link:
+        .Some(seen) => seen.upgrade().is_none()
+        .None => false
+
+fn make(generic: bool) -> (Weak[i32]?, Suspend[*i32]):
+    value := box(+7)
+    seen := link(value)
+    let call: fn(*i32) -> Suspend[*i32] = if generic: generic_echo else: echo
+    (seen, call(value))
+
+fn complete!(generic: bool) -> Weak[i32]?:
+    let (seen, pending) = make(generic)
+    value := pending!()
+    assert_equal(*value, 7, reason="the weakened call preserves its result")
+    seen
+
+fn cancel!(generic: bool) -> Weak[i32]?:
+    let (seen, pending) = make(generic)
+    _ := pending.cancel!()
+    seen
+
+trait Read:
+    fn read(self) -> i32
+
+impl Read for i32:
+    fn read(self) -> i32:
+        self
+
+type Handle(*i32)
+
+@cold
+fn capture(value: *dyn Read) -> fn() -> i32:
+    fn() -> i32: value.read()
+
+@cold
+fn keep[T < 'static](value: T) -> fn() -> T:
+    fn() -> T: value
+
+@cold
+fn project(value: &i32) -> &i32:
+    value
+
+fn projected() -> Weak[i32]?:
+    value := box(+7)
+    seen := link(value)
+    borrowed := project(value)
+    assert_equal(*borrowed, 7, reason="a dependent result keeps its counted origin")
+    seen
+
+fn captured() -> Weak[i32]?:
+    value := box(+7)
+    seen := link(value)
+    let readable: *dyn Read = value
+    saved := capture(readable)
+    assert_equal(saved() + saved(), 14, reason="both calls keep the captured trait reference")
+    seen
+
+fn wrapped() -> Weak[i32]?:
+    value := box(+7)
+    seen := link(value)
+    saved := keep(Handle(value))
+    _ := saved()
+    _ := saved()
+    seen
+
+tests:
+    it("completion releases the last strong argument and result"):
+        for generic in [false, true]:
+            seen := complete!(generic)
+            assert(expired(seen), reason="completion leaves no orphan owner")
+
+    it("cold cancellation releases the last strong argument"):
+        for generic in [false, true]:
+            seen := cancel!(generic)
+            assert(expired(seen), reason="cancellation leaves no orphan owner")
+
+    it("a dependent local result keeps its counted source until its last use"):
+        assert(expired(projected()), reason="the last dependent read releases its origin")
+
+    it("ordinary captures preserve fat references and nominal wrappers"):
+        assert(expired(captured()), reason="the final fat capture owner is released")
+        assert(expired(wrapped()), reason="the final newtype capture owner is released")

@@ -11,8 +11,6 @@ struct Point:
 
 fn bump(p: *mut Point) -> fn() -> void:
     fn() -> void: p.x = p.x + 1
-> app/main/bump
->   retain counted reference (stored)
 
 fn demo(s: string) -> i32:
     origin := box(Point { name: s, x: 0 })
@@ -20,6 +18,7 @@ fn demo(s: string) -> i32:
 >   release fn() -> () (last use)
 >   release *mut app.main.Point (last use)
     step := bump(origin)
+>   retain *mut app.main.Point (stored)
     step()
     step()
     origin.x

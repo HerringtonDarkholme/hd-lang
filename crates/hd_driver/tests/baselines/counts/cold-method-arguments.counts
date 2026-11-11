@@ -55,7 +55,6 @@ pub fn known!(reader: &Reader, values: List[string]) -> usize $ Clock:
 pub fn dynamic!(reader: *dyn Measure, values: List[string]) -> usize $ Clock:
     reader.measure!(values)
 > app/main/dynamic
->   retain *app.main.Measure (by design)
 >   retain counted reference (stored)
 >   release counted reference (last use)
 >   retain counted reference (stored)
@@ -72,14 +71,12 @@ pub fn dynamic!(reader: *dyn Measure, values: List[string]) -> usize $ Clock:
 >   release counted reference (last use)
 >   release counted reference (last use)
 > app/main/dynamic
->   retain *app.main.Measure (by design)
 >   retain counted reference (stored)
 
 pub fn main() -> void $ Clock:
     reader := Reader { padding: 0 }
 > app/main/main
 >   release Suspend[usize] (last use)
->   release *app.main.Measure (by design)
 >   release Suspend[usize] (last use)
     _ := block_on(known(&reader, ["known"]))
     _ := block_on(dynamic(box(reader), ["dynamic"]))

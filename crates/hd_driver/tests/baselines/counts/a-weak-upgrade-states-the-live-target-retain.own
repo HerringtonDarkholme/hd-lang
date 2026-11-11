@@ -32,23 +32,25 @@ fn upgrade_mut[T](value: WeakMut[T]) -> (*mut T)?:
 >   summary kept [] borrows [$0]
 
 fn readonly(value: Weak[Node]) -> (*Node)?:
-    upgrade(value)
 > std/rt_tests.stage_case/readonly
 >   local $0 value: Weak[Node] [param read] value
->     uses $0: entry -> %0 lend last
->   %0 = Read borrow [$0] : Weak[Node]
->   %1 = Call std/rt_tests.stage_case/upgrade[Node] (%0) : *Node?
->   %2 = Retain %1 Value #0 : ()
->   %3 = Block %1 : *Node?
->   summary kept [] writes
+>     uses $0: entry -> %1 lend last
+>   %0 = Release %4 Exit local $0 #2 : ()
+    upgrade(value)
+>   %1 = Read borrow [$0] : Weak[Node]
+>   %2 = Call std/rt_tests.stage_case/upgrade[Node] (%1) : *Node?
+>   %3 = Retain %2 Value #0 : ()
+>   %4 = Block %2 : *Node?
+>   summary kept [] borrows [$0] writes
 
 fn writable(value: WeakMut[Node]) -> (*mut Node)?:
-    upgrade_mut(value)
 > std/rt_tests.stage_case/writable
 >   local $0 value: WeakMut[Node] [param read] value
->     uses $0: entry -> %0 lend last
->   %0 = Read borrow [$0] : WeakMut[Node]
->   %1 = Call std/rt_tests.stage_case/upgrade_mut[Node] (%0) : *mut Node?
->   %2 = Retain %1 Value #0 : ()
->   %3 = Block %1 : *mut Node?
->   summary kept [] writes
+>     uses $0: entry -> %1 lend last
+>   %0 = Release %4 Exit local $0 #2 : ()
+    upgrade_mut(value)
+>   %1 = Read borrow [$0] : WeakMut[Node]
+>   %2 = Call std/rt_tests.stage_case/upgrade_mut[Node] (%1) : *mut Node?
+>   %3 = Retain %2 Value #0 : ()
+>   %4 = Block %2 : *mut Node?
+>   summary kept [] borrows [$0] writes

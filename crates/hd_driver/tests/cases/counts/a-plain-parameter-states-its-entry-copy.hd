@@ -1,6 +1,9 @@
 # @dump: own counts wat
 # @build: v8 release program
-# expected: an owned explicit parameter states its conditional entry copy; a borrowed counted-pointer ABI copies, while owned ABI strings, scalars, lending references and Drop parameters add no copy. same(shared) uses a concrete lending instance and emits no conservative Call retain. Capture loading is separate.
+# expected: an explicit parameter states its conditional entry copy.
+# Counted pointer and string parameters arrive owned; local references borrow.
+# A caller with a still-live counted argument supplies the required copy.
+# Capture loading is separate from the creator's argument transfer.
 use std.annotation.cold
 use std.collections.UniqList
 

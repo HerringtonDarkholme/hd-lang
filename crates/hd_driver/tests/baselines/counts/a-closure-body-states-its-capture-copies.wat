@@ -10,10 +10,10 @@
   (import "fixture" "println[i32]" (func $"println[i32]" (param i32 i32 i32)))
   (import "fixture" "println[usize]" (func $"println[usize]" (param i32 i32 i32)))
   (import "fixture" "rt:new/class-1'1" (func $rt:new/class-1'1 (param i32 i32) (result i32)))
+  (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "rt:list_buf" (func $rt:list_buf (param i32) (result i32)))
   (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
-  (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "rt:new/class-1'2" (func $rt:new/class-1'2 (param i32 i32) (result i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
@@ -284,6 +284,19 @@
       i32.store $heap offset=4
       local.get $shared
     ;; 27 |     println(keep(shared)().text)
+      local.tee $items
+      local.tee $t0
+      if
+        local.get $t0
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t0
+          call $rt:retain_known
+        end
+      end
+      local.get $items
       i32.const 9
       call_indirect $table0 (param i32) (result i32 i32)
       local.set $t1
@@ -505,17 +518,6 @@
   )
   (func $"keep[*Named]" (param $value i32) (result i32 i32) (local $t0 i32)
     ;; 15 |     fn() -> T: value
-    local.get $value
-    if
-      local.get $value
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $value
-        call $rt:retain_known
-      end
-    end
     block
       i32.const 11
       i32.const 4

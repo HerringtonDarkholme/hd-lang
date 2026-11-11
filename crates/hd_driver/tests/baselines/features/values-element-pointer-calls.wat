@@ -2,10 +2,10 @@
 (module
   (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
+  (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
-  (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
@@ -22,7 +22,7 @@
       i64.store $heap
     end
   )
-  (func $save (param $node i32) (param $k i32) (local $t0 i32) (local $t1 i32) (local $e i32)
+  (func $save (param $node i32) (param $k i32) (local $t0 i32) (local $t1 i32) (local $e i32) (local $t2 i32)
     ;; 35 |     for e in &node.children:
     block
       local.get $node
@@ -67,6 +67,19 @@
     ;; 36 |         keep(*e, k)
             local.get $e
             i32.load $heap
+            local.tee $e
+            local.tee $t2
+            if
+              local.get $t2
+              i32.const 8
+              i32.sub
+              i32.load $heap
+              if
+                local.get $t2
+                call $rt:retain_known
+              end
+            end
+            local.get $e
             local.get $k
             call $keep
     ;; 35 |     for e in &node.children:
@@ -76,13 +89,14 @@
         end
       end
       local.get $node
+      local.tee $t2
       if
-        local.get $node
+        local.get $t2
         i32.const 8
         i32.sub
         i32.load $heap
         if
-          local.get $node
+          local.get $t2
           call $rt:release_ref'1
         end
       end
@@ -278,18 +292,6 @@
   (func $keep (param $n i32) (param $k i32) (local $t0 i32) (local $t1 i32)
     ;; 32 |     k.saved.push(n)
     block
-      local.get $n
-      local.tee $t0
-      if
-        local.get $t0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t0
-          call $rt:retain_known
-        end
-      end
       local.get $k
       i32.load $heap
       call $rt:list_unique

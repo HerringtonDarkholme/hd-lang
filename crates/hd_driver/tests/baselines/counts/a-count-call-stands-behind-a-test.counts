@@ -38,6 +38,5 @@ pub fn ring(r: *mut Ring) -> *mut Ring:
 > app/main/ring
 >   retain *mut app.main.Ring (stored)
     held = box(Ring { next: .Some(r) })
->   retain *mut app.main.Ring (stored)
 >   release *mut app.main.Ring (overwritten)
     held

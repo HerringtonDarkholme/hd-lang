@@ -95,7 +95,7 @@
       i32.store $heap offset=4
     end
   )
-  (func $nested (param $log i32) (param $early i32) (result i32) (local $t5 i32) (local $t6 i32) (local $t1 i32) (local $t7 i32) (local $t2 i32) (local $t0 i32) (local $t3 i32) (local $t4 i32)
+  (func $nested (param $log i32) (param $early i32) (result i32) (local $t4 i32) (local $t6 i32) (local $t1 i32) (local $t7 i32) (local $t2 i32) (local $t0 i32) (local $t3 i32) (local $t5 i32)
     ;; 8 |     defer(fn() -> void: log.push(+1))
     global.get $locals
     global.get $locals_base
@@ -175,7 +175,9 @@
             i32.store $heap
             local.get $early
             call $rt:retain_fields
-            local.set $log
+            local.get $early
+            local.set $t4
+            local.set $early
             block
               block
                 br 0
@@ -187,31 +189,31 @@
             local.get $t0
             i32.const 24
             i32.add
-            local.tee $t4
-            local.get $log
-            i32.store $heap
-            local.get $t4
+            local.tee $t5
             local.get $early
+            i32.store $heap
+            local.get $t5
+            local.get $t4
             i32.store $heap offset=4
             i32.const 1
-            local.set $early
+            local.set $t3
     ;; 11 |         return 3
             i32.const 3
-            local.set $t5
+            local.set $t4
             i32.const 1
-            local.set $log
+            local.set $early
             br 0
     ;; 10 |         defer(fn() -> void: log.push(+2))
             i32.const 0
-            local.set $log
+            local.set $early
           end
-          local.get $early
+          local.get $t3
           if
             global.get $forbid
             i32.const 1
             i32.add
             global.set $forbid
-            local.get $t4
+            local.get $t5
             i32.eqz
             if
               local.get $t0
@@ -220,14 +222,14 @@
               local.get $t0
               i32.const 24
               i32.add
-              local.tee $t4
+              local.tee $t5
               i32.const 0
               i32.store $heap
-              local.get $t4
+              local.get $t5
               i32.const 0
               i32.store $heap offset=4
             end
-            local.get $t4
+            local.get $t5
             i32.const 0
             call $"impl[$ R, 'a, F < FnMut() -> void $ R & 'a] Disposable[$ R] for DeferGuard[F, $ R, 'a].dispose[{open row}, fn() -> ()]"
             global.get $forbid
@@ -235,7 +237,7 @@
             i32.add
             global.set $forbid
           end
-          local.get $log
+          local.get $early
           i32.const 1
           i32.eq
           if
@@ -285,86 +287,116 @@
       if
         br 1
       end
-      local.get $t4
+      local.get $t5
       if
-        local.get $t4
+        local.get $t5
         i32.load $heap offset=4
-        local.tee $log
+        local.tee $early
         if
-          local.get $log
+          local.get $early
           i32.const 8
           i32.sub
           i32.load $heap
           global.get $tracing
           i32.or
           if
-            local.get $log
+            local.get $early
             call $rt:release_ref
           end
         end
       end
       i32.const 0
-      local.set $t4
+      local.set $t5
       local.get $t2
       if
         local.get $t2
         i32.load $heap offset=4
-        local.tee $log
+        local.tee $early
         if
-          local.get $log
+          local.get $early
           i32.const 8
           i32.sub
           i32.load $heap
           global.get $tracing
           i32.or
           if
-            local.get $log
+            local.get $early
             call $rt:release_ref
           end
         end
       end
       i32.const 0
       local.set $t2
+      local.get $log
+      local.tee $early
+      if
+        local.get $early
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $early
+          call $rt:release_ref
+        end
+      end
+      i32.const 0
+      local.set $log
       local.get $t7
-      local.set $t5
+      local.set $t4
+    end
+    local.get $log
+    local.tee $early
+    if
+      local.get $early
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      global.get $tracing
+      i32.or
+      if
+        local.get $early
+        call $rt:release_ref
+      end
     end
     local.get $t2
     if
       local.get $t2
       i32.load $heap offset=4
-      local.tee $log
+      local.tee $early
       if
-        local.get $log
+        local.get $early
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $log
-          call $rt:release_ref
-        end
-      end
-    end
-    local.get $t4
-    if
-      local.get $t4
-      i32.load $heap offset=4
-      local.tee $log
-      if
-        local.get $log
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $log
+          local.get $early
           call $rt:release_ref
         end
       end
     end
     local.get $t5
+    if
+      local.get $t5
+      i32.load $heap offset=4
+      local.tee $early
+      if
+        local.get $early
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $early
+          call $rt:release_ref
+        end
+      end
+    end
+    local.get $t4
     local.get $t0
     i32.const 32
     i32.add

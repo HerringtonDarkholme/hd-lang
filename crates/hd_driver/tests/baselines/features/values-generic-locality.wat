@@ -72,29 +72,15 @@
       local.get $u.name.0
     ;; 34 |     later(kept)().name.len()
       call $"later[*User]"
-      local.set $t0
       local.set $u.name.1
-      local.get $t0
-      i32.const 0
+      local.set $u.name.0
       local.get $u.name.1
-      call_indirect $table0 (param i32 i32) (result i32)
-      local.tee $u.name.1
-    ;; 33 |     kept := keep(u)
-      local.get $t0
-      local.tee $t1
-      if
-        local.get $t1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $t1
-          call $rt:release_ref'1
-        end
-      end
+      i32.const 0
       local.get $u.name.0
+      call_indirect $table0 (param i32 i32) (result i32)
+      local.tee $u.name.0
+    ;; 33 |     kept := keep(u)
+      local.get $u.name.1
       local.tee $t1
       if
         local.get $t1
@@ -109,19 +95,19 @@
         end
       end
     ;; 34 |     later(kept)().name.len()
-      local.tee $u.name.0
+      local.tee $u.name.1
       i32.load $heap
-      local.get $u.name.0
+      local.get $u.name.1
       i32.load $heap offset=4
       local.set $t0
-      local.tee $u.name.0
+      local.tee $u.name.1
       local.tee $t1
       if
         local.get $t1
         call $retain
       end
     ;; 33 |     kept := keep(u)
-      local.get $u.name.1
+      local.get $u.name.0
       local.tee $t1
       if
         local.get $t1
@@ -139,19 +125,17 @@
       block
         block
           local.get $t0
-          local.set $u.name.1
+          local.set $u.name.0
           br 0
         end
       end
     ;; 33 |     kept := keep(u)
-      local.get $u.name.0
+      local.get $u.name.1
       local.tee $t1
       if
         local.get $t1
         call $rt:release_ref'2
       end
-      local.get $u.name.1
-      local.set $u.name.0
     end
     local.get $u.name.0
   )
@@ -175,17 +159,6 @@
   )
   (func $"later[*User]" (param $value i32) (result i32 i32) (local $t0 i32)
     ;; 30 |     fn() -> T: value
-    local.get $value
-    if
-      local.get $value
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $value
-        call $rt:retain_known
-      end
-    end
     block
       i32.const 2
       i32.const 4

@@ -18,7 +18,8 @@ fn walk(n: *Node?) -> i64:
 
 fn leftmost(n: *Node?, last: *Node) -> *Node:
     match n:
-        .None => last
 > app/main/leftmost
->   retain *app.main.Node (stored)
+>   release *app.main.Node (last use)
+        .None => last
         .Some(node) => leftmost(node.left, node)
+>   retain *app.main.Node (stored)

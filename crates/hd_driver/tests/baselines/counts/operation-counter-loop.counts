@@ -9,8 +9,6 @@ EXTRA := true
 @cold
 fn duplicate(value: *string) -> *string:
     value
-> app/main/duplicate
->   retain *string (stored)
 
 @cold
 fn length(value: &string) -> usize:
@@ -25,6 +23,7 @@ pub fn main() -> void $ Console:
         if EXTRA:
 >   release *string (last use)
             extra := duplicate(root)
+>   retain *mut string (stored)
             total += length(extra)
         else:
             total += length(root)

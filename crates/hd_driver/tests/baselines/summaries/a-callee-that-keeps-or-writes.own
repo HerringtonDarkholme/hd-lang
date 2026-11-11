@@ -113,16 +113,18 @@ fn rename(target: &mut Member, m: Member) -> void:
 
 impl Tally:
     fn add(*mut self) -> *mut Tally:
-        self.count = self.count + 1
 > app/main/impl Tally.add
 >   local $0 self: *mut Tally [param read] value
->     uses $0: entry -> %0 lend, %2 lend, %3 consume last
->   %0 = Read copy [*$0 .count] : usize
->   %1 = Prim Add [%0 1:usize] : usize
->   %2 = Store [*$0 .count] %1 : ()
->   %4 = Block %3 : *mut Tally
+>     uses $0: entry -> %1 lend, %3 lend, %4 consume last
+>   %0 = Retain %5 Entry local $0 #0 : ()
+        self.count = self.count + 1
+>   %1 = Read copy [*$0 .count] : usize
+>   %2 = Prim Add [%1 1:usize] : usize
+>   %3 = Store [*$0 .count] %2 : ()
+>   %5 = Block %4 : *mut Tally
         self
->   %3 = Read copy [$0] : *mut Tally
+>   %4 = Read move [$0] : *mut Tally
+>   exit sub 0 drops [$0]
 >   summary kept [$0] returns $0 writes
 
 fn other(a: string, b: string) -> string:

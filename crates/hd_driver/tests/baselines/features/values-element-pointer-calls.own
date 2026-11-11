@@ -85,17 +85,19 @@ pub struct Keeper:
     pub saved: List[*Node]
 
 fn keep(n: *Node, k: &mut Keeper) -> void:
-    k.saved.push(n)
 > app/main/keep
 >   local $0 n: *Node [param read] value
->     uses $0: entry -> %0 consume last
+>     uses $0: entry -> %1 consume last
 >   local $1 k: &mut Keeper [param read] value
->     uses $1: entry -> %2 lend last
->   %0 = Read copy [$0] : *Node
->   %1 = IsUnique [*$1 .saved] : ()
->   %2 = Read borrow [*$1 .saved] : List[*Node]
->   %3 = Intrinsic ListPush [%2 %0] : ()
->   %4 = Block - : ()
+>     uses $1: entry -> %3 lend last
+>   %0 = Retain %5 Entry local $0 #0 : ()
+    k.saved.push(n)
+>   %1 = Read move [$0] : *Node
+>   %2 = IsUnique [*$1 .saved] : ()
+>   %3 = Read borrow [*$1 .saved] : List[*Node]
+>   %4 = Intrinsic ListPush [%3 %1] : ()
+>   %5 = Block - : ()
+>   exit sub 0 drops [$0]
 >   summary kept [$0] writes
 
 fn save(node: &Node, k: &mut Keeper) -> void:
@@ -123,70 +125,72 @@ fn save(node: &Node, k: &mut Keeper) -> void:
 >   %10 = Store [$3] %9 : ()
 >   %11 = Ref local pins [%0 [%7]] : &*Node
 >   %15 = Block - : ()
->   %16 = Read borrow [%11] : &*Node
+>   %16 = Read copy [%11] : &*Node
 >   %17 = Store [$4] %16 : ()
 >   %18 = Release %17 Operation #3 : ()
 >   %20 = Block - : never
 >   %21 = Match %11 [%20 %15] : ()
->   %22 = LoanEnd [%11] : ()
->   %23 = Block - : ()
->   %24 = Break L0 - : never
->   %25 = Block - : ()
->   %26 = If %6 [%23 %25] : ()
->   %27 = Block - : ()
->   %28 = Loop %27 - : ()
->   %29 = Drop [%0] : ()
->   %30 = Block - : ()
+>   %22 = LoanEnd [$4] : ()
+>   %23 = LoanEnd [%11] : ()
+>   %24 = Block - : ()
+>   %25 = Break L0 - : never
+>   %26 = Block - : ()
+>   %27 = If %6 [%24 %26] : ()
+>   %28 = Block - : ()
+>   %29 = Loop %28 - : ()
+>   %30 = Drop [%0] : ()
+>   %31 = Block - : ()
         keep(*e, k)
->   %12 = Read borrow [*$4] : *Node
+>   %12 = Read copy [*$4] : *Node
 >   %13 = Read borrow [$1] : &mut Keeper
 >   %14 = Call app/main/keep[] (%12, %13) : ()
 >   summary kept [] writes relies [$0]
 
 pub fn run(root: *Node) -> i64:
-    let mut total = Total { sum: 0 }
 > app/main/run
 >   local $0 root: *Node [param read] value
->     uses $0: entry -> %2 lend, %16 lend last
+>     uses $0: entry -> %3 lend, %17 lend last
 >   local $1 total: Total [read assigned captured captured-assigned] place
 >   local $2 $ref: &mut Total [read assigned captured] value
->     uses $2: %4 -> %5 lend last
+>     uses $2: %5 -> %6 lend last
 >   local $3 keeper: Keeper [read assigned captured captured-assigned] place
->   %0 = NewStruct [0:i64] : Total
->   %1 = Store [$1] %0 : ()
->   %27 = Block %26 : i64
+>   %0 = Release %28 Exit local $0 #2 : ()
+    let mut total = Total { sum: 0 }
+>   %1 = NewStruct [0:i64] : Total
+>   %2 = Store [$1] %1 : ()
+>   %28 = Block %27 : i64
     walk(root, &mut total)
->   %2 = Read borrow [$0] : *Node
->   %3 = Ref mut local frame [$1] : &mut Total
->   %4 = Store [$2] %3 : ()
->   %5 = Read move [$2] : &mut Total
->   %6 = Coerce %5 [RefToTraitValue -] : Sink
->   %7 = Retain %6 Value #0 : ()
->   %8 = LoanEnd [%5] : ()
->   %9 = Block %6 : Sink
->   %10 = RefDyn %9 : &mut dyn Sink
->   %11 = Call app/main/walk[] (%2, %10) : ()
->   %12 = Drop [%10] : ()
->   %3 finds [$1] full
+>   %3 = Read borrow [$0] : *Node
+>   %4 = Ref mut local frame [$1] : &mut Total
+>   %5 = Store [$2] %4 : ()
+>   %6 = Read move [$2] : &mut Total
+>   %7 = Coerce %6 [RefToTraitValue -] : Sink
+>   %8 = Retain %7 Value #0 : ()
+>   %9 = LoanEnd [%6] : ()
+>   %10 = Block %7 : Sink
+>   %11 = RefDyn %10 : &mut dyn Sink
+>   %12 = Call app/main/walk[] (%3, %11) : ()
+>   %13 = Drop [%11] : ()
+>   %4 finds [$1] full
     let mut keeper = Keeper { saved: [] }
->   %13 = NewList - [] : List[*Node]
->   %14 = NewStruct [%13] : Keeper
->   %15 = Store [$3] %14 : ()
+>   %14 = NewList - [] : List[*Node]
+>   %15 = NewStruct [%14] : Keeper
+>   %16 = Store [$3] %15 : ()
     save(root, &mut keeper)
->   %16 = Read borrow [$0] : *Node
->   %17 = Ref mut local frame [$3] : &mut Keeper
->   %18 = Call app/main/save[] (%16, %17) : ()
->   %19 = LoanEnd [%17] : ()
->   %17 finds [$3] full
+>   %17 = Read borrow [$0] : *Node
+>   %18 = Ref mut local frame [$3] : &mut Keeper
+>   %19 = Call app/main/save[] (%17, %18) : ()
+>   %20 = LoanEnd [%18] : ()
+>   %18 finds [$3] full
     total.sum + i64(keeper.saved.len())
->   %20 = Read copy [$1 .sum] : i64
->   %21 = Drop [$1] : ()
->   %22 = Read move [$3 .saved] : List[*Node]
->   %23 = Intrinsic ListLen [%22] : usize
->   %24 = Drop [%22] : ()
->   %25 = Prim Conv [%23] : i64
->   %26 = Prim Add [%20 %25] : i64
->   %20 finds [$1] full
->   %22 finds [$3] full
+>   %21 = Read copy [$1 .sum] : i64
+>   %22 = Drop [$1] : ()
+>   %23 = Read move [$3 .saved] : List[*Node]
+>   %24 = Intrinsic ListLen [%23] : usize
+>   %25 = Drop [%23] : ()
+>   %26 = Prim Conv [%24] : i64
+>   %27 = Prim Add [%21 %26] : i64
+>   %21 finds [$1] full
+>   %23 finds [$3] full
 >   storage sub 0: $1 slot, $3 slot
->   summary kept [] writes
+>   summary kept [] borrows [$0] writes

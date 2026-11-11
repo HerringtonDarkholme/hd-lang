@@ -52,21 +52,22 @@ fn bump(p: &mut Point) -> void:
 >   summary kept [] writes
 
 fn lend(h: *mut Point) -> usize:
-    nudge(h)
 > app/main/lend
 >   local $0 h: *mut Point [param read] value
->     uses $0: entry -> %0 lend, %2 lend, %4 lend last
->   %0 = Read borrow [$0] : *mut Point
->   %1 = Call app/main/nudge[] (%0) : ()
->   %7 = Block %6 : usize
+>     uses $0: entry -> %1 lend, %3 lend, %5 lend last
+>   %0 = Release %8 Exit local $0 #2 : ()
+    nudge(h)
+>   %1 = Read borrow [$0] : *mut Point
+>   %2 = Call app/main/nudge[] (%1) : ()
+>   %8 = Block %7 : usize
     bump(h)
->   %2 = Read borrow [$0] : *mut Point
->   %3 = Call app/main/bump[] (%2) : ()
+>   %3 = Read borrow [$0] : *mut Point
+>   %4 = Call app/main/bump[] (%3) : ()
     view(h)
->   %4 = Read borrow [$0] : *mut Point
->   %5 = Coerce %4 [Weaken -] : &Point
->   %6 = Call app/main/view[] (%5) : usize
->   summary kept [] writes
+>   %5 = Read borrow [$0] : *mut Point
+>   %6 = Coerce %5 [Weaken -] : &Point
+>   %7 = Call app/main/view[] (%6) : usize
+>   summary kept [] borrows [$0] writes
 
 fn local(s: string) -> usize:
 > app/main/local
@@ -124,11 +125,13 @@ fn local(s: string) -> usize:
 >   summary kept [$0] writes
 
 fn weaken(h: *mut Point) -> *Point:
-    h
 > app/main/weaken
 >   local $0 h: *mut Point [param read] value
->     uses $0: entry -> %0 consume last
->   %0 = Read copy [$0] : *mut Point
->   %1 = Coerce %0 [Weaken -] : *Point
->   %2 = Block %1 : *Point
+>     uses $0: entry -> %1 consume last
+>   %0 = Retain %3 Entry local $0 #0 : ()
+    h
+>   %1 = Read move [$0] : *mut Point
+>   %2 = Coerce %1 [Weaken -] : *Point
+>   %3 = Block %2 : *Point
+>   exit sub 0 drops [$0]
 >   summary kept [$0]

@@ -272,7 +272,7 @@ fn a_test_run_keeps_the_test_profile() {
     assert_eq!(release.wasm, checked.wasm);
 }
 
-/// req.suspend.cold: exercise the owned direct and fused entry, borrowed
+/// req.suspend.cold: exercise the owned direct and fused entry, type-selected
 /// function-value convention, a caller-used argument on resume, and cancellation.
 #[test]
 fn stable_cold_arguments_transfer_across_call_routes() {
