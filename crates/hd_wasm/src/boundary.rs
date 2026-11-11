@@ -3127,6 +3127,31 @@ mod discarded_tests {
     use hd_tir::ir::{BodyKind, Place};
 
     #[test]
+    fn opaque_signature_nodes_use_declared_width_without_expansion() {
+        let ty = LTy::Record(vec![
+            LTy::Void,
+            LTy::Never("unreturned".into()),
+            LTy::Codec(Box::new(LCodec {
+                vals: vec![Val::I64, Val::I32, Val::F64],
+                size: 24,
+                leaves: vec![],
+                codec: Hash128(17),
+            })),
+            // No definition is installed for this recursive codec. Width
+            // reads its declared ABI and must never resolve the definition.
+            LTy::Named(Box::new(LNamed {
+                id: 91,
+                vals: vec![Val::I32, Val::I64],
+            })),
+            LTy::Str,
+        ]);
+        let mut visits = 0;
+        assert_eq!(ty.value_count_with(&mut || visits += 1), 7);
+        assert_eq!(ty.value_count(), ty.vals().len());
+        assert_eq!(visits, 6);
+    }
+
+    #[test]
     fn signature_width_visits_wide_deep_records_once() {
         for (width, depth) in [(100, 20), (1_000, 20), (20, 1_000)] {
             let mut ty = LTy::Record((0..width).map(|_| LTy::Str).collect());

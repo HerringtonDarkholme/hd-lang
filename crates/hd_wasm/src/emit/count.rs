@@ -1314,6 +1314,16 @@ impl Em<'_, '_, '_> {
     pub(super) fn own_local_read(&mut self, i: u32, l: usize) -> StageResult<()> {
         use hd_tir::ir::ReadMode;
         let mode = ReadMode::from_u32(self.b.data[i as usize][1]);
+        // A move forwards an owned local view's count, whether its storage
+        // is a Wasm local or a cell. lower_body_refs can retag the read as
+        // a local reference while keeping its storage type counted.
+        if mode == Some(ReadMode::Move)
+            && (self.owned_locals.contains(&l)
+                || ((self.local_ref(self.ty(i)) || self.fat_local_ref(self.ty(i)))
+                    && self.counted(self.sub(self.b.local_ty[l])).is_some()))
+        {
+            self.owned_refs.insert(i);
+        }
         if self.is_cell(l) {
             return match mode {
                 Some(ReadMode::Borrow) => {

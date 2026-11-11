@@ -123,6 +123,36 @@ mod capture_origin_tests {
     }
 
     #[test]
+    fn loaded_capture_cells_route_creator_and_snapshot_lookups() {
+        let body = body(4, &[(1, 0), (2, 1)]);
+        let mut borrows = Borrows {
+            capture_origins: CaptureOrigins::new(&body, |_| true),
+            ..Borrows::default()
+        };
+        // An ordinary capture has no source routing entry.
+        borrows.load_own_cell(3, 43, true);
+        assert!(borrows.own_cell_sources.is_empty());
+        assert_eq!(borrows.own_cell_source(3), 3);
+        assert_eq!(borrows.own_cells[&3], (43, true));
+
+        // The closure prologue loads a snapshot's cell. Later accesses
+        // through either its creator or another eliminated snapshot must
+        // find that same cell, including its borrowed-frame flag.
+        borrows.load_own_cell(2, 41, false);
+        for local in 0..3 {
+            let source = borrows.own_cell_source(local);
+            assert_eq!(source, 2);
+            assert_eq!(borrows.own_cells[&source], (41, false));
+        }
+        assert_eq!(borrows.own_cell_sources.len(), 1);
+
+        // A physical cell already held by the creator takes precedence.
+        borrows.load_own_cell(0, 47, true);
+        assert_eq!(borrows.own_cell_source(0), 0);
+        assert_eq!(borrows.own_cells[&0], (47, true));
+    }
+
+    #[test]
     fn capture_provenance_chains_have_linear_counted_work() {
         for width in [100u32, 1_000] {
             let depth = 20;
@@ -680,6 +710,24 @@ pub(super) fn pointer_lent(
     }
 }
 
+impl Borrows {
+    fn load_own_cell(&mut self, local: usize, cell: u32, held: bool) {
+        self.own_cells.insert(local, (cell, held));
+        let root = self.capture_origins.local(local);
+        if root != local {
+            self.own_cell_sources.insert(root, local);
+        }
+    }
+
+    fn own_cell_source(&self, local: usize) -> usize {
+        if self.own_cells.contains_key(&local) {
+            return local;
+        }
+        let root = self.capture_origins.local(local);
+        self.own_cell_sources.get(&root).copied().unwrap_or(root)
+    }
+}
+
 impl Em<'_, '_, '_> {
     /// Finds the body's holder bindings that take pointer loans, where the
     /// program lends any object.
@@ -954,15 +1002,7 @@ impl Em<'_, '_, '_> {
     }
 
     fn own_cell_source(&self, l: usize) -> usize {
-        if self.borrows.own_cells.contains_key(&l) {
-            return l;
-        }
-        let root = self.borrows.capture_origins.local(l);
-        self.borrows
-            .own_cell_sources
-            .get(&root)
-            .copied()
-            .unwrap_or(root)
+        self.borrows.own_cell_source(l)
     }
 
     /// At a closure that captures pointer local `l`: the cell of the own
@@ -1003,11 +1043,7 @@ impl Em<'_, '_, '_> {
     /// frame holds a count of each.
     pub(super) fn own_cells_load(&mut self, ci: usize, cells: &[u32], held: bool) {
         for (l, c) in self.own_caps(ci).into_iter().zip(cells.iter().copied()) {
-            self.borrows.own_cells.insert(l, (c, held));
-            let root = self.borrows.capture_origins.local(l);
-            if root != l {
-                self.borrows.own_cell_sources.insert(root, l);
-            }
+            self.borrows.load_own_cell(l, c, held);
             if let Some(k) = self.own_key(l) {
                 let own = self.own_local(k);
                 self.f.get(c);

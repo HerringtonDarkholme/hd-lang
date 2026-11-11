@@ -1,0 +1,44 @@
+# @dump: wat
+# @build: v8 release std
+# Conservative header proofs never cache across an unknown raw source.
+use std.rt.bytes.panic_with
+use std.rt.memory.Ptr
+
+struct Header:
+    length: usize
+
+struct Holder:
+    ptr: Ptr[usize]
+
+fn deep_pointer_aliases(header: &Header, pointer: Ptr[usize], n: usize) -> usize:
+    p0 := pointer
+    p1 := p0
+    p2 := p1
+    p3 := p2
+    p4 := p3
+    p5 := p4
+    p6 := p5
+    p7 := p6
+    p8 := p7
+    p9 := p8
+    p10 := p9
+    p11 := p10
+    p12 := p11
+    p13 := p12
+    p14 := p13
+    p15 := p14
+    p16 := p15
+    p17 := p16
+    p18 := p17
+    p19 := p18
+    raw := p19
+    let i: usize = 0
+    let total: usize = 0
+    # subject
+    while i < n:
+        raw.offset(i).write(i)
+        if i >= header.length:
+            panic_with("index", "index")
+        total = total + i
+        i = i + 1
+    total

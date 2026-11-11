@@ -3758,3 +3758,44 @@ assert.equal(w.ready(last), 32, 'weak lookup survives registry growth');
         );
     }
 }
+
+#[cfg(test)]
+mod native_leaf_drop_tests {
+    use super::*;
+
+    #[test]
+    fn a_glue_only_leaf_keeps_its_native_hook_without_count_leaf_loads() -> Result<(), String> {
+        let target = Hash128(91);
+        let area = Elem {
+            size: 4,
+            leaves: vec![Leaf {
+                offset: 0,
+                val: Val::I32,
+                bytes: 4,
+                signed: false,
+            }],
+            walk: Some(Walk::Glue),
+            colls: vec![],
+            drops: vec![crate::rt::DropCall {
+                offset: 0,
+                target,
+                guards: vec![],
+            }],
+            cyclic: false,
+        };
+        let Some(Sym::Helper(Helper::DropFields {
+            leaves,
+            walk,
+            drops,
+        })) = leaf_drop(&area)
+        else {
+            return Err("a native leaf must have release glue".into());
+        };
+        assert!(leaves.is_empty());
+        assert_eq!(walk, Walk::Glue);
+        assert_eq!(drops.len(), 1);
+        assert_eq!(drops[0].target, target);
+        assert_eq!(drops[0].offset, LEAF_ARGS);
+        Ok(())
+    }
+}

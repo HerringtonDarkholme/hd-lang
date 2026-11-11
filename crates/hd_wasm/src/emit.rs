@@ -1852,11 +1852,13 @@ impl Em<'_, '_, '_> {
             }
             return Ok(());
         }
-        // A `&dyn` counts nothing (`ref.count.local`): one that takes a
-        // `*dyn`'s count owns that trait value ([`Em::owned_refs`]).
-        let owns = self.fat_local_ref(self.ty(i))
-            && self.counted(self.ty_of(a)).is_some()
-            && !self.loans.contains(&a);
+        // A local view forwards the count an earlier view owns. A fresh
+        // `&dyn` that takes a `*dyn`'s count owns that trait value too,
+        // though the local reference type counts nothing (`ref.count.local`).
+        let owns = !self.loans.contains(&a)
+            && ((self.fat_local_ref(self.ty(i)) && self.counted(self.ty_of(a)).is_some())
+                || ((self.local_ref(self.ty(i)) || self.fat_local_ref(self.ty(i)))
+                    && self.owned_refs.contains(&a)));
         if self.take(a)
             && self.susp.is_none()
             && !self.vals.contains_key(&i)
@@ -2299,12 +2301,12 @@ impl Em<'_, '_, '_> {
         if self.headers.leaders.contains(&i)
             && let Some(&[l]) = self.vals.get(&i).map(Vec::as_slice)
         {
-            let np = self.f.params.len();
-            let ty = if (l as usize) < np {
-                self.f.params[l as usize]
-            } else {
-                self.f.locals[l as usize - np]
-            };
+            // A header leader resolves to a dereferenced field load,
+            // which starts in a fresh local; forwarding reads preserve it.
+            // TIR promotion removes that Deref; backend promoted_refs
+            // accepts only in-place Ref operands. Neither makes a header
+            // key (guards::Proof::key_uncached) alias an incoming parameter.
+            let ty = self.f.locals[l as usize - self.f.params.len()];
             let kept = self.f.local(ty);
             self.f.get(l);
             self.f.set(kept);

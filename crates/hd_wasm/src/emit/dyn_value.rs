@@ -28,14 +28,13 @@ impl Em<'_, '_, '_> {
         ty
     }
 
-    /// The trait value that `value`, a reference to one, perhaps through
-    /// more references, refers to: its type, locals holding it, and
-    /// whether they were loaded from storage. A reference to a trait value is
-    /// that trait value (`refs.rs`), lent; one read through an address is
-    /// a copy whose caller provides its count.
+    /// The trait value that `value`, perhaps through more references,
+    /// reaches: its type, locals holding its data/vtable pair, and whether
+    /// they were loaded from storage. A load can borrow; the ownership
+    /// pass states any count its caller must acquire.
     pub(super) fn read_dyn_value(&mut self, value: u32) -> StageResult<(Ty, Vec<u32>, bool)> {
         let mut ty = self.ty_of(value);
-        // Both callers test that `dyn_value_ty` strips references from
+        // The caller tests that `dyn_value_ty` strips references from
         // `value`'s type to a trait value.
         let target = self.dyn_value_ty(ty);
         let mut ls = self.computed(value);
@@ -418,14 +417,11 @@ impl Em<'_, '_, '_> {
         } else {
             Some(self.read_dyn_value(a)?)
         };
-        if let Some((target, ls, true)) = &read {
-            // ruled out: ownership states the result Retain when widening
-            // loads an owned dynamic receiver; emission never invents a count.
-            assert!(
-                self.has_stated_retain(i),
-                "loaded dyn widen has a stated Retain"
-            );
-            // Lower the adjacent Retain before the supertrait vtable loads.
+        if let Some((target, ls, true)) = &read
+            && self.has_result_retain(i)
+        {
+            // A loaded pair borrows unless ownership states a copy.
+            // Lower that Retain before the supertrait vtable loads.
             self.because(hd_tir::own::Reason::Stored, |em| {
                 em.retain_locals(ls, *target)
             })?;
@@ -460,7 +456,7 @@ impl Em<'_, '_, '_> {
         // value one refers to, borrows as it does.
         let borrowed = !self.has_result_retain(i)
             && match &read {
-                Some((_, _, loaded)) => !loaded && self.counted(source).is_none(),
+                Some((_, _, loaded)) => *loaded || self.counted(source).is_none(),
                 None => self.loans.contains(&a),
             };
         if borrowed {

@@ -25,6 +25,7 @@ pub struct Payload:
     counter: *mut Counter
     marker: Marker?
     single: Only
+    tuple: (Marker,)
 
 impl !Copy for Payload
 
@@ -46,6 +47,7 @@ fn payload(counter: *mut Counter, values: List[string]) -> Payload:
         counter: counter,
         marker: .Some(Marker { counter: counter }),
         single: .Held(Marker { counter: counter }),
+        tuple: (Marker { counter: counter },)
     }
 
 fn abandoned(child: &dyn Child, counter: *mut Counter) -> void:
@@ -61,15 +63,15 @@ pub fn main!() -> void $ Child:
         panic("wrong pending host result")
     if values != ["one", "two"]:
         panic("parent list changed")
-    if counter.drops != 21:
+    if counter.drops != 31:
         panic("normal host hook count ${counter.drops}")
     abandoned(child, counter)
-    if counter.drops != 42:
+    if counter.drops != 62:
         panic("abandoned host hook count")
     match block_on(child.child(payload(counter, ["one"]))):
         .Completed(7) => pass
         _ => panic("blocking host did not complete")
-    if counter.drops != 63:
+    if counter.drops != 93:
         panic("blocking host hook count")
     if (
         child.child!(
@@ -78,19 +80,20 @@ pub fn main!() -> void $ Child:
                 counter: counter,
                 marker: .None,
                 single: .Held(Marker { counter: counter }),
+                tuple: (Marker { counter: counter },)
             },
         )
         != 7
     ):
         panic("absent marker host result")
-    if counter.drops != 74:
+    if counter.drops != 114:
         panic("absent marker hook count")
     match block_on(child.child(payload(counter, ["ready"]))):
         .Completed(7) => pass
         _ => panic("ready blocking host did not complete")
-    if counter.drops != 95:
+    if counter.drops != 145:
         panic("ready blocking hook count")
     if child.inspect(payload(counter, ["one"])) != 7:
         panic("synchronous host result")
-    if counter.drops != 116:
+    if counter.drops != 176:
         panic("synchronous host hook count ${counter.drops}")
