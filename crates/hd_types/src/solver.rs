@@ -109,15 +109,6 @@ impl EnvKey {
     pub const UNSET: EnvKey = EnvKey(u32::MAX);
 }
 
-/// A declared bound, as written on an item (§4.2's input).
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct DeclaredBound {
-    pub param: ParamRef,
-    pub tref: TraitRef,
-    pub bindings: Vec<(DefId, Ty)>,
-    pub mut_: bool,
-}
-
 /// The elaborated parameter environment, as columns (§2.3). Clauses are
 /// added only through [`ParamEnv::push`], which keeps two indexes: the
 /// clauses on each self type, and the (self, trait, arguments) triples
@@ -198,22 +189,21 @@ impl ParamEnv {
     }
 
     /// Drops the clauses from index `n` on, and the record of each
-    /// projection elaborated into them.
+    /// projection elaborated into them. A self type's clause indices
+    /// ascend, so the dropped ones are the tail of its list.
     pub fn truncate(&mut self, n: usize) {
-        while self.clause_self.len() > n {
-            let (Some(s), Some(t), Some(a)) = (
-                self.clause_self.pop(),
-                self.clause_trait.pop(),
-                self.clause_args.pop(),
-            ) else {
-                break;
-            };
+        let dropped = self
+            .clause_self
+            .drain(n..)
+            .zip(self.clause_trait.drain(n..))
+            .zip(self.clause_args.drain(n..));
+        for ((s, t), a) in dropped {
             self.present.remove(&(s, t, a));
-            if let Some(list) = self.by_self.get_mut(&s) {
-                list.pop();
-                if list.is_empty() {
-                    self.by_self.remove(&s);
-                }
+            // Every clause's self type has its list (`push`).
+            let list = self.by_self.entry(s).or_default();
+            list.pop();
+            if list.is_empty() {
+                self.by_self.remove(&s);
             }
         }
         self.clause_bindings.truncate(n);
@@ -242,11 +232,6 @@ impl ParamEnv {
     }
 
     #[must_use]
-    pub fn clause_self(&self) -> &[Ty] {
-        &self.clause_self
-    }
-
-    #[must_use]
     pub fn clause_trait(&self) -> &[DefId] {
         &self.clause_trait
     }
@@ -261,8 +246,6 @@ impl ParamEnv {
         &self.clause_bindings
     }
 }
-
-pub type ParamEnvBuilder = ParamEnv;
 
 /// The impl universe of a solving context (§3.2; `crates/hd_sched/DESIGN.md` §6.1): the
 /// sorted folders of its closure whose `arg_impls` section is not empty.
@@ -972,7 +955,7 @@ impl GlobalMemo {
     /// equal keys; no clause is `EnvKey::EMPTY`. A run ID: it keys the
     /// memo, never a cache key or output.
     pub fn env_key(&self, env: &ParamEnv) -> EnvKey {
-        if env.clause_self.is_empty() {
+        if env.is_empty() {
             return EnvKey::EMPTY;
         }
         let clauses = (
@@ -1170,10 +1153,7 @@ pub fn canonicalize(
     mut_: bool,
 ) -> (CanonGoal, CanonVars) {
     let mut vars = CanonVars::default();
-    let mut number = |t: Ty| -> Result<Ty, std::convert::Infallible> {
-        let TyData::Infer(v) = pool.get(t) else {
-            return Ok(t);
-        };
+    let mut number = |v: InferVar| -> Result<Ty, std::convert::Infallible> {
         let i = vars.map.iter().position(|w| *w == v).unwrap_or_else(|| {
             vars.map.push(v);
             vars.kinds.push(VarKind::General);
@@ -1181,8 +1161,9 @@ pub fn canonicalize(
         });
         Ok(pool.intern_ty(&TyData::Canon(u8::try_from(i).unwrap_or(u8::MAX))))
     };
-    let Ok(self_ty) = fold_vars(pool, tref.self_ty, false, &mut number);
-    let Ok(args) = fold_list(pool, tref.args, false, &mut number);
+    let mut leaves = Leaves::Infer(&mut number);
+    let Ok(self_ty) = fold_vars(pool, tref.self_ty, &mut leaves);
+    let Ok(args) = fold_list(pool, tref.args, &mut leaves);
     let goal = CanonGoal {
         kind,
         mut_,
@@ -1195,28 +1176,39 @@ pub fn canonicalize(
     (goal, vars)
 }
 
-/// Rebuilds `t` with every inference variable (`canon` false) or every
-/// placeholder (`canon` true) replaced by `f`, in a fixed pre-order walk
-/// over every type form; `None` when `f` refuses one.
-fn fold_vars<E>(
-    pool: Types<'_>,
-    t: Ty,
-    canon: bool,
-    f: &mut dyn FnMut(Ty) -> Result<Ty, E>,
-) -> Result<Ty, E> {
-    let has = if canon {
-        pool.has_canon(t)
-    } else {
-        pool.has_infer(t)
-    };
-    if !has {
+/// The leaves a fold replaces, each with its replacement: the inference
+/// variables, or the placeholders (`Canon(i)`, given with their type).
+enum Leaves<'f, E> {
+    Infer(&'f mut dyn FnMut(InferVar) -> Result<Ty, E>),
+    Canon(&'f mut dyn FnMut(Ty, u8) -> Result<Ty, E>),
+}
+
+impl<E> Leaves<'_, E> {
+    /// Whether `t` holds a leaf this fold replaces.
+    fn in_ty(&self, pool: Types<'_>, t: Ty) -> bool {
+        match self {
+            Leaves::Infer(_) => pool.has_infer(t),
+            Leaves::Canon(_) => pool.has_canon(t),
+        }
+    }
+}
+
+/// Rebuilds `t` with every leaf of `leaves` replaced, in a fixed
+/// pre-order walk over every type form; the first error a replacement
+/// gives stops it.
+fn fold_vars<E>(pool: Types<'_>, t: Ty, leaves: &mut Leaves<'_, E>) -> Result<Ty, E> {
+    if !leaves.in_ty(pool, t) {
         return Ok(t);
     }
-    let d = match pool.get(t) {
-        TyData::Infer(_) | TyData::Canon(_) => return f(t),
+    let d = match (pool.get(t), &mut *leaves) {
+        (TyData::Infer(v), Leaves::Infer(f)) => return f(v),
+        (TyData::Canon(i), Leaves::Canon(f)) => return f(t, i),
+        (d, _) => d,
+    };
+    let d = match d {
         TyData::Adt { def, args } => TyData::Adt {
             def,
-            args: fold_list(pool, args, canon, f)?,
+            args: fold_list(pool, args, leaves)?,
         },
         TyData::Opaque {
             owner,
@@ -1228,23 +1220,23 @@ fn fold_vars<E>(
             owner,
             site,
             borrows,
-            args: fold_list(pool, args, canon, f)?,
-            bound: fold_vars(pool, bound, canon, f)?,
+            args: fold_list(pool, args, leaves)?,
+            bound: fold_vars(pool, bound, leaves)?,
         },
         TyData::Tuple { elems, rest } => TyData::Tuple {
-            elems: fold_list(pool, elems, canon, f)?,
+            elems: fold_list(pool, elems, leaves)?,
             rest: match rest {
-                Some(r) => Some(fold_vars(pool, r, canon, f)?),
+                Some(r) => Some(fold_vars(pool, r, leaves)?),
                 None => None,
             },
         },
-        TyData::Union(members) => TyData::Union(fold_list(pool, members, canon, f)?),
+        TyData::Union(members) => TyData::Union(fold_list(pool, members, leaves)?),
         TyData::Ref {
             inner,
             mutable,
             counted,
         } => TyData::Ref {
-            inner: fold_vars(pool, inner, canon, f)?,
+            inner: fold_vars(pool, inner, leaves)?,
             mutable,
             counted,
         },
@@ -1256,9 +1248,9 @@ fn fold_vars<E>(
             inputs,
             deps,
         } => TyData::Fn {
-            params: fold_list(pool, params, canon, f)?,
-            result: fold_vars(pool, result, canon, f)?,
-            row: fold_row(pool, row, canon, f)?,
+            params: fold_list(pool, params, leaves)?,
+            result: fold_vars(pool, result, leaves)?,
+            row: fold_row(pool, row, leaves)?,
             suspends,
             inputs,
             deps,
@@ -1269,10 +1261,10 @@ fn fold_vars<E>(
             bindings,
         } => TyData::TraitValue {
             def,
-            args: fold_list(pool, args, canon, f)?,
+            args: fold_list(pool, args, leaves)?,
             bindings: bindings
                 .into_iter()
-                .map(|(k, b)| Ok((k, fold_vars(pool, b, canon, f)?)))
+                .map(|(k, b)| Ok((k, fold_vars(pool, b, leaves)?)))
                 .collect::<Result<Vec<_>, E>>()?,
         },
         TyData::Assoc {
@@ -1283,36 +1275,24 @@ fn fold_vars<E>(
         } => TyData::Assoc {
             assoc,
             trait_,
-            self_ty: fold_vars(pool, self_ty, canon, f)?,
-            args: fold_list(pool, args, canon, f)?,
+            self_ty: fold_vars(pool, self_ty, leaves)?,
+            args: fold_list(pool, args, leaves)?,
         },
-        TyData::Row(r) => TyData::Row(fold_row(pool, r, canon, f)?),
-        TyData::Context(r) => TyData::Context(fold_row(pool, r, canon, f)?),
+        TyData::Row(r) => TyData::Row(fold_row(pool, r, leaves)?),
+        TyData::Context(r) => TyData::Context(fold_row(pool, r, leaves)?),
         other => other,
     };
     Ok(pool.intern_ty(&d))
 }
 
-fn fold_list<E>(
-    pool: Types<'_>,
-    l: TyList,
-    canon: bool,
-    f: &mut dyn FnMut(Ty) -> Result<Ty, E>,
-) -> Result<TyList, E> {
+fn fold_list<E>(pool: Types<'_>, l: TyList, leaves: &mut Leaves<'_, E>) -> Result<TyList, E> {
     let items = pool.list_items(l);
-    let has = |t: &Ty| {
-        if canon {
-            pool.has_canon(*t)
-        } else {
-            pool.has_infer(*t)
-        }
-    };
-    if !items.iter().any(has) {
+    if !items.iter().any(|t| leaves.in_ty(pool, *t)) {
         return Ok(l);
     }
     let mut out = Vec::with_capacity(items.len());
     for t in items {
-        out.push(fold_vars(pool, *t, canon, f)?);
+        out.push(fold_vars(pool, *t, leaves)?);
     }
     Ok(pool.list(&out))
 }
@@ -1320,22 +1300,14 @@ fn fold_list<E>(
 fn fold_row<E>(
     pool: Types<'_>,
     r: crate::pool::RowId,
-    canon: bool,
-    f: &mut dyn FnMut(Ty) -> Result<Ty, E>,
+    leaves: &mut Leaves<'_, E>,
 ) -> Result<crate::pool::RowId, E> {
     let mut d = pool.row_data(r);
-    let has = |t: &Ty| {
-        if canon {
-            pool.has_canon(*t)
-        } else {
-            pool.has_infer(*t)
-        }
-    };
-    if !d.keys.iter().any(has) {
+    if !d.keys.iter().any(|t| leaves.in_ty(pool, *t)) {
         return Ok(r);
     }
     for k in &mut d.keys {
-        *k = fold_vars(pool, *k, canon, f)?;
+        *k = fold_vars(pool, *k, leaves)?;
     }
     Ok(pool.row(&d))
 }
@@ -1350,24 +1322,24 @@ fn canon_answer(pool: Types<'_>, a: &Answer, vars: &CanonVars) -> Option<CanonAn
             .position(|w| *w == v)
             .and_then(|i| u8::try_from(i).ok())
     };
-    let mut place = |t: Ty| match pool.get(t) {
-        TyData::Infer(v) => index(v)
+    let mut place = |v: InferVar| {
+        index(v)
             .map(|i| pool.intern_ty(&TyData::Canon(i)))
-            .ok_or(()),
-        _ => Ok(t),
+            .ok_or(())
     };
+    let mut place = Leaves::Infer(&mut place);
     Some(match a {
         Answer::Holds { evidence, learned } => CanonAnswer::Holds {
             evidence: match evidence {
                 Evidence::Impl { row, args } => Evidence::Impl {
                     row: *row,
-                    args: fold_list(pool, *args, false, &mut place).ok()?,
+                    args: fold_list(pool, *args, &mut place).ok()?,
                 },
                 other => other.clone(),
             },
             learned: learned
                 .iter()
-                .map(|(v, t)| Some((index(*v)?, fold_vars(pool, *t, false, &mut place).ok()?)))
+                .map(|(v, t)| Some((index(*v)?, fold_vars(pool, *t, &mut place).ok()?)))
                 .collect::<Option<_>>()?,
         },
         Answer::Candidates(cands) => CanonAnswer::Candidates(
@@ -1375,8 +1347,8 @@ fn canon_answer(pool: Types<'_>, a: &Answer, vars: &CanonVars) -> Option<CanonAn
                 .iter()
                 .map(|c| {
                     Some(Candidate {
-                        impl_args: fold_list(pool, c.impl_args, false, &mut place).ok()?,
-                        args: fold_list(pool, c.args, false, &mut place).ok()?,
+                        impl_args: fold_list(pool, c.impl_args, &mut place).ok()?,
+                        args: fold_list(pool, c.args, &mut place).ok()?,
                         ..c.clone()
                     })
                 })
@@ -1407,16 +1379,16 @@ fn canon_answer(pool: Types<'_>, a: &Answer, vars: &CanonVars) -> Option<CanonAn
 fn decanon_answer(pool: Types<'_>, a: &CanonAnswer, vars: &CanonVars) -> Answer {
     let var = |i: u8| vars.map[usize::from(i)];
     // A placeholder the goal did not number (`hd_mono`'s open row) stays.
-    let mut back = |t: Ty| -> Result<Ty, std::convert::Infallible> {
-        Ok(match pool.get(t) {
-            TyData::Canon(i) if usize::from(i) < vars.map.len() => {
-                pool.intern_ty(&TyData::Infer(var(i)))
-            }
-            _ => t,
+    let mut back = |t: Ty, i: u8| -> Result<Ty, std::convert::Infallible> {
+        Ok(if usize::from(i) < vars.map.len() {
+            pool.intern_ty(&TyData::Infer(var(i)))
+        } else {
+            t
         })
     };
-    let list = |l: TyList, f: &mut dyn FnMut(Ty) -> Result<Ty, std::convert::Infallible>| {
-        let Ok(l) = fold_list(pool, l, true, f);
+    let mut back = Leaves::Canon(&mut back);
+    let list = |l: TyList, leaves: &mut Leaves<'_, std::convert::Infallible>| {
+        let Ok(l) = fold_list(pool, l, leaves);
         l
     };
     match a {
@@ -1431,7 +1403,7 @@ fn decanon_answer(pool: Types<'_>, a: &CanonAnswer, vars: &CanonVars) -> Answer 
             learned: learned
                 .iter()
                 .map(|(i, t)| {
-                    let Ok(t) = fold_vars(pool, *t, true, &mut back);
+                    let Ok(t) = fold_vars(pool, *t, &mut back);
                     (var(*i), t)
                 })
                 .collect(),
@@ -4650,6 +4622,59 @@ mod tests {
                 });
             }
         });
+    }
+
+    /// A rolled-back trial (`hd_check`'s `Ck::rollback`) truncates the
+    /// environment to its mark: the clauses it added go, with the record of
+    /// each projection it elaborated, so the body adds that projection's
+    /// bounds again when it next names it. What came before the mark
+    /// stays, and the environment keys as one that never held the rest.
+    #[test]
+    fn truncating_forgets_projections_elaborated_past_the_mark() {
+        use super::EnvKey;
+        let gp = InternPool::new();
+        let g = gp.types();
+        let (_, [show, pick, boxed, _]) = show_table(g);
+        let tp = param(g, DefId::from_raw(40), 0);
+        let projection = |self_ty| {
+            g.intern_ty(&TyData::Assoc {
+                assoc: DefId::from_raw(50),
+                trait_: show,
+                self_ty,
+                args: TyList::EMPTY,
+            })
+        };
+        let (outer, inner) = (projection(tp), projection(adt(g, boxed, &[tp])));
+        let mut env = ParamEnv::default();
+        assert!(env.is_empty());
+        let global = GlobalMemo::default();
+        assert_eq!(global.env_key(&env), EnvKey::EMPTY);
+        assert!(env.push(tp, show, TyList::EMPTY, vec![], false));
+        assert!(env.push(outer, show, TyList::EMPTY, vec![], false));
+        env.mark_elaborated(outer);
+        let before = env.clone();
+        let mark = env.len();
+        // The trial: a clause on a self type the mark already has, and a
+        // projection's bounds.
+        assert!(env.push(tp, pick, TyList::EMPTY, vec![], false));
+        assert!(env.push(inner, show, TyList::EMPTY, vec![], false));
+        env.mark_elaborated(inner);
+        assert!(env.elaborated(inner));
+        env.truncate(mark);
+        assert_eq!(env.len(), mark);
+        assert!(env.elaborated(outer));
+        assert!(!env.elaborated(inner));
+        assert_eq!(env.clauses_of(tp), [0]);
+        assert_eq!(env.clauses_of(inner), [] as [u32; 0]);
+        assert!(env.contains(tp, show, TyList::EMPTY));
+        assert!(!env.contains(tp, pick, TyList::EMPTY));
+        assert!(!env.contains(inner, show, TyList::EMPTY));
+        assert_eq!(global.env_key(&env), global.env_key(&before));
+        // The next time the body names it, its bounds go in again.
+        assert!(env.push(inner, show, TyList::EMPTY, vec![], false));
+        env.mark_elaborated(inner);
+        assert!(env.elaborated(inner));
+        assert_eq!(env.clauses_of(inner), [2]);
     }
 
     /// §2.2: body memo entries are canonical, so a trial that cached one

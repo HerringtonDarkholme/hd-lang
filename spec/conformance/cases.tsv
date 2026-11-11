@@ -4130,6 +4130,7 @@ typing/invalid/duplicate-associated-binding-two-bounds.hd	type	reject:duplicate-
 parse/invalid/impl-header-associated-binding.hd	parse	reject:syntax-error	lang/09-traits.md#r-trait.binding.rejected-trait-type
 runtime/valid/associated-binding-positions.hd	runtime	accept	lang/09-traits.md#r-trait.binding.positions-key
 runtime/valid/associated-type-bound-binding.hd	runtime	accept	lang/09-traits.md#r-trait.assoc.bound-use
+runtime/valid/an-indexed-projection-keeps-its-bounds-after-the-receiver-trial.hd	runtime	accept	lang/09-traits.md#r-trait.assoc.bound-use
 typing/invalid/dyn-self-parameter-unavailable.hd	type	reject:dyn-member-unavailable	lang/09-traits.md#r-trait.dyn.member.self
 runtime/valid/unsafe-trait-static-bound.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.member.self
 runtime/valid/trait-value-binding-identity.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.binding.identity

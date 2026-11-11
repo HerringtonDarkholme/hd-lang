@@ -1,0 +1,38 @@
+# test: a method call on an element of a projection's index result tries the receiver once and rolls that back; the real check still sees the projection's Index bound
+# Spec 09 Associated Types: trait.assoc.bound-use. Spec 07 Methods: fn.method.auto-address.
+use std.ops.Index
+
+struct Cell:
+    v: i32
+
+impl Cell:
+    fn get(&self) -> i32:
+        self.v
+
+trait Shelf:
+    type Row < Index[usize, Out = Cell]
+    fn row(self) -> Self::Row
+
+struct Pair:
+    cells: List[Cell]
+
+impl Index[usize] for Pair:
+    type Out = Cell
+    fn index(&self, key: usize) -> &Cell:
+        &self.cells[key]
+
+struct Two: pass
+
+impl Shelf for Two:
+    type Row = Pair
+    fn row(self) -> Pair:
+        Pair { cells: [Cell { v: 4 }, Cell { v: 7 }] }
+
+fn second[S < Shelf](s: S) -> i32:
+    s.row()[1].get()
+
+tests:
+    use std.testing.assert_equal
+
+    it("S::Row indexes through its bound after the receiver trial"):
+        assert_equal(second(Two {}), 7, reason="the second cell holds 7")

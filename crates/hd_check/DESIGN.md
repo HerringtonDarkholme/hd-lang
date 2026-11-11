@@ -308,10 +308,9 @@ pub struct SolveCx<'a> {
 
 pub trait Solver: Sync {
     fn solve(&self, cx: &mut SolveCx<'_>, goal: &Goal, fuel: &mut Fuel) -> StageResult<Answer>;
-    fn elaborate(&self, bounds: &[DeclaredBound], out: &mut ParamEnvBuilder) -> EnvKey;
     fn select(&self, cx: &mut SolveCx<'_>, tref: ConcreteTraitRef) -> StageResult<Selection>; // codegen
-    fn normalize_concrete(&self, pool: Types<'_>, impls: Impls<'_>, t: Ty) -> StageResult<Ty>; // codegen
 }
+pub fn normalize_concrete(pool: Types<'_>, impls: Impls<'_>, t: Ty) -> Ty; // codegen
 ```
 
 - **No `Coinductive` evidence.** A derive instance's member goals reach
@@ -1727,16 +1726,19 @@ The answer shapes:
 pub trait Solver: Sync {
     /// One goal in one context (body, header check or derive instance).
     fn solve(&self, cx: &mut SolveCx<'_>, goal: &Goal, fuel: &mut Fuel) -> StageResult<Answer>;
-    /// Copies declared bounds into a `ParamEnv`; the checker's
-    /// `body::add_bound` does the supertrait walk (section 4.2).
-    fn elaborate(&self, bounds: &[DeclaredBound], out: &mut ParamEnvBuilder) -> EnvKey;
     /// Codegen's entry: the impl of a concrete trait reference (section 8.3).
     fn select(&self, cx: &mut SolveCx<'_>, tref: ConcreteTraitRef) -> StageResult<Selection>;
-    /// Codegen's entry for associated types: every projection in `t` with a
-    /// concrete base, by a head match.
-    fn normalize_concrete(&self, pool: Types<'_>, impls: Impls<'_>, t: Ty) -> StageResult<Ty>;
 }
+
+/// Codegen's entry for associated types: every projection in `t` with a
+/// concrete base, by a head match.
+pub fn normalize_concrete(pool: Types<'_>, impls: Impls<'_>, t: Ty) -> Ty;
 ```
+
+The checker builds a `ParamEnv` itself: `body::add_bound` pushes each
+declared bound and walks its supertraits (section 4.2), and
+`body::add_projection_bounds` adds a projection's associated-type bounds
+the first time a body names it.
 
 `TableSolver` implements it. Not in scope: implied bounds
 ([Declared Bounds Are Not Implied](../../spec/lang/09-traits.md#declared-bounds-are-not-implied)),
