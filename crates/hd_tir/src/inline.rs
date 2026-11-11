@@ -97,8 +97,10 @@ pub fn rechoose(k: &mut Body, pick: &dyn Fn(DefId, Ty, TyList) -> Option<DefId>)
 }
 
 /// Whether `c` may be copied structurally: a function of one sub-body, its
-/// root block last, with no suspension, `defer`, closure, provider or
-/// ownership statement, and no call with providers.
+/// root block last, with no suspension, `defer`, closure, escaping context or
+/// ownership statement, and no call with explicit providers. A copied `With`
+/// retains its lexical scope; copied `ProviderGet`s resolve there, exactly
+/// as they resolved at the call. Context construction keeps its call boundary.
 #[must_use]
 pub fn copyable(c: &Body) -> bool {
     let n = c.len();
@@ -113,10 +115,8 @@ pub fn copyable(c: &Body) -> bool {
                 | Tag::Hook
                 | Tag::Defer
                 | Tag::Closure
-                | Tag::ProviderGet
                 | Tag::ContextFor
                 | Tag::ContextNew
-                | Tag::With
                 | Tag::Hole
                 | Tag::Poison
                 | Tag::Drop
@@ -815,8 +815,10 @@ fn relocate(
                     *w += xbase;
                 }
                 Op::Label => *w += lab,
-                // `ItemRef`'s first word is a record too.
-                Op::Meta if k.tags[i] == Tag::ItemRef => *w += xbase,
+                // Item and provider references keep their IDs in records.
+                Op::Meta if matches!(k.tags[i], Tag::ItemRef | Tag::ProviderGet) => {
+                    *w += xbase;
+                }
                 _ => {}
             }
         }
@@ -933,6 +935,34 @@ mod tests {
         );
         body.anchors.clear();
         assert_eq!(verify(&body), []);
+    }
+
+    #[test]
+    fn provider_keys_keep_their_type_when_the_copy_moves_its_records() -> Result<(), String> {
+        let mut b = TirBuilder::new(DefId::from_raw(3), BodyKind::Fn);
+        let block = b.open_block();
+        let record = b.words_record(&[T.0]);
+        let value = b.emit(Tag::ProviderGet, record, crate::ir::NONE, Ty::I32, N);
+        let root = b.close_block(block, Some(value), Ty::I32, N);
+        let copy = b.finish(root, &[]).map_err(|e| format!("{e:?}"))?;
+        assert!(copyable(&copy));
+        let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
+        let block = b.open_block();
+        // The caller already owns extra records with unrelated numeric words.
+        b.words_record(&[0x8000_0000]);
+        let call = b.call(&item(3), &[], Providers::None, Ty::I32, N);
+        let root = b.close_block(block, Some(call), Ty::I32, N);
+        let mut body = b.finish(root, &[]).map_err(|e| format!("{e:?}"))?;
+        inline_call(&mut body, call.0 as usize, copy)?;
+        let keys: Vec<_> = (0..body.len())
+            .filter(|&i| body.tags[i] == Tag::ProviderGet)
+            .map(|i| body.record(body.data[i][0]))
+            .collect();
+        assert_eq!(keys, [&[T.0][..]]);
+        // The raw verifier precedes ownership and its source-anchor rows.
+        body.anchors.clear();
+        assert_eq!(verify(&body), []);
+        Ok(())
     }
 
     /// `fn f(x: T) -> T { loop { if true { return x } break }; "s" }`:

@@ -5,14 +5,22 @@
   (import "fixture" "rt:ctx_new" (func $rt:ctx_new (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 10 funcref))
-  (func $run (param $ctx i32) (result i32)
+  (func $run (param $ctx i32) (result i32) (local $t0 i32)
     ;; 24 |     $.with(ctx...):
     local.get $ctx
     i32.load $heap offset=24
     local.get $ctx
     i32.load $heap offset=28
     ;; 25 |         read_tag()
-    call $read_tag
+    i32.load $heap
+    call_indirect $table0 (param i32) (result i32 i32)
+    local.set $ctx
+    local.tee $t0
+    if
+      local.get $t0
+      call $rt:release_ref
+    end
+    local.get $ctx
   )
   (func $read_tag (param $provider0 i32) (param $provider0.vtable i32) (result i32)
     ;; 18 |     $.use(Tag).name().len()

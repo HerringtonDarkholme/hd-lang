@@ -28,3 +28,4 @@ fn install(s: string) -> usize:
 >   release app.main.Namer (last use)
     $.with(Namer=f):
         ask()
+>   release string (last use)

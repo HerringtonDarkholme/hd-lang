@@ -6,7 +6,8 @@
 # value); `long` has more than 16 instructions; `first` takes a reference,
 # which a copy would count in a local; `make` creates a closure; `down`
 # calls itself: each of those calls stays a call. `need` has a requirement
-# row, so its call stays a call too.
+# row and explicitly requests `.Never`, so its call stays a call too.
+use std.annotation.inline
 fn half(x: i64) -> i64:
     x / 2
 
@@ -28,6 +29,7 @@ fn make(k: i64) -> fn(i64) -> i64:
 fn down(k: i64) -> i64:
     if k > 0: down(k - 1) else: 0
 
+@inline(.Never)
 fn need(x: i64) -> i64 $ Console:
     x
 

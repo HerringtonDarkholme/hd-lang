@@ -26,3 +26,5 @@ fn make(s: string) -> $.Context[$ Tag]:
 fn run(ctx: $.Context[$ Tag]) -> usize:
     $.with(ctx...):
         read_tag()
+> app/main/run
+>   release string (last use)

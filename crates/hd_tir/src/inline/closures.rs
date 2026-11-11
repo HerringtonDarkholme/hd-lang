@@ -192,7 +192,7 @@ impl Index {
                             }
                         }
                     }
-                    Op::Meta if tag == Tag::ItemRef => {
+                    Op::Meta if matches!(tag, Tag::ItemRef | Tag::ProviderGet) => {
                         if !records.contains_key(word) {
                             budget = budget.checked_sub(body.record(*word).len() + 1)?;
                         }
@@ -1094,6 +1094,36 @@ mod tests {
             assert!(large.0 <= 11 * small.0);
             assert!(large.1 <= 11 * small.1);
         }
+    }
+
+    #[test]
+    fn provider_metadata_copies_stay_linear_in_width_and_source_depth() {
+        let mut costs = Vec::new();
+        for width in [1000, 10000] {
+            let mut body = generated(width, 1, 20);
+            let subs = body.inst_subs();
+            for (i, sub) in subs.into_iter().enumerate() {
+                if sub != 0 && body.tags[i] == Tag::Read {
+                    let at = u32_of(body.extra.len());
+                    body.extra.extend([1, Ty::I32.0]);
+                    body.tags[i] = Tag::ProviderGet;
+                    body.data[i] = [at, NONE];
+                }
+            }
+            measurements::reset();
+            assert_eq!(
+                inline_local_closures(&mut body, 16, &|_, _, _| true),
+                Ok(true)
+            );
+            costs.push(measurements::total());
+            let keys: Vec<_> = (0..body.len())
+                .filter(|&i| body.tags[i] == Tag::ProviderGet)
+                .map(|i| body.record(body.data[i][0]))
+                .collect();
+            assert_eq!(keys.len(), width);
+            assert!(keys.iter().all(|&key| key == [Ty::I32.0]));
+        }
+        assert!(costs[1] <= 11 * costs[0], "{costs:?}");
     }
 
     #[test]

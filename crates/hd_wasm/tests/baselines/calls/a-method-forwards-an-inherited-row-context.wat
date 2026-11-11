@@ -6,7 +6,7 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 10 funcref))
   (func $"impl[$ R] Holder[$ R].call[{open row}]" (param $self i32) (param $n i32) (param $ctx i32) (local $t0 i32) (local $t1 i32)
-    ;; 16 |         (self.job)(n)
+    ;; 19 |         (self.job)(n)
     local.get $self
     i32.load $heap
     local.get $self
