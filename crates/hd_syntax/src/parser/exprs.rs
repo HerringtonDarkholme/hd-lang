@@ -349,7 +349,7 @@ impl Parser<'_> {
         let marker = self.start();
         self.bump(); // if
         self.expr(ctx.header());
-        if self.expect(TokenKind::Colon, "':'") {
+        if self.expect_token(TokenKind::Colon, "':'") {
             self.suite(false, Ctx::Inline);
             loop {
                 let elif = self.at_elif();
@@ -371,14 +371,14 @@ impl Parser<'_> {
                     self.bump(); // else
                 }
                 if !elif && !self.eat(TokenKind::KwIf) {
-                    if self.expect(TokenKind::Colon, "':'") {
+                    if self.expect_token(TokenKind::Colon, "':'") {
                         self.suite(false, Ctx::Inline);
                     }
                     self.complete(clause, SyntaxKind::ElseClause);
                     break;
                 }
                 self.expr(ctx.header());
-                let closed = self.expect(TokenKind::Colon, "':'");
+                let closed = self.expect_token(TokenKind::Colon, "':'");
                 if closed {
                     self.suite(false, Ctx::Inline);
                 }
@@ -395,7 +395,7 @@ impl Parser<'_> {
         if self.at_else() {
             let clause = self.start();
             self.bump();
-            if self.expect(TokenKind::Colon, "':'") {
+            if self.expect_token(TokenKind::Colon, "':'") {
                 self.suite(false, Ctx::Inline);
             }
             self.complete(clause, SyntaxKind::ElseClause);
@@ -406,9 +406,9 @@ impl Parser<'_> {
         let marker = self.start();
         self.bump(); // for
         self.pattern(false);
-        if self.expect(TokenKind::KwIn, "'in'") {
+        if self.expect_token(TokenKind::KwIn, "'in'") {
             self.expr(ctx.header());
-            if self.expect(TokenKind::Colon, "':'") {
+            if self.expect_token(TokenKind::Colon, "':'") {
                 self.suite(false, Ctx::Inline);
                 self.loop_else();
             }
@@ -420,7 +420,7 @@ impl Parser<'_> {
         let marker = self.start();
         self.bump(); // while
         self.expr(ctx.header());
-        if self.expect(TokenKind::Colon, "':'") {
+        if self.expect_token(TokenKind::Colon, "':'") {
             self.suite(false, Ctx::Inline);
             self.loop_else();
         }
@@ -431,7 +431,7 @@ impl Parser<'_> {
         let marker = self.start();
         self.bump(); // match
         self.expr(ctx.header());
-        if self.expect(TokenKind::Colon, "':'") {
+        if self.expect_token(TokenKind::Colon, "':'") {
             match self.cur.open_suite(false) {
                 SuiteKind::Indented => {
                     self.eat_layout(Layout::Newline);
@@ -469,7 +469,7 @@ impl Parser<'_> {
                     self.stray_indent();
                     continue;
                 }
-                _ => {}
+                None => {}
             }
             if self.at_eof() {
                 break;
@@ -500,7 +500,7 @@ impl Parser<'_> {
                 "match patterns do not use '|'; write a separate arm for each pattern",
             );
         }
-        if self.expect(TokenKind::FatArrow, "'=>'") {
+        if self.expect_token(TokenKind::FatArrow, "'=>'") {
             let body = self.start();
             match self.cur.open_arm() {
                 SuiteKind::Indented => {
@@ -535,7 +535,7 @@ impl Parser<'_> {
         if self.at(TokenKind::Dollar) {
             self.requirement_clause();
         }
-        if self.expect(TokenKind::Colon, "':'") {
+        if self.expect_token(TokenKind::Colon, "':'") {
             self.suite(true, Ctx::Inline);
         }
         self.complete(marker, SyntaxKind::ClosureExpr)
@@ -545,7 +545,7 @@ impl Parser<'_> {
     fn context_expr(&mut self) -> Done {
         let marker = self.start();
         self.bump(); // $
-        if !self.expect(TokenKind::Dot, "'.'") {
+        if !self.expect_token(TokenKind::Dot, "'.'") {
             return self.complete(marker, SyntaxKind::ContextExpr);
         }
         let word = self.nth_text(0);
@@ -558,14 +558,14 @@ impl Parser<'_> {
         match word {
             "use" => {
                 // At least one key (`context_use`).
-                if self.expect(TokenKind::LParen, "'('") {
+                if self.expect_token(TokenKind::LParen, "'('") {
                     loop {
                         self.ty_bound_trait(true);
                         if !self.eat(TokenKind::Comma) || self.at(TokenKind::RParen) {
                             break;
                         }
                     }
-                    self.expect(TokenKind::RParen, "')'");
+                    self.expect_token(TokenKind::RParen, "')'");
                 }
             }
             "context" | "with" => {
@@ -574,14 +574,14 @@ impl Parser<'_> {
                 } else {
                     self.expected("'(' after the context operation");
                 }
-                if word == "with" && self.expect(TokenKind::Colon, "':'") {
+                if word == "with" && self.expect_token(TokenKind::Colon, "':'") {
                     self.suite(false, Ctx::Inline);
                 }
             }
             "Context" => {
-                if self.expect(TokenKind::LBracket, "'['") {
+                if self.expect_token(TokenKind::LBracket, "'['") {
                     self.ty_argument();
-                    self.expect(TokenKind::RBracket, "']'");
+                    self.expect_token(TokenKind::RBracket, "']'");
                 }
             }
             _ => self.error_at(Code::SyntaxError, operation, &format!("unknown provider-context operation '$.{word}'; expected 'use', 'context', 'with', or 'Context'")),
@@ -596,7 +596,7 @@ impl Parser<'_> {
             let entry = self.start();
             if self.key_entry_ahead() {
                 self.ty_bound_trait(true);
-                if self.expect(TokenKind::Eq, "'='") {
+                if self.expect_token(TokenKind::Eq, "'='") {
                     self.expr(Ctx::Expr);
                 }
             } else {
@@ -625,7 +625,7 @@ impl Parser<'_> {
                 break;
             }
         }
-        self.expect(TokenKind::RParen, "')'");
+        self.expect_token(TokenKind::RParen, "')'");
         self.complete(list, SyntaxKind::ArgumentList);
     }
 
@@ -950,7 +950,7 @@ impl Parser<'_> {
                     let marker = self.precede(lhs);
                     self.bump();
                     self.expr(Ctx::Expr);
-                    self.expect(TokenKind::RBracket, "']'");
+                    self.expect_token(TokenKind::RBracket, "']'");
                     lhs = self.complete(marker, SyntaxKind::IndexExpr);
                 }
                 TokenKind::Question if same_line => {
@@ -1085,7 +1085,7 @@ impl Parser<'_> {
                 break;
             }
         }
-        self.expect(TokenKind::RBracket, "']'");
+        self.expect_token(TokenKind::RBracket, "']'");
         self.complete(marker, SyntaxKind::TypeArgumentList);
     }
 
@@ -1129,7 +1129,7 @@ impl Parser<'_> {
                 break;
             }
         }
-        self.expect(TokenKind::RParen, "')'");
+        self.expect_token(TokenKind::RParen, "')'");
         self.complete(marker, SyntaxKind::ArgumentList);
     }
 
@@ -1390,7 +1390,7 @@ impl Parser<'_> {
                 "a lone spread in a tuple keeps its trailing comma: write '(xs...,)'",
             );
         }
-        self.expect(TokenKind::RParen, "')'");
+        self.expect_token(TokenKind::RParen, "')'");
         let kind = if count == 1 && !comma {
             SyntaxKind::ParenExpr
         } else {
@@ -1445,10 +1445,10 @@ impl Parser<'_> {
         self.bump(); // [
         if self.at(TokenKind::KwFor) && self.comprehension_ahead() {
             self.comprehension_clauses();
-            if self.expect(TokenKind::FatArrow, "'=>'") {
+            if self.expect_token(TokenKind::FatArrow, "'=>'") {
                 self.expr(Ctx::Expr);
             }
-            self.expect(TokenKind::RBracket, "']'");
+            self.expect_token(TokenKind::RBracket, "']'");
             return self.complete(marker, SyntaxKind::ComprehensionExpr);
         }
         while !self.at(TokenKind::RBracket) && self.current().is_some() {
@@ -1464,7 +1464,7 @@ impl Parser<'_> {
                 break;
             }
         }
-        self.expect(TokenKind::RBracket, "']'");
+        self.expect_token(TokenKind::RBracket, "']'");
         self.complete(marker, SyntaxKind::ListExpr)
     }
 
@@ -1483,21 +1483,21 @@ impl Parser<'_> {
         }
         if self.at(TokenKind::KwFor) {
             self.comprehension_clauses();
-            if self.expect(TokenKind::FatArrow, "'=>'") {
+            if self.expect_token(TokenKind::FatArrow, "'=>'") {
                 let entry = self.start();
                 self.expr(Ctx::Continued);
-                if self.expect(TokenKind::Colon, "':'") {
+                if self.expect_token(TokenKind::Colon, "':'") {
                     self.expr(Ctx::Expr);
                 }
                 self.complete(entry, SyntaxKind::MapEntry);
             }
-            self.expect(TokenKind::RBrace, "'}'");
+            self.expect_token(TokenKind::RBrace, "'}'");
             return self.complete(marker, SyntaxKind::ComprehensionExpr);
         }
         while !self.at(TokenKind::RBrace) && self.current().is_some() {
             let entry = self.start();
             self.expr(Ctx::Continued);
-            if self.expect(TokenKind::Colon, "':'") {
+            if self.expect_token(TokenKind::Colon, "':'") {
                 self.expr(Ctx::Expr);
             }
             self.complete(entry, SyntaxKind::MapEntry);
@@ -1512,7 +1512,7 @@ impl Parser<'_> {
                 break;
             }
         }
-        self.expect(TokenKind::RBrace, "'}'");
+        self.expect_token(TokenKind::RBrace, "'}'");
         self.complete(marker, SyntaxKind::MapExpr)
     }
 
@@ -1543,7 +1543,7 @@ impl Parser<'_> {
                 let clause = self.start();
                 self.bump();
                 self.pattern(false);
-                if self.expect(TokenKind::KwIn, "'in'") {
+                if self.expect_token(TokenKind::KwIn, "'in'") {
                     self.expr(Ctx::Continued);
                 }
                 self.complete(clause, SyntaxKind::ComprehensionFor);
@@ -1595,6 +1595,6 @@ impl Parser<'_> {
                 break;
             }
         }
-        self.expect(TokenKind::RBrace, "'}'");
+        self.expect_token(TokenKind::RBrace, "'}'");
     }
 }

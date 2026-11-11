@@ -233,7 +233,7 @@ impl Parser<'_> {
         // use_root
         if self.at_word("dep") {
             self.bump();
-            if self.expect(TokenKind::Dot, "'.'") {
+            if self.expect_token(TokenKind::Dot, "'.'") {
                 self.expect_name("a dependency name");
             }
         } else if self.at_word("super") {
@@ -308,7 +308,7 @@ impl Parser<'_> {
                 break;
             }
         }
-        self.expect(TokenKind::RBrace, "'}'");
+        self.expect_token(TokenKind::RBrace, "'}'");
         self.complete(marker, SyntaxKind::UseGroup);
     }
 
@@ -451,7 +451,7 @@ impl Parser<'_> {
                 break;
             }
         }
-        self.expect(TokenKind::RBracket, "']'");
+        self.expect_token(TokenKind::RBracket, "']'");
         self.complete(marker, SyntaxKind::GenericParameterList);
     }
 
@@ -528,7 +528,7 @@ impl Parser<'_> {
                 break;
             }
         }
-        self.expect(TokenKind::RParen, "')'");
+        self.expect_token(TokenKind::RParen, "')'");
         self.complete(marker, SyntaxKind::ParameterList);
     }
 
@@ -568,7 +568,7 @@ impl Parser<'_> {
                 } else {
                     self.expect_name("a parameter name");
                     let vararg = self.eat(TokenKind::Ellipsis);
-                    if self.expect(TokenKind::Colon, "':'") {
+                    if self.expect_token(TokenKind::Colon, "':'") {
                         self.ty_parameter();
                     }
                     if self.at(TokenKind::Ellipsis) {
@@ -633,7 +633,7 @@ impl Parser<'_> {
         if self.at(TokenKind::LBracket) {
             self.generic_params(Generics::Type);
         }
-        if self.expect(TokenKind::Colon, "':'") {
+        if self.expect_token(TokenKind::Colon, "':'") {
             self.member_block(true, Self::data_member);
         }
         self.complete(marker, SyntaxKind::StructDecl);
@@ -703,7 +703,7 @@ impl Parser<'_> {
         if self.at(TokenKind::LParen) {
             self.param_list(Params::Enum);
         }
-        if self.expect(TokenKind::Colon, "':'") {
+        if self.expect_token(TokenKind::Colon, "':'") {
             self.member_block(false, Self::enum_variant);
         }
         self.complete(marker, SyntaxKind::EnumDecl);
@@ -791,7 +791,7 @@ impl Parser<'_> {
                             self.stray_indent();
                             continue;
                         }
-                        _ => {}
+                        None => {}
                     }
                     if self.at_eof() {
                         break;
@@ -986,7 +986,7 @@ impl Parser<'_> {
         if self.at(TokenKind::LParen) {
             self.bump();
             self.ty();
-            self.expect(TokenKind::RParen, "')'");
+            self.expect_token(TokenKind::RParen, "')'");
         } else if self.eat(TokenKind::Eq) {
             if decorated {
                 // grammar.annot.alias-no-decorator
@@ -1021,7 +1021,7 @@ impl Parser<'_> {
     fn tests_block(&mut self) {
         let marker = self.start();
         self.bump(); // tests
-        if self.expect(TokenKind::Colon, "':'") {
+        if self.expect_token(TokenKind::Colon, "':'") {
             self.member_block(false, |p| p.item(Place::Tests));
         }
         self.complete(marker, SyntaxKind::TestsBlock);

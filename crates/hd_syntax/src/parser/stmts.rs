@@ -244,7 +244,7 @@ impl Parser<'_> {
         if self.eat(TokenKind::Colon) {
             self.ty();
         }
-        if self.expect(TokenKind::Eq, "'='") {
+        if self.expect_token(TokenKind::Eq, "'='") {
             self.expr(Self::rhs(ctx));
         }
         self.complete(marker, SyntaxKind::UsingStmt);
@@ -274,13 +274,13 @@ impl Parser<'_> {
             self.ty();
             self.infer_types = before;
         }
-        if self.expect(TokenKind::Eq, "'='") {
+        if self.expect_token(TokenKind::Eq, "'='") {
             self.expr(Self::rhs(ctx));
         }
         if ctx != Ctx::Inline && self.at(TokenKind::KwElse) && !self.suite_closed {
             let clause = self.start();
             self.bump();
-            if self.expect(TokenKind::Colon, "':'") {
+            if self.expect_token(TokenKind::Colon, "':'") {
                 self.suite(false, Ctx::Inline);
             }
             self.complete(clause, SyntaxKind::ElseClause);

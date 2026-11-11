@@ -337,7 +337,7 @@ impl<'t> Parser<'t> {
 
     /// Eats `kind`, or reports "expected `what`, found ...". `what` is the
     /// token as written, in quotes.
-    pub(crate) fn expect(&mut self, kind: TokenKind, what: &str) -> bool {
+    pub(crate) fn expect_token(&mut self, kind: TokenKind, what: &str) -> bool {
         if self.eat(kind) {
             return true;
         }
@@ -555,7 +555,7 @@ impl<'t> Parser<'t> {
                 Some(Layout::Dedent) if indents == 0 => break,
                 Some(Layout::Indent) => indents += 1,
                 Some(Layout::Dedent) => indents -= 1,
-                _ => {}
+                Some(Layout::Newline) | None => {}
             }
             if self.at_eof() {
                 break;
@@ -629,7 +629,7 @@ impl<'t> Parser<'t> {
                     self.stray_indent();
                     continue;
                 }
-                _ => {}
+                None => {}
             }
             if self.at_eof() {
                 break;
@@ -696,7 +696,7 @@ impl<'t> Parser<'t> {
                         break;
                     }
                 }
-                _ => {}
+                Some(Layout::Newline) | None => {}
             }
             if self.at_eof() {
                 break;

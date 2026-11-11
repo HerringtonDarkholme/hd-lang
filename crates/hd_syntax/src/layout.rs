@@ -56,12 +56,44 @@ struct Block {
     stray: bool,
 }
 
+/// The open blocks: the file's root block, which never closes, under the
+/// suites opened inside it, innermost last. The root is a field of its
+/// own, so the innermost block always exists.
+struct Blocks {
+    root: Block,
+    nested: Vec<Block>,
+}
+
+impl Blocks {
+    fn top(&self) -> Block {
+        *self.nested.last().unwrap_or(&self.root)
+    }
+
+    fn top_mut(&mut self) -> &mut Block {
+        self.nested.last_mut().unwrap_or(&mut self.root)
+    }
+
+    /// Whether a suite is open above the root.
+    fn has_nested(&self) -> bool {
+        !self.nested.is_empty()
+    }
+
+    fn push(&mut self, b: Block) {
+        self.nested.push(b);
+    }
+
+    /// Closes the innermost suite; the root stays.
+    fn pop(&mut self) {
+        self.nested.pop();
+    }
+}
+
 pub struct LayoutCursor<'t> {
     tokens: &'t TokenBuf,
     source: &'t str,
     pos: usize,
     depth: u16,
-    blocks: Vec<Block>,
+    blocks: Blocks,
     /// Bracket depths of the open same-line suites, innermost last.
     inline: Vec<u16>,
     pending: VecDeque<Layout>,
@@ -80,16 +112,19 @@ impl<'t> LayoutCursor<'t> {
             source,
             pos: 0,
             depth: 0,
-            blocks: vec![Block {
-                indent: 0,
-                depth: 0,
-                header: 0,
-                closure: false,
-                in_brackets: false,
-                logical: 0,
-                piped: false,
-                stray: false,
-            }],
+            blocks: Blocks {
+                root: Block {
+                    indent: 0,
+                    depth: 0,
+                    header: 0,
+                    closure: false,
+                    in_brackets: false,
+                    logical: 0,
+                    piped: false,
+                    stray: false,
+                },
+                nested: Vec::new(),
+            },
             inline: Vec::new(),
             pending: VecDeque::new(),
             prepared: usize::MAX,
@@ -144,10 +179,9 @@ impl<'t> LayoutCursor<'t> {
         } else if kind.closes() {
             self.depth = self.depth.saturating_sub(1);
         }
-        if kind == TokenKind::PipeGt
-            && let Some(block) = self.blocks.last_mut()
-            && block.depth == self.depth
-        {
+        let depth = self.depth;
+        let block = self.blocks.top_mut();
+        if kind == TokenKind::PipeGt && block.depth == depth {
             block.piped = true;
         }
         self.pos += 1;
@@ -164,7 +198,7 @@ impl<'t> LayoutCursor<'t> {
             self.inline.push(self.depth);
             return SuiteKind::SameLine;
         }
-        let block = *self.blocks.last().expect("root block");
+        let block = self.blocks.top();
         let header = self.header_column();
         let need = header.max(block.logical);
         if self.pos >= self.tokens.len() || self.column(self.pos) <= need {
@@ -209,10 +243,7 @@ impl<'t> LayoutCursor<'t> {
     fn force_open(&mut self, header: u16) {
         let closure = self.opening.take().unwrap_or(false);
         let indent = self.column(self.pos);
-        let in_brackets = self
-            .blocks
-            .last()
-            .is_some_and(|parent| self.depth > parent.depth);
+        let in_brackets = self.depth > self.blocks.top().depth;
         self.blocks.push(Block {
             indent,
             depth: self.depth,
@@ -259,7 +290,7 @@ impl<'t> LayoutCursor<'t> {
                 if self.pos > 0 {
                     self.pending.push_back(Layout::Newline);
                 }
-                while self.blocks.len() > 1 {
+                while self.blocks.has_nested() {
                     self.blocks.pop();
                     self.pending.push_back(Layout::Dedent);
                 }
@@ -282,8 +313,8 @@ impl<'t> LayoutCursor<'t> {
     /// `lex.nested.closer`: a closer at a nested suite's depth ends it.
     fn close_nested_at_closer(&mut self) {
         let mut newline = false;
-        while self.blocks.len() > 1 {
-            let block = *self.blocks.last().expect("block");
+        while self.blocks.has_nested() {
+            let block = self.blocks.top();
             if block.depth != self.depth || !block.in_brackets {
                 break;
             }
@@ -314,11 +345,11 @@ impl<'t> LayoutCursor<'t> {
         let column = self.column(self.pos);
         let mut newline = false;
         loop {
-            let block = *self.blocks.last().expect("root block");
+            let block = self.blocks.top();
             if self.depth > block.depth {
                 return;
             }
-            if column >= block.indent || self.blocks.len() == 1 {
+            if column >= block.indent || !self.blocks.has_nested() {
                 if self.continues(kind, column, block) {
                     return;
                 }
@@ -341,7 +372,7 @@ impl<'t> LayoutCursor<'t> {
                     self.pending.push_back(Layout::Indent);
                     return;
                 }
-                let block = self.blocks.last_mut().expect("block");
+                let block = self.blocks.top_mut();
                 block.logical = column;
                 block.piped = false;
                 return;
@@ -387,12 +418,12 @@ impl<'t> LayoutCursor<'t> {
                     ),
                 ));
             }
-            let parent = *self.blocks.last().expect("root block");
+            let parent = self.blocks.top();
             if !nested && parent.depth == self.depth && column > parent.indent {
                 // lex.indent.unknown-column: go on at the parent's level.
                 self.errors
                     .push((Code::InvalidDedent, self.pos, not_active_level(column)));
-                let parent = self.blocks.last_mut().expect("block");
+                let parent = self.blocks.top_mut();
                 parent.logical = column;
                 parent.piped = false;
                 return;

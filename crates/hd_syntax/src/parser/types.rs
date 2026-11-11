@@ -44,7 +44,7 @@ impl Parser<'_> {
         self.ty_bound_trait(true);
         self.opaque_bound = before;
         if self.eat(TokenKind::Amp) {
-            self.expect(TokenKind::Lifetime, "a lifetime after '&'");
+            self.expect_token(TokenKind::Lifetime, "a lifetime after '&'");
         }
         self.complete(marker, SyntaxKind::ImplType)
     }
@@ -194,9 +194,9 @@ impl Parser<'_> {
                     self.expected("'Context' after '$.'");
                 }
                 self.bump();
-                if self.expect(TokenKind::LBracket, "'['") {
+                if self.expect_token(TokenKind::LBracket, "'['") {
                     self.ty_argument();
-                    self.expect(TokenKind::RBracket, "']'");
+                    self.expect_token(TokenKind::RBracket, "']'");
                 }
                 self.complete(marker, SyntaxKind::ContextType)
             }
@@ -266,7 +266,7 @@ impl Parser<'_> {
         let marker = self.start();
         self.bump(); // Fn or FnMut
         self.ty_fn_inputs();
-        if self.expect(TokenKind::Arrow, "'->'") {
+        if self.expect_token(TokenKind::Arrow, "'->'") {
             self.ty_with(false);
         }
         if self.at(TokenKind::Dollar) {
@@ -300,7 +300,7 @@ impl Parser<'_> {
                 break;
             }
         }
-        self.expect(TokenKind::RParen, "')'");
+        self.expect_token(TokenKind::RParen, "')'");
         self.complete(marker, SyntaxKind::TupleType)
     }
 
@@ -356,7 +356,7 @@ impl Parser<'_> {
                 break;
             }
         }
-        self.expect(TokenKind::RBracket, "']'");
+        self.expect_token(TokenKind::RBracket, "']'");
         self.complete(marker, SyntaxKind::TypeArgumentList)
     }
 
@@ -550,7 +550,7 @@ impl Parser<'_> {
                 "a lone rest element keeps its trailing comma: write '(T...,)'",
             );
         }
-        self.expect(TokenKind::RParen, "')'");
+        self.expect_token(TokenKind::RParen, "')'");
         let kind = if count == 1 && !comma {
             SyntaxKind::ParenType
         } else {
@@ -568,7 +568,7 @@ impl Parser<'_> {
         if self.at(TokenKind::Bang) {
             self.bump();
         }
-        if self.expect(TokenKind::LParen, "'('") {
+        if self.expect_token(TokenKind::LParen, "'('") {
             let mut rest_seen = false;
             while !self.at(TokenKind::RParen) && self.current().is_some() {
                 if rest_seen {
@@ -588,9 +588,9 @@ impl Parser<'_> {
                     break;
                 }
             }
-            self.expect(TokenKind::RParen, "')'");
+            self.expect_token(TokenKind::RParen, "')'");
         }
-        if self.expect(TokenKind::Arrow, "'->'") {
+        if self.expect_token(TokenKind::Arrow, "'->'") {
             self.ty_with(rows);
         }
         if rows && self.at(TokenKind::Dollar) {
@@ -630,7 +630,7 @@ impl Parser<'_> {
                     self.ty_bound_trait(true);
                 }
             }
-            self.expect(TokenKind::RParen, "')'");
+            self.expect_token(TokenKind::RParen, "')'");
         } else {
             self.ty_bound_trait(true);
             while self.eat(TokenKind::Plus) {

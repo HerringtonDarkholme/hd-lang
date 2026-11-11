@@ -275,7 +275,7 @@ impl Parser<'_> {
                 break;
             }
         }
-        self.expect(TokenKind::RParen, "')'");
+        self.expect_token(TokenKind::RParen, "')'");
         self.complete(marker, SyntaxKind::PatternArgumentList);
     }
 
@@ -312,7 +312,7 @@ impl Parser<'_> {
                 break;
             }
         }
-        self.expect(TokenKind::RBrace, "'}'");
+        self.expect_token(TokenKind::RBrace, "'}'");
     }
 
     /// `()`, `(p,)`, `(p, q, rest...)`; `(p)` alone is no pattern.
@@ -345,7 +345,7 @@ impl Parser<'_> {
                 "a one-element tuple pattern keeps its trailing comma: write '(p,)'",
             );
         }
-        self.expect(TokenKind::RParen, "')'");
+        self.expect_token(TokenKind::RParen, "')'");
         self.complete(marker, SyntaxKind::TuplePattern)
     }
 }
